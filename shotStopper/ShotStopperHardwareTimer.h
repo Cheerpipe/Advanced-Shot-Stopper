@@ -2,9 +2,12 @@
 
 #include <stdint.h>
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifdef SHOT_STOPPER_HOST_TEST
+#include <mutex>
+#else
 #include <driver/gptimer.h>
 #include <esp_attr.h>
+#include <freertos/FreeRTOS.h>
 
 #if !CONFIG_GPTIMER_ISR_HANDLER_IN_IRAM
 #error "ShotStopper requires the GPTimer ISR handler in IRAM"
@@ -25,10 +28,11 @@ class IndependentSafetyTimer {
   IndependentSafetyTimer &operator=(const IndependentSafetyTimer &) = delete;
 
   bool begin(Callback callback, void *context) {
-    if (callback == nullptr || ready_) {
+    if (callback == nullptr || ready()) {
       return false;
     }
 #ifdef SHOT_STOPPER_HOST_TEST
+    std::lock_guard<std::mutex> lock(stateMutex_);
     if (!hostGptimerCreateSucceeds) {
       return false;
     }
@@ -45,29 +49,42 @@ class IndependentSafetyTimer {
     if (gptimer_new_timer(&config, &timer_) != ESP_OK) {
       return false;
     }
-    callback_ = callback;
-    context_ = context;
     gptimer_event_callbacks_t callbacks = {};
     callbacks.on_alarm = &alarmCallback;
-    if (gptimer_register_event_callbacks(timer_, &callbacks, this) != ESP_OK ||
-        gptimer_enable(timer_) != ESP_OK) {
+    if (gptimer_register_event_callbacks(timer_, &callbacks, this) != ESP_OK) {
       gptimer_del_timer(timer_);
       timer_ = nullptr;
-      callback_ = nullptr;
-      context_ = nullptr;
       return false;
     }
+    portENTER_CRITICAL(&stateMux_);
+    callback_ = callback;
+    context_ = context;
+    portEXIT_CRITICAL(&stateMux_);
+    if (gptimer_enable(timer_) != ESP_OK) {
+      gptimer_del_timer(timer_);
+      timer_ = nullptr;
+      portENTER_CRITICAL(&stateMux_);
+      callback_ = nullptr;
+      context_ = nullptr;
+      portEXIT_CRITICAL(&stateMux_);
+      return false;
+    }
+    portENTER_CRITICAL(&stateMux_);
     ready_ = true;
+    portEXIT_CRITICAL(&stateMux_);
     return true;
 #endif
   }
 
   bool arm(uint32_t timeoutMs) {
-    if (!ready_ || timeoutMs == 0) {
+    if (!ready() || timeoutMs == 0) {
       return false;
     }
-    stop();
+    if (!stop()) {
+      return false;
+    }
 #ifdef SHOT_STOPPER_HOST_TEST
+    std::lock_guard<std::mutex> lock(stateMutex_);
     if (!hostGptimerArmSucceeds) {
       return false;
     }
@@ -78,41 +95,98 @@ class IndependentSafetyTimer {
 #else
     gptimer_alarm_config_t alarm = {};
     alarm.alarm_count = static_cast<uint64_t>(timeoutMs) * 1000ULL;
-    // Publish RUNNING before start. If a very short alarm fires before
-    // gptimer_start() returns, the ISR can clear it and this function must not
-    // overwrite that completed state afterward.
-    running_ = true;
     if (gptimer_set_raw_count(timer_, 0) != ESP_OK ||
-        gptimer_set_alarm_action(timer_, &alarm) != ESP_OK ||
-        gptimer_start(timer_) != ESP_OK) {
+        gptimer_set_alarm_action(timer_, &alarm) != ESP_OK) {
+      return false;
+    }
+
+    // Publish RUNNING before start. A very short alarm may fire before
+    // gptimer_start() returns; the shared stateMux_ lets the ISR clear this
+    // state without a C++ data race and prevents this task from restoring a
+    // completed arm afterward.
+    portENTER_CRITICAL(&stateMux_);
+    running_ = true;
+    portEXIT_CRITICAL(&stateMux_);
+    if (gptimer_start(timer_) != ESP_OK) {
+      portENTER_CRITICAL(&stateMux_);
       running_ = false;
+      portEXIT_CRITICAL(&stateMux_);
       return false;
     }
     return true;
 #endif
   }
 
-  void stop() {
-    if (!running_) {
-      return;
-    }
+  bool stop() {
 #ifdef SHOT_STOPPER_HOST_TEST
+    std::lock_guard<std::mutex> lock(stateMutex_);
     running_ = false;
+    return true;
 #else
-    // A simultaneous alarm can already have moved the driver to the enabled
-    // state. ESP_ERR_INVALID_STATE is therefore harmless here.
-    (void)gptimer_stop(timer_);
+    bool wasRunning;
+    portENTER_CRITICAL(&stateMux_);
+    if (!ready_) {
+      portEXIT_CRITICAL(&stateMux_);
+      return true;
+    }
+    wasRunning = running_;
+    portEXIT_CRITICAL(&stateMux_);
+
+    // A one-shot alarm disables the hardware alarm but leaves the GPTimer
+    // counter running in ESP-IDF 5.5, so always stop the driver even after the
+    // ISR has cleared the logical RUNNING state. INVALID_STATE is benign only
+    // when the ISR had already completed this arm; while logically running it
+    // indicates an unexpected driver transition and must fail the next arm.
+    const esp_err_t result = gptimer_stop(timer_);
+    if (result != ESP_OK &&
+        !(result == ESP_ERR_INVALID_STATE && !wasRunning)) {
+      return false;
+    }
+    portENTER_CRITICAL(&stateMux_);
     running_ = false;
+    portEXIT_CRITICAL(&stateMux_);
+    return true;
 #endif
   }
 
-  bool ready() const { return ready_; }
-  bool running() const { return running_; }
+  bool ready() const {
+#ifdef SHOT_STOPPER_HOST_TEST
+    std::lock_guard<std::mutex> lock(stateMutex_);
+#else
+    portENTER_CRITICAL(&stateMux_);
+#endif
+    const bool value = ready_;
+#ifdef SHOT_STOPPER_HOST_TEST
+    return value;
+#else
+    portEXIT_CRITICAL(&stateMux_);
+    return value;
+#endif
+  }
+
+  bool running() const {
+#ifdef SHOT_STOPPER_HOST_TEST
+    std::lock_guard<std::mutex> lock(stateMutex_);
+#else
+    portENTER_CRITICAL(&stateMux_);
+#endif
+    const bool value = running_;
+#ifdef SHOT_STOPPER_HOST_TEST
+    return value;
+#else
+    portEXIT_CRITICAL(&stateMux_);
+    return value;
+#endif
+  }
 
 #ifdef SHOT_STOPPER_HOST_TEST
   void serviceForHost() {
-    if (!running_ ||
-        static_cast<uint64_t>(millis()) * 1000ULL < dueAtUs_) {
+    serviceForHostAt(static_cast<uint64_t>(millis()) * 1000ULL);
+  }
+
+  void serviceForHostAt(uint64_t nowUs) {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    if (!running_ || nowUs < dueAtUs_) {
       return;
     }
     running_ = false;
@@ -120,6 +194,7 @@ class IndependentSafetyTimer {
   }
 
   void resetForHost() {
+    std::lock_guard<std::mutex> lock(stateMutex_);
     dueAtUs_ = 0;
     callback_ = nullptr;
     context_ = nullptr;
@@ -136,19 +211,27 @@ class IndependentSafetyTimer {
     (void)timer;
     (void)event;
     auto *self = static_cast<IndependentSafetyTimer *>(userContext);
-    self->running_ = false;
-    self->callback_(self->context_);
+    portENTER_CRITICAL_ISR(&self->stateMux_);
+    if (self->running_) {
+      self->running_ = false;
+      // callback_ and context_ are published once by begin() before ready_ and
+      // remain immutable for the timer's enabled lifetime.
+      self->callback_(self->context_);
+    }
+    portEXIT_CRITICAL_ISR(&self->stateMux_);
     return false;
   }
 
   gptimer_handle_t timer_ = nullptr;
+  mutable portMUX_TYPE stateMux_ = portMUX_INITIALIZER_UNLOCKED;
 #else
   uint64_t dueAtUs_ = 0;
+  mutable std::mutex stateMutex_;
 #endif
   Callback callback_ = nullptr;
   void *context_ = nullptr;
-  volatile bool ready_ = false;
-  volatile bool running_ = false;
+  bool ready_ = false;
+  bool running_ = false;
 };
 
 }  // namespace shotstopper

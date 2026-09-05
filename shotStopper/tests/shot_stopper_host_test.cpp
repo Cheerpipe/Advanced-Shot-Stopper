@@ -9145,6 +9145,81 @@ void f03_safety_event_flags_preserve_consumed_requests() {
   CHECK(criticalTaskWatchdogFaulted());
 }
 
+void f04_gptimer_state_serializes_stop_against_expiry() {
+  resetHarness(false, true);
+  IndependentSafetyTimer timer;
+  std::atomic<uint32_t> callbacks{0};
+  CHECK(timer.begin(
+      [](void *context) {
+        static_cast<std::atomic<uint32_t> *>(context)->fetch_add(
+            1U, std::memory_order_relaxed);
+      },
+      &callbacks));
+  CHECK(timer.ready());
+
+  constexpr uint32_t kIterations = 5000;
+  std::atomic<uint32_t> generation{0};
+  std::atomic<uint32_t> workersDone{0};
+  std::atomic<bool> workerFailure{false};
+  bool invariantFailure = false;
+
+  std::thread stopper([&]() {
+    for (uint32_t expected = 1; expected <= kIterations; ++expected) {
+      while (generation.load(std::memory_order_acquire) < expected) {
+        std::this_thread::yield();
+      }
+      if (!timer.stop()) {
+        workerFailure.store(true, std::memory_order_relaxed);
+      }
+      workersDone.fetch_add(1U, std::memory_order_release);
+    }
+  });
+  std::thread expiry([&]() {
+    for (uint32_t expected = 1; expected <= kIterations; ++expected) {
+      while (generation.load(std::memory_order_acquire) < expected) {
+        std::this_thread::yield();
+      }
+      timer.serviceForHostAt(std::numeric_limits<uint64_t>::max());
+      // A delivered hardware event must never dispatch the callback twice.
+      timer.serviceForHostAt(std::numeric_limits<uint64_t>::max());
+      workersDone.fetch_add(1U, std::memory_order_release);
+    }
+  });
+
+  for (uint32_t current = 1; current <= kIterations; ++current) {
+    const uint32_t expectedDone = (current - 1U) * 2U;
+    while (workersDone.load(std::memory_order_acquire) < expectedDone) {
+      std::this_thread::yield();
+    }
+    const uint32_t before = callbacks.load(std::memory_order_relaxed);
+    if (!timer.arm(1)) {
+      invariantFailure = true;
+    }
+    generation.store(current, std::memory_order_release);
+    while (workersDone.load(std::memory_order_acquire) < current * 2U) {
+      std::this_thread::yield();
+    }
+    const uint32_t after = callbacks.load(std::memory_order_relaxed);
+    if ((after != before && after != before + 1U) || timer.running()) {
+      invariantFailure = true;
+    }
+  }
+
+  stopper.join();
+  expiry.join();
+  CHECK(!workerFailure.load(std::memory_order_relaxed));
+  CHECK(!invariantFailure);
+
+  // Without a competing stop, every arm expires exactly once.
+  for (uint32_t i = 0; i < 100; ++i) {
+    const uint32_t before = callbacks.load(std::memory_order_relaxed);
+    CHECK(timer.arm(1));
+    timer.serviceForHostAt(std::numeric_limits<uint64_t>::max());
+    timer.serviceForHostAt(std::numeric_limits<uint64_t>::max());
+    CHECK(callbacks.load(std::memory_order_relaxed) == before + 1U);
+  }
+}
+
 void m12_ble_companion_result_drop_is_counted() {
   resetHarness(false, true);
   BleCompanionResult dummy = {};
@@ -11743,6 +11818,7 @@ const TestCase testCases[] = {
     {"M08", m08_recipe_copies_match_published_state},
     {"M09", m09_snapshot_mutexes_preserve_concurrent_invariants},
     {"F03", f03_safety_event_flags_preserve_consumed_requests},
+    {"F04", f04_gptimer_state_serializes_stop_against_expiry},
     {"M12", m12_ble_companion_result_drop_is_counted},
     {"S04b", s04b_shot_log_page_slice},
     {"S04f", s04f_shot_log_sort_date_and_rating},

@@ -76,6 +76,7 @@ scan_firmware_sources() {
   -o "$tsan_binary"
 TSAN_OPTIONS=halt_on_error=1 "$tsan_binary" M09
 TSAN_OPTIONS=halt_on_error=1 "$tsan_binary" F03
+TSAN_OPTIONS=halt_on_error=1 "$tsan_binary" F04
 
 momentary_binary=${TMPDIR:-/tmp}/shot_stopper_momentary_host_test
 for machine_type in 1 2; do

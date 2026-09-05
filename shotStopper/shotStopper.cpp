@@ -542,7 +542,11 @@ ShotStopperNetwork networkManager;
 // normal control loop is delayed or unavailable.
 esp_timer_handle_t relaySafetyTimer = nullptr;
 esp_timer_handle_t operationalLimitTimer = nullptr;
+#ifndef SHOT_STOPPER_HOST_TEST
+DRAM_ATTR IndependentSafetyTimer independentSafetyTimer;
+#else
 IndependentSafetyTimer independentSafetyTimer;
+#endif
 portMUX_TYPE relayMux = portMUX_INITIALIZER_UNLOCKED;
 bool circuitClosed = false;
 bool relaySafetyTripped = false;
