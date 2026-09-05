@@ -109,7 +109,7 @@ void resetHarness() {
   relaySafetyTimersReady = false;
   taskWatchdogReady = configureTaskWatchdog() &&
                       subscribeCurrentTaskToWatchdog();
-  criticalTaskWatchdogFault = false;
+  safetyEventFlags.clear(SAFETY_EVENT_CRITICAL_TASK_WATCHDOG);
   platformClockReady = true;
   persistenceReady = true;
   setScaleWorkerBleReadyForHost(true);

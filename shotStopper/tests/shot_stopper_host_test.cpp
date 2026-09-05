@@ -88,7 +88,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   hostTaskWatchdogSubscriptions = 0;
   hostTaskWatchdogFeeds = 0;
   hostTaskYieldCalls = 0;
-  taskWatchdogRestoreFailed = false;
+  safetyEventFlags.clear(SAFETY_EVENT_ALL);
   hostCpuFrequencySetSucceeds = true;
   EEPROM.beginSucceeds = true;
   BLE.beginSucceeds = true;
@@ -283,14 +283,12 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   relaySafetyTimersReady = false;
   taskWatchdogReady = configureTaskWatchdog() &&
                       subscribeCurrentTaskToWatchdog();
-  criticalTaskWatchdogFault = false;
   feedbackTransitionPending = false;
   feedbackExpectedClosed = false;
   feedbackTransitionStartedAtMs = 0;
   feedbackTransitionStampPending = false;
   safetyHeartbeatLevel = false;
   safetyHeartbeatToggledAtMs = 0;
-  safeRestartRequested = false;
   platformClockReady = true;
   persistenceReady = true;
   setScaleWorkerBleReadyForHost(true);
@@ -1751,7 +1749,7 @@ void r18_watchdog_fault_opens_circuit_and_requests_safe_restart() {
   CHECK(!relay.closed);
   CHECK(relay.state == RelaySafetyState::LOCKOUT);
   CHECK(relay.fault == RelaySafetyFault::TASK_WATCHDOG_FAILURE);
-  CHECK(safeRestartRequested);
+  CHECK(safeRestartPending());
   CHECK(hostPinLevel[RELAY_GPIO] == RELAY_OPEN_LEVEL);
 }
 
@@ -1764,12 +1762,12 @@ void r18b_ota_watchdog_restore_failure_requests_safe_restart() {
     CHECK(window.widened());
     hostTaskWatchdogOperationsSucceed = false;
   }
-  CHECK(taskWatchdogRestoreFailed);
+  CHECK(taskWatchdogRestoreFailurePending());
   runLoopAfter(0);
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
   CHECK(!relay.closed);
   CHECK(relay.fault == RelaySafetyFault::TASK_WATCHDOG_FAILURE);
-  CHECK(!taskWatchdogRestoreFailed);
+  CHECK(!taskWatchdogRestoreFailurePending());
 }
 
 void r19_reset_during_close_reopens_without_recovery_lockout() {
@@ -2465,15 +2463,15 @@ void w20b_planned_esp_restart_waits_for_shot() {
   startCycle();
   CHECK(session.active);
   CHECK(getRelaySafetySnapshot().closed);
-  safeRestartRequested = true;
+  requestSafeRestart();
   loop();
   CHECK(session.active);
-  CHECK(safeRestartRequested);
+  CHECK(safeRestartPending());
   CHECK(getRelaySafetySnapshot().closed);
 
-  criticalTaskWatchdogFault = true;
+  reportTaskWatchdogFault();
   loop();
-  CHECK(!safeRestartRequested);
+  CHECK(!safeRestartPending());
   CHECK(!getRelaySafetySnapshot().closed);
 }
 
@@ -9084,6 +9082,69 @@ void m09_snapshot_mutexes_preserve_concurrent_invariants() {
   CHECK(!status.snapshotStale);
 }
 
+void f03_safety_event_flags_preserve_consumed_requests() {
+  resetHarness(false, true);
+  constexpr uint32_t kIterations = 5000;
+
+  auto exerciseConsumedSignal = [](auto publish, auto pending, auto consume) {
+    std::atomic<bool> start{false};
+    uint32_t consumed = 0;
+
+    std::thread producer([&]() {
+      while (!start.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
+      for (uint32_t i = 0; i < kIterations; ++i) {
+        while (pending()) {
+          std::this_thread::yield();
+        }
+        publish();
+      }
+    });
+    std::thread consumer([&]() {
+      start.store(true, std::memory_order_release);
+      while (consumed < kIterations) {
+        if (consume()) {
+          ++consumed;
+        } else {
+          std::this_thread::yield();
+        }
+      }
+    });
+
+    producer.join();
+    consumer.join();
+    return consumed;
+  };
+
+  CHECK(exerciseConsumedSignal(
+            []() { requestSafeRestart(); },
+            []() { return safeRestartPending(); },
+            []() { return consumeSafeRestartRequest(); }) == kIterations);
+  CHECK(exerciseConsumedSignal(
+            []() { reportTaskWatchdogRestoreFailure(); },
+            []() { return taskWatchdogRestoreFailurePending(); },
+            []() { return consumeTaskWatchdogRestoreFailure(); }) ==
+        kIterations);
+
+  safetyEventFlags.clear(SAFETY_EVENT_CRITICAL_TASK_WATCHDOG);
+  std::atomic<bool> startFaultWriters{false};
+  auto faultWriter = [&]() {
+    while (!startFaultWriters.load(std::memory_order_acquire)) {
+      std::this_thread::yield();
+    }
+    for (uint32_t i = 0; i < kIterations; ++i) {
+      reportTaskWatchdogFault();
+    }
+  };
+  std::thread firstFaultWriter(faultWriter);
+  std::thread secondFaultWriter(faultWriter);
+  startFaultWriters.store(true, std::memory_order_release);
+  firstFaultWriter.join();
+  secondFaultWriter.join();
+  CHECK(criticalTaskWatchdogFaulted());
+}
+
 void m12_ble_companion_result_drop_is_counted() {
   resetHarness(false, true);
   BleCompanionResult dummy = {};
@@ -9434,26 +9495,26 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   setScaleWorkerStackMinWordsForHost(HEALTH_STACK_MIN_CLEAR_WORDS);
   serviceHealthThresholdAlerts(0);
   CHECK(healthHeapAlertLatched);
-  CHECK(!safeRestartRequested);
+  CHECK(!safeRestartPending());
   CHECK(!debugEventExists(DebugCode::HEALTH_HEAP_RESTART));
 
   hostMillis += HEALTH_HEAP_LOW_RESTART_MS - 1;
   serviceHealthThresholdAlerts(0);
-  CHECK(!safeRestartRequested);
+  CHECK(!safeRestartPending());
 
   hostMillis += 1;
   serviceHealthThresholdAlerts(0);
-  CHECK(safeRestartRequested);
+  CHECK(safeRestartPending());
   CHECK(debugEventExists(DebugCode::HEALTH_HEAP_RESTART,
                          static_cast<int32_t>(freeHeapBytes),
                          static_cast<int32_t>(largestFreeHeapBlockBytes)));
   CHECK(healthHeapRestartLatched);
 
-  safeRestartRequested = false;
+  safetyEventFlags.clear(SAFETY_EVENT_SAFE_RESTART);
   debugLog.clear();
   serviceHealthThresholdAlerts(0);
   CHECK(!debugEventExists(DebugCode::HEALTH_HEAP_RESTART));
-  CHECK(!safeRestartRequested);
+  CHECK(!safeRestartPending());
 
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -9470,7 +9531,7 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   CHECK(!healthHeapAlertLatched);
   hostMillis += HEALTH_HEAP_LOW_RESTART_MS;
   serviceHealthThresholdAlerts(0);
-  CHECK(!safeRestartRequested);
+  CHECK(!safeRestartPending());
 
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -9484,7 +9545,7 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   hostMillis += HEALTH_HEAP_LOW_RESTART_MS;
   serviceHealthThresholdAlerts(0);
   CHECK(healthHeapAlertLatched);
-  CHECK(!safeRestartRequested);
+  CHECK(!safeRestartPending());
   CHECK(!debugEventExists(DebugCode::HEALTH_HEAP_RESTART));
 
   resetHarness(false, true);
@@ -9497,7 +9558,7 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   serviceHealthThresholdAlerts(0);
   hostMillis += HEALTH_HEAP_LOW_RESTART_MS;
   serviceHealthThresholdAlerts(0);
-  CHECK(!safeRestartRequested);
+  CHECK(!safeRestartPending());
   CHECK(!debugEventExists(DebugCode::HEALTH_HEAP_RESTART));
 }
 
@@ -11681,6 +11742,7 @@ const TestCase testCases[] = {
     {"B04", b04_usb_console_starts_when_jumper_held},
     {"M08", m08_recipe_copies_match_published_state},
     {"M09", m09_snapshot_mutexes_preserve_concurrent_invariants},
+    {"F03", f03_safety_event_flags_preserve_consumed_requests},
     {"M12", m12_ble_companion_result_drop_is_counted},
     {"S04b", s04b_shot_log_page_slice},
     {"S04f", s04f_shot_log_sort_date_and_rating},

@@ -59,14 +59,14 @@ void resetSafety() {
   relaySafetyState = RelaySafetyState::OPEN;
   relaySafetyFault = RelaySafetyFault::NONE;
   relaySafetyGeneration = 0;
-  criticalTaskWatchdogFault = false;
+  safetyEventFlags.clear(SAFETY_EVENT_CRITICAL_TASK_WATCHDOG);
   feedbackTransitionPending = false;
   feedbackExpectedClosed = false;
   feedbackTransitionStartedAtMs = 0;
   feedbackTransitionStampPending = false;
   safetyHeartbeatLevel = false;
   safetyHeartbeatToggledAtMs = 0;
-  safeRestartRequested = false;
+  safetyEventFlags.clear(SAFETY_EVENT_SAFE_RESTART);
   platformClockReady = true;
   safetyResetStatus = SafetyResetSnapshot{};
 

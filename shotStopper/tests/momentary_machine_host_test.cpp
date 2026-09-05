@@ -97,7 +97,7 @@ void resetMomentaryHarness() {
   relaySafetyState = RelaySafetyState::OPEN;
   relaySafetyFault = RelaySafetyFault::NONE;
   relaySafetyGeneration = 0;
-  criticalTaskWatchdogFault = false;
+  safetyEventFlags.clear(SAFETY_EVENT_CRITICAL_TASK_WATCHDOG);
   activatorOn = false;
   rawActivatorOn = false;
   activatorTurnedOn = false;

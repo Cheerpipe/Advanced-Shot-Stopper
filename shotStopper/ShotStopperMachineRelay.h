@@ -257,10 +257,13 @@ bool setMachineCircuitClosed(bool closed,
                     static_cast<int32_t>(CircuitArmFailReason::SAFETY_LOCKOUT));
       return false;
     }
-    if (!platformClockReady || !relaySafetyTimersReady || !taskWatchdogReady ||
+    const bool watchdogUnavailable =
+        !taskWatchdogReady || criticalTaskWatchdogFaulted();
+    if (!platformClockReady || !relaySafetyTimersReady ||
+        watchdogUnavailable ||
         relaySafetyTimer == nullptr || operationalLimitTimer == nullptr ||
-        !independentSafetyTimer.ready() || criticalTaskWatchdogFault) {
-      tripRelaySafety(!taskWatchdogReady || criticalTaskWatchdogFault
+        !independentSafetyTimer.ready()) {
+      tripRelaySafety(watchdogUnavailable
                           ? RelaySafetyFault::WATCHDOG_UNAVAILABLE
                           : RelaySafetyFault::INITIALIZATION_FAILED);
       addDebugEvent(
@@ -411,9 +414,9 @@ bool consumeOperationalLimitTrip() {
 }
 
 void serviceRelaySafety() {
-  if (criticalTaskWatchdogFault) {
+  if (criticalTaskWatchdogFaulted()) {
     tripRelaySafety(RelaySafetyFault::TASK_WATCHDOG_FAILURE);
-    safeRestartRequested = true;
+    requestSafeRestart();
     return;
   }
 
@@ -486,7 +489,7 @@ void serviceSafetyHeartbeat(bool healthyLoopCompleted) {
   }
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
   const bool healthy = healthyLoopCompleted && relay.watchdogReady &&
-                       relay.timersReady && !criticalTaskWatchdogFault &&
+                       relay.timersReady && !criticalTaskWatchdogFaulted() &&
                        relay.state != RelaySafetyState::LOCKOUT &&
                        relay.state != RelaySafetyState::TRIPPED;
   if (!healthy) {

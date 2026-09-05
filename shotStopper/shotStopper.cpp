@@ -563,14 +563,12 @@ RelaySafetyFault relaySafetyFault = RelaySafetyFault::NONE;
 uint32_t relaySafetyGeneration = 0;
 bool relaySafetyTimersReady = false;
 bool taskWatchdogReady = false;
-volatile bool criticalTaskWatchdogFault = false;
 volatile bool feedbackTransitionPending = false;
 volatile bool feedbackExpectedClosed = false;
 volatile uint32_t feedbackTransitionStartedAtMs = 0;
 volatile bool feedbackTransitionStampPending = false;
 bool safetyHeartbeatLevel = false;
 uint32_t safetyHeartbeatToggledAtMs = 0;
-volatile bool safeRestartRequested = false;
 uint32_t bootStartedAtMs = 0;
 SafetyResetSnapshot safetyResetStatus;
 UsbSerialEnableSource usbSerialEnableSource = UsbSerialEnableSource::OFF;
@@ -956,7 +954,11 @@ void copyControlGate(ControlGateSnapshot &output) {
 
 
 void reportTaskWatchdogFault() {
-  criticalTaskWatchdogFault = true;
+  safetyEventFlags.set(SAFETY_EVENT_CRITICAL_TASK_WATCHDOG);
+}
+
+bool criticalTaskWatchdogFaulted() {
+  return safetyEventFlags.isSet(SAFETY_EVENT_CRITICAL_TASK_WATCHDOG);
 }
 
 void feedOrTripCurrentTaskWatchdog() {
@@ -966,7 +968,15 @@ void feedOrTripCurrentTaskWatchdog() {
 }
 
 void requestSafeRestart() {
-  safeRestartRequested = true;
+  safetyEventFlags.set(SAFETY_EVENT_SAFE_RESTART);
+}
+
+bool safeRestartPending() {
+  return safetyEventFlags.isSet(SAFETY_EVENT_SAFE_RESTART);
+}
+
+bool consumeSafeRestartRequest() {
+  return safetyEventFlags.consume(SAFETY_EVENT_SAFE_RESTART);
 }
 
 #ifndef SHOT_STOPPER_HOST_TEST
@@ -6430,7 +6440,7 @@ void serviceHealthThresholdAlerts(uint32_t intervalMaxGapMs) {
       addDebugEvent(DebugCategory::SYSTEM, DebugCode::HEALTH_HEAP_RESTART,
                     static_cast<int32_t>(freeHeapBytes),
                     static_cast<int32_t>(largestFreeHeapBlockBytes));
-      safeRestartRequested = true;
+      requestSafeRestart();
     }
   } else if (heapClear) {
     healthHeapAlertLatched = false;
@@ -6496,15 +6506,14 @@ void loop() {
   // heartbeat, packet, timer and connection operation. Restart before heap
   // walks: a failed Wi-Fi stop can leave TLSF unwalkable.
   serviceRelaySafety();
-  if (taskWatchdogRestoreFailed) {
-    taskWatchdogRestoreFailed = false;
+  if (consumeTaskWatchdogRestoreFailure()) {
     reportTaskWatchdogFault();
     tripRelaySafety(RelaySafetyFault::TASK_WATCHDOG_FAILURE);
-    safeRestartRequested = true;
+    requestSafeRestart();
   }
-  if (safeRestartRequested) {
+  if (safeRestartPending()) {
     const bool faultRestart =
-        criticalTaskWatchdogFault || taskWatchdogRestoreFailed;
+        criticalTaskWatchdogFaulted() || taskWatchdogRestoreFailurePending();
     if (faultRestart ||
         (!session.active && !getRelaySafetySnapshot().closed)) {
       machineRequestStop();
@@ -6513,7 +6522,7 @@ void loop() {
       recordResetUptime(millis(), true);
       ESP.restart();
 #else
-      safeRestartRequested = false;
+      (void)consumeSafeRestartRequest();
 #endif
       return;
     }
@@ -6587,7 +6596,7 @@ void loop() {
   if (!feedCurrentTaskWatchdog()) {
     reportTaskWatchdogFault();
     tripRelaySafety(RelaySafetyFault::TASK_WATCHDOG_FAILURE);
-    safeRestartRequested = true;
+    requestSafeRestart();
     serviceSafetyHeartbeat(false);
     return;
   }

@@ -2,9 +2,12 @@
 
 #include <stdint.h>
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifdef SHOT_STOPPER_HOST_TEST
+#include <atomic>
+#else
 #include <esp_task_wdt.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/event_groups.h>
 #include <freertos/task.h>
 
 #if !CONFIG_ESP_TASK_WDT_EN
@@ -32,6 +35,66 @@ constexpr uint32_t TASK_WATCHDOG_TIMEOUT_MS = 5000;
 // touches, and OTA only runs with the relay already open.
 constexpr uint32_t TASK_WATCHDOG_OTA_TIMEOUT_MS = 30000;
 
+constexpr uint32_t SAFETY_EVENT_CRITICAL_TASK_WATCHDOG = 1U << 0;
+constexpr uint32_t SAFETY_EVENT_SAFE_RESTART = 1U << 1;
+constexpr uint32_t SAFETY_EVENT_TASK_WATCHDOG_RESTORE = 1U << 2;
+constexpr uint32_t SAFETY_EVENT_ALL =
+    SAFETY_EVENT_CRITICAL_TASK_WATCHDOG | SAFETY_EVENT_SAFE_RESTART |
+    SAFETY_EVENT_TASK_WATCHDOG_RESTORE;
+
+// ESP-IDF disables C++ hardware atomics for this Xtensa target. A statically
+// allocated event group gives task/callback producers and the control task a
+// FreeRTOS synchronization primitive without heap allocation or ISR usage.
+class SafetyEventFlags {
+ public:
+  SafetyEventFlags() {
+#ifndef SHOT_STOPPER_HOST_TEST
+    handle_ = xEventGroupCreateStatic(&storage_);
+    configASSERT(handle_ != nullptr);
+#endif
+  }
+
+  void set(uint32_t bits) {
+#ifdef SHOT_STOPPER_HOST_TEST
+    bits_.fetch_or(bits, std::memory_order_release);
+#else
+    (void)xEventGroupSetBits(handle_, static_cast<EventBits_t>(bits));
+#endif
+  }
+
+  bool isSet(uint32_t bits) const {
+#ifdef SHOT_STOPPER_HOST_TEST
+    return (bits_.load(std::memory_order_acquire) & bits) != 0U;
+#else
+    return (xEventGroupGetBits(handle_) & static_cast<EventBits_t>(bits)) !=
+           0U;
+#endif
+  }
+
+  bool consume(uint32_t bits) {
+#ifdef SHOT_STOPPER_HOST_TEST
+    return (bits_.fetch_and(~bits, std::memory_order_acq_rel) & bits) != 0U;
+#else
+    return (xEventGroupClearBits(handle_, static_cast<EventBits_t>(bits)) &
+            static_cast<EventBits_t>(bits)) != 0U;
+#endif
+  }
+
+  void clear(uint32_t bits) { (void)consume(bits); }
+
+ private:
+#ifdef SHOT_STOPPER_HOST_TEST
+  std::atomic<uint32_t> bits_{0U};
+  static_assert(std::atomic<uint32_t>::is_always_lock_free,
+                "Host safety event model must remain lock-free");
+#else
+  StaticEventGroup_t storage_ = {};
+  EventGroupHandle_t handle_ = nullptr;
+#endif
+};
+
+inline SafetyEventFlags safetyEventFlags;
+
 inline bool applyTaskWatchdogTimeout(uint32_t timeoutMs) {
 #ifdef SHOT_STOPPER_HOST_TEST
   (void)timeoutMs;
@@ -56,8 +119,19 @@ inline bool configureTaskWatchdog() {
 }
 
 // Set when an OTA window widened the TWDT but could not restore 5 s. The
-// control loop trips machine circuit and requests a safe restart so 30 s never sticks.
-inline volatile bool taskWatchdogRestoreFailed = false;
+// control loop trips machine circuit and requests a safe restart so 30 s never
+// sticks.
+inline void reportTaskWatchdogRestoreFailure() {
+  safetyEventFlags.set(SAFETY_EVENT_TASK_WATCHDOG_RESTORE);
+}
+
+inline bool taskWatchdogRestoreFailurePending() {
+  return safetyEventFlags.isSet(SAFETY_EVENT_TASK_WATCHDOG_RESTORE);
+}
+
+inline bool consumeTaskWatchdogRestoreFailure() {
+  return safetyEventFlags.consume(SAFETY_EVENT_TASK_WATCHDOG_RESTORE);
+}
 
 // Widens the task watchdog for the duration of a scope and always restores the
 // production timeout, including on every early return from an OTA transfer.
@@ -70,7 +144,7 @@ class TaskWatchdogOtaWindow {
       return;
     }
     if (!applyTaskWatchdogTimeout(TASK_WATCHDOG_TIMEOUT_MS)) {
-      taskWatchdogRestoreFailed = true;
+      reportTaskWatchdogRestoreFailure();
     }
   }
   TaskWatchdogOtaWindow(const TaskWatchdogOtaWindow &) = delete;
@@ -107,4 +181,3 @@ inline bool feedCurrentTaskWatchdog() {
 }
 
 }  // namespace shotstopper
-

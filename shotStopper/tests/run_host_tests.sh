@@ -8,7 +8,7 @@ repo_root=$(CDPATH= cd -- "$test_dir/../.." && pwd)
 "$repo_root/scripts/gen_version.sh"
 test_binary=${TMPDIR:-/tmp}/shot_stopper_host_test
 sanitized_binary=${TMPDIR:-/tmp}/shot_stopper_host_test_sanitized
-tsan_binary=${TMPDIR:-/tmp}/shot_stopper_f02_tsan
+tsan_binary=${TMPDIR:-/tmp}/shot_stopper_concurrency_tsan
 persistence_binary=${TMPDIR:-/tmp}/shot_stopper_persistence_host_test
 persistence_sanitized=${TMPDIR:-/tmp}/shot_stopper_persistence_host_test_sanitized
 external_safety_binary=${TMPDIR:-/tmp}/shot_stopper_external_safety_host_test
@@ -75,6 +75,7 @@ scan_firmware_sources() {
   "$test_dir/shot_stopper_host_test.cpp" \
   -o "$tsan_binary"
 TSAN_OPTIONS=halt_on_error=1 "$tsan_binary" M09
+TSAN_OPTIONS=halt_on_error=1 "$tsan_binary" F03
 
 momentary_binary=${TMPDIR:-/tmp}/shot_stopper_momentary_host_test
 for machine_type in 1 2; do
