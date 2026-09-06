@@ -95,6 +95,7 @@ enum class OtaResult : uint8_t {
 
 constexpr size_t OTA_TRANSFER_ID_CAPACITY = 65;
 constexpr size_t OTA_SHA256_HEX_CAPACITY = 65;
+constexpr uint16_t OTA_PROTOCOL_VERSION = 2;
 constexpr uint32_t OTA_TRANSFER_CHUNK_BYTES = 64U * 1024U;
 // Journal at most twice per MiB. A 3 MiB image therefore performs at most
 // six durable writes (the empty record plus five progress checkpoints), not

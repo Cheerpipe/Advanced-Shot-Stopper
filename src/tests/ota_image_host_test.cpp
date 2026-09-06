@@ -3,6 +3,7 @@
 #include "../ShotStopperOta.h"
 #include "../ShotStopperOtaImage.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -330,6 +331,25 @@ void testScannerBoundsReplaysOnAdversarialCandidates() {
   CHECK(tag.packed == 50397188U);
 }
 
+void testScannerFindsIdentityPastLegacyWebLimit() {
+  constexpr size_t tagOffset = 270344;
+  std::vector<uint8_t> image(tagOffset, 0x5a);
+  const std::vector<uint8_t> tag =
+      bytesOf(makeTag("n16r8", "1.2.3+abcdef0", "16909056"));
+  image.insert(image.end(), tag.begin(), tag.end());
+  OtaImageTagScanner scanner;
+  for (size_t offset = 0; offset < image.size(); offset += 65536) {
+    const size_t length =
+        std::min<size_t>(65536, image.size() - offset);
+    scanner.feed(image.data() + offset, length);
+  }
+  CHECK(scanner.found());
+  CHECK(scanner.tagOffset() == tagOffset);
+  CHECK(std::string(scanner.tag().arch) == "n16r8");
+  CHECK(std::string(scanner.tag().version) == "1.2.3+abcdef0");
+  CHECK(scanner.tag().packed == 16909056U);
+}
+
 void testPendingVerifyKeepRunningWhenRollbackImpossible() {
   CHECK(decideOtaPendingVerify(true, false, false, kConfirmDeadlineMs,
                                kConfirmMinMs, kConfirmDeadlineMs, false) ==
@@ -456,6 +476,7 @@ int main() {
   testScannerIgnoresOversizedCandidate();
   testScannerFindsTagAfterUnparseableCandidate();
   testScannerBoundsReplaysOnAdversarialCandidates();
+  testScannerFindsIdentityPastLegacyWebLimit();
   testPendingVerifyKeepRunningWhenRollbackImpossible();
   testPendingVerifyRejectWhenRollbackPossible();
   testPendingVerifyConfirmAfterHttpUptime();

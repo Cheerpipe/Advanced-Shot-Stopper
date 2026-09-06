@@ -1,5 +1,8 @@
 # OTA
 
+Image format and cross-client parser rules:
+[OTA image identity contract](ota-image-identity.md).
+
 Firmware can be updated over Wi-Fi without opening the case or using USB.
 Upload a built image with the project scripts while the controller is on
 your network.
@@ -66,14 +69,27 @@ script prompts. The password is never saved by the scripts.
 The CLI computes the image SHA-256 before the transfer, creates a named OTA
 session, and sends 64 KiB ranges. If Wi-Fi drops, it queries the confirmed
 offset and repeats only the unconfirmed range; it never resends the complete
-image. The device keeps a checksummed, double-record journal so an interrupted
-transfer can continue after a restart when its SHA-256, size, architecture,
-version, and transfer ID still match. A different build must start a new
-session after explicitly discarding the previous one.
+image. A later CLI invocation queries the controller first and adopts its
+`transferId` when SHA-256, size, architecture, and version match. The device
+keeps a checksummed, double-record journal so the same transfer can continue
+after a client or controller restart. A different build is left untouched and
+must be discarded explicitly with `--discard-ota-session` before a new session
+can begin.
+
+Session failures report the transport result, HTTP status, stable server error
+code, and safe message. A controller with the immediately preceding resumable
+schema can receive this upgrade. A controller that only exposes the older
+single-POST protocol requires one USB update; the CLI never falls back to that
+protocol silently.
 
 `--no-check` is intentionally unavailable for resumable OTA because an image
 without a verified SHA-256, architecture, and version cannot be safely matched
 to a staged slot or committed.
+
+The Web UI reads and hashes the image incrementally. It scans the whole file
+for the identity (the linker may place it at any offset), validates the ESP32-S3
+header and appended image checksum, and then resumes only a matching remote
+session. Selecting a different file never discards the existing session.
 
 Build and upload in one command:
 
@@ -119,3 +135,17 @@ CLI reference: [Build scripts](../SCRIPTS.md).
 
 Related: [Wi-Fi](../settings/wifi.md), [AP](../settings/ap.md),
 [Emergency recovery](../EMERGENCY_RECOVERY.md).
+
+## Session-start troubleshooting
+
+1. Read the reported HTTP status, `error`, and `message`; do not retry blindly.
+2. For `PENDING_VERIFY`, leave the controller idle until the running image is
+   confirmed, then retry.
+3. For `CONFIG_LOCKED_DURING_ACTIVE_CYCLE`, stop the cycle and wait for Ready.
+4. For a matching partial image, select the same file or run the same CLI
+   command; it resumes automatically from `nextOffset`.
+5. For a different partial image, preserve it unless it is intentionally being
+   replaced. Use **Discard** in Admin or `--discard-ota-session` explicitly.
+6. For `NO_IDENTITY` or a controller without the resumable session schema,
+   install one current image over USB. Do not use `--no-check` or a legacy OTA
+   fallback to bypass the incompatibility.

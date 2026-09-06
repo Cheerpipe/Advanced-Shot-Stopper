@@ -14,6 +14,7 @@ const sourcePath = path.join(repoRoot, 'src', 'ShotStopperWebAssets.h');
 const jsDir = path.join(repoRoot, 'src', 'web', 'js');
 const htmlDir = path.join(repoRoot, 'src', 'web', 'html');
 const appJsPath = path.join(repoRoot, 'src', 'web', 'app.js');
+const otaImageJsPath = path.join(jsDir, 'ota-image.js');
 const cssSourcePath = path.join(repoRoot, 'src', 'web', 'app.css');
 const versionPath = path.join(repoRoot, 'src', 'ShotStopperVersion.h');
 const outputPath =
@@ -188,6 +189,7 @@ async function generate() {
 
   const appJsRaw = fs.readFileSync(appJsPath, 'utf8');
   const runtimeRaw = fs.readFileSync(path.join(jsDir, 'runtime.js'), 'utf8');
+  const otaImageRaw = fs.readFileSync(otaImageJsPath, 'utf8');
   const viewJsRaw = {};
   for (const name of VIEW_NAMES) {
     const viewPath = path.join(jsDir, `${name}.js`);
@@ -204,6 +206,7 @@ async function generate() {
   for (const name of VIEW_NAMES) hash.update(partialsRaw[name]);
   hash.update(appJsRaw);
   hash.update(runtimeRaw);
+  hash.update(otaImageRaw);
   for (const name of VIEW_NAMES) hash.update(viewJsRaw[name]);
   hash.update(cssSource);
   const assetTag = hash.digest('hex').slice(0, 8);
@@ -223,6 +226,7 @@ async function generate() {
       inlineHomeModule(stampAssetTag(appJsRaw, assetTag), viewJsRaw.home, assetTag);
   const appJs = await minifyJs(appWithHome);
   const runtimeJs = await minifyJs(stampAssetTag(runtimeRaw, assetTag));
+  const otaImageJs = await minifyJs(otaImageRaw);
   const secondaryJs =
       await minifyJs(buildSecondaryJs(viewJsRaw, assetTag));
   const settingsJs =
@@ -234,6 +238,7 @@ async function generate() {
     partials,
     appJs,
     runtimeJs,
+    otaImageJs,
     secondaryJs,
     settingsJs,
     css,
@@ -242,12 +247,13 @@ async function generate() {
   });
 }
 
-async function finish({shellHtml, partials, appJs, runtimeJs, secondaryJs,
+async function finish({shellHtml, partials, appJs, runtimeJs, otaImageJs, secondaryJs,
                        settingsJs, css, assetTag, version}) {
   const shellGzip = await gzipBuffer(Buffer.from(shellHtml, 'utf8'));
   const cssGzip = await gzipBuffer(Buffer.from(css, 'utf8'));
   const appJsGzip = await gzipBuffer(Buffer.from(appJs, 'utf8'));
   const runtimeGzip = await gzipBuffer(Buffer.from(runtimeJs, 'utf8'));
+  const otaImageGzip = await gzipBuffer(Buffer.from(otaImageJs, 'utf8'));
   const secondaryGzip = await gzipBuffer(Buffer.from(secondaryJs, 'utf8'));
   const settingsGzip = await gzipBuffer(Buffer.from(settingsJs, 'utf8'));
   const partialGzip = {};
@@ -273,6 +279,7 @@ constexpr char WEB_UI_ETAG[] = ${JSON.stringify('"' + cacheVersion + '"')};
 ${emitGzipConst('SHOT_STOPPER_WEB_UI_GZIP', shellGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_JS_GZIP', appJsGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_RUNTIME_GZIP', runtimeGzip)}
+${emitGzipConst('SHOT_STOPPER_WEB_OTA_IMAGE_GZIP', otaImageGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_CSS_GZIP', cssGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_SECONDARY_GZIP', secondaryGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP', settingsGzip)}
@@ -291,6 +298,7 @@ ${emitGzipConst('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP', settingsGzip)}
   fs.writeFileSync(outputPath, body);
 
   let combined = shellGzip.length + appJsGzip.length + runtimeGzip.length +
+      otaImageGzip.length +
       cssGzip.length + secondaryGzip.length + settingsGzip.length;
   for (const name of LAZY_PARTIALS) {
     combined += partialGzip[name].length;
@@ -300,6 +308,7 @@ ${emitGzipConst('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP', settingsGzip)}
     html: shellHtml,
     js: appJs,
     runtimeJs,
+    otaImageJs,
     secondaryJs,
     settingsJs,
     css,
@@ -307,6 +316,7 @@ ${emitGzipConst('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP', settingsGzip)}
     gzip: shellGzip,
     jsGzip: appJsGzip,
     runtimeGzip,
+    otaImageGzip,
     secondaryGzip,
     settingsGzip,
     partialGzip,
@@ -351,6 +361,7 @@ if (require.main === module) {
           `shell ${result.gzip.length} B`,
           `app.js ${result.jsGzip.length} B`,
           `runtime ${result.runtimeGzip.length} B`,
+          `ota-image.js ${result.otaImageGzip.length} B`,
           `css ${result.cssGzip.length} B`,
           `secondary.js ${result.secondaryGzip.length} B`,
           `settings.js ${result.settingsGzip.length} B`,

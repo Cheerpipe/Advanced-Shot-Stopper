@@ -51,7 +51,7 @@ struct NetworkWorkBuf {
   // Includes resumable-session identity (transfer id + SHA-256) as well as
   // two image tags. This buffer is in the shared external work area, never
   // used by the flash-writing path.
-  static constexpr size_t kOtaJson = 1024;
+  static constexpr size_t kOtaJson = 1280;
   char statusJson[kStatusJson]{};
   char presetsJson[kPresetsJson]{};
   char historyJson[kHistoryJson]{};
@@ -3617,6 +3617,7 @@ bool ShotStopperNetwork::startHttpServer() {
       registerHandler(server_, "/app.js", HTTP_GET, jsHandler) &&
       registerHandler(server_, "/app.css", HTTP_GET, cssHandler) &&
       registerHandler(server_, "/js/runtime.js", HTTP_GET, runtimeJsHandler) &&
+      registerHandler(server_, "/js/ota-image.js", HTTP_GET, otaImageJsHandler) &&
       registerHandler(server_, "/js/secondary.js", HTTP_GET,
                       secondaryJsHandler) &&
       registerHandler(server_, "/partials/stats.html", HTTP_GET,
@@ -4223,6 +4224,10 @@ esp_err_t ShotStopperNetwork::runtimeJsHandler(httpd_req_t *request) {
   return serveImmutableGzip(request, "application/javascript; charset=utf-8",
                             SHOT_STOPPER_WEB_RUNTIME_GZIP,
                             SHOT_STOPPER_WEB_RUNTIME_GZIP_LEN);
+}
+
+esp_err_t ShotStopperNetwork::otaImageJsHandler(httpd_req_t *request) {
+  return serveImmutableGzip(request, "application/javascript; charset=utf-8", SHOT_STOPPER_WEB_OTA_IMAGE_GZIP, SHOT_STOPPER_WEB_OTA_IMAGE_GZIP_LEN);
 }
 
 esp_err_t ShotStopperNetwork::secondaryJsHandler(httpd_req_t *request) {
@@ -8398,36 +8403,31 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
   const bool safe = controlAllowsConfiguration(control);
   int written = snprintf(
       buffer, capacity,
-      "{\"available\":%s,\"state\":\"%s\",\"slotBytes\":%lu,"
-      "\"receivedBytes\":%lu,\"expectedBytes\":%lu,"
-      "\"lastResult\":\"%s\",\"lastReceivedBytes\":%lu,"
-      "\"lastExpectedBytes\":%lu,\"pendingVerify\":%s,"
-      "\"confirmed\":%s,\"safe\":%s,\"lockReason\":\"%s\","
-      "\"passwordRequired\":true,\"passwordAvailable\":true,\"restartPending\":%s,"
-      "\"transferId\":\"%s\",\"sha256\":\"%s\",\"nextOffset\":%lu,"
-      "\"chunkBytes\":%lu,\"sessionActive\":%s,\"sessionExpiresInMs\":%lu,"
-      "\"lastChunkSha256\":\"%s\",\"abortFailures\":%lu,\"journalFailures\":%lu",
-      ota_.available ? "true" : "false",
+      "{\"otaProtocolVersion\":%u,\"available\":%s,\"state\":\"%s\",\"slotBytes\":%lu,\"receivedBytes\":%lu,\"expectedBytes\":%lu,\"lastResult\":\"%s\","
+      "\"lastReceivedBytes\":%lu,\"lastExpectedBytes\":%lu,\"pendingVerify\":%s,"
+      "\"confirmed\":%s,\"safe\":%s,\"lockReason\":\"%s\",\"passwordRequired\":true,"
+      "\"passwordAvailable\":true,\"restartPending\":%s,\"runningIdentityValid\":%s,\"transferId\":\"%s\","
+      "\"sha256\":\"%s\",\"sessionArch\":\"%s\","
+      "\"sessionVersion\":\"%s\",\"nextOffset\":%lu,\"chunkBytes\":%lu,"
+      "\"sessionActive\":%s,\"sessionExpiresInMs\":%lu,\"lastChunkSha256\":\"%s\","
+      "\"abortFailures\":%lu,\"journalFailures\":%lu",
+      static_cast<unsigned int>(OTA_PROTOCOL_VERSION), ota_.available ? "true" : "false",
       ShotStopperOta::stateName(ota_.state),
-      static_cast<unsigned long>(ota_.slotBytes),
-      static_cast<unsigned long>(ota_.receivedBytes),
-      static_cast<unsigned long>(ota_.expectedBytes),
-      ShotStopperOta::resultName(ota_.lastResult),
-      static_cast<unsigned long>(ota_.lastReceivedBytes),
-      static_cast<unsigned long>(ota_.lastExpectedBytes),
+      static_cast<unsigned long>(ota_.slotBytes), static_cast<unsigned long>(ota_.receivedBytes),
+      static_cast<unsigned long>(ota_.expectedBytes), ShotStopperOta::resultName(ota_.lastResult),
+      static_cast<unsigned long>(ota_.lastReceivedBytes), static_cast<unsigned long>(ota_.lastExpectedBytes),
       ota_.pendingVerify ? "true" : "false",
       ota_.confirmed ? "true" : "false", safe ? "true" : "false",
-      configLockReason(control),
-      otaRestartPending_.load(std::memory_order_acquire) ? "true" : "false",
-      ota_.session.transferId,
-      ota_.session.sha256, static_cast<unsigned long>(ota_.nextOffset),
-      static_cast<unsigned long>(ota_.chunkBytes),
+      configLockReason(control), otaRestartPending_.load(std::memory_order_acquire) ? "true" : "false",
+      ota_.running.valid && otaArchIsUsable(ota_.running.arch) ? "true" : "false",
+      ota_.session.transferId, ota_.session.sha256, ota_.session.arch, ota_.session.version,
+      static_cast<unsigned long>(ota_.nextOffset), static_cast<unsigned long>(ota_.chunkBytes),
       ota_.sessionActive ? "true" : "false",
       static_cast<unsigned long>(ota_.sessionExpiresInMs), ota_.lastChunkSha256,
       static_cast<unsigned long>(ota_.abortFailures),
       static_cast<unsigned long>(ota_.journalFailures));
   if (written <= 0 || static_cast<size_t>(written) >= capacity) {
-    snprintf(buffer, capacity, "{\"available\":false}");
+    snprintf(buffer, capacity, "{\"otaProtocolVersion\":%u,\"available\":false}", static_cast<unsigned int>(OTA_PROTOCOL_VERSION));
     return;
   }
   // One byte is held back so the closing brace always has somewhere to go: an
@@ -8440,7 +8440,7 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
   appendOtaTag(buffer, tagCapacity, used, "staged", ota_.staged,
                ota_.stagedValid);
   if (used + 2 > capacity) {
-    snprintf(buffer, capacity, "{\"available\":false}");
+    snprintf(buffer, capacity, "{\"otaProtocolVersion\":%u,\"available\":false}", static_cast<unsigned int>(OTA_PROTOCOL_VERSION));
     return;
   }
   buffer[used++] = '}';

@@ -91,6 +91,7 @@ ss_cli_reset() {
   local key
   SS_CLI_FORCE=0
   SS_CLI_NO_CHECK=0
+  SS_CLI_DISCARD_OTA_SESSION=0
   for key in $SS_CLI_KEYS; do
     ss_set "$key" ""
     ss_origin_set "$key" ""
@@ -125,7 +126,9 @@ Named parameters (long and short):
   -o, --output-dir <path>  Reports directory (static / static-idf only)
       --force              Commit OTA without a prompt and wait for confirmation
       --no-check           Skip the local image verification and the implicit
-                           rebuild before flashing/OTA (advanced)
+                           rebuild before USB flashing (advanced; OTA rejects it)
+      --discard-ota-session
+                           Explicitly discard a different partial OTA image
   -h, --help               Show this help
 
 No script silently fills in missing values. Each parameter comes from the flag,
@@ -141,6 +144,7 @@ EOF
 SS_CLI_HELP_REQUESTED=0
 SS_CLI_FORCE=0
 SS_CLI_NO_CHECK=0
+SS_CLI_DISCARD_OTA_SESSION=0
 
 ss_cli_die() {
   printf '%s\n' "$1" >&2
@@ -168,6 +172,15 @@ ss_cli_parse() {
         ;;
       --no-check=*)
         printf '%s\n' '--no-check does not take a value.' >&2
+        return 2
+        ;;
+      --discard-ota-session)
+        SS_CLI_DISCARD_OTA_SESSION=1
+        shift
+        continue
+        ;;
+      --discard-ota-session=*)
+        printf '%s\n' '--discard-ota-session does not take a value.' >&2
         return 2
         ;;
       --*=*)
@@ -681,6 +694,11 @@ ss_cli_flags_for() {
     fi
     if [[ "$key" == "no_check" ]]; then
       [[ "$SS_CLI_NO_CHECK" == "1" ]] && SS_CLI_FORWARD+=(--no-check)
+      continue
+    fi
+    if [[ "$key" == "discard_ota_session" ]]; then
+      [[ "$SS_CLI_DISCARD_OTA_SESSION" == "1" ]] &&
+        SS_CLI_FORWARD+=(--discard-ota-session)
       continue
     fi
     ss_is_set "$key" || continue

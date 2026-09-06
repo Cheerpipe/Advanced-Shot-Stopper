@@ -16,7 +16,7 @@ const crypto = require('crypto');
 // parser in src/ShotStopperOta.cpp.
 const TAG_PREFIX = 'SHOTSTOPPER_FW_TAG_V1|';
 const TAG_TERMINATOR = '|END';
-const TAG_MAX_BYTES = 192;
+const TAG_BODY_MAX_BYTES = 160;
 
 const ESP_IMAGE_MAGIC = 0xe9;
 const ESP_CHIP_ID_ESP32S3 = 0x0009;
@@ -57,7 +57,13 @@ function parseTagBody(body) {
       fields[key] = part.slice(eq + 1);
     }
   }
-  if (!fields.arch || !fields.ver || !/^[0-9]+$/.test(fields.packed)) {
+  if (!/^[a-z0-9]{1,15}$/.test(fields.arch) || fields.arch === 'unknown' ||
+      !/^[A-Za-z0-9.+_-]{1,47}$/.test(fields.ver) ||
+      !/^\d{1,10}$/.test(fields.packed)) {
+    return null;
+  }
+  const packed = Number(fields.packed);
+  if (!Number.isInteger(packed) || packed < 0 || packed > 0xffffffff) {
     return null;
   }
   return fields;
@@ -74,11 +80,12 @@ function findImageTag(buffer) {
     from = at + 1;
     const bodyStart = at + needle.length;
     const window = buffer.toString(
-        'latin1', bodyStart, Math.min(bodyStart + TAG_MAX_BYTES, buffer.length));
+        'latin1', bodyStart,
+        Math.min(bodyStart + TAG_BODY_MAX_BYTES, buffer.length));
     const stop = window.indexOf(TAG_TERMINATOR);
-    if (stop <= 0) continue;
+    if (stop <= 0 || stop + TAG_TERMINATOR.length > TAG_BODY_MAX_BYTES) continue;
     const parsed = parseTagBody(window.slice(0, stop));
-    if (parsed !== null) return parsed;
+    if (parsed !== null) return {...parsed, tagOffset: at};
   }
 }
 
@@ -176,10 +183,15 @@ function main(argv) {
       version: result.tag.ver,
       packed: Number(result.tag.packed),
       sizeBytes: result.sizeBytes,
+      tagOffset: result.tag.tagOffset,
+      projectName: result.projectName,
+      formatVersion: 1,
     }) + '\n');
   } else {
     process.stdout.write(
-        `${result.tag.arch} ${result.tag.ver} ${result.tag.packed} ${result.sizeBytes}\n`);
+        `arch=${result.tag.arch} version=${result.tag.ver} ` +
+        `packed=${result.tag.packed} size=${result.sizeBytes} ` +
+        `tagOffset=${result.tag.tagOffset}\n`);
   }
   return 0;
 }

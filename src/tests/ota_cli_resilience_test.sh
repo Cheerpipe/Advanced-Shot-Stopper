@@ -40,6 +40,10 @@ mock_offset=0
 ss_ota_request() {
   local method="$1" path="$2"
   if [[ "$method" == "POST" && "$path" == "/api/v1/ota/session" ]]; then
+    if [[ "$mock_mode" == "session-refused" ]]; then
+      printf '{"error":"OTA_SESSION_CONFLICT","message":"A different image owns the slot."}' > "$SS_OTA_BODY_FILE"
+      SS_OTA_CURL_EXIT=0; SS_OTA_HTTP_STATUS=409; return 0
+    fi
     printf '{"state":"receiving","transferId":"%s","sha256":"%s","nextOffset":%s,"chunkBytes":2}' "$SS_OTA_TRANSFER_ID" "$SS_OTA_IMAGE_SHA256" "$mock_offset" > "$SS_OTA_BODY_FILE"
     SS_OTA_CURL_EXIT=0; SS_OTA_HTTP_STATUS=200; return 0
   fi
@@ -111,6 +115,39 @@ check test "$mock_patches" -eq 1
 
 mock_mode=lost-commit
 ss_ota_commit
+
+mock_mode=session-refused
+if refused_output="$(ss_ota_upload 2>&1)"; then
+  echo 'FAIL: refused OTA session was accepted' >&2
+  failures=$((failures + 1))
+fi
+case "$refused_output" in
+  *'HTTP=409 code=OTA_SESSION_CONFLICT message=A different image owns the slot.'*) ;;
+  *)
+    echo 'FAIL: refused OTA session lost its actionable server error' >&2
+    failures=$((failures + 1))
+    ;;
+esac
+
+printf '{"state":"receiving","sessionActive":true,"transferId":"existing-transfer","sha256":"%s","expectedBytes":4,"sessionArch":"n16r8","sessionVersion":"1.2.3"}' \
+    "$SS_OTA_IMAGE_SHA256" > "$SS_OTA_BODY_FILE"
+check ss_ota_remote_owns_slot
+check ss_ota_remote_matches_image
+SS_OTA_IMAGE_SHA256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+if ss_ota_remote_matches_image; then
+  echo 'FAIL: a different image matched the resumable session' >&2
+  failures=$((failures + 1))
+fi
+SS_OTA_IMAGE_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+printf '{"state":"receiving","sessionActive":true,"transferId":"old-server-transfer","sha256":"%s","expectedBytes":4,"nextOffset":2,"chunkBytes":2,"running":{"arch":"n16r8","version":"1.2.2"}}' \
+    "$SS_OTA_IMAGE_SHA256" > "$SS_OTA_BODY_FILE"
+check ss_ota_protocol_supported
+check ss_ota_remote_matches_image
+printf '{"state":"idle","available":true}' > "$SS_OTA_BODY_FILE"
+if ss_ota_protocol_supported; then
+  echo 'FAIL: monolithic legacy OTA was accepted as resumable' >&2
+  failures=$((failures + 1))
+fi
 
 if (( failures != 0 )); then
   exit 1

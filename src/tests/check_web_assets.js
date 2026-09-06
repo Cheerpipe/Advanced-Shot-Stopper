@@ -3,7 +3,9 @@
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const crypto = require('crypto');
 const webUi = require('../../scripts/gen_web_ui.js');
+const imageTag = require('../../scripts/image_tag.js');
 
 const sketchDir = path.resolve(__dirname, '..');
 const asset = fs.readFileSync(path.join(sketchDir, 'ShotStopperWebAssets.h'), 'utf8');
@@ -611,12 +613,15 @@ const allHtml = shellHtml.replace(
     });
 const appJsSource = fs.readFileSync(path.join(sketchDir, 'web', 'app.js'), 'utf8');
 const runtimeJs = fs.readFileSync(path.join(sketchDir, 'web', 'js', 'runtime.js'), 'utf8');
+const otaImageJs = fs.readFileSync(
+  path.join(sketchDir, 'web', 'js', 'ota-image.js'), 'utf8');
 const viewJs = {};
 for (const name of VIEW_NAMES) {
   viewJs[name] = fs.readFileSync(
       path.join(sketchDir, 'web', 'js', name + '.js'), 'utf8');
 }
-const allJs = [appJsSource, runtimeJs, ...VIEW_NAMES.map((n) => viewJs[n])].join('\n');
+const allJs = [appJsSource, runtimeJs, otaImageJs,
+  ...VIEW_NAMES.map((n) => viewJs[n])].join('\n');
 const css = fs.readFileSync(path.join(sketchDir, 'web', 'app.css'), 'utf8');
 // Most wiring checks look across shell + partials + all JS modules.
 const html = allHtml;
@@ -661,13 +666,12 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 if (htmlBytes > 54000) {
   throw new Error('Web UI HTML source exceeds the authoring budget');
 }
-// Resumable OTA hashes File slices incrementally in the browser so it never
-// retains a full firmware image. The SHA-256 state machine adds source, but
-// keeps the generated asset comfortably below the firmware-size limit.
-if (jsBytes > 158000) {
+// Resumable OTA hashes File slices incrementally in a lazy module so it never
+// retains a full firmware image or charges the normal runtime path for it.
+if (jsBytes > 164000) {
   throw new Error('Web UI JS source exceeds the authoring budget');
 }
-if (htmlBytes + jsBytes > 212000) {
+if (htmlBytes + jsBytes > 218000) {
   throw new Error('Web UI HTML+JS source exceeds the combined authoring budget');
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
@@ -3094,6 +3098,7 @@ const expected = new Map([
   ['GET /app.js', 'jsHandler'],
   ['GET /app.css', 'cssHandler'],
   ['GET /js/runtime.js', 'runtimeJsHandler'],
+  ['GET /js/ota-image.js', 'otaImageJsHandler'],
   ['GET /js/secondary.js', 'secondaryJsHandler'],
   ['GET /partials/stats.html', 'partialStatsHandler'],
   ['GET /partials/diagnostic.html', 'partialDiagnosticHandler'],
@@ -4185,20 +4190,74 @@ const runtimeRoundTrip = zlib.gunzipSync(generated.runtimeGzip).toString('utf8')
 if (runtimeRoundTrip !== generated.runtimeJs) {
   throw new Error('Generated gzip runtime JS does not round-trip');
 }
-const otaHashStart = runtimeJs.indexOf('const OTA_SHA256_K=');
-const otaHashEnd = runtimeJs.indexOf('async function otaFileIdentity', otaHashStart);
-if (otaHashStart < 0 || otaHashEnd < 0) {
-  throw new Error('Web UI must hash OTA files incrementally');
+const otaImageRoundTrip =
+    zlib.gunzipSync(generated.otaImageGzip).toString('utf8');
+if (otaImageRoundTrip !== generated.otaImageJs) {
+  throw new Error('Generated gzip OTA image module does not round-trip');
 }
-const makeOtaHash = new Function(
-    `${runtimeJs.slice(otaHashStart, otaHashEnd)}; return otaHash;`);
-const otaHash = makeOtaHash();
-const otaDigest = otaHash();
+const makeOtaParser = new Function(
+    otaImageJs.replace(/^['"]use strict['"];\s*/m, '')
+        .replace(/export\s+/g, '') +
+    '; return {otaFileIdentity,imageTagScanner,hash256};');
+const otaParser = makeOtaParser();
+const otaDigest = otaParser.hash256();
 otaDigest.add(new TextEncoder().encode('a'));
 otaDigest.add(new TextEncoder().encode('bc'));
 if (otaDigest.end() !==
     'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad') {
   throw new Error('Web UI incremental OTA SHA-256 is incorrect');
+}
+function browserFile(buffer) {
+  return {
+    size: buffer.length,
+    slice(start, end) {
+      const bytes = buffer.subarray(start, end);
+      return {arrayBuffer: async () =>
+        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)};
+    },
+  };
+}
+function otaFixture(tagOffset) {
+  const tag = Buffer.from(
+      'SHOTSTOPPER_FW_TAG_V1|arch=n16r8|ver=1.2.3+abcdef0|' +
+      'packed=16909056|END', 'latin1');
+  const size = Math.max(tagOffset + tag.length + 64, 4096);
+  const image = Buffer.alloc(size, 0x5a);
+  image[0] = 0xe9;
+  image[12] = 0x09;
+  image[13] = 0;
+  image[23] = 1;
+  image.writeUInt32LE(0xabcd5432, 32);
+  image.fill(0, 80, 112);
+  image.write('shotstopper', 80, 'latin1');
+  tag.copy(image, tagOffset);
+  crypto.createHash('sha256').update(image.subarray(0, size - 32))
+      .digest().copy(image, size - 32);
+  return image;
+}
+for (const tagOffset of [320, 65530, 262143, 262144, 270344]) {
+  const fixture = otaFixture(tagOffset);
+  const parsed = await otaParser.otaFileIdentity(browserFile(fixture));
+  const nodeParsed = imageTag.findImageTag(fixture);
+  if (parsed.tagOffset !== tagOffset || parsed.arch !== 'n16r8' ||
+      parsed.version !== '1.2.3+abcdef0' || parsed.packed !== 16909056 ||
+      !nodeParsed || nodeParsed.arch !== parsed.arch ||
+      nodeParsed.ver !== parsed.version || Number(nodeParsed.packed) !== parsed.packed) {
+    throw new Error(`Web/Node OTA identity mismatch at offset ${tagOffset}`);
+  }
+}
+{
+  const corrupt = otaFixture(270344);
+  corrupt[1000] ^= 1;
+  let rejected = false;
+  try {
+    await otaParser.otaFileIdentity(browserFile(corrupt));
+  } catch (error) {
+    rejected = /truncated or corrupt/.test(String(error && error.message));
+  }
+  if (!rejected) {
+    throw new Error('Web OTA parser must reject a corrupt appended image hash');
+  }
 }
 const secondaryRoundTrip =
     zlib.gunzipSync(generated.secondaryGzip).toString('utf8');
@@ -4232,14 +4291,17 @@ if (generated.cssGzip.length > 6600) {
 if (generated.runtimeGzip.length > 31200) {
   throw new Error('Compressed Web UI runtime JS exceeds the 30.5 KiB gzip budget');
 }
+if (generated.otaImageGzip.length > 3072) {
+  throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
+}
 if (generated.secondaryGzip.length > 5600) {
   throw new Error('Compressed secondary view JS exceeds the 5.5 KiB gzip budget');
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');
 }
-if (generated.combined > 61000) {
-  throw new Error('Combined Web UI gzip exceeds the 59.6 KiB flash budget');
+if (generated.combined > 64000) {
+  throw new Error('Combined Web UI gzip exceeds the 62.5 KiB flash budget');
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
@@ -4250,6 +4312,7 @@ if (!network.includes('SHOT_STOPPER_WEB_UI_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_JS_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_JS_GZIP_LEN') ||
     !network.includes('SHOT_STOPPER_WEB_RUNTIME_GZIP') ||
+    !network.includes('SHOT_STOPPER_WEB_OTA_IMAGE_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_CSS_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_SECONDARY_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP') ||
@@ -4628,11 +4691,19 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   // The OTA object is spliced into the admin status, so an unclosed brace here
   // would make the whole Admin page unparseable, not just the OTA panel.
   if (!/const size_t tagCapacity = capacity - 1;/.test(network) ||
-      !/if \(used \+ 2 > capacity\) \{\s*\n\s*snprintf\(buffer, capacity, "\{\\"available\\":false\}"\);/
+      !/if \(used \+ 2 > capacity\) \{[\s\S]{0,200}?"\{\\"otaProtocolVersion\\":%u,\\"available\\":false\}"/
         .test(network)) {
     throw new Error(
       'buildOtaJson must reserve room for its closing brace and fall back to a ' +
       'valid object when the OTA JSON does not fit');
+  }
+  if (!otaHeader.includes('OTA_PROTOCOL_VERSION = 2') ||
+      !network.includes('\\"otaProtocolVersion\\":%u') ||
+      !network.includes('\\"runningIdentityValid\\":%s') ||
+      !network.includes('\\"sessionArch\\":\\"%s\\"') ||
+      !network.includes('\\"sessionVersion\\":\\"%s\\"')) {
+    throw new Error(
+      'OTA status must expose protocol and complete resumable identity');
   }
   // Recovering an image too broken to run any firmware code is the bootloader's
   // job, so losing that configuration must break the build, not the machine.
@@ -5013,7 +5084,8 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
 console.log(
   `Embedded Web UI: modules+partials valid, ${htmlBytes} bytes HTML / ${jsBytes} bytes JS source, ` +
   `${generated.gzip.length} bytes shell gzip, ${generated.jsGzip.length} bytes app.js gzip, ` +
-  `${generated.runtimeGzip.length} bytes runtime gzip, ${generated.secondaryGzip.length} bytes secondary gzip, ` +
+  `${generated.runtimeGzip.length} bytes runtime gzip, ${generated.otaImageGzip.length} bytes OTA image gzip, ` +
+  `${generated.secondaryGzip.length} bytes secondary gzip, ` +
   `${generated.cssGzip.length} bytes CSS gzip, combined ${generated.combined} bytes gzip, ` +
   `${expected.size} routes checked`
 );

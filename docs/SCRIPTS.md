@@ -56,7 +56,8 @@ prompting. The same applies with `SHOTSTOPPER_NONINTERACTIVE=1`.
 | `-b`, `--build-dir` | `SHOTSTOPPER_BUILD_DIR_OVERRIDE` | Build directory (`static`/`static-idf` only). |
 | `-o`, `--output-dir` | `SHOTSTOPPER_OUTPUT_DIR` | Reports directory (`static` / `static-idf` only). |
 | `--force` | — | OTA scripts only: commit without an interactive prompt and wait for the rebooted firmware to confirm itself through the HTTP API. No Web UI reload is required. |
-| `--no-check` | — | Flash/OTA only: skip the local image identity check and the implicit rebuild, flashing the existing build outputs as-is. `bf`/`bfm`/`bsfm`/`bo` pass it to their install step automatically because `build-idf` just verified the image. |
+| `--no-check` | — | USB flash only: skip the local image identity check and implicit rebuild, flashing existing build outputs as-is. Resumable OTA rejects this flag because it requires the image identity and SHA-256. |
+| `--discard-ota-session` | — | OTA only: explicitly discard a different partial or staged image. A matching image resumes automatically without this flag. |
 | `-h`, `--help` | — | Show the script help. |
 
 Suggested `--flags` at the prompt (Enter accepts them):
@@ -94,7 +95,7 @@ Writes to `build-idf/<architecture>` (`shotstopper.bin`).
 | `./scripts/iwyu-idf` | `iwyu` | `--arch` | Include-What-You-Use against the IDF compilation database. Advisory report, does not build. [Static analysis](STATIC_ANALYSIS.md). |
 | `./scripts/bf-idf` | | `--port`, `--arch` | build-idf then flash-idf (no rebuild or image re-check at flash time). |
 | `./scripts/bfm-idf` | | `--port`, `--arch`, `--speed` | build-idf, flash-idf (no rebuild or image re-check), monitor-idf. |
-| `./scripts/bo-idf` | | `--arch`, `--host`, `--password` | build-idf then ota-idf (no local image re-check at OTA time). |
+| `./scripts/bo-idf` | | `--arch`, `--host`, `--password` | build-idf then ota-idf; the OTA step reads the built identity for safe resume. |
 | `./scripts/bsfm-idf` | | `--port`, `--arch`, `--speed` | build-idf, static-idf, flash-idf (no rebuild or image re-check), monitor-idf. Does not flash if analysis reports diagnostics. |
 | `./scripts/gcc_analyzer` | | `--arch` (`--flags` optional) | Build with GCC `-fanalyzer` into `reports/gcc-analyzer/`. |
 
@@ -123,14 +124,19 @@ Examples:
 aliases). It bypasses the final commit prompt, then polls the controller until
 the new image reports `confirmed: true` or four minutes pass.
 
-`--no-check` is accepted by `flash`, `flash-idf`, and their
-wrappers (`bf`, `bfm`, `bsfm`, `bo`, which forward it to the install step).
+`--no-check` is accepted by `flash`, `flash-idf`, and their USB flashing
+wrappers (`bf`, `bfm`, `bsfm`, which forward it to the install step).
 For USB flash it flashes the current build outputs directly with esptool
 (bootloader, partition table, otadata, and app) instead of letting `idf.py
-flash` re-run the build. For OTA it skips the local image identity check; the
-controller-side verification and the post-reboot confirmation still run.
-Use it when you know the build outputs already match what you want on the
-device (the combined scripts pass it for you after a fresh build).
+flash` re-run the build. OTA rejects it because resumable sessions cannot be
+matched or committed safely without the local SHA-256, architecture, and
+version.
+
+When the controller already owns a partial or staged different image, OTA
+stops without modifying it and prints both identities. Re-run with
+`--discard-ota-session` only when discarding that remote image is intentional.
+A matching image automatically adopts the existing `transferId` and resumes
+from the controller's validated `nextOffset`.
 
 OTA clients use a 10-second connection timeout and retain the existing long
 transfer window. A transient transport failure is reconciled with the OTA
