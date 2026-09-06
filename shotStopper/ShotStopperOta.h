@@ -302,10 +302,8 @@ class ShotStopperOta {
   uint32_t lastReceivedBytes_ = 0;
   uint32_t lastExpectedBytes_ = 0;
   uint32_t stagedTagOffset_ = 0;
-  uint32_t stagedSizeBytes_ = 0;
   OtaImageTag stagedTag_ = {};
   OtaImageTag runningTag_ = {};
-  const void *runningPartition_ = nullptr;
   const void *targetPartition_ = nullptr;
   bool sessionActive_ = false;
   uint32_t sessionLastActivityMs_ = 0;

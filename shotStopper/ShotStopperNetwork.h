@@ -81,7 +81,7 @@ struct NetworkStatusSnapshot {
   bool staOpen = false;
   bool staWifiSleep = true;
   WifiPsLive wifiPs = WifiPsLive::UNKNOWN;
-  RfCoexPreference wifiCoex = RfCoexPreference::BALANCE;
+  RfCoexPreference wifiCoex = RfCoexPreference::UNKNOWN;
   bool staLinkMetricsValid = false;
   uint8_t apClients = 0;
   StaState staState = StaState::NOT_CONFIGURED;

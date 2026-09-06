@@ -523,6 +523,16 @@ de release explícito.
 
 ### F-22. Código muerto, estados redundantes y ramas sin consumidor
 
+**Estado de remediación (2026-09-06): ✅ corregido.** Se eliminaron de OTA la
+constante `OTA_PROGRESS_INTERVAL_BYTES` y los miembros sin lectura
+`runningPartition_` y `stagedSizeBytes_`. La política RF ahora representa el
+contrato real: sólo puede publicar `BT` tras aplicar `ESP_COEX_PREFER_BT`, o
+`UNKNOWN` antes de aplicarlo o si falla; se retiraron las ramas sin consumidor
+`WIFI`/`BALANCE` y el snapshot ya no afirma `BALANCE` antes de inicializarse.
+Los gates host impiden reintroducir esos símbolos. La declaración adelantada de
+`commitLiveRuntimeConfig` se conservó porque no está muerta: sus llamadas
+preceden a la definición en la misma TU.
+
 **Vectores:** calidad  
 **Confianza:** alta para los símbolos listados  
 

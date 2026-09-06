@@ -9,6 +9,8 @@ const sketchDir = path.resolve(__dirname, '..');
 const asset = fs.readFileSync(path.join(sketchDir, 'ShotStopperWebAssets.h'), 'utf8');
 const network = fs.readFileSync(path.join(sketchDir, 'ShotStopperNetwork.cpp'), 'utf8');
 const networkHeader = fs.readFileSync(path.join(sketchDir, 'ShotStopperNetwork.h'), 'utf8');
+const otaSource = fs.readFileSync(path.join(sketchDir, 'ShotStopperOta.cpp'), 'utf8');
+const otaHeader = fs.readFileSync(path.join(sketchDir, 'ShotStopperOta.h'), 'utf8');
 const webhookSource = fs.readFileSync(path.join(sketchDir, 'ShotStopperWebhook.cpp'), 'utf8');
 const webhookHeader = fs.readFileSync(path.join(sketchDir, 'ShotStopperWebhook.h'), 'utf8');
 const firmwareCore = fs.readFileSync(path.join(sketchDir, 'shotStopper.cpp'), 'utf8');
@@ -546,7 +548,11 @@ if (firmware.includes('SCALE_LINK_COEX_BT_MS') ||
     !firmware.includes('scale.isConnecting() || scale.isLinkUp()') ||
     !firmware.includes('ensureRfCoexBt') ||
     !firmware.includes('ESP_COEX_PREFER_BT') ||
-    !firmware.includes('applyRfCoexPreference') ||
+    firmware.includes('applyRfCoexPreference') ||
+    firmware.includes('ESP_COEX_PREFER_WIFI') ||
+    firmware.includes('ESP_COEX_PREFER_BALANCE') ||
+    firmware.includes('RfCoexPreference::WIFI') ||
+    firmware.includes('RfCoexPreference::BALANCE') ||
     !firmware.includes('serviceScaleScanIntensity') ||
     firmware.includes('serviceScaleScanDuty') ||
     firmware.includes('SCALE_SCAN_BURST_MS') ||
@@ -555,6 +561,13 @@ if (firmware.includes('SCALE_LINK_COEX_BT_MS') ||
     !firmware.includes('applyLiveBleScanIntensity')) {
   throw new Error(
       'RF coex must always prefer BT (ensureRfCoexBt); claims and STA WIFI preference are gone; scan uses live intensity, not idle/burst');
+}
+if (otaSource.includes('OTA_PROGRESS_INTERVAL_BYTES') ||
+    otaSource.includes('runningPartition_') ||
+    otaSource.includes('stagedSizeBytes_') ||
+    otaHeader.includes('runningPartition_') ||
+    otaHeader.includes('stagedSizeBytes_')) {
+  throw new Error('OTA must not retain the unused F-22 progress constant or inert partition/size state');
 }
 {
   const restoreStart = firmwareCore.indexOf('void servicePendingBrewRfRestore()');

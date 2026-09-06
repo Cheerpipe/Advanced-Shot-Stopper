@@ -8153,8 +8153,8 @@ void rf01_coex_is_always_bt() {
   CHECK(ensureRfCoexBt());
   CHECK(snapshotRfCoexPreference() == RfCoexPreference::BT);
   CHECK(strcmp(rfCoexPreferenceName(RfCoexPreference::BT), "BT") == 0);
-  CHECK(strcmp(rfCoexPreferenceName(RfCoexPreference::WIFI), "WIFI") == 0);
-  CHECK(strcmp(rfCoexPreferenceName(RfCoexPreference::BALANCE), "BALANCE") == 0);
+  CHECK(strcmp(rfCoexPreferenceName(RfCoexPreference::UNKNOWN), "UNKNOWN") ==
+        0);
   CHECK(ensureRfCoexBt());
   CHECK(snapshotRfCoexPreference() == RfCoexPreference::BT);
 }

@@ -59,9 +59,6 @@ struct FlashIoGuard {
 // A real image is well over a megabyte; anything this small is not one.
 constexpr uint32_t OTA_MIN_IMAGE_BYTES = 65536;
 
-// Progress logs every 256 KiB. Safety is checked on every chunk so a paddle
-// pull aborts the transfer immediately instead of after 64 KiB of Wi-Fi.
-constexpr uint32_t OTA_PROGRESS_INTERVAL_BYTES = 262144;
 constexpr uint32_t OTA_SESSION_TTL_MS = 15U * 60U * 1000U;
 constexpr uint32_t OTA_JOURNAL_MAGIC = 0x4f544a31U;  // OTJ1
 constexpr uint16_t OTA_JOURNAL_VERSION = 1;
@@ -285,7 +282,6 @@ void ShotStopperOta::begin() {
       target = esp_ota_get_next_update_partition(nullptr);
     }
   }
-  runningPartition_ = running;
   targetPartition_ = target;
   available_ = running != nullptr && target != nullptr && target != running;
   slotBytes_ = target != nullptr ? target->size : 0;
@@ -810,7 +806,6 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
 
   stagedTag_ = tag;
   stagedTagOffset_ = scanner_.tagOffset();
-  stagedSizeBytes_ = receivedBytes_;
   stagedValid_ = true;
   sessionActive_ = false;
   clearSessionSha256();
@@ -888,7 +883,6 @@ void ShotStopperOta::discard() {
   stagedValid_ = false;
   stagedTag_ = OtaImageTag{};
   stagedTagOffset_ = 0;
-  stagedSizeBytes_ = 0;
   receivedBytes_ = 0;
   expectedBytes_ = 0;
   state_ = available_ ? OtaState::IDLE : OtaState::UNAVAILABLE;
