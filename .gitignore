@@ -79,3 +79,9 @@ docs/plans/
 docs/BACKLOG.md
 docs/audits/
 .zcode
+
+# AI Agent files and temporary workspace
+/docs/plans/
+/docs/handoff/
+ai_temp_*
+*.ai_temp

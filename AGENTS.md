@@ -6,6 +6,17 @@ Optimize for token and context efficiency without limiting the depth of analysis
 
 Token efficiency means avoiding redundant or low-value work, not reducing necessary investigation.
 
+## Workspace Organization & Temporary Files
+
+- Maintain a strict directory separation for documentation to prevent clutter.
+- `/docs/`: Official documentation intended for humans and final repository inclusion (e.g., architecture, manuals).
+- `/docs/audits/`: Initial system audits, analysis, security reviews, and root-cause investigations prior to plan formulation.
+- `/docs/plans/`: Explicitly requested action plans. Manage task status internally using Markdown checkboxes (`[ ]`, `[~]`, `[x]`) instead of moving files between TODO/DOING folders.
+- `/docs/handoff/`: Temporary execution tracking files created by agents for session management (e.g., `SESSION_HANDOFF.md`).
+- **Temporary Execution Files (CRITICAL):** Agents must NEVER create generic stray files (like `test.py`, `debug.txt`, `temp.json`) in the working tree. 
+  - If a temporary file is required for compilation, debugging, or isolated testing within the working directories, it **MUST** be prefixed with `ai_temp_` (e.g., `ai_temp_debug.py`, `ai_temp_log.txt`).
+  - Agents must attempt to clean up `ai_temp_` files after their investigation is complete, but this naming convention guarantees they are caught by `.gitignore` as a failsafe.
+
 ## Context Efficiency
 
 - Reuse information already available in the current context.
@@ -54,10 +65,12 @@ Token efficiency means avoiding redundant or low-value work, not reducing necess
 
 - Plans must be written as numbered steps with sub-steps, each independently completable and resumable.
 - Validation scope, type, and necessity are the AI's judgment (per the Validation section), but its frequency is capped: at most once per completed unit — the issue or plan — never per step or sub-step.
-- For long plans or work expected to span sessions, write the plan to `SESSION_HANDOFF.md` (repo root, gitignored) before executing, and execute from it.
-- Update completion status in that file immediately after each step or sub-step is completed — never batch updates for the end of the session. A session can be cut off at any time; the file must never be more than one step stale.
-- Keep updates terse: flip `[x]` / `[~]` / `[ ]` and, when a step ends mid-work, add one line stating exactly what remains in it.
-- On session start, if `SESSION_HANDOFF.md` exists, read it first and resume from the first incomplete item without redoing completed work.
+- **File Location:** 
+  - Explicitly requested plans must be saved in `/docs/plans/`. 
+  - For long, unscripted work expected to span sessions, write a temporary plan to `/docs/handoff/SESSION_HANDOFF.md`.
+- **Real-Time Tracking (Critical):** You must explicitly mark tasks as completed in the corresponding plan file immediately as you progress. Update completion status (`[x]`, `[~]`, `[ ]`) directly in the file after each step or sub-step finishes.
+- Never batch updates for the end of the session. A session can be cut off at any time; the file must never be more than one step stale. Keep updates terse: flip the checkbox and, when a step ends mid-work, add one line stating exactly what remains in it.
+- On session start, if a plan is active or `/docs/handoff/SESSION_HANDOFF.md` exists, read it first and resume from the first incomplete item without redoing completed work.
 - Commits happen only when explicitly requested; the plan file records intent and progress, and the working tree records state.
 
 ## Priority
