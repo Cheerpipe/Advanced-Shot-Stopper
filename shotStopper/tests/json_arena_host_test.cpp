@@ -2,17 +2,13 @@
 
 #include "../ShotStopperJsonArena.h"
 
+#include <atomic>
 #include <cJSON.h>
-#include <cstring>
 #include <iostream>
 #include <string>
+#include <thread>
 
 namespace {
-
-using shotstopper::initJsonArenaHooks;
-using shotstopper::jsonArenaBytesUsed;
-using shotstopper::jsonArenaIsExternal;
-using shotstopper::resetJsonArena;
 
 int failures = 0;
 
@@ -26,167 +22,107 @@ int failures = 0;
     }                                                                 \
   } while (false)
 
-void testArenaResetAndHooks() {
-  initJsonArenaHooks();
-  resetJsonArena();
-  CHECK(jsonArenaBytesUsed() == 0);
-  CHECK(jsonArenaIsExternal());
-  void *block = shotstopper::detail::jsonArenaMalloc(64);
-  CHECK(block != nullptr);
-  CHECK(jsonArenaBytesUsed() >= 64);
-  resetJsonArena();
-  CHECK(jsonArenaBytesUsed() == 0);
+void testValidAndInvalidDocumentsAreIndependent() {
+  cJSON *const prior = shotstopper::parseJsonDocument("{\"value\":17}");
+  CHECK(prior != nullptr);
+  CHECK(shotstopper::parseJsonDocument("{not-json}") == nullptr);
+  const cJSON *const value = cJSON_GetObjectItemCaseSensitive(prior, "value");
+  CHECK(cJSON_IsNumber(value));
+  CHECK(value->valueint == 17);
+  cJSON_Delete(prior);
 }
 
-void testConfigPatchWorstCaseFitsArena() {
-  initJsonArenaHooks();
-  // Mirrors every allowed field in configHandler() with representative values.
-  const char *body =
-      "{"
-      "\"baseRevision\":42,"
-      "\"goalWeightG\":18,"
-      "\"rinseGestureMs\":3000,"
-      "\"rinseDurationMs\":6000,"
-      "\"operationalWallMs\":120000,"
-      "\"autoTare\":true,"
-      "\"postTareBaselineGraceMs\":500,"
-      "\"brewByWeight\":true,"
-      "\"canTareStartTimer\":false,"
-      "\"scaleTimerStopExtraDelayMs\":250,"
-      "\"dripDelayMs\":3000,"
-      "\"soundAlertsEnabled\":true,"
-      "\"firstDropBeep\":true,"
-      "\"scaleConnectedLed\":true,"
-      "\"paddleReturnReminderBeep\":false,"
-      "\"paddleReturnReminderIntervalMs\":15000,"
-      "\"paddleReturnReminderMaxDurationMs\":60000,"
-      "\"paddleMode\":1,"
-      "\"stopPulseMs\":300,"
-      "\"maxSinglePressMs\":1000,"
-      "\"momentaryStartEdge\":\"press\","
-      "\"reedConfirmTimeoutMs\":1000,"
-      "\"buzzerScaleLostBeep\":true,"
-      "\"buzzerAutoToManualGuardEndBeep\":false,"
-      "\"buzzerManualNoScaleBeep\":true,"
-      "\"buzzerScaleConnectedBeep\":true,"
-      "\"buzzerExtendedPulseRate\":2,"
-      "\"buzzerSlowExtendedPulseRate\":1,"
-      "\"alertOutputChannel\":0,"
-      "\"autoRetare\":true,"
-      "\"retareWindowMs\":8000,"
-      "\"minimumCupWeightG\":5,"
-      "\"retareStabilitySamples\":4,"
-      "\"retareStabilityToleranceG\":0.2,"
-      "\"retareStabilityMaxGapMs\":500,"
-      "\"retareStabilityMinDurationMs\":800,"
-      "\"bbwProtectionMs\":3000,"
-      "\"fastExtractionGuardEnabled\":true,"
-      "\"avoidAccidentalTouchEnabled\":true,"
-      "\"maxRecoveryWeightG\":2.5,"
-      "\"minBbwBrewTimeMs\":18000,"
-      "\"slowExtractionGuardEnabled\":true,"
-      "\"minRecoveryWeightG\":1.5,"
-      "\"maxBbwBrewTimeMs\":45000,"
-      "\"autoToManualGuardEnabled\":true,"
-      "\"autoToManualGuardLimitMode\":1,"
-      "\"autoToManualGuardManualLimitMs\":60000,"
-      "\"autoToManualGuardBaselineMs\":30000,"
-      "\"weightOffsetBaselineG\":0.1,"
-      "\"timezoneOffsetMinutes\":-240,"
-      "\"ntpServerPreset\":1,"
-      "\"ntpServerCustom\":\"pool.ntp.org\","
-      "\"scaleMacCacheMode\":1,"
-      "\"bookooMuteOnBuzzerOnly\":false,"
-      "\"bookooConnectBeepLevel\":2,"
-      "\"avoidBbwShotWithoutScale\":true,"
-      "\"lastShotCooldownMs\":5000,"
-      "\"serialDebugOutput\":false,"
-      "\"ringRetainLogLevel\":2"
-      "}";
+void testConcurrentParsesDoNotShareStorage() {
+  std::atomic<int> ready{0};
+  std::atomic<bool> release{false};
+  std::atomic<int> threadErrors{0};
+  std::atomic<cJSON *> roots[2] = {};
+  std::atomic<cJSON *> values[2] = {};
 
-  resetJsonArena();
-  cJSON *root = cJSON_Parse(body);
+  auto parse = [&](int index) {
+    const char *body = index == 0 ? "{\"worker\":0}" : "{\"worker\":1}";
+    cJSON *const root = shotstopper::parseJsonDocument(body);
+    roots[index].store(root, std::memory_order_release);
+    values[index].store(
+        root == nullptr ? nullptr
+                        : cJSON_GetObjectItemCaseSensitive(root, "worker"),
+        std::memory_order_release);
+    ready.fetch_add(1, std::memory_order_release);
+    while (!release.load(std::memory_order_acquire)) std::this_thread::yield();
+    if (root != nullptr) {
+      const cJSON *const value = values[index].load(std::memory_order_acquire);
+      if (!cJSON_IsNumber(value) || value->valueint != index)
+        threadErrors.fetch_add(1, std::memory_order_relaxed);
+      cJSON_Delete(root);
+    }
+  };
+
+  std::thread first(parse, 0);
+  std::thread second(parse, 1);
+  while (ready.load(std::memory_order_acquire) != 2) std::this_thread::yield();
+  const bool bothParsed =
+      roots[0].load(std::memory_order_acquire) != nullptr &&
+      roots[1].load(std::memory_order_acquire) != nullptr;
+  const bool distinctRoots =
+      roots[0].load(std::memory_order_acquire) !=
+      roots[1].load(std::memory_order_acquire);
+  const bool distinctValues =
+      values[0].load(std::memory_order_acquire) !=
+      values[1].load(std::memory_order_acquire);
+  release.store(true, std::memory_order_release);
+  first.join();
+  second.join();
+  CHECK(bothParsed);
+  CHECK(distinctRoots);
+  CHECK(distinctValues);
+  CHECK(threadErrors.load(std::memory_order_relaxed) == 0);
+}
+
+void testDepthLimitRejectsWithoutDamagingPriorDocument() {
+  cJSON *const prior = shotstopper::parseJsonDocument("{\"safe\":true}");
+  CHECK(prior != nullptr);
+  std::string deep;
+  for (size_t i = 0; i <= shotstopper::JSON_DOCUMENT_MAX_DEPTH; ++i)
+    deep.push_back('[');
+  deep += '0';
+  for (size_t i = 0; i <= shotstopper::JSON_DOCUMENT_MAX_DEPTH; ++i)
+    deep.push_back(']');
+  const uint32_t before = shotstopper::jsonDocumentLimitRejections();
+  CHECK(shotstopper::parseJsonDocument(deep.c_str()) == nullptr);
+  CHECK(shotstopper::jsonDocumentLimitRejections() == before + 1);
+  CHECK(shotstopper::jsonDocumentLimitRejectedRecently());
+  CHECK(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(prior, "safe")));
+  cJSON_Delete(prior);
+}
+
+void testSizeLimitAndNullRejectCleanly() {
+  std::string oversized(shotstopper::JSON_DOCUMENT_MAX_BYTES + 1, ' ');
+  CHECK(shotstopper::parseJsonDocument(oversized.c_str()) == nullptr);
+  CHECK(shotstopper::jsonDocumentLimitRejectedRecently());
+  CHECK(shotstopper::parseJsonDocument(nullptr) == nullptr);
+  CHECK(!shotstopper::jsonDocumentLimitRejectedRecently());
+}
+
+void testEscapedBracketsDoNotCountAsNesting() {
+  cJSON *const root = shotstopper::parseJsonDocument(
+      "{\"text\":\"[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[\"}");
   CHECK(root != nullptr);
-  CHECK(jsonArenaBytesUsed() <= shotstopper::JSON_ARENA_CAPACITY);
-  CHECK(jsonArenaBytesUsed() > 0);
   cJSON_Delete(root);
-  resetJsonArena();
-  CHECK(jsonArenaBytesUsed() == 0);
-}
-
-void testRepeatedParsesReuseArena() {
-  initJsonArenaHooks();
-  const char *body = "{\"confirm\":\"UNSAFE_WEBUI_OVERRIDE\"}";
-  for (int attempt = 0; attempt < 32; ++attempt) {
-    resetJsonArena();
-    cJSON *root = cJSON_Parse(body);
-    CHECK(root != nullptr);
-    cJSON_Delete(root);
-    resetJsonArena();
-    CHECK(jsonArenaBytesUsed() == 0);
-  }
-}
-
-void testArenaRejectsOversizedAlloc() {
-  initJsonArenaHooks();
-  resetJsonArena();
-  const uint32_t before = shotstopper::jsonArenaAllocFailures();
-  CHECK(shotstopper::detail::jsonArenaMalloc(
-            shotstopper::JSON_ARENA_CAPACITY + 1) == nullptr);
-  CHECK(shotstopper::jsonArenaAllocFailures() == before + 1);
-  CHECK(jsonArenaBytesUsed() == 0);
-  CHECK(shotstopper::detail::jsonArenaMalloc(
-            static_cast<size_t>(-1)) == nullptr);
-  CHECK(shotstopper::jsonArenaAllocFailures() == before + 2);
-  CHECK(jsonArenaBytesUsed() == 0);
-  void *ok = shotstopper::detail::jsonArenaMalloc(64);
-  CHECK(ok != nullptr);
-  CHECK(shotstopper::detail::jsonArenaMalloc(
-            shotstopper::JSON_ARENA_CAPACITY) == nullptr);
-  CHECK(jsonArenaBytesUsed() >= 64);
-}
-
-void testArenaResetClearsAllocFailures() {
-  initJsonArenaHooks();
-  resetJsonArena();
-  CHECK(shotstopper::detail::jsonArenaMalloc(
-            shotstopper::JSON_ARENA_CAPACITY - 8) != nullptr);
-  CHECK(shotstopper::detail::jsonArenaMalloc(64) == nullptr);
-  CHECK(shotstopper::jsonArenaAllocFailures() > 0);
-  CHECK(shotstopper::jsonArenaExhaustedRecently());
-  resetJsonArena();
-  CHECK(shotstopper::jsonArenaAllocFailures() == 0);
-  CHECK(!shotstopper::jsonArenaExhaustedRecently());
-  CHECK(jsonArenaBytesUsed() == 0);
-}
-
-void testParseFailsClosedWhenHooksMissing() {
-  initJsonArenaHooks();
-  CHECK(shotstopper::jsonArenaHooksInstalled());
-  cJSON *ok = shotstopper::parseJsonInArena("{\"ok\":true}");
-  CHECK(ok != nullptr);
-  cJSON_Delete(ok);
-  shotstopper::hostSetJsonArenaHooksInstalled(false);
-  CHECK(shotstopper::parseJsonInArena("{\"ok\":true}") == nullptr);
-  shotstopper::hostSetJsonArenaHooksInstalled(true);
-  cJSON *again = shotstopper::parseJsonInArena("{\"ok\":true}");
-  CHECK(again != nullptr);
-  cJSON_Delete(again);
 }
 
 }  // namespace
 
 int main() {
-  testArenaResetAndHooks();
-  testConfigPatchWorstCaseFitsArena();
-  testRepeatedParsesReuseArena();
-  testArenaRejectsOversizedAlloc();
-  testArenaResetClearsAllocFailures();
-  testParseFailsClosedWhenHooksMissing();
+  shotstopper::initJsonParser();
+  testValidAndInvalidDocumentsAreIndependent();
+  testConcurrentParsesDoNotShareStorage();
+  testDepthLimitRejectsWithoutDamagingPriorDocument();
+  testSizeLimitAndNullRejectCleanly();
+  testEscapedBracketsDoNotCountAsNesting();
   if (failures != 0) {
-    std::cerr << failures << " json arena host test(s) failed\n";
+    std::cerr << failures << " JSON parser host test(s) failed\n";
     return 1;
   }
-  std::cout << "json arena host tests passed\n";
+  std::cout << "JSON parser host tests passed\n";
   return 0;
 }

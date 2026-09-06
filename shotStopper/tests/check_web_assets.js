@@ -362,8 +362,10 @@ if (!buzzer.includes('struct RtttlCatalog') ||
     !buzzer.includes('RtttlCatalog *rtttlCatalog') ||
     !buzzer.includes('allocInternal(sizeof(RtttlCatalog))') ||
     !buzzer.includes('RtttlNote rtttlBuf[BULLSEYE_RTTTL_MAX_NOTES]') ||
+    !firmwareCore.includes('TaskMutex debugLogMutex') ||
     !firmwareCore.includes(
-        'portTRY_ENTER_CRITICAL(&debugLogMux, portMUX_TRY_LOCK)') ||
+        'debugLog.copyAfter(afterSequence, output, capacity)') ||
+    firmwareCore.includes('portENTER_CRITICAL(&debugLogMux)') ||
     !firmwareCore.includes('debugLogDroppedSnapshot') ||
     !firmwareCore.includes(
         '__atomic_load_n(&debugLogContentionDropped, __ATOMIC_RELAXED)') ||
@@ -2115,9 +2117,9 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !shotLogIo.includes('copyToFlashIoScratch(&store_') ||
     !shotCurveIo.includes('copyToFlashIoScratch(&store_') ||
     !lastShotIo.includes('copyToFlashIoScratch(&blob_') ||
-    !jsonArena.includes('size > JSON_ARENA_CAPACITY') ||
-    jsonArena.includes('allocExternalOrInternal(JSON_ARENA_CAPACITY)') ||
-    !jsonArena.includes('allocExternal(JSON_ARENA_CAPACITY)') ||
+    jsonArena.includes('cJSON_InitHooks') ||
+    !jsonArena.includes('JSON_DOCUMENT_MAX_BYTES') ||
+    !jsonArena.includes('JSON_DOCUMENT_MAX_DEPTH') ||
     !network.includes('workBuf_->~NetworkWorkBuf()') ||
     !firmware.includes('resetAllDurableStoresForNetwork') ||
     !firmware.includes(
@@ -3153,6 +3155,22 @@ if (!webhookSource.includes('xSemaphoreTake(lifecycleMutex_, 0)') ||
     !webhookSource.includes('WorkerState::STOPPING') ||
     !webhookSource.includes('releaseWorkerFromTask()')) {
   throw new Error('Webhook dispatch must remain non-blocking and release disabled worker resources');
+}
+const networkWebhookBegin = network.indexOf('webhooks_.begin(settings.webhook)');
+const networkPassiveInit = [
+  network.indexOf('xQueueCreate(WEB_COMMAND_QUEUE_LENGTH'),
+  network.indexOf('xSemaphoreCreateMutex()'),
+  network.indexOf('allocExternal(sizeof(NetworkWorkBuf))'),
+];
+if (networkWebhookBegin < 0 ||
+    networkPassiveInit.some(index => index < 0 || index > networkWebhookBegin) ||
+    !network.includes('bool ShotStopperNetwork::stop()') ||
+    !network.includes('xSemaphoreTake(taskStopped_') ||
+    !network.includes('if (!webhooks_.stop()) return false;') ||
+    !webhookSource.includes('bool WebhookDispatcher::stop()') ||
+    !webhookSource.includes('xSemaphoreTake(workerStopped_')) {
+  throw new Error(
+      'Network/Webhook initialization must acquire passive resources first and provide joined rollback');
 }
 if (!webhookSource.includes('allocExternal(queueStorageBytes)') ||
     !webhookSource.includes('allocExternal(kWebhookPayloadCapacity)') ||
@@ -4213,9 +4231,8 @@ if (!network.includes('sendCopiedBody(request, SHOT_STOPPER_WEB_UI_GZIP') ||
     !network.includes('g_httpSendBounce') ||
     !network.includes('allocExternal(sizeof(NetworkWorkBuf))') ||
     !psram.includes('inline void *allocExternal(size_t bytes)') ||
-    !jsonArena.includes('jsonArenaIsExternal()') ||
-    !jsonArena.includes('allocExternal(JSON_ARENA_CAPACITY)') ||
-    jsonArena.includes('allocExternalOrInternal(JSON_ARENA_CAPACITY)') ||
+    !jsonArena.includes('parseJsonDocument') ||
+    jsonArena.includes('cJSON_InitHooks') ||
     !network.includes(
         'sendCopiedChunk(request, work.jsonItem, strlen(work.jsonItem))')) {
   throw new Error(

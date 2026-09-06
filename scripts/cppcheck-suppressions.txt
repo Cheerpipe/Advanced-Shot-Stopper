@@ -9,6 +9,7 @@
 # FreeRTOS semaphore macros expand to C casts; not actionable at call sites.
 dangerousTypeCast:*/shotStopper/ShotStopperNetwork.cpp
 dangerousTypeCast:*/shotStopper/ShotStopperWebhook.cpp
+dangerousTypeCast:*/shotStopper/ShotStopperTaskMutex.h
 # This deliberately uninitialized RTC record preserves reset evidence across a
 # reboot. It is always validated by magic, inverse fields, and checksum before
 # its contents are consumed; initializing it would defeat that safety guard.

@@ -6,6 +6,8 @@
 #include <string.h>
 #include <atomic>
 
+#include "ShotStopperTaskMutex.h"
+
 #if !defined(SHOT_STOPPER_HOST_TEST) && \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
 #include <Arduino.h>
@@ -101,6 +103,21 @@ inline bool validWebhookConfig(const WebhookConfig &config) {
                         : config.url[0] == '\0' || validWebhookUrl(config.url);
 }
 
+// Keep HTTP client setup fail-fast and host-testable. ESP_OK is zero; the
+// concrete callbacks return esp_err_t converted to its stable int32_t ABI.
+template <typename MethodSetter, typename ContentTypeSetter,
+          typename UserAgentSetter, typename BodySetter>
+inline int32_t configureWebhookHttpRequest(MethodSetter methodSetter,
+                                           ContentTypeSetter contentTypeSetter,
+                                           UserAgentSetter userAgentSetter,
+                                           BodySetter bodySetter) {
+  int32_t error = methodSetter();
+  if (error == 0) error = contentTypeSetter();
+  if (error == 0) error = userAgentSetter();
+  if (error == 0) error = bodySetter();
+  return error;
+}
+
 enum class WebhookEventType : uint8_t {
   BREWING,
   IDLE,
@@ -146,6 +163,9 @@ struct WebhookStatus {
 class WebhookDispatcher {
  public:
   bool begin(const WebhookConfig &config);
+  // Stops and joins the worker before releasing lifecycle resources. Safe to
+  // call after a partial begin() and more than once.
+  bool stop();
   void setConfig(const WebhookConfig &config);
   WebhookConfig config() const;
   WebhookStatus status() const;
@@ -178,12 +198,13 @@ class WebhookDispatcher {
   bool buildPayload(const WebhookEvent &event, char *output, size_t capacity);
   bool dispatchAllowed() const;
 
-  mutable portMUX_TYPE mux_ = portMUX_INITIALIZER_UNLOCKED;
+  mutable TaskMutex mux_;
   WebhookConfig config_ = {};
   WebhookStatus status_ = {};
   uint32_t configGeneration_ = 1;
   WorkerState workerState_ = WorkerState::STOPPED;
   SemaphoreHandle_t lifecycleMutex_ = nullptr;
+  SemaphoreHandle_t workerStopped_ = nullptr;
   bool stopAfterDrain_ = false;
   QueueHandle_t queue_ = nullptr;
   StaticQueue_t queueControl_ = {};
@@ -194,6 +215,7 @@ class WebhookDispatcher {
   std::atomic<bool> deferDuringShot_{false};
   std::atomic<bool> scaleConnecting_{false};
   std::atomic<bool> abortRequested_{false};
+  std::atomic<int32_t> activeCloseError_{0};
   // Latched per active perform so a short critical pulse still cancels after
   // the level gate has cleared, including cancel_request's reconnect event.
   std::atomic<bool> cancelActive_{false};

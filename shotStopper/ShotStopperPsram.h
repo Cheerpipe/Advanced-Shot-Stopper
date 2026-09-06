@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <atomic>
 
 #if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
@@ -30,22 +31,26 @@ namespace shotstopper {
 
 namespace detail {
 
-inline uint32_t g_allocExternalOk = 0;
-inline uint32_t g_allocExternalFallback = 0;
-inline bool g_workBufExternal = false;
+inline std::atomic<uint32_t> g_allocExternalOk{0};
+inline std::atomic<uint32_t> g_allocExternalFallback{0};
+inline std::atomic<bool> g_workBufExternal{false};
 
 }  // namespace detail
 
-inline uint32_t allocExternalOkCount() { return detail::g_allocExternalOk; }
-
-inline uint32_t allocExternalFallbackCount() {
-  return detail::g_allocExternalFallback;
+inline uint32_t allocExternalOkCount() {
+  return detail::g_allocExternalOk.load(std::memory_order_relaxed);
 }
 
-inline bool workBufIsExternal() { return detail::g_workBufExternal; }
+inline uint32_t allocExternalFallbackCount() {
+  return detail::g_allocExternalFallback.load(std::memory_order_relaxed);
+}
+
+inline bool workBufIsExternal() {
+  return detail::g_workBufExternal.load(std::memory_order_acquire);
+}
 
 inline void noteWorkBufExternal(bool isExternal) {
-  detail::g_workBufExternal = isExternal;
+  detail::g_workBufExternal.store(isExternal, std::memory_order_release);
 }
 
 inline bool pointerIsExternal(const void *block) {
@@ -71,7 +76,7 @@ inline void *allocExternal(size_t bytes) {
     defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
   void *block = malloc(bytes);
   if (block != nullptr) {
-    ++detail::g_allocExternalOk;
+    detail::g_allocExternalOk.fetch_add(1, std::memory_order_relaxed);
   }
   return block;
 #else
@@ -82,7 +87,7 @@ inline void *allocExternal(size_t bytes) {
   }
 #endif
   if (block != nullptr && pointerIsExternal(block)) {
-    ++detail::g_allocExternalOk;
+    detail::g_allocExternalOk.fetch_add(1, std::memory_order_relaxed);
     return block;
   }
   if (block != nullptr) {
@@ -100,7 +105,7 @@ inline void *allocExternalOrInternal(size_t bytes) {
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
   void *block = malloc(bytes);
   if (block != nullptr) {
-    ++detail::g_allocExternalOk;
+    detail::g_allocExternalOk.fetch_add(1, std::memory_order_relaxed);
   }
   return block;
 #else
@@ -111,7 +116,7 @@ inline void *allocExternalOrInternal(size_t bytes) {
   }
 #endif
   if (block != nullptr && pointerIsExternal(block)) {
-    ++detail::g_allocExternalOk;
+    detail::g_allocExternalOk.fetch_add(1, std::memory_order_relaxed);
     return block;
   }
   if (block != nullptr) {
@@ -120,7 +125,7 @@ inline void *allocExternalOrInternal(size_t bytes) {
   }
   block = heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   if (block != nullptr) {
-    ++detail::g_allocExternalFallback;
+    detail::g_allocExternalFallback.fetch_add(1, std::memory_order_relaxed);
   }
   return block;
 #endif

@@ -81,6 +81,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   hostLedcLastFreq = 0;
   hostEspTimerCreateSucceeds = true;
   hostEspTimerStartSucceeds = true;
+  hostEspTimerCreateCalls = 0;
+  hostEspTimerCreateFailAtCall = 0;
   hostGptimerCreateSucceeds = true;
   hostGptimerArmSucceeds = true;
   hostCircuitArmBeforeCommitHook = nullptr;
@@ -1801,7 +1803,7 @@ void r19_reset_during_close_reopens_without_recovery_lockout() {
   CHECK(relaySafetyState == RelaySafetyState::OPEN);
   CHECK(relaySafetyFault == RelaySafetyFault::NONE);
   CHECK(hostPinLevel[RELAY_GPIO] == RELAY_OPEN_LEVEL);
-  CHECK(safetyResetRecord.relayMarker == SAFETY_RELAY_OPEN_MARKER);
+  CHECK(safetyResetRecordForHost().relayMarker == SAFETY_RELAY_OPEN_MARKER);
 }
 
 void r19b_panic_boot_is_ready_for_webui_and_next_circuit_cycle() {
@@ -1860,13 +1862,13 @@ void r20c_reset_uptime_checkpoint_is_no_more_frequent_than_one_minute() {
   resetHarness(false, false);
   (void)beginSafetyResetGuard();
   recordResetUptime(59999);
-  CHECK(safetyResetRecord.currentUptimeMs == 0);
+  CHECK(safetyResetRecordForHost().currentUptimeMs == 0);
   recordResetUptime(60000);
-  CHECK(safetyResetRecord.currentUptimeMs == 60000);
+  CHECK(safetyResetRecordForHost().currentUptimeMs == 60000);
   recordResetUptime(119999);
-  CHECK(safetyResetRecord.currentUptimeMs == 60000);
+  CHECK(safetyResetRecordForHost().currentUptimeMs == 60000);
   recordResetUptime(120000);
-  CHECK(safetyResetRecord.currentUptimeMs == 120000);
+  CHECK(safetyResetRecordForHost().currentUptimeMs == 120000);
 }
 
 void r20d_clear_reset_history_keeps_current_reset_reason() {
@@ -1876,7 +1878,7 @@ void r20d_clear_reset_history_keeps_current_reset_reason() {
   CHECK(reset.resetHistoryCount == 1);
   CHECK(clearPersistedResetHistory(reset.unsafeResetCount));
   CHECK(safetyResetRecordValid());
-  CHECK(safetyResetRecord.historyCount == 0);
+  CHECK(safetyResetRecordForHost().historyCount == 0);
   CHECK(reason == hostSafetyResetReasonCode);
 }
 
@@ -8148,11 +8150,12 @@ void n03_unsynced_retry_is_fifteen_seconds() {
 }
 
 void rf01_coex_is_always_bt() {
+  CHECK(ensureRfCoexBt());
   CHECK(snapshotRfCoexPreference() == RfCoexPreference::BT);
   CHECK(strcmp(rfCoexPreferenceName(RfCoexPreference::BT), "BT") == 0);
   CHECK(strcmp(rfCoexPreferenceName(RfCoexPreference::WIFI), "WIFI") == 0);
   CHECK(strcmp(rfCoexPreferenceName(RfCoexPreference::BALANCE), "BALANCE") == 0);
-  ensureRfCoexBt();
+  CHECK(ensureRfCoexBt());
   CHECK(snapshotRfCoexPreference() == RfCoexPreference::BT);
 }
 
@@ -9374,6 +9377,91 @@ void f06_boot_capability_policy_is_fail_closed() {
   resetHarness(false, false);
   reportTaskWatchdogFault();
   CHECK(bootRefusesRelayClose(BootState::FAULT_LATCHED));
+}
+
+void f14_relay_timer_initialization_rolls_back_partial_handles() {
+  deleteHostResources();
+  hostEspTimerCreateSucceeds = true;
+  hostEspTimerCreateCalls = 0;
+  hostEspTimerCreateFailAtCall = 2;
+  CHECK(!initializeRelaySafetyTimer());
+  CHECK(relaySafetyTimer == nullptr);
+  CHECK(operationalLimitTimer == nullptr);
+  CHECK(!independentSafetyTimer.ready());
+  hostEspTimerCreateFailAtCall = 0;
+  CHECK(initializeRelaySafetyTimer());
+  CHECK(relaySafetyTimer != nullptr);
+  CHECK(operationalLimitTimer != nullptr);
+  CHECK(independentSafetyTimer.ready());
+}
+
+void f13_schedule_contract_and_snapshot_evidence_are_explicit() {
+  CHECK(TASK_SCHEDULE_CONTRACT_COUNT == 7);
+  CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[0].name, "control") == 0);
+  CHECK(TASK_SCHEDULE_CONTRACTS[0].core == CONTROL_TASK_CORE);
+  CHECK(TASK_SCHEDULE_CONTRACTS[0].serviceDeadlineMs ==
+        CONTROL_SERVICE_DEADLINE_MS);
+  CHECK(TASK_SCHEDULE_CONTRACTS[1].core == SCALE_WORKER_TASK_CORE);
+  CHECK(TASK_SCHEDULE_CONTRACTS[1].serviceDeadlineMs ==
+        SCALE_SERVICE_DEADLINE_MS);
+  CHECK(TASK_SCHEDULE_CONTRACTS[2].priorityOffset == 1);
+  CHECK(TASK_SCHEDULE_CONTRACTS[2].watchdogSubscribed);
+
+  resetHarness(false, true);
+  publishControlStatus();
+  ControlStatusSnapshot first;
+  copyControlStatus(first);
+  loopDeadlineMisses = 3;
+  publishControlStatus();
+  ControlStatusSnapshot second;
+  copyControlStatus(second);
+  CHECK(static_cast<uint32_t>(second.snapshotVersion - first.snapshotVersion) ==
+        1U);
+  CHECK(second.uptimeMs >= first.uptimeMs);
+  CHECK(second.loopDeadlineMisses == 3);
+}
+
+void f17_health_counters_are_atomic_and_monotonic() {
+  constexpr uint32_t kWriters = 4;
+  constexpr uint32_t kIterations = 500;
+  const uint32_t allocBefore = allocExternalOkCount();
+  const uint32_t flashBefore = flashIoLockTimeouts();
+  std::atomic<bool> start{false};
+  std::atomic<uint32_t> finished{0};
+  std::atomic<bool> monotonic{true};
+
+  std::thread reader([&]() {
+    while (!start.load(std::memory_order_acquire)) {
+    }
+    uint32_t lastAlloc = allocBefore;
+    uint32_t lastFlash = flashBefore;
+    while (finished.load(std::memory_order_acquire) != kWriters) {
+      const uint32_t alloc = allocExternalOkCount();
+      const uint32_t flash = flashIoLockTimeouts();
+      if (alloc < lastAlloc || flash < lastFlash) monotonic = false;
+      lastAlloc = alloc;
+      lastFlash = flash;
+    }
+  });
+  std::thread writers[kWriters];
+  for (std::thread &writer : writers) {
+    writer = std::thread([&]() {
+      while (!start.load(std::memory_order_acquire)) {
+      }
+      for (uint32_t i = 0; i < kIterations; ++i) {
+        void *block = allocExternal(8);
+        heapCapsFree(block);
+        flashIoLockTimeoutCount().fetch_add(1, std::memory_order_relaxed);
+      }
+      finished.fetch_add(1, std::memory_order_release);
+    });
+  }
+  start.store(true, std::memory_order_release);
+  for (std::thread &writer : writers) writer.join();
+  reader.join();
+  CHECK(monotonic.load());
+  CHECK(allocExternalOkCount() == allocBefore + kWriters * kIterations);
+  CHECK(flashIoLockTimeouts() == flashBefore + kWriters * kIterations);
 }
 
 void m12_ble_companion_result_drop_is_counted() {
@@ -11977,6 +12065,9 @@ const TestCase testCases[] = {
     {"F04", f04_gptimer_state_serializes_stop_against_expiry},
     {"F05", f05_settings_persistence_init_is_transactional},
     {"F06", f06_boot_capability_policy_is_fail_closed},
+    {"F13", f13_schedule_contract_and_snapshot_evidence_are_explicit},
+    {"F14", f14_relay_timer_initialization_rolls_back_partial_handles},
+    {"F17", f17_health_counters_are_atomic_and_monotonic},
     {"M12", m12_ble_companion_result_drop_is_counted},
     {"S04b", s04b_shot_log_page_slice},
     {"S04f", s04f_shot_log_sort_date_and_rating},

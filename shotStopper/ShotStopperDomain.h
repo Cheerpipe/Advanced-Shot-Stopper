@@ -2011,6 +2011,9 @@ inline const char *bootStateName(BootState state) {
 }
 
 struct ControlStatusSnapshot {
+  // Coherent publication identity. uptimeMs is the publication timestamp;
+  // snapshotVersion advances exactly once for every committed snapshot.
+  uint32_t snapshotVersion = 0;
   StopperState state = StopperState::REQUIRES_OFF;
   bool activeCycle = false;
   // True only on a reader copy when its requested control refresh timed out.
@@ -2072,6 +2075,9 @@ struct ControlStatusSnapshot {
   // loopMaxGapMs and never decreases until reboot.
   uint32_t loopIntervalGapMs = 0;
   uint32_t loopMaxGapMs = 0;
+  uint32_t loopDeadlineMisses = 0;
+  uint32_t scaleWorkerMaxGapMs = 0;
+  uint32_t scaleWorkerDeadlineMisses = 0;
   uint32_t loopStackMinWords = 0;
   uint32_t scaleStackMinWords = 0;
   uint32_t freeHeapBytes = 0;

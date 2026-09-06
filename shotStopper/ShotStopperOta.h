@@ -18,9 +18,11 @@
 //    the machine is not left without an application. USB recovery remains.
 
 #include "ShotStopperOtaImage.h"
+#include "ShotStopperTaskMutex.h"
 
 #include <stddef.h>
 #include <stdint.h>
+#include <atomic>
 
 #ifndef SHOT_STOPPER_HOST_TEST
 #include <sdkconfig.h>
@@ -85,6 +87,17 @@ enum class OtaResult : uint8_t {
 constexpr size_t OTA_TRANSFER_ID_CAPACITY = 65;
 constexpr size_t OTA_SHA256_HEX_CAPACITY = 65;
 constexpr uint32_t OTA_TRANSFER_CHUNK_BYTES = 64U * 1024U;
+// Journal at most twice per MiB. A 3 MiB image therefore performs at most
+// six durable writes (the empty record plus five progress checkpoints), not
+// one write and a full-prefix rehash for every HTTP range.
+constexpr uint32_t OTA_JOURNAL_CHECKPOINT_BYTES = 512U * 1024U;
+
+inline bool otaJournalCheckpointDue(uint32_t received, uint32_t persisted,
+                                    uint32_t expected) {
+  return received >= persisted &&
+         received < expected &&
+         received - persisted >= OTA_JOURNAL_CHECKPOINT_BYTES;
+}
 
 // Supplied by the client before any flash operation.  The SHA-256 makes the
 // session identity independent of a human version string: a rebuild with the
@@ -131,6 +144,8 @@ inline OtaPendingVerifyAction decideOtaPendingVerify(
 }
 
 struct OtaStatusSnapshot {
+  bool available = false;
+  bool busy = false;
   OtaState state = OtaState::UNAVAILABLE;
   uint32_t slotBytes = 0;
   uint32_t receivedBytes = 0;
@@ -145,12 +160,25 @@ struct OtaStatusSnapshot {
   // The running image was booted by an OTA commit and has not been confirmed.
   bool pendingVerify = false;
   bool confirmed = false;
+  bool rejected = false;
+  OtaImageTag running = {};
   bool sessionActive = false;
   uint32_t nextOffset = 0;
   uint32_t chunkBytes = OTA_TRANSFER_CHUNK_BYTES;
   uint32_t sessionExpiresInMs = 0;
   OtaSessionIdentity session = {};
   char lastChunkSha256[OTA_SHA256_HEX_CAPACITY] = {};
+};
+
+// Lock-free publication consumed by network_manager. Long HTTP socket waits
+// remain under the OTA transition mutex, but must never make the watchdog-
+// supervised manager wait behind an upload.
+struct OtaPublishedState {
+  bool available = false;
+  bool busy = false;
+  bool pendingVerify = false;
+  bool confirmed = false;
+  bool rejected = false;
 };
 
 // Transport hooks supplied by the HTTP layer. Keeping them as plain function
@@ -175,10 +203,11 @@ class ShotStopperOta {
   // confirmation. Safe to call more than once.
   void begin();
 
-  bool available() const { return available_; }
-  bool busy() const { return busy_ || sessionActive_; }
-  uint32_t slotBytes() const { return slotBytes_; }
+  bool available() const;
+  bool busy() const;
+  uint32_t slotBytes() const;
   OtaStatusSnapshot snapshot() const;
+  OtaPublishedState publishedState() const;
 
   // Starts (or reconnects to) a resumable transfer.  This does not erase or
   // write flash; the first range validates the image header before begin().
@@ -196,9 +225,9 @@ class ShotStopperOta {
   OtaResult commit();
   void discard();
 
-  bool bootPendingVerify() const { return pendingVerify_; }
-  bool runningImageConfirmed() const { return confirmed_; }
-  bool runningImageRejected() const { return rejected_; }
+  bool bootPendingVerify() const;
+  bool runningImageConfirmed() const;
+  bool runningImageRejected() const;
   // Cancels the pending rollback: the running image becomes permanent.
   bool confirmRunningImage();
   // Selects the previous slot without rebooting, so the caller can restart
@@ -209,7 +238,7 @@ class ShotStopperOta {
   // cannot silently cancel the armed rollback.
   bool rejectRunningImage();
 
-  const OtaImageTag &runningTag() const { return runningTag_; }
+  OtaImageTag runningTag() const;
 
   static const char *resultName(OtaResult result);
   static const char *stateName(OtaState state);
@@ -220,10 +249,14 @@ class ShotStopperOta {
   OtaResult finishFailure(OtaResult result);
   bool reconfirmStagedTag();
   bool verifySessionSha256();
+  bool startSessionSha256();
+  bool updateSessionSha256(const uint8_t *bytes, size_t length);
+  void clearSessionSha256();
   void clearSession(bool abortHandle);
   bool persistSession();
   void removeSessionJournal();
   void restoreSessionJournal();
+  void publishState();
 
   bool started_ = false;
   bool available_ = false;
@@ -255,6 +288,12 @@ class ShotStopperOta {
   uint32_t lastChunkLength_ = 0;
   uint32_t otaHandle_ = 0;
   OtaImageTagScanner scanner_ = {};
+  // Owned mbedtls_sha256_context. Kept opaque here so this public header does
+  // not force every consumer to include mbedTLS internals.
+  void *sessionSha256_ = nullptr;
+  uint32_t journaledBytes_ = 0;
+  std::atomic<uint32_t> publishedFlags_{0};
+  mutable TaskMutex mutex_;
 };
 
 }  // namespace shotstopper

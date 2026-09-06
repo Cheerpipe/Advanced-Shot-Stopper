@@ -4,7 +4,9 @@
 // real task-level synchronization primitive; sequence counters and memory
 // barriers alone do not make concurrent struct copies race-free.
 
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(SHOT_STOPPER_HOST_TEST) || \
+    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#define SHOT_STOPPER_TASK_MUTEX_HOST 1
 #include <mutex>
 #else
 #include <freertos/FreeRTOS.h>
@@ -16,7 +18,7 @@ namespace shotstopper {
 class TaskMutex {
  public:
   TaskMutex() {
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(SHOT_STOPPER_TASK_MUTEX_HOST)
     handle_ = xSemaphoreCreateMutexStatic(&storage_);
     configASSERT(handle_ != nullptr);
 #endif
@@ -26,7 +28,7 @@ class TaskMutex {
   TaskMutex &operator=(const TaskMutex &) = delete;
 
   void lock() {
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
     mutex_.lock();
 #else
     const BaseType_t taken = xSemaphoreTake(handle_, portMAX_DELAY);
@@ -36,9 +38,12 @@ class TaskMutex {
   }
 
   void unlock() {
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
     mutex_.unlock();
 #else
+    // FreeRTOS implements xSemaphoreGive as a C macro with an internal handle
+    // cast; the public handle type is the one created above.
+    // cppcheck-suppress dangerousTypeCast
     const BaseType_t given = xSemaphoreGive(handle_);
     configASSERT(given == pdTRUE);
     (void)given;
@@ -46,7 +51,7 @@ class TaskMutex {
   }
 
  private:
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
   std::mutex mutex_;
 #else
   StaticSemaphore_t storage_ = {};

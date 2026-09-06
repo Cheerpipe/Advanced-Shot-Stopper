@@ -19,6 +19,7 @@ ota_image_binary=${TMPDIR:-/tmp}/shot_stopper_ota_image_host_test
 ota_image_sanitized=${TMPDIR:-/tmp}/shot_stopper_ota_image_host_test_sanitized
 ble_companion_protocol_binary=${TMPDIR:-/tmp}/shot_stopper_ble_companion_protocol_host_test
 ble_companion_protocol_sanitized=${TMPDIR:-/tmp}/shot_stopper_ble_companion_protocol_host_test_sanitized
+webhook_error_binary=${TMPDIR:-/tmp}/shot_stopper_webhook_error_host_test
 firmware_dir="$test_dir/.."
 firmware_file="$firmware_dir/shotStopper.cpp"
 ble_companion_file="$firmware_dir/ShotStopperBleCompanion.h"
@@ -77,6 +78,7 @@ scan_firmware_sources() {
 TSAN_OPTIONS=halt_on_error=1 "$tsan_binary" M09
 TSAN_OPTIONS=halt_on_error=1 "$tsan_binary" F03
 TSAN_OPTIONS=halt_on_error=1 "$tsan_binary" F04
+TSAN_OPTIONS=halt_on_error=1 "$tsan_binary" F17
 
 momentary_binary=${TMPDIR:-/tmp}/shot_stopper_momentary_host_test
 for machine_type in 1 2; do
@@ -171,6 +173,12 @@ ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
 "$ble_companion_protocol_binary"
 
 "$cxx" -std=c++17 -Wall -Wextra -Werror -pedantic \
+  -DSHOT_STOPPER_HOST_TEST \
+  "$test_dir/webhook_error_host_test.cpp" \
+  -o "$webhook_error_binary"
+"$webhook_error_binary"
+
+"$cxx" -std=c++17 -Wall -Wextra -Werror -pedantic \
   -fno-omit-frame-pointer -fsanitize=address,undefined \
   "$test_dir/ble_companion_protocol_host_test.cpp" \
   -o "$ble_companion_protocol_sanitized"
@@ -178,6 +186,16 @@ ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
   "$ble_companion_protocol_sanitized"
 
 json_arena_binary=${TMPDIR:-/tmp}/shot_stopper_json_arena_host_test
+json_arena_tsan=${TMPDIR:-/tmp}/shot_stopper_json_arena_host_test_tsan
+reset_guard_instance_binary=${TMPDIR:-/tmp}/shot_stopper_reset_guard_instance_host_test
+
+"$cxx" -std=c++17 -Wall -Wextra -Werror -pedantic \
+  "$test_dir/reset_guard_instance_host_test.cpp" \
+  "$test_dir/reset_guard_instance_a.cpp" \
+  "$test_dir/reset_guard_instance_b.cpp" \
+  -o "$reset_guard_instance_binary"
+"$reset_guard_instance_binary"
+
 json_arena_cflags=""
 for cjson_include in /opt/homebrew/include/cjson /usr/local/include/cjson \
     /usr/include/cjson; do
@@ -196,10 +214,19 @@ done
 if [ -n "$json_arena_cflags" ]; then
   # shellcheck disable=SC2086
   "$cxx" -std=c++17 -Wall -Wextra -Werror -pedantic \
+    -pthread \
     $json_arena_cflags \
     "$test_dir/json_arena_host_test.cpp" \
     -o "$json_arena_binary"
   "$json_arena_binary"
+  # The regression being guarded is specifically cross-task overlap.
+  # shellcheck disable=SC2086
+  "$cxx" -std=c++17 -O1 -g -Wall -Wextra -Werror -pedantic \
+    -pthread -fno-omit-frame-pointer -fsanitize=thread \
+    $json_arena_cflags \
+    "$test_dir/json_arena_host_test.cpp" \
+    -o "$json_arena_tsan"
+  TSAN_OPTIONS=halt_on_error=1 "$json_arena_tsan"
 else
   echo "libcjson not found: json arena host test skipped" >&2
 fi

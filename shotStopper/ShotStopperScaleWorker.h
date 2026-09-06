@@ -2,6 +2,7 @@
 
 #include "ShotStopperScaleLink.h"
 #include "ShotStopperDomain.h"
+#include "ShotStopperTaskMutex.h"
 
 #if !defined(SHOT_STOPPER_HOST_TEST)
 #include <EspressoScaleBLE.h>
@@ -78,6 +79,8 @@ void resetScaleWorkerRadioStateForHost();
 bool scaleWorkerReady();
 uint32_t scaleWorkerDroppedEventCount();
 uint32_t scaleWorkerStackMinWordsValue();
+uint32_t scaleWorkerMaxGapMsValue();
+uint32_t scaleWorkerDeadlineMissCount();
 
 #if defined(SHOT_STOPPER_HOST_TEST)
 void setScaleWorkerBleReadyForHost(bool ready);
@@ -114,7 +117,7 @@ extern EspressoScaleBLE scale;
 extern QueueHandle_t scaleCommandQueue;
 extern QueueHandle_t scaleEventQueue;
 extern portMUX_TYPE scaleLinkMux;
-extern portMUX_TYPE scalePreferredMacMux;
+extern TaskMutex scalePreferredMacMux;
 extern portMUX_TYPE scaleCriticalEventMux;
 extern portMUX_TYPE scaleWeightEventMux;
 extern uint32_t scalePacketSequence;

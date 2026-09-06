@@ -69,12 +69,14 @@ inline bool ensureFlashIoScratch() {
   return true;
 }
 
-inline uint32_t &flashIoLockTimeoutCount() {
-  static uint32_t count = 0;
+inline std::atomic<uint32_t> &flashIoLockTimeoutCount() {
+  static std::atomic<uint32_t> count{0};
   return count;
 }
 
-inline uint32_t flashIoLockTimeouts() { return flashIoLockTimeoutCount(); }
+inline uint32_t flashIoLockTimeouts() {
+  return flashIoLockTimeoutCount().load(std::memory_order_relaxed);
+}
 
 #if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
@@ -106,7 +108,7 @@ inline bool tryLockFlashIo(uint32_t timeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
     }
     return true;
   }
-  ++flashIoLockTimeoutCount();
+  flashIoLockTimeoutCount().fetch_add(1, std::memory_order_relaxed);
   return false;
 }
 

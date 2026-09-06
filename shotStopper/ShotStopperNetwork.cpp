@@ -801,7 +801,11 @@ StatusPage parseStatusPage(const char *uri) {
   return StatusPage::Unknown;
 }
 
-bool statusJsonAppend(size_t *used, const char *fmt, ...) {
+bool statusJsonAppend(size_t *used, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
+
+bool __attribute__((format(printf, 2, 3)))
+statusJsonAppend(size_t *used, const char *fmt, ...) {
   if (g_work == nullptr || used == nullptr ||
       *used >= NetworkWorkBuf::kStatusJson) {
     return false;
@@ -972,7 +976,11 @@ ShotStopperNetwork::ShotStopperNetwork() : settings_(g_networkSettings) {}
 
 bool ShotStopperNetwork::begin(const PersistedSettings &settings,
                                const NetworkBridgeCallbacks &callbacks) {
-  if (instance_ != nullptr || callbacks.copyControlStatus == nullptr ||
+  if (beginCompleted_ || instance_ != nullptr ||
+      acceptedCommandQueue_ != nullptr ||
+      taskHandle_ != nullptr || taskStopped_ != nullptr ||
+      statusResponseMux_ != nullptr || workBuf_ != nullptr ||
+      callbacks.copyControlStatus == nullptr ||
       callbacks.copyControlGate == nullptr ||
       callbacks.refreshControlStatus == nullptr ||
       callbacks.enqueueWebCommand == nullptr ||
@@ -984,10 +992,7 @@ bool ShotStopperNetwork::begin(const PersistedSettings &settings,
   quietIdfWifiDriverWarnings();
   settings_ = settings;
   callbacks_ = callbacks;
-  if (!webhooks_.begin(settings.webhook) && settings.webhook.enabled) {
-    log(DebugCategory::NETWORK, DebugCode::INITIALIZATION_FAILED,
-        BOOT_SUBSYSTEM_NETWORK, 1);
-  }
+  stopRequested_.store(false, std::memory_order_release);
   acceptedCommandQueue_ =
       xQueueCreate(WEB_COMMAND_QUEUE_LENGTH, sizeof(WebCommand));
   if (acceptedCommandQueue_ == nullptr) {
@@ -999,9 +1004,19 @@ bool ShotStopperNetwork::begin(const PersistedSettings &settings,
     acceptedCommandQueue_ = nullptr;
     return false;
   }
+  taskStopped_ = xSemaphoreCreateBinary();
+  if (taskStopped_ == nullptr) {
+    vSemaphoreDelete(statusResponseMux_);
+    statusResponseMux_ = nullptr;
+    vQueueDelete(acceptedCommandQueue_);
+    acceptedCommandQueue_ = nullptr;
+    return false;
+  }
   workBuf_ = static_cast<NetworkWorkBuf *>(
       allocExternal(sizeof(NetworkWorkBuf)));
   if (workBuf_ == nullptr) {
+    vSemaphoreDelete(taskStopped_);
+    taskStopped_ = nullptr;
     vSemaphoreDelete(statusResponseMux_);
     statusResponseMux_ = nullptr;
     vQueueDelete(acceptedCommandQueue_);
@@ -1011,22 +1026,25 @@ bool ShotStopperNetwork::begin(const PersistedSettings &settings,
   }
   new (workBuf_) NetworkWorkBuf{};
   noteWorkBufExternal(true);
-  auto destroyWorkBuf = [&]() {
-    workBuf_->~NetworkWorkBuf();
-    heapCapsFree(workBuf_);
-    workBuf_ = nullptr;
-    noteWorkBufExternal(false);
-  };
   memset(&g_wifiScan, 0, sizeof(g_wifiScan));
   memset(&g_wifiScanWorking, 0, sizeof(g_wifiScanWorking));
   static_assert(REQUEST_BODY_CAPACITY == 2048,
                 "NetworkWorkBuf::requestBody must match REQUEST_BODY_CAPACITY");
   g_work = workBuf_;
   instance_ = this;
-  initJsonArenaHooks();
+  initJsonParser();
   ntpConfigRevision_ = settings_.runtime.revision;
   g_wallClock.reset();
-  ensureRfCoexBt();
+  if (!ensureRfCoexBt()) {
+    log(DebugCategory::NETWORK, DebugCode::INITIALIZATION_FAILED,
+        BOOT_SUBSYSTEM_NETWORK, rfCoexLastError());
+  }
+  // Webhook owns a task when enabled. Start it only after all passive Network
+  // resources exist, and make the rollback below join it before freeing them.
+  if (!webhooks_.begin(settings.webhook)) {
+    log(DebugCategory::NETWORK, DebugCode::INITIALIZATION_FAILED,
+        BOOT_SUBSYSTEM_NETWORK, 1);
+  }
   // Pin beside the Wi-Fi/LwIP stacks on PRO_CPU (core 0).
   // Stack must stay in internal RAM: this task calls NVS/Preferences (flash
   // write disables the cache, which makes a PSRAM stack inaccessible).
@@ -1034,16 +1052,54 @@ bool ShotStopperNetwork::begin(const PersistedSettings &settings,
                               NETWORK_MANAGER_TASK_STACK_SIZE, this,
                               tskIDLE_PRIORITY + 1, &taskHandle_,
                               0) != pdPASS) {
-    instance_ = nullptr;
-    g_work = nullptr;
-    destroyWorkBuf();
-    vSemaphoreDelete(statusResponseMux_);
-    statusResponseMux_ = nullptr;
-    vQueueDelete(acceptedCommandQueue_);
-    acceptedCommandQueue_ = nullptr;
     taskHandle_ = nullptr;
+    // stop() also rolls back a partially initialized/degraded webhook in
+    // strict reverse ownership order.
+    (void)stop();
     return false;
   }
+  beginCompleted_ = true;
+  return true;
+}
+
+bool ShotStopperNetwork::stop() {
+  if (instance_ != nullptr && instance_ != this) return false;
+
+  TaskHandle_t task = taskHandle_;
+  if (task != nullptr) {
+    stopRequested_.store(true, std::memory_order_release);
+    xTaskNotifyGive(task);
+    if (taskStopped_ == nullptr ||
+        xSemaphoreTake(taskStopped_, pdMS_TO_TICKS(NETWORK_STOP_TIMEOUT_MS)) !=
+            pdTRUE) {
+      return false;
+    }
+  }
+
+  if (!webhooks_.stop()) return false;
+
+  instance_ = nullptr;
+  g_work = nullptr;
+  if (workBuf_ != nullptr) {
+    workBuf_->~NetworkWorkBuf();
+    heapCapsFree(workBuf_);
+    workBuf_ = nullptr;
+    noteWorkBufExternal(false);
+  }
+  if (statusResponseMux_ != nullptr) {
+    vSemaphoreDelete(statusResponseMux_);
+    statusResponseMux_ = nullptr;
+  }
+  if (acceptedCommandQueue_ != nullptr) {
+    vQueueDelete(acceptedCommandQueue_);
+    acceptedCommandQueue_ = nullptr;
+  }
+  if (taskStopped_ != nullptr) {
+    vSemaphoreDelete(taskStopped_);
+    taskStopped_ = nullptr;
+  }
+  callbacks_ = {};
+  stopRequested_.store(false, std::memory_order_release);
   return true;
 }
 
@@ -1092,14 +1148,14 @@ void ShotStopperNetwork::requestNtpSyncIfNeeded() {
   if (!wallClockNeedsActivityNtpSync(g_wallClock, millis())) {
     return;
   }
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   ntpActivitySyncPending_ = true;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 NetworkStatusSnapshot ShotStopperNetwork::snapshot() {
   NetworkStatusSnapshot copy;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   copy = status_;
   const bool pendingConfirm =
       staConfirmArmed_ &&
@@ -1107,7 +1163,7 @@ NetworkStatusSnapshot ShotStopperNetwork::snapshot() {
           static_cast<uint8_t>(StaConfigState::PENDING) &&
       !status_.apActive;
   const uint32_t deadline = staConfirmDeadlineMs_;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   copy.taskAgeMs = static_cast<uint32_t>(millis() - lastTaskProgressAtMs_);
   copy.taskStackMinWords = taskStackMinWords_;
   if (pendingConfirm) {
@@ -1122,20 +1178,20 @@ NetworkStatusSnapshot ShotStopperNetwork::snapshot() {
 
 PersistedSettings ShotStopperNetwork::settingsCopy() {
   PersistedSettings copy;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   copy = settings_;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   return copy;
 }
 
 StaJoinHints ShotStopperNetwork::staJoinHints() {
   StaJoinHints hints;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   hints.staConfigured = settings_.staConfigured;
   hints.staOpen = settings_.staOpen;
   hints.staConfigState = settings_.staConfigState;
   memcpy(hints.staSsid, settings_.staSsid, sizeof(hints.staSsid));
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   return hints;
 }
 
@@ -1152,12 +1208,12 @@ WebhookConfig ShotStopperNetwork::webhookConfig() const {
 }
 
 void ShotStopperNetwork::clearStagedWebhook(uint32_t requestId) {
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   if (requestId == 0 || stagedWebhookRequestId_ == requestId) {
     stagedWebhook_ = WebhookConfig{};
     stagedWebhookRequestId_ = 0;
   }
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 void ShotStopperNetwork::mergePreferredScaleMac(PersistedSettings &settings) {
@@ -1202,44 +1258,44 @@ void ShotStopperNetwork::syncPreferredScale(const char *mac, const char *name) {
   if (name != nullptr && validPreferredScaleName(name)) {
     copyCString(safeName, sizeof(safeName), name);
   }
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   copyCString(settings_.preferredScaleMac, sizeof(settings_.preferredScaleMac),
               mac);
   copyCString(settings_.preferredScaleName, sizeof(settings_.preferredScaleName),
               safeName);
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 void ShotStopperNetwork::syncLiveRuntime(const RuntimeConfig &runtime,
                                          const ShotPresetBank *presets) {
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   settings_.runtime = runtime;
   if (presets != nullptr) {
     settings_.presets = *presets;
   }
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 void ShotStopperNetwork::syncLiveBullseye(
     const BullseyeMelodyConfig &config) {
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   settings_.bullseyeMelody = config;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 void ShotStopperNetwork::syncDurableStorageRevision(uint32_t storageRevision) {
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   settings_.storageRevision = storageRevision;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 uint32_t ShotStopperNetwork::allocateRequestId() {
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   const uint32_t id = nextRequestId_++;
   if (nextRequestId_ == 0 || nextRequestId_ >= 0x80000000UL) {
     nextRequestId_ = 1;
   }
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   return id == 0 ? 1 : id;
 }
 
@@ -1248,7 +1304,7 @@ void ShotStopperNetwork::recordCommandResult(
   if (requestId == 0 || requestId >= 0x80000000UL) {
     return;
   }
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   const bool sameRequest = status_.lastCommandRequestId == requestId;
   const bool nonRegressing =
       !sameRequest || static_cast<uint8_t>(state) >=
@@ -1258,7 +1314,7 @@ void ShotStopperNetwork::recordCommandResult(
     status_.lastCommandRequestId = requestId;
     status_.lastCommandState = state;
   }
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 esp_err_t ShotStopperNetwork::sendAccepted(httpd_req_t *request,
@@ -1283,11 +1339,12 @@ void ShotStopperNetwork::taskEntry(void *parameter) {
 }
 
 void ShotStopperNetwork::taskLoop() {
-  if (!subscribeCurrentTaskToWatchdog()) {
+  const bool watchdogSubscribed = subscribeCurrentTaskToWatchdog();
+  if (!watchdogSubscribed) {
     callbacks_.reportTaskWatchdogFault();
   }
   uint32_t telemetryAtMs = 0;
-  for (;;) {
+  while (!stopRequested_.load(std::memory_order_acquire)) {
     lastTaskProgressAtMs_ = millis();
     if (static_cast<uint32_t>(lastTaskProgressAtMs_ - telemetryAtMs) >=
         HEALTH_TELEMETRY_INTERVAL_MS) {
@@ -1303,6 +1360,16 @@ void ShotStopperNetwork::taskLoop() {
     // is canceled immediately; normal network maintenance remains 20 Hz.
     (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50));
   }
+  if (watchdogSubscribed && esp_task_wdt_delete(nullptr) != ESP_OK) {
+    callbacks_.reportTaskWatchdogFault();
+  }
+  // HTTP/socket shutdown can wait; unsubscribe before the bounded join path
+  // so an intentional stop cannot be mistaken for a hung service loop.
+  stopNtp();
+  stopNetwork();
+  taskHandle_ = nullptr;
+  if (taskStopped_ != nullptr) xSemaphoreGive(taskStopped_);
+  vTaskDelete(nullptr);
 }
 
 void ShotStopperNetwork::service() {
@@ -1338,9 +1405,9 @@ void ShotStopperNetwork::service() {
     if (startNetwork()) {
       startupFailures_ = 0;
       networkRetryAtMs_ = 0;
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.startupFailures = 0;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       // startStation/beginStationConnect delay and wait for STA_START, so
       // `now` is stale. serviceStaState would treat the connect timer as
       // expired (uint32 wrap) and nest SoftAP+httpd on this stack.
@@ -1355,9 +1422,9 @@ void ShotStopperNetwork::service() {
         backoff = NETWORK_RETRY_MAX_MS;
       }
       networkRetryAtMs_ = now + backoff;
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.startupFailures = startupFailures_;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       log(DebugCategory::NETWORK, DebugCode::NETWORK_RETRY,
           startupFailures_, static_cast<int32_t>(backoff));
     }
@@ -1369,12 +1436,12 @@ void ShotStopperNetwork::service() {
     return;
   }
   bool confirmRequested = false;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   confirmRequested = pendingConfirmRequest_;
   if (confirmRequested) {
     pendingConfirmRequest_ = false;
   }
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   if (confirmRequested) {
     confirmPendingNetwork("public WebUI request");
   }
@@ -1393,9 +1460,9 @@ void ShotStopperNetwork::service() {
                                 ? static_cast<uint8_t>(
                                       WiFi.softAPgetStationNum())
                                 : 0;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   status_.apClients = apClients;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   serviceSoftApIdle(now);
   refreshExtendedStatus(now);
 
@@ -1408,18 +1475,18 @@ void ShotStopperNetwork::service() {
     apRestartPending_ = false;
     if (ensureAccessPoint(now, true)) {
       startupFailures_ = 0;
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.startupFailures = 0;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
     } else {
       startupComplete_ = false;
       if (startupFailures_ < UINT8_MAX) {
         ++startupFailures_;
       }
       networkRetryAtMs_ = now + NETWORK_RETRY_MIN_MS;
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.startupFailures = startupFailures_;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       log(DebugCategory::NETWORK, DebugCode::NETWORK_RETRY,
           startupFailures_, NETWORK_RETRY_MIN_MS);
     }
@@ -1455,10 +1522,10 @@ bool ShotStopperNetwork::startNetwork() {
   const uint32_t now = millis();
   WiFi.persistent(false);
   WiFi.setAutoReconnect(false);
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   status_.wifiConfigured = settings.staConfigured;
   copyCString(status_.apIp, sizeof(status_.apIp), AP_IP);
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   publishConfiguredAddressStatus();
   if (settings.staConfigured) {
     startStation(settings, now);
@@ -1495,7 +1562,7 @@ void ShotStopperNetwork::publishConfiguredAddressStatus() {
       formatIpv4(settings.staDns2, configuredDns2);
     }
   }
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   status_.staOpen = settings.staConfigured && settings.staOpen;
   status_.staWifiSleep = settings.staWifiSleep;
   status_.staIpMode = settings.staIpMode;
@@ -1511,27 +1578,27 @@ void ShotStopperNetwork::publishConfiguredAddressStatus() {
               configuredDns1);
   copyCString(status_.configuredDns2, sizeof(status_.configuredDns2),
               configuredDns2);
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 void ShotStopperNetwork::armPendingConfirmWindow(uint32_t now) {
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   staConfirmArmed_ = true;
   staConfirmDeadlineMs_ = now + STA_CONFIRM_TIMEOUT_MS;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   ::serialTraceCategory(LogLevel::INFO, DebugCategory::NETWORK,
                         "WiFi STA config pending confirmation for 180 s");
 }
 
 void ShotStopperNetwork::clearPendingConfirmWindow() {
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   staConfirmArmed_ = false;
   staConfirmDeadlineMs_ = 0;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 void ShotStopperNetwork::requestPendingNetworkConfirm() {
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   const bool pending =
       settings_.staConfigState ==
           static_cast<uint8_t>(StaConfigState::PENDING) &&
@@ -1539,7 +1606,7 @@ void ShotStopperNetwork::requestPendingNetworkConfirm() {
   if (pending) {
     pendingConfirmRequest_ = true;
   }
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 bool ShotStopperNetwork::confirmPendingNetwork(const char *reason) {
@@ -1556,11 +1623,11 @@ bool ShotStopperNetwork::confirmPendingNetwork(const char *reason) {
   if (!savePersistedSettings(next)) {
     return false;
   }
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   settings_ = next;
   status_.staConfigState = next.staConfigState;
   pendingConfirmRequest_ = false;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   clearPendingConfirmWindow();
   publishConfiguredAddressStatus();
   log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
@@ -1591,11 +1658,11 @@ bool ShotStopperNetwork::revertPendingNetwork(uint32_t now,
   if (!savePersistedSettings(next)) {
     return false;
   }
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   settings_ = next;
   status_.wifiConfigured = next.staConfigured;
   status_.staConfigState = next.staConfigState;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   clearPendingConfirmWindow();
   publishConfiguredAddressStatus();
   log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
@@ -1618,14 +1685,14 @@ bool ShotStopperNetwork::revertPendingNetwork(uint32_t now,
     if (WiFi.status() == WL_CONNECTED) {
       WiFi.disconnect(false, false);
     }
-    portENTER_CRITICAL(&dataMux_);
+    dataMux_.lock();
     status_.networkActive = false;
     status_.apActive = false;
     status_.apClients = 0;
     status_.staState = StaState::NOT_CONFIGURED;
     status_.staIp[0] = '\0';
     clearStaLinkMetrics();
-    portEXIT_CRITICAL(&dataMux_);
+    dataMux_.unlock();
     lifecycleLog(
         "WiFi STA cleared after prior connect; SoftAP suppressed (AP_START or reboot)");
     return true;
@@ -1721,11 +1788,11 @@ void ShotStopperNetwork::applyWifiPowerSave() {
   bool sleepAllowed = false;
   bool apActive = false;
   bool staAssociated = false;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   sleepAllowed = settings_.staWifiSleep;
   apActive = status_.apActive;
   staAssociated = status_.staState == StaState::CONNECTED;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   const bool otaBusy = ShotStopperOta::instance().busy();
   const WifiPowerSaveMode desired = desiredWifiPowerSave(
       sleepAllowed, apActive, staAssociated, otaBusy);
@@ -1773,11 +1840,11 @@ bool ShotStopperNetwork::beginStationConnect(const PersistedSettings &settings,
   // Drop a stale STA association so 10 s retries do not accumulate IDF/DHCP
   // state. wifioff=false, eraseap=false: driver and SoftAP stay up (BLE coex).
   WiFi.disconnect(false, false);
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   status_.staState = StaState::CONNECTING;
   status_.staIp[0] = '\0';
   clearStaLinkMetrics();
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   log(DebugCategory::NETWORK, DebugCode::STA_CONNECTING);
   if (apActive) {
     lifecycleLog(settings.staIpMode == static_cast<uint8_t>(StaIpMode::STATIC)
@@ -1809,8 +1876,14 @@ bool ShotStopperNetwork::beginStationConnect(const PersistedSettings &settings,
   }
   applyWifiPowerSave();
   applyStationAddressConfig(settings);
-  (void)WiFi.STA.connect(settings.staSsid,
-                         settings.staOpen ? nullptr : settings.staPassword);
+  if (!WiFi.STA.connect(settings.staSsid,
+                        settings.staOpen ? nullptr : settings.staPassword)) {
+    dataMux_.lock();
+    status_.staState = StaState::DISCONNECTED;
+    dataMux_.unlock();
+    lifecycleLog("WiFi STA connect request failed");
+    return false;
+  }
   return true;
 }
 
@@ -1825,7 +1898,7 @@ void ShotStopperNetwork::startStation(const PersistedSettings &settings,
   // Do not clear staEverConnected_: once STA has joined this boot, SoftAP must
   // not auto-raise again (serial AP_START or reboot only).
   clearPendingConfirmWindow();
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   status_.networkActive = false;
   status_.apActive = false;
   status_.apClients = 0;
@@ -1834,14 +1907,14 @@ void ShotStopperNetwork::startStation(const PersistedSettings &settings,
   clearStaLinkMetrics();
   status_.windowRemainingMs = 0;
   status_.confirmRemainingMs = 0;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   publishConfiguredAddressStatus();
   if (!beginStationConnect(settings, now)) {
-    portENTER_CRITICAL(&dataMux_);
+    dataMux_.lock();
     if (status_.staState == StaState::CONNECTING) {
       status_.staState = StaState::DISCONNECTED;
     }
-    portEXIT_CRITICAL(&dataMux_);
+    dataMux_.unlock();
   }
 }
 
@@ -1855,14 +1928,14 @@ void ShotStopperNetwork::stopSoftAp(bool stopHttp) {
   if (stopHttp) {
     stopHttpServer();
   }
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   status_.apActive = false;
   status_.apClients = 0;
   if (stopHttp) {
     status_.networkActive = false;
   }
   status_.windowRemainingMs = 0;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   clearSoftApIdleState();
   log(DebugCategory::NETWORK, DebugCode::AP_STOPPED);
   lifecycleLog(stopHttp ? "WiFi SoftAP stopped; HTTP stopped"
@@ -1936,17 +2009,17 @@ void ShotStopperNetwork::serviceSoftApIdle(uint32_t now) {
 
 bool ShotStopperNetwork::wifiScanInProgress() {
   bool busy = false;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   busy = scanRequested_ || g_wifiScan.state == WifiScanState::QUEUED ||
          g_wifiScan.state == WifiScanState::RUNNING;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   return busy;
 }
 
 void ShotStopperNetwork::abortWifiScan(uint32_t now, bool logTimeout) {
   bool wasRunning = false;
   bool wasQueuedOrRequested = false;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   wasRunning = g_wifiScan.state == WifiScanState::RUNNING;
   wasQueuedOrRequested =
       scanRequested_ || g_wifiScan.state == WifiScanState::QUEUED || wasRunning;
@@ -1956,7 +2029,7 @@ void ShotStopperNetwork::abortWifiScan(uint32_t now, bool logTimeout) {
     g_wifiScan.updatedAtMs = now;
     g_wifiScan.count = 0;
   }
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   if (wasRunning) {
     esp_wifi_scan_stop();
     WiFi.scanDelete();
@@ -2017,7 +2090,7 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
   const bool httpReady =
       keepHttp || (wantHttp && apReady && startHttpServer());
   networkStartedAtMs_ = now;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   status_.networkActive = apReady && httpReady;
   status_.apActive = apReady;
   status_.apClients = 0;
@@ -2032,7 +2105,7 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
     clearStaLinkMetrics();
   }
   status_.windowRemainingMs = 0;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   log(DebugCategory::NETWORK, DebugCode::AP_STARTED, apReady, httpReady);
   lifecycleLogf("%s%s at %s",
                 keepStation ? "WiFi recovery SoftAP " : "WiFi SoftAP ",
@@ -2044,10 +2117,10 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
     }
     WiFi.softAPdisconnect(true);
     // Keep the driver initialized: WIFI_OFF deinits and breaks BLE coexistence.
-    portENTER_CRITICAL(&dataMux_);
+    dataMux_.lock();
     status_.apActive = false;
     status_.networkActive = false;
-    portEXIT_CRITICAL(&dataMux_);
+    dataMux_.unlock();
     clearSoftApIdleState();
     applyWifiPowerSave();
     return false;
@@ -2067,7 +2140,7 @@ void ShotStopperNetwork::stopNetwork() {
   }
   // Do not WiFi.mode(WIFI_OFF): Arduino 3.x deinits the driver there
   // (esp_wifi_deinit) and breaks BLE VHCI coexistence.
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   scanRequested_ = false;
   g_wifiScan = WifiScanSnapshot{};
   status_.networkActive = false;
@@ -2078,7 +2151,7 @@ void ShotStopperNetwork::stopNetwork() {
   status_.staIp[0] = '\0';
   clearStaLinkMetrics();
   status_.windowRemainingMs = 0;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   clearSoftApIdleState();
   log(DebugCategory::NETWORK, DebugCode::AP_STOPPED);
 }
@@ -2097,9 +2170,9 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
   if ((brewRf || scaleConnecting) && status.staState == StaState::CONNECTING &&
       WiFi.status() != WL_CONNECTED) {
     WiFi.disconnect(false, false);
-    portENTER_CRITICAL(&dataMux_);
+    dataMux_.lock();
     status_.staState = StaState::DISCONNECTED;
-    portEXIT_CRITICAL(&dataMux_);
+    dataMux_.unlock();
     lifecycleLog(brewRf ? "WiFi STA associate aborted; brew RF active"
                         : "WiFi STA associate aborted; scale connecting");
     applyWifiPowerSave();
@@ -2108,12 +2181,12 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
 
   if (status.staState == StaState::CONNECTED) {
     if (WiFi.status() != WL_CONNECTED) {
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.staState = StaState::DISCONNECTED;
       status_.networkActive = false;
       status_.staIp[0] = '\0';
       clearStaLinkMetrics();
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       log(DebugCategory::NETWORK, DebugCode::STA_FAILED,
           static_cast<int32_t>(WiFi.status()));
       stopNtp();
@@ -2142,19 +2215,19 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     }
     {
       const int32_t rssi = WiFi.RSSI();
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.staLinkMetricsValid = true;
       status_.staRssi = clampWifiRssi(rssi);
       status_.staSignalQualityPct = wifiRssiToSignalQualityPct(rssi);
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
     }
     if (!httpStartHeld_ && server_ == nullptr &&
         static_cast<int32_t>(now - httpRetryAtMs_) >= 0) {
       const bool httpReady = startHttpServer();
       httpRetryAtMs_ = httpReady ? 0 : now + HTTP_RETRY_MS;
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.networkActive = httpReady;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       if (!httpReady) {
         lifecycleLog("HTTP start retry failed on STA");
       }
@@ -2170,14 +2243,14 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
           ++startupFailures_;
         }
         networkRetryAtMs_ = now + NETWORK_RETRY_MIN_MS;
-        portENTER_CRITICAL(&dataMux_);
+        dataMux_.lock();
         status_.startupFailures = startupFailures_;
-        portEXIT_CRITICAL(&dataMux_);
+        dataMux_.unlock();
       } else {
         startupFailures_ = 0;
-        portENTER_CRITICAL(&dataMux_);
+        dataMux_.lock();
         status_.startupFailures = 0;
-        portEXIT_CRITICAL(&dataMux_);
+        dataMux_.unlock();
       }
     }
     return;
@@ -2204,7 +2277,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       if (bssid != nullptr) {
         formatWifiMac(bssid, bssidText, sizeof(bssidText));
       }
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.staState = StaState::CONNECTED;
       status_.networkActive = httpReady;
       copyCString(status_.staIp, sizeof(status_.staIp), address);
@@ -2213,7 +2286,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       status_.staSignalQualityPct = wifiRssiToSignalQualityPct(rssi);
       status_.windowRemainingMs = 0;
       copyCString(status_.staBssid, sizeof(status_.staBssid), bssidText);
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       log(DebugCategory::NETWORK, DebugCode::STA_CONNECTED);
       lifecycleLogf("WiFi STA connected; IP: %s bssid=%s rssi=%ld http=%s",
                     address, bssidText[0] != '\0' ? bssidText : "-",
@@ -2239,9 +2312,9 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       return;
     }
     WiFi.disconnect(false, false);
-    portENTER_CRITICAL(&dataMux_);
+    dataMux_.lock();
     status_.staState = StaState::FAILED;
-    portEXIT_CRITICAL(&dataMux_);
+    dataMux_.unlock();
     log(DebugCategory::NETWORK, DebugCode::STA_FAILED,
         static_cast<int32_t>(WiFi.status()));
     const bool pending = settingsCopy().staConfigState ==
@@ -2254,26 +2327,26 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
           ++startupFailures_;
         }
         networkRetryAtMs_ = now + NETWORK_RETRY_MIN_MS;
-        portENTER_CRITICAL(&dataMux_);
+        dataMux_.lock();
         status_.startupFailures = startupFailures_;
-        portEXIT_CRITICAL(&dataMux_);
+        dataMux_.unlock();
         log(DebugCategory::NETWORK, DebugCode::NETWORK_RETRY,
             startupFailures_, NETWORK_RETRY_MIN_MS);
       } else {
         startupFailures_ = 0;
-        portENTER_CRITICAL(&dataMux_);
+        dataMux_.lock();
         status_.startupFailures = 0;
-        portEXIT_CRITICAL(&dataMux_);
+        dataMux_.unlock();
       }
       return;
     }
     if (staEverConnected_) {
       lifecycleLog("WiFi STA failed; SoftAP suppressed after prior connect");
       startupFailures_ = 0;
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.startupFailures = 0;
       status_.staState = StaState::DISCONNECTED;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       staReconnectAttemptAtMs_ = now;
       return;
     }
@@ -2282,27 +2355,27 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       lifecycleLog(apStartHeld_ ? "SoftAP raise held after STA fail"
                                 : "SoftAP auto-raise exhausted after STA fail");
       startupFailures_ = 0;
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.startupFailures = 0;
       status_.staState = StaState::DISCONNECTED;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
     } else if (!ensureAccessPoint(now)) {
       startupComplete_ = false;
       if (startupFailures_ < UINT8_MAX) {
         ++startupFailures_;
       }
       networkRetryAtMs_ = now + NETWORK_RETRY_MIN_MS;
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.startupFailures = startupFailures_;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       log(DebugCategory::NETWORK, DebugCode::NETWORK_RETRY,
           startupFailures_, NETWORK_RETRY_MIN_MS);
     } else {
       startupFailures_ = 0;
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.startupFailures = 0;
       status_.staState = StaState::DISCONNECTED;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
     }
     staReconnectAttemptAtMs_ = now;
     return;
@@ -2325,9 +2398,9 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
         ++startupFailures_;
       }
       networkRetryAtMs_ = now + NETWORK_RETRY_MIN_MS;
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.startupFailures = startupFailures_;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       log(DebugCategory::NETWORK, DebugCode::NETWORK_RETRY,
           startupFailures_, NETWORK_RETRY_MIN_MS);
       return;
@@ -2345,9 +2418,9 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
         static_cast<uint32_t>(millis() - staConnectStartedAtMs_) >=
         STA_RECOVERY_ATTEMPT_MS;
     if (terminalFail || attemptAged) {
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.staState = StaState::DISCONNECTED;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       staReconnectAttemptAtMs_ = now;
       if (terminalFail) {
         lifecycleLog("WiFi STA recovery attempt ended; will retry");
@@ -2378,10 +2451,10 @@ void ShotStopperNetwork::serviceWifiScan(uint32_t now) {
 
   bool requested = false;
   WifiScanState state;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   requested = scanRequested_;
   state = g_wifiScan.state;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 
   if (scaleHuntRfActive_.load(std::memory_order_relaxed) ||
       scaleConnecting_.load(std::memory_order_relaxed)) {
@@ -2405,13 +2478,13 @@ void ShotStopperNetwork::serviceWifiScan(uint32_t now) {
   if (requested && state == WifiScanState::QUEUED) {
     const int16_t result =
         WiFi.scanNetworks(true, false, false, 120);
-    portENTER_CRITICAL(&dataMux_);
+    dataMux_.lock();
     scanRequested_ = false;
     if (result == WIFI_SCAN_RUNNING) {
       g_wifiScan.state = WifiScanState::RUNNING;
       g_wifiScan.updatedAtMs = now;
     }
-    portEXIT_CRITICAL(&dataMux_);
+    dataMux_.unlock();
     if (result == WIFI_SCAN_RUNNING) {
       log(DebugCategory::NETWORK, DebugCode::WIFI_SCAN_STARTED);
       return;
@@ -2424,9 +2497,9 @@ void ShotStopperNetwork::serviceWifiScan(uint32_t now) {
     return;
   }
   uint32_t scanStartedAtMs = 0;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   scanStartedAtMs = g_wifiScan.updatedAtMs;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   if (static_cast<uint32_t>(now - scanStartedAtMs) >= WIFI_SCAN_TIMEOUT_MS) {
     abortWifiScan(now, true);
     return;
@@ -2445,9 +2518,9 @@ void ShotStopperNetwork::finishWifiScan(int16_t resultCount, uint32_t now) {
   if (resultCount < 0) {
     completed.state = WifiScanState::FAILED;
     WiFi.scanDelete();
-    portENTER_CRITICAL(&dataMux_);
+    dataMux_.lock();
     g_wifiScan = completed;
-    portEXIT_CRITICAL(&dataMux_);
+    dataMux_.unlock();
     log(DebugCategory::NETWORK, DebugCode::WIFI_SCAN_ERROR, resultCount);
     if (scanMaintenanceLeaseId_ != 0) {
       WebCommand command;
@@ -2513,9 +2586,9 @@ void ShotStopperNetwork::finishWifiScan(int16_t resultCount, uint32_t now) {
     completed.networks[inner] = current;
   }
   WiFi.scanDelete();
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   g_wifiScan = completed;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   log(DebugCategory::NETWORK, DebugCode::WIFI_SCAN_COMPLETE,
       completed.count, resultCount);
   if (scanMaintenanceLeaseId_ != 0) {
@@ -2709,14 +2782,14 @@ bool ShotStopperNetwork::processAcceptedCommand(const WebCommand &command) {
     return handleCliNetworkAction(command, millis());
   }
   if (command.type == WebCommandType::START_WIFI_SCAN) {
-    portENTER_CRITICAL(&dataMux_);
+    dataMux_.lock();
     g_wifiScan = WifiScanSnapshot{};
     g_wifiScan.state = WifiScanState::QUEUED;
     g_wifiScan.updatedAtMs = millis();
     scanRequested_ = true;
     scanMaintenanceLeaseId_ = command.maintenanceLeaseId;
     scanRequestId_ = command.requestId;
-    portEXIT_CRITICAL(&dataMux_);
+    dataMux_.unlock();
     return true;
   }
   return processPersistedCommand(command);
@@ -2746,11 +2819,11 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
 
     case WebCommandType::SAVE_WEBHOOK: {
       WebhookConfig staged = {};
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       const bool matches = stagedWebhookRequestId_ != 0 &&
                            stagedWebhookRequestId_ == command.webhookStageRequestId;
       if (matches) staged = stagedWebhook_;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       if (!matches || !validWebhookConfig(staged)) {
         log(DebugCategory::CONFIG, DebugCode::CONFIG_REJECTED);
         return false;
@@ -2915,11 +2988,11 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
       }
       return false;
     }
-    portENTER_CRITICAL(&dataMux_);
+    dataMux_.lock();
     settings_ = next;
     status_.wifiConfigured = next.staConfigured;
     status_.staConfigState = next.staConfigState;
-    portEXIT_CRITICAL(&dataMux_);
+    dataMux_.unlock();
     if (command.type == WebCommandType::SAVE_WEBHOOK) {
       webhooks_.setConfig(next.webhook);
       clearStagedWebhook(command.webhookStageRequestId);
@@ -2928,12 +3001,12 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
     log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
         static_cast<int32_t>(next.runtime.revision));
   } else if (factoryReset) {
-    portENTER_CRITICAL(&dataMux_);
+    dataMux_.lock();
     settings_ = next;
     status_.wifiConfigured = false;
     status_.staConfigState =
         static_cast<uint8_t>(StaConfigState::CONFIRMED);
-    portEXIT_CRITICAL(&dataMux_);
+    dataMux_.unlock();
     publishConfiguredAddressStatus();
     log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
         static_cast<int32_t>(next.runtime.revision));
@@ -3001,12 +3074,12 @@ bool ShotStopperNetwork::handleCliWifiAction(const WebCommand &command,
       stopNtp();
       staNtpEligibleAtMs_ = 0;
       g_wallClock.markDisabled();
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.staState = status_.wifiConfigured ? StaState::DISCONNECTED
                                                 : StaState::NOT_CONFIGURED;
       status_.staIp[0] = '\0';
       clearStaLinkMetrics();
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       actionLog("WIFI_DISCONNECT STA down; reconnect held");
       printActionSnapshot("WIFI_DISCONNECT", true);
       return true;
@@ -3022,11 +3095,11 @@ bool ShotStopperNetwork::handleCliWifiAction(const WebCommand &command,
       stopNtp();
       staNtpEligibleAtMs_ = 0;
       g_wallClock.markDisabled();
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.staState = StaState::DISCONNECTED;
       status_.staIp[0] = '\0';
       clearStaLinkMetrics();
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       if (!beginStationConnect(settings, now)) {
         actionLog("WIFI_RESTART deferred; brew RF active");
         printActionSnapshot("WIFI_RESTART", false);
@@ -3086,11 +3159,11 @@ bool ShotStopperNetwork::handleCliWebUiAction(const WebCommand &command,
         return true;
       }
       const bool ok = startHttpServer();
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.networkActive = ok && (status_.apActive ||
                                      status_.staState == StaState::CONNECTED);
       status_.httpActive = ok;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       actionLog(ok ? "WEBUI_START httpd up" : "ERR WEBUI_START httpd_start failed");
       if (!ok) {
         actionLogf("WEBUI_START heap hint free=%u",
@@ -3102,10 +3175,10 @@ bool ShotStopperNetwork::handleCliWebUiAction(const WebCommand &command,
     case WebCommandType::WEBUI_STOP: {
       httpStartHeld_ = true;
       stopHttpServer();
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.networkActive = false;
       status_.httpActive = false;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       actionLog("WEBUI_STOP httpd down; auto-start held");
       printActionSnapshot("WEBUI_STOP", true);
       return true;
@@ -3114,11 +3187,11 @@ bool ShotStopperNetwork::handleCliWebUiAction(const WebCommand &command,
       httpStartHeld_ = false;
       stopHttpServer();
       const bool ok = startHttpServer();
-      portENTER_CRITICAL(&dataMux_);
+      dataMux_.lock();
       status_.networkActive = ok && (status_.apActive ||
                                      status_.staState == StaState::CONNECTED);
       status_.httpActive = ok;
-      portEXIT_CRITICAL(&dataMux_);
+      dataMux_.unlock();
       actionLog(ok ? "WEBUI_RESTART httpd up" : "ERR WEBUI_RESTART failed");
       if (!ok) {
         actionLogf("WEBUI_RESTART heap hint free=%u",
@@ -3215,9 +3288,9 @@ void ShotStopperNetwork::noteCliNetworkProgress() {
   startupComplete_ = true;
   startupFailures_ = 0;
   networkRetryAtMs_ = 0;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   status_.startupFailures = 0;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 void ShotStopperNetwork::refreshExtendedStatus(uint32_t now) {
@@ -3265,7 +3338,7 @@ void ShotStopperNetwork::refreshExtendedStatus(uint32_t now) {
   const bool ntpArm = ntpMayArm(now, staConnected);
   const bool httpActive = server_ != nullptr;
   const bool factoryPassword = passwordIsFactoryDefault(settings_);
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   status_.httpActive = httpActive;
   status_.wifiMode = wifiMode;
   status_.channel = channel;
@@ -3296,7 +3369,7 @@ void ShotStopperNetwork::refreshExtendedStatus(uint32_t now) {
   memset(status_.ntpActiveServer, 0, sizeof(status_.ntpActiveServer));
   copyCString(status_.ntpActiveServer, sizeof(status_.ntpActiveServer),
               timeStatus.activeServer);
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 void ShotStopperNetwork::ntpSyncNotificationCallback(struct timeval *tv) {
@@ -3370,11 +3443,11 @@ bool ShotStopperNetwork::armNtp(uint32_t now, bool staConnected,
   // would race a torn copy.
   uint8_t ntpServerPreset = 0;
   char ntpServerCustom[NTP_SERVER_HOST_CAPACITY] = {};
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   ntpServerPreset = settings_.runtime.ntpServerPreset;
   memcpy(ntpServerCustom, settings_.runtime.ntpServerCustom,
          sizeof(ntpServerCustom));
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   resolveNtpServerHost(ntpServerPreset, ntpServerCustom, ntpFailoverIndex_,
                        ntpServerBuffer_);
   g_wallClock.setSyncing(ntpServerBuffer_, now);
@@ -3419,9 +3492,9 @@ void ShotStopperNetwork::handleNtpFailure(uint32_t now) {
 }
 
 void ShotStopperNetwork::serviceNtp(uint32_t now, bool staConnected) {
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   const uint32_t runtimeRevision = settings_.runtime.revision;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   if (runtimeRevision != ntpConfigRevision_) {
     ntpConfigRevision_ = runtimeRevision;
     ntpRearmPending_ = true;
@@ -3720,11 +3793,11 @@ esp_err_t ShotStopperNetwork::claimHandler(httpd_req_t *request) {
     return sendError(request, STATUS_BAD_REQUEST, "UI_CLIENT_INVALID",
                      "X-WebUI-Client must be a 16-24 character lowercase hex id.");
   }
-  portENTER_CRITICAL(&self.dataMux_);
+  self.dataMux_.lock();
   memcpy(self.activeWebUiClientId_, clientId, sizeof(clientId));
   self.webUiOverrideActive_ = false;
   self.webUiOverrideUntilMs_ = 0;
-  portEXIT_CRITICAL(&self.dataMux_);
+  self.dataMux_.unlock();
   self.clearAdminUnlock();
   memset(clientId, 0, sizeof(clientId));
   return sendJson(request, STATUS_OK, "{\"active\":true}");
@@ -3739,7 +3812,7 @@ esp_err_t ShotStopperNetwork::unlockHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   char confirmation[32] = {};
   static const char *const fields[] = {"confirm"};
   const bool confirmed = root != nullptr &&
@@ -3755,10 +3828,10 @@ esp_err_t ShotStopperNetwork::unlockHandler(httpd_req_t *request) {
                      "The unsafe WebUI override was not explicitly confirmed.");
   }
   const uint32_t now = millis();
-  portENTER_CRITICAL(&self.dataMux_);
+  self.dataMux_.lock();
   self.webUiOverrideActive_ = true;
   self.webUiOverrideUntilMs_ = now + WEB_UI_OVERRIDE_MS;
-  portEXIT_CRITICAL(&self.dataMux_);
+  self.dataMux_.unlock();
   return sendJson(request, STATUS_OK, "{\"unlocked\":true}");
 }
 
@@ -3767,7 +3840,7 @@ bool ShotStopperNetwork::webUiOverrideAllowed(httpd_req_t *request) {
   if (!readWebUiClientId(request, clientId, sizeof(clientId))) return false;
   const uint32_t now = millis();
   bool allowed = false;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   if (webUiOverrideActive_ && activeWebUiClientId_[0] != '\0' &&
       strcmp(activeWebUiClientId_, clientId) == 0) {
     if (static_cast<int32_t>(now - webUiOverrideUntilMs_) >= 0) {
@@ -3777,7 +3850,7 @@ bool ShotStopperNetwork::webUiOverrideAllowed(httpd_req_t *request) {
       allowed = true;
     }
   }
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   memset(clientId, 0, sizeof(clientId));
   return allowed;
 }
@@ -3787,13 +3860,13 @@ uint32_t ShotStopperNetwork::webUiOverrideRemainingMs(httpd_req_t *request) {
   if (!readWebUiClientId(request, clientId, sizeof(clientId))) return 0;
   const uint32_t now = millis();
   uint32_t remaining = 0;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   if (webUiOverrideActive_ && activeWebUiClientId_[0] != '\0' &&
       strcmp(activeWebUiClientId_, clientId) == 0 &&
       static_cast<int32_t>(now - webUiOverrideUntilMs_) < 0) {
     remaining = webUiOverrideUntilMs_ - now;
   }
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   memset(clientId, 0, sizeof(clientId));
   return remaining;
 }
@@ -3815,33 +3888,33 @@ bool ShotStopperNetwork::historyMutationAllowed(
 }
 
 void ShotStopperNetwork::clearAdminUnlock() {
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   adminUnlocked_ = false;
   adminUnlockClientId_[0] = '\0';
   adminUnlockUntilMs_ = 0;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 void ShotStopperNetwork::grantAdminUnlock(const char *clientId, uint32_t now) {
   if (clientId == nullptr) {
     return;
   }
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   memcpy(adminUnlockClientId_, clientId, sizeof(adminUnlockClientId_));
   adminUnlocked_ = true;
   adminUnlockUntilMs_ = now + ADMIN_UNLOCK_IDLE_MS;
   adminUnlockFailures_ = 0;
   adminUnlockCooldownUntilMs_ = 0;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 void ShotStopperNetwork::touchAdminUnlock() {
   const uint32_t now = millis();
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   if (adminUnlocked_) {
     adminUnlockUntilMs_ = now + ADMIN_UNLOCK_IDLE_MS;
   }
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
 }
 
 bool ShotStopperNetwork::adminUnlockAllowed(httpd_req_t *request) {
@@ -3855,7 +3928,7 @@ bool ShotStopperNetwork::adminUnlockAllowed(httpd_req_t *request) {
   }
   const uint32_t now = millis();
   bool allowed = false;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   if (adminUnlocked_ && adminUnlockClientId_[0] != '\0' &&
       strcmp(adminUnlockClientId_, clientId) == 0) {
     if (static_cast<int32_t>(now - adminUnlockUntilMs_) >= 0) {
@@ -3866,7 +3939,7 @@ bool ShotStopperNetwork::adminUnlockAllowed(httpd_req_t *request) {
       allowed = true;
     }
   }
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   memset(clientId, 0, sizeof(clientId));
   return allowed;
 #endif
@@ -3884,9 +3957,9 @@ bool ShotStopperNetwork::requireAdminUnlock(httpd_req_t *request) {
 
 bool ShotStopperNetwork::diagnosticPageEnabled() {
   bool visible = false;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   visible = settings_.runtime.showDiagnosticPage;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   return visible;
 }
 
@@ -3898,7 +3971,7 @@ esp_err_t ShotStopperNetwork::adminUnlockHandler(httpd_req_t *request) {
     return bodyStatus;
   }
   char password[WIFI_PASSWORD_CAPACITY] = {};
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const fields[] = {"password"};
   const bool parsed =
       root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
@@ -3922,11 +3995,11 @@ esp_err_t ShotStopperNetwork::adminUnlockHandler(httpd_req_t *request) {
 
   const uint32_t now = millis();
   bool coolingDown = false;
-  portENTER_CRITICAL(&self.dataMux_);
+  self.dataMux_.lock();
   coolingDown = self.adminUnlockCooldownUntilMs_ != 0 &&
                 static_cast<int32_t>(now - self.adminUnlockCooldownUntilMs_) <
                     0;
-  portEXIT_CRITICAL(&self.dataMux_);
+  self.dataMux_.unlock();
   if (coolingDown) {
     memset(password, 0, sizeof(password));
     memset(clientId, 0, sizeof(clientId));
@@ -3935,15 +4008,15 @@ esp_err_t ShotStopperNetwork::adminUnlockHandler(httpd_req_t *request) {
   }
 
   char expected[WIFI_PASSWORD_CAPACITY] = {};
-  portENTER_CRITICAL(&self.dataMux_);
+  self.dataMux_.lock();
   memcpy(expected, self.settings_.devicePassword, sizeof(expected));
-  portEXIT_CRITICAL(&self.dataMux_);
+  self.dataMux_.unlock();
   const bool matches = secretsMatch(password, expected);
   memset(password, 0, sizeof(password));
   memset(expected, 0, sizeof(expected));
   if (!matches) {
     uint8_t failures = 0;
-    portENTER_CRITICAL(&self.dataMux_);
+    self.dataMux_.lock();
     if (self.adminUnlockFailures_ < 255) {
       self.adminUnlockFailures_ =
           static_cast<uint8_t>(self.adminUnlockFailures_ + 1);
@@ -3953,7 +4026,7 @@ esp_err_t ShotStopperNetwork::adminUnlockHandler(httpd_req_t *request) {
       self.adminUnlockCooldownUntilMs_ = now + ADMIN_UNLOCK_COOLDOWN_MS;
       self.adminUnlockFailures_ = 0;
     }
-    portEXIT_CRITICAL(&self.dataMux_);
+    self.dataMux_.unlock();
     memset(clientId, 0, sizeof(clientId));
     return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
                      "Device password is incorrect.");
@@ -3984,10 +4057,10 @@ bool ShotStopperNetwork::requireActiveWebUiClient(httpd_req_t *request) {
     return false;
   }
   bool active = false;
-  portENTER_CRITICAL(&dataMux_);
+  dataMux_.lock();
   active = activeWebUiClientId_[0] != '\0' &&
            strcmp(activeWebUiClientId_, clientId) == 0;
-  portEXIT_CRITICAL(&dataMux_);
+  dataMux_.unlock();
   memset(clientId, 0, sizeof(clientId));
   if (!active) {
     sendError(request, STATUS_CONFLICT, "UI_TAKEN_OVER",
@@ -5002,8 +5075,10 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"nextRetryInMs\":%lu,\"activeServer\":\"%s\"},"
         "\"maintenance\":{\"active\":%s,\"leaseId\":%lu,"
         "\"persistPending\":%s,\"persistFailed\":%s},"
-        "\"health\":{\"uptimeMs\":%lu,\"loopIntervalGapMs\":%lu,"
-        "\"loopMaxGapMs\":%lu,"
+        "\"health\":{\"uptimeMs\":%lu,\"snapshotVersion\":%lu,"
+        "\"snapshotStale\":%s,\"loopIntervalGapMs\":%lu,"
+        "\"loopMaxGapMs\":%lu,\"loopDeadlineMisses\":%lu,"
+        "\"scaleWorkerMaxGapMs\":%lu,\"scaleWorkerDeadlineMisses\":%lu,"
         "\"freeHeapBytes\":%lu,\"minimumFreeHeapBytes\":%lu,"
         "\"largestFreeHeapBlockBytes\":%lu,"
         "\"psramSizeBytes\":%lu,\"psramFreeBytes\":%lu,"
@@ -5072,8 +5147,13 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         control.configPersistPending ? "true" : "false",
         control.configPersistFailed ? "true" : "false",
         static_cast<unsigned long>(control.uptimeMs),
+        static_cast<unsigned long>(control.snapshotVersion),
+        control.snapshotStale ? "true" : "false",
         static_cast<unsigned long>(control.loopIntervalGapMs),
         static_cast<unsigned long>(control.loopMaxGapMs),
+        static_cast<unsigned long>(control.loopDeadlineMisses),
+        static_cast<unsigned long>(control.scaleWorkerMaxGapMs),
+        static_cast<unsigned long>(control.scaleWorkerDeadlineMisses),
         static_cast<unsigned long>(control.freeHeapBytes),
         static_cast<unsigned long>(control.minimumFreeHeapBytes),
         static_cast<unsigned long>(control.largestFreeHeapBlockBytes),
@@ -5265,7 +5345,12 @@ bool debugExportChunk(httpd_req_t *request, const char *text) {
 }
 
 bool debugExportChunkf(httpd_req_t *request, char *buf, size_t cap,
-                       const char *fmt, ...) {
+                       const char *fmt, ...)
+    __attribute__((format(printf, 4, 5)));
+
+bool __attribute__((format(printf, 4, 5)))
+debugExportChunkf(httpd_req_t *request, char *buf, size_t cap,
+                  const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
   const int n = vsnprintf(buf, cap, fmt, args);
@@ -5472,7 +5557,10 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"scaleAvailable\":%s,\"currentWeightValid\":%s,"
            "\"currentWeightG\":%.2f,\"observedWeightValid\":%s,"
            "\"observedWeightG\":%.2f,\"cycleId\":%lu,\"uptimeMs\":%lu,"
+           "\"snapshotVersion\":%lu,\"snapshotStale\":%s,"
            "\"loopIntervalGapMs\":%lu,\"loopMaxGapMs\":%lu,"
+           "\"loopDeadlineMisses\":%lu,\"scaleWorkerMaxGapMs\":%lu,"
+           "\"scaleWorkerDeadlineMisses\":%lu,"
            "\"freeHeapBytes\":%lu,\"minimumFreeHeapBytes\":%lu,"
            "\"noScaleShotGuardEnabled\":%s,\"noScaleShotGuardArmed\":%s,"
            "\"noScaleShotGuardHold\":%s,\"cupStartGuardHold\":%s,"
@@ -5498,8 +5586,13 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<double>(c.observedWeightG),
            static_cast<unsigned long>(c.cycleId),
            static_cast<unsigned long>(c.uptimeMs),
+           static_cast<unsigned long>(c.snapshotVersion),
+           c.snapshotStale ? "true" : "false",
            static_cast<unsigned long>(c.loopIntervalGapMs),
            static_cast<unsigned long>(c.loopMaxGapMs),
+           static_cast<unsigned long>(c.loopDeadlineMisses),
+           static_cast<unsigned long>(c.scaleWorkerMaxGapMs),
+           static_cast<unsigned long>(c.scaleWorkerDeadlineMisses),
            static_cast<unsigned long>(c.freeHeapBytes),
            static_cast<unsigned long>(c.minimumFreeHeapBytes),
            c.noScaleShotGuardEnabled ? "true" : "false",
@@ -5784,8 +5877,11 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   ok = ok &&
        debugExportChunkf(
            request, buf, cap,
-           "\"health\":{\"uptimeMs\":%lu,\"loopIntervalGapMs\":%lu,"
-           "\"loopMaxGapMs\":%lu,\"loopStackMinWords\":%lu,"
+           "\"health\":{\"uptimeMs\":%lu,\"snapshotVersion\":%lu,"
+           "\"snapshotStale\":%s,\"loopIntervalGapMs\":%lu,"
+           "\"loopMaxGapMs\":%lu,\"loopDeadlineMisses\":%lu,"
+           "\"scaleWorkerMaxGapMs\":%lu,\"scaleWorkerDeadlineMisses\":%lu,"
+           "\"loopStackMinWords\":%lu,"
            "\"scaleStackMinWords\":%lu,\"freeHeapBytes\":%lu,"
            "\"minimumFreeHeapBytes\":%lu,\"largestFreeHeapBlockBytes\":%lu,"
            "\"psramSizeBytes\":%lu,\"psramFreeBytes\":%lu,"
@@ -5802,8 +5898,13 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"cpuLoad5s\":%.2f,\"cpuLoad1m\":%.2f,\"cpuLoad5m\":%.2f,"
            "\"cpuMhz\":%lu,\"tempC\":%.1f,\"tempPeakC\":%.1f},",
            static_cast<unsigned long>(c.uptimeMs),
+           static_cast<unsigned long>(c.snapshotVersion),
+           c.snapshotStale ? "true" : "false",
            static_cast<unsigned long>(c.loopIntervalGapMs),
            static_cast<unsigned long>(c.loopMaxGapMs),
+           static_cast<unsigned long>(c.loopDeadlineMisses),
+           static_cast<unsigned long>(c.scaleWorkerMaxGapMs),
+           static_cast<unsigned long>(c.scaleWorkerDeadlineMisses),
            static_cast<unsigned long>(c.loopStackMinWords),
            static_cast<unsigned long>(c.scaleStackMinWords),
            static_cast<unsigned long>(c.freeHeapBytes),
@@ -6275,7 +6376,7 @@ esp_err_t ShotStopperNetwork::shotsClearHandler(httpd_req_t *request) {
     return bodyStatus;
   }
   char confirmation[32] = {};
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const fields[] = {"confirm"};
   const bool parsed =
       root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
@@ -6315,7 +6416,7 @@ esp_err_t ShotStopperNetwork::lastShotClearHandler(httpd_req_t *request) {
     return bodyStatus;
   }
   char confirmation[32] = {};
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const fields[] = {"confirm"};
   const bool parsed =
       root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
@@ -6354,7 +6455,7 @@ esp_err_t ShotStopperNetwork::shotsDeleteHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   uint32_t shotId = 0;
   static const char *const fields[] = {"id"};
   const bool parsed = root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
@@ -6390,7 +6491,7 @@ esp_err_t ShotStopperNetwork::shotsRateHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const fields[] = {"id", "lastShot", "rating"};
   uint8_t rating = 0;
   uint32_t shotId = 0;
@@ -6457,7 +6558,7 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   const bool dateTimePatch =
       jsonFieldPresent(root, "timezoneOffsetMinutes") ||
       jsonFieldPresent(root, "ntpServerPreset") ||
@@ -6483,9 +6584,9 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   if (self.callbacks_.copyBullseyeConfig != nullptr) {
     self.callbacks_.copyBullseyeConfig(&candidateBullseye);
   } else {
-    portENTER_CRITICAL(&self.dataMux_);
+    self.dataMux_.lock();
     candidateBullseye = self.settings_.bullseyeMelody;
-    portEXIT_CRITICAL(&self.dataMux_);
+    self.dataMux_.unlock();
   }
   const bool bullseyeEnabledPresent =
       jsonFieldPresent(root, "bullseyeMelodyEnabled");
@@ -6874,9 +6975,9 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   if (self.callbacks_.copyPresetBank != nullptr) {
     self.callbacks_.copyPresetBank(&livePresets);
   } else {
-    portENTER_CRITICAL(&self.dataMux_);
+    self.dataMux_.lock();
     livePresets = self.settings_.presets;
-    portEXIT_CRITICAL(&self.dataMux_);
+    self.dataMux_.unlock();
   }
   const RuntimeConfig effective =
       composeEffectiveConfig(candidate, livePresets);
@@ -6925,7 +7026,7 @@ esp_err_t ShotStopperNetwork::webhookHandler(httpd_req_t *request) {
       request, "A bounded webhook JSON request is required.");
   if (bodyStatus != ESP_OK) return bodyStatus;
 
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const fields[] = {
       "action", "enabled", "url", "brewState", "firstDrop", "end",
       "deferDuringShot"};
@@ -6973,13 +7074,13 @@ esp_err_t ShotStopperNetwork::webhookHandler(httpd_req_t *request) {
   command.requestId = self.allocateRequestId();
   command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
   command.webhookStageRequestId = command.requestId;
-  portENTER_CRITICAL(&self.dataMux_);
+  self.dataMux_.lock();
   const bool stageAvailable = self.stagedWebhookRequestId_ == 0;
   if (stageAvailable) {
     self.stagedWebhook_ = candidate;
     self.stagedWebhookRequestId_ = command.requestId;
   }
-  portEXIT_CRITICAL(&self.dataMux_);
+  self.dataMux_.unlock();
   if (!stageAvailable) {
     return sendError(request, STATUS_UNAVAILABLE, "CONTROL_BUSY",
                      "Another webhook configuration save is still pending.");
@@ -7005,7 +7106,7 @@ esp_err_t ShotStopperNetwork::bullseyeTestHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   // This handler owns NetworkWorkBuf until unlockJsonBody(). Keep the 502-byte
   // candidate in its PSRAM scratch instead of consuming HTTP task stack.
   BullseyeMelodyConfig &testConfig = self.workBuf_->bullseyeMelody;
@@ -7081,7 +7182,7 @@ esp_err_t ShotStopperNetwork::preferredScaleSelectHandler(httpd_req_t *request) 
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   char mac[PREFERRED_SCALE_MAC_CAPACITY] = {};
   char name[PREFERRED_SCALE_NAME_CAPACITY] = {};
   const char *parseError = nullptr;
@@ -7135,7 +7236,7 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   char action[24] = {};
   uint8_t presetId = 0;
   char presetName[SHOT_PRESET_NAME_CAPACITY] = {};
@@ -7263,7 +7364,7 @@ esp_err_t ShotStopperNetwork::resetCalibrationHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const noFields[] = {nullptr};
   const bool parsed = root != nullptr &&
                       jsonHasOnlyUniqueFields(root, noFields, 0);
@@ -7299,7 +7400,7 @@ esp_err_t ShotStopperNetwork::resetGuardSamplesHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const noFields[] = {nullptr};
   const bool parsed = root != nullptr &&
                       jsonHasOnlyUniqueFields(root, noFields, 0);
@@ -7332,7 +7433,7 @@ esp_err_t ShotStopperNetwork::paddleHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   bool on = false;
   static const char *const fields[] = {"on"};
   const bool parsed = root != nullptr &&
@@ -7425,7 +7526,7 @@ esp_err_t ShotStopperNetwork::stateOverrideHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   char state[8] = {};
   static const char *const fields[] = {"state"};
   const bool parsed = root != nullptr &&
@@ -7478,7 +7579,7 @@ esp_err_t ShotStopperNetwork::clearResetHistoryHandler(httpd_req_t *request) {
       request, "An explicit reset-history confirmation is required.");
   if (bodyStatus != ESP_OK) return bodyStatus;
   char confirmation[32] = {};
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const fields[] = {"confirm"};
   const bool parsed =
       root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
@@ -7519,7 +7620,7 @@ esp_err_t ShotStopperNetwork::factoryResetHandler(httpd_req_t *request) {
     return bodyStatus;
   }
   char confirmation[32] = {};
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const fields[] = {"confirm"};
   const bool parsed =
       root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
@@ -7556,7 +7657,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   char action[16] = {};
   WebCommand command;
   command.requestId = self.allocateRequestId();
@@ -7759,9 +7860,9 @@ esp_err_t ShotStopperNetwork::wifiScanStartHandler(httpd_req_t *request) {
                      "Control is busy; scan was not started.");
   }
   
-  portENTER_CRITICAL(&self.dataMux_);
+  self.dataMux_.lock();
   g_wifiScan.state = WifiScanState::QUEUED;
-  portEXIT_CRITICAL(&self.dataMux_);
+  self.dataMux_.unlock();
   
   return self.sendAccepted(request, command.requestId,
                            "\"state\":\"QUEUED\"");
@@ -7776,9 +7877,9 @@ esp_err_t ShotStopperNetwork::wifiScanStatusHandler(httpd_req_t *request) {
     return self.workBufBusy(request);
   }
   WifiScanSnapshot &scan = self.workBuf_->wifiScan;
-  portENTER_CRITICAL(&self.dataMux_);
+  self.dataMux_.lock();
   scan = g_wifiScan;
-  portEXIT_CRITICAL(&self.dataMux_);
+  self.dataMux_.unlock();
 
   httpd_resp_set_type(request, JSON_CONTENT_TYPE);
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
@@ -7843,7 +7944,7 @@ esp_err_t ShotStopperNetwork::devicePasswordHandler(httpd_req_t *request) {
   command.type = WebCommandType::CHANGE_DEVICE_PASSWORD;
   command.requestId = self.allocateRequestId();
   command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const fields[] = {"newPassword"};
   const bool parsed =
       root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
@@ -7887,7 +7988,7 @@ esp_err_t ShotStopperNetwork::bleCompatHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const fields[] = {"enabled", "scanIntensity"};
   bool enabled = false;
   char intensityText[12] = {};
@@ -7944,7 +8045,7 @@ esp_err_t ShotStopperNetwork::taskProfilerHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) {
     return bodyStatus;
   }
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   bool enabled = false;
   static const char *const fields[] = {"enabled"};
   const bool parsed =
@@ -8180,9 +8281,9 @@ bool ShotStopperNetwork::authorizeOtaRequest(httpd_req_t *request) {
   if (length > 0 && length + 1 <= sizeof(password) &&
       httpd_req_get_hdr_value_str(request, header, password,
                                   sizeof(password)) == ESP_OK) {
-    portENTER_CRITICAL(&dataMux_);
+    dataMux_.lock();
     memcpy(expected, settings_.devicePassword, sizeof(expected));
-    portEXIT_CRITICAL(&dataMux_);
+    dataMux_.unlock();
     passwordAuthorized = devicePasswordsMatch(password, expected);
   }
   memset(password, 0, sizeof(password));
@@ -8217,7 +8318,7 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
       "\"transferId\":\"%s\",\"sha256\":\"%s\",\"nextOffset\":%lu,"
       "\"chunkBytes\":%lu,\"sessionActive\":%s,\"sessionExpiresInMs\":%lu,"
       "\"lastChunkSha256\":\"%s\"",
-      ota.available() ? "true" : "false",
+      ota_.available ? "true" : "false",
       ShotStopperOta::stateName(ota_.state),
       static_cast<unsigned long>(ota_.slotBytes),
       static_cast<unsigned long>(ota_.receivedBytes),
@@ -8228,7 +8329,8 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
       ota_.pendingVerify ? "true" : "false",
       ota_.confirmed ? "true" : "false", safe ? "true" : "false",
       configLockReason(control),
-      otaRestartPending_ ? "true" : "false", ota_.session.transferId,
+      otaRestartPending_.load(std::memory_order_acquire) ? "true" : "false",
+      ota_.session.transferId,
       ota_.session.sha256, static_cast<unsigned long>(ota_.nextOffset),
       static_cast<unsigned long>(ota_.chunkBytes),
       ota_.sessionActive ? "true" : "false",
@@ -8242,8 +8344,8 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
   // the whole Admin page unparseable, taking unrelated settings down with it.
   size_t used = static_cast<size_t>(written);
   const size_t tagCapacity = capacity - 1;
-  appendOtaTag(buffer, tagCapacity, used, "running", ota.runningTag(),
-               ota.runningTag().valid);
+  appendOtaTag(buffer, tagCapacity, used, "running", ota_.running,
+               ota_.running.valid);
   appendOtaTag(buffer, tagCapacity, used, "staged", ota_.staged,
                ota_.stagedValid);
   if (used + 2 > capacity) {
@@ -8340,14 +8442,14 @@ esp_err_t ShotStopperNetwork::otaSessionHandler(httpd_req_t *request) {
     return sendError(request, STATUS_CONFLICT, "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
                      "Stop the cycle and wait for Ready before updating firmware.");
   }
-  if (self.otaRestartPending_) {
+  if (self.otaRestartPending_.load(std::memory_order_acquire)) {
     return sendError(request, STATUS_CONFLICT, "OTA_RESTART_PENDING",
                      "A firmware image is already flashed and waiting for restart.");
   }
   const esp_err_t bodyStatus =
       self.lockJsonBody(request, "A JSON OTA session identity is required.");
   if (bodyStatus != ESP_OK) return bodyStatus;
-  cJSON *root = parseJsonInArena(self.workBuf_->requestBody);
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   OtaSessionIdentity identity;
   static const char *const fields[] = {"size", "sha256", "arch", "version", "transferId"};
   const bool parsed = root != nullptr && jsonHasOnlyUniqueFields(root, fields, 5) &&
@@ -8458,7 +8560,7 @@ esp_err_t ShotStopperNetwork::otaFlashHandler(httpd_req_t *request) {
                      "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
                      "Stop the cycle and wait for Ready before flashing.");
   }
-  if (self.otaRestartPending_) {
+  if (self.otaRestartPending_.load(std::memory_order_acquire)) {
     return sendError(request, STATUS_CONFLICT, "OTA_RESTART_PENDING",
                      "The flashed image is already waiting for the restart.");
   }
@@ -8483,8 +8585,8 @@ esp_err_t ShotStopperNetwork::otaFlashHandler(httpd_req_t *request) {
     return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
                      "The image is flashed. Restart the controller to use it.");
   }
-  self.otaRestartRequestedAtMs_ = millis();
-  self.otaRestartPending_ = true;
+  self.otaRestartRequestedAtMs_.store(millis(), std::memory_order_relaxed);
+  self.otaRestartPending_.store(true, std::memory_order_release);
   return self.sendOtaSnapshot(request, STATUS_ACCEPTED);
 }
 
@@ -8502,17 +8604,19 @@ void ShotStopperNetwork::serviceOtaRollback(uint32_t now) {
   // A committed image boots on the next restart however it happens, so a
   // restart the control task never granted must not leave the panel stuck
   // claiming one is on the way.
-  if (otaRestartPending_ &&
-      static_cast<uint32_t>(now - otaRestartRequestedAtMs_) >=
+  if (otaRestartPending_.load(std::memory_order_acquire) &&
+      static_cast<uint32_t>(
+          now - otaRestartRequestedAtMs_.load(std::memory_order_relaxed)) >=
           OTA_RESTART_GIVE_UP_MS) {
-    otaRestartPending_ = false;
+    otaRestartPending_.store(false, std::memory_order_release);
     actionLog("ota: the restart never happened; restart manually to use the "
               "flashed image");
   }
 
   ShotStopperOta &ota = ShotStopperOta::instance();
-  const bool alreadySettled =
-      ota.runningImageRejected() || ota.runningImageConfirmed() || ota.busy();
+  const OtaPublishedState otaStatus = ota.publishedState();
+  const bool alreadySettled = otaStatus.rejected || otaStatus.confirmed ||
+                              otaStatus.busy;
   // Assume a previous slot exists until the deadline forces a real check.
   // Passing false here would KEEP_RUNNING at 180 s without asking IDF.
   // Otadata writes disable flash cache and drop BLE. Wait while GATT is up
@@ -8522,7 +8626,7 @@ void ShotStopperNetwork::serviceOtaRollback(uint32_t now) {
       !scaleConnectingOrUp_.load(std::memory_order_relaxed) &&
       !control.activeCycle && !control.relayClosed;
   const OtaPendingVerifyAction action = decideOtaPendingVerify(
-      ota.bootPendingVerify(), alreadySettled,
+      otaStatus.pendingVerify, alreadySettled,
       startupComplete_ && server_ != nullptr, now, OTA_CONFIRM_MIN_UPTIME_MS,
       OTA_CONFIRM_DEADLINE_MS, true, flashWriteSafe);
   if (action == OtaPendingVerifyAction::NONE ||

@@ -387,6 +387,41 @@ void testPendingVerifyConfirmsAtDeadlineEvenIfFlashUnsafe() {
         OtaPendingVerifyAction::CONFIRM);
 }
 
+void testOtaJournalUsesBoundedCheckpoints() {
+  constexpr uint32_t imageBytes = 3U * 1024U * 1024U;
+  uint32_t persisted = 0;
+  uint32_t writes = 1;  // Empty session journal written by createSession().
+  for (uint32_t received = shotstopper::OTA_TRANSFER_CHUNK_BYTES;
+       received <= imageBytes;
+       received += shotstopper::OTA_TRANSFER_CHUNK_BYTES) {
+    if (shotstopper::otaJournalCheckpointDue(received, persisted,
+                                              imageBytes)) {
+      persisted = received;
+      ++writes;
+    }
+  }
+  CHECK(persisted == imageBytes - shotstopper::OTA_JOURNAL_CHECKPOINT_BYTES);
+  CHECK(writes == 6U);
+  CHECK(writes < imageBytes / shotstopper::OTA_TRANSFER_CHUNK_BYTES);
+}
+
+void testOtaJournalCheckpointsIrregularRangesAndRejectsRegression() {
+  const uint32_t checkpoint = shotstopper::OTA_JOURNAL_CHECKPOINT_BYTES;
+  CHECK(!shotstopper::otaJournalCheckpointDue(checkpoint - 1U, 0,
+                                               checkpoint * 3U));
+  CHECK(shotstopper::otaJournalCheckpointDue(checkpoint + 123U, 0,
+                                              checkpoint * 3U));
+  CHECK(!shotstopper::otaJournalCheckpointDue(checkpoint + 122U,
+                                               checkpoint + 123U,
+                                               checkpoint * 3U));
+  // Completion is deliberately not journaled: a reboot during esp_ota_end()
+  // must replay from the prior checkpoint instead of restoring a session with
+  // no bytes left to PATCH and no staged image to commit.
+  CHECK(!shotstopper::otaJournalCheckpointDue(checkpoint * 3U,
+                                               checkpoint * 2U + 1U,
+                                               checkpoint * 3U));
+}
+
 }  // namespace
 
 int main() {
@@ -417,6 +452,8 @@ int main() {
   testPendingVerifyHttpReadyAfterDeadlineStillConfirms();
   testPendingVerifyDefersConfirmWhileFlashUnsafe();
   testPendingVerifyConfirmsAtDeadlineEvenIfFlashUnsafe();
+  testOtaJournalUsesBoundedCheckpoints();
+  testOtaJournalCheckpointsIrregularRangesAndRejectsRegression();
 
   if (failures != 0) {
     std::cerr << "ota image host test failures: " << failures << "\n";

@@ -7,6 +7,7 @@
 #include "ShotStopperShotCurveTypes.h"
 #include "ShotStopperShotLogTypes.h"
 #include "ShotStopperTime.h"
+#include "ShotStopperTaskMutex.h"
 
 #include <WiFi.h>
 #include <esp_http_server.h>
@@ -176,6 +177,9 @@ class ShotStopperNetwork {
 
   bool begin(const PersistedSettings &settings,
              const NetworkBridgeCallbacks &callbacks);
+  // Stops the manager and webhook workers, then releases every begin()
+  // resource. Safe after a partial begin() and when called repeatedly.
+  bool stop();
   bool enqueueAcceptedCommand(const WebCommand &command);
   NetworkStatusSnapshot snapshot();
   void requestNtpSyncIfNeeded();
@@ -226,6 +230,7 @@ class ShotStopperNetwork {
   static constexpr uint32_t MAINTENANCE_PUBLICATION_TIMEOUT_MS = 2000;
   static constexpr uint32_t HTTP_RETRY_MS = 1000;
   static constexpr uint32_t HEALTH_TELEMETRY_INTERVAL_MS = 5000;
+  static constexpr uint32_t NETWORK_STOP_TIMEOUT_MS = 5000;
   static constexpr uint8_t COMMAND_MAX_ATTEMPTS = 5;
   // Admin unlock is RAM-only and tied to the exclusive WebUI claim. Idle
   // slides on Admin page polls and privileged APIs, not on Home polls.
@@ -245,10 +250,15 @@ class ShotStopperNetwork {
   NetworkBridgeCallbacks callbacks_ = {};
   QueueHandle_t acceptedCommandQueue_ = nullptr;
   TaskHandle_t taskHandle_ = nullptr;
+  SemaphoreHandle_t taskStopped_ = nullptr;
   SemaphoreHandle_t statusResponseMux_ = nullptr;
   NetworkWorkBuf *workBuf_ = nullptr;
+  // Network manager is a boot-lifetime owner. stop() is repeatable, while a
+  // successful begin-stop-begin cycle is rejected instead of reusing stale
+  // protocol/timer state.
+  bool beginCompleted_ = false;
   httpd_handle_t server_ = nullptr;
-  portMUX_TYPE dataMux_ = portMUX_INITIALIZER_UNLOCKED;
+  mutable TaskMutex dataMux_;
   char activeWebUiClientId_[WEB_UI_CLIENT_ID_CAPACITY] = {};
   bool webUiOverrideActive_ = false;
   uint32_t webUiOverrideUntilMs_ = 0;
@@ -277,15 +287,16 @@ class ShotStopperNetwork {
   bool apAutoRaiseExhausted_ = false;
   bool httpStartHeld_ = false;
   std::atomic<bool> scaleConnectingOrUp_{false};
+  std::atomic<bool> stopRequested_{false};
   std::atomic<bool> scaleConnecting_{false};
   std::atomic<bool> controlCriticalRfActive_{false};
   std::atomic<uint32_t> rfGateGeneration_{0};
   std::atomic<bool> scaleHuntRfActive_{false};
   wifi_ps_type_t lastAppliedWifiPs_{WIFI_PS_NONE};
   bool lastAppliedWifiPsValid_{false};
-  bool otaRestartPending_ = false;
+  std::atomic<bool> otaRestartPending_{false};
   bool otaRollbackRestartPending_ = false;
-  uint32_t otaRestartRequestedAtMs_ = 0;
+  std::atomic<uint32_t> otaRestartRequestedAtMs_{0};
   WebCommand acceptedCommand_ = {};
   WebCommand completionCommand_ = {};
   uint8_t acceptedCommandAttempts_ = 0;

@@ -1,14 +1,19 @@
 #include "ShotStopperOta.h"
 
-#include "ShotStopperPsram.h"
-#include "ShotStopperPreferences.h"
-#include "ShotStopperVersion.h"
-#include "ShotStopperWatchdog.h"
-
+#if defined(SHOT_STOPPER_OTA_HOST_TEST)
+#include "tests/ota_host_stubs.h"
+#else
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <esp_wifi.h>
 #include <mbedtls/sha256.h>
+#endif
+
+#include "ShotStopperFlashIoScratch.h"
+#include "ShotStopperPsram.h"
+#include "ShotStopperPreferences.h"
+#include "ShotStopperVersion.h"
+
 #include <string.h>
 
 namespace shotstopper {
@@ -39,6 +44,18 @@ struct OtaChunkBuffer {
   bool ok() const { return bytes != nullptr; }
 };
 
+struct FlashIoGuard {
+  bool locked = false;
+
+  FlashIoGuard() : locked(tryLockFlashIo()) {}
+  ~FlashIoGuard() {
+    if (locked) unlockFlashIo();
+  }
+  FlashIoGuard(const FlashIoGuard &) = delete;
+  FlashIoGuard &operator=(const FlashIoGuard &) = delete;
+  bool ok() const { return locked; }
+};
+
 // A real image is well over a megabyte; anything this small is not one.
 constexpr uint32_t OTA_MIN_IMAGE_BYTES = 65536;
 
@@ -48,6 +65,11 @@ constexpr uint32_t OTA_PROGRESS_INTERVAL_BYTES = 262144;
 constexpr uint32_t OTA_SESSION_TTL_MS = 15U * 60U * 1000U;
 constexpr uint32_t OTA_JOURNAL_MAGIC = 0x4f544a31U;  // OTJ1
 constexpr uint16_t OTA_JOURNAL_VERSION = 1;
+constexpr uint32_t OTA_PUBLISHED_AVAILABLE = 1U << 0;
+constexpr uint32_t OTA_PUBLISHED_BUSY = 1U << 1;
+constexpr uint32_t OTA_PUBLISHED_PENDING_VERIFY = 1U << 2;
+constexpr uint32_t OTA_PUBLISHED_CONFIRMED = 1U << 3;
+constexpr uint32_t OTA_PUBLISHED_REJECTED = 1U << 4;
 
 // Two NVS records make a power cut during the metadata update harmless. The
 // image itself remains in the inactive OTA partition; this journal only says
@@ -133,27 +155,42 @@ bool validJournalIdentity(const OtaSessionIdentity &identity) {
 }
 
 bool readJournal(const char *key, OtaJournalRecord &record) {
+  if (!tryLockFlashIo()) return false;
   Preferences preferences;
-  if (!preferences.begin("ota", true)) return false;
+  if (!preferences.begin("ota", true)) {
+    unlockFlashIo();
+    return false;
+  }
   const size_t length = preferences.getBytes(key, &record, sizeof(record));
   preferences.end();
+  unlockFlashIo();
   return length == sizeof(record) && validJournal(record);
 }
 
 bool writeJournal(const char *key, const OtaJournalRecord &record) {
+  if (!tryLockFlashIo()) return false;
   Preferences preferences;
-  if (!preferences.begin("ota", false)) return false;
+  if (!preferences.begin("ota", false)) {
+    unlockFlashIo();
+    return false;
+  }
   const size_t length = preferences.putBytes(key, &record, sizeof(record));
   preferences.end();
+  unlockFlashIo();
   return length == sizeof(record);
 }
 
 void clearJournal() {
+  if (!tryLockFlashIo()) return;
   Preferences preferences;
-  if (!preferences.begin("ota", false)) return;
+  if (!preferences.begin("ota", false)) {
+    unlockFlashIo();
+    return;
+  }
   preferences.remove("j0");
   preferences.remove("j1");
   preferences.end();
+  unlockFlashIo();
 }
 
 }  // namespace
@@ -163,7 +200,59 @@ ShotStopperOta &ShotStopperOta::instance() {
   return shared;
 }
 
+bool ShotStopperOta::available() const {
+  return publishedState().available;
+}
+
+bool ShotStopperOta::busy() const {
+  return publishedState().busy;
+}
+
+uint32_t ShotStopperOta::slotBytes() const {
+  TaskLockGuard lock(mutex_);
+  return slotBytes_;
+}
+
+bool ShotStopperOta::bootPendingVerify() const {
+  return publishedState().pendingVerify;
+}
+
+bool ShotStopperOta::runningImageConfirmed() const {
+  return publishedState().confirmed;
+}
+
+bool ShotStopperOta::runningImageRejected() const {
+  return publishedState().rejected;
+}
+
+OtaPublishedState ShotStopperOta::publishedState() const {
+  const uint32_t flags = publishedFlags_.load(std::memory_order_acquire);
+  OtaPublishedState state;
+  state.available = (flags & OTA_PUBLISHED_AVAILABLE) != 0;
+  state.busy = (flags & OTA_PUBLISHED_BUSY) != 0;
+  state.pendingVerify = (flags & OTA_PUBLISHED_PENDING_VERIFY) != 0;
+  state.confirmed = (flags & OTA_PUBLISHED_CONFIRMED) != 0;
+  state.rejected = (flags & OTA_PUBLISHED_REJECTED) != 0;
+  return state;
+}
+
+void ShotStopperOta::publishState() {
+  uint32_t flags = 0;
+  if (available_) flags |= OTA_PUBLISHED_AVAILABLE;
+  if (busy_ || sessionActive_) flags |= OTA_PUBLISHED_BUSY;
+  if (pendingVerify_) flags |= OTA_PUBLISHED_PENDING_VERIFY;
+  if (confirmed_) flags |= OTA_PUBLISHED_CONFIRMED;
+  if (rejected_) flags |= OTA_PUBLISHED_REJECTED;
+  publishedFlags_.store(flags, std::memory_order_release);
+}
+
+OtaImageTag ShotStopperOta::runningTag() const {
+  TaskLockGuard lock(mutex_);
+  return runningTag_;
+}
+
 void ShotStopperOta::begin() {
+  TaskLockGuard lock(mutex_);
   if (started_) {
     return;
   }
@@ -176,8 +265,15 @@ void ShotStopperOta::begin() {
     runningTag_ = scanner.tag();
   }
 
-  const esp_partition_t *running = esp_ota_get_running_partition();
-  const esp_partition_t *target = esp_ota_get_next_update_partition(nullptr);
+  const esp_partition_t *running = nullptr;
+  const esp_partition_t *target = nullptr;
+  {
+    FlashIoGuard flash;
+    if (flash.ok()) {
+      running = esp_ota_get_running_partition();
+      target = esp_ota_get_next_update_partition(nullptr);
+    }
+  }
   runningPartition_ = running;
   targetPartition_ = target;
   available_ = running != nullptr && target != nullptr && target != running;
@@ -186,7 +282,9 @@ void ShotStopperOta::begin() {
 
   if (running != nullptr) {
     esp_ota_img_states_t imageState = ESP_OTA_IMG_UNDEFINED;
-    if (esp_ota_get_state_partition(running, &imageState) == ESP_OK) {
+    FlashIoGuard flash;
+    if (flash.ok() &&
+        esp_ota_get_state_partition(running, &imageState) == ESP_OK) {
       pendingVerify_ = imageState == ESP_OTA_IMG_PENDING_VERIFY;
     }
   }
@@ -195,40 +293,33 @@ void ShotStopperOta::begin() {
   if (available_ && confirmed_) {
     restoreSessionJournal();
   }
+  publishState();
 }
 
 void ShotStopperOta::removeSessionJournal() { clearJournal(); }
 
 bool ShotStopperOta::persistSession() {
   if (!sessionActive_) return true;
-  const esp_partition_t *target =
-      static_cast<const esp_partition_t *>(targetPartition_);
-  if (target == nullptr || receivedBytes_ > target->size) return false;
-  OtaChunkBuffer chunk(OTA_CHUNK_BYTES);
-  if (!chunk.ok()) return false;
-  mbedtls_sha256_context hash;
-  mbedtls_sha256_init(&hash);
-  bool ok = mbedtls_sha256_starts(&hash, 0) == 0;
-  uint32_t offset = 0;
-  while (ok && offset < receivedBytes_) {
-    const size_t length = receivedBytes_ - offset < OTA_CHUNK_BYTES
-                              ? receivedBytes_ - offset
-                              : OTA_CHUNK_BYTES;
-    ok = esp_partition_read(target, offset, chunk.bytes, length) == ESP_OK &&
-         mbedtls_sha256_update(&hash, chunk.bytes, length) == 0;
-    offset += static_cast<uint32_t>(length);
-  }
+  if (sessionSha256_ == nullptr) return false;
   OtaJournalRecord record;
   record.generation = ++sessionGeneration_;
   record.received = receivedBytes_;
   record.identity = session_;
+  mbedtls_sha256_context snapshot;
+  mbedtls_sha256_init(&snapshot);
+  mbedtls_sha256_clone(
+      &snapshot, static_cast<const mbedtls_sha256_context *>(sessionSha256_));
   uint8_t digest[32] = {};
-  ok = ok && mbedtls_sha256_finish(&hash, digest) == 0;
-  mbedtls_sha256_free(&hash);
+  const bool ok = mbedtls_sha256_finish(&snapshot, digest) == 0;
+  mbedtls_sha256_free(&snapshot);
   if (!ok) return false;
   sha256Hex(digest, record.prefixSha256);
   record.checksum = journalChecksum(record);
-  return writeJournal((record.generation & 1U) == 0 ? "j0" : "j1", record);
+  if (!writeJournal((record.generation & 1U) == 0 ? "j0" : "j1", record)) {
+    return false;
+  }
+  journaledBytes_ = receivedBytes_;
+  return true;
 }
 
 void ShotStopperOta::restoreSessionJournal() {
@@ -258,8 +349,12 @@ void ShotStopperOta::restoreSessionJournal() {
     const size_t length = record.received - offset < OTA_CHUNK_BYTES
                               ? record.received - offset
                               : OTA_CHUNK_BYTES;
-    ok = esp_partition_read(target, offset, chunk.bytes, length) == ESP_OK &&
-         mbedtls_sha256_update(&hash, chunk.bytes, length) == 0;
+    {
+      FlashIoGuard flash;
+      ok = flash.ok() &&
+           esp_partition_read(target, offset, chunk.bytes, length) == ESP_OK;
+    }
+    ok = ok && mbedtls_sha256_update(&hash, chunk.bytes, length) == 0;
     if (!headerChecked && offset == 0) {
       headerChecked = length >= OTA_IMAGE_PREFIX_BYTES &&
                       validateOtaImageHeader(chunk.bytes, length) == OtaImageHeaderResult::OK;
@@ -267,27 +362,44 @@ void ShotStopperOta::restoreSessionJournal() {
     }
     scanner.feed(chunk.bytes, length);
     offset += static_cast<uint32_t>(length);
+    yieldFlashIo();
+    feedFlashIoWatchdog();
   }
+  mbedtls_sha256_context verification;
+  mbedtls_sha256_init(&verification);
+  mbedtls_sha256_clone(&verification, &hash);
   uint8_t digest[32] = {};
-  ok = ok && mbedtls_sha256_finish(&hash, digest) == 0;
-  mbedtls_sha256_free(&hash);
+  ok = ok && mbedtls_sha256_finish(&verification, digest) == 0;
+  mbedtls_sha256_free(&verification);
   char prefix[OTA_SHA256_HEX_CAPACITY] = {};
   sha256Hex(digest, prefix);
   if (!ok || !sameText(prefix, record.prefixSha256, sizeof(prefix))) {
+    mbedtls_sha256_free(&hash);
     clearJournal();
     return;
   }
   session_ = record.identity;
   sessionGeneration_ = record.generation;
+  journaledBytes_ = record.received;
   receivedBytes_ = record.received;
   expectedBytes_ = record.identity.size;
   scanner_ = scanner;
   sessionLastActivityMs_ = millis();
   sessionActive_ = true;
   state_ = OtaState::RECEIVING;
+  if (!startSessionSha256()) {
+    clearSession(false);
+    state_ = OtaState::IDLE;
+    return;
+  }
+  mbedtls_sha256_clone(
+      static_cast<mbedtls_sha256_context *>(sessionSha256_), &hash);
+  mbedtls_sha256_free(&hash);
   if (record.received != 0) {
     esp_ota_handle_t handle = 0;
-    if (esp_ota_resume(target, 0, record.received, &handle) != ESP_OK) {
+    FlashIoGuard flash;
+    if (!flash.ok() ||
+        esp_ota_resume(target, 0, record.received, &handle) != ESP_OK) {
       clearSession(false);
       clearJournal();
       receivedBytes_ = 0;
@@ -301,7 +413,10 @@ void ShotStopperOta::restoreSessionJournal() {
 }
 
 OtaStatusSnapshot ShotStopperOta::snapshot() const {
+  TaskLockGuard lock(mutex_);
   OtaStatusSnapshot copy;
+  copy.available = available_;
+  copy.busy = busy_ || sessionActive_;
   copy.state = state_;
   copy.slotBytes = slotBytes_;
   copy.receivedBytes = receivedBytes_;
@@ -313,6 +428,8 @@ OtaStatusSnapshot ShotStopperOta::snapshot() const {
   copy.staged = stagedTag_;
   copy.pendingVerify = pendingVerify_;
   copy.confirmed = confirmed_;
+  copy.rejected = rejected_;
+  copy.running = runningTag_;
   copy.sessionActive = sessionActive_;
   copy.nextOffset = receivedBytes_;
   copy.session = session_;
@@ -341,12 +458,16 @@ OtaResult ShotStopperOta::finishFailure(OtaResult result) {
   stagedValid_ = false;
   stagedTag_ = OtaImageTag{};
   state_ = available_ ? OtaState::IDLE : OtaState::UNAVAILABLE;
+  publishState();
   return result;
 }
 
 void ShotStopperOta::clearSession(bool abortHandle) {
   if (abortHandle && handleOpen_) {
-    esp_ota_abort(static_cast<esp_ota_handle_t>(otaHandle_));
+    FlashIoGuard flash;
+    if (flash.ok()) {
+      esp_ota_abort(static_cast<esp_ota_handle_t>(otaHandle_));
+    }
   }
   handleOpen_ = false;
   otaHandle_ = 0;
@@ -357,21 +478,26 @@ void ShotStopperOta::clearSession(bool abortHandle) {
   lastChunkOffset_ = 0;
   lastChunkLength_ = 0;
   scanner_.reset();
+  clearSessionSha256();
+  journaledBytes_ = 0;
   removeSessionJournal();
 }
 
 bool ShotStopperOta::isExactSession(const OtaSessionIdentity &identity) const {
+  TaskLockGuard lock(mutex_);
   return (sessionActive_ || stagedValid_) && sameSession(session_, identity);
 }
 
 bool ShotStopperOta::isDuplicateRange(uint32_t offset,
                                       uint32_t contentLength) const {
+  TaskLockGuard lock(mutex_);
   return sessionActive_ && contentLength != 0 &&
          offset == lastChunkOffset_ && contentLength == lastChunkLength_ &&
          offset + contentLength == receivedBytes_;
 }
 
 void ShotStopperOta::expireSession(uint32_t now) {
+  TaskLockGuard lock(mutex_);
   if (!sessionActive_) {
     return;
   }
@@ -382,10 +508,15 @@ void ShotStopperOta::expireSession(uint32_t now) {
 
 OtaResult ShotStopperOta::createSession(const OtaSessionIdentity &identity,
                                         uint32_t now) {
+  TaskLockGuard lock(mutex_);
   if (!started_ || !available_) {
     return OtaResult::UNAVAILABLE;
   }
-  expireSession(now);
+  if (sessionActive_ &&
+      static_cast<uint32_t>(now - sessionLastActivityMs_) >=
+          OTA_SESSION_TTL_MS) {
+    finishFailure(OtaResult::SESSION_EXPIRED);
+  }
   if (busy_ || state_ == OtaState::COMMITTED) {
     return OtaResult::BUSY;
   }
@@ -409,8 +540,8 @@ OtaResult ShotStopperOta::createSession(const OtaSessionIdentity &identity,
     return OtaResult::SESSION_IDENTITY_MISMATCH;
   }
   if (sessionActive_ || stagedValid_) {
-    return isExactSession(identity) ? OtaResult::OK
-                                    : OtaResult::SESSION_CONFLICT;
+    return sameSession(session_, identity) ? OtaResult::OK
+                                           : OtaResult::SESSION_CONFLICT;
   }
 
   session_ = identity;
@@ -428,34 +559,22 @@ OtaResult ShotStopperOta::createSession(const OtaSessionIdentity &identity,
   receivedBytes_ = 0;
   expectedBytes_ = identity.size;
   lastResult_ = OtaResult::OK;
+  if (!startSessionSha256()) return finishFailure(OtaResult::NO_MEMORY);
   if (!persistSession()) return finishFailure(OtaResult::INTERNAL);
+  publishState();
   return OtaResult::OK;
 }
 
 bool ShotStopperOta::verifySessionSha256() {
-  const esp_partition_t *target =
-      static_cast<const esp_partition_t *>(targetPartition_);
-  if (target == nullptr || session_.size == 0) {
-    return false;
-  }
-  OtaChunkBuffer chunk(OTA_CHUNK_BYTES);
-  if (!chunk.ok()) {
+  if (sessionSha256_ == nullptr || session_.size == 0) {
     return false;
   }
   mbedtls_sha256_context hash;
   mbedtls_sha256_init(&hash);
-  bool ok = mbedtls_sha256_starts(&hash, 0) == 0;
-  uint32_t offset = 0;
-  while (ok && offset < session_.size) {
-    const size_t length = session_.size - offset < OTA_CHUNK_BYTES
-                              ? session_.size - offset
-                              : OTA_CHUNK_BYTES;
-    ok = esp_partition_read(target, offset, chunk.bytes, length) == ESP_OK &&
-         mbedtls_sha256_update(&hash, chunk.bytes, length) == 0;
-    offset += static_cast<uint32_t>(length);
-  }
+  mbedtls_sha256_clone(
+      &hash, static_cast<const mbedtls_sha256_context *>(sessionSha256_));
   uint8_t digest[32] = {};
-  ok = ok && mbedtls_sha256_finish(&hash, digest) == 0;
+  const bool ok = mbedtls_sha256_finish(&hash, digest) == 0;
   mbedtls_sha256_free(&hash);
   if (!ok) {
     return false;
@@ -465,13 +584,45 @@ bool ShotStopperOta::verifySessionSha256() {
   return sameText(actual, session_.sha256, sizeof(actual));
 }
 
+bool ShotStopperOta::startSessionSha256() {
+  clearSessionSha256();
+  sessionSha256_ = allocInternal(sizeof(mbedtls_sha256_context));
+  if (sessionSha256_ == nullptr) return false;
+  mbedtls_sha256_context *hash =
+      static_cast<mbedtls_sha256_context *>(sessionSha256_);
+  mbedtls_sha256_init(hash);
+  if (mbedtls_sha256_starts(hash, 0) != 0) {
+    clearSessionSha256();
+    return false;
+  }
+  return true;
+}
+
+bool ShotStopperOta::updateSessionSha256(const uint8_t *bytes,
+                                         size_t length) {
+  return sessionSha256_ != nullptr && bytes != nullptr &&
+         mbedtls_sha256_update(
+             static_cast<mbedtls_sha256_context *>(sessionSha256_), bytes,
+             length) == 0;
+}
+
+void ShotStopperOta::clearSessionSha256() {
+  if (sessionSha256_ == nullptr) return;
+  mbedtls_sha256_free(
+      static_cast<mbedtls_sha256_context *>(sessionSha256_));
+  heapCapsFree(sessionSha256_);
+  sessionSha256_ = nullptr;
+}
+
 OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
                                      const OtaStreamIo &io, uint32_t now) {
+  TaskLockGuard lock(mutex_);
   if (!sessionActive_) {
     return OtaResult::SESSION_REQUIRED;
   }
-  expireSession(now);
-  if (!sessionActive_) {
+  if (static_cast<uint32_t>(now - sessionLastActivityMs_) >=
+      OTA_SESSION_TTL_MS) {
+    finishFailure(OtaResult::SESSION_EXPIRED);
     return OtaResult::SESSION_EXPIRED;
   }
   if (busy_) {
@@ -504,10 +655,6 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   }
   size_t chunkBytes = OTA_CHUNK_BYTES;
   uint8_t *const buffer = chunk.bytes;
-
-  // Flash erase plus the closing SHA-256 pass exceed the normal watchdog
-  // budget; restored by the destructor on every exit path below.
-  TaskWatchdogOtaWindow watchdogWindow;
 
   mbedtls_sha256_context chunkHash;
   mbedtls_sha256_init(&chunkHash);
@@ -546,17 +693,26 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
         break;
       }
       esp_ota_handle_t handle = 0;
-      if (esp_ota_begin(target, expectedBytes_, &handle) !=
-          ESP_OK) {
+      FlashIoGuard flash;
+      if (!flash.ok() ||
+          esp_ota_begin(target, expectedBytes_, &handle) != ESP_OK) {
         failure = OtaResult::WRITE_FAILED;
         break;
       }
       otaHandle_ = static_cast<uint32_t>(handle);
       handleOpen_ = true;
     }
-    if (esp_ota_write(static_cast<esp_ota_handle_t>(otaHandle_), buffer,
-                      length) != ESP_OK ||
-        mbedtls_sha256_update(&chunkHash, buffer, length) != 0) {
+    {
+      FlashIoGuard flash;
+      if (!flash.ok() ||
+          esp_ota_write(static_cast<esp_ota_handle_t>(otaHandle_), buffer,
+                        length) != ESP_OK) {
+        failure = OtaResult::WRITE_FAILED;
+        break;
+      }
+    }
+    if (mbedtls_sha256_update(&chunkHash, buffer, length) != 0 ||
+        !updateSessionSha256(buffer, length)) {
       failure = OtaResult::WRITE_FAILED;
       break;
     }
@@ -564,6 +720,8 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
     scanner_.feed(buffer, length);
     rangeReceived += static_cast<uint32_t>(length);
     receivedBytes_ += static_cast<uint32_t>(length);
+    yieldFlashIo();
+    feedFlashIoWatchdog();
     // The marker is in the early read-only segment. Reject a wrong board or
     // a same-version-but-different build identity before it consumes a full
     // slot, while the final SHA-256 remains the authoritative whole-image
@@ -606,7 +764,11 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   lastChunkLength_ = contentLength;
   sessionLastActivityMs_ = now;
 
-  if (!persistSession()) return finishFailure(OtaResult::INTERNAL);
+  if (otaJournalCheckpointDue(receivedBytes_, journaledBytes_,
+                              expectedBytes_) &&
+      !persistSession()) {
+    return finishFailure(OtaResult::INTERNAL);
+  }
 
   if (receivedBytes_ < expectedBytes_) {
     busy_ = false;
@@ -628,9 +790,14 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   // esp_ota_end re-reads the whole slot and verifies the appended SHA-256, so
   // a transfer that was silently corrupted in flight fails here.
   const esp_ota_handle_t closingHandle = static_cast<esp_ota_handle_t>(otaHandle_);
-  const esp_err_t endStatus = esp_ota_end(closingHandle);
+  esp_err_t endStatus = ESP_FAIL;
+  {
+    FlashIoGuard flash;
+    if (flash.ok()) endStatus = esp_ota_end(closingHandle);
+  }
   if (endStatus != ESP_OK) {
-    esp_ota_abort(closingHandle);
+    FlashIoGuard flash;
+    if (flash.ok()) esp_ota_abort(closingHandle);
     handleOpen_ = false;
     otaHandle_ = 0;
     return finishFailure(OtaResult::VERIFY_FAILED);
@@ -649,12 +816,15 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   stagedSizeBytes_ = receivedBytes_;
   stagedValid_ = true;
   sessionActive_ = false;
+  clearSessionSha256();
+  journaledBytes_ = 0;
   removeSessionJournal();
   busy_ = false;
   state_ = OtaState::STAGED;
   lastResult_ = OtaResult::OK;
   lastReceivedBytes_ = receivedBytes_;
   lastExpectedBytes_ = expectedBytes_;
+  publishState();
   return OtaResult::OK;
 }
 
@@ -672,7 +842,9 @@ bool ShotStopperOta::reconfirmStagedTag() {
     length = target->size - stagedTagOffset_;
   }
   uint8_t bytes[OTA_TAG_REREAD_BYTES] = {};
-  if (esp_partition_read(target, stagedTagOffset_, bytes, length) != ESP_OK) {
+  FlashIoGuard flash;
+  if (!flash.ok() ||
+      esp_partition_read(target, stagedTagOffset_, bytes, length) != ESP_OK) {
     return false;
   }
   OtaImageTagScanner scanner;
@@ -681,6 +853,7 @@ bool ShotStopperOta::reconfirmStagedTag() {
 }
 
 OtaResult ShotStopperOta::commit() {
+  TaskLockGuard lock(mutex_);
   if (!started_ || !available_) {
     return OtaResult::UNAVAILABLE;
   }
@@ -699,15 +872,18 @@ OtaResult ShotStopperOta::commit() {
       static_cast<const esp_partition_t *>(targetPartition_);
   // esp_ota_set_boot_partition runs a full image verification of its own and
   // refuses to select a slot that would not boot.
-  if (esp_ota_set_boot_partition(target) != ESP_OK) {
+  FlashIoGuard flash;
+  if (!flash.ok() || esp_ota_set_boot_partition(target) != ESP_OK) {
     return finishFailure(OtaResult::COMMIT_FAILED);
   }
   stagedValid_ = false;
   state_ = OtaState::COMMITTED;
+  publishState();
   return OtaResult::OK;
 }
 
 void ShotStopperOta::discard() {
+  TaskLockGuard lock(mutex_);
   if (busy_ || state_ == OtaState::COMMITTED) {
     return;
   }
@@ -719,9 +895,11 @@ void ShotStopperOta::discard() {
   receivedBytes_ = 0;
   expectedBytes_ = 0;
   state_ = available_ ? OtaState::IDLE : OtaState::UNAVAILABLE;
+  publishState();
 }
 
 bool ShotStopperOta::confirmRunningImage() {
+  TaskLockGuard lock(mutex_);
   if (confirmed_) {
     return true;
   }
@@ -731,15 +909,18 @@ bool ShotStopperOta::confirmRunningImage() {
   if (rejected_) {
     return false;
   }
-  if (esp_ota_mark_app_valid_cancel_rollback() != ESP_OK) {
+  FlashIoGuard flash;
+  if (!flash.ok() || esp_ota_mark_app_valid_cancel_rollback() != ESP_OK) {
     return false;
   }
   confirmed_ = true;
   pendingVerify_ = false;
+  publishState();
   return true;
 }
 
 bool ShotStopperOta::rejectRunningImage() {
+  TaskLockGuard lock(mutex_);
   if (rejected_) {
     return true;
   }
@@ -748,7 +929,8 @@ bool ShotStopperOta::rejectRunningImage() {
   }
   // Refusing here is the safe outcome: without a bootable alternative the
   // caller must keep running this image rather than restart into nothing.
-  if (!esp_ota_check_rollback_is_possible()) {
+  FlashIoGuard flash;
+  if (!flash.ok() || !esp_ota_check_rollback_is_possible()) {
     return false;
   }
   if (esp_ota_mark_app_invalid_rollback() != ESP_OK) {
@@ -756,6 +938,7 @@ bool ShotStopperOta::rejectRunningImage() {
   }
   rejected_ = true;
   pendingVerify_ = false;
+  publishState();
   return true;
 }
 

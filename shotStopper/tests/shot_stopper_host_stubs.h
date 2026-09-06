@@ -759,11 +759,16 @@ using esp_timer_handle_t = HostEspTimer *;
 
 inline bool hostEspTimerCreateSucceeds = true;
 inline bool hostEspTimerStartSucceeds = true;
+inline uint32_t hostEspTimerCreateCalls = 0;
+inline uint32_t hostEspTimerCreateFailAtCall = 0;
 
 inline int esp_timer_create(const esp_timer_create_args_t *args,
                             esp_timer_handle_t *timer) {
+  ++hostEspTimerCreateCalls;
   if (!hostEspTimerCreateSucceeds || args == nullptr || timer == nullptr ||
-      args->callback == nullptr) {
+      args->callback == nullptr ||
+      (hostEspTimerCreateFailAtCall != 0 &&
+       hostEspTimerCreateCalls == hostEspTimerCreateFailAtCall)) {
     return -1;
   }
   *timer = new HostEspTimer{args->callback, args->arg, false, 0};
@@ -784,6 +789,12 @@ inline int esp_timer_stop(esp_timer_handle_t timer) {
     return -1;
   }
   timer->active = false;
+  return ESP_OK;
+}
+
+inline int esp_timer_delete(esp_timer_handle_t timer) {
+  if (timer == nullptr) return -1;
+  delete timer;
   return ESP_OK;
 }
 

@@ -15,6 +15,7 @@
 #include "ShotStopperAlert.h"
 #include "ShotStopperRfCoex.h"
 #include "ShotStopperSafety.h"
+#include "ShotStopperScheduling.h"
 
 #include <atomic>
 #include <math.h>
@@ -167,7 +168,7 @@ static TaskHandle_t scaleWorkerTaskHandle = nullptr;
 QueueHandle_t scaleCommandQueue = nullptr;
 QueueHandle_t scaleEventQueue = nullptr;
 portMUX_TYPE scaleLinkMux = portMUX_INITIALIZER_UNLOCKED;
-portMUX_TYPE scalePreferredMacMux = portMUX_INITIALIZER_UNLOCKED;
+TaskMutex scalePreferredMacMux;
 portMUX_TYPE scaleBeepMux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE scaleDebugMux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE scaleCriticalEventMux = portMUX_INITIALIZER_UNLOCKED;
@@ -206,6 +207,8 @@ uint8_t scalePreferredResetReasonBits = 0;
 uint32_t scaleWorkerProgressAtMs = 0;
 static std::atomic<uint32_t> scaleEventsDropped{0};
 static std::atomic<uint32_t> scaleWorkerStackMinWords{0};
+static std::atomic<uint32_t> scaleWorkerMaxGapMs{0};
+static std::atomic<uint32_t> scaleWorkerDeadlineMisses{0};
 ScaleEvent scaleCriticalEvent;
 bool scaleCriticalEventPending = false;
 ScaleEvent scaleTimerStartEvent;
@@ -310,6 +313,14 @@ uint32_t scaleWorkerStackMinWordsValue() {
   return scaleWorkerStackMinWords.load(std::memory_order_relaxed);
 }
 
+uint32_t scaleWorkerMaxGapMsValue() {
+  return scaleWorkerMaxGapMs.load(std::memory_order_relaxed);
+}
+
+uint32_t scaleWorkerDeadlineMissCount() {
+  return scaleWorkerDeadlineMisses.load(std::memory_order_relaxed);
+}
+
 #if defined(SHOT_STOPPER_HOST_TEST)
 void setScaleWorkerBleReadyForHost(bool ready) {
   bleStackReady.store(ready, std::memory_order_release);
@@ -330,6 +341,8 @@ void resetScaleWorkerMetricsForHost() {
   scaleWorkerStartupFinished.store(false, std::memory_order_relaxed);
   scaleEventsDropped.store(0, std::memory_order_relaxed);
   scaleWorkerStackMinWords.store(0, std::memory_order_relaxed);
+  scaleWorkerMaxGapMs.store(0, std::memory_order_relaxed);
+  scaleWorkerDeadlineMisses.store(0, std::memory_order_relaxed);
 }
 #endif
 
@@ -337,7 +350,7 @@ static uint32_t scaleCommandDropCount = 0;
 
 void scaleWorkerLoadPreferred(const char *mac, const char *name,
                               const ScaleHistoryEntry *history) {
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   if (mac != nullptr && validPreferredScaleMac(mac)) {
     copyCString(scalePreferredMac, sizeof(scalePreferredMac), mac);
     canonicalizePreferredScaleMac(scalePreferredMac, sizeof(scalePreferredMac));
@@ -360,13 +373,13 @@ void scaleWorkerLoadPreferred(const char *mac, const char *name,
   }
   seedScaleHistoryFromPreferred(scaleHistory, scaleHistorySeq,
                                 scalePreferredMac, scalePreferredName);
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
 }
 
 bool scaleWorkerCopyPreferredIfDirty(char *mac, char *name,
                                      ScaleHistoryEntry *history) {
   bool dirty = false;
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   dirty = scalePreferredMacDirty;
   if (dirty) {
     if (mac != nullptr) {
@@ -379,14 +392,14 @@ bool scaleWorkerCopyPreferredIfDirty(char *mac, char *name,
       memcpy(history, scaleHistory, sizeof(scaleHistory));
     }
   }
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
   return dirty;
 }
 
 void scaleWorkerClearPreferredDirty() {
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   scalePreferredMacDirty = false;
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
 }
 
 bool scaleWorkerTakeConnectedEdge() {
@@ -1012,27 +1025,27 @@ void copyPreferredScaleMac(char *out, size_t capacity) {
   if (out == nullptr || capacity == 0) {
     return;
   }
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   copyCString(out, capacity, scalePreferredMac);
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
 }
 
 void copyPreferredScaleName(char *out, size_t capacity) {
   if (out == nullptr || capacity == 0) {
     return;
   }
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   copyCString(out, capacity, scalePreferredName);
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
 }
 
 void copyScaleHistory(ScaleHistoryEntry *out) {
   if (out == nullptr) {
     return;
   }
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   memcpy(out, scaleHistory, sizeof(scaleHistory));
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
 }
 
 bool hasPreferredScaleMac() {
@@ -1042,9 +1055,9 @@ bool hasPreferredScaleMac() {
 }
 
 uint32_t scaleMacCachePauseRemainingMs(uint32_t nowMs) {
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   const uint32_t until = scaleDiscoveryPausedUntilMs;
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
   if (until == 0) {
     return 0;
   }
@@ -1060,15 +1073,15 @@ constexpr uint8_t SCALE_PREFERENCE_RESET_IDENTITY = 1U << 0;
 constexpr uint8_t SCALE_PREFERENCE_RESET_MODE = 1U << 1;
 
 void requestScalePreferenceModeReset() {
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   ++scalePreferredDirectedResetGeneration;
   scalePreferredResetReasonBits |= SCALE_PREFERENCE_RESET_MODE;
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
 }
 
 uint8_t takeScalePreferenceResetReasons() {
   uint8_t reasons = 0;
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   if (scalePreferredAppliedResetGeneration !=
       scalePreferredDirectedResetGeneration) {
     scalePreferredAppliedResetGeneration =
@@ -1076,7 +1089,7 @@ uint8_t takeScalePreferenceResetReasons() {
     reasons = scalePreferredResetReasonBits;
     scalePreferredResetReasonBits = 0;
   }
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
   return reasons;
 }
 
@@ -1120,12 +1133,12 @@ void noteScaleHistory(const char *mac, const char *name, bool persist) {
   if (mac == nullptr || !validPreferredScaleMac(mac) || mac[0] == '\0') {
     return;
   }
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   (void)upsertScaleHistory(scaleHistory, scaleHistorySeq, mac, name);
   if (persist) {
     scalePreferredMacDirty = true;
   }
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
 }
 
 void notePreferredScale(const char *mac, const char *name) {
@@ -1145,7 +1158,7 @@ void notePreferredScale(const char *mac, const char *name) {
   }
   bool changed = false;
   bool adopted = false;
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   (void)upsertScaleHistory(scaleHistory, scaleHistorySeq, canonicalMac,
                            safeName);
   // Successful connections are durable history even in FIRST mode.
@@ -1154,7 +1167,7 @@ void notePreferredScale(const char *mac, const char *name) {
   const bool paused = pauseUntil != 0 &&
       static_cast<int32_t>(pauseUntil - millis()) > 0;
   if (cacheMode == ScaleMacCacheMode::FIRST || paused) {
-    portEXIT_CRITICAL(&scalePreferredMacMux);
+    scalePreferredMacMux.unlock();
     return;
   }
   if (scalePreferredMac[0] == '\0') {
@@ -1163,14 +1176,14 @@ void notePreferredScale(const char *mac, const char *name) {
     changed = true;
     adopted = true;
   } else if (!preferredScaleMacEqual(scalePreferredMac, canonicalMac)) {
-    portEXIT_CRITICAL(&scalePreferredMacMux);
+    scalePreferredMacMux.unlock();
     return;
   } else if (strncmp(scalePreferredName, safeName,
                      PREFERRED_SCALE_NAME_CAPACITY) != 0) {
     copyCString(scalePreferredName, sizeof(scalePreferredName), safeName);
     changed = true;
   }
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
   if (changed) {
     serialTracef(LogLevel::INFO,
                  adopted ? "First detected scale adopted: %s — %s"
@@ -1181,14 +1194,14 @@ void notePreferredScale(const char *mac, const char *name) {
 
 // Clear preferred without the Forget 30 s pause (API compatibility path).
 void clearPreferredScaleSelectionOnly() {
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   scalePreferredMac[0] = '\0';
   scalePreferredName[0] = '\0';
   scalePreferredMacDirty = true;
   scaleDiscoveryPausedUntilMs = 0;
   ++scalePreferredDirectedResetGeneration;
   scalePreferredResetReasonBits |= SCALE_PREFERENCE_RESET_IDENTITY;
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
   serialTrace(LogLevel::INFO, "Preferred scale cleared (history kept)");
 }
 
@@ -1215,34 +1228,34 @@ void selectPreferredScale(const char *mac, const char *name) {
   if (name != nullptr && validPreferredScaleName(name) && name[0] != '\0') {
     copyCString(resolvedName, sizeof(resolvedName), name);
   } else {
-    portENTER_CRITICAL(&scalePreferredMacMux);
+    scalePreferredMacMux.lock();
     findScaleHistoryName(scaleHistory, canonicalMac, resolvedName,
                          sizeof(resolvedName));
-    portEXIT_CRITICAL(&scalePreferredMacMux);
+    scalePreferredMacMux.unlock();
   }
   noteScaleHistory(canonicalMac, resolvedName, true);
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   memcpy(scalePreferredMac, canonicalMac, sizeof(scalePreferredMac));
   copyCString(scalePreferredName, sizeof(scalePreferredName), resolvedName);
   scalePreferredMacDirty = true;
   scaleDiscoveryPausedUntilMs = 0;
   ++scalePreferredDirectedResetGeneration;
   scalePreferredResetReasonBits |= SCALE_PREFERENCE_RESET_IDENTITY;
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
   serialTracef(LogLevel::INFO, "Preferred scale selected: %s — %s",
                resolvedName[0] != '\0' ? resolvedName : "(unknown)",
                canonicalMac);
 }
 
 void clearPreferredScaleCache() {
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   scalePreferredMac[0] = '\0';
   scalePreferredName[0] = '\0';
   scalePreferredMacDirty = true;
   scaleDiscoveryPausedUntilMs = millis() + SCALE_PAIRING_DISCOVERY_PAUSE_MS;
   ++scalePreferredDirectedResetGeneration;
   scalePreferredResetReasonBits |= SCALE_PREFERENCE_RESET_IDENTITY;
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
   serialTrace(LogLevel::INFO,
               "Paired scale forgotten; looking paused for 30 s");
 }
@@ -1385,11 +1398,11 @@ void resetScaleWorkerRadioStateForHost() {
   portENTER_CRITICAL(&scaleLinkMux);
   copyCString(scaleProtocolName, sizeof(scaleProtocolName), "none");
   portEXIT_CRITICAL(&scaleLinkMux);
-  portENTER_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.lock();
   scalePreferredDirectedResetGeneration = 0;
   scalePreferredAppliedResetGeneration = 0;
   scalePreferredResetReasonBits = 0;
-  portEXIT_CRITICAL(&scalePreferredMacMux);
+  scalePreferredMacMux.unlock();
 }
 
 void serviceScaleLinkRssi(uint32_t nowMs) {
@@ -1787,7 +1800,10 @@ void scaleWorkerTask(void *) {
     return;
   }
   scaleWorkerStartupFinished.store(true, std::memory_order_release);
-  ensureRfCoexBt();
+  if (!ensureRfCoexBt()) {
+    addDebugEvent(DebugCategory::NETWORK, DebugCode::INITIALIZATION_FAILED,
+                  BOOT_SUBSYSTEM_BLE, rfCoexLastError());
+  }
   logEmit(LogLevel::INFO, DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,
           BOOT_SUBSYSTEM_BLE, 1);
   reportNimbleRuntimeHealth(true);
@@ -1816,6 +1832,20 @@ void scaleWorkerTask(void *) {
     vTaskDelay(pdMS_TO_TICKS(tickDelayMs));
 
     const uint32_t nowMs = millis();
+    static uint32_t previousServiceAtMs = 0;
+    if (previousServiceAtMs != 0) {
+      const uint32_t gapMs = static_cast<uint32_t>(nowMs - previousServiceAtMs);
+      uint32_t observed = scaleWorkerMaxGapMs.load(std::memory_order_relaxed);
+      while (gapMs > observed &&
+             !scaleWorkerMaxGapMs.compare_exchange_weak(
+                 observed, gapMs, std::memory_order_relaxed,
+                 std::memory_order_relaxed)) {
+      }
+      if (gapMs > SCALE_SERVICE_DEADLINE_MS) {
+        scaleWorkerDeadlineMisses.fetch_add(1, std::memory_order_relaxed);
+      }
+    }
+    previousServiceAtMs = nowMs;
     static uint32_t lastBackgroundMs = 0;
     const bool backgroundDue =
         lastBackgroundMs == 0 ||

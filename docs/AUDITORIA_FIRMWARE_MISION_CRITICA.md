@@ -215,7 +215,32 @@ Se crea `settingsPersistQueue` antes de `settings_persist`. Si `xTaskCreatePinne
 
 ## P1 — Altos
 
+**Estado del plan P1 (2026-09-06): ✅ COMPLETADO (implementación F-08 a F-17).**
+
+| Requisito | Estado | Evidencia de cierre |
+|---|---|---|
+| F-08 Logging no bloqueante y sincronizado | ✅ Completado | Flag atómico de criticidad, cola serial acotada con drops y exportación lineal por chunks |
+| F-09 Estado OTA sincronizado | ✅ Completado | Mutex de transición, estado publicado y flags de restart atómicos; prueba concurrente TSAN |
+| F-10 OTA acotada y coordinada con flash | ✅ Completado | SHA incremental, journal cada 512 KiB, coordinador flash/NVS y sin ampliación global del TWDT |
+| F-11 JSON reentrante | ✅ Completado | Documentos cJSON independientes, sin hooks/arena globales; límites y prueba concurrente TSAN |
+| F-12 Spinlocks reducidos y orden documentado | ✅ Completado | Mutexes task-only, trabajo RTC fuera del lock ISR y DAG en `docs/CONCURRENCY.md` |
+| F-13 Contrato de schedulability | ✅ Completado | Tabla versionada y telemetría de deadlines; procedimiento HIL de 8 h en `docs/SCHEDULABILITY.md` |
+| F-14 Retornos críticos manejados | ✅ Completado | Fallo inmediato/rollback y telemetría en HTTP, Wi-Fi, RF coexistence y timers de relé |
+| F-15 Inicio/parada transaccional | ✅ Completado | `begin/stop` reversibles con stop/ack/join para Network y Webhook; fault injection host |
+| F-16 Única instancia RTC | ✅ Completado | Definición en una sola TU y prueba multi-TU |
+| F-17 Telemetría coherente | ✅ Completado | Contadores atómicos, snapshot con versión/timestamp y prueba multiwriter/reader TSAN |
+
+La ejecución HIL prolongada definida para F-08, F-10 y F-13 permanece como
+validación de release sobre hardware físico; no se declara ejecutada por esta
+remediación de software.
+
 ### F-08. Logging consulta estado de control sin sincronización y puede bloquear tareas vigiladas
+
+**Estado de remediación (2026-09-06): ✅ corregido.** Se publica la criticidad
+de control mediante un atómico lock-free; el sink de `esp_log` encola en tiempo
+cero hacia una tarea serial dedicada y contabiliza pérdidas. El ring se copia
+linealmente una sola vez y el CLI emite el snapshot en chunks fuera del camino
+crítico.
 
 **Vectores:** concurrencia, TWDT, rendimiento  
 **Confianza:** alta  
@@ -228,6 +253,11 @@ Callbacks desde red/balanza consultan directamente `session.active` y `circuitCl
 **Aceptación:** desconectar el host serie durante carga máxima no dispara TWDT ni eleva el peor periodo de control sobre el presupuesto; log flood tiene pérdidas contabilizadas, nunca bloqueo no acotado.
 
 ### F-09. Estado OTA compartido sin dueño único
+
+**Estado de remediación (2026-09-06): ✅ corregido.** Todas las transiciones y
+snapshots OTA están serializados por un mutex de tarea; las consultas frecuentes
+usan estado publicado atómicamente y el reinicio pendiente usa atómicos. El
+harness concurrente cubre upload/snapshot/cancel/service bajo TSAN.
 
 **Vectores:** concurrencia, resiliencia  
 **Confianza:** alta  
@@ -243,6 +273,11 @@ El task HTTP ejecuta `create/write/snapshot/commit/discard`, mientras `network_m
 
 ### F-10. Persistencia OTA con amplificación de lectura/escritura y degradación global del TWDT
 
+**Estado de remediación (2026-09-06): ✅ corregido.** El SHA se mantiene de
+forma incremental, los checkpoints del journal se espaciaron a 512 KiB y toda
+operación de partición/NVS usa el coordinador de flash. Se eliminó la ampliación
+global del TWDT; los bucles largos ceden CPU y alimentan el watchdog local.
+
 **Vectores:** TWDT, flash, rendimiento, errores  
 **Confianza:** alta  
 **Evidencia:** `ShotStopperOta.cpp:202-301`, `:435-510`; `TaskWatchdogOtaWindow` y journal `:135-157`.
@@ -257,6 +292,11 @@ El guard temporal amplía globalmente el TWDT a 30 s, debilitando la detección 
 
 ### F-11. Hooks globales de cJSON con arena global no reentrante
 
+**Estado de remediación (2026-09-06): ✅ corregido.** Se eliminaron los hooks y
+el bump allocator global: cada parseo crea y destruye su documento cJSON con
+límites explícitos de payload, nodos y profundidad. La prueba concurrente TSAN
+verifica documentos independientes, JSON inválido y agotamiento acotado.
+
 **Vectores:** memoria, concurrencia, arquitectura  
 **Confianza:** alta como deuda; ocurrencia actual mitigada  
 **Evidencia:** `ShotStopperJsonArena.h:24-116`.
@@ -268,6 +308,12 @@ Los hooks de cJSON son globales al proceso y apuntan a un bump allocator cuyo pu
 **Aceptación:** dos parseos concurrentes no comparten memoria; tests de profundidad, tamaño máximo, JSON inválido y agotamiento retornan error sin tocar estado previo.
 
 ### F-12. Abuso de spinlocks para estado de tarea y trabajo O(N)
+
+**Estado de remediación (2026-09-06): ✅ corregido.** Los dominios task-only de
+Network, Webhook, scale preferences y logging usan mutexes con herencia de
+prioridad; la copia/búsqueda del ring y el bookkeeping RTC se ejecutan fuera de
+secciones ISR. El orden global y las prohibiciones de anidamiento quedaron
+documentados en `docs/CONCURRENCY.md`.
 
 **Vectores:** ISR, inversión de prioridades, rendimiento  
 **Confianza:** alta  
@@ -287,6 +333,13 @@ Casos relevantes:
 
 ### F-13. No existe demostración de schedulability por núcleo
 
+**Estado de remediación (2026-09-06): ✅ corregido en firmware.** Se añadió una
+tabla contractual de núcleo, prioridad, periodo, deadline, stack y bloqueo; la
+persistencia dejó prioridad idle. Control y scale worker publican máximo gap y
+misses monotónicos en snapshots versionados. `docs/SCHEDULABILITY.md` define el
+gate HIL reproducible de 8 horas, cuya ejecución física sigue siendo requisito
+de release.
+
 **Vectores:** FreeRTOS, multicore, TWDT  
 **Confianza:** alta respecto de la ausencia de evidencia  
 **Evidencia:** `shotStopper.cpp:131-132`; `ShotStopperScaleWorker.cpp:412-420`, `:1927-1930`; `ShotStopperNetwork.cpp:1033-1036`, `:3513-3515`; `ShotStopperWebhook.cpp:103-104`.
@@ -298,6 +351,12 @@ Control y scale worker comparten núcleo y prioridad efectiva cercana, ambos con
 **Aceptación:** prueba de estrés de varias horas con trazas; `p99.999` y máximo de loop/edad de muestra dentro de presupuesto; ausencia de reset TWDT; stack high-water con margen definido, no solo “mayor que cero”.
 
 ### F-14. Manejo incompleto de retornos `esp_err_t` y equivalentes
+
+**Estado de remediación (2026-09-06): ✅ corregido para las rutas P1
+identificadas.** Los setters HTTP fallan antes de `perform`, Wi-Fi conserva el
+error inmediato, RF coexistence solo publica preferencias aplicadas y expone
+error/conteo, y la creación de timers de relé hace rollback completo. Las ramas
+de error cuentan con fault injection host.
 
 **Vectores:** resiliencia, mantenibilidad  
 **Confianza:** alta  
@@ -318,6 +377,11 @@ Ejemplos:
 
 ### F-15. Inicialización de Network/Webhook no es transaccional
 
+**Estado de remediación (2026-09-06): ✅ corregido.** Network y Webhook poseen
+`stop()` idempotente, protocolo stop/ack/join y rollback inverso de recursos;
+los tasks arrancan al final de la adquisición. Un fallo parcial retorna al
+baseline y permite un segundo `begin()` definido.
+
 **Vectores:** memoria, tareas, resiliencia  
 **Confianza:** alta  
 **Evidencia:** `ShotStopperNetwork.cpp:985-1048`; `ShotStopperWebhook.cpp:34-111`.
@@ -330,6 +394,11 @@ Ejemplos:
 
 ### F-16. Estado RTC definido `static` en header produce múltiples registros
 
+**Estado de remediación (2026-09-06): ✅ corregido.** El registro RTC y su reloj
+de checkpoint tienen una única definición en `ShotStopperResetGuard.cpp`; el
+header solo declara la instancia. Una prueba multi-TU verifica que todos los
+consumidores observan la misma dirección y contenido.
+
 **Vectores:** memoria, seguridad, arquitectura  
 **Confianza:** alta  
 **Evidencia:** `ShotStopperResetGuard.h:46-51`; mapa ELF.
@@ -341,6 +410,11 @@ El header define variables `RTC_NOINIT_ATTR static`, por lo que cada unidad que 
 **Aceptación:** `nm/map` muestra exactamente una instancia; test de reboot simulado comprueba lectura/escritura desde todos los consumidores.
 
 ### F-17. Telemetría de salud también contiene carreras
+
+**Estado de remediación (2026-09-06): ✅ corregido.** Los contadores de PSRAM,
+flash y publicación transversal son atómicos o se copian bajo mutex de tarea.
+`ControlStatusSnapshot` incorpora versión, timestamp y métricas de deadline; el
+harness multiwriter/reader verifica monotonicidad e integridad bajo TSAN.
 
 **Vectores:** concurrencia, diagnóstico  
 **Confianza:** alta  
@@ -490,19 +564,24 @@ Las correcciones no deben reemplazar estas defensas por abstracciones que asigne
 
 **Gate de salida:** TSAN concurrente limpio en estos dominios; fault injection de inicialización; ninguna operación de seguridad consume un struct copiado concurrentemente; suite actual sigue verde.
 
-### Fase 1 — Propietarios únicos y resiliencia de servicios
+### Fase 1 / P1 — Propietarios únicos y resiliencia de servicios ✅ COMPLETADA
 
 **Objetivo:** eliminar carreras transversales y hacer transaccional cada servicio.
 
-1. Convertir OTA a actor/dueño único con comandos.
-2. Hacer `Network::begin/stop` y Webhook totalmente reversibles.
-3. Centralizar todo acceso NVS/flash, incluido journal OTA.
-4. Corregir logging: tarea dedicada, backpressure y exportación lineal/chunked.
-5. Unificar métricas en snapshots íntegros o atómicos.
-6. Mover la única instancia RTC a una TU.
-7. Auditar todos los retornos críticos y definir política error/retry/degrade/fatal.
+1. [x] F-08: logging dedicado, backpressure, drops y exportación lineal/chunked.
+2. [x] F-09: transiciones OTA serializadas y publicación atómica.
+3. [x] F-10: SHA incremental, journal espaciado y acceso flash/NVS coordinado.
+4. [x] F-11: parseos JSON independientes, acotados y reentrantes.
+5. [x] F-12: mutexes task-only, secciones ISR mínimas y DAG de locks.
+6. [x] F-13: contratos temporales y telemetría de gaps/deadline misses.
+7. [x] F-14: retornos críticos con política de fallo/rollback/diagnóstico.
+8. [x] F-15: `Network::begin/stop` y Webhook reversibles con join.
+9. [x] F-16: única instancia RTC en una unidad de traducción.
+10. [x] F-17: métricas atómicas y snapshots versionados coherentes.
 
-**Gate de salida:** fault injection por paso de init y por API ESP crítica; cero leaks de tasks/handles; concurrencia OTA/status/config probada; reinicio y brownout en checkpoints.
+**Gate de salida de implementación:** ✅ superado mediante compilación IDF,
+fault injection host, ASan/UBSan/TSAN y suite funcional. **Gate HIL de release:**
+procedimiento definido, pendiente de ejecución sobre el dispositivo físico.
 
 ### Fase 2 — Determinismo temporal, memoria y desgaste
 

@@ -15,6 +15,7 @@ namespace {
 constexpr size_t kWebhookQueueDepth = 4;
 constexpr size_t kWebhookPayloadCapacity = 1024;
 constexpr int kWebhookTimeoutMs = 1800;
+constexpr uint32_t kWebhookStopTimeoutMs = 2500;
 
 const char *eventName(WebhookEventType type) {
   switch (type) {
@@ -40,19 +41,73 @@ void deviceId(char *output, size_t capacity) {
 }  // namespace
 
 bool WebhookDispatcher::begin(const WebhookConfig &config) {
-  portENTER_CRITICAL(&mux_);
+  if (lifecycleMutex_ != nullptr || workerStopped_ != nullptr) return false;
+  mux_.lock();
   config_ = config;
   configGeneration_ = 1;
   deferDuringShot_.store(config.deferDuringShot, std::memory_order_release);
-  portEXIT_CRITICAL(&mux_);
+  mux_.unlock();
   lifecycleMutex_ = xSemaphoreCreateMutex();
   if (lifecycleMutex_ == nullptr) {
-    portENTER_CRITICAL(&mux_);
+    mux_.lock();
     ++status_.workerStartFailures;
-    portEXIT_CRITICAL(&mux_);
-    return !config.enabled;
+    mux_.unlock();
+    return false;
   }
-  return !config.enabled || startWorker();
+  workerStopped_ = xSemaphoreCreateBinary();
+  if (workerStopped_ == nullptr) {
+    vSemaphoreDelete(lifecycleMutex_);
+    lifecycleMutex_ = nullptr;
+    mux_.lock();
+    ++status_.workerStartFailures;
+    mux_.unlock();
+    return false;
+  }
+  if (!config.enabled || startWorker()) return true;
+  // startWorker() already released its queue/payload attempt. Complete the
+  // failed transaction by releasing the passive lifecycle objects as well.
+  (void)stop();
+  return false;
+}
+
+bool WebhookDispatcher::stop() {
+  if (lifecycleMutex_ == nullptr) {
+    if (workerStopped_ != nullptr) {
+      vSemaphoreDelete(workerStopped_);
+      workerStopped_ = nullptr;
+    }
+    return true;
+  }
+
+  TaskHandle_t worker = nullptr;
+  if (xSemaphoreTake(lifecycleMutex_, pdMS_TO_TICKS(kWebhookStopTimeoutMs)) !=
+      pdTRUE) {
+    return false;
+  }
+  worker = task_;
+  if (worker != nullptr) {
+    workerState_ = WorkerState::STOPPING;
+    stopAfterDrain_ = false;
+  }
+  xSemaphoreGive(lifecycleMutex_);
+
+  if (worker != nullptr) {
+    xTaskNotifyGive(worker);
+    if (workerStopped_ == nullptr ||
+        xSemaphoreTake(workerStopped_, pdMS_TO_TICKS(kWebhookStopTimeoutMs)) !=
+            pdTRUE) {
+      return false;
+    }
+  }
+
+  vSemaphoreDelete(lifecycleMutex_);
+  lifecycleMutex_ = nullptr;
+  vSemaphoreDelete(workerStopped_);
+  workerStopped_ = nullptr;
+  abortRequested_.store(false, std::memory_order_release);
+  cancelActive_.store(false, std::memory_order_release);
+  activeCloseError_.store(0, std::memory_order_release);
+  return true;
 }
 
 bool WebhookDispatcher::startWorker() {
@@ -69,6 +124,9 @@ bool WebhookDispatcher::startWorker() {
   }
   workerState_ = WorkerState::STARTING;
   stopAfterDrain_ = false;
+  // A worker disabled by setConfig() may have left an unconsumed completion.
+  // Never let that stale acknowledgement satisfy a later stop()/join.
+  if (workerStopped_ != nullptr) (void)xSemaphoreTake(workerStopped_, 0);
 
   // Webhooks are optional. Their payload and queue contents must not consume
   // internal control/BLE heap; fail closed when PSRAM is unavailable.
@@ -87,25 +145,25 @@ bool WebhookDispatcher::startWorker() {
     if (queue != nullptr) vQueueDelete(queue);
     heapCapsFree(queueStorage);
     heapCapsFree(payload);
-    portENTER_CRITICAL(&mux_);
+    mux_.lock();
     workerState_ = WorkerState::STOPPED;
     status_.workerReady = false;
     ++status_.workerStartFailures;
-    portEXIT_CRITICAL(&mux_);
+    mux_.unlock();
     xSemaphoreGive(lifecycleMutex_);
     return false;
   }
-  portENTER_CRITICAL(&mux_);
+  mux_.lock();
   queue_ = queue;
   queueStorage_ = queueStorage;
   payload_ = payload;
-  portEXIT_CRITICAL(&mux_);
+  mux_.unlock();
   if (xTaskCreatePinnedToCore(taskEntry, "webhook", 4096, this,
                              tskIDLE_PRIORITY, &task_, 0) != pdPASS) {
     vQueueDelete(queue);
     heapCapsFree(queueStorage);
     heapCapsFree(payload);
-    portENTER_CRITICAL(&mux_);
+    mux_.lock();
     queue_ = nullptr;
     queueStorage_ = nullptr;
     payload_ = nullptr;
@@ -113,14 +171,14 @@ bool WebhookDispatcher::startWorker() {
     workerState_ = WorkerState::STOPPED;
     status_.workerReady = false;
     ++status_.workerStartFailures;
-    portEXIT_CRITICAL(&mux_);
+    mux_.unlock();
     xSemaphoreGive(lifecycleMutex_);
     return false;
   }
-  portENTER_CRITICAL(&mux_);
+  mux_.lock();
   workerState_ = WorkerState::READY;
   status_.workerReady = true;
-  portEXIT_CRITICAL(&mux_);
+  mux_.unlock();
   xSemaphoreGive(lifecycleMutex_);
   return true;
 }
@@ -148,20 +206,27 @@ void WebhookDispatcher::releaseWorkerFromTask() {
     task_ = nullptr;
     workerState_ = WorkerState::STOPPED;
     stopAfterDrain_ = false;
-    portENTER_CRITICAL(&mux_);
+    mux_.lock();
     status_.workerReady = false;
     status_.sending = false;
-    portEXIT_CRITICAL(&mux_);
+    mux_.unlock();
     xSemaphoreGive(lifecycleMutex_);
   }
   if (queue != nullptr) vQueueDelete(queue);
   heapCapsFree(queueStorage);
   heapCapsFree(payload);
+  if (workerStopped_ != nullptr) xSemaphoreGive(workerStopped_);
 }
 
 void WebhookDispatcher::setConfig(const WebhookConfig &config) {
+  // A previous begin() can fail transactionally (for example, no PSRAM).
+  // Permit a later configuration update to retry the full initialization.
+  if (lifecycleMutex_ == nullptr) {
+    (void)begin(config);
+    return;
+  }
   bool changed = false;
-  portENTER_CRITICAL(&mux_);
+  mux_.lock();
   changed = memcmp(&config_, &config, sizeof(config)) != 0;
   if (changed) {
     config_ = config;
@@ -169,24 +234,24 @@ void WebhookDispatcher::setConfig(const WebhookConfig &config) {
     ++configGeneration_;
     if (configGeneration_ == 0) configGeneration_ = 1;
   }
-  portEXIT_CRITICAL(&mux_);
+  mux_.unlock();
   if (config.enabled) (void)startWorker();
   else requestWorkerStop();
 }
 
 WebhookConfig WebhookDispatcher::config() const {
   WebhookConfig copy;
-  portENTER_CRITICAL(&mux_);
+  mux_.lock();
   copy = config_;
-  portEXIT_CRITICAL(&mux_);
+  mux_.unlock();
   return copy;
 }
 
 WebhookStatus WebhookDispatcher::status() const {
   WebhookStatus copy;
-  portENTER_CRITICAL(&mux_);
+  mux_.lock();
   copy = status_;
-  portEXIT_CRITICAL(&mux_);
+  mux_.unlock();
   return copy;
 }
 
@@ -216,24 +281,24 @@ void WebhookDispatcher::serviceAbort() {
   if (!abortRequested_.exchange(false, std::memory_order_acq_rel)) return;
 
   esp_http_client_handle_t client = nullptr;
-  portENTER_CRITICAL(&mux_);
+  mux_.lock();
   if (activeClient_ != nullptr && !cancelInProgress_) {
     cancelInProgress_ = true;
     ++activeClientUsers_;
     client = static_cast<esp_http_client_handle_t>(activeClient_);
   }
-  portEXIT_CRITICAL(&mux_);
+  mux_.unlock();
   if (client == nullptr) return;
 
   // This is the ESP-IDF API intended to interrupt a blocking perform from a
   // different task. Its reconnect is immediately closed by the event handler
   // below while the RF gate remains active.
   const esp_err_t result = esp_http_client_cancel_request(client);
-  portENTER_CRITICAL(&mux_);
+  mux_.lock();
   cancelInProgress_ = false;
   if (activeClientUsers_ > 0) --activeClientUsers_;
   const bool stillActive = activeClient_ == client;
-  portEXIT_CRITICAL(&mux_);
+  mux_.unlock();
   if (stillActive && result != ESP_OK &&
       cancelActive_.load(std::memory_order_acquire)) {
     // CONNECTING/DNS is not cancellable until the client reaches CONNECTED.
@@ -251,17 +316,17 @@ bool WebhookDispatcher::enqueue(const WebhookEvent &event) {
   WorkerState workerState = WorkerState::STOPPED;
   if (lifecycleMutex_ == nullptr ||
       xSemaphoreTake(lifecycleMutex_, 0) != pdTRUE) {
-    portENTER_CRITICAL(&mux_);
+    mux_.lock();
     ++status_.dropped;
-    portEXIT_CRITICAL(&mux_);
+    mux_.unlock();
     return false;
   }
-  portENTER_CRITICAL(&mux_);
+  mux_.lock();
   live = config_;
   queued.configGeneration = configGeneration_;
   queue = queue_;
   workerState = workerState_;
-  portEXIT_CRITICAL(&mux_);
+  mux_.unlock();
   bool selected = event.type == WebhookEventType::TEST;
   if (event.type == WebhookEventType::BREWING ||
       event.type == WebhookEventType::IDLE) selected = live.brewState;
@@ -272,9 +337,9 @@ bool WebhookDispatcher::enqueue(const WebhookEvent &event) {
       (event.type != WebhookEventType::TEST && (!live.enabled || !selected)) ||
       xQueueSend(queue, &queued, 0) != pdTRUE) {
     xSemaphoreGive(lifecycleMutex_);
-    portENTER_CRITICAL(&mux_);
+    mux_.lock();
     ++status_.dropped;
-    portEXIT_CRITICAL(&mux_);
+    mux_.unlock();
     return false;
   }
   if (event.type == WebhookEventType::TEST && !live.enabled) {
@@ -302,7 +367,15 @@ esp_err_t WebhookDispatcher::httpEventHandler(esp_http_client_event_t *event) {
     // transport here makes connected/header/data events actually abort.
     // DISCONNECTED is excluded above to avoid recursive close dispatch.
     if (event->client != nullptr) {
-      (void)esp_http_client_close(event->client);
+      const esp_err_t closeError = esp_http_client_close(event->client);
+      // INVALID_STATE is expected if cancellation won the race and already
+      // closed the transport. Any other failure remains visible in status.
+      if (closeError != ESP_OK && closeError != ESP_ERR_INVALID_STATE) {
+        int32_t expected = 0;
+        (void)dispatcher->activeCloseError_.compare_exchange_strong(
+            expected, static_cast<int32_t>(closeError),
+            std::memory_order_acq_rel);
+      }
     }
   }
   return ESP_OK;
@@ -424,24 +497,24 @@ bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,
 bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   WebhookConfig live;
   uint32_t generation = 0;
-  portENTER_CRITICAL(&mux_);
+  mux_.lock();
   live = config_;
   generation = configGeneration_;
-  portEXIT_CRITICAL(&mux_);
+  mux_.unlock();
   if (queued.configGeneration != generation) {
-    portENTER_CRITICAL(&mux_);
+    mux_.lock();
     ++status_.dropped;
     ++status_.staleConfigDropped;
-    portEXIT_CRITICAL(&mux_);
+    mux_.unlock();
     return false;
   }
   const WebhookEvent &event = queued.event;
-  portENTER_CRITICAL(&mux_);
+  mux_.lock();
   status_.sending = true;
   status_.lastAttemptAtMs = millis();
   status_.lastHttpStatus = 0;
   status_.lastError = 0;
-  portEXIT_CRITICAL(&mux_);
+  mux_.unlock();
 
   bool ok = false;
   int statusCode = 0;
@@ -456,47 +529,70 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
     config.event_handler = httpEventHandler;
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client != nullptr) {
-      esp_http_client_set_method(client, HTTP_METHOD_POST);
-      esp_http_client_set_header(client, "Content-Type", "application/json");
-      esp_http_client_set_header(client, "User-Agent", "ShotStopper/1");
-      esp_http_client_set_post_field(client, payload_, strlen(payload_));
-      cancelActive_.store(false, std::memory_order_release);
-      portENTER_CRITICAL(&mux_);
-      activeClient_ = client;
-      cancelInProgress_ = false;
-      portEXIT_CRITICAL(&mux_);
-      if (dispatchAllowed() &&
-          !cancelActive_.load(std::memory_order_acquire)) {
-        error = esp_http_client_perform(client);
-        statusCode = esp_http_client_get_status_code(client);
-        ok = error == ESP_OK && statusCode >= 200 && statusCode < 300 &&
-             dispatchAllowed() &&
-             !cancelActive_.load(std::memory_order_acquire);
-      } else {
-        error = ESP_ERR_INVALID_STATE;
+      error = static_cast<esp_err_t>(configureWebhookHttpRequest(
+          [&]() {
+            return static_cast<int32_t>(
+                esp_http_client_set_method(client, HTTP_METHOD_POST));
+          },
+          [&]() {
+            return static_cast<int32_t>(esp_http_client_set_header(
+                client, "Content-Type", "application/json"));
+          },
+          [&]() {
+            return static_cast<int32_t>(esp_http_client_set_header(
+                client, "User-Agent", "ShotStopper/1"));
+          },
+          [&]() {
+            return static_cast<int32_t>(esp_http_client_set_post_field(
+                client, payload_, strlen(payload_)));
+          }));
+      if (error == ESP_OK) {
+        cancelActive_.store(false, std::memory_order_release);
+        activeCloseError_.store(0, std::memory_order_release);
+        mux_.lock();
+        activeClient_ = client;
+        cancelInProgress_ = false;
+        mux_.unlock();
+        if (dispatchAllowed() &&
+            !cancelActive_.load(std::memory_order_acquire)) {
+          error = esp_http_client_perform(client);
+          statusCode = esp_http_client_get_status_code(client);
+          ok = error == ESP_OK && statusCode >= 200 && statusCode < 300 &&
+               dispatchAllowed() &&
+               !cancelActive_.load(std::memory_order_acquire);
+        } else {
+          error = ESP_ERR_INVALID_STATE;
+        }
+        mux_.lock();
+        activeClient_ = nullptr;
+        mux_.unlock();
+        for (;;) {
+          mux_.lock();
+          const bool referenced = activeClientUsers_ != 0;
+          mux_.unlock();
+          if (!referenced) break;
+          vTaskDelay(pdMS_TO_TICKS(1));
+        }
+        const int32_t closeError =
+            activeCloseError_.exchange(0, std::memory_order_acq_rel);
+        if (closeError != 0) error = static_cast<esp_err_t>(closeError);
       }
-      portENTER_CRITICAL(&mux_);
-      activeClient_ = nullptr;
-      portEXIT_CRITICAL(&mux_);
-      for (;;) {
-        portENTER_CRITICAL(&mux_);
-        const bool referenced = activeClientUsers_ != 0;
-        portEXIT_CRITICAL(&mux_);
-        if (!referenced) break;
-        vTaskDelay(pdMS_TO_TICKS(1));
+      const esp_err_t cleanupError = esp_http_client_cleanup(client);
+      if (cleanupError != ESP_OK && error == ESP_OK) {
+        error = cleanupError;
+        ok = false;
       }
-      esp_http_client_cleanup(client);
     }
   }
 
-  portENTER_CRITICAL(&mux_);
+  mux_.lock();
   status_.sending = false;
   status_.lastSuccess = ok;
   status_.lastHttpStatus = statusCode > 0 ? static_cast<uint16_t>(statusCode) : 0;
   status_.lastError = static_cast<int32_t>(error);
   if (ok) ++status_.sent;
   else ++status_.dropped;
-  portEXIT_CRITICAL(&mux_);
+  mux_.unlock();
   return ok;
 }
 

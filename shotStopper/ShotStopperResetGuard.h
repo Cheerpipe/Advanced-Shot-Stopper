@@ -42,15 +42,23 @@ struct SafetyResetSnapshot {
   ResetHistoryEntry resetHistory[RESET_HISTORY_CAPACITY] = {};
 };
 
+namespace detail {
+
+// The target definitions live in ShotStopperResetGuard.cpp so every consumer
+// observes the same RTC record and checkpoint clock. C++17 inline variables
+// provide the same one-instance semantics to header-only host harnesses.
 #ifndef SHOT_STOPPER_HOST_TEST
-RTC_NOINIT_ATTR static volatile SafetyResetRecord safetyResetRecord;
+extern volatile SafetyResetRecord safetyResetRecord;
+extern uint32_t resetUptimeLastCheckpointMs;
 #else
-static volatile SafetyResetRecord safetyResetRecord;
+inline volatile SafetyResetRecord safetyResetRecord = {};
+inline uint32_t resetUptimeLastCheckpointMs = 0;
 #endif
 
-static uint32_t resetUptimeLastCheckpointMs = 0;
+}  // namespace detail
 
 inline bool safetyResetRecordValid() {
+  volatile SafetyResetRecord &safetyResetRecord = detail::safetyResetRecord;
   uint32_t checksum = SAFETY_RESET_RECORD_MAGIC ^ safetyResetRecord.historyCount;
   for (uint32_t i = 0;
        i < safetyResetRecord.historyCount && i < RESET_HISTORY_CAPACITY;
@@ -74,6 +82,7 @@ inline bool safetyResetRecordValid() {
 inline void initializeSafetyResetRecord(
     uint32_t relayMarker, uint32_t unsafeResetCount,
     const ResetHistoryEntry *history = nullptr, uint32_t historyCount = 0) {
+  volatile SafetyResetRecord &safetyResetRecord = detail::safetyResetRecord;
   safetyResetRecord.magic = 0;
   safetyResetRecord.magicInverse = 0;
   safetyResetRecord.relayMarker = relayMarker;
@@ -104,6 +113,7 @@ inline void initializeSafetyResetRecord(
 }
 
 inline void recordRelayCommandedClosed(bool closed) {
+  volatile SafetyResetRecord &safetyResetRecord = detail::safetyResetRecord;
   // setup() initializes the record before machine circuit can close. The fallback keeps
   // host/fault-injection calls deterministic without adding work to the ISR.
   if (!safetyResetRecordValid()) {
@@ -116,16 +126,17 @@ inline void recordRelayCommandedClosed(bool closed) {
 }
 
 inline void recordResetUptime(uint32_t uptimeMs, bool force = false) {
+  volatile SafetyResetRecord &safetyResetRecord = detail::safetyResetRecord;
   if (!safetyResetRecordValid()) return;
   if (!force &&
       (uptimeMs < RESET_UPTIME_CHECKPOINT_INTERVAL_MS ||
-       uptimeMs - resetUptimeLastCheckpointMs <
+       uptimeMs - detail::resetUptimeLastCheckpointMs <
            RESET_UPTIME_CHECKPOINT_INTERVAL_MS)) {
     return;
   }
   safetyResetRecord.currentUptimeMsInverse = ~uptimeMs;
   safetyResetRecord.currentUptimeMs = uptimeMs;
-  resetUptimeLastCheckpointMs = uptimeMs;
+  detail::resetUptimeLastCheckpointMs = uptimeMs;
 }
 
 inline uint32_t currentSafetyResetReasonCode() {
@@ -195,6 +206,7 @@ inline const char *safetyResetReasonName(uint32_t code) {
 }
 
 inline SafetyResetSnapshot beginSafetyResetGuard() {
+  volatile SafetyResetRecord &safetyResetRecord = detail::safetyResetRecord;
   SafetyResetSnapshot snapshot;
   const bool valid = safetyResetRecordValid();
   const bool resetDuringClose =
@@ -246,14 +258,19 @@ inline SafetyResetSnapshot beginSafetyResetGuard() {
 }
 
 #ifdef SHOT_STOPPER_HOST_TEST
+inline const volatile SafetyResetRecord &safetyResetRecordForHost() {
+  return detail::safetyResetRecord;
+}
+
 inline void resetSafetyResetGuardForHost() {
+  volatile SafetyResetRecord &safetyResetRecord = detail::safetyResetRecord;
   safetyResetRecord.magic = 0;
   safetyResetRecord.magicInverse = 0;
   safetyResetRecord.relayMarker = 0;
   safetyResetRecord.relayMarkerInverse = 0;
   safetyResetRecord.unsafeResetCount = 0;
   safetyResetRecord.unsafeResetCountInverse = 0;
-  resetUptimeLastCheckpointMs = 0;
+  detail::resetUptimeLastCheckpointMs = 0;
   hostSafetyResetReasonCode = 1;
   hostSafetyResetReasonUnsafe = false;
   hostSafetyResetReasonPowerOn = true;

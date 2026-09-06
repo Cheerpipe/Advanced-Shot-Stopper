@@ -91,6 +91,7 @@ HWCDC shotStopperUsbConsole;
 #include "ShotStopperHwmon.h"
 #include "ShotStopperTaskProfiler.h"
 #include "ShotStopperTaskMutex.h"
+#include "ShotStopperScheduling.h"
 #include "ShotStopperPsram.h"
 #ifndef SHOT_STOPPER_HOST_TEST
 #include "ShotStopperJsonArena.h"
@@ -351,6 +352,9 @@ ShotPresetBank presetBank;
 LastCycleSummary lastCycle;
 // Debug events are not a flash DMA source and are not added from an ISR.
 SHOT_STOPPER_PSRAM_BSS DebugRingBuffer debugLog;
+// The retained ring is task-only. A priority-inheriting mutex avoids disabling
+// interrupts while HTTP/CLI readers copy records from PSRAM.
+TaskMutex debugLogMutex;
 LogLevel serialLogLevel = LogLevel::NONE;
 LogLevel ringRetainLogLevel = LogLevel::NONE;
 uint32_t lastReportedLogOverwritten = 0;
@@ -396,7 +400,6 @@ QueueHandle_t webCommandQueue = nullptr;
 QueueHandle_t bleCompanionRequestQueue = nullptr;
 QueueHandle_t bleCompanionResultQueue = nullptr;
 portMUX_TYPE bleCompanionMux = portMUX_INITIALIZER_UNLOCKED;
-portMUX_TYPE debugLogMux = portMUX_INITIALIZER_UNLOCKED;
 uint32_t debugLogContentionDropped = 0;
 // Snapshot of ring overwrites only. Contention drops are a separate monotonic
 // atomic counter so a producer cannot overwrite another producer's increment.
@@ -424,6 +427,7 @@ bool virtualHoldOn = false;
 // payload copies race-free; readers never accept an in-progress publication.
 ControlStatusSnapshot publishedControlStatus;
 TaskMutex controlStatusMutex;
+uint32_t controlStatusVersion = 0;
 ControlGateSnapshot publishedControlGate;
 TaskMutex controlGateMutex;
 bool controlStatusPublishRequested = false;
@@ -479,6 +483,7 @@ TaskHandle_t settingsPersistTaskHandle = nullptr;
 bool settingsPersistenceReady = false;
 uint32_t lastLoopAtMs = 0;
 uint32_t loopMaxGapMs = 0;
+uint32_t loopDeadlineMisses = 0;
 uint32_t loopIntervalGapMs = 0;
 uint32_t healthIntervalMaxGapMs = 0;
 uint32_t loopStackMinWords = 0;
@@ -512,6 +517,25 @@ bool persistenceReady = false;
 bool firmwareInitializationComplete = false;
 bool serialLogSinkInstalled = false;
 bool serialLogSinkEnabled = false;
+std::atomic<bool> controlCriticalForLogging{false};
+
+#if !defined(SHOT_STOPPER_HOST_TEST)
+struct SerialLogLine {
+  uint16_t length = 0;
+  char text[256] = {};
+};
+
+constexpr UBaseType_t SERIAL_LOG_QUEUE_DEPTH = 8;
+StaticQueue_t serialLogQueueStorage;
+uint8_t serialLogQueueBytes[SERIAL_LOG_QUEUE_DEPTH * sizeof(SerialLogLine)] = {};
+QueueHandle_t serialLogQueue = nullptr;
+TaskHandle_t serialLogTaskHandle = nullptr;
+uint32_t serialLogQueueDropped = 0;
+#endif
+
+SHOT_STOPPER_PSRAM_BSS DebugEvent serialLogDumpSnapshot[DEBUG_EVENT_CAPACITY];
+size_t serialLogDumpCount = 0;
+size_t serialLogDumpIndex = 0;
 
 LogLevel currentSerialLogLevel() {
   LogLevel level;
@@ -585,6 +609,7 @@ SafetyResetSnapshot safetyResetStatus;
 UsbSerialEnableSource usbSerialEnableSource = UsbSerialEnableSource::OFF;
 
 bool usbConsoleJumperPresent();
+RelaySafetySnapshot getRelaySafetySnapshot();
 
 bool scaleConnectedLedInitialized = false;
 bool lastScaleConnectedLedOn = false;
@@ -642,28 +667,63 @@ int shotStopperEspLogVprintf(const char *format, va_list args) {
       format == nullptr) {
     return 0;
   }
-  // esp_log may invoke this callback concurrently. The buffer is local and
-  // HWCDC serializes write(), satisfying the callback's re-entrancy contract.
-  // 256 bytes covers the bounded application record plus the ESP-IDF prefix
-  // without adding a large frame to every task that happens to log.
-  char line[256] = {};
+  // esp_log may invoke this callback concurrently. Never perform USB I/O in
+  // the caller: CDC can block indefinitely when the host stops draining.
+  SerialLogLine line;
   va_list copy;
   va_copy(copy, args);
-  const int formatted = vsnprintf(line, sizeof(line), format, copy);
+  const int formatted = vsnprintf(line.text, sizeof(line.text), format, copy);
   va_end(copy);
   if (formatted <= 0) {
     return formatted;
   }
   size_t length = static_cast<size_t>(formatted);
-  if (length >= sizeof(line)) {
-    length = sizeof(line) - 1;
+  if (length >= sizeof(line.text)) {
+    length = sizeof(line.text) - 1;
   }
-  return static_cast<int>(Serial.write(
-      reinterpret_cast<const uint8_t *>(line), length));
+  line.length = static_cast<uint16_t>(length);
+  if (serialLogQueue == nullptr ||
+      xQueueSend(serialLogQueue, &line, 0) != pdTRUE) {
+    (void)__atomic_add_fetch(&serialLogQueueDropped, 1U, __ATOMIC_RELAXED);
+    return 0;
+  }
+  return static_cast<int>(length);
+}
+
+void serialLogTask(void *) {
+  SerialLogLine line;
+  for (;;) {
+    if (xQueueReceive(serialLogQueue, &line, portMAX_DELAY) == pdTRUE &&
+        line.length > 0) {
+      (void)Serial.write(reinterpret_cast<const uint8_t *>(line.text),
+                         line.length);
+    }
+  }
+}
+
+bool initializeSerialLogSink() {
+  if (serialLogQueue != nullptr && serialLogTaskHandle != nullptr) {
+    return true;
+  }
+  serialLogQueue = xQueueCreateStatic(
+      SERIAL_LOG_QUEUE_DEPTH, sizeof(SerialLogLine), serialLogQueueBytes,
+      &serialLogQueueStorage);
+  if (serialLogQueue == nullptr) {
+    return false;
+  }
+  if (xTaskCreatePinnedToCore(serialLogTask, "serial_log", 3072, nullptr,
+                             tskIDLE_PRIORITY, &serialLogTaskHandle, 0) !=
+      pdPASS) {
+    vQueueDelete(serialLogQueue);
+    serialLogQueue = nullptr;
+    serialLogTaskHandle = nullptr;
+    return false;
+  }
+  return true;
 }
 
 void installEspLogSink() {
-  if (!serialLogSinkInstalled) {
+  if (!serialLogSinkInstalled && initializeSerialLogSink()) {
     (void)esp_log_set_vprintf(shotStopperEspLogVprintf);
     serialLogSinkInstalled = true;
   }
@@ -692,6 +752,32 @@ void configureEspLogRuntime() {
 void installEspLogSink() {}
 void configureEspLogRuntime() {}
 #endif
+
+uint32_t serialLogDroppedCount() {
+#if !defined(SHOT_STOPPER_HOST_TEST)
+  return __atomic_load_n(&serialLogQueueDropped, __ATOMIC_RELAXED);
+#else
+  return 0;
+#endif
+}
+
+void latchControlCriticalLogging() {
+  controlCriticalForLogging.store(true, std::memory_order_release);
+}
+
+void publishControlCriticalLoggingState() {
+  const bool critical = session.active || getRelaySafetySnapshot().closed;
+  controlCriticalForLogging.store(critical, std::memory_order_release);
+}
+
+bool serialApplicationLogAllowed() {
+#if defined(SHOT_STOPPER_HOST_TEST)
+  // Portable tests directly manipulate the control-owned fixtures.
+  return !session.active && !circuitClosed;
+#else
+  return !controlCriticalForLogging.load(std::memory_order_acquire);
+#endif
+}
 
 void emitEspLog(LogLevel level, DebugCategory category, const char *message) {
   if (message == nullptr || level == LogLevel::NONE) {
@@ -778,27 +864,16 @@ void logText(LogLevel level, DebugCategory category, const char *message) {
   const uint32_t atMs = millis();
   const uint32_t wallSec = g_wallClock.nowUtcSec(atMs);
   if (toRing) {
-    bool ringLocked = false;
-#if defined(SHOT_STOPPER_HOST_TEST)
-    portENTER_CRITICAL(&debugLogMux);
-    ringLocked = true;
-#else
-    ringLocked =
-        portTRY_ENTER_CRITICAL(&debugLogMux, portMUX_TRY_LOCK) == pdPASS;
-#endif
-    if (ringLocked) {
+    {
+      TaskLockGuard lock(debugLogMutex);
       debugLog.add(atMs, wallSec, level, category, DebugCode::LOG_TEXT, 0, 0,
                    message);
       maybeReportLogOverrunLocked();
       __atomic_store_n(&debugLogDroppedSnapshot, debugLog.overwritten(),
                        __ATOMIC_RELAXED);
-      portEXIT_CRITICAL(&debugLogMux);
-    } else {
-      (void)__atomic_add_fetch(&debugLogContentionDropped, 1U,
-                               __ATOMIC_RELAXED);
     }
   }
-  if (toSerial && !session.active && !circuitClosed) {
+  if (toSerial && serialApplicationLogAllowed()) {
     emitEspLog(level, category, message);
   }
 }
@@ -893,32 +968,19 @@ void logEmit(LogLevel level, DebugCategory category, DebugCode code,
     return;
   }
 
-  bool ringLocked = false;
-#if defined(SHOT_STOPPER_HOST_TEST)
-  portENTER_CRITICAL(&debugLogMux);
-  ringLocked = true;
-#else
-  // Logs are diagnostic only. Never spin the control/BLE core behind a web
-  // reader walking the PSRAM ring; drop on contention and account for it.
-  ringLocked =
-      portTRY_ENTER_CRITICAL(&debugLogMux, portMUX_TRY_LOCK) == pdPASS;
-#endif
-  if (ringLocked) {
+  {
+    TaskLockGuard lock(debugLogMutex);
     if (toRing) {
       debugLog.add(atMs, wallSec, level, category, code, argument1, argument2);
       maybeReportLogOverrunLocked();
       __atomic_store_n(&debugLogDroppedSnapshot, debugLog.overwritten(),
                        __ATOMIC_RELAXED);
     }
-    portEXIT_CRITICAL(&debugLogMux);
-  } else if (toRing) {
-    (void)__atomic_add_fetch(&debugLogContentionDropped, 1U,
-                             __ATOMIC_RELAXED);
   }
 
-  // USB CDC TX can block if the host is not draining. During a pour keep the
-  // control path off Serial; the RAM ring still captures the event.
-  if (toSerial && !session.active && !circuitClosed) {
+  // Target builds enqueue in the bounded serial sink; host builds emit
+  // synchronously into the test stub.
+  if (toSerial && serialApplicationLogAllowed()) {
     writeSerialLogLine(event);
   }
 }
@@ -930,21 +992,8 @@ void addDebugEvent(DebugCategory category, DebugCode code,
 
 size_t copyDebugEvents(uint32_t afterSequence, DebugEvent *output,
                        size_t capacity) {
-  size_t copied = 0;
-  uint32_t after = afterSequence;
-  while (copied < capacity) {
-    DebugEvent event;
-    bool have = false;
-    portENTER_CRITICAL(&debugLogMux);
-    have = debugLog.copyFirstAfter(after, event);
-    portEXIT_CRITICAL(&debugLogMux);
-    if (!have) {
-      break;
-    }
-    output[copied++] = event;
-    after = event.sequence;
-  }
-  return copied;
+  TaskLockGuard lock(debugLogMutex);
+  return debugLog.copyAfter(afterSequence, output, capacity);
 }
 
 void copyTaskProfiler(TaskProfilerSnapshot &output) {
@@ -4304,13 +4353,14 @@ bool initializeSettingsPersistenceWorker() {
       hostSettingsPersistTaskCreateSucceeds
           ? xTaskCreatePinnedToCore(
                 settingsPersistTask, "settings_persist",
-                SETTINGS_PERSIST_TASK_STACK_SIZE, nullptr, tskIDLE_PRIORITY,
+                SETTINGS_PERSIST_TASK_STACK_SIZE, nullptr,
+                tskIDLE_PRIORITY + 1,
                 &task, CONTROL_TASK_CORE)
           : pdFALSE;
 #else
   const BaseType_t created = xTaskCreatePinnedToCore(
       settingsPersistTask, "settings_persist",
-      SETTINGS_PERSIST_TASK_STACK_SIZE, nullptr, tskIDLE_PRIORITY, &task,
+      SETTINGS_PERSIST_TASK_STACK_SIZE, nullptr, tskIDLE_PRIORITY + 1, &task,
       CONTROL_TASK_CORE);
 #endif
   if (created != pdPASS || task == nullptr) {
@@ -5329,6 +5379,11 @@ void publishControlStatus() {
   TaskLockGuard lock(controlStatusMutex);
   ControlStatusSnapshot &next = publishedControlStatus;
   next = ControlStatusSnapshot{};
+  next.snapshotVersion = ++controlStatusVersion;
+  if (controlStatusVersion == 0) {
+    controlStatusVersion = 1;
+    next.snapshotVersion = controlStatusVersion;
+  }
   next.state = stopperState;
   next.activeCycle = session.active;
   next.relayClosed = relay.closed;
@@ -5395,6 +5450,9 @@ void publishControlStatus() {
       healthIntervalMaxGapMs > loopIntervalGapMs ? healthIntervalMaxGapMs
                                                  : loopIntervalGapMs;
   next.loopMaxGapMs = loopMaxGapMs;
+  next.loopDeadlineMisses = loopDeadlineMisses;
+  next.scaleWorkerMaxGapMs = scaleWorkerMaxGapMsValue();
+  next.scaleWorkerDeadlineMisses = scaleWorkerDeadlineMissCount();
   next.loopStackMinWords = loopStackMinWords;
   next.scaleStackMinWords = scaleWorkerStackMinWordsValue();
   next.freeHeapBytes = freeHeapBytes;
@@ -5556,7 +5614,8 @@ void publishControlStatus() {
   }
   next.debugEventsDropped =
       __atomic_load_n(&debugLogDroppedSnapshot, __ATOMIC_RELAXED) +
-      __atomic_load_n(&debugLogContentionDropped, __ATOMIC_RELAXED);
+      __atomic_load_n(&debugLogContentionDropped, __ATOMIC_RELAXED) +
+      serialLogDroppedCount();
   lock.unlock();
   publishControlGate();
 }
@@ -5871,24 +5930,29 @@ void serialCliPrintLiveLogDump() {
     serialCliReply("ERR LOG dump deferred; circuit/cycle active");
     return;
   }
-  size_t count = 0;
-  portENTER_CRITICAL(&debugLogMux);
-  count = debugLog.countAfter(0);
-  portEXIT_CRITICAL(&debugLogMux);
-  serialCliPrintLogDumpPreamble(count, ringRetainLogLevel);
-  uint32_t after = 0;
-  for (;;) {
-    DebugEvent event;
-    bool have = false;
-    portENTER_CRITICAL(&debugLogMux);
-    have = debugLog.copyFirstAfter(after, event);
-    portEXIT_CRITICAL(&debugLogMux);
-    if (!have) {
-      break;
-    }
-    after = event.sequence;
-    writeSerialLogLine(event);
+  serialLogDumpCount = copyDebugEvents(
+      0, serialLogDumpSnapshot, DEBUG_EVENT_CAPACITY);
+  serialLogDumpIndex = 0;
+  serialCliPrintLogDumpPreamble(serialLogDumpCount,
+                                currentRingRetainLogLevel());
+#if defined(SHOT_STOPPER_HOST_TEST)
+  // The host sink is an in-memory stub and cannot block. Preserve the
+  // synchronous CLI contract used by portable tests.
+  while (serialLogDumpIndex < serialLogDumpCount) {
+    writeSerialLogLine(serialLogDumpSnapshot[serialLogDumpIndex++]);
   }
+#endif
+}
+
+void serviceSerialLogDump() {
+#if !defined(SHOT_STOPPER_HOST_TEST)
+  // One bounded record per control iteration. Formatting is local and the
+  // sink only attempts a zero-timeout queue send; USB I/O belongs to
+  // serial_log on core 0.
+  if (serialLogDumpIndex < serialLogDumpCount) {
+    writeSerialLogLine(serialLogDumpSnapshot[serialLogDumpIndex++]);
+  }
+#endif
 }
 
 void serialCliApplyDebugPersist(bool serialOn, LogLevel ringLevel,
@@ -6657,6 +6721,9 @@ void loop() {
     if (gap > loopMaxGapMs) {
       loopMaxGapMs = gap;
     }
+    if (gap > CONTROL_SERVICE_DEADLINE_MS) {
+      ++loopDeadlineMisses;
+    }
     if (gap > healthIntervalMaxGapMs) {
       healthIntervalMaxGapMs = gap;
     }
@@ -6729,6 +6796,7 @@ void loop() {
   serviceNoScaleShotGuard(loopGuardInputs);
   serviceCupStartGuard(loopGuardInputs);
   stateMachineTask();
+  publishControlCriticalLoggingState();
   serviceWebhookBrewStart();
   machineOnBrewOutcome(session.active);
   serviceExtendedPulseAlert();
@@ -6739,6 +6807,7 @@ void loop() {
   serviceRemoteTimerStopRetry();
   serviceBullseyeMelody();
   pendingShotFinalizeTask();
+  serviceSerialLogDump();
   serviceSerialCli();
   serviceMaintenanceCancellation();
   processBleCompanionRequests();

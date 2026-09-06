@@ -13,6 +13,11 @@
 // guards do not call it directly (except via machineRequestStart/Stop). Safety
 // may open the circuit without waiting for brew policy.
 
+// Logging owns no control state. Closing K1 conservatively latches the atomic
+// publication consumed by cross-core log producers; control clears it only
+// after observing both the session and relay idle.
+void latchControlCriticalLogging();
+
 bool readCircuitFeedbackClosed() {
   return EXTERNAL_SAFETY_HARDWARE_PRESENT &&
          digitalRead(CIRCUIT_FEEDBACK_GPIO) == CIRCUIT_FEEDBACK_CLOSED_LEVEL;
@@ -33,7 +38,6 @@ void tripRelaySafetyLocked(RelaySafetyFault fault, bool hardLimit,
   // The electrical action is deliberately first. State publication, logging,
   // timer cleanup and recovery all happen after the relay is de-energized.
   digitalWrite(RELAY_GPIO, RELAY_OPEN_LEVEL);
-  recordRelayCommandedClosed(false);
   circuitClosed = false;
   ++relaySafetyGeneration;
   relaySafetyState = lockout ? RelaySafetyState::LOCKOUT
@@ -53,11 +57,16 @@ void tripRelaySafety(RelaySafetyFault fault, bool hardLimit = false,
   portENTER_CRITICAL(&relayMux);
   tripRelaySafetyLocked(fault, hardLimit, operationalLimit, lockout);
   portEXIT_CRITICAL(&relayMux);
+  // RTC validation/checksum is task work and must never extend the interrupt-
+  // disabled relay critical section. A reset before this conservative OPEN
+  // publication can only cause a false-positive recovery lockout.
+  recordRelayCommandedClosed(false);
   stopRelayDeadlineTimers();
 }
 
 void relaySafetyTimerCallback(void *) {
   const uint32_t callbackAtMs = millis();
+  bool tripped = false;
   portENTER_CRITICAL(&relayMux);
   // Ignore a callback queued by a previous generation. ARMING is included so
   // a timeout that races the close transaction cancels that transaction.
@@ -66,12 +75,17 @@ void relaySafetyTimerCallback(void *) {
       static_cast<uint32_t>(callbackAtMs - circuitClosedAtMs) >=
           HARD_MAX_CIRCUIT_CLOSED_MS) {
     tripRelaySafetyLocked(RelaySafetyFault::HARD_LIMIT, true, false, false);
+    tripped = true;
   }
   portEXIT_CRITICAL(&relayMux);
+  if (tripped) {
+    recordRelayCommandedClosed(false);
+  }
 }
 
 void operationalLimitTimerCallback(void *) {
   const uint32_t callbackAtMs = millis();
+  bool tripped = false;
   portENTER_CRITICAL(&relayMux);
   if ((relaySafetyState == RelaySafetyState::ARMING ||
        relaySafetyState == RelaySafetyState::CLOSED) &&
@@ -80,8 +94,12 @@ void operationalLimitTimerCallback(void *) {
           operationalLimitAtArmMs) {
     tripRelaySafetyLocked(RelaySafetyFault::OPERATIONAL_LIMIT, false, true,
                           false);
+    tripped = true;
   }
   portEXIT_CRITICAL(&relayMux);
+  if (tripped) {
+    recordRelayCommandedClosed(false);
+  }
 }
 
 #ifndef SHOT_STOPPER_HOST_TEST
@@ -166,6 +184,9 @@ void IRAM_ATTR independentSafetyTimerCallback(void *) {
 }
 
 bool initializeRelaySafetyTimer() {
+  if (relaySafetyTimer != nullptr || operationalLimitTimer != nullptr) {
+    return false;
+  }
   esp_timer_create_args_t hardArgs = {};
   hardArgs.callback = &relaySafetyTimerCallback;
   hardArgs.arg = nullptr;
@@ -181,10 +202,19 @@ bool initializeRelaySafetyTimer() {
   operationalArgs.dispatch_method = ESP_TIMER_TASK;
   operationalArgs.name = "circuit_oper_limit";
   if (esp_timer_create(&operationalArgs, &operationalLimitTimer) != ESP_OK) {
+    (void)esp_timer_delete(relaySafetyTimer);
+    relaySafetyTimer = nullptr;
     return false;
   }
-  return independentSafetyTimer.begin(&independentSafetyTimerCallback,
-                                      nullptr);
+  if (!independentSafetyTimer.begin(&independentSafetyTimerCallback,
+                                    nullptr)) {
+    (void)esp_timer_delete(operationalLimitTimer);
+    (void)esp_timer_delete(relaySafetyTimer);
+    operationalLimitTimer = nullptr;
+    relaySafetyTimer = nullptr;
+    return false;
+  }
+  return true;
 }
 
 RelaySafetySnapshot getRelaySafetySnapshot() {
@@ -204,6 +234,9 @@ RelaySafetySnapshot getRelaySafetySnapshot() {
   snapshot.generation = relaySafetyGeneration;
   snapshot.closedAtMs = circuitClosedAtMs;
   snapshot.operationalLimitMs = operationalLimitAtArmMs;
+  portEXIT_CRITICAL(&relayMux);
+  // Reset history is immutable after boot. Keep the bounded array copy out of
+  // the ISR-shared spinlock.
   snapshot.resetReasonCode = safetyResetStatus.reasonCode;
   snapshot.unsafeResetCount = safetyResetStatus.unsafeResetCount;
   snapshot.resetRecoveryRequired = safetyResetStatus.recoveryRequired;
@@ -211,7 +244,6 @@ RelaySafetySnapshot getRelaySafetySnapshot() {
   snapshot.resetHistoryCount = safetyResetStatus.resetHistoryCount;
   for (uint8_t i = 0; i < snapshot.resetHistoryCount; ++i)
     snapshot.resetHistory[i] = safetyResetStatus.resetHistory[i];
-  portEXIT_CRITICAL(&relayMux);
   snapshot.feedbackClosed = readCircuitFeedbackClosed();
   return snapshot;
 }
@@ -240,6 +272,7 @@ bool reassertCommandedRelayClosedPin() {
 bool setMachineCircuitClosed(bool closed,
                   uint32_t operationalLimitMs = HARD_MAX_CIRCUIT_CLOSED_MS) {
   if (closed) {
+    latchControlCriticalLogging();
     const RelaySafetySnapshot before = getRelaySafetySnapshot();
     if (before.closed) {
       return reassertCommandedRelayClosedPin();
@@ -330,6 +363,10 @@ bool setMachineCircuitClosed(bool closed,
     }
 #endif
 
+    // Publish the conservative RTC CLOSE marker before entering the short
+    // commit section. If the transaction is canceled below it is cleared
+    // after the relay has remained/opened safe.
+    recordRelayCommandedClosed(true);
     bool committed = false;
     portENTER_CRITICAL(&relayMux);
     // A timer callback may have run while the timers were being armed. It
@@ -339,9 +376,6 @@ bool setMachineCircuitClosed(bool closed,
         relaySafetyState == RelaySafetyState::ARMING &&
         static_cast<uint32_t>(millis() - closingAtMs) <
             operationalLimitMs) {
-      // Conservatively mark CLOSE before energizing K1. A reset between these
-      // two writes produces a safe false-positive lockout, never a missed one.
-      recordRelayCommandedClosed(true);
       digitalWrite(RELAY_GPIO, RELAY_CLOSED_LEVEL);
       circuitClosed = true;
       relaySafetyState = RelaySafetyState::CLOSED;
@@ -353,6 +387,7 @@ bool setMachineCircuitClosed(bool closed,
     }
     portEXIT_CRITICAL(&relayMux);
     if (!committed) {
+      recordRelayCommandedClosed(false);
       stopRelayDeadlineTimers();
       addDebugEvent(DebugCategory::RELAY, DebugCode::CIRCUIT_ARM_FAILED,
                     static_cast<int32_t>(CircuitArmFailReason::ARM_CANCELED));
@@ -374,7 +409,6 @@ bool setMachineCircuitClosed(bool closed,
   if (!alreadyOpenedBySafety) {
     digitalWrite(RELAY_GPIO, RELAY_OPEN_LEVEL);
   }
-  recordRelayCommandedClosed(false);
   circuitClosed = false;
   ++relaySafetyGeneration;
   if (relaySafetyState != RelaySafetyState::TRIPPED &&
@@ -386,6 +420,7 @@ bool setMachineCircuitClosed(bool closed,
   feedbackTransitionStartedAtMs = millis();
   feedbackTransitionStampPending = false;
   portEXIT_CRITICAL(&relayMux);
+  recordRelayCommandedClosed(false);
   stopRelayDeadlineTimers();
   // BLE claim is recomputed on the scale worker (connecting / GATT / closed).
   // Do not force BALANCE here: a live scale link must keep PREFER_BT.

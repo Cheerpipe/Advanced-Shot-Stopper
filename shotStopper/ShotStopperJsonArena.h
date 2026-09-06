@@ -1,119 +1,88 @@
 #pragma once
 
-#include "ShotStopperPsram.h"
-
 #include <cJSON.h>
+#include <atomic>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 namespace shotstopper {
 
-constexpr size_t JSON_ARENA_CAPACITY = 16384;
-
-inline void initJsonArenaHooks();
-inline bool jsonArenaHooksInstalled();
-inline bool jsonArenaIsExternal();
-inline cJSON *parseJsonInArena(const char *body);
-inline void resetJsonArena();
-inline size_t jsonArenaBytesUsed();
-inline uint32_t jsonArenaAllocFailures();
-inline bool jsonArenaExhaustedRecently();
+// JSON bodies are already bounded by ShotStopperNetwork::REQUEST_BODY_CAPACITY.
+// Keep an independent limit here so callers outside HTTP cannot accidentally
+// hand an unbounded C string to cJSON.
+constexpr size_t JSON_DOCUMENT_MAX_BYTES = 2047;
+constexpr size_t JSON_DOCUMENT_MAX_DEPTH = 32;
 
 namespace detail {
 
-// HTTP JSON parse only. Never use as an NVS/OTA flash I/O buffer: flash writes
-// disable the cache and make PSRAM inaccessible on ESP32-S3.
-inline size_t g_jsonArenaUsed = 0;
-inline uint32_t g_jsonArenaAllocFailures = 0;
-inline bool g_jsonArenaHooksInstalled = false;
+inline std::atomic<uint32_t> g_jsonLimitRejections{0};
+inline thread_local bool g_jsonLimitRejectedRecently = false;
 
-inline uint8_t *jsonArenaStorage() {
-  static uint8_t *block = nullptr;
-  if (block == nullptr) {
-    block = static_cast<uint8_t *>(allocExternal(JSON_ARENA_CAPACITY));
-  }
-  return block;
-}
-
-inline void *jsonArenaMalloc(size_t size) {
-  if (size == 0 || size > JSON_ARENA_CAPACITY) {
-    if (size > JSON_ARENA_CAPACITY) {
-      ++g_jsonArenaAllocFailures;
+inline bool jsonNestingWithinLimit(const char *body, size_t length) {
+  size_t depth = 0;
+  bool inString = false;
+  bool escaped = false;
+  for (size_t i = 0; i < length; ++i) {
+    const char c = body[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (c == '\\') {
+        escaped = true;
+      } else if (c == '"') {
+        inString = false;
+      }
+      continue;
     }
-    return nullptr;
+    if (c == '"') {
+      inString = true;
+    } else if (c == '{' || c == '[') {
+      if (++depth > JSON_DOCUMENT_MAX_DEPTH) return false;
+    } else if ((c == '}' || c == ']') && depth > 0) {
+      --depth;
+    }
   }
-  uint8_t *const storage = jsonArenaStorage();
-  if (storage == nullptr) {
-    ++g_jsonArenaAllocFailures;
-    return nullptr;
-  }
-  const size_t aligned = (size + 7U) & ~size_t(7U);
-  if (g_jsonArenaUsed > JSON_ARENA_CAPACITY ||
-      aligned > JSON_ARENA_CAPACITY - g_jsonArenaUsed) {
-    ++g_jsonArenaAllocFailures;
-    return nullptr;
-  }
-  void *const block = storage + g_jsonArenaUsed;
-  g_jsonArenaUsed += aligned;
-  return block;
+  return true;
 }
 
-inline void jsonArenaFree(void *) {}
+inline void noteJsonLimitRejection() {
+  g_jsonLimitRejectedRecently = true;
+  g_jsonLimitRejections.fetch_add(1, std::memory_order_relaxed);
+}
 
 }  // namespace detail
 
-inline void initJsonArenaHooks() {
-  if (detail::g_jsonArenaHooksInstalled) {
-    return;
-  }
-  if (detail::jsonArenaStorage() == nullptr) {
-    return;
-  }
-  cJSON_Hooks hooks = {detail::jsonArenaMalloc, detail::jsonArenaFree};
-  cJSON_InitHooks(&hooks);
-  detail::g_jsonArenaHooksInstalled = true;
-}
+// cJSON's allocator hooks are process-global and cannot safely select a parser
+// arena. Deliberately leave its default allocator installed: every parse owns
+// independent storage and concurrent callers cannot reset one another's data.
+inline void initJsonParser() {}
 
-inline bool jsonArenaHooksInstalled() {
-  return detail::g_jsonArenaHooksInstalled;
-}
+inline cJSON *parseJsonDocument(const char *body) {
+  detail::g_jsonLimitRejectedRecently = false;
+  if (body == nullptr) return nullptr;
 
-inline bool jsonArenaIsExternal() {
-  return pointerIsExternal(detail::jsonArenaStorage());
-}
-
-// Fail closed: never parse through the process-global cJSON heap if the
-// bump arena could not be installed. HTTP JSON is httpd-task only.
-inline cJSON *parseJsonInArena(const char *body) {
-  resetJsonArena();
-  if (body == nullptr || !detail::g_jsonArenaHooksInstalled) {
+  const size_t length = strnlen(body, JSON_DOCUMENT_MAX_BYTES + 1);
+  if (length > JSON_DOCUMENT_MAX_BYTES ||
+      !detail::jsonNestingWithinLimit(body, length)) {
+    detail::noteJsonLimitRejection();
     return nullptr;
   }
-  return cJSON_Parse(body);
+  return cJSON_ParseWithLengthOpts(body, length + 1, nullptr, 1);
 }
 
-#ifdef SHOT_STOPPER_HOST_TEST
-inline void hostSetJsonArenaHooksInstalled(bool installed) {
-  detail::g_jsonArenaHooksInstalled = installed;
-}
-#endif
-
-inline void resetJsonArena() {
-  detail::g_jsonArenaUsed = 0;
-  detail::g_jsonArenaAllocFailures = 0;
+inline uint32_t jsonDocumentLimitRejections() {
+  return detail::g_jsonLimitRejections.load(std::memory_order_relaxed);
 }
 
-inline size_t jsonArenaBytesUsed() {
-  return detail::g_jsonArenaUsed;
+inline bool jsonDocumentLimitRejectedRecently() {
+  return detail::g_jsonLimitRejectedRecently;
 }
 
-inline uint32_t jsonArenaAllocFailures() {
-  return detail::g_jsonArenaAllocFailures;
-}
-
+// Transitional diagnostic API. There is intentionally no JSON arena anymore.
+inline bool jsonArenaIsExternal() { return false; }
 inline bool jsonArenaExhaustedRecently() {
-  return detail::g_jsonArenaAllocFailures > 0 &&
-         detail::g_jsonArenaUsed + 64 >= JSON_ARENA_CAPACITY;
+  return jsonDocumentLimitRejectedRecently();
 }
 
 }  // namespace shotstopper
