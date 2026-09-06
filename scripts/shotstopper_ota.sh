@@ -105,11 +105,25 @@ ss_ota_remote_owns_slot() {
 ss_ota_remote_matches_image() {
   [[ -n "$(ss_ota_field transferId)" ]] &&
       [[ "$(ss_ota_field sha256)" == "$SS_OTA_IMAGE_SHA256" ]] &&
-      [[ "$(ss_ota_field expectedBytes)" == "$SS_OTA_IMAGE_SIZE" ]] &&
-      { [[ -z "$(ss_ota_field sessionArch)" ]] ||
-        [[ "$(ss_ota_field sessionArch)" == "$SS_OTA_IMAGE_ARCH" ]]; } &&
-      { [[ -z "$(ss_ota_field sessionVersion)" ]] ||
-        [[ "$(ss_ota_field sessionVersion)" == "$SS_OTA_IMAGE_VERSION" ]]; }
+      [[ "$(ss_ota_field expectedBytes)" == "$SS_OTA_IMAGE_SIZE" ]] || return 1
+  if [[ "$(ss_ota_field otaProtocolVersion)" == "2" ]]; then
+    [[ "$(ss_ota_field sessionArch)" == "$SS_OTA_IMAGE_ARCH" ]] &&
+        [[ "$(ss_ota_field sessionVersion)" == "$SS_OTA_IMAGE_VERSION" ]]
+  else
+    { [[ -z "$(ss_ota_field sessionArch)" ]] ||
+      [[ "$(ss_ota_field sessionArch)" == "$SS_OTA_IMAGE_ARCH" ]]; } &&
+        { [[ -z "$(ss_ota_field sessionVersion)" ]] ||
+          [[ "$(ss_ota_field sessionVersion)" == "$SS_OTA_IMAGE_VERSION" ]]; }
+  fi
+}
+
+ss_ota_remote_matches_transfer() {
+  ss_ota_remote_matches_image &&
+      [[ "$(ss_ota_field transferId)" == "$SS_OTA_TRANSFER_ID" ]]
+}
+
+ss_ota_offset_valid() {
+  [[ "$1" =~ ^[0-9]{1,10}$ ]] && (( 10#$1 <= SS_OTA_IMAGE_SIZE ))
 }
 
 ss_ota_protocol_supported() {
@@ -152,9 +166,17 @@ ss_ota_upload() {
     ss_ota_report_failure 'Creating the OTA session'
     return 1
   fi
+  if ! ss_ota_remote_matches_transfer; then
+    echo 'The controller returned a different or incomplete OTA session identity.' >&2
+    return 1
+  fi
   SS_OTA_CONTENT_TYPE=application/octet-stream
   local offset="$(ss_ota_field nextOffset)"
-  [[ "$offset" =~ ^[0-9]+$ ]] || return 1
+  if ! ss_ota_offset_valid "$offset"; then
+    printf 'The controller returned invalid nextOffset=%s for image size %s.\n' \
+        "${offset:-missing}" "$SS_OTA_IMAGE_SIZE" >&2
+    return 1
+  fi
   ss_ota_upload_progress "$offset" "$SS_OTA_IMAGE_SIZE"
   while (( offset < SS_OTA_IMAGE_SIZE )); do
     local end=$((offset + SS_OTA_CHUNK_BYTES))
@@ -168,7 +190,11 @@ ss_ota_upload() {
           "Content-Range: bytes $offset-$((end - 1))/$SS_OTA_IMAGE_SIZE" &&
           [[ "$SS_OTA_HTTP_STATUS" =~ ^(200|208)$ ]]; then
         local next="$(ss_ota_field nextOffset)"
-        [[ "$next" =~ ^[0-9]+$ ]] && (( next > offset )) || return 1
+        if ! ss_ota_offset_valid "$next" || (( next <= offset )); then
+          printf 'The controller returned invalid nextOffset=%s after byte %s.\n' \
+              "${next:-missing}" "$offset" >&2
+          return 1
+        fi
         offset="$next"
         ss_ota_upload_progress "$offset" "$SS_OTA_IMAGE_SIZE"
         break
@@ -184,10 +210,9 @@ ss_ota_upload() {
       # A lost response is reconciled before any retry.  Only this exact,
       # idempotent range can be repeated, never the entire image.
       if ss_ota_request GET /api/v1/ota/session "" 20 &&
-          [[ "$(ss_ota_field transferId)" == "$SS_OTA_TRANSFER_ID" ]] &&
-          [[ "$(ss_ota_field sha256)" == "$SS_OTA_IMAGE_SHA256" ]]; then
+          ss_ota_remote_matches_transfer; then
         local next="$(ss_ota_field nextOffset)"
-        if [[ "$next" =~ ^[0-9]+$ ]] && (( next > offset )); then offset="$next"; break; fi
+        if ss_ota_offset_valid "$next" && (( next > offset )); then offset="$next"; break; fi
       fi
       if (( attempt >= SS_OTA_RANGE_ATTEMPTS )); then
         ss_ota_report_values 'Uploading the firmware range' \

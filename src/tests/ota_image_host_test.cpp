@@ -167,6 +167,11 @@ void testTagBodyRejectsMalformedInput() {
   const std::string spaceInVersion = "arch=n16r8|ver=1.0 0|packed=1|END";
   CHECK(!parseOtaImageTagBody(spaceInVersion.c_str(), spaceInVersion.size(),
                               parsed));
+
+  const std::string invalidThenValidDuplicate =
+      "arch=N16R8|arch=n16r8|ver=1.0.0|packed=1|END";
+  CHECK(!parseOtaImageTagBody(invalidThenValidDuplicate.c_str(),
+                              invalidThenValidDuplicate.size(), parsed));
 }
 
 void testArchUsability() {
@@ -267,6 +272,19 @@ void testScannerSkipsUnparseableCandidates() {
   CHECK(scanEverySplit(stream, tag, offset));
   CHECK(std::string(tag.version) == "9.9.9+ffffffff");
   CHECK(tag.packed == 151060479U);
+}
+
+void testScannerRejectsNulInsideCandidate() {
+  std::string invalid = tagPrefix() + "ignored=";
+  invalid.push_back('\0');
+  invalid += "|arch=n16r8|ver=1.0.0|packed=1|END";
+  const std::string stream = invalid + "filler" +
+      makeTag("n8r4", "2.0.0+abcdef0", "33554432");
+  OtaImageTag tag;
+  uint32_t offset = 0;
+  CHECK(scanEverySplit(stream, tag, offset));
+  CHECK(std::string(tag.arch) == "n8r4");
+  CHECK(offset == invalid.size() + 6);
 }
 
 void testScannerSkipsMalformedTagBeforeValidOne() {
@@ -471,6 +489,7 @@ int main() {
   testScannerFindsTagAcrossEveryChunkBoundary();
   testScannerRecoversFromOverlappingPrefix();
   testScannerSkipsUnparseableCandidates();
+  testScannerRejectsNulInsideCandidate();
   testScannerSkipsMalformedTagBeforeValidOne();
   testScannerReportsNothingWithoutTag();
   testScannerIgnoresOversizedCandidate();

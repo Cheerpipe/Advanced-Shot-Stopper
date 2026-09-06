@@ -48,13 +48,21 @@ function readCString(buffer, offset, capacity) {
 }
 
 function parseTagBody(body) {
+  if (body.includes('\0')) return null;
   const fields = {arch: '', ver: '', packed: ''};
   for (const part of body.split('|')) {
     const eq = part.indexOf('=');
     if (eq <= 0) continue;
     const key = part.slice(0, eq);
     if (Object.prototype.hasOwnProperty.call(fields, key)) {
-      fields[key] = part.slice(eq + 1);
+      const value = part.slice(eq + 1);
+      if ((key === 'arch' &&
+           (!/^[a-z0-9]{1,15}$/.test(value) || value === 'unknown')) ||
+          (key === 'ver' && !/^[A-Za-z0-9.+_-]{1,47}$/.test(value)) ||
+          (key === 'packed' && !/^\d{1,10}$/.test(value))) {
+        return null;
+      }
+      fields[key] = value;
     }
   }
   if (!/^[a-z0-9]{1,15}$/.test(fields.arch) || fields.arch === 'unknown' ||

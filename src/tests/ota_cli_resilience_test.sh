@@ -10,7 +10,8 @@ body_file="$(mktemp "${TMPDIR:-/tmp}/shotstopper-ota-cli-test.XXXXXX")"
 image_file="$(mktemp "${TMPDIR:-/tmp}/shotstopper-ota-cli-image.XXXXXX")"
 chunk_file="$(mktemp "${TMPDIR:-/tmp}/shotstopper-ota-cli-chunk.XXXXXX")"
 session_file="$(mktemp "${TMPDIR:-/tmp}/shotstopper-ota-cli-session.XXXXXX")"
-trap 'rm -f "$body_file" "$image_file" "$chunk_file" "$session_file"' EXIT
+output_file="$(mktemp "${TMPDIR:-/tmp}/shotstopper-ota-cli-output.XXXXXX")"
+trap 'rm -f "$body_file" "$image_file" "$chunk_file" "$session_file" "$output_file"' EXIT
 printf 'test' > "$image_file"
 SS_OTA_BODY_FILE="$body_file"
 SS_OTA_SESSION_BODY="$session_file"
@@ -44,7 +45,11 @@ ss_ota_request() {
       printf '{"error":"OTA_SESSION_CONFLICT","message":"A different image owns the slot."}' > "$SS_OTA_BODY_FILE"
       SS_OTA_CURL_EXIT=0; SS_OTA_HTTP_STATUS=409; return 0
     fi
-    printf '{"state":"receiving","transferId":"%s","sha256":"%s","nextOffset":%s,"chunkBytes":2}' "$SS_OTA_TRANSFER_ID" "$SS_OTA_IMAGE_SHA256" "$mock_offset" > "$SS_OTA_BODY_FILE"
+    local response_transfer="$SS_OTA_TRANSFER_ID"
+    if [[ "$mock_mode" == "wrong-transfer" ]]; then
+      response_transfer=another-transfer
+    fi
+    printf '{"otaProtocolVersion":2,"state":"receiving","transferId":"%s","sha256":"%s","expectedBytes":4,"sessionArch":"n16r8","sessionVersion":"1.2.3","nextOffset":%s,"chunkBytes":2}' "$response_transfer" "$SS_OTA_IMAGE_SHA256" "$mock_offset" > "$SS_OTA_BODY_FILE"
     SS_OTA_CURL_EXIT=0; SS_OTA_HTTP_STATUS=200; return 0
   fi
   if [[ "$method" == "PATCH" && "$path" == "/api/v1/ota" ]]; then
@@ -60,6 +65,12 @@ ss_ota_request() {
       printf '{"error":"SAFETY_LOST"}' > "$SS_OTA_BODY_FILE"
       SS_OTA_CURL_EXIT=0
       SS_OTA_HTTP_STATUS=409
+      return 0
+    fi
+    if [[ "$mock_mode" == "invalid-patch-offset" ]]; then
+      printf '{"state":"receiving","transferId":"%s","sha256":"%s","nextOffset":5}' "$SS_OTA_TRANSFER_ID" "$SS_OTA_IMAGE_SHA256" > "$SS_OTA_BODY_FILE"
+      SS_OTA_CURL_EXIT=0
+      SS_OTA_HTTP_STATUS=200
       return 0
     fi
     mock_offset=$((mock_offset + 2))
@@ -79,7 +90,7 @@ ss_ota_request() {
     return 1
   fi
   if [[ "$method" == "GET" && "$path" == "/api/v1/ota/session" ]]; then
-    printf '{"state":"receiving","transferId":"%s","sha256":"%s","nextOffset":%s}' "$SS_OTA_TRANSFER_ID" "$SS_OTA_IMAGE_SHA256" "$mock_offset" > "$SS_OTA_BODY_FILE"
+    printf '{"otaProtocolVersion":2,"state":"receiving","transferId":"%s","sha256":"%s","expectedBytes":4,"sessionArch":"n16r8","sessionVersion":"1.2.3","nextOffset":%s}' "$SS_OTA_TRANSFER_ID" "$SS_OTA_IMAGE_SHA256" "$mock_offset" > "$SS_OTA_BODY_FILE"
     SS_OTA_CURL_EXIT=0; SS_OTA_HTTP_STATUS=200; return 0
   fi
   if [[ "$method" == "GET" && "$path" == "/api/v1/ota" ]]; then
@@ -129,10 +140,57 @@ case "$refused_output" in
     ;;
 esac
 
-printf '{"state":"receiving","sessionActive":true,"transferId":"existing-transfer","sha256":"%s","expectedBytes":4,"sessionArch":"n16r8","sessionVersion":"1.2.3"}' \
+mock_mode=wrong-transfer
+mock_patches=0
+mock_offset=0
+if ss_ota_upload > "$output_file" 2>&1; then
+  echo 'FAIL: a different transferId was accepted after session creation' >&2
+  failures=$((failures + 1))
+fi
+check test "$mock_patches" -eq 0
+case "$(<"$output_file")" in
+  *'different or incomplete OTA session identity'*) ;;
+  *) echo 'FAIL: mismatched transferId was not diagnosed' >&2; failures=$((failures + 1)) ;;
+esac
+
+mock_mode=invalid-start-offset
+mock_patches=0
+mock_offset=5
+if ss_ota_upload > "$output_file" 2>&1; then
+  echo 'FAIL: out-of-bounds initial OTA offset was accepted' >&2
+  failures=$((failures + 1))
+fi
+invalid_start_output="$(<"$output_file")"
+check test "$mock_patches" -eq 0
+case "$invalid_start_output" in
+  *'invalid nextOffset=5 for image size 4'*) ;;
+  *) echo 'FAIL: invalid initial offset was not diagnosed' >&2; failures=$((failures + 1)) ;;
+esac
+
+mock_mode=invalid-patch-offset
+mock_patches=0
+mock_offset=0
+if ss_ota_upload > "$output_file" 2>&1; then
+  echo 'FAIL: out-of-bounds PATCH offset was accepted' >&2
+  failures=$((failures + 1))
+fi
+invalid_patch_output="$(<"$output_file")"
+check test "$mock_patches" -eq 1
+case "$invalid_patch_output" in
+  *'invalid nextOffset=5 after byte 0'*) ;;
+  *) echo 'FAIL: invalid PATCH offset was not diagnosed' >&2; failures=$((failures + 1)) ;;
+esac
+
+printf '{"otaProtocolVersion":2,"state":"receiving","sessionActive":true,"transferId":"existing-transfer","sha256":"%s","expectedBytes":4,"sessionArch":"n16r8","sessionVersion":"1.2.3"}' \
     "$SS_OTA_IMAGE_SHA256" > "$SS_OTA_BODY_FILE"
 check ss_ota_remote_owns_slot
 check ss_ota_remote_matches_image
+printf '{"otaProtocolVersion":2,"state":"receiving","sessionActive":true,"transferId":"existing-transfer","sha256":"%s","expectedBytes":4,"sessionArch":"n16r8"}' \
+    "$SS_OTA_IMAGE_SHA256" > "$SS_OTA_BODY_FILE"
+if ss_ota_remote_matches_image; then
+  echo 'FAIL: incomplete v2 session identity matched the image' >&2
+  failures=$((failures + 1))
+fi
 SS_OTA_IMAGE_SHA256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 if ss_ota_remote_matches_image; then
   echo 'FAIL: a different image matched the resumable session' >&2

@@ -4231,9 +4231,12 @@ function otaFixture(tagOffset) {
   image.fill(0, 80, 112);
   image.write('shotstopper', 80, 'latin1');
   tag.copy(image, tagOffset);
-  crypto.createHash('sha256').update(image.subarray(0, size - 32))
-      .digest().copy(image, size - 32);
+  refreshOtaFixtureHash(image);
   return image;
+}
+function refreshOtaFixtureHash(image) {
+  crypto.createHash('sha256').update(image.subarray(0, image.length - 32))
+      .digest().copy(image, image.length - 32);
 }
 for (const tagOffset of [320, 65530, 262143, 262144, 270344]) {
   const fixture = otaFixture(tagOffset);
@@ -4244,6 +4247,22 @@ for (const tagOffset of [320, 65530, 262143, 262144, 270344]) {
       !nodeParsed || nodeParsed.arch !== parsed.arch ||
       nodeParsed.ver !== parsed.version || Number(nodeParsed.packed) !== parsed.packed) {
     throw new Error(`Web/Node OTA identity mismatch at offset ${tagOffset}`);
+  }
+}
+for (const badBody of [
+  'arch=N16R8|arch=n16r8|ver=1.2.3|packed=1|END',
+  'ignored=\0|arch=n16r8|ver=1.2.3|packed=1|END',
+]) {
+  const bad = Buffer.from('SHOTSTOPPER_FW_TAG_V1|' + badBody, 'latin1');
+  const validOffset = 320 + bad.length + 8;
+  const fixture = otaFixture(validOffset);
+  bad.copy(fixture, 320);
+  refreshOtaFixtureHash(fixture);
+  const parsed = await otaParser.otaFileIdentity(browserFile(fixture));
+  const nodeParsed = imageTag.findImageTag(fixture);
+  if (parsed.tagOffset !== validOffset || !nodeParsed ||
+      nodeParsed.tagOffset !== validOffset) {
+    throw new Error('Web/Node parsers accepted a candidate rejected by C++');
   }
 }
 {
@@ -4704,6 +4723,11 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       !network.includes('\\"sessionVersion\\":\\"%s\\"')) {
     throw new Error(
       'OTA status must expose protocol and complete resumable identity');
+  }
+  if (!runtimeJs.includes('status.transferId!==session.transferId') ||
+      !runtimeJs.includes('reconciled.transferId!==session.transferId')) {
+    throw new Error(
+      'Web OTA must bind session creation and reconciliation to the requested transferId');
   }
   // Recovering an image too broken to run any firmware code is the bootloader's
   // job, so losing that configuration must break the build, not the machine.
