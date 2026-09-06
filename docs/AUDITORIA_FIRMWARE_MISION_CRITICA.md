@@ -430,6 +430,13 @@ Algunas métricas se copian después de liberar el mutex de status; contadores d
 
 ### F-18. Churn de heap interno y fragmentación a largo plazo
 
+**Estado de remediación (2026-09-06): ✅ implementación corregida; soak HIL
+pendiente.** El cliente HTTP y el worker se conservan entre cambios ordinarios
+de configuración; diagnóstico publica create/reuse/cleanup, starts/stops y
+heap interno/PSRAM antes/después de cada envío. `p2_soak.py` falla ante handles
+o reinicios de worker no acotados y tendencias negativas. La evidencia física
+8 h/72 h sigue siendo gate de release, no trabajo de implementación omitido.
+
 **Vectores:** memoria, PSRAM, rendimiento  
 **Confianza:** media-alta  
 
@@ -441,6 +448,13 @@ No se observó uso problemático de `std::string`, `String` o containers crecien
 
 ### F-19. RAII incompleto para handles ESP/FreeRTOS
 
+**Estado de remediación (2026-09-06): ✅ corregido.** `UniqueResource` aporta
+ownership no asignante, move, `release()` y rollback. Ya posee el cliente HTTP,
+handle/SHA OTA y recursos pasivos de Network; los timers de relé usan owners
+transaccionales durante construcción. Tasks conservan explícitamente
+stop/ack/join. El inventario y excepciones están versionados en
+`docs/RESOURCE_OWNERSHIP.md` y cubiertos por fault injection/sanitizers host.
+
 **Vectores:** memoria, mantenibilidad  
 **Confianza:** alta  
 
@@ -451,6 +465,14 @@ Los objetos de vida global mitigan fugas en el camino feliz, pero la liberación
 **Aceptación:** fault injection de constructores parciales; sanitizers host; conteo de recursos igual al baseline tras rollback.
 
 ### F-20. Monolitos y acoplamiento global elevan la complejidad
+
+**Estado de remediación (2026-09-06): ✅ límites implementados.** Los seis
+owners de servicio, sus mensajes y excepciones están formalizados en
+`docs/ARCHITECTURE.md`. ScaleService ya no incluye ni referencia el singleton
+NetworkService: publica RF mediante `ScaleWorkerBridgeCallbacks`. El gate
+automático prohíbe dependencias Safety→Network/HTTP/JSON, bypasses de Control y
+crecimiento de los tres roots legacy; harnesses independientes prueban cada
+dominio sin incluir ambos monolitos.
 
 **Vectores:** arquitectura, mantenibilidad, complejidad ciclomática  
 **Confianza:** alta  
@@ -474,10 +496,24 @@ Interfaces por mensajes trivially-copyable, capacidades explícitas y ausencia d
 
 ### F-21. Cobertura estática y concurrente insuficiente
 
+**Estado de remediación (2026-09-06): ✅ implementación corregida; traza target
+pendiente.** El manifiesto de producción y `audit_compile_commands.py` obligan
+a cubrir 25/25 TUs exactamente una vez antes de Cppcheck/clang-tidy, incluidos
+NimBLE y Companion. La suite ejecuta ASan/UBSan y TSAN con threads reales para
+snapshots, safety, OTA y JSON; warnings/supresiones tienen baseline, owner y
+fecha de revisión. `docs/P2_TARGET_TRACE.md` define escenarios/artefactos HIL.
+Cppcheck bloquea `warning`, `performance` y `portability`; `unusedFunction` se
+excluye porque la base filtrada y variante-específica clasifica APIs cross-TU
+como muertas, y su revisión queda separada bajo F-22 sin supresiones amplias.
+
 **Vectores:** calidad, proceso  
 **Confianza:** alta  
 
-Los scripts actuales son valiosos, pero `cppcheck` cubre 20 de 23 TUs propios y no modela FreeRTOS. No hay `clang-tidy` con reglas concurrency/CERT, compile database auditada, ThreadSanitizer concurrente ni trazas target sistemáticas. La suite host valida muy bien máquinas de estado e invariantes funcionales, pero no interleavings reales.
+El hallazgo original era que `cppcheck` cubría 20 de 23 TUs propios y no
+modelaba FreeRTOS. Tampoco había compile database auditada, ThreadSanitizer
+concurrente ni un contrato de trazas target sistemáticas. La remediación
+anterior eleva la cobertura actual a 25/25 y deja la captura física como gate
+de release explícito.
 
 **Corrección:** compilar/analisar todas las unidades desde `compile_commands.json`; activar selectivamente `bugprone`, `performance`, `cert` y reglas C++ Core Guidelines relevantes sin ahogar señales; harness POSIX con tasks reales y TSAN; ASan/UBSan; target stress con SystemView o ESP-IDF tracing. Agregar mutation/fault injection para ramas de error.
 

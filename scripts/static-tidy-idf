@@ -108,6 +108,14 @@ command -v python3 >/dev/null 2>&1 || {
 rm -rf "$output_path"
 mkdir -p "$output_path"
 
+python3 "$ROOT/scripts/audit_compile_commands.py" \
+  --database "$compile_commands" | tee "$output_path/translation-units.txt"
+tu_audit_status=${PIPESTATUS[0]}
+if [[ $tu_audit_status -ne 0 ]]; then
+  echo "Translation-unit coverage audit failed." >&2
+  exit 1
+fi
+
 printf 'Tool: %s\n' "$tidy_bin" > "$output_path/README.txt"
 printf 'Build database: %s\n' "$compile_commands" >> "$output_path/README.txt"
 printf 'Generated: %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" >> "$output_path/README.txt"
@@ -126,10 +134,13 @@ import json, os, shlex, subprocess, sys
 cc_path, out_dir = sys.argv[1], sys.argv[2]
 patterns = [
     "*/shotStopper/*.cpp",
+    "*/shotStopper/ble/*.cpp",
     "*/libraries/EspressoScaleBLE/src/*.cpp",
+    "*/libraries/EspressoScaleBLE/src/nimble/*.cpp",
     "*/libraries/EspressoScaleBLE/src/protocols/*.cpp",
     "*/idf/main/*.cpp",
     "*/idf/components/EspressoScaleBLE/*.cpp",
+    "*/idf/components/ShotStopperBleRuntime/*.cpp",
     "*/idf/components/shotStopper/*.cpp",
 ]
 drop_prefixes = ("-fno-tree-", "-fstrict-volatile-bitfields", "-fuse-ld=",

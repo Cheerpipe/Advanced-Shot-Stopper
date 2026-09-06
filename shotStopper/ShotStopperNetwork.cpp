@@ -977,9 +977,9 @@ ShotStopperNetwork::ShotStopperNetwork() : settings_(g_networkSettings) {}
 bool ShotStopperNetwork::begin(const PersistedSettings &settings,
                                const NetworkBridgeCallbacks &callbacks) {
   if (beginCompleted_ || instance_ != nullptr ||
-      acceptedCommandQueue_ != nullptr ||
-      taskHandle_ != nullptr || taskStopped_ != nullptr ||
-      statusResponseMux_ != nullptr || workBuf_ != nullptr ||
+      acceptedCommandQueue_ ||
+      taskHandle_ != nullptr || taskStopped_ ||
+      statusResponseMux_ || workBuf_ != nullptr ||
       callbacks.copyControlStatus == nullptr ||
       callbacks.copyControlGate == nullptr ||
       callbacks.refreshControlStatus == nullptr ||
@@ -993,34 +993,28 @@ bool ShotStopperNetwork::begin(const PersistedSettings &settings,
   settings_ = settings;
   callbacks_ = callbacks;
   stopRequested_.store(false, std::memory_order_release);
-  acceptedCommandQueue_ =
-      xQueueCreate(WEB_COMMAND_QUEUE_LENGTH, sizeof(WebCommand));
-  if (acceptedCommandQueue_ == nullptr) {
+  acceptedCommandQueue_.reset(
+      xQueueCreate(WEB_COMMAND_QUEUE_LENGTH, sizeof(WebCommand)));
+  if (!acceptedCommandQueue_) {
     return false;
   }
-  statusResponseMux_ = xSemaphoreCreateMutex();
-  if (statusResponseMux_ == nullptr) {
-    vQueueDelete(acceptedCommandQueue_);
-    acceptedCommandQueue_ = nullptr;
+  statusResponseMux_.reset(xSemaphoreCreateMutex());
+  if (!statusResponseMux_) {
+    acceptedCommandQueue_.reset();
     return false;
   }
-  taskStopped_ = xSemaphoreCreateBinary();
-  if (taskStopped_ == nullptr) {
-    vSemaphoreDelete(statusResponseMux_);
-    statusResponseMux_ = nullptr;
-    vQueueDelete(acceptedCommandQueue_);
-    acceptedCommandQueue_ = nullptr;
+  taskStopped_.reset(xSemaphoreCreateBinary());
+  if (!taskStopped_) {
+    statusResponseMux_.reset();
+    acceptedCommandQueue_.reset();
     return false;
   }
   workBuf_ = static_cast<NetworkWorkBuf *>(
       allocExternal(sizeof(NetworkWorkBuf)));
   if (workBuf_ == nullptr) {
-    vSemaphoreDelete(taskStopped_);
-    taskStopped_ = nullptr;
-    vSemaphoreDelete(statusResponseMux_);
-    statusResponseMux_ = nullptr;
-    vQueueDelete(acceptedCommandQueue_);
-    acceptedCommandQueue_ = nullptr;
+    taskStopped_.reset();
+    statusResponseMux_.reset();
+    acceptedCommandQueue_.reset();
     noteWorkBufExternal(false);
     return false;
   }
@@ -1069,8 +1063,9 @@ bool ShotStopperNetwork::stop() {
   if (task != nullptr) {
     stopRequested_.store(true, std::memory_order_release);
     xTaskNotifyGive(task);
-    if (taskStopped_ == nullptr ||
-        xSemaphoreTake(taskStopped_, pdMS_TO_TICKS(NETWORK_STOP_TIMEOUT_MS)) !=
+    if (!taskStopped_ ||
+        xSemaphoreTake(taskStopped_.get(),
+                       pdMS_TO_TICKS(NETWORK_STOP_TIMEOUT_MS)) !=
             pdTRUE) {
       return false;
     }
@@ -1086,32 +1081,24 @@ bool ShotStopperNetwork::stop() {
     workBuf_ = nullptr;
     noteWorkBufExternal(false);
   }
-  if (statusResponseMux_ != nullptr) {
-    vSemaphoreDelete(statusResponseMux_);
-    statusResponseMux_ = nullptr;
-  }
-  if (acceptedCommandQueue_ != nullptr) {
-    vQueueDelete(acceptedCommandQueue_);
-    acceptedCommandQueue_ = nullptr;
-  }
-  if (taskStopped_ != nullptr) {
-    vSemaphoreDelete(taskStopped_);
-    taskStopped_ = nullptr;
-  }
+  statusResponseMux_.reset();
+  acceptedCommandQueue_.reset();
+  taskStopped_.reset();
   callbacks_ = {};
   stopRequested_.store(false, std::memory_order_release);
   return true;
 }
 
 bool ShotStopperNetwork::lockWorkBuf() {
-  if (workBuf_ == nullptr || statusResponseMux_ == nullptr) {
+  if (workBuf_ == nullptr || !statusResponseMux_) {
     return false;
   }
-  return xSemaphoreTake(statusResponseMux_, pdMS_TO_TICKS(2500)) == pdTRUE;
+  return xSemaphoreTake(statusResponseMux_.get(), pdMS_TO_TICKS(2500)) ==
+         pdTRUE;
 }
 
 void ShotStopperNetwork::unlockWorkBuf() {
-  xSemaphoreGive(statusResponseMux_);
+  xSemaphoreGive(statusResponseMux_.get());
 }
 
 void ShotStopperNetwork::unlockJsonBody() {
@@ -1140,8 +1127,8 @@ esp_err_t ShotStopperNetwork::workBufBusy(httpd_req_t *request) {
 }
 
 bool ShotStopperNetwork::enqueueAcceptedCommand(const WebCommand &command) {
-  return acceptedCommandQueue_ != nullptr &&
-         xQueueSend(acceptedCommandQueue_, &command, 0) == pdTRUE;
+  return acceptedCommandQueue_ &&
+         xQueueSend(acceptedCommandQueue_.get(), &command, 0) == pdTRUE;
 }
 
 void ShotStopperNetwork::requestNtpSyncIfNeeded() {
@@ -1368,7 +1355,7 @@ void ShotStopperNetwork::taskLoop() {
   stopNtp();
   stopNetwork();
   taskHandle_ = nullptr;
-  if (taskStopped_ != nullptr) xSemaphoreGive(taskStopped_);
+  if (taskStopped_) xSemaphoreGive(taskStopped_.get());
   vTaskDelete(nullptr);
 }
 
@@ -2603,7 +2590,7 @@ void ShotStopperNetwork::finishWifiScan(int16_t resultCount, uint32_t now) {
 }
 
 void ShotStopperNetwork::processAcceptedCommands() {
-  if (acceptedCommandQueue_ == nullptr) {
+  if (!acceptedCommandQueue_) {
     return;
   }
 
@@ -2617,7 +2604,8 @@ void ShotStopperNetwork::processAcceptedCommands() {
 
   const uint32_t now = millis();
   if (!acceptedCommandPending_) {
-    if (xQueueReceive(acceptedCommandQueue_, &acceptedCommand_, 0) != pdTRUE) {
+    if (xQueueReceive(acceptedCommandQueue_.get(), &acceptedCommand_, 0) !=
+        pdTRUE) {
       return;
     }
     acceptedCommandPending_ = true;
@@ -5021,9 +5009,14 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             "\"workerReady\":%s,\"sending\":%s,\"lastSuccess\":%s,"
             "\"lastHttpStatus\":%u,\"lastError\":%ld,"
             "\"lastAttemptAtMs\":%lu,\"sent\":%lu,\"dropped\":%lu,"
-            "\"staleConfigDropped\":%lu,\"workerStartFailures\":%lu,"
+            "\"staleConfigDropped\":%lu,\"workerStarts\":%lu,"
+            "\"workerStops\":%lu,\"workerStartFailures\":%lu,"
             "\"clientCreates\":%lu,\"clientReuses\":%lu,"
-            "\"transportResets\":%lu,\"clientCleanups\":%lu},"
+            "\"transportResets\":%lu,\"clientCleanups\":%lu,"
+            "\"heapSamples\":%lu,\"internalFreeBefore\":%lu,"
+            "\"internalFreeAfter\":%lu,\"internalLargestBefore\":%lu,"
+            "\"internalLargestAfter\":%lu,\"internalLargestMinimum\":%lu,"
+            "\"psramLargestBefore\":%lu,\"psramLargestAfter\":%lu},"
             "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"}",
             webhookConfig.enabled ? "true" : "false", safeWebhookUrl,
             webhookConfig.brewState ? "true" : "false",
@@ -5039,11 +5032,21 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             static_cast<unsigned long>(webhookStatus.sent),
             static_cast<unsigned long>(webhookStatus.dropped),
             static_cast<unsigned long>(webhookStatus.staleConfigDropped),
+            static_cast<unsigned long>(webhookStatus.workerStarts),
+            static_cast<unsigned long>(webhookStatus.workerStops),
             static_cast<unsigned long>(webhookStatus.workerStartFailures),
             static_cast<unsigned long>(webhookStatus.clientCreates),
             static_cast<unsigned long>(webhookStatus.clientReuses),
             static_cast<unsigned long>(webhookStatus.transportResets),
             static_cast<unsigned long>(webhookStatus.clientCleanups),
+            static_cast<unsigned long>(webhookStatus.heapSamples),
+            static_cast<unsigned long>(webhookStatus.internalFreeBefore),
+            static_cast<unsigned long>(webhookStatus.internalFreeAfter),
+            static_cast<unsigned long>(webhookStatus.internalLargestBefore),
+            static_cast<unsigned long>(webhookStatus.internalLargestAfter),
+            static_cast<unsigned long>(webhookStatus.internalLargestMinimum),
+            static_cast<unsigned long>(webhookStatus.psramLargestBefore),
+            static_cast<unsigned long>(webhookStatus.psramLargestAfter),
             static_cast<unsigned long>(network.lastCommandRequestId),
             commandResultStateName(network.lastCommandState));
       }
@@ -5239,6 +5242,36 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         control.bootCapabilities.network ? "true" : "false",
         control.bootCapabilities.psram ? "true" : "false",
         control.bootCapabilities.criticalFaultLatched ? "true" : "false");
+    if (ok) {
+      ok = statusJsonAppend(
+          &used,
+          ",\"webhooks\":{\"workerReady\":%s,\"sending\":%s,"
+          "\"workerStarts\":%lu,\"workerStops\":%lu,"
+          "\"workerStartFailures\":%lu,\"clientCreates\":%lu,"
+          "\"clientReuses\":%lu,\"transportResets\":%lu,"
+          "\"clientCleanups\":%lu,\"heapSamples\":%lu,"
+          "\"internalFreeBefore\":%lu,\"internalFreeAfter\":%lu,"
+          "\"internalLargestBefore\":%lu,\"internalLargestAfter\":%lu,"
+          "\"internalLargestMinimum\":%lu,\"psramLargestBefore\":%lu,"
+          "\"psramLargestAfter\":%lu}",
+          webhookStatus.workerReady ? "true" : "false",
+          webhookStatus.sending ? "true" : "false",
+          static_cast<unsigned long>(webhookStatus.workerStarts),
+          static_cast<unsigned long>(webhookStatus.workerStops),
+          static_cast<unsigned long>(webhookStatus.workerStartFailures),
+          static_cast<unsigned long>(webhookStatus.clientCreates),
+          static_cast<unsigned long>(webhookStatus.clientReuses),
+          static_cast<unsigned long>(webhookStatus.transportResets),
+          static_cast<unsigned long>(webhookStatus.clientCleanups),
+          static_cast<unsigned long>(webhookStatus.heapSamples),
+          static_cast<unsigned long>(webhookStatus.internalFreeBefore),
+          static_cast<unsigned long>(webhookStatus.internalFreeAfter),
+          static_cast<unsigned long>(webhookStatus.internalLargestBefore),
+          static_cast<unsigned long>(webhookStatus.internalLargestAfter),
+          static_cast<unsigned long>(webhookStatus.internalLargestMinimum),
+          static_cast<unsigned long>(webhookStatus.psramLargestBefore),
+          static_cast<unsigned long>(webhookStatus.psramLargestAfter));
+    }
     if (ok) ok = statusJsonAppend(&used, ",\"resetHistory\":[");
     for (uint8_t i = 0; ok && i < control.resetHistoryCount; ++i) {
       const ResetHistoryEntry &entry = control.resetHistory[i];

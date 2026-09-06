@@ -1,0 +1,27 @@
+# Versioned production translation-unit baseline for F-21.
+# Update this manifest and the component CMake files in the same change.
+idf/components/ShotStopperBleRuntime/ShotStopperBleRuntime.cpp
+idf/main/main.cpp
+libraries/EspressoScaleBLE/src/EspressoScaleBLENimble.cpp
+libraries/EspressoScaleBLE/src/ScaleBleStateMachine.cpp
+libraries/EspressoScaleBLE/src/ScaleProtocolCommon.cpp
+libraries/EspressoScaleBLE/src/nimble/NimbleAdvertisement.cpp
+libraries/EspressoScaleBLE/src/nimble/NimbleResilience.cpp
+libraries/EspressoScaleBLE/src/protocols/Acaia.cpp
+libraries/EspressoScaleBLE/src/protocols/Decent.cpp
+libraries/EspressoScaleBLE/src/protocols/Difluid.cpp
+libraries/EspressoScaleBLE/src/protocols/Eclair.cpp
+libraries/EspressoScaleBLE/src/protocols/Eureka.cpp
+libraries/EspressoScaleBLE/src/protocols/Felicita.cpp
+libraries/EspressoScaleBLE/src/protocols/GenericFf11.cpp
+libraries/EspressoScaleBLE/src/protocols/Myscale.cpp
+libraries/EspressoScaleBLE/src/protocols/Registry.cpp
+libraries/EspressoScaleBLE/src/protocols/Varia.cpp
+libraries/EspressoScaleBLE/src/protocols/WeighMyBru.cpp
+shotStopper/ShotStopperNetwork.cpp
+shotStopper/ShotStopperOta.cpp
+shotStopper/ShotStopperResetGuard.cpp
+shotStopper/ShotStopperScaleWorker.cpp
+shotStopper/ShotStopperWebhook.cpp
+shotStopper/ble/ShotStopperBleCompanionNimble.cpp
+shotStopper/shotStopper.cpp

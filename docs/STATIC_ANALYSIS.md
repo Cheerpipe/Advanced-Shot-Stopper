@@ -11,9 +11,15 @@ produced by a normal firmware build. The analysis scripts **never build the
 firmware themselves**; they only read the database and the sources. Each tool
 deletes and recreates its own reports directory on every run.
 
+Before Cppcheck or clang-tidy starts, `audit_compile_commands.py` compares the
+database, the production source tree and the versioned TU manifest. The run
+fails unless all 25/25 current project C++ translation units occur exactly
+once; adding a `.cpp` without registering and reviewing it cannot silently
+reduce coverage.
+
 | Tool | Script | Reports directory | Contract |
 |------|--------|-------------------|----------|
-| Cppcheck | `./scripts/static-idf` | `reports/static-analysis/` | Fails (exit 1) on any finding |
+| Cppcheck | `./scripts/static-idf` | `reports/static-analysis/` | Fails (exit 1) on any warning/performance/portability finding |
 | GCC `-fanalyzer` | `./scripts/gcc_analyzer` | `reports/gcc-analyzer/` | Fails on diagnostics in versioned code (builds with the analyzer enabled) |
 | clang-tidy | `./scripts/static-tidy` | `reports/static-tidy/` | Fails on in-scope diagnostics or parse errors |
 | Include-What-You-Use | `./scripts/iwyu` | `reports/iwyu/` | Advisory: never fails on suggestions, only when tooling is missing or nothing parses |
@@ -22,6 +28,12 @@ Analysis scope (identical for every tool): `shotStopper/`,
 `libraries/EspressoScaleBLE/`, `idf/main/`, and `idf/components/` (the
 project-owned components). ESP-IDF internals, `idf/managed_components/`,
 `idf/third_party/` and Arduino cores are out of scope.
+
+Concurrent host coverage runs real `std::thread` producers/readers under TSAN
+for control snapshots, safety flags/timers, OTA state and JSON parsing.
+ASan/UBSan cover the main functional, persistence, external safety, OTA,
+Companion protocol and unique-resource harnesses. Target-only scheduler/radio
+coverage is specified in [P2 target trace qualification](P2_TARGET_TRACE.md).
 
 Prepare the database once, then run any tool:
 
@@ -217,6 +229,13 @@ brew install cppcheck        # macOS
 in `scripts/cppcheck-suppressions.txt` with a documented reason per entry.
 `gcc_analyzer` **builds** the firmware with `-fanalyzer` enabled and keeps
 only diagnostics whose primary location is versioned code.
+
+`unusedFunction` is intentionally outside this gate. With a filtered,
+variant-specific ESP-IDF compilation database, Cppcheck reports public APIs
+used from other TUs or variants as unused. Enabling it produced dozens of
+non-actionable findings and would require broad suppressions that can hide real
+defects. Dead-code findings are reviewed under F-22 with compiler/linker and
+targeted source evidence; the P2 gate retains the reliable Cppcheck classes.
 
 ## 9. Recommended order for a release check
 

@@ -57,7 +57,9 @@ class PersistenceHostEEPROM {
   std::array<uint8_t, 2> bytes = {0xFF, 0xFF};
 };
 
+#if !defined(SHOT_STOPPER_HOST_STUBS_H)
 inline PersistenceHostEEPROM EEPROM;
+#endif
 
 class Preferences {
  public:

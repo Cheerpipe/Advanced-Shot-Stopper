@@ -6,13 +6,18 @@
 *:**/esp/esp-idf/**
 *:**/idf/managed_components/**
 *:**/idf/third_party/**
+# Owner: firmware-platform. Review/expiry: 2027-03-01.
 # FreeRTOS semaphore macros expand to C casts; not actionable at call sites.
 dangerousTypeCast:*/shotStopper/ShotStopperNetwork.cpp
+dangerousTypeCast:*/shotStopper/ShotStopperNetwork.h
 dangerousTypeCast:*/shotStopper/ShotStopperWebhook.cpp
 dangerousTypeCast:*/shotStopper/ShotStopperTaskMutex.h
+# Owner: safety-kernel. Review/expiry: 2027-03-01.
 # This deliberately uninitialized RTC record preserves reset evidence across a
 # reboot. It is always validated by magic, inverse fields, and checksum before
 # its contents are consumed; initializing it would defeat that safety guard.
 uninitMemberVarNoCtor:*/shotStopper/ShotStopperResetGuard.h
-# unusedFunction false positives are suppressed inline at the call-less
-# Arduino framework entry points (setup/loop in shotStopper.cpp).
+# `unusedFunction` is intentionally not enabled by static-idf: analysis through
+# the filtered, variant-specific ESP-IDF database misclassifies cross-TU public
+# APIs. Dead-code review is tracked separately; setup/loop retain their narrow
+# inline suppressions for tools that enable the check manually.

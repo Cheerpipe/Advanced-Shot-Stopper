@@ -568,6 +568,14 @@ bool settingsPersistenceAvailable();
 #ifndef SHOT_STOPPER_HOST_TEST
 SHOT_STOPPER_PSRAM_BSS PersistedSettings persistedSettings;
 ShotStopperNetwork networkManager;
+
+void syncScaleWorkerNetworkRf(bool scaleLinkOrConnecting,
+                              bool scaleConnectingNow,
+                              bool huntWindowActive) {
+  networkManager.syncScaleLinkRf(scaleLinkOrConnecting);
+  networkManager.syncScaleConnectingRf(scaleConnectingNow);
+  networkManager.syncScaleHuntRf(huntWindowActive);
+}
 #endif
 
 // The esp_timer callback independently opens the machine circuit at the hard limit even if the
@@ -6521,7 +6529,14 @@ void setup() {
                     static_cast<float>(runtimeConfig.goalWeightG)),
                 weightToCentigrams(runtimeConfig.weightOffsetG));
 
-  const bool scaleWorkerOk = initializeScaleWorker();
+#ifndef SHOT_STOPPER_HOST_TEST
+  ScaleWorkerBridgeCallbacks scaleBridge;
+  scaleBridge.syncNetworkRf = syncScaleWorkerNetworkRf;
+  const bool scaleBridgeOk = configureScaleWorkerBridge(scaleBridge);
+#else
+  const bool scaleBridgeOk = true;
+#endif
+  const bool scaleWorkerOk = scaleBridgeOk && initializeScaleWorker();
   if (!scaleWorkerOk) {
     logEmit(LogLevel::ERROR, DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,
             BOOT_SUBSYSTEM_SCALE_WORKER, 0);

@@ -8,6 +8,7 @@
 #include "ShotStopperShotLogTypes.h"
 #include "ShotStopperTime.h"
 #include "ShotStopperTaskMutex.h"
+#include "ShotStopperResourceOwner.h"
 
 #include <WiFi.h>
 #include <esp_http_server.h>
@@ -21,6 +22,14 @@
 struct timeval;
 
 namespace shotstopper {
+
+struct FreeRtosQueueDeleter {
+  void operator()(QueueHandle_t handle) const { vQueueDelete(handle); }
+};
+
+struct FreeRtosSemaphoreDeleter {
+  void operator()(SemaphoreHandle_t handle) const { vSemaphoreDelete(handle); }
+};
 
 enum class StaState : uint8_t {
   NOT_CONFIGURED,
@@ -248,10 +257,11 @@ class ShotStopperNetwork {
 
   PersistedSettings &settings_;
   NetworkBridgeCallbacks callbacks_ = {};
-  QueueHandle_t acceptedCommandQueue_ = nullptr;
+  UniqueResource<QueueHandle_t, FreeRtosQueueDeleter> acceptedCommandQueue_;
   TaskHandle_t taskHandle_ = nullptr;
-  SemaphoreHandle_t taskStopped_ = nullptr;
-  SemaphoreHandle_t statusResponseMux_ = nullptr;
+  UniqueResource<SemaphoreHandle_t, FreeRtosSemaphoreDeleter> taskStopped_;
+  UniqueResource<SemaphoreHandle_t, FreeRtosSemaphoreDeleter>
+      statusResponseMux_;
   NetworkWorkBuf *workBuf_ = nullptr;
   // Network manager is a boot-lifetime owner. stop() is repeatable, while a
   // successful begin-stop-begin cycle is rejected instead of reusing stale

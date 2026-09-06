@@ -7,6 +7,7 @@
 #include <atomic>
 
 #include "ShotStopperTaskMutex.h"
+#include "ShotStopperResourceOwner.h"
 
 #if !defined(SHOT_STOPPER_HOST_TEST) && \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
@@ -160,11 +161,21 @@ struct WebhookStatus {
   uint32_t sent = 0;
   uint32_t dropped = 0;
   uint32_t staleConfigDropped = 0;
+  uint32_t workerStarts = 0;
+  uint32_t workerStops = 0;
   uint32_t workerStartFailures = 0;
   uint32_t clientCreates = 0;
   uint32_t clientReuses = 0;
   uint32_t transportResets = 0;
   uint32_t clientCleanups = 0;
+  uint32_t heapSamples = 0;
+  uint32_t internalFreeBefore = 0;
+  uint32_t internalFreeAfter = 0;
+  uint32_t internalLargestBefore = 0;
+  uint32_t internalLargestAfter = 0;
+  uint32_t internalLargestMinimum = 0;
+  uint32_t psramLargestBefore = 0;
+  uint32_t psramLargestAfter = 0;
 };
 
 #if !defined(SHOT_STOPPER_HOST_TEST) && \
@@ -191,6 +202,12 @@ class WebhookDispatcher {
   void serviceAbort();
 
  private:
+  struct HttpClientDeleter {
+    void operator()(esp_http_client_handle_t client) const {
+      (void)esp_http_client_cleanup(client);
+    }
+  };
+
   struct QueuedWebhook {
     WebhookEvent event;
     uint32_t configGeneration = 0;
@@ -199,7 +216,6 @@ class WebhookDispatcher {
   enum class WorkerState : uint8_t { STOPPED, STARTING, READY, STOPPING };
 
   bool startWorker();
-  void requestWorkerStop();
   void releaseWorkerFromTask();
   static void taskEntry(void *parameter);
   static esp_err_t httpEventHandler(esp_http_client_event_t *event);
@@ -238,8 +254,10 @@ class WebhookDispatcher {
   uint8_t activeClientUsers_ = 0;
   bool cancelInProgress_ = false;
   // Worker-owned and reused for every request with the same URL. activeClient_
-  // is only the cancellable publication while perform() is in flight.
-  void *httpClient_ = nullptr;
+  // is only the cancellable publication while perform() is in flight. The
+  // owner is a final rollback guard; normal cleanup still runs after join so
+  // its result can be published in WebhookStatus.
+  UniqueResource<esp_http_client_handle_t, HttpClientDeleter> httpClient_;
   char httpClientUrl_[WEBHOOK_URL_CAPACITY] = {};
 };
 

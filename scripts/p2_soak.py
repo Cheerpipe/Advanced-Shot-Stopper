@@ -128,6 +128,7 @@ def analyze(records: list[dict[str, Any]], args: argparse.Namespace) -> dict[str
             )
 
     live_clients: list[float] = []
+    worker_starts: list[float] = []
     task_counts: list[int] = []
     for payload in payloads:
         webhook = payload.get("webhooks", {})
@@ -136,6 +137,11 @@ def analyze(records: list[dict[str, Any]], args: argparse.Namespace) -> dict[str
             cleaned = number(webhook, "clientCleanups")
             if created is not None and cleaned is not None:
                 live_clients.append(created - cleaned)
+            starts = number(webhook, "workerStarts")
+            if starts is not None:
+                worker_starts.append(starts)
+        else:
+            failures.append("missing webhooks lifecycle snapshot")
         rows = payload.get("tasks", {}).get("rows", [])
         if isinstance(rows, list) and rows:
             task_counts.append(len(rows))
@@ -145,6 +151,17 @@ def analyze(records: list[dict[str, Any]], args: argparse.Namespace) -> dict[str
             failures.append(
                 f"webhook live HTTP handles out of bound: {min(live_clients):g}..{max(live_clients):g}"
             )
+    else:
+        failures.append("missing webhook client create/cleanup counters")
+    if worker_starts:
+        starts_delta = max(worker_starts) - min(worker_starts)
+        metrics["webhookWorkerStartsDelta"] = starts_delta
+        if starts_delta > 1:
+            failures.append(
+                f"webhook worker restarted {starts_delta:g} times during soak"
+            )
+    else:
+        failures.append("missing webhook worker lifecycle counters")
     if task_counts:
         metrics["profiledTaskCountRange"] = [min(task_counts), max(task_counts)]
 
@@ -240,7 +257,12 @@ def self_test(args: argparse.Namespace) -> int:
             "freeHeapBytes": 100000,
             "largestFreeHeapBlockBytes": 60000,
             "bleRuntimeHostStackMinWords": 600,
-        }
+        },
+        "webhooks": {
+            "workerStarts": 1,
+            "clientCreates": 1,
+            "clientCleanups": 0,
+        },
     }
     records = [{"payload": healthy}, {"payload": json.loads(json.dumps(healthy))}]
     records[1]["payload"]["health"]["uptimeMs"] = 2000

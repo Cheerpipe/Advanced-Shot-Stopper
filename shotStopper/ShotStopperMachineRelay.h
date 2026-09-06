@@ -2,6 +2,7 @@
 
 #include "ShotStopperHardware.h"
 #include "ShotStopperMachineTypes.h"
+#include "ShotStopperResourceOwner.h"
 #include "ShotStopperSafety.h"
 
 // K1 electrical driver and independent deadline/feedback safety.
@@ -192,28 +193,36 @@ bool initializeRelaySafetyTimer() {
   hardArgs.arg = nullptr;
   hardArgs.dispatch_method = ESP_TIMER_TASK;
   hardArgs.name = "circuit_hard_limit";
-  if (esp_timer_create(&hardArgs, &relaySafetyTimer) != ESP_OK) {
+  esp_timer_handle_t hardHandle = nullptr;
+  if (esp_timer_create(&hardArgs, &hardHandle) != ESP_OK) {
     return false;
   }
+  struct TimerRollbackDeleter {
+    void operator()(esp_timer_handle_t handle) const {
+      (void)esp_timer_stop(handle);
+      (void)esp_timer_delete(handle);
+    }
+  };
+  using TimerRollbackOwner =
+      shotstopper::UniqueResource<esp_timer_handle_t, TimerRollbackDeleter>;
+  TimerRollbackOwner hardOwner(hardHandle);
 
   esp_timer_create_args_t operationalArgs = {};
   operationalArgs.callback = &operationalLimitTimerCallback;
   operationalArgs.arg = nullptr;
   operationalArgs.dispatch_method = ESP_TIMER_TASK;
   operationalArgs.name = "circuit_oper_limit";
-  if (esp_timer_create(&operationalArgs, &operationalLimitTimer) != ESP_OK) {
-    (void)esp_timer_delete(relaySafetyTimer);
-    relaySafetyTimer = nullptr;
+  esp_timer_handle_t operationalHandle = nullptr;
+  if (esp_timer_create(&operationalArgs, &operationalHandle) != ESP_OK) {
     return false;
   }
+  TimerRollbackOwner operationalOwner(operationalHandle);
   if (!independentSafetyTimer.begin(&independentSafetyTimerCallback,
                                     nullptr)) {
-    (void)esp_timer_delete(operationalLimitTimer);
-    (void)esp_timer_delete(relaySafetyTimer);
-    operationalLimitTimer = nullptr;
-    relaySafetyTimer = nullptr;
     return false;
   }
+  relaySafetyTimer = hardOwner.release();
+  operationalLimitTimer = operationalOwner.release();
   return true;
 }
 

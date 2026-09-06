@@ -10,6 +10,7 @@ const asset = fs.readFileSync(path.join(sketchDir, 'ShotStopperWebAssets.h'), 'u
 const network = fs.readFileSync(path.join(sketchDir, 'ShotStopperNetwork.cpp'), 'utf8');
 const networkHeader = fs.readFileSync(path.join(sketchDir, 'ShotStopperNetwork.h'), 'utf8');
 const webhookSource = fs.readFileSync(path.join(sketchDir, 'ShotStopperWebhook.cpp'), 'utf8');
+const webhookHeader = fs.readFileSync(path.join(sketchDir, 'ShotStopperWebhook.h'), 'utf8');
 const firmwareCore = fs.readFileSync(path.join(sketchDir, 'shotStopper.cpp'), 'utf8');
 const idfMain = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'main', 'main.cpp'), 'utf8');
@@ -3187,6 +3188,7 @@ if (!webhookSource.includes('allocExternal(queueStorageBytes)') ||
     !webhookSource.includes('esp_http_client_cancel_request(client)') ||
     !webhookSource.includes('cancelActive_') ||
     !webhookSource.includes('ensureHttpClient(live.url)') ||
+    !webhookSource.includes('sampleHeapCaps()') ||
     !webhookSource.includes('webhookClientMustRecreate') ||
     !webhookSource.includes('++status_.clientReuses') ||
     !webhookSource.includes('++status_.transportResets') ||
@@ -3194,6 +3196,14 @@ if (!webhookSource.includes('allocExternal(queueStorageBytes)') ||
     !network.includes('webhooks_.serviceAbort()')) {
   throw new Error(
       'Webhook queue/payload must live in PSRAM; delivery must recheck its gate and actively cancel HTTP outside control/BLE');
+}
+if (!webhookHeader.includes('UniqueResource<esp_http_client_handle_t') ||
+    webhookHeader.includes('void *httpClient_') ||
+    webhookSource.includes('else requestWorkerStop();') ||
+    !webhookSource.includes('++status_.workerStarts') ||
+    !webhookSource.includes('++status_.heapSamples')) {
+  throw new Error(
+      'Webhook worker/client ownership must remain stable and publish per-operation heap evidence');
 }
 if (!webhookSource.includes('\\"sentAtUptimeMs\\"') ||
     !firmwareCore.includes('webhookUnixSecAt(uint32_t occurredAtMs)') ||

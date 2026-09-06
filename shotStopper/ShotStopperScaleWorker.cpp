@@ -6,7 +6,6 @@
 #include "tests/shot_stopper_host_stubs.h"
 #else
 #include "ShotStopperBleRuntime.h"
-#include "ShotStopperNetwork.h"
 #include "ShotStopperBleCompanion.h"
 #include "ShotStopperWatchdog.h"
 #include "ShotStopperHardwareTimer.h"
@@ -54,7 +53,6 @@ bool bleCompanionStatusShouldPublish(bool scaleLinked, bool changed,
 extern QueueHandle_t bleCompanionRequestQueue;
 extern QueueHandle_t bleCompanionResultQueue;
 #if !defined(SHOT_STOPPER_HOST_TEST)
-extern shotstopper::ShotStopperNetwork networkManager;
 extern shotstopper::ShotStopperBleCompanion *bleCompanion;
 #endif
 #endif
@@ -164,6 +162,7 @@ void reportNimbleRuntimeHealth(bool force) {
 #endif
 
 EspressoScaleBLE scale(DEBUG);
+static ScaleWorkerBridgeCallbacks scaleWorkerBridge;
 static TaskHandle_t scaleWorkerTaskHandle = nullptr;
 QueueHandle_t scaleCommandQueue = nullptr;
 QueueHandle_t scaleEventQueue = nullptr;
@@ -1512,10 +1511,20 @@ void serviceScaleScanIntensity() {
 
 void syncScaleRadioCoex() {
 #if !defined(SHOT_STOPPER_HOST_TEST)
-  networkManager.syncScaleLinkRf(scale.isConnecting() || scale.isLinkUp());
-  networkManager.syncScaleConnectingRf(scale.isConnecting());
-  networkManager.syncScaleHuntRf(scaleHuntRfClearActive());
+  if (scaleWorkerBridge.syncNetworkRf != nullptr) {
+    scaleWorkerBridge.syncNetworkRf(scale.isConnecting() || scale.isLinkUp(),
+                                    scale.isConnecting(),
+                                    scaleHuntRfClearActive());
+  }
 #endif
+}
+
+bool configureScaleWorkerBridge(const ScaleWorkerBridgeCallbacks &callbacks) {
+  if (scaleWorkerTaskHandle != nullptr || callbacks.syncNetworkRf == nullptr) {
+    return false;
+  }
+  scaleWorkerBridge = callbacks;
+  return true;
 }
 
 void serviceScaleWorkerDiscovery(uint32_t &lastScanCycleMs,
@@ -2005,6 +2014,9 @@ void scaleWorkerTask(void *) {
 }
 
 bool initializeScaleWorker() {
+#if !defined(SHOT_STOPPER_HOST_TEST)
+  if (scaleWorkerBridge.syncNetworkRf == nullptr) return false;
+#endif
   scaleWorkerStartupFinished.store(false, std::memory_order_relaxed);
 #if !defined(SHOT_STOPPER_HOST_TEST)
   bleStackReady.store(false, std::memory_order_relaxed);

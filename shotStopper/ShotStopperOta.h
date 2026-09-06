@@ -18,6 +18,7 @@
 //    the machine is not left without an application. USB recovery remains.
 
 #include "ShotStopperOtaImage.h"
+#include "ShotStopperResourceOwner.h"
 #include "ShotStopperTaskMutex.h"
 
 #include <stddef.h>
@@ -44,6 +45,14 @@
 #endif
 
 namespace shotstopper {
+
+struct OtaHandleAborter {
+  void operator()(uint32_t handle) const;
+};
+
+struct OtaSha256Deleter {
+  void operator()(void *context) const;
+};
 
 enum class OtaState : uint8_t {
   UNAVAILABLE = 0,  // partition table has no usable second app slot
@@ -299,18 +308,17 @@ class ShotStopperOta {
   const void *runningPartition_ = nullptr;
   const void *targetPartition_ = nullptr;
   bool sessionActive_ = false;
-  bool handleOpen_ = false;
   uint32_t sessionLastActivityMs_ = 0;
   uint32_t sessionGeneration_ = 0;
   OtaSessionIdentity session_ = {};
   char lastChunkSha256_[OTA_SHA256_HEX_CAPACITY] = {};
   uint32_t lastChunkOffset_ = 0;
   uint32_t lastChunkLength_ = 0;
-  uint32_t otaHandle_ = 0;
+  UniqueResource<uint32_t, OtaHandleAborter> otaHandle_;
   OtaImageTagScanner scanner_ = {};
   // Owned mbedtls_sha256_context. Kept opaque here so this public header does
   // not force every consumer to include mbedTLS internals.
-  void *sessionSha256_ = nullptr;
+  UniqueResource<void *, OtaSha256Deleter> sessionSha256_;
   uint32_t journaledBytes_ = 0;
   std::atomic<uint32_t> publishedFlags_{0};
   mutable TaskMutex mutex_;

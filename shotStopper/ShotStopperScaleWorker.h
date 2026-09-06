@@ -4,6 +4,8 @@
 #include "ShotStopperDomain.h"
 #include "ShotStopperTaskMutex.h"
 
+#include <type_traits>
+
 #if !defined(SHOT_STOPPER_HOST_TEST)
 #include <EspressoScaleBLE.h>
 #endif
@@ -55,6 +57,19 @@ constexpr size_t BLE_COMPANION_REQUEST_QUEUE_LENGTH = 8;
 constexpr size_t BLE_COMPANION_RESULT_QUEUE_LENGTH = 8;
 constexpr int SCALE_WORKER_TASK_CORE = 1;
 constexpr uint32_t HEALTH_TELEMETRY_INTERVAL_MS = 5000;
+
+// The scale service publishes radio state through this narrow transport
+// boundary instead of reaching into the NetworkService singleton. All fields
+// are immutable after initializeScaleWorker() creates the task.
+struct ScaleWorkerBridgeCallbacks {
+  void (*syncNetworkRf)(bool scaleLinkOrConnecting, bool scaleConnecting,
+                        bool huntWindowActive) = nullptr;
+};
+
+static_assert(std::is_trivially_copyable<ScaleWorkerBridgeCallbacks>::value,
+              "service boundaries must use trivially-copyable messages");
+
+bool configureScaleWorkerBridge(const ScaleWorkerBridgeCallbacks &callbacks);
 
 void scaleWorkerLoadPreferred(const char *mac, const char *name,
                               const ScaleHistoryEntry *history);

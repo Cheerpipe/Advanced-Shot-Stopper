@@ -195,6 +195,17 @@ void clearJournal() {
 
 }  // namespace
 
+void OtaHandleAborter::operator()(uint32_t handle) const {
+  FlashIoGuard flash;
+  if (flash.ok()) (void)esp_ota_abort(static_cast<esp_ota_handle_t>(handle));
+}
+
+void OtaSha256Deleter::operator()(void *context) const {
+  if (context == nullptr) return;
+  mbedtls_sha256_free(static_cast<mbedtls_sha256_context *>(context));
+  heapCapsFree(context);
+}
+
 ShotStopperOta &ShotStopperOta::instance() {
   static ShotStopperOta shared;
   return shared;
@@ -300,7 +311,7 @@ void ShotStopperOta::removeSessionJournal() { clearJournal(); }
 
 bool ShotStopperOta::persistSession() {
   if (!sessionActive_) return true;
-  if (sessionSha256_ == nullptr) return false;
+  if (!sessionSha256_) return false;
   OtaJournalRecord record;
   record.generation = ++sessionGeneration_;
   record.received = receivedBytes_;
@@ -308,7 +319,8 @@ bool ShotStopperOta::persistSession() {
   mbedtls_sha256_context snapshot;
   mbedtls_sha256_init(&snapshot);
   mbedtls_sha256_clone(
-      &snapshot, static_cast<const mbedtls_sha256_context *>(sessionSha256_));
+      &snapshot,
+      static_cast<const mbedtls_sha256_context *>(sessionSha256_.get()));
   uint8_t digest[32] = {};
   const bool ok = mbedtls_sha256_finish(&snapshot, digest) == 0;
   mbedtls_sha256_free(&snapshot);
@@ -393,7 +405,7 @@ void ShotStopperOta::restoreSessionJournal() {
     return;
   }
   mbedtls_sha256_clone(
-      static_cast<mbedtls_sha256_context *>(sessionSha256_), &hash);
+      static_cast<mbedtls_sha256_context *>(sessionSha256_.get()), &hash);
   mbedtls_sha256_free(&hash);
   if (record.received != 0) {
     esp_ota_handle_t handle = 0;
@@ -407,8 +419,7 @@ void ShotStopperOta::restoreSessionJournal() {
       state_ = OtaState::IDLE;
       return;
     }
-    otaHandle_ = static_cast<uint32_t>(handle);
-    handleOpen_ = true;
+    otaHandle_.reset(static_cast<uint32_t>(handle));
   }
 }
 
@@ -463,14 +474,7 @@ OtaResult ShotStopperOta::finishFailure(OtaResult result) {
 }
 
 void ShotStopperOta::clearSession(bool abortHandle) {
-  if (abortHandle && handleOpen_) {
-    FlashIoGuard flash;
-    if (flash.ok()) {
-      esp_ota_abort(static_cast<esp_ota_handle_t>(otaHandle_));
-    }
-  }
-  handleOpen_ = false;
-  otaHandle_ = 0;
+  if (abortHandle) otaHandle_.reset();
   sessionActive_ = false;
   sessionLastActivityMs_ = 0;
   session_ = OtaSessionIdentity{};
@@ -566,13 +570,14 @@ OtaResult ShotStopperOta::createSession(const OtaSessionIdentity &identity,
 }
 
 bool ShotStopperOta::verifySessionSha256() {
-  if (sessionSha256_ == nullptr || session_.size == 0) {
+  if (!sessionSha256_ || session_.size == 0) {
     return false;
   }
   mbedtls_sha256_context hash;
   mbedtls_sha256_init(&hash);
   mbedtls_sha256_clone(
-      &hash, static_cast<const mbedtls_sha256_context *>(sessionSha256_));
+      &hash,
+      static_cast<const mbedtls_sha256_context *>(sessionSha256_.get()));
   uint8_t digest[32] = {};
   const bool ok = mbedtls_sha256_finish(&hash, digest) == 0;
   mbedtls_sha256_free(&hash);
@@ -586,10 +591,10 @@ bool ShotStopperOta::verifySessionSha256() {
 
 bool ShotStopperOta::startSessionSha256() {
   clearSessionSha256();
-  sessionSha256_ = allocInternal(sizeof(mbedtls_sha256_context));
-  if (sessionSha256_ == nullptr) return false;
+  sessionSha256_.reset(allocInternal(sizeof(mbedtls_sha256_context)));
+  if (!sessionSha256_) return false;
   mbedtls_sha256_context *hash =
-      static_cast<mbedtls_sha256_context *>(sessionSha256_);
+      static_cast<mbedtls_sha256_context *>(sessionSha256_.get());
   mbedtls_sha256_init(hash);
   if (mbedtls_sha256_starts(hash, 0) != 0) {
     clearSessionSha256();
@@ -600,18 +605,14 @@ bool ShotStopperOta::startSessionSha256() {
 
 bool ShotStopperOta::updateSessionSha256(const uint8_t *bytes,
                                          size_t length) {
-  return sessionSha256_ != nullptr && bytes != nullptr &&
+  return sessionSha256_ && bytes != nullptr &&
          mbedtls_sha256_update(
-             static_cast<mbedtls_sha256_context *>(sessionSha256_), bytes,
+             static_cast<mbedtls_sha256_context *>(sessionSha256_.get()), bytes,
              length) == 0;
 }
 
 void ShotStopperOta::clearSessionSha256() {
-  if (sessionSha256_ == nullptr) return;
-  mbedtls_sha256_free(
-      static_cast<mbedtls_sha256_context *>(sessionSha256_));
-  heapCapsFree(sessionSha256_);
-  sessionSha256_ = nullptr;
+  sessionSha256_.reset();
 }
 
 OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
@@ -686,7 +687,7 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
                               ? want
                               : static_cast<size_t>(got);
 
-    if (!handleOpen_) {
+    if (!otaHandle_) {
       if (rangeReceived != 0 || length < OTA_IMAGE_PREFIX_BYTES ||
           validateOtaImageHeader(buffer, length) != OtaImageHeaderResult::OK) {
         failure = OtaResult::BAD_IMAGE;
@@ -699,13 +700,12 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
         failure = OtaResult::WRITE_FAILED;
         break;
       }
-      otaHandle_ = static_cast<uint32_t>(handle);
-      handleOpen_ = true;
+      otaHandle_.reset(static_cast<uint32_t>(handle));
     }
     {
       FlashIoGuard flash;
       if (!flash.ok() ||
-          esp_ota_write(static_cast<esp_ota_handle_t>(otaHandle_), buffer,
+          esp_ota_write(static_cast<esp_ota_handle_t>(otaHandle_.get()), buffer,
                         length) != ESP_OK) {
         failure = OtaResult::WRITE_FAILED;
         break;
@@ -752,7 +752,7 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   const bool hashFinished = mbedtls_sha256_finish(&chunkHash, chunkDigest) == 0;
   mbedtls_sha256_free(&chunkHash);
 
-  if (failure == OtaResult::OK && (!handleOpen_ || rangeReceived != contentLength ||
+  if (failure == OtaResult::OK && (!otaHandle_ || rangeReceived != contentLength ||
                                   !hashFinished)) {
     failure = OtaResult::RECEIVE_FAILED;
   }
@@ -789,7 +789,8 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
 
   // esp_ota_end re-reads the whole slot and verifies the appended SHA-256, so
   // a transfer that was silently corrupted in flight fails here.
-  const esp_ota_handle_t closingHandle = static_cast<esp_ota_handle_t>(otaHandle_);
+  const esp_ota_handle_t closingHandle =
+      static_cast<esp_ota_handle_t>(otaHandle_.release());
   esp_err_t endStatus = ESP_FAIL;
   {
     FlashIoGuard flash;
@@ -798,12 +799,8 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   if (endStatus != ESP_OK) {
     FlashIoGuard flash;
     if (flash.ok()) esp_ota_abort(closingHandle);
-    handleOpen_ = false;
-    otaHandle_ = 0;
     return finishFailure(OtaResult::VERIFY_FAILED);
   }
-  handleOpen_ = false;
-  otaHandle_ = 0;
   if (!verifySessionSha256()) return finishFailure(OtaResult::HASH_MISMATCH);
 
   // One last look at the machine before advertising the image as flashable.

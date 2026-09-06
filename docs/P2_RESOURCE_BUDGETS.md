@@ -56,6 +56,12 @@ stack below 384 words when exported, or a sustained largest-block loss over
 the task profiler or use debug-export evidence so stack qualification is not
 omitted.
 
+The diagnostic snapshot also carries webhook worker/client lifecycle and
+before/after heap-by-capability samples for each send. The analyzer rejects
+more than one worker creation during a capture, missing lifecycle counters, or
+more than one live HTTP client. A disabled webhook keeps an already-created
+worker idle; only service shutdown performs stop/ack/join and releases it.
+
 Required release artifacts are the JSONL, summary, firmware build ID, board
 revision, board architecture, power/RF setup and an operator timeline marking
 each injected event. Run 8 h for scheduling qualification and 72 h for the

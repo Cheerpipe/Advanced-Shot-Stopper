@@ -178,17 +178,10 @@ bool WebhookDispatcher::startWorker() {
   mux_.lock();
   workerState_ = WorkerState::READY;
   status_.workerReady = true;
+  ++status_.workerStarts;
   mux_.unlock();
   xSemaphoreGive(lifecycleMutex_);
   return true;
-}
-
-void WebhookDispatcher::requestWorkerStop() {
-  if (lifecycleMutex_ == nullptr ||
-      xSemaphoreTake(lifecycleMutex_, portMAX_DELAY) != pdTRUE) return;
-  if (workerState_ == WorkerState::READY) workerState_ = WorkerState::STOPPING;
-  stopAfterDrain_ = false;
-  xSemaphoreGive(lifecycleMutex_);
 }
 
 void WebhookDispatcher::releaseWorkerFromTask() {
@@ -210,6 +203,7 @@ void WebhookDispatcher::releaseWorkerFromTask() {
     mux_.lock();
     status_.workerReady = false;
     status_.sending = false;
+    ++status_.workerStops;
     mux_.unlock();
     xSemaphoreGive(lifecycleMutex_);
   }
@@ -221,12 +215,12 @@ void WebhookDispatcher::releaseWorkerFromTask() {
 
 esp_http_client_handle_t WebhookDispatcher::ensureHttpClient(const char *url) {
   if (!validWebhookUrl(url)) return nullptr;
-  if (httpClient_ != nullptr &&
+  if (httpClient_ &&
       !webhookClientMustRecreate(httpClientUrl_, url)) {
     mux_.lock();
     ++status_.clientReuses;
     mux_.unlock();
-    return static_cast<esp_http_client_handle_t>(httpClient_);
+    return httpClient_.get();
   }
 
   cleanupHttpClient();
@@ -238,7 +232,7 @@ esp_http_client_handle_t WebhookDispatcher::ensureHttpClient(const char *url) {
   config.event_handler = httpEventHandler;
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (client == nullptr) return nullptr;
-  httpClient_ = client;
+  httpClient_.reset(client);
   const size_t length = strnlen(url, sizeof(httpClientUrl_) - 1U);
   memcpy(httpClientUrl_, url, length);
   httpClientUrl_[length] = '\0';
@@ -249,13 +243,11 @@ esp_http_client_handle_t WebhookDispatcher::ensureHttpClient(const char *url) {
 }
 
 void WebhookDispatcher::cleanupHttpClient() {
-  if (httpClient_ == nullptr) {
+  if (!httpClient_) {
     httpClientUrl_[0] = '\0';
     return;
   }
-  esp_http_client_handle_t client =
-      static_cast<esp_http_client_handle_t>(httpClient_);
-  httpClient_ = nullptr;
+  esp_http_client_handle_t client = httpClient_.release();
   httpClientUrl_[0] = '\0';
   const esp_err_t cleanupError = esp_http_client_cleanup(client);
   mux_.lock();
@@ -281,8 +273,11 @@ void WebhookDispatcher::setConfig(const WebhookConfig &config) {
     if (configGeneration_ == 0) configGeneration_ = 1;
   }
   mux_.unlock();
+  // Once created, keep the worker and its PSRAM buffers idle across ordinary
+  // enable/disable changes. This avoids task/queue/stack churn under repeated
+  // configuration updates. stop() remains the sole lifecycle teardown and
+  // still performs stop/ack/join before releasing resources.
   if (config.enabled) (void)startWorker();
-  else requestWorkerStop();
 }
 
 WebhookConfig WebhookDispatcher::config() const {
@@ -541,8 +536,10 @@ bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,
 }
 
 bool WebhookDispatcher::send(const QueuedWebhook &queued) {
+  const HeapCapSnapshot heapBefore = sampleHeapCaps();
   WebhookConfig live;
   uint32_t generation = 0;
+  const HeapCapSnapshot heapAfter = sampleHeapCaps();
   mux_.lock();
   live = config_;
   generation = configGeneration_;
@@ -640,6 +637,17 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   status_.lastError = static_cast<int32_t>(error);
   if (ok) ++status_.sent;
   else ++status_.dropped;
+  ++status_.heapSamples;
+  status_.internalFreeBefore = heapBefore.internalFree;
+  status_.internalFreeAfter = heapAfter.internalFree;
+  status_.internalLargestBefore = heapBefore.internalLargest;
+  status_.internalLargestAfter = heapAfter.internalLargest;
+  if (status_.internalLargestMinimum == 0 ||
+      heapAfter.internalLargest < status_.internalLargestMinimum) {
+    status_.internalLargestMinimum = heapAfter.internalLargest;
+  }
+  status_.psramLargestBefore = heapBefore.psramLargest;
+  status_.psramLargestAfter = heapAfter.psramLargest;
   mux_.unlock();
   return ok;
 }
