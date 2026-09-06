@@ -6783,14 +6783,9 @@ void loop() {
   // heartbeat, packet, timer and connection operation. Restart before heap
   // walks: a failed Wi-Fi stop can leave TLSF unwalkable.
   serviceRelaySafety();
-  if (consumeTaskWatchdogRestoreFailure()) {
-    reportTaskWatchdogFault();
-    tripRelaySafety(RelaySafetyFault::TASK_WATCHDOG_FAILURE);
-    requestSafeRestart();
-  }
   if (safeRestartPending()) {
     const bool faultRestart =
-        criticalTaskWatchdogFaulted() || taskWatchdogRestoreFailurePending();
+        criticalTaskWatchdogFaulted();
     if (faultRestart ||
         (!session.active && !getRelaySafetySnapshot().closed)) {
       machineRequestStop();

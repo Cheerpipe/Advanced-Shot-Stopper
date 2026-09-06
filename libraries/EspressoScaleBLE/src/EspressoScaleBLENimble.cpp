@@ -573,6 +573,7 @@ class NimbleScaleClient {
     result.mbufFailures = mbufFailures_;
     result.cleanupCount = cleanupCount_;
     result.duplicateCleanups = duplicateCleanups_;
+    result.teardownFailures = teardownFailures_;
     result.backoffCount = backoffCount_;
     result.lastAdvertisementToConnectMs = lastAdvertisementToConnectMs_;
     result.lastAdvertisementToReadyMs = lastAdvertisementToReadyMs_;
@@ -1935,18 +1936,24 @@ class NimbleScaleClient {
       lastReason_ = reason;
       lastRawStatus_ = rawStatus;
     }
+    // Generation is invalidated before touching NimBLE. A cancellation can
+    // synchronously or asynchronously surface a callback, but neither may
+    // reacquire ownership after this point.
+    int teardownStatus = 0;
     if (previous == State::Scanning || previous == State::CancelPending ||
         previous == State::Backoff) {
-      (void)ble_gap_disc_cancel();
+      teardownStatus = ble_gap_disc_cancel();
     } else if (previous == State::Connecting) {
-      (void)ble_gap_conn_cancel();
+      teardownStatus = ble_gap_conn_cancel();
     }
+    noteTeardownResult(teardownStatus);
     portENTER_CRITICAL(&mux_);
     connectionHandle_ = kInvalidHandle;
     readHandle_ = 0;
     portEXIT_CRITICAL(&mux_);
     if (terminatePeer && oldHandle != kInvalidHandle) {
-      (void)ble_gap_terminate(oldHandle, BLE_ERR_REM_USER_CONN_TERM);
+      noteTeardownResult(
+          ble_gap_terminate(oldHandle, BLE_ERR_REM_USER_CONN_TERM));
     }
     protocol_ = nullptr;
     writeHandle_ = 0;
@@ -2016,6 +2023,15 @@ class NimbleScaleClient {
     return true;
   }
 
+  void noteTeardownResult(int status) {
+    // A completed/no-longer-active GAP procedure is the expected race with a
+    // remote disconnect. Any other error is retained for diagnostics while
+    // the already-invalidated generation keeps the client fail-closed.
+    if (status == 0 || status == BLE_HS_EALREADY) return;
+    ++teardownFailures_;
+    lastRawStatus_ = status;
+  }
+
   void clearScanData() {
     portENTER_CRITICAL(&advertMux_);
     memset(candidates_, 0, sizeof(candidates_));
@@ -2081,6 +2097,7 @@ class NimbleScaleClient {
   bool criticalOverflowed_ = false;
   bool eventOverflowed_ = false;
   uint32_t staleCallbacks_ = 0;
+  uint32_t teardownFailures_ = 0;
 
   Candidate candidates_[kCandidateCount] = {};
   NimbleNegativeCache negativeCache_;

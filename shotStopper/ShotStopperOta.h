@@ -195,6 +195,8 @@ struct OtaStatusSnapshot {
   uint32_t nextOffset = 0;
   uint32_t chunkBytes = OTA_TRANSFER_CHUNK_BYTES;
   uint32_t sessionExpiresInMs = 0;
+  uint32_t abortFailures = 0;
+  uint32_t journalFailures = 0;
   OtaSessionIdentity session = {};
   char lastChunkSha256[OTA_SHA256_HEX_CAPACITY] = {};
 };

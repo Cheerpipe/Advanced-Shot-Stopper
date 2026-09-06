@@ -52,6 +52,42 @@ Estos resultados demuestran una base funcional fuerte, pero **no refutan carrera
 | P2 media | Deuda con impacto en mantenibilidad, rendimiento o capacidad de diagnóstico | Cerrar en endurecimiento |
 | P3 baja | Limpieza, coherencia o defensa futura | Incorporar al mantenimiento normal |
 
+### 2.4 Línea base y matriz de trazabilidad de cierre
+
+Esta matriz separa una corrección presente en el árbol de la evidencia de
+ejecución. La línea base del cierre es `b7ed7eb9a0fad9e3236c3225c10235efa8f56765`
+(2026-09-06), ESP32-S3 N16R8, ESP-IDF 5.5.5, Arduino como componente y
+`idf/sdkconfig.defaults.n16r8`. El build de liberación debe registrar además
+el `sdkconfig` generado, hash ELF y versión de toolchain: esos artefactos no
+pueden inferirse de esta auditoría estática.
+
+| Hallazgo | Código / símbolo | Prueba host prevista | Sanitizer | HIL | Estado final actual |
+|---|---|---|---|---|---|
+| F-01 | `ScaleWorkerBridgeCallbacks`, `publishScaleWorkerPolicy` | `scale_worker_concurrency_host_test` | TSAN | matriz BLE/control | pendiente |
+| F-02 | snapshots bajo `TaskLockGuard` | `shot_stopper_host_test M09` | TSAN | carga combinada | implementación; HIL pendiente |
+| F-03 | `SafetyEventFlags` | `shot_stopper_host_test F03` | TSAN | fault de cada productor | implementación; HIL pendiente |
+| F-04 | `IndependentSafetyTimer` | `shot_stopper_host_test F04` | TSAN | borde arm/stop/ISR | implementación; HIL pendiente |
+| F-05 | persistencia transaccional | `persistence_host_test` | ASan/UBSan | fallo de creación | implementación; HIL pendiente |
+| F-06 | `BootCapability` / estado de arranque | `shot_stopper_host_test` | ASan/UBSan | matriz de dependencias | implementación; HIL pendiente |
+| F-07 | lease/generación NimBLE | `nimble_lifecycle_host_test` | TSAN | teardown BLE por fase | pendiente |
+| F-08 | cola `serial_log` | suite host | ASan/UBSan | soak de USB | implementación; HIL pendiente |
+| F-09 | `ShotStopperOta::publishedState` | `ota_state_concurrency_host_test` | TSAN | OTA interrumpida | implementación; HIL pendiente |
+| F-10 | journal OTA / `FlashIoGuard` | `ota_image_host_test` | ASan/UBSan | OTA/abort/flash | implementación; HIL pendiente |
+| F-11 | `parseJsonDocument` | `json_arena_host_test` | TSAN | presión HTTP | implementado/verificado en host; HIL pendiente |
+| F-12 | locks de tarea / `CONCURRENCY.md` | suite host | TSAN aplicable | traza locks | implementación; HIL pendiente |
+| F-13 | `ShotStopperScheduling.h` | `p2_soak.py --self-test` | n/a | 8 h | implementación; HIL pendiente |
+| F-14 | buzzer, OTA, NimBLE, NVS | `critical_return_host_test` | ASan/UBSan | fault injection | pendiente |
+| F-15 | `begin/stop` Network/Webhook | `webhook_error_host_test` | ASan/UBSan | restart de servicio | implementación; HIL pendiente |
+| F-16 | registro RTC de una TU | `reset_guard_instance_host_test` | ASan/UBSan | reinicio | implementación; HIL pendiente |
+| F-17 | snapshots de telemetría | `shot_stopper_host_test F17` | TSAN | soak | implementación; HIL pendiente |
+| F-18 | telemetría de recursos | `p2_soak.py --self-test` | n/a | 72 h | implementación; HIL pendiente |
+| F-19 | ownership de handles | `resource_owner_host_test` | ASan/UBSan | ciclos de servicio | implementación; HIL pendiente |
+| F-20 | límites en `check_architecture.py` | `check_architecture.py` | n/a | revisión de build | verificado en host; build target pendiente |
+| F-21 | manifiesto TU/análisis | `audit_compile_commands.py` | analizadores | traza objetivo | pendiente |
+| F-22 | gates de símbolos muertos | `check_web_assets.js` | ASan/UBSan aplicable | soak | implementación; HIL pendiente |
+
+Ninguna fila con HIL pendiente equivale a una calificación de misión crítica.
+
 La “confianza” expresa certeza del hallazgo estático, no probabilidad de ocurrencia en campo.
 
 ## 3. Modelo actual de ejecución y memoria
@@ -215,17 +251,18 @@ Se crea `settingsPersistQueue` antes de `settings_persist`. Si `xTaskCreatePinne
 
 ## P1 — Altos
 
-**Estado del plan P1 (2026-09-06): ✅ COMPLETADO (implementación F-08 a F-17).**
+**Estado del plan P1 (2026-09-06): implementación completada en los puntos
+cerrados; la calificación HIL continúa pendiente.**
 
 | Requisito | Estado | Evidencia de cierre |
 |---|---|---|
 | F-08 Logging no bloqueante y sincronizado | ✅ Completado | Flag atómico de criticidad, cola serial acotada con drops y exportación lineal por chunks |
 | F-09 Estado OTA sincronizado | ✅ Completado | Mutex de transición, estado publicado y flags de restart atómicos; prueba concurrente TSAN |
 | F-10 OTA acotada y coordinada con flash | ✅ Completado | SHA incremental, journal cada 512 KiB, coordinador flash/NVS y sin ampliación global del TWDT |
-| F-11 JSON reentrante | ✅ Completado | Documentos cJSON independientes, sin hooks/arena globales; límites y prueba concurrente TSAN |
+| F-11 JSON reentrante | ✅ Host verificado | Documentos cJSON independientes, sin hooks/arena globales; límites de bytes/nodos/profundidad y prueba concurrente TSAN |
 | F-12 Spinlocks reducidos y orden documentado | ✅ Completado | Mutexes task-only, trabajo RTC fuera del lock ISR y DAG en `docs/CONCURRENCY.md` |
 | F-13 Contrato de schedulability | ✅ Completado | Tabla versionada y telemetría de deadlines; procedimiento HIL de 8 h en `docs/SCHEDULABILITY.md` |
-| F-14 Retornos críticos manejados | ✅ Completado | Fallo inmediato/rollback y telemetría en HTTP, Wi-Fi, RF coexistence y timers de relé |
+| F-14 Retornos críticos manejados | 🟡 En cierre | Fallo/rollback en HTTP, Wi-Fi, RF y relé; quedan inventario completo y fault injection NVS/OTA |
 | F-15 Inicio/parada transaccional | ✅ Completado | `begin/stop` reversibles con stop/ack/join para Network y Webhook; fault injection host |
 | F-16 Única instancia RTC | ✅ Completado | Definición en una sola TU y prueba multi-TU |
 | F-17 Telemetría coherente | ✅ Completado | Contadores atómicos, snapshot con versión/timestamp y prueba multiwriter/reader TSAN |
@@ -273,14 +310,15 @@ El task HTTP ejecuta `create/write/snapshot/commit/discard`, mientras `network_m
 
 ### F-10. Persistencia OTA con amplificación de lectura/escritura y degradación global del TWDT
 
-**Estado de remediación (2026-09-06): ✅ corregido.** El SHA se mantiene de
+**Estado de remediación (2026-09-06): ✅ corregido en software.** El SHA se mantiene de
 forma incremental, los checkpoints del journal se espaciaron a 512 KiB y toda
 operación de partición/NVS usa el coordinador de flash. Se eliminó la ampliación
 global del TWDT; los bucles largos ceden CPU y alimentan el watchdog local.
 
 **Vectores:** TWDT, flash, rendimiento, errores  
 **Confianza:** alta  
-**Evidencia:** `ShotStopperOta.cpp:202-301`, `:435-510`; `TaskWatchdogOtaWindow` y journal `:135-157`.
+**Evidencia:** `ShotStopperOta.cpp`; journal de 512 KiB, contadores de fallo
+de abort/journal y watchdog global configurado una sola vez.
 
 Cada checkpoint vuelve a leer y hashear todo el prefijo de la imagen. Con una imagen de 3 MiB y checkpoints de 64 KiB, el patrón suma aproximadamente 73,5 MiB de relectura, además del hash final y verificación de `esp_ota_end`; también genera cerca de 48 actualizaciones de journal NVS. La restauración en boot y verificación recorren el prefijo sin un yield/feed explícito.
 
@@ -352,11 +390,11 @@ Control y scale worker comparten núcleo y prioridad efectiva cercana, ambos con
 
 ### F-14. Manejo incompleto de retornos `esp_err_t` y equivalentes
 
-**Estado de remediación (2026-09-06): ✅ corregido para las rutas P1
-identificadas.** Los setters HTTP fallan antes de `perform`, Wi-Fi conserva el
-error inmediato, RF coexistence solo publica preferencias aplicadas y expone
-error/conteo, y la creación de timers de relé hace rollback completo. Las ramas
-de error cuentan con fault injection host.
+**Estado de remediación (2026-09-06): 🟡 parcialmente corregido.** Además de
+HTTP/Wi-Fi/RF/relé, buzzer verifica sus timers y queda fail-silent, OTA cuenta
+abortos/journal fallidos, y NimBLE registra teardown inesperado tras invalidar
+su generación. El inventario completo y fault injection de todas las rutas NVS
+siguen abiertos; no se declara cerrado por la suite host.
 
 **Vectores:** resiliencia, mantenibilidad  
 **Confianza:** alta  
@@ -477,7 +515,7 @@ dominio sin incluir ambos monolitos.
 **Vectores:** arquitectura, mantenibilidad, complejidad ciclomática  
 **Confianza:** alta  
 
-`ShotStopperNetwork.cpp` (~8.500 líneas) reúne Wi-Fi, HTTP routing, auth, JSON, serialización, NTP, OTA y comandos de almacenamiento. `shotStopper.cpp` (~6.500 líneas) y `ShotStopperDomain.h` (~3.200) concentran estado y lógica transversal. El ELF muestra funciones muy grandes: el status handler ronda 16 KiB de código máquina, restore del journal OTA ~13 KiB, config handler y procesador de comandos varios KiB. El tamaño máquina está afectado por inlining, pero confirma una superficie difícil de revisar.
+`ShotStopperNetwork.cpp` está limitado a 8.750 líneas y aún reúne Wi-Fi, HTTP routing, auth, JSON, serialización, NTP, OTA y comandos de almacenamiento. `shotStopper.cpp` (~6.500 líneas) y `ShotStopperDomain.h` (~3.200) concentran estado y lógica transversal. El ELF muestra funciones muy grandes: el status handler ronda 16 KiB de código máquina, restore del journal OTA ~13 KiB, config handler y procesador de comandos varios KiB. El tamaño máquina está afectado por inlining, pero confirma una superficie difícil de revisar.
 
 Los headers con implementación y los `extern` globales vuelven implícitas las dependencias y frágil el orden de inclusión/ODR.
 
@@ -517,7 +555,7 @@ de release explícito.
 
 **Corrección:** compilar/analisar todas las unidades desde `compile_commands.json`; activar selectivamente `bugprone`, `performance`, `cert` y reglas C++ Core Guidelines relevantes sin ahogar señales; harness POSIX con tasks reales y TSAN; ASan/UBSan; target stress con SystemView o ESP-IDF tracing. Agregar mutation/fault injection para ramas de error.
 
-**Aceptación:** cobertura 23/23 TUs; cero race report no justificado; baseline de warnings versionado; cada suppress con owner y caducidad.
+**Aceptación:** cobertura 25/25 TUs; cero race report no justificado; baseline de warnings versionado; cada suppress con owner y caducidad.
 
 ## P3 — Limpieza y deuda menor
 
@@ -634,7 +672,8 @@ procedimiento definido, pendiente de ejecución sobre el dispositivo físico.
 **Objetivo:** demostrar márgenes, no solo observar ausencia de watchdog.
 
 **Estado de implementación (2026-09-06): 🟡 en curso.** El detalle resumible
-y la distinción implementación/HIL se mantienen en `SESSION_HANDOFF.md`.
+y la distinción implementación/HIL se mantienen en `SCHEDULABILITY.md`,
+`P2_RESOURCE_BUDGETS.md` y `P2_TARGET_TRACE.md`.
 
 1. [~] Tabla de tareas con periodo/deadline/WCET/prioridad/bloqueo/stack/core:
    contrato e instrumentación implementados; WCET calificado HIL pendiente.
@@ -659,7 +698,7 @@ y la distinción implementación/HIL se mantienen en `SESSION_HANDOFF.md`.
 1. Separar SafetyKernel, Control, Scale, Network, Persistence y Diagnostics.
 2. Sustituir `extern` globales por interfaces y mensajes de ownership explícito.
 3. Incorporar RAII no asignante para handles.
-4. Cubrir 23/23 TUs con compile database; añadir clang-tidy, ASan/UBSan/TSAN.
+4. Mantener 25/25 TUs con compile database; añadir clang-tidy, ASan/UBSan/TSAN.
 5. Pruebas HIL de larga duración, brownout, desconexión RF, flash llena, host serie bloqueado y OTA interrumpida.
 6. Versionar presupuesto temporal/memoria y fallar CI ante regresión.
 

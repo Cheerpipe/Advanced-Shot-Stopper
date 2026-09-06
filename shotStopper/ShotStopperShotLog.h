@@ -354,12 +354,20 @@ class ShotLog {
       unlockFlashIo();
       return false;
     }
-    (void)preferences.remove(SHOT_LOG_KEY_A);
-    (void)preferences.remove(SHOT_LOG_KEY_B);
-    (void)preferences.remove(SHOT_LOG_ACTIVE_KEY);
-    (void)preferences.remove(SHOT_LOG_KEY_LEGACY);
+    const bool erased =
+        (!preferences.isKey(SHOT_LOG_KEY_A) ||
+         preferences.remove(SHOT_LOG_KEY_A)) &&
+        (!preferences.isKey(SHOT_LOG_KEY_B) ||
+         preferences.remove(SHOT_LOG_KEY_B)) &&
+        (!preferences.isKey(SHOT_LOG_ACTIVE_KEY) ||
+         preferences.remove(SHOT_LOG_ACTIVE_KEY)) &&
+        (!preferences.isKey(SHOT_LOG_KEY_LEGACY) ||
+         preferences.remove(SHOT_LOG_KEY_LEGACY));
     preferences.end();
     unlockFlashIo();
+    if (!erased) {
+      return false;
+    }
     resetShotLogStore(store_,
                       store_.header.bootId == 0 ? 1U : store_.header.bootId);
     dirty_ = false;

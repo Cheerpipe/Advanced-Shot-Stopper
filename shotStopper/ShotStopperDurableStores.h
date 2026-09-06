@@ -64,8 +64,9 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
   // Drop history blobs first so the 20 KiB NVS partition has room for
   // factory settings writes. A later failure may already have erased
   // history; settings stay until resetPersistedSettingsToFactory succeeds.
-  (void)shotLog.erasePersisted();
-  (void)lastShot.erasePersisted();
+  if (!shotLog.erasePersisted() || !lastShot.erasePersisted()) {
+    return false;
+  }
   yieldFlashIo();
   feedFlashIoWatchdog();
   if (!shotLog.clear() || !shotCurves.clear() || !lastShot.clear()) {

@@ -81,6 +81,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   hostLedcLastFreq = 0;
   hostEspTimerCreateSucceeds = true;
   hostEspTimerStartSucceeds = true;
+  hostEspTimerStopSucceeds = true;
   hostEspTimerCreateCalls = 0;
   hostEspTimerCreateFailAtCall = 0;
   hostGptimerCreateSucceeds = true;
@@ -1773,23 +1774,6 @@ void r18_watchdog_fault_opens_circuit_and_requests_safe_restart() {
   CHECK(hostPinLevel[RELAY_GPIO] == RELAY_OPEN_LEVEL);
 }
 
-void r18b_ota_watchdog_restore_failure_requests_safe_restart() {
-  resetHarness(false, false);
-  CHECK(setMachineCircuitClosed(true, 5000));
-  hostTaskWatchdogOperationsSucceed = true;
-  {
-    TaskWatchdogOtaWindow window;
-    CHECK(window.widened());
-    hostTaskWatchdogOperationsSucceed = false;
-  }
-  CHECK(taskWatchdogRestoreFailurePending());
-  runLoopAfter(0);
-  const RelaySafetySnapshot relay = getRelaySafetySnapshot();
-  CHECK(!relay.closed);
-  CHECK(relay.fault == RelaySafetyFault::TASK_WATCHDOG_FAILURE);
-  CHECK(!taskWatchdogRestoreFailurePending());
-}
-
 void r19_reset_during_close_reopens_without_recovery_lockout() {
   resetHarness(false, false);
   recordRelayCommandedClosed(true);
@@ -2873,6 +2857,26 @@ void w50b_buzzer_phase_timer_holds_triple_rhythm_without_loop() {
   hostServiceEspTimer(localBuzzer.phaseTimer);
   CHECK(hostPinLevel[BUZZER_GPIO] == LOW);
   CHECK(!localBuzzer.busy());
+}
+
+void w50f_buzzer_timer_failures_drop_audio_without_affecting_relay() {
+  resetHarness(false, false);
+  hostEspTimerStartSucceeds = false;
+  CHECK(!localBuzzer.request(BuzzerPattern::TRIPLE));
+  CHECK(localBuzzer.phaseTimerFailures == 1);
+  CHECK(localBuzzer.lastPhaseTimerError != ESP_OK);
+  CHECK(!localBuzzer.busy());
+  CHECK(hostPinLevel[BUZZER_GPIO] == LOW);
+  CHECK(!getRelaySafetySnapshot().closed);
+
+  hostEspTimerStartSucceeds = true;
+  CHECK(localBuzzer.request(BuzzerPattern::SINGLE));
+  hostEspTimerStopSucceeds = false;
+  localBuzzer.stopAll();
+  CHECK(localBuzzer.phaseTimerFailures == 2);
+  CHECK(!localBuzzer.busy());
+  CHECK(hostPinLevel[BUZZER_GPIO] == LOW);
+  CHECK(!getRelaySafetySnapshot().closed);
 }
 
 void w50e_buzzer_phase_timer_holds_double_as_truncated_triple() {
@@ -9142,12 +9146,6 @@ void f03_safety_event_flags_preserve_consumed_requests() {
             []() { requestSafeRestart(); },
             []() { return safeRestartPending(); },
             []() { return consumeSafeRestartRequest(); }) == kIterations);
-  CHECK(exerciseConsumedSignal(
-            []() { reportTaskWatchdogRestoreFailure(); },
-            []() { return taskWatchdogRestoreFailurePending(); },
-            []() { return consumeTaskWatchdogRestoreFailure(); }) ==
-        kIterations);
-
   safetyEventFlags.clear(SAFETY_EVENT_CRITICAL_TASK_WATCHDOG);
   std::atomic<bool> startFaultWriters{false};
   auto faultWriter = [&]() {
@@ -11722,7 +11720,6 @@ const TestCase testCases[] = {
     {"R16", r16_timeout_during_arm_transaction_can_never_close_circuit},
     {"R17", r17_gptimer_arm_failure_prevents_relay_energization},
     {"R18", r18_watchdog_fault_opens_circuit_and_requests_safe_restart},
-    {"R18b", r18b_ota_watchdog_restore_failure_requests_safe_restart},
     {"R19", r19_reset_during_close_reopens_without_recovery_lockout},
     {"R19b", r19b_panic_boot_is_ready_for_webui_and_next_circuit_cycle},
     {"R20", r20_three_unsafe_resets_are_latched_as_a_boot_loop},
@@ -11921,6 +11918,7 @@ const TestCase testCases[] = {
     {"W44", w44_paddle_return_reminder_stops_after_fifteen_minutes},
     {"W50", w50_local_buzzer_plays_triple_pattern_non_blocking},
     {"W50b", w50b_buzzer_phase_timer_holds_triple_rhythm_without_loop},
+    {"W50f", w50f_buzzer_timer_failures_drop_audio_without_affecting_relay},
     {"W50e", w50e_buzzer_phase_timer_holds_double_as_truncated_triple},
     {"W50c", w50c_buzzer_phase_timer_advances_despite_loop_stall},
     {"W50d", w50d_recovery_buzzer_patterns_have_exact_timings},

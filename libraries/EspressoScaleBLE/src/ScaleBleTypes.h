@@ -103,6 +103,7 @@ struct ScaleBleBackendHealth {
     uint32_t mbufFailures;
     uint32_t cleanupCount;
     uint32_t duplicateCleanups;
+    uint32_t teardownFailures;
     uint32_t backoffCount;
     uint32_t lastAdvertisementToConnectMs;
     uint32_t lastAdvertisementToReadyMs;

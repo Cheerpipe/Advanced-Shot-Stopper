@@ -65,6 +65,11 @@ struct LocalBuzzer {
   uint32_t deadlineAtMs = 0;
   uint32_t pendingDurationMs = 0;
   uint32_t acceptedRequests = 0;
+  // These remain observable in the control diagnostic snapshot through the
+  // buzzer owner; an audio scheduling fault must not be silently mistaken for
+  // an ordinary completed cue.
+  uint32_t phaseTimerFailures = 0;
+  int32_t lastPhaseTimerError = ESP_OK;
   uint32_t toneHz = BUZZER_TONE_HZ;
   const BuzzerNote *sequenceNotes = nullptr;
   // The catalog and the active playback buffer both stay in internal RAM:
@@ -133,8 +138,8 @@ struct LocalBuzzer {
   void stopTone();
   void applyDeadline(uint32_t durationMs, uint32_t nowMs);
   bool deadlineReached(uint32_t nowMs) const;
-  void cancelPhaseTimer();
-  void armPhaseTimer(uint32_t delayMs);
+  bool cancelPhaseTimer();
+  bool armPhaseTimer(uint32_t delayMs);
   void finish(uint32_t nowMs);
   bool startPattern(BuzzerPattern pattern, uint32_t nowMs);
   bool startRtttl(const BuzzerToneCommand &cmd, uint32_t nowMs);
@@ -149,19 +154,50 @@ struct LocalBuzzer {
   static void phaseTimerCallback(void *arg);
 };
 
-inline void LocalBuzzer::cancelPhaseTimer() {
-  if (phaseTimer != nullptr) {
-    (void)esp_timer_stop(phaseTimer);
-  }
+inline bool LocalBuzzer::cancelPhaseTimer() {
+  if (phaseTimer == nullptr) return true;
+  const int status = esp_timer_stop(phaseTimer);
+#ifdef SHOT_STOPPER_HOST_TEST
+  const bool benign = status == ESP_OK;
+#else
+  // Stopping an already-fired/already-stopped timer is expected during a
+  // phase callback; all other failures leave the cue fail-silent.
+  const bool benign = status == ESP_OK || status == ESP_ERR_INVALID_STATE;
+#endif
+  if (benign) return true;
+  ++phaseTimerFailures;
+  lastPhaseTimerError = status;
+  stopTone();
+  clearPlayback();
+  pending = BuzzerPattern::NONE;
+  pendingCue = BuzzerCue::NONE;
+  pendingPulseRate = 0;
+  pendingDurationMs = 0;
+  return false;
 }
 
-inline void LocalBuzzer::armPhaseTimer(uint32_t delayMs) {
-  cancelPhaseTimer();
+inline bool LocalBuzzer::armPhaseTimer(uint32_t delayMs) {
+  if (!cancelPhaseTimer()) return false;
   if (phaseTimer == nullptr || delayMs == 0) {
-    return;
+    if (delayMs == 0) return true;
+    ++phaseTimerFailures;
+    lastPhaseTimerError = ESP_ERR_INVALID_STATE;
+    stopTone();
+    clearPlayback();
+    return false;
   }
-  (void)esp_timer_start_once(phaseTimer,
-                             static_cast<uint64_t>(delayMs) * 1000ULL);
+  const int status = esp_timer_start_once(
+      phaseTimer, static_cast<uint64_t>(delayMs) * 1000ULL);
+  if (status == ESP_OK) return true;
+  ++phaseTimerFailures;
+  lastPhaseTimerError = status;
+  stopTone();
+  clearPlayback();
+  pending = BuzzerPattern::NONE;
+  pendingCue = BuzzerCue::NONE;
+  pendingPulseRate = 0;
+  pendingDurationMs = 0;
+  return false;
 }
 
 inline void LocalBuzzer::phaseTimerCallback(void *arg) {
@@ -193,6 +229,8 @@ inline void LocalBuzzer::begin(uint8_t gpioPin) {
   pendingPulseRate = 0;
   pendingDurationMs = 0;
   acceptedRequests = 0;
+  phaseTimerFailures = 0;
+  lastPhaseTimerError = ESP_OK;
   toneOn = false;
   clearPlayback();
   cancelPhaseTimer();
@@ -207,6 +245,11 @@ inline void LocalBuzzer::begin(uint8_t gpioPin) {
     args.name = "buzzer_phase";
     if (esp_timer_create(&args, &phaseTimer) != ESP_OK) {
       phaseTimer = nullptr;
+      // Creation has no timer-specific benign status. Preserve the failure
+      // for diagnostics without keeping a partially initialized buzzer live.
+      lastPhaseTimerError = -1;
+      ++phaseTimerFailures;
+      return;
     }
   }
   if (!buzzerPassiveBegin(pin)) {
@@ -387,11 +430,10 @@ inline bool LocalBuzzer::startRtttl(const BuzzerToneCommand &cmd,
   phaseStartedAtMs = nowMs;
   if (toneHz > 0) {
     startTone();
-    armPhaseTimer(onMs);
+    return armPhaseTimer(onMs);
   } else {
-    armPhaseTimer(gapMs);
+    return armPhaseTimer(gapMs);
   }
-  return true;
 #endif
 }
 
@@ -452,8 +494,7 @@ inline bool LocalBuzzer::startPattern(BuzzerPattern pattern, uint32_t nowMs) {
   beepIndex = 0;
   phaseStartedAtMs = nowMs;
   startTone();
-  armPhaseTimer(onMs);
-  return true;
+  return armPhaseTimer(onMs);
 }
 
 inline bool LocalBuzzer::acceptLocked(BuzzerPattern pattern, BuzzerCue cue,

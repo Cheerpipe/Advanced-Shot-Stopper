@@ -67,6 +67,8 @@ constexpr uint32_t OTA_PUBLISHED_BUSY = 1U << 1;
 constexpr uint32_t OTA_PUBLISHED_PENDING_VERIFY = 1U << 2;
 constexpr uint32_t OTA_PUBLISHED_CONFIRMED = 1U << 3;
 constexpr uint32_t OTA_PUBLISHED_REJECTED = 1U << 4;
+std::atomic<uint32_t> otaAbortFailures{0};
+std::atomic<uint32_t> otaJournalFailures{0};
 
 // Two NVS records make a power cut during the metadata update harmless. The
 // image itself remains in the inactive OTA partition; this journal only says
@@ -165,36 +167,55 @@ bool readJournal(const char *key, OtaJournalRecord &record) {
 }
 
 bool writeJournal(const char *key, const OtaJournalRecord &record) {
-  if (!tryLockFlashIo()) return false;
+  if (!tryLockFlashIo()) {
+    otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
+    return false;
+  }
   Preferences preferences;
   if (!preferences.begin("ota", false)) {
     unlockFlashIo();
+    otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
     return false;
   }
   const size_t length = preferences.putBytes(key, &record, sizeof(record));
   preferences.end();
   unlockFlashIo();
-  return length == sizeof(record);
+  const bool written = length == sizeof(record);
+  if (!written) otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
+  return written;
 }
 
-void clearJournal() {
-  if (!tryLockFlashIo()) return;
+bool clearJournal() {
+  if (!tryLockFlashIo()) {
+    otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
+    return false;
+  }
   Preferences preferences;
   if (!preferences.begin("ota", false)) {
     unlockFlashIo();
-    return;
+    otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
+    return false;
   }
-  preferences.remove("j0");
-  preferences.remove("j1");
+  const bool removed =
+      (!preferences.isKey("j0") || preferences.remove("j0")) &&
+      (!preferences.isKey("j1") || preferences.remove("j1"));
   preferences.end();
   unlockFlashIo();
+  if (!removed) otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
+  return removed;
+}
+
+bool abortOtaHandle(esp_ota_handle_t handle) {
+  FlashIoGuard flash;
+  const bool aborted = flash.ok() && esp_ota_abort(handle) == ESP_OK;
+  if (!aborted) otaAbortFailures.fetch_add(1, std::memory_order_relaxed);
+  return aborted;
 }
 
 }  // namespace
 
 void OtaHandleAborter::operator()(uint32_t handle) const {
-  FlashIoGuard flash;
-  if (flash.ok()) (void)esp_ota_abort(static_cast<esp_ota_handle_t>(handle));
+  abortOtaHandle(static_cast<esp_ota_handle_t>(handle));
 }
 
 void OtaSha256Deleter::operator()(void *context) const {
@@ -439,6 +460,8 @@ OtaStatusSnapshot ShotStopperOta::snapshot() const {
   copy.running = runningTag_;
   copy.sessionActive = sessionActive_;
   copy.nextOffset = receivedBytes_;
+  copy.abortFailures = otaAbortFailures.load(std::memory_order_relaxed);
+  copy.journalFailures = otaJournalFailures.load(std::memory_order_relaxed);
   copy.session = session_;
   memcpy(copy.lastChunkSha256, lastChunkSha256_, sizeof(lastChunkSha256_));
   if (sessionActive_) {
@@ -793,8 +816,7 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
     if (flash.ok()) endStatus = esp_ota_end(closingHandle);
   }
   if (endStatus != ESP_OK) {
-    FlashIoGuard flash;
-    if (flash.ok()) esp_ota_abort(closingHandle);
+    abortOtaHandle(closingHandle);
     return finishFailure(OtaResult::VERIFY_FAILED);
   }
   if (!verifySessionSha256()) return finishFailure(OtaResult::HASH_MISMATCH);

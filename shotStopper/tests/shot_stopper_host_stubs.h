@@ -22,6 +22,7 @@ constexpr int pdPASS = 1;
 constexpr int tskIDLE_PRIORITY = 0;
 constexpr uint32_t portMAX_DELAY = UINT32_MAX;
 constexpr int ESP_OK = 0;
+constexpr int ESP_ERR_INVALID_STATE = -2;
 constexpr int ESP_TIMER_TASK = 0;
 
 using String = std::string;
@@ -773,6 +774,7 @@ using esp_timer_handle_t = HostEspTimer *;
 
 inline bool hostEspTimerCreateSucceeds = true;
 inline bool hostEspTimerStartSucceeds = true;
+inline bool hostEspTimerStopSucceeds = true;
 inline uint32_t hostEspTimerCreateCalls = 0;
 inline uint32_t hostEspTimerCreateFailAtCall = 0;
 
@@ -799,7 +801,7 @@ inline int esp_timer_start_once(esp_timer_handle_t timer, uint64_t timeoutUs) {
 }
 
 inline int esp_timer_stop(esp_timer_handle_t timer) {
-  if (timer == nullptr) {
+  if (!hostEspTimerStopSucceeds || timer == nullptr) {
     return -1;
   }
   timer->active = false;

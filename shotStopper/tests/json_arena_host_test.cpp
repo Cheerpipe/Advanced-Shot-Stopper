@@ -103,11 +103,52 @@ void testSizeLimitAndNullRejectCleanly() {
   CHECK(!shotstopper::jsonDocumentLimitRejectedRecently());
 }
 
-void testEscapedBracketsDoNotCountAsNesting() {
+std::string repeatedArrayValues(size_t count) {
+  std::string body = "[";
+  for (size_t i = 0; i < count; ++i) {
+    if (i != 0) body += ',';
+    body += '0';
+  }
+  return body + ']';
+}
+
+std::string repeatedObjectValues(size_t count) {
+  std::string body = "{";
+  for (size_t i = 0; i < count; ++i) {
+    if (i != 0) body += ',';
+    body += "\"v" + std::to_string(i) + "\":0";
+  }
+  return body + '}';
+}
+
+void testValueLimitAtBoundaryForArraysAndObjects() {
+  // The root container is one cJSON value, so it leaves max-1 child values.
+  const size_t children = shotstopper::JSON_DOCUMENT_MAX_VALUES - 1;
+  cJSON *array = shotstopper::parseJsonDocument(repeatedArrayValues(children).c_str());
+  CHECK(array != nullptr);
+  cJSON_Delete(array);
+  cJSON *object =
+      shotstopper::parseJsonDocument(repeatedObjectValues(children).c_str());
+  CHECK(object != nullptr);
+  cJSON_Delete(object);
+
+  const uint32_t before = shotstopper::jsonDocumentLimitRejections();
+  CHECK(shotstopper::parseJsonDocument(
+            repeatedArrayValues(children + 1).c_str()) == nullptr);
+  CHECK(shotstopper::jsonDocumentLimitRejections() == before + 1);
+  CHECK(shotstopper::jsonDocumentLimitRejectedRecently());
+  CHECK(shotstopper::parseJsonDocument(
+            repeatedObjectValues(children + 1).c_str()) == nullptr);
+  CHECK(shotstopper::jsonDocumentLimitRejections() == before + 2);
+}
+
+void testStringsEscapesAndInvalidDocuments() {
   cJSON *const root = shotstopper::parseJsonDocument(
-      "{\"text\":\"[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[\"}");
+      "{\"text\":\"[,]{\\\"quoted\\\"}\\\\slash\",\"comma\":\",]\"}");
   CHECK(root != nullptr);
   cJSON_Delete(root);
+  CHECK(shotstopper::parseJsonDocument("{\"missing\":[1,}") == nullptr);
+  CHECK(!shotstopper::jsonDocumentLimitRejectedRecently());
 }
 
 }  // namespace
@@ -118,7 +159,8 @@ int main() {
   testConcurrentParsesDoNotShareStorage();
   testDepthLimitRejectsWithoutDamagingPriorDocument();
   testSizeLimitAndNullRejectCleanly();
-  testEscapedBracketsDoNotCountAsNesting();
+  testValueLimitAtBoundaryForArraysAndObjects();
+  testStringsEscapesAndInvalidDocuments();
   if (failures != 0) {
     std::cerr << failures << " JSON parser host test(s) failed\n";
     return 1;

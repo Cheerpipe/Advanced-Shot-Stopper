@@ -13,11 +13,154 @@ namespace shotstopper {
 // hand an unbounded C string to cJSON.
 constexpr size_t JSON_DOCUMENT_MAX_BYTES = 2047;
 constexpr size_t JSON_DOCUMENT_MAX_DEPTH = 32;
+// Every cJSON value consumes a heap node. Bound node count independently from
+// wire size so a short sequence such as `[0,0,...]` cannot make a request
+// allocate an unreviewed number of small blocks.
+constexpr size_t JSON_DOCUMENT_MAX_VALUES = 128;
 
 namespace detail {
 
 inline std::atomic<uint32_t> g_jsonLimitRejections{0};
 inline thread_local bool g_jsonLimitRejectedRecently = false;
+
+struct JsonStructureScanner {
+  const char *body;
+  size_t length;
+  size_t cursor = 0;
+  size_t values = 0;
+
+  bool atEnd() const { return cursor >= length; }
+  char current() const { return atEnd() ? '\0' : body[cursor]; }
+
+  void skipWhitespace() {
+    while (!atEnd() && (current() == ' ' || current() == '\n' ||
+                       current() == '\r' || current() == '\t')) {
+      ++cursor;
+    }
+  }
+
+  bool consume(char expected) {
+    if (current() != expected) return false;
+    ++cursor;
+    return true;
+  }
+
+  bool scanString() {
+    if (!consume('"')) return false;
+    while (!atEnd()) {
+      const unsigned char c = static_cast<unsigned char>(body[cursor++]);
+      if (c == '"') return true;
+      if (c < 0x20) return false;
+      if (c != '\\') continue;
+      if (atEnd()) return false;
+      const char escaped = body[cursor++];
+      if (escaped == '"' || escaped == '\\' || escaped == '/' ||
+          escaped == 'b' || escaped == 'f' || escaped == 'n' ||
+          escaped == 'r' || escaped == 't') {
+        continue;
+      }
+      if (escaped != 'u' || length - cursor < 4) return false;
+      for (size_t i = 0; i < 4; ++i) {
+        const char hex = body[cursor++];
+        if (!((hex >= '0' && hex <= '9') || (hex >= 'a' && hex <= 'f') ||
+              (hex >= 'A' && hex <= 'F'))) {
+          return false;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool scanLiteral(const char *literal) {
+    for (; *literal != '\0'; ++literal) {
+      if (!consume(*literal)) return false;
+    }
+    return true;
+  }
+
+  bool scanNumber() {
+    if (current() == '-') ++cursor;
+    if (current() == '0') {
+      ++cursor;
+    } else {
+      if (current() < '1' || current() > '9') return false;
+      do {
+        ++cursor;
+      } while (current() >= '0' && current() <= '9');
+    }
+    if (current() == '.') {
+      ++cursor;
+      if (current() < '0' || current() > '9') return false;
+      do {
+        ++cursor;
+      } while (current() >= '0' && current() <= '9');
+    }
+    if (current() == 'e' || current() == 'E') {
+      ++cursor;
+      if (current() == '+' || current() == '-') ++cursor;
+      if (current() < '0' || current() > '9') return false;
+      do {
+        ++cursor;
+      } while (current() >= '0' && current() <= '9');
+    }
+    return true;
+  }
+
+  bool scanValue() {
+    skipWhitespace();
+    if (++values > JSON_DOCUMENT_MAX_VALUES) return false;
+    switch (current()) {
+      case '{':
+        return scanObject();
+      case '[':
+        return scanArray();
+      case '"':
+        return scanString();
+      case 't':
+        return scanLiteral("true");
+      case 'f':
+        return scanLiteral("false");
+      case 'n':
+        return scanLiteral("null");
+      default:
+        return scanNumber();
+    }
+  }
+
+  bool scanObject() {
+    ++cursor;  // '{'
+    skipWhitespace();
+    if (consume('}')) return true;
+    while (true) {
+      if (!scanString()) return false;  // Object keys are not cJSON values.
+      skipWhitespace();
+      if (!consume(':') || !scanValue()) return false;
+      skipWhitespace();
+      if (consume('}')) return true;
+      if (!consume(',')) return false;
+      skipWhitespace();
+    }
+  }
+
+  bool scanArray() {
+    ++cursor;  // '['
+    skipWhitespace();
+    if (consume(']')) return true;
+    while (true) {
+      if (!scanValue()) return false;
+      skipWhitespace();
+      if (consume(']')) return true;
+      if (!consume(',')) return false;
+      skipWhitespace();
+    }
+  }
+
+  bool scanDocument() {
+    if (!scanValue()) return false;
+    skipWhitespace();
+    return atEnd();
+  }
+};
 
 inline bool jsonNestingWithinLimit(const char *body, size_t length) {
   size_t depth = 0;
@@ -46,6 +189,14 @@ inline bool jsonNestingWithinLimit(const char *body, size_t length) {
   return true;
 }
 
+inline bool jsonValuesWithinLimit(const char *body, size_t length) {
+  JsonStructureScanner scanner{body, length};
+  // Syntax failures are delegated to cJSON, which retains its detailed and
+  // compatible JSON validation. A false result here is only used as an early
+  // rejection after the value budget is exceeded.
+  return scanner.scanDocument() || scanner.values <= JSON_DOCUMENT_MAX_VALUES;
+}
+
 inline void noteJsonLimitRejection() {
   g_jsonLimitRejectedRecently = true;
   g_jsonLimitRejections.fetch_add(1, std::memory_order_relaxed);
@@ -64,7 +215,8 @@ inline cJSON *parseJsonDocument(const char *body) {
 
   const size_t length = strnlen(body, JSON_DOCUMENT_MAX_BYTES + 1);
   if (length > JSON_DOCUMENT_MAX_BYTES ||
-      !detail::jsonNestingWithinLimit(body, length)) {
+      !detail::jsonNestingWithinLimit(body, length) ||
+      !detail::jsonValuesWithinLimit(body, length)) {
     detail::noteJsonLimitRejection();
     return nullptr;
   }

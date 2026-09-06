@@ -153,9 +153,13 @@ class LastShotStore {
       unlockFlashIo();
       return false;
     }
-    (void)preferences.remove(LAST_SHOT_KEY);
+    const bool erased =
+        !preferences.isKey(LAST_SHOT_KEY) || preferences.remove(LAST_SHOT_KEY);
     preferences.end();
     unlockFlashIo();
+    if (!erased) {
+      return false;
+    }
     resetLastShotBlob(blob_);
     return true;
 #endif

@@ -43,6 +43,7 @@ void resetSafety() {
   hostRelayClosedWrites = 0;
   hostEspTimerCreateSucceeds = true;
   hostEspTimerStartSucceeds = true;
+  hostEspTimerStopSucceeds = true;
   hostGptimerCreateSucceeds = true;
   hostGptimerArmSucceeds = true;
   hostTaskWatchdogOperationsSucceed = true;

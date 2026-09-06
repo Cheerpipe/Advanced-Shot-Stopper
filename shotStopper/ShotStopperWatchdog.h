@@ -29,18 +29,11 @@ namespace shotstopper {
 
 constexpr uint32_t TASK_WATCHDOG_TIMEOUT_MS = 5000;
 
-// Flash erase and the SHA-256 pass at the end of an OTA hold the cache long
-// enough that the normal 5 s budget is not a useful liveness signal. Machine circuit stays
-// bounded throughout by the independent hardware timer, which this never
-// touches, and OTA only runs with the relay already open.
-constexpr uint32_t TASK_WATCHDOG_OTA_TIMEOUT_MS = 30000;
-
 constexpr uint32_t SAFETY_EVENT_CRITICAL_TASK_WATCHDOG = 1U << 0;
 constexpr uint32_t SAFETY_EVENT_SAFE_RESTART = 1U << 1;
-constexpr uint32_t SAFETY_EVENT_TASK_WATCHDOG_RESTORE = 1U << 2;
 constexpr uint32_t SAFETY_EVENT_ALL =
     SAFETY_EVENT_CRITICAL_TASK_WATCHDOG | SAFETY_EVENT_SAFE_RESTART |
-    SAFETY_EVENT_TASK_WATCHDOG_RESTORE;
+    0U;
 
 // ESP-IDF disables C++ hardware atomics for this Xtensa target. A statically
 // allocated event group gives task/callback producers and the control task a
@@ -95,14 +88,16 @@ class SafetyEventFlags {
 
 inline SafetyEventFlags safetyEventFlags;
 
-inline bool applyTaskWatchdogTimeout(uint32_t timeoutMs) {
+// This is the sole production configuration of the global watchdog. OTA and
+// flash paths retain their local yields/feeds and independent relay cutoff;
+// they must never weaken the liveness budget for unrelated tasks.
+inline bool configureTaskWatchdog() {
 #ifdef SHOT_STOPPER_HOST_TEST
-  (void)timeoutMs;
   hostTaskWatchdogConfigured = hostTaskWatchdogOperationsSucceed;
   return hostTaskWatchdogConfigured;
 #else
   esp_task_wdt_config_t config = {};
-  config.timeout_ms = timeoutMs;
+  config.timeout_ms = TASK_WATCHDOG_TIMEOUT_MS;
   config.idle_core_mask = (1U << portNUM_PROCESSORS) - 1U;
   config.trigger_panic = true;
 
@@ -113,47 +108,6 @@ inline bool applyTaskWatchdogTimeout(uint32_t timeoutMs) {
   return result == ESP_OK;
 #endif
 }
-
-inline bool configureTaskWatchdog() {
-  return applyTaskWatchdogTimeout(TASK_WATCHDOG_TIMEOUT_MS);
-}
-
-// Set when an OTA window widened the TWDT but could not restore 5 s. The
-// control loop trips machine circuit and requests a safe restart so 30 s never
-// sticks.
-inline void reportTaskWatchdogRestoreFailure() {
-  safetyEventFlags.set(SAFETY_EVENT_TASK_WATCHDOG_RESTORE);
-}
-
-inline bool taskWatchdogRestoreFailurePending() {
-  return safetyEventFlags.isSet(SAFETY_EVENT_TASK_WATCHDOG_RESTORE);
-}
-
-inline bool consumeTaskWatchdogRestoreFailure() {
-  return safetyEventFlags.consume(SAFETY_EVENT_TASK_WATCHDOG_RESTORE);
-}
-
-// Widens the task watchdog for the duration of a scope and always restores the
-// production timeout, including on every early return from an OTA transfer.
-class TaskWatchdogOtaWindow {
-  public:
-  TaskWatchdogOtaWindow()
-      : widened_(applyTaskWatchdogTimeout(TASK_WATCHDOG_OTA_TIMEOUT_MS)) {}
-  ~TaskWatchdogOtaWindow() {
-    if (!widened_) {
-      return;
-    }
-    if (!applyTaskWatchdogTimeout(TASK_WATCHDOG_TIMEOUT_MS)) {
-      reportTaskWatchdogRestoreFailure();
-    }
-  }
-  TaskWatchdogOtaWindow(const TaskWatchdogOtaWindow &) = delete;
-  TaskWatchdogOtaWindow &operator=(const TaskWatchdogOtaWindow &) = delete;
-  bool widened() const { return widened_; }
-
-  private:
-  bool widened_;
-};
 
 inline bool subscribeCurrentTaskToWatchdog() {
 #ifdef SHOT_STOPPER_HOST_TEST

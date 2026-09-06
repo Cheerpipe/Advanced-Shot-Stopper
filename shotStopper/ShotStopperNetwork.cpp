@@ -8406,7 +8406,7 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
       "\"passwordRequired\":true,\"passwordAvailable\":true,\"restartPending\":%s,"
       "\"transferId\":\"%s\",\"sha256\":\"%s\",\"nextOffset\":%lu,"
       "\"chunkBytes\":%lu,\"sessionActive\":%s,\"sessionExpiresInMs\":%lu,"
-      "\"lastChunkSha256\":\"%s\"",
+      "\"lastChunkSha256\":\"%s\",\"abortFailures\":%lu,\"journalFailures\":%lu",
       ota_.available ? "true" : "false",
       ShotStopperOta::stateName(ota_.state),
       static_cast<unsigned long>(ota_.slotBytes),
@@ -8423,7 +8423,9 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
       ota_.session.sha256, static_cast<unsigned long>(ota_.nextOffset),
       static_cast<unsigned long>(ota_.chunkBytes),
       ota_.sessionActive ? "true" : "false",
-      static_cast<unsigned long>(ota_.sessionExpiresInMs), ota_.lastChunkSha256);
+      static_cast<unsigned long>(ota_.sessionExpiresInMs), ota_.lastChunkSha256,
+      static_cast<unsigned long>(ota_.abortFailures),
+      static_cast<unsigned long>(ota_.journalFailures));
   if (written <= 0 || static_cast<size_t>(written) >= capacity) {
     snprintf(buffer, capacity, "{\"available\":false}");
     return;
@@ -8444,7 +8446,6 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
   buffer[used++] = '}';
   buffer[used] = '\0';
 }
-
 esp_err_t ShotStopperNetwork::sendOtaSnapshot(httpd_req_t *request,
                                               const char *httpStatus) {
   const ControlGateSnapshot control = controlGate();
@@ -8498,7 +8499,6 @@ void ShotStopperNetwork::otaTransferProgress(void *context, uint32_t received,
                                 static_cast<unsigned long>(expected / 1024U));
   transfer->network->touchAdminUnlock();
 }
-
 esp_err_t ShotStopperNetwork::otaStatusHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   if (!self.authorizeOtaRequest(request)) {
@@ -8508,7 +8508,6 @@ esp_err_t ShotStopperNetwork::otaStatusHandler(httpd_req_t *request) {
   ShotStopperOta::instance().expireSession(millis());
   return self.sendOtaSnapshot(request, STATUS_OK);
 }
-
 esp_err_t ShotStopperNetwork::otaUploadHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   if (!self.authorizeOtaRequest(request)) {
@@ -8518,7 +8517,6 @@ esp_err_t ShotStopperNetwork::otaUploadHandler(httpd_req_t *request) {
   return sendError(request, STATUS_CONFLICT, "OTA_SESSION_REQUIRED",
                    "Create /api/v1/ota/session, then upload PATCH ranges.");
 }
-
 esp_err_t ShotStopperNetwork::otaSessionHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   if (!self.authorizeOtaRequest(request)) {

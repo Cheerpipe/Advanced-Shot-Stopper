@@ -62,6 +62,7 @@ void resetHarness() {
   hostRelayClosedWrites = 0;
   hostEspTimerCreateSucceeds = true;
   hostEspTimerStartSucceeds = true;
+  hostEspTimerStopSucceeds = true;
   hostGptimerCreateSucceeds = true;
   hostGptimerArmSucceeds = true;
   hostCircuitArmBeforeCommitHook = nullptr;
