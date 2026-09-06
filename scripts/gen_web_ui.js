@@ -10,14 +10,14 @@ const CleanCSS = require('clean-css');
 const zopfli = require('@gfx/zopfli');
 
 const repoRoot = path.resolve(__dirname, '..');
-const sourcePath = path.join(repoRoot, 'shotStopper', 'ShotStopperWebAssets.h');
-const jsDir = path.join(repoRoot, 'shotStopper', 'web', 'js');
-const htmlDir = path.join(repoRoot, 'shotStopper', 'web', 'html');
-const appJsPath = path.join(repoRoot, 'shotStopper', 'web', 'app.js');
-const cssSourcePath = path.join(repoRoot, 'shotStopper', 'web', 'app.css');
-const versionPath = path.join(repoRoot, 'shotStopper', 'ShotStopperVersion.h');
+const sourcePath = path.join(repoRoot, 'src', 'ShotStopperWebAssets.h');
+const jsDir = path.join(repoRoot, 'src', 'web', 'js');
+const htmlDir = path.join(repoRoot, 'src', 'web', 'html');
+const appJsPath = path.join(repoRoot, 'src', 'web', 'app.js');
+const cssSourcePath = path.join(repoRoot, 'src', 'web', 'app.css');
+const versionPath = path.join(repoRoot, 'src', 'ShotStopperVersion.h');
 const outputPath =
-    path.join(repoRoot, 'shotStopper', 'ShotStopperWebAssetsGzip.h');
+    path.join(repoRoot, 'src', 'ShotStopperWebAssetsGzip.h');
 
 const VIEW_NAMES = ['home', 'stats', 'diagnostic', 'settings', 'admin'];
 const LAZY_PARTIALS = ['stats', 'diagnostic', 'settings', 'admin'];

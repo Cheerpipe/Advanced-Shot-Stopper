@@ -18,10 +18,10 @@ libraries/EspressoScaleBLE/src/protocols/Myscale.cpp
 libraries/EspressoScaleBLE/src/protocols/Registry.cpp
 libraries/EspressoScaleBLE/src/protocols/Varia.cpp
 libraries/EspressoScaleBLE/src/protocols/WeighMyBru.cpp
-shotStopper/ShotStopperNetwork.cpp
-shotStopper/ShotStopperOta.cpp
-shotStopper/ShotStopperResetGuard.cpp
-shotStopper/ShotStopperScaleWorker.cpp
-shotStopper/ShotStopperWebhook.cpp
-shotStopper/ble/ShotStopperBleCompanionNimble.cpp
-shotStopper/shotStopper.cpp
+src/ShotStopperNetwork.cpp
+src/ShotStopperOta.cpp
+src/ShotStopperResetGuard.cpp
+src/ShotStopperScaleWorker.cpp
+src/ShotStopperWebhook.cpp
+src/ble/ShotStopperBleCompanionNimble.cpp
+src/shotStopper.cpp

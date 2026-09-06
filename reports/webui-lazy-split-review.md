@@ -14,7 +14,7 @@ No se modificó código en esta pasada; este documento es el backlog de correcci
 
 ## Hallazgos
 
-### [P1] `ingestPresets` crashea si Settings no está cargado — `shotStopper/web/js/runtime.js` (~L138)
+### [P1] `ingestPresets` crashea si Settings no está cargado — `src/web/js/runtime.js` (~L138)
 
 Al cambiar el preset activo desde un poll de **Home**, se ejecuta:
 
@@ -57,7 +57,7 @@ if ($('configDirtyHint')) $('configDirtyHint').classList.add('hidden');
 
 ---
 
-### [P1] Timers de Log/History se duplican al re-entrar la misma vista — `shotStopper/web/app.js` (`startView` / `renderRoute`)
+### [P1] Timers de Log/History se duplican al re-entrar la misma vista — `src/web/app.js` (`startView` / `renderRoute`)
 
 `startView` crea `logTimer` / `shotsTimer` **sin** limpiar los anteriores. `armStatusTimer` sí hace `clearInterval` del status timer.
 
@@ -129,7 +129,7 @@ El preámbulo de hooks se concatenó delante del archivo original y dejó un seg
 
 ## Verificación post-fix
 
-- `npm run gen:web-ui && node shotStopper/tests/check_web_assets.js`
+- `npm run gen:web-ui && node src/tests/check_web_assets.js`
 - Manual: Home sin abrir Settings → forzar cambio de preset activo en status (o simular) → no debe romper polls.
 - Manual: Settings → Save machine settings sin haber abierto Admin → no exception en consola.
 - Manual: Diagnostic → click otra vez Diagnostic → en Network, `/api/v1/log` no debe doblar frecuencia.

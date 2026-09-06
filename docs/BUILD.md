@@ -186,15 +186,15 @@ and stay on **115200**. Press RST on the board after opening the monitor.
 ```sh
 npm install
 ./libraries/EspressoScaleBLE/tests/run_host_tests.sh
-./shotStopper/tests/run_host_tests.sh
-node ./shotStopper/tests/check_web_assets.js
-node ./shotStopper/tests/check_firmware_size.js build-idf/n16r8/shotstopper.bin
+./src/tests/run_host_tests.sh
+node ./src/tests/check_web_assets.js
+node ./src/tests/check_firmware_size.js build-idf/n16r8/shotstopper.bin
 ```
 
 Skip the size check if you have not compiled yet. Coverage (optional):
 
 ```sh
-./shotStopper/tests/run_coverage.sh
+./src/tests/run_coverage.sh
 ```
 
 Automated tests do not replace the [manual test plan](MANUAL_TEST_PLAN.md).

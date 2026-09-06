@@ -23,8 +23,8 @@ secrets.h
 credentials.h
 WiFiSecrets.h
 *.local.h
-shotStopper/ShotStopperVersion.h
-shotStopper/ShotStopperWebAssetsGzip.h
+src/ShotStopperVersion.h
+src/ShotStopperWebAssetsGzip.h
 
 # Arduino IDE and Arduino CLI generated state
 .arduinoIDE/

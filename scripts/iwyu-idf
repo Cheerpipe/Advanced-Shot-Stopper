@@ -124,17 +124,17 @@ printf 'Generated: %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" >> "$output_path/READM
 #   - drop GCC-only optimization and linker flags.
 # Translation units that reach Xtensa-specific headers may still fail to
 # parse; those are skipped and reported instead of aborting the run.
-python3 - "$compile_commands" "$output_path" <<'PY'
+python3 - "$compile_commands" "$output_path" "$ROOT" <<'PY'
 import json, os, shlex, sys
 
-cc_path, out_dir = sys.argv[1], sys.argv[2]
+cc_path, out_dir, repo_root = sys.argv[1], sys.argv[2], sys.argv[3]
 patterns = [
-    "*/shotStopper/*.cpp",
-    "*/libraries/EspressoScaleBLE/src/*.cpp",
-    "*/libraries/EspressoScaleBLE/src/protocols/*.cpp",
-    "*/idf/main/*.cpp",
-    "*/idf/components/EspressoScaleBLE/*.cpp",
-    "*/idf/components/shotStopper/*.cpp",
+    "src/*.cpp",
+    "libraries/EspressoScaleBLE/src/*.cpp",
+    "libraries/EspressoScaleBLE/src/protocols/*.cpp",
+    "idf/main/*.cpp",
+    "idf/components/EspressoScaleBLE/*.cpp",
+    "idf/components/shotStopper/*.cpp",
 ]
 drop_prefixes = ("-m", "-fno-tree-", "-fstrict-volatile-bitfields",
                  "-fuse-ld=", "-Wl,", "--sysroot", "--param=", "--target=",
@@ -164,7 +164,7 @@ db = json.load(open(cc_path))
 out_entries = []
 for entry in db:
     src = entry.get("file") or ""
-    if not src.endswith(".cpp") or not fnmatch_any(src):
+    if not src.endswith(".cpp") or not fnmatch_any(os.path.relpath(src, repo_root)):
         continue
     args = entry.get("arguments")
     if args is None:

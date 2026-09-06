@@ -1,5 +1,5 @@
 #!/bin/sh
-# Generates shotStopper/ShotStopperVersion.h.
+# Generates src/ShotStopperVersion.h.
 #
 # Usage: gen_version.sh [board_arch]
 #
@@ -12,7 +12,7 @@ set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 version_file="$root/VERSION"
-output="$root/shotStopper/ShotStopperVersion.h"
+output="$root/src/ShotStopperVersion.h"
 
 arch=${1:-unknown}
 case "$arch" in

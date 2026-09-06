@@ -1,6 +1,6 @@
-# Application firmware sources live in ../../shotStopper. This component is
+# Application firmware sources live in ../../../src. This component is
 # their ESP-IDF registration.
-set(SHOT_STOPPER_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../shotStopper")
+set(SHOT_STOPPER_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../src")
 
 set(SHOT_STOPPER_SRCS
   "${SHOT_STOPPER_DIR}/shotStopper.cpp"

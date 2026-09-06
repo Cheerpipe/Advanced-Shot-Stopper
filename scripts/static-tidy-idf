@@ -128,20 +128,20 @@ printf 'Generated: %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" >> "$output_path/READM
 #     target in the compiler name (xtensa-esp32s3-elf-g++) and esp-clang needs
 #     the flag form. Only esp-clang knows this target; the stock clang from
 #     Homebrew does not.
-python3 - "$compile_commands" "$output_path" <<'PY'
+python3 - "$compile_commands" "$output_path" "$ROOT" <<'PY'
 import json, os, shlex, subprocess, sys
 
-cc_path, out_dir = sys.argv[1], sys.argv[2]
+cc_path, out_dir, repo_root = sys.argv[1], sys.argv[2], sys.argv[3]
 patterns = [
-    "*/shotStopper/*.cpp",
-    "*/shotStopper/ble/*.cpp",
-    "*/libraries/EspressoScaleBLE/src/*.cpp",
-    "*/libraries/EspressoScaleBLE/src/nimble/*.cpp",
-    "*/libraries/EspressoScaleBLE/src/protocols/*.cpp",
-    "*/idf/main/*.cpp",
-    "*/idf/components/EspressoScaleBLE/*.cpp",
-    "*/idf/components/ShotStopperBleRuntime/*.cpp",
-    "*/idf/components/shotStopper/*.cpp",
+    "src/*.cpp",
+    "src/ble/*.cpp",
+    "libraries/EspressoScaleBLE/src/*.cpp",
+    "libraries/EspressoScaleBLE/src/nimble/*.cpp",
+    "libraries/EspressoScaleBLE/src/protocols/*.cpp",
+    "idf/main/*.cpp",
+    "idf/components/EspressoScaleBLE/*.cpp",
+    "idf/components/ShotStopperBleRuntime/*.cpp",
+    "idf/components/shotStopper/*.cpp",
 ]
 drop_prefixes = ("-fno-tree-", "-fstrict-volatile-bitfields", "-fuse-ld=",
                  "-Wl,", "--param=", "-mdisable-hardware-", "-fanalyzer")
@@ -216,7 +216,7 @@ db = json.load(open(cc_path))
 out_entries = []
 for entry in db:
     src = entry.get("file") or ""
-    if not src.endswith(".cpp") or not fnmatch_any(src):
+    if not src.endswith(".cpp") or not fnmatch_any(os.path.relpath(src, repo_root)):
         continue
     args = entry.get("arguments")
     if args is None:
@@ -269,7 +269,7 @@ echo "Running clang-tidy on in-scope sources..."
 # errors would bypass the header filter and fail on third-party ESP-IDF
 # headers. Gating is therefore done here: only diagnostics whose file sits
 # inside the repository scope count, mirroring the HeaderFilterRegex.
-scope_regex="^$ROOT/(shotStopper/|libraries/|idf/main/|idf/components/).*: (warning|error): "
+scope_regex="^$ROOT/(src/|libraries/|idf/main/|idf/components/).*: (warning|error): "
 tidy_status=0
 failed_files=""
 total=0

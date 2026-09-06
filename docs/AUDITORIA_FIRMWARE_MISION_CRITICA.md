@@ -28,7 +28,7 @@ La razón principal no es funcional sino semántica: existen accesos concurrente
 ### 2.1 Superficie revisada
 
 - Aproximadamente 43.500 líneas de código de producción C/C++ propio, excluyendo assets generados y pruebas.
-- Unidades principales: `shotStopper/shotStopper.cpp`, `ShotStopperNetwork.cpp`, `ShotStopperScaleWorker.cpp`, `ShotStopperDomain.h`, `ShotStopperMachineRelay.h`, `ShotStopperOta.*`, `ShotStopperWebhook.*`, `ShotStopperHardwareTimer.h` y la implementación NimBLE de `libraries/EspressoScaleBLE`.
+- Unidades principales: `src/shotStopper.cpp`, `ShotStopperNetwork.cpp`, `ShotStopperScaleWorker.cpp`, `ShotStopperDomain.h`, `ShotStopperMachineRelay.h`, `ShotStopperOta.*`, `ShotStopperWebhook.*`, `ShotStopperHardwareTimer.h` y la implementación NimBLE de `libraries/EspressoScaleBLE`.
 - Configuración IDF, scripts de compilación/análisis, particiones, afinidad y asignadores.
 - Rutas de ISR, temporizadores, colas, mutexes, spinlocks, callbacks BLE/HTTP y persistencia NVS/flash.
 

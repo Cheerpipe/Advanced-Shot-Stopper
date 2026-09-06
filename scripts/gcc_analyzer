@@ -85,7 +85,7 @@ fi
 # GCC also analyzes ESP-IDF and managed components. Keep each warning block
 # only when its primary location is in a project-owned source tree; associated
 # traces are retained so the diagnostic remains useful.
-awk -v shotstopper="$ROOT/shotStopper/" \
+awk -v shotstopper="$ROOT/src/" \
     -v espresso_scale_ble="$ROOT/libraries/EspressoScaleBLE/" \
     -v idf_main="$ROOT/idf/main/" \
     -v idf_components="$ROOT/idf/components/" '

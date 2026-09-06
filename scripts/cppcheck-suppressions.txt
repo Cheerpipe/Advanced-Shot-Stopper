@@ -1,5 +1,5 @@
 # Suppress diagnostics emitted from Arduino/ESP-IDF dependencies that are
-# transitively included by the firmware. Code under shotStopper/, libraries/,
+# transitively included by the firmware. Code under src/, libraries/,
 # and idf/main remains in scope.
 *:**/Arduino15/**
 *:**/Arduino/libraries/**
@@ -8,15 +8,15 @@
 *:**/idf/third_party/**
 # Owner: firmware-platform. Review/expiry: 2027-03-01.
 # FreeRTOS semaphore macros expand to C casts; not actionable at call sites.
-dangerousTypeCast:*/shotStopper/ShotStopperNetwork.cpp
-dangerousTypeCast:*/shotStopper/ShotStopperNetwork.h
-dangerousTypeCast:*/shotStopper/ShotStopperWebhook.cpp
-dangerousTypeCast:*/shotStopper/ShotStopperTaskMutex.h
+dangerousTypeCast:*/src/ShotStopperNetwork.cpp
+dangerousTypeCast:*/src/ShotStopperNetwork.h
+dangerousTypeCast:*/src/ShotStopperWebhook.cpp
+dangerousTypeCast:*/src/ShotStopperTaskMutex.h
 # Owner: safety-kernel. Review/expiry: 2027-03-01.
 # This deliberately uninitialized RTC record preserves reset evidence across a
 # reboot. It is always validated by magic, inverse fields, and checksum before
 # its contents are consumed; initializing it would defeat that safety guard.
-uninitMemberVarNoCtor:*/shotStopper/ShotStopperResetGuard.h
+uninitMemberVarNoCtor:*/src/ShotStopperResetGuard.h
 # `unusedFunction` is intentionally not enabled by static-idf: analysis through
 # the filtered, variant-specific ESP-IDF database misclassifies cross-TU public
 # APIs. Dead-code review is tracked separately; setup/loop retain their narrow

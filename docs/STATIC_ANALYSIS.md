@@ -24,7 +24,7 @@ reduce coverage.
 | clang-tidy | `./scripts/static-tidy` | `reports/static-tidy/` | Fails on in-scope diagnostics or parse errors |
 | Include-What-You-Use | `./scripts/iwyu` | `reports/iwyu/` | Advisory: never fails on suggestions, only when tooling is missing or nothing parses |
 
-Analysis scope (identical for every tool): `shotStopper/`,
+Analysis scope (identical for every tool): `src/`,
 `libraries/EspressoScaleBLE/`, `idf/main/`, and `idf/components/` (the
 project-owned components). ESP-IDF internals, `idf/managed_components/`,
 `idf/third_party/` and Arduino cores are out of scope.
@@ -207,7 +207,7 @@ Workflow for the suggestions:
 2. Apply selected fixes with the `fix_includes.py` shipped next to your IWYU
    build, or by hand.
 3. Rebuild (`./scripts/build-idf --arch n16r8`) and re-run the host tests
-   (`shotStopper/tests/run_host_tests.sh`) before committing.
+   (`src/tests/run_host_tests.sh`) before committing.
 
 The mapping file `scripts/iwyu-shotstopper.imp` is intentionally empty: stock
 IWYU already maps the C standard headers to their C++ wrappers, and
@@ -245,7 +245,7 @@ targeted source evidence; the P2 gate retains the reliable Cppcheck classes.
 ./scripts/static-tidy -a n16r8
 ./scripts/gcc_analyzer -a n16r8
 ./scripts/iwyu -a n16r8          # advisory report
-shotStopper/tests/run_host_tests.sh
+src/tests/run_host_tests.sh
 ```
 
 ## 10. Troubleshooting

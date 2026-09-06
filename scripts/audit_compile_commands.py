@@ -13,7 +13,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "scripts" / "project-translation-units.txt"
 SOURCE_ROOTS = (
-    ROOT / "shotStopper",
+    ROOT / "src",
     ROOT / "libraries" / "EspressoScaleBLE" / "src",
     ROOT / "idf" / "main",
     ROOT / "idf" / "components",

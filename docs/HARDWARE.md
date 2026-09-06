@@ -53,7 +53,7 @@ Example of the assembled, printed enclosure:
 
 ![Printed Advanced Shot Stopper enclosure](images/case-1.png)
 
-Pins live in [`shotStopper/ShotStopperHardware.h`](../shotStopper/ShotStopperHardware.h).
+Pins live in [`src/ShotStopperHardware.h`](../src/ShotStopperHardware.h).
 They are **not** editable from the Web UI.
 
 ## Default GPIOs

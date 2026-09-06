@@ -21,12 +21,12 @@ def reject(path: str, pattern: str, description: str) -> list[str]:
 def main() -> int:
     failures: list[str] = []
     failures += reject(
-        "shotStopper/ShotStopperBuzzer.h",
+        "src/ShotStopperBuzzer.h",
         r"\(void\)esp_timer_(?:stop|start_once)\s*\(",
         "buzzer timer result",
     )
     failures += reject(
-        "shotStopper/ShotStopperOta.cpp",
+        "src/ShotStopperOta.cpp",
         r"\(void\)esp_ota_abort\s*\(",
         "OTA abort result",
     )
@@ -36,13 +36,13 @@ def main() -> int:
         "NimBLE teardown result",
     )
 
-    watchdog = (ROOT / "shotStopper/ShotStopperWatchdog.h").read_text(
+    watchdog = (ROOT / "src/ShotStopperWatchdog.h").read_text(
         encoding="utf-8"
     )
     if "TASK_WATCHDOG_OTA_TIMEOUT_MS" in watchdog or "TaskWatchdogOtaWindow" in watchdog:
         failures.append("ShotStopperWatchdog.h: obsolete global OTA TWDT window")
 
-    for path in (ROOT / "shotStopper").rglob("*"):
+    for path in (ROOT / "src").rglob("*"):
         if path.suffix not in {".h", ".cpp"}:
             continue
         if path.name == "ShotStopperWatchdog.h":

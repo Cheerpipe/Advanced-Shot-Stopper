@@ -108,8 +108,8 @@ echo "Running Cppcheck (warning, performance, portability) on $build_dir..."
 cppcheck \
   --project="$compile_commands" \
   --suppressions-list="$SUPPRESSIONS_FILE" \
-  --file-filter='*/shotStopper/*.cpp' \
-  --file-filter='*/shotStopper/ble/*.cpp' \
+  --file-filter="$ROOT/src/*.cpp" \
+  --file-filter="$ROOT/src/ble/*.cpp" \
   --file-filter='*/libraries/EspressoScaleBLE/src/*.cpp' \
   --file-filter='*/libraries/EspressoScaleBLE/src/nimble/*.cpp' \
   --file-filter='*/libraries/EspressoScaleBLE/src/protocols/*.cpp' \

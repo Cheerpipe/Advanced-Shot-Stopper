@@ -52,7 +52,7 @@ the [README](../README.md). This FAQ answers “why did that happen?”
 | **Does it work on machines other than the Micra?** | It **started** on the Linea Micra and is not a certified kit for every machine. The same isolated-relay contract has three compile-time builds: paddle/latch, momentary, and momentary+reed — see [Machine types](../README.md#machine-types). On the Micra the intercepted brew-switch connector is labelled CN9; user-facing copy always says **machine circuit**. You still design and validate your own wiring. |
 | **Do I need a custom ShotStopper PCB?** | No. The development board in [Hardware](HARDWARE.md) is an ESP32-S3 1-channel relay module. BOM and Micra wiring are still TODO. |
 | **What does the blue LED mean?** | GPIO 1 HIGH while a BLE scale is connected. Toggle in [Alerts](alerts.md). Not part of machine-circuit decisions. |
-| **My wiring uses different GPIOs. How do I change them?** | Not from the Web UI. Edit `shotStopper/ShotStopperHardware.h` and rebuild. See [Hardware](HARDWARE.md). Defaults match the relay board: paddle 21, relay 2 **active HIGH**, paddle **active LOW**. |
+| **My wiring uses different GPIOs. How do I change them?** | Not from the Web UI. Edit `src/ShotStopperHardware.h` and rebuild. See [Hardware](HARDWARE.md). Defaults match the relay board: paddle 21, relay 2 **active HIGH**, paddle **active LOW**. |
 | **Why beeps after the shot already ended?** | [Paddle-off reminder](alerts.md): the paddle is still ON and machine circuit is already open. Default interval 10 s, limit 15 min. |
 
 ## Safety and diagnostics

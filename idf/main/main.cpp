@@ -22,4 +22,4 @@ extern "C" void shotstopperKeepBssProbe(void) {
 }
 
 // Application setup()/loop() live in the shotStopper component
-// (shotStopper/shotStopper.cpp), started by CONFIG_AUTOSTART_ARDUINO.
+// (src/shotStopper.cpp), started by CONFIG_AUTOSTART_ARDUINO.

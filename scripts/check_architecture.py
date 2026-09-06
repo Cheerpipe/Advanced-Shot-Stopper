@@ -18,12 +18,12 @@ def main() -> int:
     failures: list[str] = []
 
     safety_files = (
-        "shotStopper/ShotStopperSafety.h",
-        "shotStopper/ShotStopperMachineRelay.h",
-        "shotStopper/ShotStopperHardwareTimer.h",
-        "shotStopper/ShotStopperWatchdog.h",
-        "shotStopper/ShotStopperResetGuard.h",
-        "shotStopper/ShotStopperResetGuard.cpp",
+        "src/ShotStopperSafety.h",
+        "src/ShotStopperMachineRelay.h",
+        "src/ShotStopperHardwareTimer.h",
+        "src/ShotStopperWatchdog.h",
+        "src/ShotStopperResetGuard.h",
+        "src/ShotStopperResetGuard.cpp",
     )
     forbidden_safety = (
         "ShotStopperNetwork",
@@ -38,7 +38,7 @@ def main() -> int:
             if token in source:
                 failures.append(f"SafetyKernel dependency {token!r} in {relative}")
 
-    scale_source = text("shotStopper/ShotStopperScaleWorker.cpp")
+    scale_source = text("src/ShotStopperScaleWorker.cpp")
     for token in ('#include "ShotStopperNetwork.h"', "networkManager."):
         if token in scale_source:
             failures.append(f"ScaleService bypasses its bridge via {token!r}")
@@ -48,12 +48,12 @@ def main() -> int:
         "configureScaleWorkerBridge",
     ):
         if required not in scale_source and required not in text(
-            "shotStopper/ShotStopperScaleWorker.h"
+            "src/ShotStopperScaleWorker.h"
         ):
             failures.append(f"ScaleService bridge contract missing {required!r}")
 
-    network = text("shotStopper/ShotStopperNetwork.cpp") + text(
-        "shotStopper/ShotStopperNetwork.h"
+    network = text("src/ShotStopperNetwork.cpp") + text(
+        "src/ShotStopperNetwork.h"
     )
     for token in (
         "machineRequestStart(",
@@ -65,11 +65,11 @@ def main() -> int:
             failures.append(f"NetworkService calls control implementation {token!r}")
 
     independent_harnesses = (
-        "shotStopper/tests/safety_external_host_test.cpp",
-        "shotStopper/tests/ota_state_concurrency_host_test.cpp",
-        "shotStopper/tests/persistence_host_test.cpp",
-        "shotStopper/tests/webhook_error_host_test.cpp",
-        "shotStopper/tests/resource_owner_host_test.cpp",
+        "src/tests/safety_external_host_test.cpp",
+        "src/tests/ota_state_concurrency_host_test.cpp",
+        "src/tests/persistence_host_test.cpp",
+        "src/tests/webhook_error_host_test.cpp",
+        "src/tests/resource_owner_host_test.cpp",
         "libraries/EspressoScaleBLE/tests/scale_ble_portable_test.cpp",
     )
     for relative in independent_harnesses:
@@ -80,9 +80,9 @@ def main() -> int:
     # roots. Reducing them is encouraged; increasing them requires an explicit
     # architecture review and must not be used to land feature code.
     line_ceilings = {
-        "shotStopper/ShotStopperNetwork.cpp": 8750,
-        "shotStopper/shotStopper.cpp": 6900,
-        "shotStopper/ShotStopperDomain.h": 3300,
+        "src/ShotStopperNetwork.cpp": 8750,
+        "src/shotStopper.cpp": 6900,
+        "src/ShotStopperDomain.h": 3300,
     }
     for relative, ceiling in line_ceilings.items():
         lines = len(text(relative).splitlines())
