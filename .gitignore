@@ -31,14 +31,12 @@ shotStopper/ShotStopperWebAssetsGzip.h
 .arduino/
 .compile_stubs/
 build/
+build.*/
 build-*/
-**/build/
-**/build.*/
 *.autosave
 
 # ESP32, compiler and linker outputs
 artifacts/
-artifacts/shotStopper-esp32/
 *.bin
 *.elf
 *.map
@@ -73,15 +71,12 @@ reports/
 *.profraw
 *.profdata
 
-# Internal development plans (not for version control)
+# Internal docs, plans and AI agent workspace
 SESSION_HANDOFF.md
 docs/plans/
-docs/BACKLOG.md
 docs/audits/
+docs/BACKLOG.md
+docs/handoff/
 .zcode
-
-# AI Agent files and temporary workspace
-/docs/plans/
-/docs/handoff/
 ai_temp_*
 *.ai_temp
