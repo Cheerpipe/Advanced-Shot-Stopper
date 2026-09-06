@@ -259,7 +259,8 @@ bool setMachineCircuitClosed(bool closed,
     }
     const bool watchdogUnavailable =
         !taskWatchdogReady || criticalTaskWatchdogFaulted();
-    if (!platformClockReady || !relaySafetyTimersReady ||
+    if (!firmwareInitializationComplete || !platformClockReady ||
+        !relaySafetyTimersReady ||
         watchdogUnavailable ||
         relaySafetyTimer == nullptr || operationalLimitTimer == nullptr ||
         !independentSafetyTimer.ready()) {

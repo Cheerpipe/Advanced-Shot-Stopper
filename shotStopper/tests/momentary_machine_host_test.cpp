@@ -28,6 +28,7 @@ int testsRun = 0;
   } while (false)
 
 void deleteHostResources() {
+  releaseSettingsPersistenceWorkerForHost();
   delete scaleCommandQueue;
   delete scaleEventQueue;
   delete webCommandQueue;
@@ -62,6 +63,8 @@ void resetMomentaryHarness() {
   hostGptimerCreateSucceeds = true;
   hostGptimerArmSucceeds = true;
   hostTaskWatchdogOperationsSucceed = true;
+  hostSettingsPersistQueueCreateSucceeds = true;
+  hostSettingsPersistTaskCreateSucceeds = true;
   EEPROM.beginSucceeds = true;
   BLE.beginSucceeds = true;
   resetSafetyResetGuardForHost();
@@ -126,6 +129,7 @@ void resetMomentaryHarness() {
   bleCompanionResultQueue =
       xQueueCreate(BLE_COMPANION_RESULT_QUEUE_LENGTH,
                    sizeof(BleCompanionResult));
+  CHECK(initializeSettingsPersistenceWorker());
   CHECK(initializeRelaySafetyTimer());
   relaySafetyTimersReady = true;
   taskWatchdogReady = configureTaskWatchdog() &&

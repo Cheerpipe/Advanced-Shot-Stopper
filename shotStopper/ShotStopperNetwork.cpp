@@ -5036,7 +5036,12 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"arch\":\"%s\",\"machineType\":\"%s\",\"stopPulseMs\":%lu,"
         "\"maxSinglePressMs\":%lu,\"development\":%s},"
         "\"serial\":{\"io4\":\"%s\",\"state\":\"%s\"},"
-        "\"boot\":{\"complete\":%s,\"degraded\":%s,\"scaleWorker\":%s}",
+        "\"boot\":{\"state\":\"%s\",\"complete\":%s,\"degraded\":%s,"
+        "\"capabilities\":{\"platformClock\":%s,\"relaySafetyTimers\":%s,"
+        "\"taskWatchdog\":%s,\"persistentStorage\":%s,\"settingsLoaded\":%s,"
+        "\"settingsPersistenceWorker\":%s,\"scaleWorker\":%s,"
+        "\"webCommandQueue\":%s,\"network\":%s,\"psram\":%s,"
+        "\"criticalFaultLatched\":%s}}",
         stopperStateName(control.state),
         machineRunStateName(control.machineRunState),
         control.relayClosed ? "true" : "false",
@@ -5130,9 +5135,20 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         DEVELOPMENT_BUILD ? "true" : "false",
         usbConsoleIo4StateId(control.usbConsoleIo4Closed),
         usbSerialStateId(control.usbSerialEnableSource),
+        bootStateName(control.bootState),
         control.bootComplete ? "true" : "false",
         control.bootDegraded ? "true" : "false",
-        control.scaleWorkerReady ? "true" : "false");
+        control.bootCapabilities.platformClock ? "true" : "false",
+        control.bootCapabilities.relaySafetyTimers ? "true" : "false",
+        control.bootCapabilities.taskWatchdog ? "true" : "false",
+        control.bootCapabilities.persistentStorage ? "true" : "false",
+        control.bootCapabilities.settingsLoaded ? "true" : "false",
+        control.bootCapabilities.settingsPersistenceWorker ? "true" : "false",
+        control.bootCapabilities.scaleWorker ? "true" : "false",
+        control.bootCapabilities.webCommandQueue ? "true" : "false",
+        control.bootCapabilities.network ? "true" : "false",
+        control.bootCapabilities.psram ? "true" : "false",
+        control.bootCapabilities.criticalFaultLatched ? "true" : "false");
     if (ok) ok = statusJsonAppend(&used, ",\"resetHistory\":[");
     for (uint8_t i = 0; ok && i < control.resetHistoryCount; ++i) {
       const ResetHistoryEntry &entry = control.resetHistory[i];
@@ -5312,7 +5328,9 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"envelope\":{\"configMutable\":%s,\"liveShot\":%s,"
            "\"snapshotStale\":%s,"
            "\"configRevision\":%lu,\"ringRetainLogLevel\":\"%s\","
-           "\"serialLogLevel\":\"%s\",\"serialDebugOutput\":%s,\"bootComplete\":%s,\"bootDegraded\":%s,"
+           "\"serialLogLevel\":\"%s\",\"serialDebugOutput\":%s,"
+           "\"bootState\":\"%s\",\"bootComplete\":%s,\"bootDegraded\":%s,"
+           "\"settingsPersistenceReady\":%s,"
            "\"scaleWorkerReady\":%s},",
            configMutable ? "true" : "false",
            (c.activeCycle || c.machineRunning || c.relayClosed) ? "true"
@@ -5324,8 +5342,10 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            logLevelName(serialLogLevelFromRuntime(c.config)),
            serialLogLevelFromRuntime(c.config) != LogLevel::NONE ? "true"
                                                                   : "false",
+           bootStateName(c.bootState),
            c.bootComplete ? "true" : "false",
            c.bootDegraded ? "true" : "false",
+           c.bootCapabilities.settingsPersistenceWorker ? "true" : "false",
            c.scaleWorkerReady ? "true" : "false");
 
   ok = ok &&

@@ -23,6 +23,7 @@ int failures = 0;
   } while (false)
 
 void releaseResources() {
+  releaseSettingsPersistenceWorkerForHost();
   delete relaySafetyTimer;
   delete operationalLimitTimer;
   relaySafetyTimer = nullptr;
@@ -69,6 +70,7 @@ void resetSafety() {
   safetyEventFlags.clear(SAFETY_EVENT_SAFE_RESTART);
   platformClockReady = true;
   safetyResetStatus = SafetyResetSnapshot{};
+  firmwareInitializationComplete = true;
 
   pinMode(RELAY_GPIO, OUTPUT);
   digitalWrite(RELAY_GPIO, RELAY_OPEN_LEVEL);

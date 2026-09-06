@@ -430,6 +430,8 @@ bool controlStatusPublishRequested = false;
 SHOT_STOPPER_PSRAM_BSS RuntimeConfig publishedRuntimeConfig;
 SHOT_STOPPER_PSRAM_BSS ShotPresetBank publishedPresetBank;
 TaskMutex recipeMutex;
+BootCapabilities bootCapabilities;
+BootState bootState = BootState::BOOTING;
 bool bootDegraded = false;
 uint32_t bleCompanionResultDropped = 0;
 MaintenanceLease maintenanceLease;
@@ -451,6 +453,9 @@ uint32_t hostRuntimePersistAttempts = 0;
 RuntimeConfig hostLastFlushedRuntime;
 ShotPresetBank hostLastFlushedPresets;
 bool hostLastFlushIncludedLive = false;
+bool hostSettingsPersistQueueCreateSucceeds = true;
+bool hostSettingsPersistTaskCreateSucceeds = true;
+uint32_t hostSettingsPersistRollbackDeletes = 0;
 #endif
 bool runtimePersistPending = false;
 bool runtimePersistFailed = false;
@@ -462,8 +467,6 @@ uint32_t nextInternalRequestId = 0x80000000UL;
 #ifndef SHOT_STOPPER_HOST_TEST
 SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistRequest;
 SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistReceive;
-QueueHandle_t settingsPersistQueue = nullptr;
-TaskHandle_t settingsPersistTaskHandle = nullptr;
 portMUX_TYPE settingsPersistMux = portMUX_INITIALIZER_UNLOCKED;
 bool settingsPersistInFlight = false;
 bool settingsPersistResultReady = false;
@@ -471,6 +474,9 @@ bool settingsPersistResultOk = false;
 uint32_t settingsPersistResultRuntimeRevision = 0;
 uint32_t settingsPersistResultStorageRevision = 0;
 #endif
+QueueHandle_t settingsPersistQueue = nullptr;
+TaskHandle_t settingsPersistTaskHandle = nullptr;
+bool settingsPersistenceReady = false;
 uint32_t lastLoopAtMs = 0;
 uint32_t loopMaxGapMs = 0;
 uint32_t loopIntervalGapMs = 0;
@@ -532,6 +538,7 @@ void holdOrBeginPlannedRestart(const WebCommand &command);
 void servicePendingPlannedRestart();
 void queueRuntimePersist(int32_t reasonBits);
 void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits);
+bool settingsPersistenceAvailable();
 
 #ifndef SHOT_STOPPER_HOST_TEST
 SHOT_STOPPER_PSRAM_BSS PersistedSettings persistedSettings;
@@ -4097,6 +4104,11 @@ bool webCommandAllowsUnsafeConfiguration(const WebCommand &command) {
   return controlAllowsConfigurationNow() || command.unsafeWebUiOverride;
 }
 
+bool persistentConfigurationMutationAllowed(const WebCommand &command) {
+  return settingsPersistenceAvailable() &&
+         webCommandAllowsUnsafeConfiguration(command);
+}
+
 void holdOrBeginPlannedRestart(const WebCommand &command) {
   WebCommand restart = command;
   restart.type = WebCommandType::RESTART;
@@ -4218,7 +4230,9 @@ void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits) 
   publishRecipeState();
 }
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifdef SHOT_STOPPER_HOST_TEST
+void settingsPersistTask(void *) {}
+#else
 void settingsPersistTask(void *parameter) {
   (void)parameter;
   if (!subscribeCurrentTaskToWatchdog()) {
@@ -4247,6 +4261,85 @@ void settingsPersistTask(void *parameter) {
     portEXIT_CRITICAL(&settingsPersistMux);
   }
 }
+#endif
+
+bool settingsPersistenceAvailable() {
+  return settingsPersistenceReady && settingsPersistQueue != nullptr &&
+         settingsPersistTaskHandle != nullptr;
+}
+
+bool initializeSettingsPersistenceWorker() {
+  if (settingsPersistenceAvailable()) {
+    return true;
+  }
+  settingsPersistenceReady = false;
+  if (settingsPersistTaskHandle != nullptr) {
+    return false;
+  }
+  if (settingsPersistQueue != nullptr) {
+    vQueueDelete(settingsPersistQueue);
+    settingsPersistQueue = nullptr;
+#ifdef SHOT_STOPPER_HOST_TEST
+    ++hostSettingsPersistRollbackDeletes;
+#endif
+  }
+
+#ifdef SHOT_STOPPER_HOST_TEST
+  QueueHandle_t queue = hostSettingsPersistQueueCreateSucceeds
+                            ? xQueueCreate(1, sizeof(SettingsPersistRequest))
+                            : nullptr;
+#else
+  QueueHandle_t queue = xQueueCreate(1, sizeof(SettingsPersistRequest));
+#endif
+  if (queue == nullptr) {
+    return false;
+  }
+
+  // Publish the queue before task creation: a newly scheduled worker may run
+  // immediately and must never observe a null receive queue.
+  settingsPersistQueue = queue;
+  TaskHandle_t task = nullptr;
+#ifdef SHOT_STOPPER_HOST_TEST
+  const BaseType_t created =
+      hostSettingsPersistTaskCreateSucceeds
+          ? xTaskCreatePinnedToCore(
+                settingsPersistTask, "settings_persist",
+                SETTINGS_PERSIST_TASK_STACK_SIZE, nullptr, tskIDLE_PRIORITY,
+                &task, CONTROL_TASK_CORE)
+          : pdFALSE;
+#else
+  const BaseType_t created = xTaskCreatePinnedToCore(
+      settingsPersistTask, "settings_persist",
+      SETTINGS_PERSIST_TASK_STACK_SIZE, nullptr, tskIDLE_PRIORITY, &task,
+      CONTROL_TASK_CORE);
+#endif
+  if (created != pdPASS || task == nullptr) {
+    // Task creation failed, so no consumer can still reference the queue.
+    settingsPersistQueue = nullptr;
+    vQueueDelete(queue);
+#ifdef SHOT_STOPPER_HOST_TEST
+    ++hostSettingsPersistRollbackDeletes;
+#endif
+    return false;
+  }
+
+  settingsPersistTaskHandle = task;
+  settingsPersistenceReady = true;
+  return true;
+}
+
+#ifdef SHOT_STOPPER_HOST_TEST
+void releaseSettingsPersistenceWorkerForHost() {
+  if (settingsPersistQueue != nullptr) {
+    vQueueDelete(settingsPersistQueue);
+  }
+  settingsPersistQueue = nullptr;
+  settingsPersistTaskHandle = nullptr;
+  settingsPersistenceReady = false;
+}
+#endif
+
+#ifndef SHOT_STOPPER_HOST_TEST
 
 void serviceSettingsPersistResult() {
   bool ready = false;
@@ -4310,8 +4403,8 @@ void serviceSettingsPersistResult() {
 }
 
 bool dispatchSettingsPersist() {
-  if (settingsPersistQueue == nullptr || settingsPersistInFlight) {
-    if (settingsPersistQueue == nullptr) {
+  if (!settingsPersistenceAvailable() || settingsPersistInFlight) {
+    if (!settingsPersistenceAvailable()) {
       runtimePersistFailed = true;
     }
     return false;
@@ -4417,6 +4510,12 @@ void serviceRuntimePersistence() {
     runtimePersistRetryAtMs = millis() + RUNTIME_PERSIST_RETRY_MS;
   }
 #else
+  if (!settingsPersistenceAvailable()) {
+    if (runtimePersistPending) {
+      runtimePersistFailed = true;
+    }
+    return;
+  }
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   if (!runtimePersistPending || maintenanceLease.active ||
       static_cast<int32_t>(millis() - runtimePersistRetryAtMs) < 0 ||
@@ -4576,7 +4675,7 @@ void processWebCommand(const WebCommand &command) {
       return;
 
     case WebCommandType::APPLY_CONFIG: {
-      if (!webCommandAllowsUnsafeConfiguration(command)) {
+      if (!persistentConfigurationMutationAllowed(command)) {
         rejectWebCommand(command);
         return;
       }
@@ -4670,7 +4769,7 @@ void processWebCommand(const WebCommand &command) {
     }
 
     case WebCommandType::RESET_WEIGHT_OFFSET: {
-      if (!webCommandAllowsUnsafeConfiguration(command)) {
+      if (!persistentConfigurationMutationAllowed(command)) {
         rejectWebCommand(command);
         return;
       }
@@ -4689,7 +4788,7 @@ void processWebCommand(const WebCommand &command) {
     }
 
     case WebCommandType::RESET_AUTO_TO_MANUAL_GUARD_SAMPLES: {
-      if (!webCommandAllowsUnsafeConfiguration(command)) {
+      if (!persistentConfigurationMutationAllowed(command)) {
         rejectWebCommand(command);
         return;
       }
@@ -4711,7 +4810,7 @@ void processWebCommand(const WebCommand &command) {
     }
 
     case WebCommandType::PRESET_OP: {
-      if (!webCommandAllowsUnsafeConfiguration(command)) {
+      if (!persistentConfigurationMutationAllowed(command)) {
         rejectWebCommand(command);
         return;
       }
@@ -4821,7 +4920,7 @@ void processWebCommand(const WebCommand &command) {
       return;
 
     case WebCommandType::CLEAR_PREFERRED_SCALE:
-      if (!webCommandAllowsUnsafeConfiguration(command)) {
+      if (!persistentConfigurationMutationAllowed(command)) {
         rejectWebCommand(command);
         return;
       }
@@ -4831,7 +4930,7 @@ void processWebCommand(const WebCommand &command) {
       return;
 
     case WebCommandType::SELECT_PREFERRED_SCALE:
-      if (!webCommandAllowsUnsafeConfiguration(command)) {
+      if (!persistentConfigurationMutationAllowed(command)) {
         rejectWebCommand(command);
         return;
       }
@@ -5127,7 +5226,7 @@ void processBleCompanionRequests() {
     return;
   }
 
-  if (!controlAllowsConfigurationNow()) {
+  if (!controlAllowsConfigurationNow() || !settingsPersistenceAvailable()) {
     reportBleCompanionResult(request, false,
                              BleCompanionRejectReason::NOT_READY);
     return;
@@ -5422,8 +5521,15 @@ void publishControlStatus() {
   next.cupPresent = cupPresenceState() == CupPresenceState::PRESENT;
   next.configPersistPending = liveConfigPersistPending();
   next.configPersistFailed = runtimePersistFailed;
-  next.bootComplete = firmwareInitializationComplete;
-  next.bootDegraded = bootDegraded;
+  next.bootCapabilities = bootCapabilities;
+  next.bootCapabilities.criticalFaultLatched =
+      next.bootCapabilities.criticalFaultLatched ||
+      criticalTaskWatchdogFaulted() || relay.resetRecoveryRequired ||
+      relay.state == RelaySafetyState::LOCKOUT;
+  next.bootState = next.bootCapabilities.state();
+  next.bootComplete = next.bootState == BootState::READY;
+  next.bootDegraded = next.bootState == BootState::DEGRADED_SAFE ||
+                      next.bootState == BootState::FAULT_LATCHED;
   next.scaleWorkerReady = scaleWorkerReady();
   next.usbConsoleIo4Closed = usbConsoleJumperPresent();
   next.usbSerialEnableSource = usbSerialEnableSource;
@@ -5787,6 +5893,10 @@ void serialCliPrintLiveLogDump() {
 
 void serialCliApplyDebugPersist(bool serialOn, LogLevel ringLevel,
                                 const char *okMessage) {
+  if (!settingsPersistenceAvailable()) {
+    serialCliReply("ERR settings persistence unavailable");
+    return;
+  }
   if (!serialOn) {
     serialCliReply(okMessage);
   }
@@ -5887,6 +5997,10 @@ void dispatchSerialCliRequest(SerialCliRequest &request) {
     }
     case SerialCliVerb::SERIAL_DEBUG_ON:
     case SerialCliVerb::SERIAL_DEBUG_OFF: {
+      if (!settingsPersistenceAvailable()) {
+        serialCliReply("ERR settings persistence unavailable");
+        return;
+      }
       const bool enable = request.verb == SerialCliVerb::SERIAL_DEBUG_ON;
       if (!enable) {
         serialCliReply("OK serial debug off");
@@ -6131,6 +6245,20 @@ bool usbConsoleJumperPresent() {
 // cppcheck-suppress unusedFunction ; Arduino framework entry point
 void setup() {
   bootStartedAtMs = millis();
+  bootCapabilities = BootCapabilities{};
+  bootState = BootState::BOOTING;
+  bootDegraded = false;
+  firmwareInitializationComplete = false;
+#ifdef SHOT_STOPPER_HOST_TEST
+  // Host tests may invoke setup() after constructing a ready harness. Its task
+  // stub never runs, so tear down that synthetic worker before boot injection.
+  releaseSettingsPersistenceWorkerForHost();
+  delete relaySafetyTimer;
+  delete operationalLimitTimer;
+  relaySafetyTimer = nullptr;
+  operationalLimitTimer = nullptr;
+  independentSafetyTimer.resetForHost();
+#endif
   // Safe OPEN before Serial, EEPROM or BLE. Arduino-ESP32 3.x rejects
   // digitalWrite until the pad is a GPIO. After reset the pin is Hi-Z and
   // the output latch is 0, which is OPEN for the active-HIGH relay.
@@ -6176,22 +6304,29 @@ void setup() {
   }
 
   persistenceReady = EEPROM.begin(EEPROM_SIZE);
+  bool flashIoReady = true;
+  bool settingsLoaded = persistenceReady;
+  bool settingsDurable = persistenceReady;
 #ifndef SHOT_STOPPER_HOST_TEST
-  if (!ensureFlashIoMutex()) {
+  flashIoReady = ensureFlashIoMutex();
+  if (!flashIoReady) {
     addDebugEvent(DebugCategory::CONFIG, DebugCode::INITIALIZATION_FAILED,
                   BOOT_SUBSYSTEM_PERSISTENCE);
   }
   // RTC captures the prior uptime immediately across warm resets; NVS keeps
   // the history when RTC memory is lost (for example after power loss).
   persistResetHistoryAfterBoot(safetyResetStatus);
-  bool settingsLoaded = false;
+  settingsLoaded = false;
+  settingsDurable = false;
   if (persistenceReady && loadPersistedSettings(persistedSettings)) {
     settingsLoaded = true;
+    settingsDurable = true;
     noteDurableStorageRevision(persistedSettings.storageRevision);
   } else if (persistenceReady) {
     if (initializeDefaultSettings(persistedSettings)) {
       settingsLoaded = true;
-      if (!savePersistedSettings(persistedSettings)) {
+      settingsDurable = savePersistedSettings(persistedSettings);
+      if (!settingsDurable) {
         addDebugEvent(DebugCategory::CONFIG, DebugCode::INITIALIZATION_FAILED,
                       BOOT_SUBSYSTEM_SETTINGS_SAVE);
       }
@@ -6335,25 +6470,20 @@ void setup() {
             BOOT_SUBSYSTEM_WEB_QUEUE, 1);
   }
 
-#ifndef SHOT_STOPPER_HOST_TEST
-  settingsPersistQueue =
-      xQueueCreate(1, sizeof(SettingsPersistRequest));
-  if (settingsPersistQueue == nullptr ||
-      xTaskCreatePinnedToCore(
-          settingsPersistTask, "settings_persist",
-          SETTINGS_PERSIST_TASK_STACK_SIZE, nullptr,
-          tskIDLE_PRIORITY, &settingsPersistTaskHandle,
-          CONTROL_TASK_CORE) != pdPASS) {
-    settingsPersistTaskHandle = nullptr;
+  const bool settingsPersistenceOk = initializeSettingsPersistenceWorker();
+  if (!settingsPersistenceOk) {
     logEmit(LogLevel::WARNING, DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,
             BOOT_SUBSYSTEM_SETTINGS_SAVE, 0);
+  } else {
+    logEmit(LogLevel::INFO, DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,
+            BOOT_SUBSYSTEM_SETTINGS_SAVE, 1);
   }
-#endif
 
   hwmon.begin();
   hwmonSnapshot = hwmon.sample(1);
   publishControlStatus();
   bool networkOk = true;
+  bool psramOk = true;
 #ifndef SHOT_STOPPER_HOST_TEST
   // Runs before the network task so the OTA slot pair and this boot's
   // pending-verify state are known the first time the Web UI is served.
@@ -6398,21 +6528,47 @@ void setup() {
     logEmit(LogLevel::WARNING, DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,
             BOOT_SUBSYSTEM_NETWORK, 0);
   }
-  const bool psramOk =
-      psramFound() && (!settingsLoaded || workBufIsExternal());
+  psramOk = psramFound() && (!settingsLoaded || workBufIsExternal());
   logEmit(psramOk ? LogLevel::INFO : LogLevel::CRITICAL, DebugCategory::BOOT,
           DebugCode::BOOT_SUBSYSTEM, BOOT_SUBSYSTEM_PSRAM, psramOk ? 1 : 0);
 #endif
 
-  bootDegraded = !persistenceReady || !scaleWorkerOk || !webQueueOk ||
-                 !networkOk;
-  firmwareInitializationComplete = !bootDegraded;
+  bootCapabilities.evaluated = true;
+  bootCapabilities.platformClock = platformClockReady;
+  bootCapabilities.relaySafetyTimers = relaySafetyTimersReady;
+  bootCapabilities.taskWatchdog = taskWatchdogReady;
+  bootCapabilities.persistentStorage = persistenceReady && flashIoReady;
+  bootCapabilities.settingsLoaded = settingsLoaded && settingsDurable;
+  bootCapabilities.settingsPersistenceWorker = settingsPersistenceOk;
+  bootCapabilities.scaleWorker = scaleWorkerOk;
+  bootCapabilities.webCommandQueue = webQueueOk;
+  bootCapabilities.network = networkOk;
+  bootCapabilities.psram = psramOk;
+  bootCapabilities.criticalFaultLatched =
+      criticalTaskWatchdogFaulted() || safetyResetStatus.recoveryRequired ||
+      relaySafetyState == RelaySafetyState::LOCKOUT;
+  bootState = bootCapabilities.state();
+  bootDegraded = bootState == BootState::DEGRADED_SAFE ||
+                 bootState == BootState::FAULT_LATCHED;
+  firmwareInitializationComplete = bootState == BootState::READY;
   publishScaleWorkerPolicy(runtimeConfig, firmwareInitializationComplete);
   if (firmwareInitializationComplete) {
     addDebugEvent(DebugCategory::BOOT, DebugCode::BOOT_READY);
   } else {
+    int32_t failedSubsystem = BOOT_SUBSYSTEM_SCALE_WORKER;
+    if (!bootCapabilities.mandatorySafetyReady()) {
+      failedSubsystem = !bootCapabilities.platformClock
+                            ? BOOT_SUBSYSTEM_CPU
+                            : (!bootCapabilities.relaySafetyTimers
+                                   ? BOOT_SUBSYSTEM_RELAY_TIMERS
+                                   : BOOT_SUBSYSTEM_TASK_WDT);
+    } else if (!bootCapabilities.mandatoryDurabilityReady()) {
+      failedSubsystem = !bootCapabilities.persistentStorage
+                            ? BOOT_SUBSYSTEM_PERSISTENCE
+                            : BOOT_SUBSYSTEM_SETTINGS_SAVE;
+    }
     addDebugEvent(DebugCategory::BOOT, DebugCode::INITIALIZATION_FAILED,
-                  BOOT_SUBSYSTEM_SCALE_WORKER, bootDegraded ? 1 : 0);
+                  failedSubsystem, static_cast<int32_t>(bootState));
   }
   publishControlStatus();
   serviceScaleConnectedLed();

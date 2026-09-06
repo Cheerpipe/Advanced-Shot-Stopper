@@ -30,6 +30,7 @@ static_assert(!shotstopper::REMOTE_MACHINE_CONTROL_ENABLED,
               "Lockdown host tests must compile with remote control off");
 
 void deleteHostResources() {
+  releaseSettingsPersistenceWorkerForHost();
   delete scaleCommandQueue;
   delete scaleEventQueue;
   delete webCommandQueue;
@@ -68,6 +69,8 @@ void resetHarness() {
   hostTaskWatchdogConfigured = false;
   hostTaskWatchdogSubscriptions = 0;
   hostTaskWatchdogFeeds = 0;
+  hostSettingsPersistQueueCreateSucceeds = true;
+  hostSettingsPersistTaskCreateSucceeds = true;
   resetSafetyResetGuardForHost();
 
   stopperState = StopperState::REQUIRES_OFF;
@@ -133,6 +136,7 @@ void resetHarness() {
   CHECK(webCommandQueue != nullptr);
   CHECK(bleCompanionRequestQueue != nullptr);
   CHECK(bleCompanionResultQueue != nullptr);
+  CHECK(initializeSettingsPersistenceWorker());
   CHECK(initializeRelaySafetyTimer());
   relaySafetyTimersReady = true;
 

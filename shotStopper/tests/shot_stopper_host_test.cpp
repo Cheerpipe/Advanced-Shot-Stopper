@@ -43,6 +43,7 @@ bool hostAutoScaleWorkerProgress = true;
   } while (false)
 
 void deleteHostResources() {
+  releaseSettingsPersistenceWorkerForHost();
   delete scaleCommandQueue;
   delete scaleEventQueue;
   delete webCommandQueue;
@@ -171,6 +172,9 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   hostLastFlushedRuntime = RuntimeConfig{};
   hostLastFlushedPresets = ShotPresetBank{};
   hostLastFlushIncludedLive = false;
+  hostSettingsPersistQueueCreateSucceeds = true;
+  hostSettingsPersistTaskCreateSucceeds = true;
+  hostSettingsPersistRollbackDeletes = 0;
   g_wallClock.reset();
   runtimePersistPending = false;
   runtimePersistFailed = false;
@@ -292,6 +296,19 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   platformClockReady = true;
   persistenceReady = true;
   setScaleWorkerBleReadyForHost(true);
+  bootCapabilities = BootCapabilities{};
+  bootCapabilities.evaluated = true;
+  bootCapabilities.platformClock = true;
+  bootCapabilities.relaySafetyTimers = true;
+  bootCapabilities.taskWatchdog = true;
+  bootCapabilities.persistentStorage = true;
+  bootCapabilities.settingsLoaded = true;
+  bootCapabilities.settingsPersistenceWorker = true;
+  bootCapabilities.scaleWorker = true;
+  bootCapabilities.webCommandQueue = true;
+  bootCapabilities.network = true;
+  bootCapabilities.psram = true;
+  bootState = BootState::READY;
   bootDegraded = false;
   bleCompanionResultDropped = 0;
   safetyResetStatus = SafetyResetSnapshot{};
@@ -319,6 +336,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   CHECK(webCommandQueue != nullptr);
   CHECK(bleCompanionRequestQueue != nullptr);
   CHECK(bleCompanionResultQueue != nullptr);
+  CHECK(initializeSettingsPersistenceWorker());
   CHECK(initializeRelaySafetyTimer());
   relaySafetyTimersReady = true;
 
@@ -9220,6 +9238,144 @@ void f04_gptimer_state_serializes_stop_against_expiry() {
   }
 }
 
+void f05_settings_persistence_init_is_transactional() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  releaseSettingsPersistenceWorkerForHost();
+
+  hostSettingsPersistQueueCreateSucceeds = false;
+  CHECK(!initializeSettingsPersistenceWorker());
+  CHECK(settingsPersistQueue == nullptr);
+  CHECK(settingsPersistTaskHandle == nullptr);
+  CHECK(!settingsPersistenceAvailable());
+  CHECK(hostSettingsPersistRollbackDeletes == 0);
+
+  hostSettingsPersistQueueCreateSucceeds = true;
+  hostSettingsPersistTaskCreateSucceeds = false;
+  CHECK(!initializeSettingsPersistenceWorker());
+  CHECK(settingsPersistQueue == nullptr);
+  CHECK(settingsPersistTaskHandle == nullptr);
+  CHECK(!settingsPersistenceAvailable());
+  CHECK(hostSettingsPersistRollbackDeletes == 1);
+
+  const RuntimeConfig before = runtimeConfig;
+  WebCommand update;
+  update.type = WebCommandType::APPLY_CONFIG;
+  update.requestId = 505;
+  update.config = before;
+  update.config.goalWeightG = before.goalWeightG + 1U;
+  hostForwardAcceptedNetworkCommandSucceeds = false;
+  processWebCommand(update);
+  CHECK(runtimeConfig.revision == before.revision);
+  CHECK(runtimeConfig.goalWeightG == before.goalWeightG);
+  CHECK(controlResultPending);
+  CHECK(controlResultCommand.requestId == update.requestId);
+  CHECK(controlResultCommand.resultState == CommandResultState::FAILED);
+
+  controlResultPending = false;
+  WebCommand clearPreferred;
+  clearPreferred.type = WebCommandType::CLEAR_PREFERRED_SCALE;
+  clearPreferred.requestId = 506;
+  processWebCommand(clearPreferred);
+  CHECK(controlResultPending);
+  CHECK(controlResultCommand.requestId == clearPreferred.requestId);
+  CHECK(controlResultCommand.resultState == CommandResultState::FAILED);
+
+  hostSettingsPersistTaskCreateSucceeds = true;
+  CHECK(initializeSettingsPersistenceWorker());
+  CHECK(settingsPersistenceAvailable());
+  CHECK(settingsPersistQueue != nullptr);
+  CHECK(settingsPersistTaskHandle != nullptr);
+  const QueueHandle_t readyQueue = settingsPersistQueue;
+  const TaskHandle_t readyTask = settingsPersistTaskHandle;
+  CHECK(initializeSettingsPersistenceWorker());
+  CHECK(settingsPersistQueue == readyQueue);
+  CHECK(settingsPersistTaskHandle == readyTask);
+  CHECK(settingsPersistenceAvailable());
+}
+
+void f06_boot_capability_policy_is_fail_closed() {
+  BootCapabilities healthy;
+  healthy.evaluated = true;
+  healthy.platformClock = true;
+  healthy.relaySafetyTimers = true;
+  healthy.taskWatchdog = true;
+  healthy.persistentStorage = true;
+  healthy.settingsLoaded = true;
+  healthy.settingsPersistenceWorker = true;
+  healthy.scaleWorker = true;
+  healthy.webCommandQueue = true;
+  healthy.network = true;
+  healthy.psram = true;
+  CHECK(healthy.state() == BootState::READY);
+
+  bool BootCapabilities::*const mandatory[] = {
+      &BootCapabilities::platformClock,
+      &BootCapabilities::relaySafetyTimers,
+      &BootCapabilities::taskWatchdog,
+      &BootCapabilities::persistentStorage,
+      &BootCapabilities::settingsLoaded,
+      &BootCapabilities::settingsPersistenceWorker,
+      &BootCapabilities::scaleWorker,
+  };
+  for (bool BootCapabilities::*capability : mandatory) {
+    BootCapabilities failed = healthy;
+    failed.*capability = false;
+    CHECK(failed.state() == BootState::DEGRADED_SAFE);
+  }
+
+  BootCapabilities offline = healthy;
+  offline.webCommandQueue = false;
+  offline.network = false;
+  offline.psram = false;
+  CHECK(offline.state() == BootState::READY);
+  CHECK(!offline.optionalConnectivityReady());
+
+  BootCapabilities faulted = healthy;
+  faulted.criticalFaultLatched = true;
+  CHECK(faulted.state() == BootState::FAULT_LATCHED);
+  CHECK(BootCapabilities{}.state() == BootState::BOOTING);
+
+  auto bootRefusesRelayClose = [](BootState expected) {
+    setup();
+    const bool stateMatches =
+        bootState == expected && publishedControlStatus.bootState == expected &&
+        !firmwareInitializationComplete && bootDegraded;
+    const bool rejected = !setMachineCircuitClosed(true, 5000);
+    return stateMatches && rejected && !getRelaySafetySnapshot().closed;
+  };
+
+  resetHarness(false, false);
+  hostCpuFrequencySetSucceeds = false;
+  CHECK(bootRefusesRelayClose(BootState::FAULT_LATCHED));
+
+  resetHarness(false, false);
+  hostEspTimerCreateSucceeds = false;
+  CHECK(bootRefusesRelayClose(BootState::FAULT_LATCHED));
+
+  resetHarness(false, false);
+  hostTaskWatchdogOperationsSucceed = false;
+  CHECK(bootRefusesRelayClose(BootState::FAULT_LATCHED));
+
+  resetHarness(false, false);
+  EEPROM.beginSucceeds = false;
+  CHECK(bootRefusesRelayClose(BootState::DEGRADED_SAFE));
+
+  resetHarness(false, false);
+  hostSettingsPersistTaskCreateSucceeds = false;
+  CHECK(bootRefusesRelayClose(BootState::DEGRADED_SAFE));
+  CHECK(settingsPersistQueue == nullptr);
+  CHECK(settingsPersistTaskHandle == nullptr);
+
+  resetHarness(false, false);
+  setScaleWorkerBleReadyForHost(false);
+  CHECK(bootRefusesRelayClose(BootState::DEGRADED_SAFE));
+
+  resetHarness(false, false);
+  reportTaskWatchdogFault();
+  CHECK(bootRefusesRelayClose(BootState::FAULT_LATCHED));
+}
+
 void m12_ble_companion_result_drop_is_counted() {
   resetHarness(false, true);
   BleCompanionResult dummy = {};
@@ -11819,6 +11975,8 @@ const TestCase testCases[] = {
     {"M09", m09_snapshot_mutexes_preserve_concurrent_invariants},
     {"F03", f03_safety_event_flags_preserve_consumed_requests},
     {"F04", f04_gptimer_state_serializes_stop_against_expiry},
+    {"F05", f05_settings_persistence_init_is_transactional},
+    {"F06", f06_boot_capability_policy_is_fail_closed},
     {"M12", m12_ble_companion_result_drop_is_counted},
     {"S04b", s04b_shot_log_page_slice},
     {"S04f", s04f_shot_log_sort_date_and_rating},

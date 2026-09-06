@@ -1948,6 +1948,68 @@ struct PersistedLastShot {
   uint32_t shotLogId = 0;
 };
 
+enum class BootState : uint8_t {
+  BOOTING,
+  READY,
+  DEGRADED_SAFE,
+  FAULT_LATCHED
+};
+
+// Boot policy is deliberately split by responsibility. Connectivity can be
+// unavailable while the local controller is fully initialized; safety,
+// durability and the scale/control worker are mandatory for READY.
+struct BootCapabilities {
+  bool evaluated = false;
+  bool platformClock = false;
+  bool relaySafetyTimers = false;
+  bool taskWatchdog = false;
+  bool persistentStorage = false;
+  bool settingsLoaded = false;
+  bool settingsPersistenceWorker = false;
+  bool scaleWorker = false;
+  bool webCommandQueue = false;
+  bool network = false;
+  bool psram = false;
+  bool criticalFaultLatched = false;
+
+  bool mandatorySafetyReady() const {
+    return platformClock && relaySafetyTimers && taskWatchdog;
+  }
+
+  bool mandatoryDurabilityReady() const {
+    return persistentStorage && settingsLoaded && settingsPersistenceWorker;
+  }
+
+  bool mandatoryControlReady() const { return scaleWorker; }
+
+  bool optionalConnectivityReady() const {
+    return webCommandQueue && network && psram;
+  }
+
+  BootState state() const {
+    if (!evaluated) {
+      return BootState::BOOTING;
+    }
+    if (criticalFaultLatched) {
+      return BootState::FAULT_LATCHED;
+    }
+    return mandatorySafetyReady() && mandatoryDurabilityReady() &&
+                   mandatoryControlReady()
+               ? BootState::READY
+               : BootState::DEGRADED_SAFE;
+  }
+};
+
+inline const char *bootStateName(BootState state) {
+  switch (state) {
+    case BootState::BOOTING: return "BOOTING";
+    case BootState::READY: return "READY";
+    case BootState::DEGRADED_SAFE: return "DEGRADED_SAFE";
+    case BootState::FAULT_LATCHED: return "FAULT_LATCHED";
+  }
+  return "BOOTING";
+}
+
 struct ControlStatusSnapshot {
   StopperState state = StopperState::REQUIRES_OFF;
   bool activeCycle = false;
@@ -2098,6 +2160,8 @@ struct ControlStatusSnapshot {
   bool cupPresent = false;
   bool configPersistPending = false;
   bool configPersistFailed = false;
+  BootState bootState = BootState::BOOTING;
+  BootCapabilities bootCapabilities = {};
   bool bootComplete = false;
   bool bootDegraded = false;
   bool scaleWorkerReady = false;
