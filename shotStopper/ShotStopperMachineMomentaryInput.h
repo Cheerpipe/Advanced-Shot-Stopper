@@ -35,9 +35,14 @@ bool momentaryRinseEmittedThisHold = false;
 MachineRunState momentaryGesturePreState = MachineRunState::CONFIRMED_OFF;
 uint32_t momentaryGesturePreStartedAtMs = 0;
 uint32_t momentaryGesturePreLimitMs = HARD_MAX_CIRCUIT_CLOSED_MS;
+enum class FirmwarePulseKind : uint8_t { START, STOP, FORCED };
 bool pulseOutputActive = false;
 bool pulseOutputIsStart = false;
+FirmwarePulseKind pulseOutputKind = FirmwarePulseKind::STOP;
 uint32_t pulseOutputEndsAtMs = 0;
+bool firmwarePulsePending = false;
+FirmwarePulseKind firmwarePulsePendingKind = FirmwarePulseKind::FORCED;
+uint32_t firmwarePulsePendingReadyAtMs = 0;
 
 bool readRawActivatorOn() {
   return digitalRead(ACTIVATOR_GPIO) == ACTIVATOR_ACTIVE_LEVEL;
@@ -134,6 +139,10 @@ void initializeActivatorInput() {
   momentaryGesturePending = false;
   momentaryGestureRestoreRunning = false;
   pulseOutputActive = false;
+  pulseOutputKind = FirmwarePulseKind::STOP;
+  firmwarePulsePending = false;
+  firmwarePulsePendingKind = FirmwarePulseKind::FORCED;
+  firmwarePulsePendingReadyAtMs = 0;
   momentaryRinseRequested = false;
   momentaryRinseHoldFromIdle = false;
   momentaryRinseEmittedThisHold = false;

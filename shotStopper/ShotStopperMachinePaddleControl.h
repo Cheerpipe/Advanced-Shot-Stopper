@@ -40,6 +40,10 @@ inline bool machineRequestStop() {
   return setMachineCircuitClosed(false);
 }
 
+inline bool machineRequestWebStop() { return machineRequestStop(); }
+
+inline bool machineRequestForcedPulse() { return false; }
+
 inline bool machineBeginRinse(uint32_t operationalLimitMs) {
   if (rinseActuationActive) {
     return true;

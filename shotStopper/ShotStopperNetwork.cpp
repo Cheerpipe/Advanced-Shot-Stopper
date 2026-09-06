@@ -3660,6 +3660,7 @@ bool ShotStopperNetwork::startHttpServer() {
       registerHandler(server_, "/api/v1/control/paddle", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/control/rinse", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/control/stop", HTTP_POST, ownedApiHandler) &&
+      registerHandler(server_, "/api/v1/control/force-pulse", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/control/state-override", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/control/restart", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/diagnostic/reset-history", HTTP_POST, ownedApiHandler) &&
@@ -4090,6 +4091,7 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
   if (apiUriMatches(request->uri, "/api/v1/control/paddle")) return paddleHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/control/rinse")) return rinseHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/control/stop")) return stopHandler(request);
+  if (apiUriMatches(request->uri, "/api/v1/control/force-pulse")) return forcePulseHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/control/state-override")) return stateOverrideHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/control/restart")) return restartHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/diagnostic/reset-history")) return clearResetHistoryHandler(request);
@@ -7554,6 +7556,46 @@ esp_err_t ShotStopperNetwork::stopHandler(httpd_req_t *request) {
   }
   WebCommand command;
   command.type = WebCommandType::STOP;
+  command.requestId = self.allocateRequestId();
+  if (!self.callbacks_.enqueueWebCommand(command)) {
+    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
+                     "Control queue is full.");
+  }
+  return self.sendAccepted(request, command.requestId);
+}
+
+esp_err_t ShotStopperNetwork::forcePulseHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  if (!self.requireAdminUnlock(request)) {
+    return ESP_OK;
+  }
+  if (!REMOTE_MACHINE_CONTROL_ENABLED) {
+    return sendError(request, "403 Forbidden", "REMOTE_CONTROL_DISABLED",
+                     "Remote machine control actuation is disabled in this firmware build.");
+  }
+  if (SHOT_STOPPER_MACHINE_TYPE == 0) {
+    return sendError(request, STATUS_CONFLICT, "MACHINE_TYPE_UNSUPPORTED",
+                     "Forced switch pulses require a momentary machine build.");
+  }
+  const esp_err_t bodyStatus =
+      self.lockJsonBody(request, "An empty JSON object is required.");
+  if (bodyStatus != ESP_OK) {
+    return bodyStatus;
+  }
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
+  static const char *const noFields[] = {nullptr};
+  const bool parsed = root != nullptr &&
+                      jsonHasOnlyUniqueFields(root, noFields, 0);
+  if (root != nullptr) {
+    cJSON_Delete(root);
+  }
+  self.unlockJsonBody();
+  if (!parsed) {
+    return sendError(request, STATUS_UNPROCESSABLE, "INVALID_REQUEST",
+                     "The forced pulse request must be an empty object.");
+  }
+  WebCommand command;
+  command.type = WebCommandType::FORCE_SWITCH_PULSE;
   command.requestId = self.allocateRequestId();
   if (!self.callbacks_.enqueueWebCommand(command)) {
     return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",

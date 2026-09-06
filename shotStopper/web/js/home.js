@@ -9,6 +9,7 @@ export function init(){
   R.registerViewStatus('home',applyStatus);
   $('rinseButton').onclick=()=>R.command('/api/v1/control/rinse');
   $('stopButton').onclick=()=>$('stopButton').dataset.mode==='stop'?R.command('/api/v1/control/stop'):R.command('/api/v1/control/paddle',{on:true});
+  $('forcePulseButton').onclick=()=>R.command('/api/v1/control/force-pulse');
   $('clearLastShotButton').onclick=R.clearLastShot;
   [['overrideIdleLink','off'],['overrideBrewingLink','on']].forEach(([i,s])=>{const a=$(i);if(!a)return;a.onclick=e=>{e.preventDefault();if(a.getAttribute('aria-disabled')==='true')return;R.command('/api/v1/control/state-override',{state:s})}});
   if($('homeBrewByWeight'))$('homeBrewByWeight').onchange=R.persistHomeBrewByWeight;

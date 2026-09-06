@@ -15,6 +15,14 @@ and pulses stop (the auto-stop pulse width). The only other extra pulse is
 the **auto-stop pulse** it sends when a weight cut (or a safety wall) needs
 to toggle the group.
 
+On an opt-in remote-control build, **Start shot** and **Stop shot** synthesize
+the same configured pulse from the Web UI. A smaller **Force press** action is
+also available after Admin unlock on momentary and momentary+reed builds. It
+sends one raw switch pulse without starting or ending a firmware cycle or
+changing inferred state. This emergency action ignores workflow state and
+brew guards, but never bypasses relay lockout, watchdog, timer, or feedback
+safety.
+
 If **No-scale BBW** is Armed or set to **Require a scale** (BBW on, no usable scale), or
 **Require cup to start** would reject the start, the relay does **not**
 mirror: K1 stays open for that whole hold, even after the guard goes Idle

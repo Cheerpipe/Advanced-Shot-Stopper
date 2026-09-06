@@ -1648,6 +1648,8 @@ bool machineIsRunning();
 bool machineRequestStart(uint32_t operationalLimitMs,
                          bool remoteActuation = false);
 bool machineRequestStop();
+bool machineRequestWebStop();
+bool machineRequestForcedPulse();
 void requestRemoteTimerStop();
 uint32_t cycleShotElapsedMs();
 
@@ -3624,7 +3626,8 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
   maybeRequestNtpSyncOnActivity();
 }
 
-void finalizeCycle(EndReason reason, StopperState nextState) {
+bool finalizeCycle(EndReason reason, StopperState nextState,
+                   bool webStopActuation = false) {
   const uint32_t durationMs = endedCycleDurationMs();
 
 #ifndef SHOT_STOPPER_HOST_TEST
@@ -3646,10 +3649,13 @@ void finalizeCycle(EndReason reason, StopperState nextState) {
     machineCancelSettledWeightCutOff();
   }
   const bool rinseEnd = endingRinseCycle(reason);
+  bool machineStopAccepted = true;
   if (rinseEnd) {
-    machineEndRinse();
+    machineStopAccepted = machineEndRinse();
+  } else if (webStopActuation) {
+    machineStopAccepted = machineRequestWebStop();
   } else {
-    machineRequestStop();
+    machineStopAccepted = machineRequestStop();
   }
   rinseClear();
   session.rinseStartedAtMs = 0;
@@ -3731,6 +3737,7 @@ void finalizeCycle(EndReason reason, StopperState nextState) {
   addDebugEvent(DebugCategory::STATE, DebugCode::CYCLE_ENDED,
                 static_cast<int32_t>(reason));
   transitionTo(nextState);
+  return machineStopAccepted;
 }
 
 bool beginRinseCycle(ControlSource source) {
@@ -4674,16 +4681,36 @@ void processWebCommand(const WebCommand &command) {
                     static_cast<int32_t>(command.type),
                     static_cast<int32_t>(session.id));
       if (!session.active) {
-        (void)machineRequestStop();
-        reportControlCommandResult(command, CommandResultState::APPLIED);
+        const bool applied = machineRequestWebStop();
+        reportControlCommandResult(
+            command, applied ? CommandResultState::APPLIED
+                             : CommandResultState::FAILED);
         return;
       }
-      finalizeCycle(
+      {
+        const bool applied = finalizeCycle(
           command.type == WebCommandType::STOP_HEARTBEAT
               ? EndReason::WEB_HEARTBEAT_TIMEOUT
               : EndReason::WEB_STOP,
-          nextStateForUserHold(machineLastIntention()));
-      reportControlCommandResult(command, CommandResultState::APPLIED);
+          nextStateForUserHold(machineLastIntention()), true);
+        reportControlCommandResult(
+            command, applied ? CommandResultState::APPLIED
+                             : CommandResultState::FAILED);
+      }
+      return;
+
+    case WebCommandType::FORCE_SWITCH_PULSE:
+      if (!REMOTE_MACHINE_CONTROL_ENABLED || SHOT_STOPPER_MACHINE_TYPE == 0) {
+        rejectWebCommand(command);
+        return;
+      }
+      if (machineRequestForcedPulse()) {
+        addDebugEvent(DebugCategory::WEB, DebugCode::WEB_COMMAND_ACCEPTED,
+                      static_cast<int32_t>(command.type));
+        reportControlCommandResult(command, CommandResultState::APPLIED);
+      } else {
+        rejectWebCommand(command);
+      }
       return;
 
     case WebCommandType::STATE_OVERRIDE_OFF:

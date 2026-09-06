@@ -193,12 +193,12 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .btnGlyph{display:inline-flex;flex-direction:row;align-items:center;justify-content:center;gap:.45rem;box-sizing:border-box;margin:0;border:1px solid var(--ln);border-radius:.5rem;background:var(--bg);line-height:1.2;cursor:pointer;box-shadow:none;color:var(--ac);min-height:var(--tap);min-width:4.5rem;padding:.45rem .75rem;white-space:nowrap;flex:1}
 .btnGlyph .g{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:1.1rem;height:1.1rem;font-size:1.05rem;font-weight:700;line-height:1;font-variant-emoji:text}
 .btnGlyph .t{font-size:.86rem;font-weight:600;letter-spacing:0;text-transform:none;line-height:1.2}
-.presetActions>.btnGlyph{flex-direction:column;gap:.05rem;min-height:2.05rem;min-width:2.55rem;padding:.18rem .32rem;white-space:normal;flex:0 1 auto}
+.presetActions>.btnGlyph,#actionsPanel #forcePulseButton{flex-direction:column;gap:.05rem;min-height:2.05rem;min-width:2.55rem;padding:.18rem .32rem;white-space:normal;flex:0 1 auto}
 .presetActions>.btnGlyph .g{width:.92rem;height:.92rem;font-size:.88rem}
 .presetActions>.btnGlyph .t{font-size:.58rem;letter-spacing:.01em;text-transform:uppercase;line-height:1}
-.btnGlyph.btnInvert{background:var(--ac);color:var(--on);border-color:var(--ac);box-shadow:none}
-.btnGlyph.btnDanger{background:var(--bg);color:var(--ac);border-color:var(--ac);box-shadow:none}
-.btnGlyph.btnWarn{color:var(--ac);background:var(--mw);border-color:var(--ac);box-shadow:none}
+.btnGlyph.btnInvert{background:var(--ac);color:var(--on);border-color:var(--ac)}
+.btnGlyph.btnDanger{background:var(--bg);color:var(--ac);border-color:var(--ac)}
+.btnGlyph.btnWarn{color:var(--ac);background:var(--mw);border-color:var(--ac)}
 .btnGlyph:disabled{opacity:.4;cursor:not-allowed}
 
 #actionsPanel{position:fixed;left:0;right:0;bottom:0;z-index:8;max-width:760px;margin:0 auto;border-radius:var(--r) var(--r) 0 0;border:1px solid var(--ln);border-bottom:0;padding:.7rem 1rem calc(.7rem + env(safe-area-inset-bottom));background:var(--sf);box-shadow:var(--ah)}
@@ -209,8 +209,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #actionsPanel .fieldHint,#actionsPanel #controlPolicy{display:none}
 #actionsPanel .btnBar{border:0;background:transparent;overflow:visible;gap:.55rem}
 #actionsPanel .btnGlyph{flex:1;border:1.5px solid var(--ac);border-radius:2rem;background:transparent;color:var(--ac);min-height:2.85rem}
-#actionsPanel .btnGlyph.btnDanger{background:var(--ac);color:var(--on);border-color:var(--ac);box-shadow:none}
-
+#actionsPanel .btnGlyph.btnDanger{background:var(--ac);color:var(--on);border-color:var(--ac)}
 #shotLogPanel .btnBar{position:sticky;top:var(--hdr);z-index:6;background:var(--sf);margin:0 0 .65rem;border:0;overflow:visible}
 #shotLogPanel .btnGlyph:not(.btnInvert){background:var(--bg);color:var(--ac);border-color:var(--ln)}
 .shotSort{display:flex;border:1px solid var(--ln);border-radius:.5rem;overflow:hidden;background:var(--bg)}
@@ -270,8 +269,8 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #shotTable .shotRateCell .starRate button{min-width:0;width:1.35rem;min-height:2.2rem;padding:.42rem 0;border:0;background:transparent;color:var(--ln);box-shadow:none;flex:0 0 auto}
 #shotTable .shotRateCell .starRate button.on{color:var(--ac)}
 #shotTable .shotRateCell .starRate button .g{display:none}
-#shotTable .btnGlyph,#shotPanel .btnGlyph{border:0;border-radius:.4rem;border-left:0;min-height:2.35rem;min-width:2.35rem;padding:0;flex:0 0 auto;background:transparent;color:var(--dx);box-shadow:none}
-#shotTable .btnGlyph.btnDanger,#shotPanel .btnGlyph.btnDanger{border:0;box-shadow:none;background:transparent;color:var(--dx)}
+#shotTable .btnGlyph,#shotPanel .btnGlyph{border:0;border-radius:.4rem;min-height:2.35rem;min-width:2.35rem;padding:0;flex:0 0 auto;background:transparent;color:var(--dx)}
+#shotTable .btnGlyph.btnDanger,#shotPanel .btnGlyph.btnDanger{border:0;background:transparent;color:var(--dx)}
 #shotTable .btnGlyph .g{display:inline-flex;width:1.25rem;height:1.25rem;font-size:1.45rem}
 #shotPanel{position:relative}
 #shotPanel .shotDel{top:-.55rem;right:.15rem}

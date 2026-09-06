@@ -3334,6 +3334,22 @@ if (!ui.includes("s.safety.recoveryRequired||s.safety.state==='LOCKOUT'") ||
     !ui.includes('shot.disabled=!admin||(!live&&!(remoteReady&&relayStartReady&&canControl))')) {
   throw new Error('Circuit actions must stay behind admin unlock and preserve Stop only while unlocked');
 }
+if (!ui.includes('id="forcePulseButton"') ||
+    !ui.includes('class="btnGlyph btnWarn momentaryOnly"') ||
+    !ui.includes('Force switch press') ||
+    !ui.includes("R.command('/api/v1/control/force-pulse')") ||
+    !runtimeJs.includes("'control/force-pulse':['Switch pulse sent.','send switch pulse']") ||
+    !runtimeJs.includes("force.disabled=!(admin&&remoteReady&&relayStartReady&&webUiOwner)") ||
+    !css.includes('.presetActions>.btnGlyph,#actionsPanel #forcePulseButton{flex-direction:column;') ||
+    !network.includes('"/api/v1/control/force-pulse"') ||
+    !network.includes('ShotStopperNetwork::forcePulseHandler') ||
+    !network.includes('WebCommandType::FORCE_SWITCH_PULSE') ||
+    !network.includes('requireAdminUnlock(request)') ||
+    !domain.includes('FORCE_SWITCH_PULSE') ||
+    !firmware.includes('machineRequestForcedPulse()') ||
+    !firmwareCore.includes('machineRequestWebStop()')) {
+  throw new Error('Momentary Web controls must expose an admin-gated forced pulse and a dedicated Web STOP path');
+}
 if (!network.includes('/api/v1/status/home') ||
     !network.includes('/api/v1/status/settings') ||
     !network.includes('/api/v1/status/admin') ||
@@ -4146,6 +4162,7 @@ if (roundTrip !== generated.html) {
 }
 if (!generated.html.includes('id="view-home"') ||
     !generated.html.includes('id="stopButton"') ||
+    !generated.html.includes('id="forcePulseButton"') ||
     !generated.html.includes('Start shot') ||
     generated.html.includes('virtualPaddle') ||
     generated.html.includes('<section id="view-home" class="view" data-view="home"></section>')) {

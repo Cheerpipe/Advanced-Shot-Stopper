@@ -1713,6 +1713,7 @@ enum class WebCommandType : uint8_t {
   TASK_PROFILER_STOP,
   STATE_OVERRIDE_OFF,
   STATE_OVERRIDE_ON,
+  FORCE_SWITCH_PULSE,
   MAINTENANCE_COMPLETE
 };
 
@@ -1724,6 +1725,8 @@ inline const char *webCommandTypeName(WebCommandType type) {
     case WebCommandType::STOP: return "web stop";
     case WebCommandType::STOP_HEARTBEAT:
       return "web heartbeat stop";
+    case WebCommandType::FORCE_SWITCH_PULSE:
+      return "forced web switch pulse";
     case WebCommandType::APPLY_CONFIG: return "save workflow";
     case WebCommandType::RESET_WEIGHT_OFFSET:
       return "reset learned weight offset";

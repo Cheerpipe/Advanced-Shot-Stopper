@@ -173,6 +173,10 @@ void resetMomentaryHarness() {
 #endif
   momentarySkipFirmwareStopPulse = false;
   pulseOutputActive = false;
+  pulseOutputKind = FirmwarePulseKind::STOP;
+  firmwarePulsePending = false;
+  firmwarePulsePendingKind = FirmwarePulseKind::FORCED;
+  firmwarePulsePendingReadyAtMs = 0;
   rinseActuationActive = false;
   rinseClear();
 #if SHOT_STOPPER_MACHINE_TYPE == 2
@@ -1494,6 +1498,31 @@ void t_remote_start_emits_synthetic_start_pulse() {
   CHECK(!getRelaySafetySnapshot().closed);
 }
 
+void t_web_stop_emits_pulse_while_assumed_on() {
+  resetMomentaryHarness();
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  seedFreshScaleWeight(0.0f);
+  WebCommand start;
+  start.type = WebCommandType::REMOTE_ON;
+  processWebCommand(start);
+  CHECK(session.active);
+  CHECK(pulseOutputActive);
+  CHECK(pulseOutputKind == FirmwarePulseKind::START);
+  runLoopAfter(runtimeStopPulseMs(runtimeConfig) + 1);
+  for (int sample = 0; sample < 60; ++sample) {
+    seedFreshScaleWeight(0.0f);
+  }
+  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  const size_t closedBeforeStop = hostRelayClosedWrites;
+  WebCommand stop;
+  stop.type = WebCommandType::STOP;
+  processWebCommand(stop);
+  CHECK(!session.active);
+  CHECK(pulseOutputActive);
+  CHECK(pulseOutputKind == FirmwarePulseKind::STOP);
+  CHECK(hostRelayClosedWrites == closedBeforeStop + 1);
+}
+
 void t_scale_connect_settles_idle_when_idle() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
@@ -1823,6 +1852,68 @@ void t_timer_only_unconfirmed_idles_at_hard_cap_without_pulse() {
 }
 #endif
 
+void t_forced_pulse_has_no_logical_side_effects() {
+  resetMomentaryHarness();
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  const StopperState stateBefore = stopperState;
+  const MachineRunState machineBefore = machineRunState();
+  const uint32_t sessionIdBefore = session.id;
+  const bool sessionActiveBefore = session.active;
+  WebCommand force;
+  force.type = WebCommandType::FORCE_SWITCH_PULSE;
+  processWebCommand(force);
+  CHECK(pulseOutputActive);
+  CHECK(pulseOutputKind == FirmwarePulseKind::FORCED);
+  CHECK(stopperState == stateBefore);
+  CHECK(machineRunState() == machineBefore);
+  CHECK(session.id == sessionIdBefore);
+  CHECK(session.active == sessionActiveBefore);
+#if SHOT_STOPPER_MACHINE_TYPE == 1
+  CHECK(!momentaryFirmwareCutPending);
+#endif
+}
+
+void t_forced_pulse_queues_once_behind_active_pulse() {
+  resetMomentaryHarness();
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  CHECK(machineRequestStart(HARD_MAX_CIRCUIT_CLOSED_MS, true));
+  CHECK(pulseOutputKind == FirmwarePulseKind::START);
+  CHECK(machineRequestForcedPulse());
+  CHECK(firmwarePulsePending);
+  CHECK(firmwarePulsePendingKind == FirmwarePulseKind::FORCED);
+  CHECK(!machineRequestForcedPulse());
+  runLoopAfter(runtimeStopPulseMs(runtimeConfig) + 1);
+  CHECK(!pulseOutputActive);
+  CHECK(firmwarePulsePending);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS - 1);
+  CHECK(!pulseOutputActive);
+  runLoopAfter(2);
+  CHECK(pulseOutputActive);
+  CHECK(pulseOutputKind == FirmwarePulseKind::FORCED);
+}
+
+void t_physical_press_cancels_pending_forced_pulse() {
+  resetMomentaryHarness();
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  CHECK(machineRequestStart(HARD_MAX_CIRCUIT_CLOSED_MS, true));
+  CHECK(machineRequestForcedPulse());
+  CHECK(firmwarePulsePending);
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  CHECK(!firmwarePulsePending);
+  releaseUp();
+}
+
+void t_forced_pulse_respects_relay_lockout() {
+  resetMomentaryHarness();
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  relaySafetyState = RelaySafetyState::LOCKOUT;
+  const size_t closedBefore = hostRelayClosedWrites;
+  CHECK(!machineRequestForcedPulse());
+  CHECK(!pulseOutputActive);
+  CHECK(hostRelayClosedWrites == closedBefore);
+}
+
 #if SHOT_STOPPER_MACHINE_TYPE == 2
 void t_reed_polarity_stop_when_running() {
   resetMomentaryHarness();
@@ -2122,6 +2213,7 @@ const TestCase kTests[] = {
     {"P25M", t_gusher_flow_confirms_on},
     {"P25D", t_override_sets_inferred_idle_and_brewing_without_pulse},
     {"P25R", t_remote_start_emits_synthetic_start_pulse},
+    {"P25S", t_web_stop_emits_pulse_while_assumed_on},
     {"P25E", t_scale_connect_settles_idle_when_idle},
     {"P25F", t_settled_weight_cut_confirms_off},
     {"P25G", t_settled_weight_cut_stays_armed_while_pouring},
@@ -2141,6 +2233,10 @@ const TestCase kTests[] = {
     {"P53", t_timer_only_confirmed_skips_operational_wall_pulses_at_hard_cap},
     {"P54", t_timer_only_unconfirmed_idles_at_hard_cap_without_pulse},
 #endif
+    {"P25T", t_forced_pulse_has_no_logical_side_effects},
+    {"P25U", t_forced_pulse_queues_once_behind_active_pulse},
+    {"P25V", t_physical_press_cancels_pending_forced_pulse},
+    {"P25W", t_forced_pulse_respects_relay_lockout},
 #if SHOT_STOPPER_MACHINE_TYPE == 2
     {"P06", t_reed_off_blocks_firmware_cut},
     {"P07", t_reed_on_allows_firmware_cut},

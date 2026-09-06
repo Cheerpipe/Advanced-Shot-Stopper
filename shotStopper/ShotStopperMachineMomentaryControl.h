@@ -6,15 +6,17 @@
 // SPECIALIZATION: Momentary switch — actuator (control)
 // =============================================================================
 // WHAT: K1 mirrors the physical switch 1:1 when the façade allows activator
-//       drive. Firmware uses synthetic pulses for a remote start and for a
-//       stop (weight cut / walls), aborted if the user presses. Logical run walls reuse
-//       tripRelaySafety so brew sees existing flags.
+//       drive. Firmware uses synthetic pulses for Web controls and for a stop
+//       (weight cut / walls), aborted if the user presses. Logical run walls
+//       reuse tripRelaySafety so brew sees existing flags.
 //
 // BOUNDARY: Momentary-only. No paddle latch/PaddleMode policy. Stopper/brew
 // call machineRequestStart/Stop on the façade and must not know about pulses
 // or 1:1 mirroring. Run state lives in MomentaryOnlyState / MomentaryReedState.
 
 void abortFirmwarePulseIfActive() {
+  firmwarePulsePending = false;
+  firmwarePulsePendingReadyAtMs = 0;
   if (pulseOutputActive) {
     pulseOutputActive = false;
     if (!momentaryPhysicalOn && getRelaySafetySnapshot().closed) {
@@ -23,16 +25,29 @@ void abortFirmwarePulseIfActive() {
   }
 }
 
+bool emitFirmwarePulse(FirmwarePulseKind kind);
+
 void serviceFirmwarePulseDrive() {
   if (!pulseOutputActive) {
     if (getRelaySafetySnapshot().closed) {
       (void)setMachineCircuitClosed(false);
     }
+    if (!firmwarePulsePending || momentaryPhysicalOn ||
+        static_cast<int32_t>(millis() - firmwarePulsePendingReadyAtMs) < 0) {
+      return;
+    }
+    const FirmwarePulseKind pendingKind = firmwarePulsePendingKind;
+    firmwarePulsePending = false;
+    firmwarePulsePendingReadyAtMs = 0;
+    (void)emitFirmwarePulse(pendingKind);
     return;
   }
   if (static_cast<int32_t>(millis() - pulseOutputEndsAtMs) >= 0) {
     (void)setMachineCircuitClosed(false);
     pulseOutputActive = false;
+    if (firmwarePulsePending) {
+      firmwarePulsePendingReadyAtMs = millis() + ACTIVATOR_DEBOUNCE_MS;
+    }
   } else if (!getRelaySafetySnapshot().closed) {
     (void)setMachineCircuitClosed(true, HARD_MAX_CIRCUIT_CLOSED_MS);
   }
@@ -62,7 +77,7 @@ void applyMomentaryRelayDrive() {
     return;
   }
   machineNoteActivatorReleased();
-  if (pulseOutputActive) {
+  if (pulseOutputActive || firmwarePulsePending) {
     serviceFirmwarePulseDrive();
     return;
   }
@@ -71,7 +86,7 @@ void applyMomentaryRelayDrive() {
   }
 }
 
-bool emitFirmwarePulse(bool isStart) {
+bool emitFirmwarePulse(FirmwarePulseKind kind) {
   if (!rinseActuationActive && momentaryPhysicalOn) {
     return true;
   }
@@ -86,17 +101,43 @@ bool emitFirmwarePulse(bool isStart) {
     return false;
   }
   pulseOutputActive = true;
-  pulseOutputIsStart = isStart;
+  pulseOutputKind = kind;
+  pulseOutputIsStart = kind == FirmwarePulseKind::START;
   pulseOutputEndsAtMs = millis() + durationMs;
 #if SHOT_STOPPER_MACHINE_TYPE == 1
-  if (!isStart) {
+  if (kind == FirmwarePulseKind::STOP) {
     momentaryFirmwareCutPending = true;
   }
 #endif
   return true;
 }
 
-bool emitFirmwareStopPulse() { return emitFirmwarePulse(false); }
+bool queueWebFirmwarePulse(FirmwarePulseKind kind) {
+  if (momentaryPhysicalOn) {
+    return false;
+  }
+  if (pulseOutputActive) {
+    if (kind == FirmwarePulseKind::STOP &&
+        pulseOutputKind == FirmwarePulseKind::STOP) {
+      return true;
+    }
+    if (firmwarePulsePending) {
+      return false;
+    }
+    firmwarePulsePending = true;
+    firmwarePulsePendingKind = kind;
+    firmwarePulsePendingReadyAtMs = 0;
+    return true;
+  }
+  if (firmwarePulsePending) {
+    return false;
+  }
+  return emitFirmwarePulse(kind);
+}
+
+bool emitFirmwareStopPulse() {
+  return emitFirmwarePulse(FirmwarePulseKind::STOP);
+}
 
 void maybeEmitFirmwareStopPulse() {
   if (momentaryPhysicalOn) {
@@ -186,7 +227,7 @@ inline bool machineRequestStart(uint32_t operationalLimitMs,
   // A physical press already toggles the machine circuit. In particular, a
   // release-edge start must not add a second pulse, which would toggle it back
   // off. A Web start has no physical edge, so it must synthesize that pulse.
-  return !remoteActuation || emitFirmwarePulse(true);
+  return !remoteActuation || emitFirmwarePulse(FirmwarePulseKind::START);
 }
 
 inline bool machineRequestStop() {
@@ -214,6 +255,25 @@ inline bool machineRequestStop() {
   return emitFirmwareStopPulse();
 }
 
+inline bool machineRequestWebStop() {
+#if SHOT_STOPPER_MACHINE_TYPE == 1
+  if (momentaryPhysicalOn) {
+    return machineRequestStop();
+  }
+  latchMomentaryElapsed();
+  momentaryLogicalRunActive = false;
+  momentarySkipFirmwareStopPulse = false;
+  noteMomentaryLogicalStop();
+  return queueWebFirmwarePulse(FirmwarePulseKind::STOP);
+#else
+  return machineRequestStop();
+#endif
+}
+
+inline bool machineRequestForcedPulse() {
+  return queueWebFirmwarePulse(FirmwarePulseKind::FORCED);
+}
+
 inline bool machineBeginRinse(uint32_t operationalLimitMs) {
   if (rinseActuationActive) {
     return true;
@@ -229,7 +289,7 @@ inline bool machineBeginRinse(uint32_t operationalLimitMs) {
   momentaryLogicalRunActive = true;
   momentaryLogicalRunStartedAtMs = millis();
   momentaryLogicalOperationalLimitMs = operationalLimitMs;
-  return emitFirmwarePulse(true);
+  return emitFirmwarePulse(FirmwarePulseKind::START);
 }
 
 inline bool machineEndRinse() {
@@ -238,7 +298,7 @@ inline bool machineEndRinse() {
   machineActivatorDriveSuppressedThisHold = true;
   noteMomentaryLogicalStop();
   abortFirmwarePulseIfActive();
-  const bool ok = emitFirmwarePulse(false);
+  const bool ok = emitFirmwarePulse(FirmwarePulseKind::STOP);
   rinseActuationActive = false;
   return ok;
 }
