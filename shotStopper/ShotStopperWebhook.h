@@ -103,6 +103,12 @@ inline bool validWebhookConfig(const WebhookConfig &config) {
                         : config.url[0] == '\0' || validWebhookUrl(config.url);
 }
 
+inline bool webhookClientMustRecreate(const char *currentUrl,
+                                      const char *nextUrl) {
+  return currentUrl == nullptr || nextUrl == nullptr || currentUrl[0] == '\0' ||
+         strncmp(currentUrl, nextUrl, WEBHOOK_URL_CAPACITY) != 0;
+}
+
 // Keep HTTP client setup fail-fast and host-testable. ESP_OK is zero; the
 // concrete callbacks return esp_err_t converted to its stable int32_t ABI.
 template <typename MethodSetter, typename ContentTypeSetter,
@@ -155,6 +161,10 @@ struct WebhookStatus {
   uint32_t dropped = 0;
   uint32_t staleConfigDropped = 0;
   uint32_t workerStartFailures = 0;
+  uint32_t clientCreates = 0;
+  uint32_t clientReuses = 0;
+  uint32_t transportResets = 0;
+  uint32_t clientCleanups = 0;
 };
 
 #if !defined(SHOT_STOPPER_HOST_TEST) && \
@@ -195,6 +205,8 @@ class WebhookDispatcher {
   static esp_err_t httpEventHandler(esp_http_client_event_t *event);
   void task();
   bool send(const QueuedWebhook &queued);
+  esp_http_client_handle_t ensureHttpClient(const char *url);
+  void cleanupHttpClient();
   bool buildPayload(const WebhookEvent &event, char *output, size_t capacity);
   bool dispatchAllowed() const;
 
@@ -225,6 +237,10 @@ class WebhookDispatcher {
   void *activeClient_ = nullptr;
   uint8_t activeClientUsers_ = 0;
   bool cancelInProgress_ = false;
+  // Worker-owned and reused for every request with the same URL. activeClient_
+  // is only the cancellable publication while perform() is in flight.
+  void *httpClient_ = nullptr;
+  char httpClientUrl_[WEBHOOK_URL_CAPACITY] = {};
 };
 
 #endif

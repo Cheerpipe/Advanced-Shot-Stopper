@@ -5021,7 +5021,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             "\"workerReady\":%s,\"sending\":%s,\"lastSuccess\":%s,"
             "\"lastHttpStatus\":%u,\"lastError\":%ld,"
             "\"lastAttemptAtMs\":%lu,\"sent\":%lu,\"dropped\":%lu,"
-            "\"staleConfigDropped\":%lu,\"workerStartFailures\":%lu},"
+            "\"staleConfigDropped\":%lu,\"workerStartFailures\":%lu,"
+            "\"clientCreates\":%lu,\"clientReuses\":%lu,"
+            "\"transportResets\":%lu,\"clientCleanups\":%lu},"
             "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"}",
             webhookConfig.enabled ? "true" : "false", safeWebhookUrl,
             webhookConfig.brewState ? "true" : "false",
@@ -5038,6 +5040,10 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             static_cast<unsigned long>(webhookStatus.dropped),
             static_cast<unsigned long>(webhookStatus.staleConfigDropped),
             static_cast<unsigned long>(webhookStatus.workerStartFailures),
+            static_cast<unsigned long>(webhookStatus.clientCreates),
+            static_cast<unsigned long>(webhookStatus.clientReuses),
+            static_cast<unsigned long>(webhookStatus.transportResets),
+            static_cast<unsigned long>(webhookStatus.clientCleanups),
             static_cast<unsigned long>(network.lastCommandRequestId),
             commandResultStateName(network.lastCommandState));
       }
@@ -5078,7 +5084,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"health\":{\"uptimeMs\":%lu,\"snapshotVersion\":%lu,"
         "\"snapshotStale\":%s,\"loopIntervalGapMs\":%lu,"
         "\"loopMaxGapMs\":%lu,\"loopDeadlineMisses\":%lu,"
+        "\"loopMaxExecutionUs\":%lu,"
         "\"scaleWorkerMaxGapMs\":%lu,\"scaleWorkerDeadlineMisses\":%lu,"
+        "\"scaleWorkerMaxExecutionUs\":%lu,"
         "\"freeHeapBytes\":%lu,\"minimumFreeHeapBytes\":%lu,"
         "\"largestFreeHeapBlockBytes\":%lu,"
         "\"psramSizeBytes\":%lu,\"psramFreeBytes\":%lu,"
@@ -5152,8 +5160,10 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(control.loopIntervalGapMs),
         static_cast<unsigned long>(control.loopMaxGapMs),
         static_cast<unsigned long>(control.loopDeadlineMisses),
+        static_cast<unsigned long>(control.loopMaxExecutionUs),
         static_cast<unsigned long>(control.scaleWorkerMaxGapMs),
         static_cast<unsigned long>(control.scaleWorkerDeadlineMisses),
+        static_cast<unsigned long>(control.scaleWorkerMaxExecutionUs),
         static_cast<unsigned long>(control.freeHeapBytes),
         static_cast<unsigned long>(control.minimumFreeHeapBytes),
         static_cast<unsigned long>(control.largestFreeHeapBlockBytes),
@@ -5880,7 +5890,9 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"health\":{\"uptimeMs\":%lu,\"snapshotVersion\":%lu,"
            "\"snapshotStale\":%s,\"loopIntervalGapMs\":%lu,"
            "\"loopMaxGapMs\":%lu,\"loopDeadlineMisses\":%lu,"
+           "\"loopMaxExecutionUs\":%lu,"
            "\"scaleWorkerMaxGapMs\":%lu,\"scaleWorkerDeadlineMisses\":%lu,"
+           "\"scaleWorkerMaxExecutionUs\":%lu,"
            "\"loopStackMinWords\":%lu,"
            "\"scaleStackMinWords\":%lu,\"freeHeapBytes\":%lu,"
            "\"minimumFreeHeapBytes\":%lu,\"largestFreeHeapBlockBytes\":%lu,"
@@ -5903,8 +5915,10 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<unsigned long>(c.loopIntervalGapMs),
            static_cast<unsigned long>(c.loopMaxGapMs),
            static_cast<unsigned long>(c.loopDeadlineMisses),
+           static_cast<unsigned long>(c.loopMaxExecutionUs),
            static_cast<unsigned long>(c.scaleWorkerMaxGapMs),
            static_cast<unsigned long>(c.scaleWorkerDeadlineMisses),
+           static_cast<unsigned long>(c.scaleWorkerMaxExecutionUs),
            static_cast<unsigned long>(c.loopStackMinWords),
            static_cast<unsigned long>(c.scaleStackMinWords),
            static_cast<unsigned long>(c.freeHeapBytes),

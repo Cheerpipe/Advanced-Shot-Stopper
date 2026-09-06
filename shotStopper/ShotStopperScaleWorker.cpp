@@ -171,8 +171,8 @@ portMUX_TYPE scaleLinkMux = portMUX_INITIALIZER_UNLOCKED;
 TaskMutex scalePreferredMacMux;
 portMUX_TYPE scaleBeepMux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE scaleDebugMux = portMUX_INITIALIZER_UNLOCKED;
-portMUX_TYPE scaleCriticalEventMux = portMUX_INITIALIZER_UNLOCKED;
-portMUX_TYPE scaleWeightEventMux = portMUX_INITIALIZER_UNLOCKED;
+TaskMutex scaleCriticalEventMux;
+TaskMutex scaleWeightEventMux;
 
 ScaleLinkState scaleLinkState = ScaleLinkState::DISCONNECTED;
 bool scaleConnecting = false;
@@ -209,6 +209,7 @@ static std::atomic<uint32_t> scaleEventsDropped{0};
 static std::atomic<uint32_t> scaleWorkerStackMinWords{0};
 static std::atomic<uint32_t> scaleWorkerMaxGapMs{0};
 static std::atomic<uint32_t> scaleWorkerDeadlineMisses{0};
+static std::atomic<uint32_t> scaleWorkerMaxExecutionUs{0};
 ScaleEvent scaleCriticalEvent;
 bool scaleCriticalEventPending = false;
 ScaleEvent scaleTimerStartEvent;
@@ -298,11 +299,19 @@ void publishScaleWorkerPolicy(const RuntimeConfig &config, bool controlReady) {
           << kPolicyBookooLevelShift;
   bits |= static_cast<uint32_t>(cacheMode) << kPolicyMacCacheModeShift;
   scaleWorkerPolicyBits.store(bits, std::memory_order_release);
+  wakeScaleWorker();
 }
 
 bool scaleWorkerReady() {
   return scaleWorkerTaskHandle != nullptr &&
          bleStackReady.load(std::memory_order_acquire);
+}
+
+void wakeScaleWorker() {
+  TaskHandle_t worker = scaleWorkerTaskHandle;
+  if (worker != nullptr) {
+    (void)xTaskNotifyGive(worker);
+  }
 }
 
 uint32_t scaleWorkerDroppedEventCount() {
@@ -319,6 +328,10 @@ uint32_t scaleWorkerMaxGapMsValue() {
 
 uint32_t scaleWorkerDeadlineMissCount() {
   return scaleWorkerDeadlineMisses.load(std::memory_order_relaxed);
+}
+
+uint32_t scaleWorkerMaxExecutionUsValue() {
+  return scaleWorkerMaxExecutionUs.load(std::memory_order_relaxed);
 }
 
 #if defined(SHOT_STOPPER_HOST_TEST)
@@ -343,6 +356,7 @@ void resetScaleWorkerMetricsForHost() {
   scaleWorkerStackMinWords.store(0, std::memory_order_relaxed);
   scaleWorkerMaxGapMs.store(0, std::memory_order_relaxed);
   scaleWorkerDeadlineMisses.store(0, std::memory_order_relaxed);
+  scaleWorkerMaxExecutionUs.store(0, std::memory_order_relaxed);
 }
 #endif
 
@@ -526,6 +540,7 @@ bool enqueueScaleCommand(const ScaleCommand &command, bool toFront) {
     queued = xQueueSend(scaleCommandQueue, &command, 0);
   }
   if (queued == pdTRUE) {
+    wakeScaleWorker();
     return true;
   }
   ++scaleCommandDropCount;
@@ -569,10 +584,10 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
     lastScaleWeightAtMs = stamped.receivedAtMs;
     portEXIT_CRITICAL(&scaleLinkMux);
 
-    portENTER_CRITICAL(&scaleWeightEventMux);
+    scaleWeightEventMux.lock();
     scaleWeightEvent = stamped;
     scaleWeightEventPending = true;
-    portEXIT_CRITICAL(&scaleWeightEventMux);
+    scaleWeightEventMux.unlock();
     if (streamGapMs != 0) {
       const uint32_t nowMs = millis();
       if (lastScalePacketGapLogMs == 0 ||
@@ -595,7 +610,7 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
         xQueueSend(scaleEventQueue, &event, 0) == pdTRUE) {
       return true;
     }
-    portENTER_CRITICAL(&scaleCriticalEventMux);
+    scaleCriticalEventMux.lock();
     ScaleEvent *fallback = &scaleCriticalEvent;
     bool *fallbackPending = &scaleCriticalEventPending;
     if (event.type == ScaleEventType::TIMER_START_RESULT) {
@@ -607,7 +622,7 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
     }
     *fallback = event;
     *fallbackPending = true;
-    portEXIT_CRITICAL(&scaleCriticalEventMux);
+    scaleCriticalEventMux.unlock();
     return true;
   }
   if (scaleEventQueue == nullptr) {
@@ -941,6 +956,7 @@ void requestScaleBrewBeep(uint32_t cycleId) {
   scaleBeepPending = true;
   scaleBeepCycleId = cycleId;
   portEXIT_CRITICAL(&scaleBeepMux);
+  wakeScaleWorker();
 }
 
 bool takeScaleBrewBeep(uint32_t &cycleId) {
@@ -969,6 +985,7 @@ void requestScalePaddleReturnReminderBeep() {
   portENTER_CRITICAL(&scaleBeepMux);
   scalePaddleReturnReminderBeepPending = true;
   portEXIT_CRITICAL(&scaleBeepMux);
+  wakeScaleWorker();
 }
 
 bool takeScalePaddleReturnReminderBeep() {
@@ -992,6 +1009,7 @@ void requestScaleCompletionBeep() {
   portENTER_CRITICAL(&scaleBeepMux);
   scaleCompletionBeepPending = true;
   portEXIT_CRITICAL(&scaleBeepMux);
+  wakeScaleWorker();
 }
 
 bool takeScaleCompletionBeep() {
@@ -1829,9 +1847,10 @@ void scaleWorkerTask(void *) {
     // NimBLE owns HCI waits in its host task. Yield this worker for the
     // selected connected/disconnected service cadence.
     const uint32_t tickDelayMs = scaleWorkerTickDelayMs();
-    vTaskDelay(pdMS_TO_TICKS(tickDelayMs));
+    (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(tickDelayMs));
 
     const uint32_t nowMs = millis();
+    const uint32_t executionStartedUs = micros();
     static uint32_t previousServiceAtMs = 0;
     if (previousServiceAtMs != 0) {
       const uint32_t gapMs = static_cast<uint32_t>(nowMs - previousServiceAtMs);
@@ -1973,6 +1992,14 @@ void scaleWorkerTask(void *) {
 #if !defined(SHOT_STOPPER_HOST_TEST)
       reportNimbleRuntimeHealth(false);
 #endif
+    }
+    const uint32_t executionUs = micros() - executionStartedUs;
+    uint32_t observedExecution =
+        scaleWorkerMaxExecutionUs.load(std::memory_order_relaxed);
+    while (executionUs > observedExecution &&
+           !scaleWorkerMaxExecutionUs.compare_exchange_weak(
+               observedExecution, executionUs, std::memory_order_relaxed,
+               std::memory_order_relaxed)) {
     }
   }
 }

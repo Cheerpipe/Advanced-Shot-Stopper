@@ -526,7 +526,8 @@ if (!firmware.includes('companionAdvertisingShouldPause') ||
     !firmware.includes('SCALE_HUNT_RF_CLEAR_MS') ||
     !firmware.includes('scaleHuntRfClearActive') ||
     firmware.includes('BLE.poll(') ||
-    !firmware.includes('vTaskDelay(pdMS_TO_TICKS(tickDelayMs))') ||
+    !scaleWorker.includes(
+        'ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(tickDelayMs))') ||
     (firmware.split('syncCompanionAdvertisingForScaleLink();').length - 1) < 3 ||
     (scaleWorker.split('syncScaleRadioCoex();').length - 1) < 2 ||
     !scaleWorker.includes('GAP/GATT setup must not wait behind') ||
@@ -3185,6 +3186,10 @@ if (!webhookSource.includes('allocExternal(queueStorageBytes)') ||
     !webhookSource.includes('esp_http_client_close(event->client)') ||
     !webhookSource.includes('esp_http_client_cancel_request(client)') ||
     !webhookSource.includes('cancelActive_') ||
+    !webhookSource.includes('ensureHttpClient(live.url)') ||
+    !webhookSource.includes('webhookClientMustRecreate') ||
+    !webhookSource.includes('++status_.clientReuses') ||
+    !webhookSource.includes('++status_.transportResets') ||
     !webhookSource.includes('void WebhookDispatcher::serviceAbort()') ||
     !network.includes('webhooks_.serviceAbort()')) {
   throw new Error(

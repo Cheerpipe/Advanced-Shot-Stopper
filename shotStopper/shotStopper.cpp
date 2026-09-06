@@ -345,7 +345,7 @@ RuntimeConfig runtimeConfig;
 SHOT_STOPPER_PSRAM_BSS BullseyeMelodyConfig bullseyeMelodyConfig;
 SHOT_STOPPER_PSRAM_BSS BullseyeMelodyConfig stagedBullseyeMelodyConfig;
 uint32_t stagedBullseyeRequestId = 0;
-portMUX_TYPE bullseyeConfigMux = portMUX_INITIALIZER_UNLOCKED;
+TaskMutex bullseyeConfigMux;
 BullseyeTracker bullseyeTracker;
 LocalBuzzer localBuzzer;
 ShotPresetBank presetBank;
@@ -399,7 +399,7 @@ uint32_t nextCycleId = 1;
 QueueHandle_t webCommandQueue = nullptr;
 QueueHandle_t bleCompanionRequestQueue = nullptr;
 QueueHandle_t bleCompanionResultQueue = nullptr;
-portMUX_TYPE bleCompanionMux = portMUX_INITIALIZER_UNLOCKED;
+TaskMutex bleCompanionMux;
 uint32_t debugLogContentionDropped = 0;
 // Snapshot of ring overwrites only. Contention drops are a separate monotonic
 // atomic counter so a producer cannot overwrite another producer's increment.
@@ -471,7 +471,7 @@ uint32_t nextInternalRequestId = 0x80000000UL;
 #ifndef SHOT_STOPPER_HOST_TEST
 SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistRequest;
 SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistReceive;
-portMUX_TYPE settingsPersistMux = portMUX_INITIALIZER_UNLOCKED;
+TaskMutex settingsPersistMux;
 bool settingsPersistInFlight = false;
 bool settingsPersistResultReady = false;
 bool settingsPersistResultOk = false;
@@ -484,6 +484,7 @@ bool settingsPersistenceReady = false;
 uint32_t lastLoopAtMs = 0;
 uint32_t loopMaxGapMs = 0;
 uint32_t loopDeadlineMisses = 0;
+uint32_t loopMaxExecutionUs = 0;
 uint32_t loopIntervalGapMs = 0;
 uint32_t healthIntervalMaxGapMs = 0;
 uint32_t loopStackMinWords = 0;
@@ -1295,31 +1296,35 @@ bool enqueueWebCommand(const WebCommand &command) {
 }
 
 bool enqueueBleCompanionRequest(const BleCompanionRequest &request) {
-  return bleCompanionRequestQueue != nullptr &&
-         xQueueSend(bleCompanionRequestQueue, &request, 0) == pdTRUE;
+  const bool queued = bleCompanionRequestQueue != nullptr &&
+                      xQueueSend(bleCompanionRequestQueue, &request, 0) == pdTRUE;
+  if (queued) {
+    wakeScaleWorker();
+  }
+  return queued;
 }
 
 void copyBleCompanionRuntimeSnapshot(BleCompanionRuntimeSnapshot &output) {
-  portENTER_CRITICAL(&bleCompanionMux);
+  bleCompanionMux.lock();
   output = bleCompanionRuntimeSnapshot;
-  portEXIT_CRITICAL(&bleCompanionMux);
+  bleCompanionMux.unlock();
 }
 
 void publishBleCompanionStatus(BleCompanionStatusSnapshot status) {
-  portENTER_CRITICAL(&bleCompanionMux);
+  bleCompanionMux.lock();
   status.configuredEnabled =
       bleCompanionRuntimeSnapshot.configuredEnabled;
   status.restartRequired =
       status.configuredEnabled != status.enabled;
   bleCompanionStatusSnapshot = status;
-  portEXIT_CRITICAL(&bleCompanionMux);
+  bleCompanionMux.unlock();
 }
 
 BleCompanionStatusSnapshot copyBleCompanionStatus() {
   BleCompanionStatusSnapshot output;
-  portENTER_CRITICAL(&bleCompanionMux);
+  bleCompanionMux.lock();
   output = bleCompanionStatusSnapshot;
-  portEXIT_CRITICAL(&bleCompanionMux);
+  bleCompanionMux.unlock();
   return output;
 }
 
@@ -1350,14 +1355,14 @@ void publishBleCompanionRuntimeSnapshot() {
   copyCString(next.wifiSsid, sizeof(next.wifiSsid), network.staSsid);
   copyCString(next.wifiIp, sizeof(next.wifiIp), network.staIp);
 #endif
-  portENTER_CRITICAL(&bleCompanionMux);
+  bleCompanionMux.lock();
   // Active state is immutable until reboot; the configured state may change
   // through Admin/CLI and is applied only by the next boot.
   next.enabled = bleCompanionStatusSnapshot.enabled;
   next.configuredEnabled =
       bleCompanionStatusSnapshot.configuredEnabled;
   bleCompanionRuntimeSnapshot = next;
-  portEXIT_CRITICAL(&bleCompanionMux);
+  bleCompanionMux.unlock();
 }
 
 RuntimeConfig effectiveRuntimeConfig() {
@@ -1390,9 +1395,9 @@ void copyBullseyeConfig(BullseyeMelodyConfig *out) {
   if (out == nullptr) {
     return;
   }
-  portENTER_CRITICAL(&bullseyeConfigMux);
+  bullseyeConfigMux.lock();
   *out = bullseyeMelodyConfig;
-  portEXIT_CRITICAL(&bullseyeConfigMux);
+  bullseyeConfigMux.unlock();
 }
 
 bool stageBullseyeConfig(const BullseyeMelodyConfig &config,
@@ -1400,30 +1405,30 @@ bool stageBullseyeConfig(const BullseyeMelodyConfig &config,
   if (requestId == 0 || !validBullseyeMelodyConfig(config)) {
     return false;
   }
-  portENTER_CRITICAL(&bullseyeConfigMux);
+  bullseyeConfigMux.lock();
   stagedBullseyeMelodyConfig = config;
   stagedBullseyeRequestId = requestId;
-  portEXIT_CRITICAL(&bullseyeConfigMux);
+  bullseyeConfigMux.unlock();
   return true;
 }
 
 bool takeStagedBullseyeConfig(uint32_t requestId,
                               BullseyeMelodyConfig &out) {
   bool matched = false;
-  portENTER_CRITICAL(&bullseyeConfigMux);
+  bullseyeConfigMux.lock();
   if (requestId != 0 && stagedBullseyeRequestId == requestId) {
     out = stagedBullseyeMelodyConfig;
     stagedBullseyeRequestId = 0;
     matched = true;
   }
-  portEXIT_CRITICAL(&bullseyeConfigMux);
+  bullseyeConfigMux.unlock();
   return matched;
 }
 
 void commitLiveBullseyeConfig(const BullseyeMelodyConfig &config) {
-  portENTER_CRITICAL(&bullseyeConfigMux);
+  bullseyeConfigMux.lock();
   bullseyeMelodyConfig = config;
-  portEXIT_CRITICAL(&bullseyeConfigMux);
+  bullseyeConfigMux.unlock();
   (void)localBuzzer.configureBullseyeRtttl(bullseyeMelodyConfig.rtttl);
   if (!bullseyeMelodyConfig.enabled) {
     bullseyeTracker.clear();
@@ -3202,9 +3207,9 @@ void servicePreferredScaleMacPersistence() {
     return;
   }
   bool persistBusy = false;
-  portENTER_CRITICAL(&settingsPersistMux);
+  settingsPersistMux.lock();
   persistBusy = settingsPersistInFlight || settingsPersistResultReady;
-  portEXIT_CRITICAL(&settingsPersistMux);
+  settingsPersistMux.unlock();
   if (persistBusy) {
     return;
   }
@@ -3293,30 +3298,30 @@ void processScaleWorkerEvents() {
   while (processed < SCALE_EVENT_QUEUE_LENGTH + 1) {
     bool receivedCritical = false;
     bool receivedWeight = false;
-    portENTER_CRITICAL(&scaleCriticalEventMux);
+    scaleCriticalEventMux.lock();
     if (scaleCriticalEventPending) {
       event = scaleCriticalEvent;
       scaleCriticalEventPending = false;
       receivedCritical = true;
     }
-    portEXIT_CRITICAL(&scaleCriticalEventMux);
+    scaleCriticalEventMux.unlock();
     if (!receivedCritical) {
-      portENTER_CRITICAL(&scaleCriticalEventMux);
+      scaleCriticalEventMux.lock();
       if (scaleTimerStartEventPending) {
         event = scaleTimerStartEvent;
         scaleTimerStartEventPending = false;
         receivedCritical = true;
       }
-      portEXIT_CRITICAL(&scaleCriticalEventMux);
+      scaleCriticalEventMux.unlock();
     }
     if (!receivedCritical) {
-      portENTER_CRITICAL(&scaleWeightEventMux);
+      scaleWeightEventMux.lock();
       if (scaleWeightEventPending) {
         event = scaleWeightEvent;
         scaleWeightEventPending = false;
         receivedWeight = true;
       }
-      portEXIT_CRITICAL(&scaleWeightEventMux);
+      scaleWeightEventMux.unlock();
     }
     if (!receivedCritical && !receivedWeight &&
         (scaleEventQueue == nullptr ||
@@ -4300,14 +4305,14 @@ void settingsPersistTask(void *parameter) {
     feedOrTripCurrentTaskWatchdog();
     const bool ok = savePersistedSettings(settingsPersistReceive.blob);
     feedOrTripCurrentTaskWatchdog();
-    portENTER_CRITICAL(&settingsPersistMux);
+    settingsPersistMux.lock();
     settingsPersistResultReady = true;
     settingsPersistResultOk = ok;
     settingsPersistResultRuntimeRevision =
         settingsPersistReceive.runtimeRevision;
     settingsPersistResultStorageRevision =
         ok ? settingsPersistReceive.blob.storageRevision : 0;
-    portEXIT_CRITICAL(&settingsPersistMux);
+    settingsPersistMux.unlock();
   }
 }
 #endif
@@ -4396,7 +4401,7 @@ void serviceSettingsPersistResult() {
   bool ok = false;
   uint32_t runtimeRevision = 0;
   uint32_t storageRevision = 0;
-  portENTER_CRITICAL(&settingsPersistMux);
+  settingsPersistMux.lock();
   ready = settingsPersistResultReady;
   if (ready) {
     settingsPersistResultReady = false;
@@ -4405,7 +4410,7 @@ void serviceSettingsPersistResult() {
     storageRevision = settingsPersistResultStorageRevision;
     settingsPersistInFlight = false;
   }
-  portEXIT_CRITICAL(&settingsPersistMux);
+  settingsPersistMux.unlock();
   if (!ready) {
     return;
   }
@@ -4479,9 +4484,9 @@ bool dispatchSettingsPersist() {
   if (xQueueSend(settingsPersistQueue, &request, 0) != pdTRUE) {
     return false;
   }
-  portENTER_CRITICAL(&settingsPersistMux);
+  settingsPersistMux.lock();
   settingsPersistInFlight = true;
-  portEXIT_CRITICAL(&settingsPersistMux);
+  settingsPersistMux.unlock();
   runtimePersistPending = false;
   return true;
 }
@@ -4546,9 +4551,9 @@ void serviceRuntimePersistence() {
 #ifndef SHOT_STOPPER_HOST_TEST
   serviceSettingsPersistResult();
   bool inFlight = false;
-  portENTER_CRITICAL(&settingsPersistMux);
+  settingsPersistMux.lock();
   inFlight = settingsPersistInFlight;
-  portEXIT_CRITICAL(&settingsPersistMux);
+  settingsPersistMux.unlock();
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   if (!runtimePersistPending || inFlight || maintenanceLease.active ||
       static_cast<int32_t>(millis() - runtimePersistRetryAtMs) < 0 ||
@@ -5177,12 +5182,12 @@ bool persistBleCompanionEnabled(bool enabled) {
     bleCompanionPersistedSettings = candidate;
   }
 #endif
-  portENTER_CRITICAL(&bleCompanionMux);
+  bleCompanionMux.lock();
   bleCompanionStatusSnapshot.configuredEnabled = enabled;
   bleCompanionStatusSnapshot.restartRequired =
       enabled != bleCompanionStatusSnapshot.enabled;
   bleCompanionRuntimeSnapshot.configuredEnabled = enabled;
-  portEXIT_CRITICAL(&bleCompanionMux);
+  bleCompanionMux.unlock();
   return true;
 }
 
@@ -5342,10 +5347,10 @@ void processBleCompanionRequests() {
 
 bool liveConfigPersistPending() {
 #ifndef SHOT_STOPPER_HOST_TEST
-  portENTER_CRITICAL(&settingsPersistMux);
+  settingsPersistMux.lock();
   const bool pending = runtimePersistPending || settingsPersistInFlight ||
                        settingsPersistResultReady;
-  portEXIT_CRITICAL(&settingsPersistMux);
+  settingsPersistMux.unlock();
   return pending;
 #else
   return runtimePersistPending;
@@ -5451,8 +5456,10 @@ void publishControlStatus() {
                                                  : loopIntervalGapMs;
   next.loopMaxGapMs = loopMaxGapMs;
   next.loopDeadlineMisses = loopDeadlineMisses;
+  next.loopMaxExecutionUs = loopMaxExecutionUs;
   next.scaleWorkerMaxGapMs = scaleWorkerMaxGapMsValue();
   next.scaleWorkerDeadlineMisses = scaleWorkerDeadlineMissCount();
+  next.scaleWorkerMaxExecutionUs = scaleWorkerMaxExecutionUsValue();
   next.loopStackMinWords = loopStackMinWords;
   next.scaleStackMinWords = scaleWorkerStackMinWordsValue();
   next.freeHeapBytes = freeHeapBytes;
@@ -6715,6 +6722,7 @@ void serviceHealthThresholdAlerts(uint32_t intervalMaxGapMs) {
 // cppcheck-suppress unusedFunction ; Arduino framework entry point
 void loop() {
   const uint32_t loopStartedAtMs = millis();
+  const uint32_t loopStartedAtUs = micros();
   recordResetUptime(loopStartedAtMs);
   if (lastLoopAtMs != 0) {
     const uint32_t gap = loopStartedAtMs - lastLoopAtMs;
@@ -6831,5 +6839,9 @@ void loop() {
   }
   serviceSafetyHeartbeat(true);
   processScaleWorkerEvents();
+  const uint32_t executionUs = micros() - loopStartedAtUs;
+  if (executionUs > loopMaxExecutionUs) {
+    loopMaxExecutionUs = executionUs;
+  }
   vTaskDelay(pdMS_TO_TICKS(controlLoopTickDelayMs()));
 }

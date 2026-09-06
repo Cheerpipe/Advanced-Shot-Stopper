@@ -9401,11 +9401,16 @@ void f13_schedule_contract_and_snapshot_evidence_are_explicit() {
   CHECK(TASK_SCHEDULE_CONTRACTS[0].core == CONTROL_TASK_CORE);
   CHECK(TASK_SCHEDULE_CONTRACTS[0].serviceDeadlineMs ==
         CONTROL_SERVICE_DEADLINE_MS);
+  CHECK(TASK_SCHEDULE_CONTRACTS[0].configuredStackBytes == 8192);
+  CHECK(TASK_SCHEDULE_CONTRACTS[0].executionBudgetUs ==
+        CONTROL_EXECUTION_BUDGET_US);
   CHECK(TASK_SCHEDULE_CONTRACTS[1].core == SCALE_WORKER_TASK_CORE);
   CHECK(TASK_SCHEDULE_CONTRACTS[1].serviceDeadlineMs ==
         SCALE_SERVICE_DEADLINE_MS);
   CHECK(TASK_SCHEDULE_CONTRACTS[2].priorityOffset == 1);
   CHECK(TASK_SCHEDULE_CONTRACTS[2].watchdogSubscribed);
+  CHECK(TASK_SCHEDULE_CONTRACTS[6].maxBlockingMs ==
+        TASK_BLOCKING_UNBOUNDED_MS);
 
   resetHarness(false, true);
   publishControlStatus();
@@ -9419,6 +9424,13 @@ void f13_schedule_contract_and_snapshot_evidence_are_explicit() {
         1U);
   CHECK(second.uptimeMs >= first.uptimeMs);
   CHECK(second.loopDeadlineMisses == 3);
+
+  resetScaleWorkerMetricsForHost();
+  hostTaskNotifyGiveCalls = 0;
+  setScaleWorkerTaskPresentForHost(true);
+  RuntimeConfig policy = {};
+  publishScaleWorkerPolicy(policy, true);
+  CHECK(hostTaskNotifyGiveCalls == 1);
 }
 
 void f17_health_counters_are_atomic_and_monotonic() {

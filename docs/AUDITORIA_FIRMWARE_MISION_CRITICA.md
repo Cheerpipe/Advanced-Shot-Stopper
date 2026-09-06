@@ -587,12 +587,22 @@ procedimiento definido, pendiente de ejecución sobre el dispositivo físico.
 
 **Objetivo:** demostrar márgenes, no solo observar ausencia de watchdog.
 
-1. Tabla de tareas con periodo/deadline/WCET/prioridad/bloqueo/stack/core.
-2. Reducir spinlocks y medir tiempo máximo con interrupciones deshabilitadas.
-3. Hacer event-driven el worker de balanza donde sea compatible con el protocolo.
-4. Rediseñar checkpoints/hash OTA y presupuestar desgaste NVS.
-5. Reutilizar clientes HTTP o estabilizar su ciclo de vida.
-6. Soak tests de heap por capability y de radio/red/flash combinados.
+**Estado de implementación (2026-09-06): 🟡 en curso.** El detalle resumible
+y la distinción implementación/HIL se mantienen en `SESSION_HANDOFF.md`.
+
+1. [~] Tabla de tareas con periodo/deadline/WCET/prioridad/bloqueo/stack/core:
+   contrato e instrumentación implementados; WCET calificado HIL pendiente.
+2. [~] Reducir spinlocks y medir tiempo máximo con interrupciones
+   deshabilitadas: cinco grupos task-only migrados; traza target pendiente.
+3. [~] Hacer event-driven el worker de balanza donde sea compatible con el
+   protocolo: comandos/política/Companion/sonido ya notifican; callbacks del
+   backend y calificación de latencia pendientes.
+4. [x] Rediseñar checkpoints/hash OTA y presupuestar desgaste NVS: SHA
+   incremental y máximo versionado de 6/7 escrituras por intento según slot.
+5. [x] Reutilizar clientes HTTP o estabilizar su ciclo de vida: handle webhook
+   persistente por URL, transporte reiniciable y cleanup posterior al join.
+6. [~] Soak tests de heap por capability y de radio/red/flash combinados:
+   capturador/analizador y matriz implementados; corridas 8 h/72 h pendientes.
 
 **Gate de salida:** límites cuantitativos aprobados para jitter de control, deadline del corte independiente, edad de muestra, largest-free-block, stack margin y escrituras máximas por OTA.
 

@@ -70,6 +70,7 @@ void publishScaleWorkerPolicy(const RuntimeConfig &config, bool controlReady);
 ScaleLinkSnapshot getScaleLinkSnapshot();
 void setScaleLinkState(ScaleLinkState state);
 void markScaleWorkerProgress();
+void wakeScaleWorker();
 uint32_t scaleWorkerTickDelayMs();
 void serviceScaleLinkRssi(uint32_t nowMs = millis());
 bool enqueueScaleCommand(const ScaleCommand &command, bool toFront = false);
@@ -81,6 +82,7 @@ uint32_t scaleWorkerDroppedEventCount();
 uint32_t scaleWorkerStackMinWordsValue();
 uint32_t scaleWorkerMaxGapMsValue();
 uint32_t scaleWorkerDeadlineMissCount();
+uint32_t scaleWorkerMaxExecutionUsValue();
 
 #if defined(SHOT_STOPPER_HOST_TEST)
 void setScaleWorkerBleReadyForHost(bool ready);
@@ -118,8 +120,8 @@ extern QueueHandle_t scaleCommandQueue;
 extern QueueHandle_t scaleEventQueue;
 extern portMUX_TYPE scaleLinkMux;
 extern TaskMutex scalePreferredMacMux;
-extern portMUX_TYPE scaleCriticalEventMux;
-extern portMUX_TYPE scaleWeightEventMux;
+extern TaskMutex scaleCriticalEventMux;
+extern TaskMutex scaleWeightEventMux;
 extern uint32_t scalePacketSequence;
 extern char scalePreferredMac[PREFERRED_SCALE_MAC_CAPACITY];
 extern char scalePreferredName[PREFERRED_SCALE_NAME_CAPACITY];

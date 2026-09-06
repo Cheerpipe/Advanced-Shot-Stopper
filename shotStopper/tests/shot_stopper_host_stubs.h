@@ -87,6 +87,10 @@ inline uint32_t millis() {
   return hostMillis;
 }
 
+inline uint32_t micros() {
+  return hostMillis * 1000U;
+}
+
 inline void pinMode(uint8_t pin, uint8_t mode) {
   hostPinMode.at(pin) = mode;
 }
@@ -137,9 +141,19 @@ inline bool setCpuFrequencyMhz(uint32_t mhz) {
 inline uint32_t getCpuFrequencyMhz() { return hostCpuFrequencyMhz; }
 
 inline uint32_t hostTaskYieldCalls = 0;
+inline uint32_t hostTaskNotifyGiveCalls = 0;
 
 inline void vTaskDelay(TickType_t ticks) { (void)ticks; }
 inline void taskYIELD() { ++hostTaskYieldCalls; }
+inline BaseType_t xTaskNotifyGive(TaskHandle_t task) {
+  if (task != nullptr) ++hostTaskNotifyGiveCalls;
+  return task != nullptr ? pdTRUE : pdFALSE;
+}
+inline uint32_t ulTaskNotifyTake(BaseType_t clearOnExit, TickType_t waitTicks) {
+  (void)clearOnExit;
+  (void)waitTicks;
+  return 0;
+}
 inline void portENTER_CRITICAL(portMUX_TYPE *mux) { (void)mux; }
 inline void portEXIT_CRITICAL(portMUX_TYPE *mux) { (void)mux; }
 inline void portENTER_CRITICAL_ISR(portMUX_TYPE *mux) { (void)mux; }

@@ -192,6 +192,7 @@ void WebhookDispatcher::requestWorkerStop() {
 }
 
 void WebhookDispatcher::releaseWorkerFromTask() {
+  cleanupHttpClient();
   QueueHandle_t queue = nullptr;
   uint8_t *queueStorage = nullptr;
   char *payload = nullptr;
@@ -216,6 +217,51 @@ void WebhookDispatcher::releaseWorkerFromTask() {
   heapCapsFree(queueStorage);
   heapCapsFree(payload);
   if (workerStopped_ != nullptr) xSemaphoreGive(workerStopped_);
+}
+
+esp_http_client_handle_t WebhookDispatcher::ensureHttpClient(const char *url) {
+  if (!validWebhookUrl(url)) return nullptr;
+  if (httpClient_ != nullptr &&
+      !webhookClientMustRecreate(httpClientUrl_, url)) {
+    mux_.lock();
+    ++status_.clientReuses;
+    mux_.unlock();
+    return static_cast<esp_http_client_handle_t>(httpClient_);
+  }
+
+  cleanupHttpClient();
+  esp_http_client_config_t config = {};
+  config.url = url;
+  config.timeout_ms = kWebhookTimeoutMs;
+  config.disable_auto_redirect = true;
+  config.user_data = this;
+  config.event_handler = httpEventHandler;
+  esp_http_client_handle_t client = esp_http_client_init(&config);
+  if (client == nullptr) return nullptr;
+  httpClient_ = client;
+  const size_t length = strnlen(url, sizeof(httpClientUrl_) - 1U);
+  memcpy(httpClientUrl_, url, length);
+  httpClientUrl_[length] = '\0';
+  mux_.lock();
+  ++status_.clientCreates;
+  mux_.unlock();
+  return client;
+}
+
+void WebhookDispatcher::cleanupHttpClient() {
+  if (httpClient_ == nullptr) {
+    httpClientUrl_[0] = '\0';
+    return;
+  }
+  esp_http_client_handle_t client =
+      static_cast<esp_http_client_handle_t>(httpClient_);
+  httpClient_ = nullptr;
+  httpClientUrl_[0] = '\0';
+  const esp_err_t cleanupError = esp_http_client_cleanup(client);
+  mux_.lock();
+  ++status_.clientCleanups;
+  if (cleanupError != ESP_OK) status_.lastError = cleanupError;
+  mux_.unlock();
 }
 
 void WebhookDispatcher::setConfig(const WebhookConfig &config) {
@@ -521,13 +567,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   esp_err_t error = ESP_FAIL;
   if (WiFi.status() == WL_CONNECTED && validWebhookUrl(live.url) &&
       buildPayload(event, payload_, kWebhookPayloadCapacity)) {
-    esp_http_client_config_t config = {};
-    config.url = live.url;
-    config.timeout_ms = kWebhookTimeoutMs;
-    config.disable_auto_redirect = true;
-    config.user_data = this;
-    config.event_handler = httpEventHandler;
-    esp_http_client_handle_t client = esp_http_client_init(&config);
+    esp_http_client_handle_t client = ensureHttpClient(live.url);
     if (client != nullptr) {
       error = static_cast<esp_err_t>(configureWebhookHttpRequest(
           [&]() {
@@ -577,10 +617,18 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
             activeCloseError_.exchange(0, std::memory_order_acq_rel);
         if (closeError != 0) error = static_cast<esp_err_t>(closeError);
       }
-      const esp_err_t cleanupError = esp_http_client_cleanup(client);
-      if (cleanupError != ESP_OK && error == ESP_OK) {
-        error = cleanupError;
-        ok = false;
+      if (!ok) {
+        // Keep the allocated client/configuration, but discard any socket/TLS
+        // session left by a timeout, RF cancellation or protocol failure. A
+        // later event can reconnect without repeating handle allocation.
+        const esp_err_t closeError = esp_http_client_close(client);
+        if (closeError != ESP_OK && closeError != ESP_ERR_INVALID_STATE &&
+            error == ESP_OK) {
+          error = closeError;
+        }
+        mux_.lock();
+        ++status_.transportResets;
+        mux_.unlock();
       }
     }
   }

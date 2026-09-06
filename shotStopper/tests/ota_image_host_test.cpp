@@ -402,7 +402,20 @@ void testOtaJournalUsesBoundedCheckpoints() {
   }
   CHECK(persisted == imageBytes - shotstopper::OTA_JOURNAL_CHECKPOINT_BYTES);
   CHECK(writes == 6U);
+  CHECK(writes == shotstopper::otaJournalMaxDurableWrites(imageBytes));
   CHECK(writes < imageBytes / shotstopper::OTA_TRANSFER_CHUNK_BYTES);
+}
+
+void testOtaJournalBudgetCoversEverySupportedSlot() {
+  constexpr uint32_t n16r8SlotBytes = 0x300000U;
+  constexpr uint32_t n8r4SlotBytes = 0x330000U;
+  CHECK(shotstopper::otaJournalMaxDurableWrites(0) == 0U);
+  CHECK(shotstopper::otaJournalMaxDurableWrites(1) == 1U);
+  CHECK(shotstopper::otaJournalMaxDurableWrites(n16r8SlotBytes) == 6U);
+  CHECK(shotstopper::otaJournalMaxDurableWrites(n8r4SlotBytes) == 7U);
+  CHECK(shotstopper::OTA_SUPPORTED_MAX_SLOT_BYTES == n8r4SlotBytes);
+  CHECK(shotstopper::OTA_JOURNAL_MAX_WRITES_PER_SESSION == 7U);
+  CHECK(shotstopper::OTA_JOURNAL_ERASE_KEYS_PER_SESSION == 2U);
 }
 
 void testOtaJournalCheckpointsIrregularRangesAndRejectsRegression() {
@@ -453,6 +466,7 @@ int main() {
   testPendingVerifyDefersConfirmWhileFlashUnsafe();
   testPendingVerifyConfirmsAtDeadlineEvenIfFlashUnsafe();
   testOtaJournalUsesBoundedCheckpoints();
+  testOtaJournalBudgetCoversEverySupportedSlot();
   testOtaJournalCheckpointsIrregularRangesAndRejectsRegression();
 
   if (failures != 0) {

@@ -24,6 +24,30 @@ publication and timer cleanup occur after interrupts are re-enabled. The debug
 ring is task-only and copied linearly under `TaskMutex`; USB output is emitted
 by the bounded `serial_log` queue on core 0.
 
+## P2 spinlock inventory
+
+P2 migrated the task-only bullseye configuration, BLE Companion publication,
+settings-persistence handoff, and scale critical/weight mailboxes to static
+FreeRTOS mutexes. These paths can be reached from lower-priority HTTP,
+network, persistence, BLE or control tasks and therefore require priority
+inheritance; disabling interrupts was not justified.
+
+The remaining `portMUX_TYPE` groups are tracked explicitly:
+
+- relay and independent hardware-timer state: shared with an ISR; must remain
+  spinlocked and be measured on target;
+- local buzzer state: short task-side GPIO/timer publication, pending target
+  measurement before deciding whether a mutex is safe;
+- scale link/beep/debug snapshots: hot BLE/control publication, pending the
+  event-driven worker conversion;
+- time service, native BLE runtime, Companion NimBLE and EspressoScaleBLE
+  callback registries/queues: callback-facing state whose call context must be
+  proven before conversion.
+
+No listed section may allocate, log, access flash/PSRAM-dependent data or call
+a blocking API while locked. P2 is not complete until target tracing records
+the maximum interrupts-disabled duration for every retained group.
+
 ## Snapshot contract
 
 Control, gate, recipe, profiler, scale-link, network, OTA and webhook readers

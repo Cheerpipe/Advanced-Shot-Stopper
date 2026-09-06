@@ -2076,8 +2076,10 @@ struct ControlStatusSnapshot {
   uint32_t loopIntervalGapMs = 0;
   uint32_t loopMaxGapMs = 0;
   uint32_t loopDeadlineMisses = 0;
+  uint32_t loopMaxExecutionUs = 0;
   uint32_t scaleWorkerMaxGapMs = 0;
   uint32_t scaleWorkerDeadlineMisses = 0;
+  uint32_t scaleWorkerMaxExecutionUs = 0;
   uint32_t loopStackMinWords = 0;
   uint32_t scaleStackMinWords = 0;
   uint32_t freeHeapBytes = 0;

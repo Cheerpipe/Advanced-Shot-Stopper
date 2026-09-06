@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 using shotstopper::configureWebhookHttpRequest;
+using shotstopper::webhookClientMustRecreate;
 
 namespace {
 
@@ -30,10 +31,20 @@ void testFirstFailureStopsSetup() {
   }
 }
 
+void testPersistentClientRecreationPolicy() {
+  assert(webhookClientMustRecreate(nullptr, "http://example.test/hook"));
+  assert(webhookClientMustRecreate("", "http://example.test/hook"));
+  assert(!webhookClientMustRecreate("http://example.test/hook",
+                                    "http://example.test/hook"));
+  assert(webhookClientMustRecreate("http://example.test/hook",
+                                   "http://other.test/hook"));
+}
+
 }  // namespace
 
 int main() {
   testSuccessRunsEverySetter();
   testFirstFailureStopsSetup();
+  testPersistentClientRecreationPolicy();
   return 0;
 }
