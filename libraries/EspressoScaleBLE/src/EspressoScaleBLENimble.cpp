@@ -160,19 +160,127 @@ ScaleDisconnectReason mapRawDisconnectReason(int status) {
   return ScaleDisconnectReason::REMOTE_DISCONNECTED;
 }
 
+// NimBLE owns the timing of its callbacks, so clearing a bare singleton
+// pointer is not enough to make destruction safe: a callback may already have
+// copied the pointer. This registry lives for the lifetime of the firmware.
+// A callback takes a lease before touching the client; destruction first
+// prevents new leases and then waits for every existing lease to drain.
+struct CallbackRegistry {
+  portMUX_TYPE mux;
+  void *owner;
+  uint32_t activeCallbacks;
+  uint32_t nextOperationId;
+  bool accepting;
+};
+
+// Constant initialization is required because the facade itself is a global
+// object in another translation unit.
+CallbackRegistry callbackRegistry = {
+    portMUX_INITIALIZER_UNLOCKED, nullptr, 0, 0, false};
+
+bool registerCallbackOwner(void *owner) {
+  portENTER_CRITICAL(&callbackRegistry.mux);
+  const bool available = callbackRegistry.owner == nullptr &&
+                         callbackRegistry.activeCallbacks == 0;
+  if (available) {
+    callbackRegistry.owner = owner;
+    callbackRegistry.accepting = true;
+  }
+  portEXIT_CRITICAL(&callbackRegistry.mux);
+  return available;
+}
+
+bool quiesceCallbackOwner(void *owner) {
+  portENTER_CRITICAL(&callbackRegistry.mux);
+  const bool registered = callbackRegistry.owner == owner;
+  if (registered) {
+    callbackRegistry.accepting = false;
+  }
+  portEXIT_CRITICAL(&callbackRegistry.mux);
+  if (!registered) {
+    return false;
+  }
+
+  // Callbacks execute on the NimBLE host task, not in an ISR. Yielding here
+  // lets an in-flight callback finish without imposing a teardown timeout
+  // that could reintroduce a use-after-free.
+  while (true) {
+    portENTER_CRITICAL(&callbackRegistry.mux);
+    const bool quiescent = callbackRegistry.activeCallbacks == 0;
+    portEXIT_CRITICAL(&callbackRegistry.mux);
+    if (quiescent) {
+      return true;
+    }
+    vTaskDelay(1);
+  }
+}
+
+void releaseCallbackOwner(void *owner) {
+  portENTER_CRITICAL(&callbackRegistry.mux);
+  if (callbackRegistry.owner == owner &&
+      callbackRegistry.activeCallbacks == 0) {
+    callbackRegistry.owner = nullptr;
+  }
+  portEXIT_CRITICAL(&callbackRegistry.mux);
+}
+
+class CallbackLease {
+ public:
+  CallbackLease() {
+    portENTER_CRITICAL(&callbackRegistry.mux);
+    if (callbackRegistry.accepting && callbackRegistry.owner != nullptr) {
+      owner_ = callbackRegistry.owner;
+      ++callbackRegistry.activeCallbacks;
+    }
+    portEXIT_CRITICAL(&callbackRegistry.mux);
+  }
+
+  ~CallbackLease() {
+    if (owner_ == nullptr) {
+      return;
+    }
+    portENTER_CRITICAL(&callbackRegistry.mux);
+    --callbackRegistry.activeCallbacks;
+    portEXIT_CRITICAL(&callbackRegistry.mux);
+  }
+
+  void *owner() const { return owner_; }
+
+  CallbackLease(const CallbackLease &) = delete;
+  CallbackLease &operator=(const CallbackLease &) = delete;
+
+ private:
+  void *owner_ = nullptr;
+};
+
+uint32_t nextCallbackOperationId() {
+  portENTER_CRITICAL(&callbackRegistry.mux);
+  ++callbackRegistry.nextOperationId;
+  if (callbackRegistry.nextOperationId == 0) {
+    callbackRegistry.nextOperationId = 1;
+  }
+  const uint32_t operationId = callbackRegistry.nextOperationId;
+  portEXIT_CRITICAL(&callbackRegistry.mux);
+  return operationId;
+}
+
 class NimbleScaleClient {
  public:
   explicit NimbleScaleClient(bool debug) : debug_(debug) {
-    if (activeClient_ == nullptr) {
-      activeClient_ = this;
-      callbackOwner_ = true;
-    }
+    callbackOwner_ = registerCallbackOwner(this);
   }
 
   ~NimbleScaleClient() {
-    finishLink(true, ScaleDisconnectReason::USER_REQUEST, 0);
-    if (callbackOwner_ && activeClient_ == this) {
-      activeClient_ = nullptr;
+    // Unpublish before cancellation. Cancellation and termination may cause
+    // more host events, which must be discarded rather than enter an object
+    // whose teardown has started.
+    if (callbackOwner_) {
+      (void)quiesceCallbackOwner(this);
+      finishLink(true, ScaleDisconnectReason::USER_REQUEST, 0);
+      releaseCallbackOwner(this);
+      callbackOwner_ = false;
+    } else {
+      finishLink(true, ScaleDisconnectReason::USER_REQUEST, 0);
     }
   }
 
@@ -221,13 +329,15 @@ class NimbleScaleClient {
     }
     scanInterval_ = interval;
     scanWindow_ = window;
+    portENTER_CRITICAL(&mux_);
     filterPresent_ = filtered;
-    scanAddressFilter_ = useAddressScan;
     if (filtered) {
       memcpy(filterAddress_, parsedFilter, sizeof(filterAddress_));
     } else {
       memset(filterAddress_, 0, sizeof(filterAddress_));
     }
+    portEXIT_CRITICAL(&mux_);
+    scanAddressFilter_ = useAddressScan;
     if (forceRestart) {
       backoff_.reset();
     }
@@ -398,7 +508,12 @@ class NimbleScaleClient {
   uint32_t lastPacketAgeMs() const {
     return hasValidPacket_ ? elapsedMs(lastPacket_) : 0xffffffffUL;
   }
-  uint32_t rejectedPackets() const { return rejectedPackets_; }
+  uint32_t rejectedPackets() const {
+    portENTER_CRITICAL(&mux_);
+    const uint32_t result = rejectedPackets_;
+    portEXIT_CRITICAL(&mux_);
+    return result;
+  }
   uint32_t reconnects() const { return reconnects_; }
   ScaleBleTimingSnapshot timing() const {
     portENTER_CRITICAL(&mux_);
@@ -418,8 +533,18 @@ class NimbleScaleClient {
                : SCALE_LINK_RSSI_UNAVAILABLE;
   }
 
-  uint16_t rxHighWater() const { return rxHighWater_; }
-  uint32_t rxDrops() const { return rxDrops_; }
+  uint16_t rxHighWater() const {
+    portENTER_CRITICAL(&mux_);
+    const uint16_t result = rxHighWater_;
+    portEXIT_CRITICAL(&mux_);
+    return result;
+  }
+  uint32_t rxDrops() const {
+    portENTER_CRITICAL(&mux_);
+    const uint32_t result = rxDrops_;
+    portEXIT_CRITICAL(&mux_);
+    return result;
+  }
 
   ScaleBleBackendHealth health() const {
     ScaleBleBackendHealth result = {};
@@ -562,9 +687,11 @@ class NimbleScaleClient {
   }
 
   static int gapCallback(ble_gap_event *event, void *arg) {
-    return activeClient_ == nullptr
+    CallbackLease lease;
+    auto *client = static_cast<NimbleScaleClient *>(lease.owner());
+    return client == nullptr
                ? 0
-               : activeClient_->onGapEvent(
+               : client->onGapEvent(
                      event, static_cast<uint32_t>(
                                 reinterpret_cast<uintptr_t>(arg)));
   }
@@ -572,9 +699,11 @@ class NimbleScaleClient {
   static int serviceCallback(uint16_t connectionHandle,
                              const ble_gatt_error *error,
                              const ble_gatt_svc *service, void *arg) {
-    return activeClient_ == nullptr
+    CallbackLease lease;
+    auto *client = static_cast<NimbleScaleClient *>(lease.owner());
+    return client == nullptr
                ? 0
-               : activeClient_->onService(
+               : client->onService(
                      connectionHandle, error, service,
                      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arg)));
   }
@@ -583,9 +712,11 @@ class NimbleScaleClient {
                                     const ble_gatt_error *error,
                                     const ble_gatt_chr *characteristic,
                                     void *arg) {
-    return activeClient_ == nullptr
+    CallbackLease lease;
+    auto *client = static_cast<NimbleScaleClient *>(lease.owner());
+    return client == nullptr
                ? 0
-               : activeClient_->onCharacteristic(
+               : client->onCharacteristic(
                      connectionHandle, error, characteristic,
                      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arg)));
   }
@@ -594,9 +725,11 @@ class NimbleScaleClient {
                                 const ble_gatt_error *error,
                                 uint16_t characteristicValueHandle,
                                 const ble_gatt_dsc *descriptor, void *arg) {
-    return activeClient_ == nullptr
+    CallbackLease lease;
+    auto *client = static_cast<NimbleScaleClient *>(lease.owner());
+    return client == nullptr
                ? 0
-               : activeClient_->onDescriptor(
+               : client->onDescriptor(
                      connectionHandle, error, characteristicValueHandle,
                      descriptor,
                      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arg)));
@@ -605,9 +738,11 @@ class NimbleScaleClient {
   static int writeCallback(uint16_t connectionHandle,
                            const ble_gatt_error *error, ble_gatt_attr *,
                            void *arg) {
-    return activeClient_ == nullptr
+    CallbackLease lease;
+    auto *client = static_cast<NimbleScaleClient *>(lease.owner());
+    return client == nullptr
                ? 0
-               : activeClient_->onWrite(
+               : client->onWrite(
                      connectionHandle, error,
                      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arg)));
   }
@@ -712,8 +847,14 @@ class NimbleScaleClient {
 
     const bool compatible =
         nimbleAdvertisementIsCompatible(candidate->advertisement);
+    bool filterPresent = false;
+    uint8_t filterAddress[6] = {};
+    portENTER_CRITICAL(&mux_);
+    filterPresent = filterPresent_;
+    memcpy(filterAddress, filterAddress_, sizeof(filterAddress));
+    portEXIT_CRITICAL(&mux_);
     const bool addressMatches =
-        filterPresent_ && addressEqual(filterAddress_, discovery.addr.val);
+        filterPresent && addressEqual(filterAddress, discovery.addr.val);
     const uint32_t receivedAtMs = nowMs();
     const NimblePeerKey peer = peerKey(discovery.addr);
     portENTER_CRITICAL(&mux_);
@@ -750,7 +891,7 @@ class NimbleScaleClient {
       return;
     }
     if (candidate->connectable &&
-        ((!filterPresent_ && compatible) || addressMatches)) {
+        ((!filterPresent && compatible) || addressMatches)) {
       Event selected = {};
       selected.type = EventType::Candidate;
       selected.address = candidate->address;
@@ -779,8 +920,18 @@ class NimbleScaleClient {
 
   void onNotification(uint16_t connectionHandle, uint16_t attributeHandle,
                       os_mbuf *buffer, uint32_t operationId) {
-    if (connectionHandle != connectionHandle_ ||
-        attributeHandle != readHandle_ || buffer == nullptr) {
+    if (buffer == nullptr) {
+      return;
+    }
+    portENTER_CRITICAL(&mux_);
+    const bool current = operationId == linkOperationId_ &&
+                         connectionHandle == connectionHandle_ &&
+                         attributeHandle == readHandle_;
+    if (!current) {
+      ++staleCallbacks_;
+    }
+    portEXIT_CRITICAL(&mux_);
+    if (!current) {
       return;
     }
     const uint16_t length = OS_MBUF_PKTLEN(buffer);
@@ -1070,10 +1221,10 @@ class NimbleScaleClient {
   }
 
   uint32_t nextOperationIdLocked() {
-    ++operationId_;
-    if (operationId_ == 0) {
-      operationId_ = 1;
-    }
+    // The ID is process-wide, not object-local. If a canceled NimBLE
+    // operation reports late after a new facade has registered, it cannot
+    // accidentally match the new object's first operation.
+    operationId_ = nextCallbackOperationId();
     return operationId_;
   }
 
@@ -1129,7 +1280,9 @@ class NimbleScaleClient {
     lifecycleActive_ = true;
     syncGeneration_ = shotStopperBleRuntimeSyncGeneration();
     clearScanData();
+    portENTER_CRITICAL(&mux_);
     timing_ = {};
+    portEXIT_CRITICAL(&mux_);
     const uint32_t scanOperationId = beginOperation(CallbackDomain::Scan);
 
     ble_gap_disc_params params = {};
@@ -1152,8 +1305,10 @@ class NimbleScaleClient {
     }
     enterState(initialState, stateTimeoutMs);
     scanStartedAt_ = stateEnteredAtMs_;
+    portENTER_CRITICAL(&mux_);
     timing_.scanStartedMs = scanStartedAt_;
     timing_.recordedFlags = ScaleBleTimingScanStarted;
+    portEXIT_CRITICAL(&mux_);
     ++scanStarts_;
     if (restart) {
       ++scanRestarts_;
@@ -1246,7 +1401,9 @@ class NimbleScaleClient {
     }
     if (state_ == State::Backoff && !backoff_.active(nowMs())) {
       backoff_.reset();
+      portENTER_CRITICAL(&mux_);
       backoffPeerPresent_ = false;
+      portEXIT_CRITICAL(&mux_);
       // GAP scanning remains active during backoff; only candidate selection
       // was gated. No radio restart is needed when the timer expires.
       enterState(State::Scanning);
@@ -1295,7 +1452,9 @@ class NimbleScaleClient {
           // The host callback only queued evidence. The worker owns the state
           // transition and can safely cancel scan before reconnecting.
           backoff_.reset();
+          portENTER_CRITICAL(&mux_);
           backoffPeerPresent_ = false;
+          portEXIT_CRITICAL(&mux_);
           enterState(State::Scanning);
         }
         selectedAddress_ = event.address;
@@ -1351,7 +1510,9 @@ class NimbleScaleClient {
                      event.status);
           return;
         }
+        portENTER_CRITICAL(&mux_);
         connectionHandle_ = event.connectionHandle;
+        portEXIT_CRITICAL(&mux_);
         beginServiceDiscovery();
         return;
 
@@ -1450,10 +1611,12 @@ class NimbleScaleClient {
 
   void beginConnect() {
     enterState(State::Connecting, BLE_CONNECT_TIMEOUT_MS);
+    portENTER_CRITICAL(&mux_);
     if (!timing_.has(ScaleBleTimingConnectIssued)) {
       timing_.connectIssuedMs = nowMs();
       timing_.recordedFlags |= ScaleBleTimingConnectIssued;
     }
+    portEXIT_CRITICAL(&mux_);
     const uint32_t linkOperationId = beginOperation(CallbackDomain::Link);
     ++connectAttemptsTotal_;
     const int rc = ble_gap_connect(shotStopperBleRuntimeOwnAddressType(),
@@ -1517,7 +1680,9 @@ class NimbleScaleClient {
       if (candidate != nullptr && handles.read != 0 && handles.write != 0 &&
           canSubscribe && canWrite && nameAllowed) {
         protocol_ = candidate;
+        portENTER_CRITICAL(&mux_);
         readHandle_ = handles.read;
+        portEXIT_CRITICAL(&mux_);
         readEndHandle_ = handles.readEnd;
         readProperties_ = handles.readProperties;
         writeHandle_ = handles.write;
@@ -1613,7 +1778,9 @@ class NimbleScaleClient {
                                                  data, length);
       lastRawStatus_ = rc;
       if (rc == BLE_HS_ENOMEM) {
+        portENTER_CRITICAL(&mux_);
         ++mbufFailures_;
+        portEXIT_CRITICAL(&mux_);
       }
       return rc == 0;
     }
@@ -1637,7 +1804,9 @@ class NimbleScaleClient {
       portEXIT_CRITICAL(&mux_);
       lastRawStatus_ = rc;
       if (rc == BLE_HS_ENOMEM) {
+        portENTER_CRITICAL(&mux_);
         ++mbufFailures_;
+        portEXIT_CRITICAL(&mux_);
       }
       return false;
     }
@@ -1691,15 +1860,19 @@ class NimbleScaleClient {
   void finishReady() {
     enterState(State::Ready);
     connectedAt_ = nowMs();
+    portENTER_CRITICAL(&mux_);
     timing_.readyMs = connectedAt_;
     timing_.recordedFlags |= ScaleBleTimingReady;
+    portEXIT_CRITICAL(&mux_);
     const uint16_t heartbeatPeriod =
         protocol_ != nullptr && protocol_->features.heartbeatPeriodMs != 0
             ? protocol_->features.heartbeatPeriodMs
             : HEARTBEAT_PERIOD_MS;
     lastHeartbeat_ = connectedAt_ - heartbeatPeriod;
     hasValidPacket_ = false;
+    portENTER_CRITICAL(&mux_);
     invalidNotificationStreak_ = 0;
+    portEXIT_CRITICAL(&mux_);
     hasTimer_ = false;
     currentTimerMs_ = 0;
     lastTimerPacket_ = 0;
@@ -1711,12 +1884,14 @@ class NimbleScaleClient {
     portENTER_CRITICAL(&advertMux_);
     negativeCache_.erase(peerKey(selectedAddress_));
     portEXIT_CRITICAL(&advertMux_);
+    portENTER_CRITICAL(&mux_);
     if (timing_.has(ScaleBleTimingFirstCompatibleAdvertisement)) {
       lastAdvertisementToConnectMs_ =
           timing_.connectIssuedMs - timing_.firstCompatibleAdvertisementMs;
       lastAdvertisementToReadyMs_ =
           timing_.readyMs - timing_.firstCompatibleAdvertisementMs;
     }
+    portEXIT_CRITICAL(&mux_);
     if (debug_) {
       scaleLogDebug("ready: %s @ %s", protocol_->id, address_);
     }
@@ -1766,12 +1941,14 @@ class NimbleScaleClient {
     } else if (previous == State::Connecting) {
       (void)ble_gap_conn_cancel();
     }
+    portENTER_CRITICAL(&mux_);
     connectionHandle_ = kInvalidHandle;
+    readHandle_ = 0;
+    portEXIT_CRITICAL(&mux_);
     if (terminatePeer && oldHandle != kInvalidHandle) {
       (void)ble_gap_terminate(oldHandle, BLE_ERR_REM_USER_CONN_TERM);
     }
     protocol_ = nullptr;
-    readHandle_ = 0;
     writeHandle_ = 0;
     cccdHandle_ = 0;
     readEndHandle_ = 0;
@@ -1788,9 +1965,9 @@ class NimbleScaleClient {
     hasTimer_ = false;
     currentTimerMs_ = 0;
     lastTimerPacket_ = 0;
-    invalidNotificationStreak_ = 0;
     TaskHandle_t waiterToWake = nullptr;
     portENTER_CRITICAL(&mux_);
+    invalidNotificationStreak_ = 0;
     criticalEvents_.clear();
     controlEvents_.clear();
     candidatePending_ = false;
@@ -1866,9 +2043,14 @@ class NimbleScaleClient {
   }
 
   void rejectPacket() {
+    bool rejectStream = false;
+    portENTER_CRITICAL(&mux_);
     ++rejectedPackets_;
     ++consecutiveRejectedPackets_;
-    if (consecutiveRejectedPackets_ >= MAX_CONSECUTIVE_REJECTED_PACKETS) {
+    rejectStream =
+        consecutiveRejectedPackets_ >= MAX_CONSECUTIVE_REJECTED_PACKETS;
+    portEXIT_CRITICAL(&mux_);
+    if (rejectStream) {
       finishLink(true, ScaleDisconnectReason::INVALID_PACKET_STREAM,
                  BLE_HS_EBADDATA);
     }
@@ -1876,7 +2058,6 @@ class NimbleScaleClient {
 
   mutable portMUX_TYPE mux_ = portMUX_INITIALIZER_UNLOCKED;
   mutable portMUX_TYPE advertMux_ = portMUX_INITIALIZER_UNLOCKED;
-  static NimbleScaleClient *activeClient_;
   State state_ = State::Idle;
   bool debug_ = false;
   bool callbackOwner_ = false;
@@ -1991,8 +2172,6 @@ class NimbleScaleClient {
   bool hasValidPacket_ = false;
   bool hasTimer_ = false;
 };
-
-NimbleScaleClient *NimbleScaleClient::activeClient_ = nullptr;
 
 NimbleScaleClient &clientFromStorage(void *storage) {
   return *reinterpret_cast<NimbleScaleClient *>(storage);
