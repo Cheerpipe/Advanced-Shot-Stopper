@@ -74,6 +74,7 @@ reports/
 *.profdata
 
 # Internal development plans (not for version control)
+SESSION_HANDOFF.md
 docs/plans/
 docs/BACKLOG.md
 docs/audits/
