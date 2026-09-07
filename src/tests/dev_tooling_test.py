@@ -139,6 +139,13 @@ assert "libcjson-dev" in host_job, \
     "host CI must install the cJSON development files"
 idf_job = workflow.split("  idf:\n", 1)[1].split("\n  gate:\n", 1)[0]
 assert "cppcheck" in idf_job, "IDF CI must install Cppcheck"
+assert "github.event_name != 'pull_request'" in idf_job, \
+    "main, scheduled, and manual CI runs must publish both firmware variants"
+assert "arch: [n8r4, n16r8]" in idf_job, \
+    "IDF CI must build both supported firmware variants"
+assert "build-idf/${{ matrix.arch }}/shotstopper.bin" in idf_job, \
+    "IDF artifacts must include the downloadable firmware binary"
+assert "name: idf-${{ matrix.arch }}" in idf_job
 build = idf_job.index("./scripts/dev build")
 firmware_upload = idf_job.index("actions/upload-artifact")
 cppcheck = idf_job.index("./scripts/dev analyze")
@@ -153,6 +160,9 @@ assert "compile_commands.json" not in idf_job, \
 gate_job = workflow.split("  gate:\n", 1)[1]
 assert "needs.analysis" not in gate_job and "ANALYSIS:" not in gate_job, \
     "the gate must use the combined IDF build and analysis result"
+assert "EVENT_NAME: ${{ github.event_name }}" in gate_job
+assert '"$EVENT_NAME" == pull_request' in gate_job, \
+    "non-PR CI runs must fail when firmware artifacts cannot be built"
 for use in re.findall(r"uses:\s*([^\s]+)", workflow):
     assert re.search(r"@[0-9a-f]{40}$", use), f"action is not SHA-pinned: {use}"
 assert "cancel-in-progress: true" in workflow and "contents: read" in workflow
