@@ -1,0 +1,167 @@
+name: validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      risk:
+        description: Minimum risk gate
+        type: choice
+        options: [R0, R1, R2, R3]
+        default: R3
+
+concurrency:
+  group: validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  SHOTSTOPPER_VERBOSITY: compact
+  SHOTSTOPPER_NONINTERACTIVE: "1"
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    outputs:
+      risk: ${{ steps.risk.outputs.risk }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - id: risk
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          REQUESTED_RISK: ${{ inputs.risk }}
+        run: |
+          if [[ "$EVENT_NAME" == schedule || "$EVENT_NAME" == workflow_dispatch ]]; then
+            risk=${REQUESTED_RISK:-R3}
+          else
+            mapfile -t paths < <(git diff --name-only "$BASE_SHA" HEAD)
+            output=$(./scripts/dev classify "${paths[@]}")
+            risk=$(sed -n 's/^risk=//p' <<<"$output" | tail -1)
+          fi
+          [[ "$risk" =~ ^R[0-3]$ ]]
+          echo "risk=$risk" >> "$GITHUB_OUTPUT"
+
+  fast:
+    needs: classify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - run: ./scripts/dev validate --risk R0 README.md docs/README.md
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: fast-run
+          path: artifacts/runs/
+          retention-days: 3
+
+  host:
+    needs: classify
+    if: needs.classify.outputs.risk != 'R0'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: ./scripts/dev test normal
+      - run: ./scripts/dev test asan
+      - run: ./scripts/dev test tsan
+      - run: ./scripts/dev test tooling
+      - run: ./scripts/dev test web
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: host-runs
+          path: artifacts/runs/
+          retention-days: 3
+
+  idf:
+    needs: classify
+    if: contains(fromJSON('["R2","R3"]'), needs.classify.outputs.risk)
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.5
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [n8r4, n16r8]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - run: apt-get update && apt-get install -y --no-install-recommends nodejs npm && rm -rf /var/lib/apt/lists/*
+      - run: npm ci --no-audit --no-fund
+      - run: ./scripts/dev build --arch ${{ matrix.arch }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: idf-${{ matrix.arch }}
+          path: |
+            build-idf/${{ matrix.arch }}/shotstopper.bin
+            build-idf/${{ matrix.arch }}/shotstopper.elf
+            build-idf/${{ matrix.arch }}/compile_commands.json
+            build-idf/${{ matrix.arch }}/size.json
+            artifacts/runs/
+          retention-days: 3
+
+  analysis:
+    needs: [classify, idf]
+    if: always() && needs.classify.outputs.risk == 'R3' && needs.idf.result == 'success'
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.5
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [n8r4, n16r8]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - run: apt-get update && apt-get install -y --no-install-recommends cppcheck && rm -rf /var/lib/apt/lists/*
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: idf-${{ matrix.arch }}
+          path: .
+      - run: ./scripts/dev analyze --arch ${{ matrix.arch }}
+      - run: ./scripts/warnings-idf --arch ${{ matrix.arch }}
+      - name: Full scheduled analysis
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          ./scripts/static-tidy-idf --arch ${{ matrix.arch }}
+          ./scripts/iwyu-idf --arch ${{ matrix.arch }}
+          ./scripts/gcc_analyzer --arch ${{ matrix.arch }} --flags=
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: analysis-${{ matrix.arch }}
+          path: |
+            reports/
+            artifacts/runs/
+          retention-days: 3
+
+  gate:
+    needs: [classify, fast, host, idf, analysis]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        env:
+          RISK: ${{ needs.classify.outputs.risk }}
+          FAST: ${{ needs.fast.result }}
+          HOST: ${{ needs.host.result }}
+          IDF: ${{ needs.idf.result }}
+          ANALYSIS: ${{ needs.analysis.result }}
+        run: |
+          [[ "$FAST" == success ]]
+          [[ "$RISK" == R0 || "$HOST" == success ]]
+          [[ "$RISK" =~ ^R[01]$ || "$IDF" == success ]]
+          [[ "$RISK" != R3 || "$ANALYSIS" == success ]]
+          if [[ "$RISK" == R3 ]]; then
+            echo "Automated R3 gate passed; HIL/manual evidence remains required."
+          fi

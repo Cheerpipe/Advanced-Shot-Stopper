@@ -1,5 +1,10 @@
 # Build scripts
 
+`./scripts/dev` is the canonical developer entry point. It classifies risk,
+runs incremental CMake/CTest profiles, wraps the supported commands below, and
+writes full logs plus a redacted JSON summary under `artifacts/runs/`. Use
+`./scripts/dev --help`; the legacy aliases below remain compatible.
+
 Developer scripts under `scripts/`. Walkthrough from clone to flash:
 [Build environment](BUILD.md).
 

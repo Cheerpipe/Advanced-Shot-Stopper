@@ -1,0 +1,7 @@
+---
+description: Canonical repository instructions
+alwaysApply: true
+---
+
+Follow `/AGENTS.md`, `/docs/README.md`, and the nearest scoped `AGENTS.md`.
+Do not infer safety or hardware permissions from this adapter.

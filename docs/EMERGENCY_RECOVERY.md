@@ -3,8 +3,8 @@
 Use this when there is no access via Web UI, Wi-Fi, BLE, or USB/serial. The
 scale does not need to be on.
 
-This is the **user procedure**. Implementation notes live in
-[Recovery mode.md](Recovery%20mode.md) (design record). Related:
+This is the **user procedure**. Implementation notes live in the
+[recovery state machine](STATE_MACHINES.md#12-recovery-gesture). Related:
 [Factory reset](settings/factory-reset.md), [FAQ](FAQ.md),
 [USB serial CLI](SERIAL_CLI.md).
 
@@ -152,4 +152,3 @@ operation safely.
    power once; then use the [USB CLI](SERIAL_CLI.md) or reflash.
 5. If the issue persists, use the [USB CLI](SERIAL_CLI.md) or reflash the
    firmware before connecting machine circuit again.
-

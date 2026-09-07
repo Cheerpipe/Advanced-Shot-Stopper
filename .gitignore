@@ -75,6 +75,9 @@ reports/
 SESSION_HANDOFF.md
 docs/plans/
 docs/audits/
+!docs/audits/
+docs/audits/*
+!docs/audits/firmware-mission-critical-audit-2026-09-05.md
 docs/BACKLOG.md
 docs/handoff/
 .zcode

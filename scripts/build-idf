@@ -99,5 +99,9 @@ ss_idf_commit_extra_flags_stamp
 
 idf.py "${IDF_PY_ARGS[@]}" build
 
+python -m esp_idf_size --format json -o "$IDF_BUILD_DIR/size.json" \
+  "$IDF_BUILD_DIR/shotstopper.map"
+node "$root/src/tests/check_firmware_size.js" "$IDF_BUILD_DIR/shotstopper.bin"
+
 ss_idf_verify_firmware
 ss_cli_save

@@ -125,14 +125,14 @@ function inlineHomeModule(appSrc, homeSrc, assetTag) {
   const stamped = stampAssetTag(homeSrc, assetTag);
   const body = stamped
       .replace(/^['"]use strict['"];\s*/m, '')
-      .replace(/import\s+\*\s+as\s+R\s+from\s+['"][^'"]+['"];\s*/m, '')
+      .replace(/import\s*\*\s*as\s+R\s+from\s*['"][^'"]+['"];\s*/m, '')
       .replace(/export\s+function\s+/g, 'function ');
   const iife =
       `const __homeModule=(()=>{${body}\nreturn{init,applyStatus,activate};})();`;
   if (!appSrc.includes('__homeModule')) {
     throw new Error('app.js must reference __homeModule for home cold path');
   }
-  const marker = /import \* as R from ['"][^'"]+['"];\s*/;
+  const marker = /import\s*\*\s*as\s+R\s+from\s*['"][^'"]+['"];\s*/;
   if (!marker.test(appSrc)) {
     throw new Error('app.js runtime import not found');
   }

@@ -1,0 +1,37 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {"major": 3, "minor": 20, "patch": 0},
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-host/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {"name": "normal", "inherits": "base"},
+    {
+      "name": "asan-ubsan",
+      "inherits": "base",
+      "cacheVariables": {"SHOTSTOPPER_SANITIZER": "address,undefined"}
+    },
+    {
+      "name": "tsan",
+      "inherits": "base",
+      "cacheVariables": {"SHOTSTOPPER_SANITIZER": "thread"}
+    }
+  ],
+  "buildPresets": [
+    {"name": "normal", "configurePreset": "normal"},
+    {"name": "asan-ubsan", "configurePreset": "asan-ubsan"},
+    {"name": "tsan", "configurePreset": "tsan"}
+  ],
+  "testPresets": [
+    {"name": "normal", "configurePreset": "normal", "output": {"outputOnFailure": true}},
+    {"name": "asan-ubsan", "configurePreset": "asan-ubsan", "output": {"outputOnFailure": true}},
+    {"name": "tsan", "configurePreset": "tsan", "output": {"outputOnFailure": true}}
+  ]
+}

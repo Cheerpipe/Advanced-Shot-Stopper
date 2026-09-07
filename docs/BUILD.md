@@ -38,7 +38,7 @@ Use your fork’s URL if that is where you work.
 Once, from the repository root:
 
 ```sh
-npm install
+npm ci
 ```
 
 This installs Terser and related tools used to minify and gzip the Web UI.
@@ -184,10 +184,11 @@ and stay on **115200**. Press RST on the board after opening the monitor.
 ## 8. Host tests (before you flash)
 
 ```sh
-npm install
-./libraries/EspressoScaleBLE/tests/run_host_tests.sh
-./src/tests/run_host_tests.sh
-node ./src/tests/check_web_assets.js
+npm ci
+./scripts/dev test normal
+./scripts/dev test asan
+./scripts/dev test tsan
+./scripts/dev test web
 node ./src/tests/check_firmware_size.js build-idf/n16r8/shotstopper.bin
 ```
 

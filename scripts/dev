@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+"""Canonical, non-bootstrapping developer command facade."""
+
+from __future__ import annotations
+
+import datetime as dt
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import time
+
+ROOT = Path(__file__).resolve().parent.parent
+RANK = {f"R{i}": i for i in range(4)}
+AREAS = {
+    "safety": ("relay, boot, watchdog, and fail-open contracts", ["PROJECT_CHARTER.md", "src/ShotStopperSafety.h", "src/ShotStopperMachineRelay.h", "src/tests/safety_external_host_test.cpp", "docs/MANUAL_TEST_PLAN.md"]),
+    "control": ("brew orchestration and guards", ["src/ShotStopperBrew.h", "src/ShotStopperDomain.h", "src/tests/shot_stopper_host_test.cpp", "docs/STATE_MACHINES.md"]),
+    "machine": ("paddle, momentary inputs, and physical actuation", ["src/ShotStopperMachine.h", "src/ShotStopperMachineTypes.h", "src/tests/momentary_machine_host_test.cpp", "docs/HARDWARE.md"]),
+    "scale": ("scale link, sensing, and worker ownership", ["src/ShotStopperScaleLink.h", "src/ShotStopperScaleSense.h", "src/ShotStopperScaleWorker.cpp", "docs/CONCURRENCY.md"]),
+    "ble": ("scale protocols and companion BLE", ["libraries/EspressoScaleBLE/src", "libraries/EspressoScaleBLE/tests", "src/ble", "src/tests/ble_companion_protocol_host_test.cpp"]),
+    "network": ("HTTP transport and outbound webhooks", ["src/ShotStopperNetwork.cpp", "src/ShotStopperWebhook.cpp", "src/tests/webhook_error_host_test.cpp", "docs/RESOURCE_OWNERSHIP.md"]),
+    "ota": ("verified and resumable firmware update", ["src/ShotStopperOta.cpp", "src/ShotStopperOtaImage.h", "src/tests/run_ota_tests.sh", "docs/features/ota.md"]),
+    "persistence": ("settings, logs, recovery, and migrations", ["src/ShotStopperPersistence.h", "src/ShotStopperDurableStores.h", "src/tests/persistence_host_test.cpp", "docs/ARCHITECTURE.md"]),
+    "web": ("embedded browser UI and asset generation", ["src/web", "scripts/gen_web_ui.js", "src/tests/check_web_assets.js", "docs/SCREENSHOTS.md"]),
+    "build": ("ESP-IDF integration, variants, and analysis", ["idf", "scripts/build-idf", "scripts/check_architecture.py", "docs/BUILD.md"]),
+    "tests": ("host, Web, OTA, and architecture tests", ["src/tests", "libraries/EspressoScaleBLE/tests", "CMakePresets.json", "VALIDATION.md"]),
+}
+SECRET = re.compile(r"(?i)(password|token)(\s*[=:]\s*|\s+)\S+")
+
+
+def redact(value: str) -> str:
+    return SECRET.sub(lambda m: f"{m.group(1)}=[REDACTED]", value)
+
+
+def sha() -> str:
+    result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
+                            text=True, capture_output=True)
+    return result.stdout.strip() if result.returncode == 0 else "unknown"
+
+
+def changed_paths() -> list[str]:
+    tracked = subprocess.run(["git", "diff", "--name-only", "HEAD"], cwd=ROOT,
+                             text=True, capture_output=True).stdout.splitlines()
+    untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard"], cwd=ROOT,
+        text=True, capture_output=True).stdout.splitlines()
+    return sorted(set(tracked + untracked))
+
+
+def path_risk(path: str) -> str:
+    p = path.replace("\\", "/").lstrip("./")
+    name = Path(p).name.lower()
+    if p.startswith("idf/partitions-") or re.search(
+            r"(?i)(machine|relay|safety|watchdog|hardware|resetguard|recovery|resourceowner)", p):
+        return "R3"
+    if p.startswith(("libraries/EspressoScaleBLE/", "idf/")) or re.search(
+            r"(?i)(ble|network|webhook|ota|persist|nvs|settingsmigrate|shotlog)", p):
+        return "R2"
+    if p.startswith(("src/web/", "src/tests/", "scripts/", ".github/")) or p in {
+            "CMakeLists.txt", "CMakePresets.json", "package.json", "package-lock.json"}:
+        return "R1"
+    if p.endswith(".md") or name in {"agents.md", ".cursorignore", ".gitignore"} or p.startswith(".cursor/"):
+        return "R0"
+    return "R3"
+
+
+def classify(paths: list[str]) -> tuple[str, list[tuple[str, str]]]:
+    paths = paths or changed_paths()
+    details = [(p, path_risk(p)) for p in paths]
+    risk = max((r for _, r in details), key=RANK.get, default="R0")
+    return risk, details
+
+
+def markdown_errors() -> list[str]:
+    errors: list[str] = []
+    link_re = re.compile(r"\[[^]]*\]\(([^)]+)\)")
+    for source in [ROOT / "README.md", ROOT / "PROJECT_CHARTER.md",
+                   ROOT / "VALIDATION.md", ROOT / "CONTRIBUTING.md", *sorted((ROOT / "docs").rglob("*.md"))]:
+        if "/audits/" in source.as_posix() or "/plans/" in source.as_posix() or "/handoff/" in source.as_posix():
+            continue
+        for line_no, line in enumerate(source.read_text(errors="replace").splitlines(), 1):
+            for raw in link_re.findall(line):
+                target = raw.split("#", 1)[0].split(" ", 1)[0]
+                if not target or "://" in target or target.startswith(("mailto:", "#")):
+                    continue
+                if not (source.parent / target).resolve().exists():
+                    errors.append(f"{source.relative_to(ROOT)}:{line_no}: missing {target}")
+    for _, paths in AREAS.values():
+        for path in paths:
+            if not (ROOT / path).exists():
+                errors.append(f"context map: missing {path}")
+    return errors
+
+
+def require(commands: list[str]) -> list[str]:
+    return [command for command in commands if shutil.which(command) is None]
+
+
+def extract_option(args: list[str], option: str) -> tuple[str | None, list[str]]:
+    value = None
+    output: list[str] = []
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == option:
+            if index + 1 >= len(args):
+                raise ValueError(f"{option} requires a value")
+            value, index = args[index + 1], index + 2
+        elif arg.startswith(option + "="):
+            value, index = arg.split("=", 1)[1], index + 1
+        else:
+            output.append(arg)
+            index += 1
+    return value, output
+
+
+def safe_args(args: list[str]) -> list[str]:
+    result, hide_next = [], False
+    for arg in args:
+        if hide_next:
+            result.append("[REDACTED]")
+            hide_next = False
+        elif arg in {"--password", "--token", "-t"}:
+            result.append(arg)
+            hide_next = True
+        else:
+            result.append(redact(arg))
+    return result
+
+
+def write_summary(command: list[str], risk: str, status: str, started: float,
+                  checks: list[dict[str, str]], log_path: Path,
+                  manual: list[str], inputs: dict[str, object]) -> Path:
+    summary = {
+        "schemaVersion": 1,
+        "command": safe_args(command),
+        "risk": risk,
+        "status": status,
+        "sha": sha(),
+        "inputs": inputs,
+        "durationSeconds": round(time.monotonic() - started, 3),
+        "checks": checks,
+        "logs": [str(log_path.relative_to(ROOT))],
+        "artifacts": [],
+        "manualValidationsPending": manual,
+    }
+    summary_path = log_path.parent / "summary.json"
+    encoded = json.dumps(summary, indent=2, sort_keys=True) + "\n"
+    summary_path.write_text(encoded)
+    (ROOT / "artifacts/runs/latest.json").write_text(encoded)
+    return summary_path
+
+
+def execute(command: list[str], risk: str, steps: list[tuple[str, list[str]]],
+            verbosity: str, manual: list[str] | None = None,
+            prelude: list[str] | None = None) -> int:
+    started = time.monotonic()
+    run_id = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ") + f"-{os.getpid()}"
+    run_dir = ROOT / "artifacts/runs" / run_id
+    run_dir.mkdir(parents=True, exist_ok=False)
+    log_path = run_dir / "run.log"
+    lines = list(prelude or [])
+    checks: list[dict[str, str]] = []
+    code = 0
+    with log_path.open("w") as log:
+        for initial in lines:
+            log.write(redact(initial) + "\n")
+        for name, argv in steps:
+            marker = f"==> {name}: {' '.join(safe_args(argv))}"
+            log.write(marker + "\n")
+            if verbosity != "compact":
+                print(marker, flush=True)
+            process = subprocess.Popen(argv, cwd=ROOT, text=True,
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.STDOUT,
+                                       env={**os.environ, "SHOTSTOPPER_NONINTERACTIVE": "1"})
+            assert process.stdout is not None
+            for raw in process.stdout:
+                clean = redact(raw.rstrip("\n"))
+                log.write(clean + "\n")
+                lines.append(clean)
+                if verbosity != "compact":
+                    print(clean, flush=True)
+            child_code = process.wait()
+            checks.append({"name": name, "status": "passed" if child_code == 0 else "failed"})
+            if child_code:
+                code = child_code if child_code in {2, 127} else 1
+                break
+    status = "passed" if code == 0 else ("missing_dependency" if code == 127 else "failed")
+    summary = write_summary(command, risk, status, started, checks, log_path,
+                            manual or [], {"verbosity": verbosity})
+    if verbosity == "compact":
+        limit = 20 if code == 0 else 80
+        shown = lines[-max(0, limit - 3):]
+        print(f"{status.upper()}: {' '.join(safe_args(command))}")
+        for line in shown:
+            print(line if len(line) <= 500 else line[:500] + " …[truncated; see full log]")
+        print(f"summary: {summary.relative_to(ROOT)}")
+    else:
+        print(f"{status}: summary {summary.relative_to(ROOT)}")
+    return code
+
+
+def record(command: list[str], risk: str, verbosity: str, lines: list[str],
+           code: int = 0, check: str = "contract") -> int:
+    if code == 127:
+        step = [check, ["sh", "-c", "exit 127"]]
+    else:
+        step = [check, ["sh", "-c", "exit 0" if code == 0 else "exit 1"]]
+    return execute(command, risk, [step], verbosity, prelude=lines)
+
+
+def ensure_no_secret_argv(args: list[str]) -> None:
+    if any(a in {"--password", "--token", "-t"} or
+           a.startswith(("--password=", "--token=")) for a in args):
+        raise ValueError("pass credentials through SHOTSTOPPER_DEVICE_PASSWORD, never argv")
+
+
+def add_empty_flags(args: list[str]) -> list[str]:
+    if not any(a in {"--flags", "-f"} or a.startswith("--flags=") for a in args):
+        return [*args, "--flags="]
+    return args
+
+
+def cmake_steps(preset: str, label: str | None = None) -> list[tuple[str, list[str]]]:
+    tests = ["ctest", "--preset", preset]
+    if label:
+        tests += ["-L", label]
+    return [
+        (f"configure-{preset}", ["cmake", "--preset", preset]),
+        (f"build-{preset}", ["cmake", "--build", "--preset", preset]),
+        (f"test-{preset}", tests),
+    ]
+
+
+def help_text() -> str:
+    return """usage: ./scripts/dev [--verbosity compact|normal|verbose] COMMAND [ARGS]
+
+commands:
+  doctor                     report local tools; never installs
+  context AREA               list focused paths and their purpose
+  classify [PATH ...]        print path risks and aggregate risk
+  test [normal|asan|tsan|web|ble|ota|tooling]
+  validate [--risk R0..R3] [PATH ...]
+  build|analyze [ARGS]       wrap supported IDF build/analysis
+  flash|monitor|ota [ARGS]   hardware commands; flash/ota require confirmation
+  clean --dry-run            list generated directories; --confirm removes them
+
+Verbosity is independent of firmware runtime logging. Default is normal on a
+TTY and compact otherwise; SHOTSTOPPER_VERBOSITY provides the environment default.
+"""
+
+
+def main() -> int:
+    raw = sys.argv[1:]
+    try:
+        verbosity, raw = extract_option(raw, "--verbosity")
+        verbosity = verbosity or os.getenv("SHOTSTOPPER_VERBOSITY") or (
+            "normal" if sys.stdout.isatty() else "compact")
+        if verbosity not in {"compact", "normal", "verbose"}:
+            raise ValueError("verbosity must be compact, normal, or verbose")
+        if not raw or raw[0] in {"help", "-h", "--help"}:
+            print(help_text())
+            return 0
+        verb, args = raw[0], raw[1:]
+        command = ["./scripts/dev", verb, *args]
+
+        if verb == "doctor":
+            if args:
+                raise ValueError("doctor takes no arguments")
+            tools = ["git", "python3", "cmake", "ctest", "c++", "node", "npm", "cppcheck"]
+            lines = [f"{tool}: {shutil.which(tool) or 'MISSING'}" for tool in tools]
+            missing = require(tools[:5])
+            lines.append("ESP-IDF: discovered by scripts/shotstopper_idf.sh at build time")
+            return record(command, "R0", verbosity, lines, 127 if missing else 0, "doctor")
+
+        if verb == "context":
+            if len(args) != 1 or args[0] not in AREAS:
+                raise ValueError("context area must be one of: " + ", ".join(AREAS))
+            description, paths = AREAS[args[0]]
+            lines = [f"{args[0]} — {description}", *paths]
+            return record(command, "R0", verbosity, lines, 0, "context-paths")
+
+        if verb == "classify":
+            risk, details = classify(args)
+            lines = [*(f"{item_risk} {path}" for path, item_risk in details), f"risk={risk}"]
+            return record(command, risk, verbosity, lines, 0, "risk-classification")
+
+        if verb == "test":
+            profile = args[0] if args else "normal"
+            if len(args) > 1:
+                raise ValueError("test accepts one profile")
+            missing = require(["cmake", "ctest", "c++"])
+            if missing:
+                return record(command, "R1", verbosity,
+                              ["missing: " + ", ".join(missing)], 127, profile)
+            if profile == "normal":
+                steps = cmake_steps("normal")
+            elif profile == "asan":
+                steps = cmake_steps("asan-ubsan")
+            elif profile == "tsan":
+                steps = cmake_steps("tsan")
+            elif profile == "ble":
+                steps = cmake_steps("normal", "ble")
+            elif profile == "ota":
+                steps = cmake_steps("normal", "ota") + [
+                    ("ota-cli", ["bash", "src/tests/ota_cli_resilience_test.sh"]),
+                    ("ota-web", ["node", "src/tests/ota_web_resilience_test.js"])]
+            elif profile == "web":
+                deps = [ROOT / "node_modules" / name for name in
+                        ["terser", "html-minifier-terser", "clean-css", "@gfx/zopfli"]]
+                if require(["node"]) or any(not dep.exists() for dep in deps):
+                    return record(command, "R1", verbosity,
+                                  ["Web dependencies missing; run npm ci explicitly"], 127, "web")
+                steps = [("web-contracts", ["node", "src/tests/check_web_assets.js"])]
+            elif profile == "tooling":
+                steps = [("tooling-contracts", ["python3", "src/tests/dev_tooling_test.py"])]
+            else:
+                raise ValueError("unknown test profile: " + profile)
+            return execute(command, "R2" if profile in {"ble", "ota"} else "R1",
+                           steps, verbosity)
+
+        if verb == "validate":
+            override, paths = extract_option(args, "--risk")
+            inferred, details = classify(paths)
+            if override not in RANK:
+                if override is not None:
+                    raise ValueError("risk must be R0, R1, R2, or R3")
+                risk = inferred
+            else:
+                if RANK[override] < RANK[inferred]:
+                    raise ValueError(f"risk override cannot lower {inferred} to {override}")
+                risk = override
+            doc_errors = markdown_errors()
+            prelude = [*(f"{r} {p}" for p, r in details), f"risk={risk}"]
+            if doc_errors:
+                return record(command, risk, verbosity, doc_errors, 1, "docs-and-paths")
+            if risk == "R0":
+                return record(command, risk, verbosity, prelude + ["documentation links and context paths: OK"])
+            steps = cmake_steps("normal")
+            if risk in {"R2", "R3"}:
+                steps += cmake_steps("asan-ubsan") + cmake_steps("tsan")
+                steps += [("architecture", ["python3", "scripts/check_architecture.py"]),
+                          ("web-contracts", ["node", "src/tests/check_web_assets.js"])]
+                for arch in ("n8r4", "n16r8"):
+                    steps.append((f"idf-{arch}", ["./scripts/build-idf", "--arch", arch, "--flags="]))
+            if risk == "R3":
+                for arch in ("n8r4", "n16r8"):
+                    steps += [(f"cppcheck-{arch}", ["./scripts/static-idf", "--arch", arch]),
+                              (f"warnings-{arch}", ["./scripts/warnings-idf", "--arch", arch, "--flags="])]
+            manual = ["Complete and attach applicable HIL/manual evidence"] if risk == "R3" else []
+            return execute(command, risk, steps, verbosity, manual, prelude)
+
+        wrappers = {"build": "build-idf", "analyze": "static-idf",
+                    "flash": "flash-idf", "monitor": "monitor-idf", "ota": "ota-idf"}
+        if verb in wrappers:
+            ensure_no_secret_argv(args)
+            confirmed = "--confirm" in args
+            args = [arg for arg in args if arg != "--confirm"]
+            if verb in {"flash", "ota"}:
+                if not confirmed:
+                    raise ValueError(f"{verb} requires --confirm; this command can affect hardware")
+            if verb == "build":
+                args = add_empty_flags(args)
+            risk = "R3" if verb == "flash" else ("R2" if verb in {"build", "analyze", "ota"} else "R1")
+            return execute(command, risk, [(verb, [f"./scripts/{wrappers[verb]}", *args])],
+                           verbosity, ["Verify physical safety before hardware use"] if verb in {"flash", "ota"} else [])
+
+        if verb == "clean":
+            targets = [ROOT / "build-host", ROOT / "artifacts/runs"]
+            if args == ["--dry-run"]:
+                return record(command, "R1", verbosity,
+                              [str(path.relative_to(ROOT)) for path in targets], 0, "clean-dry-run")
+            if args != ["--confirm"]:
+                raise ValueError("clean requires --dry-run or --confirm")
+            for target in targets:
+                if target.exists():
+                    shutil.rmtree(target)
+            print("removed: " + ", ".join(str(path.relative_to(ROOT)) for path in targets))
+            return 0
+
+        raise ValueError("unknown command: " + verb)
+    except ValueError as error:
+        print(f"dev: {error}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

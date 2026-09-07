@@ -14,6 +14,13 @@ def text(relative: str) -> str:
     return (ROOT / relative).read_text(encoding="utf-8")
 
 
+def service_text(root_file: str, directory: str) -> str:
+    fragments = sorted((ROOT / directory).glob("*.inc"))
+    return text(root_file) + "".join(
+        fragment.read_text(encoding="utf-8") for fragment in fragments
+    )
+
+
 def main() -> int:
     failures: list[str] = []
 
@@ -52,7 +59,7 @@ def main() -> int:
         ):
             failures.append(f"ScaleService bridge contract missing {required!r}")
 
-    network = text("src/ShotStopperNetwork.cpp") + text(
+    network = service_text("src/ShotStopperNetwork.cpp", "src/network") + text(
         "src/ShotStopperNetwork.h"
     )
     for token in (
@@ -80,14 +87,29 @@ def main() -> int:
     # roots. Reducing them is encouraged; increasing them requires an explicit
     # architecture review and must not be used to land feature code.
     line_ceilings = {
-        "src/ShotStopperNetwork.cpp": 8750,
-        "src/shotStopper.cpp": 6900,
+        "src/ShotStopperNetwork.cpp": 2000,
+        "src/shotStopper.cpp": 2000,
         "src/ShotStopperDomain.h": 3300,
     }
     for relative, ceiling in line_ceilings.items():
         lines = len(text(relative).splitlines())
         if lines > ceiling:
             failures.append(f"legacy root grew beyond cap: {relative} {lines}>{ceiling}")
+
+    for service in (
+        "safety", "control", "scale", "network", "persistence",
+        "diagnostics", "platform",
+    ):
+        directory = ROOT / "src" / service
+        if not directory.is_dir():
+            failures.append(f"service directory missing: src/{service}")
+        for implementation in directory.glob("*.inc"):
+            lines = len(implementation.read_text(encoding="utf-8").splitlines())
+            if lines > 1500:
+                failures.append(
+                    f"service implementation exceeds cap: "
+                    f"{implementation.relative_to(ROOT)} {lines}>1500"
+                )
 
     if failures:
         for failure in failures:

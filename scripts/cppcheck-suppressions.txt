@@ -9,9 +9,13 @@
 # Owner: firmware-platform. Review/expiry: 2027-03-01.
 # FreeRTOS semaphore macros expand to C casts; not actionable at call sites.
 dangerousTypeCast:*/src/ShotStopperNetwork.cpp
+dangerousTypeCast:*/src/network/ShotStopperNetworkService.inc
 dangerousTypeCast:*/src/ShotStopperNetwork.h
 dangerousTypeCast:*/src/ShotStopperWebhook.cpp
 dangerousTypeCast:*/src/ShotStopperTaskMutex.h
+# The scanner is aggregate-initialized with both required fields at its only
+# construction site; Cppcheck does not follow that aggregate initialization.
+uninitMemberVarNoCtor:*/src/ShotStopperJsonArena.h
 # Owner: safety-kernel. Review/expiry: 2027-03-01.
 # This deliberately uninitialized RTC record preserves reset evidence across a
 # reboot. It is always validated by magic, inverse fields, and checksum before

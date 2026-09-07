@@ -3,39 +3,37 @@
 const fs = require('fs');
 const path = require('path');
 
-// OTA app slot sizes for the FQBNs in scripts/shotstopper_board.sh.
-const OTA_APP_LIMITS = {
-  n16r8: 3145728, // app3M_fat9M_16MB (3 MB)
-  n8r4: 3342336 // default_8MB (0x330000)
-};
-const DEFAULT_ARCH = 'n16r8';
+const root = path.resolve(__dirname, '..', '..');
+const slotLimits = {n16r8: 3145728, n8r4: 3342336};
+const binPath = process.argv[2] || path.join(root, 'build-idf', 'n16r8', 'shotstopper.bin');
+const normalized = binPath.replace(/\\/g, '/');
+const arch = normalized.includes('/n8r4/') ? 'n8r4' :
+  normalized.includes('/n16r8/') ? 'n16r8' : null;
 
-const binPath = process.argv[2] ||
-  path.resolve(__dirname, '..', '..', 'build-idf', 'n16r8', 'shotstopper.bin');
-
-function archFromBinPath(filePath) {
-  const normalized = filePath.replace(/\\/g, '/');
-  if (normalized.includes('/n8r4/')) {
-    return 'n8r4';
-  }
-  if (normalized.includes('/n16r8/')) {
-    return 'n16r8';
-  }
-  return DEFAULT_ARCH;
+if (!arch) {
+  console.error('Firmware path must identify n8r4 or n16r8');
+  process.exit(2);
+}
+const sizePath = path.join(path.dirname(binPath), 'size.json');
+if (!fs.existsSync(binPath) || !fs.existsSync(sizePath)) {
+  console.error(`Firmware resource artifacts missing: ${binPath}, ${sizePath}`);
+  process.exit(127);
 }
 
-if (!fs.existsSync(binPath)) {
-  console.log(`Firmware size check skipped: ${binPath} not found`);
-  process.exit(0);
+const config = JSON.parse(fs.readFileSync(
+  path.join(root, 'config', 'resource-baselines.json'), 'utf8'));
+const actual = JSON.parse(fs.readFileSync(sizePath, 'utf8'));
+actual.image = fs.statSync(binPath).size;
+const failures = [];
+if (actual.image > slotLimits[arch]) {
+  failures.push(`image ${actual.image} > OTA slot ${slotLimits[arch]}`);
 }
-
-const arch = archFromBinPath(binPath);
-const limit = OTA_APP_LIMITS[arch];
-const size = fs.statSync(binPath).size;
-if (size > limit) {
-  throw new Error(
-    `Application image is ${size} bytes; ${arch} OTA slot allows ${limit}.`
-  );
+for (const [metric, baseline] of Object.entries(config.targets[arch])) {
+  const value = actual[metric];
+  const limit = baseline + config.allowedGrowthBytes[metric];
+  if (!Number.isFinite(value)) failures.push(`${metric} is missing`);
+  else if (value > limit) failures.push(`${metric} ${value} > baseline budget ${limit}`);
+  else console.log(`${metric}: ${value} (baseline ${baseline}, delta ${value - baseline})`);
 }
-
-console.log(`Application image: ${size} bytes (${arch} OTA limit ${limit})`);
+if (failures.length) throw new Error(failures.join('; '));
+console.log(`${arch}: image and memory regions are within versioned budgets`);

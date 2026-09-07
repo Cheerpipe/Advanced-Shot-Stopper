@@ -3,6 +3,15 @@
 This file versions the quantitative assumptions implemented by Phase 2. It is
 an implementation contract, not a substitute for target/HIL evidence.
 
+## Firmware image and static regions
+
+`config/resource-baselines.json` records canonical no-extra-flags baselines for
+both targets. Every supported build emits `size.json` from the linker map and
+checks image bytes, total linked bytes, DIRAM, flash code, and flash rodata.
+Small reviewed growth allowances catch regressions without coupling unrelated
+toolchain padding to an exact byte count; raising a baseline or allowance
+requires explicit architecture and resource review.
+
 ## OTA NVS endurance
 
 The resumable OTA journal alternates two NVS keys (`j0` and `j1`). SHA-256 is

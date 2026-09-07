@@ -1,5 +1,13 @@
 # Firmware architecture and ownership
 
+The large legacy facades remain `src/shotStopper.cpp` and
+`src/ShotStopperNetwork.cpp`, but their implementations are now grouped in
+`src/control/`, `scale/`, `network/`, `persistence/`, `diagnostics/`, and
+`platform/` fragments. The fragments stay in their original translation units,
+preserving linkage and external contracts while allowing one service at a time
+to become an independent target. Safety root headers remain stable until an
+isolated R3 extraction has HIL evidence.
+
 This document is the enforceable module boundary for F-20. The legacy
 assembly translation units remain intentionally thin integration roots while
 new state and behavior belong to one of the services below. Shared headers may

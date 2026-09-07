@@ -1,5 +1,8 @@
 # Auditoría estática de firmware ESP32/FreeRTOS
 
+> Historical snapshot. Findings and line counts reflect the 2026-09-05 tree;
+> use current architecture, validation, and safety documentation for decisions.
+
 **Proyecto:** AcaiaArduinoBLE / Shot Stopper  
 **Objetivo:** evaluar la aptitud arquitectónica, temporal y de memoria para un estándar de misión crítica  
 **Fecha de corte:** 2026-09-05  
