@@ -1,11 +1,11 @@
 # Suppress diagnostics emitted from Arduino/ESP-IDF dependencies that are
 # transitively included by the firmware. Code under src/, libraries/,
 # and idf/main remains in scope.
-*:**/Arduino15/**
-*:**/Arduino/libraries/**
-*:**/esp/esp-idf/**
-*:**/idf/managed_components/**
-*:**/idf/third_party/**
+*:*/Arduino15/*
+*:*/Arduino/libraries/*
+*:*/esp/esp-idf/*
+*:*/idf/managed_components/*
+*:*/idf/third_party/*
 # Owner: firmware-platform. Review/expiry: 2027-03-01.
 # FreeRTOS semaphore macros expand to C casts; not actionable at call sites.
 dangerousTypeCast:*/src/ShotStopperNetwork.cpp

@@ -123,6 +123,9 @@ scripts_text = "\n".join(
     if path.is_file())
 assert not re.search(r"--(?:token|password)\s+['\"]", scripts_text), \
     "credentials must not be forwarded in argv"
+cppcheck_suppressions = (ROOT / "scripts/cppcheck-suppressions.txt").read_text()
+assert "**" not in cppcheck_suppressions, \
+    "Cppcheck suppression globs must use a single '*' wildcard"
 tests_text = "\n".join(path.read_text(errors="replace")
                        for path in (ROOT / "src/tests").iterdir() if path.is_file())
 assert "npm" + " install" not in tests_text and "npm" + " ci" not in tests_text, \
