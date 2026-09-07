@@ -798,6 +798,7 @@ void emitEspLog(LogLevel level, DebugCategory category, const char *message) {
       level == LogLevel::CRITICAL ? "[CRITICAL] " : "";
   // ESP_LOG_LEVEL accepts a runtime level without the ESP_LOGx local-level
   // compile-out and adds the standard severity, timestamp, tag and newline.
+  // cppcheck-suppress syntaxError ; older Cppcheck cannot parse this ESP-IDF macro.
   ESP_LOG_LEVEL(espLogLevel(level), tag, "%s%s", criticalPrefix, message);
 #else
   (void)category;
