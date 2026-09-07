@@ -5080,7 +5080,7 @@ void d09_first_mode_connects_seen_advertisement() {
   CHECK(!scale.directedScan);
   CHECK(scale.lastStartScanMac[0] == '\0');
 
-  strncpy(scale.seenMac, "AA:BB:CC:DD:EE:FF", sizeof(scale.seenMac) - 1);
+  copyCString(scale.seenMac, sizeof(scale.seenMac), "AA:BB:CC:DD:EE:FF");
   strncpy(scale.seenName, "LUNAR", sizeof(scale.seenName) - 1);
   scale.seenPending = true;
   scale.pollScanConnects = true;
@@ -5114,7 +5114,7 @@ void d12_advertisement_history_does_not_dirty_persist() {
   serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
                               connectAttemptSeriesActive, scanSessionAtMs,
                               scanLastAdvertAtMs);
-  strncpy(scale.seenMac, "AA:BB:CC:DD:EE:01", sizeof(scale.seenMac) - 1);
+  copyCString(scale.seenMac, sizeof(scale.seenMac), "AA:BB:CC:DD:EE:01");
   strncpy(scale.seenName, "LUNAR", sizeof(scale.seenName) - 1);
   scale.seenPending = true;
   scale.pollScanConnects = false;
@@ -5127,7 +5127,7 @@ void d12_advertisement_history_does_not_dirty_persist() {
 
   scale.pollScanConnects = true;
   scale.pollScanStepsToConnect = 1;
-  strncpy(scale.seenMac, "AA:BB:CC:DD:EE:01", sizeof(scale.seenMac) - 1);
+  copyCString(scale.seenMac, sizeof(scale.seenMac), "AA:BB:CC:DD:EE:01");
   strncpy(scale.seenName, "LUNAR", sizeof(scale.seenName) - 1);
   scale.seenPending = true;
   hostMillis += SCALE_DISCOVERY_TICK_MS;
@@ -8899,8 +8899,8 @@ void sc15_status_printers_use_dump_views() {
   SerialCliScaleDump scale;
   scale.state = "CONNECTED";
   scale.protocolName = "bookoo";
-  strncpy(scale.preferredMac, "AA:BB:CC:DD:EE:FF",
-          sizeof(scale.preferredMac) - 1);
+  copyCString(scale.preferredMac, sizeof(scale.preferredMac),
+              "AA:BB:CC:DD:EE:FF");
   scale.weightFresh = true;
   scale.currentWeightG = 18.5f;
   Serial.tx.clear();
