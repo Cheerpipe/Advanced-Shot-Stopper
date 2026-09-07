@@ -597,6 +597,15 @@ if (!js.includes('function commandOkMessage(') ||
     js.includes('Lock failed.')) {
   throw new Error('Web UI must show action-specific success and failure toasts instead of generic queued/failed copy');
 }
+{
+  const commandFn = runtimeJs.slice(runtimeJs.indexOf('async function command('),
+      runtimeJs.indexOf('async function setBleCompanionEnabled('));
+  if (!commandFn.includes("path.endsWith('/config')||path.endsWith('/presets')") ||
+      !commandFn.includes('configRevision===previousRevision') ||
+      commandFn.indexOf("message(okMsg||") < commandFn.indexOf("throw new Error('Device did not apply the change.')")) {
+    throw new Error('Config and preset saves must confirm a new revision before showing success');
+  }
+}
 if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !runtimeJs.includes('SHOTS_EXPORT_LIMIT=120') ||
     !runtimeJs.includes("shotsUrl(offset,limit)") ||
