@@ -1,154 +1,92 @@
 # Emergency Recovery with Paddle
 
-Use this when there is no access via Web UI, Wi-Fi, BLE, or USB/serial. The
-scale does not need to be on.
+Restore access using the physical activator when Web UI, Wi-Fi, BLE, and USB
+are unavailable. This also works on momentary builds: hold the button at
+power-on, then release/press for each OFF→ON cycle. The scale is not needed.
 
-This is the **user procedure**. Implementation notes live in the
-[recovery state machine](STATE_MACHINES.md#12-recovery-gesture). Related:
-[Factory reset](settings/factory-reset.md), [FAQ](FAQ.md),
-[USB serial CLI](SERIAL_CLI.md).
-
-> **Safety:** During recovery, the firmware keeps machine circuit open and does not allow
-> a brew or rinse. Do not make coffee until the procedure finishes and the
-> controller restarts.
+The controller keeps its relay open during recovery. On momentary machines,
+an open relay is not proof that a machine already running has stopped.
+Perform recovery with the machine idle.
 
 ## Choosing the Procedure
 
-| Procedure | Gesture | Erases | Preserves |
-| --- | --- | --- | --- |
-| Recover access | `OFF→ON ×3` | Wi-Fi STA, static IP, last-known-good network, device password | Machine configuration, presets, calibration, scales, and history |
-| Factory reset | `OFF→ON ×5` | All configuration, network, calibration, scales, BLE Companion, history, and last shot | Firmware only |
+| Procedure | Complete OFF→ON cycles | Erases | Preserves |
+| --- | ---: | --- | --- |
+| Recover access | 3 | Wi-Fi, static IP, last-known-good network, device password | Machine settings, recipes, calibration, scales, history |
+| Factory reset | 5 | All saved configuration, calibration, scales, Companion preference, history and last shot | Firmware |
 
-After either procedure, local access returns to:
-
-- Network: **`AdvancedShotStopperAP`**
-- Device password: **`ineedacoffee`**
-- Address: **`http://192.168.4.1`**
-
-Passwords are case-sensitive.
+Both restore the [factory AP access](settings/ap.md#first-connection).
+Factory reset cannot be undone.
 
 ## Before You Begin
 
-One cycle means moving the paddle completely from **OFF to ON**. The
-controller must initially power on with the paddle in **ON**; that initial
-position does not count as a cycle. Momentary-switch builds use the same
-recovery procedure: **hold the button at power-on**, then cycle it the
-same way. The firmware still reads raw GPIO edges during recovery.
-
-- Perform all gesture movements in less than 5 seconds.
-- After the last ON, do not move the paddle for 3 seconds.
-- Recovery mode lasts 60 seconds total.
-- If the firmware was compiled without a buzzer, the same steps work silently.
+- Start from a **power-on**, with the paddle ON or momentary button held.
+  This initial ON does not count as a cycle.
+- Recovery listens for 60 s. Complete the movements within 5 s, then hold ON
+  without movement for 3 s to confirm.
+- Beeps require a compiled and connected buzzer. A silent build uses the same
+  counts and timing; absence of sound is not evidence that nothing happened.
 
 ## Recover Wi-Fi, AP, and Password
 
-This procedure does not erase recipes, machine settings, or history.
+1. Power off the controller; move the paddle ON or hold the button.
+2. Power on. A 1.5 s continuous beep announces recovery on buzzer builds.
+3. Within the recovery window, perform three cycles in less than 5 s:
+   `OFF → ON → OFF → ON → OFF → ON`.
+4. Hold the final ON for 3 s. Three short beeps indicate successful recovery.
+5. Return the activator OFF and allow the restart. Connect using the
+   [AP instructions](settings/ap.md#first-connection).
 
-1. Power off the Shot Stopper.
-2. Move the paddle to **ON**.
-3. Power on the Shot Stopper while holding the paddle ON.
-4. Wait for a continuous beep lasting 1.5 seconds that announces recovery mode.
-5. Within 60 seconds, perform three complete cycles in less than 5 seconds:
-
-   ```text
-   Initial position: ON
-   OFF → ON → OFF → ON → OFF → ON
-        cycle 1   cycle 2   cycle 3
-   ```
-
-6. Keep the paddle still on ON for 3 seconds.
-7. Three short beeps confirm that access credentials were restored.
-8. Wait for the restart and connect to `AdvancedShotStopperAP` with `ineedacoffee`.
-
-Example of valid timing:
-
-```text
-0.0 s  first OFF
-0.5 s  first ON
-1.0 s  second OFF
-1.5 s  second ON
-2.0 s  third OFF
-2.5 s  third ON
-5.5 s  static confirmation ends; access reset
-```
+Example timing: first OFF at 0 s, successive transitions every 0.5 s, final
+ON at 2.5 s, confirmation at 5.5 s.
 
 ## Perform a Factory Reset
 
-> **Warning:** This procedure erases presets, configuration, learned
-> calibration, networks, scales, BLE Companion, history, and last shot. It
-> cannot be undone. Same erase as [Factory reset](settings/factory-reset.md)
-> from the Web UI or USB.
+Follow the access-recovery steps, but perform **five** cycles before the
+3-second final hold:
 
-1. Power off the Shot Stopper.
-2. Move the paddle to **ON**.
-3. Power on the Shot Stopper while holding the paddle ON.
-4. Wait for a continuous beep lasting 1.5 seconds.
-5. Within 60 seconds, perform five complete cycles in less than 5 seconds:
+`OFF → ON → OFF → ON → OFF → ON → OFF → ON → OFF → ON`
 
-   ```text
-   Initial position: ON
-   OFF → ON → OFF → ON → OFF → ON → OFF → ON → OFF → ON
-        cycle 1   cycle 2   cycle 3   cycle 4   cycle 5
-   ```
+For example, transitions every 0.4 s reach the fifth ON at 3.6 s; confirmation
+finishes at 6.6 s. Five short beeps indicate success. Return OFF, wait for
+restart, then repeat [first setup](GETTING_STARTED.md).
 
-6. Keep the paddle still on ON for 3 seconds.
-7. Five short beeps confirm the factory reset.
-8. Wait for the restart and perform setup from `http://192.168.4.1`.
-
-Example of valid timing:
-
-```text
-0.0 s  first OFF
-0.4 s  first ON
-0.8 s  second OFF
-1.2 s  second ON
-1.6 s  third OFF
-2.0 s  third ON
-2.4 s  fourth OFF
-2.8 s  fourth ON
-3.2 s  fifth OFF
-3.6 s  fifth ON
-6.6 s  static confirmation ends; factory reset
-```
-
-The first three cycles of the long gesture resemble the short gesture. There is
-no risk of premature application: any movement restarts the confirmation wait,
-and the firmware decides only after 3 seconds without motion.
+Do not pause for 3 s after the third ON while intending five cycles: that
+would confirm access recovery before the longer gesture is complete.
 
 ## Cancel Without Erasing Data
 
-Stop moving the paddle and allow the total 60-second window to expire. A beep
-lasting 1.5 seconds announces the exit. Then move the paddle to OFF; the
-firmware continues normal startup and machine circuit stays open until it detects a stable
-OFF.
+**Before confirmation**, move the activator OFF and keep it OFF until the
+60-second recovery window expires. OFF prevents a three/five-cycle candidate
+from confirming. Do not simply stop moving while ON after three or five cycles:
+that is the confirmation gesture.
 
-You can also cut power before the 3-second confirmation ends. If the erase had
-already begun, persistent intent will cause the next startup to complete the
-operation safely.
+You can also remove controller power before confirmation. Once the operation
+has begun, power loss is not cancellation: a durable recovery intent makes
+the next boot resume it. After expiry, normal startup continues with the relay
+open until the normal start conditions are met.
 
 ## Common Mistakes
 
-- **Starting with paddle OFF:** Starts normally; does not enter recovery mode.
-- **Moving too slowly:** If cycles take more than 5 seconds, the attempt is
-  invalidated. You can retry within the 60-second window.
-- **Performing four cycles:** Does not correspond to any command and does not
-  erase data.
-- **Moving during the 3 seconds:** Restarts the confirmation or converts the
-  short gesture into the long gesture if five cycles complete in time.
-- **Exhausting the 60 seconds:** Recovery mode exits without executing a reset.
-- **Not hearing beeps:** The build may not include a buzzer. Count movements
-  and timings anyway.
+| Symptom | Check |
+| --- | --- |
+| Normal boot instead of recovery | Power-on must begin with the activator ON; pressing later does not enter recovery. |
+| Gesture not accepted | Four cycles do nothing; movements slower than 5 s invalidate the attempt. Retry within the 60 s window. |
+| Access reset instead of factory reset | A 3 s pause after the third cycle confirms the shorter operation. |
+| No beeps | The buzzer may be absent; use the counts and timings above. |
+| Operation interrupted by power loss | Pending recovery resumes at the next boot. |
 
 ## If It Does Not Restart or AP Does Not Appear
 
-1. Wait at least 20 seconds after confirmation.
-2. Verify that the paddle is OFF and power the controller back on.
-3. Look for `AdvancedShotStopperAP`; the initial STA attempt may delay its
-   appearance by approximately 15 seconds.
-4. If you hear a long-short-long pattern, storage failed the pending
-   operation. The firmware drops the recovery latch and **continues
-   startup** (SoftAP / default credentials when settings could be rebuilt).
-   It does not stay hung. If SoftAP still does not appear, cut and restore
-   power once; then use the [USB CLI](SERIAL_CLI.md) or reflash.
-5. If the issue persists, use the [USB CLI](SERIAL_CLI.md) or reflash the
-   firmware before connecting machine circuit again.
+Wait at least 20 s, return the activator OFF, then power the controller on
+again. A successful access/factory reset clears saved Wi-Fi, so the AP should
+be available at startup; its [idle shutdown](settings/ap.md#idle-shutdown)
+still applies.
+
+A long-short-long sound means storage could not complete the operation. The
+firmware leaves recovery and continues startup; access depends on the settings
+it could recover. If the AP is still unavailable, use
+[USB commands](SERIAL_CLI.md) or [USB firmware recovery](BUILD.md#6-flash-usb).
+
+Implementation: [recovery state machine](STATE_MACHINES.md#12-recovery-gesture).
+Bench verification: [manual test plan](MANUAL_TEST_PLAN.md).

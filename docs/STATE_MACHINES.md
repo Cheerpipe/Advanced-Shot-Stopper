@@ -15,6 +15,17 @@ Related product docs: [Brew by weight](features/brew-by-weight.md),
 [Emergency recovery](EMERGENCY_RECOVERY.md),
 [Hardware](HARDWARE.md).
 
+## Find a subsystem
+
+| Topic | Sections |
+| --- | --- |
+| Brew and electrical safety | [Stopper](#1-stopper-stopperstate), [relay](#2-relay-safety-relaysafetystate) |
+| Physical controls | [Machine state](#3-machine-run-state-machinerunstate), [user intent](#4-user-intent-userintent) |
+| Weight and cup sensing | [Weight control](#5-weight-control-weightcontrolstate), [stream](#6-weight-stream-weightstreamstate), [cup](#7-cup-presence-cuppresencestate), [first flow](#8-first-flow-firstflowphase--firstflowclass), [touch](#9-accidental-touch-accidentaltouchphase--accidentaltouchclass) |
+| Scale connection | [Link and commands](#10-scale-link-scalelinkstate), [no-scale guard](#11-no-scale-bbw-guard) |
+| Access and updates | [Recovery](#12-recovery-gesture), [Wi-Fi](#13-station-wi-fi-stastate), [scan](#14-wi-fi-scan-wifiscanstate), [clock](#15-wall-clock-timesyncstate), [OTA](#16-ota-otastate), [Web commands](#17-web-command-pipeline-commandresultstate) |
+| Cross-cutting | [End reasons](#end-reasons-stopper-outcomes), [loop ordering](#control-loop-ordering) |
+
 ## How to read this
 
 Each section has:
@@ -72,17 +83,22 @@ flowchart TB
 
 ## How the machines interact
 
+The relay-close/open sequence below describes paddle firmware. Momentary
+firmware uses pulses and separate inferred/reed state; relay OPEN alone does
+not mean the group is idle. See section 3 before applying this sequence to a
+button machine.
+
 **Idle.** Stopper is `READY`. Relay safety is `OPEN`. Machine run state
 is `CONFIRMED_OFF`. The scale link may be `CONNECTED` or
 `DISCONNECTED`; that only matters when a shot starts.
 
 **Start.** A debounced activator ON (or a Web start, if remote machine control is
 compiled in) is `REQUEST_START`. The stopper may **block** that start
-(no-scale BBW guard, cup-to-start guard) without closing the machine circuit. A short
-ON→OFF in the rinse window is not a failed start: it becomes `RINSE`.
+(no-scale BBW guard, cup-to-start guard) without closing the machine circuit. With Quick rinse enabled, a short
+ON→OFF in its window becomes `RINSE`.
 
 If the start is accepted, the stopper calls `machineRequestStart`.
-Relay safety goes `OPEN → ARMING → CLOSED` (or refuses and the stopper
+On paddle, relay safety goes `OPEN → ARMING → CLOSED` (or refuses and the stopper
 goes to `REQUIRES_OFF`). Machine run state follows: `ASSUMED_ON` while
 arming, then `CONFIRMED_ON`.
 
@@ -185,8 +201,8 @@ Source: `ShotStopperSafety.h`, `ShotStopperMachine.h`.
 | `FEEDBACK_FAILED_TO_CLOSE` | Echo never matched a commanded close. | Lockout |
 | `FEEDBACK_CHANGED_UNEXPECTEDLY` | Echo flipped while closed/open unexpectedly. | Lockout |
 | `TASK_WATCHDOG_FAILURE` | Control task missed WDT. | Lockout |
-| `RESET_DURING_CLOSE` | Reboot while RTC said commanded-closed. | Lockout |
-| `UNSAFE_RESET` | Reset reason treated as unsafe. | Lockout |
+| `RESET_DURING_CLOSE` | Reset-history classification; whether it blocks a new close depends on boot fault handling. | Inspect active safety state |
+| `UNSAFE_RESET` | Reset-history classification; a panic alone does not require a recovery gesture. | Inspect active safety state |
 | `BOOT_LOOP` | Repeated unsafe resets. | Lockout |
 | `GPIO_DESYNC` | Commanded CLOSED but the relay GPIO still reads OPEN after a rewrite. Best-effort (`digitalRead` of an output is not a contact sense). Periodic rewrite while commanded closed is the main defense. | Trip (not lockout) |
 
@@ -290,8 +306,9 @@ Assumed off, and Confirmed on. Diagnostic JSON also reports
 
 ### Events
 
-None of its own. Recomputed every time status is sampled from relay
-safety.
+Paddle state is derived from relay safety. Momentary state also responds to
+button intentions, scale-flow evidence or reed changes, and confirmation
+windows as described above; it is not derived from K1 alone.
 
 ---
 
@@ -525,8 +542,8 @@ allows manual use. See
 
 The stopper, not the guard, pushes `machineSetActivatorDriveAllowed` so
 momentary does not 1:1-forward while this guard (or cup-start) would
-block. Paddle has no GPIO→K1 mirror; `beginCycle` still withholds
-`machineRequestStart`.
+block. Paddle's ON-level refresh does not bypass start permission; `beginCycle`
+still withholds `machineRequestStart` when blocked.
 
 `NoScaleBbwMode` selects `OFF`, `WARN_ONCE`, or `REQUIRE_SCALE`; the runtime
 still exposes the Armed/cooldown latch.
@@ -587,7 +604,7 @@ is a separate 3 s hold. See [Emergency recovery](EMERGENCY_RECOVERY.md).
 ## 13. Station Wi-Fi (`StaState`)
 
 **Purpose.** Join the configured home network without fighting BLE
-mid-shot. SoftAP raise is **boot/bootstrap only** after a successful
+mid-shot. SoftAP auto-raise is **boot/bootstrap only**, before the first successful
 STA join. Auto SoftAP also idle-stops after 3 minutes with zero SoftAP
 stations (latched for the rest of the boot; USB `AP_START` still works).
 
@@ -700,7 +717,7 @@ Source: `ShotStopperDomain.h`.
 | `FAILED` | Validation, queue, or persist error. |
 | `CANCELED` | Lease dropped (e.g. paddle ON during maintenance). |
 
-Unsafe Web UI unlock is **not** a state machine: it is a flag on the
+The development-only unsafe Web UI override is **not** a state machine: it is a flag on the
 queued command (`unsafeWebUiOverride`) that bypasses the config-lock
 gate. It never changes relay safety.
 
@@ -713,7 +730,7 @@ ran, stored on the session, last-shot blob, and shot log.
 
 | `EndReason` | Typical trigger |
 | --- | --- |
-| `PADDLE` | Natural paddle OFF after the rinse window. |
+| `ACTIVATOR` | Physical stop intention (Natural paddle OFF after any enabled rinse window, or a valid button stop). |
 | `SCALE_THRESHOLD` | Weight control `ACTIVE`, target (minus drip offset) confirmed. |
 | `WEIGHT_ANOMALY` | Direct-stop path on a pathological sample. |
 | `GLOBAL_LIMIT` | 60 s hard cap. |

@@ -1,6 +1,7 @@
-# P2 resource budgets
+# Resource budgets
 
-This file versions the quantitative assumptions implemented by Phase 2. It is
+This file versions the firmware's quantitative resource limits. The P2 filename
+is retained for existing tool and evidence references. It is
 an implementation contract, not a substitute for target/HIL evidence.
 
 ## Firmware image and static regions

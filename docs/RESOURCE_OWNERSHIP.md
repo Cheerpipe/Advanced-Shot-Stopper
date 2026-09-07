@@ -1,7 +1,7 @@
 # ESP and FreeRTOS resource ownership
 
-F-19 requires every fallible acquisition to have one owner and a defined
-rollback path. `UniqueResource<Handle, Deleter>` is a one-handle-wide,
+Every fallible resource acquisition needs one owner and a defined rollback
+path. Read this before adding queues, tasks, clients, or persistent handles. `UniqueResource<Handle, Deleter>` is a one-handle-wide,
 non-allocating owner with move, `release()` and `reset()`. It is used only for
 C handles whose cleanup is safe in the owner's context. FreeRTOS tasks are
 never deleted by this wrapper: their owners retain explicit stop/ack/join.

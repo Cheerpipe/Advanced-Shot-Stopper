@@ -1,358 +1,156 @@
 <p align="center">
-  <img src="docs/advanced-shot-stopper.svg" alt="Advanced Shot Stopper" >
+  <img src="docs/advanced-shot-stopper.svg" alt="Advanced Shot Stopper">
 </p>
 
 # Advanced Shot Stopper
 
-## TL;DR
+Advanced Shot Stopper adds brew-by-weight to an espresso machine: a Bluetooth
+scale measures the drink, and an ESP32-S3 controller requests a stop near your
+recipe's target weight. You keep using the machine's physical brew switch.
 
-Advanced Shot Stopper turns an inexpensive (about **US$15**)
-[ESP32-S3 single-relay board](https://es.aliexpress.com/item/1005011880181624.html?spm=a2g0o.order_list.order_list_main.328.21ef194dsjEl51&gatewayAdapt=glo2esp)
-into a highly capable brew-by-weight controller for a wide range of espresso
-machines. It connects over Bluetooth to compatible scales (including Bookoo,
-Acaia, and others), then intercepts and controls the machine's brew-button,
-paddle, or activation circuit through an isolated relay. It supports both
-latching-paddle machines such as the **La Marzocco Linea Micra** and
-momentary-switch machines such as the **Rancilio Silvia Pro X**.
+This repository provides firmware and hardware guidance for a DIY installation.
+It is a work in progress, not a ready-to-install or certified kit. Development
+started on the La Marzocco Linea Micra; other switch types have different wiring
+and stop behavior.
 
-Designed to be stable, resilient, configurable, and hands-off, it includes
-shot guards, cup detection, automatic tare/retare, shot history, basic
-statistics, low-power operation, audible alerts, paddle/switch command resets,
-and quick rinse for machines that do not provide it. OTA updates use dual
-firmware slots and automatic recovery. It also includes a very simple
-3D-printable enclosure. The hardware is affordable and requires only modest
-assembly—but this is firmware and wiring guidance, not a plug-and-play kit:
-you need to understand the electrical work and your machine before installing
-it. The project as a whole is still a work in progress. See the
-[3D-printable enclosure](docs/HARDWARE.md#3d-printable-enclosure) for the
-print files and an example of the printed case.
+> Before installation, read [Hardware](docs/HARDWARE.md) and complete the
+> applicable [bench checks](docs/MANUAL_TEST_PLAN.md). The relay must remain open
+> on startup, reset, power loss, and safety failure. Machine-specific wiring
+> instructions are incomplete. See the [Disclaimer](#disclaimer).
 
-ESP32-S3 firmware that began on a **La Marzocco Linea Micra**. It adds
-brew-by-weight and related workflow controls without replacing the machine’s
-own brew switch.
+## Start here
 
-The controller reads the physical brew switch on a GPIO and drives the
-machine’s brew circuit through an isolated relay. A Bluetooth scale (designed
-first for **Bookoo** Themis Mini / Ultra) supplies the weight. Other compatible
-scales (Acaia, Felicita, Eclair, Decent, DiFluid, MyScale, Varia, Eureka,
-WeighMyBru) work through the vendored EspressoScaleBLE library.
+| I want to… | Read |
+| --- | --- |
+| Check whether my equipment fits | [Requirements](#requirements) and [machine types](#machine-types) |
+| Prepare hardware and firmware | [Hardware](docs/HARDWARE.md) → [Build and USB installation](docs/BUILD.md) |
+| Connect and make the first shot | [First setup and daily use](docs/GETTING_STARTED.md) |
+| Change how brewing works | [Features and settings](#main-features) |
+| Understand an unexpected result | [Troubleshooting](docs/FAQ.md) |
+| Update or recover the controller | [OTA](docs/features/ota.md) / [Recovery](docs/EMERGENCY_RECOVERY.md) |
+| Develop or contribute | [Contributing](CONTRIBUTING.md) |
+| Find a specific reference | [Documentation index](docs/README.md) |
 
-It was built for the Micra first. It is **not** a certified kit for every
-machine — but the same isolated-relay contract has three compile-time builds
-(paddle / latch, momentary, and momentary + reed). See
-[Machine types](#machine-types).
+<a id="tldr"></a>
+<a id="intro"></a>
 
-> **Safety:** check isolation, polarity, and that the relay stays **open** on
-> startup, reset, and power loss. Complete the
-> [manual test plan](docs/MANUAL_TEST_PLAN.md) before connecting the machine.
-> This project cannot make unsafe wiring safe. See the
-> [Disclaimer](#disclaimer) — use at your own risk.
+## Requirements
 
-## Intro
+- **Board:** ESP32-S3 with PSRAM, either n16r8 (16 MB flash / 8 MB PSRAM) or
+  n8r4 (8 MB flash / 4 MB PSRAM). The [development relay board](docs/HARDWARE.md#development-board)
+  has a specific GPIO map; another board needs a reviewed pin assignment.
+- **Scale:** a supported Bluetooth model. Bookoo Themis Mini/Ultra were the
+  primary development scales. Check the [model and capability table](libraries/EspressoScaleBLE/README.md#scale-compatibility);
+  implemented protocols are not all equally tested.
+- **Machine:** a compatible activation circuit connected only to isolated relay
+  contacts, plus a physical switch input appropriate to the selected build.
+- **Installation skills:** identify and verify your machine's electrical
+  connections, build the firmware, and test the installation on a bench.
 
-This project is for people who want intelligent, reliable, safe, and advanced
-brew-by-weight without changing the machine’s human-machine interface. No extra
-buttons on the bar. You keep using the brew switch the same way you always
-have. The day-to-day goal is to forget the stopper is there: put the cup down,
-start the shot, walk away. The intelligence lives in firmware defaults, not in
-a new control panel.
-
-That “forget it exists” outcome is what the firmware grew into. The original
-motivation had two parts.
-
-**Workflow.** This project started from
-[tatemazer/AcaiaArduinoBLE](https://github.com/tatemazer/AcaiaArduinoBLE),
-the original ESP32 Shot Stopper that stops an extraction by weight over
-Bluetooth. That firmware proved BLE brew-by-weight was possible — and it
-inspired this rewrite — but it has hard limits once a shot is running: it does
-not see paddle motion mid-shot, and you must return the paddle to a known
-position for the workflow to work. That legacy feel is preserved here as
-[Original](docs/settings/paddle.md) paddle mode. The first goal was brew-by-weight
-that is automatic, simple, natural, and safe: the paddle feels like the
-machine’s own switch ([Natural](docs/settings/paddle.md) / [Auto](docs/settings/paddle.md)),
-and the firmware finishes the shot.
-
-**Access and cost.** tatemazer’s board and kit are an excellent, plug-and-play
-design. Outside the USA and Canada, shipping, taxes, and duties can push the
-price easily to **200–250 USD or more**. That is a lot for hardware that is, at
-heart, an ESP32 and a relay — especially if you already buy ESP32 boards from
-marketplaces. After looking around, development settled on a cheap ESP32-S3
-1-channel relay board that is enough for safe brew-by-weight. A bonus: it runs
-from **5–60 V DC**, so it can be powered on a very wide range of machines, and
-it exposes GPIOs for reed/hall sensors and an optional buzzer for local sound.
-The board used here:
-[ESP32-S3 1-channel relay (AliExpress)](https://es.aliexpress.com/item/1005011880181624.html).
-So the goal is not only powerful BBW — it is also **affordable** BBW.
-
-**BBW for more machines.** The project started on the Micra (latch paddle). To
-keep brew-by-weight from staying locked to that one switch type, a large amount
-of time, effort, and tokens went into supporting both **latch** and
-**momentary** brew switches. Machine type is compile-time
-(`SHOT_STOPPER_MACHINE_TYPE`); you do not pick it in the Web UI. See
-[Machine types](#machine-types).
-
-**What this is not.** Unlike the original Shot Stopper — designed and sold as
-a kit you install and run — this repository provides **firmware and hardware
-guidelines only**. It is not a product, not sold in packs, and not supported as
-a commercial kit. You still need to know what to wire and how. See the
-[Disclaimer](#disclaimer).
-
-### Roadmap and safety boundaries
-
-**Not planned — MQTT or remote shot start.** MQTT and other persistent
-HTTP/socket-based communication mechanisms are deliberately out of scope.
-The firmware will also not provide a way to start a shot remotely. An espresso
-machine operates with high-temperature water and pressurized steam, so it
-should not be activated remotely, unattended, or without a person present.
-
-**Not planned — legacy ESP32 or boards without PSRAM.** Support for classic
-(non-S3) ESP32 boards and boards without PSRAM is out of scope for now. The
-firmware currently supports only ESP32-S3 **n16r8** and **n8r4** boards with
-PSRAM.
-
-**Not planned — real-time shot data in the Web UI.** Live shot telemetry in
-the Web UI would compete with the Bluetooth connection to the scale, so it is
-out of scope. The scale connection takes priority during a shot.
-
-**Not planned — Timemore scale support.** Supporting Timemore scales is
-technically possible, but the complexity of their Bluetooth protocol would add
-substantial code and maintenance burden. It is therefore out of scope.
-
-Advanced Shot Stopper is now the main application in this repository. The
-derived scale library remains here as a local dependency.
+A [printable enclosure](docs/HARDWARE.md#3d-printable-enclosure) is included.
+Classic ESP32, boards without PSRAM, and Timemore scales are outside the current
+support scope.
 
 ## How it works
 
-On the **paddle / latch** build (the Micra case), the brew switch does **not**
-connect to the brew circuit. It connects only between a configured ESP32-S3
-GPIO and GND. The relay COM/NO contact is the only connection to that circuit.
-The firmware can therefore read the paddle and control the machine
-independently. Momentary builds use the same isolated relay contract with a
-different switch model — see [Machine types](#machine-types).
+The controller reads your brew switch separately from the machine's activation
+circuit. It can therefore interpret your gesture and stop brewing according to
+the scale, recipe guards, or time limits.
 
-That split is what makes the firmware “advanced”:
-
-- Fine control of the brew workflow and its exceptions (rinse vs shot, late
-  cup, missing scale).
-- Weight noise filtering, so a bump or a noisy sample does not stop the shot.
-- Anti-finger / accidental-touch protection at the start of an automatic shot.
-- Intelligent handling when the scale drops or the stream goes stale.
-- Guards for extractions that finish too fast or too slow.
-
-Development used the ESP32-S3 1-channel relay board shown in the
-[front and back photos](docs/HARDWARE.md#development-board)
-([AliExpress listing](https://es.aliexpress.com/item/1005011880181624.html)).
-The firmware’s default GPIO map matches that board. Details are in
-[Hardware](docs/HARDWARE.md).
+On paddle machines, the relay remains closed while brewing and opens to stop.
+On momentary machines, it copies button presses and sends a pulse to request a
+stop. **Opening that relay alone does not necessarily stop a momentary machine.**
+See the distinctions below before choosing a build.
 
 ## Machine types
 
-Machine type is fixed at compile time with `SHOT_STOPPER_MACHINE_TYPE`. It is
-not a Web UI setting. Rebuild (and usually reflash) to change it. Details:
-[Paddle](docs/settings/paddle.md), [Momentary](docs/settings/momentary.md),
-[Hardware](docs/HARDWARE.md).
+Select `SHOT_STOPPER_MACHINE_TYPE` when building; it is not a Web UI setting.
 
-| Type | `SHOT_STOPPER_MACHINE_TYPE` | What it is |
+| Build | Value | How the controller knows the group is running |
 | --- | ---: | --- |
-| **Paddle / latch** | `0` (default) | The brew switch stays ON or OFF. Firmware reads the paddle on GPIO and drives the machine circuit through the relay independently. This is the Micra case and the architecture in [How it works](#how-it-works). |
-| **Momentary** | `1` | The button does not latch. The relay mirrors the press 1:1; firmware sends an auto-stop pulse to cut by weight. Without an extra sensor, “is the group running?” is **inferred** from scale flow — less reliable. Without a scale there is no weight cut; the operational time wall still sends one stop pulse. |
-| **Momentary + reed** | `2` | Same as momentary, plus a reed or hall sensor (default GPIO **13**) that reports whether the group/solenoid is actually ON. That reading is canonical. |
+| [Paddle / latch](docs/settings/paddle.md) | 0, default | Follows the maintained brew contact. Developed first for the Linea Micra. |
+| [Momentary](docs/settings/momentary.md) | 1 | Infers flow from scale readings. Without confirmed flow, an automatic stop pulse may not be sent. |
+| [Momentary + reed](docs/settings/momentary.md) | 2 | Uses an additional reed/hall input to observe the machine state. Preferred for momentary installations. |
 
-**Strong recommendation:** on momentary machines, use a reed (or hall) on the
-solenoid or group. The development board exposes GPIOs for exactly that.
-Momentary without a reed is a fallback, not the preferred install.
+Support for a switch model is not certification of a particular espresso
+machine. The firmware's 60 s relay limit and the ability to stop water flow
+are different on momentary machines; read the [stop limitations](docs/settings/momentary.md#stopping-and-time-limits).
 
 ## Main features
 
-### Brew by weight
+<a id="brew-by-weight"></a>
+<a id="tare-and-retare"></a>
+<a id="cup-protection"></a>
+<a id="fast-extraction-guard"></a>
+<a id="slow-extraction-guard"></a>
+<a id="am-time-guard"></a>
+<a id="alerts"></a>
+<a id="quick-rinse"></a>
+<a id="shot-history"></a>
+<a id="webhooks"></a>
+<a id="presets"></a>
 
-When a usable scale is connected, the firmware closes the machine circuit with the paddle and
-opens it at the target weight (minus a learned drip offset). You can turn
-weight stop off and keep only the timer and tare. See
-[Brew by weight](docs/features/brew-by-weight.md).
-
-### Tare and retare
-
-An automatic tare runs when the shot starts. If you put the cup down after
-paddle ON, cup-presence detection can trigger a second automatic tare inside
-the retare window—no button on the scale. See
-[Tare and retare](docs/features/tare-retare.md).
-
-### Cup protection
-
-Late cup placement, a finger on the pan, or a bump at the start of the shot
-should not cut the extraction. Retare, a start-of-shot protection window, and
-cup-presence checks work together. In the Web UI these appear as **BBW
-protection**, **Automatic retare**, **Cup**, and **Tare**. See
-[Cup protection](docs/features/cup-protection.md).
-
-### Fast extraction guard
-
-If the target weight arrives too soon (often a coarse grind or channeling),
-the shot can continue toward a recovery weight or a min BBW brew time instead
-of stopping thin. On by default. See
-[Fast extraction guard](docs/features/fast-extraction-guard.md).
-
-### Slow extraction guard
-
-If the target has not arrived by a maximum brew time (often a fine grind),
-the shot can cut at a floor weight instead of waiting for the full machine circuit limit.
-On by default. See
-[Slow extraction guard](docs/features/slow-extraction-guard.md).
-
-### A→M time guard
-
-If the scale is lost mid-shot, weight stop pauses and the firmware keeps
-trying to reconnect. This guard still closes the machine circuit on a shorter, predictable
-deadline so the shot does not run to the hard 60 s cap unnoticed. On by
-default. See [A→M time guard](docs/features/auto-to-manual.md).
-
-### Alerts
-
-Beeps and an optional local buzzer mark tare, first drops, paddle-off
-reminders, scale lost/connected, and extended-shot pulses. See
-[Alerts](docs/alerts.md).
-
-### Quick rinse
-
-A short paddle ON→OFF (within the gesture window) is a timed group-head
-rinse, not a shot. Enable quick rinse is off by default on every machine type. On
-momentary firmware it turns an idle long-press into the same timed rinse via
-start/stop pulses. See
-[Quick rinse](docs/settings/quick-rinse.md).
-
-### Shot history
-
-Finished shots are logged in the Web UI with goal, actual weight, duration,
-flow, first drop, cut type, and stop detail. Export CSV or clear the log from
-the same view. See [Shot history](docs/features/shot-history.md).
-
-### Webhooks
-
-Send brew-state, first-drop, and final-shot events to a local HTTP endpoint.
-They are a simple way to bring the extraction into Home Assistant without
-giving anything remote control over the machine. See
-[Webhooks with Home Assistant](docs/features/home-assistant-webhooks.md).
-
-### Presets
-
-Brew recipes live in presets (factory **Single** and **Double**, plus custom
-copies). Target weight, BBW protection, Fast/Slow/A→M guards, and the learned
-stop offset are per preset. Load, save, duplicate, or delete from
-**Settings → Brew**. See [Presets](docs/features/presets.md).
-
-## Technical features
-
-### OTA
-
-Update firmware over Wi-Fi without USB. CLI uses the device password;
-the Web UI uses the Admin unlock. Dual-slot update with rollback if
-the new image fails to serve the Web UI. See [OTA](docs/features/ota.md) and
-[Build scripts](docs/SCRIPTS.md).
-
-### Recovery mode
-
-If Wi-Fi, Web UI, BLE, and USB are all unavailable, power on with the paddle
-ON to enter a 60 s recovery window. Three `OFF→ON` cycles restore network
-access; five do a factory reset. Machine circuit stays open. See
-[Emergency recovery](docs/EMERGENCY_RECOVERY.md).
+| Need | Feature |
+| --- | --- |
+| Stop near a recipe weight | [Brew by weight](docs/features/brew-by-weight.md), with learned drip compensation |
+| Use different recipes | [Presets](docs/features/presets.md), including factory Single and Double |
+| Place the cup after starting | [Tare and retare](docs/features/tare-retare.md) |
+| Handle cup removal or bumps | [Cup protection](docs/features/cup-protection.md) |
+| Handle unexpectedly fast or slow shots | [Fast](docs/features/fast-extraction-guard.md) and [Slow](docs/features/slow-extraction-guard.md) guards |
+| Limit a shot after scale loss | [A→M time guard](docs/features/auto-to-manual.md) |
+| Rinse with a switch gesture | [Quick rinse](docs/settings/quick-rinse.md), off by default |
+| Hear local feedback | [Alerts](docs/alerts.md), subject to scale/buzzer capabilities |
+| Review results | [Shot history and statistics](docs/features/shot-history.md) |
+| Send results to Home Assistant | [Local HTTP webhooks](docs/features/home-assistant-webhooks.md) |
 
 ## Main settings
 
-Each group is edited in the Web UI. Defaults are chosen so most people never
-need to change them after first setup.
+Recipe settings live in **Settings → Brew**. Machine and scale settings are
+shared across recipes. [Presets](docs/features/presets.md) explains what is saved
+and what a Home Quick Settings change affects.
 
-| Group | What it covers |
-| --- | --- |
-| **[Paddle](docs/settings/paddle.md)** | Paddle firmware only. Auto, Natural (default), or Original feel for the brew switch. Hidden on momentary. |
-| **[Momentary](docs/settings/momentary.md)** | Momentary firmware only (with or without reed). Switch timings: auto-stop pulse, single-press limit, start/stop on press or release, and reed confirm timeout (reed builds). Hidden on paddle. |
-| **[No-scale BBW](docs/settings/no-scale-bbw.md)** | Block a full automatic shot when brew-by-weight is on and the scale is missing. |
-| **[Quick rinse](docs/settings/quick-rinse.md)** | Enable quick rinse (off by default), gesture, and duration. Paddle: short ON→OFF. Momentary: idle long-press. |
-| **[Cup](docs/settings/cup.md)** | What counts as a cup placed or lifted. |
-| **[Tare](docs/settings/tare.md)** | Automatic tare, late-cup retare, and settle time after tare. |
-| **[Scales](docs/settings/scales.md)** | Preferred scale, drip delay, Bookoo volume and combined tare. |
-| **[Alerts](docs/alerts.md)** | Sounds, output channel, paddle reminder, and the scale LED. |
-
-## Admin
-
-The Admin page is locked until you enter the device password (**Unlock administration**). The unlock stays active while that Admin page is open, or for 15 minutes after the last privileged action (Start/Stop, rinse, Wi-Fi, OTA). **Lock** (header or Admin) closes it immediately. USB serial does not ask for the device password.
-
-| Group | What it covers |
-| --- | --- |
-| **[Wi-Fi](docs/settings/wifi.md)** | Join your home network (STA), DHCP or static IP, first-boot fallback. |
-| **Device password** | Single secret for SoftAP WPA2, OTA, and Admin unlock. Changed from **Admin → Device password** after unlocking. |
-| **[AP](docs/settings/ap.md)** | Fallback access point `AdvancedShotStopperAP`. Uses the device password. |
-| **[Factory reset](docs/settings/factory-reset.md)** | Erase settings, Wi-Fi, calibration, and shot history. |
+The [documentation index](docs/README.md#settings) links each settings group.
+Defaults are starting points; Fast and Slow guards can intentionally finish
+above or below the target weight.
 
 ## First connection
 
-On a fresh flash or after factory reset:
+After installation and bench verification, follow
+[First setup and daily use](docs/GETTING_STARTED.md). It covers connecting to the
+controller's access point, opening the Web UI, joining home Wi-Fi, selecting a
+scale, and making the first shot. Factory network details are in
+[AP → First connection](docs/settings/ap.md#first-connection).
 
-| | Value |
-| --- | --- |
-| **Fallback Wi-Fi (AP) name** | `AdvancedShotStopperAP` |
-| **Device password** | `ineedacoffee` (SoftAP WPA2 and OTA) |
-| **Web UI address (AP mode)** | `http://192.168.4.1` |
+## Admin
 
-The password is case-sensitive. Join the AP, open the address above, then
-claim the Web UI to save your home Wi-Fi. Step-by-step notes are in
-[Wi-Fi](docs/settings/wifi.md) and [AP](docs/settings/ap.md).
+Home and Settings use a browser claim; privileged actions also require Admin
+unlock with the device password. These are separate controls:
+[Web access](docs/GETTING_STARTED.md#web-access) explains both.
+
+## Technical features
+
+<a id="ota"></a>
+<a id="recovery-mode"></a>
+
+- [OTA updates](docs/features/ota.md) use an inactive firmware slot and boot
+  verification. A bootable previous image is required for rollback.
+- [Emergency recovery](docs/EMERGENCY_RECOVERY.md) restores access or resets
+  settings using the physical switch.
+- [Build and script reference](docs/SCRIPTS.md) covers supported ESP-IDF tooling.
+
+<a id="roadmap-and-safety-boundaries"></a>
+
+Remote start and rinse are **disabled by default**. A deliberate development
+build can enable them; they are not part of the default operating workflow.
+Remote Stop still requires Admin unlock. MQTT and persistent remote-control
+integrations are outside the project goals. The Web UI provides status and
+shot summaries, not a guaranteed real-time telemetry stream.
 
 ## Documentation
 
-**Features**
-
-- [Brew by weight](docs/features/brew-by-weight.md)
-- [Tare and retare](docs/features/tare-retare.md)
-- [Cup protection](docs/features/cup-protection.md)
-- [Fast extraction guard](docs/features/fast-extraction-guard.md)
-- [Slow extraction guard](docs/features/slow-extraction-guard.md)
-- [A→M time guard](docs/features/auto-to-manual.md)
-- [Alerts](docs/alerts.md)
-- [Quick rinse](docs/settings/quick-rinse.md)
-- [Shot history](docs/features/shot-history.md)
-- [Webhooks with Home Assistant](docs/features/home-assistant-webhooks.md)
-- [Presets](docs/features/presets.md)
-
-**Technical**
-
-- [Firmware state machines](docs/STATE_MACHINES.md) — states, events, and how the FSMs interact
-- [OTA](docs/features/ota.md) — Wi-Fi firmware update; scripts in [Build scripts](docs/SCRIPTS.md)
-- [Emergency recovery](docs/EMERGENCY_RECOVERY.md) — paddle recovery mode
-- [Screenshots](docs/SCREENSHOTS.md) — Web UI in dark mode; light mode coming soon
-
-**Settings**
-
-- [Paddle](docs/settings/paddle.md)
-- [Momentary](docs/settings/momentary.md)
-- [No-scale BBW](docs/settings/no-scale-bbw.md)
-- [Quick rinse](docs/settings/quick-rinse.md)
-- [Cup](docs/settings/cup.md)
-- [Tare](docs/settings/tare.md)
-- [Scales](docs/settings/scales.md)
-- [Wi-Fi](docs/settings/wifi.md)
-- [AP](docs/settings/ap.md)
-- [Factory reset](docs/settings/factory-reset.md)
-
-**Using and recovering the device**
-
-- [FAQ](docs/FAQ.md)
-- [USB serial CLI](docs/SERIAL_CLI.md)
-- [Emergency recovery](docs/EMERGENCY_RECOVERY.md)
-
-**Building and hardware**
-
-- [Machine types](#machine-types) — paddle/latch, momentary, momentary+reed (compile-time)
-- [Build environment](docs/BUILD.md) — macOS, Linux and Windows, from `git clone` to a flashable image. ESP-IDF only.
-- [Static analysis](docs/STATIC_ANALYSIS.md) — prepare and run the static inspection suite (Cppcheck, clang-tidy, GCC `-fanalyzer`, IWYU) per OS.
-- [Build scripts](docs/SCRIPTS.md) — IDF commands and legacy Arduino-cli (unsupported).
-- [Hardware](docs/HARDWARE.md) — development board, default GPIOs, and 3D-printable enclosure; BOM and schematic are TODO.
-
-**For contributors**
-
-- [Manual test plan](docs/MANUAL_TEST_PLAN.md)
-- [Firmware state machines](docs/STATE_MACHINES.md)
-- [Local EspressoScaleBLE library](libraries/EspressoScaleBLE/README.md)
+Use the [complete index](docs/README.md) for user guides, settings, architecture,
+validation, and library integration. Read only the page needed for your task;
+parameter tables and protocol contracts have one canonical home.
 
 ## Disclaimer
 

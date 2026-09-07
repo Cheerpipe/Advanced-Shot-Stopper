@@ -11,9 +11,8 @@ port does not enumerate while the app is running; use **OTA** or **BOOT + RST**
 (ROM download) to flash. Remove the jumper before installing the stopper in
 the machine.
 
-These commands are the same whether you built with ESP-IDF or the legacy
-Arduino-cli path. How you **open the port** differs. Build/flash wrappers
-are in [Build scripts](SCRIPTS.md), not here.
+Type firmware commands into the serial monitor, not your shell. Build/flash
+commands run in the shell and are documented in [Build scripts](SCRIPTS.md).
 
 ## Open the port
 
@@ -26,26 +25,16 @@ are in [Build scripts](SCRIPTS.md), not here.
 On Linux the port is often `/dev/ttyACM0` or `/dev/ttyUSB0`. Exit with
 **Ctrl+]**. The script prompts for and remembers the port in `.shotstopper`.
 
-**Legacy Arduino-cli (unsupported):**
+`./scripts/monitor` is a compatibility alias to the same ESP-IDF monitor.
 
-```sh
-./scripts/monitor --port /dev/cu.usbmodem2101 --speed 115200
-```
-
-Prefer `monitor-idf` even if you only need this CLI.
-
-Do not type into a scrolling monitor if you cannot see what you send. Close
-any other serial client, then pipe the command:
-
-```sh
-(sleep 4; printf 'HELP\n'; sleep 2) | ./scripts/monitor-idf -p /dev/cu.usbmodem2101 -s 115200
-```
-
-The `sleep 4` waits for the USB-serial chip to reopen (opening the port often
-resets the ESP32).
+Close other serial clients before opening this port. Type `HELLO` and press
+Enter; expect `how are you`. Then use `HELP` or `NET_STATUS`.
+If logs obscure input, send `SERIAL_DEBUG_OFF`. A missing port usually needs
+the boot jumper described above, not a different baud rate.
 
 Successful mutating commands print `OK queued …`, `OK …`, or a status dump.
-Rejections print `ERR …`. Passwords are never echoed.
+Rejections print `ERR …`. Firmware replies do not echo passwords; avoid terminal recording/local echo
+when entering credentials.
 
 After `REBOOT` / `SET_WIFI` / `CLEAR_WIFI` / `FACTORY_RESET` the board
 restarts and the monitor session may drop.
@@ -173,3 +162,18 @@ persist.
 | Command | Parameters | Effect |
 | --- | --- | --- |
 | `CLEAR_SHOTS` | none | Clears recorded shot history (safety gate) |
+
+## Short workflows
+
+- **Inspect a problem:** `HELLO` → `NET_STATUS` → `SCALE_STATUS` → `HEALTH`.
+  Save a redacted transcript with firmware and scale versions.
+- **Restore AP without erasing Wi-Fi:** `AP_START`; use `WEBUI_START` too if
+  HTTP was explicitly stopped.
+- **Forgot Admin password, keep Wi-Fi:** while idle, `RESET_DEVICE_PASSWORD`.
+  Then change the factory password from Admin.
+- **Full reset:** compare [what is erased](settings/factory-reset.md) before
+  sending `FACTORY_RESET`.
+
+SSID/password values with spaces need double quotes in the firmware command,
+for example `SET_WIFI "Coffee Lab" "<your-network-password>"`. Enter the real
+secret only in the serial session; do not include it in shared transcripts.

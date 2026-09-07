@@ -12,20 +12,25 @@ start, automatic retare, Max BBW time, and offset learning do not.
 BBW runs on an automatic shot that started with a usable scale. It does not
 run on a rinse, a timer-only shot (BBW off), or a manual no-scale shot.
 
-After the start-of-shot protection window ends (see
+Once the selected paddle mode permits weight stopping and the start-of-shot
+protection window ends (see
 [Cup protection](cup-protection.md)), two fresh scale samples at or above
-`target − learned offset` open the machine circuit. A short linear prediction can stop a
-moment earlier. The learned offset is capped at 5.0 g and can be reset to a
+`target − learned offset` can request a stop, subject to Fast/Slow guards.
+A short linear prediction can stop a moment earlier. The learned offset is
+capped at 5.0 g and can be reset to a
 baseline from the Web UI.
 
 Automatic brew-by-weight cycles are limited by **Max BBW time** and a
 firmware hard cap of **60 seconds**. Timer-only (BBW off) and manual
-no-scale shots skip Max BBW time; only the 60 s cap applies. That is the
-same in Auto, Natural, and Original, and on paddle, momentary, and reed
-builds.
+no-scale shots skip Max BBW time. In Original paddle mode, weight stop and the
+operational wall are held off
+while the paddle stays ON; the 60 s electrical cap remains. Momentary stop
+pulses depend on machine-state confirmation: see
+[Stopping and time limits](../settings/momentary.md#stopping-and-time-limits).
 
 ## Parameters
 
+Defaults below describe factory Double; see [Presets](presets.md) for Single.
 These live on the **active preset** under **Settings → Brew**, except where
 noted. **Home → Quick Settings** can toggle brew by weight for the session
 (Manual).
@@ -41,15 +46,18 @@ noted. **Home → Quick Settings** can toggle brew by weight for the session
 Fixed behavior (not separate settings):
 
 - Direct stop: two fresh samples at the threshold after BBW protection ends.
-- Predictive stop: may open the machine circuit slightly before the threshold.
-- Scale loss: weight control pauses; paddle OFF and time limits stay in force.
+- Predictive stop: may request stop slightly before the threshold.
+- Scale loss: weight control pauses; physical stop behavior and applicable time
+  limits stay in force.
   See [A→M time guard](auto-to-manual.md).
 
 ## Example
 
 Double recipe at 36 g, learned offset 1.5 g. After the protection window, the
 firmware treats about **34.5 g** as the cut point so post-drip weight lands
-near 36 g.
+near 36 g. This example assumes the Fast guard permits a normal stop and
+no other guard has requested an earlier end. If target arrives too early,
+Fast can deliberately extend the shot.
 
 Related: [Cup protection](cup-protection.md), [Tare](../settings/tare.md),
 [Scales](../settings/scales.md), [No-scale BBW](../settings/no-scale-bbw.md).

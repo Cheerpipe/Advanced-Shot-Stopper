@@ -66,6 +66,8 @@ Keep the raw trace, firmware build ID, board revision and RF environment with
 the release evidence. Any task/core/priority/clock change invalidates the
 measurement and requires the test again.
 
-An observed maximum is not WCET. P2.1 remains open until the combined target
-run demonstrates every periodic execution budget with margin and a reviewer
-records the resulting qualified WCET beside the immutable build ID.
+An observed maximum is not a proven worst-case execution time (WCET).
+Qualification requires a combined target run demonstrating each periodic
+execution budget with margin and a reviewed result tied to the immutable build
+ID. Record evidence for the current build rather than inferring it from a
+historical development milestone.

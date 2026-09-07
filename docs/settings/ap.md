@@ -40,9 +40,11 @@ that same device password.
    scale connects).
 2. Join **`AdvancedShotStopperAP`** with the device password **`ineedacoffee`**.
 3. Open **`http://192.168.4.1`** within the idle window (or stay associated).
-4. Claim the Web UI to save home Wi-Fi or change settings.
+4. Select **Reload** if prompted to claim the Web UI. Unlock Admin to save
+   home Wi-Fi. Continue with [first setup](../GETTING_STARTED.md).
 
-If you lose STA or the device password, recover over this AP (after reboot /
-`AP_START`), USB CLI, or [paddle emergency recovery](../EMERGENCY_RECOVERY.md).
+If home Wi-Fi is lost but you know the device password, use the AP after
+reboot / `AP_START`. A forgotten password also prevents joining the protected
+AP: use USB or [physical recovery](../EMERGENCY_RECOVERY.md) to restore access.
 
 Related: [Wi-Fi](wifi.md), [Factory reset](factory-reset.md).

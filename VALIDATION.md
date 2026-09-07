@@ -13,7 +13,7 @@ summary are written to `artifacts/runs/`.
 | Release | Candidate firmware image | complete analysis, resource budgets, applicable soak, HIL and manual plan | required |
 
 Use `./scripts/dev validate [--risk R0..R3] [paths...]`. Focused commands are
-`./scripts/dev test [normal|asan|tsan|web|ble]`, `./scripts/dev build`, and
+`./scripts/dev test [normal|asan|tsan|web|ble|ota|tooling]`, `./scripts/dev build`, and
 `./scripts/dev analyze`. The supported IDF setup and commands remain documented
 in [Build](docs/BUILD.md), [scripts](docs/SCRIPTS.md), and
 [static analysis](docs/STATIC_ANALYSIS.md). Hardware acceptance is defined by
@@ -25,3 +25,19 @@ Tests never bootstrap packages or access hardware/network implicitly. R3 is not
 release-ready while required HIL/manual evidence is pending. Image and memory
 regions are compared by `src/tests/check_firmware_size.js` against the versioned
 budgets in `docs/P2_RESOURCE_BUDGETS.md`.
+
+The documentation check covers root guides, `docs/`, the BLE library README
+and the safety README. It validates local paths, images, and Markdown heading/
+explicit HTML anchors (including duplicate headings and multiline links).
+External URLs and example contents are not certified by this offline check.
+
+## Reading a result
+
+A zero exit code means the automated profile passed, not that hardware is
+qualified. Use the printed `artifacts/runs/<run-id>/summary.json` and full log
+to inspect which steps ran. Exit 127 means a required dependency is missing;
+record the gate as failed and prepare the dependency explicitly.
+
+Classify concrete files, not a directory name such as `docs`. Safety-related
+documents and BLE/OTA references can select R3/R2 even though they are Markdown.
+Do not lower risk to avoid an unavailable tool or missing physical evidence.

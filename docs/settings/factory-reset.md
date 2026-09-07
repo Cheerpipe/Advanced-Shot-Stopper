@@ -12,9 +12,9 @@ password returns to **`ineedacoffee`**. The device then restarts.
 
 ## Ways to run it
 
-All of these need the machine idle where a safety gate exists (paddle OFF,
-Machine circuit open, Ready) except the paddle gesture, which runs **before** Wi-Fi and
-keeps machine circuit open.
+Use Web/USB reset while the machine is idle, the activator is OFF, the relay
+is open and the controller is Ready. The physical recovery gesture runs before
+Wi-Fi and keeps the relay open. Check actual idle state on momentary machines.
 
 | Path | How | Notes |
 | --- | --- | --- |
@@ -27,11 +27,13 @@ A shorter paddle gesture (three cycles) restores the device password / forgets S
 
 ## After reset
 
-Connect to `AdvancedShotStopperAP` / `ineedacoffee` at `http://192.168.4.1` and set
-the device up again. Scale preference returns to **Preferred only**, with
+Follow [first setup](../GETTING_STARTED.md) using the
+[factory AP connection](ap.md#first-connection). Scale preference returns to **Preferred only**, with
 **First detected** shown until the first compatible scale connects
 successfully. See [Scales](scales.md), [AP](ap.md), and the
 [README first connection](../../README.md#first-connection).
+
+## If reset fails
 
 Before changing settings, factory reset writes a durable recovery intent. If
 that write fails specifically because NVS is full, it removes only shot-history

@@ -14,7 +14,7 @@ Typical fields include local time (from the configured timezone offset),
 duration, goal and actual weight, error, average flow, first-drop time,
 whether Fast/Slow guards ran or extended the shot, `shot_type`, `cut_type`
 (`auto`, `manual`, `limit`), `stop_detail` (for example
-`normal_target`, `paddle`, `web_stop`, `wall_limit`, `hard_limit`,
+`normal_target`, `activator`, `web_stop`, `wall_limit`, `hard_limit`,
 `extended_max_weight`, `cup_removed`), and a manual `rating` from 0
 (unrated) to 5. Rate a finished shot from Home (Last/Current shot) or from
 a history card by tapping a star; tapping the current star again clears the
@@ -36,8 +36,8 @@ Curve samples and the history record are written **once** when the cycle
 closes (after the configured drip delay), not during an active brew. Shot
 duration and the curve time axis end when the machine circuit opens. The
 settled post-drip weight replaces the curve's endpoint at that same end time;
-the drip-delay interval is not appended to the graph. The live `shotCurve` on
-the status API is in-memory only for the home UI.
+the drip-delay interval is not appended to the graph. The current-shot curve exposed to Home is an in-memory view; it is not a
+persistent live-telemetry service.
 
 ## In the Web UI
 
@@ -55,6 +55,23 @@ request, independent of the on-screen sort.
 History averages (duration, weight, error, flow) use only **auto** shots
 with actual weight at least 1 g from the last 10 stored entries, even
 when the list is sorted by rating or oldest-first.
+
+## Read a result
+
+| Stop detail | Meaning |
+| --- | --- |
+| `normal_target` | Normal weight endpoint, including offset/prediction |
+| `extended_max_weight` / `extended_min_time` | Fast guard extended the shot |
+| `slow_max_time` / `slow_min_weight` | Slow guard reached its recovery boundary |
+| `auto_to_manual` | Scale-loss time guard |
+| `activator` / `web_stop` | Physical / authenticated Web stop |
+| `wall_limit` / `hard_limit` | Operational / hard time limit |
+| `cup_removed` | Cup-removal protection requested stop |
+
+For example, 39 g against a 36 g goal with a Fast stop detail is not the same
+calibration problem as a normal target cut followed by excess drip. Check the
+reason before resetting learned offset. A 2 s cycle shown on Home is excluded
+from persistent history; an unrated shot uses rating 0.
 
 USB: `CLEAR_SHOTS` (see [USB serial CLI](../SERIAL_CLI.md)).
 

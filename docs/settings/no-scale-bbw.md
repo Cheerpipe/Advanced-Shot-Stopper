@@ -34,5 +34,16 @@ usable.
 The optional **Manual without scale (BBW on)** alert sounds once per distinct
 blocked attempt; holding the activator does not repeat it continuously.
 
+## Examples
+
+- **Warn once, then allow:** with BBW on and no scale, the first shot attempt
+  warns and stays blocked. Release the activator, then make a fresh attempt
+  for manual brewing; protection returns after the cooldown.
+- **Require a scale:** repeated ordinary attempts remain blocked. Either
+  restore a fresh scale stream or deliberately use the temporary physical
+  override above, then start with a new gesture.
+- **BBW off:** this guard does not block the manual workflow. This does not
+  create weight control or guarantee a stop pulse on a button-only machine.
+
 Related: [Quick rinse](quick-rinse.md), [Momentary](momentary.md),
 [Brew by weight](../features/brew-by-weight.md), [Alerts](../alerts.md).

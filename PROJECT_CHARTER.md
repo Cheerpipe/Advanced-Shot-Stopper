@@ -7,9 +7,10 @@ machines, and momentary machines with a reed or hall sensor. EspressoScaleBLE is
 the local BLE scale library.
 
 The project supplies firmware and wiring guidance, not a certified or
-plug-and-play appliance. Legacy ESP32 targets, boards without PSRAM, remote shot
-start, MQTT, persistent remote control, and Web UI live shot telemetry are not
-project goals.
+plug-and-play appliance. Legacy ESP32 targets, boards without PSRAM, MQTT, persistent remote-control
+integrations, and guaranteed Web UI live telemetry are not project goals.
+Remote shot start/rinse are disabled in default firmware; a deliberate
+compile-time development opt-in exists but is not the default user workflow.
 
 ## Safety boundary
 

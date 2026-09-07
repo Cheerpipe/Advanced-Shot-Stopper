@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import time
+from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 RANK = {f"R{i}": i for i in range(4)}
@@ -76,18 +77,65 @@ def classify(paths: list[str]) -> tuple[str, list[tuple[str, str]]]:
     return risk, details
 
 
+def markdown_prose(source: Path) -> str:
+    """Keep line numbers while excluding fenced examples from link checks."""
+    lines, fence = [], ""
+    for line in source.read_text(errors="replace").splitlines(keepends=True):
+        marker = re.match(r"^\s{0,3}(`{3,}|~{3,})", line)
+        if marker and not fence:
+            fence = marker[1]
+            lines.append("\n")
+        elif fence:
+            if marker and marker[1][0] == fence[0] and len(marker[1]) >= len(fence):
+                fence = ""
+            lines.append("\n")
+        else:
+            lines.append(line)
+    return "".join(lines)
+
+
+def markdown_anchors(prose: str) -> set[str]:
+    anchors = set(re.findall(r'<[^>]+\b(?:id|name)=["\x27]([^"\x27]+)', prose))
+    used: set[str] = set()
+    for heading in re.findall(r"^ {0,3}#{1,6}\s+(.+?)\s*#*\s*$", prose, re.M):
+        heading = re.sub(r"<[^>]*>", "", heading)
+        heading = re.sub(r"!?\[([^]]+)\]\([^)]+\)", r"\1", heading)
+        slug = re.sub(r"[^\w\- ]", "", heading.lower()).replace(" ", "-")
+        candidate, suffix = slug, 0
+        while candidate in used:
+            suffix += 1
+            candidate = f"{slug}-{suffix}"
+        used.add(candidate)
+        anchors.add(candidate)
+    return anchors
+
+
 def markdown_errors() -> list[str]:
     errors: list[str] = []
-    link_re = re.compile(r"\[[^]]*\]\(([^)]+)\)")
-    for source in [ROOT / "README.md", ROOT / "PROJECT_CHARTER.md",
-                   ROOT / "VALIDATION.md", ROOT / "CONTRIBUTING.md", *sorted((ROOT / "docs").rglob("*.md"))]:
-        for line_no, line in enumerate(source.read_text(errors="replace").splitlines(), 1):
-            for raw in link_re.findall(line):
-                target = raw.split("#", 1)[0].split(" ", 1)[0]
-                if not target or "://" in target or target.startswith(("mailto:", "#")):
-                    continue
-                if not (source.parent / target).resolve().exists():
-                    errors.append(f"{source.relative_to(ROOT)}:{line_no}: missing {target}")
+    link_re = re.compile(r'!?\[[^]]*\]\(\s*(<[^>]+>|[^\s)]+)(?:\s+"[^"]*")?\s*\)')
+    ref_re = re.compile(r"^ {0,3}\[[^]]+\]:\s*(<[^>]+>|\S+)", re.M)
+    html_re = re.compile(r'<[^>]+\b(?:src|href)=["\x27]([^"\x27]+)')
+    sources = [*sorted(ROOT.glob("*.md")), *sorted((ROOT / "docs").rglob("*.md")),
+               ROOT / "libraries/EspressoScaleBLE/README.md", ROOT / "src/safety/README.md"]
+    anchor_cache: dict[Path, set[str]] = {}
+    for source in sources:
+        if not source.exists():
+            continue
+        prose = markdown_prose(source)
+        for match in [*link_re.finditer(prose), *ref_re.finditer(prose), *html_re.finditer(prose)]:
+            raw = match[1].strip("<>")
+            url = urlsplit(raw)
+            if url.scheme or url.netloc:
+                continue
+            target = (source.parent / unquote(url.path)).resolve() if url.path else source.resolve()
+            where = f"{source.relative_to(ROOT)}:{prose.count(chr(10), 0, match.start()) + 1}"
+            if not target.exists():
+                errors.append(f"{where}: missing {raw}")
+            elif url.fragment and target.suffix.lower() == ".md":
+                if target not in anchor_cache:
+                    anchor_cache[target] = markdown_anchors(markdown_prose(target))
+                if unquote(url.fragment) not in anchor_cache[target]:
+                    errors.append(f"{where}: missing anchor {raw}")
     for _, paths in AREAS.values():
         for path in paths:
             if not (ROOT / path).exists():

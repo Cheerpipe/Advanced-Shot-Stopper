@@ -5,9 +5,39 @@ import subprocess
 from pathlib import Path
 import re
 import csv
+import runpy
+import tempfile
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 DEV = ROOT / "scripts/dev"
+
+
+# Check rendered-document targets without depending on the working tree's docs.
+doc_check = runpy.run_path(str(DEV))["markdown_errors"]
+with tempfile.TemporaryDirectory(prefix="shotstopper-docs-") as temporary:
+    fixture = Path(temporary)
+    (fixture / "docs").mkdir()
+    (fixture / "libraries/EspressoScaleBLE").mkdir(parents=True)
+    (fixture / "docs/guide.md").write_text(
+        '# Guide\n## Repeated\n## Repeated\n<a id="old-section"></a>\n')
+    (fixture / "docs/photo.png").write_bytes(b"test fixture")
+    (fixture / "docs/with space.md").write_text('# Spaced\n')
+    (fixture / "README.md").write_text(
+        '# Home\n[wrapped\nlink](docs/guide.md#repeated-1)\n'
+        '[alias](docs/guide.md#old-section)\n[space](<docs/with space.md#spaced>)\n'
+        '![photo](docs/photo.png)\n[local](#home)\n'
+        '[external](https://example.org/missing#ignored)\n'
+        '```md\n[example](missing-example.md)\n```\n')
+    with patch.dict(doc_check.__globals__, ROOT=fixture, AREAS={}):
+        assert doc_check() == [], doc_check()
+        (fixture / "libraries/EspressoScaleBLE/README.md").write_text(
+            '# Library\n[bad](../../docs/guide.md#missing)\n'
+            '[ref]: ../../docs/absent.md\n<img src="missing.png">\n')
+        errors = doc_check()
+        assert len(errors) == 3, errors
+        assert any('missing anchor' in error for error in errors), errors
+        assert all('libraries/EspressoScaleBLE/README.md:' in error for error in errors)
 
 
 def run(*args: str) -> subprocess.CompletedProcess[str]:

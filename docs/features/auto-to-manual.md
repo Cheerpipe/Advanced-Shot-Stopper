@@ -1,11 +1,12 @@
 # A→M time guard
 
-Safety layer for automatic brew-by-weight shots that **lose the scale**
+Time guard for automatic brew-by-weight shots that **lose the scale**
 mid-extraction. **On by default.**
 
 A→M means auto-to-manual: weight stop is suspended, but the shot is still
-running. The guard closes the machine circuit on a shorter deadline so a silent fallback does
-not become an over-extracted shot.
+running. The guard requests a stop on a shorter deadline while reconnection continues.
+Paddle builds open the relay; momentary builds request a stop pulse subject to
+[machine-state and safety conditions](../settings/momentary.md#stopping-and-time-limits).
 
 ## When it applies
 
@@ -13,8 +14,8 @@ Automatic brew-by-weight shots only. It does **not** apply to shots that
 start as manual (`MANUAL_NO_SCALE`), timer-only (BBW off), or rinses.
 
 When BLE drops or **notifications stop arriving**, weight control pauses.
-Parsed packets still count as a live stream even if brew rejects them
-(post-tare cup mass, slew) or the grams do not change. The firmware
+A steady weight is not a disconnect: fresh weight notifications still count
+as a live stream even if the brew logic rejects a particular sample. The firmware
 keeps trying to reconnect for the **whole** cycle. If the scale returns with
 three coherent samples, weight stop resumes (including Fast or Slow, if
 enabled) and A→M enforcement clears. A later disconnect in the same cycle
@@ -57,8 +58,9 @@ not:
 
 An automatic Double loses Bluetooth at 12 s. Trend limit is 32 s. The
 firmware keeps reconnecting, but if the scale is still gone at 32 s from
-start, machine circuit opens. If the scale had come back at 20 s with three good samples,
-weight stop would have resumed and the deadline would have been cleared.
+start, the controller requests stop. If the scale comes back at 20 s with three good samples,
+weight stop resumes and enforcement clears. A later disconnect reuses the
+original 32 s deadline, rather than starting another 32-second allowance.
 
 Related: [Brew by weight](brew-by-weight.md), [Alerts](../alerts.md)
 (ATM / manual-no-scale).

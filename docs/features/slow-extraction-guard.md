@@ -27,8 +27,8 @@ Active preset, **Settings → Brew**. The ON/OFF switch is also on
 | Setting | Default | Range / notes | Effect on the shot |
 | --- | --- | --- | --- |
 | **Enable** | ON | ON / OFF | Master switch for the slow-shot recovery. |
-| **Max BBW brew time (s)** | 44 s | Must be greater than Fast’s min BBW brew time when both are on | Latest time to wait for the normal BBW target. |
-| **Min recovery weight (g)** | 34 g (Double and Single factory) | Same weight-cut tool as BBW | Floor if the shot must continue past max BBW brew time. |
+| **Max BBW brew time (s)** | 44 s | 5–55 s; greater than Fast's minimum when both are on | Decision time for the slow-shot branch. |
+| **Min recovery weight (g)** | 34 g Double / 16 g Single | 10–200 g; below target | Recovery floor; learned offset applies. |
 
 ## How it works
 
@@ -39,11 +39,20 @@ Active preset, **Settings → Brew**. The ON/OFF switch is also on
    - Still below that floor → **extended** until min recovery
      (`slow_min_weight`) or until the machine circuit / Max BBW time wall.
 
-## Example
+## Examples
 
-Target 36 g, max BBW brew time 44 s, min recovery 34 g. At 44 s the cup is only
-at 20 g. If it were already over 34 g, the shot would cut there. Under the
-floor, it may continue toward 34 g instead of waiting for 36 g or 60 s.
+Factory Double: 36 g target, 1.5 g offset, Slow decision at 44 s, recovery
+weight 34 g (effective threshold about 32.5 g).
+
+- Normal target threshold reached before 44 s: normal stop, no Slow extension.
+- At 44 s, weight is 33 g: the recovery threshold is satisfied, so Slow can stop.
+- At 44 s, weight is 20 g: continue toward the recovery threshold. The default
+  50 s Max BBW time can stop the shot first; Slow does not grant extra time
+  beyond that limit.
+- Fast already extended this shot: Slow does not take over.
+
+[Single](presets.md#factory-recipes) uses different weights. Final cup weight
+includes dripping; these thresholds describe the decision, not a guaranteed yield.
 
 **Alerts → Slow extended pulse** can mark the extension when a local buzzer
 is compiled in. See [Alerts](../alerts.md).

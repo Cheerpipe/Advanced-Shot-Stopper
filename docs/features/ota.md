@@ -1,17 +1,14 @@
 # OTA
 
-Image format and cross-client parser rules:
-[OTA image identity contract](ota-image-identity.md).
-
 Firmware can be updated over Wi-Fi without opening the case or using USB.
 Upload a built image with the project scripts while the controller is on
 your network.
 
 ## Requirements
 
-- Pass the **device password** every CLI run (`--password` / `-t`, or
-  `SHOTSTOPPER_DEVICE_PASSWORD`). Scripts never store it. The factory
-  default (`ineedacoffee`) works if it was never changed.
+- Authenticate each CLI run using the hidden password prompt or
+  `SHOTSTOPPER_DEVICE_PASSWORD`. Scripts never store it. Do not put secrets
+  in command arguments or shared logs.
 - From **Admin → Firmware update**, unlock administration first. The Web UI
   does not ask for the device password again.
 - Image must match the board architecture and must not be older than the
@@ -64,8 +61,8 @@ Admin page; when using its SoftAP it is always `192.168.4.1`.
 ### Command line (CLI)
 
 Use the project scripts from the repository root. The CLI authenticates with
-the device password; pass it with `--password` (or `-t`) or enter it when the
-script prompts. The password is never saved by the scripts.
+the device password; enter it at the hidden prompt or supply it through your
+environment's secret mechanism. The password is never saved by the scripts.
 
 The CLI computes the image SHA-256 before the transfer, creates a named OTA
 session, and sends 64 KiB ranges. If Wi-Fi drops, it queries the confirmed
@@ -102,44 +99,27 @@ for the identity (the linker may place it at any offset), validates the ESP32-S3
 header and appended image checksum, and then resumes only a matching remote
 session. Selecting a different file never discards the existing session.
 
-Build and upload in one command:
+From the repository root, build an image for the controller's board:
 
 ```sh
-./scripts/bo-idf --arch n16r8 --host 192.168.1.50 --password "my-device-password"
+./scripts/dev build --arch n16r8
+./scripts/dev ota --confirm --arch n16r8 --host 192.168.1.50
 ```
 
-For unattended updates, add `--force`. It skips the commit prompt and waits
-for the rebooted firmware to report that the OTA image is confirmed; it does
-not need a Web UI reload:
+Enter the password when prompted, verify the reported image, then confirm
+commit. Use `--host 192.168.4.1` when connected to the controller's AP.
+Replace `n16r8` with `n8r4` only for that board architecture.
 
-```sh
-./scripts/bo-idf --arch n16r8 --host 192.168.1.50 --password "my-device-password" --force
-```
+For an image already obtained elsewhere, add
+`--image /path/to/shotstopper.bin`; you do not need to compile it again.
+The local image identity must match the selected board.
 
-Upload an image that was already built:
-
-```sh
-./scripts/ota-idf --arch n16r8 --host 192.168.1.50 --password "my-device-password"
-```
-
-Upload a firmware image stored elsewhere (for example, a release downloaded
-outside this repository):
-
-```sh
-./scripts/ota-idf --arch n16r8 --host 192.168.1.50 --password "my-device-password" \
-  --image ~/Downloads/shotstopper.bin
-```
-
-For a controller using its SoftAP, replace the host with `192.168.4.1`:
-
-```sh
-./scripts/bo-idf -a n16r8 -H 192.168.4.1 -t "my-device-password"
-```
-
-Replace `n16r8` with `n8r4` if that is your board. `bo-idf` builds first;
-`ota-idf` uses `build-idf/<architecture>/shotstopper.bin` and therefore
-requires that you have run `build-idf` already. Short aliases `o-idf` and
-`bo-idf` are also available.
+In unattended automation, provide `SHOTSTOPPER_DEVICE_PASSWORD` through a
+secret environment and pass `--force` in addition to `--confirm`.
+`--confirm` authorizes the facade's hardware action; `--force` skips the
+installer's commit prompt and waits for post-boot image confirmation.
+Without `--force`, a successful commit does not itself prove confirmed boot.
+Check Admin's running identity and confirmation state.
 
 Build and flash flow: [Build environment](../BUILD.md). Script flags and
 CLI reference: [Build scripts](../SCRIPTS.md).
@@ -166,6 +146,9 @@ Related: [Wi-Fi](../settings/wifi.md), [AP](../settings/ap.md),
    fallback to bypass the incompatibility.
 
 ## Protocol details and verification
+
+Image parsing and identity fields have one canonical reference:
+[OTA image identity contract](ota-image-identity.md).
 
 Session POST accepts exactly `size`, `sha256`, `arch`, `version`, `transferId`.
 PATCH offsets and non-final lengths must be multiples of 4096; the advertised

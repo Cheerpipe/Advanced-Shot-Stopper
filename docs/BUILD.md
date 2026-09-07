@@ -1,87 +1,43 @@
-# Build environment
+# Build, test, and install
 
-Step-by-step from a git clone to a flashable firmware image.
+<a id="build-environment"></a>
 
-**Official supported path: ESP-IDF with native NimBLE only.** The short script
-names remain as compatibility aliases to their `*-idf` counterparts. See
-[Build scripts](SCRIPTS.md).
+Supported firmware uses ESP-IDF 5.5.x (pinned reference: **5.5.5**),
+Arduino-ESP32 **3.3.11** as an IDF component, and native NimBLE.
+The bundled EspressoScaleBLE library is not installed through Library Manager.
 
-This page documents **macOS** and **Linux**. The maintainer develops on
-**macOS**. Windows is not documented yet.
+This walkthrough covers macOS and Debian/Ubuntu Linux. Native Windows build
+and hardware-installation steps are not qualified here; the Windows notes in
+[Static analysis](STATIC_ANALYSIS.md#4-windows-prerequisites-native-no-wsl)
+cover tool preparation only.
 
-You need:
-
-- Git
-- Node.js (for the embedded Web UI generator)
-- A C++ compiler (for host tests)
-- ESP-IDF **5.5.x** (this project tracks **5.5.5**)
-- An ESP32-S3 with PSRAM: **n16r8** (16 MB flash, 8 MB OPI PSRAM) or
-  **n8r4** (8 MB flash, 4 MB QSPI PSRAM)
-
-The development board in [Hardware](HARDWARE.md) is an N16R8 module. Use
-`--arch n16r8` unless you know you have N8R4.
-
-Do not install EspressoScaleBLE from Library Manager. The audited copy is in
-`libraries/EspressoScaleBLE`.
+Read [Hardware](HARDWARE.md) before connecting equipment. Building and host tests
+do not need a connected controller. Flash/OTA sections explicitly affect it.
 
 ## 1. Clone the repository
 
 ```sh
-git clone <this-repository-url>
+git clone https://github.com/Cheerpipe/AcaiaArduinoBLE.git
 cd AcaiaArduinoBLE
 ```
 
-Use your fork’s URL if that is where you work.
+Use your fork's URL when contributing. Commands below run from this repository
+unless a block explicitly changes directories.
 
-## 2. Node.js dependencies
+## 2. Install host prerequisites
 
-Once, from the repository root:
+<a id="macos-maintainer"></a>
 
-```sh
-npm ci
-```
-
-This installs Terser and related tools used to minify and gzip the Web UI.
-
-## 3. Install ESP-IDF (required)
-
-Install ESP-IDF **5.5.x**. The build script **refuses any version outside
-5.5.x**. Arduino-ESP32 is pinned to **3.3.11** in
-`idf/main/idf_component.yml`. Keep `idf/dependencies.lock` committed so every
-machine resolves the same graph.
-
-### macOS (maintainer)
+macOS, with Homebrew installed:
 
 ```sh
-mkdir -p "$HOME/esp" && cd "$HOME/esp"
-git clone -b v5.5.5 --recursive https://github.com/espressif/esp-idf.git
-cd esp-idf && ./install.sh esp32s3
-. ./export.sh
-idf.py --version
+xcode-select --install   # only if Command Line Tools are missing
+brew install git node python cmake ninja cjson
 ```
 
-Homebrew `node` is enough for the Web UI. Host tests need a system C++
-compiler (Xcode command-line tools) plus the cJSON headers and library:
+<a id="linux"></a>
 
-```sh
-xcode-select --install   # if clang++ is missing
-brew install cjson
-```
-
-Optional static analysis:
-
-```sh
-brew install cppcheck
-```
-
-Optional coverage reports need LLVM (`llvm-profdata`, `llvm-cov`).
-
-### Linux
-
-Same IDF clone as above. Install Node.js from your distro or
-[nodejs.org](https://nodejs.org/), and a C++ toolchain (`g++` or `clang++`).
-
-On Debian/Ubuntu, a typical extra set is:
+Debian/Ubuntu:
 
 ```sh
 sudo apt-get update
@@ -90,181 +46,176 @@ sudo apt-get install git python3 python3-pip python3-venv cmake ninja-build \
   nodejs npm g++ libcjson-dev
 ```
 
-The cJSON development package is required by the host JSON arena tests; test
-commands do not download or install it automatically.
+Check `node --version`, `python3 --version`, `cmake --version`,
+`ninja --version`, and `c++ --version`. CMake must understand the repository's
+version-6 presets. If your distribution's packages are too old, update the
+toolchain before continuing.
 
-Then install ESP-IDF as in the macOS block (`install.sh esp32s3` and
-`export.sh`).
+<a id="2-nodejs-dependencies"></a>
 
-If `idf.py --version` is not 5.5.x, the Shot Stopper scripts will stop.
+Install the pinned Web UI dependencies from the repository root:
 
-`./scripts/build-idf` sources `export.sh` from `IDF_PATH` or
-`$HOME/esp/esp-idf` when needed.
+```sh
+npm ci
+```
 
-## 4. BLE backend
+This is an explicit setup step. Test commands never install dependencies.
 
-Native ESP-IDF NimBLE is the only production backend. The qualified profile
-uses the external allocator and the fixed parameters in
-`idf/sdkconfig.defaults.nimble`; there is no runtime/build selector and no
-ArduinoBLE download or patch step.
+## 3. Install ESP-IDF
+
+<a id="3-install-esp-idf-required"></a>
+
+Use a separate SDK directory. This subshell returns you to the repository
+when installation finishes:
+
+```sh
+(
+  mkdir -p "$HOME/esp"
+  cd "$HOME/esp"
+  git clone -b v5.5.5 --recursive https://github.com/espressif/esp-idf.git
+  cd esp-idf
+  ./install.sh esp32s3
+)
+. "$HOME/esp/esp-idf/export.sh"
+idf.py --version
+```
+
+If that SDK directory already exists, verify its version instead of cloning
+over it. For an SDK elsewhere, export `IDF_PATH` and source its `export.sh`.
+Build scripts can discover `IDF_PATH` or `$HOME/esp/esp-idf` when needed.
+They reject versions outside 5.5.x.
+
+`idf/main/idf_component.yml` and `idf/dependencies.lock` pin the component
+graph. First firmware builds may need network access to resolve SDK components;
+prepare these dependencies before attempting an offline validation run.
+
+## 4. Validate before installation
+
+`./scripts/dev` is the canonical entry point:
+
+```sh
+./scripts/dev test normal
+./scripts/dev test web
+```
+
+A passing host run ends with CTest's success summary; the command prints the
+full-log/JSON summary location in `artifacts/runs/`. Missing tools, cJSON, or
+Node dependencies are failures, not skipped tests.
+
+For changed code, run `./scripts/dev classify` and the complete gate from
+[VALIDATION.md](../VALIDATION.md), including sanitizers/builds where required.
+Host tests cannot verify wiring, radio timing, or physical stop behavior.
+
+<a id="8-host-tests-before-you-flash"></a>
+<a id="4-ble-backend"></a>
 
 ## 5. Build
+
+Choose the board from its module marking: **n16r8** means 16 MB flash / 8 MB
+OPI PSRAM; **n8r4** means 8 MB flash / 4 MB QSPI PSRAM. Neither selects GPIOs
+for an arbitrary third-party board.
 
 From the repository root:
 
 ```sh
-./scripts/build-idf --arch n16r8
+./scripts/dev build --arch n16r8
 ```
 
-For N8R4: `--arch n8r4`. There is no silent default; `--arch` is asked once
-and then remembered in `.shotstopper`.
+The facade passes empty extra flags unless supplied; it does not reuse a saved
+extra-flags preference implicitly. The direct `build-idf` script instead
+resolves flags from CLI, environment, saved values, or a prompt.
 
-`build-idf` already runs `./scripts/gen_version.sh` and
-`node ./scripts/gen_web_ui.js`. Output is
-`build-idf/<arch>/shotstopper.bin`.
-
-Extra compile defines go in `--flags`. The prompt’s suggested flags enable a
-passive buzzer only. Remote machine control is **opt-in** and off by default
-(`SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0` or the flag omitted). Enter
-accepts the suggested flags. An existing `build-idf/<arch>/sdkconfig` that
-already has remote control on keeps that choice until you delete the tree or
-change it in menuconfig.
-
-Examples:
+Set the machine type deliberately when changing it:
 
 ```sh
-./scripts/build-idf --arch n16r8 \
-  --flags "-Werror=deprecated-copy -DSHOT_STOPPER_ENABLE_BUZZER=1"
+./scripts/dev build --arch n16r8 \
+  --flags "-DSHOT_STOPPER_MACHINE_TYPE=2 -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0"
 ```
 
-Opt-in remote start/rinse (trusted network only):
+| Option | Meaning |
+| --- | --- |
+| `SHOT_STOPPER_MACHINE_TYPE=0/1/2` | Paddle / momentary / momentary+reed; see [machine types](../README.md#machine-types). |
+| `SHOT_STOPPER_ENABLE_BUZZER=0/1` | Omit / include local passive buzzer. IDF Kconfig defaults to 1; explicitly use 0 when absent. |
+| `SHOT_STOPPER_ENABLE_JTAG=1` | Development USB Serial/JTAG at boot without the GPIO4 console jumper. |
+| `SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0/1` | Remote start/rinse disabled / explicit opt-in. Default is disabled. |
+| `SHOT_STOPPER_DEVELOPMENT=1` | Bypasses Admin unlock for local development only. Never use for an installed machine. |
 
-```sh
-./scripts/build-idf --arch n16r8 \
-  --flags "-Werror=deprecated-copy -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=1 -DSHOT_STOPPER_ENABLE_BUZZER=1"
-```
+An existing IDF `sdkconfig` can preserve earlier choices. Omitting a macro does
+not always mean its feature is off; explicit flags override matching choices.
+Review Diagnostic build identity and options before installation.
 
-- `SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=1` — virtual paddle and remote rinse on the
-  Web UI (trusted network only). Omit or `=0` — only the physical activator can
-  close the machine circuit. **Stop** is always available when signed in.
-- `SHOT_STOPPER_ENABLE_BUZZER=1` — passive piezo (PWM/RTTTL). `=0` or omit — no local buzzer.
-
-N16R8 uses a 16 MB OTA table (about **3 MB** app slot × 2). N8R4 uses the 8 MB
-table (about **3.2 MB** × 2). A 4 MB default table cannot hold this firmware.
+The build generates Web assets, version identity and
+`build-idf/<arch>/shotstopper.bin`, then checks image and memory budgets.
+Use only the image for your architecture. The supported partition layouts have
+two app slots; arbitrary 4 MB layouts cannot hold this firmware.
 
 ## 6. Flash (USB)
 
-Connect the board. On macOS the native USB CDC port is usually
-`/dev/cu.usbmodemXXXX` (use `cu.*`, not `tty.*`). On Linux it is often
-`/dev/ttyACM0` or `/dev/ttyUSB0`.
+Proceed only after reviewing the image, board, wiring and applicable
+[bench checks](MANUAL_TEST_PLAN.md). Keep the machine activation circuit
+disconnected for initial verification.
+
+Connect a USB **data** cable. Use BOOT + RST for ROM download if the app exposes
+no port. App serial monitoring needs the
+[GPIO4 jumper or a JTAG build](HARDWARE.md#usb-console-jumper).
+
+Replace the port below with the detected controller port:
 
 ```sh
-./scripts/flash-idf --port /dev/cu.usbmodem2101 --arch n16r8
+./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 --arch n16r8
 ```
 
-Or build and flash in one step:
+Linux commonly uses `/dev/ttyACM0` or `/dev/ttyUSB0`. The direct installer
+can rebuild a stale build before flashing; successful transfer still requires
+post-boot and electrical verification.
+
+### Legacy partition migration
+
+An installed 20 KiB NVS layout needs a one-time clean USB migration to 84 KiB.
+A normal flash refuses that layout. **The following erases both firmware slots
+and all saved data:** Wi-Fi, password, recipes, calibration, scale preferences,
+history and last shot. There is no automatic data migration.
 
 ```sh
-./scripts/bf-idf
-./scripts/bfm-idf    # build, flash, then serial monitor
+./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 --arch n16r8 --erase-all
 ```
 
-The first run prompts for the port and remembers it. Baud for this firmware
-is **115200**.
+Record the settings you need before migrating. Do not combine `--erase-all`
+with an external `--image`; it requires the project's full build outputs.
 
-## 7. Serial monitor and CLI
+## 7. Serial monitor and first setup
+
+<a id="7-serial-monitor-and-cli"></a>
 
 ```sh
-./scripts/monitor-idf --port /dev/cu.usbmodem2101 --speed 115200
+./scripts/dev monitor --port /dev/cu.usbmodem2101 --speed 115200
 ```
 
-Exit the IDF monitor with **Ctrl+]**. Firmware commands are listed in
-[USB serial CLI](SERIAL_CLI.md). USB debug print is **off** by default;
-enable it from the Web UI Debug page or `SERIAL_DEBUG_ON`.
+Exit with **Ctrl+]**. Send `HELLO` to check command access even when debug
+logging is off. See [USB CLI](SERIAL_CLI.md) for troubleshooting and commands.
 
-If the monitor shows garbage, confirm the port, close other serial programs,
-and stay on **115200**. Press RST on the board after opening the monitor.
+Verify boot identity, configured machine type and relay behavior, then continue
+with [First setup and daily use](GETTING_STARTED.md).
 
-## 8. Host tests (before you flash)
+<a id="9-update-over-wi-fi-ota"></a>
 
-```sh
-npm ci
-./scripts/dev test normal
-./scripts/dev test asan
-./scripts/dev test tsan
-./scripts/dev test web
-node ./src/tests/check_firmware_size.js build-idf/n16r8/shotstopper.bin
-```
+## 8. Update over Wi-Fi (OTA)
 
-Skip the size check if you have not compiled yet. Coverage (optional):
-
-```sh
-./src/tests/run_coverage.sh
-```
-
-Automated tests do not replace the [manual test plan](MANUAL_TEST_PLAN.md).
-
-## 9. Update over Wi-Fi (OTA)
-
-After the controller is installed, USB is inconvenient. Both partition tables
-have two application slots. Build, then:
-
-```sh
-./scripts/bo-idf --arch n16r8 --host 192.168.1.50
-```
-
-`bo-idf` compiles with ESP-IDF and runs `./scripts/ota-idf`. The same flow
-is available from **Admin → Firmware update** (*Upload and verify*, then
-*Flash and restart*). The controller IP is on the Admin page. In SoftAP mode
-it is always `192.168.4.1`.
-
-OTA uses the **device password** (`--password` / `SHOTSTOPPER_DEVICE_PASSWORD`)
-for the command-line client. The Web UI authorises the same update after you
-unlock **Admin** with that same device password.
-
-The running firmware is never overwritten; the upload goes to the inactive
-slot. Settings in saved storage survive. If an update fails, the device keeps
-the firmware it already had. USB `./scripts/flash-idf` is always the way out.
-
-The current partition layout reserves 84 KiB for NVS. Controllers running the
-older 20 KiB layout require a one-time clean USB migration; a normal flash is
-intentionally rejected:
-
-```sh
-./scripts/flash-idf --port <PORT> --arch n16r8 --erase-all
-```
-
-The erase removes all firmware and saved data, including Wi-Fi, settings,
-presets, calibration, BLE preferences, shot history, and last shot. Reconfigure
-the controller after flashing; the old NVS contents are not migrated.
-
-Full command tables: [Build scripts](SCRIPTS.md).
+After installation, follow [OTA](features/ota.md) for upload, verification,
+commit, confirmation and recovery. OTA cannot migrate the partition table.
 
 ## Compatibility aliases
 
-`./scripts/build`, `flash`, `monitor`, `ota`, `static`, `bf`, `bfm`, `bo` and
-`bsfm` execute their ESP-IDF equivalents. They do not invoke arduino-cli.
-New automation should prefer the explicit `*-idf` names.
+`build`, `flash`, `monitor`, `ota`, `static`, `bf`, `bfm`, `bo`,
+and `bsfm` are ESP-IDF compatibility aliases, not Arduino-cli workflows.
+Use [SCRIPTS.md](SCRIPTS.md) for parameter resolution and direct wrappers.
 
 ## Optional static analysis
 
-The full static inspection suite (Cppcheck, clang-tidy via Espressif's
-esp-clang, GCC `-fanalyzer`, Include-What-You-Use) has its own per-OS
-preparation and run guide: [Static analysis](STATIC_ANALYSIS.md).
-
-```sh
-./scripts/build-idf --arch n16r8
-./scripts/static-idf --arch n16r8
-```
-
-Reports go to `reports/static-analysis/`. Deeper GCC analysis:
-
-```sh
-./scripts/gcc_analyzer
-```
+Use [Static analysis](STATIC_ANALYSIS.md) when requested or required by the
+validation gate. It lists prerequisites, tool behavior and failure meanings.
 
 ## Firmware version
 
-Release version lives in `VERSION` at the repository root. The git hash is
-appended on every build (`1.0.0+abc1234`, or `-dirty` with uncommitted
-changes). The Web UI footer and serial boot line show that string.
+`VERSION` supplies the release number; the build adds the git revision and a
+dirty marker when applicable. The Web UI footer and boot output identify it.

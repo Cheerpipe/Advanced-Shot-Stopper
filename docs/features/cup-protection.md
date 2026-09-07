@@ -1,62 +1,51 @@
 # Cup protection
 
-Friendly name for the start-of-shot defenses that keep a late cup, a finger
-on the pan, or a bump from stopping the extraction.
+Cup protections handle missing cups, cup removal, and brief bumps. They apply
+to automatic brew-by-weight shots. Configure recipe options in
+**Settings → Brew** and shared detection/tare timing under
+**Settings → Machine and scale**.
 
-In the Web UI the same behavior is split across **BBW protection**,
-**Automatic retare**, **Cup**, and **Tare**. This page explains how they work
-together. Parameter tables for cup detection and tare are on those setting
-pages.
+## Choose the behavior
 
-## When it applies
+| Control | Factory value | What it does |
+| --- | --- | --- |
+| **Enable cup protection** | On | Enables the cup-start/removal protections; also exposed in Home Quick Settings. |
+| **Stop if cup is removed** | On | Requests a stop when a cup is detected as lifted after tare. Requires cup protection. |
+| **Require cup to start** | Off | Blocks a start without a detected cup. Requires cup protection. If the scale was already tared before connecting, place the cup after connection so it can be detected. |
+| **Avoid accidental touch** | On | Rejects brief implausible bumps from weight-stop and guard decisions. This is a separate brew option. |
+| **BBW protection (s)** | 12 s | Blocks automatic weight stop at the beginning; first drops do not end the window. Maximum 30 s; minimum is enabled retare window + 3 s (3 s when retare is off). Must fit within Max BBW time. |
 
-Only on automatic brew-by-weight shots. Timer-only (BBW off) and manual
-no-scale cycles skip retare and BBW protection.
+A cup-start refusal holds the relay open for that attempt. Release the physical
+activator, correct the cup/scale condition, then activate again. A blocked
+held button is not forwarded halfway through the hold.
 
-From paddle ON, three things run in parallel:
+## How timing fits together
 
-1. **BBW protection (pre-arm)** — automatic weight stop is blocked for a
-   configurable window (default **12 s**). First drops can still beep and log;
-   they do not end this window.
-2. **Automatic retare** — if a cup is placed during the retare window
-   (default **4 s**), the firmware tares again without restarting the shot
-   timer.
-3. **Cup presence** — a stable load above the minimum cup weight counts as
-   placed; a confirmed drop to the removed threshold counts as lifted.
+At shot start, the controller can tare immediately. If you place the cup within
+the retare window, a second tare can run once without restarting the timer.
+After each tare, a settle interval protects the weight readings. Independently,
+BBW protection delays weight-based stopping from the beginning of the shot.
 
-Weight samples that look like noise or an implausible spike stay visible as
-observed weight but do not enter stop logic or offset learning.
+Use [Tare settings](../settings/tare.md) for timing values and
+[Cup settings](../settings/cup.md) for detection thresholds. Timer-only and
+manual no-scale cycles skip late retare and initial BBW protection.
 
-Do **not** press the scale pan with a finger to “cancel” a shot. Protection
-and retare may ignore that weight. Use the paddle (see
-[Paddle](../settings/paddle.md)).
+## Examples
 
-## Parameters
+- **Cup already in place:** start tare runs; a stable cup does not cause another
+  tare just because it remains on the pan.
+- **Cup placed at 2 s:** with the default 4 s retare window, stable placement
+  triggers one retare. Weight stop remains blocked until the 12 s protection
+  window ends.
+- **Cup placed after the retare window:** no automatic late tare is promised.
+  Stop and restart with the cup correctly placed rather than interpreting its
+  mass as coffee.
+- **Cup lifted during brewing:** with cup protection and removal stop enabled,
+  the controller requests stop. The physical stop mechanism depends on the
+  [machine type](../../README.md#machine-types).
 
-BBW protection is a brew setting on the active preset. Retare and settle time
-are under **Settings → Machine and scale → Tare**. Presence thresholds are
-under **Cup**.
+Do not press the scale with a finger to cancel a shot: touch protection can
+ignore that load. Use the physical stop action for your
+[paddle mode](../settings/paddle.md) or [button](../settings/momentary.md).
 
-| Setting | Where | Default | Range | Effect on the shot |
-| --- | --- | --- | --- | --- |
-| **BBW protection (s)** | Brew | 12 s | minimum = retare window + 3 s | Inhibits automatic weight stop from shot start. First drops do not end it. Skipped when BBW is off. |
-| **Automatic retare** | Tare | ON | ON / OFF | One late-cup retare during the retare window, on the cup **placed** event. |
-| **Retare window (s)** | Tare | 4 s | — | Time after shot start to accept a late cup. |
-| **Automatic tare** | Tare | ON | ON / OFF | Initial tare when an automatic shot starts. Post-tare grace is inactive when this is off. |
-| **Post-tare grace (s)** | Tare | 2 s | 0.5–10 s | After a tare, wait for ~0 g before using weight for **stop/control**. First-drop detection still runs against the tare zero. A cup landing or a finger tap is not first drop. |
-| **Minimum cup weight (g)** | Cup | 10 g | — | Stable load that counts as a cup placed. |
-| **Cup-removed threshold (g)** | Cup | −3 g | — | Confirmed weight at or below this means the cup was lifted. |
-
-Cup placement stability (samples, tolerance, gap, min stable time) is
-documented in [Cup](../settings/cup.md).
-
-## Example
-
-You flip the paddle and set the cup down two seconds later. Retare fires
-inside the 4 s window. Weight stop stays blocked until BBW protection ends
-(~12 s), so the empty-cup or finger weight cannot cut the shot. After that
-window, brew-by-weight arms normally.
-
-Related: [Brew by weight](brew-by-weight.md),
-[Tare and retare](tare-retare.md), [Cup](../settings/cup.md),
-[Tare](../settings/tare.md).
+Related: [BBW](brew-by-weight.md), [tare and retare](tare-retare.md).

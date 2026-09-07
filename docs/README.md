@@ -1,8 +1,47 @@
-# Documentation map
+# Documentation
 
-Use this index after `AGENTS.md`. Each row maps a need to the smallest useful
-documentation, editable sources, focused tests, and canonical command. Run
-`./scripts/dev context <area>` for the same map without loading file contents.
+Choose a task below. User guides explain observable behavior; developer
+references define implementation and validation contracts. Follow links as
+needed rather than reading the entire directory.
+
+## Setup and use
+
+- [First setup and daily use](GETTING_STARTED.md)
+- [Hardware and installation prerequisites](HARDWARE.md)
+- [Build, test, and USB installation](BUILD.md)
+- [Troubleshooting](FAQ.md), [USB commands](SERIAL_CLI.md), [recovery](EMERGENCY_RECOVERY.md)
+- [Firmware updates](features/ota.md), [screenshots](SCREENSHOTS.md)
+
+## Features
+
+- [Brew by weight](features/brew-by-weight.md), [presets](features/presets.md)
+- [Tare and retare](features/tare-retare.md), [cup protection](features/cup-protection.md)
+- [Fast](features/fast-extraction-guard.md), [Slow](features/slow-extraction-guard.md),
+  [scale-loss time guard](features/auto-to-manual.md)
+- [Alerts](alerts.md), [shot history](features/shot-history.md)
+- [Home Assistant webhooks](features/home-assistant-webhooks.md)
+
+## Settings
+
+| Group | Reference |
+| --- | --- |
+| Physical switch | [Paddle](settings/paddle.md) / [momentary](settings/momentary.md) |
+| Without a scale / rinse | [No-scale BBW](settings/no-scale-bbw.md) / [quick rinse](settings/quick-rinse.md) |
+| Scale and cup | [Scales](settings/scales.md), [cup detection](settings/cup.md), [tare](settings/tare.md) |
+| Network | [Wi-Fi](settings/wifi.md) / [access point](settings/ap.md) |
+| Reset | [Factory reset](settings/factory-reset.md) |
+
+## Developer map
+
+Start with [Contributing](../CONTRIBUTING.md) and the applicable `AGENTS.md`.
+The map below identifies the smallest relevant sources and tests.
+`./scripts/dev context <area>` lists focused paths, not file contents; supported
+areas are safety, control, machine, scale, ble, network, ota, persistence, web,
+build, and tests. There is no `docs` area.
+
+File names in the table are relative to this directory unless a source path
+or root policy is named. Commands are starting points, not substitutes for the
+risk gate in [VALIDATION.md](../VALIDATION.md).
 
 | Need | Documentation | Editable sources | Tests | Command |
 | --- | --- | --- | --- | --- |

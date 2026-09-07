@@ -39,7 +39,7 @@ offset learning, and eligible A→M samples.
 If the scale disconnects or **notifications go silent** during an automatic
 extraction, weight control is suspended. Rejected brew samples (post-tare,
 slew) and a stable accepted weight do not count as a lost scale. Recovery
-needs three coherent samples on the current connection. Paddle OFF and time
+needs three coherent samples on the current connection. Physical stop behavior depends on the selected switch/mode; applicable time
 limits remain in force.
 
 ## Example
@@ -61,6 +61,20 @@ Changing the preference mode or selected scale restarts an in-progress search
 immediately with the new filter. If **Preferred only** is enabled while a
 different scale is connected, that connection is closed before directed
 discovery begins.
+
+## Replace a scale or diagnose a missing connection
+
+1. Turn off other compatible scales and close phone apps connected to the one
+   you want.
+2. Select the intended remembered scale, or **Clear preferred** for a new one.
+   Clearing pauses discovery for 30 s; it does not erase scale history.
+3. With **Preferred only** and no saved preference, let the intended scale
+   complete its first connection. Check Home for fresh weight, not just a name.
+4. If discovery is slow, check **Admin → Bluetooth → Scan intensity**:
+   factory **Aggressive**, with Normal and Light reducing scan duty.
+5. **BLE Companion** is separate from scale support. It is off by default;
+   changing its preference takes effect after reboot and does not disable the
+   scale connection. The Admin/USB status distinguishes saved and active state.
 
 Related: [Brew by weight](../features/brew-by-weight.md), [Tare](tare.md),
 [Alerts](../alerts.md).

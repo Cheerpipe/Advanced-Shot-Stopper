@@ -6,15 +6,14 @@ flash: [Build environment](BUILD.md). Script reference: [Build scripts](SCRIPTS.
 
 ## 1. What the suite runs
 
-Every tool reads the ESP-IDF compilation database (`build-idf/<arch>/compile_commands.json`)
-produced by a normal firmware build. The analysis scripts **never build the
-firmware themselves**; they only read the database and the sources. Each tool
+Cppcheck, clang-tidy and IWYU read the ESP-IDF compilation database
+(`build-idf/<arch>/compile_commands.json`) from a normal build.
+GCC `-fanalyzer` is different: its script builds with analysis enabled. Each tool
 deletes and recreates its own reports directory on every run.
 
 Before Cppcheck or clang-tidy starts, `audit_compile_commands.py` compares the
-database, the production source tree and the versioned TU manifest. The run
-fails unless all 25/25 current project C++ translation units occur exactly
-once; adding a `.cpp` without registering and reviewing it cannot silently
+database, the production source tree and the versioned translation-unit manifest.
+Every registered project C++ translation unit must occur exactly once; adding a `.cpp` without registering and reviewing it cannot silently
 reduce coverage.
 
 | Tool | Script | Reports directory | Contract |
@@ -88,6 +87,11 @@ include-what-you-use --version   # must report the same clang as: clang --versio
 ```
 
 ## 4. Windows prerequisites (native, no WSL)
+
+These are tool-preparation notes, not a qualified end-to-end Windows build or
+hardware-installation procedure. The documented build walkthrough covers
+macOS/Linux. Verify tool paths and a compatible compilation database before
+claiming Windows validation.
 
 1. **Git for Windows** — the repo scripts are bash; run them from **Git Bash**
    (`winget install Git.Git`).
@@ -234,8 +238,8 @@ only diagnostics whose primary location is versioned code.
 variant-specific ESP-IDF compilation database, Cppcheck reports public APIs
 used from other TUs or variants as unused. Enabling it produced dozens of
 non-actionable findings and would require broad suppressions that can hide real
-defects. Dead-code findings are reviewed under F-22 with compiler/linker and
-targeted source evidence; the P2 gate retains the reliable Cppcheck classes.
+defects. Dead-code findings require compiler/linker and targeted source evidence;
+the analysis gate retains the reliable Cppcheck classes.
 
 ## 9. Recommended order for a release check
 

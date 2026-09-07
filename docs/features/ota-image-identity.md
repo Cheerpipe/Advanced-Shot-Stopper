@@ -4,6 +4,9 @@ The firmware, browser, and developer scripts use this contract to decide
 whether an ESP32-S3 application image belongs to Shot Stopper and targets the
 same board as the running controller.
 
+For update steps, use [OTA](ota.md). This page is for firmware/browser/CLI
+implementers; these checks do not replace the controller's verification.
+
 ## Container checks
 
 - ESP image magic: `0xE9` at byte 0.

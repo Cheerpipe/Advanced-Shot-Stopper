@@ -1,54 +1,57 @@
 # Momentary
 
-How a **momentary** brew switch tells the stopper to start or stop a shot.
-This page applies to firmware compiled as `SHOT_STOPPER_MACHINE_TYPE=1`
-(momentary) or `2` (momentary + reed). Those builds show **Switch** and
-hide **Paddle**. **Quick rinse** is shared with paddle firmware (Enable quick rinse
-defaults **off** on every machine type). Paddle / latch builds hide **Switch**.
+For firmware built with `SHOT_STOPPER_MACHINE_TYPE=1` (button only) or `2`
+(button plus reed/hall sensor), use **Settings → Machine and scale → Switch**.
+Paddle firmware hides this group.
 
-The relay **mirrors the switch 1:1** while a start-guard is not blocking
-and a firmware rinse is not running. If you hold 234 ms, K1 is closed for
-those 234 ms while you hold. A long hold is copied in full unless
-[Quick rinse](quick-rinse.md) is enabled and the hold started from idle:
-then the firmware pulses start, keeps the group on for the rinse duration,
-and pulses stop (the auto-stop pulse width). The only other extra pulse is
-the **auto-stop pulse** it sends when a weight cut (or a safety wall) needs
-to toggle the group.
+## Start and stop
 
-On an opt-in remote-control build, **Start shot** and **Stop shot** synthesize
-the same configured pulse from the Web UI. A smaller **Force press** action is
-also available after Admin unlock on momentary and momentary+reed builds. It
-sends one raw switch pulse without starting or ending a firmware cycle or
-changing inferred state. This emergency action ignores workflow state and
-brew guards, but never bypasses relay lockout, watchdog, timer, or feedback
-safety.
+Press and release the brew button to start; a second valid press requests stop.
+The relay normally mirrors the physical hold 1:1. **Start/stop on** chooses
+whether the firmware starts its timer and tare on the debounced press or release;
+it does not change the normal electrical mirror.
 
-If **No-scale BBW** is Armed or set to **Require a scale** (BBW on, no usable scale), or
-**Require cup to start** would reject the start, the relay does **not**
-mirror: K1 stays open for that whole hold, even after the guard goes Idle
-mid-press. Release, then press again with the guard Idle / a cup present,
-and the 1:1 mirror resumes. See [No-scale BBW](no-scale-bbw.md) and
-[Cup protection](../features/cup-protection.md).
+A hold exceeding **Single-press limit** is mirror-only when Quick rinse is off.
+In press mode, the tentative logical start/stop is undone; in release mode,
+it is never applied. With [Quick rinse](quick-rinse.md) enabled, a long hold
+that starts from idle requests a timed rinse instead.
 
-**Start/stop on** chooses when firmware treats the shot as started or
-stopped (tare, timer). It does not change the 1:1 relay mirror, except
-that a blocked start also leaves K1 open.
+A [no-scale](no-scale-bbw.md) or [cup-start](../features/cup-protection.md)
+refusal keeps the relay open for the entire attempt. Release the button,
+resolve the condition, then press again.
 
-| Mode | Default | When start/stop fires |
-| --- | --- | --- |
-| **Button press** | yes | On the debounced press. If the hold then exceeds **Single-press limit**, that edge is undone (not a start/stop). Release does not toggle again. |
-| **Button release** | no | On release, and only if the hold is no longer than **Single-press limit** (unless Enable quick rinse is on and this hold started from idle: the rinse gesture wins). A longer hold is mirror-only when rinse is off. |
+## Stopping and time limits
 
-Without a scale, or with brew by weight off, the stopper does not send
-weight cuts. The 1:1 relay mirror still copies the switch. **Max BBW time
-does not apply.** The firmware **60 s** cap can still pulse a running group:
-on reed builds if the reed is on; on switch-only builds only if the state
-is Confirmed on. Without Confirmed on (including tap-start with no scale),
-firmware does not pulse; the next press is a new Start. Holding the switch
-for 60 s still opens K1 (electrical cap).
+A momentary machine keeps its own running state. Opening the controller relay
+ends a button press; it does **not** necessarily stop water flow.
 
-Related: [Paddle](paddle.md), [Quick rinse](quick-rinse.md),
-[Hardware](../HARDWARE.md).
+- **Button only:** the controller infers running state from fresh scale flow.
+  Automatic cut requires confirmed running state. With no scale, a tap can
+  start the machine without enough evidence for an automatic stop pulse.
+- **Button + reed:** sensor state is authoritative outside the brief
+  confirmation window. Automatic cut also requires that a stable sensor OFF
+  has been seen earlier this boot; a stuck-ON input is not blindly pulsed.
+- **BBW off / no scale:** no weight cut and no Max BBW time. The 60 s logical
+  cap requests a stop only when the machine-state conditions allow it.
+- **Electrical cap:** holding the relay closed for 60 s opens K1 regardless.
+  This limits the contact hold, not all possible machine brew durations.
+
+Use reed feedback for a more reliable installation. Check the actual group,
+not only the UI label, when inference is uncertain.
+
+## If the displayed state is wrong
+
+On button-only firmware, Home **Override idle** / **Override brewing** correct
+the inferred state without pulsing the relay. They require the browser claim
+but not Admin unlock. First observe the machine, then choose the matching
+state. They are hidden on paddle and reed builds.
+
+Remote Start/Stop synthesize configured pulses only under the applicable
+permission policy. **Force press**, on an explicitly enabled remote-control
+build after Admin unlock, sends one raw pulse without changing the logical
+cycle. It is an advanced recovery action; a pulse can toggle in either
+direction and still obeys electrical safety. Default firmware disables
+close-producing remote controls.
 
 ## Parameters
 
@@ -61,13 +64,17 @@ Related: [Paddle](paddle.md), [Quick rinse](quick-rinse.md),
 | **Shot reaction timeout (s)** | 12 | 3–30; `0` in JSON is the compiled 12 s | Switch-only. How long a quiet pan after Start may stay Assumed on before becoming Assumed off. Does not pulse the relay. Late espresso-like flow from Assumed off still confirms ON. If Assumed on/off lasts until the firmware hard cap (60 s, `HARD_MAX_CIRCUIT_CLOSED_MS`) with a live scale and net mass still within 1 g of the shot baseline (noise, not espresso-like flow), firmware settles to Confirmed off without a pulse or beep so the next press is a new Start. |
 | **Reed confirm timeout (s)** | 1.0 | 0.2–5 | Momentary+reed only (`SHOT_STOPPER_MACHINE_TYPE=2`). How long after the Start/stop on edge the machine may stay Assumed on while the reed is still off (or Assumed off while the reed is still on). The clock starts on that press or release, not when the relay mirrors the hold. If the reed matches sooner, confirm immediately. When the timeout elapses, confirm the actual reed. |
 
-Reed is polled every control loop (`digitalRead` plus 30 ms debounce). A
-stable level is not missed. Outside an assumed window, machine state is
-the reed: off → Confirmed off, on → Confirmed on. That includes boot with
-the reed already on, and K1 tripped or lockout. Firmware auto-cut still
-waits for one stable off this boot so a stuck-ON reed is not pulsed.
-Assumed on/off exists only for the button → solenoid → reed lag after that
-start/stop edge, up to this timeout. If a press exceeds Single-press
-limit, that start/stop is undone (back to the pre-press view) and the same
-timeout is a grace window before reed is canonical again. Without a reed,
-firmware just restores the pre-press inferred state.
+## Examples
+
+- **Normal press, reed attached:** press and release; the sensor confirms the
+  group started. At the weight endpoint, a stop pulse is sent and the sensor
+  reports the result.
+- **Button held while a start guard blocks:** the hold is not forwarded even
+  if a scale connects during it. Release, then press again.
+- **Button-only, no scale:** the machine may start from a tap, but the stopper
+  cannot promise a timed automatic stop. Remain responsible for the physical
+  machine's stop action.
+
+The detailed assumed/confirmed states, quiet-flow handling, and retry behavior
+are in [Machine run state](../STATE_MACHINES.md#3-machine-run-state-machinerunstate).
+Related: [Hardware](../HARDWARE.md), [Paddle](paddle.md).

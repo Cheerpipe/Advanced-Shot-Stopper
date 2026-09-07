@@ -3,17 +3,40 @@
 Development board used for this firmware, default GPIO map, and wiring
 warnings.
 
-**TODO:** bill of materials, schematic, and step-by-step brew-switch wiring.
+## Installation readiness
+
+The board pin map and enclosure are documented. A reviewed machine-specific
+schematic, connector pinout, power-source specification, and complete wiring
+procedure are **not yet supplied**. Do not use the photographs as a wiring
+diagram or assume compatibility from a machine name.
+
+Before connecting a machine, obtain and verify its circuit documentation and
+complete the applicable [bench tests](MANUAL_TEST_PLAN.md). This page cannot
+replace those missing electrical details.
 
 On the Linea Micra, the intercepted brew-switch connector is labelled **CN9**.
 This firmware treats that contact as the **machine circuit** — the isolated
 path that makes the machine run — not as a Micra-specific name. Other machines
-intercept a different brew/run circuit with the same relay contract. User-facing
-copy (Web UI, Settings, status JSON) always says **machine circuit**, never CN9.
+intercept a different brew/run circuit with the same relay contract. Other guides call this the **machine circuit** so the term also applies to
+non-Micra installations.
 
-Until that write-up exists, treat the photo and pin table below as the known
-facts, and complete the [manual test plan](MANUAL_TEST_PLAN.md) on the bench
-before connecting a live machine.
+## Parts checklist
+
+| Part | Selection requirement |
+| --- | --- |
+| ESP32-S3 relay controller | Supported PSRAM variant; verify actual module, GPIO map and relay polarity against the board below. |
+| Power source | Voltage, isolation, capacity, and protection verified for the actual board and machine. The repository does not define a universal machine power tap. |
+| Wiring, connectors, mounting | Correct ratings, insulation, strain relief and clearance for the installation; machine-specific part numbers remain unverified. |
+| Bluetooth scale | Check [model capabilities](../libraries/EspressoScaleBLE/README.md#scale-compatibility). |
+| Reed/hall feedback | Recommended for momentary machines; input must be compatible with the ESP32 and isolated from the machine circuit. |
+| Local sound | Optional passive buzzer; see [connection notes](#local-buzzer). |
+| Independent safety barrier | A reviewed K2/heartbeat/feedback design where required; no universal K2 circuit is provided here. |
+| USB data cable / console jumper | Used for installation and diagnostics; see [USB console jumper](#usb-console-jumper). |
+
+The functional path is physical switch → ESP32 input → control policy →
+isolated relay contacts → machine activation circuit. It is a signal-flow
+description, not a wiring schematic. Paddle uses a maintained contact;
+momentary uses press/stop pulses.
 
 ## Development board
 
@@ -41,8 +64,9 @@ supported**.
 ## 3D-printable enclosure
 
 A simple two-part enclosure is provided for the ESP32-S3 relay development
-board. It can be printed in **PLA**; **PET** is preferred for a more durable,
-heat-resistant installation.
+board. The supplied geometry is a fit reference, not a thermal or electrical safety
+rating. Choose material and mounting for measured temperatures and required
+clearances; a printed case does not establish suitability inside a hot machine.
 
 - [`AdvancedShotStopper-Box.stl`](../stl/AdvancedShotStopper-Box.stl) — the
   main box that houses the development board.

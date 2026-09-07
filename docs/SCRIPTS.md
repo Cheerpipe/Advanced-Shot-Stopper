@@ -14,10 +14,29 @@ aliases to the same ESP-IDF workflows.
 These are **not** the USB firmware commands (`HELP`, `FACTORY_RESET`, …).
 Those live in [USB serial CLI](SERIAL_CLI.md).
 
+## Common developer tasks
+
+| Task | Command |
+| --- | --- |
+| Find the relevant area | `./scripts/dev context control` |
+| Classify current changes | `./scripts/dev classify` |
+| Validate current changes | `./scripts/dev validate` |
+| Focused host / Web / BLE / OTA / tooling tests | `./scripts/dev test normal`, `web`, `ble`, `ota`, or `tooling` |
+| Sanitizers | `./scripts/dev test asan` / `./scripts/dev test tsan` |
+| Compile without contacting hardware | `./scripts/dev build --arch n16r8` |
+| Analyze an existing firmware build | `./scripts/dev analyze --arch n16r8` |
+| USB install / Wi-Fi update | `./scripts/dev flash --confirm …` / `./scripts/dev ota --confirm …` |
+
+The facade rejects passwords in argv and requires explicit confirmation for
+flash/OTA. Enter passwords at the prompt or supply
+`SHOTSTOPPER_DEVICE_PASSWORD` through your environment's secret mechanism.
+`dev build` supplies empty extra flags unless explicitly provided; the direct
+scripts below can reuse saved flags. Complete validation follows
+[VALIDATION.md](../VALIDATION.md), not just a convenient focused test.
+
 ## How parameters are resolved
 
-No script silently fills missing values. Each parameter comes, in order,
-from:
+For the direct scripts, parameters come in this order:
 
 1. A named flag
 2. Its environment variable
@@ -38,8 +57,8 @@ USB download) or use **OTA**. ROM download does not need the jumper.
 
 After a successful run, non-secret values are saved, so the next command can
 be just `./scripts/bfm-idf`. The **device password is never stored or
-suggested** — pass `--password` / `-t` or `SHOTSTOPPER_DEVICE_PASSWORD`
-every time.
+suggested** — enter it at the hidden prompt or provide `SHOTSTOPPER_DEVICE_PASSWORD`
+every time. Avoid password flags in shell history or process arguments.
 
 `.shotstopper` is created mode `600` and is gitignored.
 
@@ -55,7 +74,7 @@ prompting. The same applies with `SHOTSTOPPER_NONINTERACTIVE=1`.
 | `-a`, `--arch` | `SHOTSTOPPER_ARCH` | `n8r4` or `n16r8` (alias `esp32s3` → `n16r8`). |
 | `-s`, `--speed` | `SHOTSTOPPER_SPEED` | Serial monitor baud, e.g. `115200`. |
 | `-H`, `--host` | `SHOTSTOPPER_HOST` | Controller IP or hostname for OTA. |
-| `-t`, `--password` | `SHOTSTOPPER_DEVICE_PASSWORD` | Device password. Never persisted. |
+| `-t`, `--password` | `SHOTSTOPPER_DEVICE_PASSWORD` | Direct-script compatibility only; prefer hidden prompt/environment. The dev facade rejects secret argv. Never persisted. |
 | `-f`, `--flags` | `SHOTSTOPPER_FLAGS` | Extra compile flags, as a single string. |
 | `-i`, `--image` | `SHOTSTOPPER_IMAGE` | Firmware `.bin` to use for flash or OTA instead of the normal build output. Checked locally and never persisted. |
 | `-b`, `--build-dir` | `SHOTSTOPPER_BUILD_DIR_OVERRIDE` | Build directory (`static`/`static-idf` only). |
@@ -104,10 +123,10 @@ Writes to `build-idf/<architecture>` (`shotstopper.bin`).
 | `./scripts/bsfm-idf` | | `--port`, `--arch`, `--speed` | build-idf, static-idf, flash-idf (no rebuild or image re-check), monitor-idf. Does not flash if analysis reports diagnostics. |
 | `./scripts/gcc_analyzer` | | `--arch` (`--flags` optional) | Build with GCC `-fanalyzer` into `reports/gcc-analyzer/`. |
 
-Examples:
+Examples (flash/OTA commands affect hardware; complete bench checks first):
 
 ```sh
-# First run: prompts for what is missing and remembers it
+# Build, flash, and monitor; prompts for missing parameters and remembers them
 ./scripts/bfm-idf
 
 # Explicit (macOS CDC port)

@@ -13,7 +13,7 @@ these settings are **machine-level** (not per-preset).
 alerts on both the local buzzer and the scale; the individual checkboxes are
 kept.
 
-Sounds are event-first: tare/start/stop, first drop, paddle reminder,
+Most sounds follow their event: tare/start/stop, first drop, paddle reminder,
 completion extra, and ATM / no-scale / scale-link alerts follow **Output channel** when a
 local buzzer is compiled in (`SHOT_STOPPER_ENABLE_BUZZER=1`, passive piezo
 with RTTTL). `=0` omits the local buzzer. Channel selection is independent
@@ -25,8 +25,8 @@ They never wait for Bluetooth or for the scale timer to start or stop.
 Without buzzer support, Output channel and the local-only checkboxes are hidden.
 The default channel is then **Scale only**.
 
-Shot completion is the machine circuit-open cue (an extra two-note RTTTL; not configurable),
-including rinse end.
+Start/stop cues are local feedback, not independent proof that water flow
+changed. On momentary machines, check the actual group and its state feedback.
 
 ## Parameters
 
@@ -78,6 +78,19 @@ Alerts group.
 Brew by weight finishes, machine circuit opens, but you left the paddle ON. The
 paddle-off reminder repeats every 10 s for up to 15 minutes until you return
 the paddle to OFF.
+
+## Choose an output
+
+Use **Buzzer only** for local cues with a compiled passive buzzer. Use
+**Scale only** if the scale supports the requested sound. **Scale priority**
+falls back to the buzzer for unsupported/unavailable scale sounds.
+Start/stop local cues are the exception described above.
+
+If a sound is missing, check Sound alerts, the output mode, the individual
+checkbox and [scale capabilities](settings/scales.md) before changing wiring.
+A scale can support tare/timer without supporting arbitrary beeps.
+Custom RTTTL follows `name:defaults:notes`, for example
+`done:d=8,o=5,b=120:c,e,g`; save it with Bullseye enabled to test its validation.
 
 Related: [A→M time guard](features/auto-to-manual.md),
 [Fast extraction guard](features/fast-extraction-guard.md),

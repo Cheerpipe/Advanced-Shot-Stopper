@@ -26,8 +26,11 @@ by the bounded `serial_log` queue on core 0.
 
 ## P2 spinlock inventory
 
-P2 migrated the task-only bullseye configuration, BLE Companion publication,
-settings-persistence handoff, and scale critical/weight mailboxes to static
+This is the retained-lock inventory for the resource/concurrency qualification
+work; the filename/section label is preserved for existing references.
+
+The task-only bullseye configuration, BLE Companion publication,
+settings-persistence handoff, and scale critical/weight mailboxes use static
 FreeRTOS mutexes. These paths can be reached from lower-priority HTTP,
 network, persistence, BLE or control tasks and therefore require priority
 inheritance; disabling interrupts was not justified.
@@ -45,7 +48,7 @@ The remaining `portMUX_TYPE` groups are tracked explicitly:
   proven before conversion.
 
 No listed section may allocate, log, access flash/PSRAM-dependent data or call
-a blocking API while locked. P2 is not complete until target tracing records
+a blocking API while locked. Qualification is incomplete until target tracing records
 the maximum interrupts-disabled duration for every retained group.
 
 ## Snapshot contract

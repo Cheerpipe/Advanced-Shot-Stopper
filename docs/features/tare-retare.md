@@ -1,6 +1,6 @@
 # Tare and retare
 
-Two automatic steps keep the scale at zero for brew-by-weight: an initial
+Two automatic steps establish the scale's zero for brew-by-weight: an initial
 tare when the shot starts, and a second tare if you put the cup down after
 the paddle is already ON.
 
@@ -32,22 +32,15 @@ full BBW protection window.
 
 ## When it applies
 
-Automatic brew-by-weight shots. Timer-only (BBW off) and manual no-scale
-cycles skip automatic retare (and BBW protection). Post-tare grace is
-inactive when **Automatic tare** is off.
+Initial tare can also run on a timer-only shot with a usable scale. Late retare
+requires automatic BBW; timer-only (BBW off) and manual no-scale cycles skip it
+and BBW protection. Post-tare grace is inactive when **Automatic tare** is off.
 
 ## Parameters
 
 Configured under **Settings → Machine and scale → Tare** (and **Cup** for
 presence thresholds). Full tables: [Tare](../settings/tare.md),
 [Cup](../settings/cup.md).
-
-| Setting | Default | Effect |
-| --- | --- | --- |
-| **Automatic tare** | ON | Initial tare when an automatic shot starts. |
-| **Automatic retare** | ON | One late-cup retare on the cup **placed** event. |
-| **Retare window (s)** | 4 s | Time after shot start to accept a late cup. |
-| **Post-tare grace (s)** | 2 s | Settle wait after start tare or late-cup retare. |
 
 ## Example
 
@@ -56,6 +49,12 @@ Cup already on the scale: shot starts → one automatic tare → brew continues.
 Cup placed two seconds after paddle ON: start tare runs, then cup detection
 fires a second automatic tare inside the 4 s window. The shot timer does
 not restart; weight stop stays blocked until BBW protection ends.
+
+If you place a cup after the 4 s default window, automatic retare is no longer
+available for that placement. If **Automatic tare** is off, prepare the scale's
+zero yourself; do not assume post-tare settling protection is active.
+[Require cup to start](cup-protection.md) is an alternative when you always
+want the cup in place before brewing.
 
 Related: [Cup protection](cup-protection.md), [Brew by weight](brew-by-weight.md),
 [Tare](../settings/tare.md), [Cup](../settings/cup.md).

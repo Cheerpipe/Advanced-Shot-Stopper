@@ -24,3 +24,12 @@ Do not place plans, audits, decision logs, handoffs, or other session records in
 `docs/`. Keep temporary working notes outside the repository, delete them when
 the task is complete, and record durable behavior only in the canonical document
 that owns the affected contract.
+
+## Documentation context
+
+Use the task index in `docs/README.md`, then read the linked guide and only the
+reference needed for its claim. Keep user procedures short and factual:
+conditions, steps, expected result, recovery. Link to a canonical parameter
+table instead of copying defaults across pages. Preserve anchors when moving
+sections, and verify numerical examples against the active preset and firmware.
+External examples and historical screenshots are not proof of current behavior.
