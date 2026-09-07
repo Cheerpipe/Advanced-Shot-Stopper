@@ -348,8 +348,9 @@ void processWebCommand(const WebCommand &command) {
         return;
       }
       safetyResetStatus.resetHistoryCount = 0;
-      memset(safetyResetStatus.resetHistory, 0,
-             sizeof(safetyResetStatus.resetHistory));
+      for (ResetHistoryEntry &entry : safetyResetStatus.resetHistory) {
+        entry = ResetHistoryEntry{};
+      }
       reportControlCommandResult(command, CommandResultState::PERSISTED);
       return;
 

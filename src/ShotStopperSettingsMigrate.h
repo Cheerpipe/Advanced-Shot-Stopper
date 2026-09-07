@@ -22,8 +22,20 @@
 
 #include <cstddef>
 #include <cstring>
+#include <type_traits>
 
 namespace shotstopper {
+
+template <typename Destination, typename Source>
+inline void copyPersistedBytes(Destination &destination, const Source &source,
+                               size_t byteCount) {
+  static_assert(std::is_trivially_copyable<Destination>::value,
+                "persisted destination must be trivially copyable");
+  static_assert(std::is_trivially_copyable<Source>::value,
+                "persisted source must be trivially copyable");
+  memcpy(static_cast<void *>(&destination),
+         static_cast<const void *>(&source), byteCount);
+}
 
 inline void ensurePersistedPresetBank(PersistedSettings &settings) {
   // Only migrate recipe→bank when empty. Invalid activeId is repaired in
@@ -258,7 +270,7 @@ inline bool migratePersistedSettingsFromV4(const PersistedSettingsV4 &v4,
     return false;
   }
   out = PersistedSettings{};
-  memcpy(&out, &v4, offsetof(PersistedSettingsV4, webhook));
+  copyPersistedBytes(out, v4, offsetof(PersistedSettingsV4, webhook));
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.runtime.showDiagnosticPage = true;
   out.webhook.enabled = v4.webhook.enabled;
@@ -280,7 +292,7 @@ inline bool migratePersistedSettingsFromV5(const PersistedSettingsV5 &v5,
     return false;
   }
   out = PersistedSettings{};
-  memcpy(&out, &v5, offsetof(PersistedSettingsV5, webhook));
+  copyPersistedBytes(out, v5, offsetof(PersistedSettingsV5, webhook));
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.webhook.enabled = v5.webhook.enabled;
   out.webhook.brewState = v5.webhook.brewState;
@@ -301,7 +313,7 @@ inline bool migratePersistedSettingsFromV3(const PersistedSettingsV3 &v3,
     return false;
   }
   out = PersistedSettings{};
-  memcpy(&out, &v3, offsetof(PersistedSettingsV3, checksum));
+  copyPersistedBytes(out, v3, offsetof(PersistedSettingsV3, checksum));
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.structureSize = sizeof(PersistedSettings);
   out.checksum = 0;
@@ -319,9 +331,9 @@ inline bool migratePersistedSettingsFromV1(const PersistedSettingsV1 &v1,
   out = PersistedSettings{};
   out.storageRevision = v1.storageRevision;
   out.runtime = v1.runtime;
-  memcpy(&out.presets, &v1.presets,
-         offsetof(PersistedSettingsV1, staSsid) -
-             offsetof(PersistedSettingsV1, presets));
+  copyPersistedBytes(out.presets, v1.presets,
+                     offsetof(PersistedSettingsV1, staSsid) -
+                         offsetof(PersistedSettingsV1, presets));
   // V1 had no sleep preference; keep off so upgrades do not flip behavior.
   out.staWifiSleep = false;
   memcpy(&out.staSsid, &v1.staSsid,
@@ -344,9 +356,9 @@ inline bool migratePersistedSettingsFromV2(const PersistedSettingsV2 &v2,
   out = PersistedSettings{};
   out.storageRevision = v2.storageRevision;
   out.runtime = v2.runtime;
-  memcpy(&out.presets, &v2.presets,
-         offsetof(PersistedSettingsV2, checksum) -
-             offsetof(PersistedSettingsV2, presets));
+  copyPersistedBytes(out.presets, v2.presets,
+                     offsetof(PersistedSettingsV2, checksum) -
+                         offsetof(PersistedSettingsV2, presets));
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.structureSize = sizeof(PersistedSettings);
   out.checksum = 0;

@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <new>
+
 #ifndef SHOT_STOPPER_HOST_TEST
 #include <esp_timer.h>
 #endif
@@ -263,7 +265,7 @@ inline void LocalBuzzer::begin(uint8_t gpioPin) {
   if (rtttlCatalog == nullptr) {
     return;
   }
-  memset(rtttlCatalog, 0, sizeof(*rtttlCatalog));
+  ::new (static_cast<void *>(rtttlCatalog)) RtttlCatalog{};
   memset(cueNoteCount, 0, sizeof(cueNoteCount));
   memset(pulseNoteCount, 0, sizeof(pulseNoteCount));
   bullseyeNoteCount = 0;

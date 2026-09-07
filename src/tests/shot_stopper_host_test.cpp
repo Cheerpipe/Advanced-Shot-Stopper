@@ -173,7 +173,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   hostRuntimePersistSucceeds = true;
   hostRuntimePersistAttempts = 0;
   hostLastFlushedRuntime = RuntimeConfig{};
-  hostLastFlushedPresets = ShotPresetBank{};
+  static const ShotPresetBank emptyPresetBank;
+  hostLastFlushedPresets = emptyPresetBank;
   hostLastFlushIncludedLive = false;
   hostLastMaintenanceSucceeded = false;
   hostSettingsPersistQueueCreateSucceeds = true;
@@ -5063,7 +5064,9 @@ void d09_first_mode_connects_seen_advertisement() {
       static_cast<uint8_t>(ScaleMacCacheMode::FIRST);
   publishTestScaleWorkerPolicy();
   scalePreferredMac[0] = '\0';
-  memset(scaleHistory, 0, sizeof(scaleHistory));
+  for (ScaleHistoryEntry &entry : scaleHistory) {
+    entry = ScaleHistoryEntry{};
+  }
   scaleHistorySeq = 0;
   uint32_t lastScanCycleMs = 0;
   uint32_t lastConnectLogMs = 0;
@@ -5098,7 +5101,9 @@ void d12_advertisement_history_does_not_dirty_persist() {
   runtimeConfig.scaleMacCacheMode =
       static_cast<uint8_t>(ScaleMacCacheMode::FIRST);
   scalePreferredMac[0] = '\0';
-  memset(scaleHistory, 0, sizeof(scaleHistory));
+  for (ScaleHistoryEntry &entry : scaleHistory) {
+    entry = ScaleHistoryEntry{};
+  }
   scaleHistorySeq = 0;
   scalePreferredMacDirty = false;
   uint32_t lastScanCycleMs = 0;

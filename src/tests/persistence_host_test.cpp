@@ -594,9 +594,9 @@ void p47b_migrates_v1_blob_wifi_sleep_defaults_off() {
   PersistedSettingsV1 v1{};
   v1.storageRevision = current.storageRevision;
   v1.runtime = current.runtime;
-  memcpy(&v1.presets, &current.presets,
-         offsetof(PersistedSettingsV1, staSsid) -
-             offsetof(PersistedSettingsV1, presets));
+  copyPersistedBytes(v1.presets, current.presets,
+                     offsetof(PersistedSettingsV1, staSsid) -
+                         offsetof(PersistedSettingsV1, presets));
   memcpy(&v1.staSsid, &current.staSsid,
          offsetof(PersistedSettingsV1, checksum) -
              offsetof(PersistedSettingsV1, staSsid));
@@ -628,9 +628,9 @@ void p47e_migrates_v2_blob_with_bullseye_disabled() {
   PersistedSettingsV2 v2{};
   v2.storageRevision = 17;
   v2.runtime = current.runtime;
-  memcpy(&v2.presets, &current.presets,
-         offsetof(PersistedSettingsV2, checksum) -
-             offsetof(PersistedSettingsV2, presets));
+  copyPersistedBytes(v2.presets, current.presets,
+                     offsetof(PersistedSettingsV2, checksum) -
+                         offsetof(PersistedSettingsV2, presets));
   v2.schemaVersion = 2;
   v2.structureSize = sizeof(PersistedSettingsV2);
   v2.checksum = 0;
@@ -674,7 +674,7 @@ void p47g_migrates_v3_with_webhooks_disabled() {
               "bullseye:d=8,o=5,b=180:c,e,g,c6");
   finalizePersistedSettings(current);
   PersistedSettingsV3 v3{};
-  memcpy(&v3, &current, offsetof(PersistedSettingsV3, checksum));
+  copyPersistedBytes(v3, current, offsetof(PersistedSettingsV3, checksum));
   v3.schemaVersion = 3;
   v3.structureSize = sizeof(PersistedSettingsV3);
   v3.checksum = persistedSettingsV3Checksum(v3);
@@ -921,8 +921,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(findShotPreset(resetBank, FACTORY_PRESET_ID_SINGLE)->slowExtractionGuardEnabled);
 
   // Legacy Single-then-Double banks reorder on ensure.
-  ShotPresetBank legacy;
-  memset(&legacy, 0, sizeof(legacy));
+  ShotPresetBank legacy{};
   legacy.count = 2;
   legacy.activeId = FACTORY_PRESET_ID_DOUBLE;
   legacy.nextId = 3;

@@ -44,9 +44,9 @@ A simple two-part enclosure is provided for the ESP32-S3 relay development
 board. It can be printed in **PLA**; **PET** is preferred for a more durable,
 heat-resistant installation.
 
-- [`AdvancedShotStopper-Box.stl`](../STL/AdvancedShotStopper-Box.stl) — the
+- [`AdvancedShotStopper-Box.stl`](../stl/AdvancedShotStopper-Box.stl) — the
   main box that houses the development board.
-- [`AdvancedShotStopper-Cover.stl`](../STL/AdvancedShotStopper-Cover.stl) —
+- [`AdvancedShotStopper-Cover.stl`](../stl/AdvancedShotStopper-Cover.stl) —
   the open/partial top cover for the box.
 
 Example of the assembled, printed enclosure:
