@@ -41,6 +41,7 @@ enum class ScaleEventType : uint8_t {
 struct ScaleCommand {
   ScaleCommandType type = ScaleCommandType::STOP_TIMER;
   uint32_t cycleId = 0;
+  uint32_t connectionGeneration = 0;
   bool autoTare = false;
   bool canTareStartTimer = false;
   bool commandFeedbackExpected = false;
@@ -57,6 +58,7 @@ struct ScaleEvent {
   bool writeSucceeded = false;
   bool usedCombinedTareStart = false;
   bool commandFeedbackExpected = false;
+  bool discardedStaleConnection = false;
 };
 
 struct ScaleLinkSnapshot {

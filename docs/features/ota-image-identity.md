@@ -47,6 +47,15 @@ image adopts the server's existing `transferId` and continues from the
 validated `nextOffset`. A different image must explicitly discard the old
 session before it can create a new one.
 
+The session JSON contains only those four identity fields and `transferId`.
+Parser metadata (`packed`, `tagOffset`, `projectName`, `imageSha256`) is local
+and must not be copied into this strict request body.
+
+For post-boot verification, `imageSha256` is the appended digest of the image
+content, excluding its final 32 bytes. It is different from session `sha256`,
+which covers the entire `.bin`. Match it to `running.imageSha256`, require a
+new `bootId`, and then require `confirmed` before declaring OTA success.
+
 The controller remains authoritative: local validation is a fast preflight,
 while the controller repeats the header, tag, architecture, version, complete
 SHA-256, and ESP image verification before staging or changing the boot slot.

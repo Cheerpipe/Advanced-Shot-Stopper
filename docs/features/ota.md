@@ -27,8 +27,9 @@ The shot always has priority. The paddle is never blocked by an update.
 - Confirming or rolling back a `PENDING_VERIFY` image writes otadata (flash cache off). That write is deferred while a shot is pouring or GATT is up.
 
 Updates use a dual slot. After reboot, the new image boots as
-`PENDING_VERIFY` and is confirmed only after the Web UI has been
-serving for at least 15 s (HTTP up is the proof — not brew or BLE).
+`PENDING_VERIFY` and is confirmed when HTTP is available and boot uptime is
+at least 15 s. Opening a browser is not required. A connected scale can defer
+confirmation until 180 s; an active cycle or closed relay always defers it.
 A second OTA while verification is still pending is refused
 (`PENDING_VERIFY`).
 
@@ -71,10 +72,20 @@ session, and sends 64 KiB ranges. If Wi-Fi drops, it queries the confirmed
 offset and repeats only the unconfirmed range; it never resends the complete
 image. A later CLI invocation queries the controller first and adopts its
 `transferId` when SHA-256, size, architecture, and version match. The device
-keeps a checksummed, double-record journal so the same transfer can continue
-after a client or controller restart. A different build is left untouched and
+keeps a checksummed, double-record journal every 512 KiB so the same transfer
+can continue after a client or controller restart. A TCP cut keeps complete
+4 KiB sectors; reboot can retreat to the last durable checkpoint and resend
+its tail. Staged state is RAM-only: reboot after staging requires a new upload.
+A different build is left untouched and
 must be discarded explicitly with `--discard-ota-session` before a new session
 can begin.
+
+Success after reboot requires a changed `bootId`, the expected running image
+digest and `confirmed: true`. Matching version strings alone are insufficient,
+including reinstalling the same ROM. The Web retains the expected identity
+across reloads and continues checking when Admin is unlocked again; it stores
+no password. Older firmware without the evidence fields is reported as
+unverified rather than successfully updated.
 
 Session failures report the transport result, HTTP status, stable server error
 code, and safe message. A controller with the immediately preceding resumable
@@ -139,8 +150,12 @@ Related: [Wi-Fi](../settings/wifi.md), [AP](../settings/ap.md),
 ## Session-start troubleshooting
 
 1. Read the reported HTTP status, `error`, and `message`; do not retry blindly.
-2. For `PENDING_VERIFY`, leave the controller idle until the running image is
-   confirmed, then retry.
+2. For `PENDING_VERIFY`, inspect `confirmBlockReason`, `confirmAttempts`,
+   `confirmLastError`, and `bootState` in OTA status. `WAIT_UPTIME`, `WAIT_HTTP`,
+   `WAIT_BLE`, `WAIT_CYCLE`, and `WAIT_RELAY` identify the unmet gate.
+   `FLASH_BUSY`, `STATE_ERROR`, `CONFIRM_ERROR`, and `ROLLBACK_ERROR` preserve
+   the actual error and retry at one-second intervals. If it persists beyond
+   180 s at idle, save the diagnostic export rather than repeatedly uploading.
 3. For `CONFIG_LOCKED_DURING_ACTIVE_CYCLE`, stop the cycle and wait for Ready.
 4. For a matching partial image, select the same file or run the same CLI
    command; it resumes automatically from `nextOffset`.
@@ -149,3 +164,19 @@ Related: [Wi-Fi](../settings/wifi.md), [AP](../settings/ap.md),
 6. For `NO_IDENTITY` or a controller without the resumable session schema,
    install one current image over USB. Do not use `--no-check` or a legacy OTA
    fallback to bypass the incompatibility.
+
+## Protocol details and verification
+
+Session POST accepts exactly `size`, `sha256`, `arch`, `version`, `transferId`.
+PATCH offsets and non-final lengths must be multiples of 4096; the advertised
+maximum remains 65536. On interruption, query the session and reconstruct the
+next range from `nextOffset`, including backward movement after reboot.
+`running.imageSha256` and `staged.imageSha256` are the verified appended image
+digest; session `sha256` remains the hash of the entire file, including that
+digest. `bootState` uses IDF image states (unknown read failure is -2).
+
+Run the focused functional regression suite with `bash src/tests/run_ota_tests.sh`.
+Hardware qualification must cover Web and CLI without a browser open during
+confirmation, fragmented/disconnected transfers, power loss around a journal
+checkpoint, equal-version builds, same-ROM reinstall, and rollback. Host
+tests do not certify radio timing, physical circuit safety, or power-cut behavior.

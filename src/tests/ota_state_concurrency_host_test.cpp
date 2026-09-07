@@ -14,6 +14,8 @@ int main() {
   persistence_host::reset();
   ShotStopperOta &ota = ShotStopperOta::instance();
   ota.begin();
+  const OtaResult invalidIdentity = otaArchIsUsable(ota.runningTag().arch)
+      ? OtaResult::SESSION_IDENTITY_MISMATCH : OtaResult::NO_IDENTITY;
 
   std::atomic<bool> start{false};
   std::atomic<int> failures{0};
@@ -28,10 +30,9 @@ int main() {
     OtaSessionIdentity identity;
     identity.size = 65536;
     for (int iteration = 0; iteration < 2000; ++iteration) {
-      // Host builds deliberately carry arch=unknown, so this command must be
-      // rejected without changing the published/session state.
+      // An empty identity is rejected regardless of the generated board arch.
       if (ota.createSession(identity, static_cast<uint32_t>(iteration)) !=
-          OtaResult::NO_IDENTITY) {
+          invalidIdentity) {
         failures.fetch_add(1, std::memory_order_relaxed);
       }
       ota.discard();

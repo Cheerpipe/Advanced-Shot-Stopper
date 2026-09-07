@@ -25,6 +25,7 @@ class NimbleBackoffPolicy {
  public:
   void reset();
   uint32_t schedule(uint32_t nowMs, uint32_t entropy);
+  void clearDeadline();
   bool active(uint32_t nowMs) const;
   uint32_t remainingMs(uint32_t nowMs) const;
   uint8_t failureCount() const { return failureCount_; }

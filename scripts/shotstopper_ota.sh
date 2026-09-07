@@ -2,7 +2,7 @@
 # Shared resilient OTA client. Source after shotstopper_cli.sh (bash 3.2).
 
 SS_OTA_RANGE_ATTEMPTS=3
-SS_OTA_COMMIT_ATTEMPTS=2
+SS_OTA_COMMIT_ATTEMPTS=3
 SS_OTA_CHUNK_BYTES=65536
 
 ss_ota_field() {
@@ -106,15 +106,8 @@ ss_ota_remote_matches_image() {
   [[ -n "$(ss_ota_field transferId)" ]] &&
       [[ "$(ss_ota_field sha256)" == "$SS_OTA_IMAGE_SHA256" ]] &&
       [[ "$(ss_ota_field expectedBytes)" == "$SS_OTA_IMAGE_SIZE" ]] || return 1
-  if [[ "$(ss_ota_field otaProtocolVersion)" == "2" ]]; then
-    [[ "$(ss_ota_field sessionArch)" == "$SS_OTA_IMAGE_ARCH" ]] &&
-        [[ "$(ss_ota_field sessionVersion)" == "$SS_OTA_IMAGE_VERSION" ]]
-  else
-    { [[ -z "$(ss_ota_field sessionArch)" ]] ||
-      [[ "$(ss_ota_field sessionArch)" == "$SS_OTA_IMAGE_ARCH" ]]; } &&
-        { [[ -z "$(ss_ota_field sessionVersion)" ]] ||
-          [[ "$(ss_ota_field sessionVersion)" == "$SS_OTA_IMAGE_VERSION" ]]; }
-  fi
+  [[ "$(ss_ota_field sessionArch)" == "$SS_OTA_IMAGE_ARCH" ]] &&
+      [[ "$(ss_ota_field sessionVersion)" == "$SS_OTA_IMAGE_VERSION" ]]
 }
 
 ss_ota_remote_matches_transfer() {
@@ -123,7 +116,8 @@ ss_ota_remote_matches_transfer() {
 }
 
 ss_ota_offset_valid() {
-  [[ "$1" =~ ^[0-9]{1,10}$ ]] && (( 10#$1 <= SS_OTA_IMAGE_SIZE ))
+  [[ "$1" =~ ^[0-9]{1,10}$ ]] && (( 10#$1 <= SS_OTA_IMAGE_SIZE )) &&
+      (( 10#$1 == SS_OTA_IMAGE_SIZE || 10#$1 % 4096 == 0 ))
 }
 
 ss_ota_protocol_supported() {
@@ -144,8 +138,7 @@ ss_ota_write_session_body() {
 
 ss_ota_staged_matches_image() {
   [[ "$(ss_ota_field state)" == "staged" ]] || return 1
-  [[ "$(ss_ota_field transferId)" == "$SS_OTA_TRANSFER_ID" ]] &&
-      [[ "$(ss_ota_field sha256)" == "$SS_OTA_IMAGE_SHA256" ]] &&
+  ss_ota_remote_matches_transfer &&
       [[ "$(ss_ota_field staged.arch)" == "$SS_OTA_IMAGE_ARCH" ]] &&
       [[ "$(ss_ota_field staged.version)" == "$SS_OTA_IMAGE_VERSION" ]] &&
       [[ "$(ss_ota_field staged.packed)" == "$SS_OTA_IMAGE_PACKED" ]]
@@ -177,11 +170,12 @@ ss_ota_upload() {
         "${offset:-missing}" "$SS_OTA_IMAGE_SIZE" >&2
     return 1
   fi
+  local high_water="$offset" attempt=1
   ss_ota_upload_progress "$offset" "$SS_OTA_IMAGE_SIZE"
   while (( offset < SS_OTA_IMAGE_SIZE )); do
     local end=$((offset + SS_OTA_CHUNK_BYTES))
     (( end > SS_OTA_IMAGE_SIZE )) && end=$SS_OTA_IMAGE_SIZE
-    local length=$((end - offset)) attempt=1
+    local length=$((end - offset))
     dd if="$SS_OTA_IMAGE" of="$SS_OTA_CHUNK_FILE" bs=1 skip="$offset" count="$length" 2>/dev/null
     while :; do
       if ss_ota_request PATCH /api/v1/ota "$SS_OTA_CHUNK_FILE" 90 \
@@ -190,12 +184,17 @@ ss_ota_upload() {
           "Content-Range: bytes $offset-$((end - 1))/$SS_OTA_IMAGE_SIZE" &&
           [[ "$SS_OTA_HTTP_STATUS" =~ ^(200|208)$ ]]; then
         local next="$(ss_ota_field nextOffset)"
-        if ! ss_ota_offset_valid "$next" || (( next <= offset )); then
+        if ! ss_ota_offset_valid "$next" || (( next != end )); then
           printf 'The controller returned invalid nextOffset=%s after byte %s.\n' \
               "${next:-missing}" "$offset" >&2
           return 1
         fi
+        if ! ss_ota_remote_matches_transfer; then
+          echo 'The controller returned a different or incomplete OTA session identity.' >&2
+          return 1
+        fi
         offset="$next"
+        if (( offset > high_water )); then high_water="$offset"; attempt=1; fi
         ss_ota_upload_progress "$offset" "$SS_OTA_IMAGE_SIZE"
         break
       fi
@@ -207,12 +206,26 @@ ss_ota_upload() {
               "$failed_curl" "$failed_http" "$failed_error" "$failed_message"
           return 1 ;;
       esac
-      # A lost response is reconciled before any retry.  Only this exact,
-      # idempotent range can be repeated, never the entire image.
+      # Rebuild the range from the accepted offset, which can retreat to a
+      # persisted checkpoint after a reboot. Never reuse stale chunk bytes.
+      local reconciled=0
       if ss_ota_request GET /api/v1/ota/session "" 20 &&
-          ss_ota_remote_matches_transfer; then
+          [[ "$SS_OTA_HTTP_STATUS" == "200" ]]; then
+        if ! ss_ota_remote_matches_transfer; then
+          echo 'OTA session disappeared or changed identity; upload stopped.' >&2
+          return 1
+        fi
         local next="$(ss_ota_field nextOffset)"
-        if ss_ota_offset_valid "$next" && (( next > offset )); then offset="$next"; break; fi
+        if ! ss_ota_offset_valid "$next" || (( next > end )); then
+          echo 'The controller returned an invalid recovery offset.' >&2
+          return 1
+        fi
+        offset="$next"; reconciled=1
+        if (( offset > high_water )); then
+          high_water="$offset"; attempt=1
+          ss_ota_upload_progress "$offset" "$SS_OTA_IMAGE_SIZE"
+          break
+        fi
       fi
       if (( attempt >= SS_OTA_RANGE_ATTEMPTS )); then
         ss_ota_report_values 'Uploading the firmware range' \
@@ -221,6 +234,7 @@ ss_ota_upload() {
       fi
       ss_ota_backoff "$attempt" "$SS_OTA_RANGE_ATTEMPTS"
       attempt=$((attempt + 1))
+      if (( reconciled )); then break; fi
     done
   done
   printf '\n'
@@ -234,7 +248,7 @@ ss_ota_commit() {
   local attempt=1
   while (( attempt <= SS_OTA_COMMIT_ATTEMPTS )); do
     if ss_ota_request POST /api/v1/ota/flash "" 30 &&
-        [[ "$SS_OTA_HTTP_STATUS" == "202" ]]; then
+        [[ "$SS_OTA_HTTP_STATUS" == "202" ]] && ss_ota_remote_matches_transfer; then
       return 0
     fi
     local curl_exit="$SS_OTA_CURL_EXIT" http_status="$SS_OTA_HTTP_STATUS"
@@ -244,10 +258,17 @@ ss_ota_commit() {
         "$http_status" "$error" "$message"
 
     # POST /flash is not blindly replayed: first reconcile a lost 202.
-    if ss_ota_status && ([[ "$(ss_ota_field restartPending)" == "true" ]] ||
-        [[ "$(ss_ota_field state)" == "committed" ]]); then
-      echo 'The controller accepted the commit; its response was lost.' >&2
-      return 0
+    if ss_ota_status; then
+      if ss_ota_new_boot; then
+        echo 'The controller restarted; checking the running image and confirmation.' >&2
+        return 0
+      fi
+      if ss_ota_remote_matches_transfer &&
+          { [[ "$(ss_ota_field restartPending)" == "true" ]] ||
+            [[ "$(ss_ota_field state)" == "committed" ]]; }; then
+        echo 'The controller accepted this image commit; its response was lost.' >&2
+        return 0
+      fi
     fi
     if (( attempt < SS_OTA_COMMIT_ATTEMPTS )) && ss_ota_staged_matches_image; then
       ss_ota_backoff "$attempt" "$SS_OTA_COMMIT_ATTEMPTS"
@@ -257,6 +278,29 @@ ss_ota_commit() {
     return 1
   done
   return 1
+}
+
+ss_ota_new_boot() {
+  local boot="$(ss_ota_field bootId)"
+  [[ "${SS_OTA_PRE_BOOT_ID:-}" =~ ^[0-9]+$ ]] &&
+      [[ "$boot" =~ ^[0-9]+$ ]] && [[ "$boot" != "$SS_OTA_PRE_BOOT_ID" ]]
+}
+
+ss_ota_boot_result() {
+  # A matching version (or matching image alone) cannot prove a new boot.
+  local boot="$(ss_ota_field bootId)" digest="$(ss_ota_field running.imageSha256)"
+  if [[ ! "${SS_OTA_PRE_BOOT_ID:-}" =~ ^[0-9]+$ ]] ||
+      [[ ! "$boot" =~ ^[0-9]+$ ]] || [[ ! "$digest" =~ ^[a-f0-9]{64}$ ]]; then
+    SS_OTA_BOOT_RESULT=unverified
+  elif ! ss_ota_new_boot; then
+    SS_OTA_BOOT_RESULT=restart-pending
+  elif [[ "$digest" != "${SS_OTA_IMAGE_DIGEST:-}" ]]; then
+    SS_OTA_BOOT_RESULT=different-image
+  elif [[ "$(ss_ota_field confirmed)" == "true" ]]; then
+    SS_OTA_BOOT_RESULT=confirmed
+  else
+    SS_OTA_BOOT_RESULT=confirmation-pending
+  fi
 }
 
 ss_ota_cleanup() {
@@ -287,6 +331,7 @@ ss_ota_run() {
     SS_OTA_IMAGE_ARCH="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).arch)' "$tag_json")"
     SS_OTA_IMAGE_VERSION="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).version)' "$tag_json")"
     SS_OTA_IMAGE_PACKED="$(node -e 'process.stdout.write(String(JSON.parse(process.argv[1]).packed))' "$tag_json")"
+    SS_OTA_IMAGE_DIGEST="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).imageSha256)' "$tag_json")"
   fi
 
   SS_OTA_IMAGE_SIZE="$(wc -c < "$SS_OTA_IMAGE" | tr -d ' ')"
@@ -322,6 +367,7 @@ ss_ota_run() {
   fi
   printf 'Controller: %s · %s\n' "$(ss_ota_field running.version)" \
       "$(ss_ota_field running.arch)"
+  SS_OTA_PRE_BOOT_ID="$(ss_ota_field bootId)"
   if [[ "$(ss_ota_field runningIdentityValid)" == "false" ]] ||
       [[ -z "$(ss_ota_field running.arch)" ]]; then
     echo 'The running firmware has no usable Shot Stopper image identity.' >&2
@@ -389,6 +435,11 @@ ss_ota_run() {
   fi
 
   echo 'Committing...'
+  if ! ss_ota_status || ! ss_ota_staged_matches_image; then
+    echo 'Cannot verify the staged transfer immediately before commit.' >&2
+    return 1
+  fi
+  SS_OTA_PRE_BOOT_ID="$(ss_ota_field bootId)"
   ss_ota_commit || {
     echo 'Could not confirm the boot partition change.' >&2
     return 1
@@ -398,26 +449,32 @@ ss_ota_run() {
     echo 'Waiting for reboot and OTA confirmation (up to 4 minutes)...'
     local deadline=$((SECONDS + 240))
     while (( SECONDS < deadline )); do
-      if ss_ota_status_quiet &&
-          [[ "$(ss_ota_field running.version)" == "$staged_version" ]] &&
-          [[ "$(ss_ota_field running.arch)" == "$staged_arch" ]] &&
-          [[ "$(ss_ota_field restartPending)" == "false" ]] &&
-          [[ "$(ss_ota_field confirmed)" == "true" ]]; then
-        echo 'OTA confirmed by the rebooted firmware.'
-        return 0
+      if ss_ota_status_quiet; then
+        ss_ota_boot_result
+        case "$SS_OTA_BOOT_RESULT" in
+          confirmed) echo 'OTA confirmed by the rebooted firmware.'; return 0 ;;
+          different-image)
+            echo 'The controller booted another image; the requested update was not confirmed.' >&2
+            return 1 ;;
+          unverified)
+            echo 'Update result unverified: firmware lacks bootId or running.imageSha256.' >&2
+            return 1 ;;
+        esac
+        local last_reason="$(ss_ota_field confirmBlockReason)" last_error="$(ss_ota_field confirmLastError)"
       fi
       sleep 2
     done
     echo 'The image was committed, but was not confirmed within 4 minutes.' >&2
-    echo 'Check the controller network connection and OTA status.' >&2
+    printf 'Last state: %s; confirmation reason: %s; ESP-IDF error: %s.\n' \
+        "${SS_OTA_BOOT_RESULT:-unreachable}" "${last_reason:-unknown}" "${last_error:-unknown}" >&2
     return 1
   fi
 
   cat <<'EOF'
 
-Done. The controller reboots once the machine is free.
-The new version confirms itself by serving its Web UI; if it cannot, the
-bootloader rolls back to the previous version.
+Commit accepted. The controller reboots once the machine is free.
+Boot and confirmation have not been verified. Use --force to wait for them.
+Confirmation runs automatically; opening the Web UI is not required.
 EOF
   return 0
 }

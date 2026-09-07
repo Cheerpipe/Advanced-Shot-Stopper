@@ -26,16 +26,22 @@ NimblePeerKey peer(uint8_t suffix, uint8_t type = 0) {
 void testBackoffAndWrap() {
   NimbleBackoffPolicy policy;
   const uint32_t first = policy.schedule(1000, 1);
-  CHECK(first >= 100 && first <= 150);
+  CHECK(first >= 50 && first <= 80);
   CHECK(policy.active(1000));
   CHECK(!policy.active(1000 + first));
 
   const uint32_t second = policy.schedule(2000, 2);
-  CHECK(second >= 250 && second <= 300);
+  CHECK(second >= 80 && second <= 110);
+  CHECK(second + 120 <= 250);
   const uint32_t third = policy.schedule(3000, 3);
-  CHECK(third >= 500 && third <= 550);
+  CHECK(third >= 100 && third <= 130);
+  CHECK(third + 120 <= 250);
   const uint32_t capped = policy.schedule(4000, 4);
-  CHECK(capped >= 500 && capped <= 550);
+  CHECK(capped >= 100 && capped <= 130);
+  CHECK(capped + 120 <= 250);
+  CHECK(policy.failureCount() == 4);
+  policy.clearDeadline();
+  CHECK(!policy.active(4000));
   CHECK(policy.failureCount() == 4);
   policy.reset();
   CHECK(policy.failureCount() == 0);
@@ -117,7 +123,8 @@ void testThousandRecoveryCycles() {
     }
     ++cleanupEdges;
     const uint32_t wait = backoff.schedule(now, generation);
-    CHECK(wait >= 100 && wait <= 550);
+    CHECK(wait >= 50 && wait <= 80);
+    CHECK(wait + 120 <= 250);
     now += wait;
     CHECK(!backoff.active(now));
     const NimblePeerKey key = peer(static_cast<uint8_t>(cycle));

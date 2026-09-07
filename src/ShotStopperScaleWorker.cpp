@@ -143,7 +143,7 @@ void reportNimbleRuntimeHealth(bool force) {
   serialTracef(
       LogLevel::DEBUG,
       "NimBLE resilience stale=%lu cleanup=%lu duplicate=%lu backoff=%lu/%u "
-      "queueHwm=%u/%u/%u drops=%lu/%lu/%lu mbuf=%lu latency=%lu/%lu",
+      "queueHwm=%u/%u/%u drops=%lu/%lu/%lu mbuf=%lu latency=%lu/%lu/%lu/%lu",
       static_cast<unsigned long>(client.staleCallbacks),
       static_cast<unsigned long>(client.cleanupCount),
       static_cast<unsigned long>(client.duplicateCleanups),
@@ -157,7 +157,9 @@ void reportNimbleRuntimeHealth(bool force) {
       static_cast<unsigned long>(client.rxDrops),
       static_cast<unsigned long>(client.mbufFailures),
       static_cast<unsigned long>(client.lastAdvertisementToConnectMs),
-      static_cast<unsigned long>(client.lastAdvertisementToReadyMs));
+      static_cast<unsigned long>(client.lastAdvertisementToReadyMs),
+      static_cast<unsigned long>(client.lastAdvertisementToFirstWeightMs),
+      static_cast<unsigned long>(client.lastReadyToFirstWeightMs));
 }
 #endif
 
@@ -217,11 +219,15 @@ ScaleEvent scaleWeightEvent;
 bool scaleWeightEventPending = false;
 bool scaleBeepPending = false;
 uint32_t scaleBeepCycleId = 0;
+uint32_t scaleBeepConnectionGeneration = 0;
 bool scaleDebugPending = false;
 BookooDebugAction scaleDebugAction = BookooDebugAction::START;
 uint8_t scaleDebugBeepLevel = 0;
+uint32_t scaleDebugConnectionGeneration = 0;
 bool scalePaddleReturnReminderBeepPending = false;
+uint32_t scalePaddleReturnReminderBeepConnectionGeneration = 0;
 bool scaleCompletionBeepPending = false;
+uint32_t scaleCompletionBeepConnectionGeneration = 0;
 uint16_t scaleScanAppliedInterval = 0;
 uint16_t scaleScanAppliedWindow = 0;
 uint32_t scaleHuntRfUntilMs = 0;
@@ -230,9 +236,7 @@ uint8_t scaleLoggedGattConnectAttempts = 0;
 bool scaleDiscoveryDirected = false;
 std::atomic<uint8_t> liveBleScanIntensityRaw{
     static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE)};
-bool bookooConnectBeepPending = false;
-bool bookooConnectBeepSawWeight = false;
-uint32_t bookooConnectBeepArmedAtMs = 0;
+bool bookooConnectVolumePending = false;
 static std::atomic<bool> bleStackReady{false};
 static std::atomic<bool> scaleWorkerStartupFinished{false};
 
@@ -376,6 +380,7 @@ void scaleWorkerLoadPreferred(const char *mac, const char *name,
   }
   scaleHistorySeq = 0;
   for (auto & i : scaleHistory) {
+    clearScaleHistorySessionMarker(i);
     if (i.mac[0] != '\0') {
       canonicalizePreferredScaleMac(i.mac,
                                     sizeof(i.mac));
@@ -403,6 +408,9 @@ bool scaleWorkerCopyPreferredIfDirty(char *mac, char *name,
     }
     if (history != nullptr) {
       memcpy(history, scaleHistory, sizeof(scaleHistory));
+      for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
+        clearScaleHistorySessionMarker(history[i]);
+      }
     }
   }
   scalePreferredMacMux.unlock();
@@ -427,6 +435,7 @@ bool scaleWorkerTakeConnectedEdge() {
 void cancelScaleCompletionBeepMailbox() {
   portENTER_CRITICAL(&scaleBeepMux);
   scaleCompletionBeepPending = false;
+  scaleCompletionBeepConnectionGeneration = 0;
   portEXIT_CRITICAL(&scaleBeepMux);
 }
 
@@ -436,6 +445,7 @@ void cancelOperationalScaleBeeps() {
   portENTER_CRITICAL(&scaleBeepMux);
   scaleBeepPending = false;
   scaleBeepCycleId = 0;
+  scaleBeepConnectionGeneration = 0;
   portEXIT_CRITICAL(&scaleBeepMux);
 }
 
@@ -532,11 +542,15 @@ bool enqueueScaleCommand(const ScaleCommand &command, bool toFront) {
     return false;
   }
 
+  ScaleCommand stamped = command;
+  if (stamped.connectionGeneration == 0) {
+    stamped.connectionGeneration = getScaleLinkSnapshot().connectionGeneration;
+  }
   BaseType_t queued = pdFALSE;
   if (toFront) {
-    queued = xQueueSendToFront(scaleCommandQueue, &command, 0);
+    queued = xQueueSendToFront(scaleCommandQueue, &stamped, 0);
   } else {
-    queued = xQueueSend(scaleCommandQueue, &command, 0);
+    queued = xQueueSend(scaleCommandQueue, &stamped, 0);
   }
   if (queued == pdTRUE) {
     wakeScaleWorker();
@@ -710,6 +724,7 @@ void executeScaleStartCommand(const ScaleCommand &command) {
   ScaleEvent event;
   event.type = ScaleEventType::TIMER_START_RESULT;
   event.cycleId = command.cycleId;
+  event.connectionGeneration = command.connectionGeneration;
   event.commandFeedbackExpected = command.commandFeedbackExpected;
 
   if (scale.isConnected()) {
@@ -748,6 +763,7 @@ void executeScaleStopCommand(const ScaleCommand &command) {
   ScaleEvent event;
   event.type = ScaleEventType::TIMER_STOP_RESULT;
   event.cycleId = command.cycleId;
+  event.connectionGeneration = command.connectionGeneration;
   event.commandFeedbackExpected = command.commandFeedbackExpected;
 
   if (scale.isConnected()) {
@@ -766,6 +782,7 @@ void executeScaleTareCommand(const ScaleCommand &command) {
   ScaleEvent event;
   event.type = ScaleEventType::TARE_RESULT;
   event.cycleId = command.cycleId;
+  event.connectionGeneration = command.connectionGeneration;
   event.commandFeedbackExpected = command.commandFeedbackExpected;
 
   if (scale.isConnected()) {
@@ -815,6 +832,7 @@ bool enqueueScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
     scaleDebugPending = true;
     scaleDebugAction = action;
     scaleDebugBeepLevel = beepLevel;
+    scaleDebugConnectionGeneration = link.connectionGeneration;
   }
   portEXIT_CRITICAL(&scaleDebugMux);
   return !busy;
@@ -822,17 +840,32 @@ bool enqueueScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
 
 bool takeScaleDebugCommand(BookooDebugAction &action, uint8_t &beepLevel) {
   bool pending = false;
+  uint32_t connectionGeneration = 0;
   portENTER_CRITICAL(&scaleDebugMux);
   if (scaleDebugPending) {
     pending = true;
     action = scaleDebugAction;
     beepLevel = scaleDebugBeepLevel;
+    connectionGeneration = scaleDebugConnectionGeneration;
     scaleDebugPending = false;
     scaleDebugAction = BookooDebugAction::START;
     scaleDebugBeepLevel = 0;
+    scaleDebugConnectionGeneration = 0;
   }
   portEXIT_CRITICAL(&scaleDebugMux);
-  return pending;
+  if (!pending) {
+    return false;
+  }
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  if (link.state != ScaleLinkState::CONNECTED ||
+      connectionGeneration == 0 ||
+      connectionGeneration != link.connectionGeneration) {
+    addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_STALE_EVENT_REJECTED,
+                  static_cast<int32_t>(connectionGeneration),
+                  static_cast<int32_t>(link.connectionGeneration));
+    return false;
+  }
+  return true;
 }
 
 void executeScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
@@ -914,9 +947,7 @@ void applyBookooConnectBeepPolicy() {
 }
 
 void cancelBookooConnectBeepPolicy() {
-  bookooConnectBeepPending = false;
-  bookooConnectBeepSawWeight = false;
-  bookooConnectBeepArmedAtMs = 0;
+  bookooConnectVolumePending = false;
 }
 
 void armBookooConnectBeepPolicy() {
@@ -925,50 +956,54 @@ void armBookooConnectBeepPolicy() {
     cancelBookooConnectBeepPolicy();
     return;
   }
-  bookooConnectBeepPending = true;
-  bookooConnectBeepSawWeight = false;
-  bookooConnectBeepArmedAtMs = millis();
+  scalePreferredMacMux.lock();
+  bookooConnectVolumePending = consumeScaleHistorySessionConnection(
+      scaleHistory, scaleHistorySeq, scale.address(), scale.localName());
+  scalePreferredMacMux.unlock();
 }
 
 void serviceBookooConnectBeepPolicy(bool sawWeightThisTick) {
-  if (!bookooConnectBeepPending) {
+  if (!bookooConnectVolumePending) {
     return;
   }
   if (!scale.isLinkUp()) {
     cancelBookooConnectBeepPolicy();
     return;
   }
-  if (sawWeightThisTick) {
-    bookooConnectBeepSawWeight = true;
+  if (!sawWeightThisTick) {
     return;
   }
-  if (!bookooConnectBeepSawWeight &&
-      elapsedMs(bookooConnectBeepArmedAtMs) < BOOKOO_CONNECT_BEEP_DEFER_MS) {
-    return;
-  }
-  bookooConnectBeepPending = false;
+  bookooConnectVolumePending = false;
   applyBookooConnectBeepPolicy();
 }
 
 void requestScaleBrewBeep(uint32_t cycleId) {
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   portENTER_CRITICAL(&scaleBeepMux);
   scaleBeepPending = true;
   scaleBeepCycleId = cycleId;
+  scaleBeepConnectionGeneration = link.connectionGeneration;
   portEXIT_CRITICAL(&scaleBeepMux);
   wakeScaleWorker();
 }
 
 bool takeScaleBrewBeep(uint32_t &cycleId) {
   bool pending = false;
+  uint32_t connectionGeneration = 0;
   portENTER_CRITICAL(&scaleBeepMux);
   if (scaleBeepPending) {
     pending = true;
     cycleId = scaleBeepCycleId;
+    connectionGeneration = scaleBeepConnectionGeneration;
     scaleBeepPending = false;
     scaleBeepCycleId = 0;
+    scaleBeepConnectionGeneration = 0;
   }
   portEXIT_CRITICAL(&scaleBeepMux);
-  return pending;
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  return pending && link.state == ScaleLinkState::CONNECTED &&
+         connectionGeneration != 0 &&
+         connectionGeneration == link.connectionGeneration;
 }
 
 void cancelScaleBrewBeep(uint32_t cycleId) {
@@ -976,55 +1011,99 @@ void cancelScaleBrewBeep(uint32_t cycleId) {
   if (scaleBeepPending && scaleBeepCycleId == cycleId) {
     scaleBeepPending = false;
     scaleBeepCycleId = 0;
+    scaleBeepConnectionGeneration = 0;
   }
   portEXIT_CRITICAL(&scaleBeepMux);
 }
 
 void requestScalePaddleReturnReminderBeep() {
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   portENTER_CRITICAL(&scaleBeepMux);
   scalePaddleReturnReminderBeepPending = true;
+  scalePaddleReturnReminderBeepConnectionGeneration = link.connectionGeneration;
   portEXIT_CRITICAL(&scaleBeepMux);
   wakeScaleWorker();
 }
 
 bool takeScalePaddleReturnReminderBeep() {
   bool pending = false;
+  uint32_t connectionGeneration = 0;
   portENTER_CRITICAL(&scaleBeepMux);
   if (scalePaddleReturnReminderBeepPending) {
     pending = true;
     scalePaddleReturnReminderBeepPending = false;
+    connectionGeneration = scalePaddleReturnReminderBeepConnectionGeneration;
+    scalePaddleReturnReminderBeepConnectionGeneration = 0;
   }
   portEXIT_CRITICAL(&scaleBeepMux);
-  return pending;
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  return pending && link.state == ScaleLinkState::CONNECTED &&
+         connectionGeneration != 0 &&
+         connectionGeneration == link.connectionGeneration;
 }
 
 void cancelScalePaddleReturnReminderBeep() {
   portENTER_CRITICAL(&scaleBeepMux);
   scalePaddleReturnReminderBeepPending = false;
+  scalePaddleReturnReminderBeepConnectionGeneration = 0;
   portEXIT_CRITICAL(&scaleBeepMux);
 }
 
 void requestScaleCompletionBeep() {
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   portENTER_CRITICAL(&scaleBeepMux);
   scaleCompletionBeepPending = true;
+  scaleCompletionBeepConnectionGeneration = link.connectionGeneration;
   portEXIT_CRITICAL(&scaleBeepMux);
   wakeScaleWorker();
 }
 
 bool takeScaleCompletionBeep() {
   bool pending = false;
+  uint32_t connectionGeneration = 0;
   portENTER_CRITICAL(&scaleBeepMux);
   if (scaleCompletionBeepPending) {
     pending = true;
     scaleCompletionBeepPending = false;
+    connectionGeneration = scaleCompletionBeepConnectionGeneration;
+    scaleCompletionBeepConnectionGeneration = 0;
   }
   portEXIT_CRITICAL(&scaleBeepMux);
-  return pending;
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  return pending && link.state == ScaleLinkState::CONNECTED &&
+         connectionGeneration != 0 &&
+         connectionGeneration == link.connectionGeneration;
 }
 
 void executeScaleCommand(const ScaleCommand &command) {
   publishPendingScaleWeightEvent();
   markScaleWorkerProgress();
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  if (command.connectionGeneration == 0 ||
+      command.connectionGeneration != link.connectionGeneration ||
+      link.state != ScaleLinkState::CONNECTED) {
+    ScaleEvent event;
+    event.cycleId = command.cycleId;
+    event.connectionGeneration = command.connectionGeneration;
+    event.commandFeedbackExpected = command.commandFeedbackExpected;
+    event.discardedStaleConnection = true;
+    switch (command.type) {
+      case ScaleCommandType::START_TIMER_AND_TARE:
+        event.type = ScaleEventType::TIMER_START_RESULT;
+        break;
+      case ScaleCommandType::TARE_ONLY:
+        event.type = ScaleEventType::TARE_RESULT;
+        break;
+      case ScaleCommandType::STOP_TIMER:
+        event.type = ScaleEventType::TIMER_STOP_RESULT;
+        break;
+    }
+    publishScaleEvent(event, true);
+    addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_STALE_EVENT_REJECTED,
+                  static_cast<int32_t>(command.connectionGeneration),
+                  static_cast<int32_t>(link.connectionGeneration));
+    return;
+  }
   switch (command.type) {
     case ScaleCommandType::START_TIMER_AND_TARE:
       executeScaleStartCommand(command);
@@ -1062,6 +1141,9 @@ void copyScaleHistory(ScaleHistoryEntry *out) {
   }
   scalePreferredMacMux.lock();
   memcpy(out, scaleHistory, sizeof(scaleHistory));
+  for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
+    clearScaleHistorySessionMarker(out[i]);
+  }
   scalePreferredMacMux.unlock();
 }
 
@@ -1266,6 +1348,7 @@ void selectPreferredScale(const char *mac, const char *name) {
 
 void clearPreferredScaleCache() {
   scalePreferredMacMux.lock();
+  reopenScaleHistorySessionConnection(scaleHistory, scalePreferredMac);
   scalePreferredMac[0] = '\0';
   scalePreferredName[0] = '\0';
   scalePreferredMacDirty = true;
@@ -1406,9 +1489,14 @@ void resetScaleWorkerRadioStateForHost() {
   liveBleScanIntensityRaw.store(
       static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE),
       std::memory_order_relaxed);
-  bookooConnectBeepPending = false;
-  bookooConnectBeepSawWeight = false;
-  bookooConnectBeepArmedAtMs = 0;
+  bookooConnectVolumePending = false;
+  scaleDebugConnectionGeneration = 0;
+  scaleBeepConnectionGeneration = 0;
+  scalePaddleReturnReminderBeepConnectionGeneration = 0;
+  scaleCompletionBeepConnectionGeneration = 0;
+  for (auto &entry : scaleHistory) {
+    clearScaleHistorySessionMarker(entry);
+  }
   scaleLinkRssiValid = false;
   scaleLinkRssi = 0;
   lastScaleLinkRssiSampleMs = 0;

@@ -781,6 +781,33 @@ void p43_scale_history_upsert_and_lru() {
   CHECK(!foundTwo);
 }
 
+void p70_scale_history_session_consumption_is_bounded_and_reopenable() {
+  ScaleHistoryEntry entries[SCALE_HISTORY_CAPACITY] = {};
+  uint32_t seq = 0;
+  for (uint8_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
+    char mac[PREFERRED_SCALE_MAC_CAPACITY];
+    snprintf(mac, sizeof(mac), "AA:BB:CC:DD:EE:%02X", i);
+    CHECK(consumeScaleHistorySessionConnection(entries, seq, mac, "Bookoo"));
+    CHECK(!consumeScaleHistorySessionConnection(entries, seq, mac, "Bookoo"));
+  }
+  CHECK(scaleHistoryOccupiedCount(entries) == SCALE_HISTORY_CAPACITY);
+  CHECK(!consumeScaleHistorySessionConnection(
+      entries, seq, "AA:BB:CC:DD:EE:99", "Overflow"));
+  CHECK(scaleHistoryOccupiedCount(entries) == SCALE_HISTORY_CAPACITY);
+
+  reopenScaleHistorySessionConnection(entries, "aa:bb:cc:dd:ee:03");
+  CHECK(consumeScaleHistorySessionConnection(
+      entries, seq, "AA:BB:CC:DD:EE:03", "Bookoo"));
+  CHECK(!consumeScaleHistorySessionConnection(
+      entries, seq, "AA:BB:CC:DD:EE:03", "Bookoo"));
+
+  for (ScaleHistoryEntry &entry : entries) {
+    clearScaleHistorySessionMarker(entry);
+  }
+  CHECK(consumeScaleHistorySessionConnection(
+      entries, seq, "AA:BB:CC:DD:EE:03", "Bookoo"));
+}
+
 void p45_scale_mac_nvs_ignores_seq_and_defers_while_linked() {
   ScaleHistoryEntry left[SCALE_HISTORY_CAPACITY] = {};
   ScaleHistoryEntry right[SCALE_HISTORY_CAPACITY] = {};
@@ -1595,6 +1622,7 @@ const TestCase tests[] = {
     {"P47D", p47d_durable_flash_write_gate},
     {"P46", p46_ring_retain_log_level_persists_round_trip},
     {"P43", p43_scale_history_upsert_and_lru},
+    {"P70", p70_scale_history_session_consumption_is_bounded_and_reopenable},
     {"P45", p45_scale_mac_nvs_ignores_seq_and_defers_while_linked},
     {"P44", p44_scale_history_canonicalizes_mac_case},
     {"P24", p24_preset_bank_size_and_crud_budgets},

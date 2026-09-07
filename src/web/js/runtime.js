@@ -231,7 +231,7 @@ const OTA_COMMAND_TIMEOUT_MS=60*1000;
 let otaBusy=false,otaLastStatus=null;
 function otaTagText(t){return t?t.version+' · '+t.arch:'—'}
 function otaKib(n){return typeof n==='number'&&isFinite(n)?Math.round(n/1024)+' KiB':'unknown size'}
-function otaStatusText(o){if(!o.available)return'This controller has no spare firmware slot, so it can only be updated over USB.';if(o.restartPending)return'Flashed. Restart waits until the shot ends.';if(!o.confirmed)return'Confirming the firmware that just booted. Updates resume in a moment.';if(o.state==='receiving')return'Receiving a firmware image…';if(o.state==='staged')return'Verified and waiting for you to flash it.';if(!o.safe)return'Waiting for idle ('+o.lockReason+').';return'Ready for a firmware image.'}
+function otaStatusText(o){const pending=otaCommitStored();if(pending)return otaCheckBoot(pending,o);if(!o.available)return'This controller has no spare firmware slot, so it can only be updated over USB.';if(o.restartPending)return'Flashed. Restart waits until the shot ends.';if(!o.confirmed)return'Firmware confirmation pending ('+(o.confirmBlockReason||'waiting for startup')+').'+(o.confirmLastError?' ESP-IDF error '+o.confirmLastError+'.':'');if(o.state==='receiving')return'Receiving a firmware image…';if(o.state==='staged')return'Verified and waiting for you to flash it.';if(!o.safe)return'Waiting for idle ('+o.lockReason+').';return'Ready for a firmware image.'}
 function applyOtaStatus(o){if(!$('otaPanel'))return;if(!o){$('otaStatus').textContent='Firmware updates are unavailable.';['otaVerifyButton','otaFlashButton','otaDiscardButton','otaFile'].forEach(id=>{if($(id))$(id).disabled=true});return}otaLastStatus=o;const staged=o.state==='staged'&&o.staged?o.staged:null,active=!!o.sessionActive;$('otaStatus').textContent=otaStatusText(o)+(active?' · resumable transfer '+otaKib(o.nextOffset||0)+' / '+otaKib(o.expectedBytes||0):'');$('otaRunning').textContent='Running '+otaTagText(o.running)+' — update slot '+otaKib(o.slotBytes);$('otaStaged').textContent=staged?'Verified image '+otaTagText(staged)+' — '+otaKib(o.receivedBytes):active?'Transfer '+(o.transferId||'')+' expires in '+Math.ceil((o.sessionExpiresInMs||0)/6e4)+' min.':'No verified image.';const ready=controlsMutable&&o.available&&o.safe&&o.confirmed&&!o.restartPending&&!otaBusy;$('otaFile').disabled=!ready;$('otaVerifyButton').disabled=!ready;$('otaFlashButton').disabled=!ready||!staged;$('otaDiscardButton').disabled=!ready||(!staged&&!active);if(active&&o.expectedBytes)$('otaProgress').value=Math.round(100*(o.nextOffset||0)/o.expectedBytes)}
 function otaSend(path,payload,onProgress,timeoutMs,method='POST',headers={}){return acquireDeviceSlot().then(()=>new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open(method,path,true);xhr.timeout=timeoutMs;xhr.setRequestHeader(WEB_UI_CLIENT_HEADER,webUiClientId);Object.keys(headers).forEach(k=>xhr.setRequestHeader(k,headers[k]));if(payload&&!(headers['Content-Type']))xhr.setRequestHeader('Content-Type','application/octet-stream');if(onProgress&&xhr.upload)xhr.upload.onprogress=e=>{if(e.lengthComputable)onProgress(Math.round(e.loaded*100/e.total))};xhr.onload=()=>{let data={};try{data=xhr.responseText?JSON.parse(xhr.responseText):{}}catch(_){const e=new Error('Invalid response (HTTP '+xhr.status+')');e.status=xhr.status;reject(e);return}if(xhr.status>=200&&xhr.status<300)resolve(data);else{const e=new Error(data.message||data.error||('HTTP '+xhr.status));e.status=xhr.status;e.code=data.error||'';reject(e)}};xhr.onerror=()=>reject(new Error('Device unreachable'));xhr.ontimeout=()=>reject(new Error('Device timeout'));xhr.onabort=()=>reject(new Error('The upload was cancelled.'));xhr.send(payload||null)}).finally(()=>releaseDeviceSlot()))}
 function otaBeginBusy(){otaBusy=true;applyOtaStatus(otaLastStatus)}
@@ -242,11 +242,97 @@ function otaStore(v){try{localStorage.setItem('ssOtaSession',JSON.stringify(v))}
 function otaClearStore(){try{localStorage.removeItem('ssOtaSession')}catch(_){}}
 const OTA_PROTOCOL_VERSION=2;
 async function otaFileIdentity(file){return(await import('/js/ota-image.js?v=__FW_ASSET_TAG__')).otaFileIdentity(file)}
-function otaRemoteMatches(identity,status){return!!(status&&status.transferId&&status.sha256===identity.sha256&&status.expectedBytes===identity.size&&status.sessionArch===identity.arch&&status.sessionVersion===identity.version)}
+function otaRemoteMatches(identity,status){return!!(status&&status.transferId&&(!identity.transferId||status.transferId===identity.transferId)&&status.sha256===identity.sha256&&status.expectedBytes===identity.size&&status.sessionArch===identity.arch&&status.sessionVersion===identity.version)}
 function otaSessionIdentity(identity,status){if(!status||status.otaProtocolVersion!==OTA_PROTOCOL_VERSION)throw new Error('This controller does not support the resumable OTA protocol. Update it once over USB.');if(status.runningIdentityValid!==true)throw new Error('The running firmware has no usable image identity. Update it once over USB.');const occupied=status.sessionActive||status.state==='staged';if(occupied){if(!otaRemoteMatches(identity,status))throw new Error('Another firmware image owns the update slot. Discard it explicitly before choosing a different file.');return{...identity,transferId:status.transferId}}const saved=otaStored(),same=saved&&saved.size===identity.size&&saved.sha256===identity.sha256&&saved.arch===identity.arch&&saved.version===identity.version&&saved.transferId;return{...identity,transferId:same?saved.transferId:otaTransferId()}}
-async function otaUpload(){const files=$('otaFile').files,file=files&&files[0];if(!file){showFieldError('otaFile','Choose the firmware .bin file to upload.');return}clearFieldErrors();const slot=otaLastStatus&&otaLastStatus.slotBytes;if(typeof slot==='number'&&file.size>slot){showFieldError('otaFile','That file is '+otaKib(file.size)+', larger than the '+otaKib(slot)+' update slot.');return}const bar=$('otaProgress');bar.value=0;bar.classList.remove('hidden');otaBeginBusy();try{message('Checking firmware identity…');const identity=await otaFileIdentity(file),remote=await otaSend('/api/v1/ota/session',null,null,OTA_COMMAND_TIMEOUT_MS,'GET'),session=otaSessionIdentity(identity,remote);let status=await otaSend('/api/v1/ota/session',JSON.stringify(session),null,OTA_COMMAND_TIMEOUT_MS,'POST',{'Content-Type':'application/json'});if(!otaRemoteMatches(identity,status)||status.transferId!==session.transferId)throw new Error('The controller returned a different or incomplete firmware session identity.');let offset=status.nextOffset;if(!Number.isInteger(offset)||offset<0||offset>file.size)throw new Error('The controller reported an invalid firmware offset.');otaStore(session);while(offset<file.size){const end=Math.min(file.size,offset+(status.chunkBytes||65536)),chunk=file.slice(offset,end),headers={'X-OTA-Transfer':session.transferId,'X-OTA-Offset':String(offset),'X-OTA-Length':String(file.size),'Content-Range':'bytes '+offset+'-'+(end-1)+'/'+file.size};try{status=await otaSend('/api/v1/ota',chunk,null,OTA_UPLOAD_TIMEOUT_MS,'PATCH',headers)}catch(e){let reconciled;try{reconciled=await otaSend('/api/v1/ota/session',null,null,OTA_COMMAND_TIMEOUT_MS,'GET')}catch(_){throw e}if(!otaRemoteMatches(identity,reconciled)||reconciled.transferId!==session.transferId||!Number.isInteger(reconciled.nextOffset)||reconciled.nextOffset<=offset||reconciled.nextOffset>file.size)throw e;status=reconciled}const next=status.nextOffset;if(!Number.isInteger(next)||next<=offset||next>file.size)throw new Error('The controller did not confirm a valid firmware range.');offset=next;bar.value=Math.round(100*offset/file.size);otaStore(session)}if(status.state!=='staged'||!status.staged||status.staged.arch!==identity.arch||status.staged.version!==identity.version||status.staged.packed!==identity.packed)throw new Error('The controller did not report the expected verified image.');otaClearStore();otaEndBusy(status,'Firmware verified: '+otaTagText(status.staged)+'. Review it, then flash.','ok')}catch(e){otaEndBusy(null,formatCommandError('The firmware upload paused. Choose the same file to resume.',e),'error')}}
-function otaFlash(){const staged=otaLastStatus&&otaLastStatus.state==='staged'&&otaLastStatus.staged;if(!staged){message('Upload and verify a firmware image first.','warn');return}if(!confirm('Flash '+otaTagText(staged)+' and restart the controller?'))return;otaBeginBusy();otaSend('/api/v1/ota/flash',null,null,OTA_COMMAND_TIMEOUT_MS).then(data=>{otaEndBusy(data,'Flashed. Restart waits until idle; then reload.','ok')}).catch(e=>{otaEndBusy(null,formatCommandError('The controller refused to flash the image.',e),'error')})}
-function otaDiscard(){otaBeginBusy();otaSend('/api/v1/ota/abort',null,null,OTA_COMMAND_TIMEOUT_MS).then(data=>{otaClearStore();$('otaFile').value='';otaEndBusy(data,'The verified image was discarded.','ok')}).catch(e=>{otaEndBusy(null,formatCommandError('The image could not be discarded.',e),'error')})}
+function otaSessionBody(session){const{size,sha256,arch,version,transferId}=session;return JSON.stringify({size,sha256,arch,version,transferId})}
+function otaValidOffset(offset,size){return Number.isInteger(offset)&&offset>=0&&offset<=size&&(offset===size||offset%4096===0)}
+function otaRecoverable(session,status){return otaRemoteMatches(session,status)&&status.sessionActive===true&&status.state==='receiving'&&otaValidOffset(status.nextOffset,session.size)}
+function otaUploadErrorText(session,status,error){
+  if(error.code==='OTA_SESSION_EXPIRED'||status&&status.lastResult==='OTA_SESSION_EXPIRED')return'The firmware upload session expired. Choose the file to start again.';
+  if(error.message==='The upload was cancelled.')return'The firmware upload was cancelled.';
+  if(error.status>=400&&error.status<500&&error.code!=='RECEIVE_FAILED')return'The firmware upload was rejected.';
+  if(session&&otaRecoverable(session,status))return'The firmware upload paused. Choose the same file to resume.';
+  if(session&&otaRemoteMatches(session,status)&&status.state==='staged')return'The firmware is verified; refresh its status before flashing.';
+  if(error.status)return'The firmware upload was rejected.';
+  if(session&&!status)return'The upload result could not be checked. Reconnect and choose the same file to inspect recovery.';
+  if(session&&status&&!status.sessionActive)return'The firmware upload session no longer exists. Choose the file to start again.';
+  return'The firmware upload failed.';
+}
+async function otaUpload(){
+  const files=$('otaFile').files,file=files&&files[0];
+  if(!file){showFieldError('otaFile','Choose the firmware .bin file to upload.');return}
+  clearFieldErrors();const slot=otaLastStatus&&otaLastStatus.slotBytes;
+  if(typeof slot==='number'&&file.size>slot){showFieldError('otaFile','That file is '+otaKib(file.size)+', larger than the '+otaKib(slot)+' update slot.');return}
+  const bar=$('otaProgress');bar.value=0;bar.classList.remove('hidden');otaBeginBusy();let session=null,status=null;
+  try{
+    message('Checking firmware identity…');
+    const identity=await otaFileIdentity(file),remote=await otaSend('/api/v1/ota/session',null,null,OTA_COMMAND_TIMEOUT_MS,'GET');
+    session=otaSessionIdentity(identity,remote);
+    status=await otaSend('/api/v1/ota/session',otaSessionBody(session),null,OTA_COMMAND_TIMEOUT_MS,'POST',{'Content-Type':'application/json'});
+    if(!otaRemoteMatches(session,status))throw new Error('The controller returned a different or incomplete firmware session identity.');
+    let offset=status.nextOffset,highWater=offset,failures=0;
+    if(!otaValidOffset(offset,file.size))throw new Error('The controller reported an invalid firmware offset.');
+    otaStore(session);otaCommitStore(null);
+    while(offset<file.size){
+      const end=Math.min(file.size,offset+65536),chunk=file.slice(offset,end),headers={'X-OTA-Transfer':session.transferId,'X-OTA-Offset':String(offset),'X-OTA-Length':String(file.size),'Content-Range':'bytes '+offset+'-'+(end-1)+'/'+file.size};
+      let reconciled=false;
+      try{status=await otaSend('/api/v1/ota',chunk,null,OTA_UPLOAD_TIMEOUT_MS,'PATCH',headers)}
+      catch(e){
+        failures++;
+        status=await otaSend('/api/v1/ota/session',null,null,OTA_COMMAND_TIMEOUT_MS,'GET');
+        if(!otaRemoteMatches(session,status)||(!otaRecoverable(session,status)&&status.state!=='staged'))throw e;
+        if(failures>=3&&status.nextOffset!==file.size)throw e;
+        reconciled=true;
+      }
+      const next=status.nextOffset;
+      if(!otaRemoteMatches(session,status)||!otaValidOffset(next,file.size)||next>end||(!reconciled&&next!==end))throw new Error('The controller did not confirm a valid firmware range.');
+      // Recovery may go backwards to the last durable checkpoint. Only new
+      // progress beyond the high-water mark resets the bounded retry budget.
+      if(next>highWater){highWater=next;failures=0}
+      offset=next;bar.value=Math.round(100*offset/file.size);
+    }
+    if(status.state!=='staged'||!status.staged||status.staged.arch!==identity.arch||status.staged.version!==identity.version||status.staged.packed!==identity.packed)throw new Error('The controller did not report the expected verified image.');
+    otaEndBusy(status,'Firmware verified: '+otaTagText(status.staged)+'. Review it, then flash.','ok');
+  }catch(e){
+    let current=null;
+    if(session){try{current=await otaSend('/api/v1/ota/session',null,null,OTA_COMMAND_TIMEOUT_MS,'GET')}catch(_){}}
+    otaEndBusy(current,formatCommandError(otaUploadErrorText(session,current,e),e),'error');
+  }
+}
+function otaCommitStored(){try{return JSON.parse(localStorage.getItem('ssOtaCommit')||'null')}catch(_){return null}}
+function otaCommitStore(value){try{if(value)localStorage.setItem('ssOtaCommit',JSON.stringify(value));else localStorage.removeItem('ssOtaCommit')}catch(_){}}
+function otaCheckBoot(expected,status){
+  if(!Number.isInteger(expected.bootId)||!Number.isInteger(status.bootId)||!expected.imageSha256||!status.running||!status.running.imageSha256)return'Update result unverified: firmware does not expose the required boot and image identity.';
+  if(status.bootId===expected.bootId)return status.restartPending||status.state==='committed'?'Flashed. Waiting for the controller to restart when idle.':'Commit not yet verified. Refresh status before retrying flash.';
+  if(status.running.imageSha256!==expected.imageSha256)return'The controller restarted into another image; the requested update is not confirmed.';
+  if(!status.confirmed)return'Expected firmware booted; confirmation pending ('+(status.confirmBlockReason||'startup')+').'+(status.confirmLastError?' ESP-IDF error '+status.confirmLastError+'.':'');
+  otaCommitStore(null);otaClearStore();message('OTA confirmed by the rebooted firmware.','ok');return'OTA confirmed by the rebooted firmware.';
+}
+async function otaFlash(){
+  const current=otaLastStatus,staged=current&&current.state==='staged'&&current.staged;
+  if(!staged){message('Upload and verify a firmware image first.','warn');return}
+  if(!confirm('Flash '+otaTagText(staged)+' and restart the controller?'))return;
+  const saved=otaStored(),session={size:current.expectedBytes,sha256:current.sha256,arch:current.sessionArch,version:current.sessionVersion,transferId:current.transferId},expected={...session,bootId:current.bootId,imageSha256:saved&&otaRemoteMatches(saved,current)?saved.imageSha256:(staged.imageSha256||'')};
+  otaBeginBusy();let data=null;
+  try{
+    data=await otaSend('/api/v1/ota/session',null,null,OTA_COMMAND_TIMEOUT_MS,'GET');
+    if(!otaRemoteMatches(session,data)||data.state!=='staged')throw new Error('The staged transfer changed before flash.');
+    expected.bootId=data.bootId;otaCommitStore(expected);
+    for(let attempt=1;attempt<=3;attempt++){
+      try{data=await otaSend('/api/v1/ota/flash',null,null,OTA_COMMAND_TIMEOUT_MS);if(!otaRemoteMatches(session,data))throw new Error('The commit response did not identify the staged transfer.');break}
+      catch(error){
+        data=await otaSend('/api/v1/ota/session',null,null,OTA_COMMAND_TIMEOUT_MS,'GET');
+        const rebooted=Number.isInteger(expected.bootId)&&Number.isInteger(data.bootId)&&data.bootId!==expected.bootId;
+        if(rebooted)break;
+        if(!otaRemoteMatches(session,data))throw error;
+        if(data.restartPending||data.state==='committed')break;
+        if(data.state!=='staged'||attempt===3)throw error;
+      }
+    }
+    otaEndBusy(data,otaCheckBoot(expected,data),'');
+  }catch(e){otaEndBusy(data,formatCommandError('The flash result is unverified. Reconnect to check the controller before retrying.',e),'error')}
+}
+function otaDiscard(){otaBeginBusy();otaSend('/api/v1/ota/abort',null,null,OTA_COMMAND_TIMEOUT_MS).then(data=>{otaClearStore();otaCommitStore(null);$('otaFile').value='';otaEndBusy(data,'The verified image was discarded.','ok')}).catch(e=>{otaEndBusy(null,formatCommandError('The image could not be discarded.',e),'error')})}
 function statusPageOk(v,s){const c=s&&s.config;if(!c||typeof s.configMutable!=='boolean')return!1;return v==='home'?!!(typeof s.adminUnlocked==='boolean'&&typeof c.soundAlertsEnabled==='boolean'&&s.safety&&s.scale&&s.presets&&s.cycle&&s.lastShot&&s.noScaleShotGuard&&typeof s.machineState==='string'&&s.cupPresence):v==='settings'?!!(typeof c.soundAlertsEnabled==='boolean'&&typeof c.dripDelayMs==='number'&&typeof c.postTareBaselineGraceMs==='number'&&s.scale&&s.presets&&typeof s.buzzerSupported==='boolean'):v==='admin'?!!(typeof s.adminUnlocked==='boolean'&&s.network&&(s.adminUnlocked?(s.bleCompanion&&typeof s.bleCompanion.enabled==='boolean'&&typeof s.bleCompanion.active==='boolean'&&typeof s.bleCompanion.restartRequired==='boolean'&&typeof s.bleCompanion.scanIntensity==='string'&&typeof c.timezoneOffsetMinutes==='number'&&c.ntpServerPreset!=null&&s.ota&&typeof s.ota.available==='boolean'&&s.webhooks&&typeof s.webhooks.enabled==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'):typeof s.network.configState==='string')):v==='diagnostic'?!!(typeof s.adminUnlocked==='boolean'&&(s.adminUnlocked?(s.network&&s.time&&s.maintenance&&s.health&&s.safety&&s.scale&&s.lastCommand&&typeof s.machineState==='string'&&typeof s.state==='string'&&s.cupPresence&&typeof s.physicalActivatorOn==='boolean'&&'reedOn' in s&&typeof s.relayClosed==='boolean'&&typeof s.controlSource==='string'&&typeof s.safety.state==='string'&&typeof s.scale.streamState==='string'&&typeof c.serialDebugOutput==='boolean'&&s.compileFlags&&s.serial&&typeof s.serial.io4==='string'&&typeof s.serial.state==='string'&&s.guards&&typeof s.guards.bbwEnabled==='boolean'&&s.guards.noScale&&s.guards.atm&&s.guards.slowExtraction&&s.guards.fastExtraction&&s.guards.accidentalTouch&&s.guards.cupProtection&&s.tasks&&typeof s.tasks.state==='string'):true)):!1}
 async function loadStatus(){if(statusBusy||document.hidden||!webUiPollingActive())return;statusBusy=true;try{pollAt=Date.now();const v=statusUrl().slice('/api/v1/status/'.length),s=await api(statusUrl());if(!statusPageOk(v,s))throw new Error('Invalid status');lastStatusAt=Date.now();if(typeof s.liveShot==='boolean')statusLiveShot=s.liveShot;else if(s.cycle||typeof s.relayClosed==='boolean')statusLiveShot=!!((s.cycle&&s.cycle.active)||s.machineRunning||s.relayClosed);applyCommonStatus(s);const apply=viewStatusHandlers[v];if(apply)apply(s);noteReachOk();armStatusTimer()}catch(e){if(e&&e.code==='DIAGNOSTIC_DISABLED'){const link=document.querySelector('[data-route="/diagnostic"]');if(link)link.classList.add('hidden');stopViewPolls();renderRoute('/')}else noteReachFail(e)}finally{statusBusy=false}}
 function refreshStatus(){return withPollGate(loadStatus)}

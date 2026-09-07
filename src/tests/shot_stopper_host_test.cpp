@@ -1482,6 +1482,39 @@ void r09_stop_is_not_retried_after_disconnect_before_execution() {
   CHECK(commandCount(ScaleCommandType::STOP_TIMER) == 0);
 }
 
+void r09b_old_commands_are_discarded_after_reconnect_but_new_stop_runs() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  const ScaleCommandType oldTypes[] = {
+      ScaleCommandType::START_TIMER_AND_TARE,
+      ScaleCommandType::TARE_ONLY,
+      ScaleCommandType::STOP_TIMER};
+  for (ScaleCommandType type : oldTypes) {
+    ScaleCommand command;
+    command.type = type;
+    command.cycleId = 99;
+    CHECK(enqueueScaleCommand(command));
+  }
+  const uint32_t oldGeneration = getScaleLinkSnapshot().connectionGeneration;
+  setScaleConnected(false);
+  setScaleConnected(true);
+  CHECK(getScaleLinkSnapshot().connectionGeneration != oldGeneration);
+  debugLog.clear();
+  CHECK(executeNextScaleCommand());
+  CHECK(executeNextScaleCommand());
+  CHECK(executeNextScaleCommand());
+  CHECK(scale.tareStartTimerCalls == 0);
+  CHECK(scale.tareCalls == 0);
+  CHECK(scale.stopTimerCalls == 0);
+
+  ScaleCommand currentStop;
+  currentStop.type = ScaleCommandType::STOP_TIMER;
+  currentStop.cycleId = 100;
+  CHECK(enqueueScaleCommand(currentStop));
+  CHECK(executeNextScaleCommand());
+  CHECK(scale.stopTimerCalls == 1);
+}
+
 void r10_relay_cannot_close_when_hard_timer_cannot_arm() {
   resetHarness(false, false);
   reachReadyFromBoot();
@@ -4142,38 +4175,95 @@ void w75_bookoo_discovery_connect_applies_beep_policy() {
   serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
                               connectAttemptSeriesActive, scanSessionAtMs, scanLastAdvertAtMs);
   CHECK(scale.commandLog.empty());
+  ScaleHistoryEntry copiedHistory[SCALE_HISTORY_CAPACITY] = {};
+  copyScaleHistory(copiedHistory);
+  bool copiedIdentityFound = false;
+  for (const ScaleHistoryEntry &entry : copiedHistory) {
+    if (preferredScaleMacEqual(entry.mac, scale.connectedAddress)) {
+      copiedIdentityFound = true;
+      CHECK(!scaleHistorySessionConsumed(entry));
+    }
+  }
+  CHECK(copiedIdentityFound);
 
-  hostMillis += BOOKOO_CONNECT_BEEP_DEFER_MS - 1;
+  hostMillis += 10000;
   serviceScaleWorkerLink();
-  CHECK(scale.commandLog.empty());
-  hostMillis += 1;
-  serviceScaleWorkerLink();
-  CHECK(scale.commandLog.size() == 1);
-  CHECK(scale.commandLog[0] == "setBeepLevel:0");
-
-  resetHarness(false, true);
-  reachReadyFromBoot();
-  runtimeConfig.bookooMuteOnBuzzerOnly = true;
-  runtimeConfig.alertOutputChannel =
-      static_cast<uint8_t>(AlertOutputChannel::BUZZER_ONLY);
-  publishTestScaleWorkerPolicy();
-  scale.scanning = true;
-  scale.connected = true;
-  scale.commandLog.clear();
-  lastScanCycleMs = 0;
-  lastConnectLogMs = 0;
-  connectAttemptSeriesActive = false;
-  scanSessionAtMs = 0;
-  scanLastAdvertAtMs = 0;
-  serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
-                              connectAttemptSeriesActive, scanSessionAtMs, scanLastAdvertAtMs);
   CHECK(scale.commandLog.empty());
   scale.newWeightAvailableValue = true;
   serviceScaleWorkerLink();
-  CHECK(scale.commandLog.empty());
-  serviceScaleWorkerLink();
   CHECK(scale.commandLog.size() == 1);
   CHECK(scale.commandLog[0] == "setBeepLevel:0");
+
+  // Reconnecting the same identity never rearms automatic volume.
+  setScaleConnected(false);
+  setScaleConnected(true);
+  armBookooConnectBeepPolicy();
+  scale.newWeightAvailableValue = true;
+  serviceScaleWorkerLink();
+  CHECK(scale.commandLog.size() == 1);
+
+  // Consuming occurs at connection time: a drop before weight still prevents
+  // the recovered link from sending volume.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  armBookooConnectBeepPolicy();
+  CHECK(bookooConnectVolumePending);
+  setScaleConnected(false);
+  serviceScaleWorkerLink();
+  CHECK(!bookooConnectVolumePending);
+  setScaleConnected(true);
+  armBookooConnectBeepPolicy();
+  CHECK(!bookooConnectVolumePending);
+
+  // A failed first write is also consumed and cannot be replayed.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  armBookooConnectBeepPolicy();
+  scale.beepSucceeds = false;
+  scale.newWeightAvailableValue = true;
+  serviceScaleWorkerLink();
+  CHECK(scale.setBeepLevelCalls == 1);
+  setScaleConnected(true);
+  armBookooConnectBeepPolicy();
+  CHECK(!bookooConnectVolumePending);
+
+  // Explicit forget reopens the session for that identity.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  scalePreferredMacMux.lock();
+  copyCString(scalePreferredMac, sizeof(scalePreferredMac),
+              scale.connectedAddress);
+  scalePreferredMacMux.unlock();
+  armBookooConnectBeepPolicy();
+  CHECK(bookooConnectVolumePending);
+  cancelBookooConnectBeepPolicy();
+  clearPreferredScaleCache();
+  armBookooConnectBeepPolicy();
+  CHECK(bookooConnectVolumePending);
+}
+
+void w75b_old_debug_volume_and_beeps_do_not_cross_connections() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  CHECK(enqueueScaleDebugCommand(BookooDebugAction::VOLUME, 0));
+  requestScaleBrewBeep(77);
+  setScaleConnected(false);
+  setScaleConnected(true);
+  BookooDebugAction action = BookooDebugAction::START;
+  uint8_t level = 9;
+  uint32_t cycleId = 0;
+  CHECK(!takeScaleDebugCommand(action, level));
+  CHECK(!takeScaleBrewBeep(cycleId));
+  CHECK(scale.commandLog.empty());
+
+  CHECK(enqueueScaleDebugCommand(BookooDebugAction::VOLUME, 0));
+  CHECK(takeScaleDebugCommand(action, level));
+  executeScaleDebugCommand(action, level);
+  CHECK(scale.commandLog.size() == 1);
+  CHECK(scale.commandLog[0] == "setBeepLevel:0");
+  requestScaleBrewBeep(78);
+  CHECK(takeScaleBrewBeep(cycleId));
+  CHECK(cycleId == 78);
 }
 
 void w76_buzzer_only_start_beeps_at_circuit_not_ble_result() {
@@ -4336,10 +4426,11 @@ void w81_scale_priority_failed_start_falls_back_after_disconnect() {
   }
   const uint32_t before = localBuzzer.acceptedRequests;
   setScaleConnected(false);
-  // Scale-lost RTTTL on disconnect, then command fallback start cue.
+  // Scale-lost RTTTL is current. The pending start belongs to the old link and
+  // must settle without replaying its fallback cue after disconnect.
   CHECK(localBuzzer.acceptedRequests == before + 1);
   CHECK(executeNextScaleCommand());
-  CHECK(localBuzzer.acceptedRequests == before + 2);
+  CHECK(localBuzzer.acceptedRequests == before + 1);
 }
 
 void configureEclairCapabilities() {
@@ -11709,6 +11800,7 @@ const TestCase testCases[] = {
     {"R07", r07_timing_remains_correct_across_millis_wrap},
     {"R08", r08_full_command_queue_forces_safe_manual_cycle},
     {"R09", r09_stop_is_not_retried_after_disconnect_before_execution},
+    {"R09b", r09b_old_commands_are_discarded_after_reconnect_but_new_stop_runs},
     {"R10", r10_relay_cannot_close_when_hard_timer_cannot_arm},
     {"R11", r11_final_shot_analysis_updates_only_valid_offset},
     {"R12", r12_scale_worker_service_publishes_weight_and_detects_failure},
@@ -11978,6 +12070,7 @@ const TestCase testCases[] = {
     {"W74", w74_apply_config_enabling_mute_sends_silence_only_in_buzzer_only},
     {"W74b", w74b_sound_alert_master_mutes_and_cancels_all_routes},
     {"W75", w75_bookoo_discovery_connect_applies_beep_policy},
+    {"W75b", w75b_old_debug_volume_and_beeps_do_not_cross_connections},
     {"W76", w76_buzzer_only_start_beeps_at_circuit_not_ble_result},
     {"W77", w77_scale_priority_disconnected_beeps_on_circuit_without_ble},
     {"W78", w78_scale_priority_connected_start_beeps_at_circuit},

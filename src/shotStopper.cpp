@@ -3402,10 +3402,12 @@ void processScaleWorkerEvents() {
             }
           }
         }
-        emitCommandAlert(event.usedCombinedTareStart ? AlertEvent::TARE_START
-                                                     : AlertEvent::START_TIMER,
-                         event.commandAttempted, event.writeSucceeded,
-                         event.commandFeedbackExpected);
+        if (!event.discardedStaleConnection) {
+          emitCommandAlert(event.usedCombinedTareStart ? AlertEvent::TARE_START
+                                                       : AlertEvent::START_TIMER,
+                           event.commandAttempted, event.writeSucceeded,
+                           event.commandFeedbackExpected);
+        }
         serialTracef(LogLevel::DEBUG, "Remote timer start write: %s",
                      event.writeSucceeded ? "successful" : "failed/skipped");
         addDebugEvent(DebugCategory::SCALE,
@@ -3422,8 +3424,10 @@ void processScaleWorkerEvents() {
           markTareZeroReady();
           resetDirectStopConfirmation();
         }
-        emitCommandAlert(AlertEvent::TARE, event.commandAttempted,
-                         event.writeSucceeded, event.commandFeedbackExpected);
+        if (!event.discardedStaleConnection) {
+          emitCommandAlert(AlertEvent::TARE, event.commandAttempted,
+                           event.writeSucceeded, event.commandFeedbackExpected);
+        }
         break;
 
       case ScaleEventType::TIMER_STOP_RESULT:
@@ -3435,8 +3439,10 @@ void processScaleWorkerEvents() {
                   : (event.writeSucceeded ? TimerStopResult::WRITE_SUCCEEDED
                                           : TimerStopResult::WRITE_FAILED);
         }
-        emitCommandAlert(AlertEvent::STOP_TIMER, event.commandAttempted,
-                         event.writeSucceeded, event.commandFeedbackExpected);
+        if (!event.discardedStaleConnection) {
+          emitCommandAlert(AlertEvent::STOP_TIMER, event.commandAttempted,
+                           event.writeSucceeded, event.commandFeedbackExpected);
+        }
         // Structured SCALE_TIMER_STOP_* events cover Serial when enabled.
         addDebugEvent(DebugCategory::SCALE,
                       event.writeSucceeded ? DebugCode::SCALE_TIMER_STOP_OK

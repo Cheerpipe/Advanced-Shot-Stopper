@@ -68,6 +68,19 @@ void testClockAndDeadline() {
     CHECK(deadline.expired(clock.now()));
 }
 
+void testFirstWeightTimingAcrossWrap() {
+    ScaleBleTimingSnapshot timing = {};
+    timing.firstCompatibleAdvertisementMs = 0xfffffff0U;
+    timing.readyMs = 0xfffffff8U;
+    timing.firstWeightMs = 0x10U;
+    timing.recordedFlags =
+        ScaleBleTimingFirstCompatibleAdvertisement | ScaleBleTimingReady |
+        ScaleBleTimingFirstWeight;
+    CHECK(timing.has(ScaleBleTimingFirstWeight));
+    CHECK(timing.firstWeightMs - timing.firstCompatibleAdvertisementMs == 32U);
+    CHECK(timing.firstWeightMs - timing.readyMs == 24U);
+}
+
 void testHappyPathAndActions() {
     ScaleBleLifecycle state = scaleBleInitialLifecycle();
     CHECK(state.state == ScaleBleLifecycleState::Idle);
@@ -275,6 +288,7 @@ void testThousandFaultInjectedLifecycles() {
 
 int main() {
     testClockAndDeadline();
+    testFirstWeightTimingAcrossWrap();
     testHappyPathAndActions();
     testStaleAndFailureEvents();
     testThousandFaultInjectedLifecycles();

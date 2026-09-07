@@ -306,6 +306,8 @@ class ShotStopperNetwork {
   bool lastAppliedWifiPsValid_{false};
   std::atomic<bool> otaRestartPending_{false};
   bool otaRollbackRestartPending_ = false;
+  const char *otaBootReason_ = "";
+  int32_t otaBootLastError_ = 0;
   std::atomic<uint32_t> otaRestartRequestedAtMs_{0};
   WebCommand acceptedCommand_ = {};
   WebCommand completionCommand_ = {};
@@ -474,7 +476,7 @@ class ShotStopperNetwork {
   bool authorizeOtaRequest(httpd_req_t *request);
   esp_err_t sendOtaSnapshot(httpd_req_t *request, const char *httpStatus);
   void buildOtaJson(char *buffer, size_t capacity,
-                    const ControlGateSnapshot &control);
+                    const ControlGateSnapshot &control, uint32_t bootId);
   void serviceOtaRollback(uint32_t now);
   static int otaReadChunk(void *context, uint8_t *buffer, size_t capacity);
   static bool otaTransferStillSafe(void *context);

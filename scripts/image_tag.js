@@ -138,7 +138,8 @@ function inspectImage(filePath) {
     problems.push(
         `marker ${TAG_PREFIX}… not found (built without scripts/build?)`);
   }
-  return {problems, tag, sizeBytes: buffer.length, projectName};
+  return {problems, tag, sizeBytes: buffer.length, projectName,
+    imageSha256: buffer.subarray(buffer.length - IMAGE_HASH_BYTES).toString('hex')};
 }
 
 function main(argv) {
@@ -193,6 +194,7 @@ function main(argv) {
       sizeBytes: result.sizeBytes,
       tagOffset: result.tag.tagOffset,
       projectName: result.projectName,
+      imageSha256: result.imageSha256,
       formatVersion: 1,
     }) + '\n');
   } else {

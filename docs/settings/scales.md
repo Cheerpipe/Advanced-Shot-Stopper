@@ -32,8 +32,8 @@ offset learning, and eligible A→M samples.
 | **Drip delay (s)** | 3.0 s | 0–10 s | Wait after a shot ends before capturing the final post-drip weight. `0` finalizes on the next control loop with no intentional window. |
 | **Timer stop extra delay (ms)** | 0 ms | 0–1000 ms | Pad after the scale timer catches up to circuit whole seconds, before `STOP_TIMER`. `0` stops in that same instant. Does not delay the local machine circuit beep. |
 | **Bookoo combined command** | ON | ON / OFF | Combined tare + start-timer. Requires automatic tare. Also listed under [Tare](tare.md). |
-| **Mute scale in Buzzer only** | ON | ON / OFF | Bookoo/generic: send silence (volume 0) on connect/reconnect, when Output channel is saved as Buzzer only, and when this option is turned on. Applies only in **Buzzer only**. |
-| **Scale volume** | 4 | 1–5 or Disabled | Bookoo/generic: set on connect/reconnect. Applies only in **Scale only** and **Scale priority**. |
+| **Mute scale in Buzzer only** | ON | ON / OFF | Bookoo/generic: send silence (volume 0) after the first valid weight on the first connection of that scale in this Shot Stopper session. Reconnecting does not resend it. Applies only in **Buzzer only**. |
+| **Scale volume** | 4 | 1–5 or Disabled | Bookoo/generic: set after the first valid weight on the first connection of that scale in this Shot Stopper session. Reconnecting does not resend it. Explicit setting changes still apply to a stable link. Applies only in **Scale only** and **Scale priority**. |
 | **AtomHeart Eclair** | informational | — | Uses normal tare/timer commands. No configurable volume, beep, mode, combined command, or documented command sound. In Buzzer only and Scale priority, alerts use the local buzzer; Scale only omits unsupported sounds. |
 
 If the scale disconnects or **notifications go silent** during an automatic
@@ -49,6 +49,9 @@ Turn on your Bookoo: after its first successful connection, its MAC and name
 replace **First detected** and are saved. From then on, other scales may be
 remembered in history but are not connected. After each shot, the firmware
 waits 3 s of drip before storing the final weight used for offset learning.
+Bookoo volume is not rewritten on reconnections during the same controller
+session. Restarting the Shot Stopper or explicitly clearing that preferred
+scale opens a new first-connection session for it.
 
 If no compatible scale is available, the controller stays in the bootstrap
 name scan indefinitely and does not silently change the saved preference.

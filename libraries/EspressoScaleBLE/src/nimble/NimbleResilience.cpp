@@ -2,8 +2,8 @@
 
 namespace {
 
-constexpr uint32_t kBackoffDelaysMs[] = {100, 250, 500};
-constexpr uint32_t kBackoffJitterMs = 50;
+constexpr uint32_t kBackoffDelaysMs[] = {50, 80, 100};
+constexpr uint32_t kBackoffJitterMs = 30;
 
 }  // namespace
 
@@ -31,6 +31,11 @@ uint32_t NimbleBackoffPolicy::schedule(uint32_t nowMs, uint32_t entropy) {
   deadlineMs_ = nowMs + delayMs;
   armed_ = true;
   return delayMs;
+}
+
+void NimbleBackoffPolicy::clearDeadline() {
+  deadlineMs_ = 0;
+  armed_ = false;
 }
 
 bool NimbleBackoffPolicy::active(uint32_t nowMs) const {

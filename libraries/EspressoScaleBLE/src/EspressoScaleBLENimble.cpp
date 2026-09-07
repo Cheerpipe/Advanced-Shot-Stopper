@@ -41,7 +41,7 @@ constexpr size_t kRxFrameCount = 16;
 constexpr size_t kProtocolCapacity = 11;
 constexpr uint32_t kScanCancelTimeoutMs = 1000;
 constexpr uint32_t kUnsupportedCooldownMs = 60000;
-constexpr uint32_t kGattFailureCooldownMs = 2000;
+constexpr uint32_t kConnectCallbackMarginMs = 50;
 
 void scaleLogDebug(const char *format, ...) {
   if (format == nullptr) {
@@ -315,13 +315,16 @@ class NimbleScaleClient {
       return false;
     }
     const bool useAddressScan = filtered && addressScan;
+    const bool sameTarget =
+        scanAddressFilter_ == useAddressScan && filterPresent_ == filtered &&
+        (!filtered || addressEqual(filterAddress_, parsedFilter));
+    const bool sameScan = scanInterval_ == interval && scanWindow_ == window;
     if ((state_ == State::Scanning || state_ == State::Backoff) &&
-        !forceRestart &&
-        scanInterval_ == interval && scanWindow_ == window &&
-        scanAddressFilter_ == useAddressScan &&
-        filterPresent_ == filtered &&
-        (!filtered || addressEqual(filterAddress_, parsedFilter))) {
+        sameTarget && ((!forceRestart && sameScan) || state_ == State::Backoff)) {
       return true;
+    }
+    if (state_ == State::Backoff && !sameTarget) {
+      backoff_.reset();
     }
 
     if (state_ != State::Idle) {
@@ -338,9 +341,6 @@ class NimbleScaleClient {
     }
     portEXIT_CRITICAL(&mux_);
     scanAddressFilter_ = useAddressScan;
-    if (forceRestart) {
-      backoff_.reset();
-    }
     if (backoff_.active(nowMs())) {
       enterState(State::Backoff, backoff_.remainingMs(nowMs()));
       return true;
@@ -358,7 +358,8 @@ class NimbleScaleClient {
   }
 
   bool isConnecting() const {
-    return state_ == State::CancelPending || state_ == State::Connecting ||
+    return state_ == State::CancelPending || state_ == State::Settling ||
+           state_ == State::Connecting ||
            state_ == State::DiscoveringServices ||
            state_ == State::DiscoveringCharacteristics ||
            state_ == State::DiscoveringDescriptors ||
@@ -422,6 +423,23 @@ class NimbleScaleClient {
         hasTimer_ = true;
       }
       if (hasWeight) {
+        backoff_.reset();
+        portENTER_CRITICAL(&mux_);
+        if (!timing_.has(ScaleBleTimingFirstWeight)) {
+          timing_.firstWeightMs = frame.receivedAtMs;
+          timing_.recordedFlags |= ScaleBleTimingFirstWeight;
+          if (timing_.has(ScaleBleTimingFirstCompatibleAdvertisement)) {
+            lastAdvertisementToFirstWeightMs_ =
+                timing_.firstWeightMs - timing_.firstCompatibleAdvertisementMs;
+          }
+          if (timing_.has(ScaleBleTimingReady)) {
+            lastReadyToFirstWeightMs_ = timing_.firstWeightMs - timing_.readyMs;
+          }
+        }
+        portEXIT_CRITICAL(&mux_);
+        portENTER_CRITICAL(&advertMux_);
+        negativeCache_.erase(peerKey(selectedAddress_));
+        portEXIT_CRITICAL(&advertMux_);
         currentWeight_ = weight;
         return true;
       }
@@ -577,6 +595,9 @@ class NimbleScaleClient {
     result.backoffCount = backoffCount_;
     result.lastAdvertisementToConnectMs = lastAdvertisementToConnectMs_;
     result.lastAdvertisementToReadyMs = lastAdvertisementToReadyMs_;
+    result.lastAdvertisementToFirstWeightMs =
+        lastAdvertisementToFirstWeightMs_;
+    result.lastReadyToFirstWeightMs = lastReadyToFirstWeightMs_;
     result.criticalEventHighWater =
         static_cast<uint16_t>(criticalEvents_.highWater());
     result.controlEventHighWater =
@@ -597,6 +618,7 @@ class NimbleScaleClient {
     Idle,
     Scanning,
     CancelPending,
+    Settling,
     Connecting,
     DiscoveringServices,
     DiscoveringCharacteristics,
@@ -858,11 +880,6 @@ class NimbleScaleClient {
         filterPresent && addressEqual(filterAddress, discovery.addr.val);
     const uint32_t receivedAtMs = nowMs();
     const NimblePeerKey peer = peerKey(discovery.addr);
-    portENTER_CRITICAL(&mux_);
-    const bool wakesBackoff =
-        state_ == State::Backoff && backoffPeerPresent_ &&
-        nimblePeerKeyEqual(peer, backoffPeer_);
-    portEXIT_CRITICAL(&mux_);
     const bool negativeCached =
         (compatible || addressMatches) && negativeCache_.contains(peer, receivedAtMs);
     if (compatible || addressMatches) {
@@ -900,7 +917,7 @@ class NimbleScaleClient {
              sizeof(selected.name));
       bool shouldQueue = false;
       portENTER_CRITICAL(&mux_);
-      if ((state_ == State::Scanning || wakesBackoff) &&
+      if (state_ == State::Scanning &&
           operationId == scanOperationId_ && !candidateQueued_) {
         candidateQueued_ = true;
         selected.generation = generation_;
@@ -1297,13 +1314,10 @@ class NimbleScaleClient {
                                 BLE_HS_FOREVER, &params, gapCallback,
                                 callbackArg(scanOperationId));
     if (rc != 0) {
-      backoff_.reset();
-      portENTER_CRITICAL(&mux_);
-      backoffPeerPresent_ = false;
-      portEXIT_CRITICAL(&mux_);
       finishLink(false, ScaleDisconnectReason::SCAN_START_FAILED, rc);
-      return false;
+      return state_ == State::Backoff;
     }
+    backoffScanActive_ = true;
     enterState(initialState, stateTimeoutMs);
     scanStartedAt_ = stateEnteredAtMs_;
     portENTER_CRITICAL(&mux_);
@@ -1401,17 +1415,21 @@ class NimbleScaleClient {
       return;
     }
     if (state_ == State::Backoff && !backoff_.active(nowMs())) {
-      backoff_.reset();
-      portENTER_CRITICAL(&mux_);
-      backoffPeerPresent_ = false;
-      portEXIT_CRITICAL(&mux_);
-      // GAP scanning remains active during backoff; only candidate selection
-      // was gated. No radio restart is needed when the timer expires.
-      enterState(State::Scanning);
+      backoff_.clearDeadline();
+      if (backoffScanActive_) {
+        enterState(State::Scanning);
+      } else {
+        enterState(State::Idle);
+        (void)beginConfiguredScan(true);
+      }
       return;
     }
     if (stateDeadlineArmed_ &&
         elapsedMs(stateEnteredAtMs_) >= stateTimeoutMs_) {
+      if (state_ == State::Settling) {
+        beginConnect();
+        return;
+      }
       finishLink(true, ScaleDisconnectReason::OPERATION_TIMEOUT,
                  BLE_HS_ETIMEOUT);
       return;
@@ -1441,29 +1459,15 @@ class NimbleScaleClient {
   void handleEvent(const Event &event) {
     switch (event.type) {
       case EventType::Candidate: {
-        const NimblePeerKey candidatePeer = peerKey(event.address);
-        const bool wakesBackoff =
-            state_ == State::Backoff && backoffPeerPresent_ &&
-            nimblePeerKeyEqual(candidatePeer, backoffPeer_);
-        if (state_ != State::Scanning && !wakesBackoff) {
+        if (state_ != State::Scanning) {
           noteStaleCallback();
           return;
-        }
-        if (wakesBackoff) {
-          // The host callback only queued evidence. The worker owns the state
-          // transition and can safely cancel scan before reconnecting.
-          backoff_.reset();
-          portENTER_CRITICAL(&mux_);
-          backoffPeerPresent_ = false;
-          portEXIT_CRITICAL(&mux_);
-          enterState(State::Scanning);
         }
         selectedAddress_ = event.address;
         strncpy(name_, event.name, sizeof(name_) - 1);
         name_[sizeof(name_) - 1] = '\0';
         formatAddress(event.address.val, address_, sizeof(address_));
         identityPresent_ = true;
-        backoff_.reset();
         // This facade counter describes failed attempts in the current
         // connection sequence (the worker uses increases to emit warnings),
         // not attempts merely started.  Keep the lifetime attempt total in
@@ -1478,7 +1482,7 @@ class NimbleScaleClient {
         // immediately.  A manual cancellation does not produce a later
         // BLE_GAP_EVENT_DISC_COMPLETE callback.
         if (cancelResult == 0 || cancelResult == BLE_HS_EALREADY) {
-          beginConnect();
+          beginSettle();
         } else {
           finishLink(false, ScaleDisconnectReason::SCAN_START_FAILED,
                      cancelResult);
@@ -1488,7 +1492,7 @@ class NimbleScaleClient {
 
       case EventType::ScanComplete:
         if (state_ == State::CancelPending) {
-          beginConnect();
+          beginSettle();
         } else if (state_ == State::Scanning || state_ == State::Backoff) {
           finishLink(false, ScaleDisconnectReason::SCAN_START_FAILED,
                      event.status);
@@ -1533,7 +1537,6 @@ class NimbleScaleClient {
         if (event.status != BLE_HS_EDONE || serviceOverflowed_ ||
             serviceCount_ == 0) {
           ++discoveryFailures_;
-          cooldownSelected(kGattFailureCooldownMs);
           finishLink(true, ScaleDisconnectReason::DISCOVERY_FAILED,
                      serviceOverflowed_ ? BLE_HS_ENOMEM : event.status);
           return;
@@ -1549,7 +1552,6 @@ class NimbleScaleClient {
         }
         if (event.status != BLE_HS_EDONE) {
           ++discoveryFailures_;
-          cooldownSelected(kGattFailureCooldownMs);
           finishLink(true, ScaleDisconnectReason::DISCOVERY_FAILED,
                      event.status);
           return;
@@ -1569,7 +1571,6 @@ class NimbleScaleClient {
         }
         if (event.status != BLE_HS_EDONE || cccdHandle_ == 0) {
           ++subscriptionFailures_;
-          cooldownSelected(kGattFailureCooldownMs);
           finishLink(true, ScaleDisconnectReason::SUBSCRIBE_FAILED,
                      cccdHandle_ == 0 ? BLE_HS_ENOENT : event.status);
           return;
@@ -1581,7 +1582,6 @@ class NimbleScaleClient {
         if (state_ == State::Subscribing) {
           if (event.status != 0) {
             ++subscriptionFailures_;
-            cooldownSelected(kGattFailureCooldownMs);
             finishLink(true,
                        event.status == BLE_HS_ENOMEM
                            ? ScaleDisconnectReason::MBUF_ALLOCATION_FAILED
@@ -1595,7 +1595,6 @@ class NimbleScaleClient {
         } else if (state_ == State::Initializing) {
           if (event.status != 0) {
             ++writeFailures_;
-            cooldownSelected(kGattFailureCooldownMs);
             finishLink(true,
                        event.status == BLE_HS_ENOMEM
                            ? ScaleDisconnectReason::MBUF_ALLOCATION_FAILED
@@ -1610,8 +1609,15 @@ class NimbleScaleClient {
     }
   }
 
+  void beginSettle() {
+    if (state_ == State::CancelPending) {
+      enterState(State::Settling, SCALE_CONNECT_SETTLE_MS);
+    }
+  }
+
   void beginConnect() {
-    enterState(State::Connecting, BLE_CONNECT_TIMEOUT_MS);
+    enterState(State::Connecting,
+               BLE_CONNECT_TIMEOUT_MS + kConnectCallbackMarginMs);
     portENTER_CRITICAL(&mux_);
     if (!timing_.has(ScaleBleTimingConnectIssued)) {
       timing_.connectIssuedMs = nowMs();
@@ -1644,7 +1650,6 @@ class NimbleScaleClient {
                                            callbackArg(gattOperationId));
     if (rc != 0) {
       ++discoveryFailures_;
-      cooldownSelected(kGattFailureCooldownMs);
       finishLink(true, ScaleDisconnectReason::DISCOVERY_FAILED, rc);
     }
   }
@@ -1658,7 +1663,6 @@ class NimbleScaleClient {
         callbackArg(gattOperationId));
     if (rc != 0) {
       ++discoveryFailures_;
-      cooldownSelected(kGattFailureCooldownMs);
       finishLink(true, ScaleDisconnectReason::DISCOVERY_FAILED, rc);
     }
   }
@@ -1700,7 +1704,6 @@ class NimbleScaleClient {
     cccdHandle_ = 0;
     if (readEndHandle_ <= readHandle_) {
       ++subscriptionFailures_;
-      cooldownSelected(kGattFailureCooldownMs);
       finishLink(true, ScaleDisconnectReason::SUBSCRIBE_FAILED,
                  BLE_HS_EINVAL);
       return;
@@ -1712,7 +1715,6 @@ class NimbleScaleClient {
         callbackArg(gattOperationId));
     if (rc != 0) {
       ++subscriptionFailures_;
-      cooldownSelected(kGattFailureCooldownMs);
       finishLink(true, ScaleDisconnectReason::SUBSCRIBE_FAILED, rc);
     }
   }
@@ -1881,10 +1883,6 @@ class NimbleScaleClient {
       ++reconnects_;
     }
     ++successfulConnections_;
-    backoff_.reset();
-    portENTER_CRITICAL(&advertMux_);
-    negativeCache_.erase(peerKey(selectedAddress_));
-    portEXIT_CRITICAL(&advertMux_);
     portENTER_CRITICAL(&mux_);
     if (timing_.has(ScaleBleTimingFirstCompatibleAdvertisement)) {
       lastAdvertisementToConnectMs_ =
@@ -1912,7 +1910,8 @@ class NimbleScaleClient {
                   int32_t rawStatus) {
     if (!lifecycleActive_) {
       if (state_ == State::Backoff &&
-          reason == ScaleDisconnectReason::USER_REQUEST) {
+          (reason == ScaleDisconnectReason::USER_REQUEST ||
+           reason == ScaleDisconnectReason::HOST_RESET)) {
         backoff_.reset();
         enterState(State::Idle);
       } else if (state_ != State::Idle && state_ != State::Backoff) {
@@ -1929,6 +1928,7 @@ class NimbleScaleClient {
     const uint16_t oldHandle = connectionHandle_;
     const uint32_t finishedGeneration = generation_;
     lifecycleActive_ = false;
+    backoffScanActive_ = false;
     invalidateGeneration();
     enterState(State::Idle);
     ++cleanupCount_;
@@ -1941,7 +1941,7 @@ class NimbleScaleClient {
     // reacquire ownership after this point.
     int teardownStatus = 0;
     if (previous == State::Scanning || previous == State::CancelPending ||
-        previous == State::Backoff) {
+        previous == State::Settling || previous == State::Backoff) {
       teardownStatus = ble_gap_disc_cancel();
     } else if (previous == State::Connecting) {
       teardownStatus = ble_gap_conn_cancel();
@@ -1995,25 +1995,23 @@ class NimbleScaleClient {
     if (waiterToWake != nullptr && waiterToWake != xTaskGetCurrentTaskHandle()) {
       xTaskNotifyGive(waiterToWake);
     }
-    if (reason == ScaleDisconnectReason::CONNECTION_FAILED_TO_ESTABLISH) {
-      const NimblePeerKey failedPeer = peerKey(selectedAddress_);
-      const bool failedPeerPresent = identityPresent_;
+    const bool retryable = reason != ScaleDisconnectReason::NONE &&
+                           reason != ScaleDisconnectReason::USER_REQUEST &&
+                           reason != ScaleDisconnectReason::UNSUPPORTED_SCALE &&
+                           reason != ScaleDisconnectReason::HOST_RESET;
+    if (retryable) {
       const uint32_t entropy = static_cast<uint32_t>(selectedAddress_.val[0]) |
                                generation_ << 8;
       const uint32_t delayMs = backoff_.schedule(nowMs(), entropy);
       ++backoffCount_;
-      portENTER_CRITICAL(&mux_);
-      backoffPeer_ = failedPeer;
-      backoffPeerPresent_ = failedPeerPresent;
-      portEXIT_CRITICAL(&mux_);
-      // Continue active scanning while candidate selection is delayed. A new
-      // connectable advertisement from this exact peer wakes the retry early.
-      (void)beginConfiguredScan(false, State::Backoff, delayMs);
+      if (reason == ScaleDisconnectReason::SCAN_START_FAILED) {
+        backoffScanActive_ = false;
+        enterState(State::Backoff, delayMs);
+      } else {
+        (void)beginConfiguredScan(false, State::Backoff, delayMs);
+      }
     } else {
       backoff_.reset();
-      portENTER_CRITICAL(&mux_);
-      backoffPeerPresent_ = false;
-      portEXIT_CRITICAL(&mux_);
     }
     if (debug_ && reason != ScaleDisconnectReason::NONE) {
       scaleLogDebug("link finished: %s raw=%ld gen=%lu",
@@ -2102,8 +2100,7 @@ class NimbleScaleClient {
   Candidate candidates_[kCandidateCount] = {};
   NimbleNegativeCache negativeCache_;
   NimbleBackoffPolicy backoff_;
-  NimblePeerKey backoffPeer_ = {};
-  bool backoffPeerPresent_ = false;
+  bool backoffScanActive_ = false;
   uint32_t candidateSequence_ = 0;
   uint32_t advertisementsSeen_ = 0;
   uint32_t compatibleAdvertisements_ = 0;
@@ -2186,6 +2183,8 @@ class NimbleScaleClient {
   uint32_t backoffCount_ = 0;
   uint32_t lastAdvertisementToConnectMs_ = 0;
   uint32_t lastAdvertisementToReadyMs_ = 0;
+  uint32_t lastAdvertisementToFirstWeightMs_ = 0;
+  uint32_t lastReadyToFirstWeightMs_ = 0;
   bool hasValidPacket_ = false;
   bool hasTimer_ = false;
 };

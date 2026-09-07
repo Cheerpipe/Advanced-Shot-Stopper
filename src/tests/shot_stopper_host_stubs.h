@@ -298,7 +298,12 @@ enum class ScaleDisconnectReason : uint8_t {
   INVALID_PACKET_STREAM,
   COMMAND_WRITE_FAILED,
   SUPERVISION_TIMEOUT,
-  CONNECTION_FAILED_TO_ESTABLISH
+  CONNECTION_FAILED_TO_ESTABLISH,
+  RX_QUEUE_OVERFLOW,
+  EVENT_QUEUE_OVERFLOW,
+  HOST_RESET,
+  OPERATION_TIMEOUT,
+  MBUF_ALLOCATION_FAILED
 };
 
 using AcaiaDisconnectReason = ScaleDisconnectReason;
@@ -580,6 +585,15 @@ class EspressoScaleBLE {
         return "supervision timeout";
       case ScaleDisconnectReason::CONNECTION_FAILED_TO_ESTABLISH:
         return "connection failed to be established";
+      case ScaleDisconnectReason::RX_QUEUE_OVERFLOW:
+        return "RX queue overflow";
+      case ScaleDisconnectReason::EVENT_QUEUE_OVERFLOW:
+        return "event queue overflow";
+      case ScaleDisconnectReason::HOST_RESET: return "host reset";
+      case ScaleDisconnectReason::OPERATION_TIMEOUT:
+        return "operation timeout";
+      case ScaleDisconnectReason::MBUF_ALLOCATION_FAILED:
+        return "mbuf allocation failed";
       default: return "unknown";
     }
   }

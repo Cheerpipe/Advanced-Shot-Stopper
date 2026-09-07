@@ -58,7 +58,8 @@ enum ScaleBleTimingFlag : uint8_t {
     ScaleBleTimingScanStarted = 1U << 0,
     ScaleBleTimingFirstCompatibleAdvertisement = 1U << 1,
     ScaleBleTimingConnectIssued = 1U << 2,
-    ScaleBleTimingReady = 1U << 3
+    ScaleBleTimingReady = 1U << 3,
+    ScaleBleTimingFirstWeight = 1U << 4
 };
 
 // Millisecond timestamps use unsigned subtraction and therefore remain valid
@@ -69,6 +70,7 @@ struct ScaleBleTimingSnapshot {
     uint32_t firstCompatibleAdvertisementMs;
     uint32_t connectIssuedMs;
     uint32_t readyMs;
+    uint32_t firstWeightMs;
     uint8_t recordedFlags;
 
     bool has(ScaleBleTimingFlag flag) const {
@@ -107,6 +109,8 @@ struct ScaleBleBackendHealth {
     uint32_t backoffCount;
     uint32_t lastAdvertisementToConnectMs;
     uint32_t lastAdvertisementToReadyMs;
+    uint32_t lastAdvertisementToFirstWeightMs;
+    uint32_t lastReadyToFirstWeightMs;
     uint16_t criticalEventHighWater;
     uint16_t controlEventHighWater;
     uint16_t rxHighWater;

@@ -102,6 +102,17 @@ struct ScaleHistoryEntry {
   uint32_t lastSeenSeq = 0;
 };
 
+constexpr uint32_t SCALE_HISTORY_SESSION_CONSUMED = 0x80000000UL;
+constexpr uint32_t SCALE_HISTORY_SEQUENCE_MASK = 0x7fffffffUL;
+
+inline bool scaleHistorySessionConsumed(const ScaleHistoryEntry &entry) {
+  return (entry.lastSeenSeq & SCALE_HISTORY_SESSION_CONSUMED) != 0;
+}
+
+inline void clearScaleHistorySessionMarker(ScaleHistoryEntry &entry) {
+  entry.lastSeenSeq &= SCALE_HISTORY_SEQUENCE_MASK;
+}
+
 inline bool validScaleMacCacheMode(uint8_t mode) {
   return mode == static_cast<uint8_t>(ScaleMacCacheMode::FIRST) ||
          mode == static_cast<uint8_t>(ScaleMacCacheMode::ONLY) ||
@@ -826,7 +837,7 @@ inline bool upsertScaleHistory(ScaleHistoryEntry *entries, uint32_t &seqCounter,
   if (name != nullptr && validPreferredScaleName(name)) {
     copyCString(safeName, sizeof(safeName), name);
   }
-  ++seqCounter;
+  seqCounter = (seqCounter + 1U) & SCALE_HISTORY_SEQUENCE_MASK;
   if (seqCounter == 0) {
     seqCounter = 1;
   }
@@ -843,7 +854,9 @@ inline bool upsertScaleHistory(ScaleHistoryEntry *entries, uint32_t &seqCounter,
         memcpy(entries[i].name, safeName, sizeof(entries[i].name));
         changed = true;
       }
-      entries[i].lastSeenSeq = seqCounter;
+      entries[i].lastSeenSeq =
+          (entries[i].lastSeenSeq & SCALE_HISTORY_SESSION_CONSUMED) |
+          seqCounter;
       return changed;
     }
   }
@@ -855,18 +868,65 @@ inline bool upsertScaleHistory(ScaleHistoryEntry *entries, uint32_t &seqCounter,
       return true;
     }
   }
-  size_t victim = 0;
-  uint32_t oldest = entries[0].lastSeenSeq;
-  for (size_t i = 1; i < SCALE_HISTORY_CAPACITY; ++i) {
-    if (entries[i].lastSeenSeq < oldest) {
-      oldest = entries[i].lastSeenSeq;
+  size_t victim = SCALE_HISTORY_CAPACITY;
+  uint32_t oldest = 0;
+  for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
+    if (scaleHistorySessionConsumed(entries[i])) {
+      continue;
+    }
+    const uint32_t sequence =
+        entries[i].lastSeenSeq & SCALE_HISTORY_SEQUENCE_MASK;
+    if (victim == SCALE_HISTORY_CAPACITY || sequence < oldest) {
+      oldest = sequence;
       victim = i;
     }
+  }
+  if (victim == SCALE_HISTORY_CAPACITY) {
+    return false;
   }
   memcpy(entries[victim].mac, canonicalMac, sizeof(entries[victim].mac));
   memcpy(entries[victim].name, safeName, sizeof(entries[victim].name));
   entries[victim].lastSeenSeq = seqCounter;
   return true;
+}
+
+inline bool consumeScaleHistorySessionConnection(
+    ScaleHistoryEntry *entries, uint32_t &seqCounter, const char *mac,
+    const char *name) {
+  if (entries == nullptr || mac == nullptr || !validPreferredScaleMac(mac) ||
+      mac[0] == '\0') {
+    return false;
+  }
+  for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
+    if (preferredScaleMacEqual(entries[i].mac, mac)) {
+      if (scaleHistorySessionConsumed(entries[i])) {
+        return false;
+      }
+      entries[i].lastSeenSeq |= SCALE_HISTORY_SESSION_CONSUMED;
+      return true;
+    }
+  }
+  (void)upsertScaleHistory(entries, seqCounter, mac, name);
+  for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
+    if (preferredScaleMacEqual(entries[i].mac, mac)) {
+      entries[i].lastSeenSeq |= SCALE_HISTORY_SESSION_CONSUMED;
+      return true;
+    }
+  }
+  return false;
+}
+
+inline void reopenScaleHistorySessionConnection(ScaleHistoryEntry *entries,
+                                                const char *mac) {
+  if (entries == nullptr || mac == nullptr || mac[0] == '\0') {
+    return;
+  }
+  for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
+    if (preferredScaleMacEqual(entries[i].mac, mac)) {
+      clearScaleHistorySessionMarker(entries[i]);
+      return;
+    }
+  }
 }
 
 inline void seedScaleHistoryFromPreferred(ScaleHistoryEntry *entries,

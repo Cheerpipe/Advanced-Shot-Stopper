@@ -97,6 +97,7 @@ constexpr size_t OTA_TRANSFER_ID_CAPACITY = 65;
 constexpr size_t OTA_SHA256_HEX_CAPACITY = 65;
 constexpr uint16_t OTA_PROTOCOL_VERSION = 2;
 constexpr uint32_t OTA_TRANSFER_CHUNK_BYTES = 64U * 1024U;
+constexpr uint32_t OTA_WRITE_ALIGNMENT = 4096;
 // Journal at most twice per MiB. A 3 MiB image therefore performs at most
 // six durable writes (the empty record plus five progress checkpoints), not
 // one write and a full-prefix rehash for every HTTP range.
@@ -200,6 +201,20 @@ struct OtaStatusSnapshot {
   uint32_t journalFailures = 0;
   OtaSessionIdentity session = {};
   char lastChunkSha256[OTA_SHA256_HEX_CAPACITY] = {};
+  char runningImageSha256[OTA_SHA256_HEX_CAPACITY] = {};
+  char stagedImageSha256[OTA_SHA256_HEX_CAPACITY] = {};
+  int32_t bootState = -2;  // unknown; IDF's UNDEFINED is -1
+  const char *confirmBlockReason = "NOT_CHECKED";
+  uint32_t confirmAttempts = 0;
+  int32_t confirmLastError = 0;
+};
+
+// Small boot diagnostic/result, also used by the host tests of the real service.
+struct OtaBootStatus {
+  int32_t state = -2;
+  const char *reason = "NOT_CHECKED";
+  uint32_t attempts = 0;
+  int32_t lastError = 0;
 };
 
 // Lock-free publication consumed by network_manager. Long HTTP socket waits
@@ -269,6 +284,9 @@ class ShotStopperOta {
   // confirmRunningImage() and a second reject are no-ops, so a later tick
   // cannot silently cancel the armed rollback.
   bool rejectRunningImage();
+  OtaBootStatus serviceBoot(uint32_t now, bool httpReady, bool activeCycle,
+                           bool relayClosed, bool bleUp,
+                           uint32_t minUptimeMs, uint32_t deadlineMs);
 
   OtaImageTag runningTag() const;
 
@@ -276,6 +294,9 @@ class ShotStopperOta {
   static const char *stateName(OtaState state);
 
   private:
+#if defined(SHOT_STOPPER_OTA_HOST_TEST)
+  friend struct OtaHostTestAccess;
+#endif
   ShotStopperOta() = default;
 
   OtaResult finishFailure(OtaResult result);
@@ -289,6 +310,10 @@ class ShotStopperOta {
   void removeSessionJournal();
   void restoreSessionJournal();
   void publishState();
+  bool readBootState();
+  bool confirmRunningImageLocked();
+  enum class RejectResult { REJECTED, NO_ALTERNATIVE, FAILED };
+  RejectResult rejectRunningImageLocked();
 
   bool started_ = false;
   bool available_ = false;
@@ -297,6 +322,11 @@ class ShotStopperOta {
   bool confirmed_ = false;
   bool rejected_ = false;
   bool stagedValid_ = false;
+  OtaBootStatus bootStatus_;
+  uint32_t bootLastAttemptMs_ = 0;
+  bool bootAttempted_ = false;
+  char runningImageSha256_[OTA_SHA256_HEX_CAPACITY] = {};
+  char stagedImageSha256_[OTA_SHA256_HEX_CAPACITY] = {};
   OtaState state_ = OtaState::UNAVAILABLE;
   uint32_t slotBytes_ = 0;
   uint32_t receivedBytes_ = 0;

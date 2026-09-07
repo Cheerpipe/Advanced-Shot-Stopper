@@ -122,7 +122,10 @@ Examples:
 
 `--force` is accepted by `ota`, `ota-idf`, `bo`, and `bo-idf` (and their `o`
 aliases). It bypasses the final commit prompt, then polls the controller until
-the new image reports `confirmed: true` or four minutes pass.
+the boot ID changes, the running image digest matches the local file and
+`confirmed: true`, or four minutes pass. Missing evidence on older firmware is
+reported as unverified. Without `--force`, completion of commit does not claim
+that the rebooted image has been confirmed.
 
 `--no-check` is accepted by `flash`, `flash-idf`, and their USB flashing
 wrappers (`bf`, `bfm`, `bsfm`, which forward it to the install step).
@@ -136,7 +139,9 @@ When the controller already owns a partial or staged different image, OTA
 stops without modifying it and prints both identities. Re-run with
 `--discard-ota-session` only when discarding that remote image is intentional.
 A matching image automatically adopts the existing `transferId` and resumes
-from the controller's validated `nextOffset`.
+from the controller's validated `nextOffset`. This offset can retreat after
+reboot to the last 512 KiB journal checkpoint; clients reconstruct the range
+from that offset, with 4 KiB alignment except at the image end.
 
 OTA clients use a 10-second connection timeout and retain the existing long
 transfer window. A transient transport failure is reconciled with the OTA

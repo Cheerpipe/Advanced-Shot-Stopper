@@ -42,7 +42,6 @@ inline void bleScanHciParams(BleScanIntensity intensity, uint16_t &interval,
 void applyLiveBleScanIntensity(BleScanIntensity intensity);
 BleScanIntensity liveBleScanIntensity();
 
-constexpr uint32_t BOOKOO_CONNECT_BEEP_DEFER_MS = 750;
 constexpr uint32_t SCALE_WORKER_STALE_MS = 2000;
 constexpr uint32_t SCALE_WORKER_NO_SCALE_DELAY_MS = 10;
 constexpr uint32_t SCALE_WORKER_BACKGROUND_MS = 25;

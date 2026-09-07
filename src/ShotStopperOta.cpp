@@ -47,7 +47,8 @@ struct OtaChunkBuffer {
 struct FlashIoGuard {
   bool locked = false;
 
-  FlashIoGuard() : locked(tryLockFlashIo()) {}
+  explicit FlashIoGuard(uint32_t timeoutMs = FLASH_IO_LOCK_TIMEOUT_MS)
+      : locked(tryLockFlashIo(timeoutMs)) {}
   ~FlashIoGuard() {
     if (locked) unlockFlashIo();
   }
@@ -308,16 +309,14 @@ void ShotStopperOta::begin() {
   slotBytes_ = target != nullptr ? target->size : 0;
   state_ = available_ ? OtaState::IDLE : OtaState::UNAVAILABLE;
 
+  readBootState();
   if (running != nullptr) {
-    esp_ota_img_states_t imageState = ESP_OTA_IMG_UNDEFINED;
     FlashIoGuard flash;
-    if (flash.ok() &&
-        esp_ota_get_state_partition(running, &imageState) == ESP_OK) {
-      pendingVerify_ = imageState == ESP_OTA_IMG_PENDING_VERIFY;
+    uint8_t digest[32] = {};
+    if (flash.ok() && esp_partition_get_sha256(running, digest) == ESP_OK) {
+      sha256Hex(digest, runningImageSha256_);
     }
   }
-  // A slot that is not awaiting confirmation is already permanent.
-  confirmed_ = !pendingVerify_;
   if (available_ && confirmed_) {
     restoreSessionJournal();
   }
@@ -360,7 +359,9 @@ void ShotStopperOta::restoreSessionJournal() {
   const OtaJournalRecord &record =
       (!firstValid || (secondValid &&
        static_cast<int32_t>(second.generation - first.generation) > 0)) ? second : first;
-  if (!validJournalIdentity(record.identity) || record.identity.size > slotBytes_) {
+  if (!validJournalIdentity(record.identity) || record.identity.size > slotBytes_ ||
+      record.received % OTA_WRITE_ALIGNMENT != 0 ||
+      record.received >= record.identity.size) {
     clearJournal();
     return;
   }
@@ -417,6 +418,7 @@ void ShotStopperOta::restoreSessionJournal() {
   sessionActive_ = true;
   state_ = OtaState::RECEIVING;
   if (!startSessionSha256()) {
+    mbedtls_sha256_free(&hash);
     clearSession(false);
     state_ = OtaState::IDLE;
     return;
@@ -428,7 +430,8 @@ void ShotStopperOta::restoreSessionJournal() {
     esp_ota_handle_t handle = 0;
     FlashIoGuard flash;
     if (!flash.ok() ||
-        esp_ota_resume(target, 0, record.received, &handle) != ESP_OK) {
+        esp_ota_resume(target, OTA_WITH_SEQUENTIAL_WRITES, record.received,
+                       &handle) != ESP_OK) {
       clearSession(false);
       clearJournal();
       receivedBytes_ = 0;
@@ -464,6 +467,12 @@ OtaStatusSnapshot ShotStopperOta::snapshot() const {
   copy.journalFailures = otaJournalFailures.load(std::memory_order_relaxed);
   copy.session = session_;
   memcpy(copy.lastChunkSha256, lastChunkSha256_, sizeof(lastChunkSha256_));
+  memcpy(copy.runningImageSha256, runningImageSha256_, sizeof(runningImageSha256_));
+  memcpy(copy.stagedImageSha256, stagedImageSha256_, sizeof(stagedImageSha256_));
+  copy.bootState = bootStatus_.state;
+  copy.confirmBlockReason = bootStatus_.reason;
+  copy.confirmAttempts = bootStatus_.attempts;
+  copy.confirmLastError = bootStatus_.lastError;
   if (sessionActive_) {
     const uint32_t age = static_cast<uint32_t>(millis() - sessionLastActivityMs_);
     copy.sessionExpiresInMs = age < OTA_SESSION_TTL_MS ? OTA_SESSION_TTL_MS - age : 0;
@@ -657,6 +666,11 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   if (offset == 0 && contentLength < OTA_IMAGE_PREFIX_BYTES) {
     return OtaResult::INVALID_RANGE;
   }
+  if (offset % OTA_WRITE_ALIGNMENT != 0 ||
+      (contentLength != expectedBytes_ - receivedBytes_ &&
+       contentLength % OTA_WRITE_ALIGNMENT != 0)) {
+    return OtaResult::INVALID_RANGE;
+  }
 
   busy_ = true;
   // Flash cache is disabled briefly for every write. The buffer and hash
@@ -673,7 +687,6 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   if (!chunk.ok()) {
     return finishFailure(OtaResult::NO_MEMORY);
   }
-  size_t chunkBytes = OTA_CHUNK_BYTES;
   uint8_t *const buffer = chunk.bytes;
 
   mbedtls_sha256_context chunkHash;
@@ -691,20 +704,32 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
       break;
     }
     const uint32_t remaining = contentLength - rangeReceived;
-    size_t want = chunkBytes;
-    if (remaining < want) {
-      want = static_cast<size_t>(remaining);
+    const size_t length = remaining < OTA_CHUNK_BYTES ? remaining : OTA_CHUNK_BYTES;
+    size_t filled = 0;
+    // TCP may split even the image header across reads. Only a complete
+    // sector (or the image's final tail) is handed to the flash driver.
+    while (filled < length) {
+      if (!io.stillSafe(io.context)) {
+        failure = OtaResult::SAFETY_LOST;
+        break;
+      }
+      const size_t want = length - filled;
+      const int got = io.read(io.context, buffer + filled, want);
+      if (!io.stillSafe(io.context)) {
+        failure = OtaResult::SAFETY_LOST;
+        break;
+      }
+      if (got <= 0) {
+        failure = OtaResult::RECEIVE_FAILED;
+        break;
+      }
+      if (static_cast<size_t>(got) > want) {
+        failure = OtaResult::INTERNAL;
+        break;
+      }
+      filled += static_cast<size_t>(got);
     }
-    const int got = io.read(io.context, buffer, want);
-    if (got <= 0) {
-      failure = OtaResult::RECEIVE_FAILED;
-      break;
-    }
-    // The callback is trusted to honour `want`, but a return larger than the
-    // allocation would walk off the buffer into flash. Clamp rather than trust.
-    const size_t length = static_cast<size_t>(got) > want
-                              ? want
-                              : static_cast<size_t>(got);
+    if (failure != OtaResult::OK) break;
 
     if (!otaHandle_) {
       if (rangeReceived != 0 || length < OTA_IMAGE_PREFIX_BYTES ||
@@ -714,8 +739,12 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
       }
       esp_ota_handle_t handle = 0;
       FlashIoGuard flash;
+      if (!io.stillSafe(io.context)) {
+        failure = OtaResult::SAFETY_LOST;
+        break;
+      }
       if (!flash.ok() ||
-          esp_ota_begin(target, expectedBytes_, &handle) != ESP_OK) {
+          esp_ota_begin(target, OTA_WITH_SEQUENTIAL_WRITES, &handle) != ESP_OK) {
         failure = OtaResult::WRITE_FAILED;
         break;
       }
@@ -723,6 +752,10 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
     }
     {
       FlashIoGuard flash;
+      if (!io.stillSafe(io.context)) {
+        failure = OtaResult::SAFETY_LOST;
+        break;
+      }
       if (!flash.ok() ||
           esp_ota_write(static_cast<esp_ota_handle_t>(otaHandle_.get()), buffer,
                         length) != ESP_OK) {
@@ -771,17 +804,33 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   const bool hashFinished = mbedtls_sha256_finish(&chunkHash, chunkDigest) == 0;
   mbedtls_sha256_free(&chunkHash);
 
-  if (failure == OtaResult::OK && (!otaHandle_ || rangeReceived != contentLength ||
-                                  !hashFinished)) {
-    failure = OtaResult::RECEIVE_FAILED;
+  if ((failure == OtaResult::OK && (!otaHandle_ || rangeReceived != contentLength)) ||
+      (!hashFinished && failure != OtaResult::SAFETY_LOST)) {
+    failure = OtaResult::INTERNAL;
   }
   if (failure != OtaResult::OK) {
+    if (failure == OtaResult::RECEIVE_FAILED) {
+      // The incomplete RAM sector has never touched flash. The handle,
+      // scanner and SHA already describe exactly this accepted prefix.
+      lastResult_ = failure;
+      lastReceivedBytes_ = receivedBytes_;
+      lastExpectedBytes_ = expectedBytes_;
+      lastChunkOffset_ = 0;
+      lastChunkLength_ = 0;
+      lastChunkSha256_[0] = '\0';
+      sessionLastActivityMs_ = millis();
+      if (otaJournalCheckpointDue(receivedBytes_, journaledBytes_, expectedBytes_) &&
+          !persistSession()) return finishFailure(OtaResult::INTERNAL);
+      busy_ = false;
+      publishState();
+      return failure;
+    }
     return finishFailure(failure);
   }
   sha256Hex(chunkDigest, lastChunkSha256_);
   lastChunkOffset_ = offset;
   lastChunkLength_ = contentLength;
-  sessionLastActivityMs_ = now;
+  sessionLastActivityMs_ = millis();
 
   if (otaJournalCheckpointDue(receivedBytes_, journaledBytes_,
                               expectedBytes_) &&
@@ -808,18 +857,28 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
 
   // esp_ota_end re-reads the whole slot and verifies the appended SHA-256, so
   // a transfer that was silently corrupted in flight fails here.
-  const esp_ota_handle_t closingHandle =
-      static_cast<esp_ota_handle_t>(otaHandle_.release());
   esp_err_t endStatus = ESP_FAIL;
   {
     FlashIoGuard flash;
-    if (flash.ok()) endStatus = esp_ota_end(closingHandle);
+    if (flash.ok()) {
+      // IDF consumes the handle even when validation fails. Keep ownership
+      // until the call actually happens (a lock failure still needs abort).
+      endStatus = esp_ota_end(static_cast<esp_ota_handle_t>(otaHandle_.release()));
+    }
   }
   if (endStatus != ESP_OK) {
-    abortOtaHandle(closingHandle);
     return finishFailure(OtaResult::VERIFY_FAILED);
   }
   if (!verifySessionSha256()) return finishFailure(OtaResult::HASH_MISMATCH);
+
+  {
+    FlashIoGuard flash;
+    uint8_t digest[32] = {};
+    if (!flash.ok() || esp_partition_get_sha256(target, digest) != ESP_OK) {
+      return finishFailure(OtaResult::VERIFY_FAILED);
+    }
+    sha256Hex(digest, stagedImageSha256_);
+  }
 
   // One last look at the machine before advertising the image as flashable.
   if (!io.stillSafe(io.context)) {
@@ -913,6 +972,34 @@ void ShotStopperOta::discard() {
 
 bool ShotStopperOta::confirmRunningImage() {
   TaskLockGuard lock(mutex_);
+  return confirmRunningImageLocked();
+}
+
+bool ShotStopperOta::readBootState() {
+  FlashIoGuard flash(0);
+  esp_ota_img_states_t state = ESP_OTA_IMG_UNDEFINED;
+  const auto *running = esp_ota_get_running_partition();
+  const esp_err_t result = flash.ok()
+      ? esp_ota_get_state_partition(running, &state) : ESP_ERR_TIMEOUT;
+  // An initial USB installation has no otadata record yet.
+  if (result != ESP_OK && result != ESP_ERR_NOT_FOUND) {
+    bootStatus_.state = -2;
+    bootStatus_.lastError = result;
+    bootStatus_.reason = flash.ok() ? "STATE_ERROR" : "FLASH_BUSY";
+    pendingVerify_ = true;
+    confirmed_ = false;
+    return false;
+  }
+  bootStatus_.state = static_cast<int32_t>(state);
+  pendingVerify_ = state == ESP_OTA_IMG_PENDING_VERIFY || state == ESP_OTA_IMG_NEW;
+  confirmed_ = state == ESP_OTA_IMG_VALID || state == ESP_OTA_IMG_UNDEFINED;
+  rejected_ = state == ESP_OTA_IMG_INVALID || state == ESP_OTA_IMG_ABORTED;
+  bootStatus_.reason = confirmed_ ? "CONFIRMED" : rejected_ ? "REJECTED" : "WAIT_UPTIME";
+  bootStatus_.lastError = ESP_OK;
+  return true;
+}
+
+bool ShotStopperOta::confirmRunningImageLocked() {
   if (confirmed_) {
     return true;
   }
@@ -922,10 +1009,16 @@ bool ShotStopperOta::confirmRunningImage() {
   if (rejected_) {
     return false;
   }
-  FlashIoGuard flash;
-  if (!flash.ok() || esp_ota_mark_app_valid_cancel_rollback() != ESP_OK) {
+  ++bootStatus_.attempts;
+  FlashIoGuard flash(0);
+  bootStatus_.lastError = flash.ok()
+      ? esp_ota_mark_app_valid_cancel_rollback() : ESP_ERR_TIMEOUT;
+  if (bootStatus_.lastError != ESP_OK) {
+    bootStatus_.reason = flash.ok() ? "CONFIRM_ERROR" : "FLASH_BUSY";
     return false;
   }
+  bootStatus_.state = static_cast<int32_t>(ESP_OTA_IMG_VALID);
+  bootStatus_.reason = "CONFIRMED";
   confirmed_ = true;
   pendingVerify_ = false;
   publishState();
@@ -934,25 +1027,78 @@ bool ShotStopperOta::confirmRunningImage() {
 
 bool ShotStopperOta::rejectRunningImage() {
   TaskLockGuard lock(mutex_);
+  return rejectRunningImageLocked() == RejectResult::REJECTED;
+}
+
+ShotStopperOta::RejectResult ShotStopperOta::rejectRunningImageLocked() {
   if (rejected_) {
-    return true;
+    return RejectResult::REJECTED;
   }
   if (confirmed_ || busy_) {
-    return false;
+    return RejectResult::FAILED;
   }
   // Refusing here is the safe outcome: without a bootable alternative the
   // caller must keep running this image rather than restart into nothing.
-  FlashIoGuard flash;
-  if (!flash.ok() || !esp_ota_check_rollback_is_possible()) {
-    return false;
+  ++bootStatus_.attempts;
+  FlashIoGuard flash(0);
+  if (!flash.ok()) {
+    bootStatus_.reason = "FLASH_BUSY";
+    bootStatus_.lastError = ESP_ERR_TIMEOUT;
+    return RejectResult::FAILED;
   }
-  if (esp_ota_mark_app_invalid_rollback() != ESP_OK) {
-    return false;
+  if (!esp_ota_check_rollback_is_possible()) {
+    bootStatus_.reason = "NO_ROLLBACK";
+    return RejectResult::NO_ALTERNATIVE;
   }
+  bootStatus_.lastError = esp_ota_mark_app_invalid_rollback();
+  if (bootStatus_.lastError != ESP_OK) {
+    bootStatus_.reason = "ROLLBACK_ERROR";
+    return RejectResult::FAILED;
+  }
+  bootStatus_.state = static_cast<int32_t>(ESP_OTA_IMG_INVALID);
+  bootStatus_.reason = "REJECTED";
   rejected_ = true;
   pendingVerify_ = false;
   publishState();
-  return true;
+  return RejectResult::REJECTED;
+}
+
+OtaBootStatus ShotStopperOta::serviceBoot(
+    uint32_t now, bool httpReady, bool activeCycle, bool relayClosed,
+    bool bleUp, uint32_t minUptimeMs, uint32_t deadlineMs) {
+  TaskLockGuard lock(mutex_);
+  if (confirmed_ || rejected_) return bootStatus_;
+  // These gates always outrank the deadline and retry policy.
+  if (activeCycle || relayClosed || busy_ || sessionActive_) {
+    bootStatus_.reason = activeCycle ? "WAIT_CYCLE" : relayClosed ? "WAIT_RELAY" : "WAIT_TRANSFER";
+    return bootStatus_;
+  }
+  if (bootAttempted_ && static_cast<uint32_t>(now - bootLastAttemptMs_) < 1000U) {
+    return bootStatus_;
+  }
+  if (bootStatus_.state == -2) {
+    bootLastAttemptMs_ = now;
+    bootAttempted_ = true;
+    ++bootStatus_.attempts;
+    if (!readBootState()) return bootStatus_;
+    publishState();
+    if (confirmed_ || rejected_) return bootStatus_;
+  }
+  const auto action = decideOtaPendingVerify(pendingVerify_, false, httpReady,
+      now, minUptimeMs, deadlineMs, true, !bleUp);
+  if (action == OtaPendingVerifyAction::WAIT) {
+    bootStatus_.reason = !httpReady ? "WAIT_HTTP" : now < minUptimeMs ? "WAIT_UPTIME" : "WAIT_BLE";
+    return bootStatus_;
+  }
+  if (action == OtaPendingVerifyAction::NONE) return bootStatus_;
+  bootLastAttemptMs_ = now;
+  bootAttempted_ = true;
+  if (action == OtaPendingVerifyAction::CONFIRM) {
+    confirmRunningImageLocked();
+  } else if (rejectRunningImageLocked() == RejectResult::NO_ALTERNATIVE) {
+    if (confirmRunningImageLocked()) bootStatus_.reason = "NO_ROLLBACK";
+  }
+  return bootStatus_;
 }
 
 const char *ShotStopperOta::resultName(OtaResult result) {

@@ -1,4 +1,5 @@
 #include "nimble/NimbleAdvertisement.h"
+#include "ScaleProtocol.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -73,6 +74,51 @@ void fuzzEveryTruncation() {
   }
 }
 
+void testProtocolInitializationContracts() {
+  const uint8_t prohibitedSmoothing[] = {0x03, 0x0a, 0x08,
+                                         0x00, 0x00, 0x01};
+  bool sawBookoo = false;
+  bool sawAcaiaInitialization = false;
+  bool sawFelicitaInitialization = false;
+  bool sawDifluidInitialization = false;
+  for (size_t index = 0; index < scaleProtocolCount(); ++index) {
+    const ScaleProtocol *protocol = scaleProtocolAt(index);
+    CHECK(protocol != nullptr);
+    if (std::strcmp(protocol->id, "bookoo_generic") == 0) {
+      sawBookoo = true;
+      CHECK(protocol->initWrites == nullptr);
+      CHECK(protocol->initWriteCount == 0);
+    } else if (std::strcmp(protocol->id, "acaia") == 0) {
+      sawAcaiaInitialization = protocol->initWriteCount > 0;
+    } else if (std::strcmp(protocol->id, "felicita") == 0) {
+      sawFelicitaInitialization = protocol->initWriteCount > 0;
+    } else if (std::strcmp(protocol->id, "difluid") == 0) {
+      sawDifluidInitialization = protocol->initWriteCount > 0;
+    }
+    for (size_t write = 0; write < protocol->initWriteCount; ++write) {
+      const ScalePayload &payload = protocol->initWrites[write];
+      CHECK(payload.length != static_cast<int>(sizeof(prohibitedSmoothing)) ||
+            std::memcmp(payload.data, prohibitedSmoothing,
+                        sizeof(prohibitedSmoothing)) != 0);
+    }
+    for (uint8_t rawOp = static_cast<uint8_t>(ScaleOp::Tare);
+         rawOp <= static_cast<uint8_t>(ScaleOp::SetVolume); ++rawOp) {
+      uint8_t command[SCALE_MAX_COMMAND_LENGTH] = {};
+      int length = 0;
+      if (protocol->encodeCommand(
+              static_cast<ScaleOp>(rawOp), 0, command, &length)) {
+        CHECK(length != static_cast<int>(sizeof(prohibitedSmoothing)) ||
+              std::memcmp(command, prohibitedSmoothing,
+                          sizeof(prohibitedSmoothing)) != 0);
+      }
+    }
+  }
+  CHECK(sawBookoo);
+  CHECK(sawAcaiaInitialization);
+  CHECK(sawFelicitaInitialization);
+  CHECK(sawDifluidInitialization);
+}
+
 }  // namespace
 
 int main() {
@@ -80,6 +126,7 @@ int main() {
   testMalformedAndBounds();
   testShortNameCannotReplaceCompleteName();
   fuzzEveryTruncation();
+  testProtocolInitializationContracts();
   std::cout << "NimBLE advertisement tests passed: " << checks << " checks\n";
   return 0;
 }
