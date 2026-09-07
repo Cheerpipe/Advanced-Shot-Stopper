@@ -149,7 +149,7 @@ function buildSecondaryJs(viewJsRaw, assetTag) {
     let body = stampAssetTag(viewJsRaw[name], assetTag);
     body = body
         .replace(/^['"]use strict['"];\s*/m, '')
-        .replace(/import\s+\*\s+as\s+R\s+from\s+['"][^'"]+['"];\s*/m, '')
+        .replace(/import\s*\*\s*as\s+R\s+from\s*['"][^'"]+['"];\s*/m, '')
         .replace(/const\s+\$\s*=\s*R\.\$;\s*/m, '')
         .replace(/export\s+function\s+applyStatus/g, `function ${name}ApplyStatus`)
         .replace(/export\s+function\s+init/g, `function ${name}Init`)
@@ -161,6 +161,9 @@ function buildSecondaryJs(viewJsRaw, assetTag) {
             new RegExp(
                 `registerViewStatus\\('${name}',applyStatus\\)`, 'g'),
             `registerViewStatus('${name}',${name}ApplyStatus)`);
+    if (/\bimport\s*\*/.test(body)) {
+      throw new Error(`Secondary view ${name} retained its runtime import`);
+    }
     parts.push(`// ${name}`, body);
   }
   parts.push('export const views={');
