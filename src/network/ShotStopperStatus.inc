@@ -696,6 +696,22 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     if (ok) {
     // Lean diagnostic snapshot: metrics + log controls only (no STA address
     // form fields; those stay on status/admin).
+    const ScaleBleDiagnostics &ble = control.scaleBleDiagnostics;
+    char disconnectSummary[144] = {};
+    char commandSummary[64] = {};
+    if (ble.disconnectSequence != 0) {
+      snprintf(disconnectSummary, sizeof(disconnectSummary), "%s · %s · %s %ld · %lus ago",
+               scaleDisconnectReasonName(ble.disconnectReason),
+               scaleBleOriginName(ble.disconnectOrigin),
+               scaleBleStatusDomain(ble.disconnectStatus, ble.disconnectOrigin),
+               static_cast<long>(ble.disconnectStatus),
+               static_cast<unsigned long>(static_cast<uint32_t>(millis() - ble.disconnectAtMs) / 1000));
+    }
+    if (ble.commandFailureSequence != 0) {
+      snprintf(commandSummary, sizeof(commandSummary), "%s · status %ld · %lums",
+               scaleBleCommandName(ble.command), static_cast<long>(ble.commandStatus),
+               static_cast<unsigned long>(ble.commandElapsedMs));
+    }
     ok = statusJsonAppend(
         &used,
         ",\"state\":\"%s\",\"machineState\":\"%s\","
@@ -744,6 +760,12 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"scale\":{\"streamState\":\"%s\",\"controlState\":\"%s\","
         "\"packetGaps\":%lu,\"rejectedPackets\":%lu,"
         "\"reconnects\":%lu,\"lastDisconnectReasonName\":\"%s\","
+        "\"lastDisconnect\":{\"summary\":\"%s\",\"sequence\":%lu,\"atMs\":%lu,\"ageMs\":%lu,"
+        "\"generation\":%lu,\"reason\":\"%s\",\"origin\":\"%s\","
+        "\"status\":%ld,\"domain\":\"%s\",\"teardownStatus\":%ld,"
+        "\"command\":\"%s\",\"commandElapsedMs\":%lu},"
+        "\"lastCommandFailure\":{\"summary\":\"%s\",\"sequence\":%lu,\"atMs\":%lu,"
+        "\"command\":\"%s\",\"status\":%ld,\"elapsedMs\":%lu},"
         "\"eventsDropped\":%lu,\"recoveredStaleCount\":%lu,"
         "\"recoveredStaleMs\":%lu,\"rssi\":%s,"
         "\"weightUpdateIntervalMs\":%s},"
@@ -842,6 +864,24 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(control.scaleRejectedPackets),
         static_cast<unsigned long>(control.scaleReconnects),
         scaleDisconnectReasonName(control.scaleLastDisconnectReason),
+        disconnectSummary,
+        static_cast<unsigned long>(ble.disconnectSequence),
+        static_cast<unsigned long>(ble.disconnectAtMs),
+        static_cast<unsigned long>(ble.disconnectSequence == 0 ? 0 : millis() - ble.disconnectAtMs),
+        static_cast<unsigned long>(ble.disconnectGeneration),
+        scaleDisconnectReasonName(ble.disconnectReason),
+        scaleBleOriginName(ble.disconnectOrigin),
+        static_cast<long>(ble.disconnectStatus),
+        scaleBleStatusDomain(ble.disconnectStatus, ble.disconnectOrigin),
+        static_cast<long>(ble.teardownStatus),
+        scaleBleCommandName(ble.disconnectCommand),
+        static_cast<unsigned long>(ble.disconnectCommandElapsedMs),
+        commandSummary,
+        static_cast<unsigned long>(ble.commandFailureSequence),
+        static_cast<unsigned long>(ble.commandFailureAtMs),
+        scaleBleCommandName(ble.command),
+        static_cast<long>(ble.commandStatus),
+        static_cast<unsigned long>(ble.commandElapsedMs),
         static_cast<unsigned long>(control.scaleEventsDropped),
         static_cast<unsigned long>(control.scaleRecoveredStaleCount),
         static_cast<unsigned long>(control.scaleRecoveredStaleMs),

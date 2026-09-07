@@ -101,6 +101,7 @@ void publishControlStatus() {
   next.scaleRejectedPackets = scaleLink.rejectedPackets;
   next.scaleReconnects = scaleLink.reconnects;
   next.scaleLastDisconnectReason = scaleLink.lastDisconnectReason;
+  next.scaleBleDiagnostics = scaleLink.bleDiagnostics;
   next.scaleRssiValid = scaleLink.rssiValid;
   next.scaleRssi = scaleLink.rssi;
   next.uptimeMs = elapsedMs(bootStartedAtMs);

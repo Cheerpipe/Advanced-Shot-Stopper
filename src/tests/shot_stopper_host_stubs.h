@@ -11,6 +11,7 @@
 #include <string>
 #include <type_traits>
 #include <vector>
+#include "../../libraries/EspressoScaleBLE/src/ScaleBleTypes.h"
 
 constexpr uint8_t LOW = 0;
 constexpr uint8_t HIGH = 1;
@@ -560,6 +561,8 @@ class EspressoScaleBLE {
   ScaleDisconnectReason lastDisconnectReason() const {
     return disconnectReason;
   }
+  ScaleBleDiagnostics diagnostics() const { return bleDiagnostics; }
+  ScaleBleDiagnostics bleDiagnostics = {};
   const char* lastDisconnectReasonName() const {
     switch (disconnectReason) {
       case ScaleDisconnectReason::NONE: return "none";

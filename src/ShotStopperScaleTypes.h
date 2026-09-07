@@ -4,8 +4,26 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include "../libraries/EspressoScaleBLE/src/ScaleBleTypes.h"
 
 namespace shotstopper {
+
+// Observational fields shared by the coherent control-status publication.
+// Field names remain flat for existing snapshot consumers.
+struct ScaleLinkMetrics {
+  uint32_t scaleConnectionGeneration = 0;
+  uint32_t scalePacketSequence = 0;
+  uint32_t scalePacketGaps = 0;
+  uint32_t scaleWeightUpdateIntervalMs = 0;
+  uint32_t scaleRejectedPackets = 0;
+  uint32_t scaleReconnects = 0;
+  uint32_t scaleRecoveredStaleCount = 0;
+  uint32_t scaleRecoveredStaleMs = 0;
+  uint8_t scaleLastDisconnectReason = 0;
+  ScaleBleDiagnostics scaleBleDiagnostics = {};
+  bool scaleRssiValid = false;
+  int8_t scaleRssi = 0;
+};
 
 // =============================================================================
 // LAYER: Scale types (link, weight stream, cup contracts)

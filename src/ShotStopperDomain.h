@@ -2013,7 +2013,7 @@ inline const char *bootStateName(BootState state) {
   return "BOOTING";
 }
 
-struct ControlStatusSnapshot {
+struct ControlStatusSnapshot : ScaleLinkMetrics {
   // Coherent publication identity. uptimeMs is the publication timestamp;
   // snapshotVersion advances exactly once for every committed snapshot.
   uint32_t snapshotVersion = 0;
@@ -2061,17 +2061,6 @@ struct ControlStatusSnapshot {
   bool currentTimerValid = false;
   uint32_t currentTimerMs = 0;
   uint32_t currentTimerAgeMs = 0;
-  uint32_t scaleConnectionGeneration = 0;
-  uint32_t scalePacketSequence = 0;
-  uint32_t scalePacketGaps = 0;
-  uint32_t scaleWeightUpdateIntervalMs = 0;
-  uint32_t scaleRejectedPackets = 0;
-  uint32_t scaleReconnects = 0;
-  uint32_t scaleRecoveredStaleCount = 0;
-  uint32_t scaleRecoveredStaleMs = 0;
-  uint8_t scaleLastDisconnectReason = 0;
-  bool scaleRssiValid = false;
-  int8_t scaleRssi = 0;
   uint32_t uptimeMs = 0;
   // Recent loop gap: max over the last completed ~5 s health window (and any
   // larger gap already seen in the in-progress window). Lifetime max is

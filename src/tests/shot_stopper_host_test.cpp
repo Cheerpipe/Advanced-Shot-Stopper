@@ -1305,11 +1305,11 @@ void r04_scale_commands_execute_once_and_report_results() {
   scale.tareStartTimerSucceeds = false;
   CHECK(executeNextScaleCommand());
   CHECK(scale.tareStartTimerCalls == 1);
-  CHECK(scale.resetTimerCalls == 1);
-  CHECK(scale.startTimerCalls == 1);
-  CHECK(scale.tareCalls == 1);
+  CHECK(scale.resetTimerCalls == 0);
+  CHECK(scale.startTimerCalls == 0);
+  CHECK(scale.tareCalls == 0);
   loop();
-  CHECK(session.remoteTimerStarted);
+  CHECK(!session.remoteTimerStarted);
 
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -3853,6 +3853,33 @@ void f01_link_side_effects_run_only_on_control() {
   processScaleLinkTransitions();
   CHECK(localBuzzer.acceptedRequests == beforeDisconnect + 1);
   CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+
+  setScaleConnected(true);
+  const uint32_t beforeCoalesced = localBuzzer.acceptedRequests;
+  for (uint32_t step = 0; step < 160 && localBuzzer.busy(); ++step) {
+    hostMillis += 40;
+    hostServiceEspTimer(localBuzzer.phaseTimer);
+    localBuzzer.service(hostMillis);
+  }
+  CHECK(!localBuzzer.busy());
+  scale.connected = false;
+  updateWorkerLinkState();
+  scale.connected = true;
+  updateWorkerLinkState();
+  processScaleLinkTransitions();
+  CHECK(localBuzzer.acceptedRequests == beforeCoalesced + 2);
+  processScaleLinkTransitions();
+  CHECK(localBuzzer.acceptedRequests == beforeCoalesced + 2);
+
+  scale.bleDiagnostics.commandFailureSequence = 1;
+  scale.bleDiagnostics.commandStatus = 15;
+  updateWorkerLinkState();
+  processScaleLinkTransitions();
+  CHECK(localBuzzer.acceptedRequests == beforeCoalesced + 2);
+  publishControlStatus();
+  ControlStatusSnapshot published;
+  copyControlStatus(published);
+  CHECK(published.scaleBleDiagnostics.commandStatus == 15);
 }
 
 void f01_worker_uses_only_published_policy() {

@@ -247,8 +247,9 @@ if (!firmwareCore.includes('command.commitConfirmed = true') ||
       firmware.indexOf('void executeScaleStopCommand'));
   if (!startCmd.includes('tareStartTimer()') ||
       !startCmd.includes('resetTimer()') ||
-      !startCmd.includes('if (!event.writeSucceeded)')) {
-    throw new Error('Combined tare/start must fall back to reset/start/tare');
+      !startCmd.includes('if (!event.writeSucceeded && allowSeparateStart)') ||
+      !startCmd.includes('allowSeparateStart = result == ScaleCommandResult::Unsupported')) {
+    throw new Error('Combined tare/start may fall back only when unsupported, never after uncertain writes');
   }
 }
 if (!/<script\s+type="module"\s+src="\/app\.js\?v=/.test(shellHtml) &&

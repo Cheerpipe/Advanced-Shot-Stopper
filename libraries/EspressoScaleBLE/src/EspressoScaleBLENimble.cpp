@@ -3,14 +3,18 @@
 */
 #include "EspressoScaleBLE.h"
 
-#include "ShotStopperBleRuntime.h"
 #include "nimble/NimbleAdvertisement.h"
 #include "nimble/NimbleResilience.h"
 
+#if defined(ESPRESSO_SCALE_BLE_HOST_TEST)
+#include "nimble_client_platform.h"
+#else
+#include "ShotStopperBleRuntime.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "host/ble_gatt.h"
 #include "host/ble_gap.h"
 #include "host/ble_hs.h"
@@ -18,6 +22,7 @@
 #include "host/ble_uuid.h"
 #include "nimble/ble.h"
 #include "os/os_mbuf.h"
+#endif
 
 #include <new>
 #include <stdarg.h>
@@ -265,8 +270,10 @@ uint32_t nextCallbackOperationId() {
 }
 
 class NimbleScaleClient {
+  friend struct NimbleScaleClientTest;
  public:
   explicit NimbleScaleClient(bool debug) : debug_(debug) {
+    writeSignal_ = xSemaphoreCreateBinaryStatic(&writeSignalStorage_);
     callbackOwner_ = registerCallbackOwner(this);
   }
 
@@ -282,6 +289,7 @@ class NimbleScaleClient {
     } else {
       finishLink(true, ScaleDisconnectReason::USER_REQUEST, 0);
     }
+    vSemaphoreDelete(writeSignal_);
   }
 
   bool startScan(const char *mac, bool forceRestart, uint16_t interval,
@@ -460,7 +468,12 @@ class NimbleScaleClient {
         length > SCALE_MAX_COMMAND_LENGTH) {
       return ScaleCommandResult::Unsupported;
     }
-    return writeCommand(command, static_cast<uint16_t>(length));
+    commandStartedAt_ = nowMs();
+    activeCommand_ = static_cast<uint8_t>(op);
+    const ScaleCommandResult result =
+        writeCommand(command, static_cast<uint16_t>(length));
+    activeCommand_ = 0xff;
+    return result;
   }
 
   ScaleFeatureSet features() const {
@@ -521,6 +534,7 @@ class NimbleScaleClient {
 
   ScaleDisconnectReason lastReason() const { return lastReason_; }
   int32_t lastRawStatus() const { return lastRawStatus_; }
+  ScaleBleDiagnostics diagnostics() const { return diagnostics_; }
   uint8_t connectAttempts() const { return connectAttempts_; }
   uint8_t stateId() const { return static_cast<uint8_t>(state_); }
   uint32_t lastPacketAgeMs() const {
@@ -985,6 +999,7 @@ class NimbleScaleClient {
       ++rxDrops_;
       rxOverflowed_ = true;
     } else {
+      invalidNotificationStreak_ = 0;
       frame.generation = generation_;
       rxFrames_[rxTail_] = frame;
       rxTail_ = (rxTail_ + 1) % kRxFrameCount;
@@ -1121,7 +1136,8 @@ class NimbleScaleClient {
     WritePurpose purpose = WritePurpose::None;
     portENTER_CRITICAL(&mux_);
     const bool current = operationId == gattOperationId_ &&
-                         connectionHandle == connectionHandle_;
+                         connectionHandle == connectionHandle_ &&
+                         writePurpose_ != WritePurpose::None && !writeCompleted_;
     if (current) {
       purpose = writePurpose_;
       writeResult_ = error->status;
@@ -1141,7 +1157,7 @@ class NimbleScaleClient {
       return 0;
     }
     if (purpose == WritePurpose::Command && waiter != nullptr) {
-      xTaskNotifyGive(waiter);
+      xSemaphoreGive(writeSignal_);
     } else if (purpose != WritePurpose::None) {
       pushControlEvent(EventType::WriteComplete, error->status,
                        connectionHandle, operationId);
@@ -1181,14 +1197,17 @@ class NimbleScaleClient {
       criticalOverflowed_ = true;
     }
     TaskHandle_t waiter = nullptr;
-    if (type == EventType::Disconnected) {
+    if (type == EventType::Disconnected &&
+        operationId == linkOperationId_ && connectionHandle == connectionHandle_) {
       waiter = writeWaiter_;
       writeResult_ = status;
       writeInterrupted_ = true;
+      pendingDisconnect_ = true;
+      pendingDisconnectStatus_ = status;
     }
     portEXIT_CRITICAL(&mux_);
     if (waiter != nullptr) {
-      xTaskNotifyGive(waiter);
+      xSemaphoreGive(writeSignal_);
     }
     return pushed;
   }
@@ -1271,8 +1290,19 @@ class NimbleScaleClient {
     return generation;
   }
 
-  void invalidateGeneration() {
+  void invalidateGeneration(ScaleDisconnectReason &reason, int32_t &rawStatus,
+                            bool &terminatePeer) {
     portENTER_CRITICAL(&mux_);
+    // A GAP callback can arrive after the owner's last service() call. Claim
+    // its evidence atomically with invalidation before clearing the queues.
+    if (pendingDisconnect_ && activeCommand_ != 0xff &&
+        (reason == ScaleDisconnectReason::COMMAND_WRITE_FAILED ||
+         reason == ScaleDisconnectReason::MBUF_ALLOCATION_FAILED)) {
+      rawStatus = pendingDisconnectStatus_;
+      reason = mapRawDisconnectReason(rawStatus);
+      terminatePeer = false;
+    }
+    pendingDisconnect_ = false;
     ++generation_;
     if (generation_ == 0) {
       generation_ = 1;
@@ -1817,46 +1847,71 @@ class NimbleScaleClient {
   }
 
   ScaleCommandResult writeCommand(const uint8_t *data, uint16_t length) {
+    const uint32_t commandGeneration = generation_;
     const bool withResponse =
         (writeProperties_ & BLE_GATT_CHR_PROP_WRITE) != 0;
-    if (!withResponse) {
-      if (submitWrite(writeHandle_, data, length, WritePurpose::Command,
-                      false)) {
-        return ScaleCommandResult::Ok;
+    (void)xSemaphoreTake(writeSignal_, 0);
+    const bool submitted = submitWrite(writeHandle_, data, length,
+                                      WritePurpose::Command, withResponse);
+    bool completed = false;
+    bool interrupted = false;
+    int result = submitted ? 0 : lastRawStatus_;
+    if (submitted && withResponse) {
+      const uint32_t startedAt = nowMs();
+      for (;;) {
+        portENTER_CRITICAL(&mux_);
+        completed = writeCompleted_;
+        interrupted = writeInterrupted_;
+        result = writeResult_;
+        portEXIT_CRITICAL(&mux_);
+        const uint32_t elapsed = elapsedMs(startedAt);
+        if (completed || interrupted || elapsed >= BLE_OPERATION_TIMEOUT_MS ||
+            !shotStopperBleRuntimeReady() ||
+            syncGeneration_ != shotStopperBleRuntimeSyncGeneration()) break;
+        // Only the operation predicate completes a write. A delayed signal
+        // from an older callback cannot shorten or extend its deadline.
+        const uint32_t remaining = BLE_OPERATION_TIMEOUT_MS - elapsed;
+        (void)xSemaphoreTake(writeSignal_, pdMS_TO_TICKS(remaining < 10 ? remaining : 10));
       }
-      ++writeFailures_;
-      finishLink(true, lastRawStatus_ == BLE_HS_ENOMEM
-                           ? ScaleDisconnectReason::MBUF_ALLOCATION_FAILED
-                           : ScaleDisconnectReason::COMMAND_WRITE_FAILED,
-                 lastRawStatus_);
-      return ScaleCommandResult::WriteFailed;
+      if (!completed && !interrupted) result = BLE_HS_ETIMEOUT;
     }
-    (void)ulTaskNotifyTake(pdTRUE, 0);
-    if (!submitWrite(writeHandle_, data, length, WritePurpose::Command, true)) {
-      ++writeFailures_;
-      finishLink(true, lastRawStatus_ == BLE_HS_ENOMEM
-                           ? ScaleDisconnectReason::MBUF_ALLOCATION_FAILED
-                           : ScaleDisconnectReason::COMMAND_WRITE_FAILED,
-                 lastRawStatus_);
-      return ScaleCommandResult::WriteFailed;
-    }
-    (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(BLE_OPERATION_TIMEOUT_MS));
     portENTER_CRITICAL(&mux_);
-    const bool completed = writeCompleted_;
-    const bool interrupted = writeInterrupted_;
-    const int result = writeResult_;
     writePurpose_ = WritePurpose::None;
     writeWaiter_ = nullptr;
+    gattOperationId_ = 0;
     portEXIT_CRITICAL(&mux_);
-    if (completed && result == 0) {
+
+    // Drain authoritative GAP/reset evidence before classifying a command
+    // failure. service() retains its original reason and performs one cleanup.
+    service();
+    const bool linkSurvived = generation_ == commandGeneration && isLinkUp();
+    if (submitted && result == 0 && !interrupted && linkSurvived) {
       return ScaleCommandResult::Ok;
     }
-    lastRawStatus_ = (completed || interrupted) ? result : BLE_HS_ETIMEOUT;
+    if (!linkSurvived) result = diagnostics_.disconnectStatus;
     ++writeFailures_;
-    finishLink(true, lastRawStatus_ == BLE_HS_ENOMEM
-                         ? ScaleDisconnectReason::MBUF_ALLOCATION_FAILED
-                         : ScaleDisconnectReason::COMMAND_WRITE_FAILED,
-               lastRawStatus_);
+    ++diagnostics_.commandFailureSequence;
+    diagnostics_.commandFailureAtMs = nowMs();
+    diagnostics_.commandElapsedMs = elapsedMs(commandStartedAt_);
+    diagnostics_.commandStatus = result;
+    diagnostics_.command = activeCommand_;
+    lastRawStatus_ = result;
+
+    // These submission errors mean this command was not accepted. ATT Error
+    // Responses complete the procedure; invalid handles still require fresh
+    // discovery. Unknown errors and unresolved timeouts remain fail-closed.
+    const bool rejectedLocally = !submitted &&
+        (result == BLE_HS_EBUSY || result == BLE_HS_EAGAIN || result == BLE_HS_ENOMEM);
+    const bool rejectedByPeer = completed &&
+        result > BLE_HS_ERR_ATT_BASE && result < BLE_HS_ERR_HCI_BASE &&
+        result != BLE_HS_ATT_ERR(0x01) && result != BLE_HS_ATT_ERR(0x0a) &&
+        result != BLE_HS_ATT_ERR(0x12);
+    if (linkSurvived && !rejectedLocally && !rejectedByPeer) {
+      finishLink(true, result == BLE_HS_ENOMEM
+                           ? ScaleDisconnectReason::MBUF_ALLOCATION_FAILED
+                           : ScaleDisconnectReason::COMMAND_WRITE_FAILED, result);
+      diagnostics_.commandStatus = diagnostics_.disconnectStatus;
+    }
     return ScaleCommandResult::WriteFailed;
   }
 
@@ -1929,12 +1984,27 @@ class NimbleScaleClient {
     const uint32_t finishedGeneration = generation_;
     lifecycleActive_ = false;
     backoffScanActive_ = false;
-    invalidateGeneration();
+    invalidateGeneration(reason, rawStatus, terminatePeer);
     enterState(State::Idle);
     ++cleanupCount_;
     if (reason != ScaleDisconnectReason::NONE) {
       lastReason_ = reason;
       lastRawStatus_ = rawStatus;
+      ++diagnostics_.disconnectSequence;
+      diagnostics_.disconnectAtMs = nowMs();
+      diagnostics_.disconnectGeneration = finishedGeneration;
+      diagnostics_.disconnectStatus = rawStatus;
+      diagnostics_.teardownStatus = 0;
+      diagnostics_.disconnectReason = static_cast<uint8_t>(reason);
+      diagnostics_.disconnectCommand = activeCommand_;
+      diagnostics_.disconnectCommandElapsedMs =
+          activeCommand_ == 0xff ? 0 : elapsedMs(commandStartedAt_);
+      const bool gapLoss = reason == ScaleDisconnectReason::REMOTE_DISCONNECTED ||
+          reason == ScaleDisconnectReason::SUPERVISION_TIMEOUT ||
+          reason == ScaleDisconnectReason::CONNECTION_FAILED_TO_ESTABLISH;
+      diagnostics_.disconnectOrigin = reason == ScaleDisconnectReason::HOST_RESET
+          ? ScaleBleDisconnectOrigin::HostReset
+          : (gapLoss ? ScaleBleDisconnectOrigin::Gap : ScaleBleDisconnectOrigin::Local);
     }
     // Generation is invalidated before touching NimBLE. A cancellation can
     // synchronously or asynchronously surface a callback, but neither may
@@ -1993,7 +2063,7 @@ class NimbleScaleClient {
     invalidNotificationStream_ = false;
     portEXIT_CRITICAL(&mux_);
     if (waiterToWake != nullptr && waiterToWake != xTaskGetCurrentTaskHandle()) {
-      xTaskNotifyGive(waiterToWake);
+      xSemaphoreGive(writeSignal_);
     }
     const bool retryable = reason != ScaleDisconnectReason::NONE &&
                            reason != ScaleDisconnectReason::USER_REQUEST &&
@@ -2027,7 +2097,7 @@ class NimbleScaleClient {
     // the already-invalidated generation keeps the client fail-closed.
     if (status == 0 || status == BLE_HS_EALREADY) return;
     ++teardownFailures_;
-    lastRawStatus_ = status;
+    diagnostics_.teardownStatus = status;
   }
 
   void clearScanData() {
@@ -2087,6 +2157,9 @@ class NimbleScaleClient {
   bool stateDeadlineArmed_ = false;
   int32_t lastRawStatus_ = 0;
   ScaleDisconnectReason lastReason_ = ScaleDisconnectReason::NONE;
+  ScaleBleDiagnostics diagnostics_ = {};
+  uint32_t commandStartedAt_ = 0;
+  uint8_t activeCommand_ = 0xff;
 
   NimbleFixedRing<Event, kCriticalEventCount> criticalEvents_;
   NimbleFixedRing<Event, kEventCount> controlEvents_;
@@ -2146,9 +2219,13 @@ class NimbleScaleClient {
   uint32_t connectStartedAt_ = 0;
 
   WritePurpose writePurpose_ = WritePurpose::None;
+  StaticSemaphore_t writeSignalStorage_ = {};
+  SemaphoreHandle_t writeSignal_ = nullptr;
   TaskHandle_t writeWaiter_ = nullptr;
   bool writeCompleted_ = false;
   bool writeInterrupted_ = false;
+  bool pendingDisconnect_ = false;
+  int32_t pendingDisconnectStatus_ = 0;
   int writeResult_ = 0;
 
   RxFrame rxFrames_[kRxFrameCount] = {};
@@ -2413,6 +2490,10 @@ ScaleBleTimingSnapshot EspressoScaleBLE::timingSnapshot() const {
 
 int32_t EspressoScaleBLE::lastBackendStatus() const {
   return clientFromStorage(_nimbleClientStorage).lastRawStatus();
+}
+
+ScaleBleDiagnostics EspressoScaleBLE::diagnostics() const {
+  return clientFromStorage(_nimbleClientStorage).diagnostics();
 }
 
 ScaleBleBackendHealth EspressoScaleBLE::backendHealth() const {

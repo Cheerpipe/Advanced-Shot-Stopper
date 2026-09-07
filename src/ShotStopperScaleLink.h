@@ -62,24 +62,25 @@ struct ScaleEvent {
 };
 
 struct ScaleLinkSnapshot {
-  ScaleLinkState state;
-  bool connecting;
-  uint32_t disconnectSequence;
-  uint32_t connectionGeneration;
-  uint32_t packetSequence;
-  uint32_t packetGaps;
-  uint32_t weightUpdateIntervalMs;
-  uint32_t rejectedPackets;
-  uint32_t reconnects;
-  uint8_t lastDisconnectReason;
-  uint32_t workerProgressAtMs;
-  bool timerValid;
-  uint32_t timerMs;
-  uint32_t timerAgeMs;
-  char protocolName[20];
-  ScaleFeatureSet features;
-  bool rssiValid;
-  int8_t rssi;
+  ScaleLinkState state = ScaleLinkState::DISCONNECTED;
+  bool connecting = false;
+  uint32_t disconnectSequence = 0;
+  uint32_t connectionGeneration = 0;
+  uint32_t packetSequence = 0;
+  uint32_t packetGaps = 0;
+  uint32_t weightUpdateIntervalMs = 0;
+  uint32_t rejectedPackets = 0;
+  uint32_t reconnects = 0;
+  uint8_t lastDisconnectReason = 0;
+  ScaleBleDiagnostics bleDiagnostics = {};
+  uint32_t workerProgressAtMs = 0;
+  bool timerValid = false;
+  uint32_t timerMs = 0;
+  uint32_t timerAgeMs = 0;
+  char protocolName[20] = {};
+  ScaleFeatureSet features = {};
+  bool rssiValid = false;
+  int8_t rssi = 0;
 };
 
 }  // namespace shotstopper

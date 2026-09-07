@@ -188,6 +188,7 @@ uint32_t scaleWeightUpdateIntervalMs = 0;
 uint32_t scaleRejectedPackets = 0;
 uint32_t scaleReconnects = 0;
 uint8_t scaleLastDisconnectReason = 0;
+ScaleBleDiagnostics scaleBleDiagnostics = {};
 bool scaleTimerValid = false;
 uint32_t scaleTimerMs = 0;
 uint32_t scaleTimerAgeMs = 0;
@@ -462,6 +463,7 @@ ScaleLinkSnapshot getScaleLinkSnapshot() {
   snapshot.rejectedPackets = scaleRejectedPackets;
   snapshot.reconnects = scaleReconnects;
   snapshot.lastDisconnectReason = scaleLastDisconnectReason;
+  snapshot.bleDiagnostics = scaleBleDiagnostics;
   snapshot.workerProgressAtMs = scaleWorkerProgressAtMs;
   snapshot.timerValid = scaleTimerValid;
   snapshot.timerMs = scaleTimerMs;
@@ -664,6 +666,7 @@ void updateWorkerLinkState() {
   scaleReconnects = scale.reconnectCount();
   scaleLastDisconnectReason =
       static_cast<uint8_t>(scale.lastDisconnectReason());
+  scaleBleDiagnostics = scale.diagnostics();
   copyCString(scaleProtocolName, sizeof(scaleProtocolName),
               scale.connectedProtocolName());
   scaleLinkFeatures = scale.isLinkUp() ? scale.features()
@@ -728,14 +731,19 @@ void executeScaleStartCommand(const ScaleCommand &command) {
   event.commandFeedbackExpected = command.commandFeedbackExpected;
 
   if (scale.isConnected()) {
+    bool allowSeparateStart = true;
     if (command.canTareStartTimer && command.autoTare &&
         scale.features().has(ScaleFeatureCombinedTareStart)) {
       event.commandAttempted = true;
       event.usedCombinedTareStart = true;
-      event.writeSucceeded = scaleCommandOk(scale.tareStartTimer());
+      const ScaleCommandResult result = scale.tareStartTimer();
+      event.writeSucceeded = scaleCommandOk(result);
+      // A failed ATT response does not prove the scale ignored the command.
+      // Only an unsupported operation permits a separate start/tare fallback.
+      allowSeparateStart = result == ScaleCommandResult::Unsupported;
       yieldBetweenScaleAttOps();
     }
-    if (!event.writeSucceeded) {
+    if (!event.writeSucceeded && allowSeparateStart) {
       event.usedCombinedTareStart = false;
       bool resetSucceeded = true;
       if (scale.features().has(ScaleFeatureResetTimer)) {

@@ -154,6 +154,7 @@ class EspressoScaleBLE {
         // Native NimBLE status for diagnostics. Preserve the last ble_hs/HCI
         // value without collapsing it into a domain reason.
         int32_t lastBackendStatus() const;
+        ScaleBleDiagnostics diagnostics() const;
         ScaleBleBackendHealth backendHealth() const;
         int linkRssi();
 
@@ -161,7 +162,7 @@ class EspressoScaleBLE {
         // Placement storage keeps the implementation private, fixed-size and
         // allocation-free while preventing NimBLE types from leaking through
         // the public facade into ShotStopperScaleWorker.
-        static constexpr size_t NIMBLE_CLIENT_STORAGE_SIZE = 3072;
+        static constexpr size_t NIMBLE_CLIENT_STORAGE_SIZE = 3328;
         alignas(8) uint8_t _nimbleClientStorage[NIMBLE_CLIENT_STORAGE_SIZE];
 };
 

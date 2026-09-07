@@ -56,6 +56,14 @@ connection. Cleanup is idempotent, eight consecutive invalid notifications
 force a recoverable disconnect, and the first-valid-packet and silence limits
 remain protocol-specific.
 
+Command responses use a dedicated, statically allocated semaphore; general
+worker wakeups cannot complete an ATT write. Submission resource errors and
+completed ATT rejections preserve a usable link. Unknown errors, stale GATT
+handles and unresolved one-second command timeouts still terminate it. Commands
+with uncertain outcomes are never automatically replayed. GAP/reset causes and
+teardown errors are recorded separately from command failures and survive
+reconnection in `diagnostics()`.
+
 Light / Normal / Aggressive scan presets retain their 25%, 50% and 100% duty
 semantics. Fixed advertisement slots and fixed GATT handle storage avoid a
 heap allocation per advertisement. Protocols that permit UUID-only discovery
@@ -84,6 +92,12 @@ Run the host lifecycle/parser suite with:
 ```sh
 ./libraries/EspressoScaleBLE/tests/run_host_tests.sh
 ```
+
+The suite also executes the production NimBLE client with deterministic
+platform doubles for callback ordering, worker wakeups, command errors and
+invalid notifications. The portable lifecycle reducer is a separate model,
+not the production client's state machine. Target scheduling and radio behavior
+still require hardware qualification.
 
 Build the bundled firmware through `./scripts/build-idf`; see
 [Build environment](../../docs/BUILD.md).

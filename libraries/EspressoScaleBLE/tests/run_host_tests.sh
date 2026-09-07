@@ -55,3 +55,14 @@ ASAN_OPTIONS=detect_leaks=0 "$build_dir/nimble_advertisement_test"
   -o "$build_dir/nimble_resilience_test"
 
 ASAN_OPTIONS=detect_leaks=0 "$build_dir/nimble_resilience_test"
+
+"$compiler" "${common_flags[@]}" -std=c++17 \
+  -DESPRESSO_SCALE_BLE_HOST_TEST -fsanitize=address,undefined \
+  -fno-omit-frame-pointer \
+  "$repo_root/src/ScaleProtocolCommon.cpp" \
+  "$repo_root/src/protocols/"*.cpp \
+  "$repo_root/src/nimble/NimbleAdvertisement.cpp" \
+  "$repo_root/src/nimble/NimbleResilience.cpp" \
+  "$repo_root/tests/nimble_client_test.cpp" \
+  -o "$build_dir/nimble_client_test"
+ASAN_OPTIONS=detect_leaks=0 "$build_dir/nimble_client_test"

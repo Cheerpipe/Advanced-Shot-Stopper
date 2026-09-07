@@ -90,6 +90,17 @@ else()
   ble_test(nimble_resilience_test "${ble_dir}/src/nimble/NimbleResilience.cpp")
 endif()
 
+set(ble_dir "${CMAKE_SOURCE_DIR}/libraries/EspressoScaleBLE")
+file(GLOB scale_protocol_sources CONFIGURE_DEPENDS "${ble_dir}/src/protocols/*.cpp")
+host_test(nimble_client_test
+  SOURCE "${ble_dir}/tests/nimble_client_test.cpp"
+  SOURCES "${ble_dir}/src/ScaleProtocolCommon.cpp"
+    "${ble_dir}/src/nimble/NimbleAdvertisement.cpp"
+    "${ble_dir}/src/nimble/NimbleResilience.cpp" ${scale_protocol_sources}
+  DEFINITIONS ESPRESSO_SCALE_BLE_HOST_TEST LABEL "host;ble;concurrency")
+target_include_directories(nimble_client_test PRIVATE "${ble_dir}/tests/stubs" "${ble_dir}/src")
+set_tests_properties(nimble_client_test PROPERTIES LABELS "host;ble;concurrency")
+
 find_path(CJSON_INCLUDE_DIR cJSON.h PATH_SUFFIXES cjson)
 find_library(CJSON_LIBRARY cjson)
 if(NOT CJSON_INCLUDE_DIR OR NOT CJSON_LIBRARY)
