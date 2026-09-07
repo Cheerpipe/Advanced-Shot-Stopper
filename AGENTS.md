@@ -52,7 +52,7 @@ Token efficiency means avoiding redundant or low-value work, not reducing necess
 ## Git and Commits
 
 - Never commit unless explicitly requested.
-- When a fully processed prompt produced changes, include in the final summary a proposed commit title, written in English (regardless of conversation language).
+- When a fully processed prompt produced changes, include in the final summary a proposed commit title and changes descriptions written in English (regardless of conversation language).
 
 ## Communication
 
