@@ -45,7 +45,7 @@ The BLE lifecycle is asynchronous and deadline-bounded. The runtime owns the
 single NimBLE host, while the scale worker remains the sole owner of scale
 state. Pair the library with task watchdogs and fail-open outputs; it is not a
 standalone machine-safety mechanism. See
-[Audit remediation](../../docs/audits/AUDIT_REMEDIATION.md).
+[firmware audit](../../docs/audits/firmware-mission-critical-audit-2026-09-05.md).
 
 ## Robust connection behavior
 
