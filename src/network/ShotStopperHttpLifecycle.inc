@@ -331,10 +331,12 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
       break;
 
     case WebCommandType::FACTORY_RESET:
-      if (callbacks_.resetAllDurableStores == nullptr) {
+      if (callbacks_.resetAllDurableStores == nullptr ||
+          callbacks_.releaseNvsSpaceForFactoryReset == nullptr) {
         return false;
       }
-      if (!ensureRecoveryIntent(RecoveryOperation::FACTORY_RESET)) {
+      if (!ensureFactoryResetIntent(
+              [&]() { return callbacks_.releaseNvsSpaceForFactoryReset(); })) {
         return false;
       }
       if (!callbacks_.resetAllDurableStores(next)) {

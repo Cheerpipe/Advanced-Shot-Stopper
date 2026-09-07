@@ -527,6 +527,7 @@ const char *otaResultHttpStatus(OtaResult result) {
     case OtaResult::VERIFY_FAILED:
     case OtaResult::COMMIT_FAILED:
     case OtaResult::NO_MEMORY:
+    case OtaResult::JOURNAL_FAILED:
     case OtaResult::INTERNAL: return STATUS_SERVER_ERROR;
   }
   return STATUS_SERVER_ERROR;
@@ -590,6 +591,9 @@ const char *otaResultMessage(OtaResult result) {
       return "The bootloader refused the staged image. Nothing was changed.";
     case OtaResult::NO_MEMORY:
       return "Not enough memory to receive a firmware image right now.";
+    case OtaResult::JOURNAL_FAILED:
+      return "The OTA recovery journal could not be saved. Check Diagnostic "
+             "→ NVS; the running firmware was not replaced.";
     case OtaResult::INTERNAL:
       return "This firmware cannot verify updates. Reflash over USB.";
   }

@@ -91,6 +91,7 @@ ss_cli_reset() {
   local key
   SS_CLI_FORCE=0
   SS_CLI_NO_CHECK=0
+  SS_CLI_ERASE_ALL=0
   SS_CLI_DISCARD_OTA_SESSION=0
   for key in $SS_CLI_KEYS; do
     ss_set "$key" ""
@@ -127,6 +128,8 @@ Named parameters (long and short):
       --force              Commit OTA without a prompt and wait for confirmation
       --no-check           Skip the local image verification and the implicit
                            rebuild before USB flashing (advanced; OTA rejects it)
+      --erase-all          Erase the complete chip before a full USB flash
+                           (destroys firmware, settings, Wi-Fi and history)
       --discard-ota-session
                            Explicitly discard a different partial OTA image
   -h, --help               Show this help
@@ -144,6 +147,7 @@ EOF
 SS_CLI_HELP_REQUESTED=0
 SS_CLI_FORCE=0
 SS_CLI_NO_CHECK=0
+SS_CLI_ERASE_ALL=0
 SS_CLI_DISCARD_OTA_SESSION=0
 
 ss_cli_die() {
@@ -172,6 +176,15 @@ ss_cli_parse() {
         ;;
       --no-check=*)
         printf '%s\n' '--no-check does not take a value.' >&2
+        return 2
+        ;;
+      --erase-all)
+        SS_CLI_ERASE_ALL=1
+        shift
+        continue
+        ;;
+      --erase-all=*)
+        printf '%s\n' '--erase-all does not take a value.' >&2
         return 2
         ;;
       --discard-ota-session)
@@ -694,6 +707,10 @@ ss_cli_flags_for() {
     fi
     if [[ "$key" == "no_check" ]]; then
       [[ "$SS_CLI_NO_CHECK" == "1" ]] && SS_CLI_FORWARD+=(--no-check)
+      continue
+    fi
+    if [[ "$key" == "erase_all" ]]; then
+      [[ "$SS_CLI_ERASE_ALL" == "1" ]] && SS_CLI_FORWARD+=(--erase-all)
       continue
     fi
     if [[ "$key" == "discard_ota_session" ]]; then

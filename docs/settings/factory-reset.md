@@ -33,10 +33,13 @@ the device up again. Scale preference returns to **Preferred only**, with
 successfully. See [Scales](scales.md), [AP](ap.md), and the
 [README first connection](../../README.md#first-connection).
 
-If the wipe cannot finish (for example NVS is full), the Web UI reports an
-error and does **not** reboot into recovery. The next boot retries once; if
-it still cannot finish, the firmware drops the latch, plays the error motif,
-and starts SoftAP rather than hanging.
+Before changing settings, factory reset writes a durable recovery intent. If
+that write fails specifically because NVS is full, it removes only shot-history
+and last-shot blobs, retries the intent once, and then performs the full reset.
+Timeouts, corruption, and other storage errors do not trigger this space
+recovery. If the intent still cannot be saved, settings remain unchanged and
+the controller does not restart. Check **Diagnostic → NVS** for capacity and
+the last storage error.
 
 Related: [Wi-Fi](wifi.md), [Emergency recovery](../EMERGENCY_RECOVERY.md),
 [FAQ](../FAQ.md).

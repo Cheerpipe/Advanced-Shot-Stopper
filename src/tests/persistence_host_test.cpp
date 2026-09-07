@@ -31,6 +31,7 @@ int testsRun = 0;
 
 void resetHostPersistence() {
   persistence_host::reset();
+  resetNvsDiagnosticsForHostTest();
   resetDurableStorageRevision();
   ShotCurveLog::resetHostStorage();
   g_hostFlashIoMutexAvailable = true;
@@ -1579,6 +1580,119 @@ void p69_factory_reset_erases_shot_log_slots_before_rewrite() {
   CHECK(log.count() == 0);
 }
 
+void p71_nvs_capacity_budget_keeps_compaction_margin() {
+  constexpr size_t pageEntries = 126;
+  constexpr size_t conservativeEntries =
+      (EXPECTED_NVS_PARTITION_BYTES / 4096U - 2U) * pageEntries;
+  constexpr size_t settingsEntries =
+      2U * nvsBlobRequiredEntries(sizeof(PersistedSettings));
+  constexpr size_t shotHistoryEntries =
+      2U * nvsBlobRequiredEntries(sizeof(ShotLogStore));
+  constexpr size_t remainingRecords = 8U + 6U + 3U + 24U + 32U;
+  constexpr size_t applicationEntries =
+      settingsEntries + shotHistoryEntries + remainingRecords;
+  CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
+  CHECK(sizeof(PersistedSettings) == 2616U);
+  CHECK(settingsEntries == 168U);
+  CHECK(shotHistoryEntries == 366U);
+  CHECK(applicationEntries == 607U);
+  CHECK(conservativeEntries == 2394U);
+  CHECK(conservativeEntries - applicationEntries == 1787U);
+}
+
+void p72_factory_intent_recovers_only_from_nvs_no_space() {
+  resetHostPersistence();
+  ShotLog log;
+  LastShotStore lastShot;
+  CHECK(log.load());
+  CHECK(lastShot.load());
+  ShotLogRecord record = {};
+  record.durationDs = 250;
+  record.goalWeightG = 36;
+  CHECK(log.append(record));
+  PersistedLastShot shot = {};
+  shot.valid = true;
+  shot.cycleId = 9;
+  CHECK(lastShot.persist(shot));
+
+  persistence_host::failNextWrite = true;
+  persistence_host::failNextWriteError = HOST_NVS_NOT_ENOUGH_SPACE;
+  unsigned releases = 0;
+  CHECK(ensureFactoryResetIntent([&]() {
+    ++releases;
+    return releaseNvsSpaceForFactoryReset(log, lastShot);
+  }));
+  CHECK(releases == 1U);
+  CHECK(recoveryIntentMatches(RecoveryOperation::FACTORY_RESET));
+  CHECK(persistence_host::records.count("shotlog/recordsA") == 0);
+  CHECK(persistence_host::records.count("shotlog/recordsB") == 0);
+  CHECK(persistence_host::records.count("lastshot/record") == 0);
+
+  const NvsDiagnosticSnapshot nvs = captureNvsDiagnostics();
+  CHECK(nvs.failureCount == 1U);
+  CHECK(nvs.lastFailure.present);
+  CHECK(nvs.lastFailure.subsystem == NvsSubsystem::RECOVERY_INTENT);
+  CHECK(nvs.lastFailure.operation == NvsOperation::WRITE_BLOB);
+  CHECK(nvs.lastFailure.errorCode == HOST_NVS_NOT_ENOUGH_SPACE);
+  CHECK(nvs.lastFailure.requiredEntries ==
+        nvsBlobRequiredEntries(sizeof(RecoveryIntent)));
+}
+
+void p73_factory_intent_does_not_free_data_for_other_failures() {
+  resetHostPersistence();
+  unsigned releases = 0;
+  persistence_host::failNextWrite = true;
+  CHECK(!ensureFactoryResetIntent([&]() {
+    ++releases;
+    return true;
+  }));
+  CHECK(releases == 0U);
+
+  resetHostPersistence();
+  releases = 0;
+  persistence_host::corruptNextWrite = true;
+  CHECK(!ensureFactoryResetIntent([&]() {
+    ++releases;
+    return true;
+  }));
+  CHECK(releases == 0U);
+
+  resetHostPersistence();
+  releases = 0;
+  g_hostFlashIoMutexAvailable = false;
+  CHECK(!ensureFactoryResetIntent([&]() {
+    ++releases;
+    return true;
+  }));
+  CHECK(releases == 0U);
+  g_hostFlashIoMutexAvailable = true;
+}
+
+void p74_factory_intent_second_failure_keeps_settings() {
+  resetHostPersistence();
+  PersistedSettings settings;
+  CHECK(initializeDefaultSettings(settings));
+  settings.runtime.goalWeightG = 40;
+  finalizePersistedSettings(settings);
+  CHECK(savePersistedSettings(settings));
+
+  persistence_host::failNextWrite = true;
+  persistence_host::failNextWriteError = HOST_NVS_NOT_ENOUGH_SPACE;
+  unsigned releases = 0;
+  CHECK(!ensureFactoryResetIntent([&]() {
+    ++releases;
+    persistence_host::failNextWrite = true;
+    persistence_host::failNextWriteError = HOST_NVS_ERROR;
+    return true;
+  }));
+  CHECK(releases == 1U);
+  PersistedSettings loaded;
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.runtime.goalWeightG == 40U);
+  RecoveryIntent intent;
+  CHECK(inspectPendingRecovery(intent) == PendingRecoveryKind::NONE);
+}
+
 void p63_flash_io_lock_fails_closed_without_mutex() {
   resetHostPersistence();
   g_hostFlashIoMutexAvailable = false;
@@ -1650,6 +1764,10 @@ const TestCase tests[] = {
     {"P67", p67_ensure_recovery_intent_skips_rewrite_when_valid},
     {"P68", p68_malformed_recovery_intent_is_abandoned},
     {"P69", p69_factory_reset_erases_shot_log_slots_before_rewrite},
+    {"P71", p71_nvs_capacity_budget_keeps_compaction_margin},
+    {"P72", p72_factory_intent_recovers_only_from_nvs_no_space},
+    {"P73", p73_factory_intent_does_not_free_data_for_other_failures},
+    {"P74", p74_factory_intent_second_failure_keeps_settings},
     {"P61", p61_shot_curve_dual_slot_round_trip_and_delete},
     {"P62", p62_shot_curve_foreign_schema_is_rejected},
     {"P63", p63_flash_io_lock_fails_closed_without_mutex},

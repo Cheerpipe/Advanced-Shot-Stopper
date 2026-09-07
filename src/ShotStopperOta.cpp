@@ -156,7 +156,7 @@ bool validJournalIdentity(const OtaSessionIdentity &identity) {
 
 bool readJournal(const char *key, OtaJournalRecord &record) {
   if (!tryLockFlashIo()) return false;
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::OTA_JOURNAL);
   if (!preferences.begin("ota", true)) {
     unlockFlashIo();
     return false;
@@ -172,7 +172,7 @@ bool writeJournal(const char *key, const OtaJournalRecord &record) {
     otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
     return false;
   }
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::OTA_JOURNAL);
   if (!preferences.begin("ota", false)) {
     unlockFlashIo();
     otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
@@ -191,7 +191,7 @@ bool clearJournal() {
     otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
     return false;
   }
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::OTA_JOURNAL);
   if (!preferences.begin("ota", false)) {
     unlockFlashIo();
     otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
@@ -592,7 +592,7 @@ OtaResult ShotStopperOta::createSession(const OtaSessionIdentity &identity,
   expectedBytes_ = identity.size;
   lastResult_ = OtaResult::OK;
   if (!startSessionSha256()) return finishFailure(OtaResult::NO_MEMORY);
-  if (!persistSession()) return finishFailure(OtaResult::INTERNAL);
+  if (!persistSession()) return finishFailure(OtaResult::JOURNAL_FAILED);
   publishState();
   return OtaResult::OK;
 }
@@ -820,7 +820,7 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
       lastChunkSha256_[0] = '\0';
       sessionLastActivityMs_ = millis();
       if (otaJournalCheckpointDue(receivedBytes_, journaledBytes_, expectedBytes_) &&
-          !persistSession()) return finishFailure(OtaResult::INTERNAL);
+          !persistSession()) return finishFailure(OtaResult::JOURNAL_FAILED);
       busy_ = false;
       publishState();
       return failure;
@@ -835,7 +835,7 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   if (otaJournalCheckpointDue(receivedBytes_, journaledBytes_,
                               expectedBytes_) &&
       !persistSession()) {
-    return finishFailure(OtaResult::INTERNAL);
+    return finishFailure(OtaResult::JOURNAL_FAILED);
   }
 
   if (receivedBytes_ < expectedBytes_) {
@@ -1129,6 +1129,7 @@ const char *ShotStopperOta::resultName(OtaResult result) {
     case OtaResult::INVALID_RANGE: return "OTA_INVALID_RANGE";
     case OtaResult::HASH_MISMATCH: return "OTA_SHA256_MISMATCH";
     case OtaResult::SESSION_EXPIRED: return "OTA_SESSION_EXPIRED";
+    case OtaResult::JOURNAL_FAILED: return "OTA_JOURNAL_FAILED";
     case OtaResult::INTERNAL: return "INTERNAL";
   }
   return "UNKNOWN";

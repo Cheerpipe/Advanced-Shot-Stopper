@@ -28,6 +28,7 @@ $(shotstopper_arch_help)
 
 Examples:
   ./scripts/flash-idf --port /dev/cu.usbmodem2101 --arch n16r8
+  ./scripts/flash-idf --port /dev/cu.usbmodem2101 --arch n16r8 --erase-all
   ./scripts/flash-idf -p /dev/cu.usbmodem2101 -a n8r4
   ./scripts/flash-idf -p /dev/cu.usbmodem2101 -a n16r8 --image ~/Downloads/shotstopper.bin
 EOF
@@ -37,6 +38,12 @@ ss_cli_parse "$@" || exit $?
 if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
   usage
   exit 0
+fi
+
+if [[ "$SS_CLI_ERASE_ALL" == "1" ]] && ss_is_set image; then
+  echo '--erase-all cannot be combined with --image.' >&2
+  echo 'A blank chip needs the project bootloader, partition table, otadata, and application.' >&2
+  exit 2
 fi
 
 ss_cli_resolve "port arch" || exit $?
@@ -68,14 +75,71 @@ fi
 port="$(ss_get port)"
 echo "Flashing $image ($SHOTSTOPPER_ARCH) via $port (IDF)"
 
-if ss_is_set image; then
-  command -v esptool.py >/dev/null 2>&1 || {
-    echo "esptool.py not found on PATH (did ESP-IDF export.sh run?)." >&2
-    exit 127
+command -v esptool.py >/dev/null 2>&1 || {
+  echo "esptool.py not found on PATH (did ESP-IDF export.sh run?)." >&2
+  exit 127
+}
+
+partition_bin="$(mktemp "${TMPDIR:-/tmp}/shotstopper-partition.XXXXXX")"
+partition_csv="$(mktemp "${TMPDIR:-/tmp}/shotstopper-partition-csv.XXXXXX")"
+cleanup_partition_probe() {
+  rm -f "$partition_bin" "$partition_csv"
+}
+trap cleanup_partition_probe EXIT HUP INT TERM
+
+installed_layout=unknown
+installed_nvs_size=""
+installed_app0_offset=""
+if esptool.py --chip esp32s3 --port "$port" read_flash 0x8000 0x1000 "$partition_bin" >/dev/null; then
+  if python -c 'import pathlib,sys; b=pathlib.Path(sys.argv[1]).read_bytes(); sys.exit(0 if b and all(x == 255 for x in b) else 1)' "$partition_bin"; then
+    installed_layout=blank
+  elif python "$IDF_PATH/components/partition_table/gen_esp32part.py" --quiet \
+      "$partition_bin" "$partition_csv" >/dev/null 2>&1; then
+    installed_layout=present
+    installed_nvs_size="$(awk -F, '$1 == "nvs" {print $5; exit}' "$partition_csv")"
+    installed_app0_offset="$(awk -F, '$1 == "app0" {print $4; exit}' "$partition_csv")"
+  fi
+fi
+
+size_bytes() {
+  case "$1" in
+    *K) printf '%s' "$(( ${1%K} * 1024 ))" ;;
+    *M) printf '%s' "$(( ${1%M} * 1024 * 1024 ))" ;;
+    0x*|[0-9]*) printf '%s' "$(( $1 ))" ;;
+    *) return 1 ;;
+  esac
+}
+
+if [[ "$SS_CLI_ERASE_ALL" != "1" && "$installed_layout" == "present" ]]; then
+  installed_nvs_bytes="$(size_bytes "$installed_nvs_size")" || {
+    echo 'Could not read the installed NVS partition size.' >&2
+    exit 1
   }
+  if (( installed_nvs_bytes != 0x15000 )); then
+    printf 'Installed NVS is %s bytes; this firmware requires 86016 bytes.\n' \
+      "$installed_nvs_bytes" >&2
+    echo 'Re-run with --erase-all to migrate the partition layout. This destroys all saved data.' >&2
+    exit 1
+  fi
+fi
+
+if [[ "$SS_CLI_ERASE_ALL" == "1" ]]; then
+  echo 'Erasing the complete flash: firmware, settings, Wi-Fi, calibration, and history.'
+  esptool.py --chip esp32s3 --port "$port" erase_flash
+elif [[ "$installed_layout" == "unknown" ]]; then
+  echo 'Could not verify the installed partition layout.' >&2
+  exit 1
+fi
+
+if ss_is_set image; then
   # An external application image replaces app0 only. Bootloader and partition
   # table remain in place, so the selected image must match this architecture.
-  esptool.py --chip esp32s3 --port "$port" write_flash 0x10000 "$image"
+  if [[ "$installed_layout" != "present" || -z "$installed_app0_offset" ]]; then
+    echo 'An external image requires a readable installed partition table.' >&2
+    exit 1
+  fi
+  esptool.py --chip esp32s3 --port "$port" write_flash \
+    "$installed_app0_offset" "$image"
 elif [[ "$SS_CLI_NO_CHECK" == "1" ]]; then
   # The build tree was just produced (or the caller trusts it): flash the
   # project outputs directly. `idf.py flash` would re-run the build target,
@@ -85,10 +149,6 @@ elif [[ "$SS_CLI_NO_CHECK" == "1" ]]; then
     echo "Build first: ./scripts/build-idf --arch $SHOTSTOPPER_ARCH" >&2
     exit 1
   fi
-  command -v esptool.py >/dev/null 2>&1 || {
-    echo "esptool.py not found on PATH (did ESP-IDF export.sh run?)." >&2
-    exit 127
-  }
   # flash_args lists bootloader, partition table, otadata and app at their
   # offsets with relative paths, so esptool must run from the build directory.
   (

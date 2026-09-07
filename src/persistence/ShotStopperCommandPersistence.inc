@@ -395,9 +395,11 @@ void serviceSettingsPersistResult() {
       runtimePersistReasonBits = 0;
     }
   } else {
-    addDebugEvent(DebugCategory::CONFIG, DebugCode::RUNTIME_PERSIST_FAILED,
-                  static_cast<int32_t>(runtimeRevision),
-                  runtimePersistReasonBits);
+    if (!runtimePersistFailed) {
+      addDebugEvent(DebugCategory::CONFIG, DebugCode::RUNTIME_PERSIST_FAILED,
+                    static_cast<int32_t>(runtimeRevision),
+                    runtimePersistReasonBits);
+    }
     runtimePersistFailed = true;
     runtimePersistPending = true;
     runtimePersistRetryAtMs = millis() + RUNTIME_PERSIST_RETRY_MS;
@@ -527,9 +529,11 @@ void serviceRuntimePersistence() {
   }
   ++hostRuntimePersistAttempts;
   if (!hostRuntimePersistSucceeds) {
-    addDebugEvent(DebugCategory::CONFIG, DebugCode::RUNTIME_PERSIST_FAILED,
-                  static_cast<int32_t>(runtimeConfig.revision),
-                  runtimePersistReasonBits);
+    if (!runtimePersistFailed) {
+      addDebugEvent(DebugCategory::CONFIG, DebugCode::RUNTIME_PERSIST_FAILED,
+                    static_cast<int32_t>(runtimeConfig.revision),
+                    runtimePersistReasonBits);
+    }
     runtimePersistFailed = true;
     runtimePersistPending = true;
     runtimePersistRetryAtMs = millis() + RUNTIME_PERSIST_RETRY_MS;
@@ -566,10 +570,13 @@ void completeMaintenanceLease(const WebCommand &result) {
   if (!result.succeeded &&
       maintenanceLease.command.type == WebCommandType::PERSIST_RUNTIME &&
       maintenanceLease.id == runtimePersistRequestId) {
-    addDebugEvent(
-        DebugCategory::CONFIG, DebugCode::RUNTIME_PERSIST_FAILED,
-        static_cast<int32_t>(maintenanceLease.command.config.revision),
-        runtimePersistReasonBits);
+    if (!runtimePersistFailed) {
+      addDebugEvent(
+          DebugCategory::CONFIG, DebugCode::RUNTIME_PERSIST_FAILED,
+          static_cast<int32_t>(maintenanceLease.command.config.revision),
+          runtimePersistReasonBits);
+    }
+    runtimePersistFailed = true;
     // RUNTIME_PERSIST_FAILED already formats a detailed Serial line.
     runtimePersistCandidate = maintenanceLease.command.config;
     runtimePersistPending = true;

@@ -90,6 +90,7 @@ enum class OtaResult : uint8_t {
   INVALID_RANGE,
   HASH_MISMATCH,
   SESSION_EXPIRED,
+  JOURNAL_FAILED,
   INTERNAL,
 };
 

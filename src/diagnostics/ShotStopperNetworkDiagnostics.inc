@@ -727,6 +727,44 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   }
   ok = ok && debugExportChunk(request, "]},");
 
+  const NvsDiagnosticSnapshot nvs = captureNvsDiagnostics();
+  ok = ok && debugExportChunkf(
+      request, buf, cap,
+      "\"nvs\":{\"statsValid\":%s,\"statsErrorCode\":%ld,"
+      "\"statsErrorName\":\"%s\",\"partitionBytes\":%lu,"
+      "\"expectedPartitionBytes\":%lu,\"layoutExpected\":%s,"
+      "\"usedEntries\":%lu,\"freeEntries\":%lu,"
+      "\"availableEntries\":%lu,\"totalEntries\":%lu,"
+      "\"namespaces\":%lu,\"failures\":%lu,"
+      "\"flashIoLockTimeouts\":%lu,\"lastFailure\":",
+      nvs.statsValid ? "true" : "false",
+      static_cast<long>(nvs.statsErrorCode), nvsErrorName(nvs.statsErrorCode),
+      static_cast<unsigned long>(nvs.partitionBytes),
+      static_cast<unsigned long>(EXPECTED_NVS_PARTITION_BYTES),
+      nvs.partitionBytes == EXPECTED_NVS_PARTITION_BYTES ? "true" : "false",
+      static_cast<unsigned long>(nvs.usedEntries),
+      static_cast<unsigned long>(nvs.freeEntries),
+      static_cast<unsigned long>(nvs.availableEntries),
+      static_cast<unsigned long>(nvs.totalEntries),
+      static_cast<unsigned long>(nvs.namespaceCount),
+      static_cast<unsigned long>(nvs.failureCount),
+      static_cast<unsigned long>(flashIoLockTimeouts()));
+  if (ok && nvs.lastFailure.present) {
+    ok = debugExportChunkf(
+        request, buf, cap,
+        "{\"subsystem\":\"%s\",\"operation\":\"%s\","
+        "\"errorCode\":%ld,\"errorName\":\"%s\","
+        "\"requiredEntries\":%lu,\"availableEntriesAtFailure\":%lu}},",
+        nvsSubsystemName(nvs.lastFailure.subsystem),
+        nvsOperationName(nvs.lastFailure.operation),
+        static_cast<long>(nvs.lastFailure.errorCode),
+        nvsErrorName(nvs.lastFailure.errorCode),
+        static_cast<unsigned long>(nvs.lastFailure.requiredEntries),
+        static_cast<unsigned long>(nvs.lastFailure.availableEntriesAtFailure));
+  } else if (ok) {
+    ok = debugExportChunk(request, "null},");
+  }
+
   size_t shotTotal = 0;
   if (self.callbacks_.copyShotRecords != nullptr) {
     shotTotal =
@@ -1060,7 +1098,8 @@ esp_err_t ShotStopperNetwork::shotsClearHandler(httpd_req_t *request) {
   if (self.callbacks_.clearShotLog == nullptr ||
       !self.callbacks_.clearShotLog()) {
     return sendError(request, STATUS_UNAVAILABLE, "SHOT_LOG_CLEAR_FAILED",
-                     "Shot history could not be cleared.");
+                     "Shot history could not be cleared. Check Diagnostic → "
+                     "NVS for capacity and the last storage error.");
   }
   return sendJson(request, STATUS_OK, "{\"cleared\":true}");
 }

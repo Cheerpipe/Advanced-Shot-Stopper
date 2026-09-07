@@ -222,6 +222,18 @@ The running firmware is never overwritten; the upload goes to the inactive
 slot. Settings in saved storage survive. If an update fails, the device keeps
 the firmware it already had. USB `./scripts/flash-idf` is always the way out.
 
+The current partition layout reserves 84 KiB for NVS. Controllers running the
+older 20 KiB layout require a one-time clean USB migration; a normal flash is
+intentionally rejected:
+
+```sh
+./scripts/flash-idf --port <PORT> --arch n16r8 --erase-all
+```
+
+The erase removes all firmware and saved data, including Wi-Fi, settings,
+presets, calibration, BLE preferences, shot history, and last shot. Reconfigure
+the controller after flashing; the old NVS contents are not migrated.
+
 Full command tables: [Build scripts](SCRIPTS.md).
 
 ## Compatibility aliases

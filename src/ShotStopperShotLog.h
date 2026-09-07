@@ -69,7 +69,7 @@ class ShotLog {
       dirty_ = false;
       return false;
     }
-    Preferences preferences;
+    ShotStopperPreferences preferences(NvsSubsystem::SHOT_HISTORY);
     if (!preferences.begin(SHOT_LOG_NAMESPACE, true)) {
       resetShotLogStore(store_, 1);
       dirty_ = false;
@@ -161,7 +161,7 @@ class ShotLog {
       unlockFlashIo();
       return false;
     }
-    Preferences preferences;
+    ShotStopperPreferences preferences(NvsSubsystem::SHOT_HISTORY);
     if (!preferences.begin(SHOT_LOG_NAMESPACE, false)) {
       unlockFlashIo();
       return false;
@@ -349,7 +349,7 @@ class ShotLog {
     if (!lockFlashIo()) {
       return false;
     }
-    Preferences preferences;
+    ShotStopperPreferences preferences(NvsSubsystem::SHOT_HISTORY);
     if (!preferences.begin(SHOT_LOG_NAMESPACE, false)) {
       unlockFlashIo();
       return false;

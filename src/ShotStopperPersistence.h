@@ -106,7 +106,7 @@ inline PersistedSettings &persistedSettingsV6MigrationScratch() {
       persistedSettingsMigrationScratch());
 }
 
-inline bool readSettingsSlot(Preferences &preferences, const char *key,
+inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *key,
                              PersistedSettings &settings) {
   if (!preferences.isKey(key)) {
     return false;
@@ -185,7 +185,7 @@ inline bool loadPersistedSettings(PersistedSettings &settings) {
   if (!lockSettingsNvs()) {
     return false;
   }
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::SETTINGS);
   if (!preferences.begin(SETTINGS_NAMESPACE, true)) {
     unlockSettingsNvs();
     return false;
@@ -264,7 +264,7 @@ inline bool savePersistedSettings(PersistedSettings &settings) {
   } else if (candidate.storageRevision == 0) {
     uint32_t revision = 0;
     bool haveRevision = false;
-    Preferences probe;
+    ShotStopperPreferences probe(NvsSubsystem::SETTINGS);
     if (probe.begin(SETTINGS_NAMESPACE, true)) {
       scratch = PersistedSettings{};
       if (readSettingsSlot(probe, SETTINGS_SLOT_A, scratch)) {
@@ -291,7 +291,7 @@ inline bool savePersistedSettings(PersistedSettings &settings) {
   }
   finalizePersistedSettings(candidate);
 
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::SETTINGS);
   if (!preferences.begin(SETTINGS_NAMESPACE, false)) {
     unlockSettingsNvs();
     feedSettingsNvsWatchdog();
@@ -332,7 +332,7 @@ inline bool resetPersistedSettingsToFactory(PersistedSettings &settings) {
   if (!lockSettingsNvs()) {
     return false;
   }
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::SETTINGS);
   if (!preferences.begin(SETTINGS_NAMESPACE, false)) {
     unlockSettingsNvs();
     return false;

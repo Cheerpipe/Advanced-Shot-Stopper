@@ -4,6 +4,7 @@
 import subprocess
 from pathlib import Path
 import re
+import csv
 
 ROOT = Path(__file__).resolve().parents[2]
 DEV = ROOT / "scripts/dev"
@@ -53,6 +54,67 @@ for script in (ROOT / "scripts").iterdir():
     if "sh" in first:
         checked = subprocess.run(["bash", "-n", str(script)], capture_output=True)
         assert checked.returncode == 0, f"shell syntax: {script.name}"
+
+
+def partition_rows(name: str) -> dict[str, tuple[int, int]]:
+    with (ROOT / "idf" / name).open(newline="") as handle:
+        rows = {}
+        for row in csv.reader(line for line in handle if not line.startswith("#")):
+            if not row:
+                continue
+            rows[row[0].strip()] = (int(row[3].strip(), 0),
+                                    int(row[4].strip(), 0))
+        return rows
+
+
+partition_contracts = {
+    "partitions-n16r8.csv": {
+        "flash": 0x1000000,
+        "rows": {"nvs": (0x9000, 0x15000), "otadata": (0x1E000, 0x2000),
+                 "app0": (0x20000, 0x300000), "app1": (0x320000, 0x300000),
+                 "ffat": (0x620000, 0x9D0000),
+                 "coredump": (0xFF0000, 0x10000)},
+    },
+    "partitions-n8r4.csv": {
+        "flash": 0x800000,
+        "rows": {"nvs": (0x9000, 0x15000), "otadata": (0x1E000, 0x2000),
+                 "app0": (0x20000, 0x330000), "app1": (0x350000, 0x330000),
+                 "spiffs": (0x680000, 0x170000),
+                 "coredump": (0x7F0000, 0x10000)},
+    },
+}
+for filename, contract in partition_contracts.items():
+    rows = partition_rows(filename)
+    assert rows == contract["rows"], (filename, rows)
+    ordered = sorted(rows.items(), key=lambda item: item[1][0])
+    for (_, (offset, size)), (_, (next_offset, _)) in zip(ordered, ordered[1:]):
+        assert offset + size <= next_offset, f"partition overlap in {filename}"
+    last_offset, last_size = ordered[-1][1]
+    assert last_offset + last_size == contract["flash"]
+    data_name = "ffat" if "ffat" in rows else "spiffs"
+    assert rows[data_name][1] >= 24 * 1024, "shot-curve sidecar no longer fits"
+
+flash_idf = (ROOT / "scripts/flash-idf").read_text()
+for required in ("read_flash 0x8000 0x1000", "installed_nvs_bytes != 0x15000",
+                 "installed_layout=blank", "erase_flash",
+                 '"$installed_app0_offset" "$image"'):
+    assert required in flash_idf, f"flash-idf migration contract missing: {required}"
+assert '0x10000 "$image"' not in flash_idf, \
+    "external app offset must be dynamic"
+for wrapper in ("bf-idf", "bfm-idf", "bsfm-idf"):
+    assert "erase_all" in (ROOT / "scripts" / wrapper).read_text(), \
+        f"{wrapper} does not forward --erase-all"
+
+parsed_erase = subprocess.run(
+    ["bash", "-c",
+     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+     'ss_cli_parse --erase-all; test "$SS_CLI_ERASE_ALL" = 1'],
+    cwd=ROOT, capture_output=True, text=True)
+assert parsed_erase.returncode == 0, parsed_erase.stderr
+erase_image = subprocess.run(
+    [str(ROOT / "scripts/flash-idf"), "--erase-all", "--image", "external.bin"],
+    cwd=ROOT, capture_output=True, text=True)
+assert erase_image.returncode == 2 and "cannot be combined" in erase_image.stderr
 
 scripts_text = "\n".join(
     path.read_text(errors="replace") for path in (ROOT / "scripts").iterdir()

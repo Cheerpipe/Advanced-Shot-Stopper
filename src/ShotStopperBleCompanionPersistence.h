@@ -56,7 +56,7 @@ inline bool validBleCompanionSettings(
          settings.checksum == bleCompanionSettingsChecksum(settings);
 }
 
-inline bool readBleCompanionSlot(Preferences &preferences, const char *key,
+inline bool readBleCompanionSlot(ShotStopperPreferences &preferences, const char *key,
                                  BleCompanionPersistedSettings &settings) {
   if (!preferences.isKey(key) ||
       preferences.getBytesLength(key) != sizeof(settings) ||
@@ -72,7 +72,7 @@ inline bool loadBleCompanionSettings(
   if (!lockSettingsNvs()) {
     return false;
   }
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::BLE_COMPANION);
   if (!preferences.begin(SETTINGS_NAMESPACE, true)) {
     unlockSettingsNvs();
     return false;
@@ -112,7 +112,7 @@ inline bool saveBleCompanionSettings(
     settings.revision = 1;
   }
   finalizeBleCompanionSettings(settings);
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::BLE_COMPANION);
   if (!preferences.begin(SETTINGS_NAMESPACE, false)) {
     unlockSettingsNvs();
     return false;

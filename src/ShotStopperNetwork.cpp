@@ -4,6 +4,7 @@
 #include "ShotStopperMachinePaddleConfig.h"
 #include "ShotStopperJsonArena.h"
 #include "ShotStopperOta.h"
+#include "ShotStopperPreferences.h"
 #include "ShotStopperPsram.h"
 #include "ShotStopperRecovery.h"
 #include "ShotStopperResetGuard.h"

@@ -163,6 +163,7 @@ struct NetworkBridgeCallbacks {
   bool (*rateLastShot)(uint8_t rating) = nullptr;
   bool (*clearShotLog)() = nullptr;
   bool (*clearLastShot)() = nullptr;
+  bool (*releaseNvsSpaceForFactoryReset)() = nullptr;
   bool (*resetAllDurableStores)(PersistedSettings &settings) = nullptr;
   // Keeps NVS Wi-Fi/runtime saves from overwriting a newer preferred scale MAC.
   void (*copyPreferredScaleMac)(char *out, size_t capacity) = nullptr;

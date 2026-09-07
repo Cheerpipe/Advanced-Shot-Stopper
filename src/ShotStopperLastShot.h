@@ -64,7 +64,7 @@ class LastShotStore {
       resetLastShotBlob(blob_);
       return false;
     }
-    Preferences preferences;
+    ShotStopperPreferences preferences(NvsSubsystem::LAST_SHOT);
     if (!preferences.begin(LAST_SHOT_NAMESPACE, true)) {
       resetLastShotBlob(blob_);
       unlockFlashIo();
@@ -108,7 +108,7 @@ class LastShotStore {
     }
     yieldFlashIo();
     feedFlashIoWatchdog();
-    Preferences preferences;
+    ShotStopperPreferences preferences(NvsSubsystem::LAST_SHOT);
     if (!preferences.begin(LAST_SHOT_NAMESPACE, false)) {
       unlockFlashIo();
       return false;
@@ -148,7 +148,7 @@ class LastShotStore {
     if (!lockFlashIo()) {
       return false;
     }
-    Preferences preferences;
+    ShotStopperPreferences preferences(NvsSubsystem::LAST_SHOT);
     if (!preferences.begin(LAST_SHOT_NAMESPACE, false)) {
       unlockFlashIo();
       return false;

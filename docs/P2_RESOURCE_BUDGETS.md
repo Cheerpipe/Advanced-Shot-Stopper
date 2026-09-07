@@ -40,6 +40,33 @@ in the combined soak. The firmware does not claim a service-life figure until
 the flash vendor endurance, NVS partition geometry, and expected field update
 rate are fixed for production hardware.
 
+## NVS capacity
+
+Both supported partition tables reserve `0x15000` bytes (84 KiB) for NVS. With
+4 KiB pages this gives 21 pages. The capacity contract conservatively reserves
+two whole pages for NVS housekeeping/compaction, leaving 2,394 32-byte entries
+for application records.
+
+The worst-case application set is budgeted by the NVS blob rule
+`2 + ceil(bytes / 32)` per blob, plus namespace and scalar-key entries:
+
+| Records retained together | Maximum entries |
+|---|---:|
+| Settings A/B (`2 × 2,616 B`) | 168 |
+| Shot History A/B (`2 × sizeof(ShotLogStore)`) | 366 |
+| Last Shot | 8 |
+| BLE settings A/B | 6 |
+| Recovery intent | 3 |
+| OTA journal A/B | 24 |
+| Reset history, active pointers, and namespaces | 32 |
+| **Application total** | **607** |
+
+The resulting conservative compaction margin is 1,787 entries (74.6%). Host
+tests bind the large record sizes and this arithmetic to the 84 KiB layout.
+Diagnostic status and debug exports publish the installed partition size,
+layout match, NVS used/free/available/total entries, namespace count, failure
+count, last failing subsystem/operation/error, and flash-I/O lock timeouts.
+
 ## Combined heap/timing soak
 
 `scripts/p2_soak.py` captures one status JSON object per interval as JSONL and

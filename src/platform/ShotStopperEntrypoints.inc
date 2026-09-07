@@ -277,6 +277,8 @@ void setup() {
     callbacks.clearShotLog = clearShotLog;
     callbacks.clearLastShot = clearLastShot;
     callbacks.resetAllDurableStores = resetAllDurableStoresForNetwork;
+    callbacks.releaseNvsSpaceForFactoryReset =
+        releaseNvsSpaceForFactoryResetForNetwork;
     callbacks.copyPreferredScaleMac = copyPreferredScaleMac;
     callbacks.copyPreferredScaleName = copyPreferredScaleName;
     callbacks.copyScaleHistory = copyScaleHistory;

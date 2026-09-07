@@ -63,7 +63,7 @@ inline bool loadRecoveryIntent(RecoveryIntent &intent) {
     return false;
   }
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::RECOVERY_INTENT);
   if (!preferences.begin(RECOVERY_NAMESPACE, true)) {
     unlockFlashIo();
     return false;
@@ -98,7 +98,7 @@ inline bool recoveryIntentRecordPresent() {
     return false;
   }
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::RECOVERY_INTENT);
   if (!preferences.begin(RECOVERY_NAMESPACE, true)) {
     unlockFlashIo();
     return false;
@@ -133,7 +133,7 @@ inline bool saveRecoveryIntent(RecoveryOperation operation) {
   if (!lockFlashIo()) {
     return false;
   }
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::RECOVERY_INTENT);
   if (!preferences.begin(RECOVERY_NAMESPACE, false)) {
     unlockFlashIo();
     return false;
@@ -158,7 +158,7 @@ inline bool clearRecoveryIntent() {
   if (!lockFlashIo()) {
     return false;
   }
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::RECOVERY_INTENT);
   if (!preferences.begin(RECOVERY_NAMESPACE, false)) {
     unlockFlashIo();
     return false;
@@ -196,11 +196,46 @@ inline bool recoveryIntentMatches(RecoveryOperation operation) {
 
 // Persist the latch only when missing or for a different operation. Rewriting
 // a valid blob on a full NVS partition can tear it and brick boot recovery.
-inline bool ensureRecoveryIntent(RecoveryOperation operation) {
+enum class RecoveryIntentResult : uint8_t {
+  OK = 0,
+  NO_SPACE,
+  FAILED,
+};
+
+inline RecoveryIntentResult ensureRecoveryIntentDetailed(
+    RecoveryOperation operation) {
   if (recoveryIntentMatches(operation)) {
-    return true;
+    return RecoveryIntentResult::OK;
   }
-  return saveRecoveryIntent(operation);
+  const uint32_t failureCountBefore =
+      captureNvsDiagnostics().failureCount;
+  if (saveRecoveryIntent(operation)) {
+    return RecoveryIntentResult::OK;
+  }
+  const NvsDiagnosticSnapshot after = captureNvsDiagnostics();
+  return after.failureCount != failureCountBefore &&
+                 after.lastFailure.present &&
+                 after.lastFailure.subsystem ==
+                     NvsSubsystem::RECOVERY_INTENT &&
+                 after.lastFailure.errorCode == nvsNotEnoughSpaceErrorCode()
+             ? RecoveryIntentResult::NO_SPACE
+             : RecoveryIntentResult::FAILED;
+}
+
+inline bool ensureRecoveryIntent(RecoveryOperation operation) {
+  return ensureRecoveryIntentDetailed(operation) == RecoveryIntentResult::OK;
+}
+
+template <typename ReleaseExpendableRecords>
+inline bool ensureFactoryResetIntent(
+    ReleaseExpendableRecords releaseExpendableRecords) {
+  RecoveryIntentResult result =
+      ensureRecoveryIntentDetailed(RecoveryOperation::FACTORY_RESET);
+  if (result == RecoveryIntentResult::NO_SPACE) {
+    if (!releaseExpendableRecords()) return false;
+    result = ensureRecoveryIntentDetailed(RecoveryOperation::FACTORY_RESET);
+  }
+  return result == RecoveryIntentResult::OK;
 }
 
 inline bool abandonRecoveryIntent() { return clearRecoveryIntent(); }

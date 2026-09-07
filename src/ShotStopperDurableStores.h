@@ -48,7 +48,14 @@ inline bool resetPersistedNetworkAccess(PersistedSettings &settings) {
   return true;
 }
 
-// Erase independent NVS history first (frees the 20 KiB partition), then
+// Erase only expendable NVS records. This is the narrow recovery step used
+// when a factory-reset intent cannot be committed because NVS is full.
+inline bool releaseNvsSpaceForFactoryReset(ShotLog &shotLog,
+                                           LastShotStore &lastShot) {
+  return shotLog.erasePersisted() && lastShot.erasePersisted();
+}
+
+// Erase independent NVS history first, then
 // overwrite dual-slot settings without clearing the shared NVS namespace,
 // BLE companion last. Every store is verified before success. Idempotent
 // except that a mid-fail may already have dropped history.
@@ -61,10 +68,10 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
                                   ShotCurveLog &shotCurves) {
   yieldFlashIo();
   feedFlashIoWatchdog();
-  // Drop history blobs first so the 20 KiB NVS partition has room for
+  // Drop history blobs first so the NVS partition has room for
   // factory settings writes. A later failure may already have erased
   // history; settings stay until resetPersistedSettingsToFactory succeeds.
-  if (!shotLog.erasePersisted() || !lastShot.erasePersisted()) {
+  if (!releaseNvsSpaceForFactoryReset(shotLog, lastShot)) {
     return false;
   }
   yieldFlashIo();

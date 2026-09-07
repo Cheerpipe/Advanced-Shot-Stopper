@@ -50,7 +50,7 @@ inline void persistResetHistoryAfterBoot(SafetyResetSnapshot &snapshot) {
   ResetHistoryStoreBlob stored = {};
   bool loaded = false;
   if (lockFlashIo()) {
-    Preferences preferences;
+    ShotStopperPreferences preferences(NvsSubsystem::RESET_HISTORY);
     if (preferences.begin("rsthist", true)) {
       loaded = preferences.getBytesLength("history") == sizeof(stored) &&
                preferences.getBytes("history", &stored, sizeof(stored)) ==
@@ -81,7 +81,7 @@ inline void persistResetHistoryAfterBoot(SafetyResetSnapshot &snapshot) {
   finalizeResetHistoryStore(next);
 
   if (lockFlashIo()) {
-    Preferences preferences;
+    ShotStopperPreferences preferences(NvsSubsystem::RESET_HISTORY);
     if (preferences.begin("rsthist", false)) {
       (void)preferences.putBytes("history", &next, sizeof(next));
       preferences.end();
@@ -113,7 +113,7 @@ inline bool persistResetUptimeCheckpoint(uint32_t uptimeMs) {
   resetHistoryStoreLive.currentUptimeMs = uptimeMs;
   finalizeResetHistoryStore(resetHistoryStoreLive);
   if (!tryLockFlashIo(FLASH_IO_LOCK_TIMEOUT_MS)) return false;
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::RESET_HISTORY);
   bool ok = false;
   if (preferences.begin("rsthist", false)) {
     ok = preferences.putBytes("history", &resetHistoryStoreLive,
@@ -138,7 +138,7 @@ inline bool clearPersistedResetHistory(uint32_t unsafeResetCount) {
   ResetHistoryStoreBlob next = {};
   finalizeResetHistoryStore(next);
   if (!tryLockFlashIo(FLASH_IO_LOCK_TIMEOUT_MS)) return false;
-  Preferences preferences;
+  ShotStopperPreferences preferences(NvsSubsystem::RESET_HISTORY);
   bool ok = false;
   if (preferences.begin("rsthist", false)) {
     ok = preferences.putBytes("history", &next, sizeof(next)) == sizeof(next);

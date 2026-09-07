@@ -44,7 +44,7 @@ ss_cli_flags_for arch flags
 ss_cli_flags_for arch
 ./scripts/static-idf ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}
 
-ss_cli_flags_for port arch image no_check
+ss_cli_flags_for port arch image no_check erase_all
 ./scripts/flash-idf ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}
 
 ss_cli_flags_for port speed

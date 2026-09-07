@@ -140,6 +140,23 @@ flash` re-run the build. OTA rejects it because resumable sessions cannot be
 matched or committed safely without the local SHA-256, architecture, and
 version.
 
+`--erase-all` is accepted by `flash-idf` and its USB flashing wrappers. It
+runs a full `erase_flash` before writing the project bootloader, partition
+table, initial OTA metadata, and application. This is required when moving a
+controller from the legacy 20 KiB NVS layout to the 84 KiB layout:
+
+```sh
+./scripts/flash-idf --port /dev/cu.usbmodem2101 --arch n16r8 --erase-all
+```
+
+This permanently removes both firmware slots, Wi-Fi credentials, all settings
+and presets, calibration, BLE preferences, shot history, and last-shot data.
+There is no data migration. `--erase-all` is rejected with `--image`, because
+an external application image cannot reconstruct the bootloader and partition
+table. A normal USB flash reads the installed partition table first and refuses
+the legacy NVS size; external images use the installed `app0` offset instead of
+assuming a fixed address.
+
 When the controller already owns a partial or staged different image, OTA
 stops without modifying it and prints both identities. Re-run with
 `--discard-ota-session` only when discarding that remote image is intentional.
@@ -157,8 +174,8 @@ is idle. Safety and validation failures are not retried.
 `bsfm` and their `*-idf` variants); they still execute their named build or
 analysis steps, then use the selected image for the transfer. The image is
 checked against the selected `--arch` before transfer. For an IDF USB flash,
-an external image is written to the app partition at `0x10000`; it does not
-replace the bootloader or partition table.
+an external image is written to the `app0` offset read from the installed
+partition table; it does not replace the bootloader or partition table.
 
 ## Compatibility aliases
 

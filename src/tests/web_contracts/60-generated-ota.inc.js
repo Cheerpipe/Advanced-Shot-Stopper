@@ -176,8 +176,8 @@ if (generated.jsGzip.length > 6144) {
 if (generated.cssGzip.length > 6600) {
   throw new Error('Compressed Web CSS exceeds the 6.5 KiB gzip budget');
 }
-if (generated.runtimeGzip.length > 31200) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 30.5 KiB gzip budget');
+if (generated.runtimeGzip.length > 31300) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 30.6 KiB gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

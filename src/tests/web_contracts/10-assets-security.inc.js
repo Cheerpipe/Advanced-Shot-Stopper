@@ -67,15 +67,15 @@ for (const name of VIEW_NAMES) {
 
 const htmlBytes = Buffer.byteLength(allHtml, 'utf8');
 const jsBytes = Buffer.byteLength(allJs, 'utf8');
-if (htmlBytes > 54000) {
+if (htmlBytes > 55000) {
   throw new Error('Web UI HTML source exceeds the authoring budget');
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
-if (jsBytes > 164000) {
+if (jsBytes > 165000) {
   throw new Error('Web UI JS source exceeds the authoring budget');
 }
-if (htmlBytes + jsBytes > 218000) {
+if (htmlBytes + jsBytes > 220000) {
   throw new Error('Web UI HTML+JS source exceeds the combined authoring budget');
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||

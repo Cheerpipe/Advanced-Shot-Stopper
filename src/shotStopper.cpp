@@ -1113,6 +1113,10 @@ bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
   clearLastShotSnapshot();
   return true;
 }
+
+bool releaseNvsSpaceForFactoryResetForNetwork() {
+  return releaseNvsSpaceForFactoryReset(shotLog, lastShotStore);
+}
 #endif
 
 void persistLastShotSnapshot(const PersistedLastShot &snapshot) {

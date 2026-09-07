@@ -5661,6 +5661,35 @@ void w87_nvs_fail_keeps_ram_and_requeues() {
   CHECK(hostLastFlushedRuntime.noScaleBbwMode == alternateMode);
 }
 
+void w87b_runtime_persist_failure_is_logged_once_per_episode() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  hostRuntimePersistSucceeds = false;
+  runtimePersistPending = true;
+  runtimePersistReasonBits = RUNTIME_PERSIST_REASON_OFFSET;
+  runtimePersistRetryAtMs = millis();
+  debugLog.clear();
+  serviceRuntimePersistence();
+  CHECK(runtimePersistFailed);
+  CHECK(debugEventExists(DebugCode::RUNTIME_PERSIST_FAILED));
+
+  debugLog.clear();
+  hostMillis += RUNTIME_PERSIST_RETRY_MS;
+  serviceRuntimePersistence();
+  CHECK(!debugEventExists(DebugCode::RUNTIME_PERSIST_FAILED));
+
+  hostRuntimePersistSucceeds = true;
+  hostMillis += RUNTIME_PERSIST_RETRY_MS;
+  serviceRuntimePersistence();
+  CHECK(!runtimePersistFailed);
+  hostRuntimePersistSucceeds = false;
+  queueRuntimePersist(RUNTIME_PERSIST_REASON_ATM_SAMPLES);
+  hostMillis += RUNTIME_PERSIST_DEBOUNCE_MS;
+  debugLog.clear();
+  serviceRuntimePersistence();
+  CHECK(debugEventExists(DebugCode::RUNTIME_PERSIST_FAILED));
+}
+
 void w88_save_network_flush_includes_live_runtime() {
   resetHarness(false, false);
   reachReadyFromBoot();
@@ -12092,6 +12121,7 @@ const TestCase testCases[] = {
     {"W85", w85_debug_pulse_rates_use_same_on_ms_and_3s},
     {"W86", w86_config_applies_to_ram_immediately_and_coalesces},
     {"W87", w87_nvs_fail_keeps_ram_and_requeues},
+    {"W87B", w87b_runtime_persist_failure_is_logged_once_per_episode},
     {"W88", w88_save_network_flush_includes_live_runtime},
     {"W89", w89_restart_flush_is_best_effort},
     {"W91", w91_chime_sequence_uses_irregular_note_timings},

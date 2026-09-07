@@ -902,6 +902,47 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           static_cast<unsigned long>(webhookStatus.psramLargestBefore),
           static_cast<unsigned long>(webhookStatus.psramLargestAfter));
     }
+    if (ok) {
+      const NvsDiagnosticSnapshot nvs = captureNvsDiagnostics();
+      ok = statusJsonAppend(
+          &used,
+          ",\"nvs\":{\"statsValid\":%s,\"statsErrorCode\":%ld,"
+          "\"statsErrorName\":\"%s\",\"partitionBytes\":%lu,"
+          "\"expectedPartitionBytes\":%lu,\"layoutExpected\":%s,"
+          "\"usedEntries\":%lu,\"freeEntries\":%lu,"
+          "\"availableEntries\":%lu,\"totalEntries\":%lu,"
+          "\"namespaces\":%lu,\"failures\":%lu,"
+          "\"flashIoLockTimeouts\":%lu,\"lastFailure\":",
+          nvs.statsValid ? "true" : "false",
+          static_cast<long>(nvs.statsErrorCode),
+          nvsErrorName(nvs.statsErrorCode),
+          static_cast<unsigned long>(nvs.partitionBytes),
+          static_cast<unsigned long>(EXPECTED_NVS_PARTITION_BYTES),
+          nvs.partitionBytes == EXPECTED_NVS_PARTITION_BYTES ? "true" : "false",
+          static_cast<unsigned long>(nvs.usedEntries),
+          static_cast<unsigned long>(nvs.freeEntries),
+          static_cast<unsigned long>(nvs.availableEntries),
+          static_cast<unsigned long>(nvs.totalEntries),
+          static_cast<unsigned long>(nvs.namespaceCount),
+          static_cast<unsigned long>(nvs.failureCount),
+          static_cast<unsigned long>(flashIoLockTimeouts()));
+      if (ok && nvs.lastFailure.present) {
+        ok = statusJsonAppend(
+            &used,
+            "{\"subsystem\":\"%s\",\"operation\":\"%s\","
+            "\"errorCode\":%ld,\"errorName\":\"%s\","
+            "\"requiredEntries\":%lu,\"availableEntriesAtFailure\":%lu}}",
+            nvsSubsystemName(nvs.lastFailure.subsystem),
+            nvsOperationName(nvs.lastFailure.operation),
+            static_cast<long>(nvs.lastFailure.errorCode),
+            nvsErrorName(nvs.lastFailure.errorCode),
+            static_cast<unsigned long>(nvs.lastFailure.requiredEntries),
+            static_cast<unsigned long>(
+                nvs.lastFailure.availableEntriesAtFailure));
+      } else if (ok) {
+        ok = statusJsonAppend(&used, "null}");
+      }
+    }
     if (ok) ok = statusJsonAppend(&used, ",\"resetHistory\":[");
     for (uint8_t i = 0; ok && i < control.resetHistoryCount; ++i) {
       const ResetHistoryEntry &entry = control.resetHistory[i];

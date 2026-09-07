@@ -859,7 +859,8 @@ if (!ui.includes('id="factoryResetButton"') ||
     !ui.includes("confirm:'ERASE_ALL_SETTINGS'") ||
     !network.includes('FACTORY_RESET_NOT_CONFIRMED') ||
     !network.includes('resetAllDurableStores(next)') ||
-    !network.includes('ensureRecoveryIntent(RecoveryOperation::FACTORY_RESET)') ||
+    !network.includes('ensureFactoryResetIntent(') ||
+    !network.includes('releaseNvsSpaceForFactoryReset') ||
     !ui.includes('id="restartPanel"') ||
     html.indexOf('id="saveDateTimeButton"') > html.indexOf('id="restartPanel"') ||
     html.indexOf('id="restartPanel"') > html.indexOf('id="factoryResetButton"') ||
@@ -871,6 +872,14 @@ if (!ui.includes('id="factoryResetButton"') ||
     html.includes('id="factoryResetButton" class="btnGlyph mutable btnWarn"') ||
     !css.includes('.btnGlyph.btnInvert')) {
   throw new Error('Factory reset must require UI and server-side confirmation');
+}
+if (!html.includes('<legend>NVS</legend>') ||
+    !html.includes('id="hNvsLastFailure"') ||
+    !js.includes('const nv=s.nvs||{}') ||
+    !network.includes('\\\"availableEntries\\\"') ||
+    !network.includes('\\\"flashIoLockTimeouts\\\"') ||
+    !network.includes('captureNvsDiagnostics()')) {
+  throw new Error('Diagnostic status, UI, and debug export must expose bounded NVS diagnostics');
 }
 if (!css.includes('.btnBar,.presetActions{display:flex;gap:.45rem') ||
     css.includes('.btnBar,.presetActions{display:flex;gap:0') ||

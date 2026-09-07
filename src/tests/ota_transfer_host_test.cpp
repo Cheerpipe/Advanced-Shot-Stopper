@@ -212,6 +212,20 @@ void testConfirmationGatesAndDiagnostics() {
   CHECK(service(*ota, 15000).state == ESP_OTA_IMG_VALID);
 }
 
+void testJournalFailureHasDistinctResult() {
+  reset();
+  auto ota = OtaHostTestAccess::fresh();
+  Image image;
+  persistence_host::failNextWrite = true;
+  CHECK(ota->createSession(image.identity, hostMillis) ==
+        OtaResult::JOURNAL_FAILED);
+  CHECK(std::string(ShotStopperOta::resultName(OtaResult::JOURNAL_FAILED)) ==
+        "OTA_JOURNAL_FAILED");
+  const NvsDiagnosticSnapshot nvs = captureNvsDiagnostics();
+  CHECK(nvs.lastFailure.present);
+  CHECK(nvs.lastFailure.subsystem == NvsSubsystem::OTA_JOURNAL);
+}
+
 void testConfirmationRetryAndStateRecovery() {
   for (bool flashBusy : {false, true}) {
     reset(ESP_OTA_IMG_PENDING_VERIFY);
@@ -267,6 +281,7 @@ int main() {
   testInterruptedRangeAndAlignment();
   testSafetyAndFatalFailures();
   testCheckpointRecovery();
+  testJournalFailureHasDistinctResult();
   testConfirmationGatesAndDiagnostics();
   testConfirmationRetryAndStateRecovery();
   testRollbackDoesNotConfirmOnFailure();
