@@ -2461,6 +2461,10 @@ struct DebugEvent {
 static_assert(sizeof(DebugEvent) <= 160,
               "DebugEvent exceeded its retained-log RAM budget");
 
+struct DebugLogReadMetadata {
+  uint32_t historyOverwritten = 0, missedEvents = 0, serialDropped = 0;
+  bool hasMore = false, cursorInvalid = false;
+};
 class DebugRingBuffer {
  public:
   void clear() {
@@ -2503,23 +2507,42 @@ class DebugRingBuffer {
   }
 
   size_t copyAfter(uint32_t afterSequence, DebugEvent *output,
-                   size_t outputCapacity) const {
-    if (output == nullptr || outputCapacity == 0 || count_ == 0) {
-      return 0;
+                   size_t outputCapacity,
+                   DebugLogReadMetadata *metadata = nullptr) const {
+    if (metadata != nullptr) {
+      *metadata = DebugLogReadMetadata{};
+      metadata->historyOverwritten = overwritten_;
     }
-    const size_t oldest =
-        (writeIndex_ + DEBUG_EVENT_CAPACITY - count_) % DEBUG_EVENT_CAPACITY;
+    if (count_ == 0) return 0;
+    const size_t oldest = (writeIndex_ + DEBUG_EVENT_CAPACITY - count_) %
+                          DEBUG_EVENT_CAPACITY;
+    const DebugEvent &oldestEvent = events_[oldest];
+    const DebugEvent &newestEvent = events_[(writeIndex_ + DEBUG_EVENT_CAPACITY - 1) %
+                                           DEBUG_EVENT_CAPACITY];
+    if (metadata != nullptr) {
+      if (afterSequence != 0 &&
+          sequenceAfter(oldestEvent.sequence, afterSequence)) {
+        metadata->missedEvents = missedBefore(afterSequence,
+                                               oldestEvent.sequence);
+      } else if (afterSequence != 0 && afterSequence != newestEvent.sequence &&
+                 sequenceAfter(afterSequence, newestEvent.sequence)) {
+        metadata->cursorInvalid = true;
+      }
+    }
     size_t copied = 0;
-    for (size_t index = 0; index < count_ && copied < outputCapacity; ++index) {
+    for (size_t index = 0; index < count_; ++index) {
       const DebugEvent &event =
           events_[(oldest + index) % DEBUG_EVENT_CAPACITY];
-      if (static_cast<int32_t>(event.sequence - afterSequence) > 0) {
+      if (afterSequence == 0 || sequenceAfter(event.sequence, afterSequence)) {
+        if (output == nullptr || copied == outputCapacity) {
+          if (metadata != nullptr) metadata->hasMore = true;
+          continue;
+        }
         output[copied++] = event;
       }
     }
     return copied;
   }
-
   size_t countAfter(uint32_t afterSequence) const {
     if (count_ == 0) {
       return 0;
@@ -2536,7 +2559,6 @@ class DebugRingBuffer {
     }
     return matching;
   }
-
   bool copyFirstAfter(uint32_t afterSequence, DebugEvent &output) const {
     if (count_ == 0) {
       return false;
@@ -2557,6 +2579,16 @@ class DebugRingBuffer {
   uint32_t overwritten() const { return overwritten_; }
 
  private:
+  static bool sequenceAfter(uint32_t sequence, uint32_t reference) {
+    return sequence != reference && static_cast<int32_t>(sequence - reference) > 0;
+  }
+  static uint32_t missedBefore(uint32_t afterSequence, uint32_t oldestSequence) {
+    uint32_t distance = oldestSequence - afterSequence;
+    // Sequence zero is reserved and skipped on wrap.
+    if (oldestSequence < afterSequence) --distance;
+    return distance > 0 ? distance - 1 : 0;
+  }
+
   DebugEvent events_[DEBUG_EVENT_CAPACITY] = {};
   uint32_t nextSequence_ = 1;
   size_t count_ = 0;

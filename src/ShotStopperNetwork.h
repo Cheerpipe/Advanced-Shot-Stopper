@@ -151,7 +151,8 @@ struct NetworkBridgeCallbacks {
   void (*refreshControlStatus)() = nullptr;
   bool (*enqueueWebCommand)(const WebCommand &command) = nullptr;
   size_t (*copyDebugEvents)(uint32_t afterSequence, DebugEvent *output,
-                            size_t capacity) = nullptr;
+                            size_t capacity,
+                            DebugLogReadMetadata *metadata) = nullptr;
   void (*addDebugEvent)(DebugCategory category, DebugCode code,
                         int32_t argument1, int32_t argument2) = nullptr;
   void (*reportTaskWatchdogFault)() = nullptr;

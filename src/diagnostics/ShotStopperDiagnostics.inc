@@ -591,7 +591,7 @@ void serialCliPrintLiveLogDump() {
     return;
   }
   serialLogDumpCount = copyDebugEvents(
-      0, serialLogDumpSnapshot, DEBUG_EVENT_CAPACITY);
+      0, serialLogDumpSnapshot, DEBUG_EVENT_CAPACITY, nullptr);
   serialLogDumpIndex = 0;
   serialCliPrintLogDumpPreamble(serialLogDumpCount,
                                 currentRingRetainLogLevel());

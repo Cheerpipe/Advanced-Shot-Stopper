@@ -392,7 +392,7 @@ if (!buzzer.includes('struct RtttlCatalog') ||
     !buzzer.includes('RtttlNote rtttlBuf[BULLSEYE_RTTTL_MAX_NOTES]') ||
     !firmwareCore.includes('TaskMutex debugLogMutex') ||
     !firmwareCore.includes(
-        'debugLog.copyAfter(afterSequence, output, capacity)') ||
+        'debugLog.copyAfter(afterSequence, output, capacity, metadata)') ||
     firmwareCore.includes('portENTER_CRITICAL(&debugLogMux)') ||
     !firmwareCore.includes('debugLogDroppedSnapshot') ||
     !firmwareCore.includes(

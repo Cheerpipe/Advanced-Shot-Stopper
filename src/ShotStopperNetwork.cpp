@@ -59,6 +59,7 @@ struct NetworkWorkBuf {
   char jsonItem[kJsonItem]{};
   char otaJson[kOtaJson]{};
   DebugEvent logBatch[kNetworkLogBatchSize]{};
+  DebugLogReadMetadata logMetadata{};
   ShotLogRecord shotRecords[SHOT_LOG_CAPACITY]{};
   ShotCurveRecord shotCurves[SHOT_CURVE_CAPACITY]{};
   ControlStatusSnapshot control{};

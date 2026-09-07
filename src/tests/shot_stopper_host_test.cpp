@@ -147,7 +147,6 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   cupStartGuardHold = false;
   cupStartGuardHoldAtMs = 0;
   debugLog.clear();
-  lastReportedLogOverwritten = 0;
   serialLogLevel = LogLevel::NONE;
   ringRetainLogLevel = LogLevel::INFO;
   publishedControlStatus = ControlStatusSnapshot{};
@@ -2560,8 +2559,14 @@ void w24_debug_ring_is_bounded_and_ordered() {
   }
   CHECK(ring.overwritten() == 5);
   DebugEvent events[DEBUG_EVENT_CAPACITY] = {};
-  const size_t copied = ring.copyAfter(0, events, DEBUG_EVENT_CAPACITY);
+  DebugLogReadMetadata initialRead;
+  const size_t copied =
+      ring.copyAfter(0, events, DEBUG_EVENT_CAPACITY, &initialRead);
   CHECK(copied == DEBUG_EVENT_CAPACITY);
+  CHECK(initialRead.historyOverwritten == 5);
+  CHECK(initialRead.missedEvents == 0);
+  CHECK(!initialRead.hasMore);
+  CHECK(!initialRead.cursorInvalid);
   CHECK(events[0].argument1 == 5);
   CHECK(events[copied - 1].argument1 ==
         static_cast<int32_t>(DEBUG_EVENT_CAPACITY + 4));
@@ -2572,6 +2577,20 @@ void w24_debug_ring_is_bounded_and_ordered() {
   DebugEvent second = {};
   CHECK(ring.copyFirstAfter(first.sequence, second));
   CHECK(second.argument1 == 6);
+
+  DebugEvent page[4] = {};
+  DebugLogReadMetadata laggedRead;
+  CHECK(ring.copyAfter(1, page, 4, &laggedRead) == 4);
+  CHECK(page[0].sequence == 6);
+  CHECK(laggedRead.missedEvents == 4);
+  CHECK(laggedRead.hasMore);
+  CHECK(!laggedRead.cursorInvalid);
+
+  DebugLogReadMetadata invalidRead;
+  CHECK(ring.copyAfter(DEBUG_EVENT_CAPACITY + 6, page, 4, &invalidRead) == 0);
+  CHECK(invalidRead.missedEvents == 0);
+  CHECK(!invalidRead.hasMore);
+  CHECK(invalidRead.cursorInvalid);
 
   DebugRingBuffer reused;
   reused.add(1, 0, LogLevel::INFO, DebugCategory::SYSTEM,
@@ -2588,6 +2607,24 @@ void w24_debug_ring_is_bounded_and_ordered() {
   for (size_t index = 0; index < reusedCount; ++index) {
     CHECK(reusedEvents[index].text[0] == '\0');
   }
+
+  const LogLevel previousRingLevel = ringRetainLogLevel;
+  debugLog.clear();
+  ringRetainLogLevel = LogLevel::INFO;
+  for (size_t index = 0; index < DEBUG_EVENT_CAPACITY + 8; ++index) {
+    logEmit(LogLevel::INFO, DebugCategory::SYSTEM, DebugCode::BOOT_SUBSYSTEM,
+            static_cast<int32_t>(index));
+  }
+  DebugEvent retained[DEBUG_EVENT_CAPACITY] = {};
+  const size_t retainedCount =
+      copyDebugEvents(0, retained, DEBUG_EVENT_CAPACITY);
+  CHECK(debugLog.overwritten() == 8);
+  for (size_t index = 0; index < retainedCount; ++index) {
+    CHECK(retained[index].code != DebugCode::SYSTEM_LOG_OVERRUN);
+  }
+  debugLog.clear();
+  __atomic_store_n(&debugLogDroppedSnapshot, 0U, __ATOMIC_RELAXED);
+  ringRetainLogLevel = previousRingLevel;
 }
 
 void w25_weight_samples_do_not_fill_debug_log() {
@@ -9071,6 +9108,7 @@ void b01_scale_worker_requires_ble_stack() {
 void b02_setup_degrades_without_ble() {
   resetHarness(false, true);
   setScaleWorkerBleReadyForHost(false);
+  deleteHostResources();
   setup();
   CHECK(bootDegraded);
   CHECK(!firmwareInitializationComplete);
@@ -9083,6 +9121,7 @@ void b02_setup_degrades_without_ble() {
 void b03_jtag_build_starts_serial_without_jumper() {
   resetHarness(false, false);
   CHECK(!usbConsoleJumperPresent());
+  deleteHostResources();
   setup();
   CHECK(Serial.beginCalls == 1);
   CHECK(usbSerialEnableSource == UsbSerialEnableSource::COMPILE_FLAG);
@@ -9095,6 +9134,7 @@ void b03_usb_console_stays_off_without_jumper() {
   resetHarness(false, false);
   CHECK(!usbConsoleJumperPresent());
   CHECK(hostPinMode[USB_CONSOLE_GPIO] == INPUT_PULLUP);
+  deleteHostResources();
   setup();
   CHECK(Serial.beginCalls == 0);
   CHECK(usbSerialEnableSource == UsbSerialEnableSource::OFF);
@@ -9108,6 +9148,7 @@ void b04_usb_console_starts_when_jumper_held() {
   resetHarness(false, false);
   hostPinLevel[USB_CONSOLE_GPIO] = LOW;
   CHECK(usbConsoleJumperPresent());
+  deleteHostResources();
   setup();
   CHECK(Serial.beginCalls == 1);
 #if SHOT_STOPPER_ENABLE_JTAG == 1
@@ -9473,6 +9514,7 @@ void f06_boot_capability_policy_is_fail_closed() {
   CHECK(BootCapabilities{}.state() == BootState::BOOTING);
 
   auto bootRefusesRelayClose = [](BootState expected) {
+    deleteHostResources();
     setup();
     const bool stateMatches =
         bootState == expected && publishedControlStatus.bootState == expected &&

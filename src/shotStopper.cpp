@@ -357,7 +357,6 @@ SHOT_STOPPER_PSRAM_BSS DebugRingBuffer debugLog;
 TaskMutex debugLogMutex;
 LogLevel serialLogLevel = LogLevel::NONE;
 LogLevel ringRetainLogLevel = LogLevel::NONE;
-uint32_t lastReportedLogOverwritten = 0;
 // Working copies: NVS/partition I/O copies through internal flash scratch
 // first. Safe in PSRAM BSS because putBytes/erase/write never DMA these.
 SHOT_STOPPER_PSRAM_BSS ShotLog shotLog;
@@ -858,8 +857,6 @@ void writeSerialLogLine(const DebugEvent &event) {
   emitEspLog(event.level, event.category, message);
 }
 
-void maybeReportLogOverrunLocked();
-
 void logText(LogLevel level, DebugCategory category, const char *message) {
   if (message == nullptr || level == LogLevel::NONE) {
     return;
@@ -878,7 +875,6 @@ void logText(LogLevel level, DebugCategory category, const char *message) {
       TaskLockGuard lock(debugLogMutex);
       debugLog.add(atMs, wallSec, level, category, DebugCode::LOG_TEXT, 0, 0,
                    message);
-      maybeReportLogOverrunLocked();
       __atomic_store_n(&debugLogDroppedSnapshot, debugLog.overwritten(),
                        __ATOMIC_RELAXED);
     }
@@ -935,25 +931,6 @@ void serialTraceCategoryf(LogLevel level, DebugCategory category,
   logText(level, category, line);
 }
 
-void maybeReportLogOverrunLocked() {
-  const uint32_t overwritten = debugLog.overwritten();
-  if (overwritten == 0 || overwritten == lastReportedLogOverwritten) {
-    return;
-  }
-  if (lastReportedLogOverwritten != 0 &&
-      overwritten < lastReportedLogOverwritten + 16U) {
-    return;
-  }
-  lastReportedLogOverwritten = overwritten;
-  const uint32_t atMs = millis();
-  const uint32_t wallSec = g_wallClock.nowUtcSec(atMs);
-  if (logLevelAtMost(LogLevel::WARNING, currentRingRetainLogLevel())) {
-    debugLog.add(atMs, wallSec, LogLevel::WARNING, DebugCategory::SYSTEM,
-                 DebugCode::SYSTEM_LOG_OVERRUN,
-                 static_cast<int32_t>(overwritten), 0);
-  }
-}
-
 void logEmit(LogLevel level, DebugCategory category, DebugCode code,
              int32_t argument1 = 0, int32_t argument2 = 0) {
   if (level == LogLevel::NONE) {
@@ -982,7 +959,6 @@ void logEmit(LogLevel level, DebugCategory category, DebugCode code,
     TaskLockGuard lock(debugLogMutex);
     if (toRing) {
       debugLog.add(atMs, wallSec, level, category, code, argument1, argument2);
-      maybeReportLogOverrunLocked();
       __atomic_store_n(&debugLogDroppedSnapshot, debugLog.overwritten(),
                        __ATOMIC_RELAXED);
     }
@@ -1001,9 +977,15 @@ void addDebugEvent(DebugCategory category, DebugCode code,
 }
 
 size_t copyDebugEvents(uint32_t afterSequence, DebugEvent *output,
-                       size_t capacity) {
+                       size_t capacity,
+                       DebugLogReadMetadata *metadata = nullptr) {
   TaskLockGuard lock(debugLogMutex);
-  return debugLog.copyAfter(afterSequence, output, capacity);
+  const size_t copied =
+      debugLog.copyAfter(afterSequence, output, capacity, metadata);
+  if (metadata != nullptr) {
+    metadata->serialDropped = serialLogDroppedCount();
+  }
+  return copied;
 }
 
 void copyTaskProfiler(TaskProfilerSnapshot &output) {

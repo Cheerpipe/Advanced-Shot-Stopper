@@ -700,7 +700,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
     bool first = true;
     for (;;) {
       const size_t count = self.callbacks_.copyDebugEvents(
-          after, work.logBatch, kNetworkLogBatchSize);
+          after, work.logBatch, kNetworkLogBatchSize, nullptr);
       if (count == 0) {
         break;
       }
@@ -829,16 +829,24 @@ esp_err_t ShotStopperNetwork::logHandler(httpd_req_t *request) {
   }
   NetworkWorkBuf &work = *self.workBuf_;
   const size_t count = self.callbacks_.copyDebugEvents(
-      after, work.logBatch, LOG_BATCH_SIZE);
+      after, work.logBatch, LOG_BATCH_SIZE, &work.logMetadata);
   self.loadControlStatus(work.control);
   httpd_resp_set_type(request, JSON_CONTENT_TYPE);
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   httpd_resp_set_hdr(request, "Connection", "close");
-  char header[96] = {};
+  char header[224] = {};
   snprintf(header, sizeof(header),
-           "{\"dropped\":%lu,\"bootId\":%lu,\"events\":[",
+           "{\"dropped\":%lu,\"bootId\":%lu,"
+           "\"historyOverwritten\":%lu,\"missedEvents\":%lu,"
+           "\"serialDropped\":%lu,\"hasMore\":%s,"
+           "\"cursorInvalid\":%s,\"events\":[",
            static_cast<unsigned long>(work.control.debugEventsDropped),
-           static_cast<unsigned long>(work.control.bootId));
+           static_cast<unsigned long>(work.control.bootId),
+           static_cast<unsigned long>(work.logMetadata.historyOverwritten),
+           static_cast<unsigned long>(work.logMetadata.missedEvents),
+           static_cast<unsigned long>(work.logMetadata.serialDropped),
+           work.logMetadata.hasMore ? "true" : "false",
+           work.logMetadata.cursorInvalid ? "true" : "false");
   if (httpd_resp_send_chunk(request, header, HTTPD_RESP_USE_STRLEN) != ESP_OK) {
     self.unlockWorkBuf();
     return ESP_FAIL;

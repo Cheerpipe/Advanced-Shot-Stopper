@@ -854,6 +854,16 @@ if (!/<fieldset[^>]*><legend>Log<\/legend>/.test(html) ||
     html.includes('id="view-log"')) {
   throw new Error('Diagnostic tab must host always-visible Log with ring/serial controls and separator');
 }
+if (!network.includes('historyOverwritten') ||
+    !network.includes('missedEvents') ||
+    !network.includes('serialDropped') ||
+    !network.includes('hasMore') ||
+    !network.includes('cursorInvalid') ||
+    !ui.includes('logBootId') ||
+    !ui.includes('Missed while disconnected') ||
+    !ui.includes('d.cursorInvalid')) {
+  throw new Error('Diagnostic log must distinguish history rotation from unread and serial loss');
+}
 if (!ui.includes('id="factoryResetButton"') ||
     !ui.includes("confirm('Restore all factory settings?") ||
     !ui.includes("confirm:'ERASE_ALL_SETTINGS'") ||
