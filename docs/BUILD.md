@@ -60,11 +60,12 @@ cd esp-idf && ./install.sh esp32s3
 idf.py --version
 ```
 
-Homebrew `node` is enough for the Web UI. A system C++ compiler
-(Xcode command-line tools) is enough for host tests:
+Homebrew `node` is enough for the Web UI. Host tests need a system C++
+compiler (Xcode command-line tools) plus the cJSON headers and library:
 
 ```sh
 xcode-select --install   # if clang++ is missing
+brew install cjson
 ```
 
 Optional static analysis:
@@ -86,8 +87,11 @@ On Debian/Ubuntu, a typical extra set is:
 sudo apt-get update
 sudo apt-get install git python3 python3-pip python3-venv cmake ninja-build \
   wget flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 \
-  nodejs npm g++
+  nodejs npm g++ libcjson-dev
 ```
+
+The cJSON development package is required by the host JSON arena tests; test
+commands do not download or install it automatically.
 
 Then install ESP-IDF as in the macOS block (`install.sh esp32s3` and
 `export.sh`).

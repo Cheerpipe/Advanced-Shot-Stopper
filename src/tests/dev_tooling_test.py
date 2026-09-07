@@ -16,6 +16,8 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 golden = {
+    ".github/workflows/validation.yml": "R1",
+    ".gitignore": "R0",
     "README.md": "R0",
     "src/web/app.js": "R1",
     "scripts/dev": "R1",
@@ -127,8 +129,30 @@ assert "npm" + " install" not in tests_text and "npm" + " ci" not in tests_text,
     "tests must not install dependencies"
 
 workflow = (ROOT / ".github/workflows/validation.yml").read_text()
-for job in ("classify", "fast", "host", "idf", "analysis", "gate"):
+for job in ("classify", "fast", "host", "idf", "gate"):
     assert f"  {job}:\n" in workflow, f"CI job missing: {job}"
+assert "  analysis:\n" not in workflow, "analysis must share the IDF build workspace"
+assert "actions/download-artifact" not in workflow, \
+    "the compilation database must not cross job boundaries"
+host_job = workflow.split("  host:\n", 1)[1].split("\n  idf:\n", 1)[0]
+assert "libcjson-dev" in host_job, \
+    "host CI must install the cJSON development files"
+idf_job = workflow.split("  idf:\n", 1)[1].split("\n  gate:\n", 1)[0]
+assert "cppcheck" in idf_job, "IDF CI must install Cppcheck"
+build = idf_job.index("./scripts/dev build")
+firmware_upload = idf_job.index("actions/upload-artifact")
+cppcheck = idf_job.index("./scripts/dev analyze")
+tidy = idf_job.index("./scripts/static-tidy-idf")
+iwyu = idf_job.index("./scripts/iwyu-idf")
+warnings = idf_job.index("./scripts/warnings-idf")
+gcc_analyzer = idf_job.index("./scripts/gcc_analyzer")
+assert build < firmware_upload < cppcheck < tidy < warnings < gcc_analyzer
+assert cppcheck < iwyu < warnings
+assert "compile_commands.json" not in idf_job, \
+    "compile commands are not a portable standalone artifact"
+gate_job = workflow.split("  gate:\n", 1)[1]
+assert "needs.analysis" not in gate_job and "ANALYSIS:" not in gate_job, \
+    "the gate must use the combined IDF build and analysis result"
 for use in re.findall(r"uses:\s*([^\s]+)", workflow):
     assert re.search(r"@[0-9a-f]{40}$", use), f"action is not SHA-pinned: {use}"
 assert "cancel-in-progress: true" in workflow and "contents: read" in workflow

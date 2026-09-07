@@ -74,6 +74,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libcjson-dev
       - run: npm ci --no-audit --no-fund
       - run: ./scripts/dev test normal
       - run: ./scripts/dev test asan
@@ -98,7 +99,7 @@ jobs:
         arch: [n8r4, n16r8]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - run: apt-get update && apt-get install -y --no-install-recommends nodejs npm && rm -rf /var/lib/apt/lists/*
+      - run: apt-get update && apt-get install -y --no-install-recommends nodejs npm cppcheck && rm -rf /var/lib/apt/lists/*
       - run: npm ci --no-audit --no-fund
       - run: ./scripts/dev build --arch ${{ matrix.arch }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -107,37 +108,26 @@ jobs:
           path: |
             build-idf/${{ matrix.arch }}/shotstopper.bin
             build-idf/${{ matrix.arch }}/shotstopper.elf
-            build-idf/${{ matrix.arch }}/compile_commands.json
             build-idf/${{ matrix.arch }}/size.json
             artifacts/runs/
           retention-days: 3
-
-  analysis:
-    needs: [classify, idf]
-    if: always() && needs.classify.outputs.risk == 'R3' && needs.idf.result == 'success'
-    runs-on: ubuntu-latest
-    container: espressif/idf:v5.5.5
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [n8r4, n16r8]
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - run: apt-get update && apt-get install -y --no-install-recommends cppcheck && rm -rf /var/lib/apt/lists/*
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: idf-${{ matrix.arch }}
-          path: .
-      - run: ./scripts/dev analyze --arch ${{ matrix.arch }}
-      - run: ./scripts/warnings-idf --arch ${{ matrix.arch }}
-      - name: Full scheduled analysis
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      - name: Cppcheck
+        if: needs.classify.outputs.risk == 'R3'
+        run: ./scripts/dev analyze --arch ${{ matrix.arch }}
+      - name: Full scheduled database analysis
+        if: needs.classify.outputs.risk == 'R3' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         run: |
           ./scripts/static-tidy-idf --arch ${{ matrix.arch }}
           ./scripts/iwyu-idf --arch ${{ matrix.arch }}
+      - name: Extra GCC warnings
+        if: needs.classify.outputs.risk == 'R3'
+        run: ./scripts/warnings-idf --arch ${{ matrix.arch }}
+      - name: Full scheduled GCC analysis
+        if: needs.classify.outputs.risk == 'R3' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        run: |
           ./scripts/gcc_analyzer --arch ${{ matrix.arch }} --flags=
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
+        if: always() && needs.classify.outputs.risk == 'R3'
         with:
           name: analysis-${{ matrix.arch }}
           path: |
@@ -146,7 +136,7 @@ jobs:
           retention-days: 3
 
   gate:
-    needs: [classify, fast, host, idf, analysis]
+    needs: [classify, fast, host, idf]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -156,12 +146,10 @@ jobs:
           FAST: ${{ needs.fast.result }}
           HOST: ${{ needs.host.result }}
           IDF: ${{ needs.idf.result }}
-          ANALYSIS: ${{ needs.analysis.result }}
         run: |
           [[ "$FAST" == success ]]
           [[ "$RISK" == R0 || "$HOST" == success ]]
           [[ "$RISK" =~ ^R[01]$ || "$IDF" == success ]]
-          [[ "$RISK" != R3 || "$ANALYSIS" == success ]]
           if [[ "$RISK" == R3 ]]; then
             echo "Automated R3 gate passed; HIL/manual evidence remains required."
           fi

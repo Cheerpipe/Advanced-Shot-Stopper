@@ -51,7 +51,9 @@ def changed_paths() -> list[str]:
 
 
 def path_risk(path: str) -> str:
-    p = path.replace("\\", "/").lstrip("./")
+    p = path.replace("\\", "/")
+    while p.startswith("./"):
+        p = p[2:]
     name = Path(p).name.lower()
     if p.startswith("idf/partitions-") or re.search(
             r"(?i)(machine|relay|safety|watchdog|hardware|resetguard|recovery|resourceowner)", p):
