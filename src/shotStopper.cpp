@@ -457,6 +457,7 @@ uint32_t hostRuntimePersistAttempts = 0;
 RuntimeConfig hostLastFlushedRuntime;
 ShotPresetBank hostLastFlushedPresets;
 bool hostLastFlushIncludedLive = false;
+bool hostLastMaintenanceSucceeded = false;
 bool hostSettingsPersistQueueCreateSucceeds = true;
 bool hostSettingsPersistTaskCreateSucceeds = true;
 uint32_t hostSettingsPersistRollbackDeletes = 0;
@@ -4246,7 +4247,7 @@ void serviceMaintenanceLease() {
       hostLastFlushIncludedLive = true;
       ++hostRuntimePersistAttempts;
       if (!hostRuntimePersistSucceeds) {
-        result.succeeded = false;
+        result.succeeded = forwardedType == WebCommandType::RESTART;
         runtimePersistFailed = true;
         runtimePersistPending = true;
         runtimePersistRetryAtMs = millis() + RUNTIME_PERSIST_RETRY_MS;
@@ -4256,6 +4257,7 @@ void serviceMaintenanceLease() {
         runtimePersistFailed = false;
       }
     }
+    hostLastMaintenanceSucceeded = result.succeeded;
     completeMaintenanceLease(result);
 #endif
   }

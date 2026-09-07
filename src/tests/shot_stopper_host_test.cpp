@@ -175,6 +175,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   hostLastFlushedRuntime = RuntimeConfig{};
   hostLastFlushedPresets = ShotPresetBank{};
   hostLastFlushIncludedLive = false;
+  hostLastMaintenanceSucceeded = false;
   hostSettingsPersistQueueCreateSucceeds = true;
   hostSettingsPersistTaskCreateSucceeds = true;
   hostSettingsPersistRollbackDeletes = 0;
@@ -5685,7 +5686,7 @@ void w88_save_network_flush_includes_live_runtime() {
   CHECK(!runtimePersistPending);
 }
 
-void w89_restart_flush_includes_live_and_aborts_on_fail() {
+void w89_restart_flush_is_best_effort() {
   resetHarness(false, false);
   reachReadyFromBoot();
   WebCommand apply;
@@ -5701,6 +5702,7 @@ void w89_restart_flush_includes_live_and_aborts_on_fail() {
   restart.type = WebCommandType::RESTART;
   processWebCommand(restart);
   finishHostMaintenance();
+  CHECK(hostLastMaintenanceSucceeded);
   CHECK(runtimeConfig.revision == liveRevision);
   CHECK(runtimeConfig.lastShotCooldownMs == apply.config.lastShotCooldownMs);
   CHECK(runtimePersistPending);
@@ -12091,7 +12093,7 @@ const TestCase testCases[] = {
     {"W86", w86_config_applies_to_ram_immediately_and_coalesces},
     {"W87", w87_nvs_fail_keeps_ram_and_requeues},
     {"W88", w88_save_network_flush_includes_live_runtime},
-    {"W89", w89_restart_flush_includes_live_and_aborts_on_fail},
+    {"W89", w89_restart_flush_is_best_effort},
     {"W91", w91_chime_sequence_uses_irregular_note_timings},
     {"W92", w92_parse_sequence_pattern_ids},
     {"W93", w93_scale_connected_echo_on_rising_edge},

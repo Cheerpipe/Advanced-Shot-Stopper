@@ -2972,10 +2972,18 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
   if (persist) {
     overlayLiveShotSettings(next);
     if (!savePersistedSettings(next)) {
-      if (!otaRollbackRestartPending_) {
+      const bool restartAnyway = command.type == WebCommandType::RESTART;
+      if (!otaRollbackRestartPending_ && !restartAnyway) {
         restartPending_ = false;
       }
       apRestartPending_ = false;
+      if (restartAnyway) {
+        // A broken/full NVS must not strand a committed OTA image or make
+        // restart unavailable as a recovery action. Live unsaved changes may
+        // be lost, but the last verified durable settings remain intact.
+        restartRequestedAtMs_ = millis();
+        return true;
+      }
       // NVS write failure is not a config validation reject. PERSIST_RUNTIME
       // failures are reported clearly when the maintenance lease completes.
       if (command.type != WebCommandType::PERSIST_RUNTIME) {
