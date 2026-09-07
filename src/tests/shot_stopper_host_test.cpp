@@ -9051,6 +9051,14 @@ void s04e_delete_shot_record_keeps_log_if_curve_remove_fails() {
 
 void b01_scale_worker_requires_ble_stack() {
   resetHarness(false, true);
+  vQueueDelete(scaleCommandQueue);
+  vQueueDelete(scaleEventQueue);
+  vQueueDelete(bleCompanionRequestQueue);
+  vQueueDelete(bleCompanionResultQueue);
+  scaleCommandQueue = nullptr;
+  scaleEventQueue = nullptr;
+  bleCompanionRequestQueue = nullptr;
+  bleCompanionResultQueue = nullptr;
   setScaleWorkerBleReadyForHost(false);
   CHECK(!initializeScaleWorker());
   publishControlStatus();
