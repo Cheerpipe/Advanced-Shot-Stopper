@@ -44,7 +44,8 @@ or required by the requested validation gate.
 Keep unrelated user changes. Use `apply_patch` for edits, prefix temporary files
 inside the repository with `ai_temp_`, and remove them when finished. Never
 commit unless explicitly asked. A completed change report includes an English
-commit title and English change summary.
+commit title, a list of changes made, and a brief but complete technical
+description, all in English.
 
 ## Documentation
 
