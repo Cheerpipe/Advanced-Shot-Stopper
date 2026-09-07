@@ -34,6 +34,8 @@ needed rather than reading the entire directory.
 ## Developer map
 
 Start with [Contributing](../CONTRIBUTING.md) and the applicable `AGENTS.md`.
+Use [documentation maintenance](AI_WORKFLOW.md#documentation-maintenance) to
+identify which guides to update when settings, scripts, or behavior change.
 The map below identifies the smallest relevant sources and tests.
 `./scripts/dev context <area>` lists focused paths, not file contents; supported
 areas are safety, control, machine, scale, ble, network, ota, persistence, web,

@@ -50,6 +50,12 @@ description, all in English.
 ## Documentation
 
 Canonical documentation is concise technical English and belongs in `docs/`.
+For changes to settings, scripts, interfaces, workflows, or observable behavior,
+read and follow [Documentation maintenance](docs/AI_WORKFLOW.md#documentation-maintenance).
+Update the affected canonical guides in the same change, including renames and
+removals. Before finishing, report which docs changed or why none were needed;
+do not treat a passing link check as verification of documented behavior.
+
 Do not store development plans, audits, decision logs, or session handoffs there;
 temporary working notes must remain outside the repository and be removed when
 the task is complete.

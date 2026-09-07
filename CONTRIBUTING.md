@@ -13,8 +13,9 @@ tests never install packages or contact hardware implicitly.
    safety-related documentation can also be R3. State affected invariants.
 3. Make a coherent change, preserving unrelated work. Do not combine source
    moves with GPIO, relay behavior, NVS migrations, or unrelated features.
-4. Update the canonical guide when public behavior, settings, or interfaces
-   change. Link to its parameter table rather than copying it into several pages.
+4. Follow [documentation maintenance](docs/AI_WORKFLOW.md#documentation-maintenance)
+   to update the canonical guides for changed settings, commands, interfaces, or
+   behavior in the same change. Link to reference tables rather than copying them.
 5. Run `./scripts/dev validate` on the final changed paths. Consult
    [VALIDATION.md](VALIDATION.md) for required gates and evidence.
 6. Report risk, checks, failures, full-log location and any manual evidence
