@@ -79,8 +79,6 @@ def markdown_errors() -> list[str]:
     link_re = re.compile(r"\[[^]]*\]\(([^)]+)\)")
     for source in [ROOT / "README.md", ROOT / "PROJECT_CHARTER.md",
                    ROOT / "VALIDATION.md", ROOT / "CONTRIBUTING.md", *sorted((ROOT / "docs").rglob("*.md"))]:
-        if "/audits/" in source.as_posix() or "/plans/" in source.as_posix() or "/handoff/" in source.as_posix():
-            continue
         for line_no, line in enumerate(source.read_text(errors="replace").splitlines(), 1):
             for raw in link_re.findall(line):
                 target = raw.split("#", 1)[0].split(" ", 1)[0]

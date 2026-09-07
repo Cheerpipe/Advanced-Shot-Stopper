@@ -3,8 +3,7 @@
 ## Start here
 
 Read only this file, `docs/README.md`, and the nearest scoped `AGENTS.md` for
-the area being changed. Expand context only when those files point to it. On
-resume, read `docs/handoff/SESSION_HANDOFF.md` first when it exists.
+the area being changed. Expand context only when those files point to it.
 
 ## Priorities and scope
 
@@ -31,8 +30,8 @@ OTA safety, or remote activation as R3. Preserve these invariants:
 - shared resources retain one explicit owner.
 
 Never flash hardware, run OTA, control the relay, or execute HIL unless the user
-explicitly requests it. Never expose credentials in argv, logs, artifacts, or a
-handoff. Unknown paths are R3; risk overrides may only increase risk.
+explicitly requests it. Never expose credentials in argv, logs, or artifacts.
+Unknown paths are R3; risk overrides may only increase risk.
 
 ## Workflow and validation
 
@@ -47,16 +46,9 @@ inside the repository with `ai_temp_`, and remove them when finished. Never
 commit unless explicitly asked. A completed change report includes an English
 commit title and English change summary.
 
-## Plans and interrupted sessions
+## Documentation
 
-Explicit plans live in `docs/plans/` as numbered, resumable checklists. Flip each
-checkbox immediately after completing it; never batch progress at the end.
-Long work uses the ignored `docs/handoff/SESSION_HANDOFF.md`, capped at 8 KiB or
-120 lines. Record objective, risk, base SHA, worktree, decisions, invariants,
-tasks, next action, files, commands/results, artifacts, and blockers. On resume,
-verify SHA/diff and reuse valid results whose inputs did not change. Delete the
-handoff at completion and promote durable decisions to docs or an ADR.
-
-Canonical new documentation is concise technical English. Official docs belong
-in `docs/`, investigations in `docs/audits/`, plans in `docs/plans/`, and only
-temporary session state in `docs/handoff/`.
+Canonical documentation is concise technical English and belongs in `docs/`.
+Do not store development plans, audits, decision logs, or session handoffs there;
+temporary working notes must remain outside the repository and be removed when
+the task is complete.

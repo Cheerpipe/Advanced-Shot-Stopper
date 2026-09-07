@@ -28,9 +28,8 @@ documentation, editable sources, focused tests, and canonical command. Run
 - Vendored/dependency output: `idf/managed_components/` and `node_modules/`.
   Do not review or load these trees unless dependency provenance itself is the
   task. Lockfiles and IDF configuration remain visible and reviewable.
-- Historical findings live in `docs/audits/`; they are evidence, not current
-  instructions. Current safety authority is the charter, validation policy,
-  architecture docs, and manual test plan.
+- Current safety authority is the charter, validation policy, architecture
+  documents, and manual test plan.
 
 ## Key policies
 
@@ -40,4 +39,3 @@ documentation, editable sources, focused tests, and canonical command. Run
 - [AI workflow](AI_WORKFLOW.md)
 - [Build](BUILD.md) and [script reference](SCRIPTS.md)
 - [Manual test plan](MANUAL_TEST_PLAN.md)
-- [Architecture decisions](decisions/README.md)

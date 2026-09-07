@@ -18,11 +18,9 @@ most recent summary. Reuse a recorded result only when its SHA and inputs are
 unchanged. Runtime firmware log level is independent of `scripts/dev`
 verbosity.
 
-## Interruption and resume
+## Temporary working state
 
-For work likely to span sessions, maintain the ignored
-`docs/handoff/SESSION_HANDOFF.md`. Keep it below 8 KiB and 120 lines with:
-objective, risk, base SHA, worktree state, decisions, invariants, tasks, exact
-next action, files, commands/results, artifacts, and blockers. On resume, compare
-the recorded SHA and current diff before trusting prior results. Delete the file
-when complete; move durable decisions into canonical docs or a short ADR.
+Do not place plans, audits, decision logs, handoffs, or other session records in
+`docs/`. Keep temporary working notes outside the repository, delete them when
+the task is complete, and record durable behavior only in the canonical document
+that owns the affected contract.

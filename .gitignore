@@ -71,15 +71,8 @@ reports/
 *.profraw
 *.profdata
 
-# Internal docs, plans and AI agent workspace
-SESSION_HANDOFF.md
-docs/plans/
-docs/audits/
-!docs/audits/
-docs/audits/*
-!docs/audits/firmware-mission-critical-audit-2026-09-05.md
+# Internal AI agent workspace
 docs/BACKLOG.md
-docs/handoff/
 .zcode
 ai_temp_*
 *.ai_temp
