@@ -5,16 +5,25 @@ void requestRemoteTimerStop();
 void flushPendingScaleTimerStopNow();
 void scheduleScaleTimerStopAfterCycle(uint32_t internalElapsedMs);
 void servicePendingScaleTimerStop();
+uint32_t nextCupWeightRequestId = 0;
+uint32_t allocateCupWeightRequestId() {
+  if (++nextCupWeightRequestId == 0) ++nextCupWeightRequestId;
+  return nextCupWeightRequestId;
+}
+void trackCupWeightTare(uint32_t requestId);
 
 bool requestRemoteTimerStart() {
   ScaleCommand command;
   command.type = ScaleCommandType::START_TIMER_AND_TARE;
   command.cycleId = session.id;
   command.autoTare = session.config.autoTare;
+  if (command.autoTare) command.cupWeightRequestId = allocateCupWeightRequestId();
   command.canTareStartTimer = session.config.canTareStartTimer;
   command.commandFeedbackExpected =
       getScaleLinkSnapshot().features.has(ScaleFeatureCommandAudibleFeedback);
   session.timerStartCommandQueued = enqueueScaleCommand(command);
+  if (session.timerStartCommandQueued && command.autoTare)
+    trackCupWeightTare(command.cupWeightRequestId);
   session.remoteTimerMayBeRunning = session.timerStartCommandQueued;
   return session.timerStartCommandQueued;
 }
@@ -27,9 +36,12 @@ bool requestRemoteRetare() {
   command.type = ScaleCommandType::TARE_ONLY;
   command.cycleId = session.id;
   command.autoTare = true;
+  command.cupWeightRequestId = allocateCupWeightRequestId();
   command.commandFeedbackExpected =
       getScaleLinkSnapshot().features.has(ScaleFeatureCommandAudibleFeedback);
-  return enqueueScaleCommand(command);
+  if (!enqueueScaleCommand(command)) return false;
+  trackCupWeightTare(command.cupWeightRequestId);
+  return true;
 }
 
 bool tryQueueRemoteTimerStop() {
@@ -99,10 +111,79 @@ void notifyWebhookFirstDrop(uint32_t receivedAtMs);
 #include "ShotStopperBrew.h"
 #include "ShotStopperRinse.h"
 #include "ShotStopperScaleSense.h"
-
+void serviceCupWeight() {
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  auto &mass = cupPresence.weight;
+  const uint32_t droppedEvents = scaleWorkerDroppedEventCount();
+  if (droppedEvents != mass.droppedEvents) {
+    invalidateCupWeight();
+    mass.sampleSequence = 0;
+    mass.droppedEvents = droppedEvents;
+  }
+  if (!scaleLinkAvailable(link) ||
+      mass.connectionGeneration != link.connectionGeneration ||
+      mass.sampleSequence == 0 ||
+      elapsedMs(mass.sampleAtMs) > MAX_AUTOMATION_WEIGHT_AGE_MS ||
+      !cupPresenceIsKnown()) invalidateCupWeight();
+  if (mass.pendingId != 0 && elapsedMs(mass.pendingAtMs) >
+      SCALE_ATT_TIMEOUT_MS + runtimeConfig.postTareBaselineGraceMs) {
+    invalidateCupWeight();
+    mass.pendingId = 0;
+  }
+}
+void observeCupWeight(float weight, uint32_t atMs, uint32_t sequence,
+                      uint32_t generation) {
+  serviceCupWeight();
+  auto &mass = cupPresence.weight;
+  const uint32_t currentGeneration = getScaleLinkSnapshot().connectionGeneration;
+  if (generation == 0) generation = currentGeneration;
+  if (!isfinite(weight) || weight < MIN_AUTOMATION_WEIGHT_G ||
+      weight > MAX_AUTOMATION_WEIGHT_G || generation != currentGeneration ||
+      elapsedMs(atMs) > MAX_AUTOMATION_WEIGHT_AGE_MS ||
+      (mass.sampleSequence != 0 && mass.connectionGeneration == generation &&
+       (static_cast<int32_t>(sequence - mass.sampleSequence) <= 0 ||
+        static_cast<int32_t>(atMs - mass.sampleAtMs) < 0))) {
+    invalidateCupWeight();
+    mass.sampleSequence = 0;
+    return;
+  }
+  mass.sampleAtMs = atMs;
+  mass.sampleSequence = sequence;
+  mass.connectionGeneration = generation;
+}
+void trackCupWeightTare(uint32_t requestId) {
+  serviceCupWeight();
+  auto &mass = cupPresence.weight;
+  if (mass.pendingId != 0) invalidateCupWeight();
+  mass.pendingId = requestId;
+  mass.pendingAtMs = millis();
+  mass.pendingPlacementId = cupPresencePlacementId();
+  mass.emptyValid = false;
+  mass.emptySamples = 0;
+  mass.pendingValid = mass.valid && cupPresenceState() == CupPresenceState::PRESENT &&
+      cupPresenceIsKnown() && mass.sampleSequence != 0 &&
+      scaleAvailable() && mass.connectionGeneration ==
+          getScaleLinkSnapshot().connectionGeneration &&
+      elapsedMs(mass.sampleAtMs) <= MAX_AUTOMATION_WEIGHT_AGE_MS;
+}
+void finishCupWeight(uint32_t requestId, bool succeeded, bool uncertain) {
+  serviceCupWeight();
+  auto &mass = cupPresence.weight;
+  if (requestId == 0 || requestId != mass.pendingId) return;
+  if (succeeded) {
+    mass.valid = mass.pendingValid &&
+        cupPresenceState() == CupPresenceState::PRESENT &&
+        mass.pendingPlacementId == cupPresencePlacementId();
+  } else if (uncertain) {
+    invalidateCupWeight();
+  }
+  mass.pendingId = 0;
+  mass.pendingValid = false;
+}
 // Placement policy and request provenance stay on the control task. The cup
 // detector still owns all presence/stability decisions; the worker owns ATT.
 struct IdleTareRuntime {
+  uint32_t cupWeightRequestId = 0;
   uint32_t connectionGeneration = 0;
   uint32_t configRevision = 0;
   uint32_t lastSampleAtMs = 0;
@@ -173,6 +254,11 @@ void releaseIdleTareRequest(IdleTareReason reason = IdleTareReason::NONE) {
   }
   if (idleTare.deferredReason != IdleTareReason::NONE)
     reason = idleTare.deferredReason;
+  finishCupWeight(idleTare.cupWeightRequestId,
+      released.phase == IdleTarePhase::SUCCEEDED && idleTare.tareNotified &&
+          idleTare.cupStillPresent,
+      released.phase == IdleTarePhase::SUCCEEDED ||
+          released.reason == IdleTareReason::WRITE_FAILED);
   if (idleTare.cupStillPresent &&
       cupPresencePlacementId() == idleTare.placementId) {
     if (released.phase == IdleTarePhase::SUCCEEDED) {
@@ -367,6 +453,7 @@ void handleIdleCupEvent(CupPresenceEvent event, float weight) {
   command.type = ScaleCommandType::TARE_ONLY;
   command.autoTare = true;
   command.idleTareRequestId = nextIdleTareRequestId++;
+  command.cupWeightRequestId = allocateCupWeightRequestId();
   if (nextIdleTareRequestId == 0) nextIdleTareRequestId = 1;
   command.connectionGeneration = idleTare.connectionGeneration;
   command.expiresAtMs = millis() + MAX_AUTOMATION_WEIGHT_AGE_MS;
@@ -378,6 +465,8 @@ void handleIdleCupEvent(CupPresenceEvent event, float weight) {
     return;
   }
   idleTare.requestId = command.idleTareRequestId;
+  idleTare.cupWeightRequestId = command.cupWeightRequestId;
+  trackCupWeightTare(command.cupWeightRequestId);
   idleTare.requestedAtMs = millis();
   idleTare.cupStillPresent = true;
   idleTare.previouslyTared = cupPresenceIsTared();
@@ -467,7 +556,10 @@ void serviceWebhookBrewStart() {}
 // Called by the control publisher. Worker locks are acquired before the
 // publication lock; diagnostic readers only see the committed scalar copy.
 CupTareDiagnostics captureCupTareDiagnostics() {
+  serviceCupWeight();
   CupTareDiagnostics out;
+  out.weightG = cupPresence.weight.weightG;
+  out.weightValid = cupPresence.weight.valid;
   const IdleTareStatus status = idleScaleTareStatus();
   out.cupState = static_cast<uint8_t>(cupPresenceState());
   out.holdTransitions = cupPresence.holdTransitions;
@@ -672,6 +764,8 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                                       uint32_t connectionGeneration,
                                       uint32_t captureSequence = 0) {
   if (!isfinite(weight) || fabsf(weight) > MAX_PARSED_WEIGHT_G) {
+    invalidateCupWeight();
+    cupPresence.weight.sampleSequence = 0;
     serialTrace(LogLevel::WARNING, "Invalid or out-of-range weight ignored");
     rejectScaleSample(DebugCode::SCALE_SAMPLE_REJECTED_INVALID, weight);
     return false;
@@ -691,6 +785,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
       !session.active &&
       !observeIdleTareSample(weight, receivedAtMs, packetSequence,
                              connectionGeneration, captureSequence)) return false;
+  observeCupWeight(weight, receivedAtMs, packetSequence, connectionGeneration);
   const bool placementInRange = weight >= MIN_AUTOMATION_WEIGHT_G &&
                                 weight <= MAX_AUTOMATION_WEIGHT_G;
   const CupPresenceEvent cupEvent =

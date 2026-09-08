@@ -67,14 +67,16 @@ for (const name of VIEW_NAMES) {
 
 const htmlBytes = Buffer.byteLength(allHtml, 'utf8');
 const jsBytes = Buffer.byteLength(allJs, 'utf8');
-if (htmlBytes > 55000) {
+// Cup gets a separate Home fieldset and a Diagnostic weight row. Redistribute
+// source allowance from JS; the combined authoring/embedded budgets stay fixed.
+if (htmlBytes > 55400) {
   throw new Error('Web UI HTML source exceeds the authoring budget');
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
 // Historical BLE disconnect/command diagnostics add display formatters. This
 // source allowance does not change the compressed asset or firmware budgets.
-if (jsBytes > 166000) {
+if (jsBytes > 165600) {
   throw new Error('Web UI JS source exceeds the authoring budget');
 }
 if (htmlBytes + jsBytes > 221000) {

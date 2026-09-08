@@ -35,7 +35,8 @@ enum class ScaleEventType : uint8_t {
   WEIGHT,
   TIMER_START_RESULT,
   TARE_RESULT,
-  TIMER_STOP_RESULT
+  TIMER_STOP_RESULT,
+  REFERENCE_CHANGED
 };
 
 // Worker-owned command lifetime. Terminal state survives a dropped result.
@@ -68,6 +69,7 @@ struct IdleTareStatus {
 };
 
 struct ScaleCommand {
+  uint32_t cupWeightRequestId = 0;
   ScaleCommandType type = ScaleCommandType::STOP_TIMER;
   uint32_t cycleId = 0;
   uint32_t connectionGeneration = 0;
@@ -80,6 +82,7 @@ struct ScaleCommand {
 };
 
 struct ScaleEvent {
+  uint32_t cupWeightRequestId = 0;
   ScaleEventType type = ScaleEventType::WEIGHT;
   uint32_t cycleId = 0;
   uint32_t idleTareRequestId = 0;
@@ -91,6 +94,8 @@ struct ScaleEvent {
   bool sampleDiscontinuity = false;
   bool commandAttempted = false;
   bool writeSucceeded = false;
+  bool tareAttempted = false;
+  bool tareSucceeded = false;
   bool usedCombinedTareStart = false;
   bool commandFeedbackExpected = false;
   bool discardedStaleConnection = false;

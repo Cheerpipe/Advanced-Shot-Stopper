@@ -442,6 +442,20 @@ notification rebases the reference to zero without changing PRESENT/ABSENT.
 An unconfirmed effect can mark the reference uncertain; PRESENT alone then
 does not satisfy the cup-start guard. Confirmed removal clears uncertainty.
 
+Informational cup weight is independent of the mutable occupied reference.
+The FSM keeps absolute stable `ABSENT` and placement `PRESENT` records with
+sample times, plus the calculated difference for the current placement. The
+absent reading must qualify the shared stability window before placement starts;
+the negative-hole minimum is never substituted for it. `PLACED` publishes
+present minus absent, including when tare is disabled. Firmware tare and coffee
+do not overwrite these placement records or the calculated mass. Pending tare
+IDs track uncertainty; successful matching outcomes preserve known mass rather
+than acquiring new mass from net weight. No baseline is learned across a pending
+tare. Removal, reset, connection changes, stale/invalid samples, lost evidence,
+and uncertain outcomes invalidate the measurement. These records never affect
+presence predicates, guards, or command eligibility.
+See [Displayed cup weight](settings/cup.md#displayed-cup-weight).
+
 The shot-start resync preserves known tared PRESENT at zero. Require-cup checks
 consume that state, not a positive net-weight threshold. Untared lift-to-zero
 still removes the cup. Idle eligibility/connection/config changes reset the

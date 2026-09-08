@@ -14,7 +14,36 @@
 
 namespace {
 
+// Informational placement delta, owned and reset with the detected cup.
+struct CupStableWeight {
+  float absoluteG = 0.0f;
+  uint32_t atMs = 0;
+  bool valid = false;
+};
+
+struct CupWeightRuntime {
+  CupStableWeight absent;
+  CupStableWeight present;
+  float weightG = 0.0f;
+  float emptyMinimumG = 0.0f;
+  float emptyMaximumG = 0.0f;
+  uint32_t emptyStartedAtMs = 0;
+  uint32_t emptyLastAtMs = 0;
+  uint8_t emptySamples = 0;
+  bool emptyValid = false;
+  uint32_t sampleAtMs = 0;
+  uint32_t sampleSequence = 0;
+  uint32_t connectionGeneration = 0;
+  uint32_t pendingId = 0;
+  uint32_t pendingPlacementId = 0;
+  uint32_t pendingAtMs = 0;
+  uint32_t droppedEvents = 0;
+  bool valid = false;
+  bool pendingValid = false;
+};
+
 struct CupPresenceRuntime {
+  CupWeightRuntime weight;
   CupPresenceState state = CupPresenceState::ABSENT;
   bool holdTransitions = false;
   bool inNegativeHole = false;
@@ -65,6 +94,43 @@ float cupPresenceMaximumG() { return cupPresence.occupiedMaximumG; }
 float cupPresencePlacementThresholdG() { return cupPresence.occupiedPlacementThresholdG; }
 uint32_t cupPresencePlacementId() { return cupPresence.placementId; }
 
+void invalidateCupWeight() {
+  cupPresence.weight.valid = false;
+  cupPresence.weight.pendingValid = false;
+  cupPresence.weight.absent.valid = false;
+  cupPresence.weight.present.valid = false;
+  cupPresence.weight.emptyValid = false;
+  cupPresence.weight.emptySamples = 0;
+}
+
+void observeEmptyCupWeight(float weight, uint32_t atMs) {
+  auto &mass = cupPresence.weight;
+  if (mass.pendingId != 0 || cupPresence.holdTransitions) {
+    mass.emptyValid = false;
+    mass.emptySamples = 0;
+    return;
+  }
+  if (mass.emptySamples == 0 ||
+      static_cast<uint32_t>(atMs - mass.emptyLastAtMs) > runtimeConfig.retareStabilityMaxGapMs ||
+      fmaxf(weight, mass.emptyMaximumG) - fminf(weight, mass.emptyMinimumG) >
+          runtimeConfig.retareStabilityToleranceG) {
+    mass.emptyValid = false;
+    mass.emptySamples = 0;
+    mass.emptyStartedAtMs = atMs;
+    mass.emptyMinimumG = mass.emptyMaximumG = weight;
+  }
+  mass.emptyMinimumG = fminf(mass.emptyMinimumG, weight);
+  mass.emptyMaximumG = fmaxf(mass.emptyMaximumG, weight);
+  mass.emptyLastAtMs = atMs;
+  if (mass.emptySamples < UINT8_MAX) ++mass.emptySamples;
+  if (mass.emptySamples >= runtimeConfig.retareStabilitySamples &&
+      static_cast<uint32_t>(atMs - mass.emptyStartedAtMs) >=
+          runtimeConfig.retareStabilityMinDurationMs) {
+    mass.absent = CupStableWeight{weight, atMs, true};
+    mass.emptyValid = true;
+  }
+}
+
 void restoreCupTareReference(bool previouslyTared, float previousReferenceG) {
   if (cupPresence.state == CupPresenceState::PRESENT) {
     cupPresence.taredWhilePresent = previouslyTared;
@@ -74,12 +140,15 @@ void restoreCupTareReference(bool previouslyTared, float previousReferenceG) {
 }
 
 void markCupTareReferenceUncertain() {
+  invalidateCupWeight();
   if (cupPresence.state == CupPresenceState::PRESENT) {
     cupPresence.referenceUncertain = true;
   }
 }
 
 void resetCupSampleEvidence() {
+  invalidateCupWeight();
+  cupPresence.weight.sampleSequence = 0;
   resetCupPlaceStabilityStreak();
   cupPresence.removedConfirmations = 0;
   cupPresence.lastRemovedAtMs = 0;
@@ -99,6 +168,7 @@ void resyncCupPresenceIfPanEmpty(float weight) {
     return;
   }
   cupPresence.state = CupPresenceState::ABSENT;
+  invalidateCupWeight();
   cupPresence.taredWhilePresent = false;
   cupPresence.inNegativeHole = false;
   cupPresence.removedArmed = false;
@@ -183,6 +253,7 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
     }
 
     cupPresence.state = CupPresenceState::ABSENT;
+    invalidateCupWeight();
     cupPresence.taredWhilePresent = false;
     cupPresence.referenceUncertain = false;
     cupPresence.occupiedReferenceG = 0.0f;
@@ -206,11 +277,17 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
       cupPresence.inNegativeHole &&
       (weight - cupPresence.holeWeightG) >= minCupG;
   if (!placeCandidate && !putBackCandidate) {
+    if (cupPresence.weight.sampleSequence == packetSequence &&
+        cupPresence.weight.sampleAtMs == receivedAtMs && packetSequence != 0)
+      observeEmptyCupWeight(weight, receivedAtMs);
     resetCupPlaceStabilityStreak();
     return CupPresenceEvent::NONE;
   }
 
   if (cupPresence.placeStabilitySamples == 0) {
+    cupPresence.weight.emptySamples = 0;
+    if (static_cast<uint32_t>(receivedAtMs - cupPresence.weight.emptyLastAtMs) >
+        runtimeConfig.retareStabilityMaxGapMs) cupPresence.weight.emptyValid = false;
     cupPresence.placeCandidateWeightG = weight;
     cupPresence.placeMinimumG = weight;
     cupPresence.placeMaximumG = weight;
@@ -261,6 +338,19 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   }
 
   cupPresence.state = CupPresenceState::PRESENT;
+  const float placementWeightG = cupPresence.placeCandidateWeightG -
+                                cupPresence.weight.absent.absoluteG;
+  const bool placementSampleValid = cupPresence.weight.sampleSequence == packetSequence &&
+      packetSequence != 0 && cupPresence.weight.sampleAtMs == receivedAtMs;
+  const bool placementWeightValid = cupPresence.weight.emptyValid &&
+      placementSampleValid && isfinite(placementWeightG) && placementWeightG >= minCupG;
+  // Retain the absolute readings of both stable states for this placement.
+  cupPresence.weight.present = CupStableWeight{
+      cupPresence.placeCandidateWeightG, receivedAtMs, placementSampleValid};
+  cupPresence.weight.emptyValid = false;
+  cupPresence.weight.pendingValid = false;
+  cupPresence.weight.weightG = placementWeightValid ? placementWeightG : 0.0f;
+  cupPresence.weight.valid = placementWeightValid;
   ++cupPresence.placementId;
   if (cupPresence.placementId == 0) ++cupPresence.placementId;
   cupPresence.referenceUncertain = false;

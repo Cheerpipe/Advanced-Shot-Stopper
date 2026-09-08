@@ -295,6 +295,8 @@ enum class WeightStreamState : uint8_t {
 };
 
 struct CupTareDiagnostics {
+  float weightG = 0.0f;
+  bool weightValid = false;
   uint8_t cupState = 0;
   bool holdTransitions = false;
   bool inNegativeHole = false;

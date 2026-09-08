@@ -336,6 +336,7 @@ void servicePreferredScaleMacPersistence() {
 
 
 void processScaleLinkTransitions() {
+  serviceCupWeight();
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   const bool connectedEdge =
       link.connectionGeneration != handledScaleConnectionGeneration;
@@ -418,9 +419,16 @@ void processScaleWorkerEvents() {
     }
     ++processed;
     switch (event.type) {
+      case ScaleEventType::REFERENCE_CHANGED:
+        invalidateCupWeight();
+        cupPresence.weight.sampleSequence = 0;
+        cupPresence.weight.pendingId = 0;
+        break;
       case ScaleEventType::WEIGHT:
         if (!isfinite(event.weightG) ||
             fabsf(event.weightG) > MAX_PARSED_WEIGHT_G) {
+          invalidateCupWeight();
+          cupPresence.weight.sampleSequence = 0;
           serialTrace(LogLevel::WARNING,
                       "Invalid scale weight event ignored");
           rejectScaleSample(DebugCode::SCALE_SAMPLE_REJECTED_INVALID,
@@ -469,6 +477,8 @@ void processScaleWorkerEvents() {
         break;
 
       case ScaleEventType::TIMER_START_RESULT:
+        finishCupWeight(event.cupWeightRequestId, event.tareSucceeded,
+                        event.tareAttempted || event.discardedStaleConnection);
         if (event.cycleId == session.id) {
           session.remoteTimerMayBeRunning = event.commandAttempted;
           session.remoteTimerStarted = event.writeSucceeded;
@@ -508,6 +518,8 @@ void processScaleWorkerEvents() {
           serviceIdleTare();
           break;
         }
+        finishCupWeight(event.cupWeightRequestId, event.writeSucceeded,
+                        event.commandAttempted || event.discardedStaleConnection);
         if (event.cycleId == session.id && event.writeSucceeded &&
             session.startedWithScale && session.active &&
             stopperState == StopperState::BREW) {

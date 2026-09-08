@@ -170,14 +170,16 @@ if (cssRoundTrip !== generated.css) {
 if (generated.gzip.length > 4096) {
   throw new Error('Compressed Web UI shell HTML exceeds the 4 KiB gzip budget');
 }
-if (generated.jsGzip.length > 6144) {
-  throw new Error('Compressed Web UI shell JS exceeds the 6 KiB gzip budget');
+// Reallocate 200 bytes of shell allowance to the shared cup presentation.
+// The combined 64000-byte embedded budget remains unchanged.
+if (generated.jsGzip.length > 5944) {
+  throw new Error('Compressed Web UI shell JS exceeds the 5944-byte gzip budget');
 }
 if (generated.cssGzip.length > 6600) {
   throw new Error('Compressed Web CSS exceeds the 6.5 KiB gzip budget');
 }
-if (generated.runtimeGzip.length > 31300) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 30.6 KiB gzip budget');
+if (generated.runtimeGzip.length > 31500) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 31500-byte gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

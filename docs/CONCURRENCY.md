@@ -44,6 +44,13 @@ defers claim using the existing worker tick and unchanged command expiry.
 Cup/idle-tare diagnostic scalars and worker outcome/drop snapshots are gathered
 by control before taking its status publication mutex. Debug export reads the
 committed copy, including uncertainty and the last terminal reason.
+Calculated cup weight and validity travel in the same `CupTareDiagnostics` copy
+inside `ControlStatusSnapshot`, with the placement identity. Control alone
+qualifies the FSM's stable absent/present records, calculates their difference,
+and invalidates the evidence. The scale worker returns an opaque request ID and
+tare outcome for uncertainty handling. Both status JSON paths publish `cupPresence`
+with `weightG` (finite grams or null), `weightValid`, and `placementId` from that
+committed snapshot.
 The NimBLE advertisement mailbox copies a raw six-byte address and bounded name
 under the existing nested spinlocks; the consumer formats its private address
 copy after unlocking. A concurrent advertisement remains pending for the next

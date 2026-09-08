@@ -6900,6 +6900,258 @@ void it01_placement_tares_once_independently() {
   }
 }
 
+void cw01_idle_mass_survives_coffee_and_snapshot_copy() {
+  prepareIdleTare();
+  idleCup(0.0f);
+  idleCup(80.0f);
+  CHECK(captureCupTareDiagnostics().weightValid);
+  CHECK(executeNextScaleCommand());
+  CHECK(captureCupTareDiagnostics().weightValid);
+  idleCup(0.0f);
+  CHECK(captureCupTareDiagnostics().weightValid);
+  CHECK(captureCupTareDiagnostics().weightG == 80.0f);
+  idleCup(35.0f);
+  publishControlStatus();
+  ControlStatusSnapshot snapshot;
+  copyControlStatus(snapshot);
+  CHECK(snapshot.cupTare.weightValid);
+  CHECK(snapshot.cupTare.weightG == 80.0f);
+  resetCupPresence();
+  DebugExportExtras debug;
+  copyDebugExportExtras(debug, snapshot);
+  CHECK(debug.cupTare.weightValid);
+  CHECK(debug.cupTare.weightG == 80.0f);
+  CHECK(debug.cupTare.placementId == snapshot.cupTare.placementId);
+  CHECK(!captureCupTareDiagnostics().weightValid);
+}
+
+void cw02_start_outcome_and_later_tare_preserve_mass() {
+  for (bool combined : {false, true}) {
+    for (bool success : {false, true}) {
+      resetHarness(false, true);
+      reachReadyFromBoot();
+      runtimeConfig.canTareStartTimer = combined;
+      idleCup(0.0f);
+      idleCup(80.0f);
+      scale.tareSucceeds = success;
+      scale.tareStartTimerSucceeds = success;
+      startCycle();
+      CHECK(executeNextScaleCommand());
+      CHECK(captureCupTareDiagnostics().weightValid == success);
+      if (!success) continue;
+      CHECK(captureCupTareDiagnostics().weightG == 80.0f);
+      idleWeight(0.0f);
+      idleWeight(95.0f);
+      CHECK(requestRemoteRetare());
+      CHECK(executeNextScaleCommand());
+      CHECK(captureCupTareDiagnostics().weightValid);
+      CHECK(captureCupTareDiagnostics().weightG == 80.0f);
+    }
+  }
+}
+
+void cw03_removal_replacement_and_connection_invalidate() {
+  for (float replacement : {350.0f, 300.0f, 250.0f}) {
+    prepareIdleTare();
+    idleCup(0.0f);
+    idleCup(300.0f);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    CHECK(captureCupTareDiagnostics().weightG == 300.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(captureCupTareDiagnostics().weightG == 300.0f);
+    idleWeight(-300.0f);
+    idleWeight(-300.0f);
+    CHECK(!captureCupTareDiagnostics().weightValid);
+    idleCup(-300.0f); // Stable empty-pan reference, with the previous tare offset.
+    idleCup(replacement - 300.0f);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    CHECK(captureCupTareDiagnostics().weightG == replacement);
+    CHECK(cupPresence.weight.absent.valid);
+    CHECK(cupPresence.weight.absent.absoluteG == -300.0f);
+    CHECK(cupPresence.weight.present.valid);
+    CHECK(cupPresence.weight.present.absoluteG == replacement - 300.0f);
+    CHECK(cupPresence.weight.present.atMs > cupPresence.weight.absent.atMs);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    CHECK(captureCupTareDiagnostics().weightG == replacement);
+    setScaleConnected(false);
+    setScaleConnected(true);
+    idleCup(80.0f); // No empty baseline on this connection.
+    CHECK(!captureCupTareDiagnostics().weightValid);
+  }
+}
+
+void cw04_invalid_stale_and_discontinuous_evidence_cannot_reappear() {
+  for (unsigned mode = 0; mode < 6; ++mode) {
+    prepareIdleTare();
+    idleCup(0.0f);
+    idleCup(80.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    if (mode == 0) idleWeight(std::numeric_limits<float>::quiet_NaN());
+    if (mode == 1) idleWeight(MAX_AUTOMATION_WEIGHT_G + 1.0f);
+    if (mode == 2) hostMillis += MAX_AUTOMATION_WEIGHT_AGE_MS + 1;
+    if (mode == 3) resetCupSampleEvidence();
+    if (mode == 4) markCupTareReferenceUncertain();
+    if (mode == 5) ++scaleEventsDropped;
+    CHECK(!captureCupTareDiagnostics().weightValid);
+    idleWeight(0.0f);
+    CHECK(!captureCupTareDiagnostics().weightValid);
+  }
+}
+
+void cw05_pending_identity_failure_and_timeout() {
+  prepareIdleTare();
+  idleCup(0.0f);
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  trackCupWeightTare(100);
+  finishCupWeight(100, false, false); // Proven no physical effect.
+  CHECK(captureCupTareDiagnostics().weightValid);
+  trackCupWeightTare(101);
+  finishCupWeight(100, true, false); // Old command cannot settle this request.
+  CHECK(cupPresence.weight.pendingId == 101);
+  finishCupWeight(101, false, true);
+  CHECK(!captureCupTareDiagnostics().weightValid);
+  trackCupWeightTare(102);
+  idleWeight(-80.0f);
+  idleWeight(-80.0f);
+  idleCup(20.0f);
+  finishCupWeight(102, true, false);
+  CHECK(!captureCupTareDiagnostics().weightValid);
+  hostMillis += SCALE_ATT_TIMEOUT_MS + runtimeConfig.postTareBaselineGraceMs + 1;
+  CHECK(!captureCupTareDiagnostics().weightValid);
+}
+
+void cw06_no_capture_from_missing_or_invalid_pre_tare_sample() {
+  for (float invalid : {std::numeric_limits<float>::quiet_NaN(),
+                        MAX_AUTOMATION_WEIGHT_G + 1.0f}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    idleCup(80.0f);
+    idleWeight(invalid);
+    session.config.autoTare = true;
+    CHECK(requestRemoteRetare());
+    CHECK(executeNextScaleCommand());
+    CHECK(!captureCupTareDiagnostics().weightValid);
+  }
+}
+
+void cw07_late_retare_and_disabled_automation() {
+  for (bool flow : {false, true}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.autoRetare = true;
+    runtimeConfig.bbwProtectionMs = minimumBbwProtectionMs(runtimeConfig);
+    idleWeight(0.0f);
+    startCycle();
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    idleCup(0.0f);
+    session.flowDuringRetare = flow;
+    idleCup(80.0f);
+    CHECK(session.retarePerformed == !flow);
+    if (!flow) CHECK(executeNextScaleCommand());
+    CHECK(captureCupTareDiagnostics().weightValid);
+    if (!flow) CHECK(captureCupTareDiagnostics().weightG == 80.0f);
+  }
+  for (bool bbw : {false, true}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.timerOnly = !bbw;
+    runtimeConfig.autoTare = false;
+    idleCup(0.0f);
+    idleCup(80.0f);
+    startCycle();
+    CHECK(executeNextScaleCommand());
+    CHECK(captureCupTareDiagnostics().weightValid);
+    CHECK(captureCupTareDiagnostics().weightG == 80.0f);
+    CHECK(scale.tareCalls == 0);
+    CHECK(scale.tareStartTimerCalls == 0);
+  }
+}
+
+void cw08_pending_timeout_and_request_wrap() {
+  prepareIdleTare();
+  idleCup(0.0f);
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  nextCupWeightRequestId = UINT32_MAX;
+  session.config.autoTare = true;
+  CHECK(requestRemoteRetare());
+  CHECK(cupPresence.weight.pendingId == 1);
+  const uint32_t end = hostMillis + SCALE_ATT_TIMEOUT_MS +
+                       runtimeConfig.postTareBaselineGraceMs + 150;
+  while (hostMillis < end) idleWeight(0.0f);
+  CHECK(!captureCupTareDiagnostics().weightValid);
+  CHECK(cupPresence.weight.pendingId == 0);
+  CHECK(executeNextScaleCommand()); // Late success cannot resurrect timed-out mass.
+  CHECK(!captureCupTareDiagnostics().weightValid);
+}
+
+void cw09_debug_tare_invalidates_without_changing_presence() {
+  for (BookooDebugAction action : {BookooDebugAction::TARE, BookooDebugAction::COMBINED}) {
+    prepareIdleTare();
+    idleCup(0.0f);
+    idleCup(80.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    executeScaleDebugCommand(action, 0);
+    processScaleWorkerEvents();
+    CHECK(!captureCupTareDiagnostics().weightValid);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(!session.active);
+    CHECK(!getRelaySafetySnapshot().closed);
+  }
+}
+
+void cw10_absence_baseline_requires_stability_and_continuity() {
+  for (unsigned mode = 0; mode < 5; ++mode) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    if (mode == 0) idleWeight(0.0f); // One sample is not a stable baseline.
+    if (mode == 1) {
+      idleWeight(0.0f);
+      idleWeight(2.0f);
+      idleWeight(4.0f); // Accumulated drift exceeds the whole-window tolerance.
+    }
+    if (mode == 2) {
+      idleCup(0.0f);
+      idleWeight(300.0f, runtimeConfig.retareStabilityMaxGapMs + 1);
+    }
+    if (mode == 3) {
+      idleCup(0.0f);
+      resetCupSampleEvidence();
+    }
+    // Mode 4 boots with a cup already loaded; zero must not be invented.
+    idleCup(300.0f);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(!captureCupTareDiagnostics().weightValid);
+  }
+}
+
+void cw11_removal_transient_is_not_the_empty_baseline() {
+  prepareIdleTare();
+  idleCup(0.0f);
+  idleCup(300.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  idleWeight(-301.0f);
+  idleWeight(-305.0f); // Removal overshoot; the detector remembers this minimum.
+  idleCup(-300.0f); // Actual stable absent state, five grams above that minimum.
+  idleCup(50.0f);
+  CHECK(captureCupTareDiagnostics().weightValid);
+  CHECK(cupPresence.weight.absent.absoluteG == -300.0f);
+  CHECK(cupPresence.weight.present.absoluteG == 50.0f);
+  CHECK(captureCupTareDiagnostics().weightG == 350.0f);
+}
+
 void it02_idle_zero_allows_guarded_start() {
   for (bool autoStart : {false, true}) {
     prepareIdleTare();
@@ -12915,6 +13167,17 @@ const TestCase testCases[] = {
     {"CF05", cup_fsm_tare_does_not_change_state},
     {"CF10", cup_fsm_tared_zero_survives_guarded_start},
     {"IT01", it01_placement_tares_once_independently},
+    {"CW01", cw01_idle_mass_survives_coffee_and_snapshot_copy},
+    {"CW02", cw02_start_outcome_and_later_tare_preserve_mass},
+    {"CW03", cw03_removal_replacement_and_connection_invalidate},
+    {"CW04", cw04_invalid_stale_and_discontinuous_evidence_cannot_reappear},
+    {"CW05", cw05_pending_identity_failure_and_timeout},
+    {"CW06", cw06_no_capture_from_missing_or_invalid_pre_tare_sample},
+    {"CW07", cw07_late_retare_and_disabled_automation},
+    {"CW08", cw08_pending_timeout_and_request_wrap},
+    {"CW09", cw09_debug_tare_invalidates_without_changing_presence},
+    {"CW10", cw10_absence_baseline_requires_stability_and_continuity},
+    {"CW11", cw11_removal_transient_is_not_the_empty_baseline},
     {"IT02", it02_idle_zero_allows_guarded_start},
     {"IT03", it03_shot_end_never_tares_remaining_cup},
     {"IT04", it04_reconnect_and_setting_changes_do_not_place},

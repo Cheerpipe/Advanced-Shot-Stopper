@@ -16,6 +16,38 @@ After a known tare, a cup at 0 g stays present; **Require cup to start** does
 not require positive net weight. Replacement into a negative tare offset can
 also count as placed.
 
+## Displayed cup weight
+
+**Home → Cup** shows presence under **Status** and approximate cup weight under
+**Weight**. **Diagnostic → Scale → Cup weight** shows the same value.
+The presence state machine records the absolute stable reading while `ABSENT`
+and the absolute stable reading at the next confirmed `PRESENT` transition.
+Cup weight is the difference: **stable present reading − stable absent reading**.
+These records retain their sample times; the calculated mass belongs to that
+placement. It appears even with automatic tare disabled.
+
+For example, place a 300 g cup on a scale reading 0 g: the UI shows **≈ 300.0 g**.
+After firmware tare, the live reading is 0 g and cup weight stays 300 g. Remove
+the cup and let the scale settle at −300 g. A 350 g replacement reads 50 g;
+the UI shows **≈ 350.0 g**, from **50 − (−300)**. Further successful firmware
+tares and coffee additions preserve that mass. It represents the load added at
+placement, so an empty-cup interpretation assumes the cup was empty then.
+
+The absent baseline uses the same sample count, whole-window tolerance, maximum
+gap, and minimum stable time as placement. A transient removal minimum is not
+a baseline. Without a reliable stable absent reading before placement, the UI
+shows **—**, including when booting with a cup already loaded. Removal, stale or
+invalid samples, connection changes, lost evidence, and uncertain tares clear the
+value. Acquisition requires a new stable absence followed by placement; tare
+alone cannot recover missing mass. Nothing is persisted across restarts.
+
+All tares must be firmware-issued: physical-button/external tare is outside the
+supported contract. Older firmware payloads and unavailable readings show **—**.
+Diagnostic test tare/combined commands invalidate this value; remove the cup,
+wait for stable absence, and replace it to acquire the weight again.
+This informational value does not change detection thresholds, tare scheduling,
+cup protection, or brewing decisions.
+
 ## Parameters
 
 | Setting | Default | Range / notes | Effect on the shot |

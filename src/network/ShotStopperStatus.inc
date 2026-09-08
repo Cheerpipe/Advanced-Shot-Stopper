@@ -68,6 +68,12 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   const TimeStatusSnapshot timeStatus = g_wallClock.snapshot(millis());
 
   char currentWeight[32] = "null";
+  char cupWeight[32] = "null";
+  const bool cupWeightValid = control.cupPresent && control.cupTare.weightValid &&
+                             isfinite(control.cupTare.weightG);
+  if (cupWeightValid)
+    snprintf(cupWeight, sizeof(cupWeight), "%.1f",
+             static_cast<double>(control.cupTare.weightG));
   char observedWeight[32] = "null";
   char lastShotWeight[32] = "null";
   char scaleTimer[32] = "null";
@@ -449,7 +455,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"noScaleShotGuard\":{\"enabled\":%s,\"armed\":%s,"
         "\"mode\":\"%s\",\"cooldownRemainingMs\":%lu,"
         "\"scaleUsable\":%s},"
-        "\"cupPresence\":{\"state\":\"%s\",\"present\":%s}",
+        "\"cupPresence\":{\"state\":\"%s\",\"present\":%s,"
+        "\"weightG\":%s,\"weightValid\":%s,\"placementId\":%lu}",
         stopperStateName(control.state), stateLabel(control.state),
         machineRunStateName(control.machineRunState),
         control.relayClosed ? "true" : "false",
@@ -534,7 +541,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             ? "true"
             : "false",
         cupPresenceStateName(control.cupPresenceState),
-        control.cupPresent ? "true" : "false");
+        control.cupPresent ? "true" : "false", cupWeight,
+        cupWeightValid ? "true" : "false",
+        static_cast<unsigned long>(control.cupTare.placementId));
     if (ok) {
       const ShotCurveRecord curve =
           control.activeCycle
@@ -722,7 +731,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"reedOn\":%s,"
         "\"physicalActivatorOn\":%s,"
         "\"controlSource\":\"%s\","
-        "\"cupPresence\":{\"state\":\"%s\",\"present\":%s},"
+        "\"cupPresence\":{\"state\":\"%s\",\"present\":%s,"
+        "\"weightG\":%s,\"weightValid\":%s,\"placementId\":%lu},"
         "\"network\":{\"apActive\":%s,\"apIp\":\"%s\",\"apClients\":%u,"
         "\"wifiConfigured\":%s,\"ssid\":\"%s\","
         "\"staState\":\"%s\",\"wifiPs\":\"%s\",\"wifiCoex\":\"%s\",\"channel\":%s,\"staIp\":\"%s\",\"ipMode\":\"%s\","
@@ -797,6 +807,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         controlSourceName(control.source),
         cupPresenceStateName(control.cupPresenceState),
         control.cupPresent ? "true" : "false",
+        cupWeight, cupWeightValid ? "true" : "false",
+        static_cast<unsigned long>(control.cupTare.placementId),
         network.apActive ? "true" : "false", network.apIp,
         static_cast<unsigned>(network.apClients),
         network.wifiConfigured ? "true" : "false", safeStaSsid,

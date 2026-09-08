@@ -813,6 +813,7 @@ void yieldBetweenScaleAttOps() {
 void executeScaleStartCommand(const ScaleCommand &command) {
   ScaleEvent event;
   event.type = ScaleEventType::TIMER_START_RESULT;
+  event.cupWeightRequestId = command.cupWeightRequestId;
   event.cycleId = command.cycleId;
   event.connectionGeneration = command.connectionGeneration;
   event.commandFeedbackExpected = command.commandFeedbackExpected;
@@ -824,6 +825,8 @@ void executeScaleStartCommand(const ScaleCommand &command) {
       event.commandAttempted = true;
       event.usedCombinedTareStart = true;
       const ScaleCommandResult result = scale.tareStartTimer();
+      event.tareAttempted = result != ScaleCommandResult::Unsupported;
+      event.tareSucceeded = scaleCommandOk(result);
       event.writeSucceeded = scaleCommandOk(result);
       // A failed ATT response does not prove the scale ignored the command.
       // Only an unsupported operation permits a separate start/tare fallback.
@@ -844,7 +847,9 @@ void executeScaleStartCommand(const ScaleCommand &command) {
       }
       if (event.writeSucceeded && command.autoTare &&
           scale.features().has(ScaleFeatureTare)) {
-        (void)scale.tare();
+        const ScaleCommandResult result = scale.tare();
+        event.tareAttempted = result != ScaleCommandResult::Unsupported;
+        event.tareSucceeded = scaleCommandOk(result);
         yieldBetweenScaleAttOps();
       }
     }
@@ -876,6 +881,7 @@ void executeScaleStopCommand(const ScaleCommand &command) {
 void executeScaleTareCommand(const ScaleCommand &command) {
   ScaleEvent event;
   event.type = ScaleEventType::TARE_RESULT;
+  event.cupWeightRequestId = command.cupWeightRequestId;
   event.cycleId = command.cycleId;
   event.idleTareRequestId = command.idleTareRequestId;
   event.connectionGeneration = command.connectionGeneration;
@@ -1012,6 +1018,12 @@ void executeScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
       break;
   }
   yieldBetweenScaleAttOps();
+  if (action == BookooDebugAction::TARE || action == BookooDebugAction::COMBINED) {
+    // Debug commands bypass the normal pre-tare capture contract.
+    ScaleEvent event;
+    event.type = ScaleEventType::REFERENCE_CHANGED;
+    publishScaleEvent(event, true);
+  }
   addDebugEvent(DebugCategory::SCALE,
                 succeeded ? DebugCode::SCALE_DEBUG_OK
                           : DebugCode::SCALE_DEBUG_FAILED);
@@ -1207,6 +1219,7 @@ void executeScaleCommand(const ScaleCommand &command) {
       link.state != ScaleLinkState::CONNECTED) {
     ScaleEvent event;
     event.cycleId = command.cycleId;
+    event.cupWeightRequestId = command.cupWeightRequestId;
     event.idleTareRequestId = command.idleTareRequestId;
     event.connectionGeneration = command.connectionGeneration;
     event.commandFeedbackExpected = command.commandFeedbackExpected;
