@@ -189,6 +189,12 @@ The build generates Web assets, version identity and
 Use only the image for your architecture. The supported partition layouts have
 two app slots; arbitrary 4 MB layouts cannot hold this firmware.
 
+GitHub Actions publishes six production OTA variants: `n8r4` and `n16r8`, each
+for `paddle-latch`, `momentary`, and `momentary-reed`. Their names follow
+`shotstopper-ota-<arch>-<machine>-jtag-off-remote-off.bin`; those two features
+are explicitly disabled at compile time. GitHub downloads each artifact as a
+ZIP container, but that container holds only the named OTA-ready `.bin` file.
+
 ## 6. Flash (USB)
 
 Proceed only after reviewing the image, board, wiring and applicable

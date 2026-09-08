@@ -185,9 +185,21 @@ assert "github.event_name != 'pull_request'" in idf_job, \
     "main, scheduled, and manual CI runs must publish both firmware variants"
 assert "arch: [n8r4, n16r8]" in idf_job, \
     "IDF CI must build both supported firmware variants"
-assert "build-idf/${{ matrix.arch }}/shotstopper.bin" in idf_job, \
-    "IDF artifacts must include the downloadable firmware binary"
-assert "name: idf-${{ matrix.arch }}" in idf_job
+for machine_name, machine_type in (("paddle-latch", 0), ("momentary", 1),
+                                   ("momentary-reed", 2)):
+    assert f"{{name: {machine_name}, type: {machine_type}}}" in idf_job, \
+        f"IDF CI machine variant missing: {machine_name}"
+for disabled_flag in ("SHOT_STOPPER_ENABLE_JTAG=0",
+                      "SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0"):
+    assert disabled_flag in idf_job, f"CI production flag missing: {disabled_flag}"
+ota_name = "shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off"
+assert f"name: {ota_name}" in idf_job
+assert f"path: build-idf/${{{{ matrix.arch }}}}/{ota_name}.bin" in idf_job
+assert workflow.count("actions/upload-artifact") == 1, \
+    "GitHub artifacts must contain only the six matrix-generated OTA binaries"
+assert "shotstopper.elf" not in workflow and "path: artifacts/runs/" not in workflow \
+    and "path: reports/" not in workflow, \
+    "ELF, reports, and run logs must not be published as GitHub artifacts"
 build = idf_job.index("./scripts/dev build")
 firmware_upload = idf_job.index("actions/upload-artifact")
 cppcheck = idf_job.index("./scripts/dev analyze")

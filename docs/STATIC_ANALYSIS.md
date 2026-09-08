@@ -231,6 +231,9 @@ brew install cppcheck        # macOS
 
 `static-idf` never builds and fails on any finding; project suppressions live
 in `scripts/cppcheck-suppressions.txt` with a documented reason per entry.
+Dependency suppressions identify the vendor header instead of a local ESP-IDF
+installation root, so `/opt/esp/idf` in CI and a developer checkout behave the
+same without suppressing diagnostics in versioned project code.
 `gcc_analyzer` **builds** the firmware with `-fanalyzer` enabled and keeps
 only diagnostics whose primary location is versioned code.
 

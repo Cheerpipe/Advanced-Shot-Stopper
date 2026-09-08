@@ -57,12 +57,6 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - run: ./scripts/dev validate --risk R0 README.md docs/README.md
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: fast-run
-          path: artifacts/runs/
-          retention-days: 3
 
   host:
     needs: classify
@@ -81,12 +75,6 @@ jobs:
       - run: ./scripts/dev test tsan
       - run: ./scripts/dev test tooling
       - run: ./scripts/dev test web
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: host-runs
-          path: artifacts/runs/
-          retention-days: 3
 
   idf:
     needs: classify
@@ -97,19 +85,27 @@ jobs:
       fail-fast: false
       matrix:
         arch: [n8r4, n16r8]
+        machine:
+          - {name: paddle-latch, type: 0}
+          - {name: momentary, type: 1}
+          - {name: momentary-reed, type: 2}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - run: apt-get update && apt-get install -y --no-install-recommends nodejs npm cppcheck && rm -rf /var/lib/apt/lists/*
       - run: npm ci --no-audit --no-fund
-      - run: ./scripts/dev build --arch ${{ matrix.arch }}
+      - run: >-
+          ./scripts/dev build --arch ${{ matrix.arch }}
+          --flags "-DSHOT_STOPPER_MACHINE_TYPE=${{ matrix.machine.type }} -DSHOT_STOPPER_ENABLE_JTAG=0 -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0"
+      - name: Name OTA image
+        run: >-
+          cp build-idf/${{ matrix.arch }}/shotstopper.bin
+          build-idf/${{ matrix.arch }}/shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off.bin
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: idf-${{ matrix.arch }}
-          path: |
-            build-idf/${{ matrix.arch }}/shotstopper.bin
-            build-idf/${{ matrix.arch }}/shotstopper.elf
-            build-idf/${{ matrix.arch }}/size.json
-            artifacts/runs/
+          name: shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off
+          path: build-idf/${{ matrix.arch }}/shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off.bin
+          if-no-files-found: error
+          compression-level: 0
           retention-days: 3
       - name: Cppcheck
         if: needs.classify.outputs.risk == 'R3'
@@ -126,14 +122,6 @@ jobs:
         if: needs.classify.outputs.risk == 'R3' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         run: |
           ./scripts/gcc_analyzer --arch ${{ matrix.arch }} --flags=
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always() && needs.classify.outputs.risk == 'R3'
-        with:
-          name: analysis-${{ matrix.arch }}
-          path: |
-            reports/
-            artifacts/runs/
-          retention-days: 3
 
   gate:
     needs: [classify, fast, host, idf]

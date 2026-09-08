@@ -6,6 +6,9 @@
 *:*/esp/esp-idf/*
 *:*/idf/managed_components/*
 *:*/idf/third_party/*
+# FreeRTOS returns its integer allocation-failure sentinel through a task-handle
+# return type; the diagnostic is inside the vendor implementation, not a caller.
+CastIntegerToAddressAtReturn:*/freertos/FreeRTOS-Kernel/include/freertos/task.h
 # Owner: firmware-platform. Review/expiry: 2027-03-01.
 # FreeRTOS semaphore macros expand to C casts; not actionable at call sites.
 dangerousTypeCast:*/src/ShotStopperNetwork.cpp
