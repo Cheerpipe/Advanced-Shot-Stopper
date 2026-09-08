@@ -227,7 +227,7 @@ void processWebCommand(const WebCommand &command) {
       (preset.bbwAlgorithm == 0 ? preset.weightOffsetG : preset.bbwEwmaOffsetG) =
           preset.weightOffsetBaselineG;
       if (command.bbwFullReset) {
-        preset.bbwEwmaAlpha = DEFAULT_BBW_EWMA_ALPHA;
+        preset.bbwEwmaAlpha = preset.bbwAlphaBaseline;
         preset.bbwAlphaLearned = 0;
       }
       RuntimeConfig candidate = runtimeConfig;
@@ -287,6 +287,8 @@ void processWebCommand(const WebCommand &command) {
             candidateRecipe.bbwAlgorithm = preset->bbwAlgorithm;
           if (!command.bbwBaselineSpecified)
             candidateRecipe.weightOffsetBaselineG = preset->weightOffsetBaselineG;
+          if (command.bbwAlphaBaseline != 0)
+            candidateRecipe.bbwAlphaBaseline = command.bbwAlphaBaseline;
           // Form sends brewByWeight explicitly; do not use session Manual.
           candidateRecipe.brewByWeight = !command.config.timerOnly;
           ok = validateShotPresetRecipe(candidateRecipe,
@@ -295,6 +297,8 @@ void processWebCommand(const WebCommand &command) {
           if (ok) {
             ShotPreset previous = *preset;
             previous.bbwAlgorithm = candidateRecipe.bbwAlgorithm;
+            previous.weightOffsetBaselineG = candidateRecipe.weightOffsetBaselineG;
+            previous.bbwAlphaBaseline = candidateRecipe.bbwAlphaBaseline;
             if (memcmp(&previous, &candidateRecipe, sizeof(previous)) != 0)
               bbwLearningBank.invalidate(preset->id, presetBank);
             // Preserve learned fields from the live preset.

@@ -12,7 +12,7 @@
 namespace shotstopper {
 
 constexpr uint32_t SHOT_LOG_MAGIC = 0x534C4F47U;  // "SLOG"
-constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 3;
+constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 4;
 constexpr size_t SHOT_LOG_CAPACITY = 120;
 constexpr size_t SHOT_LOG_PAGE_DEFAULT = 10;
 
@@ -317,10 +317,10 @@ struct ShotLogRecord {
   uint16_t firstDropDs;
   uint16_t avgFlowCgS;
   uint8_t shotType;  // Bits 0–1: type; 2–7: preset ID low six bits.
-  uint8_t cutType;   // Bits 0–1: cut; 2–3: preset ID high two bits.
+  uint8_t cutType;   // Bits 0–1: cut; 2–3: preset ID high bits; 4–7: alpha high bits.
   // Bits 0–1: guards; 2–4: rating; 5–7: BBW profile.
   uint8_t extractionGuardEnabled;
-  // Bits 0–1: extensions; 2–4: alpha code; 5–6: learning status.
+  // Bits 0–1: extensions; 2–4: alpha low bits; 5–6: learning status.
   uint8_t extractionExtended;
   uint8_t stopDetail;
   // Placed in the former v5 padding byte so sizeof stays 48 (no NVS growth).
@@ -344,27 +344,26 @@ inline uint8_t shotLogPresetId(const ShotLogRecord &record) {
 }
 inline void shotLogSetPresetId(ShotLogRecord &record, uint8_t id) {
   record.shotType = (record.shotType & 3) | ((id & 63) << 2);
-  record.cutType = (record.cutType & 3) | ((id >> 6) << 2);
+  record.cutType = (record.cutType & 0xf3) | ((id >> 6) << 2);
 }
 
 // Profile 0 unknown, 1 pre-selector Legacy (version unknown), 2 Legacy v1,
-// 3 adaptive EWMA v1. Alpha 0 unknown, 1..4 = .10/.30/.50/1.00.
+// 3 adaptive EWMA v1, 4 adaptive EWMA v2. Alpha 0 unknown, 1–100 hundredths.
 inline uint8_t shotLogBbwProfile(const ShotLogRecord &record) {
   return record.extractionGuardEnabled >> 5;
 }
 inline const char *shotLogBbwAlgorithm(const ShotLogRecord &record) {
   const uint8_t profile = shotLogBbwProfile(record);
   return profile == 1 || profile == 2 ? "legacy"
-       : profile == 3 ? "linear_ewma" : "unknown";
+       : profile == 3 || profile == 4 ? "linear_ewma" : "unknown";
 }
 inline const char *shotLogBbwVersion(const ShotLogRecord &record) {
   const uint8_t profile = shotLogBbwProfile(record);
-  return profile == 2 || profile == 3 ? "1" : "null";
+  return profile == 4 ? "2" : profile == 2 || profile == 3 ? "1" : "null";
 }
-inline const char *shotLogBbwAlpha(const ShotLogRecord &record) {
-  static const char *const values[] = {"null", "0.10", "0.30", "0.50", "1.00"};
-  const uint8_t code = (record.extractionExtended >> 2) & 7;
-  return code <= 4 ? values[code] : "null";
+inline uint8_t shotLogBbwAlpha(const ShotLogRecord &record) {
+  const uint8_t alpha = ((record.extractionExtended >> 2) & 7) | ((record.cutType >> 4) << 3);
+  return validBbwAlpha(alpha) ? alpha : 0;
 }
 inline const char *shotLogBbwLearningApplied(const ShotLogRecord &record) {
   const uint8_t code = (record.extractionExtended >> 5) & 3;
@@ -372,13 +371,13 @@ inline const char *shotLogBbwLearningApplied(const ShotLogRecord &record) {
 }
 inline void shotLogSetBbw(ShotLogRecord &record, uint8_t algorithm,
                           uint8_t version, uint8_t alpha, bool applied) {
-  uint8_t alphaCode = 0;
-  for (uint8_t i = 0; i < 4; ++i)
-    if (BBW_ALPHA_CANDIDATES[i] == alpha) alphaCode = i + 1;
-  const uint8_t profile = version == 1 && algorithm <= 1 ? algorithm + 2 : 0;
+  if (!validBbwAlpha(alpha)) alpha = 0;
+  const uint8_t profile = version == 1 && algorithm <= 1 ? algorithm + 2
+      : version == 2 && algorithm == 1 ? 4 : 0;
+  record.cutType = (record.cutType & 15) | ((alpha >> 3) << 4);
   record.extractionGuardEnabled = (record.extractionGuardEnabled & 0x1f) | (profile << 5);
   record.extractionExtended = (record.extractionExtended & 3) |
-      (alphaCode << 2) | ((applied ? 2 : 1) << 5);
+      ((alpha & 7) << 2) | ((applied ? 2 : 1) << 5);
 }
 
 // Input must be newest-first (copyNewestFirst). Date+desc is a no-op.

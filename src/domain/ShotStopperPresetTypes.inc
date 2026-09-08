@@ -33,7 +33,7 @@ struct ShotPreset {
   uint8_t bbwEwmaAlpha = DEFAULT_BBW_EWMA_ALPHA;
   uint8_t bbwAlphaLearned = 0;
   uint8_t bbwProfileVersion = BBW_PROFILE_VERSION;
-  uint8_t bbwReserved = 0;
+  uint8_t bbwAlphaBaseline = DEFAULT_BBW_EWMA_ALPHA;  // V10, hundredths.
   uint16_t autoToManualGuardSamplesDs[AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT] = {
       AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
       AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
@@ -55,4 +55,5 @@ static_assert(offsetof(RuntimeConfig, bbwAlgorithm) == 251, "V9 runtime layout")
 static_assert(offsetof(ShotPreset, bbwAlgorithm) == 45, "V9 preset selector");
 static_assert(offsetof(ShotPreset, bbwEwmaOffsetG) == 84, "V9 preset offset");
 static_assert(offsetof(ShotPreset, bbwEwmaAlpha) == 88, "V9 preset alpha");
+static_assert(offsetof(ShotPreset, bbwAlphaBaseline) == 91, "V10 preset alpha baseline");
 static_assert(sizeof(ShotPreset) == 104, "V9 preserves preset size");

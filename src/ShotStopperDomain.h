@@ -66,7 +66,7 @@ constexpr uint32_t SERIAL_BAUD = 115200;
 // after staOpen). V2 names that byte staWifiSleep without growing the blob.
 // Bump and add a migration when the blob layout changes
 // (see ShotStopperSettingsMigrate.h).
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 9;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 10;
 // Rinse clock default. Detection window default is DEFAULT_RINSE_GESTURE_MS
 // (machine-owned, ShotStopperMachineTypes.h).
 constexpr uint32_t DEFAULT_RINSE_DURATION_MS = 4000;
@@ -860,6 +860,7 @@ struct CycleConfigSnapshot {
 inline CycleConfigSnapshot snapshotConfig(const RuntimeConfig &config) {
   CycleConfigSnapshot snapshot;
   snapshot.bbwAlgorithm = config.bbwAlgorithm;
+  snapshot.bbwProfileVersion = bbwAlgorithmVersion(config.bbwAlgorithm);
   snapshot.revision = config.revision;
   snapshot.goalWeightG = config.goalWeightG;
   snapshot.weightOffsetG = config.weightOffsetG;
@@ -1825,6 +1826,7 @@ struct WebCommand {
   bool persistPresets = false;
   bool bbwAlgorithmSpecified = false;
   bool bbwBaselineSpecified = true;
+  uint8_t bbwAlphaBaseline = 0;  // Zero means omitted; valid bases are 1–100.
   bool bbwFullReset = false;
   bool bbwResetRevisionSpecified = false;
   BuzzerPattern buzzerPattern = BuzzerPattern::NONE;
@@ -2099,6 +2101,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   RuntimeConfig config = {};
   uint8_t bbwEvidenceCount = 0;
   uint8_t bbwPresetId = 0;
+  uint8_t bbwAlphaBaseline = DEFAULT_BBW_EWMA_ALPHA;
   uint8_t bbwAlpha = DEFAULT_BBW_EWMA_ALPHA;
   bool bbwAlphaLearned = false;
   float bbwLegacyOffsetG = DEFAULT_WEIGHT_OFFSET_G;

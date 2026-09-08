@@ -50,7 +50,27 @@ int main() {
   assert(!learnBbwOffset(1, 1.5f, 36.2f, 36, 30, false, next));
   assert(!learnBbwOffset(1, 1.5f, 42, 36, 10, true, next));
   assert(!learnBbwOffset(1, NAN, 36, 36, 30, true, next));
-  assert(!learnBbwOffset(1, 1.5f, 36, 36, 31, true, next));
+  assert(!learnBbwOffset(1, 1.5f, 36, 36, 0, true, next));
+  for (uint8_t gain : {1, 30, 37, 100}) {
+    assert(learnBbwOffset(1, 1.5f, 36.2f, 36, gain, true, next));
+    assert(fabsf(next - (1.5f + gain * .002f)) < 1e-5f);
+    uint8_t parsed = 0;
+    assert(parseBbwAlphaBaseline(gain / 100.0, parsed) && parsed == gain);
+    bbwEwma::Evidence custom;
+    uint8_t active = gain;
+    for (int i = 0; i < 100; ++i) active = custom.observe(1.5f, 1.5f, active);
+    assert(active == gain);  // Equal evidence never replaces a custom incumbent.
+    custom = {};
+    for (int i = 0; i < 25; ++i) {
+      active = custom.observe(3.0f, 1.5f, active);
+      if (i < 24) assert(active == gain);
+    }
+    assert(active == 100);
+  }
+  for (double invalid : {-1.0, 0.0, 0.001, 0.375, 1.01, double(INFINITY), double(NAN)}) {
+    uint8_t parsed = 50;
+    assert(!parseBbwAlphaBaseline(invalid, parsed) && parsed == 50);
+  }
   assert(learnBbwOffset(1, 0, 35, 36, 30, true, next) && next == 0);
   assert(learnBbwOffset(1, 5, 36, 36, 30, true, next) && next == 5);
   bbwEwma::Evidence constant, noisy, changed;
@@ -71,10 +91,25 @@ int main() {
     if (i < 24) assert(alpha == 30);
   }
   assert(alpha == 100);
-  assert(changed.losses[0][5] > changed.losses[3][5]);
+  assert(changed.anchors[0] < changed.anchors[3]);
   bbwEwma::Evidence noLookAhead;
   assert(noLookAhead.observe(2.5f, 1.5f, 30) == 30);
-  for (auto &losses : noLookAhead.losses) assert(losses[0] == 1.0f);
+  for (float anchor : noLookAhead.anchors) assert(anchor == 1.5f);
+  // Anchors represent the complete discarded prefix, never a reseeded window.
+  bbwEwma::Evidence replay;
+  std::vector<float> observations;
+  uint8_t replayAlpha = 37;
+  for (int n = 0; n < 80; ++n) {
+    observations.push_back(1.5f + 0.7f * std::sin(n * .23f));
+    replayAlpha = replay.observe(observations.back(), 1.5f, replayAlpha);
+    for (int i = 0; i < 5; ++i) {
+      const float gain = (i < 4 ? BBW_ALPHA_CANDIDATES[i] : 37) / 100.0f;
+      float referenceAnchor = 1.5f;
+      for (int j = 0; j <= n - 20; ++j)
+        referenceAnchor = bbwEwma::clampOffset(referenceAnchor + gain * (observations[j] - referenceAnchor));
+      assert(fabsf(replay.anchors[i] - referenceAnchor) < 1e-6f);
+    }
+  }
 
   PersistedSettings settings;
   assert(initializeDefaultSettings(settings));
@@ -94,10 +129,36 @@ int main() {
   PersistedSettings migrated;
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings, sizeof(settings));
   assert(loadPersistedSettings(migrated));
-  assert(migrated.schemaVersion == 9 && migrated.presets.presets[0].bbwEwmaAlpha == 30);
+  assert(migrated.schemaVersion == 10 && migrated.presets.presets[0].bbwEwmaAlpha == 30);
   assert(migratePersistedSettingsFromV8(settings, migrated));
   assert(validPersistedSettings(migrated));
   assert(migrated.presets.presets[0].bbwEwmaOffsetG == 2.25f);
+  for (uint8_t mode : {0, 1}) {
+    PersistedSettings v9 = migrated;
+    v9.schemaVersion = 9;
+    v9.runtime.bbwAlgorithm = mode;
+    auto &preset = v9.presets.presets[0];
+    preset.bbwAlgorithm = mode;
+    preset.bbwProfileVersion = 1;
+    preset.bbwAlphaBaseline = 255;  // Previously reserved, not a valid baseline.
+    preset.bbwEwmaAlpha = 50;
+    preset.bbwAlphaLearned = 1;
+    v9.checksum = persistedSettingsChecksum(v9);
+    PersistedSettings upgraded;
+    persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &v9, sizeof(v9));
+    assert(loadPersistedSettings(upgraded));
+    assert(upgraded.runtime.bbwAlgorithm == mode);
+    assert(upgraded.presets.presets[0].bbwAlphaBaseline == 30);
+    assert(upgraded.presets.presets[0].bbwEwmaAlpha == 50);
+    assert(upgraded.presets.presets[0].bbwAlphaLearned == 1);
+    assert(upgraded.presets.presets[0].bbwEwmaOffsetG == 2.25f);
+    upgraded.presets.presets[0].bbwAlphaBaseline = 37;
+    assert(savePersistedSettings(upgraded));
+    assert(loadPersistedSettings(upgraded));
+    assert(upgraded.presets.presets[0].bbwAlphaBaseline == 37);
+    persistence_host::reset();
+    resetDurableStorageRevision();
+  }
   assert(migrated.presets.presets[0].bbwEwmaAlpha == 30);
   for (uint32_t version = 4; version <= 8; ++version) {
     persistence_host::reset();
@@ -147,8 +208,15 @@ int main() {
   learning.invalidate(bank.presets[0].id, bank, 1);
   assert(state.generations[0] == generation && state.evidence.count == 0);
   uint8_t duplicate = 0;
+  bank.presets[0].bbwAlphaBaseline = 37;
   assert(duplicateShotPreset(bank, bank.presets[0].id, duplicate));
   assert(mutableShotPreset(bank, duplicate)->bbwEwmaAlpha == 50);
+  assert(mutableShotPreset(bank, duplicate)->bbwAlphaBaseline == 37);
+  uint8_t created = 0;
+  assert(createUntitledShotPreset(bank, created));
+  assert(findShotPreset(bank, created)->bbwAlphaBaseline == 30);
+  assert(restoreFactoryShotPresetValues(bank, FACTORY_PRESET_ID_DOUBLE));
+  assert(findShotPreset(bank, FACTORY_PRESET_ID_DOUBLE)->bbwAlphaBaseline == 30);
   assert(learning.forPreset(duplicate, bank).evidence.count == 0);
   state.evidence = noisy;
   unsigned char beforeOther[sizeof(state.evidence)];
@@ -174,13 +242,19 @@ int main() {
     assert(shotLogType(record) == ShotLogType::AUTO);
     assert(shotLogCut(record) == ShotLogCut::LIMIT);
   }
-  for (uint8_t gain : BBW_ALPHA_CANDIDATES) {
-    shotLogSetBbw(record, 1, 1, gain, true);
+  for (uint8_t gain = 1; gain <= 100; ++gain) {
+    shotLogSetBbw(record, 1, 2, gain, true);
+    for (unsigned id = 0; id <= 255; ++id) {
+      shotLogSetPresetId(record, static_cast<uint8_t>(id));
+      assert(shotLogBbwAlpha(record) == gain && shotLogPresetId(record) == id);
+      assert(shotLogCut(record) == ShotLogCut::LIMIT);
+    }
+    assert(strcmp(shotLogBbwVersion(record), "2") == 0);
     record.extractionGuardEnabled = shotLogPackRating(record.extractionGuardEnabled, 4);
     assert(shotLogRating(record.extractionGuardEnabled) == 4);
     assert(shotLogFastGuardEnabled(record.extractionGuardEnabled));
     assert(shotLogSlowExtended(record.extractionExtended));
-    assert(std::fabs(std::strtof(shotLogBbwAlpha(record), nullptr) - gain / 100.0f) < 1e-6f);
+    assert(shotLogBbwAlpha(record) == gain);
     assert(strcmp(shotLogBbwLearningApplied(record), "true") == 0);
     finalizeShotLogStore(store);
     ShotLogStore decoded;
@@ -189,20 +263,32 @@ int main() {
     assert(shotLogPresetId(decoded.records[0]) == 255);
     assert(decoded.records[0].extractionExtended == record.extractionExtended);
   }
+  record.extractionGuardEnabled = (record.extractionGuardEnabled & 31) | (3 << 5);
+  store.header.schemaVersion = 3;
+  record.extractionExtended = 3 | (2 << 2) | (2 << 5);  // V3 code 2 = alpha .30.
+  record.cutType &= 15;
+  store.header.checksum = shotLogChecksum(store);
+  ShotLogStore v3Decoded;
+  assert(decodeShotLogBlob(&store, sizeof(store), v3Decoded) == ShotLogDecodeStatus::MIGRATED);
+  assert(shotLogBbwAlpha(v3Decoded.records[0]) == 30);
+  assert(shotLogPresetId(v3Decoded.records[0]) == 255);
+  assert(strcmp(shotLogBbwVersion(v3Decoded.records[0]), "1") == 0);
   store.header.schemaVersion = 2;
+  record.extractionExtended = 3 | (4 << 2) | (2 << 5);  // V2 code 4 = alpha 1.00.
+  record.cutType &= 15;
   store.header.checksum = shotLogChecksum(store);
   ShotLogStore migratedHistory;
   assert(decodeShotLogBlob(&store, sizeof(store), migratedHistory) == ShotLogDecodeStatus::MIGRATED);
   assert(shotLogPresetId(migratedHistory.records[0]) == 0);
   assert(strcmp(shotLogBbwAlgorithm(migratedHistory.records[0]), "linear_ewma") == 0);
-  assert(strcmp(shotLogBbwAlpha(migratedHistory.records[0]), "1.00") == 0);
+  assert(shotLogBbwAlpha(migratedHistory.records[0]) == 100);
   assert(shotLogCut(migratedHistory.records[0]) == ShotLogCut::LIMIT);
   store.header.schemaVersion = 1;
   store.header.checksum = shotLogChecksum(store);
   assert(decodeShotLogBlob(&store, sizeof(store), store) == ShotLogDecodeStatus::MIGRATED);
   assert(strcmp(shotLogBbwAlgorithm(record), "legacy") == 0);
   assert(shotLogPresetId(record) == 0);
-  assert(strcmp(shotLogBbwAlpha(record), "null") == 0);
+  assert(shotLogBbwAlpha(record) == 0);
   assert(strcmp(shotLogBbwVersion(record), "null") == 0);
   assert(strcmp(shotLogBbwLearningApplied(record), "null") == 0);
   assert(shotLogRating(record.extractionGuardEnabled) == 4);

@@ -53,11 +53,13 @@ inline bool learn(float offsetG, float finalWeightG, float goalG, uint8_t alpha,
   return true;
 }
 
-// Provisional v1 policy: bounded chronological losses; never used during cutoff.
+// V2: replay bounded observations from the predictions before the oldest one.
+// The fifth trajectory compares a custom incumbent; challengers stay unchanged.
 struct Evidence {
   static constexpr uint8_t WINDOW = 20;
-  float predictions[4] = {};
-  float losses[4][WINDOW] = {};
+  float anchors[5] = {};
+  float observations[WINDOW] = {};
+  uint8_t initialAlpha = 0;  // Seeded by the first eligible observation.
   uint8_t count = 0;
   uint8_t position = 0;
   uint8_t cadence = 0;
@@ -69,27 +71,38 @@ struct Evidence {
     if (!isfinite(observation) || fabsf(observation) > MAX_OFFSET_G ||
         !isfinite(seed) || !validBbwAlpha(alpha)) return alpha;
     if (count == 0) {
-      for (float &prediction : predictions) prediction = seed;
+      for (float &anchor : anchors) anchor = seed;
+      initialAlpha = alpha;
     }
-    float scores[4] = {};
-    uint8_t incumbent = 0;
-    for (uint8_t i = 0; i < 4; ++i) {
-      const float error = observation - predictions[i];
-      losses[i][position] = error * error;  // Score before updating.
-      predictions[i] = clampOffset(predictions[i] +
-          (BBW_ALPHA_CANDIDATES[i] / 100.0f) * error);
-      for (float loss : losses[i]) scores[i] += loss;
-      if (BBW_ALPHA_CANDIDATES[i] == alpha) incumbent = i;
+    if (count == WINDOW) {
+      for (uint8_t i = 0; i < 5; ++i) {
+        const uint8_t gain = i < 4 ? BBW_ALPHA_CANDIDATES[i] : initialAlpha;
+        anchors[i] = clampOffset(anchors[i] +
+            (gain / 100.0f) * (observations[position] - anchors[i]));
+      }
     }
+    observations[position] = observation;
     position = (position + 1) % WINDOW;
     if (count < WINDOW) ++count;
     if (sinceSwitch < 10) ++sinceSwitch;
     cadence = (cadence + 1) % 5;
     if (count < WINDOW || cadence != 0) return alpha;
+    float scores[5] = {};
+    uint8_t incumbent = 4;
+    for (uint8_t i = 0; i < 5; ++i) {
+      const uint8_t gain = i < 4 ? BBW_ALPHA_CANDIDATES[i] : initialAlpha;
+      float prediction = anchors[i];
+      for (uint8_t j = 0; j < WINDOW; ++j) {
+        const float error = observations[(position + j) % WINDOW] - prediction;
+        scores[i] += error * error;  // Score before updating.
+        prediction = clampOffset(prediction + (gain / 100.0f) * error);
+      }
+      if (!isfinite(scores[i])) { wins = 0; return alpha; }
+      if (i < 4 && gain == alpha) incumbent = i;
+    }
     uint8_t best = incumbent;
     bool tied = false;
     for (uint8_t i = 0; i < 4; ++i) {
-      if (!isfinite(scores[i])) { wins = 0; return alpha; }
       if (scores[i] < scores[best]) { best = i; tied = false; }
       else if (i != best && scores[i] == scores[best]) tied = true;
     }

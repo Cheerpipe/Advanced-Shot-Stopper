@@ -269,7 +269,7 @@ struct CycleSession {
 struct PendingShotFinalize {
   uint8_t bbwAlgorithm = 0;
   uint8_t bbwAlpha = 100;
-  uint8_t bbwProfileVersion = BBW_PROFILE_VERSION;
+  uint8_t bbwProfileVersion = 1;
   uint32_t bbwLearningGeneration = 0;
   uint32_t scaleConnectionGeneration = 0;
   bool scaleBaselineReady = false;

@@ -384,6 +384,7 @@ void preparePendingBbwForTest() {
   pendingFinalize.pending = true;
   const ShotPreset &preset = activeShotPreset(presetBank);
   pendingFinalize.bbwAlgorithm = preset.bbwAlgorithm;
+  pendingFinalize.bbwProfileVersion = bbwAlgorithmVersion(preset.bbwAlgorithm);
   pendingFinalize.bbwAlpha = preset.bbwAlgorithm == 0 ? 100 : preset.bbwEwmaAlpha;
   pendingFinalize.bbwLearningGeneration = bbwLearningBank.forPreset(
       preset.id, presetBank).generations[preset.bbwAlgorithm];
@@ -1650,7 +1651,8 @@ void bbw01_snapshots_and_isolated_finalization() {
     ShotLogRecord record[1] = {};
     CHECK(shotLog.copyNewestFirst(record, 1) == 1);
     CHECK(record[0].offsetUsedCg == weightToCentigrams(used));
-    CHECK(strcmp(shotLogBbwAlpha(record[0]), "0.50") == 0);
+    CHECK(shotLogBbwAlpha(record[0]) == 50);
+    CHECK(strcmp(shotLogBbwVersion(record[0]), "2") == 0);
     CHECK(strcmp(shotLogBbwLearningApplied(record[0]),
                  learn ? "true" : "false") == 0);
     CHECK(strcmp(shotLogBbwAlgorithm(record[0]), "linear_ewma") == 0);
@@ -1697,20 +1699,33 @@ void bbw02_freshness_reset_and_safety() {
   const float legacyOffset = preset.weightOffsetG;
   PendingShotFinalize legacy = pendingFinalize;
   legacy.bbwAlgorithm = 0;
+  legacy.bbwProfileVersion = 1;
   legacy.weightOffsetG = legacyOffset;
   legacy.endReason = EndReason::CONFIGURED_WALL_LIMIT;
   legacy.bbwLearningGeneration = bbwLearningBank.forPreset(preset.id, presetBank).generations[0];
   CHECK(learnPendingBbw(legacy, currentWeight, true));
   CHECK(fabsf(preset.weightOffsetG - legacyOffset - 0.20f) < 1e-5f);
   const float retainedLegacyOffset = preset.weightOffsetG;
+  auto &evidence = bbwLearningBank.forPreset(preset.id, presetBank);
+  evidence.evidence.observe(2.1f, 2.0f, preset.bbwEwmaAlpha);
+  const uint32_t beforeBaseGeneration = evidence.generations[1];
   WebCommand saveBaseline;
   saveBaseline.type = WebCommandType::PRESET_OP;
   saveBaseline.presetAction = static_cast<uint8_t>(PresetAction::SAVE);
   saveBaseline.presetId = preset.id;
   saveBaseline.config = runtimeConfig;
   saveBaseline.config.weightOffsetBaselineG = 0.80f;
+  saveBaseline.bbwAlphaBaseline = 37;
   processWebCommand(saveBaseline);
   CHECK(preset.weightOffsetBaselineG == 0.80f);
+  CHECK(preset.bbwAlphaBaseline == 37 && preset.bbwEwmaAlpha == 50);
+  CHECK(evidence.evidence.count == 1 && evidence.generations[1] == beforeBaseGeneration);
+  saveBaseline.bbwAlphaBaseline = 0;
+  processWebCommand(saveBaseline);
+  CHECK(preset.bbwAlphaBaseline == 37);
+  saveBaseline.bbwAlphaBaseline = 101;
+  processWebCommand(saveBaseline);
+  CHECK(preset.bbwAlphaBaseline == 37 && preset.bbwEwmaAlpha == 50);
   CHECK(preset.bbwEwmaOffsetG == 2.0f);
   WebCommand reset;
   reset.type = WebCommandType::RESET_WEIGHT_OFFSET;
@@ -1725,7 +1740,7 @@ void bbw02_freshness_reset_and_safety() {
   reset.bbwFullReset = true;
   reset.config.revision = runtimeConfig.revision;
   processWebCommand(reset);
-  CHECK(preset.bbwEwmaAlpha == 30 && preset.bbwAlphaLearned == 0);
+  CHECK(preset.bbwEwmaAlpha == 37 && preset.bbwAlphaLearned == 0);
   CHECK(preset.weightOffsetG == retainedLegacyOffset && preset.bbwEwmaOffsetG == 0.80f);
   CHECK(memcmp(&other, findShotPreset(presetBank, other.id), sizeof(other)) == 0);
   CHECK(bbwLearningBank.forPreset(preset.id, presetBank).evidence.count == 0);

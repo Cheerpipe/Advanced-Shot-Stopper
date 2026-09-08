@@ -18,7 +18,7 @@ presets, but not the last remaining preset. The active preset survives reboot.
 
 | Scope | Settings |
 | --- | --- |
-| Preset | Target, BBW, cutoff algorithm, protection time, Fast/Slow/A→M guards, cup-protection options, accidental-touch protection, baseline, separate Legacy/EWMA offsets, EWMA gain and initial/learned provenance |
+| Preset | Target, BBW, cutoff algorithm, protection time, Fast/Slow/A→M guards, cup-protection options, accidental-touch protection, offset/alpha baselines, separate regression/EWMA offsets, EWMA gain and initial/learned provenance |
 | Shared machine settings | Physical switch behavior, rinse, no-scale policy, all three tare switches and timing, cup detection, alerts, preferred scale, network |
 | Home session | Quick Settings controls affect the current workflow. In particular, turning BBW off selects Manual without saving BBW off in the recipe. |
 
@@ -45,12 +45,13 @@ or migrated preset. Definitions: `fillFactorySinglePreset` /
 [ShotStopperPresets.h](../../src/ShotStopperPresets.h).
 
 Both algorithms' learning follows the preset. New and factory recipes select
-adaptive EWMA, seed both offsets from the table above and use α=0.30. Duplicate
-copies selection, both offsets and gain/provenance into an independent recipe,
+adaptive EWMA, seed both offsets from the table above and use current/base α=0.30. Duplicate
+copies selection, both bases, offsets and gain/provenance into an independent recipe,
 with empty candidate evidence. Reboot retains those saved values and rebuilds
-only the transient evidence window. Upgrades without a selector preserve Legacy's
+only the transient evidence window. Upgrades without a selector preserve regression's
 offset and copy it to EWMA, selecting EWMA once; later updates retain the saved
-choice. Switching back to Legacy resumes its own offset.
+choice. Switching back to **Linear regression + offset correction** resumes its own offset.
+Its API/CSV identifier remains `legacy`.
 
 Use a separate preset for each physical portafilter/basket setup. EWMA's learned
 offset in grams, gain α and candidate observations belong to that preset; shots
@@ -60,13 +61,15 @@ the same preset requires an intentional learning reset; it is not detected.
 
 Save **Baseline offset**, then choose **Reset learned stop offset to baseline**
 to reset only the selected algorithm's offset. EWMA retains its gain but restarts
-evidence. **Reset EWMA learning** also resets α to 0.30 and initial provenance.
+evidence. Save **Baseline learning factor (α)** (0.01–1.00, step 0.01), then
+**Reset EWMA learning** restores both saved bases and initial provenance.
+Changing either base alone preserves current offsets, gain and evidence.
 The editable baseline is shared by both algorithms within one preset; their
 learned offsets are independent. For example, save a 0.80 g baseline for one
 portafilter, select EWMA and reset: its EWMA offset becomes 0.80 g, while its
-Legacy offset and every other preset remain unchanged.
+regression offset and every other preset remain unchanged.
 **Reset** on a factory card restores the whole recipe, both offsets and initial
-gain; it is available only for factory cards. A device factory reset additionally
+gain/base at 0.30; it is available only for factory cards. A device factory reset additionally
 erases other settings and history. See [BBW learning](brew-by-weight.md#cutoff-algorithms-and-learning)
 for prediction, gain selection and reset behavior.
 

@@ -140,6 +140,7 @@ inline bool validateShotPresetRecipe(const ShotPreset &preset,
                                      uint32_t machineRetareWindowMs,
                                      bool machineAutoRetare) {
   if (preset.bbwAlgorithm > 1 || !validBbwAlpha(preset.bbwEwmaAlpha) ||
+      !validBbwAlpha(preset.bbwAlphaBaseline) ||
       preset.bbwAlphaLearned > 1 || preset.bbwProfileVersion != BBW_PROFILE_VERSION ||
       !isfinite(preset.bbwEwmaOffsetG) || preset.bbwEwmaOffsetG < 0.0f ||
       preset.bbwEwmaOffsetG > MAX_OFFSET_G) return false;

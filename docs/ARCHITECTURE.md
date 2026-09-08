@@ -45,43 +45,51 @@ without including either monolithic integration root.
 ## BBW policy and storage
 
 `ShotStopperBbwCutoff.h` dispatches fixed-size prediction/learning inputs to
-independent Legacy and adaptive EWMA implementations. Shared scale qualification,
+independent regression and adaptive EWMA implementations. Shared scale qualification,
 direct confirmation, guards, control arbitration and machine/safety authority
 remain outside the policy. The original trend fit remains shared with accidental
 touch sensing; only EWMA cutoff uses centered OLS. Strategies neither actuate
 hardware nor write flash.
 
 Control owns `BbwLearningBank`: up to eight identity-keyed states, under 3,000
-bytes total, with four 20-loss candidate windows per preset. Scoring is bounded
+bytes total, with 20 observations and five trajectory anchors per preset.
+Four fixed gains compete against the current gain, including a custom incumbent.
+Scoring replays the retained window from its anchors and is bounded
 post-finalization work, with no allocation or per-sample persistence. The cycle
 and pending finalizer capture preset, algorithm/profile, full-precision offset,
 actual alpha and a per-learner generation. Learning checks the originating state;
 reset/delete/recreation or a conflicting update invalidates it. Recipe changes
 clear evidence; algorithm-only selection freezes/resumes retained EWMA state.
-Settings status publishes active-preset identity, both offsets, gain/provenance
+Editing reset bases alone preserves current learning and evidence.
+Settings status publishes active-preset identity, both offsets, alpha baseline, gain/provenance
 and evidence count together in the existing coherent control snapshot.
 
-Settings V9 retains the 252-byte RuntimeConfig, 104-byte ShotPreset and
+Settings V10 retains the 252-byte RuntimeConfig, 104-byte ShotPreset and
 2616-byte settings blob. Runtime byte 251 and preset byte 45 hold the selector;
 obsolete preset cup floats at bytes 84–91 become EWMA offset (float), alpha
-(hundredths), initial/learned provenance, profile version and reserved zero.
+(hundredths), initial/learned provenance, EWMA profile version and alpha baseline
+(hundredths, byte 91; reserved zero in V9).
 V1–V8 decoders verify the original checksum before explicitly initializing these
-bytes. The old offset remains Legacy's and seeds EWMA. New schemas retain saved
-choices and valid learned gains. Candidate predictions/losses/generations are RAM
+bytes. The old offset remains regression's and seeds EWMA. V9 migration adds
+baseline 0.30 and EWMA profile v2 while retaining selection, offsets and gain/source.
+New schemas retain saved choices and valid learned gains. Candidate anchors/observations/generations are RAM
 only; deferred persistence retains offsets, gain/provenance and profile through
 the existing dual-slot owner. Unknown/invalid schemas follow existing recovery;
-old binaries do not understand V9, so downgrades are not learning-preserving.
+old binaries do not understand V10, so downgrades are not learning-preserving.
 
-History V3 keeps 48-byte records and 120 entries. Guard byte bits 5–7 encode
-profile (0 unknown, 1 pre-selector Legacy with unknown version, 2 Legacy v1,
-3 adaptive EWMA v1). Extension byte bits 2–4 encode alpha (0 unknown,
-1–4 = .10/.30/.50/1.00); bits 5–6 encode learning application (0 unknown,
+History V4 keeps 48-byte records and 120 entries. Guard byte bits 5–7 encode
+profile (0 unknown, 1 pre-selector regression with unknown version, 2 regression v1,
+3 adaptive EWMA v1, 4 EWMA v2). Alpha is 0 unknown or 1–100 hundredths;
+extension bits 2–4 hold its low three bits, cut-type bits 4–7 its high four.
+Extension bits 5–6 encode learning application (0 unknown,
 1 skipped, 2 applied). Guard, rating, extension and weight-source meanings are
 preserved. V1 migration clears newly assigned bits explicitly after CRC
 validation, preserving records and offsets. Shot-type bits 2–7 and cut-type
 bits 2–3 hold the captured preset ID (low six/high two bits); type/cut readers
 mask the low two bits. V1/V2 migration explicitly sets unknown preset ID zero
-after CRC validation; V2 algorithm metadata is retained. V3 is rejected by
+after CRC validation; V2/V3 alpha codes become hundredths, with V3 preset IDs
+and all historical policy versions retained. Preset/BBW writers preserve each
+other's bit fields. V4 is rejected by
 older firmware. The ID follows existing preset allocation, not a historical
 name lookup or globally unique physical-device identity.
 Decoding checks the supplied length before reading record CRCs and copies only

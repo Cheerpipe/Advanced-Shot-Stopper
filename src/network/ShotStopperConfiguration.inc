@@ -800,6 +800,10 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
         command.config.timerOnly = !brewByWeight;
         command.bbwAlgorithmSpecified = jsonFieldPresent(root, "bbwAlgorithm");
         command.bbwBaselineSpecified = jsonFieldPresent(root, "weightOffsetBaselineG");
+        const cJSON *alphaBase = cJSON_GetObjectItemCaseSensitive(root, "bbwAlphaBaseline");
+        if (alphaBase && (!cJSON_IsNumber(alphaBase) ||
+            !parseBbwAlphaBaseline(alphaBase->valuedouble, command.bbwAlphaBaseline)))
+          parseError = "bbwAlphaBaseline must be 0.01–1.00 in steps of 0.01.";
         char algorithm[20] = {};
         if (command.bbwAlgorithmSpecified &&
             (!jsonString(root, "bbwAlgorithm", algorithm, sizeof(algorithm), false) ||

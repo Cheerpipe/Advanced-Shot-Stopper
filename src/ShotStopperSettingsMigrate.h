@@ -2,7 +2,8 @@
 
 // Settings schema migrations.
 //
-// Current on-disk schema is V9 (BBW strategies). V8 names the idle-tare
+// Current on-disk schema is V10 (BBW alpha baseline). V9 added strategies.
+// V8 names the idle-tare
 // padding byte and defaults it ON. V7 replaces the
 // serial-debug boolean with an explicit serial ESP_LOG level. V6 adds the webhook
 // delivery deferral setting. V5 adds the public Diagnostic-page setting. V4 adds HTTP webhook
@@ -62,8 +63,23 @@ inline void initializeMigratedBbw(PersistedSettings &out) {
     preset.bbwEwmaAlpha = DEFAULT_BBW_EWMA_ALPHA;
     preset.bbwAlphaLearned = 0;
     preset.bbwProfileVersion = BBW_PROFILE_VERSION;
-    preset.bbwReserved = 0;
+    preset.bbwAlphaBaseline = DEFAULT_BBW_EWMA_ALPHA;
   }
+}
+
+inline bool migratePersistedSettingsFromV9(const PersistedSettings &v9,
+                                           PersistedSettings &out) {
+  if (v9.magic != PERSISTED_SETTINGS_MAGIC || v9.schemaVersion != 9 ||
+      v9.structureSize != sizeof(out) || v9.checksum != persistedSettingsChecksum(v9))
+    return false;
+  copyPersistedBytes(out, v9, sizeof(out));
+  for (ShotPreset &preset : out.presets.presets) {
+    preset.bbwAlphaBaseline = DEFAULT_BBW_EWMA_ALPHA;
+    preset.bbwProfileVersion = BBW_PROFILE_VERSION;
+  }
+  out.schemaVersion = CONFIG_SCHEMA_VERSION;
+  out.checksum = persistedSettingsChecksum(out);
+  return true;
 }
 
 inline bool migratePersistedSettingsFromV8(const PersistedSettings &v8,

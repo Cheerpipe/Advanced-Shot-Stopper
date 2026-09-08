@@ -930,12 +930,13 @@ void buildSlimPresetsJson(const ShotPresetBank &presets) {
         buf + used, cap - used,
         "%s{\"id\":%u,\"name\":\"%s\",\"isFactory\":%s,\"brewByWeight\":%s,"
         "\"goalWeightG\":%u,\"minBbwBrewTimeMs\":%lu,\"maxRecoveryWeightG\":%.1f,"
-        "\"bbwAlgorithm\":\"%s\"}",
+        "\"bbwAlgorithm\":\"%s\",\"bbwAlphaBaseline\":%.2f}",
         i == 0 ? "" : ",", static_cast<unsigned>(p.id), safeName,
         p.isFactory ? "true" : "false", p.brewByWeight ? "true" : "false",
         static_cast<unsigned>(p.goalWeightG),
         static_cast<unsigned long>(p.minBbwBrewTimeMs),
-        static_cast<double>(p.maxRecoveryWeightG), bbwAlgorithmName(p.bbwAlgorithm));
+        static_cast<double>(p.maxRecoveryWeightG), bbwAlgorithmName(p.bbwAlgorithm),
+        p.bbwAlphaBaseline / 100.0);
     if (n < 0 || static_cast<size_t>(n) >= cap - used) {
       break;
     }

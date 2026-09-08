@@ -113,6 +113,38 @@ The [documentation index](docs/README.md#settings) links each settings group.
 Defaults are starting points; Fast and Slow guards can intentionally finish
 above or below the target weight.
 
+### Brew by weight: offset and learning factor
+
+**Linear regression + offset correction** (`legacy` in API/CSV) applies the
+full final-weight error to its learned stop offset. **Linear prediction +
+adaptive EWMA** applies a fraction, α, of that error. Both stop toward
+`target − learned offset`; **Baseline offset (g)** is the saved reset value
+for either method, not an additional compensation.
+
+For an eligible EWMA shot, `next offset = clamp(offset + α × (final − target), 0, 5)`.
+For example, with target 36 g, final weight 36.20 g and offset 1.50 g:
+
+| Current α | Next offset |
+| --- | --- |
+| 0.10 | 1.52 g |
+| 0.30 | 1.56 g |
+| 0.60 | 1.62 g |
+
+A larger α responds faster to changes but also follows individual-shot noise
+more strongly. A smaller α smooths that noise but adapts more slowly. An
+underweight result reduces the offset so the next cutoff occurs later.
+α learns between shots; it does not filter live scale readings or guarantee
+better accuracy on a particular machine.
+
+**Baseline learning factor (α)** is saved per preset, from 0.01 to 1.00 in
+steps of 0.01, initially 0.30. Saving either base preserves current learning.
+**Reset learned stop offset to baseline** resets only the selected offset;
+EWMA keeps its current α. **Reset EWMA learning** restores both saved bases,
+marks α initial and clears its evidence. Automatic learning may subsequently
+choose 0.10, 0.30, 0.50 or 1.00; a custom α remains active until a candidate
+earns a switch. See [BBW learning](docs/features/brew-by-weight.md#cutoff-algorithms-and-learning)
+for eligibility, comparison windows and persistence.
+
 ## First connection
 
 After installation and bench verification, follow

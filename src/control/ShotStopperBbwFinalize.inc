@@ -51,7 +51,7 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
     return false;
   }
   if (snapshot.bbwAlgorithm > 1 ||
-      snapshot.bbwProfileVersion != preset->bbwProfileVersion) return false;
+      snapshot.bbwProfileVersion != bbwAlgorithmVersion(snapshot.bbwAlgorithm)) return false;
   auto &learning = bbwLearningBank.forPreset(preset->id, presetBank);
   if (snapshot.bbwLearningGeneration != learning.generations[snapshot.bbwAlgorithm])
     return false;

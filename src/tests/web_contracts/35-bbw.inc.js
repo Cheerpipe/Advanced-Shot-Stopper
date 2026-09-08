@@ -1,6 +1,11 @@
 {
   const assert = require('assert');
   const vm = require('vm');
+  assert(html.includes('<option value="legacy">Linear regression + offset correction</option>'));
+  assert(!html.includes('<div class="row"><label>Target (g)'));
+  for (const id of ['resetCalibrationButton', 'resetEwmaButton'])
+    assert(html.includes('id="' + id + '" class="btnGlyph mutable"'));
+  assert(html.includes('id="bbwAlphaBaseline" type="number" min="0.01" max="1" step="0.01" required'));
   const elements = new Map();
   const element = (id, classes = []) => {
     const names = new Set(classes);
@@ -13,12 +18,15 @@
   };
   for (const id of ['bbwAlgorithm', 'brewByWeight', 'learnedOffsetG', 'bbwAlpha',
     'bbwAlphaStatus', 'bbwAlgorithmHelp', 'resetCalibrationButton',
-    'resetEwmaButton', 'weightOffsetBaselineG', 'goalWeightG']) element(id);
+    'resetEwmaButton', 'weightOffsetBaselineG', 'bbwAlphaBaseline', 'goalWeightG']) element(id);
   const learning = element('learning', ['bbwLearning']);
   learning.querySelectorAll = () => [elements.get('weightOffsetBaselineG'),
-    elements.get('resetCalibrationButton'), elements.get('resetEwmaButton')];
+    elements.get('resetCalibrationButton'), elements.get('resetEwmaButton'), elements.get('bbwAlphaBaseline')];
   const ewma = element('ewma', ['bbwEwma']);
+  ewma.querySelectorAll = () => [elements.get('bbwAlphaBaseline'), elements.get('resetEwmaButton')];
   const select = elements.get('bbwAlgorithm');
+  Object.defineProperty(select, 'selectedOptions', {get: () => [{textContent:
+    select.value === 'legacy' ? 'Linear regression + offset correction' : 'Linear prediction + adaptive EWMA'}]});
   const context = vm.createContext({$: id => elements.get(id), controlsMutable: true,
     brewDirty: false, configDirty: false, configLoaded: true, formRev: 1,
     document: {querySelectorAll: () => [learning, ewma]}});
@@ -37,6 +45,8 @@
   context.brewDirty = true;
   refresh();
   assert(ewma.classList.contains('hidden'));
+  assert(elements.get('bbwAlphaBaseline').disabled);
+  assert.equal(elements.get('bbwAlgorithmHelp').textContent, 'Linear regression + offset correction');
   assert.equal(elements.get('learnedOffsetG').textContent, '0.00 g');
   assert(elements.get('resetCalibrationButton').disabled);
   vm.runInContext('bbwReadback.bbwAlpha=.5;bbwReadback.bbwAlphaSource="learned";bbwReadback.bbwEvidenceCount=20', context);
@@ -75,6 +85,14 @@
   assert(!('bbwAlgorithm' in fields));
   assert(!('weightOffsetBaselineG' in fields));
   assert(!('bbwAlpha' in fields));
+  assert(!('bbwAlphaBaseline' in fields));
+  context.controlsMutable = true;
+  elements.get('brewByWeight').checked = true;
+  select.value = 'linear_ewma';
+  refresh();
+  const withBase = makePayload(id => elements.get(id) || {checked: true, value: 'auto'},
+    id => id === 'bbwAlphaBaseline' ? .37 : 36, () => 30000, {activeId: 1}, 2);
+  assert.equal(withBase.bbwAlphaBaseline, .37);
 }
 
 (async () => {
@@ -83,8 +101,8 @@
   let blob;
   const records = Array.from({length: 120}, (_, i) => ({id: i + 1, bootId: 1,
     goalG: 36, actualG: 36.2, offsetG: i ? 1.5 : 0, durationS: 30,
-    bbwAlgorithm: i % 2 ? 'legacy' : 'linear_ewma', bbwAlgorithmVersion: 1,
-    bbwAlpha: i % 2 ? 1 : .3, bbwLearningApplied: i ? true : null, presetId: i ? 255 : 0}));
+    bbwAlgorithm: i % 2 ? 'legacy' : 'linear_ewma', bbwAlgorithmVersion: i % 2 ? 1 : 2,
+    bbwAlpha: i % 2 ? 1 : .37, bbwLearningApplied: i ? true : null, presetId: i ? 255 : 0}));
   const context = vm.createContext({
     api: async url => {assert.equal(url, '0/120/date/desc'); return {shots: records};},
     shotsUrl: (...args) => args.join('/'), SHOTS_EXPORT_LIMIT: 120,
@@ -101,6 +119,6 @@
   assert.equal(lines[0][11], 'offset_g');
   assert.equal(lines[1][11], '0');
   assert.deepEqual(lines[0].slice(-5), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id']);
-  assert.deepEqual(lines[1].slice(-5), ['linear_ewma', '1', '0.30', '', '']);
+  assert.deepEqual(lines[1].slice(-5), ['linear_ewma', '2', '0.37', '', '']);
   assert.deepEqual(lines[2].slice(-5), ['legacy', '1', '1.00', '1', '255']);
 })().catch(error => {console.error(error); process.exitCode = 1;});

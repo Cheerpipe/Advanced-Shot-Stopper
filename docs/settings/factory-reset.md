@@ -28,10 +28,12 @@ A shorter paddle gesture (three cycles) restores the device password / forgets S
 ## After reset
 
 Factory Single/Double select **Linear prediction + adaptive EWMA**, with both
-Legacy and EWMA offsets at their 0.50/1.50 g baselines, α=0.30, initial
+regression and EWMA offsets at their 0.50/1.50 g baselines, current/base α=0.30, initial
 provenance and empty candidate evidence. In Settings, offset-only reset affects
 just the selected algorithm; **Reset EWMA learning** additionally resets its
-gain/evidence. Neither is a device factory reset. See [BBW](../features/brew-by-weight.md#cutoff-algorithms-and-learning).
+gain to the preset's saved alpha baseline and clears evidence. Neither is a
+device factory reset. The regression selector is named **Linear regression +
+offset correction**. See [BBW](../features/brew-by-weight.md#cutoff-algorithms-and-learning).
 
 **Automatic tare outside a brew** returns to ON. See [Tare](tare.md) for the
 placement trigger and how a tared cup at zero satisfies the cup-start guard.

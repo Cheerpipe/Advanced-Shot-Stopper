@@ -35,7 +35,7 @@ void resetSessionForNewCycle(ControlSource source) {
   session.activePresetId = presetBank.activeId;
   const ShotPreset &preset = activeShotPreset(presetBank);
   session.config.bbwAlpha = preset.bbwAlgorithm == 0 ? 100 : preset.bbwEwmaAlpha;
-  session.config.bbwProfileVersion = preset.bbwProfileVersion;
+  session.config.bbwProfileVersion = bbwAlgorithmVersion(preset.bbwAlgorithm);
   session.config.bbwLearningGeneration = bbwLearningBank.forPreset(
       preset.id, presetBank).generations[preset.bbwAlgorithm];
   session.endReason = EndReason::NONE;

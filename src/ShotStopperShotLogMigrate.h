@@ -1,7 +1,7 @@
 #pragma once
 
-// V1/V2 -> V3 retains the same record layout and initializes newly used bits.
-// Older firmware rejects V3; choosing Legacy in current firmware is supported.
+// V1–V3 -> V4 preserves record size and converts alpha codes to hundredths.
+// Older firmware rejects V4; the regression mode remains selectable.
 //
 // When bumping SHOT_LOG_SCHEMA_VERSION:
 // 1. Keep the previous record/store layout as ShotLogRecordV<N> / StoreV<N>.
@@ -30,7 +30,7 @@ inline ShotLogDecodeStatus decodeShotLogBlob(const void *bytes, size_t length,
 
   const auto *asCurrent = reinterpret_cast<const ShotLogStore *>(bytes);
   const uint16_t version = asCurrent->header.schemaVersion;
-  const bool legacy = version == 1 || version == 2;
+  const bool legacy = version >= 1 && version <= 3;
   if (shotLogBlobLengthMatches(*asCurrent, length) &&
       validShotLogStore(*asCurrent, legacy ? version : SHOT_LOG_SCHEMA_VERSION)) {
     if (&out != asCurrent) {
@@ -43,7 +43,11 @@ inline ShotLogDecodeStatus decodeShotLogBlob(const void *bytes, size_t length,
           record.extractionGuardEnabled = (record.extractionGuardEnabled & 0x1f) | 0x20;
           record.extractionExtended &= 3;
         }
-        shotLogSetPresetId(record, 0);  // Never infer a past preset from current settings.
+        const uint8_t code = (record.extractionExtended >> 2) & 7;
+        const uint8_t alpha = code >= 1 && code <= 4 ? BBW_ALPHA_CANDIDATES[code - 1] : 0;
+        record.extractionExtended = (record.extractionExtended & 0x63) | ((alpha & 7) << 2);
+        record.cutType = (record.cutType & 15) | ((alpha >> 3) << 4);
+        if (version < 3) shotLogSetPresetId(record, 0);  // Older IDs are unknown.
       }
       finalizeShotLogStore(out);
       return ShotLogDecodeStatus::MIGRATED;

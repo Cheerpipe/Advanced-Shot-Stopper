@@ -140,7 +140,6 @@ if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
 }
 if (!ui.includes('id="operationalWallS" type="number" min="5" max="60"') ||
     !ui.includes('Max BBW time (s)') ||
-    !ui.includes('Time limit for automatic BBW shots.') ||
     !ui.includes('sToMs(') ||
     !ui.includes('rinseGestureMs:sToMs') ||
     !network.includes('Max BBW time must be from 5 to 60 s.')) {

@@ -141,13 +141,15 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
         sizeof(settings)) {
       return false;
     }
-    if (settings.schemaVersion >= 6 && settings.schemaVersion <= 8) {
+    if (settings.schemaVersion >= 6 && settings.schemaVersion <= 9) {
       PersistedSettings &migrated = persistedSettingsV6MigrationScratch();
       if (!(settings.schemaVersion == 6
                 ? migratePersistedSettingsFromV6(settings, migrated)
                 : settings.schemaVersion == 7
                       ? migratePersistedSettingsFromV7(settings, migrated)
-                      : migratePersistedSettingsFromV8(settings, migrated))) {
+                      : settings.schemaVersion == 8
+                            ? migratePersistedSettingsFromV8(settings, migrated)
+                            : migratePersistedSettingsFromV9(settings, migrated))) {
         return false;
       }
       settings = migrated;
@@ -194,8 +196,7 @@ inline bool loadPersistedSettings(PersistedSettings &settings) {
   }
   PersistedSettings &first = persistedSettingsScratch(0);
   PersistedSettings &second = persistedSettingsScratch(1);
-  first = PersistedSettings{};
-  second = PersistedSettings{};
+  first.storageRevision = second.storageRevision = 0;
   bool firstValid = readSettingsSlot(preferences, SETTINGS_SLOT_A, first);
   bool secondValid = readSettingsSlot(preferences, SETTINGS_SLOT_B, second);
   preferences.end();
@@ -339,12 +340,10 @@ inline bool resetPersistedSettingsToFactory(PersistedSettings &settings) {
 
   uint32_t existingMax = 0;
   PersistedSettings &probe = persistedSettingsScratch(0);
-  probe = PersistedSettings{};
   if (readSettingsSlot(preferences, SETTINGS_SLOT_A, probe) &&
       probe.storageRevision > existingMax) {
     existingMax = probe.storageRevision;
   }
-  probe = PersistedSettings{};
   if (readSettingsSlot(preferences, SETTINGS_SLOT_B, probe) &&
       probe.storageRevision > existingMax) {
     existingMax = probe.storageRevision;
@@ -358,7 +357,6 @@ inline bool resetPersistedSettingsToFactory(PersistedSettings &settings) {
   }
 
   PersistedSettings &first = persistedSettingsScratch(0);
-  first = PersistedSettings{};
   if (!initializeDefaultSettings(first)) {
     preferences.end();
     unlockSettingsNvs();
@@ -381,10 +379,8 @@ inline bool resetPersistedSettingsToFactory(PersistedSettings &settings) {
   const bool secondSaved =
       preferences.putBytes(SETTINGS_SLOT_B, &second, sizeof(second)) ==
       sizeof(second);
-  first = PersistedSettings{};
   const bool firstVerified =
       firstSaved && readSettingsSlot(preferences, SETTINGS_SLOT_A, first);
-  second = PersistedSettings{};
   const bool secondVerified =
       secondSaved && readSettingsSlot(preferences, SETTINGS_SLOT_B, second);
   preferences.end();

@@ -75,18 +75,22 @@ are reset; separate those epochs rather than pool unrelated physical setups.
 `offset_g` is the compensation captured at shot start, **before learning**,
 in grams at 0.01 g storage resolution. Zero is valid. It is not the baseline,
 next learned offset or measured post-shutdown water. `bbw_alpha` is also
-captured at shot start: Legacy v1 uses 1.00; adaptive EWMA v1 may use 0.10,
-0.30, 0.50 or 1.00. It is not a gain selected after this shot's result.
+captured at shot start: **Linear regression + offset correction** (`legacy`, v1)
+uses 1.00; historical adaptive EWMA v1 may use 0.10, 0.30, 0.50 or 1.00.
+EWMA v2 supports exact hundredths from 0.01 through 1.00, including custom
+gains such as 0.37. It is not a gain selected after this shot's result.
 Learning applied is `1`/`0` in CSV and true/false in JSON; a skipped shot still
 retains its assigned gain. For example, appended CSV values can be
-`linear_ewma,1,0.30,1` and later `linear_ewma,1,0.50,1` for the same preset.
+`linear_ewma,2,0.37,1` and later `linear_ewma,2,0.50,1` for the same preset.
 
 Migrated pre-selector records keep their offsets, ratings and guard flags,
-and identify Legacy with unknown version, gain and learning status (JSON null,
+and identify `legacy` with unknown version, gain and learning status (JSON null,
 CSV empty). Unrecognized provenance is `unknown`, never the current setting.
-History schema V3 retains 48-byte records and the 120-shot limit. V2 migration
-preserves cutoff metadata and marks preset identity unknown. Older firmware
-rejects V3; use the current firmware's Legacy selector for comparison.
+History schema V4 retains 48-byte records and the 120-shot limit. V1/V2 migration
+marks preset identity unknown; V3 retains IDs. Old alpha codes become exact
+hundredths without changing historical algorithm versions. Older firmware
+rejects V4; select Linear regression + offset correction in current firmware
+for comparison. Renaming the visible method does not rename API/CSV identifiers.
 
 Algorithm identity describes the shot's configured policy even when a guard
 or manual action ends it; use `stop`, `shot_type` and `cut_type` to interpret

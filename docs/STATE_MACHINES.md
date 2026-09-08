@@ -112,7 +112,8 @@ accepted weight do not. The stopper stays in `BREW` and A→M may still
 cut later. Cup `REMOVED` can cut if that option is on.
 
 At cycle start, control snapshots the preset's BBW algorithm, profile, offset,
-actual gain and learning generation. Legacy and adaptive EWMA differ only in
+actual gain and learning generation. Linear regression + offset correction
+(`legacy`, v1) and adaptive EWMA (v2) differ only in
 their mathematical prediction/learning policy; direct confirmation and guard
 precedence remain common. Prediction failure retains the selected identity and
 uses the existing fallback. Safety trips, hard/operational walls, physical stop,
@@ -121,7 +122,7 @@ cup removal and Fast/Slow recovery retain their existing authority in both modes
 After drip delay, history records captured values and whether learning applied.
 EWMA trains only after a normal weight-target cut; manual, time/safety-limit and
 cup-removal outcomes cannot adjust its offset or candidate evidence. Their
-existing history eligibility and Legacy learning rules remain unchanged.
+existing history eligibility and regression learning rules remain unchanged.
 EWMA reuses the accepted final observation and additionally requires fresh weight,
 valid baseline and matching connection provenance. Control updates only the
 originating preset/algorithm generation. Reset or deletion invalidates pending

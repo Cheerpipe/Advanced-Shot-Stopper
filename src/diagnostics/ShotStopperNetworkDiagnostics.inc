@@ -1052,6 +1052,9 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
       curve = &emptyCurve;
     }
     char curveJson[640] = {};
+    char alphaJson[5] = "null";
+    const unsigned alpha = shotLogBbwAlpha(record);
+    if (alpha) snprintf(alphaJson, sizeof(alphaJson), "%u.%02u", alpha / 100, alpha % 100);
     if (!formatShotCurveJsonBody(curveJson, sizeof(curveJson), *curve)) {
       curveJson[0] = '\0';
     }
@@ -1083,7 +1086,7 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
              errorPct,
              static_cast<double>(record.offsetUsedCg) / 100.0,
              shotLogBbwAlgorithm(record), shotLogBbwVersion(record),
-             shotLogBbwAlpha(record), shotLogBbwLearningApplied(record), flow,
+             alphaJson, shotLogBbwLearningApplied(record), flow,
              firstDrop,
              shotLogTypeName(shotLogType(record)),
              shotLogCutName(shotLogCut(record)),
