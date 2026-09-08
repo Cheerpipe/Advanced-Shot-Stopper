@@ -91,6 +91,13 @@ the maximum interrupts-disabled duration for every retained group.
 
 ## Snapshot contract
 
+BBW candidate windows, learning generations and both per-preset offsets belong
+to control. Network reads gain, provenance, evidence count and both offset
+previews from the same committed control snapshot as the active preset ID;
+it never reads candidate RAM. Cycle/finalizer snapshots retain the actual applied
+gain and generation. Deferred persistence still owns writes; no new task, queue,
+mutex or lock-order edge is introduced.
+
 Control, gate, recipe, profiler, scale-link, network, OTA and webhook readers
 must use their snapshot APIs. A snapshot includes a publication timestamp or
 age; control status also carries a monotonic `snapshotVersion`. Observational

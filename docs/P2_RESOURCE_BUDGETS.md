@@ -29,11 +29,20 @@ objects to PSRAM would move synchronization state accessed under spinlocks.
 | Radio settings snapshot | at most 192 bytes; full 2616-byte settings remain for durable mutations |
 | Fixed buzzer melodies | at most 8 notes each; custom tune capacity remains 250 notes |
 | JSON parser | PSRAM only; input at most 2047 bytes, nesting 32, values 128 |
+| BBW adaptive candidates | control-owned fixed RAM, at most 3,000 bytes for eight presets; four 20-observation loss windows each |
 
 Network command builders must activate their union member with
 `setNetworkType()` before writing credentials. Preset metadata remains outside
 the union because a preset operation also carries configuration. Persisted
 record layouts are unchanged.
+
+BBW settings V9/history V3 change byte meanings through explicit migration,
+without growing either blob. Web gzip remains capped at 64,000 bytes combined:
+500 bytes of the shell-JS allowance are reassigned to runtime (5,444 and 32,000
+bytes respectively). Source authoring limits are 54,900 bytes HTML and 167,100
+bytes JS, 222,000 combined: 1,000 more source bytes for selector readback/CSV
+after condensing BBW help. These source allowances do not raise firmware or
+combined compressed-asset limits.
 
 Capability samples use `INTERNAL|8BIT` and `SPIRAM|8BIT`, including the PSRAM
 minimum-free watermark. Diagnostic `memoryAllocations` reports cumulative

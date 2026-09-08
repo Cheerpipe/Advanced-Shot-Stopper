@@ -483,6 +483,8 @@ const char *configValidationMessage(ConfigValidationError error) {
       return "Reed confirm timeout must be from 0.2 to 5 s.";
     case ConfigValidationError::SHOT_REACT_TIMEOUT:
       return "Shot reaction timeout must be 0 (compiled default) or from 3 to 30 s.";
+    case ConfigValidationError::BBW_ALGORITHM:
+      return "Cutoff algorithm must be legacy or linear_ewma.";
   }
   return "Invalid configuration.";
 }
@@ -927,12 +929,13 @@ void buildSlimPresetsJson(const ShotPresetBank &presets) {
     n = snprintf(
         buf + used, cap - used,
         "%s{\"id\":%u,\"name\":\"%s\",\"isFactory\":%s,\"brewByWeight\":%s,"
-        "\"goalWeightG\":%u,\"minBbwBrewTimeMs\":%lu,\"maxRecoveryWeightG\":%.1f}",
+        "\"goalWeightG\":%u,\"minBbwBrewTimeMs\":%lu,\"maxRecoveryWeightG\":%.1f,"
+        "\"bbwAlgorithm\":\"%s\"}",
         i == 0 ? "" : ",", static_cast<unsigned>(p.id), safeName,
         p.isFactory ? "true" : "false", p.brewByWeight ? "true" : "false",
         static_cast<unsigned>(p.goalWeightG),
         static_cast<unsigned long>(p.minBbwBrewTimeMs),
-        static_cast<double>(p.maxRecoveryWeightG));
+        static_cast<double>(p.maxRecoveryWeightG), bbwAlgorithmName(p.bbwAlgorithm));
     if (n < 0 || static_cast<size_t>(n) >= cap - used) {
       break;
     }

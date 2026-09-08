@@ -1,6 +1,6 @@
 #pragma once
 
-// Current shot-log schema (v7) and domain helpers. No Preferences / NVS.
+// Current shot-log schema (v3) and domain helpers. No Preferences / NVS.
 
 #include "ShotStopperDomain.h"
 
@@ -12,8 +12,7 @@
 namespace shotstopper {
 
 constexpr uint32_t SHOT_LOG_MAGIC = 0x534C4F47U;  // "SLOG"
-// Current shot-log schema. V1 is the baseline — no upgrade from prior layouts.
-constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 1;
+constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 3;
 constexpr size_t SHOT_LOG_CAPACITY = 120;
 constexpr size_t SHOT_LOG_PAGE_DEFAULT = 10;
 
@@ -317,10 +316,11 @@ struct ShotLogRecord {
   int16_t offsetUsedCg;
   uint16_t firstDropDs;
   uint16_t avgFlowCgS;
-  uint8_t shotType;
-  uint8_t cutType;
-  // Bits 0–1: Fast/Slow guard enabled. Bits 2–4: user rating 0–5.
+  uint8_t shotType;  // Bits 0–1: type; 2–7: preset ID low six bits.
+  uint8_t cutType;   // Bits 0–1: cut; 2–3: preset ID high two bits.
+  // Bits 0–1: guards; 2–4: rating; 5–7: BBW profile.
   uint8_t extractionGuardEnabled;
+  // Bits 0–1: extensions; 2–4: alpha code; 5–6: learning status.
   uint8_t extractionExtended;
   uint8_t stopDetail;
   // Placed in the former v5 padding byte so sizeof stays 48 (no NVS growth).
@@ -332,6 +332,54 @@ struct ShotLogRecord {
 
 static_assert(sizeof(ShotLogRecord) == 48,
               "ShotLogRecord must stay 48 bytes for NVS headroom");
+
+inline ShotLogType shotLogType(const ShotLogRecord &record) {
+  return static_cast<ShotLogType>(record.shotType & 3);
+}
+inline ShotLogCut shotLogCut(const ShotLogRecord &record) {
+  return static_cast<ShotLogCut>(record.cutType & 3);
+}
+inline uint8_t shotLogPresetId(const ShotLogRecord &record) {
+  return (record.shotType >> 2) | ((record.cutType & 12) << 4);
+}
+inline void shotLogSetPresetId(ShotLogRecord &record, uint8_t id) {
+  record.shotType = (record.shotType & 3) | ((id & 63) << 2);
+  record.cutType = (record.cutType & 3) | ((id >> 6) << 2);
+}
+
+// Profile 0 unknown, 1 pre-selector Legacy (version unknown), 2 Legacy v1,
+// 3 adaptive EWMA v1. Alpha 0 unknown, 1..4 = .10/.30/.50/1.00.
+inline uint8_t shotLogBbwProfile(const ShotLogRecord &record) {
+  return record.extractionGuardEnabled >> 5;
+}
+inline const char *shotLogBbwAlgorithm(const ShotLogRecord &record) {
+  const uint8_t profile = shotLogBbwProfile(record);
+  return profile == 1 || profile == 2 ? "legacy"
+       : profile == 3 ? "linear_ewma" : "unknown";
+}
+inline const char *shotLogBbwVersion(const ShotLogRecord &record) {
+  const uint8_t profile = shotLogBbwProfile(record);
+  return profile == 2 || profile == 3 ? "1" : "null";
+}
+inline const char *shotLogBbwAlpha(const ShotLogRecord &record) {
+  static const char *const values[] = {"null", "0.10", "0.30", "0.50", "1.00"};
+  const uint8_t code = (record.extractionExtended >> 2) & 7;
+  return code <= 4 ? values[code] : "null";
+}
+inline const char *shotLogBbwLearningApplied(const ShotLogRecord &record) {
+  const uint8_t code = (record.extractionExtended >> 5) & 3;
+  return code == 1 ? "false" : code == 2 ? "true" : "null";
+}
+inline void shotLogSetBbw(ShotLogRecord &record, uint8_t algorithm,
+                          uint8_t version, uint8_t alpha, bool applied) {
+  uint8_t alphaCode = 0;
+  for (uint8_t i = 0; i < 4; ++i)
+    if (BBW_ALPHA_CANDIDATES[i] == alpha) alphaCode = i + 1;
+  const uint8_t profile = version == 1 && algorithm <= 1 ? algorithm + 2 : 0;
+  record.extractionGuardEnabled = (record.extractionGuardEnabled & 0x1f) | (profile << 5);
+  record.extractionExtended = (record.extractionExtended & 3) |
+      (alphaCode << 2) | ((applied ? 2 : 1) << 5);
+}
 
 // Input must be newest-first (copyNewestFirst). Date+desc is a no-op.
 inline void shotLogReverseRecords(ShotLogRecord *records, size_t count) {
@@ -441,9 +489,10 @@ inline void finalizeShotLogStore(ShotLogStore &store) {
   store.header.checksum = shotLogChecksum(store);
 }
 
-inline bool validShotLogStore(const ShotLogStore &store) {
+inline bool validShotLogStore(const ShotLogStore &store,
+                              uint16_t version = SHOT_LOG_SCHEMA_VERSION) {
   if (store.header.magic != SHOT_LOG_MAGIC ||
-      store.header.schemaVersion != SHOT_LOG_SCHEMA_VERSION ||
+      store.header.schemaVersion != version ||
       store.header.recordSize != sizeof(ShotLogRecord) ||
       store.header.count > SHOT_LOG_CAPACITY ||
       store.header.writeIndex >= SHOT_LOG_CAPACITY ||

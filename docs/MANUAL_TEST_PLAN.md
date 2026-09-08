@@ -99,6 +99,19 @@ and [target traces](P2_TARGET_TRACE.md), not by a historical pass.
 | M66 | In **Settings → Machine and scale → Scales**, set **Drip delay** to 0 s, run a shot, then repeat with 3.0 s and 10.0 s while watching Last Shot/history and the scale weight after machine circuit opens. Reboot after saving and verify the selected value remains. | `status/settings.config.dripDelayMs` reports 0, 3000, and 10000 respectively. Final weight/history update on the next control loop at 0 s and only after the configured window at 3/10 s. The saved value survives reboot; starting another shot during a pending window commits the previous shot with its last-known weight. |
 | M66B | With a local buzzer build, select **Buzzer only**, enable **Bullseye melody**, paste a valid RTTTL tune (≤500 characters), and save. Finish automatic, timer-only, and manual shots at the exact target; also try a brief target touch, a stable non-target weight, Scale priority, Sound alerts OFF, and disabling/re-enabling Bullseye. | The custom tune plays once after 1 continuous second of fresh exact-target samples, including before drip delay expires. It stays silent for brief/non-target runs and outside Buzzer only. Disabling makes the textarea gray/read-only without erasing it; re-enabling and rebooting restore the saved tune. Rinses never trigger it. |
 
+## BBW algorithm acceptance
+
+These checks require explicit hardware authorization and remain required even
+after automated tests pass. Record build, machine, scale, preset and reset state.
+
+| ID | Procedure | Expected result |
+| --- | --- | --- |
+| BBW-M01 | Fresh settings, new/duplicate/factory recipe, V8 upgrade and ordinary reboot. Save Legacy explicitly and reboot again. | Fresh/new/reset select EWMA at α=0.30; migration copies old offsets into independent states; duplicate copies current gain; saved mode/gain survives reboot while evidence restarts. |
+| BBW-M02 | Change the draft selector, poll, save, change presets; repeat with BBW OFF and configuration locked. | Correct offset preview; Legacy hides gain/full-reset; EWMA shows actual gain/source; no dirty-value loss; hidden controls cannot submit or reset state. |
+| BBW-M03 | Reset offset after stopping, then reset full EWMA learning; switch algorithms and reboot. | Offset-only preserves α; full reset restores baseline/0.30; Legacy is retained; pending learning cannot undo either reset; history keeps captured offset/gain. |
+| BBW-M04 | Repeat weight cutoff, Fast/Slow extensions, scale loss, cup removal, physical stop and time-limit acceptance in both modes. | Same guard/safety precedence; relay open on failures; correct outcome and learning eligibility. |
+| BBW-M05 | Collect representative repeated shots with fixed recipe/scale/coffee and export before 120 rows are overwritten. Compare by algorithm/profile, gain, captured preset_id and day; keep a separate preset for each physical portafilter/basket. | Check bias, absolute-error tails and changes after resets; verify switching presets does not relabel earlier rows. Qualify physical improvement against measurement variation. No accuracy improvement is assumed from host tests. |
+
 ## Idle tare and tared cup acceptance
 
 Run these hardware checks only with explicit authorization. Record scale model,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ShotStopperScaleTypes.h"
+#include "ShotStopperBbwCutoff.h"
 #include "ShotStopperShotLogTypes.h"
 
 // =============================================================================
@@ -25,7 +26,7 @@ void resetShotTrajectory(uint32_t startedAtMs) {
 void calculateExpectedEndTime(float cutTargetG) {
   shot.expectedEndS = predictedWeightStopTimeS(
       shot.timeS, shot.weight, shot.datapoints, cutTargetG,
-      session.config.operationalWallMs / 1000.0f);
+      session.config.operationalWallMs / 1000.0f, session.config.bbwAlgorithm);
 }
 
 void rejectScaleSample(DebugCode code, float weightG, float referenceG = 0.0f) {

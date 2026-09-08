@@ -32,6 +32,7 @@ const webhookHeader = fs.readFileSync(path.join(sketchDir, 'ShotStopperWebhook.h
 const firmwareCore = readSources([
   'shotStopper.cpp',
   'control/ShotStopperCycleRuntime.inc',
+  'control/ShotStopperBbwFinalize.inc',
   'scale/ShotStopperScaleEvents.inc',
   'control/ShotStopperControlStateMachine.inc',
   'persistence/ShotStopperCommandPersistence.inc',

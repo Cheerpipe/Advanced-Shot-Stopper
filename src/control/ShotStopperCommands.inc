@@ -195,6 +195,14 @@ void processWebCommand(const WebCommand &command) {
       }
       ensureShotPresetBank(presetBank, composed.retareWindowMs,
                            composed.autoRetare);
+      if (candidate.dripDelayMs != runtimeConfig.dripDelayMs ||
+          candidate.autoTare != runtimeConfig.autoTare ||
+          candidate.autoRetare != runtimeConfig.autoRetare ||
+          candidate.retareWindowMs != runtimeConfig.retareWindowMs ||
+          candidate.postTareBaselineGraceMs != runtimeConfig.postTareBaselineGraceMs) {
+        for (uint8_t i = 0; i < presetBank.count; ++i)
+          bbwLearningBank.invalidate(presetBank.presets[i].id, presetBank, 1);
+      }
       commitLiveRuntimeConfig(composed, RUNTIME_PERSIST_REASON_USER);
       if (command.bullseyeConfigSpecified) {
         commitLiveBullseyeConfig(stagedBullseye);
@@ -204,13 +212,24 @@ void processWebCommand(const WebCommand &command) {
     }
 
     case WebCommandType::RESET_WEIGHT_OFFSET: {
-      if (!persistentConfigurationMutationAllowed(command)) {
+      if (!persistentConfigurationMutationAllowed(command) ||
+          (command.bbwResetRevisionSpecified &&
+           command.config.revision != runtimeConfig.revision)) {
         rejectWebCommand(command);
         return;
       }
-      pendingFinalize.pending = false;
       ShotPreset &preset = mutableActiveShotPreset(presetBank);
-      preset.weightOffsetG = preset.weightOffsetBaselineG;
+      if (command.bbwFullReset && preset.bbwAlgorithm != 1) {
+        rejectWebCommand(command);
+        return;
+      }
+      bbwLearningBank.invalidate(preset.id, presetBank, preset.bbwAlgorithm);
+      (preset.bbwAlgorithm == 0 ? preset.weightOffsetG : preset.bbwEwmaOffsetG) =
+          preset.weightOffsetBaselineG;
+      if (command.bbwFullReset) {
+        preset.bbwEwmaAlpha = DEFAULT_BBW_EWMA_ALPHA;
+        preset.bbwAlphaLearned = 0;
+      }
       RuntimeConfig candidate = runtimeConfig;
       applyShotPresetToConfig(preset, candidate, true);
       ++candidate.revision;
@@ -264,12 +283,20 @@ void processWebCommand(const WebCommand &command) {
           }
           ShotPreset candidateRecipe = *preset;
           copyUserRecipeFromConfig(command.config, candidateRecipe);
+          if (!command.bbwAlgorithmSpecified)
+            candidateRecipe.bbwAlgorithm = preset->bbwAlgorithm;
+          if (!command.bbwBaselineSpecified)
+            candidateRecipe.weightOffsetBaselineG = preset->weightOffsetBaselineG;
           // Form sends brewByWeight explicitly; do not use session Manual.
           candidateRecipe.brewByWeight = !command.config.timerOnly;
           ok = validateShotPresetRecipe(candidateRecipe,
                                         runtimeConfig.retareWindowMs,
                                         runtimeConfig.autoRetare);
           if (ok) {
+            ShotPreset previous = *preset;
+            previous.bbwAlgorithm = candidateRecipe.bbwAlgorithm;
+            if (memcmp(&previous, &candidateRecipe, sizeof(previous)) != 0)
+              bbwLearningBank.invalidate(preset->id, presetBank);
             // Preserve learned fields from the live preset.
             candidateRecipe.weightOffsetG = preset->weightOffsetG;
             memcpy(candidateRecipe.autoToManualGuardSamplesDs,
@@ -285,6 +312,10 @@ void processWebCommand(const WebCommand &command) {
           break;
         case PresetAction::DELETE:
           ok = deleteShotPreset(presetBank, command.presetId);
+          if (ok) {
+            for (auto &state : bbwLearningBank.states)
+              if (state.id == command.presetId) state = BbwLearningBank::State{};
+          }
           break;
         case PresetAction::DUPLICATE:
           ok = duplicateShotPreset(presetBank, command.presetId, newId);
@@ -294,6 +325,7 @@ void processWebCommand(const WebCommand &command) {
           break;
         case PresetAction::RESTORE_FACTORY_VALUES:
           ok = restoreFactoryShotPresetValues(presetBank, command.presetId);
+          if (ok) bbwLearningBank.invalidate(command.presetId, presetBank);
           break;
       }
       if (!ok) {
@@ -621,6 +653,13 @@ bool applyBleCompanionRecipeRequest(const BleCompanionRequest &request) {
     return true;
   }
   presetBank = candidateBank;
+  if (candidateRuntime.autoTare != runtimeConfig.autoTare ||
+      candidateRuntime.dripDelayMs != runtimeConfig.dripDelayMs) {
+    for (uint8_t i = 0; i < presetBank.count; ++i)
+      bbwLearningBank.invalidate(presetBank.presets[i].id, presetBank, 1);
+  } else {
+    bbwLearningBank.invalidate(presetBank.activeId, presetBank);
+  }
   RuntimeConfig committed = composed;
   committed.revision = runtimeConfig.revision + 1;
   if (committed.revision == 0) {

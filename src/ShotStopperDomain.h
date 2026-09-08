@@ -10,6 +10,7 @@
 
 #include "ShotStopperSafety.h"
 #include "ShotStopperHwmon.h"
+#include "ShotStopperBbwTypes.h"
 
 // Map ESP-IDF Kconfig (main/Kconfig.projbuild) onto the historical
 // SHOT_STOPPER_* macros. Command-line -DSHOT_STOPPER_*=… wins (ifndef).
@@ -65,7 +66,7 @@ constexpr uint32_t SERIAL_BAUD = 115200;
 // after staOpen). V2 names that byte staWifiSleep without growing the blob.
 // Bump and add a migration when the blob layout changes
 // (see ShotStopperSettingsMigrate.h).
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 8;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 9;
 // Rinse clock default. Detection window default is DEFAULT_RINSE_GESTURE_MS
 // (machine-owned, ShotStopperMachineTypes.h).
 constexpr uint32_t DEFAULT_RINSE_DURATION_MS = 4000;
@@ -696,6 +697,7 @@ struct RuntimeConfig {
   bool showDiagnosticPage = true;
   // V8 names former padding; legacy migrations explicitly initialize it.
   bool autoTareOutsideBrew = true;
+  uint8_t bbwAlgorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
 };
 
 static_assert(sizeof(RuntimeConfig) == 252,
@@ -799,6 +801,10 @@ inline uint8_t runtimeShotReactTimeoutS(const RuntimeConfig &config) {
 }
 
 struct CycleConfigSnapshot {
+  uint8_t bbwAlgorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
+  uint8_t bbwAlpha = DEFAULT_BBW_EWMA_ALPHA;
+  uint8_t bbwProfileVersion = BBW_PROFILE_VERSION;
+  uint32_t bbwLearningGeneration = 0;
   uint32_t revision = 1;
   uint8_t goalWeightG = DEFAULT_GOAL_WEIGHT_G;
   float weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
@@ -853,6 +859,7 @@ struct CycleConfigSnapshot {
 
 inline CycleConfigSnapshot snapshotConfig(const RuntimeConfig &config) {
   CycleConfigSnapshot snapshot;
+  snapshot.bbwAlgorithm = config.bbwAlgorithm;
   snapshot.revision = config.revision;
   snapshot.goalWeightG = config.goalWeightG;
   snapshot.weightOffsetG = config.weightOffsetG;
@@ -952,7 +959,8 @@ enum class ConfigValidationError : uint8_t {
   STOP_PULSE,
   MAX_SINGLE_PRESS,
   REED_CONFIRM_TIMEOUT,
-  SHOT_REACT_TIMEOUT
+  SHOT_REACT_TIMEOUT,
+  BBW_ALGORITHM
 };
 
 constexpr size_t MAX_SHOT_PRESETS = 8;
@@ -1029,53 +1037,7 @@ enum class PresetAction : uint8_t {
   RESTORE_FACTORY_VALUES = 6
 };
 
-struct ShotPreset {
-  uint8_t id = 0;
-  char name[SHOT_PRESET_NAME_CAPACITY] = {};
-  bool isFactory = false;
-  bool brewByWeight = true;
-  uint8_t goalWeightG = DEFAULT_GOAL_WEIGHT_G;
-  uint32_t operationalWallMs = DEFAULT_OPERATIONAL_WALL_MS;
-  uint32_t bbwProtectionMs = DEFAULT_BBW_PROTECTION_MS;
-  float weightOffsetBaselineG = DEFAULT_WEIGHT_OFFSET_G;
-  float weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
-  bool fastExtractionGuardEnabled = true;
-  float maxRecoveryWeightG = DEFAULT_MAX_RECOVERY_WEIGHT_G;
-  uint32_t minBbwBrewTimeMs = DEFAULT_MIN_BBW_BREW_TIME_MS;
-  bool slowExtractionGuardEnabled = true;
-  float minRecoveryWeightG = DEFAULT_MIN_RECOVERY_WEIGHT_G;
-  uint32_t maxBbwBrewTimeMs = DEFAULT_MAX_BBW_BREW_TIME_MS;
-  bool autoToManualGuardEnabled = true;
-  uint8_t autoToManualGuardLimitMode =
-      static_cast<uint8_t>(AutoToManualGuardLimitMode::AUTO);
-  uint32_t autoToManualGuardManualLimitMs =
-      DEFAULT_AUTO_TO_MANUAL_GUARD_MANUAL_LIMIT_MS;
-  uint32_t autoToManualGuardBaselineMs =
-      DEFAULT_AUTO_TO_MANUAL_GUARD_BASELINE_MS;
-  bool cupProtectionEnabled = true;
-  bool stopIfCupRemoved = true;
-  bool requireCupToStart = false;
-  bool avoidAccidentalTouchEnabled = true;
-  // Unused leftover: cup mass lives on RuntimeConfig. Kept for NVS layout.
-  float cupPresentWeightG = DEFAULT_CUP_PRESENT_WEIGHT_G;
-  float cupRemovedWeightG = DEFAULT_CUP_REMOVED_WEIGHT_G;
-  uint16_t autoToManualGuardSamplesDs[AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT] = {
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS};
-};
-
-struct ShotPresetBank {
-  uint8_t count = 0;
-  uint8_t activeId = 0;
-  uint8_t nextId = 3;
-  ShotPreset presets[MAX_SHOT_PRESETS] = {};
-};
-
-static_assert(sizeof(ShotPreset) <= 136, "ShotPreset too large");
-static_assert(sizeof(ShotPresetBank) <= 1100, "ShotPresetBank too large");
+#include "domain/ShotStopperPresetTypes.inc"
 
 inline uint32_t effectiveRetareWindowMs(const RuntimeConfig &config) {
   return config.autoRetare ? config.retareWindowMs : 0U;
@@ -1096,6 +1058,7 @@ inline uint32_t minimumBbwProtectionMs(
 
 inline ConfigValidationError validateRuntimeConfig(
     const RuntimeConfig &config) {
+  if (config.bbwAlgorithm > 1) return ConfigValidationError::BBW_ALGORITHM;
   if (config.goalWeightG < MIN_GOAL_WEIGHT_G ||
       config.goalWeightG > MAX_GOAL_WEIGHT_G) {
     return ConfigValidationError::GOAL_WEIGHT;
@@ -1412,6 +1375,8 @@ inline const char *configValidationErrorName(ConfigValidationError error) {
       return "reedConfirmTimeoutMs";
     case ConfigValidationError::SHOT_REACT_TIMEOUT:
       return "shotReactTimeoutS";
+    case ConfigValidationError::BBW_ALGORITHM:
+      return "bbwAlgorithm";
     case ConfigValidationError::RING_RETAIN_LOG_LEVEL:
       return "ringRetainLogLevel";
     case ConfigValidationError::PADDLE_MODE:
@@ -1858,6 +1823,10 @@ struct WebCommand {
   uint8_t presetId = 0;
   char presetName[24] = {};
   bool persistPresets = false;
+  bool bbwAlgorithmSpecified = false;
+  bool bbwBaselineSpecified = true;
+  bool bbwFullReset = false;
+  bool bbwResetRevisionSpecified = false;
   BuzzerPattern buzzerPattern = BuzzerPattern::NONE;
   BookooDebugAction bookooDebugAction = BookooDebugAction::START;
   uint8_t bookooBeepLevel = 0;
@@ -2128,6 +2097,12 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   uint32_t allocExternalFallbackCount = 0;
   uint32_t scaleEventsDropped = 0;
   RuntimeConfig config = {};
+  uint8_t bbwEvidenceCount = 0;
+  uint8_t bbwPresetId = 0;
+  uint8_t bbwAlpha = DEFAULT_BBW_EWMA_ALPHA;
+  bool bbwAlphaLearned = false;
+  float bbwLegacyOffsetG = DEFAULT_WEIGHT_OFFSET_G;
+  float bbwEwmaOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   LastCycleSummary lastCycle = {};
   PersistedLastShot lastShot = {};
   uint8_t shotCurveCount = 0;

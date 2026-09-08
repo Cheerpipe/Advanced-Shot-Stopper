@@ -42,6 +42,55 @@ limit. Current independent host harnesses exercise SafetyKernel, OTA,
 persistence, webhook policy, BLE protocol/runtime and shared resource owners
 without including either monolithic integration root.
 
+## BBW policy and storage
+
+`ShotStopperBbwCutoff.h` dispatches fixed-size prediction/learning inputs to
+independent Legacy and adaptive EWMA implementations. Shared scale qualification,
+direct confirmation, guards, control arbitration and machine/safety authority
+remain outside the policy. The original trend fit remains shared with accidental
+touch sensing; only EWMA cutoff uses centered OLS. Strategies neither actuate
+hardware nor write flash.
+
+Control owns `BbwLearningBank`: up to eight identity-keyed states, under 3,000
+bytes total, with four 20-loss candidate windows per preset. Scoring is bounded
+post-finalization work, with no allocation or per-sample persistence. The cycle
+and pending finalizer capture preset, algorithm/profile, full-precision offset,
+actual alpha and a per-learner generation. Learning checks the originating state;
+reset/delete/recreation or a conflicting update invalidates it. Recipe changes
+clear evidence; algorithm-only selection freezes/resumes retained EWMA state.
+Settings status publishes active-preset identity, both offsets, gain/provenance
+and evidence count together in the existing coherent control snapshot.
+
+Settings V9 retains the 252-byte RuntimeConfig, 104-byte ShotPreset and
+2616-byte settings blob. Runtime byte 251 and preset byte 45 hold the selector;
+obsolete preset cup floats at bytes 84–91 become EWMA offset (float), alpha
+(hundredths), initial/learned provenance, profile version and reserved zero.
+V1–V8 decoders verify the original checksum before explicitly initializing these
+bytes. The old offset remains Legacy's and seeds EWMA. New schemas retain saved
+choices and valid learned gains. Candidate predictions/losses/generations are RAM
+only; deferred persistence retains offsets, gain/provenance and profile through
+the existing dual-slot owner. Unknown/invalid schemas follow existing recovery;
+old binaries do not understand V9, so downgrades are not learning-preserving.
+
+History V3 keeps 48-byte records and 120 entries. Guard byte bits 5–7 encode
+profile (0 unknown, 1 pre-selector Legacy with unknown version, 2 Legacy v1,
+3 adaptive EWMA v1). Extension byte bits 2–4 encode alpha (0 unknown,
+1–4 = .10/.30/.50/1.00); bits 5–6 encode learning application (0 unknown,
+1 skipped, 2 applied). Guard, rating, extension and weight-source meanings are
+preserved. V1 migration clears newly assigned bits explicitly after CRC
+validation, preserving records and offsets. Shot-type bits 2–7 and cut-type
+bits 2–3 hold the captured preset ID (low six/high two bits); type/cut readers
+mask the low two bits. V1/V2 migration explicitly sets unknown preset ID zero
+after CRC validation; V2 algorithm metadata is retained. V3 is rejected by
+older firmware. The ID follows existing preset allocation, not a historical
+name lookup or globally unique physical-device identity.
+Decoding checks the supplied length before reading record CRCs and copies only
+that validated length; compact inputs do not require a full-store allocation.
+Profile rules are immutable: changing prediction, gain candidates or eligibility
+requires versioned compatibility, not relabeling historical data. Numeric and
+user contracts are in [BBW](features/brew-by-weight.md#cutoff-algorithms-and-learning)
+and [shot history](features/shot-history.md).
+
 ## Residual qualification
 
 RuntimeConfig V8 names byte 250 as the default-ON `autoTareOutsideBrew` switch,

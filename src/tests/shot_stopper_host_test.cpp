@@ -21,6 +21,7 @@ namespace {
 int failures = 0;
 int testsRun = 0;
 bool hostAutoScaleWorkerProgress = true;
+uint8_t hostBbwAlgorithm = 0;
 
 #define CHECK(condition)                                                       \
   do {                                                                         \
@@ -112,6 +113,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   pendingScaleTimerStop = PendingScaleTimerStop{};
   pendingBrewRfRestore = false;
   runtimeConfig = RuntimeConfig{};
+  runtimeConfig.bbwAlgorithm = hostBbwAlgorithm;
+  bbwLearningBank = BbwLearningBank{};
   // Legacy scenarios opt out; dedicated idle-tare cases exercise the ON default.
   runtimeConfig.autoTareOutsideBrew = false;
   runtimeConfig.rinseEnabled = true;
@@ -375,6 +378,15 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   runtimeConfig.requireCupToStart = false;
   mutableActiveShotPreset(presetBank).requireCupToStart = false;
   publishRecipeState();
+}
+
+void preparePendingBbwForTest() {
+  pendingFinalize.pending = true;
+  const ShotPreset &preset = activeShotPreset(presetBank);
+  pendingFinalize.bbwAlgorithm = preset.bbwAlgorithm;
+  pendingFinalize.bbwAlpha = preset.bbwAlgorithm == 0 ? 100 : preset.bbwEwmaAlpha;
+  pendingFinalize.bbwLearningGeneration = bbwLearningBank.forPreset(
+      preset.id, presetBank).generations[preset.bbwAlgorithm];
 }
 
 void verifySafetyInvariants() {
@@ -1275,7 +1287,7 @@ void r03_non_finite_weights_cannot_corrupt_state_or_offset() {
   recordWeightSample(std::numeric_limits<float>::infinity(), hostMillis);
   CHECK(shot.datapoints == 0);
 
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.offsetAnalysis = true;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.endedWeightSequence = 0;
@@ -1553,7 +1565,7 @@ void r11_final_shot_analysis_updates_only_valid_offset() {
   resetHarness(false, true);
   reachReadyFromBoot();
   const float originalOffset = runtimeConfig.weightOffsetG;
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.offsetAnalysis = true;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.endedWeightSequence = 0;
@@ -1567,7 +1579,7 @@ void r11_final_shot_analysis_updates_only_valid_offset() {
   CHECK(fabsf(runtimeConfig.weightOffsetG - 2.5f) < 0.001f);
 
   const float validOffset = runtimeConfig.weightOffsetG;
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.offsetAnalysis = true;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.endedWeightSequence = currentWeightSequence;
@@ -1579,7 +1591,7 @@ void r11_final_shot_analysis_updates_only_valid_offset() {
   runLoopAfter(pendingFinalize.dripDelayMs);
   CHECK(runtimeConfig.weightOffsetG == validOffset);
 
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.offsetAnalysis = true;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.endedWeightSequence = currentWeightSequence;
@@ -1593,11 +1605,150 @@ void r11_final_shot_analysis_updates_only_valid_offset() {
   CHECK(fabsf(runtimeConfig.weightOffsetG) < 0.001f);
 }
 
+void bbw01_snapshots_and_isolated_finalization() {
+  for (EndReason reason : {EndReason::SCALE_THRESHOLD, EndReason::CONFIGURED_WALL_LIMIT,
+                           EndReason::GLOBAL_LIMIT, EndReason::RELAY_SAFETY_FAILURE})
+  for (bool resetBeforeFinalize : {false, true}) {
+    const bool learn = !resetBeforeFinalize && reason == EndReason::SCALE_THRESHOLD;
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.bbwAlgorithm = 1;
+    ShotPreset &preset = mutableActiveShotPreset(presetBank);
+    preset.bbwAlgorithm = 1;
+    preset.bbwEwmaAlpha = 50;
+    preset.bbwAlphaLearned = 1;
+    startCycle();
+    advanceToBrew();
+    CHECK(session.config.bbwAlgorithm == 1 && session.config.bbwAlpha == 50);
+    session.startedWithScale = true;
+    session.scaleBaselineReady = true;
+    session.lastAcceptedWeightG = 34.5f;
+    session.hasWeightAnchor = true;
+    shot.automaticBrew = true;
+    schedulePendingShotFinalize(reason, 30000);
+    session.active = false;
+    pendingFinalize.dripDelayMs = 0;
+    const uint8_t origin = preset.id;
+    const float used = pendingFinalize.weightOffsetG;
+    CHECK(pendingFinalize.bbwAlpha == 50);
+    // A saved choice made after the shot does not redirect its captured policy.
+    preset.bbwAlgorithm = 0;
+    preset.bbwEwmaAlpha = 10;
+    if (resetBeforeFinalize) bbwLearningBank.invalidate(origin, presetBank, 1);
+    setActiveShotPreset(presetBank, FACTORY_PRESET_ID_SINGLE);
+    hostMillis += 20;
+    currentWeight = 36.2f;
+    currentWeightReceivedAtMs = hostMillis;
+    ++currentWeightSequence;
+    currentWeightConnectionGeneration = pendingFinalize.scaleConnectionGeneration;
+    pendingShotFinalizeTask();
+    const ShotPreset *after = mutableShotPreset(presetBank, origin);
+    CHECK(fabsf(after->bbwEwmaOffsetG -
+                (learn ? used + 0.10f : used)) < 1e-5f);
+    CHECK(after->weightOffsetG == used);
+    CHECK(activeShotPreset(presetBank).bbwEwmaOffsetG == 0.5f);
+    ShotLogRecord record[1] = {};
+    CHECK(shotLog.copyNewestFirst(record, 1) == 1);
+    CHECK(record[0].offsetUsedCg == weightToCentigrams(used));
+    CHECK(strcmp(shotLogBbwAlpha(record[0]), "0.50") == 0);
+    CHECK(strcmp(shotLogBbwLearningApplied(record[0]),
+                 learn ? "true" : "false") == 0);
+    CHECK(strcmp(shotLogBbwAlgorithm(record[0]), "linear_ewma") == 0);
+    CHECK(shotLogPresetId(record[0]) == origin);
+  }
+}
+
+void bbw02_freshness_reset_and_safety() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  ShotPreset &preset = mutableActiveShotPreset(presetBank);
+  preset.bbwAlgorithm = 1;
+  preset.bbwEwmaAlpha = 50;
+  preset.bbwAlphaLearned = 1;
+  preset.bbwEwmaOffsetG = 2.0f;
+  preparePendingBbwForTest();
+  pendingFinalize.offsetAnalysis = true;
+  pendingFinalize.startedWithScale = pendingFinalize.automaticBrew = true;
+  pendingFinalize.scaleBaselineReady = true;
+  pendingFinalize.scaleConnectionGeneration = getScaleLinkSnapshot().connectionGeneration;
+  pendingFinalize.weightOffsetG = 2.0f;
+  pendingFinalize.goalWeightG = preset.goalWeightG;
+  pendingFinalize.endedAtMs = hostMillis;
+  currentWeight = 36.2f;
+  currentWeightConnectionGeneration = pendingFinalize.scaleConnectionGeneration;
+  ++currentWeightSequence;
+  currentWeightReceivedAtMs = ++hostMillis;
+  hostMillis += MAX_AUTOMATION_WEIGHT_AGE_MS + 1;
+  CHECK(!learnPendingBbw(pendingFinalize, currentWeight, true));
+  CHECK(preset.bbwEwmaOffsetG == 2.0f);
+  currentWeightReceivedAtMs = hostMillis;
+  CHECK(!learnPendingBbw(pendingFinalize, currentWeight, false));
+  pendingFinalize.endReason = EndReason::ACTIVATOR;
+  CHECK(!learnPendingBbw(pendingFinalize, currentWeight, true));
+  CHECK(bbwLearningBank.forPreset(preset.id, presetBank).evidence.count == 0);
+  const ShotPreset other = *findShotPreset(presetBank, FACTORY_PRESET_ID_SINGLE);
+  for (EndReason reason : {EndReason::CONFIGURED_WALL_LIMIT, EndReason::GLOBAL_LIMIT,
+                           EndReason::RELAY_SAFETY_FAILURE, EndReason::CUP_REMOVED}) {
+    pendingFinalize.endReason = reason;
+    CHECK(!learnPendingBbw(pendingFinalize, currentWeight, true));
+    CHECK(preset.bbwEwmaOffsetG == 2.0f && preset.bbwEwmaAlpha == 50);
+    CHECK(bbwLearningBank.forPreset(preset.id, presetBank).evidence.count == 0);
+  }
+  const float legacyOffset = preset.weightOffsetG;
+  PendingShotFinalize legacy = pendingFinalize;
+  legacy.bbwAlgorithm = 0;
+  legacy.weightOffsetG = legacyOffset;
+  legacy.endReason = EndReason::CONFIGURED_WALL_LIMIT;
+  legacy.bbwLearningGeneration = bbwLearningBank.forPreset(preset.id, presetBank).generations[0];
+  CHECK(learnPendingBbw(legacy, currentWeight, true));
+  CHECK(fabsf(preset.weightOffsetG - legacyOffset - 0.20f) < 1e-5f);
+  const float retainedLegacyOffset = preset.weightOffsetG;
+  WebCommand saveBaseline;
+  saveBaseline.type = WebCommandType::PRESET_OP;
+  saveBaseline.presetAction = static_cast<uint8_t>(PresetAction::SAVE);
+  saveBaseline.presetId = preset.id;
+  saveBaseline.config = runtimeConfig;
+  saveBaseline.config.weightOffsetBaselineG = 0.80f;
+  processWebCommand(saveBaseline);
+  CHECK(preset.weightOffsetBaselineG == 0.80f);
+  CHECK(preset.bbwEwmaOffsetG == 2.0f);
+  WebCommand reset;
+  reset.type = WebCommandType::RESET_WEIGHT_OFFSET;
+  reset.bbwResetRevisionSpecified = true;
+  reset.config.revision = runtimeConfig.revision + 1;
+  processWebCommand(reset);
+  CHECK(preset.bbwEwmaOffsetG == 2.0f);
+  reset.config.revision = runtimeConfig.revision;
+  processWebCommand(reset);
+  CHECK(preset.bbwEwmaOffsetG == preset.weightOffsetBaselineG);
+  CHECK(preset.bbwEwmaAlpha == 50 && preset.bbwAlphaLearned == 1);
+  reset.bbwFullReset = true;
+  reset.config.revision = runtimeConfig.revision;
+  processWebCommand(reset);
+  CHECK(preset.bbwEwmaAlpha == 30 && preset.bbwAlphaLearned == 0);
+  CHECK(preset.weightOffsetG == retainedLegacyOffset && preset.bbwEwmaOffsetG == 0.80f);
+  CHECK(memcmp(&other, findShotPreset(presetBank, other.id), sizeof(other)) == 0);
+  CHECK(bbwLearningBank.forPreset(preset.id, presetBank).evidence.count == 0);
+  for (uint8_t mode : {0, 1}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.bbwAlgorithm = mode;
+    startCycle();
+    advanceToBrew();
+    endBbwProtectionForTests();
+    shot.expectedEndS = 1.0f;
+    runLoopAfter(1000);
+    loop();
+    CHECK(session.endReason == EndReason::SCALE_THRESHOLD);
+    CHECK(!getRelaySafetySnapshot().closed);
+  }
+}
+
 void r58_extended_shot_does_not_learn_weight_offset() {
   resetHarness(false, true);
   reachReadyFromBoot();
   const float originalOffset = runtimeConfig.weightOffsetG;
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.offsetAnalysis = true;
   pendingFinalize.extractionExtended = true;
   pendingFinalize.endedAtMs = hostMillis;
@@ -1616,7 +1767,7 @@ void r65_slow_extended_shot_does_not_learn_weight_offset() {
   resetHarness(false, true);
   reachReadyFromBoot();
   const float originalOffset = runtimeConfig.weightOffsetG;
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.offsetAnalysis = true;
   pendingFinalize.slowExtractionExtended = true;
   pendingFinalize.endedAtMs = hostMillis;
@@ -2862,14 +3013,16 @@ void w34_calibration_reset_restores_baseline_and_cancels_analysis() {
     preset.weightOffsetG = 3.2f;
   }
   const uint32_t previousRevision = runtimeConfig.revision;
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   WebCommand reset;
   reset.type = WebCommandType::RESET_WEIGHT_OFFSET;
   processWebCommand(reset);
   CHECK(fabsf(runtimeConfig.weightOffsetG - 2.0f) < 0.001f);
   CHECK(fabsf(runtimeConfig.weightOffsetBaselineG - 2.0f) < 0.001f);
   CHECK(runtimeConfig.revision == previousRevision + 1);
-  CHECK(!pendingFinalize.pending);
+  CHECK(pendingFinalize.pending);  // History still finalizes; stale learning cannot.
+  CHECK(pendingFinalize.bbwLearningGeneration != bbwLearningBank.forPreset(
+      presetBank.activeId, presetBank).generations[0]);
   CHECK(!maintenanceLease.active);
 }
 
@@ -6720,7 +6873,6 @@ void cp18_custom_removed_threshold_is_honored() {
   resetHarness(false, true);
   reachReadyFromBoot();
   runtimeConfig.cupRemovedWeightG = -10.0f;
-  mutableActiveShotPreset(presetBank).cupRemovedWeightG = -10.0f;
   seedCupPresence(80.0f);
   startCycle();
   advanceToBrew();
@@ -8925,7 +9077,7 @@ void s02_shot_log_appends_after_drip_delay() {
   reachReadyFromBoot();
   shotLog.clear();
   pendingFinalize = PendingShotFinalize{};
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.logEligible = true;
   pendingFinalize.startedWithScale = false;
   pendingFinalize.finalState = StopperState::MANUAL_NO_SCALE;
@@ -8945,7 +9097,7 @@ void s02e_shot_log_appends_auto_bbw_after_drip_delay() {
   reachReadyFromBoot();
   shotLog.clear();
   pendingFinalize = PendingShotFinalize{};
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.logEligible = true;
   pendingFinalize.startedWithScale = true;
   pendingFinalize.timerOnly = false;
@@ -8965,10 +9117,10 @@ void s02e_shot_log_appends_auto_bbw_after_drip_delay() {
   ShotLogRecord records[1] = {};
   CHECK(shotLog.copyNewestFirst(records, 1) == 1);
   CHECK(records[0].durationDs == 120);
-  CHECK(records[0].shotType == static_cast<uint8_t>(ShotLogType::AUTO));
+  CHECK(shotLogType(records[0]) == ShotLogType::AUTO);
   CHECK(records[0].stopDetail ==
         static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET));
-  CHECK(records[0].cutType == static_cast<uint8_t>(ShotLogCut::AUTO));
+  CHECK(shotLogCut(records[0]) == ShotLogCut::AUTO);
 }
 
 void s02f_shot_log_skips_sub_one_gram_weight() {
@@ -8977,7 +9129,7 @@ void s02f_shot_log_skips_sub_one_gram_weight() {
   shotLog.clear();
   persistedLastShot = PersistedLastShot{};
   pendingFinalize = PendingShotFinalize{};
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.cycleId = 5;
   pendingFinalize.logEligible = true;
   pendingFinalize.startedWithScale = true;
@@ -9294,7 +9446,7 @@ void s02b_drip_delay_is_snapshotted_and_honors_boundaries() {
   CHECK(pendingFinalize.dripDelayMs == 1700);
 
   pendingFinalize = PendingShotFinalize{};
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.dripDelayMs = 2500;
   pendingFinalize.endedAtMs = hostMillis;
 
@@ -9306,7 +9458,7 @@ void s02b_drip_delay_is_snapshotted_and_honors_boundaries() {
   CHECK(!pendingFinalize.pending);
 
   pendingFinalize = PendingShotFinalize{};
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.dripDelayMs = 0;
   pendingFinalize.endedAtMs = hostMillis;
   runLoopAfter(0);
@@ -9318,7 +9470,7 @@ void s17_new_cycle_commits_pending_log_as_last_known() {
   reachReadyFromBoot();
   shotLog.clear();
   pendingFinalize = PendingShotFinalize{};
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.logEligible = true;
   pendingFinalize.lastKnownWeightValid = true;
   pendingFinalize.lastKnownWeightG = 43.7f;
@@ -9464,7 +9616,7 @@ void s15b_cup_off_after_end_keeps_last_known_actual() {
   currentWeightSequence = 8;
   currentWeightReceivedAtMs = hostMillis + 1;
   pendingFinalize = PendingShotFinalize{};
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.cycleId = 9;
   pendingFinalize.logEligible = true;
   pendingFinalize.startedWithScale = true;
@@ -9521,7 +9673,7 @@ void s15_last_shot_persists_after_drip_when_eligible() {
   currentWeightSequence = 5;
   currentWeightReceivedAtMs = hostMillis + 1;
   pendingFinalize = PendingShotFinalize{};
-  pendingFinalize.pending = true;
+  preparePendingBbwForTest();
   pendingFinalize.cycleId = 7;
   pendingFinalize.logEligible = true;
   pendingFinalize.startedWithScale = true;
@@ -13233,6 +13385,31 @@ void pm26_blocked_no_scale_hold_does_not_close_k1() {
 
 using TestFunction = void (*)();
 
+void bbw03_shared_guard_parity() {
+  for (uint8_t mode : {0, 1}) {
+    hostBbwAlgorithm = mode;
+    for (auto test : {t06_paddle_off_during_brew,
+                     t11_ble_loss_suspends_brew_without_late_stop,
+                     t12_global_limit_opens_manual_and_brew_cycles,
+                     t23_prediction_triggers_after_bbw_protection_ends,
+                     r06_hard_timer_opens_circuit_without_control_loop,
+                     r18_watchdog_fault_opens_circuit_and_requests_safe_restart,
+                     r29_direct_threshold_stops_before_regression_is_ready,
+                     r50_guard_extends_and_stops_at_min_time,
+                     r51_auto_to_manual_guard_fires_while_scale_lost,
+                     r52_auto_to_manual_guard_clears_on_scale_recovery,
+                     r57_guard_max_weight_cut_from_predicted_time,
+                     r60_slow_guard_cuts_at_max_time_when_above_floor,
+                     r61_slow_guard_extends_and_stops_at_min_weight,
+                     r64_slow_guard_min_weight_cut_from_predicted_time,
+                     cp06_cup_removed_stops_during_bbw_protection,
+                     pm06_original_bbw_hold_blocks_auto_stop_until_release,
+                     pm07_original_bbw_hard_limit_while_held,
+                     pm11_original_bbw_release_honors_operational_wall}) test();
+  }
+  hostBbwAlgorithm = 0;
+}
+
 struct TestCase {
   const char *id;
   TestFunction function;
@@ -13308,6 +13485,9 @@ const TestCase testCases[] = {
     {"R09b", r09b_old_commands_are_discarded_after_reconnect_but_new_stop_runs},
     {"R10", r10_relay_cannot_close_when_hard_timer_cannot_arm},
     {"R11", r11_final_shot_analysis_updates_only_valid_offset},
+    {"BBW01", bbw01_snapshots_and_isolated_finalization},
+    {"BBW02", bbw02_freshness_reset_and_safety},
+    {"BBW03", bbw03_shared_guard_parity},
     {"R12", r12_scale_worker_service_publishes_weight_and_detects_failure},
     {"R12b", r12b_discovery_clears_stale_connected_link_snapshot},
     {"R12c", r12c_connected_link_rssi_samples_and_clears},

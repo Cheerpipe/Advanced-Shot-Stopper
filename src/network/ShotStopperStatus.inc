@@ -395,6 +395,16 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
 
   if (ok && page == StatusPage::Settings) {
     ok = statusJsonAppend(
+        &used, ",\"bbwAlgorithm\":\"%s\",\"bbwPresetId\":%u,"
+        "\"bbwLegacyOffsetG\":%.2f,\"bbwEwmaOffsetG\":%.2f,"
+        "\"bbwAlpha\":%.2f,\"bbwAlphaSource\":\"%s\",\"bbwEvidenceCount\":%u",
+        bbwAlgorithmName(control.config.bbwAlgorithm), control.bbwPresetId,
+        static_cast<double>(control.bbwLegacyOffsetG),
+        static_cast<double>(control.bbwEwmaOffsetG), control.bbwAlpha / 100.0,
+        control.bbwAlphaLearned ? "learned" : "initial", control.bbwEvidenceCount);
+  }
+  if (ok && page == StatusPage::Settings) {
+    ok = statusJsonAppend(
         &used, ",\"bullseyeMelodyEnabled\":%s,\"bullseyeRtttl\":\"%s\"",
         g_work->bullseyeMelody.enabled ? "true" : "false",
         g_work->safeBullseyeRtttl);
@@ -503,7 +513,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             : static_cast<unsigned long>(homeLastShot.firstDropDs) * 100UL,
         "false",
         homeLastShotValid
-            ? shotLogTypeName(static_cast<ShotLogType>(homeLastShot.shotType))
+            ? shotLogTypeName(shotLogType(homeLastShot))
             : "unknown",
         "none",
         homeLastShotValid &&

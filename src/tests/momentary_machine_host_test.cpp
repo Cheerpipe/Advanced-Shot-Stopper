@@ -16,6 +16,7 @@ namespace {
 
 int failures = 0;
 int testsRun = 0;
+uint8_t hostBbwAlgorithm = 0;
 
 #define CHECK(condition)                                                       \
   do {                                                                         \
@@ -82,6 +83,8 @@ void resetMomentaryHarness() {
   scaleWeightEventCount = 0;
   scaleWeightEventDrops = 0;
   runtimeConfig = RuntimeConfig{};
+  runtimeConfig.bbwAlgorithm = hostBbwAlgorithm;
+  bbwLearningBank = BbwLearningBank{};
   runtimeConfig.autoTareOutsideBrew = false;
   runtimeConfig.requireCupToStart = false;
   runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);
@@ -2273,12 +2276,15 @@ const TestCase kTests[] = {
 int main() {
   static_assert(SHOT_STOPPER_MACHINE_TYPE != 0,
                 "momentary host tests require SHOT_STOPPER_MACHINE_TYPE 1 or 2");
-  for (const TestCase &test : kTests) {
+  for (hostBbwAlgorithm = 0; hostBbwAlgorithm <= 1; ++hostBbwAlgorithm) {
+   for (const TestCase &test : kTests) {
     const int failuresBefore = failures;
     test.function();
     ++testsRun;
-    std::cout << test.id << (failures == failuresBefore ? " PASS" : " FAIL")
+    std::cout << bbwAlgorithmName(hostBbwAlgorithm) << ' ' << test.id
+              << (failures == failuresBefore ? " PASS" : " FAIL")
               << "\n";
+  }
   }
   deleteHostResources();
   std::cout << testsRun << " tests, " << failures << " failures\n";

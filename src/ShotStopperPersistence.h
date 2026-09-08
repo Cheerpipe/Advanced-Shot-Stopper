@@ -112,9 +112,10 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
     return false;
   }
   const size_t storedLength = preferences.getBytesLength(key);
+  // Scratch may contain old data; each path requires a complete read/copy
+  // before inspecting it. Default initialization would be overwritten.
   if (storedLength == sizeof(PersistedSettingsV4)) {
     PersistedSettingsV4 &legacy = persistedSettingsV4MigrationScratch();
-    legacy = PersistedSettingsV4{};
     if (preferences.getBytes(key, &legacy, sizeof(legacy)) != sizeof(legacy)) {
       return false;
     }
@@ -129,7 +130,6 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
   }
   if (storedLength == sizeof(PersistedSettingsV3)) {
     PersistedSettingsV3 &legacy = persistedSettingsV3MigrationScratch();
-    legacy = PersistedSettingsV3{};
     if (preferences.getBytes(key, &legacy, sizeof(legacy)) != sizeof(legacy)) {
       return false;
     }
@@ -141,12 +141,13 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
         sizeof(settings)) {
       return false;
     }
-    if (settings.schemaVersion == 6 || settings.schemaVersion == 7) {
+    if (settings.schemaVersion >= 6 && settings.schemaVersion <= 8) {
       PersistedSettings &migrated = persistedSettingsV6MigrationScratch();
-      migrated = PersistedSettings{};
       if (!(settings.schemaVersion == 6
                 ? migratePersistedSettingsFromV6(settings, migrated)
-                : migratePersistedSettingsFromV7(settings, migrated))) {
+                : settings.schemaVersion == 7
+                      ? migratePersistedSettingsFromV7(settings, migrated)
+                      : migratePersistedSettingsFromV8(settings, migrated))) {
         return false;
       }
       settings = migrated;
@@ -158,7 +159,6 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
   }
   if (storedLength == sizeof(PersistedSettingsV2)) {
     PersistedSettingsV2 &legacy = persistedSettingsV2MigrationScratch();
-    legacy = PersistedSettingsV2{};
     if (preferences.getBytes(key, &legacy, sizeof(legacy)) != sizeof(legacy)) {
       return false;
     }
@@ -268,12 +268,10 @@ inline bool savePersistedSettings(PersistedSettings &settings) {
     bool haveRevision = false;
     ShotStopperPreferences probe(NvsSubsystem::SETTINGS);
     if (probe.begin(SETTINGS_NAMESPACE, true)) {
-      scratch = PersistedSettings{};
       if (readSettingsSlot(probe, SETTINGS_SLOT_A, scratch)) {
         revision = scratch.storageRevision;
         haveRevision = true;
       }
-      scratch = PersistedSettings{};
       if (readSettingsSlot(probe, SETTINGS_SLOT_B, scratch)) {
         if (!haveRevision ||
             secondRevisionIsNewer(revision, scratch.storageRevision)) {
@@ -304,7 +302,6 @@ inline bool savePersistedSettings(PersistedSettings &settings) {
   const bool written =
       preferences.putBytes(target, &candidate, sizeof(candidate)) ==
       sizeof(candidate);
-  scratch = PersistedSettings{};
   const bool saved = written &&
                      readSettingsSlot(preferences, target, scratch) &&
                      scratch.storageRevision == candidate.storageRevision &&

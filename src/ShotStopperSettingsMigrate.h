@@ -2,7 +2,7 @@
 
 // Settings schema migrations.
 //
-// Current on-disk schema is CONFIG_SCHEMA_VERSION (V8). V8 names the idle-tare
+// Current on-disk schema is V9 (BBW strategies). V8 names the idle-tare
 // padding byte and defaults it ON. V7 replaces the
 // serial-debug boolean with an explicit serial ESP_LOG level. V6 adds the webhook
 // delivery deferral setting. V5 adds the public Diagnostic-page setting. V4 adds HTTP webhook
@@ -52,6 +52,32 @@ inline void ensurePersistedPresetBank(PersistedSettings &settings) {
                        settings.runtime.autoRetare);
 }
 
+// V1–V8 share these exact offsets. Verify their original CRC before calling.
+inline void initializeMigratedBbw(PersistedSettings &out) {
+  out.structureSize = sizeof(PersistedSettings);
+  out.runtime.bbwAlgorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
+  for (ShotPreset &preset : out.presets.presets) {
+    preset.bbwAlgorithm = out.runtime.bbwAlgorithm;
+    preset.bbwEwmaOffsetG = preset.weightOffsetG;
+    preset.bbwEwmaAlpha = DEFAULT_BBW_EWMA_ALPHA;
+    preset.bbwAlphaLearned = 0;
+    preset.bbwProfileVersion = BBW_PROFILE_VERSION;
+    preset.bbwReserved = 0;
+  }
+}
+
+inline bool migratePersistedSettingsFromV8(const PersistedSettings &v8,
+                                           PersistedSettings &out) {
+  if (v8.magic != PERSISTED_SETTINGS_MAGIC || v8.schemaVersion != 8 ||
+      v8.structureSize != 2616 || v8.checksum != persistedSettingsChecksum(v8))
+    return false;
+  copyPersistedBytes(out, v8, sizeof(out));
+  initializeMigratedBbw(out);
+  out.schemaVersion = CONFIG_SCHEMA_VERSION;
+  out.checksum = persistedSettingsChecksum(out);
+  return true;
+}
+
 // V6 and V7 have the same physical layout. The byte at serialLogLevel was a
 // boolean in V6, so migrate true to INFO (the old effective default) instead
 // of interpreting it as the numeric ERROR enum value.
@@ -70,6 +96,7 @@ inline bool migratePersistedSettingsFromV6(const PersistedSettings &v6,
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.structureSize = sizeof(PersistedSettings);
   out.checksum = 0;
+  initializeMigratedBbw(out);
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }
@@ -84,6 +111,7 @@ inline bool migratePersistedSettingsFromV7(const PersistedSettings &v7,
   copyPersistedBytes(out, v7, sizeof(out));
   out.runtime.autoTareOutsideBrew = true;
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
+  initializeMigratedBbw(out);
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }
@@ -301,6 +329,7 @@ inline bool migratePersistedSettingsFromV4(const PersistedSettingsV4 &v4,
   memcpy(out.webhook.url, v4.webhook.url, sizeof(v4.webhook.url));
   out.webhook.deferDuringShot = false;
   out.checksum = 0;
+  initializeMigratedBbw(out);
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }
@@ -323,6 +352,7 @@ inline bool migratePersistedSettingsFromV5(const PersistedSettingsV5 &v5,
   memcpy(out.webhook.url, v5.webhook.url, sizeof(v5.webhook.url));
   out.webhook.deferDuringShot = false;
   out.checksum = 0;
+  initializeMigratedBbw(out);
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }
@@ -340,6 +370,7 @@ inline bool migratePersistedSettingsFromV3(const PersistedSettingsV3 &v3,
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.structureSize = sizeof(PersistedSettings);
   out.checksum = 0;
+  initializeMigratedBbw(out);
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }
@@ -366,6 +397,7 @@ inline bool migratePersistedSettingsFromV1(const PersistedSettingsV1 &v1,
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.structureSize = sizeof(PersistedSettings);
   out.checksum = 0;
+  initializeMigratedBbw(out);
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }
@@ -387,6 +419,7 @@ inline bool migratePersistedSettingsFromV2(const PersistedSettingsV2 &v2,
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.structureSize = sizeof(PersistedSettings);
   out.checksum = 0;
+  initializeMigratedBbw(out);
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }

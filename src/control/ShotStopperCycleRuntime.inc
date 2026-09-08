@@ -1049,6 +1049,12 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs) {
   }
   pendingFinalize.goalWeightG = session.config.goalWeightG;
   pendingFinalize.weightOffsetG = session.config.weightOffsetG;
+  pendingFinalize.bbwAlgorithm = session.config.bbwAlgorithm;
+  pendingFinalize.bbwAlpha = session.config.bbwAlpha;
+  pendingFinalize.bbwProfileVersion = session.config.bbwProfileVersion;
+  pendingFinalize.bbwLearningGeneration = session.config.bbwLearningGeneration;
+  pendingFinalize.scaleConnectionGeneration = session.connectionGenerationAtStart;
+  pendingFinalize.scaleBaselineReady = session.scaleBaselineReady;
   pendingFinalize.scaleBaselineG =
       session.scaleBaselineReady ? session.scaleBaselineG : 0.0f;
   pendingFinalize.startedWithScale = session.startedWithScale;
@@ -1141,6 +1147,7 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
       snapshot.automaticBrew));
   record.cutType = static_cast<uint8_t>(
       shotLogCutFromEndReason(snapshot.endReason));
+  shotLogSetPresetId(record, snapshot.activePresetId);
   record.extractionGuardEnabled = shotLogPackGuardFlags(
       snapshot.extractionGuardEnabled, snapshot.slowExtractionGuardEnabled);
   if (persistedLastShot.valid && persistedLastShot.cycleId == snapshot.cycleId) {
@@ -1163,6 +1170,8 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
   }
   record.targetReachedEarlyDs = snapshot.targetReachedEarlyDs;
   record.actualWeightSource = static_cast<uint8_t>(weightSource);
+  shotLogSetBbw(record, snapshot.bbwAlgorithm, snapshot.bbwProfileVersion,
+                 snapshot.bbwAlpha, snapshot.bbwLearningApplied);
 
   if (finalWeightValid) {
     record.actualWeightCg = shotLogWeightToCentigrams(finalWeightG);
@@ -1335,6 +1344,8 @@ void maybeQueueAutoToManualGuardSample(const PendingShotFinalize &snapshot,
                    preset->operationalWallMs)));
 }
 
+#include "ShotStopperBbwFinalize.inc"
+
 void pendingShotFinalizeTask() {
   if (!pendingFinalize.pending ||
       elapsedMs(pendingFinalize.endedAtMs) < pendingFinalize.dripDelayMs) {
@@ -1344,7 +1355,7 @@ void pendingShotFinalizeTask() {
   PendingShotFinalize snapshot = pendingFinalize;
   pendingFinalize.pending = false;
 
-  float finalWeightG = 0.0f;
+  const float finalWeightG = currentWeight;
   bool postDripWeightValid = false;
   if (scaleAvailable() && isfinite(currentWeight) &&
       currentWeightSequence != snapshot.endedWeightSequence &&
@@ -1352,7 +1363,6 @@ void pendingShotFinalizeTask() {
           0 &&
       plausibleSettledBrewWeight(currentWeight, snapshot.lastKnownWeightG,
                                  snapshot.lastKnownWeightValid)) {
-    finalWeightG = currentWeight;
     postDripWeightValid = snapshot.startedWithScale;
   }
 
@@ -1384,6 +1394,9 @@ void pendingShotFinalizeTask() {
     (void)settleShotCurveEndWeight(snapshot.curve, logWeightG);
   }
 
+  snapshot.bbwLearningApplied =
+      learnPendingBbw(snapshot, finalWeightG, postDripWeightValid);
+
   const bool persistEligible =
       snapshot.logEligible &&
       shotLogBbwEligible(snapshot.startedWithScale, snapshot.timerOnly,
@@ -1404,71 +1417,6 @@ void pendingShotFinalizeTask() {
 
   maybeQueueAutoToManualGuardSample(snapshot, finalWeightG, postDripWeightValid);
 
-  if (pendingFinalizeIsRinse(snapshot) || !snapshot.offsetAnalysis ||
-      snapshot.extractionExtended || snapshot.slowExtractionExtended) {
-    return;
-  }
-
-  if (!scaleAvailable() || !isfinite(currentWeight) ||
-      !isfinite(snapshot.weightOffsetG) ||
-      currentWeightSequence == snapshot.endedWeightSequence ||
-      static_cast<int32_t>(currentWeightReceivedAtMs - snapshot.endedAtMs) <=
-          0) {
-    serialTrace(LogLevel::INFO,
-                "Final weight unavailable; offset unchanged");
-    return;
-  }
-
-  finalWeightG = currentWeight;
-
-  if (!shotLogWeightEligible(finalWeightG, true)) {
-    serialTrace(LogLevel::INFO,
-                "Final weight below history threshold; offset unchanged");
-    return;
-  }
-
-  serialTracef(LogLevel::INFO,
-               "Final weight: %.2fg; cycle goal: %.2fg; cycle offset: %.2fg",
-               finalWeightG, snapshot.goalWeightG, snapshot.weightOffsetG);
-
-  const float observedError =
-      finalWeightG - snapshot.goalWeightG + snapshot.weightOffsetG;
-  if (fabsf(observedError) > MAX_OFFSET_G) {
-    serialTrace(LogLevel::INFO, "Shot error too large; offset unchanged");
-    return;
-  }
-
-  float updatedOffset =
-      snapshot.weightOffsetG + finalWeightG - snapshot.goalWeightG;
-  if (!isfinite(updatedOffset)) {
-    serialTrace(LogLevel::WARNING,
-                "Calculated offset outside safe range; offset unchanged");
-    return;
-  }
-  if (updatedOffset < 0.0f) {
-    updatedOffset = 0.0f;
-  } else if (updatedOffset > MAX_OFFSET_G) {
-    updatedOffset = MAX_OFFSET_G;
-  }
-
-  ShotPreset *preset = mutableShotPreset(
-      presetBank, snapshot.activePresetId != 0 ? snapshot.activePresetId
-                                               : presetBank.activeId);
-  if (preset == nullptr) {
-    serialTrace(LogLevel::WARNING,
-                "Offset learn skipped; shot preset no longer exists");
-    return;
-  }
-  preset->weightOffsetG = updatedOffset;
-  RuntimeConfig candidate = runtimeConfig;
-  applyShotPresetToConfig(activeShotPreset(presetBank), candidate, true);
-  ++candidate.revision;
-  if (candidate.revision == 0) {
-    candidate.revision = 1;
-  }
-  commitLiveRuntimeConfig(candidate, RUNTIME_PERSIST_REASON_OFFSET);
-  serialTracef(LogLevel::INFO, "New offset pending durable commit: %.2f",
-               preset->weightOffsetG);
 }
 
 void serviceBullseyeMelody() {

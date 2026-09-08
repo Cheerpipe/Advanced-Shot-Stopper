@@ -67,19 +67,19 @@ for (const name of VIEW_NAMES) {
 
 const htmlBytes = Buffer.byteLength(allHtml, 'utf8');
 const jsBytes = Buffer.byteLength(allJs, 'utf8');
-// Cup gets a separate Home fieldset and a Diagnostic weight row. Redistribute
-// source allowance from JS; the combined authoring/embedded budgets stay fixed.
-if (htmlBytes > 55400) {
+// BBW help is condensed to fund the selector; source-only allowance adds 1 KiB
+// for adaptive readback/CSV. Compressed assets and firmware budgets stay fixed.
+if (htmlBytes > 54900) {
   throw new Error('Web UI HTML source exceeds the authoring budget');
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
 // Historical BLE disconnect/command diagnostics add display formatters. This
 // source allowance does not change the compressed asset or firmware budgets.
-if (jsBytes > 165600) {
+if (jsBytes > 167100) {
   throw new Error('Web UI JS source exceeds the authoring budget');
 }
-if (htmlBytes + jsBytes > 221000) {
+if (htmlBytes + jsBytes > 222000) {
   throw new Error('Web UI HTML+JS source exceeds the combined authoring budget');
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
@@ -140,7 +140,7 @@ if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
 }
 if (!ui.includes('id="operationalWallS" type="number" min="5" max="60"') ||
     !ui.includes('Max BBW time (s)') ||
-    !ui.includes('Longest an automatic brew-by-weight shot may run') ||
+    !ui.includes('Time limit for automatic BBW shots.') ||
     !ui.includes('sToMs(') ||
     !ui.includes('rinseGestureMs:sToMs') ||
     !network.includes('Max BBW time must be from 5 to 60 s.')) {

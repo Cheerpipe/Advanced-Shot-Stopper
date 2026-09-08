@@ -1,9 +1,7 @@
 #pragma once
 
-// Shot-log schema migrations placeholder.
-//
-// Current on-disk schema is SHOT_LOG_SCHEMA_VERSION (V1). There is no upgrade
-// path from any prior layout: unrecognized blobs decode as INVALID.
+// V1/V2 -> V3 retains the same record layout and initializes newly used bits.
+// Older firmware rejects V3; choosing Legacy in current firmware is supported.
 //
 // When bumping SHOT_LOG_SCHEMA_VERSION:
 // 1. Keep the previous record/store layout as ShotLogRecordV<N> / StoreV<N>.
@@ -26,15 +24,29 @@ enum class ShotLogDecodeStatus : uint8_t {
 // memset the destination must reject aliasing for those legacy sizes.
 inline ShotLogDecodeStatus decodeShotLogBlob(const void *bytes, size_t length,
                                              ShotLogStore &out) {
-  if (bytes == nullptr || length == 0 || length > sizeof(ShotLogStore)) {
+  if (bytes == nullptr || length < sizeof(ShotLogHeader) || length > sizeof(ShotLogStore)) {
     return ShotLogDecodeStatus::INVALID;
   }
 
   const auto *asCurrent = reinterpret_cast<const ShotLogStore *>(bytes);
-  if (validShotLogStore(*asCurrent) &&
-      shotLogBlobLengthMatches(*asCurrent, length)) {
+  const uint16_t version = asCurrent->header.schemaVersion;
+  const bool legacy = version == 1 || version == 2;
+  if (shotLogBlobLengthMatches(*asCurrent, length) &&
+      validShotLogStore(*asCurrent, legacy ? version : SHOT_LOG_SCHEMA_VERSION)) {
     if (&out != asCurrent) {
-      out = *asCurrent;
+      memset(&out, 0, sizeof(out));
+      memcpy(&out, bytes, length);
+    }
+    if (legacy) {
+      for (ShotLogRecord &record : out.records) {
+        if (version == 1) {
+          record.extractionGuardEnabled = (record.extractionGuardEnabled & 0x1f) | 0x20;
+          record.extractionExtended &= 3;
+        }
+        shotLogSetPresetId(record, 0);  // Never infer a past preset from current settings.
+      }
+      finalizeShotLogStore(out);
+      return ShotLogDecodeStatus::MIGRATED;
     }
     return ShotLogDecodeStatus::CURRENT;
   }

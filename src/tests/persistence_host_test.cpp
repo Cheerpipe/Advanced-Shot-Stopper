@@ -35,6 +35,8 @@ void resetHostPersistence() {
   resetDurableStorageRevision();
   ShotCurveLog::resetHostStorage();
   g_hostFlashIoMutexAvailable = true;
+  // Reused flash scratch must never supply defaults or stale record fields.
+  memset(flashIoScratchBytes(), 0xA5, FLASH_IO_SCRATCH_BYTES);
 }
 
 void p01_defaults_are_valid() {
@@ -130,13 +132,13 @@ void p01_defaults_are_valid() {
 }
 
 void p75_idle_tare_legacy_padding_and_saved_off() {
-  for (uint32_t version : {6U, 7U}) {
+  for (uint32_t version : {6U, 7U, 8U}) {
     for (uint8_t padding : {uint8_t{0}, uint8_t{1}, uint8_t{255}}) {
       resetHostPersistence();
       PersistedSettings legacy;
       CHECK(initializeDefaultSettings(legacy));
       legacy.schemaVersion = version;
-      reinterpret_cast<uint8_t *>(&legacy.runtime)[250] = padding;
+      if (version < 8) reinterpret_cast<uint8_t *>(&legacy.runtime)[250] = padding;
       legacy.checksum = persistedSettingsChecksum(legacy);
       persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A,
                                &legacy, sizeof(legacy));
@@ -174,8 +176,9 @@ void p02_newest_valid_slot_is_loaded() {
   settings.presets.presets[0].stopIfCupRemoved = false;
   settings.presets.presets[0].requireCupToStart = true;
   settings.presets.presets[0].avoidAccidentalTouchEnabled = false;
-  settings.presets.presets[0].cupPresentWeightG = 4.5f;
-  settings.presets.presets[0].cupRemovedWeightG = -6.0f;
+  settings.presets.presets[0].bbwEwmaOffsetG = 4.5f;
+  settings.presets.presets[0].bbwEwmaAlpha = 50;
+  settings.presets.presets[0].bbwAlphaLearned = 1;
   CHECK(savePersistedSettings(settings));
   CHECK(settings.storageRevision == firstRevision + 1);
 
@@ -193,9 +196,9 @@ void p02_newest_valid_slot_is_loaded() {
   CHECK(!loaded.presets.presets[0].stopIfCupRemoved);
   CHECK(loaded.presets.presets[0].requireCupToStart);
   CHECK(!loaded.presets.presets[0].avoidAccidentalTouchEnabled);
-  CHECK(std::fabs(loaded.presets.presets[0].cupPresentWeightG - 4.5f) < 0.001f);
-  CHECK(std::fabs(loaded.presets.presets[0].cupRemovedWeightG - (-6.0f)) <
-        0.001f);
+  CHECK(std::fabs(loaded.presets.presets[0].bbwEwmaOffsetG - 4.5f) < 0.001f);
+  CHECK(loaded.presets.presets[0].bbwEwmaAlpha == 50);
+  CHECK(loaded.presets.presets[0].bbwAlphaLearned == 1);
 }
 
 void p02b_save_uses_ram_revision_when_slots_unreadable() {
@@ -212,6 +215,12 @@ void p02b_save_uses_ram_revision_when_slots_unreadable() {
   CHECK(loadPersistedSettings(loaded));
   CHECK(loaded.runtime.goalWeightG == 41);
   CHECK(loaded.storageRevision == settings.storageRevision);
+  const uint32_t revision = settings.storageRevision;
+  persistence_host::corruptNextWrite = true;
+  CHECK(!savePersistedSettings(settings));
+  CHECK(settings.storageRevision == revision);
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.storageRevision == revision);
 }
 
 void p02c_overlay_live_runtime_is_saved_not_stale_blob() {
@@ -930,10 +939,8 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(bank.presets[0].stopIfCupRemoved);
   CHECK(!bank.presets[0].requireCupToStart);
   CHECK(bank.presets[0].avoidAccidentalTouchEnabled);
-  CHECK(std::fabs(bank.presets[0].cupPresentWeightG -
-                  DEFAULT_CUP_PRESENT_WEIGHT_G) < 0.001f);
-  CHECK(std::fabs(bank.presets[0].cupRemovedWeightG -
-                  DEFAULT_CUP_REMOVED_WEIGHT_G) < 0.001f);
+  CHECK(bank.presets[0].bbwEwmaAlpha == DEFAULT_BBW_EWMA_ALPHA);
+  CHECK(bank.presets[0].bbwAlgorithm == 1);
   CHECK(bank.presets[1].fastExtractionGuardEnabled);
   CHECK(bank.presets[1].slowExtractionGuardEnabled);
   CHECK(bank.presets[1].minBbwBrewTimeMs == FACTORY_SINGLE_MIN_BBW_BREW_TIME_MS);
@@ -955,10 +962,8 @@ void p24_preset_bank_size_and_crud_budgets() {
     CHECK(!recipe.stopIfCupRemoved);
     CHECK(recipe.requireCupToStart);
     CHECK(!recipe.avoidAccidentalTouchEnabled);
-    CHECK(std::fabs(recipe.cupPresentWeightG - DEFAULT_CUP_PRESENT_WEIGHT_G) <
-          0.001f);
-    CHECK(std::fabs(recipe.cupRemovedWeightG - DEFAULT_CUP_REMOVED_WEIGHT_G) <
-          0.001f);
+    CHECK(recipe.bbwEwmaOffsetG == DEFAULT_WEIGHT_OFFSET_G);
+    CHECK(recipe.bbwEwmaAlpha == DEFAULT_BBW_EWMA_ALPHA);
     applyShotPresetToConfig(recipe, cfg, false);
     CHECK(!cfg.cupProtectionEnabled);
     CHECK(!cfg.stopIfCupRemoved);
@@ -1417,11 +1422,11 @@ void p56_decode_shot_log_current_schema_only() {
   CHECK(decoded.header.schemaVersion == SHOT_LOG_SCHEMA_VERSION);
   CHECK(decoded.records[0].goalWeightG == 36);
 
-  // Prior schema numbers are rejected — V1 has no upgrade path.
+  // Unknown schemas are rejected even with an intact record CRC.
   ShotLogStore foreign = current;
-  foreign.header.schemaVersion = 2;
+  foreign.header.schemaVersion = 31;
   foreign.header.checksum = 0;
-  foreign.header.checksum = shotLogChecksumBytes(foreign.header);
+  foreign.header.checksum = shotLogChecksum(foreign);
   decoded = ShotLogStore{};
   CHECK(decodeShotLogBlob(&foreign, sizeof(foreign), decoded) ==
         ShotLogDecodeStatus::INVALID);

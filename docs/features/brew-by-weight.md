@@ -38,10 +38,12 @@ noted. **Home → Quick Settings** can toggle brew by weight for the session
 | Setting | Default | Range | Effect on the shot |
 | --- | --- | --- | --- |
 | **Brew by weight** | ON | ON / OFF | ON: stop by weight when a scale is usable. OFF: paddle, **Stop**, and the 60 s firmware cap only. Fast, Slow, A→M, Max BBW time, and No-scale BBW become read-only. |
+| **Cutoff algorithm** | Linear prediction + adaptive EWMA | Legacy / Linear prediction + adaptive EWMA | Saved per preset; applies to the next shot. |
 | **Target (g)** | 36 g | 10–200 g | Goal weight. Stop aims at `target − learned offset`. |
 | **Max BBW time (s)** | 50 s | 5–60 s | Operational time limit for an **automatic BBW** cycle. Ignored on timer-only and no-scale shots. Cannot exceed the hard 60 s cap. |
 | **Baseline offset (g)** | 1.5 g | 0–5 g | Seed used by **Reset learned stop offset to baseline**. Save this before reset. |
 | **Learned stop offset** | starts at 1.5 g | 0–5 g | Subtracted from the target (and from Fast/Slow recovery weights). Updated from post-drip weight after good shots. |
+| **Learning factor (α)** | 0.30 initially | Read-only | EWMA only; current gain, initial/learned provenance and collecting/evaluating status. |
 
 Fixed behavior (not separate settings):
 
@@ -58,6 +60,73 @@ firmware treats about **34.5 g** as the cut point so post-drip weight lands
 near 36 g. This example assumes the Fast guard permits a normal stop and
 no other guard has requested an earlier end. If target arrives too early,
 Fast can deliberately extend the shot.
+
+## Cutoff algorithms and learning
+
+In **Settings → Brew → BBW**, choose **Cutoff algorithm**, then save the
+preset. New controllers, new presets and factory recipe resets use **Linear
+prediction + adaptive EWMA**. Upgrading settings without a selector selects
+it once, retaining the old learned offset for Legacy and copying that offset
+as the EWMA seed. A saved choice survives subsequent updates and reboot.
+
+Both modes use ten eligible samples, a positive linear trend, the existing
+minimum prediction horizon and two-sample direct confirmation. Invalid
+prediction falls back to direct stopping and the existing time limits.
+Legacy retains the original ordinary least-squares calculation. EWMA centers
+sample times before fitting, reducing floating-point cancellation:
+
+```text
+x = sample_time - latest_sample_time
+b = sum((x - mean(x)) * (weight - mean(weight))) / sum((x - mean(x))²)
+predicted_time = latest_sample_time + mean(x) + (cut_target - mean(weight)) / b
+```
+
+EWMA describes learning **between shots**, not live scale filtering. For
+captured offset `O`, target `G`, and final weight `W`, define error `e = W-G`
+and effective compensation `z = O+e`. Reject nonfinite observations and
+`abs(z) > 5 g` before smoothing. Otherwise:
+
+| Mode | Next offset | Tradeoff |
+| --- | --- | --- |
+| Legacy | `clamp(O + e, 0, 5)` | Full correction reacts quickly and follows individual-shot noise. |
+| Adaptive EWMA | `clamp(O + α*e, 0, 5)` | Smaller gains smooth noise; larger gains respond faster. |
+
+With `O=1.50 g`, `G=36 g`, `W=36.20 g`, Legacy learns **1.70 g** and EWMA
+at α=0.30 learns **1.56 g**. History retains **1.50 g** for that shot.
+EWMA additionally requires the accepted post-drip measurement to remain fresh,
+with valid baseline and connection provenance, following a normal weight-target
+cut. Manual stops, time/safety limits, cup removal, excluded shots and Fast/Slow
+extensions do not train it: forced stops do not measure normal cutoff error.
+Existing Legacy eligibility is preserved.
+
+Four candidate gains (0.10, 0.30, 0.50, 1.00) score compensation predictions
+before updating them. After 20 eligible EWMA observations, evaluation occurs
+every five observations. A challenger needs at least 10% lower squared-error
+loss in two consecutive evaluations, and at least ten observations between
+switches. The first possible switch is observation 25. Ties, insufficient
+evidence and excluded shots retain the gain. Selection affects future shots
+and never jumps the active offset to a candidate's offset. These are provisional
+engineering constants, not an empirically optimal tuning policy.
+
+Each preset retains separate offsets. Switching to Legacy freezes EWMA evidence;
+returning resumes it. Reboot retains offset, gain and initial/learned provenance,
+but collects a fresh evidence window. Recipe or relevant tare/drip timing changes
+also restart evidence without erasing the offset or gain.
+
+The learned-offset readout previews the draft algorithm's own value. EWMA shows
+α and its status alongside it; Legacy hides these fields. BBW OFF disables the
+selector and hides learning fields. Polling preserves unsaved edits, and resets
+require a saved selection/baseline and an editable, idle configuration.
+
+- **Reset learned stop offset to baseline** resets only the selected mode's
+  offset. For EWMA it retains α and restarts evidence.
+- **Reset EWMA learning** restores EWMA's offset to the saved baseline, α to
+  0.30 and provenance to initial, and clears evidence. Legacy is retained.
+
+Pending analysis cannot undo either reset. A future change to the firmware's
+initial gain must preserve valid retained learning. Neither mode changes guard,
+physical-stop, relay, watchdog or time-limit authority. No improved physical
+accuracy is claimed without representative machine/scale measurements.
 
 Related: [Cup protection](cup-protection.md), [Tare](../settings/tare.md),
 [Scales](../settings/scales.md), [No-scale BBW](../settings/no-scale-bbw.md).

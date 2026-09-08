@@ -34,8 +34,6 @@ inline void fillDoubleFirmwareDefaults(ShotPreset &preset) {
   preset.stopIfCupRemoved = true;
   preset.requireCupToStart = false;
   preset.avoidAccidentalTouchEnabled = true;
-  preset.cupPresentWeightG = DEFAULT_CUP_PRESENT_WEIGHT_G;
-  preset.cupRemovedWeightG = DEFAULT_CUP_REMOVED_WEIGHT_G;
   seedAutoToManualSamples(preset);
 }
 
@@ -54,6 +52,7 @@ inline void fillFactorySinglePreset(ShotPreset &preset) {
   preset.maxBbwBrewTimeMs = FACTORY_SINGLE_MAX_BBW_BREW_TIME_MS;
   preset.weightOffsetBaselineG = FACTORY_SINGLE_WEIGHT_OFFSET_G;
   preset.weightOffsetG = FACTORY_SINGLE_WEIGHT_OFFSET_G;
+  preset.bbwEwmaOffsetG = FACTORY_SINGLE_WEIGHT_OFFSET_G;
   // Business rule: Single preset defaults keep both extraction guards enabled.
   preset.fastExtractionGuardEnabled = true;
   preset.slowExtractionGuardEnabled = true;
@@ -140,6 +139,10 @@ inline bool validShotPresetName(const char *name) {
 inline bool validateShotPresetRecipe(const ShotPreset &preset,
                                      uint32_t machineRetareWindowMs,
                                      bool machineAutoRetare) {
+  if (preset.bbwAlgorithm > 1 || !validBbwAlpha(preset.bbwEwmaAlpha) ||
+      preset.bbwAlphaLearned > 1 || preset.bbwProfileVersion != BBW_PROFILE_VERSION ||
+      !isfinite(preset.bbwEwmaOffsetG) || preset.bbwEwmaOffsetG < 0.0f ||
+      preset.bbwEwmaOffsetG > MAX_OFFSET_G) return false;
   RuntimeConfig probe;
   probe.goalWeightG = preset.goalWeightG;
   probe.weightOffsetG = preset.weightOffsetG;
@@ -157,8 +160,6 @@ inline bool validateShotPresetRecipe(const ShotPreset &preset,
   probe.autoToManualGuardLimitMode = preset.autoToManualGuardLimitMode;
   probe.autoToManualGuardManualLimitMs = preset.autoToManualGuardManualLimitMs;
   probe.autoToManualGuardBaselineMs = preset.autoToManualGuardBaselineMs;
-  probe.cupPresentWeightG = preset.cupPresentWeightG;
-  probe.cupRemovedWeightG = preset.cupRemovedWeightG;
   probe.autoRetare = machineAutoRetare;
   probe.retareWindowMs = machineRetareWindowMs;
   // Machine defaults for fields validateRuntimeConfig still checks.
@@ -331,7 +332,9 @@ inline void applyShotPresetToConfig(const ShotPreset &preset,
                                     bool keepSessionTimerOnly) {
   const bool sessionManual = keepSessionTimerOnly && config.timerOnly;
   config.goalWeightG = preset.goalWeightG;
-  config.weightOffsetG = preset.weightOffsetG;
+  config.bbwAlgorithm = preset.bbwAlgorithm;
+  config.weightOffsetG = preset.bbwAlgorithm == 0 ? preset.weightOffsetG
+                                                : preset.bbwEwmaOffsetG;
   config.weightOffsetBaselineG = preset.weightOffsetBaselineG;
   config.bbwProtectionMs = preset.bbwProtectionMs;
   config.operationalWallMs = preset.operationalWallMs;
@@ -363,6 +366,7 @@ inline RuntimeConfig composeEffectiveConfig(const RuntimeConfig &machine,
 
 inline void copyUserRecipeFromConfig(const RuntimeConfig &config,
                                      ShotPreset &preset) {
+  preset.bbwAlgorithm = config.bbwAlgorithm;
   preset.brewByWeight = !config.timerOnly;
   preset.goalWeightG = config.goalWeightG;
   preset.operationalWallMs = config.operationalWallMs;
@@ -622,6 +626,7 @@ inline void migrateRecipeFromRuntimeToBank(const RuntimeConfig &runtime,
   dbl->bbwProtectionMs = runtime.bbwProtectionMs;
   dbl->weightOffsetBaselineG = runtime.weightOffsetBaselineG;
   dbl->weightOffsetG = runtime.weightOffsetG;
+  dbl->bbwEwmaOffsetG = runtime.weightOffsetG;
   dbl->fastExtractionGuardEnabled = runtime.fastExtractionGuardEnabled;
   dbl->maxRecoveryWeightG = runtime.maxRecoveryWeightG;
   dbl->minBbwBrewTimeMs = runtime.minBbwBrewTimeMs;
@@ -638,8 +643,6 @@ inline void migrateRecipeFromRuntimeToBank(const RuntimeConfig &runtime,
   dbl->stopIfCupRemoved = runtime.stopIfCupRemoved;
   dbl->requireCupToStart = runtime.requireCupToStart;
   dbl->avoidAccidentalTouchEnabled = runtime.avoidAccidentalTouchEnabled;
-  dbl->cupPresentWeightG = runtime.cupPresentWeightG;
-  dbl->cupRemovedWeightG = runtime.cupRemovedWeightG;
   dbl->brewByWeight = !runtime.timerOnly;
 }
 

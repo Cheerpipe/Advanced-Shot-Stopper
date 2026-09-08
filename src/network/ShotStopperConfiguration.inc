@@ -765,8 +765,9 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
                       command.config.operationalWallMs) ||
           !jsonUint32(root, "bbwProtectionMs",
                       command.config.bbwProtectionMs) ||
-          !jsonFloat(root, "weightOffsetBaselineG",
-                     command.config.weightOffsetBaselineG) ||
+          (jsonFieldPresent(root, "weightOffsetBaselineG") &&
+           !jsonFloat(root, "weightOffsetBaselineG",
+                      command.config.weightOffsetBaselineG)) ||
           !jsonBoolean(root, "fastExtractionGuardEnabled",
                        command.config.fastExtractionGuardEnabled) ||
           !jsonFloat(root, "maxRecoveryWeightG",
@@ -797,6 +798,18 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
         parseError = "save requires the full Brew recipe field set.";
       } else {
         command.config.timerOnly = !brewByWeight;
+        command.bbwAlgorithmSpecified = jsonFieldPresent(root, "bbwAlgorithm");
+        command.bbwBaselineSpecified = jsonFieldPresent(root, "weightOffsetBaselineG");
+        char algorithm[20] = {};
+        if (command.bbwAlgorithmSpecified &&
+            (!jsonString(root, "bbwAlgorithm", algorithm, sizeof(algorithm), false) ||
+             !parseBbwAlgorithm(algorithm, command.config.bbwAlgorithm)))
+          parseError = "bbwAlgorithm must be legacy or linear_ewma.";
+        if (jsonFieldPresent(root, "bbwAlpha") ||
+            jsonFieldPresent(root, "bbwEwmaAlpha") ||
+            jsonFieldPresent(root, "bbwAlphaLearned") ||
+            jsonFieldPresent(root, "bbwEwmaOffsetG"))
+          parseError = "BBW learning state is read-only.";
       }
     }
   } else {
@@ -835,19 +848,27 @@ esp_err_t ShotStopperNetwork::resetCalibrationHandler(httpd_req_t *request) {
     return bodyStatus;
   }
   cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  static const char *const noFields[] = {nullptr};
+  static const char *const resetFields[] = {"fullEwma", "baseRevision"};
+  bool fullEwma = false;
+  uint32_t baseRevision = 0;
+  const bool revisionSpecified = root && jsonFieldPresent(root, "baseRevision");
   const bool parsed = root != nullptr &&
-                      jsonHasOnlyUniqueFields(root, noFields, 0);
+      jsonHasOnlyUniqueFields(root, resetFields, 2) &&
+      (!revisionSpecified || jsonUint32(root, "baseRevision", baseRevision)) &&
+      (!jsonFieldPresent(root, "fullEwma") || jsonBoolean(root, "fullEwma", fullEwma));
   if (root != nullptr) {
     cJSON_Delete(root);
   }
   self.unlockJsonBody();
   if (!parsed) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_REQUEST",
-                     "The calibration reset request must be an empty object.");
+                     "Use an empty object or a boolean fullEwma field.");
   }
   WebCommand command;
   command.type = WebCommandType::RESET_WEIGHT_OFFSET;
+  command.bbwFullReset = fullEwma;
+  command.bbwResetRevisionSpecified = revisionSpecified;
+  command.config.revision = baseRevision;
   command.requestId = self.allocateRequestId();
   command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
   if (!self.callbacks_.enqueueWebCommand(command)) {

@@ -616,7 +616,7 @@ if (!ui.includes('id="learnedOffsetG"') ||
     html.indexOf('id="weightOffsetBaselineG"') >
         html.indexOf('id="resetCalibrationButton"') ||
     !ui.includes('Reset learned stop offset to baseline') ||
-    !ui.includes('Value the learned stop offset returns to when you reset it') ||
+    !ui.includes('Reset seed. Save the preset before resetting.') ||
     !network.includes('weightOffsetBaselineG') ||
     !ui.includes('weightOffsetBaselineG')) {
   throw new Error('Learned stop offset baseline must be wired like A→M baseline reset');
@@ -710,7 +710,8 @@ if (!html.includes('<summary>Cup</summary>') ||
 if (!html.includes('id="postTareBaselineGraceS" type="number" min="0.5" max="10" step="0.1"') ||
     !ui.includes("rangeCheck('postTareBaselineGraceS',0.5,10,'Post-tare grace',{unit:'s'})") ||
     !ui.includes("postTareBaselineGraceMs:sToMs('postTareBaselineGraceS')") ||
-    !ui.includes("['postTareBaselineGraceS','postTareBaselineGraceMs']") ||
+    !ui.includes("'postTareBaselineGrace'") ||
+    !ui.includes("$(k+'S').value=String(c[k+'Ms']/1000)") ||
     !ui.includes("apply('tareOpt',!$('autoTare').checked)") ||
     !(ui.includes("$('autoTare').onchange=()=>{updateConfigGroups();markConfigDirty()}") ||
       ui.includes("$('autoTare').onchange=()=>{R.updateConfigGroups();R.markConfigDirty()}")) ||

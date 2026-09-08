@@ -1,5 +1,11 @@
 # ESP and FreeRTOS resource ownership
 
+BBW prediction/learning has no resource authority. Control owns the fixed
+per-preset candidate bank and immutable shot/finalizer snapshots; persistence
+owns deferred durable writes. Network consumes published state only. This
+adds no task, queue or handle owner and changes no lock ordering. See
+[BBW policy and storage](ARCHITECTURE.md#bbw-policy-and-storage).
+
 Every fallible resource acquisition needs one owner and a defined rollback
 path. Read this before adding queues, tasks, clients, or persistent handles. `UniqueResource<Handle, Deleter>` is a one-handle-wide,
 non-allocating owner with move, `release()` and `reset()`. It is used only for

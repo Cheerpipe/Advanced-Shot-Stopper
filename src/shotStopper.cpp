@@ -73,6 +73,7 @@
 #include "ShotStopperAlertChannel.h"
 #include "ShotStopperAlertTone.h"
 #include "ShotStopperPresets.h"
+#include "ShotStopperBbwLearning.h"
 #include "ShotStopperSerialCli.h"
 #if defined(SHOT_STOPPER_USB_CONSOLE_OWN_HWCDC)
 HWCDC shotStopperUsbConsole;
@@ -266,6 +267,13 @@ struct CycleSession {
 };
 
 struct PendingShotFinalize {
+  uint8_t bbwAlgorithm = 0;
+  uint8_t bbwAlpha = 100;
+  uint8_t bbwProfileVersion = BBW_PROFILE_VERSION;
+  uint32_t bbwLearningGeneration = 0;
+  uint32_t scaleConnectionGeneration = 0;
+  bool scaleBaselineReady = false;
+  bool bbwLearningApplied = false;
   bool pending = false;
   bool offsetAnalysis = false;
   bool logEligible = false;
@@ -349,6 +357,7 @@ TaskMutex bullseyeConfigMux;
 BullseyeTracker bullseyeTracker;
 LocalBuzzer localBuzzer;
 ShotPresetBank presetBank;
+BbwLearningBank bbwLearningBank;
 LastCycleSummary lastCycle;
 // Debug events are not a flash DMA source and are not added from an ISR.
 SHOT_STOPPER_PSRAM_BSS DebugRingBuffer debugLog;

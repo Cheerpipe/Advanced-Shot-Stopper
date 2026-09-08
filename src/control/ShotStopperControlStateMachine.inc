@@ -24,7 +24,8 @@ void resetSessionForNewCycle(ControlSource source) {
   {
     ShotPreset &preset = mutableActiveShotPreset(presetBank);
     copyUserRecipeFromConfig(runtimeConfig, preset);
-    preset.weightOffsetG = runtimeConfig.weightOffsetG;
+    (preset.bbwAlgorithm == 0 ? preset.weightOffsetG : preset.bbwEwmaOffsetG) =
+        runtimeConfig.weightOffsetG;
     memcpy(preset.autoToManualGuardSamplesDs,
            runtimeConfig.autoToManualGuardSamplesDs,
            sizeof(preset.autoToManualGuardSamplesDs));
@@ -32,6 +33,11 @@ void resetSessionForNewCycle(ControlSource source) {
 #endif
   session.config = snapshotConfig(effectiveRuntimeConfig());
   session.activePresetId = presetBank.activeId;
+  const ShotPreset &preset = activeShotPreset(presetBank);
+  session.config.bbwAlpha = preset.bbwAlgorithm == 0 ? 100 : preset.bbwEwmaAlpha;
+  session.config.bbwProfileVersion = preset.bbwProfileVersion;
+  session.config.bbwLearningGeneration = bbwLearningBank.forPreset(
+      preset.id, presetBank).generations[preset.bbwAlgorithm];
   session.endReason = EndReason::NONE;
 }
 

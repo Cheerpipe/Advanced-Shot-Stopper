@@ -1059,9 +1059,10 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
              "%s{\"id\":%lu,\"bootId\":%lu,\"endedAtMs\":%lu,"
              "\"hasWallTime\":%s,\"endedAtLocalSec\":%lu,"
              "\"endedAtUnixSec\":%lu,\"timezoneOffsetMinutesAtCommit\":%d,"
-             "\"durationS\":%.1f,"
+             "\"durationS\":%.1f,\"presetId\":%u,"
              "\"goalG\":%u,\"actualG\":%s,\"errorG\":%s,\"errorPct\":%s,"
-             "\"offsetG\":%.2f,\"avgFlowGS\":%s,\"firstDropS\":%s,"
+             "\"offsetG\":%.2f,\"bbwAlgorithm\":\"%s\",\"bbwAlgorithmVersion\":%s,"
+             "\"bbwAlpha\":%s,\"bbwLearningApplied\":%s,\"avgFlowGS\":%s,\"firstDropS\":%s,"
              "\"shotType\":\"%s\",\"cutType\":\"%s\","
              "\"extractionGuardEnabled\":%s,\"extractionExtended\":%s,"
              "\"slowExtractionGuardEnabled\":%s,\"slowExtractionExtended\":%s,"
@@ -1077,12 +1078,15 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
              static_cast<unsigned long>(record.endedAtUnixSec),
              static_cast<int>(record.timezoneOffsetMinutesAtCommit),
              static_cast<double>(record.durationDs) / 10.0,
+             static_cast<unsigned>(shotLogPresetId(record)),
              static_cast<unsigned>(record.goalWeightG), actual, errorG,
              errorPct,
-             static_cast<double>(record.offsetUsedCg) / 100.0, flow,
+             static_cast<double>(record.offsetUsedCg) / 100.0,
+             shotLogBbwAlgorithm(record), shotLogBbwVersion(record),
+             shotLogBbwAlpha(record), shotLogBbwLearningApplied(record), flow,
              firstDrop,
-             shotLogTypeName(static_cast<ShotLogType>(record.shotType)),
-             shotLogCutName(static_cast<ShotLogCut>(record.cutType)),
+             shotLogTypeName(shotLogType(record)),
+             shotLogCutName(shotLogCut(record)),
              shotLogFastGuardEnabled(record.extractionGuardEnabled) ? "true"
                                                                     : "false",
              shotLogFastExtended(record.extractionExtended) ? "true" : "false",

@@ -58,6 +58,50 @@ when the list is sorted by rating or oldest-first.
 
 ## Read a result
 
+CSV retains its original column order and appends `bbw_algorithm`,
+`bbw_algorithm_version`, `bbw_alpha`, `bbw_learning_applied`, and `preset_id`. The JSON names
+are `bbwAlgorithm`, `bbwAlgorithmVersion`, `bbwAlpha`, and `bbwLearningApplied`.
+These fields are exported data; the visible table/cards and averages do not
+add algorithm or offset fields.
+
+`preset_id` (JSON `presetId`) is captured from the preset used for that shot,
+not the currently selected recipe. It survives switching, renaming or deleting
+the preset. Pre-V3 records have unknown identity (JSON 0, CSV empty); their
+preset cannot be recovered from target weight. Keep an external mapping from ID
+to physical portafilter/basket and recipe context when exporting. IDs are local
+to the controller, use 1–255 and may be reused after allocation wraps or settings
+are reset; separate those epochs rather than pool unrelated physical setups.
+
+`offset_g` is the compensation captured at shot start, **before learning**,
+in grams at 0.01 g storage resolution. Zero is valid. It is not the baseline,
+next learned offset or measured post-shutdown water. `bbw_alpha` is also
+captured at shot start: Legacy v1 uses 1.00; adaptive EWMA v1 may use 0.10,
+0.30, 0.50 or 1.00. It is not a gain selected after this shot's result.
+Learning applied is `1`/`0` in CSV and true/false in JSON; a skipped shot still
+retains its assigned gain. For example, appended CSV values can be
+`linear_ewma,1,0.30,1` and later `linear_ewma,1,0.50,1` for the same preset.
+
+Migrated pre-selector records keep their offsets, ratings and guard flags,
+and identify Legacy with unknown version, gain and learning status (JSON null,
+CSV empty). Unrecognized provenance is `unknown`, never the current setting.
+History schema V3 retains 48-byte records and the 120-shot limit. V2 migration
+preserves cutoff metadata and marks preset identity unknown. Older firmware
+rejects V3; use the current firmware's Legacy selector for comparison.
+
+Algorithm identity describes the shot's configured policy even when a guard
+or manual action ends it; use `stop`, `shot_type` and `cut_type` to interpret
+the outcome. EWMA time/safety-limit outcomes remain in eligible history with
+learning-applied false; only a normal weight-target cut can train EWMA.
+Compare datasets separately by preset, algorithm/profile and
+actual gain, recording firmware identity, recipe changes and resets externally.
+Export before the ring overwrites older shots.
+
+Average flow uses final weight (including accepted post-drip) minus baseline,
+divided by duration after first drop. It is not terminal flow at cutoff.
+Error and average flow share final weight algebraically, so their correlation
+does not prove a residual-flow mechanism. The curve's revised endpoint does
+not reconstruct post-stop drip decay. See [BBW learning](brew-by-weight.md#cutoff-algorithms-and-learning).
+
 | Stop detail | Meaning |
 | --- | --- |
 | `normal_target` | Normal weight endpoint, including offset/prediction |
