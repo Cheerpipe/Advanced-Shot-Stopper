@@ -91,6 +91,14 @@ Keep task-specific progress, decisions, and recovery notes in the corresponding
 plan or audit file; audit findings belong in `docs/audits/`. Durable behavior
 belongs in the canonical guides, which must not depend on ignored working files.
 
+## Codex sandbox compatibility
+
+When working in this repository's Codex sandbox, do not use `ps` or `pgrep` to
+enumerate processes: both are blocked. Run ESP-IDF commands directly without a
+process-discovery preflight. `lsof -p $$` is usable only for the invoking
+process, not general discovery. If external process state is essential, report
+the limitation and request the needed permission instead of retrying.
+
 
 # ANTI-BLOATWARE & CODE ECONOMY RULES
 
