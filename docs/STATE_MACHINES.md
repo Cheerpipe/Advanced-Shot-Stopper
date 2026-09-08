@@ -469,8 +469,9 @@ Informational cup weight is independent of the mutable occupied reference.
 The FSM keeps a qualified `ABSENT` reference and stable placement `PRESENT`
 record with qualification times, plus their difference for the current placement. The
 absent reading must qualify the shared stability window before placement starts.
-After REMOVED, a new absent plateau is required before any replacement can
-qualify; the negative-hole minimum is diagnostic only. Placement and queued tare
+After REMOVED, a new absent plateau or qualified idle unload with a trusted
+anchor is required before replacement can qualify; the negative-hole minimum
+is diagnostic only. Placement and queued tare
 validation use absent plus minimum cup weight. An established absent record
 survives transient intermediate weights while the next plateau qualifies.
 An independent empty anchor preserves the coordinate through freshness loss and
@@ -488,11 +489,14 @@ than acquiring new mass from net weight. No baseline is learned across a pending
 tare. Removal, reset, connection changes, stale/invalid samples, lost evidence,
 and uncertain outcomes invalidate the measurement. Sample gaps beyond the
 configured stability maximum clear qualification, not the numerical anchor.
-A matching successful tracked tare translates the anchor by its fresh raw
-pre-tare reading; overlapping, timed-out or uncertain tares discard that authority.
+A matching successful tracked tare translates the anchor by the latest
+control-approved reading captured at the write boundary, with matching packet
+sequence and connection. The enqueue reading is not a frozen tare offset;
+missing/unvalidated pre-write evidence, overlapping, timed-out or uncertain tares
+discard that authority.
 Diagnostic reference changes also discard it. Original placement records and mass
-are not rewritten by this translation. After removal, fresh stable absence is
-still required; an unknown anchor may be reacquired from that observed removal.
+are not rewritten by this translation. An unknown anchor may be reacquired from
+fresh stable absence after an observed removal.
 Raw reference acquisition
 uses parsed sensing bounds, including valid negative readings below the automation
 floor; placement automation and brew acceptance retain their existing bounds.
@@ -501,7 +505,16 @@ Freshness/order validation gates the cup FSM as well as mass acquisition in idle
 and active cycles. Samples over 1000 ms old, future-dated, duplicated or out of
 order, and non-finite/out-of-parsed-range weights, reset placement and removal
 confirmation evidence and cannot emit PLACED/REMOVED or trigger retare.
-Idle tare additionally requires qualified stable absence, not one ABSENT sample.
+Outside an active cycle, two consecutive fresh near-empty samples can qualify
+unloading against a trusted anchor without a stable-empty pause. The band is
+`min(placement tolerance, 0.5 g, minimum cup mass / 2)` above that anchor; samples
+must meet both the configured gap and removal confirmation window. This evidence
+is distinct from a stable absent record and is consumed by the next qualified
+placement. It is reset by lost/invalid samples, config/reference/connection changes,
+and tare/transition holds. The occupied stable window and relative minimum mass
+remain required. No fast authorization crosses an active cycle or pending tare.
+Idle tare accepts this path or stable absence, never one ABSENT sample or a
+stable-to-stable load difference alone. In-shot confirmation remains unchanged.
 See [Displayed cup weight](settings/cup.md#displayed-cup-weight).
 
 The shot-start resync preserves known tared PRESENT at zero. Require-cup checks
@@ -512,8 +525,12 @@ placement candidate, not PRESENT. Ending a shot never creates a placement.
 Idle tare requires current-connection absence evidence followed by PLACED while
 READY, or after a normal shot stop in REQUIRES_OFF awaiting paddle release,
 with machine CONFIRMED_OFF and no active cycle, safety trip, or maintenance.
-A placement outside eligibility is consumed, not deferred. Removal during drip
-finalization commits captured last-known weight instead of the replacement cup.
+A placement outside eligibility is consumed, not deferred. Observed removal or
+placement during drip finalization commits captured last-known weight instead of
+the replacement cup, independently of the idle-tare setting. One fresh credible
+near-empty sample can discard optional post-drip substitution/learning without
+emitting a cup event or authorizing tare. Entirely unsampled motion remains
+unobservable from final weight alone.
 
 ---
 

@@ -49,8 +49,10 @@ not tare that cup.
 After connection, let the controller observe a stable empty pan near zero,
 then place the cup. A single absent sample cannot authorize idle tare.
 The existing [Cup](cup.md) stability settings qualify the placement and the empty
-reference. After removal, let the empty pan stabilize before replacing the cup.
-This triggers another tare, even if the cup contains coffee;
+reference. Once that reference is known, a
+[qualified brief unload](cup.md#fast-replacement-outside-a-shot) followed by stable
+placement also works without another stable-empty pause.
+Either placement path triggers another tare, even if the cup contains coffee;
 adding coffee or a spoon while the cup stays present does not.
 
 Moving an empty scale does not authorize learning a new negative zero. Return
@@ -92,6 +94,11 @@ reference is retained; otherwise the reference becomes uncertain and cannot
 satisfy **Require cup to start**. A later unambiguous lift/replacement or a new
 connection can establish fresh evidence; a zero alone cannot reconstruct
 physical motion hidden by simultaneous tare.
+
+Tracked tares translate the known empty reference from the latest control-approved
+reading captured immediately before the write, rather than the enqueue weight.
+Missing or unvalidated pre-write evidence invalidates the anchor and cup mass;
+it does not prevent the existing tare operation or fabricate a new empty zero.
 
 Debug export schema 7 includes `idleTare`: request/placement IDs, eligibility
 and terminal reasons, reference confidence, qualifying weight range, capture

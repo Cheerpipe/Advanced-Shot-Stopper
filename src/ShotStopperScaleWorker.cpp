@@ -171,6 +171,7 @@ QueueHandle_t scaleEventQueue = nullptr;
 portMUX_TYPE scaleLinkMux = portMUX_INITIALIZER_UNLOCKED;
 TaskMutex idleScaleTareMux;
 IdleTareStatus workerIdleTare;
+ScaleTareSample approvedTareSample; // Protected by idleScaleTareMux.
 TaskMutex scalePreferredMacMux;
 portMUX_TYPE scaleBeepMux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE scaleDebugMux = portMUX_INITIALIZER_UNLOCKED;
@@ -549,6 +550,11 @@ IdleTareStatus idleScaleTareStatus() {
   return workerIdleTare;
 }
 
+void approveScaleTareSample(const ScaleTareSample &sample) {
+  const TaskLockGuard lock(idleScaleTareMux);
+  approvedTareSample = sample;
+}
+
 bool cancelIdleScaleTare(uint32_t requestId, IdleTareStatus *released) {
   idleScaleTareMux.lock();
   const bool writing = workerIdleTare.requestId == requestId &&
@@ -587,12 +593,14 @@ bool claimIdleScaleTare(uint32_t requestId, uint32_t expectedPacketSequence,
 }
 
 void finishIdleScaleTare(uint32_t requestId, bool succeeded,
-                         IdleTareReason failureReason = IdleTareReason::WRITE_FAILED) {
+                         IdleTareReason failureReason = IdleTareReason::WRITE_FAILED,
+                         float preTareWeightG = NAN) {
   idleScaleTareMux.lock();
   if (workerIdleTare.requestId == requestId) {
     workerIdleTare.phase = succeeded ? IdleTarePhase::SUCCEEDED
                                     : IdleTarePhase::FAILED;
     workerIdleTare.writtenAtMs = millis();
+    workerIdleTare.preTareWeightG = preTareWeightG;
     workerIdleTare.reason = succeeded ? IdleTareReason::NONE : failureReason;
   }
   idleScaleTareMux.unlock();
@@ -810,6 +818,19 @@ void yieldBetweenScaleAttOps() {
   feedOrTripCurrentTaskWatchdog();
 }
 
+float capturePreTareWeight(const ScaleCommand &command) {
+  // Include buffered notifications before comparing with control's approval.
+  publishPendingScaleWeightEvent();
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  const TaskLockGuard lock(idleScaleTareMux);
+  return approvedTareSample.packetSequence != 0 &&
+      approvedTareSample.packetSequence == link.packetSequence &&
+      approvedTareSample.connectionGeneration == command.connectionGeneration &&
+      command.connectionGeneration == link.connectionGeneration &&
+      static_cast<uint32_t>(millis() - approvedTareSample.atMs) <= MAX_AUTOMATION_WEIGHT_AGE_MS
+      ? approvedTareSample.weightG : NAN;
+}
+
 void executeScaleStartCommand(const ScaleCommand &command) {
   ScaleEvent event;
   event.type = ScaleEventType::TIMER_START_RESULT;
@@ -824,6 +845,7 @@ void executeScaleStartCommand(const ScaleCommand &command) {
         scale.features().has(ScaleFeatureCombinedTareStart)) {
       event.commandAttempted = true;
       event.usedCombinedTareStart = true;
+      event.preTareWeightG = capturePreTareWeight(command);
       const ScaleCommandResult result = scale.tareStartTimer();
       event.tareAttempted = result != ScaleCommandResult::Unsupported;
       event.tareSucceeded = scaleCommandOk(result);
@@ -847,6 +869,7 @@ void executeScaleStartCommand(const ScaleCommand &command) {
       }
       if (event.writeSucceeded && command.autoTare &&
           scale.features().has(ScaleFeatureTare)) {
+        event.preTareWeightG = capturePreTareWeight(command);
         const ScaleCommandResult result = scale.tare();
         event.tareAttempted = result != ScaleCommandResult::Unsupported;
         event.tareSucceeded = scaleCommandOk(result);
@@ -889,13 +912,15 @@ void executeScaleTareCommand(const ScaleCommand &command) {
 
   if (scale.isConnected()) {
     event.commandAttempted = true;
+    event.preTareWeightG = capturePreTareWeight(command);
     event.writeSucceeded = scaleCommandOk(scale.tare());
     yieldBetweenScaleAttOps();
   }
 
   updateWorkerLinkState();
   if (command.idleTareRequestId != 0) {
-    finishIdleScaleTare(command.idleTareRequestId, event.writeSucceeded);
+    finishIdleScaleTare(command.idleTareRequestId, event.writeSucceeded,
+                       IdleTareReason::WRITE_FAILED, event.preTareWeightG);
   }
   publishScaleEvent(event, true);
 }

@@ -14,11 +14,15 @@ does not start the timer. A cup that remains on the scale after a shot never
 triggers this tare, even after the beverage becomes stable. Removing and
 replacing that full cup does trigger it.
 
-After removal, wait for the empty pan to stabilize before putting a cup back.
-Detection uses that stable reading as its reference, including negative tare
-offsets. A transient low point during removal cannot authorize another tare
-when the empty pan rebounds. A replacement made before stable absence is observed
-requires another removal, settling wait, and placement.
+Once an empty reference is known, two consecutive fresh readings showing
+near-total unloading can authorize a stable replacement without another stable
+empty-pan pause. This works for lighter, equal, and heavier replacements,
+including negative tare offsets. An empty-pan rebound never counts as a cup;
+the detector reuses the known reference, not the removal minimum. Without that
+reference or sufficient unloading evidence, remove the cup, let the empty pan
+settle, and replace it. A swap hidden between notifications cannot be guaranteed.
+See [Cup settings](../settings/cup.md#fast-replacement-outside-a-shot) for the
+unloading and stability requirements. A stable load change alone never triggers tare.
 
 The empty reference remains fixed across disturbances while absent. A stable
 negative excursion followed by a return near zero does not represent an added
@@ -38,9 +42,11 @@ occupied reference stays valid until an actual further lift or tare changes it.
 Valid negative removal readings from a previously accepted heavy load still
 reach the cup detector; this does not expand the placement or brew weight limits.
 
-Removing the cup during drip analysis preserves the previous shot's captured
-last-known weight and skips post-drip learning. The replacement cup or its
-new zero cannot overwrite that shot's result.
+Observed removal during drip analysis preserves the previous shot's captured
+last-known weight and skips post-drip learning, even with idle tare disabled.
+A single credible near-empty reading can discard that optional analysis;
+it cannot authorize a replacement tare. A completely unsampled swap remains
+indistinguishable from some additions to the same cup.
 
 ## Automatic tare at start
 

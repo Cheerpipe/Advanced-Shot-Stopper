@@ -486,7 +486,8 @@ void processScaleWorkerEvents() {
 
       case ScaleEventType::TIMER_START_RESULT:
         finishCupWeight(event.cupWeightRequestId, event.tareSucceeded,
-                        event.tareAttempted || event.discardedStaleConnection);
+                        event.tareAttempted || event.discardedStaleConnection,
+                        event.preTareWeightG);
         if (event.cycleId == session.id) {
           session.remoteTimerMayBeRunning = event.commandAttempted;
           session.remoteTimerStarted = event.writeSucceeded;
@@ -527,7 +528,8 @@ void processScaleWorkerEvents() {
           break;
         }
         finishCupWeight(event.cupWeightRequestId, event.writeSucceeded,
-                        event.commandAttempted || event.discardedStaleConnection);
+                        event.commandAttempted || event.discardedStaleConnection,
+                        event.preTareWeightG);
         if (event.cycleId == session.id && event.writeSucceeded &&
             session.startedWithScale && session.active &&
             stopperState == StopperState::BREW) {

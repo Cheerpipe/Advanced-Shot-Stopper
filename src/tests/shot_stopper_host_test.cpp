@@ -7653,22 +7653,201 @@ void cw15_removal_rebound_cannot_place_or_tare_empty_pan() {
   }
 }
 
-void cw16_replacement_requires_new_stable_absence() {
+void cw16_fast_replacement_reuses_known_empty_anchor() {
+  for (bool enabled : {false, true}) {
+    for (float replacement : {250.0f, 300.0f, 350.0f}) {
+      prepareIdleTare();
+      idleCup(300.0f);
+      CHECK(executeNextScaleCommand());
+      idleCup(0.0f);
+      runtimeConfig.autoTareOutsideBrew = enabled;
+      idleWeight(-300.0f, 50);
+      idleWeight(-300.0f, 50);
+      CHECK(!cupPresence.weight.emptyValid); // No new stable-empty plateau.
+      idleCup(replacement - 300.0f);
+      CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+      CHECK(captureCupTareDiagnostics().weightValid);
+      CHECK(captureCupTareDiagnostics().weightG == replacement);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == (enabled ? 1U : 0U));
+      if (enabled) {
+        CHECK(executeNextScaleCommand());
+        idleCup(0.0f);
+        CHECK(scale.tareCalls == 2);
+      }
+      idleCup(enabled ? 0.0f : replacement - 300.0f);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    }
+  }
+}
+
+void cw27_queued_tare_drift_does_not_accumulate() {
   prepareIdleTare();
-  idleCup(0.0f);
   idleCup(300.0f);
+  idleWeight(302.0f);
   CHECK(executeNextScaleCommand());
   idleCup(0.0f);
-  idleWeight(-300.0f);
-  idleWeight(-300.0f);
-  idleCup(0.0f); // No stable absence was observed before this fast put-back.
-  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
-  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
-  idleCup(-300.0f); // Remove and allow a real empty plateau to qualify.
+  CHECK(cupPresence.emptyAnchorG == -302.0f);
+  idleWeight(-302.0f);
+  idleWeight(-302.0f);
+  idleCup(-302.0f);
+  idleCup(48.0f); // Actual 350 g replacement under the 302 g tare offset.
+  CHECK(captureCupTareDiagnostics().weightG == 350.0f);
+  idleWeight(50.0f);
+  CHECK(executeNextScaleCommand());
   idleCup(0.0f);
-  CHECK(captureCupTareDiagnostics().weightValid);
-  CHECK(captureCupTareDiagnostics().weightG == 300.0f);
-  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  CHECK(cupPresence.emptyAnchorG == -352.0f);
+  idleWeight(-352.0f);
+  idleWeight(-352.0f);
+  idleCup(-352.0f);
+  CHECK(cupPresence.weight.emptyValid);
+  idleCup(48.0f);
+  CHECK(captureCupTareDiagnostics().weightG == 400.0f);
+  CHECK(idleTare.requestId != 0);
+}
+
+void cw28_observed_unload_preserves_previous_shot() {
+  for (bool enabled : {false, true}) {
+    for (int liftSamples : {0, 1, 2}) {
+      prepareIdleTare();
+      idleCup(300.0f);
+      CHECK(executeNextScaleCommand());
+      idleCup(0.0f);
+      runtimeConfig.autoTareOutsideBrew = enabled;
+      startCycle();
+      while (executeNextScaleCommand()) {}
+      establishPostTareBaseline();
+      advanceToBrew();
+      for (int i = 1; i <= 36; ++i) idleWeight(static_cast<float>(i), 300);
+      CHECK(finalizeCycle(EndReason::SCALE_THRESHOLD, StopperState::REQUIRES_OFF));
+      CHECK(pendingFinalize.pending);
+      const uint32_t endedAt = pendingFinalize.endedAtMs;
+      const uint32_t dripDelay = pendingFinalize.dripDelayMs;
+      const float offset = runtimeConfig.weightOffsetG;
+      for (int i = 0; i < liftSamples; ++i) idleWeight(-300.0f, 50);
+      CHECK(pendingFinalize.pending == (liftSamples == 0));
+      idleCup(liftSamples == 0 ? 37.0f : 50.0f);
+      hostMillis = endedAt + dripDelay;
+      idleWeight(liftSamples == 0 ? 37.0f : 50.0f, 0);
+      pendingShotFinalizeTask();
+      CHECK(persistedLastShot.weightValid);
+      CHECK(persistedLastShot.currentWeightG == (liftSamples == 0 ? 37.0f : 36.0f));
+      ShotLogRecord record[1] = {};
+      CHECK(shotLog.copyNewestFirst(record, 1) == 1);
+      CHECK(record[0].actualWeightSource == static_cast<uint8_t>(
+          liftSamples == 0 ? ActualWeightSource::POST_DRIP : ActualWeightSource::LAST_KNOWN));
+      if (liftSamples != 0)
+        CHECK(strcmp(shotLogBbwLearningApplied(record[0]), "false") == 0);
+      if (liftSamples != 0) CHECK(runtimeConfig.weightOffsetG == offset);
+    }
+  }
+}
+
+void cw29_all_tare_paths_capture_latest_approved_load() {
+  for (unsigned commandKind = 0; commandKind < 3; ++commandKind) {
+    for (bool unvalidated : {false, true}) {
+      prepareIdleTare();
+      idleCup(80.0f);
+      CHECK(executeNextScaleCommand());
+      idleCup(0.0f);
+      if (commandKind < 2) {
+        runtimeConfig.canTareStartTimer = commandKind == 1;
+        startCycle();
+      } else {
+        session.config.autoTare = true;
+        CHECK(requestRemoteRetare());
+      }
+      idleWeight(2.0f);
+      if (unvalidated) {
+        ScaleEvent event;
+        event.receivedAtMs = hostMillis;
+        event.weightG = 3.0f;
+        CHECK(publishScaleEvent(event, false));
+      }
+      CHECK(executeNextScaleCommand());
+      CHECK(isfinite(cupPresence.emptyAnchorG) == !unvalidated);
+      if (!unvalidated) {
+        CHECK(cupPresence.emptyAnchorG == -82.0f);
+        CHECK(captureCupTareDiagnostics().weightG == 80.0f);
+      } else {
+        CHECK(!captureCupTareDiagnostics().weightValid);
+      }
+    }
+  }
+}
+
+void cw30_fast_unload_requires_unbroken_evidence() {
+  for (bool enabled : {false, true}) {
+    for (unsigned mode = 0; mode < 8; ++mode) {
+      prepareIdleTare();
+      idleCup(300.0f);
+      CHECK(executeNextScaleCommand());
+      idleCup(0.0f);
+      runtimeConfig.autoTareOutsideBrew = enabled;
+      if (mode == 0) idleCup(5.0f); // Spoon/coffee added, no unloading.
+      if (mode == 1) idleWeight(-300.0f); // One unload is not a placement.
+      if (mode == 2) idleCup(-5.0f); // Partial unloading, including a stable plateau.
+      if (mode >= 3) {
+        idleWeight(-300.0f, 50);
+        idleWeight(-300.0f, mode == 3 ? runtimeConfig.retareStabilityMaxGapMs + 1 : 50);
+      }
+      if (mode == 4) idleWeight(NAN);
+      if (mode == 5) ++runtimeConfig.revision;
+      if (mode == 6) ++scaleEventsDropped;
+      if (mode == 7) resetCupSampleEvidence();
+      idleCup(50.0f);
+      CHECK(cupPresencePlacementId() == 1);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    }
+  }
+}
+
+void cw31_fast_unload_band_and_minimum_mass_are_independent() {
+  for (float minimum : {1.0f, 10.0f, 500.0f}) {
+    for (float tolerance : {0.1f, 2.0f, 20.0f}) {
+      for (float residual : {0.0f, 1.0f}) {
+        prepareIdleTare();
+        runtimeConfig.minimumCupWeightG = minimum;
+        runtimeConfig.retareStabilityToleranceG = tolerance;
+        idleCup(minimum);
+        CHECK(executeNextScaleCommand());
+        idleCup(0.0f);
+        idleWeight(-minimum + residual, 50);
+        idleWeight(-minimum + residual, 50);
+        idleCup(0.0f);
+        CHECK(commandCount(ScaleCommandType::TARE_ONLY) == (residual == 0.0f ? 1U : 0U));
+        if (residual == 0.0f) {
+          CHECK(captureCupTareDiagnostics().weightValid);
+          CHECK(captureCupTareDiagnostics().weightG == minimum);
+        }
+      }
+    }
+  }
+}
+
+void cw32_fast_unload_after_partial_removal_and_wrap() {
+  for (bool wrap : {false, true}) {
+    prepareIdleTare();
+    idleCup(300.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    if (wrap) {
+      hostMillis = UINT32_MAX - 100;
+      markScaleWorkerProgress();
+      idleTare.lastPacketSequence = 0;
+      resetCupSampleEvidence();
+      publishWeight(0.0f, hostMillis, 0, UINT32_MAX - 1);
+      publishWeight(-300.0f, hostMillis + 50, 0, UINT32_MAX);
+      publishWeight(-300.0f, hostMillis + 100, 0, 1);
+    } else {
+      idleCup(-5.0f); // Generic removal happened before near-total unloading.
+      idleWeight(-300.0f, 50);
+      idleWeight(-300.0f, 50);
+    }
+    idleCup(50.0f);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    CHECK(captureCupTareDiagnostics().weightG == 350.0f);
+    CHECK(idleTare.requestId != 0);
+  }
 }
 
 void it02_idle_zero_allows_guarded_start() {
@@ -13741,7 +13920,13 @@ const TestCase testCases[] = {
     {"CW13", cw13_negative_boot_baseline_requires_known_empty_reference},
     {"CW14", cw14_heavy_tare_offsets_preserve_replacement_mass},
     {"CW15", cw15_removal_rebound_cannot_place_or_tare_empty_pan},
-    {"CW16", cw16_replacement_requires_new_stable_absence},
+    {"CW16", cw16_fast_replacement_reuses_known_empty_anchor},
+    {"CW27", cw27_queued_tare_drift_does_not_accumulate},
+    {"CW28", cw28_observed_unload_preserves_previous_shot},
+    {"CW29", cw29_all_tare_paths_capture_latest_approved_load},
+    {"CW30", cw30_fast_unload_requires_unbroken_evidence},
+    {"CW31", cw31_fast_unload_band_and_minimum_mass_are_independent},
+    {"CW32", cw32_fast_unload_after_partial_removal_and_wrap},
     {"CW17", cw17_debug_tare_rebases_negative_replacement},
     {"CW18", cw18_debug_tare_cancels_queued_false_placement},
     {"CW19", cw19_stale_active_samples_cannot_retare},

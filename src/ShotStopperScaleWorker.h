@@ -90,6 +90,7 @@ uint32_t scaleWorkerTickDelayMs();
 void serviceScaleLinkRssi(uint32_t nowMs = millis());
 bool enqueueScaleCommand(const ScaleCommand &command, bool toFront = false);
 IdleTareStatus idleScaleTareStatus();
+void approveScaleTareSample(const ScaleTareSample &sample);
 bool claimIdleScaleTare(uint32_t requestId, uint32_t expectedPacketSequence = 0,
                         uint32_t captureBoundary = 0);
 void approveIdleScaleTareSample(uint32_t requestId, uint32_t packetSequence);

@@ -41,14 +41,23 @@ nonconsecutive readings. No parsing or cup-state transition runs under that
 mutex. Idle-tare claim/cancel/approved-sequence updates use the separate request
 mutex; neither mutex nests with the other or spans ATT. Unvalidated publication
 defers claim using the existing worker tick and unchanged command expiry.
+The same request mutex protects a control-approved pre-tare sample copy. Control
+publishes that copy before approving the corresponding idle claim. Immediately
+before each tare, the worker copies it only if its packet/generation matches the
+published stream and its capture time is fresh; no mutex spans the BLE write.
+The frozen pre-write weight returns through the existing command event or durable
+idle status. Control translates the anchor, or invalidates it when evidence is
+unavailable; enqueue-time load changes cannot accumulate as reference error.
 Cup/idle-tare diagnostic scalars and worker outcome/drop snapshots are gathered
 by control before taking its status publication mutex. Debug export reads the
 committed copy, including uncertainty and the last terminal reason.
 Calculated cup weight and validity travel in the same `CupTareDiagnostics` copy
 inside `ControlStatusSnapshot`, with the placement identity. Control alone
 qualifies the FSM's stable absent/present records, calculates their difference,
-and invalidates the evidence. The scale worker returns an opaque request ID and
-tare outcome for uncertainty handling. Both status JSON paths publish `cupPresence`
+and invalidates the evidence. Qualified idle unloading can reuse its trusted
+empty anchor without forging a new stable-absence record. The scale worker returns
+an opaque request ID, pre-write weight, and tare outcome for uncertainty handling.
+Both status JSON paths publish `cupPresence`
 with `weightG` (finite grams or null), `weightValid`, and `placementId` from that
 committed snapshot.
 The NimBLE advertisement mailbox copies a raw six-byte address and bounded name

@@ -15,8 +15,8 @@ A confirmed weight at or below the removed threshold
 counts as **lifted**. Placement also requires a short run of stable samples.
 After a known tare, a cup at 0 g stays present; **Require cup to start** does
 not require positive net weight. Replacement into a negative tare offset can
-also count as placed. After removal, let the empty scale settle before replacing
-the cup: the same stability settings qualify absence and placement. A removal
+also count as placed. The same stability settings qualify initial absence and
+placement; a known reference also supports the fast idle path below. A removal
 undershoot followed by an empty-pan rebound does not count as another placement.
 Without an absent baseline at boot, a stable absolute reading above the minimum
 can establish presence, but cannot establish cup mass.
@@ -25,7 +25,8 @@ The empty reference stays fixed while the pan remains absent. Moving the scale
 to a stable negative reading cannot redefine its zero: 0 → −20 → 0.1 g does
 not place a cup. After a downward disturbance, let the empty pan settle back
 within the placement tolerance of its reference before placing the cup.
-Stability tolerance bounds sample spread; it is never a minimum placement mass.
+Stability tolerance bounds sample spread; it is neither a minimum placement mass
+nor a threshold that identifies a different cup.
 
 At boot/reconnect, initial empty-reference acquisition requires a stable reading
 within ±0.5 g of zero. An unexplained negative offset, such as −350 g, cannot
@@ -33,6 +34,23 @@ authorize relative placement or idle tare. With the pan empty, use the firmware'
 diagnostic tare and let zero stabilize before placing a cup. Negative references
 from an observed cup removal remain supported. Weight alone cannot distinguish
 every sustained external force from a real cup.
+
+## Fast replacement outside a shot
+
+With a trusted empty reference and no pending/uncertain tare, two consecutive
+fresh readings at or below that reference plus a small residual band qualify
+near-total unloading. The band is the smallest of **Placement tolerance**, 0.5 g,
+and half **Minimum cup weight**. Both readings must fit **Max sample gap** and
+the one-second removal confirmation window. A stable replacement at least the
+minimum cup mass above the reference can then qualify without waiting for
+stable emptiness. This also updates presence and cup weight with idle tare OFF.
+
+Sample loss, invalidity, configuration/reference changes, and connection changes
+discard the short-unload evidence. An empty rebound, partial lift that stays
+above the band, coffee/spoon addition, or a different stable occupied weight
+alone cannot authorize another tare. A fully supported cup can look like a real
+removal; a swap entirely between notifications can be invisible. One unload
+sample is insufficient for replacement tare. In-shot detection is unchanged.
 
 ## Displayed cup weight
 
@@ -42,7 +60,9 @@ The presence state machine records the qualified empty reference while `ABSENT`
 and the stable reading at the next confirmed `PRESENT` transition.
 Cup weight is the difference: **stable present reading − qualified empty reference**.
 The records retain their qualification times; the calculated mass belongs to
-that placement. It appears even with automatic tare disabled.
+that placement. A fast replacement uses the trusted translated empty anchor,
+without inventing a newly observed stable-empty record. It appears even with
+automatic tare disabled.
 
 For example, place a 300 g cup on a scale reading 0 g: the UI shows **≈ 300.0 g**.
 After firmware tare, the live reading is 0 g and cup weight stays 300 g. Remove
@@ -55,15 +75,17 @@ The absent baseline uses the same sample count, whole-window tolerance, maximum
 gap, and minimum stable time as placement. Once qualified, that reference survives
 intermediate readings while a cup is being placed (for example, 0 → 5 → 300 g).
 A transient removal minimum is not a baseline. Successful tracked tares translate
-the empty reference using the observed pre-tare reading, without changing the
-previous placement's recorded mass. Lost sample evidence requires fresh stable
-absence but does not permit the reference to drift to a different plateau.
-Without a reliable stable absent
-reading before placement, the UI shows **—**, including when booting with a cup
+the empty reference using the latest control-approved reading at the write
+boundary, without changing the previous placement's recorded mass. Unvalidated
+pre-write evidence discards that anchor. Lost sample evidence requires fresh
+qualification but does not permit the reference to drift to a different plateau.
+Without a reliable empty reference
+before placement, the UI shows **—**, including when booting with a cup
 already loaded. Removal, stale or invalid samples, excessive sample gaps,
 connection changes, lost evidence, and uncertain tares clear the value.
-Acquisition requires a new stable absence followed by placement; tare
-alone cannot recover missing mass. Nothing is persisted across restarts.
+Acquisition requires stable absence or a newly qualified unload with a trusted
+anchor, followed by placement; tare alone cannot recover missing mass.
+Nothing is persisted across restarts.
 
 All tares must be firmware-issued: physical-button/external tare is outside the
 supported contract. Older firmware payloads and unavailable readings show **—**.
@@ -114,7 +136,9 @@ For example, with a 2 g tolerance, 80→82→84 g is not one stable placement:
 the complete window spans 4 g. Each new window must meet the same sample and
 duration requirements. A lighter replacement can read below zero; its occupied
 reference is retained so an unchanged negative plateau is not a second lift.
-After a confirmed tare, removal still requires the configured negative drop.
+After a confirmed tare, the configured negative drop remains the in-shot
+removal criterion; outside a shot, confirmed near-empty readings also detect
+removal of light cups whose full mass is below that drop.
 
 Related: [Cup protection](../features/cup-protection.md),
 [Tare and retare](../features/tare-retare.md),

@@ -21,7 +21,7 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | relay `esp_timer` constructor temporaries | local `TimerRollbackOwner` | automatic reverse rollback until both timers and the independent timer are ready |
 | network/webhook tasks | owning service, borrowed `TaskHandle_t` | stop request, task acknowledgement, join, then queues/buffers/clients |
 | scale and persistence tasks/queues | boot-lifetime owning service | startup fault rollback; resources remain stable after successful boot |
-| idle scale tare status | ScaleService; control accesses its request API | task mutex serializes claim/cancel/status; never held during BLE writes; WRITING cannot be cancelled; control releases terminal/expired requests |
+| idle scale tare status and approved pre-write sample | ScaleService; control publishes validated sample copies and accesses its request API | task mutex serializes sample copies/claim/cancel/status; never held during BLE writes; WRITING cannot be cancelled; control releases terminal/expired requests and owns anchor translation |
 | ordered scale-weight handoff | ScaleService producer, control consumer | static 16-event FIFO under task mutex; overflow drops the incomplete window and marks discontinuity; no allocation or dynamic teardown |
 | static task mutex/event storage | containing static object | no heap allocation and no dynamic teardown |
 | HTTP server | NetworkService | manager-task-only stop/restart; handle cleared immediately after `httpd_stop` |

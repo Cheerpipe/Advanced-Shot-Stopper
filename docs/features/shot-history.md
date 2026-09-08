@@ -39,6 +39,13 @@ settled post-drip weight replaces the curve's endpoint at that same end time;
 the drip-delay interval is not appended to the graph. The current-shot curve exposed to Home is an in-memory view; it is not a
 persistent live-telemetry service.
 
+Observed removal or a new placement during the drip delay preserves the weight
+captured at shot end and discards post-drip learning, regardless of the idle
+automatic-tare setting. A single fresh reading consistent with the known empty
+pan is enough to discard this optional analysis, but cannot trigger a replacement
+tare. If a physical swap is completely absent from the scale notifications,
+weight alone cannot establish that the final reading belongs to another cup.
+
 ## In the Web UI
 
 Open the shot history table to browse rows, delete one entry, clear the

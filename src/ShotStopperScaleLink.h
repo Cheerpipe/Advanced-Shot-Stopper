@@ -58,12 +58,19 @@ inline const char *idleTareReasonName(uint8_t reason) {
       "connection_changed", "sample_gap", "slot_busy"};
   return reason < sizeof(names) / sizeof(names[0]) ? names[reason] : "unknown";
 }
+struct ScaleTareSample {
+  float weightG = NAN;
+  uint32_t atMs = 0;
+  uint32_t packetSequence = 0;
+  uint32_t connectionGeneration = 0;
+};
 struct IdleTareStatus {
   uint32_t requestId = 0;
   uint32_t approvedPacketSequence = 0;
   uint32_t startedAtMs = 0;
   uint32_t captureBoundary = 0;
   uint32_t writtenAtMs = 0;
+  float preTareWeightG = NAN;
   IdleTarePhase phase = IdleTarePhase::NONE;
   IdleTareReason reason = IdleTareReason::NONE;
 };
@@ -91,6 +98,7 @@ struct ScaleEvent {
   uint32_t packetSequence = 0;
   uint32_t captureSequence = 0;
   float weightG = 0.0f;
+  float preTareWeightG = NAN;
   bool sampleDiscontinuity = false;
   bool commandAttempted = false;
   bool writeSucceeded = false;

@@ -31,9 +31,14 @@ struct CupWeightRuntime {
   uint32_t emptyLastAtMs = 0;
   uint8_t emptySamples = 0;
   bool emptyValid = false;
+  bool unloadQualified = false;
+  uint8_t unloadSamples = 0;
+  uint32_t unloadAtMs = 0;
+  uint32_t unloadSequence = 0;
   uint32_t sampleAtMs = 0;
   uint32_t sampleSequence = 0;
   uint32_t connectionGeneration = 0;
+  uint32_t configRevision = 0;
   uint32_t pendingId = 0;
   uint32_t pendingPlacementId = 0;
   uint32_t pendingAtMs = 0;
@@ -105,6 +110,16 @@ void invalidateCupWeight() {
   cupPresence.weight.present.valid = false;
   cupPresence.weight.emptyValid = false;
   cupPresence.weight.emptySamples = 0;
+  cupPresence.weight.unloadSamples = 0;
+  cupPresence.weight.unloadQualified = false;
+}
+
+bool cupWeightNearKnownEmpty(float weight) {
+  const float band = fminf(runtimeConfig.retareStabilityToleranceG,
+      fminf(FIRST_DROP_BASELINE_SETTLE_G, runtimeConfig.minimumCupWeightG / 2.0f));
+  return cupPresence.placementId != 0 && isfinite(cupPresence.emptyAnchorG) &&
+      !cupPresence.referenceUncertain && !cupPresence.holdTransitions &&
+      cupPresence.weight.pendingId == 0 && weight <= cupPresence.emptyAnchorG + band;
 }
 
 void observeEmptyCupWeight(float weight, uint32_t atMs) {
@@ -201,6 +216,8 @@ void resyncCupPresenceIfPanEmpty(float weight) {
 
 void holdCupPresenceTransitions(bool hold) {
   cupPresence.holdTransitions = hold;
+  cupPresence.weight.unloadSamples = 0;
+  cupPresence.weight.unloadQualified = false;
   resetCupPlaceStabilityStreak();
   cupPresence.removedConfirmations = 0;
   cupPresence.lastRemovedAtMs = 0;
@@ -208,6 +225,9 @@ void holdCupPresenceTransitions(bool hold) {
 }
 
 void notifyCupPresenceTare() {
+  cupPresence.weight.unloadSamples = 0;
+  cupPresence.weight.unloadQualified = false;
+  cupPresence.removedConfirmations = 0;
   if (cupPresence.state == CupPresenceState::PRESENT) {
     cupPresence.taredWhilePresent = true;
     cupPresence.occupiedReferenceG = 0.0f;
@@ -221,18 +241,36 @@ void notifyCupPresenceTare() {
 }
 
 CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
-                                 uint32_t packetSequence, bool allowPlacement = true) {
+                                 uint32_t packetSequence, bool allowPlacement = true,
+                                 bool allowFastReplacement = false) {
   if (!isfinite(weight)) {
     return CupPresenceEvent::NONE;
   }
 
   const float minCupG = runtimeConfig.minimumCupWeightG;
   const float removedG = runtimeConfig.cupRemovedWeightG;
+  auto &mass = cupPresence.weight;
+  const bool nearEmpty = allowFastReplacement && cupWeightNearKnownEmpty(weight);
+  if (nearEmpty) {
+    const bool consecutive = mass.unloadSamples != 0 &&
+        receivedAtMs - mass.unloadAtMs <= runtimeConfig.retareStabilityMaxGapMs &&
+        receivedAtMs - mass.unloadAtMs <= DIRECT_STOP_CONFIRMATION_WINDOW_MS &&
+        packetSequence != 0 && packetSequence ==
+            (mass.unloadSequence == UINT32_MAX ? 1U : mass.unloadSequence + 1U);
+    if (!consecutive) mass.unloadSamples = 0;
+    if (mass.unloadSamples < DIRECT_STOP_CONFIRMATION_SAMPLES) ++mass.unloadSamples;
+    mass.unloadAtMs = receivedAtMs;
+    mass.unloadSequence = packetSequence;
+    if (mass.unloadSamples >= DIRECT_STOP_CONFIRMATION_SAMPLES)
+      mass.unloadQualified = true;
+  } else {
+    mass.unloadSamples = 0;
+  }
   // A lighter put-back may remain below zero until tare. Its stationary
   // occupied plateau is not a second lift; preserve the additional drop.
   const float removalReferenceG = fminf(0.0f, cupPresence.occupiedReferenceG);
   const bool removalCandidate =
-      weight <= removalReferenceG + removedG ||
+      nearEmpty || weight <= removalReferenceG + removedG ||
       (!cupPresence.taredWhilePresent && !cupPresence.referenceUncertain &&
        weight < minCupG);
 
@@ -274,7 +312,10 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
     }
 
     cupPresence.state = CupPresenceState::ABSENT;
+    const uint8_t unloadSamples = mass.unloadSamples;
     invalidateCupWeight();
+    mass.unloadSamples = unloadSamples;
+    mass.unloadQualified = unloadSamples >= DIRECT_STOP_CONFIRMATION_SAMPLES;
     cupPresence.taredWhilePresent = false;
     cupPresence.referenceUncertain = false;
     cupPresence.occupiedReferenceG = 0.0f;
@@ -288,12 +329,13 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   if (cupPresence.inNegativeHole && weight < cupPresence.holeWeightG) {
     cupPresence.holeWeightG = weight;
   }
-  // A lift minimum is a transient, not the empty reference. Qualify the new
-  // absent plateau before accepting a replacement, including a rebound.
+  // A brief confirmed unload can reuse the anchor; never use a lift minimum.
+  const bool qualifiedReference = mass.emptyValid ||
+      (allowFastReplacement && mass.unloadQualified && isfinite(cupPresence.emptyAnchorG));
   const bool awaitingAbsence = cupPresence.inNegativeHole &&
-                               !cupPresence.weight.emptyValid;
-  const float placementThresholdG = cupPresence.weight.emptyValid
-      ? cupPresence.weight.absent.absoluteG + minCupG : minCupG;
+                               !qualifiedReference;
+  const float placementThresholdG = qualifiedReference
+      ? cupPresence.emptyAnchorG + minCupG : minCupG;
   const bool placeCandidate = !awaitingAbsence && weight >= placementThresholdG;
   if (!placeCandidate) {
     if (cupPresence.weight.sampleSequence == packetSequence &&
@@ -352,15 +394,17 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
 
   cupPresence.state = CupPresenceState::PRESENT;
   const float placementWeightG = cupPresence.placeCandidateWeightG -
-                                cupPresence.weight.absent.absoluteG;
+                                cupPresence.emptyAnchorG;
   const bool placementSampleValid = cupPresence.weight.sampleSequence == packetSequence &&
       packetSequence != 0 && cupPresence.weight.sampleAtMs == receivedAtMs;
-  const bool placementWeightValid = cupPresence.weight.emptyValid &&
+  const bool placementWeightValid = qualifiedReference &&
       placementSampleValid && isfinite(placementWeightG) && placementWeightG >= minCupG;
-  // Retain the absolute readings of both stable states for this placement.
+  // Record the new occupied reading without inventing a stable-empty sample.
   cupPresence.weight.present = CupStableWeight{
       cupPresence.placeCandidateWeightG, receivedAtMs, placementSampleValid};
   cupPresence.weight.emptyValid = false;
+  cupPresence.weight.unloadQualified = false;
+  cupPresence.weight.unloadSamples = 0;
   cupPresence.weight.pendingValid = false;
   cupPresence.weight.weightG = placementWeightValid ? placementWeightG : 0.0f;
   cupPresence.weight.valid = placementWeightValid;
