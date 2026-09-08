@@ -124,6 +124,7 @@ void processWebCommand(const WebCommand &command) {
       // Machine/workflow fields only. Recipe authority stays on the active preset.
       RuntimeConfig candidate = runtimeConfig;
       candidate.autoTare = command.config.autoTare;
+      candidate.autoTareOutsideBrew = command.config.autoTareOutsideBrew;
       candidate.postTareBaselineGraceMs = command.config.postTareBaselineGraceMs;
       candidate.canTareStartTimer = command.config.canTareStartTimer;
       candidate.scaleTimerStopExtraDelayMs =

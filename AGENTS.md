@@ -19,7 +19,8 @@ Prefer targeted `rg` searches and focused reads. Do not load generated assets,
 build trees, managed components, dependencies, or reports wholesale. Edit
 existing logic instead of adding wrappers or parallel implementations. Explain
 before adding more than 15 lines for a fix. Never leave placeholder or commented
-out code.
+out code. Do not launch subagents in parallel; use at most one subagent at a
+time.
 
 ## Safety and permissions
 

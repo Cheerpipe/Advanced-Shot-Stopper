@@ -102,6 +102,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   shot = ShotTrajectory{};
   session = CycleSession{};
   resetCupPresence();
+  idleTare = IdleTareRuntime{};
+  workerIdleTare = IdleTareStatus{};
   pendingFinalize = PendingShotFinalize{};
   bullseyeTracker.clear();
   bullseyeMelodyConfig = BullseyeMelodyConfig{};
@@ -110,6 +112,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   pendingScaleTimerStop = PendingScaleTimerStop{};
   pendingBrewRfRestore = false;
   runtimeConfig = RuntimeConfig{};
+  // Legacy scenarios opt out; dedicated idle-tare cases exercise the ON default.
+  runtimeConfig.autoTareOutsideBrew = false;
   runtimeConfig.rinseEnabled = true;
   // Host scenarios cover scale-path alerts unless a test sets the channel.
   runtimeConfig.alertOutputChannel =
@@ -6739,6 +6743,300 @@ void cup_fsm_tare_does_not_change_state() {
   CHECK(cupPresenceState() == CupPresenceState::ABSENT);
 }
 
+void cup_fsm_tared_zero_survives_guarded_start() {
+  for (bool startTare : {false, true}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    enableCupStartGuardForTest();
+    runtimeConfig.autoTare = startTare;
+    seedCupPresence(80.0f);
+    notifyCupPresenceTare();
+    publishStableCupWeight(0.0f, 30);
+    startCycle();
+    CHECK(session.active);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(!cupStartGuardHold);
+  }
+}
+
+void idleWeight(float weight, uint32_t dtMs = 150) {
+  hostMillis += dtMs;
+  markScaleWorkerProgress();
+  publishWeight(weight);
+}
+
+void idleCup(float weight) {
+  for (uint8_t i = 0; i < runtimeConfig.retareStabilitySamples; ++i) {
+    idleWeight(weight);
+  }
+}
+
+void prepareIdleTare() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  runtimeConfig.autoTareOutsideBrew = true;
+  idleWeight(0.0f);
+}
+
+void it01_placement_tares_once_independently() {
+  for (unsigned flags = 0; flags < 8; ++flags) {
+    prepareIdleTare();
+    runtimeConfig.autoTareOutsideBrew = (flags & 1) != 0;
+    runtimeConfig.autoTare = (flags & 2) != 0;
+    runtimeConfig.autoRetare = (flags & 4) != 0;
+    idleCup(80.0f);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == (flags & 1));
+    if (!(flags & 1)) continue;
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(idleTare.requestId == 0);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(scale.tareCalls == 1);
+    CHECK(commandCount(ScaleCommandType::START_TIMER_AND_TARE) == 0);
+    idleCup(40.0f);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    idleWeight(-80.0f);
+    idleWeight(-80.0f);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    idleCup(0.0f);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  }
+}
+
+void it02_idle_zero_allows_guarded_start() {
+  for (bool autoStart : {false, true}) {
+    prepareIdleTare();
+    runtimeConfig.autoTare = autoStart;
+    enableCupStartGuardForTest();
+    idleCup(80.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    startCycle();
+    CHECK(session.active);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(!cupStartGuardHold);
+    CHECK(!debugEventExists(DebugCode::CUP_START_GUARD_BLOCKED));
+  }
+}
+
+void it03_shot_end_never_tares_remaining_cup() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  startCycle();
+  while (executeNextScaleCommand()) {}
+  establishPostTareBaseline();
+  idleWeight(36.0f);
+  CHECK(finalizeCycle(EndReason::SCALE_THRESHOLD, StopperState::REQUIRES_OFF));
+  const size_t before = scale.tareCalls;
+  idleCup(36.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  idleWeight(-80.0f);
+  idleWeight(-80.0f);
+  CHECK(!pendingFinalize.pending);
+  idleCup(36.0f); // Full cup put back, with paddle still ON.
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  CHECK(stopperState == StopperState::REQUIRES_OFF);
+  CHECK(!getRelaySafetySnapshot().closed);
+  while (executeNextScaleCommand()) {}
+  CHECK(scale.tareCalls == before + 1);
+}
+
+void it04_reconnect_and_setting_changes_do_not_place() {
+  prepareIdleTare();
+  setScaleConnected(false);
+  setScaleConnected(true);
+  idleCup(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  runtimeConfig.autoTareOutsideBrew = false;
+  serviceIdleTare();
+  runtimeConfig.autoTareOutsideBrew = true;
+  idleCup(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  ++runtimeConfig.revision;
+  idleCup(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleWeight(0.0f);
+  idleWeight(0.0f);
+  idleCup(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+}
+
+void it05_queued_tare_cancels_before_start_or_removal() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  beginCycle();
+  CHECK(!session.active);
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(executeNextScaleCommand());
+  CHECK(scale.tareCalls == 0);
+  prepareIdleTare();
+  idleCup(80.0f);
+  idleWeight(0.0f);
+  idleWeight(0.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(executeNextScaleCommand());
+  CHECK(scale.tareCalls == 0);
+}
+
+void it06_executing_and_late_results_cannot_enter_brew() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  const ScaleCommand command = queuedCommandAt(0);
+  CHECK(claimIdleScaleTare(command.idleTareRequestId));
+  beginCycle();
+  CHECK(!session.active);
+  CHECK(!cancelIdleScaleTare(command.idleTareRequestId));
+  finishIdleScaleTare(command.idleTareRequestId, true);
+  idleCup(0.0f);
+  startCycle();
+  CHECK(session.active);
+  session.awaitingPostTareBaseline = false;
+  const bool retareBefore = session.retarePerformed;
+  ScaleEvent late;
+  late.type = ScaleEventType::TARE_RESULT;
+  late.cycleId = session.id; // Even an accidentally matching cycle is isolated.
+  late.idleTareRequestId = command.idleTareRequestId;
+  late.writeSucceeded = true;
+  CHECK(publishScaleEvent(late, true));
+  processScaleWorkerEvents();
+  CHECK(!session.awaitingPostTareBaseline);
+  CHECK(session.retarePerformed == retareBefore);
+}
+
+void it07_expiry_failure_and_removal_during_write() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  runLoopAfter(MAX_AUTOMATION_WEIGHT_AGE_MS + 1);
+  CHECK(executeNextScaleCommand());
+  CHECK(scale.tareCalls == 0);
+  prepareIdleTare();
+  idleCup(80.0f);
+  const uint32_t id = idleTare.requestId;
+  CHECK(claimIdleScaleTare(id));
+  idleWeight(0.0f);
+  CHECK(cupPresenceIsTared());
+  finishIdleScaleTare(id, false);
+  serviceIdleTare();
+  CHECK(!cupPresenceIsTared());
+  idleWeight(0.0f);
+  idleWeight(0.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  prepareIdleTare();
+  idleCup(80.0f);
+  const uint32_t removedId = idleTare.requestId;
+  CHECK(claimIdleScaleTare(removedId));
+  idleWeight(-80.0f);
+  idleWeight(-80.0f);
+  finishIdleScaleTare(removedId, true);
+  serviceIdleTare();
+  CHECK(scale.tareCalls == 0);
+  CHECK(idleTare.requestId == 0);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  idleCup(0.0f); // A real stable put-back can now authorize a new request.
+  CHECK(idleTare.requestId != removedId);
+}
+
+void it08_stability_and_ineligible_placement() {
+  prepareIdleTare();
+  idleCup(5.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleWeight(80.0f);
+  idleWeight(100.0f);
+  idleWeight(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  // Placement starts during a shot; ending it cannot authorize its tail.
+  prepareIdleTare();
+  startCycle();
+  while (executeNextScaleCommand()) {}
+  establishPostTareBaseline();
+  idleWeight(80.0f);
+  CHECK(finalizeCycle(EndReason::ACTIVATOR, StopperState::READY));
+  idleCup(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+}
+
+void it09_invalid_samples_queue_failure_and_disconnect() {
+  prepareIdleTare();
+  const auto link = getScaleLinkSnapshot();
+  const uint32_t at = hostMillis;
+  for (unsigned i = 0; i < 5; ++i) {
+    publishWeight(80.0f, at, link.connectionGeneration, 77);
+  }
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleWeight(2000.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  prepareIdleTare();
+  while (scaleCommandQueue->items.size() < SCALE_COMMAND_QUEUE_LENGTH) {
+    ScaleCommand filler;
+    CHECK(enqueueScaleCommand(filler));
+  }
+  idleCup(80.0f);
+  CHECK(idleTare.requestId == 0);
+  CHECK(idleScaleTareStatus().phase == IdleTarePhase::NONE);
+  scaleCommandQueue->items.clear();
+  idleCup(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  prepareIdleTare();
+  idleCup(80.0f);
+  const auto command = queuedCommandAt(0);
+  CHECK(claimIdleScaleTare(command.idleTareRequestId));
+  setScaleConnected(false);
+  serviceIdleTare();
+  setScaleConnected(true);
+  finishIdleScaleTare(command.idleTareRequestId, true);
+  idleCup(0.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(!cupPresenceIsTared());
+}
+
+void it10_worker_claim_and_cancel_are_mutually_exclusive() {
+  prepareIdleTare();
+  for (uint32_t i = 1; i <= 100; ++i) {
+    ScaleCommand command;
+    command.type = ScaleCommandType::TARE_ONLY;
+    command.idleTareRequestId = i;
+    CHECK(enqueueScaleCommand(command));
+    std::atomic<bool> go{false};
+    bool claimed = false;
+    std::thread worker([&] {
+      while (!go.load(std::memory_order_acquire)) std::this_thread::yield();
+      claimed = claimIdleScaleTare(i);
+    });
+    go.store(true, std::memory_order_release);
+    const bool cancelled = cancelIdleScaleTare(i);
+    worker.join();
+    CHECK(cancelled != claimed);
+    if (claimed) {
+      CHECK(idleScaleTareStatus().phase == IdleTarePhase::WRITING);
+      finishIdleScaleTare(i, true);
+      CHECK(cancelIdleScaleTare(i));
+    }
+    scaleCommandQueue->items.clear();
+  }
+}
+
+void it11_disabling_after_write_keeps_tared_cup() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  ScaleCommand command;
+  CHECK(xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE);
+  executeScaleCommand(command); // Completion has not reached control yet.
+  runtimeConfig.autoTareOutsideBrew = false;
+  ++runtimeConfig.revision;
+  serviceIdleTare();
+  CHECK(idleTare.requestId == 0);
+  idleCup(0.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(cupPresenceIsTared());
+  enableCupStartGuardForTest();
+  runtimeConfig.autoTare = false;
+  startCycle();
+  CHECK(session.active);
+}
+
 void cup_fsm_put_back_without_tare_is_present() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -12031,6 +12329,18 @@ const TestCase testCases[] = {
     {"CF03", cup_fsm_noise_does_not_remove},
     {"CF04", cup_fsm_spike_does_not_place},
     {"CF05", cup_fsm_tare_does_not_change_state},
+    {"CF10", cup_fsm_tared_zero_survives_guarded_start},
+    {"IT01", it01_placement_tares_once_independently},
+    {"IT02", it02_idle_zero_allows_guarded_start},
+    {"IT03", it03_shot_end_never_tares_remaining_cup},
+    {"IT04", it04_reconnect_and_setting_changes_do_not_place},
+    {"IT05", it05_queued_tare_cancels_before_start_or_removal},
+    {"IT06", it06_executing_and_late_results_cannot_enter_brew},
+    {"IT07", it07_expiry_failure_and_removal_during_write},
+    {"IT08", it08_stability_and_ineligible_placement},
+    {"IT09", it09_invalid_samples_queue_failure_and_disconnect},
+    {"IT10", it10_worker_claim_and_cancel_are_mutually_exclusive},
+    {"IT11", it11_disabling_after_write_keeps_tared_cup},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},

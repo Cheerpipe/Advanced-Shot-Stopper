@@ -1,10 +1,27 @@
 # Tare and retare
 
-Two automatic steps establish the scale's zero for brew-by-weight: an initial
-tare when the shot starts, and a second tare if you put the cup down after
-the paddle is already ON.
+Three settings control automatic zeroing: **Automatic tare outside a brew**
+on a new cup placement, **Automatic tare at shot start**, and **Late-cup retare
+during a shot** if you place the cup after the shot starts.
 
-Both are **on by default**. You do not need to press tare on the scale.
+All three are **on by default**. Late retare also requires shot-start tare.
+
+## Automatic tare outside a brew
+
+With the machine confirmed off, an observed absent cup followed by a stable
+placement triggers one tare using the same cup detector as late retare. It
+does not start the timer. A cup that remains on the scale after a shot never
+triggers this tare, even after the beverage becomes stable. Removing and
+replacing that full cup does trigger it.
+
+A known tared cup remains present at 0 g, so **Require cup to start** accepts
+it. If shot-start tare is enabled, starting the next shot still performs its
+normal tare. See [Tare settings](../settings/tare.md#outside-a-brew) for idle
+prerequisites, pending-command behavior, and reconnect/physical-tare limitations.
+
+Removing the cup during drip analysis preserves the previous shot's captured
+last-known weight and skips post-drip learning. The replacement cup or its
+new zero cannot overwrite that shot's result.
 
 ## Automatic tare at start
 
@@ -34,7 +51,7 @@ full BBW protection window.
 
 Initial tare can also run on a timer-only shot with a usable scale. Late retare
 requires automatic BBW; timer-only (BBW off) and manual no-scale cycles skip it
-and BBW protection. Post-tare grace is inactive when **Automatic tare** is off.
+and BBW protection. Shot post-tare grace is inactive when **Automatic tare at shot start** is off.
 
 ## Parameters
 
@@ -44,14 +61,15 @@ presence thresholds). Full tables: [Tare](../settings/tare.md),
 
 ## Example
 
-Cup already on the scale: shot starts → one automatic tare → brew continues.
+Cup placed while idle: placement tare → cup reads 0 g and remains present →
+shot starts → shot-start tare → brew continues.
 
 Cup placed two seconds after paddle ON: start tare runs, then cup detection
 fires a second automatic tare inside the 4 s window. The shot timer does
 not restart; weight stop stays blocked until BBW protection ends.
 
 If you place a cup after the 4 s default window, automatic retare is no longer
-available for that placement. If **Automatic tare** is off, prepare the scale's
+available for that placement. If **Automatic tare at shot start** is off, prepare the scale's
 zero yourself; do not assume post-tare settling protection is active.
 [Require cup to start](cup-protection.md) is an alternative when you always
 want the cup in place before brewing.

@@ -169,6 +169,8 @@ static TaskHandle_t scaleWorkerTaskHandle = nullptr;
 QueueHandle_t scaleCommandQueue = nullptr;
 QueueHandle_t scaleEventQueue = nullptr;
 portMUX_TYPE scaleLinkMux = portMUX_INITIALIZER_UNLOCKED;
+TaskMutex idleScaleTareMux;
+IdleTareStatus workerIdleTare;
 TaskMutex scalePreferredMacMux;
 portMUX_TYPE scaleBeepMux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE scaleDebugMux = portMUX_INITIALIZER_UNLOCKED;
@@ -539,6 +541,44 @@ uint32_t scaleWorkerTickDelayMs() {
   return SCALE_WORKER_NO_SCALE_DELAY_MS;
 }
 
+IdleTareStatus idleScaleTareStatus() {
+  idleScaleTareMux.lock();
+  const IdleTareStatus status = workerIdleTare;
+  idleScaleTareMux.unlock();
+  return status;
+}
+
+bool cancelIdleScaleTare(uint32_t requestId, IdleTareStatus *released) {
+  idleScaleTareMux.lock();
+  const bool writing = workerIdleTare.requestId == requestId &&
+                       workerIdleTare.phase == IdleTarePhase::WRITING;
+  if (!writing && workerIdleTare.requestId == requestId) {
+    if (released != nullptr) *released = workerIdleTare;
+    workerIdleTare = IdleTareStatus{};
+  }
+  idleScaleTareMux.unlock();
+  return !writing;
+}
+
+bool claimIdleScaleTare(uint32_t requestId) {
+  idleScaleTareMux.lock();
+  const bool claimed = workerIdleTare.requestId == requestId &&
+                       workerIdleTare.phase == IdleTarePhase::QUEUED;
+  if (claimed) workerIdleTare.phase = IdleTarePhase::WRITING;
+  idleScaleTareMux.unlock();
+  return claimed;
+}
+
+void finishIdleScaleTare(uint32_t requestId, bool succeeded) {
+  idleScaleTareMux.lock();
+  if (workerIdleTare.requestId == requestId) {
+    workerIdleTare.phase = succeeded ? IdleTarePhase::SUCCEEDED
+                                    : IdleTarePhase::FAILED;
+    workerIdleTare.writtenAtMs = millis();
+  }
+  idleScaleTareMux.unlock();
+}
+
 bool enqueueScaleCommand(const ScaleCommand &command, bool toFront) {
   if (scaleCommandQueue == nullptr) {
     return false;
@@ -547,6 +587,16 @@ bool enqueueScaleCommand(const ScaleCommand &command, bool toFront) {
   ScaleCommand stamped = command;
   if (stamped.connectionGeneration == 0) {
     stamped.connectionGeneration = getScaleLinkSnapshot().connectionGeneration;
+  }
+  if (stamped.idleTareRequestId != 0) {
+    idleScaleTareMux.lock();
+    const bool available = workerIdleTare.phase == IdleTarePhase::NONE;
+    if (available) {
+      workerIdleTare.requestId = stamped.idleTareRequestId;
+      workerIdleTare.phase = IdleTarePhase::QUEUED;
+    }
+    idleScaleTareMux.unlock();
+    if (!available) return false;
   }
   BaseType_t queued = pdFALSE;
   if (toFront) {
@@ -559,6 +609,9 @@ bool enqueueScaleCommand(const ScaleCommand &command, bool toFront) {
     return true;
   }
   ++scaleCommandDropCount;
+  if (stamped.idleTareRequestId != 0) {
+    cancelIdleScaleTare(stamped.idleTareRequestId);
+  }
   serialTrace(LogLevel::WARNING, "Scale command queue full");
   return false;
 }
@@ -790,6 +843,7 @@ void executeScaleTareCommand(const ScaleCommand &command) {
   ScaleEvent event;
   event.type = ScaleEventType::TARE_RESULT;
   event.cycleId = command.cycleId;
+  event.idleTareRequestId = command.idleTareRequestId;
   event.connectionGeneration = command.connectionGeneration;
   event.commandFeedbackExpected = command.commandFeedbackExpected;
 
@@ -800,6 +854,9 @@ void executeScaleTareCommand(const ScaleCommand &command) {
   }
 
   updateWorkerLinkState();
+  if (command.idleTareRequestId != 0) {
+    finishIdleScaleTare(command.idleTareRequestId, event.writeSucceeded);
+  }
   publishScaleEvent(event, true);
 }
 
@@ -1087,14 +1144,25 @@ void executeScaleCommand(const ScaleCommand &command) {
   publishPendingScaleWeightEvent();
   markScaleWorkerProgress();
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  if (command.idleTareRequestId != 0) {
+    if (static_cast<int32_t>(millis() - command.expiresAtMs) >= 0) {
+      cancelIdleScaleTare(command.idleTareRequestId);
+      return;
+    }
+    if (!claimIdleScaleTare(command.idleTareRequestId)) return;
+  }
   if (command.connectionGeneration == 0 ||
       command.connectionGeneration != link.connectionGeneration ||
       link.state != ScaleLinkState::CONNECTED) {
     ScaleEvent event;
     event.cycleId = command.cycleId;
+    event.idleTareRequestId = command.idleTareRequestId;
     event.connectionGeneration = command.connectionGeneration;
     event.commandFeedbackExpected = command.commandFeedbackExpected;
     event.discardedStaleConnection = true;
+    if (command.idleTareRequestId != 0) {
+      finishIdleScaleTare(command.idleTareRequestId, false);
+    }
     switch (command.type) {
       case ScaleCommandType::START_TIMER_AND_TARE:
         event.type = ScaleEventType::TIMER_START_RESULT;

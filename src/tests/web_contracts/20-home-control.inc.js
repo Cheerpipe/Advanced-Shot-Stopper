@@ -203,7 +203,7 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !ui.includes('id="autoToManualGuardLimitMode"') ||
     !ui.includes('id="autoToManualGuardBaselineS"') ||
     !ui.includes('id="scaleTimerStopExtraDelayMs"') ||
-    !html.includes('Extra wait so the scale timer can catch up to whole seconds when the shot ends') ||
+    !html.includes('Extra wait for the scale timer to catch up at shot end') ||
     html.includes('Added after measured scale start lag') ||
     html.includes('Added after the scale timer catches up to circuit whole seconds') ||
     !ui.includes('id="dripDelayS" type="number" min="0" max="10" step="0.1"') ||
@@ -686,9 +686,9 @@ if (!html.includes('<summary>Cup</summary>') ||
         html.indexOf('<summary>Bookoo</summary>') ||
     html.indexOf('id="bookooConnectBeepLevel"') >
         html.indexOf('<summary>Acaia</summary>') ||
-    html.indexOf('<strong>Requires automatic tare.</strong>') <
+    html.indexOf('<strong>Requires shot-start tare.</strong>') <
         html.indexOf('<summary>Bookoo</summary>') ||
-    html.indexOf('<strong>Requires automatic tare.</strong>') >
+    html.indexOf('<strong>Requires shot-start tare.</strong>') >
         html.indexOf('<summary>Acaia</summary>') ||
     html.indexOf('Applies when <strong>Buzzer only</strong> is selected.') <
         html.indexOf('<summary>Bookoo</summary>') ||
@@ -724,7 +724,7 @@ if (!html.includes('id="postTareBaselineGraceS" type="number" min="0.5" max="10"
 if (!ui.includes("rangeCheck('dripDelayS',0,10,'Drip delay',{unit:'s'})") ||
     !ui.includes("dripDelayMs:sToMs('dripDelayS')") ||
     !ui.includes("$('dripDelayS').value=String((c.dripDelayMs??3000)/1000)") ||
-    !ui.includes('Wait after the shot ends so drips finish before saving the final weight for history and stop-offset learning.') ||
+    !ui.includes('Wait for drips before saving final weight and learning the stop offset.') ||
     !network.includes('\\"dripDelayMs\\":%lu') ||
     !network.includes('Drip delay must be from 0 to 10 s.') ||
     !network.includes('candidate.dripDelayMs')) {

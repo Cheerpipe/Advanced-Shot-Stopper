@@ -19,7 +19,7 @@ presets, but not the last remaining preset. The active preset survives reboot.
 | Scope | Settings |
 | --- | --- |
 | Preset | Target, BBW, protection time, Fast/Slow/A→M guards, cup-protection options, accidental-touch protection, baseline and learned stop offset |
-| Shared machine settings | Physical switch behavior, rinse, no-scale policy, tare timing, cup detection, alerts, preferred scale, network |
+| Shared machine settings | Physical switch behavior, rinse, no-scale policy, all three tare switches and timing, cup detection, alerts, preferred scale, network |
 | Home session | Quick Settings controls affect the current workflow. In particular, turning BBW off selects Manual without saving BBW off in the recipe. |
 
 To make an intentional recipe change permanent, edit and save it in Settings.

@@ -65,7 +65,7 @@ constexpr uint32_t SERIAL_BAUD = 115200;
 // after staOpen). V2 names that byte staWifiSleep without growing the blob.
 // Bump and add a migration when the blob layout changes
 // (see ShotStopperSettingsMigrate.h).
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 7;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 8;
 // Rinse clock default. Detection window default is DEFAULT_RINSE_GESTURE_MS
 // (machine-owned, ShotStopperMachineTypes.h).
 constexpr uint32_t DEFAULT_RINSE_DURATION_MS = 4000;
@@ -694,6 +694,8 @@ struct RuntimeConfig {
   // Makes the read-only Diagnostic view available without an Admin unlock.
   // This occupies a former trailing padding byte, preserving the blob size.
   bool showDiagnosticPage = true;
+  // V8 names former padding; legacy migrations explicitly initialize it.
+  bool autoTareOutsideBrew = true;
 };
 
 static_assert(sizeof(RuntimeConfig) == 252,
@@ -712,6 +714,8 @@ static_assert(offsetof(RuntimeConfig, shotReactTimeoutS) == 247,
               "RuntimeConfig shotReactTimeoutS offset changed");
 static_assert(offsetof(RuntimeConfig, rinseEnabled) == 248,
               "RuntimeConfig rinseEnabled offset changed");
+static_assert(offsetof(RuntimeConfig, autoTareOutsideBrew) == 250,
+              "RuntimeConfig autoTareOutsideBrew offset changed");
 
 inline uint32_t runtimeStopPulseMs(const RuntimeConfig &config) {
   if (config.stopPulseTenMs == 0) {

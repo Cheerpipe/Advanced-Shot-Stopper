@@ -497,6 +497,11 @@ void processScaleWorkerEvents() {
         break;
 
       case ScaleEventType::TARE_RESULT:
+        if (event.idleTareRequestId != 0) {
+          // Durable worker status owns idle completion, never CycleSession.
+          serviceIdleTare();
+          break;
+        }
         if (event.cycleId == session.id && event.writeSucceeded &&
             session.startedWithScale && session.active &&
             stopperState == StopperState::BREW) {

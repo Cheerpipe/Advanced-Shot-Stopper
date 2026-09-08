@@ -93,6 +93,12 @@ Every command validates connection and protocol capability internally. The
 legacy `beep()` method no longer substitutes tare for sound; it now behaves
 like `beepWithoutStateChange()` and succeeds only on Bookoo/generic scales.
 
+The current `ScaleProtocol` contract parses weight and timer readings; it has
+no verified physical-button tare notification. Consumers must not interpret a
+weight drop to zero as proof of tare: removing an untared cup can produce the
+same trace. Firmware-issued tare and its known cup reference are handled by
+the controller's [tare policy](../../docs/settings/tare.md).
+
 Run the host lifecycle/parser suite with:
 
 ```sh

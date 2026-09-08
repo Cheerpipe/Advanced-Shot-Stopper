@@ -27,6 +27,9 @@ A shorter paddle gesture (three cycles) restores the device password / forgets S
 
 ## After reset
 
+**Automatic tare outside a brew** returns to ON. See [Tare](tare.md) for the
+placement trigger and how a tared cup at zero satisfies the cup-start guard.
+
 Follow [first setup](../GETTING_STARTED.md) using the
 [factory AP connection](ap.md#first-connection). Scale preference returns to **Preferred only**, with
 **First detected** shown until the first compatible scale connects

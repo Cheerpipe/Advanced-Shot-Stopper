@@ -44,6 +44,16 @@ without including either monolithic integration root.
 
 ## Residual qualification
 
+RuntimeConfig V8 names byte 250 as the default-ON `autoTareOutsideBrew` switch,
+preserving its 252-byte layout and the 2616-byte settings blob. V1–V7 migrations
+initialize the former padding explicitly; V8 loads retain saved OFF. This
+machine setting is not part of the per-shot/preset recipe snapshot.
+
+Idle tare arbitration lives in `control/ShotStopperCycleRuntime.inc`, reusing
+the cup FSM's PLACED event and ScaleService's TARE_ONLY transport. Worker
+request lifetime and control-owned cup provenance remain separate; see
+[scale commands](STATE_MACHINES.md#scale-commands-scalecommandtype--outbound).
+
 Source boundaries do not prove real FreeRTOS interleavings or interrupt
 latency. Release evidence must still include the target trace and HIL runs in
 `SCHEDULABILITY.md` and `P2_RESOURCE_BUDGETS.md`.

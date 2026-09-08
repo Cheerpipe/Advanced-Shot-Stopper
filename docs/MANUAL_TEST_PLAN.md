@@ -99,6 +99,22 @@ and [target traces](P2_TARGET_TRACE.md), not by a historical pass.
 | M66 | In **Settings → Machine and scale → Scales**, set **Drip delay** to 0 s, run a shot, then repeat with 3.0 s and 10.0 s while watching Last Shot/history and the scale weight after machine circuit opens. Reboot after saving and verify the selected value remains. | `status/settings.config.dripDelayMs` reports 0, 3000, and 10000 respectively. Final weight/history update on the next control loop at 0 s and only after the configured window at 3/10 s. The saved value survives reboot; starting another shot during a pending window commits the previous shot with its last-known weight. |
 | M66B | With a local buzzer build, select **Buzzer only**, enable **Bullseye melody**, paste a valid RTTTL tune (≤500 characters), and save. Finish automatic, timer-only, and manual shots at the exact target; also try a brief target touch, a stable non-target weight, Scale priority, Sound alerts OFF, and disabling/re-enabling Bullseye. | The custom tune plays once after 1 continuous second of fresh exact-target samples, including before drip delay expires. It stays silent for brief/non-target runs and outside Buzzer only. Disabling makes the textarea gray/read-only without erasing it; re-enabling and rebooting restore the saved tune. Rinses never trigger it. |
 
+## Idle tare and tared cup acceptance
+
+Run these hardware checks only with explicit authorization. Record scale model,
+firmware, machine type, build, and observed result; host tests are not hardware
+qualification.
+
+| ID | Action | Expected result |
+| --- | --- | --- |
+| IT-M01 | Observe an empty pan, then place a cup with idle tare ON. Leave it at zero; add a spoon; remove and replace it. | One tare per confirmed placement, no scale timer start, no repeated tare while PRESENT. |
+| IT-M02 | Enable Require cup to start. Idle-tare the cup, then start at zero; repeat with shot-start tare OFF. | Cup guard accepts known PRESENT at zero; all other protections remain active. Removal during the shot still stops when configured. |
+| IT-M03 | Finish a shot and leave the full cup on the pan until weight settles. Then remove/replace it while the paddle remains ON after stop. | No tare merely at stop/settling. New placement tares the full cup, without clearing REQUIRES_OFF or reactivating the machine. |
+| IT-M04 | Replace the cup during drip delay. | Prior last shot/history/end event use captured last-known weight; replacement weight/zero does not enter learning. |
+| IT-M05 | Start immediately during queued/executing idle tare; also disconnect during the request. | Start gesture is refused until pending work resolves; release and retry. No stale tare enters a new shot/connection. STOP remains responsive. |
+| IT-M06 | Reconnect with a pre-tared cup at zero; try the scale's physical tare button separately. | No fabricated placement on reconnect. Remove/replace for detection. Physical-button tare recognition remains unsupported without verifiable protocol evidence. |
+| IT-M07 | Disable idle tare, save, reboot; then factory reset or upgrade a legacy configuration. | Saved OFF survives reboot; factory reset and first migration initialize ON. Presets do not change the switch. |
+
 ## Network, Web UI and access
 
 | ID | Procedure | Expected result |

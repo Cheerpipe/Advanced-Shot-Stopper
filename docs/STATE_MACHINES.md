@@ -431,11 +431,22 @@ transient is not a remove/place.
 | Event | Meaning |
 | --- | --- |
 | `NONE` | Sample did not complete a transition (still counting stability or confirmations). |
-| `PLACED` | ABSENT → PRESENT after N stable samples within the retare stability window. Drives automatic retare when the window is open. |
+| `PLACED` | ABSENT → PRESENT after the shared stable-sample/time requirements. Drives late retare inside its shot window, or independent idle tare on an eligible new placement. |
 | `REMOVED` | PRESENT → ABSENT after consecutive samples below **Cup removed** (default −3 g). May set `cupRemovedPending` on the stopper. |
 
 Tare notification (`notifyCupPresenceTare`) clears the “negative hole”
 bookkeeping without changing `PRESENT`/`ABSENT`.
+
+The shot-start resync preserves known tared PRESENT at zero. Require-cup checks
+consume that state, not a positive net-weight threshold. Untared lift-to-zero
+still removes the cup. Idle eligibility/connection/config changes reset the
+placement candidate, not PRESENT. Ending a shot never creates a placement.
+
+Idle tare requires current-connection absence evidence followed by PLACED while
+READY, or after a normal shot stop in REQUIRES_OFF awaiting paddle release,
+with machine CONFIRMED_OFF and no active cycle, safety trip, or maintenance.
+A placement outside eligibility is consumed, not deferred. Removal during drip
+finalization commits captured last-known weight instead of the replacement cup.
 
 ---
 
@@ -514,7 +525,7 @@ shot (that is what suspends weight control).
 | Command | Meaning |
 | --- | --- |
 | `START_TIMER_AND_TARE` | Shot start: tare (if enabled) and start the scale timer. |
-| `TARE_ONLY` | Late-cup retare. |
+| `TARE_ONLY` | Late-cup retare, or an idle placement request carrying its own nonzero request ID and expiry. Never starts a timer. |
 | `STOP_TIMER` | After machine circuit opens, once the scale timer has reached the internal whole-second time (or the 2 s catch-up cap). Optional extra delay is a pad after that. Queued to the **front**. |
 
 ### Scale events (`ScaleEventType`) — inbound
@@ -523,8 +534,22 @@ shot (that is what suspends weight control).
 | --- | --- |
 | `WEIGHT` | Notification with grams (+ optional timer). Feeds stream/cup/flow/touch. |
 | `TIMER_START_RESULT` | Write/feedback for start+tare. |
-| `TARE_RESULT` | Write/feedback for retare. |
+| `TARE_RESULT` | Tare write result. An idle request ID routes completion away from shot baseline/retare state. |
 | `TIMER_STOP_RESULT` | Write/feedback for stop (`TimerStopResult` tracks pending/success/fail). |
+
+The worker owns `IdleTareStatus` under a short task mutex: NONE → QUEUED →
+WRITING → SUCCEEDED/FAILED. Cancellation and claiming a queued request are
+mutually exclusive; cancellation cannot clear WRITING. No lock spans ATT.
+Terminal status survives a dropped event. Control owns placement provenance
+and keeps start permission closed until completion/settling or bounded cleanup;
+a rejected physical gesture needs release, including if completion arrives in
+the same control pass. STOP queue priority remains unchanged.
+
+Idle tare uses the existing cup reference notification without freezing the
+cup FSM. Negative removal evidence remains active during writing. A physical
+lift entirely hidden by a simultaneous scale re-zero, or occurring entirely
+between notifications, cannot be reconstructed from weight alone. Physical
+button tare is not currently exposed as a verifiable protocol event.
 
 Preferred-scale policy (`FIRST` / `PREFER` / `ONLY`) is a **setting**,
 not a state machine; it only filters which peripheral may enter

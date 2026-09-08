@@ -1,7 +1,7 @@
 # Cup
 
 Thresholds that decide whether a cup is **on the scale** or **lifted**. Used
-by late-cup retare and start-of-shot protection. Machine-level, under
+by idle cup-placement tare, late-cup retare, and shot protection. Machine-level, under
 **Settings → Machine and scale → Cup**.
 
 How those detections protect the shot is explained in
@@ -9,9 +9,12 @@ How those detections protect the shot is explained in
 
 ## When it applies
 
-Automatic brew-by-weight. A stable load at or above the minimum cup weight
+Detection runs while idle and during brewing. A stable load at or above the minimum cup weight
 counts as **placed**. A confirmed weight at or below the removed threshold
 counts as **lifted**. Placement also requires a short run of stable samples.
+After a known tare, a cup at 0 g stays present; **Require cup to start** does
+not require positive net weight. Replacement into a negative tare offset can
+also count as placed.
 
 ## Parameters
 

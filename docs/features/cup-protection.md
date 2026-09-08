@@ -19,6 +19,12 @@ A cup-start refusal holds the relay open for that attempt. Release the physical
 activator, correct the cup/scale condition, then activate again. A blocked
 held button is not forwarded halfway through the hold.
 
+A detected cup that was tared to 0 g remains **present** and passes **Require
+cup to start**, including after idle tare and with shot-start tare disabled.
+The guard uses cup presence, not a positive-weight threshold. An empty pan at
+zero does not satisfy it. Connection loss invalidates that presence evidence;
+see [idle tare limitations](../settings/tare.md#outside-a-brew).
+
 ## How timing fits together
 
 At shot start, the controller can tare immediately. If you place the cup within

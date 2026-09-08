@@ -45,13 +45,21 @@ void resetCupPlaceStabilityStreak() {
 }  // namespace
 
 CupPresenceState cupPresenceState() { return cupPresence.state; }
+bool cupPresenceIsTared() { return cupPresence.taredWhilePresent; }
+
+void restoreCupTareReference(bool previouslyTared) {
+  if (cupPresence.state == CupPresenceState::PRESENT) {
+    cupPresence.taredWhilePresent = previouslyTared;
+  }
+}
 
 void resetCupPresence() {
   cupPresence = CupPresenceRuntime{};
 }
 
 void resyncCupPresenceIfPanEmpty(float weight) {
-  if (cupPresence.state != CupPresenceState::PRESENT) {
+  if (cupPresence.state != CupPresenceState::PRESENT ||
+      cupPresence.taredWhilePresent) {
     return;
   }
   if (!isfinite(weight) || weight >= runtimeConfig.minimumCupWeightG) {

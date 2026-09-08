@@ -74,10 +74,13 @@ void resetMomentaryHarness() {
   shot = ShotTrajectory{};
   session = CycleSession{};
   resetCupPresence();
+  idleTare = IdleTareRuntime{};
+  workerIdleTare = IdleTareStatus{};
   pendingCupRemovedSettle = false;
   scaleWeightEventPending = false;
   scaleWeightEvent = ScaleEvent{};
   runtimeConfig = RuntimeConfig{};
+  runtimeConfig.autoTareOutsideBrew = false;
   runtimeConfig.requireCupToStart = false;
   runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);
   runtimeConfig.fastExtractionGuardEnabled = false;

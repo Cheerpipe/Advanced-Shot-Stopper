@@ -88,6 +88,9 @@ void wakeScaleWorker();
 uint32_t scaleWorkerTickDelayMs();
 void serviceScaleLinkRssi(uint32_t nowMs = millis());
 bool enqueueScaleCommand(const ScaleCommand &command, bool toFront = false);
+IdleTareStatus idleScaleTareStatus();
+// False only while an ATT write owns the request; never waits for BLE.
+bool cancelIdleScaleTare(uint32_t requestId, IdleTareStatus *released = nullptr);
 bool publishScaleEvent(const ScaleEvent &event, bool critical);
 bool initializeScaleWorker();
 void resetScaleWorkerRadioStateForHost();

@@ -48,6 +48,7 @@ void p01_defaults_are_valid() {
   CHECK(!settings.lkgValid);
   CHECK(settings.staWifiSleep);
   CHECK(settings.runtime.showDiagnosticPage);
+  CHECK(settings.runtime.autoTareOutsideBrew);
   CHECK(!settings.webhook.deferDuringShot);
   CHECK(settings.runtime.fastExtractionGuardEnabled);
   CHECK(std::fabs(settings.runtime.maxRecoveryWeightG -
@@ -126,6 +127,32 @@ void p01_defaults_are_valid() {
   CHECK(validPreferredScaleMac("aa:bb:cc:dd:ee:ff"));
   CHECK(!validPreferredScaleMac("AA:BB:CC:DD:EE"));
   CHECK(!validPreferredScaleMac("GG:BB:CC:DD:EE:FF"));
+}
+
+void p75_idle_tare_legacy_padding_and_saved_off() {
+  for (uint32_t version : {6U, 7U}) {
+    for (uint8_t padding : {uint8_t{0}, uint8_t{1}, uint8_t{255}}) {
+      resetHostPersistence();
+      PersistedSettings legacy;
+      CHECK(initializeDefaultSettings(legacy));
+      legacy.schemaVersion = version;
+      reinterpret_cast<uint8_t *>(&legacy.runtime)[250] = padding;
+      legacy.checksum = persistedSettingsChecksum(legacy);
+      persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A,
+                               &legacy, sizeof(legacy));
+      PersistedSettings loaded;
+      CHECK(loadPersistedSettings(loaded));
+      CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
+      CHECK(loaded.runtime.autoTareOutsideBrew);
+      loaded.runtime.autoTareOutsideBrew = false;
+      CHECK(savePersistedSettings(loaded));
+      PersistedSettings again;
+      CHECK(loadPersistedSettings(again));
+      CHECK(!again.runtime.autoTareOutsideBrew);
+      CHECK(initializeDefaultSettings(again));
+      CHECK(again.runtime.autoTareOutsideBrew);
+    }
+  }
 }
 
 void p02_newest_valid_slot_is_loaded() {
@@ -1740,6 +1767,7 @@ struct TestCase {
 
 const TestCase tests[] = {
     {"P01", p01_defaults_are_valid},
+    {"P75", p75_idle_tare_legacy_padding_and_saved_off},
     {"P02", p02_newest_valid_slot_is_loaded},
     {"P02B", p02b_save_uses_ram_revision_when_slots_unreadable},
     {"P02C", p02c_overlay_live_runtime_is_saved_not_stale_blob},

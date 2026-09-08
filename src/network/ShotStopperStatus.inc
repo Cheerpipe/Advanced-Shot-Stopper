@@ -281,6 +281,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         &used,
         ",\"goalWeightG\":%u,\"weightOffsetG\":%.2f,"
         "\"weightOffsetBaselineG\":%.2f,\"autoTare\":%s,"
+        "\"autoTareOutsideBrew\":%s,"
         "\"postTareBaselineGraceMs\":%lu,\"brewByWeight\":%s,"
         "\"canTareStartTimer\":%s,\"scaleTimerStopExtraDelayMs\":%lu,"
         "\"dripDelayMs\":%lu,"
@@ -320,6 +321,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<double>(control.config.weightOffsetG),
         static_cast<double>(control.config.weightOffsetBaselineG),
         control.config.autoTare ? "true" : "false",
+        control.config.autoTareOutsideBrew ? "true" : "false",
         static_cast<unsigned long>(control.config.postTareBaselineGraceMs),
         control.config.timerOnly ? "false" : "true",
         control.config.canTareStartTimer ? "true" : "false",

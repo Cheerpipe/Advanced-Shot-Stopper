@@ -38,10 +38,20 @@ enum class ScaleEventType : uint8_t {
   TIMER_STOP_RESULT
 };
 
+// Worker-owned command lifetime. Terminal state survives a dropped result.
+enum class IdleTarePhase : uint8_t { NONE, QUEUED, WRITING, SUCCEEDED, FAILED };
+struct IdleTareStatus {
+  uint32_t requestId = 0;
+  uint32_t writtenAtMs = 0;
+  IdleTarePhase phase = IdleTarePhase::NONE;
+};
+
 struct ScaleCommand {
   ScaleCommandType type = ScaleCommandType::STOP_TIMER;
   uint32_t cycleId = 0;
   uint32_t connectionGeneration = 0;
+  uint32_t idleTareRequestId = 0;
+  uint32_t expiresAtMs = 0;
   bool autoTare = false;
   bool canTareStartTimer = false;
   bool commandFeedbackExpected = false;
@@ -50,6 +60,7 @@ struct ScaleCommand {
 struct ScaleEvent {
   ScaleEventType type = ScaleEventType::WEIGHT;
   uint32_t cycleId = 0;
+  uint32_t idleTareRequestId = 0;
   uint32_t receivedAtMs = 0;
   uint32_t connectionGeneration = 0;
   uint32_t packetSequence = 0;

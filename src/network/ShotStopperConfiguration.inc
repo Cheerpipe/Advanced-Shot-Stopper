@@ -69,7 +69,7 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   memcpy(customNtp, candidate.ntpServerCustom, sizeof(customNtp));
   static const char *const fields[] = {
       "baseRevision", "goalWeightG", "rinseEnabled", "rinseGestureMs", "rinseDurationMs",
-      "operationalWallMs", "autoTare", "postTareBaselineGraceMs",
+      "operationalWallMs", "autoTare", "autoTareOutsideBrew", "postTareBaselineGraceMs",
       "brewByWeight", "canTareStartTimer",
       "scaleTimerStopExtraDelayMs",       "dripDelayMs", "soundAlertsEnabled",
       "firstDropBeep", "scaleConnectedLed",
@@ -134,6 +134,9 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   } else if (jsonFieldPresent(root, "autoTare") &&
              !jsonBoolean(root, "autoTare", candidate.autoTare)) {
     parseError = "autoTare must be a boolean.";
+  } else if (jsonFieldPresent(root, "autoTareOutsideBrew") &&
+             !jsonBoolean(root, "autoTareOutsideBrew", candidate.autoTareOutsideBrew)) {
+    parseError = "autoTareOutsideBrew must be a boolean.";
   } else if (jsonFieldPresent(root, "postTareBaselineGraceMs") &&
              !jsonUint32(root, "postTareBaselineGraceMs",
                          candidate.postTareBaselineGraceMs)) {

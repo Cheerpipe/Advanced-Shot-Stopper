@@ -132,7 +132,7 @@ if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !html.includes('option value="4" selected') ||
     !html.includes('keep the scale silent on connect') ||
     !html.includes('How loud the scale is when it connects. Used when sounds play on the scale (<strong>Scale only or Scale priority</strong>).') ||
-    !html.includes('<strong>Requires automatic tare.</strong>') ||
+    !html.includes('<strong>Requires shot-start tare.</strong>') ||
     !html.includes('Applies when <strong>Buzzer only</strong> is selected.')) {
   throw new Error('Web UI must show paddle state, scale beep options, and buzzer alerts');
 }

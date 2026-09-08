@@ -1,3 +1,29 @@
+{
+  const labels = ['Automatic tare outside a brew', 'Automatic tare at shot start',
+    'Late-cup retare during a shot'];
+  if (labels.some(label => !html.includes(label)) ||
+      !html.includes('id="autoTareOutsideBrew" type="checkbox" checked') ||
+      !network.includes('autoTareOutsideBrew must be a boolean.') ||
+      !firmwareCore.includes('candidate.autoTareOutsideBrew = command.config.autoTareOutsideBrew;')) {
+    throw new Error('Idle tare must have an independent default-ON machine setting');
+  }
+  const payloadLine = js.split('\n').find(line => line.startsWith('function machinePayload(){'));
+  if (!payloadLine) throw new Error('Missing machine payload function');
+  const makePayload = new Function('$', 'number', 'sToMs', 'extRate',
+    'HOME_GUARD_SWITCHES', 'homeSwitchPending', 'syncSettingsFromHomeSwitches',
+    payloadLine + ';return machinePayload();');
+  for (const idleOn of [false, true]) {
+    const payload = makePayload(id => ({checked: id === 'autoTareOutsideBrew' && idleOn,
+      value: 'off'}), () => 1, () => 1000, value => value, [], {}, () => {});
+    if (payload.autoTareOutsideBrew !== idleOn || payload.autoTare !== false) {
+      throw new Error('Idle tare payload must be independent of shot-start tare');
+    }
+  }
+  if (!js.includes("['autoTare','autoTareOutsideBrew','brewByWeight'")) {
+    throw new Error('Settings hydration must restore the saved idle tare value');
+  }
+}
+
 if (/R\.(homeFlushConfig|homeFlushPreset|configLoaded|formRev|brewDirty)\s*=/.test(js) ||
     !js.includes('function persistHomeBrewByWeight(') ||
     !js.includes('function invalidateSettingsHydration(') ||

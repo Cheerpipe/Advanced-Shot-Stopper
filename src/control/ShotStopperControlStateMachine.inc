@@ -10,6 +10,7 @@ void resetSessionForNewCycle(ControlSource source) {
   }
   session.active = true;
   session.source = source;
+  serviceIdleTare();
 #if !defined(SHOT_STOPPER_HOST_TEST)
   // Publish the RF gate before any deferred NTP request or webhook can wake a
   // network worker. This is an atomic store/notify only; control never waits.
@@ -39,6 +40,7 @@ bool beginRinseCycle(ControlSource source);
 bool enterRinse();
 
 void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
+  if (idleTareBlocksStart()) return;
   refreshLoopGuardsFromLastIntention();
   if (source == ControlSource::PHYSICAL &&
       noScaleShotGuardNeedsFreshActivator) {
@@ -287,10 +289,12 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
   addDebugEvent(DebugCategory::STATE, DebugCode::CYCLE_ENDED,
                 static_cast<int32_t>(reason));
   transitionTo(nextState);
+  serviceIdleTare();
   return machineStopAccepted;
 }
 
 bool beginRinseCycle(ControlSource source) {
+  if (idleTareBlocksStart()) return false;
   refreshLoopGuardsFromLastIntention();
   if (noScaleBbwRequiresScale(runtimeConfig.noScaleBbwMode) &&
       noScaleShotGuardWouldBlock(loopGuardInputs)) {

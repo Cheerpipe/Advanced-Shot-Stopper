@@ -2,7 +2,8 @@
 
 // Settings schema migrations.
 //
-// Current on-disk schema is CONFIG_SCHEMA_VERSION (V7). V7 replaces the
+// Current on-disk schema is CONFIG_SCHEMA_VERSION (V8). V8 names the idle-tare
+// padding byte and defaults it ON. V7 replaces the
 // serial-debug boolean with an explicit serial ESP_LOG level. V6 adds the webhook
 // delivery deferral setting. V5 adds the public Diagnostic-page setting. V4 adds HTTP webhook
 // settings. V3 adds the fixed-size
@@ -25,6 +26,10 @@
 #include <type_traits>
 
 namespace shotstopper {
+
+constexpr size_t PERSISTED_SETTINGS_V7_SIZE = 2616;
+static_assert(sizeof(PersistedSettings) == PERSISTED_SETTINGS_V7_SIZE,
+              "V7 migration requires the original blob layout");
 
 template <typename Destination, typename Source>
 inline void copyPersistedBytes(Destination &destination, const Source &source,
@@ -57,13 +62,28 @@ inline bool migratePersistedSettingsFromV6(const PersistedSettings &v6,
       v6.checksum != persistedSettingsChecksum(v6)) {
     return false;
   }
-  out = v6;
+  copyPersistedBytes(out, v6, sizeof(out));
+  out.runtime.autoTareOutsideBrew = true;
   setSerialLogLevel(out.runtime, v6.runtime.serialLogLevel != 0
                                      ? LogLevel::INFO
                                      : LogLevel::NONE);
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.structureSize = sizeof(PersistedSettings);
   out.checksum = 0;
+  out.checksum = persistedSettingsChecksum(out);
+  return true;
+}
+
+inline bool migratePersistedSettingsFromV7(const PersistedSettings &v7,
+                                           PersistedSettings &out) {
+  if (v7.magic != PERSISTED_SETTINGS_MAGIC || v7.schemaVersion != 7 ||
+      v7.structureSize != PERSISTED_SETTINGS_V7_SIZE ||
+      v7.checksum != persistedSettingsChecksum(v7)) {
+    return false;
+  }
+  copyPersistedBytes(out, v7, sizeof(out));
+  out.runtime.autoTareOutsideBrew = true;
+  out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }
@@ -273,6 +293,7 @@ inline bool migratePersistedSettingsFromV4(const PersistedSettingsV4 &v4,
   copyPersistedBytes(out, v4, offsetof(PersistedSettingsV4, webhook));
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.runtime.showDiagnosticPage = true;
+  out.runtime.autoTareOutsideBrew = true;
   out.webhook.enabled = v4.webhook.enabled;
   out.webhook.brewState = v4.webhook.brewState;
   out.webhook.firstDrop = v4.webhook.firstDrop;
@@ -293,6 +314,7 @@ inline bool migratePersistedSettingsFromV5(const PersistedSettingsV5 &v5,
   }
   out = PersistedSettings{};
   copyPersistedBytes(out, v5, offsetof(PersistedSettingsV5, webhook));
+  out.runtime.autoTareOutsideBrew = true;
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.webhook.enabled = v5.webhook.enabled;
   out.webhook.brewState = v5.webhook.brewState;
@@ -314,6 +336,7 @@ inline bool migratePersistedSettingsFromV3(const PersistedSettingsV3 &v3,
   }
   out = PersistedSettings{};
   copyPersistedBytes(out, v3, offsetof(PersistedSettingsV3, checksum));
+  out.runtime.autoTareOutsideBrew = true;
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.structureSize = sizeof(PersistedSettings);
   out.checksum = 0;
@@ -330,7 +353,8 @@ inline bool migratePersistedSettingsFromV1(const PersistedSettingsV1 &v1,
   }
   out = PersistedSettings{};
   out.storageRevision = v1.storageRevision;
-  out.runtime = v1.runtime;
+  copyPersistedBytes(out.runtime, v1.runtime, sizeof(out.runtime));
+  out.runtime.autoTareOutsideBrew = true;
   copyPersistedBytes(out.presets, v1.presets,
                      offsetof(PersistedSettingsV1, staSsid) -
                          offsetof(PersistedSettingsV1, presets));
@@ -355,7 +379,8 @@ inline bool migratePersistedSettingsFromV2(const PersistedSettingsV2 &v2,
   }
   out = PersistedSettings{};
   out.storageRevision = v2.storageRevision;
-  out.runtime = v2.runtime;
+  copyPersistedBytes(out.runtime, v2.runtime, sizeof(out.runtime));
+  out.runtime.autoTareOutsideBrew = true;
   copyPersistedBytes(out.presets, v2.presets,
                      offsetof(PersistedSettingsV2, checksum) -
                          offsetof(PersistedSettingsV2, presets));
