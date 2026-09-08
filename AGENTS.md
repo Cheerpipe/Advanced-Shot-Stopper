@@ -99,6 +99,12 @@ process-discovery preflight. `lsof -p $$` is usable only for the invoking
 process, not general discovery. If external process state is essential, report
 the limitation and request the needed permission instead of retrying.
 
+When staging or committing requires creating `.git/index.lock`, invoke the
+narrow `git add` or `git commit` command with `require_escalated` permission
+directly; do not first run it in the sandbox to reproduce the expected
+permission failure. Stage only task files and exclude independent `AGENTS.md`
+changes unless they are part of the requested commit.
+
 
 # ANTI-BLOATWARE & CODE ECONOMY RULES
 
