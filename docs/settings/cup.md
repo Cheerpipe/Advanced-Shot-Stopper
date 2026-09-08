@@ -50,8 +50,13 @@ alone cannot recover missing mass. Nothing is persisted across restarts.
 
 All tares must be firmware-issued: physical-button/external tare is outside the
 supported contract. Older firmware payloads and unavailable readings show **—**.
-Diagnostic test tare/combined commands invalidate this value; remove the cup,
-wait for stable absence, and replace it to acquire the weight again.
+Diagnostic test tare/combined commands invalidate this value. A successful
+command rebases a detected cup to zero so its next lift remains detectable;
+a failed command leaves presence uncertain and cannot satisfy **Require cup to
+start**. Remove the cup, wait for stable absence, and replace it to acquire the
+weight again. Pending idle placements affected by a diagnostic tare are cancelled.
+Readings older than one second, future-dated or out of order cannot qualify cup
+placement or removal, including during a shot; they break the stability streak.
 The stable absent reference is shared by placement detection and mass calculation.
 The calculated mass itself does not control brewing or schedule additional tares.
 

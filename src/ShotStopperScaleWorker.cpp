@@ -1022,6 +1022,8 @@ void executeScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
     // Debug commands bypass the normal pre-tare capture contract.
     ScaleEvent event;
     event.type = ScaleEventType::REFERENCE_CHANGED;
+    event.connectionGeneration = getScaleLinkSnapshot().connectionGeneration;
+    event.writeSucceeded = succeeded;
     publishScaleEvent(event, true);
   }
   addDebugEvent(DebugCategory::SCALE,

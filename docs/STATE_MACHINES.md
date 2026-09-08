@@ -441,6 +441,10 @@ Stability uses the whole candidate's maximum-minus-minimum spread. Tare
 notification rebases the reference to zero without changing PRESENT/ABSENT.
 An unconfirmed effect can mark the reference uncertain; PRESENT alone then
 does not satisfy the cup-start guard. Confirmed removal clears uncertainty.
+Diagnostic tare results apply only to their connection generation: success
+rebases presence to zero, failure marks it uncertain, and both discard mass and
+sample evidence. An idle placement pending at that reference change is cancelled
+and its presence discarded; it must qualify again from fresh samples.
 
 Informational cup weight is independent of the mutable occupied reference.
 The FSM keeps absolute stable `ABSENT` and placement `PRESENT` records with
@@ -461,6 +465,9 @@ configured stability maximum also clear the reference. Raw reference acquisition
 uses parsed sensing bounds, including valid negative readings below the automation
 floor; placement automation and brew acceptance retain their existing bounds.
 The calculated mass is informational; the shared absent record qualifies placement.
+Freshness/order validation gates the cup FSM as well as mass acquisition in idle
+and active cycles. Samples over 1000 ms old, future-dated, duplicated or out of
+order reset cup sample evidence and cannot emit PLACED/REMOVED or trigger retare.
 See [Displayed cup weight](settings/cup.md#displayed-cup-weight).
 
 The shot-start resync preserves known tared PRESENT at zero. Require-cup checks

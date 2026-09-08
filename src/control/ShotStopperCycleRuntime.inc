@@ -131,7 +131,7 @@ void serviceCupWeight() {
     mass.pendingId = 0;
   }
 }
-void observeCupWeight(float weight, uint32_t atMs, uint32_t sequence,
+bool observeCupWeight(float weight, uint32_t atMs, uint32_t sequence,
                       uint32_t generation) {
   serviceCupWeight();
   auto &mass = cupPresence.weight;
@@ -142,15 +142,15 @@ void observeCupWeight(float weight, uint32_t atMs, uint32_t sequence,
       (mass.sampleSequence != 0 && mass.connectionGeneration == generation &&
        (static_cast<int32_t>(sequence - mass.sampleSequence) <= 0 ||
         static_cast<int32_t>(atMs - mass.sampleAtMs) < 0))) {
-    invalidateCupWeight();
-    mass.sampleSequence = 0;
-    return;
+    resetCupSampleEvidence();
+    return false;
   }
   if (mass.sampleSequence != 0 && atMs - mass.sampleAtMs >
       runtimeConfig.retareStabilityMaxGapMs) invalidateCupWeight();
   mass.sampleAtMs = atMs;
   mass.sampleSequence = sequence;
   mass.connectionGeneration = generation;
+  return true;
 }
 void trackCupWeightTare(uint32_t requestId) {
   serviceCupWeight();
@@ -786,14 +786,14 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
       !session.active &&
       !observeIdleTareSample(weight, receivedAtMs, packetSequence,
                              connectionGeneration, captureSequence)) return false;
-  observeCupWeight(weight, receivedAtMs, packetSequence, connectionGeneration);
   const bool placementInRange = weight >= MIN_AUTOMATION_WEIGHT_G &&
                                 weight <= MAX_AUTOMATION_WEIGHT_G;
   const CupPresenceEvent cupEvent =
+      observeCupWeight(weight, receivedAtMs, packetSequence, connectionGeneration) ?
       feedCupPresence(weight, receivedAtMs, packetSequence,
                       session.active ||
                           (!runtimeConfig.autoTareOutsideBrew && idleTare.requestId == 0) ||
-                          placementInRange);
+                          placementInRange) : CupPresenceEvent::NONE;
   if ((runtimeConfig.autoTareOutsideBrew || idleTare.requestId != 0) &&
       !session.active) {
     handleIdleCupEvent(cupEvent, weight);

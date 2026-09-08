@@ -457,6 +457,10 @@ void publishTestScaleWorkerPolicy() {
 
 void publishWeight(float weight, uint32_t receivedAtMs = UINT32_MAX,
                    uint32_t generation = 0, uint32_t sequence = 0) {
+  // Deliver scheduled samples at their capture time; invalid-future tests use
+  // publishScaleEvent/publishPendingScaleWeightEvent directly.
+  if (receivedAtMs != UINT32_MAX && static_cast<int32_t>(receivedAtMs - hostMillis) > 0)
+    hostMillis = receivedAtMs;
   ScaleEvent event;
   event.type = ScaleEventType::WEIGHT;
   event.receivedAtMs = receivedAtMs == UINT32_MAX ? hostMillis : receivedAtMs;
@@ -487,11 +491,9 @@ void publishStableCupWeight(float weight, uint32_t baseSequence = 10) {
   const uint32_t intervalMs = stepMs > 0U ? stepMs : 100U;
   const uint32_t startedAtMs = hostMillis;
   for (uint8_t index = 0; index < sampleCount; ++index) {
+    hostMillis = startedAtMs + index * intervalMs;
     publishWeight(weight + (index == 1 ? 0.1f : 0.0f),
-                  startedAtMs + index * intervalMs, 1, baseSequence + index);
-  }
-  if (sampleCount > 0U) {
-    hostMillis = startedAtMs + (sampleCount - 1U) * intervalMs;
+                  hostMillis, 1, baseSequence + index);
   }
 }
 
@@ -499,7 +501,7 @@ void seedCupPresence(float weight) {
   currentWeight = weight;
   currentWeightReceivedAtMs = hostMillis;
   currentWeightSequence = 1;
-  publishStableCupWeight(weight, 1);
+  publishStableCupWeight(weight, cupPresence.weight.sampleSequence + 1U);
   CHECK(cupPresenceState() == CupPresenceState::PRESENT);
 }
 
@@ -6766,6 +6768,7 @@ void cp21_custom_present_threshold_is_honored() {
   publishStableCupWeight(7.8f, 1);
   CHECK(cupPresenceState() == CupPresenceState::ABSENT);
   attemptBlockedCupStart();
+  publishStableCupWeight(0.0f, 10);
   seedCupPresence(8.0f);
   startCycle();
   CHECK(stopperState == StopperState::BREW);
@@ -7110,6 +7113,132 @@ void cw09_debug_tare_invalidates_without_changing_presence() {
     CHECK(!session.active);
     CHECK(!getRelaySafetySnapshot().closed);
   }
+}
+
+void cw17_debug_tare_rebases_negative_replacement() {
+  for (BookooDebugAction action : {BookooDebugAction::TARE, BookooDebugAction::COMBINED}) {
+    prepareIdleTare();
+    idleCup(0.0f);
+    idleCup(80.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    runtimeConfig.autoTareOutsideBrew = false;
+    idleCup(-80.0f);
+    idleCup(-80.0f);
+    idleCup(-60.0f);
+    CHECK(captureCupTareDiagnostics().weightG == 20.0f);
+    executeScaleDebugCommand(action, 0);
+    processScaleWorkerEvents();
+    idleCup(0.0f);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(!captureCupTareDiagnostics().weightValid);
+    idleCup(-20.0f);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    enableCupStartGuardForTest();
+    beginCycle();
+    CHECK(!session.active);
+    CHECK(!getRelaySafetySnapshot().closed);
+    idleCup(-20.0f);
+    idleCup(0.0f);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    CHECK(captureCupTareDiagnostics().weightG == 20.0f);
+  }
+}
+
+void cw18_debug_tare_cancels_queued_false_placement() {
+  prepareIdleTare();
+  idleCup(-300.0f);
+  executeScaleDebugCommand(BookooDebugAction::TARE, 0);
+  for (unsigned i = 0; i < 3; ++i) {
+    hostMillis += 150;
+    ScaleEvent event;
+    event.receivedAtMs = hostMillis;
+    event.weightG = 0.0f;
+    CHECK(publishScaleEvent(event, false));
+  }
+  processScaleWorkerEvents();
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(idleTare.requestId == 0);
+  while (executeNextScaleCommand()) {}
+  CHECK(scale.tareCalls == 1);
+  idleCup(0.0f);
+  idleCup(80.0f);
+  CHECK(captureCupTareDiagnostics().weightG == 80.0f);
+  CHECK(executeNextScaleCommand());
+  CHECK(scale.tareCalls == 2);
+}
+
+void cw19_stale_active_samples_cannot_retare() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  runtimeConfig.autoRetare = true;
+  runtimeConfig.bbwProtectionMs = minimumBbwProtectionMs(runtimeConfig);
+  startCycle();
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  const uint32_t capturedAt = hostMillis + 100;
+  hostMillis = capturedAt + 1600;
+  markScaleWorkerProgress();
+  for (unsigned i = 0; i < 3; ++i) publishWeight(80.0f, capturedAt + i * 150);
+  CHECK(!session.retarePerformed);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  idleCup(0.0f);
+  idleCup(80.0f);
+  CHECK(session.retarePerformed);
+}
+
+void cw20_rejected_cup_samples_break_stability() {
+  for (bool active : {false, true}) {
+    for (unsigned invalid = 0; invalid < 3; ++invalid) {
+      resetHarness(false, true);
+      reachReadyFromBoot();
+      if (active) {
+        startCycle();
+        CHECK(executeNextScaleCommand());
+        idleCup(0.0f);
+      }
+      idleCup(0.0f);
+      idleWeight(80.0f);
+      CHECK(cupPresence.placeStabilitySamples == 1);
+      ScaleEvent event;
+      event.weightG = 80.0f;
+      event.receivedAtMs = invalid == 0 ? hostMillis - MAX_AUTOMATION_WEIGHT_AGE_MS - 1
+                          : invalid == 1 ? hostMillis + 1 : hostMillis;
+      event.packetSequence = cupPresence.weight.sampleSequence + (invalid == 2 ? 0 : 1);
+      CHECK(publishScaleEvent(event, false));
+      processScaleWorkerEvents();
+      CHECK(cupPresence.placeStabilitySamples == 0);
+      idleWeight(80.0f);
+      idleWeight(80.0f);
+      CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+      idleWeight(80.0f);
+      CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    }
+  }
+}
+
+void cw21_debug_failure_and_old_connection_cannot_certify_reference() {
+  prepareIdleTare();
+  idleCup(0.0f);
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  ScaleEvent event;
+  event.type = ScaleEventType::REFERENCE_CHANGED;
+  event.connectionGeneration = getScaleLinkSnapshot().connectionGeneration + 1;
+  CHECK(publishScaleEvent(event, true));
+  processScaleWorkerEvents();
+  CHECK(captureCupTareDiagnostics().weightValid);
+  // A local/ATT rejection can complete without disconnecting the scale.
+  event.connectionGeneration = getScaleLinkSnapshot().connectionGeneration;
+  CHECK(publishScaleEvent(event, true));
+  processScaleWorkerEvents();
+  CHECK(!cupPresenceIsKnown());
+  CHECK(!captureCupTareDiagnostics().weightValid);
+  enableCupStartGuardForTest();
+  beginCycle();
+  CHECK(!session.active);
 }
 
 void cw10_absence_baseline_requires_stability_and_continuity() {
@@ -7763,6 +7892,7 @@ void it25_capture_and_packet_wrap_preserve_order() {
   finishIdleScaleTare(command.idleTareRequestId, true);
   serviceIdleTare();
   idleTare.lastPacketSequence = UINT32_MAX - 1U;
+  cupPresence.weight.sampleSequence = UINT32_MAX - 1U;
   publishWeight(-80.0f, hostMillis, 0, UINT32_MAX);
   publishWeight(-80.0f, hostMillis, 0, 1);
   CHECK(cupPresenceState() == CupPresenceState::ABSENT);
@@ -8586,7 +8716,7 @@ void rt11_late_retare_records_first_drops_and_keeps_weight_control() {
   CHECK(executeNextScaleCommand());
   establishPostTareBaseline();
   advanceToBrew();
-  uint32_t keepAliveSequence = 40;
+  uint32_t keepAliveSequence = 2;
   while (elapsedMs(session.startedAtMs) <
          runtimeConfig.postTareBaselineGraceMs + 500) {
     publishWeight(0.0f, hostMillis, 1, keepAliveSequence++);
@@ -13306,6 +13436,11 @@ const TestCase testCases[] = {
     {"CW14", cw14_heavy_tare_offsets_preserve_replacement_mass},
     {"CW15", cw15_removal_rebound_cannot_place_or_tare_empty_pan},
     {"CW16", cw16_replacement_requires_new_stable_absence},
+    {"CW17", cw17_debug_tare_rebases_negative_replacement},
+    {"CW18", cw18_debug_tare_cancels_queued_false_placement},
+    {"CW19", cw19_stale_active_samples_cannot_retare},
+    {"CW20", cw20_rejected_cup_samples_break_stability},
+    {"CW21", cw21_debug_failure_and_old_connection_cannot_certify_reference},
     {"IT02", it02_idle_zero_allows_guarded_start},
     {"IT03", it03_shot_end_never_tares_remaining_cup},
     {"IT04", it04_reconnect_and_setting_changes_do_not_place},

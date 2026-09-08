@@ -420,9 +420,17 @@ void processScaleWorkerEvents() {
     ++processed;
     switch (event.type) {
       case ScaleEventType::REFERENCE_CHANGED:
-        invalidateCupWeight();
-        cupPresence.weight.sampleSequence = 0;
+        if (event.connectionGeneration != getScaleLinkSnapshot().connectionGeneration)
+          break;
+        if (idleTare.requestId != 0) {
+          idleTare.cupStillPresent = false;
+          releaseIdleTareRequest(IdleTareReason::SAMPLE_GAP);
+          resetCupPresence();
+        }
+        resetCupSampleEvidence();
         cupPresence.weight.pendingId = 0;
+        if (event.writeSucceeded) notifyCupPresenceTare();
+        else markCupTareReferenceUncertain();
         break;
       case ScaleEventType::WEIGHT:
         if (!isfinite(event.weightG) ||
