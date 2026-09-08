@@ -46,11 +46,17 @@ not tare that cup.
 
 ## Outside a brew
 
-After connection, let the controller observe an empty pan, then place the cup.
+After connection, let the controller observe a stable empty pan near zero,
+then place the cup. A single absent sample cannot authorize idle tare.
 The existing [Cup](cup.md) stability settings qualify the placement and the empty
 reference. After removal, let the empty pan stabilize before replacing the cup.
 This triggers another tare, even if the cup contains coffee;
 adding coffee or a spoon while the cup stays present does not.
+
+Moving an empty scale does not authorize learning a new negative zero. Return
+it to its support and let the original empty reference stabilize. An unexplained
+negative offset at boot/reconnect requires an empty-pan firmware diagnostic tare
+and stable zero before relative placement can work; see [Cup](cup.md).
 
 The machine must be confirmed off. A new placement can tare after a normal
 shot stop while the paddle is still ON; the paddle still must be released before

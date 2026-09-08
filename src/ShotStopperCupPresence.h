@@ -37,6 +37,8 @@ struct CupWeightRuntime {
   uint32_t pendingId = 0;
   uint32_t pendingPlacementId = 0;
   uint32_t pendingAtMs = 0;
+  float sampleWeightG = 0.0f;
+  float pendingEmptyAnchorG = NAN;
   uint32_t droppedEvents = 0;
   bool valid = false;
   bool pendingValid = false;
@@ -68,6 +70,8 @@ struct CupPresenceRuntime {
   float occupiedMinimumG = 0.0f;
   float occupiedMaximumG = 0.0f;
   float occupiedPlacementThresholdG = 0.0f;
+  // Empty-pan coordinates outlive sample freshness and placement snapshots.
+  float emptyAnchorG = NAN;
 };
 
 CupPresenceRuntime cupPresence;
@@ -105,9 +109,22 @@ void invalidateCupWeight() {
 
 void observeEmptyCupWeight(float weight, uint32_t atMs) {
   auto &mass = cupPresence.weight;
-  if (mass.pendingId != 0 || cupPresence.holdTransitions) {
-    mass.emptyValid = false;
+  const bool anchored = isfinite(cupPresence.emptyAnchorG);
+  const float referenceG = anchored ? cupPresence.emptyAnchorG : 0.0f;
+  const float toleranceG = anchored ? runtimeConfig.retareStabilityToleranceG
+                                   : FIRST_DROP_BASELINE_SETTLE_G;
+  if (mass.pendingId != 0 || cupPresence.holdTransitions ||
+      ((!cupPresence.inNegativeHole || anchored) &&
+       fabsf(weight - referenceG) > toleranceG)) {
+    // Intermediate upward loads can be a placement ramp. A downward
+    // disturbance must settle back at the anchor before rearming placement.
+    if (weight < referenceG || mass.pendingId != 0 || cupPresence.holdTransitions)
+      mass.emptyValid = false;
     mass.emptySamples = 0;
+    return;
+  }
+  if (mass.emptyValid) {
+    // A stable new plateau does not authorize moving the empty-pan zero.
     return;
   }
   if (mass.emptySamples == 0 ||
@@ -126,7 +143,8 @@ void observeEmptyCupWeight(float weight, uint32_t atMs) {
   if (mass.emptySamples >= runtimeConfig.retareStabilitySamples &&
       static_cast<uint32_t>(atMs - mass.emptyStartedAtMs) >=
           runtimeConfig.retareStabilityMinDurationMs) {
-    mass.absent = CupStableWeight{weight, atMs, true};
+    if (!anchored) cupPresence.emptyAnchorG = weight;
+    mass.absent = CupStableWeight{cupPresence.emptyAnchorG, atMs, true};
     mass.emptyValid = true;
   }
 }
@@ -141,6 +159,7 @@ void restoreCupTareReference(bool previouslyTared, float previousReferenceG) {
 
 void markCupTareReferenceUncertain() {
   invalidateCupWeight();
+  cupPresence.emptyAnchorG = NAN;
   if (cupPresence.state == CupPresenceState::PRESENT) {
     cupPresence.referenceUncertain = true;
   }

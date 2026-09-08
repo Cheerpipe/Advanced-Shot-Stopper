@@ -128,6 +128,7 @@ void serviceCupWeight() {
   if (mass.pendingId != 0 && elapsedMs(mass.pendingAtMs) >
       SCALE_ATT_TIMEOUT_MS + runtimeConfig.postTareBaselineGraceMs) {
     invalidateCupWeight();
+    cupPresence.emptyAnchorG = NAN;
     mass.pendingId = 0;
   }
 }
@@ -148,6 +149,7 @@ bool observeCupWeight(float weight, uint32_t atMs, uint32_t sequence,
   if (mass.sampleSequence != 0 && atMs - mass.sampleAtMs >
       runtimeConfig.retareStabilityMaxGapMs) invalidateCupWeight();
   mass.sampleAtMs = atMs;
+  mass.sampleWeightG = weight;
   mass.sampleSequence = sequence;
   mass.connectionGeneration = generation;
   return true;
@@ -155,10 +157,17 @@ bool observeCupWeight(float weight, uint32_t atMs, uint32_t sequence,
 void trackCupWeightTare(uint32_t requestId) {
   serviceCupWeight();
   auto &mass = cupPresence.weight;
-  if (mass.pendingId != 0) invalidateCupWeight();
+  if (mass.pendingId != 0) {
+    invalidateCupWeight();
+    cupPresence.emptyAnchorG = NAN;
+  }
   mass.pendingId = requestId;
   mass.pendingAtMs = millis();
   mass.pendingPlacementId = cupPresencePlacementId();
+  mass.pendingEmptyAnchorG = mass.sampleSequence != 0 &&
+      elapsedMs(mass.sampleAtMs) <= MAX_AUTOMATION_WEIGHT_AGE_MS &&
+      mass.connectionGeneration == getScaleLinkSnapshot().connectionGeneration
+      ? cupPresence.emptyAnchorG - mass.sampleWeightG : NAN;
   mass.emptyValid = false;
   mass.emptySamples = 0;
   mass.pendingValid = mass.valid && cupPresenceState() == CupPresenceState::PRESENT &&
@@ -172,11 +181,14 @@ void finishCupWeight(uint32_t requestId, bool succeeded, bool uncertain) {
   auto &mass = cupPresence.weight;
   if (requestId == 0 || requestId != mass.pendingId) return;
   if (succeeded) {
+    cupPresence.emptyAnchorG = mass.pendingPlacementId == cupPresencePlacementId()
+        ? mass.pendingEmptyAnchorG : NAN;
     mass.valid = mass.pendingValid &&
         cupPresenceState() == CupPresenceState::PRESENT &&
         mass.pendingPlacementId == cupPresencePlacementId();
   } else if (uncertain) {
     invalidateCupWeight();
+    cupPresence.emptyAnchorG = NAN;
   }
   mass.pendingId = 0;
   mass.pendingValid = false;
@@ -423,7 +435,7 @@ bool observeIdleTareSample(float weight, uint32_t atMs, uint32_t sequence,
   return true;
 }
 
-void handleIdleCupEvent(CupPresenceEvent event, float weight) {
+void handleIdleCupEvent(CupPresenceEvent event) {
   if (event == CupPresenceEvent::REMOVED) {
     idleTare.cupStillPresent = false;
     if (idleTare.requestId != 0) releaseIdleTareRequest(IdleTareReason::REMOVED);
@@ -433,9 +445,8 @@ void handleIdleCupEvent(CupPresenceEvent event, float weight) {
     }
   }
   if (!idleTare.eligible) return;
-  if (cupPresenceState() == CupPresenceState::ABSENT &&
-      weight < runtimeConfig.minimumCupWeightG) {
-    idleTare.absentObserved = true;
+  if (cupPresenceState() == CupPresenceState::ABSENT) {
+    idleTare.absentObserved = cupPresence.weight.emptyValid;
   }
   if (event != CupPresenceEvent::PLACED) return;
   const bool placedInIdle = idleTare.absentObserved;
@@ -765,8 +776,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                                       uint32_t connectionGeneration,
                                       uint32_t captureSequence = 0) {
   if (!isfinite(weight) || fabsf(weight) > MAX_PARSED_WEIGHT_G) {
-    invalidateCupWeight();
-    cupPresence.weight.sampleSequence = 0;
+    resetCupSampleEvidence();
     serialTrace(LogLevel::WARNING, "Invalid or out-of-range weight ignored");
     rejectScaleSample(DebugCode::SCALE_SAMPLE_REJECTED_INVALID, weight);
     return false;
@@ -796,7 +806,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                           placementInRange) : CupPresenceEvent::NONE;
   if ((runtimeConfig.autoTareOutsideBrew || idleTare.requestId != 0) &&
       !session.active) {
-    handleIdleCupEvent(cupEvent, weight);
+    handleIdleCupEvent(cupEvent);
   }
   if (cupEvent == CupPresenceEvent::REMOVED) {
     // Run-state settle for momentary-only ASSUMED_OFF — independent of cut.

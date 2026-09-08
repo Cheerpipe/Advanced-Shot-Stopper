@@ -466,13 +466,20 @@ sample evidence. An idle placement pending at that reference change is cancelled
 and its presence discarded; it must qualify again from fresh samples.
 
 Informational cup weight is independent of the mutable occupied reference.
-The FSM keeps absolute stable `ABSENT` and placement `PRESENT` records with
-sample times, plus the calculated difference for the current placement. The
+The FSM keeps a qualified `ABSENT` reference and stable placement `PRESENT`
+record with qualification times, plus their difference for the current placement. The
 absent reading must qualify the shared stability window before placement starts.
 After REMOVED, a new absent plateau is required before any replacement can
 qualify; the negative-hole minimum is diagnostic only. Placement and queued tare
 validation use absent plus minimum cup weight. An established absent record
 survives transient intermediate weights while the next plateau qualifies.
+An independent empty anchor preserves the coordinate through freshness loss and
+does not move to another stable plateau while ABSENT. A downward departure beyond
+placement tolerance revokes absence qualification until samples settle back at
+the anchor; upward intermediate placement readings do not redefine it. Without
+an anchor or observed removal, acquisition is restricted to the existing ±0.5 g
+zero-settle band. Initial positive absolute presence remains available without
+mass or idle tare; negative boot offsets cannot authorize relative placement.
 `PLACED` publishes
 present minus absent, including when tare is disabled. Firmware tare and coffee
 do not overwrite these placement records or the calculated mass. Pending tare
@@ -480,13 +487,21 @@ IDs track uncertainty; successful matching outcomes preserve known mass rather
 than acquiring new mass from net weight. No baseline is learned across a pending
 tare. Removal, reset, connection changes, stale/invalid samples, lost evidence,
 and uncertain outcomes invalidate the measurement. Sample gaps beyond the
-configured stability maximum also clear the reference. Raw reference acquisition
+configured stability maximum clear qualification, not the numerical anchor.
+A matching successful tracked tare translates the anchor by its fresh raw
+pre-tare reading; overlapping, timed-out or uncertain tares discard that authority.
+Diagnostic reference changes also discard it. Original placement records and mass
+are not rewritten by this translation. After removal, fresh stable absence is
+still required; an unknown anchor may be reacquired from that observed removal.
+Raw reference acquisition
 uses parsed sensing bounds, including valid negative readings below the automation
 floor; placement automation and brew acceptance retain their existing bounds.
 The calculated mass is informational; the shared absent record qualifies placement.
 Freshness/order validation gates the cup FSM as well as mass acquisition in idle
 and active cycles. Samples over 1000 ms old, future-dated, duplicated or out of
-order reset cup sample evidence and cannot emit PLACED/REMOVED or trigger retare.
+order, and non-finite/out-of-parsed-range weights, reset placement and removal
+confirmation evidence and cannot emit PLACED/REMOVED or trigger retare.
+Idle tare additionally requires qualified stable absence, not one ABSENT sample.
 See [Displayed cup weight](settings/cup.md#displayed-cup-weight).
 
 The shot-start resync preserves known tared PRESENT at zero. Require-cup checks

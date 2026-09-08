@@ -8,7 +8,7 @@ All three are **on by default**. Late retare also requires shot-start tare.
 
 ## Automatic tare outside a brew
 
-With the machine confirmed off, an observed absent cup followed by a stable
+With the machine confirmed off, a qualified stable empty pan followed by a stable
 placement triggers one tare using the same cup detector as late retare. It
 does not start the timer. A cup that remains on the scale after a shot never
 triggers this tare, even after the beverage becomes stable. Removing and
@@ -19,6 +19,12 @@ Detection uses that stable reading as its reference, including negative tare
 offsets. A transient low point during removal cannot authorize another tare
 when the empty pan rebounds. A replacement made before stable absence is observed
 requires another removal, settling wait, and placement.
+
+The empty reference remains fixed across disturbances while absent. A stable
+negative excursion followed by a return near zero does not represent an added
+cup. Let the original empty reference stabilize before the next placement.
+Initial negative offsets without known reference history cannot authorize
+relative placement; recovery is described in [Cup settings](../settings/cup.md).
 
 A known tared cup remains present at 0 g, so **Require cup to start** accepts
 it. If shot-start tare is enabled, starting the next shot still performs its

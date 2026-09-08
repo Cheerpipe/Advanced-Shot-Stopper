@@ -7042,7 +7042,7 @@ void prepareIdleTare() {
   resetHarness(false, true);
   reachReadyFromBoot();
   runtimeConfig.autoTareOutsideBrew = true;
-  idleWeight(0.0f);
+  idleCup(0.0f);
 }
 
 void it01_placement_tares_once_independently() {
@@ -7117,6 +7117,7 @@ void cw02_start_outcome_and_later_tare_preserve_mass() {
       CHECK(executeNextScaleCommand());
       CHECK(captureCupTareDiagnostics().weightValid);
       CHECK(captureCupTareDiagnostics().weightG == 80.0f);
+      CHECK(cupPresence.emptyAnchorG == -175.0f);
     }
   }
 }
@@ -7472,23 +7473,132 @@ void cw12_placement_ramp_preserves_stable_absence() {
   }
 }
 
-void cw13_negative_boot_baseline_detects_relative_placements() {
+void cw13_negative_boot_baseline_requires_known_empty_reference() {
   for (float mass : {300.0f, 522.0f}) {
-    prepareIdleTare();
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.autoTareOutsideBrew = true;
     idleCup(-350.0f);
     idleCup(mass - 350.0f);
-    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
-    CHECK(captureCupTareDiagnostics().weightValid);
-    CHECK(captureCupTareDiagnostics().weightG == mass);
-    CHECK(cupPresencePlacementThresholdG() == -340.0f);
-    idleWeight(mass - 350.0f); // Negative occupied plateau is not removal.
-    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
-    CHECK(executeNextScaleCommand());
-    idleCup(0.0f);
-    CHECK(scale.tareCalls == 1);
-    CHECK(captureCupTareDiagnostics().weightValid);
-    CHECK(captureCupTareDiagnostics().weightG == mass);
+    CHECK(!captureCupTareDiagnostics().weightValid);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    // Positive absolute boot loads may establish presence, never relative mass.
+    CHECK(cupPresenceState() == (mass > 350.0f ? CupPresenceState::PRESENT
+                                             : CupPresenceState::ABSENT));
   }
+}
+
+void cw22_empty_movement_cannot_place_or_retare() {
+  for (unsigned mode = 0; mode < 3; ++mode) {
+    for (float excursion : {-20.0f, -100.0f, -522.0f}) {
+      prepareIdleTare();
+      runtimeConfig.autoTareOutsideBrew = mode != 0;
+      if (mode == 2) {
+        runtimeConfig.autoRetare = true;
+        runtimeConfig.bbwProtectionMs = minimumBbwProtectionMs(runtimeConfig);
+        startCycle();
+        CHECK(executeNextScaleCommand());
+        establishPostTareBaseline();
+      }
+      idleCup(0.0f);
+      const size_t tares = scale.tareCalls;
+      idleCup(-0.2f);
+      idleCup(0.1f);
+      idleCup(excursion);
+      idleCup(0.1f);
+      CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+      CHECK(cupPresencePlacementId() == 0);
+      CHECK(!captureCupTareDiagnostics().weightValid);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+      CHECK(scale.tareCalls == tares);
+      CHECK(!session.retarePerformed);
+      idleCup(80.0f);
+      CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+      CHECK(captureCupTareDiagnostics().weightValid);
+      CHECK(fabsf(captureCupTareDiagnostics().weightG - 80.0f) < 0.01f);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == (mode != 0 ? 1U : 0U));
+    }
+  }
+}
+
+void cw23_invalid_numeric_samples_break_confirmations() {
+  for (float invalid : {std::numeric_limits<float>::quiet_NaN(),
+                        std::numeric_limits<float>::infinity(),
+                        MAX_PARSED_WEIGHT_G + 1.0f}) {
+    for (bool direct : {false, true}) {
+      prepareIdleTare();
+      idleCup(0.0f);
+      idleWeight(80.0f);
+      if (direct) recordWeightSampleWithProvenance(invalid, hostMillis, 0, 0);
+      else idleWeight(invalid);
+      CHECK(cupPresence.placeStabilitySamples == 0);
+      idleWeight(80.0f);
+      idleWeight(80.0f);
+      CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+      idleWeight(80.0f);
+      CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+      idleWeight(0.0f);
+      CHECK(cupPresence.removedConfirmations == 1);
+      if (direct) recordWeightSampleWithProvenance(invalid, hostMillis, 0, 0);
+      else idleWeight(invalid);
+      CHECK(cupPresence.removedConfirmations == 0);
+      idleWeight(0.0f);
+      CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+      idleWeight(0.0f);
+      CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    }
+  }
+}
+
+void cw24_minimum_mass_is_independent_of_stability_tolerance() {
+  for (float tolerance : {0.1f, 10.0f, 20.0f}) {
+    for (float load : {9.9f, 10.0f, 10.1f}) {
+      prepareIdleTare();
+      runtimeConfig.retareStabilityToleranceG = tolerance;
+      idleCup(0.0f);
+      idleCup(load);
+      CHECK(cupPresenceState() == (load >= 10.0f ? CupPresenceState::PRESENT
+                                                : CupPresenceState::ABSENT));
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == (load >= 10.0f ? 1U : 0U));
+    }
+  }
+}
+
+void cw25_lost_samples_cannot_learn_a_negative_empty_reference() {
+  for (unsigned mode = 0; mode < 4; ++mode) {
+    prepareIdleTare();
+    idleCup(0.0f);
+    if (mode == 0) idleWeight(-20.0f, runtimeConfig.retareStabilityMaxGapMs + 1);
+    if (mode == 1) resetCupSampleEvidence();
+    if (mode == 2) ++runtimeConfig.revision;
+    if (mode == 3) {
+      setScaleConnected(false);
+      setScaleConnected(true);
+    }
+    idleCup(-20.0f);
+    idleCup(0.1f);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  }
+}
+
+void cw26_tare_anchor_rejects_stable_removal_undershoot() {
+  prepareIdleTare();
+  idleCup(300.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  CHECK(cupPresence.emptyAnchorG == -300.0f);
+  idleCup(-400.0f);
+  idleCup(-400.0f); // Even a full stable undershoot cannot replace the anchor.
+  CHECK(!cupPresence.weight.emptyValid);
+  idleCup(-300.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleCup(50.0f);
+  CHECK(captureCupTareDiagnostics().weightG == 350.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  CHECK(cupPresence.emptyAnchorG == -350.0f);
 }
 
 void cw14_heavy_tare_offsets_preserve_replacement_mass() {
@@ -8167,9 +8277,10 @@ void it30_actual_negative_replacement_removal_during_write() {
 void it31_idle_request_and_effect_deadline_cross_clock_wrap() {
   for (bool confirm : {false, true}) {
     prepareIdleTare();
-    hostMillis = UINT32_MAX - 700U;
+    resetCupSampleEvidence();
+    hostMillis = UINT32_MAX - 1000U;
     idleTare.lastPacketSequence = 0;
-    idleWeight(0.0f);
+    idleCup(0.0f);
     idleCup(80.0f);
     const uint32_t id = idleTare.requestId;
     CHECK(id != 0);
@@ -8216,7 +8327,7 @@ void it33_stale_connection_gap_cannot_cancel_current_tare() {
   const uint32_t oldGeneration = getScaleLinkSnapshot().connectionGeneration;
   setScaleConnected(false);
   setScaleConnected(true);
-  idleWeight(0.0f);
+  idleCup(0.0f);
   idleCup(80.0f);
   const uint32_t id = idleTare.requestId;
   CHECK(id != 0);
@@ -13627,7 +13738,7 @@ const TestCase testCases[] = {
     {"CW10", cw10_absence_baseline_requires_stability_and_continuity},
     {"CW11", cw11_removal_transient_is_not_the_empty_baseline},
     {"CW12", cw12_placement_ramp_preserves_stable_absence},
-    {"CW13", cw13_negative_boot_baseline_detects_relative_placements},
+    {"CW13", cw13_negative_boot_baseline_requires_known_empty_reference},
     {"CW14", cw14_heavy_tare_offsets_preserve_replacement_mass},
     {"CW15", cw15_removal_rebound_cannot_place_or_tare_empty_pan},
     {"CW16", cw16_replacement_requires_new_stable_absence},
@@ -13636,6 +13747,11 @@ const TestCase testCases[] = {
     {"CW19", cw19_stale_active_samples_cannot_retare},
     {"CW20", cw20_rejected_cup_samples_break_stability},
     {"CW21", cw21_debug_failure_and_old_connection_cannot_certify_reference},
+    {"CW22", cw22_empty_movement_cannot_place_or_retare},
+    {"CW23", cw23_invalid_numeric_samples_break_confirmations},
+    {"CW24", cw24_minimum_mass_is_independent_of_stability_tolerance},
+    {"CW25", cw25_lost_samples_cannot_learn_a_negative_empty_reference},
+    {"CW26", cw26_tare_anchor_rejects_stable_removal_undershoot},
     {"IT02", it02_idle_zero_allows_guarded_start},
     {"IT03", it03_shot_end_never_tares_remaining_cup},
     {"IT04", it04_reconnect_and_setting_changes_do_not_place},

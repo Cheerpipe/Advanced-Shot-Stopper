@@ -428,6 +428,7 @@ void processScaleWorkerEvents() {
           resetCupPresence();
         }
         resetCupSampleEvidence();
+        cupPresence.emptyAnchorG = NAN;
         cupPresence.weight.pendingId = 0;
         if (event.writeSucceeded) notifyCupPresenceTare();
         else markCupTareReferenceUncertain();
@@ -435,8 +436,7 @@ void processScaleWorkerEvents() {
       case ScaleEventType::WEIGHT:
         if (!isfinite(event.weightG) ||
             fabsf(event.weightG) > MAX_PARSED_WEIGHT_G) {
-          invalidateCupWeight();
-          cupPresence.weight.sampleSequence = 0;
+          resetCupSampleEvidence();
           serialTrace(LogLevel::WARNING,
                       "Invalid scale weight event ignored");
           rejectScaleSample(DebugCode::SCALE_SAMPLE_REJECTED_INVALID,

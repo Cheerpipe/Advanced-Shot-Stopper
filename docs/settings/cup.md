@@ -21,15 +21,28 @@ undershoot followed by an empty-pan rebound does not count as another placement.
 Without an absent baseline at boot, a stable absolute reading above the minimum
 can establish presence, but cannot establish cup mass.
 
+The empty reference stays fixed while the pan remains absent. Moving the scale
+to a stable negative reading cannot redefine its zero: 0 → −20 → 0.1 g does
+not place a cup. After a downward disturbance, let the empty pan settle back
+within the placement tolerance of its reference before placing the cup.
+Stability tolerance bounds sample spread; it is never a minimum placement mass.
+
+At boot/reconnect, initial empty-reference acquisition requires a stable reading
+within ±0.5 g of zero. An unexplained negative offset, such as −350 g, cannot
+authorize relative placement or idle tare. With the pan empty, use the firmware's
+diagnostic tare and let zero stabilize before placing a cup. Negative references
+from an observed cup removal remain supported. Weight alone cannot distinguish
+every sustained external force from a real cup.
+
 ## Displayed cup weight
 
 **Home → Cup** shows presence under **Status** and approximate cup weight under
 **Weight**. **Diagnostic → Scale → Cup weight** shows the same value.
-The presence state machine records the absolute stable reading while `ABSENT`
-and the absolute stable reading at the next confirmed `PRESENT` transition.
-Cup weight is the difference: **stable present reading − stable absent reading**.
-These records retain their sample times; the calculated mass belongs to that
-placement. It appears even with automatic tare disabled.
+The presence state machine records the qualified empty reference while `ABSENT`
+and the stable reading at the next confirmed `PRESENT` transition.
+Cup weight is the difference: **stable present reading − qualified empty reference**.
+The records retain their qualification times; the calculated mass belongs to
+that placement. It appears even with automatic tare disabled.
 
 For example, place a 300 g cup on a scale reading 0 g: the UI shows **≈ 300.0 g**.
 After firmware tare, the live reading is 0 g and cup weight stays 300 g. Remove
@@ -41,7 +54,11 @@ placement, so an empty-cup interpretation assumes the cup was empty then.
 The absent baseline uses the same sample count, whole-window tolerance, maximum
 gap, and minimum stable time as placement. Once qualified, that reference survives
 intermediate readings while a cup is being placed (for example, 0 → 5 → 300 g).
-A transient removal minimum is not a baseline. Without a reliable stable absent
+A transient removal minimum is not a baseline. Successful tracked tares translate
+the empty reference using the observed pre-tare reading, without changing the
+previous placement's recorded mass. Lost sample evidence requires fresh stable
+absence but does not permit the reference to drift to a different plateau.
+Without a reliable stable absent
 reading before placement, the UI shows **—**, including when booting with a cup
 already loaded. Removal, stale or invalid samples, excessive sample gaps,
 connection changes, lost evidence, and uncertain tares clear the value.
@@ -55,7 +72,8 @@ command rebases a detected cup to zero so its next lift remains detectable;
 a failed command leaves presence uncertain and cannot satisfy **Require cup to
 start**. Remove the cup, wait for stable absence, and replace it to acquire the
 weight again. Pending idle placements affected by a diagnostic tare are cancelled.
-Readings older than one second, future-dated or out of order cannot qualify cup
+Invalid/out-of-range readings and readings older than one second, future-dated
+or out of order cannot qualify cup
 placement or removal, including during a shot; they break the stability streak.
 The stable absent reference is shared by placement detection and mass calculation.
 The calculated mass itself does not control brewing or schedule additional tares.

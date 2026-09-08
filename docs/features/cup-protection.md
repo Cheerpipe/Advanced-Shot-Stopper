@@ -25,6 +25,12 @@ The guard uses cup presence, not a positive-weight threshold. An empty pan at
 zero does not satisfy it. Connection loss invalidates that presence evidence;
 see [idle tare limitations](../settings/tare.md#outside-a-brew).
 
+Stable negative readings at boot do not establish an empty reference for relative
+cup detection. With an empty pan, perform a firmware diagnostic tare, wait for
+stable zero, then place the cup. After moving an already empty scale, let it
+settle back at its original reference. Small residual errors alone do not count
+as a cup; the configured minimum added mass still applies.
+
 ## How timing fits together
 
 At shot start, the controller can tare immediately. If you place the cup within
