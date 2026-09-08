@@ -139,7 +139,7 @@ if (!bleCompanion.includes('ble_gatts_add_svcs(services)') ||
     bleCompanion.includes('ArduinoBLE')) {
   throw new Error('BLE Companion must use native NimBLE GATTS APIs only');
 }
-if (!taskProfiler.includes('allocExternal(sizeof(ActiveWorkspace))') ||
+if (!taskProfiler.includes('allocExternal(sizeof(ActiveWorkspace), AllocationOwner::PROFILER)') ||
     !taskProfiler.includes('heapCapsFree(workspace_)') ||
     taskProfiler.includes('allocExternalOrInternal(sizeof(ActiveWorkspace))') ||
     taskProfiler.includes('calloc(') ||
@@ -363,10 +363,11 @@ if (!psram.includes('#define SHOT_STOPPER_PSRAM_BSS EXT_RAM_BSS_ATTR') ||
         'SHOT_STOPPER_PSRAM_BSS PersistedSettings persistedSettings') ||
     !firmwareCore.includes(
         'SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistRequest') ||
-    !firmwareCore.includes(
+    firmwareCore.includes(
         'SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistReceive') ||
     !firmwareCore.includes(
-        'xQueueReceive(settingsPersistQueue, &settingsPersistReceive') ||
+        'xQueueReceive(settingsPersistQueue, &token') ||
+    !firmwareCore.includes('xQueueCreate(1, sizeof(uint8_t))') ||
     !firmwareCore.includes(
         'constexpr uint32_t SETTINGS_PERSIST_TASK_STACK_SIZE = 4096') ||
     !network.includes(
@@ -381,14 +382,14 @@ if (!psram.includes('#define SHOT_STOPPER_PSRAM_BSS EXT_RAM_BSS_ATTR') ||
     !firmwareCore.includes(
         'SHOT_STOPPER_PSRAM_BSS ShotPresetBank publishedPresetBank') ||
     firmwareCore.includes('stagingControlStatus') ||
-    !flashIoScratch.includes('allocInternal(FLASH_IO_SCRATCH_BYTES)') ||
+    !flashIoScratch.includes('allocInternal(FLASH_IO_SCRATCH_BYTES, AllocationOwner::FLASH_IO)') ||
     firmwareCore.includes('SHOT_STOPPER_PSRAM_BSS ControlStatusSnapshot')) {
   throw new Error(
       'Large history/settings/debug-ring/recipe BSS must use SHOT_STOPPER_PSRAM_BSS; flash scratch and live status snapshots stay internal');
 }
 if (!buzzer.includes('struct RtttlCatalog') ||
     !buzzer.includes('RtttlCatalog *rtttlCatalog') ||
-    !buzzer.includes('allocInternal(sizeof(RtttlCatalog))') ||
+    !buzzer.includes('allocInternal(sizeof(RtttlCatalog), AllocationOwner::BUZZER)') ||
     !buzzer.includes('RtttlNote rtttlBuf[BULLSEYE_RTTTL_MAX_NOTES]') ||
     !firmwareCore.includes('TaskMutex debugLogMutex') ||
     !firmwareCore.includes(

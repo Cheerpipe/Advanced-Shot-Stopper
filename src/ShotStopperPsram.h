@@ -29,13 +29,52 @@
 
 namespace shotstopper {
 
+enum class AllocationOwner : uint8_t {
+  OTHER, NETWORK, WEBHOOK, COMPANION, PROFILER, FLASH_IO, OTA, BUZZER, JSON, COUNT
+};
+
+struct AllocationMetrics {
+  std::atomic<uint32_t> successes{0};
+  std::atomic<uint32_t> failures{0};
+  std::atomic<uint32_t> largestRequestBytes{0};
+  std::atomic<uint32_t> lastFailureBytes{0};
+};
+
 namespace detail {
 
 inline std::atomic<uint32_t> g_allocExternalOk{0};
 inline std::atomic<uint32_t> g_allocExternalFallback{0};
 inline std::atomic<bool> g_workBufExternal{false};
+inline AllocationMetrics g_allocations[static_cast<size_t>(AllocationOwner::COUNT)];
+#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+// Deterministic allocation-failure injection; never compiled into firmware.
+inline std::atomic<int32_t> g_hostAllocationsUntilFailure{-1};
+inline bool hostAllocationFails() {
+  int32_t left = g_hostAllocationsUntilFailure.load(std::memory_order_relaxed);
+  while (left >= 0) {
+    if (left == 0) return true;
+    if (g_hostAllocationsUntilFailure.compare_exchange_weak(
+            left, left - 1, std::memory_order_relaxed)) return false;
+  }
+  return false;
+}
+#endif
 
 }  // namespace detail
+
+inline void noteAllocation(AllocationOwner owner, size_t bytes, bool success) {
+  auto &metrics = detail::g_allocations[static_cast<size_t>(owner)];
+  const uint32_t size = bytes > UINT32_MAX ? UINT32_MAX : static_cast<uint32_t>(bytes);
+  uint32_t largest = metrics.largestRequestBytes.load(std::memory_order_relaxed);
+  while (size > largest && !metrics.largestRequestBytes.compare_exchange_weak(
+             largest, size, std::memory_order_relaxed)) {}
+  if (success) {
+    metrics.successes.fetch_add(1, std::memory_order_relaxed);
+  } else {
+    metrics.failures.fetch_add(1, std::memory_order_relaxed);
+    metrics.lastFailureBytes.store(size, std::memory_order_relaxed);
+  }
+}
 
 inline uint32_t allocExternalOkCount() {
   return detail::g_allocExternalOk.load(std::memory_order_relaxed);
@@ -68,13 +107,14 @@ inline bool pointerIsExternal(const void *block) {
 // SPIRAM only. Large blobs that must not punch a hole in internal DRAM
 // (NetworkWorkBuf, Wi-Fi AP records). Returns nullptr if SPIRAM cannot
 // satisfy — callers fail closed.
-inline void *allocExternal(size_t bytes) {
+inline void *allocExternal(size_t bytes, AllocationOwner owner = AllocationOwner::OTHER) {
   if (bytes == 0) {
     return nullptr;
   }
 #if defined(SHOT_STOPPER_HOST_TEST) ||                                         \
     defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-  void *block = malloc(bytes);
+  void *block = detail::hostAllocationFails() ? nullptr : malloc(bytes);
+  noteAllocation(owner, bytes, block != nullptr);
   if (block != nullptr) {
     detail::g_allocExternalOk.fetch_add(1, std::memory_order_relaxed);
   }
@@ -87,59 +127,29 @@ inline void *allocExternal(size_t bytes) {
   }
 #endif
   if (block != nullptr && pointerIsExternal(block)) {
+    noteAllocation(owner, bytes, true);
     detail::g_allocExternalOk.fetch_add(1, std::memory_order_relaxed);
     return block;
   }
   if (block != nullptr) {
     heap_caps_free(block);
   }
+  noteAllocation(owner, bytes, false);
   return nullptr;
 #endif
 }
 
-// Explicit caps: do not rely on malloc()>4KiB landing in PSRAM.
-inline void *allocExternalOrInternal(size_t bytes) {
+inline void *allocInternal(size_t bytes, AllocationOwner owner = AllocationOwner::OTHER) {
   if (bytes == 0) {
     return nullptr;
   }
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-  void *block = malloc(bytes);
-  if (block != nullptr) {
-    detail::g_allocExternalOk.fetch_add(1, std::memory_order_relaxed);
-  }
-  return block;
+  void *block = detail::hostAllocationFails() ? nullptr : malloc(bytes);
 #else
-  void *block = nullptr;
-#if defined(BOARD_HAS_PSRAM)
-  if (psramFound()) {
-    block = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  }
+  void *block = heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 #endif
-  if (block != nullptr && pointerIsExternal(block)) {
-    detail::g_allocExternalOk.fetch_add(1, std::memory_order_relaxed);
-    return block;
-  }
-  if (block != nullptr) {
-    heap_caps_free(block);
-    block = nullptr;
-  }
-  block = heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (block != nullptr) {
-    detail::g_allocExternalFallback.fetch_add(1, std::memory_order_relaxed);
-  }
+  noteAllocation(owner, bytes, block != nullptr);
   return block;
-#endif
-}
-
-inline void *allocInternal(size_t bytes) {
-  if (bytes == 0) {
-    return nullptr;
-  }
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-  return malloc(bytes);
-#else
-  return heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-#endif
 }
 
 inline void heapCapsFree(void *block) {
@@ -160,6 +170,7 @@ struct HeapCapSnapshot {
   uint32_t internalLargest = 0;
   uint32_t psramTotal = 0;
   uint32_t psramFree = 0;
+  uint32_t psramMinimum = 0;
   uint32_t psramLargest = 0;
 };
 
@@ -171,7 +182,7 @@ inline HeapCapSnapshot sampleHeapCaps() {
   snap.internalMinimum = 180000;
   snap.internalLargest = 100000;
 #else
-  const uint32_t internalCaps = MALLOC_CAP_INTERNAL;
+  const uint32_t internalCaps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
   snap.internalTotal =
       static_cast<uint32_t>(heap_caps_get_total_size(internalCaps));
   snap.internalFree =
@@ -182,10 +193,11 @@ inline HeapCapSnapshot sampleHeapCaps() {
       heap_caps_get_largest_free_block(internalCaps));
 #if defined(BOARD_HAS_PSRAM)
   if (psramFound()) {
-    const uint32_t psramCaps = MALLOC_CAP_SPIRAM;
+    const uint32_t psramCaps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     snap.psramTotal =
         static_cast<uint32_t>(heap_caps_get_total_size(psramCaps));
     snap.psramFree = static_cast<uint32_t>(heap_caps_get_free_size(psramCaps));
+    snap.psramMinimum = static_cast<uint32_t>(heap_caps_get_minimum_free_size(psramCaps));
     snap.psramLargest = static_cast<uint32_t>(
         heap_caps_get_largest_free_block(psramCaps));
   }

@@ -128,14 +128,14 @@ bool WebhookDispatcher::startWorker() {
   // Never let that stale acknowledgement satisfy a later stop()/join.
   if (workerStopped_ != nullptr) (void)xSemaphoreTake(workerStopped_, 0);
 
-  // Webhooks are optional. Their payload and queue contents must not consume
-  // internal control/BLE heap; fail closed when PSRAM is unavailable.
+  // FreeRTOS copies queue items under its spinlock: keep these 368 bytes
+  // internal. The larger HTTP payload remains external and fails closed.
   const size_t queueStorageBytes =
       kWebhookQueueDepth * sizeof(QueuedWebhook);
   uint8_t *queueStorage =
-      static_cast<uint8_t *>(allocExternal(queueStorageBytes));
+      static_cast<uint8_t *>(allocInternal(queueStorageBytes, AllocationOwner::WEBHOOK));
   char *payload =
-      static_cast<char *>(allocExternal(kWebhookPayloadCapacity));
+      static_cast<char *>(allocExternal(kWebhookPayloadCapacity, AllocationOwner::WEBHOOK));
   QueueHandle_t queue = nullptr;
   if (queueStorage != nullptr) {
     queue = xQueueCreateStatic(kWebhookQueueDepth, sizeof(QueuedWebhook),

@@ -157,7 +157,6 @@ void serviceMaintenanceLease() {
     result.type = WebCommandType::MAINTENANCE_COMPLETE;
     result.requestId = maintenanceLease.command.requestId;
     result.maintenanceLeaseId = maintenanceLease.id;
-    result.config = maintenanceLease.command.config;
     result.succeeded = true;
     const WebCommandType forwardedType = maintenanceLease.command.type;
     if (forwardedType == WebCommandType::SAVE_NETWORK ||
@@ -241,7 +240,8 @@ void settingsPersistTask(void *parameter) {
   }
   for (;;) {
     // Must not block forever: this task is subscribed to the TWDT.
-    if (xQueueReceive(settingsPersistQueue, &settingsPersistReceive,
+    uint8_t token = 0;
+    if (xQueueReceive(settingsPersistQueue, &token,
                       pdMS_TO_TICKS(SETTINGS_PERSIST_IDLE_WAIT_MS)) !=
         pdTRUE) {
       (void)persistResetUptimeCheckpoint(millis());
@@ -250,15 +250,17 @@ void settingsPersistTask(void *parameter) {
     }
     yieldSettingsNvs();
     feedOrTripCurrentTaskWatchdog();
-    const bool ok = savePersistedSettings(settingsPersistReceive.blob);
+    // The producer owns the mailbox until enqueue; this worker owns it until
+    // publishing the result. Only the control task consumes that result.
+    const bool ok = savePersistedSettings(settingsPersistRequest.blob);
     feedOrTripCurrentTaskWatchdog();
     settingsPersistMux.lock();
     settingsPersistResultReady = true;
     settingsPersistResultOk = ok;
     settingsPersistResultRuntimeRevision =
-        settingsPersistReceive.runtimeRevision;
+        settingsPersistRequest.runtimeRevision;
     settingsPersistResultStorageRevision =
-        ok ? settingsPersistReceive.blob.storageRevision : 0;
+        ok ? settingsPersistRequest.blob.storageRevision : 0;
     settingsPersistMux.unlock();
   }
 }
@@ -287,10 +289,10 @@ bool initializeSettingsPersistenceWorker() {
 
 #ifdef SHOT_STOPPER_HOST_TEST
   QueueHandle_t queue = hostSettingsPersistQueueCreateSucceeds
-                            ? xQueueCreate(1, sizeof(SettingsPersistRequest))
+                            ? xQueueCreate(1, sizeof(uint8_t))
                             : nullptr;
 #else
-  QueueHandle_t queue = xQueueCreate(1, sizeof(SettingsPersistRequest));
+  QueueHandle_t queue = xQueueCreate(1, sizeof(uint8_t));
 #endif
   if (queue == nullptr) {
     return false;
@@ -414,7 +416,7 @@ bool dispatchSettingsPersist() {
     return false;
   }
   SettingsPersistRequest &request = settingsPersistRequest;
-  request.blob = networkManager.settingsCopy();
+  networkManager.copySettings(request.blob);
   request.blob.runtime = runtimeConfig;
   request.blob.bullseyeMelody = bullseyeMelodyConfig;
   request.blob.presets = presetBank;
@@ -430,12 +432,17 @@ bool dispatchSettingsPersist() {
   memcpy(persistedSettings.scaleHistory, request.blob.scaleHistory,
          sizeof(persistedSettings.scaleHistory));
   request.runtimeRevision = runtimeConfig.revision;
-  if (xQueueSend(settingsPersistQueue, &request, 0) != pdTRUE) {
-    return false;
-  }
+  // Publish ownership before waking a worker that may finish immediately.
   settingsPersistMux.lock();
   settingsPersistInFlight = true;
   settingsPersistMux.unlock();
+  const uint8_t token = 1;
+  if (xQueueSend(settingsPersistQueue, &token, 0) != pdTRUE) {
+    settingsPersistMux.lock();
+    settingsPersistInFlight = false;
+    settingsPersistMux.unlock();
+    return false;
+  }
   runtimePersistPending = false;
   return true;
 }

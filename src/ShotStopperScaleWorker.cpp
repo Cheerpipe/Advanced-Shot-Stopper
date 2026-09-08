@@ -110,7 +110,7 @@ void reportNimbleRuntimeHealth(bool force) {
       static_cast<long>(health.lastResetReason),
       static_cast<unsigned long>(health.syncGeneration),
       static_cast<unsigned long>(health.resetCount),
-      static_cast<unsigned long>(health.hostTaskStackHighWaterWords),
+      static_cast<unsigned long>(health.hostTaskStackHighWaterBytes),
       static_cast<unsigned long>(health.internalFreeBytes),
       static_cast<unsigned long>(health.internalMinimumFreeBytes),
       static_cast<unsigned long>(health.internalLargestBlockBytes),
@@ -208,7 +208,7 @@ uint32_t scalePreferredAppliedResetGeneration = 0;
 uint8_t scalePreferredResetReasonBits = 0;
 uint32_t scaleWorkerProgressAtMs = 0;
 static std::atomic<uint32_t> scaleEventsDropped{0};
-static std::atomic<uint32_t> scaleWorkerStackMinWords{0};
+static std::atomic<uint32_t> scaleWorkerStackMinBytes{UINT32_MAX};
 static std::atomic<uint32_t> scaleWorkerMaxGapMs{0};
 static std::atomic<uint32_t> scaleWorkerDeadlineMisses{0};
 static std::atomic<uint32_t> scaleWorkerMaxExecutionUs{0};
@@ -322,8 +322,8 @@ uint32_t scaleWorkerDroppedEventCount() {
   return scaleEventsDropped.load(std::memory_order_relaxed);
 }
 
-uint32_t scaleWorkerStackMinWordsValue() {
-  return scaleWorkerStackMinWords.load(std::memory_order_relaxed);
+uint32_t scaleWorkerStackMinBytesValue() {
+  return scaleWorkerStackMinBytes.load(std::memory_order_relaxed);
 }
 
 uint32_t scaleWorkerMaxGapMsValue() {
@@ -348,8 +348,8 @@ void setScaleWorkerTaskPresentForHost(bool present) {
       present ? reinterpret_cast<TaskHandle_t>(1) : nullptr;
 }
 
-void setScaleWorkerStackMinWordsForHost(uint32_t words) {
-  scaleWorkerStackMinWords.store(words, std::memory_order_relaxed);
+void setScaleWorkerStackMinBytesForHost(uint32_t bytes) {
+  scaleWorkerStackMinBytes.store(bytes, std::memory_order_relaxed);
 }
 
 void resetScaleWorkerMetricsForHost() {
@@ -357,7 +357,7 @@ void resetScaleWorkerMetricsForHost() {
   bleStackReady.store(false, std::memory_order_relaxed);
   scaleWorkerStartupFinished.store(false, std::memory_order_relaxed);
   scaleEventsDropped.store(0, std::memory_order_relaxed);
-  scaleWorkerStackMinWords.store(0, std::memory_order_relaxed);
+  scaleWorkerStackMinBytes.store(UINT32_MAX, std::memory_order_relaxed);
   scaleWorkerMaxGapMs.store(0, std::memory_order_relaxed);
   scaleWorkerDeadlineMisses.store(0, std::memory_order_relaxed);
   scaleWorkerMaxExecutionUs.store(0, std::memory_order_relaxed);
@@ -2091,7 +2091,7 @@ void scaleWorkerTask(void *) {
     }
     if (elapsedMs(telemetryAtMs) >= HEALTH_TELEMETRY_INTERVAL_MS) {
       telemetryAtMs = millis();
-      scaleWorkerStackMinWords.store(
+      scaleWorkerStackMinBytes.store(
           static_cast<uint32_t>(uxTaskGetStackHighWaterMark(nullptr)),
           std::memory_order_relaxed);
 #if !defined(SHOT_STOPPER_HOST_TEST)

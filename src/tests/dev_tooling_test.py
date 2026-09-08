@@ -29,8 +29,17 @@ with tempfile.TemporaryDirectory(prefix="shotstopper-docs-") as temporary:
         '![photo](docs/photo.png)\n[local](#home)\n'
         '[external](https://example.org/missing#ignored)\n'
         '```md\n[example](missing-example.md)\n```\n')
+    for directory in ("temp/ai_temp_check", "docs/plans", "docs/audits/nested"):
+        local = fixture / directory
+        local.mkdir(parents=True)
+        (local / "review.md").write_text('# Local record\n[broken](missing.md)\n')
     with patch.dict(doc_check.__globals__, ROOT=fixture, AREAS={}):
         assert doc_check() == [], doc_check()
+        canonical = fixture / "docs/audits-guide.md"
+        canonical.write_text('# Canonical guide\n[broken](missing.md)\n')
+        errors = doc_check()
+        assert len(errors) == 1 and 'docs/audits-guide.md:' in errors[0], errors
+        canonical.write_text('# Canonical guide\n')
         (fixture / "libraries/EspressoScaleBLE/README.md").write_text(
             '# Library\n[bad](../../docs/guide.md#missing)\n'
             '[ref]: ../../docs/absent.md\n<img src="missing.png">\n')

@@ -57,7 +57,7 @@ struct TaskProfilerRow {
   char name[TASK_PROFILER_NAME_CAPACITY] = {};
   uint32_t taskNumber = 0;
   int8_t core = -1;
-  uint32_t stackMinWords = 0;
+  uint32_t stackMinBytes = UINT32_MAX;
   float currentCpuPct = 0.0f;
   float averageCpuPct = 0.0f;
 };
@@ -89,18 +89,27 @@ class TaskProfiler {
     }
 #if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
     ActiveWorkspace *next = static_cast<ActiveWorkspace *>(
-        allocExternal(sizeof(ActiveWorkspace)));
+        allocExternal(sizeof(ActiveWorkspace), AllocationOwner::PROFILER));
     if (next == nullptr) {
       noteStartFailure_(TaskProfilerStopReason::ALLOCATION_FAILED);
       return false;
     }
     memset(next, 0, sizeof(*next));
+    // uxTaskGetSystemState writes its output while holding the kernel lock.
+    next->capture = static_cast<TaskStatus_t *>(
+        allocInternal(sizeof(TaskStatus_t) * TASK_PROFILER_MAX_TRACKED, AllocationOwner::PROFILER));
+    if (next->capture == nullptr) {
+      heapCapsFree(next);
+      noteStartFailure_(TaskProfilerStopReason::ALLOCATION_FAILED);
+      return false;
+    }
     uint32_t ignoredTotal = 0;
     const int64_t captureStartedUs = esp_timer_get_time();
     const UBaseType_t count = uxTaskGetSystemState(
         next->capture, TASK_PROFILER_MAX_TRACKED, &ignoredTotal);
     const int64_t captureEndedUs = esp_timer_get_time();
     if (count == 0 || uxTaskGetNumberOfTasks() > TASK_PROFILER_MAX_TRACKED) {
+      heapCapsFree(next->capture);
       heapCapsFree(next);
       noteStartFailure_(TaskProfilerStopReason::CAPTURE_FAILED);
       return false;
@@ -217,16 +226,20 @@ class TaskProfiler {
     uint32_t previousCounter = 0;
     uint64_t accumulatedCounter = 0;
     uint32_t currentDelta = 0;
-    uint32_t stackMinWords = 0;
+    uint32_t stackMinBytes = UINT32_MAX;
     int8_t core = -1;
     bool idle = false;
   };
 
   struct ActiveWorkspace {
-    TaskStatus_t capture[TASK_PROFILER_MAX_TRACKED] = {};
+    TaskStatus_t *capture = nullptr;
     TrackedTask tracked[TASK_PROFILER_MAX_TRACKED] = {};
     uint8_t trackedCount = 0;
   };
+  static_assert(sizeof(ActiveWorkspace) <= 4096,
+                "Profiler external workspace exceeds its budget");
+  static_assert(sizeof(TaskStatus_t) * TASK_PROFILER_MAX_TRACKED <= 4096,
+                "Profiler kernel capture exceeds its internal budget");
 
   static uint32_t clampU32_(uint64_t value) {
     return value > UINT32_MAX ? UINT32_MAX : static_cast<uint32_t>(value);
@@ -261,7 +274,7 @@ class TaskProfiler {
     tracked = TrackedTask{};
     tracked.taskNumber = static_cast<uint32_t>(task.xTaskNumber);
     tracked.previousCounter = static_cast<uint32_t>(task.ulRunTimeCounter);
-    tracked.stackMinWords = static_cast<uint32_t>(task.usStackHighWaterMark);
+    tracked.stackMinBytes = static_cast<uint32_t>(task.usStackHighWaterMark);
     tracked.core = coreOf_(task);
     if (task.pcTaskName != nullptr) {
       copyCString(tracked.name, sizeof(tracked.name), task.pcTaskName);
@@ -324,8 +337,8 @@ class TaskProfiler {
       tracked->accumulatedCounter += delta;
       const uint32_t stackMin =
           static_cast<uint32_t>(task.usStackHighWaterMark);
-      if (tracked->stackMinWords == 0 || stackMin < tracked->stackMinWords) {
-        tracked->stackMinWords = stackMin;
+      if (stackMin < tracked->stackMinBytes) {
+        tracked->stackMinBytes = stackMin;
       }
       tracked->core = coreOf_(task);
     }
@@ -373,7 +386,7 @@ class TaskProfiler {
       copyCString(row.name, sizeof(row.name), tracked.name);
       row.taskNumber = tracked.taskNumber;
       row.core = tracked.core;
-      row.stackMinWords = tracked.stackMinWords;
+      row.stackMinBytes = tracked.stackMinBytes;
       row.currentCpuPct = intervalUs_ == 0
                               ? 0.0f
                               : static_cast<float>(tracked.currentDelta) *
@@ -450,6 +463,7 @@ class TaskProfiler {
 
   void releaseWorkspace_() {
     if (workspace_ != nullptr) {
+      heapCapsFree(workspace_->capture);
       heapCapsFree(workspace_);
       workspace_ = nullptr;
     }

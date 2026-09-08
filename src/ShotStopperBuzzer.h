@@ -37,9 +37,12 @@ struct RtttlCatalog {
       static_cast<uint8_t>(BuzzerCue::RECOVERY_ERROR) + 1;
   static constexpr uint8_t kPulseRateCount =
       static_cast<uint8_t>(ExtendedPulseRate::RAPID) + 1;
+  // Built-in cues use at most five notes; reserve eight and reject growth
+  // before writing. Custom bullseye playback retains its full 250-note limit.
+  static constexpr uint8_t kFixedNoteCapacity = 8;
   RtttlNote bullseyeNotes[BULLSEYE_RTTTL_MAX_NOTES] = {};
-  RtttlNote cueNotes[kCueCount][RTTTL_MAX_NOTES] = {};
-  RtttlNote pulseNotes[kPulseRateCount][RTTTL_MAX_NOTES] = {};
+  RtttlNote cueNotes[kCueCount][kFixedNoteCapacity] = {};
+  RtttlNote pulseNotes[kPulseRateCount][kFixedNoteCapacity] = {};
 };
 #endif
 
@@ -260,7 +263,7 @@ inline void LocalBuzzer::begin(uint8_t gpioPin) {
 #if SHOT_STOPPER_ENABLE_BUZZER == 1
   if (rtttlCatalog == nullptr) {
     rtttlCatalog =
-        static_cast<RtttlCatalog *>(allocInternal(sizeof(RtttlCatalog)));
+        static_cast<RtttlCatalog *>(allocInternal(sizeof(RtttlCatalog), AllocationOwner::BUZZER));
   }
   if (rtttlCatalog == nullptr) {
     return;
@@ -275,7 +278,8 @@ inline void LocalBuzzer::begin(uint8_t gpioPin) {
       continue;
     }
     uint8_t count = 0;
-    if (!parseRtttl(rtttlForCue(cue), rtttlCatalog->cueNotes[i], count) ||
+    if (!parseRtttlBounded(rtttlForCue(cue), rtttlCatalog->cueNotes[i],
+                           RtttlCatalog::kFixedNoteCapacity, count) ||
         count == 0) {
       return;
     }
@@ -283,8 +287,9 @@ inline void LocalBuzzer::begin(uint8_t gpioPin) {
   }
   for (uint8_t rate = 1; rate < kPulseRateCount; ++rate) {
     uint8_t count = 0;
-    if (!parseRtttl(rtttlForExtendedPulseRate(rate),
-                    rtttlCatalog->pulseNotes[rate], count) || count == 0) {
+    if (!parseRtttlBounded(rtttlForExtendedPulseRate(rate),
+                    rtttlCatalog->pulseNotes[rate],
+                    RtttlCatalog::kFixedNoteCapacity, count) || count == 0) {
       return;
     }
     pulseNoteCount[rate] = count;

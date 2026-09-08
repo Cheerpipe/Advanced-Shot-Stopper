@@ -45,6 +45,14 @@ around flash work, so it cannot be indefinitely starved while subscribed to the
 Task Watchdog. Network and scale metrics are published under their owning
 snapshot or as monotonic atomics.
 
+Stack high-water marks are bytes on the supported ESP32-S3 port. Diagnostic
+JSON and `HEALTH` publish `stackUnit=bytes` and an unavailable sentinel of
+`4294967295`; legacy field names ending in `Words` retain their historical
+byte-valued numbers for compatibility. Zero is a measured exhausted margin,
+not a missing sample. The low-stack alert enters below 1024 bytes and clears
+at 1536 bytes. Configured task stack sizes are unchanged; reducing them needs
+target measurements under the combined workload.
+
 ## Release test
 
 Run the target at the qualified 80 MHz configuration for at least eight hours
@@ -58,7 +66,7 @@ A build passes only when:
 - there is no Task/Interrupt Watchdog reset;
 - control and scale deadline-miss counters remain zero;
 - lifetime service gaps stay at or below 10 ms;
-- no stack watermark falls below 384 words;
+- no application-task stack watermark falls below 1536 bytes, and every required task has evidence;
 - safety timers still open the circuit at their configured deadline; and
 - diagnostic queue drops are monotonic/accounted and never affect control.
 

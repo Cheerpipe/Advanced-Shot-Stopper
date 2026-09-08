@@ -26,8 +26,12 @@ release-ready while required HIL/manual evidence is pending. Image and memory
 regions are compared by `src/tests/check_firmware_size.js` against the versioned
 budgets in `docs/P2_RESOURCE_BUDGETS.md`.
 
-The documentation check covers root guides, `docs/`, the BLE library README
-and the safety README. It validates local paths, images, and Markdown heading/
+The documentation check covers root guides, canonical guides in `docs/`, the BLE
+library README, and the safety README. Local working files in `temp/`,
+`docs/plans/`, and `docs/audits/` are not documentation sources for this check.
+They remain part of the local project but outside Git; validate their evidence
+and progress through the [AI workflow](docs/AI_WORKFLOW.md#local-project-files-and-git).
+The check validates local paths, images, and Markdown heading/
 explicit HTML anchors (including duplicate headings and multiline links).
 External URLs and example contents are not certified by this offline check.
 

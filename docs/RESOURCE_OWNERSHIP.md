@@ -17,6 +17,16 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | scale and persistence tasks/queues | boot-lifetime owning service | startup fault rollback; resources remain stable after successful boot |
 | static task mutex/event storage | containing static object | no heap allocation and no dynamic teardown |
 | HTTP server | NetworkService | manager-task-only stop/restart; handle cleared immediately after `httpd_stop` |
+| persistence mailbox | control producer, then persistence worker | one external request; internal token queue; producer may reuse only after consuming completion, or failed enqueue |
+| webhook queue / payload | `WebhookDispatcher` | internal queue storage and external HTTP payload; release after worker join, or startup rollback |
+| profiler workspace / capture | `TaskProfiler` | external processing workspace and separate internal kernel capture; free both on stop or failed start |
+| cJSON document | parsing caller | PSRAM allocations through process-wide hooks installed once before HTTP starts; `cJSON_Delete` releases each independent document |
+
+`initJsonParser()` installs the cJSON allocator once, before concurrent users
+start. No caller may replace the process-wide hooks afterward. This is not a
+resettable arena: simultaneous documents never share storage, and allocation
+failure rejects the current parse without invalidating another document.
+External allocations fail closed; they never fall back to internal RAM.
 
 The remaining raw task and server handles are deliberate lifecycle tokens, not
 unowned allocations. Converting a task handle to a destructor that invokes

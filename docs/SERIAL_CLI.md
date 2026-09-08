@@ -157,6 +157,10 @@ persist.
 | `BLE_COMPAT_DISABLE` | none | Disables the Companion GATT profile on the next boot so its RAM is not allocated; restart required |
 | `BLE_COMPAT_STATUS` | none | Configured next-boot state, active-this-boot state, restart requirement, protocol, advertising, client/AP state, write counters, and live `scanIntensity` (`normal` / `aggressive` / `light`) |
 
+`HEALTH` stack watermarks are bytes (`stackUnit=bytes`). Legacy `Words` suffixes
+are retained without rescaling their values. `4294967295` means unavailable;
+zero is a valid exhausted margin and must never be filtered out.
+
 ## Shot history
 
 | Command | Parameters | Effect |

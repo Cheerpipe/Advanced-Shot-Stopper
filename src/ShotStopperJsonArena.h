@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include "ShotStopperPsram.h"
 
 namespace shotstopper {
 
@@ -204,10 +205,22 @@ inline void noteJsonLimitRejection() {
 
 }  // namespace detail
 
-// cJSON's allocator hooks are process-global and cannot safely select a parser
-// arena. Deliberately leave its default allocator installed: every parse owns
-// independent storage and concurrent callers cannot reset one another's data.
-inline void initJsonParser() {}
+// Install one process-wide capability allocator before starting HTTP/parser
+// consumers. Never switch hooks per request or reset a shared document arena.
+// Every node/string keeps independent ownership; heapCapsFree also accepts
+// blocks allocated by the default allocator before initialization.
+inline void initJsonParser() {
+  static const bool initialized = [] {
+    cJSON_Hooks hooks{};
+    hooks.malloc_fn = [](size_t bytes) -> void * {
+      return allocExternal(bytes, AllocationOwner::JSON);
+    };
+    hooks.free_fn = heapCapsFree;
+    cJSON_InitHooks(&hooks);
+    return true;
+  }();
+  (void)initialized;
+}
 
 inline cJSON *parseJsonDocument(const char *body) {
   detail::g_jsonLimitRejectedRecently = false;

@@ -6,6 +6,13 @@ mutex); ISR-shared scalar state uses a `portMUX`; monotonic counters and latches
 use lock-free atomics. No code may perform Serial, network, flash, allocation,
 formatting, a PSRAM walk, or an unbounded copy while holding a `portMUX`.
 
+This also applies to kernel copies: FreeRTOS queue storage, queue source and
+destination buffers, and the `uxTaskGetSystemState` capture array must be in
+internal RAM. The persistence queue carries a one-byte token; its single
+PSRAM mailbox is immutable from enqueue until the control task consumes the
+worker's completion. A failed enqueue releases that ownership immediately.
+The Companion object remains internal because it contains callback spinlocks.
+
 ## Lock DAG
 
 Locks are normally acquired one at a time. The only permitted nesting is:

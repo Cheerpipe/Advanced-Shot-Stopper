@@ -114,13 +114,14 @@ void publishControlStatus() {
   next.scaleWorkerMaxGapMs = scaleWorkerMaxGapMsValue();
   next.scaleWorkerDeadlineMisses = scaleWorkerDeadlineMissCount();
   next.scaleWorkerMaxExecutionUs = scaleWorkerMaxExecutionUsValue();
-  next.loopStackMinWords = loopStackMinWords;
-  next.scaleStackMinWords = scaleWorkerStackMinWordsValue();
+  next.loopStackMinBytes = loopStackMinBytes;
+  next.scaleStackMinBytes = scaleWorkerStackMinBytesValue();
   next.freeHeapBytes = freeHeapBytes;
   next.minimumFreeHeapBytes = minimumFreeHeapBytes;
   next.largestFreeHeapBlockBytes = largestFreeHeapBlockBytes;
   next.psramSizeBytes = psramSizeBytes;
   next.psramFreeBytes = psramFreeBytes;
+  next.psramMinimumFreeBytes = psramMinimumFreeBytes;
   next.psramLargestFreeBlockBytes = psramLargestFreeBlockBytes;
   next.bleHostAllocPsramCount = bleHostAllocPsramCount;
   next.bleHostAllocFallbackCount = bleHostAllocFallbackCount;
@@ -132,7 +133,7 @@ void publishControlStatus() {
   next.bleRuntimeLastResetReason = bleRuntimeLastResetReason;
   next.bleRuntimeSyncGeneration = bleRuntimeSyncGeneration;
   next.bleRuntimeResetCount = bleRuntimeResetCount;
-  next.bleRuntimeHostStackMinWords = bleRuntimeHostStackMinWords;
+  next.bleRuntimeHostStackMinBytes = bleRuntimeHostStackMinBytes;
   next.workBufExternal = workBufIsExternal();
 #ifndef SHOT_STOPPER_HOST_TEST
   next.jsonArenaExternal = jsonArenaIsExternal();
@@ -338,7 +339,7 @@ void serialCliReply(const char *message) {
 }
 
 void serialCliWipeCommandSecrets(WebCommand &command) {
-  memset(command.password, 0, sizeof(command.password));
+  command.wipePassword();
 }
 
 void serialCliRejectUnsafe() {
@@ -415,7 +416,7 @@ void serialCliFillNetworkDump(SerialCliNetworkDump &dump) {
   dump.wifiStatus = snap.wifiStatus;
   dump.confirmRemainingMs = snap.confirmRemainingMs;
   dump.taskAgeMs = snap.taskAgeMs;
-  dump.taskStackMinWords = snap.taskStackMinWords;
+  dump.taskStackMinBytes = snap.taskStackMinBytes;
   dump.startupFailures = snap.startupFailures;
   dump.lastCommandRequestId = snap.lastCommandRequestId;
   dump.staConnectAgeMs = snap.staConnectAgeMs;
@@ -475,7 +476,7 @@ void serialCliPrintLiveHealth() {
   dump.bleRuntimeLastResetReason = bleRuntimeLastResetReason;
   dump.bleRuntimeSyncGeneration = bleRuntimeSyncGeneration;
   dump.bleRuntimeResetCount = bleRuntimeResetCount;
-  dump.bleRuntimeHostStackMinWords = bleRuntimeHostStackMinWords;
+  dump.bleRuntimeHostStackMinBytes = bleRuntimeHostStackMinBytes;
   dump.workBufExternal = workBufIsExternal();
 #ifndef SHOT_STOPPER_HOST_TEST
   dump.jsonArenaExternal = jsonArenaIsExternal();
@@ -487,10 +488,10 @@ void serialCliPrintLiveHealth() {
   dump.healthIntervalMaxGapMs =
       healthIntervalMaxGapMs > loopIntervalGapMs ? healthIntervalMaxGapMs
                                                  : loopIntervalGapMs;
-  dump.loopStackMinWords = loopStackMinWords;
-  dump.scaleWorkerStackMinWords = scaleWorkerStackMinWordsValue();
+  dump.loopStackMinBytes = loopStackMinBytes;
+  dump.scaleWorkerStackMinBytes = scaleWorkerStackMinBytesValue();
 #ifndef SHOT_STOPPER_HOST_TEST
-  dump.networkStackMinWords = networkManager.snapshot().taskStackMinWords;
+  dump.networkStackMinBytes = networkManager.snapshot().taskStackMinBytes;
 #endif
   dump.heapAlertLatched = healthHeapAlertLatched;
   dump.stackAlertLatched = healthStackAlertLatched;
@@ -678,19 +679,19 @@ void dispatchSerialCliRequest(SerialCliRequest &request) {
     }
     case SerialCliVerb::SET_DEVICE_PASSWORD: {
       WebCommand command;
-      command.type = WebCommandType::CHANGE_DEVICE_PASSWORD;
-      copyCString(command.password, sizeof(command.password), request.arg1);
+      command.setNetworkType(WebCommandType::CHANGE_DEVICE_PASSWORD);
+      copyCString(command.network.password, sizeof(command.network.password), request.arg1);
       serialCliQueueIfSafe(command, request.verb);
       memset(request.arg1, 0, sizeof(request.arg1));
       return;
     }
     case SerialCliVerb::SET_WIFI: {
       WebCommand command;
-      command.type = WebCommandType::SAVE_NETWORK;
-      copyCString(command.ssid, sizeof(command.ssid), request.arg1);
-      copyCString(command.password, sizeof(command.password), request.arg2);
-      command.openNetwork = request.openNetwork;
-      command.commitConfirmed = true;
+      command.setNetworkType(WebCommandType::SAVE_NETWORK);
+      copyCString(command.network.ssid, sizeof(command.network.ssid), request.arg1);
+      copyCString(command.network.password, sizeof(command.network.password), request.arg2);
+      command.network.openNetwork = request.openNetwork;
+      command.network.commitConfirmed = true;
       serialCliQueueIfSafe(command, request.verb);
       memset(request.arg1, 0, sizeof(request.arg1));
       memset(request.arg2, 0, sizeof(request.arg2));

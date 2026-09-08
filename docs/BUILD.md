@@ -140,9 +140,49 @@ Set the machine type deliberately when changing it:
 | `SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0/1` | Remote start/rinse disabled / explicit opt-in. Default is disabled. |
 | `SHOT_STOPPER_DEVELOPMENT=1` | Bypasses Admin unlock for local development only. Never use for an installed machine. |
 
-An existing IDF `sdkconfig` can preserve earlier choices. Omitting a macro does
-not always mean its feature is off; explicit flags override matching choices.
-Review Diagnostic build identity and options before installation.
+### Compiler optimization and existing sdkconfig
+
+Supported ESP-IDF firmware builds use `CONFIG_COMPILER_OPTIMIZATION_PERF=y`
+from `idf/sdkconfig.defaults`, which selects GCC `-O2` for both supported
+architectures. After compiling, the build verifier prints
+`sdkconfig: CONFIG_COMPILER_OPTIMIZATION_PERF=y (-O2)` and fails if the
+architecture-specific configuration selects another optimization level.
+The `Debug` setting in the root `CMakePresets.json` applies only to host tests;
+it does not change firmware optimization.
+
+Defaults seed a new `build-idf/<architecture>/sdkconfig`; they do not overwrite
+an existing file. Inspect an existing n16r8 tree with:
+
+```sh
+grep '^CONFIG_COMPILER_OPTIMIZATION' build-idf/n16r8/sdkconfig
+```
+
+To restore all repository defaults for that architecture, remove its generated
+configuration and rebuild. This also discards every other local `menuconfig`
+change stored in that file:
+
+```sh
+rm build-idf/n16r8/sdkconfig
+./scripts/dev build --arch n16r8
+```
+
+To preserve other local choices, first load the ESP-IDF environment described
+in section 3, then change only **Compiler options → Optimization Level** to
+**Optimize for performance (-O2)** and rebuild through the project wrapper:
+
+```sh
+idf.py -C idf -B build-idf/n16r8 menuconfig
+./scripts/dev build --arch n16r8
+```
+
+Replace `n16r8` with `n8r4` in every command when working on that architecture.
+Do not add `-O2` through `--flags`; the supported optimization contract is the
+Kconfig selection above, which the build verifier checks.
+
+Other choices in an existing IDF `sdkconfig` are retained in the same way.
+Omitting a macro does not always mean its feature is off; explicit flags
+override matching choices. Review Diagnostic build identity and options before
+installation.
 
 The build generates Web assets, version identity and
 `build-idf/<arch>/shotstopper.bin`, then checks image and memory budgets.

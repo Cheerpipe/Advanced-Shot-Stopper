@@ -119,6 +119,8 @@ def markdown_errors() -> list[str]:
                ROOT / "libraries/EspressoScaleBLE/README.md", ROOT / "src/safety/README.md"]
     anchor_cache: dict[Path, set[str]] = {}
     for source in sources:
+        if source.relative_to(ROOT).parts[:2] in {("docs", "plans"), ("docs", "audits")}:
+            continue
         if not source.exists():
             continue
         prose = markdown_prose(source)

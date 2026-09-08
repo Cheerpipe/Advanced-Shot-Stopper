@@ -34,7 +34,7 @@ struct OtaChunkBuffer {
   uint8_t *bytes = nullptr;
 
   explicit OtaChunkBuffer(size_t capacity)
-      : bytes(static_cast<uint8_t *>(allocInternal(capacity))) {}
+      : bytes(static_cast<uint8_t *>(allocInternal(capacity, AllocationOwner::OTA))) {}
 
   ~OtaChunkBuffer() { heapCapsFree(bytes); }
 
@@ -619,7 +619,7 @@ bool ShotStopperOta::verifySessionSha256() {
 
 bool ShotStopperOta::startSessionSha256() {
   clearSessionSha256();
-  sessionSha256_.reset(allocInternal(sizeof(mbedtls_sha256_context)));
+  sessionSha256_.reset(allocInternal(sizeof(mbedtls_sha256_context), AllocationOwner::OTA));
   if (!sessionSha256_) return false;
   mbedtls_sha256_context *hash =
       static_cast<mbedtls_sha256_context *>(sessionSha256_.get());

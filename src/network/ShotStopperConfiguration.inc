@@ -677,11 +677,11 @@ esp_err_t ShotStopperNetwork::preferredScaleSelectHandler(httpd_req_t *request) 
   }
 
   WebCommand command;
-  command.type = WebCommandType::SELECT_PREFERRED_SCALE;
+  command.setNetworkType(WebCommandType::SELECT_PREFERRED_SCALE);
   command.requestId = self.allocateRequestId();
   command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
-  copyCString(command.scaleSelectMac, sizeof(command.scaleSelectMac), mac);
-  copyCString(command.scaleSelectName, sizeof(command.scaleSelectName), name);
+  copyCString(command.network.scaleSelectMac, sizeof(command.network.scaleSelectMac), mac);
+  copyCString(command.network.scaleSelectName, sizeof(command.network.scaleSelectName), name);
   if (!self.callbacks_.enqueueWebCommand(command)) {
     return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
                      "Control is busy; nothing was selected.");

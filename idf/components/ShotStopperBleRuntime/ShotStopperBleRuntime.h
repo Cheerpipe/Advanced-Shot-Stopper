@@ -18,7 +18,7 @@ struct ShotStopperBleHealth {
   int32_t lastResetReason;
   uint32_t syncGeneration;
   uint32_t resetCount;
-  uint32_t hostTaskStackHighWaterWords;
+  uint32_t hostTaskStackHighWaterBytes;
   uint32_t internalFreeBytes;
   uint32_t internalMinimumFreeBytes;
   uint32_t internalLargestBlockBytes;

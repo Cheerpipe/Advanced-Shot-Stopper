@@ -1,6 +1,8 @@
 #pragma once
 
 #include <math.h>
+#include <new>
+#include <type_traits>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -1809,6 +1811,27 @@ enum class CommandResultState : uint8_t {
   CANCELED
 };
 
+struct WebCommandNetworkPayload {
+  char ssid[WIFI_SSID_CAPACITY] = {};
+  char password[WIFI_PASSWORD_CAPACITY] = {};
+  bool openNetwork = false;
+  // Admin "Wi-Fi sleep". USB/BLE leave wifiSleepSpecified false so
+  // SET_WIFI does not clobber the persisted flag.
+  bool wifiSleep = false;
+  bool wifiSleepSpecified = false;
+  // USB SET_WIFI only. Web UI / BLE Companion keep the HTTP confirm window.
+  bool commitConfirmed = false;
+  uint8_t staIpMode = static_cast<uint8_t>(StaIpMode::DHCP);
+  uint8_t staIp[4] = {};
+  uint8_t staNetmask[4] = {};
+  uint8_t staGateway[4] = {};
+  uint8_t staDns1[4] = {};
+  uint8_t staDns2[4] = {};
+  // SELECT_PREFERRED_SCALE payload (also safe unused for other commands).
+  char scaleSelectMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
+  char scaleSelectName[PREFERRED_SCALE_NAME_CAPACITY] = {};
+};
+
 struct WebCommand {
   WebCommandType type = WebCommandType::STOP;
   uint32_t requestId = 0;
@@ -1817,7 +1840,10 @@ struct WebCommand {
   // to bypass the normal configuration-state gate.
   bool unsafeWebUiOverride = false;
   uint32_t maintenanceLeaseId = 0;
-  RuntimeConfig config = {};
+  union {
+    RuntimeConfig config = {};
+    WebCommandNetworkPayload network;
+  };
   // The 501-byte RTTTL text is staged in a fixed PSRAM mailbox instead of
   // inflating every four-deep FreeRTOS command queue element in internal RAM.
   bool bullseyeConfigSpecified = false;
@@ -1831,31 +1857,27 @@ struct WebCommand {
   BuzzerPattern buzzerPattern = BuzzerPattern::NONE;
   BookooDebugAction bookooDebugAction = BookooDebugAction::START;
   uint8_t bookooBeepLevel = 0;
-  char ssid[WIFI_SSID_CAPACITY] = {};
-  char password[WIFI_PASSWORD_CAPACITY] = {};
-  bool openNetwork = false;
-  // Admin "Wi-Fi sleep". USB/BLE leave wifiSleepSpecified false so
-  // SET_WIFI does not clobber the persisted flag.
-  bool wifiSleep = false;
-  bool wifiSleepSpecified = false;
   bool bleScanIntensitySpecified = false;
   uint8_t bleScanIntensity = 0;
-  // USB SET_WIFI only. Web UI / BLE Companion keep the HTTP confirm window.
-  bool commitConfirmed = false;
-  uint8_t staIpMode = static_cast<uint8_t>(StaIpMode::DHCP);
-  uint8_t staIp[4] = {};
-  uint8_t staNetmask[4] = {};
-  uint8_t staGateway[4] = {};
-  uint8_t staDns1[4] = {};
-  uint8_t staDns2[4] = {};
-  // SELECT_PREFERRED_SCALE payload (also safe unused for other commands).
-  char scaleSelectMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
-  char scaleSelectName[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  // Only these builders activate the network member. Queue/copy operations
+  // remain trivial; presets retain config plus their separate preset fields.
+  void setNetworkType(WebCommandType next) {
+    type = next;
+    ::new (static_cast<void *>(&network)) WebCommandNetworkPayload{};
+  }
+  void wipePassword() {
+    if (type == WebCommandType::SAVE_NETWORK ||
+        type == WebCommandType::CHANGE_DEVICE_PASSWORD) {
+      memset(network.password, 0, sizeof(network.password));
+    }
+  }
   bool succeeded = false;
   CommandResultState resultState = CommandResultState::NONE;
 };
 
-static_assert(sizeof(WebCommand) <= 512, "WebCommand too large for queue");
+static_assert(sizeof(WebCommand) <= 320, "WebCommand too large for queue");
+static_assert(std::is_trivially_copyable<WebCommand>::value,
+              "FreeRTOS queues copy WebCommand as bytes");
 
 
 inline const char *commandResultStateName(CommandResultState state) {
@@ -2072,13 +2094,14 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   uint32_t scaleWorkerMaxGapMs = 0;
   uint32_t scaleWorkerDeadlineMisses = 0;
   uint32_t scaleWorkerMaxExecutionUs = 0;
-  uint32_t loopStackMinWords = 0;
-  uint32_t scaleStackMinWords = 0;
+  uint32_t loopStackMinBytes = UINT32_MAX;
+  uint32_t scaleStackMinBytes = UINT32_MAX;
   uint32_t freeHeapBytes = 0;
   uint32_t minimumFreeHeapBytes = 0;
   uint32_t largestFreeHeapBlockBytes = 0;
   uint32_t psramSizeBytes = 0;
   uint32_t psramFreeBytes = 0;
+  uint32_t psramMinimumFreeBytes = 0;
   uint32_t psramLargestFreeBlockBytes = 0;
   // Legacy diagnostic ABI. Native NimBLE exposes allocator health through the
   // runtime snapshot; these counters intentionally remain zero.
@@ -2094,7 +2117,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   int32_t bleRuntimeLastResetReason = 0;
   uint32_t bleRuntimeSyncGeneration = 0;
   uint32_t bleRuntimeResetCount = 0;
-  uint32_t bleRuntimeHostStackMinWords = 0;
+  uint32_t bleRuntimeHostStackMinBytes = UINT32_MAX;
   bool workBufExternal = false;
   bool jsonArenaExternal = false;
   uint32_t allocExternalFallbackCount = 0;
@@ -2412,8 +2435,10 @@ constexpr uint32_t HEALTH_HEAP_FREE_CLEAR_BYTES = 65536;   // 64 KiB
 constexpr uint32_t HEALTH_HEAP_LARGEST_ALERT_BYTES = 16384; // 16 KiB
 constexpr uint32_t HEALTH_HEAP_LARGEST_CLEAR_BYTES = 24576; // 24 KiB
 constexpr uint32_t HEALTH_HEAP_LOW_RESTART_MS = 5UL * 60UL * 1000UL;
-constexpr uint32_t HEALTH_STACK_MIN_ALERT_WORDS = 256;      // 1 KiB remaining
-constexpr uint32_t HEALTH_STACK_MIN_CLEAR_WORDS = 384;
+// ESP-IDF Xtensa watermarks are bytes. UINT32_MAX means not sampled; zero
+// is a valid exhausted watermark, never a missing-data marker.
+constexpr uint32_t HEALTH_STACK_MIN_ALERT_BYTES = 1024;
+constexpr uint32_t HEALTH_STACK_MIN_CLEAR_BYTES = 1536;
 constexpr uint32_t HEALTH_LOOP_GAP_ALERT_MS = 200;
 constexpr uint32_t HEALTH_LOOP_GAP_CLEAR_MS = 80;
 
@@ -2953,25 +2978,6 @@ inline const char *debugCodeName(DebugCode code) {
   return "unknown";
 }
 
-inline int32_t weightToCentigrams(float weightG) {
-  if (!isfinite(weightG)) {
-    return 0;
-  }
-  return static_cast<int32_t>(weightG * 100.0f);
-}
-
-inline void formatWeightCentigrams(int32_t centigrams, char *buffer,
-                                   size_t capacity) {
-  if (buffer == nullptr || capacity == 0) {
-    return;
-  }
-  const int32_t whole = centigrams / 100;
-  const int32_t fraction =
-      centigrams >= 0 ? centigrams % 100 : -((-centigrams) % 100);
-  snprintf(buffer, capacity, "%ld.%02ldg", static_cast<long>(whole),
-           static_cast<long>(fraction));
-}
-
 inline bool formatScaleSampleDebugMessage(const DebugEvent &event, char *message,
                                           size_t capacity) {
   if (message == nullptr || capacity == 0) {
@@ -3192,7 +3198,7 @@ inline bool formatLifecycleDebugMessage(const DebugEvent &event, char *message,
       return true;
     case DebugCode::HEALTH_STACK_LOW:
       snprintf(message, capacity,
-               "health stack low loop=%ld scale=%ld words",
+               "health stack low loop=%ld scale=%ld bytes",
                static_cast<long>(event.argument1),
                static_cast<long>(event.argument2));
       return true;

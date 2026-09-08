@@ -25,6 +25,23 @@ const config = JSON.parse(fs.readFileSync(
 const actual = JSON.parse(fs.readFileSync(sizePath, 'utf8'));
 actual.image = fs.statSync(binPath).size;
 const failures = [];
+const map = fs.readFileSync(path.join(path.dirname(binPath), 'shotstopper.map'), 'utf8');
+function symbolAddress(name) {
+  const match = map.match(new RegExp('^\\s*(0x[0-9a-fA-F]+)\\s+' + name + '(?:\\s|$)', 'm'));
+  if (!match) throw new Error(`Required memory symbol missing: ${name}`);
+  return Number.parseInt(match[1], 16);
+}
+const externalBssBytes = symbolAddress('_ext_ram_bss_end') - symbolAddress('_ext_ram_bss_start');
+if (externalBssBytes < 0 || externalBssBytes > config.maximumExternalBssBytes) {
+  failures.push(`external BSS ${externalBssBytes} > budget ${config.maximumExternalBssBytes}`);
+}
+for (const name of ['localBuzzer', 'taskProfiler']) {
+  const address = symbolAddress(name);
+  if (address < 0x3fc80000 || address >= 0x3fd00000) {
+    failures.push(`${name} must remain in internal SRAM`);
+  }
+}
+console.log(`external BSS: ${externalBssBytes} (budget ${config.maximumExternalBssBytes})`);
 if (actual.image > slotLimits[arch]) {
   failures.push(`image ${actual.image} > OTA slot ${slotLimits[arch]}`);
 }

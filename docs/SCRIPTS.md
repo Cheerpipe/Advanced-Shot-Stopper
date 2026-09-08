@@ -34,6 +34,18 @@ flash/OTA. Enter passwords at the prompt or supply
 scripts below can reuse saved flags. Complete validation follows
 [VALIDATION.md](../VALIDATION.md), not just a convenient focused test.
 
+The documentation scan checks canonical guides and excludes local working files
+in `temp/`, `docs/plans/`, and `docs/audits/`. These directories remain inside
+the local project, Git-ignored and accessible from the IDE; see
+[local storage and Git](AI_WORKFLOW.md#local-project-files-and-git).
+
+For memory evidence, `scripts/p2_soak.py` uses byte-valued stack thresholds
+(`--min-stack-bytes`; deprecated `--min-stack-words` alias also takes bytes),
+rejects missing required memory/stack samples, and supports repeated
+`--require-task NAME` checks during bounded profiler captures. See
+[resource budgets](P2_RESOURCE_BUDGETS.md#combined-heaptiming-soak) for limits,
+profiler duration constraints, offline self-tests and release evidence.
+
 ## How parameters are resolved
 
 For the direct scripts, parameters come in this order:

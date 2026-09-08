@@ -30,7 +30,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                      "Diagnostic page is disabled by the administrator.");
   }
 
-  // JSON / snapshot work lives in one PSRAM (or internal fallback) blob.
+  // JSON / snapshot work lives in one PSRAM-only blob.
   if (!self.lockWorkBufForStatus()) {
     return self.workBufBusy(request);
   }
@@ -730,7 +730,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"nextRetryInMs\":%lu,\"activeServer\":\"%s\"},"
         "\"maintenance\":{\"active\":%s,\"leaseId\":%lu,"
         "\"persistPending\":%s,\"persistFailed\":%s},"
-        "\"health\":{\"uptimeMs\":%lu,\"snapshotVersion\":%lu,"
+        "\"health\":{\"stackUnit\":\"bytes\",\"stackUnavailable\":4294967295,"
+        "\"loopStackMinBytes\":%lu,\"scaleStackMinBytes\":%lu,"
+        "\"uptimeMs\":%lu,\"snapshotVersion\":%lu,"
         "\"snapshotStale\":%s,\"loopIntervalGapMs\":%lu,"
         "\"loopMaxGapMs\":%lu,\"loopDeadlineMisses\":%lu,"
         "\"loopMaxExecutionUs\":%lu,"
@@ -739,6 +741,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"freeHeapBytes\":%lu,\"minimumFreeHeapBytes\":%lu,"
         "\"largestFreeHeapBlockBytes\":%lu,"
         "\"psramSizeBytes\":%lu,\"psramFreeBytes\":%lu,"
+        "\"psramMinimumFreeBytes\":%lu,"
         "\"psramLargestFreeBlockBytes\":%lu,"
         "\"bleHostAllocPsram\":%lu,\"bleHostAllocFallback\":%lu,"
         "\"hciRxDropped\":%lu,\"hciTxDropped\":%lu,"
@@ -809,6 +812,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(control.maintenanceLeaseId),
         control.configPersistPending ? "true" : "false",
         control.configPersistFailed ? "true" : "false",
+        static_cast<unsigned long>(control.loopStackMinBytes),
+        static_cast<unsigned long>(control.scaleStackMinBytes),
         static_cast<unsigned long>(control.uptimeMs),
         static_cast<unsigned long>(control.snapshotVersion),
         control.snapshotStale ? "true" : "false",
@@ -824,6 +829,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(control.largestFreeHeapBlockBytes),
         static_cast<unsigned long>(control.psramSizeBytes),
         static_cast<unsigned long>(control.psramFreeBytes),
+        static_cast<unsigned long>(control.psramMinimumFreeBytes),
         static_cast<unsigned long>(control.psramLargestFreeBlockBytes),
         static_cast<unsigned long>(control.bleHostAllocPsramCount),
         static_cast<unsigned long>(control.bleHostAllocFallbackCount),
@@ -835,7 +841,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<long>(control.bleRuntimeLastResetReason),
         static_cast<unsigned long>(control.bleRuntimeSyncGeneration),
         static_cast<unsigned long>(control.bleRuntimeResetCount),
-        static_cast<unsigned long>(control.bleRuntimeHostStackMinWords),
+        static_cast<unsigned long>(control.bleRuntimeHostStackMinBytes),
         control.workBufExternal ? "true" : "false",
         control.jsonArenaExternal ? "true" : "false",
         static_cast<unsigned long>(control.allocExternalFallbackCount),
@@ -982,6 +988,27 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
       } else if (ok) {
         ok = statusJsonAppend(&used, "null}");
       }
+    }
+    if (ok) {
+      static constexpr const char *owners[] = {
+          "other", "network", "webhook", "companion", "profiler",
+          "flash_io", "ota", "buzzer", "json"};
+      static_assert(sizeof(owners) / sizeof(owners[0]) ==
+                        static_cast<size_t>(AllocationOwner::COUNT),
+                    "Allocation owner names must match metrics");
+      ok = statusJsonAppend(&used, ",\"memoryAllocations\":{");
+      for (size_t i = 0; ok && i < static_cast<size_t>(AllocationOwner::COUNT); ++i) {
+        const auto &metrics = detail::g_allocations[i];
+        ok = statusJsonAppend(
+            &used, "%s\"%s\":{\"successes\":%lu,\"failures\":%lu,"
+            "\"largestRequestBytes\":%lu,\"lastFailureBytes\":%lu}",
+            i ? "," : "", owners[i],
+            static_cast<unsigned long>(metrics.successes.load(std::memory_order_relaxed)),
+            static_cast<unsigned long>(metrics.failures.load(std::memory_order_relaxed)),
+            static_cast<unsigned long>(metrics.largestRequestBytes.load(std::memory_order_relaxed)),
+            static_cast<unsigned long>(metrics.lastFailureBytes.load(std::memory_order_relaxed)));
+      }
+      if (ok) ok = statusJsonAppend(&used, "}");
     }
     if (ok) ok = statusJsonAppend(&used, ",\"resetHistory\":[");
     for (uint8_t i = 0; ok && i < control.resetHistoryCount; ++i) {

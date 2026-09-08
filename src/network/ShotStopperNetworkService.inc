@@ -36,7 +36,7 @@ bool ShotStopperNetwork::begin(const PersistedSettings &settings,
     return false;
   }
   workBuf_ = static_cast<NetworkWorkBuf *>(
-      allocExternal(sizeof(NetworkWorkBuf)));
+      allocExternal(sizeof(NetworkWorkBuf), AllocationOwner::NETWORK));
   if (workBuf_ == nullptr) {
     taskStopped_.reset();
     statusResponseMux_.reset();
@@ -177,7 +177,7 @@ NetworkStatusSnapshot ShotStopperNetwork::snapshot() {
   const uint32_t deadline = staConfirmDeadlineMs_;
   dataMux_.unlock();
   copy.taskAgeMs = static_cast<uint32_t>(millis() - lastTaskProgressAtMs_);
-  copy.taskStackMinWords = taskStackMinWords_;
+  copy.taskStackMinBytes = taskStackMinBytes_.load(std::memory_order_relaxed);
   if (pendingConfirm) {
     const uint32_t now = millis();
     copy.confirmRemainingMs =
@@ -190,10 +190,33 @@ NetworkStatusSnapshot ShotStopperNetwork::snapshot() {
 
 PersistedSettings ShotStopperNetwork::settingsCopy() {
   PersistedSettings copy;
-  dataMux_.lock();
-  copy = settings_;
-  dataMux_.unlock();
+  copySettings(copy);
   return copy;
+}
+
+void ShotStopperNetwork::copySettings(PersistedSettings &output) {
+  dataMux_.lock();
+  output = settings_;
+  dataMux_.unlock();
+}
+
+NetworkSettingsSnapshot ShotStopperNetwork::networkSettingsSnapshot() {
+  NetworkSettingsSnapshot output;
+  TaskLockGuard lock(dataMux_);
+  output.staConfigured = settings_.staConfigured;
+  output.staOpen = settings_.staOpen;
+  output.staWifiSleep = settings_.staWifiSleep;
+  output.staConfigState = settings_.staConfigState;
+  output.staIpMode = settings_.staIpMode;
+  memcpy(output.staSsid, settings_.staSsid, sizeof(output.staSsid));
+  memcpy(output.staPassword, settings_.staPassword, sizeof(output.staPassword));
+  memcpy(output.devicePassword, settings_.devicePassword, sizeof(output.devicePassword));
+  memcpy(output.staIp, settings_.staIp, sizeof(output.staIp));
+  memcpy(output.staNetmask, settings_.staNetmask, sizeof(output.staNetmask));
+  memcpy(output.staGateway, settings_.staGateway, sizeof(output.staGateway));
+  memcpy(output.staDns1, settings_.staDns1, sizeof(output.staDns1));
+  memcpy(output.staDns2, settings_.staDns2, sizeof(output.staDns2));
+  return output;
 }
 
 StaJoinHints ShotStopperNetwork::staJoinHints() {
@@ -361,7 +384,7 @@ void ShotStopperNetwork::taskLoop() {
     if (static_cast<uint32_t>(lastTaskProgressAtMs_ - telemetryAtMs) >=
         HEALTH_TELEMETRY_INTERVAL_MS) {
       telemetryAtMs = lastTaskProgressAtMs_;
-      taskStackMinWords_ =
+      taskStackMinBytes_ =
           static_cast<uint32_t>(uxTaskGetStackHighWaterMark(nullptr));
     }
     service();

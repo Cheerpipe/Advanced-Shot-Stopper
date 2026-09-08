@@ -369,13 +369,13 @@ void processWebCommand(const WebCommand &command) {
         rejectWebCommand(command);
         return;
       }
-      if (command.scaleSelectMac[0] == '\0') {
+      if (command.network.scaleSelectMac[0] == '\0') {
         selectPreferredScale("", "");
-      } else if (!validPreferredScaleMac(command.scaleSelectMac)) {
+      } else if (!validPreferredScaleMac(command.network.scaleSelectMac)) {
         rejectWebCommand(command);
         return;
       } else {
-        selectPreferredScale(command.scaleSelectMac, command.scaleSelectName);
+        selectPreferredScale(command.network.scaleSelectMac, command.network.scaleSelectName);
       }
       servicePreferredScaleMacPersistence();
       reportControlCommandResult(command, CommandResultState::APPLIED);
@@ -690,16 +690,16 @@ void processBleCompanionRequests() {
         return;
       }
       WebCommand command;
-      command.type = WebCommandType::SAVE_NETWORK;
+      command.setNetworkType(WebCommandType::SAVE_NETWORK);
       command.requestId = request.sequence;
-      copyCString(command.ssid, sizeof(command.ssid), request.ssid);
-      command.openNetwork = request.openNetwork;
+      copyCString(command.network.ssid, sizeof(command.network.ssid), request.ssid);
+      command.network.openNetwork = request.openNetwork;
       if (!request.openNetwork) {
-        copyCString(command.password, sizeof(command.password),
+        copyCString(command.network.password, sizeof(command.network.password),
                     request.password);
       }
       const bool queued = enqueueWebCommand(command);
-      memset(command.password, 0, sizeof(command.password));
+      command.wipePassword();
       reportBleCompanionResult(
           request, queued, queued ? BleCompanionRejectReason::NONE
                                   : BleCompanionRejectReason::QUEUE_FULL);

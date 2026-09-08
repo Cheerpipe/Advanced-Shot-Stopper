@@ -115,7 +115,8 @@ void setup() {
     static_assert(sizeof(ShotStopperBleCompanion) >= 64u &&
                       sizeof(ShotStopperBleCompanion) <= 8192u,
                   "ShotStopperBleCompanion size outside expected host budget");
-    void *storage = allocExternalOrInternal(sizeof(ShotStopperBleCompanion));
+    // The object contains a portMUX and callback state read under that lock.
+    void *storage = allocInternal(sizeof(ShotStopperBleCompanion), AllocationOwner::COMPANION);
     if (storage != nullptr) {
       bleCompanion = new (storage) ShotStopperBleCompanion();
       bleCompanionRuntimeSnapshot.enabled = true;
@@ -381,31 +382,31 @@ void serviceHealthThresholdAlerts(uint32_t intervalMaxGapMs) {
     healthHeapLowSinceMs = 0;
   }
 
-  uint32_t worstStackWords = UINT32_MAX;
-  if (loopStackMinWords > 0 && loopStackMinWords < worstStackWords) {
-    worstStackWords = loopStackMinWords;
+  uint32_t worstStackBytes = UINT32_MAX;
+  if (loopStackMinBytes < worstStackBytes) {
+    worstStackBytes = loopStackMinBytes;
   }
-  const uint32_t scaleStackMinWords = scaleWorkerStackMinWordsValue();
-  if (scaleStackMinWords > 0 && scaleStackMinWords < worstStackWords) {
-    worstStackWords = scaleStackMinWords;
+  const uint32_t scaleStackMinBytes = scaleWorkerStackMinBytesValue();
+  if (scaleStackMinBytes < worstStackBytes) {
+    worstStackBytes = scaleStackMinBytes;
   }
 #ifndef SHOT_STOPPER_HOST_TEST
-  const uint32_t networkStack = networkManager.snapshot().taskStackMinWords;
-  if (networkStack > 0 && networkStack < worstStackWords) {
-    worstStackWords = networkStack;
+  const uint32_t networkStack = networkManager.snapshot().taskStackMinBytes;
+  if (networkStack < worstStackBytes) {
+    worstStackBytes = networkStack;
   }
 #endif
   const bool stackLow =
-      worstStackWords != UINT32_MAX &&
-      worstStackWords < HEALTH_STACK_MIN_ALERT_WORDS;
+      worstStackBytes != UINT32_MAX &&
+      worstStackBytes < HEALTH_STACK_MIN_ALERT_BYTES;
   const bool stackClear =
-      worstStackWords == UINT32_MAX ||
-      worstStackWords >= HEALTH_STACK_MIN_CLEAR_WORDS;
+      worstStackBytes == UINT32_MAX ||
+      worstStackBytes >= HEALTH_STACK_MIN_CLEAR_BYTES;
   if (stackLow && !healthStackAlertLatched) {
     healthStackAlertLatched = true;
     addDebugEvent(DebugCategory::SYSTEM, DebugCode::HEALTH_STACK_LOW,
-                  static_cast<int32_t>(loopStackMinWords),
-                  static_cast<int32_t>(scaleStackMinWords));
+                  static_cast<int32_t>(loopStackMinBytes),
+                  static_cast<int32_t>(scaleStackMinBytes));
   } else if (stackClear) {
     healthStackAlertLatched = false;
   }
@@ -464,7 +465,7 @@ void loop() {
   if (elapsedMs(healthTelemetryAtMs) >= HEALTH_TELEMETRY_INTERVAL_MS) {
     const uint32_t intervalMs = elapsedMs(healthTelemetryAtMs);
     healthTelemetryAtMs = loopStartedAtMs;
-    loopStackMinWords =
+    loopStackMinBytes =
         static_cast<uint32_t>(uxTaskGetStackHighWaterMark(nullptr));
 #ifndef SHOT_STOPPER_HOST_TEST
     const HeapCapSnapshot heap = sampleHeapCaps();
@@ -473,6 +474,7 @@ void loop() {
     largestFreeHeapBlockBytes = heap.internalLargest;
     psramSizeBytes = heap.psramTotal;
     psramFreeBytes = heap.psramFree;
+    psramMinimumFreeBytes = heap.psramMinimum;
     psramLargestFreeBlockBytes = heap.psramLargest;
     const ShotStopperBleHealth bleRuntime = shotStopperBleRuntimeHealth();
     bleRuntimeState = static_cast<uint8_t>(bleRuntime.state);
@@ -480,7 +482,7 @@ void loop() {
     bleRuntimeLastResetReason = bleRuntime.lastResetReason;
     bleRuntimeSyncGeneration = bleRuntime.syncGeneration;
     bleRuntimeResetCount = bleRuntime.resetCount;
-    bleRuntimeHostStackMinWords = bleRuntime.hostTaskStackHighWaterWords;
+    bleRuntimeHostStackMinBytes = bleRuntime.hostTaskStackHighWaterBytes;
     hwmonSnapshot = hwmon.sample(intervalMs > 0U ? intervalMs
                                                  : HEALTH_TELEMETRY_INTERVAL_MS,
                                  &heap);

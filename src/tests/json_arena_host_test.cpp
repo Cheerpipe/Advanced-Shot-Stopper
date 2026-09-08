@@ -151,9 +151,33 @@ void testStringsEscapesAndInvalidDocuments() {
   CHECK(!shotstopper::jsonDocumentLimitRejectedRecently());
 }
 
+void testAllocationFailureLeavesOtherDocumentsAlive() {
+  cJSON *prior = shotstopper::parseJsonDocument("{\"keep\":17}");
+  CHECK(prior != nullptr);
+  const auto owner = static_cast<size_t>(shotstopper::AllocationOwner::JSON);
+  const uint32_t before = shotstopper::detail::g_allocations[owner].successes.load();
+  cJSON *probe = shotstopper::parseJsonDocument("{\"text\":\"escaped\\u00e9\",\"n\":[1,2]}");
+  CHECK(probe != nullptr);
+  const uint32_t allocations = shotstopper::detail::g_allocations[owner].successes.load() - before;
+  cJSON_Delete(probe);
+  CHECK(allocations > 0);
+  for (uint32_t failAt = 0; failAt < allocations; ++failAt) {
+    shotstopper::detail::g_hostAllocationsUntilFailure.store(static_cast<int32_t>(failAt));
+    cJSON *failed = shotstopper::parseJsonDocument("{\"text\":\"escaped\\u00e9\",\"n\":[1,2]}");
+    shotstopper::detail::g_hostAllocationsUntilFailure.store(-1);
+    CHECK(failed == nullptr);
+    CHECK(cJSON_GetObjectItemCaseSensitive(prior, "keep")->valueint == 17);
+  }
+  cJSON_Delete(prior);
+}
+
 }  // namespace
 
 int main() {
+  // Blocks created before the one-time hook installation remain freeable.
+  cJSON *legacy = cJSON_Parse("{\"legacy\":true}");
+  shotstopper::initJsonParser();
+  cJSON_Delete(legacy);
   shotstopper::initJsonParser();
   testValidAndInvalidDocumentsAreIndependent();
   testConcurrentParsesDoNotShareStorage();
@@ -161,6 +185,7 @@ int main() {
   testSizeLimitAndNullRejectCleanly();
   testValueLimitAtBoundaryForArraysAndObjects();
   testStringsEscapesAndInvalidDocuments();
+  testAllocationFailureLeavesOtherDocumentsAlive();
   if (failures != 0) {
     std::cerr << failures << " JSON parser host test(s) failed\n";
     return 1;

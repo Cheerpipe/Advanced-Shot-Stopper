@@ -225,10 +225,10 @@ if (!network.includes('sendCopiedBody(request, SHOT_STOPPER_WEB_UI_GZIP') ||
     !network.includes('return sendCopiedBody(request, json, length)') ||
     !network.includes('HTTP_DRAM_BOUNCE_BYTES') ||
     !network.includes('g_httpSendBounce') ||
-    !network.includes('allocExternal(sizeof(NetworkWorkBuf))') ||
-    !psram.includes('inline void *allocExternal(size_t bytes)') ||
+    !network.includes('allocExternal(sizeof(NetworkWorkBuf), AllocationOwner::NETWORK)') ||
+    !psram.includes('inline void *allocExternal(size_t bytes,') ||
     !jsonArena.includes('parseJsonDocument') ||
-    jsonArena.includes('cJSON_InitHooks') ||
+    !jsonArena.includes('AllocationOwner::JSON') ||
     !network.includes(
         'sendCopiedChunk(request, work.jsonItem, strlen(work.jsonItem))')) {
   throw new Error(

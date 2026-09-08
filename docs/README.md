@@ -34,6 +34,15 @@ needed rather than reading the entire directory.
 ## Developer map
 
 Start with [Contributing](../CONTRIBUTING.md) and the applicable `AGENTS.md`.
+Temporary working files live in Git-ignored `temp/` inside the local project.
+Development plans live in Git-ignored `docs/plans/`, and audits in Git-ignored
+`docs/audits/`. Each plan or audit is its own progress record and session handoff.
+Their contents are not onboarding or background context: read them only when the
+user explicitly requests reading or working with a plan or audit. See the
+[record access rule](AI_WORKFLOW.md#explicit-access-to-plans-and-audits).
+See the [shared format and recovery procedure](AI_WORKFLOW.md#plans-audits-and-session-handoff).
+All three directories belong to the local project and remain accessible from
+the IDE; see [local storage and Git](AI_WORKFLOW.md#local-project-files-and-git).
 Use [documentation maintenance](AI_WORKFLOW.md#documentation-maintenance) to
 identify which guides to update when settings, scripts, or behavior change.
 The map below identifies the smallest relevant sources and tests.
@@ -66,6 +75,11 @@ risk gate in [VALIDATION.md](../VALIDATION.md).
   `libraries/EspressoScaleBLE/`; ESP-IDF integration: `idf/`.
 - Generated: `src/ShotStopperVersion.h`,
   `src/ShotStopperWebAssetsGzip.h`, build trees, reports, and `artifacts/`.
+- Local plans: `docs/plans/`; local audits: `docs/audits/`. Both are retained
+  locally, excluded from Git, and serve as their own session handoffs.
+- Local temporary working files: `temp/`, inside the project and excluded from
+  Git. Keep task-specific files accessible from the IDE; Git exclusion does not
+  mean storing files outside the project.
 - Vendored/dependency output: `idf/managed_components/` and `node_modules/`.
   Do not review or load these trees unless dependency provenance itself is the
   task. Lockfiles and IDF configuration remain visible and reviewable.

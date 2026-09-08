@@ -93,7 +93,7 @@ bool initializeScaleWorker();
 void resetScaleWorkerRadioStateForHost();
 bool scaleWorkerReady();
 uint32_t scaleWorkerDroppedEventCount();
-uint32_t scaleWorkerStackMinWordsValue();
+uint32_t scaleWorkerStackMinBytesValue();
 uint32_t scaleWorkerMaxGapMsValue();
 uint32_t scaleWorkerDeadlineMissCount();
 uint32_t scaleWorkerMaxExecutionUsValue();
@@ -101,7 +101,7 @@ uint32_t scaleWorkerMaxExecutionUsValue();
 #if defined(SHOT_STOPPER_HOST_TEST)
 void setScaleWorkerBleReadyForHost(bool ready);
 void setScaleWorkerTaskPresentForHost(bool present);
-void setScaleWorkerStackMinWordsForHost(uint32_t words);
+void setScaleWorkerStackMinBytesForHost(uint32_t bytes);
 void resetScaleWorkerMetricsForHost();
 #endif
 

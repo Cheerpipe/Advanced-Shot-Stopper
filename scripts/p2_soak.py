@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import signal
 import statistics
@@ -27,7 +28,8 @@ COUNTERS = (
 
 def number(source: dict[str, Any], key: str) -> float | None:
     value = source.get(key)
-    return float(value) if isinstance(value, (int, float)) else None
+    return (float(value) if not isinstance(value, bool)
+            and isinstance(value, (int, float)) and math.isfinite(value) else None)
 
 
 def linear_slope_per_hour(values: list[float], interval_s: float) -> float:
@@ -77,10 +79,13 @@ def analyze(records: list[dict[str, Any]], args: argparse.Namespace) -> dict[str
     for key, minimum in (
         ("freeHeapBytes", args.min_internal_free),
         ("largestFreeHeapBlockBytes", args.min_internal_largest),
+        ("psramFreeBytes", args.min_psram_free),
+        ("psramLargestFreeBlockBytes", args.min_psram_largest),
     ):
         values = [value for item in health if (value := number(item, key)) is not None]
+        if len(values) != len(health):
+            failures.append(f"missing or invalid {key} in memory samples")
         if not values:
-            failures.append(f"missing {key}")
             continue
         observed_min = min(values)
         metrics[key + "Minimum"] = observed_min
@@ -107,12 +112,11 @@ def analyze(records: list[dict[str, Any]], args: argparse.Namespace) -> dict[str
         value
         for item in health
         if (value := number(item, "psramLargestFreeBlockBytes")) is not None
-        and value > 0
     ]
     psram_free = [
         value
         for item in health
-        if (value := number(item, "psramFreeBytes")) is not None and value > 0
+        if (value := number(item, "psramFreeBytes")) is not None
     ]
     if psram_free:
         metrics["psramFreeBytesMinimum"] = min(psram_free)
@@ -167,29 +171,53 @@ def analyze(records: list[dict[str, Any]], args: argparse.Namespace) -> dict[str
 
     stack_values: list[float] = []
     for item in health:
-        for key in ("loopStackMinWords", "scaleStackMinWords", "bleRuntimeHostStackMinWords"):
+        for stem in ("loopStackMin", "scaleStackMin", "bleRuntimeHostStackMin"):
+            # Legacy *Words fields on ESP32-S3 have always contained bytes.
+            key = stem + ("Bytes" if stem + "Bytes" in item else "Words")
             value = number(item, key)
-            if value is not None and value > 0:
+            if value is not None and 0 <= value < 0xffffffff:
                 stack_values.append(value)
+            else:
+                failures.append(f"missing or unavailable {stem} byte watermark")
+    profiled_stack_values: list[float] = []
     for payload in payloads:
-        rows = payload.get("tasks", {}).get("rows", [])
+        tasks = payload.get("tasks", {})
+        rows = tasks.get("rows", [])
+        sampled_tasks: set[str] = set()
         if isinstance(rows, list):
             for row in rows:
                 if isinstance(row, dict):
-                    value = number(row, "stackMinWords")
-                    if value is not None and value > 0:
-                        stack_values.append(value)
+                    key = "stackMinBytes" if "stackMinBytes" in row else "stackMinWords"
+                    value = number(row, key)
+                    if value is not None and 0 <= value < 0xffffffff:
+                        name = str(row.get("name", ""))
+                        profiled_stack_values.append(value)
+                        sampled_tasks.add(name)
+                        if value == 0:
+                            failures.append(f"exhausted task stack: {name}")
+                        if name in args.require_task:
+                            stack_values.append(value)
+        if args.require_task:
+            if tasks.get("state") != "running":
+                failures.append("required task coverage needs a running profiler")
+            for task in args.require_task:
+                if task not in sampled_tasks:
+                    failures.append(f"missing required task watermark: {task}")
+    metrics["profiledStackMinimumBytes"] = (
+        min(profiled_stack_values) if profiled_stack_values else None
+    )
     if stack_values:
-        metrics["stackMinimumWords"] = min(stack_values)
-        if min(stack_values) < args.min_stack_words:
+        metrics["stackMinimumBytes"] = min(stack_values)
+        if min(stack_values) < args.min_stack_bytes:
             failures.append(
-                f"stack watermark {min(stack_values):g} < {args.min_stack_words} words"
+                f"stack watermark {min(stack_values):g} < {args.min_stack_bytes} bytes"
             )
     else:
-        metrics["stackMinimumWords"] = None
+        metrics["stackMinimumBytes"] = None
+        failures.append("no valid stack watermarks")
 
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "scenario": args.scenario,
         "passed": not failures,
         "metrics": metrics,
@@ -199,9 +227,12 @@ def analyze(records: list[dict[str, Any]], args: argparse.Namespace) -> dict[str
             "minInternalLargestBytes": args.min_internal_largest,
             "maxLargestFirstLastDropBytes": args.max_largest_drop,
             "maxPsramLargestFirstLastDropBytes": args.max_psram_largest_drop,
-            "minStackWords": args.min_stack_words,
+            "minStackBytes": args.min_stack_bytes,
+            "minPsramFreeBytes": args.min_psram_free,
+            "minPsramLargestBytes": args.min_psram_largest,
+            "requiredTasks": args.require_task,
         },
-        "failures": failures,
+        "failures": list(dict.fromkeys(failures)),
     }
 
 
@@ -241,7 +272,13 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--min-internal-largest", type=int, default=16 * 1024)
     result.add_argument("--max-largest-drop", type=int, default=16 * 1024)
     result.add_argument("--max-psram-largest-drop", type=int, default=64 * 1024)
-    result.add_argument("--min-stack-words", type=int, default=384)
+    result.add_argument("--min-stack-bytes", "--min-stack-words",
+                        dest="min_stack_bytes", type=int, default=1536,
+                        help="Minimum stack bytes; --min-stack-words is a legacy byte-valued alias")
+    result.add_argument("--min-psram-free", type=int, default=128 * 1024)
+    result.add_argument("--min-psram-largest", type=int, default=64 * 1024)
+    result.add_argument("--require-task", action="append", default=[],
+                        help="Require this task in every running profiler snapshot (repeatable)")
     result.add_argument("--self-test", action="store_true")
     return result
 
@@ -256,7 +293,11 @@ def self_test(args: argparse.Namespace) -> int:
             "scaleWorkerDeadlineMisses": 0,
             "freeHeapBytes": 100000,
             "largestFreeHeapBlockBytes": 60000,
-            "bleRuntimeHostStackMinWords": 600,
+            "loopStackMinBytes": 2048,
+            "scaleStackMinBytes": 2048,
+            "bleRuntimeHostStackMinWords": 2048,
+            "psramFreeBytes": 1000000,
+            "psramLargestFreeBlockBytes": 900000,
         },
         "webhooks": {
             "workerStarts": 1,
@@ -268,6 +309,44 @@ def self_test(args: argparse.Namespace) -> int:
     records[1]["payload"]["health"]["uptimeMs"] = 2000
     assert analyze(records, args)["passed"]
     records[1]["payload"]["health"]["loopDeadlineMisses"] = 1
+    assert not analyze(records, args)["passed"]
+    records[1]["payload"]["health"]["loopDeadlineMisses"] = 0
+    for key in ("loopStackMinBytes", "scaleStackMinBytes",
+                "bleRuntimeHostStackMinWords", "psramFreeBytes",
+                "psramLargestFreeBlockBytes"):
+        original = records[1]["payload"]["health"][key]
+        for invalid in (0, None, float("nan"), True):
+            records[1]["payload"]["health"][key] = invalid
+            assert not analyze(records, args)["passed"], (key, invalid)
+        records[1]["payload"]["health"][key] = original
+    for watermark in (255, 256, 383, 384, 1023, 1024, 1535, 1536):
+        records[1]["payload"]["health"]["loopStackMinBytes"] = watermark
+        assert analyze(records, args)["passed"] == (watermark >= args.min_stack_bytes)
+    records[1]["payload"]["health"]["loopStackMinBytes"] = 0xffffffff
+    assert not analyze(records, args)["passed"]
+    records[1]["payload"]["health"]["loopStackMinBytes"] = 2048
+    args.require_task = ["httpd"]
+    assert not analyze(records, args)["passed"]
+    for record in records:
+        record["payload"]["tasks"] = {"state": "running", "rows": [
+            {"name": "httpd", "stackMinWords": 2048}]}
+    assert analyze(records, args)["passed"]
+    records[1]["payload"]["tasks"]["rows"].append(
+        {"name": "IDLE0", "stackMinWords": 512})
+    summary = analyze(records, args)
+    assert summary["passed"]
+    assert summary["metrics"]["profiledStackMinimumBytes"] == 512
+    records[1]["payload"]["tasks"]["rows"][0]["stackMinWords"] = 1535
+    assert not analyze(records, args)["passed"]
+    records[1]["payload"]["tasks"]["rows"][0]["stackMinWords"] = 1536
+    assert analyze(records, args)["passed"]
+    records[1]["payload"]["tasks"]["rows"][-1]["stackMinWords"] = 0
+    assert not analyze(records, args)["passed"]
+    records[1]["payload"]["tasks"]["rows"][-1]["stackMinWords"] = 512
+    records[1]["payload"]["tasks"]["state"] = "stopped"
+    assert not analyze(records, args)["passed"]
+    args.require_task = []
+    records[1]["payload"]["tasks"]["rows"][-1]["stackMinWords"] = 0
     assert not analyze(records, args)["passed"]
     return 0
 

@@ -24,7 +24,7 @@ StaticEventGroup_t gEventStorage;
 EventGroupHandle_t gEvents = nullptr;
 portMUX_TYPE gMux = portMUX_INITIALIZER_UNLOCKED;
 ShotStopperBleHealth gHealth = {
-    ShotStopperBleRuntimeState::Stopped, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    ShotStopperBleRuntimeState::Stopped, 0, 0, 0, 0, UINT32_MAX, 0, 0, 0, 0, 0, 0};
 uint8_t gOwnAddressType = 0xff;
 bool gPortInitialized = false;
 TaskHandle_t gHostTask = nullptr;
@@ -104,7 +104,7 @@ void hostTask(void *) {
   const uint32_t highWater =
       static_cast<uint32_t>(uxTaskGetStackHighWaterMark(nullptr));
   portENTER_CRITICAL(&gMux);
-  gHealth.hostTaskStackHighWaterWords = highWater;
+  gHealth.hostTaskStackHighWaterBytes = highWater;
   portEXIT_CRITICAL(&gMux);
   if (gEvents != nullptr) {
     xEventGroupSetBits(gEvents, kHostStoppedBit);
@@ -154,7 +154,7 @@ bool shotStopperBleRuntimeStart(uint32_t timeoutMs) {
     gHealth.state = ShotStopperBleRuntimeState::Starting;
     gHealth.lastError = 0;
     gHealth.lastResetReason = 0;
-    gHealth.hostTaskStackHighWaterWords = 0;
+    gHealth.hostTaskStackHighWaterBytes = UINT32_MAX;
     storeMemoryLocked(startingMemory);
   }
   portEXIT_CRITICAL(&gMux);
@@ -250,7 +250,7 @@ ShotStopperBleHealth shotStopperBleRuntimeHealth() {
   portENTER_CRITICAL(&gMux);
   storeMemoryLocked(memory);
   if (hostTaskHandle != nullptr) {
-    gHealth.hostTaskStackHighWaterWords = liveHighWater;
+    gHealth.hostTaskStackHighWaterBytes = liveHighWater;
   }
   const ShotStopperBleHealth health = gHealth;
   portEXIT_CRITICAL(&gMux);

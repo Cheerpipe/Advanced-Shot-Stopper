@@ -22,7 +22,7 @@ void ShotStopperNetwork::loadControlStatus(ControlStatusSnapshot &control) {
 }
 
 bool ShotStopperNetwork::startNetwork() {
-  const PersistedSettings settings = settingsCopy();
+  const NetworkSettingsSnapshot settings = networkSettingsSnapshot();
   const uint32_t now = millis();
   WiFi.persistent(false);
   WiFi.setAutoReconnect(false);
@@ -47,7 +47,7 @@ bool ShotStopperNetwork::startNetwork() {
 }
 
 void ShotStopperNetwork::publishConfiguredAddressStatus() {
-  const PersistedSettings settings = settingsCopy();
+  const NetworkSettingsSnapshot settings = networkSettingsSnapshot();
   char staSsid[WIFI_SSID_CAPACITY] = {};
   char configuredIp[16] = {};
   char configuredNetmask[16] = {};
@@ -206,7 +206,7 @@ bool ShotStopperNetwork::revertPendingNetwork(uint32_t,
 }
 
 void ShotStopperNetwork::applyStationAddressConfig(
-    const PersistedSettings &settings) {
+    const NetworkSettingsSnapshot &settings) {
   if (settings.staIpMode == static_cast<uint8_t>(StaIpMode::STATIC)) {
     const IPAddress ip(settings.staIp[0], settings.staIp[1], settings.staIp[2],
                        settings.staIp[3]);
@@ -323,7 +323,7 @@ void ShotStopperNetwork::applyWifiPowerSave() {
   lastAppliedWifiPsValid_ = true;
 }
 
-bool ShotStopperNetwork::beginStationConnect(const PersistedSettings &settings,
+bool ShotStopperNetwork::beginStationConnect(const NetworkSettingsSnapshot &settings,
                                              uint32_t now) {
   if (brewRfActive()) {
     lifecycleLog("WiFi STA associate deferred; brew RF active");
@@ -391,7 +391,7 @@ bool ShotStopperNetwork::beginStationConnect(const PersistedSettings &settings,
   return true;
 }
 
-void ShotStopperNetwork::startStation(const PersistedSettings &settings,
+void ShotStopperNetwork::startStation(const NetworkSettingsSnapshot &settings,
                                       uint32_t now) {
   stopHttpServer();
   abortWifiScan(now, false);
@@ -558,7 +558,7 @@ void ShotStopperNetwork::abortWifiScan(uint32_t now, bool logTimeout) {
 }
 
 bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
-  const PersistedSettings settings = settingsCopy();
+  const NetworkSettingsSnapshot settings = networkSettingsSnapshot();
   NetworkStatusSnapshot status = snapshot();
   if (!force && status.apActive && status.networkActive && server_ != nullptr) {
     return true;
@@ -704,7 +704,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       applyWifiPowerSave();
       if (!staReconnectHeld_ && !wifiScanInProgress() && !brewRf &&
           !scaleConnecting) {
-        beginStationConnect(settingsCopy(), now);
+        beginStationConnect(networkSettingsSnapshot(), now);
       } else if (staReconnectHeld_) {
         lifecycleLog("STA reconnect held; skipping retry");
       } else if (brewRf) {
@@ -737,7 +737,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       }
     }
     if (staConfirmArmed_ &&
-        settingsCopy().staConfigState ==
+        staJoinHints().staConfigState ==
             static_cast<uint8_t>(StaConfigState::PENDING) &&
         static_cast<int32_t>(now - staConfirmDeadlineMs_) >= 0) {
       WiFi.disconnect(false, false);
@@ -799,7 +799,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     }
     staNtpEligibleAtMs_ = now + NTP_STA_SETTLE_MS;
     ntpRearmPending_ = true;
-    if (settingsCopy().staConfigState ==
+    if (staJoinHints().staConfigState ==
         static_cast<uint8_t>(StaConfigState::PENDING)) {
       armPendingConfirmWindow(now);
     }
@@ -821,7 +821,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     dataMux_.unlock();
     log(DebugCategory::NETWORK, DebugCode::STA_FAILED,
         static_cast<int32_t>(WiFi.status()));
-    const bool pending = settingsCopy().staConfigState ==
+    const bool pending = staJoinHints().staConfigState ==
                          static_cast<uint8_t>(StaConfigState::PENDING);
     if (pending) {
       lifecycleLog("WiFi STA failed; reverting pending config");
@@ -939,7 +939,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       !scaleConnecting &&
       static_cast<uint32_t>(now - staReconnectAttemptAtMs_) >=
           STA_RECONNECT_INTERVAL_MS) {
-    beginStationConnect(settingsCopy(), now);
+    beginStationConnect(networkSettingsSnapshot(), now);
   }
 }
 

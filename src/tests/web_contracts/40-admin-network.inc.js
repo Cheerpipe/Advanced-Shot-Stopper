@@ -160,8 +160,8 @@ if (!network.includes('restoreLkgToActive(next)') ||
       !ui.includes('Wi-Fi sleep saved.') ||
       !network.includes('\\"wifiSleep\\":%s') ||
       !network.includes('jsonHasOnlyUniqueFields(root, saveFields, 11)') ||
-      !network.includes('jsonBoolean(root, "wifiSleep", command.wifiSleep)') ||
-      !network.includes('command.wifiSleepSpecified = true') ||
+      !network.includes('jsonBoolean(root, "wifiSleep", command.network.wifiSleep)') ||
+      !network.includes('command.network.wifiSleepSpecified = true') ||
       !network.includes('void ShotStopperNetwork::applyWifiPowerSave()') ||
       !network.includes('WIFI_PS_NONE') ||
       !network.includes('WIFI_PS_MIN_MODEM') ||
@@ -212,13 +212,13 @@ if (!network.includes('restoreLkgToActive(next)') ||
       saveBody.includes('wifiSleepSpecified && sameCredentials &&') ||
       sleepOnly.includes('restartPending_') ||
       !sleepOnly.includes('break;') ||
-      !sleepOnly.includes('next.staWifiSleep != command.wifiSleep')) {
+      !sleepOnly.includes('next.staWifiSleep != command.network.wifiSleep')) {
     throw new Error(
         'Identical STA credentials must persist sleep without restart, and no-op when sleep is unchanged');
   }
 }
-if (!firmwareCore.includes('command.commitConfirmed = true') ||
-    !network.includes('finalizeSavedStaCredentials(next, command.commitConfirmed)')) {
+if (!firmwareCore.includes('command.network.commitConfirmed = true') ||
+    !network.includes('finalizeSavedStaCredentials(next, command.network.commitConfirmed)')) {
   throw new Error(
       'USB SET_WIFI must commit STA credentials; Web UI / BLE Companion keep the confirm window');
 }
@@ -381,7 +381,7 @@ const networkWebhookBegin = network.indexOf('webhooks_.begin(settings.webhook)')
 const networkPassiveInit = [
   network.indexOf('xQueueCreate(WEB_COMMAND_QUEUE_LENGTH'),
   network.indexOf('xSemaphoreCreateMutex()'),
-  network.indexOf('allocExternal(sizeof(NetworkWorkBuf))'),
+  network.indexOf('allocExternal(sizeof(NetworkWorkBuf), AllocationOwner::NETWORK)'),
 ];
 if (networkWebhookBegin < 0 ||
     networkPassiveInit.some(index => index < 0 || index > networkWebhookBegin) ||
@@ -393,8 +393,8 @@ if (networkWebhookBegin < 0 ||
   throw new Error(
       'Network/Webhook initialization must acquire passive resources first and provide joined rollback');
 }
-if (!webhookSource.includes('allocExternal(queueStorageBytes)') ||
-    !webhookSource.includes('allocExternal(kWebhookPayloadCapacity)') ||
+if (!webhookSource.includes('allocInternal(queueStorageBytes, AllocationOwner::WEBHOOK)') ||
+    !webhookSource.includes('allocExternal(kWebhookPayloadCapacity, AllocationOwner::WEBHOOK)') ||
     !webhookSource.includes('xQueueCreateStatic') ||
     !webhookSource.includes('tskIDLE_PRIORITY') ||
     !webhookSource.includes('dispatchAllowed()') ||
@@ -414,7 +414,7 @@ if (!webhookSource.includes('allocExternal(queueStorageBytes)') ||
     !webhookSource.includes('void WebhookDispatcher::serviceAbort()') ||
     !network.includes('webhooks_.serviceAbort()')) {
   throw new Error(
-      'Webhook queue/payload must live in PSRAM; delivery must recheck its gate and actively cancel HTTP outside control/BLE');
+      'Webhook queue must be internal and payload external; delivery must recheck its gate and actively cancel HTTP outside control/BLE');
 }
 if (!webhookHeader.includes('UniqueResource<esp_http_client_handle_t') ||
     webhookHeader.includes('void *httpClient_') ||

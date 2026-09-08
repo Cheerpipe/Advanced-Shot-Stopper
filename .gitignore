@@ -72,6 +72,9 @@ reports/
 *.profdata
 
 # Internal AI agent workspace
+/temp/
+/docs/plans/
+/docs/audits/
 docs/BACKLOG.md
 .zcode
 ai_temp_*

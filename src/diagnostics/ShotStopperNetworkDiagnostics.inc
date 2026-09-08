@@ -511,7 +511,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            network.apStartHeld ? "true" : "false",
            network.httpStartHeld ? "true" : "false",
            static_cast<unsigned long>(network.taskAgeMs),
-           static_cast<unsigned long>(network.taskStackMinWords),
+           static_cast<unsigned long>(network.taskStackMinBytes),
            static_cast<unsigned long>(network.startupFailures),
            static_cast<unsigned>(network.channel),
            static_cast<int>(network.staRssi),
@@ -537,7 +537,8 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   ok = ok &&
        debugExportChunkf(
            request, buf, cap,
-           "\"health\":{\"uptimeMs\":%lu,\"snapshotVersion\":%lu,"
+           "\"health\":{\"stackUnit\":\"bytes\",\"stackUnavailable\":4294967295,"
+           "\"uptimeMs\":%lu,\"snapshotVersion\":%lu,"
            "\"snapshotStale\":%s,\"loopIntervalGapMs\":%lu,"
            "\"loopMaxGapMs\":%lu,\"loopDeadlineMisses\":%lu,"
            "\"loopMaxExecutionUs\":%lu,"
@@ -547,6 +548,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"scaleStackMinWords\":%lu,\"freeHeapBytes\":%lu,"
            "\"minimumFreeHeapBytes\":%lu,\"largestFreeHeapBlockBytes\":%lu,"
            "\"psramSizeBytes\":%lu,\"psramFreeBytes\":%lu,"
+           "\"psramMinimumFreeBytes\":%lu,"
            "\"psramLargestFreeBlockBytes\":%lu,\"bleHostAllocPsram\":%lu,"
            "\"bleHostAllocFallback\":%lu,\"hciRxDropped\":%lu,"
            "\"hciTxDropped\":%lu,\"bleBackend\":\"%s\","
@@ -569,13 +571,14 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<unsigned long>(c.scaleWorkerMaxGapMs),
            static_cast<unsigned long>(c.scaleWorkerDeadlineMisses),
            static_cast<unsigned long>(c.scaleWorkerMaxExecutionUs),
-           static_cast<unsigned long>(c.loopStackMinWords),
-           static_cast<unsigned long>(c.scaleStackMinWords),
+           static_cast<unsigned long>(c.loopStackMinBytes),
+           static_cast<unsigned long>(c.scaleStackMinBytes),
            static_cast<unsigned long>(c.freeHeapBytes),
            static_cast<unsigned long>(c.minimumFreeHeapBytes),
            static_cast<unsigned long>(c.largestFreeHeapBlockBytes),
            static_cast<unsigned long>(c.psramSizeBytes),
            static_cast<unsigned long>(c.psramFreeBytes),
+           static_cast<unsigned long>(c.psramMinimumFreeBytes),
            static_cast<unsigned long>(c.psramLargestFreeBlockBytes),
            static_cast<unsigned long>(c.bleHostAllocPsramCount),
            static_cast<unsigned long>(c.bleHostAllocFallbackCount),
@@ -587,7 +590,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<long>(c.bleRuntimeLastResetReason),
            static_cast<unsigned long>(c.bleRuntimeSyncGeneration),
            static_cast<unsigned long>(c.bleRuntimeResetCount),
-           static_cast<unsigned long>(c.bleRuntimeHostStackMinWords),
+           static_cast<unsigned long>(c.bleRuntimeHostStackMinBytes),
            c.workBufExternal ? "true" : "false",
            c.jsonArenaExternal ? "true" : "false",
            static_cast<unsigned long>(c.allocExternalFallbackCount),

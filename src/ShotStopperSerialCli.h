@@ -551,7 +551,7 @@ struct SerialCliNetworkDump {
   int32_t wifiStatus = 6;
   uint32_t confirmRemainingMs = 0;
   uint32_t taskAgeMs = 0;
-  uint32_t taskStackMinWords = 0;
+  uint32_t taskStackMinBytes = UINT32_MAX;
   uint32_t startupFailures = 0;
   uint32_t lastCommandRequestId = 0;
   uint32_t staConnectAgeMs = 0;
@@ -588,15 +588,15 @@ struct SerialCliHealthDump {
   int32_t bleRuntimeLastResetReason = 0;
   uint32_t bleRuntimeSyncGeneration = 0;
   uint32_t bleRuntimeResetCount = 0;
-  uint32_t bleRuntimeHostStackMinWords = 0;
+  uint32_t bleRuntimeHostStackMinBytes = UINT32_MAX;
   bool workBufExternal = false;
   bool jsonArenaExternal = false;
   uint32_t allocExternalFallbackCount = 0;
   uint32_t loopMaxGapMs = 0;
   uint32_t healthIntervalMaxGapMs = 0;
-  uint32_t loopStackMinWords = 0;
-  uint32_t scaleWorkerStackMinWords = 0;
-  uint32_t networkStackMinWords = 0;
+  uint32_t loopStackMinBytes = UINT32_MAX;
+  uint32_t scaleWorkerStackMinBytes = UINT32_MAX;
+  uint32_t networkStackMinBytes = UINT32_MAX;
   bool heapAlertLatched = false;
   bool stackAlertLatched = false;
   bool loopGapAlertLatched = false;
@@ -755,8 +755,10 @@ inline void serialCliPrintWebuiStatus(const SerialCliNetworkDump &dump) {
   Serial.println(commandResultStateName(dump.lastCommandState));
   Serial.print("taskAgeMs=");
   Serial.println(static_cast<unsigned long>(dump.taskAgeMs));
+  Serial.println("stackUnit=bytes stackUnavailable=4294967295");
   Serial.print("taskStackMinWords=");
-  Serial.println(static_cast<unsigned long>(dump.taskStackMinWords));
+  // Legacy keys retain their numeric byte values; name the unit explicitly.
+  Serial.println(static_cast<unsigned long>(dump.taskStackMinBytes));
   Serial.print("startupFailures=");
   Serial.println(static_cast<unsigned long>(dump.startupFailures));
   Serial.print("httpStartHeld=");
@@ -783,6 +785,7 @@ inline void serialCliPrintDebugStatus(bool serialDebugOutput,
 
 inline void serialCliPrintHealth(const SerialCliHealthDump &dump) {
   Serial.println("HEALTH");
+  Serial.println("stackUnit=bytes stackUnavailable=4294967295");
   Serial.print("heapFree=");
   Serial.println(static_cast<unsigned long>(dump.freeHeapBytes));
   Serial.print("heapMinFree=");
@@ -817,7 +820,7 @@ inline void serialCliPrintHealth(const SerialCliHealthDump &dump) {
   Serial.println(static_cast<unsigned long>(dump.bleRuntimeResetCount));
   Serial.print("bleRuntimeHostStackMinWords=");
   Serial.println(
-      static_cast<unsigned long>(dump.bleRuntimeHostStackMinWords));
+      static_cast<unsigned long>(dump.bleRuntimeHostStackMinBytes));
   Serial.print("workBufExternal=");
   Serial.println(dump.workBufExternal ? "true" : "false");
   Serial.print("jsonArenaExternal=");
@@ -829,11 +832,11 @@ inline void serialCliPrintHealth(const SerialCliHealthDump &dump) {
   Serial.print("loopIntervalGapMs=");
   Serial.println(static_cast<unsigned long>(dump.healthIntervalMaxGapMs));
   Serial.print("stackLoop=");
-  Serial.println(static_cast<unsigned long>(dump.loopStackMinWords));
+  Serial.println(static_cast<unsigned long>(dump.loopStackMinBytes));
   Serial.print("stackScale=");
-  Serial.println(static_cast<unsigned long>(dump.scaleWorkerStackMinWords));
+  Serial.println(static_cast<unsigned long>(dump.scaleWorkerStackMinBytes));
   Serial.print("stackNetwork=");
-  Serial.println(static_cast<unsigned long>(dump.networkStackMinWords));
+  Serial.println(static_cast<unsigned long>(dump.networkStackMinBytes));
   Serial.print("alertHeap=");
   Serial.println(dump.heapAlertLatched ? "true" : "false");
   Serial.print("alertStack=");

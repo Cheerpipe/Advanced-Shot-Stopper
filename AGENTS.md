@@ -4,6 +4,9 @@
 
 Read only this file, `docs/README.md`, and the nearest scoped `AGENTS.md` for
 the area being changed. Expand context only when those files point to it.
+Never read `docs/plans/` or `docs/audits/` content proactively for context.
+Read a plan or audit only when the user explicitly asks to read or work with it;
+documentation links, task similarity, and session recovery do not grant access.
 
 ## Priorities and scope
 
@@ -41,11 +44,38 @@ failures, not silent skips. Tests must not install packages, use the network, or
 touch hardware implicitly. Static analysis is run only when explicitly requested
 or required by the requested validation gate.
 
-Keep unrelated user changes. Use `apply_patch` for edits, prefix temporary files
-inside the repository with `ai_temp_`, and remove them when finished. Never
+Keep unrelated user changes. Use `apply_patch` for edits. Store temporary working
+files in task-specific `temp/ai_temp_<task>/` directories and clean up only files
+no longer needed for evidence or recovery. Never
 commit unless explicitly asked. A completed change report includes an English
 commit title, a list of changes made, and a brief but complete technical
 description, all in English.
+
+## Local project storage
+
+Git-ignored files are part of the local project and must stay accessible from
+the IDE. "Outside Git" never means outside the project directory. Keep temporary
+working files in `temp/`, plans in `docs/plans/`, and audits in `docs/audits/`;
+all three directories must remain Git-ignored. Bring existing external
+task working files into the appropriate local directory and update their
+references. Follow [local storage, migration, and cleanup rules](docs/AI_WORKFLOW.md#local-project-files-and-git).
+
+## Plans, audits, and session handoff
+
+Store every development plan in `docs/plans/` and every audit in `docs/audits/`;
+both directories must remain Git-ignored. Before multi-step implementation,
+create the task's plan; before an audit, create its audit file. Resume an existing
+record only when the user explicitly requests reading or working with it.
+Each file is its own authoritative progress record and session handoff;
+do not create separate handoffs or duplicate an audit checklist in a plan.
+Follow the shared format and recovery procedure in
+[AI workflow](docs/AI_WORKFLOW.md#plans-audits-and-session-handoff).
+
+Give every step and substep a stable ID, an explicit completion status, and a
+Markdown checkbox. Update the file immediately when any part is completed,
+including its evidence and the next action. These rules apply equally to plans
+and audits. Keep completed files locally for traceability; do not automatically
+delete them or add/force-add them to Git.
 
 ## Documentation
 
@@ -56,6 +86,6 @@ Update the affected canonical guides in the same change, including renames and
 removals. Before finishing, report which docs changed or why none were needed;
 do not treat a passing link check as verification of documented behavior.
 
-Do not store development plans, audits, decision logs, or session handoffs there;
-temporary working notes must remain outside the repository and be removed when
-the task is complete.
+Keep task-specific progress, decisions, and recovery notes in the corresponding
+plan or audit file; audit findings belong in `docs/audits/`. Durable behavior
+belongs in the canonical guides, which must not depend on ignored working files.

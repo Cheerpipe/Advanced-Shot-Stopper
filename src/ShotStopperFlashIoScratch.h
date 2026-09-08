@@ -53,7 +53,7 @@ inline bool ensureFlashIoScratch() {
   if (block != nullptr) {
     return true;
   }
-  block = static_cast<uint8_t *>(allocInternal(FLASH_IO_SCRATCH_BYTES));
+  block = static_cast<uint8_t *>(allocInternal(FLASH_IO_SCRATCH_BYTES, AllocationOwner::FLASH_IO));
   if (block == nullptr) {
     return false;
   }

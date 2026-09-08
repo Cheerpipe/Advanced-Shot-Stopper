@@ -25,7 +25,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
         cJSON_Delete(root);
       }
       self.unlockJsonBody();
-      memset(command.password, 0, sizeof(command.password));
+      command.wipePassword();
       return ESP_OK;
     }
   }
@@ -78,7 +78,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
                        "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
                        "Network settings are locked while a cycle is active.");
     }
-    command.type = WebCommandType::SAVE_NETWORK;
+    command.setNetworkType(WebCommandType::SAVE_NETWORK);
     char ipMode[16] = {};
     char ipText[16] = {};
     char netmaskText[16] = {};
@@ -95,23 +95,23 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
     const bool hasDns2 =
         cJSON_GetObjectItemCaseSensitive(root, "dns2") != nullptr;
     if (!jsonHasOnlyUniqueFields(root, saveFields, 11) ||
-        !jsonString(root, "ssid", command.ssid, sizeof(command.ssid), false) ||
-        !jsonString(root, "password", command.password,
-                    sizeof(command.password), true) ||
-        !jsonBoolean(root, "open", command.openNetwork) ||
-        !jsonBoolean(root, "wifiSleep", command.wifiSleep) ||
+        !jsonString(root, "ssid", command.network.ssid, sizeof(command.network.ssid), false) ||
+        !jsonString(root, "password", command.network.password,
+                    sizeof(command.network.password), true) ||
+        !jsonBoolean(root, "open", command.network.openNetwork) ||
+        !jsonBoolean(root, "wifiSleep", command.network.wifiSleep) ||
         !jsonString(root, "ipMode", ipMode, sizeof(ipMode), false)) {
       parsed = false;
       networkError =
           "Save request requires action, ssid, password, open, wifiSleep, and ipMode.";
     } else if (strcmp(ipMode, "dhcp") == 0) {
-      command.staIpMode = static_cast<uint8_t>(StaIpMode::DHCP);
+      command.network.staIpMode = static_cast<uint8_t>(StaIpMode::DHCP);
       if (hasIp || hasNetmask || hasGateway || hasDns1 || hasDns2) {
         parsed = false;
         networkError = "DHCP save must not include static address fields.";
       }
     } else if (strcmp(ipMode, "static") == 0) {
-      command.staIpMode = static_cast<uint8_t>(StaIpMode::STATIC);
+      command.network.staIpMode = static_cast<uint8_t>(StaIpMode::STATIC);
       if (!hasIp || !hasNetmask || !hasGateway || !hasDns1 ||
           !jsonString(root, "ip", ipText, sizeof(ipText), false) ||
           !jsonString(root, "netmask", netmaskText, sizeof(netmaskText),
@@ -121,11 +121,11 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
           !jsonString(root, "dns1", dns1Text, sizeof(dns1Text), false) ||
           (hasDns2 && !jsonString(root, "dns2", dns2Text, sizeof(dns2Text),
                                   false)) ||
-          !parseIpv4(ipText, command.staIp) ||
-          !parseIpv4(netmaskText, command.staNetmask) ||
-          !parseIpv4(gatewayText, command.staGateway) ||
-          !parseIpv4(dns1Text, command.staDns1) ||
-          (hasDns2 && !parseIpv4(dns2Text, command.staDns2))) {
+          !parseIpv4(ipText, command.network.staIp) ||
+          !parseIpv4(netmaskText, command.network.staNetmask) ||
+          !parseIpv4(gatewayText, command.network.staGateway) ||
+          !parseIpv4(dns1Text, command.network.staDns1) ||
+          (hasDns2 && !parseIpv4(dns2Text, command.network.staDns2))) {
         parsed = false;
         networkError =
             "Static IP save requires valid ip, netmask, gateway, and dns1.";
@@ -135,29 +135,29 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
       networkError = "ipMode must be \"dhcp\" or \"static\".";
     }
     if (parsed) {
-      command.wifiSleepSpecified = true;
+      command.network.wifiSleepSpecified = true;
     }
-    if (parsed && !validWifiSsid(command.ssid)) {
+    if (parsed && !validWifiSsid(command.network.ssid)) {
       parsed = false;
       networkError = "SSID must be 1–32 characters.";
     } else if (parsed) {
       const StaJoinHints sta = self.staJoinHints();
       const bool reusePassword = shouldReuseSavedWifiCredentials(
-          command.ssid, command.password, command.openNetwork,
+          command.network.ssid, command.network.password, command.network.openNetwork,
           sta.staConfigured, sta.staSsid, sta.staOpen);
       if (!reusePassword &&
-          !validWifiPassword(command.password, command.openNetwork)) {
+          !validWifiPassword(command.network.password, command.network.openNetwork)) {
         parsed = false;
-        networkError = command.openNetwork
+        networkError = command.network.openNetwork
                            ? "Open network password must be empty."
                            : (sta.staConfigured
                                   ? "Wi-Fi password must be 8–63 characters, "
                                     "or empty to keep the saved password."
                                   : "Wi-Fi password must be 8–63 characters for a "
                                     "secured network.");
-      } else if (!validStaAddressConfig(command.staIpMode, command.staIp,
-                                        command.staNetmask, command.staGateway,
-                                        command.staDns1, command.staDns2)) {
+      } else if (!validStaAddressConfig(command.network.staIpMode, command.network.staIp,
+                                        command.network.staNetmask, command.network.staGateway,
+                                        command.network.staDns1, command.network.staDns2)) {
         parsed = false;
         networkError =
             "Static IP, netmask, gateway, and DNS must be valid and on the "
@@ -173,18 +173,18 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
   }
   self.unlockJsonBody();
   if (!parsed) {
-    memset(command.password, 0, sizeof(command.password));
+    command.wipePassword();
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_NETWORK",
                      networkError != nullptr
                          ? networkError
                          : "Invalid network SSID or password.");
   }
   if (!self.callbacks_.enqueueWebCommand(command)) {
-    memset(command.password, 0, sizeof(command.password));
+    command.wipePassword();
     return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
                      "Nothing was saved.");
   }
-  memset(command.password, 0, sizeof(command.password));
+  command.wipePassword();
   return self.sendAccepted(request, command.requestId);
 }
 
@@ -290,40 +290,40 @@ esp_err_t ShotStopperNetwork::devicePasswordHandler(httpd_req_t *request) {
     return bodyStatus;
   }
   WebCommand command;
-  command.type = WebCommandType::CHANGE_DEVICE_PASSWORD;
+  command.setNetworkType(WebCommandType::CHANGE_DEVICE_PASSWORD);
   command.requestId = self.allocateRequestId();
   command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
   cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const fields[] = {"newPassword"};
   const bool parsed =
       root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
-      jsonString(root, "newPassword", command.password,
-                 sizeof(command.password), false);
+      jsonString(root, "newPassword", command.network.password,
+                 sizeof(command.network.password), false);
   if (root != nullptr) {
     cJSON_Delete(root);
   }
   self.unlockJsonBody();
   if (!parsed) {
-    memset(command.password, 0, sizeof(command.password));
+    command.wipePassword();
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_DEVICE_PASSWORD",
                      "New device password is required.");
   }
-  if (!validDevicePassword(command.password)) {
-    memset(command.password, 0, sizeof(command.password));
+  if (!validDevicePassword(command.network.password)) {
+    command.wipePassword();
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_DEVICE_PASSWORD",
                      "New device password must be 8–63 characters.");
   }
-  if (isFactoryDefaultPassword(command.password)) {
-    memset(command.password, 0, sizeof(command.password));
+  if (isFactoryDefaultPassword(command.network.password)) {
+    command.wipePassword();
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_DEVICE_PASSWORD",
                      "New device password cannot be the factory default.");
   }
   if (!self.callbacks_.enqueueWebCommand(command)) {
-    memset(command.password, 0, sizeof(command.password));
+    command.wipePassword();
     return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
                      "Nothing was saved.");
   }
-  memset(command.password, 0, sizeof(command.password));
+  command.wipePassword();
   return self.sendAccepted(request, command.requestId);
 }
 

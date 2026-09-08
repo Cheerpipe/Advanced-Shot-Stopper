@@ -23,6 +23,7 @@
 #include <esp_system.h>
 #include "ShotStopperRfCoex.h"
 #include <math.h>
+#include <float.h>
 #include <new>
 #include <stdarg.h>
 #include <stdio.h>
@@ -56,8 +57,12 @@ struct NetworkWorkBuf {
   char statusJson[kStatusJson]{};
   char presetsJson[kPresetsJson]{};
   char historyJson[kHistoryJson]{};
-  char jsonItem[kJsonItem]{};
-  char otaJson[kOtaJson]{};
+  // Exclusive handlers under the work-buffer mutex: record/CSV items and
+  // OTA JSON are never live together. Status/presets/history remain separate.
+  union {
+    char jsonItem[kJsonItem]{};
+    char otaJson[kOtaJson];
+  };
   DebugEvent logBatch[kNetworkLogBatchSize]{};
   DebugLogReadMetadata logMetadata{};
   ShotLogRecord shotRecords[SHOT_LOG_CAPACITY]{};
@@ -73,6 +78,8 @@ struct NetworkWorkBuf {
   char requestBody[2048]{};
   WifiScanSnapshot wifiScan{};
 };
+static_assert(sizeof(NetworkWorkBuf) <= 65536,
+              "Network workspace exceeds its external-memory budget");
 
 // Wi-Fi scan snapshots. Network task / httpd only; not BLE.
 // AP records come from Arduino's SCAN_DONE cache (getScanInfoByIndex).
@@ -271,7 +278,9 @@ bool jsonUint8(cJSON *object, const char *name, uint8_t &output) {
 
 bool jsonFloat(cJSON *object, const char *name, float &output) {
   cJSON *item = cJSON_GetObjectItemCaseSensitive(object, name);
-  if (!cJSON_IsNumber(item) || !isfinite(item->valuedouble)) {
+  if (!cJSON_IsNumber(item) || !isfinite(item->valuedouble) ||
+      item->valuedouble > static_cast<double>(FLT_MAX) ||
+      item->valuedouble < -static_cast<double>(FLT_MAX)) {
     return false;
   }
   output = static_cast<float>(item->valuedouble);
@@ -850,7 +859,7 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
                               const TaskProfilerSnapshot &tasks) {
   if (!jsonScratchAppend(
           buf, cap, used,
-          "{\"state\":\"%s\",\"stopReason\":\"%s\","
+          "{\"stackUnit\":\"bytes\",\"state\":\"%s\",\"stopReason\":\"%s\","
           "\"elapsedMs\":%lu,\"remainingMs\":%lu,\"sampleCount\":%lu,"
           "\"currentTotalCpuPct\":%.1f,\"averageTotalCpuPct\":%.1f,"
           "\"unreportedCurrentCpuPct\":%.1f,\"unreportedAverageCpuPct\":%.1f,"
@@ -880,7 +889,7 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
             i == 0 ? "" : ",", safeName, static_cast<int>(tasks.rows[i].core),
             static_cast<double>(tasks.rows[i].currentCpuPct),
             static_cast<double>(tasks.rows[i].averageCpuPct),
-            static_cast<unsigned long>(tasks.rows[i].stackMinWords))) {
+            static_cast<unsigned long>(tasks.rows[i].stackMinBytes))) {
       return false;
     }
   }

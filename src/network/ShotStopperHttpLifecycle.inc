@@ -150,7 +150,6 @@ bool ShotStopperNetwork::enqueueMaintenanceCompletion(
   result.type = WebCommandType::MAINTENANCE_COMPLETE;
   result.requestId = command.requestId;
   result.maintenanceLeaseId = command.maintenanceLeaseId;
-  result.config = command.config;
   result.succeeded = succeeded;
   recordCommandResult(
       command.requestId,
@@ -233,64 +232,64 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
     case WebCommandType::SAVE_NETWORK: {
       char password[WIFI_PASSWORD_CAPACITY] = {};
       const bool reusePassword = shouldReuseSavedWifiCredentials(
-          command.ssid, command.password, command.openNetwork,
+          command.network.ssid, command.network.password, command.network.openNetwork,
           next.staConfigured, next.staSsid, next.staOpen);
       copyCString(password, sizeof(password),
-                  reusePassword ? next.staPassword : command.password);
-      if (!validWifiSsid(command.ssid) ||
-          !validWifiPassword(password, command.openNetwork) ||
-          !validStaAddressConfig(command.staIpMode, command.staIp,
-                                 command.staNetmask, command.staGateway,
-                                 command.staDns1, command.staDns2)) {
+                  reusePassword ? next.staPassword : command.network.password);
+      if (!validWifiSsid(command.network.ssid) ||
+          !validWifiPassword(password, command.network.openNetwork) ||
+          !validStaAddressConfig(command.network.staIpMode, command.network.staIp,
+                                 command.network.staNetmask, command.network.staGateway,
+                                 command.network.staDns1, command.network.staDns2)) {
         memset(password, 0, sizeof(password));
         log(DebugCategory::CONFIG, DebugCode::CONFIG_REJECTED);
         return false;
       }
       const bool sameCredentials =
           next.staConfigured && reusePassword &&
-          strcmp(next.staSsid, command.ssid) == 0 &&
-          next.staOpen == command.openNetwork &&
-          next.staIpMode == command.staIpMode &&
-          memcmp(next.staIp, command.staIp, sizeof(next.staIp)) == 0 &&
-          memcmp(next.staNetmask, command.staNetmask,
+          strcmp(next.staSsid, command.network.ssid) == 0 &&
+          next.staOpen == command.network.openNetwork &&
+          next.staIpMode == command.network.staIpMode &&
+          memcmp(next.staIp, command.network.staIp, sizeof(next.staIp)) == 0 &&
+          memcmp(next.staNetmask, command.network.staNetmask,
                  sizeof(next.staNetmask)) == 0 &&
-          memcmp(next.staGateway, command.staGateway,
+          memcmp(next.staGateway, command.network.staGateway,
                  sizeof(next.staGateway)) == 0 &&
-          memcmp(next.staDns1, command.staDns1, sizeof(next.staDns1)) == 0 &&
-          memcmp(next.staDns2, command.staDns2, sizeof(next.staDns2)) == 0;
+          memcmp(next.staDns1, command.network.staDns1, sizeof(next.staDns1)) == 0 &&
+          memcmp(next.staDns2, command.network.staDns2, sizeof(next.staDns2)) == 0;
       // Specified sleep + identical STA: persist sleep if it changed,
       // otherwise no-op. Never restart (second Save must not go PENDING).
-      if (command.wifiSleepSpecified && sameCredentials) {
+      if (command.network.wifiSleepSpecified && sameCredentials) {
         memset(password, 0, sizeof(password));
-        if (next.staWifiSleep != command.wifiSleep) {
-          next.staWifiSleep = command.wifiSleep;
+        if (next.staWifiSleep != command.network.wifiSleep) {
+          next.staWifiSleep = command.network.wifiSleep;
           persist = true;
           applyWifiPsAfterPersist = true;
         }
         break;
       }
-      if (!command.commitConfirmed && next.staConfigured &&
+      if (!command.network.commitConfirmed && next.staConfigured &&
           next.staConfigState ==
               static_cast<uint8_t>(StaConfigState::CONFIRMED)) {
         copyActiveStaToLkg(next);
       }
       next.staConfigured = true;
-      next.staOpen = command.openNetwork;
-      if (command.wifiSleepSpecified) {
-        next.staWifiSleep = command.wifiSleep;
+      next.staOpen = command.network.openNetwork;
+      if (command.network.wifiSleepSpecified) {
+        next.staWifiSleep = command.network.wifiSleep;
       }
       memset(next.staSsid, 0, sizeof(next.staSsid));
       memset(next.staPassword, 0, sizeof(next.staPassword));
-      copyCString(next.staSsid, sizeof(next.staSsid), command.ssid);
+      copyCString(next.staSsid, sizeof(next.staSsid), command.network.ssid);
       copyCString(next.staPassword, sizeof(next.staPassword), password);
       memset(password, 0, sizeof(password));
-      next.staIpMode = command.staIpMode;
-      memcpy(next.staIp, command.staIp, sizeof(next.staIp));
-      memcpy(next.staNetmask, command.staNetmask, sizeof(next.staNetmask));
-      memcpy(next.staGateway, command.staGateway, sizeof(next.staGateway));
-      memcpy(next.staDns1, command.staDns1, sizeof(next.staDns1));
-      memcpy(next.staDns2, command.staDns2, sizeof(next.staDns2));
-      finalizeSavedStaCredentials(next, command.commitConfirmed);
+      next.staIpMode = command.network.staIpMode;
+      memcpy(next.staIp, command.network.staIp, sizeof(next.staIp));
+      memcpy(next.staNetmask, command.network.staNetmask, sizeof(next.staNetmask));
+      memcpy(next.staGateway, command.network.staGateway, sizeof(next.staGateway));
+      memcpy(next.staDns1, command.network.staDns1, sizeof(next.staDns1));
+      memcpy(next.staDns2, command.network.staDns2, sizeof(next.staDns2));
+      finalizeSavedStaCredentials(next, command.network.commitConfirmed);
       persist = true;
       restartPending_ = true;
       break;
@@ -303,7 +302,7 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
       break;
 
     case WebCommandType::CHANGE_DEVICE_PASSWORD:
-      if (!setDevicePassword(next, command.password)) {
+      if (!setDevicePassword(next, command.network.password)) {
         log(DebugCategory::CONFIG, DebugCode::CONFIG_REJECTED);
         return false;
       }
@@ -452,7 +451,7 @@ bool ShotStopperNetwork::handleCliWifiAction(const WebCommand &command,
                                              uint32_t now) {
   switch (command.type) {
     case WebCommandType::WIFI_CONNECT: {
-      const PersistedSettings settings = settingsCopy();
+      const NetworkSettingsSnapshot settings = networkSettingsSnapshot();
       if (!settings.staConfigured) {
         actionLog("ERR no STA configured; use SET_WIFI");
         printActionSnapshot("WIFI_CONNECT", false);
@@ -492,7 +491,7 @@ bool ShotStopperNetwork::handleCliWifiAction(const WebCommand &command,
       return true;
     }
     case WebCommandType::WIFI_RESTART: {
-      const PersistedSettings settings = settingsCopy();
+      const NetworkSettingsSnapshot settings = networkSettingsSnapshot();
       if (!settings.staConfigured) {
         actionLog("ERR no STA configured; use SET_WIFI");
         printActionSnapshot("WIFI_RESTART", false);

@@ -225,7 +225,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !shotLogIo.includes('copyToFlashIoScratch(&store_') ||
     !shotCurveIo.includes('copyToFlashIoScratch(&store_') ||
     !lastShotIo.includes('copyToFlashIoScratch(&blob_') ||
-    jsonArena.includes('cJSON_InitHooks') ||
+    !jsonArena.includes('static const bool initialized') ||
     !jsonArena.includes('JSON_DOCUMENT_MAX_BYTES') ||
     !jsonArena.includes('JSON_DOCUMENT_MAX_DEPTH') ||
     !network.includes('workBuf_->~NetworkWorkBuf()') ||

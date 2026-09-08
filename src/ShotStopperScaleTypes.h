@@ -1,12 +1,39 @@
 #pragma once
 
 #include <math.h>
+#include <stdio.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 #include "../libraries/EspressoScaleBLE/src/ScaleBleTypes.h"
 
 namespace shotstopper {
+
+inline int32_t weightToCentigrams(float weightG) {
+  if (!isfinite(weightG)) {
+    return 0;
+  }
+  const float centigrams = weightG * 100.0f;
+  // float(INT32_MAX) rounds to 2^31; compare before any integer conversion.
+  if (centigrams >= static_cast<float>(INT32_MAX)) return INT32_MAX;
+  if (centigrams <= static_cast<float>(INT32_MIN)) return INT32_MIN;
+  return static_cast<int32_t>(centigrams);
+}
+
+inline void formatWeightCentigrams(int32_t centigrams, char *buffer,
+                                   size_t capacity) {
+  if (buffer == nullptr || capacity == 0) {
+    return;
+  }
+  // Unsigned magnitude also handles INT32_MIN without signed negation.
+  const uint32_t magnitude = centigrams < 0
+                                 ? 0U - static_cast<uint32_t>(centigrams)
+                                 : static_cast<uint32_t>(centigrams);
+  snprintf(buffer, capacity, "%s%lu.%02lug", centigrams < 0 ? "-" : "",
+           static_cast<unsigned long>(magnitude / 100U),
+           static_cast<unsigned long>(magnitude % 100U));
+}
+
 
 // Observational fields shared by the coherent control-status publication.
 // Field names remain flat for existing snapshot consumers.

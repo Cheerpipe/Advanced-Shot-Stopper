@@ -13,6 +13,41 @@ Small reviewed growth allowances catch regressions without coupling unrelated
 toolchain padding to an exact byte count; raising a baseline or allowance
 requires explicit architecture and resource review.
 
+Both linker maps must also keep external BSS at or below 96 KiB and retain
+`localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
+objects to PSRAM would move synchronization state accessed under spinlocks.
+
+## Runtime placement and allocation
+
+| Resource | Placement and bound |
+|---|---|
+| Network work buffer | external, at most 64 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex |
+| Profiler processing workspace | external, at most 4 KiB, only while running |
+| Profiler kernel capture | internal, at most 4 KiB, only while running |
+| Settings handoff | one 2620-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
+| Web command | trivially copyable, at most 320 bytes; configuration and network payloads share a discriminated union |
+| Radio settings snapshot | at most 192 bytes; full 2616-byte settings remain for durable mutations |
+| Fixed buzzer melodies | at most 8 notes each; custom tune capacity remains 250 notes |
+| JSON parser | PSRAM only; input at most 2047 bytes, nesting 32, values 128 |
+
+Network command builders must activate their union member with
+`setNetworkType()` before writing credentials. Preset metadata remains outside
+the union because a preset operation also carries configuration. Persisted
+record layouts are unchanged.
+
+Capability samples use `INTERNAL|8BIT` and `SPIRAM|8BIT`, including the PSRAM
+minimum-free watermark. Diagnostic `memoryAllocations` reports cumulative
+successes, failures, largest requested size, and last failed size by owner for
+the application's capability-allocation wrappers. These counters are not live
+allocation counts and do not include allocations made directly by SDK code.
+The retained legacy external-fallback counter stays zero: there is no fallback.
+JSON still allocates individual nodes, but those allocations no longer churn
+the internal heap; an arena would require separate lifetime/concurrency evidence.
+The compatibility field `jsonArenaExternal=false` means no arena is installed;
+it does not describe the placement of the independently allocated documents.
+The 4096-byte OTA transfer chunk remains request-scoped; retain it across
+requests only if target traces justify the extra resident memory.
+
 ## OTA NVS endurance
 
 The resumable OTA journal alternates two NVS keys (`j0` and `j1`). SHA-256 is
@@ -88,10 +123,23 @@ reconnection, Web UI polling, webhook delivery/failure, settings and shot-log
 writes, and interrupted/resumed OTA at every checkpoint. The runner fails on
 fetch errors, reboot/uptime regression, stale snapshots, deadline misses,
 increased BLE allocation fallback/HCI drops, heap below the versioned limits,
-stack below 384 words when exported, or a sustained largest-block loss over
-16 KiB. Missing stack samples are reported as `null`; a release run must start
-the task profiler or use debug-export evidence so stack qualification is not
-omitted.
+stack below 1536 bytes, PSRAM free below 128 KiB or largest block below 64 KiB,
+or a sustained internal largest-block loss over 16 KiB. Zero values are retained
+and fail the limits; missing, invalid or unavailable required samples fail.
+Control, scale-worker and BLE-host stack samples are required in every snapshot.
+Use repeated `--require-task NAME` options for additional profiler tasks; each
+requested task must appear in a running-profiler sample at every interval.
+The free-margin threshold applies to those required tasks and the three
+continuous health tasks. Other SDK tasks may have smaller configured stacks
+(IDLE has only 1536 bytes total); their observed minimum is reported separately
+as `profiledStackMinimumBytes`. Zero fails for every observed task. Qualifying
+additional SDK tasks requires selecting them and reviewing their own margin.
+The profiler stops after five minutes, so qualify those tasks in separate
+bounded captures and retain their evidence with the long soak. A long capture
+of the three always-exported stacks alone does not qualify every task.
+`--min-stack-bytes` controls the stack gate; the deprecated `--min-stack-words`
+alias also takes bytes for compatibility. Summary schema 2 uses explicit byte
+names. Review allocation-failure counter deltas for every exercised owner.
 
 The diagnostic snapshot also carries webhook worker/client lifecycle and
 before/after heap-by-capability samples for each send. The analyzer rejects

@@ -74,6 +74,25 @@ struct StaJoinHints {
   char staSsid[WIFI_SSID_CAPACITY] = {};
 };
 
+// Coherent radio-only snapshot; excludes recipes, logs and NVS metadata.
+struct NetworkSettingsSnapshot {
+  bool staConfigured = false;
+  bool staOpen = false;
+  bool staWifiSleep = true;
+  uint8_t staConfigState = 0;
+  uint8_t staIpMode = 0;
+  char staSsid[WIFI_SSID_CAPACITY] = {};
+  char staPassword[WIFI_PASSWORD_CAPACITY] = {};
+  char devicePassword[WIFI_PASSWORD_CAPACITY] = {};
+  uint8_t staIp[4] = {};
+  uint8_t staNetmask[4] = {};
+  uint8_t staGateway[4] = {};
+  uint8_t staDns1[4] = {};
+  uint8_t staDns2[4] = {};
+};
+static_assert(sizeof(NetworkSettingsSnapshot) <= 192,
+              "Radio snapshot exceeds its stack budget");
+
 struct NetworkStatusSnapshot {
   bool networkActive = false;
   bool apActive = false;
@@ -92,7 +111,7 @@ struct NetworkStatusSnapshot {
   uint32_t windowRemainingMs = 0;
   uint32_t confirmRemainingMs = 0;
   uint32_t taskAgeMs = 0;
-  uint32_t taskStackMinWords = 0;
+  uint32_t taskStackMinBytes = UINT32_MAX;
   uint32_t startupFailures = 0;
   uint32_t lastCommandRequestId = 0;
   CommandResultState lastCommandState = CommandResultState::NONE;
@@ -205,6 +224,7 @@ class ShotStopperNetwork {
   void syncLiveBullseye(const BullseyeMelodyConfig &config);
   void syncDurableStorageRevision(uint32_t storageRevision);
   PersistedSettings settingsCopy();
+  void copySettings(PersistedSettings &output);
   StaJoinHints staJoinHints();
   bool enqueueWebhook(const WebhookEvent &event);
   WebhookStatus webhookStatus() const;
@@ -320,7 +340,7 @@ class ShotStopperNetwork {
   uint32_t networkRetryAtMs_ = 0;
   uint32_t httpRetryAtMs_ = 0;
   uint32_t lastTaskProgressAtMs_ = 0;
-  uint32_t taskStackMinWords_ = 0;
+  std::atomic<uint32_t> taskStackMinBytes_{UINT32_MAX};
   uint32_t nextRequestId_ = 1;
   uint32_t scanMaintenanceLeaseId_ = 0;
   uint32_t scanRequestId_ = 0;
@@ -358,9 +378,10 @@ class ShotStopperNetwork {
   void handleNtpFailure(uint32_t now);
   static void ntpSyncNotificationCallback(struct timeval *tv);
   bool startNetwork();
-  void startStation(const PersistedSettings &settings, uint32_t now);
-  void applyStationAddressConfig(const PersistedSettings &settings);
-  bool beginStationConnect(const PersistedSettings &settings, uint32_t now);
+  NetworkSettingsSnapshot networkSettingsSnapshot();
+  void startStation(const NetworkSettingsSnapshot &settings, uint32_t now);
+  void applyStationAddressConfig(const NetworkSettingsSnapshot &settings);
+  bool beginStationConnect(const NetworkSettingsSnapshot &settings, uint32_t now);
   void applyWifiPowerSave();
   void clearStaLinkMetrics();
   bool brewRfActive() const;

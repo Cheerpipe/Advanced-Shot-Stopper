@@ -236,7 +236,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   freeHeapBytes = 0;
   minimumFreeHeapBytes = 0;
   largestFreeHeapBlockBytes = 0;
-  loopStackMinWords = 0;
+  loopStackMinBytes = UINT32_MAX;
   loopMaxGapMs = 0;
   loopIntervalGapMs = 0;
   healthIntervalMaxGapMs = 0;
@@ -2518,9 +2518,9 @@ void w21_network_change_is_rejected_while_active() {
   reachReadyFromBoot();
   startCycle();
   WebCommand network;
-  network.type = WebCommandType::SAVE_NETWORK;
-  strcpy(network.ssid, "test");
-  strcpy(network.password, "password");
+  network.setNetworkType(WebCommandType::SAVE_NETWORK);
+  strcpy(network.network.ssid, "test");
+  strcpy(network.network.password, "password");
   processWebCommand(network);
   CHECK(session.active);
   CHECK(getRelaySafetySnapshot().closed);
@@ -5772,9 +5772,9 @@ void w88_save_network_flush_includes_live_runtime() {
   CHECK(runtimeConfig.revision == firstRevision + 1);
 
   WebCommand network;
-  network.type = WebCommandType::SAVE_NETWORK;
-  strcpy(network.ssid, "CafeLAN");
-  strcpy(network.password, "CafePass1");
+  network.setNetworkType(WebCommandType::SAVE_NETWORK);
+  strcpy(network.network.ssid, "CafeLAN");
+  strcpy(network.network.password, "CafePass1");
   processWebCommand(network);
   finishHostMaintenance();
   CHECK(hostLastFlushIncludedLive);
@@ -8448,10 +8448,10 @@ void sc03_set_wifi_queues_save_network() {
   CHECK(serialTxContains("OK queued SET_WIFI"));
   runLoopAfter(MAINTENANCE_LEASE_SETTLE_MS);
   CHECK(hostLastForwardedNetworkCommand.type == WebCommandType::SAVE_NETWORK);
-  CHECK(strcmp(hostLastForwardedNetworkCommand.ssid, "CafeLAN") == 0);
-  CHECK(strcmp(hostLastForwardedNetworkCommand.password, "CafePass1") == 0);
-  CHECK(!hostLastForwardedNetworkCommand.openNetwork);
-  CHECK(hostLastForwardedNetworkCommand.commitConfirmed);
+  CHECK(strcmp(hostLastForwardedNetworkCommand.network.ssid, "CafeLAN") == 0);
+  CHECK(strcmp(hostLastForwardedNetworkCommand.network.password, "CafePass1") == 0);
+  CHECK(!hostLastForwardedNetworkCommand.network.openNetwork);
+  CHECK(hostLastForwardedNetworkCommand.network.commitConfirmed);
 }
 
 void sc04_clear_shots_empties_log() {
@@ -8730,7 +8730,7 @@ void sc08_set_device_password_queues_change() {
   runLoopAfter(MAINTENANCE_LEASE_SETTLE_MS);
   CHECK(hostLastForwardedNetworkCommand.type ==
         WebCommandType::CHANGE_DEVICE_PASSWORD);
-  CHECK(strcmp(hostLastForwardedNetworkCommand.password, "password1234") == 0);
+  CHECK(strcmp(hostLastForwardedNetworkCommand.network.password, "password1234") == 0);
 }
 
 void sc09_serial_debug_toggles_without_ready() {
@@ -8922,7 +8922,7 @@ void sc15_status_printers_use_dump_views() {
   health.freeHeapBytes = 80000;
   health.loopMaxGapMs = 12;
   health.healthIntervalMaxGapMs = 5;
-  health.networkStackMinWords = 400;
+  health.networkStackMinBytes = 400;
   health.cpuLoadValid = true;
   health.cpuMhz = 80;
   health.cpuLoad5s = 0.42f;
@@ -8935,6 +8935,7 @@ void sc15_status_printers_use_dump_views() {
   health.tempPeakC = 47.0f;
   Serial.tx.clear();
   serialCliPrintHealth(health);
+  CHECK(serialTxContains("stackUnit=bytes stackUnavailable=4294967295"));
   CHECK(serialTxContains("HEALTH"));
   CHECK(serialTxContains("heapFree=80000"));
   CHECK(serialTxContains("loopMaxGapMs=12"));
@@ -9983,8 +9984,8 @@ void h01_health_threshold_alerts_fire_once_per_crossing() {
   resetHarness(false, true);
   freeHeapBytes = HEALTH_HEAP_FREE_ALERT_BYTES - 1;
   largestFreeHeapBlockBytes = HEALTH_HEAP_LARGEST_CLEAR_BYTES;
-  loopStackMinWords = HEALTH_STACK_MIN_CLEAR_WORDS;
-  setScaleWorkerStackMinWordsForHost(HEALTH_STACK_MIN_CLEAR_WORDS);
+  loopStackMinBytes = HEALTH_STACK_MIN_CLEAR_BYTES;
+  setScaleWorkerStackMinBytesForHost(HEALTH_STACK_MIN_CLEAR_BYTES);
   serviceHealthThresholdAlerts(0);
   CHECK(debugEventExists(DebugCode::HEALTH_HEAP_LOW,
                          static_cast<int32_t>(freeHeapBytes),
@@ -9998,14 +9999,21 @@ void h01_health_threshold_alerts_fire_once_per_crossing() {
   serviceHealthThresholdAlerts(0);
   CHECK(!healthHeapAlertLatched);
 
-  loopStackMinWords = HEALTH_STACK_MIN_ALERT_WORDS - 1;
+  loopStackMinBytes = HEALTH_STACK_MIN_ALERT_BYTES - 1;
   serviceHealthThresholdAlerts(0);
   CHECK(debugEventExists(DebugCode::HEALTH_STACK_LOW));
   debugLog.clear();
   serviceHealthThresholdAlerts(0);
   CHECK(!debugEventExists(DebugCode::HEALTH_STACK_LOW));
 
-  loopStackMinWords = HEALTH_STACK_MIN_CLEAR_WORDS;
+  loopStackMinBytes = HEALTH_STACK_MIN_CLEAR_BYTES;
+  serviceHealthThresholdAlerts(0);
+  CHECK(!healthStackAlertLatched);
+
+  loopStackMinBytes = 0;
+  serviceHealthThresholdAlerts(0);
+  CHECK(healthStackAlertLatched);
+  loopStackMinBytes = UINT32_MAX;
   serviceHealthThresholdAlerts(0);
   CHECK(!healthStackAlertLatched);
 
@@ -10024,8 +10032,8 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   reachReadyFromBoot();
   freeHeapBytes = HEALTH_HEAP_FREE_ALERT_BYTES - 1;
   largestFreeHeapBlockBytes = HEALTH_HEAP_LARGEST_ALERT_BYTES - 1;
-  loopStackMinWords = HEALTH_STACK_MIN_CLEAR_WORDS;
-  setScaleWorkerStackMinWordsForHost(HEALTH_STACK_MIN_CLEAR_WORDS);
+  loopStackMinBytes = HEALTH_STACK_MIN_CLEAR_BYTES;
+  setScaleWorkerStackMinBytesForHost(HEALTH_STACK_MIN_CLEAR_BYTES);
   serviceHealthThresholdAlerts(0);
   CHECK(healthHeapAlertLatched);
   CHECK(!safeRestartPending());
@@ -10053,8 +10061,8 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   reachReadyFromBoot();
   freeHeapBytes = HEALTH_HEAP_FREE_ALERT_BYTES - 1;
   largestFreeHeapBlockBytes = HEALTH_HEAP_LARGEST_ALERT_BYTES - 1;
-  loopStackMinWords = HEALTH_STACK_MIN_CLEAR_WORDS;
-  setScaleWorkerStackMinWordsForHost(HEALTH_STACK_MIN_CLEAR_WORDS);
+  loopStackMinBytes = HEALTH_STACK_MIN_CLEAR_BYTES;
+  setScaleWorkerStackMinBytesForHost(HEALTH_STACK_MIN_CLEAR_BYTES);
   serviceHealthThresholdAlerts(0);
   hostMillis += HEALTH_HEAP_LOW_RESTART_MS / 2;
   serviceHealthThresholdAlerts(0);
@@ -10072,8 +10080,8 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   CHECK(session.active);
   freeHeapBytes = HEALTH_HEAP_FREE_ALERT_BYTES - 1;
   largestFreeHeapBlockBytes = HEALTH_HEAP_LARGEST_ALERT_BYTES - 1;
-  loopStackMinWords = HEALTH_STACK_MIN_CLEAR_WORDS;
-  setScaleWorkerStackMinWordsForHost(HEALTH_STACK_MIN_CLEAR_WORDS);
+  loopStackMinBytes = HEALTH_STACK_MIN_CLEAR_BYTES;
+  setScaleWorkerStackMinBytesForHost(HEALTH_STACK_MIN_CLEAR_BYTES);
   serviceHealthThresholdAlerts(0);
   hostMillis += HEALTH_HEAP_LOW_RESTART_MS;
   serviceHealthThresholdAlerts(0);
@@ -10086,8 +10094,8 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   maintenanceLease.active = true;
   freeHeapBytes = HEALTH_HEAP_FREE_ALERT_BYTES - 1;
   largestFreeHeapBlockBytes = HEALTH_HEAP_LARGEST_ALERT_BYTES - 1;
-  loopStackMinWords = HEALTH_STACK_MIN_CLEAR_WORDS;
-  setScaleWorkerStackMinWordsForHost(HEALTH_STACK_MIN_CLEAR_WORDS);
+  loopStackMinBytes = HEALTH_STACK_MIN_CLEAR_BYTES;
+  setScaleWorkerStackMinBytesForHost(HEALTH_STACK_MIN_CLEAR_BYTES);
   serviceHealthThresholdAlerts(0);
   hostMillis += HEALTH_HEAP_LOW_RESTART_MS;
   serviceHealthThresholdAlerts(0);
