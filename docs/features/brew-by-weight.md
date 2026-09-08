@@ -41,7 +41,7 @@ noted. **Home → Quick Settings** can toggle brew by weight for the session
 | **Cutoff algorithm** | Linear prediction + adaptive EWMA | Linear regression + offset correction / Linear prediction + adaptive EWMA | Saved per preset; applies to the next shot. |
 | **Target (g)** | 36 g | 10–200 g | Goal weight. Stop aims at `target − learned offset`. |
 | **Max BBW time (s)** | 50 s | 5–60 s | Operational time limit for an **automatic BBW** cycle. Ignored on timer-only and no-scale shots. Cannot exceed the hard 60 s cap. |
-| **Baseline offset (g)** | 1.5 g | 0–5 g | Seed used by **Reset learned stop offset to baseline**. Save this before reset. |
+| **Baseline offset (g)** | 1.5 g | 0–5 g | Seed used by **Reset learned stop offset**. Save this before reset. |
 | **Learned stop offset** | starts at 1.5 g | 0–5 g | Subtracted from the target (and from Fast/Slow recovery weights). Updated from post-drip weight after good shots. |
 | **Learning factor (α)** | 0.30 initially | Read-only | EWMA only; current gain, initial/learned provenance and collecting/evaluating status. |
 | **Baseline learning factor (α)** | 0.30 | 0.01–1.00, step 0.01 | EWMA reset seed, saved per preset. Saving it preserves current offset, gain and evidence. |
@@ -129,7 +129,7 @@ The learned-offset readout previews the draft algorithm's own value. EWMA shows
 selector and hides learning fields. Polling preserves unsaved edits, and resets
 require a saved selection/baseline and an editable, idle configuration.
 
-- **Reset learned stop offset to baseline** resets only the selected mode's
+- **Reset learned stop offset** resets only the selected mode's
   offset. For EWMA it retains α and restarts evidence.
 - **Reset EWMA learning** restores EWMA's offset and α to their saved baselines,
   marks provenance initial, and clears evidence. Regression is retained.

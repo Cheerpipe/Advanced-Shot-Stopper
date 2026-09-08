@@ -200,7 +200,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .btnGlyph.btnDanger{background:var(--bg);color:var(--ac);border-color:var(--ac)}
 .btnGlyph.btnWarn{color:var(--ac);background:var(--mw);border-color:var(--ac)}
 .btnGlyph:disabled{opacity:.4;cursor:not-allowed}
-#bbwAlgorithm{width:100%}
+.bbwLearning .btnBar{width:18rem}
 .bbwLearning button{white-space:normal}
 
 #actionsPanel{position:fixed;left:0;right:0;bottom:0;z-index:8;max-width:760px;margin:0 auto;border-radius:var(--r) var(--r) 0 0;border:1px solid var(--ln);border-bottom:0;padding:.7rem 1rem calc(.7rem + env(safe-area-inset-bottom));background:var(--sf);box-shadow:var(--ah)}

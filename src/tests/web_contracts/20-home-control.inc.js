@@ -615,7 +615,10 @@ if (!ui.includes('id="learnedOffsetG"') ||
         html.indexOf('id="weightOffsetBaselineG"') ||
     html.indexOf('id="weightOffsetBaselineG"') >
         html.indexOf('id="resetCalibrationButton"') ||
-    !ui.includes('Reset learned stop offset to baseline') ||
+    !ui.includes('Reset learned stop offset') ||
+    ui.includes('Reset learned stop offset to baseline') ||
+    !css.includes('.bbwLearning .btnBar{width:18rem}') ||
+    css.includes('#bbwAlgorithm{width:100%}') ||
     !ui.includes('Save bases before resetting.') ||
     !network.includes('weightOffsetBaselineG') ||
     !ui.includes('weightOffsetBaselineG')) {
