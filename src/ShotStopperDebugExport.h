@@ -11,11 +11,12 @@
 // =============================================================================
 
 #include "ShotStopperDomain.h"
+#include "ShotStopperScaleLink.h"
 #include "ShotStopperSafety.h"
 
 namespace shotstopper {
 
-constexpr uint32_t DEBUG_EXPORT_SCHEMA_VERSION = 6;
+constexpr uint32_t DEBUG_EXPORT_SCHEMA_VERSION = 7;
 constexpr size_t DEBUG_EXPORT_SHOT_SUMMARY_LIMIT = 10;
 
 // Internals not fully represented on ControlStatusSnapshot / status APIs.
@@ -55,6 +56,7 @@ struct DebugExportExtras {
   uint8_t cupPlaceStabilitySamples = 0;
   float cupHoleWeightG = 0.0f;
   float cupPlaceCandidateWeightG = 0.0f;
+  CupTareDiagnostics cupTare;
 
   // Scale link (CLI SCALE_STATUS parity).
   uint8_t scaleLinkState = 0;

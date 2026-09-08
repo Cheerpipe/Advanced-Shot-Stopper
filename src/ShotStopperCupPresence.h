@@ -23,14 +23,22 @@ struct CupPresenceRuntime {
   // tared on the pan", so removal requires the negative hole. Untared PRESENT
   // treats a stable empty pan (~0 g) as REMOVED.
   bool taredWhilePresent = false;
+  bool referenceUncertain = false;
   uint8_t removedConfirmations = 0;
   uint8_t placeStabilitySamples = 0;
   uint32_t lastRemovedAtMs = 0;
   uint32_t lastRemovedPacketSequence = 0;
   uint32_t placeStabilityStartedAtMs = 0;
   uint32_t placeLastSampleAtMs = 0;
+  uint32_t placementId = 0;
   float holeWeightG = 0.0f;
   float placeCandidateWeightG = 0.0f;
+  float placeMinimumG = 0.0f;
+  float placeMaximumG = 0.0f;
+  float occupiedReferenceG = 0.0f;
+  float occupiedMinimumG = 0.0f;
+  float occupiedMaximumG = 0.0f;
+  float occupiedPlacementThresholdG = 0.0f;
 };
 
 CupPresenceRuntime cupPresence;
@@ -40,17 +48,42 @@ void resetCupPlaceStabilityStreak() {
   cupPresence.placeStabilityStartedAtMs = 0;
   cupPresence.placeLastSampleAtMs = 0;
   cupPresence.placeCandidateWeightG = 0.0f;
+  cupPresence.placeMinimumG = 0.0f;
+  cupPresence.placeMaximumG = 0.0f;
 }
 
 }  // namespace
 
 CupPresenceState cupPresenceState() { return cupPresence.state; }
-bool cupPresenceIsTared() { return cupPresence.taredWhilePresent; }
+bool cupPresenceIsTared() {
+  return cupPresence.taredWhilePresent && !cupPresence.referenceUncertain;
+}
+bool cupPresenceIsKnown() { return !cupPresence.referenceUncertain; }
+float cupPresenceReferenceG() { return cupPresence.occupiedReferenceG; }
+float cupPresenceMinimumG() { return cupPresence.occupiedMinimumG; }
+float cupPresenceMaximumG() { return cupPresence.occupiedMaximumG; }
+float cupPresencePlacementThresholdG() { return cupPresence.occupiedPlacementThresholdG; }
+uint32_t cupPresencePlacementId() { return cupPresence.placementId; }
 
-void restoreCupTareReference(bool previouslyTared) {
+void restoreCupTareReference(bool previouslyTared, float previousReferenceG) {
   if (cupPresence.state == CupPresenceState::PRESENT) {
     cupPresence.taredWhilePresent = previouslyTared;
+    cupPresence.occupiedReferenceG = previousReferenceG;
+    cupPresence.referenceUncertain = false;
   }
+}
+
+void markCupTareReferenceUncertain() {
+  if (cupPresence.state == CupPresenceState::PRESENT) {
+    cupPresence.referenceUncertain = true;
+  }
+}
+
+void resetCupSampleEvidence() {
+  resetCupPlaceStabilityStreak();
+  cupPresence.removedConfirmations = 0;
+  cupPresence.lastRemovedAtMs = 0;
+  cupPresence.lastRemovedPacketSequence = 0;
 }
 
 void resetCupPresence() {
@@ -59,7 +92,7 @@ void resetCupPresence() {
 
 void resyncCupPresenceIfPanEmpty(float weight) {
   if (cupPresence.state != CupPresenceState::PRESENT ||
-      cupPresence.taredWhilePresent) {
+      cupPresence.taredWhilePresent || cupPresence.referenceUncertain) {
     return;
   }
   if (!isfinite(weight) || weight >= runtimeConfig.minimumCupWeightG) {
@@ -73,6 +106,7 @@ void resyncCupPresenceIfPanEmpty(float weight) {
   cupPresence.lastRemovedAtMs = 0;
   cupPresence.lastRemovedPacketSequence = 0;
   cupPresence.holeWeightG = 0.0f;
+  cupPresence.occupiedReferenceG = 0.0f;
   resetCupPlaceStabilityStreak();
 }
 
@@ -87,6 +121,8 @@ void holdCupPresenceTransitions(bool hold) {
 void notifyCupPresenceTare() {
   if (cupPresence.state == CupPresenceState::PRESENT) {
     cupPresence.taredWhilePresent = true;
+    cupPresence.occupiedReferenceG = 0.0f;
+    cupPresence.referenceUncertain = false;
   }
   cupPresence.inNegativeHole = false;
   cupPresence.holeWeightG = 0.0f;
@@ -94,16 +130,20 @@ void notifyCupPresenceTare() {
 }
 
 CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
-                                 uint32_t packetSequence) {
+                                 uint32_t packetSequence, bool allowPlacement = true) {
   if (!isfinite(weight)) {
     return CupPresenceEvent::NONE;
   }
 
   const float minCupG = runtimeConfig.minimumCupWeightG;
   const float removedG = runtimeConfig.cupRemovedWeightG;
+  // A lighter put-back may remain below zero until tare. Its stationary
+  // occupied plateau is not a second lift; preserve the additional drop.
+  const float removalReferenceG = fminf(0.0f, cupPresence.occupiedReferenceG);
   const bool removalCandidate =
-      weight <= removedG ||
-      (!cupPresence.taredWhilePresent && weight < minCupG);
+      weight <= removalReferenceG + removedG ||
+      (!cupPresence.taredWhilePresent && !cupPresence.referenceUncertain &&
+       weight < minCupG);
 
   if (!removalCandidate) {
     cupPresence.removedArmed = true;
@@ -130,7 +170,8 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
         static_cast<uint32_t>(receivedAtMs - cupPresence.lastRemovedAtMs) <=
             DIRECT_STOP_CONFIRMATION_WINDOW_MS &&
         (packetSequence == 0 || cupPresence.lastRemovedPacketSequence == 0 ||
-         packetSequence == cupPresence.lastRemovedPacketSequence + 1U);
+         packetSequence == (cupPresence.lastRemovedPacketSequence == UINT32_MAX
+                                ? 1U : cupPresence.lastRemovedPacketSequence + 1U));
     cupPresence.removedConfirmations = consecutive
         ? static_cast<uint8_t>(cupPresence.removedConfirmations + 1U)
         : 1U;
@@ -143,6 +184,8 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
 
     cupPresence.state = CupPresenceState::ABSENT;
     cupPresence.taredWhilePresent = false;
+    cupPresence.referenceUncertain = false;
+    cupPresence.occupiedReferenceG = 0.0f;
     cupPresence.inNegativeHole = true;
     cupPresence.holeWeightG = weight;
     cupPresence.removedConfirmations = 0;
@@ -152,6 +195,10 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
 
   if (cupPresence.inNegativeHole && weight < cupPresence.holeWeightG) {
     cupPresence.holeWeightG = weight;
+  }
+  if (!allowPlacement) {
+    resetCupPlaceStabilityStreak();
+    return CupPresenceEvent::NONE;
   }
 
   const bool placeCandidate = weight >= minCupG;
@@ -165,6 +212,8 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
 
   if (cupPresence.placeStabilitySamples == 0) {
     cupPresence.placeCandidateWeightG = weight;
+    cupPresence.placeMinimumG = weight;
+    cupPresence.placeMaximumG = weight;
     cupPresence.placeStabilitySamples = 1;
     cupPresence.placeStabilityStartedAtMs = receivedAtMs;
     cupPresence.placeLastSampleAtMs = receivedAtMs;
@@ -173,9 +222,12 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
 
   if (static_cast<uint32_t>(receivedAtMs - cupPresence.placeLastSampleAtMs) >
           runtimeConfig.retareStabilityMaxGapMs ||
-      fabsf(weight - cupPresence.placeCandidateWeightG) >
+      fmaxf(weight, cupPresence.placeMaximumG) -
+              fminf(weight, cupPresence.placeMinimumG) >
           runtimeConfig.retareStabilityToleranceG) {
     cupPresence.placeCandidateWeightG = weight;
+    cupPresence.placeMinimumG = weight;
+    cupPresence.placeMaximumG = weight;
     cupPresence.placeStabilitySamples = 1;
     cupPresence.placeStabilityStartedAtMs = receivedAtMs;
     cupPresence.placeLastSampleAtMs = receivedAtMs;
@@ -183,6 +235,8 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   }
 
   cupPresence.placeCandidateWeightG = weight;
+  cupPresence.placeMinimumG = fminf(weight, cupPresence.placeMinimumG);
+  cupPresence.placeMaximumG = fmaxf(weight, cupPresence.placeMaximumG);
   cupPresence.placeLastSampleAtMs = receivedAtMs;
   if (cupPresence.placeStabilitySamples < UINT8_MAX) {
     ++cupPresence.placeStabilitySamples;
@@ -207,6 +261,15 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   }
 
   cupPresence.state = CupPresenceState::PRESENT;
+  ++cupPresence.placementId;
+  if (cupPresence.placementId == 0) ++cupPresence.placementId;
+  cupPresence.referenceUncertain = false;
+  cupPresence.occupiedReferenceG = cupPresence.placeCandidateWeightG;
+  cupPresence.occupiedMinimumG = cupPresence.placeMinimumG;
+  cupPresence.occupiedMaximumG = cupPresence.placeMaximumG;
+  // Retain the same direct/relative minimum predicate for queued validation.
+  cupPresence.occupiedPlacementThresholdG = cupPresence.inNegativeHole
+      ? fminf(minCupG, cupPresence.holeWeightG + minCupG) : minCupG;
   // Put-back onto a tared hole reads ~0 g with the cup on the pan.
   cupPresence.taredWhilePresent = placedByPutBack && !placedByWeight;
   cupPresence.inNegativeHole = false;
@@ -214,20 +277,4 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   cupPresence.removedArmed = true;
   resetCupPlaceStabilityStreak();
   return CupPresenceEvent::PLACED;
-}
-
-inline void copyCupPresenceDebug(CupPresenceState &state, bool &holdTransitions,
-                                 bool &inNegativeHole, bool &removedArmed,
-                                 uint8_t &removedConfirmations,
-                                 uint8_t &placeStabilitySamples,
-                                 float &holeWeightG,
-                                 float &placeCandidateWeightG) {
-  state = cupPresence.state;
-  holdTransitions = cupPresence.holdTransitions;
-  inNegativeHole = cupPresence.inNegativeHole;
-  removedArmed = cupPresence.removedArmed;
-  removedConfirmations = cupPresence.removedConfirmations;
-  placeStabilitySamples = cupPresence.placeStabilitySamples;
-  holeWeightG = cupPresence.holeWeightG;
-  placeCandidateWeightG = cupPresence.placeCandidateWeightG;
 }

@@ -453,6 +453,41 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<double>(x.cupPlaceCandidateWeightG));
 
   char scaleLinkRssiJson[16] = "null";
+  const CupTareDiagnostics &tare = x.cupTare;
+  ok = ok && debugExportChunkf(
+      request, buf, cap,
+      "\"idleTare\":{\"requestId\":%lu,\"placementId\":%lu,\"requestPlacementId\":%lu,\"phase\":%u,"
+      "\"eligibilityReason\":\"%s\",\"lastReason\":\"%s\","
+      "\"referenceKnown\":%s,\"tared\":%s,\"absentObserved\":%s,"
+      "\"referenceG\":%.2f,\"qualificationMinG\":%.2f,\"qualificationMaxG\":%.2f,\"lastWeightG\":%.2f,",
+      static_cast<unsigned long>(tare.requestId),
+      static_cast<unsigned long>(tare.placementId),
+      static_cast<unsigned long>(tare.requestPlacementId), static_cast<unsigned>(tare.phase),
+      idleTareReasonName(tare.eligibilityReason), idleTareReasonName(tare.lastReason),
+      tare.referenceKnown ? "true" : "false", tare.tared ? "true" : "false",
+      tare.absentObserved ? "true" : "false",
+      static_cast<double>(tare.occupiedReferenceG),
+      static_cast<double>(tare.requestMinimumG), static_cast<double>(tare.requestMaximumG),
+      static_cast<double>(tare.lastWeightG));
+  ok = ok && debugExportChunkf(
+      request, buf, cap,
+      "\"connectionGeneration\":%lu,\"configRevision\":%lu,\"requestedAtMs\":%lu,"
+      "\"startedAtMs\":%lu,\"writtenAtMs\":%lu,\"effectAtMs\":%lu,"
+      "\"captureBoundary\":%lu,\"lastSampleAtMs\":%lu,\"lastPacketSequence\":%lu,"
+      "\"lastCaptureSequence\":%lu,\"lastTerminalRequestId\":%lu,"
+      "\"lastTerminalAtMs\":%lu,\"rejectedSamples\":%lu,\"droppedSamples\":%lu},",
+      static_cast<unsigned long>(tare.connectionGeneration),
+      static_cast<unsigned long>(tare.configRevision),
+      static_cast<unsigned long>(tare.requestedAtMs),
+      static_cast<unsigned long>(tare.startedAtMs), static_cast<unsigned long>(tare.writtenAtMs),
+      static_cast<unsigned long>(tare.effectAtMs), static_cast<unsigned long>(tare.captureBoundary),
+      static_cast<unsigned long>(tare.lastSampleAtMs),
+      static_cast<unsigned long>(tare.lastPacketSequence),
+      static_cast<unsigned long>(tare.lastCaptureSequence),
+      static_cast<unsigned long>(tare.lastTerminalRequestId),
+      static_cast<unsigned long>(tare.lastTerminalAtMs),
+      static_cast<unsigned long>(tare.rejectedSamples),
+      static_cast<unsigned long>(tare.droppedSamples));
   if (c.scaleRssiValid) {
     snprintf(scaleLinkRssiJson, sizeof(scaleLinkRssiJson), "%d",
              static_cast<int>(c.scaleRssi));

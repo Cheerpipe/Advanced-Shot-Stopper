@@ -209,6 +209,30 @@ static void run() {
     CHECK(c.isConnected());
     notify(c,21); CHECK(!c.isConnected()); CHECK(testTerminations==1);
   }
+  {
+    NimbleScaleClient c(false); ready(c);
+    const uint32_t capturedAt = testNowMs;
+    notify(c,20);
+    const uint32_t beforeWrite = c.notificationSequence();
+    testNowMs += 1200;
+    CHECK(c.newWeightAvailable());
+    CHECK(c.weightSample().receivedAtMs == capturedAt);
+    CHECK(c.weightSample().captureSequence == beforeWrite);
+    CHECK(c.weightSample().weightG == 0.0f);
+    testOnWait=[&] { notify(c,20); complete(); };
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
+    CHECK(c.newWeightAvailable());
+    CHECK(c.weightSample().captureSequence == beforeWrite + 1);
+    CHECK(c.weightSample().receivedAtMs >= capturedAt + 1200);
+    c.notificationSequence_=UINT32_MAX;
+    notify(c,20);
+    CHECK(c.newWeightAvailable());
+    CHECK(c.weightSample().captureSequence == 1);
+    c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    testOnWait={};
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
+    CHECK(!c.newWeightAvailable()); // Transport success creates no weight evidence.
+  }
   printf("NimBLE production client: %u checks passed\n",checks);
 }
 };

@@ -5,6 +5,7 @@
 #include "ShotStopperTaskMutex.h"
 
 #include <type_traits>
+#include <atomic>
 
 #if !defined(SHOT_STOPPER_HOST_TEST)
 #include <EspressoScaleBLE.h>
@@ -89,6 +90,9 @@ uint32_t scaleWorkerTickDelayMs();
 void serviceScaleLinkRssi(uint32_t nowMs = millis());
 bool enqueueScaleCommand(const ScaleCommand &command, bool toFront = false);
 IdleTareStatus idleScaleTareStatus();
+bool claimIdleScaleTare(uint32_t requestId, uint32_t expectedPacketSequence = 0,
+                        uint32_t captureBoundary = 0);
+void approveIdleScaleTareSample(uint32_t requestId, uint32_t packetSequence);
 // False only while an ATT write owns the request; never waits for BLE.
 bool cancelIdleScaleTare(uint32_t requestId, IdleTareStatus *released = nullptr);
 bool publishScaleEvent(const ScaleEvent &event, bool critical);
@@ -150,8 +154,12 @@ extern ScaleEvent scaleCriticalEvent;
 extern bool scaleCriticalEventPending;
 extern ScaleEvent scaleTimerStartEvent;
 extern bool scaleTimerStartEventPending;
-extern ScaleEvent scaleWeightEvent;
-extern bool scaleWeightEventPending;
+constexpr size_t SCALE_WEIGHT_EVENT_CAPACITY = 16;
+extern ScaleEvent scaleWeightEvents[SCALE_WEIGHT_EVENT_CAPACITY];
+extern uint8_t scaleWeightEventHead;
+extern uint8_t scaleWeightEventCount;
+extern uint32_t scaleWeightEventDrops;
+extern std::atomic<bool> scaleWeightEventPending;
 extern bool scaleBeepPending;
 extern uint32_t scaleBeepCycleId;
 extern bool scaleCompletionBeepPending;

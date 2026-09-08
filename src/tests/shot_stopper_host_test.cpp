@@ -253,7 +253,9 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   scaleCriticalEventPending = false;
   scaleTimerStartEvent = ScaleEvent{};
   scaleTimerStartEventPending = false;
-  scaleWeightEvent = ScaleEvent{};
+  scaleWeightEventHead = 0;
+  scaleWeightEventCount = 0;
+  scaleWeightEventDrops = 0;
   scaleWeightEventPending = false;
   scaleBeepPending = false;
   scaleBeepCycleId = 0;
@@ -7122,14 +7124,439 @@ void it11_disabling_after_write_keeps_tared_cup() {
   runtimeConfig.autoTareOutsideBrew = false;
   ++runtimeConfig.revision;
   serviceIdleTare();
-  CHECK(idleTare.requestId == 0);
+  CHECK(idleTare.requestId != 0); // Transport success still awaits physical evidence.
   idleCup(0.0f);
+  CHECK(idleTare.requestId == 0);
   CHECK(cupPresenceState() == CupPresenceState::PRESENT);
   CHECK(cupPresenceIsTared());
   enableCupStartGuardForTest();
   runtimeConfig.autoTare = false;
   startCycle();
   CHECK(session.active);
+}
+
+void it12_lighter_replacement_keeps_queued_tare() {
+  for (bool afterShot : {false, true}) {
+    prepareIdleTare();
+    idleCup(80.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    if (afterShot) {
+      startCycle();
+      while (executeNextScaleCommand()) {}
+      establishPostTareBaseline();
+      idleWeight(36.0f);
+      CHECK(finalizeCycle(EndReason::SCALE_THRESHOLD,
+                          StopperState::REQUIRES_OFF));
+    }
+    idleWeight(-80.0f);
+    idleWeight(-80.0f);
+    idleCup(-60.0f);
+    const uint32_t id = idleTare.requestId;
+    CHECK(id != 0);
+    idleWeight(-60.0f);
+    idleWeight(-60.0f);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(idleTare.requestId == id);
+    while (executeNextScaleCommand()) {} // A post-shot STOP can precede tare.
+    idleCup(0.0f);
+    CHECK(idleTare.requestId == 0);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  }
+}
+
+void it13_lighter_replacement_write_zero_is_not_another_placement() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  idleWeight(-80.0f);
+  idleWeight(-80.0f);
+  idleCup(-60.0f);
+  ScaleCommand command;
+  CHECK(xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE);
+  CHECK(claimIdleScaleTare(command.idleTareRequestId));
+  idleWeight(-60.0f);
+  idleWeight(-60.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  finishIdleScaleTare(command.idleTareRequestId, true);
+  idleCup(0.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(idleTare.requestId == 0);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+}
+
+void it14_accepted_heavy_cup_removal_rearms_tare() {
+  for (float weight : {499.0f, 500.0f, 501.0f, 600.0f, 1000.0f}) {
+    prepareIdleTare();
+    idleCup(weight);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    idleWeight(-weight);
+    idleWeight(-weight);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    idleCup(0.0f);
+    CHECK(idleTare.requestId != 0);
+  }
+}
+
+void it15_batched_removal_samples_reach_cup_detector() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  for (unsigned i = 0; i < 2; ++i) {
+    hostMillis += 75;
+    ScaleEvent event;
+    event.type = ScaleEventType::WEIGHT;
+    event.receivedAtMs = hostMillis;
+    event.weightG = -80.0f;
+    CHECK(publishScaleEvent(event, false));
+  }
+  processScaleWorkerEvents();
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  idleCup(0.0f);
+  CHECK(idleTare.requestId != 0);
+}
+
+void it16_prewrite_removal_cannot_become_tare_zero() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  ScaleCommand command;
+  CHECK(xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE);
+  const uint32_t firstAt = hostMillis + 50;
+  hostMillis += 200;
+  CHECK(claimIdleScaleTare(command.idleTareRequestId));
+  publishWeight(0.0f, firstAt);
+  publishWeight(0.0f, firstAt + 50);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  finishIdleScaleTare(command.idleTareRequestId, true);
+  idleCup(0.0f);
+  CHECK(idleTare.requestId == 0);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  idleCup(80.0f);
+  CHECK(idleTare.requestId != 0);
+}
+
+void it17_transport_success_without_zero_preserves_old_reference() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  for (unsigned i = 0; i < 22; ++i) idleWeight(80.0f);
+  serviceIdleTare();
+  CHECK(idleTare.requestId == 0);
+  CHECK(!cupPresenceIsTared());
+  idleWeight(0.0f);
+  idleWeight(0.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  idleCup(80.0f);
+  CHECK(idleTare.requestId != 0);
+}
+
+void it18_placement_tolerance_bounds_entire_window() {
+  prepareIdleTare();
+  idleWeight(80.0f);
+  idleWeight(82.0f);
+  idleWeight(84.0f);
+  CHECK(idleTare.requestId == 0);
+  idleWeight(84.0f);
+  idleWeight(84.0f);
+  CHECK(idleTare.requestId != 0);
+}
+
+void it19_changed_queued_placement_cannot_tare() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  idleWeight(100.0f);
+  CHECK(executeNextScaleCommand());
+  CHECK(scale.tareCalls == 0);
+  CHECK(idleTare.requestId == 0);
+  idleCup(100.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+}
+
+void it20_weight_overflow_breaks_removal_evidence() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  idleWeight(-80.0f); // First removal confirmation must not survive overflow.
+  for (size_t i = 0; i <= SCALE_WEIGHT_EVENT_CAPACITY; ++i) {
+    hostMillis += 1;
+    ScaleEvent event;
+    event.receivedAtMs = hostMillis;
+    event.weightG = i == SCALE_WEIGHT_EVENT_CAPACITY ? -80.0f : 0.0f;
+    CHECK(publishScaleEvent(event, false));
+  }
+  processScaleWorkerEvents();
+  CHECK(scaleWeightEventDrops == SCALE_WEIGHT_EVENT_CAPACITY);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(cupPresence.removedConfirmations == 1);
+  idleWeight(-80.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+}
+
+void it21_batched_sign_reversal_does_not_remove_cup() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  for (float weight : {-80.0f, 0.0f, -80.0f}) {
+    hostMillis += 25;
+    ScaleEvent event;
+    event.receivedAtMs = hostMillis;
+    event.weightG = weight;
+    CHECK(publishScaleEvent(event, false));
+  }
+  processScaleWorkerEvents();
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(cupPresence.removedConfirmations == 1);
+}
+
+void it22_worker_preserves_capture_time_and_zero_boundary() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  ScaleCommand command;
+  CHECK(xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE);
+  CHECK(claimIdleScaleTare(command.idleTareRequestId, 0, 41));
+  scale.weight = 0.0f;
+  scale.weightCapturedAtMs = hostMillis;
+  scale.weightCaptureSequence = 41; // Captured before claim in the same ms.
+  scale.newWeightAvailableValue = true;
+  hostMillis += 50;
+  CHECK(publishPendingScaleWeightEvent());
+  processScaleWorkerEvents();
+  CHECK(!idleTare.tareNotified);
+  CHECK(idleTare.lastSampleAtMs == scale.weightCapturedAtMs);
+  scale.weightCaptureSequence = 42; // Genuine during-write zero in same ms.
+  scale.newWeightAvailableValue = true;
+  CHECK(publishPendingScaleWeightEvent());
+  processScaleWorkerEvents();
+  CHECK(idleTare.tareNotified);
+  finishIdleScaleTare(command.idleTareRequestId, true);
+  serviceIdleTare();
+  CHECK(idleTare.requestId == 0);
+  CHECK(cupPresenceIsTared());
+  CHECK(idleTare.lastReason == IdleTareReason::EFFECT_CONFIRMED);
+}
+
+void it23_unknown_effect_releases_slot_but_not_cup_guard() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  hostMillis += SCALE_ATT_TIMEOUT_MS + runtimeConfig.postTareBaselineGraceMs;
+  serviceIdleTare();
+  CHECK(idleTare.requestId == 0);
+  CHECK(!cupPresenceIsKnown());
+  CHECK(idleTare.lastReason == IdleTareReason::EFFECT_UNCONFIRMED);
+  idleCup(0.0f); // Cannot invent absence or confirmed tared presence.
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  enableCupStartGuardForTest();
+  beginCycle();
+  CHECK(cupStartGuardHold);
+  CHECK(!session.active);
+  CHECK(!getRelaySafetySnapshot().closed);
+}
+
+void it24_claim_waits_for_control_validation_of_published_sample() {
+  for (float weight : {80.0f, 100.0f}) {
+    prepareIdleTare();
+    idleCup(80.0f);
+    hostMillis += 50;
+    ScaleEvent event;
+    event.receivedAtMs = hostMillis;
+    event.weightG = weight;
+    CHECK(publishScaleEvent(event, false)); // Pending in handoff, control has not run.
+    CHECK(executeNextScaleCommand()); // Worker must requeue without writing.
+    CHECK(scale.tareCalls == 0);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+    CHECK(executeNextScaleCommand());
+    CHECK(scale.tareCalls == (weight == 80.0f ? 1U : 0U));
+  }
+}
+
+void it25_capture_and_packet_wrap_preserve_order() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  ScaleCommand command;
+  CHECK(xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE);
+  CHECK(claimIdleScaleTare(command.idleTareRequestId, 0, UINT32_MAX));
+  scale.weight = 0.0f;
+  scale.weightCapturedAtMs = hostMillis;
+  scale.weightCaptureSequence = 1;
+  scale.newWeightAvailableValue = true;
+  CHECK(publishPendingScaleWeightEvent());
+  processScaleWorkerEvents();
+  CHECK(idleTare.tareNotified);
+  finishIdleScaleTare(command.idleTareRequestId, true);
+  serviceIdleTare();
+  idleTare.lastPacketSequence = UINT32_MAX - 1U;
+  publishWeight(-80.0f, hostMillis, 0, UINT32_MAX);
+  publishWeight(-80.0f, hostMillis, 0, 1);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+}
+
+void it26_debug_uses_committed_cup_snapshot_and_terminal_reason() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  const uint32_t id = idleTare.requestId;
+  idleWeight(100.0f);
+  publishControlStatus();
+  ControlStatusSnapshot snapshot;
+  copyControlStatus(snapshot);
+  CHECK(snapshot.cupTare.lastTerminalRequestId == id);
+  CHECK(snapshot.cupTare.lastReason == static_cast<uint8_t>(IdleTareReason::UNSTABLE));
+  const uint32_t placementId = snapshot.cupTare.placementId;
+  resetCupPresence(); // Readers must retain the prior committed cup values.
+  DebugExportExtras debug;
+  copyDebugExportExtras(debug, snapshot);
+  CHECK(debug.cupTare.placementId == placementId);
+  CHECK(debug.cupState == static_cast<uint8_t>(CupPresenceState::PRESENT));
+}
+
+void it27_late_cup_retare_rejects_accumulated_drift() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  runtimeConfig.autoRetare = true;
+  runtimeConfig.bbwProtectionMs = minimumBbwProtectionMs(runtimeConfig);
+  startCycle();
+  CHECK(executeNextScaleCommand());
+  establishPostTareBaseline();
+  runLoopAfter(runtimeConfig.rinseGestureMs + 1);
+  const uint32_t baseMs = hostMillis + 100;
+  publishWeight(80.0f, baseMs, 1, 10);
+  publishWeight(82.0f, baseMs + 150, 1, 11);
+  publishWeight(84.0f, baseMs + 300, 1, 12);
+  CHECK(!session.retarePerformed);
+}
+
+void it28_weight_handoff_concurrent_publication_is_bounded() {
+  prepareIdleTare();
+  std::atomic<bool> done{false};
+  std::thread producer([&] {
+    for (unsigned i = 0; i < 300; ++i) {
+      ScaleEvent event;
+      event.receivedAtMs = hostMillis;
+      event.weightG = i % 2 ? 0.0f : 5.0f;
+      (void)publishScaleEvent(event, false);
+    }
+    done.store(true, std::memory_order_release);
+  });
+  while (!done.load(std::memory_order_acquire)) {
+    processScaleWorkerEvents();
+    std::this_thread::yield();
+  }
+  producer.join();
+  processScaleWorkerEvents();
+  CHECK(scaleWeightEventCount == 0);
+  CHECK(!scaleWeightEventPending);
+  CHECK(idleTare.requestId == 0);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+}
+
+void it29_old_or_future_captured_weight_cannot_qualify() {
+  for (int32_t offset : {-1001, 1}) {
+    prepareIdleTare();
+    hostMillis += 2000;
+    scale.weight = 80.0f;
+    scale.weightCapturedAtMs = hostMillis + offset;
+    for (unsigned i = 0; i < 3; ++i) {
+      ++scale.weightCaptureSequence;
+      scale.newWeightAvailableValue = true;
+      CHECK(publishPendingScaleWeightEvent());
+      processScaleWorkerEvents();
+    }
+    CHECK(idleTare.requestId == 0);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    CHECK(idleTare.rejectedSamples == 3);
+  }
+}
+
+void it30_actual_negative_replacement_removal_during_write() {
+  for (float replacement : {-60.0f, 0.0f, 40.0f}) {
+    prepareIdleTare();
+    idleCup(80.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    idleWeight(-80.0f);
+    idleWeight(-80.0f);
+    idleCup(replacement);
+    const uint32_t id = idleTare.requestId;
+    CHECK(claimIdleScaleTare(id));
+    idleWeight(-80.0f);
+    idleWeight(-80.0f);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    CHECK(idleTare.requestId == id);
+    finishIdleScaleTare(id, true);
+    serviceIdleTare();
+    CHECK(idleTare.requestId == 0);
+    CHECK(!cupPresenceIsTared());
+  }
+}
+
+void it31_idle_request_and_effect_deadline_cross_clock_wrap() {
+  for (bool confirm : {false, true}) {
+    prepareIdleTare();
+    hostMillis = UINT32_MAX - 700U;
+    idleTare.lastPacketSequence = 0;
+    idleWeight(0.0f);
+    idleCup(80.0f);
+    const uint32_t id = idleTare.requestId;
+    CHECK(id != 0);
+    CHECK(executeNextScaleCommand());
+    if (confirm) {
+      idleWeight(0.0f, 200);
+      CHECK(cupPresenceIsTared());
+    } else {
+      hostMillis += SCALE_ATT_TIMEOUT_MS + runtimeConfig.postTareBaselineGraceMs;
+      markScaleWorkerProgress();
+      serviceIdleTare();
+      CHECK(!cupPresenceIsKnown());
+    }
+    CHECK(idleTare.requestId == 0);
+    CHECK(idleTare.lastTerminalRequestId == id);
+  }
+}
+
+void it32_queued_minimum_is_independent_of_tolerance() {
+  for (bool relative : {false, true}) {
+    prepareIdleTare();
+    float emptyG = 0.0f;
+    if (relative) {
+      idleCup(80.0f);
+      CHECK(executeNextScaleCommand());
+      idleCup(0.0f);
+      idleWeight(-80.0f);
+      idleWeight(-80.0f);
+      emptyG = -80.0f;
+    }
+    idleCup(emptyG + runtimeConfig.minimumCupWeightG);
+    CHECK(idleTare.requestId != 0);
+    idleWeight(emptyG + runtimeConfig.minimumCupWeightG - 0.1f);
+    CHECK(idleTare.requestId == 0);
+    CHECK(idleTare.lastReason == IdleTareReason::UNSTABLE);
+    CHECK(executeNextScaleCommand());
+    CHECK(scale.tareCalls == (relative ? 1U : 0U));
+  }
+}
+
+void it33_stale_connection_gap_cannot_cancel_current_tare() {
+  prepareIdleTare();
+  const uint32_t oldGeneration = getScaleLinkSnapshot().connectionGeneration;
+  setScaleConnected(false);
+  setScaleConnected(true);
+  idleWeight(0.0f);
+  idleCup(80.0f);
+  const uint32_t id = idleTare.requestId;
+  CHECK(id != 0);
+  ScaleEvent stale;
+  stale.receivedAtMs = hostMillis;
+  stale.connectionGeneration = oldGeneration;
+  stale.sampleDiscontinuity = true;
+  CHECK(publishScaleEvent(stale, false));
+  processScaleWorkerEvents();
+  CHECK(idleTare.requestId == id);
+  CHECK(idleScaleTareStatus().phase == IdleTarePhase::QUEUED);
 }
 
 void cup_fsm_put_back_without_tare_is_present() {
@@ -12498,6 +12925,28 @@ const TestCase testCases[] = {
     {"IT09", it09_invalid_samples_queue_failure_and_disconnect},
     {"IT10", it10_worker_claim_and_cancel_are_mutually_exclusive},
     {"IT11", it11_disabling_after_write_keeps_tared_cup},
+    {"IT12", it12_lighter_replacement_keeps_queued_tare},
+    {"IT13", it13_lighter_replacement_write_zero_is_not_another_placement},
+    {"IT14", it14_accepted_heavy_cup_removal_rearms_tare},
+    {"IT15", it15_batched_removal_samples_reach_cup_detector},
+    {"IT16", it16_prewrite_removal_cannot_become_tare_zero},
+    {"IT17", it17_transport_success_without_zero_preserves_old_reference},
+    {"IT18", it18_placement_tolerance_bounds_entire_window},
+    {"IT19", it19_changed_queued_placement_cannot_tare},
+    {"IT20", it20_weight_overflow_breaks_removal_evidence},
+    {"IT21", it21_batched_sign_reversal_does_not_remove_cup},
+    {"IT22", it22_worker_preserves_capture_time_and_zero_boundary},
+    {"IT23", it23_unknown_effect_releases_slot_but_not_cup_guard},
+    {"IT24", it24_claim_waits_for_control_validation_of_published_sample},
+    {"IT25", it25_capture_and_packet_wrap_preserve_order},
+    {"IT26", it26_debug_uses_committed_cup_snapshot_and_terminal_reason},
+    {"IT27", it27_late_cup_retare_rejects_accumulated_drift},
+    {"IT28", it28_weight_handoff_concurrent_publication_is_bounded},
+    {"IT29", it29_old_or_future_captured_weight_cannot_qualify},
+    {"IT30", it30_actual_negative_replacement_removal_during_write},
+    {"IT31", it31_idle_request_and_effect_deadline_cross_clock_wrap},
+    {"IT32", it32_queued_minimum_is_independent_of_tolerance},
+    {"IT33", it33_stale_connection_gap_cannot_cancel_current_tare},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},

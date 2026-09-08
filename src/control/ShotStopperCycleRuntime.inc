@@ -109,6 +109,24 @@ struct IdleTareRuntime {
   uint32_t lastPacketSequence = 0;
   uint32_t requestId = 0;
   uint32_t requestedAtMs = 0;
+  uint32_t placementId = 0;
+  uint32_t lastCaptureSequence = 0;
+  uint32_t effectAtMs = 0;
+  uint32_t lastTerminalRequestId = 0;
+  uint32_t lastTerminalAtMs = 0;
+  uint32_t lastStartedAtMs = 0;
+  uint32_t lastWrittenAtMs = 0;
+  uint32_t lastCaptureBoundary = 0;
+  uint32_t rejectedSamples = 0;
+  float previousReferenceG = 0.0f;
+  float requestMinimumG = 0.0f;
+  float requestMaximumG = 0.0f;
+  float requestPlacementThresholdG = 0.0f;
+  float lastWeightG = 0.0f;
+  bool unchangedAfterWrite = false;
+  IdleTareReason eligibilityReason = IdleTareReason::NONE;
+  IdleTareReason lastReason = IdleTareReason::NONE;
+  IdleTareReason deferredReason = IdleTareReason::NONE;
   bool eligible = false;
   bool absentObserved = false;
   bool cupStillPresent = false;
@@ -121,7 +139,7 @@ uint32_t nextIdleTareRequestId = 1;
 
 void cancelPendingFinalize(const char *reason);
 
-bool idleTareEligible() {
+IdleTareReason idleTareEligibilityReason() {
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
   const bool endedAwaitingRelease =
       stopperState == StopperState::REQUIRES_OFF && lastCycle.valid &&
@@ -131,26 +149,56 @@ bool idleTareEligible() {
       lastCycle.endReason != EndReason::GLOBAL_LIMIT &&
       lastCycle.endReason != EndReason::CONFIGURED_WALL_LIMIT &&
       lastCycle.endReason != EndReason::RELAY_SAFETY_FAILURE;
-  return runtimeConfig.autoTareOutsideBrew && firmwareInitializationComplete &&
-         !session.active && !maintenanceLease.active && !relay.closed &&
-         !relay.tripped && !relay.operationalTripped &&
-         (stopperState == StopperState::READY || endedAwaitingRelease) &&
-         machineRunState() == MachineRunState::CONFIRMED_OFF &&
-         scaleLinkAvailable(getScaleLinkSnapshot());
+  if (!runtimeConfig.autoTareOutsideBrew) return IdleTareReason::FEATURE_DISABLED;
+  if (!firmwareInitializationComplete) return IdleTareReason::NOT_READY;
+  if (session.active) return IdleTareReason::ACTIVE_CYCLE;
+  if (maintenanceLease.active) return IdleTareReason::MAINTENANCE;
+  if (relay.closed || relay.tripped || relay.operationalTripped)
+    return IdleTareReason::RELAY_BLOCKED;
+  if (stopperState != StopperState::READY && !endedAwaitingRelease)
+    return IdleTareReason::STOP_STATE;
+  if (machineRunState() != MachineRunState::CONFIRMED_OFF)
+    return IdleTareReason::MACHINE_NOT_OFF;
+  if (!scaleLinkAvailable(getScaleLinkSnapshot()))
+    return IdleTareReason::SCALE_UNAVAILABLE;
+  return IdleTareReason::NONE;
 }
 
-void releaseIdleTareRequest() {
+void releaseIdleTareRequest(IdleTareReason reason = IdleTareReason::NONE) {
   IdleTareStatus released;
-  if (!cancelIdleScaleTare(idleTare.requestId, &released)) return;
-  // Preserve the actual outcome even when config changes race with completion.
-  // The worker returns terminal status atomically with releasing the request.
-  if (idleTare.cupStillPresent && !idleTare.tareNotified &&
-      released.phase == IdleTarePhase::SUCCEEDED) {
-    notifyCupPresenceTare();
-  } else if (idleTare.cupStillPresent && idleTare.tareNotified &&
-             released.phase == IdleTarePhase::FAILED) {
-    restoreCupTareReference(idleTare.previouslyTared);
+  if (!cancelIdleScaleTare(idleTare.requestId, &released)) {
+    if (idleTare.deferredReason == IdleTareReason::NONE)
+      idleTare.deferredReason = reason;
+    return;
   }
+  if (idleTare.deferredReason != IdleTareReason::NONE)
+    reason = idleTare.deferredReason;
+  if (idleTare.cupStillPresent &&
+      cupPresencePlacementId() == idleTare.placementId) {
+    if (released.phase == IdleTarePhase::SUCCEEDED) {
+      if (idleTare.tareNotified) {
+        notifyCupPresenceTare();
+        reason = IdleTareReason::EFFECT_CONFIRMED;
+      } else {
+        // A still-observed unchanged reference is usable. Missing or different
+        // evidence cannot certify either physical tare or empty pan.
+        if (!idleTare.unchangedAfterWrite ||
+            elapsedMs(idleTare.lastSampleAtMs) > MAX_AUTOMATION_WEIGHT_AGE_MS) {
+          markCupTareReferenceUncertain();
+        }
+        reason = IdleTareReason::EFFECT_UNCONFIRMED;
+      }
+    } else if (idleTare.tareNotified) {
+      restoreCupTareReference(idleTare.previouslyTared,
+                              idleTare.previousReferenceG);
+    }
+  }
+  idleTare.lastTerminalRequestId = idleTare.requestId;
+  idleTare.lastTerminalAtMs = millis();
+  idleTare.lastStartedAtMs = released.startedAtMs;
+  idleTare.lastWrittenAtMs = released.writtenAtMs;
+  idleTare.lastCaptureBoundary = released.captureBoundary;
+  idleTare.lastReason = reason;
   idleTare.requestId = 0;
   idleTare.tareNotified = false;
   idleTare.cupStillPresent = false;
@@ -158,47 +206,60 @@ void releaseIdleTareRequest() {
 
 void serviceIdleTare() {
   if (!runtimeConfig.autoTareOutsideBrew && idleTare.requestId == 0 &&
-      !idleTare.eligible) return;
+      !idleTare.eligible) {
+    idleTare.eligibilityReason = IdleTareReason::FEATURE_DISABLED;
+    return;
+  }
   const uint32_t generation = getScaleLinkSnapshot().connectionGeneration;
-  const bool eligible = idleTareEligible();
+  idleTare.eligibilityReason = idleTareEligibilityReason();
+  const bool eligible = idleTare.eligibilityReason == IdleTareReason::NONE;
   if (eligible != idleTare.eligible ||
       generation != idleTare.connectionGeneration ||
       runtimeConfig.revision != idleTare.configRevision) {
     idleTare.absentObserved = false;
     resetCupPlaceStabilityStreak();
-    if (generation != idleTare.connectionGeneration) {
+    const bool changedConnection = generation != idleTare.connectionGeneration;
+    const bool changedConfig = runtimeConfig.revision != idleTare.configRevision;
+    if (changedConnection) {
       idleTare.lastSampleAtMs = 0;
       idleTare.lastPacketSequence = 0;
+      idleTare.lastCaptureSequence = 0;
       idleTare.cupStillPresent = false;
     }
     idleTare.eligible = eligible;
     idleTare.connectionGeneration = generation;
     idleTare.configRevision = runtimeConfig.revision;
     // Revoke queued requests; executing writes retain the start barrier.
-    if (idleTare.requestId != 0) {
-      releaseIdleTareRequest();
+    if (idleTare.requestId != 0 &&
+        (changedConnection || idleScaleTareStatus().phase == IdleTarePhase::QUEUED)) {
+      releaseIdleTareRequest(changedConnection ? IdleTareReason::CONNECTION_CHANGED
+                            : changedConfig ? IdleTareReason::CONFIG_CHANGED
+                                            : idleTare.eligibilityReason);
     }
   }
   if (idleTare.requestId == 0) return;
-  if (cupPresenceState() != CupPresenceState::PRESENT) {
+  if (cupPresenceState() != CupPresenceState::PRESENT ||
+      cupPresencePlacementId() != idleTare.placementId) {
     idleTare.cupStillPresent = false;
   }
   const IdleTareStatus status = idleScaleTareStatus();
   const bool failed = status.requestId != idleTare.requestId ||
                       status.phase == IdleTarePhase::NONE ||
                       status.phase == IdleTarePhase::FAILED;
-  if (failed && idleTare.tareNotified && idleTare.cupStillPresent) {
-    restoreCupTareReference(idleTare.previouslyTared);
-  }
-  if (!failed && status.phase == IdleTarePhase::SUCCEEDED &&
-      idleTare.cupStillPresent && !idleTare.tareNotified) {
-    notifyCupPresenceTare();
-    idleTare.tareNotified = true;
-  }
-  if (failed || !idleTare.cupStillPresent ||
+  if (failed) {
+    releaseIdleTareRequest(status.reason == IdleTareReason::NONE
+                              ? IdleTareReason::WRITE_FAILED : status.reason);
+  } else if (!idleTare.cupStillPresent) {
+    releaseIdleTareRequest(IdleTareReason::REMOVED);
+  } else if (status.phase == IdleTarePhase::SUCCEEDED && idleTare.tareNotified) {
+    releaseIdleTareRequest(IdleTareReason::EFFECT_CONFIRMED);
+  } else if (status.phase == IdleTarePhase::QUEUED &&
+             elapsedMs(idleTare.lastSampleAtMs) > runtimeConfig.retareStabilityMaxGapMs) {
+    releaseIdleTareRequest(IdleTareReason::STALE_SAMPLE);
+  } else if (
       elapsedMs(idleTare.requestedAtMs) >=
           SCALE_ATT_TIMEOUT_MS + runtimeConfig.postTareBaselineGraceMs) {
-    releaseIdleTareRequest();
+    releaseIdleTareRequest(IdleTareReason::EFFECT_UNCONFIRMED);
   }
 }
 
@@ -208,39 +269,67 @@ bool idleTareBlocksStart() {
     idleTare.startNeedsRelease = true;
     // A queued tare can be revoked, but this start gesture stays rejected.
     const IdleTareStatus status = idleScaleTareStatus();
-    if (status.phase == IdleTarePhase::QUEUED) releaseIdleTareRequest();
+    if (status.phase == IdleTarePhase::QUEUED)
+      releaseIdleTareRequest(IdleTareReason::START_REQUEST);
     return true;
   }
   return idleTare.startNeedsRelease;
 }
 
 bool observeIdleTareSample(float weight, uint32_t atMs, uint32_t sequence,
-                           uint32_t generation) {
+                           uint32_t generation, uint32_t captureSequence) {
   serviceIdleTare();
   if (generation != idleTare.connectionGeneration ||
+      static_cast<int32_t>(millis() - atMs) < 0 ||
       static_cast<int32_t>(millis() - atMs) >
           static_cast<int32_t>(MAX_AUTOMATION_WEIGHT_AGE_MS) ||
       (idleTare.lastPacketSequence != 0 &&
        (static_cast<int32_t>(sequence - idleTare.lastPacketSequence) <= 0 ||
         static_cast<int32_t>(atMs - idleTare.lastSampleAtMs) < 0))) {
-    resetCupPlaceStabilityStreak();
+    resetCupSampleEvidence();
+    ++idleTare.rejectedSamples;
+    if (idleTare.requestId != 0 &&
+        idleScaleTareStatus().phase == IdleTarePhase::QUEUED)
+      releaseIdleTareRequest(IdleTareReason::STALE_SAMPLE);
     return false;
   }
   idleTare.lastSampleAtMs = atMs;
   idleTare.lastPacketSequence = sequence;
+  idleTare.lastCaptureSequence = captureSequence;
+  idleTare.lastWeightG = weight;
   if (idleTare.requestId != 0 && idleTare.cupStillPresent) {
     const IdleTareStatus status = idleScaleTareStatus();
-    if (status.requestId == idleTare.requestId &&
+    if (status.requestId == idleTare.requestId && status.phase == IdleTarePhase::QUEUED) {
+      const float low = fminf(idleTare.requestMinimumG, weight);
+      const float high = fmaxf(idleTare.requestMaximumG, weight);
+      if (weight < MIN_AUTOMATION_WEIGHT_G || weight > MAX_AUTOMATION_WEIGHT_G ||
+          weight < idleTare.requestPlacementThresholdG ||
+          high - low > runtimeConfig.retareStabilityToleranceG) {
+        releaseIdleTareRequest(IdleTareReason::UNSTABLE);
+      } else {
+        idleTare.requestMinimumG = low;
+        idleTare.requestMaximumG = high;
+        approveIdleScaleTareSample(idleTare.requestId, sequence);
+      }
+    } else if (status.requestId == idleTare.requestId &&
         (status.phase == IdleTarePhase::WRITING ||
          status.phase == IdleTarePhase::SUCCEEDED)) {
-      if (!idleTare.tareNotified) {
-        notifyCupPresenceTare();
-        idleTare.tareNotified = true;
-      }
-      if (status.phase == IdleTarePhase::SUCCEEDED &&
-          static_cast<int32_t>(atMs - status.writtenAtMs) > 0 &&
-          fabsf(weight) <= FIRST_DROP_BASELINE_SETTLE_G) {
-        releaseIdleTareRequest();
+      const bool afterBoundary = captureSequence != 0
+          ? static_cast<int32_t>(captureSequence - status.captureBoundary) > 0
+          : static_cast<int32_t>(atMs - status.startedAtMs) > 0;
+      if (afterBoundary) {
+        idleTare.unchangedAfterWrite =
+            fmaxf(weight, idleTare.requestMaximumG) -
+                fminf(weight, idleTare.requestMinimumG) <=
+            runtimeConfig.retareStabilityToleranceG;
+        if (!idleTare.tareNotified && fabsf(weight) <= FIRST_DROP_BASELINE_SETTLE_G) {
+          notifyCupPresenceTare();
+          idleTare.tareNotified = true;
+          idleTare.effectAtMs = atMs;
+        }
+        if (status.phase == IdleTarePhase::SUCCEEDED && idleTare.tareNotified) {
+          releaseIdleTareRequest(IdleTareReason::EFFECT_CONFIRMED);
+        }
       }
     }
   }
@@ -250,7 +339,7 @@ bool observeIdleTareSample(float weight, uint32_t atMs, uint32_t sequence,
 void handleIdleCupEvent(CupPresenceEvent event, float weight) {
   if (event == CupPresenceEvent::REMOVED) {
     idleTare.cupStillPresent = false;
-    if (idleTare.requestId != 0) releaseIdleTareRequest();
+    if (idleTare.requestId != 0) releaseIdleTareRequest(IdleTareReason::REMOVED);
     if (!session.active && pendingFinalize.pending) {
       machineCancelSettledWeightCutOff();
       cancelPendingFinalize("Cup removed during drip analysis");
@@ -265,7 +354,11 @@ void handleIdleCupEvent(CupPresenceEvent event, float weight) {
   const bool placedInIdle = idleTare.absentObserved;
   idleTare.absentObserved = false;
   if (!placedInIdle || idleTare.requestId != 0 ||
-      !getScaleLinkSnapshot().features.has(ScaleFeatureTare)) return;
+      !getScaleLinkSnapshot().features.has(ScaleFeatureTare)) {
+    idleTare.lastReason = !placedInIdle ? IdleTareReason::NO_ABSENCE
+        : idleTare.requestId != 0 ? IdleTareReason::SLOT_BUSY : IdleTareReason::UNSUPPORTED;
+    return;
+  }
   if (pendingFinalize.pending) {
     machineCancelSettledWeightCutOff();
     cancelPendingFinalize("New cup placed during drip analysis");
@@ -277,13 +370,25 @@ void handleIdleCupEvent(CupPresenceEvent event, float weight) {
   if (nextIdleTareRequestId == 0) nextIdleTareRequestId = 1;
   command.connectionGeneration = idleTare.connectionGeneration;
   command.expiresAtMs = millis() + MAX_AUTOMATION_WEIGHT_AGE_MS;
+  command.qualifiedPacketSequence = idleTare.lastPacketSequence;
   command.commandFeedbackExpected =
       getScaleLinkSnapshot().features.has(ScaleFeatureCommandAudibleFeedback);
-  if (!enqueueScaleCommand(command)) return;
+  if (!enqueueScaleCommand(command)) {
+    idleTare.lastReason = IdleTareReason::QUEUE_FULL;
+    return;
+  }
   idleTare.requestId = command.idleTareRequestId;
   idleTare.requestedAtMs = millis();
   idleTare.cupStillPresent = true;
   idleTare.previouslyTared = cupPresenceIsTared();
+  idleTare.previousReferenceG = cupPresenceReferenceG();
+  idleTare.requestMinimumG = cupPresenceMinimumG();
+  idleTare.requestMaximumG = cupPresenceMaximumG();
+  idleTare.requestPlacementThresholdG = cupPresencePlacementThresholdG();
+  idleTare.placementId = cupPresencePlacementId();
+  idleTare.unchangedAfterWrite = false;
+  idleTare.effectAtMs = 0;
+  idleTare.deferredReason = IdleTareReason::NONE;
   idleTare.tareNotified = false;
   emitImmediateCommandAlertIfBuzzer(AlertEvent::TARE);
 }
@@ -359,6 +464,52 @@ void serviceWebhookBrewStart() {}
 #include "ShotStopperScaleWorker.cpp"
 #endif
 
+// Called by the control publisher. Worker locks are acquired before the
+// publication lock; diagnostic readers only see the committed scalar copy.
+CupTareDiagnostics captureCupTareDiagnostics() {
+  CupTareDiagnostics out;
+  const IdleTareStatus status = idleScaleTareStatus();
+  out.cupState = static_cast<uint8_t>(cupPresenceState());
+  out.holdTransitions = cupPresence.holdTransitions;
+  out.inNegativeHole = cupPresence.inNegativeHole;
+  out.removedArmed = cupPresence.removedArmed;
+  out.tared = cupPresenceIsTared();
+  out.referenceKnown = cupPresenceIsKnown();
+  out.absentObserved = idleTare.absentObserved;
+  out.removedConfirmations = cupPresence.removedConfirmations;
+  out.stabilitySamples = cupPresence.placeStabilitySamples;
+  out.phase = static_cast<uint8_t>(status.phase);
+  out.eligibilityReason = static_cast<uint8_t>(idleTare.eligibilityReason);
+  out.lastReason = static_cast<uint8_t>(idleTare.lastReason);
+  out.holeWeightG = cupPresence.holeWeightG;
+  out.candidateWeightG = cupPresence.placeCandidateWeightG;
+  out.occupiedReferenceG = cupPresenceReferenceG();
+  out.requestMinimumG = idleTare.requestMinimumG;
+  out.requestMaximumG = idleTare.requestMaximumG;
+  out.lastWeightG = idleTare.lastWeightG;
+  out.placementId = cupPresencePlacementId();
+  out.requestPlacementId = idleTare.placementId;
+  out.requestId = idleTare.requestId;
+  out.connectionGeneration = idleTare.connectionGeneration;
+  out.configRevision = idleTare.configRevision;
+  out.requestedAtMs = idleTare.requestedAtMs;
+  out.startedAtMs = idleTare.requestId != 0 ? status.startedAtMs : idleTare.lastStartedAtMs;
+  out.writtenAtMs = idleTare.requestId != 0 ? status.writtenAtMs : idleTare.lastWrittenAtMs;
+  out.effectAtMs = idleTare.effectAtMs;
+  out.captureBoundary = idleTare.requestId != 0 ? status.captureBoundary
+                                               : idleTare.lastCaptureBoundary;
+  out.lastSampleAtMs = idleTare.lastSampleAtMs;
+  out.lastPacketSequence = idleTare.lastPacketSequence;
+  out.lastCaptureSequence = idleTare.lastCaptureSequence;
+  out.lastTerminalRequestId = idleTare.lastTerminalRequestId;
+  out.lastTerminalAtMs = idleTare.lastTerminalAtMs;
+  out.rejectedSamples = idleTare.rejectedSamples;
+  scaleWeightEventMux.lock();
+  out.droppedSamples = scaleWeightEventDrops;
+  scaleWeightEventMux.unlock();
+  return out;
+}
+
 void copyDebugExportExtras(DebugExportExtras &out,
                            const ControlStatusSnapshot &control) {
   out = DebugExportExtras{};
@@ -392,13 +543,16 @@ void copyDebugExportExtras(DebugExportExtras &out,
     out.sessionTargetReachedAtMs = session.targetReachedAtMs;
   }
   {
-    CupPresenceState cupState = CupPresenceState::ABSENT;
-    copyCupPresenceDebug(
-        cupState, out.cupHoldTransitions, out.cupInNegativeHole,
-        out.cupRemovedArmed, out.cupRemovedConfirmations,
-        out.cupPlaceStabilitySamples, out.cupHoleWeightG,
-        out.cupPlaceCandidateWeightG);
-    out.cupState = static_cast<uint8_t>(cupState);
+    const CupTareDiagnostics &cup = control.cupTare;
+    out.cupTare = cup;
+    out.cupState = cup.cupState;
+    out.cupHoldTransitions = cup.holdTransitions;
+    out.cupInNegativeHole = cup.inNegativeHole;
+    out.cupRemovedArmed = cup.removedArmed;
+    out.cupRemovedConfirmations = cup.removedConfirmations;
+    out.cupPlaceStabilitySamples = cup.stabilitySamples;
+    out.cupHoleWeightG = cup.holeWeightG;
+    out.cupPlaceCandidateWeightG = cup.candidateWeightG;
   }
   {
     const ScaleLinkSnapshot link = getScaleLinkSnapshot();
@@ -461,7 +615,8 @@ void fillLoopGuardsFromIntention(const MachineIntention &intention) {
   loopGuardInputs.scaleAvailable = scaleLinkAvailable(link);
   loopGuardInputs.scaleUsable =
       loopGuardInputs.scaleAvailable && currentWeightIsFresh();
-  loopGuardInputs.cup = cupPresenceState();
+  loopGuardInputs.cup = cupPresenceIsKnown() ? cupPresenceState()
+                                            : CupPresenceState::ABSENT;
   loopGuardInputs.currentWeightG = currentWeight;
   // Product reuses the machine rinse-gesture window as the blocked-start hold
   // timeout. Brew sees only this composed field, not rinseGestureMs.
@@ -514,7 +669,8 @@ bool acceptWeightAndNotifyFirstFlow(float weight, uint32_t receivedAtMs,
 
 bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                                       uint32_t packetSequence,
-                                      uint32_t connectionGeneration) {
+                                      uint32_t connectionGeneration,
+                                      uint32_t captureSequence = 0) {
   if (!isfinite(weight) || fabsf(weight) > MAX_PARSED_WEIGHT_G) {
     serialTrace(LogLevel::WARNING, "Invalid or out-of-range weight ignored");
     rejectScaleSample(DebugCode::SCALE_SAMPLE_REJECTED_INVALID, weight);
@@ -531,20 +687,19 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
     }
   }
 
-  if (runtimeConfig.autoTareOutsideBrew && !session.active &&
-      (weight < MIN_AUTOMATION_WEIGHT_G || weight > MAX_AUTOMATION_WEIGHT_G)) {
-    resetCupPlaceStabilityStreak();
-    return false;
-  }
   if ((runtimeConfig.autoTareOutsideBrew || idleTare.requestId != 0) &&
       !session.active &&
       !observeIdleTareSample(weight, receivedAtMs, packetSequence,
-                             connectionGeneration)) return false;
+                             connectionGeneration, captureSequence)) return false;
+  const bool placementInRange = weight >= MIN_AUTOMATION_WEIGHT_G &&
+                                weight <= MAX_AUTOMATION_WEIGHT_G;
   const CupPresenceEvent cupEvent =
-      feedCupPresence(weight, receivedAtMs, packetSequence);
+      feedCupPresence(weight, receivedAtMs, packetSequence,
+                      session.active ||
+                          (!runtimeConfig.autoTareOutsideBrew && idleTare.requestId == 0) ||
+                          placementInRange);
   if ((runtimeConfig.autoTareOutsideBrew || idleTare.requestId != 0) &&
-      !session.active && weight >= MIN_AUTOMATION_WEIGHT_G &&
-      weight <= MAX_AUTOMATION_WEIGHT_G) {
+      !session.active) {
     handleIdleCupEvent(cupEvent, weight);
   }
   if (cupEvent == CupPresenceEvent::REMOVED) {

@@ -114,6 +114,9 @@ qualification.
 | IT-M05 | Start immediately during queued/executing idle tare; also disconnect during the request. | Start gesture is refused until pending work resolves; release and retry. No stale tare enters a new shot/connection. STOP remains responsive. |
 | IT-M06 | Reconnect with a pre-tared cup at zero; try the scale's physical tare button separately. | No fabricated placement on reconnect. Remove/replace for detection. Physical-button tare recognition remains unsupported without verifiable protocol evidence. |
 | IT-M07 | Disable idle tare, save, reboot; then factory reset or upgrade a legacy configuration. | Saved OFF survives reboot; factory reset and first migration initialize ON. Presets do not change the switch. |
+| IT-M08 | On Bookoo, tare an 80 g object, lift it, then place 20/80/120 g objects; repeat before any shot and after a normal shot. Include samples while tare is queued/writing. | A negative occupied plateau is not another lift; one tare per observed placement, no duplicate from the zero effect. Real lifts during writing remain detectable. |
+| IT-M09 | Tare accepted loads around 499/500/501/600 g, then remove and replace. Test configured minimum and stability boundaries separately. | Negative removal is recognized without widening placement/BBW limits. Whole-window spread must fit configured tolerance; a changed queued placement is cancelled. |
+| IT-M10 | Capture debug export during rapid swaps, reconnect, setting changes and incomplete tare attempts. Compare connected idle/disconnected idle/shot timing and CPU metrics to the baseline under identical settings. | Request/reference identity, capture sequence and terminal reason explain each attempt. No old result enters a new shot; no added loop period, wait or unbounded buffer. Unobservable motion is recorded as a limitation rather than claimed recovered. |
 
 ## Network, Web UI and access
 

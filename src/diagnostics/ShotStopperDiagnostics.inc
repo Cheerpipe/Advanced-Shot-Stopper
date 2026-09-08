@@ -47,9 +47,11 @@ void publishControlStatus() {
   const uint32_t macPauseRemainingMs = scaleMacCachePauseRemainingMs(now);
   const bool persistPending = liveConfigPersistPending();
   const BleCompanionStatusSnapshot ble = copyBleCompanionStatus();
+  const CupTareDiagnostics cupTare = captureCupTareDiagnostics();
   TaskLockGuard lock(controlStatusMutex);
   ControlStatusSnapshot &next = publishedControlStatus;
   next = ControlStatusSnapshot{};
+  next.cupTare = cupTare;
   next.snapshotVersion = ++controlStatusVersion;
   if (controlStatusVersion == 0) {
     controlStatusVersion = 1;

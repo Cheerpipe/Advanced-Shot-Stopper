@@ -2040,6 +2040,7 @@ inline const char *bootStateName(BootState state) {
 }
 
 struct ControlStatusSnapshot : ScaleLinkMetrics {
+  CupTareDiagnostics cupTare;
   // Coherent publication identity. uptimeMs is the publication timestamp;
   // snapshotVersion advances exactly once for every committed snapshot.
   uint32_t snapshotVersion = 0;

@@ -19,6 +19,13 @@ it. If shot-start tare is enabled, starting the next shot still performs its
 normal tare. See [Tare settings](../settings/tare.md#outside-a-brew) for idle
 prerequisites, pending-command behavior, and reconnect/physical-tare limitations.
 
+Placement stability limits the total spread across the observed window, and
+fresh contradictory readings cancel an idle tare that has not started writing.
+Replacing a cup with a lighter one can leave a negative net reading; that
+occupied reference stays valid until an actual further lift or tare changes it.
+Valid negative removal readings from a previously accepted heavy load still
+reach the cup detector; this does not expand the placement or brew weight limits.
+
 Removing the cup during drip analysis preserves the previous shot's captured
 last-known weight and skips post-drip learning. The replacement cup or its
 new zero cannot overwrite that shot's result.

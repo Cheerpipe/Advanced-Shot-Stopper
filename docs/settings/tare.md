@@ -70,6 +70,32 @@ The independent settling wait is bounded by the 1 s write allowance plus the
 configured post-tare grace. Failed requests are not automatically retried on a
 cup that remains present.
 
+Before an idle write starts, fresh readings must still satisfy the configured
+minimum using the original direct/relative reference and the placement stability
+window. A changed or stale placement cancels the queued request;
+remove and replace the cup to authorize another attempt. An executing write
+keeps its ownership until it returns, even if the cup is removed or settings
+change.
+
+Write success alone does not confirm the cup's zero reference. The controller
+checks notification capture order against the write boundary, including zero
+readings received during the write. Buffered pre-write readings cannot confirm
+the effect. If the bounded settling period ends without it, a fresh unchanged
+reference is retained; otherwise the reference becomes uncertain and cannot
+satisfy **Require cup to start**. A later unambiguous lift/replacement or a new
+connection can establish fresh evidence; a zero alone cannot reconstruct
+physical motion hidden by simultaneous tare.
+
+Debug export schema 7 includes `idleTare`: request/placement IDs, eligibility
+and terminal reasons, reference confidence, qualifying weight range, capture
+and command times, sequence boundary, and dropped/rejected sample counts.
+These fields come from the control snapshot. `effect_unconfirmed`, `unstable`,
+`stale_sample`, `sample_gap`, and `removed` distinguish common incomplete
+attempts. `qualificationMinG`/`qualificationMaxG` describe the observed window,
+not configured minimum/maximum cup mass. `requestPlacementId` identifies the
+originating placement even after a different cup replaces it. No periodic retry
+is performed.
+
 ## Example
 
 Shot-start tare is on, grace 2 s, retare window 4 s. The shot starts, the

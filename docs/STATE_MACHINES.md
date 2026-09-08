@@ -434,8 +434,13 @@ transient is not a remove/place.
 | `PLACED` | ABSENT → PRESENT after the shared stable-sample/time requirements. Drives late retare inside its shot window, or independent idle tare on an eligible new placement. |
 | `REMOVED` | PRESENT → ABSENT after consecutive samples below **Cup removed** (default −3 g). May set `cupRemovedPending` on the stopper. |
 
-Tare notification (`notifyCupPresenceTare`) clears the “negative hole”
-bookkeeping without changing `PRESENT`/`ABSENT`.
+Placement retains an occupied reference and identity. For a negative occupied
+plateau, the removal threshold applies to a further drop from that reference,
+so repeated unchanged negative readings cannot emit another REMOVED event.
+Stability uses the whole candidate's maximum-minus-minimum spread. Tare
+notification rebases the reference to zero without changing PRESENT/ABSENT.
+An unconfirmed effect can mark the reference uncertain; PRESENT alone then
+does not satisfy the cup-start guard. Confirmed removal clears uncertainty.
 
 The shot-start resync preserves known tared PRESENT at zero. Require-cup checks
 consume that state, not a positive net-weight threshold. Untared lift-to-zero
@@ -544,6 +549,22 @@ Terminal status survives a dropped event. Control owns placement provenance
 and keeps start permission closed until completion/settling or bounded cleanup;
 a rejected physical gesture needs release, including if completion arrives in
 the same control pass. STOP queue priority remains unchanged.
+
+The control owner validates new samples while QUEUED and publishes their last
+approved sequence under the request mutex. A worker seeing newer published
+samples requeues once per existing tick until control validates or cancels;
+the original expiry remains. Claim records notification capture sequence/time.
+Control separates transport completion from post-boundary zero evidence,
+rolls back a provisional reference after failure, and preserves or invalidates
+the prior reference at the existing settling deadline. A new placement cannot
+inherit an old request's result. Disabling the feature after a successful write
+still allows the pending reference to settle within that bound.
+
+Weight events preserve BLE capture time/sequence and use a fixed 16-event FIFO.
+Overflow clears the lost window and marks discontinuity on the retained newest
+sample; cup confirmation/stability cannot span that gap. Negative removal
+evidence is distinct from the narrower placement/automation weight range.
+Both existing drain checkpoints and the 33-event per-call cap remain unchanged.
 
 Idle tare uses the existing cup reference notification without freezing the
 cup FSM. Negative removal evidence remains active during writing. A physical

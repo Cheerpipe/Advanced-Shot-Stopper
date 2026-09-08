@@ -448,7 +448,7 @@ class NimbleScaleClient {
         portENTER_CRITICAL(&advertMux_);
         negativeCache_.erase(peerKey(selectedAddress_));
         portEXIT_CRITICAL(&advertMux_);
-        currentWeight_ = weight;
+        currentWeightSample_ = {weight, frame.receivedAtMs, frame.captureSequence};
         return true;
       }
     }
@@ -561,7 +561,14 @@ class NimbleScaleClient {
     portEXIT_CRITICAL(&mux_);
     return snapshot;
   }
-  float weight() const { return currentWeight_; }
+  float weight() const { return currentWeightSample_.weightG; }
+  ScaleWeightSample weightSample() const { return currentWeightSample_; }
+  uint32_t notificationSequence() const {
+    portENTER_CRITICAL(&mux_);
+    const uint32_t sequence = notificationSequence_;
+    portEXIT_CRITICAL(&mux_);
+    return sequence;
+  }
 
   int rssi() const {
     if (state_ != State::Ready || connectionHandle_ == kInvalidHandle) {
@@ -702,6 +709,7 @@ class NimbleScaleClient {
     uint32_t generation;
     uint32_t operationId;
     uint32_t receivedAtMs;
+    uint32_t captureSequence;
     uint8_t length;
     uint8_t data[MAX_BLE_PACKET_LENGTH];
   };
@@ -1008,6 +1016,9 @@ class NimbleScaleClient {
     } else {
       invalidNotificationStreak_ = 0;
       frame.generation = generation_;
+      ++notificationSequence_;
+      if (notificationSequence_ == 0) ++notificationSequence_;
+      frame.captureSequence = notificationSequence_;
       rxFrames_[rxTail_] = frame;
       rxTail_ = (rxTail_ + 1) % kRxFrameCount;
       ++rxCount_;
@@ -2257,7 +2268,8 @@ class NimbleScaleClient {
   uint32_t packetPeriod_ = 0;
   uint32_t lastTimerPacket_ = 0;
   uint32_t currentTimerMs_ = 0;
-  float currentWeight_ = 0.0f;
+  ScaleWeightSample currentWeightSample_ = {};
+  uint32_t notificationSequence_ = 0;
   uint32_t rejectedPackets_ = 0;
   uint8_t consecutiveRejectedPackets_ = 0;
   uint32_t reconnects_ = 0;
@@ -2406,6 +2418,14 @@ ScaleCommandResult EspressoScaleBLE::heartbeat() {
 
 float EspressoScaleBLE::getWeight() const {
   return clientFromStorage(_nimbleClientStorage).weight();
+}
+
+ScaleWeightSample EspressoScaleBLE::getWeightSample() const {
+  return clientFromStorage(_nimbleClientStorage).weightSample();
+}
+
+uint32_t EspressoScaleBLE::notificationSequence() const {
+  return clientFromStorage(_nimbleClientStorage).notificationSequence();
 }
 
 bool EspressoScaleBLE::hasTimer() const {

@@ -16,6 +16,7 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | network/webhook tasks | owning service, borrowed `TaskHandle_t` | stop request, task acknowledgement, join, then queues/buffers/clients |
 | scale and persistence tasks/queues | boot-lifetime owning service | startup fault rollback; resources remain stable after successful boot |
 | idle scale tare status | ScaleService; control accesses its request API | task mutex serializes claim/cancel/status; never held during BLE writes; WRITING cannot be cancelled; control releases terminal/expired requests |
+| ordered scale-weight handoff | ScaleService producer, control consumer | static 16-event FIFO under task mutex; overflow drops the incomplete window and marks discontinuity; no allocation or dynamic teardown |
 | static task mutex/event storage | containing static object | no heap allocation and no dynamic teardown |
 | HTTP server | NetworkService | manager-task-only stop/restart; handle cleared immediately after `httpd_stop` |
 | persistence mailbox | control producer, then persistence worker | one external request; internal token queue; producer may reuse only after consuming completion, or failed enqueue |

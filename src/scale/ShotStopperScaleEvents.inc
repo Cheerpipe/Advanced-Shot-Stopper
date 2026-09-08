@@ -401,9 +401,12 @@ void processScaleWorkerEvents() {
     scaleCriticalEventMux.unlock();
     if (!receivedCritical) {
       scaleWeightEventMux.lock();
-      if (scaleWeightEventPending) {
-        event = scaleWeightEvent;
-        scaleWeightEventPending = false;
+      if (scaleWeightEventCount != 0) {
+        event = scaleWeightEvents[scaleWeightEventHead];
+        scaleWeightEventHead = (scaleWeightEventHead + 1U) %
+                              SCALE_WEIGHT_EVENT_CAPACITY;
+        --scaleWeightEventCount;
+        scaleWeightEventPending = scaleWeightEventCount != 0;
         receivedWeight = true;
       }
       scaleWeightEventMux.unlock();
@@ -440,6 +443,14 @@ void processScaleWorkerEvents() {
             break;
           }
         }
+        if (event.sampleDiscontinuity) {
+          resetCupSampleEvidence();
+          idleTare.absentObserved = false;
+          if (idleTare.requestId != 0 &&
+              idleScaleTareStatus().phase == IdleTarePhase::QUEUED) {
+            releaseIdleTareRequest(IdleTareReason::SAMPLE_GAP);
+          }
+        }
         observedWeight = event.weightG;
         observedWeightReceivedAtMs = event.receivedAtMs;
         observedWeightSequence = event.packetSequence;
@@ -449,7 +460,7 @@ void processScaleWorkerEvents() {
                                 : WeightStreamState::FRESH;
         if (recordWeightSampleWithProvenance(
                 event.weightG, event.receivedAtMs, event.packetSequence,
-                event.connectionGeneration)) {
+                event.connectionGeneration, event.captureSequence)) {
           currentWeight = event.weightG;
           currentWeightReceivedAtMs = event.receivedAtMs;
           currentWeightSequence = event.packetSequence;

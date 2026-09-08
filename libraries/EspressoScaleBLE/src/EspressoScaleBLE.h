@@ -93,6 +93,12 @@ enum class ScaleDisconnectReason : uint8_t {
     MBUF_ALLOCATION_FAILED
 };
 
+struct ScaleWeightSample {
+    float weightG = 0.0f;
+    uint32_t receivedAtMs = 0;
+    uint32_t captureSequence = 0;
+};
+
 class EspressoScaleBLE {
     public:
         explicit EspressoScaleBLE(bool debug);
@@ -128,6 +134,8 @@ class EspressoScaleBLE {
 
         ScaleCommandResult heartbeat();
         float getWeight() const;
+        ScaleWeightSample getWeightSample() const;
+        uint32_t notificationSequence() const;
         bool hasTimer() const;
         uint32_t getTimerMs() const;
         uint32_t lastTimerAgeMs() const;

@@ -218,8 +218,11 @@ ScaleEvent scaleCriticalEvent;
 bool scaleCriticalEventPending = false;
 ScaleEvent scaleTimerStartEvent;
 bool scaleTimerStartEventPending = false;
-ScaleEvent scaleWeightEvent;
-bool scaleWeightEventPending = false;
+ScaleEvent scaleWeightEvents[SCALE_WEIGHT_EVENT_CAPACITY];
+uint8_t scaleWeightEventHead = 0;
+uint8_t scaleWeightEventCount = 0;
+uint32_t scaleWeightEventDrops = 0;
+std::atomic<bool> scaleWeightEventPending{false};
 bool scaleBeepPending = false;
 uint32_t scaleBeepCycleId = 0;
 uint32_t scaleBeepConnectionGeneration = 0;
@@ -542,10 +545,8 @@ uint32_t scaleWorkerTickDelayMs() {
 }
 
 IdleTareStatus idleScaleTareStatus() {
-  idleScaleTareMux.lock();
-  const IdleTareStatus status = workerIdleTare;
-  idleScaleTareMux.unlock();
-  return status;
+  const TaskLockGuard lock(idleScaleTareMux);
+  return workerIdleTare;
 }
 
 bool cancelIdleScaleTare(uint32_t requestId, IdleTareStatus *released) {
@@ -560,21 +561,39 @@ bool cancelIdleScaleTare(uint32_t requestId, IdleTareStatus *released) {
   return !writing;
 }
 
-bool claimIdleScaleTare(uint32_t requestId) {
+void approveIdleScaleTareSample(uint32_t requestId, uint32_t packetSequence) {
+  idleScaleTareMux.lock();
+  if (workerIdleTare.requestId == requestId &&
+      workerIdleTare.phase == IdleTarePhase::QUEUED) {
+    workerIdleTare.approvedPacketSequence = packetSequence;
+  }
+  idleScaleTareMux.unlock();
+}
+
+bool claimIdleScaleTare(uint32_t requestId, uint32_t expectedPacketSequence,
+                        uint32_t captureBoundary) {
   idleScaleTareMux.lock();
   const bool claimed = workerIdleTare.requestId == requestId &&
-                       workerIdleTare.phase == IdleTarePhase::QUEUED;
-  if (claimed) workerIdleTare.phase = IdleTarePhase::WRITING;
+                       workerIdleTare.phase == IdleTarePhase::QUEUED &&
+                       (expectedPacketSequence == 0 ||
+                        workerIdleTare.approvedPacketSequence == expectedPacketSequence);
+  if (claimed) {
+    workerIdleTare.phase = IdleTarePhase::WRITING;
+    workerIdleTare.startedAtMs = millis();
+    workerIdleTare.captureBoundary = captureBoundary;
+  }
   idleScaleTareMux.unlock();
   return claimed;
 }
 
-void finishIdleScaleTare(uint32_t requestId, bool succeeded) {
+void finishIdleScaleTare(uint32_t requestId, bool succeeded,
+                         IdleTareReason failureReason = IdleTareReason::WRITE_FAILED) {
   idleScaleTareMux.lock();
   if (workerIdleTare.requestId == requestId) {
     workerIdleTare.phase = succeeded ? IdleTarePhase::SUCCEEDED
                                     : IdleTarePhase::FAILED;
     workerIdleTare.writtenAtMs = millis();
+    workerIdleTare.reason = succeeded ? IdleTareReason::NONE : failureReason;
   }
   idleScaleTareMux.unlock();
 }
@@ -592,7 +611,9 @@ bool enqueueScaleCommand(const ScaleCommand &command, bool toFront) {
     idleScaleTareMux.lock();
     const bool available = workerIdleTare.phase == IdleTarePhase::NONE;
     if (available) {
+      workerIdleTare = IdleTareStatus{};
       workerIdleTare.requestId = stamped.idleTareRequestId;
+      workerIdleTare.approvedPacketSequence = stamped.qualifiedPacketSequence;
       workerIdleTare.phase = IdleTarePhase::QUEUED;
     }
     idleScaleTareMux.unlock();
@@ -653,7 +674,18 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
     portEXIT_CRITICAL(&scaleLinkMux);
 
     scaleWeightEventMux.lock();
-    scaleWeightEvent = stamped;
+    if (scaleWeightEventCount == SCALE_WEIGHT_EVENT_CAPACITY) {
+      // Lost samples may contain a sign reversal. Never join evidence across
+      // overflow; retain the newest reading with an explicit discontinuity.
+      scaleWeightEventDrops += scaleWeightEventCount;
+      scaleWeightEventHead = 0;
+      scaleWeightEventCount = 0;
+      stamped.sampleDiscontinuity = true;
+    }
+    const size_t tail = (scaleWeightEventHead + scaleWeightEventCount) %
+                        SCALE_WEIGHT_EVENT_CAPACITY;
+    scaleWeightEvents[tail] = stamped;
+    ++scaleWeightEventCount;
     scaleWeightEventPending = true;
     scaleWeightEventMux.unlock();
     if (streamGapMs != 0) {
@@ -671,7 +703,7 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
   }
 
   if (critical) {
-    // Weight events use their own overwrite mailbox. Command results normally
+    // Weight events use their own bounded FIFO. Command results normally
     // use this FIFO; distinct START and STOP fallback slots ensure those two
     // acknowledgements cannot overwrite each other when the FIFO is full.
     if (scaleEventQueue != nullptr &&
@@ -762,8 +794,10 @@ bool publishPendingScaleWeightEvent() {
   }
   ScaleEvent event;
   event.type = ScaleEventType::WEIGHT;
-  event.receivedAtMs = millis();
-  event.weightG = scale.getWeight();
+  const ScaleWeightSample sample = scale.getWeightSample();
+  event.receivedAtMs = sample.receivedAtMs;
+  event.captureSequence = sample.captureSequence;
+  event.weightG = sample.weightG;
   publishScaleEvent(event, false);
   return true;
 }
@@ -1146,10 +1180,27 @@ void executeScaleCommand(const ScaleCommand &command) {
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   if (command.idleTareRequestId != 0) {
     if (static_cast<int32_t>(millis() - command.expiresAtMs) >= 0) {
-      cancelIdleScaleTare(command.idleTareRequestId);
+      idleScaleTareMux.lock();
+      if (workerIdleTare.requestId == command.idleTareRequestId &&
+          workerIdleTare.phase == IdleTarePhase::QUEUED) {
+        workerIdleTare.phase = IdleTarePhase::FAILED;
+        workerIdleTare.reason = IdleTareReason::EXPIRED;
+      }
+      idleScaleTareMux.unlock();
       return;
     }
-    if (!claimIdleScaleTare(command.idleTareRequestId)) return;
+    if (!claimIdleScaleTare(command.idleTareRequestId, link.packetSequence,
+                            scale.notificationSequence())) {
+      const IdleTareStatus status = idleScaleTareStatus();
+      if (status.requestId == command.idleTareRequestId &&
+          status.phase == IdleTarePhase::QUEUED &&
+          xQueueSend(scaleCommandQueue, &command, 0) != pdTRUE) {
+        finishIdleScaleTare(command.idleTareRequestId, false, IdleTareReason::QUEUE_FULL);
+      }
+      // Let control validate already-published samples on its normal turn.
+      // One attempt per existing worker tick, no notification or extra wait.
+      return;
+    }
   }
   if (command.connectionGeneration == 0 ||
       command.connectionGeneration != link.connectionGeneration ||

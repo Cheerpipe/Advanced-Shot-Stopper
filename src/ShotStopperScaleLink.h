@@ -18,7 +18,7 @@ namespace shotstopper {
 // LAYER: Scale link port (worker ↔ orchestrator)
 // =============================================================================
 // WHAT: Command/event/snapshot types for the BLE scale worker. The worker
-//       owns the radio, ATT writes, and latest-wins weight mailbox. The
+//       owns the radio, ATT writes, and bounded ordered weight handoff. The
 //       orchestrator consumes events and decides brew.
 //
 // BOUNDARY: No CycleSession, stopper state, cup, or brew policy.
@@ -40,10 +40,31 @@ enum class ScaleEventType : uint8_t {
 
 // Worker-owned command lifetime. Terminal state survives a dropped result.
 enum class IdleTarePhase : uint8_t { NONE, QUEUED, WRITING, SUCCEEDED, FAILED };
+enum class IdleTareReason : uint8_t {
+  NONE, FEATURE_DISABLED, NOT_READY, ACTIVE_CYCLE, MAINTENANCE, RELAY_BLOCKED,
+  STOP_STATE, MACHINE_NOT_OFF, SCALE_UNAVAILABLE, NO_ABSENCE, UNSUPPORTED,
+  QUEUE_FULL, EXPIRED, REMOVED, CONFIG_CHANGED, STALE_SAMPLE, UNSTABLE,
+  WRITE_FAILED, EFFECT_CONFIRMED, EFFECT_UNCONFIRMED, START_REQUEST,
+  CONNECTION_CHANGED, SAMPLE_GAP, SLOT_BUSY
+};
+inline const char *idleTareReasonName(uint8_t reason) {
+  static const char *const names[] = {
+      "none", "disabled", "not_ready", "active_cycle", "maintenance",
+      "relay_blocked", "stop_state", "machine_not_off", "scale_unavailable",
+      "no_absence", "unsupported", "queue_full", "expired", "removed",
+      "config_changed", "stale_sample", "unstable", "write_failed",
+      "effect_confirmed", "effect_unconfirmed", "start_request",
+      "connection_changed", "sample_gap", "slot_busy"};
+  return reason < sizeof(names) / sizeof(names[0]) ? names[reason] : "unknown";
+}
 struct IdleTareStatus {
   uint32_t requestId = 0;
+  uint32_t approvedPacketSequence = 0;
+  uint32_t startedAtMs = 0;
+  uint32_t captureBoundary = 0;
   uint32_t writtenAtMs = 0;
   IdleTarePhase phase = IdleTarePhase::NONE;
+  IdleTareReason reason = IdleTareReason::NONE;
 };
 
 struct ScaleCommand {
@@ -52,6 +73,7 @@ struct ScaleCommand {
   uint32_t connectionGeneration = 0;
   uint32_t idleTareRequestId = 0;
   uint32_t expiresAtMs = 0;
+  uint32_t qualifiedPacketSequence = 0;
   bool autoTare = false;
   bool canTareStartTimer = false;
   bool commandFeedbackExpected = false;
@@ -64,7 +86,9 @@ struct ScaleEvent {
   uint32_t receivedAtMs = 0;
   uint32_t connectionGeneration = 0;
   uint32_t packetSequence = 0;
+  uint32_t captureSequence = 0;
   float weightG = 0.0f;
+  bool sampleDiscontinuity = false;
   bool commandAttempted = false;
   bool writeSucceeded = false;
   bool usedCombinedTareStart = false;

@@ -294,6 +294,44 @@ enum class WeightStreamState : uint8_t {
   OVERLOAD
 };
 
+struct CupTareDiagnostics {
+  uint8_t cupState = 0;
+  bool holdTransitions = false;
+  bool inNegativeHole = false;
+  bool removedArmed = false;
+  bool tared = false;
+  bool referenceKnown = true;
+  bool absentObserved = false;
+  uint8_t removedConfirmations = 0;
+  uint8_t stabilitySamples = 0;
+  uint8_t phase = 0;
+  uint8_t eligibilityReason = 0;
+  uint8_t lastReason = 0;
+  float holeWeightG = 0.0f;
+  float candidateWeightG = 0.0f;
+  float occupiedReferenceG = 0.0f;
+  float requestMinimumG = 0.0f;
+  float requestMaximumG = 0.0f;
+  float lastWeightG = 0.0f;
+  uint32_t placementId = 0;
+  uint32_t requestPlacementId = 0;
+  uint32_t requestId = 0;
+  uint32_t connectionGeneration = 0;
+  uint32_t configRevision = 0;
+  uint32_t requestedAtMs = 0;
+  uint32_t startedAtMs = 0;
+  uint32_t writtenAtMs = 0;
+  uint32_t effectAtMs = 0;
+  uint32_t captureBoundary = 0;
+  uint32_t lastSampleAtMs = 0;
+  uint32_t lastPacketSequence = 0;
+  uint32_t lastCaptureSequence = 0;
+  uint32_t lastTerminalRequestId = 0;
+  uint32_t lastTerminalAtMs = 0;
+  uint32_t rejectedSamples = 0;
+  uint32_t droppedSamples = 0;
+};
+
 enum class WeightControlState : uint8_t {
   INACTIVE,
   VALIDATING,

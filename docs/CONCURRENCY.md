@@ -35,6 +35,15 @@ commit, and refresh acknowledgment follows it.
 The scale consumer selects the critical result or, otherwise, the timer-start
 result under one acquisition of their shared mutex. It processes the copied
 event after unlocking and retains both control-loop drain checkpoints.
+Weight delivery uses a fixed 16-event FIFO under its existing task mutex;
+overflow explicitly invalidates sample evidence instead of silently joining
+nonconsecutive readings. No parsing or cup-state transition runs under that
+mutex. Idle-tare claim/cancel/approved-sequence updates use the separate request
+mutex; neither mutex nests with the other or spans ATT. Unvalidated publication
+defers claim using the existing worker tick and unchanged command expiry.
+Cup/idle-tare diagnostic scalars and worker outcome/drop snapshots are gathered
+by control before taking its status publication mutex. Debug export reads the
+committed copy, including uncertainty and the last terminal reason.
 The NimBLE advertisement mailbox copies a raw six-byte address and bounded name
 under the existing nested spinlocks; the consumer formats its private address
 copy after unlocking. A concurrent advertisement remains pending for the next
@@ -52,7 +61,7 @@ This is the retained-lock inventory for the resource/concurrency qualification
 work; the filename/section label is preserved for existing references.
 
 The task-only bullseye configuration, BLE Companion publication,
-settings-persistence handoff, and scale critical/weight mailboxes use static
+settings-persistence handoff, and scale critical/weight handoffs use static
 FreeRTOS mutexes. These paths can be reached from lower-priority HTTP,
 network, persistence, BLE or control tasks and therefore require priority
 inheritance; disabling interrupts was not justified.

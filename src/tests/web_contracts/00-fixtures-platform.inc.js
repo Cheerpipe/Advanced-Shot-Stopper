@@ -351,7 +351,7 @@ if (!network.includes('copyTaskProfiler') ||
     !network.includes('static constexpr size_t kStatusJson = 12288') ||
     !networkHeader.includes('void (*copyTaskProfiler)(TaskProfilerSnapshot &out)') ||
     !fs.readFileSync(path.join(sketchDir, 'ShotStopperDebugExport.h'), 'utf8')
-        .includes('DEBUG_EXPORT_SCHEMA_VERSION = 6')) {
+        .includes('DEBUG_EXPORT_SCHEMA_VERSION = 7')) {
   throw new Error(
       'Diagnostic status, POST /api/v1/diagnostic/profiler, and debug export must expose tasks');
 }

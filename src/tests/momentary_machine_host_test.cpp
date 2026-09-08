@@ -78,7 +78,9 @@ void resetMomentaryHarness() {
   workerIdleTare = IdleTareStatus{};
   pendingCupRemovedSettle = false;
   scaleWeightEventPending = false;
-  scaleWeightEvent = ScaleEvent{};
+  scaleWeightEventHead = 0;
+  scaleWeightEventCount = 0;
+  scaleWeightEventDrops = 0;
   runtimeConfig = RuntimeConfig{};
   runtimeConfig.autoTareOutsideBrew = false;
   runtimeConfig.requireCupToStart = false;

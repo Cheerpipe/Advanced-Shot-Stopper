@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 #include <deque>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <type_traits>
@@ -31,9 +32,10 @@ using TickType_t = uint32_t;
 using TaskHandle_t = void *;
 using BaseType_t = int;
 using UBaseType_t = unsigned;
-using portMUX_TYPE = int;
+// ESP-IDF critical sections exclude other threads and permit owner reentry.
+using portMUX_TYPE = std::recursive_mutex;
 
-#define portMUX_INITIALIZER_UNLOCKED 0
+#define portMUX_INITIALIZER_UNLOCKED {}
 #define pdMS_TO_TICKS(ms) (ms)
 
 // Match libraries/EspressoScaleBLE/src/EspressoScaleBLE.h so shotStopper.cpp can
@@ -156,10 +158,10 @@ inline uint32_t ulTaskNotifyTake(BaseType_t clearOnExit, TickType_t waitTicks) {
   (void)waitTicks;
   return 0;
 }
-inline void portENTER_CRITICAL(portMUX_TYPE *mux) { (void)mux; }
-inline void portEXIT_CRITICAL(portMUX_TYPE *mux) { (void)mux; }
-inline void portENTER_CRITICAL_ISR(portMUX_TYPE *mux) { (void)mux; }
-inline void portEXIT_CRITICAL_ISR(portMUX_TYPE *mux) { (void)mux; }
+inline void portENTER_CRITICAL(portMUX_TYPE *mux) { mux->lock(); }
+inline void portEXIT_CRITICAL(portMUX_TYPE *mux) { mux->unlock(); }
+inline void portENTER_CRITICAL_ISR(portMUX_TYPE *mux) { mux->lock(); }
+inline void portEXIT_CRITICAL_ISR(portMUX_TYPE *mux) { mux->unlock(); }
 
 #define IRAM_ATTR
 
@@ -320,6 +322,12 @@ inline ScaleFeatureSet hostGenericScaleFeatures() {
   features.maxPacketSilenceMs = 8000;
   return features;
 }
+
+struct ScaleWeightSample {
+  float weightG = 0.0f;
+  uint32_t receivedAtMs = 0;
+  uint32_t captureSequence = 0;
+};
 
 class EspressoScaleBLE {
  public:
@@ -516,6 +524,11 @@ class EspressoScaleBLE {
     return runCommand(heartbeatSucceeds);
   }
   float getWeight() const { return weight; }
+  ScaleWeightSample getWeightSample() const {
+    return {weight, weightCapturedAtMs == UINT32_MAX ? hostMillis : weightCapturedAtMs,
+            weightCaptureSequence};
+  }
+  uint32_t notificationSequence() const { return weightCaptureSequence; }
   bool hasTimer() const { return connected && timerValid; }
   uint32_t getTimerMs() const { return timerValid ? timerMs : 0; }
   uint32_t lastTimerAgeMs() const { return timerValid ? timerAgeMs : 0xffffffffUL; }
@@ -648,6 +661,8 @@ class EspressoScaleBLE {
   bool newWeightAvailableValue = false;
   bool disconnectWhenCheckingWeight = false;
   float weight = 0.0f;
+  uint32_t weightCapturedAtMs = UINT32_MAX;
+  uint32_t weightCaptureSequence = 0;
   bool timerValid = false;
   uint32_t timerMs = 0;
   uint32_t timerAgeMs = 0;

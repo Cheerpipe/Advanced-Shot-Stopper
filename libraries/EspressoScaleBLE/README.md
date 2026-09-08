@@ -99,6 +99,14 @@ weight drop to zero as proof of tare: removing an untared cup can produce the
 same trace. Firmware-issued tare and its known cup reference are handled by
 the controller's [tare policy](../../docs/settings/tare.md).
 
+The single worker owner can read `getWeightSample()` after
+`newWeightAvailable()`: grams, notification capture time and capture sequence
+are returned from the same consumed RX frame. `notificationSequence()` reads
+the latest queued notification identity to establish a command boundary;
+buffered earlier frames retain their original identity/time. Sequence zero is
+reserved and skipped on wrap. `getWeight()` remains available. Neither write
+completion nor these metadata certify unobservable physical cup motion.
+
 Run the host lifecycle/parser suite with:
 
 ```sh
