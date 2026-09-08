@@ -321,7 +321,7 @@ if (html.indexOf('<summary>Brew by Weight</summary>') >
     html.indexOf('id="cupRemovedWeightG"') >
         html.indexOf('<summary>Tare</summary>') ||
     html.includes('id="requireCupToStart" type="checkbox" checked') ||
-    !ui.includes('Enable cup protection') ||
+    !ui.includes('id="cupProtectionEnabled" type="checkbox" checked> Cup protection') ||
     !ui.includes('cupProtectOpt') ||
     !ui.includes('place the cup after connect so it can be detected.') ||
     !ui.includes('id="homeCupProtectionEnabled"') ||

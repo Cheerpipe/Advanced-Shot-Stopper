@@ -48,7 +48,7 @@ Check compatibility with your installed Home Assistant version before use.
 ## Configure Shot Stopper and test
 
 1. While idle, unlock **Admin → Webhooks**.
-2. Enable webhooks and enter
+2. Select **Webhooks** and enter
    `http://<home-assistant-ip>:8123/api/webhook/<your-webhook-id>`.
    Use the same ID as the package and an address reachable from the controller.
 3. Select brew-state, first-drop, and end events, then save.

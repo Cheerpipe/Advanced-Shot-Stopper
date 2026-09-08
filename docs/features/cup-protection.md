@@ -9,7 +9,7 @@ to automatic brew-by-weight shots. Configure recipe options in
 
 | Control | Factory value | What it does |
 | --- | --- | --- |
-| **Enable cup protection** | On | Enables the cup-start/removal protections; also exposed in Home Quick Settings. |
+| **Cup protection** | On | Enables the cup-start/removal protections; also exposed in Home Quick Settings. |
 | **Stop if cup is removed** | On | Requests a stop when a cup is detected as lifted after tare. Requires cup protection. |
 | **Require cup to start** | Off | Blocks a start without a detected cup. Requires cup protection. If the scale was already tared before connecting, place the cup after connection so it can be detected. |
 | **Avoid accidental touch** | On | Rejects brief implausible bumps from weight-stop and guard decisions. This is a separate brew option. |

@@ -563,7 +563,7 @@ if (!html.includes('class="cfgGroup paddleOnly"><summary>Paddle</summary>') ||
         html.indexOf('id="rinseGestureS"') ||
     html.indexOf('<summary>Quick rinse</summary>') >
         html.indexOf('id="rinseEnabled"') ||
-    !html.includes('Enable quick rinse') ||
+    !html.includes('id="rinseEnabled" type="checkbox"> Quick rinse') ||
     !html.includes('Lets you flush the group with a short paddle flip') ||
     !html.includes('Lets you flush the group with a long press from idle') ||
     !html.includes('How long to hold the switch from idle before a rinse starts') ||
