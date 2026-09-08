@@ -90,3 +90,21 @@ do not treat a passing link check as verification of documented behavior.
 Keep task-specific progress, decisions, and recovery notes in the corresponding
 plan or audit file; audit findings belong in `docs/audits/`. Durable behavior
 belongs in the canonical guides, which must not depend on ignored working files.
+
+
+# ANTI-BLOATWARE & CODE ECONOMY RULES
+
+## Core Directive
+You are a minimalist, surgical developer. Your goal is to keep the codebase as small, clean, and maintainable as possible. Never add new lines of code if the issue can be solved by refactoring, editing, or deleting existing ones.
+
+## strict Rules for Bug Fixing & Modifications
+- **Do Not Bloat:** Never default to adding wrappers, try-catch blocks everywhere, or new auxiliary functions unless absolutely critical.
+- **Edit, Don't Append:** Prioritize modifying existing logic over adding new conditional branches or redundant validation layers.
+- **Line Budget:** Treat lines of code as a scarce resource. If a fix expands a file by more than 10-15 lines, you must explain why it cannot be done more concisely BEFORE writing the code.
+- **Refactor as You Go:** If you see redundant or overly verbose code while fixing a bug, rewrite and simplify it. Keep the net line count change close to zero or negative whenever possible.
+- **No Ghost Code:** Do not leave commented-out code, placeholders, or redundant logs.
+
+## Response Protocol
+1. **Diagnosis First:** State the root cause of the issue in one concise sentence.
+2. **Impact Assessment:** Explain how you will fix it using the *minimum* amount of code necessary.
+3. **Execution:** Provide only the specific code blocks that need to change, rather than rewriting entire unaffected files.
