@@ -17,6 +17,10 @@ namespace shotstopper {
 
 class TaskMutex {
  public:
+#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+  // Per-thread observer for production-path lock-order/count assertions.
+  inline static thread_local void (*hostObserver)(const TaskMutex *, bool) = nullptr;
+#endif
   TaskMutex() {
 #if !defined(SHOT_STOPPER_TASK_MUTEX_HOST)
     handle_ = xSemaphoreCreateMutexStatic(&storage_);
@@ -30,6 +34,7 @@ class TaskMutex {
   void lock() {
 #if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
     mutex_.lock();
+    if (hostObserver != nullptr) hostObserver(this, true);
 #else
     const BaseType_t taken = xSemaphoreTake(handle_, portMAX_DELAY);
     configASSERT(taken == pdTRUE);
@@ -39,6 +44,7 @@ class TaskMutex {
 
   void unlock() {
 #if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+    if (hostObserver != nullptr) hostObserver(this, false);
     mutex_.unlock();
 #else
     // FreeRTOS implements xSemaphoreGive as a C macro with an internal handle

@@ -127,13 +127,13 @@ inline void recordRelayCommandedClosed(bool closed) {
 
 inline void recordResetUptime(uint32_t uptimeMs, bool force = false) {
   volatile SafetyResetRecord &safetyResetRecord = detail::safetyResetRecord;
-  if (!safetyResetRecordValid()) return;
   if (!force &&
       (uptimeMs < RESET_UPTIME_CHECKPOINT_INTERVAL_MS ||
        uptimeMs - detail::resetUptimeLastCheckpointMs <
            RESET_UPTIME_CHECKPOINT_INTERVAL_MS)) {
     return;
   }
+  if (!safetyResetRecordValid()) return;
   safetyResetRecord.currentUptimeMsInverse = ~uptimeMs;
   safetyResetRecord.currentUptimeMs = uptimeMs;
   detail::resetUptimeLastCheckpointMs = uptimeMs;

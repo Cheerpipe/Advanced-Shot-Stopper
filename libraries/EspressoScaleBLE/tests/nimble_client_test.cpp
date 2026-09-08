@@ -4,8 +4,20 @@
 #include "nimble/NimbleResilience.h"
 #include <cstdio>
 #include <cassert>
+#include <cstdarg>
 
+static int unlockedSnprintf(char *out, size_t capacity, const char *format, ...) {
+  assert(testCriticalDepth == 0);
+  va_list args;
+  va_start(args, format);
+  const int result = vsnprintf(out, capacity, format, args);
+  va_end(args);
+  return result;
+}
+
+#define snprintf unlockedSnprintf
 #include "../src/EspressoScaleBLENimble.cpp"
+#undef snprintf
 extern "C" void shotStopperScaleLog(uint8_t, const char *) {}
 
 static unsigned checks=0;
@@ -33,6 +45,51 @@ static void notify(NimbleScaleClient &c,uint16_t length) {
   c.onNotification(1,10,&b,c.linkOperationId_);
 }
 static void run() {
+  {
+    NimbleScaleClient c(false);
+    c.beginGeneration();
+    c.state_ = NimbleScaleClient::State::Scanning;
+    const uint32_t operation = c.beginOperation(NimbleScaleClient::CallbackDomain::Scan);
+    uint8_t firstName[] = "BOOKOO first";
+    uint8_t secondName[] = "BOOKOO second";
+    testAdvertisementParseStatus = 0;
+    testAdvertisementFields = {firstName, sizeof(firstName) - 1, 1, 0, nullptr};
+    ble_gap_disc_desc first = {{0, {1, 2, 3, 4, 5, 6}},
+                              BLE_HCI_ADV_RPT_EVTYPE_ADV_IND, nullptr, 0};
+    c.onAdvertisement(first, operation);
+    char mac[32] = {};
+    char name[32] = {};
+    // Publication after the consumption lock releases must remain pending,
+    // while the first call returns its coherent address/name pair.
+    testAfterCriticalExit = [&] {
+      testAdvertisementFields.name = secondName;
+      testAdvertisementFields.name_len = sizeof(secondName) - 1;
+      first.addr.val[0] = 7;
+      c.onAdvertisement(first, operation);
+    };
+    CHECK(c.takeSeenAdvertisement(mac, sizeof(mac), name, sizeof(name)));
+    CHECK(strcmp(mac, "06:05:04:03:02:01") == 0);
+    CHECK(strcmp(name, "BOOKOO first") == 0);
+    CHECK(c.takeSeenAdvertisement(mac, sizeof(mac), name, sizeof(name)));
+    CHECK(strcmp(mac, "06:05:04:03:02:07") == 0);
+    CHECK(strcmp(name, "BOOKOO second") == 0);
+    CHECK(!c.takeSeenAdvertisement(mac, sizeof(mac), name, sizeof(name)));
+    c.onAdvertisement(first, operation + 1);
+    CHECK(!c.takeSeenAdvertisement(mac, sizeof(mac), name, sizeof(name)));
+    // Latest identity survives candidate-slot eviction and small destinations
+    // keep the public truncation/termination behavior.
+    for (unsigned i = 0; i < kCandidateCount + 2; ++i) {
+      first.addr.val[0] = static_cast<uint8_t>(i);
+      c.onAdvertisement(first, operation);
+    }
+    CHECK(c.takeSeenAdvertisement(mac, 3, name, 1));
+    CHECK(strcmp(mac, "06") == 0 && name[0] == '\0');
+    c.onAdvertisement(first, operation);
+    CHECK(c.takeSeenAdvertisement(nullptr, 0, nullptr, 0));
+    CHECK(!c.seenPending_ && testCriticalDepth == 0);
+    testAdvertisementParseStatus = BLE_HS_EINVAL;
+    testAdvertisementFields = {};
+  }
   {
     NimbleScaleClient c(false); ready(c);
     testOnSubmit=[] { xTaskNotifyGive(xTaskGetCurrentTaskHandle()); };

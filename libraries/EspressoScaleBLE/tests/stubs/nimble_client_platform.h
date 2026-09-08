@@ -8,13 +8,25 @@
 #include <functional>
 #include <algorithm>
 #include <new>
+#include <cassert>
 
 using TickType_t = uint32_t;
 using TaskHandle_t = void *;
 using portMUX_TYPE = int;
 #define portMUX_INITIALIZER_UNLOCKED 0
-#define portENTER_CRITICAL(m) ((void)(m))
-#define portEXIT_CRITICAL(m) ((void)(m))
+inline unsigned testCriticalDepth = 0;
+inline std::function<void()> testAfterCriticalExit;
+inline void testEnterCritical(portMUX_TYPE *) { ++testCriticalDepth; }
+inline void testExitCritical(portMUX_TYPE *) {
+  assert(testCriticalDepth != 0);
+  if (--testCriticalDepth == 0 && testAfterCriticalExit) {
+    auto callback = std::move(testAfterCriticalExit);
+    testAfterCriticalExit = {};
+    callback();
+  }
+}
+#define portENTER_CRITICAL(m) testEnterCritical(m)
+#define portEXIT_CRITICAL(m) testExitCritical(m)
 #define ESP_LOGD(...) ((void)0)
 #define pdTRUE 1
 #define pdFALSE 0
@@ -86,7 +98,12 @@ struct ble_hs_adv_fields {
   uint8_t *name; uint8_t name_len,name_is_complete,num_uuids16;
   ble_uuid_any_t *uuids16;
 };
-inline int ble_hs_adv_parse_fields(ble_hs_adv_fields *, const uint8_t *, uint8_t) { return BLE_HS_EINVAL; }
+inline ble_hs_adv_fields testAdvertisementFields = {};
+inline int testAdvertisementParseStatus = BLE_HS_EINVAL;
+inline int ble_hs_adv_parse_fields(ble_hs_adv_fields *fields, const uint8_t *, uint8_t) {
+  *fields = testAdvertisementFields;
+  return testAdvertisementParseStatus;
+}
 struct ble_gap_disc_params { uint8_t passive,filter_duplicates,filter_policy,limited; uint16_t itvl,window; };
 struct ble_gatt_error { int status; uint16_t att_handle; };
 struct ble_gatt_attr {};

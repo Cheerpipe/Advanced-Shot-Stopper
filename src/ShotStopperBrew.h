@@ -446,17 +446,19 @@ void consumeNoScaleShotGuard() {
 }
 
 bool noScaleShotGuardWouldBlock(const GuardInputs &inputs) {
-  const RuntimeConfig effective = effectiveRuntimeConfig();
-  return noScaleBbwEnabled(runtimeConfig.noScaleBbwMode) && !effective.timerOnly &&
-         !inputs.scaleUsable && noScaleShotGuardArmed;
+  if (!noScaleBbwEnabled(runtimeConfig.noScaleBbwMode) || inputs.scaleUsable ||
+      !noScaleShotGuardArmed) {
+    return false;
+  }
+  return !effectiveRuntimeConfig().timerOnly;
 }
 
 void maybeEmitManualNoScaleBeep(const GuardInputs &inputs) {
-  if (!runtimeConfig.buzzerManualNoScaleBeep) {
+  if (!runtimeConfig.buzzerManualNoScaleBeep || inputs.scaleUsable) {
     return;
   }
   const RuntimeConfig effective = effectiveRuntimeConfig();
-  if (effective.timerOnly || inputs.scaleUsable) {
+  if (effective.timerOnly) {
     return;
   }
   emitAlert(AlertEvent::MANUAL_NO_SCALE);
@@ -498,11 +500,10 @@ void temporarilyAllowNoScaleRequireMode() {
 }
 
 void serviceNoScaleRequireBypassGesture(const GuardInputs &inputs) {
-  const RuntimeConfig effective = effectiveRuntimeConfig();
   const bool eligible =
       noScaleBbwRequiresScale(runtimeConfig.noScaleBbwMode) &&
-      !effective.timerOnly && !inputs.scaleUsable && !session.active &&
-      noScaleShotGuardArmed;
+      !inputs.scaleUsable && !session.active && noScaleShotGuardArmed &&
+      !effectiveRuntimeConfig().timerOnly;
   if (!eligible) {
     resetNoScaleRequireBypassGesture();
     return;
@@ -574,10 +575,12 @@ void serviceNoScaleShotGuard(const GuardInputs &inputs) {
 }
 
 bool cupStartGuardWouldBlock(const GuardInputs &inputs) {
+  if (!inputs.scaleUsable || inputs.cup == CupPresenceState::PRESENT) {
+    return false;
+  }
   const RuntimeConfig effective = effectiveRuntimeConfig();
   return effective.cupProtectionEnabled && effective.requireCupToStart &&
-         !effective.timerOnly && inputs.scaleUsable &&
-         inputs.cup != CupPresenceState::PRESENT;
+         !effective.timerOnly;
 }
 
 // Read-only composition for the stopper. Does not arm, consume, or call machine.

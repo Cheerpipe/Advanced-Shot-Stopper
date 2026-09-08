@@ -34,6 +34,19 @@ void publishControlStatus() {
   const uint32_t now = millis();
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
   const ScaleLinkSnapshot scaleLink = getScaleLinkSnapshot();
+  const MachineStatusSample machine = machineSampleStatus();
+  serviceWeightStreamTelemetry();
+  const bool weightFresh =
+      scaleLinkAvailable(scaleLink) && currentWeightIsFresh(now);
+  // Gather other owners before locking publication. Waiting for one producer
+  // must not prevent readers from using the last committed control snapshot.
+  char preferredMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
+  char preferredName[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  copyPreferredScaleMac(preferredMac, sizeof(preferredMac));
+  copyPreferredScaleName(preferredName, sizeof(preferredName));
+  const uint32_t macPauseRemainingMs = scaleMacCachePauseRemainingMs(now);
+  const bool persistPending = liveConfigPersistPending();
+  const BleCompanionStatusSnapshot ble = copyBleCompanionStatus();
   TaskLockGuard lock(controlStatusMutex);
   ControlStatusSnapshot &next = publishedControlStatus;
   next = ControlStatusSnapshot{};
@@ -45,8 +58,7 @@ void publishControlStatus() {
   next.state = stopperState;
   next.activeCycle = session.active;
   next.relayClosed = relay.closed;
-  next.machineRunning = machineIsRunning();
-  machineFillStatus(next);
+  machineFillStatus(next, machine);
   next.virtualHoldOn = virtualHoldOn;
   next.remoteControlEnabled = REMOTE_MACHINE_CONTROL_ENABLED;
   next.source = session.active ? session.source : ControlSource::NONE;
@@ -74,11 +86,10 @@ void publishControlStatus() {
   next.weightControlState = session.active
                                 ? session.weightControlState
                                 : WeightControlState::INACTIVE;
-  serviceWeightStreamTelemetry();
   next.weightStreamState = telemetryWeightStreamState;
   next.scaleRecoveredStaleCount = scaleRecoveredStaleCount;
   next.scaleRecoveredStaleMs = scaleRecoveredStaleMs;
-  next.currentWeightValid = next.scaleAvailable && currentWeightIsFresh(now);
+  next.currentWeightValid = weightFresh;
   next.currentWeightG = next.currentWeightValid ? currentWeight : 0.0f;
   next.currentWeightAgeMs =
       next.currentWeightValid
@@ -160,10 +171,9 @@ void publishControlStatus() {
   }
   copyCString(next.scaleProtocol, sizeof(next.scaleProtocol),
               scaleLink.protocolName);
-  copyPreferredScaleMac(next.preferredScaleMac, sizeof(next.preferredScaleMac));
-  copyPreferredScaleName(next.preferredScaleName,
-                         sizeof(next.preferredScaleName));
-  next.scaleMacCachePauseRemainingMs = scaleMacCachePauseRemainingMs(now);
+  copyCString(next.preferredScaleMac, sizeof(next.preferredScaleMac), preferredMac);
+  copyCString(next.preferredScaleName, sizeof(next.preferredScaleName), preferredName);
+  next.scaleMacCachePauseRemainingMs = macPauseRemainingMs;
   if (session.active) {
     next.cycleFlowDuringRetare = session.flowDuringRetare;
     next.cycleRetarePerformed = session.retarePerformed;
@@ -176,7 +186,7 @@ void publishControlStatus() {
     next.cycleStartedAtMs = session.circuitClosedAtMs != 0U
                                 ? session.circuitClosedAtMs
                                 : session.startedAtMs;
-    next.cycleElapsedMs = cycleShotElapsedMs();
+    next.cycleElapsedMs = machine.circuitElapsedMs;
     next.cycleExtractionExtended =
         session.extractionExtended && fastExtractionGuardSession();
     next.cycleSlowExtractionExtended =
@@ -236,10 +246,10 @@ void publishControlStatus() {
             : runtimeConfig.lastShotCooldownMs - elapsed;
   }
   next.cupStartGuardHold = cupStartGuardHold;
-  next.machineRunState = machineRunState();
+  next.machineRunState = machine.runState;
   next.cupPresenceState = cupPresenceState();
   next.cupPresent = cupPresenceState() == CupPresenceState::PRESENT;
-  next.configPersistPending = liveConfigPersistPending();
+  next.configPersistPending = persistPending;
   next.configPersistFailed = runtimePersistFailed;
   next.bootCapabilities = bootCapabilities;
   next.bootCapabilities.criticalFaultLatched =
@@ -255,7 +265,6 @@ void publishControlStatus() {
   next.usbSerialEnableSource = usbSerialEnableSource;
   next.bleCompanionResultDropped = bleCompanionResultDropped;
   {
-    const BleCompanionStatusSnapshot ble = copyBleCompanionStatus();
     next.bleCompanionEnabled = ble.configuredEnabled;
     next.bleCompanionActive = ble.enabled;
     next.bleCompanionRestartRequired = ble.restartRequired;

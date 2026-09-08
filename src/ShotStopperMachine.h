@@ -216,10 +216,27 @@ inline bool machineBootActivatorHeldStably() {
   return readRawActivatorOn();
 }
 
-inline void machineFillStatus(ControlStatusSnapshot &status) {
+struct MachineStatusSample {
+  bool rawOn;
+  bool running;
+  uint32_t circuitElapsedMs;
+  MachineRunState runState;
+};
+
+// Sample hardware/relay state before the caller locks snapshot publication.
+inline MachineStatusSample machineSampleStatus() {
+  const bool running = machineIsRunning();
   const bool rawOn = readRawActivatorOn();
-  status.rawActivatorOn = rawOn;
-  status.physicalActivatorOn = rawOn;
-  status.circuitElapsedMs = machineElapsedMs();
+  const uint32_t circuitElapsedMs = machineElapsedMs();
+  const MachineRunState runState = machineRunState();
+  return {rawOn, running, circuitElapsedMs, runState};
+}
+
+inline void machineFillStatus(ControlStatusSnapshot &status,
+                              const MachineStatusSample &sample) {
+  status.rawActivatorOn = sample.rawOn;
+  status.physicalActivatorOn = sample.rawOn;
+  status.machineRunning = sample.running;
+  status.circuitElapsedMs = sample.circuitElapsedMs;
   machineFillInferenceStatus(status);
 }

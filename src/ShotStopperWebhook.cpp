@@ -1,13 +1,16 @@
 #include "ShotStopperWebhook.h"
 #include "ShotStopperPsram.h"
 
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM) || \
+    (!defined(SHOT_STOPPER_HOST_TEST) && \
+     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST))
 
+#if !defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_http_client.h>
 #include <esp_mac.h>
+#endif
 
 namespace shotstopper {
 namespace {
@@ -437,7 +440,9 @@ void WebhookDispatcher::task() {
     if (state == WorkerState::STOPPING || queue == nullptr) break;
     // Leave events queued while a shot/rinse or scale connection attempt owns
     // radio time. Queue operations and HTTP remain entirely off control/BLE.
+    bool waitedForQueue = false;
     if (!haveQueued && dispatchAllowed()) {
+      waitedForQueue = true;
       haveQueued =
           xQueueReceive(queue, &queued, pdMS_TO_TICKS(50)) == pdTRUE;
     }
@@ -446,12 +451,12 @@ void WebhookDispatcher::task() {
     if (haveQueued && dispatchAllowed()) {
       (void)send(queued);
       haveQueued = false;
-    } else {
+    } else if (haveQueued || !waitedForQueue) {
       vTaskDelay(pdMS_TO_TICKS(25));
     }
     if (lifecycleMutex_ != nullptr &&
         xSemaphoreTake(lifecycleMutex_, portMAX_DELAY) == pdTRUE) {
-      if (workerState_ == WorkerState::READY && stopAfterDrain_ &&
+      if (workerState_ == WorkerState::READY && stopAfterDrain_ && !haveQueued &&
           uxQueueMessagesWaiting(queue_) == 0) {
         workerState_ = WorkerState::STOPPING;
       }
@@ -536,10 +541,8 @@ bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,
 }
 
 bool WebhookDispatcher::send(const QueuedWebhook &queued) {
-  const HeapCapSnapshot heapBefore = sampleHeapCaps();
   WebhookConfig live;
   uint32_t generation = 0;
-  const HeapCapSnapshot heapAfter = sampleHeapCaps();
   mux_.lock();
   live = config_;
   generation = configGeneration_;
@@ -551,6 +554,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
     mux_.unlock();
     return false;
   }
+  const HeapCapSnapshot heapBefore = sampleHeapCaps();
   const WebhookEvent &event = queued.event;
   mux_.lock();
   status_.sending = true;
@@ -630,6 +634,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
     }
   }
 
+  const HeapCapSnapshot heapAfter = sampleHeapCaps();
   mux_.lock();
   status_.sending = false;
   status_.lastSuccess = ok;

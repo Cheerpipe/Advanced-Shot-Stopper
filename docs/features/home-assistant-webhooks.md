@@ -77,6 +77,12 @@ Treat the webhook ID as a credential: someone who knows it can submit false data
 
 ## If nothing arrives
 
+Webhook memory diagnostics sample immediately before and after an accepted
+delivery attempt, including failed attempts. Entries discarded because their
+configuration is obsolete do not sample memory or increment `heapSamples`.
+The existing before/after keys retain their names; the after values reflect
+the completed attempt, including any retained HTTP client allocation.
+
 | Check | Expected result |
 | --- | --- |
 | URL and secret | Local HTTP URL, correct port and exact matching webhook ID |

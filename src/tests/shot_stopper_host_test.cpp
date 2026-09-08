@@ -1904,6 +1904,38 @@ void r20d_clear_reset_history_keeps_current_reset_reason() {
   CHECK(reason == hostSafetyResetReasonCode);
 }
 
+void r20e_uptime_forced_invalid_and_wrapped_checkpoints() {
+  resetHarness(false, false);
+  for (const uint32_t historyCount : {0U, uint32_t(RESET_HISTORY_CAPACITY)}) {
+    ResetHistoryEntry history[RESET_HISTORY_CAPACITY] = {};
+    for (uint32_t i = 0; i < historyCount; ++i) history[i] = {i + 1U, i * 10U};
+    initializeSafetyResetRecord(SAFETY_RELAY_OPEN_MARKER, 0, history, historyCount);
+    detail::resetUptimeLastCheckpointMs = 0;
+    const uint32_t checksum = detail::safetyResetRecord.historyChecksum;
+    recordResetUptime(17, true);
+    CHECK(detail::safetyResetRecord.currentUptimeMs == 17);
+    CHECK(detail::safetyResetRecord.currentUptimeMsInverse == ~17U);
+    recordResetUptime(60016);
+    CHECK(detail::safetyResetRecord.currentUptimeMs == 17);
+    recordResetUptime(60017);
+    CHECK(detail::safetyResetRecord.currentUptimeMs == 60017);
+    CHECK(detail::safetyResetRecord.historyChecksum == checksum);
+    // Invalid due/forced writes must preserve both data and checkpoint clock.
+    detail::safetyResetRecord.historyChecksum ^= 1U;
+    recordResetUptime(120017);
+    recordResetUptime(120018, true);
+    CHECK(detail::safetyResetRecord.currentUptimeMs == 60017);
+    CHECK(detail::resetUptimeLastCheckpointMs == 60017);
+    detail::safetyResetRecord.historyChecksum = checksum;
+    recordResetUptime(UINT32_MAX - 100U, true);
+    recordResetUptime(59999);
+    CHECK(detail::safetyResetRecord.currentUptimeMs == UINT32_MAX - 100U);
+    recordResetUptime(60000);
+    CHECK(detail::safetyResetRecord.currentUptimeMs == 60000);
+    CHECK(safetyResetRecordValid());
+  }
+}
+
 void w01_default_runtime_configuration_is_valid() {
   const RuntimeConfig config;
   CHECK(validateRuntimeConfig(config) == ConfigValidationError::NONE);
@@ -5868,6 +5900,69 @@ void r25_critical_scale_mailbox_never_blocks_and_keeps_latest() {
   CHECK(!scaleTimerStartEventPending);
 }
 
+void r25b_empty_mailboxes_take_one_critical_lock() {
+  resetHarness(false, true);
+  processScaleWorkerEvents();
+  static thread_local unsigned acquisitions = 0;
+  acquisitions = 0;
+  TaskMutex::hostObserver = [](const TaskMutex *mutex, bool acquired) {
+    if (mutex == &scaleCriticalEventMux && acquired) ++acquisitions;
+  };
+  processScaleWorkerEvents();
+  processScaleWorkerEvents();
+  TaskMutex::hostObserver = nullptr;
+  CHECK(acquisitions == 2);
+}
+
+void r25c_refilled_critical_mailboxes_remain_live_and_bounded() {
+  resetHarness(false, true);
+  constexpr uint32_t batches = 2000;
+  std::atomic<bool> done{false};
+  std::thread producer([&]() {
+    for (uint32_t id = 1; id <= batches;) {
+      bool published = false;
+      {
+        TaskLockGuard lock(scaleCriticalEventMux);
+        if (!scaleCriticalEventPending && !scaleTimerStartEventPending) {
+          ScaleEvent stop;
+          stop.type = ScaleEventType::TIMER_STOP_RESULT;
+          stop.cycleId = id;
+          stop.discardedStaleConnection = true;
+          scaleCriticalEvent = stop;
+          scaleCriticalEventPending = true;
+          stop.type = ScaleEventType::TIMER_START_RESULT;
+          scaleTimerStartEvent = stop;
+          scaleTimerStartEventPending = true;
+          ++id;
+          published = true;
+        }
+      }
+      if (!published) std::this_thread::yield();
+    }
+    done.store(true, std::memory_order_release);
+  });
+  static thread_local unsigned acquisitions = 0;
+  TaskMutex::hostObserver = [](const TaskMutex *mutex, bool acquired) {
+    if (mutex == &scaleCriticalEventMux && acquired) ++acquisitions;
+  };
+  bool bounded = true;
+  do {
+    acquisitions = 0;
+    processScaleWorkerEvents();
+    bounded = bounded && acquisitions <= SCALE_EVENT_QUEUE_LENGTH + 1;
+  } while (!done.load(std::memory_order_acquire));
+  TaskMutex::hostObserver = nullptr;
+  producer.join();
+  processScaleWorkerEvents();
+  CHECK(bounded);
+  CHECK(!scaleCriticalEventPending && !scaleTimerStartEventPending);
+  DebugEvent events[DEBUG_EVENT_CAPACITY] = {};
+  const size_t count = copyDebugEvents(0, events, DEBUG_EVENT_CAPACITY);
+  CHECK(count >= 2);
+  CHECK(events[count - 2].code == DebugCode::SCALE_TIMER_STOP_FAILED);
+  CHECK(events[count - 1].code == DebugCode::SCALE_TIMER_START_FAILED);
+}
+
 void r26_remote_timer_stop_retries_after_full_queue() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -9538,7 +9633,18 @@ void m09_snapshot_mutexes_preserve_concurrent_invariants() {
     taskProfiler.publishForHost(profiler);
   };
 
+  static thread_local bool publicationLocked = false;
+  static thread_local unsigned nestedAcquisitions = 0;
+  publicationLocked = false;
+  nestedAcquisitions = 0;
+  TaskMutex::hostObserver = [](const TaskMutex *mutex, bool acquired) {
+    if (mutex == &controlStatusMutex) publicationLocked = acquired;
+    else if (acquired && publicationLocked) ++nestedAcquisitions;
+  };
   publishInvariant(1);
+  TaskMutex::hostObserver = nullptr;
+  CHECK(!publicationLocked);
+  CHECK(nestedAcquisitions == 0);
   auto reader = [&]() {
     while (!start.load(std::memory_order_acquire)) {
       std::this_thread::yield();
@@ -9878,6 +9984,54 @@ void f06_boot_capability_policy_is_fail_closed() {
   resetHarness(false, false);
   reportTaskWatchdogFault();
   CHECK(bootRefusesRelayClose(BootState::FAULT_LATCHED));
+}
+
+void f18_guard_early_rejection_matches_original_predicates() {
+  resetHarness(false, true);
+  GuardInputs inputs;
+  inputs.stablyOff = true;
+  for (unsigned bankCase = 0; bankCase != 4; ++bankCase) {
+    seedDefaultShotPresetBank(presetBank);
+    presetBank.count = bankCase == 3 ? 0 : 2;
+    presetBank.activeId = bankCase < 2 ? presetBank.presets[bankCase].id : 255;
+    for (unsigned mask = 0; mask != 256; ++mask) {
+      runtimeConfig.timerOnly = (mask & 1U) != 0;
+      presetBank.presets[0].brewByWeight = (mask & 2U) != 0;
+      presetBank.presets[0].cupProtectionEnabled = (mask & 4U) != 0;
+      presetBank.presets[0].requireCupToStart = (mask & 8U) != 0;
+      presetBank.presets[1].brewByWeight = !presetBank.presets[0].brewByWeight;
+      presetBank.presets[1].cupProtectionEnabled =
+          !presetBank.presets[0].cupProtectionEnabled;
+      presetBank.presets[1].requireCupToStart =
+          !presetBank.presets[0].requireCupToStart;
+      inputs.scaleUsable = (mask & 16U) != 0;
+      noScaleShotGuardArmed = (mask & 32U) != 0;
+      noScaleShotGuardHold = (mask & 64U) != 0;
+      session.active = (mask & 128U) != 0;
+      for (uint8_t mode = 0; mode != 3; ++mode) {
+        runtimeConfig.noScaleBbwMode = mode;
+        const RuntimeConfig effective = effectiveRuntimeConfig();
+        const bool oldNoScale = noScaleBbwEnabled(mode) && !effective.timerOnly &&
+                                !inputs.scaleUsable && noScaleShotGuardArmed;
+        for (unsigned cup = 0; cup != 3; ++cup) {
+          inputs.cup = static_cast<CupPresenceState>(cup);
+          const bool oldCup = effective.cupProtectionEnabled &&
+                              effective.requireCupToStart && !effective.timerOnly &&
+                              inputs.scaleUsable && inputs.cup != CupPresenceState::PRESENT;
+          CHECK(noScaleShotGuardWouldBlock(inputs) == oldNoScale);
+          CHECK(cupStartGuardWouldBlock(inputs) == oldCup);
+          CHECK(guardsWouldBlockActivatorDrive(inputs) ==
+                (noScaleShotGuardHold || oldNoScale || oldCup));
+        }
+        resetNoScaleRequireBypassGesture();
+        serviceNoScaleRequireBypassGesture(inputs);
+        const bool oldEligible = noScaleBbwRequiresScale(mode) &&
+                                 !effective.timerOnly && !inputs.scaleUsable &&
+                                 !session.active && noScaleShotGuardArmed;
+        CHECK(noScaleRequireBypassReady == oldEligible);
+      }
+    }
+  }
 }
 
 void f14_relay_timer_initialization_rolls_back_partial_handles() {
@@ -12237,11 +12391,14 @@ const TestCase testCases[] = {
     {"R20b", r20b_reset_history_keeps_reason_and_previous_uptime},
     {"R20c", r20c_reset_uptime_checkpoint_is_no_more_frequent_than_one_minute},
     {"R20d", r20d_clear_reset_history_keeps_current_reset_reason},
+    {"R20e", r20e_uptime_forced_invalid_and_wrapped_checkpoints},
     {"R21", r21_automatic_control_requires_fresh_weight},
     {"R22", r22_confirmed_implausible_weight_does_not_stop},
     {"R23", r23_maintenance_is_canceled_fail_open_by_physical_paddle},
     {"R24", r24_web_control_is_available_without_session_owner},
     {"R25", r25_critical_scale_mailbox_never_blocks_and_keeps_latest},
+    {"R25b", r25b_empty_mailboxes_take_one_critical_lock},
+    {"R25c", r25c_refilled_critical_mailboxes_remain_live_and_bounded},
     {"R26", r26_remote_timer_stop_retries_after_full_queue},
     {"R27", r27_platform_clock_failure_prevents_circuit_close},
     {"R28", r28_terminal_control_result_is_retained_until_forwarded},
@@ -12603,6 +12760,7 @@ const TestCase testCases[] = {
     {"F13", f13_schedule_contract_and_snapshot_evidence_are_explicit},
     {"F14", f14_relay_timer_initialization_rolls_back_partial_handles},
     {"F17", f17_health_counters_are_atomic_and_monotonic},
+    {"F18", f18_guard_early_rejection_matches_original_predicates},
     {"M12", m12_ble_companion_result_drop_is_counted},
     {"S04b", s04b_shot_log_page_slice},
     {"S04f", s04f_shot_log_sort_date_and_rating},

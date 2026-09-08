@@ -515,20 +515,28 @@ class NimbleScaleClient {
 
   bool takeSeenAdvertisement(char *macOut, size_t macCapacity, char *nameOut,
                              size_t nameCapacity) {
+    uint8_t address[6] = {};
+    char name[sizeof(seenName_)] = {};
     portENTER_CRITICAL(&mux_);
     const bool pending = seenPending_;
     if (pending) {
-      if (macOut != nullptr && macCapacity != 0) {
-        strncpy(macOut, seenAddress_, macCapacity - 1);
-        macOut[macCapacity - 1] = '\0';
-      }
-      if (nameOut != nullptr && nameCapacity != 0) {
-        strncpy(nameOut, seenName_, nameCapacity - 1);
-        nameOut[nameCapacity - 1] = '\0';
-      }
+      memcpy(address, seenAddress_, sizeof(address));
+      memcpy(name, seenName_, sizeof(name));
       seenPending_ = false;
     }
     portEXIT_CRITICAL(&mux_);
+    // The mailbox copy above is the consumption point. A later callback can
+    // publish the next identity while this task formats its private copy.
+    if (pending && macOut != nullptr && macCapacity != 0) {
+      char formatted[SCALE_MAC_CAPACITY] = {};
+      formatAddress(address, formatted, sizeof(formatted));
+      strncpy(macOut, formatted, macCapacity - 1);
+      macOut[macCapacity - 1] = '\0';
+    }
+    if (pending && nameOut != nullptr && nameCapacity != 0) {
+      strncpy(nameOut, name, nameCapacity - 1);
+      nameOut[nameCapacity - 1] = '\0';
+    }
     return pending;
   }
 
@@ -905,8 +913,7 @@ class NimbleScaleClient {
             ScaleBleTimingFirstCompatibleAdvertisement;
       }
       if (compatible) {
-        formatAddress(candidate->address.val, seenAddress_,
-                      sizeof(seenAddress_));
+        memcpy(seenAddress_, candidate->address.val, sizeof(seenAddress_));
         strncpy(seenName_, candidate->advertisement.name,
                 sizeof(seenName_) - 1);
         seenName_[sizeof(seenName_) - 1] = '\0';
@@ -2108,7 +2115,7 @@ class NimbleScaleClient {
     identityPresent_ = false;
     portENTER_CRITICAL(&mux_);
     seenPending_ = false;
-    seenAddress_[0] = '\0';
+    memset(seenAddress_, 0, sizeof(seenAddress_));
     seenName_[0] = '\0';
     candidateQueued_ = false;
     candidatePending_ = false;
@@ -2193,7 +2200,7 @@ class NimbleScaleClient {
   uint16_t scanWindow_ = 0;
   uint32_t scanStartedAt_ = 0;
   bool seenPending_ = false;
-  char seenAddress_[SCALE_MAC_CAPACITY] = {};
+  uint8_t seenAddress_[6] = {};
   char seenName_[SCALE_NAME_CAPACITY] = {};
 
   ServiceRange services_[kServiceCount] = {};

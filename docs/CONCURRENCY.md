@@ -25,6 +25,21 @@ Locks are normally acquired one at a time. The only permitted nesting is:
 No reverse edge is permitted. A callback that would require one must publish a
 queue item or atomic latch for the owner instead.
 
+Control status gathers machine/relay, scale telemetry, preferred-scale,
+persistence and Companion inputs before taking its publication mutex. The
+machine facade supplies a small scalar sample; publication does not allocate a
+second full status snapshot. Readers can use the previous committed version
+while an input owner is busy. The status version is published with the completed
+commit, and refresh acknowledgment follows it.
+
+The scale consumer selects the critical result or, otherwise, the timer-start
+result under one acquisition of their shared mutex. It processes the copied
+event after unlocking and retains both control-loop drain checkpoints.
+The NimBLE advertisement mailbox copies a raw six-byte address and bounded name
+under the existing nested spinlocks; the consumer formats its private address
+copy after unlocking. A concurrent advertisement remains pending for the next
+consumption.
+
 The relay `portMUX` is independent and may never nest with another lock. Its
 section contains only GPIO and bounded DRAM scalar state; RTC checksum/history
 publication and timer cleanup occur after interrupts are re-enabled. The debug

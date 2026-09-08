@@ -28,7 +28,7 @@ function(host_test name)
 endfunction()
 
 if(SHOTSTOPPER_SANITIZER STREQUAL "thread")
-  foreach(case M09 F03 F04 F17 IT10)
+  foreach(case M09 R25c F03 F04 F17 IT10)
     host_test(shot_stopper_tsan_${case}
       SOURCE shot_stopper_host_test.cpp ARGS ${case} LABEL "host;concurrency")
     set_target_properties(shot_stopper_tsan_${case} PROPERTIES
@@ -47,6 +47,7 @@ else()
   host_test(ble_companion_protocol_host_test LABEL "host;ble")
   host_test(webhook_error_host_test
     DEFINITIONS SHOT_STOPPER_HOST_TEST LABEL "host;network")
+  host_test(webhook_worker_host_test LABEL "host;network")
   host_test(resource_owner_host_test LABEL "host;resources")
   host_test(reset_guard_instance_host_test
     SOURCES reset_guard_instance_a.cpp reset_guard_instance_b.cpp

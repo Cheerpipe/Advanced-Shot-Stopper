@@ -9,7 +9,9 @@
 #include "ShotStopperTaskMutex.h"
 #include "ShotStopperResourceOwner.h"
 
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
+#if defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
+#include SHOT_STOPPER_WEBHOOK_TEST_PLATFORM
+#elif !defined(SHOT_STOPPER_HOST_TEST) && \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
 #include <Arduino.h>
 #include <esp_http_client.h>
@@ -178,8 +180,9 @@ struct WebhookStatus {
   uint32_t psramLargestAfter = 0;
 };
 
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM) || \
+    (!defined(SHOT_STOPPER_HOST_TEST) && \
+     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST))
 
 class WebhookDispatcher {
  public:
@@ -202,6 +205,9 @@ class WebhookDispatcher {
   void serviceAbort();
 
  private:
+#if defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
+  friend struct WebhookDispatcherTest;
+#endif
   struct HttpClientDeleter {
     void operator()(esp_http_client_handle_t client) const {
       (void)esp_http_client_cleanup(client);

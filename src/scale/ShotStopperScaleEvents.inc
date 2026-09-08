@@ -393,17 +393,12 @@ void processScaleWorkerEvents() {
       event = scaleCriticalEvent;
       scaleCriticalEventPending = false;
       receivedCritical = true;
+    } else if (scaleTimerStartEventPending) {
+      event = scaleTimerStartEvent;
+      scaleTimerStartEventPending = false;
+      receivedCritical = true;
     }
     scaleCriticalEventMux.unlock();
-    if (!receivedCritical) {
-      scaleCriticalEventMux.lock();
-      if (scaleTimerStartEventPending) {
-        event = scaleTimerStartEvent;
-        scaleTimerStartEventPending = false;
-        receivedCritical = true;
-      }
-      scaleCriticalEventMux.unlock();
-    }
     if (!receivedCritical) {
       scaleWeightEventMux.lock();
       if (scaleWeightEventPending) {
