@@ -47,8 +47,9 @@ not tare that cup.
 ## Outside a brew
 
 After connection, let the controller observe an empty pan, then place the cup.
-The existing [Cup](cup.md) stability settings qualify the placement. Removing
-and replacing a cup triggers another tare, even if the cup contains coffee;
+The existing [Cup](cup.md) stability settings qualify the placement and the empty
+reference. After removal, let the empty pan stabilize before replacing the cup.
+This triggers another tare, even if the cup contains coffee;
 adding coffee or a spoon while the cup stays present does not.
 
 The machine must be confirmed off. A new placement can tare after a normal

@@ -137,8 +137,7 @@ void observeCupWeight(float weight, uint32_t atMs, uint32_t sequence,
   auto &mass = cupPresence.weight;
   const uint32_t currentGeneration = getScaleLinkSnapshot().connectionGeneration;
   if (generation == 0) generation = currentGeneration;
-  if (!isfinite(weight) || weight < MIN_AUTOMATION_WEIGHT_G ||
-      weight > MAX_AUTOMATION_WEIGHT_G || generation != currentGeneration ||
+  if (!isfinite(weight) || fabsf(weight) > MAX_PARSED_WEIGHT_G || generation != currentGeneration ||
       elapsedMs(atMs) > MAX_AUTOMATION_WEIGHT_AGE_MS ||
       (mass.sampleSequence != 0 && mass.connectionGeneration == generation &&
        (static_cast<int32_t>(sequence - mass.sampleSequence) <= 0 ||
@@ -147,6 +146,8 @@ void observeCupWeight(float weight, uint32_t atMs, uint32_t sequence,
     mass.sampleSequence = 0;
     return;
   }
+  if (mass.sampleSequence != 0 && atMs - mass.sampleAtMs >
+      runtimeConfig.retareStabilityMaxGapMs) invalidateCupWeight();
   mass.sampleAtMs = atMs;
   mass.sampleSequence = sequence;
   mass.connectionGeneration = generation;

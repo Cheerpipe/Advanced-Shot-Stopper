@@ -9,12 +9,17 @@ How those detections protect the shot is explained in
 
 ## When it applies
 
-Detection runs while idle and during brewing. A stable load at or above the minimum cup weight
-counts as **placed**. A confirmed weight at or below the removed threshold
+Detection runs while idle and during brewing. A stable increase from the last
+qualified absent reading, at or above the minimum cup weight, counts as **placed**.
+A confirmed weight at or below the removed threshold
 counts as **lifted**. Placement also requires a short run of stable samples.
 After a known tare, a cup at 0 g stays present; **Require cup to start** does
 not require positive net weight. Replacement into a negative tare offset can
-also count as placed.
+also count as placed. After removal, let the empty scale settle before replacing
+the cup: the same stability settings qualify absence and placement. A removal
+undershoot followed by an empty-pan rebound does not count as another placement.
+Without an absent baseline at boot, a stable absolute reading above the minimum
+can establish presence, but cannot establish cup mass.
 
 ## Displayed cup weight
 
@@ -34,19 +39,21 @@ tares and coffee additions preserve that mass. It represents the load added at
 placement, so an empty-cup interpretation assumes the cup was empty then.
 
 The absent baseline uses the same sample count, whole-window tolerance, maximum
-gap, and minimum stable time as placement. A transient removal minimum is not
-a baseline. Without a reliable stable absent reading before placement, the UI
-shows **—**, including when booting with a cup already loaded. Removal, stale or
-invalid samples, connection changes, lost evidence, and uncertain tares clear the
-value. Acquisition requires a new stable absence followed by placement; tare
+gap, and minimum stable time as placement. Once qualified, that reference survives
+intermediate readings while a cup is being placed (for example, 0 → 5 → 300 g).
+A transient removal minimum is not a baseline. Without a reliable stable absent
+reading before placement, the UI shows **—**, including when booting with a cup
+already loaded. Removal, stale or invalid samples, excessive sample gaps,
+connection changes, lost evidence, and uncertain tares clear the value.
+Acquisition requires a new stable absence followed by placement; tare
 alone cannot recover missing mass. Nothing is persisted across restarts.
 
 All tares must be firmware-issued: physical-button/external tare is outside the
 supported contract. Older firmware payloads and unavailable readings show **—**.
 Diagnostic test tare/combined commands invalidate this value; remove the cup,
 wait for stable absence, and replace it to acquire the weight again.
-This informational value does not change detection thresholds, tare scheduling,
-cup protection, or brewing decisions.
+The stable absent reference is shared by placement detection and mass calculation.
+The calculated mass itself does not control brewing or schedule additional tares.
 
 ## Parameters
 
@@ -63,7 +70,10 @@ cup protection, or brewing decisions.
 
 The 1–500 g range limits the **Minimum cup weight** setting. There is no
 independent maximum cup-mass setting. Fixed automation bounds apply to net
-scale readings; they are not a configurable physical cup-weight range.
+scale readings; they are not a configurable physical cup-weight range. Raw
+reference acquisition uses the parsed sensing range: an empty reading of −522 g
+after taring and removing a 522 g cup remains usable to measure the next cup.
+This does not widen the net-weight bounds for placement automation or shot control.
 
 You set a cup down during the retare window. After three samples within 2 g
 of each other, lasting at least 0.3 s, the firmware treats it as placed and

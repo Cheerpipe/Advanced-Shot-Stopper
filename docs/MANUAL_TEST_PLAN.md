@@ -105,6 +105,9 @@ Run these hardware checks only with explicit authorization. Record scale model,
 firmware, machine type, build, and observed result; host tests are not hardware
 qualification.
 
+For replacement checks, let the empty pan meet the configured cup stability
+window before putting the cup back, unless the case explicitly tests a rapid swap.
+
 | ID | Action | Expected result |
 | --- | --- | --- |
 | IT-M01 | Observe an empty pan, then place a cup with idle tare ON. Leave it at zero; add a spoon; remove and replace it. | One tare per confirmed placement, no scale timer start, no repeated tare while PRESENT. |
@@ -117,6 +120,8 @@ qualification.
 | IT-M08 | On Bookoo, tare an 80 g object, lift it, then place 20/80/120 g objects; repeat before any shot and after a normal shot. Include samples while tare is queued/writing. | A negative occupied plateau is not another lift; one tare per observed placement, no duplicate from the zero effect. Real lifts during writing remain detectable. |
 | IT-M09 | Tare accepted loads around 499/500/501/600 g, then remove and replace. Test configured minimum and stability boundaries separately. | Negative removal is recognized without widening placement/BBW limits. Whole-window spread must fit configured tolerance; a changed queued placement is cancelled. |
 | IT-M10 | Capture debug export during rapid swaps, reconnect, setting changes and incomplete tare attempts. Compare connected idle/disconnected idle/shot timing and CPU metrics to the baseline under identical settings. | Request/reference identity, capture sequence and terminal reason explain each attempt. No old result enters a new shot; no added loop period, wait or unbounded buffer. Unobservable motion is recorded as a limitation rather than claimed recovered. |
+| IT-M11 | Starting empty at zero, place a 300 g cup gradually; repeat with idle tare OFF/ON. Tare a 522 g cup, remove it to a stable −522 g, then place 300 g and 522 g replacements. | Home and Diagnostic report the added mass, including intermediate placement readings and negative empty references. Idle tare preserves it; no shot-control bounds change. |
+| IT-M12 | Restart only the ESP with the pan empty at a retained −350 g offset; wait for stability, then test 300 g and 522 g loads. Separately remove a tared cup with a visible undershoot/rebound and try a replacement before absence settles. | Both loads are detected relative to stable absence. Empty-pan rebound never emits a placement or tare. An unqualified rapid replacement requires removal, stable absence, then replacement. |
 
 ## Network, Web UI and access
 

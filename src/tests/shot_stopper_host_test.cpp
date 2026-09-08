@@ -6895,6 +6895,7 @@ void it01_placement_tares_once_independently() {
     idleWeight(-80.0f);
     idleWeight(-80.0f);
     CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    idleCup(-80.0f); // Qualify stable absence before replacing the cup.
     idleCup(0.0f);
     CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
   }
@@ -6992,7 +6993,7 @@ void cw04_invalid_stale_and_discontinuous_evidence_cannot_reappear() {
     idleCup(0.0f);
     CHECK(captureCupTareDiagnostics().weightValid);
     if (mode == 0) idleWeight(std::numeric_limits<float>::quiet_NaN());
-    if (mode == 1) idleWeight(MAX_AUTOMATION_WEIGHT_G + 1.0f);
+    if (mode == 1) idleWeight(MAX_PARSED_WEIGHT_G + 1.0f);
     if (mode == 2) hostMillis += MAX_AUTOMATION_WEIGHT_AGE_MS + 1;
     if (mode == 3) resetCupSampleEvidence();
     if (mode == 4) markCupTareReferenceUncertain();
@@ -7152,6 +7153,118 @@ void cw11_removal_transient_is_not_the_empty_baseline() {
   CHECK(captureCupTareDiagnostics().weightG == 350.0f);
 }
 
+void cw12_placement_ramp_preserves_stable_absence() {
+  for (bool tare : {false, true}) {
+    prepareIdleTare();
+    runtimeConfig.autoTareOutsideBrew = tare;
+    idleCup(0.0f);
+    idleWeight(5.0f);
+    idleWeight(8.0f);
+    idleWeight(50.0f);
+    idleCup(300.0f);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    CHECK(captureCupTareDiagnostics().weightG == 300.0f);
+    CHECK(cupPresence.weight.absent.absoluteG == 0.0f);
+    if (tare) {
+      CHECK(executeNextScaleCommand());
+      idleCup(0.0f);
+      CHECK(scale.tareCalls == 1);
+      CHECK(captureCupTareDiagnostics().weightValid);
+      CHECK(captureCupTareDiagnostics().weightG == 300.0f);
+    }
+  }
+}
+
+void cw13_negative_boot_baseline_detects_relative_placements() {
+  for (float mass : {300.0f, 522.0f}) {
+    prepareIdleTare();
+    idleCup(-350.0f);
+    idleCup(mass - 350.0f);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    CHECK(captureCupTareDiagnostics().weightG == mass);
+    CHECK(cupPresencePlacementThresholdG() == -340.0f);
+    idleWeight(mass - 350.0f); // Negative occupied plateau is not removal.
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(scale.tareCalls == 1);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    CHECK(captureCupTareDiagnostics().weightG == mass);
+  }
+}
+
+void cw14_heavy_tare_offsets_preserve_replacement_mass() {
+  for (float replacement : {300.0f, 522.0f}) {
+    prepareIdleTare();
+    idleCup(0.0f);
+    idleCup(522.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    const uint32_t acceptedSequence = currentWeightSequence;
+    idleWeight(-522.0f);
+    idleWeight(-522.0f);
+    idleCup(-522.0f);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    CHECK(cupPresence.weight.emptyValid);
+    CHECK(cupPresence.weight.absent.absoluteG == -522.0f);
+    CHECK(currentWeightSequence == acceptedSequence); // Not accepted for brew.
+    CHECK(observedWeight == -522.0f); // Still available as raw evidence.
+    idleCup(replacement - 522.0f);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    CHECK(captureCupTareDiagnostics().weightG == replacement);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(scale.tareCalls == 2);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    CHECK(captureCupTareDiagnostics().weightG == replacement);
+  }
+}
+
+void cw15_removal_rebound_cannot_place_or_tare_empty_pan() {
+  for (float undershoot : {15.0f, 100.0f}) {
+    prepareIdleTare();
+    idleCup(0.0f);
+    idleCup(300.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    idleWeight(-300.0f - undershoot);
+    idleWeight(-300.0f - undershoot);
+    idleCup(-300.0f);
+    idleCup(-300.0f);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    CHECK(!captureCupTareDiagnostics().weightValid);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    CHECK(cupPresence.weight.absent.absoluteG == -300.0f);
+    idleCup(0.0f);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    CHECK(captureCupTareDiagnostics().weightG == 300.0f);
+    CHECK(executeNextScaleCommand());
+    CHECK(scale.tareCalls == 2);
+  }
+}
+
+void cw16_replacement_requires_new_stable_absence() {
+  prepareIdleTare();
+  idleCup(0.0f);
+  idleCup(300.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  idleWeight(-300.0f);
+  idleWeight(-300.0f);
+  idleCup(0.0f); // No stable absence was observed before this fast put-back.
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleCup(-300.0f); // Remove and allow a real empty plateau to qualify.
+  idleCup(0.0f);
+  CHECK(captureCupTareDiagnostics().weightValid);
+  CHECK(captureCupTareDiagnostics().weightG == 300.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+}
+
 void it02_idle_zero_allows_guarded_start() {
   for (bool autoStart : {false, true}) {
     prepareIdleTare();
@@ -7185,6 +7298,7 @@ void it03_shot_end_never_tares_remaining_cup() {
   idleWeight(-80.0f);
   idleWeight(-80.0f);
   CHECK(!pendingFinalize.pending);
+  idleCup(-80.0f);
   idleCup(36.0f); // Full cup put back, with paddle still ON.
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
   CHECK(stopperState == StopperState::REQUIRES_OFF);
@@ -7209,6 +7323,7 @@ void it04_reconnect_and_setting_changes_do_not_place() {
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
   idleWeight(0.0f);
   idleWeight(0.0f);
+  idleCup(0.0f);
   idleCup(80.0f);
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
 }
@@ -7403,6 +7518,7 @@ void it12_lighter_replacement_keeps_queued_tare() {
     }
     idleWeight(-80.0f);
     idleWeight(-80.0f);
+    idleCup(-80.0f);
     idleCup(-60.0f);
     const uint32_t id = idleTare.requestId;
     CHECK(id != 0);
@@ -7424,6 +7540,7 @@ void it13_lighter_replacement_write_zero_is_not_another_placement() {
   idleCup(0.0f);
   idleWeight(-80.0f);
   idleWeight(-80.0f);
+  idleCup(-80.0f);
   idleCup(-60.0f);
   ScaleCommand command;
   CHECK(xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE);
@@ -7447,6 +7564,7 @@ void it14_accepted_heavy_cup_removal_rearms_tare() {
     idleWeight(-weight);
     idleWeight(-weight);
     CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    idleCup(-weight);
     idleCup(0.0f);
     CHECK(idleTare.requestId != 0);
   }
@@ -7467,6 +7585,7 @@ void it15_batched_removal_samples_reach_cup_detector() {
   }
   processScaleWorkerEvents();
   CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  idleCup(-80.0f);
   idleCup(0.0f);
   CHECK(idleTare.requestId != 0);
 }
@@ -7501,6 +7620,7 @@ void it17_transport_success_without_zero_preserves_old_reference() {
   idleWeight(0.0f);
   idleWeight(0.0f);
   CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  idleCup(0.0f);
   idleCup(80.0f);
   CHECK(idleTare.requestId != 0);
 }
@@ -7732,6 +7852,7 @@ void it30_actual_negative_replacement_removal_during_write() {
     idleCup(0.0f);
     idleWeight(-80.0f);
     idleWeight(-80.0f);
+    idleCup(-80.0f);
     idleCup(replacement);
     const uint32_t id = idleTare.requestId;
     CHECK(claimIdleScaleTare(id));
@@ -7781,6 +7902,7 @@ void it32_queued_minimum_is_independent_of_tolerance() {
       idleWeight(-80.0f);
       idleWeight(-80.0f);
       emptyG = -80.0f;
+      idleCup(emptyG);
     }
     idleCup(emptyG + runtimeConfig.minimumCupWeightG);
     CHECK(idleTare.requestId != 0);
@@ -7817,11 +7939,12 @@ void cup_fsm_put_back_without_tare_is_present() {
   seedCupPresence(80.0f);
   notifyCupPresenceTare();
   holdCupPresenceTransitions(false);
-  publishWeight(0.0f, hostMillis, 1, 20);
-  publishWeight(-80.0f, hostMillis + 50, 1, 40);
-  publishWeight(-81.0f, hostMillis + 51, 1, 41);
+  idleWeight(0.0f);
+  idleWeight(-80.0f);
+  idleWeight(-81.0f);
   CHECK(cupPresenceState() == CupPresenceState::ABSENT);
-  publishStableCupWeight(0.0f, 50);
+  idleCup(-80.0f);
+  idleCup(0.0f);
   CHECK(cupPresenceState() == CupPresenceState::PRESENT);
 }
 
@@ -13178,6 +13301,11 @@ const TestCase testCases[] = {
     {"CW09", cw09_debug_tare_invalidates_without_changing_presence},
     {"CW10", cw10_absence_baseline_requires_stability_and_continuity},
     {"CW11", cw11_removal_transient_is_not_the_empty_baseline},
+    {"CW12", cw12_placement_ramp_preserves_stable_absence},
+    {"CW13", cw13_negative_boot_baseline_detects_relative_placements},
+    {"CW14", cw14_heavy_tare_offsets_preserve_replacement_mass},
+    {"CW15", cw15_removal_rebound_cannot_place_or_tare_empty_pan},
+    {"CW16", cw16_replacement_requires_new_stable_absence},
     {"IT02", it02_idle_zero_allows_guarded_start},
     {"IT03", it03_shot_end_never_tares_remaining_cup},
     {"IT04", it04_reconnect_and_setting_changes_do_not_place},

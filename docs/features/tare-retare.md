@@ -14,6 +14,12 @@ does not start the timer. A cup that remains on the scale after a shot never
 triggers this tare, even after the beverage becomes stable. Removing and
 replacing that full cup does trigger it.
 
+After removal, wait for the empty pan to stabilize before putting a cup back.
+Detection uses that stable reading as its reference, including negative tare
+offsets. A transient low point during removal cannot authorize another tare
+when the empty pan rebounds. A replacement made before stable absence is observed
+requires another removal, settling wait, and placement.
+
 A known tared cup remains present at 0 g, so **Require cup to start** accepts
 it. If shot-start tare is enabled, starting the next shot still performs its
 normal tare. See [Tare settings](../settings/tare.md#outside-a-brew) for idle

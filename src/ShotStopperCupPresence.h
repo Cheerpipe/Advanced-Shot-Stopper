@@ -114,7 +114,7 @@ void observeEmptyCupWeight(float weight, uint32_t atMs) {
       static_cast<uint32_t>(atMs - mass.emptyLastAtMs) > runtimeConfig.retareStabilityMaxGapMs ||
       fmaxf(weight, mass.emptyMaximumG) - fminf(weight, mass.emptyMinimumG) >
           runtimeConfig.retareStabilityToleranceG) {
-    mass.emptyValid = false;
+    // Restart qualification without discarding the last stable plateau.
     mass.emptySamples = 0;
     mass.emptyStartedAtMs = atMs;
     mass.emptyMinimumG = mass.emptyMaximumG = weight;
@@ -193,6 +193,8 @@ void notifyCupPresenceTare() {
     cupPresence.taredWhilePresent = true;
     cupPresence.occupiedReferenceG = 0.0f;
     cupPresence.referenceUncertain = false;
+  } else {
+    invalidateCupWeight();
   }
   cupPresence.inNegativeHole = false;
   cupPresence.holeWeightG = 0.0f;
@@ -267,27 +269,27 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   if (cupPresence.inNegativeHole && weight < cupPresence.holeWeightG) {
     cupPresence.holeWeightG = weight;
   }
-  if (!allowPlacement) {
-    resetCupPlaceStabilityStreak();
-    return CupPresenceEvent::NONE;
-  }
-
-  const bool placeCandidate = weight >= minCupG;
-  const bool putBackCandidate =
-      cupPresence.inNegativeHole &&
-      (weight - cupPresence.holeWeightG) >= minCupG;
-  if (!placeCandidate && !putBackCandidate) {
+  // A lift minimum is a transient, not the empty reference. Qualify the new
+  // absent plateau before accepting a replacement, including a rebound.
+  const bool awaitingAbsence = cupPresence.inNegativeHole &&
+                               !cupPresence.weight.emptyValid;
+  const float placementThresholdG = cupPresence.weight.emptyValid
+      ? cupPresence.weight.absent.absoluteG + minCupG : minCupG;
+  const bool placeCandidate = !awaitingAbsence && weight >= placementThresholdG;
+  if (!placeCandidate) {
     if (cupPresence.weight.sampleSequence == packetSequence &&
         cupPresence.weight.sampleAtMs == receivedAtMs && packetSequence != 0)
       observeEmptyCupWeight(weight, receivedAtMs);
     resetCupPlaceStabilityStreak();
     return CupPresenceEvent::NONE;
   }
+  if (!allowPlacement) {
+    resetCupPlaceStabilityStreak();
+    return CupPresenceEvent::NONE;
+  }
 
   if (cupPresence.placeStabilitySamples == 0) {
     cupPresence.weight.emptySamples = 0;
-    if (static_cast<uint32_t>(receivedAtMs - cupPresence.weight.emptyLastAtMs) >
-        runtimeConfig.retareStabilityMaxGapMs) cupPresence.weight.emptyValid = false;
     cupPresence.placeCandidateWeightG = weight;
     cupPresence.placeMinimumG = weight;
     cupPresence.placeMaximumG = weight;
@@ -329,14 +331,6 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
     return CupPresenceEvent::NONE;
   }
 
-  const bool placedByWeight =
-      cupPresence.placeCandidateWeightG >= minCupG;
-  const bool placedByPutBack = cupPresence.inNegativeHole &&
-      (cupPresence.placeCandidateWeightG - cupPresence.holeWeightG) >= minCupG;
-  if (!placedByWeight && !placedByPutBack) {
-    return CupPresenceEvent::NONE;
-  }
-
   cupPresence.state = CupPresenceState::PRESENT;
   const float placementWeightG = cupPresence.placeCandidateWeightG -
                                 cupPresence.weight.absent.absoluteG;
@@ -357,11 +351,9 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   cupPresence.occupiedReferenceG = cupPresence.placeCandidateWeightG;
   cupPresence.occupiedMinimumG = cupPresence.placeMinimumG;
   cupPresence.occupiedMaximumG = cupPresence.placeMaximumG;
-  // Retain the same direct/relative minimum predicate for queued validation.
-  cupPresence.occupiedPlacementThresholdG = cupPresence.inNegativeHole
-      ? fminf(minCupG, cupPresence.holeWeightG + minCupG) : minCupG;
-  // Put-back onto a tared hole reads ~0 g with the cup on the pan.
-  cupPresence.taredWhilePresent = placedByPutBack && !placedByWeight;
+  cupPresence.occupiedPlacementThresholdG = placementThresholdG;
+  // A relative placement may remain below the absolute minimum until tare.
+  cupPresence.taredWhilePresent = cupPresence.placeCandidateWeightG < minCupG;
   cupPresence.inNegativeHole = false;
   cupPresence.holeWeightG = 0.0f;
   cupPresence.removedArmed = true;

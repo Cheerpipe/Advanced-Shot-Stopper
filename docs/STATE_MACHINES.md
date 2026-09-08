@@ -421,7 +421,7 @@ Source: `ShotStopperScaleTypes.h`, `ShotStopperCupPresence.h`.
 | State | Meaning |
 | --- | --- |
 | `ABSENT` | No stable mass ≥ **Minimum cup weight** (default 10 g). |
-| `PRESENT` | Stable load at or above that threshold (or a put-back from a negative hole after a lift). |
+| `PRESENT` | Stable increase above the qualified absent reference of at least that threshold; absolute load is used only when no initial absent reference exists. |
 
 Transitions can be **held** during post-tare grace so the zeroing
 transient is not a remove/place.
@@ -445,15 +445,22 @@ does not satisfy the cup-start guard. Confirmed removal clears uncertainty.
 Informational cup weight is independent of the mutable occupied reference.
 The FSM keeps absolute stable `ABSENT` and placement `PRESENT` records with
 sample times, plus the calculated difference for the current placement. The
-absent reading must qualify the shared stability window before placement starts;
-the negative-hole minimum is never substituted for it. `PLACED` publishes
+absent reading must qualify the shared stability window before placement starts.
+After REMOVED, a new absent plateau is required before any replacement can
+qualify; the negative-hole minimum is diagnostic only. Placement and queued tare
+validation use absent plus minimum cup weight. An established absent record
+survives transient intermediate weights while the next plateau qualifies.
+`PLACED` publishes
 present minus absent, including when tare is disabled. Firmware tare and coffee
 do not overwrite these placement records or the calculated mass. Pending tare
 IDs track uncertainty; successful matching outcomes preserve known mass rather
 than acquiring new mass from net weight. No baseline is learned across a pending
 tare. Removal, reset, connection changes, stale/invalid samples, lost evidence,
-and uncertain outcomes invalidate the measurement. These records never affect
-presence predicates, guards, or command eligibility.
+and uncertain outcomes invalidate the measurement. Sample gaps beyond the
+configured stability maximum also clear the reference. Raw reference acquisition
+uses parsed sensing bounds, including valid negative readings below the automation
+floor; placement automation and brew acceptance retain their existing bounds.
+The calculated mass is informational; the shared absent record qualifies placement.
 See [Displayed cup weight](settings/cup.md#displayed-cup-weight).
 
 The shot-start resync preserves known tared PRESENT at zero. Require-cup checks
