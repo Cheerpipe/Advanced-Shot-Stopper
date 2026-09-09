@@ -47,7 +47,7 @@ body.webUiInactive{overflow:hidden}
 .inactiveOverlay{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;padding:1.25rem 1.25rem max(1.25rem,env(safe-area-inset-bottom));background:var(--bg);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .5s ease,visibility 0s linear .5s}
 .inactiveOverlay.isVisible{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .5s ease,visibility 0s}
 .inactiveOverlay .brand{z-index:auto;display:inline-flex;align-items:center;gap:var(--brandGap);color:var(--ac)}
-.inactiveMain{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;max-width:24rem;width:100%;padding:1.5rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:center}
+.inactiveMain{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;max-width:24rem;width:100%;text-align:center}
 #webUiReload{min-height:3rem;min-width:10rem;padding:.65rem 1.5rem;border:1px solid var(--pri);border-radius:2rem;background:var(--pri);color:var(--on);font:inherit;font-weight:700;cursor:pointer}
 #webUiReload:disabled{opacity:.4;cursor:not-allowed}
 #inactiveHint{margin:0;color:var(--mu);font-size:.78rem;line-height:1.45;font-weight:400}

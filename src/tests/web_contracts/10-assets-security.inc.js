@@ -52,6 +52,9 @@ if (!shellHtml.includes('class="pageNav"') ||
     !appJsSource.includes("matchMedia('(min-width: 700px)')")) {
   throw new Error('Desktop Web UI must show a top nav instead of the hamburger');
 }
+if (!css.includes('.inactiveMain{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;max-width:24rem;width:100%;text-align:center}')) {
+  throw new Error('Inactive Web UI must use a full-screen surface with centered content');
+}
 if (!shellHtml.includes('type="module"') ||
     !shellHtml.includes('src="/app.js?v=__FW_VERSION__"') ||
     /<script(?![^>]*\bsrc=)[^>]*>\s*\S/i.test(shellHtml)) {
