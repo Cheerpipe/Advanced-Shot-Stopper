@@ -166,7 +166,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
     }
   } else {
     parsed = false;
-    networkError = "action must be \"save\", \"name\", \"forget\", or \"confirm\".";
+    networkError = "action must be \"save\", \"forget\", or \"confirm\".";
   }
   if (root != nullptr) {
     cJSON_Delete(root);

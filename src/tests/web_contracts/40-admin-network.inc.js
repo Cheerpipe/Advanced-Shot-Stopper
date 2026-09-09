@@ -132,7 +132,7 @@ if (!ui.includes('id="staIpMode"') ||
     !network.includes('or empty to keep the saved password.') ||
     !network.includes('StaIpMode::STATIC') ||
     !network.includes('STA_CONFIRM_TIMEOUT_MS') ||
-    !network.includes('action must be \\"save\\", \\"name\\", \\"forget\\", or \\"confirm\\".') ||
+    !network.includes('action must be \\"save\\", \\"forget\\", or \\"confirm\\".') ||
     !network.includes('No pending network configuration to confirm.')) {
   throw new Error('DHCP/static IP mode must be wired in UI, status, WiFi.config, and confirm/revert path');
 }
