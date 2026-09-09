@@ -66,27 +66,24 @@ void ShotStopperNetwork::serviceMdnsWake(uint32_t now,
       return;
     }
     if (current != WIFI_PS_MIN_MODEM) {
-      if (mdns_netif_action(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"),
-                            MDNS_EVENT_ANNOUNCE_IP4) != ESP_OK) {
+      if (mdns_service_port_set("_http", "_tcp", 80) != ESP_OK) {
         lifecycleLog("mDNS periodic announce failed");
       }
       return;
     }
-    wifi_ps_type_t verified = WIFI_PS_MIN_MODEM;
-    if (!WiFi.setSleep(WIFI_PS_NONE) ||
-        esp_wifi_get_ps(&verified) != ESP_OK || verified != WIFI_PS_NONE) {
-      lifecycleLog("mDNS WiFi wake failed");
-      applyWifiPowerSave();
-      return;
-    }
     mdnsWakePhase_ = MdnsWakePhase::SETTLING;
     mdnsWakePhaseAtMs_ = now + MDNS_WAKE_SETTLE_MS;
+    applyWifiPowerSave();
+    if (esp_wifi_get_ps(&current) != ESP_OK || current != WIFI_PS_NONE) {
+      lifecycleLog("mDNS WiFi wake failed");
+      cancelMdnsWake();
+      return;
+    }
     return;
   }
   if (static_cast<int32_t>(now - mdnsWakePhaseAtMs_) < 0) return;
   if (mdnsWakePhase_ == MdnsWakePhase::SETTLING) {
-    if (mdns_netif_action(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"),
-                          MDNS_EVENT_ANNOUNCE_IP4) != ESP_OK) {
+    if (mdns_service_port_set("_http", "_tcp", 80) != ESP_OK) {
       lifecycleLog("mDNS periodic announce failed");
     }
     mdnsWakePhase_ = MdnsWakePhase::SENDING;

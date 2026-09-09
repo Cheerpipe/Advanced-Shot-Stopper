@@ -23,14 +23,10 @@ static int esp_wifi_get_ps(wifi_ps_type_t *mode) {
   *mode = wifiPs;
   return ESP_OK;
 }
-struct esp_netif_t {};
-static esp_netif_t staNetif;
-static esp_netif_t *esp_netif_get_handle_from_ifkey(const char *) {
-  return &staNetif;
-}
-static constexpr int MDNS_EVENT_ANNOUNCE_IP4 = 1;
-static int mdns_netif_action(esp_netif_t *netif, int action) {
-  assert(netif == &staNetif && action == MDNS_EVENT_ANNOUNCE_IP4);
+static int mdns_service_port_set(const char *service, const char *proto,
+                                 int port) {
+  assert(std::string(service) == "_http" && std::string(proto) == "_tcp");
+  assert(port == 80);
   ++announces;
   return ESP_OK;
 }
@@ -87,8 +83,9 @@ class ShotStopperNetwork {
   bool brewRfActive() const { return brew; }
   void lifecycleLog(const char *) {}
   void applyWifiPowerSave() {
-    ++wifiRestores;
-    WiFi.setSleep(WIFI_PS_MIN_MODEM);
+    const bool restore = mdnsWakePhase_ == MdnsWakePhase::IDLE;
+    if (restore) ++wifiRestores;
+    WiFi.setSleep(restore ? WIFI_PS_MIN_MODEM : WIFI_PS_NONE);
   }
   void serviceMdns(uint32_t now, bool connected);
   void serviceMdnsWake(uint32_t now, uint32_t expectedGateGeneration);
