@@ -378,12 +378,6 @@ void ShotStopperNetwork::taskLoop() {
   if (!watchdogSubscribed) {
     callbacks_.reportTaskWatchdogFault();
   }
-  char deviceName[DEVICE_NAME_CAPACITY];
-  if (!loadDeviceName(deviceName)) lifecycleLog("Using default discovery name");
-  {
-    TaskLockGuard lock(dataMux_);
-    copyCString(status_.deviceName, sizeof(status_.deviceName), deviceName);
-  }
   uint32_t telemetryAtMs = 0;
   while (!stopRequested_.load(std::memory_order_acquire)) {
     lastTaskProgressAtMs_ = millis();
@@ -420,9 +414,6 @@ void ShotStopperNetwork::service() {
   // this low-priority task. Gate setters merely publish atomics and notify us.
   webhooks_.serviceAbort();
   abortNtpForRfGate();
-  if (brewRfActive() || scaleConnecting_.load(std::memory_order_acquire)) {
-    stopMdns();
-  }
 
   // Drain CLI link mutations even when SoftAP/HTTP startup is still failing.
   // A successful AP_START / WIFI_CONNECT can mark startup complete and skip
@@ -500,7 +491,6 @@ void ShotStopperNetwork::service() {
       networkSnapshot.staState == StaState::CONNECTED &&
       networkSnapshot.wifiConfigured && WiFi.status() == WL_CONNECTED &&
       networkSnapshot.staIp[0] != '\0';
-  serviceMdns(millis(), staConnected && !networkSnapshot.apActive);
   serviceNtp(now, staConnected);
 
   const uint8_t apClients = networkSnapshot.apActive

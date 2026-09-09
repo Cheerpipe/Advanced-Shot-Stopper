@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ShotStopperFlashIoScratch.h"
-#include "ShotStopperDeviceNameStore.h"
 #include "ShotStopperNvsDualSlot.h"
 #include "ShotStopperPersistedNetwork.h"
 #include "ShotStopperPersistedSettings.h"
@@ -386,12 +385,10 @@ inline bool resetPersistedSettingsToFactory(PersistedSettings &settings) {
       firstSaved && readSettingsSlot(preferences, SETTINGS_SLOT_A, first);
   const bool secondVerified =
       secondSaved && readSettingsSlot(preferences, SETTINGS_SLOT_B, second);
-  const bool nameReset = (firstVerified || secondVerified) &&
-      (!preferences.isKey(DEVICE_NAME_KEY) || preferences.remove(DEVICE_NAME_KEY));
   preferences.end();
   unlockSettingsNvs();
 
-  if (!nameReset || (!firstVerified && !secondVerified)) {
+  if (!firstVerified && !secondVerified) {
     return false;
   }
   settings = secondVerified ? second : first;

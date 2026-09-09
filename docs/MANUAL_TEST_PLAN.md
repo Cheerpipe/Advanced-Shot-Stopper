@@ -113,17 +113,6 @@ after automated tests pass. Record build, machine, scale, preset and reset state
 | BBW-M06 | Desktop/mobile, light/dark Settings: inspect both selectors, BBW OFF, locked state and dirty forms. Save distinct alpha bases, switch presets and reboot; test 0.01/0.30/0.37/1.00 and invalid precision/range. | Fields/actions stack; reset styles match; complete method names remain readable; only EWMA exposes alpha base; dirty/locked controls cannot reset, and reset confirms saved values. |
 | BBW-M05 | Collect representative repeated shots with fixed recipe/scale/coffee and export before 120 rows are overwritten. Compare by algorithm/profile, gain, captured preset_id and day; keep a separate preset for each physical portafilter/basket. | Check bias, absolute-error tails and changes after resets; verify switching presets does not relabel earlier rows. Qualify physical improvement against measurement variation. No accuracy improvement is assumed from host tests. |
 
-## Local discovery acceptance
-
-Pending hardware qualification; run only with explicit authorization on an
-isolated bench. Record both board variants, SDK version, client and LAN setup.
-
-| ID | Action | Expected result |
-| --- | --- | --- |
-| MDNS-M01 | From unlocked Admin → Network, save a unique device name with STA and with AP-only connectivity; reboot, forget STA, and separately factory reset. Try invalid names and locked/active-cycle requests. | Save succeeds only in maintenance after persistence; the name survives reboot/forget, resets to `shotstopper` on factory reset, and does not change the AP SSID. Invalid or unauthorized requests leave it unchanged. |
-| MDNS-M02 | Browse `_http._tcp` and resolve `<name>.local` after STA connects with AP down. With Wi-Fi sleep on, capture at least 10 minutes and verify the 30 s wake/announce cadence. Rename; stop/restart HTTP, disconnect/reconnect STA, and raise/stop AP. Try duplicate names and a multicast-blocking LAN. | Correct HTTP port 80 and configured instance remain discoverable; each cycle uses 500 ms to settle and 500 ms to send before restoring `MIN_MODEM`. Old records withdraw on rename/stop. Discovery stays off during AP. Use the IP when resolution is unavailable or a duplicate is renamed by the SDK. |
-| MDNS-M03 | Capture multicast traffic, BLE freshness, internal free/minimum/largest heap and network/control timing over repeated shots and scale connection attempts, with status fetched by IP. Include forced SDK initialization failure. | Responder stops and later returns; queued/goodbye packets during the transition are recorded. No persistent allocations accumulate, watchdog resets or control regression; failed starts retry no faster than every 5 s. Measure teardown latency instead of assuming a hard radio-silence deadline. |
-
 ## Idle tare and tared cup acceptance
 
 Run these hardware checks only with explicit authorization. Record scale model,

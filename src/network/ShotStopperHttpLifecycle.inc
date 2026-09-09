@@ -230,17 +230,6 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
     }
 
     case WebCommandType::SAVE_NETWORK: {
-      if (command.network.deviceName[0] != '\0') {
-        if (!saveDeviceName(command.network.deviceName)) return false;
-        {
-          TaskLockGuard lock(dataMux_);
-          copyCString(status_.deviceName, sizeof(status_.deviceName),
-                      command.network.deviceName);
-        }
-        stopMdns();
-        mdnsRetryAtMs_ = 0;
-        return true;
-      }
       char password[WIFI_PASSWORD_CAPACITY] = {};
       const bool reusePassword = shouldReuseSavedWifiCredentials(
           command.network.ssid, command.network.password, command.network.openNetwork,
@@ -1120,7 +1109,6 @@ bool ShotStopperNetwork::startHttpServer() {
 }
 
 void ShotStopperNetwork::stopHttpServer() {
-  stopMdns();
   if (server_ != nullptr) {
     httpd_stop(server_);
     server_ = nullptr;

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "ShotStopperDeviceName.h"
-
 #include <cmath>
 #include <new>
 #include <type_traits>
@@ -1786,8 +1784,6 @@ enum class CommandResultState : uint8_t {
 };
 
 struct WebCommandNetworkPayload {
-  // Nonempty only for the independent Wi-Fi device-name save action.
-  char deviceName[DEVICE_NAME_CAPACITY] = {};
   char ssid[WIFI_SSID_CAPACITY] = {};
   char password[WIFI_PASSWORD_CAPACITY] = {};
   bool openNetwork = false;

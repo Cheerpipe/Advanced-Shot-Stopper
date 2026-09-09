@@ -29,7 +29,6 @@ objects to PSRAM would move synchronization state accessed under spinlocks.
 | Settings handoff | one 2620-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
 | Web command | trivially copyable, at most 320 bytes; configuration and network payloads share a discriminated union |
 | Radio settings snapshot | at most 192 bytes; full 2616-byte settings remain for durable mutations |
-| mDNS responder | NetworkService-owned; one 4096-byte task on core 0 plus SDK heap allocations for queues, records and packets; stopped for shots, scale connection attempts, AP, HTTP and network teardown |
 | Fixed buzzer melodies | at most 8 notes each; custom tune capacity remains 250 notes |
 | JSON parser | PSRAM only; input at most 2047 bytes, nesting 32, values 128 |
 | BBW adaptive candidates | control-owned fixed RAM, at most 3,000 bytes for eight presets; 20 observations and five trajectory anchors each |
@@ -43,26 +42,16 @@ Settings V11/history V4 change byte meanings through explicit migration,
 without growing either blob. Web gzip remains capped at 64,000 bytes combined:
 500 bytes of the shell-JS allowance are reassigned to runtime (5,444 and 32,000
 bytes respectively before the PM allocation below). Source authoring limits are
-54,600 bytes HTML and 168,680 bytes JS, 223,280 combined: 1,000 more source bytes for selector readback/CSV
+54,900 bytes HTML and 168,380 bytes JS, 223,280 combined: 1,000 more source bytes for selector readback/CSV
 after condensing BBW help. These source allowances do not raise firmware or
-combined compressed-asset limits. Device-name editing reallocates 300 source
-bytes from HTML to JS by removing redundant button titles and shortening help;
-the secondary-view gzip ceiling is 5,700 bytes (previously 5,600), within the
-unchanged 64,000-byte combined limit.
+combined compressed-asset limits.
 Power management shares the Admin toggle persistence handler and adds 1,024
 source bytes of allowance. It reallocates 400 compressed bytes from shell JS:
-current limits are 5,044 shell JS, 32,200 runtime and 5,900 secondary views.
+current limits are 5,044 shell JS, 32,200 runtime and 5,800 secondary views.
 The combined 64,000-byte Web gzip cap and firmware/DRAM caps are unchanged.
 The asynchronous configuration-save acknowledgement adds 256 source bytes of
 allowance for revision/value readback and pending/failed persistence checks;
 it does not raise compressed-asset limits.
-
-The optional device-name NVS blob is 64 bytes; settings V10 remains unchanged.
-The mDNS stack is not its total RAM cost: SDK allocations bypass application
-allocation counters. Target qualification must compare internal heap free,
-minimum and largest block across discovery start/stop cycles and active shots.
-Linker baselines include the discovery dependency; historical image deltas also
-include other firmware/toolchain changes and are not an isolated mDNS cost.
 
 Capability samples use `INTERNAL|8BIT` and `SPIRAM|8BIT`, including the PSRAM
 minimum-free watermark. Diagnostic `memoryAllocations` reports cumulative
@@ -123,11 +112,10 @@ The worst-case application set is budgeted by the NVS blob rule
 | BLE settings A/B | 6 |
 | Recovery intent | 3 |
 | OTA journal A/B | 24 |
-| Device name | 4 |
 | Reset history, active pointers, and namespaces | 32 |
-| **Application total** | **611** |
+| **Application total** | **607** |
 
-The resulting conservative compaction margin is 1,783 entries (74.5%). Host
+The resulting conservative compaction margin is 1,787 entries (74.6%). Host
 tests bind the large record sizes and this arithmetic to the 84 KiB layout.
 Diagnostic status and debug exports publish the installed partition size,
 layout match, NVS used/free/available/total entries, namespace count, failure
@@ -142,7 +130,7 @@ the evidence. Prefer the public diagnostic endpoint when enabled:
 
 ```sh
 python3 scripts/p2_soak.py \
-  --url http://shotstopper.local/api/v1/status/diagnostic \
+  --url http://192.168.1.50/api/v1/status/diagnostic \
   --output artifacts/p2/combined-8h.jsonl \
   --scenario combined-ble-wifi-webhook-ota-nvs \
   --duration 28800

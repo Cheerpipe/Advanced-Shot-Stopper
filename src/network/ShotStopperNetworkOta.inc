@@ -11,7 +11,6 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
   WebCommand command;
   command.requestId = self.allocateRequestId();
   command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
-  static const char *const nameFields[] = {"action", "deviceName"};
   static const char *const forgetFields[] = {"action"};
   static const char *const confirmFields[] = {"action"};
   static const char *const saveFields[] = {
@@ -53,19 +52,6 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
                                  "\"state\":\"QUEUED\"");
       }
     }
-  } else if (parsed && strcmp(action, "name") == 0) {
-    if (!self.webUiConfigurationAllowed(request, status)) {
-      cJSON_Delete(root);
-      self.unlockJsonBody();
-      return sendError(request, STATUS_CONFLICT, "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
-                       "Device name is locked while a cycle is active.");
-    }
-    command.setNetworkType(WebCommandType::SAVE_NETWORK);
-    parsed = jsonHasOnlyUniqueFields(root, nameFields, 2) &&
-        jsonString(root, "deviceName", command.network.deviceName,
-                   sizeof(command.network.deviceName), false) &&
-        validDeviceName(command.network.deviceName);
-    networkError = "Device name must be 1-63 lowercase letters, digits or hyphens, with no leading or trailing hyphen.";
   } else if (parsed && strcmp(action, "forget") == 0) {
     if (!self.webUiConfigurationAllowed(request, status)) {
       if (root != nullptr) {

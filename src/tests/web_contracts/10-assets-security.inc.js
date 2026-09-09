@@ -72,7 +72,7 @@ const htmlBytes = Buffer.byteLength(allHtml, 'utf8');
 const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // BBW help is condensed to fund the selector; source-only allowance adds 1 KiB
 // for adaptive readback/CSV. Compressed assets and firmware budgets stay fixed.
-if (htmlBytes > 54600) {
+if (htmlBytes > 54900) {
   throw new Error('Web UI HTML source exceeds the authoring budget');
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
@@ -81,7 +81,7 @@ if (htmlBytes > 54600) {
 // source allowance does not change the compressed asset or firmware budgets.
 // Opt-in power control/activity leases add 1 KiB of authoring allowance after
 // sharing the Admin toggle persistence path. Compressed/firmware caps unchanged.
-if (jsBytes > 168680) {
+if (jsBytes > 168380) {
   throw new Error('Web UI JS source exceeds the authoring budget');
 }
 if (htmlBytes + jsBytes > 223280) {

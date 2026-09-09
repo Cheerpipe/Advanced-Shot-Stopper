@@ -625,7 +625,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
       // Diagnostics metrics live on status/diagnostic.
       ok = statusJsonAppend(
           &used,
-          ",\"network\":{\"deviceName\":\"%s\",\"apActive\":%s,\"apIp\":\"%s\",\"apClients\":%u,"
+          ",\"network\":{\"apActive\":%s,\"apIp\":\"%s\",\"apClients\":%u,"
           "\"wifiConfigured\":%s,\"ssid\":\"%s\",\"open\":%s,\"wifiSleep\":%s,"
           "\"staState\":\"%s\",\"channel\":%s,\"staIp\":\"%s\",\"ipMode\":\"%s\","
           "\"configState\":\"%s\",\"confirmRemainingMs\":%lu,"
@@ -641,7 +641,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           "\"advertisingStarts\":%lu,\"advertisingFailures\":%lu,"
           "\"phoneConnects\":%lu,\"phoneDisconnects\":%lu,"
           "\"scanIntensity\":\"%s\"}",
-          network.deviceName, network.apActive ? "true" : "false", network.apIp,
+          network.apActive ? "true" : "false", network.apIp,
           static_cast<unsigned>(network.apClients),
           network.wifiConfigured ? "true" : "false", safeStaSsid,
           network.staOpen ? "true" : "false",

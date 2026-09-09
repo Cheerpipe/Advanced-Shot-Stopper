@@ -22,7 +22,6 @@ idf_component_register(
     ShotStopperBleRuntime
   PRIV_REQUIRES
     espressif__cjson
-    espressif__mdns
     mbedtls
     nvs_flash
     esp_wifi

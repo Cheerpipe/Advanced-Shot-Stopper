@@ -306,7 +306,6 @@ void ShotStopperNetwork::applyWifiPowerSave() {
     if (powerIdleSavings()) sleepAllowed = true;
     if (powerWebActive(millis())) sleepAllowed = false;
   }
-  if (mdnsWakePhase_ != MdnsWakePhase::IDLE) sleepAllowed = false;
   const WifiPowerSaveMode desired = desiredWifiPowerSave(
       sleepAllowed, apActive, staAssociated, otaBusy);
   const wifi_ps_type_t desiredPs = desired == WifiPowerSaveMode::MIN_MODEM
@@ -567,7 +566,6 @@ void ShotStopperNetwork::abortWifiScan(uint32_t now, bool logTimeout) {
 }
 
 bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
-  stopMdns();
   const NetworkSettingsSnapshot settings = networkSettingsSnapshot();
   NetworkStatusSnapshot status = snapshot();
   if (!force && status.apActive && status.networkActive && server_ != nullptr) {
@@ -645,7 +643,6 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
 }
 
 void ShotStopperNetwork::stopNetwork() {
-  stopMdns();
   esp_wifi_scan_stop();
   WiFi.scanDelete();
   stopHttpServer();

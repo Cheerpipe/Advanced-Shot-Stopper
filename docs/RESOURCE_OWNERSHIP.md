@@ -28,7 +28,6 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | ordered scale-weight handoff | ScaleService producer, control consumer | static 16-event FIFO under task mutex; overflow drops the incomplete window and marks discontinuity; no allocation or dynamic teardown |
 | static task mutex/event storage | containing static object | no heap allocation and no dynamic teardown |
 | HTTP server | NetworkService | manager-task-only stop/restart; handle cleared immediately after `httpd_stop` |
-| mDNS responder and its service task | NetworkService | STA HTTP only with AP down; RF generation checks cancel stale startup; `mdns_free` stops it for shots, scale connection attempts, HTTP/AP/network teardown; SDK teardown may block and never runs on control |
 | persistence mailbox | control producer, then persistence worker | one external request; internal token queue; producer may reuse only after consuming completion, or failed enqueue |
 | webhook queue / payload | `WebhookDispatcher` | internal queue storage and external HTTP payload; release after worker join, or startup rollback |
 | profiler workspace / capture | `TaskProfiler` | external processing workspace and separate internal kernel capture; free both on stop or failed start |

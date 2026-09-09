@@ -184,8 +184,8 @@ if (generated.runtimeGzip.length > 32200) {
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
 }
-if (generated.secondaryGzip.length > 5900) {
-  throw new Error('Compressed secondary view JS exceeds the 5900-byte gzip budget');
+if (generated.secondaryGzip.length > 5800) {
+  throw new Error('Compressed secondary view JS exceeds the 5800-byte gzip budget');
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');

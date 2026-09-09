@@ -94,7 +94,6 @@ static_assert(sizeof(NetworkSettingsSnapshot) <= 192,
               "Radio snapshot exceeds its stack budget");
 
 struct NetworkStatusSnapshot {
-  char deviceName[DEVICE_NAME_CAPACITY] = "shotstopper";
   bool networkActive = false;
   bool apActive = false;
   bool wifiConfigured = false;
@@ -142,8 +141,6 @@ struct NetworkStatusSnapshot {
   char apMac[18] = {};
   char ntpActiveServer[NTP_SERVER_HOST_CAPACITY] = {};
 };
-
-enum class MdnsWakePhase : uint8_t { IDLE, SETTLING, SENDING };
 
 inline uint8_t wifiRssiToSignalQualityPct(int32_t rssi) {
   if (rssi <= -100) {
@@ -355,11 +352,6 @@ class ShotStopperNetwork {
   uint32_t staConfirmDeadlineMs_ = 0;
   uint32_t restartRequestedAtMs_ = 0;
   bool ntpStarted_ = false;
-  bool mdnsStarted_ = false;
-  uint32_t mdnsRetryAtMs_ = 0;
-  uint32_t mdnsWakeAtMs_ = 0;
-  uint32_t mdnsWakePhaseAtMs_ = 0;
-  MdnsWakePhase mdnsWakePhase_ = MdnsWakePhase::IDLE;
   bool ntpRearmPending_ = false;
   bool ntpManualSyncPending_ = false;
   bool ntpActivitySyncPending_ = false;
@@ -378,10 +370,6 @@ class ShotStopperNetwork {
   void taskLoop();
   void service();
   void serviceNtp(uint32_t now, bool staConnected);
-  void serviceMdns(uint32_t now, bool staConnected);
-  void serviceMdnsWake(uint32_t now, uint32_t expectedGateGeneration);
-  void cancelMdnsWake();
-  void stopMdns();
   bool ntpMayArm(uint32_t now, bool staConnected) const;
   void abortNtpForRfGate();
   void stopNtp();
