@@ -43,7 +43,7 @@ Settings V11/history V4 change byte meanings through explicit migration,
 without growing either blob. Web gzip remains capped at 64,000 bytes combined:
 500 bytes of the shell-JS allowance are reassigned to runtime (5,444 and 32,000
 bytes respectively before the PM allocation below). Source authoring limits are
-54,600 bytes HTML and 168,424 bytes JS, 223,024 combined: 1,000 more source bytes for selector readback/CSV
+54,600 bytes HTML and 168,680 bytes JS, 223,280 combined: 1,000 more source bytes for selector readback/CSV
 after condensing BBW help. These source allowances do not raise firmware or
 combined compressed-asset limits. Device-name editing reallocates 300 source
 bytes from HTML to JS by removing redundant button titles and shortening help;
@@ -53,6 +53,9 @@ Power management shares the Admin toggle persistence handler and adds 1,024
 source bytes of allowance. It reallocates 400 compressed bytes from shell JS:
 current limits are 5,044 shell JS, 32,200 runtime and 5,900 secondary views.
 The combined 64,000-byte Web gzip cap and firmware/DRAM caps are unchanged.
+The asynchronous configuration-save acknowledgement adds 256 source bytes of
+allowance for revision/value readback and pending/failed persistence checks;
+it does not raise compressed-asset limits.
 
 The optional device-name NVS blob is 64 bytes; settings V10 remains unchanged.
 The mDNS stack is not its total RAM cost: SDK allocations bypass application

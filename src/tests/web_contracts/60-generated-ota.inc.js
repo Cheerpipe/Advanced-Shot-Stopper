@@ -793,7 +793,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       !js.includes('showDiagnosticPage') ||
       !js.includes('diagnosticPublic') ||
       !viewJs.admin.includes("saveToggle('showDiagnosticPage')") ||
-      !viewJs.admin.includes('await waitSaved(a.requestId,id)') ||
+      !viewJs.admin.includes('await waitSaved(a.requestId,id,p)') ||
       !viewJs.admin.includes('R.withBaseRev({[id]:wanted})') ||
       viewJs.admin.includes('waitDiagnosticPagePersisted') ||
       (viewJs.admin.match(/\bapplyStatus\b/g) || []).length !== 2 ||

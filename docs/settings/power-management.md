@@ -4,6 +4,11 @@
 policy. It defaults **off**, including after migration and factory reset, and
 does not belong to a shot preset. Save it while the machine is stopped; the
 existing Admin unlock and configuration revision checks apply.
+Admin confirms the applied revision and selected value, then waits for the
+asynchronous configuration save to finish. An `APPLIED` command result alone
+does not confirm durable storage. Admin status exposes `config.persistPending`
+and `config.persistFailed`; a failed write is reported without undoing the live
+setting, and the existing persistence worker retries it.
 
 | Demand with the option on | CPU policy | Radio policy |
 | --- | --- | --- |

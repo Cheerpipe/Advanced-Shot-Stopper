@@ -172,6 +172,7 @@ void processWebCommand(const WebCommand &command) {
       candidate.serialLogLevel = command.config.serialLogLevel;
       candidate.ringRetainLogLevel = command.config.ringRetainLogLevel;
       candidate.showDiagnosticPage = command.config.showDiagnosticPage;
+      candidate.powerManagementEnabled = command.config.powerManagementEnabled;
       // Session Manual switch may arrive via brewByWeight on Home; keep as timerOnly.
       candidate.timerOnly = command.config.timerOnly;
 #if defined(SHOT_STOPPER_HOST_TEST)

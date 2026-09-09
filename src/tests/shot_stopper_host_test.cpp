@@ -13855,6 +13855,43 @@ void pow04_ble_policy_failure_recovery() {
   CHECK(safeRestartPending());
 }
 
+void pow05_power_config_command_and_persistence() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  for (bool enabled : {true, false}) {
+    WebCommand update;
+    update.type = WebCommandType::APPLY_CONFIG;
+    update.requestId = enabled ? 41 : 42;
+    update.config = runtimeConfig;
+    update.config.powerManagementEnabled = enabled;
+    processWebCommand(update);
+    CHECK(runtimeConfig.powerManagementEnabled == enabled);
+    CHECK(runtimeConfig.revision == update.config.revision + 1);
+    CHECK(runtimePersistPending);
+    CHECK(hostLastForwardedNetworkCommand.requestId == update.requestId);
+    CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::APPLIED);
+    hostRuntimePersistSucceeds = false;
+    runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
+    CHECK(publishedControlStatus.configPersistFailed);
+    CHECK(runtimeConfig.powerManagementEnabled == enabled);
+    hostRuntimePersistSucceeds = true;
+    runLoopAfter(RUNTIME_PERSIST_RETRY_MS + 1);
+    CHECK(!runtimePersistPending && !runtimePersistFailed);
+    CHECK(hostLastFlushedRuntime.powerManagementEnabled == enabled);
+    CHECK(hostLastFlushedRuntime.revision == runtimeConfig.revision);
+    CHECK(publishedControlStatus.config.powerManagementEnabled == enabled);
+    CHECK(!publishedControlStatus.configPersistPending);
+  }
+  WebCommand blocked;
+  blocked.type = WebCommandType::APPLY_CONFIG;
+  blocked.config = runtimeConfig;
+  blocked.config.powerManagementEnabled = true;
+  session.active = true;
+  processWebCommand(blocked);
+  CHECK(!runtimeConfig.powerManagementEnabled);
+  CHECK(runtimeConfig.revision == blocked.config.revision);
+}
+
 struct TestCase {
   const char *id;
   TestFunction function;
@@ -13865,6 +13902,7 @@ const TestCase testCases[] = {
     {"POW02", pow02_idle_scan_preserves_saved_preference},
     {"POW03", pow03_ble_wake_without_link_is_bounded},
     {"POW04", pow04_ble_policy_failure_recovery},
+    {"POW05", pow05_power_config_command_and_persistence},
     {"T01", t01_boot_with_paddle_off},
     {"T02", t02_boot_with_activator_on},
     {"T03", t03_sustained_on_enters_brew_once},

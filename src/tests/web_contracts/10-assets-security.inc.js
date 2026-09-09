@@ -81,10 +81,10 @@ if (htmlBytes > 54600) {
 // source allowance does not change the compressed asset or firmware budgets.
 // Opt-in power control/activity leases add 1 KiB of authoring allowance after
 // sharing the Admin toggle persistence path. Compressed/firmware caps unchanged.
-if (jsBytes > 168424) {
+if (jsBytes > 168680) {
   throw new Error('Web UI JS source exceeds the authoring budget');
 }
-if (htmlBytes + jsBytes > 223024) {
+if (htmlBytes + jsBytes > 223280) {
   throw new Error('Web UI HTML+JS source exceeds the combined authoring budget');
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||

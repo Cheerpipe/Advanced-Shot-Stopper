@@ -36,6 +36,47 @@
   assert(runtimeJs.includes("options.headers['X-WebUI-Activity']"));
 }
 
+// Real config waiter: APPLY_CONFIG remains APPLIED after asynchronous saving.
+{
+  const assert = require('assert').strict;
+  const admin = viewJs.admin;
+  const source = admin.slice(admin.indexOf('async function waitSaved('),
+      admin.indexOf('function saveToggle('));
+  const run = async () => {
+    let now = 0, snapshots = [];
+    const waiter = new Function('R', 'wait', 'Date', source + ';return waitSaved')({
+      api: async () => {
+        assert(snapshots.length, 'unexpected extra poll after durable config');
+        return snapshots.shift();
+      }
+    }, async () => { now += 150; }, {now: () => now});
+    for (const key of ['powerManagementEnabled', 'showDiagnosticPage']) {
+      for (const value of [true, false]) {
+        const snapshot = (state, revision, pending, failed = false, actual = value) => ({
+          lastCommand: {requestId: 7, state},
+          config: {revision, persistPending: pending, persistFailed: failed, [key]: actual}
+        });
+        snapshots = [snapshot('QUEUED', 12, false, true), snapshot('APPLIED', 12, false, true),
+          snapshot('APPLIED', 13, true), snapshot('APPLIED', 13, false, false, !value),
+          snapshot('APPLIED', 14, false)]; // Coalesced later revision is durable too.
+        await waiter(7, key, {baseRevision: 12, [key]: value});
+        assert.equal(snapshots.length, 0);
+        snapshots = [snapshot('APPLIED', 1, false)];
+        await waiter(7, key, {baseRevision: 0xffffffff, [key]: value});
+        snapshots = [snapshot('APPLIED', 13, true, true)];
+        await assert.rejects(waiter(7, key, {baseRevision: 12, [key]: value}), /Could not save/);
+        for (const state of ['FAILED', 'CANCELED']) {
+          snapshots = [snapshot(state, 12, false)];
+          await assert.rejects(waiter(7, key, {baseRevision: 12, [key]: value}), /Could not save/);
+        }
+        snapshots = Array.from({length: 54}, () => snapshot('APPLIED', 13, true));
+        await assert.rejects(waiter(7, key, {baseRevision: 12, [key]: value}), /Timeout saving/);
+      }
+    }
+  };
+  run().catch(error => { console.error(error); process.exitCode = 1; });
+}
+
 // Shared Admin toggle: revisioned request, durable acknowledgement, rollback.
 {
   const assert = require('assert').strict;
@@ -58,7 +99,12 @@
             return {requestId: 5};
           }, message: () => {},
           refreshStatus: async () => { ++refreshed; el.disabled = false; }
-        }, async id => { assert.equal(id, 5); ++saved; });
+        }, async (id, key, config) => {
+          assert.equal(id, 5);
+          assert.equal(key, 'powerManagementEnabled');
+          assert.deepEqual(config, posted);
+          ++saved;
+        });
     await handler('powerManagementEnabled');
     assert.deepEqual(posted, {powerManagementEnabled: true, baseRevision: 12});
     assert.equal(saved, 1);

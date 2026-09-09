@@ -247,11 +247,14 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     ok = statusJsonAppend(
         &used,
         ",\"timezoneOffsetMinutes\":%d,\"ntpServerPreset\":\"%s\","
-        "\"ntpServerCustom\":\"%s\",\"showDiagnosticPage\":%s,\"powerManagementEnabled\":%s",
+        "\"ntpServerCustom\":\"%s\",\"showDiagnosticPage\":%s,\"powerManagementEnabled\":%s,"
+        "\"persistPending\":%s,\"persistFailed\":%s",
         static_cast<int>(control.config.timezoneOffsetMinutes),
         ntpPresetId(control.config.ntpServerPreset), safeNtpCustom,
         control.config.showDiagnosticPage ? "true" : "false",
-        control.config.powerManagementEnabled ? "true" : "false");
+        control.config.powerManagementEnabled ? "true" : "false",
+        control.configPersistPending ? "true" : "false",
+        control.configPersistFailed ? "true" : "false");
   }
   if (ok && page == StatusPage::Diagnostic) {
     ok = statusJsonAppend(
