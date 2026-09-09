@@ -244,7 +244,7 @@ bool bbwWeightStopInhibited() {
 void onFirstDropsDetected(uint32_t receivedAtMs) {
   const bool first = session.firstDropMs == 0;
   recordFirstDropTimestamp(receivedAtMs);
-  if (session.hasWeightAnchor && isfinite(session.lastAcceptedWeightG)) {
+  if (session.hasWeightAnchor && std::isfinite(session.lastAcceptedWeightG)) {
     shotCurveSampler.latchFirstDrop(receivedAtMs, session.lastAcceptedWeightG);
   }
   requestFirstDropBeep();
@@ -341,7 +341,7 @@ void enterSlowExtractionExtended(float weightG, uint32_t atMs) {
 void considerDirectStopSample(float weight, uint32_t receivedAtMs,
                               uint32_t packetSequence,
                               uint32_t connectionGeneration) {
-  if (!shouldTrackWeight() || packetSequence == 0 || !isfinite(weight) ||
+  if (!shouldTrackWeight() || packetSequence == 0 || !std::isfinite(weight) ||
       bbwWeightStopInhibited()) {
     return;
   }

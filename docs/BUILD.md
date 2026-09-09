@@ -2,7 +2,7 @@
 
 <a id="build-environment"></a>
 
-Supported firmware uses ESP-IDF 5.5.x (pinned reference: **5.5.5**),
+Supported firmware uses ESP-IDF 6.1.x (pinned reference: **6.1**),
 Arduino-ESP32 **3.3.11** as an IDF component, and native NimBLE.
 The bundled EspressoScaleBLE library is not installed through Library Manager.
 
@@ -72,18 +72,18 @@ when installation finishes:
 (
   mkdir -p "$HOME/esp"
   cd "$HOME/esp"
-  git clone -b v5.5.5 --recursive https://github.com/espressif/esp-idf.git
-  cd esp-idf
+  git clone -b v6.1 --recursive https://github.com/espressif/esp-idf.git esp-idf-v6.1
+  cd esp-idf-v6.1
   ./install.sh esp32s3
 )
-. "$HOME/esp/esp-idf/export.sh"
+. "$HOME/esp/esp-idf-v6.1/export.sh"
 idf.py --version
 ```
 
 If that SDK directory already exists, verify its version instead of cloning
 over it. For an SDK elsewhere, export `IDF_PATH` and source its `export.sh`.
-Build scripts can discover `IDF_PATH` or `$HOME/esp/esp-idf` when needed.
-They reject versions outside 5.5.x.
+Build scripts can discover `IDF_PATH` or `$HOME/esp/esp-idf-v6.1` when needed.
+They reject versions outside 6.1.x.
 
 `idf/main/idf_component.yml` and `idf/dependencies.lock` pin the component
 graph. First firmware builds may need network access to resolve SDK components;
@@ -120,6 +120,11 @@ From the repository root:
 ```sh
 ./scripts/dev build --arch n16r8
 ```
+
+The wrapper preserves project diagnostics but hides ESP-IDF 6.1's known
+`esp_wifi`/`wpa_supplicant` component-validation warnings. Extra-warning
+reports retain their unfiltered SDK log and report project-owned warnings
+separately.
 
 The facade passes empty extra flags unless supplied; it does not reuse a saved
 extra-flags preference implicitly. The direct `build-idf` script instead

@@ -16,7 +16,7 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 |---|---|---|
 | webhook `esp_http_client` | `WebhookDispatcher::httpClient_` (`UniqueResource`) | normal cleanup after worker join; destructor is final rollback |
 | OTA write handle | `ShotStopperOta::otaHandle_` (`UniqueResource`) | abort under `FlashIoGuard`; `release()` transfers it exactly once to `esp_ota_end` |
-| OTA SHA context | `ShotStopperOta::sessionSha256_` (`UniqueResource`) | `mbedtls_sha256_free` then capability-aware heap free |
+| OTA SHA context | `ShotStopperOta::sessionSha256_` (`UniqueResource`) | `psa_hash_abort` then capability-aware heap free |
 | Network command queue and lifecycle semaphores | `ShotStopperNetwork` (`UniqueResource`) | acquired before task creation; reset in reverse order after manager join |
 | relay `esp_timer` constructor temporaries | local `TimerRollbackOwner` | automatic reverse rollback until both timers and the independent timer are ready |
 | network/webhook tasks | owning service, borrowed `TaskHandle_t` | stop request, task acknowledgement, join, then queues/buffers/clients |

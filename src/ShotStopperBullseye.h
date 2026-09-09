@@ -1,6 +1,6 @@
 #pragma once
 
-#include <math.h>
+#include <cmath>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -69,7 +69,7 @@ inline bool validBullseyeMelodyConfig(const BullseyeMelodyConfig &config) {
 }
 
 inline bool bullseyeWeightExactlyTarget(float weightG, uint8_t targetWeightG) {
-  return isfinite(weightG) &&
+  return std::isfinite(weightG) &&
          fabsf(weightG - static_cast<float>(targetWeightG)) < 0.005f;
 }
 

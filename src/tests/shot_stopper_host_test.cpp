@@ -1299,7 +1299,7 @@ void r03_non_finite_weights_cannot_corrupt_state_or_offset() {
   currentWeightReceivedAtMs = hostMillis + 1;
   runLoopAfter(pendingFinalize.dripDelayMs);
   CHECK(!pendingFinalize.pending);
-  CHECK(isfinite(runtimeConfig.weightOffsetG));
+  CHECK(std::isfinite(runtimeConfig.weightOffsetG));
   CHECK(runtimeConfig.weightOffsetG == originalOffset);
 }
 
@@ -7764,7 +7764,7 @@ void cw29_all_tare_paths_capture_latest_approved_load() {
         CHECK(publishScaleEvent(event, false));
       }
       CHECK(executeNextScaleCommand());
-      CHECK(isfinite(cupPresence.emptyAnchorG) == !unvalidated);
+      CHECK(std::isfinite(cupPresence.emptyAnchorG) == !unvalidated);
       if (!unvalidated) {
         CHECK(cupPresence.emptyAnchorG == -82.0f);
         CHECK(captureCupTareDiagnostics().weightG == 80.0f);

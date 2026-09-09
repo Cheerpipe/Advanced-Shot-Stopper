@@ -56,11 +56,12 @@ struct Image {
     std::strcpy(identity.arch, "n16r8");
     std::strcpy(identity.version, FW_VERSION_STRING);
     std::strcpy(identity.transferId, "test-transfer-012345");
-    mbedtls_sha256_context hash;
-    mbedtls_sha256_init(&hash);
-    mbedtls_sha256_update(&hash, bytes.data(), bytes.size());
+    psa_hash_operation_t hash = PSA_HASH_OPERATION_INIT;
+    psa_hash_setup(&hash, PSA_ALG_SHA_256);
+    psa_hash_update(&hash, bytes.data(), bytes.size());
     uint8_t digest[32];
-    mbedtls_sha256_finish(&hash, digest);
+    size_t digestLength = 0;
+    psa_hash_finish(&hash, digest, sizeof(digest), &digestLength);
     sha256Hex(digest, identity.sha256);
   }
 };

@@ -157,7 +157,10 @@ inline esp_err_t esp_ota_mark_app_invalid_rollback() {
 }
 inline esp_err_t esp_wifi_set_ps(int) { return ESP_OK; }
 
-inline void mbedtls_sha256_clone(mbedtls_sha256_context *destination,
-                                 const mbedtls_sha256_context *source) {
+inline psa_status_t psa_hash_clone(const psa_hash_operation_t *source,
+                                   psa_hash_operation_t *destination) {
+  if (source == nullptr || !source->active || destination == nullptr ||
+      destination->active) return PSA_ERROR_BAD_STATE;
   *destination = *source;
+  return PSA_SUCCESS;
 }

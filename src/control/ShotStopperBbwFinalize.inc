@@ -6,8 +6,8 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
     return false;
   }
 
-  if (!scaleAvailable() || !isfinite(finalWeightG) ||
-      !isfinite(snapshot.weightOffsetG) ||
+  if (!scaleAvailable() || !std::isfinite(finalWeightG) ||
+      !std::isfinite(snapshot.weightOffsetG) ||
       currentWeightSequence == snapshot.endedWeightSequence ||
       static_cast<int32_t>(currentWeightReceivedAtMs - snapshot.endedAtMs) <=
           0) {

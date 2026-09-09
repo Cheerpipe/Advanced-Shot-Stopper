@@ -6,7 +6,7 @@
 # ESP-IDF NimBLE as the only BLE backend.
 
 IDF_PROJECT_NAME="shotstopper"
-IDF_DEFAULT_HOME="${HOME}/esp/esp-idf"
+IDF_DEFAULT_HOME="${HOME}/esp/esp-idf-v6.1"
 
 ss_idf_find() {
   if [[ -n "${IDF_PATH:-}" && -f "${IDF_PATH}/export.sh" ]]; then
@@ -24,23 +24,15 @@ ss_idf_source() {
   local idf_root
   idf_root="$(ss_idf_find)" || {
     echo "ESP-IDF not found (idf.py / export.sh)." >&2
-    echo "Install 5.5.x and run again:" >&2
+    echo "Install 6.1.x and run again:" >&2
     echo "  mkdir -p \"\$HOME/esp\" && cd \"\$HOME/esp\"" >&2
-    echo "  git clone -b v5.5.5 --recursive https://github.com/espressif/esp-idf.git" >&2
-    echo "  cd esp-idf && ./install.sh esp32s3 && . ./export.sh" >&2
+    echo "  git clone -b v6.1 --recursive https://github.com/espressif/esp-idf.git esp-idf-v6.1" >&2
+    echo "  cd esp-idf-v6.1 && ./install.sh esp32s3 && . ./export.sh" >&2
     exit 127
   }
   unset IDF_PYTHON_ENV_PATH ESP_PYTHON
-  # IDF 5.5 supports Python 3.9–3.13. Homebrew python3 can be 3.14+.
-  if [[ -x /opt/homebrew/opt/python@3.12/libexec/bin/python3 ]]; then
-    PATH="/opt/homebrew/opt/python@3.12/libexec/bin:${PATH}"
-    export PATH
-  elif command -v python3.12 >/dev/null 2>&1; then
-    PATH="$(dirname "$(command -v python3.12)"):${PATH}"
-    export PATH
-  fi
   # shellcheck disable=SC1091
-  . "${idf_root}/export.sh"
+  . "${idf_root}/export.sh" >/dev/null
   command -v idf.py >/dev/null 2>&1 || {
     echo "export.sh from ${idf_root} did not put idf.py on PATH." >&2
     exit 127
@@ -51,7 +43,26 @@ ss_idf_source() {
   fi
 }
 
-# Shot Stopper is validated against ESP-IDF 5.5.x (tracks 5.5.5 with
+# ESP-IDF 6.1 reports its own esp_wifi/wpa_supplicant cross-includes as CMake
+# warnings. Hide only those upstream blocks; preserve every other diagnostic.
+ss_idf_filter_output() {
+  awk -v idf="${IDF_PATH}/components/" '
+    function emit() {
+      external = (index(block, idf "esp_wifi/") || index(block, idf "wpa_supplicant/")) && \
+                 index(block, "esp_wifi") && index(block, "wpa_supplicant")
+      if (!external) printf "%s", block
+      block = ""; capture = 0; fflush()
+    }
+    capture { block = block $0 ORS; if ($0 == "") emit(); next }
+    /CMake Warning at .*tools\/cmake\/component_validation\.cmake:/ {
+      capture = 1; block = $0 ORS; next
+    }
+    { print; fflush() }
+    END { if (capture) emit() }
+  '
+}
+
+# Shot Stopper is validated against ESP-IDF 6.1.x (tracks 6.1 with
 # Arduino-ESP32 3.3.11). Refuse other majors/minors to avoid silent drift.
 ss_idf_require_version() {
   local ver_line ver
@@ -61,16 +72,16 @@ ss_idf_require_version() {
     ver="$(printf '%s' "$ver_line" | sed -n 's/.*v\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p')"
   fi
   case "$ver" in
-    5.5|5.5.*)
+    6.1|6.1.*)
       if [[ "${SS_IDF_QUIET:-}" != "1" ]]; then
-        echo "ESP-IDF version: v${ver} (required: 5.5.x)"
+        echo "ESP-IDF version: v${ver} (required: 6.1.x)"
       fi
       ;;
     *)
-      echo "ESP-IDF 5.5.x is required (project validated with v5.5.5)." >&2
+      echo "ESP-IDF 6.1.x is required (project validated with v6.1)." >&2
       echo "Found: ${ver_line:-unknown} (parsed: ${ver:-none})" >&2
-      echo "Install or point IDF_PATH at v5.5.5:" >&2
-      echo "  git clone -b v5.5.5 --recursive https://github.com/espressif/esp-idf.git" >&2
+      echo "Install or point IDF_PATH at v6.1:" >&2
+      echo "  git clone -b v6.1 --recursive https://github.com/espressif/esp-idf.git esp-idf-v6.1" >&2
       exit 127
       ;;
   esac

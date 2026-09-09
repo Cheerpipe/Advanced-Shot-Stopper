@@ -169,35 +169,53 @@ inline void esp_fill_random(void *output, size_t length) {
   }
 }
 
-struct mbedtls_sha256_context {
+using psa_status_t = int32_t;
+using psa_algorithm_t = uint32_t;
+constexpr psa_status_t PSA_SUCCESS = 0;
+constexpr psa_status_t PSA_ERROR_BAD_STATE = -1;
+constexpr psa_algorithm_t PSA_ALG_SHA_256 = 0x02000009U;
+
+struct psa_hash_operation_t {
   uint32_t hash = 2166136261U;
+  bool active = false;
 };
+#define PSA_HASH_OPERATION_INIT psa_hash_operation_t{}
 
-inline void mbedtls_sha256_init(mbedtls_sha256_context *context) {
+inline psa_status_t psa_hash_setup(psa_hash_operation_t *context,
+                                   psa_algorithm_t algorithm) {
+  if (context == nullptr || context->active || algorithm != PSA_ALG_SHA_256) {
+    return PSA_ERROR_BAD_STATE;
+  }
   context->hash = 2166136261U;
+  context->active = true;
+  return PSA_SUCCESS;
 }
 
-inline int mbedtls_sha256_starts(mbedtls_sha256_context *context, int) {
-  context->hash = 2166136261U;
-  return 0;
-}
-
-inline int mbedtls_sha256_update(mbedtls_sha256_context *context,
-                                 const uint8_t *input, size_t length) {
+inline psa_status_t psa_hash_update(psa_hash_operation_t *context,
+                                    const uint8_t *input, size_t length) {
+  if (context == nullptr || !context->active) return PSA_ERROR_BAD_STATE;
   for (size_t index = 0; index < length; ++index) {
     context->hash = (context->hash ^ input[index]) * 16777619U;
   }
-  return 0;
+  return PSA_SUCCESS;
 }
 
-inline int mbedtls_sha256_finish(mbedtls_sha256_context *context,
-                                 uint8_t output[32]) {
+inline psa_status_t psa_hash_finish(psa_hash_operation_t *context,
+                                    uint8_t *output, size_t outputSize,
+                                    size_t *outputLength) {
+  if (context == nullptr || !context->active || outputSize < 32 ||
+      outputLength == nullptr) return PSA_ERROR_BAD_STATE;
   uint32_t value = context->hash;
   for (size_t index = 0; index < 32; ++index) {
     value = value * 1103515245U + 12345U;
     output[index] = static_cast<uint8_t>(value >> 24U);
   }
-  return 0;
+  *outputLength = 32;
+  context->active = false;
+  return PSA_SUCCESS;
 }
 
-inline void mbedtls_sha256_free(mbedtls_sha256_context *) {}
+inline psa_status_t psa_hash_abort(psa_hash_operation_t *context) {
+  if (context != nullptr) context->active = false;
+  return PSA_SUCCESS;
+}

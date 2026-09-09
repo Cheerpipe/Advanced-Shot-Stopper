@@ -6,7 +6,7 @@
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <esp_wifi.h>
-#include <mbedtls/sha256.h>
+#include <psa/crypto.h>
 #endif
 
 #include "ShotStopperFlashIoScratch.h"
@@ -221,7 +221,7 @@ void OtaHandleAborter::operator()(uint32_t handle) const {
 
 void OtaSha256Deleter::operator()(void *context) const {
   if (context == nullptr) return;
-  mbedtls_sha256_free(static_cast<mbedtls_sha256_context *>(context));
+  (void)psa_hash_abort(static_cast<psa_hash_operation_t *>(context));
   heapCapsFree(context);
 }
 
@@ -332,14 +332,17 @@ bool ShotStopperOta::persistSession() {
   record.generation = ++sessionGeneration_;
   record.received = receivedBytes_;
   record.identity = session_;
-  mbedtls_sha256_context snapshot;
-  mbedtls_sha256_init(&snapshot);
-  mbedtls_sha256_clone(
-      &snapshot,
-      static_cast<const mbedtls_sha256_context *>(sessionSha256_.get()));
+  psa_hash_operation_t snapshot = PSA_HASH_OPERATION_INIT;
+  const psa_status_t cloned = psa_hash_clone(
+      static_cast<const psa_hash_operation_t *>(sessionSha256_.get()),
+      &snapshot);
   uint8_t digest[32] = {};
-  const bool ok = mbedtls_sha256_finish(&snapshot, digest) == 0;
-  mbedtls_sha256_free(&snapshot);
+  size_t digestLength = 0;
+  const bool ok = cloned == PSA_SUCCESS &&
+                  psa_hash_finish(&snapshot, digest, sizeof(digest),
+                                  &digestLength) == PSA_SUCCESS &&
+                  digestLength == sizeof(digest);
+  (void)psa_hash_abort(&snapshot);
   if (!ok) return false;
   sha256Hex(digest, record.prefixSha256);
   record.checksum = journalChecksum(record);
@@ -369,9 +372,8 @@ void ShotStopperOta::restoreSessionJournal() {
       static_cast<const esp_partition_t *>(targetPartition_);
   OtaChunkBuffer chunk(OTA_CHUNK_BYTES);
   if (target == nullptr || !chunk.ok()) return;
-  mbedtls_sha256_context hash;
-  mbedtls_sha256_init(&hash);
-  bool ok = mbedtls_sha256_starts(&hash, 0) == 0;
+  psa_hash_operation_t hash = PSA_HASH_OPERATION_INIT;
+  bool ok = psa_hash_setup(&hash, PSA_ALG_SHA_256) == PSA_SUCCESS;
   OtaImageTagScanner scanner;
   uint32_t offset = 0;
   bool headerChecked = record.received == 0;
@@ -384,7 +386,7 @@ void ShotStopperOta::restoreSessionJournal() {
       ok = flash.ok() &&
            esp_partition_read(target, offset, chunk.bytes, length) == ESP_OK;
     }
-    ok = ok && mbedtls_sha256_update(&hash, chunk.bytes, length) == 0;
+    ok = ok && psa_hash_update(&hash, chunk.bytes, length) == PSA_SUCCESS;
     if (!headerChecked && offset == 0) {
       headerChecked = length >= OTA_IMAGE_PREFIX_BYTES &&
                       validateOtaImageHeader(chunk.bytes, length) == OtaImageHeaderResult::OK;
@@ -395,16 +397,18 @@ void ShotStopperOta::restoreSessionJournal() {
     yieldFlashIo();
     feedFlashIoWatchdog();
   }
-  mbedtls_sha256_context verification;
-  mbedtls_sha256_init(&verification);
-  mbedtls_sha256_clone(&verification, &hash);
+  psa_hash_operation_t verification = PSA_HASH_OPERATION_INIT;
+  ok = ok && psa_hash_clone(&hash, &verification) == PSA_SUCCESS;
   uint8_t digest[32] = {};
-  ok = ok && mbedtls_sha256_finish(&verification, digest) == 0;
-  mbedtls_sha256_free(&verification);
+  size_t digestLength = 0;
+  ok = ok && psa_hash_finish(&verification, digest, sizeof(digest),
+                             &digestLength) == PSA_SUCCESS &&
+       digestLength == sizeof(digest);
+  (void)psa_hash_abort(&verification);
   char prefix[OTA_SHA256_HEX_CAPACITY] = {};
   sha256Hex(digest, prefix);
   if (!ok || !sameText(prefix, record.prefixSha256, sizeof(prefix))) {
-    mbedtls_sha256_free(&hash);
+    (void)psa_hash_abort(&hash);
     clearJournal();
     return;
   }
@@ -418,14 +422,21 @@ void ShotStopperOta::restoreSessionJournal() {
   sessionActive_ = true;
   state_ = OtaState::RECEIVING;
   if (!startSessionSha256()) {
-    mbedtls_sha256_free(&hash);
+    (void)psa_hash_abort(&hash);
     clearSession(false);
     state_ = OtaState::IDLE;
     return;
   }
-  mbedtls_sha256_clone(
-      static_cast<mbedtls_sha256_context *>(sessionSha256_.get()), &hash);
-  mbedtls_sha256_free(&hash);
+  auto *sessionHash = static_cast<psa_hash_operation_t *>(sessionSha256_.get());
+  (void)psa_hash_abort(sessionHash);
+  *sessionHash = PSA_HASH_OPERATION_INIT;
+  if (psa_hash_clone(&hash, sessionHash) != PSA_SUCCESS) {
+    (void)psa_hash_abort(&hash);
+    clearSession(false);
+    state_ = OtaState::IDLE;
+    return;
+  }
+  (void)psa_hash_abort(&hash);
   if (record.received != 0) {
     esp_ota_handle_t handle = 0;
     FlashIoGuard flash;
@@ -601,14 +612,16 @@ bool ShotStopperOta::verifySessionSha256() {
   if (!sessionSha256_ || session_.size == 0) {
     return false;
   }
-  mbedtls_sha256_context hash;
-  mbedtls_sha256_init(&hash);
-  mbedtls_sha256_clone(
-      &hash,
-      static_cast<const mbedtls_sha256_context *>(sessionSha256_.get()));
+  psa_hash_operation_t hash = PSA_HASH_OPERATION_INIT;
+  const psa_status_t cloned = psa_hash_clone(
+      static_cast<const psa_hash_operation_t *>(sessionSha256_.get()), &hash);
   uint8_t digest[32] = {};
-  const bool ok = mbedtls_sha256_finish(&hash, digest) == 0;
-  mbedtls_sha256_free(&hash);
+  size_t digestLength = 0;
+  const bool ok = cloned == PSA_SUCCESS &&
+                  psa_hash_finish(&hash, digest, sizeof(digest),
+                                  &digestLength) == PSA_SUCCESS &&
+                  digestLength == sizeof(digest);
+  (void)psa_hash_abort(&hash);
   if (!ok) {
     return false;
   }
@@ -619,12 +632,11 @@ bool ShotStopperOta::verifySessionSha256() {
 
 bool ShotStopperOta::startSessionSha256() {
   clearSessionSha256();
-  sessionSha256_.reset(allocInternal(sizeof(mbedtls_sha256_context), AllocationOwner::OTA));
+  sessionSha256_.reset(allocInternal(sizeof(psa_hash_operation_t), AllocationOwner::OTA));
   if (!sessionSha256_) return false;
-  mbedtls_sha256_context *hash =
-      static_cast<mbedtls_sha256_context *>(sessionSha256_.get());
-  mbedtls_sha256_init(hash);
-  if (mbedtls_sha256_starts(hash, 0) != 0) {
+  auto *hash = static_cast<psa_hash_operation_t *>(sessionSha256_.get());
+  *hash = PSA_HASH_OPERATION_INIT;
+  if (psa_hash_setup(hash, PSA_ALG_SHA_256) != PSA_SUCCESS) {
     clearSessionSha256();
     return false;
   }
@@ -634,9 +646,9 @@ bool ShotStopperOta::startSessionSha256() {
 bool ShotStopperOta::updateSessionSha256(const uint8_t *bytes,
                                          size_t length) {
   return sessionSha256_ && bytes != nullptr &&
-         mbedtls_sha256_update(
-             static_cast<mbedtls_sha256_context *>(sessionSha256_.get()), bytes,
-             length) == 0;
+         psa_hash_update(
+             static_cast<psa_hash_operation_t *>(sessionSha256_.get()), bytes,
+             length) == PSA_SUCCESS;
 }
 
 void ShotStopperOta::clearSessionSha256() {
@@ -689,9 +701,9 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   }
   uint8_t *const buffer = chunk.bytes;
 
-  mbedtls_sha256_context chunkHash;
-  mbedtls_sha256_init(&chunkHash);
-  bool hashStarted = mbedtls_sha256_starts(&chunkHash, 0) == 0;
+  psa_hash_operation_t chunkHash = PSA_HASH_OPERATION_INIT;
+  bool hashStarted =
+      psa_hash_setup(&chunkHash, PSA_ALG_SHA_256) == PSA_SUCCESS;
   uint32_t rangeReceived = 0;
   OtaResult failure = hashStarted ? OtaResult::OK : OtaResult::INTERNAL;
 
@@ -763,7 +775,7 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
         break;
       }
     }
-    if (mbedtls_sha256_update(&chunkHash, buffer, length) != 0 ||
+    if (psa_hash_update(&chunkHash, buffer, length) != PSA_SUCCESS ||
         !updateSessionSha256(buffer, length)) {
       failure = OtaResult::WRITE_FAILED;
       break;
@@ -801,8 +813,12 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
     if (io.progress != nullptr) io.progress(io.context, receivedBytes_, expectedBytes_);
   }
   uint8_t chunkDigest[32] = {};
-  const bool hashFinished = mbedtls_sha256_finish(&chunkHash, chunkDigest) == 0;
-  mbedtls_sha256_free(&chunkHash);
+  size_t chunkDigestLength = 0;
+  const bool hashFinished =
+      psa_hash_finish(&chunkHash, chunkDigest, sizeof(chunkDigest),
+                      &chunkDigestLength) == PSA_SUCCESS &&
+      chunkDigestLength == sizeof(chunkDigest);
+  (void)psa_hash_abort(&chunkHash);
 
   if ((failure == OtaResult::OK && (!otaHandle_ || rangeReceived != contentLength)) ||
       (!hashFinished && failure != OtaResult::SAFETY_LOST)) {

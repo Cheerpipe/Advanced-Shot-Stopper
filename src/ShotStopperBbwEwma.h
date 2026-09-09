@@ -13,13 +13,13 @@ inline float clampOffset(float value) {
 inline float predict(const float *timeS, const float *weightG, size_t count,
                      float targetG, float fallbackS) {
   if (!timeS || !weightG || count < WEIGHT_TREND_POINT_COUNT ||
-      !isfinite(targetG) || !isfinite(fallbackS) ||
+      !std::isfinite(targetG) || !std::isfinite(fallbackS) ||
       weightG[count - 1] < WEIGHT_TREND_MIN_LAST_SAMPLE_G) return fallbackS;
   const size_t first = count - WEIGHT_TREND_POINT_COUNT;
   const float reference = timeS[count - 1];
   float meanX = 0.0f, meanY = 0.0f;
   for (size_t i = first; i < count; ++i) {
-    if (!isfinite(timeS[i]) || !isfinite(weightG[i]) ||
+    if (!std::isfinite(timeS[i]) || !std::isfinite(weightG[i]) ||
         (i > first && timeS[i] <= timeS[i - 1])) return fallbackS;
     meanX += timeS[i] - reference;
     meanY += weightG[i];
@@ -33,12 +33,12 @@ inline float predict(const float *timeS, const float *weightG, size_t count,
     variance += dx * dx;
   }
   // Legacy denominator = n * centered sum of squared seconds.
-  if (!isfinite(variance) || variance < 0.000001f / WEIGHT_TREND_POINT_COUNT)
+  if (!std::isfinite(variance) || variance < 0.000001f / WEIGHT_TREND_POINT_COUNT)
     return fallbackS;
   const float slope = covariance / variance;
-  if (!isfinite(slope) || slope <= 0.0f) return fallbackS;
+  if (!std::isfinite(slope) || slope <= 0.0f) return fallbackS;
   const float predicted = reference + meanX + (targetG - meanY) / slope;
-  return isfinite(predicted) &&
+  return std::isfinite(predicted) &&
                  predicted >= reference + WEIGHT_TREND_MIN_HORIZON_S
              ? predicted : fallbackS;
 }
@@ -47,7 +47,7 @@ inline bool learn(float offsetG, float finalWeightG, float goalG, uint8_t alpha,
                   bool acceptedFreshObservation, float &updatedOffset) {
   const float observation = offsetG + (finalWeightG - goalG);
   if (!acceptedFreshObservation || !validBbwAlpha(alpha) ||
-      !isfinite(offsetG) || !isfinite(observation) ||
+      !std::isfinite(offsetG) || !std::isfinite(observation) ||
       fabsf(observation) > MAX_OFFSET_G) return false;
   updatedOffset = clampOffset(offsetG + (alpha / 100.0f) * (finalWeightG - goalG));
   return true;
@@ -68,8 +68,8 @@ struct Evidence {
   uint8_t wins = 0;
 
   uint8_t observe(float observation, float seed, uint8_t alpha) {
-    if (!isfinite(observation) || fabsf(observation) > MAX_OFFSET_G ||
-        !isfinite(seed) || !validBbwAlpha(alpha)) return alpha;
+    if (!std::isfinite(observation) || fabsf(observation) > MAX_OFFSET_G ||
+        !std::isfinite(seed) || !validBbwAlpha(alpha)) return alpha;
     if (count == 0) {
       for (float &anchor : anchors) anchor = seed;
       initialAlpha = alpha;
@@ -97,7 +97,7 @@ struct Evidence {
         scores[i] += error * error;  // Score before updating.
         prediction = clampOffset(prediction + (gain / 100.0f) * error);
       }
-      if (!isfinite(scores[i])) { wins = 0; return alpha; }
+      if (!std::isfinite(scores[i])) { wins = 0; return alpha; }
       if (i < 4 && gain == alpha) incumbent = i;
     }
     uint8_t best = incumbent;

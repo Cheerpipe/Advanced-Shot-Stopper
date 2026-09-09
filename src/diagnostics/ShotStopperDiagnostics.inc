@@ -98,7 +98,7 @@ void publishControlStatus() {
           ? static_cast<uint32_t>(now - currentWeightReceivedAtMs)
           : 0;
   next.observedWeightValid = observedWeightSequence > 0 &&
-                             isfinite(observedWeight) &&
+                             std::isfinite(observedWeight) &&
                              fabsf(observedWeight) <= MAX_PARSED_WEIGHT_G;
   next.observedWeightG = next.observedWeightValid ? observedWeight : 0.0f;
   next.observedWeightAgeMs = next.observedWeightValid

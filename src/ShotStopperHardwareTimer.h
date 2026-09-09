@@ -133,7 +133,7 @@ class IndependentSafetyTimer {
     portEXIT_CRITICAL(&stateMux_);
 
     // A one-shot alarm disables the hardware alarm but leaves the GPTimer
-    // counter running in ESP-IDF 5.5, so always stop the driver even after the
+    // counter running, so always stop the driver even after the
     // ISR has cleared the logical RUNNING state. INVALID_STATE is benign only
     // when the ISR had already completed this arm; while logically running it
     // indicates an unexpected driver transition and must fail the next arm.

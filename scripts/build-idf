@@ -27,7 +27,7 @@ $(shotstopper_arch_help)
 Recommended development compile flags (Enter at the prompt):
   $SS_CLI_DEFAULT_FLAGS
 
-Requires ESP-IDF 5.5.x. If IDF_PATH is unset, ${IDF_DEFAULT_HOME} is used when
+Requires ESP-IDF 6.1.x. If IDF_PATH is unset, ${IDF_DEFAULT_HOME} is used when
 it exists.
 
 BLE backend:
@@ -74,6 +74,7 @@ mkdir -p "$IDF_BUILD_DIR"
 # ceiling predates runtime-selectable INFO/DEBUG application logging.
 if [[ -f "$IDF_BUILD_DIR/shotstopper_idf_spike.elf" ]] ||
    { [[ -f "$IDF_BUILD_DIR/CMakeCache.txt" ]] && grep -q 'shotstopper_idf_spike' "$IDF_BUILD_DIR/CMakeCache.txt"; } ||
+   { [[ -f "$IDF_BUILD_DIR/CMakeCache.txt" ]] && ! grep -Fq "CMAKE_TOOLCHAIN_FILE:FILEPATH=${IDF_PATH}/tools/cmake/" "$IDF_BUILD_DIR/CMakeCache.txt"; } ||
    { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_AUTOSTART_ARDUINO=y$' "$IDF_SDKCONFIG"; } ||
    { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_SHOT_STOPPER_ENABLE_BUZZER=' "$IDF_SDKCONFIG"; } ||
    { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_LWIP_IPV6=y$' "$IDF_SDKCONFIG"; } ||
@@ -97,9 +98,9 @@ fi
 
 ss_idf_commit_extra_flags_stamp
 
-idf.py "${IDF_PY_ARGS[@]}" build
+idf.py "${IDF_PY_ARGS[@]}" build 2>&1 | ss_idf_filter_output
 
-python -m esp_idf_size --format json -o "$IDF_BUILD_DIR/size.json" \
+python -m esp_idf_size --format json2 -o "$IDF_BUILD_DIR/size.json" \
   "$IDF_BUILD_DIR/shotstopper.map"
 node "$root/src/tests/check_firmware_size.js" "$IDF_BUILD_DIR/shotstopper.bin"
 

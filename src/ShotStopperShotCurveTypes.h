@@ -5,7 +5,7 @@
 
 #include "ShotStopperShotLogTypes.h"
 
-#include <math.h>
+#include <cmath>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -236,7 +236,7 @@ struct ShotCurveSampler {
   }
 
   void accept(float weight, uint32_t receivedAtMs) {
-    if (startMs == 0 || !isfinite(weight)) {
+    if (startMs == 0 || !std::isfinite(weight)) {
       return;
     }
     if (static_cast<int32_t>(receivedAtMs - startMs) < 0) {
@@ -275,7 +275,7 @@ struct ShotCurveSampler {
       index = SHOT_CURVE_MAX_POINTS - 1U;
     }
     if (count == 0) {
-      const int16_t cg = isfinite(weight)
+      const int16_t cg = std::isfinite(weight)
                              ? shotLogWeightToCentigrams(weight)
                              : SHOT_LOG_WEIGHT_MISSING;
       if (!shotLogWeightIsMissing(cg)) {
@@ -291,7 +291,7 @@ struct ShotCurveSampler {
       ++count;
     }
     float endWeight = weight;
-    if (!isfinite(endWeight)) {
+    if (!std::isfinite(endWeight)) {
       endWeight = static_cast<float>(hold) / 100.0f;
     }
     latchEvent(ended, atMs, endWeight);
@@ -318,7 +318,7 @@ struct ShotCurveSampler {
 // delay. When the end lands exactly on the compact grid, keep that grid point
 // consistent with the event vertex too.
 inline bool settleShotCurveEndWeight(ShotCurveRecord &curve, float weight) {
-  if (!shotCurveEventPresent(curve.ended) || !isfinite(weight)) {
+  if (!shotCurveEventPresent(curve.ended) || !std::isfinite(weight)) {
     return false;
   }
   const int16_t cg = shotLogWeightToCentigrams(weight);

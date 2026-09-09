@@ -4,7 +4,7 @@
 
 #include "ShotStopperDomain.h"
 
-#include <math.h>
+#include <cmath>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -278,7 +278,7 @@ inline bool shotLogEligible(EndReason reason, uint32_t durationMs) {
 }
 
 inline bool shotLogWeightEligible(float weightG, bool valid) {
-  return valid && isfinite(weightG) && weightG >= MIN_SHOT_LOG_WEIGHT_G;
+  return valid && std::isfinite(weightG) && weightG >= MIN_SHOT_LOG_WEIGHT_G;
 }
 
 inline bool shotLogBbwEligible(bool startedWithScale, bool timerOnly,
@@ -521,7 +521,7 @@ inline void resetShotLogStore(ShotLogStore &store, uint32_t bootId) {
 }
 
 inline int16_t shotLogWeightToCentigrams(float weightG) {
-  if (!isfinite(weightG)) {
+  if (!std::isfinite(weightG)) {
     return SHOT_LOG_WEIGHT_MISSING;
   }
   const int32_t centigrams = weightToCentigrams(weightG);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <math.h>
+#include <cmath>
 #include <new>
 #include <type_traits>
 #include <stddef.h>
@@ -979,7 +979,7 @@ inline void repairSlowExtractionGuard(RuntimeConfig &runtime) {
   if (!runtime.slowExtractionGuardEnabled) {
     return;
   }
-  if (!isfinite(runtime.minRecoveryWeightG) ||
+  if (!std::isfinite(runtime.minRecoveryWeightG) ||
       runtime.minRecoveryWeightG < MIN_MIN_RECOVERY_WEIGHT_G ||
       runtime.minRecoveryWeightG > MAX_MIN_RECOVERY_WEIGHT_G ||
       runtime.minRecoveryWeightG >= static_cast<float>(runtime.goalWeightG)) {
@@ -1011,7 +1011,7 @@ inline void repairSlowExtractionGuard(RuntimeConfig &runtime) {
     }
   }
   if (runtime.slowExtractionGuardEnabled &&
-      (!isfinite(runtime.minRecoveryWeightG) ||
+      (!std::isfinite(runtime.minRecoveryWeightG) ||
        runtime.minRecoveryWeightG < MIN_MIN_RECOVERY_WEIGHT_G ||
        runtime.minRecoveryWeightG > MAX_MIN_RECOVERY_WEIGHT_G ||
        runtime.minRecoveryWeightG >= static_cast<float>(runtime.goalWeightG) ||
@@ -1064,11 +1064,11 @@ inline ConfigValidationError validateRuntimeConfig(
       config.goalWeightG > MAX_GOAL_WEIGHT_G) {
     return ConfigValidationError::GOAL_WEIGHT;
   }
-  if (!isfinite(config.weightOffsetG) || config.weightOffsetG < 0.0f ||
+  if (!std::isfinite(config.weightOffsetG) || config.weightOffsetG < 0.0f ||
       config.weightOffsetG > MAX_OFFSET_G) {
     return ConfigValidationError::WEIGHT_OFFSET;
   }
-  if (!isfinite(config.weightOffsetBaselineG) ||
+  if (!std::isfinite(config.weightOffsetBaselineG) ||
       config.weightOffsetBaselineG < 0.0f ||
       config.weightOffsetBaselineG > MAX_OFFSET_G) {
     return ConfigValidationError::WEIGHT_OFFSET_BASELINE;
@@ -1083,7 +1083,7 @@ inline ConfigValidationError validateRuntimeConfig(
       config.retareWindowMs > MAX_RETARE_WINDOW_MS) {
     return ConfigValidationError::RETARE_WINDOW;
   }
-  if (!isfinite(config.minimumCupWeightG) ||
+  if (!std::isfinite(config.minimumCupWeightG) ||
       config.minimumCupWeightG < MIN_MINIMUM_CUP_WEIGHT_G ||
       config.minimumCupWeightG > MAX_MINIMUM_CUP_WEIGHT_G) {
     return ConfigValidationError::MINIMUM_CUP_WEIGHT;
@@ -1092,7 +1092,7 @@ inline ConfigValidationError validateRuntimeConfig(
       config.retareStabilitySamples > MAX_RETARE_STABILITY_SAMPLES) {
     return ConfigValidationError::RETARE_STABILITY_SAMPLES;
   }
-  if (!isfinite(config.retareStabilityToleranceG) ||
+  if (!std::isfinite(config.retareStabilityToleranceG) ||
       config.retareStabilityToleranceG < MIN_RETARE_STABILITY_TOLERANCE_G ||
       config.retareStabilityToleranceG > MAX_RETARE_STABILITY_TOLERANCE_G) {
     return ConfigValidationError::RETARE_STABILITY_TOLERANCE;
@@ -1241,18 +1241,18 @@ inline ConfigValidationError validateRuntimeConfig(
   if (!validPaddleMode(config.paddleMode)) {
     return ConfigValidationError::PADDLE_MODE;
   }
-  if (!isfinite(config.cupPresentWeightG) ||
+  if (!std::isfinite(config.cupPresentWeightG) ||
       config.cupPresentWeightG < MIN_CUP_PRESENT_WEIGHT_G ||
       config.cupPresentWeightG > MAX_CUP_PRESENT_WEIGHT_G) {
     return ConfigValidationError::CUP_PRESENT_WEIGHT;
   }
-  if (!isfinite(config.cupRemovedWeightG) ||
+  if (!std::isfinite(config.cupRemovedWeightG) ||
       config.cupRemovedWeightG < MIN_CUP_REMOVED_WEIGHT_G ||
       config.cupRemovedWeightG > MAX_CUP_REMOVED_WEIGHT_G) {
     return ConfigValidationError::CUP_REMOVED_WEIGHT;
   }
   if (config.fastExtractionGuardEnabled) {
-    if (!isfinite(config.maxRecoveryWeightG) ||
+    if (!std::isfinite(config.maxRecoveryWeightG) ||
         config.maxRecoveryWeightG < MIN_MAX_RECOVERY_WEIGHT_G ||
         config.maxRecoveryWeightG > MAX_MAX_RECOVERY_WEIGHT_G) {
       return ConfigValidationError::MAX_RECOVERY_WEIGHT;
@@ -1268,7 +1268,7 @@ inline ConfigValidationError validateRuntimeConfig(
     }
   }
   if (config.slowExtractionGuardEnabled) {
-    if (!isfinite(config.minRecoveryWeightG) ||
+    if (!std::isfinite(config.minRecoveryWeightG) ||
         config.minRecoveryWeightG < MIN_MIN_RECOVERY_WEIGHT_G ||
         config.minRecoveryWeightG > MAX_MIN_RECOVERY_WEIGHT_G) {
       return ConfigValidationError::MIN_RECOVERY_WEIGHT;

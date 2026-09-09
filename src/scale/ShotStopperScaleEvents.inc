@@ -434,7 +434,7 @@ void processScaleWorkerEvents() {
         else markCupTareReferenceUncertain();
         break;
       case ScaleEventType::WEIGHT:
-        if (!isfinite(event.weightG) ||
+        if (!std::isfinite(event.weightG) ||
             fabsf(event.weightG) > MAX_PARSED_WEIGHT_G) {
           resetCupSampleEvidence();
           serialTrace(LogLevel::WARNING,

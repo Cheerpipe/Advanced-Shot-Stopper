@@ -20,7 +20,8 @@ idf_component_register(
     EspressoScaleBLE
     ShotStopperBleRuntime
   PRIV_REQUIRES
-    json
+    espressif__cjson
+    mbedtls
     nvs_flash
     esp_wifi
     esp_timer

@@ -160,11 +160,29 @@ assert erase_image.returncode == 2 and "cannot be combined" in erase_image.stder
 scripts_text = "\n".join(
     path.read_text(errors="replace") for path in (ROOT / "scripts").iterdir()
     if path.is_file())
+idf_helpers = (ROOT / "scripts/shotstopper_idf.sh").read_text()
+assert 'IDF_DEFAULT_HOME="${HOME}/esp/esp-idf-v6.1"' in idf_helpers, \
+    "official SDK discovery must use the versioned ESP-IDF 6.1 checkout"
+assert "python@3.12" not in idf_helpers, \
+    "ESP-IDF 6.1 must activate the Python environment created by its installer"
+assert '. "${idf_root}/export.sh" >/dev/null' in idf_helpers, \
+    "non-interactive builds must not print ESP-IDF shell-completion warnings"
+assert r"component_validation\.cmake" in idf_helpers and \
+    'idf "esp_wifi/"' in idf_helpers and 'idf "wpa_supplicant/"' in idf_helpers, \
+    "only the known ESP-IDF 6.1 Wi-Fi component warnings may be filtered"
+assert 'build 2>&1 | ss_idf_filter_output' in \
+    (ROOT / "scripts/build-idf").read_text(), \
+    "the firmware build must use the scoped external-warning filter"
+for alias, target in (("build", "build-idf"), ("bo", "bo-idf")):
+    assert f'exec "$SCRIPT_DIR/{target}" "$@"' in (ROOT / "scripts" / alias).read_text(), \
+        f"{alias} must remain an ESP-IDF compatibility alias"
 assert not re.search(r"--(?:token|password)\s+['\"]", scripts_text), \
     "credentials must not be forwarded in argv"
 cppcheck_suppressions = (ROOT / "scripts/cppcheck-suppressions.txt").read_text()
 assert "**" not in cppcheck_suppressions, \
     "Cppcheck suppression globs must use a single '*' wildcard"
+assert "*:*/esp-idf*/components/*" in cppcheck_suppressions, \
+    "Cppcheck must suppress dependencies from versioned ESP-IDF checkouts"
 tests_text = "\n".join(path.read_text(errors="replace")
                        for path in (ROOT / "src/tests").iterdir() if path.is_file())
 assert "npm" + " install" not in tests_text and "npm" + " ci" not in tests_text, \

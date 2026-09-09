@@ -275,7 +275,7 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
   lastCycle.source = session.source;
   lastCycle.weightValid =
       currentWeightSequence != session.weightSequenceAtStart &&
-      isfinite(currentWeight) &&
+      std::isfinite(currentWeight) &&
       static_cast<int32_t>(currentWeightReceivedAtMs - session.startedAtMs) >=
           0;
   lastCycle.lastWeightG = lastCycle.weightValid ? currentWeight : 0.0f;

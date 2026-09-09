@@ -142,7 +142,7 @@ inline bool validateShotPresetRecipe(const ShotPreset &preset,
   if (preset.bbwAlgorithm > 1 || !validBbwAlpha(preset.bbwEwmaAlpha) ||
       !validBbwAlpha(preset.bbwAlphaBaseline) ||
       preset.bbwAlphaLearned > 1 || preset.bbwProfileVersion != BBW_PROFILE_VERSION ||
-      !isfinite(preset.bbwEwmaOffsetG) || preset.bbwEwmaOffsetG < 0.0f ||
+      !std::isfinite(preset.bbwEwmaOffsetG) || preset.bbwEwmaOffsetG < 0.0f ||
       preset.bbwEwmaOffsetG > MAX_OFFSET_G) return false;
   RuntimeConfig probe;
   probe.goalWeightG = preset.goalWeightG;
@@ -245,17 +245,17 @@ inline void ensureShotPresetBank(ShotPresetBank &bank,
     if (preset.minBbwBrewTimeMs < preset.bbwProtectionMs) {
       preset.minBbwBrewTimeMs = preset.bbwProtectionMs;
     }
-    if (!isfinite(preset.weightOffsetBaselineG) ||
+    if (!std::isfinite(preset.weightOffsetBaselineG) ||
         preset.weightOffsetBaselineG < 0.0f ||
         preset.weightOffsetBaselineG > MAX_OFFSET_G) {
       preset.weightOffsetBaselineG = DEFAULT_WEIGHT_OFFSET_G;
     }
-    if (!isfinite(preset.weightOffsetG) || preset.weightOffsetG < 0.0f ||
+    if (!std::isfinite(preset.weightOffsetG) || preset.weightOffsetG < 0.0f ||
         preset.weightOffsetG > MAX_OFFSET_G) {
       preset.weightOffsetG = preset.weightOffsetBaselineG;
     }
     if (preset.fastExtractionGuardEnabled) {
-      if (!isfinite(preset.maxRecoveryWeightG) ||
+      if (!std::isfinite(preset.maxRecoveryWeightG) ||
           preset.maxRecoveryWeightG < MIN_MAX_RECOVERY_WEIGHT_G ||
           preset.maxRecoveryWeightG > MAX_MAX_RECOVERY_WEIGHT_G ||
           preset.maxRecoveryWeightG <=

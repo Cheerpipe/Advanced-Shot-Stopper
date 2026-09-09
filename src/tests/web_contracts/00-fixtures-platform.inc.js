@@ -211,10 +211,10 @@ if (!sdkconfigDefaults.includes('CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768') |
   throw new Error(
       'sdkconfig.defaults must pin SPIRAM_MALLOC_RESERVE_INTERNAL=32768 and keep task stacks internal');
 }
-if (!sdkconfigDefaults.includes('CONFIG_FREERTOS_USE_TICKLESS_IDLE=y') ||
+if (sdkconfigDefaults.includes('CONFIG_FREERTOS_USE_TICKLESS_IDLE=y') ||
     sdkconfigDefaults.includes('CONFIG_PM_ENABLE=y')) {
   throw new Error(
-      'sdkconfig.defaults must enable tickless idle without CONFIG_PM / light sleep');
+      'sdkconfig.defaults must keep tickless idle and CONFIG_PM / light sleep disabled');
 }
 if (sdkconfigDefaults.includes('CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y') ||
     !sdkconfigDefaults.includes('CONFIG_ESP_CONSOLE_NONE=y') ||

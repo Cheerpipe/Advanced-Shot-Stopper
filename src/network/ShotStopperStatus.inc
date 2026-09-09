@@ -70,7 +70,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char currentWeight[32] = "null";
   char cupWeight[32] = "null";
   const bool cupWeightValid = control.cupPresent && control.cupTare.weightValid &&
-                             isfinite(control.cupTare.weightG);
+                             std::isfinite(control.cupTare.weightG);
   if (cupWeightValid)
     snprintf(cupWeight, sizeof(cupWeight), "%.1f",
              static_cast<double>(control.cupTare.weightG));

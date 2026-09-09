@@ -1,10 +1,10 @@
 #include "ScaleProtocol.h"
 
-#include <math.h>
+#include <cmath>
 #include <string.h>
 
 bool scaleValidWeight(float weight) {
-    return isfinite(weight) && fabsf(weight) <= SCALE_MAX_WEIGHT_GRAMS;
+    return std::isfinite(weight) && fabsf(weight) <= SCALE_MAX_WEIGHT_GRAMS;
 }
 
 bool scaleNameMatchesProtocol(const char *name, const ScaleProtocol *protocol) {

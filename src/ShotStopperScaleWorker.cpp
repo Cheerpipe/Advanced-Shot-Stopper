@@ -17,7 +17,7 @@
 #include "ShotStopperScheduling.h"
 
 #include <atomic>
-#include <math.h>
+#include <cmath>
 #include <stdio.h>
 #include <string.h>
 

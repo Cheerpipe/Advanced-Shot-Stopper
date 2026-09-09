@@ -42,8 +42,8 @@ tare if present, local buzzer for alerts, no combined tare+start.
 
 ## Requirements
 
-Release 5.0.0 uses the native NimBLE C APIs from ESP-IDF 5.5.x. The supported
-integration is the IDF component in this repository, pinned to ESP-IDF 5.5.5
+Release 5.0.0 uses the native NimBLE C APIs from ESP-IDF 6.1.x. The supported
+integration is the IDF component in this repository, pinned to ESP-IDF 6.1
 and Arduino-ESP32 3.3.11. It targets ESP32-S3 n8r4 and n16r8 boards; standalone
 Arduino Library Manager and SAMD builds are no longer supported.
 

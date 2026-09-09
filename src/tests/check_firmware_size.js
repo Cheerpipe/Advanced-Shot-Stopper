@@ -23,6 +23,12 @@ if (!fs.existsSync(binPath) || !fs.existsSync(sizePath)) {
 const config = JSON.parse(fs.readFileSync(
   path.join(root, 'config', 'resource-baselines.json'), 'utf8'));
 const actual = JSON.parse(fs.readFileSync(sizePath, 'utf8'));
+if (Array.isArray(actual.layout)) {
+  const regions = Object.fromEntries(actual.layout.map(region => [region.name, region]));
+  actual.used_diram = regions.DIRAM?.used;
+  actual.flash_code = regions['Flash Code']?.parts['.text']?.size;
+  actual.flash_rodata = regions['Flash Data']?.parts['.rodata']?.size;
+}
 actual.image = fs.statSync(binPath).size;
 const failures = [];
 const map = fs.readFileSync(path.join(path.dirname(binPath), 'shotstopper.map'), 'utf8');

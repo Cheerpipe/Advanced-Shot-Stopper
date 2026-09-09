@@ -1,6 +1,6 @@
 #pragma once
 
-#include <math.h>
+#include <cmath>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -10,7 +10,7 @@
 namespace shotstopper {
 
 inline int32_t weightToCentigrams(float weightG) {
-  if (!isfinite(weightG)) {
+  if (!std::isfinite(weightG)) {
     return 0;
   }
   const float centigrams = weightG * 100.0f;
@@ -231,10 +231,10 @@ constexpr float MAX_RECOVERY_WEIGHT_DROP_G = 2.0f;
 // (cup off / tare reads ~0). Drip may add weight or drop a little from settle.
 inline bool plausibleSettledBrewWeight(float candidateG, float lastKnownG,
                                        bool lastKnownValid) {
-  if (!isfinite(candidateG)) {
+  if (!std::isfinite(candidateG)) {
     return false;
   }
-  if (!lastKnownValid || !isfinite(lastKnownG)) {
+  if (!lastKnownValid || !std::isfinite(lastKnownG)) {
     return true;
   }
   return candidateG >= lastKnownG - MAX_RECOVERY_WEIGHT_DROP_G;
@@ -431,7 +431,7 @@ inline FirstFlowClass enterFirstFlowTouch(FirstFlowState &state, float weight,
 }
 
 inline float firstFlowCupMinG(float cupMinG) {
-  return (isfinite(cupMinG) && cupMinG > FIRST_DROP_THRESHOLD_G)
+  return (std::isfinite(cupMinG) && cupMinG > FIRST_DROP_THRESHOLD_G)
              ? cupMinG
              : FIRST_DROP_DEFAULT_CUP_MIN_G;
 }
@@ -453,7 +453,7 @@ inline FirstFlowClass stepFirstFlow(
     FirstFlowState &state, float weight, uint32_t receivedAtMs,
     uint32_t packetSequence, float baselineG,
     float cupMinG = FIRST_DROP_DEFAULT_CUP_MIN_G) {
-  if (!isfinite(weight) || !isfinite(baselineG)) {
+  if (!std::isfinite(weight) || !std::isfinite(baselineG)) {
     return FirstFlowClass::NONE;
   }
 
@@ -603,7 +603,7 @@ inline WeightTrendFit fitWeightTrend(const float *timeS, const float *weightG,
   float sumSquaredX = 0.0f;
   const size_t first = datapoints - WEIGHT_TREND_POINT_COUNT;
   for (size_t i = first; i < datapoints; ++i) {
-    if (!isfinite(timeS[i]) || !isfinite(weightG[i])) {
+    if (!std::isfinite(timeS[i]) || !std::isfinite(weightG[i])) {
       return fit;
     }
     sumXY += timeS[i] * weightG[i];
@@ -619,7 +619,7 @@ inline WeightTrendFit fitWeightTrend(const float *timeS, const float *weightG,
   }
 
   const float slope = (n * sumXY - sumX * sumY) / denominator;
-  if (slope <= 0.0f || !isfinite(slope)) {
+  if (slope <= 0.0f || !std::isfinite(slope)) {
     return fit;
   }
 
@@ -627,7 +627,7 @@ inline WeightTrendFit fitWeightTrend(const float *timeS, const float *weightG,
   const float meanY = sumY / n;
   fit.slope = slope;
   fit.intercept = meanY - slope * meanX;
-  fit.valid = isfinite(fit.intercept);
+  fit.valid = std::isfinite(fit.intercept);
   return fit;
 }
 
@@ -650,8 +650,8 @@ inline float accidentalTouchMedianControlRate(const float *timeS,
           : 1U;
   for (size_t i = first; i < datapoints && count < ACCIDENTAL_TOUCH_RATE_WINDOW;
        ++i) {
-    if (!isfinite(timeS[i]) || !isfinite(timeS[i - 1]) ||
-        !isfinite(weightG[i]) || !isfinite(weightG[i - 1])) {
+    if (!std::isfinite(timeS[i]) || !std::isfinite(timeS[i - 1]) ||
+        !std::isfinite(weightG[i]) || !std::isfinite(weightG[i - 1])) {
       continue;
     }
     float dt = timeS[i] - timeS[i - 1];
@@ -683,8 +683,8 @@ inline AccidentalTouchClass classifyAccidentalTouch(
     size_t datapoints, float weight, float timeSNow, bool hasAnchor,
     float lastAcceptedWeightG, float lastAcceptedTimeS,
     const float *pendingTouchG, uint8_t pendingTouchCount) {
-  if (!hasAnchor || !isfinite(weight) || !isfinite(timeSNow) ||
-      !isfinite(lastAcceptedWeightG) || !isfinite(lastAcceptedTimeS)) {
+  if (!hasAnchor || !std::isfinite(weight) || !std::isfinite(timeSNow) ||
+      !std::isfinite(lastAcceptedWeightG) || !std::isfinite(lastAcceptedTimeS)) {
     return AccidentalTouchClass::OK;
   }
 
@@ -725,7 +725,7 @@ inline AccidentalTouchClass classifyAccidentalTouch(
   float hi = weight;
   if (pendingTouchG != nullptr) {
     for (uint8_t i = 0; i < pendingTouchCount; ++i) {
-      if (!isfinite(pendingTouchG[i])) {
+      if (!std::isfinite(pendingTouchG[i])) {
         continue;
       }
       lo = fminf(lo, pendingTouchG[i]);

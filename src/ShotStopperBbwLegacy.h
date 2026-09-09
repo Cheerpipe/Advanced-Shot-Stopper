@@ -9,7 +9,7 @@ namespace bbwLegacy {
 inline float predict(const float *timeS, const float *weightG,
                      size_t datapoints, float targetWeightG,
                      float fallbackEndS) {
-  if (!isfinite(targetWeightG) || !isfinite(fallbackEndS)) {
+  if (!std::isfinite(targetWeightG) || !std::isfinite(fallbackEndS)) {
     return fallbackEndS;
   }
   const WeightTrendFit fit = fitWeightTrend(timeS, weightG, datapoints);
@@ -18,7 +18,7 @@ inline float predict(const float *timeS, const float *weightG,
   }
   const float predicted = (targetWeightG - fit.intercept) / fit.slope;
   const float latestSampleS = timeS[datapoints - 1];
-  if (!isfinite(predicted) ||
+  if (!std::isfinite(predicted) ||
       predicted < latestSampleS + WEIGHT_TREND_MIN_HORIZON_S) {
     return fallbackEndS;
   }
@@ -30,7 +30,7 @@ inline bool learn(float offsetG, float finalWeightG, float goalG,
   const float observedError = finalWeightG - goalG + offsetG;
   if (fabsf(observedError) > MAX_OFFSET_G) return false;
   updatedOffset = offsetG + finalWeightG - goalG;
-  if (!isfinite(updatedOffset)) return false;
+  if (!std::isfinite(updatedOffset)) return false;
   if (updatedOffset < 0.0f) updatedOffset = 0.0f;
   else if (updatedOffset > MAX_OFFSET_G) updatedOffset = MAX_OFFSET_G;
   return true;

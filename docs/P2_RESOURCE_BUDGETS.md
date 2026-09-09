@@ -12,6 +12,8 @@ checks image bytes, total linked bytes, DIRAM, flash code, and flash rodata.
 Small reviewed growth allowances catch regressions without coupling unrelated
 toolchain padding to an exact byte count; raising a baseline or allowance
 requires explicit architecture and resource review.
+The current baselines were measured with ESP-IDF 6.1, its GCC 15.2 toolchain,
+and the qualified `CONFIG_FREERTOS_IN_IRAM=y` build profile.
 
 Both linker maps must also keep external BSS at or below 96 KiB and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing

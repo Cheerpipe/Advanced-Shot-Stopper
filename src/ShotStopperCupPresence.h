@@ -117,14 +117,14 @@ void invalidateCupWeight() {
 bool cupWeightNearKnownEmpty(float weight) {
   const float band = fminf(runtimeConfig.retareStabilityToleranceG,
       fminf(FIRST_DROP_BASELINE_SETTLE_G, runtimeConfig.minimumCupWeightG / 2.0f));
-  return cupPresence.placementId != 0 && isfinite(cupPresence.emptyAnchorG) &&
+  return cupPresence.placementId != 0 && std::isfinite(cupPresence.emptyAnchorG) &&
       !cupPresence.referenceUncertain && !cupPresence.holdTransitions &&
       cupPresence.weight.pendingId == 0 && weight <= cupPresence.emptyAnchorG + band;
 }
 
 void observeEmptyCupWeight(float weight, uint32_t atMs) {
   auto &mass = cupPresence.weight;
-  const bool anchored = isfinite(cupPresence.emptyAnchorG);
+  const bool anchored = std::isfinite(cupPresence.emptyAnchorG);
   const float referenceG = anchored ? cupPresence.emptyAnchorG : 0.0f;
   const float toleranceG = anchored ? runtimeConfig.retareStabilityToleranceG
                                    : FIRST_DROP_BASELINE_SETTLE_G;
@@ -198,7 +198,7 @@ void resyncCupPresenceIfPanEmpty(float weight) {
       cupPresence.taredWhilePresent || cupPresence.referenceUncertain) {
     return;
   }
-  if (!isfinite(weight) || weight >= runtimeConfig.minimumCupWeightG) {
+  if (!std::isfinite(weight) || weight >= runtimeConfig.minimumCupWeightG) {
     return;
   }
   cupPresence.state = CupPresenceState::ABSENT;
@@ -243,7 +243,7 @@ void notifyCupPresenceTare() {
 CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
                                  uint32_t packetSequence, bool allowPlacement = true,
                                  bool allowFastReplacement = false) {
-  if (!isfinite(weight)) {
+  if (!std::isfinite(weight)) {
     return CupPresenceEvent::NONE;
   }
 
@@ -331,7 +331,7 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   }
   // A brief confirmed unload can reuse the anchor; never use a lift minimum.
   const bool qualifiedReference = mass.emptyValid ||
-      (allowFastReplacement && mass.unloadQualified && isfinite(cupPresence.emptyAnchorG));
+      (allowFastReplacement && mass.unloadQualified && std::isfinite(cupPresence.emptyAnchorG));
   const bool awaitingAbsence = cupPresence.inNegativeHole &&
                                !qualifiedReference;
   const float placementThresholdG = qualifiedReference
@@ -398,7 +398,7 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   const bool placementSampleValid = cupPresence.weight.sampleSequence == packetSequence &&
       packetSequence != 0 && cupPresence.weight.sampleAtMs == receivedAtMs;
   const bool placementWeightValid = qualifiedReference &&
-      placementSampleValid && isfinite(placementWeightG) && placementWeightG >= minCupG;
+      placementSampleValid && std::isfinite(placementWeightG) && placementWeightG >= minCupG;
   // Record the new occupied reading without inventing a stable-empty sample.
   cupPresence.weight.present = CupStableWeight{
       cupPresence.placeCandidateWeightG, receivedAtMs, placementSampleValid};

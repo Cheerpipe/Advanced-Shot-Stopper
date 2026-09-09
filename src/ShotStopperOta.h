@@ -348,8 +348,8 @@ class ShotStopperOta {
   uint32_t lastChunkLength_ = 0;
   UniqueResource<uint32_t, OtaHandleAborter> otaHandle_;
   OtaImageTagScanner scanner_ = {};
-  // Owned mbedtls_sha256_context. Kept opaque here so this public header does
-  // not force every consumer to include mbedTLS internals.
+  // Owned psa_hash_operation_t. Kept opaque here so this public header does
+  // not force every consumer to include PSA Crypto internals.
   UniqueResource<void *, OtaSha256Deleter> sessionSha256_;
   uint32_t journaledBytes_ = 0;
   std::atomic<uint32_t> publishedFlags_{0};

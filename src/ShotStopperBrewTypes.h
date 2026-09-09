@@ -1,6 +1,6 @@
 #pragma once
 
-#include <math.h>
+#include <cmath>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -205,7 +205,7 @@ inline uint32_t autoToManualGuardTrendMs(
   }
   const float slope = numer / denom;
   const float predictedDs = meanY + slope * (5.0f - meanX);
-  if (!isfinite(predictedDs)) {
+  if (!std::isfinite(predictedDs)) {
     return DEFAULT_AUTO_TO_MANUAL_GUARD_BASELINE_MS;
   }
   float predictedMs = predictedDs * 100.0f;
@@ -242,7 +242,7 @@ inline uint32_t autoToManualGuardLimitMs(
 
 inline bool autoToManualGuardSampleErrorOk(float actualWeightG,
                                            uint8_t goalWeightG) {
-  if (!isfinite(actualWeightG) || goalWeightG == 0) {
+  if (!std::isfinite(actualWeightG) || goalWeightG == 0) {
     return false;
   }
   const float goal = static_cast<float>(goalWeightG);

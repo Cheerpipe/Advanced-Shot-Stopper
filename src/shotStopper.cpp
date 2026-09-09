@@ -54,7 +54,7 @@
 #include <esp_timer.h>
 #include <soc/gpio_reg.h>
 #include <soc/soc.h>
-#include <math.h>
+#include <cmath>
 #include "ShotStopperNetwork.h"
 #include "ShotStopperOta.h"
 #include "ShotStopperPersistence.h"
@@ -1223,12 +1223,12 @@ void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs) {
   last.endReason = reason;
   last.weightValid =
       currentWeightSequence != session.weightSequenceAtStart &&
-      isfinite(currentWeight) &&
+      std::isfinite(currentWeight) &&
       static_cast<int32_t>(currentWeightReceivedAtMs - session.startedAtMs) >=
           0;
   last.currentWeightG = last.weightValid ? currentWeight : 0.0f;
   const bool lastAcceptedValid =
-      session.hasWeightAnchor && isfinite(session.lastAcceptedWeightG);
+      session.hasWeightAnchor && std::isfinite(session.lastAcceptedWeightG);
   if (lastAcceptedValid &&
       (!last.weightValid ||
        !plausibleSettledBrewWeight(last.currentWeightG,
@@ -1522,7 +1522,7 @@ void noteRecoverableStaleTransition(WeightStreamState previous,
 
 bool currentWeightIsFresh(uint32_t now = millis()) {
   const uint32_t linkGeneration = getScaleLinkSnapshot().connectionGeneration;
-  return currentWeightSequence > 0 && isfinite(currentWeight) &&
+  return currentWeightSequence > 0 && std::isfinite(currentWeight) &&
          currentWeight >= MIN_AUTOMATION_WEIGHT_G &&
          currentWeight <= MAX_AUTOMATION_WEIGHT_G &&
          (currentWeightConnectionGeneration == 0 ||
@@ -1534,7 +1534,7 @@ bool currentWeightIsFresh(uint32_t now = millis()) {
 
 bool observedWeightIsFresh(uint32_t now = millis()) {
   const uint32_t linkGeneration = getScaleLinkSnapshot().connectionGeneration;
-  return observedWeightSequence > 0 && isfinite(observedWeight) &&
+  return observedWeightSequence > 0 && std::isfinite(observedWeight) &&
          fabsf(observedWeight) <= MAX_PARSED_WEIGHT_G &&
          observedWeightConnectionGeneration != 0 &&
          observedWeightConnectionGeneration == linkGeneration &&
@@ -1562,7 +1562,7 @@ void serviceWeightStreamTelemetry() {
 }
 
 void latchAtmCurveFromSession(uint32_t atMs) {
-  if (session.hasWeightAnchor && isfinite(session.lastAcceptedWeightG)) {
+  if (session.hasWeightAnchor && std::isfinite(session.lastAcceptedWeightG)) {
     shotCurveSampler.latchAtm(atMs, session.lastAcceptedWeightG);
   }
 }

@@ -89,7 +89,7 @@ fi
 if [[ -z "${tidy_bin:-}" || ! -x "$tidy_bin" ]]; then
   echo "clang-tidy (esp-clang) not found." >&2
   echo "Install Espressif's LLVM fork and try again:" >&2
-  echo "  python \"\$HOME/esp/esp-idf/tools/idf_tools.py\" install esp-clang" >&2
+  echo "  python \"${IDF_DEFAULT_HOME}/tools/idf_tools.py\" install esp-clang" >&2
   echo "Or point ESP_CLANG_TIDY at an existing esp-clang clang-tidy binary." >&2
   exit 127
 fi

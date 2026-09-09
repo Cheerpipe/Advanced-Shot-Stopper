@@ -3,7 +3,7 @@
 # and idf/main remains in scope.
 *:*/Arduino15/*
 *:*/Arduino/libraries/*
-*:*/esp/esp-idf/*
+*:*/esp-idf*/components/*
 *:*/idf/managed_components/*
 *:*/idf/third_party/*
 # FreeRTOS returns its integer allocation-failure sentinel through a task-handle

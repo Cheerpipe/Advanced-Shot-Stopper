@@ -144,7 +144,7 @@ bool observeCupWeight(float weight, uint32_t atMs, uint32_t sequence,
     mass.configRevision = runtimeConfig.revision;
   }
   if (generation == 0) generation = currentGeneration;
-  if (!isfinite(weight) || fabsf(weight) > MAX_PARSED_WEIGHT_G || generation != currentGeneration ||
+  if (!std::isfinite(weight) || fabsf(weight) > MAX_PARSED_WEIGHT_G || generation != currentGeneration ||
       elapsedMs(atMs) > MAX_AUTOMATION_WEIGHT_AGE_MS ||
       (mass.sampleSequence != 0 && mass.connectionGeneration == generation &&
        (static_cast<int32_t>(sequence - mass.sampleSequence) <= 0 ||
@@ -192,7 +192,7 @@ void finishCupWeight(uint32_t requestId, bool succeeded, bool uncertain,
   if (succeeded) {
     cupPresence.emptyAnchorG = mass.pendingPlacementId == cupPresencePlacementId()
         ? mass.pendingEmptyAnchorG - preTareWeightG : NAN;
-    mass.valid = mass.pendingValid && isfinite(preTareWeightG) &&
+    mass.valid = mass.pendingValid && std::isfinite(preTareWeightG) &&
         cupPresenceState() == CupPresenceState::PRESENT &&
         mass.pendingPlacementId == cupPresencePlacementId();
   } else if (uncertain) {
@@ -552,7 +552,7 @@ void notifyWebhookFirstDrop(uint32_t receivedAtMs) {
                               : session.startedAtMs;
   event.firstDropValid = static_cast<int32_t>(receivedAtMs - anchor) >= 0;
   event.firstDropMs = event.firstDropValid ? receivedAtMs - anchor : 0;
-  event.weightValid = isfinite(currentWeight);
+  event.weightValid = std::isfinite(currentWeight);
   event.weightG = event.weightValid ? currentWeight : 0.0f;
   event.targetWeightG = static_cast<float>(session.config.goalWeightG);
   event.presetId = session.activePresetId;
@@ -695,7 +695,7 @@ GuardInputs loopGuardInputs;
 void observeMachineSenseFromSession() {
   MachineSense sense;
   if (session.active && session.hasWeightAnchor &&
-      isfinite(session.lastAcceptedWeightG)) {
+      std::isfinite(session.lastAcceptedWeightG)) {
     sense.weightG = session.lastAcceptedWeightG;
     sense.weightSequence = session.lastAcceptedPacketSequence != 0
                                ? session.lastAcceptedPacketSequence
@@ -778,7 +778,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                                       uint32_t packetSequence,
                                       uint32_t connectionGeneration,
                                       uint32_t captureSequence = 0) {
-  if (!isfinite(weight) || fabsf(weight) > MAX_PARSED_WEIGHT_G) {
+  if (!std::isfinite(weight) || fabsf(weight) > MAX_PARSED_WEIGHT_G) {
     resetCupSampleEvidence();
     approveScaleTareSample(ScaleTareSample{});
     serialTrace(LogLevel::WARNING, "Invalid or out-of-range weight ignored");
@@ -1101,7 +1101,7 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs) {
         (session.targetReachedAtMs - shotAnchorMs) / 100U);
   }
   pendingFinalize.lastKnownWeightValid =
-      session.hasWeightAnchor && isfinite(session.lastAcceptedWeightG);
+      session.hasWeightAnchor && std::isfinite(session.lastAcceptedWeightG);
   pendingFinalize.lastKnownWeightG = session.lastAcceptedWeightG;
   pendingFinalize.activePresetId = session.activePresetId != 0
                                        ? session.activePresetId
@@ -1211,7 +1211,7 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
       const float deltaG = finalWeightG - snapshot.scaleBaselineG;
       if (brewS > 0.5f && deltaG > 0.0f) {
         const float flowGs = deltaG / brewS;
-        if (isfinite(flowGs) && flowGs >= 0.0f && flowGs <= 655.35f) {
+        if (std::isfinite(flowGs) && flowGs >= 0.0f && flowGs <= 655.35f) {
           record.avgFlowCgS =
               static_cast<uint16_t>(flowGs * 100.0f + 0.5f);
         }
@@ -1262,7 +1262,7 @@ void queueWebhookEnd(const PendingShotFinalize &snapshot, float finalWeightG,
   event.firstDropMs = event.firstDropValid
                           ? static_cast<uint32_t>(snapshot.firstDropDs) * 100U
                           : 0U;
-  event.weightValid = finalWeightValid && isfinite(finalWeightG);
+  event.weightValid = finalWeightValid && std::isfinite(finalWeightG);
   event.weightG = event.weightValid ? finalWeightG : 0.0f;
   event.targetWeightG = static_cast<float>(snapshot.goalWeightG);
   event.presetId = snapshot.activePresetId;
@@ -1279,9 +1279,9 @@ void queueWebhookEnd(const PendingShotFinalize &snapshot, float finalWeightG,
     const float brewSeconds =
         static_cast<float>(event.durationMs - event.firstDropMs) / 1000.0f;
     const float delta = finalWeightG - snapshot.scaleBaselineG;
-    if (delta > 0.0f && isfinite(delta)) {
+    if (delta > 0.0f && std::isfinite(delta)) {
       event.averageFlowGps = delta / brewSeconds;
-      event.averageFlowValid = isfinite(event.averageFlowGps);
+      event.averageFlowValid = std::isfinite(event.averageFlowGps);
     }
   }
   (void)networkManager.enqueueWebhook(event);
@@ -1304,7 +1304,7 @@ void cancelPendingFinalize(const char *reason) {
   ActualWeightSource source = ActualWeightSource::NONE;
   float weightG = 0.0f;
   bool valid = false;
-  if (snapshot.lastKnownWeightValid && isfinite(snapshot.lastKnownWeightG)) {
+  if (snapshot.lastKnownWeightValid && std::isfinite(snapshot.lastKnownWeightG)) {
     source = ActualWeightSource::LAST_KNOWN;
     weightG = snapshot.lastKnownWeightG;
     valid = true;
@@ -1381,7 +1381,7 @@ void pendingShotFinalizeTask() {
 
   const float finalWeightG = currentWeight;
   bool postDripWeightValid = false;
-  if (scaleAvailable() && isfinite(currentWeight) &&
+  if (scaleAvailable() && std::isfinite(currentWeight) &&
       currentWeightSequence != snapshot.endedWeightSequence &&
       static_cast<int32_t>(currentWeightReceivedAtMs - snapshot.endedAtMs) >
           0 &&

@@ -22,7 +22,7 @@
 #include <esp_wifi.h>
 #include <esp_system.h>
 #include "ShotStopperRfCoex.h"
-#include <math.h>
+#include <cmath>
 #include <float.h>
 #include <new>
 #include <stdarg.h>
@@ -258,7 +258,7 @@ bool jsonBoolean(cJSON *object, const char *name, bool &output) {
 
 bool jsonUint32(cJSON *object, const char *name, uint32_t &output) {
   cJSON *item = cJSON_GetObjectItemCaseSensitive(object, name);
-  if (!cJSON_IsNumber(item) || !isfinite(item->valuedouble) ||
+  if (!cJSON_IsNumber(item) || !std::isfinite(item->valuedouble) ||
       item->valuedouble < 0.0 || item->valuedouble > UINT32_MAX ||
       floor(item->valuedouble) != item->valuedouble) {
     return false;
@@ -278,7 +278,7 @@ bool jsonUint8(cJSON *object, const char *name, uint8_t &output) {
 
 bool jsonFloat(cJSON *object, const char *name, float &output) {
   cJSON *item = cJSON_GetObjectItemCaseSensitive(object, name);
-  if (!cJSON_IsNumber(item) || !isfinite(item->valuedouble) ||
+  if (!cJSON_IsNumber(item) || !std::isfinite(item->valuedouble) ||
       item->valuedouble > static_cast<double>(FLT_MAX) ||
       item->valuedouble < -static_cast<double>(FLT_MAX)) {
     return false;
