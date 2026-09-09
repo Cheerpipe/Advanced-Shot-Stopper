@@ -77,7 +77,8 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_ss_extra_flag
 # that use partial designated initializers (gpspi_flash_ll.h /
 # spimem_flash_ll.h). That is Espressif noise, not firmware.
 idf_component_get_property(_ss_arduino_lib espressif__arduino-esp32 COMPONENT_LIB)
-target_compile_options(${_ss_arduino_lib} PRIVATE -Wno-missing-field-initializers)
+target_compile_options(${_ss_arduino_lib} PRIVATE
+  -Wno-deprecated-declarations -Wno-missing-field-initializers)
 
 # esp-modbus (pulled by arduino-esp32) forces -Werror. Under -O2, GCC raises
 # -Wstringop-truncation on its own strncpy in port_tcp_utils.c (bound ==
