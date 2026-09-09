@@ -218,6 +218,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #shotTable td:first-child{font-size:.8rem;font-weight:600;color:var(--mu);align-self:center}
 #shotTable td:first-child::before{content:none}
 #shotTable .shotDel,#shotPanel .shotDel{position:absolute;top:.15rem;right:.15rem;z-index:1;align-items:center;justify-content:center}
+#shotTable td.shotDel,#shotTable td.shotDel>.btnGlyph{background:transparent!important}
 #shotTable .shotDur,#shotTable .shotActual,.shotCard .shotDur > div,.shotCard .shotActual > div{font-size:1.85rem;font-weight:750;line-height:1.1;color:var(--fg);letter-spacing:-.02em;padding-bottom:.1rem;font-variant-numeric:tabular-nums}
 #shotTable .shotDur::before,#shotTable .shotActual::before{font-size:.6875rem;font-weight:700;color:var(--mu);letter-spacing:.04em}
 #shotTable td:nth-child(n+6):nth-child(-n+9){font-size:.75rem;font-weight:600;color:var(--mu)}

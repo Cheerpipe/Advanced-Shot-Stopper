@@ -523,6 +523,7 @@ if (!ui.includes('id="shotTable"') ||
     css.includes('grid-area:stop') ||
     css.includes('grid-area:cut') ||
     !css.includes('#shotTable .shotDel') ||
+    !css.includes('#shotTable td.shotDel,#shotTable td.shotDel>.btnGlyph{background:transparent!important}') ||
     !js.includes("className='shotDel'") ||
     runtimeJs.includes('<span class="t">Delete</span>') ||
     !ui.includes('formatShotTime(r)') ||
