@@ -79,10 +79,12 @@ if (htmlBytes > 54600) {
 // retains a full firmware image or charges the normal runtime path for it.
 // Historical BLE disconnect/command diagnostics add display formatters. This
 // source allowance does not change the compressed asset or firmware budgets.
-if (jsBytes > 167400) {
+// Opt-in power control/activity leases add 1 KiB of authoring allowance after
+// sharing the Admin toggle persistence path. Compressed/firmware caps unchanged.
+if (jsBytes > 168424) {
   throw new Error('Web UI JS source exceeds the authoring budget');
 }
-if (htmlBytes + jsBytes > 222000) {
+if (htmlBytes + jsBytes > 223024) {
   throw new Error('Web UI HTML+JS source exceeds the combined authoring budget');
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||

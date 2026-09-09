@@ -69,6 +69,19 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   resetSerialCliState();
 
   hostMillis = 0;
+  powerPolicy = PowerPolicy{};
+  powerWebUntilMs.store(0);
+  powerNetworkBusy.store(false);
+  powerScaleBusy.store(false);
+  powerClockError.store(0);
+  powerBleError.store(0);
+  powerBleSleeping.store(false);
+  scalePowerInitialized = scalePowerWaking = false;
+  scalePowerWakeStartedMs = 0;
+  hostBtEnableError = hostBtDisableError = ESP_OK;
+  hostBtSleeping = false;
+  hostBtWakeRequests = hostBtDisableCalls = 0;
+  powerAppliedProfile.store(PowerProfile::OFF);
   bootStartedAtMs = 0;
   usbSerialEnableSource = UsbSerialEnableSource::OFF;
   hostPinLevel.fill(HIGH);
@@ -13721,12 +13734,137 @@ void bbw03_shared_guard_parity() {
   hostBbwAlgorithm = 0;
 }
 
+void pow01_weighted_loss_and_manual_rinse_clock() {
+  resetHarness(false, true);
+  runtimeConfig.powerManagementEnabled = true;
+  reachReadyFromBoot();
+  startCycle();
+  CHECK(session.active);
+  CHECK(powerAppliedProfile.load() == PowerProfile::WORKING);
+  setScaleConnected(false);
+  session.weightControlState = WeightControlState::INACTIVE;
+  CHECK(servicePowerManagement());
+  CHECK(powerAppliedProfile.load() == PowerProfile::WORKING);
+  machineRequestStop();
+  machineEndCycle();
+  session.active = false;
+  setRawPaddle(false);
+  machineSampleInput();
+  CHECK(servicePowerManagement());
+  CHECK(powerAppliedProfile.load() == PowerProfile::COOLDOWN);
+  CHECK(powerCooldownRemainingMs.load() == 300000);
+
+  resetHarness(false, true);
+  runtimeConfig.powerManagementEnabled = true;
+  reachReadyFromBoot();
+  startCycle();
+  CHECK(enterRinse());
+  CHECK(servicePowerManagement());
+  CHECK(powerAppliedProfile.load() == PowerProfile::MANUAL);
+
+  resetHarness(false, false);
+  runtimeConfig.powerManagementEnabled = true;
+  reachReadyFromBoot();
+  CHECK(beginRinseCycle(ControlSource::PHYSICAL));
+  CHECK(powerAppliedProfile.load() == PowerProfile::MANUAL);
+  runtimeConfig.powerManagementEnabled = false;
+  CHECK(servicePowerManagement());
+  CHECK(powerAppliedProfile.load() == PowerProfile::OFF);
+}
+
+void pow02_idle_scan_preserves_saved_preference() {
+  resetHarness(false, false);
+  applyLiveBleScanIntensity(BleScanIntensity::AGGRESSIVE);
+  powerAppliedProfile.store(PowerProfile::IDLE);
+  CHECK(startScaleDiscoveryScan(nullptr, false));
+  uint16_t interval = 0, window = 0;
+  bleScanHciParams(BleScanIntensity::LIGHT, interval, window);
+  CHECK(scale.lastScanInterval == interval && scale.lastScanWindow == window);
+  CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
+  powerAppliedProfile.store(PowerProfile::OFF);
+  serviceScaleScanIntensity();
+  bleScanHciParams(BleScanIntensity::AGGRESSIVE, interval, window);
+  CHECK(scale.lastScanInterval == interval && scale.lastScanWindow == window);
+  CHECK(syncScalePower());
+  CHECK(!powerScaleBusy.load());
+  setScaleConnected(true);
+  CHECK(syncScalePower());
+  CHECK(powerScaleBusy.load());
+}
+
+void pow03_ble_wake_without_link_is_bounded() {
+  resetHarness(false, false);
+  hostBtSleeping = true; // Initial controller wake is asynchronous too.
+  CHECK(!syncScalePower());
+  hostMillis += 50;
+  hostBtSleeping = false;
+  CHECK(syncScalePower());
+  CHECK(!criticalTaskWatchdogFaulted());
+
+  resetHarness(false, false);
+  powerAppliedProfile.store(PowerProfile::IDLE);
+  CHECK(syncScalePower());
+  hostBtSleeping = true;
+  powerAppliedProfile.store(PowerProfile::WEB);
+  hostMillis = UINT32_MAX - 50;
+  CHECK(!syncScalePower());
+  CHECK(hostBtWakeRequests == 1);
+  CHECK(!criticalTaskWatchdogFaulted());
+  hostMillis += 99;
+  CHECK(!syncScalePower());
+  CHECK(!criticalTaskWatchdogFaulted());
+  ++hostMillis;
+  CHECK(!syncScalePower());
+  CHECK(powerBleError.load() == ESP_ERR_TIMEOUT);
+  CHECK(criticalTaskWatchdogFaulted());
+}
+
+void pow04_ble_policy_failure_recovery() {
+  resetHarness(false, false);
+  CHECK(syncScalePower());
+  powerAppliedProfile.store(PowerProfile::IDLE);
+  hostBtEnableError = ESP_ERR_INVALID_STATE;
+  CHECK(syncScalePower()); // Optional savings rejected; awake service survives.
+  CHECK(powerBleError.load() == ESP_ERR_INVALID_STATE);
+  CHECK(!powerBleSleeping.load());
+  CHECK(hostBtDisableCalls == 2);
+  CHECK(!criticalTaskWatchdogFaulted());
+  CHECK(applyPowerProfile(PowerProfile::IDLE));
+  CHECK(powerAppliedProfile.load() == PowerProfile::OFF);
+
+  resetHarness(false, false);
+  powerAppliedProfile.store(PowerProfile::IDLE);
+  CHECK(syncScalePower());
+  powerAppliedProfile.store(PowerProfile::WAITING);
+  hostBtDisableError = ESP_ERR_INVALID_STATE;
+  CHECK(!syncScalePower());
+  CHECK(criticalTaskWatchdogFaulted());
+  serviceRelaySafety();
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(safeRestartPending());
+
+  resetHarness(false, true);
+  CHECK(setMachineCircuitClosed(true, 5000));
+  hostBtSleeping = true;
+  CHECK(!syncScalePower());
+  hostMillis += 100;
+  CHECK(!syncScalePower());
+  CHECK(powerBleError.load() == ESP_ERR_TIMEOUT);
+  serviceRelaySafety();
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(safeRestartPending());
+}
+
 struct TestCase {
   const char *id;
   TestFunction function;
 };
 
 const TestCase testCases[] = {
+    {"POW01", pow01_weighted_loss_and_manual_rinse_clock},
+    {"POW02", pow02_idle_scan_preserves_saved_preference},
+    {"POW03", pow03_ble_wake_without_link_is_bounded},
+    {"POW04", pow04_ble_policy_failure_recovery},
     {"T01", t01_boot_with_paddle_off},
     {"T02", t02_boot_with_activator_on},
     {"T03", t03_sustained_on_enters_brew_once},

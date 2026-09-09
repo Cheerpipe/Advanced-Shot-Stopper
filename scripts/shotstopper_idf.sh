@@ -220,6 +220,9 @@ ss_idf_sync_nimble_config() {
 
   local stale=0 unused_service
   grep -q '^CONFIG_BT_NIMBLE_ENABLED=y$' "$IDF_SDKCONFIG" || stale=1
+  grep -q '^CONFIG_PM_ENABLE=y$' "$IDF_SDKCONFIG" || stale=1
+  grep -q '^CONFIG_BT_CTRL_MODEM_SLEEP=y$' "$IDF_SDKCONFIG" || stale=1
+  grep -q '^CONFIG_BT_CTRL_LPCLK_SEL_MAIN_XTAL=y$' "$IDF_SDKCONFIG" || stale=1
   grep -q '^CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y$' "$IDF_SDKCONFIG" || stale=1
   grep -q '^CONFIG_BT_CONTROLLER_ONLY=y$' "$IDF_SDKCONFIG" && stale=1
   for unused_service in PROX ANS CTS HTP IPSS TPS IAS LLS SPS HR BAS DIS; do

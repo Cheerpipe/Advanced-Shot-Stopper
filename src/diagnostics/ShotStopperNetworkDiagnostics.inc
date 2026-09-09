@@ -120,7 +120,8 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"autoRetare\":%s,"
            "\"retareWindowMs\":%lu,\"minimumCupWeightG\":%.1f,"
            "\"lastShotCooldownMs\":%lu,\"timezoneOffsetMinutes\":%d,"
-           "\"serialLogLevel\":\"%s\",\"serialDebugOutput\":%s},",
+           "\"serialLogLevel\":\"%s\",\"serialDebugOutput\":%s,"
+           "\"powerManagementEnabled\":%s},",
            static_cast<unsigned long>(c.config.revision),
            static_cast<unsigned>(c.config.goalWeightG),
            static_cast<double>(c.config.weightOffsetG),
@@ -165,7 +166,8 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<int>(c.config.timezoneOffsetMinutes),
            logLevelName(serialLogLevelFromRuntime(c.config)),
            serialLogLevelFromRuntime(c.config) != LogLevel::NONE ? "true"
-                                                                  : "false");
+                                                                  : "false",
+           c.config.powerManagementEnabled ? "true" : "false");
 
   if (self.callbacks_.copyPresetBank != nullptr) {
     self.callbacks_.copyPresetBank(&work.presetBank);

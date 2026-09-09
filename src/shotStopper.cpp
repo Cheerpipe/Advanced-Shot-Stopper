@@ -43,6 +43,8 @@
 #include <esp_log.h>
 #endif
 
+#include "ShotStopperPowerManagement.h"
+
 #if defined(SHOT_STOPPER_HOST_TEST)
 #include "tests/shot_stopper_host_stubs.h"
 #else
@@ -349,6 +351,7 @@ ShotTrajectory shot;
 CycleSession session;
 PendingShotFinalize pendingFinalize;
 RuntimeConfig runtimeConfig;
+PowerPolicy powerPolicy;
 SHOT_STOPPER_PSRAM_BSS BullseyeMelodyConfig bullseyeMelodyConfig;
 SHOT_STOPPER_PSRAM_BSS BullseyeMelodyConfig stagedBullseyeMelodyConfig;
 uint32_t stagedBullseyeRequestId = 0;
@@ -1879,6 +1882,7 @@ void servicePendingBrewRfRestore() {
 // ---------------------------------------------------------------------------
 
 // Behavior-preserving service fragments; kept in this translation unit.
+#include "platform/ShotStopperPowerRuntime.inc"
 #include "control/ShotStopperCycleRuntime.inc"
 #include "scale/ShotStopperScaleEvents.inc"
 #include "control/ShotStopperControlStateMachine.inc"

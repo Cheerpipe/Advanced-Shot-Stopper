@@ -142,7 +142,8 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
   const uint32_t closeLimitMs =
       automaticBbw ? machineCloseLimitMs(session.config.operationalWallMs)
                    : HARD_MAX_CIRCUIT_CLOSED_MS;
-  if (!machineRequestStart(closeLimitMs, source == ControlSource::WEB)) {
+  if (!servicePowerManagement() ||
+      !machineRequestStart(closeLimitMs, source == ControlSource::WEB)) {
     session.active = false;
     session.endReason = EndReason::RELAY_SAFETY_FAILURE;
     machineSetPreferBleAirtime(false);
@@ -329,7 +330,8 @@ bool beginRinseCycle(ControlSource source) {
   resetShotTrajectory(session.startedAtMs);
   machineSetPreferBleAirtime(false);
   machineBeginCycle(false);
-  if (!machineBeginRinse(session.config.operationalWallMs)) {
+  if (!servicePowerManagement() ||
+      !machineBeginRinse(session.config.operationalWallMs)) {
     session.active = false;
     session.endReason = EndReason::RELAY_SAFETY_FAILURE;
     machineEndCycle();

@@ -43,6 +43,18 @@ notification.
 
 ## Runtime evidence
 
+Optional [Power management](settings/power-management.md) changes only CPU
+limits and owner-local radio policy; task priorities, watchdogs and safety
+deadlines remain unchanged. Control evaluates demand once per loop and promotes
+before accepted starts. PM configuration runs outside critical sections; stop
+handling does not wait for a PM acknowledgement. The BLE owner explicitly wakes
+the controller and defers BLE work while it is still asleep, without publishing
+false worker progress. Failed awake restoration or a 100-ms wake timeout enters
+the existing critical-task safety fault path. Qualify PM
+apply time, 40/80/160-MHz service distributions and timer/buzzer timing under
+M94–M98 in the [manual plan](MANUAL_TEST_PLAN.md). CPU percentages are diagnostic,
+not the energy objective; electrical savings require supply measurements.
+
 The coherent control-status snapshot publishes a monotonic version/timestamp,
 the lifetime maximum control and scale-worker service gaps, monotonic deadline
 miss counts, maximum observed loop-body execution in microseconds, and stack

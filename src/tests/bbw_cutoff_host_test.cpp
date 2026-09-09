@@ -129,7 +129,8 @@ int main() {
   PersistedSettings migrated;
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings, sizeof(settings));
   assert(loadPersistedSettings(migrated));
-  assert(migrated.schemaVersion == 10 && migrated.presets.presets[0].bbwEwmaAlpha == 30);
+  assert(migrated.schemaVersion == CONFIG_SCHEMA_VERSION &&
+         migrated.presets.presets[0].bbwEwmaAlpha == 30);
   assert(migratePersistedSettingsFromV8(settings, migrated));
   assert(validPersistedSettings(migrated));
   assert(migrated.presets.presets[0].bbwEwmaOffsetG == 2.25f);

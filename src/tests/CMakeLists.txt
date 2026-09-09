@@ -27,6 +27,9 @@ function(host_test name)
   set_tests_properties(${name} PROPERTIES LABELS "${ARG_LABEL}")
 endfunction()
 
+host_test(power_policy_host_test DEFINITIONS SHOT_STOPPER_HOST_TEST
+  LABEL "host;control;concurrency")
+
 if(SHOTSTOPPER_SANITIZER STREQUAL "thread")
   foreach(case M09 R25c F03 F04 F17 IT10 IT28)
     host_test(shot_stopper_tsan_${case}

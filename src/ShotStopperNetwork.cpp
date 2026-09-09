@@ -5,6 +5,7 @@
 #include "ShotStopperJsonArena.h"
 #include "ShotStopperOta.h"
 #include "ShotStopperPreferences.h"
+#include "ShotStopperPowerManagement.h"
 #include "ShotStopperPsram.h"
 #include "ShotStopperRecovery.h"
 #include "ShotStopperResetGuard.h"

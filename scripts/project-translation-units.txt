@@ -20,6 +20,7 @@ libraries/EspressoScaleBLE/src/protocols/Varia.cpp
 libraries/EspressoScaleBLE/src/protocols/WeighMyBru.cpp
 src/ShotStopperNetwork.cpp
 src/ShotStopperOta.cpp
+src/ShotStopperPowerManagement.cpp
 src/ShotStopperResetGuard.cpp
 src/ShotStopperScaleWorker.cpp
 src/ShotStopperWebhook.cpp

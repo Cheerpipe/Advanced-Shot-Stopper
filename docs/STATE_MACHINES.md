@@ -26,6 +26,13 @@ Related product docs: [Brew by weight](features/brew-by-weight.md),
 | Access and updates | [Recovery](#12-recovery-gesture), [Wi-Fi](#13-station-wi-fi-stastate), [scan](#14-wi-fi-scan-wifiscanstate), [clock](#15-wall-clock-timesyncstate), [OTA](#16-ota-otastate), [Web commands](#17-web-command-pipeline-commandresultstate) |
 | Cross-cutting | [End reasons](#end-reasons-stopper-outcomes), [loop ordering](#control-loop-ordering) |
 
+[Power management](settings/power-management.md) derives energy demand from
+these existing states. It has no actuation authority: active or uncertain
+machine operation holds the CPU requirement until confirmed stop, independent
+of relay level. Control owns clock changes, ScaleService owns BLE policy and
+NetworkService owns Wi-Fi policy. Temporary WebUI/physical leases never change
+the functional machine state or its safety deadlines.
+
 ## How to read this
 
 Each section has:

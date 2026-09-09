@@ -25,6 +25,7 @@ constexpr int tskIDLE_PRIORITY = 0;
 constexpr uint32_t portMAX_DELAY = UINT32_MAX;
 constexpr int ESP_OK = 0;
 constexpr int ESP_ERR_INVALID_STATE = -2;
+constexpr int ESP_ERR_TIMEOUT = 0x107;
 constexpr int ESP_TIMER_TASK = 0;
 
 using String = std::string;
@@ -143,6 +144,17 @@ inline bool setCpuFrequencyMhz(uint32_t mhz) {
 }
 
 inline uint32_t getCpuFrequencyMhz() { return hostCpuFrequencyMhz; }
+
+inline int hostBtEnableError = ESP_OK, hostBtDisableError = ESP_OK;
+inline bool hostBtSleeping = false;
+inline unsigned hostBtWakeRequests = 0, hostBtDisableCalls = 0;
+inline int esp_bt_sleep_enable() { return hostBtEnableError; }
+inline int esp_bt_sleep_disable() {
+  ++hostBtDisableCalls;
+  return hostBtDisableError;
+}
+inline bool esp_bt_controller_is_sleeping() { return hostBtSleeping; }
+inline void esp_bt_controller_wakeup_request() { ++hostBtWakeRequests; }
 
 inline uint32_t hostTaskYieldCalls = 0;
 inline uint32_t hostTaskNotifyGiveCalls = 0;

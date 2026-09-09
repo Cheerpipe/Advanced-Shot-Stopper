@@ -24,6 +24,10 @@
 #endif  // !SHOT_STOPPER_SCALE_WORKER_IN_ORCHESTRATOR
 
 #include "ble/ShotStopperBleRadioPolicy.h"
+#include "ShotStopperPowerManagement.h"
+#if !defined(SHOT_STOPPER_HOST_TEST)
+#include <esp_bt.h>
+#endif
 
 #if !defined(SHOT_STOPPER_SCALE_WORKER_IN_ORCHESTRATOR)
 // Orchestrator symbols live in the global namespace (shotStopper.cpp).
@@ -1715,7 +1719,8 @@ BleScanIntensity liveBleScanIntensity() {
 bool startScaleDiscoveryScan(const char *mac, bool forceRestart) {
   uint16_t interval = BLE_SCAN_NORMAL_INTERVAL;
   uint16_t window = BLE_SCAN_NORMAL_WINDOW;
-  bleScanHciParams(liveBleScanIntensity(), interval, window);
+  bleScanHciParams(powerIdleSavings() ? BleScanIntensity::LIGHT
+                                    : liveBleScanIntensity(), interval, window);
   const bool scanningBefore = scale.isScanning();
   const uint16_t prevInterval = scaleScanAppliedInterval;
   const uint16_t prevWindow = scaleScanAppliedWindow;
@@ -1753,7 +1758,8 @@ void serviceScaleScanIntensity() {
   }
   uint16_t interval = BLE_SCAN_NORMAL_INTERVAL;
   uint16_t window = BLE_SCAN_NORMAL_WINDOW;
-  bleScanHciParams(liveBleScanIntensity(), interval, window);
+  bleScanHciParams(powerIdleSavings() ? BleScanIntensity::LIGHT
+                                    : liveBleScanIntensity(), interval, window);
   if (scaleScanAppliedInterval == interval &&
       scaleScanAppliedWindow == window) {
     return;
@@ -1762,6 +1768,50 @@ void serviceScaleScanIntensity() {
   bool useDirected = false;
   fillCurrentScaleScanFilter(mac, sizeof(mac), useDirected);
   (void)startScaleDiscoveryScan(useDirected ? mac : nullptr, true);
+}
+
+// Called before polling Settling -> GAP connect. Sleep disable alone need not
+// wake the controller; its wake path restores the driver's 80-MHz APB lock.
+static bool scalePowerInitialized = false;
+static bool scalePowerWaking = false;
+static uint32_t scalePowerWakeStartedMs = 0;
+bool syncScalePower() {
+  bool busy = scale.isConnecting() || scale.isLinkUp();
+#if !defined(SHOT_STOPPER_HOST_TEST)
+  busy = busy || (bleCompanion != nullptr && bleCompanion->status().connected);
+#endif
+  powerScaleBusy.store(busy, std::memory_order_release);
+  bool sleep = powerIdleSavings() && !busy &&
+               powerBleError.load(std::memory_order_relaxed) == 0;
+  if (!scalePowerInitialized ||
+      sleep != powerBleSleeping.load(std::memory_order_relaxed)) {
+    const int error = sleep ? esp_bt_sleep_enable() : esp_bt_sleep_disable();
+    if (error != ESP_OK) {
+      powerBleError.store(error, std::memory_order_release);
+      // Optional sleep failure may recover to awake operation. A failed
+      // restore must not masquerade as a healthy, watchdog-fed worker.
+      if (!sleep || esp_bt_sleep_disable() != ESP_OK) {
+        reportTaskWatchdogFault();
+        return false;
+      }
+      sleep = false;
+    }
+    scalePowerInitialized = true;
+    powerBleSleeping.store(sleep, std::memory_order_release);
+    if (!sleep) esp_bt_controller_wakeup_request();
+  }
+  if (!sleep && esp_bt_controller_is_sleeping()) {
+    if (!scalePowerWaking) {
+      scalePowerWaking = true;
+      scalePowerWakeStartedMs = millis();
+    } else if (uint32_t(millis() - scalePowerWakeStartedMs) >= 100) {
+      powerBleError.store(ESP_ERR_TIMEOUT, std::memory_order_release);
+      reportTaskWatchdogFault();
+    }
+    return false;
+  }
+  scalePowerWaking = false;
+  return true;
 }
 
 void syncScaleRadioCoex() {
@@ -2134,13 +2184,18 @@ void scaleWorkerTask(void *) {
         lastBackgroundMs == 0 ||
         static_cast<uint32_t>(nowMs - lastBackgroundMs) >=
             SCALE_WORKER_BACKGROUND_MS;
+    // Must run every tick: pollScan() defers GAP connect by one Settle step,
+    // and advertising as peripheral during connect() fails on ESP32-S3.
+    // setAdvertisingPaused() is a no-op when the pause state is unchanged.
+    if (!syncScalePower()) {
+      feedOrTripCurrentTaskWatchdog();
+      vTaskDelay(pdMS_TO_TICKS(10));
+      continue;
+    }
     if (backgroundDue) {
       lastBackgroundMs = nowMs;
       markScaleWorkerProgress();
     }
-    // Must run every tick: pollScan() defers GAP connect by one Settle step,
-    // and advertising as peripheral during connect() fails on ESP32-S3.
-    // setAdvertisingPaused() is a no-op when the pause state is unchanged.
     syncCompanionAdvertisingForScaleLink();
     syncScaleRadioCoex();
 

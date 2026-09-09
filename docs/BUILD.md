@@ -6,6 +6,11 @@ Supported firmware uses ESP-IDF 6.1.x (pinned reference: **6.1**),
 Arduino-ESP32 **3.3.11** as an IDF component, and native NimBLE.
 The bundled EspressoScaleBLE library is not installed through Library Manager.
 
+Production defaults compile DFS (`CONFIG_PM_ENABLE`) and S3 controller modem
+sleep with the main crystal. The runtime [Power management](settings/power-management.md)
+setting defaults off. The build wrapper recreates cached configurations missing
+this support; automatic light sleep remains disabled.
+
 This walkthrough covers macOS and Debian/Ubuntu Linux. Native Windows build
 and hardware-installation steps are not qualified here; the Windows notes in
 [Static analysis](STATIC_ANALYSIS.md#4-windows-prerequisites-native-no-wsl)

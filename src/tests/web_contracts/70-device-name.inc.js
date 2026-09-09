@@ -6,7 +6,7 @@
   const handler = admin.slice(admin.indexOf("$('saveDeviceNameButton').onclick="),
       admin.indexOf(";$('saveNetworkButton').onclick="));
   const waiter = admin.slice(admin.indexOf('async function waitSaved('),
-      admin.indexOf('async function waitDiagnosticApplied('));
+      admin.indexOf('function saveToggle('));
   assert(handler && waiter);
   assert(html.includes('id="deviceName"') && html.includes('maxlength="63"'));
   const route = network.slice(network.indexOf('strcmp(action, "name")'),

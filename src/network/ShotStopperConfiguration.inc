@@ -36,7 +36,8 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
                                   jsonFieldPresent(root, "serialDebugOutput") ||
                                   jsonFieldPresent(root, "ringRetainLogLevel");
   const bool diagnosticPagePatch =
-      jsonFieldPresent(root, "showDiagnosticPage");
+      jsonFieldPresent(root, "showDiagnosticPage") ||
+      jsonFieldPresent(root, "powerManagementEnabled");
   // Patch: seed live effective config; only present keys overwrite.
   RuntimeConfig candidate = {};
   if (self.callbacks_.copyRuntimeConfig != nullptr) {
@@ -94,7 +95,8 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       "ntpServerCustom", "scaleMacCacheMode", "bookooMuteOnBuzzerOnly",
       "bookooConnectBeepLevel", "noScaleBbwMode", "avoidBbwShotWithoutScale",
       "lastShotCooldownMs",
-      "serialLogLevel", "serialDebugOutput", "ringRetainLogLevel", "showDiagnosticPage"};
+      "serialLogLevel", "serialDebugOutput", "ringRetainLogLevel", "showDiagnosticPage",
+      "powerManagementEnabled"};
   const char *parseError = nullptr;
   size_t settingFieldCount = 0;
   if (root != nullptr) {
@@ -396,6 +398,10 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
     parseError =
         "ringRetainLogLevel must be none, critical, error, warning, info, or "
         "debug.";
+  }
+  if (parseError == nullptr && jsonFieldPresent(root, "powerManagementEnabled") &&
+      !jsonBoolean(root, "powerManagementEnabled", candidate.powerManagementEnabled)) {
+    parseError = "powerManagementEnabled must be a boolean.";
   }
   if (root != nullptr) {
     brewByWeightPresent = jsonFieldPresent(root, "brewByWeight");

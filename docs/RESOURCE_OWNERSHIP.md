@@ -14,6 +14,9 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 
 | Resource | Owner | Teardown/rollback |
 |---|---|---|
+| Dynamic CPU limits | ControlOrchestrator via `applyPowerProfile` | boot-lifetime `PowerClock`; configure only changed limits outside locks, fixed-80-MHz fallback on failure; Arduino clock setter only during boot |
+| Energy activity mailbox | HTTP publishes bounded presence; control expires it and publishes applied profile/cooldown; ScaleService and NetworkService publish busy/error state | static atomics, no new tasks or flash writes; requests never authorize actuation |
+| BLE modem sleep / scan and Wi-Fi sleep | ScaleService / NetworkService respectively | owner-local application, live link/connecting gates, saved preferences restored when PM is off; see [Power management](settings/power-management.md) |
 | webhook `esp_http_client` | `WebhookDispatcher::httpClient_` (`UniqueResource`) | normal cleanup after worker join; destructor is final rollback |
 | OTA write handle | `ShotStopperOta::otaHandle_` (`UniqueResource`) | abort under `FlashIoGuard`; `release()` transfers it exactly once to `esp_ota_end` |
 | OTA SHA context | `ShotStopperOta::sessionSha256_` (`UniqueResource`) | `psa_hash_abort` then capability-aware heap free |

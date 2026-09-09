@@ -42,7 +42,8 @@ class IndependentSafetyTimer {
     return true;
 #else
     gptimer_config_t config = {};
-    config.clk_src = GPTIMER_CLK_SRC_DEFAULT;
+    // Stable 1-us timebase across DFS; enabled timer retains NO_LIGHT_SLEEP.
+    config.clk_src = GPTIMER_CLK_SRC_XTAL;
     config.direction = GPTIMER_COUNT_UP;
     config.resolution_hz = 1000000;
 

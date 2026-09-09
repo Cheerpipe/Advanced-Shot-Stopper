@@ -68,7 +68,7 @@ constexpr uint32_t SERIAL_BAUD = 115200;
 // after staOpen). V2 names that byte staWifiSleep without growing the blob.
 // Bump and add a migration when the blob layout changes
 // (see ShotStopperSettingsMigrate.h).
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 10;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 11;
 // Rinse clock default. Detection window default is DEFAULT_RINSE_GESTURE_MS
 // (machine-owned, ShotStopperMachineTypes.h).
 constexpr uint32_t DEFAULT_RINSE_DURATION_MS = 4000;
@@ -589,6 +589,8 @@ enum class LogLevel : uint8_t {
 struct RuntimeConfig {
   uint32_t revision = 1;
   uint8_t goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  // Global setting, never copied into a preset. V11 names former padding.
+  bool powerManagementEnabled = false;
   float weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   // Seed for Reset learned stop offset; factory default remains 1.5 g.
   float weightOffsetBaselineG = DEFAULT_WEIGHT_OFFSET_G;

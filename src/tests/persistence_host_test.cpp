@@ -51,6 +51,7 @@ void p01_defaults_are_valid() {
   CHECK(settings.staWifiSleep);
   CHECK(settings.runtime.showDiagnosticPage);
   CHECK(settings.runtime.autoTareOutsideBrew);
+  CHECK(!settings.runtime.powerManagementEnabled);
   CHECK(!settings.webhook.deferDuringShot);
   CHECK(settings.runtime.fastExtractionGuardEnabled);
   CHECK(std::fabs(settings.runtime.maxRecoveryWeightG -
@@ -1820,12 +1821,43 @@ void p77_device_name_preserved_by_settings_and_reset_by_factory() {
   CHECK(strcmp(name, DEFAULT_DEVICE_NAME) == 0);
 }
 
+void p78_power_management_migration_and_global_scope() {
+  for (uint32_t version = 6; version <= 10; ++version) {
+    resetHostPersistence();
+    PersistedSettings legacy;
+    CHECK(initializeDefaultSettings(legacy));
+    legacy.schemaVersion = version;
+    // Previous schemas never initialized this padding byte.
+    reinterpret_cast<unsigned char *>(&legacy.runtime)[5] = 0xa5;
+    legacy.checksum = persistedSettingsChecksum(legacy);
+    persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A,
+                            &legacy, sizeof(legacy));
+    PersistedSettings loaded;
+    CHECK(loadPersistedSettings(loaded));
+    CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
+    CHECK(!loaded.runtime.powerManagementEnabled);
+    loaded.runtime.powerManagementEnabled = true;
+    applyShotPresetToConfig(loaded.presets.presets[0], loaded.runtime, false);
+    CHECK(loaded.runtime.powerManagementEnabled);
+    CHECK(savePersistedSettings(loaded));
+    CHECK(loadPersistedSettings(loaded));
+    CHECK(loaded.runtime.powerManagementEnabled);
+    CHECK(resetPersistedSettingsToFactory(loaded));
+    CHECK(!loaded.runtime.powerManagementEnabled);
+    if (version == 10) {
+      legacy.checksum ^= 1;
+      CHECK(!migratePersistedSettingsFromV10(legacy, loaded));
+    }
+  }
+}
+
 struct TestCase {
   const char *id;
   void (*function)();
 };
 
 const TestCase tests[] = {
+    {"P78", p78_power_management_migration_and_global_scope},
     {"P76", p76_device_name_round_trip_and_failures},
     {"P77", p77_device_name_preserved_by_settings_and_reset_by_factory},
     {"P01", p01_defaults_are_valid},

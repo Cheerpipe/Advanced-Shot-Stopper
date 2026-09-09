@@ -286,6 +286,8 @@ void ShotStopperNetwork::syncScaleHuntRf(bool huntActive) {
 void ShotStopperNetwork::applyWifiPowerSave() {
   const wifi_mode_t mode = WiFi.getMode();
   if (mode == WIFI_OFF) {
+    powerNetworkBusy.store(ShotStopperOta::instance().busy(),
+                           std::memory_order_release);
     lastAppliedWifiPsValid_ = false;
     return;
   }
@@ -298,6 +300,12 @@ void ShotStopperNetwork::applyWifiPowerSave() {
   staAssociated = status_.staState == StaState::CONNECTED;
   dataMux_.unlock();
   const bool otaBusy = ShotStopperOta::instance().busy();
+  powerNetworkBusy.store(apActive || otaBusy || !staAssociated,
+                         std::memory_order_release);
+  if (powerAppliedProfile.load(std::memory_order_acquire) != PowerProfile::OFF) {
+    if (powerIdleSavings()) sleepAllowed = true;
+    if (powerWebActive(millis())) sleepAllowed = false;
+  }
   const WifiPowerSaveMode desired = desiredWifiPowerSave(
       sleepAllowed, apActive, staAssociated, otaBusy);
   const wifi_ps_type_t desiredPs = desired == WifiPowerSaveMode::MIN_MODEM

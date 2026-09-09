@@ -35,7 +35,8 @@ void setup() {
 
   localBuzzer.begin(BUZZER_GPIO);
 
-  platformClockReady = setCpuFrequencyMhz(80);
+  platformClockReady = setCpuFrequencyMhz(80) &&
+                       applyPowerProfile(PowerProfile::OFF);
   relaySafetyTimersReady = initializeRelaySafetyTimer();
   taskWatchdogReady =
       configureTaskWatchdog() && subscribeCurrentTaskToWatchdog();
@@ -500,6 +501,7 @@ void loop() {
   observeMachineSenseFromSession();
   serviceMachine();
   captureLoopGuards();
+  const MachineIntention powerIntention = machineLastIntention();
   serviceNoScaleShotGuard(loopGuardInputs);
   serviceCupStartGuard(loopGuardInputs);
   stateMachineTask();
@@ -525,6 +527,7 @@ void loop() {
   serviceShotStorePersistence();
   servicePreferredScaleMacPersistence();
   serviceMaintenanceLease();
+  servicePowerManagement(powerIntention.turnedOn || powerIntention.turnedOff);
   servicePendingPlannedRestart();
   serviceControlStatusPublish();
   publishBleCompanionRuntimeSnapshot();

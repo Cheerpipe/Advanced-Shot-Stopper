@@ -212,9 +212,11 @@ if (!sdkconfigDefaults.includes('CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768') |
       'sdkconfig.defaults must pin SPIRAM_MALLOC_RESERVE_INTERNAL=32768 and keep task stacks internal');
 }
 if (sdkconfigDefaults.includes('CONFIG_FREERTOS_USE_TICKLESS_IDLE=y') ||
-    sdkconfigDefaults.includes('CONFIG_PM_ENABLE=y')) {
+    !sdkconfigDefaults.includes('CONFIG_PM_ENABLE=y') ||
+    !fs.readFileSync(path.join(sketchDir, 'ShotStopperPowerManagement.cpp'), 'utf8')
+      .includes('config.light_sleep_enable = false')) {
   throw new Error(
-      'sdkconfig.defaults must keep tickless idle and CONFIG_PM / light sleep disabled');
+      'PM requires DFS support while automatic light sleep remains disabled');
 }
 if (sdkconfigDefaults.includes('CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y') ||
     !sdkconfigDefaults.includes('CONFIG_ESP_CONSOLE_NONE=y') ||
@@ -234,9 +236,12 @@ if (sdkconfigDefaults.includes('CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y') ||
   }
 }
 if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
-    sdkconfigDefaults.includes('CONFIG_BT_CTRL_MODEM_SLEEP=y')) {
+    !sdkconfigDefaults.includes('CONFIG_BT_CTRL_MODEM_SLEEP=y') ||
+    !sdkconfigDefaults.includes('CONFIG_BT_CTRL_LPCLK_SEL_MAIN_XTAL=y') ||
+    !fs.readFileSync(path.join(sketchDir, 'ShotStopperScaleWorker.cpp'), 'utf8')
+      .includes('sleep ? esp_bt_sleep_enable() : esp_bt_sleep_disable()')) {
   throw new Error(
-      'BT controller modem-sleep must stay off (would apply during GATT)');
+      'S3 controller sleep requires XTAL and reversible worker-owned control');
 }
 {
   const cmakeLists = fs.readFileSync(

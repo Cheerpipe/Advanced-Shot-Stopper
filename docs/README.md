@@ -29,6 +29,7 @@ needed rather than reading the entire directory.
 | Without a scale / rinse | [No-scale BBW](settings/no-scale-bbw.md) / [quick rinse](settings/quick-rinse.md) |
 | Scale and cup | [Scales](settings/scales.md), [cup detection](settings/cup.md), [tare](settings/tare.md) |
 | Network | [Wi-Fi](settings/wifi.md) / [access point](settings/ap.md) |
+| Energy | [Power management](settings/power-management.md) |
 | Reset | [Factory reset](settings/factory-reset.md) |
 
 ## Developer map

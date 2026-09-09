@@ -2,7 +2,8 @@
 
 // Settings schema migrations.
 //
-// Current on-disk schema is V10 (BBW alpha baseline). V9 added strategies.
+// V11 names RuntimeConfig padding for opt-in power management (default OFF).
+// V10 added BBW alpha baseline. V9 added strategies.
 // V8 names the idle-tare
 // padding byte and defaults it ON. V7 replaces the
 // serial-debug boolean with an explicit serial ESP_LOG level. V6 adds the webhook
@@ -29,6 +30,10 @@
 namespace shotstopper {
 
 constexpr size_t PERSISTED_SETTINGS_V7_SIZE = 2616;
+constexpr size_t PERSISTED_SETTINGS_V10_SIZE = 2616;
+static_assert(offsetof(RuntimeConfig, powerManagementEnabled) == 5 &&
+                  offsetof(RuntimeConfig, weightOffsetG) == 8,
+              "V11 must use legacy padding without moving recipe fields");
 static_assert(sizeof(PersistedSettings) == PERSISTED_SETTINGS_V7_SIZE,
               "V7 migration requires the original blob layout");
 
@@ -55,6 +60,7 @@ inline void ensurePersistedPresetBank(PersistedSettings &settings) {
 
 // V1–V8 share these exact offsets. Verify their original CRC before calling.
 inline void initializeMigratedBbw(PersistedSettings &out) {
+  out.runtime.powerManagementEnabled = false;
   out.structureSize = sizeof(PersistedSettings);
   out.runtime.bbwAlgorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
   for (ShotPreset &preset : out.presets.presets) {
@@ -67,12 +73,25 @@ inline void initializeMigratedBbw(PersistedSettings &out) {
   }
 }
 
+inline bool migratePersistedSettingsFromV10(const PersistedSettings &v10,
+                                           PersistedSettings &out) {
+  if (v10.magic != PERSISTED_SETTINGS_MAGIC || v10.schemaVersion != 10 ||
+      v10.structureSize != PERSISTED_SETTINGS_V10_SIZE ||
+      v10.checksum != persistedSettingsChecksum(v10)) return false;
+  copyPersistedBytes(out, v10, sizeof(out));
+  out.runtime.powerManagementEnabled = false;
+  out.schemaVersion = CONFIG_SCHEMA_VERSION;
+  out.checksum = persistedSettingsChecksum(out);
+  return true;
+}
+
 inline bool migratePersistedSettingsFromV9(const PersistedSettings &v9,
                                            PersistedSettings &out) {
   if (v9.magic != PERSISTED_SETTINGS_MAGIC || v9.schemaVersion != 9 ||
       v9.structureSize != sizeof(out) || v9.checksum != persistedSettingsChecksum(v9))
     return false;
   copyPersistedBytes(out, v9, sizeof(out));
+  out.runtime.powerManagementEnabled = false;
   for (ShotPreset &preset : out.presets.presets) {
     preset.bbwAlphaBaseline = DEFAULT_BBW_EWMA_ALPHA;
     preset.bbwProfileVersion = BBW_PROFILE_VERSION;

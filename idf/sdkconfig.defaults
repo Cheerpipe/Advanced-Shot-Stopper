@@ -89,9 +89,12 @@ CONFIG_SHOT_STOPPER_ENABLE_JTAG=0
 CONFIG_ESP_CONSOLE_NONE=y
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 
-# Do not enable CONFIG_BT_CTRL_MODEM_SLEEP or CONFIG_BT_LE_SLEEP_ENABLE.
-# Those are compile-time and would stay on while a scale is connecting or
-# GATT-up. Idle radio savings are scan duty + optional Wi-Fi MIN_MODEM only.
+# Runtime policy defaults OFF (fixed 80 MHz); no automatic light sleep.
+CONFIG_PM_ENABLE=y
+CONFIG_BT_CTRL_MODEM_SLEEP=y
+CONFIG_BT_CTRL_MODEM_SLEEP_MODE_1=y
+CONFIG_BT_CTRL_LPCLK_SEL_MAIN_XTAL=y
+# ScaleService disables controller sleep at boot and before GAP/GATT setup.
 
 # Arduino setup()/loop() autostart. Arduino-ESP32 provides app_main.
 CONFIG_AUTOSTART_ARDUINO=y

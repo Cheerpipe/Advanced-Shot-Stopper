@@ -73,7 +73,7 @@ Editing reset bases alone preserves current learning and evidence.
 Settings status publishes active-preset identity, both offsets, alpha baseline, gain/provenance
 and evidence count together in the existing coherent control snapshot.
 
-Settings V10 retains the 252-byte RuntimeConfig, 104-byte ShotPreset and
+Settings V11 retains the 252-byte RuntimeConfig, 104-byte ShotPreset and
 2616-byte settings blob. Runtime byte 251 and preset byte 45 hold the selector;
 obsolete preset cup floats at bytes 84–91 become EWMA offset (float), alpha
 (hundredths), initial/learned provenance, EWMA profile version and alpha baseline
@@ -84,7 +84,10 @@ baseline 0.30 and EWMA profile v2 while retaining selection, offsets and gain/so
 New schemas retain saved choices and valid learned gains. Candidate anchors/observations/generations are RAM
 only; deferred persistence retains offsets, gain/provenance and profile through
 the existing dual-slot owner. Unknown/invalid schemas follow existing recovery;
-old binaries do not understand V10, so downgrades are not learning-preserving.
+old binaries do not understand V11, so downgrades are not settings-preserving.
+V11 names RuntimeConfig byte 5 (former padding) as global
+`powerManagementEnabled`. Every V1–V10 migration initializes it to false after
+validating the original CRC; presets never copy it.
 
 History V4 keeps 48-byte records and 120 entries. Guard byte bits 5–7 encode
 profile (0 unknown, 1 pre-selector regression with unknown version, 2 regression v1,

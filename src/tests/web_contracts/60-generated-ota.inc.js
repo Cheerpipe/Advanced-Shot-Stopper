@@ -172,20 +172,20 @@ if (generated.gzip.length > 4096) {
 }
 // Reallocate another 500 bytes of shell allowance to BBW readback/CSV.
 // The combined 64000-byte embedded budget remains unchanged.
-if (generated.jsGzip.length > 5444) {
-  throw new Error('Compressed Web UI shell JS exceeds the 5444-byte gzip budget');
+if (generated.jsGzip.length > 5044) {
+  throw new Error('Compressed Web UI shell JS exceeds the 5044-byte gzip budget');
 }
 if (generated.cssGzip.length > 6600) {
   throw new Error('Compressed Web CSS exceeds the 6.5 KiB gzip budget');
 }
-if (generated.runtimeGzip.length > 32000) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 32000-byte gzip budget');
+if (generated.runtimeGzip.length > 32200) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 32200-byte gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
 }
-if (generated.secondaryGzip.length > 5700) {
-  throw new Error('Compressed secondary view JS exceeds the 5700-byte gzip budget');
+if (generated.secondaryGzip.length > 5900) {
+  throw new Error('Compressed secondary view JS exceeds the 5900-byte gzip budget');
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');
@@ -792,9 +792,9 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   if (!html.includes('id="diagnosticControls"') ||
       !js.includes('showDiagnosticPage') ||
       !js.includes('diagnosticPublic') ||
-      !viewJs.admin.includes('waitDiagnosticApplied(wanted)') ||
-      !viewJs.admin.includes("api('/api/v1/status/admin')).config.showDiagnosticPage===wanted") ||
-      !viewJs.admin.includes("R.message('Saving Diagnostic…','warn')") ||
+      !viewJs.admin.includes("saveToggle('showDiagnosticPage')") ||
+      !viewJs.admin.includes('await waitSaved(a.requestId,id)') ||
+      !viewJs.admin.includes('R.withBaseRev({[id]:wanted})') ||
       viewJs.admin.includes('waitDiagnosticPagePersisted') ||
       (viewJs.admin.match(/\bapplyStatus\b/g) || []).length !== 2 ||
       js.includes("$('diagnosticUnlockButton').onclick") ||

@@ -214,6 +214,20 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     ok = statusJsonAppend(&used, ",\"machineType\":\"%s\"",
                           compiledMachineTypeId());
   }
+  if (ok && (page == StatusPage::Admin || page == StatusPage::Diagnostic)) {
+    const PowerProfile applied = powerAppliedProfile.load(std::memory_order_acquire);
+    ok = statusJsonAppend(&used,
+        ",\"power\":{\"enabled\":%s,\"requestedProfile\":\"%s\",\"profile\":\"%s\",\"cpuMhz\":%u,"
+        "\"minMhz\":%d,\"maxMhz\":%d,\"clockError\":%d,\"bleError\":%d,"
+        "\"bleSleep\":%s,\"webActive\":%s,\"cooldownMs\":%lu}",
+        control.config.powerManagementEnabled ? "true" : "false",
+        powerProfileName(powerRequestedProfile.load(std::memory_order_acquire)),
+        powerProfileName(applied), static_cast<unsigned>(getCpuFrequencyMhz()),
+        powerMinMhz(applied), powerMaxMhz(applied), powerClockError.load(),
+        powerBleError.load(), powerBleSleeping.load() ? "true" : "false",
+        powerWebActive(millis()) ? "true" : "false",
+        static_cast<unsigned long>(powerCooldownRemainingMs.load()));
+  }
   if (ok) {
     ok = statusJsonAppend(&used, ",\"diagnosticPageVisible\":%s",
                           self.diagnosticPageEnabled() ? "true" : "false");
@@ -233,10 +247,11 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     ok = statusJsonAppend(
         &used,
         ",\"timezoneOffsetMinutes\":%d,\"ntpServerPreset\":\"%s\","
-        "\"ntpServerCustom\":\"%s\",\"showDiagnosticPage\":%s",
+        "\"ntpServerCustom\":\"%s\",\"showDiagnosticPage\":%s,\"powerManagementEnabled\":%s",
         static_cast<int>(control.config.timezoneOffsetMinutes),
         ntpPresetId(control.config.ntpServerPreset), safeNtpCustom,
-        control.config.showDiagnosticPage ? "true" : "false");
+        control.config.showDiagnosticPage ? "true" : "false",
+        control.config.powerManagementEnabled ? "true" : "false");
   }
   if (ok && page == StatusPage::Diagnostic) {
     ok = statusJsonAppend(

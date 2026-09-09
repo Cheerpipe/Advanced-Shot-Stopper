@@ -11,7 +11,6 @@ using esp_err_t = int;
 using esp_ota_handle_t = uint32_t;
 
 constexpr esp_err_t ESP_FAIL = -1;
-constexpr esp_err_t ESP_ERR_TIMEOUT = 0x107;
 constexpr esp_err_t ESP_ERR_NOT_FOUND = 0x105;
 constexpr size_t OTA_WITH_SEQUENTIAL_WRITES = static_cast<size_t>(-2);
 constexpr int WIFI_PS_NONE = 0;

@@ -327,6 +327,14 @@ bool ShotStopperNetwork::requireActiveWebUiClient(httpd_req_t *request) {
               "This WebUI window is inactive. Reactivate to continue.");
     return false;
   }
+  char activity[3] = {};
+  if (httpd_req_get_hdr_value_str(request, "X-WebUI-Activity", activity,
+                                  sizeof(activity)) == ESP_OK) {
+    char *end = nullptr;
+    const unsigned long seconds = strtoul(activity, &end, 10);
+    if (end != activity && *end == '\0' && seconds <= 30)
+      notePowerWebActivity(millis(), static_cast<uint32_t>(seconds));
+  }
   return true;
 }
 
