@@ -25,6 +25,7 @@ idf_component_register(
     nvs_flash
     esp_wifi
     esp_timer
+    esp_system
     driver
     bt
     spi_flash

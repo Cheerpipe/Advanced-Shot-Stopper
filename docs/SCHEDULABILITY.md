@@ -45,6 +45,12 @@ around flash work, so it cannot be indefinitely starved while subscribed to the
 Task Watchdog. Network and scale metrics are published under their owning
 snapshot or as monotonic atomics.
 
+The five-second CPU-load sample refreshes the other core through ESP-IDF's
+existing IPC task before reading the two IDLE run-time counters. This bounds the
+counter age to the sampling point; without that context switch, a core that
+remains continuously in IDLE can appear busy because FreeRTOS commits task
+run-time only when the task switches out. IPC failure invalidates the sample.
+
 Stack high-water marks are bytes on the supported ESP32-S3 port. Diagnostic
 JSON and `HEALTH` publish `stackUnit=bytes` and an unavailable sentinel of
 `4294967295`; legacy field names ending in `Words` retain their historical

@@ -11944,7 +11944,7 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   CHECK(!debugEventExists(DebugCode::HEALTH_HEAP_RESTART));
 }
 
-void h02_hwmon_cpu_load_uses_idle_and_ema() {
+void h02_hwmon_cpu_load_uses_refreshed_idle_and_ema() {
   Hwmon monitor;
   monitor.begin();
 
@@ -11975,6 +11975,12 @@ void h02_hwmon_cpu_load_uses_idle_and_ema() {
   CHECK(snap.cpuLoad5s >= 0.99f && snap.cpuLoad5s <= 1.01f);
   CHECK(snap.cpu0Busy >= 0.49f && snap.cpu0Busy <= 0.51f);
   CHECK(snap.cpu1Busy >= 0.49f && snap.cpu1Busy <= 0.51f);
+
+  // A failed remote refresh must not publish stale IDLE counters as new load.
+  monitor.hostSetIdleAccumUs(0, 0, false);
+  snap = monitor.sample(5000);
+  CHECK(!snap.cpuLoadValid);
+  CHECK(snap.cpuLoad5s == snap.cpuLoad1m);
 }
 
 void h03_task_profiler_start_stop_updates_snapshot() {
@@ -14247,7 +14253,7 @@ const TestCase testCases[] = {
     {"S19", s19_shot_store_persist_failure_logs_once_until_success},
     {"H01", h01_health_threshold_alerts_fire_once_per_crossing},
     {"H01b", h01b_health_heap_low_restarts_only_when_ready_and_sustained},
-    {"H02", h02_hwmon_cpu_load_uses_idle_and_ema},
+    {"H02", h02_hwmon_cpu_load_uses_refreshed_idle_and_ema},
     {"H03", h03_task_profiler_start_stop_updates_snapshot},
     {"N01", n01_wall_clock_tracks_utc_from_anchor},
     {"N01b", n01b_wall_clock_survives_millis_wrap},

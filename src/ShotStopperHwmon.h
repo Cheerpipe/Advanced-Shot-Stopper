@@ -5,6 +5,7 @@
 
 #ifdef ARDUINO
 #include <Arduino.h>
+#include <esp_ipc.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -54,9 +55,11 @@ class Hwmon {
 
 #ifndef ARDUINO
   // Host tests: set idle microseconds accumulated for the next sample().
-  void hostSetIdleAccumUs(uint64_t idle0Us, uint64_t idle1Us) {
+  void hostSetIdleAccumUs(uint64_t idle0Us, uint64_t idle1Us,
+                          bool countersFresh = true) {
     idleAccumUs_[0] = idle0Us;
     idleAccumUs_[1] = idle1Us;
+    hostCountersFresh_ = countersFresh;
     hostIdleInjected_ = true;
   }
 #endif
@@ -139,8 +142,19 @@ class Hwmon {
 
 #ifdef ARDUINO
   // FreeRTOS idle run-time counters (µs via esp_timer, uint32 wrap ~71 min).
-  // Prefer these over idle hooks: esp_register_freertos_idle_hook's return
-  // true means "once per tick", so a 500 µs gap cap counted ~0 idle forever.
+  // Runtime is committed when a task switches out. Refresh the remote core so
+  // a continuously running IDLE task cannot make that core look fully busy.
+  static void refreshIdleCounter_(void *) {}
+
+  static bool refreshRemoteIdleCounter_() {
+#if portNUM_PROCESSORS > 1
+    return esp_ipc_call(1U - static_cast<uint32_t>(xPortGetCoreID()),
+                        refreshIdleCounter_, nullptr) == ESP_OK;
+#else
+    return true;
+#endif
+  }
+
   static uint32_t idleRunTimeCounter_(BaseType_t core) {
     return static_cast<uint32_t>(ulTaskGetIdleRunTimeCounterForCore(core));
   }
@@ -151,10 +165,28 @@ class Hwmon {
   }
 #endif
 
+  void publishPreviousCpu_(HwmonSnapshot &out) const {
+    out.cpuLoadValid = false;
+    out.cpuLoad5s = cpuLoad1m_;
+    out.cpuLoad1m = cpuLoad1m_;
+    out.cpuLoad5m = cpuLoad5m_;
+    out.cpu0Busy = cpu0Busy_;
+    out.cpu1Busy = cpu1Busy_;
+  }
+
   void sampleCpuLoad_(HwmonSnapshot &out, uint32_t intervalMs) {
     uint64_t idle0 = 0;
     uint64_t idle1 = 0;
     uint64_t wallUs = 0;
+#ifdef ARDUINO
+    const bool countersFresh = refreshRemoteIdleCounter_();
+#else
+    const bool countersFresh = hostCountersFresh_;
+#endif
+    if (!countersFresh) {
+      publishPreviousCpu_(out);
+      return;
+    }
 #ifdef ARDUINO
     const uint32_t idle0Now = idleRunTimeCounter_(0);
 #if portNUM_PROCESSORS > 1
@@ -199,23 +231,13 @@ class Hwmon {
 #endif
 
     if (wallUs == 0U) {
-      out.cpuLoadValid = false;
-      out.cpuLoad5s = cpuLoad1m_;
-      out.cpuLoad1m = cpuLoad1m_;
-      out.cpuLoad5m = cpuLoad5m_;
-      out.cpu0Busy = cpu0Busy_;
-      out.cpu1Busy = cpu1Busy_;
+      publishPreviousCpu_(out);
       return;
     }
 
     // Ignore tiny windows (e.g. boot sample(1)) — idle accounting needs time.
     if (wallUs < 100000ULL) {
-      out.cpuLoadValid = false;
-      out.cpuLoad5s = cpuLoad1m_;
-      out.cpuLoad1m = cpuLoad1m_;
-      out.cpuLoad5m = cpuLoad5m_;
-      out.cpu0Busy = cpu0Busy_;
-      out.cpu1Busy = cpu1Busy_;
+      publishPreviousCpu_(out);
       return;
     }
 
@@ -253,6 +275,7 @@ class Hwmon {
 #endif
 #ifndef ARDUINO
   bool hostIdleInjected_ = false;
+  bool hostCountersFresh_ = true;
   uint64_t idleAccumUs_[2] = {};
 #endif
   uint64_t sampleStartedUs_ = 0;
