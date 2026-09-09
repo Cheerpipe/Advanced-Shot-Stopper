@@ -50,7 +50,9 @@ files in task-specific `temp/ai_temp_<task>/` directories and clean up only file
 no longer needed for evidence or recovery. Never
 commit unless explicitly asked. A completed change report includes an English
 commit title, a list of changes made, and a brief but complete technical
-description, all in English.
+description, all in English. Proposed and agent-created commits must follow
+Conventional Commits for both the title (`type(scope): description`) and any
+body or detail included with the commit.
 
 ## Local project storage
 
