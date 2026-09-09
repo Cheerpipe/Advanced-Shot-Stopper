@@ -90,7 +90,15 @@ delete them or add/force-add them to Git.
 
 ## Documentation
 
-Canonical documentation is concise technical English and belongs in `docs/`.
+Canonical documentation belongs in `docs/`. Write every user-facing guide
+listed in or derived from `docs/README.md` in clear, natural English for
+baristas, coffee enthusiasts, and hobbyists. Describe functionality in terms of
+what people can do, what they will experience, and what they need to know to use
+it successfully. Keep the prose fluent, approachable, and genuinely useful.
+Do not include implementation details, internal identifiers, compatibility
+rationales, or developer-facing justifications unless the subject itself is
+technical or the user explicitly requests them. Reserve technical language for
+developer references and topics whose value depends on technical precision.
 For changes to settings, scripts, interfaces, workflows, or observable behavior,
 read and follow [Documentation maintenance](docs/AI_WORKFLOW.md#documentation-maintenance).
 Update the affected canonical guides in the same change, including renames and
