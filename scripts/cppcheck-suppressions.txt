@@ -6,6 +6,8 @@
 *:*/esp-idf*/components/*
 *:*/idf/managed_components/*
 *:*/idf/third_party/*
+# Cppcheck cannot parse NimBLE's valid empty-name STAILQ_HEAD macro argument.
+syntaxError:*/idf/components/bt/host/nimble/nimble/porting/nimble/include/os/os_mbuf.h
 # FreeRTOS returns its integer allocation-failure sentinel through a task-handle
 # return type; the diagnostic is inside the vendor implementation, not a caller.
 CastIntegerToAddressAtReturn:*/freertos/FreeRTOS-Kernel/include/freertos/task.h
