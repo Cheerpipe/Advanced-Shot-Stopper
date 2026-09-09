@@ -48,9 +48,9 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
     html.indexOf('id="ruleChart"') > html.indexOf('id="shotPanel"') ||
     html.includes('Extraction rules') ||
     !css.includes('.ruleChart') ||
-    !css.includes('.ruleSeg-fast') ||
-    !css.includes('.ruleSeg-bbw') ||
-    !css.includes('.ruleSeg-slow') ||
+    !css.includes('.ruleLegFast:before,.ruleSeg-fast{background:#9a4d00}') ||
+    !css.includes('.ruleLegBbw:before,.ruleSeg-bbw{background:#17643b}') ||
+    !css.includes('.ruleLegSlow:before,.ruleSeg-slow{background:#2563eb}') ||
     !css.includes('.ruleChartIdle') ||
     !ui.includes('function buildRuleChartModel(') ||
     !ui.includes('function renderRuleChart(') ||
@@ -548,7 +548,9 @@ if (!ui.includes('id="forcePulseButton"') ||
     !ui.includes("R.command('/api/v1/control/force-pulse')") ||
     !runtimeJs.includes("'control/force-pulse':['Switch pulse sent.','send switch pulse']") ||
     !runtimeJs.includes("force.disabled=!(admin&&remoteReady&&relayStartReady&&webUiOwner)") ||
-    !css.includes('.presetActions>.btnGlyph,#actionsPanel #forcePulseButton{flex-direction:column;') ||
+    !css.includes('.presetActions>.btnGlyph{min-height:var(--tap);') ||
+    !css.includes('#actionsPanel .btnGlyph{flex:1;') ||
+    !css.includes('#actionsPanel #forcePulseButton{flex:.6;min-height:var(--tap);min-width:4.5rem}') ||
     !network.includes('"/api/v1/control/force-pulse"') ||
     !network.includes('ShotStopperNetwork::forcePulseHandler') ||
     !network.includes('WebCommandType::FORCE_SWITCH_PULSE') ||

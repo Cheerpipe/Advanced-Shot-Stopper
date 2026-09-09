@@ -128,7 +128,7 @@ if (!ui.includes('id="shotPanel"') ||
     !css.includes('.shotSpark{') ||
     !css.includes('.shotSparkY{') ||
     !css.includes('.shotSparkHost .ruleChartTicks') ||
-    !css.includes('.shotSparkHost[hidden]') ||
+    !css.includes('.hidden,[hidden]{display:none!important}') ||
     !css.includes('#shotPanel .shotSparkHost{min-height:4.05rem;margin:.55rem 0 .1rem') ||
     !css.includes('#shotPanel{position:relative}') ||
     css.includes('#shotPanel{position:relative;padding-right:3.4rem') ||
@@ -301,9 +301,7 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !css.includes('.swS') ||
     !css.includes('.homeSwitchGrid .swS') ||
     !css.includes('.homeGuardGrid{') ||
-    !css.includes('.homeGuardGrid .swL{padding-right:3ch}') ||
-    !css.includes('grid-template-columns:subgrid') ||
-    !css.includes('#brewModeRow{width:auto') ||
+    !css.includes('grid-template-columns:repeat(2,minmax(0,1fr))') ||
     !ui.includes('actual_weight_source') ||
     !network.includes('autoToManualGuardEnabled') ||
     !network.includes('autoToManualGuardBaselineMs') ||
@@ -617,7 +615,7 @@ if (!ui.includes('id="learnedOffsetG"') ||
         html.indexOf('id="resetCalibrationButton"') ||
     !ui.includes('Reset learned stop offset') ||
     ui.includes('Reset learned stop offset to baseline') ||
-    !css.includes('.bbwLearning .btnBar{width:18rem}') ||
+    !css.includes('.bbwLearning .btnBar{max-width:22rem}') ||
     css.includes('#bbwAlgorithm{width:100%}') ||
     !ui.includes('Save bases before resetting.') ||
     !network.includes('weightOffsetBaselineG') ||

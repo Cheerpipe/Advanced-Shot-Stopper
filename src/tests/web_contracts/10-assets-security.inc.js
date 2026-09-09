@@ -98,11 +98,13 @@ if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !html.includes('class="buzzerOpt scaleIncapableOpt">Slow extended pulse<select id="buzzerSlowExtendedPulseRate"') ||
     !css.includes('color-scheme:light dark') ||
     !css.includes('html,input,select,textarea{color-scheme:dark}') ||
-    !css.includes('input[type=text],input[type=password]{-webkit-appearance:none;appearance:none}') ||
-    !css.includes('min-height:2.5rem') ||
-    !css.includes('background:var(--bg)') ||
+    !css.includes('--in:#fbfaf8') ||
+    !css.includes('input:is([type=number],[type=text],[type=password],[type=url]),select,textarea{') ||
+    !css.includes('input[type=text],input[type=password],input[type=url]{-webkit-appearance:none;appearance:none}') ||
+    !css.includes('min-height:3rem') ||
+    !css.includes('background:var(--in)') ||
     !css.includes('input:-webkit-autofill') ||
-    !css.includes('-webkit-box-shadow:0 0 0 2.5rem var(--bg) inset') ||
+    !css.includes('-webkit-box-shadow:0 0 0 3rem var(--in) inset') ||
     css.includes('input[type=text],input[type=password],select{-webkit-appearance:none') ||
     html.includes('id="staSsid" type="number"') ||
     html.includes('id="ntpServerCustom" type="number"') ||

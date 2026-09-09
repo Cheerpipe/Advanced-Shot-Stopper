@@ -554,9 +554,8 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
     throw new Error(
       'rejectRunningImage must record the rejection so confirmRunningImage cannot cancel it');
   }
-  if (!css.includes('.otaProgress.hidden{display:none}') &&
-      !css.includes('.otaProgress.hidden { display: none }')) {
-    throw new Error('.otaProgress.hidden must override display:block so the bar can hide');
+  if (!css.includes('.hidden,[hidden]{display:none!important}')) {
+    throw new Error('The shared hidden rule must override displayed controls including OTA progress');
   }
   if (!ota.includes('esp_ota_check_rollback_is_possible()')) {
     throw new Error(
@@ -776,8 +775,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       !js.includes('/api/v1/admin/unlock') ||
       !js.includes('/api/v1/admin/lock') ||
       !js.includes("closest('#adminLockPanel") ||
-      !css.includes('.navLock.hidden,.textLock.hidden{display:none}') ||
-      !css.includes('.pageNav a.hidden{display:none}') ||
+      !css.includes('.hidden,[hidden]{display:none!important}') ||
       !css.includes('.textLock') ||
       !network.includes('/api/v1/admin/unlock') ||
       !network.includes('/api/v1/admin/lock') ||

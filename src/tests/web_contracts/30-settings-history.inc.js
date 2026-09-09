@@ -193,9 +193,10 @@ if (!ui.includes('<legend>Brew</legend>') ||
     html.includes('id="homeSoundAlertsEnabled"') ||
     html.includes('id="homeCupProtectionEnabled" type="checkbox" role="switch" aria-label="Cup protection" checked') ||
     !css.includes('.switchRow.switchPending') ||
-    !css.includes('.homeSwitchGrid .switchRow:not(.swR) .slider') ||
-    !css.includes('.homeSwitchGrid .switchRow:not(.swR) .slider:before{display:none}') ||
-    !css.includes('.homeSwitchGrid .switchRow:not(.swR) .slider,.homeSwitchGrid .switchRow:not(.swR) input:checked+.slider{background:#9ca3af}') ||
+    !css.includes('.switch{position:relative;display:inline-block;width:3rem;height:var(--tap)') ||
+    !css.includes('.slider{position:absolute;inset:.5rem 0;') ||
+    !css.includes('.switch input:checked+.slider{background:var(--pri);border-color:var(--pri)}') ||
+    !css.includes('.switch input:checked+.slider:before{transform:translateX(1.25rem)}') ||
     !css.includes('.homeSwitchGrid') ||
     !css.includes('justify-content:space-between') ||
     !css.includes('.homeSwitchGrid{') ||
@@ -203,15 +204,10 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !css.includes('.switchState{display:none') ||
     !css.includes('.homeSwitchGrid .swS') ||
     !css.includes('.homeGuardGrid{') ||
-    !css.includes('.homeGuardGrid .swL{padding-right:3ch}') ||
-    !css.includes('grid-template-columns:subgrid') ||
-    !css.includes('#brewModeRow{width:100%') ||
-    !css.includes('#brewModeRow{width:auto') ||
-    !css.includes('#brewModeRow .swL{font-size:1.55rem;font-weight:800;line-height:1.05;color:var(--ac);letter-spacing:-.02em}') ||
-    !css.includes('.homeGuardGrid .switch{width:4.25rem') ||
-    !css.includes('.ruleChartHead{') ||
+    !css.includes('grid-template-columns:repeat(2,minmax(0,1fr))') ||
+    !css.includes('#brewModeRow .swL{font-size:1.125rem;font-weight:700;line-height:1.2;color:var(--fg);letter-spacing:0}') ||
     !css.includes('.ruleChartHead strong,.ruleChartMode{display:none}') ||
-    !css.includes('background:#c9a227') ||
+    !css.includes('.switchRow.switchPending .slider,.switchRow.switchPending input:checked+.slider{background:var(--wn);border-color:var(--wn)}') ||
     !ui.includes('function persistHomeBrewByWeight(') ||
     !ui.includes("onchange=R.persistHomeBrewByWeight") ||
     !ui.includes('beginHomeSwitchPending(h,on)') ||
@@ -223,7 +219,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
          .includes('<span class="t">Clear</span>')) ||
     !css.includes('#shotPanel{position:relative}') ||
     css.includes('#shotPanel{position:relative;padding-right:3.4rem') ||
-    !css.includes('#shotPanel .btnGlyph{min-height:2.85rem') ||
+    !css.includes('#shotTable .btnGlyph,#shotPanel .btnGlyph{border:0;border-radius:.5rem;min-height:var(--tap);min-width:var(--tap)') ||
     html.includes('id="lastCycle"') ||
     !ui.includes('function renderShotPanel(') ||
     !ui.includes('function renderShotSpark(') ||
@@ -271,6 +267,8 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !ui.includes("action:'restore_factory_values'") ||
     !ui.includes('function startRenamePreset(') ||
     !ui.includes('function updatePresetActionButtons(') ||
+    !ui.includes("function presetSummary(p){return 'Target '+(p.goalWeightG||'?')+' g'}") ||
+    !ui.includes("badge.textContent=p.isFactory?'factory':'custom'") ||
     !ui.includes('Discard them and switch presets') ||
     !ui.includes('saveBrewPreset') ||
     !ui.includes('/api/v1/presets') ||
@@ -573,9 +571,10 @@ if (!ui.includes('id="shotRating"') ||
     !runtimeJs.includes('function postShotRating(') ||
     !runtimeJs.includes('{id,rating:n}') ||
     !runtimeJs.includes("'rating','ended_at_ms'") ||
-    !css.includes('.starRate{') ||
+    !css.includes('.starRate{display:inline-flex;align-items:center;margin-top:-.6rem}') ||
+    !css.includes('.starRate button+button{margin-left:-.18rem}') ||
     !css.includes('.starRate button.on{color:var(--ac)}') ||
-    !css.includes('.shotCard .shotRate{grid-area:rate}') ||
+    !css.includes('.shotCard .shotRate{grid-area:rate;display:grid;justify-items:start}') ||
     !css.includes('#shotTable td.shotRateCell{grid-area:rate}') ||
     !network.includes('shotsRateHandler') ||
     !network.includes('LAST_SHOT_NOT_FOUND') ||
@@ -689,10 +688,10 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !network.includes('query, "sort"') ||
     !network.includes('query, "dir"') ||
     !css.includes('button{-webkit-appearance:none;appearance:none}') ||
-    !css.includes('#shotLogPanel .btnGlyph:not(.btnInvert){background:var(--bg)') ||
-    !css.includes('.shotSort{display:flex;border:1px solid var(--ln);border-radius:.5rem;overflow:hidden;background:var(--bg)}') ||
+    !css.includes('#shotLogPanel .btnGlyph:not(.btnInvert){background:var(--sf)') ||
+    !css.includes('.shotSort{display:flex;max-width:100%;border:1px solid var(--bd);border-radius:.5rem;overflow:hidden;background:var(--in)}') ||
     !css.includes('.shotSort button{') ||
-    !css.includes('.shotSort button{margin:0;border:0;border-right:1px solid var(--ln);background:transparent;color:var(--ac);font:inherit;font-size:.86rem;font-weight:600') ||
+    !css.includes('.shotSort button{margin:0;border:0;border-right:1px solid var(--bd);background:transparent;color:var(--fg);font:inherit;font-size:.8125rem;font-weight:600') ||
     css.includes('.shotSort button{margin:0;border:0;border-right:1px solid var(--ln);background:none') ||
     css.includes('#shotLogPanel .btnGlyph:not(.btnInvert){background:transparent') ||
     css.includes('#message,.configSaveBar,#shotLogPanel .btnBar{background:var(--bg)}') ||
@@ -732,13 +731,11 @@ if (!statsSection ||
     !runtimeJs.includes('const BIN=0.5,tMax=6e4/1e3,tLow=28,tHigh=32') ||
     !runtimeJs.includes("fillChartTicks(host.lastChild,[[0,'0 s'],[tLow,L(tLow,'s')],[tHigh,L(tHigh,'s')],[tMax,L(tMax,'s')]],tMax)") ||
     !css.includes('#statsDurChart{margin-top:') ||
-    !css.includes('#statsDurChart .shotSparkHost .shotSparkY,#statsDurChart .shotSparkHost .ruleChartTicks{font-weight:650}') ||
     !runtimeJs.includes('function renderShotStats(){') ||
     !runtimeJs.includes('shotHistory.shots.slice(0,SHOTS_PAGE_SIZE)') ||
     !runtimeJs.includes('renderShotStats();') ||
     runtimeJs.includes('slice(0,20)') ||
     !css.includes('.shotCard:has(>:nth-child(5):last-child){grid-template-areas:"dur dur dur actual actual actual" "goal goal err err flow flow"}') ||
-    !css.includes('.shotCard+.fieldHint{margin-top:.44rem}') ||
     css.includes('#shotStatsPanel') ||
     css.includes('#statsAvgDur') ||
     css.includes('statsAvgDaily') ||
@@ -839,14 +836,14 @@ if (!shellHtml.includes('id="message"') ||
     !runtimeJs.includes("kind==='ok'?5e3") ||
     !runtimeJs.includes("kind==='warn'&&!e.querySelector('button:not(#messageClose)')?15e3") ||
     !runtimeJs.includes('setTimeout(clearMessage,ms)') ||
+    !css.includes('#message:not(.error):not(.warn){display:none}') ||
     !css.includes('.messageClose')) {
   throw new Error('Status message bar must auto-hide ok/warn and stay for errors');
 }
-if (!css.includes('#message[hidden]') ||
-    css.includes('#message[hidden]{display:none}') ||
-    !css.includes('#message[hidden]{display:flex!important;visibility:hidden') ||
-    !/#message\{[^}]*min-height:2\.6rem/.test(css)) {
-  throw new Error('Status message bar must keep its layout height while hidden');
+if (!css.includes('.hidden,[hidden]{display:none!important}') ||
+    css.includes('#message[hidden]{display:flex') ||
+    !/#message\{[^}]*min-height:var\(--tap\)/.test(css)) {
+  throw new Error('Status message bar must have an accessible visible target and no hidden footprint');
 }
 if (!/<fieldset[^>]*><legend>Log<\/legend>/.test(html) ||
     /authenticatedOnly[^>]*><legend>Log<\/legend>/.test(html) ||
@@ -917,13 +914,14 @@ if (!html.includes('<legend>NVS</legend>') ||
     !network.includes('captureNvsDiagnostics()')) {
   throw new Error('Diagnostic status, UI, and debug export must expose bounded NVS diagnostics');
 }
-if (!css.includes('.btnBar,.presetActions{display:flex;gap:.45rem') ||
+if (!css.includes('.btnBar,.presetActions{display:flex;gap:.5rem') ||
     css.includes('.btnBar,.presetActions{display:flex;gap:0') ||
-    css.includes('.btnGlyph.btnDanger,.btnGlyph.btnInvert{background:var(--ac)') ||
-    !css.includes('.btnGlyph.btnInvert{background:var(--ac)') ||
-    !css.includes('.btnGlyph.btnDanger{background:var(--bg)') ||
+    css.includes('.btnGlyph.btnDanger,.btnGlyph.btnInvert{background:var(--pri)') ||
+    !css.includes('.btnGlyph.btnInvert{background:var(--pri)') ||
+    !css.includes('.btnGlyph.btnDanger{background:var(--sf);color:var(--dn)') ||
+    !css.includes('#factoryResetButton,#clearShotsButton{background:var(--me);color:var(--dn)') ||
     !css.includes('#shotLogPanel .btnBar{') ||
-    !css.includes('#shotLogPanel .btnBar{position:sticky;top:var(--hdr);z-index:6;background:var(--sf);margin:0 0 .65rem;border:0;overflow:visible}') ||
+    !css.includes('#shotLogPanel .btnBar{position:sticky;top:var(--hdr);z-index:6;background:var(--sf)') ||
     css.includes('#shotLogPanel .btnBar{position:sticky;top:var(--hdr);z-index:6;background:var(--sf);margin:0 0 .65rem;border:1px solid var(--ln);border-radius:var(--r);overflow:hidden}')) {
   throw new Error('Action buttons must be separate with a gap; btnDanger must not share invert fill');
 }

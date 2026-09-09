@@ -2,6 +2,8 @@
 
 Presets store brew recipes. Double is active on a new controller; Single is
 also included. Open **Settings → Brew** while the machine is idle.
+Preset cards on Home and Settings show the recipe name, whether it is factory
+or custom, and its target weight; the graph and settings show the other limits.
 
 ## Create or change a recipe
 
