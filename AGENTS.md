@@ -57,7 +57,10 @@ Extended Conventional Commits. Every commit title must carry the mandatory
 titles. Use a lowercase type such as `feat`, `fix`, `docs`, `refactor`, `test`,
 `build`, `ci`, `chore`, or `perf`, a concise lowercase scope, and an imperative
 English description. Put extended details in the body and use Conventional
-Commit footers (for example, `BREAKING CHANGE:`) when applicable.
+Commit footers (for example, `BREAKING CHANGE:`) when applicable. Every proposed
+or agent-created commit must have a non-empty body that enumerates the concrete
+changes and briefly explains their purpose and relevant technical impact; a
+title-only commit is not acceptable.
 
 ## Local project storage
 
