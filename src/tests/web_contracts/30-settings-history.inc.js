@@ -219,7 +219,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
          .includes('<span class="t">Clear</span>')) ||
     !css.includes('#shotPanel{position:relative}') ||
     css.includes('#shotPanel{position:relative;padding-right:3.4rem') ||
-    !css.includes('#shotTable .btnGlyph,#shotPanel .btnGlyph{border:0;border-radius:2rem;min-height:var(--tap);min-width:var(--tap)') ||
+    !css.includes('#shotTable .btnGlyph,#shotPanel .btnGlyph{border:0;border-radius:2rem;min-height:var(--tap);min-width:var(--tap);padding:0;flex:0 0 auto;background:none;box-shadow:none;filter:none') ||
     html.includes('id="lastCycle"') ||
     !ui.includes('function renderShotPanel(') ||
     !ui.includes('function renderShotSpark(') ||
@@ -691,7 +691,7 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !css.includes('#shotLogPanel .btnGlyph:not(.btnInvert){background:var(--bg);color:var(--ac);border-color:var(--ln)}') ||
     !css.includes('.shotSort{display:flex;max-width:100%;border:1px solid var(--ln);border-radius:2rem;overflow:hidden;background:var(--bg)}') ||
     !css.includes('.shotSort button{') ||
-    !css.includes('.shotSort button{margin:0;border:0;border-right:1px solid var(--ln);background:transparent;color:var(--ac);font:inherit;font-size:.8125rem;font-weight:600') ||
+    !css.includes('.shotSort button{margin:0;border:0;border-right:1px solid var(--ln);border-radius:0;background:transparent;color:var(--ac);font:inherit;font-size:.8125rem;font-weight:600') ||
     css.includes('.shotSort button{margin:0;border:0;border-right:1px solid var(--ln);background:none') ||
     css.includes('#shotLogPanel .btnGlyph:not(.btnInvert){background:transparent') ||
     css.includes('#message,.configSaveBar,#shotLogPanel .btnBar{background:var(--bg)}') ||
