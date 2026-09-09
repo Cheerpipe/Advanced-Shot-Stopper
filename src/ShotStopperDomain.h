@@ -590,7 +590,7 @@ struct RuntimeConfig {
   uint32_t revision = 1;
   uint8_t goalWeightG = DEFAULT_GOAL_WEIGHT_G;
   // Global setting, never copied into a preset. V11 names former padding.
-  bool powerManagementEnabled = false;
+  bool powerManagementEnabled = true;
   float weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   // Seed for Reset learned stop offset; factory default remains 1.5 g.
   float weightOffsetBaselineG = DEFAULT_WEIGHT_OFFSET_G;

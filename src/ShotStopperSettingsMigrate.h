@@ -2,7 +2,7 @@
 
 // Settings schema migrations.
 //
-// V11 names RuntimeConfig padding for opt-in power management (default OFF).
+// V11 names RuntimeConfig padding for power management (default ON).
 // V10 added BBW alpha baseline. V9 added strategies.
 // V8 names the idle-tare
 // padding byte and defaults it ON. V7 replaces the
@@ -60,7 +60,7 @@ inline void ensurePersistedPresetBank(PersistedSettings &settings) {
 
 // V1–V8 share these exact offsets. Verify their original CRC before calling.
 inline void initializeMigratedBbw(PersistedSettings &out) {
-  out.runtime.powerManagementEnabled = false;
+  out.runtime.powerManagementEnabled = true;
   out.structureSize = sizeof(PersistedSettings);
   out.runtime.bbwAlgorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
   for (ShotPreset &preset : out.presets.presets) {
@@ -79,7 +79,7 @@ inline bool migratePersistedSettingsFromV10(const PersistedSettings &v10,
       v10.structureSize != PERSISTED_SETTINGS_V10_SIZE ||
       v10.checksum != persistedSettingsChecksum(v10)) return false;
   copyPersistedBytes(out, v10, sizeof(out));
-  out.runtime.powerManagementEnabled = false;
+  out.runtime.powerManagementEnabled = true;
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.checksum = persistedSettingsChecksum(out);
   return true;
@@ -91,7 +91,7 @@ inline bool migratePersistedSettingsFromV9(const PersistedSettings &v9,
       v9.structureSize != sizeof(out) || v9.checksum != persistedSettingsChecksum(v9))
     return false;
   copyPersistedBytes(out, v9, sizeof(out));
-  out.runtime.powerManagementEnabled = false;
+  out.runtime.powerManagementEnabled = true;
   for (ShotPreset &preset : out.presets.presets) {
     preset.bbwAlphaBaseline = DEFAULT_BBW_EWMA_ALPHA;
     preset.bbwProfileVersion = BBW_PROFILE_VERSION;

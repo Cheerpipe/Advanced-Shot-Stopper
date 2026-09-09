@@ -51,7 +51,7 @@ void p01_defaults_are_valid() {
   CHECK(settings.staWifiSleep);
   CHECK(settings.runtime.showDiagnosticPage);
   CHECK(settings.runtime.autoTareOutsideBrew);
-  CHECK(!settings.runtime.powerManagementEnabled);
+  CHECK(settings.runtime.powerManagementEnabled);
   CHECK(!settings.webhook.deferDuringShot);
   CHECK(settings.runtime.fastExtractionGuardEnabled);
   CHECK(std::fabs(settings.runtime.maxRecoveryWeightG -
@@ -1835,7 +1835,7 @@ void p78_power_management_migration_and_global_scope() {
     PersistedSettings loaded;
     CHECK(loadPersistedSettings(loaded));
     CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
-    CHECK(!loaded.runtime.powerManagementEnabled);
+    CHECK(loaded.runtime.powerManagementEnabled);
     loaded.runtime.powerManagementEnabled = true;
     applyShotPresetToConfig(loaded.presets.presets[0], loaded.runtime, false);
     CHECK(loaded.runtime.powerManagementEnabled);
@@ -1843,7 +1843,7 @@ void p78_power_management_migration_and_global_scope() {
     CHECK(loadPersistedSettings(loaded));
     CHECK(loaded.runtime.powerManagementEnabled);
     CHECK(resetPersistedSettingsToFactory(loaded));
-    CHECK(!loaded.runtime.powerManagementEnabled);
+    CHECK(loaded.runtime.powerManagementEnabled);
     if (version == 10) {
       legacy.checksum ^= 1;
       CHECK(!migratePersistedSettingsFromV10(legacy, loaded));

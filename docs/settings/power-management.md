@@ -1,7 +1,7 @@
 # Power management
 
 **Admin → Frontend → Power management** enables a global, persistent energy
-policy. It defaults **off**, including after migration and factory reset, and
+policy. It defaults **on**, including after migration and factory reset, and
 does not belong to a shot preset. Save it while the machine is stopped; the
 existing Admin unlock and configuration revision checks apply.
 Admin confirms the applied revision and selected value, then waits for the
