@@ -9,6 +9,31 @@
 
 using namespace shotstopper;
 static constexpr int ESP_OK = 0;
+enum wifi_ps_type_t { WIFI_PS_NONE, WIFI_PS_MIN_MODEM };
+static wifi_ps_type_t wifiPs = WIFI_PS_MIN_MODEM;
+static int wifiSetSleepCalls = 0, wifiRestores = 0, announces = 0;
+struct FakeWiFi {
+  bool setSleep(wifi_ps_type_t mode) {
+    ++wifiSetSleepCalls;
+    wifiPs = mode;
+    return true;
+  }
+} WiFi;
+static int esp_wifi_get_ps(wifi_ps_type_t *mode) {
+  *mode = wifiPs;
+  return ESP_OK;
+}
+struct esp_netif_t {};
+static esp_netif_t staNetif;
+static esp_netif_t *esp_netif_get_handle_from_ifkey(const char *) {
+  return &staNetif;
+}
+static constexpr int MDNS_EVENT_ANNOUNCE_IP4 = 1;
+static int mdns_netif_action(esp_netif_t *netif, int action) {
+  assert(netif == &staNetif && action == MDNS_EVENT_ANNOUNCE_IP4);
+  ++announces;
+  return ESP_OK;
+}
 static int calls = 0, inits = 0, frees = 0, failAt = 0;
 static bool allocated = false;
 static std::string hostname, instance;
@@ -48,18 +73,26 @@ static void copyCString(char *out, size_t size, const char *name) {
   assert(strlen(name) < size);
   strcpy(out, name);
 }
+enum class MdnsWakePhase : uint8_t { IDLE, SETTLING, SENDING };
 class ShotStopperNetwork {
  public:
   std::atomic<uint32_t> rfGateGeneration_{0};
   std::atomic<bool> scaleConnecting_{false};
   bool brew = false, restartPending_ = false, mdnsStarted_ = false;
   void *server_ = this;
-  uint32_t mdnsRetryAtMs_ = 0;
+  uint32_t mdnsRetryAtMs_ = 0, mdnsWakeAtMs_ = 0, mdnsWakePhaseAtMs_ = 0;
+  MdnsWakePhase mdnsWakePhase_ = MdnsWakePhase::IDLE;
   int dataMux_ = 0;
   struct { char deviceName[DEVICE_NAME_CAPACITY] = "coffee-bar"; } status_;
   bool brewRfActive() const { return brew; }
   void lifecycleLog(const char *) {}
+  void applyWifiPowerSave() {
+    ++wifiRestores;
+    WiFi.setSleep(WIFI_PS_MIN_MODEM);
+  }
   void serviceMdns(uint32_t now, bool connected);
+  void serviceMdnsWake(uint32_t now, uint32_t expectedGateGeneration);
+  void cancelMdnsWake();
   void stopMdns();
 };
 #include "../network/ShotStopperMdns.inc"
@@ -67,6 +100,8 @@ class ShotStopperNetwork {
 static void resetSdk() {
   assert(!allocated);
   calls = inits = frees = failAt = 0;
+  wifiPs = WIFI_PS_MIN_MODEM;
+  wifiSetSleepCalls = wifiRestores = announces = 0;
   duringCall = {};
 }
 int main() {
@@ -172,4 +207,32 @@ int main() {
   wrapped.serviceMdns(4000, true);
   assert(allocated);
   wrapped.stopMdns();
+
+  // With MIN_MODEM active, wake for 500 ms before announcing, hold another
+  // 500 ms for transmission, then restore the configured Wi-Fi policy.
+  resetSdk();
+  ShotStopperNetwork periodic;
+  periodic.serviceMdns(100, true);
+  periodic.serviceMdns(30099, true);
+  assert(wifiPs == WIFI_PS_MIN_MODEM && wifiSetSleepCalls == 0 && announces == 0);
+  periodic.serviceMdns(30100, true);
+  assert(wifiPs == WIFI_PS_NONE && wifiSetSleepCalls == 1 && announces == 0);
+  periodic.serviceMdns(30599, true);
+  assert(announces == 0);
+  periodic.serviceMdns(30600, true);
+  assert(wifiPs == WIFI_PS_NONE && announces == 1 && wifiRestores == 0);
+  periodic.serviceMdns(31099, true);
+  assert(wifiPs == WIFI_PS_NONE && wifiRestores == 0);
+  periodic.serviceMdns(31100, true);
+  assert(wifiPs == WIFI_PS_MIN_MODEM && wifiRestores == 1 &&
+         wifiSetSleepCalls == 2);
+
+  // Losing eligibility during a wake window restores power policy before the
+  // responder is freed and never sends a stale announcement.
+  periodic.serviceMdns(60100, true);
+  assert(wifiPs == WIFI_PS_NONE);
+  periodic.brew = true;
+  periodic.serviceMdns(60200, true);
+  assert(wifiPs == WIFI_PS_MIN_MODEM && wifiRestores == 2 && announces == 1 &&
+         !allocated);
 }

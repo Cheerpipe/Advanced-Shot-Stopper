@@ -306,6 +306,7 @@ void ShotStopperNetwork::applyWifiPowerSave() {
     if (powerIdleSavings()) sleepAllowed = true;
     if (powerWebActive(millis())) sleepAllowed = false;
   }
+  if (mdnsWakePhase_ != MdnsWakePhase::IDLE) sleepAllowed = false;
   const WifiPowerSaveMode desired = desiredWifiPowerSave(
       sleepAllowed, apActive, staAssociated, otaBusy);
   const wifi_ps_type_t desiredPs = desired == WifiPowerSaveMode::MIN_MODEM

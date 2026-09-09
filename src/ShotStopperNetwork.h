@@ -143,6 +143,8 @@ struct NetworkStatusSnapshot {
   char ntpActiveServer[NTP_SERVER_HOST_CAPACITY] = {};
 };
 
+enum class MdnsWakePhase : uint8_t { IDLE, SETTLING, SENDING };
+
 inline uint8_t wifiRssiToSignalQualityPct(int32_t rssi) {
   if (rssi <= -100) {
     return 0;
@@ -355,6 +357,9 @@ class ShotStopperNetwork {
   bool ntpStarted_ = false;
   bool mdnsStarted_ = false;
   uint32_t mdnsRetryAtMs_ = 0;
+  uint32_t mdnsWakeAtMs_ = 0;
+  uint32_t mdnsWakePhaseAtMs_ = 0;
+  MdnsWakePhase mdnsWakePhase_ = MdnsWakePhase::IDLE;
   bool ntpRearmPending_ = false;
   bool ntpManualSyncPending_ = false;
   bool ntpActivitySyncPending_ = false;
@@ -374,6 +379,8 @@ class ShotStopperNetwork {
   void service();
   void serviceNtp(uint32_t now, bool staConnected);
   void serviceMdns(uint32_t now, bool staConnected);
+  void serviceMdnsWake(uint32_t now, uint32_t expectedGateGeneration);
+  void cancelMdnsWake();
   void stopMdns();
   bool ntpMayArm(uint32_t now, bool staConnected) const;
   void abortNtpForRfGate();
