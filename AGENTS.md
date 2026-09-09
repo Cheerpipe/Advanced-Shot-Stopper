@@ -50,9 +50,14 @@ files in task-specific `temp/ai_temp_<task>/` directories and clean up only file
 no longer needed for evidence or recovery. Never
 commit unless explicitly asked. A completed change report includes an English
 commit title, a list of changes made, and a brief but complete technical
-description, all in English. Proposed and agent-created commits must follow
-Conventional Commits for both the title (`type(scope): description`) and any
-body or detail included with the commit.
+description, all in English. Proposed and agent-created commits must use
+Extended Conventional Commits. Every commit title must carry the mandatory
+`type(scope)` prefix and follow `type(scope): description` (or
+`type(scope)!: description` for breaking changes); do not use unprefixed
+titles. Use a lowercase type such as `feat`, `fix`, `docs`, `refactor`, `test`,
+`build`, `ci`, `chore`, or `perf`, a concise lowercase scope, and an imperative
+English description. Put extended details in the body and use Conventional
+Commit footers (for example, `BREAKING CHANGE:`) when applicable.
 
 ## Local project storage
 
