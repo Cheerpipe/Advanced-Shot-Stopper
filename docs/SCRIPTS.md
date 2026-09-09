@@ -120,6 +120,13 @@ not a runtime setting.
 
 Writes to `build-idf/<architecture>` (`shotstopper.bin`).
 
+From a fresh shell, prefer activating the exact 6.1.x installation created by
+EIM before running these scripts. They reuse that environment only when its
+`IDF_PATH`, pinned Python environment, `idf.py`, and version are valid. A stale
+or mismatched active environment is discarded; the fallback sources the
+inactive SDK selected by `IDF_PATH`, or `$HOME/esp/esp-idf-v6.1`. See
+[Build environment](BUILD.md#3-install-esp-idf-required).
+
 | Script | Alias | Required | Description |
 | --- | --- | --- | --- |
 | `./scripts/build-idf` | `b-idf` | `--arch` (`--flags` optional) | Generate version and Web UI, build with ESP-IDF. |
@@ -185,7 +192,10 @@ and presets, calibration, BLE preferences, shot history, and last-shot data.
 There is no data migration. `--erase-all` is rejected with `--image`, because
 an external application image cannot reconstruct the bootloader and partition
 table. A normal USB flash reads the installed partition table first and refuses
-the legacy NVS size; external images use the installed `app0` offset instead of
+the legacy NVS size. Blank or explicitly erased devices select ESP-IDF's full
+`flash --all` image; a compatible installed layout keeps the faster normal
+reflash. The `--no-check` path continues to write every entry from `flash_args`
+directly, while external images use the installed `app0` offset instead of
 assuming a fixed address.
 
 When the controller already owns a partial or staged different image, OTA

@@ -26,9 +26,8 @@ idf_component_register(
     esp_wifi
     esp_timer
     esp_system
-    driver
+    esp_driver_gptimer
     bt
-    spi_flash
     app_update
     esp_http_server
     esp_http_client

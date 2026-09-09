@@ -95,11 +95,11 @@ claiming Windows validation.
 
 1. **Git for Windows** — the repo scripts are bash; run them from **Git Bash**
    (`winget install Git.Git`).
-2. **ESP-IDF 6.1.x** — use the [ESP-IDF Tools Installer](https://dl.espressif.com/dl/esp-idf/)
-   (or the VS Code extension backend). Clone/check out `v6.1` to
-   `%USERPROFILE%\esp\esp-idf-v6.1`; the scripts find it via `IDF_PATH` or the
-   default `%USERPROFILE%\esp\esp-idf-v6.1`. The installer also provides CMake,
-   Ninja and the Xtensa GCC toolchain that produce the compilation database.
+2. **ESP-IDF 6.1.x** — use [EIM](https://docs.espressif.com/projects/idf-im-ui/en/latest/)
+   (or the VS Code extension backend) and select an exact 6.1.x installation.
+   In Git Bash, point `IDF_PATH` at that SDK, or use the supported legacy clone
+   at `%USERPROFILE%\esp\esp-idf-v6.1`. EIM also provides CMake, Ninja and the
+   Xtensa GCC toolchain that produce the compilation database.
 3. **cppcheck** — `winget install Cppcheck.Cppcheck` or the installer from
    [cppcheck.sourceforge.io](https://cppcheck.sourceforge.io/). Make sure its
    install directory is on `PATH` (visible from Git Bash too).
@@ -112,7 +112,7 @@ Windows notes:
 - ESP-IDF's own `export.bat`/`export.ps1` are for CMD/PowerShell. The repo
   scripts do not source them; they only need the paths above to exist. For
   interactive `idf.py` work, use the **ESP-IDF 6.1 CMD**/PowerShell shortcuts
-  the installer creates.
+  EIM creates.
 - IWYU is optional on Windows: there are no official prebuilt binaries, so
   build it from source with Visual Studio Build Tools against your clang, or
   skip `./scripts/iwyu` (the other three tools work without it).
@@ -120,6 +120,18 @@ Windows notes:
 ## 5. ESP-IDF and esp-clang
 
 The firmware needs ESP-IDF **v6.1.x** (project validated with v6.1):
+
+Prefer an exact 6.1.x installation from EIM. From a fresh shell, use **Open IDF
+Terminal** or source the activation script EIM printed, then confirm the
+version before building the compilation database:
+
+```sh
+source "$HOME/.espressif/tools/activate_idf_v6.1.sh"  # use EIM's actual filename
+idf.py --version
+```
+
+The analysis wrappers preserve a valid EIM-pinned Python environment. If it is
+stale or mismatched, they discard it and use the supported legacy fallback:
 
 ```sh
 mkdir -p "$HOME/esp" && cd "$HOME/esp"

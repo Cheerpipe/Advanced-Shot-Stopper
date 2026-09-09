@@ -3,9 +3,11 @@
 
 import subprocess
 from pathlib import Path
+import os
 import re
 import csv
 import runpy
+import sys
 import tempfile
 from unittest.mock import patch
 
@@ -156,6 +158,136 @@ erase_image = subprocess.run(
     [str(ROOT / "scripts/flash-idf"), "--erase-all", "--image", "external.bin"],
     cwd=ROOT, capture_output=True, text=True)
 assert erase_image.returncode == 2 and "cannot be combined" in erase_image.stderr
+
+
+def idf_activation(active_version: str | None, active_python: bool = True):
+    with tempfile.TemporaryDirectory(prefix="shotstopper-idf-") as temporary:
+        root = Path(temporary)
+        active = root / "active"
+        fallback = root / "esp/esp-idf-v6.1"
+        active_env = root / "active-python"
+        fallback_env = root / "fallback-python"
+        for idf, env, version in ((active, active_env, active_version),
+                                  (fallback, fallback_env, "6.1")):
+            (idf / "tools").mkdir(parents=True)
+            (env / "bin").mkdir(parents=True)
+            (env / "bin/python").write_text("#!/bin/sh\nexit 0\n")
+            (env / "bin/python").chmod(0o755)
+            (idf / "tools/idf.py").write_text(
+                f"#!/bin/sh\necho 'ESP-IDF v{version}'\n")
+            (idf / "tools/idf.py").chmod(0o755)
+        (active / "export.sh").write_text("return 99\n")
+        (fallback / "export.sh").write_text(
+            f'export IDF_PATH="{fallback}"\n'
+            f'export IDF_PYTHON_ENV_PATH="{fallback_env}"\n'
+            f'export PATH="{fallback}/tools:$PATH"\n')
+        if not active_python:
+            (active_env / "bin/python").unlink()
+        env = os.environ.copy()
+        env.update(HOME=str(root), PATH="/usr/bin:/bin")
+        for name in ("IDF_PATH", "IDF_PYTHON_ENV_PATH", "ESP_PYTHON",
+                     "ESP_IDF_VERSION", "IDF_DEACTIVATE_FILE_PATH"):
+            env.pop(name, None)
+        if active_version is not None:
+            env.update(PATH=f"{active}/tools:{env['PATH']}", IDF_PATH=str(active),
+                       IDF_PYTHON_ENV_PATH=str(active_env))
+        command = (
+            f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
+            'SS_IDF_QUIET=1; ss_idf_source; '
+            'printf "%s|%s|%s" "$IDF_PATH" "$IDF_PYTHON_ENV_PATH" '
+            '"$(command -v idf.py)"')
+        return subprocess.run(["bash", "-c", command], env=env,
+                              capture_output=True, text=True), active, fallback
+
+
+active_idf, active_root, _ = idf_activation("6.1")
+active_values = active_idf.stdout.split("|")
+assert active_idf.returncode == 0 and active_values == [
+    str(active_root), str(active_root.parent / "active-python"),
+    str(active_root / "tools/idf.py")], active_idf.stderr
+for version, has_python in (("6.0", True), ("6.1", False)):
+    fallback_idf, _, fallback_root = idf_activation(version, has_python)
+    fallback_values = fallback_idf.stdout.split("|")
+    assert fallback_idf.returncode == 0 and fallback_values == [
+        str(fallback_root), str(fallback_root.parent.parent / "fallback-python"),
+        str(fallback_root / "tools/idf.py")], fallback_idf.stderr
+legacy_idf, _, fallback_root = idf_activation(None)
+legacy_values = legacy_idf.stdout.split("|")
+assert legacy_idf.returncode == 0 and legacy_values == [
+    str(fallback_root), str(fallback_root.parent.parent / "fallback-python"),
+    str(fallback_root / "tools/idf.py")], legacy_idf.stderr
+
+
+def flash_command(layout: str, *extra: str) -> list[str]:
+    with tempfile.TemporaryDirectory(prefix="shotstopper-flash-") as temporary:
+        root = Path(temporary)
+        idf = root / "fake-idf"
+        tools = idf / "tools"
+        python_env = root / "python-env/bin"
+        build = root / "build-idf/n8r4"
+        partition_tool = idf / "components/partition_table/gen_esp32part.py"
+        for directory in (tools, python_env, build, partition_tool.parent,
+                          root / "idf"):
+            directory.mkdir(parents=True, exist_ok=True)
+        log = root / "commands.log"
+        image = root / "external.bin"
+        image.write_bytes(b"external")
+        (build / "shotstopper.bin").write_bytes(b"project")
+        (build / "flash_args").write_text("0x0 bootloader.bin\n")
+        (idf / "export.sh").write_text("return 99\n")
+        (python_env / "python").write_text("#!/bin/sh\nexit 0\n")
+        (python_env / "python").chmod(0o755)
+        partition_tool.write_text(
+            "from pathlib import Path\nimport sys\n"
+            "Path(sys.argv[-1]).write_text('nvs,data,nvs,0x9000,0x15000\\n'"
+            "+'app0,app,ota_0,0x20000,0x330000\\n')\n")
+        (tools / "idf.py").write_text(
+            "#!/bin/sh\n"
+            f'printf "idf:%s\\n" "$*" >>"{log}"\n'
+            "case \" $* \" in *' --version '*) echo 'ESP-IDF v6.1';; esac\n")
+        (tools / "node").write_text("#!/bin/sh\nexit 0\n")
+        (tools / "python").write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
+        (tools / "esptool.py").write_text(
+            "#!/usr/bin/env python3\nimport os, pathlib, sys\n"
+            f"open({str(log)!r}, 'a').write('esptool:' + ' '.join(sys.argv[1:]) + '\\n')\n"
+            "if 'read_flash' in sys.argv:\n"
+            "    if os.environ['FLASH_LAYOUT'] == 'unknown': sys.exit(1)\n"
+            "    fill = 255 if os.environ['FLASH_LAYOUT'] == 'blank' else 0\n"
+            "    pathlib.Path(sys.argv[-1]).write_bytes(bytes([fill]) * 4096)\n")
+        for executable in (tools / "idf.py", tools / "node", tools / "python",
+                           tools / "esptool.py"):
+            executable.chmod(0o755)
+        env = os.environ.copy()
+        env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
+                   IDF_PATH=str(idf), IDF_PYTHON_ENV_PATH=str(python_env.parent),
+                   FLASH_LAYOUT=layout, TMPDIR=str(root),
+                   PATH=f"{tools}:/usr/bin:/bin")
+        args = [str(ROOT / "scripts/flash-idf"), "--port", "/dev/null",
+                "--arch", "n8r4", *extra]
+        if "--image" in extra:
+            args[args.index("--image") + 1] = str(image)
+        result = subprocess.run(args, env=env, cwd=ROOT, capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+        return log.read_text().splitlines()
+
+
+blank_flash = flash_command("blank")
+assert any(line.startswith("idf:") and line.endswith("flash --all")
+           for line in blank_flash), blank_flash
+erased_flash = flash_command("unknown", "--erase-all")
+assert any("erase_flash" in line for line in erased_flash) and \
+    any(line.endswith("flash --all") for line in erased_flash), erased_flash
+present_flash = flash_command("present")
+assert any(line.endswith("flash") for line in present_flash) and \
+    not any(line.endswith("flash --all") for line in present_flash), present_flash
+unchecked_flash = flash_command("present", "--no-check")
+assert any("write_flash @flash_args" in line for line in unchecked_flash) and \
+    not any(" flash" in line for line in unchecked_flash if line.startswith("idf:")), \
+    unchecked_flash
+external_flash = flash_command("present", "--image", "placeholder")
+assert any("write_flash 0x20000" in line for line in external_flash) and \
+    not any(" flash" in line for line in external_flash if line.startswith("idf:")), \
+    external_flash
 
 scripts_text = "\n".join(
     path.read_text(errors="replace") for path in (ROOT / "scripts").iterdir()

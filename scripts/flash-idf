@@ -156,7 +156,11 @@ elif [[ "$SS_CLI_NO_CHECK" == "1" ]]; then
       esptool.py --chip esp32s3 --port "$port" write_flash @flash_args
   )
 else
-  idf.py "${IDF_PY_ARGS[@]}" -p "$port" flash
+  if [[ "$SS_CLI_ERASE_ALL" == "1" || "$installed_layout" == "blank" ]]; then
+    idf.py "${IDF_PY_ARGS[@]}" -p "$port" flash --all
+  else
+    idf.py "${IDF_PY_ARGS[@]}" -p "$port" flash
+  fi
 fi
 
 ss_cli_save

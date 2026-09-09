@@ -65,8 +65,22 @@ This is an explicit setup step. Test commands never install dependencies.
 
 <a id="3-install-esp-idf-required"></a>
 
-Use a separate SDK directory. This subshell returns you to the repository
-when installation finishes:
+Prefer the [ESP-IDF Installation Manager (EIM)](https://docs.espressif.com/projects/idf-im-ui/en/latest/):
+install an exact ESP-IDF **6.1.x** environment, open a fresh shell, and source
+the activation script printed by EIM (or use **Open IDF Terminal** in its GUI).
+For example, use the actual filename EIM created:
+
+```sh
+source "$HOME/.espressif/tools/activate_idf_v6.1.sh"
+idf.py --version
+```
+
+The project scripts reuse an active environment only when `IDF_PATH`, its
+`IDF_PYTHON_ENV_PATH/bin/python`, `idf.py`, and the reported 6.1.x version all
+agree. A stale or mismatched active environment is discarded before fallback.
+
+The supported legacy fallback is a separate SDK clone. This subshell returns
+you to the repository when installation finishes:
 
 ```sh
 (
@@ -81,9 +95,9 @@ idf.py --version
 ```
 
 If that SDK directory already exists, verify its version instead of cloning
-over it. For an SDK elsewhere, export `IDF_PATH` and source its `export.sh`.
-Build scripts can discover `IDF_PATH` or `$HOME/esp/esp-idf-v6.1` when needed.
-They reject versions outside 6.1.x.
+over it. For an inactive legacy SDK elsewhere, export `IDF_PATH`; the scripts
+source its `export.sh`. Otherwise they discover `$HOME/esp/esp-idf-v6.1`.
+Every path rejects versions outside 6.1.x.
 
 `idf/main/idf_component.yml` and `idf/dependencies.lock` pin the component
 graph. First firmware builds may need network access to resolve SDK components;
@@ -219,6 +233,13 @@ Replace the port below with the detected controller port:
 Linux commonly uses `/dev/ttyACM0` or `/dev/ttyUSB0`. The direct installer
 can rebuild a stale build before flashing; successful transfer still requires
 post-boot and electrical verification.
+
+The installer reads the partition-table sector first. A blank device receives
+the complete project image (bootloader, partition table, initial OTA metadata,
+and application). A compatible installed layout uses ESP-IDF's fast normal
+reflash. `--no-check` keeps its direct `flash_args` path, which also contains
+the complete project outputs, and an external `--image` still replaces app0
+only on a readable installed layout.
 
 ### Legacy partition migration
 

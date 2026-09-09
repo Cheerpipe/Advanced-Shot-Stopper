@@ -190,7 +190,7 @@ dependencies:
       require: private
       version: '>=5.0'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.7.19~2
   espressif/dm9051:
@@ -315,6 +315,7 @@ dependencies:
     version: 1.22.3
 direct_dependencies:
 - espressif/arduino-esp32
-manifest_hash: 2babe3289530789baa5fd401553eb1f9bc9530419de66b9d2a8e4f14475d6094
+- espressif/cjson
+manifest_hash: bccd2616627877a3eb1753d4519553924e43866bd3f811382c829956df3f8c26
 target: esp32s3
 version: 3.0.0

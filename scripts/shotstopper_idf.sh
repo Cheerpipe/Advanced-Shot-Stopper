@@ -20,8 +20,27 @@ ss_idf_find() {
   return 1
 }
 
+ss_idf_active_valid() {
+  [[ -n "${IDF_PATH:-}" && -f "${IDF_PATH}/export.sh" ]] || return 1
+  [[ -n "${IDF_PYTHON_ENV_PATH:-}" &&
+    -x "${IDF_PYTHON_ENV_PATH}/bin/python" ]] || return 1
+  [[ "$(command -v idf.py 2>/dev/null)" == "${IDF_PATH}/tools/idf.py" ]] || return 1
+  (SS_IDF_QUIET=1 ss_idf_require_version) >/dev/null 2>&1
+}
+
 ss_idf_source() {
   local idf_root
+  if [[ -n "${IDF_PYTHON_ENV_PATH:-}" ]]; then
+    if ss_idf_active_valid; then
+      if [[ "${SS_IDF_QUIET:-}" != "1" ]]; then
+        echo "ESP-IDF: ${IDF_PATH} (active environment)"
+      fi
+      return 0
+    fi
+    unset IDF_PATH IDF_PYTHON_ENV_PATH ESP_PYTHON ESP_IDF_VERSION
+    unset IDF_DEACTIVATE_FILE_PATH IDF_TOOLS_EXPORT_CMD IDF_TOOLS_INSTALL_CMD
+    hash -r
+  fi
   idf_root="$(ss_idf_find)" || {
     echo "ESP-IDF not found (idf.py / export.sh)." >&2
     echo "Install 6.1.x and run again:" >&2
