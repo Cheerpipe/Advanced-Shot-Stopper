@@ -48,19 +48,19 @@ or required by the requested validation gate.
 Keep unrelated user changes. Use `apply_patch` for edits. Store temporary working
 files in task-specific `temp/ai_temp_<task>/` directories and clean up only files
 no longer needed for evidence or recovery. Never
-commit unless explicitly asked. A completed change report includes an English
-commit title, a list of changes made, and a brief but complete technical
-description, all in English. Proposed and agent-created commits must use
-Extended Conventional Commits. Every commit title must carry the mandatory
-`type(scope)` prefix and follow `type(scope): description` (or
+commit unless explicitly asked. Every completed change report must include a
+copy-ready suggested commit message in English. Suggested commit messages and
+agent-created commits must follow exactly the same title and body requirements:
+use Extended Conventional Commits, and never provide only a title. Every title
+must carry the mandatory `type(scope)` prefix and follow
+`type(scope): description` (or
 `type(scope)!: description` for breaking changes); do not use unprefixed
 titles. Use a lowercase type such as `feat`, `fix`, `docs`, `refactor`, `test`,
 `build`, `ci`, `chore`, or `perf`, a concise lowercase scope, and an imperative
-English description. Put extended details in the body and use Conventional
-Commit footers (for example, `BREAKING CHANGE:`) when applicable. Every proposed
-or agent-created commit must have a non-empty body that enumerates the concrete
-changes and briefly explains their purpose and relevant technical impact; a
-title-only commit is not acceptable.
+English description. Every message must have a non-empty body that enumerates
+the concrete changes and briefly explains their purpose and relevant technical
+impact; a title-only message or commit is not acceptable. Use Conventional Commit
+footers (for example, `BREAKING CHANGE:`) when applicable.
 
 ## Local project storage
 
