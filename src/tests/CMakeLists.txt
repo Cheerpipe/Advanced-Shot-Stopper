@@ -49,6 +49,7 @@ else()
   host_test(webhook_error_host_test
     DEFINITIONS SHOT_STOPPER_HOST_TEST LABEL "host;network")
   host_test(webhook_worker_host_test LABEL "host;network")
+  host_test(mdns_lifecycle_host_test LABEL "host;network")
   host_test(resource_owner_host_test LABEL "host;resources")
   host_test(reset_guard_instance_host_test
     SOURCES reset_guard_instance_a.cpp reset_guard_instance_b.cpp

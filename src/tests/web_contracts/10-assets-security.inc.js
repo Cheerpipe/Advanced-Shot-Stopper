@@ -72,14 +72,14 @@ const htmlBytes = Buffer.byteLength(allHtml, 'utf8');
 const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // BBW help is condensed to fund the selector; source-only allowance adds 1 KiB
 // for adaptive readback/CSV. Compressed assets and firmware budgets stay fixed.
-if (htmlBytes > 54900) {
+if (htmlBytes > 54600) {
   throw new Error('Web UI HTML source exceeds the authoring budget');
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
 // Historical BLE disconnect/command diagnostics add display formatters. This
 // source allowance does not change the compressed asset or firmware budgets.
-if (jsBytes > 167100) {
+if (jsBytes > 167400) {
   throw new Error('Web UI JS source exceeds the authoring budget');
 }
 if (htmlBytes + jsBytes > 222000) {

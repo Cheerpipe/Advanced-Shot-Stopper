@@ -558,6 +558,7 @@ void ShotStopperNetwork::abortWifiScan(uint32_t now, bool logTimeout) {
 }
 
 bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
+  stopMdns();
   const NetworkSettingsSnapshot settings = networkSettingsSnapshot();
   NetworkStatusSnapshot status = snapshot();
   if (!force && status.apActive && status.networkActive && server_ != nullptr) {
@@ -635,6 +636,7 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
 }
 
 void ShotStopperNetwork::stopNetwork() {
+  stopMdns();
   esp_wifi_scan_stop();
   WiFi.scanDelete();
   stopHttpServer();

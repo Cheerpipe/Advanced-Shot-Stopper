@@ -132,7 +132,7 @@ if (!ui.includes('id="staIpMode"') ||
     !network.includes('or empty to keep the saved password.') ||
     !network.includes('StaIpMode::STATIC') ||
     !network.includes('STA_CONFIRM_TIMEOUT_MS') ||
-    !network.includes('action must be \\"save\\", \\"forget\\", or \\"confirm\\".') ||
+    !network.includes('action must be \\"save\\", \\"name\\", \\"forget\\", or \\"confirm\\".') ||
     !network.includes('No pending network configuration to confirm.')) {
   throw new Error('DHCP/static IP mode must be wired in UI, status, WiFi.config, and confirm/revert path');
 }
@@ -144,9 +144,7 @@ if (!network.includes('restoreLkgToActive(next)') ||
   if (      !html.includes('id="staWifiSleep"') ||
       !html.includes('id="staWifiSleep" type="checkbox" checked') ||
       !html.includes('Wi-Fi sleep<small') ||
-      !html.includes('Modem sleep while STA is associated') ||
-      !html.includes('SoftAP and OTA keep the radio awake') ||
-      !html.includes('May lag the Web UI') ||
+      !html.includes('Saves power; may slow the UI. Off during AP/OTA.') ||
       !ui.includes("wifiSleep:$('staWifiSleep').checked") ||
       !ui.includes("savedStaWifiSleep=!!n.wifiSleep") ||
       !ui.includes("if($('staWifiSleep'))$('staWifiSleep').checked=savedStaWifiSleep") ||

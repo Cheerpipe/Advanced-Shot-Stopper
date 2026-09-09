@@ -94,6 +94,7 @@ static_assert(sizeof(NetworkSettingsSnapshot) <= 192,
               "Radio snapshot exceeds its stack budget");
 
 struct NetworkStatusSnapshot {
+  char deviceName[DEVICE_NAME_CAPACITY] = "shotstopper";
   bool networkActive = false;
   bool apActive = false;
   bool wifiConfigured = false;
@@ -352,6 +353,8 @@ class ShotStopperNetwork {
   uint32_t staConfirmDeadlineMs_ = 0;
   uint32_t restartRequestedAtMs_ = 0;
   bool ntpStarted_ = false;
+  bool mdnsStarted_ = false;
+  uint32_t mdnsRetryAtMs_ = 0;
   bool ntpRearmPending_ = false;
   bool ntpManualSyncPending_ = false;
   bool ntpActivitySyncPending_ = false;
@@ -370,6 +373,8 @@ class ShotStopperNetwork {
   void taskLoop();
   void service();
   void serviceNtp(uint32_t now, bool staConnected);
+  void serviceMdns(uint32_t now, bool staConnected);
+  void stopMdns();
   bool ntpMayArm(uint32_t now, bool staConnected) const;
   void abortNtpForRfGate();
   void stopNtp();

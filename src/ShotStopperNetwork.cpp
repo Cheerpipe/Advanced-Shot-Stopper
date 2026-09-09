@@ -18,6 +18,7 @@
 #include <Arduino.h>
 #include <cJSON.h>
 #include <esp_log.h>
+#include <mdns.h>
 #include <esp_sntp.h>
 #include <esp_wifi.h>
 #include <esp_system.h>
@@ -996,6 +997,7 @@ ShotStopperNetwork *ShotStopperNetwork::instance_ = nullptr;
 // Behavior-preserving service fragments; kept in this translation unit.
 #include "network/ShotStopperNetworkService.inc"
 #include "network/ShotStopperWifi.inc"
+#include "network/ShotStopperMdns.inc"
 #include "network/ShotStopperHttpLifecycle.inc"
 #include "network/ShotStopperHttpAuthAssets.inc"
 #include "network/ShotStopperStatus.inc"

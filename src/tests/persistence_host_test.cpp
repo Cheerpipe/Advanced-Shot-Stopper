@@ -1649,16 +1649,17 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
       2U * nvsBlobRequiredEntries(sizeof(PersistedSettings));
   constexpr size_t shotHistoryEntries =
       2U * nvsBlobRequiredEntries(sizeof(ShotLogStore));
-  constexpr size_t remainingRecords = 8U + 6U + 3U + 24U + 32U;
+  constexpr size_t remainingRecords = 8U + 6U + 3U + 24U + 32U +
+      nvsBlobRequiredEntries(DEVICE_NAME_CAPACITY);
   constexpr size_t applicationEntries =
       settingsEntries + shotHistoryEntries + remainingRecords;
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
   CHECK(sizeof(PersistedSettings) == 2616U);
   CHECK(settingsEntries == 168U);
   CHECK(shotHistoryEntries == 366U);
-  CHECK(applicationEntries == 607U);
+  CHECK(applicationEntries == 611U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 1787U);
+  CHECK(conservativeEntries - applicationEntries == 1783U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {
@@ -1765,12 +1766,68 @@ void p63_flash_io_lock_fails_closed_without_mutex() {
 }
 
 
+void p76_device_name_round_trip_and_failures() {
+  resetHostPersistence();
+  char name[DEVICE_NAME_CAPACITY];
+  CHECK(loadDeviceName(name));
+  CHECK(strcmp(name, DEFAULT_DEVICE_NAME) == 0);
+  CHECK(!validDeviceName(nullptr));
+  for (const char *invalid : {"", "-name", "name-", "MyMachine", "a.b", "a b",
+                              "café", "a/b", "a\"b"}) {
+    CHECK(!saveDeviceName(invalid));
+  }
+  char longest[DEVICE_NAME_CAPACITY];
+  memset(longest, 'a', sizeof(longest));
+  CHECK(!validDeviceName(longest));
+  longest[sizeof(longest) - 1] = '\0';
+  CHECK(saveDeviceName(longest));
+  CHECK(loadDeviceName(name));
+  CHECK(strcmp(name, longest) == 0);
+  CHECK(saveDeviceName("coffee-2"));
+  persistence_host::failNextWrite = true;
+  CHECK(!saveDeviceName("coffee-3"));
+  CHECK(loadDeviceName(name));
+  CHECK(strcmp(name, "coffee-2") == 0);
+  g_hostFlashIoMutexAvailable = false;
+  CHECK(!saveDeviceName("coffee-4"));
+  g_hostFlashIoMutexAvailable = true;
+  CHECK(loadDeviceName(name));
+  CHECK(strcmp(name, "coffee-2") == 0);
+  persistence_host::corruptNextWrite = true;
+  CHECK(!saveDeviceName("coffee-5"));
+  char broken[DEVICE_NAME_CAPACITY];
+  memset(broken, 'a', sizeof(broken));
+  persistence_host::putRaw(SETTINGS_NAMESPACE, DEVICE_NAME_KEY, broken, sizeof(broken));
+  CHECK(!loadDeviceName(name));
+  CHECK(strcmp(name, DEFAULT_DEVICE_NAME) == 0);
+}
+
+void p77_device_name_preserved_by_settings_and_reset_by_factory() {
+  resetHostPersistence();
+  PersistedSettings settings;
+  CHECK(initializeDefaultSettings(settings));
+  CHECK(savePersistedSettings(settings));  // Existing V10 remains unchanged.
+  CHECK(saveDeviceName("coffee-2"));
+  clearStaNetwork(settings);
+  CHECK(savePersistedSettings(settings));
+  char name[DEVICE_NAME_CAPACITY];
+  CHECK(loadDeviceName(name));
+  CHECK(strcmp(name, "coffee-2") == 0);
+  CHECK(loadPersistedSettings(settings));
+  CHECK(validPersistedSettings(settings));
+  CHECK(resetPersistedSettingsToFactory(settings));
+  CHECK(loadDeviceName(name));
+  CHECK(strcmp(name, DEFAULT_DEVICE_NAME) == 0);
+}
+
 struct TestCase {
   const char *id;
   void (*function)();
 };
 
 const TestCase tests[] = {
+    {"P76", p76_device_name_round_trip_and_failures},
+    {"P77", p77_device_name_preserved_by_settings_and_reset_by_factory},
     {"P01", p01_defaults_are_valid},
     {"P75", p75_idle_tare_legacy_padding_and_saved_off},
     {"P02", p02_newest_valid_slot_is_loaded},

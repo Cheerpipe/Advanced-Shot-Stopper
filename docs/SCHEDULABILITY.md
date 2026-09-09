@@ -17,7 +17,7 @@ subscribed nor part of control. Stack values are configured bytes in ESP-IDF.
 | control | periodic / 1 ms active | 10 ms | 9000 us | idle+1 | 50 ms maintenance flash take | 8192 | 1 | 5 s |
 | scale_worker | periodic / 1 ms linked, 10 ms idle | 10 ms | 9000 us | idle+1 | 3000 ms GATT step | 6656 | 1 | 5 s |
 | settings_persist | event-driven | 1000 ms service | n/a | idle+1 | 5000 ms flash take | 4096 | 1 | 5 s |
-| network_manager | periodic / 50 ms | 250 ms | 200000 us | idle+1 | 2500 ms lifecycle/cancel | 10240 | 0 | 5 s |
+| network_manager | periodic / 50 ms | 250 ms | 200000 us | idle+1 | 2500 ms lifecycle/cancel; SDK mDNS teardown has no explicit bound | 10240 | 0 | 5 s |
 | httpd | framework event | n/a | n/a | idle+1 | 30000 ms OTA receive budget | 8192 | 0 | no |
 | webhook | event-driven | n/a | n/a | idle | 1800 ms HTTP | 4096 | 0 | no |
 | serial_log | event-driven | n/a | n/a | idle | unbounded USB sink | 3072 | 0 | no |
@@ -26,6 +26,13 @@ The 10 ms service deadline does not apply while `scale_worker` is executing an
 explicit connection/discovery operation whose bounded step is listed above;
 those paths are separately bounded by the 5 s TWDT. HIL qualification must
 report active-link and connect/discovery distributions separately.
+
+The SDK mDNS responder adds a priority-1, core-0 task with a 4096-byte stack while
+discovery is enabled. Its owner is the network manager, which frees it during
+shots, scale connection attempts and network/HTTP/AP transitions. SDK teardown
+waits for its task to exit; it is outside the control loop but needs measured
+network deadline/watchdog and heap evidence. The RF gate prevents continued
+startup after a transition, not packets already queued by the SDK.
 
 The scale worker blocks on a task notification with the state-dependent 1 ms
 linked/connecting or 10 ms idle timeout. Commands, policy changes, Companion

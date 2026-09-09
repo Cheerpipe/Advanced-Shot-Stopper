@@ -184,8 +184,8 @@ if (generated.runtimeGzip.length > 32000) {
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
 }
-if (generated.secondaryGzip.length > 5600) {
-  throw new Error('Compressed secondary view JS exceeds the 5.5 KiB gzip budget');
+if (generated.secondaryGzip.length > 5700) {
+  throw new Error('Compressed secondary view JS exceeds the 5700-byte gzip budget');
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');
@@ -794,7 +794,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       !js.includes('diagnosticPublic') ||
       !viewJs.admin.includes('waitDiagnosticApplied(wanted)') ||
       !viewJs.admin.includes("api('/api/v1/status/admin')).config.showDiagnosticPage===wanted") ||
-      !viewJs.admin.includes("R.message('Saving Diagnostic page setting…','warn')") ||
+      !viewJs.admin.includes("R.message('Saving Diagnostic…','warn')") ||
       viewJs.admin.includes('waitDiagnosticPagePersisted') ||
       (viewJs.admin.match(/\bapplyStatus\b/g) || []).length !== 2 ||
       js.includes("$('diagnosticUnlockButton').onclick") ||

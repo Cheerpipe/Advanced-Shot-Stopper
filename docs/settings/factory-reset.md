@@ -8,7 +8,8 @@ credentials. Firmware on the flash is not erased.
 Wi-Fi (STA and last-known-good network), workflow settings, presets,
 calibration (including learned offset and A→M samples), preferred scale,
 BLE Companion preference, shot history, and last shot. The device
-password returns to **`ineedacoffee`**. The device then restarts.
+password returns to **`ineedacoffee`** and the discovery device name to
+**`shotstopper`**. The device then restarts.
 
 ## Ways to run it
 

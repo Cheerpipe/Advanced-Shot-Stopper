@@ -15,7 +15,7 @@ or explicit callback tables; each service owns its mutable state.
 | SafetyKernel | relay, safety timers, watchdog and reset history | bounded control intention | `RelaySafetySnapshot`, safety events |
 | ControlOrchestrator | active session, cup/recipe policy and command arbitration | scale/machine/network messages | fixed-size control snapshots and commands |
 | ScaleService | BLE central link, scale queues and radio policy | `ScaleCommand`, immutable worker policy | `ScaleEvent`, `ScaleLinkSnapshot`, RF state callback |
-| NetworkService | Wi-Fi/httpd, request parsing and webhook transport | `NetworkBridgeCallbacks`, control snapshots | `WebCommand`, transport diagnostics |
+| NetworkService | Wi-Fi/httpd/mDNS, request parsing and webhook transport | `NetworkBridgeCallbacks`, control snapshots | `WebCommand`, transport diagnostics |
 | PersistenceService | NVS/EEPROM/partition serialization and write schedule | fixed-size records | success/failure result messages |
 | DiagnosticsService | logs, counters, task/heap snapshots and exports | observational snapshots | JSON/serial evidence only |
 
@@ -41,6 +41,15 @@ would exceed one, extract it into its owning service rather than raising the
 limit. Current independent host harnesses exercise SafetyKernel, OTA,
 persistence, webhook policy, BLE protocol/runtime and shared resource owners
 without including either monolithic integration root.
+
+## Discovery name storage
+
+The discovery name is an optional validated 64-byte NVS blob (`deviceName`) in
+the settings namespace. Its store shares the flash-I/O lock, uses internal
+write/readback buffers, and leaves the settings layout unchanged. The existing
+maintenance-authorized network command path performs the verified write before
+publishing `PERSISTED` and restarting mDNS. Ordinary settings/STA writes retain
+the name; factory reset removes it. Missing or invalid names use `shotstopper`.
 
 ## BBW policy and storage
 
