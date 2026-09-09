@@ -41,22 +41,49 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           REQUESTED_RISK: ${{ inputs.risk }}
         run: |
+          mkdir -p ci-results/classify
           if [[ "$EVENT_NAME" == schedule || "$EVENT_NAME" == workflow_dispatch ]]; then
             risk=${REQUESTED_RISK:-R3}
+            printf 'risk=%s\nsource=workflow input/default\n' "$risk" | tee ci-results/classify/classify.log
           else
             mapfile -t paths < <(git diff --name-only "$BASE_SHA" HEAD)
-            output=$(./scripts/dev classify "${paths[@]}")
+            output=$(./scripts/dev classify "${paths[@]}" 2>&1 | tee ci-results/classify/classify.log)
             risk=$(sed -n 's/^risk=//p' <<<"$output" | tail -1)
           fi
           [[ "$risk" =~ ^R[0-3]$ ]]
           echo "risk=$risk" >> "$GITHUB_OUTPUT"
+      - name: Upload classification results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: validation-classify
+          path: |
+            ci-results/classify/
+            artifacts/runs/
+          if-no-files-found: error
+          retention-days: 7
 
   fast:
     needs: classify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - run: ./scripts/dev validate --risk R0 README.md docs/README.md
+      - name: Fast validation
+        shell: bash
+        run: |
+          mkdir -p ci-results/fast
+          set -o pipefail
+          ./scripts/dev validate --risk R0 README.md docs/README.md 2>&1 | tee ci-results/fast/fast.log
+      - name: Upload fast validation results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: validation-fast
+          path: |
+            ci-results/fast/
+            artifacts/runs/
+          if-no-files-found: error
+          retention-days: 7
 
   host:
     needs: classify
@@ -64,17 +91,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - run: mkdir -p ci-results/host
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22"
           cache: npm
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libcjson-dev
       - run: npm ci --no-audit --no-fund
-      - run: ./scripts/dev test normal
-      - run: ./scripts/dev test asan
-      - run: ./scripts/dev test tsan
-      - run: ./scripts/dev test tooling
-      - run: ./scripts/dev test web
+      - run: set -o pipefail; ./scripts/dev test normal 2>&1 | tee ci-results/host/normal.log
+        shell: bash
+      - run: set -o pipefail; ./scripts/dev test asan 2>&1 | tee ci-results/host/asan.log
+        shell: bash
+      - run: set -o pipefail; ./scripts/dev test tsan 2>&1 | tee ci-results/host/tsan.log
+        shell: bash
+      - run: set -o pipefail; ./scripts/dev test tooling 2>&1 | tee ci-results/host/tooling.log
+        shell: bash
+      - run: set -o pipefail; ./scripts/dev test web 2>&1 | tee ci-results/host/web.log
+        shell: bash
+      - name: Upload host test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: validation-host
+          path: |
+            ci-results/host/
+            artifacts/runs/
+          if-no-files-found: error
+          retention-days: 7
 
   idf:
     needs: classify
@@ -91,37 +134,53 @@ jobs:
           - {name: momentary-reed, type: 2}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - run: mkdir -p ci-results/idf
       - run: apt-get update && apt-get install -y --no-install-recommends nodejs npm cppcheck && rm -rf /var/lib/apt/lists/*
       - run: npm ci --no-audit --no-fund
-      - run: >-
-          ./scripts/dev build --arch ${{ matrix.arch }}
-          --flags "-DSHOT_STOPPER_MACHINE_TYPE=${{ matrix.machine.type }} -DSHOT_STOPPER_ENABLE_JTAG=0 -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0"
+      - name: Build firmware
+        shell: bash
+        run: |
+          set -o pipefail
+          ./scripts/dev build --arch ${{ matrix.arch }} \
+            --flags "-DSHOT_STOPPER_MACHINE_TYPE=${{ matrix.machine.type }} -DSHOT_STOPPER_ENABLE_JTAG=0 -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0" \
+            2>&1 | tee ci-results/idf/build.log
       - name: Name OTA image
         run: >-
           cp build-idf/${{ matrix.arch }}/shotstopper.bin
           build-idf/${{ matrix.arch }}/shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off.bin
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off
-          path: build-idf/${{ matrix.arch }}/shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off.bin
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 3
       - name: Cppcheck
         if: needs.classify.outputs.risk == 'R3'
-        run: ./scripts/dev analyze --arch ${{ matrix.arch }}
-      - name: Full scheduled database analysis
+        shell: bash
+        run: set -o pipefail; ./scripts/dev analyze --arch ${{ matrix.arch }} 2>&1 | tee ci-results/idf/cppcheck.log
+      - name: Full scheduled clang-tidy analysis
         if: needs.classify.outputs.risk == 'R3' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-        run: |
-          ./scripts/static-tidy-idf --arch ${{ matrix.arch }}
-          ./scripts/iwyu-idf --arch ${{ matrix.arch }}
+        shell: bash
+        run: set -o pipefail; ./scripts/static-tidy-idf --arch ${{ matrix.arch }} 2>&1 | tee ci-results/idf/clang-tidy.log
+      - name: Full scheduled IWYU analysis
+        if: needs.classify.outputs.risk == 'R3' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        shell: bash
+        run: set -o pipefail; ./scripts/iwyu-idf --arch ${{ matrix.arch }} 2>&1 | tee ci-results/idf/iwyu.log
       - name: Extra GCC warnings
         if: needs.classify.outputs.risk == 'R3'
-        run: ./scripts/warnings-idf --arch ${{ matrix.arch }}
+        shell: bash
+        run: set -o pipefail; ./scripts/warnings-idf --arch ${{ matrix.arch }} 2>&1 | tee ci-results/idf/warnings.log
       - name: Full scheduled GCC analysis
         if: needs.classify.outputs.risk == 'R3' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-        run: |
-          ./scripts/gcc_analyzer --arch ${{ matrix.arch }} --flags=
+        shell: bash
+        run: set -o pipefail; ./scripts/gcc_analyzer --arch ${{ matrix.arch }} --flags= 2>&1 | tee ci-results/idf/gcc-analyzer.log
+      - name: Upload firmware and diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off
+          path: |
+            build-idf/${{ matrix.arch }}/shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off.bin
+            ci-results/idf/
+            reports/
+            artifacts/runs/
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 7
 
   gate:
     needs: [classify, fast, host, idf]

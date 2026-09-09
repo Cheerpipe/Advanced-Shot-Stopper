@@ -344,12 +344,18 @@ for disabled_flag in ("SHOT_STOPPER_ENABLE_JTAG=0",
     assert disabled_flag in idf_job, f"CI production flag missing: {disabled_flag}"
 ota_name = "shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off"
 assert f"name: {ota_name}" in idf_job
-assert f"path: build-idf/${{{{ matrix.arch }}}}/{ota_name}.bin" in idf_job
-assert workflow.count("actions/upload-artifact") == 1, \
-    "GitHub artifacts must contain only the six matrix-generated OTA binaries"
-assert "shotstopper.elf" not in workflow and "path: artifacts/runs/" not in workflow \
-    and "path: reports/" not in workflow, \
-    "ELF, reports, and run logs must not be published as GitHub artifacts"
+assert f"build-idf/${{{{ matrix.arch }}}}/{ota_name}.bin" in idf_job
+assert workflow.count("actions/upload-artifact") == 4, \
+    "classification, fast, host, and IDF jobs must publish diagnostic artifacts"
+for artifact_name in ("validation-classify", "validation-fast", "validation-host"):
+    assert f"name: {artifact_name}" in workflow
+assert workflow.count("if: always()") == 5, \
+    "every artifact upload and the final gate must run after failures"
+assert "shotstopper.elf" not in workflow, \
+    "non-portable firmware ELF files must not be published"
+for diagnostic_path in ("ci-results/idf/", "reports/", "artifacts/runs/"):
+    assert diagnostic_path in idf_job, \
+        f"firmware artifacts must include available diagnostics: {diagnostic_path}"
 build = idf_job.index("./scripts/dev build")
 firmware_upload = idf_job.index("actions/upload-artifact")
 cppcheck = idf_job.index("./scripts/dev analyze")
@@ -357,8 +363,10 @@ tidy = idf_job.index("./scripts/static-tidy-idf")
 iwyu = idf_job.index("./scripts/iwyu-idf")
 warnings = idf_job.index("./scripts/warnings-idf")
 gcc_analyzer = idf_job.index("./scripts/gcc_analyzer")
-assert build < firmware_upload < cppcheck < tidy < warnings < gcc_analyzer
+assert build < cppcheck < tidy < warnings < gcc_analyzer < firmware_upload
 assert cppcheck < iwyu < warnings
+assert idf_job.count("set -o pipefail") == 6 and idf_job.count("tee ci-results/idf/") == 6, \
+    "IDF command logs must be retained without masking failures"
 assert "compile_commands.json" not in idf_job, \
     "compile commands are not a portable standalone artifact"
 gate_job = workflow.split("  gate:\n", 1)[1]

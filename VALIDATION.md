@@ -42,6 +42,15 @@ qualified. Use the printed `artifacts/runs/<run-id>/summary.json` and full log
 to inspect which steps ran. Exit 127 means a required dependency is missing;
 record the gate as failed and prepare the dependency explicitly.
 
+GitHub Actions publishes bounded-retention artifacts even when a validation
+command fails. The `validation-classify`, `validation-fast`, and
+`validation-host` archives contain the available console logs and `scripts/dev`
+run records. Each of the six `shotstopper-ota-<arch>-<machine>-jtag-off-remote-off`
+archives contains its firmware binary when the build succeeds, plus the
+available IDF command logs, static-analysis reports, and run records. Only steps
+that started can produce diagnostics; a failed prerequisite may leave later
+entries absent.
+
 Classify concrete files, not a directory name such as `docs`. Safety-related
 documents and BLE/OTA references can select R3/R2 even though they are Markdown.
 Do not lower risk to avoid an unavailable tool or missing physical evidence.
