@@ -96,6 +96,41 @@ int main() {
   n.stopMdns();
   assert(frees == 2);
 
+  // Either gate, or both, prevents even initializing the responder.
+  for (unsigned gates = 1; gates <= 3; ++gates) {
+    resetSdk();
+    ShotStopperNetwork blocked;
+    blocked.brew = (gates & 1U) != 0;
+    blocked.scaleConnecting_ = (gates & 2U) != 0;
+    blocked.serviceMdns(0, true);
+    blocked.serviceMdns(10000, true);
+    assert(calls == 0 && frees == 0 && !allocated);
+  }
+  // An already-running responder stops for either gate independently; ending
+  // the first restriction cannot resume discovery while the second remains.
+  for (bool shotFirst : {false, true}) {
+    resetSdk();
+    ShotStopperNetwork paused;
+    paused.serviceMdns(0, true);
+    assert(allocated && inits == 1);
+    paused.brew = shotFirst;
+    paused.scaleConnecting_ = !shotFirst;
+    paused.serviceMdns(6000, true);
+    assert(!allocated && frees == 1 && calls == 4);
+    paused.brew = true;
+    paused.scaleConnecting_ = true;
+    paused.serviceMdns(12000, true);
+    paused.brew = !shotFirst;
+    paused.scaleConnecting_ = shotFirst;
+    paused.serviceMdns(18000, true);
+    assert(!allocated && frees == 1 && calls == 4);
+    paused.brew = false;
+    paused.scaleConnecting_ = false;
+    paused.serviceMdns(24000, true);
+    assert(allocated && inits == 2);
+    paused.stopMdns();
+  }
+
   // Every failed SDK step rolls back only resources successfully acquired.
   for (int failure = 1; failure <= 4; ++failure) {
     resetSdk();
@@ -111,13 +146,21 @@ int main() {
     failed.serviceMdns(5101, false);
     assert(!allocated);
   }
-  // A short critical interval during ANY SDK step must invalidate startup.
-  for (int step = 1; step <= 4; ++step) {
-    resetSdk();
-    ShotStopperNetwork raced;
-    duringCall = [&](int call) { if (call == step) ++raced.rfGateGeneration_; };
-    raced.serviceMdns(100, true);
-    assert(!allocated && !raced.mdnsStarted_);
+  // A held shot/connection gate or a completed critical interval during ANY
+  // SDK step must invalidate startup, without queueing the remaining records.
+  for (unsigned gate = 0; gate < 3; ++gate) {
+    for (int step = 1; step <= 4; ++step) {
+      resetSdk();
+      ShotStopperNetwork raced;
+      duringCall = [&](int call) {
+        if (call != step) return;
+        raced.brew = gate == 1;
+        raced.scaleConnecting_ = gate == 2;
+        ++raced.rfGateGeneration_;
+      };
+      raced.serviceMdns(100, true);
+      assert(!allocated && !raced.mdnsStarted_ && calls == step);
+    }
   }
   resetSdk();
   ShotStopperNetwork wrapped;
