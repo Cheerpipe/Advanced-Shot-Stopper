@@ -48,8 +48,8 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
     html.indexOf('id="ruleChart"') > html.indexOf('id="shotPanel"') ||
     html.includes('Extraction rules') ||
     !css.includes('.ruleChart') ||
-    !css.includes('.ruleLegFast:before,.ruleSeg-fast{background:#9a4d00}') ||
-    !css.includes('.ruleLegBbw:before,.ruleSeg-bbw{background:#17643b}') ||
+    !css.includes('.ruleLegFast:before,.ruleSeg-fast{background:#d97706}') ||
+    !css.includes('.ruleLegBbw:before,.ruleSeg-bbw{background:var(--ok)}') ||
     !css.includes('.ruleLegSlow:before,.ruleSeg-slow{background:#2563eb}') ||
     !css.includes('.ruleChartIdle') ||
     !ui.includes('function buildRuleChartModel(') ||

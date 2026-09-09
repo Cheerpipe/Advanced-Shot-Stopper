@@ -219,7 +219,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
          .includes('<span class="t">Clear</span>')) ||
     !css.includes('#shotPanel{position:relative}') ||
     css.includes('#shotPanel{position:relative;padding-right:3.4rem') ||
-    !css.includes('#shotTable .btnGlyph,#shotPanel .btnGlyph{border:0;border-radius:.5rem;min-height:var(--tap);min-width:var(--tap)') ||
+    !css.includes('#shotTable .btnGlyph,#shotPanel .btnGlyph{border:0;border-radius:2rem;min-height:var(--tap);min-width:var(--tap)') ||
     html.includes('id="lastCycle"') ||
     !ui.includes('function renderShotPanel(') ||
     !ui.includes('function renderShotSpark(') ||
@@ -687,11 +687,11 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !network.includes('shotLogSortFromName') ||
     !network.includes('query, "sort"') ||
     !network.includes('query, "dir"') ||
-    !css.includes('button{-webkit-appearance:none;appearance:none}') ||
-    !css.includes('#shotLogPanel .btnGlyph:not(.btnInvert){background:var(--sf)') ||
-    !css.includes('.shotSort{display:flex;max-width:100%;border:1px solid var(--bd);border-radius:.5rem;overflow:hidden;background:var(--in)}') ||
+    !css.includes('button{-webkit-appearance:none;appearance:none;border-radius:2rem}') ||
+    !css.includes('#shotLogPanel .btnGlyph:not(.btnInvert){background:var(--bg);color:var(--ac);border-color:var(--ln)}') ||
+    !css.includes('.shotSort{display:flex;max-width:100%;border:1px solid var(--ln);border-radius:2rem;overflow:hidden;background:var(--bg)}') ||
     !css.includes('.shotSort button{') ||
-    !css.includes('.shotSort button{margin:0;border:0;border-right:1px solid var(--bd);background:transparent;color:var(--fg);font:inherit;font-size:.8125rem;font-weight:600') ||
+    !css.includes('.shotSort button{margin:0;border:0;border-right:1px solid var(--ln);background:transparent;color:var(--ac);font:inherit;font-size:.8125rem;font-weight:600') ||
     css.includes('.shotSort button{margin:0;border:0;border-right:1px solid var(--ln);background:none') ||
     css.includes('#shotLogPanel .btnGlyph:not(.btnInvert){background:transparent') ||
     css.includes('#message,.configSaveBar,#shotLogPanel .btnBar{background:var(--bg)}') ||
@@ -916,10 +916,13 @@ if (!html.includes('<legend>NVS</legend>') ||
 }
 if (!css.includes('.btnBar,.presetActions{display:flex;gap:.5rem') ||
     css.includes('.btnBar,.presetActions{display:flex;gap:0') ||
+    !css.includes('.btnGlyph{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;margin:0;border:1px solid var(--ln);border-radius:2rem;background:var(--bg)') ||
     css.includes('.btnGlyph.btnDanger,.btnGlyph.btnInvert{background:var(--pri)') ||
     !css.includes('.btnGlyph.btnInvert{background:var(--pri)') ||
-    !css.includes('.btnGlyph.btnDanger{background:var(--sf);color:var(--dn)') ||
-    !css.includes('#factoryResetButton,#clearShotsButton{background:var(--me);color:var(--dn)') ||
+    !css.includes('.btnGlyph.btnDanger{background:var(--bg);color:var(--ac);border-color:var(--ac)}') ||
+    css.includes('#factoryResetButton,#clearShotsButton{') ||
+    !css.includes('#actionsPanel .btnGlyph{flex:1;border:1.5px solid var(--ac);border-radius:2rem;background:transparent;color:var(--ac);min-height:3.25rem}') ||
+    !css.includes('#actionsPanel .btnGlyph.btnDanger{background:var(--pri);color:var(--on);border-color:var(--pri)}') ||
     !css.includes('#shotLogPanel .btnBar{') ||
     !css.includes('#shotLogPanel .btnBar{position:sticky;top:var(--hdr);z-index:6;background:var(--sf)') ||
     css.includes('#shotLogPanel .btnBar{position:sticky;top:var(--hdr);z-index:6;background:var(--sf);margin:0 0 .65rem;border:1px solid var(--ln);border-radius:var(--r);overflow:hidden}')) {
