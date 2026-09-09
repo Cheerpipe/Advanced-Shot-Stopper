@@ -535,10 +535,11 @@ if (!ui.includes("s.safety.recoveryRequired||s.safety.state==='LOCKOUT'") ||
     !ui.includes("dataset.mode==='stop'") ||
     !ui.includes("/api/v1/control/paddle") ||
     !ui.includes("/api/v1/control/stop") ||
-    !ui.includes('function updateHomeAdminActions(') ||
+    !ui.includes('show=!!unlocked&&!!remoteEnabled') ||
+    !ui.includes('syncAdminSessionUi(admin,remoteReady)') ||
     !ui.includes("id=\"actionsPanel\" class=\"hidden\"") ||
     !ui.includes('shot.disabled=!admin||(!live&&!(remoteReady&&relayStartReady&&canControl))')) {
-  throw new Error('Circuit actions must stay behind admin unlock and preserve Stop only while unlocked');
+  throw new Error('Circuit actions must require remote policy and Admin unlock while preserving Stop semantics');
 }
 if (!ui.includes('id="forcePulseButton"') ||
     !ui.includes('class="btnGlyph btnWarn momentaryOnly"') ||

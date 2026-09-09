@@ -11,7 +11,8 @@ and the settings guides for current actions.
 ### Home
 
 Quick Settings, recipe, last shot and connection status. Remote actions depend
-on build policy and Admin unlock; their appearance here does not enable them.
+on build policy and Admin unlock: the Actions panel is shown only when remote
+machine control is compiled in and Admin is unlocked.
 
 ![Historical Home screen with recipe and last-shot panels](images/screenshot-home-dark.JPG)
 

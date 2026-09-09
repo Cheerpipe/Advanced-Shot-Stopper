@@ -186,7 +186,7 @@ if (!ui.includes('id="shotPanel"') ||
     !network.includes('scaleProtocol') ||
     !network.includes('safeScaleProtocol') ||
     !ui.includes('remoteReady&&relayStartReady&&canControl') ||
-    !ui.includes('Remote machine control disabled by policy') ||
+    ui.includes('Remote machine control disabled by policy') ||
     !network.includes('\\"remoteControlEnabled\\"') ||
     !network.includes('\\"lastCommand\\"') ||
     !network.includes('\\"maintenance\\"') ||
@@ -483,8 +483,9 @@ if (!html.includes('<summary>Switch</summary>') ||
     !ui.includes('id="machineStateValue"') ||
     !ui.includes('/api/v1/control/state-override') ||
     !ui.includes('updateHomeAdminActions') ||
-    !ui.includes('function updateHomeAdminActions(unlocked){const panel=$(') ||
-    !ui.includes('show=!!unlocked') ||
+    !ui.includes('function updateHomeAdminActions(unlocked,remoteEnabled){const panel=$(') ||
+    !ui.includes('show=!!unlocked&&!!remoteEnabled') ||
+    !ui.includes('syncAdminSessionUi(admin,remoteReady)') ||
     ui.includes('id="overrideIdleButton"') ||
     ui.includes('id="overrideBrewingButton"') ||
     ui.includes("d.classList.contains('momentaryMachine')&&!d.classList.contains('reedMachine')") ||
@@ -552,6 +553,15 @@ if (!html.includes('<summary>Switch</summary>') ||
         .includes('stopPulseTenMs')) {
   throw new Error(
       'Momentary Switch timings must be wired in Settings, API, APPLY_CONFIG, and runtime config — not brew');
+}
+{
+  const assert = require('assert'), vm = require('vm'), classes = new Set(['hidden']);
+  const toggle = (name, on) => on ? classes.add(name) : classes.delete(name);
+  const context = vm.createContext({$: () => ({classList: {toggle}}),
+    document: {body: {classList: {toggle: () => {}}}}});
+  vm.runInContext(runtimeJs.split('\n').find(line => line.startsWith('function updateHomeAdminActions(')), context);
+  const visible = (admin, remote) => { vm.runInContext(`updateHomeAdminActions(${admin},${remote})`, context); return !classes.has('hidden'); };
+  assert(!visible(false, false) && !visible(true, false) && !visible(false, true) && visible(true, true));
 }
 if (!html.includes('class="cfgGroup paddleOnly"><summary>Paddle</summary>') ||
     !html.includes('class="cfgGroup"><summary>Quick rinse</summary>') ||

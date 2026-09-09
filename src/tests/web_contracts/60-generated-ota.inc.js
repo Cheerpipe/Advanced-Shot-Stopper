@@ -770,7 +770,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       !js.includes('function lockAdminUi()') ||
       !js.includes('function lockAdmin()') ||
       !js.includes("aria-expanded','false');clearTimeout(scanTimer);scanTimer=0;api('/api/v1/admin/lock'") ||
-      !js.includes('function syncAdminSessionUi(unlocked)') ||
+      !js.includes('function syncAdminSessionUi(unlocked,remoteEnabled=false)') ||
       !js.includes('stopViewPolls();lockAdminUi();setMutable(false)') ||
       !js.includes('/api/v1/admin/unlock') ||
       !js.includes('/api/v1/admin/lock') ||
@@ -879,10 +879,10 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   if (!network.includes('page == StatusPage::Admin || page == StatusPage::Home') ||
       !network.includes('page == StatusPage::Diagnostic') ||
       !ui.includes("v==='home'?!!(typeof s.adminUnlocked==='boolean'") ||
-      !js.includes('function syncAdminSessionUi(unlocked)') ||
-      !js.includes('syncAdminSessionUi(admin)') ||
-      !js.includes('updateHomeAdminActions(on)')) {
-    throw new Error('Home must report and honor adminUnlocked for the Actions panel');
+      !js.includes('function syncAdminSessionUi(unlocked,remoteEnabled=false)') ||
+      !js.includes('syncAdminSessionUi(admin,remoteReady)') ||
+      !js.includes('updateHomeAdminActions(on,remoteEnabled)')) {
+    throw new Error('Home Actions must require adminUnlocked and remoteControlEnabled');
   }
   if (!network.includes(
           'page == StatusPage::Admin || page == StatusPage::Diagnostic') ||
