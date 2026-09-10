@@ -12,12 +12,12 @@ setting, and the existing persistence worker retries it.
 
 | Demand with the option on | CPU policy | Radio policy |
 | --- | --- | --- |
-| Idle, no scale or machine activity | 40–80 MHz after 1 s of stable idle | Light scan duty (25%); BLE controller modem sleep between radio events; STA Wi-Fi MIN_MODEM |
+| Idle, no scale or machine activity | 40–80 MHz after 1 s of stable idle | Light scan duty (25%); BLE controller modem sleep between radio events; saved Wi-Fi sleep preference |
 | Scale connecting or connected | Fixed 80 MHz | Controller sleep disabled before GAP connection; existing GATT, weight and heartbeat rates |
 | Shot using weight control | Fixed 160 MHz | Existing Bluetooth-priority coexistence and shot traffic gates |
 | Manual operation without a scale, or rinse | Fixed 80 MHz throughout the operation | Normal scan preference and BLE service |
 | Physical-use cooldown | Fixed 80 MHz for 5 minutes after confirmed stop or latest debounced physical edge | Saved Wi-Fi sleep preference; normal scan preference |
-| Recent visible WebUI activity | Fixed 80 MHz unless a shot needs 160 | Responsive Wi-Fi (PS_NONE) |
+| Recent visible WebUI activity | Fixed 80 MHz unless a shot needs 160 | Saved Wi-Fi sleep preference |
 | AP provisioning, STA reconnect, maintenance or USB console | At least 80 MHz | Existing provisioning/OTA overrides |
 
 Forty MHz is an eligible minimum: radio drivers can hold the CPU at 80 MHz.
@@ -41,8 +41,9 @@ This is independent of the existing 15-minute WebUI ownership inactivity rule
 and of the physical-use cooldown. The highest current CPU demand wins.
 
 With the option **off**, CPU stays at 80 MHz, controller modem sleep is disabled,
-and the saved scan intensity and Wi-Fi sleep preferences apply. PM support is
-still compiled in, so its SDK overhead remains. Neither mode uses automatic
+and the saved scan intensity applies. The saved Wi-Fi sleep preference applies
+independently in both modes. PM support is still compiled in, so its SDK overhead
+remains. Neither mode uses automatic
 light sleep or deep sleep. The independent safety timer stays enabled on XTAL;
 speaker LEDC also uses the S3 crystal clock.
 

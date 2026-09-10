@@ -163,7 +163,7 @@ if (!network.includes('restoreLkgToActive(next)') ||
       !network.includes('void ShotStopperNetwork::applyWifiPowerSave()') ||
       !network.includes('WIFI_PS_NONE') ||
       !network.includes('WIFI_PS_MIN_MODEM') ||
-      /WiFi\.setSleep\(\s*WIFI_PS_MAX_MODEM\s*\)/.test(network) ||
+      !network.includes('WIFI_PS_MAX_MODEM') ||
       !network.includes('syncScaleLinkRf') ||
       !network.includes('syncScaleConnectingRf') ||
       !network.includes('syncScaleHuntRf') ||
@@ -186,15 +186,18 @@ if (!network.includes('restoreLkgToActive(next)') ||
   if (!applyBody.includes('desiredWifiPowerSave') ||
       !applyBody.includes('ShotStopperOta::instance().busy()') ||
       !applyBody.includes('WIFI_PS_NONE') ||
-      !applyBody.includes('WIFI_PS_MIN_MODEM') ||
+      !applyBody.includes('WIFI_PS_MAX_MODEM') ||
       !applyBody.includes('WiFi.setSleep(desiredPs)') ||
       !applyBody.includes('esp_wifi_get_ps') ||
       !applyBody.includes('mode == WIFI_OFF') ||
-      applyBody.includes('WIFI_PS_MAX_MODEM') ||
+      applyBody.includes('WIFI_PS_MIN_MODEM') ||
+      applyBody.includes('powerAppliedProfile') ||
+      applyBody.includes('powerIdleSavings') ||
+      applyBody.includes('powerWebActive') ||
       applyBody.includes('scaleConnectingOrUp') ||
       /WiFi\.mode\(\s*WIFI_OFF\s*\)/.test(applyBody)) {
     throw new Error(
-        'applyWifiPowerSave must set NONE/MIN_MODEM via setSleep+get_ps, skip if driver off, never WIFI_OFF/MAX_MODEM, and not follow scale link state');
+        'applyWifiPowerSave must set NONE/MAX_MODEM via setSleep+get_ps, skip if driver off, never WIFI_OFF/MIN_MODEM, and stay independent of power and scale state');
   }
   const saveStart = network.indexOf('case WebCommandType::SAVE_NETWORK:');
   const saveEnd = network.indexOf('case WebCommandType::FORGET_NETWORK', saveStart);

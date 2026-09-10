@@ -755,7 +755,7 @@ void p47c_desired_wifi_power_save_policy() {
   using M = WifiPowerSaveMode;
   CHECK(desiredWifiPowerSave(false, false, true, false) == M::NONE);
   CHECK(desiredWifiPowerSave(false, true, false, false) == M::NONE);
-  CHECK(desiredWifiPowerSave(true, false, true, false) == M::MIN_MODEM);
+  CHECK(desiredWifiPowerSave(true, false, true, false) == M::MAX_MODEM);
   CHECK(desiredWifiPowerSave(true, true, true, false) == M::NONE);
   CHECK(desiredWifiPowerSave(true, false, false, false) == M::NONE);
   CHECK(desiredWifiPowerSave(true, true, true, true) == M::NONE);

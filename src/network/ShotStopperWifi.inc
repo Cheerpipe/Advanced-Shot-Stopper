@@ -302,14 +302,10 @@ void ShotStopperNetwork::applyWifiPowerSave() {
   const bool otaBusy = ShotStopperOta::instance().busy();
   powerNetworkBusy.store(apActive || otaBusy || !staAssociated,
                          std::memory_order_release);
-  if (powerAppliedProfile.load(std::memory_order_acquire) != PowerProfile::OFF) {
-    if (powerIdleSavings()) sleepAllowed = true;
-    if (powerWebActive(millis())) sleepAllowed = false;
-  }
   const WifiPowerSaveMode desired = desiredWifiPowerSave(
       sleepAllowed, apActive, staAssociated, otaBusy);
-  const wifi_ps_type_t desiredPs = desired == WifiPowerSaveMode::MIN_MODEM
-                                       ? WIFI_PS_MIN_MODEM
+  const wifi_ps_type_t desiredPs = desired == WifiPowerSaveMode::MAX_MODEM
+                                       ? WIFI_PS_MAX_MODEM
                                        : WIFI_PS_NONE;
   wifi_ps_type_t current = WIFI_PS_NONE;
   if (esp_wifi_get_ps(&current) == ESP_OK && lastAppliedWifiPsValid_ &&
