@@ -304,8 +304,8 @@ void ShotStopperNetwork::applyWifiPowerSave() {
                          std::memory_order_release);
   const WifiPowerSaveMode desired = desiredWifiPowerSave(
       sleepAllowed, apActive, staAssociated, otaBusy);
-  const wifi_ps_type_t desiredPs = desired == WifiPowerSaveMode::MAX_MODEM
-                                       ? WIFI_PS_MAX_MODEM
+  const wifi_ps_type_t desiredPs = desired == WifiPowerSaveMode::MIN_MODEM
+                                       ? WIFI_PS_MIN_MODEM
                                        : WIFI_PS_NONE;
   wifi_ps_type_t current = WIFI_PS_NONE;
   if (esp_wifi_get_ps(&current) == ESP_OK && lastAppliedWifiPsValid_ &&
