@@ -53,14 +53,12 @@ Bullseye applies to automatic, timer-only, and manual shots, but not rinses.
 It is active only when **Sound alerts** is on, **Output channel** is **Buzzer
 only**, and a local buzzer is compiled in.
 
-Tracking starts when the machine circuit opens. Repeated fresh scale samples
-must report the target exactly for a continuous 1 full second; a different
-weight or a gap longer than the normal 1-second automation freshness limit
-restarts the stability timer. The melody can therefore play during the
-configured drip delay as soon as the 1-second condition is met. A target run
-beginning at the drip-delay boundary gets one additional second to complete,
-after which the pending Bullseye is discarded. Starting another cycle also
-discards it.
+Tracking starts when the configured drip delay finishes. Repeated fresh scale
+samples must report the target exactly for a continuous 1 full second; a
+different weight or a gap longer than the normal 1-second automation freshness
+limit restarts the stability timer. There is no further time limit while the
+same cup remains on the scale. Removing or replacing that cup, or starting
+another cycle, discards the pending Bullseye.
 
 In **Buzzer only** (and Scale priority when the scale is not usable),
 tare/retare sounds follow paddle/retare immediately and do not wait for a

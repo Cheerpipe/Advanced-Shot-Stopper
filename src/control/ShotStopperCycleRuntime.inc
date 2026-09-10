@@ -823,6 +823,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
     handleIdleCupEvent(cupEvent);
   }
   if (cupEvent == CupPresenceEvent::REMOVED) {
+    bullseyeTracker.clear();
     // Run-state settle for momentary-only ASSUMED_OFF — independent of cut.
     pendingCupRemovedSettle = true;
     if (session.active && stopperState == StopperState::BREW &&
@@ -1450,7 +1451,9 @@ void serviceBullseyeMelody() {
   const uint32_t nowMs = millis();
   if (!bullseyeMelodyConfig.enabled || !soundAlertsEnabled() ||
       currentAlertOutputChannel() != AlertOutputChannel::BUZZER_ONLY ||
-      !localBuzzer.ready || session.active || bullseyeTracker.expired(nowMs)) {
+      !localBuzzer.ready || session.active ||
+      cupPresenceState() != CupPresenceState::PRESENT ||
+      cupPresencePlacementId() != bullseyeTracker.cupPlacementId) {
     bullseyeTracker.clear();
     return;
   }

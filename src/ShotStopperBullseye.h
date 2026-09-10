@@ -16,10 +16,6 @@ static_assert(BULLSEYE_RTTTL_MAX_CHARS == RTTTL_MAX_INPUT_CHARS,
 // The shortest useful note token is one character plus a separator.
 constexpr uint8_t BULLSEYE_RTTTL_MAX_NOTES = 250;
 constexpr uint32_t BULLSEYE_STABILITY_MS = 1000;
-// A target run that begins at the drip boundary gets one full stability
-// interval to finish. This is deliberately bounded so moving/removing the cup
-// later cannot produce a stale success melody.
-constexpr uint32_t BULLSEYE_POST_DRIP_GRACE_MS = BULLSEYE_STABILITY_MS;
 
 struct BullseyeMelodyConfig {
   bool enabled = false;
@@ -78,6 +74,7 @@ struct BullseyeTracker {
   uint8_t targetWeightG = 0;
   uint32_t endedAtMs = 0;
   uint32_t dripDelayMs = 0;
+  uint32_t cupPlacementId = 0;
   uint32_t endedWeightSequence = 0;
   uint32_t processedWeightSequence = 0;
   uint32_t targetSinceAtMs = 0;
@@ -87,23 +84,18 @@ struct BullseyeTracker {
   void clear() { *this = BullseyeTracker{}; }
 
   void arm(uint8_t target, uint32_t endedAt, uint32_t dripDelay,
-           uint32_t weightSequence) {
+           uint32_t weightSequence, uint32_t placementId = 0) {
     clear();
     pending = true;
     targetWeightG = target;
     endedAtMs = endedAt;
     dripDelayMs = dripDelay;
+    cupPlacementId = placementId;
     endedWeightSequence = weightSequence;
     processedWeightSequence = weightSequence;
   }
 
-  uint32_t deadlineAtMs() const {
-    return endedAtMs + dripDelayMs + BULLSEYE_POST_DRIP_GRACE_MS;
-  }
-
-  bool expired(uint32_t nowMs) const {
-    return pending && static_cast<int32_t>(nowMs - deadlineAtMs()) > 0;
-  }
+  uint32_t opensAtMs() const { return endedAtMs + dripDelayMs; }
 
   // Returns true once, after at least two post-shot samples have continuously
   // reported the exact target over a full second. A stale/gapped stream or a
@@ -112,8 +104,7 @@ struct BullseyeTracker {
               uint32_t maxSampleGapMs) {
     if (!pending || sequence == 0 || sequence == processedWeightSequence ||
         sequence == endedWeightSequence ||
-        static_cast<int32_t>(receivedAtMs - endedAtMs) <= 0 ||
-        static_cast<int32_t>(receivedAtMs - deadlineAtMs()) > 0) {
+        static_cast<int32_t>(receivedAtMs - opensAtMs()) < 0) {
       return false;
     }
     processedWeightSequence = sequence;

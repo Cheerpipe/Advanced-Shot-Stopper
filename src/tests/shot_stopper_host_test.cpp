@@ -5611,23 +5611,22 @@ void w99i_bullseye_test_never_queues_mutable_custom_notes() {
 void w99g_bullseye_requires_one_second_of_exact_fresh_samples() {
   BullseyeTracker tracker;
   tracker.arm(36, 1000, 3000, 10);
-  CHECK(!tracker.accept(36.0f, 1100, 11, 1000));
-  CHECK(!tracker.accept(35.99f, 1500, 12, 1000));
-  CHECK(!tracker.accept(36.0f, 1600, 13, 1000));
-  CHECK(!tracker.accept(36.0f, 2500, 14, 1000));
-  CHECK(tracker.accept(36.0f, 2600, 15, 1000));
+  CHECK(!tracker.accept(36.0f, 3999, 11, 1000));
+  CHECK(!tracker.accept(36.0f, 4000, 12, 1000));
+  CHECK(!tracker.accept(35.99f, 4500, 13, 1000));
+  CHECK(!tracker.accept(36.0f, 5000, 14, 1000));
+  CHECK(tracker.accept(36.0f, 6000, 15, 1000));
   CHECK(!tracker.pending);
 
   tracker.arm(36, 1000, 3000, 20);
-  CHECK(!tracker.accept(36.0f, 3900, 21, 1000));
-  CHECK(tracker.accept(36.0f, 4900, 22, 1000));
-  CHECK(!tracker.expired(5000));
+  CHECK(!tracker.accept(36.0f, 60000, 21, 1000));
+  CHECK(tracker.accept(36.0f, 61000, 22, 1000));
 
   tracker.arm(36, 1000, 3000, 30);
-  CHECK(!tracker.accept(36.0f, 2000, 31, 1000));
-  CHECK(!tracker.accept(36.0f, 3001, 32, 1000));
+  CHECK(!tracker.accept(36.0f, 4000, 31, 1000));
+  CHECK(!tracker.accept(36.0f, 5001, 32, 1000));
   CHECK(tracker.targetSampleCount == 1);
-  CHECK(tracker.expired(5001));
+  CHECK(tracker.pending);
 }
 
 void w99h_bullseye_service_runs_only_in_buzzer_only_mode() {
@@ -5641,25 +5640,36 @@ void w99h_bullseye_service_runs_only_in_buzzer_only_mode() {
       static_cast<uint8_t>(AlertOutputChannel::BUZZER_ONLY);
   hostMillis = 1000;
   markScaleWorkerProgress();
-  bullseyeTracker.arm(36, hostMillis, 3000, 10);
+  cupPresence.state = CupPresenceState::PRESENT;
+  cupPresence.placementId = 7;
+  bullseyeTracker.arm(36, hostMillis, 3000, 10, cupPresencePlacementId());
   currentWeight = 36.0f;
   currentWeightSequence = 11;
-  currentWeightReceivedAtMs = 1100;
-  hostMillis = 1100;
+  currentWeightReceivedAtMs = 4000;
+  hostMillis = 4000;
+  markScaleWorkerProgress();
   serviceBullseyeMelody();
   CHECK(bullseyeTracker.pending);
   currentWeightSequence = 12;
-  currentWeightReceivedAtMs = 2100;
-  hostMillis = 2100;
+  currentWeightReceivedAtMs = 5000;
+  hostMillis = 5000;
   markScaleWorkerProgress();
   serviceBullseyeMelody();
   CHECK(!bullseyeTracker.pending);
   CHECK(localBuzzer.activeCue == BuzzerCue::BULLSEYE);
 
   localBuzzer.stopAll();
+  bullseyeTracker.arm(36, hostMillis, 0, currentWeightSequence,
+                      cupPresencePlacementId());
+  ++cupPresence.placementId;
+  serviceBullseyeMelody();
+  CHECK(!bullseyeTracker.pending);
+  CHECK(localBuzzer.activeCue == BuzzerCue::NONE);
+
   runtimeConfig.alertOutputChannel =
       static_cast<uint8_t>(AlertOutputChannel::SCALE_PRIORITY);
-  bullseyeTracker.arm(36, hostMillis, 3000, currentWeightSequence);
+  bullseyeTracker.arm(36, hostMillis, 3000, currentWeightSequence,
+                      cupPresencePlacementId());
   ++currentWeightSequence;
   currentWeightReceivedAtMs = hostMillis + 100;
   hostMillis += 100;

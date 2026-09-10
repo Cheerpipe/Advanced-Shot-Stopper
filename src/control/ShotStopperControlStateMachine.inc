@@ -238,7 +238,8 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
       currentAlertOutputChannel() == AlertOutputChannel::BUZZER_ONLY &&
       localBuzzer.ready) {
     bullseyeTracker.arm(session.config.goalWeightG, millis(),
-                         session.config.dripDelayMs, currentWeightSequence);
+                         session.config.dripDelayMs, currentWeightSequence,
+                         cupPresencePlacementId());
   } else {
     bullseyeTracker.clear();
   }
