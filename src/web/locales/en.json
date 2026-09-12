@@ -149,6 +149,7 @@
     "admin.worker_start_failures": " · worker start failures ",
     "css.0": "0",
     "css.0_g": "0 g",
+    "css.0_g_s": "0 g/s",
     "css.check": "✓",
     "css.i": "i",
     "css.symbol": "!",

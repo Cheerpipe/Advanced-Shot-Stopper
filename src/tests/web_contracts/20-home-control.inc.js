@@ -21,6 +21,7 @@
     firstDropS:2.5, dropCg:50});
   const [weight, flow] = host.innerHTML.split('<div class="shotCurve">').slice(1);
   if (host.hidden || !weight.includes('Weight (g)') || !flow.includes('Flow rate (g/s)') ||
+      !weight.includes('class="shotSparkY"') || !flow.includes('class="shotSparkY shotSparkFlowY"') ||
       !weight.includes('d="M1.5 34.5 L149.6 34.5" fill="none" stroke="var(--ok)"') ||
       !flow.includes('d="M1.5 34.5 L149.6 34.5" fill="none" stroke="#38bdf8"') ||
       !weight.includes('shotDropOverlay') || flow.includes('shotDropOverlay') ||
