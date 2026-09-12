@@ -203,7 +203,7 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !ui.includes('id="autoToManualGuardLimitMode"') ||
     !ui.includes('id="autoToManualGuardBaselineS"') ||
     !ui.includes('id="scaleTimerStopExtraDelayMs"') ||
-    !html.includes('Extra wait for the scale timer to catch up at shot end') ||
+    !html.includes('Waits this extra time before stopping the scale') ||
     html.includes('Added after measured scale start lag') ||
     html.includes('Added after the scale timer catches up to circuit whole seconds') ||
     !ui.includes('id="dripDelayS" type="number" min="0" max="10" step="0.1"') ||
@@ -332,6 +332,8 @@ if (!network.includes('copyShotRecords(&homeLastShot, 1)') ||
     !ui.includes("deleteOneShot(+$('clearLastShotButton').dataset.shotId)")) {
   throw new Error('Home last shot must read and manage the newest Stats record');
 }
+const paddleHelp = html.slice(html.indexOf('<summary>Paddle</summary>'),
+    html.indexOf('</details>', html.indexOf('<summary>Paddle</summary>')));
 if (!html.includes('<summary>Paddle</summary>') ||
     !html.includes('id="paddleMode"') ||
     !html.includes('<option value="auto">Auto</option>') ||
@@ -341,20 +343,20 @@ if (!html.includes('<summary>Paddle</summary>') ||
         html.indexOf('<option value="natural">Natural</option>') ||
     html.indexOf('<option value="natural">Natural</option>') >
         html.indexOf('<option value="original">Original</option>') ||
-    !html.includes('<strong>Natural:</strong>') ||
-    !html.includes('<strong>Original:</strong>') ||
-    !html.includes('<strong>Auto:</strong>') ||
-    html.indexOf('<strong>Natural:</strong>') >
-        html.indexOf('<strong>Original:</strong>') ||
-    html.indexOf('<strong>Original:</strong>') >
-        html.indexOf('<strong>Auto:</strong>') ||
-    !html.includes('like a normal brew switch') ||
-    !html.includes('original Tater Mazer Shot Stopper') ||
-    !html.includes('move the paddle ON during the shot') ||
-    !html.includes('Prefer not to press the scale') ||
-    !html.includes('Always finishes by weight') ||
-    !html.includes('behaves like Natural') ||
-    !html.includes('behaves like Original') ||
+    !paddleHelp.includes('<strong>Natural:</strong>') ||
+    !paddleHelp.includes('<strong>Original:</strong>') ||
+    !paddleHelp.includes('<strong>Auto:</strong>') ||
+    paddleHelp.indexOf('<strong>Natural:</strong>') >
+        paddleHelp.indexOf('<strong>Original:</strong>') ||
+    paddleHelp.indexOf('<strong>Original:</strong>') >
+        paddleHelp.indexOf('<strong>Auto:</strong>') ||
+    !html.includes('ON starts and OFF stops') ||
+    !html.includes('promotes that shot to Natural') ||
+    !html.includes('Until the first OFF, automatic stopping waits') ||
+    !html.includes('OFF after the rinse window demotes the current shot to Original-style hands-off automation') ||
+    !html.includes('Neither transition stops early') ||
+    !html.includes('early ON→OFF demotes the tentative shot to a rinse') ||
+    !html.includes('Without weight control, OFF stops normally') ||
     !ui.includes("paddleMode:['auto','natural','original']") ||
     !ui.includes("if($('paddleMode'))$('paddleMode').value=") ||
     !network.includes('"paddleMode"') ||
@@ -456,10 +458,15 @@ if (!html.includes('<summary>Switch</summary>') ||
     !html.includes('Reed confirm timeout') ||
     !html.includes('Button press') ||
     !html.includes('Button release') ||
-    !html.includes('Whether a shot starts and stops when you press the button or when you release it') ||
-    !html.includes('on/off sensor to agree') ||
-    !html.includes('it trusts the sensor') ||
-    !html.includes('undone if the hold exceeds this limit') ||
+    !html.includes('<strong>Button press:</strong>') ||
+    !html.includes('<strong>Button release:</strong>') ||
+    !html.includes('shot state start or stop when the button is pressed') ||
+    !html.includes('demotes the tentative shot to a rinse') ||
+    !html.includes('only after a short release') ||
+    !html.includes('starts a rinse directly, never a shot') ||
+    !html.includes('machine sensor to confirm that water started or stopped') ||
+    !html.includes('the displayed state follows the sensor') ||
+    !html.includes('Longer holds remain manual') ||
     html.includes('<summary>Momentary</summary>') ||
     html.indexOf('<summary>Paddle</summary>') >
         html.indexOf('<summary>Switch</summary>') ||
@@ -468,7 +475,7 @@ if (!html.includes('<summary>Switch</summary>') ||
     html.indexOf('id="stopPulseMs"') >
         html.indexOf('<summary>No-scale BBW</summary>') ||
     !html.includes(
-        'when the stopper needs to stop the machine for you') ||
+        'How long Shot Stopper holds the machine button when stopping automatically') ||
     !ui.includes('stopPulseMs:number(') ||
     !ui.includes("if($('stopPulseMs'))$('stopPulseMs').value=") ||
     !ui.includes('Auto-stop pulse') ||
@@ -490,10 +497,10 @@ if (!html.includes('<summary>Switch</summary>') ||
     ui.includes('id="overrideBrewingButton"') ||
     ui.includes("d.classList.contains('momentaryMachine')&&!d.classList.contains('reedMachine')") ||
     !html.includes('Assume idle when the scale connects') ||
-    !html.includes('treat the machine as idle') ||
+    !html.includes('marks the machine as idle without pressing its button') ||
     !html.includes('Shot reaction timeout') ||
     !html.includes(
-        'if the scale stays quiet this long, assume the machine did not start') ||
+        'If the scale shows no coffee for this long after Start') ||
     !html.includes('Override idle') ||
     !html.includes('Override brewing') ||
     !css.includes('html.reedMachine .switchOnly') ||
@@ -575,7 +582,7 @@ if (!html.includes('class="cfgGroup paddleOnly"><summary>Paddle</summary>') ||
     !html.includes('Lets you flush the group with a short paddle flip') ||
     !html.includes('Lets you flush the group with a long press from idle') ||
     !html.includes('How long to hold the switch from idle before a rinse starts') ||
-    !html.includes('How long water runs through the group after a rinse starts') ||
+    !html.includes('How long water runs after a Quick rinse begins') ||
     !html.includes('a long press is left to the machine') ||
     !html.includes('id="rinseButton" class="btnGlyph" title="Start rinse"') ||
     html.includes('id="rinseButton" class="btnGlyph paddleOnly"') ||
@@ -627,7 +634,7 @@ if (!ui.includes('id="learnedOffsetG"') ||
     ui.includes('Reset learned stop offset to baseline') ||
     !css.includes('.bbwLearning .btnBar{max-width:22rem}') ||
     css.includes('#bbwAlgorithm{width:100%}') ||
-    !ui.includes('Save bases before resetting.') ||
+    !ui.includes('Save changed baseline values before resetting') ||
     !network.includes('weightOffsetBaselineG') ||
     !ui.includes('weightOffsetBaselineG')) {
   throw new Error('Learned stop offset baseline must be wired like A→M baseline reset');
@@ -736,15 +743,15 @@ if (!html.includes('id="postTareBaselineGraceS" type="number" min="0.5" max="10"
 if (!ui.includes("rangeCheck('dripDelayS',0,10,'Drip delay',{unit:'s'})") ||
     !ui.includes("dripDelayMs:sToMs('dripDelayS')") ||
     !ui.includes("$('dripDelayS').value=String((c.dripDelayMs??3000)/1000)") ||
-    !ui.includes('Wait for drips before saving final weight and learning the stop offset.') ||
+    !ui.includes('How long to wait after water stops before recording the final drink weight and learning from it.') ||
     !network.includes('\\"dripDelayMs\\":%lu') ||
     !network.includes('Drip delay must be from 0 to 10 s.') ||
     !network.includes('candidate.dripDelayMs')) {
   throw new Error('Drip delay must be wired through Settings, status/settings, and config validation');
 }
 if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
-    !html.includes('Eclair uses the normal tare and timer') ||
-    !html.includes('It has no volume, beep, mode, or combined tare-and-start options') ||
+    !html.includes('Eclair uses the regular tare and timer workflow') ||
+    !html.includes('It has no extra volume or sound options') ||
     html.indexOf('<summary>AtomHeart Eclair</summary>') <
         html.indexOf('<summary>Felicita</summary>') ||
     html.indexOf('<summary>AtomHeart Eclair</summary>') >

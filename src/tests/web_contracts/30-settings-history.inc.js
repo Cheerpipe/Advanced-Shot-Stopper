@@ -140,7 +140,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     ui.includes('id="cupPresentWeightG"') ||
     html.includes('id="cupPresentWeightG"') ||
     html.includes('id="requireCupToStart" type="checkbox" checked') ||
-    !ui.includes('place the cup after connect so it can be detected.') ||
+    !ui.includes('If the cup was already tared before connection, lift it and place it again.') ||
     !ui.includes('id="homeCupProtectionEnabled"') ||
     html.indexOf('<summary>Slow extraction guard</summary>') < 0 ||
     html.indexOf('<summary>A→M time guard</summary>') < 0 ||

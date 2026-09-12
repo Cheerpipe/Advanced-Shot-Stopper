@@ -56,6 +56,34 @@ for (const value of [...new Set(Object.values(
 const html = allHtml;
 const js = allJs;
 const ui = allHtml + '\n' + allJs;
+const settingsHtml = partialHtml.settings;
+for (const field of settingsHtml.matchAll(
+    /<(input|select|textarea)\b[^>]*\bid="([^"]+)"[^>]*>/g)) {
+  const labelStart = settingsHtml.lastIndexOf('<label', field.index);
+  const paragraphStart = settingsHtml.lastIndexOf('<p', field.index);
+  const tag = labelStart > paragraphStart ? 'label' : 'p';
+  const start = Math.max(labelStart, paragraphStart);
+  const end = settingsHtml.indexOf(`</${tag}>`, field.index);
+  const container = start >= 0 && end >= field.index
+    ? settingsHtml.slice(start, end)
+    : '';
+  if (!container.includes('class="fieldHint')) {
+    throw new Error(`Settings field ${field[2]} must have a localized field hint`);
+  }
+}
+for (const [id, names] of Object.entries({
+  bbwAlgorithm: ['Linear regression + offset correction:', 'Linear prediction + adaptive EWMA:'],
+  autoToManualGuardLimitMode: ['Auto:', 'Manual:'], paddleMode: ['Natural:', 'Original:', 'Auto:'],
+  momentaryStartEdge: ['Button press:', 'Button release:'],
+  noScaleBbwMode: ['Allow manual brewing:', 'Warn once, then allow:', 'Require a scale:'],
+  scalePreference: ['First available:', 'Prefer selected:', 'Preferred only:'],
+  alertOutputChannel: ['Scale priority:', 'Buzzer only:', 'Scale only:'],
+})) {
+  const start = settingsHtml.indexOf(`id="${id}"`);
+  const help = settingsHtml.slice(start, settingsHtml.indexOf('</label>', start));
+  if (start < 0 || names.some((name) => !help.includes(`<strong>${name}</strong>`)))
+    throw new Error(`Complex Settings selector ${id} must explain every option with a bold name`);
+}
 if (/<details\b[^>]*\bopen\b/i.test(allHtml)) {
   throw new Error('All collapsible <details> groups must start collapsed (no open attribute)');
 }
@@ -95,9 +123,9 @@ for (const name of VIEW_NAMES) {
 
 const htmlBytes = Buffer.byteLength(allHtml, 'utf8');
 const jsBytes = Buffer.byteLength(allJs, 'utf8');
-// BBW help is condensed to fund the selector; source-only allowance adds 1 KiB
-// for adaptive readback/CSV. Compressed assets and firmware budgets stay fixed.
-if (htmlBytes > 54900) {
+// Complete, human-readable settings help is part of the UI contract. Adding a
+// setting must raise this allowance when needed; hints must not be cut to fit it.
+if (htmlBytes > 63000) {
   throw new Error('Web UI HTML source exceeds the authoring budget');
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
@@ -106,10 +134,10 @@ if (htmlBytes > 54900) {
 // source allowance does not change the compressed asset or firmware budgets.
 // Opt-in power control/activity leases add 1 KiB of authoring allowance after
 // sharing the Admin toggle persistence path. Compressed/firmware caps unchanged.
-if (jsBytes > 168380) {
+if (jsBytes > 169000) {
   throw new Error('Web UI JS source exceeds the authoring budget');
 }
-if (htmlBytes + jsBytes > 223280) {
+if (htmlBytes + jsBytes > 232000) {
   throw new Error('Web UI HTML+JS source exceeds the combined authoring budget');
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
@@ -140,7 +168,7 @@ if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     html.includes('id="ntpServerCustom" type="number"') ||
     !html.includes('id="staSsid" type="text" maxlength="32" autocomplete="off"') ||
     !html.includes('id="ntpServerCustom" type="text" maxlength="63" placeholder="e.g. ntp.example.com" autocomplete="off"') ||
-    !html.includes('> Scale lost<small class="fieldHint">Beeps when the scale disconnects') ||
+    !html.includes('> Scale lost<small class="fieldHint">When on, the built-in buzzer warns whenever the scale disconnects') ||
     html.includes('Scale lost (BBW)') ||
     !html.includes('option value="fast" selected') ||
     !html.includes('option value="rapid">Rapid') ||
@@ -164,8 +192,8 @@ if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !html.includes('class="buzzerOpt scaleIncapableOpt"><input id="buzzerScaleConnectedBeep"') ||
     html.includes('buzzerOnlyOpt') ||
     !html.includes('option value="4" selected') ||
-    !html.includes('keep the scale silent on connect') ||
-    !html.includes('How loud the scale is when it connects. Used when sounds play on the scale (<strong>Scale only or Scale priority</strong>).') ||
+    !html.includes('silences the Bookoo speaker on its first connection') ||
+    !html.includes('Sets the Bookoo speaker volume when alerts use the scale. Disabled silences the scale but does not change the built-in buzzer (<strong>Scale only or Scale priority</strong>).') ||
     !html.includes('<strong>Requires shot-start tare.</strong>') ||
     !html.includes('Applies when <strong>Buzzer only</strong> is selected.')) {
   throw new Error('Web UI must show paddle state, scale beep options, and buzzer alerts');
@@ -356,7 +384,7 @@ if (html.indexOf('<summary>Brew by Weight</summary>') >
     html.includes('id="requireCupToStart" type="checkbox" checked') ||
     !ui.includes('id="cupProtectionEnabled" type="checkbox" checked> Cup protection') ||
     !ui.includes('cupProtectOpt') ||
-    !ui.includes('place the cup after connect so it can be detected.') ||
+    !ui.includes('If the cup was already tared before connection, lift it and place it again.') ||
     !ui.includes('id="homeCupProtectionEnabled"') ||
     html.indexOf('id="homeAvoidAccidentalTouchEnabled"') >
         html.indexOf('id="homeCupProtectionEnabled"') ||

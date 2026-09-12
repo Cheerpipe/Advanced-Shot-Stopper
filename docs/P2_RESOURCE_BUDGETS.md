@@ -39,18 +39,31 @@ the union because a preset operation also carries configuration. Persisted
 record layouts are unchanged.
 
 Settings V11/history V4 change byte meanings through explicit migration,
-without growing either blob. Web gzip remains capped at 64,000 bytes combined:
+without growing either blob. Web gzip is capped at 66,000 bytes combined:
 500 bytes of the shell-JS allowance are reassigned to runtime (5,444 and 32,000
 bytes respectively before the PM allocation below). Source authoring limits are
-54,900 bytes HTML and 168,380 bytes JS, 223,280 combined: 1,000 more source bytes for selector readback/CSV
-after condensing BBW help. They are measured after the selected Web UI catalog
-is rendered, excluding catalog metadata and keys; every emitted byte still
-counts toward the unchanged per-asset and combined gzip limits. These source
-allowances do not raise firmware or combined compressed-asset limits.
+63,000 bytes HTML and 169,000 bytes JS, 232,000 combined. This reviewed increase
+preserves complete field-level help and separate explanations for each option
+when a selector changes the user's workflow or has materially different modes.
+The limits are measured after the selected Web UI catalog is rendered, excluding
+catalog metadata and keys; every emitted byte still counts toward the per-asset
+and combined gzip limits. These source allowances do not by themselves raise
+firmware or combined compressed-asset limits.
+
+Every new setting must include concise, natural help that explains its effect on
+the barista's workflow, including what changes when an option is enabled or
+disabled. Adding a setting is expected to increase the Web UI budget, and the
+applicable source, compressed-asset, and firmware limits must be raised through
+the normal measured review when necessary. Removing, shortening, or making help
+less useful merely to fit an earlier budget is not acceptable: a clear,
+friendly, well-constructed UI takes priority over preserving the previous Web UI
+byte allowance.
 Power management shares the Admin toggle persistence handler and adds 1,024
 source bytes of allowance. It reallocates 400 compressed bytes from shell JS:
 current limits are 5,044 shell JS, 32,200 runtime and 5,800 secondary views.
-The combined 64,000-byte Web gzip cap and firmware/DRAM caps are unchanged.
+Complete Settings help raises the reviewed combined Web gzip cap from 64,000 to
+66,000 bytes; the measured English build is 65,248 bytes. Firmware and DRAM caps
+are unchanged.
 The asynchronous configuration-save acknowledgement adds 256 source bytes of
 allowance for revision/value readback and pending/failed persistence checks;
 it does not raise compressed-asset limits.

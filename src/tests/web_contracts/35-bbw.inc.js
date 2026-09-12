@@ -2,6 +2,10 @@
   const assert = require('assert');
   const vm = require('vm');
   assert(html.includes('<option value="legacy">Linear regression + offset correction</option>'));
+  assert(html.includes('<strong>Linear regression + offset correction:</strong>'));
+  assert(html.includes('applies the full final-weight error from the latest successful shot'));
+  assert(html.includes('<strong>Linear prediction + adaptive EWMA:</strong>'));
+  assert(html.includes('it never changes to the other algorithm automatically'));
   assert(!html.includes('<div class="row"><label>Target (g)'));
   for (const id of ['resetCalibrationButton', 'resetEwmaButton'])
     assert(html.includes('id="' + id + '" class="btnGlyph mutable"'));
@@ -17,7 +21,7 @@
     return node;
   };
   for (const id of ['bbwAlgorithm', 'brewByWeight', 'learnedOffsetG', 'bbwAlpha',
-    'bbwAlphaStatus', 'bbwAlgorithmHelp', 'resetCalibrationButton',
+    'bbwAlphaStatus', 'resetCalibrationButton',
     'resetEwmaButton', 'weightOffsetBaselineG', 'bbwAlphaBaseline', 'goalWeightG']) element(id);
   const learning = element('learning', ['bbwLearning']);
   learning.querySelectorAll = () => [elements.get('weightOffsetBaselineG'),
@@ -25,8 +29,6 @@
   const ewma = element('ewma', ['bbwEwma']);
   ewma.querySelectorAll = () => [elements.get('bbwAlphaBaseline'), elements.get('resetEwmaButton')];
   const select = elements.get('bbwAlgorithm');
-  Object.defineProperty(select, 'selectedOptions', {get: () => [{textContent:
-    select.value === 'legacy' ? 'Linear regression + offset correction' : 'Linear prediction + adaptive EWMA'}]});
   const context = vm.createContext({$: id => elements.get(id), controlsMutable: true,
     brewDirty: false, configDirty: false, configLoaded: true, formRev: 1,
     document: {querySelectorAll: () => [learning, ewma]}});
@@ -46,7 +48,6 @@
   refresh();
   assert(ewma.classList.contains('hidden'));
   assert(elements.get('bbwAlphaBaseline').disabled);
-  assert.equal(elements.get('bbwAlgorithmHelp').textContent, 'Linear regression + offset correction');
   assert.equal(elements.get('learnedOffsetG').textContent, '0.00 g');
   assert(elements.get('resetCalibrationButton').disabled);
   vm.runInContext('bbwReadback.bbwAlpha=.5;bbwReadback.bbwAlphaSource="learned";bbwReadback.bbwEvidenceCount=20', context);
