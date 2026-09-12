@@ -732,6 +732,7 @@ if (!statsSection ||
     !runtimeJs.includes('const BIN=0.5,tMax=6e4/1e3,tLow=28,tHigh=32') ||
     !js.includes("fillChartTicks(host.lastChild,[[0,'0 s'],[tLow,L(tLow,'s')],[tHigh,L(tHigh,'s')],[tMax,L(tMax,'s')]],tMax)") ||
     !css.includes('#statsDurChart{margin-top:') ||
+    !css.includes('.shotCurve .shotSparkHost,#statsDurChartPlot{display:grid;') ||
     !runtimeJs.includes('function renderShotStats(){') ||
     !runtimeJs.includes('shotHistory.shots.slice(0,SHOTS_PAGE_SIZE)') ||
     !runtimeJs.includes('renderShotStats();') ||
