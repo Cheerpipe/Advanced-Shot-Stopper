@@ -533,10 +533,10 @@ if (!ui.includes('id="shotTable"') ||
     !runtimeJs.includes('shotDisplayActualG(ls.currentWeightG,cv.wCg)') ||
     !runtimeJs.includes('return y!=null&&y>=1') ||
     !runtimeJs.includes('shotDisplayFlowGS(r)') ||
-    !runtimeJs.includes('const live=!!(s.cycle&&s.cycle.active)') ||
+    !runtimeJs.includes('const live=!!s.cycle?.active') ||
     runtimeJs.includes('const live=!!((s.cycle&&s.cycle.active)||s.liveShot)') ||
     runtimeJs.includes('const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
-    !runtimeJs.includes('const dropMs=live?(src.firstDropElapsedMs||0):(ls&&ls.firstDropElapsedMs||0)') ||
+    !runtimeJs.includes('dropMs=src?.firstDropElapsedMs||0') ||
     !runtimeJs.includes('formatShotEnded(r.stopDetail)') ||
     !js.includes("labels=['Time','Dur','Goal','Weight','Err%','Flow','1st drop','Ended','Shot']") ||
     js.includes("labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Ended','Shot']") ||

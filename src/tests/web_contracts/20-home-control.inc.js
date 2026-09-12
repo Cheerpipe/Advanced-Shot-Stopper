@@ -48,6 +48,146 @@
   if (!host.hidden || host.innerHTML) throw new Error('Missing shot data must still hide the charts');
 }
 
+{
+  const clockStart = runtimeJs.indexOf('let shotTick=');
+  const clockEnd = runtimeJs.indexOf('function formatExtractionGuard(');
+  const updateStart = runtimeJs.indexOf('function updateShot(s)');
+  const updateEnd = runtimeJs.indexOf('function statusUrl()');
+  if (clockStart < 0 || clockEnd < clockStart || updateStart < 0 || updateEnd < updateStart) {
+    throw new Error('Live shot clock helpers must remain independently testable');
+  }
+  const source = runtimeJs.slice(clockStart, clockEnd) +
+      runtimeJs.slice(updateStart, updateEnd);
+  function harness() {
+    let now = 0, nextId = 1, panelRenders = 0, panelClears = 0;
+    let stopClock = () => {};
+    const pending = new Map();
+    const elapsed = {textContent: ''};
+    const clear = {disabled: false, dataset: {}};
+    const document = {hidden: false};
+    const $ = (id) => {
+      if (id === 'shotElapsed') return elapsed;
+      if (id === 'clearLastShotButton') return clear;
+      if (id === 'shotRating') return {};
+      throw new Error('Live timer touched non-duration DOM: ' + id);
+    };
+    const setTimeout = (fn, delay) => {
+      const id = nextId++;
+      pending.set(id, {fn, at: now + delay});
+      return id;
+    };
+    const clearTimeout = (id) => pending.delete(id);
+    const renderShotPanel = (shot) => {
+      panelRenders++;
+      elapsed.textContent = (shot.elapsedMs / 1000).toFixed(1) + 's';
+    };
+    const clearShotPanel = () => {
+      stopClock();
+      panelClears++;
+      elapsed.textContent = '—';
+    };
+    const clock = new Function('$', 'document', 'performance', 'setTimeout',
+        'clearTimeout', 'renderShotPanel', 'clearShotPanel',
+        'updateStatusGuards', 'shotDisplayActualG', 'fillStarRate',
+        'rateLastShotValue', 'controlsMutable', 'activeView', source +
+        ';return{sync:runShot,stop:()=>runShot(0),update:updateShot,' +
+        'view:v=>activeView=v,anchor:()=>shotAt,timer:()=>shotTick};')(
+        $, document, {now: () => now}, setTimeout, clearTimeout,
+        renderShotPanel, clearShotPanel, () => {}, (value) => value, () => {},
+        () => {}, false, 'home');
+    stopClock = clock.stop;
+    clock.view('home');
+    const advance = (delta) => {
+      const target = now + delta;
+      for (;;) {
+        let dueId = 0, dueAt = Infinity;
+        for (const [id, item] of pending) {
+          if (item.at < dueAt) [dueId, dueAt] = [id, item.at];
+        }
+        if (dueAt > target) break;
+        now = dueAt;
+        const item = pending.get(dueId);
+        pending.delete(dueId);
+        item.fn();
+      }
+      now = target;
+    };
+    return {clock, advance, elapsed, document, pending,
+      panelRenders: () => panelRenders, panelClears: () => panelClears};
+  }
+  const live = (ms, stale = false) => ({cycle: {active: true, shotType: 'auto'},
+    lastShot: {valid: false}, config: {goalWeightG: 36}, scale: {}, shotCurve: {},
+    circuitElapsedMs: ms, snapshotStale: stale});
+  const h = harness();
+  h.clock.update(live(200));
+  if (h.elapsed.textContent !== '0s' || h.pending.size !== 1) {
+    throw new Error('Live shot duration must start at zero with one aligned callback');
+  }
+  h.advance(800);
+  h.advance(1000);
+  h.advance(1000);
+  if (h.elapsed.textContent !== '3s' || h.panelRenders() !== 1 || h.pending.size !== 1) {
+    throw new Error('Live shot duration must advance 0, 1, 2, 3 without polling or panel renders');
+  }
+  h.clock.sync(live(2700));
+  if (h.elapsed.textContent !== '2s' || h.pending.size !== 1) {
+    throw new Error('A fresh status must correct the live timer backwards');
+  }
+  h.advance(300);
+  h.clock.sync(live(3800));
+  if (h.elapsed.textContent !== '3s' || h.pending.size !== 1) {
+    throw new Error('A fresh status must correct the live timer forwards without extra callbacks');
+  }
+  h.advance(200);
+  const anchor = h.clock.anchor();
+  h.clock.sync(live(100, true));
+  if (h.elapsed.textContent !== '4s' || h.clock.anchor() !== anchor || h.pending.size !== 1) {
+    throw new Error('A stale status must not replace or delay a fresh live timer anchor');
+  }
+  const stale = harness();
+  stale.clock.sync(live(2200, true));
+  if (stale.elapsed.textContent !== '2s' || stale.pending.size || stale.clock.anchor()) {
+    throw new Error('An initial stale status may render but must not start projection');
+  }
+  const invalid = harness();
+  invalid.clock.update(live(undefined));
+  if (invalid.pending.size || invalid.clock.anchor()) {
+    throw new Error('A non-finite live duration must not retain an anchor or schedule a callback');
+  }
+  h.document.hidden = true;
+  h.clock.stop();
+  if (h.pending.size || h.clock.anchor()) throw new Error('Hidden Home must stop the live timer');
+  h.document.hidden = false;
+  h.clock.sync(live(5000));
+  h.clock.view('stats');
+  h.clock.sync(live(5100));
+  if (h.pending.size || h.clock.anchor()) throw new Error('Leaving Home must stop the live timer');
+  h.clock.view('home');
+  h.clock.stop();
+  if (h.pending.size || h.clock.anchor()) throw new Error('Inactive Web UI must stop the live timer');
+
+  const end = harness();
+  end.clock.update(live(1200));
+  end.advance(2000);
+  end.clock.update({cycle: {active: false}, lastShot: {valid: true, durationMs: 4320,
+    currentWeightG: 36, goalWeightG: 36, shotType: 'auto', shotLogId: 7},
+    config: {}, scale: {}, shotCurve: {}});
+  end.advance(2000);
+  if (end.elapsed.textContent !== '4.3s' || end.pending.size || end.panelRenders() !== 2) {
+    throw new Error('Current-to-Last must stop projection and keep exact decimal duration');
+  }
+  end.clock.update({cycle: {active: false}, lastShot: {valid: false},
+    config: {}, scale: {}, shotCurve: {}});
+  if (end.elapsed.textContent !== '—' || end.pending.size || end.panelClears() !== 1) {
+    throw new Error('Clearing the last shot must leave no live duration callback');
+  }
+  if (!runtimeJs.includes('statusTimer=0;runShot(0);stopExtraPollsHook()') ||
+      !appJsSource.includes('document.hidden?R.stopViewPolls():startView(activeView)') ||
+      !runtimeJs.includes('runShot(live?s:0)')) {
+    throw new Error('Route, visibility, inactivity, and final-shot lifecycle must cancel the live timer');
+  }
+}
+
 if (!statusSection || !statusSection[1].includes('class="statusColumn"') ||
     statusSection[1].includes('class="row"') ||
     (statusSection[1].match(/class="metric"/g) || []).length !== 2 ||
