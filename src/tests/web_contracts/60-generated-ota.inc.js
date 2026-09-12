@@ -678,22 +678,6 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
     throw new Error(
       'OTA must confirm a bootable alternative exists before arming a rollback');
   }
-  // Running out of URI handler slots makes registration fail at runtime, which
-  // stops the HTTP server outright: no Web UI, and no way to update over the
-  // air. It is a silent runtime failure, so it has to be caught here.
-  {
-    const limit = network.match(/config\.max_uri_handlers = (\d+);/);
-    if (limit == null) {
-      throw new Error('Could not find config.max_uri_handlers');
-    }
-    const routes = (network.match(/registerHandler\(server_/g) || []).length;
-    if (routes >= Number(limit[1])) {
-      throw new Error(
-        `${routes} routes registered with max_uri_handlers=${limit[1]}; raise ` +
-        'the limit so registration keeps headroom');
-    }
-  }
-
   // The OTA object is spliced into the admin status, so an unclosed brace here
   // would make the whole Admin page unparseable, not just the OTA panel.
   if (!/const size_t tagCapacity = capacity - 1;/.test(network) ||

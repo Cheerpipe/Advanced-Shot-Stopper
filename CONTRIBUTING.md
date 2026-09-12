@@ -28,6 +28,9 @@ tests never install packages or contact hardware implicitly.
    behavior in the same change. Link to reference tables rather than copying them.
 6. Run `./scripts/dev validate` on the final changed paths. Consult
    [VALIDATION.md](VALIDATION.md) for required gates and evidence.
+   Changes to HTTP route or handler definitions must also run
+   `./scripts/dev test web`; its first check verifies that registered routes
+   remain below the configured handler limit.
 7. Update the plan or audit with final status and evidence. Report risk, checks, failures,
    full-log location and any manual evidence
    still needed, plus an English proposed commit title. Commit only if requested.

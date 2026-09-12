@@ -10,3 +10,5 @@
   OTA, serial, persistence, and Web UI contracts.
 - Keep target-specific code behind existing boundaries. Run the gate selected by
   `VALIDATION.md`; record HIL/manual work as pending rather than simulating it.
+- When changing an HTTP route or handler definition, run `./scripts/dev test web`;
+  its `http-route-capacity` check must pass before broader Web contracts.

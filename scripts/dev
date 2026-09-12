@@ -22,7 +22,7 @@ AREAS = {
     "machine": ("paddle, momentary inputs, and physical actuation", ["src/ShotStopperMachine.h", "src/ShotStopperMachineTypes.h", "src/tests/momentary_machine_host_test.cpp", "docs/HARDWARE.md"]),
     "scale": ("scale link, sensing, and worker ownership", ["src/ShotStopperScaleLink.h", "src/ShotStopperScaleSense.h", "src/ShotStopperScaleWorker.cpp", "docs/CONCURRENCY.md"]),
     "ble": ("scale protocols and companion BLE", ["libraries/EspressoScaleBLE/src", "libraries/EspressoScaleBLE/tests", "src/ble", "src/tests/ble_companion_protocol_host_test.cpp"]),
-    "network": ("HTTP transport and outbound webhooks", ["src/ShotStopperNetwork.cpp", "src/ShotStopperWebhook.cpp", "src/tests/webhook_error_host_test.cpp", "docs/RESOURCE_OWNERSHIP.md"]),
+    "network": ("HTTP transport and outbound webhooks", ["src/ShotStopperNetwork.cpp", "src/ShotStopperWebhook.cpp", "src/tests/check_http_route_capacity.js", "src/tests/webhook_error_host_test.cpp", "docs/RESOURCE_OWNERSHIP.md"]),
     "ota": ("verified and resumable firmware update", ["src/ShotStopperOta.cpp", "src/ShotStopperOtaImage.h", "src/tests/run_ota_tests.sh", "docs/features/ota.md"]),
     "persistence": ("settings, logs, recovery, and migrations", ["src/ShotStopperPersistence.h", "src/ShotStopperDurableStores.h", "src/tests/persistence_host_test.cpp", "docs/ARCHITECTURE.md"]),
     "web": ("embedded browser UI and asset generation", ["src/web", "scripts/gen_web_ui.js", "src/tests/check_web_assets.js", "docs/SCREENSHOTS.md"]),
@@ -30,6 +30,8 @@ AREAS = {
     "tests": ("host, Web, OTA, and architecture tests", ["src/tests", "libraries/EspressoScaleBLE/tests", "CMakePresets.json", "VALIDATION.md"]),
 }
 SECRET = re.compile(r"(?i)(password|token)(\s*[=:]\s*|\s+)\S+")
+HTTP_ROUTE_CAPACITY_STEP = (
+    "http-route-capacity", ["node", "src/tests/check_http_route_capacity.js"])
 
 
 def redact(value: str) -> str:
@@ -366,7 +368,8 @@ def main() -> int:
                 if require(["node"]) or any(not dep.exists() for dep in deps):
                     return record(command, "R1", verbosity,
                                   ["Web dependencies missing; run npm ci explicitly"], 127, "web")
-                steps = [("web-contracts", ["node", "src/tests/check_web_assets.js"])]
+                steps = [HTTP_ROUTE_CAPACITY_STEP,
+                         ("web-contracts", ["node", "src/tests/check_web_assets.js"])]
             elif profile == "tooling":
                 steps = [("tooling-contracts", ["python3", "src/tests/dev_tooling_test.py"])]
             else:
@@ -400,7 +403,8 @@ def main() -> int:
             steps = cmake_steps("normal")
             if risk in {"R2", "R3"}:
                 steps += cmake_steps("asan-ubsan") + cmake_steps("tsan")
-                steps += [("architecture", ["python3", "scripts/check_architecture.py"]),
+                steps += [HTTP_ROUTE_CAPACITY_STEP,
+                          ("architecture", ["python3", "scripts/check_architecture.py"]),
                           ("web-contracts", ["node", "src/tests/check_web_assets.js"])]
                 for arch in ("n8r4", "n16r8"):
                     steps.append((f"idf-{arch}", ["./scripts/build-idf", "--arch", arch,

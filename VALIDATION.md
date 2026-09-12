@@ -20,6 +20,14 @@ in [Build](docs/BUILD.md), [scripts](docs/SCRIPTS.md), and
 the [manual test plan](docs/MANUAL_TEST_PLAN.md) and curated evidence by
 [target trace qualification](docs/P2_TARGET_TRACE.md).
 
+Any change to `src/ShotStopperNetwork.cpp`,
+`src/network/ShotStopperHttpLifecycle.inc`, or another source that defines or
+registers HTTP routes or handlers must run `./scripts/dev test web`. That profile,
+and every R2/R3 validation gate, runs the named `http-route-capacity` check before
+the broader Web contracts. The check counts all `registerHandler(server_, ...)`
+registrations in the network sources and requires `max_uri_handlers` to be
+strictly greater, preserving at least one spare slot.
+
 Missing tools or dependencies fail profiles that require them with exit 127.
 Tests never bootstrap packages or access hardware/network implicitly. R3 is not
 release-ready while required HIL/manual evidence is pending. Image and memory
