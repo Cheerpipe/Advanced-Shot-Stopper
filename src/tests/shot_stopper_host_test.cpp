@@ -7936,14 +7936,33 @@ void it04_reconnect_and_setting_changes_do_not_place() {
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
 }
 
-void it05_queued_tare_cancels_before_start_or_removal() {
+void it05_queued_tare_is_preempted_by_same_start_or_removal() {
   prepareIdleTare();
+  runtimeConfig.alertOutputChannel =
+      static_cast<uint8_t>(AlertOutputChannel::BUZZER_ONLY);
   idleCup(80.0f);
-  beginCycle();
-  CHECK(!session.active);
-  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(localBuzzer.activeCue == BuzzerCue::TARE);
+  const uint32_t idleRequestId = idleTare.requestId;
+  const uint32_t rawOnAtMs = startCycle();
+  CHECK(session.active);
+  CHECK(getRelaySafetySnapshot().closed);
+  CHECK(localBuzzer.activeCue == BuzzerCue::TARE_START);
+  CHECK(localBuzzer.pendingCue == BuzzerCue::NONE);
+  CHECK(idleTare.requestId == 0);
+  CHECK(idleTare.lastReason == IdleTareReason::START_REQUEST);
+  CHECK(idleScaleTareStatus().phase == IdleTarePhase::NONE);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  CHECK(commandCount(ScaleCommandType::START_TIMER_AND_TARE) == 1);
+  const ScaleCommand start = queuedCommandAt(1);
+  CHECK(start.idleTareRequestId == 0);
+  CHECK(start.cycleId == session.id);
+  CHECK(session.startedAtMs >= rawOnAtMs);
+  runLoopAfter(125);
+  CHECK(elapsedMs(session.startedAtMs) >= 125);
   CHECK(executeNextScaleCommand());
   CHECK(scale.tareCalls == 0);
+  CHECK(idleTare.lastTerminalRequestId == idleRequestId);
+
   prepareIdleTare();
   idleCup(80.0f);
   idleWeight(0.0f);
@@ -7951,31 +7970,79 @@ void it05_queued_tare_cancels_before_start_or_removal() {
   CHECK(cupPresenceState() == CupPresenceState::ABSENT);
   CHECK(executeNextScaleCommand());
   CHECK(scale.tareCalls == 0);
-}
 
-void it06_executing_and_late_results_cannot_enter_brew() {
   prepareIdleTare();
   idleCup(80.0f);
-  const ScaleCommand command = queuedCommandAt(0);
-  CHECK(claimIdleScaleTare(command.idleTareRequestId));
-  beginCycle();
+  beginCycle(ControlSource::WEB);
   CHECK(!session.active);
-  CHECK(!cancelIdleScaleTare(command.idleTareRequestId));
-  finishIdleScaleTare(command.idleTareRequestId, true);
-  idleCup(0.0f);
+  prepareIdleTare();
+  idleCup(80.0f);
+  CHECK(!beginRinseCycle(ControlSource::WEB));
+  CHECK(!session.active);
+
+  prepareIdleTare();
+  idleCup(80.0f);
+  const ScaleCommand racing = queuedCommandAt(0);
+  std::atomic<bool> go{false};
+  std::atomic<bool> claimed{false};
+  std::thread worker([&]() {
+    while (!go.load()) std::this_thread::yield();
+    claimed.store(claimIdleScaleTare(racing.idleTareRequestId));
+  });
+  go.store(true);
   startCycle();
+  worker.join();
   CHECK(session.active);
-  session.awaitingPostTareBaseline = false;
-  const bool retareBefore = session.retarePerformed;
-  ScaleEvent late;
-  late.type = ScaleEventType::TARE_RESULT;
-  late.cycleId = session.id; // Even an accidentally matching cycle is isolated.
-  late.idleTareRequestId = command.idleTareRequestId;
-  late.writeSucceeded = true;
-  CHECK(publishScaleEvent(late, true));
-  processScaleWorkerEvents();
-  CHECK(!session.awaitingPostTareBaseline);
-  CHECK(session.retarePerformed == retareBefore);
+  CHECK(getRelaySafetySnapshot().closed);
+  if (claimed.load()) {
+    CHECK(idleTare.deferredReason == IdleTareReason::START_REQUEST);
+    finishIdleScaleTare(racing.idleTareRequestId, true);
+    releaseIdleTareRequest();
+  }
+  CHECK(idleTare.requestId == 0);
+  CHECK(idleTare.lastReason == IdleTareReason::START_REQUEST);
+  CHECK(executeNextScaleCommand());
+  CHECK(scale.tareCalls == 0);
+}
+
+void it06_writing_and_late_idle_results_cannot_enter_brew() {
+  for (unsigned outcome = 0; outcome < 3; ++outcome) {
+    prepareIdleTare();
+    idleCup(80.0f);
+    const ScaleCommand idle = queuedCommandAt(0);
+    CHECK(claimIdleScaleTare(idle.idleTareRequestId));
+    if (outcome == 2) finishIdleScaleTare(idle.idleTareRequestId, true);
+    const uint32_t rawOnAtMs = startCycle();
+    CHECK(session.active);
+    CHECK(getRelaySafetySnapshot().closed);
+    CHECK(session.startedAtMs >= rawOnAtMs);
+    CHECK(commandCount(ScaleCommandType::START_TIMER_AND_TARE) == 1);
+    const ScaleCommand start = queuedCommandAt(1);
+    CHECK(start.idleTareRequestId == 0);
+    CHECK(start.cycleId == session.id);
+    if (outcome != 2) {
+      CHECK(!cancelIdleScaleTare(idle.idleTareRequestId));
+      finishIdleScaleTare(idle.idleTareRequestId, outcome == 0);
+    }
+    session.awaitingPostTareBaseline = false;
+    const bool retareBefore = session.retarePerformed;
+    ScaleEvent late;
+    late.type = ScaleEventType::TARE_RESULT;
+    late.cycleId = session.id; // Even an accidentally matching cycle is isolated.
+    late.idleTareRequestId = idle.idleTareRequestId;
+    late.writeSucceeded = outcome != 1;
+    CHECK(publishScaleEvent(late, true));
+    processScaleWorkerEvents();
+    if (idleTare.requestId != 0) releaseIdleTareRequest();
+    CHECK(idleTare.requestId == 0);
+    CHECK(idleTare.lastReason == IdleTareReason::START_REQUEST);
+    CHECK(!session.awaitingPostTareBaseline);
+    CHECK(session.retarePerformed == retareBefore);
+    runLoopAfter(125);
+    CHECK(elapsedMs(session.startedAtMs) >= 125);
+    CHECK(executeNextScaleCommand());
+    CHECK(scale.tareCalls == 0);
+  }
 }
 
 void it07_expiry_failure_and_removal_during_write() {
@@ -14132,8 +14199,8 @@ const TestCase testCases[] = {
     {"IT02", it02_idle_zero_allows_guarded_start},
     {"IT03", it03_shot_end_never_tares_remaining_cup},
     {"IT04", it04_reconnect_and_setting_changes_do_not_place},
-    {"IT05", it05_queued_tare_cancels_before_start_or_removal},
-    {"IT06", it06_executing_and_late_results_cannot_enter_brew},
+    {"IT05", it05_queued_tare_is_preempted_by_same_start_or_removal},
+    {"IT06", it06_writing_and_late_idle_results_cannot_enter_brew},
     {"IT07", it07_expiry_failure_and_removal_during_write},
     {"IT08", it08_stability_and_ineligible_placement},
     {"IT09", it09_invalid_samples_queue_failure_and_disconnect},

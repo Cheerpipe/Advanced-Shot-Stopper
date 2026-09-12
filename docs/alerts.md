@@ -22,6 +22,11 @@ stop**: those two cues always play on the local buzzer at the machine circuit re
 edge (close = start, open = stop), including auto, manual, and rinse.
 They never wait for Bluetooth or for the scale timer to start or stop.
 
+If the local tare cue is sounding or waiting when the machine circuit starts,
+the shot-start cue cuts it off and plays immediately. A sound that the scale
+itself has already started as command feedback cannot be recalled over
+Bluetooth, so that scale sound may finish while the local shot-start cue begins.
+
 Without buzzer support, Output channel and the local-only checkboxes are hidden.
 The default channel is then **Scale only**.
 

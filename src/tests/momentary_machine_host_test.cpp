@@ -273,6 +273,28 @@ void releaseUp() {
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
 }
 
+void publishIdlePlacementWeight(float weight) {
+  hostMillis += 150;
+  ScaleEvent event;
+  event.type = ScaleEventType::WEIGHT;
+  event.receivedAtMs = hostMillis;
+  event.weightG = weight;
+  CHECK(publishScaleEvent(event, false));
+  runLoopAfter(0);
+}
+
+void prepareQueuedIdleTare() {
+  resetMomentaryHarness();
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  runtimeConfig.autoTareOutsideBrew = true;
+  for (float weight : {0.0f, 80.0f}) {
+    for (uint8_t i = 0; i < runtimeConfig.retareStabilitySamples; ++i)
+      publishIdlePlacementWeight(weight);
+  }
+  CHECK(idleTare.requestId != 0);
+  CHECK(idleScaleTareStatus().phase == IdleTarePhase::QUEUED);
+}
+
 #if SHOT_STOPPER_MACHINE_TYPE == 2
 void setRawReed(bool on) {
   hostPinLevel[REED_GPIO] = on ? REED_ACTIVE_LEVEL : !REED_ACTIVE_LEVEL;
@@ -317,6 +339,39 @@ void t_release_mode_starts_on_release_not_press() {
   CHECK(getRelaySafetySnapshot().closed);
   releaseUp();
   CHECK(session.active);
+}
+
+void t_idle_tare_yields_to_configured_start_edge() {
+  for (bool startOnPress : {true, false}) {
+    prepareQueuedIdleTare();
+    runtimeConfig.momentaryStartOnPress = startOnPress;
+    const size_t closedBefore = hostRelayClosedWrites;
+    pressDown();
+    CHECK(getRelaySafetySnapshot().closed);
+    CHECK(session.active == startOnPress);
+    CHECK(idleTare.requestId == 0);
+    CHECK(idleTare.lastReason == IdleTareReason::START_REQUEST);
+    releaseUp();
+    CHECK(session.active);
+    CHECK(idleTare.requestId == 0);
+    CHECK(idleTare.lastReason == IdleTareReason::START_REQUEST);
+    CHECK(hostRelayClosedWrites == closedBefore + 1);
+    CHECK(!pulseOutputActive);
+    CHECK(!firmwarePulsePending);
+    size_t startCommands = 0;
+    for (const std::vector<uint8_t> &bytes : scaleCommandQueue->items) {
+      ScaleCommand command;
+      std::memcpy(&command, bytes.data(), sizeof(command));
+      startCommands += command.type == ScaleCommandType::START_TIMER_AND_TARE;
+    }
+    CHECK(startCommands == 1);
+    runLoopAfter(125);
+    CHECK(machineElapsedMs() >= 125);
+#if SHOT_STOPPER_MACHINE_TYPE == 2
+    setRawReed(true);
+    CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+#endif
+  }
 }
 
 void t_second_short_press_stops_without_rinse() {
@@ -563,7 +618,7 @@ void t_rinse_press_demotes_and_pulses() {
 }
 
 void t_rinse_release_mode_starts_directly() {
-  resetMomentaryHarness();
+  prepareQueuedIdleTare();
   enableFirmwareRinseForTest();
   runtimeConfig.momentaryStartOnPress = false;
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
@@ -573,6 +628,8 @@ void t_rinse_release_mode_starts_directly() {
   runLoopAfter(runtimeConfig.rinseGestureMs);
   CHECK(stopperState == StopperState::RINSE);
   CHECK(session.active);
+  CHECK(idleTare.requestId == 0);
+  CHECK(idleTare.lastReason == IdleTareReason::START_REQUEST);
   CHECK(pulseOutputActive);
   CHECK(pulseOutputIsStart);
 }
@@ -2170,6 +2227,7 @@ const TestCase kTests[] = {
     {"P01", t_short_press_mirrors_then_opens},
     {"P36", t_default_starts_on_press},
     {"P40", t_release_mode_starts_on_release_not_press},
+    {"IT05", t_idle_tare_yields_to_configured_start_edge},
     {"P38", t_second_short_press_stops_without_rinse},
     {"P52", t_noscale_last_shot_keeps_logical_duration},
     {"P02", t_guard_reject_does_not_mirror},

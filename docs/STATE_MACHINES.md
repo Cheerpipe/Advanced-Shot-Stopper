@@ -632,9 +632,13 @@ The worker owns `IdleTareStatus` under a short task mutex: NONE → QUEUED →
 WRITING → SUCCEEDED/FAILED. Cancellation and claiming a queued request are
 mutually exclusive; cancellation cannot clear WRITING. No lock spans ATT.
 Terminal status survives a dropped event. Control owns placement provenance
-and keeps start permission closed until completion/settling or bounded cleanup;
-a rejected physical gesture needs release, including if completion arrives in
-the same control pass. STOP queue priority remains unchanged.
+and gives an accepted physical shot start priority over this automation. A
+queued request is canceled; if the worker already owns the ATT write, it keeps
+ownership and may finish while the shot starts normally. Its idle request ID
+routes terminal/effect cleanup away from the new `CycleSession`, whose own
+`START_TIMER_AND_TARE` remains identified by its cycle ID. Activator forwarding
+continues to obey start guards but does not wait for idle tare. STOP queue
+priority remains unchanged.
 
 The control owner validates new samples while QUEUED and publishes their last
 approved sequence under the request mutex. A worker seeing newer published

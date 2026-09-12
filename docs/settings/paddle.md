@@ -55,6 +55,8 @@ shot's internal subtype; it does not switch to Natural's early-stop behavior.
 
 K1 is the relay contact. It closes only when start is allowed. A blocked hold
 (no-scale/cup-start guard or safety fault) requires release and a fresh start.
+Pending idle automatic tare is not a blocked hold: an allowed move to ON starts
+immediately and the shot performs its normal timer/tare sequence.
 
 After automatic stop, K1 stays open even if the paddle is still ON; the
 controller waits for stable OFF before rearming. During an allowed rinse or

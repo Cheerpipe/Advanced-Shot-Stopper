@@ -32,8 +32,12 @@ relative placement; recovery is described in [Cup settings](../settings/cup.md).
 
 A known tared cup remains present at 0 g, so **Require cup to start** accepts
 it. If shot-start tare is enabled, starting the next shot still performs its
-normal tare. See [Tare settings](../settings/tare.md#outside-a-brew) for idle
-prerequisites, pending-command behavior, and reconnect/physical-tare limitations.
+normal tare. If that start races the idle tare, the accepted paddle or button
+gesture starts immediately: queued idle work is canceled, and a write already
+in progress may finish without entering the new shot. You do not need to release
+and retry. Other start protections remain authoritative. See
+[Tare settings](../settings/tare.md#outside-a-brew) for idle prerequisites,
+pending-command behavior, and reconnect/physical-tare limitations.
 
 Placement stability limits the total spread across the observed window, and
 fresh contradictory readings cancel an idle tare that has not started writing.

@@ -72,10 +72,16 @@ The integrated protocols currently do not report a verifiable physical-button
 tare event; a zero reading alone cannot distinguish that action from removing
 an untared cup.
 
-A pending idle tare temporarily blocks a new start. Release the activator and
-try again after the scale settles; the rejected gesture is not replayed. Queued
-requests expire after 1 s; an executing write stays serialized until it returns.
-The independent settling wait is bounded by the 1 s write allowance plus the
+An accepted physical shot or Quick rinse start takes priority over a pending
+idle tare; use the normal paddle or button gesture without releasing and
+retrying. A queued idle tare is canceled, while a scale write already in
+progress may finish. A shot starts its internal timer and sends its normal
+shot-start timer and tare command. The older idle result stays separate from
+the new cycle and cannot trigger a late retare or replace its baseline.
+No-scale, cup, maintenance, and safety protections still block starts normally.
+
+Queued requests expire after 1 s. An executing write stays serialized until it
+returns, and its result is cleaned up within the 1 s write allowance plus the
 configured post-tare grace. Failed requests are not automatically retried on a
 cup that remains present.
 

@@ -46,7 +46,6 @@ bool beginRinseCycle(ControlSource source);
 bool enterRinse();
 
 void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
-  if (idleTareBlocksStart()) return;
   refreshLoopGuardsFromLastIntention();
   if (source == ControlSource::PHYSICAL &&
       noScaleShotGuardNeedsFreshActivator) {
@@ -90,6 +89,8 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
     return;
   }
   cupStartGuardHold = false;
+
+  if (idleTareBlocksStart(source == ControlSource::PHYSICAL)) return;
 
   flushPendingScaleTimerStopNow();
   cancelPendingFinalize("Previous drip analysis cancelled by a new cycle");
@@ -302,7 +303,7 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
 }
 
 bool beginRinseCycle(ControlSource source) {
-  if (idleTareBlocksStart()) return false;
+  if (idleTareBlocksStart(source == ControlSource::PHYSICAL)) return false;
   refreshLoopGuardsFromLastIntention();
   if (noScaleBbwRequiresScale(runtimeConfig.noScaleBbwMode) &&
       noScaleShotGuardWouldBlock(loopGuardInputs)) {
@@ -470,6 +471,11 @@ void stateMachineTask() {
   }
 
   const MachineIntention intent = machineLastIntention();
+
+  if (stopperState == StopperState::READY && relay.closed &&
+      intent.holdActive && idleTare.requestId != 0) {
+    (void)idleTareBlocksStart(true);
+  }
 
   // The OFF edge that completes the emergency gesture is confirmation only.
   // This also covers momentary builds configured to start on button release.

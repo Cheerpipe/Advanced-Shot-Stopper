@@ -235,7 +235,6 @@ struct IdleTareRuntime {
   bool cupStillPresent = false;
   bool tareNotified = false;
   bool previouslyTared = false;
-  bool startNeedsRelease = false;
 };
 IdleTareRuntime idleTare;
 uint32_t nextIdleTareRequestId = 1;
@@ -274,8 +273,6 @@ void releaseIdleTareRequest(IdleTareReason reason = IdleTareReason::NONE) {
       idleTare.deferredReason = reason;
     return;
   }
-  if (idleTare.deferredReason != IdleTareReason::NONE)
-    reason = idleTare.deferredReason;
   finishCupWeight(idleTare.cupWeightRequestId,
       released.phase == IdleTarePhase::SUCCEEDED && idleTare.tareNotified &&
           idleTare.cupStillPresent,
@@ -307,6 +304,8 @@ void releaseIdleTareRequest(IdleTareReason reason = IdleTareReason::NONE) {
   idleTare.lastStartedAtMs = released.startedAtMs;
   idleTare.lastWrittenAtMs = released.writtenAtMs;
   idleTare.lastCaptureBoundary = released.captureBoundary;
+  if (idleTare.deferredReason != IdleTareReason::NONE)
+    reason = idleTare.deferredReason;
   idleTare.lastReason = reason;
   idleTare.requestId = 0;
   idleTare.tareNotified = false;
@@ -340,7 +339,6 @@ void serviceIdleTare() {
     idleTare.eligible = eligible;
     idleTare.connectionGeneration = generation;
     idleTare.configRevision = runtimeConfig.revision;
-    // Revoke queued requests; executing writes retain the start barrier.
     if (idleTare.requestId != 0 &&
         (changedConnection || idleScaleTareStatus().phase == IdleTarePhase::QUEUED)) {
       releaseIdleTareRequest(changedConnection ? IdleTareReason::CONNECTION_CHANGED
@@ -374,17 +372,20 @@ void serviceIdleTare() {
   }
 }
 
-bool idleTareBlocksStart() {
-  serviceIdleTare();
-  if (idleTare.requestId != 0) {
-    idleTare.startNeedsRelease = true;
-    // A queued tare can be revoked, but this start gesture stays rejected.
-    const IdleTareStatus status = idleScaleTareStatus();
-    if (status.phase == IdleTarePhase::QUEUED)
-      releaseIdleTareRequest(IdleTareReason::START_REQUEST);
-    return true;
+bool idleTareBlocksStart(bool preempt = false) {
+  if (preempt && idleTare.requestId != 0) {
+    idleTare.deferredReason = IdleTareReason::START_REQUEST;
+    localBuzzer.stopIfCue(BuzzerCue::TARE);
   }
-  return idleTare.startNeedsRelease;
+  serviceIdleTare();
+  if (idleTare.requestId == 0) return false;
+  if (preempt) {
+    releaseIdleTareRequest(IdleTareReason::START_REQUEST);
+    return false;
+  }
+  if (idleScaleTareStatus().phase == IdleTarePhase::QUEUED)
+    releaseIdleTareRequest(IdleTareReason::START_REQUEST);
+  return true;
 }
 
 bool observeIdleTareSample(float weight, uint32_t atMs, uint32_t sequence,
@@ -740,18 +741,9 @@ void refreshLoopGuardsFromLastIntention() {
 
 void pushActivatorDrivePermission() {
   serviceIdleTare();
-  if (!machineLastIntention().holdActive &&
-      !machineLastIntention().physicalOn) {
-    idleTare.startNeedsRelease = false;
-  }
-  // Remember the permission sampled by the activator for this whole pass,
-  // even if a zero sample completes tare before beginCycle later in the pass.
-  if (idleTare.requestId != 0) idleTare.startNeedsRelease = true;
   refreshLoopGuardsFromLastIntention();
   machineSetActivatorDriveAllowed(
-      session.active || (idleTare.requestId == 0 &&
-                         !idleTare.startNeedsRelease &&
-                         !guardsWouldBlockActivatorDrive(loopGuardInputs)));
+      session.active || !guardsWouldBlockActivatorDrive(loopGuardInputs));
 }
 
 void orchestratePostTareBaselineArm() {

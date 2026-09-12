@@ -20,6 +20,12 @@ A [no-scale](no-scale-bbw.md) or [cup-start](../features/cup-protection.md)
 refusal keeps the relay open for the entire attempt. Release the button,
 resolve the condition, then press again.
 
+Pending idle automatic tare is not a refusal. An allowed gesture starts on the
+configured press or release edge without a retry, and the shot performs its
+normal timer/tare sequence. The physical hold is still mirrored only once; the
+firmware does not add another start pulse. An enabled long-hold Quick rinse has
+the same priority over pending idle tare.
+
 ## Stopping and time limits
 
 A momentary machine keeps its own running state. Opening the controller relay
