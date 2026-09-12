@@ -1,6 +1,6 @@
 #pragma once
 
-// Compact per-shot weight sparkline (2 s grid + event vertices, RAM sampler +
+// Compact per-shot weight sparkline (1 s grid + event vertices, RAM sampler +
 // flash sidecar). Not stored in NVS ShotLogRecord (locked at 48 bytes).
 
 #include "ShotStopperShotLogTypes.h"
@@ -14,12 +14,12 @@
 namespace shotstopper {
 
 constexpr uint32_t SHOT_CURVE_MAGIC = 0x53435256U;  // "SCRV"
-// Current shot-curve schema. V1 is the baseline — no upgrade from prior layouts.
-constexpr uint16_t SHOT_CURVE_SCHEMA_VERSION = 1;
-constexpr uint32_t SHOT_CURVE_INTERVAL_MS = 2000;
-constexpr uint8_t SHOT_CURVE_INTERVAL_S = 2;
-// 0 + 30×2 s covers HARD_MAX_CIRCUIT_CLOSED_MS (60 s).
-constexpr size_t SHOT_CURVE_MAX_POINTS = 31;
+// V2 intentionally discards V1 stores; curve history has no migration path.
+constexpr uint16_t SHOT_CURVE_SCHEMA_VERSION = 2;
+constexpr uint32_t SHOT_CURVE_INTERVAL_MS = 1000;
+constexpr uint8_t SHOT_CURVE_INTERVAL_S = 1;
+// 0 + 60×1 s covers HARD_MAX_CIRCUIT_CLOSED_MS (60 s).
+constexpr size_t SHOT_CURVE_MAX_POINTS = 61;
 constexpr size_t SHOT_CURVE_CAPACITY = SHOT_LOG_CAPACITY;
 
 struct ShotCurveEvent {
@@ -65,7 +65,7 @@ inline ShotCurveRecord emptyShotCurveRecord() {
   return curve;
 }
 
-static_assert(sizeof(ShotCurveRecord) == 88,
+static_assert(sizeof(ShotCurveRecord) == 148,
               "ShotCurveRecord packing is part of the flash sidecar schema");
 
 struct ShotCurveHeader {
@@ -90,6 +90,8 @@ static_assert(sizeof(ShotCurveStore) ==
                   sizeof(ShotCurveHeader) +
                       sizeof(ShotCurveRecord) * SHOT_CURVE_CAPACITY,
               "ShotCurveStore size must stay within FLASH_IO_SCRATCH_BYTES");
+static_assert(sizeof(ShotCurveStore) == 17780,
+              "ShotCurveStore packing is part of the flash sidecar schema");
 
 inline uint32_t shotCurveChecksum(const ShotCurveStore &store) {
   uint32_t crc = crc32Update(

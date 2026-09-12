@@ -117,31 +117,35 @@ partition_contracts = {
         "flash": 0x1000000,
         "rows": {"nvs": (0x9000, 0x15000), "otadata": (0x1E000, 0x2000),
                  "app0": (0x20000, 0x300000), "app1": (0x320000, 0x300000),
-                 "ffat": (0x620000, 0x9D0000),
+                 "shotcurve": (0x620000, 0xA000),
+                 "ffat": (0x62A000, 0x9C6000),
                  "coredump": (0xFF0000, 0x10000)},
     },
     "partitions-n8r4.csv": {
         "flash": 0x800000,
         "rows": {"nvs": (0x9000, 0x15000), "otadata": (0x1E000, 0x2000),
                  "app0": (0x20000, 0x330000), "app1": (0x350000, 0x330000),
-                 "spiffs": (0x680000, 0x170000),
+                 "shotcurve": (0x680000, 0xA000),
+                 "spiffs": (0x68A000, 0x166000),
                  "coredump": (0x7F0000, 0x10000)},
     },
 }
 for filename, contract in partition_contracts.items():
     rows = partition_rows(filename)
+    text = (ROOT / "idf" / filename).read_text()
     assert rows == contract["rows"], (filename, rows)
+    assert "shotcurve,data, 0x40" in text, "dedicated curve subtype changed"
     ordered = sorted(rows.items(), key=lambda item: item[1][0])
     for (_, (offset, size)), (_, (next_offset, _)) in zip(ordered, ordered[1:]):
         assert offset + size <= next_offset, f"partition overlap in {filename}"
     last_offset, last_size = ordered[-1][1]
     assert last_offset + last_size == contract["flash"]
-    data_name = "ffat" if "ffat" in rows else "spiffs"
-    assert rows[data_name][1] >= 24 * 1024, "shot-curve sidecar no longer fits"
+    assert rows["shotcurve"][1] == 40 * 1024, "shot-curve partition changed"
 
 flash_idf = (ROOT / "scripts/flash-idf").read_text()
 for required in ("read_flash 0x8000 0x1000", "installed_nvs_bytes != 0x15000",
-                 "installed_layout=blank", "erase_flash",
+                 "installed_layout=blank", "installed_shotcurve_row",
+                 "required_shotcurve_offset=0x680000", "0x620000", "erase_flash",
                  '"$installed_app0_offset" "$image"'):
     assert required in flash_idf, f"flash-idf migration contract missing: {required}"
 assert '0x10000 "$image"' not in flash_idf, \
@@ -339,13 +343,13 @@ assert legacy_idf.returncode == 0 and legacy_values == [
     str(fallback_root / "tools/idf.py")], legacy_idf.stderr
 
 
-def flash_command(layout: str, *extra: str) -> list[str]:
+def flash_command(layout: str, *extra: str, arch: str = "n8r4"):
     with tempfile.TemporaryDirectory(prefix="shotstopper-flash-") as temporary:
         root = Path(temporary)
         idf = root / "fake-idf"
         tools = idf / "tools"
         python_env = root / "python-env/bin"
-        build = root / "build-idf/n8r4"
+        build = root / f"build-idf/{arch}"
         partition_tool = idf / "components/partition_table/gen_esp32part.py"
         for directory in (tools, python_env, build, partition_tool.parent,
                           root / "idf"):
@@ -359,9 +363,18 @@ def flash_command(layout: str, *extra: str) -> list[str]:
         (python_env / "python").write_text("#!/bin/sh\nexit 0\n")
         (python_env / "python").chmod(0o755)
         partition_tool.write_text(
-            "from pathlib import Path\nimport sys\n"
+            "from pathlib import Path\nimport os,sys\n"
+            "offset = '0x680000' if os.environ['EXPECTED_ARCH'] == 'n8r4' "
+            "else '0x620000'\n"
+            "if os.environ['FLASH_LAYOUT'] == 'wrong': "
+            "offset = '0x620000' if offset == '0x680000' else '0x680000'\n"
+            "part_type = 'app' if os.environ['FLASH_LAYOUT'] == 'type' else 'data'\n"
+            "subtype = '65' if os.environ['FLASH_LAYOUT'] == 'subtype' else '64'\n"
+            "size = '36K' if os.environ['FLASH_LAYOUT'] == 'size' else '40K'\n"
+            "curve = '' if os.environ['FLASH_LAYOUT'] == 'missing' else "
+            "f'shotcurve,{part_type},{subtype},{offset},{size}\\n'\n"
             "Path(sys.argv[-1]).write_text('nvs,data,nvs,0x9000,0x15000\\n'"
-            "+'app0,app,ota_0,0x20000,0x330000\\n')\n")
+            "+'app0,app,ota_0,0x20000,0x330000\\n'+curve)\n")
         (tools / "idf.py").write_text(
             "#!/bin/sh\n"
             f'printf "idf:%s\\n" "$*" >>"{log}"\n'
@@ -381,33 +394,45 @@ def flash_command(layout: str, *extra: str) -> list[str]:
         env = os.environ.copy()
         env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
                    IDF_PATH=str(idf), IDF_PYTHON_ENV_PATH=str(python_env.parent),
-                   FLASH_LAYOUT=layout, TMPDIR=str(root),
+                   FLASH_LAYOUT=layout, EXPECTED_ARCH=arch, TMPDIR=str(root),
                    PATH=f"{tools}:/usr/bin:/bin")
         args = [str(ROOT / "scripts/flash-idf"), "--port", "/dev/null",
-                "--arch", "n8r4", *extra]
+                "--arch", arch, *extra]
         if "--image" in extra:
             args[args.index("--image") + 1] = str(image)
         result = subprocess.run(args, env=env, cwd=ROOT, capture_output=True, text=True)
-        assert result.returncode == 0, result.stderr
-        return log.read_text().splitlines()
+        return result, log.read_text().splitlines()
 
 
-blank_flash = flash_command("blank")
-assert any("write_flash @flash_args" in line for line in blank_flash), blank_flash
-erased_flash = flash_command("unknown", "--erase-all")
-assert any("erase_flash" in line for line in erased_flash) and \
+blank_result, blank_flash = flash_command("blank")
+assert blank_result.returncode == 0 and \
+    any("write_flash @flash_args" in line for line in blank_flash), blank_result.stderr
+erased_result, erased_flash = flash_command("missing", "--erase-all")
+assert erased_result.returncode == 0 and \
+    any("erase_flash" in line for line in erased_flash) and \
     any("write_flash @flash_args" in line for line in erased_flash), erased_flash
-present_flash = flash_command("present")
-assert any("write_flash @flash_args" in line for line in present_flash) and \
+present_result, present_flash = flash_command("present")
+assert present_result.returncode == 0 and \
+    any("write_flash @flash_args" in line for line in present_flash) and \
     not any(" flash" in line for line in present_flash if line.startswith("idf:")), present_flash
-unchecked_flash = flash_command("present", "--no-check")
-assert any("write_flash @flash_args" in line for line in unchecked_flash) and \
+present_n16_result, _ = flash_command("present", arch="n16r8")
+assert present_n16_result.returncode == 0, present_n16_result.stderr
+unchecked_result, unchecked_flash = flash_command("present", "--no-check")
+assert unchecked_result.returncode == 0 and \
+    any("write_flash @flash_args" in line for line in unchecked_flash) and \
     not any(" flash" in line for line in unchecked_flash if line.startswith("idf:")), \
     unchecked_flash
-external_flash = flash_command("present", "--image", "placeholder")
-assert any("write_flash 0x20000" in line for line in external_flash) and \
+external_result, external_flash = flash_command("present", "--image", "placeholder")
+assert external_result.returncode == 0 and \
+    any("write_flash 0x20000" in line for line in external_flash) and \
     not any(" flash" in line for line in external_flash if line.startswith("idf:")), \
     external_flash
+for incompatible_layout in ("missing", "wrong", "type", "subtype", "size"):
+    for extra in ((), ("--image", "placeholder")):
+        rejected, commands = flash_command(incompatible_layout, *extra)
+        assert rejected.returncode == 1 and "required n8r4 shotcurve" in rejected.stderr, \
+            (incompatible_layout, extra, rejected.stderr)
+        assert not any("write_flash" in line for line in commands), commands
 flash_language = subprocess.run(
     [str(ROOT / "scripts/flash-idf"), "--webui-language", "en"],
     cwd=ROOT, capture_output=True, text=True)

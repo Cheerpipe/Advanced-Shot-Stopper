@@ -561,6 +561,27 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   if (!noDrop || noDrop.pts.map((p) => p.t).join(',') !== '0,2,4') {
     throw new Error('Spark without a first-drop event must keep its grid');
   }
+  const oneSecond = helpers.buildShotSparkModel({
+    wCg: [0, 100, 250, 200], wDtS: 1, durationS: 3,
+  });
+  const rates = oneSecond.flowSegs.map((s) => s.pts[0].cg / 100);
+  if (rates.join(',') !== '1,1.5,0' || oneSecond.maxFlow !== 1.5 ||
+      oneSecond.flowSegs.some((s) => s.pts.some((p) => !Number.isFinite(p.cg) || p.cg < 0))) {
+    throw new Error('Flow curve must derive finite non-negative one-second local rates');
+  }
+  const partial = helpers.buildShotSparkModel({
+    wCg: [0, 100, 200], wDtS: 1, durationS: 2.5, endS: 2.5, endCg: 350,
+  });
+  if (!partial || partial.flowSegs.at(-1).pts[0].cg !== 300 ||
+      partial.flowSegs.at(-1).pts[1].t !== 2.5) {
+    throw new Error('Flow curve must use the actual partial end interval');
+  }
+  const missing = helpers.buildShotSparkModel({
+    wCg: [0, 100, null, 300], wDtS: 1, durationS: 3,
+  });
+  if (!missing || missing.flowSegs.some((s) => s.pts[1].t - s.pts[0].t > 1.0001)) {
+    throw new Error('Flow curve must not bridge missing weight samples');
+  }
   const slowLate = helpers.buildShotSparkModel({
     wCg: Array.from({length: 14}, (_, i) => (i + 1) * 200),
     wDtS: 2,
@@ -592,6 +613,9 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   if (!gray || gray.pts.some((p) => p.cg !== 2800) ||
       gray.pts[0].t < 12 || gray.pts[gray.pts.length - 1].t < 18) {
     throw new Error('Spark A→M must be flat gray at last scale weight through ended');
+  }
+  if (atm.flowSegs.some((s) => s.pts[0].t < 18 && s.pts[1].t > 12)) {
+    throw new Error('Flow curve must leave the A→M no-scale interval empty');
   }
   const flow = helpers.shotDisplayFlowGS({
     avgFlowGS: null,

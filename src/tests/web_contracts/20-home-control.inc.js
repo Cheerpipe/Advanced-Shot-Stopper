@@ -129,7 +129,8 @@ if (!ui.includes('id="shotPanel"') ||
     !css.includes('.shotSparkY{') ||
     !css.includes('.shotSparkHost .ruleChartTicks') ||
     !css.includes('.hidden,[hidden]{display:none!important}') ||
-    !css.includes('#shotPanel .shotSparkHost{min-height:4.05rem;margin:.55rem 0 .1rem') ||
+    !css.includes('#shotPanel .shotCurve .shotSparkHost{min-height:4.05rem;grid-template-rows:3rem auto}') ||
+    !css.includes('#shotPanel>#shotSparkHost,#shotTable td.shotSparkCell{grid-area:spark;display:grid;gap:.65rem') ||
     !css.includes('#shotPanel{position:relative}') ||
     css.includes('#shotPanel{position:relative;padding-right:3.4rem') ||
     !css.includes('#shotPanel .shotDel{top:-.55rem;right:.15rem') ||
@@ -145,6 +146,9 @@ if (!ui.includes('id="shotPanel"') ||
     !runtimeJs.includes('function shotDisplayFlowGS(') ||
     !runtimeJs.includes('lastCurveWeightG(w)===null') ||
     !runtimeJs.includes('model.firstDropS>0&&dur>0') ||
+    !runtimeJs.includes('model.flowSegs,model.maxFlow') ||
+    !runtimeJs.includes('Flow rate (g/s)') ||
+    !runtimeJs.includes("host.querySelectorAll('.ruleChartTicks')") ||
     !runtimeJs.includes("'1st '+L(") ||
     !runtimeJs.includes('fillChartTicks($(\'shotBarTicks\')') ||
     !runtimeJs.includes('raw.sort(') ||
@@ -198,6 +202,21 @@ if (!ui.includes('id="shotPanel"') ||
     !network.includes('extractionExtended') ||
     !ui.includes('updateShot(s)')) {
   throw new Error('Web UI must enforce remote policy, maintenance, durable command state, and live shot status');
+}
+{
+  const pair = runtimeJs.slice(runtimeJs.indexOf("host.innerHTML='<div class=\"shotCurve\""),
+      runtimeJs.indexOf("for(const ticks of host.querySelectorAll", runtimeJs.indexOf('function renderShotSpark(')));
+  const weight = pair.indexOf('Weight (g)');
+  const flowRate = pair.indexOf('Flow rate (g/s)');
+  const curveTypes = fs.readFileSync(path.join(sketchDir, 'ShotStopperShotCurveTypes.h'), 'utf8');
+  const record = curveTypes.slice(curveTypes.indexOf('struct ShotCurveRecord'),
+      curveTypes.indexOf('inline ShotCurveRecord emptyShotCurveRecord'));
+  if (weight < 0 || flowRate <= weight || !runtimeJs.includes("spark.className='shotSparkCell'") ||
+      !runtimeJs.includes("renderShotSpark(spark,r)") ||
+      !runtimeJs.includes("renderShotSpark($('shotSparkHost')") ||
+      /flow/i.test(record) || network.includes('\"flowCg\"') || network.includes('\"flowDtS\"')) {
+    throw new Error('Home and Stats must share ordered Weight/Flow charts without a persisted flow series');
+  }
 }
 if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !ui.includes('id="autoToManualGuardLimitMode"') ||

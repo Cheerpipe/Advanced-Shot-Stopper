@@ -531,6 +531,7 @@
     "runtime.flashed_restart_waits_until_the_shot_ends": "Flashed. Restart waits until the shot ends.",
     "runtime.flashed_waiting_for_the_controller_to_restart": "Flashed. Waiting for the controller to restart when idle.",
     "runtime.flow": "Flow",
+    "runtime.flow_rate_g_s": "Flow rate (g/s)",
     "runtime.forget_wi_fi": "forget Wi-Fi",
     "runtime.g": "g",
     "runtime.g_2": " g",

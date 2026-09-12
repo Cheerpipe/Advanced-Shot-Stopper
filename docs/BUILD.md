@@ -262,19 +262,23 @@ initial OTA metadata and application without invoking a build. `--no-check`
 only skips local identity verification. An external `--image` still replaces
 app0 only on a readable installed layout.
 
-### Legacy partition migration
+### Partition-layout migrations
 
-An installed 20 KiB NVS layout needs a one-time clean USB migration to 84 KiB.
-A normal flash refuses that layout. **The following erases both firmware slots
-and all saved data:** Wi-Fi, password, recipes, calibration, scale preferences,
-history and last shot. There is no automatic data migration.
+An installed 20 KiB NVS layout, or a current layout without the dedicated
+40 KiB `shotcurve` partition, needs a one-time clean USB installation. A normal
+flash refuses an incompatible layout. **The following erases both firmware
+slots and all saved data:** settings, Wi-Fi credentials and password, recipes
+and presets, calibration, scale preferences, shot history and last shot. There
+is no automatic curve migration; the new one-second curve schema starts empty.
 
 ```sh
 ./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 --arch n16r8 --erase-all
 ```
 
 Record the settings you need before migrating. Do not combine `--erase-all`
-with an external `--image`; it requires the project's full build outputs.
+with an external `--image`; the project build outputs are required to write the
+bootloader, new partition table, initial OTA metadata and application. OTA and
+an app-only image cannot activate a changed partition table.
 
 ## 7. Serial monitor and first setup
 

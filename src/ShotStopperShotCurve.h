@@ -11,9 +11,8 @@
 
 namespace shotstopper {
 
-// Two 12 KiB dual-slots at the start of the unused data partition (ffat on
-// n16r8, spiffs on n8r4). Firmware does not mount a filesystem.
-constexpr size_t SHOT_CURVE_FLASH_SLOT_BYTES = 12288;
+// Two 20 KiB dual-slots fill the dedicated shotcurve data partition.
+constexpr size_t SHOT_CURVE_FLASH_SLOT_BYTES = 20480;
 constexpr size_t SHOT_CURVE_FLASH_SLOT_COUNT = 2;
 
 inline ShotCurveStore &shotCurveScratchStore() {
@@ -274,13 +273,9 @@ class ShotCurveLog {
 #if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
   static const esp_partition_t *curvePartition() {
-    const esp_partition_t *part = esp_partition_find_first(
-        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_FAT, "ffat");
-    if (part != nullptr) {
-      return part;
-    }
     return esp_partition_find_first(
-        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs");
+        ESP_PARTITION_TYPE_DATA,
+        static_cast<esp_partition_subtype_t>(0x40), "shotcurve");
   }
 
   static bool readSlot(const esp_partition_t *part, size_t offset,

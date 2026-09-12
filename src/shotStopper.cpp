@@ -163,7 +163,7 @@ constexpr size_t OFFSET_ADDR = 1;
 constexpr size_t TREND_POINT_COUNT = WEIGHT_TREND_POINT_COUNT;
 static_assert(MAX_SHOT_DATAPOINTS >= WEIGHT_TREND_POINT_COUNT,
               "Shot trajectory must hold the prediction window");
-static_assert(SHOT_CURVE_MAX_POINTS == 31,
+static_assert(SHOT_CURVE_MAX_POINTS == 61,
               "ControlStatusSnapshot shotCurveWeightCg must match sampler");
 
 bool startExtendedPulseTrain(uint32_t durationMs);

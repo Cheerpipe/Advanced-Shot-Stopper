@@ -95,6 +95,7 @@ trap cleanup_partition_probe EXIT HUP INT TERM
 installed_layout=unknown
 installed_nvs_size=""
 installed_app0_offset=""
+installed_shotcurve_row=""
 if esptool.py --chip esp32s3 --port "$port" read_flash 0x8000 0x1000 "$partition_bin" >/dev/null; then
   if python -c 'import pathlib,sys; b=pathlib.Path(sys.argv[1]).read_bytes(); sys.exit(0 if b and all(x == 255 for x in b) else 1)' "$partition_bin"; then
     installed_layout=blank
@@ -103,6 +104,7 @@ if esptool.py --chip esp32s3 --port "$port" read_flash 0x8000 0x1000 "$partition
     installed_layout=present
     installed_nvs_size="$(awk -F, '$1 == "nvs" {print $5; exit}' "$partition_csv")"
     installed_app0_offset="$(awk -F, '$1 == "app0" {print $4; exit}' "$partition_csv")"
+    installed_shotcurve_row="$(awk -F, '$1 ~ /^[[:space:]]*shotcurve[[:space:]]*$/ {gsub(/[[:space:]]/, ""); print $2 "," $3 "," $4 "," $5; exit}' "$partition_csv")"
   fi
 fi
 
@@ -123,6 +125,22 @@ if [[ "$SS_CLI_ERASE_ALL" != "1" && "$installed_layout" == "present" ]]; then
   if (( installed_nvs_bytes != 0x15000 )); then
     printf 'Installed NVS is %s bytes; this firmware requires 86016 bytes.\n' \
       "$installed_nvs_bytes" >&2
+    echo 'Re-run with --erase-all to migrate the partition layout. This destroys all saved data.' >&2
+    exit 1
+  fi
+  IFS=, read -r installed_shotcurve_type installed_shotcurve_subtype \
+    installed_shotcurve_offset installed_shotcurve_size <<<"$installed_shotcurve_row"
+  required_shotcurve_offset=0x680000
+  [[ "$SHOTSTOPPER_ARCH" == "n16r8" ]] && required_shotcurve_offset=0x620000
+  if [[ "$installed_shotcurve_type" != "data" ]] ||
+      ! installed_shotcurve_subtype_bytes="$(size_bytes "$installed_shotcurve_subtype")" ||
+      ! installed_shotcurve_offset_bytes="$(size_bytes "$installed_shotcurve_offset")" ||
+      ! installed_shotcurve_size_bytes="$(size_bytes "$installed_shotcurve_size")" ||
+      (( installed_shotcurve_subtype_bytes != 0x40 ||
+         installed_shotcurve_offset_bytes != required_shotcurve_offset ||
+         installed_shotcurve_size_bytes != 0xA000 )); then
+    printf 'Installed layout lacks the required %s shotcurve partition (data/0x40 at 0x%X, size 40960).\n' \
+      "$SHOTSTOPPER_ARCH" "$required_shotcurve_offset" >&2
     echo 'Re-run with --erase-all to migrate the partition layout. This destroys all saved data.' >&2
     exit 1
   fi

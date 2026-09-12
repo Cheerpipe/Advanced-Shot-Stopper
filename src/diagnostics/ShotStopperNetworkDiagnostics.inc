@@ -1053,7 +1053,7 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
     if (curve == nullptr) {
       curve = &emptyCurve;
     }
-    char curveJson[640] = {};
+    char curveJson[768] = {};
     char alphaJson[5] = "null";
     const unsigned alpha = shotLogBbwAlpha(record);
     if (alpha) snprintf(alphaJson, sizeof(alphaJson), "%u.%02u", alpha / 100, alpha % 100);

@@ -1540,6 +1540,21 @@ void p60_factory_intent_survives_failed_store_reset() {
 
 void p61_shot_curve_dual_slot_round_trip_and_delete() {
   resetHostPersistence();
+  CHECK(SHOT_CURVE_INTERVAL_MS == 1000);
+  CHECK(SHOT_CURVE_MAX_POINTS == 61);
+  CHECK(sizeof(ShotCurveRecord) == 148);
+  CHECK(sizeof(ShotCurveStore) == 17780);
+  CHECK(sizeof(ShotCurveStore) <= FLASH_IO_SCRATCH_BYTES);
+  CHECK(SHOT_CURVE_FLASH_SLOT_BYTES == 20 * 1024);
+  ShotCurveRecord full = emptyShotCurveRecord();
+  full.count = SHOT_CURVE_MAX_POINTS;
+  for (size_t i = 0; i < SHOT_CURVE_MAX_POINTS; ++i) {
+    full.weightCg[i] = static_cast<int16_t>(i * 50);
+  }
+  char curveJson[768] = {};
+  CHECK(formatShotCurveJsonBody(curveJson, sizeof(curveJson), full));
+  CHECK(strstr(curveJson, "\"wDtS\":1") != nullptr);
+  CHECK(strstr(curveJson, "3000]") != nullptr);
   ShotCurveLog curves;
   CHECK(curves.load());
   CHECK(curves.count() == 0);
@@ -1584,6 +1599,18 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   CHECK(newest[0].shotId == 8);
   CHECK(reloaded.clear());
   CHECK(reloaded.count() == 0);
+  for (uint32_t id = 1; id <= SHOT_CURVE_CAPACITY + 1; ++id) {
+    first.shotId = id;
+    CHECK(reloaded.append(first, false));
+  }
+  CHECK(reloaded.dirty());
+  CHECK(reloaded.count() == SHOT_CURVE_CAPACITY);
+  CHECK(reloaded.flush());
+  ShotCurveRecord ring[SHOT_CURVE_CAPACITY] = {};
+  CHECK(reloaded.copyNewestFirst(ring, SHOT_CURVE_CAPACITY) ==
+        SHOT_CURVE_CAPACITY);
+  CHECK(ring[0].shotId == SHOT_CURVE_CAPACITY + 1);
+  CHECK(ring[SHOT_CURVE_CAPACITY - 1].shotId == 2);
 }
 
 void p62_shot_curve_foreign_schema_is_rejected() {
@@ -1591,7 +1618,7 @@ void p62_shot_curve_foreign_schema_is_rejected() {
   resetShotCurveStore(store);
   CHECK(validShotCurveStore(store));
   CHECK(store.header.schemaVersion == SHOT_CURVE_SCHEMA_VERSION);
-  store.header.schemaVersion = 2;
+  store.header.schemaVersion = SHOT_CURVE_SCHEMA_VERSION - 1;
   store.header.checksum = 0;
   store.header.checksum = shotCurveChecksum(store);
   CHECK(!validShotCurveStore(store));

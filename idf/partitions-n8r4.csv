@@ -1,13 +1,12 @@
 # Name,   Type, SubType, Offset,  Size, Flags
 #
 # Matches Arduino FQBN PartitionScheme=default_8MB.
-# The spiffs region is reserved for FQBN / OTA layout parity with existing
-# field devices. Do not shrink or move it without a coordinated migration
-# (full reflash + otadata reset). Firmware does not mount SPIFFS; the first
-# 24 KiB stores the dual-slot shot-curve sidecar.
+# A full erase/reflash installs the dedicated shot-curve partition while
+# retaining the existing OTA application and coredump offsets.
 nvs,      data, nvs,     0x9000,  0x15000,
 otadata,  data, ota,     0x1e000, 0x2000,
 app0,     app,  ota_0,   0x20000, 0x330000,
 app1,     app,  ota_1,   0x350000,0x330000,
-spiffs,   data, spiffs,  0x680000,0x170000,
+shotcurve,data, 0x40,    0x680000,0xA000,
+spiffs,   data, spiffs,  0x68A000,0x166000,
 coredump, data, coredump,0x7F0000,0x10000,

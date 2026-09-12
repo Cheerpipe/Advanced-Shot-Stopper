@@ -212,7 +212,8 @@ SHA-256, architecture, and version.
 `--erase-all` is accepted by `flash-idf` and its USB flashing wrappers. It
 runs a full `erase_flash` before writing the project bootloader, partition
 table, initial OTA metadata, and application. This is required when moving a
-controller from the legacy 20 KiB NVS layout to the 84 KiB layout:
+controller from a legacy layout or one without the architecture-specific 40 KiB
+`shotcurve` partition:
 
 ```sh
 ./scripts/flash-idf --port /dev/cu.usbmodem2101 --arch n16r8 --erase-all
@@ -223,9 +224,12 @@ and presets, calibration, BLE preferences, shot history, and last-shot data.
 There is no data migration. `--erase-all` is rejected with `--image`, because
 an external application image cannot reconstruct the bootloader and partition
 table. A normal USB flash reads the installed partition table first and refuses
-the legacy NVS size. Blank, explicitly erased, and compatible devices write
-every entry from the existing `flash_args` directly. External images use the
-installed `app0` offset instead of assuming a fixed address.
+the legacy NVS size or a missing/mismatched `shotcurve` label, data type, custom
+subtype, offset, or size. This preflight also applies to external images because
+they leave the installed partition table untouched. Blank, explicitly erased,
+and compatible devices write every entry from the existing `flash_args`
+directly. External images use the installed `app0` offset instead of assuming a
+fixed address.
 
 When the controller already owns a partial or staged different image, OTA
 stops without modifying it and prints both identities. Re-run with

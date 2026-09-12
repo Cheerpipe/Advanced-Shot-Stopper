@@ -38,7 +38,7 @@ duration and the curve time axis end when the machine circuit opens. The
 settled post-drip weight replaces the curve's endpoint at that same end time;
 the drip-delay interval is not appended to the graph. When first drop is
 available, the visible weight curve begins at that exact event; earlier
-background samples on the 2-second grid are not plotted. Curves without a
+background samples on the 1-second grid are not plotted. Curves without a
 first-drop event keep their full available grid. The current-shot curve exposed
 to Home is an in-memory view; it is not a persistent live-telemetry service.
 
@@ -65,6 +65,15 @@ request, independent of the on-screen sort.
 History averages (duration, weight, error, flow) use only **auto** shots
 with actual weight at least 1 g from the last 10 stored entries, even
 when the list is sorted by rating or oldest-first.
+
+Every available weight curve has a **Flow rate (g/s)** chart directly below it
+on Home and in its Stats history card. Both charts use the same time axis and
+guard colors. Flow rate is calculated locally from each pair of consecutive
+one-second weights, so a falling or noisy weight never produces a negative
+rate. Exact first-drop, guard and shot-end events preserve partial intervals.
+An A→M scale-loss period is left blank instead of inventing flow across missing
+measurements. The controller stores only the weight curve; viewing or reloading
+the flow chart does not create another history record or flash write.
 
 ## Read a result
 
@@ -112,6 +121,8 @@ Export before the ring overwrites older shots.
 
 Average flow uses final weight (including accepted post-drip) minus baseline,
 divided by duration after first drop. It is not terminal flow at cutoff.
+The Flow rate chart is different: it shows the non-negative local change between
+adjacent curve samples and can rise or fall throughout the shot.
 Error and average flow share final weight algebraically, so their correlation
 does not prove a residual-flow mechanism. The curve's revised endpoint does
 not reconstruct post-stop drip decay. See [BBW learning](brew-by-weight.md#cutoff-algorithms-and-learning).

@@ -9578,9 +9578,11 @@ void s02g_full_cycle_sub_one_gram_updates_last_shot_not_history() {
   CHECK(fabsf(persistedLastShot.currentWeightG - 0.5f) < 0.001f);
 }
 
-void s02c_shot_curve_samples_on_two_second_grid_and_latches_slow() {
+void s02c_shot_curve_samples_on_one_second_grid_and_latches_slow() {
   resetHarness(false, true);
   reachReadyFromBoot();
+  ControlStatusSnapshot defaultStatus;
+  CHECK(defaultStatus.shotCurveIntervalS == SHOT_CURVE_INTERVAL_S);
   shotLog.clear();
   ShotCurveLog::resetHostStorage();
   shotCurves.load();
@@ -9596,8 +9598,9 @@ void s02c_shot_curve_samples_on_two_second_grid_and_latches_slow() {
   CHECK(shotCurveSampler.weightCg[0] == 20);
   hostMillis += 2100;
   acceptWeightIntoTrajectory(8.5f, hostMillis, 2);
-  CHECK(shotCurveSampler.count == 2);
+  CHECK(shotCurveSampler.count == 3);
   CHECK(shotCurveSampler.weightCg[1] == 850);
+  CHECK(shotCurveSampler.weightCg[2] == 850);
   enterSlowExtractionExtended(12.0f, hostMillis);
   CHECK(shotCurveSampler.extended.atDs == 21);
   CHECK(shotCurveSampler.extended.weightCg == 1200);
@@ -9607,7 +9610,7 @@ void s02c_shot_curve_samples_on_two_second_grid_and_latches_slow() {
   shot.automaticBrew = true;
   session.config.timerOnly = false;
   schedulePendingShotFinalize(EndReason::SLOW_EXTRACTION_MAX_TIME, 12000);
-  CHECK(pendingFinalize.curve.count >= 2);
+  CHECK(pendingFinalize.curve.count >= 7);
   CHECK(pendingFinalize.curve.extended.atDs == 21);
   CHECK(pendingFinalize.curve.extended.weightCg == 1200);
   pendingFinalize.endedAtMs = hostMillis;
@@ -9618,8 +9621,15 @@ void s02c_shot_curve_samples_on_two_second_grid_and_latches_slow() {
   ShotCurveRecord curves[1] = {};
   CHECK(shotCurves.copyNewestFirst(curves, 1) == 1);
   CHECK(curves[0].shotId != 0);
-  CHECK(curves[0].count >= 2);
+  CHECK(curves[0].count >= 7);
   CHECK(curves[0].intervalS == SHOT_CURVE_INTERVAL_S);
+
+  ShotCurveSampler fullLimit;
+  fullLimit.reset(hostMillis);
+  fullLimit.accept(0.0f, hostMillis);
+  fullLimit.accept(42.0f, hostMillis + HARD_MAX_CIRCUIT_CLOSED_MS);
+  CHECK(fullLimit.count == SHOT_CURVE_MAX_POINTS);
+  CHECK(fullLimit.weightCg[60] == 4200);
 }
 
 void s02d_shot_curve_latches_first_drop_fast_and_atm() {
@@ -9744,7 +9754,7 @@ void s02h_fast_guard_keeps_sampling_and_settled_weight_replaces_endpoint() {
   schedulePendingShotFinalize(EndReason::FAST_EXTRACTION_MAX_WEIGHT, 28000);
   CHECK(pendingFinalize.curve.ended.atDs == 280);
   CHECK(pendingFinalize.curve.ended.weightCg == 4000);
-  CHECK(pendingFinalize.curve.weightCg[14] == 4000);
+  CHECK(pendingFinalize.curve.weightCg[28] == 4000);
 
   session.active = false;
   stopperState = StopperState::READY;
@@ -9759,7 +9769,7 @@ void s02h_fast_guard_keeps_sampling_and_settled_weight_replaces_endpoint() {
   CHECK(shotCurves.copyNewestFirst(curves, 1) == 1);
   CHECK(curves[0].ended.atDs == 280);
   CHECK(curves[0].ended.weightCg == 4210);
-  CHECK(curves[0].weightCg[14] == 4210);
+  CHECK(curves[0].weightCg[28] == 4210);
   CHECK(lastShotCurve.ended.atDs == 280);
   CHECK(lastShotCurve.ended.weightCg == 4210);
 }
@@ -14474,7 +14484,7 @@ const TestCase testCases[] = {
     {"S02E", s02e_shot_log_appends_auto_bbw_after_drip_delay},
     {"S02F", s02f_shot_log_skips_sub_one_gram_weight},
     {"S02G", s02g_full_cycle_sub_one_gram_updates_last_shot_not_history},
-    {"S02C", s02c_shot_curve_samples_on_two_second_grid_and_latches_slow},
+    {"S02C", s02c_shot_curve_samples_on_one_second_grid_and_latches_slow},
     {"S02D", s02d_shot_curve_latches_first_drop_fast_and_atm},
     {"S02H", s02h_fast_guard_keeps_sampling_and_settled_weight_replaces_endpoint},
     {"S02I", s02i_normal_and_slow_cuts_use_settled_curve_endpoint},

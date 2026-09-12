@@ -586,7 +586,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                     sizeof(control.shotCurveWeightCg) /
                         sizeof(control.shotCurveWeightCg[0]))
               : homeLastShotCurve;
-      char curveJson[640] = {};
+      char curveJson[768] = {};
       if (formatShotCurveJsonBody(curveJson, sizeof(curveJson), curve)) {
         ok = statusJsonAppend(&used, ",\"shotCurve\":{%s}", curveJson);
       }

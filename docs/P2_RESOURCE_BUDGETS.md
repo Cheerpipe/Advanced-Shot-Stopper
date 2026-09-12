@@ -24,6 +24,8 @@ objects to PSRAM would move synchronization state accessed under spinlocks.
 | Resource | Placement and bound |
 |---|---|
 | Network work buffer | external, at most 64 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex |
+| Shot-curve store | external, 17,780 bytes for 120 V2 records; the Network work buffer may hold one separate 17,760-byte read copy within its 64 KiB total bound |
+| Shared flash-I/O scratch | internal heap, 18 KiB; one owner at a time under the flash-I/O lock, with no PSRAM fallback |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
 | Settings handoff | one 2620-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
@@ -67,6 +69,13 @@ are unchanged.
 The asynchronous configuration-save acknowledgement adds 256 source bytes of
 allowance for revision/value readback and pending/failed persistence checks;
 it does not raise compressed-asset limits.
+
+Both supported partition tables reserve a dedicated `shotcurve` data partition
+at custom subtype `0x40`, exactly `0xA000` (40 KiB). It contains two
+erase-aligned `0x5000` (20 KiB) slots, so the 17,780-byte store retains 2,700
+bytes of per-slot headroom. On n8r4 it occupies `0x680000`–`0x689FFF`; on n16r8
+it occupies `0x620000`–`0x629FFF`. The following filesystem region is reduced
+without moving either OTA application or the coredump endpoint.
 
 Capability samples use `INTERNAL|8BIT` and `SPIRAM|8BIT`, including the PSRAM
 minimum-free watermark. Diagnostic `memoryAllocations` reports cumulative

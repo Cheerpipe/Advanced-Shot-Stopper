@@ -95,6 +95,18 @@ and all historical policy versions retained. Preset/BBW writers preserve each
 other's bit fields. V4 is rejected by
 older firmware. The ID follows existing preset allocation, not a historical
 name lookup or globally unique physical-device identity.
+
+The separate shot-curve sidecar uses an intentionally incompatible V2 schema:
+up to 61 centigram weights on a fixed one-second grid plus exact event/end
+vertices for each of the same 120 eligible history records. Its 17,780-byte
+whole store lives in PSRAM and is copied through the shared 18 KiB internal
+flash-I/O scratch only while that owner holds the flash lock. Two 20 KiB slots
+fill the dedicated 40 KiB `shotcurve` data partition; generation and checksum
+selection preserve the existing atomic whole-store update. Writes remain
+deferred until the shot has ended and do not add a transaction for derived
+flow. V1 curve stores are discarded rather than migrated. The fixed 48-byte
+shot-log record and its average-flow field are unchanged.
+
 Decoding checks the supplied length before reading record CRCs and copies only
 that validated length; compact inputs do not require a full-store allocation.
 Profile rules are immutable: changing prediction, gain candidates or eligibility
