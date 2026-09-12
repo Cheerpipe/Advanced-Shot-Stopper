@@ -76,6 +76,12 @@ Support for a switch model is not certification of a particular espresso
 machine. The firmware's 60 s relay limit and the ability to stop water flow
 are different on momentary machines; read the [stop limitations](docs/settings/momentary.md#stopping-and-time-limits).
 
+This illustration shows the paddle-connector routing used during Micra
+development. It is not a wiring schematic or pinout; verify the actual machine
+circuit and follow the [hardware safety guidance](docs/HARDWARE.md) before installation.
+
+![Micra paddle connector and adapter-cable routing on the relay board](docs/images/micra_diagram.png)
+
 ## Main features
 
 <a id="brew-by-weight"></a>
@@ -102,6 +108,11 @@ are different on momentary machines; read the [stop limitations](docs/settings/m
 | Hear local feedback | [Alerts](docs/alerts.md), subject to scale/buzzer capabilities |
 | Review results | [Shot history and statistics](docs/features/shot-history.md) |
 | Send results to Home Assistant | [Local HTTP webhooks](docs/features/home-assistant-webhooks.md) |
+
+The optional Home Assistant example turns the last completed extraction into
+dashboard entities for target weight, final weight, timing, stop reason, and flow.
+
+![Example Home Assistant entities for the last good shot](docs/images/home_assistant_entities.png)
 
 ## Main settings
 
