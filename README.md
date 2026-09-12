@@ -26,6 +26,7 @@ and stop behavior.
 | Prepare hardware and firmware | [Hardware](docs/HARDWARE.md) → [Build and USB installation](docs/BUILD.md) |
 | Connect and make the first shot | [First setup and daily use](docs/GETTING_STARTED.md) |
 | Change how brewing works | [Features and settings](#main-features) |
+| Integrate Advanced Shot Stopper with Home Assistant | [Home Assistant setup](docs/features/home-assistant.md) |
 | Understand an unexpected result | [Troubleshooting](docs/FAQ.md) |
 | Update or recover the controller | [OTA](docs/features/ota.md) / [Recovery](docs/EMERGENCY_RECOVERY.md) |
 | Develop or contribute | [Contributing](CONTRIBUTING.md) |
@@ -99,6 +100,7 @@ circuit and follow the [hardware safety guidance](docs/HARDWARE.md) before insta
 <a id="shot-history"></a>
 <a id="webhooks"></a>
 <a id="presets"></a>
+<a id="ota"></a>
 
 | Need | Feature |
 | --- | --- |
@@ -111,7 +113,8 @@ circuit and follow the [hardware safety guidance](docs/HARDWARE.md) before insta
 | Rinse with a switch gesture | [Quick rinse](docs/settings/quick-rinse.md), off by default |
 | Hear local feedback | [Alerts](docs/alerts.md), subject to scale/buzzer capabilities |
 | Review results | [Shot history and statistics](docs/features/shot-history.md) |
-| Add the Home Assistant integration | [Native Home Assistant setup](docs/features/home-assistant.md) |
+| Integrate with Home Assistant | [Home Assistant](docs/features/home-assistant.md) |
+| Update safely over Wi-Fi | [Dual-slot OTA](docs/features/ota.md), with automatic rollback |
 | Send events to another local receiver | [Local HTTP webhooks](docs/features/webhooks.md) |
 
 ## Main settings
