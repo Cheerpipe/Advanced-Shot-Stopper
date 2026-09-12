@@ -140,6 +140,21 @@ From the repository root:
 ./scripts/dev build --arch n16r8
 ```
 
+The Web UI is compiled in English by default. To select it explicitly:
+
+```sh
+./scripts/dev build --arch n16r8 --webui-language EN
+```
+
+Language selection happens while the Web assets are generated; it does not add
+a browser setting or embed every catalog. The flag overrides
+`SHOTSTOPPER_WEBUI_LANGUAGE`, and an omitted selection always uses `en`. Codes
+are case-insensitive, `_` is normalized to `-`, and a regional code tries its
+exact catalog followed by its base language. English is currently the only
+shipped catalog, so another base language fails instead of silently producing
+English. Adding a complete locale file does not affect existing firmware until
+that locale is selected.
+
 The wrapper preserves project diagnostics but hides ESP-IDF 6.1's known
 `esp_wifi`/`wpa_supplicant` component-validation warnings. Extra-warning
 reports retain their unfiltered SDK log and report project-owned warnings
@@ -208,7 +223,8 @@ Omitting a macro does not always mean its feature is off; explicit flags
 override matching choices. Review Diagnostic build identity and options before
 installation.
 
-The build generates Web assets, version identity and
+The build renders the selected catalog into
+`src/ShotStopperWebAssetsGzip.h`, generates version identity and
 `build-idf/<arch>/shotstopper.bin`, then checks image and memory budgets.
 Use only the image for your architecture. The supported partition layouts have
 two app slots; arbitrary 4 MB layouts cannot hold this firmware.
@@ -235,16 +251,16 @@ Replace the port below with the detected controller port:
 ./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 --arch n16r8
 ```
 
-Linux commonly uses `/dev/ttyACM0` or `/dev/ttyUSB0`. The direct installer
-can rebuild a stale build before flashing; successful transfer still requires
-post-boot and electrical verification.
+Linux commonly uses `/dev/ttyACM0` or `/dev/ttyUSB0`. Build first whenever
+sources, options, or the Web UI language change: the installer never rebuilds
+or relabels the selected image. Successful transfer still requires post-boot
+and electrical verification.
 
-The installer reads the partition-table sector first. A blank device receives
-the complete project image (bootloader, partition table, initial OTA metadata,
-and application). A compatible installed layout uses ESP-IDF's fast normal
-reflash. `--no-check` keeps its direct `flash_args` path, which also contains
-the complete project outputs, and an external `--image` still replaces app0
-only on a readable installed layout.
+The installer reads the partition-table sector first. Project builds always use
+the existing `flash_args`, which transfers the bootloader, partition table,
+initial OTA metadata and application without invoking a build. `--no-check`
+only skips local identity verification. An external `--image` still replaces
+app0 only on a readable installed layout.
 
 ### Legacy partition migration
 

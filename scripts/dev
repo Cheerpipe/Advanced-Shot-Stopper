@@ -294,8 +294,9 @@ commands:
   context AREA               list focused paths and their purpose
   classify [PATH ...]        print path risks and aggregate risk
   test [normal|asan|tsan|web|ble|ota|tooling]
-  validate [--risk R0..R3] [PATH ...]
-  build|analyze [ARGS]       wrap supported IDF build/analysis
+  validate [--risk R0..R3] [--webui-language CODE] [PATH ...]
+  build|analyze [ARGS]       wrap supported IDF build/analysis; build accepts
+                             --webui-language CODE (default: en)
   flash|monitor|ota [ARGS]   hardware commands; flash/ota require confirmation
   clean --dry-run            list generated directories; --confirm removes them
 
@@ -375,6 +376,12 @@ def main() -> int:
 
         if verb == "validate":
             override, paths = extract_option(args, "--risk")
+            webui_language, paths = extract_option(paths, "--webui-language")
+            webui_language = (webui_language or
+                              os.getenv("SHOTSTOPPER_WEBUI_LANGUAGE") or "en")
+            webui_language = webui_language.strip().replace("_", "-").lower()
+            if not re.fullmatch(r"[a-z]{2,3}(?:-[a-z0-9]{2,8})*", webui_language):
+                raise ValueError("invalid WebUI language code")
             inferred, details = classify(paths)
             if override not in RANK:
                 if override is not None:
@@ -396,11 +403,13 @@ def main() -> int:
                 steps += [("architecture", ["python3", "scripts/check_architecture.py"]),
                           ("web-contracts", ["node", "src/tests/check_web_assets.js"])]
                 for arch in ("n8r4", "n16r8"):
-                    steps.append((f"idf-{arch}", ["./scripts/build-idf", "--arch", arch, "--flags="]))
+                    steps.append((f"idf-{arch}", ["./scripts/build-idf", "--arch", arch,
+                                                  "--webui-language", webui_language, "--flags="]))
             if risk == "R3":
                 for arch in ("n8r4", "n16r8"):
                     steps += [(f"cppcheck-{arch}", ["./scripts/static-idf", "--arch", arch]),
-                              (f"warnings-{arch}", ["./scripts/warnings-idf", "--arch", arch, "--flags="])]
+                              (f"warnings-{arch}", ["./scripts/warnings-idf", "--arch", arch,
+                                                    "--webui-language", webui_language, "--flags="])]
             manual = ["Complete and attach applicable HIL/manual evidence"] if risk == "R3" else []
             return execute(command, risk, steps, verbosity, manual, prelude)
 

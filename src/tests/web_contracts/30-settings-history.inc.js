@@ -538,9 +538,9 @@ if (!ui.includes('id="shotTable"') ||
     runtimeJs.includes('const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
     !runtimeJs.includes('const dropMs=live?(src.firstDropElapsedMs||0):(ls&&ls.firstDropElapsedMs||0)') ||
     !runtimeJs.includes('formatShotEnded(r.stopDetail)') ||
-    !runtimeJs.includes("labels=['Time','Dur','Goal','Weight','Err%','Flow','1st drop','Ended','Shot']") ||
-    runtimeJs.includes("labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Ended','Shot']") ||
-    runtimeJs.includes("labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Guard','Ext','Stop','Shot','Cut']") ||
+    !js.includes("labels=['Time','Dur','Goal','Weight','Err%','Flow','1st drop','Ended','Shot']") ||
+    js.includes("labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Ended','Shot']") ||
+    js.includes("labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Guard','Ext','Stop','Shot','Cut']") ||
     partialHtml.stats.includes('<th>Guard</th>') ||
     partialHtml.stats.includes('<th>Ext</th>') ||
     partialHtml.stats.includes('<th>Stop</th>') ||
@@ -564,11 +564,11 @@ if (!ui.includes('id="shotRating"') ||
     !partialHtml.home.includes('<strong>Rate</strong>') ||
     !partialHtml.stats.includes('<th>Rate</th>') ||
     !runtimeJs.includes('function fillStarRate(') ||
-    !runtimeJs.includes("viewBox=\"0 0 24 24\"") ||
+    !runtimeJs.includes('0 0 24 24') ||
     runtimeJs.includes('star.jpg') ||
     runtimeJs.includes('star.png') ||
     !runtimeJs.includes("className='shotRateCell'") ||
-    !runtimeJs.includes("dataset.label='Rate'") ||
+    !js.includes("dataset.label='Rate'") ||
     !runtimeJs.includes('function postShotRating(') ||
     !runtimeJs.includes('{id,rating:n}') ||
     !runtimeJs.includes("'rating','ended_at_ms'") ||
@@ -672,13 +672,13 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !runtimeJs.includes("'date','desc'") ||
     !runtimeJs.includes("shotSort==='rating'") ||
     !runtimeJs.includes('shotStatsWindow') ||
-    !runtimeJs.includes('Highest rating') ||
-    !runtimeJs.includes('Oldest first') ||
-    !runtimeJs.includes('Lowest rating') ||
-    !viewJs.stats.includes('id="sortDateButton"') ||
-    !viewJs.stats.includes('id="sortRatingButton"') ||
-    !viewJs.stats.includes('id="sortDirButton"') ||
-    !viewJs.stats.includes('Newest first') ||
+    !js.includes('Highest rating') ||
+    !js.includes('Oldest first') ||
+    !js.includes('Lowest rating') ||
+    !viewJs.stats.includes('sortDateButton') ||
+    !viewJs.stats.includes('sortRatingButton') ||
+    !viewJs.stats.includes('sortDirButton') ||
+    !js.includes('Newest first') ||
     !viewJs.stats.includes("R.setShotSort('date')") ||
     !viewJs.stats.includes("R.setShotSort('rating')") ||
     !viewJs.stats.includes('R.toggleShotSortDir()') ||
@@ -724,13 +724,13 @@ if (!statsSection ||
     !statsSection[1].includes('Based on the last 10 shots.') ||
     !statsSection[1].includes('id="statsDurChart"') ||
     !runtimeJs.includes('function renderStatsDurChart(') ||
-    !runtimeJs.includes('id="statsDurChartPlot"') ||
-    !runtimeJs.includes('class="shotSparkHost"') ||
-    !runtimeJs.includes('fill-opacity=".22"') ||
+    !runtimeJs.includes('statsDurChartPlot') ||
+    !runtimeJs.includes('shotSparkHost') ||
+    !runtimeJs.includes('fill-opacity') ||
     !runtimeJs.includes('statsDurSparkY') ||
     !runtimeJs.includes('renderStatsDurChart()') ||
     !runtimeJs.includes('const BIN=0.5,tMax=6e4/1e3,tLow=28,tHigh=32') ||
-    !runtimeJs.includes("fillChartTicks(host.lastChild,[[0,'0 s'],[tLow,L(tLow,'s')],[tHigh,L(tHigh,'s')],[tMax,L(tMax,'s')]],tMax)") ||
+    !js.includes("fillChartTicks(host.lastChild,[[0,'0 s'],[tLow,L(tLow,'s')],[tHigh,L(tHigh,'s')],[tMax,L(tMax,'s')]],tMax)") ||
     !css.includes('#statsDurChart{margin-top:') ||
     !runtimeJs.includes('function renderShotStats(){') ||
     !runtimeJs.includes('shotHistory.shots.slice(0,SHOTS_PAGE_SIZE)') ||

@@ -55,6 +55,10 @@ For the direct scripts, parameters come in this order:
 3. The `.shotstopper` file at the repository root
 4. An interactive prompt (Enter accepts the value in brackets)
 
+Web UI language is deliberately transient: it uses
+`--webui-language`, then `SHOTSTOPPER_WEBUI_LANGUAGE`, then `en`. It is never
+read from or written to `.shotstopper`, and it never prompts.
+
 If `--port` is missing, or the saved/CLI path is not a present device node,
 flash and monitor scripts prompt like OTA does for the device password: they
 list detected USB-CDC ports (`/dev/cu.usbmodem*` on macOS, `/dev/ttyACM*` on
@@ -91,10 +95,36 @@ prompting. The same applies with `SHOTSTOPPER_NONINTERACTIVE=1`.
 | `-i`, `--image` | `SHOTSTOPPER_IMAGE` | Firmware `.bin` to use for flash or OTA instead of the normal build output. Checked locally and never persisted. |
 | `-b`, `--build-dir` | `SHOTSTOPPER_BUILD_DIR_OVERRIDE` | Build directory (`static`/`static-idf` only). |
 | `-o`, `--output-dir` | `SHOTSTOPPER_OUTPUT_DIR` | Reports directory (`static` / `static-idf` only). |
+| `--webui-language` | `SHOTSTOPPER_WEBUI_LANGUAGE` | Compile-time Web UI language (default `en`; never persisted). |
 | `--force` | — | OTA scripts only: commit without an interactive prompt and wait for the rebooted firmware to confirm itself through the HTTP API. No Web UI reload is required. |
-| `--no-check` | — | USB flash only: skip the local image identity check and implicit rebuild, flashing existing build outputs as-is. Resumable OTA rejects this flag because it requires the image identity and SHA-256. |
+| `--no-check` | — | USB flash only: skip the local image identity check and transfer existing build outputs as-is. Resumable OTA rejects this flag because it requires the image identity and SHA-256. |
 | `--discard-ota-session` | — | OTA only: explicitly discard a different partial or staged image. A matching image resumes automatically without this flag. |
 | `-h`, `--help` | — | Show the script help. |
+
+### Web UI language
+
+`--webui-language EN` and `--webui-language=EN` both select the English
+catalog. Codes are trimmed, lower-cased, and normalized from `_` to `-`.
+Regional codes try an exact catalog and then their base, so `En-en` currently
+resolves to `en`. A different base such as `es-CL` fails until `es-cl.json` or
+`es.json` exists; it never falls back to English. The only shipped catalog is
+`src/web/locales/en.json`.
+
+Selection is compile-time. Build owners (`build-idf`, build/flash/OTA wrappers,
+warnings builds, GCC analyzer builds, and `dev validate`) forward the option to
+the asset generator. Flash, OTA, and monitor commands consume existing images
+and do not accept or reinterpret it. Examples:
+
+```sh
+./scripts/build-idf --arch n16r8 --webui-language EN
+SHOTSTOPPER_WEBUI_LANGUAGE=en ./scripts/dev build --arch n8r4
+./scripts/dev validate --risk R1 --webui-language en src/web
+node scripts/localize_web_ui.js --check --webui-language EN
+```
+
+The selected strings are rendered before minification and gzip into
+`src/ShotStopperWebAssetsGzip.h`; catalogs and resource keys are not embedded.
+Adding a complete locale catalog does not change any firmware until selected.
 
 Suggested `--flags` at the prompt (Enter accepts them):
 `-Werror=deprecated-copy -DSHOT_STOPPER_ENABLE_BUZZER=1`.
@@ -129,8 +159,8 @@ inactive SDK selected by `IDF_PATH`, or `$HOME/esp/esp-idf-v6.1`. See
 
 | Script | Alias | Required | Description |
 | --- | --- | --- | --- |
-| `./scripts/build-idf` | `b-idf` | `--arch` (`--flags` optional) | Generate version and Web UI, build with ESP-IDF. |
-| `./scripts/flash-idf` | `f-idf` | `--port`, `--arch` | Flash the existing binary (or `--image <path>`); without `--no-check` idf.py rebuilds first if the build tree is stale. Does not open the monitor. |
+| `./scripts/build-idf` | `b-idf` | `--arch` (`--flags`, `--webui-language` optional) | Generate version and the selected Web UI, then build with ESP-IDF. |
+| `./scripts/flash-idf` | `f-idf` | `--port`, `--arch` | Flash existing build outputs (or `--image <path>`); never rebuilds. Does not open the monitor. |
 | `./scripts/monitor-idf` | `m-idf` | `--port`, `--speed` | IDF serial monitor (Ctrl+] to exit). |
 | `./scripts/ota-idf` | `o-idf` | `--arch`, `--host`, `--password` | Wi-Fi update with the already-built IDF binary, or `--image <path>`. |
 | `./scripts/static-idf` | `s-idf` | `--arch` | Cppcheck against the IDF compilation database. Does not build. |
@@ -150,6 +180,7 @@ Examples (flash/OTA commands affect hardware; complete bench checks first):
 
 # Explicit (macOS CDC port)
 ./scripts/build-idf --arch n16r8
+./scripts/build-idf --arch n16r8 --webui-language EN
 ./scripts/flash-idf --port /dev/cu.usbmodem2101 --arch n16r8
 ./scripts/flash-idf --port /dev/cu.usbmodem2101 --arch n16r8 --image ~/Downloads/shotstopper.bin
 ./scripts/monitor-idf -p /dev/cu.usbmodem2101 -s 115200
@@ -172,11 +203,11 @@ that the rebooted image has been confirmed.
 
 `--no-check` is accepted by `flash`, `flash-idf`, and their USB flashing
 wrappers (`bf`, `bfm`, `bsfm`, which forward it to the install step).
-For USB flash it flashes the current build outputs directly with esptool
-(bootloader, partition table, otadata, and app) instead of letting `idf.py
-flash` re-run the build. OTA rejects it because resumable sessions cannot be
-matched or committed safely without the local SHA-256, architecture, and
-version.
+For USB flash it skips the local identity check; both checked and unchecked
+project transfers use the existing `flash_args` with esptool (bootloader,
+partition table, otadata, and app) and never rebuild. OTA rejects it because
+resumable sessions cannot be matched or committed safely without the local
+SHA-256, architecture, and version.
 
 `--erase-all` is accepted by `flash-idf` and its USB flashing wrappers. It
 runs a full `erase_flash` before writing the project bootloader, partition
@@ -192,11 +223,9 @@ and presets, calibration, BLE preferences, shot history, and last-shot data.
 There is no data migration. `--erase-all` is rejected with `--image`, because
 an external application image cannot reconstruct the bootloader and partition
 table. A normal USB flash reads the installed partition table first and refuses
-the legacy NVS size. Blank or explicitly erased devices select ESP-IDF's full
-`flash --all` image; a compatible installed layout keeps the faster normal
-reflash. The `--no-check` path continues to write every entry from `flash_args`
-directly, while external images use the installed `app0` offset instead of
-assuming a fixed address.
+the legacy NVS size. Blank, explicitly erased, and compatible devices write
+every entry from the existing `flash_args` directly. External images use the
+installed `app0` offset instead of assuming a fixed address.
 
 When the controller already owns a partial or staged different image, OTA
 stops without modifying it and prints both identities. Re-run with

@@ -30,6 +30,58 @@ if (!generated.assetTag || !generated.cacheVersion ||
          .includes(`WEB_UI_ETAG[] = ${JSON.stringify('"' + generated.cacheVersion + '"')}`)) {
   throw new Error('Web UI cache-buster must embed FW version + asset content tag');
 }
+const normalizedEnglish = await webUi.generate({webUiLanguage: 'EN', write: false});
+const regionalEnglish = await webUi.generate({webUiLanguage: 'En_en', write: false});
+localeAssert.equal(normalizedEnglish.resolvedLanguage, 'en');
+localeAssert.equal(regionalEnglish.requestedLanguage, 'en-en');
+localeAssert.equal(regionalEnglish.resolvedLanguage, 'en');
+localeAssert.equal(normalizedEnglish.assetTag, generated.assetTag);
+localeAssert.equal(regionalEnglish.assetTag, generated.assetTag);
+localeAssert.deepEqual(normalizedEnglish.gzip, generated.gzip);
+
+const metadataFixture = makeTestLocales((catalogs) => {
+  catalogs.en.language = 'English test metadata';
+});
+try {
+  const metadataOnly = await webUi.generate({
+    webUiLanguage: 'en', localesDir: metadataFixture.dir, write: false,
+  });
+  localeAssert.equal(metadataOnly.assetTag, generated.assetTag);
+} finally {
+  metadataFixture.clean();
+}
+
+const changedFixture = makeTestLocales((catalogs) => {
+  const key = Object.keys(catalogs.en.strings)[0];
+  catalogs.en.strings[key] += ' changed';
+});
+try {
+  const changed = await webUi.generate({
+    webUiLanguage: 'en', localesDir: changedFixture.dir, write: false,
+  });
+  localeAssert.notEqual(changed.assetTag, generated.assetTag);
+} finally {
+  changedFixture.clean();
+}
+
+const generatedHeaderPath = path.join(sketchDir, 'ShotStopperWebAssetsGzip.h');
+const generatedHeader = fs.readFileSync(generatedHeaderPath, 'utf8');
+for (const forbidden of ['__WEBUI_', '{{webui:', 'schemaVersion', 'shell.advanced']) {
+  localeAssert.ok(!generatedHeader.includes(forbidden),
+      `Generated firmware assets must not embed localization token ${forbidden}`);
+}
+await localeAssert.rejects(
+    webUi.generate({webUiLanguage: 'es-CL'}), /no catalog for es-cl/);
+localeAssert.equal(fs.readFileSync(generatedHeaderPath, 'utf8'), generatedHeader,
+    'Rejected locale must not replace the generated header');
+const escapedLocaleValue = `quote " apostrophe ' slash \\ newline\nUnicode café`;
+const escapedLocaleJs = await webUi.minifyJs(
+    `globalThis.__webUiLocaleTest=${webUiLocale.jsLiteral(escapedLocaleValue)}`);
+new Function(escapedLocaleJs)();
+localeAssert.equal(globalThis.__webUiLocaleTest, escapedLocaleValue);
+delete globalThis.__webUiLocaleTest;
+localeAssert.doesNotThrow(() => webUi.minifyCss(
+    `x{content:${webUiLocale.cssLiteral(escapedLocaleValue)}}`));
 const roundTrip = zlib.gunzipSync(generated.gzip).toString('utf8');
 if (roundTrip !== generated.html) {
   throw new Error('Generated gzip Web UI does not round-trip to the minified HTML');
@@ -744,7 +796,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   if (!runtimeJs.includes("Flashed. Restart waits until the shot ends.") ||
       runtimeJs.includes('Locked while the machine is busy') ||
       !runtimeJs.includes('Waiting for idle (') ||
-      !runtimeJs.includes("'Restart after the shot.'")) {
+      !runtimeJs.includes('Restart after the shot.')) {
     throw new Error(
         'OTA status must wait for the shot, not claim the machine is locked');
   }

@@ -13,8 +13,8 @@ usage() {
 Usage: ./scripts/bsfm-idf [flags]
 
 Runs, in order: build-idf, static-idf, flash-idf, and monitor-idf. The flash
-step skips the local image re-check and the implicit rebuild because
-build-idf just ran.
+step skips the local image re-check and transfers the output that build-idf
+just produced.
 
 Required parameters: --port, --arch, and --speed. --flags is optional.
 
@@ -32,13 +32,13 @@ if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
   exit 0
 fi
 
-ss_cli_resolve "port arch speed" "flags" || exit $?
+ss_cli_resolve "port arch speed webui_language" "flags" || exit $?
 ss_cli_normalize_image || exit $?
 
 root="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 cd "$root"
 
-ss_cli_flags_for arch flags
+ss_cli_flags_for arch flags webui_language
 ./scripts/build-idf ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}
 
 ss_cli_flags_for arch

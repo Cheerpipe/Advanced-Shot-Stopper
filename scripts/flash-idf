@@ -15,10 +15,10 @@ usage() {
 Usage: ./scripts/flash-idf [flags]
 
 Flash an ESP-IDF firmware binary over USB. Without --image, uses the
-already-built binary from build-idf/<architecture>. If the build tree is
-missing or stale, idf.py rebuilds it first; with --no-check the existing
-build outputs are flashed as-is. Does not open the monitor. This is the
-official USB flash path (replaces the firmware currently on the device).
+already-built binary from build-idf/<architecture>; it never rebuilds or
+changes that image. Use build-idf --webui-language <code> first to select the
+WebUI language. With --no-check, existing outputs are flashed without identity
+verification. Does not open the monitor. This is the official USB flash path.
 
 Required parameters: --port and --arch.
 
@@ -38,6 +38,11 @@ ss_cli_parse "$@" || exit $?
 if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
   usage
   exit 0
+fi
+
+if ss_is_set webui_language; then
+  echo '--webui-language is build-only; run build-idf with it before flashing.' >&2
+  exit 2
 fi
 
 if [[ "$SS_CLI_ERASE_ALL" == "1" ]] && ss_is_set image; then
@@ -140,10 +145,9 @@ if ss_is_set image; then
   fi
   esptool.py --chip esp32s3 --port "$port" write_flash \
     "$installed_app0_offset" "$image"
-elif [[ "$SS_CLI_NO_CHECK" == "1" ]]; then
-  # The build tree was just produced (or the caller trusts it): flash the
-  # project outputs directly. `idf.py flash` would re-run the build target,
-  # duplicating the build step of ./scripts/bf-idf.
+else
+  # Flash the already-built project outputs directly. `idf.py flash` would
+  # re-run the build target and could silently regenerate a different WebUI.
   if [[ ! -f "$IDF_BUILD_DIR/flash_args" ]]; then
     echo "$IDF_BUILD_DIR/flash_args does not exist." >&2
     echo "Build first: ./scripts/build-idf --arch $SHOTSTOPPER_ARCH" >&2
@@ -155,12 +159,6 @@ elif [[ "$SS_CLI_NO_CHECK" == "1" ]]; then
     cd "$IDF_BUILD_DIR" &&
       esptool.py --chip esp32s3 --port "$port" write_flash @flash_args
   )
-else
-  if [[ "$SS_CLI_ERASE_ALL" == "1" || "$installed_layout" == "blank" ]]; then
-    idf.py "${IDF_PY_ARGS[@]}" -p "$port" flash --all
-  else
-    idf.py "${IDF_PY_ARGS[@]}" -p "$port" flash
-  fi
 fi
 
 ss_cli_save

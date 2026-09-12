@@ -49,7 +49,7 @@ if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
   exit 0
 fi
 
-ss_cli_resolve "arch" "flags" || exit $?
+ss_cli_resolve "arch webui_language" "flags" || exit $?
 if ! shotstopper_resolve_board "$(ss_get arch)"; then
   exit 2
 fi
@@ -78,6 +78,7 @@ report="$output_path/gcc-warnings.txt"
 
 echo "Building $SHOTSTOPPER_ARCH (IDF) with extra GCC warnings..."
 SHOTSTOPPER_NONINTERACTIVE=1 ./scripts/build-idf --arch "$SHOTSTOPPER_ARCH" \
+  --webui-language "$(ss_get webui_language)" \
   --flags "$warning_flags" >"$raw_report" 2>&1
 build_status=$?
 

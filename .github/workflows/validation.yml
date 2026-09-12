@@ -142,6 +142,7 @@ jobs:
         run: |
           set -o pipefail
           ./scripts/dev build --arch ${{ matrix.arch }} \
+            --webui-language en \
             --flags "-DSHOT_STOPPER_MACHINE_TYPE=${{ matrix.machine.type }} -DSHOT_STOPPER_ENABLE_JTAG=0 -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0" \
             2>&1 | tee ci-results/idf/build.log
       - name: Name OTA image

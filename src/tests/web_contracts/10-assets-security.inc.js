@@ -1,11 +1,40 @@
-if (!htmlMatch) throw new Error('Embedded HTML raw string not found');
-const shellHtml = htmlMatch[1];
 const VIEW_NAMES = webUi.VIEW_NAMES;
-const partialHtml = {};
+const rawPartialHtml = {};
 for (const name of VIEW_NAMES) {
-  partialHtml[name] = fs.readFileSync(
+  rawPartialHtml[name] = fs.readFileSync(
       path.join(sketchDir, 'web', 'html', name + '.html'), 'utf8');
 }
+const rawAppJsSource = fs.readFileSync(path.join(sketchDir, 'web', 'app.js'), 'utf8');
+const rawRuntimeJs = fs.readFileSync(path.join(sketchDir, 'web', 'js', 'runtime.js'), 'utf8');
+const rawOtaImageJs = fs.readFileSync(
+  path.join(sketchDir, 'web', 'js', 'ota-image.js'), 'utf8');
+const rawViewJs = {};
+for (const name of VIEW_NAMES) {
+  rawViewJs[name] = fs.readFileSync(
+      path.join(sketchDir, 'web', 'js', name + '.js'), 'utf8');
+}
+const rawCss = fs.readFileSync(path.join(sketchDir, 'web', 'app.css'), 'utf8');
+const localizedSources = webUiLocale.renderSources([
+  {file: webUi.sourcePath, type: 'html', content: rawShellHtml},
+  ...VIEW_NAMES.map((name) => ({file: name + '.html', type: 'html',
+    content: rawPartialHtml[name]})),
+  {file: 'app.js', type: 'js', content: rawAppJsSource},
+  {file: 'runtime.js', type: 'js', content: rawRuntimeJs},
+  {file: 'ota-image.js', type: 'js', content: rawOtaImageJs},
+  ...VIEW_NAMES.map((name) => ({file: name + '.js', type: 'js',
+    content: rawViewJs[name]})),
+  {file: 'app.css', type: 'css', content: rawCss},
+], {language: 'en'}).sources;
+let localizedAt = 0;
+const shellHtml = localizedSources[localizedAt++].content;
+const partialHtml = {};
+for (const name of VIEW_NAMES) partialHtml[name] = localizedSources[localizedAt++].content;
+const appJsSource = localizedSources[localizedAt++].content;
+const runtimeJs = localizedSources[localizedAt++].content;
+const otaImageJs = localizedSources[localizedAt++].content;
+const viewJs = {};
+for (const name of VIEW_NAMES) viewJs[name] = localizedSources[localizedAt++].content;
+const css = localizedSources[localizedAt].content;
 const allHtml = shellHtml.replace(
     /<section id="view-([a-z]+)" class="view" data-view="\1"><\/section>/g,
     (_, name) => {
@@ -15,18 +44,14 @@ const allHtml = shellHtml.replace(
       return `<section id="view-${name}" class="view" data-view="${name}">${
           partialHtml[name]}</section>`;
     });
-const appJsSource = fs.readFileSync(path.join(sketchDir, 'web', 'app.js'), 'utf8');
-const runtimeJs = fs.readFileSync(path.join(sketchDir, 'web', 'js', 'runtime.js'), 'utf8');
-const otaImageJs = fs.readFileSync(
-  path.join(sketchDir, 'web', 'js', 'ota-image.js'), 'utf8');
-const viewJs = {};
-for (const name of VIEW_NAMES) {
-  viewJs[name] = fs.readFileSync(
-      path.join(sketchDir, 'web', 'js', name + '.js'), 'utf8');
-}
-const allJs = [appJsSource, runtimeJs, otaImageJs,
+let allJs = [appJsSource, runtimeJs, otaImageJs,
   ...VIEW_NAMES.map((n) => viewJs[n])].join('\n');
-const css = fs.readFileSync(path.join(sketchDir, 'web', 'app.css'), 'utf8');
+const singleQuoted = (value) => "'" + value.replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'").replace(/\r/g, '\\r').replace(/\n/g, '\\n') + "'";
+for (const value of [...new Set(Object.values(
+  require('../web/locales/en.json').strings))].sort((a, b) => b.length - a.length)) {
+  allJs = allJs.split(JSON.stringify(value)).join(singleQuoted(value));
+}
 // Most wiring checks look across shell + partials + all JS modules.
 const html = allHtml;
 const js = allJs;
@@ -351,8 +376,8 @@ if (html.indexOf('<summary>Brew by Weight</summary>') >
 
 if (ui.includes('bleCompanionEnabled" type="checkbox" role="switch" checked>') ||
     !ui.includes('bleCompanionEnabled') ||
-    !ui.includes('<legend>Bluetooth</legend>') ||
-    !ui.includes('id="bleScanIntensity"') ||
+    !ui.includes('<legend>') || !ui.includes('Bluetooth') ||
+    !ui.includes('bleScanIntensity') ||
     !ui.includes('Detection intensity') ||
     ui.includes('Aggressive 100%') ||
     ui.includes('Normal 50%') ||

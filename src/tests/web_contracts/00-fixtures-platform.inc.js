@@ -5,6 +5,7 @@ const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
 const webUi = require('../../scripts/gen_web_ui.js');
+const webUiLocale = require('../../scripts/localize_web_ui.js');
 const imageTag = require('../../scripts/image_tag.js');
 
 const sketchDir = path.resolve(__dirname, '..');
@@ -12,7 +13,7 @@ function readSources(files) {
   return files.map((file) => fs.readFileSync(path.join(sketchDir, file), 'utf8'))
     .join('\n');
 }
-const asset = fs.readFileSync(path.join(sketchDir, 'ShotStopperWebAssets.h'), 'utf8');
+const rawShellHtml = fs.readFileSync(webUi.sourcePath, 'utf8').replace(/\r?\n$/, '');
 const network = readSources([
   'ShotStopperNetwork.cpp',
   'network/ShotStopperNetworkService.inc',
@@ -622,5 +623,3 @@ if (!network.includes('\\"lastDisconnectReasonName\\":\\"%s\\"},') ||
   throw new Error(
       'Home status must include lastDisconnectReasonName on scale');
 }
-
-const htmlMatch = asset.match(/R"HTML\(([\s\S]*?)\)HTML"/);

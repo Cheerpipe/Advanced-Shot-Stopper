@@ -7,6 +7,7 @@ import os
 import re
 import csv
 import runpy
+import shutil
 import sys
 import tempfile
 from unittest.mock import patch
@@ -16,7 +17,8 @@ DEV = ROOT / "scripts/dev"
 
 
 # Check rendered-document targets without depending on the working tree's docs.
-doc_check = runpy.run_path(str(DEV))["markdown_errors"]
+dev_module = runpy.run_path(str(DEV))
+doc_check = dev_module["markdown_errors"]
 with tempfile.TemporaryDirectory(prefix="shotstopper-docs-") as temporary:
     fixture = Path(temporary)
     (fixture / "docs").mkdir()
@@ -160,6 +162,125 @@ erase_image = subprocess.run(
 assert erase_image.returncode == 2 and "cannot be combined" in erase_image.stderr
 
 
+def language_cli(*args: str, environment: str | None = None):
+    with tempfile.TemporaryDirectory(prefix="shotstopper-language-") as temporary:
+        root = Path(temporary)
+        (root / ".shotstopper").write_text("webui_language=fr\n")
+        env = os.environ.copy()
+        env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1")
+        if environment is None:
+            env.pop("SHOTSTOPPER_WEBUI_LANGUAGE", None)
+        else:
+            env["SHOTSTOPPER_WEBUI_LANGUAGE"] = environment
+        command = (
+            f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+            'ss_cli_parse "$@" || exit $?; ss_cli_resolve "webui_language" || exit $?; '
+            'ss_cli_flags_for webui_language; '
+            'printf "RESULT:%s|%s|%s\n" "$(ss_get webui_language)" '
+            '"$(ss_origin webui_language)" "${SS_CLI_FORWARD[*]}"')
+        result = subprocess.run(["bash", "-c", command, "probe", *args],
+                                env=env, capture_output=True, text=True)
+        stored = (root / ".shotstopper").read_text()
+        return result, stored
+
+
+default_language, default_store = language_cli()
+assert default_language.returncode == 0 and \
+    "RESULT:en|default|--webui-language en" in default_language.stdout
+assert "Defaults:" in default_language.stdout and "webui_language=" not in default_store
+env_language, env_store = language_cli(environment="EN_us")
+assert "RESULT:en-us|env|--webui-language en-us" in env_language.stdout
+assert "webui_language=" not in env_store
+flag_language, flag_store = language_cli("--webui-language=En_GB", environment="fr")
+assert "RESULT:en-gb|cli|--webui-language en-gb" in flag_language.stdout
+assert "webui_language=" not in flag_store
+invalid_language, _ = language_cli("--webui-language", "../en")
+assert invalid_language.returncode == 2 and "Invalid WebUI language" in invalid_language.stderr
+
+
+def validate_language_steps(args: list[str], environment: str | None = None):
+    captured = {}
+
+    def capture(command, risk, steps, verbosity, manual=None, prelude=None):
+        captured.update(command=command, risk=risk, steps=steps)
+        return 0
+
+    main = dev_module["main"]
+    with patch.dict(main.__globals__, execute=capture, markdown_errors=lambda: []), \
+            patch.object(sys, "argv", [str(DEV), "validate", "--risk", "R3", *args]), \
+            patch.dict(os.environ, {}, clear=False):
+        if environment is None:
+            os.environ.pop("SHOTSTOPPER_WEBUI_LANGUAGE", None)
+        else:
+            os.environ["SHOTSTOPPER_WEBUI_LANGUAGE"] = environment
+        assert main() == 0
+    return captured["steps"]
+
+
+for validate_args, environment, expected in (
+        (["src/web/app.js"], None, "en"),
+        (["src/web/app.js"], "EN_us", "en-us"),
+        (["--webui-language=FR_ca", "src/web/app.js"], "en", "fr-ca")):
+    validate_steps = validate_language_steps(validate_args, environment)
+    build_steps = [argv for name, argv in validate_steps
+                   if name.startswith(("idf-", "warnings-"))]
+    assert len(build_steps) == 4
+    assert all(argv.count("--webui-language") == 1 and
+               argv[argv.index("--webui-language") + 1] == expected
+               for argv in build_steps), build_steps
+
+
+def stubbed_script(script: str, args: list[str], children: tuple[str, ...]) -> list[str]:
+    with tempfile.TemporaryDirectory(prefix="shotstopper-wrapper-") as temporary:
+        root = Path(temporary)
+        scripts = root / "scripts"
+        scripts.mkdir()
+        for name in (script, "shotstopper_cli.sh", "shotstopper_board.sh"):
+            shutil.copy2(ROOT / "scripts" / name, scripts / name)
+        log = root / "children.log"
+        for child in children:
+            target = scripts / child
+            target.write_text(
+                f'#!/bin/sh\nprintf "%s:%s\\n" "${{0##*/}}" "$*" >>"{log}"\n')
+            target.chmod(0o755)
+        env = os.environ.copy()
+        env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
+                   SHOTSTOPPER_DEVICE_PASSWORD="test-only")
+        result = subprocess.run([str(scripts / script), *args], cwd=root, env=env,
+                                capture_output=True, text=True)
+        assert result.returncode == 0, (script, result.stdout, result.stderr)
+        return log.read_text().splitlines()
+
+
+wrapper_cases = {
+    "bf-idf": (["--port", "/dev/null", "--arch", "n8r4"],
+               ("build-idf", "flash-idf")),
+    "bfm-idf": (["--port", "/dev/null", "--arch", "n8r4", "--speed", "115200"],
+                ("build-idf", "flash-idf", "monitor-idf")),
+    "bo-idf": (["--arch", "n8r4", "--host", "127.0.0.1"],
+               ("build-idf", "o-idf")),
+    "bsfm-idf": (["--port", "/dev/null", "--arch", "n8r4", "--speed", "115200"],
+                 ("build-idf", "static-idf", "flash-idf", "monitor-idf")),
+}
+for wrapper, (args, children) in wrapper_cases.items():
+    lines = stubbed_script(wrapper, [*args, "--webui-language", "EN_us"], children)
+    build_line = next(line for line in lines if line.startswith("build-idf:"))
+    assert build_line.count("--webui-language en-us") == 1, (wrapper, lines)
+    assert all("--webui-language" not in line for line in lines if line != build_line), lines
+
+for analyzer, child in (("warnings-idf", "build-idf"), ("gcc_analyzer", "build")):
+    lines = stubbed_script(
+        analyzer, ["--arch", "n8r4", "--webui-language=EN_us"], (child,))
+    assert len(lines) == 1 and "--webui-language en-us" in lines[0], lines
+
+for alias, target in (("b", "build"), ("b-idf", "build-idf"),
+                      ("build", "build-idf"), ("bf", "bf-idf"),
+                      ("bfm", "bfm-idf"), ("bo", "bo-idf"),
+                      ("bsfm", "bsfm-idf")):
+    assert f'exec "$SCRIPT_DIR/{target}" "$@"' in (ROOT / "scripts" / alias).read_text(), \
+        f"{alias} must preserve transparent argument forwarding"
+
+
 def idf_activation(active_version: str | None, active_python: bool = True):
     with tempfile.TemporaryDirectory(prefix="shotstopper-idf-") as temporary:
         root = Path(temporary)
@@ -272,14 +393,13 @@ def flash_command(layout: str, *extra: str) -> list[str]:
 
 
 blank_flash = flash_command("blank")
-assert any(line.startswith("idf:") and line.endswith("flash --all")
-           for line in blank_flash), blank_flash
+assert any("write_flash @flash_args" in line for line in blank_flash), blank_flash
 erased_flash = flash_command("unknown", "--erase-all")
 assert any("erase_flash" in line for line in erased_flash) and \
-    any(line.endswith("flash --all") for line in erased_flash), erased_flash
+    any("write_flash @flash_args" in line for line in erased_flash), erased_flash
 present_flash = flash_command("present")
-assert any(line.endswith("flash") for line in present_flash) and \
-    not any(line.endswith("flash --all") for line in present_flash), present_flash
+assert any("write_flash @flash_args" in line for line in present_flash) and \
+    not any(" flash" in line for line in present_flash if line.startswith("idf:")), present_flash
 unchecked_flash = flash_command("present", "--no-check")
 assert any("write_flash @flash_args" in line for line in unchecked_flash) and \
     not any(" flash" in line for line in unchecked_flash if line.startswith("idf:")), \
@@ -288,6 +408,10 @@ external_flash = flash_command("present", "--image", "placeholder")
 assert any("write_flash 0x20000" in line for line in external_flash) and \
     not any(" flash" in line for line in external_flash if line.startswith("idf:")), \
     external_flash
+flash_language = subprocess.run(
+    [str(ROOT / "scripts/flash-idf"), "--webui-language", "en"],
+    cwd=ROOT, capture_output=True, text=True)
+assert flash_language.returncode == 2 and "build-only" in flash_language.stderr
 
 scripts_text = "\n".join(
     path.read_text(errors="replace") for path in (ROOT / "scripts").iterdir()

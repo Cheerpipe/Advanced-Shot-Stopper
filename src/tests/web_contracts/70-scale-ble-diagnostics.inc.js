@@ -1,6 +1,6 @@
 // Execute the UI formatters against historical disconnect and command records.
 {
-  const source = fs.readFileSync(path.join(sketchDir, 'web/js/runtime.js'), 'utf8');
+  const source = runtimeJs;
   const first = source.indexOf('function clearCupWeights(');
   const last = source.indexOf('function formatScaleTimer(', first);
   const elements = {cupWeight: {textContent: 'old'}, dCupWeight: {textContent: 'old'}};
@@ -22,8 +22,8 @@
   }
   helpers.clearCupWeights();
   if (Object.values(elements).some(el => el.textContent !== '—')) throw new Error('Stale cup UI');
-  const home = fs.readFileSync(path.join(sketchDir, 'web/html/home.html'), 'utf8');
-  const diagnostic = fs.readFileSync(path.join(sketchDir, 'web/html/diagnostic.html'), 'utf8');
+  const home = partialHtml.home;
+  const diagnostic = partialHtml.diagnostic;
   const cup = home.match(/<fieldset id="cupPanel">([\s\S]*?)<\/fieldset>/);
   if (!cup || !cup[1].includes('id="cupState"') || !cup[1].includes('id="cupWeight"') ||
       !/<fieldset id="scalePanel">[\s\S]*?<\/fieldset><fieldset id="cupPanel">/.test(home) ||
@@ -51,7 +51,7 @@
 }
 
 {
-  const runtimeSource = fs.readFileSync(path.join(sketchDir, 'web/js/diagnostic.js'), 'utf8');
+  const runtimeSource = viewJs.diagnostic;
   const first = runtimeSource.indexOf('function formatScaleDisconnect(');
   const last = runtimeSource.indexOf("'use strict'", first);
   if (first < 0 || last < first) throw new Error('Missing scale diagnostic formatters');

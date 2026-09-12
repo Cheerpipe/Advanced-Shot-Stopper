@@ -35,13 +35,13 @@ if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
   exit 0
 fi
 
-ss_cli_resolve "arch host password" "flags" || exit $?
+ss_cli_resolve "arch host password webui_language" "flags" || exit $?
 ss_cli_normalize_image || exit $?
 
 root="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 cd "$root"
 
-ss_cli_flags_for arch flags
+ss_cli_flags_for arch flags webui_language
 ./scripts/build-idf ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}
 
 ss_cli_flags_for arch host image force no_check discard_ota_session

@@ -2,7 +2,7 @@
 # Shared named-flag front end for the Shot Stopper developer scripts.
 # Source from other scripts; do not execute this file directly.
 #
-# No script silently fills missing values. Every value comes from, in order:
+# Except for the transient WebUI language default, every value comes from:
 #   1. a named flag on the command line
 #   2. the matching environment variable
 #   3. the hidden store file .shotstopper at the repository root
@@ -12,20 +12,21 @@
 # A required serial port whose device node is missing is treated like an
 # unset key: the scripts prompt and suggest the first live USB-CDC path.
 #
-# After a successful resolve the values used are merged into .shotstopper.
+# The WebUI language uses flag, environment, then `en`, and is never stored.
+# After a successful resolve the other values are merged into .shotstopper.
 # The device password is never loaded, suggested, or persisted (use env/CLI
 # each run).
 #
 # Written for bash 3.2 (the system bash on macOS): no associative arrays,
 # no ${var,,} case conversion.
 
-SS_CLI_KEYS="port arch speed host password flags image build_dir output_dir"
+SS_CLI_KEYS="port arch speed host password flags image build_dir output_dir webui_language"
 SS_CLI_SECRET_KEYS="password"
 # Extra compiler flags offered when the prompt for --flags is answered with Enter.
 SS_CLI_DEFAULT_FLAGS='-Werror=deprecated-copy -DSHOT_STOPPER_ENABLE_BUZZER=1'
 # Per-run path overrides. Persisting them would let a stale build_dir silently
 # point an analysis at the wrong architecture, so they never touch the store.
-SS_CLI_TRANSIENT_KEYS="image build_dir output_dir"
+SS_CLI_TRANSIENT_KEYS="image build_dir output_dir webui_language"
 
 if [[ -z "${SS_CLI_ROOT:-}" ]]; then
   SS_CLI_ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -110,6 +111,7 @@ ss_env_name() {
     image) printf 'SHOTSTOPPER_IMAGE' ;;
     build_dir) printf 'SHOTSTOPPER_BUILD_DIR_OVERRIDE' ;;
     output_dir) printf 'SHOTSTOPPER_OUTPUT_DIR' ;;
+    webui_language) printf 'SHOTSTOPPER_WEBUI_LANGUAGE' ;;
   esac
 }
 
@@ -125,18 +127,21 @@ Named parameters (long and short):
   -i, --image <path>       Firmware .bin to flash or upload (not persisted)
   -b, --build-dir <path>   Build directory (static / static-idf only)
   -o, --output-dir <path>  Reports directory (static / static-idf only)
+      --webui-language <code>
+                           Compile-time WebUI language (default: en; not persisted)
       --force              Commit OTA without a prompt and wait for confirmation
-      --no-check           Skip the local image verification and the implicit
-                           rebuild before USB flashing (advanced; OTA rejects it)
+      --no-check           Skip local image verification before USB flashing;
+                           transfer existing output as-is (OTA rejects it)
       --erase-all          Erase the complete chip before a full USB flash
                            (destroys firmware, settings, Wi-Fi and history)
       --discard-ota-session
                            Explicitly discard a different partial OTA image
   -h, --help               Show this help
 
-No script silently fills in missing values. Each parameter comes from the flag,
-its environment variable, the .shotstopper file at the repository root, or a
-prompt. At the prompt, Enter accepts the suggested value in brackets.
+Each parameter comes from the flag, its environment variable, the .shotstopper
+file at the repository root, or a prompt. The WebUI language is the exception:
+it uses --webui-language, SHOTSTOPPER_WEBUI_LANGUAGE, then en, without prompting
+or persistence. At other prompts, Enter accepts the suggested value in brackets.
 A missing or non-existent --port is prompted like the device password, with the
 first detected USB-CDC device suggested.
 After resolving parameters, the values used are saved to .shotstopper
@@ -211,6 +216,7 @@ ss_cli_parse() {
       -i|--image) key="image" ;;
       -b|--build-dir) key="build_dir" ;;
       -o|--output-dir) key="output_dir" ;;
+      --webui-language) key="webui_language" ;;
       -h|--help|help)
         SS_CLI_HELP_REQUESTED=1
         return 0
@@ -355,18 +361,20 @@ ss_display_value() {
 # Prints which values come from where, and which ones are still missing.
 ss_cli_summary() {
   local wanted="$1" missing="$2"
-  local key line_cli="" line_env="" line_store=""
+  local key line_cli="" line_env="" line_store="" line_default=""
   for key in $wanted; do
     ss_is_set "$key" || continue
     case "$(ss_origin "$key")" in
       cli) line_cli="$line_cli $key=$(ss_display_value "$key")" ;;
       env) line_env="$line_env $key=$(ss_display_value "$key")" ;;
       store) line_store="$line_store $key=$(ss_display_value "$key")" ;;
+      default) line_default="$line_default $key=$(ss_display_value "$key")" ;;
     esac
   done
   [[ -n "$line_cli" ]] && printf 'From CLI:                %s\n' "${line_cli# }"
   [[ -n "$line_env" ]] && printf 'From environment:        %s\n' "${line_env# }"
   [[ -n "$line_store" ]] && printf 'Stored (.shotstopper):  %s\n' "$line_store"
+  [[ -n "$line_default" ]] && printf 'Defaults:                %s\n' "${line_default# }"
   if [[ -n "$missing" ]]; then
     printf 'Missing:                 %s\n' "$(printf '%s' "$missing" | tr ' ' ',' | sed 's/,/, /g')"
   fi
@@ -388,6 +396,7 @@ ss_prompt_text() {
     flags) printf 'Extra compile flags' ;;
     build_dir) printf 'Build directory' ;;
     output_dir) printf 'Reports directory' ;;
+    webui_language) printf 'WebUI language' ;;
     *) printf '%s' "$1" ;;
   esac
 }
@@ -445,6 +454,7 @@ ss_prompt_suggestion() {
       esac
       ;;
     output_dir) printf 'reports/static-analysis' ;;
+    webui_language) printf 'en' ;;
     *) printf '' ;;
   esac
 }
@@ -541,6 +551,14 @@ ss_validate_key() {
         ss_put flags "$(ss_normalize_compiler_flags "$value")" "$(ss_origin flags)"
       fi
       ;;
+    webui_language)
+      value="$(printf '%s' "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr '_' '-' | tr '[:upper:]' '[:lower:]')"
+      if [[ ! "$value" =~ ^[a-z]{2,3}(-[a-z0-9]{2,8})*$ ]]; then
+        ss_cli_die "Invalid WebUI language: '$(ss_get webui_language)'."
+        return 1
+      fi
+      ss_put webui_language "$value" "$(ss_origin webui_language)"
+      ;;
   esac
   return 0
 }
@@ -560,6 +578,9 @@ ss_cli_resolve() {
 
   ss_cli_apply_env
   ss_cli_load_store
+  if [[ " $wanted " == *" webui_language "* ]] && ! ss_is_set webui_language; then
+    ss_put webui_language "en" "default"
+  fi
 
   # Drop unusable ports before the missing-key scan so flash/monitor prompt
   # early instead of failing after a long build.
@@ -731,6 +752,7 @@ ss_cli_flags_for() {
       flags) SS_CLI_FORWARD+=(--flags "$(ss_get flags)") ;;
       build_dir) SS_CLI_FORWARD+=(--build-dir "$(ss_get build_dir)") ;;
       output_dir) SS_CLI_FORWARD+=(--output-dir "$(ss_get output_dir)") ;;
+      webui_language) SS_CLI_FORWARD+=(--webui-language "$(ss_get webui_language)") ;;
     esac
   done
 }

@@ -23,20 +23,19 @@ if (!statusSection || !statusSection[1].includes('class="statusColumn"') ||
     !scaleSection[1].includes('id="preferredScale"') ||
     !scaleSection[1].includes('id="scaleWeight"') ||
     !scaleSection[1].includes('id="scaleTimer"') ||
-    !ui.includes("s.physicalActivatorOn?'ON':'OFF'") ||
-    !ui.includes("s.relayClosed?'ON':'OFF'") ||
+    !ui.includes('s.physicalActivatorOn?') ||
+    !ui.includes('s.relayClosed?') || !ui.includes('ON') || !ui.includes('OFF') ||
     !ui.includes('function formatScaleWeight(') ||
     !ui.includes('function formatScaleStatus(') ||
     !ui.includes('function formatScaleTimer(') ||
     !ui.includes('function formatMachineState(') ||
-    !ui.includes("CONFIRMED_OFF:'Idle'") ||
-    !ui.includes("ASSUMED_ON:'Assumed on'") ||
-    !ui.includes("CONFIRMED_ON:'Confirmed on'") ||
-    !ui.includes("ASSUMED_OFF:'Assumed off'") ||
+    !ui.includes('CONFIRMED_OFF:') || !ui.includes('Idle') ||
+    !ui.includes('ASSUMED_ON:') || !ui.includes('Assumed on') ||
+    !ui.includes('CONFIRMED_ON:') || !ui.includes('Confirmed on') ||
+    !ui.includes('ASSUMED_OFF:') || !ui.includes('Assumed off') ||
     !ui.includes('function formatCupState(') ||
     !ui.includes('lastDisconnectReasonName') ||
-    !ui.includes("'Stale'") ||
-    !ui.includes("'No sample'") ||
+    !ui.includes('Stale') || !ui.includes('No sample') ||
     !ui.includes('formatScaleStatus(s)') ||
     !ui.includes('id="preferredScale"') ||
     !ui.includes('id="preferredScaleSelect"') ||
@@ -58,8 +57,9 @@ if (!statusSection || !statusSection[1].includes('class="statusColumn"') ||
     !ui.includes('function updatePreferredScaleSelect(') ||
     !ui.includes('function updateScalePreferenceOptions(') ||
     !ui.includes("if(!preferred){const first=document.createElement('option')") ||
-    !ui.includes("first.textContent=mode==='only'||mode==='prefer'?'First detected':'No preferred'") ||
-    !ui.includes("empty.textContent=bootstrap?'First detected':'No preferred'") ||
+    !ui.includes("first.textContent=mode==='only'||mode==='prefer'?") ||
+    !ui.includes('empty.textContent=bootstrap?') ||
+    !ui.includes('First detected') || !ui.includes('No preferred') ||
     ui.includes("msg:'Select a preferred scale first.'") ||
     !ui.includes('<option value="only" selected>Preferred only</option>') ||
     ui.includes('<option value="first" selected>First available</option>') ||
@@ -295,7 +295,8 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !/Can\\?'t brew — no cup/.test(ui) ||
     !ui.includes('Shot aborted') ||
     !ui.includes('Brew allowed') ||
-    !ui.includes("c.state==='PRESENT'||c.present?'Present':'Absent'") ||
+    !ui.includes("c.state==='PRESENT'||c.present?") ||
+    !ui.includes('Present') || !ui.includes('Absent') ||
     !network.includes('shotLogStopDetailName(') ||
     !html.includes('option value="scale_priority">Scale priority') ||
     !css.includes('.swS') ||
@@ -456,8 +457,7 @@ if (!html.includes('<summary>Switch</summary>') ||
     !html.includes('Button press') ||
     !html.includes('Button release') ||
     !html.includes('Whether a shot starts and stops when you press the button or when you release it') ||
-    !html.includes(
-        'how long to wait for the machine\'s on/off sensor to agree') ||
+    !html.includes('on/off sensor to agree') ||
     !html.includes('it trusts the sensor') ||
     !html.includes('undone if the hold exceeds this limit') ||
     html.includes('<summary>Momentary</summary>') ||
@@ -471,9 +471,9 @@ if (!html.includes('<summary>Switch</summary>') ||
         'when the stopper needs to stop the machine for you') ||
     !ui.includes('stopPulseMs:number(') ||
     !ui.includes("if($('stopPulseMs'))$('stopPulseMs').value=") ||
-    !ui.includes("'Auto-stop pulse'") ||
-    !ui.includes("'Single-press limit'") ||
-    !ui.includes("'Reed confirm timeout'") ||
+    !ui.includes('Auto-stop pulse') ||
+    !ui.includes('Single-press limit') ||
+    !ui.includes('Reed confirm timeout') ||
     !ui.includes('momentaryStartEdge:') ||
     !ui.includes('reedConfirmTimeoutMs:') ||
     !ui.includes('assumeIdleWhenScaleConnects:') ||

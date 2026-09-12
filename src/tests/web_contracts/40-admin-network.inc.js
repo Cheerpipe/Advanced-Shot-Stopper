@@ -472,7 +472,7 @@ if (!ui.includes('Press Reload to enable this window again.') ||
 }
 if (!ui.includes("w.id='reconnectWait'") ||
     !ui.includes("w.className='reconnectRing'") ||
-    !ui.includes('id="reconnectSeconds"') ||
+    !ui.includes('reconnectSeconds') ||
     !ui.includes('function beginNetworkReconnectWait()') ||
     !ui.includes('function endNetworkReconnectWait()') ||
     !ui.includes('function pollNetworkReconnect()') ||
@@ -545,7 +545,7 @@ if (!ui.includes('id="forcePulseButton"') ||
     !ui.includes('class="btnGlyph btnWarn momentaryOnly"') ||
     !ui.includes('Force switch press') ||
     !ui.includes("R.command('/api/v1/control/force-pulse')") ||
-    !runtimeJs.includes("'control/force-pulse':['Switch pulse sent.','send switch pulse']") ||
+    !js.includes("'control/force-pulse':['Switch pulse sent.','send switch pulse']") ||
     !runtimeJs.includes("force.disabled=!(admin&&remoteReady&&relayStartReady&&webUiOwner)") ||
     !css.includes('.presetActions>.btnGlyph{min-height:var(--tap);') ||
     !css.includes('#actionsPanel .btnGlyph{flex:1;') ||

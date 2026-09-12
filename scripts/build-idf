@@ -19,6 +19,7 @@ Compile Shot Stopper with ESP-IDF (official supported path) and write artifacts
 to build-idf/<architecture>.
 
 Required parameters: --arch. --flags is optional and prompted once.
+The WebUI language defaults to en and is selected at compile time.
 
 $(ss_flag_help)
 
@@ -35,6 +36,7 @@ BLE backend:
 
 Examples:
   ./scripts/build-idf --arch n16r8
+  ./scripts/build-idf --arch n16r8 --webui-language EN
   ./scripts/build-idf -a n16r8 -f "-DSHOT_STOPPER_ENABLE_JTAG=1"
 EOF
 }
@@ -45,7 +47,7 @@ if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
   exit 0
 fi
 
-ss_cli_resolve "arch" "flags" || exit $?
+ss_cli_resolve "arch webui_language" "flags" || exit $?
 shotstopper_resolve_board "$(ss_get arch)"
 ss_idf_source
 ss_idf_py_args
@@ -60,7 +62,8 @@ cd "$root"
 
 echo "Building $SHOTSTOPPER_ARCH (IDF, BLE=nimble, allocator=external)"
 ./scripts/gen_version.sh "$SHOTSTOPPER_ARCH"
-node ./scripts/gen_web_ui.js
+echo "WebUI language: $(ss_get webui_language)"
+node ./scripts/gen_web_ui.js --webui-language "$(ss_get webui_language)"
 
 export SHOT_STOPPER_EXTRA_FLAGS
 SHOT_STOPPER_EXTRA_FLAGS="$(ss_get flags)"

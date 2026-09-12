@@ -43,8 +43,10 @@ without growing either blob. Web gzip remains capped at 64,000 bytes combined:
 500 bytes of the shell-JS allowance are reassigned to runtime (5,444 and 32,000
 bytes respectively before the PM allocation below). Source authoring limits are
 54,900 bytes HTML and 168,380 bytes JS, 223,280 combined: 1,000 more source bytes for selector readback/CSV
-after condensing BBW help. These source allowances do not raise firmware or
-combined compressed-asset limits.
+after condensing BBW help. They are measured after the selected Web UI catalog
+is rendered, excluding catalog metadata and keys; every emitted byte still
+counts toward the unchanged per-asset and combined gzip limits. These source
+allowances do not raise firmware or combined compressed-asset limits.
 Power management shares the Admin toggle persistence handler and adds 1,024
 source bytes of allowance. It reallocates 400 compressed bytes from shell JS:
 current limits are 5,044 shell JS, 32,200 runtime and 5,800 secondary views.
