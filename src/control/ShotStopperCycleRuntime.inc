@@ -105,7 +105,7 @@ void serviceRemoteTimerStopRetry() {
 // between brew ↔ cup ↔ scale — this file applies their effects.
 // ---------------------------------------------------------------------------
 
-void notifyWebhookFirstDrop(uint32_t receivedAtMs);
+void notifyWebhookFirstDrop(const FirstFlowObservation &observation);
 
 #include "ShotStopperCupPresence.h"
 #include "ShotStopperBrew.h"
@@ -542,25 +542,27 @@ void serviceWebhookBrewStart() {
   }
 }
 
-void notifyWebhookFirstDrop(uint32_t receivedAtMs) {
+void notifyWebhookFirstDrop(const FirstFlowObservation &observation) {
   queueWebhookBrewStart();
   const WebhookConfig config = networkManager.webhookConfig();
   if (!config.enabled || !config.firstDrop) return;
   WebhookEvent event = baseWebhookEvent(WebhookEventType::FIRST_DROP, session.id,
-                                        receivedAtMs);
+                                        observation.atMs);
   const uint32_t anchor = session.circuitClosedAtMs != 0
                               ? session.circuitClosedAtMs
                               : session.startedAtMs;
-  event.firstDropValid = static_cast<int32_t>(receivedAtMs - anchor) >= 0;
-  event.firstDropMs = event.firstDropValid ? receivedAtMs - anchor : 0;
-  event.weightValid = std::isfinite(currentWeight);
-  event.weightG = event.weightValid ? currentWeight : 0.0f;
+  event.firstDropValid = static_cast<int32_t>(observation.atMs - anchor) >= 0;
+  event.firstDropMs = event.firstDropValid ? observation.atMs - anchor : 0;
+  event.weightValid = std::isfinite(observation.weightG);
+  event.weightG = event.weightValid ? observation.weightG : 0.0f;
   event.targetWeightG = static_cast<float>(session.config.goalWeightG);
   event.presetId = session.activePresetId;
   (void)networkManager.enqueueWebhook(event);
 }
 #else
-void notifyWebhookFirstDrop(uint32_t receivedAtMs) { (void)receivedAtMs; }
+void notifyWebhookFirstDrop(const FirstFlowObservation &observation) {
+  (void)observation;
+}
 void serviceWebhookBrewStart() {}
 #endif
 
@@ -752,20 +754,6 @@ void orchestratePostTareBaselineArm() {
   holdCupPresenceTransitions(true);
 }
 
-bool acceptWeightAndNotifyFirstFlow(float weight, uint32_t receivedAtMs,
-                                    uint32_t packetSequence) {
-  if (!acceptWeightIntoTrajectory(weight, receivedAtMs, packetSequence,
-                                  activeWeightCutTargetG())) {
-    return false;
-  }
-  const uint32_t latchAtMs =
-      maybeLatchFirstFlowFromAcceptedWeight(weight, receivedAtMs);
-  if (latchAtMs != 0) {
-    onFirstDropsDetected(latchAtMs);
-  }
-  return true;
-}
-
 bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                                       uint32_t packetSequence,
                                       uint32_t connectionGeneration,
@@ -836,10 +824,10 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   }
 
   if (session.active && session.startedWithScale) {
-    const uint32_t firstDropAtMs =
+    const FirstFlowObservation firstDrop =
         considerScaleFlowMarkers(weight, receivedAtMs, packetSequence);
-    if (firstDropAtMs != 0) {
-      onFirstDropsDetected(firstDropAtMs);
+    if (firstDrop.atMs != 0) {
+      onFirstDropsDetected(firstDrop);
     }
   }
 
@@ -885,8 +873,8 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
       session.awaitingPostTareBaseline = false;
       holdCupPresenceTransitions(false);
       weightStreamState = WeightStreamState::FRESH;
-      return acceptWeightAndNotifyFirstFlow(weight, receivedAtMs,
-                                            packetSequence);
+      return acceptWeightIntoTrajectory(weight, receivedAtMs, packetSequence,
+                                        activeWeightCutTargetG());
     }
     rejectScaleSample(DebugCode::SCALE_SAMPLE_REJECTED_SLEW, weight,
                       POST_TARE_BASELINE_MAX_ABS_G);
@@ -991,7 +979,8 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   considerDirectStopSample(weight, receivedAtMs, packetSequence,
                            connectionGeneration);
   weightStreamState = WeightStreamState::FRESH;
-  return acceptWeightAndNotifyFirstFlow(weight, receivedAtMs, packetSequence);
+  return acceptWeightIntoTrajectory(weight, receivedAtMs, packetSequence,
+                                    activeWeightCutTargetG());
 }
 
 // Host-test-only entry point: the firmware path feeds weight through

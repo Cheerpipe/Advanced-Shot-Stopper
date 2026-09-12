@@ -64,31 +64,6 @@ bool expirePostTareBaselineIfNeeded() {
   return true;
 }
 
-uint32_t maybeLatchFirstFlowFromAcceptedWeight(float weight,
-                                               uint32_t receivedAtMs) {
-  if (!session.active || !session.startedWithScale || session.firstDropMs != 0 ||
-      !session.scaleBaselineReady) {
-    return 0;
-  }
-  if (session.accidentalTouchHolding ||
-      session.firstFlow.phase == FirstFlowPhase::TOUCH) {
-    session.firstFlowAcceptedConfirmations = 0;
-    return 0;
-  }
-  const float delta = weight - session.scaleBaselineG;
-  if (delta < FIRST_DROP_THRESHOLD_G ||
-      firstFlowIsCupMass(delta, runtimeConfig.minimumCupWeightG)) {
-    session.firstFlowAcceptedConfirmations = 0;
-    return 0;
-  }
-  ++session.firstFlowAcceptedConfirmations;
-  if (session.firstFlowAcceptedConfirmations >=
-      FIRST_DROP_CONFIRMATION_SAMPLES) {
-    return receivedAtMs;
-  }
-  return 0;
-}
-
 bool acceptWeightIntoTrajectory(float weight, uint32_t receivedAtMs,
                                 uint32_t packetSequence,
                                 float cutTargetG = 0.0f) {
@@ -118,18 +93,19 @@ bool acceptWeightIntoTrajectory(float weight, uint32_t receivedAtMs,
   return true;
 }
 
-uint32_t considerScaleFlowMarkers(float weight, uint32_t receivedAtMs,
-                                  uint32_t packetSequence) {
+FirstFlowObservation considerScaleFlowMarkers(float weight,
+                                               uint32_t receivedAtMs,
+                                               uint32_t packetSequence) {
   if (!session.active || !session.startedWithScale || session.firstDropMs != 0) {
-    return 0;
+    return {};
   }
   if (!session.scaleBaselineReady) {
     if (fabsf(weight) > FIRST_DROP_BASELINE_SETTLE_G) {
-      return 0;
+      return {};
     }
     session.scaleBaselineG = weight;
     session.scaleBaselineReady = true;
-    return 0;
+    return {};
   }
   if (session.firstFlow.phase == FirstFlowPhase::SEEKING &&
       session.firstFlow.confirmations == 0 &&
@@ -142,8 +118,11 @@ uint32_t considerScaleFlowMarkers(float weight, uint32_t receivedAtMs,
       stepFirstFlow(session.firstFlow, weight, receivedAtMs, packetSequence,
                     session.scaleBaselineG, runtimeConfig.minimumCupWeightG);
   if (classified == FirstFlowClass::FIRE) {
-    return session.firstFlow.candidateMs != 0 ? session.firstFlow.candidateMs
-                                              : receivedAtMs;
+    return {session.firstFlow.candidateMs != 0 ? session.firstFlow.candidateMs
+                                               : receivedAtMs,
+            session.firstFlow.candidateMs != 0
+                ? session.firstFlow.candidateWeightG
+                : weight};
   }
-  return 0;
+  return {};
 }

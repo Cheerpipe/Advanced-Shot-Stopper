@@ -394,6 +394,12 @@ struct FirstFlowState {
   float postJumpG = 0.0f;
   uint32_t jumpAtMs = 0;
   uint32_t candidateMs = 0;
+  float candidateWeightG = 0.0f;
+};
+
+struct FirstFlowObservation {
+  uint32_t atMs = 0;
+  float weightG = 0.0f;
 };
 
 inline void resetFirstFlowState(FirstFlowState &state) {
@@ -427,6 +433,7 @@ inline FirstFlowClass enterFirstFlowTouch(FirstFlowState &state, float weight,
   state.confirmations = 0;
   state.residualConfirmations = 0;
   state.candidateMs = receivedAtMs;
+  state.candidateWeightG = weight;
   return FirstFlowClass::TOUCH;
 }
 
@@ -469,6 +476,7 @@ inline FirstFlowClass stepFirstFlow(
       state.confirmations = 0;
       state.residualConfirmations = 0;
       state.candidateMs = 0;
+      state.candidateWeightG = 0.0f;
       noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
       return FirstFlowClass::NONE;
     }
@@ -484,6 +492,7 @@ inline FirstFlowClass stepFirstFlow(
             : 1U;
     if (state.confirmations == 1U) {
       state.candidateMs = receivedAtMs;
+      state.candidateWeightG = weight;
     }
     noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
     if (state.confirmations >= FIRST_DROP_CONFIRMATION_SAMPLES) {
@@ -500,6 +509,7 @@ inline FirstFlowClass stepFirstFlow(
     state.confirmations = 0;
     state.residualConfirmations = 0;
     state.candidateMs = receivedAtMs;
+    state.candidateWeightG = weight;
     noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
     return FirstFlowClass::TOUCH;
   }
@@ -515,6 +525,7 @@ inline FirstFlowClass stepFirstFlow(
               : 1U;
       if (state.residualConfirmations == 1U) {
         state.candidateMs = receivedAtMs;
+        state.candidateWeightG = weight;
       }
       noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
       if (state.residualConfirmations >= FIRST_DROP_CONFIRMATION_SAMPLES) {
@@ -532,6 +543,7 @@ inline FirstFlowClass stepFirstFlow(
     state.confirmations = 0;
     state.residualConfirmations = 0;
     state.candidateMs = 0;
+    state.candidateWeightG = 0.0f;
     noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
     return FirstFlowClass::NONE;
   }
@@ -547,6 +559,7 @@ inline FirstFlowClass stepFirstFlow(
     noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
     if (state.confirmations >= FIRST_DROP_CONFIRMATION_SAMPLES) {
       state.candidateMs = state.jumpAtMs;
+      state.candidateWeightG = state.postJumpG;
       return FirstFlowClass::FIRE;
     }
     return FirstFlowClass::TOUCH;

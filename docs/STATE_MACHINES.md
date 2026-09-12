@@ -565,6 +565,10 @@ Source: `ShotStopperScaleTypes.h` (`stepFirstFlow`).
 | `TOUCH` | Finger/cup jump; do not fire first drop. |
 | `FIRE` | Confirmed first drops (two consecutive coffee-sized samples, or leftover after a touch that was not cup mass). |
 
+`FIRE` is emitted when the qualifying sequence is confirmed, but the recorded
+first-drop time and weight come from the first sample in that uninterrupted
+sequence. A packet or timing gap starts a new sequence.
+
 ---
 
 ## 9. Accidental touch (`AccidentalTouchPhase` / `AccidentalTouchClass`)

@@ -92,7 +92,6 @@ void calculateExpectedEndTime(float cutTargetG);
 
 void resetFirstFlowDetector() {
   resetFirstFlowState(session.firstFlow);
-  session.firstFlowAcceptedConfirmations = 0;
 }
 
 void markTareZeroReady() {
@@ -241,16 +240,16 @@ bool bbwWeightStopInhibited() {
   return bbwProtectionActive();
 }
 
-void onFirstDropsDetected(uint32_t receivedAtMs) {
+void onFirstDropsDetected(const FirstFlowObservation &observation) {
   const bool first = session.firstDropMs == 0;
-  recordFirstDropTimestamp(receivedAtMs);
-  if (session.hasWeightAnchor && std::isfinite(session.lastAcceptedWeightG)) {
-    shotCurveSampler.latchFirstDrop(receivedAtMs, session.lastAcceptedWeightG);
+  recordFirstDropTimestamp(observation.atMs);
+  if (std::isfinite(observation.weightG)) {
+    shotCurveSampler.latchFirstDrop(observation.atMs, observation.weightG);
   }
   requestFirstDropBeep();
-  notifyRetareFlowDetected(receivedAtMs);
+  notifyRetareFlowDetected(observation.atMs);
   if (first) {
-    notifyWebhookFirstDrop(receivedAtMs);
+    notifyWebhookFirstDrop(observation);
   }
 }
 

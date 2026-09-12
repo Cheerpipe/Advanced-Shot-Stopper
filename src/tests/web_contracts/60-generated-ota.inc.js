@@ -471,6 +471,44 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       s.pts[s.pts.length - 1].t >= 15)) {
     throw new Error('Spark 15.1s Fast guard must paint orange through ended');
   }
+  if (fast15.pts[0].t !== 4.5 || fast15.pts[0].cg !== 50 ||
+      fast15.pts.some((p) => p.t < 4.5) ||
+      fast15.segs.some((s) => s.pts.some((p) => p.t < 4.5))) {
+    throw new Error('Spark must start at the exact first-drop event');
+  }
+  const firstDropFallback = helpers.buildShotSparkModel({
+    wCg: [0, 20, 90, 150], wDtS: 2, durationS: 6,
+    firstDropS: 4.5, dropCg: 40,
+  });
+  if (!firstDropFallback || firstDropFallback.pts[0].t !== 4.5 ||
+      firstDropFallback.pts[0].cg !== 40 ||
+      firstDropFallback.pts[firstDropFallback.pts.length - 1].cg !== 150) {
+    throw new Error('Spark fallback must preserve exact drop and final grid weights');
+  }
+  const laterEvent = helpers.buildShotSparkModel({
+    wCg: [0, 20, 90, 150], wDtS: 2, durationS: 8,
+    firstDropS: 4.5, dropCg: 40, extendedS: 7.3, extCg: 300,
+    extractionExtended: true,
+  });
+  if (!laterEvent || laterEvent.pts[laterEvent.pts.length - 1].t !== 8 ||
+      laterEvent.pts[laterEvent.pts.length - 1].cg !== 300) {
+    throw new Error('Spark fallback must use the chronologically latest evidence');
+  }
+  const earlyMarkers = helpers.buildShotSparkModel({
+    wCg: [0, 20, 90, 150], wDtS: 2, durationS: 6,
+    firstDropS: 4.5, dropCg: 40, extendedS: 3, extCg: 3000,
+    atmS: 2, atmCg: 2000, atmClearedS: 3, endS: 4, endCg: 90,
+  });
+  if (!earlyMarkers || earlyMarkers.pts.some((p) => p.t < 4.5) ||
+      earlyMarkers.segs.some((s) => s.pts.some((p) => p.t < 4.5))) {
+    throw new Error('Spark must reject every malformed pre-drop marker');
+  }
+  const noDrop = helpers.buildShotSparkModel({
+    wCg: [0, 20, 90], wDtS: 2, durationS: 4,
+  });
+  if (!noDrop || noDrop.pts.map((p) => p.t).join(',') !== '0,2,4') {
+    throw new Error('Spark without a first-drop event must keep its grid');
+  }
   const slowLate = helpers.buildShotSparkModel({
     wCg: Array.from({length: 14}, (_, i) => (i + 1) * 200),
     wDtS: 2,

@@ -9642,7 +9642,7 @@ void s02d_shot_curve_latches_first_drop_fast_and_atm() {
   acceptWeightIntoTrajectory(0.5f, hostMillis, 1);
   hostMillis = t0 + 4500;
   session.lastAcceptedWeightG = 4.0f;
-  onFirstDropsDetected(hostMillis);
+  onFirstDropsDetected({hostMillis, 4.0f});
   CHECK(shotCurveSampler.firstDrop.atDs == 45);
   CHECK(shotCurveSampler.firstDrop.weightCg == 400);
   hostMillis = t0 + 13300;
@@ -12608,6 +12608,7 @@ void ff01_classifier_seeking_touch_and_release() {
   CHECK(stepFirstFlow(state, 0.35f, 100, 1, 0.0f) == FirstFlowClass::CANDIDATE);
   CHECK(stepFirstFlow(state, 0.40f, 200, 2, 0.0f) == FirstFlowClass::FIRE);
   CHECK(state.candidateMs == 100);
+  CHECK(fabsf(state.candidateWeightG - 0.35f) < 0.001f);
 
   resetFirstFlowState(state);
   CHECK(stepFirstFlow(state, 0.4f, 100, 1, 0.0f) == FirstFlowClass::CANDIDATE);
@@ -12637,6 +12638,7 @@ void ff01_classifier_seeking_touch_and_release() {
   CHECK(stepFirstFlow(state, 1.2f, 200, 2, 0.0f) == FirstFlowClass::TOUCH);
   CHECK(stepFirstFlow(state, 1.3f, 300, 3, 0.0f) == FirstFlowClass::FIRE);
   CHECK(state.candidateMs == 200);
+  CHECK(fabsf(state.candidateWeightG - 1.2f) < 0.001f);
 
   resetFirstFlowState(state);
   CHECK(stepFirstFlow(state, 4.0f, 100, 1, 0.0f) == FirstFlowClass::TOUCH);
@@ -12644,6 +12646,7 @@ void ff01_classifier_seeking_touch_and_release() {
   CHECK(stepFirstFlow(state, 6.1f, 300, 3, 0.0f) == FirstFlowClass::TOUCH);
   CHECK(stepFirstFlow(state, 6.2f, 400, 4, 0.0f) == FirstFlowClass::FIRE);
   CHECK(state.candidateMs == 100);
+  CHECK(fabsf(state.candidateWeightG - 4.0f) < 0.001f);
 
   resetFirstFlowState(state);
   CHECK(stepFirstFlow(state, 200.0f, 100, 1, 0.0f) == FirstFlowClass::TOUCH);
@@ -13040,10 +13043,14 @@ void startFirstFlowBrew() {
 
 void ff02_chorrito_fires_on_second_sample() {
   startFirstFlowBrew();
-  publishWeight(0.4f, hostMillis + 50, 1, 20);
+  const uint32_t firstAtMs = hostMillis + 50;
+  publishWeight(0.4f, firstAtMs, 1, 20);
   CHECK(session.firstDropMs == 0);
   publishWeight(0.9f, hostMillis + 150, 1, 21);
-  CHECK(session.firstDropMs != 0);
+  CHECK(session.firstDropMs == firstAtMs);
+  CHECK(shotCurveSampler.firstDrop.atDs ==
+        static_cast<uint16_t>((firstAtMs - shot.startMs) / 100U));
+  CHECK(shotCurveSampler.firstDrop.weightCg == 40);
   publishWeight(1.5f, hostMillis + 250, 1, 22);
   publishWeight(2.4f, hostMillis + 350, 1, 23);
   CHECK(session.firstDropMs != 0);
@@ -13078,10 +13085,12 @@ void ff06_touch_during_drops_fires_on_residual() {
   startFirstFlowBrew();
   publishWeight(8.0f, hostMillis + 50, 1, 20);
   CHECK(session.firstDropMs == 0);
-  publishWeight(1.2f, hostMillis + 150, 1, 21);
+  const uint32_t residualAtMs = hostMillis + 150;
+  publishWeight(1.2f, residualAtMs, 1, 21);
   CHECK(session.firstDropMs == 0);
   publishWeight(1.3f, hostMillis + 250, 1, 22);
-  CHECK(session.firstDropMs != 0);
+  CHECK(session.firstDropMs == residualAtMs);
+  CHECK(shotCurveSampler.firstDrop.weightCg == 120);
 }
 
 void ff07_gush_then_flow_backdates_to_jump() {
@@ -13093,6 +13102,19 @@ void ff07_gush_then_flow_backdates_to_jump() {
   CHECK(session.firstDropMs == 0);
   publishWeight(6.2f, jumpAtMs + 300, 1, 23);
   CHECK(session.firstDropMs == jumpAtMs);
+  CHECK(shotCurveSampler.firstDrop.weightCg == 400);
+}
+
+void ff16_packet_gap_restarts_confirmation() {
+  startFirstFlowBrew();
+  publishWeight(0.4f, hostMillis + 50, 1, 20);
+  const uint32_t restartedAtMs = hostMillis + 150;
+  publishWeight(0.9f, restartedAtMs, 1, 22);
+  CHECK(session.firstDropMs == 0);
+  CHECK(session.firstFlow.candidateMs == restartedAtMs);
+  publishWeight(1.0f, hostMillis + 100, 1, 23);
+  CHECK(session.firstDropMs == restartedAtMs);
+  CHECK(shotCurveSampler.firstDrop.weightCg == 90);
 }
 
 void ff08_coffee_during_post_tare_grace_fires() {
@@ -14127,6 +14149,7 @@ const TestCase testCases[] = {
     {"FF13", ff13_rinse_first_drop_goes_through_stopper},
     {"FF14", ff14_no_scale_first_drop_does_not_skip_stopper},
     {"FF15", ff15_orchestrate_post_tare_holds_cup_transitions},
+    {"FF16", ff16_packet_gap_restarts_confirmation},
     {"R65", r65_slow_extended_shot_does_not_learn_weight_offset},
     {"R32", r32_old_connection_generation_cannot_update_weight},
     {"R33", r33_weight_mailbox_keeps_latest_without_consumer_gap},

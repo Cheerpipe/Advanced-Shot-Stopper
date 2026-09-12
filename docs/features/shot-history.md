@@ -36,8 +36,11 @@ Curve samples and the history record are written **once** when the cycle
 closes (after the configured drip delay), not during an active brew. Shot
 duration and the curve time axis end when the machine circuit opens. The
 settled post-drip weight replaces the curve's endpoint at that same end time;
-the drip-delay interval is not appended to the graph. The current-shot curve exposed to Home is an in-memory view; it is not a
-persistent live-telemetry service.
+the drip-delay interval is not appended to the graph. When first drop is
+available, the visible weight curve begins at that exact event; earlier
+background samples on the 2-second grid are not plotted. Curves without a
+first-drop event keep their full available grid. The current-shot curve exposed
+to Home is an in-memory view; it is not a persistent live-telemetry service.
 
 Observed removal or a new placement during the drip delay preserves the weight
 captured at shot end and discards post-drip learning, regardless of the idle

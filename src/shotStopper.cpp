@@ -247,7 +247,6 @@ struct CycleSession {
   bool retareDisabled = false;
   bool firstDropsBeepSent = false;
   FirstFlowState firstFlow = {};
-  uint8_t firstFlowAcceptedConfirmations = 0;
   ControlSource source = ControlSource::NONE;
   CycleConfigSnapshot config = {};
   EndReason endReason = EndReason::NONE;

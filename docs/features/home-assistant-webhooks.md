@@ -130,9 +130,14 @@ Normal extraction sends `brewing` at the start and `idle` at the end.
 
 | Field | Description |
 | --- | --- |
-| `firstDropMs` | Time from start to first drops, in ms. |
-| `weightG` | Scale reading at first drops, in grams. |
+| `firstDropMs` | Time from start to the first qualifying drop sample, in ms. |
+| `weightG` | Scale reading from that first qualifying sample, in grams. |
 | `targetWeightG` / `presetId` | Active recipe target and ID. |
+
+The event is sent only after consecutive samples confirm flow. Its event time,
+`firstDropMs`, and `weightG` still describe the first sample in that
+uninterrupted qualifying sequence; `sentAtUptimeMs` shows when the confirmed
+message was prepared.
 
 ### `end`
 
