@@ -47,7 +47,9 @@ and stop behavior.
 - **Installation skills:** identify and verify your machine's electrical
   connections, build the firmware, and test the installation on a bench.
 
-A [printable enclosure](docs/HARDWARE.md#3d-printable-enclosure) is included.
+A [printable enclosure](docs/HARDWARE.md#3d-printable-enclosure) is included in
+standard and thicker versions. PETG is recommended for the thick pair in
+warmer installations.
 Classic ESP32, boards without PSRAM, and Timemore scales are outside the current
 support scope.
 

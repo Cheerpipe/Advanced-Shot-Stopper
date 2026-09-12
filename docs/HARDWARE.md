@@ -64,14 +64,18 @@ supported**.
 ## 3D-printable enclosure
 
 A simple two-part enclosure is provided for the ESP32-S3 relay development
-board. The supplied geometry is a fit reference, not a thermal or electrical safety
+board. Choose a matching box-and-cover pair:
+
+- **Standard:** [`AdvancedShotStopper-Box.stl`](../stl/AdvancedShotStopper-Box.stl)
+  and its [open/partial cover](../stl/AdvancedShotStopper-Cover.stl).
+- **Thick:** [`AdvancedShotStopper-Box-thick.stl`](../stl/AdvancedShotStopper-Box-thick.stl)
+  and its [thicker cover](../stl/AdvancedShotStopper-Cover-thick.stl). This pair
+  better resists deformation where the ESP32 is exposed to more heat; PETG is
+  recommended.
+
+The supplied geometry is a fit reference, not a thermal or electrical safety
 rating. Choose material and mounting for measured temperatures and required
 clearances; a printed case does not establish suitability inside a hot machine.
-
-- [`AdvancedShotStopper-Box.stl`](../stl/AdvancedShotStopper-Box.stl) — the
-  main box that houses the development board.
-- [`AdvancedShotStopper-Cover.stl`](../stl/AdvancedShotStopper-Cover.stl) —
-  the open/partial top cover for the box.
 
 Example of the assembled, printed enclosure:
 
