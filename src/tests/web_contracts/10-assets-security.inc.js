@@ -135,10 +135,11 @@ if (htmlBytes > 63000) {
 // Opt-in power control/activity leases add 1 KiB of authoring allowance after
 // sharing the Admin toggle persistence path. Dirty save-button feedback adds
 // 300 bytes through one shared state helper. Compressed/firmware caps unchanged.
-if (jsBytes > 169300) {
+// Zero baselines and the first-drop icon add 1,000 bytes of source allowance.
+if (jsBytes > 170300) {
   throw new Error('Web UI JS source exceeds the authoring budget');
 }
-if (htmlBytes + jsBytes > 232300) {
+if (htmlBytes + jsBytes > 233300) {
   throw new Error('Web UI HTML+JS source exceeds the combined authoring budget');
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||

@@ -1,3 +1,52 @@
+{
+  const helpers = runtimeJs.slice(runtimeJs.indexOf('function lastCurveWeightG('),
+      runtimeJs.indexOf('function populateTimezoneOptions('));
+  const renderer = runtimeJs.slice(runtimeJs.indexOf('function renderShotSpark('),
+      runtimeJs.indexOf('function renderStatsDurChart('));
+  const ticks = [[], []], markers = [];
+  let markup = '';
+  const document = {createElement(){return {style:{}}}};
+  const host = {
+    get innerHTML(){return markup},
+    set innerHTML(value){markup=value;markers.length=0},
+    hidden:true, replaceChildren(){this.innerHTML=''},
+    querySelector(){return {appendChild(item){markers.push(item)}}},
+    querySelectorAll(){return ticks.map((items) => ({
+      replaceChildren(){items.length=0}, appendChild(item){items.push(item)}
+    }))},
+  };
+  const render = new Function('document', helpers + renderer +
+      ';return renderShotSpark;')(document);
+  render(host, {wCg:[0, 0, 0, 100, 200], wDtS:1, durationS:4,
+    firstDropS:2.5, dropCg:50});
+  const [weight, flow] = host.innerHTML.split('<div class="shotCurve">').slice(1);
+  if (host.hidden || !weight.includes('Weight (g)') || !flow.includes('Flow rate (g/s)') ||
+      !weight.includes('d="M1.5 34.5 L149.6 34.5" fill="none" stroke="var(--ok)"') ||
+      !flow.includes('d="M1.5 34.5 L149.6 34.5" fill="none" stroke="#38bdf8"') ||
+      !weight.includes('shotDropOverlay') || flow.includes('shotDropOverlay') ||
+      markers.length !== 1 || !markers[0].innerHTML.includes('fill="#38bdf8"') ||
+      !markers[0].innerHTML.includes('1st 2.5') ||
+      flow.includes('1st ') || flow.includes('shotFirstDrop') ||
+      host.innerHTML.includes('<line ') ||
+      Math.abs(parseFloat(markers[0].style.left) - 62.34375) > .001 ||
+      ticks[1].some((item) => item.className.includes('shotFirstDrop'))) {
+    throw new Error('Shot charts must show zero outlines and an aqua drop/time only on weight');
+  }
+  render(host, {wCg:[0, 0, 0], wDtS:1, durationS:2});
+  if (host.hidden || (host.innerHTML.match(/class="shotSpark"/g) || []).length !== 2 ||
+      !host.innerHTML.includes('M1.5 34.5 L120.0 34.5 L238.5 34.5') ||
+      markers.length || host.innerHTML.includes('fill-opacity')) {
+    throw new Error('Live zero weight and flow must stay visible before the first drop');
+  }
+  render(host, {wCg:[0, 0, 100], durationS:2, firstDropS:1.9, dropCg:50});
+  if (markers.length !== 1 || !markers[0].innerHTML.startsWith('1st 1.9') ||
+      markers[0].style.transform !== 'translateX(calc(-100% + 6px))') {
+    throw new Error('Late first-drop labels must stay on the left of the drop');
+  }
+  render(host, null);
+  if (!host.hidden || host.innerHTML) throw new Error('Missing shot data must still hide the charts');
+}
+
 if (!statusSection || !statusSection[1].includes('class="statusColumn"') ||
     statusSection[1].includes('class="row"') ||
     (statusSection[1].match(/class="metric"/g) || []).length !== 2 ||
@@ -144,8 +193,8 @@ if (!ui.includes('id="shotPanel"') ||
     !runtimeJs.includes('style.left=') ||
     runtimeJs.includes("style=\"left:") ||
     !runtimeJs.includes('function shotDisplayFlowGS(') ||
-    !runtimeJs.includes('lastCurveWeightG(w)===null') ||
-    !runtimeJs.includes('model.firstDropS>0&&dur>0') ||
+    !runtimeJs.includes('merged.length<2||!(dur>0)') ||
+    !runtimeJs.includes('model.firstDropS>0') ||
     !runtimeJs.includes('model.flowSegs,model.maxFlow') ||
     !runtimeJs.includes('Flow rate (g/s)') ||
     !runtimeJs.includes("host.querySelectorAll('.ruleChartTicks')") ||
@@ -154,7 +203,7 @@ if (!ui.includes('id="shotPanel"') ||
     !runtimeJs.includes('raw.sort(') ||
     runtimeJs.includes('shotIdle') ||
     runtimeJs.includes("last?'Last shot.'") ||
-    !runtimeJs.includes('stroke="\'+cN+\'"') ||
+    !css.includes('.shotFirstDrop{') ||
     runtimeJs.includes('stroke="currentColor"') ||
     !runtimeJs.includes("if(spark.hidden)row.classList.add('noSpark')") ||
     !css.includes('.shotCard{') ||
@@ -204,14 +253,10 @@ if (!ui.includes('id="shotPanel"') ||
   throw new Error('Web UI must enforce remote policy, maintenance, durable command state, and live shot status');
 }
 {
-  const pair = runtimeJs.slice(runtimeJs.indexOf("host.innerHTML='<div class=\"shotCurve\""),
-      runtimeJs.indexOf("for(const ticks of host.querySelectorAll", runtimeJs.indexOf('function renderShotSpark(')));
-  const weight = pair.indexOf('Weight (g)');
-  const flowRate = pair.indexOf('Flow rate (g/s)');
   const curveTypes = fs.readFileSync(path.join(sketchDir, 'ShotStopperShotCurveTypes.h'), 'utf8');
   const record = curveTypes.slice(curveTypes.indexOf('struct ShotCurveRecord'),
       curveTypes.indexOf('inline ShotCurveRecord emptyShotCurveRecord'));
-  if (weight < 0 || flowRate <= weight || !runtimeJs.includes("spark.className='shotSparkCell'") ||
+  if (!runtimeJs.includes("spark.className='shotSparkCell'") ||
       !runtimeJs.includes("renderShotSpark(spark,r)") ||
       !runtimeJs.includes("renderShotSpark($('shotSparkHost')") ||
       /flow/i.test(record) || network.includes('\"flowCg\"') || network.includes('\"flowDtS\"')) {

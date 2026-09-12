@@ -41,10 +41,10 @@ the union because a preset operation also carries configuration. Persisted
 record layouts are unchanged.
 
 Settings V11/history V4 change byte meanings through explicit migration,
-without growing either blob. Web gzip is capped at 66,000 bytes combined:
+without growing either blob. Web gzip is capped at 66,400 bytes combined:
 500 bytes of the shell-JS allowance are reassigned to runtime (5,444 and 32,000
 bytes respectively before the PM allocation below). Source authoring limits are
-63,000 bytes HTML and 169,000 bytes JS, 232,000 combined. This reviewed increase
+63,000 bytes HTML and 170,300 bytes JS, 233,300 combined. This reviewed increase
 preserves complete field-level help and separate explanations for each option
 when a selector changes the user's workflow or has materially different modes.
 The limits are measured after the selected Web UI catalog is rendered, excluding
@@ -62,10 +62,13 @@ friendly, well-constructed UI takes priority over preserving the previous Web UI
 byte allowance.
 Power management shares the Admin toggle persistence handler and adds 1,024
 source bytes of allowance. It reallocates 400 compressed bytes from shell JS:
-current limits are 5,044 shell JS, 32,200 runtime and 5,800 secondary views.
+current limits are 5,044 shell JS, 32,500 runtime and 6,050 secondary views.
 Complete Settings help raises the reviewed combined Web gzip cap from 64,000 to
-66,000 bytes; the measured English build is 65,248 bytes. Firmware and DRAM caps
-are unchanged.
+66,000 bytes; that measured English build was 65,248 bytes. Zero chart baselines
+and a fixed-size first-drop icon with an adjacent time raise the runtime cap
+from 32,250 to 32,500 bytes, CSS from 6,600 to 6,750 bytes, and the combined cap
+to 66,400 bytes, with another 1,000 bytes of JavaScript source allowance.
+Firmware and DRAM caps are unchanged.
 The asynchronous configuration-save acknowledgement adds 256 source bytes of
 allowance for revision/value readback and pending/failed persistence checks;
 it does not raise compressed-asset limits.
