@@ -29,6 +29,8 @@ and stop behavior.
 | Understand an unexpected result | [Troubleshooting](docs/FAQ.md) |
 | Update or recover the controller | [OTA](docs/features/ota.md) / [Recovery](docs/EMERGENCY_RECOVERY.md) |
 | Develop or contribute | [Contributing](CONTRIBUTING.md) |
+| Understand the test gates | [Testing and validation](#testing-and-validation) |
+| Look up a technical term | [Technical glossary](#technical-glossary) |
 | Find a specific reference | [Documentation index](docs/README.md) |
 
 <a id="tldr"></a>
@@ -192,6 +194,110 @@ shot summaries, not a guaranteed real-time telemetry stream.
 Use the [complete index](docs/README.md) for user guides, settings, architecture,
 validation, and library integration. Read only the page needed for your task;
 parameter tables and protocol contracts have one canonical home.
+
+### Testing and validation
+
+A **gate** is the set of checks that a change must pass before it can be accepted.
+The project first classifies the changed files by risk, then runs the matching
+gate. Higher levels include the lower-level checks, so a safety-critical change
+receives much more scrutiny than a wording correction. The authoritative rules
+and exact commands are in [Validation gates](VALIDATION.md).
+
+| Level | What it is for | What it checks | When it runs |
+| --- | --- | --- | --- |
+| R0 | Non-critical documentation and repository metadata | Documentation contracts, local links, headings, images, and known paths | For documentation-only changes and as the base of every higher gate |
+| R1 | Web UI, tests, developer tooling, and isolated logic | R0 plus the normal host tests and any focused checks or generated assets relevant to the change | While developing these areas and before submitting the finished change |
+| R2 | BLE, networking, saved data, OTA, and build changes | Full host coverage, ASan/UBSan, TSAN, architecture rules, Web contracts, and firmware builds for n8r4 and n16r8 | When a change can affect integration, concurrency, memory safety, or a firmware image |
+| R3 | Relay and machine control, ISR, watchdog, boot, GPIO, partitions, remote control, or an unknown path | R2 plus stricter compiler warnings, cppcheck, build variants, and the applicable HIL/manual evidence | Before accepting any safety-critical or not-yet-classified change |
+| Release | A firmware image intended for distribution or installation | The complete automated analysis plus resource budgets, applicable soak tests, HIL, and the manual test plan | For a release candidate; a passing automated R3 run alone is not release approval |
+
+**Host tests** run on the developer computer or a CI runner, without an ESP32 or
+espresso machine. They are quick feedback for software behavior, but cannot prove
+that real wiring, timing, radio conditions, or machine stopping are safe. The
+focused profiles are:
+
+| Profile | Purpose | When to use it |
+| --- | --- | --- |
+| `normal` | Runs the broad functional host suite without a sanitizer | During ordinary development and in every R1-or-higher gate |
+| `asan` | Runs the host suite with ASan and UBSan to expose memory errors and undefined operations | For R2/R3 changes and when investigating crashes or suspicious memory behavior |
+| `tsan` | Runs concurrent host scenarios with TSAN to find unsafe access to shared data | For R2/R3 changes and whenever task or thread ownership changes |
+| `web` | Verifies generated Web UI assets and browser-facing contracts | After changing the Web UI, its source assets, or asset generation |
+| `ble` | Focuses the normal host suite on scale protocols and companion BLE behavior | After changing scale communication or BLE protocols |
+| `ota` | Exercises OTA host logic plus command-line and Web resilience cases | After changing firmware-update behavior or its interfaces |
+| `tooling` | Checks the developer command facade, risk classification, and validation contracts | After changing scripts, CI, or repository workflow rules |
+
+In GitHub Actions, **classification** runs first. The **fast** job always performs
+the R0 documentation checks. The **host** job then runs `normal`, `asan`, `tsan`,
+`tooling`, and `web` for R1-R3 changes. Firmware builds run for R2/R3 pull
+requests and on pushes to `main`, weekly scheduled runs, and manual workflow
+runs. A final job checks that every job required by the classified risk passed.
+These automated jobs do not flash a board, operate the relay, or replace required
+HIL and manual evidence.
+
+### Technical glossary
+
+| Term | Meaning in this project |
+| --- | --- |
+| α (alpha) | The learning factor used by adaptive EWMA. It controls how much the latest eligible shot changes the learned stop offset. |
+| A→M | **Automatic-to-manual** transition: brew-by-weight can no longer rely on the scale, so a time guard limits the remaining shot. |
+| Admin unlock | A password-protected authorization required for privileged Web UI actions; it is separate from claiming the browser session. |
+| AGPL-3.0 | GNU Affero General Public License version 3, the repository's current copyleft license. Network use of a modified version can require offering its corresponding source code. |
+| AI | Artificial intelligence. The README notes its use during project development. |
+| API | Application Programming Interface: a defined way for software components or external integrations to exchange commands and data. |
+| ASan | **AddressSanitizer**, a host-test instrument that detects invalid memory access, such as reading past a buffer or using freed memory. |
+| BLE | Bluetooth Low Energy, the wireless link used to communicate with supported scales. |
+| BBW | **Brew by weight**, the feature that uses live scale measurements to request a stop near the recipe target. |
+| Baseline | A saved starting value to which learned settings can be reset. It is not an extra correction added to the current value. |
+| Boot / boot verification | Boot is the controller's startup process. After OTA, verification confirms that the new image started safely before it is kept. |
+| Browser claim | The controller's way of assigning ordinary Home and Settings access to a browser session; it does not grant Admin privileges. |
+| CI | Continuous Integration, the automated GitHub Actions checks run for pull requests, pushes to `main`, scheduled validation, and manual workflow runs. |
+| Clamp | To restrict a calculated value to a minimum and maximum; the README's formula keeps the learned offset between 0 g and 5 g. |
+| Compile-time setting | A choice fixed while firmware is built. Changing it requires a new build; it cannot be changed later in the Web UI. |
+| CSV | Comma-Separated Values, a plain-text tabular format used when exporting or exchanging shot data. |
+| Cutoff / stop offset | The point at which the controller requests a stop before the target weight, allowing for coffee that continues to drip. The learned offset is adjusted from previous eligible shots. |
+| DIY | Do it yourself: the user assembles, installs, and validates the hardware rather than receiving a certified finished product. |
+| Drip compensation | Stopping early enough to account for liquid that continues reaching the cup after the machine receives the stop request. |
+| ESP32-S3 | The Espressif microcontroller family on which the controller firmware runs. |
+| ESP-IDF | Espressif IoT Development Framework, the supported toolchain and software framework used to build the firmware. |
+| EWMA | Exponentially Weighted Moving Average, the adaptive learning method that applies a chosen fraction of the latest final-weight error instead of the entire error. |
+| Firmware | Software built to run on the ESP32-S3 controller rather than on the user's computer or browser. |
+| Firmware slot | One of the flash-memory regions that can hold a bootable firmware image. OTA writes the inactive slot so the previous image remains available for rollback. |
+| Flash memory | Non-volatile storage that keeps firmware when power is removed; it is distinct from working memory such as PSRAM. |
+| Gate | The complete set of automated checks and, where required, physical evidence demanded for a change's risk level. |
+| GPIO | General-Purpose Input/Output, a configurable electrical pin used to sense a switch or control a signal. Its assignment and polarity are safety-critical here. |
+| Guard | A protective rule that stops or limits a shot when measured behavior is outside the recipe's expected conditions. |
+| HIL | Hardware in the loop: testing with the real controller or representative electrical hardware so physical timing and I/O behavior can be observed. |
+| Host test | A test compiled and run on a computer or CI runner, without operating the ESP32, relay, or espresso machine. |
+| HTTP | Hypertext Transfer Protocol, used by the local Web UI, webhooks, and update-related interfaces. |
+| ISR | Interrupt Service Routine, code that responds immediately to a hardware event and must obey stricter timing and concurrency rules. |
+| K2 | The README's example name for an optional external safety relay or barrier; its actual design depends on the machine and jurisdiction. |
+| MB | Megabyte, used here to describe flash and PSRAM capacity. |
+| MIT License | The permissive license that applies to identified upstream portions and historical snapshots, not to the repository's current work as a whole. |
+| Momentary machine / pulse | A momentary machine changes state after a brief button-like electrical signal, called a pulse, rather than following a maintained switch position. |
+| MQTT | Message Queuing Telemetry Transport, a publish/subscribe messaging protocol; persistent MQTT remote control is outside this project's goals. |
+| n8r4 / n16r8 | Supported memory variants: the number after `n` is flash capacity in MB and the number after `r` is PSRAM capacity in MB. |
+| OTA | Over-the-air update: installing firmware over Wi-Fi into an inactive firmware slot, followed by boot verification and possible rollback. |
+| Paddle / latch | A maintained physical switch: its state directly represents the requested brew state. |
+| PETG | Polyethylene terephthalate glycol, a 3D-printing material recommended for the thicker enclosure parts in warmer installations. |
+| Pinout / GPIO map | The documented assignment between board pins and electrical functions. A different board requires a reviewed assignment. |
+| Preset | A saved recipe and its related brew settings, such as target weight and learned values. |
+| PSRAM | Pseudostatic RAM, external working memory fitted to the supported ESP32-S3 boards. |
+| Reed / Hall input | A magnetic sensor input used by the preferred momentary-machine configuration to observe whether the machine is running. |
+| Regression | Here, a mathematical method that estimates drip behavior from previous eligible shots to improve the stop point. |
+| Relay / isolated contacts | An electrically controlled switch whose contact side is kept separate from the controller side. The project uses it to request machine activation or stopping. |
+| Rollback | Returning to the previous bootable firmware image when a new OTA image fails verification. |
+| Sanitizer | A test-build instrument that watches a running program for classes of bugs that ordinary functional assertions may miss. |
+| Soak test | A long or repeated run used to reveal resource leaks, timing drift, or failures that short tests may not expose. |
+| Static analysis / cppcheck | Inspection of source code without executing it, used to detect suspicious constructs and rule violations. `cppcheck` is one analyzer used by the R3 gate. |
+| Tare / retare | Setting the scale's current load to zero; retare repeats that action when the workflow needs a new zero reference. |
+| Telemetry | Status or measurement data reported while a system runs. The Web UI is not promised as a guaranteed real-time telemetry channel. |
+| TSAN | **ThreadSanitizer**, a host-test instrument that detects data races: unsafely coordinated simultaneous access to shared data by multiple threads. |
+| UBSan | **UndefinedBehaviorSanitizer**, a host-test instrument that detects invalid C/C++ operations whose result the language does not define. |
+| USB | Universal Serial Bus, used to install firmware, monitor serial output, and issue supported maintenance commands. |
+| Watchdog | A timer that detects software that has stopped making required progress and triggers a controlled recovery. |
+| Web UI | The browser-based user interface served by the controller. |
+| Webhook | An HTTP request sent to another local service when a configured event occurs. |
+| Wi-Fi / access point (AP) | Wi-Fi is the local wireless network technology; in access-point mode the controller creates its own temporary network for first setup or recovery. |
 
 ## Disclaimer
 
