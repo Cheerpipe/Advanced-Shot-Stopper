@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <ctype.h>
 #include <string.h>
 #include <atomic>
@@ -36,7 +37,54 @@ struct WebhookConfig {
   // Deliver in real time by default. Queueing protects the scale link, but
   // defers all shot events until the shot ends.
   bool deferDuringShot = false;
+  // Added in the former tail padding so V11 webhook bytes keep their offsets.
+  bool presetChanges = false;
 };
+
+// V11 used the same persisted offsets but left the final byte unnamed.
+struct WebhookConfigV11 {
+  bool enabled = false;
+  bool brewState = true;
+  bool firstDrop = true;
+  bool end = true;
+  char url[WEBHOOK_URL_CAPACITY] = {};
+  bool deferDuringShot = false;
+  uint8_t reservedTail = 0;
+};
+
+static_assert(sizeof(WebhookConfigV11) == sizeof(WebhookConfig));
+static_assert(offsetof(WebhookConfigV11, deferDuringShot) ==
+              offsetof(WebhookConfig, deferDuringShot));
+
+inline bool escapeJsonString(const char *input, char *output, size_t capacity) {
+  size_t used = 0;
+  if (capacity == 0) return false;
+  for (size_t i = 0; input != nullptr && input[i] != '\0'; ++i) {
+    const unsigned char value = static_cast<unsigned char>(input[i]);
+    const char *escape = nullptr;
+    char unicode[7] = {};
+    if (value == '"') escape = "\\\"";
+    else if (value == '\\') escape = "\\\\";
+    else if (value == '\b') escape = "\\b";
+    else if (value == '\f') escape = "\\f";
+    else if (value == '\n') escape = "\\n";
+    else if (value == '\r') escape = "\\r";
+    else if (value == '\t') escape = "\\t";
+    else if (value < 0x20U) {
+      snprintf(unicode, sizeof(unicode), "\\u%04x", value);
+      escape = unicode;
+    }
+    const size_t count = escape == nullptr ? 1 : strlen(escape);
+    if (used + count >= capacity) return false;
+    if (escape == nullptr) output[used++] = static_cast<char>(value);
+    else {
+      memcpy(output + used, escape, count);
+      used += count;
+    }
+  }
+  output[used] = '\0';
+  return true;
+}
 
 inline bool validWebhookUrl(const char *url) {
   if (url == nullptr) return false;
@@ -132,7 +180,14 @@ enum class WebhookEventType : uint8_t {
   IDLE,
   FIRST_DROP,
   END,
-  TEST
+  TEST,
+  PRESETS_CHANGED
+};
+
+struct WebhookPresetItem {
+  uint8_t id = 0;
+  bool isFactory = false;
+  char name[24] = {};
 };
 
 struct WebhookEvent {
@@ -140,6 +195,7 @@ struct WebhookEvent {
   uint32_t cycleId = 0;
   uint32_t uptimeMs = 0;
   uint32_t unixSec = 0;
+  uint32_t bootId = 0;
   uint32_t durationMs = 0;
   uint32_t firstDropMs = 0;
   float weightG = 0.0f;
@@ -149,6 +205,11 @@ struct WebhookEvent {
   bool firstDropValid = false;
   bool averageFlowValid = false;
   uint8_t presetId = 0;
+  char presetName[24] = {};
+  char correlationId[65] = {};
+  uint32_t presetRevision = 0;
+  uint8_t presetCount = 0;
+  WebhookPresetItem presets[8] = {};
   char shotType[16] = {};
   char stopDetail[32] = {};
 };

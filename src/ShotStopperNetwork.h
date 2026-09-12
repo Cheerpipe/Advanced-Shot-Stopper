@@ -189,6 +189,7 @@ struct NetworkBridgeCallbacks {
   void (*copyPreferredScaleMac)(char *out, size_t capacity) = nullptr;
   void (*copyPreferredScaleName)(char *out, size_t capacity) = nullptr;
   void (*copyScaleHistory)(ScaleHistoryEntry *out) = nullptr;
+  void (*copyRecipeSnapshot)(RecipeSnapshot *out) = nullptr;
   void (*copyPresetBank)(ShotPresetBank *out) = nullptr;
   void (*copyRuntimeConfig)(RuntimeConfig *out) = nullptr;
   void (*copyBullseyeConfig)(BullseyeMelodyConfig *out) = nullptr;
@@ -365,6 +366,7 @@ class ShotStopperNetwork {
   WebhookDispatcher webhooks_;
   WebhookConfig stagedWebhook_ = {};
   uint32_t stagedWebhookRequestId_ = 0;
+  uint32_t stagedPresetRequestId_ = 0;
 
   static void taskEntry(void *parameter);
   void taskLoop();
@@ -466,6 +468,7 @@ class ShotStopperNetwork {
   static esp_err_t timeSyncHandler(httpd_req_t *request);
   static esp_err_t configHandler(httpd_req_t *request);
   static esp_err_t webhookHandler(httpd_req_t *request);
+  static esp_err_t integrationHandler(httpd_req_t *request);
   static esp_err_t bullseyeTestHandler(httpd_req_t *request);
   static esp_err_t preferredScaleClearHandler(httpd_req_t *request);
   static esp_err_t preferredScaleSelectHandler(httpd_req_t *request);

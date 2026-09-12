@@ -19,6 +19,7 @@
 #include <Arduino.h>
 #include <cJSON.h>
 #include <esp_log.h>
+#include <esp_mac.h>
 #include <esp_sntp.h>
 #include <esp_wifi.h>
 #include <esp_system.h>
@@ -1002,4 +1003,5 @@ ShotStopperNetwork *ShotStopperNetwork::instance_ = nullptr;
 #include "network/ShotStopperStatus.inc"
 #include "diagnostics/ShotStopperNetworkDiagnostics.inc"
 #include "network/ShotStopperConfiguration.inc"
+#include "network/ShotStopperIntegrationApi.inc"
 #include "network/ShotStopperNetworkOta.inc"

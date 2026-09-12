@@ -203,7 +203,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   runtimePersistPending = false;
   runtimePersistFailed = false;
   runtimePersistCandidate = RuntimeConfig{};
-  runtimePersistRequestId = 0;
+  pendingPresetPersistence = {};
   runtimePersistRetryAtMs = 0;
   runtimePersistReasonBits = 0;
   nextInternalRequestId = 0x80000000UL;
@@ -9482,6 +9482,10 @@ void s02_shot_log_appends_after_drip_delay() {
   pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
   pendingFinalize.weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   pendingFinalize.endedAtMs = hostMillis;
+  pendingFinalize.activePresetId = presetBank.activeId;
+  copyCString(pendingFinalize.activePresetName,
+              sizeof(pendingFinalize.activePresetName),
+              activeShotPreset(presetBank).name);
   runLoopAfter(pendingFinalize.dripDelayMs);
   CHECK(!pendingFinalize.pending);
   CHECK(shotLog.count() == 0);
@@ -9539,12 +9543,19 @@ void s02f_shot_log_skips_sub_one_gram_weight() {
   pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
   pendingFinalize.weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   pendingFinalize.endedAtMs = hostMillis;
+  pendingFinalize.activePresetId = presetBank.activeId;
+  copyCString(pendingFinalize.activePresetName,
+              sizeof(pendingFinalize.activePresetName),
+              activeShotPreset(presetBank).name);
   runLoopAfter(pendingFinalize.dripDelayMs);
   CHECK(!pendingFinalize.pending);
   CHECK(shotLog.count() == 0);
   CHECK(shotCurves.count() == 0);
   // Home last shot is independent of the 1 g history floor.
   CHECK(persistedLastShot.valid);
+  CHECK(persistedLastShot.presetId == presetBank.activeId);
+  CHECK(persistedLastShot.presetName[0] != '\0');
+  CHECK(persistedLastShot.endedAtUptimeMs != 0);
   CHECK(persistedLastShot.cycleId == 5);
   CHECK(persistedLastShot.weightValid);
   CHECK(fabsf(persistedLastShot.currentWeightG - 0.5f) < 0.001f);
@@ -9927,6 +9938,38 @@ void w90_save_unknown_preset_id_does_not_overwrite_active() {
   CHECK(after != nullptr);
   CHECK(after->goalWeightG == originalGoal);
   CHECK(presetBank.activeId == FACTORY_PRESET_ID_DOUBLE);
+}
+
+void w91_preset_persistence_serializes_and_survives_retry() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  WebCommand first;
+  first.type = WebCommandType::PRESET_OP;
+  first.requestId = 91;
+  first.presetAction = static_cast<uint8_t>(PresetAction::APPLY);
+  first.presetId = FACTORY_PRESET_ID_SINGLE;
+  processWebCommand(first);
+  CHECK(pendingPresetPersistence.requestId == 91);
+  CHECK(pendingPresetPersistence.revision == runtimeConfig.revision);
+
+  WebCommand competing = first;
+  competing.requestId = 92;
+  competing.presetId = FACTORY_PRESET_ID_DOUBLE;
+  processWebCommand(competing);
+  CHECK(presetBank.activeId == FACTORY_PRESET_ID_SINGLE);
+  CHECK(hostLastForwardedNetworkCommand.requestId == 92);
+  CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::FAILED);
+  CHECK(pendingPresetPersistence.requestId == 91);
+
+  hostRuntimePersistSucceeds = false;
+  runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
+  CHECK(runtimePersistPending && runtimePersistFailed);
+  CHECK(pendingPresetPersistence.requestId == 91);
+  hostRuntimePersistSucceeds = true;
+  runLoopAfter(RUNTIME_PERSIST_RETRY_MS + 1);
+  CHECK(!runtimePersistPending && !runtimePersistFailed);
+  CHECK(pendingPresetPersistence.requestId == 0);
+  CHECK(hostLastFlushedPresets.activeId == FACTORY_PRESET_ID_SINGLE);
 }
 
 void s03_shot_log_clear_empties_records() {
@@ -11168,6 +11211,15 @@ void m09_snapshot_mutexes_preserve_concurrent_invariants() {
       const ShotPreset *active = findShotPreset(bank, bank.activeId);
       if (active == nullptr ||
           active->operationalWallMs != 10000U + active->goalWeightG) {
+        violations.fetch_add(1, std::memory_order_relaxed);
+      }
+
+      RecipeSnapshot recipe;
+      copyRecipeSnapshot(&recipe);
+      const ShotPreset *recipeActive =
+          findShotPreset(recipe.presets, recipe.presets.activeId);
+      if (recipeActive == nullptr ||
+          recipeActive->goalWeightG != recipe.runtime.goalWeightG) {
         violations.fetch_add(1, std::memory_order_relaxed);
       }
 
@@ -14491,6 +14543,7 @@ const TestCase testCases[] = {
     {"S02B", s02b_drip_delay_is_snapshotted_and_honors_boundaries},
     {"S17", s17_new_cycle_commits_pending_log_as_last_known},
     {"W90", w90_save_unknown_preset_id_does_not_overwrite_active},
+    {"W90b", w91_preset_persistence_serializes_and_survives_retry},
     {"S03", s03_shot_log_clear_empties_records},
     {"S14", s14_last_shot_persists_manual_cycle},
     {"S14c", s14c_last_shot_keeps_no_scale_duration},

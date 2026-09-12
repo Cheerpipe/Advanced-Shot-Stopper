@@ -334,6 +334,9 @@ void p29_last_shot_persists_and_clears() {
   shot.noScaleShotGuardArmed = true;
   shot.rating = 4;
   shot.shotLogId = 9;
+  shot.endedAtUptimeMs = 123456;
+  shot.presetId = 2;
+  strcpy(shot.presetName, "Double");
   strcpy(shot.scaleProtocol, "acaia");
   CHECK(store.persist(shot));
   CHECK(persistence_host::records.count("lastshot/record") == 1);
@@ -348,12 +351,29 @@ void p29_last_shot_persists_and_clears() {
   CHECK(reloaded.get().noScaleShotGuardArmed);
   CHECK(reloaded.get().rating == 4);
   CHECK(reloaded.get().shotLogId == 9);
+  CHECK(reloaded.get().endedAtUptimeMs == 123456);
+  CHECK(reloaded.get().presetId == 2);
+  CHECK(strcmp(reloaded.get().presetName, "Double") == 0);
   CHECK(strcmp(reloaded.get().scaleProtocol, "acaia") == 0);
 
   CHECK(reloaded.clear());
   LastShotStore emptied;
   CHECK(emptied.load());
   CHECK(!emptied.get().valid);
+
+  resetHostPersistence();
+  LastShotBlobV2 legacy = {};
+  legacy.magic = LAST_SHOT_MAGIC;
+  legacy.schemaVersion = 2;
+  legacy.structureSize = sizeof(legacy);
+  memcpy(legacy.shot, &shot, sizeof(legacy.shot));
+  legacy.checksum = lastShotV2Checksum(legacy);
+  persistence_host::putRaw("lastshot", "record", &legacy, sizeof(legacy));
+  LastShotStore migrated;
+  CHECK(migrated.load());
+  CHECK(migrated.get().cycleId == 42);
+  CHECK(migrated.get().endedAtUptimeMs == 0);
+  CHECK(migrated.get().presetId == 0);
 }
 
 void p07_invalid_schema_uses_factory_on_missing_slots() {
@@ -1823,12 +1843,33 @@ void p78_power_management_migration_and_global_scope() {
   }
 }
 
+void p79_webhook_preset_changes_migrates_dirty_v11_padding() {
+  resetHostPersistence();
+  PersistedSettings legacy;
+  CHECK(initializeDefaultSettings(legacy));
+  legacy.schemaVersion = 11;
+  reinterpret_cast<unsigned char *>(&legacy.webhook)
+      [offsetof(WebhookConfig, presetChanges)] = 0xa5;
+  legacy.checksum = persistedSettingsChecksum(legacy);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A,
+                           &legacy, sizeof(legacy));
+  PersistedSettings loaded;
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
+  CHECK(!loaded.webhook.presetChanges);
+  loaded.webhook.presetChanges = true;
+  CHECK(savePersistedSettings(loaded));
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.webhook.presetChanges);
+}
+
 struct TestCase {
   const char *id;
   void (*function)();
 };
 
 const TestCase tests[] = {
+    {"P79", p79_webhook_preset_changes_migrates_dirty_v11_padding},
     {"P78", p78_power_management_migration_and_global_scope},
     {"P01", p01_defaults_are_valid},
     {"P75", p75_idle_tare_legacy_padding_and_saved_off},

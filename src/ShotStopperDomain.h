@@ -66,7 +66,7 @@ constexpr uint32_t SERIAL_BAUD = 115200;
 // after staOpen). V2 names that byte staWifiSleep without growing the blob.
 // Bump and add a migration when the blob layout changes
 // (see ShotStopperSettingsMigrate.h).
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 11;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 12;
 // Rinse clock default. Detection window default is DEFAULT_RINSE_GESTURE_MS
 // (machine-owned, ShotStopperMachineTypes.h).
 constexpr uint32_t DEFAULT_RINSE_DURATION_MS = 4000;
@@ -1948,6 +1948,14 @@ struct PersistedLastShot {
   // Uses existing alignment padding before shotLogId; keeps blob size stable.
   uint8_t noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);
   uint32_t shotLogId = 0;
+  uint32_t endedAtUptimeMs = 0;
+  uint8_t presetId = 0;
+  char presetName[24] = {};
+};
+
+struct RecipeSnapshot {
+  ShotPresetBank presets = {};
+  RuntimeConfig runtime = {};
 };
 
 enum class BootState : uint8_t {

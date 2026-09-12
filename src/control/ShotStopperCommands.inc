@@ -265,6 +265,10 @@ void processWebCommand(const WebCommand &command) {
     }
 
     case WebCommandType::PRESET_OP: {
+      if (pendingPresetPersistence.requestId != 0) {
+        rejectWebCommand(command);
+        return;
+      }
       if (!persistentConfigurationMutationAllowed(command)) {
         rejectWebCommand(command);
         return;
@@ -348,6 +352,7 @@ void processWebCommand(const WebCommand &command) {
         candidate.revision = 1;
       }
       commitLiveRuntimeConfig(candidate, RUNTIME_PERSIST_REASON_USER);
+      pendingPresetPersistence = {command.requestId, candidate.revision};
       reportControlCommandResult(command, CommandResultState::APPLIED);
       return;
     }

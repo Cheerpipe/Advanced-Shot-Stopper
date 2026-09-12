@@ -514,6 +514,7 @@ WebhookEvent baseWebhookEvent(WebhookEventType type, uint32_t cycleId,
   event.cycleId = cycleId;
   event.uptimeMs = occurredAtMs;
   event.unixSec = webhookUnixSecAt(occurredAtMs);
+  event.bootId = shotLog.bootId();
   return event;
 }
 
@@ -529,6 +530,7 @@ void queueWebhookBrewStart() {
                                         startedAtMs);
   event.targetWeightG = static_cast<float>(session.config.goalWeightG);
   event.presetId = session.activePresetId;
+  copyCString(event.presetName, sizeof(event.presetName), session.activePresetName);
   (void)networkManager.enqueueWebhook(event);
 }
 
@@ -557,6 +559,7 @@ void notifyWebhookFirstDrop(const FirstFlowObservation &observation) {
   event.weightG = event.weightValid ? observation.weightG : 0.0f;
   event.targetWeightG = static_cast<float>(session.config.goalWeightG);
   event.presetId = session.activePresetId;
+  copyCString(event.presetName, sizeof(event.presetName), session.activePresetName);
   (void)networkManager.enqueueWebhook(event);
 }
 #else
@@ -1088,6 +1091,8 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs) {
   pendingFinalize.activePresetId = session.activePresetId != 0
                                        ? session.activePresetId
                                        : presetBank.activeId;
+  copyCString(pendingFinalize.activePresetName,
+              sizeof(pendingFinalize.activePresetName), session.activePresetName);
   pendingFinalize.cycleId = session.id;
   pendingFinalize.retarePerformed = session.retarePerformed;
   pendingFinalize.minRecoveryWeightG = session.config.minRecoveryWeightG;
@@ -1248,6 +1253,8 @@ void queueWebhookEnd(const PendingShotFinalize &snapshot, float finalWeightG,
   event.weightG = event.weightValid ? finalWeightG : 0.0f;
   event.targetWeightG = static_cast<float>(snapshot.goalWeightG);
   event.presetId = snapshot.activePresetId;
+  copyCString(event.presetName, sizeof(event.presetName),
+              snapshot.activePresetName);
   const ShotLogType type = shotLogTypeFromCycle(
       snapshot.finalState, snapshot.startedWithScale, snapshot.timerOnly,
       snapshot.automaticBrew);
@@ -1271,6 +1278,24 @@ void queueWebhookEnd(const PendingShotFinalize &snapshot, float finalWeightG,
   (void)snapshot;
   (void)finalWeightG;
   (void)finalWeightValid;
+#endif
+}
+
+void queueWebhookPresetsChanged() {
+#ifndef SHOT_STOPPER_HOST_TEST
+  const WebhookConfig config = networkManager.webhookConfig();
+  if (!config.enabled || !config.presetChanges) return;
+  WebhookEvent event = baseWebhookEvent(WebhookEventType::PRESETS_CHANGED, 0);
+  event.presetId = presetBank.activeId;
+  event.presetRevision = runtimeConfig.revision;
+  event.presetCount = presetBank.count < 8 ? presetBank.count : 8;
+  for (uint8_t i = 0; i < event.presetCount; ++i) {
+    event.presets[i].id = presetBank.presets[i].id;
+    event.presets[i].isFactory = presetBank.presets[i].isFactory;
+    copyCString(event.presets[i].name, sizeof(event.presets[i].name),
+                presetBank.presets[i].name);
+  }
+  (void)networkManager.enqueueWebhook(event);
 #endif
 }
 

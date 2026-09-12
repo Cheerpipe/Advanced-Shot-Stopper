@@ -35,6 +35,10 @@ struct WebhookDispatcherTest {
   static void stopOnNextIteration(WebhookDispatcher &d) {
     d.workerState_ = WebhookDispatcher::WorkerState::STOPPING;
   }
+  static bool payload(WebhookDispatcher &d, const WebhookEvent &event,
+                      char *output, size_t capacity) {
+    return d.buildPayload(event, output, capacity);
+  }
 };
 }
 
@@ -137,9 +141,55 @@ static void testQueueCapacity() {
   assert(d.status().sent == 4 && d.status().dropped == 1);
   assert(d.stop());
 }
+static void testIntegrationPayloads() {
+  resetPlatform();
+  WebhookDispatcher d;
+  WebhookEvent event;
+  event.type = WebhookEventType::END;
+  event.bootId = 7;
+  event.cycleId = 9;
+  event.presetId = 2;
+  strcpy(event.presetName, "Double \"A\"");
+  strcpy(event.shotType, "auto");
+  strcpy(event.stopDetail, "normal_target");
+  char payload[2048] = {};
+  assert(WebhookDispatcherTest::payload(d, event, payload, sizeof(payload)));
+  assert(strstr(payload, "\"bootId\":7") != nullptr);
+  assert(strstr(payload, "\"presetName\":\"Double \\\"A\\\"\"") != nullptr);
+
+  event = WebhookEvent{};
+  event.type = WebhookEventType::PRESETS_CHANGED;
+  event.presetId = 1;
+  event.presetRevision = 12;
+  event.presetCount = 1;
+  event.presets[0].id = 1;
+  event.presets[0].isFactory = true;
+  strcpy(event.presets[0].name, "Single");
+  assert(WebhookDispatcherTest::payload(d, event, payload, sizeof(payload)));
+  assert(strstr(payload, "\"event\":\"presets_changed\"") != nullptr);
+  assert(strstr(payload, "\"revision\":12") != nullptr);
+  assert(strstr(payload, "\"isFactory\":true") != nullptr);
+
+  event.presetCount = 8;
+  for (uint8_t i = 0; i < event.presetCount; ++i) {
+    event.presets[i].id = static_cast<uint8_t>(i + 1);
+    memset(event.presets[i].name, 1, sizeof(event.presets[i].name) - 1);
+    event.presets[i].name[sizeof(event.presets[i].name) - 1] = '\0';
+  }
+  assert(WebhookDispatcherTest::payload(d, event, payload, sizeof(payload)));
+  assert(strlen(payload) > 1024);
+  assert(strstr(payload, "\\u0001") != nullptr);
+
+  strcpy(event.presets[0].name, "A\"B");
+  strcpy(event.presets[1].name, "AB");
+  assert(WebhookDispatcherTest::payload(d, event, payload, sizeof(payload)));
+  assert(strstr(payload, "A\\\"B") != nullptr);
+  assert(strstr(payload, "\"name\":\"AB\"") != nullptr);
+}
 int main() {
   testSamplingAndAccounting();
   testTimeoutHasNoSecondSleep();
   testHeldItemSurvivesDrainAndGate();
   testQueueCapacity();
+  testIntegrationPayloads();
 }

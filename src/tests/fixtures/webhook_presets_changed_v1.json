@@ -1,0 +1,1 @@
+{"schemaVersion":1,"event":"presets_changed","deviceId":"AA:BB:CC:DD:EE:FF","bootId":123,"cycleId":0,"uptimeMs":930000,"timestamp":1767225618,"sentAtUptimeMs":930010,"activeId":2,"revision":19,"items":[{"id":2,"name":"Double","isFactory":true},{"id":1,"name":"Single","isFactory":true}]}

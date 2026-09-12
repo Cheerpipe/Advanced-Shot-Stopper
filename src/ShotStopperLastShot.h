@@ -8,7 +8,23 @@ namespace shotstopper {
 
 constexpr uint32_t LAST_SHOT_MAGIC = 0x4C534854U;  // "LSHT"
 // Current last-shot schema. Unrecognized blobs decode as empty (no upgrade).
-constexpr uint16_t LAST_SHOT_SCHEMA_VERSION = 2;
+constexpr uint16_t LAST_SHOT_SCHEMA_VERSION = 3;
+
+struct LastShotBlobV2 {
+  uint32_t magic;
+  uint16_t schemaVersion;
+  uint16_t structureSize;
+  uint8_t shot[80];
+  uint32_t checksum;
+};
+
+static_assert(offsetof(PersistedLastShot, endedAtUptimeMs) == 80,
+              "V2 last-shot prefix changed");
+
+inline uint32_t lastShotV2Checksum(const LastShotBlobV2 &blob) {
+  return crc32(reinterpret_cast<const uint8_t *>(&blob),
+               offsetof(LastShotBlobV2, checksum));
+}
 
 struct LastShotBlob {
   uint32_t magic = LAST_SHOT_MAGIC;
@@ -85,6 +101,18 @@ class LastShotStore {
         validLastShotBlob(candidate)) {
       blob_ = candidate;
       loaded = true;
+    } else if (length == sizeof(LastShotBlobV2)) {
+      LastShotBlobV2 legacy = {};
+      if (preferences.getBytes(LAST_SHOT_KEY, &legacy, sizeof(legacy)) ==
+              sizeof(legacy) &&
+          legacy.magic == LAST_SHOT_MAGIC && legacy.schemaVersion == 2 &&
+          legacy.structureSize == sizeof(legacy) &&
+          legacy.checksum == lastShotV2Checksum(legacy)) {
+        resetLastShotBlob(blob_);
+        memcpy(&blob_.shot, legacy.shot, sizeof(legacy.shot));
+        finalizeLastShotBlob(blob_);
+        loaded = true;
+      }
     }
     preferences.end();
     if (!loaded) {

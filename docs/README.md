@@ -19,7 +19,8 @@ needed rather than reading the entire directory.
 - [Fast](features/fast-extraction-guard.md), [Slow](features/slow-extraction-guard.md),
   [scale-loss time guard](features/auto-to-manual.md)
 - [Alerts](alerts.md), [shot history](features/shot-history.md)
-- [Home Assistant webhooks](features/home-assistant-webhooks.md)
+- [Home Assistant integration](features/home-assistant.md)
+- [Generic webhooks](features/webhooks.md)
 
 ## Settings
 
@@ -63,6 +64,7 @@ risk gate in [VALIDATION.md](../VALIDATION.md).
 | Scale sensing | `ARCHITECTURE.md`, `CONCURRENCY.md` | `src/ShotStopperScale*` | main host tests | `./scripts/dev test normal` |
 | BLE protocols | library README, `CONCURRENCY.md` | `libraries/EspressoScaleBLE/src/`, `src/ble/` | library tests, `ble_companion_protocol_host_test.cpp` | `./scripts/dev test ble` |
 | Network/Webhooks | feature docs, `RESOURCE_OWNERSHIP.md` | `src/ShotStopperNetwork*`, `src/ShotStopperWebhook*` | `webhook_error_host_test.cpp`, Web contract tests | `./scripts/dev validate --risk R2` |
+| Integration API | [`INTEGRATION_API.md`](INTEGRATION_API.md) | network/webhook sources | shared JSON fixtures and integration tests | `./scripts/dev validate --risk R3` |
 | OTA | `features/ota.md`, `features/ota-image-identity.md`, `EMERGENCY_RECOVERY.md` | `src/ShotStopperOta*`, `scripts/shotstopper_ota.sh` | OTA host, CLI, and Web resilience tests | `./scripts/dev test ota` |
 | Persistence | `ARCHITECTURE.md`, settings docs | `src/ShotStopperPersist*`, durable stores/logs | `persistence_host_test.cpp` | `./scripts/dev test normal` |
 | Web UI | `SCREENSHOTS.md`, feature/settings docs | `src/web/` | Web asset/contract tests | `./scripts/dev test web` |

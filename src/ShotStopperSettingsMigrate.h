@@ -2,6 +2,7 @@
 
 // Settings schema migrations.
 //
+// V12 names WebhookConfig tail padding for preset-change delivery (default OFF).
 // V11 names RuntimeConfig padding for power management (default ON).
 // V10 added BBW alpha baseline. V9 added strategies.
 // V8 names the idle-tare
@@ -31,6 +32,7 @@ namespace shotstopper {
 
 constexpr size_t PERSISTED_SETTINGS_V7_SIZE = 2616;
 constexpr size_t PERSISTED_SETTINGS_V10_SIZE = 2616;
+constexpr size_t PERSISTED_SETTINGS_V11_SIZE = 2616;
 static_assert(offsetof(RuntimeConfig, powerManagementEnabled) == 5 &&
                   offsetof(RuntimeConfig, weightOffsetG) == 8,
               "V11 must use legacy padding without moving recipe fields");
@@ -80,6 +82,18 @@ inline bool migratePersistedSettingsFromV10(const PersistedSettings &v10,
       v10.checksum != persistedSettingsChecksum(v10)) return false;
   copyPersistedBytes(out, v10, sizeof(out));
   out.runtime.powerManagementEnabled = true;
+  out.schemaVersion = CONFIG_SCHEMA_VERSION;
+  out.checksum = persistedSettingsChecksum(out);
+  return true;
+}
+
+inline bool migratePersistedSettingsFromV11(const PersistedSettings &v11,
+                                             PersistedSettings &out) {
+  if (v11.magic != PERSISTED_SETTINGS_MAGIC || v11.schemaVersion != 11 ||
+      v11.structureSize != PERSISTED_SETTINGS_V11_SIZE ||
+      v11.checksum != persistedSettingsChecksum(v11)) return false;
+  copyPersistedBytes(out, v11, sizeof(out));
+  out.webhook.presetChanges = false;
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.checksum = persistedSettingsChecksum(out);
   return true;

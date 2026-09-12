@@ -340,6 +340,12 @@ void ShotStopperNetwork::recordCommandResult(
     return;
   }
   dataMux_.lock();
+  if (stagedPresetRequestId_ == requestId &&
+      (state == CommandResultState::PERSISTED ||
+       state == CommandResultState::FAILED ||
+       state == CommandResultState::CANCELED)) {
+    stagedPresetRequestId_ = 0;
+  }
   const bool sameRequest = status_.lastCommandRequestId == requestId;
   const bool nonRegressing =
       !sameRequest || static_cast<uint8_t>(state) >=

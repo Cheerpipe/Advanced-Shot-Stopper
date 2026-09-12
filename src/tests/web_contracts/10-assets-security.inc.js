@@ -133,14 +133,14 @@ if (htmlBytes > 63000) {
 // Historical BLE disconnect/command diagnostics add display formatters. This
 // source allowance does not change the compressed asset or firmware budgets.
 // Opt-in power control/activity leases add 1 KiB of authoring allowance after
-// sharing the Admin toggle persistence path. Dirty save-button feedback adds
-// 300 bytes through one shared state helper. Compressed/firmware caps unchanged.
+// sharing the Admin toggle persistence path.
+// Dirty save-button feedback adds 300 bytes through one shared state helper.
 // Zero baselines and the first-drop icon add 1,000 bytes of source allowance.
 if (jsBytes > 170300) {
-  throw new Error('Web UI JS source exceeds the authoring budget');
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 170300)`);
 }
 if (htmlBytes + jsBytes > 233300) {
-  throw new Error('Web UI HTML+JS source exceeds the combined authoring budget');
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 233300)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

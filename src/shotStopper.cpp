@@ -258,6 +258,7 @@ struct CycleSession {
   bool autoToManualGuardEnforced = false;
   uint32_t autoToManualGuardDeadlineAtMs = 0;
   uint8_t activePresetId = 0;
+  char activePresetName[SHOT_PRESET_NAME_CAPACITY] = {};
   bool cupRemovedPending = false;
   AccidentalTouchPhase accidentalTouchPhase = AccidentalTouchPhase::STARTUP;
   AccidentalTouchClass accidentalTouchClass = AccidentalTouchClass::OK;
@@ -303,6 +304,7 @@ struct PendingShotFinalize {
   bool lastKnownWeightValid = false;
   float lastKnownWeightG = 0.0f;
   uint8_t activePresetId = 0;
+  char activePresetName[SHOT_PRESET_NAME_CAPACITY] = {};
   uint32_t cycleId = 0;
   bool retarePerformed = false;
   float minRecoveryWeightG = DEFAULT_MIN_RECOVERY_WEIGHT_G;
@@ -473,8 +475,12 @@ uint32_t hostSettingsPersistRollbackDeletes = 0;
 #endif
 bool runtimePersistPending = false;
 bool runtimePersistFailed = false;
+struct PendingPresetPersistence {
+  uint32_t requestId = 0;
+  uint32_t revision = 0;
+};
+PendingPresetPersistence pendingPresetPersistence;
 RuntimeConfig runtimePersistCandidate;
-uint32_t runtimePersistRequestId = 0;
 uint32_t runtimePersistRetryAtMs = 0;
 int32_t runtimePersistReasonBits = 0;
 uint32_t nextInternalRequestId = 0x80000000UL;
@@ -1169,6 +1175,9 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
   PersistedLastShot last = {};
   last.valid = true;
   last.cycleId = snapshot.cycleId;
+  last.endedAtUptimeMs = snapshot.endedAtMs;
+  last.presetId = snapshot.activePresetId;
+  copyCString(last.presetName, sizeof(last.presetName), snapshot.activePresetName);
   last.durationMs = static_cast<uint32_t>(snapshot.durationDs) * 100U;
   last.endReason = snapshot.endReason;
   last.weightValid = finalWeightValid;
@@ -1220,6 +1229,9 @@ void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs) {
   PersistedLastShot last = {};
   last.valid = true;
   last.cycleId = session.id;
+  last.endedAtUptimeMs = millis();
+  last.presetId = session.activePresetId;
+  copyCString(last.presetName, sizeof(last.presetName), session.activePresetName);
   last.durationMs = durationMs;
   last.endReason = reason;
   last.weightValid =
@@ -1381,20 +1393,25 @@ void publishRecipeState() {
   publishedPresetBank = presetBank;
 }
 
-void copyPresetBank(ShotPresetBank *out) {
+void copyRecipeSnapshot(RecipeSnapshot *out) {
   if (out == nullptr) {
     return;
   }
   TaskLockGuard lock(recipeMutex);
-  *out = publishedPresetBank;
+  out->presets = publishedPresetBank;
+  out->runtime = publishedRuntimeConfig;
+}
+
+void copyPresetBank(ShotPresetBank *out) {
+  RecipeSnapshot snapshot;
+  copyRecipeSnapshot(&snapshot);
+  if (out != nullptr) *out = snapshot.presets;
 }
 
 void copyRuntimeConfig(RuntimeConfig *out) {
-  if (out == nullptr) {
-    return;
-  }
-  TaskLockGuard lock(recipeMutex);
-  *out = publishedRuntimeConfig;
+  RecipeSnapshot snapshot;
+  copyRecipeSnapshot(&snapshot);
+  if (out != nullptr) *out = snapshot.runtime;
 }
 
 void copyBullseyeConfig(BullseyeMelodyConfig *out) {

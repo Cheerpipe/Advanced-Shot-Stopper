@@ -34,6 +34,7 @@ void resetSessionForNewCycle(ControlSource source) {
   session.config = snapshotConfig(effectiveRuntimeConfig());
   session.activePresetId = presetBank.activeId;
   const ShotPreset &preset = activeShotPreset(presetBank);
+  copyCString(session.activePresetName, sizeof(session.activePresetName), preset.name);
   session.config.bbwAlpha = preset.bbwAlgorithm == 0 ? 100 : preset.bbwEwmaAlpha;
   session.config.bbwProfileVersion = bbwAlgorithmVersion(preset.bbwAlgorithm);
   session.config.bbwLearningGeneration = bbwLearningBank.forPreset(

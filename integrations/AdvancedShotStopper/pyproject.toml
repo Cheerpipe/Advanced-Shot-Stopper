@@ -1,0 +1,36 @@
+[project]
+name = "advanced-shot-stopper-home-assistant"
+version = "0.1.0"
+description = "Native Home Assistant integration for Advanced Shot Stopper"
+requires-python = ">=3.14.2"
+license = "AGPL-3.0-or-later"
+dependencies = ["homeassistant>=2026.9.0,<2026.10"]
+
+[dependency-groups]
+test = [
+  "coverage[toml]>=7.10",
+  "mypy>=1.17",
+  "pytest>=8.4",
+  "pytest-asyncio>=1.1",
+  "pytest-homeassistant-custom-component>=0.13.280",
+  "ruff>=0.12"
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--strict-markers --cov=custom_components.advanced_shot_stopper --cov-report=term-missing --cov-fail-under=95"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["ASYNC", "B", "E4", "E7", "E9", "F", "I", "RUF", "SIM", "UP"]
+ignore = ["ASYNC109"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+packages = ["custom_components.advanced_shot_stopper"]

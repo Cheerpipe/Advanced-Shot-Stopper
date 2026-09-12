@@ -1,0 +1,64 @@
+{
+  "title": "Advanced Shot Stopper",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Advanced Shot Stopper",
+        "description": "Enter the controller's IP address. Home Assistant will inspect it and prepare the webhook automatically.",
+        "data": {"host": "Controller IP address"}
+      },
+      "takeover": {
+        "title": "Replace the existing webhook",
+        "description": "This controller already sends webhooks somewhere else. Continuing replaces that destination with Home Assistant.",
+        "data": {"confirm": "Replace the existing destination"}
+      },
+      "reconfigure": {
+        "title": "Reconfigure Advanced Shot Stopper",
+        "description": "Current callback: `{webhook_url}`\n\nThe webhook ID is a secret. Anyone who has it can submit events to Home Assistant. Saving always reapplies and tests the callback.",
+        "data": {"host": "Controller IP address", "webhook_id": "Webhook ID"}
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the controller",
+      "incompatible_api": "The controller firmware is not compatible",
+      "invalid_host": "Enter only a valid IP address or host name",
+      "invalid_webhook_id": "Use 32–128 letters, numbers, hyphens, or underscores",
+      "reconfigure_failed": "The callback could not be applied and verified"
+    },
+    "abort": {
+      "already_configured": "This controller is already configured",
+      "reconfigure_successful": "The controller callback was verified",
+      "takeover_rejected": "The existing webhook was left unchanged",
+      "unique_id_mismatch": "This is not the previously configured controller"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "shot_state": {"name": "Shot state", "state": {"idle": "Idle", "brewing": "Brewing"}},
+      "last_shot_duration": {"name": "Last shot duration"},
+      "last_shot_final_weight": {"name": "Last shot final weight"},
+      "last_shot_target_weight": {"name": "Last shot target weight"},
+      "last_shot_average_flow": {"name": "Last shot average flow"},
+      "last_shot_first_drop": {"name": "Last shot first drop"},
+      "last_shot_type": {"name": "Last shot type", "state": {"auto": "Automatic", "timer_only": "Timer only", "manual": "Manual"}},
+      "last_shot_stop_detail": {"name": "Last shot stop detail", "state": {"normal_target": "Target reached", "extended_max_weight": "Fast-shot maximum weight", "extended_min_time": "Fast-shot minimum time", "auto_to_manual": "Automatic to manual", "slow_max_time": "Slow-shot maximum time", "slow_min_weight": "Slow-shot minimum weight", "cup_removed": "Cup removed", "activator": "Physical control", "web_stop": "Web stop", "web_heartbeat": "Web heartbeat timeout", "physical_override": "Physical override", "hard_limit": "Hard time limit", "wall_limit": "Configured time limit", "relay_safety": "Relay safety", "weight_anomaly": "Weight anomaly", "other": "Other"}},
+      "last_shot_preset": {"name": "Last shot preset"},
+      "last_good_shot_duration": {"name": "Last good shot duration"},
+      "last_good_shot_final_weight": {"name": "Last good shot final weight"},
+      "last_good_shot_target_weight": {"name": "Last good shot target weight"},
+      "last_good_shot_average_flow": {"name": "Last good shot average flow"},
+      "last_good_shot_first_drop": {"name": "Last good shot first drop"},
+      "last_good_shot_type": {"name": "Last good shot type", "state": {"auto": "Automatic", "timer_only": "Timer only", "manual": "Manual"}},
+      "last_good_shot_stop_detail": {"name": "Last good shot stop detail", "state": {"normal_target": "Target reached", "extended_max_weight": "Fast-shot maximum weight", "extended_min_time": "Fast-shot minimum time", "auto_to_manual": "Automatic to manual", "slow_max_time": "Slow-shot maximum time", "slow_min_weight": "Slow-shot minimum weight", "cup_removed": "Cup removed", "activator": "Physical control", "web_stop": "Web stop", "web_heartbeat": "Web heartbeat timeout", "physical_override": "Physical override", "hard_limit": "Hard time limit", "wall_limit": "Configured time limit", "relay_safety": "Relay safety", "weight_anomaly": "Weight anomaly", "other": "Other"}},
+      "last_good_shot_preset": {"name": "Last good shot preset"}
+    },
+    "select": {"active_preset": {"name": "Active preset"}}
+  },
+  "exceptions": {
+    "preset_not_found": {"message": "The selected preset no longer exists on the controller."},
+    "preset_change_failed": {"message": "The controller did not save the selected preset."}
+  },
+  "issues": {
+    "webhook_rollback_failed": {"title": "Controller callback needs attention", "description": "Home Assistant could not verify the new callback or restore the previous one. Open the integration's reconfigure flow and save the current settings again."}
+  }
+}

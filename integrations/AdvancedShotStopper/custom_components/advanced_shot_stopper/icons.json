@@ -1,0 +1,24 @@
+{
+  "entity": {
+    "sensor": {
+      "shot_state": {"default": "mdi:coffee-maker"},
+      "last_shot_duration": {"default": "mdi:timer-outline"},
+      "last_good_shot_duration": {"default": "mdi:timer-check-outline"},
+      "last_shot_final_weight": {"default": "mdi:scale"},
+      "last_good_shot_final_weight": {"default": "mdi:scale"},
+      "last_shot_target_weight": {"default": "mdi:target"},
+      "last_good_shot_target_weight": {"default": "mdi:target"},
+      "last_shot_average_flow": {"default": "mdi:waves-arrow-right"},
+      "last_good_shot_average_flow": {"default": "mdi:waves-arrow-right"},
+      "last_shot_first_drop": {"default": "mdi:water-outline"},
+      "last_good_shot_first_drop": {"default": "mdi:water-check-outline"},
+      "last_shot_type": {"default": "mdi:coffee"},
+      "last_good_shot_type": {"default": "mdi:coffee"},
+      "last_shot_stop_detail": {"default": "mdi:stop-circle-outline"},
+      "last_good_shot_stop_detail": {"default": "mdi:stop-circle-outline"},
+      "last_shot_preset": {"default": "mdi:tune-variant"},
+      "last_good_shot_preset": {"default": "mdi:tune-variant"}
+    },
+    "select": {"active_preset": {"default": "mdi:tune"}}
+  }
+}

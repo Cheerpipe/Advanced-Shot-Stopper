@@ -107,12 +107,8 @@ circuit and follow the [hardware safety guidance](docs/HARDWARE.md) before insta
 | Rinse with a switch gesture | [Quick rinse](docs/settings/quick-rinse.md), off by default |
 | Hear local feedback | [Alerts](docs/alerts.md), subject to scale/buzzer capabilities |
 | Review results | [Shot history and statistics](docs/features/shot-history.md) |
-| Send results to Home Assistant | [Local HTTP webhooks](docs/features/home-assistant-webhooks.md) |
-
-The optional Home Assistant example turns the last completed extraction into
-dashboard entities for target weight, final weight, timing, stop reason, and flow.
-
-![Example Home Assistant entities for the last good shot](docs/images/home_assistant_entities.png)
+| Add the Home Assistant integration | [Native Home Assistant setup](docs/features/home-assistant.md) |
+| Send events to another local receiver | [Local HTTP webhooks](docs/features/webhooks.md) |
 
 ## Main settings
 

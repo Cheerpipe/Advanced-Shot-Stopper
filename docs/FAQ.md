@@ -133,5 +133,5 @@ and [shot history](features/shot-history.md) help explain the observed result.
 
 Use the [settings index](README.md#settings) for parameter references,
 [OTA troubleshooting](features/ota.md#session-start-troubleshooting) for update
-errors, and [Home Assistant](features/home-assistant-webhooks.md#if-nothing-arrives)
+errors, and [webhook troubleshooting](features/webhooks.md#troubleshooting)
 for delivery problems.

@@ -369,6 +369,15 @@ void serviceSettingsPersistResult() {
     runtimePersistFailed = false;
     addDebugEvent(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
                   static_cast<int32_t>(runtimeRevision));
+    if (pendingPresetPersistence.requestId != 0 &&
+        static_cast<int32_t>(runtimeRevision -
+                             pendingPresetPersistence.revision) >= 0) {
+      WebCommand persisted;
+      persisted.requestId = pendingPresetPersistence.requestId;
+      reportControlCommandResult(persisted, CommandResultState::PERSISTED);
+      pendingPresetPersistence = {};
+      queueWebhookPresetsChanged();
+    }
     char liveMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
     char liveName[PREFERRED_SCALE_NAME_CAPACITY] = {};
     ScaleHistoryEntry liveHistory[SCALE_HISTORY_CAPACITY] = {};
@@ -552,6 +561,12 @@ void serviceRuntimePersistence() {
   runtimePersistPending = false;
   runtimePersistReasonBits = 0;
   runtimePersistFailed = false;
+  if (pendingPresetPersistence.requestId != 0 &&
+      static_cast<int32_t>(runtimeConfig.revision -
+                           pendingPresetPersistence.revision) >= 0) {
+    pendingPresetPersistence = {};
+    queueWebhookPresetsChanged();
+  }
 #endif
 }
 
@@ -576,7 +591,7 @@ void completeMaintenanceLease(const WebCommand &result) {
   }
   if (!result.succeeded &&
       maintenanceLease.command.type == WebCommandType::PERSIST_RUNTIME &&
-      maintenanceLease.id == runtimePersistRequestId) {
+      maintenanceLease.id == pendingPresetPersistence.requestId) {
     if (!runtimePersistFailed) {
       addDebugEvent(
           DebugCategory::CONFIG, DebugCode::RUNTIME_PERSIST_FAILED,

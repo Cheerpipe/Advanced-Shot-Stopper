@@ -40,8 +40,9 @@ Network command builders must activate their union member with
 the union because a preset operation also carries configuration. Persisted
 record layouts are unchanged.
 
-Settings V11/history V4 change byte meanings through explicit migration,
-without growing either blob. Web gzip is capped at 66,400 bytes combined:
+Settings V12/history V4 change byte meanings through explicit migration without
+growing either blob; the separate last-shot V3 record adds bounded preset
+provenance. Web gzip is capped at 66,400 bytes combined:
 500 bytes of the shell-JS allowance are reassigned to runtime (5,444 and 32,000
 bytes respectively before the PM allocation below). Source authoring limits are
 63,000 bytes HTML and 170,300 bytes JS, 233,300 combined. This reviewed increase

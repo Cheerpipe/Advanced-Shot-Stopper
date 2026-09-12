@@ -581,7 +581,7 @@ if (!ui.includes('id="shotRating"') ||
     !network.includes('LAST_SHOT_NOT_FOUND') ||
     !network.includes('\\"rating\\":%u') ||
     !network.includes('\\"shotLogId\\":%lu') ||
-    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 2') ||
+    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 3') ||
     !shotLogIo.includes('updateRating') ||
     !firmwareCore.includes('rateLastShot') ||
     !firmwareCore.includes('rateShotRecord') ||

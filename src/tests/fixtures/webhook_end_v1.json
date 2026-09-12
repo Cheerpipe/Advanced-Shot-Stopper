@@ -1,0 +1,1 @@
+{"schemaVersion":1,"event":"end","deviceId":"AA:BB:CC:DD:EE:FF","bootId":123,"cycleId":42,"uptimeMs":923400,"timestamp":1767225611,"sentAtUptimeMs":923480,"durationMs":27800,"targetWeightG":36.0,"presetId":2,"presetName":"Double","shotType":"auto","stopDetail":"normal_target","firstDropMs":4480,"weightG":36.72,"averageFlowGps":1.57}

@@ -16,7 +16,7 @@ namespace shotstopper {
 namespace {
 
 constexpr size_t kWebhookQueueDepth = 4;
-constexpr size_t kWebhookPayloadCapacity = 1024;
+constexpr size_t kWebhookPayloadCapacity = 2048;
 constexpr int kWebhookTimeoutMs = 1800;
 constexpr uint32_t kWebhookStopTimeoutMs = 2500;
 
@@ -27,6 +27,7 @@ const char *eventName(WebhookEventType type) {
     case WebhookEventType::FIRST_DROP: return "first_drop";
     case WebhookEventType::END: return "end";
     case WebhookEventType::TEST: return "test";
+    case WebhookEventType::PRESETS_CHANGED: return "presets_changed";
   }
   return "unknown";
 }
@@ -131,7 +132,8 @@ bool WebhookDispatcher::startWorker() {
   // Never let that stale acknowledgement satisfy a later stop()/join.
   if (workerStopped_ != nullptr) (void)xSemaphoreTake(workerStopped_, 0);
 
-  // FreeRTOS copies queue items under its spinlock: keep these 368 bytes
+  // FreeRTOS copies the bounded event snapshots under its spinlock: keep this
+  // small internal allocation deterministic.
   // internal. The larger HTTP payload remains external and fails closed.
   const size_t queueStorageBytes =
       kWebhookQueueDepth * sizeof(QueuedWebhook);
@@ -376,6 +378,8 @@ bool WebhookDispatcher::enqueue(const WebhookEvent &event) {
       event.type == WebhookEventType::IDLE) selected = live.brewState;
   if (event.type == WebhookEventType::FIRST_DROP) selected = live.firstDrop;
   if (event.type == WebhookEventType::END) selected = live.end;
+  if (event.type == WebhookEventType::PRESETS_CHANGED)
+    selected = live.presetChanges;
   if (workerState != WorkerState::READY || queue == nullptr ||
       !validWebhookUrl(live.url) ||
       (event.type != WebhookEventType::TEST && (!live.enabled || !selected)) ||
@@ -472,13 +476,17 @@ void WebhookDispatcher::task() {
 bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,
                                      size_t capacity) {
   char id[18] = {};
+  char presetName[sizeof(event.presetName) * 6] = {};
+  if (!escapeJsonString(event.presetName, presetName, sizeof(presetName)))
+    return false;
   deviceId(id, sizeof(id));
   int written = snprintf(
       output, capacity,
       "{\"schemaVersion\":1,\"event\":\"%s\",\"deviceId\":\"%s\","
-      "\"cycleId\":%lu,\"uptimeMs\":%lu,\"timestamp\":%lu,"
+      "\"bootId\":%lu,\"cycleId\":%lu,\"uptimeMs\":%lu,\"timestamp\":%lu,"
       "\"sentAtUptimeMs\":%lu",
-      eventName(event.type), id, static_cast<unsigned long>(event.cycleId),
+      eventName(event.type), id, static_cast<unsigned long>(event.bootId),
+      static_cast<unsigned long>(event.cycleId),
       static_cast<unsigned long>(event.uptimeMs),
       static_cast<unsigned long>(event.unixSec),
       static_cast<unsigned long>(millis()));
@@ -503,28 +511,30 @@ bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,
     case WebhookEventType::BREWING:
     case WebhookEventType::IDLE:
       if (!append(",\"state\":\"%s\",\"durationMs\":%lu,"
-                  "\"targetWeightG\":%.2f,\"presetId\":%u,"
+                  "\"targetWeightG\":%.2f,\"presetId\":%u,\"presetName\":\"%s\","
                   "\"stopDetail\":\"%s\"",
                   event.type == WebhookEventType::BREWING ? "brewing" : "idle",
                   static_cast<unsigned long>(event.durationMs),
                   event.targetWeightG, static_cast<unsigned>(event.presetId),
+                  presetName,
                   event.stopDetail)) return false;
       break;
     case WebhookEventType::FIRST_DROP:
       if (!append(",\"firstDropMs\":%lu,\"weightG\":%.2f,"
-                  "\"targetWeightG\":%.2f,\"presetId\":%u",
+                  "\"targetWeightG\":%.2f,\"presetId\":%u,\"presetName\":\"%s\"",
                   static_cast<unsigned long>(event.firstDropMs), event.weightG,
-                  event.targetWeightG, static_cast<unsigned>(event.presetId))) {
+                  event.targetWeightG, static_cast<unsigned>(event.presetId),
+                  presetName)) {
         return false;
       }
       break;
     case WebhookEventType::END:
       if (!append(",\"durationMs\":%lu,\"targetWeightG\":%.2f,"
-                  "\"presetId\":%u,\"shotType\":\"%s\","
+                  "\"presetId\":%u,\"presetName\":\"%s\",\"shotType\":\"%s\","
                   "\"stopDetail\":\"%s\"",
                   static_cast<unsigned long>(event.durationMs),
                   event.targetWeightG, static_cast<unsigned>(event.presetId),
-                  event.shotType, event.stopDetail)) return false;
+                  presetName, event.shotType, event.stopDetail)) return false;
       if (event.firstDropValid &&
           !append(",\"firstDropMs\":%lu",
                   static_cast<unsigned long>(event.firstDropMs))) return false;
@@ -535,6 +545,23 @@ bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,
         return false;
       break;
     case WebhookEventType::TEST:
+      if (event.correlationId[0] != '\0' &&
+          !append(",\"correlationId\":\"%s\"", event.correlationId))
+        return false;
+      break;
+    case WebhookEventType::PRESETS_CHANGED:
+      if (!append(",\"activeId\":%u,\"revision\":%lu,\"items\":[",
+                  static_cast<unsigned>(event.presetId),
+                  static_cast<unsigned long>(event.presetRevision))) return false;
+      for (uint8_t i = 0; i < event.presetCount && i < 8; ++i) {
+        const WebhookPresetItem &item = event.presets[i];
+        char itemName[sizeof(item.name) * 6] = {};
+        if (!escapeJsonString(item.name, itemName, sizeof(itemName))) return false;
+        if (!append("%s{\"id\":%u,\"name\":\"%s\",\"isFactory\":%s}",
+                    i == 0 ? "" : ",", static_cast<unsigned>(item.id),
+                    itemName, item.isFactory ? "true" : "false")) return false;
+      }
+      if (!append("]")) return false;
       break;
   }
   return append("}");

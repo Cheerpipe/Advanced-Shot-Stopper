@@ -1008,7 +1008,7 @@ bool ShotStopperNetwork::startHttpServer() {
   // makes the last registerHandler fail, which tears down the whole Web UI, so
   // check_web_assets.js fails the build before the margin is gone.
   // Shell + app.js/css/runtime + secondary + settings + 4 HTML partials + APIs.
-  config.max_uri_handlers = 65;
+  config.max_uri_handlers = 72;
   // Safari sends a long UA + Accept-Language + optional Cookie/Sec-Fetch-*;
   // the IDF default (1024) is enough most of the time but intermittent
   // long browser headers have returned 431 Request Header Fields Too Large.
@@ -1056,6 +1056,13 @@ bool ShotStopperNetwork::startHttpServer() {
                       browserIconHandler) &&
       registerHandler(server_, "/api/v1/ui/claim", HTTP_POST, claimHandler) &&
       registerHandler(server_, "/api/v1/ui/unlock", HTTP_POST, unlockHandler) &&
+      registerHandler(server_, "/api/v1/integration", HTTP_GET, integrationHandler) &&
+      registerHandler(server_, "/api/v1/integration/request", HTTP_GET, integrationHandler) &&
+      registerHandler(server_, "/api/v1/integration/webhook", HTTP_GET, integrationHandler) &&
+      registerHandler(server_, "/api/v1/integration/webhook", HTTP_PUT, integrationHandler) &&
+      registerHandler(server_, "/api/v1/integration/webhook/test", HTTP_POST, integrationHandler) &&
+      registerHandler(server_, "/api/v1/integration/presets", HTTP_GET, integrationHandler) &&
+      registerHandler(server_, "/api/v1/integration/presets/active", HTTP_PUT, integrationHandler) &&
       registerHandler(server_, "/api/v1/status/home", HTTP_GET, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/status/settings", HTTP_GET, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/status/admin", HTTP_GET, ownedApiHandler) &&

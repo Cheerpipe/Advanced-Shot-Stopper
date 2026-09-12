@@ -284,6 +284,7 @@ void setup() {
     callbacks.copyPreferredScaleMac = copyPreferredScaleMac;
     callbacks.copyPreferredScaleName = copyPreferredScaleName;
     callbacks.copyScaleHistory = copyScaleHistory;
+    callbacks.copyRecipeSnapshot = copyRecipeSnapshot;
     callbacks.copyPresetBank = copyPresetBank;
     callbacks.copyRuntimeConfig = copyRuntimeConfig;
     callbacks.copyBullseyeConfig = copyBullseyeConfig;
