@@ -336,6 +336,8 @@ void p29_last_shot_persists_and_clears() {
   shot.shotLogId = 9;
   shot.endedAtUptimeMs = 123456;
   shot.presetId = 2;
+  shot.averageFlowGps = 1.57f;
+  shot.averageFlowValid = true;
   strcpy(shot.presetName, "Double");
   strcpy(shot.scaleProtocol, "acaia");
   CHECK(store.persist(shot));
@@ -355,11 +357,41 @@ void p29_last_shot_persists_and_clears() {
   CHECK(reloaded.get().presetId == 2);
   CHECK(strcmp(reloaded.get().presetName, "Double") == 0);
   CHECK(strcmp(reloaded.get().scaleProtocol, "acaia") == 0);
+  CHECK(reloaded.getGood().cycleId == 42);
+  CHECK(reloaded.getGood().averageFlowValid);
+  CHECK(fabs(reloaded.getGood().averageFlowGps - 1.57f) < 0.001f);
+
+  g_hostFlashIoMutexAvailable = false;
+  CHECK(!reloaded.clearLast());
+  CHECK(reloaded.get().cycleId == 42);
+  g_hostFlashIoMutexAvailable = true;
+  LastShotStore afterFailedClear;
+  CHECK(afterFailedClear.load());
+  CHECK(afterFailedClear.get().cycleId == 42);
+
+  CHECK(reloaded.clearLast());
+  CHECK(!reloaded.get().valid);
+  CHECK(reloaded.getGood().cycleId == 42);
 
   CHECK(reloaded.clear());
   LastShotStore emptied;
   CHECK(emptied.load());
   CHECK(!emptied.get().valid);
+  CHECK(!emptied.getGood().valid);
+
+  resetHostPersistence();
+  LastShotBlobV3 v3 = {};
+  v3.magic = LAST_SHOT_MAGIC;
+  v3.schemaVersion = 3;
+  v3.structureSize = sizeof(v3);
+  memcpy(v3.shot, &shot, sizeof(v3.shot));
+  v3.checksum = lastShotV3Checksum(v3);
+  persistence_host::putRaw("lastshot", "record", &v3, sizeof(v3));
+  LastShotStore migratedV3;
+  CHECK(migratedV3.load());
+  CHECK(migratedV3.get().cycleId == 42);
+  CHECK(migratedV3.getGood().cycleId == 42);
+  CHECK(!migratedV3.get().averageFlowValid);
 
   resetHostPersistence();
   LastShotBlobV2 legacy = {};
@@ -374,6 +406,34 @@ void p29_last_shot_persists_and_clears() {
   CHECK(migrated.get().cycleId == 42);
   CHECK(migrated.get().endedAtUptimeMs == 0);
   CHECK(migrated.get().presetId == 0);
+  CHECK(migrated.getGood().cycleId == 42);
+}
+
+void p80_boot_id_remains_dirty_until_durable() {
+  resetHostPersistence();
+  ShotLog log;
+  CHECK(log.load());
+  log.onBoot();
+  CHECK(log.dirty());
+  CHECK(log.save());
+  const uint32_t durableBoot = log.bootId();
+
+  ShotLog rebooted;
+  CHECK(rebooted.load());
+  rebooted.onBoot();
+  CHECK(rebooted.bootId() == durableBoot + 1);
+  g_hostFlashIoMutexAvailable = false;
+  CHECK(!rebooted.save());
+  CHECK(rebooted.dirty());
+  g_hostFlashIoMutexAvailable = true;
+
+  ShotLog stillDurable;
+  CHECK(stillDurable.load());
+  CHECK(stillDurable.bootId() == durableBoot);
+  CHECK(rebooted.flush());
+  ShotLog afterRetry;
+  CHECK(afterRetry.load());
+  CHECK(afterRetry.bootId() == durableBoot + 1);
 }
 
 void p07_invalid_schema_uses_factory_on_missing_slots() {
@@ -1869,6 +1929,7 @@ struct TestCase {
 };
 
 const TestCase tests[] = {
+    {"P80", p80_boot_id_remains_dirty_until_durable},
     {"P79", p79_webhook_preset_changes_migrates_dirty_v11_padding},
     {"P78", p78_power_management_migration_and_global_scope},
     {"P01", p01_defaults_are_valid},

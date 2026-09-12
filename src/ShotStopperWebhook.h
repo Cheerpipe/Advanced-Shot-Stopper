@@ -7,6 +7,8 @@
 #include <string.h>
 #include <atomic>
 
+#include "ShotStopperDomain.h"
+#include "ShotStopperIntegrationState.h"
 #include "ShotStopperTaskMutex.h"
 #include "ShotStopperResourceOwner.h"
 
@@ -181,7 +183,9 @@ enum class WebhookEventType : uint8_t {
   FIRST_DROP,
   END,
   TEST,
-  PRESETS_CHANGED
+  PRESETS_CHANGED,
+  QUICK_SETTINGS_CHANGED,
+  CONTROLLER_STARTED
 };
 
 struct WebhookPresetItem {
@@ -208,6 +212,7 @@ struct WebhookEvent {
   char presetName[24] = {};
   char correlationId[65] = {};
   uint32_t presetRevision = 0;
+  QuickSettingsSnapshot quickSettings = {};
   uint8_t presetCount = 0;
   WebhookPresetItem presets[8] = {};
   char shotType[16] = {};

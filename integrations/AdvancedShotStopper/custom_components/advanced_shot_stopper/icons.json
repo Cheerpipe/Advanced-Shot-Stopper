@@ -19,6 +19,16 @@
       "last_shot_preset": {"default": "mdi:tune-variant"},
       "last_good_shot_preset": {"default": "mdi:tune-variant"}
     },
-    "select": {"active_preset": {"default": "mdi:tune"}}
+    "select": {"active_preset": {"default": "mdi:tune"}},
+    "switch": {
+      "brew_by_weight": {"default": "mdi:scale"},
+      "no_scale_bbw": {"default": "mdi:scale-off"},
+      "auto_to_manual_guard": {"default": "mdi:swap-horizontal"},
+      "slow_extraction_guard": {"default": "mdi:speedometer-slow"},
+      "fast_extraction_guard": {"default": "mdi:speedometer"},
+      "avoid_accidental_touch": {"default": "mdi:gesture-tap-button"},
+      "cup_protection": {"default": "mdi:cup-water"}
+    },
+    "button": {"restart": {"default": "mdi:restart"}}
   }
 }

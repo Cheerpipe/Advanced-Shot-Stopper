@@ -113,6 +113,9 @@ void processWebCommand(const WebCommand &command) {
         rejectWebCommand(command);
         return;
       }
+      RecipeSnapshot quickBefore;
+      quickBefore.presets = presetBank;
+      quickBefore.runtime = runtimeConfig;
       BullseyeMelodyConfig stagedBullseye = {};
       if (command.bullseyeConfigSpecified &&
           (!takeStagedBullseyeConfig(command.bullseyeStageRequestId,
@@ -205,9 +208,87 @@ void processWebCommand(const WebCommand &command) {
           bbwLearningBank.invalidate(presetBank.presets[i].id, presetBank, 1);
       }
       commitLiveRuntimeConfig(composed, RUNTIME_PERSIST_REASON_USER);
+      RecipeSnapshot quickAfter;
+      quickAfter.presets = presetBank;
+      quickAfter.runtime = runtimeConfig;
+      quickSettingsPersistPending |= !quickSettingsEqual(
+          quickSettingsSnapshot(quickBefore), quickSettingsSnapshot(quickAfter));
       if (command.bullseyeConfigSpecified) {
         commitLiveBullseyeConfig(stagedBullseye);
       }
+      reportControlCommandResult(command, CommandResultState::APPLIED);
+      return;
+    }
+
+    case WebCommandType::QUICK_SETTING: {
+      if (pendingPresetPersistence.requestId != 0 ||
+          !persistentConfigurationMutationAllowed(command) ||
+          command.config.revision != runtimeConfig.revision) {
+        rejectWebCommand(command);
+        return;
+      }
+      RecipeSnapshot before;
+      before.presets = presetBank;
+      before.runtime = runtimeConfig;
+      RuntimeConfig candidateRuntime = runtimeConfig;
+      ShotPresetBank candidateBank = presetBank;
+      ShotPreset &preset = mutableActiveShotPreset(candidateBank);
+      const auto quickField = static_cast<QuickSettingField>(command.presetAction);
+      const bool enabled = command.presetId != 0;
+      if (quickField > QuickSettingField::CUP_PROTECTION ||
+          (quickField != QuickSettingField::NO_SCALE_BBW_MODE &&
+           command.presetId > 1)) {
+        rejectWebCommand(command);
+        return;
+      }
+      switch (quickField) {
+        case QuickSettingField::BREW_BY_WEIGHT:
+          candidateRuntime.timerOnly = !enabled;
+          break;
+        case QuickSettingField::NO_SCALE_BBW_MODE:
+          if (!validNoScaleBbwMode(command.presetId)) {
+            rejectWebCommand(command);
+            return;
+          }
+          candidateRuntime.noScaleBbwMode = command.presetId;
+          break;
+        case QuickSettingField::AUTO_TO_MANUAL_GUARD:
+          preset.autoToManualGuardEnabled = enabled;
+          break;
+        case QuickSettingField::SLOW_EXTRACTION_GUARD:
+          preset.slowExtractionGuardEnabled = enabled;
+          break;
+        case QuickSettingField::FAST_EXTRACTION_GUARD:
+          preset.fastExtractionGuardEnabled = enabled;
+          break;
+        case QuickSettingField::AVOID_ACCIDENTAL_TOUCH:
+          preset.avoidAccidentalTouchEnabled = enabled;
+          break;
+        case QuickSettingField::CUP_PROTECTION:
+          preset.cupProtectionEnabled = enabled;
+          break;
+      }
+      RuntimeConfig composed = composeEffectiveConfig(candidateRuntime, candidateBank);
+      if (validateRuntimeConfig(composed) != ConfigValidationError::NONE ||
+          !validateShotPresetBank(candidateBank, candidateRuntime.retareWindowMs,
+                                  candidateRuntime.autoRetare)) {
+        rejectWebCommand(command);
+        return;
+      }
+      RecipeSnapshot after;
+      after.presets = candidateBank;
+      after.runtime = composed;
+      if (quickSettingsEqual(quickSettingsSnapshot(before),
+                             quickSettingsSnapshot(after))) {
+        reportControlCommandResult(command, CommandResultState::PERSISTED);
+        return;
+      }
+      presetBank = candidateBank;
+      composed.revision = runtimeConfig.revision + 1;
+      if (composed.revision == 0) composed.revision = 1;
+      commitLiveRuntimeConfig(composed, RUNTIME_PERSIST_REASON_USER);
+      quickSettingsPersistPending = true;
+      pendingPresetPersistence = {command.requestId, composed.revision, false};
       reportControlCommandResult(command, CommandResultState::APPLIED);
       return;
     }
@@ -273,6 +354,9 @@ void processWebCommand(const WebCommand &command) {
         rejectWebCommand(command);
         return;
       }
+      RecipeSnapshot quickBefore;
+      quickBefore.presets = presetBank;
+      quickBefore.runtime = runtimeConfig;
       bool ok = false;
       uint8_t newId = 0;
       const PresetAction action = static_cast<PresetAction>(command.presetAction);
@@ -352,7 +436,12 @@ void processWebCommand(const WebCommand &command) {
         candidate.revision = 1;
       }
       commitLiveRuntimeConfig(candidate, RUNTIME_PERSIST_REASON_USER);
-      pendingPresetPersistence = {command.requestId, candidate.revision};
+      RecipeSnapshot quickAfter;
+      quickAfter.presets = presetBank;
+      quickAfter.runtime = runtimeConfig;
+      quickSettingsPersistPending |= !quickSettingsEqual(
+          quickSettingsSnapshot(quickBefore), quickSettingsSnapshot(quickAfter));
+      pendingPresetPersistence = {command.requestId, candidate.revision, true};
       reportControlCommandResult(command, CommandResultState::APPLIED);
       return;
     }

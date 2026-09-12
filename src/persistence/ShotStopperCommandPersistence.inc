@@ -372,11 +372,12 @@ void serviceSettingsPersistResult() {
     if (pendingPresetPersistence.requestId != 0 &&
         static_cast<int32_t>(runtimeRevision -
                              pendingPresetPersistence.revision) >= 0) {
+      const bool notifyPresets = pendingPresetPersistence.notifyPresets;
       WebCommand persisted;
       persisted.requestId = pendingPresetPersistence.requestId;
       reportControlCommandResult(persisted, CommandResultState::PERSISTED);
       pendingPresetPersistence = {};
-      queueWebhookPresetsChanged();
+      if (notifyPresets) queueWebhookPresetsChanged();
     }
     char liveMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
     char liveName[PREFERRED_SCALE_NAME_CAPACITY] = {};
@@ -404,6 +405,11 @@ void serviceSettingsPersistResult() {
       runtimePersistRetryAtMs = millis();
     } else if (!runtimePersistPending) {
       runtimePersistReasonBits = 0;
+    }
+    if (runtimeConfig.revision == runtimeRevision &&
+        quickSettingsPersistPending) {
+      quickSettingsPersistPending = false;
+      queueWebhookQuickSettingsChanged();
     }
   } else {
     if (!runtimePersistFailed) {
@@ -508,6 +514,10 @@ void serviceShotStorePersistence() {
       }
     }
   }
+  if (controllerStartedPending && !shotLog.dirty() &&
+      !enqueueControllerStartedWebhook()) {
+    anyFail = true;
+  }
   shotStorePersistRetryAtMs =
       anyFail ? millis() + SHOT_STORE_PERSIST_RETRY_MS : 0;
 }
@@ -564,8 +574,13 @@ void serviceRuntimePersistence() {
   if (pendingPresetPersistence.requestId != 0 &&
       static_cast<int32_t>(runtimeConfig.revision -
                            pendingPresetPersistence.revision) >= 0) {
+    const bool notifyPresets = pendingPresetPersistence.notifyPresets;
     pendingPresetPersistence = {};
-    queueWebhookPresetsChanged();
+    if (notifyPresets) queueWebhookPresetsChanged();
+  }
+  if (quickSettingsPersistPending) {
+    quickSettingsPersistPending = false;
+    queueWebhookQuickSettingsChanged();
   }
 #endif
 }

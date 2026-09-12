@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -12,9 +13,16 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import ShotStopperApi
-from .const import DOMAIN, STORE_KEY_PREFIX, STORE_VERSION, UPDATE_INTERVAL
-from .models import DeviceSnapshot, PresetState, ProtocolError, Shot, WebhookEvent
+from .api import CannotConnect, ShotStopperApi
+from .const import DOMAIN, RECOVERY_DELAYS, STORE_KEY_PREFIX, STORE_VERSION
+from .models import (
+    DeviceSnapshot,
+    PresetState,
+    ProtocolError,
+    QuickSettings,
+    Shot,
+    WebhookEvent,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,7 +50,6 @@ class ShotStopperCoordinator(DataUpdateCoordinator[CoordinatorData]):
             logger=__import__("logging").getLogger(__name__),
             config_entry=entry,
             name=DOMAIN,
-            update_interval=UPDATE_INTERVAL,
         )
         self.api = api
         self.device_id = device_id
@@ -56,6 +63,10 @@ class ShotStopperCoordinator(DataUpdateCoordinator[CoordinatorData]):
         self._seen: set[tuple[str, int, int, str, int]] = set()
         self._last_uptime_by_boot: dict[int, int] = {}
         self._test_waiters: dict[str, asyncio.Future[None]] = {}
+        self._recovery_task: asyncio.Task[None] | None = None
+        self._refresh_task: asyncio.Task[None] | None = None
+        self._refresh_pending = False
+        self._required_boot_id: int | None = None
 
     async def async_load_store(self) -> None:
         """Restore the compact shot aggregate, ignoring corrupt local data."""
@@ -77,22 +88,25 @@ class ShotStopperCoordinator(DataUpdateCoordinator[CoordinatorData]):
             self._stored_last = self._stored_good = None
 
     async def _async_update_data(self) -> CoordinatorData:
-        try:
-            snapshot, presets = await asyncio.gather(
-                self.api.async_snapshot(), self.api.async_presets()
-            )
-        except Exception as err:
-            raise UpdateFailed(str(err)) from err
-        if snapshot.device_id != self.device_id:
-            raise UpdateFailed("controller identity changed")
-        last = self._stored_last
-        good = self._stored_good
-        if snapshot.last_shot is not None and (
-            last is None or snapshot.last_shot.uptime_ms > last.uptime_ms
-        ):
-            last = snapshot.last_shot
-            if self._is_good(last):
-                good = last
+        for attempt in range(2):
+            try:
+                snapshot, presets = await asyncio.gather(
+                    self.api.async_snapshot(), self.api.async_presets()
+                )
+            except Exception as err:
+                raise UpdateFailed(str(err)) from err
+            if snapshot.device_id != self.device_id:
+                raise UpdateFailed("controller identity changed")
+            if (
+                snapshot.preset_revision == presets.revision
+                and snapshot.active_preset_id == presets.active_id
+            ):
+                break
+            if attempt:
+                raise UpdateFailed("controller snapshots are inconsistent")
+        last = snapshot.last_shot
+        good = snapshot.last_good_shot
+        if last != self._stored_last or good != self._stored_good:
             self._stored_last, self._stored_good = last, good
             self._store.async_delay_save(self._storage_data, 1)
         return CoordinatorData(snapshot, presets, last, good)
@@ -111,6 +125,103 @@ class ShotStopperCoordinator(DataUpdateCoordinator[CoordinatorData]):
         """Remove a test waiter after timeout or rollback."""
         if future := self._test_waiters.pop(correlation_id, None):
             future.cancel()
+
+    async def async_confirmed_command(
+        self, command: Callable[[], Awaitable[None]], *, restarting: bool = False
+    ) -> None:
+        """Serialize a command, retain confirmed state, and reconcile once."""
+        async with self.command_lock:
+            try:
+                await command()
+            except (CannotConnect, ProtocolError, TimeoutError) as err:
+                self._transport_failed(err)
+                raise
+            if restarting:
+                self._transport_failed(UpdateFailed("controller is restarting"))
+                return
+            await self.async_request_refresh()
+            if not self.last_update_success:
+                error = CannotConnect("confirmation refresh failed")
+                self._start_recovery()
+                raise error
+            self._cancel_recovery()
+
+    def _transport_failed(self, error: Exception) -> None:
+        self.async_set_update_error(UpdateFailed(str(error)))
+        self._start_recovery()
+
+    def _start_recovery(self) -> None:
+        if self._recovery_task is None or self._recovery_task.done():
+            self._recovery_task = self.hass.async_create_task(
+                self._async_recover(), f"{DOMAIN} recovery"
+            )
+
+    async def _async_recover(self) -> None:
+        for delay in RECOVERY_DELAYS:
+            await asyncio.sleep(delay)
+            if self._reconciliation_succeeded():
+                return
+            await self.async_refresh()
+            if self._reconciliation_succeeded():
+                self._required_boot_id = None
+                return
+
+    def _schedule_explicit_refresh(
+        self, name: str, *, required_boot_id: int | None = None
+    ) -> None:
+        if required_boot_id is not None:
+            self._required_boot_id = max(self._required_boot_id or 0, required_boot_id)
+        if self._refresh_task is None or self._refresh_task.done():
+            self._refresh_task = self.hass.async_create_task(
+                self._async_explicit_refresh(), name
+            )
+        else:
+            self._refresh_pending = True
+
+    async def _async_explicit_refresh(self) -> None:
+        while True:
+            self._refresh_pending = False
+            await self.async_request_refresh()
+            if self._reconciliation_succeeded():
+                self._required_boot_id = None
+                self._cancel_recovery()
+            else:
+                if self.last_update_success:
+                    self.async_set_update_error(
+                        UpdateFailed("controller boot reconciliation pending")
+                    )
+                self._start_recovery()
+            if not self._refresh_pending:
+                return
+
+    def _reconciliation_succeeded(self) -> bool:
+        return bool(
+            self.last_update_success
+            and self.data is not None
+            and (
+                self._required_boot_id is None
+                or self.data.snapshot.boot_id >= self._required_boot_id
+            )
+        )
+
+    def _cancel_recovery(self) -> None:
+        if (
+            self._recovery_task is not None
+            and self._recovery_task is not asyncio.current_task()
+            and not self._recovery_task.done()
+        ):
+            self._recovery_task.cancel()
+
+    async def async_shutdown(self) -> None:
+        """Cancel entry-owned finite recovery work."""
+        for task in (self._recovery_task, self._refresh_task):
+            if task is not None and not task.done():
+                task.cancel()
+        await asyncio.gather(
+            *(task for task in (self._recovery_task, self._refresh_task) if task),
+            return_exceptions=True,
+        )
+        await super().async_shutdown()
 
     async def async_process_webhook(self, event: WebhookEvent) -> None:
         """Apply one valid, ordered controller event."""
@@ -134,6 +245,17 @@ class ShotStopperCoordinator(DataUpdateCoordinator[CoordinatorData]):
             return
         if self.data is None:
             return
+        if event.boot_id < self.data.snapshot.boot_id:
+            return
+        if event.boot_id > self.data.snapshot.boot_id and event.event != "controller_started":
+            self._schedule_explicit_refresh(
+                f"{DOMAIN} newer-boot reconciliation",
+                required_boot_id=event.boot_id,
+            )
+            return
+        preserve_failure = not self.last_update_success
+        if preserve_failure:
+            self._start_recovery()
         data = self.data
         if event.event == "brew_state":
             state = event.data.get("state")
@@ -143,6 +265,8 @@ class ShotStopperCoordinator(DataUpdateCoordinator[CoordinatorData]):
             self.async_set_updated_data(
                 replace(data, snapshot=replace(data.snapshot, shot_state=state))
             )
+            if preserve_failure:
+                self.async_set_update_error(UpdateFailed("reconciliation pending"))
             return
         if event.event == "end":
             shot = Shot.from_dict(event.data)
@@ -153,6 +277,8 @@ class ShotStopperCoordinator(DataUpdateCoordinator[CoordinatorData]):
             self.async_set_updated_data(
                 replace(data, last_shot=shot, last_good_shot=good)
             )
+            if preserve_failure:
+                self.async_set_update_error(UpdateFailed("reconciliation pending"))
             return
         if event.event == "presets_changed":
             payload = {**event.data, "apiVersion": 1}
@@ -161,7 +287,7 @@ class ShotStopperCoordinator(DataUpdateCoordinator[CoordinatorData]):
                 return
             self._accept_event(key, event)
             if presets.revision > data.presets.revision + 1:
-                self.hass.async_create_task(self.async_request_refresh())
+                self._schedule_explicit_refresh(f"{DOMAIN} preset reconciliation")
             snapshot = replace(
                 data.snapshot,
                 active_preset_id=presets.active_id,
@@ -169,6 +295,59 @@ class ShotStopperCoordinator(DataUpdateCoordinator[CoordinatorData]):
             )
             self.async_set_updated_data(
                 replace(data, snapshot=snapshot, presets=presets)
+            )
+            if preserve_failure:
+                self.async_set_update_error(UpdateFailed("reconciliation pending"))
+            return
+        if event.event == "quick_settings_changed":
+            quick = QuickSettings.from_dict(
+                {
+                    key: event.data[key]
+                    for key in (
+                        "revision",
+                        "activePresetId",
+                        "brewByWeight",
+                        "noScaleBbwMode",
+                        "autoToManualGuardEnabled",
+                        "slowExtractionGuardEnabled",
+                        "fastExtractionGuardEnabled",
+                        "avoidAccidentalTouchEnabled",
+                        "cupProtectionEnabled",
+                    )
+                }
+            )
+            current = data.snapshot.quick_settings
+            if quick.revision <= current.revision:
+                return
+            self._accept_event(key, event)
+            if quick.revision > current.revision + 1:
+                self._schedule_explicit_refresh(f"{DOMAIN} settings reconciliation")
+            self.async_set_updated_data(
+                replace(
+                    data,
+                    snapshot=replace(
+                        data.snapshot,
+                        active_preset_id=quick.active_preset_id,
+                        preset_revision=quick.revision,
+                        quick_settings=quick,
+                    ),
+                )
+            )
+            if preserve_failure:
+                self.async_set_update_error(UpdateFailed("reconciliation pending"))
+            return
+        if event.event == "controller_started":
+            revision = event.data.get("revision")
+            if isinstance(revision, bool) or not isinstance(revision, int):
+                raise ProtocolError("revision is invalid")
+            if event.boot_id <= data.snapshot.boot_id or (
+                self._required_boot_id is not None
+                and event.boot_id <= self._required_boot_id
+            ):
+                return
+            self._schedule_explicit_refresh(
+                f"{DOMAIN} controller-started reconciliation",
+                required_boot_id=event.boot_id,
             )
 
     def _accept_event(

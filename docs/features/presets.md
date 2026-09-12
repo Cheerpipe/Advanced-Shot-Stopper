@@ -22,10 +22,14 @@ presets, but not the last remaining preset. The active preset survives reboot.
 | --- | --- |
 | Preset | Target, BBW, cutoff algorithm, protection time, Fast/Slow/A→M guards, cup-protection options, accidental-touch protection, offset/alpha baselines, separate regression/EWMA offsets, EWMA gain and initial/learned provenance |
 | Shared machine settings | Physical switch behavior, rinse, no-scale policy, all three tare switches and timing, cup detection, alerts, preferred scale, network |
-| Home session | Quick Settings controls affect the current workflow. In particular, turning BBW off selects Manual without saving BBW off in the recipe. |
+| Home session | Quick Settings BBW affects the current workflow. Turning it off selects Manual without saving BBW off in the recipe. |
+| Home / Home Assistant active preset | Quick guard switches persist Fast, Slow, A→M, cup protection, and accidental-touch values only in the active preset. |
 
 To make an intentional recipe change permanent, edit and save it in Settings.
 Home and Settings can therefore display different BBW values.
+Home Assistant follows the same scopes: BBW is session-only, No-scale BBW is a
+shared machine policy, and the five guard switches persist only the active
+preset without changing its target or learned values.
 Save remains bound to the preset whose fields were loaded into the form; an
 asynchronous active-preset change cannot redirect those values to another recipe.
 

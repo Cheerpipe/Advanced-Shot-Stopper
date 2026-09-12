@@ -172,12 +172,14 @@ void setup() {
   }
 
 #ifndef SHOT_STOPPER_HOST_TEST
+  bool bootIdentityDurable = false;
   shotLog.load();
   shotLog.onBoot();
-  shotLog.save();
+  bootIdentityDurable = shotLog.save();
   shotCurves.load();
   lastShotStore.load();
   persistedLastShot = lastShotStore.get();
+  persistedLastGoodShot = lastShotStore.getGood();
   if (persistedLastShot.valid) {
     ShotCurveRecord newest = {};
     if (shotCurves.copyNewestFirst(&newest, 1) == 1) {
@@ -190,6 +192,7 @@ void setup() {
   shotCurves.load();
   lastShotStore.load();
   persistedLastShot = lastShotStore.get();
+  persistedLastGoodShot = lastShotStore.getGood();
   if (persistedLastShot.valid) {
     ShotCurveRecord newest = {};
     if (shotCurves.copyNewestFirst(&newest, 1) == 1) {
@@ -347,6 +350,10 @@ void setup() {
                   failedSubsystem, static_cast<int32_t>(bootState));
   }
   publishControlStatus();
+#ifndef SHOT_STOPPER_HOST_TEST
+  controllerStartedPending = networkOk && settingsLoaded;
+  if (bootIdentityDurable) (void)enqueueControllerStartedWebhook();
+#endif
   serviceScaleConnectedLed();
 }
 

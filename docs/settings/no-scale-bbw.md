@@ -31,6 +31,12 @@ Home shows the configured mode as a read-only summary. Its live status is
 required**, or **Ready** when Require scale is configured and the scale is
 usable.
 
+Home Assistant presents this three-mode policy as one switch. Turning it OFF
+sets **Allow manual brewing**. Turning it ON restores the last non-off mode that
+Home Assistant observed, or **Warn once, then allow** when none is known. The
+switch is unavailable during an active cycle; changing it does not alter the
+active recipe.
+
 The optional **Manual without scale (BBW on)** alert sounds once per distinct
 blocked attempt; holding the activator does not repeat it continuously.
 

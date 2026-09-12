@@ -168,6 +168,7 @@ void publishControlStatus() {
   next.bbwEwmaOffsetG = bbwPreset.bbwEwmaOffsetG;
   next.lastCycle = lastCycle;
   next.lastShot = persistedLastShot;
+  next.lastGoodShot = persistedLastGoodShot;
   {
     const ShotCurveRecord curve =
         session.active ? shotCurveSampler.snapshot() : lastShotCurve;

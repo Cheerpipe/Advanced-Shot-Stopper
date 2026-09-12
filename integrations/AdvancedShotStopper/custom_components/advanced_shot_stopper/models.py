@@ -13,7 +13,16 @@ from .const import API_VERSION, REQUIRED_CAPABILITIES, SHOT_TYPES, STOP_DETAILS
 MAX_WEBHOOK_BYTES = 8192
 MAX_PRESETS = 8
 DEVICE_ID = re.compile(r"^[0-9A-F]{2}(?::[0-9A-F]{2}){5}$")
-EVENT_TYPES = {"brew_state", "first_drop", "end", "test", "presets_changed"}
+EVENT_TYPES = {
+    "brew_state",
+    "first_drop",
+    "end",
+    "test",
+    "presets_changed",
+    "quick_settings_changed",
+    "controller_started",
+}
+NO_SCALE_BBW_MODES = ("off", "warn_once", "require_scale")
 
 
 class ProtocolError(ValueError):
@@ -45,6 +54,12 @@ def _number(value: Any, field: str) -> float:
     if not math.isfinite(result) or result < 0:
         raise ProtocolError(f"{field} is invalid")
     return result
+
+
+def _boolean(value: Any, field: str) -> bool:
+    if not isinstance(value, bool):
+        raise ProtocolError(f"{field} is invalid")
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +175,68 @@ class Shot:
 
 
 @dataclass(frozen=True, slots=True)
+class QuickSettings:
+    """Complete authoritative Home Quick Settings snapshot."""
+
+    revision: int
+    active_preset_id: int
+    brew_by_weight: bool
+    no_scale_bbw_mode: str
+    auto_to_manual_guard_enabled: bool
+    slow_extraction_guard_enabled: bool
+    fast_extraction_guard_enabled: bool
+    avoid_accidental_touch_enabled: bool
+    cup_protection_enabled: bool
+
+    @classmethod
+    def from_dict(cls, value: Any) -> Self:
+        data = _mapping(value, "quickSettings")
+        expected = {
+            "revision",
+            "activePresetId",
+            "brewByWeight",
+            "noScaleBbwMode",
+            "autoToManualGuardEnabled",
+            "slowExtractionGuardEnabled",
+            "fastExtractionGuardEnabled",
+            "avoidAccidentalTouchEnabled",
+            "cupProtectionEnabled",
+        }
+        if set(data) != expected:
+            raise ProtocolError("quickSettings fields are invalid")
+        mode = data.get("noScaleBbwMode")
+        if mode not in NO_SCALE_BBW_MODES:
+            raise ProtocolError("noScaleBbwMode is invalid")
+        return cls(
+            revision=_integer(data.get("revision"), "revision"),
+            active_preset_id=_integer(
+                data.get("activePresetId"), "activePresetId", 1
+            ),
+            brew_by_weight=_boolean(data.get("brewByWeight"), "brewByWeight"),
+            no_scale_bbw_mode=mode,
+            auto_to_manual_guard_enabled=_boolean(
+                data.get("autoToManualGuardEnabled"),
+                "autoToManualGuardEnabled",
+            ),
+            slow_extraction_guard_enabled=_boolean(
+                data.get("slowExtractionGuardEnabled"),
+                "slowExtractionGuardEnabled",
+            ),
+            fast_extraction_guard_enabled=_boolean(
+                data.get("fastExtractionGuardEnabled"),
+                "fastExtractionGuardEnabled",
+            ),
+            avoid_accidental_touch_enabled=_boolean(
+                data.get("avoidAccidentalTouchEnabled"),
+                "avoidAccidentalTouchEnabled",
+            ),
+            cup_protection_enabled=_boolean(
+                data.get("cupProtectionEnabled"), "cupProtectionEnabled"
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class DeviceSnapshot:
     """Authoritative controller snapshot."""
 
@@ -172,7 +249,9 @@ class DeviceSnapshot:
     boot_id: int
     active_preset_id: int
     preset_revision: int
+    quick_settings: QuickSettings
     last_shot: Shot | None
+    last_good_shot: Shot | None
 
     @classmethod
     def from_dict(cls, value: Any) -> Self:
@@ -196,6 +275,12 @@ class DeviceSnapshot:
         if state not in ("idle", "brewing"):
             raise ProtocolError("shotState is invalid")
         raw_shot = data.get("lastShot")
+        raw_good = data.get("lastGoodShot")
+        quick = QuickSettings.from_dict(data.get("quickSettings"))
+        if quick.active_preset_id != data.get("activePresetId") or (
+            quick.revision != data.get("presetRevision")
+        ):
+            raise ProtocolError("quickSettings revision is inconsistent")
         return cls(
             device_id=device_id,
             manufacturer=_string(data.get("manufacturer"), "manufacturer", 64),
@@ -208,7 +293,9 @@ class DeviceSnapshot:
             boot_id=_integer(data.get("bootId"), "bootId"),
             active_preset_id=_integer(data.get("activePresetId"), "activePresetId", 1),
             preset_revision=_integer(data.get("presetRevision"), "presetRevision"),
+            quick_settings=quick,
             last_shot=None if raw_shot is None else Shot.from_dict(raw_shot),
+            last_good_shot=None if raw_good is None else Shot.from_dict(raw_good),
         )
 
 
@@ -243,6 +330,28 @@ class WebhookEvent:
         device_id = _string(data.get("deviceId"), "deviceId", 17).upper()
         if not DEVICE_ID.fullmatch(device_id):
             raise ProtocolError("deviceId is invalid")
+        if event == "quick_settings_changed":
+            try:
+                QuickSettings.from_dict(
+                    {
+                        key: data[key]
+                        for key in (
+                            "revision",
+                            "activePresetId",
+                            "brewByWeight",
+                            "noScaleBbwMode",
+                            "autoToManualGuardEnabled",
+                            "slowExtractionGuardEnabled",
+                            "fastExtractionGuardEnabled",
+                            "avoidAccidentalTouchEnabled",
+                            "cupProtectionEnabled",
+                        )
+                    }
+                )
+            except KeyError as err:
+                raise ProtocolError("quick settings webhook is incomplete") from err
+        if event == "controller_started":
+            _integer(data.get("revision"), "revision")
         return cls(
             event=event,
             device_id=device_id,

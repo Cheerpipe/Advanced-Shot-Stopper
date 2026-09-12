@@ -12,12 +12,18 @@ from custom_components.advanced_shot_stopper import (
     async_setup_entry,
     async_unload_entry,
 )
+from custom_components.advanced_shot_stopper.button import (
+    async_setup_entry as async_setup_button,
+)
 from custom_components.advanced_shot_stopper.runtime import ShotStopperRuntimeData
 from custom_components.advanced_shot_stopper.select import (
     async_setup_entry as async_setup_select,
 )
 from custom_components.advanced_shot_stopper.sensor import (
     async_setup_entry as async_setup_sensors,
+)
+from custom_components.advanced_shot_stopper.switch import (
+    async_setup_entry as async_setup_switches,
 )
 
 from .helpers import api_mock, config_entry, coordinator_data
@@ -28,6 +34,7 @@ def _coordinator_double() -> MagicMock:
     coordinator.data = coordinator_data()
     coordinator.async_load_store = AsyncMock()
     coordinator.async_config_entry_first_refresh = AsyncMock()
+    coordinator.async_shutdown = AsyncMock()
     return coordinator
 
 
@@ -42,6 +49,7 @@ async def test_setup_order_device_and_unload(hass) -> None:
         "refresh"
     )
     runtime = MagicMock(spec=ShotStopperRuntimeData)
+    runtime.coordinator = coordinator
     runtime.async_register_webhook.side_effect = lambda _value: events.append(
         "register"
     )
@@ -80,6 +88,7 @@ async def test_setup_order_device_and_unload(hass) -> None:
     ):
         assert await async_unload_entry(hass, entry)
     runtime.async_unregister_webhook.assert_called_once()
+    coordinator.async_shutdown.assert_awaited_once()
 
 
 async def test_setup_rolls_back_receiver(hass) -> None:
@@ -169,4 +178,10 @@ async def test_platform_factories(hass) -> None:
     assert len(add.call_args.args[0]) == 17
     add.reset_mock()
     await async_setup_select(hass, entry, add)
+    assert len(add.call_args.args[0]) == 1
+    add.reset_mock()
+    await async_setup_switches(hass, entry, add)
+    assert len(list(add.call_args.args[0])) == 7
+    add.reset_mock()
+    await async_setup_button(hass, entry, add)
     assert len(add.call_args.args[0]) == 1

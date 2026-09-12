@@ -175,3 +175,20 @@ class ShotStopperApi:
 
     async def async_select_preset(self, preset_id: int) -> None:
         await self._mutation("PUT", "/presets/active", {"id": preset_id})
+
+    async def async_set_quick_setting(
+        self, field: str, value: bool | str, base_revision: int
+    ) -> None:
+        """Persist one Home Quick Setting and wait for controller confirmation."""
+        await self._mutation(
+            "PUT", "/quick-settings", {"baseRevision": base_revision, field: value}
+        )
+
+    async def async_restart(self) -> None:
+        """Queue one safe restart without polling the rebooting controller."""
+        status, payload = await self._json("POST", "/restart", body={})
+        request_id = payload.get("requestId")
+        if status != 202 or isinstance(request_id, bool) or not isinstance(
+            request_id, int
+        ):
+            raise ProtocolError("restart did not return requestId")

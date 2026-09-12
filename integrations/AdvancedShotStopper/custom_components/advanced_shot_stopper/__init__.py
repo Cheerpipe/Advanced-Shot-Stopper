@@ -67,6 +67,7 @@ async def async_unload_entry(
     """Unload entities and remove only the local receiver."""
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
+    await entry.runtime_data.coordinator.async_shutdown()
     entry.runtime_data.async_unregister_webhook()
     return True
 

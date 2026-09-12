@@ -1655,6 +1655,7 @@ enum class WebCommandType : uint8_t {
   APPLY_CONFIG,
   RESET_WEIGHT_OFFSET,
   RESET_AUTO_TO_MANUAL_GUARD_SAMPLES,
+  QUICK_SETTING,
   PRESET_OP,
   SAVE_NETWORK,
   FORGET_NETWORK,
@@ -1706,6 +1707,7 @@ inline const char *webCommandTypeName(WebCommandType type) {
       return "reset learned weight offset";
     case WebCommandType::RESET_AUTO_TO_MANUAL_GUARD_SAMPLES:
       return "reset auto-to-manual guard samples";
+    case WebCommandType::QUICK_SETTING: return "change quick setting";
     case WebCommandType::PRESET_OP: return "preset operation";
     case WebCommandType::SAVE_NETWORK: return "save STA network";
     case WebCommandType::FORGET_NETWORK: return "forget STA network";
@@ -1951,7 +1953,13 @@ struct PersistedLastShot {
   uint32_t endedAtUptimeMs = 0;
   uint8_t presetId = 0;
   char presetName[24] = {};
+  float averageFlowGps = 0.0f;
+  bool averageFlowValid = false;
 };
+
+inline bool qualifyingGoodShot(const PersistedLastShot &shot) {
+  return shot.valid && shot.durationMs > 12000U && shot.weightValid && std::isfinite(shot.currentWeightG) && shot.currentWeightG > 2.0f;
+}
 
 struct RecipeSnapshot {
   ShotPresetBank presets = {};
@@ -2118,6 +2126,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   float bbwEwmaOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   LastCycleSummary lastCycle = {};
   PersistedLastShot lastShot = {};
+  PersistedLastShot lastGoodShot = {};
   uint8_t shotCurveCount = 0;
   uint8_t shotCurveIntervalS = 1;
   uint16_t shotCurveFirstDropDs = UINT16_MAX;

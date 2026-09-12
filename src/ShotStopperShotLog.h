@@ -208,6 +208,7 @@ class ShotLog {
     } else if (store_.header.bootId < UINT32_MAX) {
       ++store_.header.bootId;
     }
+    dirty_ = true;
   }
 
   uint32_t bootId() const { return store_.header.bootId; }

@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+from dataclasses import replace
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from custom_components.advanced_shot_stopper.api import RequestRejected
+from custom_components.advanced_shot_stopper.api import CannotConnect, RequestRejected
+from custom_components.advanced_shot_stopper.button import RestartButton
 from custom_components.advanced_shot_stopper.const import STOP_DETAILS
 from custom_components.advanced_shot_stopper.coordinator import ShotStopperCoordinator
 from custom_components.advanced_shot_stopper.diagnostics import (
@@ -27,6 +30,10 @@ from custom_components.advanced_shot_stopper.sensor import (
     SHOT_DESCRIPTIONS,
     ShotStateSensor,
     StoredShotSensor,
+)
+from custom_components.advanced_shot_stopper.switch import (
+    DESCRIPTIONS,
+    QuickSettingSwitch,
 )
 
 from .helpers import (
@@ -56,12 +63,30 @@ def _event(name: str, **updates) -> WebhookEvent:
 async def test_coordinator_refresh_and_failures(hass) -> None:
     """REST reconciliation publishes data and maps availability failures."""
     coordinator, api, _entry = _coordinator(hass)
+    migrated = Shot.from_dict(fixture("webhook_end_v1.json"))
+    coordinator._stored_good = migrated
     result = await coordinator._async_update_data()
     assert result.snapshot.shot_state == "idle"
+    assert result.last_good_shot is None
     recovered = Shot.from_dict(fixture("webhook_end_v1.json"))
     api.async_snapshot.return_value = result.snapshot.__class__.from_dict(
-        {**fixture("integration_snapshot.json"), "lastShot": recovered.to_dict()}
+        {
+            **fixture("integration_snapshot.json"),
+            "lastShot": recovered.to_dict(),
+        }
     )
+    coordinator._stored_good = migrated
+    result = await coordinator._async_update_data()
+    assert result.last_good_shot is None
+    assert coordinator._stored_good is None
+    api.async_snapshot.return_value = result.snapshot.__class__.from_dict(
+        {
+            **fixture("integration_snapshot.json"),
+            "lastShot": recovered.to_dict(),
+            "lastGoodShot": recovered.to_dict(),
+        }
+    )
+    coordinator._stored_good = None
     with patch.object(coordinator._store, "async_delay_save") as save:
         result = await coordinator._async_update_data()
     assert result.last_shot == recovered
@@ -76,6 +101,23 @@ async def test_coordinator_refresh_and_failures(hass) -> None:
     )
     with pytest.raises(UpdateFailed, match="identity"):
         await coordinator._async_update_data()
+
+
+async def test_refresh_requires_coherent_rest_snapshots(hass) -> None:
+    """A bounded retry never publishes mixed preset and settings revisions."""
+    coordinator, api, _entry = _coordinator(hass)
+    mismatched = replace(coordinator.data.presets, revision=20)
+    api.async_presets.side_effect = [mismatched, mismatched]
+    with pytest.raises(UpdateFailed, match="inconsistent"):
+        await coordinator._async_update_data()
+    assert api.async_snapshot.await_count == 2
+    assert api.async_presets.await_count == 2
+
+    api.async_snapshot.reset_mock()
+    api.async_presets.side_effect = [mismatched, coordinator.data.presets]
+    result = await coordinator._async_update_data()
+    assert result.snapshot.preset_revision == result.presets.revision == 19
+    assert api.async_snapshot.await_count == 2
 
 
 async def test_store_restore_save_and_corruption(hass) -> None:
@@ -134,6 +176,149 @@ async def test_webhook_ordering_aggregates_and_gap_refresh(hass) -> None:
     assert coordinator.data.presets.revision == accepted_revision
 
 
+async def test_quick_settings_and_controller_started_webhooks(hass) -> None:
+    """Complete settings pushes apply immutably and boot hints refresh once."""
+    coordinator, _api, _entry = _coordinator(hass)
+    quick = _event("webhook_quick_settings_changed_v1.json")
+    with patch.object(coordinator, "_schedule_explicit_refresh") as schedule:
+        await coordinator.async_process_webhook(quick)
+    assert not coordinator.data.snapshot.quick_settings.fast_extraction_guard_enabled
+    assert coordinator.data.snapshot.preset_revision == 20
+    schedule.assert_not_called()
+
+    gap = _event(
+        "webhook_quick_settings_changed_v1.json", uptimeMs=930101, revision=23
+    )
+    with patch.object(coordinator, "_schedule_explicit_refresh") as schedule:
+        await coordinator.async_process_webhook(gap)
+    schedule.assert_called_once()
+
+    started = _event("webhook_controller_started_v1.json")
+    with patch.object(coordinator, "_schedule_explicit_refresh") as schedule:
+        schedule.side_effect = lambda _name, required_boot_id: setattr(
+            coordinator, "_required_boot_id", required_boot_id
+        )
+        await coordinator.async_process_webhook(started)
+        await coordinator.async_process_webhook(started)
+    schedule.assert_called_once()
+
+    invalid = fixture("webhook_controller_started_v1.json")
+    invalid.update(bootId=125, uptimeMs=11, revision=True)
+    with pytest.raises(ProtocolError, match="revision"):
+        await coordinator.async_process_webhook(
+            WebhookEvent.from_bytes(json.dumps(invalid).encode())
+        )
+
+
+async def test_webhooks_reject_other_boots_until_reconciled(hass) -> None:
+    """Old and unexpectedly new boot events cannot overwrite the REST snapshot."""
+    coordinator, _api, _entry = _coordinator(hass)
+    coordinator.async_set_updated_data(
+        replace(
+            coordinator.data,
+            snapshot=replace(coordinator.data.snapshot, boot_id=124),
+        )
+    )
+    original = coordinator.data
+    old_events = [
+        _event("webhook_end_v1.json"),
+        _event("webhook_presets_changed_v1.json"),
+        _event("webhook_quick_settings_changed_v1.json"),
+    ]
+    brew = {
+        "schemaVersion": 1,
+        "event": "brew_state",
+        "deviceId": coordinator.device_id,
+        "bootId": 123,
+        "cycleId": 50,
+        "uptimeMs": 940000,
+        "state": "brewing",
+    }
+    old_events.append(WebhookEvent.from_bytes(json.dumps(brew).encode()))
+    with patch.object(coordinator, "_schedule_explicit_refresh") as schedule:
+        for event in old_events:
+            await coordinator.async_process_webhook(event)
+    assert coordinator.data == original
+    schedule.assert_not_called()
+
+    brew.update(bootId=125)
+    with patch.object(coordinator, "_schedule_explicit_refresh") as schedule:
+        await coordinator.async_process_webhook(
+            WebhookEvent.from_bytes(json.dumps(brew).encode())
+        )
+    assert coordinator.data == original
+    schedule.assert_called_once_with(
+        "advanced_shot_stopper newer-boot reconciliation", required_boot_id=125
+    )
+
+
+async def test_boot_hint_coalesces_with_active_refresh(hass) -> None:
+    """A boot hint arriving mid-refresh forces one follow-up reconciliation."""
+    coordinator, _api, _entry = _coordinator(hass)
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    calls = 0
+
+    async def refresh() -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            entered.set()
+            await release.wait()
+        else:
+            coordinator.async_set_updated_data(
+                replace(
+                    coordinator.data,
+                    snapshot=replace(coordinator.data.snapshot, boot_id=124),
+                )
+            )
+
+    coordinator.async_request_refresh = AsyncMock(side_effect=refresh)
+    coordinator._schedule_explicit_refresh("gap")
+    await entered.wait()
+    await coordinator.async_process_webhook(_event("webhook_controller_started_v1.json"))
+    release.set()
+    await coordinator._refresh_task
+    assert calls == 2
+    assert coordinator.data.snapshot.boot_id == 124
+    assert coordinator._required_boot_id is None
+    assert coordinator.last_update_success
+
+
+async def test_successful_boot_refresh_cancels_sleeping_recovery(hass) -> None:
+    """An independent successful refresh retires backoff before another GET."""
+    coordinator, _api, _entry = _coordinator(hass)
+    sleeping = asyncio.Event()
+    blocked = asyncio.Event()
+
+    async def sleep(_delay: int) -> None:
+        sleeping.set()
+        await blocked.wait()
+
+    coordinator.async_set_update_error(UpdateFailed("offline"))
+    with patch(
+        "custom_components.advanced_shot_stopper.coordinator.asyncio.sleep",
+        side_effect=sleep,
+    ):
+        coordinator._start_recovery()
+        await sleeping.wait()
+        coordinator.async_request_refresh = AsyncMock(
+            side_effect=lambda: coordinator.async_set_updated_data(
+                replace(
+                    coordinator.data,
+                    snapshot=replace(coordinator.data.snapshot, boot_id=124),
+                )
+            )
+        )
+        await coordinator.async_process_webhook(
+            _event("webhook_controller_started_v1.json")
+        )
+        await coordinator._refresh_task
+    await asyncio.sleep(0)
+    assert coordinator._recovery_task.cancelled()
+    coordinator.async_request_refresh.assert_awaited_once()
+
+
 async def test_webhook_state_test_and_permission(hass) -> None:
     """State/test pushes update exactly their intended state."""
     coordinator, _api, _entry = _coordinator(hass)
@@ -141,7 +326,7 @@ async def test_webhook_state_test_and_permission(hass) -> None:
         "schemaVersion": 1,
         "event": "brew_state",
         "deviceId": coordinator.device_id,
-        "bootId": 124,
+        "bootId": 123,
         "cycleId": 10,
         "uptimeMs": 10,
         "state": "brewing",
@@ -300,6 +485,127 @@ async def test_entities_and_select(hass) -> None:
         api.async_select_preset.side_effect = failure
         with pytest.raises(HomeAssistantError):
             await select.async_select_option("Double")
+
+
+async def test_switches_and_restart_button(hass) -> None:
+    """All actions are serialized, confirmed, and never optimistic."""
+    coordinator, api, _entry = _coordinator(hass)
+    coordinator.async_confirmed_command = AsyncMock()
+    switches = [QuickSettingSwitch(coordinator, item) for item in DESCRIPTIONS]
+    assert len(switches) == 7
+    assert all(item.available for item in switches)
+    assert all(item.is_on for item in switches)
+    no_scale = next(
+        item for item in switches if item.entity_description.key == "no_scale_bbw"
+    )
+    await no_scale.async_turn_off()
+    command = coordinator.async_confirmed_command.await_args.args[0]
+    await command()
+    api.async_set_quick_setting.assert_awaited_with("noScaleBbwMode", "off", 19)
+    api.async_set_quick_setting.reset_mock()
+    await no_scale.async_turn_on()
+    command = coordinator.async_confirmed_command.await_args.args[0]
+    await command()
+    api.async_set_quick_setting.assert_awaited_with(
+        "noScaleBbwMode", "warn_once", 19
+    )
+
+    brew = switches[0]
+    await brew.async_turn_off()
+    command = coordinator.async_confirmed_command.await_args.args[0]
+    await command()
+    api.async_set_quick_setting.assert_awaited_with("brewByWeight", False, 19)
+
+    button = RestartButton(coordinator)
+    assert button.unique_id.endswith("_restart")
+    await button.async_press()
+    assert coordinator.async_confirmed_command.await_args.kwargs == {"restarting": True}
+
+    coordinator.async_confirmed_command.side_effect = RequestRejected("FAILED", 500)
+    with pytest.raises(HomeAssistantError):
+        await brew.async_turn_on()
+    with pytest.raises(HomeAssistantError):
+        await button.async_press()
+
+
+async def test_switch_availability_matches_home_quick_settings(hass) -> None:
+    """BBW dependencies and the active-cycle lock match the Web UI Home rules."""
+    coordinator, _api, _entry = _coordinator(hass)
+    switches = [QuickSettingSwitch(coordinator, item) for item in DESCRIPTIONS]
+    quick = replace(coordinator.data.snapshot.quick_settings, brew_by_weight=False)
+    coordinator.async_set_updated_data(
+        replace(
+            coordinator.data,
+            snapshot=replace(coordinator.data.snapshot, quick_settings=quick),
+        )
+    )
+    availability = {
+        item.entity_description.key: item.available for item in switches
+    }
+    assert availability == {
+        "brew_by_weight": True,
+        "no_scale_bbw": False,
+        "auto_to_manual_guard": False,
+        "slow_extraction_guard": False,
+        "fast_extraction_guard": False,
+        "avoid_accidental_touch": False,
+        "cup_protection": False,
+    }
+    coordinator.async_set_updated_data(
+        replace(
+            coordinator.data,
+            snapshot=replace(coordinator.data.snapshot, shot_state="brewing"),
+        )
+    )
+    assert not any(item.available for item in switches)
+    coordinator.async_set_update_error(UpdateFailed("offline"))
+    assert not any(item.available for item in switches)
+
+
+async def test_real_coordinator_shutdown_stops_future_refreshes(hass) -> None:
+    """Unload performs both local task cleanup and coordinator base shutdown."""
+    coordinator, api, _entry = _coordinator(hass)
+    await coordinator.async_shutdown()
+    assert coordinator._shutdown_requested
+    await coordinator.async_request_refresh()
+    api.async_snapshot.assert_not_awaited()
+
+
+async def test_command_failure_and_bounded_recovery(hass) -> None:
+    """Transport loss starts one finite recovery sequence and retains data."""
+    coordinator, api, _entry = _coordinator(hass)
+    api.async_set_quick_setting.side_effect = CannotConnect()
+    with (
+        patch.object(coordinator, "_start_recovery") as recover,
+        pytest.raises(CannotConnect),
+    ):
+        await coordinator.async_confirmed_command(
+            lambda: api.async_set_quick_setting("brewByWeight", False, 19)
+        )
+    assert not coordinator.last_update_success
+    recover.assert_called_once()
+
+    coordinator.last_update_success = False
+    coordinator.async_refresh = AsyncMock()
+    with patch("asyncio.sleep", new=AsyncMock()) as sleep:
+        await coordinator._async_recover()
+    assert [call.args[0] for call in sleep.await_args_list] == [5, 10, 20, 40, 60]
+    assert coordinator.async_refresh.await_count == 5
+
+    coordinator.async_refresh = AsyncMock(
+        side_effect=lambda: setattr(coordinator, "last_update_success", True)
+    )
+    with patch("asyncio.sleep", new=AsyncMock()):
+        await coordinator._async_recover()
+    coordinator.async_refresh.assert_awaited_once()
+
+    coordinator.async_request_refresh = AsyncMock()
+    coordinator.last_update_success = True
+    await coordinator.async_confirmed_command(AsyncMock())
+    coordinator.async_request_refresh.assert_awaited_once()
+    with patch.object(coordinator, "_transport_failed") as failed:
+        await coordinator.async_confirmed_command(AsyncMock(), restarting=True)
+    failed.assert_called_once()
 
 
 async def test_diagnostics_redact_identifiers(hass) -> None:

@@ -185,6 +185,26 @@ static void testIntegrationPayloads() {
   assert(WebhookDispatcherTest::payload(d, event, payload, sizeof(payload)));
   assert(strstr(payload, "A\\\"B") != nullptr);
   assert(strstr(payload, "\"name\":\"AB\"") != nullptr);
+
+  event = WebhookEvent{};
+  event.type = WebhookEventType::QUICK_SETTINGS_CHANGED;
+  event.quickSettings.revision = 13;
+  event.quickSettings.activePresetId = 2;
+  event.quickSettings.brewByWeight = true;
+  event.quickSettings.noScaleBbwMode =
+      static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE);
+  event.quickSettings.fastExtractionGuardEnabled = true;
+  assert(WebhookDispatcherTest::payload(d, event, payload, sizeof(payload)));
+  assert(strstr(payload, "\"event\":\"quick_settings_changed\"") != nullptr);
+  assert(strstr(payload, "\"noScaleBbwMode\":\"warn_once\"") != nullptr);
+
+  event = WebhookEvent{};
+  event.type = WebhookEventType::CONTROLLER_STARTED;
+  event.bootId = 8;
+  event.presetRevision = 13;
+  assert(WebhookDispatcherTest::payload(d, event, payload, sizeof(payload)));
+  assert(strstr(payload, "\"event\":\"controller_started\"") != nullptr);
+  assert(strstr(payload, "\"revision\":13") != nullptr);
 }
 int main() {
   testSamplingAndAccounting();

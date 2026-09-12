@@ -2,8 +2,9 @@
 
 This HACS custom integration connects Home Assistant 2026.9 or newer to one
 Advanced Shot Stopper controller over the local network. It provides live shot
-state, last-shot and last-good-shot measurements, and durable preset selection.
-It never starts or stops the espresso machine.
+state, controller-restored shot measurements, durable preset selection, seven
+Home Quick Settings switches, and a safe restart button. It never starts or
+stops the espresso machine.
 
 ## Install
 
@@ -34,7 +35,10 @@ webhook ID is not included in entities or diagnostics.
 - Last completed and last qualifying-good shot values: duration, final and
   target weight, average flow, first drop, type, stop detail, and preset name.
 - A non-optimistic **Active preset** select backed by stable preset IDs.
-- Immediate webhook updates plus five-minute and revision-gap reconciliation.
+- Seven non-optimistic Quick Settings switches and a shot-safe **Restart Shot
+  Stopper** button.
+- Immediate webhook updates with bounded reconciliation after commands,
+  revision gaps, controller startup, or runtime failure; no periodic polling.
 - Transactional address/webhook reconfiguration, redacted diagnostics, clean
   unload, and conditional removal cleanup.
 
@@ -45,9 +49,13 @@ seconds and over 2 grams. It is not a quality rating.
 
 - The controller supports one HTTP callback and no HTTPS callback.
 - The controller API has no authentication and relies on the trusted LAN.
-- Webhook delivery is best effort; reconciliation repairs missed state later.
-- Preset changes are rejected while the controller's existing safe-state gate
-  is closed.
+- Webhook delivery is best effort; a missed final event may remain stale until
+  the next command, revision gap, controller-start hint, or reload.
+- Preset and Quick Settings changes are rejected while the controller's
+  existing safe-state gate is closed. Restart may be requested during a shot
+  but waits until the controller is idle.
+- A silent power loss cannot be detected before a REST operation fails because
+  the integration deliberately has no polling heartbeat.
 - No discovery is advertised, so setup requires the IP/host.
 
 Use **Reconfigure** to view or rotate the administrator-only webhook ID, change

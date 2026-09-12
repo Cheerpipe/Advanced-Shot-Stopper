@@ -1,14 +1,16 @@
 # Home Assistant
 
 The native **Advanced Shot Stopper** integration adds one controller device,
-live shot state, the latest completed and qualifying shots, and an active-preset
-selector. It does not create YAML helpers, template entities, REST commands, or
-automations, and it cannot start or stop the espresso machine.
+live shot state, the latest completed and qualifying shots, an active-preset
+selector, seven Home Quick Settings switches, and a safe restart button. It
+does not create YAML helpers, template entities, REST commands, or automations,
+and it cannot start or stop the espresso machine.
 
 ## Requirements
 
 - Home Assistant 2026.9 or newer.
-- Firmware that advertises integration API version 1.
+- Firmware that advertises `webhook_v1`, `preset_select_v1`,
+  `quick_settings_v1`, `restart_v1`, and `stored_shots_v1`.
 - Home Assistant and the controller on the same trusted local network.
 - A LAN-reachable Home Assistant Internal URL that starts with `http://`.
 
@@ -43,22 +45,52 @@ The integration creates one device. Its entities are:
   legacy rule: duration over 12 seconds and final weight over 2 grams. This is
   a continuity filter, not a taste judgment.
 - **Active preset**, a select populated from the controller's preset names.
+- **Brew by weight**, **No-scale BBW**, **A-to-M time guard**, **Slow
+  extraction guard**, **Fast extraction guard**, **Avoid accidental touch**,
+  and **Cup protection** switches.
+- **Restart Shot Stopper**, a configuration button.
 
 Selecting a preset waits for the controller to persist it and then refreshes
 the authoritative value. If the machine is busy or the write fails, Home
 Assistant keeps the last confirmed option and shows an error.
 
+The Brew by weight switch changes the current session without rewriting the
+recipe. No-scale BBW is machine-level: turning it off selects `off`; turning it
+on restores the last observed non-off mode or `warn_once`. The five guard
+switches update only the active preset and preserve its other recipe and learned
+values. All switches are unavailable during an active cycle, and the five guard
+switches plus No-scale BBW are also unavailable while effective BBW is off.
+
+The restart button uses the controller's existing queued restart. It may be
+pressed during a shot, but restart waits for that shot to finish. It cannot
+close the machine circuit and the controller never resumes a cycle after boot.
+
 ## Updates and availability
 
-Webhooks update entities immediately. Home Assistant also reads the controller
-every five minutes, after preset changes, and when it detects a skipped preset
-revision. This reconciliation repairs missed best-effort webhooks. An offline
-controller makes the entities unavailable and Home Assistant retries without
-requiring a restart.
+Home Assistant reads a complete REST snapshot before it adds any entities.
+That snapshot restores both controller-owned durable shot aggregates, so one
+may be unknown while the other is immediately available. The controller is
+authoritative: a null last-good aggregate clears any older Home Assistant value
+instead of reconstructing history after a factory reset.
 
-The last completed shot and last good shot are kept in one local Home Assistant
-store record, so they survive a restart. The webhook path and callback URL are
-excluded from diagnostics and entity attributes.
+After setup, validated webhooks update entities immediately. There is no
+healthy-state or background polling. Home Assistant performs a single bounded
+REST reconciliation after a confirmed command, a revision gap, or a
+`controller_started` hint. A missed final best-effort webhook can therefore
+leave values stale until one of those triggers occurs.
+
+If the controller is offline during setup or reload, Home Assistant keeps the
+entry unavailable and applies its normal bounded setup retry; entities are not
+created from an incomplete snapshot. A runtime REST failure keeps the last
+confirmed values internally, marks entities unavailable, and starts at most one
+recovery sequence after 5, 10, 20, 40, and 60 seconds. It stops on the first
+successful full refresh or after the final attempt. After exhaustion, reload
+the entry, retry an action, or wait for another valid webhook. A silent power
+loss cannot be detected immediately without polling or a heartbeat, so entities
+may show their last-known state until an operation fails.
+
+The webhook path and callback URL are excluded from diagnostics and entity
+attributes.
 
 ## Reconfiguration
 
@@ -100,7 +132,7 @@ briefly unregisters only Home Assistant's local handler.
 | --- | --- |
 | Callback URL unavailable | Set a LAN-reachable HTTP Internal URL in Home Assistant network settings |
 | Another webhook is configured | Confirm takeover only if Home Assistant should become the sole receiver |
-| Entities are unavailable | Confirm the controller address and LAN reachability; reconciliation recovers automatically |
+| Entities are unavailable | Confirm the controller address and LAN reachability; reload after the finite recovery sequence if no new action or webhook arrives |
 | Callback test fails | Ensure the controller can reach Home Assistant's Internal URL and port |
 | Callback repair issue appears | Open Reconfigure and save the displayed values again |
 

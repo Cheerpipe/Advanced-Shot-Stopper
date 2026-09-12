@@ -1296,6 +1296,24 @@ void queueWebhookPresetsChanged() {
                 presetBank.presets[i].name);
   }
   (void)networkManager.enqueueWebhook(event);
+#else
+  ++hostPresetWebhookCount;
+#endif
+}
+
+void queueWebhookQuickSettingsChanged() {
+#ifndef SHOT_STOPPER_HOST_TEST
+  const WebhookConfig config = networkManager.webhookConfig();
+  if (!config.enabled || !config.presetChanges) return;
+  RecipeSnapshot recipe;
+  recipe.presets = presetBank;
+  recipe.runtime = runtimeConfig;
+  WebhookEvent event =
+      baseWebhookEvent(WebhookEventType::QUICK_SETTINGS_CHANGED, 0);
+  event.quickSettings = quickSettingsSnapshot(recipe);
+  (void)networkManager.enqueueWebhook(event);
+#else
+  ++hostQuickSettingsWebhookCount;
 #endif
 }
 

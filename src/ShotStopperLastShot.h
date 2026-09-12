@@ -8,7 +8,7 @@ namespace shotstopper {
 
 constexpr uint32_t LAST_SHOT_MAGIC = 0x4C534854U;  // "LSHT"
 // Current last-shot schema. Unrecognized blobs decode as empty (no upgrade).
-constexpr uint16_t LAST_SHOT_SCHEMA_VERSION = 3;
+constexpr uint16_t LAST_SHOT_SCHEMA_VERSION = 4;
 
 struct LastShotBlobV2 {
   uint32_t magic;
@@ -26,11 +26,28 @@ inline uint32_t lastShotV2Checksum(const LastShotBlobV2 &blob) {
                offsetof(LastShotBlobV2, checksum));
 }
 
+struct LastShotBlobV3 {
+  uint32_t magic;
+  uint16_t schemaVersion;
+  uint16_t structureSize;
+  uint8_t shot[112];
+  uint32_t checksum;
+};
+
+static_assert(offsetof(PersistedLastShot, averageFlowGps) == 112,
+              "V3 last-shot prefix changed");
+
+inline uint32_t lastShotV3Checksum(const LastShotBlobV3 &blob) {
+  return crc32(reinterpret_cast<const uint8_t *>(&blob),
+               offsetof(LastShotBlobV3, checksum));
+}
+
 struct LastShotBlob {
   uint32_t magic = LAST_SHOT_MAGIC;
   uint16_t schemaVersion = LAST_SHOT_SCHEMA_VERSION;
   uint16_t structureSize = 0;
-  PersistedLastShot shot = {};
+  PersistedLastShot lastShot = {};
+  PersistedLastShot lastGoodShot = {};
   uint32_t checksum = 0;
 };
 
@@ -101,6 +118,21 @@ class LastShotStore {
         validLastShotBlob(candidate)) {
       blob_ = candidate;
       loaded = true;
+    } else if (length == sizeof(LastShotBlobV3)) {
+      LastShotBlobV3 legacy = {};
+      if (preferences.getBytes(LAST_SHOT_KEY, &legacy, sizeof(legacy)) ==
+              sizeof(legacy) &&
+          legacy.magic == LAST_SHOT_MAGIC && legacy.schemaVersion == 3 &&
+          legacy.structureSize == sizeof(legacy) &&
+          legacy.checksum == lastShotV3Checksum(legacy)) {
+        resetLastShotBlob(blob_);
+        memcpy(&blob_.lastShot, legacy.shot, sizeof(legacy.shot));
+        if (qualifyingGoodShot(blob_.lastShot)) {
+          blob_.lastGoodShot = blob_.lastShot;
+        }
+        finalizeLastShotBlob(blob_);
+        loaded = true;
+      }
     } else if (length == sizeof(LastShotBlobV2)) {
       LastShotBlobV2 legacy = {};
       if (preferences.getBytes(LAST_SHOT_KEY, &legacy, sizeof(legacy)) ==
@@ -109,7 +141,10 @@ class LastShotStore {
           legacy.structureSize == sizeof(legacy) &&
           legacy.checksum == lastShotV2Checksum(legacy)) {
         resetLastShotBlob(blob_);
-        memcpy(&blob_.shot, legacy.shot, sizeof(legacy.shot));
+        memcpy(&blob_.lastShot, legacy.shot, sizeof(legacy.shot));
+        if (qualifyingGoodShot(blob_.lastShot)) {
+          blob_.lastGoodShot = blob_.lastShot;
+        }
         finalizeLastShotBlob(blob_);
         loaded = true;
       }
@@ -127,6 +162,7 @@ class LastShotStore {
     finalizeLastShotBlob(blob_);
 #if defined(SHOT_STOPPER_HOST_TEST)
     (void)lockTimeoutMs;
+    if (!hostSaveSucceeds_) return false;
     hostStorage_ = blob_;
     hostStorageValid_ = true;
     return true;
@@ -158,11 +194,23 @@ class LastShotStore {
   }
 
   void adopt(const PersistedLastShot &shot) {
-    blob_.shot = shot;
+    blob_.lastShot = shot;
+    if (blob_.lastGoodShot.valid &&
+        blob_.lastGoodShot.cycleId == shot.cycleId) {
+      blob_.lastGoodShot = shot;
+    }
+    finalizeLastShotBlob(blob_);
+  }
+
+  void adopt(const PersistedLastShot &lastShot,
+             const PersistedLastShot &lastGoodShot) {
+    blob_.lastShot = lastShot;
+    blob_.lastGoodShot = lastGoodShot;
     finalizeLastShotBlob(blob_);
   }
 
   bool persist(const PersistedLastShot &shot) {
+    if (qualifyingGoodShot(shot)) blob_.lastGoodShot = shot;
     adopt(shot);
     return save();
   }
@@ -194,11 +242,30 @@ class LastShotStore {
   }
 
   bool clear() {
+    const LastShotBlob previous = blob_;
     resetLastShotBlob(blob_);
-    return save();
+    if (save()) return true;
+    blob_ = previous;
+    return false;
   }
 
-  const PersistedLastShot &get() const { return blob_.shot; }
+  bool clearLast() {
+    const LastShotBlob previous = blob_;
+    blob_.lastShot = PersistedLastShot{};
+    finalizeLastShotBlob(blob_);
+    if (save()) return true;
+    blob_ = previous;
+    return false;
+  }
+
+  const PersistedLastShot &get() const { return blob_.lastShot; }
+  const PersistedLastShot &getGood() const { return blob_.lastGoodShot; }
+
+#if defined(SHOT_STOPPER_HOST_TEST)
+  static void setHostSaveSucceeds(bool succeeds) {
+    hostSaveSucceeds_ = succeeds;
+  }
+#endif
 
  private:
   static constexpr const char *LAST_SHOT_NAMESPACE = "lastshot";
@@ -209,12 +276,14 @@ class LastShotStore {
 #if defined(SHOT_STOPPER_HOST_TEST)
   static LastShotBlob hostStorage_;
   static bool hostStorageValid_;
+  static bool hostSaveSucceeds_;
 #endif
 };
 
 #if defined(SHOT_STOPPER_HOST_TEST)
 LastShotBlob LastShotStore::hostStorage_;
 bool LastShotStore::hostStorageValid_ = false;
+bool LastShotStore::hostSaveSucceeds_ = true;
 #endif
 
 }  // namespace shotstopper

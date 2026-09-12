@@ -34,6 +34,8 @@
 #include <sys/time.h>
 #include <time.h>
 
+#include "ShotStopperIntegrationRequest.h"
+
 // The application logger is owned by shotStopper.cpp. Network diagnostics use
 // it so they reach both the ESP-IDF serial backend and the optional RAM ring.
 void serialTraceCategory(shotstopper::LogLevel level,

@@ -28,6 +28,9 @@ const char *eventName(WebhookEventType type) {
     case WebhookEventType::END: return "end";
     case WebhookEventType::TEST: return "test";
     case WebhookEventType::PRESETS_CHANGED: return "presets_changed";
+    case WebhookEventType::QUICK_SETTINGS_CHANGED:
+      return "quick_settings_changed";
+    case WebhookEventType::CONTROLLER_STARTED: return "controller_started";
   }
   return "unknown";
 }
@@ -378,7 +381,9 @@ bool WebhookDispatcher::enqueue(const WebhookEvent &event) {
       event.type == WebhookEventType::IDLE) selected = live.brewState;
   if (event.type == WebhookEventType::FIRST_DROP) selected = live.firstDrop;
   if (event.type == WebhookEventType::END) selected = live.end;
-  if (event.type == WebhookEventType::PRESETS_CHANGED)
+  if (event.type == WebhookEventType::PRESETS_CHANGED ||
+      event.type == WebhookEventType::QUICK_SETTINGS_CHANGED ||
+      event.type == WebhookEventType::CONTROLLER_STARTED)
     selected = live.presetChanges;
   if (workerState != WorkerState::READY || queue == nullptr ||
       !validWebhookUrl(live.url) ||
@@ -562,6 +567,30 @@ bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,
                     itemName, item.isFactory ? "true" : "false")) return false;
       }
       if (!append("]")) return false;
+      break;
+    case WebhookEventType::QUICK_SETTINGS_CHANGED: {
+      const QuickSettingsSnapshot &quick = event.quickSettings;
+      if (!append(",\"revision\":%lu,\"activePresetId\":%u,"
+                  "\"brewByWeight\":%s,\"noScaleBbwMode\":\"%s\","
+                  "\"autoToManualGuardEnabled\":%s,"
+                  "\"slowExtractionGuardEnabled\":%s,"
+                  "\"fastExtractionGuardEnabled\":%s,"
+                  "\"avoidAccidentalTouchEnabled\":%s,"
+                  "\"cupProtectionEnabled\":%s",
+                  static_cast<unsigned long>(quick.revision),
+                  static_cast<unsigned>(quick.activePresetId),
+                  quick.brewByWeight ? "true" : "false",
+                  noScaleBbwModeId(quick.noScaleBbwMode),
+                  quick.autoToManualGuardEnabled ? "true" : "false",
+                  quick.slowExtractionGuardEnabled ? "true" : "false",
+                  quick.fastExtractionGuardEnabled ? "true" : "false",
+                  quick.avoidAccidentalTouchEnabled ? "true" : "false",
+                  quick.cupProtectionEnabled ? "true" : "false")) return false;
+      break;
+    }
+    case WebhookEventType::CONTROLLER_STARTED:
+      if (!append(",\"revision\":%lu",
+                  static_cast<unsigned long>(event.presetRevision))) return false;
       break;
   }
   return append("}");

@@ -145,11 +145,14 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   runtimeConfig.scaleTimerStopExtraDelayMs = 0;
   lastCycle = LastCycleSummary{};
   persistedLastShot = PersistedLastShot{};
+  persistedLastGoodShot = PersistedLastShot{};
   lastShotNvsDirty = false;
   shotLogPersistFailLatched = false;
   shotCurvePersistFailLatched = false;
   lastShotPersistFailLatched = false;
+  controllerStartedPending = false;
   shotStorePersistRetryAtMs = 0;
+  LastShotStore::setHostSaveSucceeds(true);
   lastShotStore.clear();
   g_hostFlashIoMutexAvailable = true;
   shotCurveSampler.reset(0);
@@ -199,11 +202,16 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   hostSettingsPersistQueueCreateSucceeds = true;
   hostSettingsPersistTaskCreateSucceeds = true;
   hostSettingsPersistRollbackDeletes = 0;
+  hostPresetWebhookCount = 0;
+  hostQuickSettingsWebhookCount = 0;
+  hostControllerStartedWebhookCount = 0;
+  hostControllerStartedWebhookSucceeds = true;
   g_wallClock.reset();
   runtimePersistPending = false;
   runtimePersistFailed = false;
   runtimePersistCandidate = RuntimeConfig{};
   pendingPresetPersistence = {};
+  quickSettingsPersistPending = false;
   runtimePersistRetryAtMs = 0;
   runtimePersistReasonBits = 0;
   nextInternalRequestId = 0x80000000UL;
@@ -5908,6 +5916,8 @@ void w86_config_applies_to_ram_immediately_and_coalesces() {
   CHECK(runtimeConfig.postTareBaselineGraceMs == 3500);
   CHECK(runtimeConfig.revision == firstRevision + 1);
   CHECK(runtimePersistPending);
+  CHECK(quickSettingsPersistPending);
+  CHECK(hostQuickSettingsWebhookCount == 0);
 
   WebCommand second;
   second.type = WebCommandType::APPLY_CONFIG;
@@ -5951,6 +5961,7 @@ void w87_nvs_fail_keeps_ram_and_requeues() {
   CHECK(runtimePersistFailed);
   CHECK(hostRuntimePersistAttempts >= 1);
   CHECK(publishedControlStatus.configPersistFailed);
+  CHECK(hostQuickSettingsWebhookCount == 0);
 
   hostRuntimePersistSucceeds = true;
   runLoopAfter(RUNTIME_PERSIST_RETRY_MS + 1);
@@ -5959,6 +5970,7 @@ void w87_nvs_fail_keeps_ram_and_requeues() {
   CHECK(hostLastFlushIncludedLive);
   CHECK(hostLastFlushedRuntime.revision == runtimeConfig.revision);
   CHECK(hostLastFlushedRuntime.noScaleBbwMode == alternateMode);
+  CHECK(hostQuickSettingsWebhookCount == 1);
 }
 
 void w87b_runtime_persist_failure_is_logged_once_per_episode() {
@@ -9951,6 +9963,8 @@ void w91_preset_persistence_serializes_and_survives_retry() {
   processWebCommand(first);
   CHECK(pendingPresetPersistence.requestId == 91);
   CHECK(pendingPresetPersistence.revision == runtimeConfig.revision);
+  CHECK(hostPresetWebhookCount == 0);
+  CHECK(hostQuickSettingsWebhookCount == 0);
 
   WebCommand competing = first;
   competing.requestId = 92;
@@ -9965,11 +9979,166 @@ void w91_preset_persistence_serializes_and_survives_retry() {
   runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
   CHECK(runtimePersistPending && runtimePersistFailed);
   CHECK(pendingPresetPersistence.requestId == 91);
+  CHECK(hostPresetWebhookCount == 0);
+  CHECK(hostQuickSettingsWebhookCount == 0);
   hostRuntimePersistSucceeds = true;
   runLoopAfter(RUNTIME_PERSIST_RETRY_MS + 1);
   CHECK(!runtimePersistPending && !runtimePersistFailed);
   CHECK(pendingPresetPersistence.requestId == 0);
   CHECK(hostLastFlushedPresets.activeId == FACTORY_PRESET_ID_SINGLE);
+  CHECK(hostPresetWebhookCount == 1);
+  CHECK(hostQuickSettingsWebhookCount == 1);
+}
+
+void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  ShotPreset &initialPreset = mutableActiveShotPreset(presetBank);
+  initialPreset.autoToManualGuardEnabled = true;
+  initialPreset.slowExtractionGuardEnabled = true;
+  initialPreset.fastExtractionGuardEnabled = true;
+  initialPreset.avoidAccidentalTouchEnabled = true;
+  initialPreset.cupProtectionEnabled = true;
+  applyShotPresetToConfig(initialPreset, runtimeConfig, true);
+  const uint8_t goal = runtimeConfig.goalWeightG;
+  const float learnedOffset = activeShotPreset(presetBank).weightOffsetG;
+  const struct {
+    QuickSettingField field;
+    uint8_t value;
+  } changes[] = {
+      {QuickSettingField::BREW_BY_WEIGHT, 0},
+      {QuickSettingField::NO_SCALE_BBW_MODE,
+       static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE)},
+      {QuickSettingField::AUTO_TO_MANUAL_GUARD, 0},
+      {QuickSettingField::SLOW_EXTRACTION_GUARD, 0},
+      {QuickSettingField::FAST_EXTRACTION_GUARD, 0},
+      {QuickSettingField::AVOID_ACCIDENTAL_TOUCH, 0},
+      {QuickSettingField::CUP_PROTECTION, 0},
+  };
+  uint32_t requestId = 200;
+  for (const auto &change : changes) {
+    WebCommand command;
+    command.type = WebCommandType::QUICK_SETTING;
+    command.requestId = requestId++;
+    command.config.revision = runtimeConfig.revision;
+    command.presetAction = static_cast<uint8_t>(change.field);
+    command.presetId = change.value;
+    const uint32_t previousRevision = runtimeConfig.revision;
+    processWebCommand(command);
+    CHECK(runtimeConfig.revision == previousRevision + 1);
+    CHECK(pendingPresetPersistence.requestId == command.requestId);
+    runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
+    CHECK(pendingPresetPersistence.requestId == 0);
+  }
+  CHECK(runtimeConfig.timerOnly);
+  CHECK(runtimeConfig.noScaleBbwMode ==
+        static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE));
+  CHECK(!runtimeConfig.autoToManualGuardEnabled);
+  CHECK(!runtimeConfig.slowExtractionGuardEnabled);
+  CHECK(!runtimeConfig.fastExtractionGuardEnabled);
+  CHECK(!runtimeConfig.avoidAccidentalTouchEnabled);
+  CHECK(!runtimeConfig.cupProtectionEnabled);
+  CHECK(runtimeConfig.goalWeightG == goal);
+  CHECK(activeShotPreset(presetBank).weightOffsetG == learnedOffset);
+
+  WebCommand stale;
+  stale.type = WebCommandType::QUICK_SETTING;
+  stale.requestId = requestId;
+  stale.config.revision = runtimeConfig.revision - 1;
+  stale.presetAction = static_cast<uint8_t>(QuickSettingField::BREW_BY_WEIGHT);
+  stale.presetId = 1;
+  processWebCommand(stale);
+  CHECK(runtimeConfig.timerOnly);
+  CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::FAILED);
+
+  WebCommand unchanged = stale;
+  unchanged.requestId = ++requestId;
+  unchanged.config.revision = runtimeConfig.revision;
+  unchanged.presetId = 0;
+  processWebCommand(unchanged);
+  CHECK(runtimeConfig.timerOnly);
+  CHECK(pendingPresetPersistence.requestId == 0);
+  CHECK(hostLastForwardedNetworkCommand.resultState ==
+        CommandResultState::PERSISTED);
+
+  session.active = true;
+  WebCommand active = unchanged;
+  active.requestId = ++requestId;
+  active.presetId = 1;
+  processWebCommand(active);
+  CHECK(runtimeConfig.timerOnly);
+  CHECK(pendingPresetPersistence.requestId == 0);
+  CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::FAILED);
+
+  session.active = false;
+  WebCommand delayed;
+  delayed.type = WebCommandType::QUICK_SETTING;
+  delayed.requestId = ++requestId;
+  delayed.config.revision = runtimeConfig.revision;
+  delayed.presetAction = static_cast<uint8_t>(QuickSettingField::BREW_BY_WEIGHT);
+  delayed.presetId = 1;
+  const uint32_t webhookCount = hostQuickSettingsWebhookCount;
+  hostRuntimePersistSucceeds = false;
+  processWebCommand(delayed);
+  CHECK(quickSettingsPersistPending);
+  CHECK(hostQuickSettingsWebhookCount == webhookCount);
+  runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
+  CHECK(runtimePersistFailed);
+  CHECK(quickSettingsPersistPending);
+  CHECK(hostQuickSettingsWebhookCount == webhookCount);
+  hostRuntimePersistSucceeds = true;
+  runLoopAfter(RUNTIME_PERSIST_RETRY_MS + 1);
+  CHECK(!quickSettingsPersistPending);
+  CHECK(hostQuickSettingsWebhookCount == webhookCount + 1);
+}
+
+void s20_last_good_shot_advances_independently() {
+  resetHarness(false, false);
+  PersistedLastShot good = {};
+  good.valid = true;
+  good.cycleId = 10;
+  good.durationMs = 13000;
+  good.weightValid = true;
+  good.currentWeightG = 36.0f;
+  persistLastShotSnapshot(good);
+  CHECK(persistedLastGoodShot.cycleId == 10);
+
+  PersistedLastShot shortShot = good;
+  shortShot.cycleId = 11;
+  shortShot.durationMs = 12000;
+  persistLastShotSnapshot(shortShot);
+  CHECK(persistedLastShot.cycleId == 11);
+  CHECK(persistedLastGoodShot.cycleId == 10);
+  LastShotStore::setHostSaveSucceeds(false);
+  CHECK(!clearLastShot());
+  CHECK(persistedLastShot.cycleId == 11);
+  CHECK(lastShotStore.get().cycleId == 11);
+  CHECK(lastShotNvsDirty);
+  LastShotStore::setHostSaveSucceeds(true);
+  CHECK(clearLastShot());
+  CHECK(!persistedLastShot.valid);
+  CHECK(persistedLastGoodShot.cycleId == 10);
+  CHECK(lastShotStore.getGood().cycleId == 10);
+}
+
+void s21_controller_started_waits_for_durable_boot_id() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  shotLog.load();
+  shotLog.onBoot();
+  controllerStartedPending = true;
+  g_hostFlashIoMutexAvailable = false;
+  serviceShotStorePersistence();
+  CHECK(shotLog.dirty());
+  CHECK(controllerStartedPending);
+  CHECK(hostControllerStartedWebhookCount == 0);
+
+  g_hostFlashIoMutexAvailable = true;
+  hostMillis = shotStorePersistRetryAtMs;
+  serviceShotStorePersistence();
+  CHECK(!shotLog.dirty());
+  CHECK(!controllerStartedPending);
+  CHECK(hostControllerStartedWebhookCount == 1);
 }
 
 void s03_shot_log_clear_empties_records() {
@@ -14544,6 +14713,7 @@ const TestCase testCases[] = {
     {"S17", s17_new_cycle_commits_pending_log_as_last_known},
     {"W90", w90_save_unknown_preset_id_does_not_overwrite_active},
     {"W90b", w91_preset_persistence_serializes_and_survives_retry},
+    {"HQ01", hq01_quick_settings_are_revisioned_and_preserve_recipe_fields},
     {"S03", s03_shot_log_clear_empties_records},
     {"S14", s14_last_shot_persists_manual_cycle},
     {"S14c", s14c_last_shot_keeps_no_scale_duration},
@@ -14555,6 +14725,8 @@ const TestCase testCases[] = {
     {"S16", s16_last_shot_clear_empties_snapshot},
     {"S16b", s16b_factory_reset_hides_last_shot_on_status},
     {"S18", s18_last_shot_keeps_no_scale_guard_from_cycle},
+    {"S20", s20_last_good_shot_advances_independently},
+    {"S21", s21_controller_started_waits_for_durable_boot_id},
     {"S04", s04_shot_log_remove_by_id},
     {"S04c", s04c_delete_shot_record_removes_log_and_curve},
     {"S04d", s04d_delete_shot_record_ok_without_curve},

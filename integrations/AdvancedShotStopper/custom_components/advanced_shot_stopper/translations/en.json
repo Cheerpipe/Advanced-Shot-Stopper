@@ -52,11 +52,23 @@
       "last_good_shot_stop_detail": {"name": "Last good shot stop detail", "state": {"normal_target": "Target reached", "extended_max_weight": "Fast-shot maximum weight", "extended_min_time": "Fast-shot minimum time", "auto_to_manual": "Automatic to manual", "slow_max_time": "Slow-shot maximum time", "slow_min_weight": "Slow-shot minimum weight", "cup_removed": "Cup removed", "activator": "Physical control", "web_stop": "Web stop", "web_heartbeat": "Web heartbeat timeout", "physical_override": "Physical override", "hard_limit": "Hard time limit", "wall_limit": "Configured time limit", "relay_safety": "Relay safety", "weight_anomaly": "Weight anomaly", "other": "Other"}},
       "last_good_shot_preset": {"name": "Last good shot preset"}
     },
-    "select": {"active_preset": {"name": "Active preset"}}
+    "select": {"active_preset": {"name": "Active preset"}},
+    "switch": {
+      "brew_by_weight": {"name": "Brew by weight"},
+      "no_scale_bbw": {"name": "No-scale BBW"},
+      "auto_to_manual_guard": {"name": "A-to-M time guard"},
+      "slow_extraction_guard": {"name": "Slow extraction guard"},
+      "fast_extraction_guard": {"name": "Fast extraction guard"},
+      "avoid_accidental_touch": {"name": "Avoid accidental touch"},
+      "cup_protection": {"name": "Cup protection"}
+    },
+    "button": {"restart": {"name": "Restart Shot Stopper"}}
   },
   "exceptions": {
     "preset_not_found": {"message": "The selected preset no longer exists on the controller."},
-    "preset_change_failed": {"message": "The controller did not save the selected preset."}
+    "preset_change_failed": {"message": "The controller did not save the selected preset."},
+    "quick_setting_change_failed": {"message": "The controller did not save the Quick Setting."},
+    "restart_failed": {"message": "The controller did not accept the restart request."}
   },
   "issues": {
     "webhook_rollback_failed": {"title": "Controller callback needs attention", "description": "Home Assistant could not verify the new callback or restore the previous one. Open the integration's reconfigure flow and save the current settings again."}

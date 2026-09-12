@@ -69,7 +69,30 @@ bool buildIntegrationLastShot(const PersistedLastShot &shot, char *output,
   if (shot.weightValid &&
       !jsonScratchAppend(output, capacity, &used, ",\"weightG\":%.2f",
                          shot.currentWeightG)) return false;
+  if (shot.averageFlowValid &&
+      !jsonScratchAppend(output, capacity, &used, ",\"averageFlowGps\":%.2f",
+                         shot.averageFlowGps)) return false;
   return jsonScratchAppend(output, capacity, &used, "}");
+}
+
+bool buildIntegrationQuickSettings(const QuickSettingsSnapshot &snapshot,
+                                   char *output, size_t capacity) {
+  const int written = snprintf(
+      output, capacity,
+      "{\"revision\":%lu,\"activePresetId\":%u,\"brewByWeight\":%s,"
+      "\"noScaleBbwMode\":\"%s\",\"autoToManualGuardEnabled\":%s,"
+      "\"slowExtractionGuardEnabled\":%s,\"fastExtractionGuardEnabled\":%s,"
+      "\"avoidAccidentalTouchEnabled\":%s,\"cupProtectionEnabled\":%s}",
+      static_cast<unsigned long>(snapshot.revision),
+      static_cast<unsigned>(snapshot.activePresetId),
+      snapshot.brewByWeight ? "true" : "false",
+      noScaleBbwModeId(snapshot.noScaleBbwMode),
+      snapshot.autoToManualGuardEnabled ? "true" : "false",
+      snapshot.slowExtractionGuardEnabled ? "true" : "false",
+      snapshot.fastExtractionGuardEnabled ? "true" : "false",
+      snapshot.avoidAccidentalTouchEnabled ? "true" : "false",
+      snapshot.cupProtectionEnabled ? "true" : "false");
+  return written > 0 && static_cast<size_t>(written) < capacity;
 }
 
 }  // namespace
@@ -87,8 +110,15 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     if (self.callbacks_.copyRecipeSnapshot != nullptr)
       self.callbacks_.copyRecipeSnapshot(&recipe);
     char lastShotJson[640] = {};
+    char lastGoodShotJson[640] = {};
+    char quickSettingsJson[384] = {};
     const bool lastShotOk = buildIntegrationLastShot(
         control.lastShot, lastShotJson, sizeof(lastShotJson));
+    const bool lastGoodShotOk = buildIntegrationLastShot(
+        control.lastGoodShot, lastGoodShotJson, sizeof(lastGoodShotJson));
+    const bool quickSettingsOk = buildIntegrationQuickSettings(
+        quickSettingsSnapshot(recipe), quickSettingsJson,
+        sizeof(quickSettingsJson));
     const NetworkStatusSnapshot network = self.snapshot();
     char id[18] = {};
     integrationDeviceId(id);
@@ -99,17 +129,20 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
         "{\"apiVersion\":1,\"minimumClientApiVersion\":1,"
         "\"deviceId\":\"%s\",\"manufacturer\":\"Advanced Shot Stopper\","
         "\"model\":\"Advanced Shot Stopper\",\"firmwareVersion\":\"%s\","
-        "\"capabilities\":[\"webhook_v1\",\"preset_select_v1\"],"
+        "\"capabilities\":[\"webhook_v1\",\"preset_select_v1\","
+        "\"quick_settings_v1\",\"restart_v1\",\"stored_shots_v1\"],"
         "\"shotState\":\"%s\",\"bootId\":%lu,\"activePresetId\":%u,"
-        "\"presetRevision\":%lu,\"lastShot\":%s,"
+        "\"presetRevision\":%lu,\"quickSettings\":%s,"
+        "\"lastShot\":%s,\"lastGoodShot\":%s,"
         "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"}}",
         id, firmware, control.activeCycle ? "brewing" : "idle",
         static_cast<unsigned long>(control.bootId),
         static_cast<unsigned>(recipe.presets.activeId),
-        static_cast<unsigned long>(recipe.runtime.revision), lastShotJson,
+        static_cast<unsigned long>(recipe.runtime.revision), quickSettingsJson,
+        lastShotJson, lastGoodShotJson,
         static_cast<unsigned long>(network.lastCommandRequestId),
         commandResultStateName(network.lastCommandState));
-    const bool ok = lastShotOk && written > 0 &&
+    const bool ok = lastShotOk && lastGoodShotOk && quickSettingsOk && written > 0 &&
                     static_cast<size_t>(written) < NetworkWorkBuf::kStatusJson;
     const esp_err_t result = ok
         ? sendJson(request, STATUS_OK, self.workBuf_->statusJson)
@@ -245,6 +278,77 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
       return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
                        "Control is busy; webhook settings were not saved.");
     }
+    return self.sendAccepted(request, command.requestId,
+                             "\"apiVersion\":1");
+  }
+
+  if (apiUriMatches(uri, "/api/v1/integration/quick-settings") &&
+      request->method == HTTP_PUT) {
+    const ControlGateSnapshot gate = self.controlGate();
+    if (!controlAllowsConfiguration(gate))
+      return sendError(request, STATUS_CONFLICT,
+                       "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
+                       "Quick Settings are locked while a cycle is active.");
+    const esp_err_t bodyStatus = self.lockJsonBody(
+        request, "A bounded Quick Settings JSON request is required.");
+    if (bodyStatus != ESP_OK) return bodyStatus;
+    cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
+    IntegrationQuickSettingRequest parsedRequest;
+    const bool parsed = parseIntegrationQuickSettingRequest(root, parsedRequest);
+    if (root != nullptr) cJSON_Delete(root);
+    self.unlockJsonBody();
+    if (!parsed)
+      return sendError(request, STATUS_BAD_REQUEST, "INVALID_REQUEST",
+                       "Provide baseRevision and exactly one valid Quick Settings field.");
+    RecipeSnapshot recipe;
+    if (self.callbacks_.copyRecipeSnapshot != nullptr)
+      self.callbacks_.copyRecipeSnapshot(&recipe);
+    if (parsedRequest.baseRevision != recipe.runtime.revision)
+      return sendError(request, STATUS_CONFLICT, "STALE_REVISION",
+                       "Quick Settings changed; refresh and retry.");
+    WebCommand command;
+    command.type = WebCommandType::QUICK_SETTING;
+    command.requestId = self.allocateRequestId();
+    command.config = recipe.runtime;
+    command.presetAction = static_cast<uint8_t>(parsedRequest.field);
+    command.presetId = parsedRequest.value;
+    self.dataMux_.lock();
+    const bool available = self.stagedPresetRequestId_ == 0;
+    if (available) self.stagedPresetRequestId_ = command.requestId;
+    self.dataMux_.unlock();
+    if (!available)
+      return sendError(request, STATUS_CONFLICT, "REQUEST_BUSY",
+                       "Another settings update is pending.");
+    if (!self.callbacks_.enqueueWebCommand(command)) {
+      self.dataMux_.lock();
+      rollbackIntegrationStagedRequest(self.stagedPresetRequestId_,
+                                       command.requestId);
+      self.dataMux_.unlock();
+      return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
+                       "Control is busy; Quick Settings were not changed.");
+    }
+    return self.sendAccepted(request, command.requestId,
+                             "\"apiVersion\":1");
+  }
+
+  if (apiUriMatches(uri, "/api/v1/integration/restart") &&
+      request->method == HTTP_POST) {
+    const esp_err_t bodyStatus = self.lockJsonBody(
+        request, "An empty bounded JSON object is required.");
+    if (bodyStatus != ESP_OK) return bodyStatus;
+    cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
+    const bool parsed = parseIntegrationRestartRequest(root);
+    if (root != nullptr) cJSON_Delete(root);
+    self.unlockJsonBody();
+    if (!parsed)
+      return sendError(request, STATUS_BAD_REQUEST, "INVALID_REQUEST",
+                       "Restart requires an empty JSON object.");
+    WebCommand command;
+    command.type = WebCommandType::RESTART;
+    command.requestId = self.allocateRequestId();
+    if (!self.callbacks_.enqueueWebCommand(command))
+      return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
+                       "Control is busy; restart was not queued.");
     return self.sendAccepted(request, command.requestId,
                              "\"apiVersion\":1");
   }

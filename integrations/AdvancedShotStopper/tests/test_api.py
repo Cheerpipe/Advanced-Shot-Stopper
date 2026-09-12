@@ -155,7 +155,7 @@ async def test_request_polling_states(monkeypatch) -> None:
 
 
 async def test_all_mutation_shapes() -> None:
-    """Webhook, test, and preset methods use the open integration API shapes."""
+    """Every mutation uses the bounded open integration API shape."""
     persisted = Response(200, {"requestId": 9, "state": "PERSISTED"})
     session = Session(
         Response(202, {"requestId": 9}),
@@ -163,18 +163,32 @@ async def test_all_mutation_shapes() -> None:
         Response(200, {}),
         Response(202, {"requestId": 10}),
         Response(200, {"requestId": 10, "state": "PERSISTED"}),
+        Response(202, {"requestId": 11}),
+        Response(200, {"requestId": 11, "state": "PERSISTED"}),
+        Response(202, {"apiVersion": 1, "requestId": 12}),
     )
     api = ShotStopperApi(session, "stopper")
     await api.async_configure_webhook("http://home/webhook")
     await api.async_test_webhook("proof")
     await api.async_select_preset(2)
+    await api.async_set_quick_setting("brewByWeight", False, 19)
+    await api.async_restart()
     assert session.calls[0][0][:2] == (
         "PUT",
         "http://stopper/api/v1/integration/webhook",
     )
     assert session.calls[2][1]["json"] == {"correlationId": "proof"}
+    assert session.calls[5][1]["json"] == {
+        "baseRevision": 19,
+        "brewByWeight": False,
+    }
+    assert session.calls[7][1]["json"] == {}
 
     with pytest.raises(ProtocolError, match="requestId"):
         await ShotStopperApi(
             Session(Response(202, {})), "stopper"
         ).async_select_preset(2)
+    with pytest.raises(ProtocolError, match="restart"):
+        await ShotStopperApi(
+            Session(Response(200, {"requestId": True})), "stopper"
+        ).async_restart()

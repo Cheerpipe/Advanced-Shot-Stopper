@@ -64,6 +64,7 @@
 #endif
 
 #include "ShotStopperDomain.h"
+#include "ShotStopperIntegrationState.h"
 #include "ShotStopperDebugExport.h"
 #include "ShotStopperBleCompanion.h"
 #if !defined(SHOT_STOPPER_HOST_TEST)
@@ -377,10 +378,12 @@ ShotCurveSampler shotCurveSampler;
 ShotCurveRecord lastShotCurve = emptyShotCurveRecord();
 LastShotStore lastShotStore;
 PersistedLastShot persistedLastShot;
+PersistedLastShot persistedLastGoodShot;
 bool lastShotNvsDirty = false;
 bool shotLogPersistFailLatched = false;
 bool shotCurvePersistFailLatched = false;
 bool lastShotPersistFailLatched = false;
+bool controllerStartedPending = false;
 uint32_t shotStorePersistRetryAtMs = 0;
 
 bool noScaleShotGuardArmed = true;
@@ -472,14 +475,20 @@ bool hostLastMaintenanceSucceeded = false;
 bool hostSettingsPersistQueueCreateSucceeds = true;
 bool hostSettingsPersistTaskCreateSucceeds = true;
 uint32_t hostSettingsPersistRollbackDeletes = 0;
+uint32_t hostPresetWebhookCount = 0;
+uint32_t hostQuickSettingsWebhookCount = 0;
+uint32_t hostControllerStartedWebhookCount = 0;
+bool hostControllerStartedWebhookSucceeds = true;
 #endif
 bool runtimePersistPending = false;
 bool runtimePersistFailed = false;
 struct PendingPresetPersistence {
   uint32_t requestId = 0;
   uint32_t revision = 0;
+  bool notifyPresets = false;
 };
 PendingPresetPersistence pendingPresetPersistence;
+bool quickSettingsPersistPending = false;
 RuntimeConfig runtimePersistCandidate;
 uint32_t runtimePersistRetryAtMs = 0;
 int32_t runtimePersistReasonBits = 0;
@@ -582,8 +591,20 @@ void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits);
 bool settingsPersistenceAvailable();
 
 #ifndef SHOT_STOPPER_HOST_TEST
+WebhookEvent baseWebhookEvent(WebhookEventType type, uint32_t cycleId,
+                              uint32_t occurredAtMs);
 SHOT_STOPPER_PSRAM_BSS PersistedSettings persistedSettings;
 ShotStopperNetwork networkManager;
+
+bool enqueueControllerStartedWebhook() {
+  if (!controllerStartedPending) return true;
+  WebhookEvent started =
+      baseWebhookEvent(WebhookEventType::CONTROLLER_STARTED, 0, millis());
+  started.presetRevision = runtimeConfig.revision;
+  if (!networkManager.enqueueWebhook(started)) return false;
+  controllerStartedPending = false;
+  return true;
+}
 
 void syncScaleWorkerNetworkRf(bool scaleLinkOrConnecting,
                               bool scaleConnectingNow,
@@ -591,6 +612,16 @@ void syncScaleWorkerNetworkRf(bool scaleLinkOrConnecting,
   networkManager.syncScaleLinkRf(scaleLinkOrConnecting);
   networkManager.syncScaleConnectingRf(scaleConnectingNow);
   networkManager.syncScaleHuntRf(huntWindowActive);
+}
+#endif
+
+#ifdef SHOT_STOPPER_HOST_TEST
+bool enqueueControllerStartedWebhook() {
+  if (!controllerStartedPending) return true;
+  if (!hostControllerStartedWebhookSucceeds) return false;
+  ++hostControllerStartedWebhookCount;
+  controllerStartedPending = false;
+  return true;
 }
 #endif
 
@@ -1089,14 +1120,16 @@ bool clearShotLog() {
 }
 
 bool clearLastShot() {
+  if (!lastShotStore.clearLast()) return false;
   persistedLastShot = PersistedLastShot{};
   lastShotCurve = emptyShotCurveRecord();
   lastShotNvsDirty = false;
-  return lastShotStore.clear();
+  return true;
 }
 
 void clearLastShotSnapshot() {
   persistedLastShot = PersistedLastShot{};
+  persistedLastGoodShot = PersistedLastShot{};
   lastShotCurve = emptyShotCurveRecord();
   lastShotNvsDirty = false;
 }
@@ -1120,7 +1153,8 @@ bool releaseNvsSpaceForFactoryResetForNetwork() {
 
 void persistLastShotSnapshot(const PersistedLastShot &snapshot) {
   persistedLastShot = snapshot;
-  lastShotStore.adopt(snapshot);
+  if (qualifyingGoodShot(snapshot)) persistedLastGoodShot = snapshot;
+  lastShotStore.adopt(persistedLastShot, persistedLastGoodShot);
   lastShotNvsDirty = true;
 }
 
@@ -1196,6 +1230,16 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
   if (snapshot.firstDropDs != SHOT_LOG_METRIC_MISSING) {
     last.firstDropElapsedMs =
         static_cast<uint32_t>(snapshot.firstDropDs) * 100U;
+  }
+  if (last.weightValid && last.firstDropElapsedMs != 0 &&
+      last.durationMs > last.firstDropElapsedMs + 500U &&
+      snapshot.scaleBaselineReady) {
+    const float delta = last.currentWeightG - snapshot.scaleBaselineG;
+    last.averageFlowGps =
+        delta * 1000.0f /
+        static_cast<float>(last.durationMs - last.firstDropElapsedMs);
+    last.averageFlowValid =
+        delta > 0.0f && std::isfinite(last.averageFlowGps);
   }
   last.retarePerformed = snapshot.retarePerformed;
   last.shotType = static_cast<uint8_t>(lastShotTypeFromCycle(

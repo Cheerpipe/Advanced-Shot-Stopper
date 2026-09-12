@@ -53,12 +53,12 @@ class ActivePresetSelect(ShotStopperEntity, SelectEntity):
             raise HomeAssistantError(
                 translation_domain=DOMAIN, translation_key="preset_not_found"
             )
-        async with self.coordinator.command_lock:
-            try:
-                await self.coordinator.api.async_select_preset(preset.id)
-                await self.coordinator.async_request_refresh()
-            except (ApiError, ProtocolError, TimeoutError) as err:
-                raise HomeAssistantError(
-                    translation_domain=DOMAIN,
-                    translation_key="preset_change_failed",
-                ) from err
+        try:
+            await self.coordinator.async_confirmed_command(
+                lambda: self.coordinator.api.async_select_preset(preset.id)
+            )
+        except (ApiError, ProtocolError, TimeoutError) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="preset_change_failed",
+            ) from err

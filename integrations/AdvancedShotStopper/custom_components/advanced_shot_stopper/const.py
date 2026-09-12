@@ -1,15 +1,22 @@
 """Constants for Advanced Shot Stopper."""
 
 import re
-from datetime import timedelta
 
 DOMAIN = "advanced_shot_stopper"
-PLATFORMS = ["sensor", "select"]
+PLATFORMS = ["sensor", "select", "switch", "button"]
 CONF_DEVICE_ID = "device_id"
 CONF_WEBHOOK_ID = "webhook_id"
 API_VERSION = 1
-REQUIRED_CAPABILITIES = frozenset({"webhook_v1", "preset_select_v1"})
-UPDATE_INTERVAL = timedelta(minutes=5)
+REQUIRED_CAPABILITIES = frozenset(
+    {
+        "webhook_v1",
+        "preset_select_v1",
+        "quick_settings_v1",
+        "restart_v1",
+        "stored_shots_v1",
+    }
+)
+RECOVERY_DELAYS = (5, 10, 20, 40, 60)
 WEBHOOK_TEST_TIMEOUT = 10
 WEBHOOK_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{32,128}$")
 MANUFACTURER = "Advanced Shot Stopper"

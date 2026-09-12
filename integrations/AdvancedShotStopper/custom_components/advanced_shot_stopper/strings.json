@@ -83,11 +83,25 @@
     },
     "select": {
       "active_preset": {"name": "Active preset"}
+    },
+    "switch": {
+      "brew_by_weight": {"name": "Brew by weight"},
+      "no_scale_bbw": {"name": "No-scale BBW"},
+      "auto_to_manual_guard": {"name": "A-to-M time guard"},
+      "slow_extraction_guard": {"name": "Slow extraction guard"},
+      "fast_extraction_guard": {"name": "Fast extraction guard"},
+      "avoid_accidental_touch": {"name": "Avoid accidental touch"},
+      "cup_protection": {"name": "Cup protection"}
+    },
+    "button": {
+      "restart": {"name": "Restart Shot Stopper"}
     }
   },
   "exceptions": {
     "preset_not_found": {"message": "The selected preset no longer exists on the controller."},
-    "preset_change_failed": {"message": "The controller did not save the selected preset."}
+    "preset_change_failed": {"message": "The controller did not save the selected preset."},
+    "quick_setting_change_failed": {"message": "The controller did not save the Quick Setting."},
+    "restart_failed": {"message": "The controller did not accept the restart request."}
   },
   "issues": {
     "webhook_rollback_failed": {

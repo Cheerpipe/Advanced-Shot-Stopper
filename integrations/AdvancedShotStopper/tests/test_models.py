@@ -11,6 +11,7 @@ from custom_components.advanced_shot_stopper.models import (
     DeviceSnapshot,
     PresetState,
     ProtocolError,
+    QuickSettings,
     Shot,
     WebhookEvent,
 )
@@ -29,6 +30,7 @@ def test_snapshot_and_presets_contract() -> None:
     presets = PresetState.from_dict(load("integration_presets.json"))
     assert snapshot.device_id == "AA:BB:CC:DD:EE:FF"
     assert snapshot.shot_state == "idle"
+    assert snapshot.quick_settings.no_scale_bbw_mode == "warn_once"
     assert presets.active_id == 2
     assert [item.name for item in presets.items] == ["Double", "Single"]
 
@@ -44,6 +46,14 @@ def test_shot_and_webhook_contract() -> None:
         (FIXTURES / "webhook_presets_changed_v1.json").read_bytes()
     )
     assert presets.event == "presets_changed"
+    quick = WebhookEvent.from_bytes(
+        (FIXTURES / "webhook_quick_settings_changed_v1.json").read_bytes()
+    )
+    assert quick.event == "quick_settings_changed"
+    started = WebhookEvent.from_bytes(
+        (FIXTURES / "webhook_controller_started_v1.json").read_bytes()
+    )
+    assert started.event == "controller_started"
 
 
 @pytest.mark.parametrize(
@@ -138,7 +148,16 @@ def test_rejects_invalid_snapshot_fields(field: str, value: object) -> None:
         DeviceSnapshot.from_dict(payload)
 
 
-@pytest.mark.parametrize("missing", ["webhook_v1", "preset_select_v1"])
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "webhook_v1",
+        "preset_select_v1",
+        "quick_settings_v1",
+        "restart_v1",
+        "stored_shots_v1",
+    ],
+)
 def test_snapshot_requires_integration_capabilities(missing: str) -> None:
     payload = load("integration_snapshot.json")
     payload["capabilities"].remove(missing)
@@ -150,7 +169,36 @@ def test_snapshot_accepts_embedded_last_shot() -> None:
     """A REST snapshot may seed the aggregate before any webhook arrives."""
     payload = load("integration_snapshot.json")
     payload["lastShot"] = load("webhook_end_v1.json")
-    assert DeviceSnapshot.from_dict(payload).last_shot.preset_name == "Double"
+    payload["lastGoodShot"] = load("webhook_end_v1.json")
+    snapshot = DeviceSnapshot.from_dict(payload)
+    assert snapshot.last_shot.preset_name == "Double"
+    assert snapshot.last_good_shot.average_flow_gps == 1.57
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("noScaleBbwMode", "invalid"),
+        ("brewByWeight", 1),
+        ("activePresetId", 0),
+    ],
+)
+def test_rejects_invalid_quick_settings(field: str, value: object) -> None:
+    quick = load("integration_snapshot.json")["quickSettings"]
+    quick[field] = value
+    with pytest.raises(ProtocolError):
+        QuickSettings.from_dict(quick)
+
+
+def test_rejects_missing_extra_or_inconsistent_quick_settings() -> None:
+    quick = load("integration_snapshot.json")["quickSettings"]
+    quick["extra"] = True
+    with pytest.raises(ProtocolError, match="fields"):
+        QuickSettings.from_dict(quick)
+    payload = load("integration_snapshot.json")
+    payload["quickSettings"]["revision"] += 1
+    with pytest.raises(ProtocolError, match="inconsistent"):
+        DeviceSnapshot.from_dict(payload)
 
 
 def test_rejects_wrong_webhook_device() -> None:

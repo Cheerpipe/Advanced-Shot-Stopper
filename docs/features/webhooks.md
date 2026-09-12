@@ -42,12 +42,17 @@ event, controller, boot, cycle, event uptime, wall-clock time, and send time.
 | `first_drop` | First qualifying flow was confirmed | first-drop time, weight, target, preset ID/name |
 | `end` | Settled final result after drip delay | duration, target, preset ID/name, type, stop detail, optional first drop/weight/flow |
 | `presets_changed` | Persisted preset inventory changed | active ID, revision, full bounded item list |
+| `quick_settings_changed` | Persisted Home Quick Settings changed | revision, active preset ID, mode, and all six boolean values |
+| `controller_started` | Network-ready controller boot asks a client to reconcile | boot ID and current configuration revision |
 | `test` | Receiver connectivity check | optional correlation ID used by API clients |
 
 Preset names on shot events are captured when the cycle starts. Renaming a
 preset later does not rewrite the name attached to that shot. The
-`presets_changed` event is disabled for existing configurations until selected
-by a compatible client.
+`presetChanges` is the shared subscription for `presets_changed`,
+`quick_settings_changed`, and `controller_started`. It is disabled for existing
+configurations until selected by a compatible client. Settings events are sent
+only after persistence succeeds; the startup hint is best effort and is not a
+heartbeat.
 
 Example completed shot:
 

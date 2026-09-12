@@ -1063,6 +1063,8 @@ bool ShotStopperNetwork::startHttpServer() {
       registerHandler(server_, "/api/v1/integration/webhook/test", HTTP_POST, integrationHandler) &&
       registerHandler(server_, "/api/v1/integration/presets", HTTP_GET, integrationHandler) &&
       registerHandler(server_, "/api/v1/integration/presets/active", HTTP_PUT, integrationHandler) &&
+      registerHandler(server_, "/api/v1/integration/quick-settings", HTTP_PUT, integrationHandler) &&
+      registerHandler(server_, "/api/v1/integration/restart", HTTP_POST, integrationHandler) &&
       registerHandler(server_, "/api/v1/status/home", HTTP_GET, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/status/settings", HTTP_GET, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/status/admin", HTTP_GET, ownedApiHandler) &&

@@ -41,8 +41,8 @@ def coordinator_data() -> CoordinatorData:
     return CoordinatorData(
         DeviceSnapshot.from_dict(fixture("integration_snapshot.json")),
         PresetState.from_dict(fixture("integration_presets.json")),
-        None,
-        None,
+        DeviceSnapshot.from_dict(fixture("integration_snapshot.json")).last_shot,
+        DeviceSnapshot.from_dict(fixture("integration_snapshot.json")).last_good_shot,
     )
 
 
@@ -57,6 +57,8 @@ def api_mock() -> MagicMock:
         "async_configure_webhook",
         "async_test_webhook",
         "async_select_preset",
+        "async_set_quick_setting",
+        "async_restart",
         "async_apply_webhook_config",
     ):
         setattr(api, method, AsyncMock())

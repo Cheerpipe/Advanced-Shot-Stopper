@@ -4,8 +4,9 @@ This is the public LAN contract used by the Advanced Shot Stopper Home
 Assistant integration. It is available in firmware `0.1.0` and later at
 `http://<controller>/api/v1/integration`. Like the Web UI API, it is deliberately
 unauthenticated and must be used only on a trusted local network. It observes
-brewing and manages the single webhook destination and active preset; it cannot
-start or stop the machine.
+brewing and manages the single webhook destination, active preset, Home Quick
+Settings, and a safe queued controller restart. It cannot start, stop, rinse,
+or directly actuate the machine.
 
 ## Common rules
 
@@ -19,8 +20,11 @@ start or stop the machine.
   the existing control queue accepted the operation. Poll the request-status
   route until it reports `PERSISTED`. A mutation is not successful before that
   state. Clients time out after 10 seconds and may retry idempotent operations.
-- Webhook and preset mutations retain the firmware's existing safe-state gate
-  and are rejected while a shot cycle is active.
+- Restart is the exception: its accepted response is final because the
+  controller intentionally becomes unreachable. Do not poll its request ID.
+- Webhook, preset, and Quick Settings mutations retain the firmware's existing
+  safe-state gate and are rejected while a shot cycle is active. Restart is
+  accepted during a shot but the existing control owner defers it until idle.
 
 ## Status and error codes
 
@@ -29,17 +33,19 @@ start or stop the machine.
 | 400 | `INVALID_REQUEST` | Malformed JSON, field, identifier, or bound |
 | 404 | `PRESET_NOT_FOUND` | Stable preset ID does not exist |
 | 409 | `CONFIG_LOCKED_DURING_ACTIVE_CYCLE` | Existing firmware safety gate is closed |
+| 409 | `STALE_REVISION` | Quick Settings changed since the caller's snapshot |
 | 409 | `REQUEST_BUSY` | Another persistent request owns the queue/staging slot |
 | 413 | `CONTENT_TOO_LARGE` | Body exceeds the fixed request buffer |
 | 500 | `PERSISTENCE_FAILED` | The durable write failed |
+| 503 | `CONTROL_QUEUE_FULL` | The bounded control queue could not accept the command |
 | 503 | `WEBHOOK_UNAVAILABLE` | Test event could not be queued or delivered |
 
 ## Routes
 
 ### `GET /api/v1/integration`
 
-Returns identity, compatibility, current shot state, the most recent completed
-shot when available, and preset revision.
+Returns identity, compatibility, current shot state, both durable shot
+aggregates, preset revision, and the complete Quick Settings snapshot.
 
 ```json
 {
@@ -49,19 +55,34 @@ shot when available, and preset revision.
   "manufacturer": "Advanced Shot Stopper",
   "model": "Advanced Shot Stopper",
   "firmwareVersion": "0.1.0",
-  "capabilities": ["webhook_v1", "preset_select_v1"],
+  "capabilities": ["webhook_v1", "preset_select_v1", "quick_settings_v1", "restart_v1", "stored_shots_v1"],
   "shotState": "idle",
   "bootId": 123,
   "activePresetId": 2,
   "presetRevision": 19,
-  "lastShot": null
+  "quickSettings": {
+    "revision": 19,
+    "activePresetId": 2,
+    "brewByWeight": true,
+    "noScaleBbwMode": "warn_once",
+    "autoToManualGuardEnabled": true,
+    "slowExtractionGuardEnabled": true,
+    "fastExtractionGuardEnabled": true,
+    "avoidAccidentalTouchEnabled": true,
+    "cupProtectionEnabled": true
+  },
+  "lastShot": null,
+  "lastGoodShot": null
 }
 ```
 
-`lastShot`, when present, contains `cycleId`, `uptimeMs`, `durationMs`,
+`lastShot` and `lastGoodShot` are independently nullable. When present, each
+contains `cycleId`, `uptimeMs`, `durationMs`,
 `targetWeightG`, `presetId`, `presetName`, `shotType`, `stopDetail`, and the
 optional `firstDropMs`, `weightG`, and `averageFlowGps` fields defined by the
-webhook contract. `shotState` is `idle` or `brewing`.
+webhook contract. The controller is authoritative for both aggregates;
+`lastGoodShot` advances only for a shot over 12 seconds with a finite final
+weight over 2 g. `shotState` is `idle` or `brewing`.
 
 ### `GET /api/v1/integration/request`
 
@@ -107,6 +128,26 @@ command. After it reaches `PERSISTED`, read the preset snapshot for the
 authoritative active value. A failed or timed-out write never reports the
 candidate as confirmed.
 
+### `PUT /api/v1/integration/quick-settings`
+
+Requires `baseRevision` plus exactly one setting. Boolean settings are
+`brewByWeight`, `autoToManualGuardEnabled`, `slowExtractionGuardEnabled`,
+`fastExtractionGuardEnabled`, `avoidAccidentalTouchEnabled`, and
+`cupProtectionEnabled`; `noScaleBbwMode` accepts `off`, `warn_once`, or
+`require_scale`. Extra, duplicate, or incorrectly typed fields are rejected.
+
+`brewByWeight` changes the current session override, `noScaleBbwMode` changes
+the shared machine policy, and the five guard values change only the active
+preset. The durable confirmation and authoritative-refresh rules are identical
+to active-preset selection.
+
+### `POST /api/v1/integration/restart`
+
+Requires the exact empty object `{}`. A `202` response means the existing safe
+restart path accepted the request. During an extraction it waits for the cycle
+to end; it never closes the relay or resumes a cycle after boot. This trusted-
+LAN route exposes no machine actuation counterpart.
+
 ## Webhook version 1
 
 All messages are POSTed as bounded JSON. Common fields are `schemaVersion: 1`,
@@ -119,9 +160,40 @@ and contains `activeId`, monotonic `revision`, and the same bounded `items`
 array as the presets route. It is disabled for migrated webhook configurations
 and enabled explicitly by the native integration.
 
+`quick_settings_changed` is likewise emitted only after persistence. Its complete
+Quick Settings snapshot is flat in the event envelope:
+
+```json
+{
+  "schemaVersion": 1,
+  "event": "quick_settings_changed",
+  "deviceId": "AA:BB:CC:DD:EE:FF",
+  "bootId": 123,
+  "cycleId": 0,
+  "uptimeMs": 930100,
+  "timestamp": 1767225619,
+  "sentAtUptimeMs": 930110,
+  "revision": 20,
+  "activePresetId": 2,
+  "brewByWeight": true,
+  "noScaleBbwMode": "warn_once",
+  "autoToManualGuardEnabled": true,
+  "slowExtractionGuardEnabled": true,
+  "fastExtractionGuardEnabled": false,
+  "avoidAccidentalTouchEnabled": true,
+  "cupProtectionEnabled": true
+}
+```
+
+`controller_started` is one best-effort boot hint containing controller identity,
+`bootId`, and the current revision; receivers use it to perform one full REST
+reconciliation. The existing
+`presetChanges` subscription bit gates all three integration-state events:
+`presets_changed`, `quick_settings_changed`, and `controller_started`.
+
 Receivers deduplicate by `(deviceId, bootId, cycleId, event, uptimeMs)`, reject
-older events for the same boot, and refresh the REST snapshot when preset
-revisions skip. Numeric shot fields must be finite and non-negative. Supported
+older events for the same boot, and refresh the REST snapshot when configuration
+or preset revisions skip. Numeric shot fields must be finite and non-negative. Supported
 shot types are `auto`, `timer_only`, and `manual`; supported stop details are
 `normal_target`, `extended_max_weight`, `extended_min_time`, `auto_to_manual`,
 `slow_max_time`, `slow_min_weight`, `cup_removed`, `activator`, `web_stop`,

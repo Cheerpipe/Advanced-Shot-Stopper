@@ -96,7 +96,8 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
   BleCompanionPersistedSettings verifiedBle;
   const bool shotLogVerified = shotLog.load() && shotLog.count() == 0;
   const bool shotCurvesVerified = shotCurves.load() && shotCurves.count() == 0;
-  const bool lastShotVerified = lastShot.load() && !lastShot.get().valid;
+  const bool lastShotVerified = lastShot.load() && !lastShot.get().valid &&
+                                !lastShot.getGood().valid;
   return loadPersistedSettings(verifiedSettings) &&
          verifyFactorySettings(verifiedSettings) &&
          loadBleCompanionSettings(verifiedBle) && verifiedBle.enabled == 0 &&

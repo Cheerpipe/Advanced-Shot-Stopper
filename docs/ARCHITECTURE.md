@@ -81,8 +81,11 @@ V11 names RuntimeConfig byte 5 (former padding) as global
 validating the original CRC; presets never copy it.
 V12 names the WebhookConfig tail byte as `presetChanges`; V11 migration validates
 the historical CRC and explicitly initializes that opt-in delivery flag to off.
-Last-shot schema V3 appends immutable shot-time preset identity and end uptime;
-its V2 prefix is migrated so existing local shot data remains readable.
+Last-shot schema V4 atomically stores independent last-completed and
+last-qualifying-good aggregates and appends average flow to each complete
+record. V2/V3 records retain their last shot during migration and seed the good
+aggregate only when duration exceeds 12 seconds and finite final weight exceeds
+2 g. Clear-last preserves the good aggregate; factory reset clears both.
 
 History V4 keeps 48-byte records and 120 entries. Guard byte bits 5–7 encode
 profile (0 unknown, 1 pre-selector regression with unknown version, 2 regression v1,
