@@ -1008,7 +1008,7 @@ bool ShotStopperNetwork::startHttpServer() {
   // makes the last registerHandler fail, which tears down the whole Web UI, so
   // check_web_assets.js fails the build before the margin is gone.
   // Shell + app.js/css/runtime + secondary + settings + 4 HTML partials + APIs.
-  config.max_uri_handlers = 72;
+  config.max_uri_handlers = 76;
   // Safari sends a long UA + Accept-Language + optional Cookie/Sec-Fetch-*;
   // the IDF default (1024) is enough most of the time but intermittent
   // long browser headers have returned 431 Request Header Fields Too Large.
