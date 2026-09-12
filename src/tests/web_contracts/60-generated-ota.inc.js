@@ -230,14 +230,16 @@ if (generated.jsGzip.length > 5044) {
 if (generated.cssGzip.length > 6600) {
   throw new Error('Compressed Web CSS exceeds the 6.5 KiB gzip budget');
 }
-if (generated.runtimeGzip.length > 32200) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 32200-byte gzip budget');
+// Dirty save-state feedback raises the reviewed runtime budget by 50 bytes.
+if (generated.runtimeGzip.length > 32250) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 32250-byte gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
 }
-if (generated.secondaryGzip.length > 5800) {
-  throw new Error('Compressed secondary view JS exceeds the 5800-byte gzip budget');
+// Reviewed Admin view changes raise the secondary bundle budget by 250 bytes.
+if (generated.secondaryGzip.length > 6050) {
+  throw new Error('Compressed secondary view JS exceeds the 6050-byte gzip budget');
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');

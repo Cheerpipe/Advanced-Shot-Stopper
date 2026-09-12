@@ -41,8 +41,8 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !ui.includes('id="presetDupBtn"') ||
     ui.includes('id="presetLoadBtn"') ||
     ui.includes('id="presetSaveBtn"') ||
-    !html.includes('id="saveBrewPresetButton" class="btnGlyph mutable btnInvert"') ||
-    !html.includes('id="saveConfigButton" class="btnGlyph mutable btnInvert"') ||
+    !html.includes('id="saveBrewPresetButton" class="btnGlyph mutable btnInvert" data-dirty="0" disabled') ||
+    !html.includes('id="saveConfigButton" class="btnGlyph mutable btnInvert" data-dirty="0" disabled') ||
     html.includes('id="exportShotsButton" class="btnGlyph btnInvert"') ||
     !css.includes('font-variant-emoji:text') ||
     !html.includes('<span class="g">×</span>') ||

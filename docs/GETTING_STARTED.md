@@ -38,6 +38,11 @@ It stays renewed while Admin is open, or expires 15 minutes after the last
 privileged action. **Lock** closes it immediately without releasing the browser
 claim. Most configuration changes require an idle machine.
 
+Save buttons in **Settings** and **Admin** stay dimmed until you change one of
+their values. A successful save dims the button again; if saving fails, the
+button remains available so you can retry and the red message bar explains the
+error.
+
 Remote start/rinse are disabled in default firmware. Admin unlock does not
 enable them. Remote Stop is privileged; physical controls remain available
 according to the selected [paddle](settings/paddle.md) or
