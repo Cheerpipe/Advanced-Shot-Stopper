@@ -21,6 +21,9 @@ existing logic instead of adding wrappers or parallel implementations. Explain
 before adding more than 15 lines for a fix. Never leave placeholder or commented
 out code.
 
+While a command is pending, wait only for that command: do not run unrelated
+actions or produce, process, or show unnecessary or redundant user responses.
+
 ## Safety and permissions
 
 Treat changes to relay, machine control, ISR, watchdog, boot, GPIO, partitions,
