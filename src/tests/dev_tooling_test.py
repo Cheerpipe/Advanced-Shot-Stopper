@@ -6,6 +6,7 @@ from pathlib import Path
 import os
 import re
 import csv
+import io
 import runpy
 import shutil
 import sys
@@ -14,6 +15,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 DEV = ROOT / "scripts/dev"
+INTERNAL = ROOT / "scripts/internal"
 
 
 # Check rendered-document targets without depending on the working tree's docs.
@@ -83,6 +85,54 @@ unsafe = run("flash", "--arch", "n8r4")
 assert unsafe.returncode == 2 and "requires --confirm" in unsafe.stderr
 secret = run("ota", "--confirm", "--password", "do-not-log")
 assert secret.returncode == 2 and "never argv" in secret.stderr
+obsolete = run("ota", "--confirm", "--force")
+assert obsolete.returncode == 2 and "--yes" in obsolete.stderr and \
+    "--wait-for-confirmation" in obsolete.stderr
+for invalid in (("build", "monitor"), ("build", "flash", "ota", "--confirm"),
+                ("monitor", "--host", "controller.local"),
+                ("build", "flash", "--confirm", "--image", "firmware.bin")):
+    result = run(*invalid)
+    assert result.returncode == 2, (invalid, result.stdout, result.stderr)
+
+
+def captured_firmware(*args: str, stdin: str = "") -> dict:
+    captured = {}
+
+    def capture(command, risk, steps, verbosity, manual=None, prelude=None,
+                interactive=False, env_extra=None):
+        captured.update(command=command, risk=risk, steps=steps, manual=manual,
+                        interactive=interactive, env_extra=env_extra or {})
+        return 0
+
+    main = dev_module["main"]
+    with patch.dict(main.__globals__, execute=capture), \
+            patch.object(sys, "argv", [str(DEV), *args]), \
+            patch.object(sys, "stdin", io.StringIO(stdin)):
+        assert main() == 0
+    return captured
+
+
+for pipeline in (("build",), ("flash",), ("ota",), ("monitor",),
+                 ("build", "flash"), ("build", "ota"),
+                 ("flash", "monitor"), ("ota", "monitor"),
+                 ("build", "flash", "monitor"),
+                 ("build", "ota", "monitor")):
+    invocation = list(pipeline)
+    if {"flash", "ota"}.intersection(pipeline):
+        invocation.append("--confirm")
+    captured = captured_firmware(*invocation)
+    child = captured["steps"][0][1]
+    assert child[:len(pipeline) + 1] == [
+        "./scripts/internal/firmware-idf", *pipeline], (pipeline, child)
+    assert "--confirm" not in child
+    assert "--flags=" not in child
+
+stdin_password = captured_firmware(
+    "ota", "--confirm", "--yes", "--password-stdin", stdin="stdin-secret\n")
+assert stdin_password["env_extra"] == {
+    "SHOTSTOPPER_DEVICE_PASSWORD": "stdin-secret"}
+assert "stdin-secret" not in repr(stdin_password["command"] +
+                                  stdin_password["steps"][0][1])
 
 for area in ("safety", "control", "machine", "scale", "ble", "network",
              "ota", "persistence", "web", "build", "tests"):
@@ -92,7 +142,7 @@ for area in ("safety", "control", "machine", "scale", "ble", "network",
 dry_run = run("clean", "--dry-run")
 assert dry_run.returncode == 0 and "build-host" in dry_run.stdout
 
-for script in (ROOT / "scripts").iterdir():
+for script in (ROOT / "scripts").rglob("*"):
     if not script.is_file() or script.suffix == ".js":
         continue
     first = script.read_text(errors="replace").splitlines()[0]
@@ -142,7 +192,7 @@ for filename, contract in partition_contracts.items():
     assert last_offset + last_size == contract["flash"]
     assert rows["shotcurve"][1] == 40 * 1024, "shot-curve partition changed"
 
-flash_idf = (ROOT / "scripts/flash-idf").read_text()
+flash_idf = (INTERNAL / "flash-idf").read_text()
 for required in ("read_flash 0x8000 0x1000", "installed_nvs_bytes != 0x15000",
                  "installed_layout=blank", "installed_shotcurve_row",
                  "required_shotcurve_offset=0x680000", "0x620000", "erase_flash",
@@ -150,16 +200,32 @@ for required in ("read_flash 0x8000 0x1000", "installed_nvs_bytes != 0x15000",
     assert required in flash_idf, f"flash-idf migration contract missing: {required}"
 assert '0x10000 "$image"' not in flash_idf, \
     "external app offset must be dynamic"
-for wrapper in ("bf-idf", "bfm-idf", "bsfm-idf"):
-    assert "erase_all" in (ROOT / "scripts" / wrapper).read_text(), \
-        f"{wrapper} does not forward --erase-all"
-
 parsed_erase = subprocess.run(
     ["bash", "-c",
      f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
      'ss_cli_parse --erase-all; test "$SS_CLI_ERASE_ALL" = 1'],
     cwd=ROOT, capture_output=True, text=True)
 assert parsed_erase.returncode == 0, parsed_erase.stderr
+for controls, expected in (((), "0|0|"), (("--yes",), "1|0|--yes"),
+                           (("--wait-for-confirmation",),
+                            "0|1|--wait-for-confirmation"),
+                           (("--yes", "--wait-for-confirmation"),
+                            "1|1|--yes --wait-for-confirmation")):
+    parsed_ota_controls = subprocess.run(
+        ["bash", "-c", 'source "$1"; shift; ss_cli_parse "$@"; '
+         'ss_cli_flags_for yes wait_for_confirmation; '
+         'printf "%s|%s|%s" "$SS_CLI_YES" "$SS_CLI_WAIT_FOR_CONFIRMATION" '
+         '"${SS_CLI_FORWARD[*]}"', "ota-controls",
+         str(ROOT / "scripts/shotstopper_cli.sh"), *controls],
+        cwd=ROOT, capture_output=True, text=True)
+    assert parsed_ota_controls.returncode == 0 and \
+        parsed_ota_controls.stdout == expected
+removed_force = subprocess.run(
+    ["bash", "-c",
+     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; ss_cli_parse --force'],
+    cwd=ROOT, capture_output=True, text=True)
+assert removed_force.returncode == 2 and "--wait-for-confirmation" in \
+    removed_force.stderr
 profile_cli = subprocess.run(
     ["bash", "-c",
      f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
@@ -190,15 +256,53 @@ development_conflict = subprocess.run(
      'ss_cli_effective_flags'], cwd=ROOT, capture_output=True, text=True)
 assert development_conflict.returncode == 2 and \
     "conflicts" in development_conflict.stderr
+
+with tempfile.TemporaryDirectory(prefix="shotstopper-defaults-") as temporary:
+    defaults_root = Path(temporary)
+    store = defaults_root / ".shotstopper"
+    store.write_text("host=stored.local\nspeed=115200\nport=/missing/device\n")
+    defaults_env = {**os.environ, "SS_CLI_ROOT": str(defaults_root),
+                    "SHOTSTOPPER_NONINTERACTIVE": "1",
+                    "SHOTSTOPPER_HOST": "environment.local",
+                    "SHOTSTOPPER_DEVICE_PASSWORD": "environment-secret"}
+    resolved = subprocess.run(
+        ["bash", "-c",
+         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         'ss_cli_parse --host cli.local; '
+         'ss_cli_resolve "host speed password"; '
+         'printf "RESULT:%s|%s|%s" "$(ss_get host)" "$(ss_get speed)" '
+         '"$(ss_origin password)"'],
+        cwd=ROOT, env=defaults_env, capture_output=True, text=True)
+    assert resolved.returncode == 0 and \
+        "RESULT:cli.local|115200|env" in resolved.stdout
+    saved = store.read_text()
+    assert "host=cli.local" in saved and "speed=115200" in saved
+    assert "\npassword=" not in saved and "environment-secret" not in saved
+    stale = subprocess.run(
+        ["bash", "-c",
+         f'source "{ROOT / "scripts/shotstopper_board.sh"}"; '
+         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         'ss_cli_resolve "port"'], cwd=ROOT, env=defaults_env,
+        capture_output=True, text=True)
+    assert stale.returncode == 2 and "does not exist" in stale.stderr
+    detected = subprocess.run(
+        ["bash", "-c",
+         f'source "{ROOT / "scripts/shotstopper_board.sh"}"; '
+         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         'shotstopper_detect_ports(){ printf "/dev/null\\n"; }; '
+         'ss_prompt_suggestion port'], cwd=ROOT, env=defaults_env,
+        capture_output=True, text=True)
+    assert detected.returncode == 0 and detected.stdout == "/dev/null"
+
 missing_profiles = subprocess.run(
-    [str(ROOT / "scripts/build-idf"), "--flags="], cwd=ROOT,
+    [str(INTERNAL / "build-idf"), "--flags="], cwd=ROOT,
     env={**os.environ, "SHOTSTOPPER_NONINTERACTIVE": "1",
          "SHOTSTOPPER_HARDWARE": "", "SHOTSTOPPER_MACHINE": ""},
     capture_output=True, text=True)
 assert missing_profiles.returncode == 2
 assert "hardware_config machine_config" in missing_profiles.stderr
 erase_image = subprocess.run(
-    [str(ROOT / "scripts/flash-idf"), "--erase-all", "--image", "external.bin"],
+    [str(INTERNAL / "flash-idf"), "--erase-all", "--image", "external.bin"],
     cwd=ROOT, capture_output=True, text=True)
 assert erase_image.returncode == 2 and "cannot be combined" in erase_image.stderr
 
@@ -271,64 +375,71 @@ for validate_args, environment, expected in (
                for argv in build_steps), build_steps
 
 
-def stubbed_script(script: str, args: list[str], children: tuple[str, ...]) -> list[str]:
+def stubbed_dispatcher(stages: tuple[str, ...], args: list[str],
+                       fail: str = "", expected: int = 0) -> list[str]:
     with tempfile.TemporaryDirectory(prefix="shotstopper-wrapper-") as temporary:
         root = Path(temporary)
         scripts = root / "scripts"
-        scripts.mkdir()
-        for name in (script, "shotstopper_cli.sh", "shotstopper_board.sh"):
+        internal = scripts / "internal"
+        internal.mkdir(parents=True)
+        for name in ("shotstopper_cli.sh", "shotstopper_board.sh"):
             shutil.copy2(ROOT / "scripts" / name, scripts / name)
-        shutil.copy2(ROOT / "scripts/resolve_build_profiles.py",
-                     scripts / "resolve_build_profiles.py")
-        shutil.copytree(ROOT / "config", root / "config")
+        shutil.copy2(INTERNAL / "firmware-idf", internal / "firmware-idf")
         log = root / "children.log"
-        for child in children:
-            target = scripts / child
+        for child in ("build-idf", "flash-idf", "ota-idf", "monitor-idf"):
+            target = internal / child
             target.write_text(
-                f'#!/bin/sh\nprintf "%s:%s\\n" "${{0##*/}}" "$*" >>"{log}"\n')
+                f'#!/bin/sh\nprintf "%s:%s\\n" "${{0##*/}}" "$*" >>"{log}"\n'
+                + ("exit 9\n" if child == fail else ""))
             target.chmod(0o755)
         env = os.environ.copy()
         env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
                    SHOTSTOPPER_DEVICE_PASSWORD="test-only")
-        result = subprocess.run([str(scripts / script), *args], cwd=root, env=env,
+        result = subprocess.run(
+            [str(internal / "firmware-idf"), *stages, "--", *args],
+            cwd=root, env=env,
                                 capture_output=True, text=True)
-        assert result.returncode == 0, (script, result.stdout, result.stderr)
+        assert result.returncode == expected, (stages, result.stdout, result.stderr)
         return log.read_text().splitlines()
 
 
-wrapper_cases = {
-    "bf-idf": (["--port", "/dev/null", "--hardware", "esp32-s3-relay-x1-speaker",
-                "--machine", "rancilio-silvia-pro-x"],
-               ("build-idf", "flash-idf")),
-    "bfm-idf": (["--port", "/dev/null", "--hardware", "esp32-s3-relay-x1-speaker",
-                 "--machine", "rancilio-silvia-pro-x", "--speed", "115200"],
-                ("build-idf", "flash-idf", "monitor-idf")),
-    "bo-idf": (["--hardware", "esp32-s3-relay-x1-speaker",
-                "--machine", "rancilio-silvia-pro-x", "--host", "127.0.0.1"],
-               ("build-idf", "o-idf")),
-    "bsfm-idf": (["--port", "/dev/null", "--hardware", "esp32-s3-relay-x1-speaker",
-                  "--machine", "rancilio-silvia-pro-x", "--speed", "115200"],
-                 ("build-idf", "static-idf", "flash-idf", "monitor-idf")),
-}
-for wrapper, (args, children) in wrapper_cases.items():
-    lines = stubbed_script(wrapper, [*args, "--webui-language", "EN_us"], children)
-    build_line = next(line for line in lines if line.startswith("build-idf:"))
-    assert build_line.count("--webui-language en-us") == 1, (wrapper, lines)
-    assert all("--webui-language" not in line for line in lines if line != build_line), lines
+profile_args = ["--hardware", "esp32-s3-relay-x1-speaker",
+                "--machine", "rancilio-silvia-pro-x"]
+flash_monitor = stubbed_dispatcher(
+    ("build", "flash", "monitor"),
+    [*profile_args, "--port", "/dev/null", "--speed", "115200",
+     "--webui-language", "EN_us", "--erase-all"])
+assert [line.split(":", 1)[0] for line in flash_monitor] == [
+    "build-idf", "flash-idf", "monitor-idf"]
+assert "--webui-language en-us" in flash_monitor[0]
+assert "--erase-all" in flash_monitor[1]
+assert "--speed 115200" in flash_monitor[2]
 
-for analyzer, child in (("warnings-idf", "build-idf"),
-                        ("gcc_analyzer", "build-idf")):
-    lines = stubbed_script(
-        analyzer, ["--hardware", "esp32-s3-relay-x1-speaker",
-                   "--machine", "rancilio-silvia-pro-x",
-                   "--webui-language=EN_us"], (child,))
-    assert len(lines) == 1 and "--webui-language en-us" in lines[0], lines
+ota_monitor = stubbed_dispatcher(
+    ("build", "ota", "monitor"),
+    [*profile_args, "--host", "127.0.0.1", "--port", "/dev/null",
+     "--speed", "115200", "--yes", "--wait-for-confirmation"])
+assert [line.split(":", 1)[0] for line in ota_monitor] == [
+    "build-idf", "ota-idf", "monitor-idf"]
+assert "--yes --wait-for-confirmation" in ota_monitor[1]
+assert "test-only" not in "\n".join(ota_monitor)
 
-for alias, target in (("b-idf", "build-idf"), ("f-idf", "flash-idf"),
-                      ("m-idf", "monitor-idf"), ("o-idf", "ota-idf"),
-                      ("s-idf", "static-idf")):
-    assert f'exec "$SCRIPT_DIR/{target}" "$@"' in (ROOT / "scripts" / alias).read_text(), \
-        f"{alias} must preserve transparent argument forwarding"
+stopped = stubbed_dispatcher(
+    ("build", "flash"), [*profile_args, "--port", "/dev/null"],
+    fail="build-idf", expected=9)
+assert [line.split(":", 1)[0] for line in stopped] == ["build-idf"]
+
+no_yes = subprocess.run(
+    [str(INTERNAL / "firmware-idf"), "ota", "--", "--arch", "n16r8"],
+    cwd=ROOT, env={**os.environ, "SHOTSTOPPER_NONINTERACTIVE": "1"},
+    capture_output=True, text=True)
+assert no_yes.returncode == 2 and "requires --yes" in no_yes.stderr
+
+for removed in ("b-idf", "f-idf", "m-idf", "o-idf", "s-idf", "bf-idf",
+                "bfm-idf", "bo-idf", "bsfm-idf", "build-idf", "flash-idf",
+                "monitor-idf", "ota-idf"):
+    assert not (ROOT / "scripts" / removed).exists(), \
+        f"obsolete public script remains: {removed}"
 
 
 def idf_activation(active_version: str | None, active_python: bool = True):
@@ -442,7 +553,7 @@ def flash_command(layout: str, *extra: str, arch: str = "n8r4"):
                    IDF_PATH=str(idf), IDF_PYTHON_ENV_PATH=str(python_env.parent),
                    FLASH_LAYOUT=layout, EXPECTED_ARCH=arch, TMPDIR=str(root),
                    PATH=f"{tools}:/usr/bin:/bin")
-        args = [str(ROOT / "scripts/flash-idf"), "--port", "/dev/null",
+        args = [str(INTERNAL / "flash-idf"), "--port", "/dev/null",
                 "--arch", arch, *extra]
         if "--image" in extra:
             args[args.index("--image") + 1] = str(image)
@@ -480,12 +591,12 @@ for incompatible_layout in ("missing", "wrong", "type", "subtype", "size"):
             (incompatible_layout, extra, rejected.stderr)
         assert not any("write_flash" in line for line in commands), commands
 flash_language = subprocess.run(
-    [str(ROOT / "scripts/flash-idf"), "--webui-language", "en"],
+    [str(INTERNAL / "flash-idf"), "--webui-language", "en"],
     cwd=ROOT, capture_output=True, text=True)
 assert flash_language.returncode == 2 and "build-only" in flash_language.stderr
 
 scripts_text = "\n".join(
-    path.read_text(errors="replace") for path in (ROOT / "scripts").iterdir()
+    path.read_text(errors="replace") for path in (ROOT / "scripts").rglob("*")
     if path.is_file())
 idf_helpers = (ROOT / "scripts/shotstopper_idf.sh").read_text()
 assert 'IDF_DEFAULT_HOME="${HOME}/esp/esp-idf-v6.1"' in idf_helpers, \
@@ -620,7 +731,7 @@ assert r"component_validation\.cmake" in idf_helpers and \
     'idf "esp_wifi/"' in idf_helpers and 'idf "wpa_supplicant/"' in idf_helpers, \
     "only the known ESP-IDF 6.1 Wi-Fi component warnings may be filtered"
 assert 'build 2>&1 | ss_idf_filter_output' in \
-    (ROOT / "scripts/build-idf").read_text(), \
+    (INTERNAL / "build-idf").read_text(), \
     "the firmware build must use the scoped external-warning filter"
 for removed_alias in ("b", "bf", "bfm", "bo", "bsfm", "build", "f", "flash",
                       "iwyu", "m", "monitor", "o", "ota", "s", "static",
@@ -629,6 +740,8 @@ for removed_alias in ("b", "bf", "bfm", "bo", "bsfm", "build", "f", "flash",
         f"legacy Arduino-era alias remains: {removed_alias}"
 assert not re.search(r"--(?:token|password)\s+['\"]", scripts_text), \
     "credentials must not be forwarded in argv"
+for analyzer in ("warnings-idf", "gcc_analyzer"):
+    assert "./scripts/internal/build-idf" in (ROOT / "scripts" / analyzer).read_text()
 cppcheck_suppressions = (ROOT / "scripts/cppcheck-suppressions.txt").read_text()
 assert "**" not in cppcheck_suppressions, \
     "Cppcheck suppression globs must use a single '*' wildcard"

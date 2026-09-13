@@ -2,7 +2,8 @@
 # Update ESP-IDF controller firmware over Wi-Fi, without a USB cable.
 set -euo pipefail
 
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+INTERNAL_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH='' cd -- "$INTERNAL_DIR/.." && pwd)"
 # shellcheck source=scripts/shotstopper_board.sh
 source "$SCRIPT_DIR/shotstopper_board.sh"
 # shellcheck source=scripts/shotstopper_cli.sh
@@ -14,30 +15,29 @@ source "$SCRIPT_DIR/shotstopper_ota.sh"
 
 usage() {
   cat <<EOF
-Usage: ./scripts/ota-idf [flags]
+Internal OTA stage. Use: ./scripts/dev ota [monitor] --confirm [flags]
 
 Upload the already-built ESP-IDF image to the controller, verify it, and leave
 it ready to boot.
 
-Required parameters: --host and --password plus either both profiles or --arch
-for a legacy existing image. New builds always use profiles.
-Pass the device password (including the factory default if unchanged).
+Required parameters: --host plus either both profiles or --arch for a legacy
+existing image. New builds always use profiles. Supply the device password
+through the hidden prompt, SHOTSTOPPER_DEVICE_PASSWORD, or --password-stdin.
 
 $(ss_flag_help)
 
 $(shotstopper_arch_help)
 
-Examples:
-  ./scripts/ota-idf --hardware esp32-s3-relay-x1-speaker \
-    --machine rancilio-silvia-pro-x --host 192.168.1.50
+Example through the public facade:
+  ./scripts/dev ota --confirm --hardware esp32-s3-relay-x1-speaker \
+    --machine rancilio-silvia-pro-x --host 192.168.1.50 \
+    --yes --wait-for-confirmation
 
-Without --image, the image comes from the selected profile pair's build folder,
-so compile first (./scripts/build-idf / ./scripts/b-idf) or use
-./scripts/bo-idf, which does both. You can also use the short alias
-./scripts/o-idf.
+Without --image, the image comes from the selected profile pair's build folder.
+Use ./scripts/dev build ota to build and upload in one command.
 
-With --force, the script commits without asking and waits until the rebooted
-firmware confirms itself through its HTTP API; no Web UI reload is needed.
+Use --yes to commit without asking. Use --wait-for-confirmation independently
+to wait until the rebooted firmware confirms itself through its HTTP API.
 
 Resumable OTA rejects --no-check because SHA-256, architecture, hardware
 profile, machine profile, and version are required to safely resume one image.
@@ -52,6 +52,10 @@ ss_cli_parse "$@" || exit $?
 if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
   usage
   exit 0
+fi
+if [[ "$SS_CLI_YES" != "1" ]] && ! ss_can_prompt; then
+  echo 'Non-interactive OTA requires --yes before any transfer is started.' >&2
+  exit 2
 fi
 
 ss_cli_apply_env
@@ -92,6 +96,6 @@ node ./scripts/image_tag.js "$image" "${identity_args[@]}" >/dev/null
 
 trap ss_ota_cleanup EXIT
 ss_ota_run "$image" "$SHOTSTOPPER_ARCH" "$(ss_get host)" \
-  "$(ss_get password)" "$SS_CLI_FORCE" "$SS_CLI_NO_CHECK" \
-  "$SS_CLI_DISCARD_OTA_SESSION" || exit $?
+  "$(ss_get password)" "$SS_CLI_YES" "$SS_CLI_WAIT_FOR_CONFIRMATION" \
+  "$SS_CLI_NO_CHECK" "$SS_CLI_DISCARD_OTA_SESSION" || exit $?
 ss_cli_save

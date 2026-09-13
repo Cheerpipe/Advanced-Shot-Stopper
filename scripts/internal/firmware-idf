@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# Private ordered firmware dispatcher. The supported entry point is scripts/dev.
+set -euo pipefail
+
+INTERNAL_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH='' cd -- "$INTERNAL_DIR/.." && pwd)"
+# shellcheck source=scripts/shotstopper_board.sh
+source "$SCRIPT_DIR/shotstopper_board.sh"
+# shellcheck source=scripts/shotstopper_cli.sh
+source "$SCRIPT_DIR/shotstopper_cli.sh"
+
+usage() {
+  cat <<'EOF'
+Internal dispatcher. Use ./scripts/dev:
+  ./scripts/dev build [flash|ota] [monitor] [options]
+  ./scripts/dev flash|ota [monitor] [options]
+  ./scripts/dev monitor [options]
+EOF
+}
+
+stages=()
+while [[ $# -gt 0 && "$1" != "--" ]]; do
+  stages+=("$1")
+  shift
+done
+[[ $# -gt 0 ]] && shift
+case "${stages[*]}" in
+  build | flash | ota | monitor | "build flash" | "build ota" | "flash monitor" | \
+    "ota monitor" | "build flash monitor" | "build ota monitor") ;;
+  *)
+    echo "Invalid internal firmware sequence: ${stages[*]:-(empty)}" >&2
+    exit 2
+    ;;
+esac
+
+ss_cli_parse "$@" || exit $?
+if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
+  usage
+  exit 0
+fi
+
+has_stage() {
+  [[ " ${stages[*]} " == *" $1 "* ]]
+}
+
+if has_stage build && ss_is_set image; then
+  echo '--image cannot be combined with build; the built artifact is used.' >&2
+  exit 2
+fi
+if has_stage ota && [[ "$SS_CLI_YES" != "1" ]] && ! ss_can_prompt; then
+  echo 'Non-interactive OTA requires --yes before any transfer is started.' >&2
+  exit 2
+fi
+
+ss_cli_apply_env
+if ss_is_set hardware_config || ss_is_set machine_config; then
+  if ! ss_is_set hardware_config || ! ss_is_set machine_config; then
+    echo '--hardware and --machine must be used together.' >&2
+    exit 2
+  fi
+  profiles=1
+else
+  profiles=0
+fi
+
+required=""
+optional=""
+if has_stage build; then
+  required="hardware_config machine_config webui_language"
+  optional="flags"
+  profiles=1
+fi
+if has_stage flash || has_stage monitor; then
+  required="$required port"
+fi
+if has_stage monitor; then
+  required="$required speed"
+fi
+if has_stage ota; then
+  required="$required host password"
+fi
+if [[ "$profiles" == "1" ]]; then
+  has_stage build || required="$required hardware_config machine_config"
+elif has_stage flash || has_stage ota; then
+  required="$required arch"
+fi
+
+ss_cli_resolve "$required" "$optional" || exit $?
+ss_cli_normalize_image || exit $?
+
+for stage in "${stages[@]}"; do
+  case "$stage" in
+    build)
+      ss_cli_flags_for hardware_config machine_config flags webui_language development
+      "$INTERNAL_DIR/build-idf" ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}
+      ;;
+    flash)
+      if [[ "$profiles" == "1" ]]; then
+        ss_cli_flags_for port hardware_config machine_config image no_check erase_all
+      else
+        ss_cli_flags_for port arch image no_check erase_all
+      fi
+      "$INTERNAL_DIR/flash-idf" ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}
+      ;;
+    ota)
+      if [[ "$profiles" == "1" ]]; then
+        ss_cli_flags_for hardware_config machine_config host image yes wait_for_confirmation no_check discard_ota_session
+      else
+        ss_cli_flags_for arch host image yes wait_for_confirmation no_check discard_ota_session
+      fi
+      ss_cli_export_secrets
+      "$INTERNAL_DIR/ota-idf" ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}
+      ;;
+    monitor)
+      if [[ "$profiles" == "1" ]]; then
+        ss_cli_flags_for port speed hardware_config machine_config
+      else
+        ss_cli_flags_for port speed arch
+      fi
+      exec "$INTERNAL_DIR/monitor-idf" ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}
+      ;;
+  esac
+done

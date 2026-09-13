@@ -125,7 +125,7 @@ const bleComponentCmake = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'components', 'EspressoScaleBLE',
                'CMakeLists.txt'), 'utf8');
 const idfBuildScript = fs.readFileSync(
-  path.resolve(sketchDir, '..', 'scripts', 'build-idf'), 'utf8');
+  path.resolve(sketchDir, '..', 'scripts', 'internal', 'build-idf'), 'utf8');
 const bleRuntime = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'components',
                'ShotStopperBleRuntime', 'ShotStopperBleRuntime.cpp'),
@@ -301,7 +301,7 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
         'GPIO4 jumper must start USB Serial/JTAG HWCDC, not UART0 Serial0');
   }
   const buildIdf = fs.readFileSync(
-      path.resolve(sketchDir, '..', 'scripts', 'build-idf'), 'utf8');
+      path.resolve(sketchDir, '..', 'scripts', 'internal', 'build-idf'), 'utf8');
   const idfHelpers = fs.readFileSync(
       path.resolve(sketchDir, '..', 'scripts', 'shotstopper_idf.sh'), 'utf8');
   if (!idfHelpers.includes('ss_idf_prepare_set_target') ||
@@ -314,7 +314,7 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
       !buildIdf.includes('ss_idf_sync_jtag_console') ||
       !idfHelpers.includes('Preparing empty IDF build tree for set-target')) {
     throw new Error(
-        'build-idf must empty a non-CMake tree before idf.py set-target fullclean');
+        'dev build must empty a non-CMake tree before idf.py set-target fullclean');
   }
 }
 if (!taskProfiler.includes('void copySnapshot(TaskProfilerSnapshot &out) const') ||

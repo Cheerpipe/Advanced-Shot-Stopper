@@ -103,12 +103,11 @@ for the identity (the linker may place it at any offset), validates the ESP32-S3
 header and appended image checksum, and then resumes only a matching remote
 session. Selecting a different file never discards the existing session.
 
-From the repository root, build an image for the controller's board:
+From the repository root, build and upload one exact profile pair:
 
 ```sh
-./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x
-./scripts/dev ota --confirm --hardware esp32-s3-relay-x1-speaker \
+./scripts/dev build ota --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
   --machine rancilio-silvia-pro-x --host 192.168.1.50
 ```
 
@@ -120,12 +119,43 @@ For an image already obtained elsewhere, add
 `--image /path/to/shotstopper.bin`; you do not need to compile it again.
 The local image identity must match the selected board.
 
+OTA commit consent and post-boot verification are independent:
+
+| Options | Commit behavior | Completion behavior |
+| --- | --- | --- |
+| neither | Ask in the terminal. | Return after commit is accepted. |
+| `--yes` | Commit without asking. | Return after commit is accepted. |
+| `--wait-for-confirmation` | Ask in the terminal. | Verify the expected new boot and confirmed image. |
+| both | Commit without asking. | Verify the expected new boot and confirmed image. |
+
 In unattended automation, provide `SHOTSTOPPER_DEVICE_PASSWORD` through a
-secret environment and pass `--force` in addition to `--confirm`.
-`--confirm` authorizes the facade's hardware action; `--force` skips the
-installer's commit prompt and waits for post-boot image confirmation.
-Without `--force`, a successful commit does not itself prove confirmed boot.
-Check Admin's running identity and confirmation state.
+secret environment and pass both `--yes` and `--wait-for-confirmation` when a
+confirmed boot is required:
+
+```sh
+SHOTSTOPPER_DEVICE_PASSWORD="$DEVICE_SECRET" \
+  ./scripts/dev ota --confirm \
+    --hardware esp32-s3-relay-x1-speaker \
+    --machine rancilio-silvia-pro-x \
+    --host 192.168.1.50 \
+    --yes --wait-for-confirmation
+```
+
+`--confirm` authorizes the facade's hardware action; it does not imply commit
+consent or verification. A non-interactive OTA without `--yes` fails before
+upload. The removed `--force` spelling is rejected with migration guidance.
+
+When USB is connected too, append `monitor` and provide its local port. The
+network host and serial endpoint are separate:
+
+```sh
+./scripts/dev build ota monitor --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --host 192.168.1.50 \
+  --port /dev/cu.usbmodem2101 --speed 115200 \
+  --yes --wait-for-confirmation
+```
 
 Build and flash flow: [Build environment](../BUILD.md). Script flags and
 CLI reference: [Build scripts](../SCRIPTS.md).

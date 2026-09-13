@@ -1,290 +1,477 @@
-# Build scripts
+# The `dev` command
 
-`./scripts/dev` is the canonical developer entry point. It classifies risk,
-runs incremental CMake/CTest profiles, wraps the supported commands below, and
-writes full logs plus a redacted JSON summary under `artifacts/runs/`. Use
-`./scripts/dev --help`.
+`./scripts/dev` is the single supported entry point for building, installing,
+updating, monitoring, testing, and validating Shot Stopper. Run it from the
+repository root. It writes complete logs and a redacted JSON summary under
+`artifacts/runs/`.
 
-Developer scripts under `scripts/`. Walkthrough from clone to flash:
-[Build environment](BUILD.md).
+```sh
+./scripts/dev --help
+./scripts/dev build --help
+```
 
-**Supported: the `*-idf` scripts.** Arduino-era aliases without `-idf` have
-been removed; `./scripts/dev` remains the preferred public interface.
+The shell files under `scripts/internal/` are implementation details. Do not
+call them directly: only `dev` provides confirmation checks, secure stdin
+handling, ordered pipelines, consistent logging, and the supported public
+contract.
 
-These are **not** the USB firmware commands (`HELP`, `FACTORY_RESET`, …).
-Those live in [USB serial CLI](SERIAL_CLI.md).
+These commands are different from firmware commands such as `HELP`,
+`NET_STATUS`, and `FACTORY_RESET`. Type those inside the
+[USB serial CLI](SERIAL_CLI.md), not in the shell.
 
-## Common developer tasks
+## Everyday commands
 
 | Task | Command |
 | --- | --- |
-| Find the relevant area | `./scripts/dev context control` |
-| Classify current changes | `./scripts/dev classify` |
-| Validate current changes | `./scripts/dev validate` |
-| Focused host / Web / BLE / OTA / tooling tests | `./scripts/dev test normal`, `web`, `ble`, `ota`, or `tooling` |
-| Sanitizers | `./scripts/dev test asan` / `./scripts/dev test tsan` |
-| List build profiles | `./scripts/dev profiles` |
-| Compile without contacting hardware | `./scripts/dev build --hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x` |
-| Analyze an existing firmware build | `./scripts/dev analyze --arch n16r8` |
-| USB install / Wi-Fi update | `./scripts/dev flash --confirm …` / `./scripts/dev ota --confirm …` |
+| Show available hardware/machine profiles | `./scripts/dev profiles` |
+| Build firmware | `./scripts/dev build --hardware <hardware> --machine <machine>` |
+| Build and install over USB | `./scripts/dev build flash --confirm --hardware <hardware> --machine <machine>` |
+| Build, install, and monitor | `./scripts/dev build flash monitor --confirm --hardware <hardware> --machine <machine>` |
+| Build and update over Wi-Fi | `./scripts/dev build ota --confirm --hardware <hardware> --machine <machine> --host <host>` |
+| Flash an existing build | `./scripts/dev flash --confirm --hardware <hardware> --machine <machine>` |
+| Update an existing build over Wi-Fi | `./scripts/dev ota --confirm --hardware <hardware> --machine <machine> --host <host>` |
+| Open only the serial monitor | `./scripts/dev monitor` |
+| Classify and validate changes | `./scripts/dev classify` / `./scripts/dev validate` |
 
-The facade rejects passwords in argv and requires explicit confirmation for
-flash/OTA. Enter passwords at the prompt or supply
-`SHOTSTOPPER_DEVICE_PASSWORD` through your environment's secret mechanism.
-`dev build` supplies empty extra flags unless explicitly provided; the direct
-scripts below can reuse saved flags. Complete validation follows
-[VALIDATION.md](../VALIDATION.md), not just a convenient focused test.
+Flash and OTA affect a controller. Review the selected profiles and physical
+safety before adding `--confirm`. The flag authorizes the operation; it does
+not skip image, profile, partition, or OTA safety checks.
 
-The documentation scan checks canonical guides and excludes local working files
-in `temp/`, `docs/plans/`, and `docs/audits/`. These directories remain inside
-the local project, Git-ignored and accessible from the IDE; see
-[local storage and Git](AI_WORKFLOW.md#local-project-files-and-git).
+## Firmware pipelines
 
-For memory evidence, `scripts/p2_soak.py` uses byte-valued stack thresholds
-(`--min-stack-bytes`; deprecated `--min-stack-words` alias also takes bytes),
-rejects missing required memory/stack samples, and supports repeated
-`--require-task NAME` checks during bounded profiler captures. See
-[resource budgets](P2_RESOURCE_BUDGETS.md#combined-heaptiming-soak) for limits,
-profiler duration constraints, offline self-tests and release evidence.
+Firmware stages are written in execution order immediately after `dev`:
 
-## How parameters are resolved
-
-For the direct scripts, parameters come in this order:
-
-1. A named flag
-2. Its environment variable
-3. The `.shotstopper` file at the repository root
-4. An interactive prompt (Enter accepts the value in brackets)
-
-Web UI language is deliberately transient: it uses
-`--webui-language`, then `SHOTSTOPPER_WEBUI_LANGUAGE`, then `en`. It is never
-read from or written to `.shotstopper`, and it never prompts.
-
-If `--port` is missing, or the saved/CLI path is not a present device node,
-flash and monitor scripts prompt like OTA does for the device password: they
-list detected USB-CDC ports (`/dev/cu.usbmodem*` on macOS, `/dev/ttyACM*` on
-Linux), suggest the first match, and accept Enter or a typed path. The chosen
-port is saved to `.shotstopper`.
-
-App CDC enumerates only when **GPIO 4 is jumpered to GND at reset**
-([Hardware](HARDWARE.md)), unless you compiled with
-`-DSHOT_STOPPER_ENABLE_JTAG=1`. Without the jumper, `monitor-idf` has no port
-while the app is running. `flash-idf` still works via **BOOT + RST** (ROM
-USB download) or use **OTA**. ROM download does not need the jumper.
-
-After a successful run, ordinary non-secret values such as port and speed are
-saved. Hardware and machine selections are deliberately transient, so every
-build must pass both again (or provide their environment variables). The
-**device password is never stored or suggested** — enter it at the hidden
-prompt or provide `SHOTSTOPPER_DEVICE_PASSWORD` every time. Avoid password
-flags in shell history or process arguments.
-
-`.shotstopper` is created mode `600` and is gitignored.
-
-For CI or a non-TTY terminal, pass flags or environment variables. If
-anything required is missing, the script exits with an error instead of
-prompting. The same applies with `SHOTSTOPPER_NONINTERACTIVE=1`.
-
-## Flags
-
-| Flag | Environment variable | Meaning |
-| --- | --- | --- |
-| `-p`, `--port` | `SHOTSTOPPER_PORT` | Serial port, e.g. `/dev/cu.usbmodem2101` (macOS) or `/dev/ttyACM0` (Linux). |
-| `-a`, `--arch` | `SHOTSTOPPER_ARCH` | Architecture for analysis or a legacy existing image. A firmware build derives it from hardware. |
-| `-s`, `--speed` | `SHOTSTOPPER_SPEED` | Serial monitor baud, e.g. `115200`. |
-| `-H`, `--host` | `SHOTSTOPPER_HOST` | Controller IP or hostname for OTA. |
-| `-t`, `--password` | `SHOTSTOPPER_DEVICE_PASSWORD` | Direct-script compatibility only; prefer hidden prompt/environment. The dev facade rejects secret argv. Never persisted. |
-| `-f`, `--flags` | `SHOTSTOPPER_FLAGS` | Extra compile flags, as a single string. |
-| `-i`, `--image` | `SHOTSTOPPER_IMAGE` | Firmware `.bin` to use for flash or OTA instead of the normal build output. Checked locally and never persisted. |
-| `-b`, `--build-dir` | `SHOTSTOPPER_BUILD_DIR_OVERRIDE` | Build directory (`static`/`static-idf` only). |
-| `-o`, `--output-dir` | `SHOTSTOPPER_OUTPUT_DIR` | Reports directory (`static` / `static-idf` only). |
-| `--webui-language` | `SHOTSTOPPER_WEBUI_LANGUAGE` | Compile-time Web UI language (default `en`; never persisted). |
-| `--hardware` | `SHOTSTOPPER_HARDWARE` | Exact built-in hardware ID or explicit JSON path. Must be paired with `--machine`; never persisted. |
-| `--machine` | `SHOTSTOPPER_MACHINE` | Exact built-in machine ID or explicit JSON path. Must be paired with `--hardware`; never persisted. |
-| `--development` | — | Adds development mode to this build only; never persisted. |
-| `--force` | — | OTA scripts only: commit without an interactive prompt and wait for the rebooted firmware to confirm itself through the HTTP API. No Web UI reload is required. |
-| `--no-check` | — | USB flash only: skip the local image identity check and transfer existing build outputs as-is. Resumable OTA rejects this flag because it requires the image identity and SHA-256. |
-| `--discard-ota-session` | — | OTA only: explicitly discard a different partial or staged image. A matching image resumes automatically without this flag. |
-| `-h`, `--help` | — | Show the script help. |
-
-`--hardware-config`, `--machine-config`, `SHOTSTOPPER_HARDWARE_CONFIG`, and
-`SHOTSTOPPER_MACHINE_CONFIG` are temporary deprecated aliases. New commands
-should use the shorter names above.
-
-### Web UI language
-
-`--webui-language EN` and `--webui-language=EN` both select the English
-catalog. Codes are trimmed, lower-cased, and normalized from `_` to `-`.
-Regional codes try an exact catalog and then their base, so `En-en` currently
-resolves to `en`. A different base such as `es-CL` fails until `es-cl.json` or
-`es.json` exists; it never falls back to English. The only shipped catalog is
-`src/web/locales/en.json`.
-
-Selection is compile-time. Build owners (`build-idf`, build/flash/OTA wrappers,
-warnings builds, GCC analyzer builds, and `dev validate`) forward the option to
-the asset generator. Flash, OTA, and monitor commands consume existing images
-and do not accept or reinterpret it. Examples:
-
-```sh
-./scripts/build-idf --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x --webui-language EN
-SHOTSTOPPER_WEBUI_LANGUAGE=en ./scripts/dev build \
-  --hardware esp32-s3-relay-x1-speaker --machine la-marzocco-linea-micra
-./scripts/dev validate --risk R1 --webui-language en src/web
-node scripts/localize_web_ui.js --check --webui-language EN
+```text
+build -> flash or ota -> monitor
 ```
 
-The selected strings are rendered before minification and gzip into
-`src/ShotStopperWebAssetsGzip.h`; catalogs and resource keys are not embedded.
-Adding a complete locale catalog does not change any firmware until selected.
+The supported sequences are:
 
-Suggested `--flags` at the prompt (Enter accepts them):
-`-Werror=deprecated-copy -DSHOT_STOPPER_ENABLE_BUZZER=1`.
-Remote machine control stays off unless you add
-`-DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=1`.
+| Sequence | Result |
+| --- | --- |
+| `build` | Compile without contacting hardware. |
+| `flash` | Install an existing compatible image over USB. |
+| `ota` | Upload an existing compatible image over Wi-Fi. |
+| `monitor` | Open the USB serial monitor. |
+| `build flash` | Compile, then USB-install that exact build. |
+| `build ota` | Compile, then OTA-upload that exact build. |
+| `flash monitor` | USB-install, then monitor the same serial target. |
+| `ota monitor` | OTA-upload, then open a separately resolved local USB port. |
+| `build flash monitor` | Compile, USB-install, then monitor. |
+| `build ota monitor` | Compile, OTA-upload, then monitor through local USB. |
 
-For local development only, add `--development` to bypass WebUI admin unlock
-(Admin / Diagnostic / Home Actions without the device password). It affects
-only that invocation and is never persisted. Do not ship development builds to
-production devices.
+`flash` and `ota` cannot appear together, stages cannot repeat, and their order
+cannot change. `build monitor` is intentionally rejected because it could imply
+that the new build was installed; run the two commands separately when that is
+really what you want. Put every option after the complete sequence:
 
-Named profiles are selected with both profile options:
+```sh
+# Correct
+./scripts/dev build flash monitor --confirm --hardware <hardware> --machine <machine>
+
+# Rejected: a stage appears after options
+./scripts/dev build --hardware <hardware> flash --machine <machine>
+```
+
+The pipeline stops on the first failure. Monitor never starts after a failed
+build, flash, or OTA. A combined build does not accept `--image`; its transfer
+stage always consumes the artifact produced for the same profile pair.
+
+## Parameter resolution and remembered defaults
+
+Required values resolve in this order:
+
+1. A named command-line option.
+2. Its environment variable.
+3. `.shotstopper` at the repository root.
+4. An interactive prompt.
+
+The whole pipeline resolves its required values before the first stage. This
+means a missing USB port or OTA host is reported before a long build begins.
+In a terminal, Enter accepts the suggested value. In CI, a pipe, or with
+`SHOTSTOPPER_NONINTERACTIVE=1`, missing values are errors instead of prompts.
+
+The following ordinary values may be remembered: port, architecture, monitor
+speed, OTA host, and extra compiler flags. A missing or stale serial path is
+forgotten before use. Hardware and machine profiles, image paths, build/report
+overrides, Web UI language, development mode, confirmation options, and OTA
+one-shot controls are never persisted.
+
+The device password is never read from `.shotstopper`, displayed as a default,
+written to logs, or persisted. `.shotstopper` is Git-ignored and created with
+mode `600`.
+
+### USB port discovery
+
+When a flash or monitor pipeline needs a port, `dev` checks the explicit or
+remembered path. If it is missing, the interactive prompt lists USB-CDC devices
+matching `/dev/cu.usbmodem*` on macOS or `/dev/ttyACM*` on Linux and suggests
+the first match. It never silently selects a device; press Enter to accept the
+suggestion or type another path.
+
+App CDC requires the [GPIO 4 console jumper](HARDWARE.md#usb-console-jumper) at
+reset unless the firmware was built with `SHOT_STOPPER_ENABLE_JTAG=1`. ROM
+download mode through BOOT + RST can still expose a flashing port without that
+jumper.
+
+## Options
+
+| Option | Environment | Applies to | Meaning |
+| --- | --- | --- | --- |
+| `--hardware <id-or-json>` | `SHOTSTOPPER_HARDWARE` | all profile-aware stages | Exact built-in hardware ID or JSON path. Pair with `--machine`; never persisted. |
+| `--machine <id-or-json>` | `SHOTSTOPPER_MACHINE` | all profile-aware stages | Exact built-in machine ID or JSON path. Pair with `--hardware`; never persisted. |
+| `-a`, `--arch <arch>` | `SHOTSTOPPER_ARCH` | legacy image, monitor, analysis | `n8r4` or `n16r8`. Builds derive it from hardware; it may only confirm that result. |
+| `-f`, `--flags "<flags>"` | `SHOTSTOPPER_FLAGS` | build | Extra compile definitions/options as one shell argument. |
+| `--development` | — | build | Development-mode build for this invocation only. Never persisted. |
+| `--webui-language <code>` | `SHOTSTOPPER_WEBUI_LANGUAGE` | build | Compile-time Web UI language; defaults to `en` and is never persisted. |
+| `-p`, `--port <path>` | `SHOTSTOPPER_PORT` | flash, monitor | USB serial device. Validated before use and remembered. |
+| `-s`, `--speed <baud>` | `SHOTSTOPPER_SPEED` | monitor | Monitor baud rate, normally `115200`; remembered. |
+| `-H`, `--host <host>` | `SHOTSTOPPER_HOST` | OTA | Controller IP or hostname; remembered. |
+| `-i`, `--image <file>` | `SHOTSTOPPER_IMAGE` | standalone flash or OTA | Existing `.bin`; verified and never persisted. Rejected with `build`. |
+| `--no-check` | — | flash | Skip local image identity checking. It does not skip partition checks and is unavailable for OTA. |
+| `--erase-all` | — | flash | Erase all flash before installing project outputs. Destructive and rejected with `--image`. |
+| `--discard-ota-session` | — | OTA | Intentionally discard a different partial/staged remote image. |
+| `--yes` | — | OTA | Accept the commit-and-reboot question without prompting. |
+| `--wait-for-confirmation` | — | OTA | Poll after commit until the expected new image confirms or the existing timeout/error is reached. |
+| `--password-stdin` | — | OTA | Read one password line from standard input. The value is passed internally through the environment. |
+| `--confirm` | — | flash, OTA | Authorize a hardware-affecting pipeline at the public facade. |
+| `--verbosity compact\|normal\|verbose` | `SHOTSTOPPER_VERBOSITY` | `dev` | Select facade output detail; independent of firmware logging. Place before the command. |
+
+`--hardware-config` and `--machine-config` remain deprecated spellings for the
+two profile selectors. `--force` has been removed because it coupled two
+different OTA decisions. Use `--yes`, `--wait-for-confirmation`, or both.
+Passwords in `--password`, `--token`, or `-t` are rejected because process
+arguments and shell history can expose them.
+
+## Build examples
+
+List profile IDs before selecting a pair:
+
+```sh
+./scripts/dev profiles
+```
+
+Build for a Rancilio Silvia Pro X without reed feedback:
+
+```sh
+./scripts/dev build \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x
+```
+
+Build the reed-equipped variant:
+
+```sh
+./scripts/dev build \
+  --hardware esp32-s3-relay-x1-speaker-reed \
+  --machine rancilio-silvia-pro-x-reed
+```
+
+Build for a La Marzocco Linea Micra:
+
+```sh
+./scripts/dev build \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine la-marzocco-linea-micra
+```
+
+Build with explicit compiler options:
 
 ```sh
 ./scripts/dev build \
   --hardware esp32-s3-relay-x1-speaker \
   --machine rancilio-silvia-pro-x \
-  --flags "-DSHOT_STOPPER_ENABLE_BUZZER=1"
+  --flags "-Werror=deprecated-copy -DSHOT_STOPPER_ENABLE_JTAG=1"
 ```
 
-See [Hardware and machine build profiles](BUILD_PROFILES.md) for the complete
-JSON contracts, capability matching, overrides, and generated artifacts.
-
-Profile builds use `build-idf/<hardware>--<machine>/`. JSON supplies the base,
-then explicit `--flags` override supported values or add unrelated definitions,
-and the complete resolved configuration is validated before compilation.
-Hardware and machine selections plus Web UI language are transient;
-`.shotstopper` never turns them into a later build's surprise input.
-Development mode can only be supplied through the CLI, never through either
-JSON profile.
-
-USB Serial/JTAG stays **off** unless you add `-DSHOT_STOPPER_ENABLE_JTAG=1`.
-That build turns the IDF USB Serial/JTAG console on at boot (OpenOCD + CDC,
-no GPIO4 jumper). Default firmware and any flash without that flag keep JTAG
-off.
-
-`idf.py` does not reconfigure when only the environment changes. Changing
-`--flags` (for example `-DSHOT_STOPPER_MACHINE_TYPE=1`) drops the IDF CMake
-cache so the new `-D` flags actually reach the compiler. Diagnostic **Type**
-is that compile-time machine type (`paddle`, `momentary`, or `momentary_reed`),
-not a runtime setting. Diagnostic **Compile flags** also shows the resolved
-hardware profile, machine profile ID, machine brand, and machine model.
-Architecture-only firmware builds are rejected instead of inventing an
-installation identity.
-
-## ESP-IDF (supported)
-
-Writes to `build-idf/<hardware-id>--<machine-id>/` (`shotstopper.bin`).
-
-From a fresh shell, prefer activating the exact 6.1.x installation created by
-EIM before running these scripts. They reuse that environment only when its
-`IDF_PATH`, pinned Python environment, `idf.py`, and version are valid. A stale
-or mismatched active environment is discarded; the fallback sources the
-inactive SDK selected by `IDF_PATH`, or `$HOME/esp/esp-idf-v6.1`. See
-[Build environment](BUILD.md#3-install-esp-idf-required).
-
-| Script | Alias | Required | Description |
-| --- | --- | --- | --- |
-| `./scripts/build-idf` | `b-idf` | `--hardware`, `--machine` (`--flags`, `--development`, `--webui-language` optional) | Resolve and validate the pair, generate version and the Web UI, then build with ESP-IDF. |
-| `./scripts/flash-idf` | `f-idf` | `--port` and both profiles; `--arch` remains for a legacy existing image | Flash existing build outputs (or `--image <path>`); never rebuilds. Does not open the monitor. |
-| `./scripts/monitor-idf` | `m-idf` | `--port`, `--speed` | IDF serial monitor (Ctrl+] to exit). |
-| `./scripts/ota-idf` | `o-idf` | both profiles, `--host`, `--password`; `--arch` remains for a legacy existing image | Wi-Fi update with the already-built IDF binary, or `--image <path>`. |
-| `./scripts/static-idf` | `s-idf` | `--arch` | Cppcheck against the IDF compilation database. Does not build. |
-| `./scripts/static-tidy-idf` | | `--arch` | clang-tidy (Espressif esp-clang) against the IDF compilation database. Does not build. [Static analysis](STATIC_ANALYSIS.md). |
-| `./scripts/iwyu-idf` | | `--arch` | Include-What-You-Use against the IDF compilation database. Advisory report, does not build. [Static analysis](STATIC_ANALYSIS.md). |
-| `./scripts/bf-idf` | | `--port` and both profiles | build-idf then flash-idf (no rebuild or image re-check at flash time). |
-| `./scripts/bfm-idf` | | `--port`, `--speed`, and both profiles | build-idf, flash-idf (no rebuild or image re-check), monitor-idf. |
-| `./scripts/bo-idf` | | both profiles, `--host`, `--password` | build-idf then ota-idf; the OTA step reads the built identity for safe resume. |
-| `./scripts/bsfm-idf` | | `--port`, `--speed`, and both profiles | build-idf, static-idf, flash-idf (no rebuild or image re-check), monitor-idf. Does not flash if analysis reports diagnostics. |
-| `./scripts/gcc_analyzer` | | both profiles (`--flags` optional) | Build with GCC `-fanalyzer` into `reports/gcc-analyzer/`. |
-
-Examples (flash/OTA commands affect hardware; complete bench checks first):
+Build a transient local-development image:
 
 ```sh
-# Build, flash, and monitor; prompts for missing parameters and remembers them
-./scripts/bfm-idf
+./scripts/dev build \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine la-marzocco-linea-micra \
+  --development
+```
 
-# Explicit (macOS CDC port)
-./scripts/build-idf --hardware esp32-s3-relay-x1-speaker \
+Explicit `--flags` are applied after JSON profile values. The resolver rejects
+contradictory hardware/machine requirements, unsafe GPIO collisions, relay
+configurations outside the supported safety contract, and incompatible
+compile-time overrides. Development mode is CLI-only and must not be shipped.
+See [build profiles](BUILD_PROFILES.md) for the complete JSON contract.
+
+Extra flags follow the same CLI, environment, saved-value, and prompt
+precedence. Pass `--flags=""` when you intentionally want an empty value and
+want any remembered flags removed. Generated files live under
+`build-idf/<hardware>--<machine>/`.
+
+## USB flash examples
+
+Flash a previously built profile image, specifying a macOS port:
+
+```sh
+./scripts/dev flash --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --port /dev/cu.usbmodem2101
+```
+
+On Linux:
+
+```sh
+./scripts/dev flash --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine la-marzocco-linea-micra \
+  --port /dev/ttyACM0
+```
+
+Omit `--port` in an interactive terminal to validate the remembered path or
+choose from detected USB-CDC ports:
+
+```sh
+./scripts/dev flash --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
   --machine rancilio-silvia-pro-x
-./scripts/flash-idf --port /dev/cu.usbmodem2101 \
-  --hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x
-./scripts/monitor-idf -p /dev/cu.usbmodem2101 -s 115200
-
-# Linux
-./scripts/bfm-idf -p /dev/ttyACM0 -s 115200 \
-  --hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x
-
-# Wi-Fi update
-./scripts/bo-idf --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x --host 192.168.1.50
 ```
 
-`--force` is accepted by `ota-idf` and `bo-idf` (including `o-idf`). It bypasses
-the final commit prompt, then polls the controller until
-the boot ID changes, the running image digest matches the local file and
-`confirmed: true`, or four minutes pass. Missing evidence on older firmware is
-reported as unverified. Without `--force`, completion of commit does not claim
-that the rebooted image has been confirmed.
-
-`--no-check` is accepted by `flash-idf` and its USB flashing wrappers
-(`bf-idf`, `bfm-idf`, and `bsfm-idf`, which forward it to the install step).
-For USB flash it skips the local identity check; both checked and unchecked
-project transfers use the existing `flash_args` with esptool (bootloader,
-partition table, otadata, and app) and never rebuild. OTA rejects it because
-resumable sessions cannot be matched or committed safely without the local
-SHA-256, architecture, hardware profile, machine profile, and version.
-
-`--erase-all` is accepted by `flash-idf` and its USB flashing wrappers. It
-runs a full `erase_flash` before writing the project bootloader, partition
-table, initial OTA metadata, and application. This is required when moving a
-controller from a legacy layout or one without the architecture-specific 40 KiB
-`shotcurve` partition:
+Build and flash in one operation:
 
 ```sh
-./scripts/flash-idf --port /dev/cu.usbmodem2101 \
-  --hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x \
+./scripts/dev build flash --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x
+```
+
+Build, flash, and immediately monitor:
+
+```sh
+./scripts/dev build flash monitor --confirm \
+  --hardware esp32-s3-relay-x1-speaker-reed \
+  --machine rancilio-silvia-pro-x-reed \
+  --port /dev/cu.usbmodem2101 \
+  --speed 115200
+```
+
+Flash an existing build and monitor it without rebuilding:
+
+```sh
+./scripts/dev flash monitor --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine la-marzocco-linea-micra \
+  --port /dev/ttyACM0 \
+  --speed 115200
+```
+
+For a required partition-layout migration, `--erase-all` erases both firmware
+slots, Wi-Fi, device password, all settings and presets, calibration, BLE
+preferences, and shot history before writing the complete project image:
+
+```sh
+./scripts/dev build flash --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --port /dev/cu.usbmodem2101 \
   --erase-all
 ```
 
-This permanently removes both firmware slots, Wi-Fi credentials, all settings
-and presets, calibration, BLE preferences, shot history, and last-shot data.
-There is no data migration. `--erase-all` is rejected with `--image`, because
-an external application image cannot reconstruct the bootloader and partition
-table. A normal USB flash reads the installed partition table first and refuses
-the legacy NVS size or a missing/mismatched `shotcurve` label, data type, custom
-subtype, offset, or size. This preflight also applies to external images because
-they leave the installed partition table untouched. Blank, explicitly erased,
-and compatible devices write every entry from the existing `flash_args`
-directly. External images use the installed `app0` offset instead of assuming a
-fixed address.
+An external application image can be flashed only without `build`. It replaces
+the application at the installed `app0` offset and does not reconstruct the
+bootloader or partition table:
 
-When the controller already owns a partial or staged different image, OTA
-stops without modifying it and prints both identities. Re-run with
-`--discard-ota-session` only when discarding that remote image is intentional.
-A matching image automatically adopts the existing `transferId` and resumes
-from the controller's validated `nextOffset`. This offset can retreat after
-reboot to the last 512 KiB journal checkpoint; clients reconstruct the range
-from that offset, with 4 KiB alignment except at the image end.
+```sh
+./scripts/dev flash --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --port /dev/cu.usbmodem2101 \
+  --image /path/to/shotstopper.bin
+```
 
-OTA clients use a 10-second connection timeout and retain the existing long
-transfer window. A transient transport failure is reconciled with the OTA
-status endpoint before retrying, then retried at most twice when the controller
-is idle. Safety and validation failures are not retried.
+## OTA examples
 
-`--image` can also be passed to the flash/OTA wrappers (`bf-idf`, `bfm-idf`,
-`bo-idf`, and `bsfm-idf`); they still execute their named build or
-analysis steps, then use the selected image for the transfer. The image is
-checked against the selected profile identities before transfer. For an IDF USB flash,
-an external image is written to the `app0` offset read from the installed
-partition table; it does not replace the bootloader or partition table.
+Build and update over Wi-Fi, entering the device password in the hidden prompt
+and answering the commit question interactively:
+
+```sh
+./scripts/dev build ota --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --host 192.168.1.50
+```
+
+Automatically accept commit but return once it is accepted:
+
+```sh
+./scripts/dev build ota --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine la-marzocco-linea-micra \
+  --host 192.168.1.50 \
+  --yes
+```
+
+Ask before commit and then verify the new boot:
+
+```sh
+./scripts/dev ota --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --host 192.168.1.50 \
+  --wait-for-confirmation
+```
+
+For unattended automation, provide the password through a secret environment,
+accept commit, and require post-boot confirmation:
+
+```sh
+SHOTSTOPPER_DEVICE_PASSWORD="$DEVICE_SECRET" \
+  ./scripts/dev build ota --confirm \
+    --hardware esp32-s3-relay-x1-speaker \
+    --machine rancilio-silvia-pro-x \
+    --host 192.168.1.50 \
+    --yes --wait-for-confirmation
+```
+
+Or stream one password line from a secret provider without placing the value in
+the command arguments:
+
+```sh
+secret-provider-command | ./scripts/dev ota --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --host 192.168.1.50 \
+  --password-stdin --yes --wait-for-confirmation
+```
+
+Use the controller SoftAP address when connected directly to it:
+
+```sh
+./scripts/dev ota --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --host 192.168.4.1 \
+  --wait-for-confirmation
+```
+
+Resume a matching partial OTA by running the same command with the same image
+and profiles. To intentionally replace a different remote session:
+
+```sh
+./scripts/dev ota --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --host 192.168.1.50 \
+  --discard-ota-session --wait-for-confirmation
+```
+
+Upload an existing external image without rebuilding:
+
+```sh
+./scripts/dev ota --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --host 192.168.1.50 \
+  --image /path/to/shotstopper.bin \
+  --wait-for-confirmation
+```
+
+`--yes` and `--wait-for-confirmation` are independent:
+
+| Options | Commit | Result after commit |
+| --- | --- | --- |
+| neither | Ask in the terminal | Return when commit is accepted. |
+| `--yes` | Do not ask | Return when commit is accepted. |
+| `--wait-for-confirmation` | Ask in the terminal | Poll for the expected confirmed boot. |
+| both | Do not ask | Poll for the expected confirmed boot. |
+
+A non-interactive OTA without `--yes` fails before creating or uploading a new
+session because it cannot obtain commit consent. `--wait-for-confirmation`
+checks for a changed boot ID, the expected image digest, and `confirmed: true`;
+matching version text alone is not sufficient.
+
+## OTA plus serial monitoring
+
+OTA uses `--host` for the network controller. A following monitor stage uses a
+local `--port`; these are independent endpoints. Use this only when the same
+controller is also connected over USB:
+
+```sh
+./scripts/dev build ota monitor --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --host 192.168.1.50 \
+  --port /dev/cu.usbmodem2101 \
+  --speed 115200 \
+  --yes --wait-for-confirmation
+```
+
+Without a build stage:
+
+```sh
+./scripts/dev ota monitor --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine la-marzocco-linea-micra \
+  --host 192.168.1.50 \
+  --port /dev/ttyACM0 \
+  --speed 115200 \
+  --wait-for-confirmation
+```
+
+## Monitor-only examples
+
+Use remembered port and speed, prompting when either is unavailable:
+
+```sh
+./scripts/dev monitor
+```
+
+Specify both explicitly:
+
+```sh
+./scripts/dev monitor --port /dev/cu.usbmodem2101 --speed 115200
+```
+
+Add profiles so ESP-IDF uses that variant's ELF to decode backtraces:
+
+```sh
+./scripts/dev monitor \
+  --hardware esp32-s3-relay-x1-speaker-reed \
+  --machine rancilio-silvia-pro-x-reed \
+  --port /dev/cu.usbmodem2101 \
+  --speed 115200
+```
+
+Exit the ESP-IDF monitor with **Ctrl+]**.
+
+## Development and validation commands
+
+```sh
+./scripts/dev context build
+./scripts/dev classify
+./scripts/dev test tooling
+./scripts/dev test ota
+./scripts/dev validate
+./scripts/dev analyze --arch n16r8 \
+  --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
+```
+
+Complete validation is selected by [VALIDATION.md](../VALIDATION.md), not by a
+single convenient focused test. `dev` never installs dependencies. Missing
+required tools produce exit code 127 instead of silently skipping work.
+
+Advanced static-analysis helpers remain documented in
+[Static analysis](STATIC_ANALYSIS.md); they are not alternative firmware build,
+flash, OTA, or monitor entry points.
+
+## Transfer details and recovery
+
+USB flash validates the local identity unless `--no-check` is explicitly used,
+then reads the installed partition table. It refuses incompatible NVS or
+`shotcurve` layouts unless the destructive full-project `--erase-all` path is
+selected. Both checked and unchecked project installs use existing ESP-IDF
+`flash_args` and never rebuild during transfer.
+
+OTA computes SHA-256, verifies architecture and profile identity, and resumes a
+matching named session from the controller's validated offset. A different
+partial/staged image is preserved unless `--discard-ota-session` is explicit.
+Transient transport failures are reconciled with device status and retried only
+within the bounded existing policy; safety and validation failures are not
+retried. See [OTA](features/ota.md) for the controller-side safety, rollback,
+and confirmation contract.

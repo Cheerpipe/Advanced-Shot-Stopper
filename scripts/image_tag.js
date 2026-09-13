@@ -30,7 +30,7 @@ const APP_DESC_PROJECT_NAME_OFFSET = APP_DESC_OFFSET + 48;
 const IMAGE_HASH_APPENDED_OFFSET = 23;
 const IMAGE_HASH_BYTES = 32;
 // Arduino-ESP32 cores built by esp32-arduino-lib-builder share that project
-// name. Native IDF firmware (./scripts/build-idf) uses CMake project(shotstopper).
+// name. Native IDF firmware (`./scripts/dev build`) uses CMake project(shotstopper).
 // Either name proves a Shot Stopper-capable ESP32-S3 image; the tag below is
 // what identifies the sketch.
 const EXPECTED_PROJECT_NAMES = new Set(['arduino-lib-builder', 'shotstopper']);
@@ -143,7 +143,7 @@ function inspectImage(filePath) {
   const tag = findImageTag(buffer);
   if (tag === null) {
     problems.push(
-        `marker ${TAG_PREFIX}… not found (built without scripts/build-idf?)`);
+        `marker ${TAG_PREFIX}… not found (built without scripts/dev build?)`);
   }
   return {problems, tag, sizeBytes: buffer.length, projectName,
     imageSha256: buffer.subarray(buffer.length - IMAGE_HASH_BYTES).toString('hex')};

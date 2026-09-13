@@ -3,7 +3,8 @@
 # build-idf/<hardware>--<machine>. This is the official supported firmware build.
 set -euo pipefail
 
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+INTERNAL_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH='' cd -- "$INTERNAL_DIR/.." && pwd)"
 # shellcheck source=scripts/shotstopper_board.sh
 source "$SCRIPT_DIR/shotstopper_board.sh"
 # shellcheck source=scripts/shotstopper_cli.sh
@@ -13,7 +14,7 @@ source "$SCRIPT_DIR/shotstopper_idf.sh"
 
 usage() {
   cat <<EOF
-Usage: ./scripts/build-idf [flags]
+Internal build stage. Use: ./scripts/dev build [flash|ota] [monitor] [flags]
 
 Compile Shot Stopper with ESP-IDF (official supported path) and write artifacts
 to build-idf/<hardware>--<machine>.
@@ -34,12 +35,12 @@ it exists.
 BLE backend:
   Native ESP-IDF NimBLE (only production backend).
 
-Examples:
-  ./scripts/build-idf --hardware esp32-s3-relay-x1-speaker \
+Examples through the public facade:
+  ./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
     --machine rancilio-silvia-pro-x
-  ./scripts/build-idf --hardware esp32-s3-relay-x1-speaker \
+  ./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
     --machine la-marzocco-linea-micra --webui-language EN
-  ./scripts/build-idf --hardware esp32-s3-relay-x1-speaker-reed \
+  ./scripts/dev build --hardware esp32-s3-relay-x1-speaker-reed \
     --machine rancilio-silvia-pro-x-reed --development
 EOF
 }

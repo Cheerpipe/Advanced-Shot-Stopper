@@ -26,7 +26,7 @@ AREAS = {
     "ota": ("verified and resumable firmware update", ["src/ShotStopperOta.cpp", "src/ShotStopperOtaImage.h", "src/tests/run_ota_tests.sh", "docs/features/ota.md"]),
     "persistence": ("settings, logs, recovery, and migrations", ["src/ShotStopperPersistence.h", "src/ShotStopperDurableStores.h", "src/tests/persistence_host_test.cpp", "docs/ARCHITECTURE.md"]),
     "web": ("embedded browser UI and asset generation", ["src/web", "scripts/gen_web_ui.js", "src/tests/check_web_assets.js", "docs/SCREENSHOTS.md"]),
-    "build": ("ESP-IDF integration, variants, and analysis", ["idf", "scripts/build-idf", "scripts/check_architecture.py", "docs/BUILD.md"]),
+    "build": ("ESP-IDF integration, variants, and analysis", ["idf", "scripts/internal/build-idf", "scripts/check_architecture.py", "docs/BUILD.md"]),
     "tests": ("host, Web, OTA, and architecture tests", ["src/tests", "libraries/EspressoScaleBLE/tests", "CMakePresets.json", "VALIDATION.md"]),
 }
 SECRET = re.compile(r"(?i)(password|token)(\s*[=:]\s*|\s+)\S+")
@@ -37,6 +37,13 @@ BUILD_PROFILES = (
     ("esp32-s3-relay-x1-speaker", "rancilio-silvia-pro-x"),
     ("esp32-s3-relay-x1-speaker-reed", "rancilio-silvia-pro-x-reed"),
 )
+FIRMWARE_STAGES = {"build", "flash", "ota", "monitor"}
+FIRMWARE_PIPELINES = {
+    ("build",), ("flash",), ("ota",), ("monitor",),
+    ("build", "flash"), ("build", "ota"),
+    ("flash", "monitor"), ("ota", "monitor"),
+    ("build", "flash", "monitor"), ("build", "ota", "monitor"),
+}
 
 
 def redact(value: str) -> str:
@@ -213,7 +220,8 @@ def write_summary(command: list[str], risk: str, status: str, started: float,
 
 def execute(command: list[str], risk: str, steps: list[tuple[str, list[str]]],
             verbosity: str, manual: list[str] | None = None,
-            prelude: list[str] | None = None) -> int:
+            prelude: list[str] | None = None, interactive: bool = False,
+            env_extra: dict[str, str] | None = None) -> int:
     started = time.monotonic()
     run_id = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ") + f"-{os.getpid()}"
     run_dir = ROOT / "artifacts/runs" / run_id
@@ -230,10 +238,15 @@ def execute(command: list[str], risk: str, steps: list[tuple[str, list[str]]],
             log.write(marker + "\n")
             if verbosity != "compact":
                 print(marker, flush=True)
+            child_env = {**os.environ, **(env_extra or {})}
+            if interactive:
+                child_env.pop("SHOTSTOPPER_NONINTERACTIVE", None)
+            else:
+                child_env["SHOTSTOPPER_NONINTERACTIVE"] = "1"
             process = subprocess.Popen(argv, cwd=ROOT, text=True,
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT,
-                                       env={**os.environ, "SHOTSTOPPER_NONINTERACTIVE": "1"})
+                                       env=child_env)
             assert process.stdout is not None
             for raw in process.stdout:
                 clean = redact(raw.rstrip("\n"))
@@ -273,13 +286,56 @@ def record(command: list[str], risk: str, verbosity: str, lines: list[str],
 def ensure_no_secret_argv(args: list[str]) -> None:
     if any(a in {"--password", "--token", "-t"} or
            a.startswith(("--password=", "--token=")) for a in args):
-        raise ValueError("pass credentials through SHOTSTOPPER_DEVICE_PASSWORD, never argv")
+        raise ValueError(
+            "use the hidden prompt, SHOTSTOPPER_DEVICE_PASSWORD, or --password-stdin; never argv")
 
 
-def add_empty_flags(args: list[str]) -> list[str]:
-    if not any(a in {"--flags", "-f"} or a.startswith("--flags=") for a in args):
-        return [*args, "--flags="]
-    return args
+def extract_switch(args: list[str], option: str) -> tuple[bool, list[str]]:
+    if any(arg.startswith(option + "=") for arg in args):
+        raise ValueError(f"{option} does not take a value")
+    count = args.count(option)
+    if count > 1:
+        raise ValueError(f"{option} may be passed only once")
+    return count == 1, [arg for arg in args if arg != option]
+
+
+def firmware_pipeline(verb: str, args: list[str]) -> tuple[tuple[str, ...], list[str]]:
+    stages = [verb]
+    while args and args[0] in FIRMWARE_STAGES:
+        stages.append(args.pop(0))
+    pipeline = tuple(stages)
+    if pipeline not in FIRMWARE_PIPELINES:
+        raise ValueError("invalid firmware sequence: " + " ".join(pipeline))
+    if any(arg in FIRMWARE_STAGES for arg in args):
+        raise ValueError("firmware stages must appear before all options")
+    return pipeline, args
+
+
+def validate_firmware_options(stages: tuple[str, ...], args: list[str]) -> None:
+    selected = set(stages)
+    applicability = {
+        "--port": {"flash", "monitor"}, "-p": {"flash", "monitor"},
+        "--speed": {"monitor"}, "-s": {"monitor"},
+        "--host": {"ota"}, "-H": {"ota"},
+        "--flags": {"build"}, "-f": {"build"},
+        "--image": {"flash", "ota"}, "-i": {"flash", "ota"},
+        "--webui-language": {"build"}, "--development": {"build"},
+        "--no-check": {"flash"}, "--erase-all": {"flash"},
+        "--discard-ota-session": {"ota"}, "--yes": {"ota"},
+        "--wait-for-confirmation": {"ota"},
+        "--build-dir": set(), "-b": set(), "--output-dir": set(), "-o": set(),
+    }
+    for arg in args:
+        option = arg.split("=", 1)[0]
+        if option == "--force":
+            raise ValueError(
+                "--force was removed; use --yes and/or --wait-for-confirmation")
+        applies = applicability.get(option)
+        if applies is not None and not selected.intersection(applies):
+            raise ValueError(f"{option} does not apply to {' '.join(stages)}")
+    if "build" in selected and any(
+            arg in {"--image", "-i"} or arg.startswith("--image=") for arg in args):
+        raise ValueError("--image cannot be combined with build; the built artifact is used")
 
 
 def cmake_steps(preset: str, label: str | None = None) -> list[tuple[str, list[str]]]:
@@ -303,13 +359,35 @@ commands:
   test [normal|asan|tsan|web|ble|ota|tooling]
   validate [--risk R0..R3] [--webui-language CODE] [PATH ...]
   profiles                   list exact profile IDs and compatibility
-  build|analyze [ARGS]       wrap supported IDF build/analysis; build accepts
-                             --hardware ID --machine ID (both required)
-  flash|monitor|ota [ARGS]   hardware commands; flash/ota require confirmation
+  build [flash|ota] [monitor] [ARGS]
+  flash|ota [monitor] [ARGS] run one or more ordered firmware stages
+  monitor [ARGS]             open only the serial monitor
+  analyze [ARGS]             run supported IDF static analysis
   clean --dry-run            list generated directories; --confirm removes them
 
 Verbosity is independent of firmware runtime logging. Default is normal on a
 TTY and compact otherwise; SHOTSTOPPER_VERBOSITY provides the environment default.
+"""
+
+
+def firmware_help() -> str:
+    return """usage: ./scripts/dev build [flash|ota] [monitor] [OPTIONS]
+       ./scripts/dev flash|ota [monitor] [OPTIONS]
+       ./scripts/dev monitor [OPTIONS]
+
+Valid sequences: build; flash; ota; monitor; build flash; build ota;
+flash monitor; ota monitor; build flash monitor; build ota monitor.
+
+Profiles: --hardware ID --machine ID
+Existing images: --arch ARCH; standalone flash/OTA: --image PATH
+Build:  --flags STRING --development --webui-language CODE
+Flash:  --port PATH --no-check --erase-all
+OTA:    --host HOST --yes --wait-for-confirmation --discard-ota-session
+Monitor: --port PATH --speed BAUD
+
+Flash and OTA require --confirm. OTA credentials come from the hidden prompt,
+SHOTSTOPPER_DEVICE_PASSWORD, or --password-stdin; password values are never argv.
+Options follow the complete stage sequence.
 """
 
 
@@ -421,7 +499,7 @@ def main() -> int:
                           ("web-contracts", ["node", "src/tests/check_web_assets.js"])]
                 for hardware, machine in BUILD_PROFILES:
                     steps.append((f"idf-{hardware}--{machine}", [
-                        "./scripts/build-idf", "--hardware", hardware,
+                        "./scripts/internal/build-idf", "--hardware", hardware,
                         "--machine", machine, "--webui-language", webui_language,
                         "--flags="]))
             if risk == "R3":
@@ -435,20 +513,43 @@ def main() -> int:
             manual = ["Complete and attach applicable HIL/manual evidence"] if risk == "R3" else []
             return execute(command, risk, steps, verbosity, manual, prelude)
 
-        wrappers = {"build": "build-idf", "analyze": "static-idf",
-                    "flash": "flash-idf", "monitor": "monitor-idf", "ota": "ota-idf"}
-        if verb in wrappers:
+        if verb in FIRMWARE_STAGES:
             ensure_no_secret_argv(args)
-            confirmed = "--confirm" in args
-            args = [arg for arg in args if arg != "--confirm"]
-            if verb in {"flash", "ota"}:
-                if not confirmed:
-                    raise ValueError(f"{verb} requires --confirm; this command can affect hardware")
-            if verb == "build":
-                args = add_empty_flags(args)
-            risk = "R3" if verb == "flash" else ("R2" if verb in {"build", "analyze", "ota"} else "R1")
-            return execute(command, risk, [(verb, [f"./scripts/{wrappers[verb]}", *args])],
-                           verbosity, ["Verify physical safety before hardware use"] if verb in {"flash", "ota"} else [])
+            stages, args = firmware_pipeline(verb, args)
+            if any(arg in {"-h", "--help", "help"} for arg in args):
+                print(help_text() + "\n" + firmware_help())
+                return 0
+            confirmed, args = extract_switch(args, "--confirm")
+            password_stdin, args = extract_switch(args, "--password-stdin")
+            validate_firmware_options(stages, args)
+            transfer = set(stages).intersection({"flash", "ota"})
+            if transfer and not confirmed:
+                raise ValueError(
+                    f"{'/'.join(sorted(transfer))} requires --confirm; this command can affect hardware")
+            if confirmed and not transfer:
+                raise ValueError("--confirm applies only to flash or ota")
+            if password_stdin and "ota" not in stages:
+                raise ValueError("--password-stdin applies only to ota")
+            env_extra: dict[str, str] = {}
+            if password_stdin:
+                password = sys.stdin.readline().rstrip("\r\n")
+                if not password:
+                    raise ValueError("--password-stdin received an empty password")
+                env_extra["SHOTSTOPPER_DEVICE_PASSWORD"] = password
+            risk = "R3" if "flash" in stages else (
+                "R2" if set(stages).intersection({"build", "ota"}) else "R1")
+            step_name = "firmware-" + "-".join(stages)
+            return execute(
+                command, risk,
+                [(step_name, ["./scripts/internal/firmware-idf", *stages, "--", *args])],
+                verbosity,
+                ["Verify physical safety before hardware use"] if transfer else [],
+                interactive=sys.stdin.isatty(), env_extra=env_extra)
+
+        if verb == "analyze":
+            ensure_no_secret_argv(args)
+            return execute(command, "R2", [(verb, ["./scripts/static-idf", *args])],
+                           verbosity)
 
         if verb == "clean":
             targets = [ROOT / "build-host", ROOT / "artifacts/runs"]

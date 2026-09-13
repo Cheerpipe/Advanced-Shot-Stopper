@@ -47,7 +47,7 @@ rm -rf "$output_path"
 mkdir -p "$output_path"
 
 # -fanalyzer is a tool flag, not a user preference: passing it through
-# ./scripts/build-idf would persist it into .shotstopper and every later compile.
+# The internal build stage would persist it into .shotstopper and every later compile.
 # A failed/interrupted legacy analyzer run may have left -fanalyzer in the
 # persisted flags. Strip every copy before building and saving so this tool
 # never leaks its analysis-only option into ordinary builds.
@@ -69,7 +69,7 @@ echo "Running GCC -fanalyzer for $SHOTSTOPPER_ARCH..."
 raw_report="$output_path/gcc-analyzer-raw.txt"
 report="$output_path/gcc-analyzer.txt"
 
-SHOTSTOPPER_NONINTERACTIVE=1 ./scripts/build-idf \
+SHOTSTOPPER_NONINTERACTIVE=1 ./scripts/internal/build-idf \
   --hardware "$(ss_get hardware_config)" --machine "$(ss_get machine_config)" \
   --webui-language "$(ss_get webui_language)" \
   --flags "$analyzer_flags" >"$raw_report" 2>&1

@@ -14,8 +14,8 @@
 #
 # The WebUI language uses flag, environment, then `en`, and is never stored.
 # After a successful resolve the other values are merged into .shotstopper.
-# The device password is never loaded, suggested, or persisted (use env/CLI
-# each run).
+# The device password is never loaded, suggested, or persisted (use the hidden
+# prompt or environment each run; the public dev facade also supports stdin).
 #
 # Written for bash 3.2 (the system bash on macOS): no associative arrays,
 # no ${var,,} case conversion.
@@ -90,7 +90,8 @@ ss_port_exists() {
 
 ss_cli_reset() {
   local key
-  SS_CLI_FORCE=0
+  SS_CLI_YES=0
+  SS_CLI_WAIT_FOR_CONFIRMATION=0
   SS_CLI_NO_CHECK=0
   SS_CLI_ERASE_ALL=0
   SS_CLI_DISCARD_OTA_SESSION=0
@@ -125,7 +126,6 @@ Named parameters (long and short):
   -a, --arch <arch>        Architecture for analysis or an existing image
   -s, --speed <baud>       Serial monitor baud rate, e.g. 115200
   -H, --host <ip|name>     Controller address for OTA
-  -t, --password <pw>      Device password (never persisted)
   -f, --flags "<flags>"    Extra compile flags (single string)
   -i, --image <path>       Firmware .bin to flash or upload (not persisted)
   -b, --build-dir <path>   Build directory (static / static-idf only)
@@ -135,7 +135,9 @@ Named parameters (long and short):
       --hardware <id|json> Exact hardware profile ID or JSON path (not persisted)
       --machine <id|json>  Exact machine profile ID or JSON path (not persisted)
       --development        Build-only development mode (not persisted)
-      --force              Commit OTA without a prompt and wait for confirmation
+      --yes                Commit OTA without an interactive question
+      --wait-for-confirmation
+                           Wait for verified boot after OTA commit
       --no-check           Skip local image verification before USB flashing;
                            transfer existing output as-is (OTA rejects it)
       --erase-all          Erase the complete chip before a full USB flash
@@ -156,7 +158,8 @@ EOF
 }
 
 SS_CLI_HELP_REQUESTED=0
-SS_CLI_FORCE=0
+SS_CLI_YES=0
+SS_CLI_WAIT_FOR_CONFIRMATION=0
 SS_CLI_NO_CHECK=0
 SS_CLI_ERASE_ALL=0
 SS_CLI_DISCARD_OTA_SESSION=0
@@ -172,13 +175,26 @@ ss_cli_parse() {
   local key value
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --force)
-        SS_CLI_FORCE=1
+      --yes)
+        SS_CLI_YES=1
         shift
         continue
         ;;
-      --force=*)
-        printf '%s\n' '--force does not take a value.' >&2
+      --yes=*)
+        printf '%s\n' '--yes does not take a value.' >&2
+        return 2
+        ;;
+      --wait-for-confirmation)
+        SS_CLI_WAIT_FOR_CONFIRMATION=1
+        shift
+        continue
+        ;;
+      --wait-for-confirmation=*)
+        printf '%s\n' '--wait-for-confirmation does not take a value.' >&2
+        return 2
+        ;;
+      --force|--force=*)
+        printf '%s\n' '--force was removed; use --yes and/or --wait-for-confirmation.' >&2
         return 2
         ;;
       --no-check)
@@ -227,7 +243,6 @@ ss_cli_parse() {
       -a|--arch) key="arch" ;;
       -s|--speed) key="speed" ;;
       -H|--host) key="host" ;;
-      -t|--password|--token) key="password" ;;
       -f|--flags) key="flags" ;;
       -i|--image) key="image" ;;
       -b|--build-dir) key="build_dir" ;;
@@ -815,8 +830,13 @@ ss_cli_flags_for() {
   local key
   SS_CLI_FORWARD=()
   for key in "$@"; do
-    if [[ "$key" == "force" ]]; then
-      [[ "$SS_CLI_FORCE" == "1" ]] && SS_CLI_FORWARD+=(--force)
+    if [[ "$key" == "yes" ]]; then
+      [[ "$SS_CLI_YES" == "1" ]] && SS_CLI_FORWARD+=(--yes)
+      continue
+    fi
+    if [[ "$key" == "wait_for_confirmation" ]]; then
+      [[ "$SS_CLI_WAIT_FOR_CONFIRMATION" == "1" ]] &&
+        SS_CLI_FORWARD+=(--wait-for-confirmation)
       continue
     fi
     if [[ "$key" == "no_check" ]]; then

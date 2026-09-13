@@ -33,7 +33,7 @@ constexpr uint16_t OTA_ESP_CHIP_ID_ESP32S3 = 0x0009;
 constexpr uint32_t OTA_APP_DESC_MAGIC = 0xABCD5432U;
 
 // Arduino-ESP32 cores produced by esp32-arduino-lib-builder share this name.
-// Native IDF firmware (./scripts/build-idf) uses CMake project(shotstopper).
+// Native IDF firmware (`./scripts/dev build`) uses CMake project(shotstopper).
 // Either name proves a Shot Stopper-capable ESP32-S3 image; the tag below is
 // what identifies the sketch.
 constexpr const char *OTA_EXPECTED_PROJECT_NAME = "arduino-lib-builder";

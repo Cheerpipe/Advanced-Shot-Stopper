@@ -1,6 +1,7 @@
 # Tooling instructions
 
-- `scripts/dev` is the canonical interface; existing scripts remain compatible.
+- `scripts/dev` is the only supported public firmware interface. Focused stage
+  implementations under `scripts/internal/` are private and may change.
 - Tooling must be non-interactive in CI, avoid implicit network/bootstrap work,
   normalize exit codes, redact secrets, and preserve complete run logs.
 - Never weaken image verification. Non-interactive flash and OTA require an

@@ -304,7 +304,7 @@ PY
 }
 
 # ALLOW_BSS / autostart / g_probe, then the same OTA identity check as
-# ./scripts/build-idf (image_tag.js).
+# ./scripts/dev build (image_tag.js).
 ss_idf_verify_production_profile() {
   local arch="${1:-$SHOTSTOPPER_ARCH}"
   local sdkconfig="${2:-$IDF_SDKCONFIG}"

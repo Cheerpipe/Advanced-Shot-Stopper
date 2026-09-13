@@ -57,7 +57,7 @@ rm -rf "$output_path"
 mkdir -p "$output_path"
 
 # -Wunused-parameter is a tool flag, not a user preference: passing it through
-# ./scripts/build-idf would persist it into .shotstopper and every later
+# The internal build stage would persist it into .shotstopper and every later
 # compile. Strip every copy before building and saving so this tool never
 # leaks its analysis-only option into ordinary builds.
 configured_flags="$(ss_get flags)"
@@ -78,7 +78,7 @@ raw_report="$output_path/gcc-warnings-raw.txt"
 report="$output_path/gcc-warnings.txt"
 
 echo "Building $SHOTSTOPPER_ARCH (IDF) with extra GCC warnings..."
-SHOTSTOPPER_NONINTERACTIVE=1 ./scripts/build-idf \
+SHOTSTOPPER_NONINTERACTIVE=1 ./scripts/internal/build-idf \
   --hardware "$(ss_get hardware_config)" --machine "$(ss_get machine_config)" \
   --webui-language "$(ss_get webui_language)" \
   --flags "$warning_flags" >"$raw_report" 2>&1

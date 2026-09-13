@@ -19,7 +19,7 @@ Usage: ./scripts/static-tidy-idf [flags]
 
 Run clang-tidy (Espressif esp-clang) against a compilation database already
 produced by ESP-IDF. The output directory is deleted and recreated on every
-run. This script never builds the firmware; run ./scripts/build-idf separately
+run. This script never builds the firmware; run ./scripts/dev build separately
 first.
 
 Required parameters: --arch. For a profile build, pass its directory with

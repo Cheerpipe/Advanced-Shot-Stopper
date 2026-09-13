@@ -7,7 +7,7 @@ flash: [Build environment](BUILD.md). Script reference: [Build scripts](SCRIPTS.
 ## 1. What the suite runs
 
 Cppcheck, clang-tidy and IWYU read the ESP-IDF compilation database
-(`build-idf/<arch>/compile_commands.json`) from a normal build.
+(`build-idf/<hardware>--<machine>/compile_commands.json`) from a normal build.
 GCC `-fanalyzer` is different: its script builds with analysis enabled. Each tool
 deletes and recreates its own reports directory on every run.
 
@@ -37,7 +37,7 @@ coverage is specified in [P2 target trace qualification](P2_TARGET_TRACE.md).
 Prepare the database once, then run any tool:
 
 ```sh
-./scripts/build-idf --hardware esp32-s3-relay-x1-speaker \
+./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
   --machine rancilio-silvia-pro-x
 ./scripts/static-idf --arch n16r8 \
   --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
@@ -160,7 +160,7 @@ export ESP_CLANG_TIDY=/path/to/esp-clang/bin/clang-tidy
 ## 6. Running clang-tidy
 
 ```sh
-./scripts/build-idf --hardware esp32-s3-relay-x1-speaker \
+./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
   --machine rancilio-silvia-pro-x
 ./scripts/static-tidy-idf --arch n16r8 \
   --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
@@ -209,7 +209,7 @@ under `esp-idf/`.
 ## 7. Running Include-What-You-Use
 
 ```sh
-./scripts/build-idf --hardware esp32-s3-relay-x1-speaker \
+./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
   --machine rancilio-silvia-pro-x
 ./scripts/iwyu-idf --arch n16r8 \
   --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x

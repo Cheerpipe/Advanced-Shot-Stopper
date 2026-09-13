@@ -22,7 +22,7 @@ Usage: ./scripts/iwyu-idf [flags]
 
 Run Include-What-You-Use against a compilation database already produced by
 ESP-IDF. The output directory is deleted and recreated on every run. This
-script never builds the firmware; run ./scripts/build-idf separately first.
+script never builds the firmware; run ./scripts/dev build separately first.
 
 Required parameters: --arch. For a profile build, pass its directory with
 --build-dir. Path overrides are one-shot and are not persisted.

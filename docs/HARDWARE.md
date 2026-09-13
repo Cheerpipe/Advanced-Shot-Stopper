@@ -111,7 +111,7 @@ opt-in remote-control development build; default firmware leaves start/rinse
 on the physical activator:
 
 ```sh
-./scripts/build-idf --hardware esp32-s3-relay-x1-speaker \
+./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
   --machine rancilio-silvia-pro-x \
   --flags "-DSHOT_STOPPER_SAFETY_HEARTBEAT_GPIO=16 -DSHOT_STOPPER_CIRCUIT_FEEDBACK_GPIO=17"
 ```

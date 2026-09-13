@@ -23,7 +23,7 @@ Checks warning, performance and portability. `unusedFunction` is deliberately
 excluded: Cppcheck reports project APIs used across filtered translation units
 and build variants as unused. Dead-code review is tracked separately from this
 F-21 gate. The output directory is deleted and recreated on every run. This
-script never builds the firmware; run ./scripts/build-idf separately first.
+script never builds the firmware; run ./scripts/dev build separately first.
 
 Required parameters: --arch. For a profile build, pass its directory with
 --build-dir. Path overrides are one-shot and are not persisted.

@@ -16,14 +16,26 @@ commands run in the shell and are documented in [Build scripts](SCRIPTS.md).
 
 ## Open the port
 
-**Supported (ESP-IDF):**
+Open the port through the supported developer facade:
 
 ```sh
-./scripts/monitor-idf --port /dev/cu.usbmodem2101 --speed 115200
+./scripts/dev monitor --port /dev/cu.usbmodem2101 --speed 115200
 ```
 
 On Linux the port is often `/dev/ttyACM0` or `/dev/ttyUSB0`. Exit with
 **Ctrl+]**. The script prompts for and remembers the port in `.shotstopper`.
+
+To install and open the monitor in one ordered command:
+
+```sh
+./scripts/dev build flash monitor --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --port /dev/cu.usbmodem2101 --speed 115200
+```
+
+The monitor starts only if build and flash both succeed. See the
+[complete `dev` examples](SCRIPTS.md) for flash-only, OTA, and other pipelines.
 
 Close other serial clients before opening this port. Type `HELLO` and press
 Enter; expect `how are you`. Then use `HELP` or `NET_STATUS`.

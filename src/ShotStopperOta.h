@@ -81,7 +81,7 @@ enum class OtaResult : uint8_t {
   COMMIT_FAILED,
   NO_MEMORY,
   // This build never declared which board it is for, so no image can be proven
-  // compatible with it. Reachable on firmware not produced by ./scripts/build-idf.
+  // compatible with it. Reachable on firmware not produced by ./scripts/dev build.
   NO_IDENTITY,
   SESSION_REQUIRED,
   SESSION_CONFLICT,

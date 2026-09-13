@@ -2,7 +2,8 @@
 # Flash an already compiled ESP-IDF image over USB.
 set -euo pipefail
 
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+INTERNAL_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH='' cd -- "$INTERNAL_DIR/.." && pwd)"
 # shellcheck source=scripts/shotstopper_board.sh
 source "$SCRIPT_DIR/shotstopper_board.sh"
 # shellcheck source=scripts/shotstopper_cli.sh
@@ -12,11 +13,11 @@ source "$SCRIPT_DIR/shotstopper_idf.sh"
 
 usage() {
   cat <<EOF
-Usage: ./scripts/flash-idf [flags]
+Internal flash stage. Use: ./scripts/dev flash [monitor] --confirm [flags]
 
 Flash an ESP-IDF firmware binary over USB. Without --image, uses the
 already-built binary for the selected profile pair; it never rebuilds or
-changes that image. Use build-idf --webui-language <code> first to select the
+changes that image. Use ./scripts/dev build --webui-language <code> first to select the
 WebUI language. With --no-check, existing outputs are flashed without identity
 verification. Does not open the monitor. This is the official USB flash path.
 
@@ -27,10 +28,10 @@ $(ss_flag_help)
 
 $(shotstopper_arch_help)
 
-Examples:
-  ./scripts/flash-idf --port /dev/cu.usbmodem2101 \
+Examples through the public facade:
+  ./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \
     --hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x
-  ./scripts/flash-idf --port /dev/cu.usbmodem2101 \
+  ./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \
     --hardware esp32-s3-relay-x1-speaker --machine la-marzocco-linea-micra \
     --erase-all
 EOF
@@ -43,7 +44,7 @@ if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
 fi
 
 if ss_is_set webui_language; then
-  echo '--webui-language is build-only; run build-idf with it before flashing.' >&2
+  echo '--webui-language is build-only; run ./scripts/dev build with it before flashing.' >&2
   exit 2
 fi
 

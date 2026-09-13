@@ -3,7 +3,7 @@
 # and sdkconfig.defaults.n8r4. Do not put CONFIG_IDF_TARGET here: idf.py
 # set-target writes it into sdkconfig.
 #
-# Official supported firmware builds use ./scripts/build-idf. The legacy
+# Official supported firmware builds use ./scripts/dev build. The legacy
 # ESP-IDF is the only supported firmware build path;
 # prebuilt Arduino-ESP32 libraries there compile ALLOW_BSS out.
 

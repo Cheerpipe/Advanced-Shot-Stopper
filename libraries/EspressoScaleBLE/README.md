@@ -119,7 +119,7 @@ invalid notifications. The portable lifecycle reducer is a separate model,
 not the production client's state machine. Target scheduling and radio behavior
 still require hardware qualification.
 
-Build the bundled firmware through `./scripts/build-idf`; see
+Build the bundled firmware through `./scripts/dev build`; see
 [Build environment](../../docs/BUILD.md).
 
 ## Integration

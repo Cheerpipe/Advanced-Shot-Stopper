@@ -307,10 +307,10 @@ ss_ota_cleanup() {
 }
 
 ss_ota_run() {
-  # image, requested arch, host, password, force, skip check, discard conflict
+  # image, requested arch, host, password, yes, wait, skip check, discard conflict
   SS_OTA_IMAGE="$1"
-  local arch="$2" host="$3" password="$4" force="$5" \
-      skip_local_check="${6:-0}" discard_existing="${7:-0}"
+  local arch="$2" host="$3" password="$4" yes="$5" wait="$6" \
+      skip_local_check="${7:-0}" discard_existing="${8:-0}"
   SS_OTA_BASE="http://$host"
 
   for tool in curl node; do
@@ -425,7 +425,7 @@ ss_ota_run() {
   fi
   printf '\nVerified image: %s · %s\n' "$staged_version" "$staged_arch"
 
-  if [[ "$force" != "1" ]] && ss_can_prompt; then
+  if [[ "$yes" != "1" ]]; then
     local answer
     printf 'Commit and reboot the controller? [y/N]: ' > /dev/tty
     IFS= read -r answer < /dev/tty || answer=""
@@ -450,7 +450,7 @@ ss_ota_run() {
     return 1
   }
 
-  if [[ "$force" == "1" ]]; then
+  if [[ "$wait" == "1" ]]; then
     echo 'Waiting for reboot and OTA confirmation (up to 4 minutes)...'
     local deadline=$((SECONDS + 240))
     while (( SECONDS < deadline )); do
@@ -478,7 +478,7 @@ ss_ota_run() {
   cat <<'EOF'
 
 Commit accepted. The controller reboots once the machine is free.
-Boot and confirmation have not been verified. Use --force to wait for them.
+Boot and confirmation have not been verified. Use --wait-for-confirmation to wait for them.
 Confirmation runs automatically; opening the Web UI is not required.
 EOF
   return 0

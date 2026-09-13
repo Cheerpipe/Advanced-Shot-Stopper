@@ -110,7 +110,7 @@
     "admin.sent": " Sent ",
     "admin.sent_after_drip_delay_with_final_time": "Sent after drip delay with final time and weight.",
     "admin.setting_saved": "Setting saved.",
-    "admin.shotstopper_ino_bin_built_by_scripts_build": "shotstopper.bin built by ./scripts/build-idf for this exact hardware and machine profile pair. Authorised by Admin unlock (device password).",
+    "admin.shotstopper_ino_bin_built_by_scripts_build": "shotstopper.bin built by ./scripts/dev build for this exact hardware and machine profile pair. Authorised by Admin unlock (device password).",
     "admin.show_diagnostic_page": "Show diagnostic page",
     "admin.static_ip": "Static IP",
     "admin.symbol": "∗",

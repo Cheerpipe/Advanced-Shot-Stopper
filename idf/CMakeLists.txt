@@ -1,5 +1,5 @@
 # Shot Stopper firmware built with ESP-IDF (Arduino-ESP32 as a component).
-# Official supported builds: ./scripts/build-idf → build-idf/<arch>.
+# Official supported builds: ./scripts/dev build → build-idf/<variant>.
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -10,7 +10,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Product options (remote machine control, buzzer, machine type, JTAG) live in
 # main/Kconfig.projbuild and sdkconfig.defaults; SHOT_STOPPER_EXTRA_FLAGS may
 # still pass -D overrides. idf.py does not reconfigure when only an env var
-# changes, so ./scripts/build-idf writes CMAKE_BINARY_DIR/shot_stopper_extra_flags
+# changes, so the internal build stage writes CMAKE_BINARY_DIR/shot_stopper_extra_flags
 # and drops CMakeCache.txt when that stamp changes.
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
@@ -70,7 +70,7 @@ endif()
 
 project(shotstopper)
 
-# ninja cmake_check reconfigures when ./scripts/build-idf updates the stamp.
+# ninja cmake_check reconfigures when the internal build stage updates the stamp.
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_ss_extra_flags_file}")
 
 # Arduino-ESP32 compiles Esp.cpp as C++ against IDF SPI flash HAL headers

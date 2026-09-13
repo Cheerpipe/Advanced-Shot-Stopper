@@ -194,8 +194,7 @@ reports retain their unfiltered SDK log and report project-owned warnings
 separately.
 
 The facade passes empty extra flags unless supplied; it does not reuse a saved
-extra-flags preference implicitly. The direct `build-idf` script instead
-resolves flags from CLI, environment, saved values, or a prompt.
+extra-flags preference implicitly.
 
 For local development, use the transient convenience flag:
 
@@ -302,6 +301,25 @@ Replace the port below with the detected controller port:
   --hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x
 ```
 
+To build and install the exact result in one command, put the stages before
+their options:
+
+```sh
+./scripts/dev build flash --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --port /dev/cu.usbmodem2101
+```
+
+Add `monitor` to open the serial console only after both earlier stages pass:
+
+```sh
+./scripts/dev build flash monitor --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --port /dev/cu.usbmodem2101 --speed 115200
+```
+
 Linux commonly uses `/dev/ttyACM0` or `/dev/ttyUSB0`. Build first whenever
 sources, options, or the Web UI language change: the installer never rebuilds
 or relabels the selected image. Successful transfer still requires post-boot
@@ -354,11 +372,25 @@ with [First setup and daily use](GETTING_STARTED.md).
 After installation, follow [OTA](features/ota.md) for upload, verification,
 commit, confirmation and recovery. OTA cannot migrate the partition table.
 
-## Compatibility aliases
+Build and update the same profile in one command:
 
-`build`, `flash`, `monitor`, `ota`, `static`, `bf`, `bfm`, `bo`,
-and `bsfm` are ESP-IDF compatibility aliases, not Arduino-cli workflows.
-Use [SCRIPTS.md](SCRIPTS.md) for parameter resolution and direct wrappers.
+```sh
+./scripts/dev build ota --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --host 192.168.1.50 \
+  --yes --wait-for-confirmation
+```
+
+`--yes` accepts the commit question; `--wait-for-confirmation` independently
+verifies the rebooted image. See the [complete `dev` examples](SCRIPTS.md) for
+standalone and combined build, flash, OTA, and monitor commands.
+
+## One supported command interface
+
+`./scripts/dev` is the only supported public firmware command. The old direct
+IDF stage aliases and combination wrappers were removed. Focused shell files
+under `scripts/internal/` are private implementation details.
 
 ## Optional static analysis
 
