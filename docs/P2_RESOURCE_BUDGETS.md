@@ -71,6 +71,9 @@ Complete Settings help raises the reviewed combined Web gzip cap from 64,000 to
 and a fixed-size first-drop icon with an adjacent time raise the runtime cap
 from 32,250 to 32,500 bytes, CSS from 6,600 to 6,750 bytes, and the combined cap
 to 66,400 bytes, with another 1,000 bytes of JavaScript source allowance.
+Exporting the saved weight curve as per-shot CSV columns later raises the
+runtime cap from 32,500 to 32,600 bytes; the measured English build is 32,586
+bytes and the combined gzip stays below the 66,400-byte cap.
 Firmware and DRAM caps are unchanged.
 The asynchronous configuration-save acknowledgement adds 256 source bytes of
 allowance for revision/value readback and pending/failed persistence checks;

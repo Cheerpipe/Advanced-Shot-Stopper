@@ -109,12 +109,20 @@ history record or flash write.
 ## Read a result
 
 CSV retains its original columns and their order, followed by `bbw_algorithm`,
-`bbw_algorithm_version`, `bbw_alpha`, `bbw_learning_applied`, `preset_id`, and
-the derived final column `max_flow_g_s`. The final column is empty when a record
-has no usable curve interval. The JSON names
+`bbw_algorithm_version`, `bbw_alpha`, `bbw_learning_applied`, `preset_id`, the
+derived column `max_flow_g_s`, and the weight curve columns. The derived column
+is empty when a record has no usable curve interval. The JSON names
 are `bbwAlgorithm`, `bbwAlgorithmVersion`, `bbwAlpha`, and `bbwLearningApplied`.
 These fields are exported data; the visible table/cards and averages do not
 add algorithm or offset fields.
+
+The weight curve columns follow `max_flow_g_s` so every exported row also
+carries the weights captured during that shot. `w_dt_s` is the seconds between
+saved samples, then one `w_<n>s` column holds each sample in grams — `w_0s`
+is the weight at the first sample, `w_1s` the next, and so on up to the longest
+curve in the export. Plot a row's weight cells in a spreadsheet to redraw its
+curve. Shots without a saved curve, and samples beyond a shot's own curve
+length, leave those cells empty.
 
 `preset_id` (JSON `presetId`) and JSON `presetName` are captured from the preset
 used for that shot, not the currently selected recipe. The name is a snapshot,

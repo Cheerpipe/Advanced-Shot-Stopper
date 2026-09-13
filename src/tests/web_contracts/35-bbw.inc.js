@@ -104,6 +104,8 @@
     goalG: 36, actualG: 36.2, offsetG: i ? 1.5 : 0, durationS: 30,
     bbwAlgorithm: i % 2 ? 'legacy' : 'linear_ewma', bbwAlgorithmVersion: i % 2 ? 1 : 2,
     bbwAlpha: i % 2 ? 1 : .37, bbwLearningApplied: i ? true : null, presetId: i ? 255 : 0}));
+  records[1].wCg = [0, 1520, 3105, 3620]; records[1].wDtS = 1;
+  records[2].wCg = [0, 800]; records[2].wDtS = 1;
   const context = vm.createContext({
     api: async url => {assert.equal(url, '0/120/date/desc'); return {shots: records};},
     shotsUrl: (...args) => args.join('/'), SHOTS_EXPORT_LIMIT: 120,
@@ -119,7 +121,8 @@
   assert.equal(lines.length, 121);
   assert.equal(lines[0][11], 'offset_g');
   assert.equal(lines[1][11], '0');
-  assert.deepEqual(lines[0].slice(-6), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id', 'max_flow_g_s']);
-  assert.deepEqual(lines[1].slice(-6), ['linear_ewma', '2', '0.37', '', '', '']);
-  assert.deepEqual(lines[2].slice(-6), ['legacy', '1', '1.00', '1', '255', '2.5']);
+  assert.deepEqual(lines[0].slice(-11), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id', 'max_flow_g_s', 'w_dt_s', 'w_0s', 'w_1s', 'w_2s', 'w_3s']);
+  assert.deepEqual(lines[1].slice(-11), ['linear_ewma', '2', '0.37', '', '', '', '', '', '', '', '']);
+  assert.deepEqual(lines[2].slice(-11), ['legacy', '1', '1.00', '1', '255', '2.5', '1', '0', '15.2', '31.05', '36.2']);
+  assert.deepEqual(lines[3].slice(-11), ['linear_ewma', '2', '0.37', '1', '255', '2.5', '1', '0', '8', '', '']);
 })().catch(error => {console.error(error); process.exitCode = 1;});

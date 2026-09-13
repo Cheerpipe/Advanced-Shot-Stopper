@@ -232,8 +232,9 @@ if (generated.cssGzip.length > 6850) {
   throw new Error('Compressed Web CSS exceeds the 6850-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
-if (generated.runtimeGzip.length > 32500) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 32500-byte gzip budget');
+// Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
+if (generated.runtimeGzip.length > 32600) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 32600-byte gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
