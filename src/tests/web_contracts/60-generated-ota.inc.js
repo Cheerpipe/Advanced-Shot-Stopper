@@ -544,8 +544,8 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
     throw new Error('Spark fallback must preserve the only available partial startup flow');
   }
   const laterEvent = helpers.buildShotSparkModel({
-    wCg: [0, 20, 90, 150], wDtS: 2, durationS: 8,
-    firstDropS: 4.5, dropCg: 40, extendedS: 7.3, extCg: 300,
+    wCg: [0, 10, 50, 90, 140, 190, 240, 300], wDtS: 1, durationS: 8,
+    firstDropS: 4.5, dropCg: 40, extendedS: 7.3, extCg: 240,
     extractionExtended: true,
   });
   if (!laterEvent || laterEvent.pts[laterEvent.pts.length - 1].t !== 8 ||
@@ -555,20 +555,20 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   const earlyMarkers = helpers.buildShotSparkModel({
     wCg: [0, 20, 90, 150], wDtS: 2, durationS: 6,
     firstDropS: 4.5, dropCg: 40, extendedS: 3, extCg: 3000,
-    atmS: 2, atmCg: 2000, atmClearedS: 3, endS: 4, endCg: 90,
+    atmS: 2, atmCg: 2000, atmClearedS: 3, endS: 6.5, endCg: 90,
   });
   if (!earlyMarkers || earlyMarkers.pts.some((p) => p.t < 4.5) ||
       earlyMarkers.segs.some((s) => s.pts.some((p) => p.t < 4.5))) {
     throw new Error('Spark must reject every malformed pre-drop marker');
   }
   const noDrop = helpers.buildShotSparkModel({
-    wCg: [0, 20, 90], wDtS: 2, durationS: 4,
+    wCg: [0, 20, 90], wDtS: 2, durationS: 6,
   });
-  if (!noDrop || noDrop.pts.map((p) => p.t).join(',') !== '0,2,4') {
+  if (!noDrop || noDrop.pts.map((p) => p.t).join(',') !== '2,4,6') {
     throw new Error('Spark without a first-drop event must keep its grid');
   }
   const oneSecond = helpers.buildShotSparkModel({
-    wCg: [0, 100, 250, 200], wDtS: 1, durationS: 3,
+    wCg: [0, 100, 250, 200], wDtS: 1, durationS: 4,
   });
   const rates = oneSecond.flowSegs.map((s) => s.pts[0].cg / 100);
   if (rates.join(',') !== '1,1.5,0' || oneSecond.maxFlow !== 1.5 ||
@@ -584,7 +584,8 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   if (!partial || partial.maxFlow !== 1 || partial.flowSegs.at(-1).pts[1].t !== 2.5 ||
       partial.flowSegs.at(-1).pts[0].cg !== 100 || !livePartial ||
       livePartial.flowSegs.at(-1).pts[1].t !== 2.5 ||
-      livePartial.flowSegs.at(-1).pts[0].cg !== 100) {
+      livePartial.flowSegs.at(-1).pts[0].cg !== 100 ||
+      livePartial.pts.map((p) => p.t).join(',') !== '1,2,2.5') {
     throw new Error('Flow curve must continue through exact and live partial endpoints');
   }
   const missing = helpers.buildShotSparkModel({
@@ -592,6 +593,28 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   });
   if (!missing || missing.flowSegs.some((s) => s.pts[1].t - s.pts[0].t > 1.0001)) {
     throw new Error('Flow curve must not bridge missing weight samples');
+  }
+  const guardDip = helpers.buildShotSparkModel({
+    wCg: [0, 0, 0, 0, 0, 150, 300, 450, 600, 750, 900, 1050, 1200, 1350,
+          1500, 1650, 1800, 1950, 2100, 2250, 2400, 2550, 2700, 2850, 3000,
+          3150, 3300, 3450, 3600],
+    wDtS: 1,
+    durationS: 29,
+    firstDropS: 5.2,
+    dropCg: 20,
+    extendedS: 25.22,
+    extCg: 3060,
+    endS: 29,
+    endCg: 3600,
+    extractionExtended: true,
+    goalG: 36,
+  });
+  const guardFast = guardDip && guardDip.segs.find((s) => s.color === '#d97706');
+  if (!guardDip || !guardFast || guardFast.pts[0].t !== 25.22 ||
+      guardDip.pts.some((p, i, a) => i && p.cg < a[i - 1].cg) ||
+      guardDip.flowSegs.some((s) => s.pts[0].cg === 0) ||
+      guardDip.maxFlow > 2.9) {
+    throw new Error('Spark must not fabricate a dip or flow spike at a mid-bucket guard vertex');
   }
   const slowLate = helpers.buildShotSparkModel({
     wCg: Array.from({length: 14}, (_, i) => (i + 1) * 200),

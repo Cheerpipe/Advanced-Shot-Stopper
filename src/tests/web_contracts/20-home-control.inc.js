@@ -17,7 +17,7 @@
   };
   const render = new Function('document', helpers + renderer +
       ';return renderShotSpark;')(document);
-  const basic = render(host, {wCg:[0, 0, 0, 100, 200], wDtS:1, durationS:4,
+  const basic = render(host, {wCg:[0, 0, 50, 150, 150], wDtS:1, durationS:4,
     firstDropS:2.5, dropCg:50});
   const [weight, flow] = host.innerHTML.split('<div class="shotCurve">').slice(1);
   if (host.hidden || !basic || basic.timeMax !== 10 || basic.maxW !== 10 || basic.flowMax !== 1 ||
@@ -44,7 +44,7 @@
   }
   render(host, {wCg:[0, 0, 0], wDtS:1, durationS:2});
   if (host.hidden || (host.innerHTML.match(/class="shotSpark"/g) || []).length !== 2 ||
-      !host.innerHTML.includes('M1.5 34.5 L25.2 34.5 L48.9 34.5') ||
+      !host.innerHTML.includes('M25.2 34.5 L48.9 34.5') ||
       render(host, {wCg:[0, 0, 0], wDtS:1, durationS:2}).maxFlow !== 0 ||
       markers.length || host.innerHTML.includes('fill-opacity')) {
     throw new Error('Live zero weight and flow must stay visible before the first drop');
@@ -54,15 +54,15 @@
       markers[0].style.transform !== 'translateX(-6px)') {
     throw new Error('First-drop placement must use the rounded shared time domain');
   }
-  const rounded = render(host, {wCg:[0, 1200, 2500, 3900, 4370], wDtS:3.775,
+  const rounded = render(host, {wCg:[0, 1200, 2500, 3900], wDtS:3.775,
     durationS:15.1, goalG:36});
-  if (rounded.timeMax !== 20 || rounded.maxW !== 50 || rounded.flowMax !== 4 ||
+  if (rounded.timeMax !== 20 || rounded.maxW !== 40 || rounded.flowMax !== 4 ||
       rounded.maxFlow <= 3.7 || rounded.maxFlow >= 3.8 ||
-      charts[0].style['--shot-plot-min'] !== '5.50rem' ||
+      charts[0].style['--shot-plot-min'] !== '4.40rem' ||
       charts[1].style['--shot-plot-min'] !== '8.80rem') {
     throw new Error('Non-multiple domains must round up and grow each vertical chart independently');
   }
-  const exact = render(host, {wCg:[0, 1000, 2000, 3000, 4000], wDtS:10, durationS:40});
+  const exact = render(host, {wCg:[1000, 2000, 3000, 4000], wDtS:10, durationS:40});
   if (exact.timeMax !== 40 || exact.maxW !== 40 || exact.flowMax !== 1 ||
       charts[0].style['--shot-plot-min'] !== '4.40rem' ||
       charts[1].style['--shot-plot-min'] !== '2.20rem') {
@@ -70,11 +70,11 @@
   }
   const model = new Function(helpers + ';return buildShotSparkModel;')();
   const partial = model({wCg:[0,100,200],wDtS:1,durationS:2.5,endS:2.5,endCg:350});
-  const startup = model({wCg:[0,0,0,250,350],wDtS:1,durationS:4,
+  const startup = model({wCg:[0,0,50,150,250],wDtS:1,durationS:5,
     firstDropS:2.5,dropCg:50});
-  const ending = model({wCg:[0,100,300,400],wDtS:1,durationS:3,endS:3,endCg:400});
-  const missing = model({wCg:[0,null,100],wDtS:1,durationS:2});
-  const falling = model({wCg:[200,100],wDtS:1,durationS:1});
+  const ending = model({wCg:[100,300,400],wDtS:1,durationS:3,endS:3,endCg:400});
+  const missing = model({wCg:[0,null,100,200],wDtS:1,durationS:3});
+  const falling = model({wCg:[200,100,100],wDtS:1,durationS:2});
   const atm = model({wCg:[0,100,200,300],wDtS:1,durationS:4,atmS:2,atmCg:200,endS:4,endCg:300});
   if (partial.maxFlow !== 1 || partial.flowSegs.at(-1).pts[1].t !== 2.5 ||
       partial.flowSegs.at(-1).pts[0].cg !== 100 || startup.maxFlow !== 1 ||
