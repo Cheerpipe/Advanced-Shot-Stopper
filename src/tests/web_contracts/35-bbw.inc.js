@@ -121,7 +121,7 @@
   assert.equal(lines.length, 121);
   assert.equal(lines[0][11], 'offset_g');
   assert.equal(lines[1][11], '0');
-  assert.deepEqual(lines[0].slice(-11), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id', 'max_flow_g_s', 'w_dt_s', 'w_0s', 'w_1s', 'w_2s', 'w_3s']);
+  assert.deepEqual(lines[0].slice(-11), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id', 'max_flow_g_s', 'w_dt_s', 'w_1s', 'w_2s', 'w_3s', 'w_4s']);
   assert.deepEqual(lines[1].slice(-11), ['linear_ewma', '2', '0.37', '', '', '', '', '', '', '', '']);
   assert.deepEqual(lines[2].slice(-11), ['legacy', '1', '1.00', '1', '255', '2.5', '1', '0', '15.2', '31.05', '36.2']);
   assert.deepEqual(lines[3].slice(-11), ['linear_ewma', '2', '0.37', '1', '255', '2.5', '1', '0', '8', '', '']);
