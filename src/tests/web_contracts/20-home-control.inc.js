@@ -3,15 +3,15 @@
       runtimeJs.indexOf('function populateTimezoneOptions('));
   const renderer = runtimeJs.slice(runtimeJs.indexOf('function renderShotSpark('),
       runtimeJs.indexOf('function renderStatsDurChart('));
-  const ticks = [[], []], markers = [];
+  const ticks = [[], []], markers = [], charts = [];
   let markup = '';
   const document = {createElement(){return {style:{}}}};
   const host = {
     get innerHTML(){return markup},
-    set innerHTML(value){markup=value;markers.length=0},
+    set innerHTML(value){markup=value;markers.length=0;charts.length=0;for(const part of value.split('<div class="shotCurve">').slice(1)){const y=(part.match(/class="shotYTick"/g)||[]).map(()=>({style:{}})),style={setProperty(k,v){this[k]=v}};charts.push({style,querySelectorAll(){return y}})}},
     hidden:true, replaceChildren(){this.innerHTML=''},
     querySelector(){return {appendChild(item){markers.push(item)}}},
-    querySelectorAll(){return ticks.map((items) => ({
+    querySelectorAll(selector){if(selector==='.shotSparkHost')return charts;return ticks.map((items) => ({
       replaceChildren(){items.length=0}, appendChild(item){items.push(item)}
     }))},
   };
@@ -31,8 +31,10 @@
       flow.includes('1st ') || flow.includes('shotFirstDrop') ||
       host.innerHTML.indexOf('class="shotGrid"') > host.innerHTML.indexOf('class="shotTrace"') ||
       !host.innerHTML.includes('M1.5 1.5V34.5M238.5 1.5V34.5') ||
-      !weight.includes('top:0%">10 g</span>') || !weight.includes('top:100%">0 g</span>') ||
-      !flow.includes('top:50%">0.5 g/s</span>') ||
+      weight.includes('style="top:') || flow.includes('style="top:') ||
+      charts[0].style['--shot-plot-min'] !== '1.10rem' || charts[1].style['--shot-plot-min'] !== '2.20rem' ||
+      charts[0].querySelectorAll()[0].style.top !== '0%' || charts[0].querySelectorAll()[1].style.top !== '100%' ||
+      charts[1].querySelectorAll()[1].style.top !== '50%' ||
       host.innerHTML.includes('shotEventTicks') || host.innerHTML.includes('Fast ') ||
       host.innerHTML.includes('Slow ') || host.innerHTML.includes('A→M ') ||
       ticks.some((items) => items.map((item) => item.textContent).join('|') !== '0 s|10 s') ||
@@ -56,14 +58,14 @@
     durationS:15.1, goalG:36});
   if (rounded.timeMax !== 20 || rounded.maxW !== 50 || rounded.flowMax !== 4 ||
       rounded.maxFlow <= 3.7 || rounded.maxFlow >= 3.8 ||
-      !host.innerHTML.includes('--shot-plot-min:5.50rem') ||
-      !host.innerHTML.includes('--shot-plot-min:8.80rem')) {
+      charts[0].style['--shot-plot-min'] !== '5.50rem' ||
+      charts[1].style['--shot-plot-min'] !== '8.80rem') {
     throw new Error('Non-multiple domains must round up and grow each vertical chart independently');
   }
   const exact = render(host, {wCg:[0, 1000, 2000, 3000, 4000], wDtS:10, durationS:40});
   if (exact.timeMax !== 40 || exact.maxW !== 40 || exact.flowMax !== 1 ||
-      !host.innerHTML.includes('--shot-plot-min:4.40rem') ||
-      !host.innerHTML.includes('--shot-plot-min:2.20rem')) {
+      charts[0].style['--shot-plot-min'] !== '4.40rem' ||
+      charts[1].style['--shot-plot-min'] !== '2.20rem') {
     throw new Error('Exact interval boundaries must stay exact and retain compact minimums');
   }
   const model = new Function(helpers + ';return buildShotSparkModel;')();
@@ -388,6 +390,9 @@ if (!ui.includes('id="shotPanel"') ||
     !runtimeJs.includes('function fillChartTicks(') ||
     runtimeJs.includes('s[a=') ||
     !runtimeJs.includes('style.left=') ||
+    !runtimeJs.includes("style.setProperty('--shot-plot-min'") ||
+    !runtimeJs.includes('.style.top=') ||
+    runtimeJs.includes('style="top:') || runtimeJs.includes('style="--shot-plot-min:') ||
     runtimeJs.includes("style=\"left:") ||
     !runtimeJs.includes('function shotDisplayFlowGS(') ||
     !runtimeJs.includes('merged.length<2||!(dur>0)') ||
