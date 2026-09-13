@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "rancilio-silvia-pro-x",
+  "display_name": "Rancilio Silvia Pro X",
+  "compatibility_revision": 1,
+  "brand": "Rancilio",
+  "model": "Silvia Pro X",
+  "integration_revision": "momentary-only-v1-unqualified",
+  "interface": {
+    "control": "momentary",
+    "feedback": "none"
+  },
+  "factory_defaults": {
+    "operational_wall_ms": 50000,
+    "momentary": {
+      "start_edge": "press",
+      "stop_pulse_ms": 300,
+      "max_single_press_ms": 1000,
+      "assume_idle_on_scale_connect": true,
+      "shot_reaction_timeout_s": 0
+    },
+    "quick_rinse": {
+      "enabled": false,
+      "gesture_ms": 1000,
+      "duration_ms": 4000
+    }
+  }
+}

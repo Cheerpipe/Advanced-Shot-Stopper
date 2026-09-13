@@ -96,7 +96,7 @@ enum class OtaResult : uint8_t {
 
 constexpr size_t OTA_TRANSFER_ID_CAPACITY = 65;
 constexpr size_t OTA_SHA256_HEX_CAPACITY = 65;
-constexpr uint16_t OTA_PROTOCOL_VERSION = 2;
+constexpr uint16_t OTA_PROTOCOL_VERSION = 3;
 constexpr uint32_t OTA_TRANSFER_CHUNK_BYTES = 64U * 1024U;
 constexpr uint32_t OTA_WRITE_ALIGNMENT = 4096;
 // Journal at most twice per MiB. A 3 MiB image therefore performs at most
@@ -138,6 +138,8 @@ struct OtaSessionIdentity {
   uint32_t size = 0;
   char sha256[OTA_SHA256_HEX_CAPACITY] = {};
   char arch[OTA_ARCH_CAPACITY] = {};
+  char hardware[OTA_PROFILE_COMPAT_CAPACITY] = {};
+  char machine[OTA_PROFILE_COMPAT_CAPACITY] = {};
   char version[OTA_VERSION_CAPACITY] = {};
   char transferId[OTA_TRANSFER_ID_CAPACITY] = {};
 };

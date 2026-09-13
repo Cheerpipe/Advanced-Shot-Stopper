@@ -69,6 +69,7 @@ risk gate in [VALIDATION.md](../VALIDATION.md).
 | Persistence | `ARCHITECTURE.md`, settings docs | `src/ShotStopperPersist*`, durable stores/logs | `persistence_host_test.cpp` | `./scripts/dev test normal` |
 | Web UI | `SCREENSHOTS.md`, feature/settings docs | `src/web/` | Web asset/contract tests | `./scripts/dev test web` |
 | Build and partitions | `BUILD.md`, `SCRIPTS.md`, `STATIC_ANALYSIS.md` | `idf/`, build scripts | architecture and size checks | `./scripts/dev build --arch n8r4` |
+| Hardware/machine build profiles | [`BUILD_PROFILES.md`](BUILD_PROFILES.md) | `config/hardware/`, `config/machines/`, profile resolver | profile contract tests | `./scripts/dev test tooling` |
 | Scheduling/resources | `SCHEDULABILITY.md`, `P2_RESOURCE_BUDGETS.md`, `P2_TARGET_TRACE.md` | task/owner/watchdog headers | TSAN and resource-owner tests | `./scripts/dev test tsan` |
 | Developer tooling | `AI_WORKFLOW.md`, root `VALIDATION.md` | `scripts/`, `.github/` | dev contract and risk golden tests | `./scripts/dev test tooling` |
 

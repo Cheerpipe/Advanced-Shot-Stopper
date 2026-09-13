@@ -130,9 +130,39 @@ Host tests cannot verify wiring, radio timing, or physical stop behavior.
 
 ## 5. Build
 
-Choose the board from its module marking: **n16r8** means 16 MB flash / 8 MB
-OPI PSRAM; **n8r4** means 8 MB flash / 4 MB QSPI PSRAM. Neither selects GPIOs
-for an arbitrary third-party board.
+Prefer named hardware and machine profiles. A hardware profile selects the
+assembled board, memory layout, GPIO wiring, relay polarity, and installed
+peripherals; a machine profile selects its control topology and factory
+defaults. See [Hardware and machine build profiles](BUILD_PROFILES.md) for the
+complete contracts and compatibility rules. One supported combination is:
+
+```sh
+./scripts/dev build \
+  --hardware-config config/hardware/esp32-s3-relay-x1-speaker.json \
+  --machine-config config/machines/rancilio-silvia-pro-x.json
+```
+
+Both options are required together. The X1 profile always resolves to
+**n16r8** (16 MB flash / 8 MB OPI PSRAM). It writes to
+`build-idf/esp32-s3-relay-x1-speaker--<machine>/` and also creates a `.bin`
+whose filename contains that complete variant.
+
+Explicit `--flags` are applied after the JSON values. Supported profile values
+are reflected in the resolved manifest; additive compiler flags keep working.
+The resolver rejects unsafe or contradictory overrides, including GPIO
+collisions, a machine that requires absent reed hardware, a normally-closed
+relay profile, or a different `--arch`. Development mode remains CLI-only and
+must never be added to a profile.
+
+Machine defaults seed a new installation and factory reset. Valid persisted
+settings survive ordinary boot and OTA. Each compatibility-relevant profile
+revision is embedded in the firmware identity, so OTA refuses an image for a
+different hardware or machine profile even when both use n16r8.
+
+The legacy architecture-only interface remains available for existing and
+generic builds. **n16r8** means 16 MB flash / 8 MB OPI PSRAM and **n8r4** means
+8 MB flash / 4 MB QSPI PSRAM; architecture alone does not select a physical
+pinout.
 
 From the repository root:
 
@@ -170,6 +200,10 @@ Set the machine type deliberately when changing it:
 ./scripts/dev build --arch n16r8 \
   --flags "-DSHOT_STOPPER_MACHINE_TYPE=2 -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0"
 ```
+
+This direct macro form is the legacy path. With named profiles, machine type
+is derived from `interface.control` plus `interface.feedback`; a conflicting
+`SHOT_STOPPER_MACHINE_TYPE` override is rejected.
 
 | Option | Meaning |
 | --- | --- |

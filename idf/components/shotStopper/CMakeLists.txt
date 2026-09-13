@@ -1,6 +1,7 @@
 # Application firmware sources live in ../../../src. This component is
 # their ESP-IDF registration.
 set(SHOT_STOPPER_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../src")
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated")
 
 set(SHOT_STOPPER_SRCS
   "${SHOT_STOPPER_DIR}/shotStopper.cpp"
@@ -15,6 +16,7 @@ set(SHOT_STOPPER_SRCS
 idf_component_register(
   SRCS ${SHOT_STOPPER_SRCS}
   INCLUDE_DIRS
+    "${CMAKE_BINARY_DIR}/generated"
     "${SHOT_STOPPER_DIR}"
   REQUIRES
     arduino-esp32

@@ -17,6 +17,8 @@ SS_OTA_BODY_FILE="$body_file"
 SS_OTA_SESSION_BODY="$session_file"
 SS_OTA_CHUNK_FILE="$chunk_file"
 SS_OTA_IMAGE_ARCH=n16r8
+SS_OTA_IMAGE_HARDWARE=legacy
+SS_OTA_IMAGE_MACHINE=legacy
 SS_OTA_IMAGE_VERSION=1.2.3
 SS_OTA_IMAGE_PACKED=16908291
 SS_OTA_IMAGE="$image_file"
@@ -49,7 +51,7 @@ ss_ota_request() {
     if [[ "$mock_mode" == "wrong-transfer" ]]; then
       response_transfer=another-transfer
     fi
-    printf '{"otaProtocolVersion":2,"state":"receiving","transferId":"%s","sha256":"%s","expectedBytes":8192,"sessionArch":"n16r8","sessionVersion":"1.2.3","nextOffset":%s,"chunkBytes":4096}' "$response_transfer" "$SS_OTA_IMAGE_SHA256" "$mock_offset" > "$SS_OTA_BODY_FILE"
+    printf '{"otaProtocolVersion":3,"state":"receiving","transferId":"%s","sha256":"%s","expectedBytes":8192,"sessionArch":"n16r8","sessionHardware":"legacy","sessionMachine":"legacy","sessionVersion":"1.2.3","nextOffset":%s,"chunkBytes":4096}' "$response_transfer" "$SS_OTA_IMAGE_SHA256" "$mock_offset" > "$SS_OTA_BODY_FILE"
     SS_OTA_CURL_EXIT=0; SS_OTA_HTTP_STATUS=200; return 0
   fi
   if [[ "$method" == "PATCH" && "$path" == "/api/v1/ota" ]]; then
@@ -87,9 +89,9 @@ ss_ota_request() {
     fi
     mock_offset=$((mock_offset + 4096))
     if (( mock_offset >= 8192 )); then
-      printf '{"state":"staged","transferId":"%s","sha256":"%s","expectedBytes":8192,"otaProtocolVersion":2,"sessionArch":"n16r8","sessionVersion":"1.2.3","nextOffset":8192,"staged":{"arch":"n16r8","version":"1.2.3","packed":16908291}}' "$SS_OTA_TRANSFER_ID" "$SS_OTA_IMAGE_SHA256" > "$SS_OTA_BODY_FILE"
+      printf '{"state":"staged","transferId":"%s","sha256":"%s","expectedBytes":8192,"otaProtocolVersion":3,"sessionArch":"n16r8","sessionHardware":"legacy","sessionMachine":"legacy","sessionVersion":"1.2.3","nextOffset":8192,"staged":{"arch":"n16r8","hardware":"legacy","machine":"legacy","version":"1.2.3","packed":16908291}}' "$SS_OTA_TRANSFER_ID" "$SS_OTA_IMAGE_SHA256" > "$SS_OTA_BODY_FILE"
     else
-      printf '{"state":"receiving","transferId":"%s","sha256":"%s","expectedBytes":8192,"otaProtocolVersion":2,"sessionArch":"n16r8","sessionVersion":"1.2.3","nextOffset":%s}' "$SS_OTA_TRANSFER_ID" "$SS_OTA_IMAGE_SHA256" "$mock_offset" > "$SS_OTA_BODY_FILE"
+      printf '{"state":"receiving","transferId":"%s","sha256":"%s","expectedBytes":8192,"otaProtocolVersion":3,"sessionArch":"n16r8","sessionHardware":"legacy","sessionMachine":"legacy","sessionVersion":"1.2.3","nextOffset":%s}' "$SS_OTA_TRANSFER_ID" "$SS_OTA_IMAGE_SHA256" "$mock_offset" > "$SS_OTA_BODY_FILE"
     fi
     SS_OTA_CURL_EXIT=0
     SS_OTA_HTTP_STATUS=200
@@ -103,13 +105,13 @@ ss_ota_request() {
     return 1
   fi
   if [[ "$method" == "GET" && "$path" == "/api/v1/ota/session" ]]; then
-    printf '{"otaProtocolVersion":2,"state":"receiving","transferId":"%s","sha256":"%s","expectedBytes":8192,"sessionArch":"n16r8","sessionVersion":"1.2.3","nextOffset":%s}' "$SS_OTA_TRANSFER_ID" "$SS_OTA_IMAGE_SHA256" "$mock_offset" > "$SS_OTA_BODY_FILE"
+    printf '{"otaProtocolVersion":3,"state":"receiving","transferId":"%s","sha256":"%s","expectedBytes":8192,"sessionArch":"n16r8","sessionHardware":"legacy","sessionMachine":"legacy","sessionVersion":"1.2.3","nextOffset":%s}' "$SS_OTA_TRANSFER_ID" "$SS_OTA_IMAGE_SHA256" "$mock_offset" > "$SS_OTA_BODY_FILE"
     if [[ "$mock_mode" == "changed" ]]; then printf '{"transferId":"other"}' > "$SS_OTA_BODY_FILE"; fi
     SS_OTA_CURL_EXIT=0; SS_OTA_HTTP_STATUS=200; return 0
   fi
   if [[ "$method" == "GET" && "$path" == "/api/v1/ota" ]]; then
     if [[ "$mock_mode" == "lost-commit" ]]; then
-      printf '{"state":"committed","restartPending":true,"transferId":"%s","sha256":"%s","expectedBytes":8192,"sessionArch":"n16r8","sessionVersion":"1.2.3","otaProtocolVersion":2}' "$SS_OTA_TRANSFER_ID" "$SS_OTA_IMAGE_SHA256" > "$SS_OTA_BODY_FILE"
+      printf '{"state":"committed","restartPending":true,"transferId":"%s","sha256":"%s","expectedBytes":8192,"sessionArch":"n16r8","sessionHardware":"legacy","sessionMachine":"legacy","sessionVersion":"1.2.3","otaProtocolVersion":3}' "$SS_OTA_TRANSFER_ID" "$SS_OTA_IMAGE_SHA256" > "$SS_OTA_BODY_FILE"
     elif [[ "$mock_mode" == "wrong-commit" ]]; then
       printf '{"state":"committed","restartPending":true,"transferId":"other"}' > "$SS_OTA_BODY_FILE"
     else
@@ -223,11 +225,11 @@ case "$invalid_patch_output" in
   *) echo 'FAIL: invalid PATCH offset was not diagnosed' >&2; failures=$((failures + 1)) ;;
 esac
 
-printf '{"otaProtocolVersion":2,"state":"receiving","sessionActive":true,"transferId":"existing-transfer","sha256":"%s","expectedBytes":8192,"sessionArch":"n16r8","sessionVersion":"1.2.3"}' \
+printf '{"otaProtocolVersion":3,"state":"receiving","sessionActive":true,"transferId":"existing-transfer","sha256":"%s","expectedBytes":8192,"sessionArch":"n16r8","sessionHardware":"legacy","sessionMachine":"legacy","sessionVersion":"1.2.3"}' \
     "$SS_OTA_IMAGE_SHA256" > "$SS_OTA_BODY_FILE"
 check ss_ota_remote_owns_slot
 check ss_ota_remote_matches_image
-printf '{"otaProtocolVersion":2,"state":"receiving","sessionActive":true,"transferId":"existing-transfer","sha256":"%s","expectedBytes":8192,"sessionArch":"n16r8"}' \
+printf '{"otaProtocolVersion":3,"state":"receiving","sessionActive":true,"transferId":"existing-transfer","sha256":"%s","expectedBytes":8192,"sessionArch":"n16r8","sessionHardware":"legacy","sessionMachine":"legacy"}' \
     "$SS_OTA_IMAGE_SHA256" > "$SS_OTA_BODY_FILE"
 if ss_ota_remote_matches_image; then
   echo 'FAIL: incomplete v2 session identity matched the image' >&2
@@ -239,9 +241,12 @@ if ss_ota_remote_matches_image; then
   failures=$((failures + 1))
 fi
 SS_OTA_IMAGE_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-printf '{"state":"receiving","sessionActive":true,"transferId":"old-server-transfer","sha256":"%s","expectedBytes":8192,"nextOffset":4096,"chunkBytes":4096,"running":{"arch":"n16r8","version":"1.2.2"}}' \
+printf '{"otaProtocolVersion":2,"state":"receiving","sessionActive":true,"transferId":"old-server-transfer","sha256":"%s","expectedBytes":8192,"nextOffset":4096,"chunkBytes":4096,"running":{"arch":"n16r8","version":"1.2.2"}}' \
     "$SS_OTA_IMAGE_SHA256" > "$SS_OTA_BODY_FILE"
-check ss_ota_protocol_supported
+if ss_ota_protocol_supported; then
+  echo 'FAIL: profile-unaware OTA protocol v2 was accepted' >&2
+  failures=$((failures + 1))
+fi
 if ss_ota_remote_matches_image; then
   echo 'FAIL: legacy session missing architecture/version was adopted' >&2
   failures=$((failures + 1))
@@ -252,9 +257,9 @@ if ss_ota_protocol_supported; then
   failures=$((failures + 1))
 fi
 
-# The real POST body must contain only the five public session fields.
+# The real POST body must contain only the seven public session fields.
 ss_ota_write_session_body
-check node -e 'const x=JSON.parse(require("fs").readFileSync(process.argv[1]));if(Object.keys(x).sort().join()!=="arch,sha256,size,transferId,version")process.exit(1)' "$SS_OTA_SESSION_BODY"
+check node -e 'const x=JSON.parse(require("fs").readFileSync(process.argv[1]));if(Object.keys(x).sort().join()!=="arch,hardware,machine,sha256,size,transferId,version")process.exit(1)' "$SS_OTA_SESSION_BODY"
 
 SS_OTA_PRE_BOOT_ID=7
 SS_OTA_IMAGE_DIGEST=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb

@@ -555,9 +555,9 @@ const char *otaResultMessage(OtaResult result) {
     case OtaResult::NO_TAG:
       return "This image is not a Shot Stopper build.";
     case OtaResult::NO_IDENTITY:
-      return "The running firmware does not say which board it was built for, "
-             "so no image can be checked against it. Reflash over USB with "
-             "./scripts/build --arch <board> to update over Wi-Fi again.";
+      return "The running firmware has no complete hardware and machine "
+             "identity, so no image can be checked against it. Reflash once "
+             "over USB before using Wi-Fi updates again.";
     case OtaResult::SESSION_REQUIRED:
       return "Create an OTA session before sending image ranges.";
     case OtaResult::SESSION_CONFLICT:
@@ -574,7 +574,8 @@ const char *otaResultMessage(OtaResult result) {
     case OtaResult::SESSION_EXPIRED:
       return "The inactive firmware transfer expired. Create a new session.";
     case OtaResult::ARCH_MISMATCH:
-      return "This image was built for a different controller board.";
+      return "This image targets a different architecture, hardware profile, "
+             "or machine profile.";
     case OtaResult::DOWNGRADE:
       return "This image is older than the running firmware.";
     case OtaResult::WRITE_FAILED:
@@ -609,9 +610,10 @@ void appendOtaTag(char *buffer, size_t capacity, size_t &used,
   int written = 0;
   if (valid && tag.valid) {
     written = snprintf(buffer + used, capacity - used,
-                       ",\"%s\":{\"arch\":\"%s\",\"version\":\"%s\","
+                       ",\"%s\":{\"arch\":\"%s\",\"hardware\":\"%s\","
+                       "\"machine\":\"%s\",\"version\":\"%s\","
                        "\"packed\":%lu%s%s%s}",
-                       name, tag.arch, tag.version,
+                       name, tag.arch, tag.hardware, tag.machine, tag.version,
                        static_cast<unsigned long>(tag.packed),
                        imageSha256 != nullptr ? ",\"imageSha256\":\"" : "",
                        imageSha256 != nullptr ? imageSha256 : "",
@@ -672,6 +674,7 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
       "\"confirmed\":%s,\"safe\":%s,\"lockReason\":\"%s\",\"passwordRequired\":true,"
       "\"passwordAvailable\":true,\"restartPending\":%s,\"runningIdentityValid\":%s,\"transferId\":\"%s\","
       "\"sha256\":\"%s\",\"sessionArch\":\"%s\","
+      "\"sessionHardware\":\"%s\",\"sessionMachine\":\"%s\","
       "\"sessionVersion\":\"%s\",\"nextOffset\":%lu,\"chunkBytes\":%lu,"
       "\"sessionActive\":%s,\"sessionExpiresInMs\":%lu,\"lastChunkSha256\":\"%s\","
       "\"abortFailures\":%lu,\"journalFailures\":%lu",
@@ -683,8 +686,11 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
       ota_.pendingVerify ? "true" : "false",
       ota_.confirmed ? "true" : "false", safe ? "true" : "false",
       configLockReason(control), otaRestartPending_.load(std::memory_order_acquire) ? "true" : "false",
-      ota_.running.valid && otaArchIsUsable(ota_.running.arch) ? "true" : "false",
-      ota_.session.transferId, ota_.session.sha256, ota_.session.arch, ota_.session.version,
+      ota_.running.valid && otaArchIsUsable(ota_.running.arch) &&
+              otaProfileIsUsable(ota_.running.hardware) &&
+              otaProfileIsUsable(ota_.running.machine) ? "true" : "false",
+      ota_.session.transferId, ota_.session.sha256, ota_.session.arch,
+      ota_.session.hardware, ota_.session.machine, ota_.session.version,
       static_cast<unsigned long>(ota_.nextOffset), static_cast<unsigned long>(ota_.chunkBytes),
       ota_.sessionActive ? "true" : "false",
       static_cast<unsigned long>(ota_.sessionExpiresInMs), ota_.lastChunkSha256,
@@ -815,22 +821,30 @@ esp_err_t ShotStopperNetwork::otaSessionHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) return bodyStatus;
   cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   OtaSessionIdentity identity;
-  static const char *const fields[] = {"size", "sha256", "arch", "version", "transferId"};
-  const bool parsed = root != nullptr && jsonHasOnlyUniqueFields(root, fields, 5) &&
+  static const char *const fields[] = {"size", "sha256", "arch", "hardware",
+                                       "machine", "version", "transferId"};
+  const bool parsed = root != nullptr && jsonHasOnlyUniqueFields(root, fields, 7) &&
                       jsonUint32(root, "size", identity.size) &&
                       jsonString(root, "sha256", identity.sha256, sizeof(identity.sha256), false) &&
                       jsonString(root, "arch", identity.arch, sizeof(identity.arch), false) &&
+                      jsonString(root, "hardware", identity.hardware,
+                                 sizeof(identity.hardware), false) &&
+                      jsonString(root, "machine", identity.machine,
+                                 sizeof(identity.machine), false) &&
                       jsonString(root, "version", identity.version, sizeof(identity.version), false) &&
                       jsonString(root, "transferId", identity.transferId,
                                  sizeof(identity.transferId), false) &&
                       normalizeOtaSha256(identity.sha256) &&
-                      otaArchIsUsable(identity.arch) && validOtaVersion(identity.version) &&
+                      otaArchIsUsable(identity.arch) &&
+                      otaProfileIsUsable(identity.hardware) &&
+                      otaProfileIsUsable(identity.machine) &&
+                      validOtaVersion(identity.version) &&
                       validOtaTransferId(identity.transferId);
   if (root != nullptr) cJSON_Delete(root);
   self.unlockJsonBody();
   if (!parsed) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_OTA_SESSION",
-                     "size, sha256, arch, version, and transferId must identify one image.");
+                     "size, sha256, arch, hardware, machine, version, and transferId must identify one image.");
   }
   ShotStopperOta &ota = ShotStopperOta::instance();
   const OtaResult result = ota.createSession(identity, millis());

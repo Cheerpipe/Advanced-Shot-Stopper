@@ -1,7 +1,7 @@
 #!/bin/sh
-# Generates src/ShotStopperVersion.h.
+# Generates the firmware identity header at the requested output path.
 #
-# Usage: gen_version.sh [board_arch]
+# Usage: gen_version.sh [board_arch] [hardware_compat] [machine_compat] [output]
 #
 # board_arch is the OTA compatibility key (n8r4 / n16r8). It is baked into the
 # image tag so the controller can refuse a binary built for the other board.
@@ -12,9 +12,11 @@ set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 version_file="$root/VERSION"
-output="$root/src/ShotStopperVersion.h"
+output=${4:-$root/src/ShotStopperVersion.h}
 
 arch=${1:-unknown}
+hardware_compat=${2:-legacy}
+machine_compat=${3:-legacy}
 case "$arch" in
   n8r4|n16r8|unknown) ;;
   *)
@@ -22,6 +24,18 @@ case "$arch" in
     exit 1
     ;;
 esac
+for compat in "$hardware_compat" "$machine_compat"; do
+  case "$compat" in
+    ''|*[!a-z0-9-]*)
+      echo "Invalid profile compatibility ID: '$compat'" >&2
+      exit 1
+      ;;
+  esac
+  if [ "${#compat}" -gt 63 ]; then
+    echo "Profile compatibility ID is longer than 63 characters: '$compat'" >&2
+    exit 1
+  fi
+done
 
 ver=$(tr -d '[:space:]' < "$version_file")
 case "$ver" in
@@ -60,6 +74,7 @@ else
 fi
 
 build_id="${ver}+${sha}${dirty}"
+mkdir -p "$(dirname -- "$output")"
 
 cat > "$output" <<EOF
 #pragma once
@@ -70,6 +85,8 @@ cat > "$output" <<EOF
 
 #define FW_VERSION_STRING "${build_id}"
 #define FW_BOARD_ARCH_STRING "${arch}"
+#define FW_HARDWARE_COMPAT_STRING "${hardware_compat}"
+#define FW_MACHINE_COMPAT_STRING "${machine_compat}"
 #define FW_VERSION_PACKED_STRING "${packed}"
 
 // Contiguous marker embedded in every flashable image. The OTA verifier scans
@@ -77,7 +94,9 @@ cat > "$output" <<EOF
 // for this exact board before it may become the boot image. Keep the field
 // order and the "|END" terminator in sync with ShotStopperOta.cpp.
 #define FW_IMAGE_TAG_STRING                                     \\
-  "SHOTSTOPPER_FW_TAG_V1|arch=" FW_BOARD_ARCH_STRING            \\
+  "SHOTSTOPPER_FW_TAG_V2|arch=" FW_BOARD_ARCH_STRING            \\
+  "|hw=" FW_HARDWARE_COMPAT_STRING                              \\
+  "|machine=" FW_MACHINE_COMPAT_STRING                          \\
   "|ver=" FW_VERSION_STRING                                     \\
   "|packed=" FW_VERSION_PACKED_STRING "|END"
 
@@ -85,9 +104,11 @@ namespace shotstopper {
 
 constexpr char FW_VERSION[] = FW_VERSION_STRING;
 constexpr char FW_BOARD_ARCH[] = FW_BOARD_ARCH_STRING;
+constexpr char FW_HARDWARE_COMPAT[] = FW_HARDWARE_COMPAT_STRING;
+constexpr char FW_MACHINE_COMPAT[] = FW_MACHINE_COMPAT_STRING;
 constexpr uint32_t FW_VERSION_PACKED = 0x$(printf '%08x' "$packed")U;
 
 }  // namespace shotstopper
 EOF
 
-echo "Generated $output ($build_id, arch=$arch)"
+echo "Generated $output ($build_id, arch=$arch, hw=$hardware_compat, machine=$machine_compat)"

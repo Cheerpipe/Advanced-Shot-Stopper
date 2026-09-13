@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "esp32-s3-relay-x1-speaker",
+  "display_name": "ESP32-S3 Relay X1 with speaker",
+  "compatibility_revision": 1,
+  "metadata": {
+    "product_url": "https://aliexpress.com/item/1005011880181624.html",
+    "identifiers": [
+      "303E32S3DC2",
+      "5437314A_Y1248-250908"
+    ]
+  },
+  "target": {
+    "chip": "esp32s3",
+    "memory_profile": "n16r8"
+  },
+  "activator": {
+    "gpio": 21,
+    "active_level": "low",
+    "pull": "up",
+    "debounce_ms": 30
+  },
+  "relay": {
+    "gpio": 2,
+    "contact_type": "normally_open",
+    "closed_level": "high",
+    "open_level": "low"
+  },
+  "scale_status_led": {
+    "present": true,
+    "gpio": 1,
+    "active_level": "high"
+  },
+  "speaker": {
+    "present": true,
+    "type": "passive_pwm",
+    "gpio": 14
+  },
+  "usb_console_jumper": {
+    "present": true,
+    "gpio": 4,
+    "active_level": "low",
+    "pull": "up",
+    "sample_at": "boot"
+  },
+  "reed": {
+    "present": false
+  },
+  "external_safety": {
+    "present": false
+  }
+}

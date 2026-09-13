@@ -11,9 +11,11 @@ and reed firmware. Home **Start rinse** follows the same Quick rinse setting.
 
 ## When it applies
 
-**Quick rinse** must be on. Default is **off** on every machine type. With it
-off, paddle short ON→OFF is a shot, and a momentary long-press is native 1:1
-(no `RINSE` cycle).
+**Quick rinse** must be on. Its fresh-install and factory-reset default comes
+from the machine profile: it is **on** for Linea Micra and **off** for the
+Rancilio profiles. With it off, paddle short ON→OFF is a shot, and a momentary
+long-press is native 1:1 (no `RINSE` cycle). Existing persisted choices survive
+ordinary boot and OTA.
 
 - **Paddle:** from Ready or during a brew, ON then OFF within the **gesture**
   time is a rinse. Holding ON past that time keeps a brew (or, if
@@ -35,7 +37,7 @@ Machine-level, **Settings → Machine and scale → Quick rinse**.
 
 | Setting | Default | Range | Effect |
 | --- | --- | --- | --- |
-| **Quick rinse** | Off | ON / OFF | Firmware rinse on/off. |
+| **Quick rinse** | Machine profile | ON / OFF | Firmware rinse on/off. Initial profiles use On for Linea Micra and Off for Rancilio. |
 | **Rinse gesture (s)** | 1 s | 0.1–5 s | Paddle: how long you can leave the paddle ON and still get a rinse when you flip it OFF. Momentary: how long to hold the switch from idle before a rinse starts. |
 | **Rinse duration (s)** | 4 s | 0.5–10 s | How long water runs through the group after a rinse starts. |
 

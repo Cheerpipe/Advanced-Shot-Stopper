@@ -20,13 +20,13 @@
 # Written for bash 3.2 (the system bash on macOS): no associative arrays,
 # no ${var,,} case conversion.
 
-SS_CLI_KEYS="port arch speed host password flags image build_dir output_dir webui_language"
+SS_CLI_KEYS="port arch speed host password flags image build_dir output_dir webui_language hardware_config machine_config"
 SS_CLI_SECRET_KEYS="password"
 # Extra compiler flags offered when the prompt for --flags is answered with Enter.
 SS_CLI_DEFAULT_FLAGS='-Werror=deprecated-copy -DSHOT_STOPPER_ENABLE_BUZZER=1'
 # Per-run path overrides. Persisting them would let a stale build_dir silently
 # point an analysis at the wrong architecture, so they never touch the store.
-SS_CLI_TRANSIENT_KEYS="image build_dir output_dir webui_language"
+SS_CLI_TRANSIENT_KEYS="image build_dir output_dir webui_language hardware_config machine_config"
 
 if [[ -z "${SS_CLI_ROOT:-}" ]]; then
   SS_CLI_ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -112,6 +112,8 @@ ss_env_name() {
     build_dir) printf 'SHOTSTOPPER_BUILD_DIR_OVERRIDE' ;;
     output_dir) printf 'SHOTSTOPPER_OUTPUT_DIR' ;;
     webui_language) printf 'SHOTSTOPPER_WEBUI_LANGUAGE' ;;
+    hardware_config) printf 'SHOTSTOPPER_HARDWARE_CONFIG' ;;
+    machine_config) printf 'SHOTSTOPPER_MACHINE_CONFIG' ;;
   esac
 }
 
@@ -129,6 +131,10 @@ Named parameters (long and short):
   -o, --output-dir <path>  Reports directory (static / static-idf only)
       --webui-language <code>
                            Compile-time WebUI language (default: en; not persisted)
+      --hardware-config <json>
+                           Assembled hardware profile (not persisted)
+      --machine-config <json>
+                           Coffee-machine profile (not persisted)
       --force              Commit OTA without a prompt and wait for confirmation
       --no-check           Skip local image verification before USB flashing;
                            transfer existing output as-is (OTA rejects it)
@@ -217,6 +223,8 @@ ss_cli_parse() {
       -b|--build-dir) key="build_dir" ;;
       -o|--output-dir) key="output_dir" ;;
       --webui-language) key="webui_language" ;;
+      --hardware-config) key="hardware_config" ;;
+      --machine-config) key="machine_config" ;;
       -h|--help|help)
         SS_CLI_HELP_REQUESTED=1
         return 0
@@ -397,6 +405,8 @@ ss_prompt_text() {
     build_dir) printf 'Build directory' ;;
     output_dir) printf 'Reports directory' ;;
     webui_language) printf 'WebUI language' ;;
+    hardware_config) printf 'Hardware profile JSON' ;;
+    machine_config) printf 'Machine profile JSON' ;;
     *) printf '%s' "$1" ;;
   esac
 }
@@ -540,7 +550,7 @@ ss_validate_key() {
         return 1
       fi
       ;;
-    password|image|build_dir|output_dir)
+    password|image|build_dir|output_dir|hardware_config|machine_config)
       if [[ -z "$value" ]]; then
         ss_cli_die "Parameter --$(printf '%s' "$key" | tr '_' '-') cannot be empty."
         return 1
@@ -753,6 +763,8 @@ ss_cli_flags_for() {
       build_dir) SS_CLI_FORWARD+=(--build-dir "$(ss_get build_dir)") ;;
       output_dir) SS_CLI_FORWARD+=(--output-dir "$(ss_get output_dir)") ;;
       webui_language) SS_CLI_FORWARD+=(--webui-language "$(ss_get webui_language)") ;;
+      hardware_config) SS_CLI_FORWARD+=(--hardware-config "$(ss_get hardware_config)") ;;
+      machine_config) SS_CLI_FORWARD+=(--machine-config "$(ss_get machine_config)") ;;
     esac
   done
 }

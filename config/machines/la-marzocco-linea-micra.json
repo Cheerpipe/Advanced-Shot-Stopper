@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "la-marzocco-linea-micra",
+  "display_name": "La Marzocco Linea Micra",
+  "compatibility_revision": 1,
+  "brand": "La Marzocco",
+  "model": "Linea Micra",
+  "integration_revision": "paddle-v1-unqualified",
+  "interface": {
+    "control": "paddle",
+    "feedback": "none"
+  },
+  "factory_defaults": {
+    "operational_wall_ms": 50000,
+    "paddle": {
+      "mode": "natural",
+      "return_reminder": {
+        "enabled": true,
+        "interval_ms": 10000,
+        "max_duration_ms": 900000
+      }
+    },
+    "quick_rinse": {
+      "enabled": true,
+      "gesture_ms": 1000,
+      "duration_ms": 4000
+    }
+  }
+}

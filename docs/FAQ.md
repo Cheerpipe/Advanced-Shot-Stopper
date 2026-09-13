@@ -107,6 +107,17 @@ See [build options](BUILD.md#5-build).
 
 ## Hardware and compatibility
 
+### Can I use this firmware with a machine other than Rancilio Silvia Pro X or La Marzocco Linea Micra?
+
+Yes, but first determine and review the correct configuration for that exact
+machine and controller assembly. Identify whether its brew control is momentary
+or maintained/paddle, whether reliable state feedback such as a reed sensor is
+available, how the isolated normally-open relay must connect, and which factory
+defaults match the machine's gestures. Then create complete
+[hardware and machine profiles](BUILD_PROFILES.md) and pass the applicable
+bench and manual tests. A similar connector, brand, or switch appearance is not
+proof of electrical or behavioral compatibility.
+
 - **Boards / wiring:** [Hardware](HARDWARE.md). A GPIO map is not a complete
   machine installation guide.
 - **Scale models / missing timer or sound:** [compatibility table](../libraries/EspressoScaleBLE/README.md#scale-compatibility).
@@ -115,8 +126,8 @@ See [build options](BUILD.md#5-build).
   ROM download uses BOOT + RST; see [USB console](HARDWARE.md#usb-console-jumper).
 - **LED or beeps:** the connection LED is not a brew or safety-ready indicator.
   Output depends on [Alerts](alerts.md), local buzzer and scale capabilities.
-- **Change GPIOs:** rebuild with the reviewed source/compile-time map; the Web
-  UI does not configure safety-critical pins.
+- **Change GPIOs:** create or select a reviewed hardware profile and rebuild;
+  the Web UI does not configure safety-critical pins.
 
 ## Safety and diagnostics
 

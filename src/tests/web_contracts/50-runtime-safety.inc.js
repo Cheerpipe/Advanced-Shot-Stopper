@@ -245,7 +245,8 @@ if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
     'lastCommand', 'loopIntervalGapMs', 'loopMaxGapMs',
     'machineState', 'physicalActivatorOn', 'reedOn', 'controlSource', 'cupPresence',
     'streamState', 'controlState', 'taskWatchdogReady', 'recoveryRequired',
-    'compileFlags', 'remoteMachineControl', 'complete', 'degraded', 'scaleWorker',
+    'compileFlags', 'remoteMachineControl', 'hardwareProfile', 'machineProfile',
+    'machineBrand', 'machineModel', 'complete', 'degraded', 'scaleWorker',
     'development', 'serial', 'io4'
   ]) {
     if (!diagBody.includes(field)) {
@@ -282,6 +283,8 @@ if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
       !ui.includes('dBz') ||
       !ui.includes('dCircuit') ||
       !ui.includes('dArch') ||
+      !ui.includes("'HW: '+f.hardwareProfile") ||
+      !ui.includes("'Machine: '+f.machineBrand+' '+f.machineModel") ||
       !ui.includes('dSerialIo4') ||
       !ui.includes('dSerialState') ||
       !ui.includes("enabled_jtag:'Enabled (compile flag)'") ||

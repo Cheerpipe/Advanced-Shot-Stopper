@@ -806,7 +806,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"weightUpdateIntervalMs\":%s},"
         "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"},"
         "\"compileFlags\":{\"buzzer\":\"%s\",\"remoteMachineControl\":%s,"
-        "\"arch\":\"%s\",\"machineType\":\"%s\",\"stopPulseMs\":%lu,"
+        "\"arch\":\"%s\",\"hardwareProfile\":\"%s\","
+        "\"machineProfile\":\"%s\",\"machineBrand\":\"%s\","
+        "\"machineModel\":\"%s\",\"machineType\":\"%s\",\"stopPulseMs\":%lu,"
         "\"maxSinglePressMs\":%lu,\"development\":%s},"
         "\"serial\":{\"io4\":\"%s\",\"state\":\"%s\"},"
         "\"boot\":{\"state\":\"%s\",\"complete\":%s,\"degraded\":%s,"
@@ -932,6 +934,10 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         compiledBuzzerModeId(),
         REMOTE_MACHINE_CONTROL_ENABLED ? "true" : "false",
         FW_BOARD_ARCH_STRING,
+        SHOT_STOPPER_HARDWARE_PROFILE_ID,
+        SHOT_STOPPER_MACHINE_PROFILE_ID,
+        SHOT_STOPPER_MACHINE_BRAND,
+        SHOT_STOPPER_MACHINE_MODEL,
         compiledMachineTypeId(),
         static_cast<unsigned long>(COMPILED_STOP_PULSE_MS),
         static_cast<unsigned long>(COMPILED_MAX_SINGLE_PRESS_MS),

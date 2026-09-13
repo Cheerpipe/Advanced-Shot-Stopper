@@ -539,7 +539,7 @@ void serviceSafetyHeartbeat(bool healthyLoopCompleted) {
                        relay.state != RelaySafetyState::TRIPPED;
   if (!healthy) {
     safetyHeartbeatLevel = false;
-    digitalWrite(SAFETY_HEARTBEAT_GPIO, LOW);
+    digitalWrite(SAFETY_HEARTBEAT_GPIO, SAFETY_HEARTBEAT_IDLE_LEVEL);
     return;
   }
   if (elapsedMs(safetyHeartbeatToggledAtMs) >=

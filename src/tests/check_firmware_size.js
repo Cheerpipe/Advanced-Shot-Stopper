@@ -7,7 +7,9 @@ const root = path.resolve(__dirname, '..', '..');
 const slotLimits = {n16r8: 3145728, n8r4: 3342336};
 const binPath = process.argv[2] || path.join(root, 'build-idf', 'n16r8', 'shotstopper.bin');
 const normalized = binPath.replace(/\\/g, '/');
-const arch = normalized.includes('/n8r4/') ? 'n8r4' :
+const explicitArch = process.argv[3] === '--arch' ? process.argv[4] : '';
+const arch = slotLimits[explicitArch] ? explicitArch :
+  normalized.includes('/n8r4/') ? 'n8r4' :
   normalized.includes('/n16r8/') ? 'n16r8' : null;
 
 if (!arch) {

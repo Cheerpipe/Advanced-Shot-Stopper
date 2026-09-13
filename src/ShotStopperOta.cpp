@@ -12,7 +12,7 @@
 #include "ShotStopperFlashIoScratch.h"
 #include "ShotStopperPsram.h"
 #include "ShotStopperPreferences.h"
-#include "ShotStopperVersion.h"
+#include <ShotStopperVersion.h>
 
 #include <string.h>
 
@@ -62,7 +62,7 @@ constexpr uint32_t OTA_MIN_IMAGE_BYTES = 65536;
 
 constexpr uint32_t OTA_SESSION_TTL_MS = 15U * 60U * 1000U;
 constexpr uint32_t OTA_JOURNAL_MAGIC = 0x4f544a31U;  // OTJ1
-constexpr uint16_t OTA_JOURNAL_VERSION = 1;
+constexpr uint16_t OTA_JOURNAL_VERSION = 2;
 constexpr uint32_t OTA_PUBLISHED_AVAILABLE = 1U << 0;
 constexpr uint32_t OTA_PUBLISHED_BUSY = 1U << 1;
 constexpr uint32_t OTA_PUBLISHED_PENDING_VERIFY = 1U << 2;
@@ -91,6 +91,10 @@ constexpr size_t OTA_TAG_REREAD_BYTES =
 bool sameTag(const OtaImageTag &left, const OtaImageTag &right) {
   return left.valid && right.valid && left.packed == right.packed &&
          strncmp(left.arch, right.arch, OTA_ARCH_CAPACITY) == 0 &&
+         strncmp(left.hardware, right.hardware,
+                 OTA_PROFILE_COMPAT_CAPACITY) == 0 &&
+         strncmp(left.machine, right.machine,
+                 OTA_PROFILE_COMPAT_CAPACITY) == 0 &&
          strncmp(left.version, right.version, OTA_VERSION_CAPACITY) == 0;
 }
 
@@ -103,6 +107,8 @@ bool sameSession(const OtaSessionIdentity &left,
   return left.size == right.size &&
          sameText(left.sha256, right.sha256, sizeof(left.sha256)) &&
          sameText(left.arch, right.arch, sizeof(left.arch)) &&
+         sameText(left.hardware, right.hardware, sizeof(left.hardware)) &&
+         sameText(left.machine, right.machine, sizeof(left.machine)) &&
          sameText(left.version, right.version, sizeof(left.version)) &&
          sameText(left.transferId, right.transferId,
                   sizeof(left.transferId));
@@ -135,7 +141,9 @@ bool validJournal(const OtaJournalRecord &record) {
 }
 
 bool validJournalIdentity(const OtaSessionIdentity &identity) {
-  if (!otaArchIsUsable(identity.arch) || identity.version[0] == '\0' ||
+  if (!otaArchIsUsable(identity.arch) ||
+      !otaProfileIsUsable(identity.hardware) ||
+      !otaProfileIsUsable(identity.machine) || identity.version[0] == '\0' ||
       identity.transferId[0] == '\0' || strlen(identity.sha256) != 64) {
     return false;
   }
@@ -569,7 +577,9 @@ OtaResult ShotStopperOta::createSession(const OtaSessionIdentity &identity,
   if (!confirmed_) {
     return OtaResult::PENDING_VERIFY;
   }
-  if (!otaArchIsUsable(runningTag_.arch)) {
+  if (!otaArchIsUsable(runningTag_.arch) ||
+      !otaProfileIsUsable(runningTag_.hardware) ||
+      !otaProfileIsUsable(runningTag_.machine)) {
     return OtaResult::NO_IDENTITY;
   }
   if (identity.size < OTA_MIN_IMAGE_BYTES) {
@@ -578,9 +588,18 @@ OtaResult ShotStopperOta::createSession(const OtaSessionIdentity &identity,
   if (identity.size > slotBytes_) {
     return OtaResult::TOO_LARGE;
   }
-  if (!otaArchIsUsable(identity.arch) || identity.sha256[0] == '\0' ||
+  if (!otaArchIsUsable(identity.arch) ||
+      !otaProfileIsUsable(identity.hardware) ||
+      !otaProfileIsUsable(identity.machine) || identity.sha256[0] == '\0' ||
       identity.transferId[0] == '\0' || identity.version[0] == '\0') {
     return OtaResult::SESSION_IDENTITY_MISMATCH;
+  }
+  if (!sameText(identity.arch, runningTag_.arch, OTA_ARCH_CAPACITY) ||
+      !sameText(identity.hardware, runningTag_.hardware,
+                OTA_PROFILE_COMPAT_CAPACITY) ||
+      !sameText(identity.machine, runningTag_.machine,
+                OTA_PROFILE_COMPAT_CAPACITY)) {
+    return OtaResult::ARCH_MISMATCH;
   }
   if (sessionActive_ || stagedValid_) {
     return sameSession(session_, identity) ? OtaResult::OK
@@ -797,6 +816,10 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
         break;
       }
       if (!sameText(tag.arch, runningTag_.arch, OTA_ARCH_CAPACITY) ||
+          !sameText(tag.hardware, runningTag_.hardware,
+                    OTA_PROFILE_COMPAT_CAPACITY) ||
+          !sameText(tag.machine, runningTag_.machine,
+                    OTA_PROFILE_COMPAT_CAPACITY) ||
           !sameText(tag.arch, session_.arch, OTA_ARCH_CAPACITY)) {
         failure = OtaResult::ARCH_MISMATCH;
         break;
@@ -863,6 +886,10 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   const OtaImageTag &tag = scanner_.tag();
   if (!otaArchIsUsable(tag.arch)) return finishFailure(OtaResult::NO_TAG);
   if (!sameText(tag.arch, runningTag_.arch, OTA_ARCH_CAPACITY) ||
+      !sameText(tag.hardware, runningTag_.hardware,
+                OTA_PROFILE_COMPAT_CAPACITY) ||
+      !sameText(tag.machine, runningTag_.machine,
+                OTA_PROFILE_COMPAT_CAPACITY) ||
       !sameText(tag.arch, session_.arch, OTA_ARCH_CAPACITY)) {
     return finishFailure(OtaResult::ARCH_MISMATCH);
   }

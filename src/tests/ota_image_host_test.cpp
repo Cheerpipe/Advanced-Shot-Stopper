@@ -45,8 +45,9 @@ std::string tagPrefix() {
 
 std::string makeTag(const std::string &arch, const std::string &version,
                     const std::string &packed) {
-  return tagPrefix() + "arch=" + arch + "|ver=" + version + "|packed=" +
-         packed + "|END";
+  return tagPrefix() + "arch=" + arch +
+         "|hw=legacy|machine=legacy|ver=" + version + "|packed=" + packed +
+         "|END";
 }
 
 std::vector<uint8_t> makeValidHeader() {
@@ -128,6 +129,8 @@ void testTagBodyParsesEveryField() {
   CHECK(parseOtaImageTagBody(body.c_str(), body.size(), parsed));
   CHECK(parsed.valid);
   CHECK(std::string(parsed.arch) == "n16r8");
+  CHECK(std::string(parsed.hardware) == "legacy");
+  CHECK(std::string(parsed.machine) == "legacy");
   CHECK(std::string(parsed.version) == "1.2.3+abc1234");
   CHECK(parsed.packed == 16908291U);
 }
@@ -213,6 +216,9 @@ bool scanEverySplit(const std::string &stream, OtaImageTag &tagOut,
     }
     if (firstResult &&
         (std::string(scanner.tag().arch) != std::string(firstTag.arch) ||
+         std::string(scanner.tag().hardware) !=
+             std::string(firstTag.hardware) ||
+         std::string(scanner.tag().machine) != std::string(firstTag.machine) ||
          std::string(scanner.tag().version) != std::string(firstTag.version) ||
          scanner.tag().packed != firstTag.packed ||
          scanner.tagOffset() != firstOffset)) {

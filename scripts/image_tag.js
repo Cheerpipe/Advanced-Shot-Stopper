@@ -14,9 +14,9 @@ const crypto = require('crypto');
 
 // Must stay in sync with FW_IMAGE_TAG_STRING (scripts/gen_version.sh) and the
 // parser in src/ShotStopperOta.cpp.
-const TAG_PREFIX = 'SHOTSTOPPER_FW_TAG_V1|';
+const TAG_PREFIX = 'SHOTSTOPPER_FW_TAG_V2|';
 const TAG_TERMINATOR = '|END';
-const TAG_BODY_MAX_BYTES = 160;
+const TAG_BODY_MAX_BYTES = 256;
 
 const ESP_IMAGE_MAGIC = 0xe9;
 const ESP_CHIP_ID_ESP32S3 = 0x0009;
@@ -49,15 +49,20 @@ function readCString(buffer, offset, capacity) {
 
 function parseTagBody(body) {
   if (body.includes('\0')) return null;
-  const fields = {arch: '', ver: '', packed: ''};
+  const fields = {arch: '', hw: '', machine: '', ver: '', packed: ''};
+  const seen = new Set();
   for (const part of body.split('|')) {
     const eq = part.indexOf('=');
     if (eq <= 0) continue;
     const key = part.slice(0, eq);
     if (Object.prototype.hasOwnProperty.call(fields, key)) {
+      if (seen.has(key)) return null;
+      seen.add(key);
       const value = part.slice(eq + 1);
       if ((key === 'arch' &&
            (!/^[a-z0-9]{1,15}$/.test(value) || value === 'unknown')) ||
+          ((key === 'hw' || key === 'machine') &&
+           !/^[a-z0-9][a-z0-9-]{0,62}$/.test(value)) ||
           (key === 'ver' && !/^[A-Za-z0-9.+_-]{1,47}$/.test(value)) ||
           (key === 'packed' && !/^\d{1,10}$/.test(value))) {
         return null;
@@ -66,6 +71,8 @@ function parseTagBody(body) {
     }
   }
   if (!/^[a-z0-9]{1,15}$/.test(fields.arch) || fields.arch === 'unknown' ||
+      !/^[a-z0-9][a-z0-9-]{0,62}$/.test(fields.hw) ||
+      !/^[a-z0-9][a-z0-9-]{0,62}$/.test(fields.machine) ||
       !/^[A-Za-z0-9.+_-]{1,47}$/.test(fields.ver) ||
       !/^\d{1,10}$/.test(fields.packed)) {
     return null;
@@ -145,6 +152,8 @@ function inspectImage(filePath) {
 function main(argv) {
   let filePath = '';
   let expectArch = '';
+  let expectHardware = '';
+  let expectMachine = '';
   let asJson = false;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -155,6 +164,16 @@ function main(argv) {
       i += 1;
     } else if (arg.startsWith('--expect-arch=')) {
       expectArch = arg.slice('--expect-arch='.length);
+    } else if (arg === '--expect-hardware') {
+      expectHardware = argv[i + 1] || '';
+      i += 1;
+    } else if (arg.startsWith('--expect-hardware=')) {
+      expectHardware = arg.slice('--expect-hardware='.length);
+    } else if (arg === '--expect-machine') {
+      expectMachine = argv[i + 1] || '';
+      i += 1;
+    } else if (arg.startsWith('--expect-machine=')) {
+      expectMachine = arg.slice('--expect-machine='.length);
     } else if (!filePath) {
       filePath = arg;
     } else {
@@ -177,6 +196,14 @@ function main(argv) {
     result.problems.push(
         `image declares arch=${result.tag.arch} but expected ${expectArch}`);
   }
+  if (expectHardware && result.tag && result.tag.hw !== expectHardware) {
+    result.problems.push(
+        `image declares hardware=${result.tag.hw} but expected ${expectHardware}`);
+  }
+  if (expectMachine && result.tag && result.tag.machine !== expectMachine) {
+    result.problems.push(
+        `image declares machine=${result.tag.machine} but expected ${expectMachine}`);
+  }
 
   if (result.problems.length > 0) {
     process.stderr.write(`Invalid image: ${filePath}\n`);
@@ -189,17 +216,20 @@ function main(argv) {
   if (asJson) {
     process.stdout.write(JSON.stringify({
       arch: result.tag.arch,
+      hardware: result.tag.hw,
+      machine: result.tag.machine,
       version: result.tag.ver,
       packed: Number(result.tag.packed),
       sizeBytes: result.sizeBytes,
       tagOffset: result.tag.tagOffset,
       projectName: result.projectName,
       imageSha256: result.imageSha256,
-      formatVersion: 1,
+      formatVersion: 2,
     }) + '\n');
   } else {
     process.stdout.write(
-        `arch=${result.tag.arch} version=${result.tag.ver} ` +
+        `arch=${result.tag.arch} hardware=${result.tag.hw} ` +
+        `machine=${result.tag.machine} version=${result.tag.ver} ` +
         `packed=${result.tag.packed} size=${result.sizeBytes} ` +
         `tagOffset=${result.tag.tagOffset}\n`);
   }

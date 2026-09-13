@@ -4,6 +4,15 @@ For firmware built with `SHOT_STOPPER_MACHINE_TYPE=1` (button only) or `2`
 (button plus reed/hall sensor), use **Settings → Machine and scale → Switch**.
 Paddle firmware hides this group.
 
+`config/machines/rancilio-silvia-pro-x.json` and
+`config/machines/rancilio-silvia-pro-x-reed.json` provide momentary profiles.
+The base profile infers state without a sensor; the `-reed` variant requires
+the matching reed-equipped hardware profile. Both retain the historical source
+defaults: button press, 300 ms stop pulse, 1,000 ms single-press limit, idle
+assumption on scale connect, the compiled 12 s reaction fallback, and Quick
+rinse off. Their integration revisions remain unqualified until each exact
+machine revision and circuit passes the manual electrical checks.
+
 ## Start and stop
 
 Press and release the brew button to start; a second valid press requests stop.

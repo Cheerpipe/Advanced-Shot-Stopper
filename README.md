@@ -24,6 +24,7 @@ and stop behavior.
 | --- | --- |
 | Check whether my equipment fits | [Requirements](#requirements) and [machine types](#machine-types) |
 | Prepare hardware and firmware | [Hardware](docs/HARDWARE.md) → [Build and USB installation](docs/BUILD.md) |
+| Choose a controller and machine build | [Hardware and machine build profiles](docs/BUILD_PROFILES.md) |
 | Connect and make the first shot | [First setup and daily use](docs/GETTING_STARTED.md) |
 | Change how brewing works | [Features and settings](#main-features) |
 | Integrate Advanced Shot Stopper with Home Assistant | [Home Assistant setup](docs/features/home-assistant.md) |
@@ -69,7 +70,9 @@ See the distinctions below before choosing a build.
 
 ## Machine types
 
-Select `SHOT_STOPPER_MACHINE_TYPE` when building; it is not a Web UI setting.
+Prefer a named [hardware and machine build profile](docs/BUILD_PROFILES.md).
+The selected machine profile resolves the corresponding compile-time type; it
+is not a Web UI setting.
 
 | Build | Value | How the controller knows the group is running |
 | --- | ---: | --- |
@@ -110,7 +113,7 @@ circuit and follow the [hardware safety guidance](docs/HARDWARE.md) before insta
 | Handle cup removal or bumps | [Cup protection](docs/features/cup-protection.md) |
 | Handle unexpectedly fast or slow shots | [Fast](docs/features/fast-extraction-guard.md) and [Slow](docs/features/slow-extraction-guard.md) guards |
 | Limit a shot after scale loss | [A→M time guard](docs/features/auto-to-manual.md) |
-| Rinse with a switch gesture | [Quick rinse](docs/settings/quick-rinse.md), off by default |
+| Rinse with a switch gesture | [Quick rinse](docs/settings/quick-rinse.md), with a machine-profile default |
 | Hear local feedback | [Alerts](docs/alerts.md), subject to scale/buzzer capabilities |
 | Review results | [Shot history and statistics](docs/features/shot-history.md) |
 | Integrate with Home Assistant | [Home Assistant](docs/features/home-assistant.md) |
@@ -183,6 +186,8 @@ unlock with the device password. These are separate controls:
 - [Emergency recovery](docs/EMERGENCY_RECOVERY.md) restores access or resets
   settings using the physical switch.
 - [Build and script reference](docs/SCRIPTS.md) covers supported ESP-IDF tooling.
+- [Hardware and machine build profiles](docs/BUILD_PROFILES.md) defines the
+  complete JSON profile, compatibility, override, and artifact contracts.
 
 <a id="roadmap-and-safety-boundaries"></a>
 

@@ -107,6 +107,8 @@ ss_ota_remote_matches_image() {
       [[ "$(ss_ota_field sha256)" == "$SS_OTA_IMAGE_SHA256" ]] &&
       [[ "$(ss_ota_field expectedBytes)" == "$SS_OTA_IMAGE_SIZE" ]] || return 1
   [[ "$(ss_ota_field sessionArch)" == "$SS_OTA_IMAGE_ARCH" ]] &&
+      [[ "$(ss_ota_field sessionHardware)" == "$SS_OTA_IMAGE_HARDWARE" ]] &&
+      [[ "$(ss_ota_field sessionMachine)" == "$SS_OTA_IMAGE_MACHINE" ]] &&
       [[ "$(ss_ota_field sessionVersion)" == "$SS_OTA_IMAGE_VERSION" ]]
 }
 
@@ -121,18 +123,13 @@ ss_ota_offset_valid() {
 }
 
 ss_ota_protocol_supported() {
-  [[ "$(ss_ota_field otaProtocolVersion)" == "2" ]] && return 0
-  # Compatibility with the immediately preceding resumable implementation.
-  # This recognizes its range/session schema, never the legacy monolithic POST.
-  [[ "$(ss_ota_field chunkBytes)" =~ ^[0-9]+$ ]] &&
-      [[ "$(ss_ota_field nextOffset)" =~ ^[0-9]+$ ]] &&
-      { [[ "$(ss_ota_field sessionActive)" == "true" ]] ||
-        [[ "$(ss_ota_field sessionActive)" == "false" ]]; }
+  [[ "$(ss_ota_field otaProtocolVersion)" == "3" ]]
 }
 
 ss_ota_write_session_body() {
-  node -e 'process.stdout.write(JSON.stringify({size:Number(process.argv[1]),sha256:process.argv[2],arch:process.argv[3],version:process.argv[4],transferId:process.argv[5]}))' \
+  node -e 'process.stdout.write(JSON.stringify({size:Number(process.argv[1]),sha256:process.argv[2],arch:process.argv[3],hardware:process.argv[4],machine:process.argv[5],version:process.argv[6],transferId:process.argv[7]}))' \
       "$SS_OTA_IMAGE_SIZE" "$SS_OTA_IMAGE_SHA256" "$SS_OTA_IMAGE_ARCH" \
+      "$SS_OTA_IMAGE_HARDWARE" "$SS_OTA_IMAGE_MACHINE" \
       "$SS_OTA_IMAGE_VERSION" "$SS_OTA_TRANSFER_ID" > "$SS_OTA_SESSION_BODY"
 }
 
@@ -140,6 +137,8 @@ ss_ota_staged_matches_image() {
   [[ "$(ss_ota_field state)" == "staged" ]] || return 1
   ss_ota_remote_matches_transfer &&
       [[ "$(ss_ota_field staged.arch)" == "$SS_OTA_IMAGE_ARCH" ]] &&
+      [[ "$(ss_ota_field staged.hardware)" == "$SS_OTA_IMAGE_HARDWARE" ]] &&
+      [[ "$(ss_ota_field staged.machine)" == "$SS_OTA_IMAGE_MACHINE" ]] &&
       [[ "$(ss_ota_field staged.version)" == "$SS_OTA_IMAGE_VERSION" ]] &&
       [[ "$(ss_ota_field staged.packed)" == "$SS_OTA_IMAGE_PACKED" ]]
 }
@@ -322,13 +321,15 @@ ss_ota_run() {
   done
 
   if [[ "$skip_local_check" == "1" ]]; then
-    echo '--no-check cannot perform resumable OTA: the SHA-256, architecture, and version are required.' >&2
+    echo '--no-check cannot perform resumable OTA: SHA-256 and the complete image identity are required.' >&2
     return 2
   else
     local tag_json
     echo 'Local image identity:'
     tag_json="$(node ./scripts/image_tag.js "$SS_OTA_IMAGE" --expect-arch "$arch" --json)" || return $?
     SS_OTA_IMAGE_ARCH="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).arch)' "$tag_json")"
+    SS_OTA_IMAGE_HARDWARE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).hardware)' "$tag_json")"
+    SS_OTA_IMAGE_MACHINE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).machine)' "$tag_json")"
     SS_OTA_IMAGE_VERSION="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).version)' "$tag_json")"
     SS_OTA_IMAGE_PACKED="$(node -e 'process.stdout.write(String(JSON.parse(process.argv[1]).packed))' "$tag_json")"
     SS_OTA_IMAGE_DIGEST="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).imageSha256)' "$tag_json")"
@@ -356,7 +357,7 @@ ss_ota_run() {
     return 1
   fi
   if ! ss_ota_protocol_supported; then
-    echo 'The controller does not support resumable OTA protocol v2.' >&2
+    echo 'The controller does not support profile-aware resumable OTA protocol v3.' >&2
     echo 'Update it once over USB; no legacy OTA fallback was attempted.' >&2
     return 1
   fi
@@ -369,7 +370,9 @@ ss_ota_run() {
       "$(ss_ota_field running.arch)"
   SS_OTA_PRE_BOOT_ID="$(ss_ota_field bootId)"
   if [[ "$(ss_ota_field runningIdentityValid)" == "false" ]] ||
-      [[ -z "$(ss_ota_field running.arch)" ]]; then
+      [[ "$(ss_ota_field running.arch)" != "$SS_OTA_IMAGE_ARCH" ]] ||
+      [[ "$(ss_ota_field running.hardware)" != "$SS_OTA_IMAGE_HARDWARE" ]] ||
+      [[ "$(ss_ota_field running.machine)" != "$SS_OTA_IMAGE_MACHINE" ]]; then
     echo 'The running firmware has no usable Shot Stopper image identity.' >&2
     echo 'Update it once over USB before using OTA.' >&2
     return 1
@@ -393,12 +396,14 @@ ss_ota_run() {
       fi
     else
       echo 'A different firmware image owns the update slot.' >&2
-      printf 'Remote: sha256=%s size=%s arch=%s version=%s\n' \
+      printf 'Remote: sha256=%s size=%s arch=%s hardware=%s machine=%s version=%s\n' \
           "$(ss_ota_field sha256)" "$(ss_ota_field expectedBytes)" \
-          "$(ss_ota_field sessionArch)" "$(ss_ota_field sessionVersion)" >&2
-      printf 'Local:  sha256=%s size=%s arch=%s version=%s\n' \
+          "$(ss_ota_field sessionArch)" "$(ss_ota_field sessionHardware)" \
+          "$(ss_ota_field sessionMachine)" "$(ss_ota_field sessionVersion)" >&2
+      printf 'Local:  sha256=%s size=%s arch=%s hardware=%s machine=%s version=%s\n' \
           "$SS_OTA_IMAGE_SHA256" "$SS_OTA_IMAGE_SIZE" \
-          "$SS_OTA_IMAGE_ARCH" "$SS_OTA_IMAGE_VERSION" >&2
+          "$SS_OTA_IMAGE_ARCH" "$SS_OTA_IMAGE_HARDWARE" \
+          "$SS_OTA_IMAGE_MACHINE" "$SS_OTA_IMAGE_VERSION" >&2
       echo 'Re-run with --discard-ota-session only if the remote partial should be discarded.' >&2
       return 1
     fi

@@ -61,11 +61,15 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
       request, buf, cap,
       "{\"exportSchemaVersion\":%lu,\"exportedAtUtcSec\":%lu,"
       "\"firmwareVersion\":\"%s\",\"bootId\":%lu,\"machineType\":\"%s\","
-      "\"boardArch\":\"%s\",\"sections\":{",
+      "\"boardArch\":\"%s\",\"hardwareProfile\":\"%s\","
+      "\"machineProfile\":\"%s\",\"machineBrand\":\"%s\","
+      "\"machineModel\":\"%s\",\"sections\":{",
       static_cast<unsigned long>(DEBUG_EXPORT_SCHEMA_VERSION),
       static_cast<unsigned long>(timeStatus.utcSec), FW_VERSION,
       static_cast<unsigned long>(c.bootId), compiledMachineTypeId(),
-      FW_BOARD_ARCH_STRING);
+      FW_BOARD_ARCH_STRING, SHOT_STOPPER_HARDWARE_PROFILE_ID,
+      SHOT_STOPPER_MACHINE_PROFILE_ID, SHOT_STOPPER_MACHINE_BRAND,
+      SHOT_STOPPER_MACHINE_MODEL);
 
   ok = ok &&
        debugExportChunkf(
@@ -714,7 +718,9 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"endReason\":\"%s\",\"shotType\":\"%s\","
            "\"extractionExtended\":%s,\"slowExtractionExtended\":%s},"
            "\"compileFlags\":{\"buzzer\":\"%s\",\"remoteMachineControl\":%s,"
-           "\"arch\":\"%s\",\"machineType\":\"%s\",\"stopPulseMs\":%lu,"
+           "\"arch\":\"%s\",\"hardwareProfile\":\"%s\","
+           "\"machineProfile\":\"%s\",\"machineBrand\":\"%s\","
+           "\"machineModel\":\"%s\",\"machineType\":\"%s\",\"stopPulseMs\":%lu,"
            "\"maxSinglePressMs\":%lu,\"development\":%s},",
            c.lastShot.valid ? "true" : "false",
            static_cast<unsigned>(c.lastShot.goalWeightG),
@@ -725,7 +731,9 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            c.lastShot.slowExtractionExtended ? "true" : "false",
            compiledBuzzerModeId(),
            REMOTE_MACHINE_CONTROL_ENABLED ? "true" : "false",
-           FW_BOARD_ARCH_STRING, compiledMachineTypeId(),
+           FW_BOARD_ARCH_STRING, SHOT_STOPPER_HARDWARE_PROFILE_ID,
+           SHOT_STOPPER_MACHINE_PROFILE_ID, SHOT_STOPPER_MACHINE_BRAND,
+           SHOT_STOPPER_MACHINE_MODEL, compiledMachineTypeId(),
            static_cast<unsigned long>(COMPILED_STOP_PULSE_MS),
            static_cast<unsigned long>(COMPILED_MAX_SINGLE_PRESS_MS),
            DEVELOPMENT_BUILD ? "true" : "false");

@@ -2,7 +2,8 @@
 
 The firmware, browser, and developer scripts use this contract to decide
 whether an ESP32-S3 application image belongs to Shot Stopper and targets the
-same board as the running controller.
+same architecture, assembled hardware, and coffee machine as the running
+controller.
 
 For update steps, use [OTA](ota.md). This page is for firmware/browser/CLI
 implementers; these checks do not replace the controller's verification.
@@ -22,16 +23,19 @@ implementers; these checks do not replace the controller's verification.
 The image contains one generated ASCII tag:
 
 ```text
-SHOTSTOPPER_FW_TAG_V1|arch=<arch>|ver=<version>|packed=<uint32>|END
+SHOTSTOPPER_FW_TAG_V2|arch=<arch>|hw=<hardware>|machine=<machine>|ver=<version>|packed=<uint32>|END
 ```
 
 - The tag may occur at any byte offset. Its position is linker-dependent and
   is never a compatibility condition.
 - `arch` contains 1–15 lowercase ASCII letters or digits and cannot be
   `unknown`.
+- `hw` and `machine` contain their profile IDs plus compatibility revisions,
+  or `legacy` for builds made without named profiles. Each value contains
+  1–63 lowercase ASCII letters, digits, or hyphens.
 - `ver` contains 1–47 ASCII letters, digits, `.`, `+`, `-`, or `_`.
 - `packed` is an unsigned decimal 32-bit integer with at most 10 digits.
-- The parser body, including `|END`, is limited to 160 bytes.
+- The parser body, including `|END`, is limited to 256 bytes.
 - Unknown fields are ignored. A malformed candidate does not hide a later
   valid candidate.
 - Parsers must handle the prefix, fields, and terminator across arbitrary
@@ -42,7 +46,7 @@ SHOTSTOPPER_FW_TAG_V1|arch=<arch>|ver=<version>|packed=<uint32>|END
 The immutable image identity is:
 
 ```text
-size + SHA-256(full .bin) + arch + version
+size + SHA-256(full .bin) + arch + hardware + machine + version
 ```
 
 `transferId` identifies an upload session. A client reconnecting with the same
@@ -50,7 +54,7 @@ image adopts the server's existing `transferId` and continues from the
 validated `nextOffset`. A different image must explicitly discard the old
 session before it can create a new one.
 
-The session JSON contains only those four identity fields and `transferId`.
+The session JSON contains only those six identity fields and `transferId`.
 Parser metadata (`packed`, `tagOffset`, `projectName`, `imageSha256`) is local
 and must not be copied into this strict request body.
 
@@ -60,5 +64,6 @@ which covers the entire `.bin`. Match it to `running.imageSha256`, require a
 new `bootId`, and then require `confirmed` before declaring OTA success.
 
 The controller remains authoritative: local validation is a fast preflight,
-while the controller repeats the header, tag, architecture, version, complete
-SHA-256, and ESP image verification before staging or changing the boot slot.
+while the controller repeats the header, tag, architecture, hardware profile,
+machine profile, version, complete SHA-256, and ESP image verification before
+staging or changing the boot slot.

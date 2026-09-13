@@ -4,6 +4,13 @@ For latch/paddle firmware (`SHOT_STOPPER_MACHINE_TYPE=0`), choose
 **Settings → Machine and scale → Paddle**. The mode is shared across presets.
 Momentary builds show [Switch](momentary.md) instead.
 
+`config/machines/la-marzocco-linea-micra.json` selects this paddle topology for
+the initial La Marzocco Linea Micra integration. Factory reset seeds Natural
+mode, the 10-second return reminder with a 15-minute limit, and Quick rinse on
+(1-second gesture, 4-second duration). Persisted user choices remain unchanged
+by normal OTA. This integration is not described as hardware-qualified until
+its actual maintained-input circuit passes the manual checks.
+
 ## Choose a mode
 
 <a id="when-it-applies"></a>
@@ -32,7 +39,7 @@ apply to timer-only or manual no-scale shots; the electrical 60 s cap remains.
    while the paddle remains ON.
 
 With [Quick rinse](quick-rinse.md) enabled, an ON→OFF inside its gesture window
-requests rinse instead. Quick rinse is off by default.
+requests rinse instead. The Linea Micra profile enables it by default.
 
 ## Original
 

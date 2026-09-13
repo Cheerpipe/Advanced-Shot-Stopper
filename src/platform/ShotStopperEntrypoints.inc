@@ -2,6 +2,9 @@
 // ---------------------------------------------------------------------------
 
 bool usbConsoleJumperPresent() {
+  if (!USB_CONSOLE_JUMPER_PRESENT) {
+    return false;
+  }
   pinMode(USB_CONSOLE_GPIO, INPUT_PULLUP);
   return digitalRead(USB_CONSOLE_GPIO) == USB_CONSOLE_ACTIVE_LEVEL;
 }
@@ -33,7 +36,9 @@ void setup() {
 #endif
   safetyResetStatus = beginSafetyResetGuard();
 
-  localBuzzer.begin(BUZZER_GPIO);
+  if (SPEAKER_PRESENT) {
+    localBuzzer.begin(BUZZER_GPIO);
+  }
 
   platformClockReady = setCpuFrequencyMhz(80) &&
                        applyPowerProfile(PowerProfile::OFF);

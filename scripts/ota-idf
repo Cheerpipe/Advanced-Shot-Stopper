@@ -40,8 +40,8 @@ so compile first (./scripts/build-idf / ./scripts/b-idf) or use
 With --force, the script commits without asking and waits until the rebooted
 firmware confirms itself through its HTTP API; no Web UI reload is needed.
 
-Resumable OTA rejects --no-check because SHA-256, architecture, and version are
-required to identify and safely resume one exact image.
+Resumable OTA rejects --no-check because SHA-256, architecture, hardware
+profile, machine profile, and version are required to safely resume one image.
 
 Use --discard-ota-session to explicitly discard a partial or staged different
 image before creating the requested session. Matching images resume

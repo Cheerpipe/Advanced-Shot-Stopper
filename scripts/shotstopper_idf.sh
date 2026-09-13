@@ -126,7 +126,7 @@ ss_idf_jtag_enabled() {
 # IDF_IMAGE, IDF_ELF, IDF_MAP, IDF_SDKCONFIG, IDF_SDKCONFIG_DEFAULTS.
 ss_idf_resolve_paths() {
   IDF_PROJECT="$SS_CLI_ROOT/idf"
-  IDF_BUILD_DIR="$SS_CLI_ROOT/build-idf/$SHOTSTOPPER_ARCH"
+  IDF_BUILD_DIR="$SS_CLI_ROOT/build-idf/${SHOTSTOPPER_VARIANT:-$SHOTSTOPPER_ARCH}"
   IDF_IMAGE="$IDF_BUILD_DIR/${IDF_PROJECT_NAME}.bin"
   IDF_ELF="$IDF_BUILD_DIR/${IDF_PROJECT_NAME}.elf"
   IDF_MAP="$IDF_BUILD_DIR/${IDF_PROJECT_NAME}.map"
@@ -513,7 +513,12 @@ ss_idf_verify_firmware() {
     exit 1
   fi
   echo "Image OTA identity:"
-  node "$SS_CLI_ROOT/scripts/image_tag.js" "$IDF_IMAGE" --expect-arch "$SHOTSTOPPER_ARCH"
+  local identity_args=(--expect-arch "$SHOTSTOPPER_ARCH")
+  if [[ -n "${SHOTSTOPPER_HARDWARE_COMPAT:-}" ]]; then
+    identity_args+=(--expect-hardware "$SHOTSTOPPER_HARDWARE_COMPAT"
+                    --expect-machine "$SHOTSTOPPER_MACHINE_COMPAT")
+  fi
+  node "$SS_CLI_ROOT/scripts/image_tag.js" "$IDF_IMAGE" "${identity_args[@]}"
 
   if ss_idf_jtag_enabled; then
     if ! grep -q '^CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y$' "$IDF_SDKCONFIG"; then

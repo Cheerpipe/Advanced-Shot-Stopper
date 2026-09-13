@@ -8,6 +8,8 @@ const vm = require('vm');
 const crypto = require('crypto');
 const jsDir = path.join(__dirname, '../web/js');
 const runtime = fs.readFileSync(path.join(jsDir, 'runtime.js'), 'utf8');
+const locale = JSON.parse(fs.readFileSync(
+    path.join(jsDir, '../locales/en.json'), 'utf8')).strings;
 const otaSource = runtime.slice(runtime.indexOf('const OTA_UPLOAD_TIMEOUT_MS='),
     runtime.indexOf('function statusPageOk('));
 const parser = new Function(fs.readFileSync(path.join(jsDir, 'ota-image.js'), 'utf8')
@@ -18,7 +20,7 @@ function fixture() {
   image[0] = 0xe9; image[12] = 9; image[13] = 0; image[23] = 1;
   image.writeUInt32LE(0xabcd5432, 32);
   image.fill(0, 80, 112); image.write('shotstopper', 80);
-  image.write('SHOTSTOPPER_FW_TAG_V1|arch=n16r8|ver=1.2.3|packed=123|END', 320);
+  image.write('SHOTSTOPPER_FW_TAG_V2|arch=n16r8|hw=legacy|machine=legacy|ver=1.2.3|packed=123|END', 320);
   crypto.createHash('sha256').update(image.subarray(0, -32)).digest().copy(image, image.length - 32);
   return new Blob([image]);
 }
@@ -28,15 +30,20 @@ async function harness(mode) {
   const messages = [], patches = [], payloads = [];
   let offset = 0, posts = 0, commits = 0;
   const session = {...identity, transferId: 'test-transfer'};
-  const status = () => ({otaProtocolVersion: 2, available: true, safe: true,
+  const status = () => ({otaProtocolVersion: 3, available: true, safe: true,
     confirmed: true, runningIdentityValid: true, bootId: 7,
-    running: {arch: identity.arch, version: identity.version, imageSha256: identity.imageSha256},
+    running: {arch: identity.arch, hardware: identity.hardware,
+      machine: identity.machine, version: identity.version,
+      imageSha256: identity.imageSha256},
     state: offset === file.size ? 'staged' : 'receiving', sessionActive: true,
     transferId: session.transferId, expectedBytes: file.size, sha256: identity.sha256,
-    sessionArch: identity.arch, sessionVersion: identity.version, nextOffset: offset,
-    staged: {arch: identity.arch, version: identity.version, packed: identity.packed,
+    sessionArch: identity.arch, sessionHardware: identity.hardware,
+    sessionMachine: identity.machine, sessionVersion: identity.version, nextOffset: offset,
+    staged: {arch: identity.arch, hardware: identity.hardware,
+      machine: identity.machine, version: identity.version, packed: identity.packed,
       imageSha256: identity.imageSha256}});
-  const context = vm.createContext({console, crypto: crypto.webcrypto, localStorage: {
+  const context = vm.createContext({console, crypto: crypto.webcrypto,
+  __WEBUI_TEXT__: key => locale[key] || key, localStorage: {
     getItem: key => items.get(key) || null,
     setItem: (key, value) => items.set(key, value), removeItem: key => items.delete(key)},
   $: key => {
@@ -52,7 +59,8 @@ async function harness(mode) {
     if (method === 'POST' && url.endsWith('/session')) {
       posts++;
       const request = JSON.parse(body); payloads.push(request);
-      assert.deepEqual(Object.keys(request).sort(), ['arch', 'sha256', 'size', 'transferId', 'version']);
+      assert.deepEqual(Object.keys(request).sort(),
+        ['arch', 'hardware', 'machine', 'sha256', 'size', 'transferId', 'version']);
       if (mode === 'refused') throw Object.assign(new Error('PENDING_VERIFY'), {status: 409});
       return status();
     }

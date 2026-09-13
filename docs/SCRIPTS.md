@@ -96,6 +96,8 @@ prompting. The same applies with `SHOTSTOPPER_NONINTERACTIVE=1`.
 | `-b`, `--build-dir` | `SHOTSTOPPER_BUILD_DIR_OVERRIDE` | Build directory (`static`/`static-idf` only). |
 | `-o`, `--output-dir` | `SHOTSTOPPER_OUTPUT_DIR` | Reports directory (`static` / `static-idf` only). |
 | `--webui-language` | `SHOTSTOPPER_WEBUI_LANGUAGE` | Compile-time Web UI language (default `en`; never persisted). |
+| `--hardware-config` | `SHOTSTOPPER_HARDWARE_CONFIG` | Build-only hardware profile JSON. Must be paired with `--machine-config`; never persisted. |
+| `--machine-config` | `SHOTSTOPPER_MACHINE_CONFIG` | Build-only machine profile JSON. Must be paired with `--hardware-config`; never persisted. |
 | `--force` | — | OTA scripts only: commit without an interactive prompt and wait for the rebooted firmware to confirm itself through the HTTP API. No Web UI reload is required. |
 | `--no-check` | — | USB flash only: skip the local image identity check and transfer existing build outputs as-is. Resumable OTA rejects this flag because it requires the image identity and SHA-256. |
 | `--discard-ota-session` | — | OTA only: explicitly discard a different partial or staged image. A matching image resumes automatically without this flag. |
@@ -135,6 +137,26 @@ For local development only, add `-DSHOT_STOPPER_DEVELOPMENT=1` to bypass WebUI
 admin unlock (Admin / Diagnostic / Home Actions without the device password).
 Do not ship development builds to production devices.
 
+Named profiles are selected with both profile options:
+
+```sh
+./scripts/dev build \
+  --hardware-config config/hardware/esp32-s3-relay-x1-speaker.json \
+  --machine-config config/machines/rancilio-silvia-pro-x.json \
+  --flags "-DSHOT_STOPPER_ENABLE_BUZZER=1"
+```
+
+See [Hardware and machine build profiles](BUILD_PROFILES.md) for the complete
+JSON contracts, capability matching, overrides, and generated artifacts.
+
+Profile builds use `build-idf/<hardware>--<machine>/`. JSON supplies the base,
+then explicit `--flags` override supported values or add unrelated definitions,
+and the complete resolved configuration is validated before compilation.
+Hardware and machine profile paths plus Web UI language are transient;
+`.shotstopper` never turns them into a later build's surprise input.
+Development mode can only be supplied through explicit compiler flags, never
+through either JSON profile.
+
 USB Serial/JTAG stays **off** unless you add `-DSHOT_STOPPER_ENABLE_JTAG=1`.
 That build turns the IDF USB Serial/JTAG console on at boot (OpenOCD + CDC,
 no GPIO4 jumper). Default firmware and any flash without that flag keep JTAG
@@ -144,7 +166,10 @@ off.
 `--flags` (for example `-DSHOT_STOPPER_MACHINE_TYPE=1`) drops the IDF CMake
 cache so the new `-D` flags actually reach the compiler. Diagnostic **Type**
 is that compile-time machine type (`paddle`, `momentary`, or `momentary_reed`),
-not a runtime setting.
+not a runtime setting. Diagnostic **Compile flags** also shows the resolved
+hardware profile, machine profile ID, machine brand, and machine model. Legacy
+architecture-only builds report explicit generic/legacy identity instead of
+inventing a named profile.
 
 ## ESP-IDF (supported)
 
@@ -159,7 +184,7 @@ inactive SDK selected by `IDF_PATH`, or `$HOME/esp/esp-idf-v6.1`. See
 
 | Script | Alias | Required | Description |
 | --- | --- | --- | --- |
-| `./scripts/build-idf` | `b-idf` | `--arch` (`--flags`, `--webui-language` optional) | Generate version and the selected Web UI, then build with ESP-IDF. |
+| `./scripts/build-idf` | `b-idf` | `--arch`, or both profile options (`--flags`, `--webui-language` optional) | Resolve profiles when selected, generate version and the Web UI, then build with ESP-IDF. |
 | `./scripts/flash-idf` | `f-idf` | `--port`, `--arch` | Flash existing build outputs (or `--image <path>`); never rebuilds. Does not open the monitor. |
 | `./scripts/monitor-idf` | `m-idf` | `--port`, `--speed` | IDF serial monitor (Ctrl+] to exit). |
 | `./scripts/ota-idf` | `o-idf` | `--arch`, `--host`, `--password` | Wi-Fi update with the already-built IDF binary, or `--image <path>`. |
@@ -207,7 +232,7 @@ For USB flash it skips the local identity check; both checked and unchecked
 project transfers use the existing `flash_args` with esptool (bootloader,
 partition table, otadata, and app) and never rebuild. OTA rejects it because
 resumable sessions cannot be matched or committed safely without the local
-SHA-256, architecture, and version.
+SHA-256, architecture, hardware profile, machine profile, and version.
 
 `--erase-all` is accepted by `flash-idf` and its USB flashing wrappers. It
 runs a full `erase_flash` before writing the project bootloader, partition

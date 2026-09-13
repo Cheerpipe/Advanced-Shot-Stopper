@@ -11,8 +11,9 @@ your network.
   in command arguments or shared logs.
 - From **Admin → Firmware update**, unlock administration first. The Web UI
   does not ask for the device password again.
-- Image must match the board architecture and must not be older than the
-  running version (downgrades are refused).
+- Image must match the board architecture, hardware-profile compatibility ID,
+  and machine-profile compatibility ID, and must not be older than the running
+  version (downgrades are refused).
 
 ## Safety behavior
 
@@ -68,7 +69,8 @@ The CLI computes the image SHA-256 before the transfer, creates a named OTA
 session, and sends 64 KiB ranges. If Wi-Fi drops, it queries the confirmed
 offset and repeats only the unconfirmed range; it never resends the complete
 image. A later CLI invocation queries the controller first and adopts its
-`transferId` when SHA-256, size, architecture, and version match. The device
+`transferId` when SHA-256, size, architecture, hardware, machine, and version
+match. The device
 keeps a checksummed, double-record journal every 512 KiB so the same transfer
 can continue after a client or controller restart. A TCP cut keeps complete
 4 KiB sectors; reboot can retreat to the last durable checkpoint and resend
@@ -91,8 +93,10 @@ single-POST protocol requires one USB update; the CLI never falls back to that
 protocol silently.
 
 `--no-check` is intentionally unavailable for resumable OTA because an image
-without a verified SHA-256, architecture, and version cannot be safely matched
-to a staged slot or committed.
+without a verified SHA-256, architecture, hardware, machine, and version cannot
+be safely matched to a staged slot or committed. Legacy arch-only images do
+not match named profiles; install a current image over USB when crossing that
+identity boundary.
 
 The Web UI reads and hashes the image incrementally. It scans the whole file
 for the identity (the linker may place it at any offset), validates the ESP32-S3

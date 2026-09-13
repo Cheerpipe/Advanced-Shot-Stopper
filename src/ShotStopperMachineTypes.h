@@ -20,9 +20,17 @@ namespace shotstopper {
 // Electrical circuit-closed cap. Firmware-only; not a setting. Brew walls
 // (Max BBW time) must never exceed this.
 constexpr uint32_t HARD_MAX_CIRCUIT_CLOSED_MS = 60000;
-constexpr uint32_t DEFAULT_OPERATIONAL_WALL_MS = 50000;
+#ifndef SHOT_STOPPER_DEFAULT_OPERATIONAL_WALL_MS
+#define SHOT_STOPPER_DEFAULT_OPERATIONAL_WALL_MS 50000
+#endif
+#ifndef SHOT_STOPPER_DEFAULT_RINSE_GESTURE_MS
+#define SHOT_STOPPER_DEFAULT_RINSE_GESTURE_MS 1000
+#endif
+constexpr uint32_t DEFAULT_OPERATIONAL_WALL_MS =
+    SHOT_STOPPER_DEFAULT_OPERATIONAL_WALL_MS;
 // Default paddle ON→OFF / idle long-press window that publishes REQUEST_RINSE.
-constexpr uint32_t DEFAULT_RINSE_GESTURE_MS = 1000;
+constexpr uint32_t DEFAULT_RINSE_GESTURE_MS =
+    SHOT_STOPPER_DEFAULT_RINSE_GESTURE_MS;
 
 enum class MachineRunState : uint8_t {
   CONFIRMED_OFF = 0,

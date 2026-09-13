@@ -140,7 +140,7 @@ function browserFile(buffer) {
 }
 function otaFixture(tagOffset) {
   const tag = Buffer.from(
-      'SHOTSTOPPER_FW_TAG_V1|arch=n16r8|ver=1.2.3+abcdef0|' +
+      'SHOTSTOPPER_FW_TAG_V2|arch=n16r8|hw=legacy|machine=legacy|ver=1.2.3+abcdef0|' +
       'packed=16909056|END', 'latin1');
   const size = Math.max(tagOffset + tag.length + 64, 4096);
   const image = Buffer.alloc(size, 0x5a);
@@ -171,10 +171,10 @@ for (const tagOffset of [320, 65530, 262143, 262144, 270344]) {
   }
 }
 for (const badBody of [
-  'arch=N16R8|arch=n16r8|ver=1.2.3|packed=1|END',
-  'ignored=\0|arch=n16r8|ver=1.2.3|packed=1|END',
+  'arch=N16R8|arch=n16r8|hw=legacy|machine=legacy|ver=1.2.3|packed=1|END',
+  'ignored=\0|arch=n16r8|hw=legacy|machine=legacy|ver=1.2.3|packed=1|END',
 ]) {
-  const bad = Buffer.from('SHOTSTOPPER_FW_TAG_V1|' + badBody, 'latin1');
+  const bad = Buffer.from('SHOTSTOPPER_FW_TAG_V2|' + badBody, 'latin1');
   const validOffset = 320 + bad.length + 8;
   const fixture = otaFixture(validOffset);
   bad.copy(fixture, 320);
@@ -687,7 +687,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       'buildOtaJson must reserve room for its closing brace and fall back to a ' +
       'valid object when the OTA JSON does not fit');
   }
-  if (!otaHeader.includes('OTA_PROTOCOL_VERSION = 2') ||
+  if (!otaHeader.includes('OTA_PROTOCOL_VERSION = 3') ||
       !network.includes('\\"otaProtocolVersion\\":%u') ||
       !network.includes('\\"runningIdentityValid\\":%s') ||
       !network.includes('\\"sessionArch\\":\\"%s\\"') ||
@@ -699,6 +699,13 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       (runtimeJs.match(/!otaRemoteMatches\(session,status\)/g) || []).length < 2) {
     throw new Error(
       'Web OTA must bind session creation and reconciliation to the requested transferId');
+  }
+  if (!network.includes('sessionHardware') ||
+      !network.includes('sessionMachine') ||
+      !runtimeJs.includes('status.sessionHardware===identity.hardware') ||
+      !runtimeJs.includes('status.sessionMachine===identity.machine')) {
+    throw new Error(
+      'OTA sessions must bind hardware and machine profile compatibility');
   }
   // Recovering an image too broken to run any firmware code is the bootloader's
   // job, so losing that configuration must break the build, not the machine.
@@ -718,7 +725,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   }
   // The needle is assembled at run time so a compiled image contains exactly
   // one contiguous copy of the prefix: its own tag, never the search pattern.
-  if (otaImage.includes('"SHOTSTOPPER_FW_TAG_V1|"') ||
+  if (otaImage.includes('"SHOTSTOPPER_FW_TAG_V2|"') ||
       !otaImage.includes('OTA_TAG_PREFIX_PART_1') ||
       !otaImage.includes('OTA_TAG_PREFIX_PART_2')) {
     throw new Error('OTA tag prefix must stay split so it is not embedded contiguously');

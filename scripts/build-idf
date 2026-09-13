@@ -18,7 +18,7 @@ Usage: ./scripts/build-idf [flags]
 Compile Shot Stopper with ESP-IDF (official supported path) and write artifacts
 to build-idf/<architecture>.
 
-Required parameters: --arch. --flags is optional and prompted once.
+Required parameters: --arch, or both profile options. --flags is optional.
 The WebUI language defaults to en and is selected at compile time.
 
 $(ss_flag_help)
@@ -37,6 +37,8 @@ BLE backend:
 Examples:
   ./scripts/build-idf --arch n16r8
   ./scripts/build-idf --arch n16r8 --webui-language EN
+  ./scripts/build-idf --hardware-config config/hardware/esp32-s3-relay-x1-speaker.json \
+    --machine-config config/machines/rancilio-silvia-pro-x.json
   ./scripts/build-idf -a n16r8 -f "-DSHOT_STOPPER_ENABLE_JTAG=1"
 EOF
 }
@@ -47,7 +49,49 @@ if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
   exit 0
 fi
 
-ss_cli_resolve "arch webui_language" "flags" || exit $?
+ss_cli_apply_env
+profile_mode=0
+if ss_is_set hardware_config || ss_is_set machine_config; then
+  profile_mode=1
+  if ! ss_is_set hardware_config || ! ss_is_set machine_config; then
+    echo "--hardware-config and --machine-config must be used together." >&2
+    exit 2
+  fi
+  ss_cli_resolve "hardware_config machine_config webui_language" "flags" || exit $?
+else
+  ss_cli_resolve "arch webui_language" "flags" || exit $?
+fi
+
+root="$SS_CLI_ROOT"
+cd "$root"
+if [[ "$profile_mode" == "1" ]]; then
+  profile_output="$(python3 ./scripts/resolve_build_profiles.py \
+    --hardware-config "$(ss_get hardware_config)" \
+    --machine-config "$(ss_get machine_config)" \
+    --flags="$(ss_get flags)" --output-root "$root/build-idf")" || exit $?
+  resolved_arch="$(printf '%s\n' "$profile_output" | sed -n 's/^arch=//p')"
+  SHOTSTOPPER_VARIANT="$(printf '%s\n' "$profile_output" | sed -n 's/^variant=//p')"
+  SHOTSTOPPER_HARDWARE_COMPAT="$(printf '%s\n' "$profile_output" | sed -n 's/^hardware_compat=//p')"
+  SHOTSTOPPER_MACHINE_COMPAT="$(printf '%s\n' "$profile_output" | sed -n 's/^machine_compat=//p')"
+  SHOTSTOPPER_GENERATED_DIR="$(printf '%s\n' "$profile_output" | sed -n 's/^generated_dir=//p')"
+  if [[ -z "$resolved_arch" || -z "$SHOTSTOPPER_VARIANT" ||
+        -z "$SHOTSTOPPER_HARDWARE_COMPAT" ||
+        -z "$SHOTSTOPPER_MACHINE_COMPAT" ||
+        -z "$SHOTSTOPPER_GENERATED_DIR" ]]; then
+    echo "Profile resolver returned incomplete build metadata." >&2
+    exit 2
+  fi
+  if ss_is_set arch && { [[ "$(ss_origin arch)" == "cli" ]] ||
+                         [[ "$(ss_origin arch)" == "env" ]]; } &&
+     [[ "$(ss_get arch)" != "$resolved_arch" ]]; then
+    echo "--arch $(ss_get arch) conflicts with profile target $resolved_arch." >&2
+    exit 2
+  fi
+  ss_put arch "$resolved_arch" profile
+  export SHOTSTOPPER_VARIANT SHOTSTOPPER_GENERATED_DIR
+  printf '%s\n' "$profile_output"
+fi
+
 shotstopper_resolve_board "$(ss_get arch)"
 ss_idf_source
 ss_idf_py_args
@@ -57,11 +101,7 @@ command -v node >/dev/null 2>&1 || {
   exit 127
 }
 
-root="$SS_CLI_ROOT"
-cd "$root"
-
-echo "Building $SHOTSTOPPER_ARCH (IDF, BLE=nimble, allocator=external)"
-./scripts/gen_version.sh "$SHOTSTOPPER_ARCH"
+echo "Building ${SHOTSTOPPER_VARIANT:-$SHOTSTOPPER_ARCH} (IDF, BLE=nimble, allocator=external)"
 echo "WebUI language: $(ss_get webui_language)"
 node ./scripts/gen_web_ui.js --webui-language "$(ss_get webui_language)"
 
@@ -99,13 +139,34 @@ if [[ ! -f "$IDF_SDKCONFIG" ]] ||
   idf.py "${IDF_PY_ARGS[@]}" set-target esp32s3
 fi
 
+# set-target performs fullclean and removes generated files from a fresh
+# variant tree. Re-emit the validated profile after it completes and before
+# any translation unit is compiled.
+if [[ "$profile_mode" == "1" ]]; then
+  python3 ./scripts/resolve_build_profiles.py \
+    --hardware-config "$(ss_get hardware_config)" \
+    --machine-config "$(ss_get machine_config)" \
+    --flags="$(ss_get flags)" --output-root "$root/build-idf" >/dev/null
+  ./scripts/gen_version.sh "$SHOTSTOPPER_ARCH" \
+    "$SHOTSTOPPER_HARDWARE_COMPAT" "$SHOTSTOPPER_MACHINE_COMPAT" \
+    "$SHOTSTOPPER_GENERATED_DIR/ShotStopperVersion.h"
+else
+  ./scripts/gen_version.sh "$SHOTSTOPPER_ARCH"
+fi
+
 ss_idf_commit_extra_flags_stamp
 
 idf.py "${IDF_PY_ARGS[@]}" build 2>&1 | ss_idf_filter_output
 
 python -m esp_idf_size --format json2 -o "$IDF_BUILD_DIR/size.json" \
   "$IDF_BUILD_DIR/shotstopper.map"
-node "$root/src/tests/check_firmware_size.js" "$IDF_BUILD_DIR/shotstopper.bin"
+node "$root/src/tests/check_firmware_size.js" "$IDF_BUILD_DIR/shotstopper.bin" \
+  --arch "$SHOTSTOPPER_ARCH"
 
 ss_idf_verify_firmware
+if [[ -n "${SHOTSTOPPER_VARIANT:-}" ]]; then
+  artifact="$IDF_BUILD_DIR/shotstopper-${SHOTSTOPPER_VARIANT}.bin"
+  cp "$IDF_IMAGE" "$artifact"
+  echo "Named firmware artifact: $artifact"
+fi
 ss_cli_save

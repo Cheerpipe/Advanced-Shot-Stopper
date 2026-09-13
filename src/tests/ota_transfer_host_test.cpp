@@ -16,6 +16,8 @@ struct OtaHostTestAccess {
     ota->begin();
     // Host tests must not regenerate the tracked version header to pick a board.
     std::strcpy(ota->runningTag_.arch, "n16r8");
+    std::strcpy(ota->runningTag_.hardware, FW_HARDWARE_COMPAT_STRING);
+    std::strcpy(ota->runningTag_.machine, FW_MACHINE_COMPAT_STRING);
     return ota;
   }
 };
@@ -49,11 +51,15 @@ struct Image {
                 OTA_EXPECTED_PROJECT_NAME);
     char prefix[OTA_TAG_PREFIX_CAPACITY];
     otaTagPrefix(prefix, sizeof(prefix));
-    const std::string tag = std::string(prefix) + "arch=n16r8|ver=" +
-        FW_VERSION_STRING + "|packed=" + FW_VERSION_PACKED_STRING + "|END";
+    const std::string tag = std::string(prefix) + "arch=n16r8|hw=" +
+        FW_HARDWARE_COMPAT_STRING + "|machine=" + FW_MACHINE_COMPAT_STRING +
+        "|ver=" + FW_VERSION_STRING + "|packed=" +
+        FW_VERSION_PACKED_STRING + "|END";
     std::memcpy(bytes.data() + 512, tag.data(), tag.size());
     identity.size = static_cast<uint32_t>(size);
     std::strcpy(identity.arch, "n16r8");
+    std::strcpy(identity.hardware, FW_HARDWARE_COMPAT_STRING);
+    std::strcpy(identity.machine, FW_MACHINE_COMPAT_STRING);
     std::strcpy(identity.version, FW_VERSION_STRING);
     std::strcpy(identity.transferId, "test-transfer-012345");
     psa_hash_operation_t hash = PSA_HASH_OPERATION_INIT;

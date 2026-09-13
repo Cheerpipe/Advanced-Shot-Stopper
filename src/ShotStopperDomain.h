@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
+#include "ShotStopperBuildProfile.h"
 #include "ShotStopperSafety.h"
 #include "ShotStopperHwmon.h"
 #include "ShotStopperBbwTypes.h"
@@ -67,9 +67,6 @@ constexpr uint32_t SERIAL_BAUD = 115200;
 // Bump and add a migration when the blob layout changes
 // (see ShotStopperSettingsMigrate.h).
 constexpr uint32_t CONFIG_SCHEMA_VERSION = 12;
-// Rinse clock default. Detection window default is DEFAULT_RINSE_GESTURE_MS
-// (machine-owned, ShotStopperMachineTypes.h).
-constexpr uint32_t DEFAULT_RINSE_DURATION_MS = 4000;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;
@@ -182,6 +179,10 @@ constexpr bool BUZZER_SUPPORT_ENABLED = SHOT_STOPPER_ENABLE_BUZZER != 0;
 static_assert(SHOT_STOPPER_ENABLE_BUZZER == 0 ||
                   SHOT_STOPPER_ENABLE_BUZZER == 1,
               "SHOT_STOPPER_ENABLE_BUZZER must be 0 (off) or 1 (passive RTTTL)");
+#ifdef SHOT_STOPPER_SPEAKER_PRESENT
+static_assert(!BUZZER_SUPPORT_ENABLED || SHOT_STOPPER_SPEAKER_PRESENT == 1,
+              "Buzzer support requires speaker hardware");
+#endif
 
 inline const char *compiledBuzzerModeId() {
   if (SHOT_STOPPER_ENABLE_BUZZER == 1) {
@@ -602,13 +603,13 @@ struct RuntimeConfig {
   // Optional beep when the first coffee drop is detected.
   bool firstDropBeep = true;
   // Remind the user to release the physical paddle after machine circuit has opened.
-  bool paddleReturnReminderBeep = true;
+  bool paddleReturnReminderBeep = SHOT_STOPPER_DEFAULT_PADDLE_RETURN_REMINDER;
   bool soundAlertsMuted = false;
   uint32_t paddleReturnReminderIntervalMs =
       DEFAULT_PADDLE_RETURN_REMINDER_INTERVAL_MS;
   uint32_t paddleReturnReminderMaxDurationMs =
       DEFAULT_PADDLE_RETURN_REMINDER_MAX_DURATION_MS;
-  uint8_t paddleMode = static_cast<uint8_t>(PaddleMode::NATURAL);
+  uint8_t paddleMode = SHOT_STOPPER_DEFAULT_PADDLE_MODE;
   // Local buzzer alerts (active when SHOT_STOPPER_ENABLE_BUZZER is 1).
   bool buzzerScaleLostBeep = true;
   bool buzzerAutoToManualGuardEndBeep = true;
@@ -687,13 +688,13 @@ struct RuntimeConfig {
   // Wait after shot end before capturing the post-drip weight.
   uint32_t dripDelayMs = DEFAULT_DRIP_DELAY_MS;
   // Start/stop on press (default) vs release. Reed confirm window.
-  bool momentaryStartOnPress = true;
+  bool momentaryStartOnPress = SHOT_STOPPER_DEFAULT_MOMENTARY_START_ON_PRESS;
   uint8_t reedConfirmTimeoutHundredMs = 0;
   // Switch-only inferred-state sync. 0 timeout = compiled 12 s default.
-  bool assumeIdleWhenScaleConnects = true;
-  uint8_t shotReactTimeoutS = 0;
+  bool assumeIdleWhenScaleConnects = SHOT_STOPPER_DEFAULT_ASSUME_IDLE_ON_SCALE_CONNECT;
+  uint8_t shotReactTimeoutS = SHOT_STOPPER_DEFAULT_SHOT_REACTION_TIMEOUT_S;
   // Firmware rinse on/off. Default off for every machine type.
-  bool rinseEnabled = false;
+  bool rinseEnabled = SHOT_STOPPER_DEFAULT_RINSE_ENABLED;
   // Makes the read-only Diagnostic view available without an Admin unlock.
   // This occupies a former trailing padding byte, preserving the blob size.
   bool showDiagnosticPage = true;

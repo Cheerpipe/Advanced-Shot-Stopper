@@ -14,8 +14,9 @@
 namespace shotstopper {
 
 constexpr size_t OTA_ARCH_CAPACITY = 16;
+constexpr size_t OTA_PROFILE_COMPAT_CAPACITY = 64;
 constexpr size_t OTA_VERSION_CAPACITY = 48;
-constexpr size_t OTA_TAG_BODY_CAPACITY = 160;
+constexpr size_t OTA_TAG_BODY_CAPACITY = 256;
 constexpr size_t OTA_TAG_PREFIX_CAPACITY = 32;
 
 // esp_image_header_t (24 B) + one esp_image_segment_header_t (8 B) precede the
@@ -42,13 +43,15 @@ constexpr const char *OTA_EXPECTED_PROJECT_NAME_IDF = "shotstopper";
 // split so that a compiled firmware holds exactly one contiguous copy of the
 // full prefix: its own tag, never this search needle.
 constexpr const char *OTA_TAG_PREFIX_PART_1 = "SHOTSTOPPER";
-constexpr const char *OTA_TAG_PREFIX_PART_2 = "_FW_TAG_V1|";
+constexpr const char *OTA_TAG_PREFIX_PART_2 = "_FW_TAG_V2|";
 constexpr const char *OTA_TAG_TERMINATOR = "|END";
 constexpr size_t OTA_TAG_TERMINATOR_LENGTH = 4;
 
 struct OtaImageTag {
   bool valid = false;
   char arch[OTA_ARCH_CAPACITY] = {};
+  char hardware[OTA_PROFILE_COMPAT_CAPACITY] = {};
+  char machine[OTA_PROFILE_COMPAT_CAPACITY] = {};
   char version[OTA_VERSION_CAPACITY] = {};
   uint32_t packed = 0;
 };
@@ -80,6 +83,18 @@ inline bool otaVersionCharAllowed(char character) {
          (character >= 'A' && character <= 'Z') ||
          (character >= '0' && character <= '9') || character == '.' ||
          character == '+' || character == '-' || character == '_';
+}
+
+inline bool otaProfileCharAllowed(char character) {
+  return otaArchCharAllowed(character) || character == '-';
+}
+
+inline bool otaProfileIsUsable(const char *profile) {
+  if (profile == nullptr || profile[0] == '\0') return false;
+  for (const char *cursor = profile; *cursor != '\0'; ++cursor) {
+    if (!otaProfileCharAllowed(*cursor)) return false;
+  }
+  return true;
 }
 
 // "unknown" is what gen_version.sh emits when no board was named. Refusing it
@@ -146,6 +161,8 @@ inline bool parseOtaImageTagBody(const char *body, size_t length,
   }
   const size_t payload = length - OTA_TAG_TERMINATOR_LENGTH;
   bool haveArch = false;
+  bool haveHardware = false;
+  bool haveMachine = false;
   bool haveVersion = false;
   bool havePacked = false;
   size_t cursor = 0;
@@ -163,22 +180,40 @@ inline bool parseOtaImageTagBody(const char *body, size_t length,
       const char *value = equals + 1;
       const size_t valueLength = fieldLength - nameLength - 1;
       if (nameLength == 4 && memcmp(field, "arch", 4) == 0) {
+        if (haveArch) return false;
         haveArch = otaCopyField(value, valueLength, output.arch,
                                 sizeof(output.arch), otaArchCharAllowed);
         if (!haveArch) return false;
+      } else if (nameLength == 2 && memcmp(field, "hw", 2) == 0) {
+        if (haveHardware) return false;
+        haveHardware = otaCopyField(value, valueLength, output.hardware,
+                                    sizeof(output.hardware),
+                                    otaProfileCharAllowed);
+        if (!haveHardware) return false;
+      } else if (nameLength == 7 && memcmp(field, "machine", 7) == 0) {
+        if (haveMachine) return false;
+        haveMachine = otaCopyField(value, valueLength, output.machine,
+                                   sizeof(output.machine),
+                                   otaProfileCharAllowed);
+        if (!haveMachine) return false;
       } else if (nameLength == 3 && memcmp(field, "ver", 3) == 0) {
+        if (haveVersion) return false;
         haveVersion = otaCopyField(value, valueLength, output.version,
                                    sizeof(output.version),
                                    otaVersionCharAllowed);
         if (!haveVersion) return false;
       } else if (nameLength == 6 && memcmp(field, "packed", 6) == 0) {
+        if (havePacked) return false;
         havePacked = otaParseUint32(value, valueLength, output.packed);
         if (!havePacked) return false;
       }
     }
     cursor = separator + 1;
   }
-  if (!haveArch || !haveVersion || !havePacked) {
+  if (!haveArch || !haveHardware || !haveMachine || !haveVersion ||
+      !havePacked || !otaArchIsUsable(output.arch) ||
+      !otaProfileIsUsable(output.hardware) ||
+      !otaProfileIsUsable(output.machine)) {
     return false;
   }
   output.valid = true;

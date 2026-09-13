@@ -80,7 +80,7 @@
 #if defined(SHOT_STOPPER_USB_CONSOLE_OWN_HWCDC)
 HWCDC shotStopperUsbConsole;
 #endif
-#include "ShotStopperVersion.h"
+#include <ShotStopperVersion.h>
 #include "ShotStopperHardwareTimer.h"
 #include "ShotStopperResetGuard.h"
 #include "ShotStopperRecoveryGesture.h"
@@ -1838,8 +1838,13 @@ void transitionTo(StopperState nextState) {
 }
 
 void initializeScaleConnectedLed() {
+  if (!SCALE_STATUS_LED_PRESENT) {
+    scaleConnectedLedInitialized = false;
+    return;
+  }
   pinMode(SCALE_CONNECTED_LED_GPIO, OUTPUT);
-  digitalWrite(SCALE_CONNECTED_LED_GPIO, LOW);
+  digitalWrite(SCALE_CONNECTED_LED_GPIO,
+               SCALE_CONNECTED_LED_INACTIVE_LEVEL);
   lastScaleConnectedLedOn = false;
   lastScaleConnectedLedPattern = ScaleConnectedLedPattern::OFF;
   lastScaleConnectedLedToggleAtMs = 0;
@@ -1864,6 +1869,9 @@ ScaleConnectedLedPattern desiredScaleConnectedLedPattern() {
 }
 
 void serviceScaleConnectedLed() {
+  if (!SCALE_STATUS_LED_PRESENT) {
+    return;
+  }
   const ScaleConnectedLedPattern pattern = desiredScaleConnectedLedPattern();
   const uint32_t now = millis();
   bool on = false;
@@ -1901,7 +1909,9 @@ void serviceScaleConnectedLed() {
       pattern == lastScaleConnectedLedPattern) {
     return;
   }
-  digitalWrite(SCALE_CONNECTED_LED_GPIO, on ? HIGH : LOW);
+  digitalWrite(SCALE_CONNECTED_LED_GPIO,
+               on ? SCALE_CONNECTED_LED_ACTIVE_LEVEL
+                  : SCALE_CONNECTED_LED_INACTIVE_LEVEL);
   lastScaleConnectedLedOn = on;
   lastScaleConnectedLedPattern = pattern;
   scaleConnectedLedInitialized = true;

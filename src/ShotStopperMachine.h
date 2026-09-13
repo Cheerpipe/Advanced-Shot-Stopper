@@ -190,7 +190,7 @@ inline void machineInitialize() {
   digitalWrite(RELAY_GPIO, RELAY_OPEN_LEVEL);
   if (EXTERNAL_SAFETY_HARDWARE_PRESENT) {
     pinMode(SAFETY_HEARTBEAT_GPIO, OUTPUT);
-    digitalWrite(SAFETY_HEARTBEAT_GPIO, LOW);
+    digitalWrite(SAFETY_HEARTBEAT_GPIO, SAFETY_HEARTBEAT_IDLE_LEVEL);
     pinMode(CIRCUIT_FEEDBACK_GPIO, INPUT_PULLUP);
   }
   initializeActivatorInput();

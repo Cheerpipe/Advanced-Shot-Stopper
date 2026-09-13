@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""Contract tests for named hardware and machine build profiles."""
+
+import json
+import subprocess
+import tempfile
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
+RESOLVER = ROOT / "scripts/resolve_build_profiles.py"
+HARDWARE = ROOT / "config/hardware/esp32-s3-relay-x1-speaker.json"
+HARDWARE_REED = ROOT / "config/hardware/esp32-s3-relay-x1-speaker-reed.json"
+PRO_X = ROOT / "config/machines/rancilio-silvia-pro-x.json"
+PRO_X_REED = ROOT / "config/machines/rancilio-silvia-pro-x-reed.json"
+MICRA = ROOT / "config/machines/la-marzocco-linea-micra.json"
+
+
+def run(hardware=HARDWARE, machine=PRO_X, flags=""):
+    temporary = tempfile.TemporaryDirectory(prefix="shotstopper-profile-")
+    result = subprocess.run(
+        ["python3", str(RESOLVER), "--hardware-config", str(hardware),
+         "--machine-config", str(machine), f"--flags={flags}",
+         "--output-root", temporary.name],
+        cwd=ROOT, capture_output=True, text=True)
+    return temporary, result
+
+
+def changed(source: Path, mutate):
+    value = json.loads(source.read_text())
+    mutate(value)
+    handle = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", prefix="shotstopper-profile-fixture-",
+        delete=False)
+    json.dump(value, handle)
+    handle.close()
+    return Path(handle.name)
+
+
+def expect_failure(hardware=HARDWARE, machine=PRO_X, flags="", text=""):
+    temporary, result = run(hardware, machine, flags)
+    try:
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert text in result.stderr, result.stderr
+    finally:
+        temporary.cleanup()
+
+
+for hardware, machine, expected_type, brand, model in (
+        (HARDWARE, PRO_X, "1", "Rancilio", "Silvia Pro X"),
+        (HARDWARE_REED, PRO_X_REED, "2", "Rancilio", "Silvia Pro X"),
+        (HARDWARE, MICRA, "0", "La Marzocco", "Linea Micra")):
+    temporary, result = run(hardware=hardware, machine=machine)
+    try:
+        assert result.returncode == 0, result.stderr
+        output = dict(line.split("=", 1) for line in result.stdout.splitlines())
+        assert output["arch"] == "n16r8"
+        assert output["variant"].startswith(hardware.stem + "--")
+        generated = Path(output["generated_dir"])
+        header = (generated / "ShotStopperBuildProfileGenerated.h").read_text()
+        manifest = json.loads((generated / "build-profile.json").read_text())
+        assert f"#define SHOT_STOPPER_MACHINE_TYPE {expected_type}" in header
+        assert f'#define SHOT_STOPPER_MACHINE_MODEL "{model}"' in header
+        assert manifest["machine"]["brand"] == brand
+        assert manifest["hardware"]["relay"] == {
+            "gpio": 2, "contact_type": "normally_open",
+            "closed_level": "high", "open_level": "low"}
+        assert manifest["hardware"]["metadata"] == {
+            "product_url": "https://aliexpress.com/item/1005011880181624.html",
+            "identifiers": ["303E32S3DC2", "5437314A_Y1248-250908"]}
+    finally:
+        temporary.cleanup()
+
+temporary, result = run(machine=PRO_X)
+try:
+    assert result.returncode == 0, result.stderr
+    generated = Path(dict(line.split("=", 1) for line in
+                          result.stdout.splitlines())["generated_dir"])
+    defaults = json.loads((generated / "build-profile.json").read_text())[
+        "machine"]["factory_defaults"]
+    assert defaults["momentary"] == {
+        "start_edge": "press", "stop_pulse_ms": 300,
+        "max_single_press_ms": 1000,
+        "assume_idle_on_scale_connect": True,
+        "shot_reaction_timeout_s": 0}
+finally:
+    temporary.cleanup()
+
+temporary, result = run(hardware=HARDWARE_REED, machine=PRO_X_REED)
+try:
+    assert result.returncode == 0, result.stderr
+    generated = Path(dict(line.split("=", 1) for line in
+                          result.stdout.splitlines())["generated_dir"])
+    manifest = json.loads((generated / "build-profile.json").read_text())
+    assert manifest["hardware"]["reed"] == {
+        "present": True, "gpio": 13, "active_level": "low",
+        "pull": "up", "debounce_ms": 30}
+    assert manifest["machine"]["factory_defaults"]["momentary"][
+        "reed_confirm_timeout_ms"] == 1000
+finally:
+    temporary.cleanup()
+
+temporary, result = run(machine=MICRA)
+try:
+    assert result.returncode == 0, result.stderr
+    generated = Path(dict(line.split("=", 1) for line in
+                          result.stdout.splitlines())["generated_dir"])
+    defaults = json.loads((generated / "build-profile.json").read_text())[
+        "machine"]["factory_defaults"]
+    assert defaults["paddle"] == {
+        "mode": "natural", "return_reminder": {
+            "enabled": True, "interval_ms": 10000,
+            "max_duration_ms": 900000}}
+    assert defaults["quick_rinse"]["enabled"] is True
+finally:
+    temporary.cleanup()
+
+temporary, override = run(flags=(
+    "-DSHOT_STOPPER_RELAY_GPIO=3 "
+    "-DSHOT_STOPPER_DEFAULT_RINSE_ENABLED=1 "
+    "-DSHOT_STOPPER_DEVELOPMENT=1 -DCUSTOM_BUILD_NOTE=7"))
+try:
+    assert override.returncode == 0, override.stderr
+    output = dict(line.split("=", 1) for line in override.stdout.splitlines())
+    generated = Path(output["generated_dir"])
+    manifest = json.loads((generated / "build-profile.json").read_text())
+    header = (generated / "ShotStopperBuildProfileGenerated.h").read_text()
+    assert manifest["hardware"]["relay"]["gpio"] == 3
+    assert manifest["machine"]["factory_defaults"]["quick_rinse"]["enabled"]
+    assert "SHOT_STOPPER_DEVELOPMENT" not in header
+finally:
+    temporary.cleanup()
+
+bad = changed(HARDWARE, lambda value: value.pop("reed"))
+expect_failure(hardware=bad, text="hardware is missing: reed")
+bad.unlink()
+
+bad = changed(HARDWARE, lambda value: value["reed"].update(gpio=13))
+expect_failure(hardware=bad, text="hardware.reed has unknown fields: gpio")
+bad.unlink()
+
+bad = changed(HARDWARE, lambda value: value["relay"].update(gpio=21))
+expect_failure(hardware=bad, text="GPIO 21 is shared")
+bad.unlink()
+
+bad = changed(HARDWARE, lambda value: value.update(development=True))
+expect_failure(hardware=bad, text="unknown fields: development")
+bad.unlink()
+
+custom = changed(HARDWARE, lambda value: value["metadata"].update(
+    brand="Custom PCB", author="Example builder",
+    links={"schematic": "any-value"}))
+temporary, result = run(hardware=custom)
+try:
+    assert result.returncode == 0, result.stderr
+    generated = Path(dict(line.split("=", 1) for line in
+                          result.stdout.splitlines())["generated_dir"])
+    metadata = json.loads((generated / "build-profile.json").read_text())[
+        "hardware"]["metadata"]
+    assert metadata["brand"] == "Custom PCB"
+    assert metadata["author"] == "Example builder"
+    assert metadata["links"] == {"schematic": "any-value"}
+finally:
+    temporary.cleanup()
+    custom.unlink()
+
+bad = changed(PRO_X, lambda value: value["interface"].update(
+    control="momentary", feedback="reed"))
+expect_failure(machine=bad, text="factory_defaults")
+bad.unlink()
+
+expect_failure(flags="-DSHOT_STOPPER_MACHINE_TYPE=2",
+               text="conflicts with the machine profile")
+expect_failure(machine=PRO_X_REED,
+               text="machine requires reed feedback")
+expect_failure(flags="-DSHOT_STOPPER_REED_GPIO=13",
+               text="cannot configure absent reed hardware")
+expect_failure(flags="-DSHOT_STOPPER_SPEAKER_PRESENT=0",
+               text="cannot change physical presence")
+expect_failure(flags='-DSHOT_STOPPER_HARDWARE_PROFILE_ID="other"',
+               text="profile identity cannot be overridden")
+expect_failure(flags="-DSHOT_STOPPER_DEFAULT_SHOT_REACTION_TIMEOUT_S=2",
+               text="must be an integer from 3 to 30")
+
+print("Build profiles: schema, defaults, overrides and safety checks OK")

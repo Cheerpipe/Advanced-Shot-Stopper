@@ -371,7 +371,8 @@ def main() -> int:
                 steps = [HTTP_ROUTE_CAPACITY_STEP,
                          ("web-contracts", ["node", "src/tests/check_web_assets.js"])]
             elif profile == "tooling":
-                steps = [("tooling-contracts", ["python3", "src/tests/dev_tooling_test.py"])]
+                steps = [("tooling-contracts", ["python3", "src/tests/dev_tooling_test.py"]),
+                         ("build-profiles", ["python3", "src/tests/build_profiles_test.py"])]
             else:
                 raise ValueError("unknown test profile: " + profile)
             return execute(command, "R2" if profile in {"ble", "ota"} else "R1",

@@ -11,7 +11,7 @@
 #include "ShotStopperResetGuard.h"
 #include "ShotStopperSerialCli.h"
 #include "ShotStopperShotCurveTypes.h"
-#include "ShotStopperVersion.h"
+#include <ShotStopperVersion.h>
 #include "ShotStopperWatchdog.h"
 
 #include "ShotStopperWebAssetsGzip.h"

@@ -53,13 +53,15 @@ with COM / NO / NC screw terminals). Product listing used for development:
 
 ![Back of the ESP32-S3 1-channel relay development board](images/ESP32-S3_Relay_X1-back.png)
 
-The firmware **default GPIO map matches this board**. It is not a generic
-DevKit pinout.
+Every ESP32-S3 Relay X1 covered by this project uses the **N16R8** module. The
+named `esp32-s3-relay-x1-speaker` hardware profile is the authoritative GPIO,
+relay, memory, and peripheral description for the speaker-equipped assembly;
+it is not a generic DevKit pinout.
 
-You can still compile for **n8r4** (8 MB flash, 4 MB QSPI PSRAM) if that is
-the module you have. Paddle and relay GPIOs stay the same; only flash size
-and PSRAM type change. Classic ESP32 and Arduino Nano ESP32 are **not
-supported**.
+The legacy build interface can still target **n8r4** (8 MB flash, 4 MB QSPI
+PSRAM) for separately reviewed hardware. That architecture name does not imply
+an X1 pinout or physical compatibility. Classic ESP32 and Arduino Nano ESP32
+are not supported.
 
 ## 3D-printable enclosure
 
@@ -81,8 +83,9 @@ Example of the assembled, printed enclosure:
 
 ![Printed Advanced Shot Stopper enclosure](images/case-1.png)
 
-Pins live in [`src/ShotStopperHardware.h`](../src/ShotStopperHardware.h).
-They are **not** editable from the Web UI.
+Named wiring lives in `config/hardware/`; compile-time safety assertions remain
+in [`src/ShotStopperHardware.h`](../src/ShotStopperHardware.h). Pins are **not**
+editable from the Web UI.
 
 ## Default GPIOs
 
@@ -112,9 +115,11 @@ on the physical activator:
   --flags "-DSHOT_STOPPER_SAFETY_HEARTBEAT_GPIO=16 -DSHOT_STOPPER_CIRCUIT_FEEDBACK_GPIO=17"
 ```
 
-To use a different paddle, relay, LED, buzzer, or USB-console pin, edit
-`ShotStopperHardware.h` (or the matching `-D` override) and rebuild. Wrong
-pins can leave machine circuit closed or misread the paddle.
+To use a different paddle, relay, LED, buzzer, or USB-console pin, add or edit
+a reviewed hardware profile (or use the matching explicit `-D` override)
+and rebuild. A profile must explicitly list every supported optional role;
+absent hardware uses only `{ "present": false }` and has no fictitious GPIO.
+Wrong pins can leave machine circuit closed or misread the paddle.
 
 ## USB console jumper
 
