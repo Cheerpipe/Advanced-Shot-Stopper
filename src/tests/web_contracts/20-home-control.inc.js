@@ -72,17 +72,17 @@
   const partial = model({wCg:[0,100,200],wDtS:1,durationS:2.5,endS:2.5,endCg:350});
   const startup = model({wCg:[0,0,0,250,350],wDtS:1,durationS:4,
     firstDropS:2.5,dropCg:50});
-  const ending = model({wCg:[0,100,100,400],wDtS:1,durationS:3,endS:3,endCg:400});
+  const ending = model({wCg:[0,100,300,400],wDtS:1,durationS:3,endS:3,endCg:400});
   const missing = model({wCg:[0,null,100],wDtS:1,durationS:2});
   const falling = model({wCg:[200,100],wDtS:1,durationS:1});
   const atm = model({wCg:[0,100,200,300],wDtS:1,durationS:4,atmS:2,atmCg:200,endS:4,endCg:300});
-  if (partial.maxFlow !== 1 || partial.flowSegs.some((s) => s.pts[1].t === 2.5) ||
-      startup.maxFlow !== 1 || ending.maxFlow !== 1 ||
-      startup.flowSegs.some((s) => s.pts[0].t === 2.5) ||
-      ending.flowSegs.some((s) => s.pts[1].t === 3) ||
+  if (partial.maxFlow !== 1 || partial.flowSegs.at(-1).pts[1].t !== 2.5 ||
+      partial.flowSegs.at(-1).pts[0].cg !== 100 || startup.maxFlow !== 1 ||
+      startup.flowSegs[0].pts[0].t !== 2.5 || startup.flowSegs[0].pts[0].cg !== 50 ||
+      ending.maxFlow !== 2 || ending.flowSegs.at(-1).pts[0].cg !== 200 ||
       missing.maxFlow !== null || falling.maxFlow !== 0 ||
       atm.flowSegs.some((s) => s.pts[0].t < 4 && s.pts[1].t > 2)) {
-    throw new Error('Max flow must filter startup noise and share remaining interval semantics');
+    throw new Error('Flow boundaries must be smoothed without changing gap semantics');
   }
   render(host, null);
   if (!host.hidden || host.innerHTML) throw new Error('Missing shot data must still hide the charts');

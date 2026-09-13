@@ -538,8 +538,9 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   if (!firstDropFallback || firstDropFallback.pts[0].t !== 4.5 ||
       firstDropFallback.pts[0].cg !== 40 ||
       firstDropFallback.pts[firstDropFallback.pts.length - 1].cg !== 150 ||
-      firstDropFallback.flowSegs.length !== 0 || firstDropFallback.maxFlow !== null) {
-    throw new Error('Spark fallback must preserve weights without deriving partial startup flow');
+      firstDropFallback.flowSegs.length !== 1 || firstDropFallback.maxFlow < .73 ||
+      firstDropFallback.maxFlow > .74) {
+    throw new Error('Spark fallback must preserve the only available partial startup flow');
   }
   const laterEvent = helpers.buildShotSparkModel({
     wCg: [0, 20, 90, 150], wDtS: 2, durationS: 8,
@@ -576,9 +577,14 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   const partial = helpers.buildShotSparkModel({
     wCg: [0, 100, 200], wDtS: 1, durationS: 2.5, endS: 2.5, endCg: 350,
   });
-  if (!partial || partial.maxFlow !== 1 ||
-      partial.flowSegs.at(-1).pts[1].t !== 2) {
-    throw new Error('Flow curve must ignore the exact shot-end transition');
+  const livePartial = helpers.buildShotSparkModel({
+    wCg: [0, 100, 200], wDtS: 1, durationS: 2.5,
+  });
+  if (!partial || partial.maxFlow !== 1 || partial.flowSegs.at(-1).pts[1].t !== 2.5 ||
+      partial.flowSegs.at(-1).pts[0].cg !== 100 || !livePartial ||
+      livePartial.flowSegs.at(-1).pts[1].t !== 2.5 ||
+      livePartial.flowSegs.at(-1).pts[0].cg !== 100) {
+    throw new Error('Flow curve must continue through exact and live partial endpoints');
   }
   const missing = helpers.buildShotSparkModel({
     wCg: [0, 100, null, 300], wDtS: 1, durationS: 3,
