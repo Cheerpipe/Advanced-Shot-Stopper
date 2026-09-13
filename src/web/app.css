@@ -123,17 +123,19 @@ summary::marker{color:var(--ac)}
 .shotTrack #shotBar{left:0;background:var(--ok)}
 .shotTrack #shotBarFast{background:#d97706}
 #shotBarTicks{margin:.15rem .1rem .55rem}
-.shotCard{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"dur dur dur actual actual actual" "goal goal flow flow drop drop" "err err shot shot ended ended" "rate rate rate rate rate rate";gap:.5rem .4rem;align-items:start;margin:.45rem 0 .15rem}
+.shotCard{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"dur dur dur actual actual actual" "goal goal avgflow avgflow maxflow maxflow" "err err drop drop ended ended" "shot shot preset preset rate rate";gap:.5rem .4rem;align-items:start;margin:.45rem 0 .15rem}
 .shotCard .shotDur{grid-area:dur}
 .shotCard .shotActual{grid-area:actual}
 .shotCard > :nth-child(3){grid-area:goal}
 .shotCard > :nth-child(4){grid-area:err}
-.shotCard > :nth-child(5){grid-area:flow}
-.shotCard > :nth-child(6){grid-area:drop}
-.shotCard > :nth-child(7){grid-area:ended}
-.shotCard > :nth-child(8){grid-area:shot}
+.shotCard > :nth-child(5){grid-area:avgflow}
+.shotCard > :nth-child(6){grid-area:maxflow}
+.shotCard > :nth-child(7){grid-area:drop}
+.shotCard > :nth-child(8){grid-area:ended}
+.shotCard > :nth-child(9){grid-area:shot}
+.shotCard > :nth-child(10){grid-area:preset}
 .shotCard .shotRate{grid-area:rate;display:grid;justify-items:start}
-.shotCard:has(>:nth-child(5):last-child){grid-template-areas:"dur dur dur actual actual actual" "goal goal err err flow flow"}
+.shotCard:has(>:nth-child(5):last-child){grid-template-areas:"dur dur dur actual actual actual" "goal goal err err avgflow avgflow"}
 #log{width:100%;height:14rem;white-space:pre;overflow:auto;border:1px solid var(--bd);border-radius:.5rem;background:var(--in);color:var(--fg)}
 #log,#bullseyeRtttl{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 small{display:block;color:var(--mu)}
@@ -201,7 +203,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #shotTable{width:100%;border-collapse:collapse;font-size:.82rem}
 #shotTable thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 #shotTable,#shotTable tbody{display:block}
-#shotTable tr{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal flow flow drop drop" "err err shot shot ended ended" "rate rate rate rate rate rate" "spark spark spark spark spark spark";gap:.6rem .5rem;align-items:start;position:relative;background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1rem 3rem 1rem 1rem;margin:0 0 .75rem}
+#shotTable tr{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err drop drop ended ended" "shot shot preset preset rate rate" "spark spark spark spark spark spark";gap:.6rem .5rem;align-items:start;position:relative;background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1rem 3rem 1rem 1rem;margin:0 0 .75rem}
 #shotTable th,#shotTable td{border:0;padding:0;text-align:left;white-space:normal;overflow-wrap:anywhere}
 #shotTable td{display:flex;flex-direction:column;gap:.08rem;min-width:0;font-weight:650}
 #shotTable td::before{content:attr(data-label);font-size:.62rem;font-weight:600;color:var(--mu);letter-spacing:.02em;text-transform:uppercase}
@@ -210,10 +212,12 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #shotTable td:nth-child(3){grid-area:goal}
 #shotTable td:nth-child(4){grid-area:actual}
 #shotTable td:nth-child(5){grid-area:err}
-#shotTable td:nth-child(6){grid-area:flow}
-#shotTable td:nth-child(7){grid-area:drop}
-#shotTable td:nth-child(8){grid-area:ended}
-#shotTable td:nth-child(9){grid-area:shot}
+#shotTable td:nth-child(6){grid-area:avgflow}
+#shotTable td:nth-child(7){grid-area:maxflow}
+#shotTable td:nth-child(8){grid-area:drop}
+#shotTable td:nth-child(9){grid-area:ended}
+#shotTable td:nth-child(10){grid-area:shot}
+#shotTable td:nth-child(11){grid-area:preset}
 #shotTable td.shotRateCell{grid-area:rate}
 #shotTable td:first-child{font-size:.8rem;font-weight:600;color:var(--mu);align-self:center}
 #shotTable td:first-child::before{content:none}
@@ -221,20 +225,21 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #shotTable td.shotDel,#shotTable td.shotDel>.btnGlyph{background:transparent!important}
 #shotTable .shotDur,#shotTable .shotActual,.shotCard .shotDur > div,.shotCard .shotActual > div{font-size:1.85rem;font-weight:750;line-height:1.1;color:var(--fg);letter-spacing:-.02em;padding-bottom:.1rem;font-variant-numeric:tabular-nums}
 #shotTable .shotDur::before,#shotTable .shotActual::before{font-size:.6875rem;font-weight:700;color:var(--mu);letter-spacing:.04em}
-#shotTable td:nth-child(n+6):nth-child(-n+9){font-size:.75rem;font-weight:600;color:var(--mu)}
+#shotTable td:nth-child(n+6):nth-child(-n+11){font-size:.75rem;font-weight:600;color:var(--mu)}
 #shotTable td[colspan]{grid-area:auto;grid-column:1/-1;grid-row:1;align-items:flex-start;font-weight:500;color:var(--mu)}
 #shotTable td[colspan]::before{content:none}
 #shotTable .shotErrHi,.shotCard .shotErrHi{color:var(--ac)}
 #shotTable .shotErrLo,.shotCard .shotErrLo{color:var(--ok)}
 #shotPanel>#shotSparkHost,#shotTable td.shotSparkCell{grid-area:spark;display:grid;gap:.65rem;margin:.55rem 0 0}
-.shotCurve .shotSparkHost,#statsDurChartPlot{display:grid;grid-template-columns:2.4rem 1fr;grid-template-rows:2.55rem auto;grid-template-areas:"y plot" ". x";gap:0 .28rem;min-height:3.55rem}
-#shotPanel .shotCurve .shotSparkHost{min-height:4.05rem;grid-template-rows:3rem auto}
-.shotSparkY{grid-area:y;display:flex;flex-direction:column;justify-content:space-between;font-size:.68rem;color:var(--mu);line-height:1;text-align:right;padding:.02rem 0}
-.shotSparkY:after{content:__WEBUI_CSS_TEXT__("css.0_g")}
-.shotSparkFlowY:after{content:__WEBUI_CSS_TEXT__("css.0_g_s")}
+.shotCurve .shotSparkHost,#statsDurChartPlot{display:grid;grid-template-columns:2.4rem 1fr;grid-template-rows:max(2.55rem,var(--shot-plot-min,0rem)) auto;grid-template-areas:"y plot" ". x";gap:0 .28rem;min-height:3.55rem}
+#shotPanel .shotCurve .shotSparkHost{min-height:4.05rem;grid-template-rows:max(3rem,var(--shot-plot-min,0rem)) auto}
+.shotSparkY{grid-area:y;position:relative;font-size:.68rem;color:var(--mu);line-height:1;text-align:right}
+.shotYTick{position:absolute;right:0;white-space:nowrap;transform:translateY(-50%)}
+.statsDurSparkY{display:flex;flex-direction:column;justify-content:space-between;padding:.02rem 0}
 .statsDurSparkY:after{content:__WEBUI_CSS_TEXT__("css.0")}
-#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal flow flow drop drop" "err err shot shot ended ended" "rate rate rate rate rate rate"}
+#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err drop drop ended ended" "shot shot preset preset rate rate"}
 .shotSpark{grid-area:plot;display:block;width:100%;height:100%;color:var(--ok);overflow:visible}
+.shotGrid{stroke:var(--ln);stroke-width:.8;opacity:.7}.shotGrid,.shotTrace{vector-effect:non-scaling-stroke}
 .shotDropOverlay{grid-area:plot;position:relative}
 .shotFirstDrop{position:absolute;bottom:10%;white-space:nowrap;font-size:.68rem;color:var(--mu)}
 .shotFirstDrop svg{vertical-align:middle}
@@ -280,7 +285,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .ruleLegBbw:before,.ruleSeg-bbw{background:var(--ok)}
 .ruleLegSlow:before,.ruleSeg-slow{background:#2563eb}
 .ruleChartRow{margin:0 0 .65rem}
-.ruleChartLabel{font-size:.78rem;font-weight:700;margin:0 0 .2rem;color:var(--fg)}
+.ruleChartLabel{font-size:.78rem;font-weight:700;margin:0 0 .75rem;color:var(--fg)}
 .ruleChartTrack{position:relative;display:block;height:1.5rem;background:var(--ln);border-radius:.5rem;overflow:hidden}
 .ruleSeg{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.68rem;font-weight:700;line-height:1;overflow:hidden;white-space:nowrap;padding:0 .2rem}
 .ruleSeg-idle{background:#9ca3af;color:transparent}

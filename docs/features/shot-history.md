@@ -11,14 +11,18 @@ enabled (not timer-only), and automatic weight control active. Manual shots,
 timer-only brews, and cycles without a scale are **not** stored.
 
 Typical fields include local time (from the configured timezone offset),
-duration, goal and actual weight, error, average flow, first-drop time,
-whether Fast/Slow guards ran or extended the shot, `shot_type`, `cut_type`
+duration, the exact preset name captured at shot start, goal and yield (the
+shot's actual output), error, average flow, first-drop time, whether Fast/Slow
+guards ran or extended the shot, `shot_type`, `cut_type`
 (`auto`, `manual`, `limit`), `stop_detail` (for example
 `normal_target`, `activator`, `web_stop`, `wall_limit`, `hard_limit`,
 `extended_max_weight`, `cup_removed`), and a manual `rating` from 0
 (unrated) to 5. Rate a stored shot from its history card. The same stars are
 available on Home's **Current / Last Good Shot** card only while that aggregate's
 exact history row still exists; tapping the current star again clears the score.
+The preset snapshot is also shown on that Home card and on every Stats history
+card. Renaming or deleting a preset later does not rewrite a shot's displayed
+name.
 
 The log holds up to **120** shots. The following are never stored:
 
@@ -39,8 +43,10 @@ settled post-drip weight replaces the curve's endpoint at that same end time;
 the drip-delay interval is not appended to the graph. Before the first drop,
 the weight chart shows a dark green outline along the zero-weight axis, and
 the flow chart shows an aqua outline along its zero-flow axis, with no shaded
-area. An aqua drop with the first-drop time beside it marks that moment on
-the weight chart only. Curves without a first-drop event keep their full
+area. An aqua drop with only the first-drop time beside it marks that moment on
+the weight chart only. The time axis shows only its fixed 10-second labels;
+Fast, Slow, and A-to-M changes remain visible through the curve colors without
+adding competing time labels. Curves without a first-drop event keep their full
 available grid. The current-shot curve exposed to Home is an in-memory view;
 when idle, Home loads a saved curve only by the last-good aggregate's exact
 history ID. It never falls back to the newest curve. Neither is a persistent
@@ -71,34 +77,48 @@ first page of the current sort so new shots appear without re-downloading
 the whole log. Export CSV fetches the full log newest-first in one
 request, independent of the on-screen sort.
 
-History averages (duration, weight, error, flow) use only **auto** shots
+History averages (duration, yield, error, flow) use only **auto** shots
 with actual weight at least 1 g from the last 10 stored entries, even
 when the list is sorted by rating or oldest-first.
 
 Every available weight curve has a **Flow rate (g/s)** chart directly below it
-on Home and in its Stats history card. Both charts use the same time axis and
-guard colors. Flow rate is calculated locally from each pair of consecutive
-one-second weights, so a falling or noisy weight never produces a negative
-rate. Exact first-drop, guard and shot-end events preserve partial intervals.
-An A→M scale-loss period is left blank instead of inventing flow across missing
-measurements. The controller stores only the weight curve; viewing or reloading
-the flow chart does not create another history record or flash write.
+on Home and in its Stats history card. Both charts share a time axis with
+reference lines every 10 seconds. The Weight chart adds lines every 10 g, and
+Flow rate adds them every 0.5 g/s. Each displayed range rounds up to the next
+reference interval and each chart grows vertically when all required labels
+would not fit at its normal compact height.
+
+The cards call shot output **Yield** while chart, goal, scale, and cup labels
+continue to use Weight where they describe weight itself. **Avg flow** remains
+the final yield divided by the time after first drop. **Max flow** is the highest
+non-negative local change between usable consecutive curve samples; Home shows
+the peak observed so far during a live shot, and saved cards reproduce it from
+the stored curve. Falling weight contributes 0 g/s, while missing samples and
+an A→M scale-loss period leave gaps instead of inventing flow. Exact partial
+first-drop, guard, and shot-end intervals remain usable. Max flow is unavailable
+when the curve has no usable interval.
+
+The controller stores only the weight curve. The Flow rate chart and Max flow
+are derived locally, so viewing or reloading them does not create another
+history record or flash write.
 
 ## Read a result
 
-CSV retains its original column order and appends `bbw_algorithm`,
-`bbw_algorithm_version`, `bbw_alpha`, `bbw_learning_applied`, and `preset_id`. The JSON names
+CSV retains its original columns and their order, followed by `bbw_algorithm`,
+`bbw_algorithm_version`, `bbw_alpha`, `bbw_learning_applied`, `preset_id`, and
+the derived final column `max_flow_g_s`. The final column is empty when a record
+has no usable curve interval. The JSON names
 are `bbwAlgorithm`, `bbwAlgorithmVersion`, `bbwAlpha`, and `bbwLearningApplied`.
 These fields are exported data; the visible table/cards and averages do not
 add algorithm or offset fields.
 
-`preset_id` (JSON `presetId`) is captured from the preset used for that shot,
-not the currently selected recipe. It survives switching, renaming or deleting
-the preset. Pre-V3 records have unknown identity (JSON 0, CSV empty); their
-preset cannot be recovered from target weight. Keep an external mapping from ID
-to physical portafilter/basket and recipe context when exporting. IDs are local
-to the controller, use 1–255 and may be reused after allocation wraps or settings
-are reset; separate those epochs rather than pool unrelated physical setups.
+`preset_id` (JSON `presetId`) and JSON `presetName` are captured from the preset
+used for that shot, not the currently selected recipe. The name is a snapshot,
+not a lookup through the mutable preset list, so it survives switching, renaming,
+or deleting the preset. Pre-V3 records have unknown identity (JSON 0, CSV empty),
+and records migrated from history V1–V4 have no recoverable preset name. IDs are
+local to the controller, use 1–255 and may be reused after allocation wraps or
+settings are reset; use the captured name when comparing historical shots.
 
 `offset_g` is the compensation captured at shot start, **before learning**,
 in grams at 0.01 g storage resolution. Zero is valid. It is not the baseline,
@@ -114,10 +134,11 @@ retains its assigned gain. For example, appended CSV values can be
 Migrated pre-selector records keep their offsets, ratings and guard flags,
 and identify `legacy` with unknown version, gain and learning status (JSON null,
 CSV empty). Unrecognized provenance is `unknown`, never the current setting.
-History schema V4 retains 48-byte records and the 120-shot limit. V1/V2 migration
-marks preset identity unknown; V3 retains IDs. Old alpha codes become exact
-hundredths without changing historical algorithm versions. Older firmware
-rejects V4; select Linear regression + offset correction in current firmware
+History schema V5 uses 72-byte records and retains the 120-shot limit. V1/V2
+migration marks preset identity unknown; V3/V4 retain IDs and leave the newly
+added name snapshot empty. Old alpha codes become exact hundredths without
+changing historical algorithm versions. Older firmware rejects V5; select
+Linear regression + offset correction in current firmware
 for comparison. Renaming the visible method does not rename API/CSV identifiers.
 
 Algorithm identity describes the shot's configured policy even when a guard

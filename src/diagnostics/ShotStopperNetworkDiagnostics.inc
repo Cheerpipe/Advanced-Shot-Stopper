@@ -185,8 +185,8 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   for (uint8_t i = 0;
        ok && i < work.presetBank.count && i < MAX_SHOT_PRESETS; ++i) {
     const ShotPreset &p = work.presetBank.presets[i];
-    char safeName[SHOT_PRESET_NAME_CAPACITY] = {};
-    sanitizeJsonEmbed(p.name, safeName, sizeof(safeName));
+    char safeName[SHOT_PRESET_NAME_CAPACITY * 6] = {};
+    escapeJsonString(p.name, safeName, sizeof(safeName));
     ok = debugExportChunkf(
         request, buf, cap,
         "%s{\"id\":%u,\"name\":\"%s\",\"isFactory\":%s,\"brewByWeight\":%s,"
@@ -1024,6 +1024,8 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
     char maxRecovery[16] = "null";
     char minBbwBrewTime[16] = "null";
     char targetEarly[16] = "null";
+    char presetName[SHOT_PRESET_NAME_CAPACITY * 6] = {};
+    escapeJsonString(record.presetName, presetName, sizeof(presetName));
     if (!shotLogWeightIsMissing(record.actualWeightCg)) {
       snprintf(actual, sizeof(actual), "%.2f",
                static_cast<double>(record.actualWeightCg) / 100.0);
@@ -1072,7 +1074,7 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
              "%s{\"id\":%lu,\"bootId\":%lu,\"endedAtMs\":%lu,"
              "\"hasWallTime\":%s,\"endedAtLocalSec\":%lu,"
              "\"endedAtUnixSec\":%lu,\"timezoneOffsetMinutesAtCommit\":%d,"
-             "\"durationS\":%.1f,\"presetId\":%u,"
+             "\"durationS\":%.1f,\"presetId\":%u,\"presetName\":\"%s\","
              "\"goalG\":%u,\"actualG\":%s,\"errorG\":%s,\"errorPct\":%s,"
              "\"offsetG\":%.2f,\"bbwAlgorithm\":\"%s\",\"bbwAlgorithmVersion\":%s,"
              "\"bbwAlpha\":%s,\"bbwLearningApplied\":%s,\"avgFlowGS\":%s,\"firstDropS\":%s,"
@@ -1092,7 +1094,7 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
              static_cast<int>(record.timezoneOffsetMinutesAtCommit),
              static_cast<double>(record.durationDs) / 10.0,
              static_cast<unsigned>(shotLogPresetId(record)),
-             static_cast<unsigned>(record.goalWeightG), actual, errorG,
+             presetName, static_cast<unsigned>(record.goalWeightG), actual, errorG,
              errorPct,
              static_cast<double>(record.offsetUsedCg) / 100.0,
              shotLogBbwAlgorithm(record), shotLogBbwVersion(record),

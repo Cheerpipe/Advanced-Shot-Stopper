@@ -17,32 +17,63 @@
   };
   const render = new Function('document', helpers + renderer +
       ';return renderShotSpark;')(document);
-  render(host, {wCg:[0, 0, 0, 100, 200], wDtS:1, durationS:4,
+  const basic = render(host, {wCg:[0, 0, 0, 100, 200], wDtS:1, durationS:4,
     firstDropS:2.5, dropCg:50});
   const [weight, flow] = host.innerHTML.split('<div class="shotCurve">').slice(1);
-  if (host.hidden || !weight.includes('Weight (g)') || !flow.includes('Flow rate (g/s)') ||
+  if (host.hidden || !basic || basic.timeMax !== 10 || basic.maxW !== 10 || basic.flowMax !== 1 ||
+      !weight.includes('Weight (g)') || !flow.includes('Flow rate (g/s)') ||
       !weight.includes('class="shotSparkY"') || !flow.includes('class="shotSparkY shotSparkFlowY"') ||
-      !weight.includes('d="M1.5 34.5 L149.6 34.5" fill="none" stroke="var(--ok)"') ||
-      !flow.includes('d="M1.5 34.5 L149.6 34.5" fill="none" stroke="#38bdf8"') ||
+      !weight.includes('d="M1.5 34.5 L60.8 34.5"') ||
+      !flow.includes('d="M1.5 34.5 L60.8 34.5"') ||
       !weight.includes('shotDropOverlay') || flow.includes('shotDropOverlay') ||
       markers.length !== 1 || !markers[0].innerHTML.includes('fill="#38bdf8"') ||
-      !markers[0].innerHTML.includes('1st 2.5') ||
+      !markers[0].innerHTML.includes('2.5 s') || markers[0].innerHTML.includes('1st') ||
       flow.includes('1st ') || flow.includes('shotFirstDrop') ||
-      host.innerHTML.includes('<line ') ||
-      Math.abs(parseFloat(markers[0].style.left) - 62.34375) > .001 ||
+      host.innerHTML.indexOf('class="shotGrid"') > host.innerHTML.indexOf('class="shotTrace"') ||
+      !host.innerHTML.includes('M1.5 1.5V34.5M238.5 1.5V34.5') ||
+      !weight.includes('top:0%">10 g</span>') || !weight.includes('top:100%">0 g</span>') ||
+      !flow.includes('top:50%">0.5 g/s</span>') ||
+      host.innerHTML.includes('shotEventTicks') || host.innerHTML.includes('Fast ') ||
+      host.innerHTML.includes('Slow ') || host.innerHTML.includes('A→M ') ||
+      ticks.some((items) => items.map((item) => item.textContent).join('|') !== '0 s|10 s') ||
+      Math.abs(parseFloat(markers[0].style.left) - 25.3125) > .001 ||
       ticks[1].some((item) => item.className.includes('shotFirstDrop'))) {
-    throw new Error('Shot charts must show zero outlines and an aqua drop/time only on weight');
+    throw new Error('Shot charts must show exact fixed grids behind traces and a Weight-only drop marker');
   }
   render(host, {wCg:[0, 0, 0], wDtS:1, durationS:2});
   if (host.hidden || (host.innerHTML.match(/class="shotSpark"/g) || []).length !== 2 ||
-      !host.innerHTML.includes('M1.5 34.5 L120.0 34.5 L238.5 34.5') ||
+      !host.innerHTML.includes('M1.5 34.5 L25.2 34.5 L48.9 34.5') ||
+      render(host, {wCg:[0, 0, 0], wDtS:1, durationS:2}).maxFlow !== 0 ||
       markers.length || host.innerHTML.includes('fill-opacity')) {
     throw new Error('Live zero weight and flow must stay visible before the first drop');
   }
   render(host, {wCg:[0, 0, 100], durationS:2, firstDropS:1.9, dropCg:50});
-  if (markers.length !== 1 || !markers[0].innerHTML.startsWith('1st 1.9') ||
-      markers[0].style.transform !== 'translateX(calc(-100% + 6px))') {
-    throw new Error('Late first-drop labels must stay on the left of the drop');
+  if (markers.length !== 1 || !markers[0].innerHTML.endsWith('1.9 s') ||
+      markers[0].style.transform !== 'translateX(-6px)') {
+    throw new Error('First-drop placement must use the rounded shared time domain');
+  }
+  const rounded = render(host, {wCg:[0, 1200, 2500, 3900, 4370], wDtS:3.775,
+    durationS:15.1, goalG:36});
+  if (rounded.timeMax !== 20 || rounded.maxW !== 50 || rounded.flowMax !== 4 ||
+      rounded.maxFlow <= 3.7 || rounded.maxFlow >= 3.8 ||
+      !host.innerHTML.includes('--shot-plot-min:5.50rem') ||
+      !host.innerHTML.includes('--shot-plot-min:8.80rem')) {
+    throw new Error('Non-multiple domains must round up and grow each vertical chart independently');
+  }
+  const exact = render(host, {wCg:[0, 1000, 2000, 3000, 4000], wDtS:10, durationS:40});
+  if (exact.timeMax !== 40 || exact.maxW !== 40 || exact.flowMax !== 1 ||
+      !host.innerHTML.includes('--shot-plot-min:4.40rem') ||
+      !host.innerHTML.includes('--shot-plot-min:2.20rem')) {
+    throw new Error('Exact interval boundaries must stay exact and retain compact minimums');
+  }
+  const model = new Function(helpers + ';return buildShotSparkModel;')();
+  const partial = model({wCg:[0,100,200],wDtS:1,durationS:2.5,endS:2.5,endCg:350});
+  const missing = model({wCg:[0,null,100],wDtS:1,durationS:2});
+  const falling = model({wCg:[200,100],wDtS:1,durationS:1});
+  const atm = model({wCg:[0,100,200,300],wDtS:1,durationS:4,atmS:2,atmCg:200,endS:4,endCg:300});
+  if (partial.maxFlow !== 3 || missing.maxFlow !== null || falling.maxFlow !== 0 ||
+      atm.flowSegs.some((s) => s.pts[0].t < 4 && s.pts[1].t > 2)) {
+    throw new Error('Max flow must share partial, missing, falling, and A-to-M interval semantics');
   }
   render(host, null);
   if (!host.hidden || host.innerHTML) throw new Error('Missing shot data must still hide the charts');
@@ -59,7 +90,7 @@
   const source = runtimeJs.slice(clockStart, clockEnd) +
       runtimeJs.slice(updateStart, updateEnd);
   function harness() {
-    let now = 0, nextId = 1, panelRenders = 0, panelClears = 0;
+    let now = 0, nextId = 1, panelRenders = 0, panelClears = 0, lastPanelShot;
     let stopClock = () => {};
     const pending = new Map();
     const elapsed = {textContent: ''};
@@ -79,6 +110,7 @@
     const clearTimeout = (id) => pending.delete(id);
     const renderShotPanel = (shot) => {
       panelRenders++;
+      lastPanelShot = shot;
       elapsed.textContent = (shot.elapsedMs / 1000).toFixed(1) + 's';
     };
     const clearShotPanel = () => {
@@ -89,12 +121,13 @@
     const clock = new Function('$', 'document', 'performance', 'setTimeout',
         'clearTimeout', 'renderShotPanel', 'clearShotPanel',
         'updateStatusGuards', 'shotDisplayActualG', 'fillStarRate',
-        'rateLastShotValue', 'controlsMutable', 'activeView', source +
+        'rateLastShotValue', 'controlsMutable', 'activeView', '__WEBUI_TEXT__',
+        'presetState', source +
         ';return{sync:runShot,stop:()=>runShot(0),update:updateShot,' +
         'view:v=>activeView=v,anchor:()=>shotAt,timer:()=>shotTick};')(
         $, document, {now: () => now}, setTimeout, clearTimeout,
         renderShotPanel, clearShotPanel, () => {}, (value) => value, () => {},
-        () => {}, false, 'home');
+        () => {}, false, 'home', () => '—', {activeId: 0, items: []});
     stopClock = clock.stop;
     clock.view('home');
     const advance = (delta) => {
@@ -113,15 +146,20 @@
       now = target;
     };
     return {clock, advance, elapsed, document, pending,
-      panelRenders: () => panelRenders, panelClears: () => panelClears};
+      panelRenders: () => panelRenders, panelClears: () => panelClears,
+      lastPanelShot: () => lastPanelShot};
   }
   const live = (ms, stale = false) => ({cycle: {active: true, shotType: 'auto'},
     lastShot: {valid: false}, config: {goalWeightG: 36}, scale: {}, shotCurve: {},
+    presets: {activeId: 2, items: [{id: 2, name: 'Double'}]},
     circuitElapsedMs: ms, snapshotStale: stale});
   const h = harness();
   h.clock.update(live(200));
   if (h.elapsed.textContent !== '0s' || h.pending.size !== 1) {
     throw new Error('Live shot duration must start at zero with one aligned callback');
+  }
+  if (h.lastPanelShot().presetName !== 'Double') {
+    throw new Error('Current shot must show the active preset name');
   }
   h.advance(800);
   h.advance(1000);
@@ -170,11 +208,15 @@
   end.clock.update(live(1200));
   end.advance(2000);
   end.clock.update({cycle: {active: false}, lastShot: {valid: true, durationMs: 4320,
-    currentWeightG: 36, goalWeightG: 36, shotType: 'auto', shotLogId: 7},
+    currentWeightG: 36, goalWeightG: 36, shotType: 'auto', shotLogId: 7,
+    presetName: 'Historical Double'},
     config: {}, scale: {}, shotCurve: {}});
   end.advance(2000);
   if (end.elapsed.textContent !== '4.3s' || end.pending.size || end.panelRenders() !== 2) {
     throw new Error('Current-to-Last must stop projection and keep exact decimal duration');
+  }
+  if (end.lastPanelShot().presetName !== 'Historical Double') {
+    throw new Error('Last Good Shot must show its exact preset-name snapshot');
   }
   end.clock.update({cycle: {active: false}, lastShot: {valid: false},
     config: {}, scale: {}, shotCurve: {}});
@@ -319,13 +361,20 @@ if (!ui.includes('id="shotPanel"') ||
     !css.includes('.shotSparkY{') ||
     !css.includes('.shotSparkHost .ruleChartTicks') ||
     !css.includes('.hidden,[hidden]{display:none!important}') ||
-    !css.includes('#shotPanel .shotCurve .shotSparkHost{min-height:4.05rem;grid-template-rows:3rem auto}') ||
+    !css.includes('#shotPanel .shotCurve .shotSparkHost{min-height:4.05rem;grid-template-rows:max(3rem,var(--shot-plot-min,0rem)) auto}') ||
     !css.includes('#shotPanel>#shotSparkHost,#shotTable td.shotSparkCell{grid-area:spark;display:grid;gap:.65rem') ||
     !css.includes('#shotPanel{position:relative}') ||
     css.includes('#shotPanel{position:relative;padding-right:3.4rem') ||
     !css.includes('#shotPanel .shotDel{top:-.55rem;right:.15rem') ||
     !css.includes('#shotTable tr.noSpark{') ||
     !css.includes('.shotSpark{grid-area:plot;display:block;width:100%;height:100%;color:var(--ok);overflow:visible}') ||
+    !css.includes('.shotGrid{stroke:var(--ln);stroke-width:.8;opacity:.7}') ||
+    !css.includes('.shotGrid,.shotTrace{vector-effect:non-scaling-stroke}') ||
+    !css.includes('grid-template-rows:max(2.55rem,var(--shot-plot-min,0rem)) auto') ||
+    css.includes('.shotEventTicks') ||
+    !css.includes('.shotYTick{position:absolute;right:0;white-space:nowrap;transform:translateY(-50%)}') ||
+    css.includes('.shotYTick:first-child') || css.includes('.shotYTick:last-child') ||
+    !css.includes('.ruleChartLabel{font-size:.78rem;font-weight:700;margin:0 0 .75rem') ||
     !ui.includes('function renderShotSpark(') ||
     !runtimeJs.includes('function buildShotSparkModel(') ||
     !runtimeJs.includes('function axisLabel(') ||
@@ -335,11 +384,12 @@ if (!ui.includes('id="shotPanel"') ||
     runtimeJs.includes("style=\"left:") ||
     !runtimeJs.includes('function shotDisplayFlowGS(') ||
     !runtimeJs.includes('merged.length<2||!(dur>0)') ||
-    !runtimeJs.includes('model.firstDropS>0') ||
-    !runtimeJs.includes('model.flowSegs,model.maxFlow') ||
+    !runtimeJs.includes('m.firstDropS>0') ||
+    !runtimeJs.includes('m.flowSegs,m.flowMax') ||
     !runtimeJs.includes('Flow rate (g/s)') ||
-    !runtimeJs.includes("host.querySelectorAll('.ruleChartTicks')") ||
-    !runtimeJs.includes("'1st '+L(") ||
+    !runtimeJs.includes("querySelectorAll('.ruleChartTicks')") ||
+    runtimeJs.includes("['.ruleChartTicks',xt]") || runtimeJs.includes("'.shotEventTicks'") ||
+    runtimeJs.includes("'1st '+L(") || !runtimeJs.includes("label=L(m.firstDropS,'s')") ||
     !runtimeJs.includes('fillChartTicks($(\'shotBarTicks\')') ||
     !runtimeJs.includes('raw.sort(') ||
     runtimeJs.includes('shotIdle') ||
@@ -355,19 +405,25 @@ if (!ui.includes('id="shotPanel"') ||
     css.includes('#statusPanel .metric::before,#scalePanel .metric::before,.shotCard > *::before{') ||
     css.includes('font-size:1rem;font-weight:700;color:var(--mu)') ||
     !css.includes('.shotCard .shotDur > div,.shotCard .shotActual > div') ||
-    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal flow flow drop drop" "err err shot shot ended ended" "rate rate rate rate rate rate"') ||
+    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal avgflow avgflow maxflow maxflow" "err err drop drop ended ended" "shot shot preset preset rate rate"') ||
     !ui.includes('id="shotElapsed"') ||
     !ui.includes('id="shotFirstDrop"') ||
     !ui.includes('id="shotCurrentWeight"') ||
-    !partialHtml.home.includes('<strong>Weight</strong>') ||
+    !partialHtml.home.includes('<strong>Yield</strong>') ||
+    !partialHtml.home.includes('<strong>Avg flow</strong>') ||
+    !partialHtml.home.includes('<strong>Max flow</strong>') ||
     !partialHtml.home.includes('<strong>Dur</strong>') ||
     partialHtml.home.includes('data-label=') ||
     html.includes('data-label="Actual"') ||
     !ui.includes('id="shotGoalWeight"') ||
     !ui.includes('id="shotErr"') ||
     !ui.includes('id="shotFlow"') ||
+    !ui.includes('id="shotMaxFlow"') ||
     !ui.includes('id="shotEnded"') ||
     !ui.includes('id="shotType"') ||
+    !ui.includes('id="shotPreset"') ||
+    !ui.includes('activePresetName(s)') ||
+    !ui.includes('shotPresetName(ls)') ||
     ui.includes('id="shotRetare"') ||
     ui.includes('id="shotScale"') ||
     ui.includes('id="shotGuard"') ||

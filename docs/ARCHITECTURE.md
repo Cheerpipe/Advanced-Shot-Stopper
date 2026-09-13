@@ -99,7 +99,9 @@ both public consumers. Clear-last preserves the good aggregate; deleting or
 clearing history only makes its optional rating/curve link unavailable, and
 factory reset clears both aggregates.
 
-History V4 keeps 48-byte records and 120 entries. Guard byte bits 5–7 encode
+History V5 keeps 72-byte records and 120 entries. Its final 24 bytes hold the
+exact preset-name snapshot captured at shot start; V1–V4 migration preserves
+the old 48-byte prefix and leaves this new field empty. Guard byte bits 5–7 encode
 profile (0 unknown, 1 pre-selector regression with unknown version, 2 regression v1,
 3 adaptive EWMA v1, 4 EWMA v2). Alpha is 0 unknown or 1–100 hundredths;
 extension bits 2–4 hold its low three bits, cut-type bits 4–7 its high four.
@@ -111,9 +113,9 @@ bits 2–3 hold the captured preset ID (low six/high two bits); type/cut readers
 mask the low two bits. V1/V2 migration explicitly sets unknown preset ID zero
 after CRC validation; V2/V3 alpha codes become hundredths, with V3 preset IDs
 and all historical policy versions retained. Preset/BBW writers preserve each
-other's bit fields. V4 is rejected by
-older firmware. The ID follows existing preset allocation, not a historical
-name lookup or globally unique physical-device identity.
+other's bit fields. V5 is rejected by older firmware. The ID follows existing
+preset allocation, while the stored name is historical data rather than a
+lookup through the current preset bank.
 
 The separate shot-curve sidecar uses an intentionally incompatible V2 schema:
 up to 61 centigram weights on a fixed one-second grid plus exact event/end
@@ -123,8 +125,8 @@ flash-I/O scratch only while that owner holds the flash lock. Two 20 KiB slots
 fill the dedicated 40 KiB `shotcurve` data partition; generation and checksum
 selection preserve the existing atomic whole-store update. Writes remain
 deferred until the shot has ended and do not add a transaction for derived
-flow. V1 curve stores are discarded rather than migrated. The fixed 48-byte
-shot-log record and its average-flow field are unchanged.
+flow. V1 curve stores are discarded rather than migrated. The shot-log record's
+existing metric prefix and average-flow field are unchanged.
 
 Decoding checks the supplied length before reading record CRCs and copies only
 that validated length; compact inputs do not require a full-store allocation.

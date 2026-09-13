@@ -1,6 +1,6 @@
 #pragma once
 
-// Current shot-log schema (v3) and domain helpers. No Preferences / NVS.
+// Current shot-log schema (v5) and domain helpers. No Preferences / NVS.
 
 #include "ShotStopperDomain.h"
 
@@ -12,7 +12,7 @@
 namespace shotstopper {
 
 constexpr uint32_t SHOT_LOG_MAGIC = 0x534C4F47U;  // "SLOG"
-constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 4;
+constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 5;
 constexpr size_t SHOT_LOG_CAPACITY = 120;
 constexpr size_t SHOT_LOG_PAGE_DEFAULT = 10;
 
@@ -109,8 +109,8 @@ constexpr uint8_t SHOT_LOG_FAST_GUARD_BIT = 0x01;
 constexpr uint8_t SHOT_LOG_SLOW_GUARD_BIT = 0x02;
 constexpr uint8_t SHOT_LOG_FAST_EXTENDED_BIT = 0x01;
 constexpr uint8_t SHOT_LOG_SLOW_EXTENDED_BIT = 0x02;
-// User rating 0–5 packed into unused bits of extractionGuardEnabled so the
-// 48-byte NVS record does not grow. Bits 0–1 remain Fast/Slow guard flags.
+// User rating 0–5 remains packed into extractionGuardEnabled. Bits 0–1 remain
+// Fast/Slow guard flags.
 constexpr uint8_t SHOT_LOG_RATING_SHIFT = 2;
 constexpr uint8_t SHOT_LOG_RATING_MASK = 0x1C;
 constexpr uint8_t SHOT_LOG_RATING_MAX = 5;
@@ -328,10 +328,11 @@ struct ShotLogRecord {
   int16_t maxRecoveryWeightCg;
   uint16_t minBbwBrewTimeDs;
   uint16_t targetReachedEarlyDs;
+  char presetName[SHOT_PRESET_NAME_CAPACITY];
 };
 
-static_assert(sizeof(ShotLogRecord) == 48,
-              "ShotLogRecord must stay 48 bytes for NVS headroom");
+static_assert(sizeof(ShotLogRecord) == 72,
+              "ShotLogRecord v5 must include the preset-name snapshot");
 
 inline ShotLogType shotLogType(const ShotLogRecord &record) {
   return static_cast<ShotLogType>(record.shotType & 3);

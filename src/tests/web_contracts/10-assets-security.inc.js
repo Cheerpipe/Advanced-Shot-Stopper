@@ -175,8 +175,9 @@ if (htmlBytes > 63000) {
 // sharing the Admin toggle persistence path.
 // Dirty save-button feedback adds 300 bytes through one shared state helper.
 // Zero baselines and the first-drop icon add 1,000 bytes of source allowance.
-if (jsBytes > 170300) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 170300)`);
+// Fixed chart grids, adaptive axes, and derived peak flow add 1,200 bytes.
+if (jsBytes > 171500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 171500)`);
 }
 if (htmlBytes + jsBytes > 233300) {
   throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 233300)`);

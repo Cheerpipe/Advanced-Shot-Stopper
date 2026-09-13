@@ -511,8 +511,8 @@ if (!ui.includes('id="shotTable"') ||
     !js.includes("'shotDur'") ||
     !js.includes("'shotActual'") ||
     !css.includes('#shotTable .shotDur,#shotTable .shotActual') ||
-    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal flow flow drop drop" "err err shot shot ended ended" "rate rate rate rate rate rate" "spark spark spark spark spark spark"') ||
-    !css.includes('#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal flow flow drop drop" "err err shot shot ended ended" "rate rate rate rate rate rate"}') ||
+    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err drop drop ended ended" "shot shot preset preset rate rate" "spark spark spark spark spark spark"') ||
+    !css.includes('#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err drop drop ended ended" "shot shot preset preset rate rate"}') ||
     css.includes('grid-area:guard') ||
     css.includes('grid-area:ext') ||
     css.includes('grid-area:stop') ||
@@ -528,12 +528,15 @@ if (!ui.includes('id="shotTable"') ||
     !runtimeJs.includes('shotDisplayActualG(ls.currentWeightG,cv.wCg)') ||
     !runtimeJs.includes('return y!=null&&y>=1') ||
     !runtimeJs.includes('shotDisplayFlowGS(r)') ||
+    !runtimeJs.includes('shotMaxFlowGS(r)') ||
+    !runtimeJs.includes('shotPresetName(r)') ||
+    !runtimeJs.includes("'preset_id','max_flow_g_s'") ||
     !runtimeJs.includes('const live=!!s.cycle?.active') ||
     runtimeJs.includes('const live=!!((s.cycle&&s.cycle.active)||s.liveShot)') ||
     runtimeJs.includes('const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
     !runtimeJs.includes('dropMs=src?.firstDropElapsedMs||0') ||
     !runtimeJs.includes('formatShotEnded(r.stopDetail)') ||
-    !js.includes("labels=['Time','Dur','Goal','Weight','Err%','Flow','1st drop','Ended','Shot']") ||
+    !js.includes("labels=['Time','Dur','Goal','Yield','Err%','Avg flow','Max flow','1st drop','Ended','Shot','Preset']") ||
     js.includes("labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Ended','Shot']") ||
     js.includes("labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Guard','Ext','Stop','Shot','Cut']") ||
     partialHtml.stats.includes('<th>Guard</th>') ||
@@ -541,7 +544,12 @@ if (!ui.includes('id="shotTable"') ||
     partialHtml.stats.includes('<th>Stop</th>') ||
     partialHtml.stats.includes('>Cut</th>') ||
     !partialHtml.stats.includes('<th>Ended</th>') ||
-    !partialHtml.stats.includes('<th>Weight</th>') ||
+    !partialHtml.stats.includes('<th>Yield</th>') ||
+    !partialHtml.stats.includes('<th>Avg flow</th>') ||
+    !partialHtml.stats.includes('<th>Max flow</th>') ||
+    !partialHtml.stats.includes('<th>Preset</th>') ||
+    !partialHtml.stats.includes('<strong>Avg yield</strong>') ||
+    !partialHtml.stats.includes('colspan="13"') ||
     partialHtml.stats.includes('<th>Actual</th>') ||
     !ui.includes('no time') ||
     !ui.includes('id="timezoneOffsetMinutes"') ||
@@ -551,6 +559,7 @@ if (!ui.includes('id="shotTable"') ||
     js.includes('Request queued successfully.') ||
     !network.includes('hasWallTime') ||
     !network.includes('endedAtLocalSec') ||
+    !network.includes('\\"presetName\\":\\"%s\\"') ||
     !network.includes('SHOT_LOG_CLEAR_NOT_CONFIRMED')) {
   throw new Error('Shot history UI/API must expose table, CSV export, clear confirmation, and timezone setting');
 }
@@ -709,7 +718,7 @@ if (!statsSection ||
     !statsSection[1].includes('class="shotDur"') ||
     !statsSection[1].includes('class="shotActual"') ||
     !statsSection[1].includes('<strong>Avg time</strong>') ||
-    !statsSection[1].includes('<strong>Avg weight</strong>') ||
+    !statsSection[1].includes('<strong>Avg yield</strong>') ||
     !statsSection[1].includes('<strong>Daily shots</strong>') ||
     !statsSection[1].includes('<strong>Avg error</strong>') ||
     !statsSection[1].includes('<strong>Avg flow</strong>') ||
@@ -735,7 +744,7 @@ if (!statsSection ||
     !runtimeJs.includes('shotHistory.shots.slice(0,SHOTS_PAGE_SIZE)') ||
     !runtimeJs.includes('renderShotStats();') ||
     runtimeJs.includes('slice(0,20)') ||
-    !css.includes('.shotCard:has(>:nth-child(5):last-child){grid-template-areas:"dur dur dur actual actual actual" "goal goal err err flow flow"}') ||
+    !css.includes('.shotCard:has(>:nth-child(5):last-child){grid-template-areas:"dur dur dur actual actual actual" "goal goal err err avgflow avgflow"}') ||
     css.includes('#shotStatsPanel') ||
     css.includes('#statsAvgDur') ||
     css.includes('statsAvgDaily') ||

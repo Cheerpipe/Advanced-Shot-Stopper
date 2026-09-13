@@ -108,7 +108,7 @@
     api: async url => {assert.equal(url, '0/120/date/desc'); return {shots: records};},
     shotsUrl: (...args) => args.join('/'), SHOTS_EXPORT_LIMIT: 120,
     formatShotTimeCsv: () => '', shotDisplayActualG: weight => weight,
-    shotDisplayFlowGS: () => 1.2, Blob,
+    shotDisplayFlowGS: () => 1.2, shotMaxFlowGS: r => r.id === 1 ? null : 2.5, Blob,
     URL: {createObjectURL: value => {blob = value; return 'blob:test';}, revokeObjectURL() {}},
     document: {createElement: () => ({click() {}})},
     message: message => {throw new Error(message);}, formatCommandError: (_, e) => e.message
@@ -119,7 +119,7 @@
   assert.equal(lines.length, 121);
   assert.equal(lines[0][11], 'offset_g');
   assert.equal(lines[1][11], '0');
-  assert.deepEqual(lines[0].slice(-5), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id']);
-  assert.deepEqual(lines[1].slice(-5), ['linear_ewma', '2', '0.37', '', '']);
-  assert.deepEqual(lines[2].slice(-5), ['legacy', '1', '1.00', '1', '255']);
+  assert.deepEqual(lines[0].slice(-6), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id', 'max_flow_g_s']);
+  assert.deepEqual(lines[1].slice(-6), ['linear_ewma', '2', '0.37', '', '', '']);
+  assert.deepEqual(lines[2].slice(-6), ['legacy', '1', '1.00', '1', '255', '2.5']);
 })().catch(error => {console.error(error); process.exitCode = 1;});

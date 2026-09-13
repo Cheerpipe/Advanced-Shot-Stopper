@@ -1160,6 +1160,8 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
   record.cutType = static_cast<uint8_t>(
       shotLogCutFromEndReason(snapshot.endReason));
   shotLogSetPresetId(record, snapshot.activePresetId);
+  copyCString(record.presetName, sizeof(record.presetName),
+              snapshot.activePresetName);
   record.extractionGuardEnabled = shotLogPackGuardFlags(
       snapshot.extractionGuardEnabled, snapshot.slowExtractionGuardEnabled);
   record.extractionExtended = shotLogPackExtendedFlags(

@@ -264,29 +264,41 @@ int main() {
     assert(shotLogPresetId(decoded.records[0]) == 255);
     assert(decoded.records[0].extractionExtended == record.extractionExtended);
   }
-  record.extractionGuardEnabled = (record.extractionGuardEnabled & 31) | (3 << 5);
-  store.header.schemaVersion = 3;
-  record.extractionExtended = 3 | (2 << 2) | (2 << 5);  // V3 code 2 = alpha .30.
-  record.cutType &= 15;
-  store.header.checksum = shotLogChecksum(store);
+  ShotLogStoreV4 legacyStore = {};
+  legacyStore.header = store.header;
+  legacyStore.header.schemaVersion = 3;
+  legacyStore.header.recordSize = sizeof(ShotLogRecordV4);
+  memcpy(&legacyStore.records[0], &record, sizeof(ShotLogRecordV4));
+  auto &legacyRecord = legacyStore.records[0];
+  legacyRecord.extractionGuardEnabled =
+      (legacyRecord.extractionGuardEnabled & 31) | (3 << 5);
+  legacyRecord.extractionExtended =
+      3 | (2 << 2) | (2 << 5);  // V3 code 2 = alpha .30.
+  legacyRecord.cutType &= 15;
+  legacyStore.header.checksum = shotLogChecksumV4(legacyStore);
   ShotLogStore v3Decoded;
-  assert(decodeShotLogBlob(&store, sizeof(store), v3Decoded) == ShotLogDecodeStatus::MIGRATED);
+  assert(decodeShotLogBlob(&legacyStore, sizeof(legacyStore), v3Decoded) ==
+         ShotLogDecodeStatus::MIGRATED);
   assert(shotLogBbwAlpha(v3Decoded.records[0]) == 30);
   assert(shotLogPresetId(v3Decoded.records[0]) == 255);
   assert(strcmp(shotLogBbwVersion(v3Decoded.records[0]), "1") == 0);
-  store.header.schemaVersion = 2;
-  record.extractionExtended = 3 | (4 << 2) | (2 << 5);  // V2 code 4 = alpha 1.00.
-  record.cutType &= 15;
-  store.header.checksum = shotLogChecksum(store);
+  legacyStore.header.schemaVersion = 2;
+  legacyRecord.extractionExtended =
+      3 | (4 << 2) | (2 << 5);  // V2 code 4 = alpha 1.00.
+  legacyRecord.cutType &= 15;
+  legacyStore.header.checksum = shotLogChecksumV4(legacyStore);
   ShotLogStore migratedHistory;
-  assert(decodeShotLogBlob(&store, sizeof(store), migratedHistory) == ShotLogDecodeStatus::MIGRATED);
+  assert(decodeShotLogBlob(&legacyStore, sizeof(legacyStore), migratedHistory) ==
+         ShotLogDecodeStatus::MIGRATED);
   assert(shotLogPresetId(migratedHistory.records[0]) == 0);
   assert(strcmp(shotLogBbwAlgorithm(migratedHistory.records[0]), "linear_ewma") == 0);
   assert(shotLogBbwAlpha(migratedHistory.records[0]) == 100);
   assert(shotLogCut(migratedHistory.records[0]) == ShotLogCut::LIMIT);
-  store.header.schemaVersion = 1;
-  store.header.checksum = shotLogChecksum(store);
-  assert(decodeShotLogBlob(&store, sizeof(store), store) == ShotLogDecodeStatus::MIGRATED);
+  legacyStore.header.schemaVersion = 1;
+  legacyStore.header.checksum = shotLogChecksumV4(legacyStore);
+  memcpy(&store, &legacyStore, sizeof(legacyStore));
+  assert(decodeShotLogBlob(&store, sizeof(legacyStore), store) ==
+         ShotLogDecodeStatus::MIGRATED);
   assert(strcmp(shotLogBbwAlgorithm(record), "legacy") == 0);
   assert(shotLogPresetId(record) == 0);
   assert(shotLogBbwAlpha(record) == 0);

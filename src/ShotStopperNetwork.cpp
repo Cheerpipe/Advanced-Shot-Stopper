@@ -928,8 +928,8 @@ void buildSlimPresetsJson(const ShotPresetBank &presets) {
   }
   for (uint8_t i = 0; i < presets.count && i < MAX_SHOT_PRESETS; ++i) {
     const ShotPreset &p = presets.presets[i];
-    char safeName[SHOT_PRESET_NAME_CAPACITY * 2] = {};
-    sanitizeJsonEmbed(p.name, safeName, sizeof(safeName));
+    char safeName[SHOT_PRESET_NAME_CAPACITY * 6] = {};
+    escapeJsonString(p.name, safeName, sizeof(safeName));
     n = snprintf(
         buf + used, cap - used,
         "%s{\"id\":%u,\"name\":\"%s\",\"isFactory\":%s,\"brewByWeight\":%s,"

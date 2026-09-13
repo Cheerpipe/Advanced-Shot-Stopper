@@ -227,9 +227,9 @@ if (generated.gzip.length > 4096) {
 if (generated.jsGzip.length > 5044) {
   throw new Error('Compressed Web UI shell JS exceeds the 5044-byte gzip budget');
 }
-// Allow a fixed-size first-drop icon and adjacent time above the weight axis.
-if (generated.cssGzip.length > 6750) {
-  throw new Error('Compressed Web CSS exceeds the 6750-byte gzip budget');
+// Allow fixed chart grids and adaptive axes while retaining the combined cap.
+if (generated.cssGzip.length > 6850) {
+  throw new Error('Compressed Web CSS exceeds the 6850-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 if (generated.runtimeGzip.length > 32500) {

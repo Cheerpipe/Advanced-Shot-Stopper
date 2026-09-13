@@ -38,11 +38,13 @@ objects to PSRAM would move synchronization state accessed under spinlocks.
 Network command builders must activate their union member with
 `setNetworkType()` before writing credentials. Preset metadata remains outside
 the union because a preset operation also carries configuration. Persisted
-record layouts are unchanged.
+settings and command layouts are unchanged.
 
-Settings V12/history V4 change byte meanings through explicit migration without
-growing either blob; the separate last-shot V3 record adds bounded preset
-provenance. Web gzip is capped at 66,400 bytes combined:
+Settings V12 changes byte meanings through explicit migration without growing
+its blob. History V5 grows each record from 48 to 72 bytes to retain an exact
+24-byte preset-name snapshot; the 120-record store remains below the shared
+18 KiB flash-I/O scratch limit. The separate last-shot V4 record also retains
+bounded preset provenance. Web gzip is capped at 66,400 bytes combined:
 500 bytes of the shell-JS allowance are reassigned to runtime (5,444 and 32,000
 bytes respectively before the PM allocation below). Source authoring limits are
 63,000 bytes HTML and 170,300 bytes JS, 233,300 combined. This reviewed increase

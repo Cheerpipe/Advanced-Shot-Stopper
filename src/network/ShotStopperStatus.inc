@@ -116,7 +116,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char safeActiveServer[NTP_SERVER_HOST_CAPACITY] = {};
   char safeScaleProtocol[24] = {};
   char safeHomeShotProtocol[24] = {};
-  char safeHomeShotPreset[SHOT_PRESET_NAME_CAPACITY * 2] = {};
+  char safeHomeShotPreset[SHOT_PRESET_NAME_CAPACITY * 6] = {};
   char safePreferredScaleMac[PREFERRED_SCALE_MAC_CAPACITY * 2] = {};
   char safePreferredScaleName[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
   char safeFirmwareVersion[32] = {};
@@ -130,8 +130,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                     sizeof(safeScaleProtocol));
   sanitizeJsonEmbed(homeLastShot.scaleProtocol, safeHomeShotProtocol,
                     sizeof(safeHomeShotProtocol));
-  sanitizeJsonEmbed(homeLastShot.presetName, safeHomeShotPreset,
-                    sizeof(safeHomeShotPreset));
+  escapeJsonString(homeLastShot.presetName, safeHomeShotPreset,
+                   sizeof(safeHomeShotPreset));
   sanitizeJsonEmbed(control.preferredScaleMac, safePreferredScaleMac,
                     sizeof(safePreferredScaleMac));
   sanitizeJsonEmbed(control.preferredScaleName, safePreferredScaleName,

@@ -9587,6 +9587,10 @@ void s02e_shot_log_appends_auto_bbw_after_drip_delay() {
   pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
   pendingFinalize.weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   pendingFinalize.endedAtMs = hostMillis;
+  pendingFinalize.activePresetId = presetBank.activeId;
+  copyCString(pendingFinalize.activePresetName,
+              sizeof(pendingFinalize.activePresetName),
+              activeShotPreset(presetBank).name);
   runLoopAfter(pendingFinalize.dripDelayMs);
   CHECK(!pendingFinalize.pending);
   CHECK(shotLog.count() == 1);
@@ -9597,6 +9601,7 @@ void s02e_shot_log_appends_auto_bbw_after_drip_delay() {
   CHECK(records[0].stopDetail ==
         static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET));
   CHECK(shotLogCut(records[0]) == ShotLogCut::AUTO);
+  CHECK(strcmp(records[0].presetName, pendingFinalize.activePresetName) == 0);
 }
 
 void s02f_shot_log_skips_sub_one_gram_weight() {
@@ -12152,8 +12157,9 @@ void s08_shot_log_without_sync_has_no_wall_time() {
   CHECK(stored[0].endedAtUnixSec == 0);
 }
 
-void s11_shot_log_record_stays_fixed_size() {
-  CHECK(sizeof(ShotLogRecord) == 48);
+void s11_shot_log_record_includes_preset_snapshot() {
+  CHECK(sizeof(ShotLogRecord) == 72);
+  CHECK(sizeof(ShotLogStore) <= FLASH_IO_SCRATCH_BYTES);
 }
 
 void s12_shot_rating_pack_preserves_guards() {
@@ -15049,7 +15055,7 @@ const TestCase testCases[] = {
     {"S06", s06_shot_log_local_sec_from_utc},
     {"S07", s07_shot_log_stores_fixed_wall_time},
     {"S08", s08_shot_log_without_sync_has_no_wall_time},
-    {"S11", s11_shot_log_record_stays_fixed_size},
+    {"S11", s11_shot_log_record_includes_preset_snapshot},
     {"S12", s12_shot_rating_pack_preserves_guards},
     {"S12b", s12b_shot_log_update_rating},
     {"S12c", s12c_finalize_links_exact_history_row},

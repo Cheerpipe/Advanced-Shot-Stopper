@@ -667,6 +667,7 @@ void p12_shot_log_persists_compact_blob() {
   record.actualWeightCg = 3600;
   record.actualWeightSource =
       static_cast<uint8_t>(ActualWeightSource::POST_DRIP);
+  strcpy(record.presetName, "Double");
   CHECK(log.append(record));
   CHECK(log.count() == 1);
 
@@ -687,6 +688,7 @@ void p12_shot_log_persists_compact_blob() {
   CHECK(out[0].goalWeightG == 36);
   CHECK(out[0].actualWeightSource ==
         static_cast<uint8_t>(ActualWeightSource::POST_DRIP));
+  CHECK(strcmp(out[0].presetName, "Double") == 0);
   CHECK(shotLogPackGuardFlags(true, true) ==
         (SHOT_LOG_FAST_GUARD_BIT | SHOT_LOG_SLOW_GUARD_BIT));
   CHECK(shotLogSlowGuardEnabled(shotLogPackGuardFlags(false, true)));
@@ -1512,12 +1514,40 @@ void p56_decode_shot_log_current_schema_only() {
   current.records[0].actualWeightCg = 3600;
   current.records[0].actualWeightSource =
       static_cast<uint8_t>(ActualWeightSource::POST_DRIP);
+  strcpy(current.records[0].presetName, "Double");
   finalizeShotLogStore(current);
   ShotLogStore decoded = {};
   CHECK(decodeShotLogBlob(&current, sizeof(current), decoded) ==
         ShotLogDecodeStatus::CURRENT);
   CHECK(decoded.header.schemaVersion == SHOT_LOG_SCHEMA_VERSION);
   CHECK(decoded.records[0].goalWeightG == 36);
+  CHECK(strcmp(decoded.records[0].presetName, "Double") == 0);
+
+  ShotLogStoreV4 legacy = {};
+  legacy.header.magic = SHOT_LOG_MAGIC;
+  legacy.header.schemaVersion = 4;
+  legacy.header.recordSize = sizeof(ShotLogRecordV4);
+  legacy.header.bootId = 3;
+  legacy.header.nextRecordId = 2;
+  legacy.header.count = 1;
+  legacy.header.writeIndex = 1;
+  legacy.records[0].id = 1;
+  legacy.records[0].bootId = 3;
+  legacy.records[0].goalWeightG = 35;
+  legacy.records[0].actualWeightCg = 3510;
+  legacy.header.checksum = shotLogChecksumV4(legacy);
+  const size_t legacyBytes =
+      sizeof(ShotLogHeader) + sizeof(ShotLogRecordV4);
+  std::vector<uint8_t> legacyBlob(legacyBytes);
+  memcpy(legacyBlob.data(), &legacy, legacyBytes);
+  decoded = ShotLogStore{};
+  CHECK(decodeShotLogBlob(legacyBlob.data(), legacyBlob.size(), decoded) ==
+        ShotLogDecodeStatus::MIGRATED);
+  CHECK(decoded.header.schemaVersion == SHOT_LOG_SCHEMA_VERSION);
+  CHECK(decoded.header.recordSize == sizeof(ShotLogRecord));
+  CHECK(decoded.records[0].goalWeightG == 35);
+  CHECK(decoded.records[0].actualWeightCg == 3510);
+  CHECK(decoded.records[0].presetName[0] == '\0');
 
   // Unknown schemas are rejected even with an intact record CRC.
   ShotLogStore foreign = current;
@@ -1816,11 +1846,11 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
   CHECK(sizeof(PersistedSettings) == 2616U);
   CHECK(settingsEntries == 168U);
-  CHECK(shotHistoryEntries == 366U);
+  CHECK(shotHistoryEntries == 546U);
   CHECK(lastShotEntries == 10U);
-  CHECK(applicationEntries == 609U);
+  CHECK(applicationEntries == 789U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 1785U);
+  CHECK(conservativeEntries - applicationEntries == 1605U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {
