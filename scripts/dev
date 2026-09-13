@@ -32,6 +32,11 @@ AREAS = {
 SECRET = re.compile(r"(?i)(password|token)(\s*[=:]\s*|\s+)\S+")
 HTTP_ROUTE_CAPACITY_STEP = (
     "http-route-capacity", ["node", "src/tests/check_http_route_capacity.js"])
+BUILD_PROFILES = (
+    ("esp32-s3-relay-x1-speaker", "la-marzocco-linea-micra"),
+    ("esp32-s3-relay-x1-speaker", "rancilio-silvia-pro-x"),
+    ("esp32-s3-relay-x1-speaker-reed", "rancilio-silvia-pro-x-reed"),
+)
 
 
 def redact(value: str) -> str:
@@ -297,8 +302,9 @@ commands:
   classify [PATH ...]        print path risks and aggregate risk
   test [normal|asan|tsan|web|ble|ota|tooling]
   validate [--risk R0..R3] [--webui-language CODE] [PATH ...]
+  profiles                   list exact profile IDs and compatibility
   build|analyze [ARGS]       wrap supported IDF build/analysis; build accepts
-                             --webui-language CODE (default: en)
+                             --hardware ID --machine ID (both required)
   flash|monitor|ota [ARGS]   hardware commands; flash/ota require confirmation
   clean --dry-run            list generated directories; --confirm removes them
 
@@ -341,6 +347,12 @@ def main() -> int:
             risk, details = classify(args)
             lines = [*(f"{item_risk} {path}" for path, item_risk in details), f"risk={risk}"]
             return record(command, risk, verbosity, lines, 0, "risk-classification")
+
+        if verb == "profiles":
+            if args:
+                raise ValueError("profiles takes no arguments")
+            return execute(command, "R0", [("profiles", [
+                "python3", "scripts/resolve_build_profiles.py", "--list"])], verbosity)
 
         if verb == "test":
             profile = args[0] if args else "normal"
@@ -407,14 +419,19 @@ def main() -> int:
                 steps += [HTTP_ROUTE_CAPACITY_STEP,
                           ("architecture", ["python3", "scripts/check_architecture.py"]),
                           ("web-contracts", ["node", "src/tests/check_web_assets.js"])]
-                for arch in ("n8r4", "n16r8"):
-                    steps.append((f"idf-{arch}", ["./scripts/build-idf", "--arch", arch,
-                                                  "--webui-language", webui_language, "--flags="]))
+                for hardware, machine in BUILD_PROFILES:
+                    steps.append((f"idf-{hardware}--{machine}", [
+                        "./scripts/build-idf", "--hardware", hardware,
+                        "--machine", machine, "--webui-language", webui_language,
+                        "--flags="]))
             if risk == "R3":
-                for arch in ("n8r4", "n16r8"):
-                    steps += [(f"cppcheck-{arch}", ["./scripts/static-idf", "--arch", arch]),
-                              (f"warnings-{arch}", ["./scripts/warnings-idf", "--arch", arch,
-                                                    "--webui-language", webui_language, "--flags="])]
+                for hardware, machine in BUILD_PROFILES:
+                    variant = f"{hardware}--{machine}"
+                    steps += [(f"cppcheck-{variant}", ["./scripts/static-idf",
+                                "--arch", "n16r8", "--build-dir", f"build-idf/{variant}"]),
+                              (f"warnings-{variant}", ["./scripts/warnings-idf",
+                                "--hardware", hardware, "--machine", machine,
+                                "--webui-language", webui_language, "--flags="])]
             manual = ["Complete and attach applicable HIL/manual evidence"] if risk == "R3" else []
             return execute(command, risk, steps, verbosity, manual, prelude)
 

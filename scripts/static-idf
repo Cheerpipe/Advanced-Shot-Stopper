@@ -25,8 +25,8 @@ and build variants as unused. Dead-code review is tracked separately from this
 F-21 gate. The output directory is deleted and recreated on every run. This
 script never builds the firmware; run ./scripts/build-idf separately first.
 
-Required parameters: --arch (implies build-idf/<architecture>).
---build-dir and --output-dir are one-shot overrides: they are not persisted.
+Required parameters: --arch. For a profile build, pass its directory with
+--build-dir. Path overrides are one-shot and are not persisted.
 
 $(ss_flag_help)
 
@@ -81,7 +81,7 @@ done
 
 if [[ ! -f "$compile_commands" ]]; then
   echo "$compile_commands does not exist." >&2
-  echo "Build the chosen variant first (e.g. ./scripts/build-idf --arch $SHOTSTOPPER_ARCH)." >&2
+  echo "Build with --hardware and --machine, then pass its directory with --build-dir." >&2
   exit 1
 fi
 

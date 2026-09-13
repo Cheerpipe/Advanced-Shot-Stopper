@@ -127,11 +127,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [n8r4, n16r8]
-        machine:
-          - {name: paddle-latch, type: 0}
-          - {name: momentary, type: 1}
-          - {name: momentary-reed, type: 2}
+        include:
+          - {name: linea-micra, hardware: esp32-s3-relay-x1-speaker, machine: la-marzocco-linea-micra}
+          - {name: silvia-pro-x, hardware: esp32-s3-relay-x1-speaker, machine: rancilio-silvia-pro-x}
+          - {name: silvia-pro-x-reed, hardware: esp32-s3-relay-x1-speaker-reed, machine: rancilio-silvia-pro-x-reed}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - run: mkdir -p ci-results/idf
@@ -141,41 +140,42 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          ./scripts/dev build --arch ${{ matrix.arch }} \
+          ./scripts/dev build --hardware ${{ matrix.hardware }} \
+            --machine ${{ matrix.machine }} \
             --webui-language en \
-            --flags "-DSHOT_STOPPER_MACHINE_TYPE=${{ matrix.machine.type }} -DSHOT_STOPPER_ENABLE_JTAG=0 -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0" \
+            --flags "-DSHOT_STOPPER_ENABLE_JTAG=0 -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0" \
             2>&1 | tee ci-results/idf/build.log
       - name: Name OTA image
         run: >-
-          cp build-idf/${{ matrix.arch }}/shotstopper.bin
-          build-idf/${{ matrix.arch }}/shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off.bin
+          cp build-idf/${{ matrix.hardware }}--${{ matrix.machine }}/shotstopper.bin
+          build-idf/${{ matrix.hardware }}--${{ matrix.machine }}/shotstopper-ota-${{ matrix.name }}-jtag-off-remote-off.bin
       - name: Cppcheck
         if: needs.classify.outputs.risk == 'R3'
         shell: bash
-        run: set -o pipefail; ./scripts/dev analyze --arch ${{ matrix.arch }} 2>&1 | tee ci-results/idf/cppcheck.log
+        run: set -o pipefail; ./scripts/dev analyze --arch n16r8 --build-dir build-idf/${{ matrix.hardware }}--${{ matrix.machine }} 2>&1 | tee ci-results/idf/cppcheck.log
       - name: Full scheduled clang-tidy analysis
         if: needs.classify.outputs.risk == 'R3' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         shell: bash
-        run: set -o pipefail; ./scripts/static-tidy-idf --arch ${{ matrix.arch }} 2>&1 | tee ci-results/idf/clang-tidy.log
+        run: set -o pipefail; ./scripts/static-tidy-idf --arch n16r8 --build-dir build-idf/${{ matrix.hardware }}--${{ matrix.machine }} 2>&1 | tee ci-results/idf/clang-tidy.log
       - name: Full scheduled IWYU analysis
         if: needs.classify.outputs.risk == 'R3' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         shell: bash
-        run: set -o pipefail; ./scripts/iwyu-idf --arch ${{ matrix.arch }} 2>&1 | tee ci-results/idf/iwyu.log
+        run: set -o pipefail; ./scripts/iwyu-idf --arch n16r8 --build-dir build-idf/${{ matrix.hardware }}--${{ matrix.machine }} 2>&1 | tee ci-results/idf/iwyu.log
       - name: Extra GCC warnings
         if: needs.classify.outputs.risk == 'R3'
         shell: bash
-        run: set -o pipefail; ./scripts/warnings-idf --arch ${{ matrix.arch }} 2>&1 | tee ci-results/idf/warnings.log
+        run: set -o pipefail; ./scripts/warnings-idf --hardware ${{ matrix.hardware }} --machine ${{ matrix.machine }} 2>&1 | tee ci-results/idf/warnings.log
       - name: Full scheduled GCC analysis
         if: needs.classify.outputs.risk == 'R3' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         shell: bash
-        run: set -o pipefail; ./scripts/gcc_analyzer --arch ${{ matrix.arch }} --flags= 2>&1 | tee ci-results/idf/gcc-analyzer.log
+        run: set -o pipefail; ./scripts/gcc_analyzer --hardware ${{ matrix.hardware }} --machine ${{ matrix.machine }} --flags= 2>&1 | tee ci-results/idf/gcc-analyzer.log
       - name: Upload firmware and diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off
+          name: shotstopper-ota-${{ matrix.name }}-jtag-off-remote-off
           path: |
-            build-idf/${{ matrix.arch }}/shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off.bin
+            build-idf/${{ matrix.hardware }}--${{ matrix.machine }}/shotstopper-ota-${{ matrix.name }}-jtag-off-remote-off.bin
             ci-results/idf/
             reports/
             artifacts/runs/

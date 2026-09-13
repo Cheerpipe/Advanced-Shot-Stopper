@@ -4,7 +4,7 @@
 # set-target writes it into sdkconfig.
 #
 # Official supported firmware builds use ./scripts/build-idf. The legacy
-# ./scripts/build (arduino-cli) path remains in-tree but is unsupported;
+# ESP-IDF is the only supported firmware build path;
 # prebuilt Arduino-ESP32 libraries there compile ALLOW_BSS out.
 
 CONFIG_FREERTOS_HZ=1000

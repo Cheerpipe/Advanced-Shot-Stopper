@@ -2,7 +2,7 @@
 # Shared ESP-IDF helpers. Source after shotstopper_board.sh and
 # shotstopper_cli.sh; do not execute this file directly.
 #
-# Official firmware builds write to build-idf/<architecture> and use native
+# Official firmware builds write to build-idf/<hardware>--<machine> and use native
 # ESP-IDF NimBLE as the only BLE backend.
 
 IDF_PROJECT_NAME="shotstopper"
@@ -163,7 +163,7 @@ ss_idf_require_image() {
   ss_idf_resolve_paths
   if [[ ! -f "$IDF_IMAGE" ]]; then
     echo "$IDF_IMAGE does not exist." >&2
-    echo "Build first: ./scripts/build-idf --arch $SHOTSTOPPER_ARCH" >&2
+    echo "Build first with the same --hardware and --machine profiles." >&2
     exit 1
   fi
 }

@@ -15,22 +15,24 @@ usage() {
 Usage: ./scripts/flash-idf [flags]
 
 Flash an ESP-IDF firmware binary over USB. Without --image, uses the
-already-built binary from build-idf/<architecture>; it never rebuilds or
+already-built binary for the selected profile pair; it never rebuilds or
 changes that image. Use build-idf --webui-language <code> first to select the
 WebUI language. With --no-check, existing outputs are flashed without identity
 verification. Does not open the monitor. This is the official USB flash path.
 
-Required parameters: --port and --arch.
+Required parameters: --port plus either both profiles or --arch for a legacy
+existing image. New builds always use profiles.
 
 $(ss_flag_help)
 
 $(shotstopper_arch_help)
 
 Examples:
-  ./scripts/flash-idf --port /dev/cu.usbmodem2101 --arch n16r8
-  ./scripts/flash-idf --port /dev/cu.usbmodem2101 --arch n16r8 --erase-all
-  ./scripts/flash-idf -p /dev/cu.usbmodem2101 -a n8r4
-  ./scripts/flash-idf -p /dev/cu.usbmodem2101 -a n16r8 --image ~/Downloads/shotstopper.bin
+  ./scripts/flash-idf --port /dev/cu.usbmodem2101 \
+    --hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x
+  ./scripts/flash-idf --port /dev/cu.usbmodem2101 \
+    --hardware esp32-s3-relay-x1-speaker --machine la-marzocco-linea-micra \
+    --erase-all
 EOF
 }
 
@@ -51,7 +53,17 @@ if [[ "$SS_CLI_ERASE_ALL" == "1" ]] && ss_is_set image; then
   exit 2
 fi
 
-ss_cli_resolve "port arch" || exit $?
+ss_cli_apply_env
+if ss_is_set hardware_config || ss_is_set machine_config; then
+  if ! ss_is_set hardware_config || ! ss_is_set machine_config; then
+    echo "--hardware and --machine must be used together." >&2
+    exit 2
+  fi
+  ss_cli_resolve "port hardware_config machine_config" || exit $?
+  ss_cli_resolve_profiles "" check || exit $?
+else
+  ss_cli_resolve "port arch" || exit $?
+fi
 ss_cli_normalize_image || exit $?
 shotstopper_resolve_board "$(ss_get arch)"
 ss_idf_source
@@ -74,7 +86,12 @@ else
     exit 127
   }
   echo "Local image identity:"
-  node ./scripts/image_tag.js "$image" --expect-arch "$SHOTSTOPPER_ARCH"
+  identity_args=(--expect-arch "$SHOTSTOPPER_ARCH")
+  if [[ -n "${SHOTSTOPPER_HARDWARE_COMPAT:-}" ]]; then
+    identity_args+=(--expect-hardware "$SHOTSTOPPER_HARDWARE_COMPAT"
+                    --expect-machine "$SHOTSTOPPER_MACHINE_COMPAT")
+  fi
+  node ./scripts/image_tag.js "$image" "${identity_args[@]}"
 fi
 
 port="$(ss_get port)"
@@ -168,7 +185,7 @@ else
   # re-run the build target and could silently regenerate a different WebUI.
   if [[ ! -f "$IDF_BUILD_DIR/flash_args" ]]; then
     echo "$IDF_BUILD_DIR/flash_args does not exist." >&2
-    echo "Build first: ./scripts/build-idf --arch $SHOTSTOPPER_ARCH" >&2
+    echo "Build first with --hardware and --machine, or provide --image." >&2
     exit 1
   fi
   # flash_args lists bootloader, partition table, otadata and app at their

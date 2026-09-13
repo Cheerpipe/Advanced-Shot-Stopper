@@ -94,6 +94,7 @@ ss_cli_reset() {
   SS_CLI_NO_CHECK=0
   SS_CLI_ERASE_ALL=0
   SS_CLI_DISCARD_OTA_SESSION=0
+  SS_CLI_DEVELOPMENT=0
   for key in $SS_CLI_KEYS; do
     ss_set "$key" ""
     ss_origin_set "$key" ""
@@ -112,8 +113,8 @@ ss_env_name() {
     build_dir) printf 'SHOTSTOPPER_BUILD_DIR_OVERRIDE' ;;
     output_dir) printf 'SHOTSTOPPER_OUTPUT_DIR' ;;
     webui_language) printf 'SHOTSTOPPER_WEBUI_LANGUAGE' ;;
-    hardware_config) printf 'SHOTSTOPPER_HARDWARE_CONFIG' ;;
-    machine_config) printf 'SHOTSTOPPER_MACHINE_CONFIG' ;;
+    hardware_config) printf 'SHOTSTOPPER_HARDWARE' ;;
+    machine_config) printf 'SHOTSTOPPER_MACHINE' ;;
   esac
 }
 
@@ -121,7 +122,7 @@ ss_flag_help() {
   cat <<'EOF'
 Named parameters (long and short):
   -p, --port <path>        Serial port, e.g. /dev/cu.usbmodem2101
-  -a, --arch <arch>        n8r4 | n16r8
+  -a, --arch <arch>        Architecture for analysis or an existing image
   -s, --speed <baud>       Serial monitor baud rate, e.g. 115200
   -H, --host <ip|name>     Controller address for OTA
   -t, --password <pw>      Device password (never persisted)
@@ -131,10 +132,9 @@ Named parameters (long and short):
   -o, --output-dir <path>  Reports directory (static / static-idf only)
       --webui-language <code>
                            Compile-time WebUI language (default: en; not persisted)
-      --hardware-config <json>
-                           Assembled hardware profile (not persisted)
-      --machine-config <json>
-                           Coffee-machine profile (not persisted)
+      --hardware <id|json> Exact hardware profile ID or JSON path (not persisted)
+      --machine <id|json>  Exact machine profile ID or JSON path (not persisted)
+      --development        Build-only development mode (not persisted)
       --force              Commit OTA without a prompt and wait for confirmation
       --no-check           Skip local image verification before USB flashing;
                            transfer existing output as-is (OTA rejects it)
@@ -160,6 +160,7 @@ SS_CLI_FORCE=0
 SS_CLI_NO_CHECK=0
 SS_CLI_ERASE_ALL=0
 SS_CLI_DISCARD_OTA_SESSION=0
+SS_CLI_DEVELOPMENT=0
 
 ss_cli_die() {
   printf '%s\n' "$1" >&2
@@ -207,6 +208,15 @@ ss_cli_parse() {
         printf '%s\n' '--discard-ota-session does not take a value.' >&2
         return 2
         ;;
+      --development)
+        SS_CLI_DEVELOPMENT=1
+        shift
+        continue
+        ;;
+      --development=*)
+        printf '%s\n' '--development does not take a value.' >&2
+        return 2
+        ;;
       --*=*)
         key="${1%%=*}"
         value="${1#*=}"
@@ -223,8 +233,16 @@ ss_cli_parse() {
       -b|--build-dir) key="build_dir" ;;
       -o|--output-dir) key="output_dir" ;;
       --webui-language) key="webui_language" ;;
-      --hardware-config) key="hardware_config" ;;
-      --machine-config) key="machine_config" ;;
+      --hardware) key="hardware_config" ;;
+      --machine) key="machine_config" ;;
+      --hardware-config)
+        printf '%s\n' 'Warning: --hardware-config is deprecated; use --hardware.' >&2
+        key="hardware_config"
+        ;;
+      --machine-config)
+        printf '%s\n' 'Warning: --machine-config is deprecated; use --machine.' >&2
+        key="machine_config"
+        ;;
       -h|--help|help)
         SS_CLI_HELP_REQUESTED=1
         return 0
@@ -295,6 +313,12 @@ ss_cli_apply_env() {
     name="$(ss_env_name "$key")"
     [[ -n "$name" ]] || continue
     eval "value=\${$name-}"
+    if [[ -z "$value" && "$key" == "hardware_config" ]]; then
+      value="${SHOTSTOPPER_HARDWARE_CONFIG-}"
+    fi
+    if [[ -z "$value" && "$key" == "machine_config" ]]; then
+      value="${SHOTSTOPPER_MACHINE_CONFIG-}"
+    fi
     # Legacy alias: older docs/scripts used SHOTSTOPPER_OTA_TOKEN.
     if [[ -z "$value" && "$key" == "password" ]]; then
       value="${SHOTSTOPPER_OTA_TOKEN-}"
@@ -304,6 +328,65 @@ ss_cli_apply_env() {
     [[ -n "$value" ]] || continue
     ss_put "$key" "$value" "env"
   done
+}
+
+# Prints the compile flags for this run. --development is deliberately kept
+# outside both profiles and .shotstopper so it cannot affect a later build.
+ss_cli_effective_flags() {
+  local raw token found=0
+  raw="$(ss_get flags)"
+  if [[ "$SS_CLI_DEVELOPMENT" != "1" ]]; then
+    printf '%s' "$raw"
+    return 0
+  fi
+  # Word-splitting is intentional: flags are stored as a space-separated list.
+  # shellcheck disable=SC2086
+  set -- $raw
+  for token in "$@"; do
+    case "$token" in
+      -DSHOT_STOPPER_DEVELOPMENT=0|SHOT_STOPPER_DEVELOPMENT=0)
+        ss_cli_die "--development conflicts with SHOT_STOPPER_DEVELOPMENT=0 in --flags."
+        return 2
+        ;;
+      -DSHOT_STOPPER_DEVELOPMENT=1|SHOT_STOPPER_DEVELOPMENT=1) found=1 ;;
+    esac
+  done
+  if [[ "$found" == "1" ]]; then
+    printf '%s' "$raw"
+  else
+    printf '%s' "${raw:+$raw }-DSHOT_STOPPER_DEVELOPMENT=1"
+  fi
+}
+
+# Resolves the selected pair once and exports the target/build identity used by
+# build, flash, OTA, and combined workflows. The caller must resolve both keys.
+ss_cli_resolve_profiles() {
+  local flags="${1:-}" mode="${2:-write}" resolved_arch
+  local resolver_flags=()
+  [[ "$mode" == "check" ]] && resolver_flags+=(--check-only)
+  SS_PROFILE_OUTPUT="$(python3 "$SS_CLI_ROOT/scripts/resolve_build_profiles.py" \
+    --hardware "$(ss_get hardware_config)" --machine "$(ss_get machine_config)" \
+    --flags="$flags" --output-root "$SS_CLI_ROOT/build-idf" \
+    ${resolver_flags[@]+"${resolver_flags[@]}"})" || return $?
+  resolved_arch="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^arch=//p')"
+  SHOTSTOPPER_VARIANT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^variant=//p')"
+  SHOTSTOPPER_HARDWARE_COMPAT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^hardware_compat=//p')"
+  SHOTSTOPPER_MACHINE_COMPAT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^machine_compat=//p')"
+  SHOTSTOPPER_GENERATED_DIR="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^generated_dir=//p')"
+  if [[ -z "$resolved_arch" || -z "$SHOTSTOPPER_VARIANT" ||
+        -z "$SHOTSTOPPER_HARDWARE_COMPAT" || -z "$SHOTSTOPPER_MACHINE_COMPAT" ||
+        -z "$SHOTSTOPPER_GENERATED_DIR" ]]; then
+    ss_cli_die "Profile resolver returned incomplete build metadata."
+    return 2
+  fi
+  if ss_is_set arch && { [[ "$(ss_origin arch)" == "cli" ]] ||
+                         [[ "$(ss_origin arch)" == "env" ]]; } &&
+     [[ "$(ss_get arch)" != "$resolved_arch" ]]; then
+    ss_cli_die "--arch $(ss_get arch) conflicts with profile target $resolved_arch."
+    return 2
+  fi
+  ss_put arch "$resolved_arch" profile
+  export SHOTSTOPPER_VARIANT SHOTSTOPPER_GENERATED_DIR
 }
 
 ss_cli_load_store() {
@@ -749,6 +832,10 @@ ss_cli_flags_for() {
         SS_CLI_FORWARD+=(--discard-ota-session)
       continue
     fi
+    if [[ "$key" == "development" ]]; then
+      [[ "$SS_CLI_DEVELOPMENT" == "1" ]] && SS_CLI_FORWARD+=(--development)
+      continue
+    fi
     ss_is_set "$key" || continue
     case "$key" in
       port) SS_CLI_FORWARD+=(--port "$(ss_get port)") ;;
@@ -763,8 +850,8 @@ ss_cli_flags_for() {
       build_dir) SS_CLI_FORWARD+=(--build-dir "$(ss_get build_dir)") ;;
       output_dir) SS_CLI_FORWARD+=(--output-dir "$(ss_get output_dir)") ;;
       webui_language) SS_CLI_FORWARD+=(--webui-language "$(ss_get webui_language)") ;;
-      hardware_config) SS_CLI_FORWARD+=(--hardware-config "$(ss_get hardware_config)") ;;
-      machine_config) SS_CLI_FORWARD+=(--machine-config "$(ss_get machine_config)") ;;
+      hardware_config) SS_CLI_FORWARD+=(--hardware "$(ss_get hardware_config)") ;;
+      machine_config) SS_CLI_FORWARD+=(--machine "$(ss_get machine_config)") ;;
     esac
   done
 }

@@ -143,7 +143,7 @@ function inspectImage(filePath) {
   const tag = findImageTag(buffer);
   if (tag === null) {
     problems.push(
-        `marker ${TAG_PREFIX}… not found (built without scripts/build?)`);
+        `marker ${TAG_PREFIX}… not found (built without scripts/build-idf?)`);
   }
   return {problems, tag, sizeBytes: buffer.length, projectName,
     imageSha256: buffer.subarray(buffer.length - IMAGE_HASH_BYTES).toString('hex')};

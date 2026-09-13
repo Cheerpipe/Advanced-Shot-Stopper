@@ -15,13 +15,13 @@ Usage: ./scripts/bf-idf [flags]
 Runs, in order: build-idf and flash-idf. The flash step skips the local image
 re-check and transfers the output that build-idf just produced.
 
-Required parameters: --port and --arch. --flags is optional.
+Required parameters: --port, --hardware, and --machine. --flags is optional.
 
 $(ss_flag_help)
 
 Examples:
-  ./scripts/bf-idf --port /dev/cu.usbmodem2101 --arch n16r8
-  ./scripts/bf-idf -p /dev/cu.usbmodem2101 -a n8r4 -f "-DSHOT_STOPPER_ENABLE_BUZZER=1"
+  ./scripts/bf-idf --port /dev/cu.usbmodem2101 \
+    --hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x
 EOF
 }
 
@@ -32,14 +32,14 @@ if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
 fi
 
 # Resolve everything once here so the child scripts never prompt again.
-ss_cli_resolve "port arch webui_language" "flags" || exit $?
+ss_cli_resolve "port hardware_config machine_config webui_language" "flags" || exit $?
 ss_cli_normalize_image || exit $?
 
 root="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 cd "$root"
 
-ss_cli_flags_for arch flags webui_language
+ss_cli_flags_for hardware_config machine_config flags webui_language development
 ./scripts/build-idf ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}
 
-ss_cli_flags_for port arch image no_check erase_all
+ss_cli_flags_for port hardware_config machine_config image no_check erase_all
 exec ./scripts/flash-idf ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}

@@ -25,8 +25,6 @@ commands run in the shell and are documented in [Build scripts](SCRIPTS.md).
 On Linux the port is often `/dev/ttyACM0` or `/dev/ttyUSB0`. Exit with
 **Ctrl+]**. The script prompts for and remembers the port in `.shotstopper`.
 
-`./scripts/monitor` is a compatibility alias to the same ESP-IDF monitor.
-
 Close other serial clients before opening this port. Type `HELLO` and press
 Enter; expect `how are you`. Then use `HELP` or `NET_STATUS`.
 If logs obscure input, send `SERIAL_DEBUG_OFF`. A missing port usually needs

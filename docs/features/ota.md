@@ -106,13 +106,15 @@ session. Selecting a different file never discards the existing session.
 From the repository root, build an image for the controller's board:
 
 ```sh
-./scripts/dev build --arch n16r8
-./scripts/dev ota --confirm --arch n16r8 --host 192.168.1.50
+./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x
+./scripts/dev ota --confirm --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x --host 192.168.1.50
 ```
 
 Enter the password when prompted, verify the reported image, then confirm
 commit. Use `--host 192.168.4.1` when connected to the controller's AP.
-Replace `n16r8` with `n8r4` only for that board architecture.
+Use the exact same profile pair that produced the image.
 
 For an image already obtained elsewhere, add
 `--image /path/to/shotstopper.bin`; you do not need to compile it again.

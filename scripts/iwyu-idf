@@ -24,8 +24,8 @@ Run Include-What-You-Use against a compilation database already produced by
 ESP-IDF. The output directory is deleted and recreated on every run. This
 script never builds the firmware; run ./scripts/build-idf separately first.
 
-Required parameters: --arch (implies build-idf/<architecture>).
---build-dir and --output-dir are one-shot overrides: they are not persisted.
+Required parameters: --arch. For a profile build, pass its directory with
+--build-dir. Path overrides are one-shot and are not persisted.
 
 IWYU must be built against the same clang version it runs with. Override the
 binary with the IWYU_BINARY environment variable (full path).
@@ -94,7 +94,7 @@ fi
 
 if [[ ! -f "$compile_commands" ]]; then
   echo "$compile_commands does not exist." >&2
-  echo "Build the chosen variant first (e.g. ./scripts/build-idf --arch $SHOTSTOPPER_ARCH)." >&2
+  echo "Build with --hardware and --machine, then pass its directory with --build-dir." >&2
   exit 1
 fi
 

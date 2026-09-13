@@ -40,20 +40,32 @@ and machine tests.
 
 ## Selecting profiles
 
-From the repository root, pass exactly one hardware file and one machine file:
+List the exact built-in IDs, capabilities, and compatible hardware pairs:
+
+```sh
+./scripts/dev profiles
+```
+
+Then select exactly one hardware profile and one machine profile:
 
 ```sh
 ./scripts/dev build \
-  --hardware-config config/hardware/esp32-s3-relay-x1-speaker.json \
-  --machine-config config/machines/rancilio-silvia-pro-x.json
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x
 ```
 
-Both options are required together. They may also come from
-`SHOTSTOPPER_HARDWARE_CONFIG` and `SHOTSTOPPER_MACHINE_CONFIG`, but neither path
-is saved in `.shotstopper`; every profile build therefore makes its selection
-explicit for that run. `--arch` remains available for legacy generic builds. In
-profile mode it may be omitted or match the hardware target, but a conflicting
-CLI or environment value fails before compilation.
+Each selector accepts either an exact built-in ID or an explicit JSON path.
+IDs are not fuzzy-matched. Both options are mandatory for every firmware build;
+there is no architecture-only build, implicit default, or remembered previous
+pair. They may also come from `SHOTSTOPPER_HARDWARE` and
+`SHOTSTOPPER_MACHINE`, but neither selection is saved in `.shotstopper`.
+The deprecated `--hardware-config` / `--machine-config` flags and corresponding
+`*_CONFIG` environment variables remain temporary aliases and print a warning.
+
+`--arch` is not a board selector. If supplied alongside both profiles, it can
+only confirm the architecture derived from hardware; a different value fails
+before compilation. Analysis tools that inspect an existing compilation
+database may still use `--arch` and `--build-dir`.
 
 The resolver performs these operations in order:
 
@@ -303,8 +315,8 @@ It can only resolve with hardware whose reed role is present. For example:
 
 ```sh
 ./scripts/dev build \
-  --hardware-config config/hardware/esp32-s3-relay-x1-speaker-reed.json \
-  --machine-config config/machines/rancilio-silvia-pro-x-reed.json
+  --hardware esp32-s3-relay-x1-speaker-reed \
+  --machine rancilio-silvia-pro-x-reed
 ```
 
 ### Paddle machines
@@ -370,8 +382,8 @@ additions. For example:
 
 ```sh
 ./scripts/dev build \
-  --hardware-config config/hardware/esp32-s3-relay-x1-speaker.json \
-  --machine-config config/machines/la-marzocco-linea-micra.json \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine la-marzocco-linea-micra \
   --flags "-DSHOT_STOPPER_RELAY_GPIO=3 -DSHOT_STOPPER_ENABLE_BUZZER=1"
 ```
 
@@ -394,8 +406,11 @@ The following safety rules still apply after overrides:
 - The architecture cannot contradict `target`.
 
 Development mode, JTAG, remote machine control, buzzer enablement, warnings,
-and other non-physical build switches remain CLI concerns. In particular,
-`SHOT_STOPPER_DEVELOPMENT` must not be added to a JSON profile.
+and other non-physical build switches remain CLI concerns. Use the transient
+`--development` flag for a development build; it adds
+`SHOT_STOPPER_DEVELOPMENT=1` for that run without saving it. It conflicts with
+an explicit `SHOT_STOPPER_DEVELOPMENT=0`. Development mode must never be added
+to a JSON profile.
 
 ## Generated files and runtime identity
 
@@ -426,8 +441,8 @@ shows the same resolved identity. OTA identity uses the architecture and
 different hardware or machine compatibility identity is rejected even when its
 ESP32 memory configuration is identical.
 
-Legacy `--arch` builds remain supported and report explicit legacy/generic
-identity. They do not infer a physical board or coffee machine from `n16r8`.
+Architecture-only firmware builds are rejected because `n16r8` does not identify
+a physical board, pinout, relay circuit, or coffee machine.
 
 ## Adding or changing a profile
 
@@ -446,8 +461,8 @@ identity. They do not infer a physical board or coffee machine from `n16r8`.
    ```sh
    ./scripts/dev test tooling
    ./scripts/dev build \
-     --hardware-config config/hardware/<hardware>.json \
-     --machine-config config/machines/<machine>.json
+     --hardware <hardware-id> \
+     --machine <machine-id>
    ```
 
 6. Classify the complete change and run the required validation gate. Hardware

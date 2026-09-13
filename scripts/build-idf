@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Compile Shot Stopper with ESP-IDF (Arduino-ESP32 as a component) into
-# build-idf/<architecture>. This is the official supported firmware build.
+# build-idf/<hardware>--<machine>. This is the official supported firmware build.
 set -euo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
@@ -16,9 +16,9 @@ usage() {
 Usage: ./scripts/build-idf [flags]
 
 Compile Shot Stopper with ESP-IDF (official supported path) and write artifacts
-to build-idf/<architecture>.
+to build-idf/<hardware>--<machine>.
 
-Required parameters: --arch, or both profile options. --flags is optional.
+Required parameters: --hardware and --machine. --flags is optional.
 The WebUI language defaults to en and is selected at compile time.
 
 $(ss_flag_help)
@@ -35,11 +35,12 @@ BLE backend:
   Native ESP-IDF NimBLE (only production backend).
 
 Examples:
-  ./scripts/build-idf --arch n16r8
-  ./scripts/build-idf --arch n16r8 --webui-language EN
-  ./scripts/build-idf --hardware-config config/hardware/esp32-s3-relay-x1-speaker.json \
-    --machine-config config/machines/rancilio-silvia-pro-x.json
-  ./scripts/build-idf -a n16r8 -f "-DSHOT_STOPPER_ENABLE_JTAG=1"
+  ./scripts/build-idf --hardware esp32-s3-relay-x1-speaker \
+    --machine rancilio-silvia-pro-x
+  ./scripts/build-idf --hardware esp32-s3-relay-x1-speaker \
+    --machine la-marzocco-linea-micra --webui-language EN
+  ./scripts/build-idf --hardware esp32-s3-relay-x1-speaker-reed \
+    --machine rancilio-silvia-pro-x-reed --development
 EOF
 }
 
@@ -49,48 +50,13 @@ if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
   exit 0
 fi
 
-ss_cli_apply_env
-profile_mode=0
-if ss_is_set hardware_config || ss_is_set machine_config; then
-  profile_mode=1
-  if ! ss_is_set hardware_config || ! ss_is_set machine_config; then
-    echo "--hardware-config and --machine-config must be used together." >&2
-    exit 2
-  fi
-  ss_cli_resolve "hardware_config machine_config webui_language" "flags" || exit $?
-else
-  ss_cli_resolve "arch webui_language" "flags" || exit $?
-fi
+ss_cli_resolve "hardware_config machine_config webui_language" "flags" || exit $?
+effective_flags="$(ss_cli_effective_flags)" || exit $?
 
 root="$SS_CLI_ROOT"
 cd "$root"
-if [[ "$profile_mode" == "1" ]]; then
-  profile_output="$(python3 ./scripts/resolve_build_profiles.py \
-    --hardware-config "$(ss_get hardware_config)" \
-    --machine-config "$(ss_get machine_config)" \
-    --flags="$(ss_get flags)" --output-root "$root/build-idf")" || exit $?
-  resolved_arch="$(printf '%s\n' "$profile_output" | sed -n 's/^arch=//p')"
-  SHOTSTOPPER_VARIANT="$(printf '%s\n' "$profile_output" | sed -n 's/^variant=//p')"
-  SHOTSTOPPER_HARDWARE_COMPAT="$(printf '%s\n' "$profile_output" | sed -n 's/^hardware_compat=//p')"
-  SHOTSTOPPER_MACHINE_COMPAT="$(printf '%s\n' "$profile_output" | sed -n 's/^machine_compat=//p')"
-  SHOTSTOPPER_GENERATED_DIR="$(printf '%s\n' "$profile_output" | sed -n 's/^generated_dir=//p')"
-  if [[ -z "$resolved_arch" || -z "$SHOTSTOPPER_VARIANT" ||
-        -z "$SHOTSTOPPER_HARDWARE_COMPAT" ||
-        -z "$SHOTSTOPPER_MACHINE_COMPAT" ||
-        -z "$SHOTSTOPPER_GENERATED_DIR" ]]; then
-    echo "Profile resolver returned incomplete build metadata." >&2
-    exit 2
-  fi
-  if ss_is_set arch && { [[ "$(ss_origin arch)" == "cli" ]] ||
-                         [[ "$(ss_origin arch)" == "env" ]]; } &&
-     [[ "$(ss_get arch)" != "$resolved_arch" ]]; then
-    echo "--arch $(ss_get arch) conflicts with profile target $resolved_arch." >&2
-    exit 2
-  fi
-  ss_put arch "$resolved_arch" profile
-  export SHOTSTOPPER_VARIANT SHOTSTOPPER_GENERATED_DIR
-  printf '%s\n' "$profile_output"
-fi
+ss_cli_resolve_profiles "$effective_flags" || exit $?
+printf '%s\n' "$SS_PROFILE_OUTPUT"
 
 shotstopper_resolve_board "$(ss_get arch)"
 ss_idf_source
@@ -106,7 +72,7 @@ echo "WebUI language: $(ss_get webui_language)"
 node ./scripts/gen_web_ui.js --webui-language "$(ss_get webui_language)"
 
 export SHOT_STOPPER_EXTRA_FLAGS
-SHOT_STOPPER_EXTRA_FLAGS="$(ss_get flags)"
+SHOT_STOPPER_EXTRA_FLAGS="$effective_flags"
 echo "Extra compile flags: ${SHOT_STOPPER_EXTRA_FLAGS:-(none)}"
 
 mkdir -p "$IDF_BUILD_DIR"
@@ -142,17 +108,13 @@ fi
 # set-target performs fullclean and removes generated files from a fresh
 # variant tree. Re-emit the validated profile after it completes and before
 # any translation unit is compiled.
-if [[ "$profile_mode" == "1" ]]; then
-  python3 ./scripts/resolve_build_profiles.py \
-    --hardware-config "$(ss_get hardware_config)" \
-    --machine-config "$(ss_get machine_config)" \
-    --flags="$(ss_get flags)" --output-root "$root/build-idf" >/dev/null
-  ./scripts/gen_version.sh "$SHOTSTOPPER_ARCH" \
-    "$SHOTSTOPPER_HARDWARE_COMPAT" "$SHOTSTOPPER_MACHINE_COMPAT" \
-    "$SHOTSTOPPER_GENERATED_DIR/ShotStopperVersion.h"
-else
-  ./scripts/gen_version.sh "$SHOTSTOPPER_ARCH"
-fi
+python3 ./scripts/resolve_build_profiles.py \
+  --hardware "$(ss_get hardware_config)" \
+  --machine "$(ss_get machine_config)" \
+  --flags="$effective_flags" --output-root "$root/build-idf" >/dev/null
+./scripts/gen_version.sh "$SHOTSTOPPER_ARCH" \
+  "$SHOTSTOPPER_HARDWARE_COMPAT" "$SHOTSTOPPER_MACHINE_COMPAT" \
+  "$SHOTSTOPPER_GENERATED_DIR/ShotStopperVersion.h"
 
 ss_idf_commit_extra_flags_stamp
 

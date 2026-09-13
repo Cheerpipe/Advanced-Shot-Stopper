@@ -160,6 +160,43 @@ parsed_erase = subprocess.run(
      'ss_cli_parse --erase-all; test "$SS_CLI_ERASE_ALL" = 1'],
     cwd=ROOT, capture_output=True, text=True)
 assert parsed_erase.returncode == 0, parsed_erase.stderr
+profile_cli = subprocess.run(
+    ["bash", "-c",
+     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+     'ss_cli_parse --hardware esp32-s3-relay-x1-speaker '
+     '--machine rancilio-silvia-pro-x --development --flags=-DCUSTOM=1; '
+     'ss_cli_flags_for hardware_config machine_config development; '
+     'printf "%s|%s|%s" "$(ss_get hardware_config)" '
+     '"$(ss_get machine_config)" "${SS_CLI_FORWARD[*]}"'],
+    cwd=ROOT, capture_output=True, text=True)
+assert profile_cli.returncode == 0, profile_cli.stderr
+assert profile_cli.stdout == (
+    "esp32-s3-relay-x1-speaker|rancilio-silvia-pro-x|"
+    "--hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x "
+    "--development")
+legacy_profile_cli = subprocess.run(
+    ["bash", "-c",
+     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+     'ss_cli_parse --hardware-config old-hardware.json '
+     '--machine-config old-machine.json'],
+    cwd=ROOT, capture_output=True, text=True)
+assert legacy_profile_cli.returncode == 0
+assert "deprecated; use --hardware" in legacy_profile_cli.stderr
+assert "deprecated; use --machine" in legacy_profile_cli.stderr
+development_conflict = subprocess.run(
+    ["bash", "-c",
+     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+     'ss_cli_parse --development --flags=-DSHOT_STOPPER_DEVELOPMENT=0; '
+     'ss_cli_effective_flags'], cwd=ROOT, capture_output=True, text=True)
+assert development_conflict.returncode == 2 and \
+    "conflicts" in development_conflict.stderr
+missing_profiles = subprocess.run(
+    [str(ROOT / "scripts/build-idf"), "--flags="], cwd=ROOT,
+    env={**os.environ, "SHOTSTOPPER_NONINTERACTIVE": "1",
+         "SHOTSTOPPER_HARDWARE": "", "SHOTSTOPPER_MACHINE": ""},
+    capture_output=True, text=True)
+assert missing_profiles.returncode == 2
+assert "hardware_config machine_config" in missing_profiles.stderr
 erase_image = subprocess.run(
     [str(ROOT / "scripts/flash-idf"), "--erase-all", "--image", "external.bin"],
     cwd=ROOT, capture_output=True, text=True)
@@ -228,7 +265,7 @@ for validate_args, environment, expected in (
     validate_steps = validate_language_steps(validate_args, environment)
     build_steps = [argv for name, argv in validate_steps
                    if name.startswith(("idf-", "warnings-"))]
-    assert len(build_steps) == 4
+    assert len(build_steps) == 6
     assert all(argv.count("--webui-language") == 1 and
                argv[argv.index("--webui-language") + 1] == expected
                for argv in build_steps), build_steps
@@ -241,6 +278,9 @@ def stubbed_script(script: str, args: list[str], children: tuple[str, ...]) -> l
         scripts.mkdir()
         for name in (script, "shotstopper_cli.sh", "shotstopper_board.sh"):
             shutil.copy2(ROOT / "scripts" / name, scripts / name)
+        shutil.copy2(ROOT / "scripts/resolve_build_profiles.py",
+                     scripts / "resolve_build_profiles.py")
+        shutil.copytree(ROOT / "config", root / "config")
         log = root / "children.log"
         for child in children:
             target = scripts / child
@@ -257,13 +297,17 @@ def stubbed_script(script: str, args: list[str], children: tuple[str, ...]) -> l
 
 
 wrapper_cases = {
-    "bf-idf": (["--port", "/dev/null", "--arch", "n8r4"],
+    "bf-idf": (["--port", "/dev/null", "--hardware", "esp32-s3-relay-x1-speaker",
+                "--machine", "rancilio-silvia-pro-x"],
                ("build-idf", "flash-idf")),
-    "bfm-idf": (["--port", "/dev/null", "--arch", "n8r4", "--speed", "115200"],
+    "bfm-idf": (["--port", "/dev/null", "--hardware", "esp32-s3-relay-x1-speaker",
+                 "--machine", "rancilio-silvia-pro-x", "--speed", "115200"],
                 ("build-idf", "flash-idf", "monitor-idf")),
-    "bo-idf": (["--arch", "n8r4", "--host", "127.0.0.1"],
+    "bo-idf": (["--hardware", "esp32-s3-relay-x1-speaker",
+                "--machine", "rancilio-silvia-pro-x", "--host", "127.0.0.1"],
                ("build-idf", "o-idf")),
-    "bsfm-idf": (["--port", "/dev/null", "--arch", "n8r4", "--speed", "115200"],
+    "bsfm-idf": (["--port", "/dev/null", "--hardware", "esp32-s3-relay-x1-speaker",
+                  "--machine", "rancilio-silvia-pro-x", "--speed", "115200"],
                  ("build-idf", "static-idf", "flash-idf", "monitor-idf")),
 }
 for wrapper, (args, children) in wrapper_cases.items():
@@ -272,15 +316,17 @@ for wrapper, (args, children) in wrapper_cases.items():
     assert build_line.count("--webui-language en-us") == 1, (wrapper, lines)
     assert all("--webui-language" not in line for line in lines if line != build_line), lines
 
-for analyzer, child in (("warnings-idf", "build-idf"), ("gcc_analyzer", "build")):
+for analyzer, child in (("warnings-idf", "build-idf"),
+                        ("gcc_analyzer", "build-idf")):
     lines = stubbed_script(
-        analyzer, ["--arch", "n8r4", "--webui-language=EN_us"], (child,))
+        analyzer, ["--hardware", "esp32-s3-relay-x1-speaker",
+                   "--machine", "rancilio-silvia-pro-x",
+                   "--webui-language=EN_us"], (child,))
     assert len(lines) == 1 and "--webui-language en-us" in lines[0], lines
 
-for alias, target in (("b", "build"), ("b-idf", "build-idf"),
-                      ("build", "build-idf"), ("bf", "bf-idf"),
-                      ("bfm", "bfm-idf"), ("bo", "bo-idf"),
-                      ("bsfm", "bsfm-idf")):
+for alias, target in (("b-idf", "build-idf"), ("f-idf", "flash-idf"),
+                      ("m-idf", "monitor-idf"), ("o-idf", "ota-idf"),
+                      ("s-idf", "static-idf")):
     assert f'exec "$SCRIPT_DIR/{target}" "$@"' in (ROOT / "scripts" / alias).read_text(), \
         f"{alias} must preserve transparent argument forwarding"
 
@@ -576,9 +622,11 @@ assert r"component_validation\.cmake" in idf_helpers and \
 assert 'build 2>&1 | ss_idf_filter_output' in \
     (ROOT / "scripts/build-idf").read_text(), \
     "the firmware build must use the scoped external-warning filter"
-for alias, target in (("build", "build-idf"), ("bo", "bo-idf")):
-    assert f'exec "$SCRIPT_DIR/{target}" "$@"' in (ROOT / "scripts" / alias).read_text(), \
-        f"{alias} must remain an ESP-IDF compatibility alias"
+for removed_alias in ("b", "bf", "bfm", "bo", "bsfm", "build", "f", "flash",
+                      "iwyu", "m", "monitor", "o", "ota", "s", "static",
+                      "static-tidy", "warnings"):
+    assert not (ROOT / "scripts" / removed_alias).exists(), \
+        f"legacy Arduino-era alias remains: {removed_alias}"
 assert not re.search(r"--(?:token|password)\s+['\"]", scripts_text), \
     "credentials must not be forwarded in argv"
 cppcheck_suppressions = (ROOT / "scripts/cppcheck-suppressions.txt").read_text()
@@ -603,19 +651,19 @@ assert "libcjson-dev" in host_job, \
 idf_job = workflow.split("  idf:\n", 1)[1].split("\n  gate:\n", 1)[0]
 assert "cppcheck" in idf_job, "IDF CI must install Cppcheck"
 assert "github.event_name != 'pull_request'" in idf_job, \
-    "main, scheduled, and manual CI runs must publish both firmware variants"
-assert "arch: [n8r4, n16r8]" in idf_job, \
-    "IDF CI must build both supported firmware variants"
-for machine_name, machine_type in (("paddle-latch", 0), ("momentary", 1),
-                                   ("momentary-reed", 2)):
-    assert f"{{name: {machine_name}, type: {machine_type}}}" in idf_job, \
-        f"IDF CI machine variant missing: {machine_name}"
+    "main, scheduled, and manual CI runs must publish firmware profiles"
+for profile_row in (
+        "{name: linea-micra, hardware: esp32-s3-relay-x1-speaker, machine: la-marzocco-linea-micra}",
+        "{name: silvia-pro-x, hardware: esp32-s3-relay-x1-speaker, machine: rancilio-silvia-pro-x}",
+        "{name: silvia-pro-x-reed, hardware: esp32-s3-relay-x1-speaker-reed, machine: rancilio-silvia-pro-x-reed}"):
+    assert profile_row in idf_job, f"IDF CI profile missing: {profile_row}"
 for disabled_flag in ("SHOT_STOPPER_ENABLE_JTAG=0",
                       "SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0"):
     assert disabled_flag in idf_job, f"CI production flag missing: {disabled_flag}"
-ota_name = "shotstopper-ota-${{ matrix.arch }}-${{ matrix.machine.name }}-jtag-off-remote-off"
+ota_name = "shotstopper-ota-${{ matrix.name }}-jtag-off-remote-off"
 assert f"name: {ota_name}" in idf_job
-assert f"build-idf/${{{{ matrix.arch }}}}/{ota_name}.bin" in idf_job
+assert (f"build-idf/${{{{ matrix.hardware }}}}--${{{{ matrix.machine }}}}/"
+        f"{ota_name}.bin") in idf_job
 assert workflow.count("actions/upload-artifact") == 4, \
     "classification, fast, host, and IDF jobs must publish diagnostic artifacts"
 for artifact_name in ("validation-classify", "validation-fast", "validation-host"):

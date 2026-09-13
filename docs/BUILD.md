@@ -138,8 +138,8 @@ complete contracts and compatibility rules. One supported combination is:
 
 ```sh
 ./scripts/dev build \
-  --hardware-config config/hardware/esp32-s3-relay-x1-speaker.json \
-  --machine-config config/machines/rancilio-silvia-pro-x.json
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x
 ```
 
 Both options are required together. The X1 profile always resolves to
@@ -159,21 +159,24 @@ settings survive ordinary boot and OTA. Each compatibility-relevant profile
 revision is embedded in the firmware identity, so OTA refuses an image for a
 different hardware or machine profile even when both use n16r8.
 
-The legacy architecture-only interface remains available for existing and
-generic builds. **n16r8** means 16 MB flash / 8 MB OPI PSRAM and **n8r4** means
-8 MB flash / 4 MB QSPI PSRAM; architecture alone does not select a physical
-pinout.
-
-From the repository root:
+List available IDs and compatibility before building:
 
 ```sh
-./scripts/dev build --arch n16r8
+./scripts/dev profiles
 ```
+
+Every firmware build requires both profiles. Each selector accepts an exact
+built-in ID or an explicit JSON path. There is no implicit or remembered
+profile selection, and an architecture-only build is rejected. `--arch`, when
+also supplied, can only confirm the target derived from hardware.
 
 The Web UI is compiled in English by default. To select it explicitly:
 
 ```sh
-./scripts/dev build --arch n16r8 --webui-language EN
+./scripts/dev build \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --webui-language EN
 ```
 
 Language selection happens while the Web assets are generated; it does not add
@@ -194,15 +197,16 @@ The facade passes empty extra flags unless supplied; it does not reuse a saved
 extra-flags preference implicitly. The direct `build-idf` script instead
 resolves flags from CLI, environment, saved values, or a prompt.
 
-Set the machine type deliberately when changing it:
+For local development, use the transient convenience flag:
 
 ```sh
-./scripts/dev build --arch n16r8 \
-  --flags "-DSHOT_STOPPER_MACHINE_TYPE=2 -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0"
+./scripts/dev build \
+  --hardware esp32-s3-relay-x1-speaker-reed \
+  --machine rancilio-silvia-pro-x-reed \
+  --development
 ```
 
-This direct macro form is the legacy path. With named profiles, machine type
-is derived from `interface.control` plus `interface.feedback`; a conflicting
+Machine type is derived from `interface.control` plus `interface.feedback`; a conflicting
 `SHOT_STOPPER_MACHINE_TYPE` override is rejected.
 
 | Option | Meaning |
@@ -231,11 +235,12 @@ the pinned boot/task/interrupt watchdog and panic settings, and the GPTimer ISR
 handler in IRAM. These checks verify current hardware settings; they do not
 retune clocks, partitions, or watchdog durations.
 
-Defaults seed a new `build-idf/<architecture>/sdkconfig`; they do not overwrite
-an existing file. Inspect an existing n16r8 tree with:
+Defaults seed a new `build-idf/<hardware-id>--<machine-id>/sdkconfig`; they do
+not overwrite an existing file. Inspect one current tree with:
 
 ```sh
-grep '^CONFIG_COMPILER_OPTIMIZATION' build-idf/n16r8/sdkconfig
+grep '^CONFIG_COMPILER_OPTIMIZATION' \
+  build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x/sdkconfig
 ```
 
 To restore all repository defaults for that architecture, remove its generated
@@ -243,8 +248,9 @@ configuration and rebuild. This also discards every other local `menuconfig`
 change stored in that file:
 
 ```sh
-rm build-idf/n16r8/sdkconfig
-./scripts/dev build --arch n16r8
+rm build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x/sdkconfig
+./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x
 ```
 
 To preserve other local choices, first load the ESP-IDF environment described
@@ -252,12 +258,14 @@ in section 3, then change only **Compiler options → Optimization Level** to
 **Optimize for performance (-O2)** and rebuild through the project wrapper:
 
 ```sh
-idf.py -C idf -B build-idf/n16r8 menuconfig
-./scripts/dev build --arch n16r8
+idf.py -C idf \
+  -B build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x menuconfig
+./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x
 ```
 
-Replace `n16r8` with `n8r4` in every command when working on that architecture.
-Do not add `-O2` through `--flags`; the supported optimization contract is the
+Use the directory produced by the exact selected pair. Do not add `-O2` through
+`--flags`; the supported optimization contract is the
 Kconfig selection above, which the build verifier checks.
 
 Other choices in an existing IDF `sdkconfig` are retained in the same way.
@@ -267,15 +275,15 @@ installation.
 
 The build renders the selected catalog into
 `src/ShotStopperWebAssetsGzip.h`, generates version identity and
-`build-idf/<arch>/shotstopper.bin`, then checks image and memory budgets.
-Use only the image for your architecture. The supported partition layouts have
+`build-idf/<hardware-id>--<machine-id>/shotstopper.bin`, then checks image and
+memory budgets. Use only the image for the intended profile pair. The supported partition layouts have
 two app slots; arbitrary 4 MB layouts cannot hold this firmware.
 
-GitHub Actions publishes six production OTA variants: `n8r4` and `n16r8`, each
-for `paddle-latch`, `momentary`, and `momentary-reed`. Their names follow
-`shotstopper-ota-<arch>-<machine>-jtag-off-remote-off.bin`; those two features
-are explicitly disabled at compile time. GitHub downloads each artifact as a
-ZIP container, but that container holds only the named OTA-ready `.bin` file.
+GitHub Actions publishes the three reviewed profile pairs: Linea Micra, Silvia
+Pro X without reed, and Silvia Pro X with reed. Their names follow
+`shotstopper-ota-<profile>-jtag-off-remote-off.bin`; those two features are
+explicitly disabled at compile time. GitHub downloads each artifact as a ZIP
+container, but that container holds only the named OTA-ready `.bin` file.
 
 ## 6. Flash (USB)
 
@@ -290,7 +298,8 @@ no port. App serial monitoring needs the
 Replace the port below with the detected controller port:
 
 ```sh
-./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 --arch n16r8
+./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \
+  --hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x
 ```
 
 Linux commonly uses `/dev/ttyACM0` or `/dev/ttyUSB0`. Build first whenever
@@ -314,7 +323,9 @@ and presets, calibration, scale preferences, shot history and last shot. There
 is no automatic curve migration; the new one-second curve schema starts empty.
 
 ```sh
-./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 --arch n16r8 --erase-all
+./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \
+  --hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x \
+  --erase-all
 ```
 
 Record the settings you need before migrating. Do not combine `--erase-all`

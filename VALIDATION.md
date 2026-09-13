@@ -8,7 +8,7 @@ summary are written to `artifacts/runs/`.
 | --- | --- | --- | --- |
 | R0 | Non-critical docs/meta | contract, link, and path checks | none |
 | R1 | Web UI, tests, tooling, pure logic | R0 + focused tests and generated assets | as identified |
-| R2 | BLE, network, persistence, OTA, build | full host + ASan/UBSan + TSAN + architecture + n8r4/n16r8 builds | subsystem-dependent |
+| R2 | BLE, network, persistence, OTA, build | full host + ASan/UBSan + TSAN + architecture + every built-in compatible profile pair | subsystem-dependent |
 | R3 | Relay, machine, ISR, watchdog, boot, GPIO, partitions, remote control, unknown | R2 + warnings/cppcheck + build variants | HIL/manual required |
 | Release | Candidate firmware image | complete analysis, resource budgets, applicable soak, HIL and manual plan | required |
 
@@ -53,8 +53,8 @@ record the gate as failed and prepare the dependency explicitly.
 GitHub Actions publishes bounded-retention artifacts even when a validation
 command fails. The `validation-classify`, `validation-fast`, and
 `validation-host` archives contain the available console logs and `scripts/dev`
-run records. Each of the six `shotstopper-ota-<arch>-<machine>-jtag-off-remote-off`
-archives contains its firmware binary when the build succeeds, plus the
+run records. Each `shotstopper-ota-<profile>-jtag-off-remote-off` archive
+contains its firmware binary when the build succeeds, plus the
 available IDF command logs, static-analysis reports, and run records. Only steps
 that started can produce diagnostics; a failed prerequisite may leave later
 entries absent.

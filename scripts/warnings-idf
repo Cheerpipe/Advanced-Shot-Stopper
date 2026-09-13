@@ -30,16 +30,16 @@ stay unaffected.
 For the slow interprocedural -fanalyzer pass use ./scripts/gcc_analyzer
 instead. For cppcheck (no build required) use ./scripts/static-idf.
 
-Required parameters: --arch. --flags is optional and appended to the warnings
-build.
+Required parameters: --hardware and --machine. --flags is optional and appended
+to the warnings build.
 
 $(ss_flag_help)
 
 $(shotstopper_arch_help)
 
 Examples:
-  ./scripts/warnings-idf --arch n16r8
-  ./scripts/warnings-idf -a n8r4 -f "-DSHOT_STOPPER_ENABLE_BUZZER=1"
+  ./scripts/warnings-idf --hardware esp32-s3-relay-x1-speaker \
+    --machine rancilio-silvia-pro-x
 EOF
 }
 
@@ -49,10 +49,7 @@ if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
   exit 0
 fi
 
-ss_cli_resolve "arch webui_language" "flags" || exit $?
-if ! shotstopper_resolve_board "$(ss_get arch)"; then
-  exit 2
-fi
+ss_cli_resolve "hardware_config machine_config webui_language" "flags" || exit $?
 
 cd "$ROOT"
 output_path="$ROOT/$OUTPUT_DIR"
@@ -71,18 +68,22 @@ for configured_flag in $configured_flags; do
     *) user_flags="${user_flags:+$user_flags }$configured_flag" ;;
   esac
 done
-warning_flags="$user_flags -Wunused-parameter"
+ss_put flags "$user_flags" cli
+effective_flags="$(ss_cli_effective_flags)" || exit $?
+warning_flags="${effective_flags:+$effective_flags }-Wunused-parameter"
+ss_cli_resolve_profiles "$warning_flags" || exit $?
+shotstopper_resolve_board "$(ss_get arch)" || exit 2
 
 raw_report="$output_path/gcc-warnings-raw.txt"
 report="$output_path/gcc-warnings.txt"
 
 echo "Building $SHOTSTOPPER_ARCH (IDF) with extra GCC warnings..."
-SHOTSTOPPER_NONINTERACTIVE=1 ./scripts/build-idf --arch "$SHOTSTOPPER_ARCH" \
+SHOTSTOPPER_NONINTERACTIVE=1 ./scripts/build-idf \
+  --hardware "$(ss_get hardware_config)" --machine "$(ss_get machine_config)" \
   --webui-language "$(ss_get webui_language)" \
   --flags "$warning_flags" >"$raw_report" 2>&1
 build_status=$?
 
-ss_put flags "$user_flags" cli
 ss_cli_save
 
 if [[ $build_status -ne 0 ]]; then

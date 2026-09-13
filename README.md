@@ -40,9 +40,9 @@ and stop behavior.
 
 ## Requirements
 
-- **Board:** ESP32-S3 with PSRAM, either n16r8 (16 MB flash / 8 MB PSRAM) or
-  n8r4 (8 MB flash / 4 MB PSRAM). The [development relay board](docs/HARDWARE.md#development-board)
-  has a specific GPIO map; another board needs a reviewed pin assignment.
+- **Board:** the current built-in hardware profiles use an ESP32-S3 N16R8
+  (16 MB flash / 8 MB PSRAM). The [development relay board](docs/HARDWARE.md#development-board)
+  has a specific GPIO map; another board needs a complete reviewed profile.
 - **Scale:** a supported Bluetooth model. Bookoo Themis Mini/Ultra were the
   primary development scales. Check the [model and capability table](libraries/EspressoScaleBLE/README.md#scale-compatibility);
   implemented protocols are not all equally tested.
@@ -215,7 +215,7 @@ and exact commands are in [Validation gates](VALIDATION.md).
 | --- | --- | --- | --- |
 | R0 | Non-critical documentation and repository metadata | Documentation contracts, local links, headings, images, and known paths | For documentation-only changes and as the base of every higher gate |
 | R1 | Web UI, tests, developer tooling, and isolated logic | R0 plus the normal host tests and any focused checks or generated assets relevant to the change | While developing these areas and before submitting the finished change |
-| R2 | BLE, networking, saved data, OTA, and build changes | Full host coverage, ASan/UBSan, TSAN, architecture rules, Web contracts, and firmware builds for n8r4 and n16r8 | When a change can affect integration, concurrency, memory safety, or a firmware image |
+| R2 | BLE, networking, saved data, OTA, and build changes | Full host coverage, ASan/UBSan, TSAN, architecture rules, Web contracts, and every built-in compatible profile pair | When a change can affect integration, concurrency, memory safety, or a firmware image |
 | R3 | Relay and machine control, ISR, watchdog, boot, GPIO, partitions, remote control, or an unknown path | R2 plus stricter compiler warnings, cppcheck, build variants, and the applicable HIL/manual evidence | Before accepting any safety-critical or not-yet-classified change |
 | Release | A firmware image intended for distribution or installation | The complete automated analysis plus resource budgets, applicable soak tests, HIL, and the manual test plan | For a release candidate; a passing automated R3 run alone is not release approval |
 

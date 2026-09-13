@@ -19,7 +19,8 @@ Usage: ./scripts/ota-idf [flags]
 Upload the already-built ESP-IDF image to the controller, verify it, and leave
 it ready to boot.
 
-Required parameters: --arch, --host, and --password.
+Required parameters: --host and --password plus either both profiles or --arch
+for a legacy existing image. New builds always use profiles.
 Pass the device password (including the factory default if unchanged).
 
 $(ss_flag_help)
@@ -27,12 +28,10 @@ $(ss_flag_help)
 $(shotstopper_arch_help)
 
 Examples:
-  ./scripts/ota-idf --arch n16r8 --host 192.168.1.50
-  ./scripts/ota-idf -a n16r8 -H 192.168.4.1 -t "my-device-password"
-  ./scripts/ota-idf -a n16r8 -H 192.168.1.50 -t "my-device-password" --image ~/Downloads/shotstopper.bin
-  ./scripts/ota-idf -a n16r8 -H 192.168.1.50 -t "my-device-password" --force
+  ./scripts/ota-idf --hardware esp32-s3-relay-x1-speaker \
+    --machine rancilio-silvia-pro-x --host 192.168.1.50
 
-Without --image, the image comes from build-idf/<architecture>/shotstopper.bin,
+Without --image, the image comes from the selected profile pair's build folder,
 so compile first (./scripts/build-idf / ./scripts/b-idf) or use
 ./scripts/bo-idf, which does both. You can also use the short alias
 ./scripts/o-idf.
@@ -55,7 +54,17 @@ if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
   exit 0
 fi
 
-ss_cli_resolve "arch host password" || exit $?
+ss_cli_apply_env
+if ss_is_set hardware_config || ss_is_set machine_config; then
+  if ! ss_is_set hardware_config || ! ss_is_set machine_config; then
+    echo "--hardware and --machine must be used together." >&2
+    exit 2
+  fi
+  ss_cli_resolve "hardware_config machine_config host password" || exit $?
+  ss_cli_resolve_profiles "" check || exit $?
+else
+  ss_cli_resolve "arch host password" || exit $?
+fi
 ss_cli_normalize_image || exit $?
 shotstopper_resolve_board "$(ss_get arch)"
 ss_idf_resolve_paths
@@ -69,6 +78,17 @@ if ss_is_set image; then
 else
   ss_idf_require_image
 fi
+
+command -v node >/dev/null 2>&1 || {
+  echo "node not found on PATH (needed to verify the firmware image)." >&2
+  exit 127
+}
+identity_args=(--expect-arch "$SHOTSTOPPER_ARCH")
+if [[ -n "${SHOTSTOPPER_HARDWARE_COMPAT:-}" ]]; then
+  identity_args+=(--expect-hardware "$SHOTSTOPPER_HARDWARE_COMPAT"
+                  --expect-machine "$SHOTSTOPPER_MACHINE_COMPAT")
+fi
+node ./scripts/image_tag.js "$image" "${identity_args[@]}" >/dev/null
 
 trap ss_ota_cleanup EXIT
 ss_ota_run "$image" "$SHOTSTOPPER_ARCH" "$(ss_get host)" \

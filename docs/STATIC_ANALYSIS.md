@@ -20,8 +20,8 @@ reduce coverage.
 |------|--------|-------------------|----------|
 | Cppcheck | `./scripts/static-idf` | `reports/static-analysis/` | Fails (exit 1) on any warning/performance/portability finding |
 | GCC `-fanalyzer` | `./scripts/gcc_analyzer` | `reports/gcc-analyzer/` | Fails on diagnostics in versioned code (builds with the analyzer enabled) |
-| clang-tidy | `./scripts/static-tidy` | `reports/static-tidy/` | Fails on in-scope diagnostics or parse errors |
-| Include-What-You-Use | `./scripts/iwyu` | `reports/iwyu/` | Advisory: never fails on suggestions, only when tooling is missing or nothing parses |
+| clang-tidy | `./scripts/static-tidy-idf` | `reports/static-tidy/` | Fails on in-scope diagnostics or parse errors |
+| Include-What-You-Use | `./scripts/iwyu-idf` | `reports/iwyu/` | Advisory: never fails on suggestions, only when tooling is missing or nothing parses |
 
 Analysis scope (identical for every tool): `src/`,
 `libraries/EspressoScaleBLE/`, `idf/main/`, and `idf/components/` (the
@@ -37,8 +37,10 @@ coverage is specified in [P2 target trace qualification](P2_TARGET_TRACE.md).
 Prepare the database once, then run any tool:
 
 ```sh
-./scripts/build-idf --arch n16r8     # also produces compile_commands.json
-./scripts/static-idf --arch n16r8
+./scripts/build-idf --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x
+./scripts/static-idf --arch n16r8 \
+  --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
 ```
 
 `--arch` is `n8r4` or `n16r8`; see [Build scripts](SCRIPTS.md) for how
@@ -115,7 +117,7 @@ Windows notes:
   EIM creates.
 - IWYU is optional on Windows: there are no official prebuilt binaries, so
   build it from source with Visual Studio Build Tools against your clang, or
-  skip `./scripts/iwyu` (the other three tools work without it).
+  skip `./scripts/iwyu-idf` (the other three tools work without it).
 
 ## 5. ESP-IDF and esp-clang
 
@@ -148,7 +150,7 @@ python "$HOME/esp/esp-idf-v6.1/tools/idf_tools.py" install esp-clang
 ```
 
 This installs into `~/.espressif/tools/esp-clang/` (all OSes, including the
-Windows `x86_64-w64-mingw32` package); `./scripts/static-tidy` finds it there
+Windows `x86_64-w64-mingw32` package); `./scripts/static-tidy-idf` finds it there
 automatically. To use a specific build instead, point the script at it:
 
 ```sh
@@ -158,8 +160,10 @@ export ESP_CLANG_TIDY=/path/to/esp-clang/bin/clang-tidy
 ## 6. Running clang-tidy
 
 ```sh
-./scripts/build-idf --arch n16r8          # once, to (re)generate the database
-./scripts/static-tidy --arch n16r8
+./scripts/build-idf --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x
+./scripts/static-tidy-idf --arch n16r8 \
+  --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
 ```
 
 What the script does:
@@ -187,7 +191,7 @@ clean on the current codebase. Every disabled check has a comment in the file
 saying why (third-party noise vs. pending project debt). To grow it:
 
 1. Remove a check from the disable list (or add a new one).
-2. Run `./scripts/static-tidy -a n16r8` and fix or triage every finding.
+2. Run `./scripts/static-tidy-idf -a n16r8` and fix or triage every finding.
 3. Prefer fixing code over `// NOLINT(...)`. When a NOLINT is unavoidable,
    add a comment explaining why — same rule as `scripts/cppcheck-suppressions.txt`.
    Note that compiler diagnostics surfaced as `clang-diagnostic-*` are not
@@ -205,8 +209,10 @@ under `esp-idf/`.
 ## 7. Running Include-What-You-Use
 
 ```sh
-./scripts/build-idf --arch n16r8
-./scripts/iwyu --arch n16r8
+./scripts/build-idf --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x
+./scripts/iwyu-idf --arch n16r8 \
+  --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
 ```
 
 IWYU is **advisory**: the script sanitizes the database for the host compiler
@@ -222,7 +228,7 @@ Workflow for the suggestions:
    about include weight, and ESP-IDF headers sometimes need the C spelling.
 2. Apply selected fixes with the `fix_includes.py` shipped next to your IWYU
    build, or by hand.
-3. Rebuild (`./scripts/build-idf --arch n16r8`) and re-run the host tests
+3. Rebuild with the same hardware and machine profiles and re-run the host tests
    (`src/tests/run_host_tests.sh`) before committing.
 
 The mapping file `scripts/iwyu-shotstopper.imp` is intentionally empty: stock
@@ -237,8 +243,10 @@ double visibility).
 
 ```sh
 brew install cppcheck        # macOS
-./scripts/static-idf --arch n16r8
-./scripts/gcc_analyzer --arch n16r8
+./scripts/static-idf --arch n16r8 \
+  --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
+./scripts/gcc_analyzer --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x
 ```
 
 `static-idf` never builds and fails on any finding; project suppressions live
@@ -259,11 +267,7 @@ the analysis gate retains the reliable Cppcheck classes.
 ## 9. Recommended order for a release check
 
 ```sh
-./scripts/build-idf --arch n16r8 && ./scripts/build-idf --arch n8r4
-./scripts/static-idf -a n16r8
-./scripts/static-tidy -a n16r8
-./scripts/gcc_analyzer -a n16r8
-./scripts/iwyu -a n16r8          # advisory report
+./scripts/dev validate --risk R3
 src/tests/run_host_tests.sh
 ```
 

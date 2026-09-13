@@ -17,6 +17,7 @@ ID_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 LEVELS = {"low": 0, "high": 1}
 PULLS = {"none", "up", "down"}
 TARGETS = {("esp32s3", "n16r8"): "n16r8"}
+ROOT = Path(__file__).resolve().parent.parent
 
 
 class ProfileError(ValueError):
@@ -94,6 +95,53 @@ def load(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         fail(f"{path} must contain one JSON object")
     return value
+
+
+def profile_path(kind: str, selector: str) -> tuple[Path, bool]:
+    if "/" not in selector and "\\" not in selector and not selector.endswith(".json"):
+        return ROOT / "config" / kind / f"{selector}.json", True
+    return Path(selector).expanduser(), False
+
+
+def selected_profile(kind: str, selector: str) -> tuple[Path, dict[str, Any]]:
+    path, built_in = profile_path(kind, selector)
+    profile = load(path)
+    validator = validate_hardware if kind == "hardware" else validate_machine
+    profile = validator(profile)
+    if built_in and profile["id"] != selector:
+        fail(f"{path} declares id {profile['id']!r}, expected {selector!r}")
+    return path, profile
+
+
+def list_profiles() -> None:
+    hardware_profiles = []
+    for path in sorted((ROOT / "config/hardware").glob("*.json")):
+        profile = validate_hardware(load(path))
+        if profile["id"] != path.stem:
+            fail(f"{path} declares id {profile['id']!r}, expected {path.stem!r}")
+        hardware_profiles.append(profile)
+    machine_profiles = []
+    for path in sorted((ROOT / "config/machines").glob("*.json")):
+        profile = validate_machine(load(path))
+        if profile["id"] != path.stem:
+            fail(f"{path} declares id {profile['id']!r}, expected {path.stem!r}")
+        machine_profiles.append(profile)
+    print("Hardware profiles:")
+    for profile in hardware_profiles:
+        target = TARGETS[(profile["target"]["chip"],
+                          profile["target"]["memory_profile"])]
+        print(f"  {profile['id']}  target={target} "
+              f"speaker={'yes' if profile['speaker']['present'] else 'no'} "
+              f"reed={'yes' if profile['reed']['present'] else 'no'}")
+    print("Machine profiles:")
+    for profile in machine_profiles:
+        compatible = [hardware["id"] for hardware in hardware_profiles
+                      if profile["interface"]["feedback"] != "reed" or
+                      hardware["reed"]["present"]]
+        interface = profile["interface"]
+        print(f"  {profile['id']}  {profile['brand']} {profile['model']} "
+              f"control={interface['control']} feedback={interface['feedback']}")
+        print(f"    compatible hardware: {', '.join(compatible) or '(none)'}")
 
 
 def common_profile(obj: dict[str, Any], where: str) -> None:
@@ -550,21 +598,31 @@ def header_for(resolved: dict[str, Any]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--hardware-config", required=True, type=Path)
-    parser.add_argument("--machine-config", required=True, type=Path)
+    parser.add_argument("--list", action="store_true")
+    parser.add_argument("--hardware", "--hardware-config", dest="hardware")
+    parser.add_argument("--machine", "--machine-config", dest="machine")
     parser.add_argument("--flags", default="")
-    parser.add_argument("--output-root", required=True, type=Path)
+    parser.add_argument("--output-root", type=Path)
+    parser.add_argument("--check-only", action="store_true")
     args = parser.parse_args()
     try:
-        hardware = validate_hardware(load(args.hardware_config))
-        machine = validate_machine(load(args.machine_config))
+        if args.list:
+            if args.hardware or args.machine or args.output_root or args.check_only:
+                fail("--list cannot be combined with profile or output options")
+            list_profiles()
+            return 0
+        if not args.hardware or not args.machine or not args.output_root:
+            fail("--hardware, --machine, and --output-root are required")
+        _, hardware = selected_profile("hardware", args.hardware)
+        _, machine = selected_profile("machines", args.machine)
         resolved = resolve(hardware, machine, args.flags)
         output_dir = args.output_root / resolved["variant"] / "generated"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        (output_dir / "ShotStopperBuildProfileGenerated.h").write_text(
-            header_for(resolved), encoding="utf-8")
-        (output_dir / "build-profile.json").write_text(
-            json.dumps(resolved, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        if not args.check_only:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            (output_dir / "ShotStopperBuildProfileGenerated.h").write_text(
+                header_for(resolved), encoding="utf-8")
+            (output_dir / "build-profile.json").write_text(
+                json.dumps(resolved, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     except ProfileError as error:
         print(f"Profile error: {error}", file=sys.stderr)
         return 2

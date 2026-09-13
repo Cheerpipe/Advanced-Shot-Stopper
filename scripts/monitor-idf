@@ -14,8 +14,8 @@ usage() {
   cat <<EOF
 Usage: ./scripts/monitor-idf [flags]
 
-Start the ESP-IDF serial monitor. If .shotstopper (or --arch) has an
-architecture, use the ELF from build-idf/<architecture> to decode backtraces.
+Start the ESP-IDF serial monitor. With --hardware and --machine, use that
+variant's ELF to decode backtraces.
 Exit: Ctrl+].
 
 Required parameters: --port and --speed.
@@ -24,7 +24,8 @@ $(ss_flag_help)
 
 Examples:
   ./scripts/monitor-idf --port /dev/cu.usbmodem2101 --speed 115200
-  ./scripts/monitor-idf -p /dev/cu.usbmodem2101 -s 115200
+  ./scripts/monitor-idf -p /dev/cu.usbmodem2101 -s 115200 \
+    --hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x
 EOF
 }
 
@@ -35,6 +36,13 @@ if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
 fi
 
 ss_cli_resolve "port speed" || exit $?
+if ss_is_set hardware_config || ss_is_set machine_config; then
+  if ! ss_is_set hardware_config || ! ss_is_set machine_config; then
+    echo "--hardware and --machine must be used together." >&2
+    exit 2
+  fi
+  ss_cli_resolve_profiles "" check || exit $?
+fi
 SS_IDF_QUIET=1
 ss_idf_source
 

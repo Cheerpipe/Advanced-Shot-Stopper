@@ -19,8 +19,8 @@ MICRA = ROOT / "config/machines/la-marzocco-linea-micra.json"
 def run(hardware=HARDWARE, machine=PRO_X, flags=""):
     temporary = tempfile.TemporaryDirectory(prefix="shotstopper-profile-")
     result = subprocess.run(
-        ["python3", str(RESOLVER), "--hardware-config", str(hardware),
-         "--machine-config", str(machine), f"--flags={flags}",
+        ["python3", str(RESOLVER), "--hardware", str(hardware),
+         "--machine", str(machine), f"--flags={flags}",
          "--output-root", temporary.name],
         cwd=ROOT, capture_output=True, text=True)
     return temporary, result
@@ -181,5 +181,30 @@ expect_failure(flags='-DSHOT_STOPPER_HARDWARE_PROFILE_ID="other"',
                text="profile identity cannot be overridden")
 expect_failure(flags="-DSHOT_STOPPER_DEFAULT_SHOT_REACTION_TIMEOUT_S=2",
                text="must be an integer from 3 to 30")
+
+with tempfile.TemporaryDirectory(prefix="shotstopper-profile-id-") as temporary:
+    selected = subprocess.run(
+        ["python3", str(RESOLVER), "--hardware", HARDWARE.stem,
+         "--machine", PRO_X.stem, "--flags=", "--output-root", temporary],
+        cwd=ROOT, capture_output=True, text=True)
+    assert selected.returncode == 0, selected.stderr
+    assert f"variant={HARDWARE.stem}--{PRO_X.stem}" in selected.stdout
+
+with tempfile.TemporaryDirectory(prefix="shotstopper-profile-check-") as temporary:
+    checked = subprocess.run(
+        ["python3", str(RESOLVER), "--hardware", HARDWARE.stem,
+         "--machine", PRO_X.stem, "--flags=", "--output-root", temporary,
+         "--check-only"], cwd=ROOT, capture_output=True, text=True)
+    assert checked.returncode == 0, checked.stderr
+    assert not any(Path(temporary).iterdir()), "check-only wrote generated files"
+
+listed = subprocess.run(["python3", str(RESOLVER), "--list"], cwd=ROOT,
+                        capture_output=True, text=True)
+assert listed.returncode == 0, listed.stderr
+for profile in (HARDWARE.stem, HARDWARE_REED.stem, PRO_X.stem,
+                PRO_X_REED.stem, MICRA.stem):
+    assert profile in listed.stdout
+assert ("rancilio-silvia-pro-x-reed  Rancilio Silvia Pro X "
+        "control=momentary feedback=reed") in listed.stdout
 
 print("Build profiles: schema, defaults, overrides and safety checks OK")
