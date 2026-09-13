@@ -144,8 +144,6 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   // already at/past circuit whole seconds; catch-up is covered by ST02–ST06.
   runtimeConfig.scaleTimerStopExtraDelayMs = 0;
   lastCycle = LastCycleSummary{};
-  persistedLastShot = PersistedLastShot{};
-  persistedLastGoodShot = PersistedLastShot{};
   lastShotNvsDirty = false;
   shotLogPersistFailLatched = false;
   shotCurvePersistFailLatched = false;
@@ -156,7 +154,6 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   lastShotStore.clear();
   g_hostFlashIoMutexAvailable = true;
   shotCurveSampler.reset(0);
-  lastShotCurve = emptyShotCurveRecord();
   ShotCurveLog::resetHostStorage();
   shotCurves.load();
   noScaleShotGuardArmed = true;
@@ -206,6 +203,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   hostQuickSettingsWebhookCount = 0;
   hostControllerStartedWebhookCount = 0;
   hostControllerStartedWebhookSucceeds = true;
+  hostControllerStartedWebhookBuildGuard = nullptr;
+  hostControllerStartedWebhookEvent = WebhookEvent{};
   g_wallClock.reset();
   runtimePersistPending = false;
   runtimePersistFailed = false;
@@ -9538,7 +9537,6 @@ void s02f_shot_log_skips_sub_one_gram_weight() {
   resetHarness(false, true);
   reachReadyFromBoot();
   shotLog.clear();
-  persistedLastShot = PersistedLastShot{};
   pendingFinalize = PendingShotFinalize{};
   preparePendingBbwForTest();
   pendingFinalize.cycleId = 5;
@@ -9579,7 +9577,6 @@ void s02g_full_cycle_sub_one_gram_updates_last_shot_not_history() {
   shotLog.clear();
   ShotCurveLog::resetHostStorage();
   shotCurves.load();
-  persistedLastShot = PersistedLastShot{};
   const uint32_t rawOnAt = startCycle();
   advanceToBrew();
   currentWeight = 0.5f;
@@ -9793,8 +9790,6 @@ void s02h_fast_guard_keeps_sampling_and_settled_weight_replaces_endpoint() {
   CHECK(curves[0].ended.atDs == 280);
   CHECK(curves[0].ended.weightCg == 4210);
   CHECK(curves[0].weightCg[28] == 4210);
-  CHECK(lastShotCurve.ended.atDs == 280);
-  CHECK(lastShotCurve.ended.weightCg == 4210);
 }
 
 void verifySettledCurveEndpointForCut(EndReason reason, bool slowExtended,
@@ -9848,8 +9843,6 @@ void verifySettledCurveEndpointForCut(EndReason reason, bool slowExtended,
   CHECK(shotCurves.copyNewestFirst(curves, 1) == 1);
   CHECK(curves[0].ended.atDs == durationMs / 100U);
   CHECK(curves[0].ended.weightCg == 3840);
-  CHECK(lastShotCurve.ended.atDs == durationMs / 100U);
-  CHECK(lastShotCurve.ended.weightCg == 3840);
 }
 
 void s02i_normal_and_slow_cuts_use_settled_curve_endpoint() {
@@ -10096,29 +10089,47 @@ void s20_last_good_shot_advances_independently() {
   resetHarness(false, false);
   PersistedLastShot good = {};
   good.valid = true;
-  good.cycleId = 10;
+  good.cycleId = 1;
   good.durationMs = 13000;
   good.weightValid = true;
   good.currentWeightG = 36.0f;
+  good.shotLogId = 91;
+  good.rating = 4;
   persistLastShotSnapshot(good);
-  CHECK(persistedLastGoodShot.cycleId == 10);
+  serviceShotStorePersistence();
+  CHECK(lastShotStore.load());
+  nextCycleId = 1;
 
   PersistedLastShot shortShot = good;
-  shortShot.cycleId = 11;
+  shortShot.cycleId = nextCycleId++;
   shortShot.durationMs = 12000;
+  shortShot.currentWeightG = 1.0f;
+  shortShot.shotLogId = 0;
+  shortShot.rating = 0;
   persistLastShotSnapshot(shortShot);
-  CHECK(persistedLastShot.cycleId == 11);
-  CHECK(persistedLastGoodShot.cycleId == 10);
+  PendingShotFinalize collision = {};
+  collision.cycleId = shortShot.cycleId;
+  collision.durationDs = 120;
+  collision.bootId = copyShotLogBootId();
+  commitPendingShotLog(collision, 1.0f, true,
+                       ActualWeightSource::POST_DRIP);
+  CHECK(persistedLastShot.cycleId == 1);
+  CHECK(persistedLastShot.durationMs == 12000);
+  CHECK(persistedLastShot.shotLogId != 0);
+  CHECK(persistedLastShot.shotLogId != 91);
+  CHECK(persistedLastGoodShot.durationMs == 13000);
+  CHECK(persistedLastGoodShot.shotLogId == 91);
+  CHECK(persistedLastGoodShot.rating == 4);
   LastShotStore::setHostSaveSucceeds(false);
   CHECK(!clearLastShot());
-  CHECK(persistedLastShot.cycleId == 11);
-  CHECK(lastShotStore.get().cycleId == 11);
+  CHECK(persistedLastShot.cycleId == 1);
+  CHECK(lastShotStore.get().durationMs == 12000);
   CHECK(lastShotNvsDirty);
   LastShotStore::setHostSaveSucceeds(true);
   CHECK(clearLastShot());
   CHECK(!persistedLastShot.valid);
-  CHECK(persistedLastGoodShot.cycleId == 10);
-  CHECK(lastShotStore.getGood().cycleId == 10);
+  CHECK(persistedLastGoodShot.durationMs == 13000);
+  CHECK(lastShotStore.getGood().shotLogId == 91);
 }
 
 void s21_controller_started_waits_for_durable_boot_id() {
@@ -10133,12 +10144,28 @@ void s21_controller_started_waits_for_durable_boot_id() {
   CHECK(controllerStartedPending);
   CHECK(hostControllerStartedWebhookCount == 0);
 
+  static thread_local bool shotStoreLocked = false;
+  static bool buildGuardCalled = false;
+  shotStoreLocked = false;
+  buildGuardCalled = false;
+  TaskMutex::hostObserver = [](const TaskMutex *mutex, bool acquired) {
+    if (mutex == &shotStoreMutex) shotStoreLocked = acquired;
+  };
+  hostControllerStartedWebhookBuildGuard = []() {
+    buildGuardCalled = true;
+    return !shotStoreLocked;
+  };
   g_hostFlashIoMutexAvailable = true;
   hostMillis = shotStorePersistRetryAtMs;
   serviceShotStorePersistence();
+  hostControllerStartedWebhookBuildGuard = nullptr;
+  TaskMutex::hostObserver = nullptr;
+  CHECK(buildGuardCalled);
+  CHECK(!shotStoreLocked);
   CHECK(!shotLog.dirty());
   CHECK(!controllerStartedPending);
   CHECK(hostControllerStartedWebhookCount == 1);
+  CHECK(hostControllerStartedWebhookEvent.bootId == copyShotLogBootId());
 }
 
 void s03_shot_log_clear_empties_records() {
@@ -10168,7 +10195,6 @@ void s14_last_shot_persists_manual_cycle() {
 void s14c_last_shot_keeps_no_scale_duration() {
   resetHarness(false, false);
   reachReadyFromBoot();
-  persistedLastShot = PersistedLastShot{};
   shotLog.clear();
   const uint32_t rawOnAt = startCycle();
   CHECK(stopperState == StopperState::MANUAL_NO_SCALE);
@@ -10182,12 +10208,12 @@ void s14c_last_shot_keeps_no_scale_duration() {
 void s14b_rinse_does_not_overwrite_last_shot() {
   resetHarness(false, false);
   reachReadyFromBoot();
-  persistedLastShot = PersistedLastShot{};
-  persistedLastShot.valid = true;
-  persistedLastShot.cycleId = 42;
-  persistedLastShot.weightValid = true;
-  persistedLastShot.currentWeightG = 36.0f;
-  persistLastShotSnapshot(persistedLastShot);
+  PersistedLastShot retained = {};
+  retained.valid = true;
+  retained.cycleId = 42;
+  retained.weightValid = true;
+  retained.currentWeightG = 36.0f;
+  persistLastShotSnapshot(retained);
   const uint32_t rawOnAt = startCycle();
   releaseAtPhysicalDuration(rawOnAt, runtimeConfig.rinseGestureMs);
   CHECK(stopperState == StopperState::RINSE ||
@@ -10201,12 +10227,12 @@ void s14b_rinse_does_not_overwrite_last_shot() {
 void s14d_web_stop_during_rinse_does_not_overwrite_last_shot() {
   resetHarness(false, false);
   reachReadyFromBoot();
-  persistedLastShot = PersistedLastShot{};
-  persistedLastShot.valid = true;
-  persistedLastShot.cycleId = 42;
-  persistedLastShot.weightValid = true;
-  persistedLastShot.currentWeightG = 36.0f;
-  persistLastShotSnapshot(persistedLastShot);
+  PersistedLastShot retained = {};
+  retained.valid = true;
+  retained.cycleId = 42;
+  retained.weightValid = true;
+  retained.currentWeightG = 36.0f;
+  persistLastShotSnapshot(retained);
   const uint32_t rawOnAt = startCycle();
   releaseAtPhysicalDuration(rawOnAt, runtimeConfig.rinseGestureMs);
   CHECK(stopperState == StopperState::RINSE);
@@ -10222,12 +10248,12 @@ void s15b_cup_off_after_end_keeps_last_known_actual() {
   resetHarness(false, true);
   reachReadyFromBoot();
   shotLog.clear();
-  persistedLastShot = PersistedLastShot{};
-  persistedLastShot.valid = true;
-  persistedLastShot.cycleId = 9;
-  persistedLastShot.weightValid = true;
-  persistedLastShot.currentWeightG = 42.1f;
-  persistLastShotSnapshot(persistedLastShot);
+  PersistedLastShot retained = {};
+  retained.valid = true;
+  retained.cycleId = 9;
+  retained.weightValid = true;
+  retained.currentWeightG = 42.1f;
+  persistLastShotSnapshot(retained);
 
   currentWeight = 0.0f;
   currentWeightSequence = 8;
@@ -10285,7 +10311,6 @@ void s15c_last_shot_prefers_last_accepted_over_cup_off() {
 void s15_last_shot_persists_after_drip_when_eligible() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  persistedLastShot = PersistedLastShot{};
   currentWeight = 36.4f;
   currentWeightSequence = 5;
   currentWeightReceivedAtMs = hostMillis + 1;
@@ -10312,8 +10337,9 @@ void s15_last_shot_persists_after_drip_when_eligible() {
 
 void s16_last_shot_clear_empties_snapshot() {
   resetHarness(false, false);
-  persistedLastShot.valid = true;
-  persistLastShotSnapshot(persistedLastShot);
+  PersistedLastShot retained = {};
+  retained.valid = true;
+  persistLastShotSnapshot(retained);
   CHECK(clearLastShot());
   CHECK(!persistedLastShot.valid);
   CHECK(!lastShotStore.get().valid);
@@ -10321,11 +10347,12 @@ void s16_last_shot_clear_empties_snapshot() {
 
 void s16b_factory_reset_hides_last_shot_on_status() {
   resetHarness(false, false);
-  persistedLastShot.valid = true;
-  persistedLastShot.cycleId = 11;
-  persistLastShotSnapshot(persistedLastShot);
+  PersistedLastShot retained = {};
+  retained.valid = true;
+  retained.cycleId = 11;
+  persistLastShotSnapshot(retained);
   CHECK(lastShotStore.clear());
-  clearLastShotSnapshot();
+  clearLastShotRuntimeState();
   ControlStatusSnapshot status;
   copyControlStatus(status);
   CHECK(!persistedLastShot.valid);
@@ -11159,6 +11186,24 @@ void s04c_delete_shot_record_removes_log_and_curve() {
   curve.shotId = id;
   curve.intervalS = SHOT_CURVE_INTERVAL_S;
   CHECK(shotCurves.append(curve));
+  PersistedLastShot good = {};
+  good.valid = true;
+  good.cycleId = 44;
+  good.durationMs = 25000;
+  good.weightValid = true;
+  good.currentWeightG = 36.5f;
+  good.shotLogId = id;
+  good.presetId = FACTORY_PRESET_ID_DOUBLE;
+  persistLastShotSnapshot(good);
+  CHECK(rateShotRecord(id, 4));
+  CHECK(persistedLastGoodShot.rating == 0);
+  uint32_t bootId = 0;
+  PersistedLastShot last = {}, publishedGood = {};
+  ShotCurveRecord publishedCurve = emptyShotCurveRecord();
+  CHECK(copyShotStoreStatus(bootId, last, publishedGood, publishedCurve,
+                            true));
+  CHECK(publishedGood.rating == 4);
+  CHECK(publishedCurve.shotId == id);
   CHECK(shotLog.containsId(id));
   CHECK(shotCurves.containsShotId(id));
   CHECK(deleteShotRecord(id));
@@ -11166,6 +11211,11 @@ void s04c_delete_shot_record_removes_log_and_curve() {
   CHECK(!shotCurves.containsShotId(id));
   CHECK(shotLog.count() == 0);
   CHECK(shotCurves.count() == 0);
+  CHECK(persistedLastGoodShot.cycleId == 44);
+  CHECK(fabsf(persistedLastGoodShot.currentWeightG - 36.5f) < 0.001f);
+  CHECK(!copyShotStoreStatus(bootId, last, publishedGood, publishedCurve,
+                             true));
+  CHECK(!rateLastShot(5));
 }
 
 void s04d_delete_shot_record_ok_without_curve() {
@@ -12024,15 +12074,9 @@ void s12b_shot_log_update_rating() {
   CHECK(!shotLog.updateRating(99999U, 1));
 }
 
-void s12c_last_shot_rating_survives_finalize_and_commit() {
+void s12c_finalize_links_exact_history_row() {
   resetHarness(false, true);
   shotLog.clear();
-  persistedLastShot = PersistedLastShot{};
-  persistedLastShot.valid = true;
-  persistedLastShot.cycleId = 7;
-  persistedLastShot.rating = 4;
-  persistLastShotSnapshot(persistedLastShot);
-
   PendingShotFinalize snapshot = {};
   snapshot.cycleId = 7;
   snapshot.durationDs = 300;
@@ -12045,48 +12089,152 @@ void s12c_last_shot_rating_survives_finalize_and_commit() {
   snapshot.logEligible = true;
   snapshot.firstDropDs = 50;
 
+  persistLastShotFromFinalize(snapshot, 36.1f, true);
   commitPendingShotLog(snapshot, 36.1f, true, ActualWeightSource::POST_DRIP);
   ShotLogRecord stored[1] = {};
   CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
-  CHECK(shotLogRating(stored[0].extractionGuardEnabled) == 4);
+  CHECK(shotLogRating(stored[0].extractionGuardEnabled) == 0);
   CHECK(persistedLastShot.shotLogId == stored[0].id);
-
-  persistLastShotFromFinalize(snapshot, 36.1f, true);
-  CHECK(persistedLastShot.valid);
-  CHECK(persistedLastShot.rating == 4);
-  CHECK(persistedLastShot.shotLogId == stored[0].id);
-  CHECK(persistedLastShot.cycleId == 7);
-  CHECK(fabsf(persistedLastShot.currentWeightG - 36.1f) < 0.001f);
+  CHECK(persistedLastGoodShot.shotLogId == stored[0].id);
 }
 
 void s12d_rate_last_shot_and_history() {
   resetHarness(false, true);
   shotLog.clear();
-  persistedLastShot = PersistedLastShot{};
   CHECK(!rateLastShot(3));
-  persistedLastShot.valid = true;
-  persistedLastShot.cycleId = 1;
-  persistLastShotSnapshot(persistedLastShot);
-  CHECK(rateLastShot(3));
-  CHECK(persistedLastShot.rating == 3);
-  CHECK(rateLastShot(0));
-  CHECK(persistedLastShot.rating == 0);
+  PersistedLastShot retained = {};
+  retained.valid = true;
+  retained.cycleId = 1;
+  retained.durationMs = 13000;
+  retained.weightValid = true;
+  retained.currentWeightG = 36.0f;
+  retained.presetId = FACTORY_PRESET_ID_DOUBLE;
+  persistLastShotSnapshot(retained);
+  CHECK(!rateLastShot(3));
 
   ShotLogRecord record = {};
   record.durationDs = 120;
   CHECK(shotLog.append(record));
   ShotLogRecord stored[1] = {};
   CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
-  persistedLastShot.shotLogId = stored[0].id;
-  persistLastShotSnapshot(persistedLastShot);
+  PersistedLastShot linked = persistedLastShot;
+  linked.shotLogId = stored[0].id;
+  persistLastShotSnapshot(linked);
   CHECK(rateLastShot(5));
-  CHECK(persistedLastShot.rating == 5);
+  CHECK(persistedLastGoodShot.rating == 0);
   CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
   CHECK(shotLogRating(stored[0].extractionGuardEnabled) == 5);
   CHECK(rateShotRecord(stored[0].id, 2));
-  CHECK(persistedLastShot.rating == 2);
   CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
   CHECK(shotLogRating(stored[0].extractionGuardEnabled) == 2);
+  uint32_t bootId = 0;
+  PersistedLastShot last = {}, good = {};
+  ShotCurveRecord curve = emptyShotCurveRecord();
+  CHECK(copyShotStoreStatus(bootId, last, good, curve, true));
+  CHECK(good.rating == 2);
+  CHECK(good.shotLogId == stored[0].id);
+}
+
+void s12e_history_rating_wins_after_last_shot_save_failure_and_reboot() {
+  resetHarness(false, true);
+  shotLog.clear();
+  ShotLogRecord record = {};
+  record.durationDs = 130;
+  CHECK(shotLog.append(record));
+  ShotLogRecord stored[1] = {};
+  CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
+
+  PersistedLastShot good = {};
+  good.valid = true;
+  good.cycleId = 3;
+  good.durationMs = 13000;
+  good.weightValid = true;
+  good.currentWeightG = 37.2f;
+  good.shotLogId = stored[0].id;
+  good.rating = 1;
+  good.presetId = FACTORY_PRESET_ID_DOUBLE;
+  lastShotStore.advance(good);
+  CHECK(lastShotStore.save());
+  CHECK(rateShotRecord(stored[0].id, 4));
+
+  PersistedLastShot staleWrite = good;
+  staleWrite.rating = 4;
+  lastShotStore.advance(staleWrite);
+  LastShotStore::setHostSaveSucceeds(false);
+  CHECK(!lastShotStore.save());
+  LastShotStore::setHostSaveSucceeds(true);
+  CHECK(lastShotStore.load());
+  CHECK(persistedLastGoodShot.rating == 1);
+
+  uint32_t bootId = 0;
+  PersistedLastShot last = {}, publishedGood = {};
+  ShotCurveRecord curve = emptyShotCurveRecord();
+  CHECK(copyShotStoreStatus(bootId, last, publishedGood, curve, true));
+  CHECK(publishedGood.rating == 4);
+  CHECK(publishedGood.cycleId == good.cycleId);
+  CHECK(fabsf(publishedGood.currentWeightG - good.currentWeightG) < 0.001f);
+  publishControlStatus();
+  ControlStatusSnapshot status = {};
+  copyControlStatus(status);
+  CHECK(status.lastGoodShotHistoryLinked);
+  CHECK(status.lastGoodShot.rating == 4);
+  CHECK(status.lastGoodShot.cycleId == good.cycleId);
+  CHECK(fabsf(status.lastGoodShot.currentWeightG - good.currentWeightG) <
+        0.001f);
+}
+
+void s12f_shot_store_snapshot_serializes_rating_and_finalize() {
+  resetHarness(false, true);
+  shotLog.clear();
+  ShotLogRecord record = {};
+  record.durationDs = 130;
+  CHECK(shotLog.append(record));
+  ShotLogRecord stored[1] = {};
+  CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
+  PersistedLastShot initial = {};
+  initial.valid = true;
+  initial.cycleId = 1;
+  initial.durationMs = 13001;
+  initial.weightValid = true;
+  initial.currentWeightG = 31.0f;
+  initial.shotLogId = stored[0].id;
+  initial.presetId = FACTORY_PRESET_ID_DOUBLE;
+  persistLastShotSnapshot(initial);
+
+  std::atomic<bool> start{false}, done{false};
+  std::atomic<uint32_t> violations{0};
+  std::thread rater([&]() {
+    while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+    for (uint32_t n = 0; n < 500; ++n)
+      if (!rateShotRecord(stored[0].id, static_cast<uint8_t>(n % 6U)))
+        violations.fetch_add(1, std::memory_order_relaxed);
+  });
+  std::thread reader([&]() {
+    while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+    do {
+      uint32_t bootId = 0;
+      PersistedLastShot last = {}, good = {};
+      ShotCurveRecord curve = emptyShotCurveRecord();
+      if (!copyShotStoreStatus(bootId, last, good, curve, true) ||
+          good.durationMs != 13000U + good.cycleId ||
+          good.currentWeightG !=
+              30.0f + static_cast<float>(good.cycleId % 5U))
+        violations.fetch_add(1, std::memory_order_relaxed);
+    } while (!done.load(std::memory_order_acquire));
+  });
+  start.store(true, std::memory_order_release);
+  for (uint32_t generation = 2; generation <= 500; ++generation) {
+    PersistedLastShot next = initial;
+    next.cycleId = generation;
+    next.durationMs = 13000U + generation;
+    next.currentWeightG = 30.0f + static_cast<float>(generation % 5U);
+    persistLastShotSnapshot(next);
+    serviceShotStorePersistence();
+  }
+  rater.join();
+  done.store(true, std::memory_order_release);
+  reader.join();
+  CHECK(violations.load(std::memory_order_relaxed) == 0);
 }
 
 void s13_persist_debug_messages_identify_origin() {
@@ -12124,6 +12272,10 @@ void s19_shot_store_persist_failure_logs_once_until_success() {
   record.bootId = shotLog.bootId();
   CHECK(shotLog.append(record, false));
   CHECK(shotLog.dirty());
+  maintenanceLease.active = true;
+  serviceShotStorePersistence();
+  CHECK(shotLog.dirty());
+  maintenanceLease.active = false;
   g_hostFlashIoMutexAvailable = false;
   debugLog.clear();
   serviceShotStorePersistence();
@@ -14758,8 +14910,10 @@ const TestCase testCases[] = {
     {"S11", s11_shot_log_record_stays_fixed_size},
     {"S12", s12_shot_rating_pack_preserves_guards},
     {"S12b", s12b_shot_log_update_rating},
-    {"S12c", s12c_last_shot_rating_survives_finalize_and_commit},
+    {"S12c", s12c_finalize_links_exact_history_row},
     {"S12d", s12d_rate_last_shot_and_history},
+    {"S12e", s12e_history_rating_wins_after_last_shot_save_failure_and_reboot},
+    {"S12f", s12f_shot_store_snapshot_serializes_rating_and_finalize},
     {"S13", s13_persist_debug_messages_identify_origin},
     {"S19", s19_shot_store_persist_failure_logs_once_until_success},
     {"H01", h01_health_threshold_alerts_fire_once_per_crossing},

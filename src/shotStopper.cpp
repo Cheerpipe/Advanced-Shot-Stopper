@@ -374,11 +374,13 @@ LogLevel ringRetainLogLevel = LogLevel::NONE;
 // first. Safe in PSRAM BSS because putBytes/erase/write never DMA these.
 SHOT_STOPPER_PSRAM_BSS ShotLog shotLog;
 SHOT_STOPPER_PSRAM_BSS ShotCurveLog shotCurves;
+// Serializes complete RAM-store operations across control and NetworkService;
+// every durable write remains owned by the existing store/flash path.
+TaskMutex shotStoreMutex;
 ShotCurveSampler shotCurveSampler;
-ShotCurveRecord lastShotCurve = emptyShotCurveRecord();
 LastShotStore lastShotStore;
-PersistedLastShot persistedLastShot;
-PersistedLastShot persistedLastGoodShot;
+const PersistedLastShot &persistedLastShot = lastShotStore.get();
+const PersistedLastShot &persistedLastGoodShot = lastShotStore.getGood();
 bool lastShotNvsDirty = false;
 bool shotLogPersistFailLatched = false;
 bool shotCurvePersistFailLatched = false;
@@ -479,6 +481,8 @@ uint32_t hostPresetWebhookCount = 0;
 uint32_t hostQuickSettingsWebhookCount = 0;
 uint32_t hostControllerStartedWebhookCount = 0;
 bool hostControllerStartedWebhookSucceeds = true;
+bool (*hostControllerStartedWebhookBuildGuard)() = nullptr;
+WebhookEvent hostControllerStartedWebhookEvent;
 #endif
 bool runtimePersistPending = false;
 bool runtimePersistFailed = false;
@@ -590,9 +594,9 @@ void queueRuntimePersist(int32_t reasonBits);
 void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits);
 bool settingsPersistenceAvailable();
 
-#ifndef SHOT_STOPPER_HOST_TEST
 WebhookEvent baseWebhookEvent(WebhookEventType type, uint32_t cycleId,
                               uint32_t occurredAtMs);
+#ifndef SHOT_STOPPER_HOST_TEST
 SHOT_STOPPER_PSRAM_BSS PersistedSettings persistedSettings;
 ShotStopperNetwork networkManager;
 
@@ -619,6 +623,12 @@ void syncScaleWorkerNetworkRf(bool scaleLinkOrConnecting,
 bool enqueueControllerStartedWebhook() {
   if (!controllerStartedPending) return true;
   if (!hostControllerStartedWebhookSucceeds) return false;
+  if (hostControllerStartedWebhookBuildGuard != nullptr &&
+      !hostControllerStartedWebhookBuildGuard()) {
+    return false;
+  }
+  hostControllerStartedWebhookEvent =
+      baseWebhookEvent(WebhookEventType::CONTROLLER_STARTED, 0, millis());
   ++hostControllerStartedWebhookCount;
   controllerStartedPending = false;
   return true;
@@ -1090,14 +1100,41 @@ extern "C" bool verifyRollbackLater() {
 #endif
 
 size_t copyShotRecords(ShotLogRecord *output, size_t capacity) {
+  TaskLockGuard lock(shotStoreMutex);
   return shotLog.copyNewestFirst(output, capacity);
 }
 
 size_t copyShotCurves(ShotCurveRecord *output, size_t capacity) {
+  TaskLockGuard lock(shotStoreMutex);
   return shotCurves.copyNewestFirst(output, capacity);
 }
 
+uint32_t copyShotLogBootId() {
+  TaskLockGuard lock(shotStoreMutex);
+  return shotLog.bootId();
+}
+
+bool copyShotStoreStatus(uint32_t &bootId, PersistedLastShot &last,
+                         PersistedLastShot &good, ShotCurveRecord &goodCurve,
+                         bool includeGoodHistory) {
+  TaskLockGuard lock(shotStoreMutex);
+  bootId = shotLog.bootId();
+  last = persistedLastShot;
+  good = persistedLastGoodShot;
+  good.rating = 0;
+  goodCurve = emptyShotCurveRecord();
+  uint8_t rating = 0;
+  if (!includeGoodHistory || !publishableLastShot(good) ||
+      good.shotLogId == 0 ||
+      !shotLog.copyRatingById(good.shotLogId, rating))
+    return false;
+  good.rating = rating;
+  (void)shotCurves.copyByShotId(good.shotLogId, goodCurve);
+  return true;
+}
+
 bool deleteShotRecord(uint32_t id) {
+  TaskLockGuard lock(shotStoreMutex);
   const bool hadCurve = shotCurves.containsShotId(id);
   const bool hadLog = shotLog.containsId(id);
   if (!hadLog && !hadCurve) {
@@ -1113,6 +1150,7 @@ bool deleteShotRecord(uint32_t id) {
 }
 
 bool clearShotLog() {
+  TaskLockGuard lock(shotStoreMutex);
   if (!shotCurves.clear()) {
     return false;
   }
@@ -1120,88 +1158,55 @@ bool clearShotLog() {
 }
 
 bool clearLastShot() {
+  TaskLockGuard lock(shotStoreMutex);
   if (!lastShotStore.clearLast()) return false;
-  persistedLastShot = PersistedLastShot{};
-  lastShotCurve = emptyShotCurveRecord();
   lastShotNvsDirty = false;
   return true;
 }
 
-void clearLastShotSnapshot() {
-  persistedLastShot = PersistedLastShot{};
-  persistedLastGoodShot = PersistedLastShot{};
-  lastShotCurve = emptyShotCurveRecord();
+void clearLastShotRuntimeState() {
   lastShotNvsDirty = false;
 }
 
 #ifndef SHOT_STOPPER_HOST_TEST
 bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
+  TaskLockGuard lock(shotStoreMutex);
   if (!resetAllDurableStores(settings, bleCompanionPersistedSettings, shotLog,
                              lastShotStore, shotCurves)) {
     return false;
   }
-  // Status/UI read this snapshot, not LastShotStore. Drop it only after NVS
-  // factory succeeded so a failed reset does not blank a still-durable shot.
-  clearLastShotSnapshot();
+  // Drop transient dirty state only after the durable factory reset succeeds.
+  clearLastShotRuntimeState();
   return true;
 }
 
 bool releaseNvsSpaceForFactoryResetForNetwork() {
+  TaskLockGuard lock(shotStoreMutex);
   return releaseNvsSpaceForFactoryReset(shotLog, lastShotStore);
 }
 #endif
 
 void persistLastShotSnapshot(const PersistedLastShot &snapshot) {
-  persistedLastShot = snapshot;
-  if (qualifyingGoodShot(snapshot)) persistedLastGoodShot = snapshot;
-  lastShotStore.adopt(persistedLastShot, persistedLastGoodShot);
+  TaskLockGuard lock(shotStoreMutex);
+  lastShotStore.advance(snapshot);
   lastShotNvsDirty = true;
-}
-
-void applyLastShotManualFields(PersistedLastShot &last) {
-  if (persistedLastShot.valid && persistedLastShot.cycleId == last.cycleId) {
-    last.rating = persistedLastShot.rating;
-    last.shotLogId = persistedLastShot.shotLogId;
-  }
-}
-
-bool persistLastShotRating(uint8_t rating) {
-  if (!persistedLastShot.valid || rating > SHOT_LOG_RATING_MAX) {
-    return false;
-  }
-  persistedLastShot.rating = rating;
-  lastShotStore.adopt(persistedLastShot);
-  if (lastShotStore.save()) {
-    lastShotNvsDirty = false;
-    return true;
-  }
-  lastShotNvsDirty = true;
-  return false;
 }
 
 bool rateShotRecord(uint32_t id, uint8_t rating) {
+  TaskLockGuard lock(shotStoreMutex);
   if (id == 0 || rating > SHOT_LOG_RATING_MAX) {
     return false;
   }
-  if (!shotLog.updateRating(id, rating)) {
-    return false;
-  }
-  if (persistedLastShot.valid && persistedLastShot.shotLogId == id) {
-    (void)persistLastShotRating(rating);
-  }
-  return true;
+  return shotLog.updateRating(id, rating);
 }
 
 bool rateLastShot(uint8_t rating) {
-  if (rating > SHOT_LOG_RATING_MAX || !persistedLastShot.valid) {
+  TaskLockGuard lock(shotStoreMutex);
+  if (rating > SHOT_LOG_RATING_MAX || !persistedLastGoodShot.valid ||
+      persistedLastGoodShot.shotLogId == 0) {
     return false;
   }
-  if (persistedLastShot.shotLogId != 0 &&
-      shotLog.containsId(persistedLastShot.shotLogId) &&
-      !shotLog.updateRating(persistedLastShot.shotLogId, rating)) {
-    return false;
-  }
-  return persistLastShotRating(rating);
+  return shotLog.updateRating(persistedLastGoodShot.shotLogId, rating);
 }
 
 void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
@@ -1264,9 +1269,7 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
             ? 0U
             : snapshot.minBbwBrewTimeMs - last.durationMs;
   }
-  applyLastShotManualFields(last);
   persistLastShotSnapshot(last);
-  lastShotCurve = snapshot.curve;
 }
 
 void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs) {
@@ -1342,9 +1345,7 @@ void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs) {
   copyCString(last.scaleProtocol, sizeof(last.scaleProtocol),
               link.protocolName);
   last.scaleProtocol[sizeof(last.scaleProtocol) - 1] = '\0';
-  applyLastShotManualFields(last);
   persistLastShotSnapshot(last);
-  lastShotCurve = shotCurveSampler.snapshot();
 }
 
 bool controlAllowsConfigurationNow();

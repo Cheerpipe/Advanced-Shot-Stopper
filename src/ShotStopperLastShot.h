@@ -82,6 +82,7 @@ inline void resetLastShotBlob(LastShotBlob &blob) {
 class LastShotStore {
  public:
   bool load() {
+    loadedLegacy_ = false;
 #if defined(SHOT_STOPPER_HOST_TEST)
     if (hostStorageValid_) {
       blob_ = hostStorage_;
@@ -131,6 +132,7 @@ class LastShotStore {
           blob_.lastGoodShot = blob_.lastShot;
         }
         finalizeLastShotBlob(blob_);
+        loadedLegacy_ = true;
         loaded = true;
       }
     } else if (length == sizeof(LastShotBlobV2)) {
@@ -146,6 +148,7 @@ class LastShotStore {
           blob_.lastGoodShot = blob_.lastShot;
         }
         finalizeLastShotBlob(blob_);
+        loadedLegacy_ = true;
         loaded = true;
       }
     }
@@ -195,23 +198,16 @@ class LastShotStore {
 
   void adopt(const PersistedLastShot &shot) {
     blob_.lastShot = shot;
-    if (blob_.lastGoodShot.valid &&
-        blob_.lastGoodShot.cycleId == shot.cycleId) {
-      blob_.lastGoodShot = shot;
-    }
     finalizeLastShotBlob(blob_);
   }
 
-  void adopt(const PersistedLastShot &lastShot,
-             const PersistedLastShot &lastGoodShot) {
-    blob_.lastShot = lastShot;
-    blob_.lastGoodShot = lastGoodShot;
-    finalizeLastShotBlob(blob_);
+  void advance(const PersistedLastShot &shot) {
+    if (qualifyingGoodShot(shot)) blob_.lastGoodShot = shot;
+    adopt(shot);
   }
 
   bool persist(const PersistedLastShot &shot) {
-    if (qualifyingGoodShot(shot)) blob_.lastGoodShot = shot;
-    adopt(shot);
+    advance(shot);
     return save();
   }
 
@@ -260,6 +256,7 @@ class LastShotStore {
 
   const PersistedLastShot &get() const { return blob_.lastShot; }
   const PersistedLastShot &getGood() const { return blob_.lastGoodShot; }
+  bool loadedLegacy() const { return loadedLegacy_; }
 
 #if defined(SHOT_STOPPER_HOST_TEST)
   static void setHostSaveSucceeds(bool succeeds) {
@@ -272,6 +269,7 @@ class LastShotStore {
   static constexpr const char *LAST_SHOT_KEY = "record";
 
   LastShotBlob blob_;
+  bool loadedLegacy_ = false;
 
 #if defined(SHOT_STOPPER_HOST_TEST)
   static LastShotBlob hostStorage_;

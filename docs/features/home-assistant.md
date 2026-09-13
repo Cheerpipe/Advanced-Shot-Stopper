@@ -1,7 +1,8 @@
 # Home Assistant
 
 The native **Advanced Shot Stopper** integration adds one controller device,
-live shot state, the latest completed and qualifying shots, an active-preset
+live shot state, the latest completed shot and the controller's durable last
+good shot, an active-preset
 selector, seven Home Quick Settings switches, and a safe restart button. It
 does not create YAML helpers, template entities, REST commands, or automations,
 and it cannot start or stop the espresso machine.
@@ -71,7 +72,12 @@ Home Assistant reads a complete REST snapshot before it adds any entities.
 That snapshot restores both controller-owned durable shot aggregates, so one
 may be unknown while the other is immediately available. The controller is
 authoritative: a null last-good aggregate clears any older Home Assistant value
-instead of reconstructing history after a factory reset.
+instead of reconstructing history after a factory reset. The Web UI's idle
+**Current / Last Good Shot** card reads that same aggregate. A newer short,
+weightless, or 2 g-or-less shot leaves both views unchanged. Deleting or clearing
+Web UI history does not replace it; only its optional curve/rating actions become
+unavailable. After an upgrade, legacy data without retained preset identity is
+reported as unknown until the controller records a qualifying identified shot.
 
 After setup, validated webhooks update entities immediately. There is no
 healthy-state or background polling. Home Assistant performs a single bounded

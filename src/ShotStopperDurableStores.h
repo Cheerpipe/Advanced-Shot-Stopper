@@ -59,8 +59,8 @@ inline bool releaseNvsSpaceForFactoryReset(ShotLog &shotLog,
 // overwrite dual-slot settings without clearing the shared NVS namespace,
 // BLE companion last. Every store is verified before success. Idempotent
 // except that a mid-fail may already have dropped history.
-// Orchestrator last-shot UI snapshot (`persistedLastShot`) is not this
-// store: callers that publish status must drop it after this returns true.
+// LastShotStore owns the status aggregate. Callers only need to drop transient
+// dirty state after this durable reset succeeds.
 inline bool resetAllDurableStores(PersistedSettings &settings,
                                   BleCompanionPersistedSettings &ble,
                                   ShotLog &shotLog,

@@ -2,8 +2,10 @@
 
 BBW prediction/learning has no resource authority. Control owns the fixed
 per-preset candidate bank and immutable shot/finalizer snapshots; persistence
-owns deferred durable writes. Network consumes published state only. This
-adds no task, queue or handle owner and changes no lock ordering. See
+owns deferred durable writes. Network consumes the published Home snapshot;
+bounded history reads and explicit user mutations share the one static
+`shotStoreMutex` with control finalization and deferred saves. This adds no
+task, queue or heap owner; the mutex is acquired before the flash lock. See
 [BBW policy and storage](ARCHITECTURE.md#bbw-policy-and-storage).
 
 Every fallible resource acquisition needs one owner and a defined rollback
@@ -29,6 +31,7 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | static task mutex/event storage | containing static object | no heap allocation and no dynamic teardown |
 | HTTP server | NetworkService | manager-task-only stop/restart; handle cleared immediately after `httpd_stop` |
 | persistence mailbox | control producer, then persistence worker | one external request; internal token queue; producer may reuse only after consuming completion, or failed enqueue |
+| shot history, curves and last-shot aggregate | control finalization/deferred-save path; Network borrows only through mutex-guarded callbacks | static `shotStoreMutex` covers each complete RAM operation and its flash snapshot; Home receives one control-published exact-ID rating/curve snapshot |
 | webhook queue / payload | `WebhookDispatcher` | internal queue storage and external HTTP payload; release after worker join, or startup rollback |
 | profiler workspace / capture | `TaskProfiler` | external processing workspace and separate internal kernel capture; free both on stop or failed start |
 | cJSON document | parsing caller | PSRAM allocations through process-wide hooks installed once before HTTP starts; `cJSON_Delete` releases each independent document |

@@ -37,20 +37,12 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
 
   ControlStatusSnapshot &control = self.workBuf_->control;
   self.loadControlStatus(control);
-  // Home deliberately reads the accepted Stats history. The independently
-  // persisted raw last-use snapshot in control.lastShot remains untouched.
-  ShotLogRecord homeLastShot = {};
-  ShotCurveRecord homeLastShotCurve = emptyShotCurveRecord();
+  const PersistedLastShot &homeLastShot = control.lastGoodShot;
   const bool homeLastShotValid =
-      page == StatusPage::Home && self.callbacks_.copyShotRecords != nullptr &&
-      self.callbacks_.copyShotRecords(&homeLastShot, 1) == 1;
-  if (homeLastShotValid && self.callbacks_.copyShotCurves != nullptr) {
-    ShotCurveRecord newestCurve = emptyShotCurveRecord();
-    if (self.callbacks_.copyShotCurves(&newestCurve, 1) == 1 &&
-        newestCurve.shotId == homeLastShot.id) {
-      homeLastShotCurve = newestCurve;
-    }
-  }
+      page == StatusPage::Home && publishableLastShot(homeLastShot);
+  const bool homeHistoryLinked =
+      homeLastShotValid && !control.activeCycle &&
+      control.lastGoodShotHistoryLinked;
   const bool configMutable = controlAllowsConfiguration(control);
   const bool webUiOverrideActive = self.webUiOverrideAllowed(request);
   const uint32_t webUiOverrideRemainingMs =
@@ -94,13 +86,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     snprintf(scaleTimer, sizeof(scaleTimer), "%lu",
              static_cast<unsigned long>(control.currentTimerMs));
   }
-  if (page == StatusPage::Home && homeLastShotValid &&
-      !shotLogWeightIsMissing(homeLastShot.actualWeightCg)) {
+  if (homeLastShotValid && homeLastShot.weightValid) {
     snprintf(lastShotWeight, sizeof(lastShotWeight), "%.2f",
-             static_cast<double>(homeLastShot.actualWeightCg) / 100.0);
-  } else if (control.lastShot.valid && control.lastShot.weightValid) {
-    snprintf(lastShotWeight, sizeof(lastShotWeight), "%.2f",
-             static_cast<double>(control.lastShot.currentWeightG));
+             static_cast<double>(homeLastShot.currentWeightG));
   }
   if (network.staLinkMetricsValid) {
     snprintf(staRssiJson, sizeof(staRssiJson), "%d",
@@ -127,6 +115,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char safeNtpCustom[NTP_SERVER_HOST_CAPACITY] = {};
   char safeActiveServer[NTP_SERVER_HOST_CAPACITY] = {};
   char safeScaleProtocol[24] = {};
+  char safeHomeShotProtocol[24] = {};
+  char safeHomeShotPreset[SHOT_PRESET_NAME_CAPACITY * 2] = {};
   char safePreferredScaleMac[PREFERRED_SCALE_MAC_CAPACITY * 2] = {};
   char safePreferredScaleName[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
   char safeFirmwareVersion[32] = {};
@@ -138,6 +128,10 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                     sizeof(safeActiveServer));
   sanitizeJsonEmbed(control.scaleProtocol, safeScaleProtocol,
                     sizeof(safeScaleProtocol));
+  sanitizeJsonEmbed(homeLastShot.scaleProtocol, safeHomeShotProtocol,
+                    sizeof(safeHomeShotProtocol));
+  sanitizeJsonEmbed(homeLastShot.presetName, safeHomeShotPreset,
+                    sizeof(safeHomeShotPreset));
   sanitizeJsonEmbed(control.preferredScaleMac, safePreferredScaleMac,
                     sizeof(safePreferredScaleMac));
   sanitizeJsonEmbed(control.preferredScaleName, safePreferredScaleName,
@@ -466,7 +460,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"autoToManualGuardRemainingMs\":%lu,"
         "\"accidentalTouchHolding\":%s},"
         "\"lastShot\":{\"valid\":%s,\"currentWeightG\":%s,"
-        "\"goalWeightG\":%u,\"extractionExtended\":%s,"
+        "\"cycleId\":%lu,\"presetId\":%u,\"presetName\":\"%s\","
+        "\"goalWeightG\":%u,\"averageFlowGps\":%.2f,"
+        "\"averageFlowValid\":%s,\"extractionExtended\":%s,"
         "\"activeStopWeightG\":%.1f,\"durationMs\":%lu,"
         "\"firstDropElapsedMs\":%lu,\"retarePerformed\":%s,"
         "\"shotType\":\"%s\",\"scaleProtocol\":\"%s\","
@@ -521,45 +517,43 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(control.cycleAutoToManualGuardRemainingMs),
         control.cycleAccidentalTouchHolding ? "true" : "false",
         homeLastShotValid ? "true" : "false", lastShotWeight,
+        static_cast<unsigned long>(homeLastShot.cycleId),
+        static_cast<unsigned>(homeLastShot.presetId), safeHomeShotPreset,
         static_cast<unsigned>(homeLastShot.goalWeightG),
-        homeLastShotValid && shotLogFastExtended(homeLastShot.extractionExtended)
-            ? "true"
-            : "false",
-        0.0,
-        static_cast<unsigned long>(homeLastShot.durationDs) * 100UL,
-        homeLastShot.firstDropDs == SHOT_LOG_METRIC_MISSING
-            ? 0UL
-            : static_cast<unsigned long>(homeLastShot.firstDropDs) * 100UL,
-        "false",
+        static_cast<double>(homeLastShot.averageFlowGps),
+        homeLastShot.averageFlowValid ? "true" : "false",
+        homeLastShot.extractionExtended ? "true" : "false",
+        static_cast<double>(homeLastShot.activeStopWeightG),
+        static_cast<unsigned long>(homeLastShot.durationMs),
+        static_cast<unsigned long>(homeLastShot.firstDropElapsedMs),
+        homeLastShot.retarePerformed ? "true" : "false",
         homeLastShotValid
-            ? shotLogTypeName(shotLogType(homeLastShot))
+            ? lastShotTypeName(static_cast<LastShotType>(homeLastShot.shotType))
             : "unknown",
-        "none",
-        homeLastShotValid &&
-                !shotLogWeightIsMissing(homeLastShot.actualWeightCg)
-            ? "true"
-            : "false",
-        homeLastShotValid &&
-                shotLogFastGuardEnabled(homeLastShot.extractionGuardEnabled)
-            ? "true"
-            : "false",
-        homeLastShotValid &&
-                shotLogSlowGuardEnabled(homeLastShot.extractionGuardEnabled)
-            ? "true"
-            : "false",
-        homeLastShotValid && shotLogSlowExtended(homeLastShot.extractionExtended)
-            ? "true"
-            : "false",
-        0UL, "false", "false", "false", 0UL, "false", "false", "off",
+        safeHomeShotProtocol,
+        homeLastShot.scaleAvailable ? "true" : "false",
+        homeLastShot.fastExtractionGuardEnabled ? "true" : "false",
+        homeLastShot.slowExtractionGuardEnabled ? "true" : "false",
+        homeLastShot.slowExtractionExtended ? "true" : "false",
+        static_cast<unsigned long>(homeLastShot.minBbwBrewTimeRemainingMs),
+        homeLastShot.autoToManualGuardEnabled ? "true" : "false",
+        homeLastShot.autoToManualGuardArmed ? "true" : "false",
+        homeLastShot.autoToManualGuardEnforced ? "true" : "false",
+        static_cast<unsigned long>(homeLastShot.autoToManualGuardRemainingMs),
+        homeLastShot.noScaleShotGuardEnabled ? "true" : "false",
+        homeLastShot.noScaleShotGuardArmed ? "true" : "false",
+        noScaleBbwModeId(homeLastShot.noScaleBbwMode),
         homeLastShotValid
             ? shotLogStopDetailName(
-                  static_cast<ShotLogStopDetail>(homeLastShot.stopDetail))
+                  shotLogStopDetailFromEndReason(
+                      homeLastShot.endReason,
+                      homeLastShot.fastExtractionGuardEnabled,
+                      homeLastShot.extractionExtended))
             : "none",
-        homeLastShotValid
-            ? static_cast<unsigned>(
-                  shotLogRating(homeLastShot.extractionGuardEnabled))
-            : 0U,
-        static_cast<unsigned long>(homeLastShot.id),
+        homeHistoryLinked ? static_cast<unsigned>(homeLastShot.rating) : 0U,
+        homeHistoryLinked
+            ? static_cast<unsigned long>(homeLastShot.shotLogId)
+            : 0UL,
         control.noScaleShotGuardEnabled ? "true" : "false",
         control.noScaleShotGuardArmed ? "true" : "false",
         noScaleBbwModeId(control.config.noScaleBbwMode),
@@ -574,18 +568,15 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         cupWeightValid ? "true" : "false",
         static_cast<unsigned long>(control.cupTare.placementId));
     if (ok) {
-      const ShotCurveRecord curve =
-          control.activeCycle
-              ? shotCurveRecordFromStatusFields(
-                    control.shotCurveCount, control.shotCurveIntervalS,
-                    control.shotCurveFirstDropDs, control.shotCurveFirstDropCg,
-                    control.shotCurveExtendedDs, control.shotCurveExtendedCg,
-                    control.shotCurveAtmDs, control.shotCurveAtmCg,
-                    control.shotCurveAtmClearedDs, control.shotCurveEndedDs,
-                    control.shotCurveEndedCg, control.shotCurveWeightCg,
-                    sizeof(control.shotCurveWeightCg) /
-                        sizeof(control.shotCurveWeightCg[0]))
-              : homeLastShotCurve;
+      const ShotCurveRecord curve = shotCurveRecordFromStatusFields(
+          control.shotCurveCount, control.shotCurveIntervalS,
+          control.shotCurveFirstDropDs, control.shotCurveFirstDropCg,
+          control.shotCurveExtendedDs, control.shotCurveExtendedCg,
+          control.shotCurveAtmDs, control.shotCurveAtmCg,
+          control.shotCurveAtmClearedDs, control.shotCurveEndedDs,
+          control.shotCurveEndedCg, control.shotCurveWeightCg,
+          sizeof(control.shotCurveWeightCg) /
+              sizeof(control.shotCurveWeightCg[0]));
       char curveJson[768] = {};
       if (formatShotCurveJsonBody(curveJson, sizeof(curveJson), curve)) {
         ok = statusJsonAppend(&used, ",\"shotCurve\":{%s}", curveJson);

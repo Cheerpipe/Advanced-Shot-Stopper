@@ -1961,6 +1961,8 @@ inline bool qualifyingGoodShot(const PersistedLastShot &shot) {
   return shot.valid && shot.durationMs > 12000U && shot.weightValid && std::isfinite(shot.currentWeightG) && shot.currentWeightG > 2.0f;
 }
 
+inline bool publishableLastShot(const PersistedLastShot &shot) { return shot.valid && shot.presetId != 0 && static_cast<LastShotType>(shot.shotType) <= LastShotType::MANUAL; }
+
 struct RecipeSnapshot {
   ShotPresetBank presets = {};
   RuntimeConfig runtime = {};
@@ -2127,6 +2129,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   LastCycleSummary lastCycle = {};
   PersistedLastShot lastShot = {};
   PersistedLastShot lastGoodShot = {};
+  bool lastGoodShotHistoryLinked = false;
   uint8_t shotCurveCount = 0;
   uint8_t shotCurveIntervalS = 1;
   uint16_t shotCurveFirstDropDs = UINT16_MAX;

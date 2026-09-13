@@ -178,27 +178,13 @@ void setup() {
   bootIdentityDurable = shotLog.save();
   shotCurves.load();
   lastShotStore.load();
-  persistedLastShot = lastShotStore.get();
-  persistedLastGoodShot = lastShotStore.getGood();
-  if (persistedLastShot.valid) {
-    ShotCurveRecord newest = {};
-    if (shotCurves.copyNewestFirst(&newest, 1) == 1) {
-      lastShotCurve = newest;
-    }
-  }
+  lastShotNvsDirty = lastShotStore.loadedLegacy();
 #else
   shotLog.load();
   shotLog.onBoot();
   shotCurves.load();
   lastShotStore.load();
-  persistedLastShot = lastShotStore.get();
-  persistedLastGoodShot = lastShotStore.getGood();
-  if (persistedLastShot.valid) {
-    ShotCurveRecord newest = {};
-    if (shotCurves.copyNewestFirst(&newest, 1) == 1) {
-      lastShotCurve = newest;
-    }
-  }
+  lastShotNvsDirty = lastShotStore.loadedLegacy();
 #endif
 
   addDebugEvent(DebugCategory::BOOT, DebugCode::BOOT_BANNER,

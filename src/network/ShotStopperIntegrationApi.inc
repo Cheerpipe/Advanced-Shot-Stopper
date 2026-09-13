@@ -43,7 +43,7 @@ bool buildIntegrationPresets(const ShotPresetBank &bank, uint32_t revision,
 bool buildIntegrationLastShot(const PersistedLastShot &shot, char *output,
                               size_t capacity) {
   const auto type = static_cast<LastShotType>(shot.shotType);
-  if (!shot.valid || shot.presetId == 0 || type > LastShotType::MANUAL) {
+  if (!publishableLastShot(shot)) {
     return snprintf(output, capacity, "null") == 4;
   }
   char name[sizeof(shot.presetName) * 6] = {};

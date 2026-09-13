@@ -82,7 +82,12 @@ contains `cycleId`, `uptimeMs`, `durationMs`,
 optional `firstDropMs`, `weightG`, and `averageFlowGps` fields defined by the
 webhook contract. The controller is authoritative for both aggregates;
 `lastGoodShot` advances only for a shot over 12 seconds with a finite final
-weight over 2 g. `shotState` is `idle` or `brewing`.
+weight over 2 g. While idle, the Web UI's **Current / Last Good Shot** card reads
+this same `lastGoodShot` value; a newer non-qualifying shot does not replace
+either view. If migrated legacy data lacks trustworthy preset identity, both
+views report the last good shot as unknown until a qualifying identified shot
+finishes. Shot-history deletion never selects a replacement aggregate.
+`shotState` is `idle` or `brewing`.
 
 ### `GET /api/v1/integration/request`
 

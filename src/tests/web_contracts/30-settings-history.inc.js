@@ -211,12 +211,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !ui.includes('function persistHomeBrewByWeight(') ||
     !ui.includes("onchange=R.persistHomeBrewByWeight") ||
     !ui.includes('beginHomeSwitchPending(h,on)') ||
-    !ui.includes('id="clearLastShotButton"') ||
-    html.indexOf('id="shotPanel"') > html.indexOf('id="clearLastShotButton"') ||
-    (html.includes('id="clearLastShotButton"') &&
-     html.slice(html.indexOf('id="clearLastShotButton"'),
-                html.indexOf('</button>', html.indexOf('id="clearLastShotButton"')) + 9)
-         .includes('<span class="t">Clear</span>')) ||
+    ui.includes('id="clearLastShotButton"') ||
     !css.includes('#shotPanel{position:relative}') ||
     css.includes('#shotPanel{position:relative;padding-right:3.4rem') ||
     !css.includes('#shotTable .btnGlyph,#shotPanel .btnGlyph{border:0;border-radius:2rem;min-height:var(--tap);min-width:var(--tap);padding:0;flex:0 0 auto;background:none;box-shadow:none;filter:none') ||
@@ -232,7 +227,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !firmware.includes('endedCycleDurationMs') ||
     firmware.includes('elapsedMs(relayBeforeOpen.closedAtMs)') ||
     !firmware.includes('clearLastShot') ||
-    !firmware.includes('clearLastShotSnapshot') ||
+    !firmware.includes('clearLastShotRuntimeState') ||
     !firmware.includes('serviceShotStorePersistence') ||
     !firmware.includes('durableFlashWriteAllowed(') ||
     !domainCore.includes('durableFlashWriteAllowed') ||
@@ -581,11 +576,14 @@ if (!ui.includes('id="shotRating"') ||
     !network.includes('LAST_SHOT_NOT_FOUND') ||
     !network.includes('\\"rating\\":%u') ||
     !network.includes('\\"shotLogId\\":%lu') ||
-    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 3') ||
+    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 4') ||
+    !lastShotIo.includes('void advance(const PersistedLastShot &shot)') ||
+    !firmwareCore.includes('lastShotNvsDirty = lastShotStore.loadedLegacy()') ||
     !shotLogIo.includes('updateRating') ||
+    !shotLogIo.includes('copyRatingById') ||
     !firmwareCore.includes('rateLastShot') ||
     !firmwareCore.includes('rateShotRecord') ||
-    !firmwareCore.includes('applyLastShotManualFields')) {
+    firmwareCore.includes('lastShotStore.updateRating')) {
   throw new Error('Shot rating must be SVG stars on last shot and history, persisted on the device');
 }
 if (!js.includes('function commandOkMessage(') ||

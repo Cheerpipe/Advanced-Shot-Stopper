@@ -83,9 +83,21 @@ V12 names the WebhookConfig tail byte as `presetChanges`; V11 migration validate
 the historical CRC and explicitly initializes that opt-in delivery flag to off.
 Last-shot schema V4 atomically stores independent last-completed and
 last-qualifying-good aggregates and appends average flow to each complete
-record. V2/V3 records retain their last shot during migration and seed the good
+record. `LastShotStore` owns both live RAM views and their one durable blob;
+controller status publishes those store-owned values rather than maintaining a
+second mutable copy. The idle Web UI Home card and native integration both use
+`LastShotStore.lastGoodShot`. Shot-log IDs and curves are optional links resolved
+only by exact ID, never an alternate aggregate or newest-history fallback. The
+linked history row owns its rating; control publishes that exact rating and
+curve under the shared shot-store mutex without copying the history collection.
+
+V2/V3 records retain their last shot during migration and seed the good
 aggregate only when duration exceeds 12 seconds and finite final weight exceeds
-2 g. Clear-last preserves the good aggregate; factory reset clears both.
+2 g. The migrated V4 blob is queued through the normal flash owner and retry
+policy. A legacy aggregate without retained preset identity remains unknown to
+both public consumers. Clear-last preserves the good aggregate; deleting or
+clearing history only makes its optional rating/curve link unavailable, and
+factory reset clears both aggregates.
 
 History V4 keeps 48-byte records and 120 entries. Guard byte bits 5–7 encode
 profile (0 unknown, 1 pre-selector regression with unknown version, 2 regression v1,

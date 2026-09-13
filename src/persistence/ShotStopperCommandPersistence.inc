@@ -464,6 +464,7 @@ bool dispatchSettingsPersist() {
 #endif
 
 void serviceShotStorePersistence() {
+  if (maintenanceLease.active) return;
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   if (!durableFlashWriteAllowed(session.active || machineIsRunning(),
                                 link.connecting)) {
@@ -477,6 +478,7 @@ void serviceShotStorePersistence() {
   // can spam SHOT_LOG_PERSIST_FAILED into the 96-event ring.
   constexpr uint32_t kTryLockMs = 0;
   bool anyFail = false;
+  TaskLockGuard lock(shotStoreMutex);
   if (shotLog.dirty()) {
     if (shotLog.flush(kTryLockMs)) {
       shotLogPersistFailLatched = false;
@@ -514,8 +516,10 @@ void serviceShotStorePersistence() {
       }
     }
   }
-  if (controllerStartedPending && !shotLog.dirty() &&
-      !enqueueControllerStartedWebhook()) {
+  const bool controllerStartedReady =
+      controllerStartedPending && !shotLog.dirty();
+  lock.unlock();
+  if (controllerStartedReady && !enqueueControllerStartedWebhook()) {
     anyFail = true;
   }
   shotStorePersistRetryAtMs =

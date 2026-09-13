@@ -297,6 +297,20 @@ class ShotLog {
     return false;
   }
 
+  bool copyRatingById(uint32_t id, uint8_t &rating) const {
+    if (id == 0 || store_.header.count == 0) return false;
+    size_t index = store_.header.writeIndex;
+    for (size_t n = 0; n < store_.header.count; ++n) {
+      if (index == 0) index = SHOT_LOG_CAPACITY;
+      --index;
+      if (store_.records[index].id == id) {
+        rating = shotLogRating(store_.records[index].extractionGuardEnabled);
+        return true;
+      }
+    }
+    return false;
+  }
+
   bool removeById(uint32_t id) {
     if (id == 0 || store_.header.count == 0) {
       return false;

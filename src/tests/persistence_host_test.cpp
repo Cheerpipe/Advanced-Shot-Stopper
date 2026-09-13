@@ -321,6 +321,7 @@ void p29_last_shot_persists_and_clears() {
   LastShotStore store;
   CHECK(store.load());
   CHECK(!store.get().valid);
+  CHECK(!publishableLastShot(store.getGood()));
 
   PersistedLastShot shot = {};
   shot.valid = true;
@@ -345,6 +346,7 @@ void p29_last_shot_persists_and_clears() {
 
   LastShotStore reloaded;
   CHECK(reloaded.load());
+  CHECK(!reloaded.loadedLegacy());
   CHECK(reloaded.get().valid);
   CHECK(reloaded.get().cycleId == 42);
   CHECK(reloaded.get().goalWeightG == 36);
@@ -389,9 +391,16 @@ void p29_last_shot_persists_and_clears() {
   persistence_host::putRaw("lastshot", "record", &v3, sizeof(v3));
   LastShotStore migratedV3;
   CHECK(migratedV3.load());
+  CHECK(migratedV3.loadedLegacy());
   CHECK(migratedV3.get().cycleId == 42);
   CHECK(migratedV3.getGood().cycleId == 42);
   CHECK(!migratedV3.get().averageFlowValid);
+  CHECK(publishableLastShot(migratedV3.getGood()));
+  CHECK(migratedV3.save());
+  LastShotStore migratedV3Reboot;
+  CHECK(migratedV3Reboot.load());
+  CHECK(!migratedV3Reboot.loadedLegacy());
+  CHECK(migratedV3Reboot.getGood().cycleId == 42);
 
   resetHostPersistence();
   LastShotBlobV2 legacy = {};
@@ -403,10 +412,17 @@ void p29_last_shot_persists_and_clears() {
   persistence_host::putRaw("lastshot", "record", &legacy, sizeof(legacy));
   LastShotStore migrated;
   CHECK(migrated.load());
+  CHECK(migrated.loadedLegacy());
   CHECK(migrated.get().cycleId == 42);
   CHECK(migrated.get().endedAtUptimeMs == 0);
   CHECK(migrated.get().presetId == 0);
   CHECK(migrated.getGood().cycleId == 42);
+  CHECK(!publishableLastShot(migrated.getGood()));
+  CHECK(migrated.save());
+  LastShotStore migratedReboot;
+  CHECK(migratedReboot.load());
+  CHECK(!migratedReboot.loadedLegacy());
+  CHECK(migratedReboot.get().presetId == 0);
 }
 
 void p80_boot_id_remains_dirty_until_durable() {
@@ -1673,7 +1689,13 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   CHECK(newest[1].atm.atDs == 200);
   CHECK(newest[1].ended.atDs == 220);
   CHECK(newest[1].weightCg[2] == 1800);
+  ShotCurveRecord exact = {};
+  CHECK(reloaded.copyByShotId(7, exact));
+  CHECK(exact.shotId == 7);
+  CHECK(exact.weightCg[2] == 1800);
+  CHECK(!reloaded.copyByShotId(99, exact));
   CHECK(reloaded.removeById(7));
+  CHECK(!reloaded.copyByShotId(7, exact));
   CHECK(reloaded.count() == 1);
   CHECK(reloaded.copyNewestFirst(newest, 2) == 1);
   CHECK(newest[0].shotId == 8);

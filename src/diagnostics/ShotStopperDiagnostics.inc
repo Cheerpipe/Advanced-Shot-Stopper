@@ -48,6 +48,13 @@ void publishControlStatus() {
   const bool persistPending = liveConfigPersistPending();
   const BleCompanionStatusSnapshot ble = copyBleCompanionStatus();
   const CupTareDiagnostics cupTare = captureCupTareDiagnostics();
+  uint32_t shotBootId = 0;
+  PersistedLastShot statusLastShot = {};
+  PersistedLastShot statusLastGoodShot = {};
+  ShotCurveRecord statusLastGoodCurve = emptyShotCurveRecord();
+  const bool lastGoodHistoryLinked = copyShotStoreStatus(
+      shotBootId, statusLastShot, statusLastGoodShot, statusLastGoodCurve,
+      !session.active);
   TaskLockGuard lock(controlStatusMutex);
   ControlStatusSnapshot &next = publishedControlStatus;
   next = ControlStatusSnapshot{};
@@ -65,7 +72,7 @@ void publishControlStatus() {
   next.remoteControlEnabled = REMOTE_MACHINE_CONTROL_ENABLED;
   next.source = session.active ? session.source : ControlSource::NONE;
   next.cycleId = session.active ? session.id : 0;
-  next.bootId = shotLog.bootId();
+  next.bootId = shotBootId;
   next.maintenanceLeaseActive = maintenanceLease.active;
   next.maintenanceLeaseId = maintenanceLease.active ? maintenanceLease.id : 0;
   next.maintenanceStartedAtMs =
@@ -167,11 +174,12 @@ void publishControlStatus() {
   next.bbwLegacyOffsetG = bbwPreset.weightOffsetG;
   next.bbwEwmaOffsetG = bbwPreset.bbwEwmaOffsetG;
   next.lastCycle = lastCycle;
-  next.lastShot = persistedLastShot;
-  next.lastGoodShot = persistedLastGoodShot;
+  next.lastShot = statusLastShot;
+  next.lastGoodShot = statusLastGoodShot;
+  next.lastGoodShotHistoryLinked = lastGoodHistoryLinked;
   {
     const ShotCurveRecord curve =
-        session.active ? shotCurveSampler.snapshot() : lastShotCurve;
+        session.active ? shotCurveSampler.snapshot() : statusLastGoodCurve;
     copyShotCurveRecordToStatusFields(
         curve, next.shotCurveCount, next.shotCurveIntervalS,
         next.shotCurveFirstDropDs, next.shotCurveFirstDropCg,

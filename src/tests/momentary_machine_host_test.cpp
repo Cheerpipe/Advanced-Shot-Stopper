@@ -205,6 +205,8 @@ void resetMomentaryHarness() {
   hostRelayClosedWrites = 0;
   hostRelayOpenWrites = 0;
   lastCycle = LastCycleSummary{};
+  LastShotStore::setHostSaveSucceeds(true);
+  lastShotStore.clear();
   noScaleShotGuardArmed = true;
   noScaleShotGuardActivityAtMs = 0;
   noScaleShotGuardScaleWasAvailable = false;
@@ -391,7 +393,6 @@ void t_noscale_last_shot_keeps_logical_duration() {
   scale.connected = false;
   setScaleLinkState(ScaleLinkState::DISCONNECTED);
   currentWeightSequence = 0;
-  persistedLastShot = PersistedLastShot{};
   shotLog.clear();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
@@ -1268,7 +1269,6 @@ float noFlowIdleDripWeight(uint32_t step) {
 
 void t_no_flow_hard_cap_idles_after_nack() {
   resetMomentaryHarness();
-  persistedLastShot = PersistedLastShot{};
   shotLog.clear();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   armLiveScaleTimerOnlyStart(0.0f);
