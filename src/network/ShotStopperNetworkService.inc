@@ -11,6 +11,7 @@ bool ShotStopperNetwork::begin(const PersistedSettings &settings,
       callbacks.refreshControlStatus == nullptr ||
       callbacks.enqueueWebCommand == nullptr ||
       callbacks.copyDebugEvents == nullptr ||
+      callbacks.clearResetHistory == nullptr ||
       callbacks.reportTaskWatchdogFault == nullptr ||
       callbacks.requestSafeRestart == nullptr) {
     return false;
@@ -176,7 +177,8 @@ NetworkStatusSnapshot ShotStopperNetwork::snapshot() {
       !status_.apActive;
   const uint32_t deadline = staConfirmDeadlineMs_;
   dataMux_.unlock();
-  copy.taskAgeMs = static_cast<uint32_t>(millis() - lastTaskProgressAtMs_);
+  copy.taskAgeMs = static_cast<uint32_t>(
+      millis() - lastTaskProgressAtMs_.load(std::memory_order_relaxed));
   copy.taskStackMinBytes = taskStackMinBytes_.load(std::memory_order_relaxed);
   if (pendingConfirm) {
     const uint32_t now = millis();
@@ -386,10 +388,11 @@ void ShotStopperNetwork::taskLoop() {
   }
   uint32_t telemetryAtMs = 0;
   while (!stopRequested_.load(std::memory_order_acquire)) {
-    lastTaskProgressAtMs_ = millis();
-    if (static_cast<uint32_t>(lastTaskProgressAtMs_ - telemetryAtMs) >=
+    const uint32_t taskProgressAtMs = millis();
+    lastTaskProgressAtMs_.store(taskProgressAtMs, std::memory_order_relaxed);
+    if (static_cast<uint32_t>(taskProgressAtMs - telemetryAtMs) >=
         HEALTH_TELEMETRY_INTERVAL_MS) {
-      telemetryAtMs = lastTaskProgressAtMs_;
+      telemetryAtMs = taskProgressAtMs;
       taskStackMinBytes_ =
           static_cast<uint32_t>(uxTaskGetStackHighWaterMark(nullptr));
     }

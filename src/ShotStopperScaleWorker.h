@@ -53,6 +53,7 @@ constexpr size_t SCALE_COMMAND_QUEUE_LENGTH = 12;
 constexpr size_t SCALE_EVENT_QUEUE_LENGTH = 32;
 constexpr uint32_t SCALE_WORKER_TASK_STACK_SIZE = 6656;
 constexpr uint32_t BLE_STACK_READY_WAIT_MS = 4000;
+constexpr uint32_t BLE_STACK_STOP_WAIT_MS = 1000;
 constexpr size_t BLE_COMPANION_REQUEST_QUEUE_LENGTH = 8;
 constexpr size_t BLE_COMPANION_RESULT_QUEUE_LENGTH = 8;
 constexpr int SCALE_WORKER_TASK_CORE = 1;

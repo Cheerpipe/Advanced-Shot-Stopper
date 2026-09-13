@@ -121,6 +121,7 @@ class IndependentSafetyTimer {
   bool stop() {
 #ifdef SHOT_STOPPER_HOST_TEST
     std::lock_guard<std::mutex> lock(stateMutex_);
+    if (callbackInFlight_) return false;
     running_ = false;
     return true;
 #else
@@ -129,6 +130,10 @@ class IndependentSafetyTimer {
     if (!ready_) {
       portEXIT_CRITICAL(&stateMux_);
       return true;
+    }
+    if (callbackInFlight_) {
+      portEXIT_CRITICAL(&stateMux_);
+      return false;
     }
     wasRunning = running_;
     portEXIT_CRITICAL(&stateMux_);
@@ -144,6 +149,10 @@ class IndependentSafetyTimer {
       return false;
     }
     portENTER_CRITICAL(&stateMux_);
+    if (callbackInFlight_) {
+      portEXIT_CRITICAL(&stateMux_);
+      return false;
+    }
     running_ = false;
     portEXIT_CRITICAL(&stateMux_);
     return true;
@@ -186,12 +195,18 @@ class IndependentSafetyTimer {
   }
 
   void serviceForHostAt(uint64_t nowUs) {
-    std::lock_guard<std::mutex> lock(stateMutex_);
+    std::unique_lock<std::mutex> lock(stateMutex_);
     if (!running_ || nowUs < dueAtUs_) {
       return;
     }
     running_ = false;
-    callback_(context_);
+    callbackInFlight_ = true;
+    Callback callback = callback_;
+    void *context = context_;
+    lock.unlock();
+    callback(context);
+    lock.lock();
+    callbackInFlight_ = false;
   }
 
   void resetForHost() {
@@ -201,6 +216,7 @@ class IndependentSafetyTimer {
     context_ = nullptr;
     ready_ = false;
     running_ = false;
+    callbackInFlight_ = false;
   }
 #endif
 
@@ -212,14 +228,24 @@ class IndependentSafetyTimer {
     (void)timer;
     (void)event;
     auto *self = static_cast<IndependentSafetyTimer *>(userContext);
+    Callback callback = nullptr;
+    void *context = nullptr;
     portENTER_CRITICAL_ISR(&self->stateMux_);
     if (self->running_) {
       self->running_ = false;
+      self->callbackInFlight_ = true;
       // callback_ and context_ are published once by begin() before ready_ and
       // remain immutable for the timer's enabled lifetime.
-      self->callback_(self->context_);
+      callback = self->callback_;
+      context = self->context_;
     }
     portEXIT_CRITICAL_ISR(&self->stateMux_);
+    if (callback != nullptr) {
+      callback(context);
+      portENTER_CRITICAL_ISR(&self->stateMux_);
+      self->callbackInFlight_ = false;
+      portEXIT_CRITICAL_ISR(&self->stateMux_);
+    }
     return false;
   }
 
@@ -233,6 +259,7 @@ class IndependentSafetyTimer {
   void *context_ = nullptr;
   bool ready_ = false;
   bool running_ = false;
+  bool callbackInFlight_ = false;
 };
 
 }  // namespace shotstopper

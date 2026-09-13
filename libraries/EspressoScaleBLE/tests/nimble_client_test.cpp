@@ -103,6 +103,32 @@ static void run() {
     testOnSubmit=[] { complete(); };
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
   }
+  {
+    NimbleScaleClient c(false); ready(c);
+    ScaleProtocol timerOnly=*c.protocol_;
+    timerOnly.parseWeight=[](const uint8_t *,int,float *) { return false; };
+    timerOnly.parseTimer=[](const uint8_t *,int,uint32_t *timer) {
+      *timer=0;
+      return true;
+    };
+    c.protocol_=&timerOnly;
+    for (size_t i=0;i<kRxFrameCount;++i) notify(c,20);
+    size_t replenished=0;
+    std::function<void()> replenish;
+    replenish=[&] {
+      if (c.rxCount_<kRxFrameCount) {
+        testAfterCriticalExit={};
+        notify(c,20);
+        ++replenished;
+      }
+      testAfterCriticalExit=replenish;
+    };
+    testAfterCriticalExit=replenish;
+    CHECK(!c.newWeightAvailable());
+    testAfterCriticalExit={};
+    CHECK(replenished==kRxFrameCount);
+    CHECK(c.rxCount_==kRxFrameCount);
+  }
   for (const int status : {BLE_HS_EBUSY, BLE_HS_EAGAIN, BLE_HS_ENOMEM}) {
     NimbleScaleClient c(false); ready(c);
     testSubmitStatus=status;

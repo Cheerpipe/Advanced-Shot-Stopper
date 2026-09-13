@@ -16,6 +16,7 @@
 #include "ShotStopperBuzzerPassive.h"
 #include "ShotStopperDomain.h"
 #include "ShotStopperPsram.h"
+#include "ShotStopperTaskMutex.h"
 
 namespace shotstopper {
 
@@ -94,7 +95,7 @@ struct LocalBuzzer {
   uint8_t pulseNoteCount[kPulseRateCount] = {};
 #endif
   esp_timer_handle_t phaseTimer = nullptr;
-  mutable portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+  mutable TaskMutex mutex;
 
   void begin(uint8_t gpioPin);
   // Starts immediately when idle, otherwise keeps one pending slot. High
@@ -121,21 +122,15 @@ struct LocalBuzzer {
   void stopPulseTrains();
   void service(uint32_t nowMs);
   bool busy() const {
-    portENTER_CRITICAL(&mux);
-    const bool result =
-        active != BuzzerPattern::NONE || pending != BuzzerPattern::NONE ||
-        activeCue != BuzzerCue::NONE || pendingCue != BuzzerCue::NONE;
-    portEXIT_CRITICAL(&mux);
-    return result;
+    TaskLockGuard lock(mutex);
+    return active != BuzzerPattern::NONE || pending != BuzzerPattern::NONE ||
+           activeCue != BuzzerCue::NONE || pendingCue != BuzzerCue::NONE;
   }
   bool playingExtendedPulse(const BuzzerToneCommand &cmd) const {
-    portENTER_CRITICAL(&mux);
-    const bool result =
-        cmd.valid &&
-        ((activeCue == cmd.cue && activePulseRate == cmd.pulseRate) ||
-         (pendingCue == cmd.cue && pendingPulseRate == cmd.pulseRate));
-    portEXIT_CRITICAL(&mux);
-    return result;
+    TaskLockGuard lock(mutex);
+    return cmd.valid &&
+           ((activeCue == cmd.cue && activePulseRate == cmd.pulseRate) ||
+            (pendingCue == cmd.cue && pendingPulseRate == cmd.pulseRate));
   }
 
  private:
@@ -573,11 +568,8 @@ inline bool LocalBuzzer::request(BuzzerPattern pattern, uint32_t durationMs) {
   if (!BUZZER_SUPPORT_ENABLED || !ready || pattern == BuzzerPattern::NONE) {
     return false;
   }
-  portENTER_CRITICAL(&mux);
-  const bool accepted =
-      acceptLocked(pattern, BuzzerCue::NONE, durationMs, false, nullptr);
-  portEXIT_CRITICAL(&mux);
-  return accepted;
+  TaskLockGuard lock(mutex);
+  return acceptLocked(pattern, BuzzerCue::NONE, durationMs, false, nullptr);
 }
 
 inline bool LocalBuzzer::requestTone(const BuzzerToneCommand &cmd) {
@@ -585,11 +577,9 @@ inline bool LocalBuzzer::requestTone(const BuzzerToneCommand &cmd) {
       cmd.cue == BuzzerCue::NONE) {
     return false;
   }
-  portENTER_CRITICAL(&mux);
-  const bool accepted =
-      acceptLocked(BuzzerPattern::NONE, cmd.cue, cmd.durationMs, true, &cmd);
-  portEXIT_CRITICAL(&mux);
-  return accepted;
+  TaskLockGuard lock(mutex);
+  return acceptLocked(BuzzerPattern::NONE, cmd.cue, cmd.durationMs, true,
+                      &cmd);
 }
 
 inline bool LocalBuzzer::configureBullseyeRtttl(const char *rtttl) {
@@ -598,9 +588,8 @@ inline bool LocalBuzzer::configureBullseyeRtttl(const char *rtttl) {
   return false;
 #else
   if (rtttl == nullptr || rtttl[0] == '\0') {
-    portENTER_CRITICAL(&mux);
+    TaskLockGuard lock(mutex);
     bullseyeNoteCount = 0;
-    portEXIT_CRITICAL(&mux);
     return true;
   }
   // Validate before publishing a zero count. Parse directly into the inactive
@@ -609,18 +598,18 @@ inline bool LocalBuzzer::configureBullseyeRtttl(const char *rtttl) {
   if (!validBullseyeRtttl(rtttl)) {
     return false;
   }
-  portENTER_CRITICAL(&mux);
-  bullseyeNoteCount = 0;
-  portEXIT_CRITICAL(&mux);
+  {
+    TaskLockGuard lock(mutex);
+    bullseyeNoteCount = 0;
+  }
   uint8_t count = 0;
   if (rtttlCatalog == nullptr ||
       !parseRtttlBounded(rtttl, rtttlCatalog->bullseyeNotes,
                          BULLSEYE_RTTTL_MAX_NOTES, count) || count == 0) {
     return false;
   }
-  portENTER_CRITICAL(&mux);
+  TaskLockGuard lock(mutex);
   bullseyeNoteCount = count;
-  portEXIT_CRITICAL(&mux);
   return true;
 #endif
 }
@@ -635,21 +624,19 @@ inline bool LocalBuzzer::requestBullseye(bool allowQueue) {
   if (!BUZZER_SUPPORT_ENABLED || !ready) {
     return false;
   }
-  portENTER_CRITICAL(&mux);
+  TaskLockGuard lock(mutex);
   const bool canStartNow =
       (active == BuzzerPattern::NONE && activeCue == BuzzerCue::NONE) ||
       buzzerPatternIsPulseTrain(active) || (looping && rtttlPlayback);
-  const bool accepted =
-      canStartNow && acceptLocked(BuzzerPattern::NONE, cmd.cue, 0, true, &cmd);
-  portEXIT_CRITICAL(&mux);
-  return accepted;
+  return canStartNow &&
+         acceptLocked(BuzzerPattern::NONE, cmd.cue, 0, true, &cmd);
 }
 
 inline void LocalBuzzer::stopAll() {
   if (!BUZZER_SUPPORT_ENABLED || !ready) {
     return;
   }
-  portENTER_CRITICAL(&mux);
+  TaskLockGuard lock(mutex);
   pending = BuzzerPattern::NONE;
   pendingCue = BuzzerCue::NONE;
   pendingPulseRate = 0;
@@ -657,14 +644,13 @@ inline void LocalBuzzer::stopAll() {
   stopTone();
   clearPlayback();
   cancelPhaseTimer();
-  portEXIT_CRITICAL(&mux);
 }
 
 inline void LocalBuzzer::stopIf(BuzzerPattern pattern) {
   if (!BUZZER_SUPPORT_ENABLED || !ready || pattern == BuzzerPattern::NONE) {
     return;
   }
-  portENTER_CRITICAL(&mux);
+  TaskLockGuard lock(mutex);
   if (pending == pattern && pendingCue == BuzzerCue::NONE) {
     pending = BuzzerPattern::NONE;
     pendingCue = BuzzerCue::NONE;
@@ -672,7 +658,6 @@ inline void LocalBuzzer::stopIf(BuzzerPattern pattern) {
     pendingDurationMs = 0;
   }
   if (active != pattern || activeCue != BuzzerCue::NONE) {
-    portEXIT_CRITICAL(&mux);
     return;
   }
   const uint32_t nowMs = millis();
@@ -680,7 +665,6 @@ inline void LocalBuzzer::stopIf(BuzzerPattern pattern) {
   clearPlayback();
   if (pending == BuzzerPattern::NONE && pendingCue == BuzzerCue::NONE) {
     cancelPhaseTimer();
-    portEXIT_CRITICAL(&mux);
     return;
   }
   const BuzzerPattern next = pending;
@@ -695,14 +679,13 @@ inline void LocalBuzzer::stopIf(BuzzerPattern pattern) {
                           nowMs)) {
     cancelPhaseTimer();
   }
-  portEXIT_CRITICAL(&mux);
 }
 
 inline void LocalBuzzer::stopIfCue(BuzzerCue cue) {
   if (!BUZZER_SUPPORT_ENABLED || !ready || cue == BuzzerCue::NONE) {
     return;
   }
-  portENTER_CRITICAL(&mux);
+  TaskLockGuard lock(mutex);
   if (pendingCue == cue) {
     pending = BuzzerPattern::NONE;
     pendingCue = BuzzerCue::NONE;
@@ -710,7 +693,6 @@ inline void LocalBuzzer::stopIfCue(BuzzerCue cue) {
     pendingDurationMs = 0;
   }
   if (activeCue != cue) {
-    portEXIT_CRITICAL(&mux);
     return;
   }
   const uint32_t nowMs = millis();
@@ -718,7 +700,6 @@ inline void LocalBuzzer::stopIfCue(BuzzerCue cue) {
   clearPlayback();
   if (pending == BuzzerPattern::NONE && pendingCue == BuzzerCue::NONE) {
     cancelPhaseTimer();
-    portEXIT_CRITICAL(&mux);
     return;
   }
   const BuzzerPattern next = pending;
@@ -733,14 +714,13 @@ inline void LocalBuzzer::stopIfCue(BuzzerCue cue) {
                           nowMs)) {
     cancelPhaseTimer();
   }
-  portEXIT_CRITICAL(&mux);
 }
 
 inline void LocalBuzzer::stopExtendedPulse() {
   if (!BUZZER_SUPPORT_ENABLED || !ready) {
     return;
   }
-  portENTER_CRITICAL(&mux);
+  TaskLockGuard lock(mutex);
   if (buzzerCueIsLooping(pendingCue) || buzzerPatternIsPulseTrain(pending)) {
     pending = BuzzerPattern::NONE;
     pendingCue = BuzzerCue::NONE;
@@ -752,18 +732,16 @@ inline void LocalBuzzer::stopExtendedPulse() {
       (buzzerCueIsLooping(activeCue) || buzzerPatternIsPulseTrain(active) ||
        rtttlPlayback);
   if (!infinitePulse) {
-    portEXIT_CRITICAL(&mux);
     return;
   }
   finish(millis());
-  portEXIT_CRITICAL(&mux);
 }
 
 inline void LocalBuzzer::stopPulseTrains() {
   if (!BUZZER_SUPPORT_ENABLED || !ready) {
     return;
   }
-  portENTER_CRITICAL(&mux);
+  TaskLockGuard lock(mutex);
   if (buzzerCueIsLooping(pendingCue) || buzzerPatternIsPulseTrain(pending)) {
     pending = BuzzerPattern::NONE;
     pendingCue = BuzzerCue::NONE;
@@ -772,32 +750,27 @@ inline void LocalBuzzer::stopPulseTrains() {
   }
   if (!(buzzerCueIsLooping(activeCue) || buzzerPatternIsPulseTrain(active) ||
         looping)) {
-    portEXIT_CRITICAL(&mux);
     return;
   }
   finish(millis());
-  portEXIT_CRITICAL(&mux);
 }
 
 inline void LocalBuzzer::service(uint32_t nowMs) {
   if (!BUZZER_SUPPORT_ENABLED || !ready) {
     return;
   }
-  portENTER_CRITICAL(&mux);
+  TaskLockGuard lock(mutex);
   if (active == BuzzerPattern::NONE && activeCue == BuzzerCue::NONE) {
-    portEXIT_CRITICAL(&mux);
     return;
   }
   if (looping && deadlineReached(nowMs)) {
     finish(nowMs);
-    portEXIT_CRITICAL(&mux);
     return;
   }
   const uint32_t elapsed =
       static_cast<uint32_t>(nowMs - phaseStartedAtMs);
   if (toneOn) {
     if (elapsed < onMs) {
-      portEXIT_CRITICAL(&mux);
       return;
     }
     stopTone();
@@ -808,7 +781,6 @@ inline void LocalBuzzer::service(uint32_t nowMs) {
       } else {
         armPhaseTimer(gapMs);
       }
-      portEXIT_CRITICAL(&mux);
       return;
     }
     if (beepIndex + 1U >= beepCount) {
@@ -836,23 +808,19 @@ inline void LocalBuzzer::service(uint32_t nowMs) {
     } else {
       armPhaseTimer(gapMs);
     }
-    portEXIT_CRITICAL(&mux);
     return;
   }
   if (elapsed < gapMs) {
-    portEXIT_CRITICAL(&mux);
     return;
   }
   if (looping && !rtttlPlayback) {
     if (deadlineReached(nowMs)) {
       finish(nowMs);
-      portEXIT_CRITICAL(&mux);
       return;
     }
     phaseStartedAtMs = nowMs;
     startTone();
     armPhaseTimer(onMs);
-    portEXIT_CRITICAL(&mux);
     return;
   }
   if (rtttlPlayback && toneHz == 0 && beepIndex + 1U >= beepCount) {
@@ -866,17 +834,14 @@ inline void LocalBuzzer::service(uint32_t nowMs) {
       } else {
         armPhaseTimer(gapMs == 0 ? 1 : gapMs);
       }
-      portEXIT_CRITICAL(&mux);
       return;
     }
     finish(nowMs);
-    portEXIT_CRITICAL(&mux);
     return;
   }
   ++beepIndex;
   if (beepIndex >= beepCount) {
     finish(nowMs);
-    portEXIT_CRITICAL(&mux);
     return;
   }
   if (rtttlPlayback) {
@@ -891,7 +856,6 @@ inline void LocalBuzzer::service(uint32_t nowMs) {
   } else {
     armPhaseTimer(gapMs == 0 ? 1 : gapMs);
   }
-  portEXIT_CRITICAL(&mux);
 }
 
 }  // namespace shotstopper

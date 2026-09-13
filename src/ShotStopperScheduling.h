@@ -42,7 +42,7 @@ constexpr TaskScheduleContract TASK_SCHEDULE_CONTRACTS[] = {
     {"scale_worker", 1, 1, 6656, TaskActivation::PERIODIC, 1,
      SCALE_SERVICE_DEADLINE_MS, SCALE_EXECUTION_BUDGET_US, 3000, 5000, true},
     {"settings_persist", 1, 1, 4096, TaskActivation::EVENT_DRIVEN, 0, 1000,
-     0, 5000, 5000, true},
+     0, 3000, 5000, true},
     {"network_manager", 0, 1, 10240, TaskActivation::PERIODIC, 50, 250,
      200000, 2500, 5000, true},
     {"httpd", 0, 1, 8192, TaskActivation::FRAMEWORK, 0, 0, 0, 30000, 0,

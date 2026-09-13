@@ -13,6 +13,45 @@ for (const name of VIEW_NAMES) {
   rawViewJs[name] = fs.readFileSync(
       path.join(sketchDir, 'web', 'js', name + '.js'), 'utf8');
 }
+const runtimeConsumers = rawAppJsSource + '\n' + Object.values(rawViewJs).join('\n');
+const runtimeReferences = new Set([...runtimeConsumers.matchAll(
+  /\bR\.([A-Za-z_$][\w$]*)(?![\w$])/g)].map((match) => match[1]));
+const runtimeExports = [
+  ...rawRuntimeJs.matchAll(/export function\s+([A-Za-z_$][\w$]*)/g),
+].map((match) => match[1]);
+const runtimeExportBlock = rawRuntimeJs.match(/export\s*\{([\s\S]*?)\n\};/);
+if (!runtimeExportBlock) throw new Error('Runtime module export block missing');
+runtimeExports.push(...runtimeExportBlock[1].replace(/\s/g, '').split(',').filter(Boolean));
+for (const name of runtimeExports) {
+  if (!runtimeReferences.has(name)) {
+    throw new Error(`Runtime export is not imported: ${name}`);
+  }
+}
+if (rawAppJsSource.includes('htmlCache') ||
+    !rawAppJsSource.includes('if(viewLoads.has(name))return viewLoads.get(name)') ||
+    !rawAppJsSource.includes('viewLoads.set(name,load)') ||
+    !rawAppJsSource.includes('finally{viewLoads.delete(name)}') ||
+    !rawAppJsSource.includes("jsMods.has(name)&&htmlLoaded.has(name)")) {
+  throw new Error('Partial loading must coalesce in flight and release text/promises after insertion');
+}
+const diagnosticDownload = rawViewJs.diagnostic.match(
+  /const\s+([A-Za-z_$][\w$]*)=document\.createElement\('a'\)[\s\S]*?,([A-Za-z_$][\w$]*)=URL\.createObjectURL\(/);
+const diagnosticClickAt = diagnosticDownload
+  ? rawViewJs.diagnostic.indexOf(`${diagnosticDownload[1]}.click()`, diagnosticDownload.index)
+  : -1;
+const diagnosticHrefAt = diagnosticDownload
+  ? rawViewJs.diagnostic.indexOf(
+      `${diagnosticDownload[1]}.href=${diagnosticDownload[2]}`, diagnosticDownload.index)
+  : -1;
+const diagnosticRevokeAt = diagnosticDownload
+  ? rawViewJs.diagnostic.indexOf(
+      `URL.revokeObjectURL(${diagnosticDownload[2]})`, diagnosticDownload.index)
+  : -1;
+if (!diagnosticDownload || diagnosticHrefAt < 0 ||
+    diagnosticClickAt < diagnosticHrefAt ||
+    diagnosticRevokeAt < diagnosticClickAt) {
+  throw new Error('Diagnostic download must revoke its object URL after use');
+}
 const rawCss = fs.readFileSync(path.join(sketchDir, 'web', 'app.css'), 'utf8');
 const localizedSources = webUiLocale.renderSources([
   {file: webUi.sourcePath, type: 'html', content: rawShellHtml},

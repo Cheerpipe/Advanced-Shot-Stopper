@@ -189,6 +189,14 @@ architecture-specific configuration selects another optimization level.
 The `Debug` setting in the root `CMakePresets.json` applies only to host tests;
 it does not change firmware optimization.
 
+The final verifier also rejects drift from the qualified production profile:
+n8r4 uses 8 MB flash, `partitions-n8r4.csv`, and QUAD PSRAM; n16r8 uses 16 MB
+flash, `partitions-n16r8.csv`, and OCT PSRAM. Both require DIO/80 MHz flash,
+80 MHz PSRAM, a 32 KiB internal reserve, 64 KiB MMU pages, rollback support,
+the pinned boot/task/interrupt watchdog and panic settings, and the GPTimer ISR
+handler in IRAM. These checks verify current hardware settings; they do not
+retune clocks, partitions, or watchdog durations.
+
 Defaults seed a new `build-idf/<architecture>/sdkconfig`; they do not overwrite
 an existing file. Inspect an existing n16r8 tree with:
 

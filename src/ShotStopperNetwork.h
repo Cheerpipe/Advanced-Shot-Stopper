@@ -183,6 +183,7 @@ struct NetworkBridgeCallbacks {
   bool (*rateLastShot)(uint8_t rating) = nullptr;
   bool (*clearShotLog)() = nullptr;
   bool (*clearLastShot)() = nullptr;
+  bool (*clearResetHistory)(uint32_t unsafeResetCount) = nullptr;
   bool (*releaseNvsSpaceForFactoryReset)() = nullptr;
   bool (*resetAllDurableStores)(PersistedSettings &settings) = nullptr;
   // Keeps NVS Wi-Fi/runtime saves from overwriting a newer preferred scale MAC.
@@ -340,7 +341,7 @@ class ShotStopperNetwork {
   uint32_t acceptedCommandRetryAtMs_ = 0;
   uint32_t networkRetryAtMs_ = 0;
   uint32_t httpRetryAtMs_ = 0;
-  uint32_t lastTaskProgressAtMs_ = 0;
+  std::atomic<uint32_t> lastTaskProgressAtMs_{0};
   std::atomic<uint32_t> taskStackMinBytes_{UINT32_MAX};
   uint32_t nextRequestId_ = 1;
   uint32_t scanMaintenanceLeaseId_ = 0;

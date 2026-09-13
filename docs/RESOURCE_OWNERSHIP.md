@@ -25,12 +25,13 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | Network command queue and lifecycle semaphores | `ShotStopperNetwork` (`UniqueResource`) | acquired before task creation; reset in reverse order after manager join |
 | relay `esp_timer` constructor temporaries | local `TimerRollbackOwner` | automatic reverse rollback until both timers and the independent timer are ready |
 | network/webhook tasks | owning service, borrowed `TaskHandle_t` | stop request, task acknowledgement, join, then queues/buffers/clients |
-| scale and persistence tasks/queues | boot-lifetime owning service | startup fault rollback; resources remain stable after successful boot |
+| scale and persistence tasks/queues | boot-lifetime owning service | BLE startup failure remains TWDT-covered through a bounded 1 s native-host stop, then clears the task handle and releases callback queues only after quiescence; resources remain stable after successful boot |
 | idle scale tare status and approved pre-write sample | ScaleService; control publishes validated sample copies and accesses its request API | task mutex serializes sample copies/claim/cancel/status; never held during BLE writes; WRITING cannot be cancelled; control releases terminal/expired requests and owns anchor translation |
 | ordered scale-weight handoff | ScaleService producer, control consumer | static 16-event FIFO under task mutex; overflow drops the incomplete window and marks discontinuity; no allocation or dynamic teardown |
 | static task mutex/event storage | containing static object | no heap allocation and no dynamic teardown |
 | HTTP server | NetworkService | manager-task-only stop/restart; handle cleared immediately after `httpd_stop` |
 | persistence mailbox | control producer, then persistence worker | one external request; internal token queue; producer may reuse only after consuming completion, or failed enqueue |
+| reset-history durable state | existing maintenance lease and NetworkService persistence owner | control holds clear requests until the machine is configuration-safe; NetworkService writes through the shared flash lock, and control publishes completion only after success |
 | shot history, curves and last-shot aggregate | control finalization/deferred-save path; Network borrows only through mutex-guarded callbacks | static `shotStoreMutex` covers each complete RAM operation and its flash snapshot; Home receives one control-published exact-ID rating/curve snapshot |
 | webhook queue / payload | `WebhookDispatcher` | internal queue storage and external HTTP payload; release after worker join, or startup rollback |
 | profiler workspace / capture | `TaskProfiler` | external processing workspace and separate internal kernel capture; free both on stop or failed start |

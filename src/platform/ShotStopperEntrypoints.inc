@@ -267,6 +267,7 @@ void setup() {
     callbacks.rateLastShot = rateLastShot;
     callbacks.clearShotLog = clearShotLog;
     callbacks.clearLastShot = clearLastShot;
+    callbacks.clearResetHistory = clearPersistedResetHistory;
     callbacks.resetAllDurableStores = resetAllDurableStoresForNetwork;
     callbacks.releaseNvsSpaceForFactoryReset =
         releaseNvsSpaceForFactoryResetForNetwork;
@@ -522,6 +523,7 @@ void loop() {
   servicePreferredScaleMacPersistence();
   serviceMaintenanceLease();
   servicePowerManagement(powerIntention.turnedOn || powerIntention.turnedOff);
+  servicePendingResetHistoryClear();
   servicePendingPlannedRestart();
   serviceControlStatusPublish();
   publishBleCompanionRuntimeSnapshot();

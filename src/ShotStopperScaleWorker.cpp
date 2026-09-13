@@ -2094,7 +2094,8 @@ void scaleWorkerTask(void *) {
   uint32_t scanLastAdvertAtMs = 0;
   uint32_t telemetryAtMs = 0;
 
-  if (!subscribeCurrentTaskToWatchdog()) {
+  const bool watchdogSubscribed = subscribeCurrentTaskToWatchdog();
+  if (!watchdogSubscribed) {
     reportTaskWatchdogFault();
   }
 
@@ -2109,22 +2110,24 @@ void scaleWorkerTask(void *) {
                   BOOT_SUBSYSTEM_BLE);
     logEmit(LogLevel::ERROR, DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,
             BOOT_SUBSYSTEM_BLE, 0);
-    // Free the queues this boot no longer services; leaving the handles set
-    // would let producers enqueue into queues nobody drains.
-    if (scaleCommandQueue != nullptr) {
-      vQueueDelete(scaleCommandQueue);
+    if (watchdogSubscribed) (void)feedCurrentTaskWatchdog();
+    const bool runtimeStopped =
+        shotStopperBleRuntimeStop(BLE_STACK_STOP_WAIT_MS);
+    if (watchdogSubscribed && esp_task_wdt_delete(nullptr) != ESP_OK)
+      reportTaskWatchdogFault();
+    scaleWorkerTaskHandle = nullptr;
+    // Callback queues may be released only after the native host proves it is
+    // quiescent. Retain them on a stop timeout so late callbacks stay safe.
+    if (runtimeStopped) {
+      if (scaleCommandQueue != nullptr) vQueueDelete(scaleCommandQueue);
+      if (scaleEventQueue != nullptr) vQueueDelete(scaleEventQueue);
+      if (bleCompanionRequestQueue != nullptr)
+        vQueueDelete(bleCompanionRequestQueue);
+      if (bleCompanionResultQueue != nullptr)
+        vQueueDelete(bleCompanionResultQueue);
       scaleCommandQueue = nullptr;
-    }
-    if (scaleEventQueue != nullptr) {
-      vQueueDelete(scaleEventQueue);
       scaleEventQueue = nullptr;
-    }
-    if (bleCompanionRequestQueue != nullptr) {
-      vQueueDelete(bleCompanionRequestQueue);
       bleCompanionRequestQueue = nullptr;
-    }
-    if (bleCompanionResultQueue != nullptr) {
-      vQueueDelete(bleCompanionResultQueue);
       bleCompanionResultQueue = nullptr;
     }
     scaleWorkerStartupFinished.store(true, std::memory_order_release);

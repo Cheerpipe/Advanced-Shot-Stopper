@@ -139,6 +139,8 @@ ss_idf_resolve_paths() {
 
 ss_idf_py_args() {
   ss_idf_resolve_paths
+  # Exported to the wrapper that sources this helper.
+  # shellcheck disable=SC2034
   IDF_PY_ARGS=(
     -C "$IDF_PROJECT"
     -B "$IDF_BUILD_DIR"
@@ -303,6 +305,74 @@ PY
 
 # ALLOW_BSS / autostart / g_probe, then the same OTA identity check as
 # ./scripts/build-idf (image_tag.js).
+ss_idf_verify_production_profile() {
+  local arch="${1:-$SHOTSTOPPER_ARCH}"
+  local sdkconfig="${2:-$IDF_SDKCONFIG}"
+  local flash_size partition psram_mode opposite_mode selector
+  case "$arch" in
+    n8r4)
+      flash_size=8
+      partition=partitions-n8r4.csv
+      psram_mode=QUAD
+      opposite_mode=OCT
+      ;;
+    n16r8)
+      flash_size=16
+      partition=partitions-n16r8.csv
+      psram_mode=OCT
+      opposite_mode=QUAD
+      ;;
+    *)
+      echo "Unsupported production architecture: $arch" >&2
+      return 1
+      ;;
+  esac
+
+  local required=(
+    "CONFIG_ESPTOOLPY_FLASHSIZE_${flash_size}MB=y"
+    "CONFIG_ESPTOOLPY_FLASHSIZE=\"${flash_size}MB\""
+    "CONFIG_PARTITION_TABLE_CUSTOM=y"
+    "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME=\"${partition}\""
+    "CONFIG_PARTITION_TABLE_FILENAME=\"${partition}\""
+    "CONFIG_ESPTOOLPY_FLASHMODE_DIO=y"
+    "CONFIG_ESPTOOLPY_FLASHMODE=\"dio\""
+    "CONFIG_ESPTOOLPY_FLASHMODE_VAL=3"
+    "CONFIG_ESPTOOLPY_FLASHFREQ_80M=y"
+    "CONFIG_ESPTOOLPY_FLASHFREQ=\"80m\""
+    "CONFIG_SPIRAM_MODE_${psram_mode}=y"
+    "CONFIG_SPIRAM_SPEED_80M=y"
+    "CONFIG_SPIRAM_SPEED=80"
+    "CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768"
+    "CONFIG_MMU_PAGE_SIZE_64KB=y"
+    "CONFIG_MMU_PAGE_SIZE=0x10000"
+    "CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y"
+    "CONFIG_BOOTLOADER_WDT_ENABLE=y"
+    "CONFIG_BOOTLOADER_WDT_TIME_MS=9000"
+    "CONFIG_ESP_INT_WDT=y"
+    "CONFIG_ESP_INT_WDT_TIMEOUT_MS=800"
+    "CONFIG_ESP_TASK_WDT_EN=y"
+    "CONFIG_ESP_TASK_WDT_INIT=y"
+    "CONFIG_ESP_TASK_WDT_PANIC=y"
+    "CONFIG_ESP_TASK_WDT_TIMEOUT_S=5"
+    "CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=y"
+    "CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=y"
+    "CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT=y"
+    "CONFIG_ESP_SYSTEM_PANIC_REBOOT_DELAY_SECONDS=0"
+    "CONFIG_GPTIMER_ISR_HANDLER_IN_IRAM=y"
+  )
+  for selector in "${required[@]}"; do
+    if ! grep -Fqx "$selector" "$sdkconfig"; then
+      echo "Production profile mismatch for $arch: expected $selector" >&2
+      return 1
+    fi
+  done
+  if grep -Fqx "CONFIG_SPIRAM_MODE_${opposite_mode}=y" "$sdkconfig"; then
+    echo "Production profile mismatch for $arch: unexpected ${opposite_mode} PSRAM mode" >&2
+    return 1
+  fi
+  echo "sdkconfig: verified exact $arch flash/PSRAM, partition, MMU, rollback, watchdog, panic, and GPTimer profile"
+}
+
 ss_idf_verify_firmware() {
   ss_idf_resolve_paths
 
@@ -310,6 +380,7 @@ ss_idf_verify_firmware() {
     echo "$IDF_SDKCONFIG does not exist; the IDF build left no sdkconfig." >&2
     exit 1
   fi
+  ss_idf_verify_production_profile || exit 1
   if ! grep -q '^CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y$' "$IDF_SDKCONFIG"; then
     echo "ALLOW_BSS is not enabled in $IDF_SDKCONFIG." >&2
     grep 'SPIRAM_ALLOW_BSS' "$IDF_SDKCONFIG" >&2 || true

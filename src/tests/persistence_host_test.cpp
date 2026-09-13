@@ -1715,6 +1715,36 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   CHECK(ring[SHOT_CURVE_CAPACITY - 1].shotId == 2);
 }
 
+void p61b_shot_curve_failed_compaction_restores_durable_ring() {
+  resetHostPersistence();
+  ShotCurveLog curves;
+  CHECK(curves.load());
+  ShotCurveRecord record = emptyShotCurveRecord();
+  record.count = 1;
+  for (uint32_t id = 1; id <= SHOT_CURVE_CAPACITY; ++id) {
+    record.shotId = id;
+    record.weightCg[0] = static_cast<int16_t>(id);
+    CHECK(curves.append(record, false));
+  }
+  CHECK(curves.flush());
+  ShotCurveRecord durable[SHOT_CURVE_CAPACITY] = {};
+  CHECK(curves.copyNewestFirst(durable, SHOT_CURVE_CAPACITY) ==
+        SHOT_CURVE_CAPACITY);
+
+  record.shotId = SHOT_CURVE_CAPACITY + 1;
+  ShotCurveLog::setHostSaveSucceeds(false);
+  CHECK(!curves.append(record, true));
+  ShotCurveLog::setHostSaveSucceeds(true);
+  ShotCurveRecord restored[SHOT_CURVE_CAPACITY] = {};
+  CHECK(!curves.dirty());
+  CHECK(curves.copyNewestFirst(restored, SHOT_CURVE_CAPACITY) ==
+        SHOT_CURVE_CAPACITY);
+  for (size_t i = 0; i < SHOT_CURVE_CAPACITY; ++i) {
+    CHECK(restored[i].shotId == durable[i].shotId);
+    CHECK(restored[i].weightCg[0] == durable[i].weightCg[0]);
+  }
+}
+
 void p62_shot_curve_foreign_schema_is_rejected() {
   ShotCurveStore store;
   resetShotCurveStore(store);
@@ -1779,16 +1809,18 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
       2U * nvsBlobRequiredEntries(sizeof(PersistedSettings));
   constexpr size_t shotHistoryEntries =
       2U * nvsBlobRequiredEntries(sizeof(ShotLogStore));
-  constexpr size_t remainingRecords = 8U + 6U + 3U + 24U + 32U;
+  constexpr size_t lastShotEntries = nvsBlobRequiredEntries(sizeof(LastShotBlob));
+  constexpr size_t remainingRecords = lastShotEntries + 6U + 3U + 24U + 32U;
   constexpr size_t applicationEntries =
       settingsEntries + shotHistoryEntries + remainingRecords;
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
   CHECK(sizeof(PersistedSettings) == 2616U);
   CHECK(settingsEntries == 168U);
   CHECK(shotHistoryEntries == 366U);
-  CHECK(applicationEntries == 607U);
+  CHECK(lastShotEntries == 10U);
+  CHECK(applicationEntries == 609U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 1787U);
+  CHECK(conservativeEntries - applicationEntries == 1785U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {
@@ -1886,12 +1918,15 @@ void p74_factory_intent_second_failure_keeps_settings() {
 
 void p63_flash_io_lock_fails_closed_without_mutex() {
   resetHostPersistence();
+  const uint32_t before = flashIoLockTimeouts();
   g_hostFlashIoMutexAvailable = false;
   CHECK(!tryLockFlashIo());
   CHECK(!lockFlashIo());
+  CHECK(flashIoLockTimeouts() == before + 2);
   g_hostFlashIoMutexAvailable = true;
   CHECK(tryLockFlashIo());
   unlockFlashIo();
+  CHECK(FLASH_IO_LOCK_TIMEOUT_MS == 3000);
 }
 
 
@@ -2014,6 +2049,7 @@ const TestCase tests[] = {
     {"P73", p73_factory_intent_does_not_free_data_for_other_failures},
     {"P74", p74_factory_intent_second_failure_keeps_settings},
     {"P61", p61_shot_curve_dual_slot_round_trip_and_delete},
+    {"P61B", p61b_shot_curve_failed_compaction_restores_durable_ring},
     {"P62", p62_shot_curve_foreign_schema_is_rejected},
     {"P63", p63_flash_io_lock_fails_closed_without_mutex},
 };

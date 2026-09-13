@@ -16,7 +16,7 @@ subscribed nor part of control. Stack values are configured bytes in ESP-IDF.
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | control | periodic / 1 ms active | 10 ms | 9000 us | idle+1 | 50 ms maintenance flash take | 8192 | 1 | 5 s |
 | scale_worker | periodic / 1 ms linked, 10 ms idle | 10 ms | 9000 us | idle+1 | 3000 ms GATT step | 6656 | 1 | 5 s |
-| settings_persist | event-driven | 1000 ms service | n/a | idle+1 | 5000 ms flash take | 4096 | 1 | 5 s |
+| settings_persist | event-driven | 1000 ms service | n/a | idle+1 | 3000 ms flash take | 4096 | 1 | 5 s |
 | network_manager | periodic / 50 ms | 250 ms | 200000 us | idle+1 | 2500 ms lifecycle/cancel | 10240 | 0 | 5 s |
 | httpd | framework event | n/a | n/a | idle+1 | 30000 ms OTA receive budget | 8192 | 0 | no |
 | webhook | event-driven | n/a | n/a | idle | 1800 ms HTTP | 4096 | 0 | no |
@@ -33,6 +33,11 @@ requests and sound mailboxes notify it immediately. The timeout remains the
 compatibility path for NimBLE frames and GAP/GATT state until the backend
 publishes its asynchronous wake edge; no protocol timeout depends solely on a
 notification.
+
+Each NimBLE activation drains at most the physical capacity of its receive,
+critical-event, and control-event rings (16, 6, and 12 respectively). New work
+arriving during a drain is deferred to the next unchanged 1 ms activation; no
+event is discarded and BLE sampling/poll cadence is unchanged.
 
 ## Runtime evidence
 
@@ -56,6 +61,11 @@ loops. Settings persistence runs at `idle + 1`, blocks on its queue and yields
 around flash work, so it cannot be indefinitely starved while subscribed to the
 Task Watchdog. Network and scale metrics are published under their owning
 snapshot or as monotonic atomics.
+
+Periodic reset-uptime checkpoints run only when coherent control/scale gates
+permit flash I/O. Durable I/O failures back off exponentially from 500 ms to a
+30 s ceiling; flash-lock contention retains the short retry, and a successful
+write or newly dirtied data resets the I/O backoff.
 
 The five-second CPU-load sample refreshes the other core through ESP-IDF's
 existing IPC task before reading the two IDLE run-time counters. This bounds the

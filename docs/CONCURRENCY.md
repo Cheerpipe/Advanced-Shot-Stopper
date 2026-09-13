@@ -65,11 +65,13 @@ under the existing nested spinlocks; the consumer formats its private address
 copy after unlocking. A concurrent advertisement remains pending for the next
 consumption.
 
-The relay `portMUX` is independent and may never nest with another lock. Its
-section contains only GPIO and bounded DRAM scalar state; RTC checksum/history
-publication and timer cleanup occur after interrupts are re-enabled. The debug
-ring is task-only and copied linearly under `TaskMutex`; USB output is emitted
-by the bounded `serial_log` queue on core 0.
+The relay and independent safety-timer `portMUX` sections are independent and
+may never nest with another lock. The timer captures callback state under its
+spinlock, invokes the relay callback after releasing it, and rejects stop/re-arm
+while that callback is in flight. Relay sections contain only GPIO and bounded
+DRAM scalar state. The local buzzer, debug ring, and other task-only compound
+state use `TaskMutex`; USB output is emitted by the bounded `serial_log` queue
+on core 0.
 
 ## P2 spinlock inventory
 
@@ -86,8 +88,6 @@ The remaining `portMUX_TYPE` groups are tracked explicitly:
 
 - relay and independent hardware-timer state: shared with an ISR; must remain
   spinlocked and be measured on target;
-- local buzzer state: short task-side GPIO/timer publication, pending target
-  measurement before deciding whether a mutex is safe;
 - scale link/beep/debug snapshots: hot BLE/control publication, pending the
   event-driven worker conversion;
 - time service, native BLE runtime, Companion NimBLE and EspressoScaleBLE
@@ -112,3 +112,9 @@ must use their snapshot APIs. A snapshot includes a publication timestamp or
 age; control status also carries a monotonic `snapshotVersion`. Observational
 monotonic metrics may be atomic. Metrics used to authorize control must be part
 of the same coherent snapshot as the decision state.
+
+The network task progress timestamp is a relaxed atomic because it is a
+monotonic observational metric. Reset-history checkpoint and clear operations
+hold the shared flash-I/O lock across the durable write and publication of the
+live mirror/checkpoint timestamp, so failed writes cannot publish or resurrect
+state.

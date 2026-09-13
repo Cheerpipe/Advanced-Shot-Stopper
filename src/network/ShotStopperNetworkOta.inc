@@ -985,8 +985,10 @@ void ShotStopperNetwork::serviceOtaRollback(uint32_t now) {
   // Never wait behind an HTTP upload's OTA mutex in this watchdog task.
   if (otaStatus.rejected || otaStatus.confirmed || otaStatus.busy) return;
   const ControlGateSnapshot control = controlGate();
-  const OtaBootStatus boot = ota.serviceBoot(now, startupComplete_ && server_ != nullptr,
-      control.activeCycle, control.relayClosed,
+  const OtaBootStatus boot = ota.serviceBoot(now,
+      control.bootState == BootState::READY && startupComplete_ && server_ != nullptr,
+      control.activeCycle || control.machineRunning || control.physicalActivatorOn,
+      control.relayClosed,
       scaleConnectingOrUp_.load(std::memory_order_relaxed),
       OTA_CONFIRM_MIN_UPTIME_MS, OTA_CONFIRM_DEADLINE_MS);
   if (strcmp(otaBootReason_, boot.reason) != 0 || otaBootLastError_ != boot.lastError) {

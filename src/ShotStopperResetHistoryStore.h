@@ -105,24 +105,29 @@ inline bool persistResetUptimeCheckpoint(uint32_t uptimeMs) {
   (void)uptimeMs;
   return true;
 #else
-  if (uptimeMs < RESET_UPTIME_CHECKPOINT_INTERVAL_MS ||
-      uptimeMs - resetHistoryStoreLastCheckpointMs <
-          RESET_UPTIME_CHECKPOINT_INTERVAL_MS) {
+  if (uptimeMs < RESET_UPTIME_CHECKPOINT_INTERVAL_MS) {
     return true;
   }
-  resetHistoryStoreLive.currentUptimeMs = uptimeMs;
-  finalizeResetHistoryStore(resetHistoryStoreLive);
   if (!tryLockFlashIo(FLASH_IO_LOCK_TIMEOUT_MS)) return false;
+  if (uptimeMs - resetHistoryStoreLastCheckpointMs <
+      RESET_UPTIME_CHECKPOINT_INTERVAL_MS) {
+    unlockFlashIo();
+    return true;
+  }
+  ResetHistoryStoreBlob next = resetHistoryStoreLive;
+  next.currentUptimeMs = uptimeMs;
+  finalizeResetHistoryStore(next);
   ShotStopperPreferences preferences(NvsSubsystem::RESET_HISTORY);
   bool ok = false;
   if (preferences.begin("rsthist", false)) {
-    ok = preferences.putBytes("history", &resetHistoryStoreLive,
-                              sizeof(resetHistoryStoreLive)) ==
-         sizeof(resetHistoryStoreLive);
+    ok = preferences.putBytes("history", &next, sizeof(next)) == sizeof(next);
     preferences.end();
   }
+  if (ok) {
+    resetHistoryStoreLive = next;
+    resetHistoryStoreLastCheckpointMs = uptimeMs;
+  }
   unlockFlashIo();
-  if (ok) resetHistoryStoreLastCheckpointMs = uptimeMs;
   return ok;
 #endif
 }
@@ -144,12 +149,14 @@ inline bool clearPersistedResetHistory(uint32_t unsafeResetCount) {
     ok = preferences.putBytes("history", &next, sizeof(next)) == sizeof(next);
     preferences.end();
   }
+  if (ok) {
+    initializeSafetyResetRecord(SAFETY_RELAY_OPEN_MARKER, unsafeResetCount);
+    resetHistoryStoreLive = next;
+    resetHistoryStoreLastCheckpointMs = 0;
+  }
   unlockFlashIo();
   if (!ok) return false;
 
-  initializeSafetyResetRecord(SAFETY_RELAY_OPEN_MARKER, unsafeResetCount);
-  resetHistoryStoreLive = next;
-  resetHistoryStoreLastCheckpointMs = 0;
   return true;
 #endif
 }

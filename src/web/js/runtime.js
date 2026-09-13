@@ -27,7 +27,7 @@ const SHOTS_PAGE_SIZE=10,SHOTS_EXPORT_LIMIT=120;
 const WEB_UI_CLIENT_HEADER='X-WebUI-Client';
 let webUiPowerUntil=0;
 export function noteWebUiPowerActivity(){if(webUiOwner&&!document.hidden)webUiPowerUntil=performance.now()+180e3}
-export function webUiPowerSeconds(){return document.hidden?0:Math.max(0,Math.min(30,Math.floor((webUiPowerUntil-performance.now())/1000)))}
+function webUiPowerSeconds(){return document.hidden?0:Math.max(0,Math.min(30,Math.floor((webUiPowerUntil-performance.now())/1000)))}
 const WEB_UI_INACTIVITY_MS=15*60*1000;
 const NETWORK_RECONNECT_WAIT_MS=180000;
 function newWebUiClientId(){const b=new Uint8Array(12);if(window.crypto&&window.crypto.getRandomValues)window.crypto.getRandomValues(b);else for(let i=0;i<b.length;i++)b[i]=Math.floor(Math.random()*256);return[...b].map(v=>v.toString(16).padStart(2,'0')).join('')}
@@ -358,33 +358,27 @@ async function forgetPairedScale(){if(!confirm(__WEBUI_TEXT__("runtime.clear_the
 async function selectPreferredScale(){const sel=$('preferredScaleSelect');if(!sel||preferredScaleSelectSyncing)return;const mac=sel.value||'';if(mac===(sel.dataset.applied||''))return;sel.dataset.applied=mac;if(!mac){await command('/api/v1/scale/preferred/select',{mac:''});return}const opt=sel.selectedOptions&&sel.selectedOptions[0];const label=opt?String(opt.textContent||''):'';const name=label.includes(' — ')?label.split(' — ')[0]:'';await command('/api/v1/scale/preferred/select',{mac,name})}async function command(path,value={},soft,okMsg,failMsg){return withCommandGate(async()=>{commandBusy=true;try{const noReconnect=path.endsWith('/network')&&value.action==='save'&&value._noReconnectWait,waitForRevision=path.endsWith('/config')||path.endsWith('/presets'),previousRevision=configRevision;const payload=value;delete payload._noReconnectWait;await api(path,{method:'POST',body:body(payload)});clearFieldErrors();noteReachOk();if(noReconnect)savedStaWifiSleep=!!$('staWifiSleep').checked;if(path.endsWith('/network')&&value.action==='save'&&!noReconnect){beginNetworkReconnectWait();return true}if(waitForRevision){for(let i=0;i<40&&configRevision===previousRevision;i++){if(i)await new Promise(r=>setTimeout(r,100));await refreshStatus()}if(configRevision===previousRevision)throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"))}else await refreshStatus();if(okMsg!=='')message(okMsg||(noReconnect?__WEBUI_TEXT__("runtime.wi_fi_sleep_saved"):commandOkMessage(path,value)),'ok');return true}catch(e){if(soft)throw e;if(failMsg!=='')message(formatCommandError(failMsg||commandFailMessage(path,value),e),'error');await refreshStatus();return false}finally{commandBusy=false}})}async function setBleCompanionEnabled(){const e=$('bleCompanionEnabled'),wanted=e.checked;try{await api('/api/v1/admin/ble-compat',{method:'PUT',body:body({enabled:wanted})});noteReachOk();message((wanted?__WEBUI_TEXT__("runtime.ble_companion_enabled"):__WEBUI_TEXT__("runtime.ble_companion_disabled"))+__WEBUI_TEXT__("runtime.restart_to_apply"),'ok');await new Promise(r=>setTimeout(r,150));await refreshStatus()}catch(x){e.checked=!wanted;message(formatCommandError(wanted?__WEBUI_TEXT__("runtime.could_not_enable_ble_companion"):__WEBUI_TEXT__("runtime.could_not_disable_ble_companion"),x),'error')}}async function setBleScanIntensity(){const sel=$('bleScanIntensity');if(!sel)return;const wanted=sel.value;try{await api('/api/v1/admin/ble-compat',{method:'PUT',body:body({scanIntensity:wanted})});noteReachOk();message(__WEBUI_TEXT__("runtime.detection_intensity_saved"),'ok');await refreshStatus()}catch(x){message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_detection_intensity"),x),'error');await refreshStatus()}}function ensureBleCompanionPanel(){const p=document.createElement('fieldset');p.id='bleCompanionPanel';p.innerHTML=("<legend>"+__WEBUI_TEXT__("runtime.bluetooth")+"</legend><label><input id=\"bleCompanionEnabled\" type=\"checkbox\" role=\"switch\"> "+__WEBUI_TEXT__("runtime.companion_characteristics_on_next_boot")+"</label><small>"+__WEBUI_TEXT__("runtime.restart_required_for_gatt_memory")+"</small><div id=\"bleCompanionStatus\">"+__WEBUI_TEXT__("runtime.starting")+"</div><label>"+__WEBUI_TEXT__("runtime.detection_intensity")+" <select id=\"bleScanIntensity\"><option value=\"aggressive\">"+__WEBUI_TEXT__("runtime.aggressive")+"</option><option value=\"normal\" selected>"+__WEBUI_TEXT__("runtime.normal")+"</option><option value=\"light\">"+__WEBUI_TEXT__("runtime.light")+"</option></select><small class=\"fieldHint\">"+__WEBUI_TEXT__("runtime.how_aggressively_the_stopper_looks_for_a")+"</small></label>");$('dateTimePanel').before(p)}function ensureUiOverridePanel(){if($('uiOverridePanel'))return;const p=document.createElement('fieldset');p.id='uiOverridePanel';p.innerHTML=("<legend>"+__WEBUI_TEXT__("runtime.ui_override")+"</legend><div class=\"btnBar\"><button id=\"uiOverrideButton\" class=\"btnGlyph btnWarn\" type=\"button\"><span class=\"g\">"+__WEBUI_TEXT__("runtime.symbol_13")+"</span><span class=\"t\">"+__WEBUI_TEXT__("runtime.unlock_1_min")+"</span></button></div><small id=\"uiOverrideHint\"></small>");const s=document.querySelector('#adminControls .adminSession');if(s)s.after(p);const b=$('uiOverrideButton');if(b&&!b.dataset.bound){b.dataset.bound='1';b.onclick=()=>api('/api/v1/ui/unlock',{method:'POST',body:body({confirm:'UNSAFE_WEBUI_OVERRIDE'})}).then(()=>{noteReachOk();message(__WEBUI_TEXT__("runtime.override_on"),'ok');return refreshStatus()}).catch(e=>message(formatCommandError(__WEBUI_TEXT__("runtime.override_failed"),e),'error'))}}
 
 export {
-  $, DEVICE_MAX_INFLIGHT, WEB_UI_CLIENT_HEADER, webUiClientId,
-  webUiOwner, webUiPollingActive, resetWebUiInactivity, noteWebUiInteraction,
-  deactivateWebUi, claimWebUiOwnership, setMutable, controlsMutable,
-  lockAdmin,
-  body, number, sToMs, message, formatCommandError, showFieldError, clearFieldErrors,
-  api, command, withPollGate, withCommandGate, withBaseRev,
-  registerViewStatus, setEnsureViewHook, ensureSettingsDom, ensureSettingsHydrated,
+  $, webUiOwner, webUiPollingActive, noteWebUiInteraction,
+  claimWebUiOwnership, setMutable, controlsMutable, lockAdmin,
+  body, number, message, formatCommandError, showFieldError, clearFieldErrors,
+  api, command, withCommandGate, withBaseRev,
+  registerViewStatus, setEnsureViewHook,
   setActiveView, setViewPollHooks, setRouteRenderer, stopViewPolls,
-  applyCommonStatus, refreshStatus, loadStatus, armStatusTimer, statusPollDue, statusIntervalMs,
+  refreshStatus, loadStatus, armStatusTimer,
   loadLog, refreshLog, renderLog, clearLogView,
-  loadShots, loadMoreShots, refreshShots, renderShots, exportShotsCsv, clearShotHistory, deleteOneShot,
+  loadShots, loadMoreShots, refreshShots, exportShotsCsv, clearShotHistory,
   setShotSort, toggleShotSortDir, syncShotSortButtons,
   resetNetworkAddressLoaded,
   applyHomeStatus, applySettingsStatus, applyAdminStatus, applyDiagnosticStatus,
   updateBbwControls, updateConfigGroups, updateScalePreferenceOptions, setSaveDirty, markConfigDirty, markDateTimeDirty, markBrewDirty, saveMachineConfig, saveDateTimeConfig, saveBrewPreset,
-  validateMachineClient, validateBrewClient, validateDateTimeClient, validateNetworkClient, validateDevicePasswordClient, networkSavePayload, machinePayload, dateTimePayload, brewPayload,
+  validateNetworkClient, validateDevicePasswordClient, networkSavePayload,
   startWifiScan, selectDetectedNetwork, updateNetworkPasswordState, updateStaticIpFieldsState,
-  forgetPairedScale, selectPreferredScale, setBleCompanionEnabled, setBleScanIntensity, ensureBleCompanionPanel, ensureUiOverridePanel,
-  otaUpload, otaFlash, otaDiscard, applyOtaStatus,
-  populateTimezoneOptions, syncHomeGuardSwitchesFromSettings, updateHomeGuardSwitchesLock,
-  beginHomeSwitchPending, persistHomeGuard, persistHomeNoScaleBbw, persistHomeBrewByWeight, scheduleHomeGuardFlush, renderHomePresetChips,
-  invalidateSettingsHydration, clearBrewDirty, presetState, selectedPreset, applyPreset, commitRenamePreset, startRenamePreset,
-  recipeBrewByWeight, ingestPresets, updatePresetActionButtons, updateActiveBrewProfileHint,
-  renderAllPresetUi, updateRuleChartFromStatus, statusPageOk,
+  forgetPairedScale, selectPreferredScale, setBleCompanionEnabled, setBleScanIntensity, ensureBleCompanionPanel,
+  otaUpload, otaFlash, otaDiscard,
+  populateTimezoneOptions, syncHomeGuardSwitchesFromSettings,
+  persistHomeGuard, persistHomeNoScaleBbw, persistHomeBrewByWeight,
+  invalidateSettingsHydration, clearBrewDirty, presetState, selectedPreset,
   formatExtractionGuard, formatSlowExtractionGuard, formatAtmGuard, formatNoScaleGuard,
   formatAccidentalTouch, formatCupProtection,
-  firmwareVersion, bootId, updateFirmwareFooter, configLoaded, formRev, brewDirty, configDirty, dateTimeDirty,
-  noteReachOk, noteReachFail, acquireDeviceSlot, releaseDeviceSlot,
-  otaBusy, commandBusy, homeFlushBusy, lastStatusAt, statusLiveShot,
+  bootId, formRev, brewDirty, noteReachOk, noteReachFail,
 };

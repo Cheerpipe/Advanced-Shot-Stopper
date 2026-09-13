@@ -475,15 +475,7 @@ void processWebCommand(const WebCommand &command) {
       return;
 
     case WebCommandType::CLEAR_RESET_HISTORY:
-      if (!clearPersistedResetHistory(safetyResetStatus.unsafeResetCount)) {
-        rejectWebCommand(command);
-        return;
-      }
-      safetyResetStatus.resetHistoryCount = 0;
-      for (ResetHistoryEntry &entry : safetyResetStatus.resetHistory) {
-        entry = ResetHistoryEntry{};
-      }
-      reportControlCommandResult(command, CommandResultState::PERSISTED);
+      holdOrBeginResetHistoryClear(command);
       return;
 
     case WebCommandType::CLEAR_PREFERRED_SCALE:

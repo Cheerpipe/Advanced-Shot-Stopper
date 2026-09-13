@@ -448,6 +448,120 @@ assert "python@3.12" not in idf_helpers, \
     "ESP-IDF 6.1 must activate the Python environment created by its installer"
 assert '. "${idf_root}/export.sh" >/dev/null' in idf_helpers, \
     "non-interactive builds must not print ESP-IDF shell-completion warnings"
+
+
+def verify_production_profile(arch: str, selectors: list[str]):
+    with tempfile.NamedTemporaryFile(mode="w", prefix="shotstopper-sdkconfig-",
+                                     delete=False) as fixture:
+        fixture.write("\n".join(selectors) + "\n")
+        fixture_path = fixture.name
+    try:
+        return subprocess.run(
+            ["bash", "-c",
+             f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
+             'ss_idf_verify_production_profile "$1" "$2"',
+             "profile-test", arch, fixture_path],
+            cwd=ROOT, text=True, capture_output=True)
+    finally:
+        Path(fixture_path).unlink()
+
+
+profile_common = [
+    'CONFIG_PARTITION_TABLE_CUSTOM=y',
+    'CONFIG_ESPTOOLPY_FLASHMODE_DIO=y',
+    'CONFIG_ESPTOOLPY_FLASHMODE="dio"',
+    'CONFIG_ESPTOOLPY_FLASHMODE_VAL=3',
+    'CONFIG_ESPTOOLPY_FLASHFREQ_80M=y',
+    'CONFIG_ESPTOOLPY_FLASHFREQ="80m"',
+    'CONFIG_SPIRAM_SPEED_80M=y',
+    'CONFIG_SPIRAM_SPEED=80',
+    'CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768',
+    'CONFIG_MMU_PAGE_SIZE_64KB=y',
+    'CONFIG_MMU_PAGE_SIZE=0x10000',
+    'CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y',
+    'CONFIG_BOOTLOADER_WDT_ENABLE=y',
+    'CONFIG_BOOTLOADER_WDT_TIME_MS=9000',
+    'CONFIG_ESP_INT_WDT=y',
+    'CONFIG_ESP_INT_WDT_TIMEOUT_MS=800',
+    'CONFIG_ESP_TASK_WDT_EN=y',
+    'CONFIG_ESP_TASK_WDT_INIT=y',
+    'CONFIG_ESP_TASK_WDT_PANIC=y',
+    'CONFIG_ESP_TASK_WDT_TIMEOUT_S=5',
+    'CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=y',
+    'CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=y',
+    'CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT=y',
+    'CONFIG_ESP_SYSTEM_PANIC_REBOOT_DELAY_SECONDS=0',
+    'CONFIG_GPTIMER_ISR_HANDLER_IN_IRAM=y',
+]
+profile_arch = {
+    "n8r4": ['CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y',
+              'CONFIG_ESPTOOLPY_FLASHSIZE="8MB"',
+              'CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-n8r4.csv"',
+              'CONFIG_PARTITION_TABLE_FILENAME="partitions-n8r4.csv"',
+              'CONFIG_SPIRAM_MODE_QUAD=y'],
+    "n16r8": ['CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y',
+               'CONFIG_ESPTOOLPY_FLASHSIZE="16MB"',
+               'CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-n16r8.csv"',
+               'CONFIG_PARTITION_TABLE_FILENAME="partitions-n16r8.csv"',
+               'CONFIG_SPIRAM_MODE_OCT=y'],
+}
+for arch, arch_selectors in profile_arch.items():
+    selectors = profile_common + arch_selectors
+    assert verify_production_profile(arch, selectors).returncode == 0
+    for selector in selectors:
+        result = verify_production_profile(
+            arch, [item for item in selectors if item != selector])
+        assert result.returncode == 1 and "Production profile mismatch" in result.stderr
+    opposite = "OCT" if arch == "n8r4" else "QUAD"
+    assert verify_production_profile(
+        arch, selectors + [f"CONFIG_SPIRAM_MODE_{opposite}=y"]).returncode == 1
+
+durable_stores = (ROOT / "src/ShotStopperDurableStores.h").read_text()
+network_reset = durable_stores.split("bool resetPersistedNetworkAccess", 1)[1].split(
+    "bool resetAllDurableStores", 1)[0]
+assert re.findall(r"^\s+PersistedSettings\s+(\w+);", network_reset, re.MULTILINE) == [
+    "candidate"]
+scale_worker = (ROOT / "src/ShotStopperScaleWorker.cpp").read_text()
+cleanup = scale_worker.split("if (!runtimeReady) {", 1)[1].split(
+    "scaleWorkerStartupFinished.store", 1)[0]
+cleanup_order = [cleanup.index(token) for token in (
+    "feedCurrentTaskWatchdog()", "shotStopperBleRuntimeStop(BLE_STACK_STOP_WAIT_MS)",
+    "esp_task_wdt_delete(nullptr)", "scaleWorkerTaskHandle = nullptr")]
+assert cleanup_order == sorted(cleanup_order)
+assert "if (runtimeStopped)" in cleanup
+buzzer = (ROOT / "src/ShotStopperBuzzer.h").read_text()
+assert "TaskMutex mutex" in buzzer and "portMUX" not in buzzer
+network_header = (ROOT / "src/ShotStopperNetwork.h").read_text()
+assert "std::atomic<uint32_t> lastTaskProgressAtMs_" in network_header
+nimble_client = (ROOT / "libraries/EspressoScaleBLE/src/EspressoScaleBLENimble.cpp").read_text()
+for capacity in ("kRxFrameCount", "kCriticalEventCount", "kEventCount"):
+    assert f"drained < {capacity}" in nimble_client
+shot_curve = (ROOT / "src/ShotStopperShotCurve.h").read_text()
+assert "flashIoLockTimeouts() == lockTimeoutsBefore" in shot_curve
+assert "(void)load();" in shot_curve
+persistence_runtime = (ROOT / "src/persistence/ShotStopperCommandPersistence.inc").read_text()
+checkpoint = persistence_runtime.split("SETTINGS_PERSIST_IDLE_WAIT_MS", 1)[1].split(
+    "yieldSettingsNvs", 1)[0]
+for gate in ("copyControlGate(control)", "control.activeCycle", "control.relayClosed",
+             "control.machineRunning", "control.physicalActivatorOn", "link.connecting"):
+    assert gate in checkpoint
+assert checkpoint.index("feedOrTripCurrentTaskWatchdog()") < checkpoint.index(
+    "persistResetUptimeCheckpoint")
+ota_service = (ROOT / "src/network/ShotStopperNetworkOta.inc").read_text()
+assert "control.bootState == BootState::READY && startupComplete_" in ota_service
+ota_boot_call = ota_service.split("ota.serviceBoot", 1)[1].split(
+    "OTA_CONFIRM_MIN_UPTIME_MS", 1)[0]
+for gate in ("control.activeCycle", "control.machineRunning",
+             "control.physicalActivatorOn"):
+    assert gate in ota_boot_call
+control_gate = (ROOT / "src/diagnostics/ShotStopperDiagnostics.inc").read_text().split(
+    "void publishControlGate()", 1)[1].split("void publishControlStatus()", 1)[0]
+for source in ("bootCapabilities", "criticalTaskWatchdogFaulted()",
+               "relay.resetRecoveryRequired", "RelaySafetyState::LOCKOUT"):
+    assert source in control_gate
+assert "next.bootState = effectiveBoot.state()" in control_gate
+assert "constexpr uint32_t FLASH_IO_LOCK_TIMEOUT_MS = 3000" in \
+    (ROOT / "src/ShotStopperFlashIoScratch.h").read_text()
 assert r"component_validation\.cmake" in idf_helpers and \
     'idf "esp_wifi/"' in idf_helpers and 'idf "wpa_supplicant/"' in idf_helpers, \
     "only the known ESP-IDF 6.1 Wi-Fi component warnings may be filtered"

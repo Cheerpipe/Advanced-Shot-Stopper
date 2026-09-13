@@ -793,10 +793,10 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   {
     const rollback = network.slice(
         network.indexOf('void ShotStopperNetwork::serviceOtaRollback'));
-    if (!rollback.includes('control.activeCycle, control.relayClosed') ||
+    if (!/control\.activeCycle\s*\|\|\s*control\.machineRunning\s*\|\|\s*control\.physicalActivatorOn,\s*control\.relayClosed/.test(rollback) ||
         !otaSource.includes('if (activeCycle || relayClosed || busy_ || sessionActive_)')) {
       throw new Error(
-          'OTA confirm/rollback must not write otadata while a shot is pouring');
+          'OTA confirm/rollback must not write otadata while machine activity is present');
     }
   }
   if (!html.includes('Paddle during upload cancels it') ||

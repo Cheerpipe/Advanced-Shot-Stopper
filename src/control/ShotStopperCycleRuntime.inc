@@ -1215,6 +1215,7 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
                   static_cast<int32_t>(shotLog.count()));
     return;
   }
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_relaxed);
   if (persistedLastShot.valid && persistedLastShot.cycleId == snapshot.cycleId) {
     PersistedLastShot linked = persistedLastShot;
     linked.shotLogId = newId;

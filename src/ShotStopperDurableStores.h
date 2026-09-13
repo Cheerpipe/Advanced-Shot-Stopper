@@ -37,14 +37,13 @@ inline bool resetPersistedNetworkAccess(PersistedSettings &settings) {
       !savePersistedSettings(candidate)) {
     return false;
   }
-  PersistedSettings verified;
-  if (!loadPersistedSettings(verified) || verified.staConfigured ||
-      verified.lkgValid ||
-      verified.staIpMode != static_cast<uint8_t>(StaIpMode::DHCP) ||
-      !passwordIsFactoryDefault(verified)) {
+  if (!loadPersistedSettings(candidate) || candidate.staConfigured ||
+      candidate.lkgValid ||
+      candidate.staIpMode != static_cast<uint8_t>(StaIpMode::DHCP) ||
+      !passwordIsFactoryDefault(candidate)) {
     return false;
   }
-  settings = verified;
+  settings = candidate;
   return true;
 }
 

@@ -150,6 +150,9 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   lastShotPersistFailLatched = false;
   controllerStartedPending = false;
   shotStorePersistRetryAtMs = 0;
+  shotStorePersistIoRetryMs = 0;
+  shotStoreDirtyGeneration.store(0, std::memory_order_relaxed);
+  shotStoreObservedDirtyGeneration = 0;
   LastShotStore::setHostSaveSucceeds(true);
   lastShotStore.clear();
   g_hostFlashIoMutexAvailable = true;
@@ -181,6 +184,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   maintenanceLease = MaintenanceLease{};
   plannedRestartHeld = false;
   pendingPlannedRestart = WebCommand{};
+  resetHistoryClearHeld = false;
+  pendingResetHistoryClear = WebCommand{};
   maintenanceCancellationCommand = WebCommand{};
   maintenanceCancellationPending = false;
   controlResultCommand = WebCommand{};
@@ -212,6 +217,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   pendingPresetPersistence = {};
   quickSettingsPersistPending = false;
   runtimePersistRetryAtMs = 0;
+  runtimePersistIoRetryMs = 0;
   runtimePersistReasonBits = 0;
   nextInternalRequestId = 0x80000000UL;
   currentWeight = 0.0f;
@@ -2124,6 +2130,44 @@ void r20e_uptime_forced_invalid_and_wrapped_checkpoints() {
     CHECK(detail::safetyResetRecord.currentUptimeMs == 60000);
     CHECK(safetyResetRecordValid());
   }
+}
+
+void r20f_reset_history_clear_waits_for_configuration_safe() {
+  resetHarness(false, false);
+  hostSafetyResetReasonUnsafe = true;
+  safetyResetStatus = beginSafetyResetGuard();
+  reachReadyFromBoot();
+  startCycle();
+  CHECK(session.active);
+  CHECK(getRelaySafetySnapshot().closed);
+
+  WebCommand clear;
+  clear.type = WebCommandType::CLEAR_RESET_HISTORY;
+  clear.requestId = 41;
+  clear.unsafeWebUiOverride = true;
+  processWebCommand(clear);
+  CHECK(resetHistoryClearHeld);
+  CHECK(!pendingResetHistoryClear.unsafeWebUiOverride);
+  CHECK(!maintenanceLease.active);
+  CHECK(session.active);
+  CHECK(getRelaySafetySnapshot().closed);
+  CHECK(safetyResetStatus.resetHistoryCount == 1);
+
+  const uint32_t elapsed = elapsedMs(session.startedAtMs);
+  if (elapsed <= runtimeConfig.rinseGestureMs) {
+    runLoopAfter(runtimeConfig.rinseGestureMs - elapsed + 1);
+  }
+  setRawPaddle(false);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(!session.active);
+  CHECK(!resetHistoryClearHeld);
+  CHECK(maintenanceLease.active);
+  CHECK(safetyResetStatus.resetHistoryCount == 1);
+  finishHostMaintenance();
+  CHECK(safetyResetStatus.resetHistoryCount == 0);
+  CHECK(hostLastForwardedNetworkCommand.type ==
+        WebCommandType::CLEAR_RESET_HISTORY);
+  CHECK(hostLastForwardedNetworkCommand.resetHistoryUnsafeCount == 1);
 }
 
 void w01_default_runtime_configuration_is_valid() {
@@ -5985,12 +6029,12 @@ void w87b_runtime_persist_failure_is_logged_once_per_episode() {
   CHECK(debugEventExists(DebugCode::RUNTIME_PERSIST_FAILED));
 
   debugLog.clear();
-  hostMillis += RUNTIME_PERSIST_RETRY_MS;
+  hostMillis += runtimePersistIoRetryMs;
   serviceRuntimePersistence();
   CHECK(!debugEventExists(DebugCode::RUNTIME_PERSIST_FAILED));
 
   hostRuntimePersistSucceeds = true;
-  hostMillis += RUNTIME_PERSIST_RETRY_MS;
+  hostMillis += runtimePersistIoRetryMs;
   serviceRuntimePersistence();
   CHECK(!runtimePersistFailed);
   hostRuntimePersistSucceeds = false;
@@ -5999,6 +6043,28 @@ void w87b_runtime_persist_failure_is_logged_once_per_episode() {
   debugLog.clear();
   serviceRuntimePersistence();
   CHECK(debugEventExists(DebugCode::RUNTIME_PERSIST_FAILED));
+}
+
+void w87c_runtime_persist_io_backoff_is_bounded_and_resets() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  hostRuntimePersistSucceeds = false;
+  runtimePersistPending = true;
+  runtimePersistRetryAtMs = millis();
+  for (uint32_t expected : {500U, 1000U, 2000U, 4000U, 8000U, 16000U,
+                            30000U, 30000U}) {
+    serviceRuntimePersistence();
+    CHECK(runtimePersistIoRetryMs == expected);
+    CHECK(runtimePersistRetryAtMs - millis() == expected);
+    hostMillis = runtimePersistRetryAtMs;
+  }
+  queueRuntimePersist(RUNTIME_PERSIST_REASON_OFFSET);
+  CHECK(runtimePersistIoRetryMs == 0);
+  hostRuntimePersistSucceeds = true;
+  hostMillis = runtimePersistRetryAtMs;
+  serviceRuntimePersistence();
+  CHECK(!runtimePersistPending);
+  CHECK(runtimePersistIoRetryMs == 0);
 }
 
 void w88_save_network_flush_includes_live_runtime() {
@@ -11547,7 +11613,6 @@ void f04_gptimer_state_serializes_stop_against_expiry() {
   constexpr uint32_t kIterations = 5000;
   std::atomic<uint32_t> generation{0};
   std::atomic<uint32_t> workersDone{0};
-  std::atomic<bool> workerFailure{false};
   bool invariantFailure = false;
 
   std::thread stopper([&]() {
@@ -11555,9 +11620,7 @@ void f04_gptimer_state_serializes_stop_against_expiry() {
       while (generation.load(std::memory_order_acquire) < expected) {
         std::this_thread::yield();
       }
-      if (!timer.stop()) {
-        workerFailure.store(true, std::memory_order_relaxed);
-      }
+      (void)timer.stop();
       workersDone.fetch_add(1U, std::memory_order_release);
     }
   });
@@ -11594,7 +11657,6 @@ void f04_gptimer_state_serializes_stop_against_expiry() {
 
   stopper.join();
   expiry.join();
-  CHECK(!workerFailure.load(std::memory_order_relaxed));
   CHECK(!invariantFailure);
 
   // Without a competing stop, every arm expires exactly once.
@@ -11605,6 +11667,29 @@ void f04_gptimer_state_serializes_stop_against_expiry() {
     timer.serviceForHostAt(std::numeric_limits<uint64_t>::max());
     CHECK(callbacks.load(std::memory_order_relaxed) == before + 1U);
   }
+}
+
+void f04b_gptimer_callback_runs_unlocked_and_blocks_rearm() {
+  resetHarness(false, true);
+  IndependentSafetyTimer timer;
+  struct CallbackState {
+    IndependentSafetyTimer *timer;
+    bool stopSucceeded;
+    bool armSucceeded;
+  } state{&timer, true, true};
+  CHECK(timer.begin(
+      [](void *context) {
+        auto &state = *static_cast<CallbackState *>(context);
+        state.stopSucceeded = state.timer->stop();
+        state.armSucceeded = state.timer->arm(1);
+      },
+      &state));
+  CHECK(timer.arm(1));
+  timer.serviceForHostAt(std::numeric_limits<uint64_t>::max());
+  CHECK(!state.stopSucceeded);
+  CHECK(!state.armSucceeded);
+  CHECK(!timer.running());
+  CHECK(timer.arm(1));
 }
 
 void f05_settings_persistence_init_is_transactional() {
@@ -11744,6 +11829,34 @@ void f06_boot_capability_policy_is_fail_closed() {
   resetHarness(false, false);
   reportTaskWatchdogFault();
   CHECK(bootRefusesRelayClose(BootState::FAULT_LATCHED));
+}
+
+void f06b_control_gate_derives_effective_boot_state() {
+  resetHarness(false, false);
+  bootState = BootState::READY;
+  bootCapabilities.evaluated = false;
+  reportTaskWatchdogFault();
+  publishControlGate();
+  CHECK(publishedControlGate.bootState == BootState::BOOTING);
+
+  bootCapabilities.evaluated = true;
+  safetyEventFlags.clear(SAFETY_EVENT_CRITICAL_TASK_WATCHDOG);
+  publishControlGate();
+  CHECK(publishedControlGate.bootState == BootState::READY);
+
+  reportTaskWatchdogFault();
+  publishControlGate();
+  CHECK(publishedControlGate.bootState == BootState::FAULT_LATCHED);
+
+  resetHarness(false, false);
+  safetyResetStatus.recoveryRequired = true;
+  publishControlGate();
+  CHECK(publishedControlGate.bootState == BootState::FAULT_LATCHED);
+
+  resetHarness(false, false);
+  relaySafetyState = RelaySafetyState::LOCKOUT;
+  publishControlGate();
+  CHECK(publishedControlGate.bootState == BootState::FAULT_LATCHED);
 }
 
 void f18_guard_early_rejection_matches_original_predicates() {
@@ -12282,6 +12395,7 @@ void s19_shot_store_persist_failure_logs_once_until_success() {
   CHECK(debugEventExists(DebugCode::SHOT_LOG_PERSIST_FAILED,
                          static_cast<int32_t>(shotLog.count()), 0));
   CHECK(shotLog.dirty());
+  CHECK(shotStorePersistIoRetryMs == 0);
   debugLog.clear();
   serviceShotStorePersistence();
   CHECK(!debugEventExists(DebugCode::SHOT_LOG_PERSIST_FAILED));
@@ -12292,6 +12406,30 @@ void s19_shot_store_persist_failure_logs_once_until_success() {
   serviceShotStorePersistence();
   CHECK(!shotLog.dirty());
   CHECK(!shotLogPersistFailLatched);
+}
+
+void s19b_shot_store_io_backoff_resets_for_new_dirty_data() {
+  resetHarness(false, true);
+  PersistedLastShot shot = {};
+  shot.valid = true;
+  shot.cycleId = 1;
+  persistLastShotSnapshot(shot);
+  LastShotStore::setHostSaveSucceeds(false);
+  serviceShotStorePersistence();
+  CHECK(shotStorePersistIoRetryMs == SHOT_STORE_PERSIST_RETRY_MS);
+  hostMillis = shotStorePersistRetryAtMs;
+  serviceShotStorePersistence();
+  CHECK(shotStorePersistIoRetryMs == 2U * SHOT_STORE_PERSIST_RETRY_MS);
+
+  shot.cycleId = 2;
+  persistLastShotSnapshot(shot);
+  serviceShotStorePersistence();
+  CHECK(shotStorePersistIoRetryMs == SHOT_STORE_PERSIST_RETRY_MS);
+  LastShotStore::setHostSaveSucceeds(true);
+  hostMillis = shotStorePersistRetryAtMs;
+  serviceShotStorePersistence();
+  CHECK(!lastShotNvsDirty);
+  CHECK(shotStorePersistIoRetryMs == 0);
 }
 
 void h01_health_threshold_alerts_fire_once_per_crossing() {
@@ -14473,6 +14611,7 @@ const TestCase testCases[] = {
     {"R20c", r20c_reset_uptime_checkpoint_is_no_more_frequent_than_one_minute},
     {"R20d", r20d_clear_reset_history_keeps_current_reset_reason},
     {"R20e", r20e_uptime_forced_invalid_and_wrapped_checkpoints},
+    {"R20f", r20f_reset_history_clear_waits_for_configuration_safe},
     {"R21", r21_automatic_control_requires_fresh_weight},
     {"R22", r22_confirmed_implausible_weight_does_not_stop},
     {"R23", r23_maintenance_is_canceled_fail_open_by_physical_paddle},
@@ -14865,6 +15004,7 @@ const TestCase testCases[] = {
     {"S17", s17_new_cycle_commits_pending_log_as_last_known},
     {"W90", w90_save_unknown_preset_id_does_not_overwrite_active},
     {"W90b", w91_preset_persistence_serializes_and_survives_retry},
+    {"W87c", w87c_runtime_persist_io_backoff_is_bounded_and_resets},
     {"HQ01", hq01_quick_settings_are_revisioned_and_preserve_recipe_fields},
     {"S03", s03_shot_log_clear_empties_records},
     {"S14", s14_last_shot_persists_manual_cycle},
@@ -14895,8 +15035,10 @@ const TestCase testCases[] = {
     {"M09", m09_snapshot_mutexes_preserve_concurrent_invariants},
     {"F03", f03_safety_event_flags_preserve_consumed_requests},
     {"F04", f04_gptimer_state_serializes_stop_against_expiry},
+    {"F04b", f04b_gptimer_callback_runs_unlocked_and_blocks_rearm},
     {"F05", f05_settings_persistence_init_is_transactional},
     {"F06", f06_boot_capability_policy_is_fail_closed},
+    {"F06b", f06b_control_gate_derives_effective_boot_state},
     {"F13", f13_schedule_contract_and_snapshot_evidence_are_explicit},
     {"F14", f14_relay_timer_initialization_rolls_back_partial_handles},
     {"F17", f17_health_counters_are_atomic_and_monotonic},
@@ -14916,6 +15058,7 @@ const TestCase testCases[] = {
     {"S12f", s12f_shot_store_snapshot_serializes_rating_and_finalize},
     {"S13", s13_persist_debug_messages_identify_origin},
     {"S19", s19_shot_store_persist_failure_logs_once_until_success},
+    {"S19b", s19b_shot_store_io_backoff_resets_for_new_dirty_data},
     {"H01", h01_health_threshold_alerts_fire_once_per_crossing},
     {"H01b", h01b_health_heap_low_restarts_only_when_ready_and_sustained},
     {"H02", h02_hwmon_cpu_load_uses_refreshed_idle_and_ema},

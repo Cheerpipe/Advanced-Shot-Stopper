@@ -161,6 +161,7 @@ bool ShotStopperNetwork::enqueueMaintenanceCompletion(
                            command.type == WebCommandType::RESET_DEVICE_PASSWORD ||
                            command.type == WebCommandType::RESET_NETWORK_AP ||
                            command.type == WebCommandType::FACTORY_RESET ||
+                           command.type == WebCommandType::CLEAR_RESET_HISTORY ||
                            command.type == WebCommandType::RESTART
                        ? CommandResultState::PERSISTED
                        : CommandResultState::APPLIED)
@@ -192,6 +193,9 @@ bool ShotStopperNetwork::processAcceptedCommand(const WebCommand &command) {
 }
 
 bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
+  if (command.type == WebCommandType::CLEAR_RESET_HISTORY) {
+    return callbacks_.clearResetHistory(command.resetHistoryUnsafeCount);
+  }
   PersistedSettings next = settingsCopy();
   bool persist = false;
   bool factoryReset = false;

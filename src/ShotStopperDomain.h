@@ -1809,14 +1809,14 @@ struct WebCommandNetworkPayload {
 struct WebCommand {
   WebCommandType type = WebCommandType::STOP;
   uint32_t requestId = 0;
-  // Set only by the network task after an explicitly confirmed WebUI unlock.
-  // It never changes relay safety; it only permits this queued WebUI command
-  // to bypass the normal configuration-state gate.
+  // Set by the network task after an explicit WebUI unlock; it permits this
+  // command to bypass the configuration gate but never changes relay safety.
   bool unsafeWebUiOverride = false;
   uint32_t maintenanceLeaseId = 0;
   union {
     RuntimeConfig config = {};
     WebCommandNetworkPayload network;
+    uint32_t resetHistoryUnsafeCount;
   };
   // The 501-byte RTTTL text is staged in a fixed PSRAM mailbox instead of
   // inflating every four-deep FreeRTOS command queue element in internal RAM.
@@ -2218,10 +2218,10 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
 static_assert(sizeof(ControlStatusSnapshot) <= 4096,
               "ControlStatusSnapshot grew past the loop-stack status budget");
 
-// Gate checks (Ready / machine working / paddle / lease) do not need the ~876 B
-// snapshot. Network and httpd copy this onto the stack; the full snapshot stays
-// in DRAM BSS (control path) or NetworkWorkBuf (PSRAM, HTTP).
+// Gate checks do not need the ~876 B snapshot. Network/httpd copy this small
+// view; the full snapshot stays in DRAM BSS or NetworkWorkBuf PSRAM.
 struct ControlGateSnapshot {
+  BootState bootState = BootState::BOOTING;
   StopperState state = StopperState::REQUIRES_OFF;
   bool activeCycle = false;
   bool relayClosed = false;
@@ -2237,6 +2237,7 @@ static_assert(sizeof(ControlGateSnapshot) <= 32,
 
 inline ControlGateSnapshot controlGateOf(const ControlStatusSnapshot &status) {
   ControlGateSnapshot gate;
+  gate.bootState = status.bootState;
   gate.state = status.state;
   gate.activeCycle = status.activeCycle;
   gate.relayClosed = status.relayClosed;
@@ -2249,11 +2250,9 @@ inline ControlGateSnapshot controlGateOf(const ControlStatusSnapshot &status) {
 }
 
 inline bool controlAllowsConfiguration(const ControlGateSnapshot &status) {
-  // Relay safety is enforced independently when the brew circuit is armed. A
-  // safety lockout must keep the relay open, but it must not lock the WebUI or
-  // prevent recovery-time configuration and diagnostics.
-  // Config lock is "machine working", not "K1 energized". For paddle those
-  // coincide (circuit closed == group brewing).
+  // Relay safety independently keeps the circuit open during lockout without
+  // blocking recovery configuration. Config locks on "machine working", not
+  // merely "K1 energized"; those states coincide for paddle machines.
   return status.state == StopperState::READY && !status.activeCycle &&
          !status.machineRunning && !status.physicalActivatorOn &&
          !status.maintenanceLeaseActive;

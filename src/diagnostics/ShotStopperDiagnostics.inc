@@ -13,6 +13,11 @@ bool liveConfigPersistPending() {
 void publishControlGate() {
   ControlGateSnapshot next;
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
+  BootCapabilities effectiveBoot = bootCapabilities;
+  effectiveBoot.criticalFaultLatched =
+      effectiveBoot.criticalFaultLatched || criticalTaskWatchdogFaulted() ||
+      relay.resetRecoveryRequired || relay.state == RelaySafetyState::LOCKOUT;
+  next.bootState = effectiveBoot.state();
   next.state = stopperState;
   next.activeCycle = session.active;
   next.relayClosed = relay.closed;

@@ -129,6 +129,7 @@ constexpr uint8_t SCALE_STOP_MAX_ATTEMPTS = 3;
 constexpr uint32_t MAINTENANCE_LEASE_SETTLE_MS = 100;
 constexpr uint32_t RUNTIME_PERSIST_RETRY_MS = 500;
 constexpr uint32_t SHOT_STORE_PERSIST_RETRY_MS = 500;
+constexpr uint32_t PERSIST_IO_RETRY_MAX_MS = 30000;
 constexpr uint32_t RUNTIME_PERSIST_DEBOUNCE_MS = 300;
 constexpr uint32_t SETTINGS_PERSIST_IDLE_WAIT_MS = 1000;
 // Pin control/BLE/LED work with Arduino loopTask on APP_CPU (core 1).
@@ -387,6 +388,9 @@ bool shotCurvePersistFailLatched = false;
 bool lastShotPersistFailLatched = false;
 bool controllerStartedPending = false;
 uint32_t shotStorePersistRetryAtMs = 0;
+uint32_t shotStorePersistIoRetryMs = 0;
+std::atomic<uint32_t> shotStoreDirtyGeneration{0};
+uint32_t shotStoreObservedDirtyGeneration = 0;
 
 bool noScaleShotGuardArmed = true;
 uint32_t noScaleShotGuardActivityAtMs = 0;
@@ -461,6 +465,8 @@ bool maintenanceCancellationPending = false;
 // running. The paddle is never blocked; the restart proceeds once idle.
 bool plannedRestartHeld = false;
 WebCommand pendingPlannedRestart = {};
+bool resetHistoryClearHeld = false;
+WebCommand pendingResetHistoryClear = {};
 WebCommand controlResultCommand;
 bool controlResultPending = false;
 #ifdef SHOT_STOPPER_HOST_TEST
@@ -495,6 +501,7 @@ PendingPresetPersistence pendingPresetPersistence;
 bool quickSettingsPersistPending = false;
 RuntimeConfig runtimePersistCandidate;
 uint32_t runtimePersistRetryAtMs = 0;
+uint32_t runtimePersistIoRetryMs = 0;
 int32_t runtimePersistReasonBits = 0;
 uint32_t nextInternalRequestId = 0x80000000UL;
 #ifndef SHOT_STOPPER_HOST_TEST
@@ -503,6 +510,7 @@ TaskMutex settingsPersistMux;
 bool settingsPersistInFlight = false;
 bool settingsPersistResultReady = false;
 bool settingsPersistResultOk = false;
+bool settingsPersistResultLockContended = false;
 uint32_t settingsPersistResultRuntimeRevision = 0;
 uint32_t settingsPersistResultStorageRevision = 0;
 #endif
@@ -590,6 +598,8 @@ void completeMaintenanceLease(const WebCommand &result);
 void rejectWebCommand(const WebCommand &command);
 void holdOrBeginPlannedRestart(const WebCommand &command);
 void servicePendingPlannedRestart();
+void holdOrBeginResetHistoryClear(const WebCommand &command);
+void servicePendingResetHistoryClear();
 void queueRuntimePersist(int32_t reasonBits);
 void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits);
 bool settingsPersistenceAvailable();
@@ -1190,6 +1200,7 @@ void persistLastShotSnapshot(const PersistedLastShot &snapshot) {
   TaskLockGuard lock(shotStoreMutex);
   lastShotStore.advance(snapshot);
   lastShotNvsDirty = true;
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_relaxed);
 }
 
 bool rateShotRecord(uint32_t id, uint8_t rating) {

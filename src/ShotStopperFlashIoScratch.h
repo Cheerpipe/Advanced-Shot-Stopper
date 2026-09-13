@@ -28,9 +28,9 @@ namespace shotstopper {
 constexpr size_t FLASH_IO_SCRATCH_BYTES = 18432;
 static_assert(FLASH_IO_SCRATCH_BYTES >= 2 * PERSISTED_SETTINGS_NVS_BUDGET,
               "Flash I/O scratch must cover settings dual-slot I/O");
-constexpr uint32_t FLASH_IO_LOCK_TIMEOUT_MS = 5000;
-// Control-loop NVS must fail fast: waiting the full durable timeout equals the
-// task watchdog budget and can panic mid-pour.
+constexpr uint32_t FLASH_IO_LOCK_TIMEOUT_MS = 3000;
+// Control-loop NVS must fail fast; the durable timeout itself retains two
+// seconds of margin beneath the task watchdog budget.
 constexpr uint32_t FLASH_IO_CONTROL_LOCK_TIMEOUT_MS = 50;
 
 static_assert(FLASH_IO_CONTROL_LOCK_TIMEOUT_MS < FLASH_IO_LOCK_TIMEOUT_MS,
@@ -125,6 +125,7 @@ inline bool ensureFlashIoMutex() { return g_hostFlashIoMutexAvailable; }
 
 inline bool tryLockFlashIo(uint32_t = FLASH_IO_LOCK_TIMEOUT_MS) {
   if (!g_hostFlashIoMutexAvailable) {
+    flashIoLockTimeoutCount().fetch_add(1, std::memory_order_relaxed);
     return false;
   }
   return ensureFlashIoScratch();

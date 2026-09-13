@@ -28,7 +28,9 @@ class ShotCurveLog {
     memset(hostSlots_, 0, sizeof(hostSlots_));
     hostSlotValid_[0] = false;
     hostSlotValid_[1] = false;
+    hostSaveSucceeds_ = true;
   }
+  static void setHostSaveSucceeds(bool succeeds) { hostSaveSucceeds_ = succeeds; }
 #endif
 
   bool load() {
@@ -110,6 +112,10 @@ class ShotCurveLog {
     finalizeShotCurveStore(store_);
     const uint8_t targetSlot = static_cast<uint8_t>(1U - (activeSlot_ & 1U));
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+    if (!hostSaveSucceeds_) {
+      unlockFlashIo();
+      return false;
+    }
     memcpy(&hostSlots_[targetSlot], &store_, sizeof(store_));
     hostSlotValid_[targetSlot] = true;
     activeSlot_ = targetSlot;
@@ -152,6 +158,7 @@ class ShotCurveLog {
   }
 
   bool append(const ShotCurveRecord &record, bool persistNow = true) {
+    const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
     const uint16_t previousWriteIndex = store_.header.writeIndex;
     const uint16_t previousCount = store_.header.count;
     const ShotCurveRecord overwritten = store_.records[previousWriteIndex];
@@ -168,6 +175,10 @@ class ShotCurveLog {
     }
     if (save()) {
       return true;
+    }
+    if (flashIoLockTimeouts() == lockTimeoutsBefore) {
+      (void)load();
+      return false;
     }
     store_.records[previousWriteIndex] = overwritten;
     store_.header.writeIndex = previousWriteIndex;
@@ -318,12 +329,14 @@ class ShotCurveLog {
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
   static ShotCurveStore hostSlots_[2];
   static bool hostSlotValid_[2];
+  static bool hostSaveSucceeds_;
 #endif
 };
 
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
 ShotCurveStore ShotCurveLog::hostSlots_[2] = {};
 bool ShotCurveLog::hostSlotValid_[2] = {};
+bool ShotCurveLog::hostSaveSucceeds_ = true;
 #endif
 
 }  // namespace shotstopper

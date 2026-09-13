@@ -402,7 +402,8 @@ class NimbleScaleClient {
     }
 
     RxFrame frame = {};
-    while (popRx(frame)) {
+    for (size_t drained = 0; drained < kRxFrameCount && popRx(frame);
+         ++drained) {
       if (!supportedPacketLength(frame.length)) {
         rejectPacket();
         continue;
@@ -1434,7 +1435,8 @@ class NimbleScaleClient {
     }
 
     Event event = {};
-    while (popCriticalEvent(event)) {
+    for (size_t drained = 0;
+         drained < kCriticalEventCount && popCriticalEvent(event); ++drained) {
       if (!eventMatches(event)) {
         noteStaleCallback();
         continue;
@@ -1448,7 +1450,8 @@ class NimbleScaleClient {
         noteStaleCallback();
       }
     }
-    while (popControlEvent(event)) {
+    for (size_t drained = 0;
+         drained < kEventCount && popControlEvent(event); ++drained) {
       if (!eventMatches(event)) {
         noteStaleCallback();
         continue;

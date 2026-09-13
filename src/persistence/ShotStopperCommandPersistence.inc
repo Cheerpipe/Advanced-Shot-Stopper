@@ -16,6 +16,13 @@ bool controlAllowsConfigurationNow() {
          !maintenanceLease.active;
 }
 
+uint32_t nextPersistenceIoRetry(uint32_t currentMs, uint32_t baseMs) {
+  if (currentMs == 0) return baseMs;
+  return currentMs >= PERSIST_IO_RETRY_MAX_MS / 2U
+             ? PERSIST_IO_RETRY_MAX_MS
+             : currentMs * 2U;
+}
+
 void beginWebRinse() {
   if (!beginRinseCycle(ControlSource::WEB)) {
     return;
@@ -143,6 +150,35 @@ void servicePendingPlannedRestart() {
   }
 }
 
+void holdOrBeginResetHistoryClear(const WebCommand &command) {
+  if (resetHistoryClearHeld) {
+    rejectWebCommand(command);
+    return;
+  }
+  WebCommand clear = command;
+  clear.unsafeWebUiOverride = false;
+  clear.resetHistoryUnsafeCount = safetyResetStatus.unsafeResetCount;
+  if (!controlAllowsConfigurationNow() || session.active ||
+      getRelaySafetySnapshot().closed || machineLastIntention().holdActive) {
+    pendingResetHistoryClear = clear;
+    resetHistoryClearHeld = true;
+    return;
+  }
+  if (!beginMaintenanceLease(clear, false)) rejectWebCommand(clear);
+}
+
+void servicePendingResetHistoryClear() {
+  if (!resetHistoryClearHeld || !controlAllowsConfigurationNow() ||
+      session.active || getRelaySafetySnapshot().closed ||
+      machineLastIntention().holdActive) {
+    return;
+  }
+  const WebCommand clear = pendingResetHistoryClear;
+  if (!beginMaintenanceLease(clear, false)) return;
+  resetHistoryClearHeld = false;
+  pendingResetHistoryClear = WebCommand{};
+}
+
 void serviceMaintenanceLease() {
   if (!maintenanceLease.active || maintenanceLease.forwarded ||
       !machineLastIntention().stablyOff ||
@@ -173,11 +209,14 @@ void serviceMaintenanceLease() {
         result.succeeded = forwardedType == WebCommandType::RESTART;
         runtimePersistFailed = true;
         runtimePersistPending = true;
-        runtimePersistRetryAtMs = millis() + RUNTIME_PERSIST_RETRY_MS;
+        runtimePersistIoRetryMs = nextPersistenceIoRetry(
+            runtimePersistIoRetryMs, RUNTIME_PERSIST_RETRY_MS);
+        runtimePersistRetryAtMs = millis() + runtimePersistIoRetryMs;
       } else {
         runtimePersistPending = false;
         runtimePersistReasonBits = 0;
         runtimePersistFailed = false;
+        runtimePersistIoRetryMs = 0;
       }
     }
     hostLastMaintenanceSucceeded = result.succeeded;
@@ -189,6 +228,7 @@ void serviceMaintenanceLease() {
 void queueRuntimePersist(int32_t reasonBits) {
   runtimePersistPending = true;
   runtimePersistReasonBits |= reasonBits;
+  runtimePersistIoRetryMs = 0;
   runtimePersistRetryAtMs = millis() + RUNTIME_PERSIST_DEBOUNCE_MS;
 }
 
@@ -244,19 +284,32 @@ void settingsPersistTask(void *parameter) {
     if (xQueueReceive(settingsPersistQueue, &token,
                       pdMS_TO_TICKS(SETTINGS_PERSIST_IDLE_WAIT_MS)) !=
         pdTRUE) {
-      (void)persistResetUptimeCheckpoint(millis());
       feedOrTripCurrentTaskWatchdog();
+      ControlGateSnapshot control;
+      copyControlGate(control);
+      const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+      if (!control.maintenanceLeaseActive &&
+          durableFlashWriteAllowed(control.activeCycle || control.relayClosed ||
+                                       control.machineRunning ||
+                                       control.physicalActivatorOn,
+                                   link.connecting)) {
+        (void)persistResetUptimeCheckpoint(millis());
+      }
       continue;
     }
     yieldSettingsNvs();
     feedOrTripCurrentTaskWatchdog();
     // The producer owns the mailbox until enqueue; this worker owns it until
     // publishing the result. Only the control task consumes that result.
+    const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
     const bool ok = savePersistedSettings(settingsPersistRequest.blob);
+    const bool lockContended =
+        !ok && flashIoLockTimeouts() != lockTimeoutsBefore;
     feedOrTripCurrentTaskWatchdog();
     settingsPersistMux.lock();
     settingsPersistResultReady = true;
     settingsPersistResultOk = ok;
+    settingsPersistResultLockContended = lockContended;
     settingsPersistResultRuntimeRevision =
         settingsPersistRequest.runtimeRevision;
     settingsPersistResultStorageRevision =
@@ -348,6 +401,7 @@ void releaseSettingsPersistenceWorkerForHost() {
 void serviceSettingsPersistResult() {
   bool ready = false;
   bool ok = false;
+  bool lockContended = false;
   uint32_t runtimeRevision = 0;
   uint32_t storageRevision = 0;
   settingsPersistMux.lock();
@@ -355,6 +409,7 @@ void serviceSettingsPersistResult() {
   if (ready) {
     settingsPersistResultReady = false;
     ok = settingsPersistResultOk;
+    lockContended = settingsPersistResultLockContended;
     runtimeRevision = settingsPersistResultRuntimeRevision;
     storageRevision = settingsPersistResultStorageRevision;
     settingsPersistInFlight = false;
@@ -367,6 +422,7 @@ void serviceSettingsPersistResult() {
     persistedSettings.storageRevision = storageRevision;
     networkManager.syncDurableStorageRevision(storageRevision);
     runtimePersistFailed = false;
+    runtimePersistIoRetryMs = 0;
     addDebugEvent(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
                   static_cast<int32_t>(runtimeRevision));
     if (pendingPresetPersistence.requestId != 0 &&
@@ -397,11 +453,13 @@ void serviceSettingsPersistResult() {
       if (scaleMacNvsWriteAllowed(link.connecting,
                                   link.state == ScaleLinkState::CONNECTED)) {
         runtimePersistPending = true;
+        runtimePersistIoRetryMs = 0;
         runtimePersistReasonBits |= RUNTIME_PERSIST_REASON_SCALE_MAC;
       }
     }
     if (runtimeConfig.revision != runtimeRevision) {
       runtimePersistPending = true;
+      runtimePersistIoRetryMs = 0;
       runtimePersistRetryAtMs = millis();
     } else if (!runtimePersistPending) {
       runtimePersistReasonBits = 0;
@@ -419,7 +477,13 @@ void serviceSettingsPersistResult() {
     }
     runtimePersistFailed = true;
     runtimePersistPending = true;
-    runtimePersistRetryAtMs = millis() + RUNTIME_PERSIST_RETRY_MS;
+    if (!lockContended) {
+      runtimePersistIoRetryMs = nextPersistenceIoRetry(
+          runtimePersistIoRetryMs, RUNTIME_PERSIST_RETRY_MS);
+    }
+    runtimePersistRetryAtMs =
+        millis() + (lockContended ? RUNTIME_PERSIST_RETRY_MS
+                                  : runtimePersistIoRetryMs);
   }
 }
 
@@ -470,6 +534,13 @@ void serviceShotStorePersistence() {
                                 link.connecting)) {
     return;
   }
+  const uint32_t dirtyGeneration =
+      shotStoreDirtyGeneration.load(std::memory_order_relaxed);
+  if (dirtyGeneration != shotStoreObservedDirtyGeneration) {
+    shotStoreObservedDirtyGeneration = dirtyGeneration;
+    shotStorePersistIoRetryMs = 0;
+    shotStorePersistRetryAtMs = 0;
+  }
   if (static_cast<int32_t>(millis() - shotStorePersistRetryAtMs) < 0) {
     return;
   }
@@ -478,12 +549,15 @@ void serviceShotStorePersistence() {
   // can spam SHOT_LOG_PERSIST_FAILED into the 96-event ring.
   constexpr uint32_t kTryLockMs = 0;
   bool anyFail = false;
+  bool anyIoFail = false;
   TaskLockGuard lock(shotStoreMutex);
   if (shotLog.dirty()) {
+    const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
     if (shotLog.flush(kTryLockMs)) {
       shotLogPersistFailLatched = false;
     } else {
       anyFail = true;
+      anyIoFail |= flashIoLockTimeouts() == lockTimeoutsBefore;
       if (!shotLogPersistFailLatched) {
         shotLogPersistFailLatched = true;
         addDebugEvent(DebugCategory::CONFIG, DebugCode::SHOT_LOG_PERSIST_FAILED,
@@ -492,10 +566,12 @@ void serviceShotStorePersistence() {
     }
   }
   if (shotCurves.dirty()) {
+    const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
     if (shotCurves.flush(kTryLockMs)) {
       shotCurvePersistFailLatched = false;
     } else {
       anyFail = true;
+      anyIoFail |= flashIoLockTimeouts() == lockTimeoutsBefore;
       if (!shotCurvePersistFailLatched) {
         shotCurvePersistFailLatched = true;
         addDebugEvent(DebugCategory::CONFIG, DebugCode::SHOT_LOG_PERSIST_FAILED,
@@ -504,11 +580,13 @@ void serviceShotStorePersistence() {
     }
   }
   if (lastShotNvsDirty) {
+    const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
     if (lastShotStore.save(kTryLockMs)) {
       lastShotNvsDirty = false;
       lastShotPersistFailLatched = false;
     } else {
       anyFail = true;
+      anyIoFail |= flashIoLockTimeouts() == lockTimeoutsBefore;
       if (!lastShotPersistFailLatched) {
         lastShotPersistFailLatched = true;
         addDebugEvent(DebugCategory::CONFIG, DebugCode::SHOT_LOG_PERSIST_FAILED,
@@ -522,8 +600,16 @@ void serviceShotStorePersistence() {
   if (controllerStartedReady && !enqueueControllerStartedWebhook()) {
     anyFail = true;
   }
+  if (anyIoFail) {
+    shotStorePersistIoRetryMs = nextPersistenceIoRetry(
+        shotStorePersistIoRetryMs, SHOT_STORE_PERSIST_RETRY_MS);
+  } else if (!anyFail) {
+    shotStorePersistIoRetryMs = 0;
+  }
   shotStorePersistRetryAtMs =
-      anyFail ? millis() + SHOT_STORE_PERSIST_RETRY_MS : 0;
+      anyFail ? millis() + (anyIoFail ? shotStorePersistIoRetryMs
+                                     : SHOT_STORE_PERSIST_RETRY_MS)
+              : 0;
 }
 
 void serviceRuntimePersistence() {
@@ -566,7 +652,9 @@ void serviceRuntimePersistence() {
     }
     runtimePersistFailed = true;
     runtimePersistPending = true;
-    runtimePersistRetryAtMs = millis() + RUNTIME_PERSIST_RETRY_MS;
+    runtimePersistIoRetryMs = nextPersistenceIoRetry(
+        runtimePersistIoRetryMs, RUNTIME_PERSIST_RETRY_MS);
+    runtimePersistRetryAtMs = millis() + runtimePersistIoRetryMs;
     return;
   }
   hostLastFlushedRuntime = runtimeConfig;
@@ -575,6 +663,7 @@ void serviceRuntimePersistence() {
   runtimePersistPending = false;
   runtimePersistReasonBits = 0;
   runtimePersistFailed = false;
+  runtimePersistIoRetryMs = 0;
   if (pendingPresetPersistence.requestId != 0 &&
       static_cast<int32_t>(runtimeConfig.revision -
                            pendingPresetPersistence.revision) >= 0) {
@@ -608,6 +697,12 @@ void completeMaintenanceLease(const WebCommand &result) {
     }
     requestBookooSilenceIfConfigured();
   }
+  if (result.succeeded &&
+      maintenanceLease.command.type == WebCommandType::CLEAR_RESET_HISTORY) {
+    safetyResetStatus.resetHistoryCount = 0;
+    for (ResetHistoryEntry &entry : safetyResetStatus.resetHistory)
+      entry = ResetHistoryEntry{};
+  }
   if (!result.succeeded &&
       maintenanceLease.command.type == WebCommandType::PERSIST_RUNTIME &&
       maintenanceLease.id == pendingPresetPersistence.requestId) {
@@ -621,7 +716,9 @@ void completeMaintenanceLease(const WebCommand &result) {
     // RUNTIME_PERSIST_FAILED already formats a detailed Serial line.
     runtimePersistCandidate = maintenanceLease.command.config;
     runtimePersistPending = true;
-    runtimePersistRetryAtMs = millis() + RUNTIME_PERSIST_RETRY_MS;
+    runtimePersistIoRetryMs = nextPersistenceIoRetry(
+        runtimePersistIoRetryMs, RUNTIME_PERSIST_RETRY_MS);
+    runtimePersistRetryAtMs = millis() + runtimePersistIoRetryMs;
   }
   addDebugEvent(DebugCategory::SECURITY,
                 result.succeeded ? DebugCode::MAINTENANCE_COMPLETED
