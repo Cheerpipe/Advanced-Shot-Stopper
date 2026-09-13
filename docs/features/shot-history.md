@@ -95,8 +95,11 @@ non-negative local change between usable consecutive curve samples; Home shows
 the peak observed so far during a live shot, and saved cards reproduce it from
 the stored curve. Falling weight contributes 0 g/s, while missing samples and
 an A→M scale-loss period leave gaps instead of inventing flow. Exact partial
-first-drop, guard, and shot-end intervals remain usable. Max flow is unavailable
-when the curve has no usable interval.
+guard intervals remain usable. The partial interval after the exact first-drop
+marker and the interval ending at the exact shot endpoint are ignored: they
+contain the 0-to-flow transition or settled final drips instead of comparable
+measurement windows. Max flow is unavailable when the curve has no usable
+interval.
 
 The controller stores only the weight curve. The Flow rate chart and Max flow
 are derived locally, so viewing or reloading them does not create another
