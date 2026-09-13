@@ -29,7 +29,7 @@ inline uint32_t resetHistoryStoreChecksum(const ResetHistoryStoreBlob &blob) {
 
 #ifndef SHOT_STOPPER_HOST_TEST
 static ResetHistoryStoreBlob resetHistoryStoreLive;
-static uint32_t resetHistoryStoreLastCheckpointMs = 0;
+static std::atomic<uint32_t> resetHistoryStoreLastCheckpointMs{0};
 #endif
 
 inline bool validResetHistoryStore(const ResetHistoryStoreBlob &blob) {
@@ -96,7 +96,7 @@ inline void persistResetHistoryAfterBoot(SafetyResetSnapshot &snapshot) {
                               snapshot.resetHistory,
                               snapshot.resetHistoryCount);
   resetHistoryStoreLive = next;
-  resetHistoryStoreLastCheckpointMs = 0;
+  resetHistoryStoreLastCheckpointMs.store(0, std::memory_order_relaxed);
 #endif
 }
 
@@ -105,11 +105,15 @@ inline bool persistResetUptimeCheckpoint(uint32_t uptimeMs) {
   (void)uptimeMs;
   return true;
 #else
-  if (uptimeMs < RESET_UPTIME_CHECKPOINT_INTERVAL_MS) {
+  if (uptimeMs < RESET_UPTIME_CHECKPOINT_INTERVAL_MS ||
+      uptimeMs - resetHistoryStoreLastCheckpointMs.load(
+                     std::memory_order_relaxed) <
+          RESET_UPTIME_CHECKPOINT_INTERVAL_MS) {
     return true;
   }
   if (!tryLockFlashIo(FLASH_IO_LOCK_TIMEOUT_MS)) return false;
-  if (uptimeMs - resetHistoryStoreLastCheckpointMs <
+  if (uptimeMs - resetHistoryStoreLastCheckpointMs.load(
+                     std::memory_order_relaxed) <
       RESET_UPTIME_CHECKPOINT_INTERVAL_MS) {
     unlockFlashIo();
     return true;
@@ -125,7 +129,8 @@ inline bool persistResetUptimeCheckpoint(uint32_t uptimeMs) {
   }
   if (ok) {
     resetHistoryStoreLive = next;
-    resetHistoryStoreLastCheckpointMs = uptimeMs;
+    resetHistoryStoreLastCheckpointMs.store(uptimeMs,
+                                            std::memory_order_relaxed);
   }
   unlockFlashIo();
   return ok;
@@ -152,7 +157,7 @@ inline bool clearPersistedResetHistory(uint32_t unsafeResetCount) {
   if (ok) {
     initializeSafetyResetRecord(SAFETY_RELAY_OPEN_MARKER, unsafeResetCount);
     resetHistoryStoreLive = next;
-    resetHistoryStoreLastCheckpointMs = 0;
+    resetHistoryStoreLastCheckpointMs.store(0, std::memory_order_relaxed);
   }
   unlockFlashIo();
   if (!ok) return false;

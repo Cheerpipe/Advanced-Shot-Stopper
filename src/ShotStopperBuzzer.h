@@ -79,10 +79,10 @@ struct LocalBuzzer {
   uint32_t toneHz = BUZZER_TONE_HZ;
   const BuzzerNote *sequenceNotes = nullptr;
   // The catalog and the active playback buffer both stay in internal RAM:
-  // playback starts (and pending slots resolve) from the esp_timer task under
-  // a spinlock, and reading PSRAM there while any task is mid flash write
-  // trips the "cache disabled" panic. The catalog is only ~2 KiB and written
-  // once at begin().
+  // playback starts (and pending slots resolve) from the esp_timer task, with
+  // task-context access serialized by the buzzer mutex. Reading PSRAM there
+  // while any task is mid flash write trips the "cache disabled" panic. The
+  // catalog is only ~2 KiB and written once at begin().
   RtttlNote rtttlBuf[BULLSEYE_RTTTL_MAX_NOTES] = {};
   uint8_t rtttlCount = 0;
   uint8_t bullseyeNoteCount = 0;

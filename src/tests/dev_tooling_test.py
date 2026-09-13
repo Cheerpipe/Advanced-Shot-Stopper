@@ -526,9 +526,17 @@ cleanup = scale_worker.split("if (!runtimeReady) {", 1)[1].split(
     "scaleWorkerStartupFinished.store", 1)[0]
 cleanup_order = [cleanup.index(token) for token in (
     "feedCurrentTaskWatchdog()", "shotStopperBleRuntimeStop(BLE_STACK_STOP_WAIT_MS)",
-    "esp_task_wdt_delete(nullptr)", "scaleWorkerTaskHandle = nullptr")]
+    "esp_task_wdt_delete(nullptr)", "scaleWorkerTaskHandle.store(nullptr")]
 assert cleanup_order == sorted(cleanup_order)
 assert "if (runtimeStopped)" in cleanup
+assert "std::atomic<TaskHandle_t> scaleWorkerTaskHandle" in scale_worker
+assert "TaskLockGuard lock(scaleWorkerTaskHandleMutex)" in cleanup
+reset_history = (ROOT / "src/ShotStopperResetHistoryStore.h").read_text()
+checkpoint = reset_history.split("bool persistResetUptimeCheckpoint", 1)[1].split(
+    "bool clearPersistedResetHistory", 1)[0]
+assert checkpoint.count("resetHistoryStoreLastCheckpointMs.load") == 2
+assert checkpoint.index("resetHistoryStoreLastCheckpointMs.load") < checkpoint.index(
+    "tryLockFlashIo")
 buzzer = (ROOT / "src/ShotStopperBuzzer.h").read_text()
 assert "TaskMutex mutex" in buzzer and "portMUX" not in buzzer
 network_header = (ROOT / "src/ShotStopperNetwork.h").read_text()

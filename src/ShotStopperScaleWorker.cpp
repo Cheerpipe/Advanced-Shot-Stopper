@@ -169,7 +169,8 @@ void reportNimbleRuntimeHealth(bool force) {
 
 EspressoScaleBLE scale(DEBUG);
 static ScaleWorkerBridgeCallbacks scaleWorkerBridge;
-static TaskHandle_t scaleWorkerTaskHandle = nullptr;
+static std::atomic<TaskHandle_t> scaleWorkerTaskHandle{nullptr};
+static TaskMutex scaleWorkerTaskHandleMutex;
 QueueHandle_t scaleCommandQueue = nullptr;
 QueueHandle_t scaleEventQueue = nullptr;
 portMUX_TYPE scaleLinkMux = portMUX_INITIALIZER_UNLOCKED;
@@ -317,12 +318,14 @@ void publishScaleWorkerPolicy(const RuntimeConfig &config, bool controlReady) {
 }
 
 bool scaleWorkerReady() {
-  return scaleWorkerTaskHandle != nullptr &&
+  return scaleWorkerTaskHandle.load(std::memory_order_acquire) != nullptr &&
          bleStackReady.load(std::memory_order_acquire);
 }
 
 void wakeScaleWorker() {
-  TaskHandle_t worker = scaleWorkerTaskHandle;
+  TaskLockGuard lock(scaleWorkerTaskHandleMutex);
+  TaskHandle_t worker =
+      scaleWorkerTaskHandle.load(std::memory_order_acquire);
   if (worker != nullptr) {
     (void)xTaskNotifyGive(worker);
   }
@@ -354,8 +357,9 @@ void setScaleWorkerBleReadyForHost(bool ready) {
 }
 
 void setScaleWorkerTaskPresentForHost(bool present) {
-  scaleWorkerTaskHandle =
-      present ? reinterpret_cast<TaskHandle_t>(1) : nullptr;
+  scaleWorkerTaskHandle.store(
+      present ? reinterpret_cast<TaskHandle_t>(1) : nullptr,
+      std::memory_order_release);
 }
 
 void setScaleWorkerStackMinBytesForHost(uint32_t bytes) {
@@ -363,7 +367,7 @@ void setScaleWorkerStackMinBytesForHost(uint32_t bytes) {
 }
 
 void resetScaleWorkerMetricsForHost() {
-  scaleWorkerTaskHandle = nullptr;
+  scaleWorkerTaskHandle.store(nullptr, std::memory_order_release);
   bleStackReady.store(false, std::memory_order_relaxed);
   scaleWorkerStartupFinished.store(false, std::memory_order_relaxed);
   scaleEventsDropped.store(0, std::memory_order_relaxed);
@@ -1825,7 +1829,8 @@ void syncScaleRadioCoex() {
 }
 
 bool configureScaleWorkerBridge(const ScaleWorkerBridgeCallbacks &callbacks) {
-  if (scaleWorkerTaskHandle != nullptr || callbacks.syncNetworkRf == nullptr) {
+  if (scaleWorkerTaskHandle.load(std::memory_order_acquire) != nullptr ||
+      callbacks.syncNetworkRf == nullptr) {
     return false;
   }
   scaleWorkerBridge = callbacks;
@@ -2087,6 +2092,10 @@ void serviceScaleWorkerLink() {
 }
 
 void scaleWorkerTask(void *) {
+#if !defined(SHOT_STOPPER_HOST_TEST)
+  scaleWorkerTaskHandle.store(xTaskGetCurrentTaskHandle(),
+                              std::memory_order_release);
+#endif
   uint32_t lastScanCycleMs = 0;
   uint32_t lastConnectLogMs = 0;
   bool connectAttemptSeriesActive = false;
@@ -2115,7 +2124,10 @@ void scaleWorkerTask(void *) {
         shotStopperBleRuntimeStop(BLE_STACK_STOP_WAIT_MS);
     if (watchdogSubscribed && esp_task_wdt_delete(nullptr) != ESP_OK)
       reportTaskWatchdogFault();
-    scaleWorkerTaskHandle = nullptr;
+    {
+      TaskLockGuard lock(scaleWorkerTaskHandleMutex);
+      scaleWorkerTaskHandle.store(nullptr, std::memory_order_release);
+    }
     // Callback queues may be released only after the native host proves it is
     // quiescent. Retain them on a stop timeout so late callbacks stay safe.
     if (runtimeStopped) {
@@ -2377,9 +2389,10 @@ bool initializeScaleWorker() {
     return false;
   }
 
+  TaskHandle_t createdWorker = nullptr;
   if (xTaskCreatePinnedToCore(scaleWorkerTask, "scale_worker",
                               SCALE_WORKER_TASK_STACK_SIZE, nullptr,
-                              tskIDLE_PRIORITY + 1, &scaleWorkerTaskHandle,
+                              tskIDLE_PRIORITY + 1, &createdWorker,
                               SCALE_WORKER_TASK_CORE) != pdPASS) {
     vQueueDelete(scaleCommandQueue);
     vQueueDelete(scaleEventQueue);
@@ -2393,10 +2406,14 @@ bool initializeScaleWorker() {
     }
     bleCompanionRequestQueue = nullptr;
     bleCompanionResultQueue = nullptr;
-    scaleWorkerTaskHandle = nullptr;
+    scaleWorkerTaskHandle.store(nullptr, std::memory_order_release);
     scaleWorkerStartupFinished.store(true, std::memory_order_release);
     return false;
   }
+#if defined(SHOT_STOPPER_HOST_TEST)
+  // Host task stubs do not execute scaleWorkerTask(), so publish its handle.
+  scaleWorkerTaskHandle.store(createdWorker, std::memory_order_release);
+#endif
 #if !defined(SHOT_STOPPER_HOST_TEST)
   // The native NimBLE host starts from this worker. Do not start OTA/Wi-Fi
   // until the controller has finished HCI reset: setup() continues on the
