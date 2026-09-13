@@ -98,9 +98,10 @@ an A→M scale-loss period leave gaps instead of inventing flow. Exact partial
 guard intervals remain usable. To avoid noisy boundary spikes without leaving
 holes, the short interval after the exact first-drop marker rises halfway toward
 the next contiguous measured flow, while the final boundary interval continues
-the preceding contiguous flow. When no neighboring interval is available, the
-only measured boundary rate remains visible. Max flow is unavailable when the
-curve has no usable interval.
+the preceding contiguous flow. An interval ending at an exact Fast/Slow guard
+or A→M marker continues the preceding contiguous flow the same way. When no
+neighboring interval is available, the only measured boundary rate remains
+visible. Max flow is unavailable when the curve has no usable interval.
 
 The controller stores only the weight curve. The Flow rate chart and Max flow
 are derived locally, so viewing or reloading them does not create another

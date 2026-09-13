@@ -72,9 +72,9 @@ and a fixed-size first-drop icon with an adjacent time raise the runtime cap
 from 32,250 to 32,500 bytes, CSS from 6,600 to 6,750 bytes, and the combined cap
 to 66,400 bytes, with another 1,000 bytes of JavaScript source allowance.
 Exporting the saved weight curve as per-shot CSV columns later raises the
-runtime cap from 32,500 to 32,600 bytes; the measured English build is 32,591
-bytes after the shot-curve boundary dating fix and the combined gzip stays
-below the 66,400-byte cap.
+runtime cap from 32,500 to 32,600 bytes; the measured English build is 32,597
+bytes after the shot-curve boundary dating and flow-boundary fixes and the
+combined gzip stays below the 66,400-byte cap.
 Firmware and DRAM caps are unchanged.
 The asynchronous configuration-save acknowledgement adds 256 source bytes of
 allowance for revision/value readback and pending/failed persistence checks;

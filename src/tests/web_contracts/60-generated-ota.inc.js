@@ -610,10 +610,14 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
     goalG: 36,
   });
   const guardFast = guardDip && guardDip.segs.find((s) => s.color === '#d97706');
-  if (!guardDip || !guardFast || guardFast.pts[0].t !== 25.22 ||
+  const guardBars = guardDip && guardDip.flowSegs;
+  const guardPre = guardBars ? guardBars.findIndex((s) => s.pts[1].t === 25.22) : -1;
+  if (!guardDip || !guardFast || guardPre < 1 ||
+      guardFast.pts[0].t !== 25.22 ||
       guardDip.pts.some((p, i, a) => i && p.cg < a[i - 1].cg) ||
-      guardDip.flowSegs.some((s) => s.pts[0].cg === 0) ||
-      guardDip.maxFlow > 2.9) {
+      guardBars.some((s) => s.pts[0].cg === 0) ||
+      guardBars[guardPre].pts[0].cg !== guardBars[guardPre - 1].pts[0].cg ||
+      guardDip.maxFlow !== 1.5) {
     throw new Error('Spark must not fabricate a dip or flow spike at a mid-bucket guard vertex');
   }
   const slowLate = helpers.buildShotSparkModel({
@@ -650,6 +654,22 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   }
   if (atm.flowSegs.some((s) => s.pts[0].t < 18 && s.pts[1].t > 12)) {
     throw new Error('Flow curve must leave the A→M no-scale interval empty');
+  }
+  const atmMid = helpers.buildShotSparkModel({
+    wCg: [100, 800, 1600, 2400, 2800, 3000, 3200, 3400],
+    wDtS: 2,
+    durationS: 18,
+    firstDropS: 4,
+    atmS: 11,
+    atmCg: 3100,
+    endS: 18,
+    endCg: 3400,
+    goalG: 36,
+  });
+  const preAtm = atmMid && atmMid.flowSegs.find((s) => s.pts[1].t === 11);
+  if (!preAtm || preAtm.pts[0].cg !== 200 ||
+      atmMid.flowSegs.some((s) => s.pts[0].t < 18 && s.pts[1].t > 11)) {
+    throw new Error('Flow interval ending at an A→M marker must continue the preceding flow');
   }
   const flow = helpers.shotDisplayFlowGS({
     avgFlowGS: null,
