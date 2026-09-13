@@ -68,7 +68,10 @@ titles. Use a lowercase type such as `feat`, `fix`, `docs`, `refactor`, `test`,
 `build`, `ci`, `chore`, or `perf`, a concise lowercase scope, and an imperative
 English description. Every message must have a non-empty body that enumerates
 the concrete changes and briefly explains their purpose and relevant technical
-impact; a title-only message or commit is not acceptable. Use Conventional Commit
+impact; a title-only message or commit is not acceptable. For `fix` commits,
+the body must additionally state what is being fixed (the problem or root
+cause being addressed); for any other type, the body must also include a brief
+statement of the commit's objective and/or cause. Use Conventional Commit
 footers (for example, `BREAKING CHANGE:`) when applicable.
 
 ## Local project storage
