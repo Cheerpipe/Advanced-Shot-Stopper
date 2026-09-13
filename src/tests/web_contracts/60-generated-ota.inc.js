@@ -233,8 +233,9 @@ if (generated.cssGzip.length > 6850) {
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
-if (generated.runtimeGzip.length > 32600) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 32600-byte gzip budget');
+// Continuous smoothed flow-rate polylines raise the cap from 32600 to 32800 bytes.
+if (generated.runtimeGzip.length > 32800) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 32800-byte gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -570,8 +571,11 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   const oneSecond = helpers.buildShotSparkModel({
     wCg: [0, 100, 250, 200], wDtS: 1, durationS: 4,
   });
-  const rates = oneSecond.flowSegs.map((s) => s.pts[0].cg / 100);
-  if (rates.join(',') !== '1,1.5,0' || oneSecond.maxFlow !== 1.5 ||
+  const flowCurve = oneSecond.flowSegs[0];
+  if (oneSecond.flowSegs.length !== 1 ||
+      flowCurve.pts.map((p) => p.t).join(',') !== '1,1.5,2.5,3.5,4' ||
+      flowCurve.pts[0].cg !== 100 || Math.abs(flowCurve.pts[2].cg - 250 / 3) > 1e-9 ||
+      flowCurve.pts[3].cg !== 0 || oneSecond.maxFlow !== 1.5 ||
       oneSecond.flowSegs.some((s) => s.pts.some((p) => !Number.isFinite(p.cg) || p.cg < 0))) {
     throw new Error('Flow curve must derive finite non-negative one-second local rates');
   }
@@ -581,9 +585,9 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   const livePartial = helpers.buildShotSparkModel({
     wCg: [0, 100, 200], wDtS: 1, durationS: 2.5,
   });
-  if (!partial || partial.maxFlow !== 1 || partial.flowSegs.at(-1).pts[1].t !== 2.5 ||
+  if (!partial || partial.maxFlow !== 1 || partial.flowSegs.at(-1).pts.at(-1).t !== 2.5 ||
       partial.flowSegs.at(-1).pts[0].cg !== 100 || !livePartial ||
-      livePartial.flowSegs.at(-1).pts[1].t !== 2.5 ||
+      livePartial.flowSegs.at(-1).pts.at(-1).t !== 2.5 ||
       livePartial.flowSegs.at(-1).pts[0].cg !== 100 ||
       livePartial.pts.map((p) => p.t).join(',') !== '1,2,2.5') {
     throw new Error('Flow curve must continue through exact and live partial endpoints');
@@ -591,7 +595,8 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   const missing = helpers.buildShotSparkModel({
     wCg: [0, 100, null, 300], wDtS: 1, durationS: 3,
   });
-  if (!missing || missing.flowSegs.some((s) => s.pts[1].t - s.pts[0].t > 1.0001)) {
+  if (!missing ||
+      missing.flowSegs.some((s) => s.pts.some((p, i, a) => i && p.t - a[i - 1].t > 1.0001))) {
     throw new Error('Flow curve must not bridge missing weight samples');
   }
   const guardDip = helpers.buildShotSparkModel({
@@ -610,13 +615,13 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
     goalG: 36,
   });
   const guardFast = guardDip && guardDip.segs.find((s) => s.color === '#d97706');
-  const guardBars = guardDip && guardDip.flowSegs;
-  const guardPre = guardBars ? guardBars.findIndex((s) => s.pts[1].t === 25.22) : -1;
-  if (!guardDip || !guardFast || guardPre < 1 ||
-      guardFast.pts[0].t !== 25.22 ||
+  const guardFlowFast = guardDip && guardDip.flowSegs.find((s) => s.color === '#d97706');
+  const guardFlowBbw = guardDip && guardDip.flowSegs.find((s) => s.color === '#38bdf8');
+  if (!guardDip || !guardFast || !guardFlowFast || !guardFlowBbw ||
+      guardFast.pts[0].t !== 25.22 || guardFlowFast.pts[0].t !== 25.22 ||
+      guardFlowFast.pts[0].cg !== guardFlowBbw.pts.at(-1).cg ||
       guardDip.pts.some((p, i, a) => i && p.cg < a[i - 1].cg) ||
-      guardBars.some((s) => s.pts[0].cg === 0) ||
-      guardBars[guardPre].pts[0].cg !== guardBars[guardPre - 1].pts[0].cg ||
+      guardDip.flowSegs.some((s) => s.pts[0].cg === 0) ||
       guardDip.maxFlow !== 1.5) {
     throw new Error('Spark must not fabricate a dip or flow spike at a mid-bucket guard vertex');
   }
@@ -666,8 +671,8 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
     endCg: 3400,
     goalG: 36,
   });
-  const preAtm = atmMid && atmMid.flowSegs.find((s) => s.pts[1].t === 11);
-  if (!preAtm || preAtm.pts[0].cg !== 200 ||
+  const preAtm = atmMid && atmMid.flowSegs[0].pts.at(-1);
+  if (!preAtm || preAtm.t !== 11 || preAtm.cg !== 200 ||
       atmMid.flowSegs.some((s) => s.pts[0].t < 18 && s.pts[1].t > 11)) {
     throw new Error('Flow interval ending at an A→M marker must continue the preceding flow');
   }

@@ -88,12 +88,21 @@ Flow rate adds them every 0.5 g/s. Each displayed range rounds up to the next
 reference interval and each chart grows vertically when all required labels
 would not fit at its normal compact height.
 
+The Flow rate chart draws the per-second measured rates as one continuous line
+per color instead of separate blocks. Each measured rate sits at the middle of
+the second it describes, and neighboring rates are joined with a light
+three-point average, so the curve reads as a smooth flow profile while the
+first and last measured rates stay exact. Color segments (aqua flow, orange
+Fast guard, blue Slow guard, gray A→M) break only where the extraction
+actually changes or where a gap leaves nothing to draw.
+
 The cards call shot output **Yield** while chart, goal, scale, and cup labels
 continue to use Weight where they describe weight itself. **Avg flow** remains
 the final yield divided by the time after first drop. **Max flow** is the highest
 non-negative local change between usable consecutive curve samples; Home shows
 the peak observed so far during a live shot, and saved cards reproduce it from
-the stored curve. Falling weight contributes 0 g/s, while missing samples and
+the stored curve. Max flow always reports the exact measured rates, not the
+softened line. Falling weight contributes 0 g/s, while missing samples and
 an A→M scale-loss period leave gaps instead of inventing flow. Exact partial
 guard intervals remain usable. To avoid noisy boundary spikes without leaving
 holes, the short interval after the exact first-drop marker rises halfway toward

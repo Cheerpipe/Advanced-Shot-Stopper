@@ -75,6 +75,12 @@ Exporting the saved weight curve as per-shot CSV columns later raises the
 runtime cap from 32,500 to 32,600 bytes; the measured English build is 32,597
 bytes after the shot-curve boundary dating and flow-boundary fixes and the
 combined gzip stays below the 66,400-byte cap.
+Rendering the derived Flow rate chart as one continuous polyline per color
+segment with a light centered average raises the runtime cap from 32,600 to
+32,800 bytes; the measured English build is 32,726 bytes and the combined gzip
+stays below the 66,400-byte cap at 66,390 bytes. The same change adds 273
+JavaScript source bytes and raises the JS authoring allowance from 171,500 to
+172,000 bytes, with the HTML+JS combined source at 233,010 of 233,300 bytes.
 Firmware and DRAM caps are unchanged.
 The asynchronous configuration-save acknowledgement adds 256 source bytes of
 allowance for revision/value readback and pending/failed persistence checks;

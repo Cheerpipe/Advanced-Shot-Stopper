@@ -25,6 +25,8 @@
       !weight.includes('class="shotSparkY"') || !flow.includes('class="shotSparkY shotSparkFlowY"') ||
       !weight.includes('d="M1.5 34.5 L60.8 34.5"') ||
       !flow.includes('d="M1.5 34.5 L60.8 34.5"') ||
+      (flow.match(/class="shotTrace"/g) || []).length !== 2 ||
+      !flow.includes('d="M60.8 18.0 L66.7 18.0 L84.4 1.5 L96.3 1.5"') ||
       !weight.includes('shotDropOverlay') || flow.includes('shotDropOverlay') ||
       markers.length !== 1 || !markers[0].innerHTML.includes('fill="#38bdf8"') ||
       !markers[0].innerHTML.includes('2.5 s') || markers[0].innerHTML.includes('1st') ||
@@ -45,6 +47,7 @@
   render(host, {wCg:[0, 0, 0], wDtS:1, durationS:2});
   if (host.hidden || (host.innerHTML.match(/class="shotSpark"/g) || []).length !== 2 ||
       !host.innerHTML.includes('M25.2 34.5 L48.9 34.5') ||
+      !host.innerHTML.includes('M25.2 34.5 L37.0 34.5 L48.9 34.5') ||
       render(host, {wCg:[0, 0, 0], wDtS:1, durationS:2}).maxFlow !== 0 ||
       markers.length || host.innerHTML.includes('fill-opacity')) {
     throw new Error('Live zero weight and flow must stay visible before the first drop');
@@ -76,13 +79,16 @@
   const missing = model({wCg:[0,null,100,200],wDtS:1,durationS:3});
   const falling = model({wCg:[200,100,100],wDtS:1,durationS:2});
   const atm = model({wCg:[0,100,200,300],wDtS:1,durationS:4,atmS:2,atmCg:200,endS:4,endCg:300});
-  if (partial.maxFlow !== 1 || partial.flowSegs.at(-1).pts[1].t !== 2.5 ||
+  if (partial.maxFlow !== 1 || partial.flowSegs[0].pts.length !== 4 ||
+      partial.flowSegs.at(-1).pts.at(-1).t !== 2.5 ||
       partial.flowSegs.at(-1).pts[0].cg !== 100 || startup.maxFlow !== 1 ||
+      startup.flowSegs[0].pts.length !== 5 || startup.flowSegs.at(-1).pts.at(-1).t !== 5 ||
+      Math.abs(startup.flowSegs[0].pts[2].cg - 250 / 3) > 1e-9 ||
       startup.flowSegs[0].pts[0].t !== 2.5 || startup.flowSegs[0].pts[0].cg !== 50 ||
       ending.maxFlow !== 2 || ending.flowSegs.at(-1).pts[0].cg !== 200 ||
       missing.maxFlow !== null || falling.maxFlow !== 0 ||
       atm.flowSegs.some((s) => s.pts[0].t < 4 && s.pts[1].t > 2)) {
-    throw new Error('Flow boundaries must be smoothed without changing gap semantics');
+    throw new Error('Flow curves must stay continuous and smoothed without changing gap semantics');
   }
   render(host, null);
   if (!host.hidden || host.innerHTML) throw new Error('Missing shot data must still hide the charts');
