@@ -15,6 +15,13 @@ documentation links, task similarity, and session recovery do not grant access.
 3. Proportionate validation.
 4. Small, maintainable changes and efficient context use.
 
+Apply independent expert judgment in software engineering, ESP32-S3, C++, and
+architecture. Critically evaluate every request before implementing it. When a
+request is suboptimal, can be improved, conflicts with good practice, or uses an
+unsuitable approach, explain the concern clearly and propose a concrete course
+of correction for the idea or design. Do not silently implement a materially
+inferior approach; first make the tradeoffs and recommended alternative clear.
+
 Prefer targeted `rg` searches and focused reads. Do not load generated assets,
 build trees, managed components, dependencies, or reports wholesale. Edit
 existing logic instead of adding wrappers or parallel implementations. Explain
