@@ -127,7 +127,7 @@ class LastShotStore {
           legacy.structureSize == sizeof(legacy) &&
           legacy.checksum == lastShotV3Checksum(legacy)) {
         resetLastShotBlob(blob_);
-        memcpy(&blob_.lastShot, legacy.shot, sizeof(legacy.shot));
+        memcpy(static_cast<void *>(&blob_.lastShot), legacy.shot, sizeof(legacy.shot));
         if (qualifyingGoodShot(blob_.lastShot)) {
           blob_.lastGoodShot = blob_.lastShot;
         }
@@ -143,7 +143,7 @@ class LastShotStore {
           legacy.structureSize == sizeof(legacy) &&
           legacy.checksum == lastShotV2Checksum(legacy)) {
         resetLastShotBlob(blob_);
-        memcpy(&blob_.lastShot, legacy.shot, sizeof(legacy.shot));
+        memcpy(static_cast<void *>(&blob_.lastShot), legacy.shot, sizeof(legacy.shot));
         if (qualifyingGoodShot(blob_.lastShot)) {
           blob_.lastGoodShot = blob_.lastShot;
         }
