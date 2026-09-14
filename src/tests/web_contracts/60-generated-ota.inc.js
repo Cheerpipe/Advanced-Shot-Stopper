@@ -247,8 +247,10 @@ if (generated.secondaryGzip.length > 6050) {
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');
 }
-if (generated.combined > 66400) {
-  throw new Error('Combined Web UI gzip exceeds the 66400-byte flash budget');
+// Continuous color-segment flow curves close each segment at its boundary,
+// raising the combined cap from 66400 to 66500 bytes.
+if (generated.combined > 66500) {
+  throw new Error('Combined Web UI gzip exceeds the 66500-byte flash budget');
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
@@ -620,6 +622,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   if (!guardDip || !guardFast || !guardFlowFast || !guardFlowBbw ||
       guardFast.pts[0].t !== 25.22 || guardFlowFast.pts[0].t !== 25.22 ||
       guardFlowFast.pts[0].cg !== guardFlowBbw.pts.at(-1).cg ||
+      guardFlowBbw.pts.at(-1).t !== 25.22 ||
       guardDip.pts.some((p, i, a) => i && p.cg < a[i - 1].cg) ||
       guardDip.flowSegs.some((s) => s.pts[0].cg === 0) ||
       guardDip.maxFlow !== 1.5) {

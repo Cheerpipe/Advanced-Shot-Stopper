@@ -81,6 +81,10 @@ segment with a light centered average raises the runtime cap from 32,600 to
 stays below the 66,400-byte cap at 66,390 bytes. The same change adds 273
 JavaScript source bytes and raises the JS authoring allowance from 171,500 to
 172,000 bytes, with the HTML+JS combined source at 233,010 of 233,300 bytes.
+Closing every color segment exactly at its guard boundary so the smoothed
+curve has no transition gaps raises the combined cap from 66,400 to 66,500
+bytes; the measured English build is 66,416 bytes with runtime at 32,751 of
+32,800 bytes.
 Firmware and DRAM caps are unchanged.
 The asynchronous configuration-save acknowledgement adds 256 source bytes of
 allowance for revision/value readback and pending/failed persistence checks;
