@@ -1,6 +1,6 @@
 # Web UI screenshots
 
-These dark-mode captures illustrate the layout. They are historical examples,
+These captures illustrate the layout in dark and light modes. They are historical examples,
 not a specification of current labels, defaults, build options or permissions.
 Home's old No-scale toggle has been replaced by the
 [mode-based policy](settings/no-scale-bbw.md). Use [first setup](GETTING_STARTED.md)
@@ -14,30 +14,55 @@ Quick Settings, recipe, last shot and connection status. Remote actions depend
 on build policy and Admin unlock: the Actions panel is shown only when remote
 machine control is compiled in and Admin is unlocked.
 
-![Historical Home screen with recipe and last-shot panels](images/screenshot-home-dark.JPG)
+![Historical Home screen with recipe and last-shot panels](images/screenshot-home-dark.jpeg)
 
 ### Settings
 
 Recipe and machine/scale configuration. The current group depends on the
 compiled paddle or momentary machine type.
 
-![Historical dark Settings screen](images/screenshot-settings-dark.JPG)
+![Historical dark Settings screen](images/screenshot-settings-dark.jpeg)
 
 ### Statistics
 
 See [history](features/shot-history.md) for current eligibility, sorting,
 ratings and export behavior.
 
-![Historical dark Statistics screen](images/screenshot-stats-dark.JPG)
+![Historical dark Statistics screen](images/screenshot-stats-dark.jpeg)
 
 ### Diagnostics
 
 Technical status for problem reports. A single indicator does not establish
 safe actuation.
 
-![Historical dark Diagnostics screen](images/screensho-diagnostic-dark.JPG)
+![Historical dark Diagnostics screen](images/screenshot-diagnostic-dark.jpeg)
+
+### Admin
+
+Administration panel for device password, Wi-Fi, OTA, and factory reset.
+
+![Historical dark Admin screen](images/screenshot-admin-dark.jpeg)
 
 ## Light mode
 
-No light-mode capture is supplied. The same documented controls apply;
-colors are not part of the behavior contract.
+The same documented controls apply in light mode.
+
+### Home
+
+![Historical light Home screen](images/screenshot-home-light.jpeg)
+
+### Settings
+
+![Historical light Settings screen](images/screenshot-settings-light.jpeg)
+
+### Statistics
+
+![Historical light Statistics screen](images/screenshot-stats-light.jpeg)
+
+### Diagnostics
+
+![Historical light Diagnostics screen](images/screenshot-diagnostic-light.jpeg)
+
+### Admin
+
+![Historical light Admin screen](images/screenshot-admin-light.jpeg)

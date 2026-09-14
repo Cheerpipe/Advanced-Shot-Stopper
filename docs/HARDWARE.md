@@ -5,14 +5,23 @@ warnings.
 
 ## Installation readiness
 
-The board pin map and enclosure are documented. A reviewed machine-specific
-schematic, connector pinout, power-source specification, and complete wiring
-procedure are **not yet supplied**. Do not use the photographs as a wiring
-diagram or assume compatibility from a machine name.
+The board pin map and enclosure are documented below. Machine-specific wiring diagrams and installation photos are provided as references.
 
-Before connecting a machine, obtain and verify its circuit documentation and
-complete the applicable [bench tests](MANUAL_TEST_PLAN.md). This page cannot
-replace those missing electrical details.
+### Wiring Diagrams
+
+- **Linea Micra**:
+  ![Linea Micra Wiring Diagram](images/micra_diagram.png)
+- **Rancilio Silvia Pro X**:
+  ![Rancilio Silvia Pro X Wiring Diagram](images/silvia_pro_x_diagram.png)
+
+### Installation Photos
+
+**Rancilio Silvia Pro X**:
+![Rancilio Silvia Pro X Installation 1](images/rancilio_silvia_pro_x_installation-1.png)
+![Rancilio Silvia Pro X Installation 2](images/rancilio_silvia_pro_x_installation-2.png)
+![Rancilio Silvia Pro X Installation 3](images/rancilio_silvia_pro_x_installation-3.png)
+
+Do not use the photographs alone as a complete wiring diagram or assume compatibility from a machine name. Before connecting a machine, obtain and verify its circuit documentation and complete the applicable [bench tests](MANUAL_TEST_PLAN.md). This page cannot replace complete electrical verification.
 
 On the Linea Micra, the intercepted brew-switch connector is labelled **CN9**.
 This firmware treats that contact as the **machine circuit** — the isolated
