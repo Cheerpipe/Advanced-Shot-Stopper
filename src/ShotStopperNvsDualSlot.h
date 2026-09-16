@@ -4,7 +4,7 @@
 
 namespace shotstopper {
 
-// Dual-slot pick by wrapping uint32 revision (settings + BLE Companion).
+// Dual-slot pick by wrapping uint32 revision (settings + BLE scan intensity).
 // Shot log uses an active-slot pointer instead; do not reuse this there.
 
 enum class DualSlotChoice : uint8_t {

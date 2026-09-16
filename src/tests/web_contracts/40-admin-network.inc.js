@@ -232,7 +232,7 @@ if (!network.includes('restoreLkgToActive(next)') ||
 if (!firmwareCore.includes('command.network.commitConfirmed = true') ||
     !network.includes('finalizeSavedStaCredentials(next, command.network.commitConfirmed)')) {
   throw new Error(
-      'USB SET_WIFI must commit STA credentials; Web UI / BLE Companion keep the confirm window');
+      'USB SET_WIFI must commit STA credentials; Web UI keeps the confirm window');
 }
 {
   if (network.includes('ShotStopperNetwork::loginHandler') ||
@@ -519,7 +519,7 @@ if (!ui.includes('setMutable(!!s.configMutable||!!s.webUiOverrideActive)') ||
     !ui.includes("uiOverridePanel") ||
     !ui.includes("uiOverrideButton") ||
     !ui.includes('UI Override') ||
-    !ui.includes("closest('#adminLockPanel,#diagnosticLockPanel,#uiOverridePanel,#bleCompanionPanel')") ||
+    !ui.includes("closest('#adminLockPanel,#diagnosticLockPanel,#uiOverridePanel,#bleScanPanel')") ||
     !ui.includes('function ensureUiOverridePanel(') ||
     !ui.includes('/api/v1/ui/unlock') ||
     !ui.includes('UNSAFE_WEBUI_OVERRIDE') ||

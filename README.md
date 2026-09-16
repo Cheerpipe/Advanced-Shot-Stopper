@@ -230,7 +230,7 @@ focused profiles are:
 | `asan` | Runs the host suite with ASan and UBSan to expose memory errors and undefined operations | For R2/R3 changes and when investigating crashes or suspicious memory behavior |
 | `tsan` | Runs concurrent host scenarios with TSAN to find unsafe access to shared data | For R2/R3 changes and whenever task or thread ownership changes |
 | `web` | Verifies generated Web UI assets and browser-facing contracts | After changing the Web UI, its source assets, or asset generation |
-| `ble` | Focuses the normal host suite on scale protocols and companion BLE behavior | After changing scale communication or BLE protocols |
+| `ble` | Focuses the normal host suite on scale protocols and BLE radio behavior | After changing scale communication or BLE protocols |
 | `ota` | Exercises OTA host logic plus command-line and Web resilience cases | After changing firmware-update behavior or its interfaces |
 | `tooling` | Checks the developer command facade, risk classification, and validation contracts | After changing scripts, CI, or repository workflow rules |
 

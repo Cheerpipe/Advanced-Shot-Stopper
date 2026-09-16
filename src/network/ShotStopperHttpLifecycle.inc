@@ -1107,7 +1107,7 @@ bool ShotStopperNetwork::startHttpServer() {
       registerHandler(server_, "/api/v1/device/password", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/admin/unlock", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/admin/lock", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/admin/ble-compat", HTTP_PUT, ownedApiHandler) &&
+      registerHandler(server_, "/api/v1/admin/ble-scan", HTTP_PUT, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/diagnostic/profiler", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/ota", HTTP_GET, otaStatusHandler) &&
       registerHandler(server_, "/api/v1/ota", HTTP_POST, otaUploadHandler) &&

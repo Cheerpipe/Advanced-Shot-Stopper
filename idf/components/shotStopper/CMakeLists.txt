@@ -10,8 +10,7 @@ set(SHOT_STOPPER_SRCS
   "${SHOT_STOPPER_DIR}/ShotStopperScaleWorker.cpp"
   "${SHOT_STOPPER_DIR}/ShotStopperNetwork.cpp"
   "${SHOT_STOPPER_DIR}/ShotStopperOta.cpp"
-  "${SHOT_STOPPER_DIR}/ShotStopperWebhook.cpp"
-  "${SHOT_STOPPER_DIR}/ble/ShotStopperBleCompanionNimble.cpp")
+  "${SHOT_STOPPER_DIR}/ShotStopperWebhook.cpp")
 
 idf_component_register(
   SRCS ${SHOT_STOPPER_SRCS}

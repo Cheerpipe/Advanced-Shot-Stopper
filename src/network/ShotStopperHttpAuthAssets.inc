@@ -383,7 +383,7 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
   if (apiUriMatches(request->uri, "/api/v1/device/password")) return devicePasswordHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/admin/unlock")) return adminUnlockHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/admin/lock")) return adminLockHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/admin/ble-compat")) return bleCompatHandler(request);
+  if (apiUriMatches(request->uri, "/api/v1/admin/ble-scan")) return bleScanHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/diagnostic/profiler")) return taskProfilerHandler(request);
   return sendError(request, STATUS_NOT_FOUND, "NOT_FOUND", "Unknown API route.");
 }

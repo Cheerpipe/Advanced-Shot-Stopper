@@ -127,8 +127,8 @@ inline void copyActiveStaToLkg(PersistedSettings &settings) {
   memcpy(settings.lkgDns2, settings.staDns2, sizeof(settings.lkgDns2));
 }
 
-// USB SET_WIFI commits immediately (serial is the recovery path). Web UI and
-// BLE Companion stay PENDING until an HTTP confirm, then copy to LKG.
+// USB SET_WIFI commits immediately (serial is the recovery path). Web UI
+// stays PENDING until an HTTP confirm, then copy to LKG.
 inline void finalizeSavedStaCredentials(PersistedSettings &settings,
                                         bool commitConfirmed) {
   if (commitConfirmed) {

@@ -678,7 +678,6 @@ void serviceRuntimePersistence() {
 #endif
 }
 
-bool persistBleCompanionEnabled(bool enabled);
 bool persistBleScanIntensity(BleScanIntensity intensity);
 
 void completeMaintenanceLease(const WebCommand &result) {

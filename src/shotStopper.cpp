@@ -66,9 +66,8 @@
 #include "ShotStopperDomain.h"
 #include "ShotStopperIntegrationState.h"
 #include "ShotStopperDebugExport.h"
-#include "ShotStopperBleCompanion.h"
 #if !defined(SHOT_STOPPER_HOST_TEST)
-#include "ShotStopperBleCompanionPersistence.h"
+#include "ShotStopperBleScanPersistence.h"
 #endif
 #include "ShotStopperBuzzer.h"
 #include "ShotStopperAlert.h"
@@ -118,8 +117,6 @@ using namespace shotstopper;
 
 constexpr uint32_t CONTROL_STATUS_REFRESH_WAIT_MS = 50;
 constexpr uint32_t LOOP_NO_SCALE_DELAY_MS = 5;
-constexpr uint32_t BLE_COMPANION_NO_SCALE_PUBLISH_MS = 50;
-constexpr uint32_t BLE_COMPANION_RUNTIME_PUBLISH_MS = 100;
 // Persist blob is PSRAM BSS, not a 3 KiB stack local. Keep headroom for
 // Preferences / TWDT on the flash-writing task (stack stays internal).
 constexpr uint32_t SETTINGS_PERSIST_TASK_STACK_SIZE = 4096;
@@ -331,23 +328,12 @@ struct MaintenanceLease {
 };
 
 // ---------------------------------------------------------------------------
-// BLE companion, application state and input state
+// Application state and input state
 // ---------------------------------------------------------------------------
 
 #if !defined(SHOT_STOPPER_HOST_TEST)
-ShotStopperBleCompanion *bleCompanion = nullptr;
-BleCompanionPersistedSettings bleCompanionPersistedSettings;
+BleScanPersistedSettings bleScanPersistedSettings;
 #endif
-BleCompanionRuntimeSnapshot bleCompanionRuntimeSnapshot;
-BleCompanionStatusSnapshot bleCompanionStatusSnapshot;
-
-bool bleCompanionProfileAllocated() {
-#if !defined(SHOT_STOPPER_HOST_TEST)
-  return bleCompanion != nullptr;
-#else
-  return false;
-#endif
-}
 
 StopperState stopperState = StopperState::REQUIRES_OFF;
 ShotTrajectory shot;
@@ -417,9 +403,6 @@ uint32_t observedWeightConnectionGeneration = 0;
 WeightStreamState weightStreamState = WeightStreamState::NO_SAMPLE;
 uint32_t nextCycleId = 1;
 QueueHandle_t webCommandQueue = nullptr;
-QueueHandle_t bleCompanionRequestQueue = nullptr;
-QueueHandle_t bleCompanionResultQueue = nullptr;
-TaskMutex bleCompanionMux;
 uint32_t debugLogContentionDropped = 0;
 // Snapshot of ring overwrites only. Contention drops are a separate monotonic
 // atomic counter so a producer cannot overwrite another producer's increment.
@@ -457,7 +440,6 @@ TaskMutex recipeMutex;
 BootCapabilities bootCapabilities;
 BootState bootState = BootState::BOOTING;
 bool bootDegraded = false;
-uint32_t bleCompanionResultDropped = 0;
 MaintenanceLease maintenanceLease;
 WebCommand maintenanceCancellationCommand;
 bool maintenanceCancellationPending = false;
@@ -1181,7 +1163,7 @@ void clearLastShotRuntimeState() {
 #ifndef SHOT_STOPPER_HOST_TEST
 bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
   TaskLockGuard lock(shotStoreMutex);
-  if (!resetAllDurableStores(settings, bleCompanionPersistedSettings, shotLog,
+  if (!resetAllDurableStores(settings, bleScanPersistedSettings, shotLog,
                              lastShotStore, shotCurves)) {
     return false;
   }
@@ -1369,76 +1351,6 @@ bool enqueueWebCommand(const WebCommand &command) {
          xQueueSend(webCommandQueue, &command, 0) == pdTRUE;
 }
 
-bool enqueueBleCompanionRequest(const BleCompanionRequest &request) {
-  const bool queued = bleCompanionRequestQueue != nullptr &&
-                      xQueueSend(bleCompanionRequestQueue, &request, 0) == pdTRUE;
-  if (queued) {
-    wakeScaleWorker();
-  }
-  return queued;
-}
-
-void copyBleCompanionRuntimeSnapshot(BleCompanionRuntimeSnapshot &output) {
-  bleCompanionMux.lock();
-  output = bleCompanionRuntimeSnapshot;
-  bleCompanionMux.unlock();
-}
-
-void publishBleCompanionStatus(BleCompanionStatusSnapshot status) {
-  bleCompanionMux.lock();
-  status.configuredEnabled =
-      bleCompanionRuntimeSnapshot.configuredEnabled;
-  status.restartRequired =
-      status.configuredEnabled != status.enabled;
-  bleCompanionStatusSnapshot = status;
-  bleCompanionMux.unlock();
-}
-
-BleCompanionStatusSnapshot copyBleCompanionStatus() {
-  BleCompanionStatusSnapshot output;
-  bleCompanionMux.lock();
-  output = bleCompanionStatusSnapshot;
-  bleCompanionMux.unlock();
-  return output;
-}
-
-void publishBleCompanionRuntimeSnapshot() {
-  static uint32_t lastPublishedMs = 0;
-  const uint32_t nowMs = millis();
-  if (lastPublishedMs != 0 &&
-      static_cast<uint32_t>(nowMs - lastPublishedMs) <
-          BLE_COMPANION_RUNTIME_PUBLISH_MS) {
-    return;
-  }
-  lastPublishedMs = nowMs;
-  BleCompanionRuntimeSnapshot next;
-  next.configurationAllowed = controlAllowsConfigurationNow();
-  const RuntimeConfig effective = effectiveRuntimeConfig();
-  next.brewByWeight = !effective.timerOnly;
-  next.goalWeightG = effective.goalWeightG;
-  next.autoTare = effective.autoTare;
-  next.bbwProtectionMs = effective.bbwProtectionMs;
-  next.operationalWallMs = effective.operationalWallMs;
-  next.dripDelayMs = effective.dripDelayMs;
-  next.scaleConnected =
-      getScaleLinkSnapshot().state == ScaleLinkState::CONNECTED;
-  next.shotActive = session.active;
-#if !defined(SHOT_STOPPER_HOST_TEST)
-  const NetworkStatusSnapshot network = networkManager.snapshot();
-  next.apActive = network.apActive;
-  copyCString(next.wifiSsid, sizeof(next.wifiSsid), network.staSsid);
-  copyCString(next.wifiIp, sizeof(next.wifiIp), network.staIp);
-#endif
-  bleCompanionMux.lock();
-  // Active state is immutable until reboot; the configured state may change
-  // through Admin/CLI and is applied only by the next boot.
-  next.enabled = bleCompanionStatusSnapshot.enabled;
-  next.configuredEnabled =
-      bleCompanionStatusSnapshot.configuredEnabled;
-  bleCompanionRuntimeSnapshot = next;
-  bleCompanionMux.unlock();
-}
-
 RuntimeConfig effectiveRuntimeConfig() {
   return composeEffectiveConfig(runtimeConfig, presetBank);
 }
@@ -1530,33 +1442,6 @@ bool scaleAvailable() {
 
 uint32_t controlLoopTickDelayMs() {
   return scaleAvailable() ? 1 : LOOP_NO_SCALE_DELAY_MS;
-}
-
-bool bleCompanionStatusUnchanged(const BleCompanionStatusSnapshot &a,
-                                 const BleCompanionStatusSnapshot &b) {
-  return a.enabled == b.enabled &&
-         a.configuredEnabled == b.configuredEnabled &&
-         a.restartRequired == b.restartRequired &&
-         a.stackReady == b.stackReady && a.advertising == b.advertising &&
-         a.connected == b.connected &&
-         a.protocolVersion == b.protocolVersion && a.apActive == b.apActive &&
-         a.acceptedWrites == b.acceptedWrites &&
-         a.rejectedWrites == b.rejectedWrites && a.lastReject == b.lastReject &&
-         a.lastRawError == b.lastRawError &&
-         a.advertisingStarts == b.advertisingStarts &&
-         a.advertisingFailures == b.advertisingFailures &&
-         a.phoneConnects == b.phoneConnects &&
-         a.phoneDisconnects == b.phoneDisconnects;
-}
-
-bool bleCompanionStatusShouldPublish(bool /*scaleLinked*/, bool changed,
-                                     uint32_t lastPublishMs, uint32_t nowMs) {
-  if (changed) {
-    return true;
-  }
-  return lastPublishMs == 0U ||
-         static_cast<uint32_t>(nowMs - lastPublishMs) >=
-             BLE_COMPANION_NO_SCALE_PUBLISH_MS;
 }
 
 bool weightStreamIsLive(WeightStreamState state) {

@@ -33,15 +33,11 @@ void deleteHostResources() {
   delete scaleCommandQueue;
   delete scaleEventQueue;
   delete webCommandQueue;
-  delete bleCompanionRequestQueue;
-  delete bleCompanionResultQueue;
   delete relaySafetyTimer;
   delete operationalLimitTimer;
   scaleCommandQueue = nullptr;
   scaleEventQueue = nullptr;
   webCommandQueue = nullptr;
-  bleCompanionRequestQueue = nullptr;
-  bleCompanionResultQueue = nullptr;
   relaySafetyTimer = nullptr;
   operationalLimitTimer = nullptr;
   independentSafetyTimer.resetForHost();
@@ -132,12 +128,6 @@ void resetMomentaryHarness() {
       xQueueCreate(SCALE_EVENT_QUEUE_LENGTH, sizeof(ScaleEvent));
   webCommandQueue =
       xQueueCreate(WEB_COMMAND_QUEUE_LENGTH, sizeof(WebCommand));
-  bleCompanionRequestQueue =
-      xQueueCreate(BLE_COMPANION_REQUEST_QUEUE_LENGTH,
-                   sizeof(BleCompanionRequest));
-  bleCompanionResultQueue =
-      xQueueCreate(BLE_COMPANION_RESULT_QUEUE_LENGTH,
-                   sizeof(BleCompanionResult));
   CHECK(initializeSettingsPersistenceWorker());
   CHECK(initializeRelaySafetyTimer());
   relaySafetyTimersReady = true;

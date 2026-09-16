@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ShotStopperBleCompanionPersistence.h"
+#include "ShotStopperBleScanPersistence.h"
 #include "ShotStopperLastShot.h"
 #include "ShotStopperPersistence.h"
 #include "ShotStopperShotCurve.h"
@@ -56,12 +56,12 @@ inline bool releaseNvsSpaceForFactoryReset(ShotLog &shotLog,
 
 // Erase independent NVS history first, then
 // overwrite dual-slot settings without clearing the shared NVS namespace,
-// BLE companion last. Every store is verified before success. Idempotent
+// BLE scan settings last. Every store is verified before success. Idempotent
 // except that a mid-fail may already have dropped history.
 // LastShotStore owns the status aggregate. Callers only need to drop transient
 // dirty state after this durable reset succeeds.
 inline bool resetAllDurableStores(PersistedSettings &settings,
-                                  BleCompanionPersistedSettings &ble,
+                                  BleScanPersistedSettings &ble,
                                   ShotLog &shotLog,
                                   LastShotStore &lastShot,
                                   ShotCurveLog &shotCurves) {
@@ -85,23 +85,22 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
   }
   yieldFlashIo();
   feedFlashIoWatchdog();
-  if (!resetBleCompanionSettings(ble)) {
+  if (!resetBleScanSettings(ble)) {
     return false;
   }
 
   yieldFlashIo();
   feedFlashIoWatchdog();
   PersistedSettings verifiedSettings;
-  BleCompanionPersistedSettings verifiedBle;
+  BleScanPersistedSettings verifiedBle;
   const bool shotLogVerified = shotLog.load() && shotLog.count() == 0;
   const bool shotCurvesVerified = shotCurves.load() && shotCurves.count() == 0;
   const bool lastShotVerified = lastShot.load() && !lastShot.get().valid &&
                                 !lastShot.getGood().valid;
   return loadPersistedSettings(verifiedSettings) &&
          verifyFactorySettings(verifiedSettings) &&
-         loadBleCompanionSettings(verifiedBle) && verifiedBle.enabled == 0 &&
-         verifiedBle.scanIntensity ==
-             static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE) &&
+         readLatestBleScanSettings(verifiedBle) &&
+         verifyFactoryBleScanSettings(verifiedBle) &&
          shotLogVerified && shotCurvesVerified && lastShotVerified;
 }
 

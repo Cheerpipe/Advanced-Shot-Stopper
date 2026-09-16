@@ -998,13 +998,13 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
     const factoryFnStart = network.indexOf('ShotStopperNetwork::factoryResetHandler');
     const passwordFnStart = network.indexOf('ShotStopperNetwork::devicePasswordHandler');
     const restartFnStart = network.indexOf('ShotStopperNetwork::restartHandler');
-    const bleFnStart = network.indexOf('ShotStopperNetwork::bleCompatHandler');
+    const bleFnStart = network.indexOf('ShotStopperNetwork::bleScanHandler');
     const timeFnStart = network.indexOf('ShotStopperNetwork::timeSyncHandler');
     for (const [label, start] of [
       ['factory-reset', factoryFnStart],
       ['device-password', passwordFnStart],
       ['restart', restartFnStart],
-      ['ble-compat', bleFnStart],
+      ['ble-scan', bleFnStart],
       ['task-profiler', network.indexOf('ShotStopperNetwork::taskProfilerHandler')],
       ['time-sync', timeFnStart],
       ['wifi-scan-start', network.indexOf('ShotStopperNetwork::wifiScanStartHandler')],

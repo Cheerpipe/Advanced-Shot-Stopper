@@ -48,7 +48,6 @@ else()
   host_test(ota_image_host_test LABEL "host;ota")
   host_test(ota_transfer_host_test LABEL "host;ota")
   host_test(ota_state_concurrency_host_test LABEL "host;ota;concurrency")
-  host_test(ble_companion_protocol_host_test LABEL "host;ble")
   host_test(webhook_error_host_test
     DEFINITIONS SHOT_STOPPER_HOST_TEST LABEL "host;network")
   host_test(webhook_worker_host_test LABEL "host;network")

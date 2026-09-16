@@ -327,7 +327,7 @@ esp_err_t ShotStopperNetwork::devicePasswordHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::bleCompatHandler(httpd_req_t *request) {
+esp_err_t ShotStopperNetwork::bleScanHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
@@ -338,47 +338,30 @@ esp_err_t ShotStopperNetwork::bleCompatHandler(httpd_req_t *request) {
     return bodyStatus;
   }
   cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  static const char *const fields[] = {"enabled", "scanIntensity"};
-  bool enabled = false;
+  static const char *const fields[] = {"scanIntensity"};
   char intensityText[12] = {};
   BleScanIntensity intensity = BleScanIntensity::NORMAL;
-  const bool hasEnabled = root != nullptr && jsonFieldPresent(root, "enabled");
-  const bool hasScan =
-      root != nullptr && jsonFieldPresent(root, "scanIntensity");
-  bool parsed = root != nullptr && jsonHasOnlyUniqueFields(root, fields, 2) &&
-                (hasEnabled || hasScan);
-  if (parsed && hasEnabled) {
-    parsed = jsonBoolean(root, "enabled", enabled);
-  }
-  if (parsed && hasScan) {
-    parsed = jsonString(root, "scanIntensity", intensityText,
-                        sizeof(intensityText), false) &&
-             parseBleScanIntensityId(intensityText, intensity);
-  }
+  const bool parsed =
+      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
+      jsonString(root, "scanIntensity", intensityText, sizeof(intensityText),
+                 false) &&
+      parseBleScanIntensityId(intensityText, intensity);
   if (root != nullptr) {
     cJSON_Delete(root);
   }
   self.unlockJsonBody();
   if (!parsed) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_BLE_CONFIG",
-                     "enabled must be a boolean and/or scanIntensity must be "
-                     "normal, aggressive, or light.");
+                     "scanIntensity must be normal, aggressive, or light.");
   }
   WebCommand command;
-  if (hasEnabled) {
-    command.type = enabled ? WebCommandType::BLE_COMPAT_ENABLE
-                           : WebCommandType::BLE_COMPAT_DISABLE;
-  } else {
-    command.type = WebCommandType::BLE_SCAN_INTENSITY;
-  }
-  if (hasScan) {
-    command.bleScanIntensitySpecified = true;
-    command.bleScanIntensity = static_cast<uint8_t>(intensity);
-  }
+  command.type = WebCommandType::BLE_SCAN_INTENSITY;
+  command.bleScanIntensitySpecified = true;
+  command.bleScanIntensity = static_cast<uint8_t>(intensity);
   command.requestId = self.allocateRequestId();
   if (!self.callbacks_.enqueueWebCommand(command)) {
     return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
-                     "BLE Companion state was not changed.");
+                     "Scan intensity was not changed.");
   }
   return self.sendAccepted(request, command.requestId);
 }

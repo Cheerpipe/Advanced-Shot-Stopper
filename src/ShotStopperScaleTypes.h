@@ -91,8 +91,8 @@ enum class ScaleMacCacheMode : uint8_t {
   PREFER = 2, // Bootstrap if empty; else prefer MAC, then fall back to any.
 };
 
-// GAP scan duty while discovering a scale. 0 matches existing Companion
-// reserved[0] so V1 BLEC blobs stay Normal without a version bump.
+// GAP scan duty while discovering a scale. 0 is Normal so a zeroed
+// scanIntensity byte stays a valid duty without a version bump.
 enum class BleScanIntensity : uint8_t {
   NORMAL = 0,      // 50% — 31.25 ms / 62.5 ms
   AGGRESSIVE = 1,  // 100% — 20 ms / 20 ms

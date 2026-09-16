@@ -48,15 +48,11 @@ void deleteHostResources() {
   delete scaleCommandQueue;
   delete scaleEventQueue;
   delete webCommandQueue;
-  delete bleCompanionRequestQueue;
-  delete bleCompanionResultQueue;
   delete relaySafetyTimer;
   delete operationalLimitTimer;
   scaleCommandQueue = nullptr;
   scaleEventQueue = nullptr;
   webCommandQueue = nullptr;
-  bleCompanionRequestQueue = nullptr;
-  bleCompanionResultQueue = nullptr;
   relaySafetyTimer = nullptr;
   operationalLimitTimer = nullptr;
   independentSafetyTimer.resetForHost();
@@ -176,11 +172,6 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   taskProfiler.resetForHost();
   publishedControlGate = ControlGateSnapshot{};
   controlStatusPublishRequested = false;
-  bleCompanionRuntimeSnapshot = BleCompanionRuntimeSnapshot{};
-  bleCompanionRuntimeSnapshot.enabled = true;
-  bleCompanionStatusSnapshot = BleCompanionStatusSnapshot{};
-  bleCompanionStatusSnapshot.enabled = true;
-  bleCompanionStatusSnapshot.configuredEnabled = true;
   maintenanceLease = MaintenanceLease{};
   plannedRestartHeld = false;
   pendingPlannedRestart = WebCommand{};
@@ -349,7 +340,6 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   bootCapabilities.psram = true;
   bootState = BootState::READY;
   bootDegraded = false;
-  bleCompanionResultDropped = 0;
   safetyResetStatus = SafetyResetSnapshot{};
   firmwareInitializationComplete = true;
   publishScaleWorkerPolicy(runtimeConfig, firmwareInitializationComplete);
@@ -364,17 +354,9 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
       xQueueCreate(SCALE_EVENT_QUEUE_LENGTH, sizeof(ScaleEvent));
   webCommandQueue =
       xQueueCreate(WEB_COMMAND_QUEUE_LENGTH, sizeof(WebCommand));
-  bleCompanionRequestQueue =
-      xQueueCreate(BLE_COMPANION_REQUEST_QUEUE_LENGTH,
-                   sizeof(BleCompanionRequest));
-  bleCompanionResultQueue =
-      xQueueCreate(BLE_COMPANION_RESULT_QUEUE_LENGTH,
-                   sizeof(BleCompanionResult));
   CHECK(scaleCommandQueue != nullptr);
   CHECK(scaleEventQueue != nullptr);
   CHECK(webCommandQueue != nullptr);
-  CHECK(bleCompanionRequestQueue != nullptr);
-  CHECK(bleCompanionResultQueue != nullptr);
   CHECK(initializeSettingsPersistenceWorker());
   CHECK(initializeRelaySafetyTimer());
   relaySafetyTimersReady = true;
@@ -4947,19 +4929,6 @@ void d14_control_status_publishes_on_cycle_edge() {
   CHECK(!controlStatusPublishRequested);
 }
 
-void d15_companion_publish_throttles_without_scale() {
-  CHECK(!bleCompanionStatusShouldPublish(true, false, 10, 11));
-  CHECK(bleCompanionStatusShouldPublish(false, true, 10, 11));
-  CHECK(!bleCompanionStatusShouldPublish(false, false, 10, 59));
-  CHECK(bleCompanionStatusShouldPublish(false, false, 10, 60));
-  CHECK(bleCompanionStatusShouldPublish(true, false, 10, 60));
-  CHECK(bleCompanionStatusShouldPublish(false, false, 0, 1));
-  BleCompanionStatusSnapshot a;
-  BleCompanionStatusSnapshot b;
-  CHECK(bleCompanionStatusUnchanged(a, b));
-  b.advertising = true;
-  CHECK(!bleCompanionStatusUnchanged(a, b));
-}
 
 void d02_first_mode_uses_name_scan() {
   resetHarness(false, false);
@@ -5482,44 +5451,7 @@ void d12_advertisement_history_does_not_dirty_persist() {
   CHECK(scalePreferredMacDirty);
 }
 
-void d10_companion_pauses_while_scale_connected_or_connecting() {
-  resetHarness(false, false);
-  reachReadyFromBoot();
-  scale.connected = false;
-  scale.connecting = false;
-  scale.scanning = false;
-  CHECK(!companionAdvertisingShouldPause());
-  scale.scanning = true;
-  CHECK(!companionAdvertisingShouldPause());
-  scale.scanning = false;
-  scale.connecting = true;
-  CHECK(companionAdvertisingShouldPause());
-  scale.connecting = false;
-  scale.connected = true;
-  CHECK(companionAdvertisingShouldPause());
-}
-
-void d10b_companion_pauses_for_hunt_window_after_scan_start() {
-  resetHarness(false, false);
-  reachReadyFromBoot();
-  uint32_t lastScanCycleMs = 0;
-  uint32_t lastConnectLogMs = 0;
-  bool connectAttemptSeriesActive = false;
-  uint32_t scanSessionAtMs = 0;
-  uint32_t scanLastAdvertAtMs = 0;
-  serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
-                              connectAttemptSeriesActive, scanSessionAtMs,
-                              scanLastAdvertAtMs);
-  CHECK(scale.scanning);
-  CHECK(companionAdvertisingShouldPause());
-  hostMillis += SCALE_HUNT_RF_CLEAR_MS - 1;
-  CHECK(companionAdvertisingShouldPause());
-  hostMillis += 2;
-  CHECK(!companionAdvertisingShouldPause());
-  CHECK(scale.scanning);
-}
-
-void d10c_softap_yields_discovery_and_pauses_companion() {
+void d10c_softap_yields_discovery() {
   resetHarness(false, false);
   reachReadyFromBoot();
   uint32_t lastScanCycleMs = 0;
@@ -5532,17 +5464,14 @@ void d10c_softap_yields_discovery_and_pauses_companion() {
                               scanLastAdvertAtMs);
   CHECK(scale.scanning);
   hostMillis += SCALE_HUNT_RF_CLEAR_MS + 1;
-  CHECK(!companionAdvertisingShouldPause());
   syncScaleSoftApRadio(true);
   serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
                               connectAttemptSeriesActive, scanSessionAtMs,
                               scanLastAdvertAtMs);
   CHECK(!scale.scanning);
-  CHECK(companionAdvertisingShouldPause());
   CHECK(!startScaleDiscoveryScan(nullptr, false));
-  scale.connected = true;
-  CHECK(companionAdvertisingShouldPause());
 }
+
 
 void d11_select_preferred_is_noop_when_unchanged() {
   resetHarness(false, false);
@@ -10765,12 +10694,6 @@ void sc05_serial_cli_parser_covers_supported_commands() {
   CHECK(request.verb == SerialCliVerb::SCALE_STATUS);
   CHECK(serialCliParseLine("NTP_STATUS", request));
   CHECK(request.verb == SerialCliVerb::NTP_STATUS);
-  CHECK(serialCliParseLine("BLE_COMPAT_ENABLE", request));
-  CHECK(request.verb == SerialCliVerb::BLE_COMPAT_ENABLE);
-  CHECK(serialCliParseLine("BLE_COMPAT_DISABLE", request));
-  CHECK(request.verb == SerialCliVerb::BLE_COMPAT_DISABLE);
-  CHECK(serialCliParseLine("BLE_COMPAT_STATUS", request));
-  CHECK(request.verb == SerialCliVerb::BLE_COMPAT_STATUS);
   CHECK(!serialCliParseLine("HELP extra", request));
   CHECK(request.verb == SerialCliVerb::INVALID_ARGS);
   CHECK(!serialCliParseLine("REBOOT extra", request));
@@ -10803,122 +10726,17 @@ void sc06_serial_cli_feed_completes_on_crlf() {
   CHECK(ready);
 }
 
-void bc01_ble_companion_validates_and_applies_recipe_writes() {
-  resetHarness(false, false);
-  reachReadyFromBoot();
-  BleCompanionRequest request;
-  request.sequence = 41;
-  request.type = BleCompanionRequestType::SET_GOAL_WEIGHT;
-  request.value = 42;
-  CHECK(enqueueBleCompanionRequest(request));
-  processBleCompanionRequests();
-  BleCompanionResult result;
-  CHECK(xQueueReceive(bleCompanionResultQueue, &result, 0) == pdTRUE);
-  CHECK(result.accepted);
-  CHECK(effectiveRuntimeConfig().goalWeightG == 42);
-
-  request.sequence = 42;
-  request.value = 5;
-  CHECK(enqueueBleCompanionRequest(request));
-  processBleCompanionRequests();
-  CHECK(xQueueReceive(bleCompanionResultQueue, &result, 0) == pdTRUE);
-  CHECK(!result.accepted);
-  CHECK(result.reason == BleCompanionRejectReason::INVALID_VALUE);
-  CHECK(effectiveRuntimeConfig().goalWeightG == 42);
-}
-
-void bc02_ble_companion_rejects_config_while_active_but_allows_ap() {
-  resetHarness(false, false);
-  reachReadyFromBoot();
-  session.active = true;
-  stopperState = StopperState::BREW;
-
-  BleCompanionRequest request;
-  request.sequence = 51;
-  request.type = BleCompanionRequestType::SET_AUTO_TARE;
-  request.value = 0;
-  CHECK(enqueueBleCompanionRequest(request));
-  processBleCompanionRequests();
-  BleCompanionResult result;
-  CHECK(xQueueReceive(bleCompanionResultQueue, &result, 0) == pdTRUE);
-  CHECK(!result.accepted);
-  CHECK(result.reason == BleCompanionRejectReason::NOT_READY);
-
-  request.sequence = 52;
-  request.type = BleCompanionRequestType::SET_AP_ENABLED;
-  request.value = 1;
-  CHECK(enqueueBleCompanionRequest(request));
-  processBleCompanionRequests();
-  CHECK(xQueueReceive(bleCompanionResultQueue, &result, 0) == pdTRUE);
-  CHECK(result.accepted);
-  WebCommand queued;
-  CHECK(xQueueReceive(webCommandQueue, &queued, 0) == pdTRUE);
-  CHECK(queued.type == WebCommandType::AP_START);
-}
-
-void bc03_ble_companion_rejects_legacy_reset_bbw_value() {
-  resetHarness(false, false);
-  reachReadyFromBoot();
-  runtimeConfig.autoRetare = true;
-  runtimeConfig.retareWindowMs = DEFAULT_RETARE_WINDOW_MS;
-  const uint32_t original = effectiveRuntimeConfig().bbwProtectionMs;
-  BleCompanionRequest request;
-  request.sequence = 61;
-  request.type = BleCompanionRequestType::SET_BBW_PROTECTION_SECONDS;
-  request.value = 3;
-  CHECK(enqueueBleCompanionRequest(request));
-  processBleCompanionRequests();
-  BleCompanionResult result;
-  CHECK(xQueueReceive(bleCompanionResultQueue, &result, 0) == pdTRUE);
-  CHECK(!result.accepted);
-  CHECK(result.reason == BleCompanionRejectReason::INVALID_VALUE);
-  CHECK(effectiveRuntimeConfig().bbwProtectionMs == original);
-}
-
-void bc04_ble_companion_enablement_is_next_boot_only() {
-  resetHarness(false, false);
-  CHECK(copyBleCompanionStatus().enabled);
-  CHECK(copyBleCompanionStatus().configuredEnabled);
-  CHECK(!copyBleCompanionStatus().restartRequired);
-
-  CHECK(persistBleCompanionEnabled(false));
-  const BleCompanionStatusSnapshot pendingDisable =
-      copyBleCompanionStatus();
-  CHECK(pendingDisable.enabled);
-  CHECK(!pendingDisable.configuredEnabled);
-  CHECK(pendingDisable.restartRequired);
-  BleCompanionRuntimeSnapshot runtime;
-  copyBleCompanionRuntimeSnapshot(runtime);
-  CHECK(runtime.enabled);
-  CHECK(!runtime.configuredEnabled);
-  publishControlStatus();
-  ControlStatusSnapshot control;
-  copyControlStatus(control);
-  CHECK(!control.bleCompanionEnabled);
-  CHECK(control.bleCompanionActive);
-  CHECK(control.bleCompanionRestartRequired);
-
-  CHECK(persistBleCompanionEnabled(true));
-  const BleCompanionStatusSnapshot canceled = copyBleCompanionStatus();
-  CHECK(canceled.enabled);
-  CHECK(canceled.configuredEnabled);
-  CHECK(!canceled.restartRequired);
-}
-
 void bc05_ble_scan_intensity_applies_live_without_restart() {
   resetHarness(false, false);
   CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
-  CHECK(!copyBleCompanionStatus().restartRequired);
 
   CHECK(persistBleScanIntensity(BleScanIntensity::LIGHT));
   CHECK(liveBleScanIntensity() == BleScanIntensity::LIGHT);
-  CHECK(!copyBleCompanionStatus().restartRequired);
   publishControlStatus();
   ControlStatusSnapshot control;
   copyControlStatus(control);
-  CHECK(control.bleCompanionScanIntensity ==
+  CHECK(control.bleScanIntensity ==
         static_cast<uint8_t>(BleScanIntensity::LIGHT));
-  CHECK(!control.bleCompanionRestartRequired);
 
   WebCommand command = webControlCommand(WebCommandType::BLE_SCAN_INTENSITY);
   command.bleScanIntensitySpecified = true;
@@ -10926,7 +10744,6 @@ void bc05_ble_scan_intensity_applies_live_without_restart() {
       static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE);
   processWebCommand(command);
   CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
-  CHECK(!copyBleCompanionStatus().restartRequired);
 }
 
 void sc07_reset_device_password_and_clear_wifi_queue() {
@@ -11373,12 +11190,8 @@ void b01_scale_worker_requires_ble_stack() {
   resetHarness(false, true);
   vQueueDelete(scaleCommandQueue);
   vQueueDelete(scaleEventQueue);
-  vQueueDelete(bleCompanionRequestQueue);
-  vQueueDelete(bleCompanionResultQueue);
   scaleCommandQueue = nullptr;
   scaleEventQueue = nullptr;
-  bleCompanionRequestQueue = nullptr;
-  bleCompanionResultQueue = nullptr;
   setScaleWorkerBleReadyForHost(false);
   CHECK(!initializeScaleWorker());
   publishControlStatus();
@@ -12049,18 +11862,6 @@ void f17_health_counters_are_atomic_and_monotonic() {
   CHECK(flashIoLockTimeouts() == flashBefore + kWriters * kIterations);
 }
 
-void m12_ble_companion_result_drop_is_counted() {
-  resetHarness(false, true);
-  BleCompanionResult dummy = {};
-  while (xQueueSend(bleCompanionResultQueue, &dummy, 0) == pdTRUE) {
-  }
-  const uint32_t before = bleCompanionResultDropped;
-  BleCompanionRequest request;
-  request.sequence = 42;
-  request.type = BleCompanionRequestType::SET_GOAL_WEIGHT;
-  reportBleCompanionResult(request, true, BleCompanionRejectReason::NONE);
-  CHECK(bleCompanionResultDropped == before + 1);
-}
 
 void s04b_shot_log_page_slice() {
   size_t start = 99;
@@ -15014,7 +14815,6 @@ const TestCase testCases[] = {
     {"D01", d01_idle_scan_stays_enabled_between_ticks},
     {"D13", d13_idle_delays_relax_without_scale},
     {"D14", d14_control_status_publishes_on_cycle_edge},
-    {"D15", d15_companion_publish_throttles_without_scale},
     {"D02", d02_first_mode_uses_name_scan},
     {"D02b", d02b_only_without_preferred_bootstraps_and_adopts_on_connect},
     {"D02c", d02c_prefer_adopts_an_already_connected_scale},
@@ -15033,9 +14833,7 @@ const TestCase testCases[] = {
     {"D08", d08_select_none_clears_without_pause},
     {"D09", d09_first_mode_connects_seen_advertisement},
     {"D12", d12_advertisement_history_does_not_dirty_persist},
-    {"D10", d10_companion_pauses_while_scale_connected_or_connecting},
-    {"D10b", d10b_companion_pauses_for_hunt_window_after_scan_start},
-    {"D10c", d10c_softap_yields_discovery_and_pauses_companion},
+    {"D10c", d10c_softap_yields_discovery},
     {"D11", d11_select_preferred_is_noop_when_unchanged},
     {"S01", s01_shot_log_filters_short_and_rinse},
     {"S01b", s01b_shot_log_stop_detail_names_end_reasons},
@@ -15090,7 +14888,6 @@ const TestCase testCases[] = {
     {"F14", f14_relay_timer_initialization_rolls_back_partial_handles},
     {"F17", f17_health_counters_are_atomic_and_monotonic},
     {"F18", f18_guard_early_rejection_matches_original_predicates},
-    {"M12", m12_ble_companion_result_drop_is_counted},
     {"S04b", s04b_shot_log_page_slice},
     {"S04f", s04f_shot_log_sort_date_and_rating},
     {"S06", s06_shot_log_local_sec_from_utc},
@@ -15137,10 +14934,6 @@ const TestCase testCases[] = {
     {"SC14", sc14_network_actions_queue_without_ready},
     {"SC15", sc15_status_printers_use_dump_views},
     {"SC16", sc16_debug_status_and_log_dump},
-    {"BC01", bc01_ble_companion_validates_and_applies_recipe_writes},
-    {"BC02", bc02_ble_companion_rejects_config_while_active_but_allows_ap},
-    {"BC03", bc03_ble_companion_rejects_legacy_reset_bbw_value},
-    {"BC04", bc04_ble_companion_enablement_is_next_boot_only},
     {"BC05", bc05_ble_scan_intensity_applies_live_without_restart},
 };
 

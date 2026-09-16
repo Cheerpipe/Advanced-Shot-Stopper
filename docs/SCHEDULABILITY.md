@@ -28,8 +28,8 @@ those paths are separately bounded by the 5 s TWDT. HIL qualification must
 report active-link and connect/discovery distributions separately.
 
 The scale worker blocks on a task notification with the state-dependent 1 ms
-linked/connecting or 10 ms idle timeout. Commands, policy changes, Companion
-requests and sound mailboxes notify it immediately. The timeout remains the
+linked/connecting or 10 ms idle timeout. Commands, policy changes
+and sound mailboxes notify it immediately. The timeout remains the
 compatibility path for NimBLE frames and GAP/GATT state until the backend
 publishes its asynchronous wake edge; no protocol timeout depends solely on a
 notification.

@@ -684,29 +684,8 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   ok = ok &&
        debugExportChunkf(
            request, buf, cap,
-           "\"bleCompanion\":{\"enabled\":%s,\"active\":%s,"
-           "\"restartRequired\":%s,\"stackReady\":%s,\"advertising\":%s,"
-           "\"connected\":%s,\"protocolVersion\":%u,\"acceptedWrites\":%lu,"
-           "\"rejectedWrites\":%lu,\"lastRawError\":%ld,"
-           "\"advertisingStarts\":%lu,\"advertisingFailures\":%lu,"
-           "\"phoneConnects\":%lu,\"phoneDisconnects\":%lu,"
-           "\"scanIntensity\":\"%s\"},",
-           c.bleCompanionEnabled ? "true" : "false",
-           c.bleCompanionActive ? "true" : "false",
-           c.bleCompanionRestartRequired ? "true" : "false",
-           c.bleCompanionStackReady ? "true" : "false",
-           c.bleCompanionAdvertising ? "true" : "false",
-           c.bleCompanionConnected ? "true" : "false",
-           static_cast<unsigned>(c.bleCompanionProtocolVersion),
-           static_cast<unsigned long>(c.bleCompanionAcceptedWrites),
-           static_cast<unsigned long>(c.bleCompanionRejectedWrites),
-           static_cast<long>(c.bleCompanionLastRawError),
-           static_cast<unsigned long>(c.bleCompanionAdvertisingStarts),
-           static_cast<unsigned long>(c.bleCompanionAdvertisingFailures),
-           static_cast<unsigned long>(c.bleCompanionPhoneConnects),
-           static_cast<unsigned long>(c.bleCompanionPhoneDisconnects),
-           bleScanIntensityName(clampBleScanIntensity(
-               c.bleCompanionScanIntensity)));
+           "\"bleScan\":{\"scanIntensity\":\"%s\"},",
+           bleScanIntensityName(clampBleScanIntensity(c.bleScanIntensity)));
 
   self.buildOtaJson(work.otaJson, NetworkWorkBuf::kOtaJson, controlGateOf(c), c.bootId);
   ok = ok && debugExportChunk(request, "\"ota\":");

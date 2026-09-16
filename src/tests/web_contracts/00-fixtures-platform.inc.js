@@ -110,11 +110,20 @@ function readTree(dir) {
   }).join('\n');
 }
 const bleLibrary = readTree(bleSrcDir);
-const bleCompanion = [
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperBleCompanion.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ble',
-                            'ShotStopperBleCompanionNimble.cpp'), 'utf8'),
-].join('\n');
+const companionSources = [
+  'ShotStopperBleCompanion.h',
+  'ShotStopperBleCompanionPersistence.h',
+  path.join('ble', 'ShotStopperBleCompanionNimble.cpp'),
+  path.join('ble', 'ShotStopperBleCompanionNimble.h'),
+  path.join('ble', 'ShotStopperBleCompanionProtocol.h'),
+  path.join('ble', 'ShotStopperBleRadioPolicy.h'),
+  path.join('tests', 'ble_companion_protocol_host_test.cpp'),
+];
+for (const rel of companionSources) {
+  if (fs.existsSync(path.join(sketchDir, rel))) {
+    throw new Error('BLE Companion source must be absent: ' + rel);
+  }
+}
 const taskProfiler = fs.readFileSync(
   path.join(sketchDir, 'ShotStopperTaskProfiler.h'), 'utf8');
 const sdkconfigDefaults = fs.readFileSync(
@@ -136,11 +145,12 @@ if (!idfMain.includes('bool bleInUse(void) { return true; }')) {
   throw new Error(
       'Native NimBLE must keep BLE controller memory from being released by initArduino');
 }
-if (!bleCompanion.includes('ble_gatts_add_svcs(services)') ||
-    !bleCompanion.includes('os_mbuf_append(context->om') ||
-    bleCompanion.includes('BLECharacteristic') ||
-    bleCompanion.includes('ArduinoBLE')) {
-  throw new Error('BLE Companion must use native NimBLE GATTS APIs only');
+if (firmware.includes('ble_gatts_add_svcs(') ||
+    firmware.includes('companionAdvertisingShouldPause') ||
+    firmware.includes('syncCompanionAdvertisingForScaleLink') ||
+    firmware.includes('BleCompanion') ||
+    firmware.includes('BLE_COMPAT_')) {
+  throw new Error('Firmware must not register Companion GATTS or Companion command paths');
 }
 if (!taskProfiler.includes('allocExternal(sizeof(ActiveWorkspace), AllocationOwner::PROFILER)') ||
     !taskProfiler.includes('heapCapsFree(workspace_)') ||
@@ -469,8 +479,7 @@ if (!firmware.includes('scaleWorkerTickDelayMs()') ||
     !firmwareCore.includes('void publishControlGate()') ||
     !firmwareCore.includes('vTaskDelay(pdMS_TO_TICKS(1))') ||
     firmwareCore.includes('CONTROL_STATUS_PUBLISH_MS') ||
-    firmwareCore.includes('CONTROL_STATUS_PUBLISH_NO_SCALE_MS') ||
-    (firmware.split('publishBleCompanionStatus(inactiveStatus)').length - 1) !== 1) {
+    firmwareCore.includes('CONTROL_STATUS_PUBLISH_NO_SCALE_MS')) {
   throw new Error(
       'No-scale idle must relax worker/loop; status snapshot is GET-driven, not 50 ms');
 }
@@ -555,27 +564,23 @@ if (!bleLibrary.includes(
 }
 if (firmware.includes('if (scaleLinked || changed)')) {
   throw new Error(
-      'Companion status publish must not force every tick while the scale is linked');
+      'Scale-linked status must not force a publish every tick');
 }
-if (!firmware.includes('companionAdvertisingShouldPause') ||
-    !firmware.includes('syncCompanionAdvertisingForScaleLink') ||
+if (firmware.includes('companionAdvertisingShouldPause') ||
+    firmware.includes('syncCompanionAdvertisingForScaleLink') ||
+    (firmware.split('syncCompanionAdvertisingForScaleLink();').length - 1) !== 0 ||
     !firmware.includes('scale.isConnecting()') ||
     !firmware.includes('SCALE_HUNT_RF_CLEAR_MS') ||
     !firmware.includes('scaleHuntRfClearActive') ||
     !firmware.includes('syncScaleSoftApRadio') ||
     !firmware.includes('applySoftApDiscoveryYield') ||
-    !firmware.includes('inputs.softApActive') ||
     firmware.includes('BLE.poll(') ||
     !scaleWorker.includes(
         'ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(tickDelayMs))') ||
-    (firmware.split('syncCompanionAdvertisingForScaleLink();').length - 1) < 3 ||
     (scaleWorker.split('syncScaleRadioCoex();').length - 1) < 2 ||
-    !scaleWorker.includes('GAP/GATT setup must not wait behind') ||
-    !bleCompanion.includes('!paused && status_.stackReady && !status_.connected') ||
-    !bleCompanion.includes('BLE_COMPANION_ADV_INTERVAL') ||
-    !bleCompanion.includes('params.itvl_min = BLE_COMPANION_ADV_INTERVAL')) {
+    !scaleWorker.includes('GAP/GATT setup must not wait behind')) {
   throw new Error(
-      'Companion advertising must pause while connecting, scale-linked, SoftAP-up, or in the hunt RF window; worker must block on HCI');
+      'Companion advertising must be absent; scale worker must still block on HCI and yield SoftAP discovery');
 }
 if (firmware.includes('SCALE_LINK_COEX_BT_MS') ||
     firmware.includes('scaleLinkCoexHadLink') ||

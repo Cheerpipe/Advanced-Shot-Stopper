@@ -73,7 +73,7 @@ flowchart TB
   gpio[ACTIVATOR_GPIO] --> activator[Activator]
   activator -->|UserIntent| intent[User intent]
   intent --> stopper[Stopper]
-  web[Web / BLE companion] --> stopper
+  web[Web] --> stopper
   stopper -->|request start/stop| safety[Relay safety]
   safety -->|K1| circuit[machine circuit]
   safety --> run[Machine run state]
@@ -608,7 +608,7 @@ Source: `shotStopper.cpp` (`ScaleLinkState`).
 
 | State | Meaning |
 | --- | --- |
-| `DISCONNECTED` | No GATT session. Discovery/reconnect may be running. Companion advertising can resume. |
+| `DISCONNECTED` | No GATT session. Discovery/reconnect may be running. |
 | `CONNECTED` | Notifications flowing (or about to). Blue LED may follow this if enabled. |
 
 A `connectionGeneration` and `disconnectSequence` ride on the snapshot

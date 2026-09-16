@@ -619,11 +619,8 @@ if (!js.includes('function commandOkMessage(') ||
     !js.includes('Administration locked.') ||
     !js.includes('Could not lock administration.') ||
     !js.includes("noteReachOk();message('Administration locked.','ok')") ||
-    !js.includes("noteReachOk();message((wanted?'BLE companion enabled.'") ||
     !js.includes('Shot history cleared.') ||
     !js.includes('Could not clear shot history.') ||
-    !js.includes('BLE companion enabled.') ||
-    !js.includes('Could not enable BLE companion.') ||
     !js.includes('Could not update Quick Settings.') ||
     js.includes('Shot history cleared successfully.') ||
     js.includes('Unlock failed.') ||
@@ -632,7 +629,7 @@ if (!js.includes('function commandOkMessage(') ||
 }
 {
   const commandFn = runtimeJs.slice(runtimeJs.indexOf('async function command('),
-      runtimeJs.indexOf('async function setBleCompanionEnabled('));
+      runtimeJs.indexOf('async function setBleScanIntensity('));
   if (!commandFn.includes("path.endsWith('/config')||path.endsWith('/presets')") ||
       !commandFn.includes('configRevision===previousRevision') ||
       commandFn.indexOf("message(okMsg||") < commandFn.indexOf("throw new Error('Device did not apply the change.')")) {

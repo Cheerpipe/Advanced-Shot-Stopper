@@ -3,7 +3,6 @@ void rejectWebCommand(const WebCommand &command) {
                 static_cast<int32_t>(command.type));
   reportControlCommandResult(command, CommandResultState::FAILED);
 }
-bool persistBleCompanionEnabled(bool enabled);
 bool persistBleScanIntensity(BleScanIntensity intensity);
 
 void processWebCommand(const WebCommand &command) {
@@ -583,26 +582,6 @@ void processWebCommand(const WebCommand &command) {
       }
       return;
 
-    case WebCommandType::BLE_COMPAT_ENABLE:
-    case WebCommandType::BLE_COMPAT_DISABLE: {
-      const bool enabled =
-          command.type == WebCommandType::BLE_COMPAT_ENABLE;
-      if (!persistBleCompanionEnabled(enabled)) {
-        rejectWebCommand(command);
-        return;
-      }
-      if (command.bleScanIntensitySpecified &&
-          !persistBleScanIntensity(clampBleScanIntensity(
-              command.bleScanIntensity))) {
-        rejectWebCommand(command);
-        return;
-      }
-      addDebugEvent(DebugCategory::CONFIG, DebugCode::CONFIG_ACCEPTED,
-                    enabled ? 1 : 0);
-      reportControlCommandResult(command, CommandResultState::PERSISTED);
-      return;
-    }
-
     case WebCommandType::BLE_SCAN_INTENSITY: {
       if (!persistBleScanIntensity(clampBleScanIntensity(
               command.bleScanIntensity))) {
@@ -638,220 +617,14 @@ void processWebCommands() {
   }
 }
 
-void reportBleCompanionResult(const BleCompanionRequest &request,
-                              bool accepted,
-                              BleCompanionRejectReason reason) {
-  BleCompanionResult result;
-  result.sequence = request.sequence;
-  result.accepted = accepted;
-  result.reason = accepted ? BleCompanionRejectReason::NONE : reason;
-  if (bleCompanionResultQueue != nullptr) {
-    if (xQueueSend(bleCompanionResultQueue, &result, 0) != pdTRUE) {
-      ++bleCompanionResultDropped;
-      addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_EVENT_DROPPED,
-                    static_cast<int32_t>(request.type));
-      logEmit(LogLevel::WARNING, DebugCategory::SCALE,
-              DebugCode::SCALE_EVENT_DROPPED,
-              static_cast<int32_t>(request.sequence),
-              static_cast<int32_t>(request.type));
-    }
-  }
-}
-
 bool persistBleScanIntensity(BleScanIntensity intensity) {
   intensity = clampBleScanIntensity(static_cast<uint8_t>(intensity));
 #if !defined(SHOT_STOPPER_HOST_TEST)
-  const uint8_t stored = static_cast<uint8_t>(intensity);
-  if (bleCompanionPersistedSettings.scanIntensity != stored) {
-    BleCompanionPersistedSettings candidate = bleCompanionPersistedSettings;
-    candidate.scanIntensity = stored;
-    if (!saveBleCompanionSettings(candidate)) {
-      return false;
-    }
-    bleCompanionPersistedSettings = candidate;
+  if (!persistBleScanSettingsIntensity(bleScanPersistedSettings,
+                                       static_cast<uint8_t>(intensity))) {
+    return false;
   }
 #endif
   applyLiveBleScanIntensity(intensity);
   return true;
-}
-
-bool persistBleCompanionEnabled(bool enabled) {
-#if !defined(SHOT_STOPPER_HOST_TEST)
-  if ((bleCompanionPersistedSettings.enabled != 0) != enabled) {
-    BleCompanionPersistedSettings candidate = bleCompanionPersistedSettings;
-    candidate.enabled = enabled ? 1 : 0;
-    if (!saveBleCompanionSettings(candidate)) {
-      return false;
-    }
-    bleCompanionPersistedSettings = candidate;
-  }
-#endif
-  bleCompanionMux.lock();
-  bleCompanionStatusSnapshot.configuredEnabled = enabled;
-  bleCompanionStatusSnapshot.restartRequired =
-      enabled != bleCompanionStatusSnapshot.enabled;
-  bleCompanionRuntimeSnapshot.configuredEnabled = enabled;
-  bleCompanionMux.unlock();
-  return true;
-}
-
-bool applyBleCompanionRecipeRequest(const BleCompanionRequest &request) {
-  RuntimeConfig candidateRuntime = runtimeConfig;
-  ShotPresetBank candidateBank = presetBank;
-  ensureShotPresetBank(candidateBank, candidateRuntime.retareWindowMs,
-                       candidateRuntime.autoRetare);
-  ShotPreset &candidatePreset = mutableActiveShotPreset(candidateBank);
-  uint32_t milliseconds = 0;
-
-  switch (request.type) {
-    case BleCompanionRequestType::SET_BREW_BY_WEIGHT:
-      if (request.value > 1) return false;
-      candidatePreset.brewByWeight = request.value != 0;
-      break;
-    case BleCompanionRequestType::SET_GOAL_WEIGHT:
-      candidatePreset.goalWeightG = request.value;
-      break;
-    case BleCompanionRequestType::SET_AUTO_TARE:
-      if (request.value > 1) return false;
-      candidateRuntime.autoTare = request.value != 0;
-      break;
-    case BleCompanionRequestType::SET_BBW_PROTECTION_SECONDS:
-      bleCompanionSecondsToMs(request.value, milliseconds);
-      candidatePreset.bbwProtectionMs = milliseconds;
-      break;
-    case BleCompanionRequestType::SET_OPERATIONAL_WALL_SECONDS:
-      bleCompanionSecondsToMs(request.value, milliseconds);
-      candidatePreset.operationalWallMs = milliseconds;
-      break;
-    case BleCompanionRequestType::SET_DRIP_DELAY_SECONDS:
-      bleCompanionSecondsToMs(request.value, milliseconds);
-      candidateRuntime.dripDelayMs = milliseconds;
-      break;
-    default:
-      return false;
-  }
-
-  const RuntimeConfig composed =
-      composeEffectiveConfig(candidateRuntime, candidateBank);
-  if (validateRuntimeConfig(composed) != ConfigValidationError::NONE ||
-      !validateShotPresetBank(candidateBank, candidateRuntime.retareWindowMs,
-                              candidateRuntime.autoRetare)) {
-    return false;
-  }
-  const RuntimeConfig currentEffective = effectiveRuntimeConfig();
-  if (memcmp(&candidateBank, &presetBank, sizeof(candidateBank)) == 0 &&
-      memcmp(&composed, &currentEffective, sizeof(composed)) == 0) {
-    return true;
-  }
-  presetBank = candidateBank;
-  if (candidateRuntime.autoTare != runtimeConfig.autoTare ||
-      candidateRuntime.dripDelayMs != runtimeConfig.dripDelayMs) {
-    for (uint8_t i = 0; i < presetBank.count; ++i)
-      bbwLearningBank.invalidate(presetBank.presets[i].id, presetBank, 1);
-  } else {
-    bbwLearningBank.invalidate(presetBank.activeId, presetBank);
-  }
-  RuntimeConfig committed = composed;
-  committed.revision = runtimeConfig.revision + 1;
-  if (committed.revision == 0) {
-    committed.revision = 1;
-  }
-  commitLiveRuntimeConfig(committed, RUNTIME_PERSIST_REASON_USER);
-  return true;
-}
-
-void processBleCompanionRequests() {
-  if (bleCompanionRequestQueue == nullptr) {
-    return;
-  }
-  BleCompanionRequest request;
-  if (xQueueReceive(bleCompanionRequestQueue, &request, 0) != pdTRUE) {
-    return;
-  }
-
-  if (!copyBleCompanionStatus().enabled) {
-    reportBleCompanionResult(request, false,
-                             BleCompanionRejectReason::SUPPORT_DISABLED);
-    return;
-  }
-
-  if (request.type == BleCompanionRequestType::SET_AP_ENABLED) {
-    if (request.value > 1) {
-      reportBleCompanionResult(request, false,
-                               BleCompanionRejectReason::INVALID_VALUE);
-      return;
-    }
-    WebCommand command;
-    command.type = request.value != 0 ? WebCommandType::AP_START
-                                      : WebCommandType::AP_STOP;
-    command.requestId = request.sequence;
-    const bool queued = enqueueWebCommand(command);
-    reportBleCompanionResult(
-        request, queued, queued ? BleCompanionRejectReason::NONE
-                                : BleCompanionRejectReason::QUEUE_FULL);
-    return;
-  }
-
-  if (!controlAllowsConfigurationNow() || !settingsPersistenceAvailable()) {
-    reportBleCompanionResult(request, false,
-                             BleCompanionRejectReason::NOT_READY);
-    return;
-  }
-
-  switch (request.type) {
-    case BleCompanionRequestType::SET_BREW_BY_WEIGHT:
-    case BleCompanionRequestType::SET_GOAL_WEIGHT:
-    case BleCompanionRequestType::SET_AUTO_TARE:
-    case BleCompanionRequestType::SET_BBW_PROTECTION_SECONDS:
-    case BleCompanionRequestType::SET_OPERATIONAL_WALL_SECONDS:
-    case BleCompanionRequestType::SET_DRIP_DELAY_SECONDS: {
-      const bool accepted = applyBleCompanionRecipeRequest(request);
-      reportBleCompanionResult(
-          request, accepted,
-          accepted ? BleCompanionRejectReason::NONE
-                   : BleCompanionRejectReason::INVALID_VALUE);
-      return;
-    }
-    case BleCompanionRequestType::SAVE_WIFI: {
-      if (!validWifiSsid(request.ssid) ||
-          !validWifiPassword(request.openNetwork ? "" : request.password,
-                             request.openNetwork)) {
-        reportBleCompanionResult(request, false,
-                                 BleCompanionRejectReason::INVALID_VALUE);
-        return;
-      }
-      WebCommand command;
-      command.setNetworkType(WebCommandType::SAVE_NETWORK);
-      command.requestId = request.sequence;
-      copyCString(command.network.ssid, sizeof(command.network.ssid), request.ssid);
-      command.network.openNetwork = request.openNetwork;
-      if (!request.openNetwork) {
-        copyCString(command.network.password, sizeof(command.network.password),
-                    request.password);
-      }
-      const bool queued = enqueueWebCommand(command);
-      command.wipePassword();
-      reportBleCompanionResult(
-          request, queued, queued ? BleCompanionRejectReason::NONE
-                                  : BleCompanionRejectReason::QUEUE_FULL);
-      return;
-    }
-    case BleCompanionRequestType::REBOOT: {
-      if (request.value != 1) {
-        reportBleCompanionResult(request, false,
-                                 BleCompanionRejectReason::INVALID_PAYLOAD);
-        return;
-      }
-      WebCommand command;
-      command.type = WebCommandType::RESTART;
-      command.requestId = request.sequence;
-      const bool queued = enqueueWebCommand(command);
-      reportBleCompanionResult(
-          request, queued, queued ? BleCompanionRejectReason::NONE
-                                  : BleCompanionRejectReason::QUEUE_FULL);
-      return;
-    }
-    case BleCompanionRequestType::SET_AP_ENABLED:
-      return;
-  }
 }

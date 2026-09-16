@@ -445,8 +445,15 @@ if (html.indexOf('<summary>Brew by Weight</summary>') >
   throw new Error('Cup protection master must precede Stop if cup is removed and Require cup to start; Home mirrors the master after accidental touch');
 }
 
-if (ui.includes('bleCompanionEnabled" type="checkbox" role="switch" checked>') ||
-    !ui.includes('bleCompanionEnabled') ||
+if (ui.includes('bleCompanionEnabled') ||
+    ui.includes('bleCompanionPanel') ||
+    ui.includes('/api/v1/admin/ble-compat') ||
+    ui.includes('Companion characteristics') ||
+    ui.includes('BLE companion') ||
+    network.includes('bleCompanion') ||
+    network.includes('WebCommandType::BLE_COMPAT') ||
+    networkHeader.includes('bleCompatHandler') ||
+    firmwareCore.includes('persistBleCompanionEnabled') ||
     !ui.includes('<legend>') || !ui.includes('Bluetooth') ||
     !ui.includes('bleScanIntensity') ||
     !ui.includes('Detection intensity') ||
@@ -455,27 +462,23 @@ if (ui.includes('bleCompanionEnabled" type="checkbox" role="switch" checked>') |
     ui.includes('Light 25%') ||
     !ui.includes('How aggressively the stopper looks for a scale') ||
     !ui.includes("scanIntensity:wanted") ||
-    !ui.includes('/api/v1/admin/ble-compat') ||
+    !ui.includes('/api/v1/admin/ble-scan') ||
     !ui.includes("method:'PUT'") ||
-    !ui.includes('active this boot') ||
-    !ui.includes('restart required') ||
-    !network.includes('bleCompanion') ||
-    !network.includes('restartRequired') ||
     !network.includes('scanIntensity') ||
-    !network.includes('WebCommandType::BLE_COMPAT_ENABLE') ||
     !network.includes('WebCommandType::BLE_SCAN_INTENSITY') ||
     !network.includes('command.type = WebCommandType::BLE_SCAN_INTENSITY') ||
     !firmwareCore.includes('bool persistBleScanIntensity') ||
-    !networkHeader.includes('bleCompatHandler')) {
-  throw new Error('Bluetooth Admin controls must keep Companion next-boot and live scan intensity');
+    !networkHeader.includes('bleScanHandler')) {
+  throw new Error('Bluetooth Admin controls must keep live scan intensity without Companion');
 }
 {
   const persistStart = firmwareCore.indexOf(
       'bool persistBleScanIntensity(BleScanIntensity intensity) {');
-  const persistEnd = firmwareCore.indexOf(
-      'bool persistBleCompanionEnabled(bool enabled) {', persistStart + 1);
+  const persistEnd = persistStart >= 0
+      ? firmwareCore.indexOf('\n}', persistStart)
+      : -1;
   const persist = persistStart >= 0 && persistEnd > persistStart
-      ? firmwareCore.slice(persistStart, persistEnd)
+      ? firmwareCore.slice(persistStart, persistEnd + 2)
       : '';
   if (!persist.includes('applyLiveBleScanIntensity') ||
       persist.includes('restartRequired')) {

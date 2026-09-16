@@ -62,7 +62,7 @@ risk gate in [VALIDATION.md](../VALIDATION.md).
 | Control/brew | `ARCHITECTURE.md`, `STATE_MACHINES.md`, feature docs | `src/ShotStopperBrew*`, `src/ShotStopperDomain.h` | `shot_stopper_host_test.cpp` | `./scripts/dev test normal` |
 | Machine inputs | `HARDWARE.md`, `settings/paddle.md`, `settings/momentary.md` | `src/ShotStopperMachine*` | `momentary_machine_host_test.cpp`, main host tests | `./scripts/dev validate --risk R3` |
 | Scale sensing | `ARCHITECTURE.md`, `CONCURRENCY.md` | `src/ShotStopperScale*` | main host tests | `./scripts/dev test normal` |
-| BLE protocols | library README, `CONCURRENCY.md` | `libraries/EspressoScaleBLE/src/`, `src/ble/` | library tests, `ble_companion_protocol_host_test.cpp` | `./scripts/dev test ble` |
+| BLE protocols | library README, `CONCURRENCY.md` | `libraries/EspressoScaleBLE/src/`, `src/ShotStopperScaleWorker.cpp` | library tests, main host BLE-scan cases | `./scripts/dev test ble` |
 | Network/Webhooks | feature docs, `RESOURCE_OWNERSHIP.md` | `src/ShotStopperNetwork*`, `src/ShotStopperWebhook*` | `webhook_error_host_test.cpp`, Web contract tests | `./scripts/dev validate --risk R2` |
 | Integration API | [`INTEGRATION_API.md`](INTEGRATION_API.md) | network/webhook sources | shared JSON fixtures and integration tests | `./scripts/dev validate --risk R3` |
 | OTA | `features/ota.md`, `features/ota-image-identity.md`, `EMERGENCY_RECOVERY.md` | `src/ShotStopperOta*`, `scripts/shotstopper_ota.sh` | OTA host, CLI, and Web resilience tests | `./scripts/dev test ota` |

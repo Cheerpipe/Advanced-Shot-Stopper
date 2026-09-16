@@ -102,39 +102,15 @@ void setup() {
       }
     }
   }
-  if (!loadBleCompanionSettings(bleCompanionPersistedSettings)) {
-    bleCompanionPersistedSettings = BleCompanionPersistedSettings{};
-    if (!saveBleCompanionSettings(bleCompanionPersistedSettings)) {
+  if (!loadBleScanSettings(bleScanPersistedSettings)) {
+    bleScanPersistedSettings = BleScanPersistedSettings{};
+    if (!saveBleScanSettings(bleScanPersistedSettings)) {
       addDebugEvent(DebugCategory::CONFIG, DebugCode::INITIALIZATION_FAILED,
                     BOOT_SUBSYSTEM_SETTINGS_SAVE);
     }
   }
-  const bool bleCompanionConfigured =
-      bleCompanionPersistedSettings.enabled != 0;
   applyLiveBleScanIntensity(clampBleScanIntensity(
-      bleCompanionPersistedSettings.scanIntensity));
-  bleCompanionStatusSnapshot.configuredEnabled = bleCompanionConfigured;
-  bleCompanionRuntimeSnapshot.configuredEnabled = bleCompanionConfigured;
-  if (bleCompanionConfigured) {
-    // The profile object is allocated once per boot. Backend GATT storage is
-    // registered only when enabled; reconnects never allocate this object.
-    static_assert(sizeof(ShotStopperBleCompanion) >= 64u &&
-                      sizeof(ShotStopperBleCompanion) <= 8192u,
-                  "ShotStopperBleCompanion size outside expected host budget");
-    // The object contains a portMUX and callback state read under that lock.
-    void *storage = allocInternal(sizeof(ShotStopperBleCompanion), AllocationOwner::COMPANION);
-    if (storage != nullptr) {
-      bleCompanion = new (storage) ShotStopperBleCompanion();
-      bleCompanionRuntimeSnapshot.enabled = true;
-    } else {
-      bleCompanionStatusSnapshot.lastReject =
-          BleCompanionRejectReason::ALLOCATION_FAILED;
-      addDebugEvent(DebugCategory::SCALE, DebugCode::INITIALIZATION_FAILED,
-                    BOOT_SUBSYSTEM_BLE);
-    }
-  }
-  bleCompanionStatusSnapshot.restartRequired =
-      bleCompanionConfigured != bleCompanionRuntimeSnapshot.enabled;
+      bleScanPersistedSettings.scanIntensity));
   if (settingsLoaded) {
     runtimeConfig = persistedSettings.runtime;
     bullseyeMelodyConfig = persistedSettings.bullseyeMelody;
@@ -519,7 +495,6 @@ void loop() {
   serviceSerialLogDump();
   serviceSerialCli();
   serviceMaintenanceCancellation();
-  processBleCompanionRequests();
   processWebCommands();
   taskProfiler.service(millis());
   serviceControlCommandResult();
@@ -531,7 +506,6 @@ void loop() {
   servicePendingResetHistoryClear();
   servicePendingPlannedRestart();
   serviceControlStatusPublish();
-  publishBleCompanionRuntimeSnapshot();
   serviceScaleConnectedLed();
   if (!feedCurrentTaskWatchdog()) {
     reportTaskWatchdogFault();

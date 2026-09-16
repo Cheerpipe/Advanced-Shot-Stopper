@@ -31,7 +31,7 @@ project-owned components). ESP-IDF internals, `idf/managed_components/`,
 Concurrent host coverage runs real `std::thread` producers/readers under TSAN
 for control snapshots, safety flags/timers, OTA state and JSON parsing.
 ASan/UBSan cover the main functional, persistence, external safety, OTA,
-Companion protocol and unique-resource harnesses. Target-only scheduler/radio
+and unique-resource harnesses. Target-only scheduler/radio
 coverage is specified in [P2 target trace qualification](P2_TARGET_TRACE.md).
 
 Prepare the database once, then run any tool:

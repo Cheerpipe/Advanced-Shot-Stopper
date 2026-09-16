@@ -51,7 +51,6 @@ void publishControlStatus() {
   copyPreferredScaleName(preferredName, sizeof(preferredName));
   const uint32_t macPauseRemainingMs = scaleMacCachePauseRemainingMs(now);
   const bool persistPending = liveConfigPersistPending();
-  const BleCompanionStatusSnapshot ble = copyBleCompanionStatus();
   const CupTareDiagnostics cupTare = captureCupTareDiagnostics();
   uint32_t shotBootId = 0;
   PersistedLastShot statusLastShot = {};
@@ -288,26 +287,7 @@ void publishControlStatus() {
   next.scaleWorkerReady = scaleWorkerReady();
   next.usbConsoleIo4Closed = usbConsoleJumperPresent();
   next.usbSerialEnableSource = usbSerialEnableSource;
-  next.bleCompanionResultDropped = bleCompanionResultDropped;
-  {
-    next.bleCompanionEnabled = ble.configuredEnabled;
-    next.bleCompanionActive = ble.enabled;
-    next.bleCompanionRestartRequired = ble.restartRequired;
-    next.bleCompanionStackReady = ble.stackReady;
-    next.bleCompanionAdvertising = ble.advertising;
-    next.bleCompanionConnected = ble.connected;
-    next.bleCompanionProtocolVersion = ble.protocolVersion;
-    next.bleCompanionAcceptedWrites = ble.acceptedWrites;
-    next.bleCompanionRejectedWrites = ble.rejectedWrites;
-    next.bleCompanionLastReject = static_cast<uint8_t>(ble.lastReject);
-    next.bleCompanionLastRawError = ble.lastRawError;
-    next.bleCompanionAdvertisingStarts = ble.advertisingStarts;
-    next.bleCompanionAdvertisingFailures = ble.advertisingFailures;
-    next.bleCompanionPhoneConnects = ble.phoneConnects;
-    next.bleCompanionPhoneDisconnects = ble.phoneDisconnects;
-    next.bleCompanionScanIntensity =
-        static_cast<uint8_t>(liveBleScanIntensity());
-  }
+  next.bleScanIntensity = static_cast<uint8_t>(liveBleScanIntensity());
   next.debugEventsDropped =
       __atomic_load_n(&debugLogDroppedSnapshot, __ATOMIC_RELAXED) +
       __atomic_load_n(&debugLogContentionDropped, __ATOMIC_RELAXED) +
@@ -570,6 +550,7 @@ void serialCliPrintLiveScaleStatus() {
   dump.timerAgeMs = link.timerAgeMs;
   dump.weightFresh = currentWeightIsFresh();
   dump.currentWeightG = currentWeight;
+  dump.scanIntensity = bleScanIntensityName(liveBleScanIntensity());
   serialCliPrintScaleStatus(dump);
 }
 
@@ -592,35 +573,6 @@ void serialCliPrintLiveNtpStatus() {
   dump.staUp = false;
 #endif
   serialCliPrintNtpStatus(dump);
-}
-
-void serialCliPrintBleCompanionStatus() {
-  const BleCompanionStatusSnapshot ble = copyBleCompanionStatus();
-  Serial.println("BLE_COMPAT_STATUS");
-  Serial.print("configuredEnabled=");
-  Serial.println(ble.configuredEnabled ? 1 : 0);
-  Serial.print("activeThisBoot=");
-  Serial.println(ble.enabled ? 1 : 0);
-  Serial.print("restartRequired=");
-  Serial.println(ble.restartRequired ? 1 : 0);
-  Serial.print("stackReady=");
-  Serial.println(ble.stackReady ? 1 : 0);
-  Serial.print("advertising=");
-  Serial.println(ble.advertising ? 1 : 0);
-  Serial.print("connected=");
-  Serial.println(ble.connected ? 1 : 0);
-  Serial.print("protocol=");
-  Serial.println(ble.protocolVersion);
-  Serial.print("apActive=");
-  Serial.println(ble.apActive ? 1 : 0);
-  Serial.print("acceptedWrites=");
-  Serial.println(ble.acceptedWrites);
-  Serial.print("rejectedWrites=");
-  Serial.println(ble.rejectedWrites);
-  Serial.print("lastReject=");
-  Serial.println(bleCompanionRejectReasonName(ble.lastReject));
-  Serial.print("scanIntensity=");
-  Serial.println(bleScanIntensityName(liveBleScanIntensity()));
 }
 
 void serialCliPrintLiveLogDump() {
@@ -831,18 +783,6 @@ void dispatchSerialCliRequest(SerialCliRequest &request) {
       return;
     case SerialCliVerb::NTP_STATUS:
       serialCliPrintLiveNtpStatus();
-      return;
-    case SerialCliVerb::BLE_COMPAT_ENABLE:
-    case SerialCliVerb::BLE_COMPAT_DISABLE: {
-      WebCommand command;
-      command.type = request.verb == SerialCliVerb::BLE_COMPAT_ENABLE
-                         ? WebCommandType::BLE_COMPAT_ENABLE
-                         : WebCommandType::BLE_COMPAT_DISABLE;
-      serialCliQueueCommand(command, request.verb);
-      return;
-    }
-    case SerialCliVerb::BLE_COMPAT_STATUS:
-      serialCliPrintBleCompanionStatus();
       return;
   }
 }

@@ -1,6 +1,6 @@
 #define SHOT_STOPPER_PERSISTENCE_HOST_TEST
 #include "../ShotStopperPersistence.h"
-#include "../ShotStopperBleCompanionPersistence.h"
+#include "../ShotStopperBleScanPersistence.h"
 #include "../ShotStopperDurableStores.h"
 #include "../ShotStopperRecovery.h"
 #include "../ShotStopperRecoveryGesture.h"
@@ -522,9 +522,9 @@ void p64_factory_settings_overwrite_does_not_clear_ble_namespace() {
   settings.runtime.maxRecoveryWeightG = 70.0f;
   finalizePersistedSettings(settings);
   CHECK(savePersistedSettings(settings));
-  BleCompanionPersistedSettings ble;
-  ble.enabled = 1;
-  CHECK(saveBleCompanionSettings(ble));
+  BleScanPersistedSettings ble;
+  ble.scanIntensity = static_cast<uint8_t>(BleScanIntensity::LIGHT);
+  CHECK(saveBleScanSettings(ble));
   CHECK(persistence_host::records.count("shotstopper/bleCfgA") +
             persistence_host::records.count("shotstopper/bleCfgB") >=
         1);
@@ -533,9 +533,10 @@ void p64_factory_settings_overwrite_does_not_clear_ble_namespace() {
   CHECK(persistence_host::records.count("shotstopper/bleCfgA") +
             persistence_host::records.count("shotstopper/bleCfgB") >=
         1);
-  BleCompanionPersistedSettings reloadedBle;
-  CHECK(loadBleCompanionSettings(reloadedBle));
-  CHECK(reloadedBle.enabled == 1);
+  BleScanPersistedSettings reloadedBle;
+  CHECK(loadBleScanSettings(reloadedBle));
+  CHECK(reloadedBle.scanIntensity ==
+        static_cast<uint8_t>(BleScanIntensity::LIGHT));
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
   CHECK(verifyFactorySettings(loaded));
@@ -1288,49 +1289,103 @@ void p16b_usb_set_wifi_commits_confirmed_lkg() {
   CHECK(validPersistedSettings(pending));
 }
 
-void p48_ble_companion_defaults_and_dual_slot_round_trip() {
+void p48_ble_scan_defaults_and_dual_slot_round_trip() {
   resetHostPersistence();
-  CHECK(sizeof(BleCompanionPersistedSettings) == 20);
-  BleCompanionPersistedSettings settings;
-  CHECK(settings.enabled == 0);
+  CHECK(sizeof(BleScanPersistedSettings) == 20);
+  BleScanPersistedSettings settings;
+  CHECK(settings.reservedEnabled == 0);
   CHECK(settings.scanIntensity ==
         static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE));
   settings.scanIntensity = 9;
-  finalizeBleCompanionSettings(settings);
+  finalizeBleScanSettings(settings);
   CHECK(settings.scanIntensity == 0);
-  CHECK(saveBleCompanionSettings(settings));
+  CHECK(settings.reservedEnabled == 0);
+  CHECK(settings.version == BLE_SCAN_SETTINGS_VERSION);
+  CHECK(saveBleScanSettings(settings));
   CHECK(settings.revision == 1);
-  settings.enabled = 1;
   settings.scanIntensity =
       static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE);
-  CHECK(saveBleCompanionSettings(settings));
+  CHECK(saveBleScanSettings(settings));
   CHECK(settings.revision == 2);
-  BleCompanionPersistedSettings loaded;
-  CHECK(loadBleCompanionSettings(loaded));
-  CHECK(loaded.enabled == 1);
+  BleScanPersistedSettings loaded;
+  CHECK(loadBleScanSettings(loaded));
+  CHECK(loaded.reservedEnabled == 0);
   CHECK(loaded.scanIntensity ==
         static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE));
   CHECK(loaded.revision == 2);
-  CHECK(validBleCompanionSettings(loaded));
+  CHECK(loaded.version == BLE_SCAN_SETTINGS_VERSION);
+  CHECK(validBleScanSettingsBlob(loaded));
+  BleScanPersistedSettings onDisk;
+  CHECK(readLatestBleScanSettings(onDisk));
+  CHECK(verifyFactoryBleScanSettings(onDisk));
+
+  BleScanPersistedSettings v1 = {};
+  v1.magic = BLE_SCAN_SETTINGS_MAGIC;
+  v1.version = BLE_SCAN_SETTINGS_V1_VERSION;
+  v1.structureSize = sizeof(BleScanPersistedSettings);
+  v1.revision = 3;
+  v1.reservedEnabled = 1;
+  v1.scanIntensity = static_cast<uint8_t>(BleScanIntensity::LIGHT);
+  v1.checksum = bleScanSettingsChecksum(v1);
+  CHECK(validBleScanSettingsBlob(v1));
+  CHECK(!verifyFactoryBleScanSettings(v1));
+  v1.reservedEnabled = 0;
+  v1.scanIntensity = static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE);
+  v1.checksum = bleScanSettingsChecksum(v1);
+  CHECK(validBleScanSettingsBlob(v1));
+  CHECK(!verifyFactoryBleScanSettings(v1));
+  v1.reservedEnabled = 1;
+  v1.scanIntensity = static_cast<uint8_t>(BleScanIntensity::LIGHT);
+  v1.checksum = bleScanSettingsChecksum(v1);
+  CHECK(lockSettingsNvs());
+  ShotStopperPreferences preferences(NvsSubsystem::BLE_SCAN);
+  CHECK(preferences.begin(SETTINGS_NAMESPACE, false));
+  CHECK(preferences.putBytes(BLE_SCAN_SLOT_A, &v1, sizeof(v1)) == sizeof(v1));
+  preferences.end();
+  unlockSettingsNvs();
+  BleScanPersistedSettings upgraded;
+  CHECK(loadBleScanSettings(upgraded));
+  CHECK(upgraded.scanIntensity ==
+        static_cast<uint8_t>(BleScanIntensity::LIGHT));
+  CHECK(upgraded.reservedEnabled == 0);
+  CHECK(upgraded.version == BLE_SCAN_SETTINGS_VERSION);
+  CHECK(validBleScanSettingsBlob(upgraded));
+  CHECK(readLatestBleScanSettings(onDisk));
+  CHECK(onDisk.version == BLE_SCAN_SETTINGS_V1_VERSION);
+  CHECK(onDisk.reservedEnabled == 1);
+  CHECK(!verifyFactoryBleScanSettings(onDisk));
+  CHECK(persistBleScanSettingsIntensity(
+      upgraded, static_cast<uint8_t>(BleScanIntensity::NORMAL)));
+  CHECK(readLatestBleScanSettings(onDisk));
+  CHECK(onDisk.version == BLE_SCAN_SETTINGS_VERSION);
+  CHECK(onDisk.scanIntensity ==
+        static_cast<uint8_t>(BleScanIntensity::NORMAL));
+  CHECK(validBleScanSettingsBlob(onDisk));
+  CHECK(!verifyFactoryBleScanSettings(onDisk));
 }
 
-void p49_ble_companion_corruption_falls_back_and_reset_stays_off() {
+void p49_ble_scan_corruption_falls_back_and_reset_stays_aggressive() {
   resetHostPersistence();
-  BleCompanionPersistedSettings settings;
-  CHECK(saveBleCompanionSettings(settings));
-  settings.enabled = 1;
-  CHECK(saveBleCompanionSettings(settings));
-  CHECK(persistence_host::corrupt(SETTINGS_NAMESPACE, BLE_COMPANION_SLOT_B,
-                                  offsetof(BleCompanionPersistedSettings,
+  BleScanPersistedSettings settings;
+  CHECK(saveBleScanSettings(settings));
+  settings.scanIntensity = static_cast<uint8_t>(BleScanIntensity::LIGHT);
+  CHECK(saveBleScanSettings(settings));
+  CHECK(persistence_host::corrupt(SETTINGS_NAMESPACE, BLE_SCAN_SLOT_B,
+                                  offsetof(BleScanPersistedSettings,
                                            checksum)));
-  BleCompanionPersistedSettings loaded;
-  CHECK(loadBleCompanionSettings(loaded));
-  CHECK(loaded.enabled == 0);
-  CHECK(loaded.revision == 1);
-  CHECK(resetBleCompanionSettings(loaded));
-  CHECK(loaded.enabled == 0);
+  BleScanPersistedSettings loaded;
+  CHECK(loadBleScanSettings(loaded));
   CHECK(loaded.scanIntensity ==
         static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE));
+  CHECK(loaded.revision == 1);
+  CHECK(validBleScanSettingsBlob(loaded));
+  CHECK(resetBleScanSettings(loaded));
+  CHECK(loaded.reservedEnabled == 0);
+  CHECK(loaded.scanIntensity ==
+        static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE));
+  BleScanPersistedSettings onDisk;
+  CHECK(readLatestBleScanSettings(onDisk));
+  CHECK(verifyFactoryBleScanSettings(onDisk));
 }
 
 RecoveryGestureResult recoveryEdge(RecoveryGestureRecognizer &recognizer,
@@ -1592,16 +1647,21 @@ void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
   shot.cycleId = 3;
   CHECK(lastShot.persist(shot));
 
-  BleCompanionPersistedSettings ble;
-  ble.enabled = 0;
-  CHECK(saveBleCompanionSettings(ble));
+  BleScanPersistedSettings ble;
+  ble.scanIntensity = static_cast<uint8_t>(BleScanIntensity::LIGHT);
+  CHECK(saveBleScanSettings(ble));
 
   CHECK(resetAllDurableStores(settings, ble, log, lastShot, curves));
   CHECK(verifyFactorySettings(settings));
   CHECK(log.count() == 0);
   CHECK(curves.count() == 0);
   CHECK(!lastShot.get().valid);
-  CHECK(ble.enabled == 0);
+  CHECK(ble.reservedEnabled == 0);
+  CHECK(ble.scanIntensity ==
+        static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE));
+  BleScanPersistedSettings onDisk;
+  CHECK(readLatestBleScanSettings(onDisk));
+  CHECK(verifyFactoryBleScanSettings(onDisk));
 
   settings.runtime.goalWeightG = 40;
   finalizePersistedSettings(settings);
@@ -1652,8 +1712,7 @@ void p60_factory_intent_survives_failed_store_reset() {
   CHECK(log.load());
   LastShotStore lastShot;
   CHECK(lastShot.load());
-  BleCompanionPersistedSettings ble;
-  ble.enabled = 1;
+  BleScanPersistedSettings ble;
   ShotCurveLog curves;
   CHECK(curves.load());
   persistence_host::failNextWrite = true;
@@ -2059,8 +2118,8 @@ const TestCase tests[] = {
     {"P18", p18_shot_log_keeps_history_when_inactive_slot_write_fails},
     {"P19", p19_shot_log_weight_sentinel_allows_int16_max},
     {"P29", p29_last_shot_persists_and_clears},
-    {"P48", p48_ble_companion_defaults_and_dual_slot_round_trip},
-    {"P49", p49_ble_companion_corruption_falls_back_and_reset_stays_off},
+    {"P48", p48_ble_scan_defaults_and_dual_slot_round_trip},
+    {"P49", p49_ble_scan_corruption_falls_back_and_reset_stays_aggressive},
     {"P50", p50_recovery_three_cycles_confirm_network_reset},
     {"P51", p51_recovery_five_cycles_upgrade_factory_candidate},
     {"P52", p52_recovery_rejects_four_slow_and_late_confirmation},

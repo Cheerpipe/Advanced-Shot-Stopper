@@ -7,7 +7,7 @@ credentials. Firmware on the flash is not erased.
 
 Wi-Fi (STA and last-known-good network), workflow settings, presets,
 calibration (including learned offset and A→M samples), preferred scale,
-BLE Companion preference, shot history, last completed shot, and last
+shot history, last completed shot, and last
 qualifying-good shot. The device
 password returns to **`ineedacoffee`**. The device then restarts.
 

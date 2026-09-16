@@ -2,7 +2,6 @@
 
 #include "ShotStopperDomain.h"
 #include "ShotStopperDebugExport.h"
-#include "ShotStopperBleCompanion.h"
 #include "ShotStopperPersistence.h"
 #include "ShotStopperShotCurveTypes.h"
 #include "ShotStopperShotLogTypes.h"
@@ -491,7 +490,7 @@ class ShotStopperNetwork {
   static esp_err_t wifiScanStartHandler(httpd_req_t *request);
   static esp_err_t wifiScanStatusHandler(httpd_req_t *request);
   static esp_err_t devicePasswordHandler(httpd_req_t *request);
-  static esp_err_t bleCompatHandler(httpd_req_t *request);
+  static esp_err_t bleScanHandler(httpd_req_t *request);
   static esp_err_t taskProfilerHandler(httpd_req_t *request);
   // OTA routes authenticate with the device password instead of the
   // exclusive WebUI claim, so the command line client works without stealing

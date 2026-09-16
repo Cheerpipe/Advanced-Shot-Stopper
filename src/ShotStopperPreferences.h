@@ -29,7 +29,7 @@ enum class NvsSubsystem : uint8_t {
   SETTINGS,
   SHOT_HISTORY,
   LAST_SHOT,
-  BLE_COMPANION,
+  BLE_SCAN,
   RESET_HISTORY,
   RECOVERY_INTENT,
   OTA_JOURNAL,
@@ -72,7 +72,7 @@ inline const char *nvsSubsystemName(NvsSubsystem subsystem) {
     case NvsSubsystem::SETTINGS: return "settings";
     case NvsSubsystem::SHOT_HISTORY: return "shotHistory";
     case NvsSubsystem::LAST_SHOT: return "lastShot";
-    case NvsSubsystem::BLE_COMPANION: return "bleCompanion";
+    case NvsSubsystem::BLE_SCAN: return "bleScan";
     case NvsSubsystem::RESET_HISTORY: return "resetHistory";
     case NvsSubsystem::RECOVERY_INTENT: return "recoveryIntent";
     case NvsSubsystem::OTA_JOURNAL: return "otaJournal";

@@ -207,9 +207,9 @@ if (!statusFormat.includes('page == StatusPage::Admin') ||
     }
   }
   if (!ui.includes(
-          "v==='admin'?!!(typeof s.adminUnlocked==='boolean'&&s.network&&(s.adminUnlocked?(s.bleCompanion&&typeof s.bleCompanion.enabled==='boolean'&&typeof s.bleCompanion.active==='boolean'&&typeof s.bleCompanion.restartRequired==='boolean'&&typeof s.bleCompanion.scanIntensity==='string'&&typeof c.timezoneOffsetMinutes==='number'&&c.ntpServerPreset!=null&&s.ota&&typeof s.ota.available==='boolean'&&s.webhooks&&typeof s.webhooks.enabled==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'):typeof s.network.configState==='string'))")) {
+          "v==='admin'?!!(typeof s.adminUnlocked==='boolean'&&s.network&&(s.adminUnlocked?(s.bleScan&&typeof s.bleScan.scanIntensity==='string'&&typeof c.timezoneOffsetMinutes==='number'&&c.ntpServerPreset!=null&&s.ota&&typeof s.ota.available==='boolean'&&s.webhooks&&typeof s.webhooks.enabled==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'):typeof s.network.configState==='string'))")) {
     throw new Error(
-        'statusPageOk(admin) must accept a locked payload and validate unlocked network/BLE/NTP/OTA/webhooks/lastCommand');
+        'statusPageOk(admin) must accept a locked payload and validate unlocked network/BLE scan/NTP/OTA/webhooks/lastCommand');
   }
   if (!ui.includes(
           "v==='diagnostic'?!!(typeof s.adminUnlocked==='boolean'&&(s.adminUnlocked?(s.network&&s.time&&s.maintenance&&s.health&&s.safety&&s.scale&&s.lastCommand&&typeof s.machineState==='string'&&typeof s.state==='string'&&s.cupPresence&&typeof s.physicalActivatorOn==='boolean'&&'reedOn' in s&&typeof s.relayClosed==='boolean'&&typeof s.controlSource==='string'&&typeof s.safety.state==='string'&&typeof s.scale.streamState==='string'&&typeof c.serialDebugOutput==='boolean'&&s.compileFlags&&s.serial&&typeof s.serial.io4==='string'&&typeof s.serial.state==='string'&&s.guards&&typeof s.guards.bbwEnabled==='boolean'&&s.guards.noScale&&s.guards.atm&&s.guards.slowExtraction&&s.guards.fastExtraction&&s.guards.accidentalTouch&&s.guards.cupProtection&&s.tasks&&typeof s.tasks.state==='string'):true))")) {

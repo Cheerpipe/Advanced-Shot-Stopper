@@ -6,7 +6,6 @@
 #include "tests/shot_stopper_host_stubs.h"
 #else
 #include "ShotStopperBleRuntime.h"
-#include "ShotStopperBleCompanion.h"
 #include "ShotStopperWatchdog.h"
 #include "ShotStopperHardwareTimer.h"
 #endif
@@ -23,7 +22,6 @@
 
 #endif  // !SHOT_STOPPER_SCALE_WORKER_IN_ORCHESTRATOR
 
-#include "ble/ShotStopperBleRadioPolicy.h"
 #include "ShotStopperPowerManagement.h"
 #if !defined(SHOT_STOPPER_HOST_TEST)
 #include <esp_bt.h>
@@ -43,22 +41,6 @@ void feedOrTripCurrentTaskWatchdog();
 bool feedCurrentTaskWatchdog();
 void reportTaskWatchdogFault();
 shotstopper::RelaySafetySnapshot getRelaySafetySnapshot();
-shotstopper::BleCompanionStatusSnapshot copyBleCompanionStatus();
-void copyBleCompanionRuntimeSnapshot(
-    shotstopper::BleCompanionRuntimeSnapshot &output);
-void publishBleCompanionStatus(shotstopper::BleCompanionStatusSnapshot status);
-bool bleCompanionProfileAllocated();
-bool enqueueBleCompanionRequest(const shotstopper::BleCompanionRequest &request);
-bool bleCompanionStatusUnchanged(
-    const shotstopper::BleCompanionStatusSnapshot &a,
-    const shotstopper::BleCompanionStatusSnapshot &b);
-bool bleCompanionStatusShouldPublish(bool scaleLinked, bool changed,
-                                     uint32_t lastPublishMs, uint32_t nowMs);
-extern QueueHandle_t bleCompanionRequestQueue;
-extern QueueHandle_t bleCompanionResultQueue;
-#if !defined(SHOT_STOPPER_HOST_TEST)
-extern shotstopper::ShotStopperBleCompanion *bleCompanion;
-#endif
 #endif
 
 namespace shotstopper {
@@ -789,21 +771,6 @@ void updateWorkerLinkState() {
                                         : ScaleLinkState::DISCONNECTED);
 }
 
-void publishInactiveCompanionStatus(
-    const BleCompanionRuntimeSnapshot &runtime,
-    BleCompanionRejectReason unavailableReason,
-    bool restartRequired) {
-  BleCompanionStatusSnapshot inactiveStatus;
-  inactiveStatus.stackReady = true;
-  inactiveStatus.configuredEnabled = runtime.configuredEnabled;
-  inactiveStatus.restartRequired = restartRequired && runtime.configuredEnabled;
-  inactiveStatus.apActive = runtime.apActive;
-  if (runtime.configuredEnabled) {
-    inactiveStatus.lastReject = unavailableReason;
-  }
-  publishBleCompanionStatus(inactiveStatus);
-}
-
 bool publishPendingScaleWeightEvent() {
   if (!scale.isLinkUp()) {
     return false;
@@ -1389,31 +1356,6 @@ void armScaleHuntRfClear() {
   scaleHuntRfUntilMs = millis() + SCALE_HUNT_RF_CLEAR_MS;
 }
 
-// Pause companion advertising while connecting to a scale (GAP connect cannot
-// coexist with a peripheral advert), while the machine circuit is closed
-// (brew RF preference), while a scale GATT link is up (dual-role advertising
-// is the btController hog), while SoftAP is up (WPA handshake needs airtime
-// under PREFER_BT), and for SCALE_HUNT_RF_CLEAR_MS after GAP (re)start so the
-// scanner owns the radio. After that window, scan coexists with Companion
-// advertising again.
-bool companionAdvertisingShouldPause() {
-  BleRadioPolicyInputs inputs;
-  inputs.scaleConnecting = scale.isConnecting();
-  inputs.scaleLinked = scale.isLinkUp();
-  inputs.machineCircuitClosed = getRelaySafetySnapshot().closed;
-  inputs.scaleHuntRfClear = scaleHuntRfClearActive();
-  inputs.softApActive = scaleSoftApActive.load(std::memory_order_relaxed);
-  return bleRadioPolicyPauseCompanionAdvertising(inputs);
-}
-
-void syncCompanionAdvertisingForScaleLink() {
-#if !defined(SHOT_STOPPER_HOST_TEST)
-  if (bleCompanion != nullptr) {
-    bleCompanion->setAdvertisingPaused(companionAdvertisingShouldPause());
-  }
-#endif
-}
-
 void noteScaleHistory(const char *mac, const char *name, bool persist) {
   if (mac == nullptr || !validPreferredScaleMac(mac) || mac[0] == '\0') {
     return;
@@ -1811,9 +1753,6 @@ static bool scalePowerWaking = false;
 static uint32_t scalePowerWakeStartedMs = 0;
 bool syncScalePower() {
   bool busy = scale.isConnecting() || scale.isLinkUp();
-#if !defined(SHOT_STOPPER_HOST_TEST)
-  busy = busy || (bleCompanion != nullptr && bleCompanion->status().connected);
-#endif
   powerScaleBusy.store(busy, std::memory_order_release);
   bool sleep = powerIdleSavings() && !busy &&
                powerBleError.load(std::memory_order_relaxed) == 0;
@@ -2142,8 +2081,7 @@ void scaleWorkerTask(void *) {
   }
 
 #if !defined(SHOT_STOPPER_HOST_TEST)
-  // The optional Companion GATT profile was registered before this start;
-  // the central and peripheral roles share this one native host runtime.
+  // The native host runtime is shared by the scale central role.
   const bool runtimeReady =
       shotStopperBleRuntimeStart(BLE_STACK_READY_WAIT_MS);
   bleStackReady.store(runtimeReady, std::memory_order_release);
@@ -2166,14 +2104,8 @@ void scaleWorkerTask(void *) {
     if (runtimeStopped) {
       if (scaleCommandQueue != nullptr) vQueueDelete(scaleCommandQueue);
       if (scaleEventQueue != nullptr) vQueueDelete(scaleEventQueue);
-      if (bleCompanionRequestQueue != nullptr)
-        vQueueDelete(bleCompanionRequestQueue);
-      if (bleCompanionResultQueue != nullptr)
-        vQueueDelete(bleCompanionResultQueue);
       scaleCommandQueue = nullptr;
       scaleEventQueue = nullptr;
-      bleCompanionRequestQueue = nullptr;
-      bleCompanionResultQueue = nullptr;
     }
     scaleWorkerStartupFinished.store(true, std::memory_order_release);
     vTaskDelete(nullptr);
@@ -2187,22 +2119,6 @@ void scaleWorkerTask(void *) {
   logEmit(LogLevel::INFO, DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,
           BOOT_SUBSYSTEM_BLE, 1);
   reportNimbleRuntimeHealth(true);
-  BleCompanionRuntimeSnapshot initialBleSnapshot;
-  copyBleCompanionRuntimeSnapshot(initialBleSnapshot);
-  if (bleCompanionProfileAllocated()) {
-    if (bleCompanion->begin(enqueueBleCompanionRequest)) {
-      syncCompanionAdvertisingForScaleLink();
-      publishBleCompanionStatus(bleCompanion->status());
-    } else {
-      publishInactiveCompanionStatus(initialBleSnapshot,
-                                     BleCompanionRejectReason::NOT_READY,
-                                     false);
-    }
-  } else {
-    publishInactiveCompanionStatus(initialBleSnapshot,
-                                   BleCompanionRejectReason::ALLOCATION_FAILED,
-                                   false);
-  }
 #endif
 
   for (;;) {
@@ -2232,9 +2148,7 @@ void scaleWorkerTask(void *) {
         lastBackgroundMs == 0 ||
         static_cast<uint32_t>(nowMs - lastBackgroundMs) >=
             SCALE_WORKER_BACKGROUND_MS;
-    // Must run every tick: pollScan() defers GAP connect by one Settle step,
-    // and advertising as peripheral during connect() fails on ESP32-S3.
-    // setAdvertisingPaused() is a no-op when the pause state is unchanged.
+    // Must run every tick: pollScan() defers GAP connect by one Settle step.
     if (!syncScalePower()) {
       feedOrTripCurrentTaskWatchdog();
       vTaskDelay(pdMS_TO_TICKS(10));
@@ -2244,37 +2158,7 @@ void scaleWorkerTask(void *) {
       lastBackgroundMs = nowMs;
       markScaleWorkerProgress();
     }
-    syncCompanionAdvertisingForScaleLink();
     syncScaleRadioCoex();
-
-#if !defined(SHOT_STOPPER_HOST_TEST)
-    if (bleCompanion != nullptr) {
-      BleCompanionResult bleResult;
-      while (bleCompanionResultQueue != nullptr &&
-             xQueueReceive(bleCompanionResultQueue, &bleResult, 0) == pdTRUE) {
-        bleCompanion->noteResult(bleResult);
-      }
-      if (backgroundDue) {
-        BleCompanionRuntimeSnapshot bleSnapshot;
-        copyBleCompanionRuntimeSnapshot(bleSnapshot);
-        bleCompanion->service(bleSnapshot, nowMs);
-        const BleCompanionStatusSnapshot status = bleCompanion->status();
-        static BleCompanionStatusSnapshot lastCompanionStatus = {};
-        static uint32_t lastCompanionPublishMs = 0;
-        static bool haveCompanionStatus = false;
-        const bool companionChanged =
-            !haveCompanionStatus ||
-            !bleCompanionStatusUnchanged(status, lastCompanionStatus);
-        if (bleCompanionStatusShouldPublish(scale.isLinkUp(), companionChanged,
-                                            lastCompanionPublishMs, nowMs)) {
-          publishBleCompanionStatus(status);
-          lastCompanionStatus = status;
-          lastCompanionPublishMs = nowMs;
-          haveCompanionStatus = true;
-        }
-      }
-    }
-#endif
 
     // Live GAP check once per tick. Packet timeouts and HCI events cover the
     // rest of the hot path via isLinkUp().
@@ -2343,9 +2227,6 @@ void scaleWorkerTask(void *) {
       }
     }
 
-    // Pause advertising on the same tick beginConnection() sets _connecting,
-    // so the next Settle/Connect steps never race a live peripheral advert.
-    syncCompanionAdvertisingForScaleLink();
     syncScaleRadioCoex();
 
     if (!feedCurrentTaskWatchdog()) {
@@ -2383,26 +2264,7 @@ bool initializeScaleWorker() {
       xQueueCreate(SCALE_COMMAND_QUEUE_LENGTH, sizeof(ScaleCommand));
   scaleEventQueue = xQueueCreate(SCALE_EVENT_QUEUE_LENGTH,
                                  sizeof(ScaleEvent));
-  if (bleCompanionProfileAllocated()) {
-    bleCompanionRequestQueue = xQueueCreate(BLE_COMPANION_REQUEST_QUEUE_LENGTH,
-                                            sizeof(BleCompanionRequest));
-    bleCompanionResultQueue = xQueueCreate(BLE_COMPANION_RESULT_QUEUE_LENGTH,
-                                           sizeof(BleCompanionResult));
-  }
-#if !defined(SHOT_STOPPER_HOST_TEST)
-  const bool companionPrepared =
-      !bleCompanionProfileAllocated() ||
-      (bleCompanionRequestQueue != nullptr &&
-       bleCompanionResultQueue != nullptr &&
-       bleCompanion->prepare(enqueueBleCompanionRequest));
-#else
-  const bool companionPrepared = true;
-#endif
-  if (scaleCommandQueue == nullptr || scaleEventQueue == nullptr ||
-      (bleCompanionProfileAllocated() &&
-       (bleCompanionRequestQueue == nullptr ||
-        bleCompanionResultQueue == nullptr)) ||
-      !companionPrepared) {
+  if (scaleCommandQueue == nullptr || scaleEventQueue == nullptr) {
     if (scaleCommandQueue != nullptr) {
       vQueueDelete(scaleCommandQueue);
       scaleCommandQueue = nullptr;
@@ -2410,14 +2272,6 @@ bool initializeScaleWorker() {
     if (scaleEventQueue != nullptr) {
       vQueueDelete(scaleEventQueue);
       scaleEventQueue = nullptr;
-    }
-    if (bleCompanionRequestQueue != nullptr) {
-      vQueueDelete(bleCompanionRequestQueue);
-      bleCompanionRequestQueue = nullptr;
-    }
-    if (bleCompanionResultQueue != nullptr) {
-      vQueueDelete(bleCompanionResultQueue);
-      bleCompanionResultQueue = nullptr;
     }
     return false;
   }
@@ -2431,14 +2285,6 @@ bool initializeScaleWorker() {
     vQueueDelete(scaleEventQueue);
     scaleCommandQueue = nullptr;
     scaleEventQueue = nullptr;
-    if (bleCompanionRequestQueue != nullptr) {
-      vQueueDelete(bleCompanionRequestQueue);
-    }
-    if (bleCompanionResultQueue != nullptr) {
-      vQueueDelete(bleCompanionResultQueue);
-    }
-    bleCompanionRequestQueue = nullptr;
-    bleCompanionResultQueue = nullptr;
     scaleWorkerTaskHandle.store(nullptr, std::memory_order_release);
     scaleWorkerStartupFinished.store(true, std::memory_order_release);
     return false;

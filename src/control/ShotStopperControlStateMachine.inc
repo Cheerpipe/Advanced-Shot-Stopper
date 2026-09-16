@@ -202,8 +202,8 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
   stopPulseTrains();
   cancelScaleBrewBeep(session.id);
   cancelScaleCompletionBeep();
-  // GPIO first, then the machine circuit-open cue. BLE advertising resume is
-  // owned by the BLE worker (companion pause + syncScaleRadioCoex).
+  // GPIO first, then the machine circuit-open cue. BLE RF coexistence is
+  // owned by the BLE worker (syncScaleRadioCoex).
   if (brewWeightCutSettlesMachineOff(reason)) {
     machineArmSettledWeightCutOff();
   } else {

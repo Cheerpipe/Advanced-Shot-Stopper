@@ -1682,8 +1682,6 @@ enum class WebCommandType : uint8_t {
   WEBUI_START,
   WEBUI_STOP,
   WEBUI_RESTART,
-  BLE_COMPAT_ENABLE,
-  BLE_COMPAT_DISABLE,
   BLE_SCAN_INTENSITY,
   TASK_PROFILER_START,
   TASK_PROFILER_STOP,
@@ -1737,8 +1735,6 @@ inline const char *webCommandTypeName(WebCommandType type) {
     case WebCommandType::WEBUI_START: return "start Web UI";
     case WebCommandType::WEBUI_STOP: return "stop Web UI";
     case WebCommandType::WEBUI_RESTART: return "restart Web UI";
-    case WebCommandType::BLE_COMPAT_ENABLE: return "enable BLE Companion";
-    case WebCommandType::BLE_COMPAT_DISABLE: return "disable BLE Companion";
     case WebCommandType::BLE_SCAN_INTENSITY: return "set BLE scan intensity";
     case WebCommandType::TASK_PROFILER_START: return "start task profiler";
     case WebCommandType::TASK_PROFILER_STOP: return "stop task profiler";
@@ -1790,11 +1786,11 @@ struct WebCommandNetworkPayload {
   char ssid[WIFI_SSID_CAPACITY] = {};
   char password[WIFI_PASSWORD_CAPACITY] = {};
   bool openNetwork = false;
-  // Admin "Wi-Fi sleep". USB/BLE leave wifiSleepSpecified false so
+  // Admin "Wi-Fi sleep". USB leaves wifiSleepSpecified false so
   // SET_WIFI does not clobber the persisted flag.
   bool wifiSleep = false;
   bool wifiSleepSpecified = false;
-  // USB SET_WIFI only. Web UI / BLE Companion keep the HTTP confirm window.
+  // USB SET_WIFI only. Web UI keeps the HTTP confirm window.
   bool commitConfirmed = false;
   uint8_t staIpMode = static_cast<uint8_t>(StaIpMode::DHCP);
   uint8_t staIp[4] = {};
@@ -2196,23 +2192,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   bool scaleWorkerReady = false;
   bool usbConsoleIo4Closed = false;
   UsbSerialEnableSource usbSerialEnableSource = UsbSerialEnableSource::OFF;
-  uint32_t bleCompanionResultDropped = 0;
-  bool bleCompanionEnabled = false;
-  bool bleCompanionActive = false;
-  bool bleCompanionRestartRequired = false;
-  bool bleCompanionStackReady = false;
-  bool bleCompanionAdvertising = false;
-  bool bleCompanionConnected = false;
-  uint8_t bleCompanionProtocolVersion = 2;
-  uint32_t bleCompanionAcceptedWrites = 0;
-  uint32_t bleCompanionRejectedWrites = 0;
-  uint8_t bleCompanionLastReject = 0;
-  int32_t bleCompanionLastRawError = 0;
-  uint32_t bleCompanionAdvertisingStarts = 0;
-  uint32_t bleCompanionAdvertisingFailures = 0;
-  uint32_t bleCompanionPhoneConnects = 0;
-  uint32_t bleCompanionPhoneDisconnects = 0;
-  uint8_t bleCompanionScanIntensity = 0;
+  uint8_t bleScanIntensity = 0;
 };
 
 // Published copy lives in BSS, not on the 8 KiB loop stack.

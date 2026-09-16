@@ -80,9 +80,6 @@ discovery begins.
    factory **Aggressive**, with Normal and Light reducing scan duty.
    Optional [Power management](power-management.md) temporarily uses Light in
    idle; switching it off restores the saved intensity.
-5. **BLE Companion** is separate from scale support. It is off by default;
-   changing its preference takes effect after reboot and does not disable the
-   scale connection. The Admin/USB status distinguishes saved and active state.
 
 Related: [Brew by weight](../features/brew-by-weight.md), [Tare](tare.md),
 [Alerts](../alerts.md).

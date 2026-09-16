@@ -11,7 +11,6 @@ destination buffers, and the `uxTaskGetSystemState` capture array must be in
 internal RAM. The persistence queue carries a one-byte token; its single
 PSRAM mailbox is immutable from enqueue until the control task consumes the
 worker's completion. A failed enqueue releases that ownership immediately.
-The Companion object remains internal because it contains callback spinlocks.
 
 ## Lock DAG
 
@@ -26,7 +25,7 @@ No reverse edge is permitted. A callback that would require one must publish a
 queue item or atomic latch for the owner instead.
 
 Control status gathers machine/relay, scale telemetry, preferred-scale,
-persistence and Companion inputs before taking its publication mutex. The
+and persistence inputs before taking its publication mutex. The
 machine facade supplies a small scalar sample; publication does not allocate a
 second full status snapshot. Readers can use the previous committed version
 while an input owner is busy. The status version is published with the completed
@@ -78,7 +77,7 @@ on core 0.
 This is the retained-lock inventory for the resource/concurrency qualification
 work; the filename/section label is preserved for existing references.
 
-The task-only bullseye configuration, BLE Companion publication,
+The task-only bullseye configuration,
 settings-persistence handoff, and scale critical/weight handoffs use static
 FreeRTOS mutexes. These paths can be reached from lower-priority HTTP,
 network, persistence, BLE or control tasks and therefore require priority
@@ -90,7 +89,7 @@ The remaining `portMUX_TYPE` groups are tracked explicitly:
   spinlocked and be measured on target;
 - scale link/beep/debug snapshots: hot BLE/control publication, pending the
   event-driven worker conversion;
-- time service, native BLE runtime, Companion NimBLE and EspressoScaleBLE
+- time service, native BLE runtime, and EspressoScaleBLE
   callback registries/queues: callback-facing state whose call context must be
   proven before conversion.
 

@@ -1,6 +1,6 @@
 # Firmware instructions
 
-- Editable sources are `src/*.{h,cpp,ino}` and `src/ble/`; generated
+- Editable sources are `src/*.{h,cpp,ino}`; generated
   `ShotStopperVersion.h` and `ShotStopperWebAssetsGzip.h` must be regenerated,
   not hand-edited. `ShotStopperWebAssets.h` is a stable source-side contract.
 - Read `docs/ARCHITECTURE.md`, `docs/STATE_MACHINES.md`, and

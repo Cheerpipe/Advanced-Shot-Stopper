@@ -24,5 +24,4 @@ src/ShotStopperPowerManagement.cpp
 src/ShotStopperResetGuard.cpp
 src/ShotStopperScaleWorker.cpp
 src/ShotStopperWebhook.cpp
-src/ble/ShotStopperBleCompanionNimble.cpp
 src/shotStopper.cpp

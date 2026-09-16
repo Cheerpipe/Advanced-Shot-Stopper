@@ -626,14 +626,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           "\"configuredIp\":\"%s\",\"configuredNetmask\":\"%s\","
           "\"configuredGateway\":\"%s\",\"configuredDns1\":\"%s\","
           "\"configuredDns2\":\"%s\"},"
-          "\"bleCompanion\":{\"enabled\":%s,\"active\":%s,"
-          "\"restartRequired\":%s,\"stackReady\":%s,"
-          "\"advertising\":%s,\"connected\":%s,\"protocolVersion\":%u,"
-          "\"acceptedWrites\":%lu,\"rejectedWrites\":%lu,"
-          "\"lastReject\":\"%s\",\"lastRawError\":%ld,"
-          "\"advertisingStarts\":%lu,\"advertisingFailures\":%lu,"
-          "\"phoneConnects\":%lu,\"phoneDisconnects\":%lu,"
-          "\"scanIntensity\":\"%s\"}",
+          "\"bleScan\":{\"scanIntensity\":\"%s\"}",
           network.apActive ? "true" : "false", safeApSsid, network.apIp,
           static_cast<unsigned>(network.apClients),
           network.wifiConfigured ? "true" : "false", safeStaSsid,
@@ -645,24 +638,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           staSignalQualityJson, network.configuredIp, network.configuredNetmask,
           network.configuredGateway, network.configuredDns1,
           network.configuredDns2,
-          control.bleCompanionEnabled ? "true" : "false",
-          control.bleCompanionActive ? "true" : "false",
-          control.bleCompanionRestartRequired ? "true" : "false",
-          control.bleCompanionStackReady ? "true" : "false",
-          control.bleCompanionAdvertising ? "true" : "false",
-          control.bleCompanionConnected ? "true" : "false",
-          static_cast<unsigned>(control.bleCompanionProtocolVersion),
-          static_cast<unsigned long>(control.bleCompanionAcceptedWrites),
-          static_cast<unsigned long>(control.bleCompanionRejectedWrites),
-          bleCompanionRejectReasonName(static_cast<BleCompanionRejectReason>(
-              control.bleCompanionLastReject)),
-          static_cast<long>(control.bleCompanionLastRawError),
-          static_cast<unsigned long>(control.bleCompanionAdvertisingStarts),
-          static_cast<unsigned long>(control.bleCompanionAdvertisingFailures),
-          static_cast<unsigned long>(control.bleCompanionPhoneConnects),
-          static_cast<unsigned long>(control.bleCompanionPhoneDisconnects),
           bleScanIntensityName(clampBleScanIntensity(
-              control.bleCompanionScanIntensity)));
+              control.bleScanIntensity)));
       if (ok) {
         ok = statusJsonAppend(
             &used,
