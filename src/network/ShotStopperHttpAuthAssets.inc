@@ -465,10 +465,12 @@ static esp_err_t serveImmutableGzip(httpd_req_t *request, const char *contentTyp
 
 esp_err_t ShotStopperNetwork::rootHandler(httpd_req_t *request) {
   // The shell stays cacheable so an installed home-screen app can open from
-  // the browser cache while the controller is unreachable (stale-if-error
-  // covers revalidation failures in Chromium/Firefox); reload and the 304 path
-  // still revalidate against WEB_UI_ETAG, and the UI reloads itself when the
-  // status firmwareVersion differs from the baked build.
+  // the browser cache while the controller is unreachable. The reliable grace
+  // window is the fresh max-age period for a fresh open (verified on
+  // Chromium); stale-if-error extends it only on engines that apply it to
+  // navigations. Reload and the 304 path still revalidate against
+  // WEB_UI_ETAG, and the UI reloads itself when the status firmwareVersion
+  // differs from the baked build.
   if (ifNoneMatchEquals(request, WEB_UI_ETAG)) {
     httpd_resp_set_status(request, STATUS_NOT_MODIFIED);
     httpd_resp_set_hdr(request, "Cache-Control",

@@ -46,12 +46,13 @@ an automatic install prompt — the menu option above is the installation.
 **Out of reach**: when the page opens but the controller cannot be reached —
 for example while you are away from home — it shows the Shot Stopper logo with
 an out-of-reach message and a **Reload** button instead of a raw error. The same
-message appears if the connection drops while the page is open. Check that the
-phone or computer is connected to the same network as the controller and press
-**Reload** when it is; the page resumes on its own once the controller answers.
-Right after a firmware update the message can appear while the controller
-restarts; wait a moment and press **Reload**. If the browser has no saved copy
-of the page yet, it shows its own cannot-connect page instead.
+message appears if the connection drops while the page is open; in that case
+the page resumes on its own once the controller answers. When the page opens
+straight into the message, check that the phone or computer is connected to the
+same network as the controller, then press **Reload**. Right after a firmware
+update the message can appear while the controller restarts; wait a moment and
+press **Reload**. If the browser has no saved copy of the page yet, it shows
+its own cannot-connect page instead.
 
 **Admin unlock** is an additional password check for privileged actions.
 It stays renewed while Admin is open, or expires 15 minutes after the last

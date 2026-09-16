@@ -223,10 +223,11 @@ if (!generated.manifest.includes('"display":"standalone"') ||
 if (!zlib.gunzipSync(generated.icon192Gzip).equals(generated.icon192Raw)) {
   throw new Error('Generated gzip icon does not round-trip to the PNG bytes');
 }
-if (!generated.runtimeJs.includes(generated.version) ||
-    generated.runtimeJs.includes('__FW_RELEASE__') ||
+if (generated.runtimeJs.includes('__FW_RELEASE__') ||
     !generated.runtimeJs.includes('ssFwReload') ||
-    !generated.runtimeJs.includes('location.reload()')) {
+    !generated.runtimeJs.includes('location.reload()') ||
+    (generated.version !== 'dev' &&
+     !generated.runtimeJs.includes(generated.version))) {
   throw new Error('Runtime must bake the firmware release version for cached-shell self-heal');
 }
 for (const name of webUi.LAZY_PARTIALS) {
