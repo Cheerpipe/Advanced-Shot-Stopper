@@ -90,6 +90,12 @@
       atm.flowSegs.some((s) => s.pts[0].t < 4 && s.pts[1].t > 2)) {
     throw new Error('Flow curves must stay continuous and smoothed without changing gap semantics');
   }
+  const flowCol = (m, e) => JSON.stringify(m.flowCurve) === JSON.stringify(e);
+  if (!flowCol(partial, [null, 1, null]) || !flowCol(startup, [null, null, .5, 1, 1]) ||
+      !flowCol(ending, [null, 2, 2]) || !flowCol(missing, [null, null, null, null]) ||
+      !flowCol(falling, [null, 0, null]) || !flowCol(atm, [null, 2, null, null])) {
+    throw new Error('Exported flow columns must reuse the exact chart measured rates with gaps where flow is not measured');
+  }
   render(host, null);
   if (!host.hidden || host.innerHTML) throw new Error('Missing shot data must still hide the charts');
 }
@@ -589,7 +595,7 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !css.includes('.homeSwitchGrid .swS') ||
     !css.includes('.homeGuardGrid{') ||
     !css.includes('grid-template-columns:repeat(2,minmax(0,1fr))') ||
-    !ui.includes('actual_weight_source') ||
+    !ui.includes('yield_source') ||
     !network.includes('autoToManualGuardEnabled') ||
     !network.includes('autoToManualGuardBaselineMs') ||
     !network.includes('scaleTimerStopExtraDelayMs') ||

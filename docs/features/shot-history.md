@@ -118,24 +118,42 @@ history record or flash write.
 
 ## Read a result
 
-CSV retains its original columns and their order, followed by `bbw_algorithm`,
-`bbw_algorithm_version`, `bbw_alpha`, `bbw_learning_applied`, `preset_id`, the
-derived column `max_flow_g_s`, and the weight curve columns. The derived column
+CSV keeps its column order, with the shot output columns named like the cards:
+`yield_g` for the final yield (earlier `actual_g`), `yield_source` for where
+that number came from (earlier `actual_weight_source`), and the curve columns
+`yield_dt_s` and `yield_<n>s` (earlier `w_dt_s` and `w_<n>s`). Everything else
+keeps its earlier name, followed by `bbw_algorithm`, `bbw_algorithm_version`,
+`bbw_alpha`, `bbw_learning_applied`, `preset_id`, the derived column
+`max_flow_g_s`, and the yield curve columns. The derived column
 is empty when a record has no usable curve interval. The JSON names
-are `bbwAlgorithm`, `bbwAlgorithmVersion`, `bbwAlpha`, and `bbwLearningApplied`.
-These fields are exported data; the visible table/cards and averages do not
-add algorithm or offset fields.
+are `bbwAlgorithm`, `bbwAlgorithmVersion`, `bbwAlpha`, and `bbwLearningApplied`;
+the JSON field names do not change with the CSV rename. These fields are
+exported data; the visible table/cards and averages do not
+add algorithm or offset fields. Spreadsheets and scripts that match earlier
+exports by column name need the renames above.
 
-The weight curve columns follow `max_flow_g_s` so every exported row also
-carries the weights captured during that shot. `w_dt_s` (JSON `wDtS`) is the
-seconds between saved samples, then one `w_<n>s` column holds each sample in
+The yield curve columns follow `max_flow_g_s` so every exported row also
+carries the weights captured during that shot. `yield_dt_s` (JSON `wDtS`) is the
+seconds between saved samples, then one `yield_<n>s` column holds each sample in
 grams — the same series as the JSON `wCg` array, which counts in centigrams.
-Each column is named for the second its sample closes, so `w_1s` is the
-weight known at one second, `w_2s` the next, and so on up to the longest
+Each column is named for the second its sample closes, so `yield_1s` is the
+weight known at one second, `yield_2s` the next, and so on up to the longest
 curve in the export — the same dating the Weight and Flow rate charts use.
-Plot a row's weight cells against their column times in a spreadsheet to
+Plot a row's yield cells against their column times in a spreadsheet to
 redraw its curve aligned with the shot's events. Shots without a saved
 curve, and samples beyond a shot's own curve length, leave those cells empty.
+
+The flow rate columns follow the yield curve columns and hold the same
+per-second measured rates the Flow rate chart and Max flow derive from that
+curve: one `flow_<n>s` column per curve sample, in grams per second with two
+decimals. `flow_2s` is the rate measured over the second that closes with the
+sample in `yield_2s`, `flow_3s` the next, and so on. `flow_1s` stays empty
+unless the exact first-drop marker falls within the first second, in which
+case it carries the chart's rate for that split interval. A falling weight
+reports 0, and cells stay empty where the chart draws no flow: before the
+first drop, across a missing sample, and during an A→M scale-loss period.
+When no event marker falls on or inside the second, a flow cell is simply the
+rise between its two neighboring yield cells divided by the sample interval.
 
 `preset_id` (JSON `presetId`) and JSON `presetName` are captured from the preset
 used for that shot, not the currently selected recipe. The name is a snapshot,

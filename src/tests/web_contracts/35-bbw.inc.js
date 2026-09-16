@@ -110,7 +110,8 @@
     api: async url => {assert.equal(url, '0/120/date/desc'); return {shots: records};},
     shotsUrl: (...args) => args.join('/'), SHOTS_EXPORT_LIMIT: 120,
     formatShotTimeCsv: () => '', shotDisplayActualG: weight => weight,
-    shotDisplayFlowGS: () => 1.2, shotMaxFlowGS: r => r.id === 1 ? null : 2.5, Blob,
+    shotDisplayFlowGS: () => 1.2, shotMaxFlowGS: r => r.id === 1 ? null : 2.5,
+    shotFlowCurveGS: r => r.id === 2 ? [null, 7.85] : [], Blob,
     URL: {createObjectURL: value => {blob = value; return 'blob:test';}, revokeObjectURL() {}},
     document: {createElement: () => ({click() {}})},
     message: message => {throw new Error(message);}, formatCommandError: (_, e) => e.message
@@ -121,8 +122,8 @@
   assert.equal(lines.length, 121);
   assert.equal(lines[0][11], 'offset_g');
   assert.equal(lines[1][11], '0');
-  assert.deepEqual(lines[0].slice(-11), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id', 'max_flow_g_s', 'w_dt_s', 'w_1s', 'w_2s', 'w_3s', 'w_4s']);
-  assert.deepEqual(lines[1].slice(-11), ['linear_ewma', '2', '0.37', '', '', '', '', '', '', '', '']);
-  assert.deepEqual(lines[2].slice(-11), ['legacy', '1', '1.00', '1', '255', '2.5', '1', '0', '15.2', '31.05', '36.2']);
-  assert.deepEqual(lines[3].slice(-11), ['linear_ewma', '2', '0.37', '1', '255', '2.5', '1', '0', '8', '', '']);
+  assert.deepEqual(lines[0].slice(-15), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id', 'max_flow_g_s', 'yield_dt_s', 'yield_1s', 'yield_2s', 'yield_3s', 'yield_4s', 'flow_1s', 'flow_2s', 'flow_3s', 'flow_4s']);
+  assert.deepEqual(lines[1].slice(-15), ['linear_ewma', '2', '0.37', '', '', '', '', '', '', '', '', '', '', '', '']);
+  assert.deepEqual(lines[2].slice(-15), ['legacy', '1', '1.00', '1', '255', '2.5', '1', '0', '15.2', '31.05', '36.2', '', '7.85', '', '']);
+  assert.deepEqual(lines[3].slice(-15), ['linear_ewma', '2', '0.37', '1', '255', '2.5', '1', '0', '8', '', '', '', '', '', '']);
 })().catch(error => {console.error(error); process.exitCode = 1;});
