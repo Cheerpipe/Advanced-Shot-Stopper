@@ -112,7 +112,10 @@ suggestion or type another path.
 App CDC requires the [GPIO 4 console jumper](HARDWARE.md#usb-console-jumper) at
 reset unless the firmware was built with `SHOT_STOPPER_ENABLE_JTAG=1`. ROM
 download mode through BOOT + RST can still expose a flashing port without that
-jumper.
+jumper. A default build therefore has no console output for the monitor stage,
+so `dev` refuses a pipeline that combines `build` with `monitor` unless that
+JTAG build is requested: pass `--jtag` (or include
+`-DSHOT_STOPPER_ENABLE_JTAG=1` in `--flags`) or run monitor separately.
 
 ## Options
 
@@ -123,6 +126,7 @@ jumper.
 | `-a`, `--arch <arch>` | `SHOTSTOPPER_ARCH` | legacy image, monitor, analysis | `n8r4` or `n16r8`. Builds derive it from hardware; it may only confirm that result. |
 | `-f`, `--flags "<flags>"` | `SHOTSTOPPER_FLAGS` | build | Extra compile definitions/options as one shell argument. |
 | `--development` | — | build | Development-mode build for this invocation only. Never persisted. |
+| `--jtag` | — | build | Compile the USB Serial/JTAG console on at boot by adding `-DSHOT_STOPPER_ENABLE_JTAG=1` on top of `--flags`. Never persisted. |
 | `--webui-language <code>` | `SHOTSTOPPER_WEBUI_LANGUAGE` | build | Compile-time Web UI language; defaults to `en` and is never persisted. |
 | `-p`, `--port <path>` | `SHOTSTOPPER_PORT` | flash, monitor | USB serial device. Validated before use and remembered. |
 | `-s`, `--speed <baud>` | `SHOTSTOPPER_SPEED` | monitor | Monitor baud rate, normally `115200`; remembered. |
@@ -181,7 +185,19 @@ Build with explicit compiler options:
 ./scripts/dev build \
   --hardware esp32-s3-relay-x1-speaker \
   --machine rancilio-silvia-pro-x \
-  --flags "-Werror=deprecated-copy -DSHOT_STOPPER_ENABLE_JTAG=1"
+  --flags "-Werror=deprecated-copy"
+```
+
+Build a development image with the USB Serial/JTAG console on at boot (OpenOCD
+plus the serial CLI without the GPIO 4 jumper). `--jtag` adds
+`-DSHOT_STOPPER_ENABLE_JTAG=1` on top of any other flags; passing the same
+define through `--flags` still works:
+
+```sh
+./scripts/dev build \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --jtag
 ```
 
 Build a transient local-development image:

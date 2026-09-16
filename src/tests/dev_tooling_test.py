@@ -127,6 +127,13 @@ for pipeline in (("build",), ("flash",), ("ota",), ("monitor",),
     assert "--confirm" not in child
     assert "--flags=" not in child
 
+jtag_forwarded = captured_firmware("build", "--jtag")
+assert jtag_forwarded["steps"][0][1][-2:] == ["--", "--jtag"]
+jtag_rejected = run("monitor", "--jtag")
+assert jtag_rejected.returncode == 2 and "does not apply" in jtag_rejected.stderr
+flash_jtag_rejected = run("flash", "monitor", "--jtag")
+assert flash_jtag_rejected.returncode == 2 and "does not apply" in flash_jtag_rejected.stderr
+
 stdin_password = captured_firmware(
     "ota", "--confirm", "--yes", "--password-stdin", stdin="stdin-secret\n")
 assert stdin_password["env_extra"] == {
@@ -247,6 +254,52 @@ legacy_profile_cli = subprocess.run(
      '--machine-config old-machine.json'],
     cwd=ROOT, capture_output=True, text=True)
 assert legacy_profile_cli.returncode == 0
+
+
+def cli_probe(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", "-c",
+         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         'ss_cli_parse "$@" || exit $?; ss_cli_effective_flags',
+         "probe", *args],
+        cwd=ROOT, capture_output=True, text=True)
+
+
+jtag_append = cli_probe("--jtag", "--flags=-DCUSTOM=1")
+assert jtag_append.returncode == 0 and \
+    jtag_append.stdout == "-DCUSTOM=1 -DSHOT_STOPPER_ENABLE_JTAG=1"
+jtag_existing = cli_probe("--jtag", "--flags=-DSHOT_STOPPER_ENABLE_JTAG=1")
+assert jtag_existing.returncode == 0 and \
+    jtag_existing.stdout == "-DSHOT_STOPPER_ENABLE_JTAG=1"
+jtag_with_dev = cli_probe("--jtag", "--development")
+assert jtag_with_dev.returncode == 0 and jtag_with_dev.stdout == \
+    "-DSHOT_STOPPER_ENABLE_JTAG=1 -DSHOT_STOPPER_DEVELOPMENT=1"
+jtag_off_untouched = cli_probe("--flags=-DSHOT_STOPPER_ENABLE_JTAG=0")
+assert jtag_off_untouched.returncode == 0 and \
+    jtag_off_untouched.stdout == "-DSHOT_STOPPER_ENABLE_JTAG=0"
+jtag_conflict = cli_probe("--jtag", "--flags=-DSHOT_STOPPER_ENABLE_JTAG=0")
+assert jtag_conflict.returncode == 2 and \
+    "conflicts with SHOT_STOPPER_ENABLE_JTAG=0" in jtag_conflict.stderr
+jtag_valued = cli_probe("--jtag=1")
+assert jtag_valued.returncode == 2 and "does not take a value" in jtag_valued.stderr
+jtag_forward = subprocess.run(
+    ["bash", "-c",
+     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+     'ss_cli_parse "$@" || exit $?; ss_cli_flags_for development jtag; '
+     'printf "%s" "${SS_CLI_FORWARD[*]}"', "probe", "--jtag"],
+    cwd=ROOT, capture_output=True, text=True)
+assert jtag_forward.returncode == 0 and jtag_forward.stdout == "--jtag"
+with tempfile.TemporaryDirectory(prefix="shotstopper-jtag-store-") as temporary:
+    jtag_saved = subprocess.run(
+        ["bash", "-c",
+         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         'ss_cli_parse "$@" || exit $?; ss_cli_save; cat "$SS_CLI_STORE"',
+         "probe", "--jtag", "--flags=-DCUSTOM=1"],
+        cwd=ROOT, env={**os.environ, "SS_CLI_ROOT": temporary},
+        capture_output=True, text=True)
+    assert jtag_saved.returncode == 0 and \
+        "flags=-DCUSTOM=1" in jtag_saved.stdout and \
+        "jtag" not in jtag_saved.stdout
 assert "deprecated; use --hardware" in legacy_profile_cli.stderr
 assert "deprecated; use --machine" in legacy_profile_cli.stderr
 development_conflict = subprocess.run(
@@ -375,8 +428,8 @@ for validate_args, environment, expected in (
                for argv in build_steps), build_steps
 
 
-def stubbed_dispatcher(stages: tuple[str, ...], args: list[str],
-                       fail: str = "", expected: int = 0) -> list[str]:
+def dispatched(stages: tuple[str, ...], args: list[str],
+               fail: str = "") -> tuple[subprocess.CompletedProcess[str], list[str]]:
     with tempfile.TemporaryDirectory(prefix="shotstopper-wrapper-") as temporary:
         root = Path(temporary)
         scripts = root / "scripts"
@@ -395,12 +448,19 @@ def stubbed_dispatcher(stages: tuple[str, ...], args: list[str],
         env = os.environ.copy()
         env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
                    SHOTSTOPPER_DEVICE_PASSWORD="test-only")
+        env.pop("SHOTSTOPPER_FLAGS", None)
         result = subprocess.run(
             [str(internal / "firmware-idf"), *stages, "--", *args],
-            cwd=root, env=env,
-                                capture_output=True, text=True)
-        assert result.returncode == expected, (stages, result.stdout, result.stderr)
-        return log.read_text().splitlines()
+            cwd=root, env=env, capture_output=True, text=True)
+        children = log.read_text().splitlines() if log.exists() else []
+        return result, children
+
+
+def stubbed_dispatcher(stages: tuple[str, ...], args: list[str],
+                       fail: str = "", expected: int = 0) -> list[str]:
+    result, children = dispatched(stages, args, fail)
+    assert result.returncode == expected, (stages, result.stdout, result.stderr)
+    return children
 
 
 profile_args = ["--hardware", "esp32-s3-relay-x1-speaker",
@@ -408,20 +468,40 @@ profile_args = ["--hardware", "esp32-s3-relay-x1-speaker",
 flash_monitor = stubbed_dispatcher(
     ("build", "flash", "monitor"),
     [*profile_args, "--port", "/dev/null", "--speed", "115200",
-     "--webui-language", "EN_us", "--erase-all"])
+     "--webui-language", "EN_us", "--erase-all", "--jtag"])
 assert [line.split(":", 1)[0] for line in flash_monitor] == [
     "build-idf", "flash-idf", "monitor-idf"]
 assert "--webui-language en-us" in flash_monitor[0]
+assert "--jtag" in flash_monitor[0]
 assert "--erase-all" in flash_monitor[1]
 assert "--speed 115200" in flash_monitor[2]
+
+legacy_jtag_flags = stubbed_dispatcher(
+    ("build", "flash", "monitor"),
+    [*profile_args, "--port", "/dev/null", "--speed", "115200",
+     "--webui-language", "EN_us", "--flags", "-DSHOT_STOPPER_ENABLE_JTAG=1"])
+assert [line.split(":", 1)[0] for line in legacy_jtag_flags] == [
+    "build-idf", "flash-idf", "monitor-idf"]
+
+blocked, blocked_children = dispatched(("build", "flash", "monitor"), [])
+assert blocked.returncode == 2 and "--jtag" in blocked.stderr and \
+    not blocked_children, (blocked.returncode, blocked.stderr)
+build_only = stubbed_dispatcher(("build",), [*profile_args, "--webui-language", "EN_us"])
+assert [line.split(":", 1)[0] for line in build_only] == ["build-idf"]
+flash_monitor_only = stubbed_dispatcher(
+    ("flash", "monitor"),
+    ["--arch", "n16r8", "--port", "/dev/null", "--speed", "115200"])
+assert [line.split(":", 1)[0] for line in flash_monitor_only] == [
+    "flash-idf", "monitor-idf"]
 
 ota_monitor = stubbed_dispatcher(
     ("build", "ota", "monitor"),
     [*profile_args, "--host", "127.0.0.1", "--port", "/dev/null",
-     "--speed", "115200", "--yes", "--wait-for-confirmation"])
+     "--speed", "115200", "--yes", "--wait-for-confirmation", "--jtag"])
 assert [line.split(":", 1)[0] for line in ota_monitor] == [
     "build-idf", "ota-idf", "monitor-idf"]
 assert "--yes --wait-for-confirmation" in ota_monitor[1]
+assert "--jtag" in ota_monitor[0]
 assert "test-only" not in "\n".join(ota_monitor)
 
 stopped = stubbed_dispatcher(

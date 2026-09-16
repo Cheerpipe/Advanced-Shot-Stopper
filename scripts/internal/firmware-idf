@@ -53,6 +53,12 @@ if has_stage ota && [[ "$SS_CLI_YES" != "1" ]] && ! ss_can_prompt; then
 fi
 
 ss_cli_apply_env
+ss_cli_load_store
+if has_stage build && has_stage monitor && [[ "$SS_CLI_JTAG" != "1" ]] &&
+   [[ " $(ss_get flags) " != *"SHOT_STOPPER_ENABLE_JTAG=1"* ]]; then
+  echo 'build combined with monitor requires the USB Serial/JTAG console for firmware output; pass --jtag (or include -DSHOT_STOPPER_ENABLE_JTAG=1 in --flags) or run monitor separately.' >&2
+  exit 2
+fi
 if ss_is_set hardware_config || ss_is_set machine_config; then
   if ! ss_is_set hardware_config || ! ss_is_set machine_config; then
     echo '--hardware and --machine must be used together.' >&2
@@ -91,7 +97,7 @@ ss_cli_normalize_image || exit $?
 for stage in "${stages[@]}"; do
   case "$stage" in
     build)
-      ss_cli_flags_for hardware_config machine_config flags webui_language development
+      ss_cli_flags_for hardware_config machine_config flags webui_language development jtag
       "$INTERNAL_DIR/build-idf" ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}
       ;;
     flash)

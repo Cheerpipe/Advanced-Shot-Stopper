@@ -96,6 +96,7 @@ ss_cli_reset() {
   SS_CLI_ERASE_ALL=0
   SS_CLI_DISCARD_OTA_SESSION=0
   SS_CLI_DEVELOPMENT=0
+  SS_CLI_JTAG=0
   for key in $SS_CLI_KEYS; do
     ss_set "$key" ""
     ss_origin_set "$key" ""
@@ -135,6 +136,8 @@ Named parameters (long and short):
       --hardware <id|json> Exact hardware profile ID or JSON path (not persisted)
       --machine <id|json>  Exact machine profile ID or JSON path (not persisted)
       --development        Build-only development mode (not persisted)
+      --jtag               Enable the USB Serial/JTAG console at boot (adds
+                           -DSHOT_STOPPER_ENABLE_JTAG=1 to the build flags)
       --yes                Commit OTA without an interactive question
       --wait-for-confirmation
                            Wait for verified boot after OTA commit
@@ -164,6 +167,7 @@ SS_CLI_NO_CHECK=0
 SS_CLI_ERASE_ALL=0
 SS_CLI_DISCARD_OTA_SESSION=0
 SS_CLI_DEVELOPMENT=0
+SS_CLI_JTAG=0
 
 ss_cli_die() {
   printf '%s\n' "$1" >&2
@@ -231,6 +235,15 @@ ss_cli_parse() {
         ;;
       --development=*)
         printf '%s\n' '--development does not take a value.' >&2
+        return 2
+        ;;
+      --jtag)
+        SS_CLI_JTAG=1
+        shift
+        continue
+        ;;
+      --jtag=*)
+        printf '%s\n' '--jtag does not take a value.' >&2
         return 2
         ;;
       --*=*)
@@ -345,28 +358,37 @@ ss_cli_apply_env() {
   done
 }
 
-# Prints the compile flags for this run. --development is deliberately kept
-# outside both profiles and .shotstopper so it cannot affect a later build.
+# Prints the compile flags for this run. --development and --jtag are
+# deliberately kept outside both profiles and .shotstopper so they cannot
+# affect a later build.
 ss_cli_effective_flags() {
-  local raw token found=0
+  local raw token found=0 jtag=0
   raw="$(ss_get flags)"
-  if [[ "$SS_CLI_DEVELOPMENT" != "1" ]]; then
-    printf '%s' "$raw"
-    return 0
-  fi
   # Word-splitting is intentional: flags are stored as a space-separated list.
   # shellcheck disable=SC2086
   set -- $raw
   for token in "$@"; do
     case "$token" in
       -DSHOT_STOPPER_DEVELOPMENT=0|SHOT_STOPPER_DEVELOPMENT=0)
-        ss_cli_die "--development conflicts with SHOT_STOPPER_DEVELOPMENT=0 in --flags."
-        return 2
+        if [[ "$SS_CLI_DEVELOPMENT" == "1" ]]; then
+          ss_cli_die "--development conflicts with SHOT_STOPPER_DEVELOPMENT=0 in --flags."
+          return 2
+        fi
         ;;
       -DSHOT_STOPPER_DEVELOPMENT=1|SHOT_STOPPER_DEVELOPMENT=1) found=1 ;;
+      -DSHOT_STOPPER_ENABLE_JTAG=0|SHOT_STOPPER_ENABLE_JTAG=0)
+        if [[ "$SS_CLI_JTAG" == "1" ]]; then
+          ss_cli_die "--jtag conflicts with SHOT_STOPPER_ENABLE_JTAG=0 in --flags."
+          return 2
+        fi
+        ;;
+      -DSHOT_STOPPER_ENABLE_JTAG=1|SHOT_STOPPER_ENABLE_JTAG=1) jtag=1 ;;
     esac
   done
-  if [[ "$found" == "1" ]]; then
+  if [[ "$SS_CLI_JTAG" == "1" && "$jtag" != "1" ]]; then
+    raw="${raw:+$raw }-DSHOT_STOPPER_ENABLE_JTAG=1"
+  fi
+  if [[ "$SS_CLI_DEVELOPMENT" != "1" || "$found" == "1" ]]; then
     printf '%s' "$raw"
   else
     printf '%s' "${raw:+$raw }-DSHOT_STOPPER_DEVELOPMENT=1"
@@ -854,6 +876,10 @@ ss_cli_flags_for() {
     fi
     if [[ "$key" == "development" ]]; then
       [[ "$SS_CLI_DEVELOPMENT" == "1" ]] && SS_CLI_FORWARD+=(--development)
+      continue
+    fi
+    if [[ "$key" == "jtag" ]]; then
+      [[ "$SS_CLI_JTAG" == "1" ]] && SS_CLI_FORWARD+=(--jtag)
       continue
     fi
     ss_is_set "$key" || continue

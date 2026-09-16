@@ -318,6 +318,7 @@ def validate_firmware_options(stages: tuple[str, ...], args: list[str]) -> None:
         "--speed": {"monitor"}, "-s": {"monitor"},
         "--host": {"ota"}, "-H": {"ota"},
         "--flags": {"build"}, "-f": {"build"},
+        "--jtag": {"build"},
         "--image": {"flash", "ota"}, "-i": {"flash", "ota"},
         "--webui-language": {"build"}, "--development": {"build"},
         "--no-check": {"flash"}, "--erase-all": {"flash"},
@@ -380,7 +381,7 @@ flash monitor; ota monitor; build flash monitor; build ota monitor.
 
 Profiles: --hardware ID --machine ID
 Existing images: --arch ARCH; standalone flash/OTA: --image PATH
-Build:  --flags STRING --development --webui-language CODE
+Build:  --flags STRING --jtag --development --webui-language CODE
 Flash:  --port PATH --no-check --erase-all
 OTA:    --host HOST --yes --wait-for-confirmation --discard-ota-session
 Monitor: --port PATH --speed BAUD

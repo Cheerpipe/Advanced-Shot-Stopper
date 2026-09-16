@@ -212,7 +212,7 @@ Machine type is derived from `interface.control` plus `interface.feedback`; a co
 | --- | --- |
 | `SHOT_STOPPER_MACHINE_TYPE=0/1/2` | Paddle / momentary / momentary+reed; see [machine types](../README.md#machine-types). |
 | `SHOT_STOPPER_ENABLE_BUZZER=0/1` | Omit / include local passive buzzer. IDF Kconfig defaults to 1; explicitly use 0 when absent. |
-| `SHOT_STOPPER_ENABLE_JTAG=1` | Development USB Serial/JTAG at boot without the GPIO4 console jumper. |
+| `SHOT_STOPPER_ENABLE_JTAG=1` | Development USB Serial/JTAG at boot without the GPIO4 console jumper; build it with `./scripts/dev build --jtag`. |
 | `SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0/1` | Remote start/rinse disabled / explicit opt-in. Default is disabled. |
 | `SHOT_STOPPER_DEVELOPMENT=1` | Bypasses Admin unlock for local development only. Never use for an installed machine. |
 
