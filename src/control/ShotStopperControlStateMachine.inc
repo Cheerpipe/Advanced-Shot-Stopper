@@ -401,11 +401,14 @@ bool enterRinse() {
   // A rinse classified from the session's own running cycle keeps that run's
   // start: pre-classification time counts as rinse time, so the deadline and
   // the reported duration both anchor to the original activation. A run that
-  // predates this session (web rinse over a running shot) does not.
+  // predates this session (web rinse over a running shot) does not. The
+  // elapsed-based comparison is wrap-safe where an absolute timestamp
+  // comparison would break when millis() wraps between the two starts.
   const uint32_t runningElapsedMs = machineElapsedMs();
   const uint32_t runStartedAtMs =
       runningElapsedMs != 0U ? millis() - runningElapsedMs : millis();
-  const bool continueSessionRun = runStartedAtMs >= session.startedAtMs;
+  const bool continueSessionRun =
+      elapsedMs(session.startedAtMs) >= elapsedMs(runStartedAtMs);
   if (!machineBeginRinse(session.config.operationalWallMs,
                          continueSessionRun)) {
     // Do not machineEndRinse(): that would double-pulse on momentary.
