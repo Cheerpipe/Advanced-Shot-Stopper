@@ -44,7 +44,12 @@ inline bool machineRequestWebStop() { return machineRequestStop(); }
 
 inline bool machineRequestForcedPulse() { return false; }
 
-inline bool machineBeginRinse(uint32_t operationalLimitMs) {
+// continueSessionRun has no paddle effect: an already-closed circuit keeps
+// its original close timestamp (a demoted rinse counts the pre-classification
+// time), and an open circuit starts fresh either way.
+inline bool machineBeginRinse(uint32_t operationalLimitMs,
+                              bool continueSessionRun) {
+  (void)continueSessionRun;
   if (rinseActuationActive) {
     return true;
   }

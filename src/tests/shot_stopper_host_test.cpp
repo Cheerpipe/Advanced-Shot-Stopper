@@ -822,6 +822,29 @@ void t04c_rinse_demote_does_not_learn_offset() {
   CHECK(runtimeConfig.weightOffsetG == originalOffset);
 }
 
+void t04d_rinse_demote_anchors_duration_to_activation() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  const uint32_t rawOnAt = startCycle();
+  CHECK(executeNextScaleCommand());
+  releaseAtPhysicalDuration(rawOnAt, runtimeConfig.rinseGestureMs);
+  CHECK(stopperState == StopperState::RINSE);
+  CHECK(getRelaySafetySnapshot().closed);
+  // The rinse clock anchors to the circuit close, not to the classification:
+  // the gesture window is already part of the configured duration.
+  CHECK(session.rinseStartedAtMs >= rawOnAt);
+  CHECK(session.rinseStartedAtMs == getRelaySafetySnapshot().closedAtMs);
+  const uint32_t remaining =
+      runtimeConfig.rinseDurationMs - elapsedMs(session.rinseStartedAtMs);
+  runLoopAfter(remaining - 1);
+  CHECK(stopperState == StopperState::RINSE);
+  CHECK(getRelaySafetySnapshot().closed);
+  runLoopAfter(1);
+  CHECK(stopperState == StopperState::READY);
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(commandCount(ScaleCommandType::STOP_TIMER) == 1);
+}
+
 void t29_rinse_demote_begin_fail_does_not_enter_rinse() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -14426,6 +14449,7 @@ const TestCase testCases[] = {
     {"T04", t04_exact_rinse_boundary_and_duration},
     {"T04B", t04b_rinse_disabled_short_on_off_is_not_rinse},
     {"T04C", t04c_rinse_demote_does_not_learn_offset},
+    {"T04D", t04d_rinse_demote_anchors_duration_to_activation},
     {"T29", t29_rinse_demote_begin_fail_does_not_enter_rinse},
     {"T05", t05_release_between_rinse_and_brew_is_short_shot},
     {"T06", t06_paddle_off_during_brew},

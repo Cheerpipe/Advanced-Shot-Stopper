@@ -175,7 +175,10 @@ inline bool machineRunningElapsed(uint32_t &elapsedOut) {
     elapsedOut = 0U;
     return false;
   }
-  if (reedOn) {
+  // During rinse actuation the demote pulse bounces the reed, so the logical
+  // run clock stays authoritative. Once elapsed is latched the run has ended;
+  // report the latched value instead of live reed time.
+  if (reedOn && !rinseActuationActive && !momentaryElapsedLatched) {
     elapsedOut = elapsedMs(reedOnAtMs);
     return true;
   }

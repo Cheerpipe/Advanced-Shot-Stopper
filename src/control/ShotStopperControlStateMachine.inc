@@ -363,8 +363,9 @@ bool beginRinseCycle(ControlSource source) {
   resetShotTrajectory(session.startedAtMs);
   machineSetPreferBleAirtime(false);
   machineBeginCycle(false);
+  // Fresh rinse: never inherit a run that predates this new session.
   if (!servicePowerManagement() ||
-      !machineBeginRinse(session.config.operationalWallMs)) {
+      !machineBeginRinse(session.config.operationalWallMs, false)) {
     session.active = false;
     session.endReason = EndReason::RELAY_SAFETY_FAILURE;
     machineEndCycle();
@@ -397,7 +398,16 @@ bool beginRinseCycle(ControlSource source) {
 }
 
 bool enterRinse() {
-  if (!machineBeginRinse(session.config.operationalWallMs)) {
+  // A rinse classified from the session's own running cycle keeps that run's
+  // start: pre-classification time counts as rinse time, so the deadline and
+  // the reported duration both anchor to the original activation. A run that
+  // predates this session (web rinse over a running shot) does not.
+  const uint32_t runningElapsedMs = machineElapsedMs();
+  const uint32_t runStartedAtMs =
+      runningElapsedMs != 0U ? millis() - runningElapsedMs : millis();
+  const bool continueSessionRun = runStartedAtMs >= session.startedAtMs;
+  if (!machineBeginRinse(session.config.operationalWallMs,
+                         continueSessionRun)) {
     // Do not machineEndRinse(): that would double-pulse on momentary.
     // BREW/MANUAL already get machineRequestStop + machineEndCycle here.
     if (stopperState == StopperState::BREW ||
@@ -412,7 +422,9 @@ bool enterRinse() {
     }
     return false;
   }
-  session.rinseStartedAtMs = rinseBegin(session.config.rinseDurationMs);
+  const uint32_t rinseStartMs = continueSessionRun ? runStartedAtMs : millis();
+  session.rinseStartedAtMs = rinseBegin(session.config.rinseDurationMs,
+                                        rinseStartMs);
   session.automaticEnabled = false;
   shot.automaticBrew = false;
   session.calibrationEligible = false;

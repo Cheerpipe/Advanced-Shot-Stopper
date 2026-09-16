@@ -167,7 +167,7 @@ Source: `ShotStopperBrewTypes.h`, orchestrated in `shotStopper.cpp`.
 | `REQUIRES_OFF` | Cycle over (or start refused after a trip) while the activator is still ON. Machine circuit must stay open until a stable activator OFF. Prevents an immediate re-close. |
 | `READY` | Idle. Waiting for a start gesture. Machine circuit is open. |
 | `BREW` | Shot in progress with weight and/or timer policy. Machine circuit is closed (unless safety already opened it). Includes timer-only BBW-off shots that started with a scale (Max BBW time not armed; 60 s cap only). |
-| `RINSE` | Timed group-head rinse. Activator edges are ignored until the rinse duration elapses. Not stored in shot history. |
+| `RINSE` | Timed group-head rinse. Activator edges are ignored until the rinse duration elapses. A rinse demoted from a running shot anchors the clock to the original activation, so the pre-classification time counts toward the duration and the reported duration equals the configured one; a rinse started from idle runs the full duration from its start. Not stored in shot history. |
 | `MANUAL_NO_SCALE` | Shot in progress without weight stop (no usable scale at start, or BBW off without treating it as timer-only brew). Ends on activator OFF, rinse demotion, or the 60 s firmware cap — not Max BBW time. |
 
 ### Events (inputs)
@@ -175,7 +175,7 @@ Source: `ShotStopperBrewTypes.h`, orchestrated in `shotStopper.cpp`.
 | Event | From | Effect |
 | --- | --- | --- |
 | Activator ON (`REQUEST_START`) | User intent | From `READY`: `beginCycle`. May be held/blocked by no-scale or cup-start guards. |
-| `REQUEST_RINSE` | Machine (paddle short ON→OFF, momentary idle long-press, or web) | From `READY`: `beginRinseCycle` + timed `RINSE`. From `BREW` / `MANUAL_NO_SCALE`: demote to `RINSE`. Clock starts when the stopper accepts, not from a raw GPIO edge. |
+| `REQUEST_RINSE` | Machine (paddle short ON→OFF, momentary idle long-press, or web) | From `READY`: `beginRinseCycle` + timed `RINSE`. From `BREW` / `MANUAL_NO_SCALE`: demote to `RINSE`. The clock anchors to the machine run's start (the acceptance time for a fresh rinse), never to a raw GPIO edge. |
 | Activator OFF after rinse window | User intent | Natural mode: end shot (`EndReason::ACTIVATOR` → `READY`). Original/Auto BBW: may keep machine circuit closed (walk-away). `REQUEST_STOP` always ends a shot; it does not demote to rinse. |
 | Paddle ON during Original BBW | User intent | Promotes the rest of that shot to Natural (paddle OFF will then end it). |
 | Weight cut due | Weight control | `finalizeCycle` with `SCALE_THRESHOLD` or a guard `EndReason`. |

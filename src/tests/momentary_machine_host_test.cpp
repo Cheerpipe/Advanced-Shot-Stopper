@@ -597,9 +597,22 @@ void t_rinse_press_demotes_and_pulses() {
   CHECK(rinseActuationActive);
   CHECK(pulseOutputActive);
   CHECK(pulseOutputIsStart);
+  // The demoted rinse keeps the press-started run's clock: the gesture window
+  // is already consumed at classification (loop slack tolerated for the ms
+  // boundary between the press edge and the run start).
+  CHECK(elapsedMs(session.rinseStartedAtMs) + 5 >=
+        runtimeConfig.rinseGestureMs);
   runLoopAfter(runtimeStopPulseMs(runtimeConfig) + 1);
   CHECK(!pulseOutputActive);
   CHECK(stopperState == StopperState::RINSE);
+#if SHOT_STOPPER_MACHINE_TYPE == 2
+  // A reed confirm during the rinse must not shrink the elapsed back to the
+  // pulse-restart time.
+  setRawReed(true);
+  CHECK(rinseActuationActive);
+  CHECK(machineElapsedMs() + 5 >= runtimeConfig.rinseGestureMs);
+  setRawReed(false);
+#endif
   runLoopAfter(runtimeConfig.rinseDurationMs -
                elapsedMs(session.rinseStartedAtMs));
   CHECK(pulseOutputActive);
@@ -790,6 +803,28 @@ void t_rinse_end_aborts_start_pulse_for_stop_pulse() {
   CHECK(!pulseOutputIsStart);
   CHECK(!rinseActuationActive);
   CHECK(stopperState == StopperState::REQUIRES_OFF);
+}
+
+void t_rinse_web_over_running_shot_keeps_full_duration() {
+  resetMomentaryHarness();
+  enableFirmwareRinseForTest();
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  pressDown();
+  CHECK(session.active);
+  runLoopAfter(1500);
+  // A web rinse over a running shot restarts the run: the full duration runs
+  // from the command and the shot's elapsed time is not inherited.
+  WebCommand rinse;
+  rinse.type = WebCommandType::RINSE;
+  rinse.unsafeWebUiOverride = true;
+  processWebCommand(rinse);
+  CHECK(stopperState == StopperState::RINSE);
+  CHECK(session.active);
+  CHECK(rinseActuationActive);
+  CHECK(elapsedMs(session.rinseStartedAtMs) < 50);
+  runLoopAfter(runtimeConfig.rinseDurationMs + 1);
+  CHECK(!rinseActuationActive);
+  CHECK(stopperState != StopperState::RINSE);
 }
 
 #if SHOT_STOPPER_MACHINE_TYPE == 1
@@ -2315,6 +2350,7 @@ const TestCase kTests[] = {
     {"P63C", t_rinse_armed_noscale_release_mode_does_not_run},
     {"P64", t_rinse_release_mode_mid_hold_is_native_not_shot},
     {"P65", t_rinse_end_aborts_start_pulse_for_stop_pulse},
+    {"P68", t_rinse_web_over_running_shot_keeps_full_duration},
 #if SHOT_STOPPER_MACHINE_TYPE == 1
     {"P04", t_only_auto_cut_needs_confirmed_on},
     {"P05", t_quiet_pan_does_not_force_cut_when_unknown},

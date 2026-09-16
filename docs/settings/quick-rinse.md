@@ -3,8 +3,13 @@
 A firmware **rinse** keeps the group on for a configured duration, then turns
 it off. It is not a shot: no history, no last-shot overwrite, no A→M samples.
 
-Rinse duration starts when the controller accepts the gesture. Water may have
-already started during the initial paddle/button movement.
+The rinse duration counts from the moment the group starts running. When a
+running shot is demoted to a rinse (a paddle flip OFF inside the gesture
+window, or a momentary press hold reaching the threshold), the time already
+elapsed counts toward it: the group runs for the configured duration in total
+from the original start, and the reported duration matches. A rinse that
+starts from idle (Button release hold, Armed, web) runs for the full duration
+from its start.
 
 **Settings → Machine and scale → Quick rinse** is shown on paddle, momentary,
 and reed firmware. Home **Start rinse** follows the same Quick rinse setting.
@@ -49,9 +54,12 @@ Rinses are excluded from shot history by cycle type, not just by duration.
 ## Example
 
 Default 1 s gesture / 4 s duration, with **Quick rinse** on. On paddle, flip
-ON and back OFF within a second: the group rinses for four seconds, then
-opens. On momentary, hold the switch for at least a second from idle:
-firmware pulses start, keeps the group on for four seconds, then pulses stop.
+ON and back OFF within a second: the group runs for four seconds in total
+(about three more after you flip OFF), then opens. On momentary, hold the
+switch for at least a second from idle in Button press: the shot demotes and
+the group runs for four seconds in total from the press. In Button release
+the rinse starts from idle and runs for the full four seconds, then pulses
+stop.
 
 If a long button hold starts during an existing shot, it is not the idle rinse
 gesture. If **Require a scale** blocks the attempt, rinse is also blocked unless

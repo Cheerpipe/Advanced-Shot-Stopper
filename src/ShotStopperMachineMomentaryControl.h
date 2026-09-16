@@ -274,7 +274,11 @@ inline bool machineRequestForcedPulse() {
   return queueWebFirmwarePulse(FirmwarePulseKind::FORCED);
 }
 
-inline bool machineBeginRinse(uint32_t operationalLimitMs) {
+// continueSessionRun keeps an already-running logical run's start timestamp
+// (a demoted rinse counts the pre-classification time). A fresh rinse, or a
+// rinse over a run that predates the current session, restarts the clock.
+inline bool machineBeginRinse(uint32_t operationalLimitMs,
+                              bool continueSessionRun) {
   if (rinseActuationActive) {
     return true;
   }
@@ -287,7 +291,9 @@ inline bool machineBeginRinse(uint32_t operationalLimitMs) {
   clearMomentaryElapsedLatch();
   noteMomentaryLogicalStart();
   momentaryLogicalRunActive = true;
-  momentaryLogicalRunStartedAtMs = millis();
+  if (!continueSessionRun) {
+    momentaryLogicalRunStartedAtMs = millis();
+  }
   momentaryLogicalOperationalLimitMs = operationalLimitMs;
   return emitFirmwarePulse(FirmwarePulseKind::START);
 }
