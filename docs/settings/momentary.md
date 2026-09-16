@@ -23,7 +23,9 @@ it does not change the normal electrical mirror.
 A hold exceeding **Single-press limit** is mirror-only when Quick rinse is off.
 In press mode, the tentative logical start/stop is undone; in release mode,
 it is never applied. With [Quick rinse](quick-rinse.md) enabled, a long hold
-that starts from idle requests a timed rinse instead.
+that starts from idle requests a timed rinse instead. If [No-scale BBW](no-scale-bbw.md)
+is Armed, that rinse does not run water unless **Allow rinse while Armed** is
+on; the hold still uses up the missing-scale warning.
 
 A [no-scale](no-scale-bbw.md) or [cup-start](../features/cup-protection.md)
 refusal keeps the relay open for the entire attempt. Release the button,

@@ -706,7 +706,7 @@ still exposes the Armed/cooldown latch.
 | Activator while Warn once is Armed | Block and consume → Temporarily allowed. Circuit stays open. |
 | Activator while Require scale is blocking | Block without consuming; release is required before a later valid start. |
 | Three complete ON→OFF cycles within 2 s while Require scale is blocking | Move to Temporarily allowed, play the scale-connected melody, and consume the final release so it cannot start a shot. |
-| Short ON→OFF / idle long-press (rinse) while Armed | If Enable rinse is on: rinse runs; consume → Idle. If off: paddle short ON→OFF ends without `RINSE`; momentary long-press is not forwarded. |
+| Short ON→OFF / idle long-press (rinse) while Armed | Default: no `RINSE`, circuit stays open, consume → Temporarily allowed. If **Allow rinse while Armed** is on: rinse runs; consume → Idle. Quick rinse off: paddle short ON→OFF ends without `RINSE`; momentary long-press is not forwarded. |
 | Shot (non-rinse) ends | Idle; cooldown then Arm. |
 | Cooldown elapsed / boot | Arm. |
 

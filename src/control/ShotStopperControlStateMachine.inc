@@ -303,6 +303,19 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
   return machineStopAccepted;
 }
 
+bool noScaleArmedRinseIsBlocked(ControlSource source) {
+  if (noScaleAllowRinseWhileArmed(runtimeConfig.noScaleBbwMode) ||
+      noScaleBbwRequiresScale(runtimeConfig.noScaleBbwMode)) {
+    return false;
+  }
+  if (noScaleShotGuardWouldBlock(loopGuardInputs)) {
+    return true;
+  }
+  // Momentary press-mode consumes Armed on REQUEST_START, then emits
+  // REQUEST_RINSE while the blocked hold is still latched.
+  return source == ControlSource::PHYSICAL && noScaleShotGuardHold;
+}
+
 bool beginRinseCycle(ControlSource source) {
   if (idleTareBlocksStart(source == ControlSource::PHYSICAL)) return false;
   refreshLoopGuardsFromLastIntention();
@@ -312,6 +325,23 @@ bool beginRinseCycle(ControlSource source) {
       maybeEmitManualNoScaleBeep(loopGuardInputs);
     }
     addDebugEvent(DebugCategory::STATE, DebugCode::NO_SCALE_SHOT_GUARD_BLOCKED);
+    return false;
+  }
+  if (noScaleArmedRinseIsBlocked(source)) {
+    // Web rinse has no prior physical cue. Momentary release-mode's first
+    // stopper event is REQUEST_RINSE while still held and still Armed.
+    // Paddle/press already sounded at ON/START; do not retrigger.
+    if (source == ControlSource::WEB ||
+        (noScaleShotGuardArmed && loopGuardInputs.holdActive)) {
+      maybeEmitManualNoScaleBeep(loopGuardInputs);
+    }
+    if (noScaleShotGuardArmed) {
+      consumeNoScaleShotGuard();
+    }
+    if (source == ControlSource::PHYSICAL && loopGuardInputs.holdActive) {
+      noScaleShotGuardHold = true;
+      noScaleShotGuardHoldAtMs = millis();
+    }
     return false;
   }
   noScaleShotGuardNeedsFreshActivator = false;
@@ -540,11 +570,11 @@ void stateMachineTask() {
             noScaleShotGuardNeedsFreshActivator) {
           return;
         }
-        noScaleShotGuardHold = false;
-        cupStartGuardHold = false;
         if (!beginRinseCycle(ControlSource::PHYSICAL)) {
           return;
         }
+        noScaleShotGuardHold = false;
+        cupStartGuardHold = false;
         (void)enterRinse();
       }
       return;

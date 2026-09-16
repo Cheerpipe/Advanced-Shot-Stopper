@@ -20,12 +20,15 @@ ordinary boot and OTA.
 - **Paddle:** from Ready or during a brew, ON then OFF within the **gesture**
   time is a rinse. Holding ON past that time keeps a brew (or, if
   [No-scale BBW](no-scale-bbw.md) is Armed, may refuse to close the machine
-  circuit).
+  circuit). An Armed rinse from Ready does not run water unless **Allow rinse
+  while Armed** is on; the gesture still uses up the missing-scale warning.
 - **Momentary / reed:** a long-press that **starts from idle** (off / confirmed
   off) and reaches the gesture time is a rinse. In **Button press** the shot
   starts on press and demotes to rinse at the threshold. In **Button release**
   rinse starts directly (never a shot). A long-press during assumed/confirmed
-  on of an existing shot is not a rinse.
+  on of an existing shot is not a rinse. The same Armed-rinse rule applies:
+  default off keeps the group from running and uses up the warning; the option
+  on lets the rinse run.
 
 A web rinse (when remote machine control is compiled in) uses the same duration
 and requires Admin unlock. Without unlock, Home shows the version footer
@@ -52,7 +55,9 @@ firmware pulses start, keeps the group on for four seconds, then pulses stop.
 
 If a long button hold starts during an existing shot, it is not the idle rinse
 gesture. If **Require a scale** blocks the attempt, rinse is also blocked unless
-the physical temporary override was deliberately completed.
+the physical temporary override was deliberately completed. If **Warn once, then
+allow** is Armed and **Allow rinse while Armed** is off, the rinse gesture uses
+up the warning and does not run water.
 
 Related: [Paddle](paddle.md), [Momentary](momentary.md), [No-scale BBW](no-scale-bbw.md),
 [Shot history](../features/shot-history.md).

@@ -834,6 +834,8 @@
     "settings.alerts": "Alerts",
     "settings.allow_manual_brewing": "Allow manual brewing",
     "settings.allow_manual_brewing_2": "Allow manual brewing:",
+    "settings.allow_rinse_while_armed": "Allow rinse while Armed",
+    "settings.allow_rinse_while_armed_hint": "When off, a rinse while the missing-scale warning is Armed does not run water. It uses up that warning, so the next brew can be manual. When on, that rinse still runs. You hear the missing-scale warning when you start the gesture, then the rinse sound if you finish it.",
     "settings.always_finishes_by_weight_or_time_for": "For an automatic Brew by weight shot, ON uses Natural-style automation. OFF after the rinse window demotes the current shot to Original-style hands-off automation; moving ON promotes it back to Natural-style. Neither transition stops early. With Quick rinse on, early ON→OFF demotes the tentative shot to a rinse. Without weight control, OFF stops normally.",
     "settings.and_to": " and α to ",
     "settings.assume_idle_when_the_scale_connects": "Assume idle when the scale connects",

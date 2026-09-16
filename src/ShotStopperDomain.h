@@ -66,7 +66,7 @@ constexpr uint32_t SERIAL_BAUD = 115200;
 // after staOpen). V2 names that byte staWifiSleep without growing the blob.
 // Bump and add a migration when the blob layout changes
 // (see ShotStopperSettingsMigrate.h).
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 12;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 13;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;
@@ -89,27 +89,45 @@ enum class NoScaleBbwMode : uint8_t {
   REQUIRE_SCALE = 2
 };
 
-inline bool validNoScaleBbwMode(uint8_t mode) {
-  return mode <= static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE);
+// V13: bit 7 of noScaleBbwMode is Allow rinse while Armed; low bits stay 0–2.
+constexpr uint8_t NO_SCALE_ALLOW_RINSE_WHILE_ARMED = 0x80U;
+
+inline uint8_t noScaleBbwModeValue(uint8_t stored) {
+  return static_cast<uint8_t>(stored & 0x03U);
 }
 
-inline bool noScaleBbwEnabled(uint8_t mode) {
-  return mode != static_cast<uint8_t>(NoScaleBbwMode::OFF);
+inline bool noScaleAllowRinseWhileArmed(uint8_t stored) {
+  return (stored & NO_SCALE_ALLOW_RINSE_WHILE_ARMED) != 0;
 }
 
-inline bool noScaleBbwRequiresScale(uint8_t mode) {
-  return mode == static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE);
+inline uint8_t packNoScaleBbwMode(uint8_t mode, bool allowRinseWhileArmed) {
+  return static_cast<uint8_t>(
+      (mode & 0x03U) | (allowRinseWhileArmed ? NO_SCALE_ALLOW_RINSE_WHILE_ARMED : 0U));
 }
 
-inline const char *noScaleBbwModeId(uint8_t mode) {
-  switch (static_cast<NoScaleBbwMode>(mode)) {
+inline bool validNoScaleBbwMode(uint8_t stored) {
+  return (stored & ~0x83U) == 0 &&
+         noScaleBbwModeValue(stored) <=
+             static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE);
+}
+
+inline bool noScaleBbwEnabled(uint8_t stored) {
+  return noScaleBbwModeValue(stored) != static_cast<uint8_t>(NoScaleBbwMode::OFF);
+}
+
+inline bool noScaleBbwRequiresScale(uint8_t stored) {
+  return noScaleBbwModeValue(stored) ==
+         static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE);
+}
+
+inline const char *noScaleBbwModeId(uint8_t stored) {
+  switch (static_cast<NoScaleBbwMode>(noScaleBbwModeValue(stored))) {
     case NoScaleBbwMode::OFF: return "off";
     case NoScaleBbwMode::WARN_ONCE: return "warn_once";
     case NoScaleBbwMode::REQUIRE_SCALE: return "require_scale";
   }
   return "off";
 }
-
 
 inline bool validNtpHostnameChar(char c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
@@ -670,7 +688,8 @@ struct RuntimeConfig {
   // Dead field: cup presence uses minimumCupWeightG. Kept for NVS layout.
   float cupPresentWeightG = DEFAULT_CUP_PRESENT_WEIGHT_G;
   float cupRemovedWeightG = DEFAULT_CUP_REMOVED_WEIGHT_G;
-  // Reuses the legacy avoidBbwShotWithoutScale byte: false=OFF, true=WARN_ONCE.
+  // Reuses the legacy avoidBbwShotWithoutScale byte: low bits OFF/WARN_ONCE/
+  // REQUIRE_SCALE. V13 names bit 7 as Allow rinse while Armed (default off).
   uint8_t noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE);
   uint32_t lastShotCooldownMs = DEFAULT_LAST_SHOT_COOLDOWN_MS;
   // Minimum level sent to the ESP-IDF serial backend. NONE is off; CLI

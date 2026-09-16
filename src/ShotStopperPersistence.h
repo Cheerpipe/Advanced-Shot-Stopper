@@ -141,7 +141,7 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
         sizeof(settings)) {
       return false;
     }
-    if (settings.schemaVersion >= 6 && settings.schemaVersion <= 11) {
+    if (settings.schemaVersion >= 6 && settings.schemaVersion <= 12) {
       PersistedSettings &migrated = persistedSettingsV6MigrationScratch();
       if (!(settings.schemaVersion == 6
                 ? migratePersistedSettingsFromV6(settings, migrated)
@@ -153,7 +153,9 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
                                   ? migratePersistedSettingsFromV9(settings, migrated)
                                   : settings.schemaVersion == 10
                                         ? migratePersistedSettingsFromV10(settings, migrated)
-                                        : migratePersistedSettingsFromV11(settings, migrated))) {
+                                        : settings.schemaVersion == 11
+                                              ? migratePersistedSettingsFromV11(settings, migrated)
+                                              : migratePersistedSettingsFromV12(settings, migrated))) {
         return false;
       }
       settings = migrated;

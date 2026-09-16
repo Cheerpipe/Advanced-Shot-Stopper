@@ -245,11 +245,14 @@ void processWebCommand(const WebCommand &command) {
           candidateRuntime.timerOnly = !enabled;
           break;
         case QuickSettingField::NO_SCALE_BBW_MODE:
-          if (!validNoScaleBbwMode(command.presetId)) {
+          if (command.presetId >
+              static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE)) {
             rejectWebCommand(command);
             return;
           }
-          candidateRuntime.noScaleBbwMode = command.presetId;
+          candidateRuntime.noScaleBbwMode = packNoScaleBbwMode(
+              command.presetId,
+              noScaleAllowRinseWhileArmed(candidateRuntime.noScaleBbwMode));
           break;
         case QuickSettingField::AUTO_TO_MANUAL_GUARD:
           preset.autoToManualGuardEnabled = enabled;

@@ -121,7 +121,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"requireCupToStart\":%s,\"avoidAccidentalTouchEnabled\":%s,"
            "\"cupPresentWeightG\":%.1f,\"cupRemovedWeightG\":%.1f,"
            "\"avoidBbwShotWithoutScale\":%s,\"noScaleBbwMode\":\"%s\","
-           "\"autoRetare\":%s,"
+           "\"noScaleAllowRinseWhileArmed\":%s,\"autoRetare\":%s,"
            "\"retareWindowMs\":%lu,\"minimumCupWeightG\":%.1f,"
            "\"lastShotCooldownMs\":%lu,\"timezoneOffsetMinutes\":%d,"
            "\"serialLogLevel\":\"%s\",\"serialDebugOutput\":%s,"
@@ -163,6 +163,8 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<double>(c.config.cupRemovedWeightG),
            noScaleBbwEnabled(c.config.noScaleBbwMode) ? "true" : "false",
            noScaleBbwModeId(c.config.noScaleBbwMode),
+           noScaleAllowRinseWhileArmed(c.config.noScaleBbwMode) ? "true"
+                                                              : "false",
            c.config.autoRetare ? "true" : "false",
            static_cast<unsigned long>(c.config.retareWindowMs),
            static_cast<double>(c.config.minimumCupWeightG),

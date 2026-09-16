@@ -75,12 +75,15 @@ baseline 0.30 and EWMA profile v2 while retaining selection, offsets and gain/so
 New schemas retain saved choices and valid learned gains. Candidate anchors/observations/generations are RAM
 only; deferred persistence retains offsets, gain/provenance and profile through
 the existing dual-slot owner. Unknown/invalid schemas follow existing recovery;
-old binaries do not understand V12, so downgrades are not settings-preserving.
+old binaries do not understand V13, so downgrades are not settings-preserving.
 V11 names RuntimeConfig byte 5 (former padding) as global
 `powerManagementEnabled`. Every V1–V10 migration initializes it to false after
 validating the original CRC; presets never copy it.
 V12 names the WebhookConfig tail byte as `presetChanges`; V11 migration validates
 the historical CRC and explicitly initializes that opt-in delivery flag to off.
+V13 keeps the 252-byte RuntimeConfig layout and names bit 7 of `noScaleBbwMode`
+as Allow rinse while Armed (default off). V12 migration validates the historical
+CRC and clears that bit.
 Last-shot schema V4 atomically stores independent last-completed and
 last-qualifying-good aggregates and appends average flow to each complete
 record. `LastShotStore` owns both live RAM views and their one durable blob;

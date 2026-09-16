@@ -2194,6 +2194,7 @@ void w01_default_runtime_configuration_is_valid() {
   CHECK(config.maxBbwBrewTimeMs == DEFAULT_MAX_BBW_BREW_TIME_MS);
   CHECK(config.noScaleBbwMode ==
         static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE));
+  CHECK(!noScaleAllowRinseWhileArmed(config.noScaleBbwMode));
   CHECK(config.cupProtectionEnabled);
   CHECK(config.stopIfCupRemoved);
   CHECK(!config.requireCupToStart);
@@ -2299,6 +2300,10 @@ void w03_runtime_timing_relations_are_transactional() {
   config.noScaleBbwMode = 3;
   CHECK(validateRuntimeConfig(config) ==
         ConfigValidationError::NO_SCALE_BBW_MODE);
+  config = RuntimeConfig{};
+  config.noScaleBbwMode = packNoScaleBbwMode(
+      static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE), true);
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::NONE);
   config = RuntimeConfig{};
   config.lastShotCooldownMs = MIN_LAST_SHOT_COOLDOWN_MS - 1;
   CHECK(validateRuntimeConfig(config) ==
@@ -3457,6 +3462,22 @@ void ns07_web_rinse_consumes_guard() {
   enableNoScaleShotGuardForTest();
   reachReadyFromBoot();
   processWebCommand(webControlCommand(WebCommandType::RINSE));
+  CHECK(stopperState == StopperState::READY);
+  CHECK(!session.active);
+  CHECK(!noScaleShotGuardArmed);
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(debugEventExists(DebugCode::NO_SCALE_SHOT_GUARD_CONSUMED));
+  CHECK(!debugEventExists(DebugCode::NO_SCALE_SHOT_GUARD_BLOCKED));
+  CHECK(!debugEventExists(DebugCode::RINSE_CLASSIFIED));
+}
+
+void ns07b_web_rinse_allowed_while_armed_runs() {
+  resetHarness(false, false);
+  enableNoScaleShotGuardForTest();
+  runtimeConfig.noScaleBbwMode = packNoScaleBbwMode(
+      static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE), true);
+  reachReadyFromBoot();
+  processWebCommand(webControlCommand(WebCommandType::RINSE));
   CHECK(stopperState == StopperState::RINSE);
   CHECK(!noScaleShotGuardArmed);
   CHECK(getRelaySafetySnapshot().closed);
@@ -3479,9 +3500,35 @@ void ns08_blocked_beep_respects_alert_checkbox() {
   CHECK(localBuzzer.acceptedRequests == before);
 }
 
-void ns09_armed_rinse_gesture_runs_and_consumes_guard() {
+void ns09_armed_rinse_gesture_consumes_guard() {
   resetHarness(false, false);
   enableNoScaleShotGuardForTest();
+  reachReadyFromBoot();
+  CHECK(noScaleShotGuardArmed);
+  const uint32_t beforeBeeps = localBuzzer.acceptedRequests;
+  const uint32_t rawOnAt = hostMillis;
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(stopperState == StopperState::READY);
+  CHECK(noScaleShotGuardArmed);
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(localBuzzer.acceptedRequests == beforeBeeps + 1);
+  releaseAtPhysicalDuration(rawOnAt, runtimeConfig.rinseGestureMs);
+  CHECK(stopperState == StopperState::READY);
+  CHECK(!session.active);
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(!noScaleShotGuardArmed);
+  CHECK(!debugEventExists(DebugCode::RINSE_CLASSIFIED));
+  CHECK(debugEventExists(DebugCode::NO_SCALE_SHOT_GUARD_CONSUMED));
+  CHECK(!debugEventExists(DebugCode::NO_SCALE_SHOT_GUARD_BLOCKED));
+  CHECK(localBuzzer.acceptedRequests == beforeBeeps + 1);
+}
+
+void ns09b_allow_rinse_while_armed_runs() {
+  resetHarness(false, false);
+  enableNoScaleShotGuardForTest();
+  runtimeConfig.noScaleBbwMode = packNoScaleBbwMode(
+      static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE), true);
   reachReadyFromBoot();
   CHECK(noScaleShotGuardArmed);
   const uint32_t beforeBeeps = localBuzzer.acceptedRequests;
@@ -3538,6 +3585,8 @@ void ns11_web_rinse_with_scale_keeps_armed() {
 void ns12_failed_rinse_does_not_consume_guard() {
   resetHarness(false, false);
   enableNoScaleShotGuardForTest();
+  runtimeConfig.noScaleBbwMode = packNoScaleBbwMode(
+      static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE), true);
   reachReadyFromBoot();
   CHECK(noScaleShotGuardArmed);
   hostGptimerArmSucceeds = false;
@@ -14231,6 +14280,7 @@ void pow01_weighted_loss_and_manual_rinse_clock() {
 
   resetHarness(false, false);
   runtimeConfig.powerManagementEnabled = true;
+  runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);
   reachReadyFromBoot();
   CHECK(beginRinseCycle(ControlSource::PHYSICAL));
   CHECK(powerAppliedProfile.load() == PowerProfile::MANUAL);
@@ -14736,8 +14786,10 @@ const TestCase testCases[] = {
     {"NS05", ns05_cooldown_rearms_from_idle},
     {"NS06", ns06_finished_shot_extends_cooldown},
     {"NS07", ns07_web_rinse_consumes_guard},
+    {"NS07B", ns07b_web_rinse_allowed_while_armed_runs},
     {"NS08", ns08_blocked_beep_respects_alert_checkbox},
-    {"NS09", ns09_armed_rinse_gesture_runs_and_consumes_guard},
+    {"NS09", ns09_armed_rinse_gesture_consumes_guard},
+    {"NS09B", ns09b_allow_rinse_while_armed_runs},
     {"NS10", ns10_idle_rinse_gesture_does_not_rearm},
     {"NS11", ns11_web_rinse_with_scale_keeps_armed},
     {"NS12", ns12_failed_rinse_does_not_consume_guard},

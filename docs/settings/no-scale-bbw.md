@@ -12,7 +12,7 @@ is available and its weight stream is fresh.
 | Mode | Shot without a scale | Rinse without a scale | Cooldown |
 | --- | --- | --- | --- |
 | **Allow manual brewing** | Allowed | Allowed | Not used |
-| **Warn once, then allow** (default) | First attempt is blocked and alerts; later attempts are manual | An Armed rinse runs and consumes the warning | Protection returns after the configured delay |
+| **Warn once, then allow** (default) | First attempt is blocked and alerts; later attempts are manual | An Armed rinse does not run water. It uses up that warning so the next brew can be manual. Turn **Allow rinse while Armed** on if you want that rinse to run | Protection returns after the configured delay |
 | **Require a scale** | Blocked unless temporarily allowed with the physical gesture | Blocked unless temporarily allowed with the physical gesture | Protection returns after the configured delay |
 
 In **Require a scale**, shots and rinses cannot start until the scale is usable.
@@ -25,6 +25,14 @@ scale reconnects while the activator is held, release it before starting again.
 **Protection returns after (min)** applies to **Warn once, then allow** and the
 temporary **Require a scale** override. It defaults to 60 minutes and accepts
 5–240 minutes. Boot and scale reconnect re-arm protection immediately.
+
+**Allow rinse while Armed** is off by default. It applies only to **Warn once,
+then allow**. With it off, a rinse while the missing-scale warning is Armed
+does not run water. The gesture still uses up that warning, so the next brew
+can be manual. With it on, that rinse still runs. You hear the missing-scale
+warning when you start the gesture, then the rinse sound if you finish it.
+Home **Start rinse** follows the same choice. **Require a scale** still blocks
+rinse unless you complete the temporary physical override.
 
 Home shows the configured mode as a read-only summary. Its live status is
 **Off**, **Armed**, **Temporarily allowed** (with remaining time), **Scale
@@ -44,7 +52,9 @@ blocked attempt; holding the activator does not repeat it continuously.
 
 - **Warn once, then allow:** with BBW on and no scale, the first shot attempt
   warns and stays blocked. Release the activator, then make a fresh attempt
-  for manual brewing; protection returns after the cooldown.
+  for manual brewing; protection returns after the cooldown. A rinse while
+  Armed uses up the warning without running water unless **Allow rinse while
+  Armed** is on.
 - **Require a scale:** repeated ordinary attempts remain blocked. Either
   restore a fresh scale stream or deliberately use the temporary physical
   override above, then start with a new gesture.

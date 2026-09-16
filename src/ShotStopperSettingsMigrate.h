@@ -2,6 +2,7 @@
 
 // Settings schema migrations.
 //
+// V13 names bit 7 of noScaleBbwMode as Allow rinse while Armed (default OFF).
 // V12 names WebhookConfig tail padding for preset-change delivery (default OFF).
 // V11 names RuntimeConfig padding for power management (default ON).
 // V10 added BBW alpha baseline. V9 added strategies.
@@ -94,6 +95,19 @@ inline bool migratePersistedSettingsFromV11(const PersistedSettings &v11,
       v11.checksum != persistedSettingsChecksum(v11)) return false;
   copyPersistedBytes(out, v11, sizeof(out));
   out.webhook.presetChanges = false;
+  out.schemaVersion = CONFIG_SCHEMA_VERSION;
+  out.checksum = persistedSettingsChecksum(out);
+  return true;
+}
+
+inline bool migratePersistedSettingsFromV12(const PersistedSettings &v12,
+                                            PersistedSettings &out) {
+  if (v12.magic != PERSISTED_SETTINGS_MAGIC || v12.schemaVersion != 12 ||
+      v12.structureSize != sizeof(PersistedSettings) ||
+      v12.checksum != persistedSettingsChecksum(v12)) return false;
+  copyPersistedBytes(out, v12, sizeof(out));
+  out.runtime.noScaleBbwMode =
+      packNoScaleBbwMode(noScaleBbwModeValue(out.runtime.noScaleBbwMode), false);
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.checksum = persistedSettingsChecksum(out);
   return true;

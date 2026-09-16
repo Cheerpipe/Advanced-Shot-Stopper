@@ -336,7 +336,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"scaleMacCacheMode\":\"%s\","
         "\"bookooMuteOnBuzzerOnly\":%s,\"bookooConnectBeepLevel\":%u,"
         "\"avoidBbwShotWithoutScale\":%s,\"noScaleBbwMode\":\"%s\","
-        "\"lastShotCooldownMs\":%lu",
+        "\"noScaleAllowRinseWhileArmed\":%s,\"lastShotCooldownMs\":%lu",
         static_cast<unsigned>(control.config.goalWeightG),
         static_cast<double>(control.config.weightOffsetG),
         static_cast<double>(control.config.weightOffsetBaselineG),
@@ -404,6 +404,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned>(control.config.bookooConnectBeepLevel),
         noScaleBbwEnabled(control.config.noScaleBbwMode) ? "true" : "false",
         noScaleBbwModeId(control.config.noScaleBbwMode),
+        noScaleAllowRinseWhileArmed(control.config.noScaleBbwMode) ? "true"
+                                                                 : "false",
         static_cast<unsigned long>(control.config.lastShotCooldownMs));
   }
 

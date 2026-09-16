@@ -64,6 +64,9 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   bool legacyAvoidBbwShotWithoutScale =
       noScaleBbwEnabled(candidate.noScaleBbwMode);
   bool legacyNoScalePresent = false;
+  uint8_t parsedNoScaleMode = noScaleBbwModeValue(candidate.noScaleBbwMode);
+  bool parsedAllowRinseWhileArmed =
+      noScaleAllowRinseWhileArmed(candidate.noScaleBbwMode);
   bool legacySerialDebugOutput = false;
   uint8_t requestedSerialLogLevel = 0;
   char customNtp[NTP_SERVER_HOST_CAPACITY] = {};
@@ -94,7 +97,7 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       "weightOffsetBaselineG", "timezoneOffsetMinutes", "ntpServerPreset",
       "ntpServerCustom", "scaleMacCacheMode", "bookooMuteOnBuzzerOnly",
       "bookooConnectBeepLevel", "noScaleBbwMode", "avoidBbwShotWithoutScale",
-      "lastShotCooldownMs",
+      "noScaleAllowRinseWhileArmed", "lastShotCooldownMs",
       "serialLogLevel", "serialDebugOutput", "ringRetainLogLevel", "showDiagnosticPage",
       "powerManagementEnabled"};
   const char *parseError = nullptr;
@@ -362,10 +365,13 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
     parseError =
         "Send noScaleBbwMode or avoidBbwShotWithoutScale, not both.";
   } else if (jsonFieldPresent(root, "noScaleBbwMode") &&
-             !jsonNoScaleBbwMode(root, "noScaleBbwMode",
-                                 candidate.noScaleBbwMode)) {
+             !jsonNoScaleBbwMode(root, "noScaleBbwMode", parsedNoScaleMode)) {
     parseError =
         "noScaleBbwMode must be off, warn_once, or require_scale.";
+  } else if (jsonFieldPresent(root, "noScaleAllowRinseWhileArmed") &&
+             !jsonBoolean(root, "noScaleAllowRinseWhileArmed",
+                          parsedAllowRinseWhileArmed)) {
+    parseError = "noScaleAllowRinseWhileArmed must be a boolean.";
   } else if (jsonFieldPresent(root, "avoidBbwShotWithoutScale") &&
              !jsonBoolean(root, "avoidBbwShotWithoutScale",
                           legacyAvoidBbwShotWithoutScale)) {
@@ -438,10 +444,12 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
     candidate.timerOnly = !brewByWeight;
   }
   if (legacyNoScalePresent) {
-    candidate.noScaleBbwMode = static_cast<uint8_t>(
+    parsedNoScaleMode = static_cast<uint8_t>(
         legacyAvoidBbwShotWithoutScale ? NoScaleBbwMode::WARN_ONCE
                                        : NoScaleBbwMode::OFF);
   }
+  candidate.noScaleBbwMode =
+      packNoScaleBbwMode(parsedNoScaleMode, parsedAllowRinseWhileArmed);
   candidate.soundAlertsMuted = !soundAlertsEnabled;
   memcpy(candidate.ntpServerCustom, customNtp, sizeof(candidate.ntpServerCustom));
   memset(customNtp, 0, sizeof(customNtp));

@@ -660,6 +660,51 @@ void t_rinse_armed_noscale_long_press_consumes_guard() {
   setScaleLinkState(ScaleLinkState::DISCONNECTED);
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   CHECK(noScaleShotGuardArmed);
+  for (uint32_t step = 0; step < 80 && localBuzzer.busy(); ++step) {
+    runLoopAfter(40);
+  }
+  const uint32_t beforeBeeps = localBuzzer.acceptedRequests;
+  pressDown();
+  CHECK(stopperState == StopperState::READY);
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(!noScaleShotGuardArmed);
+  CHECK(noScaleShotGuardHold);
+  CHECK(localBuzzer.acceptedRequests == beforeBeeps + 1);
+  runLoopAfter(runtimeConfig.rinseGestureMs);
+  CHECK(stopperState == StopperState::READY);
+  CHECK(!session.active);
+  CHECK(!noScaleShotGuardArmed);
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(localBuzzer.acceptedRequests == beforeBeeps + 1);
+  releaseUp();
+  CHECK(!noScaleShotGuardHold);
+  pressDown();
+  CHECK(getRelaySafetySnapshot().closed);
+  CHECK(session.active);
+}
+
+void t_rinse_armed_noscale_long_press_allowed_runs() {
+  resetMomentaryHarness();
+  enableFirmwareRinseForTest();
+  runtimeConfig.timerOnly = false;
+  runtimeConfig.noScaleBbwMode = packNoScaleBbwMode(
+      static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE), true);
+  mutableActiveShotPreset(presetBank).brewByWeight = true;
+  runtimeConfig = composeEffectiveConfig(runtimeConfig, presetBank);
+  runtimeConfig.noScaleBbwMode = packNoScaleBbwMode(
+      static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE), true);
+  runtimeConfig.rinseEnabled = true;
+  runtimeConfig.buzzerManualNoScaleBeep = true;
+  noScaleShotGuardArmed = true;
+  noScaleShotGuardHold = false;
+  noScaleShotGuardActivityAtMs = 0;
+  scale.connected = false;
+  setScaleLinkState(ScaleLinkState::DISCONNECTED);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  CHECK(noScaleShotGuardArmed);
+  for (uint32_t step = 0; step < 80 && localBuzzer.busy(); ++step) {
+    runLoopAfter(40);
+  }
   const uint32_t beforeBeeps = localBuzzer.acceptedRequests;
   pressDown();
   CHECK(stopperState == StopperState::READY);
@@ -671,6 +716,41 @@ void t_rinse_armed_noscale_long_press_consumes_guard() {
   CHECK(!noScaleShotGuardArmed);
   CHECK(getRelaySafetySnapshot().closed);
   CHECK(localBuzzer.acceptedRequests >= beforeBeeps + 2);
+}
+
+void t_rinse_armed_noscale_release_mode_does_not_run() {
+  resetMomentaryHarness();
+  enableFirmwareRinseForTest();
+  runtimeConfig.momentaryStartOnPress = false;
+  runtimeConfig.timerOnly = false;
+  runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE);
+  mutableActiveShotPreset(presetBank).brewByWeight = true;
+  runtimeConfig = composeEffectiveConfig(runtimeConfig, presetBank);
+  runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE);
+  runtimeConfig.rinseEnabled = true;
+  runtimeConfig.buzzerManualNoScaleBeep = true;
+  noScaleShotGuardArmed = true;
+  noScaleShotGuardHold = false;
+  noScaleShotGuardActivityAtMs = 0;
+  scale.connected = false;
+  setScaleLinkState(ScaleLinkState::DISCONNECTED);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  CHECK(noScaleShotGuardArmed);
+  for (uint32_t step = 0; step < 80 && localBuzzer.busy(); ++step) {
+    runLoopAfter(40);
+  }
+  const uint32_t beforeBeeps = localBuzzer.acceptedRequests;
+  pressDown();
+  CHECK(noScaleShotGuardArmed);
+  CHECK(!session.active);
+  CHECK(!getRelaySafetySnapshot().closed);
+  runLoopAfter(runtimeConfig.rinseGestureMs);
+  CHECK(stopperState == StopperState::READY);
+  CHECK(!session.active);
+  CHECK(!noScaleShotGuardArmed);
+  CHECK(noScaleShotGuardHold);
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(localBuzzer.acceptedRequests == beforeBeeps + 1);
 }
 
 void t_rinse_release_mode_mid_hold_is_native_not_shot() {
@@ -2231,6 +2311,8 @@ const TestCase kTests[] = {
     {"P61", t_rinse_release_mode_starts_directly},
     {"P62", t_rinse_does_not_start_during_running_shot},
     {"P63", t_rinse_armed_noscale_long_press_consumes_guard},
+    {"P63B", t_rinse_armed_noscale_long_press_allowed_runs},
+    {"P63C", t_rinse_armed_noscale_release_mode_does_not_run},
     {"P64", t_rinse_release_mode_mid_hold_is_native_not_shot},
     {"P65", t_rinse_end_aborts_start_pulse_for_stop_pulse},
 #if SHOT_STOPPER_MACHINE_TYPE == 1

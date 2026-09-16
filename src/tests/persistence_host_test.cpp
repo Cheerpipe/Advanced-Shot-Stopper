@@ -105,6 +105,7 @@ void p01_defaults_are_valid() {
         static_cast<uint8_t>(DEFAULT_EXTENDED_PULSE_RATE));
   CHECK(settings.runtime.noScaleBbwMode ==
         static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE));
+  CHECK(!noScaleAllowRinseWhileArmed(settings.runtime.noScaleBbwMode));
   CHECK(settings.runtime.cupProtectionEnabled);
   CHECK(settings.runtime.stopIfCupRemoved);
   CHECK(!settings.runtime.requireCupToStart);
@@ -2069,12 +2070,31 @@ void p79_webhook_preset_changes_migrates_dirty_v11_padding() {
   CHECK(loaded.webhook.presetChanges);
 }
 
+void p81_v12_clears_allow_rinse_while_armed_bit() {
+  resetHostPersistence();
+  PersistedSettings legacy;
+  CHECK(initializeDefaultSettings(legacy));
+  legacy.schemaVersion = 12;
+  legacy.runtime.noScaleBbwMode = static_cast<uint8_t>(
+      static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE) | 0x80U);
+  legacy.checksum = persistedSettingsChecksum(legacy);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacy,
+                           sizeof(legacy));
+  PersistedSettings loaded;
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
+  CHECK(noScaleBbwModeValue(loaded.runtime.noScaleBbwMode) ==
+        static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE));
+  CHECK(!noScaleAllowRinseWhileArmed(loaded.runtime.noScaleBbwMode));
+}
+
 struct TestCase {
   const char *id;
   void (*function)();
 };
 
 const TestCase tests[] = {
+    {"P81", p81_v12_clears_allow_rinse_while_armed_bit},
     {"P80", p80_boot_id_remains_dirty_until_durable},
     {"P79", p79_webhook_preset_changes_migrates_dirty_v11_padding},
     {"P78", p78_power_management_migration_and_global_scope},

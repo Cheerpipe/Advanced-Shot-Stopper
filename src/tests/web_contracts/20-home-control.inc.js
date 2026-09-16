@@ -501,9 +501,13 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !ui.includes('id="homeAtmSub"') ||
     !ui.includes('id="homeNoScaleSub"') ||
     !ui.includes('id="noScaleBbwMode"') ||
+    !ui.includes('id="noScaleAllowRinseWhileArmed"') ||
     !ui.includes('id="lastShotCooldownMin"') ||
     !ui.includes('When BBW has no scale') ||
     !ui.includes('Protection returns after') ||
+    !ui.includes('Allow rinse while Armed') ||
+    !ui.includes("noScaleAllowRinseWhileArmed:$('noScaleAllowRinseWhileArmed').checked") ||
+    !ui.includes("'rinseEnabled','noScaleAllowRinseWhileArmed'") ||
     !ui.includes('id="noScaleBbwMode"') ||
     !ui.includes('value="warn_once"') ||
     !ui.includes('value="require_scale"') ||
@@ -527,6 +531,8 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     html.indexOf('id="noScaleBbwMode"') <
         html.indexOf('<legend>Machine and scale</legend>') ||
     html.indexOf('id="noScaleBbwMode"') >
+        html.indexOf('id="noScaleAllowRinseWhileArmed"') ||
+    html.indexOf('id="noScaleAllowRinseWhileArmed"') >
         html.indexOf('id="lastShotCooldownMin"') ||
     html.indexOf('id="lastShotCooldownMin"') <
         html.indexOf('<summary>No-scale BBW</summary>') ||
@@ -540,6 +546,7 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
         html.indexOf('id="saveBrewPresetButton"') ||
     !network.includes('avoidBbwShotWithoutScale') ||
     !network.includes('noScaleBbwMode') ||
+    !network.includes('noScaleAllowRinseWhileArmed') ||
     !network.includes('warn_once') ||
     !network.includes('require_scale') ||
     !network.includes('not both') ||

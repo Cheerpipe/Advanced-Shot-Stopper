@@ -241,7 +241,8 @@ void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits) 
   if (runtimeConfig.scaleMacCacheMode != previousScaleMacCacheMode) {
     requestScalePreferenceModeReset();
   }
-  if (runtimeConfig.noScaleBbwMode != previousNoScaleMode) {
+  if (noScaleBbwModeValue(runtimeConfig.noScaleBbwMode) !=
+      noScaleBbwModeValue(previousNoScaleMode)) {
     noScaleShotGuardActivityAtMs = 0;
     noScaleShotGuardArmed = noScaleBbwEnabled(runtimeConfig.noScaleBbwMode);
     resetNoScaleRequireBypassGesture();
