@@ -9,8 +9,11 @@ start with [Hardware](HARDWARE.md).
 1. Keep the physical activator OFF (release a momentary button) and power the
    controller. Turn on the scale with no other app connected to it.
 2. Join the controller's [fallback access point](settings/ap.md#first-connection)
-   from your phone or computer. Stay connected even if the phone reports
-   "no internet"; open the AP address in a browser.
+   from your phone or computer. The name is **`AdvancedShotStopperAP-`** plus
+   eight characters unique to this controller (USB `AP_STATUS` shows the exact
+   name). Stay connected even if the phone reports "no internet"; open the AP
+   address in a browser. The scale may wait to connect until you finish this
+   setup network.
 3. If the Web UI shows **Reload**, select it to claim this browser session.
    Open **Admin** and unlock it with the device password.
 4. Change the factory device password in **Admin → Device password**. It is

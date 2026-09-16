@@ -745,6 +745,8 @@ void ShotStopperNetwork::refreshExtendedStatus(uint32_t now) {
   if (esp_wifi_get_mac(WIFI_IF_AP, mac) == ESP_OK) {
     formatWifiMac(mac, apMac, sizeof(apMac));
   }
+  char apSsid[WIFI_SSID_CAPACITY] = {};
+  fillSoftApSsid(apSsid, sizeof(apSsid));
   const bool ntpArm = ntpMayArm(now, staConnected);
   const bool httpActive = server_ != nullptr;
   const bool factoryPassword = passwordIsFactoryDefault(settings_);
@@ -773,9 +775,11 @@ void ShotStopperNetwork::refreshExtendedStatus(uint32_t now) {
   memset(status_.staMac, 0, sizeof(status_.staMac));
   memset(status_.staBssid, 0, sizeof(status_.staBssid));
   memset(status_.apMac, 0, sizeof(status_.apMac));
+  memset(status_.apSsid, 0, sizeof(status_.apSsid));
   copyCString(status_.staMac, sizeof(status_.staMac), staMac);
   copyCString(status_.staBssid, sizeof(status_.staBssid), staBssid);
   copyCString(status_.apMac, sizeof(status_.apMac), apMac);
+  copyCString(status_.apSsid, sizeof(status_.apSsid), apSsid);
   memset(status_.ntpActiveServer, 0, sizeof(status_.ntpActiveServer));
   copyCString(status_.ntpActiveServer, sizeof(status_.ntpActiveServer),
               timeStatus.activeServer);

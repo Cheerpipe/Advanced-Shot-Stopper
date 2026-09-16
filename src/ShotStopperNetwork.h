@@ -139,6 +139,7 @@ struct NetworkStatusSnapshot {
   char staMac[18] = {};
   char staBssid[18] = {};
   char apMac[18] = {};
+  char apSsid[WIFI_SSID_CAPACITY] = {};
   char ntpActiveServer[NTP_SERVER_HOST_CAPACITY] = {};
 };
 
@@ -262,6 +263,7 @@ class ShotStopperNetwork {
   static constexpr uint32_t COMMAND_RETRY_MIN_MS = 250;
   static constexpr uint32_t MAINTENANCE_PUBLICATION_TIMEOUT_MS = 2000;
   static constexpr uint32_t HTTP_RETRY_MS = 1000;
+  static constexpr uint32_t WIFI_PS_RETRY_MS = 1000;
   static constexpr uint32_t HEALTH_TELEMETRY_INTERVAL_MS = 5000;
   static constexpr uint32_t NETWORK_STOP_TIMEOUT_MS = 5000;
   static constexpr uint8_t COMMAND_MAX_ATTEMPTS = 5;
@@ -328,6 +330,7 @@ class ShotStopperNetwork {
   std::atomic<bool> scaleHuntRfActive_{false};
   wifi_ps_type_t lastAppliedWifiPs_{WIFI_PS_NONE};
   bool lastAppliedWifiPsValid_{false};
+  uint32_t wifiPsNextWriteAtMs_{0};
   std::atomic<bool> otaRestartPending_{false};
   bool otaRollbackRestartPending_ = false;
   const char *otaBootReason_ = "";
@@ -385,7 +388,7 @@ class ShotStopperNetwork {
   void startStation(const NetworkSettingsSnapshot &settings, uint32_t now);
   void applyStationAddressConfig(const NetworkSettingsSnapshot &settings);
   bool beginStationConnect(const NetworkSettingsSnapshot &settings, uint32_t now);
-  void applyWifiPowerSave();
+  void applyWifiPowerSave(bool apStarting = false);
   void clearStaLinkMetrics();
   bool brewRfActive() const;
   bool ensureAccessPoint(uint32_t now, bool force = false);

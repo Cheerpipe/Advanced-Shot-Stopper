@@ -2423,6 +2423,14 @@ void w03_runtime_timing_relations_are_transactional() {
 void w04_wifi_credentials_have_strict_bounds() {
   CHECK(validWifiSsid("Micra"));
   CHECK(!validWifiSsid(""));
+  {
+    const uint8_t mac[6] = {0x3C, 0xDC, 0x75, 0xFC, 0xBF, 0x0D};
+    char ssid[WIFI_SSID_CAPACITY] = {};
+    CHECK(formatSoftApSsid(ssid, sizeof(ssid), mac));
+    CHECK(strcmp(ssid, "AdvancedShotStopperAP-75fcbf0d") == 0);
+    CHECK(validWifiSsid(ssid));
+    CHECK(!formatSoftApSsid(ssid, SOFT_AP_SSID_LENGTH, mac));
+  }
   CHECK(validWifiPassword("12345678", false));
   CHECK(!validWifiPassword("1234", false));
   CHECK(validWifiPassword("", true));
@@ -5509,6 +5517,31 @@ void d10b_companion_pauses_for_hunt_window_after_scan_start() {
   hostMillis += 2;
   CHECK(!companionAdvertisingShouldPause());
   CHECK(scale.scanning);
+}
+
+void d10c_softap_yields_discovery_and_pauses_companion() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  uint32_t lastScanCycleMs = 0;
+  uint32_t lastConnectLogMs = 0;
+  bool connectAttemptSeriesActive = false;
+  uint32_t scanSessionAtMs = 0;
+  uint32_t scanLastAdvertAtMs = 0;
+  serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
+                              connectAttemptSeriesActive, scanSessionAtMs,
+                              scanLastAdvertAtMs);
+  CHECK(scale.scanning);
+  hostMillis += SCALE_HUNT_RF_CLEAR_MS + 1;
+  CHECK(!companionAdvertisingShouldPause());
+  syncScaleSoftApRadio(true);
+  serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
+                              connectAttemptSeriesActive, scanSessionAtMs,
+                              scanLastAdvertAtMs);
+  CHECK(!scale.scanning);
+  CHECK(companionAdvertisingShouldPause());
+  CHECK(!startScaleDiscoveryScan(nullptr, false));
+  scale.connected = true;
+  CHECK(companionAdvertisingShouldPause());
 }
 
 void d11_select_preferred_is_noop_when_unchanged() {
@@ -11096,6 +11129,7 @@ void sc15_status_printers_use_dump_views() {
   dump.staReconnectHeld = true;
   dump.apStartHeld = false;
   dump.httpStartHeld = true;
+  dump.wifiPs = WifiPsLive::NONE;
   strncpy(dump.staIp, "192.168.1.20", sizeof(dump.staIp) - 1);
   Serial.tx.clear();
   serialCliPrintNetStatus(dump);
@@ -11106,9 +11140,15 @@ void sc15_status_printers_use_dump_views() {
   CHECK(serialTxContains("staReconnectHeld=true"));
   CHECK(serialTxContains("AP_STATUS"));
   CHECK(serialTxContains("ssid=AdvancedShotStopperAP"));
+  CHECK(serialTxContains("wifiPs=NONE"));
   CHECK(serialTxContains("WEBUI_STATUS"));
   CHECK(serialTxContains("httpActive=true"));
   CHECK(serialTxContains("httpStartHeld=true"));
+
+  strncpy(dump.apSsid, "AdvancedShotStopperAP-75fcbf0d", sizeof(dump.apSsid) - 1);
+  Serial.tx.clear();
+  serialCliPrintApStatus(dump);
+  CHECK(serialTxContains("ssid=AdvancedShotStopperAP-75fcbf0d"));
 
   SerialCliHealthDump health;
   health.freeHeapBytes = 80000;
@@ -14995,6 +15035,7 @@ const TestCase testCases[] = {
     {"D12", d12_advertisement_history_does_not_dirty_persist},
     {"D10", d10_companion_pauses_while_scale_connected_or_connecting},
     {"D10b", d10b_companion_pauses_for_hunt_window_after_scan_start},
+    {"D10c", d10c_softap_yields_discovery_and_pauses_companion},
     {"D11", d11_select_preferred_is_noop_when_unchanged},
     {"S01", s01_shot_log_filters_short_and_rinse},
     {"S01b", s01b_shot_log_stop_detail_names_end_reasons},

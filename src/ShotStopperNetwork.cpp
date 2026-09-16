@@ -10,6 +10,7 @@
 #include "ShotStopperRecovery.h"
 #include "ShotStopperResetGuard.h"
 #include "ShotStopperSerialCli.h"
+#include "ShotStopperScaleWorker.h"
 #include "ShotStopperShotCurveTypes.h"
 #include <ShotStopperVersion.h>
 #include "ShotStopperWatchdog.h"
@@ -130,6 +131,18 @@ void formatWifiMac(const uint8_t mac[6], char *output, size_t outputCapacity) {
            mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
+void fillSoftApSsid(char *out, size_t cap) {
+  uint8_t mac[6] = {};
+  if (esp_wifi_get_mac(WIFI_IF_AP, mac) == ESP_OK &&
+      formatSoftApSsid(out, cap, mac)) {
+    return;
+  }
+  if (out == nullptr || cap == 0) {
+    return;
+  }
+  snprintf(out, cap, "%s", SOFT_AP_SSID_PREFIX);
+}
+
 void parseShotsPageQuery(httpd_req_t *request, size_t &offset, size_t &limit,
                          ShotLogSort &sort, ShotLogSortDir &dir) {
   offset = 0;
@@ -179,7 +192,6 @@ const char *jsonParseFailureMessage(const char *fallback) {
   return fallback;
 }
 
-constexpr const char *AP_SSID = "AdvancedShotStopperAP";
 constexpr const char *AP_IP = "192.168.4.1";
 constexpr const char *JSON_CONTENT_TYPE = "application/json";
 constexpr const char *STATUS_OK = "200 OK";

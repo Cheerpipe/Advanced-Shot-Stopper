@@ -436,6 +436,7 @@ void serialCliFillNetworkDump(SerialCliNetworkDump &dump) {
   dump.apStartHeld = snap.apStartHeld;
   dump.httpStartHeld = snap.httpStartHeld;
   dump.devicePasswordFactory = snap.devicePasswordFactory;
+  dump.wifiPs = snap.wifiPs;
   dump.ntpMayArm = snap.ntpMayArm;
   dump.apClients = snap.apClients;
   dump.staState = static_cast<uint8_t>(snap.staState);
@@ -471,6 +472,7 @@ void serialCliFillNetworkDump(SerialCliNetworkDump &dump) {
   copyCString(dump.staMac, sizeof(dump.staMac), snap.staMac);
   copyCString(dump.staBssid, sizeof(dump.staBssid), snap.staBssid);
   copyCString(dump.apMac, sizeof(dump.apMac), snap.apMac);
+  copyCString(dump.apSsid, sizeof(dump.apSsid), snap.apSsid);
   copyCString(dump.ntpActiveServer, sizeof(dump.ntpActiveServer),
               snap.ntpActiveServer);
 #else

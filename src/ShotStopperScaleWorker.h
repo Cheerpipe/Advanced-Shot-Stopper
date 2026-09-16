@@ -87,6 +87,7 @@ ScaleLinkSnapshot getScaleLinkSnapshot();
 void setScaleLinkState(ScaleLinkState state);
 void markScaleWorkerProgress();
 void wakeScaleWorker();
+void syncScaleSoftApRadio(bool apActive);
 uint32_t scaleWorkerTickDelayMs();
 void serviceScaleLinkRssi(uint32_t nowMs = millis());
 bool enqueueScaleCommand(const ScaleCommand &command, bool toFront = false);

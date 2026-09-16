@@ -33,6 +33,21 @@ inline bool passwordIsFactoryDefault(const PersistedSettings &settings) {
   return isFactoryDefaultPassword(settings.devicePassword);
 }
 
+constexpr const char *SOFT_AP_SSID_PREFIX = "AdvancedShotStopperAP";
+constexpr size_t SOFT_AP_SSID_LENGTH = 30;
+static_assert(SOFT_AP_SSID_LENGTH + 1 <= WIFI_SSID_CAPACITY, "SoftAP SSID fits");
+static_assert(sizeof("AdvancedShotStopperAP-xxxxxxxx") - 1 == SOFT_AP_SSID_LENGTH,
+              "SoftAP SSID is prefix plus eight hex digits");
+
+inline bool formatSoftApSsid(char *out, size_t cap, const uint8_t mac[6]) {
+  if (out == nullptr || mac == nullptr || cap < SOFT_AP_SSID_LENGTH + 1) {
+    return false;
+  }
+  return snprintf(out, cap, "%s-%02x%02x%02x%02x", SOFT_AP_SSID_PREFIX, mac[2],
+                  mac[3], mac[4], mac[5]) ==
+         static_cast<int>(SOFT_AP_SSID_LENGTH);
+}
+
 inline bool setDevicePassword(PersistedSettings &settings,
                               const char *newPassword) {
   if (!validDevicePassword(newPassword)) {

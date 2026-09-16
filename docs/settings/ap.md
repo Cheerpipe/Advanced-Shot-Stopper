@@ -21,16 +21,18 @@ countdown starts. After idle shutdown, SoftAP stays down for the rest of
 the boot (USB `AP_START` or reboot to raise it again). Manual `AP_START`
 keeps SoftAP up without the idle timer until `AP_STOP`.
 
-The AP name is fixed. SoftAP WPA2 uses the **device password**. Change it
-from **Admin** (unlock with the device password) **→ Device password** or from USB
-(`SET_DEVICE_PASSWORD` / `RESET_DEVICE_PASSWORD`). Admin unlock and OTA use
-that same device password.
+The AP name is unique to this controller: **`AdvancedShotStopperAP-`** plus
+eight lowercase characters from the end of this device's AP address. USB
+`AP_STATUS` prints the exact name. SoftAP WPA2 uses the **device password**.
+Change it from **Admin** (unlock with the device password) **→ Device password**
+or from USB (`SET_DEVICE_PASSWORD` / `RESET_DEVICE_PASSWORD`). Admin unlock
+and OTA use that same device password.
 
 ## Parameters
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| **AP name** | `AdvancedShotStopperAP` | Not user-editable. |
+| **AP name** | `AdvancedShotStopperAP-xxxxxxxx` | Not user-editable. The eight characters are unique to this controller. USB `AP_STATUS` shows the live name. |
 | **Device password** | `ineedacoffee` | Case-sensitive. 8–63 characters when you change it; USB `SET_DEVICE_PASSWORD` will not accept the factory string as the new value. SoftAP WPA2, Admin unlock, and OTA all use this same device password. |
 | **AP address** | `http://192.168.4.1` | SoftAP IPv4. |
 
@@ -38,7 +40,11 @@ that same device password.
 
 1. Power the ESP32-S3 and wait for boot (the GPIO 1 LED stays off until a
    scale connects).
-2. Join **`AdvancedShotStopperAP`** with the device password **`ineedacoffee`**.
+2. Join **`AdvancedShotStopperAP-xxxxxxxx`** (the unique name on this
+   controller; USB `AP_STATUS` prints `ssid=`) with the device password
+   **`ineedacoffee`**. Forget any saved network that is only
+   `AdvancedShotStopperAP` with no suffix. The scale may wait to connect
+   until you finish this setup network.
 3. Open **`http://192.168.4.1`** within the idle window (or stay associated).
 4. Select **Reload** if prompted to claim the Web UI. Unlock Admin to save
    home Wi-Fi. Continue with [first setup](../GETTING_STARTED.md).

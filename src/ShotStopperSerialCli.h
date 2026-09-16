@@ -537,6 +537,7 @@ struct SerialCliNetworkDump {
   bool apStartHeld = false;
   bool httpStartHeld = false;
   bool devicePasswordFactory = false;
+  WifiPsLive wifiPs = WifiPsLive::UNKNOWN;
   bool ntpMayArm = false;
   uint8_t apClients = 0;
   uint8_t staState = 0;
@@ -568,6 +569,7 @@ struct SerialCliNetworkDump {
   char staMac[18] = {};
   char staBssid[18] = {};
   char apMac[18] = {};
+  char apSsid[WIFI_SSID_CAPACITY] = {};
   char ntpActiveServer[NTP_SERVER_HOST_CAPACITY] = {};
 };
 
@@ -724,7 +726,8 @@ inline void serialCliPrintApStatus(const SerialCliNetworkDump &dump) {
   Serial.println("AP_STATUS");
   Serial.print("active=");
   Serial.println(dump.apActive ? "true" : "false");
-  Serial.println("ssid=AdvancedShotStopperAP");
+  Serial.print("ssid=");
+  Serial.println(dump.apSsid[0] != '\0' ? dump.apSsid : SOFT_AP_SSID_PREFIX);
   Serial.print("ip=");
   Serial.println(dump.apIp[0] != '\0' ? dump.apIp : "192.168.4.1");
   Serial.print("clients=");
@@ -735,6 +738,8 @@ inline void serialCliPrintApStatus(const SerialCliNetworkDump &dump) {
   Serial.println(serialCliWifiModeName(dump.wifiMode));
   Serial.print("passwordFactory=");
   Serial.println(dump.devicePasswordFactory ? "true" : "false");
+  Serial.print("wifiPs=");
+  Serial.println(wifiPsLiveName(dump.wifiPs));
   Serial.print("apStartHeld=");
   Serial.println(dump.apStartHeld ? "true" : "false");
 }

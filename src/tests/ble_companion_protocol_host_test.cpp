@@ -174,6 +174,9 @@ void checkRadioPolicy() {
   inputs = {};
   inputs.scaleHuntRfClear = true;
   CHECK(bleRadioPolicyPauseCompanionAdvertising(inputs));
+  inputs = {};
+  inputs.softApActive = true;
+  CHECK(bleRadioPolicyPauseCompanionAdvertising(inputs));
 }
 }  // namespace
 

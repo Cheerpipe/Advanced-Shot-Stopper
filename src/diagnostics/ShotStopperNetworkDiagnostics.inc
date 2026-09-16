@@ -528,11 +528,13 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            scaleLinkRssiJson);
 
   char safeStaSsid[WIFI_SSID_CAPACITY] = {};
+  char safeApSsid[WIFI_SSID_CAPACITY] = {};
   sanitizeJsonEmbed(network.staSsid, safeStaSsid, sizeof(safeStaSsid));
+  sanitizeJsonEmbed(network.apSsid, safeApSsid, sizeof(safeApSsid));
   ok = ok &&
        debugExportChunkf(
            request, buf, cap,
-           "\"network\":{\"networkActive\":%s,\"apActive\":%s,"
+           "\"network\":{\"networkActive\":%s,\"apActive\":%s,\"apSsid\":\"%s\","
            "\"wifiConfigured\":%s,\"staState\":\"%s\",\"staIp\":\"%s\","
            "\"ssid\":\"%s\",\"apIp\":\"%s\",\"apClients\":%u,"
            "\"httpActive\":%s,\"staMac\":\"%s\",\"staBssid\":\"%s\","
@@ -542,7 +544,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"signalQualityPct\":%u,\"configState\":\"%s\","
            "\"ipMode\":\"%s\",\"confirmRemainingMs\":%lu},",
            network.networkActive ? "true" : "false",
-           network.apActive ? "true" : "false",
+           network.apActive ? "true" : "false", safeApSsid,
            network.wifiConfigured ? "true" : "false",
            staStateName(network.staState), network.staIp, safeStaSsid,
            network.apIp, static_cast<unsigned>(network.apClients),

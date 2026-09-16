@@ -66,10 +66,22 @@ without scale/reed evidence, a tap-started machine may not receive it. Read
 
 ### I cannot find the controller's Wi-Fi
 
-On fresh settings, the [AP](settings/ap.md) starts at boot. With saved Wi-Fi,
-fallback begins after roughly 25 s without association. Automatic AP shuts
-down after 3 minutes with no associated clients and does not restart after a
-later successful home-network connection drops. Use USB `AP_START` or reboot.
+On fresh settings, the [AP](settings/ap.md) starts at boot. Its name is
+**`AdvancedShotStopperAP-`** plus eight characters unique to this controller.
+USB `AP_STATUS` prints the exact name. Forget any saved network named only
+`AdvancedShotStopperAP`. With saved Wi-Fi, fallback begins after roughly 25 s
+without association. Automatic AP shuts down after 3 minutes with no associated
+clients and does not restart after a later successful home-network connection
+drops. Use USB `AP_START` or reboot.
+
+### The phone says the Wi-Fi password is wrong
+
+After a factory reset the password is still **`ineedacoffee`**. Phones and
+computers often show that message when they cannot finish joining, not only
+when the letters are wrong. Join the unique `AdvancedShotStopperAP-xxxxxxxx`
+name from USB `AP_STATUS`, forget any unsuffixed `AdvancedShotStopperAP`, and
+retry next to the controller. The scale may wait to connect until you finish
+this setup network.
 
 ### I saved Wi-Fi and the old page never returned
 

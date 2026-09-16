@@ -230,7 +230,7 @@ if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
   const diagBody = statusFormat.slice(
       leanMarker, statusFormat.indexOf('if (ok) {', leanMarker));
   for (const field of [
-    'apActive', 'apIp', 'apClients', 'wifiConfigured', 'ssid', 'staState',
+    'apActive', 'apSsid', 'apIp', 'apClients', 'wifiConfigured', 'ssid', 'staState',
     'wifiPs', 'wifiCoex', 'channel', 'staIp', 'ipMode', 'configState', 'confirmRemainingMs', 'rssi',
     'signalQualityPct', 'utcSec', 'lastSyncAgeMs', 'nextRetryInMs',
     'activeServer', 'maintenance', 'persistPending', 'uptimeMs', 'hwmon',

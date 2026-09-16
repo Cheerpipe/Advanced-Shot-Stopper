@@ -7,12 +7,14 @@ struct BleRadioPolicyInputs {
   bool scaleLinked = false;
   bool machineCircuitClosed = false;
   bool scaleHuntRfClear = false;
+  bool softApActive = false;
 };
 
 inline bool bleRadioPolicyPauseCompanionAdvertising(
     const BleRadioPolicyInputs &inputs) {
   return inputs.scaleConnecting || inputs.scaleLinked ||
-         inputs.machineCircuitClosed || inputs.scaleHuntRfClear;
+         inputs.machineCircuitClosed || inputs.scaleHuntRfClear ||
+         inputs.softApActive;
 }
 
 }  // namespace shotstopper

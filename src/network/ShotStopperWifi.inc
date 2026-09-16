@@ -192,6 +192,7 @@ bool ShotStopperNetwork::revertPendingNetwork(uint32_t,
     dataMux_.lock();
     status_.networkActive = false;
     status_.apActive = false;
+    syncScaleSoftApRadio(false);
     status_.apClients = 0;
     status_.staState = StaState::NOT_CONFIGURED;
     status_.staIp[0] = '\0';
@@ -283,7 +284,7 @@ void ShotStopperNetwork::syncScaleHuntRf(bool huntActive) {
   scaleHuntRfActive_.store(huntActive, std::memory_order_relaxed);
 }
 
-void ShotStopperNetwork::applyWifiPowerSave() {
+void ShotStopperNetwork::applyWifiPowerSave(bool apStarting) {
   const wifi_mode_t mode = WiFi.getMode();
   if (mode == WIFI_OFF) {
     powerNetworkBusy.store(ShotStopperOta::instance().busy(),
@@ -296,7 +297,7 @@ void ShotStopperNetwork::applyWifiPowerSave() {
   bool staAssociated = false;
   dataMux_.lock();
   sleepAllowed = settings_.staWifiSleep;
-  apActive = status_.apActive;
+  apActive = status_.apActive || apStarting;
   staAssociated = status_.staState == StaState::CONNECTED;
   dataMux_.unlock();
   const bool otaBusy = ShotStopperOta::instance().busy();
@@ -312,19 +313,33 @@ void ShotStopperNetwork::applyWifiPowerSave() {
       current == desiredPs && lastAppliedWifiPs_ == desiredPs) {
     return;
   }
+  const uint32_t now = millis();
+  if (!apStarting && lastAppliedWifiPs_ == desiredPs &&
+      wifiPsNextWriteAtMs_ != 0 &&
+      static_cast<int32_t>(now - wifiPsNextWriteAtMs_) < 0) {
+    return;
+  }
   if (!WiFi.setSleep(desiredPs)) {
     lastAppliedWifiPsValid_ = false;
+    wifiPsNextWriteAtMs_ = now + WIFI_PS_RETRY_MS;
     lifecycleLog("WiFi power save set failed");
     return;
   }
   wifi_ps_type_t verified = WIFI_PS_NONE;
   if (esp_wifi_get_ps(&verified) != ESP_OK || verified != desiredPs) {
-    lastAppliedWifiPsValid_ = false;
-    lifecycleLog("WiFi power save verify mismatch");
-    return;
+    // Arduino 3.x setSleep is a no-op until STA starts. SoftAP needs the
+    // driver updated whenever setSleep reported success but get_ps missed.
+    if (esp_wifi_set_ps(desiredPs) != ESP_OK ||
+        esp_wifi_get_ps(&verified) != ESP_OK || verified != desiredPs) {
+      lastAppliedWifiPsValid_ = false;
+      wifiPsNextWriteAtMs_ = now + WIFI_PS_RETRY_MS;
+      lifecycleLog("WiFi power save verify mismatch");
+      return;
+    }
   }
   lastAppliedWifiPs_ = desiredPs;
   lastAppliedWifiPsValid_ = true;
+  wifiPsNextWriteAtMs_ = now + WIFI_PS_RETRY_MS;
 }
 
 bool ShotStopperNetwork::beginStationConnect(const NetworkSettingsSnapshot &settings,
@@ -409,6 +424,7 @@ void ShotStopperNetwork::startStation(const NetworkSettingsSnapshot &settings,
   dataMux_.lock();
   status_.networkActive = false;
   status_.apActive = false;
+  syncScaleSoftApRadio(false);
   status_.apClients = 0;
   status_.staState = StaState::CONNECTING;
   status_.staIp[0] = '\0';
@@ -438,6 +454,7 @@ void ShotStopperNetwork::stopSoftAp(bool stopHttp) {
   }
   dataMux_.lock();
   status_.apActive = false;
+  syncScaleSoftApRadio(false);
   status_.apClients = 0;
   if (stopHttp) {
     status_.networkActive = false;
@@ -591,17 +608,25 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
     WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_AP_STA);
   }
+  applyWifiPowerSave(true);
+  syncScaleSoftApRadio(true);
   const IPAddress ip(192, 168, 4, 1);
   const bool configured =
       WiFi.softAPConfig(ip, ip, IPAddress(255, 255, 255, 0));
-  const bool apReady = configured && WiFi.softAP(AP_SSID, settings.devicePassword);
+  char apSsid[WIFI_SSID_CAPACITY] = {};
+  fillSoftApSsid(apSsid, sizeof(apSsid));
+  const bool apReady =
+      configured && WiFi.softAP(apSsid, settings.devicePassword);
   const bool httpReady =
       keepHttp || (wantHttp && apReady && startHttpServer());
   networkStartedAtMs_ = now;
   dataMux_.lock();
   status_.networkActive = apReady && httpReady;
   status_.apActive = apReady;
+  syncScaleSoftApRadio(apReady);
   status_.apClients = 0;
+  memset(status_.apSsid, 0, sizeof(status_.apSsid));
+  copyCString(status_.apSsid, sizeof(status_.apSsid), apSsid);
   if (!settings.staConfigured) {
     status_.staState = StaState::NOT_CONFIGURED;
   } else if (status_.staState == StaState::CONNECTED && !staLinkUp) {
@@ -631,10 +656,11 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
     dataMux_.unlock();
     clearSoftApIdleState();
     applyWifiPowerSave();
+    syncScaleSoftApRadio(false);
     return false;
   }
   armSoftApIdleDeadline(now);
-  applyWifiPowerSave();
+  applyWifiPowerSave(true);
   return true;
 }
 
@@ -653,6 +679,7 @@ void ShotStopperNetwork::stopNetwork() {
   g_wifiScan = WifiScanSnapshot{};
   status_.networkActive = false;
   status_.apActive = false;
+  syncScaleSoftApRadio(false);
   status_.apClients = 0;
   status_.staState = status_.wifiConfigured ? StaState::DISCONNECTED
                                             : StaState::NOT_CONFIGURED;

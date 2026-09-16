@@ -170,6 +170,7 @@ void reportNimbleRuntimeHealth(bool force) {
 EspressoScaleBLE scale(DEBUG);
 static ScaleWorkerBridgeCallbacks scaleWorkerBridge;
 static std::atomic<TaskHandle_t> scaleWorkerTaskHandle{nullptr};
+static std::atomic<bool> scaleSoftApActive{false};
 static TaskMutex scaleWorkerTaskHandleMutex;
 QueueHandle_t scaleCommandQueue = nullptr;
 QueueHandle_t scaleEventQueue = nullptr;
@@ -328,6 +329,14 @@ void wakeScaleWorker() {
       scaleWorkerTaskHandle.load(std::memory_order_acquire);
   if (worker != nullptr) {
     (void)xTaskNotifyGive(worker);
+  }
+}
+
+void syncScaleSoftApRadio(bool apActive) {
+  const bool previous =
+      scaleSoftApActive.exchange(apActive, std::memory_order_acq_rel);
+  if (previous != apActive) {
+    wakeScaleWorker();
   }
 }
 
@@ -1383,15 +1392,17 @@ void armScaleHuntRfClear() {
 // Pause companion advertising while connecting to a scale (GAP connect cannot
 // coexist with a peripheral advert), while the machine circuit is closed
 // (brew RF preference), while a scale GATT link is up (dual-role advertising
-// is the btController hog), and for SCALE_HUNT_RF_CLEAR_MS after GAP (re)start
-// so the scanner owns the radio. After that window, scan coexists with
-// Companion advertising again.
+// is the btController hog), while SoftAP is up (WPA handshake needs airtime
+// under PREFER_BT), and for SCALE_HUNT_RF_CLEAR_MS after GAP (re)start so the
+// scanner owns the radio. After that window, scan coexists with Companion
+// advertising again.
 bool companionAdvertisingShouldPause() {
   BleRadioPolicyInputs inputs;
   inputs.scaleConnecting = scale.isConnecting();
   inputs.scaleLinked = scale.isLinkUp();
   inputs.machineCircuitClosed = getRelaySafetySnapshot().closed;
   inputs.scaleHuntRfClear = scaleHuntRfClearActive();
+  inputs.softApActive = scaleSoftApActive.load(std::memory_order_relaxed);
   return bleRadioPolicyPauseCompanionAdvertising(inputs);
 }
 
@@ -1613,6 +1624,20 @@ bool applyScaleDiscoveryPause() {
   return true;
 }
 
+bool applySoftApDiscoveryYield() {
+  if (!scaleSoftApActive.load(std::memory_order_relaxed)) {
+    return false;
+  }
+  if (scale.isConnecting() || scale.isLinkUp()) {
+    return false;
+  }
+  if (scale.isScanning()) {
+    scale.disconnect();
+    updateWorkerLinkState();
+  }
+  return true;
+}
+
 // Preference changes originate on the control task, but the BLE client is
 // worker-owned. Consume the request here so a live scan/connect cannot keep
 // using the old filter and no other task touches the BLE object.
@@ -1658,6 +1683,7 @@ void resetScaleWorkerRadioStateForHost() {
   scaleScanAppliedInterval = 0;
   scaleScanAppliedWindow = 0;
   scaleHuntRfUntilMs = 0;
+  scaleSoftApActive.store(false, std::memory_order_relaxed);
   scaleLoggedGattConnecting = false;
   scaleLoggedGattConnectAttempts = 0;
   scaleDiscoveryDirected = false;
@@ -1721,6 +1747,10 @@ BleScanIntensity liveBleScanIntensity() {
 }
 
 bool startScaleDiscoveryScan(const char *mac, bool forceRestart) {
+  if (scaleSoftApActive.load(std::memory_order_relaxed) &&
+      !scale.isConnecting() && !scale.isLinkUp()) {
+    return false;
+  }
   uint16_t interval = BLE_SCAN_NORMAL_INTERVAL;
   uint16_t window = BLE_SCAN_NORMAL_WINDOW;
   bleScanHciParams(powerIdleSavings() ? BleScanIntensity::LIGHT
@@ -1856,6 +1886,9 @@ void serviceScaleWorkerDiscovery(uint32_t &lastScanCycleMs,
     setScaleLinkState(ScaleLinkState::DISCONNECTED);
   }
   if (applyScaleDiscoveryPause()) {
+    return;
+  }
+  if (applySoftApDiscoveryYield()) {
     return;
   }
 

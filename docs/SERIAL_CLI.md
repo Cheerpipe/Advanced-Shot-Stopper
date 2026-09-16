@@ -122,9 +122,9 @@ boot; `AP_START` still works).
 
 | Command | Parameters | Effect |
 | --- | --- | --- |
-| `AP_START` | none | Raises SoftAP (`AdvancedShotStopperAP` at `192.168.4.1`). Stays up if STA is connected. Skips SoftAP idle shutdown until `AP_STOP`. Does not start HTTP if `WEBUI_STOP` is held |
+| `AP_START` | none | Raises SoftAP (`AdvancedShotStopperAP-xxxxxxxx` at `192.168.4.1`). Stays up if STA is connected. Skips SoftAP idle shutdown until `AP_STOP`. Does not start HTTP if `WEBUI_STOP` is held |
 | `AP_STOP` | none | Stops SoftAP and holds auto-raise. HTTP stays if STA is up |
-| `AP_STATUS` | none | Dumps SoftAP state (never the device password) |
+| `AP_STATUS` | none | Dumps SoftAP state including the live name and Wi-Fi sleep (never the device password) |
 
 ## Web UI
 

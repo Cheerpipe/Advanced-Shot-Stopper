@@ -110,6 +110,8 @@ if (!ui.includes('id="staIpMode"') ||
     !ui.includes("t('hWifiPs',n.wifiPs)") ||
     !ui.includes("t('hWifiCoex',n.wifiCoex)") ||
     !ui.includes("$('apStatus').textContent='AP: '+(s.network.apActive?'active':'inactive')") ||
+    !ui.includes("s.network.apSsid") ||
+    !ui.includes("n.apSsid") ||
     !ui.includes("t('hApState',n.apActive?'active':'inactive')") ||
     !html.includes('<legend>WiFi</legend>') ||
     !html.includes('<strong>Sleep</strong><div id="hWifiPs">') ||
@@ -122,6 +124,12 @@ if (!ui.includes('id="staIpMode"') ||
     !network.includes('\\"ipMode\\"') ||
     !network.includes('\\"configState\\"') ||
     !network.includes('\\"ssid\\"') ||
+    !network.includes('\\"apSsid\\":\\"%s\\"') ||
+    !fs.readFileSync(path.join(sketchDir, 'ShotStopperPersistedNetwork.h'), 'utf8')
+          .includes('formatSoftApSsid') ||
+    !network.includes('fillSoftApSsid(apSsid') ||
+    !network.includes('WiFi.softAP(apSsid, settings.devicePassword)') ||
+    network.includes('WiFi.softAP(AP_SSID') ||
     !network.includes('\\"rssi\\"') ||
     !network.includes('\\"signalQualityPct\\"') ||
     !network.includes('\\"channel\\"') ||
@@ -160,7 +168,7 @@ if (!network.includes('restoreLkgToActive(next)') ||
       !network.includes('jsonHasOnlyUniqueFields(root, saveFields, 11)') ||
       !network.includes('jsonBoolean(root, "wifiSleep", command.network.wifiSleep)') ||
       !network.includes('command.network.wifiSleepSpecified = true') ||
-      !network.includes('void ShotStopperNetwork::applyWifiPowerSave()') ||
+      !network.includes('void ShotStopperNetwork::applyWifiPowerSave(bool apStarting)') ||
       !network.includes('WIFI_PS_NONE') ||
       !network.includes('WIFI_PS_MIN_MODEM') ||
       /WiFi\.setSleep\(\s*WIFI_PS_MAX_MODEM\s*\)/.test(network) ||
@@ -177,7 +185,8 @@ if (!network.includes('restoreLkgToActive(next)') ||
     throw new Error(
         'Wi-Fi sleep must be wired in Admin UI, /network save, status, and power-save helper');
   }
-  const applyStart = network.indexOf('void ShotStopperNetwork::applyWifiPowerSave()');
+  const applyStart = network.indexOf(
+      'void ShotStopperNetwork::applyWifiPowerSave(bool apStarting)');
   const applyEnd = network.indexOf(
       'bool ShotStopperNetwork::beginStationConnect', applyStart);
   const applyBody = applyStart >= 0 && applyEnd > applyStart
@@ -188,13 +197,18 @@ if (!network.includes('restoreLkgToActive(next)') ||
       !applyBody.includes('WIFI_PS_NONE') ||
       !applyBody.includes('WIFI_PS_MIN_MODEM') ||
       !applyBody.includes('WiFi.setSleep(desiredPs)') ||
+      !applyBody.includes('esp_wifi_set_ps(desiredPs)') ||
+      !applyBody.includes('apStarting') ||
+      !applyBody.includes('WIFI_PS_RETRY_MS') ||
       !applyBody.includes('esp_wifi_get_ps') ||
       !applyBody.includes('mode == WIFI_OFF') ||
       applyBody.includes('WIFI_PS_MAX_MODEM') ||
       applyBody.includes('scaleConnectingOrUp') ||
+      applyBody.includes('WiFi.STA.started()') ||
+      /WiFi\.setSleep\(desiredPs\)\s*\|\|\s*esp_wifi_set_ps/.test(applyBody) ||
       /WiFi\.mode\(\s*WIFI_OFF\s*\)/.test(applyBody)) {
     throw new Error(
-        'applyWifiPowerSave must set NONE/MIN_MODEM via setSleep+get_ps, skip if driver off, never WIFI_OFF/MAX_MODEM, and not follow scale link state');
+        'applyWifiPowerSave must set NONE/MIN_MODEM via setSleep then fallback set_ps on get_ps miss, honor apStarting, rate-limit same-desired writes, skip if driver off, never WIFI_OFF/MAX_MODEM, and not follow scale link state');
   }
   const saveStart = network.indexOf('case WebCommandType::SAVE_NETWORK:');
   const saveEnd = network.indexOf('case WebCommandType::FORGET_NETWORK', saveStart);

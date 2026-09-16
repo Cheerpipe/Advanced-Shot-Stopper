@@ -562,6 +562,9 @@ if (!firmware.includes('companionAdvertisingShouldPause') ||
     !firmware.includes('scale.isConnecting()') ||
     !firmware.includes('SCALE_HUNT_RF_CLEAR_MS') ||
     !firmware.includes('scaleHuntRfClearActive') ||
+    !firmware.includes('syncScaleSoftApRadio') ||
+    !firmware.includes('applySoftApDiscoveryYield') ||
+    !firmware.includes('inputs.softApActive') ||
     firmware.includes('BLE.poll(') ||
     !scaleWorker.includes(
         'ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(tickDelayMs))') ||
@@ -572,7 +575,7 @@ if (!firmware.includes('companionAdvertisingShouldPause') ||
     !bleCompanion.includes('BLE_COMPANION_ADV_INTERVAL') ||
     !bleCompanion.includes('params.itvl_min = BLE_COMPANION_ADV_INTERVAL')) {
   throw new Error(
-      'Companion advertising must pause while connecting, scale-linked, or in the hunt RF window; worker must block on HCI');
+      'Companion advertising must pause while connecting, scale-linked, SoftAP-up, or in the hunt RF window; worker must block on HCI');
 }
 if (firmware.includes('SCALE_LINK_COEX_BT_MS') ||
     firmware.includes('scaleLinkCoexHadLink') ||

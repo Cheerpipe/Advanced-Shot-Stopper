@@ -121,6 +121,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char safePreferredScaleName[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
   char safeFirmwareVersion[32] = {};
   char safeStaSsid[WIFI_SSID_CAPACITY] = {};
+  char safeApSsid[WIFI_SSID_CAPACITY] = {};
   char safeWebhookUrl[WEBHOOK_URL_CAPACITY * 2] = {};
   sanitizeJsonEmbed(control.config.ntpServerCustom, safeNtpCustom,
                     sizeof(safeNtpCustom));
@@ -139,6 +140,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   sanitizeJsonEmbed(FW_VERSION, safeFirmwareVersion,
                     sizeof(safeFirmwareVersion));
   sanitizeJsonEmbed(network.staSsid, safeStaSsid, sizeof(safeStaSsid));
+  sanitizeJsonEmbed(network.apSsid, safeApSsid, sizeof(safeApSsid));
   const WebhookConfig webhookConfig = self.webhooks_.config();
   const WebhookStatus webhookStatus = self.webhooks_.status();
   sanitizeJsonEmbed(webhookConfig.url, safeWebhookUrl,
@@ -616,7 +618,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
       // Diagnostics metrics live on status/diagnostic.
       ok = statusJsonAppend(
           &used,
-          ",\"network\":{\"apActive\":%s,\"apIp\":\"%s\",\"apClients\":%u,"
+          ",\"network\":{\"apActive\":%s,\"apSsid\":\"%s\",\"apIp\":\"%s\",\"apClients\":%u,"
           "\"wifiConfigured\":%s,\"ssid\":\"%s\",\"open\":%s,\"wifiSleep\":%s,"
           "\"staState\":\"%s\",\"channel\":%s,\"staIp\":\"%s\",\"ipMode\":\"%s\","
           "\"configState\":\"%s\",\"confirmRemainingMs\":%lu,"
@@ -632,7 +634,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           "\"advertisingStarts\":%lu,\"advertisingFailures\":%lu,"
           "\"phoneConnects\":%lu,\"phoneDisconnects\":%lu,"
           "\"scanIntensity\":\"%s\"}",
-          network.apActive ? "true" : "false", network.apIp,
+          network.apActive ? "true" : "false", safeApSsid, network.apIp,
           static_cast<unsigned>(network.apClients),
           network.wifiConfigured ? "true" : "false", safeStaSsid,
           network.staOpen ? "true" : "false",
@@ -753,7 +755,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"controlSource\":\"%s\","
         "\"cupPresence\":{\"state\":\"%s\",\"present\":%s,"
         "\"weightG\":%s,\"weightValid\":%s,\"placementId\":%lu},"
-        "\"network\":{\"apActive\":%s,\"apIp\":\"%s\",\"apClients\":%u,"
+        "\"network\":{\"apActive\":%s,\"apSsid\":\"%s\",\"apIp\":\"%s\",\"apClients\":%u,"
         "\"wifiConfigured\":%s,\"ssid\":\"%s\","
         "\"staState\":\"%s\",\"wifiPs\":\"%s\",\"wifiCoex\":\"%s\",\"channel\":%s,\"staIp\":\"%s\",\"ipMode\":\"%s\","
         "\"configState\":\"%s\",\"confirmRemainingMs\":%lu,"
@@ -831,7 +833,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         control.cupPresent ? "true" : "false",
         cupWeight, cupWeightValid ? "true" : "false",
         static_cast<unsigned long>(control.cupTare.placementId),
-        network.apActive ? "true" : "false", network.apIp,
+        network.apActive ? "true" : "false", safeApSsid, network.apIp,
         static_cast<unsigned>(network.apClients),
         network.wifiConfigured ? "true" : "false", safeStaSsid,
         staStateName(network.staState), wifiPsLiveName(network.wifiPs),
