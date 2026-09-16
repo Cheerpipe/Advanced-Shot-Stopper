@@ -428,8 +428,8 @@ for validate_args, environment, expected in (
                for argv in build_steps), build_steps
 
 
-def dispatched(stages: tuple[str, ...], args: list[str],
-               fail: str = "") -> tuple[subprocess.CompletedProcess[str], list[str]]:
+def dispatched(stages: tuple[str, ...], args: list[str], fail: str = "",
+               store: str | None = None) -> tuple[subprocess.CompletedProcess[str], list[str]]:
     with tempfile.TemporaryDirectory(prefix="shotstopper-wrapper-") as temporary:
         root = Path(temporary)
         scripts = root / "scripts"
@@ -438,6 +438,8 @@ def dispatched(stages: tuple[str, ...], args: list[str],
         for name in ("shotstopper_cli.sh", "shotstopper_board.sh"):
             shutil.copy2(ROOT / "scripts" / name, scripts / name)
         shutil.copy2(INTERNAL / "firmware-idf", internal / "firmware-idf")
+        if store is not None:
+            (root / ".shotstopper").write_text(store)
         log = root / "children.log"
         for child in ("build-idf", "flash-idf", "ota-idf", "monitor-idf"):
             target = internal / child
@@ -456,9 +458,9 @@ def dispatched(stages: tuple[str, ...], args: list[str],
         return result, children
 
 
-def stubbed_dispatcher(stages: tuple[str, ...], args: list[str],
-                       fail: str = "", expected: int = 0) -> list[str]:
-    result, children = dispatched(stages, args, fail)
+def stubbed_dispatcher(stages: tuple[str, ...], args: list[str], fail: str = "",
+                       expected: int = 0, store: str | None = None) -> list[str]:
+    result, children = dispatched(stages, args, fail, store)
     assert result.returncode == expected, (stages, result.stdout, result.stderr)
     return children
 
@@ -493,6 +495,20 @@ flash_monitor_only = stubbed_dispatcher(
     ["--arch", "n16r8", "--port", "/dev/null", "--speed", "115200"])
 assert [line.split(":", 1)[0] for line in flash_monitor_only] == [
     "flash-idf", "monitor-idf"]
+
+store_jtag = stubbed_dispatcher(
+    ("build", "flash", "monitor"),
+    [*profile_args, "--port", "/dev/null", "--speed", "115200",
+     "--webui-language", "EN_us"],
+    store="flags=-DSHOT_STOPPER_ENABLE_JTAG=1\n")
+assert [line.split(":", 1)[0] for line in store_jtag] == [
+    "build-idf", "flash-idf", "monitor-idf"]
+store_plain, store_plain_children = dispatched(
+    ("build", "flash", "monitor"),
+    [*profile_args, "--port", "/dev/null", "--speed", "115200"],
+    store="flags=-DCUSTOM=1\n")
+assert store_plain.returncode == 2 and "--jtag" in store_plain.stderr and \
+    not store_plain_children, (store_plain.returncode, store_plain.stderr)
 
 ota_monitor = stubbed_dispatcher(
     ("build", "ota", "monitor"),

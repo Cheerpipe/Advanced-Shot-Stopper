@@ -112,10 +112,11 @@ suggestion or type another path.
 App CDC requires the [GPIO 4 console jumper](HARDWARE.md#usb-console-jumper) at
 reset unless the firmware was built with `SHOT_STOPPER_ENABLE_JTAG=1`. ROM
 download mode through BOOT + RST can still expose a flashing port without that
-jumper. A default build therefore has no console output for the monitor stage,
-so `dev` refuses a pipeline that combines `build` with `monitor` unless that
-JTAG build is requested: pass `--jtag` (or include
-`-DSHOT_STOPPER_ENABLE_JTAG=1` in `--flags`) or run monitor separately.
+jumper. The scripts cannot see the physical jumper, so `dev` refuses a
+pipeline that combines `build` with `monitor` unless that JTAG build is
+requested: pass `--jtag` (or include `-DSHOT_STOPPER_ENABLE_JTAG=1` in
+`--flags`), or run the monitor separately against firmware you know has
+console output.
 
 ## Options
 
