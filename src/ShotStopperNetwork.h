@@ -453,6 +453,8 @@ class ShotStopperNetwork {
   static esp_err_t partialSettingsHandler(httpd_req_t *request);
   static esp_err_t partialAdminHandler(httpd_req_t *request);
   static esp_err_t viewSettingsHandler(httpd_req_t *request);
+  static esp_err_t manifestHandler(httpd_req_t *request);
+  static esp_err_t iconHandler(httpd_req_t *request);
   static esp_err_t browserIconHandler(httpd_req_t *request);
   static esp_err_t notFoundHandler(httpd_req_t *request, httpd_err_code_t error);
   static esp_err_t claimHandler(httpd_req_t *request);

@@ -1015,7 +1015,8 @@ bool ShotStopperNetwork::startHttpServer() {
   // Kept ahead of the number of routes actually registered. Exhausting this
   // makes the last registerHandler fail, which tears down the whole Web UI, so
   // check_web_assets.js fails the build before the margin is gone.
-  // Shell + app.js/css/runtime + secondary + settings + 4 HTML partials + APIs.
+  // Shell + app.js/css/runtime + secondary + settings + 4 HTML partials +
+  // PWA manifest/icon + APIs.
   config.max_uri_handlers = 76;
   // Safari sends a long UA + Accept-Language + optional Cookie/Sec-Fetch-*;
   // the IDF default (1024) is enough most of the time but intermittent
@@ -1056,6 +1057,10 @@ bool ShotStopperNetwork::startHttpServer() {
                       partialAdminHandler) &&
       registerHandler(server_, "/js/settings.js", HTTP_GET,
                       viewSettingsHandler) &&
+      registerHandler(server_, "/manifest.webmanifest", HTTP_GET,
+                      manifestHandler) &&
+      registerHandler(server_, "/icons/icon-192.png", HTTP_GET,
+                      iconHandler) &&
       registerHandler(server_, "/favicon.ico", HTTP_GET,
                       browserIconHandler) &&
       registerHandler(server_, "/apple-touch-icon.png", HTTP_GET,

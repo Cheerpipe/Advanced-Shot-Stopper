@@ -318,6 +318,8 @@ const expected = new Map([
   ['GET /partials/settings.html', 'partialSettingsHandler'],
   ['GET /partials/admin.html', 'partialAdminHandler'],
   ['GET /js/settings.js', 'viewSettingsHandler'],
+  ['GET /manifest.webmanifest', 'manifestHandler'],
+  ['GET /icons/icon-192.png', 'iconHandler'],
   ['GET /favicon.ico', 'browserIconHandler'],
   ['GET /apple-touch-icon.png', 'browserIconHandler'],
   ['GET /apple-touch-icon-precomposed.png', 'browserIconHandler'],

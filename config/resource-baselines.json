@@ -10,18 +10,18 @@
   },
   "targets": {
     "n8r4": {
-      "image": 1856288,
-      "total_size": 1856167,
-      "used_diram": 161006,
-      "flash_code": 1317176,
-      "flash_rodata": 384172
+      "image": 1887296,
+      "total_size": 1887175,
+      "used_diram": 161562,
+      "flash_code": 1319104,
+      "flash_rodata": 414408
     },
     "n16r8": {
-      "image": 1869808,
-      "total_size": 1869691,
-      "used_diram": 165298,
-      "flash_code": 1326388,
-      "flash_rodata": 384352
+      "image": 1900816,
+      "total_size": 1900699,
+      "used_diram": 165854,
+      "flash_code": 1328316,
+      "flash_rodata": 414588
     }
   }
 }

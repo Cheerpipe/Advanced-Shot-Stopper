@@ -209,6 +209,26 @@ const settingsRoundTrip =
 if (settingsRoundTrip !== generated.settingsJs) {
   throw new Error('Generated gzip settings JS does not round-trip');
 }
+const manifestRoundTrip =
+    zlib.gunzipSync(generated.manifestGzip).toString('utf8');
+if (manifestRoundTrip !== generated.manifest) {
+  throw new Error('Generated gzip PWA manifest does not round-trip');
+}
+if (!generated.manifest.includes('"display":"standalone"') ||
+    !generated.manifest
+        .includes(`"/icons/icon-192.png?v=${generated.cacheVersion}"`) ||
+    generated.manifest.includes('__FW_VERSION__')) {
+  throw new Error('PWA manifest must be install-capable and version its icon URL');
+}
+if (!zlib.gunzipSync(generated.icon192Gzip).equals(generated.icon192Raw)) {
+  throw new Error('Generated gzip icon does not round-trip to the PNG bytes');
+}
+if (!generated.runtimeJs.includes(generated.version) ||
+    generated.runtimeJs.includes('__FW_RELEASE__') ||
+    !generated.runtimeJs.includes('ssFwReload') ||
+    !generated.runtimeJs.includes('location.reload()')) {
+  throw new Error('Runtime must bake the firmware release version for cached-shell self-heal');
+}
 for (const name of webUi.LAZY_PARTIALS) {
   const partialRt = zlib.gunzipSync(generated.partialGzip[name]).toString('utf8');
   if (partialRt !== generated.partials[name]) {
@@ -221,6 +241,14 @@ if (cssRoundTrip !== generated.css) {
 }
 if (generated.gzip.length > 4096) {
   throw new Error('Compressed Web UI shell HTML exceeds the 4 KiB gzip budget');
+}
+if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
+    !generated.html
+        .includes('href="/icons/icon-192.png?v=' + generated.cacheVersion + '"') ||
+    !generated.html.includes('rel="apple-touch-icon"') ||
+    !generated.html.includes('name="theme-color"') ||
+    !generated.html.includes('name="apple-mobile-web-app-capable"')) {
+  throw new Error('Generated shell must link the PWA manifest, icon, and home-screen metadata');
 }
 // Reallocate another 500 bytes of shell allowance to BBW readback/CSV.
 // Complete, human-readable Settings help raises the reviewed combined budget.
@@ -247,10 +275,19 @@ if (generated.secondaryGzip.length > 6050) {
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');
 }
+// The PWA manifest and the 192 px home-screen icon are additive embedded
+// assets; they raise the combined cap from 66500 bytes.
+if (generated.manifestGzip.length > 1024) {
+  throw new Error('Compressed PWA manifest exceeds the 1024-byte gzip budget');
+}
+if (generated.icon192Gzip.length > 31500) {
+  throw new Error('Compressed 192 px icon exceeds the 31500-byte gzip budget');
+}
 // Continuous color-segment flow curves close each segment at its boundary,
-// raising the combined cap from 66400 to 66500 bytes.
-if (generated.combined > 66500) {
-  throw new Error('Combined Web UI gzip exceeds the 66500-byte flash budget');
+// raising the combined cap from 66400 to 66500 bytes; the PWA manifest and
+// icon raise it further to 98500 bytes.
+if (generated.combined > 98500) {
+  throw new Error('Combined Web UI gzip exceeds the 98500-byte flash budget');
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
@@ -265,6 +302,8 @@ if (!network.includes('SHOT_STOPPER_WEB_UI_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_CSS_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_SECONDARY_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP') ||
+    !network.includes('SHOT_STOPPER_WEB_MANIFEST_GZIP') ||
+    !network.includes('SHOT_STOPPER_WEB_ICON_192_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_PARTIAL_SETTINGS_GZIP') ||
     !network.includes('WEB_UI_ETAG') ||
     network.includes('SHOT_STOPPER_WEB_PARTIAL_HOME_GZIP') ||
@@ -303,19 +342,26 @@ const jsHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::jsHandler'
 const cssHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::cssHandler');
 const runtimeHandlerStart =
     network.indexOf('esp_err_t ShotStopperNetwork::runtimeJsHandler');
+const manifestHandlerStart =
+    network.indexOf('esp_err_t ShotStopperNetwork::manifestHandler');
+const iconHandlerStart =
+    network.indexOf('esp_err_t ShotStopperNetwork::iconHandler');
 const browserIconHandlerStart =
     network.indexOf('esp_err_t ShotStopperNetwork::browserIconHandler');
 const notFoundHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::notFoundHandler');
 const serveImmutableStart = network.indexOf('static esp_err_t serveImmutableGzip');
 if (rootHandlerStart < 0 || jsHandlerStart < 0 || cssHandlerStart < 0 ||
-    runtimeHandlerStart < 0 || browserIconHandlerStart < 0 ||
+    runtimeHandlerStart < 0 || manifestHandlerStart < 0 ||
+    iconHandlerStart < 0 || browserIconHandlerStart < 0 ||
     notFoundHandlerStart < 0 ||
     statusHandlerStart < 0 || serveImmutableStart < 0 ||
     network.includes('logoHandler') ||
     network.includes('loginHandler') ||
     !(rootHandlerStart < jsHandlerStart && jsHandlerStart < cssHandlerStart &&
       cssHandlerStart < runtimeHandlerStart &&
-      runtimeHandlerStart < browserIconHandlerStart &&
+      runtimeHandlerStart < manifestHandlerStart &&
+      manifestHandlerStart < iconHandlerStart &&
+      iconHandlerStart < browserIconHandlerStart &&
       browserIconHandlerStart < notFoundHandlerStart &&
       notFoundHandlerStart < statusHandlerStart)) {
   throw new Error('rootHandler/jsHandler/cssHandler/runtime/notFoundHandler order not found');
@@ -324,9 +370,13 @@ const rootHandler = network.slice(rootHandlerStart, jsHandlerStart);
 const serveImmutable = network.slice(serveImmutableStart, rootHandlerStart);
 const jsHandler = network.slice(jsHandlerStart, cssHandlerStart);
 const cssHandler = network.slice(cssHandlerStart, runtimeHandlerStart);
+const manifestHandler = network.slice(manifestHandlerStart, iconHandlerStart);
+const iconHandler = network.slice(iconHandlerStart, browserIconHandlerStart);
 const browserIconHandler = network.slice(browserIconHandlerStart, notFoundHandlerStart);
 const notFoundHandler = network.slice(notFoundHandlerStart, statusHandlerStart);
-if (rootHandler.includes('no-store') || !rootHandler.includes('no-cache') ||
+if (rootHandler.includes('no-store') ||
+    !rootHandler.includes('max-age=86400') ||
+    !rootHandler.includes('stale-if-error=604800') ||
     !rootHandler.includes('STATUS_NOT_MODIFIED') ||
     !rootHandler.includes('ifNoneMatchEquals') ||
     !rootHandler.includes('ETag') ||
@@ -336,7 +386,7 @@ if (rootHandler.includes('no-store') || !rootHandler.includes('no-cache') ||
     !rootHandler.includes('"close"') ||
     rootHandler.includes("script-src 'unsafe-inline'") ||
     rootHandler.includes('HTTPD_RESP_USE_STRLEN')) {
-  throw new Error('GET / must revalidate with ETag/304, CSP script/style self, Connection close, and gzip by length');
+  throw new Error('GET / must serve a cacheable shell with ETag/304, CSP script/style self, Connection close, and gzip by length');
 }
 if (serveImmutable.includes('no-store') ||
     !serveImmutable.includes('max-age=31536000') ||
@@ -353,6 +403,14 @@ if (!jsHandler.includes('SHOT_STOPPER_WEB_JS_GZIP') ||
 if (!cssHandler.includes('SHOT_STOPPER_WEB_CSS_GZIP') ||
     !cssHandler.includes('text/css')) {
   throw new Error('GET /app.css must serve immutable gzip CSS');
+}
+if (!manifestHandler.includes('SHOT_STOPPER_WEB_MANIFEST_GZIP') ||
+    !manifestHandler.includes('application/manifest+json')) {
+  throw new Error('GET /manifest.webmanifest must serve the immutable gzip manifest');
+}
+if (!iconHandler.includes('SHOT_STOPPER_WEB_ICON_192_GZIP') ||
+    !iconHandler.includes('image/png')) {
+  throw new Error('GET /icons/icon-192.png must serve the immutable gzip PNG icon');
 }
 if (network.includes('logoHandler') || network.includes('SHOT_STOPPER_WEB_LOGO')) {
   throw new Error('Firmware must not serve /logo.svg');

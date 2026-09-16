@@ -36,6 +36,23 @@ The [AP guide](settings/ap.md) explains its idle shutdown and recovery.
 can take the claim, and 15 minutes without using a control locks the page and
 stops polling. Scrolling does not keep it active; use Reload to resume.
 
+**Add to home screen** installs the page like an app. On iPhone or iPad, open
+the controller page in Safari, tap **Share**, then **Add to Home Screen**; from
+then on it opens full screen with the Shot Stopper icon. On Android, open the
+page in Chrome, tap the **⋮ menu**, and choose **Add to Home screen**. Because
+the controller is reached directly at its local address, browsers do not offer
+an automatic install prompt — the menu option above is the installation.
+
+**Out of reach**: when the page opens but the controller cannot be reached —
+for example while you are away from home — it shows the Shot Stopper logo with
+an out-of-reach message and a **Reload** button instead of a raw error. The same
+message appears if the connection drops while the page is open. Check that the
+phone or computer is connected to the same network as the controller and press
+**Reload** when it is; the page resumes on its own once the controller answers.
+Right after a firmware update the message can appear while the controller
+restarts; wait a moment and press **Reload**. If the browser has no saved copy
+of the page yet, it shows its own cannot-connect page instead.
+
 **Admin unlock** is an additional password check for privileged actions.
 It stays renewed while Admin is open, or expires 15 minutes after the last
 privileged action. **Lock** closes it immediately without releasing the browser

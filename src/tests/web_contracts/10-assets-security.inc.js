@@ -152,6 +152,13 @@ if (!shellHtml.includes('type="module"') ||
     /<script(?![^>]*\bsrc=)[^>]*>\s*\S/i.test(shellHtml)) {
   throw new Error('Web UI must load same-origin /app.js as a module (no inline script body)');
 }
+if (!shellHtml.includes('rel="manifest" href="/manifest.webmanifest"') ||
+    !shellHtml.includes('rel="apple-touch-icon"') ||
+    !shellHtml.includes('href="/icons/icon-192.png?v=__FW_VERSION__"') ||
+    !shellHtml.includes('name="theme-color"') ||
+    !shellHtml.includes('name="apple-mobile-web-app-capable"')) {
+  throw new Error('Shell head must declare the PWA manifest, icon, and home-screen metadata');
+}
 for (const name of VIEW_NAMES) {
   if (!shellHtml.includes('id="view-' + name + '"') ||
       !shellHtml.includes('data-view="' + name + '"') ||
@@ -177,11 +184,13 @@ if (htmlBytes > 63000) {
 // Zero baselines and the first-drop icon add 1,000 bytes of source allowance.
 // Fixed chart grids, adaptive axes, and derived peak flow add 1,200 bytes.
 // Continuous smoothed flow-rate curves add 273 source bytes.
+// PWA manifest/icon head metadata and the cached-shell version self-heal add
+// ~1.1 KB of combined source allowance.
 if (jsBytes > 172000) {
   throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 172000)`);
 }
-if (htmlBytes + jsBytes > 233300) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 233300)`);
+if (htmlBytes + jsBytes > 234400) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 234400)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

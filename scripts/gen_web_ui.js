@@ -17,6 +17,9 @@ const sourcePath = path.join(htmlDir, 'shell.html');
 const appJsPath = path.join(repoRoot, 'src', 'web', 'app.js');
 const otaImageJsPath = path.join(jsDir, 'ota-image.js');
 const cssSourcePath = path.join(repoRoot, 'src', 'web', 'app.css');
+const manifestPath = path.join(repoRoot, 'src', 'web', 'manifest.webmanifest');
+const icon192Path = path.join(repoRoot, 'resources', 'icons', 'android',
+    'launchericon-192x192.png');
 const versionPath = path.join(repoRoot, 'src', 'ShotStopperVersion.h');
 const outputPath =
     path.join(repoRoot, 'src', 'ShotStopperWebAssetsGzip.h');
@@ -30,7 +33,8 @@ function readFirmwareVersion() {
     return 'dev';
   }
   const source = fs.readFileSync(versionPath, 'utf8');
-  const match = source.match(/FW_VERSION\[\]\s*=\s*"([^"]+)"/);
+  const match = source.match(/FW_VERSION_STRING\s*"([^"]+)"/) ||
+      source.match(/FW_VERSION\[\]\s*=\s*"([^"]+)"/);
   return match ? match[1] : 'dev';
 }
 
@@ -173,6 +177,8 @@ async function generate(options = {}) {
       process.env.SHOTSTOPPER_WEBUI_LANGUAGE || 'en';
   const source = fs.readFileSync(sourcePath, 'utf8').replace(/\r?\n$/, '');
   const cssSource = fs.readFileSync(cssSourcePath, 'utf8');
+  const manifestObject = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const icon192Raw = fs.readFileSync(icon192Path);
   const version = readFirmwareVersion();
 
   let shellHtmlRaw = source;
@@ -227,7 +233,16 @@ async function generate(options = {}) {
   hash.update(localizedOtaImage);
   for (const name of VIEW_NAMES) hash.update(viewJsRaw[name]);
   hash.update(localizedCss);
+  hash.update(JSON.stringify(manifestObject));
+  hash.update(icon192Raw);
   const assetTag = hash.digest('hex').slice(0, 8);
+
+  // The manifest is served with the same global ETag, so its icon URL carries
+  // the same cacheVersion as the shell asset references.
+  const manifest =
+      JSON.stringify(manifestObject)
+          .split('__FW_VERSION__')
+          .join(`${version}.${assetTag}`);
 
   const partials = {};
   for (const name of VIEW_NAMES) {
@@ -243,7 +258,10 @@ async function generate(options = {}) {
   const appWithHome =
       inlineHomeModule(stampAssetTag(localizedAppJs, assetTag), viewJsRaw.home, assetTag);
   const appJs = await minifyJs(appWithHome);
-  const runtimeJs = await minifyJs(stampAssetTag(localizedRuntime, assetTag));
+  // The runtime bakes the release version alone (no asset tag) so it can
+  // compare it against the firmwareVersion reported by the status API.
+  const runtimeJs = await minifyJs(stampAssetTag(localizedRuntime, assetTag)
+      .split('__FW_RELEASE__').join(version));
   const otaImageJs = await minifyJs(localizedOtaImage);
   const secondaryJs =
       await minifyJs(buildSecondaryJs(viewJsRaw, assetTag));
@@ -260,6 +278,8 @@ async function generate(options = {}) {
     secondaryJs,
     settingsJs,
     css,
+    manifest,
+    icon192Raw,
     assetTag,
     version,
     requestedLanguage: localized.requestedLanguage,
@@ -270,7 +290,8 @@ async function generate(options = {}) {
 }
 
 async function finish({shellHtml, partials, appJs, runtimeJs, otaImageJs, secondaryJs,
-                       settingsJs, css, assetTag, version, inputLanguage, requestedLanguage,
+                       settingsJs, css, manifest, icon192Raw, assetTag, version,
+                       inputLanguage, requestedLanguage,
                        resolvedLanguage, write}) {
   const shellGzip = await gzipBuffer(Buffer.from(shellHtml, 'utf8'));
   const cssGzip = await gzipBuffer(Buffer.from(css, 'utf8'));
@@ -279,6 +300,8 @@ async function finish({shellHtml, partials, appJs, runtimeJs, otaImageJs, second
   const otaImageGzip = await gzipBuffer(Buffer.from(otaImageJs, 'utf8'));
   const secondaryGzip = await gzipBuffer(Buffer.from(secondaryJs, 'utf8'));
   const settingsGzip = await gzipBuffer(Buffer.from(settingsJs, 'utf8'));
+  const manifestGzip = await gzipBuffer(Buffer.from(manifest, 'utf8'));
+  const icon192Gzip = await gzipBuffer(icon192Raw);
   const partialGzip = {};
   for (const name of LAZY_PARTIALS) {
     partialGzip[name] =
@@ -306,6 +329,8 @@ ${emitGzipConst('SHOT_STOPPER_WEB_OTA_IMAGE_GZIP', otaImageGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_CSS_GZIP', cssGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_SECONDARY_GZIP', secondaryGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP', settingsGzip)}
+${emitGzipConst('SHOT_STOPPER_WEB_MANIFEST_GZIP', manifestGzip)}
+${emitGzipConst('SHOT_STOPPER_WEB_ICON_192_GZIP', icon192Gzip)}
 `;
 
   for (const name of LAZY_PARTIALS) {
@@ -326,7 +351,8 @@ ${emitGzipConst('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP', settingsGzip)}
 
   let combined = shellGzip.length + appJsGzip.length + runtimeGzip.length +
       otaImageGzip.length +
-      cssGzip.length + secondaryGzip.length + settingsGzip.length;
+      cssGzip.length + secondaryGzip.length + settingsGzip.length +
+      manifestGzip.length + icon192Gzip.length;
   for (const name of LAZY_PARTIALS) {
     combined += partialGzip[name].length;
   }
@@ -339,6 +365,8 @@ ${emitGzipConst('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP', settingsGzip)}
     secondaryJs,
     settingsJs,
     css,
+    manifest,
+    icon192Raw,
     partials,
     gzip: shellGzip,
     jsGzip: appJsGzip,
@@ -346,6 +374,8 @@ ${emitGzipConst('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP', settingsGzip)}
     otaImageGzip,
     secondaryGzip,
     settingsGzip,
+    manifestGzip,
+    icon192Gzip,
     partialGzip,
     cssGzip,
     assetTag,
@@ -408,6 +438,8 @@ if (require.main === module) {
           `css ${result.cssGzip.length} B`,
           `secondary.js ${result.secondaryGzip.length} B`,
           `settings.js ${result.settingsGzip.length} B`,
+          `manifest ${result.manifestGzip.length} B`,
+          `icon-192 ${result.icon192Gzip.length} B`,
         ];
         for (const name of LAZY_PARTIALS) {
           parts.push(`${name}.html ${result.partialGzip[name].length} B`);

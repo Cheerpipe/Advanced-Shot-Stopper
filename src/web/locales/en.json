@@ -1099,6 +1099,7 @@
     "shell.menu_2": "☰",
     "shell.missing_secondary_view": "Missing secondary view: ",
     "shell.missing_view_section": "Missing view section: ",
+    "shell.out_of_reach_hint": "Shot Stopper is out of reach of this device. Check that this phone or computer is connected to the same network as the controller, then press Reload.",
     "shell.primary": "Primary",
     "shell.reload": "Reload",
     "shell.settings": "Settings",

@@ -69,8 +69,6 @@ command -v node >/dev/null 2>&1 || {
 }
 
 echo "Building ${SHOTSTOPPER_VARIANT:-$SHOTSTOPPER_ARCH} (IDF, BLE=nimble, allocator=external)"
-echo "WebUI language: $(ss_get webui_language)"
-node ./scripts/gen_web_ui.js --webui-language "$(ss_get webui_language)"
 
 export SHOT_STOPPER_EXTRA_FLAGS
 SHOT_STOPPER_EXTRA_FLAGS="$effective_flags"
@@ -116,6 +114,12 @@ python3 ./scripts/resolve_build_profiles.py \
 ./scripts/gen_version.sh "$SHOTSTOPPER_ARCH" \
   "$SHOTSTOPPER_HARDWARE_COMPAT" "$SHOTSTOPPER_MACHINE_COMPAT" \
   "$SHOTSTOPPER_GENERATED_DIR/ShotStopperVersion.h"
+
+# Generate the Web UI after the firmware identity header so the baked cache
+# version equals the reported firmware version; the UI compares them to reload
+# a stale cached shell exactly once after an update.
+echo "WebUI language: $(ss_get webui_language)"
+node ./scripts/gen_web_ui.js --webui-language "$(ss_get webui_language)"
 
 ss_idf_commit_extra_flags_stamp
 
