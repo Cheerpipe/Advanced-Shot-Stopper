@@ -149,7 +149,7 @@ curve: one `flow_<n>s` column per curve sample, in grams per second with two
 decimals. `flow_2s` is the rate measured over the second that closes with the
 sample in `yield_2s`, `flow_3s` the next, and so on. `flow_1s` stays empty
 unless the exact first-drop marker falls within the first second, in which
-case it carries the chart's rate for that split interval. A falling weight
+case it carries the chart's rate for that interval. A falling weight
 reports 0, and cells stay empty where the chart draws no flow: before the
 first drop, across a missing sample, and during an A→M scale-loss period.
 When no event marker falls on or inside the second, a flow cell is simply the
