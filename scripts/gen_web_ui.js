@@ -20,6 +20,8 @@ const cssSourcePath = path.join(repoRoot, 'src', 'web', 'app.css');
 const manifestPath = path.join(repoRoot, 'src', 'web', 'manifest.webmanifest');
 const icon192Path = path.join(repoRoot, 'resources', 'icons', 'android',
     'launchericon-192x192.png');
+const icon48Path = path.join(repoRoot, 'resources', 'icons', 'android',
+    'launchericon-48x48.png');
 const versionPath = path.join(repoRoot, 'src', 'ShotStopperVersion.h');
 const outputPath =
     path.join(repoRoot, 'src', 'ShotStopperWebAssetsGzip.h');
@@ -179,6 +181,7 @@ async function generate(options = {}) {
   const cssSource = fs.readFileSync(cssSourcePath, 'utf8');
   const manifestObject = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const icon192Raw = fs.readFileSync(icon192Path);
+  const icon48Raw = fs.readFileSync(icon48Path);
   const version = readFirmwareVersion();
 
   let shellHtmlRaw = source;
@@ -235,6 +238,7 @@ async function generate(options = {}) {
   hash.update(localizedCss);
   hash.update(JSON.stringify(manifestObject));
   hash.update(icon192Raw);
+  hash.update(icon48Raw);
   const assetTag = hash.digest('hex').slice(0, 8);
 
   // The manifest is served with the same global ETag, so its icon URL carries
@@ -280,6 +284,7 @@ async function generate(options = {}) {
     css,
     manifest,
     icon192Raw,
+    icon48Raw,
     assetTag,
     version,
     requestedLanguage: localized.requestedLanguage,
@@ -290,8 +295,8 @@ async function generate(options = {}) {
 }
 
 async function finish({shellHtml, partials, appJs, runtimeJs, otaImageJs, secondaryJs,
-                       settingsJs, css, manifest, icon192Raw, assetTag, version,
-                       inputLanguage, requestedLanguage,
+                       settingsJs, css, manifest, icon192Raw, icon48Raw, assetTag,
+                       version, inputLanguage, requestedLanguage,
                        resolvedLanguage, write}) {
   const shellGzip = await gzipBuffer(Buffer.from(shellHtml, 'utf8'));
   const cssGzip = await gzipBuffer(Buffer.from(css, 'utf8'));
@@ -302,6 +307,7 @@ async function finish({shellHtml, partials, appJs, runtimeJs, otaImageJs, second
   const settingsGzip = await gzipBuffer(Buffer.from(settingsJs, 'utf8'));
   const manifestGzip = await gzipBuffer(Buffer.from(manifest, 'utf8'));
   const icon192Gzip = await gzipBuffer(icon192Raw);
+  const icon48Gzip = await gzipBuffer(icon48Raw);
   const partialGzip = {};
   for (const name of LAZY_PARTIALS) {
     partialGzip[name] =
@@ -331,6 +337,7 @@ ${emitGzipConst('SHOT_STOPPER_WEB_SECONDARY_GZIP', secondaryGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP', settingsGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_MANIFEST_GZIP', manifestGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_ICON_192_GZIP', icon192Gzip)}
+${emitGzipConst('SHOT_STOPPER_WEB_ICON_48_GZIP', icon48Gzip)}
 `;
 
   for (const name of LAZY_PARTIALS) {
@@ -352,7 +359,7 @@ ${emitGzipConst('SHOT_STOPPER_WEB_ICON_192_GZIP', icon192Gzip)}
   let combined = shellGzip.length + appJsGzip.length + runtimeGzip.length +
       otaImageGzip.length +
       cssGzip.length + secondaryGzip.length + settingsGzip.length +
-      manifestGzip.length + icon192Gzip.length;
+      manifestGzip.length + icon192Gzip.length + icon48Gzip.length;
   for (const name of LAZY_PARTIALS) {
     combined += partialGzip[name].length;
   }
@@ -367,6 +374,7 @@ ${emitGzipConst('SHOT_STOPPER_WEB_ICON_192_GZIP', icon192Gzip)}
     css,
     manifest,
     icon192Raw,
+    icon48Raw,
     partials,
     gzip: shellGzip,
     jsGzip: appJsGzip,
@@ -376,6 +384,7 @@ ${emitGzipConst('SHOT_STOPPER_WEB_ICON_192_GZIP', icon192Gzip)}
     settingsGzip,
     manifestGzip,
     icon192Gzip,
+    icon48Gzip,
     partialGzip,
     cssGzip,
     assetTag,
@@ -440,6 +449,7 @@ if (require.main === module) {
           `settings.js ${result.settingsGzip.length} B`,
           `manifest ${result.manifestGzip.length} B`,
           `icon-192 ${result.icon192Gzip.length} B`,
+          `icon-48 ${result.icon48Gzip.length} B`,
         ];
         for (const name of LAZY_PARTIALS) {
           parts.push(`${name}.html ${result.partialGzip[name].length} B`);

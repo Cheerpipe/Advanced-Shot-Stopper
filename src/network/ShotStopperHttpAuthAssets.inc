@@ -573,13 +573,17 @@ esp_err_t ShotStopperNetwork::iconHandler(httpd_req_t *request) {
 }
 
 esp_err_t ShotStopperNetwork::browserIconHandler(httpd_req_t *request) {
-  // Safari/iOS probe these paths on every visit. A registered handler avoids
-  // the IDF "URI not found" WARN and the 302-to-/ HTML bounce.
-  httpd_resp_set_status(request, STATUS_NO_CONTENT);
-  httpd_resp_set_hdr(request, "Cache-Control",
-                     "public, max-age=31536000, immutable");
-  httpd_resp_set_hdr(request, "Connection", "close");
-  return httpd_resp_send(request, nullptr, 0);
+  // Clients that ignore the shell's <link> tags probe these paths directly;
+  // serve the real artwork with the same immutable gzip contract as the rest
+  // of the Web UI assets instead of an empty 204.
+  if (strcmp(request->uri, "/favicon.ico") == 0) {
+    return serveImmutableGzip(request, "image/png",
+                              SHOT_STOPPER_WEB_ICON_48_GZIP,
+                              SHOT_STOPPER_WEB_ICON_48_GZIP_LEN);
+  }
+  return serveImmutableGzip(request, "image/png",
+                            SHOT_STOPPER_WEB_ICON_192_GZIP,
+                            SHOT_STOPPER_WEB_ICON_192_GZIP_LEN);
 }
 
 esp_err_t ShotStopperNetwork::notFoundHandler(httpd_req_t *request,

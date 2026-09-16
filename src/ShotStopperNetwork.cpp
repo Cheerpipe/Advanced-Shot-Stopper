@@ -195,7 +195,6 @@ const char *jsonParseFailureMessage(const char *fallback) {
 constexpr const char *AP_IP = "192.168.4.1";
 constexpr const char *JSON_CONTENT_TYPE = "application/json";
 constexpr const char *STATUS_OK = "200 OK";
-constexpr const char *STATUS_NO_CONTENT = "204 No Content";
 constexpr const char *STATUS_NOT_MODIFIED = "304 Not Modified";
 constexpr const char *STATUS_ACCEPTED = "202 Accepted";
 constexpr const char *STATUS_ALREADY_REPORTED = "208 Already Reported";

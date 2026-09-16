@@ -223,6 +223,9 @@ if (!generated.manifest.includes('"display":"standalone"') ||
 if (!zlib.gunzipSync(generated.icon192Gzip).equals(generated.icon192Raw)) {
   throw new Error('Generated gzip icon does not round-trip to the PNG bytes');
 }
+if (!zlib.gunzipSync(generated.icon48Gzip).equals(generated.icon48Raw)) {
+  throw new Error('Generated gzip 48 px icon does not round-trip to the PNG bytes');
+}
 if (generated.runtimeJs.includes('__FW_RELEASE__') ||
     !generated.runtimeJs.includes('ssFwReload') ||
     !generated.runtimeJs.includes('location.reload()') ||
@@ -277,18 +280,22 @@ if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');
 }
 // The PWA manifest and the 192 px home-screen icon are additive embedded
-// assets; they raise the combined cap from 66500 bytes.
+// assets; they raise the combined cap from 66500 bytes. The 48 px favicon
+// served on direct /favicon.ico probes raises it further to 101000 bytes.
 if (generated.manifestGzip.length > 1024) {
   throw new Error('Compressed PWA manifest exceeds the 1024-byte gzip budget');
 }
 if (generated.icon192Gzip.length > 31500) {
   throw new Error('Compressed 192 px icon exceeds the 31500-byte gzip budget');
 }
+if (generated.icon48Gzip.length > 3500) {
+  throw new Error('Compressed 48 px icon exceeds the 3500-byte gzip budget');
+}
 // Continuous color-segment flow curves close each segment at its boundary,
 // raising the combined cap from 66400 to 66500 bytes; the PWA manifest and
-// icon raise it further to 98500 bytes.
-if (generated.combined > 98500) {
-  throw new Error('Combined Web UI gzip exceeds the 98500-byte flash budget');
+// icons raise it further to 101000 bytes.
+if (generated.combined > 101000) {
+  throw new Error('Combined Web UI gzip exceeds the 101000-byte flash budget');
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
@@ -305,6 +312,7 @@ if (!network.includes('SHOT_STOPPER_WEB_UI_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_MANIFEST_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_ICON_192_GZIP') ||
+    !network.includes('SHOT_STOPPER_WEB_ICON_48_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_PARTIAL_SETTINGS_GZIP') ||
     !network.includes('WEB_UI_ETAG') ||
     network.includes('SHOT_STOPPER_WEB_PARTIAL_HOME_GZIP') ||
@@ -416,12 +424,14 @@ if (!iconHandler.includes('SHOT_STOPPER_WEB_ICON_192_GZIP') ||
 if (network.includes('logoHandler') || network.includes('SHOT_STOPPER_WEB_LOGO')) {
   throw new Error('Firmware must not serve /logo.svg');
 }
-if (!browserIconHandler.includes('STATUS_NO_CONTENT') ||
-    !browserIconHandler.includes('max-age=31536000') ||
-    !browserIconHandler.includes('immutable') ||
+if (!browserIconHandler.includes('SHOT_STOPPER_WEB_ICON_48_GZIP') ||
+    !browserIconHandler.includes('SHOT_STOPPER_WEB_ICON_192_GZIP') ||
+    !browserIconHandler.includes('serveImmutableGzip') ||
+    !browserIconHandler.includes('image/png') ||
+    browserIconHandler.includes('STATUS_NO_CONTENT') ||
     browserIconHandler.includes('302 Found') ||
     browserIconHandler.includes('Location')) {
-  throw new Error('Safari icon probes must 204 with long cache and must not 302 to /');
+  throw new Error('Icon probe paths must serve the real PNG artwork through the immutable gzip contract and must not 302 to /');
 }
 if (!notFoundHandler.includes('302 Found') ||
     !notFoundHandler.includes('Location') ||
