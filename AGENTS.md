@@ -8,6 +8,12 @@ Never read `docs/plans/` or `docs/audits/` content proactively for context.
 Read a plan or audit only when the user explicitly asks to read or work with it;
 documentation links, task similarity, and session recovery do not grant access.
 
+## Language
+
+Reason, plan, and write internal notes in English, regardless of the language
+used in the prompt. Write the final user-facing reply in the same language as
+the user's prompt.
+
 ## Priorities and scope
 
 1. Safety and correctness.
