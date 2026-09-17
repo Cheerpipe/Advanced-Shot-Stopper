@@ -14,6 +14,11 @@ constexpr uint32_t CONTROL_SERVICE_DEADLINE_MS = 10;
 constexpr uint32_t SCALE_SERVICE_DEADLINE_MS = 10;
 constexpr uint32_t CONTROL_EXECUTION_BUDGET_US = 9000;
 constexpr uint32_t SCALE_EXECUTION_BUDGET_US = 9000;
+// The 1 ms loops feed the 5 s Task Watchdog at this cadence instead of every
+// activation: esp_task_wdt_reset takes the TWDT spinlock and walks the
+// subscribed-task list, so per-millisecond feeding adds no protection. A
+// failed feed is reported within this interval; the TWDT remains the backstop.
+constexpr uint32_t TASK_WATCHDOG_FEED_INTERVAL_MS = 100;
 constexpr uint32_t TASK_BLOCKING_UNBOUNDED_MS = UINT32_MAX;
 
 enum class TaskActivation : uint8_t {
@@ -65,5 +70,7 @@ static_assert(CONTROL_EXECUTION_BUDGET_US <
               "control execution budget must fit service deadline");
 static_assert(SCALE_EXECUTION_BUDGET_US < SCALE_SERVICE_DEADLINE_MS * 1000U,
               "scale execution budget must fit service deadline");
+static_assert(TASK_WATCHDOG_FEED_INTERVAL_MS * 10 < 5000,
+              "watchdog feed cadence must keep a 10x margin to the 5 s TWDT");
 
 }  // namespace shotstopper

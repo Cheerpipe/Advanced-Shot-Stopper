@@ -225,6 +225,9 @@ bool scaleCompletionBeepPending = false;
 uint32_t scaleCompletionBeepConnectionGeneration = 0;
 uint16_t scaleScanAppliedInterval = 0;
 uint16_t scaleScanAppliedWindow = 0;
+// Last evidence of a compatible scale (advert seen, live link, preference
+// reset); anchors the quiet-hunt scan backoff. Zero counts from boot.
+uint32_t scaleScanCompatibleActivityAtMs = 0;
 uint32_t scaleHuntRfUntilMs = 0;
 bool scaleLoggedGattConnecting = false;
 uint8_t scaleLoggedGattConnectAttempts = 0;
@@ -1688,6 +1691,15 @@ BleScanIntensity liveBleScanIntensity() {
       liveBleScanIntensityRaw.load(std::memory_order_relaxed));
 }
 
+BleScanIntensity discoveryScanIntensity() {
+  if (powerIdleSavings() ||
+      elapsedMs(scaleScanCompatibleActivityAtMs) >=
+          SCALE_SCAN_QUIET_BACKOFF_MS) {
+    return BleScanIntensity::LIGHT;
+  }
+  return liveBleScanIntensity();
+}
+
 bool startScaleDiscoveryScan(const char *mac, bool forceRestart) {
   if (scaleSoftApActive.load(std::memory_order_relaxed) &&
       !scale.isConnecting() && !scale.isLinkUp()) {
@@ -1695,8 +1707,7 @@ bool startScaleDiscoveryScan(const char *mac, bool forceRestart) {
   }
   uint16_t interval = BLE_SCAN_NORMAL_INTERVAL;
   uint16_t window = BLE_SCAN_NORMAL_WINDOW;
-  bleScanHciParams(powerIdleSavings() ? BleScanIntensity::LIGHT
-                                    : liveBleScanIntensity(), interval, window);
+  bleScanHciParams(discoveryScanIntensity(), interval, window);
   const bool scanningBefore = scale.isScanning();
   const uint16_t prevInterval = scaleScanAppliedInterval;
   const uint16_t prevWindow = scaleScanAppliedWindow;
@@ -1734,8 +1745,7 @@ void serviceScaleScanIntensity() {
   }
   uint16_t interval = BLE_SCAN_NORMAL_INTERVAL;
   uint16_t window = BLE_SCAN_NORMAL_WINDOW;
-  bleScanHciParams(powerIdleSavings() ? BleScanIntensity::LIGHT
-                                    : liveBleScanIntensity(), interval, window);
+  bleScanHciParams(discoveryScanIntensity(), interval, window);
   if (scaleScanAppliedInterval == interval &&
       scaleScanAppliedWindow == window) {
     return;
@@ -1815,6 +1825,7 @@ void serviceScaleWorkerDiscovery(uint32_t &lastScanCycleMs,
   if (preferenceRestarted) {
     connectAttemptSeriesActive = false;
     scanSessionAtMs = millis();
+    scaleScanCompatibleActivityAtMs = scanSessionAtMs;
     scanLastAdvertAtMs = 0;
   }
   // Library drop can happen on a beep/command path that never refreshed the
@@ -1866,6 +1877,7 @@ void serviceScaleWorkerDiscovery(uint32_t &lastScanCycleMs,
       noteScaleHistory(seenMac, seenName, false);
       sawCompatibleAd = true;
       scanLastAdvertAtMs = millis();
+      scaleScanCompatibleActivityAtMs = scanLastAdvertAtMs;
     }
     if (connected) {
       connectAttemptSeriesActive = false;
@@ -2163,6 +2175,7 @@ void scaleWorkerTask(void *) {
     // Live GAP check once per tick. Packet timeouts and HCI events cover the
     // rest of the hot path via isLinkUp().
     const bool linked = scale.isConnected();
+    if (linked) scaleScanCompatibleActivityAtMs = nowMs;
     static uint32_t lastLinkSnapshotMs = 0;
     const bool linkSnapshotDue =
         lastLinkSnapshotMs == 0 ||
@@ -2229,8 +2242,13 @@ void scaleWorkerTask(void *) {
 
     syncScaleRadioCoex();
 
-    if (!feedCurrentTaskWatchdog()) {
-      reportTaskWatchdogFault();
+    static uint32_t watchdogFedAtMs = 0;
+    if (watchdogFedAtMs == 0 ||
+        elapsedMs(watchdogFedAtMs) >= TASK_WATCHDOG_FEED_INTERVAL_MS) {
+      watchdogFedAtMs = nowMs;
+      if (!feedCurrentTaskWatchdog()) {
+        reportTaskWatchdogFault();
+      }
     }
     if (elapsedMs(telemetryAtMs) >= HEALTH_TELEMETRY_INTERVAL_MS) {
       telemetryAtMs = millis();

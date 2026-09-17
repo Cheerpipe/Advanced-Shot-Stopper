@@ -234,6 +234,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   scalePreferredName[0] = '\0';
   scalePreferredMacDirty = false;
   scaleDiscoveryPausedUntilMs = 0;
+  scaleScanCompatibleActivityAtMs = 0;
   scalePreferredDirectedResetGeneration = 0;
   scaleLinkState = ScaleLinkState::DISCONNECTED;
   scaleConnecting = false;

@@ -19,6 +19,11 @@ constexpr uint32_t SCALE_PACKET_GAP_LOG_MIN_MS = 1000;
 constexpr uint32_t SCALE_STREAM_GAP_MS = 250;
 constexpr uint32_t SCALE_DISCOVERY_TICK_MS = 3000;
 constexpr uint32_t SCALE_SCAN_HCI_RESTART_MS = 60000;
+// Quiet-hunt backoff: drop the idle discovery scan to Light duty after this
+// long without any compatible advert, live link, or preference reset. The
+// first compatible advert restores the saved intensity within one
+// discovery tick.
+constexpr uint32_t SCALE_SCAN_QUIET_BACKOFF_MS = 300000;
 constexpr uint32_t SCALE_HUNT_RF_CLEAR_MS = 3000;
 
 inline void bleScanHciParams(BleScanIntensity intensity, uint16_t &interval,

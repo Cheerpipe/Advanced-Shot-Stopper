@@ -517,12 +517,17 @@ void loop() {
   serviceWeightStreamTelemetry(loopScaleLink);
   serviceControlStatusPublish();
   serviceScaleConnectedLed(loopScaleLink);
-  if (!feedCurrentTaskWatchdog()) {
-    reportTaskWatchdogFault();
-    tripRelaySafety(RelaySafetyFault::TASK_WATCHDOG_FAILURE);
-    requestSafeRestart();
-    serviceSafetyHeartbeat(false);
-    return;
+  static uint32_t watchdogFedAtMs = 0;
+  if (watchdogFedAtMs == 0 ||
+      elapsedMs(watchdogFedAtMs) >= TASK_WATCHDOG_FEED_INTERVAL_MS) {
+    watchdogFedAtMs = loopStartedAtMs;
+    if (!feedCurrentTaskWatchdog()) {
+      reportTaskWatchdogFault();
+      tripRelaySafety(RelaySafetyFault::TASK_WATCHDOG_FAILURE);
+      requestSafeRestart();
+      serviceSafetyHeartbeat(false);
+      return;
+    }
   }
   serviceSafetyHeartbeat(true);
   processScaleWorkerEvents();
