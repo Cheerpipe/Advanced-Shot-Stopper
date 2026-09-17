@@ -1,6 +1,7 @@
 #pragma once
 
-// Current shot-log schema (v5) and domain helpers. No Preferences / NVS.
+// Current shot-log schema (v6) and domain helpers. No Preferences / NVS:
+// persistence lives in the dedicated shotlog flash partition (dual slot).
 
 #include "ShotStopperDomain.h"
 
@@ -12,7 +13,7 @@
 namespace shotstopper {
 
 constexpr uint32_t SHOT_LOG_MAGIC = 0x534C4F47U;  // "SLOG"
-constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 5;
+constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 6;
 constexpr size_t SHOT_LOG_CAPACITY = 120;
 constexpr size_t SHOT_LOG_PAGE_DEFAULT = 10;
 
@@ -56,7 +57,6 @@ inline bool shotLogPageSlice(size_t total, size_t offset, size_t limit,
   return (start + pageCount) < total;
 }
 
-constexpr uint32_t MIN_SHOT_LOG_DURATION_MS = 10000;
 constexpr float MIN_SHOT_LOG_WEIGHT_G = 1.0f;
 // INT16_MIN leaves the full positive int16 centigram range usable.
 constexpr int16_t SHOT_LOG_WEIGHT_MISSING = INT16_MIN;
@@ -268,13 +268,16 @@ inline ShotLogCut shotLogCutFromEndReason(EndReason reason) {
   }
 }
 
-inline bool shotLogEligible(EndReason reason, uint32_t durationMs) {
+inline bool shotLogEligible(EndReason reason, uint32_t durationMs,
+                            uint32_t protectionMs) {
   if (reason == EndReason::SHORT_SHOT ||
       reason == EndReason::RINSE_COMPLETE ||
       brewEndIsAbandonedStart(reason)) {
     return false;
   }
-  return durationMs >= MIN_SHOT_LOG_DURATION_MS;
+  // The BBW protection window is the minimum time an activation needs before
+  // it can count as a shot, for stats, last-good-shot, and history alike.
+  return durationMs > protectionMs;
 }
 
 inline bool shotLogWeightEligible(float weightG, bool valid) {
@@ -323,7 +326,7 @@ struct ShotLogRecord {
   // Bits 0–1: extensions; 2–4: alpha low bits; 5–6: learning status.
   uint8_t extractionExtended;
   uint8_t stopDetail;
-  // Placed in the former v5 padding byte so sizeof stays 48 (no NVS growth).
+  // Placed in the former v5 padding byte so sizeof stays 48.
   uint8_t actualWeightSource;
   int16_t maxRecoveryWeightCg;
   uint16_t minBbwBrewTimeDs;
@@ -446,6 +449,7 @@ struct ShotLogHeader {
   uint32_t magic;
   uint16_t schemaVersion;
   uint16_t recordSize;
+  uint32_t generation;
   uint32_t bootId;
   uint32_t nextRecordId;
   uint16_t count;
@@ -467,8 +471,8 @@ inline uint32_t shotLogChecksumBytes(const ShotLogHeader &header) {
                offsetof(ShotLogHeader, checksum));
 }
 
-// Schema 7+: header prefix + packed records[0..count). Legacy v2–v6 used
-// header-only CRCs via shotLogChecksumBytes.
+// Header prefix + packed records[0..count). Legacy v2–v6 used header-only
+// CRCs via shotLogChecksumBytes.
 inline uint32_t shotLogChecksum(const ShotLogStore &store) {
   uint32_t crc = crc32Update(
       0xFFFFFFFFU, reinterpret_cast<const uint8_t *>(&store.header),
@@ -502,20 +506,9 @@ inline bool validShotLogStore(const ShotLogStore &store,
   return true;
 }
 
-inline size_t shotLogPersistedBytes(const ShotLogStore &store) {
-  return sizeof(ShotLogHeader) +
-         static_cast<size_t>(store.header.count) * sizeof(ShotLogRecord);
-}
-
-inline bool shotLogBlobLengthMatches(const ShotLogStore &store, size_t length) {
-  if (length == sizeof(ShotLogStore)) {
-    return true;
-  }
-  return length == shotLogPersistedBytes(store);
-}
-
 inline void resetShotLogStore(ShotLogStore &store, uint32_t bootId) {
   memset(&store, 0, sizeof(store));
+  store.header.generation = 1;
   store.header.bootId = bootId == 0 ? 1U : bootId;
   store.header.nextRecordId = 1;
   finalizeShotLogStore(store);

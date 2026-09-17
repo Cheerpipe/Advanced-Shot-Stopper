@@ -141,8 +141,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   runtimeConfig.scaleTimerStopExtraDelayMs = 0;
   lastCycle = LastCycleSummary{};
   lastShotNvsDirty = false;
-  shotLogPersistFailLatched = false;
-  shotCurvePersistFailLatched = false;
+  activationStores.clearPersistFailLatches();
   lastShotPersistFailLatched = false;
   controllerStartedPending = false;
   shotStorePersistRetryAtMs = 0;
@@ -153,8 +152,14 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   lastShotStore.clear();
   g_hostFlashIoMutexAvailable = true;
   shotCurveSampler.reset(0);
+  ShotLog::resetHostStorage();
+  ShotLog::setHostSaveSucceeds(true);
   ShotCurveLog::resetHostStorage();
+  HistoryLog::resetHostStorage();
+  HistoryLog::setHostSaveSucceeds(true);
+  shotLog.load();
   shotCurves.load();
+  historyLog.load();
   noScaleShotGuardArmed = true;
   noScaleShotGuardActivityAtMs = 0;
   noScaleShotGuardScaleWasAvailable = false;
@@ -6378,7 +6383,8 @@ void r31_confirmed_overload_opens_without_learning() {
   CHECK(stopperState == StopperState::REQUIRES_OFF);
   CHECK(session.endReason == EndReason::WEIGHT_ANOMALY);
   CHECK(!session.calibrationEligible);
-  CHECK(!pendingFinalize.pending);
+  CHECK(pendingFinalize.pending);
+  CHECK(!pendingFinalize.offsetAnalysis);
 }
 
 void r32_old_connection_generation_cannot_update_weight() {
@@ -9530,13 +9536,17 @@ void w38_scale_connected_led_tracks_link_and_setting() {
 }
 
 void s01_shot_log_filters_short_and_rinse() {
-  CHECK(!shotLogEligible(EndReason::SHORT_SHOT, 15000));
-  CHECK(!shotLogEligible(EndReason::RINSE_COMPLETE, 15000));
-  CHECK(!shotLogEligible(EndReason::UNCONFIRMED_START, 60000));
+  const uint32_t protection = DEFAULT_BBW_PROTECTION_MS;
+  CHECK(!shotLogEligible(EndReason::SHORT_SHOT, 15000, protection));
+  CHECK(!shotLogEligible(EndReason::RINSE_COMPLETE, 15000, protection));
+  CHECK(!shotLogEligible(EndReason::UNCONFIRMED_START, 60000, protection));
   CHECK(brewEndIsAbandonedStart(EndReason::UNCONFIRMED_START));
   CHECK(!brewEndIsAbandonedStart(EndReason::RINSE_COMPLETE));
-  CHECK(!shotLogEligible(EndReason::ACTIVATOR, 9000));
-  CHECK(shotLogEligible(EndReason::ACTIVATOR, 10000));
+  CHECK(!shotLogEligible(EndReason::ACTIVATOR, 9000, protection));
+  // The BBW protection window is the strict minimum duration of a shot.
+  CHECK(!shotLogEligible(EndReason::ACTIVATOR, protection, protection));
+  CHECK(shotLogEligible(EndReason::ACTIVATOR, protection + 1, protection));
+  CHECK(shotLogEligible(EndReason::ACTIVATOR, 3001, 3000));
   CHECK(!shotLogBbwEligible(false, false, true));
   CHECK(!shotLogBbwEligible(true, true, true));
   CHECK(!shotLogBbwEligible(true, false, false));
@@ -9734,7 +9744,7 @@ void s02c_shot_curve_samples_on_one_second_grid_and_latches_slow() {
   session.lastAcceptedWeightG = 18.0f;
   shot.automaticBrew = true;
   session.config.timerOnly = false;
-  schedulePendingShotFinalize(EndReason::SLOW_EXTRACTION_MAX_TIME, 12000);
+  schedulePendingShotFinalize(EndReason::SLOW_EXTRACTION_MAX_TIME, 12500);
   CHECK(pendingFinalize.curve.count >= 7);
   CHECK(pendingFinalize.curve.extended.atDs == 21);
   CHECK(pendingFinalize.curve.extended.weightCg == 1200);
@@ -10282,6 +10292,111 @@ void s03_shot_log_clear_empties_records() {
   CHECK(shotLog.count() == 1);
   CHECK(shotLog.clear());
   CHECK(shotLog.count() == 0);
+}
+
+void s03b_good_shot_records_stats_and_history() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  shotLog.clear();
+  historyLog.clear();
+  const uint32_t rawOnAt = startCycle();
+  advanceToBrew();
+  endBbwProtectionForTests();
+  publishWeight(20.0f);
+  const uint32_t duration = runtimeConfig.bbwProtectionMs + 9000U;
+  releaseAtPhysicalDuration(rawOnAt, duration);
+  publishWeight(36.0f, hostMillis + 1);
+  runLoopAfter(runtimeConfig.dripDelayMs + 100U);
+  // A good shot lands in the stats log and the activation history alike.
+  CHECK(shotLog.count() == 1);
+  CHECK(historyLog.count() == 1);
+  HistoryPage page;
+  historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+  CHECK(page.records[0].type == static_cast<uint8_t>(HistoryType::SHOT));
+  CHECK(page.records[0].durationDs > runtimeConfig.bbwProtectionMs / 100U);
+  // The control loop's deferred flush servant already persisted the record.
+  CHECK(!historyLog.dirty());
+}
+
+void s03c_short_activation_is_other_in_history_only() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  shotLog.clear();
+  historyLog.clear();
+  const uint32_t rawOnAt = startCycle();
+  advanceToBrew();
+  releaseAtPhysicalDuration(rawOnAt, runtimeConfig.bbwProtectionMs - 500U);
+  runLoopAfter(runtimeConfig.dripDelayMs + 100U);
+  // At or below the protection window an activation is not a shot: history
+  // keeps it as `other`, stats skip it entirely.
+  CHECK(shotLog.count() == 0);
+  CHECK(historyLog.count() == 1);
+  HistoryPage page;
+  historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+  CHECK(page.records[0].type == static_cast<uint8_t>(HistoryType::OTHER));
+}
+
+void s03d_rinse_is_rinse_in_history_only() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  shotLog.clear();
+  historyLog.clear();
+  const uint32_t rawOnAt = startCycle();
+  CHECK(executeNextScaleCommand());
+  releaseAtPhysicalDuration(rawOnAt, runtimeConfig.rinseGestureMs);
+  CHECK(stopperState == StopperState::RINSE);
+  runLoopAfter(runtimeConfig.rinseDurationMs + 1);
+  CHECK(stopperState == StopperState::READY);
+  CHECK(shotLog.count() == 0);
+  CHECK(historyLog.count() == 1);
+  HistoryPage page;
+  historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+  CHECK(page.records[0].type == static_cast<uint8_t>(HistoryType::RINSE));
+}
+
+void s03e_manual_over_protection_is_shot_in_history_only() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  shotLog.clear();
+  historyLog.clear();
+  const uint32_t rawOnAt = startCycle();
+  CHECK(stopperState == StopperState::MANUAL_NO_SCALE);
+  releaseAtPhysicalDuration(rawOnAt, runtimeConfig.bbwProtectionMs + 9500U);
+  runLoopAfter(runtimeConfig.dripDelayMs + 100U);
+  // Long enough to be a shot for history, but a no-scale manual cycle never
+  // reaches the stats log.
+  CHECK(shotLog.count() == 0);
+  CHECK(historyLog.count() == 1);
+  HistoryPage page;
+  historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+  CHECK(page.records[0].type == static_cast<uint8_t>(HistoryType::SHOT));
+}
+
+void s03f_abandoned_start_records_nothing() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  shotLog.clear();
+  historyLog.clear();
+  appendActivationHistory(EndReason::UNCONFIRMED_START, false, 5000);
+  CHECK(brewEndIsAbandonedStart(EndReason::UNCONFIRMED_START));
+  CHECK(shotLog.count() == 0);
+  CHECK(historyLog.count() == 0);
+  CHECK(historyLog.dirty() == false);
+}
+
+void s03g_stats_threshold_follows_protection_parameter() {
+  const uint32_t protection = DEFAULT_BBW_PROTECTION_MS;
+  // Default protection (12 s): the former fixed 10 s window no longer
+  // qualifies, and exactly the protection time does not either.
+  CHECK(!shotLogEligible(EndReason::ACTIVATOR, 10000, protection));
+  CHECK(!shotLogEligible(EndReason::ACTIVATOR, protection, protection));
+  CHECK(shotLogEligible(EndReason::ACTIVATOR, protection + 100, protection));
+  // A tighter protection window lowers the bar for cycles that use it.
+  CHECK(shotLogEligible(EndReason::ACTIVATOR, 3100, 3000));
+  CHECK(historyTypeFromCycle(false, 10000, protection) == HistoryType::OTHER);
+  CHECK(historyTypeFromCycle(false, protection + 1, protection) ==
+        HistoryType::SHOT);
+  CHECK(historyTypeFromCycle(true, 500, protection) == HistoryType::RINSE);
 }
 
 void s14_last_shot_persists_manual_cycle() {
@@ -12297,6 +12412,77 @@ void s13_persist_debug_messages_identify_origin() {
   CHECK(strlen(message) < sizeof(message));
 }
 
+void sh01_activation_store_mutex_serializes_append_read_flush() {
+  resetHarness(false, true);
+  constexpr uint32_t kIterations = 400;
+  std::atomic<bool> start{false};
+  std::atomic<bool> done{false};
+  std::atomic<uint32_t> violations{0};
+
+  // Control-loop style append: O(1) PSRAM write under the store mutex.
+  auto appender = [&]() {
+    while (!start.load(std::memory_order_acquire)) {
+      std::this_thread::yield();
+    }
+    for (uint32_t i = 0; i < kIterations; ++i) {
+      HistoryRecord record = {};
+      record.durationDs = static_cast<uint16_t>(100 + (i % 50));
+      record.type = static_cast<uint8_t>(i % 3U);
+      TaskLockGuard lock(shotStoreMutex);
+      if (!historyLog.append(record, false)) {
+        violations.fetch_add(1, std::memory_order_relaxed);
+      }
+      shotStoreDirtyGeneration.fetch_add(1, std::memory_order_relaxed);
+    }
+  };
+  // HTTP-style page read: a page must never observe a torn record ordering.
+  auto reader = [&]() {
+    while (!start.load(std::memory_order_acquire)) {
+      std::this_thread::yield();
+    }
+    while (!done.load(std::memory_order_acquire)) {
+      HistoryPage page;
+      TaskLockGuard lock(shotStoreMutex);
+      historyLog.copyPage(page, 0, HISTORY_PAGE_DEFAULT,
+                          ShotLogSortDir::Desc);
+      for (size_t i = 1; i < page.count; ++i) {
+        if (page.records[i - 1].id <= page.records[i].id) {
+          violations.fetch_add(1, std::memory_order_relaxed);
+          break;
+        }
+      }
+      std::this_thread::yield();
+    }
+  };
+  // Deferred flush servant over the same three owned stores.
+  auto flusher = [&]() {
+    while (!start.load(std::memory_order_acquire)) {
+      std::this_thread::yield();
+    }
+    while (!done.load(std::memory_order_acquire)) {
+      TaskLockGuard lock(shotStoreMutex);
+      (void)activationStores.service(0, addDebugEvent);
+      std::this_thread::yield();
+    }
+  };
+
+  std::thread appendThread(appender);
+  std::thread readThread(reader);
+  std::thread flushThread(flusher);
+  start.store(true, std::memory_order_release);
+  appendThread.join();
+  done.store(true, std::memory_order_release);
+  readThread.join();
+  flushThread.join();
+  CHECK(violations.load(std::memory_order_relaxed) == 0);
+  TaskLockGuard lock(shotStoreMutex);
+  CHECK(historyLog.count() == kIterations);
+  HistoryPage page;
+  historyLog.copyPage(page, 0, HISTORY_PAGE_DEFAULT, ShotLogSortDir::Desc);
+  CHECK(page.total == kIterations);
+  CHECK(page.records[0].id == kIterations);
+}
+
 void s19_shot_store_persist_failure_logs_once_until_success() {
   resetHarness(false, true);
   ShotLogRecord record = {};
@@ -12324,7 +12510,7 @@ void s19_shot_store_persist_failure_logs_once_until_success() {
   hostMillis += SHOT_STORE_PERSIST_RETRY_MS;
   serviceShotStorePersistence();
   CHECK(!shotLog.dirty());
-  CHECK(!shotLogPersistFailLatched);
+  CHECK(!activationStores.anyPersistFailLatched());
 }
 
 void s19b_shot_store_io_backoff_resets_for_new_dirty_data() {
@@ -14928,6 +15114,12 @@ const TestCase testCases[] = {
     {"W87c", w87c_runtime_persist_io_backoff_is_bounded_and_resets},
     {"HQ01", hq01_quick_settings_are_revisioned_and_preserve_recipe_fields},
     {"S03", s03_shot_log_clear_empties_records},
+    {"S03B", s03b_good_shot_records_stats_and_history},
+    {"S03C", s03c_short_activation_is_other_in_history_only},
+    {"S03D", s03d_rinse_is_rinse_in_history_only},
+    {"S03E", s03e_manual_over_protection_is_shot_in_history_only},
+    {"S03F", s03f_abandoned_start_records_nothing},
+    {"S03G", s03g_stats_threshold_follows_protection_parameter},
     {"S14", s14_last_shot_persists_manual_cycle},
     {"S14c", s14c_last_shot_keeps_no_scale_duration},
     {"S14b", s14b_rinse_does_not_overwrite_last_shot},
@@ -14977,6 +15169,7 @@ const TestCase testCases[] = {
     {"S12e", s12e_history_rating_wins_after_last_shot_save_failure_and_reboot},
     {"S12f", s12f_shot_store_snapshot_serializes_rating_and_finalize},
     {"S13", s13_persist_debug_messages_identify_origin},
+    {"SH01", sh01_activation_store_mutex_serializes_append_read_flush},
     {"S19", s19_shot_store_persist_failure_logs_once_until_success},
     {"S19b", s19b_shot_store_io_backoff_resets_for_new_dirty_data},
     {"H01", h01_health_threshold_alerts_fire_once_per_crossing},

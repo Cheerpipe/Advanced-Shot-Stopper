@@ -120,6 +120,18 @@ other's bit fields. V5 is rejected by older firmware. The ID follows existing
 preset allocation, while the stored name is historical data rather than a
 lookup through the current preset bank.
 
+The stats shot log, its curve sidecar, and the independent activation history
+are owned by one data layer (`ActivationStores`) whose every access runs under
+the single `shotStoreMutex`. The shot log's whole 8,668-byte store and the
+16,024-byte activation-history store live in PSRAM and are copied through the
+shared 18 KiB internal flash-I/O scratch only while that owner holds the flash
+lock. Each keeps two slots in its own data partition — 2×12 KiB for `shotlog`,
+2×16 KiB for `history` — with generation and checksum selection preserving the
+atomic whole-store update; a failed write never erases the last-good slot.
+Writes remain deferred until the shot has ended. The shot log moved from NVS
+to its partition with schema V6: upgrading requires a one-time full-erase USB
+installation and starts the stats log empty.
+
 The separate shot-curve sidecar uses an intentionally incompatible V2 schema:
 up to 61 centigram weights on a fixed one-second grid plus exact event/end
 vertices for each of the same 120 eligible history records. Its 17,780-byte

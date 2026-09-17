@@ -154,18 +154,21 @@ void setup() {
 
 #ifndef SHOT_STOPPER_HOST_TEST
   bool bootIdentityDurable = false;
-  shotLog.load();
-  shotLog.onBoot();
-  bootIdentityDurable = shotLog.save();
-  shotCurves.load();
-  lastShotStore.load();
-  lastShotNvsDirty = lastShotStore.loadedLegacy();
+  {
+    // ActivationStores owns the shot log, curves, and activation history:
+    // finish every load before the network task can serve endpoints.
+    TaskLockGuard storeLock(shotStoreMutex);
+    bootIdentityDurable = activationStores.begin();
+    lastShotStore.load(runtimeConfig.bbwProtectionMs);
+    lastShotNvsDirty = lastShotStore.loadedLegacy();
+  }
 #else
-  shotLog.load();
-  shotLog.onBoot();
-  shotCurves.load();
-  lastShotStore.load();
-  lastShotNvsDirty = lastShotStore.loadedLegacy();
+  {
+    TaskLockGuard storeLock(shotStoreMutex);
+    activationStores.begin();
+    lastShotStore.load(runtimeConfig.bbwProtectionMs);
+    lastShotNvsDirty = lastShotStore.loadedLegacy();
+  }
 #endif
 
   addDebugEvent(DebugCategory::BOOT, DebugCode::BOOT_BANNER,
@@ -243,6 +246,9 @@ void setup() {
     callbacks.requestSafeRestart = requestSafeRestart;
     callbacks.copyShotRecords = copyShotRecords;
     callbacks.copyShotCurves = copyShotCurves;
+    callbacks.copyHistoryPage = copyHistoryPage;
+    callbacks.deleteHistoryRecord = deleteHistoryRecord;
+    callbacks.clearHistoryLog = clearHistoryLog;
     callbacks.deleteShotRecord = deleteShotRecord;
     callbacks.rateShotRecord = rateShotRecord;
     callbacks.rateLastShot = rateLastShot;

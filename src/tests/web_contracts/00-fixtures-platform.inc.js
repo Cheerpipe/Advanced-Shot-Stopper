@@ -74,6 +74,8 @@ const firmware = [
   fs.readFileSync(path.join(sketchDir, 'ShotStopperAlertChannel.h'), 'utf8'),
   fs.readFileSync(path.join(sketchDir, 'ShotStopperAlertTone.h'), 'utf8'),
 ].join('\n');
+const activationStoresIo = fs.readFileSync(
+    path.join(sketchDir, 'ShotStopperActivationStores.h'), 'utf8');
 const shotLogIo = fs.readFileSync(path.join(sketchDir, 'ShotStopperShotLog.h'), 'utf8');
 const shotCurveIo = fs.readFileSync(path.join(sketchDir, 'ShotStopperShotCurve.h'), 'utf8');
 const lastShotIo = fs.readFileSync(path.join(sketchDir, 'ShotStopperLastShot.h'), 'utf8');
@@ -375,8 +377,8 @@ if (!network.includes('copyTaskProfiler') ||
 }
 const psram = fs.readFileSync(path.join(sketchDir, 'ShotStopperPsram.h'), 'utf8');
 if (!psram.includes('#define SHOT_STOPPER_PSRAM_BSS EXT_RAM_BSS_ATTR') ||
-    !firmwareCore.includes('SHOT_STOPPER_PSRAM_BSS ShotLog shotLog') ||
-    !firmwareCore.includes('SHOT_STOPPER_PSRAM_BSS ShotCurveLog shotCurves') ||
+    !firmwareCore.includes('SHOT_STOPPER_PSRAM_BSS ActivationStores activationStores') ||
+    !firmwareCore.includes('HistoryLog &historyLog = activationStores.historyLog') ||
     !firmwareCore.includes(
         'SHOT_STOPPER_PSRAM_BSS PersistedSettings persistedSettings') ||
     !firmwareCore.includes(

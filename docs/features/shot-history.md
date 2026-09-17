@@ -26,7 +26,8 @@ name.
 
 The log holds up to **120** shots. The following are never stored:
 
-- Quick rinses and cycles shorter than 10 s
+- Quick rinses and cycles that do not outlast the brew-by-weight protection
+  window (12 s with default settings)
 - Manual, timer-only, or no-scale shots
 - Shots whose final weight is missing or below 1 g (e.g. scale off the
   machine or disconnected)
@@ -68,6 +69,9 @@ History is not Home's source of truth. Deleting the row or clearing the log
 never substitutes another shot into **Current / Last Good Shot** and does not
 erase its measurements. It only removes the optional saved curve and disables
 rating there. Factory reset clears both history and the durable shot aggregates.
+The shot history also does not feed the [activation history](activation-history.md):
+that diary records every confirmed activation, while this log keeps only
+qualifying automatic shots. Deleting or clearing here never changes that page.
 
 Sort the list by **Date** or **Rating**, ascending or descending. Date
 defaults to newest first. Rating puts unrated shots (0 stars) at the end
@@ -174,15 +178,14 @@ Learning applied is `1`/`0` in CSV and true/false in JSON; a skipped shot still
 retains its assigned gain. For example, appended CSV values can be
 `linear_ewma,2,0.37,1` and later `linear_ewma,2,0.50,1` for the same preset.
 
-Migrated pre-selector records keep their offsets, ratings and guard flags,
-and identify `legacy` with unknown version, gain and learning status (JSON null,
-CSV empty). Unrecognized provenance is `unknown`, never the current setting.
-History schema V5 uses 72-byte records and retains the 120-shot limit. V1/V2
-migration marks preset identity unknown; V3/V4 retain IDs and leave the newly
-added name snapshot empty. Old alpha codes become exact hundredths without
-changing historical algorithm versions. Older firmware rejects V5; select
-Linear regression + offset correction in current firmware
-for comparison. Renaming the visible method does not rename API/CSV identifiers.
+History schema V6 uses 72-byte records and retains the 120-shot limit. The
+log now lives in its own flash partition, so moving from firmware that kept it
+in general-purpose storage requires a one-time clean USB installation and
+starts the log empty; older records are not migrated. Records written by
+older schemas are simply absent rather than relabeled. Select Linear
+regression + offset correction in current firmware for like-for-like
+algorithm comparison. Renaming the visible method does not rename API/CSV
+identifiers.
 
 Algorithm identity describes the shot's configured policy even when a guard
 or manual action ends it; use `stop`, `shot_type` and `cut_type` to interpret

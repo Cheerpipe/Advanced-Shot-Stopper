@@ -552,34 +552,12 @@ void serviceShotStorePersistence() {
   bool anyFail = false;
   bool anyIoFail = false;
   TaskLockGuard lock(shotStoreMutex);
-  if (shotLog.dirty()) {
-    const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
-    if (shotLog.flush(kTryLockMs)) {
-      shotLogPersistFailLatched = false;
-    } else {
-      anyFail = true;
-      anyIoFail |= flashIoLockTimeouts() == lockTimeoutsBefore;
-      if (!shotLogPersistFailLatched) {
-        shotLogPersistFailLatched = true;
-        addDebugEvent(DebugCategory::CONFIG, DebugCode::SHOT_LOG_PERSIST_FAILED,
-                      static_cast<int32_t>(shotLog.count()), 0);
-      }
-    }
-  }
-  if (shotCurves.dirty()) {
-    const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
-    if (shotCurves.flush(kTryLockMs)) {
-      shotCurvePersistFailLatched = false;
-    } else {
-      anyFail = true;
-      anyIoFail |= flashIoLockTimeouts() == lockTimeoutsBefore;
-      if (!shotCurvePersistFailLatched) {
-        shotCurvePersistFailLatched = true;
-        addDebugEvent(DebugCategory::CONFIG, DebugCode::SHOT_LOG_PERSIST_FAILED,
-                      static_cast<int32_t>(shotCurves.count()), 1);
-      }
-    }
-  }
+  // ActivationStores owns the three flash-backed activation stores
+  // (stats log, curves, activation history) and their latched failure events.
+  const ActivationStoresFlushReport storesReport =
+      activationStores.service(kTryLockMs, addDebugEvent);
+  anyFail = storesReport.anyFail;
+  anyIoFail = storesReport.anyIoFail;
   if (lastShotNvsDirty) {
     const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
     if (lastShotStore.save(kTryLockMs)) {

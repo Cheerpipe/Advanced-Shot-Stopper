@@ -486,7 +486,7 @@ ss_idf_verify_firmware() {
   fi
 
   local symbol
-  for symbol in shotLog shotCurves persistedSettings debugLog; do
+  for symbol in activationStores persistedSettings debugLog; do
     nm_line="$(xtensa-esp32s3-elf-nm "$IDF_ELF" | grep -E "[[:space:]]${symbol}$" || true)"
     if [[ -z "$nm_line" ]]; then
       echo "nm did not find ${symbol} in $IDF_ELF." >&2

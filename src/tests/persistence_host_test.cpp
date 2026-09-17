@@ -6,6 +6,7 @@
 #include "../ShotStopperRecoveryGesture.h"
 #include "../ShotStopperShotLog.h"
 #include "../ShotStopperShotCurve.h"
+#include "../ShotStopperHistory.h"
 #include "../ShotStopperLastShot.h"
 
 #include <cmath>
@@ -33,7 +34,9 @@ void resetHostPersistence() {
   persistence_host::reset();
   resetNvsDiagnosticsForHostTest();
   resetDurableStorageRevision();
+  ShotLog::resetHostStorage();
   ShotCurveLog::resetHostStorage();
+  HistoryLog::resetHostStorage();
   g_hostFlashIoMutexAvailable = true;
   // Reused flash scratch must never supply defaults or stale record fields.
   memset(flashIoScratchBytes(), 0xA5, FLASH_IO_SCRATCH_BYTES);
@@ -297,16 +300,20 @@ void p18_shot_log_keeps_history_when_inactive_slot_write_fails() {
   CHECK(log.append(record));
   CHECK(log.count() == 1);
 
-  persistence_host::failNextWrite = true;
+  ShotLog::setHostSaveSucceeds(false);
   ShotLogRecord second = {};
   second.durationDs = 260;
   second.goalWeightG = 36;
   CHECK(!log.append(second));
+  ShotLog::setHostSaveSucceeds(true);
   CHECK(log.count() == 1);
 
   ShotLog reloaded;
   CHECK(reloaded.load());
   CHECK(reloaded.count() == 1);
+  ShotLogRecord out[1] = {};
+  CHECK(reloaded.copyNewestFirst(out, 1) == 1);
+  CHECK(out[0].durationDs == 250);
 }
 
 void p19_shot_log_weight_sentinel_allows_int16_max() {
@@ -560,8 +567,11 @@ void p65_factory_settings_survives_second_slot_write_fail() {
   CHECK(loaded.runtime.goalWeightG == DEFAULT_GOAL_WEIGHT_G);
 }
 
-void p66_shot_log_keeps_history_when_active_pointer_write_fails() {
+void p66_shot_log_dual_slot_generation_flip() {
   resetHostPersistence();
+  CHECK(sizeof(ShotLogStore) == 8668);
+  CHECK(sizeof(ShotLogStore) <= FLASH_IO_SCRATCH_BYTES);
+  CHECK(SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES <= 0x8000);
   ShotLog log;
   CHECK(log.load());
   ShotLogRecord record = {};
@@ -571,16 +581,27 @@ void p66_shot_log_keeps_history_when_active_pointer_write_fails() {
   CHECK(log.append(record));
   CHECK(log.count() == 1);
 
-  persistence_host::failNextWriteForKey = "active";
+  // A failed inactive-slot write leaves the last-good slot active and the
+  // durable history intact.
+  ShotLog::setHostSaveSucceeds(false);
   ShotLogRecord second = {};
   second.durationDs = 260;
   second.goalWeightG = 36;
   CHECK(!log.append(second));
+  ShotLog::setHostSaveSucceeds(true);
   CHECK(log.count() == 1);
 
+  // Every successful save flips to the other slot and bumps the generation;
+  // load() keeps picking the newer generation across reboots.
+  CHECK(log.append(second));
+  CHECK(log.count() == 2);
   ShotLog reloaded;
   CHECK(reloaded.load());
-  CHECK(reloaded.count() == 1);
+  CHECK(reloaded.count() == 2);
+  ShotLogRecord out[2] = {};
+  CHECK(reloaded.copyNewestFirst(out, 2) == 2);
+  CHECK(out[0].durationDs == 260);
+  CHECK(out[1].durationDs == 250);
 }
 
 void p09_fast_extraction_guard_validation() {
@@ -672,15 +693,6 @@ void p12_shot_log_persists_compact_blob() {
   strcpy(record.presetName, "Double");
   CHECK(log.append(record));
   CHECK(log.count() == 1);
-
-  const auto foundA = persistence_host::records.find("shotlog/recordsA");
-  const auto foundB = persistence_host::records.find("shotlog/recordsB");
-  CHECK(foundA != persistence_host::records.end() ||
-        foundB != persistence_host::records.end());
-  const auto &blob =
-      foundA != persistence_host::records.end() ? foundA->second : foundB->second;
-  CHECK(blob.size() == sizeof(ShotLogHeader) + sizeof(ShotLogRecord));
-  CHECK(persistence_host::records.count("shotlog/active") == 1);
 
   ShotLog reloaded;
   CHECK(reloaded.load());
@@ -1558,7 +1570,7 @@ void p55_network_access_reset_preserves_non_network_settings() {
   CHECK(strcmp(reset.preferredScaleName, "Lunar") == 0);
 }
 
-void p56_decode_shot_log_current_schema_only() {
+void p56_shot_log_stale_slot_and_foreign_schema_rejected() {
   ShotLogStore current = {};
   resetShotLogStore(current, 4);
   current.header.count = 1;
@@ -1572,47 +1584,28 @@ void p56_decode_shot_log_current_schema_only() {
       static_cast<uint8_t>(ActualWeightSource::POST_DRIP);
   strcpy(current.records[0].presetName, "Double");
   finalizeShotLogStore(current);
-  ShotLogStore decoded = {};
-  CHECK(decodeShotLogBlob(&current, sizeof(current), decoded) ==
-        ShotLogDecodeStatus::CURRENT);
-  CHECK(decoded.header.schemaVersion == SHOT_LOG_SCHEMA_VERSION);
-  CHECK(decoded.records[0].goalWeightG == 36);
-  CHECK(strcmp(decoded.records[0].presetName, "Double") == 0);
+  CHECK(current.header.schemaVersion == SHOT_LOG_SCHEMA_VERSION);
+  CHECK(current.records[0].goalWeightG == 36);
+  CHECK(strcmp(current.records[0].presetName, "Double") == 0);
 
-  ShotLogStoreV4 legacy = {};
-  legacy.header.magic = SHOT_LOG_MAGIC;
-  legacy.header.schemaVersion = 4;
-  legacy.header.recordSize = sizeof(ShotLogRecordV4);
-  legacy.header.bootId = 3;
-  legacy.header.nextRecordId = 2;
-  legacy.header.count = 1;
-  legacy.header.writeIndex = 1;
-  legacy.records[0].id = 1;
-  legacy.records[0].bootId = 3;
-  legacy.records[0].goalWeightG = 35;
-  legacy.records[0].actualWeightCg = 3510;
-  legacy.header.checksum = shotLogChecksumV4(legacy);
-  const size_t legacyBytes =
-      sizeof(ShotLogHeader) + sizeof(ShotLogRecordV4);
-  std::vector<uint8_t> legacyBlob(legacyBytes);
-  memcpy(legacyBlob.data(), &legacy, legacyBytes);
-  decoded = ShotLogStore{};
-  CHECK(decodeShotLogBlob(legacyBlob.data(), legacyBlob.size(), decoded) ==
-        ShotLogDecodeStatus::MIGRATED);
-  CHECK(decoded.header.schemaVersion == SHOT_LOG_SCHEMA_VERSION);
-  CHECK(decoded.header.recordSize == sizeof(ShotLogRecord));
-  CHECK(decoded.records[0].goalWeightG == 35);
-  CHECK(decoded.records[0].actualWeightCg == 3510);
-  CHECK(decoded.records[0].presetName[0] == '\0');
+  // A corrupted checksum makes the slot invalid even with intact records.
+  ShotLogStore corrupt = current;
+  corrupt.header.checksum ^= 1;
+  CHECK(!validShotLogStore(corrupt));
 
   // Unknown schemas are rejected even with an intact record CRC.
   ShotLogStore foreign = current;
   foreign.header.schemaVersion = 31;
   foreign.header.checksum = 0;
   foreign.header.checksum = shotLogChecksum(foreign);
-  decoded = ShotLogStore{};
-  CHECK(decodeShotLogBlob(&foreign, sizeof(foreign), decoded) ==
-        ShotLogDecodeStatus::INVALID);
+  CHECK(!validShotLogStore(foreign));
+
+  // The stale generation loses to the newer slot.
+  ShotLogStore stale = current;
+  resetShotLogStore(stale, 4);
+  stale.header.generation = current.header.generation - 1;
+  CHECK(secondRevisionIsNewer(stale.header.generation,
+                              current.header.generation));
 }
 
 void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
@@ -1630,6 +1623,16 @@ void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
   record.goalWeightG = 36;
   record.actualWeightCg = 3600;
   CHECK(log.append(record));
+
+  HistoryLog history;
+  CHECK(history.load());
+  HistoryRecord activation = {};
+  activation.durationDs = 250;
+  activation.type = static_cast<uint8_t>(HistoryType::SHOT);
+  activation.flags = HISTORY_FLAG_WALL_TIME;
+  activation.endedAtUnixSec = 1700000000;
+  activation.endedAtLocalSec = 1700000000;
+  CHECK(history.append(activation));
 
   ShotCurveLog curves;
   CHECK(curves.load());
@@ -1652,9 +1655,11 @@ void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
   ble.scanIntensity = static_cast<uint8_t>(BleScanIntensity::LIGHT);
   CHECK(saveBleScanSettings(ble));
 
-  CHECK(resetAllDurableStores(settings, ble, log, lastShot, curves));
+  CHECK(resetAllDurableStores(settings, ble, log, history, lastShot,
+                              curves));
   CHECK(verifyFactorySettings(settings));
   CHECK(log.count() == 0);
+  CHECK(history.count() == 0);
   CHECK(curves.count() == 0);
   CHECK(!lastShot.get().valid);
   CHECK(ble.reservedEnabled == 0);
@@ -1668,16 +1673,18 @@ void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
   finalizePersistedSettings(settings);
   CHECK(savePersistedSettings(settings));
   CHECK(log.append(record));
-  persistence_host::failNextWrite = true;
-  CHECK(!resetAllDurableStores(settings, ble, log, lastShot, curves));
+  ShotLog::setHostSaveSucceeds(false);
+  CHECK(!resetAllDurableStores(settings, ble, log, history, lastShot,
+                               curves));
+  ShotLog::setHostSaveSucceeds(true);
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
   CHECK(loaded.runtime.goalWeightG == 40);
   ShotLog reloaded;
   CHECK(reloaded.load());
-  // History NVS is dropped before settings writes so a full partition can
-  // still accept factory settings. A mid-fail may therefore lose history.
-  CHECK(reloaded.count() == 0);
+  // A failed clear keeps the last-good slot: the dual-slot flip never erases
+  // the only durable copy.
+  CHECK(reloaded.count() == 1);
 }
 
 void p59_deferred_shot_log_append_writes_only_on_flush() {
@@ -1690,15 +1697,14 @@ void p59_deferred_shot_log_append_writes_only_on_flush() {
   CHECK(log.append(record, false));
   CHECK(log.dirty());
   CHECK(log.count() == 1);
-  CHECK(persistence_host::records.count("shotlog/recordsA") == 0);
-  CHECK(persistence_host::records.count("shotlog/recordsB") == 0);
-  CHECK(persistence_host::records.count("shotlog/active") == 0);
+  // Nothing reached the durable slots yet: a fresh reader still sees empty.
+  ShotLog reader;
+  CHECK(reader.load());
+  CHECK(reader.count() == 0);
   CHECK(log.flush());
   CHECK(!log.dirty());
-  CHECK(persistence_host::records.count("shotlog/active") == 1);
-  CHECK(persistence_host::records.count("shotlog/recordsA") +
-            persistence_host::records.count("shotlog/recordsB") ==
-        1);
+  CHECK(reader.load());
+  CHECK(reader.count() == 1);
 }
 
 void p60_factory_intent_survives_failed_store_reset() {
@@ -1711,13 +1717,17 @@ void p60_factory_intent_survives_failed_store_reset() {
   CHECK(savePersistedSettings(settings));
   ShotLog log;
   CHECK(log.load());
+  HistoryLog history;
+  CHECK(history.load());
   LastShotStore lastShot;
   CHECK(lastShot.load());
   BleScanPersistedSettings ble;
   ShotCurveLog curves;
   CHECK(curves.load());
-  persistence_host::failNextWrite = true;
-  CHECK(!resetAllDurableStores(settings, ble, log, lastShot, curves));
+  ShotLog::setHostSaveSucceeds(false);
+  CHECK(!resetAllDurableStores(settings, ble, log, history, lastShot,
+                               curves));
+  ShotLog::setHostSaveSucceeds(true);
   RecoveryIntent intent;
   CHECK(loadRecoveryIntent(intent));
   CHECK(intent.operation ==
@@ -1871,24 +1881,88 @@ void p68_malformed_recovery_intent_is_abandoned() {
   CHECK(!recoveryIntentRecordPresent());
 }
 
-void p69_factory_reset_erases_shot_log_slots_before_rewrite() {
+void p69_history_log_round_trip_eviction_and_paging() {
   resetHostPersistence();
-  ShotLog log;
-  CHECK(log.load());
-  ShotLogRecord record = {};
-  record.durationDs = 250;
-  record.goalWeightG = 36;
-  CHECK(log.append(record));
-  CHECK(log.append(record));
-  CHECK(persistence_host::records.count("shotlog/recordsA") +
-            persistence_host::records.count("shotlog/recordsB") >=
-        1);
-  CHECK(log.erasePersisted());
-  CHECK(persistence_host::records.count("shotlog/recordsA") == 0);
-  CHECK(persistence_host::records.count("shotlog/recordsB") == 0);
-  CHECK(persistence_host::records.count("shotlog/active") == 0);
+  CHECK(sizeof(HistoryRecord) == 16);
+  CHECK(sizeof(HistoryStore) == 16024);
+  CHECK(sizeof(HistoryStore) <= FLASH_IO_SCRATCH_BYTES);
+  CHECK(HISTORY_FLASH_SLOT_COUNT * HISTORY_FLASH_SLOT_BYTES == 0x8000);
+  CHECK(historyClampPageLimit(0) == 1);
+  CHECK(historyClampPageLimit(1000) == HISTORY_PAGE_MAX);
+  CHECK(historyTypeFromCycle(true, 30000, DEFAULT_BBW_PROTECTION_MS) ==
+        HistoryType::RINSE);
+  CHECK(historyTypeFromCycle(false, DEFAULT_BBW_PROTECTION_MS,
+                            DEFAULT_BBW_PROTECTION_MS) == HistoryType::OTHER);
+  CHECK(historyTypeFromCycle(false, DEFAULT_BBW_PROTECTION_MS + 1,
+                            DEFAULT_BBW_PROTECTION_MS) == HistoryType::SHOT);
+  CHECK(strcmp(historyTypeName(HistoryType::SHOT), "shot") == 0);
+  CHECK(strcmp(historyTypeName(HistoryType::RINSE), "rinse") == 0);
+  CHECK(strcmp(historyTypeName(HistoryType::OTHER), "other") == 0);
+
+  HistoryLog log;
   CHECK(log.load());
   CHECK(log.count() == 0);
+  HistoryRecord record = {};
+  record.type = static_cast<uint8_t>(HistoryType::SHOT);
+  record.flags = HISTORY_FLAG_WALL_TIME;
+  record.endedAtUnixSec = 1700000000;
+  record.endedAtLocalSec = 1700003600;
+  record.durationDs = 281;
+  CHECK(log.append(record, false));
+  record.durationDs = 62;
+  record.type = static_cast<uint8_t>(HistoryType::OTHER);
+  CHECK(log.append(record, false));
+  record.durationDs = 40;
+  record.type = static_cast<uint8_t>(HistoryType::RINSE);
+  CHECK(log.append(record, false));
+  CHECK(log.dirty());
+  CHECK(log.flush());
+  CHECK(!log.dirty());
+
+  HistoryLog reloaded;
+  CHECK(reloaded.load());
+  CHECK(reloaded.count() == 3);
+  HistoryPage page;
+  reloaded.copyPage(page, 0, HISTORY_PAGE_DEFAULT, ShotLogSortDir::Desc);
+  CHECK(page.total == 3 && page.count == 3 && !page.hasMore);
+  CHECK(page.records[0].type == static_cast<uint8_t>(HistoryType::RINSE));
+  CHECK(page.records[2].durationDs == 281);
+  CHECK(page.records[0].id == 3 && page.records[2].id == 1);
+  reloaded.copyPage(page, 0, HISTORY_PAGE_DEFAULT, ShotLogSortDir::Asc);
+  CHECK(page.records[0].id == 1 && page.records[2].id == 3);
+  reloaded.copyPage(page, 1, 1, ShotLogSortDir::Desc);
+  CHECK(page.total == 3 && page.count == 1 && page.hasMore);
+  CHECK(page.records[0].id == 2);
+
+  CHECK(reloaded.removeById(2));
+  CHECK(!reloaded.containsId(2));
+  CHECK(reloaded.count() == 2);
+  HistoryLog afterDelete;
+  CHECK(afterDelete.load());
+  CHECK(afterDelete.count() == 2);
+  CHECK(!afterDelete.removeById(2));
+
+  CHECK(reloaded.clear());
+  HistoryLog emptied;
+  CHECK(emptied.load());
+  CHECK(emptied.count() == 0);
+
+  // Ring eviction: capacity keeps the newest HISTORY_CAPACITY activations.
+  record.type = static_cast<uint8_t>(HistoryType::SHOT);
+  for (uint32_t i = 0; i < HISTORY_CAPACITY + 3; ++i) {
+    record.durationDs = static_cast<uint16_t>(100 + i);
+    CHECK(emptied.append(record, false));
+  }
+  CHECK(emptied.count() == HISTORY_CAPACITY);
+  CHECK(emptied.flush());
+  HistoryLog evicted;
+  CHECK(evicted.load());
+  CHECK(evicted.count() == HISTORY_CAPACITY);
+  CHECK(evicted.nextRecordId() == HISTORY_CAPACITY + 4);
+  evicted.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+  CHECK(page.records[0].durationDs == 100 + HISTORY_CAPACITY + 2);
+  evicted.copyPage(page, 0, 1, ShotLogSortDir::Asc);
+  CHECK(page.records[0].durationDs == 103);
 }
 
 void p71_nvs_capacity_budget_keeps_compaction_margin() {
@@ -1897,20 +1971,18 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
       (EXPECTED_NVS_PARTITION_BYTES / 4096U - 2U) * pageEntries;
   constexpr size_t settingsEntries =
       2U * nvsBlobRequiredEntries(sizeof(PersistedSettings));
-  constexpr size_t shotHistoryEntries =
-      2U * nvsBlobRequiredEntries(sizeof(ShotLogStore));
+  // The shot log and activation history moved to dedicated flash partitions;
+  // the last-shot record is the remaining history blob in NVS.
   constexpr size_t lastShotEntries = nvsBlobRequiredEntries(sizeof(LastShotBlob));
   constexpr size_t remainingRecords = lastShotEntries + 6U + 3U + 24U + 32U;
-  constexpr size_t applicationEntries =
-      settingsEntries + shotHistoryEntries + remainingRecords;
+  constexpr size_t applicationEntries = settingsEntries + remainingRecords;
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
   CHECK(sizeof(PersistedSettings) == 2616U);
   CHECK(settingsEntries == 168U);
-  CHECK(shotHistoryEntries == 546U);
   CHECK(lastShotEntries == 10U);
-  CHECK(applicationEntries == 789U);
+  CHECK(applicationEntries == 243U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 1605U);
+  CHECK(conservativeEntries - applicationEntries == 2151U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {
@@ -1933,12 +2005,10 @@ void p72_factory_intent_recovers_only_from_nvs_no_space() {
   unsigned releases = 0;
   CHECK(ensureFactoryResetIntent([&]() {
     ++releases;
-    return releaseNvsSpaceForFactoryReset(log, lastShot);
+    return releaseNvsSpaceForFactoryReset(lastShot);
   }));
   CHECK(releases == 1U);
   CHECK(recoveryIntentMatches(RecoveryOperation::FACTORY_RESET));
-  CHECK(persistence_host::records.count("shotlog/recordsA") == 0);
-  CHECK(persistence_host::records.count("shotlog/recordsB") == 0);
   CHECK(persistence_host::records.count("lastshot/record") == 0);
 
   const NvsDiagnosticSnapshot nvs = captureNvsDiagnostics();
@@ -2111,7 +2181,7 @@ const TestCase tests[] = {
     {"P08B", p08b_scale_preference_without_mac_round_trips},
     {"P64", p64_factory_settings_overwrite_does_not_clear_ble_namespace},
     {"P65", p65_factory_settings_survives_second_slot_write_fail},
-    {"P66", p66_shot_log_keeps_history_when_active_pointer_write_fails},
+    {"P66", p66_shot_log_dual_slot_generation_flip},
     {"P09", p09_fast_extraction_guard_validation},
     {"P10", p10_auto_to_manual_guard_trend_and_validation},
     {"P12", p12_shot_log_persists_compact_blob},
@@ -2146,13 +2216,13 @@ const TestCase tests[] = {
     {"P53", p53_recovery_boundaries_and_millis_wraparound},
     {"P54", p54_recovery_intent_round_trip_corruption_and_clear},
     {"P55", p55_network_access_reset_preserves_non_network_settings},
-    {"P56", p56_decode_shot_log_current_schema_only},
+    {"P56", p56_shot_log_stale_slot_and_foreign_schema_rejected},
     {"P58", p58_reset_all_durable_stores_and_mid_fail_keeps_settings},
     {"P59", p59_deferred_shot_log_append_writes_only_on_flush},
     {"P60", p60_factory_intent_survives_failed_store_reset},
     {"P67", p67_ensure_recovery_intent_skips_rewrite_when_valid},
     {"P68", p68_malformed_recovery_intent_is_abandoned},
-    {"P69", p69_factory_reset_erases_shot_log_slots_before_rewrite},
+    {"P69", p69_history_log_round_trip_eviction_and_paging},
     {"P71", p71_nvs_capacity_budget_keeps_compaction_margin},
     {"P72", p72_factory_intent_recovers_only_from_nvs_no_space},
     {"P73", p73_factory_intent_does_not_free_data_for_other_failures},

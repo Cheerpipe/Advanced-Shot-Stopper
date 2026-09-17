@@ -187,6 +187,37 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
   maybeRequestNtpSyncOnActivity();
 }
 
+// Every confirmed machine activation lands in the independent history log:
+// rinses as `rinse`, anything longer than the cycle's BBW protection window
+// as `shot`, the rest as `other`. Abandoned starts recorded nothing.
+void appendActivationHistory(EndReason reason, bool rinseEnd,
+                             uint32_t durationMs) {
+  if (brewEndIsAbandonedStart(reason)) {
+    return;
+  }
+  HistoryRecord record = {};
+  record.durationDs = static_cast<uint16_t>(durationMs / 100U);
+  record.type = static_cast<uint8_t>(historyTypeFromCycle(
+      rinseEnd, durationMs, session.config.bbwProtectionMs));
+  if (g_wallClock.synced()) {
+    const uint32_t utcSec = g_wallClock.nowUtcSec(millis());
+    record.endedAtUnixSec = utcSec;
+    record.endedAtLocalSec =
+        shotLogLocalSecFromUtc(utcSec, runtimeConfig.timezoneOffsetMinutes);
+    record.flags = HISTORY_FLAG_WALL_TIME;
+  }
+  // O(1) PSRAM append under the existing store mutex; the deferred flush in
+  // ActivationStores::service() performs the flash write outside the loop.
+  TaskLockGuard lock(shotStoreMutex);
+  if (!historyLog.append(record, false)) {
+    addDebugEvent(DebugCategory::CONFIG, DebugCode::SHOT_LOG_PERSIST_FAILED,
+                  static_cast<int32_t>(sizeof(HistoryStore)),
+                  static_cast<int32_t>(historyLog.count()));
+    return;
+  }
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_relaxed);
+}
+
 bool finalizeCycle(EndReason reason, StopperState nextState,
                    bool webStopActuation = false) {
   const uint32_t durationMs = endedCycleDurationMs();
@@ -247,6 +278,7 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
   }
 
   schedulePendingShotFinalize(reason, durationMs);
+  appendActivationHistory(reason, rinseEnd, durationMs);
 #ifndef SHOT_STOPPER_HOST_TEST
   {
     const WebhookConfig webhook = networkManager.webhookConfig();

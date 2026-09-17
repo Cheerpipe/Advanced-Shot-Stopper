@@ -1973,8 +1973,8 @@ struct PersistedLastShot {
   bool averageFlowValid = false;
 };
 
-inline bool qualifyingGoodShot(const PersistedLastShot &shot) {
-  return shot.valid && shot.durationMs > 12000U && shot.weightValid && std::isfinite(shot.currentWeightG) && shot.currentWeightG > 2.0f;
+inline bool qualifyingGoodShot(const PersistedLastShot &shot, uint32_t protectionMs) {
+  return shot.valid && shot.durationMs > protectionMs && shot.weightValid && std::isfinite(shot.currentWeightG) && shot.currentWeightG > 2.0f;
 }
 
 inline bool publishableLastShot(const PersistedLastShot &shot) { return shot.valid && shot.presetId != 0 && static_cast<LastShotType>(shot.shotType) <= LastShotType::MANUAL; }

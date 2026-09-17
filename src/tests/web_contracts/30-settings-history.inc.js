@@ -231,7 +231,8 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !firmware.includes('serviceShotStorePersistence') ||
     !firmware.includes('durableFlashWriteAllowed(') ||
     !domainCore.includes('durableFlashWriteAllowed') ||
-    !firmwareCore.includes('shotLogPersistFailLatched') ||
+    !activationStoresIo.includes('shotLogPersistFailLatched_') ||
+    !firmwareCore.includes('activationStores.service(kTryLockMs, addDebugEvent)') ||
     !firmwareCore.includes('shotStorePersistRetryAtMs') ||
     !firmwareCore.includes('SHOT_STORE_PERSIST_RETRY_MS') ||
     !firmware.includes('noteScaleHistory(seenMac, seenName, false)') ||
@@ -586,7 +587,9 @@ if (!ui.includes('id="shotRating"') ||
     !network.includes('\\"rating\\":%u') ||
     !network.includes('\\"shotLogId\\":%lu') ||
     !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 4') ||
-    !lastShotIo.includes('void advance(const PersistedLastShot &shot)') ||
+    !lastShotIo.includes(
+        'void advance(const PersistedLastShot &shot,') ||
+    !lastShotIo.includes('uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS') ||
     !firmwareCore.includes('lastShotNvsDirty = lastShotStore.loadedLegacy()') ||
     !shotLogIo.includes('updateRating') ||
     !shotLogIo.includes('copyRatingById') ||
@@ -704,6 +707,67 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     css.includes('html.theme-dark #message,html.theme-dark .configSaveBar,html.theme-dark #shotLogPanel .btnBar{background:var(--bg)}') ||
     css.includes('html.theme-dark #message,html.theme-dark .configSaveBar{background:var(--bg)}')) {
   throw new Error('Shot history must sort by date or rating with unrated last and keep stats on newest shots');
+}
+const historyTypesIo = fs.readFileSync(
+    path.join(sketchDir, 'ShotStopperHistoryTypes.h'), 'utf8');
+const historyIo = fs.readFileSync(
+    path.join(sketchDir, 'ShotStopperHistory.h'), 'utf8');
+if (!shellHtml.includes('href="/history" data-route="/history"') ||
+    !shellHtml.includes('<section id="view-history" class="view" data-view="history"></section>') ||
+    !appJsSource.includes("'/history':'history'") ||
+    !appJsSource.includes("SECONDARY=new Set(['stats','history','diagnostic','admin'])") ||
+    !appJsSource.includes('R.loadHistory()') ||
+    !appJsSource.includes('R.refreshHistory()') ||
+    !viewJs.history.includes("R.loadMoreHistory()") ||
+    !viewJs.history.includes('R.clearActivationHistory') ||
+    !viewJs.history.includes('R.toggleHistoryDir') ||
+    !viewJs.history.includes('R.syncHistoryDirButton()') ||
+    !partialHtml.history.includes('id="historyPanel"') ||
+    !partialHtml.history.includes('id="historyTable"') ||
+    !partialHtml.history.includes('id="historyRows"') ||
+    !partialHtml.history.includes('id="historySentinel"') ||
+    !partialHtml.history.includes('id="historyDirButton"') ||
+    !partialHtml.history.includes('class="shotSort"') ||
+    !partialHtml.history.includes('id="clearHistoryButton"') ||
+    !partialHtml.history.includes('btnGlyph btnInvert') ||
+    !css.includes('#historyTable{') ||
+    !css.includes('#historyTable td[colspan]') ||
+    !css.includes('.histBadge{') ||
+    !css.includes('.histBadgeShot') ||
+    !runtimeJs.includes('HISTORY_PAGE_SIZE=20') ||
+    !runtimeJs.includes("function historyUrl(offset,limit,dir){return '/api/v1/history?offset='") ||
+    !runtimeJs.includes('function applyHistoryPage(') ||
+    !runtimeJs.includes('function renderHistory(') ||
+    !runtimeJs.includes('function deleteOneHistory(') ||
+    !runtimeJs.includes('function clearActivationHistory(') ||
+    !runtimeJs.includes("confirm:'CLEAR_HISTORY'") ||
+    !runtimeJs.includes("'/api/v1/history/delete'") ||
+    !runtimeJs.includes("'/api/v1/history/clear'") ||
+    !runtimeJs.includes("function toggleHistoryDir(){") ||
+    !runtimeJs.includes('historyData.records.length,HISTORY_PAGE_SIZE,\'append\'') ||
+    runtimeJs.includes('exportShotsCsv') && runtimeJs.includes('historyCsv') ||
+    !network.includes('parseHistoryPageQuery') ||
+    !network.includes('historyHandler') ||
+    !network.includes('historyClearHandler') ||
+    !network.includes('historyDeleteHandler') ||
+    !network.includes('HISTORY_PAGE_DEFAULT') ||
+    !network.includes('"CLEAR_HISTORY"') ||
+    !network.includes('"HISTORY_CLEAR_NOT_CONFIRMED"') ||
+    !network.includes('"HISTORY_RECORD_NOT_FOUND"') ||
+    !networkHeader.includes('copyHistoryPage') ||
+    !networkHeader.includes('deleteHistoryRecord') ||
+    !networkHeader.includes('clearHistoryLog') ||
+    !firmwareCore.includes('historyLog.append(record, false)') ||
+    !firmwareCore.includes('appendActivationHistory') ||
+    !firmwareCore.includes('brewEndIsAbandonedStart(reason)') ||
+    !historyTypesIo.includes('historyTypeFromCycle') ||
+    !historyTypesIo.includes('HISTORY_CAPACITY = 1000') ||
+    !historyTypesIo.includes('durationMs > protectionMs') ||
+    !historyIo.includes('HISTORY_FLASH_SLOT_BYTES = 16384') ||
+    !historyIo.includes('"history"') ||
+    !activationStoresIo.includes('class ActivationStores') ||
+    !activationStoresIo.includes('TaskLockGuard(shotStoreMutex)')) {
+  throw new Error('Activation history must page 20 records with sort direction, clear, delete, and no CSV export');
 }
 const statsSection = partialHtml.stats.match(
     /<fieldset id="shotStatsPanel"><legend>Stats<\/legend>([\s\S]*?)<\/fieldset>/);

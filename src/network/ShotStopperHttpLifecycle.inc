@@ -1017,7 +1017,7 @@ bool ShotStopperNetwork::startHttpServer() {
   // check_web_assets.js fails the build before the margin is gone.
   // Shell + app.js/css/runtime + secondary + settings + 4 HTML partials +
   // PWA manifest/icon + APIs.
-  config.max_uri_handlers = 76;
+  config.max_uri_handlers = 88;
   // Safari sends a long UA + Accept-Language + optional Cookie/Sec-Fetch-*;
   // the IDF default (1024) is enough most of the time but intermittent
   // long browser headers have returned 431 Request Header Fields Too Large.
@@ -1039,6 +1039,7 @@ bool ShotStopperNetwork::startHttpServer() {
       registerHandler(server_, "/diagnostic", HTTP_GET, rootHandler) &&
       registerHandler(server_, "/log", HTTP_GET, rootHandler) &&
       registerHandler(server_, "/stats", HTTP_GET, rootHandler) &&
+      registerHandler(server_, "/history", HTTP_GET, rootHandler) &&
       registerHandler(server_, "/admin", HTTP_GET, rootHandler) &&
       registerHandler(server_, "/settings", HTTP_GET, rootHandler) &&
       registerHandler(server_, "/app.js", HTTP_GET, jsHandler) &&
@@ -1049,6 +1050,8 @@ bool ShotStopperNetwork::startHttpServer() {
                       secondaryJsHandler) &&
       registerHandler(server_, "/partials/stats.html", HTTP_GET,
                       partialStatsHandler) &&
+      registerHandler(server_, "/partials/history.html", HTTP_GET,
+                      partialHistoryHandler) &&
       registerHandler(server_, "/partials/diagnostic.html", HTTP_GET,
                       partialDiagnosticHandler) &&
       registerHandler(server_, "/partials/settings.html", HTTP_GET,
@@ -1088,6 +1091,9 @@ bool ShotStopperNetwork::startHttpServer() {
       registerHandler(server_, "/api/v1/shots/clear", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/shots/delete", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/shots/rate", HTTP_POST, ownedApiHandler) &&
+      registerHandler(server_, "/api/v1/history", HTTP_GET, ownedApiHandler) &&
+      registerHandler(server_, "/api/v1/history/clear", HTTP_POST, ownedApiHandler) &&
+      registerHandler(server_, "/api/v1/history/delete", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/last-shot/clear", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/time/sync", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/config", HTTP_POST, ownedApiHandler) &&

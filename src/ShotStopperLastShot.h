@@ -81,8 +81,11 @@ inline void resetLastShotBlob(LastShotBlob &blob) {
 
 class LastShotStore {
  public:
-  bool load() {
+  // `goodShotProtectionMs` sets the minimum duration for the migrated/last
+  // shot to also qualify as the last good shot (BBW protection window).
+  bool load(uint32_t goodShotProtectionMs = DEFAULT_BBW_PROTECTION_MS) {
     loadedLegacy_ = false;
+    goodShotProtectionMs_ = goodShotProtectionMs;
 #if defined(SHOT_STOPPER_HOST_TEST)
     if (hostStorageValid_) {
       blob_ = hostStorage_;
@@ -128,7 +131,7 @@ class LastShotStore {
           legacy.checksum == lastShotV3Checksum(legacy)) {
         resetLastShotBlob(blob_);
         memcpy(static_cast<void *>(&blob_.lastShot), legacy.shot, sizeof(legacy.shot));
-        if (qualifyingGoodShot(blob_.lastShot)) {
+        if (qualifyingGoodShot(blob_.lastShot, goodShotProtectionMs_)) {
           blob_.lastGoodShot = blob_.lastShot;
         }
         finalizeLastShotBlob(blob_);
@@ -144,7 +147,7 @@ class LastShotStore {
           legacy.checksum == lastShotV2Checksum(legacy)) {
         resetLastShotBlob(blob_);
         memcpy(static_cast<void *>(&blob_.lastShot), legacy.shot, sizeof(legacy.shot));
-        if (qualifyingGoodShot(blob_.lastShot)) {
+        if (qualifyingGoodShot(blob_.lastShot, goodShotProtectionMs_)) {
           blob_.lastGoodShot = blob_.lastShot;
         }
         finalizeLastShotBlob(blob_);
@@ -201,13 +204,15 @@ class LastShotStore {
     finalizeLastShotBlob(blob_);
   }
 
-  void advance(const PersistedLastShot &shot) {
-    if (qualifyingGoodShot(shot)) blob_.lastGoodShot = shot;
+  void advance(const PersistedLastShot &shot,
+               uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS) {
+    if (qualifyingGoodShot(shot, protectionMs)) blob_.lastGoodShot = shot;
     adopt(shot);
   }
 
-  bool persist(const PersistedLastShot &shot) {
-    advance(shot);
+  bool persist(const PersistedLastShot &shot,
+               uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS) {
+    advance(shot, protectionMs);
     return save();
   }
 
@@ -269,6 +274,7 @@ class LastShotStore {
   static constexpr const char *LAST_SHOT_KEY = "record";
 
   LastShotBlob blob_;
+  uint32_t goodShotProtectionMs_ = DEFAULT_BBW_PROTECTION_MS;
   bool loadedLegacy_ = false;
 
 #if defined(SHOT_STOPPER_HOST_TEST)

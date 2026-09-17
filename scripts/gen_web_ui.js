@@ -26,9 +26,9 @@ const versionPath = path.join(repoRoot, 'src', 'ShotStopperVersion.h');
 const outputPath =
     path.join(repoRoot, 'src', 'ShotStopperWebAssetsGzip.h');
 
-const VIEW_NAMES = ['home', 'stats', 'diagnostic', 'settings', 'admin'];
-const LAZY_PARTIALS = ['stats', 'diagnostic', 'settings', 'admin'];
-const SECONDARY_VIEWS = ['stats', 'diagnostic', 'admin'];
+const VIEW_NAMES = ['home', 'stats', 'history', 'diagnostic', 'settings', 'admin'];
+const LAZY_PARTIALS = ['stats', 'history', 'diagnostic', 'settings', 'admin'];
+const SECONDARY_VIEWS = ['stats', 'history', 'diagnostic', 'admin'];
 
 function readFirmwareVersion() {
   if (!fs.existsSync(versionPath)) {

@@ -260,14 +260,16 @@ if (generated.jsGzip.length > 5044) {
   throw new Error('Compressed Web UI shell JS exceeds the 5044-byte gzip budget');
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
-if (generated.cssGzip.length > 6850) {
-  throw new Error('Compressed Web CSS exceeds the 6850-byte gzip budget');
+// The activation-history table cards and type badges raise the cap to 7050.
+if (generated.cssGzip.length > 7050) {
+  throw new Error('Compressed Web CSS exceeds the 7050-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
 // Continuous smoothed flow-rate polylines raise the cap from 32600 to 32800 bytes.
-if (generated.runtimeGzip.length > 32800) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 32800-byte gzip budget');
+// Activation-history paging, sorting, clear, and per-card delete raise it to 33700.
+if (generated.runtimeGzip.length > 33700) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 33700-byte gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -293,9 +295,10 @@ if (generated.icon48Gzip.length > 3500) {
 }
 // Continuous color-segment flow curves close each segment at its boundary,
 // raising the combined cap from 66400 to 66500 bytes; the PWA manifest and
-// icons raise it further to 101000 bytes.
-if (generated.combined > 101000) {
-  throw new Error('Combined Web UI gzip exceeds the 101000-byte flash budget');
+// icons raise it further to 101000 bytes; the activation-history view raises
+// it to 103000 bytes.
+if (generated.combined > 103000) {
+  throw new Error('Combined Web UI gzip exceeds the 103000-byte flash budget');
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

@@ -258,65 +258,14 @@ int main() {
     assert(shotLogBbwAlpha(record) == gain);
     assert(strcmp(shotLogBbwLearningApplied(record), "true") == 0);
     finalizeShotLogStore(store);
-    ShotLogStore decoded;
-    assert(decodeShotLogBlob(&store, sizeof(store), decoded) == ShotLogDecodeStatus::CURRENT);
+    ShotLogStore decoded = store;
+    assert(validShotLogStore(decoded));
     assert(decoded.records[0].offsetUsedCg == 0);
     assert(shotLogPresetId(decoded.records[0]) == 255);
     assert(decoded.records[0].extractionExtended == record.extractionExtended);
+    decoded.header.checksum ^= 1;
+    assert(!validShotLogStore(decoded));
+    assert(!validShotLogStore(store, 5));
   }
-  ShotLogStoreV4 legacyStore = {};
-  legacyStore.header = store.header;
-  legacyStore.header.schemaVersion = 3;
-  legacyStore.header.recordSize = sizeof(ShotLogRecordV4);
-  memcpy(&legacyStore.records[0], &record, sizeof(ShotLogRecordV4));
-  auto &legacyRecord = legacyStore.records[0];
-  legacyRecord.extractionGuardEnabled =
-      (legacyRecord.extractionGuardEnabled & 31) | (3 << 5);
-  legacyRecord.extractionExtended =
-      3 | (2 << 2) | (2 << 5);  // V3 code 2 = alpha .30.
-  legacyRecord.cutType &= 15;
-  legacyStore.header.checksum = shotLogChecksumV4(legacyStore);
-  ShotLogStore v3Decoded;
-  assert(decodeShotLogBlob(&legacyStore, sizeof(legacyStore), v3Decoded) ==
-         ShotLogDecodeStatus::MIGRATED);
-  assert(shotLogBbwAlpha(v3Decoded.records[0]) == 30);
-  assert(shotLogPresetId(v3Decoded.records[0]) == 255);
-  assert(strcmp(shotLogBbwVersion(v3Decoded.records[0]), "1") == 0);
-  legacyStore.header.schemaVersion = 2;
-  legacyRecord.extractionExtended =
-      3 | (4 << 2) | (2 << 5);  // V2 code 4 = alpha 1.00.
-  legacyRecord.cutType &= 15;
-  legacyStore.header.checksum = shotLogChecksumV4(legacyStore);
-  ShotLogStore migratedHistory;
-  assert(decodeShotLogBlob(&legacyStore, sizeof(legacyStore), migratedHistory) ==
-         ShotLogDecodeStatus::MIGRATED);
-  assert(shotLogPresetId(migratedHistory.records[0]) == 0);
-  assert(strcmp(shotLogBbwAlgorithm(migratedHistory.records[0]), "linear_ewma") == 0);
-  assert(shotLogBbwAlpha(migratedHistory.records[0]) == 100);
-  assert(shotLogCut(migratedHistory.records[0]) == ShotLogCut::LIMIT);
-  legacyStore.header.schemaVersion = 1;
-  legacyStore.header.checksum = shotLogChecksumV4(legacyStore);
-  memcpy(&store, &legacyStore, sizeof(legacyStore));
-  assert(decodeShotLogBlob(&store, sizeof(legacyStore), store) ==
-         ShotLogDecodeStatus::MIGRATED);
-  assert(strcmp(shotLogBbwAlgorithm(record), "legacy") == 0);
-  assert(shotLogPresetId(record) == 0);
-  assert(shotLogBbwAlpha(record) == 0);
-  assert(strcmp(shotLogBbwVersion(record), "null") == 0);
-  assert(strcmp(shotLogBbwLearningApplied(record), "null") == 0);
-  assert(shotLogRating(record.extractionGuardEnabled) == 4);
-  assert(!validShotLogStore(store, 1) && !validShotLogStore(store, 2));
-  // Exact-sized buffers exercise the public decoder, not the oversized NVS scratch.
-  std::vector<uint8_t> compact(shotLogPersistedBytes(store));
-  memcpy(compact.data(), &store, compact.size());
-  ShotLogStore compactDecoded;
-  assert(decodeShotLogBlob(compact.data(), compact.size(), compactDecoded) ==
-         ShotLogDecodeStatus::CURRENT);
-  assert(compactDecoded.records[0].offsetUsedCg == record.offsetUsedCg);
-  assert(compactDecoded.records[1].id == 0);
-  compact.resize(sizeof(ShotLogHeader));
-  compact.shrink_to_fit();
-  assert(decodeShotLogBlob(compact.data(), compact.size(), compactDecoded) ==
-         ShotLogDecodeStatus::INVALID);
-  std::cout << "BBW numeric, adaptation, state, migration and history checks passed\n";
+  std::cout << "BBW numeric, adaptation, state, and history checks passed\n";
 }

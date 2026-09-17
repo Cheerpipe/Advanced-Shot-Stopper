@@ -31,7 +31,7 @@ host_test(power_policy_host_test DEFINITIONS SHOT_STOPPER_HOST_TEST
   LABEL "host;control;concurrency")
 
 if(SHOTSTOPPER_SANITIZER STREQUAL "thread")
-  foreach(case M09 R25c F03 F04 F17 IT10 IT28)
+  foreach(case M09 R25c F03 F04 F17 IT10 IT28 SH01)
     host_test(shot_stopper_tsan_${case}
       SOURCE shot_stopper_host_test.cpp ARGS ${case} LABEL "host;concurrency")
     set_target_properties(shot_stopper_tsan_${case} PROPERTIES

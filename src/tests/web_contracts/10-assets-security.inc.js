@@ -171,7 +171,9 @@ const htmlBytes = Buffer.byteLength(allHtml, 'utf8');
 const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // Complete, human-readable settings help is part of the UI contract. Adding a
 // setting must raise this allowance when needed; hints must not be cut to fit it.
-if (htmlBytes > 63000) {
+// The activation-history view (nav link, partial, runtime helpers) adds
+// ~1.4 KB of HTML source allowance.
+if (htmlBytes > 64500) {
   throw new Error('Web UI HTML source exceeds the authoring budget');
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
@@ -186,11 +188,13 @@ if (htmlBytes > 63000) {
 // Continuous smoothed flow-rate curves add 273 source bytes.
 // PWA manifest/icon head metadata and the cached-shell version self-heal add
 // ~1.1 KB of combined source allowance.
-if (jsBytes > 172000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 172000)`);
+// Activation-history paging, sorting, clear, and per-card delete add
+// ~6 KB of JS source allowance.
+if (jsBytes > 178500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 178500)`);
 }
-if (htmlBytes + jsBytes > 234400) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 234400)`);
+if (htmlBytes + jsBytes > 243000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 243000)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

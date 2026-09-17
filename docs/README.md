@@ -18,7 +18,8 @@ needed rather than reading the entire directory.
 - [Tare and retare](features/tare-retare.md), [cup protection](features/cup-protection.md)
 - [Fast](features/fast-extraction-guard.md), [Slow](features/slow-extraction-guard.md),
   [scale-loss time guard](features/auto-to-manual.md)
-- [Alerts](alerts.md), [shot history](features/shot-history.md)
+- [Alerts](alerts.md), [shot history](features/shot-history.md),
+  [activation history](features/activation-history.md)
 - [Home Assistant integration](features/home-assistant.md)
 - [Generic webhooks](features/webhooks.md)
 

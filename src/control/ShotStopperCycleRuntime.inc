@@ -1006,7 +1006,6 @@ bool recordWeightSample(float weight, uint32_t receivedAtMs) {
 }
 #endif
 
-
 bool endingRinseCycle(EndReason reason) {
   return stopperState == StopperState::RINSE ||
          reason == EndReason::RINSE_COMPLETE;
@@ -1021,7 +1020,7 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs) {
   if (brewEndIsAbandonedStart(reason) || endingRinseCycle(reason)) {
     return;
   }
-  const bool logEligible = shotLogEligible(reason, durationMs);
+  const bool logEligible = shotLogEligible(reason, durationMs, session.config.bbwProtectionMs);
   const bool bbwEligible =
       shotLogBbwEligible(session.startedWithScale, session.config.timerOnly,
                          shot.automaticBrew);
@@ -1080,6 +1079,7 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs) {
   pendingFinalize.targetReachedEarly = session.targetReachedEarly;
   pendingFinalize.maxRecoveryWeightG = session.config.maxRecoveryWeightG;
   pendingFinalize.minBbwBrewTimeMs = session.config.minBbwBrewTimeMs;
+  pendingFinalize.protectionMs = session.config.bbwProtectionMs;
   if (session.targetReachedAtMs != 0 &&
       static_cast<int32_t>(session.targetReachedAtMs - shotAnchorMs) >= 0) {
     pendingFinalize.targetReachedEarlyDs = static_cast<uint16_t>(
@@ -1221,7 +1221,7 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
   if (persistedLastShot.valid && persistedLastShot.cycleId == snapshot.cycleId) {
     PersistedLastShot linked = persistedLastShot;
     linked.shotLogId = newId;
-    lastShotStore.advance(linked);
+    lastShotStore.advance(linked, runtimeConfig.bbwProtectionMs);
     lastShotNvsDirty = true;
   }
   if (snapshot.curve.count > 0) {
@@ -1363,7 +1363,7 @@ void maybeQueueAutoToManualGuardSample(const PendingShotFinalize &snapshot,
       pendingFinalizeIsRinse(snapshot) ||
       brewEndIsAbandonedStart(snapshot.endReason) ||
       snapshot.endReason == EndReason::SHORT_SHOT ||
-      snapshot.durationDs < (MIN_SHOT_LOG_DURATION_MS / 100U) ||
+      static_cast<uint32_t>(snapshot.durationDs) * 100U <= snapshot.protectionMs ||
       !autoToManualGuardSampleErrorOk(finalWeightG, snapshot.goalWeightG)) {
     return;
   }

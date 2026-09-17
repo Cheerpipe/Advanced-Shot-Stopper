@@ -1,13 +1,13 @@
 #pragma once
 
-// Stats shot-log ring store: PSRAM working copy with deferred dual-slot flash
-// persistence in the dedicated `shotlog` data partition. Mirrors the
+// Activation-history ring store: PSRAM working copy with deferred dual-slot
+// flash persistence in the dedicated `history` data partition. Mirrors the
 // ShotCurveLog flash contract (generation flip through the inactive slot,
 // internal-SRAM scratch copies while the flash cache is disabled).
 
 #include "ShotStopperFlashIoScratch.h"
+#include "ShotStopperHistoryTypes.h"
 #include "ShotStopperNvsDualSlot.h"
-#include "ShotStopperShotLogTypes.h"
 
 #if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
@@ -16,47 +16,17 @@
 
 namespace shotstopper {
 
-// Two 12 KiB slots fill the dedicated shotlog data partition.
-constexpr size_t SHOT_LOG_FLASH_SLOT_BYTES = 12288;
-constexpr size_t SHOT_LOG_FLASH_SLOT_COUNT = 2;
+// Two 16 KiB slots fill the dedicated history data partition.
+constexpr size_t HISTORY_FLASH_SLOT_BYTES = 16384;
+constexpr size_t HISTORY_FLASH_SLOT_COUNT = 2;
 
-inline ShotLogStore &shotLogScratchStore() {
-  static_assert(sizeof(ShotLogStore) <= FLASH_IO_SCRATCH_BYTES,
-                "ShotLogStore exceeds shared flash I/O scratch");
-  return *reinterpret_cast<ShotLogStore *>(flashIoScratchBytes());
+inline HistoryStore &historyScratchStore() {
+  static_assert(sizeof(HistoryStore) <= FLASH_IO_SCRATCH_BYTES,
+                "HistoryStore exceeds shared flash I/O scratch");
+  return *reinterpret_cast<HistoryStore *>(flashIoScratchBytes());
 }
 
-// Pack the ring into records[0..count) (oldest first) so the flash slot
-// always holds the used prefix and deletion is a memmove.
-// Caller must already hold lockFlashIo() (recursive).
-inline void compactShotLogStore(ShotLogStore &store) {
-  const uint16_t count = store.header.count;
-  if (count == 0) {
-    store.header.writeIndex = 0;
-    memset(store.records, 0, sizeof(store.records));
-    return;
-  }
-
-  ShotLogStore &scratch = shotLogScratchStore();
-  size_t index = store.header.writeIndex;
-  for (uint16_t step = 0; step < count; ++step) {
-    if (index == 0) {
-      index = SHOT_LOG_CAPACITY;
-    }
-    --index;
-  }
-  for (uint16_t i = 0; i < count; ++i) {
-    scratch.records[i] = store.records[index];
-    index = (index + 1U) % SHOT_LOG_CAPACITY;
-  }
-  memset(store.records, 0, sizeof(store.records));
-  memcpy(store.records, scratch.records,
-         static_cast<size_t>(count) * sizeof(ShotLogRecord));
-  store.header.writeIndex =
-      static_cast<uint16_t>(count % SHOT_LOG_CAPACITY);
-}
-
-class ShotLog {
+class HistoryLog {
  public:
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
   static void resetHostStorage() {
@@ -73,7 +43,7 @@ class ShotLog {
     uint8_t bestSlot = 0;
     bool haveBest = false;
     for (uint8_t slot = 0; slot < 2; ++slot) {
-      if (!hostSlotValid_[slot] || !validShotLogStore(hostSlots_[slot])) {
+      if (!hostSlotValid_[slot] || !validHistoryStore(hostSlots_[slot])) {
         continue;
       }
       if (!haveBest || secondRevisionIsNewer(hostSlots_[bestSlot].header.generation,
@@ -86,33 +56,33 @@ class ShotLog {
       memcpy(&store_, &hostSlots_[bestSlot], sizeof(store_));
       activeSlot_ = bestSlot;
     } else {
-      resetShotLogStore(store_, 1);
+      resetHistoryStore(store_);
       activeSlot_ = 0;
     }
     dirty_ = false;
     return true;
 #else
     if (!lockFlashIo()) {
-      resetShotLogStore(store_, 1);
+      resetHistoryStore(store_);
       dirty_ = false;
       return false;
     }
-    const esp_partition_t *part = shotLogPartition();
+    const esp_partition_t *part = historyPartition();
     if (part == nullptr ||
-        part->size < SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES) {
-      resetShotLogStore(store_, 1);
+        part->size < HISTORY_FLASH_SLOT_COUNT * HISTORY_FLASH_SLOT_BYTES) {
+      resetHistoryStore(store_);
       dirty_ = false;
       unlockFlashIo();
       return false;
     }
 
     const bool aOk =
-        readSlot(part, 0, store_) && validShotLogStore(store_);
+        readSlot(part, 0, store_) && validHistoryStore(store_);
     const uint32_t gen0 = aOk ? store_.header.generation : 0;
-    ShotLogStore &slotB = shotLogScratchStore();
+    HistoryStore &slotB = historyScratchStore();
     const bool bOk =
-        readSlot(part, SHOT_LOG_FLASH_SLOT_BYTES, slotB) &&
-        validShotLogStore(slotB);
+        readSlot(part, HISTORY_FLASH_SLOT_BYTES, slotB) &&
+        validHistoryStore(slotB);
     const DualSlotChoice choice =
         chooseNewerRevision(aOk, gen0, bOk, slotB.header.generation);
     if (choice == DualSlotChoice::SECOND) {
@@ -125,7 +95,7 @@ class ShotLog {
       }
       activeSlot_ = 0;
     } else {
-      resetShotLogStore(store_, 1);
+      resetHistoryStore(store_);
       activeSlot_ = 0;
     }
     dirty_ = false;
@@ -138,13 +108,13 @@ class ShotLog {
     if (!tryLockFlashIo(lockTimeoutMs)) {
       return false;
     }
-    compactShotLogStore(store_);
+    compactHistoryStoreInto(store_, historyScratchStore());
     if (store_.header.generation == 0) {
       store_.header.generation = 1;
     } else if (store_.header.generation < UINT32_MAX) {
       ++store_.header.generation;
     }
-    finalizeShotLogStore(store_);
+    finalizeHistoryStore(store_);
     const uint8_t targetSlot = static_cast<uint8_t>(1U - (activeSlot_ & 1U));
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
     if (!hostSaveSucceeds_) {
@@ -158,25 +128,23 @@ class ShotLog {
     unlockFlashIo();
     return true;
 #else
-    const esp_partition_t *part = shotLogPartition();
+    const esp_partition_t *part = historyPartition();
     if (part == nullptr ||
-        part->size < SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES) {
+        part->size < HISTORY_FLASH_SLOT_COUNT * HISTORY_FLASH_SLOT_BYTES) {
       unlockFlashIo();
       return false;
     }
     yieldFlashIo();
     feedFlashIoWatchdog();
     const size_t targetOffset =
-        static_cast<size_t>(targetSlot) * SHOT_LOG_FLASH_SLOT_BYTES;
-    // Source is internal SRAM scratch: the live store_ sits in PSRAM BSS,
-    // unreachable while the flash cache is disabled during the slot write.
+        static_cast<size_t>(targetSlot) * HISTORY_FLASH_SLOT_BYTES;
     void *source = copyToFlashIoScratch(&store_, sizeof(store_));
     if (source == nullptr) {
       unlockFlashIo();
       return false;
     }
     if (esp_partition_erase_range(part, targetOffset,
-                                  SHOT_LOG_FLASH_SLOT_BYTES) != ESP_OK) {
+                                  HISTORY_FLASH_SLOT_BYTES) != ESP_OK) {
       unlockFlashIo();
       return false;
     }
@@ -194,35 +162,21 @@ class ShotLog {
 #endif
   }
 
-  void onBoot() {
-    if (store_.header.bootId == 0) {
-      store_.header.bootId = 1;
-    } else if (store_.header.bootId < UINT32_MAX) {
-      ++store_.header.bootId;
-    }
-    dirty_ = true;
-  }
-
-  uint32_t bootId() const { return store_.header.bootId; }
-
-  uint32_t nextRecordId() const { return store_.header.nextRecordId; }
-
-  bool append(const ShotLogRecord &record, bool persistNow = true) {
+  bool append(const HistoryRecord &record, bool persistNow = true) {
     const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
     const uint16_t previousWriteIndex = store_.header.writeIndex;
     const uint16_t previousCount = store_.header.count;
-    const ShotLogRecord overwritten = store_.records[previousWriteIndex];
+    const HistoryRecord overwritten = store_.records[previousWriteIndex];
 
-    ShotLogRecord stored = record;
+    HistoryRecord stored = record;
     stored.id = store_.header.nextRecordId;
     if (store_.header.nextRecordId < UINT32_MAX) {
       ++store_.header.nextRecordId;
     }
     store_.records[store_.header.writeIndex] = stored;
-    store_.header.writeIndex =
-        static_cast<uint16_t>((store_.header.writeIndex + 1U) %
-                              SHOT_LOG_CAPACITY);
-    if (store_.header.count < SHOT_LOG_CAPACITY) {
+    store_.header.writeIndex = static_cast<uint16_t>(
+        (store_.header.writeIndex + 1U) % HISTORY_CAPACITY);
+    if (store_.header.count < HISTORY_CAPACITY) {
       ++store_.header.count;
     }
     if (!persistNow) {
@@ -233,11 +187,7 @@ class ShotLog {
       return true;
     }
     if (flashIoLockTimeouts() == lockTimeoutsBefore) {
-      // save() may have compacted the ring before the flash write failed, so
-      // the pre-append snapshot no longer describes the live layout —
-      // restoring it would clobber a compacted record. Reload the last-good
-      // store instead (same pattern as updateRating/removeById).
-      load();
+      (void)load();
       return false;
     }
     store_.records[previousWriteIndex] = overwritten;
@@ -258,33 +208,9 @@ class ShotLog {
 
   bool dirty() const { return dirty_; }
 
-  bool updateRating(uint32_t id, uint8_t rating) {
-    if (id == 0 || rating > SHOT_LOG_RATING_MAX || store_.header.count == 0) {
-      return false;
-    }
-    size_t index = store_.header.writeIndex;
-    bool found = false;
-    for (size_t n = 0; n < store_.header.count; ++n) {
-      if (index == 0) {
-        index = SHOT_LOG_CAPACITY;
-      }
-      --index;
-      if (store_.records[index].id == id) {
-        store_.records[index].extractionGuardEnabled = shotLogPackRating(
-            store_.records[index].extractionGuardEnabled, rating);
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      return false;
-    }
-    if (save()) {
-      return true;
-    }
-    load();
-    return false;
-  }
+  size_t count() const { return store_.header.count; }
+
+  uint32_t nextRecordId() const { return store_.header.nextRecordId; }
 
   bool containsId(uint32_t id) const {
     if (id == 0 || store_.header.count == 0) {
@@ -293,24 +219,10 @@ class ShotLog {
     size_t index = store_.header.writeIndex;
     for (size_t n = 0; n < store_.header.count; ++n) {
       if (index == 0) {
-        index = SHOT_LOG_CAPACITY;
+        index = HISTORY_CAPACITY;
       }
       --index;
       if (store_.records[index].id == id) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  bool copyRatingById(uint32_t id, uint8_t &rating) const {
-    if (id == 0 || store_.header.count == 0) return false;
-    size_t index = store_.header.writeIndex;
-    for (size_t n = 0; n < store_.header.count; ++n) {
-      if (index == 0) index = SHOT_LOG_CAPACITY;
-      --index;
-      if (store_.records[index].id == id) {
-        rating = shotLogRating(store_.records[index].extractionGuardEnabled);
         return true;
       }
     }
@@ -324,9 +236,7 @@ class ShotLog {
     if (!lockFlashIo()) {
       return false;
     }
-    // Compact to a linear prefix so deletion is a memmove, avoiding two
-    // SHOT_LOG_CAPACITY arrays on the 8 KB loopTask stack.
-    compactShotLogStore(store_);
+    compactHistoryStoreInto(store_, historyScratchStore());
     bool found = false;
     size_t foundIndex = 0;
     for (size_t index = 0; index < store_.header.count; ++index) {
@@ -344,12 +254,12 @@ class ShotLog {
     if (foundIndex + 1U < previousCount) {
       memmove(&store_.records[foundIndex], &store_.records[foundIndex + 1U],
               static_cast<size_t>(previousCount - foundIndex - 1U) *
-                  sizeof(ShotLogRecord));
+                  sizeof(HistoryRecord));
     }
     --store_.header.count;
     store_.header.writeIndex =
-        static_cast<uint16_t>(store_.header.count % SHOT_LOG_CAPACITY);
-    memset(&store_.records[store_.header.count], 0, sizeof(ShotLogRecord));
+        static_cast<uint16_t>(store_.header.count % HISTORY_CAPACITY);
+    memset(&store_.records[store_.header.count], 0, sizeof(HistoryRecord));
     const bool saved = save();
     unlockFlashIo();
     if (saved) {
@@ -360,11 +270,10 @@ class ShotLog {
   }
 
   bool clear() {
-    const uint32_t bootId = store_.header.bootId;
     // Keep the monotonic generation: a regressed generation would make the
     // pre-clear slot look newer on the next load.
     const uint32_t generation = store_.header.generation;
-    resetShotLogStore(store_, bootId);
+    resetHistoryStore(store_);
     store_.header.generation = generation;
     if (save()) {
       return true;
@@ -373,36 +282,66 @@ class ShotLog {
     return false;
   }
 
-  size_t count() const { return store_.header.count; }
-
-  size_t copyNewestFirst(ShotLogRecord *output, size_t capacity) const {
-    if (output == nullptr || capacity == 0 || store_.header.count == 0) {
-      return 0;
+  // Fills one bounded page (see HistoryPage). offset counts from the newest
+  // record for Desc and from the oldest for Asc. Caller holds the store mutex.
+  void copyPage(HistoryPage &page, size_t offset, size_t limit,
+                ShotLogSortDir dir) const {
+    const size_t total = store_.header.count;
+    limit = historyClampPageLimit(limit);
+    if (offset > total) {
+      offset = total;
     }
-    const size_t toCopy =
-        store_.header.count < capacity ? store_.header.count : capacity;
-    size_t index = store_.header.writeIndex;
-    for (size_t copied = 0; copied < toCopy; ++copied) {
-      if (index == 0) {
-        index = SHOT_LOG_CAPACITY;
+    page.total = total;
+    page.start = offset;
+    page.hasMore = false;
+    page.count = 0;
+    const size_t remaining = total - offset;
+    const size_t pageCount = remaining < limit ? remaining : limit;
+    if (pageCount == 0) {
+      return;
+    }
+    page.hasMore = (offset + pageCount) < total;
+    if (dir == ShotLogSortDir::Desc) {
+      // Walk backwards from writeIndex, skipping the `offset` newest records.
+      size_t index = store_.header.writeIndex;
+      for (size_t step = 0; step < offset; ++step) {
+        if (index == 0) {
+          index = HISTORY_CAPACITY;
+        }
+        --index;
       }
-      --index;
-      output[copied] = store_.records[index];
+      for (size_t copied = 0; copied < pageCount; ++copied) {
+        if (index == 0) {
+          index = HISTORY_CAPACITY;
+        }
+        --index;
+        page.records[copied] = store_.records[index];
+      }
+    } else {
+      // Walk forward from the oldest retained record.
+      size_t index =
+          (store_.header.writeIndex + HISTORY_CAPACITY - total) %
+          HISTORY_CAPACITY;
+      index = (index + offset) % HISTORY_CAPACITY;
+      for (size_t copied = 0; copied < pageCount; ++copied) {
+        page.records[copied] = store_.records[index];
+        index = (index + 1U) % HISTORY_CAPACITY;
+      }
     }
-    return toCopy;
+    page.count = pageCount;
   }
 
  private:
 #if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-  static const esp_partition_t *shotLogPartition() {
+  static const esp_partition_t *historyPartition() {
     return esp_partition_find_first(
         ESP_PARTITION_TYPE_DATA,
-        static_cast<esp_partition_subtype_t>(0x40), "shotlog");
+        static_cast<esp_partition_subtype_t>(0x40), "history");
   }
 
   static bool readSlot(const esp_partition_t *part, size_t offset,
-                       ShotLogStore &dest) {
+                       HistoryStore &dest) {
     memset(&dest, 0, sizeof(dest));
     if (part == nullptr) {
       return false;
@@ -411,30 +350,30 @@ class ShotLog {
     if (scratch == nullptr) {
       return false;
     }
-    if (esp_partition_read(part, offset, scratch, sizeof(ShotLogStore)) !=
+    if (esp_partition_read(part, offset, scratch, sizeof(HistoryStore)) !=
         ESP_OK) {
       return false;
     }
-    memcpy(&dest, scratch, sizeof(ShotLogStore));
+    memcpy(&dest, scratch, sizeof(HistoryStore));
     return true;
   }
 #endif
 
-  ShotLogStore store_{};
+  HistoryStore store_{};
   uint8_t activeSlot_ = 0;
   bool dirty_ = false;
 
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-  static ShotLogStore hostSlots_[2];
+  static HistoryStore hostSlots_[2];
   static bool hostSlotValid_[2];
   static bool hostSaveSucceeds_;
 #endif
 };
 
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-ShotLogStore ShotLog::hostSlots_[2] = {};
-bool ShotLog::hostSlotValid_[2] = {};
-bool ShotLog::hostSaveSucceeds_ = true;
+HistoryStore HistoryLog::hostSlots_[2] = {};
+bool HistoryLog::hostSlotValid_[2] = {};
+bool HistoryLog::hostSaveSucceeds_ = true;
 #endif
 
 }  // namespace shotstopper

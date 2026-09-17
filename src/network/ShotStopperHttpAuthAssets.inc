@@ -357,6 +357,9 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
   if (apiUriMatches(request->uri, "/api/v1/shots/clear")) return shotsClearHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/shots/delete")) return shotsDeleteHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/shots/rate")) return shotsRateHandler(request);
+  if (apiUriMatches(request->uri, "/api/v1/history")) return historyHandler(request);
+  if (apiUriMatches(request->uri, "/api/v1/history/clear")) return historyClearHandler(request);
+  if (apiUriMatches(request->uri, "/api/v1/history/delete")) return historyDeleteHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/last-shot/clear")) return lastShotClearHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/time/sync")) return timeSyncHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/config")) return configHandler(request);
@@ -527,6 +530,12 @@ esp_err_t ShotStopperNetwork::partialStatsHandler(httpd_req_t *request) {
   return serveImmutableGzip(request, "text/html; charset=utf-8",
                             SHOT_STOPPER_WEB_PARTIAL_STATS_GZIP,
                             SHOT_STOPPER_WEB_PARTIAL_STATS_GZIP_LEN);
+}
+
+esp_err_t ShotStopperNetwork::partialHistoryHandler(httpd_req_t *request) {
+  return serveImmutableGzip(request, "text/html; charset=utf-8",
+                            SHOT_STOPPER_WEB_PARTIAL_HISTORY_GZIP,
+                            SHOT_STOPPER_WEB_PARTIAL_HISTORY_GZIP_LEN);
 }
 
 esp_err_t ShotStopperNetwork::partialDiagnosticHandler(httpd_req_t *request) {

@@ -1282,3 +1282,146 @@ esp_err_t ShotStopperNetwork::shotsRateHandler(httpd_req_t *request) {
            static_cast<unsigned>(rating));
   return sendJson(request, STATUS_OK, json);
 }
+
+esp_err_t ShotStopperNetwork::historyHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  size_t offset = 0;
+  size_t limit = HISTORY_PAGE_DEFAULT;
+  ShotLogSortDir dir = ShotLogSortDir::Desc;
+  parseHistoryPageQuery(request, offset, limit, dir);
+  if (!self.lockWorkBufForStatus()) {
+    return self.workBufBusy(request);
+  }
+  NetworkWorkBuf &work = *self.workBuf_;
+  self.loadControlStatus(work.control);
+  // The page is copied under the store mutex by the bridge callback, so the
+  // handler never observes a torn multi-word record.
+  if (self.callbacks_.copyHistoryPage != nullptr) {
+    self.callbacks_.copyHistoryPage(work.historyPage, offset, limit, dir);
+  } else {
+    work.historyPage.total = 0;
+    work.historyPage.start = 0;
+    work.historyPage.count = 0;
+    work.historyPage.hasMore = false;
+  }
+
+  httpd_resp_set_type(request, JSON_CONTENT_TYPE);
+  httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+  httpd_resp_set_hdr(request, "Connection", "close");
+  httpd_resp_set_hdr(request, "Access-Control-Allow-Origin", "*");
+  char header[160] = {};
+  snprintf(header, sizeof(header),
+           "{\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
+           "\"hasMore\":%s,\"history\":[",
+           static_cast<unsigned long>(work.control.bootId),
+           static_cast<unsigned>(work.historyPage.total),
+           static_cast<unsigned>(work.historyPage.start),
+           static_cast<unsigned>(limit),
+           work.historyPage.hasMore ? "true" : "false");
+  if (httpd_resp_send_chunk(request, header, HTTPD_RESP_USE_STRLEN) != ESP_OK) {
+    self.unlockWorkBuf();
+    return ESP_FAIL;
+  }
+
+  for (size_t index = 0; index < work.historyPage.count; ++index) {
+    const HistoryRecord &record = work.historyPage.records[index];
+    char item[192] = {};
+    snprintf(item, sizeof(item),
+             "%s{\"id\":%lu,\"type\":\"%s\",\"durationS\":%.1f,"
+             "\"hasWallTime\":%s,\"endedAtUnixSec\":%lu,"
+             "\"endedAtLocalSec\":%lu}",
+             index == 0 ? "" : ",",
+             static_cast<unsigned long>(record.id),
+             historyTypeName(static_cast<HistoryType>(record.type)),
+             static_cast<double>(record.durationDs) / 10.0,
+             (record.flags & HISTORY_FLAG_WALL_TIME) != 0 ? "true" : "false",
+             static_cast<unsigned long>(record.endedAtUnixSec),
+             static_cast<unsigned long>(record.endedAtLocalSec));
+    if (sendCopiedChunk(request, item, strlen(item)) != ESP_OK) {
+      self.unlockWorkBuf();
+      return ESP_FAIL;
+    }
+  }
+  const bool ok =
+      httpd_resp_send_chunk(request, "]}", HTTPD_RESP_USE_STRLEN) == ESP_OK &&
+      httpd_resp_send_chunk(request, nullptr, 0) == ESP_OK;
+  self.unlockWorkBuf();
+  return ok ? ESP_OK : ESP_FAIL;
+}
+
+esp_err_t ShotStopperNetwork::historyClearHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  const ControlGateSnapshot status = self.controlGate();
+  if (!self.historyMutationAllowed(request, status)) {
+    return sendError(request, STATUS_CONFLICT,
+                     "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
+                     "Stop the cycle, switch the physical activator OFF, and wait for Ready before clearing the activation history.");
+  }
+
+  const esp_err_t bodyStatus = self.lockJsonBody(
+      request, "An explicit confirmation is required.");
+  if (bodyStatus != ESP_OK) {
+    return bodyStatus;
+  }
+  char confirmation[32] = {};
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
+  static const char *const fields[] = {"confirm"};
+  const bool parsed =
+      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
+      jsonString(root, "confirm", confirmation, sizeof(confirmation), false) &&
+      strcmp(confirmation, "CLEAR_HISTORY") == 0;
+  if (root != nullptr) {
+    cJSON_Delete(root);
+  }
+  self.unlockJsonBody();
+  memset(confirmation, 0, sizeof(confirmation));
+  if (!parsed) {
+    return sendError(request, STATUS_UNPROCESSABLE,
+                     "HISTORY_CLEAR_NOT_CONFIRMED",
+                     "The activation-history clear was not explicitly confirmed.");
+  }
+
+  if (self.callbacks_.clearHistoryLog == nullptr ||
+      !self.callbacks_.clearHistoryLog()) {
+    return sendError(request, STATUS_UNAVAILABLE, "HISTORY_CLEAR_FAILED",
+                     "Activation history could not be cleared. Check the "
+                     "last storage error in Diagnostic.");
+  }
+  return sendJson(request, STATUS_OK, "{\"cleared\":true}");
+}
+
+esp_err_t ShotStopperNetwork::historyDeleteHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  const ControlGateSnapshot status = self.controlGate();
+  if (!self.historyMutationAllowed(request, status)) {
+    return sendError(request, STATUS_CONFLICT,
+                     "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
+                     "Stop the cycle, switch the physical activator OFF, and wait for Ready before deleting history records.");
+  }
+
+  const esp_err_t bodyStatus = self.lockJsonBody(
+      request, "A bounded JSON request is required.");
+  if (bodyStatus != ESP_OK) {
+    return bodyStatus;
+  }
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
+  uint32_t recordId = 0;
+  static const char *const fields[] = {"id"};
+  const bool parsed = root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
+                      jsonUint32(root, "id", recordId) && recordId != 0;
+  if (root != nullptr) {
+    cJSON_Delete(root);
+  }
+  self.unlockJsonBody();
+  if (!parsed) {
+    return sendError(request, STATUS_UNPROCESSABLE, "INVALID_FIELD",
+                     "A non-zero history record id is required.");
+  }
+
+  if (self.callbacks_.deleteHistoryRecord == nullptr ||
+      !self.callbacks_.deleteHistoryRecord(recordId)) {
+    return sendError(request, STATUS_NOT_FOUND, "HISTORY_RECORD_NOT_FOUND",
+                     "The requested history record was not found.");
+  }
+  return sendJson(request, STATUS_OK, "{\"deleted\":true}");
+}

@@ -62,11 +62,13 @@ struct NetworkWorkBuf {
   char statusJson[kStatusJson]{};
   char presetsJson[kPresetsJson]{};
   char historyJson[kHistoryJson]{};
-  // Exclusive handlers under the work-buffer mutex: record/CSV items and
-  // OTA JSON are never live together. Status/presets/history remain separate.
+  // Exclusive handlers under the work-buffer mutex: record/CSV items, the
+  // activation-history page, and OTA JSON are never live together.
+  // Status/presets/history remain separate.
   union {
     char jsonItem[kJsonItem]{};
     char otaJson[kOtaJson];
+    HistoryPage historyPage;
   };
   DebugEvent logBatch[kNetworkLogBatchSize]{};
   DebugLogReadMetadata logMetadata{};
@@ -178,6 +180,43 @@ void parseShotsPageQuery(httpd_req_t *request, size_t &offset, size_t &limit,
   memset(value, 0, sizeof(value));
   if (httpd_query_key_value(query, "sort", value, sizeof(value)) == ESP_OK) {
     sort = shotLogSortFromName(value);
+  }
+  memset(value, 0, sizeof(value));
+  if (httpd_query_key_value(query, "dir", value, sizeof(value)) == ESP_OK) {
+    dir = shotLogSortDirFromName(value);
+  }
+}
+
+void parseHistoryPageQuery(httpd_req_t *request, size_t &offset, size_t &limit,
+                           ShotLogSortDir &dir) {
+  offset = 0;
+  limit = HISTORY_PAGE_DEFAULT;
+  dir = ShotLogSortDir::Desc;
+  if (request == nullptr) {
+    return;
+  }
+  const size_t queryLength = httpd_req_get_url_query_len(request);
+  if (queryLength == 0 || queryLength >= 80) {
+    return;
+  }
+  char query[80] = {};
+  if (httpd_req_get_url_query_str(request, query, sizeof(query)) != ESP_OK) {
+    return;
+  }
+  char value[16] = {};
+  if (httpd_query_key_value(query, "offset", value, sizeof(value)) == ESP_OK) {
+    char *end = nullptr;
+    const unsigned long parsed = strtoul(value, &end, 10);
+    if (end != value && *end == '\0') {
+      offset = static_cast<size_t>(parsed);
+    }
+  }
+  if (httpd_query_key_value(query, "limit", value, sizeof(value)) == ESP_OK) {
+    char *end = nullptr;
+    const unsigned long parsed = strtoul(value, &end, 10);
+    if (end != value && *end == '\0') {
+      limit = historyClampPageLimit(static_cast<size_t>(parsed));
+    }
   }
   memset(value, 0, sizeof(value));
   if (httpd_query_key_value(query, "dir", value, sizeof(value)) == ESP_OK) {

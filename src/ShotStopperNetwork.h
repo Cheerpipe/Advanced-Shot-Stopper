@@ -2,6 +2,7 @@
 
 #include "ShotStopperDomain.h"
 #include "ShotStopperDebugExport.h"
+#include "ShotStopperHistoryTypes.h"
 #include "ShotStopperPersistence.h"
 #include "ShotStopperShotCurveTypes.h"
 #include "ShotStopperShotLogTypes.h"
@@ -178,6 +179,10 @@ struct NetworkBridgeCallbacks {
   void (*requestSafeRestart)() = nullptr;
   size_t (*copyShotRecords)(ShotLogRecord *output, size_t capacity) = nullptr;
   size_t (*copyShotCurves)(ShotCurveRecord *output, size_t capacity) = nullptr;
+  void (*copyHistoryPage)(HistoryPage &page, size_t offset, size_t limit,
+                          ShotLogSortDir dir) = nullptr;
+  bool (*deleteHistoryRecord)(uint32_t id) = nullptr;
+  bool (*clearHistoryLog)() = nullptr;
   bool (*deleteShotRecord)(uint32_t id) = nullptr;
   bool (*rateShotRecord)(uint32_t id, uint8_t rating) = nullptr;
   bool (*rateLastShot)(uint8_t rating) = nullptr;
@@ -449,6 +454,7 @@ class ShotStopperNetwork {
   static esp_err_t otaImageJsHandler(httpd_req_t *request);
   static esp_err_t secondaryJsHandler(httpd_req_t *request);
   static esp_err_t partialStatsHandler(httpd_req_t *request);
+  static esp_err_t partialHistoryHandler(httpd_req_t *request);
   static esp_err_t partialDiagnosticHandler(httpd_req_t *request);
   static esp_err_t partialSettingsHandler(httpd_req_t *request);
   static esp_err_t partialAdminHandler(httpd_req_t *request);
@@ -469,6 +475,9 @@ class ShotStopperNetwork {
   static esp_err_t shotsClearHandler(httpd_req_t *request);
   static esp_err_t shotsDeleteHandler(httpd_req_t *request);
   static esp_err_t shotsRateHandler(httpd_req_t *request);
+  static esp_err_t historyHandler(httpd_req_t *request);
+  static esp_err_t historyClearHandler(httpd_req_t *request);
+  static esp_err_t historyDeleteHandler(httpd_req_t *request);
   static esp_err_t lastShotClearHandler(httpd_req_t *request);
   static esp_err_t timeSyncHandler(httpd_req_t *request);
   static esp_err_t configHandler(httpd_req_t *request);

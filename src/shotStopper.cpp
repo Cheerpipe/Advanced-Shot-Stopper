@@ -85,6 +85,7 @@ HWCDC shotStopperUsbConsole;
 #include "ShotStopperRecoveryGesture.h"
 #include "ShotStopperResetHistoryStore.h"
 #include "ShotStopperSafety.h"
+#include "ShotStopperActivationStores.h"
 #include "ShotStopperShotLog.h"
 #include "ShotStopperShotCurve.h"
 #include "ShotStopperLastShot.h"
@@ -300,6 +301,7 @@ struct PendingShotFinalize {
   uint16_t targetReachedEarlyDs = SHOT_LOG_METRIC_MISSING;
   float maxRecoveryWeightG = DEFAULT_MAX_RECOVERY_WEIGHT_G;
   uint32_t minBbwBrewTimeMs = DEFAULT_MIN_BBW_BREW_TIME_MS;
+  uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS;
   bool lastKnownWeightValid = false;
   float lastKnownWeightG = 0.0f;
   uint8_t activePresetId = 0;
@@ -359,8 +361,14 @@ LogLevel serialLogLevel = LogLevel::NONE;
 LogLevel ringRetainLogLevel = LogLevel::NONE;
 // Working copies: NVS/partition I/O copies through internal flash scratch
 // first. Safe in PSRAM BSS because putBytes/erase/write never DMA these.
-SHOT_STOPPER_PSRAM_BSS ShotLog shotLog;
-SHOT_STOPPER_PSRAM_BSS ShotCurveLog shotCurves;
+// ActivationStores is the single owner of the three activation ring stores;
+// the aliases below keep every existing call site and test working against
+// that owner. Static-init order is safe: PSRAM BSS plus references bound to
+// constant addresses.
+SHOT_STOPPER_PSRAM_BSS ActivationStores activationStores;
+ShotLog &shotLog = activationStores.shotLog;
+ShotCurveLog &shotCurves = activationStores.shotCurves;
+HistoryLog &historyLog = activationStores.historyLog;
 // Serializes complete RAM-store operations across control and NetworkService;
 // every durable write remains owned by the existing store/flash path.
 TaskMutex shotStoreMutex;
@@ -369,8 +377,6 @@ LastShotStore lastShotStore;
 const PersistedLastShot &persistedLastShot = lastShotStore.get();
 const PersistedLastShot &persistedLastGoodShot = lastShotStore.getGood();
 bool lastShotNvsDirty = false;
-bool shotLogPersistFailLatched = false;
-bool shotCurvePersistFailLatched = false;
 bool lastShotPersistFailLatched = false;
 bool controllerStartedPending = false;
 uint32_t shotStorePersistRetryAtMs = 0;
@@ -1101,6 +1107,22 @@ size_t copyShotCurves(ShotCurveRecord *output, size_t capacity) {
   return shotCurves.copyNewestFirst(output, capacity);
 }
 
+void copyHistoryPage(HistoryPage &page, size_t offset, size_t limit,
+                     ShotLogSortDir dir) {
+  TaskLockGuard lock(shotStoreMutex);
+  historyLog.copyPage(page, offset, limit, dir);
+}
+
+bool deleteHistoryRecord(uint32_t id) {
+  TaskLockGuard lock(shotStoreMutex);
+  return historyLog.removeById(id);
+}
+
+bool clearHistoryLog() {
+  TaskLockGuard lock(shotStoreMutex);
+  return historyLog.clear();
+}
+
 uint32_t copyShotLogBootId() {
   TaskLockGuard lock(shotStoreMutex);
   return shotLog.bootId();
@@ -1164,7 +1186,7 @@ void clearLastShotRuntimeState() {
 bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
   TaskLockGuard lock(shotStoreMutex);
   if (!resetAllDurableStores(settings, bleScanPersistedSettings, shotLog,
-                             lastShotStore, shotCurves)) {
+                             historyLog, lastShotStore, shotCurves)) {
     return false;
   }
   // Drop transient dirty state only after the durable factory reset succeeds.
@@ -1174,13 +1196,13 @@ bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
 
 bool releaseNvsSpaceForFactoryResetForNetwork() {
   TaskLockGuard lock(shotStoreMutex);
-  return releaseNvsSpaceForFactoryReset(shotLog, lastShotStore);
+  return releaseNvsSpaceForFactoryReset(lastShotStore);
 }
 #endif
 
 void persistLastShotSnapshot(const PersistedLastShot &snapshot) {
   TaskLockGuard lock(shotStoreMutex);
-  lastShotStore.advance(snapshot);
+  lastShotStore.advance(snapshot, runtimeConfig.bbwProtectionMs);
   lastShotNvsDirty = true;
   shotStoreDirtyGeneration.fetch_add(1, std::memory_order_relaxed);
 }

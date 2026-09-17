@@ -206,10 +206,12 @@ function projectSources() {
   const webDir = path.join(repoRoot, 'src', 'web');
   const files = [
     ['html/shell.html', 'html'], ['html/home.html', 'html'],
-    ['html/stats.html', 'html'], ['html/diagnostic.html', 'html'],
+    ['html/stats.html', 'html'], ['html/history.html', 'html'],
+    ['html/diagnostic.html', 'html'],
     ['html/settings.html', 'html'], ['html/admin.html', 'html'],
     ['app.css', 'css'], ['app.js', 'js'], ['js/runtime.js', 'js'],
     ['js/ota-image.js', 'js'], ['js/home.js', 'js'], ['js/stats.js', 'js'],
+    ['js/history.js', 'js'],
     ['js/diagnostic.js', 'js'], ['js/settings.js', 'js'], ['js/admin.js', 'js'],
   ];
   return files.map(([name, type]) => ({file: `src/web/${name}`, type,

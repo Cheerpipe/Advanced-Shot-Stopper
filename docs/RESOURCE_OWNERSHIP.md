@@ -4,8 +4,13 @@ BBW prediction/learning has no resource authority. Control owns the fixed
 per-preset candidate bank and immutable shot/finalizer snapshots; persistence
 owns deferred durable writes. Network consumes the published Home snapshot;
 bounded history reads and explicit user mutations share the one static
-`shotStoreMutex` with control finalization and deferred saves. This adds no
-task, queue or heap owner; the mutex is acquired before the flash lock. See
+`shotStoreMutex` with control finalization and deferred saves. The
+`ActivationStores` component is the single explicit owner of the three
+activation ring stores (stats shot log, curve sidecar, activation history):
+every read, append, page query, mutation, and deferred flush runs under that
+mutex, and only its flash-writing methods additionally take the shared flash
+I/O lock. This adds no task, queue or heap owner; the store mutex is acquired
+before the flash lock. See
 [BBW policy and storage](ARCHITECTURE.md#bbw-policy-and-storage).
 
 Every fallible resource acquisition needs one owner and a defined rollback
@@ -32,7 +37,7 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | HTTP server | NetworkService | manager-task-only stop/restart; handle cleared immediately after `httpd_stop` |
 | persistence mailbox | control producer, then persistence worker | one external request; internal token queue; producer may reuse only after consuming completion, or failed enqueue |
 | reset-history durable state | existing maintenance lease and NetworkService persistence owner | control holds clear requests until the machine is configuration-safe; NetworkService writes through the shared flash lock, and control publishes completion only after success |
-| shot history, curves and last-shot aggregate | control finalization/deferred-save path; Network borrows only through mutex-guarded callbacks | static `shotStoreMutex` covers each complete RAM operation and its flash snapshot; Home receives one control-published exact-ID rating/curve snapshot |
+| shot history, curves, activation history and last-shot aggregate | `ActivationStores` data layer (control finalization/deferred-save path); Network borrows only through mutex-guarded callbacks | static `shotStoreMutex` covers each complete RAM operation and its flash snapshot; Home receives one control-published exact-ID rating/curve snapshot |
 | webhook queue / payload | `WebhookDispatcher` | internal queue storage and external HTTP payload; release after worker join, or startup rollback |
 | profiler workspace / capture | `TaskProfiler` | external processing workspace and separate internal kernel capture; free both on stop or failed start |
 | cJSON document | parsing caller | PSRAM allocations through process-wide hooks installed once before HTTP starts; `cJSON_Delete` releases each independent document |

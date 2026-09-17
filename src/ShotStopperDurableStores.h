@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ShotStopperBleScanPersistence.h"
+#include "ShotStopperHistory.h"
 #include "ShotStopperLastShot.h"
 #include "ShotStopperPersistence.h"
 #include "ShotStopperShotCurve.h"
@@ -48,13 +49,14 @@ inline bool resetPersistedNetworkAccess(PersistedSettings &settings) {
 }
 
 // Erase only expendable NVS records. This is the narrow recovery step used
-// when a factory-reset intent cannot be committed because NVS is full.
-inline bool releaseNvsSpaceForFactoryReset(ShotLog &shotLog,
-                                           LastShotStore &lastShot) {
-  return shotLog.erasePersisted() && lastShot.erasePersisted();
+// when a factory-reset intent cannot be committed because NVS is full. The
+// shot log and activation history live in their own flash partitions and are
+// cleared by resetAllDurableStores below.
+inline bool releaseNvsSpaceForFactoryReset(LastShotStore &lastShot) {
+  return lastShot.erasePersisted();
 }
 
-// Erase independent NVS history first, then
+// Erase the flash-backed activation stores first, then
 // overwrite dual-slot settings without clearing the shared NVS namespace,
 // BLE scan settings last. Every store is verified before success. Idempotent
 // except that a mid-fail may already have dropped history.
@@ -63,19 +65,21 @@ inline bool releaseNvsSpaceForFactoryReset(ShotLog &shotLog,
 inline bool resetAllDurableStores(PersistedSettings &settings,
                                   BleScanPersistedSettings &ble,
                                   ShotLog &shotLog,
+                                  HistoryLog &historyLog,
                                   LastShotStore &lastShot,
                                   ShotCurveLog &shotCurves) {
   yieldFlashIo();
   feedFlashIoWatchdog();
-  // Drop history blobs first so the NVS partition has room for
-  // factory settings writes. A later failure may already have erased
-  // history; settings stay until resetPersistedSettingsToFactory succeeds.
-  if (!releaseNvsSpaceForFactoryReset(shotLog, lastShot)) {
+  // Drop the last-shot NVS record first so the NVS partition has room for
+  // factory settings writes. A later failure may already have erased it;
+  // settings stay until resetPersistedSettingsToFactory succeeds.
+  if (!releaseNvsSpaceForFactoryReset(lastShot)) {
     return false;
   }
   yieldFlashIo();
   feedFlashIoWatchdog();
-  if (!shotLog.clear() || !shotCurves.clear() || !lastShot.clear()) {
+  if (!shotLog.clear() || !historyLog.clear() || !shotCurves.clear() ||
+      !lastShot.clear()) {
     return false;
   }
   yieldFlashIo();
@@ -94,6 +98,7 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
   PersistedSettings verifiedSettings;
   BleScanPersistedSettings verifiedBle;
   const bool shotLogVerified = shotLog.load() && shotLog.count() == 0;
+  const bool historyVerified = historyLog.load() && historyLog.count() == 0;
   const bool shotCurvesVerified = shotCurves.load() && shotCurves.count() == 0;
   const bool lastShotVerified = lastShot.load() && !lastShot.get().valid &&
                                 !lastShot.getGood().valid;
@@ -101,7 +106,8 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
          verifyFactorySettings(verifiedSettings) &&
          readLatestBleScanSettings(verifiedBle) &&
          verifyFactoryBleScanSettings(verifiedBle) &&
-         shotLogVerified && shotCurvesVerified && lastShotVerified;
+         shotLogVerified && historyVerified && shotCurvesVerified &&
+         lastShotVerified;
 }
 
 }  // namespace shotstopper
