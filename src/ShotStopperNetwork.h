@@ -421,6 +421,7 @@ class ShotStopperNetwork {
   bool confirmPendingNetwork(const char *reason);
   bool revertPendingNetwork(uint32_t now, const char *reason);
   bool controlAllowsNetworkMutation();
+  bool networkFlashWriteAllowed() const;
   ControlGateSnapshot controlGate() const;
   bool lockWorkBufForStatus();
   void loadControlStatus(ControlStatusSnapshot &control);

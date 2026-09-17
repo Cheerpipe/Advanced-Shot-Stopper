@@ -2,6 +2,17 @@ bool ShotStopperNetwork::controlAllowsNetworkMutation() {
   return controlAllowsConfiguration(controlGate());
 }
 
+// Settings NVS writes on this task must respect the shared durable-write
+// gate: defer while a shot/machine circuit is busy, during a maintenance
+// lease, or while the scale is mid-connect (see durableFlashWriteAllowed).
+bool ShotStopperNetwork::networkFlashWriteAllowed() const {
+  const ControlGateSnapshot control = controlGate();
+  return durableFlashWriteAllowed(
+      control.activeCycle || control.relayClosed || control.machineRunning ||
+          control.physicalActivatorOn || control.maintenanceLeaseActive,
+      scaleConnecting_.load(std::memory_order_relaxed));
+}
+
 ControlGateSnapshot ShotStopperNetwork::controlGate() const {
   ControlGateSnapshot gate;
   if (callbacks_.copyControlGate != nullptr) {
@@ -121,6 +132,13 @@ bool ShotStopperNetwork::confirmPendingNetwork(const char *reason) {
       status.staState != StaState::CONNECTED) {
     return false;
   }
+  if (!networkFlashWriteAllowed()) {
+    // Retry on a later service pass; re-arm the pending-confirm request.
+    dataMux_.lock();
+    pendingConfirmRequest_ = true;
+    dataMux_.unlock();
+    return false;
+  }
   next.staConfigState = static_cast<uint8_t>(StaConfigState::CONFIRMED);
   copyActiveStaToLkg(next);
   overlayLiveShotSettings(next);
@@ -148,6 +166,11 @@ bool ShotStopperNetwork::revertPendingNetwork(uint32_t,
                                               const char *reason) {
   PersistedSettings next = settingsCopy();
   if (next.staConfigState != static_cast<uint8_t>(StaConfigState::PENDING)) {
+    return false;
+  }
+  if (!networkFlashWriteAllowed()) {
+    // staConfirmArmed_ stays set: callers' retry backoff re-drives the
+    // revert once the durable-write gate opens.
     return false;
   }
   ::serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,

@@ -507,6 +507,17 @@ uint32_t settingsPersistResultStorageRevision = 0;
 QueueHandle_t settingsPersistQueue = nullptr;
 TaskHandle_t settingsPersistTaskHandle = nullptr;
 bool settingsPersistenceReady = false;
+// Staged BLE scan settings: the control loop publishes, the settings_persist
+// worker owns the durable NVS write. pending/intensity/result flags are
+// guarded by bleScanPersistMux; the held request id reports PERSISTED once
+// the flush succeeds. Factory reset clears all staged state.
+TaskMutex bleScanPersistMux;
+bool bleScanPersistPending = false;
+uint8_t bleScanPersistIntensity = 0;
+bool bleScanPersistResultReady = false;
+bool bleScanPersistResultOk = false;
+uint32_t pendingBleScanRequestId = 0;
+bool bleScanPersistFailLatched = false;
 uint32_t lastLoopAtMs = 0;
 uint32_t loopMaxGapMs = 0;
 uint32_t loopDeadlineMisses = 0;
@@ -1192,7 +1203,13 @@ bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
     return false;
   }
   // Drop transient dirty state only after the durable factory reset succeeds.
+  // A staged scan intensity must not survive the reset's default write.
   clearLastShotRuntimeState();
+  bleScanPersistMux.lock();
+  bleScanPersistPending = false;
+  pendingBleScanRequestId = 0;
+  bleScanPersistFailLatched = false;
+  bleScanPersistMux.unlock();
   return true;
 }
 

@@ -10915,6 +10915,7 @@ void sc06_serial_cli_feed_completes_on_crlf() {
 
 void bc05_ble_scan_intensity_applies_live_without_restart() {
   resetHarness(false, false);
+  reachReadyFromBoot();
   CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
 
   CHECK(persistBleScanIntensity(BleScanIntensity::LIGHT));
@@ -10931,6 +10932,28 @@ void bc05_ble_scan_intensity_applies_live_without_restart() {
       static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE);
   processWebCommand(command);
   CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
+  // The durable write is deferred: the loop's persistence servicer reports
+  // the held command as PERSISTED only after the staged flush completes.
+  CHECK(hostLastForwardedNetworkCommand.requestId == 0);
+  runLoopAfter(1);
+  CHECK(hostLastForwardedNetworkCommand.type ==
+        WebCommandType::MAINTENANCE_COMPLETE);
+  CHECK(hostLastForwardedNetworkCommand.requestId == 1);
+  CHECK(hostLastForwardedNetworkCommand.resultState ==
+        CommandResultState::PERSISTED);
+  CHECK(!bleScanPersistPending);
+
+  // Mid-cycle the command is rejected: no staged flash write is accepted.
+  startCycle();
+  command.requestId = 2;
+  command.bleScanIntensity =
+      static_cast<uint8_t>(BleScanIntensity::LIGHT);
+  processWebCommand(command);
+  CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
+  CHECK(hostLastForwardedNetworkCommand.requestId == 2);
+  CHECK(hostLastForwardedNetworkCommand.resultState ==
+        CommandResultState::FAILED);
+  CHECK(!bleScanPersistPending);
 }
 
 void sc07_reset_device_password_and_clear_wifi_queue() {

@@ -271,6 +271,8 @@ void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits) 
   publishRecipeState();
 }
 
+bool serviceBleScanPersist();
+
 #ifdef SHOT_STOPPER_HOST_TEST
 void settingsPersistTask(void *) {}
 #else
@@ -295,6 +297,7 @@ void settingsPersistTask(void *parameter) {
                                        control.physicalActivatorOn,
                                    link.connecting)) {
         (void)persistResetUptimeCheckpoint(millis());
+        serviceBleScanPersist();
       }
       continue;
     }
@@ -528,6 +531,71 @@ bool dispatchSettingsPersist() {
 }
 #endif
 
+// Durable flush of the staged BLE scan settings. Runs on the settings_persist
+// worker (never the Arduino control loop); the worker's 1 s idle cadence is
+// the retry backoff on failure.
+bool serviceBleScanPersist() {
+#if defined(SHOT_STOPPER_HOST_TEST)
+  // Host harness: no NVS layer; a staged change completes immediately.
+  bleScanPersistMux.lock();
+  const bool pending = bleScanPersistPending;
+  bleScanPersistPending = false;
+  bleScanPersistResultOk = true;
+  bleScanPersistResultReady = pending;
+  bleScanPersistMux.unlock();
+  return true;
+#else
+  bleScanPersistMux.lock();
+  const bool pending = bleScanPersistPending;
+  const uint8_t staged = bleScanPersistIntensity;
+  bleScanPersistMux.unlock();
+  if (!pending) {
+    return true;
+  }
+  const bool ok =
+      persistBleScanSettingsIntensity(bleScanPersistedSettings, staged);
+  bleScanPersistMux.lock();
+  if (ok && bleScanPersistIntensity == staged) {
+    // A newer staged value stays pending for the next idle pass.
+    bleScanPersistPending = false;
+  }
+  bleScanPersistResultOk = ok;
+  bleScanPersistResultReady = true;
+  bleScanPersistMux.unlock();
+  return ok;
+#endif
+}
+
+// Control-loop side: consume the worker's flush result, report the held
+// BLE scan command as PERSISTED, and surface failures once per latch.
+void serviceBleScanPersistResult() {
+  bool ready = false;
+  bool ok = false;
+  bleScanPersistMux.lock();
+  ready = bleScanPersistResultReady;
+  if (ready) {
+    bleScanPersistResultReady = false;
+    ok = bleScanPersistResultOk;
+  }
+  bleScanPersistMux.unlock();
+  if (!ready) {
+    return;
+  }
+  if (ok) {
+    bleScanPersistFailLatched = false;
+    if (pendingBleScanRequestId != 0) {
+      WebCommand persisted;
+      persisted.requestId = pendingBleScanRequestId;
+      pendingBleScanRequestId = 0;
+      reportControlCommandResult(persisted, CommandResultState::PERSISTED);
+    }
+  } else if (!bleScanPersistFailLatched) {
+    bleScanPersistFailLatched = true;
+    addDebugEvent(DebugCategory::CONFIG, DebugCode::RUNTIME_PERSIST_FAILED,
+                  0, RUNTIME_PERSIST_REASON_BLE_SCAN);
+  }
+}
+
 void serviceShotStorePersistence() {
   if (maintenanceLease.active) return;
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
@@ -594,6 +662,7 @@ void serviceShotStorePersistence() {
 void serviceRuntimePersistence() {
 #ifndef SHOT_STOPPER_HOST_TEST
   serviceSettingsPersistResult();
+  serviceBleScanPersistResult();
   bool inFlight = false;
   settingsPersistMux.lock();
   inFlight = settingsPersistInFlight;
@@ -609,6 +678,8 @@ void serviceRuntimePersistence() {
     runtimePersistRetryAtMs = millis() + RUNTIME_PERSIST_RETRY_MS;
   }
 #else
+  serviceBleScanPersist();  // host: staged flush completes immediately
+  serviceBleScanPersistResult();
   if (!settingsPersistenceAvailable()) {
     if (runtimePersistPending) {
       runtimePersistFailed = true;

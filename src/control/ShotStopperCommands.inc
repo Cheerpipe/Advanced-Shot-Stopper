@@ -586,14 +586,22 @@ void processWebCommand(const WebCommand &command) {
       return;
 
     case WebCommandType::BLE_SCAN_INTENSITY: {
+      if (!persistentConfigurationMutationAllowed(command)) {
+        rejectWebCommand(command);
+        return;
+      }
       if (!persistBleScanIntensity(clampBleScanIntensity(
               command.bleScanIntensity))) {
         rejectWebCommand(command);
         return;
       }
+      // Hold the result: serviceBleScanPersistResult reports PERSISTED after
+      // the settings_persist worker's deferred NVS flush succeeds.
+      bleScanPersistMux.lock();
+      pendingBleScanRequestId = command.requestId;
+      bleScanPersistMux.unlock();
       addDebugEvent(DebugCategory::CONFIG, DebugCode::CONFIG_ACCEPTED,
                     static_cast<int32_t>(command.bleScanIntensity));
-      reportControlCommandResult(command, CommandResultState::PERSISTED);
       return;
     }
 
@@ -621,13 +629,14 @@ void processWebCommands() {
 }
 
 bool persistBleScanIntensity(BleScanIntensity intensity) {
-  intensity = clampBleScanIntensity(static_cast<uint8_t>(intensity));
-#if !defined(SHOT_STOPPER_HOST_TEST)
-  if (!persistBleScanSettingsIntensity(bleScanPersistedSettings,
-                                       static_cast<uint8_t>(intensity))) {
-    return false;
-  }
-#endif
-  applyLiveBleScanIntensity(intensity);
+  const BleScanIntensity clamped =
+      clampBleScanIntensity(static_cast<uint8_t>(intensity));
+  applyLiveBleScanIntensity(clamped);
+  // Stage only: the settings_persist worker owns the durable NVS write, so
+  // the Arduino control loop never performs flash I/O for this command.
+  bleScanPersistMux.lock();
+  bleScanPersistIntensity = static_cast<uint8_t>(clamped);
+  bleScanPersistPending = true;
+  bleScanPersistMux.unlock();
   return true;
 }
