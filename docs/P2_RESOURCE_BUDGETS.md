@@ -25,8 +25,8 @@ which doubles the per-shot weight series retained in PSRAM.
 
 | Resource | Placement and bound |
 |---|---|
-| Network work buffer | external, at most 64 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex |
-| Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 64 KiB total bound |
+| Network work buffer | external, at most 68 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex, and a one-curve JSON scratch serves the status and shots-list rows |
+| Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 68 KiB total bound |
 | Shared flash-I/O scratch | internal heap, 26,880 bytes; one owner at a time under the flash-I/O lock, with no PSRAM fallback |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
@@ -187,7 +187,7 @@ reconnection, Web UI polling, webhook delivery/failure, settings and shot-log
 writes, and interrupted/resumed OTA at every checkpoint. The runner fails on
 fetch errors, reboot/uptime regression, stale snapshots, deadline misses,
 increased BLE allocation fallback/HCI drops, heap below the versioned limits,
-stack below 1536 bytes, PSRAM free below 128 KiB or largest block below 64 KiB,
+stack below 1536 bytes, PSRAM free below 128 KiB or largest block below 68 KiB,
 or a sustained internal largest-block loss over 16 KiB. Zero values are retained
 and fail the limits; missing, invalid or unavailable required samples fail.
 Control, scale-worker and BLE-host stack samples are required in every snapshot.

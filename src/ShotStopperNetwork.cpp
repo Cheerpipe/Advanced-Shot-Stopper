@@ -62,6 +62,9 @@ struct NetworkWorkBuf {
   char statusJson[kStatusJson]{};
   char presetsJson[kPresetsJson]{};
   char historyJson[kHistoryJson]{};
+  // One-curve JSON scratch for the status page and the shots-list rows, kept
+  // off the 8 KiB internal httpd stack like every other large JSON body.
+  char curveJson[SHOT_CURVE_JSON_CAPACITY]{};
   // Exclusive handlers under the work-buffer mutex: record/CSV items, the
   // activation-history page, and OTA JSON are never live together.
   // Status/presets/history remain separate.
@@ -85,7 +88,7 @@ struct NetworkWorkBuf {
   char requestBody[2048]{};
   WifiScanSnapshot wifiScan{};
 };
-static_assert(sizeof(NetworkWorkBuf) <= 65536,
+static_assert(sizeof(NetworkWorkBuf) <= 69632,
               "Network workspace exceeds its external-memory budget");
 
 // Wi-Fi scan snapshots. Network task / httpd only; not BLE.

@@ -581,8 +581,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           control.shotCurveEndedCg, control.shotCurveWeightCg,
           sizeof(control.shotCurveWeightCg) /
               sizeof(control.shotCurveWeightCg[0]));
-      char curveJson[SHOT_CURVE_JSON_CAPACITY] = {};
-      if (formatShotCurveJsonBody(curveJson, sizeof(curveJson), curve)) {
+      char *const curveJson = g_work->curveJson;
+      if (formatShotCurveJsonBody(curveJson, SHOT_CURVE_JSON_CAPACITY,
+                                  curve)) {
         ok = statusJsonAppend(&used, ",\"shotCurve\":{%s}", curveJson);
       }
     }

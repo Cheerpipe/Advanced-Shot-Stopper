@@ -1046,12 +1046,13 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
     if (curve == nullptr) {
       curve = &emptyCurve;
     }
-    char curveJson[SHOT_CURVE_JSON_CAPACITY] = {};
+    char *const curveJson = work.curveJson;
     char alphaJson[5] = "null";
     const unsigned alpha = shotLogBbwAlpha(record);
     if (alpha) snprintf(alphaJson, sizeof(alphaJson), "%u.%02u", alpha / 100, alpha % 100);
-    if (!formatShotCurveJsonBody(curveJson, sizeof(curveJson), *curve) &&
-        !formatShotCurveJsonBody(curveJson, sizeof(curveJson), emptyCurve)) {
+    if (!formatShotCurveJsonBody(curveJson, SHOT_CURVE_JSON_CAPACITY, *curve) &&
+        !formatShotCurveJsonBody(curveJson, SHOT_CURVE_JSON_CAPACITY,
+                                 emptyCurve)) {
       // Keep the row JSON parseable; an empty curve beats a broken page.
       curveJson[0] = '\0';
     }

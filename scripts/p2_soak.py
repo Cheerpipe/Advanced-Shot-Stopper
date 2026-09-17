@@ -276,7 +276,9 @@ def parser() -> argparse.ArgumentParser:
                         dest="min_stack_bytes", type=int, default=1536,
                         help="Minimum stack bytes; --min-stack-words is a legacy byte-valued alias")
     result.add_argument("--min-psram-free", type=int, default=128 * 1024)
-    result.add_argument("--min-psram-largest", type=int, default=64 * 1024)
+    # Must stay at or above sizeof(NetworkWorkBuf), the largest single PSRAM
+    # allocation, so the largest free block always covers it.
+    result.add_argument("--min-psram-largest", type=int, default=68 * 1024)
     result.add_argument("--require-task", action="append", default=[],
                         help="Require this task in every running profiler snapshot (repeatable)")
     result.add_argument("--self-test", action="store_true")
