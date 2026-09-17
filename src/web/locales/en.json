@@ -330,7 +330,6 @@
     "history.close": "×",
     "history.down": "↓",
     "history.dur": "Duration",
-    "history.every_confirmed_activation": "Every confirmed machine activation is kept here: shots, rinses, and short runs. An activation only counts as a shot when it outlasts the brew-by-weight protection window.",
     "history.loading": "Loading…",
     "history.newest_first": "Newest first",
     "history.sort_history": "Sort history",
