@@ -26,6 +26,20 @@ void publishControlGate() {
   next.maintenanceLeaseActive = maintenanceLease.active;
   next.maintenanceLeaseId = maintenanceLease.active ? maintenanceLease.id : 0;
   next.source = session.active ? session.source : ControlSource::NONE;
+  // Single writer on the control task: an unchanged gate needs no commit —
+  // readers keep the identical value and the RF gate setter is idempotent.
+  if (publishedControlGate.bootState == next.bootState &&
+      publishedControlGate.state == next.state &&
+      publishedControlGate.activeCycle == next.activeCycle &&
+      publishedControlGate.relayClosed == next.relayClosed &&
+      publishedControlGate.machineRunning == next.machineRunning &&
+      publishedControlGate.physicalActivatorOn == next.physicalActivatorOn &&
+      publishedControlGate.maintenanceLeaseActive ==
+          next.maintenanceLeaseActive &&
+      publishedControlGate.maintenanceLeaseId == next.maintenanceLeaseId &&
+      publishedControlGate.source == next.source) {
+    return;
+  }
   {
     TaskLockGuard lock(controlGateMutex);
     publishedControlGate = next;
