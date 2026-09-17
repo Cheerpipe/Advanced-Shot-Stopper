@@ -1,7 +1,9 @@
 # Quick rinse
 
 A firmware **rinse** keeps the group on for a configured duration, then turns
-it off. It is not a shot: no history, no last-shot overwrite, no A→M samples.
+it off. It is not a shot: no shot history, no last-shot overwrite, no A→M
+samples. Rinses do land in the [activation history](../features/activation-history.md)
+as `rinse` entries.
 
 The rinse duration counts from the moment the group starts running. When a
 running shot is demoted to a rinse (a paddle flip OFF inside the gesture

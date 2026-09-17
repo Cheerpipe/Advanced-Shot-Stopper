@@ -27,7 +27,6 @@ constexpr int32_t HOST_NVS_NOT_ENOUGH_SPACE = -1001;
 enum class NvsSubsystem : uint8_t {
   UNKNOWN = 0,
   SETTINGS,
-  SHOT_HISTORY,
   LAST_SHOT,
   BLE_SCAN,
   RESET_HISTORY,
@@ -70,7 +69,6 @@ struct NvsDiagnosticSnapshot {
 inline const char *nvsSubsystemName(NvsSubsystem subsystem) {
   switch (subsystem) {
     case NvsSubsystem::SETTINGS: return "settings";
-    case NvsSubsystem::SHOT_HISTORY: return "shotHistory";
     case NvsSubsystem::LAST_SHOT: return "lastShot";
     case NvsSubsystem::BLE_SCAN: return "bleScan";
     case NvsSubsystem::RESET_HISTORY: return "resetHistory";

@@ -731,6 +731,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !partialHtml.history.includes('id="clearHistoryButton"') ||
     !partialHtml.history.includes('btnGlyph btnInvert') ||
     !css.includes('#historyTable{') ||
+    !css.includes('#historySentinel{min-height:1px') ||
     !css.includes('#historyTable td[colspan]') ||
     !css.includes('.histBadge{') ||
     !css.includes('.histBadgeShot') ||

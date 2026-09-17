@@ -7,7 +7,7 @@ credentials. Firmware on the flash is not erased.
 
 Wi-Fi (STA and last-known-good network), workflow settings, presets,
 calibration (including learned offset and A→M samples), preferred scale,
-shot history, last completed shot, and last
+shot history, activation history, last completed shot, and last
 qualifying-good shot. The device
 password returns to **`ineedacoffee`**. The device then restarts.
 
@@ -48,8 +48,9 @@ successfully. See [Scales](scales.md), [AP](ap.md), and the
 ## If reset fails
 
 Before changing settings, factory reset writes a durable recovery intent. If
-that write fails specifically because NVS is full, it removes only shot-history
-and both last-shot aggregates, retries the intent once, and then performs the full reset.
+that write fails specifically because NVS is full, it removes only the stored
+last-shot aggregates, retries the intent once, and then performs the full reset
+(which itself clears the flash-backed shot and activation histories).
 Timeouts, corruption, and other storage errors do not trigger this space
 recovery. If the intent still cannot be saved, settings remain unchanged and
 the controller does not restart. Check **Diagnostic → NVS** for capacity and

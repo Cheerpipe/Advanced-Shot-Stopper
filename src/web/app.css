@@ -240,6 +240,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err drop drop ended ended" "shot shot preset preset rate rate"}
 #historyPanel .btnBar{position:sticky;top:var(--hdr);z-index:6;background:var(--sf);margin:0 0 .75rem;padding:.25rem 0}
 #historyTableWrap{margin:.5rem 0}
+#historySentinel{min-height:1px}
 #historyTable{width:100%;border-collapse:collapse;font-size:.82rem}
 #historyTable thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 #historyTable,#historyTable tbody{display:block}

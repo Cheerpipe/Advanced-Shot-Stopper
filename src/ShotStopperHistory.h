@@ -166,6 +166,7 @@ class HistoryLog {
     const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
     const uint16_t previousWriteIndex = store_.header.writeIndex;
     const uint16_t previousCount = store_.header.count;
+    const uint32_t previousNextRecordId = store_.header.nextRecordId;
     const HistoryRecord overwritten = store_.records[previousWriteIndex];
 
     HistoryRecord stored = record;
@@ -193,9 +194,7 @@ class HistoryLog {
     store_.records[previousWriteIndex] = overwritten;
     store_.header.writeIndex = previousWriteIndex;
     store_.header.count = previousCount;
-    if (store_.header.nextRecordId > 1) {
-      --store_.header.nextRecordId;
-    }
+    store_.header.nextRecordId = previousNextRecordId;
     return false;
   }
 
