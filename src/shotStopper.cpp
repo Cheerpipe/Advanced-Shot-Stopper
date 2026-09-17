@@ -373,7 +373,9 @@ HistoryLog &historyLog = activationStores.historyLog;
 // every durable write remains owned by the existing store/flash path.
 TaskMutex shotStoreMutex;
 ShotCurveSampler shotCurveSampler;
-LastShotStore lastShotStore;
+// Same PSRAM-safe working-copy contract as ActivationStores above: NVS I/O
+// goes through the internal flash scratch and mutations hold shotStoreMutex.
+SHOT_STOPPER_PSRAM_BSS LastShotStore lastShotStore;
 const PersistedLastShot &persistedLastShot = lastShotStore.get();
 const PersistedLastShot &persistedLastGoodShot = lastShotStore.getGood();
 bool lastShotNvsDirty = false;
