@@ -477,12 +477,15 @@ void loop() {
     loopIntervalGapMs = healthIntervalMaxGapMs;
     healthIntervalMaxGapMs = 0;
   }
-  pushActivatorDrivePermission();
+  // One link snapshot per iteration; the two event drains below keep their
+  // own fresh fetch by contract and must not take this copy.
+  const ScaleLinkSnapshot loopScaleLink = getScaleLinkSnapshot();
+  pushActivatorDrivePermission(loopScaleLink);
   machineSampleInput();
   processScaleWorkerEvents();
-  observeMachineSenseFromSession();
+  observeMachineSenseFromSession(loopScaleLink);
   serviceMachine();
-  captureLoopGuards();
+  fillLoopGuardsFromIntention(machinePollIntention(), loopScaleLink);
   const MachineIntention powerIntention = machineLastIntention();
   serviceNoScaleShotGuard(loopGuardInputs);
   serviceCupStartGuard(loopGuardInputs);
@@ -504,15 +507,16 @@ void loop() {
   processWebCommands();
   taskProfiler.service(millis());
   serviceControlCommandResult();
-  serviceRuntimePersistence();
+  serviceRuntimePersistence(loopScaleLink);
   serviceShotStorePersistence();
   servicePreferredScaleMacPersistence();
   serviceMaintenanceLease();
   servicePowerManagement(powerIntention.turnedOn || powerIntention.turnedOff);
   servicePendingResetHistoryClear();
   servicePendingPlannedRestart();
+  serviceWeightStreamTelemetry(loopScaleLink);
   serviceControlStatusPublish();
-  serviceScaleConnectedLed();
+  serviceScaleConnectedLed(loopScaleLink);
   if (!feedCurrentTaskWatchdog()) {
     reportTaskWatchdogFault();
     tripRelaySafety(RelaySafetyFault::TASK_WATCHDOG_FAILURE);

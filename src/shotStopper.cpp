@@ -1520,8 +1520,9 @@ void noteRecoverableStaleTransition(WeightStreamState previous,
   }
 }
 
-bool currentWeightIsFresh(uint32_t now = millis()) {
-  const uint32_t linkGeneration = getScaleLinkSnapshot().connectionGeneration;
+bool currentWeightIsFresh(uint32_t now = millis(),
+                          const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
+  const uint32_t linkGeneration = link.connectionGeneration;
   return currentWeightSequence > 0 && std::isfinite(currentWeight) &&
          currentWeight >= MIN_AUTOMATION_WEIGHT_G &&
          currentWeight <= MAX_AUTOMATION_WEIGHT_G &&
@@ -1532,8 +1533,9 @@ bool currentWeightIsFresh(uint32_t now = millis()) {
              MAX_AUTOMATION_WEIGHT_AGE_MS;
 }
 
-bool observedWeightIsFresh(uint32_t now = millis()) {
-  const uint32_t linkGeneration = getScaleLinkSnapshot().connectionGeneration;
+bool observedWeightIsFresh(uint32_t now = millis(),
+                           const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
+  const uint32_t linkGeneration = link.connectionGeneration;
   return observedWeightSequence > 0 && std::isfinite(observedWeight) &&
          fabsf(observedWeight) <= MAX_PARSED_WEIGHT_G &&
          observedWeightConnectionGeneration != 0 &&
@@ -1543,20 +1545,20 @@ bool observedWeightIsFresh(uint32_t now = millis()) {
              MAX_AUTOMATION_WEIGHT_AGE_MS;
 }
 
-WeightStreamState observedWeightStreamStateAt(uint32_t now) {
+WeightStreamState observedWeightStreamStateAt(uint32_t now,
+                                              const ScaleLinkSnapshot &link) {
   if (observedWeightSequence == 0) {
     return WeightStreamState::NO_SAMPLE;
   }
-  if (!observedWeightIsFresh(now)) {
+  if (!observedWeightIsFresh(now, link)) {
     return WeightStreamState::STALE;
   }
   return weightStreamState;
 }
 
-void serviceWeightStreamTelemetry() {
+void serviceWeightStreamTelemetry(const ScaleLinkSnapshot &link) {
   const uint32_t now = millis();
-  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
-  const WeightStreamState next = observedWeightStreamStateAt(now);
+  const WeightStreamState next = observedWeightStreamStateAt(now, link);
   noteRecoverableStaleTransition(telemetryWeightStreamState, next, link, now);
   telemetryWeightStreamState = next;
 }
@@ -1777,28 +1779,28 @@ void initializeScaleConnectedLed() {
   scaleConnectedLedInitialized = true;
 }
 
-ScaleConnectedLedPattern desiredScaleConnectedLedPattern() {
+ScaleConnectedLedPattern desiredScaleConnectedLedPattern(
+    const ScaleLinkSnapshot &link) {
   if (!runtimeConfig.scaleConnectedLed) {
     return ScaleConnectedLedPattern::OFF;
   }
-  const ScaleLinkSnapshot snapshot = getScaleLinkSnapshot();
-  if (snapshot.state == ScaleLinkState::CONNECTED) {
-    if (observedWeightStreamStateAt(millis()) == WeightStreamState::STALE) {
+  if (link.state == ScaleLinkState::CONNECTED) {
+    if (observedWeightStreamStateAt(millis(), link) == WeightStreamState::STALE) {
       return ScaleConnectedLedPattern::SLOW_BLINK;
     }
     return ScaleConnectedLedPattern::SOLID;
   }
-  if (snapshot.connecting) {
+  if (link.connecting) {
     return ScaleConnectedLedPattern::FAST_BLINK;
   }
   return ScaleConnectedLedPattern::OFF;
 }
 
-void serviceScaleConnectedLed() {
+void serviceScaleConnectedLed(const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
   if (!SCALE_STATUS_LED_PRESENT) {
     return;
   }
-  const ScaleConnectedLedPattern pattern = desiredScaleConnectedLedPattern();
+  const ScaleConnectedLedPattern pattern = desiredScaleConnectedLedPattern(link);
   const uint32_t now = millis();
   bool on = false;
   uint32_t periodMs = 0;

@@ -698,7 +698,7 @@ void copyDebugExportExtras(DebugExportExtras &out,
 
 GuardInputs loopGuardInputs;
 
-void observeMachineSenseFromSession() {
+void observeMachineSenseFromSession(const ScaleLinkSnapshot &link) {
   MachineSense sense;
   if (session.active && session.hasWeightAnchor &&
       std::isfinite(session.lastAcceptedWeightG)) {
@@ -710,7 +710,7 @@ void observeMachineSenseFromSession() {
     sense.weightG = currentWeight;
     sense.weightSequence = currentWeightSequence;
   }
-  sense.weightFresh = observedWeightIsFresh();
+  sense.weightFresh = observedWeightIsFresh(millis(), link);
   sense.accidentalHold = session.accidentalTouchHolding;
   sense.brewCycleActive = session.active;
   sense.firstDropSeen = session.firstDropMs != 0;
@@ -720,14 +720,14 @@ void observeMachineSenseFromSession() {
   machineObserveSense(sense);
 }
 
-void fillLoopGuardsFromIntention(const MachineIntention &intention) {
+void fillLoopGuardsFromIntention(const MachineIntention &intention,
+                                 const ScaleLinkSnapshot &link) {
   loopGuardInputs.holdActive = intention.holdActive;
   loopGuardInputs.physicalOn = intention.physicalOn;
   loopGuardInputs.stablyOff = intention.stablyOff;
-  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   loopGuardInputs.scaleAvailable = scaleLinkAvailable(link);
   loopGuardInputs.scaleUsable =
-      loopGuardInputs.scaleAvailable && currentWeightIsFresh();
+      loopGuardInputs.scaleAvailable && currentWeightIsFresh(millis(), link);
   loopGuardInputs.cup = cupPresenceIsKnown() ? cupPresenceState()
                                             : CupPresenceState::ABSENT;
   loopGuardInputs.currentWeightG = currentWeight;
@@ -736,17 +736,14 @@ void fillLoopGuardsFromIntention(const MachineIntention &intention) {
   loopGuardInputs.blockedHoldTimeoutMs = runtimeConfig.rinseGestureMs;
 }
 
-void captureLoopGuards() {
-  fillLoopGuardsFromIntention(machinePollIntention());
+void refreshLoopGuardsFromLastIntention(
+    const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
+  fillLoopGuardsFromIntention(machineLastIntention(), link);
 }
 
-void refreshLoopGuardsFromLastIntention() {
-  fillLoopGuardsFromIntention(machineLastIntention());
-}
-
-void pushActivatorDrivePermission() {
+void pushActivatorDrivePermission(const ScaleLinkSnapshot &link) {
   serviceIdleTare();
-  refreshLoopGuardsFromLastIntention();
+  refreshLoopGuardsFromLastIntention(link);
   machineSetActivatorDriveAllowed(
       session.active || !guardsWouldBlockActivatorDrive(loopGuardInputs));
 }

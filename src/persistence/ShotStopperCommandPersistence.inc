@@ -659,7 +659,8 @@ void serviceShotStorePersistence() {
               : 0;
 }
 
-void serviceRuntimePersistence() {
+void serviceRuntimePersistence(
+    const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
 #ifndef SHOT_STOPPER_HOST_TEST
   serviceSettingsPersistResult();
   serviceBleScanPersistResult();
@@ -667,7 +668,6 @@ void serviceRuntimePersistence() {
   settingsPersistMux.lock();
   inFlight = settingsPersistInFlight;
   settingsPersistMux.unlock();
-  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   if (!runtimePersistPending || inFlight || maintenanceLease.active ||
       static_cast<int32_t>(millis() - runtimePersistRetryAtMs) < 0 ||
       !controlAllowsConfigurationNow() ||
@@ -686,7 +686,6 @@ void serviceRuntimePersistence() {
     }
     return;
   }
-  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   if (!runtimePersistPending || maintenanceLease.active ||
       static_cast<int32_t>(millis() - runtimePersistRetryAtMs) < 0 ||
       !controlAllowsConfigurationNow() ||

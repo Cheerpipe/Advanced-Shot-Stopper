@@ -496,10 +496,11 @@ void ShotStopperNetwork::service() {
   serviceWifiScan(now);
 
   const NetworkStatusSnapshot networkSnapshot = snapshot();
+  // serviceStaState already reconciled staState against the WiFi driver
+  // earlier in this pass; re-reading WiFi.status() here just repeats it.
   const bool staConnected =
       networkSnapshot.staState == StaState::CONNECTED &&
-      networkSnapshot.wifiConfigured && WiFi.status() == WL_CONNECTED &&
-      networkSnapshot.staIp[0] != '\0';
+      networkSnapshot.wifiConfigured && networkSnapshot.staIp[0] != '\0';
   serviceNtp(now, staConnected);
 
   const uint8_t apClients = networkSnapshot.apActive
@@ -510,7 +511,12 @@ void ShotStopperNetwork::service() {
   status_.apClients = apClients;
   dataMux_.unlock();
   serviceSoftApIdle(now);
-  refreshExtendedStatus(now);
+  if (extendedStatusAtMs_ == 0 ||
+      static_cast<uint32_t>(now - extendedStatusAtMs_) >=
+          NETWORK_EXTENDED_STATUS_INTERVAL_MS) {
+    extendedStatusAtMs_ = now;
+    refreshExtendedStatus(now);
+  }
 
   // Gate check is a 16-byte ControlGateSnapshot, not the 4 KiB status
   // snapshot. Do not reintroduce a stack copy here: httpd_stop() / LwIP

@@ -771,7 +771,10 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     if (status.apActive && !apKeepRequested_) {
       stopSoftApKeepStation();
     }
-    {
+    if (!status.staLinkMetricsValid || staRssiSampledAtMs_ == 0 ||
+        static_cast<uint32_t>(now - staRssiSampledAtMs_) >=
+            STA_RSSI_SAMPLE_INTERVAL_MS) {
+      staRssiSampledAtMs_ = now;
       const int32_t rssi = WiFi.RSSI();
       dataMux_.lock();
       status_.staLinkMetricsValid = true;
@@ -845,6 +848,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       status_.windowRemainingMs = 0;
       copyCString(status_.staBssid, sizeof(status_.staBssid), bssidText);
       dataMux_.unlock();
+      staRssiSampledAtMs_ = now;
       log(DebugCategory::NETWORK, DebugCode::STA_CONNECTED);
       lifecycleLogf("WiFi STA connected; IP: %s bssid=%s rssi=%ld http=%s",
                     address, bssidText[0] != '\0' ? bssidText : "-",

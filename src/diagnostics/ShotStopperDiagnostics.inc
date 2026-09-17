@@ -40,9 +40,9 @@ void publishControlStatus() {
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
   const ScaleLinkSnapshot scaleLink = getScaleLinkSnapshot();
   const MachineStatusSample machine = machineSampleStatus();
-  serviceWeightStreamTelemetry();
+  serviceWeightStreamTelemetry(scaleLink);
   const bool weightFresh =
-      scaleLinkAvailable(scaleLink) && currentWeightIsFresh(now);
+      scaleLinkAvailable(scaleLink) && currentWeightIsFresh(now, scaleLink);
   // Gather other owners before locking publication. Waiting for one producer
   // must not prevent readers from using the last committed control snapshot.
   char preferredMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
@@ -317,7 +317,6 @@ void refreshControlStatus() {
 
 void serviceControlStatusPublish() {
   publishControlGate();
-  serviceWeightStreamTelemetry();
   const RelaySafetySnapshot relaySnap = getRelaySafetySnapshot();
   const bool requested =
       __atomic_load_n(&controlStatusPublishRequested, __ATOMIC_ACQUIRE);

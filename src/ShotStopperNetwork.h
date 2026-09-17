@@ -268,6 +268,11 @@ class ShotStopperNetwork {
   static constexpr uint32_t MAINTENANCE_PUBLICATION_TIMEOUT_MS = 2000;
   static constexpr uint32_t HTTP_RETRY_MS = 1000;
   static constexpr uint32_t WIFI_PS_RETRY_MS = 1000;
+  // Display-only status fields (extended status, steady-state RSSI) refresh at
+  // 1 s from the 20 Hz service pass; connect/disconnect edges still update
+  // link metrics immediately.
+  static constexpr uint32_t NETWORK_EXTENDED_STATUS_INTERVAL_MS = 1000;
+  static constexpr uint32_t STA_RSSI_SAMPLE_INTERVAL_MS = 1000;
   static constexpr uint32_t HEALTH_TELEMETRY_INTERVAL_MS = 5000;
   static constexpr uint32_t NETWORK_STOP_TIMEOUT_MS = 5000;
   static constexpr uint8_t COMMAND_MAX_ATTEMPTS = 5;
@@ -358,6 +363,8 @@ class ShotStopperNetwork {
   uint8_t lastApClients_ = 0;
   uint32_t staConnectStartedAtMs_ = 0;
   uint32_t staReconnectAttemptAtMs_ = 0;
+  uint32_t extendedStatusAtMs_ = 0;
+  uint32_t staRssiSampledAtMs_ = 0;
   uint32_t staConfirmDeadlineMs_ = 0;
   uint32_t restartRequestedAtMs_ = 0;
   bool ntpStarted_ = false;
