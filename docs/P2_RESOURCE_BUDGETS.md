@@ -15,17 +15,19 @@ requires explicit architecture and resource review.
 The current baselines were measured with ESP-IDF 6.1, its GCC 15.2 toolchain,
 and the qualified `CONFIG_FREERTOS_IN_IRAM=y` build profile.
 
-Both linker maps must also keep external BSS at or below 96 KiB and retain
+Both linker maps must also keep external BSS at or below 104 KiB and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
 objects to PSRAM would move synchronization state accessed under spinlocks.
+The 96→104 KiB external-BSS raise covers the V3 half-second shot-curve store,
+which doubles the per-shot weight series retained in PSRAM.
 
 ## Runtime placement and allocation
 
 | Resource | Placement and bound |
 |---|---|
 | Network work buffer | external, at most 64 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex |
-| Shot-curve store | external, 17,780 bytes for 120 V2 records; the Network work buffer may hold one separate 17,760-byte read copy within its 64 KiB total bound |
-| Shared flash-I/O scratch | internal heap, 18 KiB; one owner at a time under the flash-I/O lock, with no PSRAM fallback |
+| Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 64 KiB total bound |
+| Shared flash-I/O scratch | internal heap, 26,880 bytes; one owner at a time under the flash-I/O lock, with no PSRAM fallback |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
 | Settings handoff | one 2620-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
@@ -42,8 +44,8 @@ settings and command layouts are unchanged.
 
 Settings V12 changes byte meanings through explicit migration without growing
 its blob. History V5 grows each record from 48 to 72 bytes to retain an exact
-24-byte preset-name snapshot; the 120-record store remains below the shared
-18 KiB flash-I/O scratch limit. The separate last-shot V4 record also retains
+24-byte preset-name snapshot; the 100-record store remains below the shared
+26,880-byte flash-I/O scratch limit. The separate last-shot V4 record also retains
 bounded preset provenance. Web gzip is capped at 66,400 bytes combined:
 500 bytes of the shell-JS allowance are reassigned to runtime (5,444 and 32,000
 bytes respectively before the PM allocation below). Source authoring limits are
@@ -91,10 +93,10 @@ allowance for revision/value readback and pending/failed persistence checks;
 it does not raise compressed-asset limits.
 
 Both supported partition tables reserve a dedicated `shotcurve` data partition
-at custom subtype `0x40`, exactly `0xA000` (40 KiB). It contains two
-erase-aligned `0x5000` (20 KiB) slots, so the 17,780-byte store retains 2,700
-bytes of per-slot headroom. On n8r4 it occupies `0x680000`–`0x689FFF`; on n16r8
-it occupies `0x620000`–`0x629FFF`. The following filesystem region is reduced
+at custom subtype `0x40`, exactly `0xE000` (56 KiB). It contains two
+erase-aligned `0x7000` (28 KiB) slots, so the 26,820-byte store retains 1,852
+bytes of per-slot headroom. On n8r4 it occupies `0x680000`–`0x68DFFF`; on n16r8
+it occupies `0x620000`–`0x62DFFF`. The following filesystem region is reduced
 without moving either OTA application or the coredump endpoint.
 
 Capability samples use `INTERNAL|8BIT` and `SPIRAM|8BIT`, including the PSRAM

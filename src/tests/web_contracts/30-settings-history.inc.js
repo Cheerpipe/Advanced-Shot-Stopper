@@ -640,7 +640,7 @@ if (!js.includes('function commandOkMessage(') ||
   }
 }
 if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
-    !runtimeJs.includes('SHOTS_EXPORT_LIMIT=120') ||
+    !runtimeJs.includes('SHOTS_EXPORT_LIMIT=100') ||
     !runtimeJs.includes("shotsUrl(offset,limit)") ||
     !runtimeJs.includes("'/api/v1/shots?offset='") ||
     !runtimeJs.includes("fetchShotPage(0,SHOTS_PAGE_SIZE,'replace')") ||

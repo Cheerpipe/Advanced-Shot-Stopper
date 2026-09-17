@@ -174,20 +174,20 @@ partition_contracts = {
         "flash": 0x1000000,
         "rows": {"nvs": (0x9000, 0x15000), "otadata": (0x1E000, 0x2000),
                  "app0": (0x20000, 0x300000), "app1": (0x320000, 0x300000),
-                 "shotcurve": (0x620000, 0xA000),
-                 "shotlog": (0x62A000, 0x8000),
-                 "history": (0x632000, 0x8000),
-                 "ffat": (0x63A000, 0x9B6000),
+                 "shotcurve": (0x620000, 0xE000),
+                 "shotlog": (0x62E000, 0x8000),
+                 "history": (0x636000, 0x8000),
+                 "ffat": (0x63E000, 0x9B2000),
                  "coredump": (0xFF0000, 0x10000)},
     },
     "partitions-n8r4.csv": {
         "flash": 0x800000,
         "rows": {"nvs": (0x9000, 0x15000), "otadata": (0x1E000, 0x2000),
                  "app0": (0x20000, 0x330000), "app1": (0x350000, 0x330000),
-                 "shotcurve": (0x680000, 0xA000),
-                 "shotlog": (0x68A000, 0x8000),
-                 "history": (0x692000, 0x8000),
-                 "spiffs": (0x69A000, 0x156000),
+                 "shotcurve": (0x680000, 0xE000),
+                 "shotlog": (0x68E000, 0x8000),
+                 "history": (0x696000, 0x8000),
+                 "spiffs": (0x69E000, 0x152000),
                  "coredump": (0x7F0000, 0x10000)},
     },
 }
@@ -201,7 +201,7 @@ for filename, contract in partition_contracts.items():
         assert offset + size <= next_offset, f"partition overlap in {filename}"
     last_offset, last_size = ordered[-1][1]
     assert last_offset + last_size == contract["flash"]
-    assert rows["shotcurve"][1] == 40 * 1024, "shot-curve partition changed"
+    assert rows["shotcurve"][1] == 56 * 1024, "shot-curve partition changed"
     assert rows["shotlog"][1] == 32 * 1024, "shot-log partition changed"
     assert rows["history"][1] == 32 * 1024, "activation-history partition changed"
 
@@ -629,7 +629,7 @@ def flash_command(layout: str, *extra: str, arch: str = "n8r4"):
             "offset = '0x620000' if offset == '0x680000' else '0x680000'\n"
             "part_type = 'app' if os.environ['FLASH_LAYOUT'] == 'type' else 'data'\n"
             "subtype = '65' if os.environ['FLASH_LAYOUT'] == 'subtype' else '64'\n"
-            "size = '36K' if os.environ['FLASH_LAYOUT'] == 'size' else '40K'\n"
+            "size = '36K' if os.environ['FLASH_LAYOUT'] == 'size' else '56K'\n"
             "curve = '' if os.environ['FLASH_LAYOUT'] == 'missing' else "
             "f'shotcurve,{part_type},{subtype},{offset},{size}\\n'\n"
             "Path(sys.argv[-1]).write_text('nvs,data,nvs,0x9000,0x15000\\n'"

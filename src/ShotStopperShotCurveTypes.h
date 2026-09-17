@@ -1,6 +1,6 @@
 #pragma once
 
-// Compact per-shot weight sparkline (1 s grid + event vertices, RAM sampler +
+// Compact per-shot weight sparkline (0.5 s grid + event vertices, RAM sampler +
 // flash sidecar). Not stored in NVS ShotLogRecord (locked at 48 bytes).
 
 #include "ShotStopperShotLogTypes.h"
@@ -14,13 +14,16 @@
 namespace shotstopper {
 
 constexpr uint32_t SHOT_CURVE_MAGIC = 0x53435256U;  // "SCRV"
-// V2 intentionally discards V1 stores; curve history has no migration path.
-constexpr uint16_t SHOT_CURVE_SCHEMA_VERSION = 2;
-constexpr uint32_t SHOT_CURVE_INTERVAL_MS = 1000;
-constexpr uint8_t SHOT_CURVE_INTERVAL_S = 1;
-// 0 + 60×1 s covers HARD_MAX_CIRCUIT_CLOSED_MS (60 s).
-constexpr size_t SHOT_CURVE_MAX_POINTS = 61;
+// V3 intentionally discards older stores; curve history has no migration path.
+constexpr uint16_t SHOT_CURVE_SCHEMA_VERSION = 3;
+constexpr uint32_t SHOT_CURVE_INTERVAL_MS = 500;
+constexpr uint8_t SHOT_CURVE_INTERVAL_DS = 5;
+// 0 + 120×0.5 s covers HARD_MAX_CIRCUIT_CLOSED_MS (60 s).
+constexpr size_t SHOT_CURVE_MAX_POINTS = 121;
 constexpr size_t SHOT_CURVE_CAPACITY = SHOT_LOG_CAPACITY;
+// Worst-case one-curve JSON body: 121 points × 7 chars ("-32768,") plus the
+// interval and event-metric fields. Shared by the status and shots-list rows.
+constexpr size_t SHOT_CURVE_JSON_CAPACITY = 1280;
 
 struct ShotCurveEvent {
   uint16_t atDs;
@@ -45,7 +48,7 @@ inline bool shotCurveEventPresent(const ShotCurveEvent &event) {
 struct ShotCurveRecord {
   uint32_t shotId;
   uint8_t count;
-  uint8_t intervalS;
+  uint8_t intervalDs;
   uint16_t atmClearedDs;
   ShotCurveEvent firstDrop;
   ShotCurveEvent extended;
@@ -56,7 +59,7 @@ struct ShotCurveRecord {
 
 inline ShotCurveRecord emptyShotCurveRecord() {
   ShotCurveRecord curve = {};
-  curve.intervalS = SHOT_CURVE_INTERVAL_S;
+  curve.intervalDs = SHOT_CURVE_INTERVAL_DS;
   curve.atmClearedDs = SHOT_LOG_METRIC_MISSING;
   curve.firstDrop = missingShotCurveEvent();
   curve.extended = missingShotCurveEvent();
@@ -65,7 +68,7 @@ inline ShotCurveRecord emptyShotCurveRecord() {
   return curve;
 }
 
-static_assert(sizeof(ShotCurveRecord) == 148,
+static_assert(sizeof(ShotCurveRecord) == 268,
               "ShotCurveRecord packing is part of the flash sidecar schema");
 
 struct ShotCurveHeader {
@@ -90,7 +93,7 @@ static_assert(sizeof(ShotCurveStore) ==
                   sizeof(ShotCurveHeader) +
                       sizeof(ShotCurveRecord) * SHOT_CURVE_CAPACITY,
               "ShotCurveStore size must stay within FLASH_IO_SCRATCH_BYTES");
-static_assert(sizeof(ShotCurveStore) == 17780,
+static_assert(sizeof(ShotCurveStore) == 26820,
               "ShotCurveStore packing is part of the flash sidecar schema");
 
 inline uint32_t shotCurveChecksum(const ShotCurveStore &store) {
@@ -303,7 +306,7 @@ struct ShotCurveSampler {
     ShotCurveRecord record = {};
     record.shotId = shotId;
     record.count = count;
-    record.intervalS = SHOT_CURVE_INTERVAL_S;
+    record.intervalDs = SHOT_CURVE_INTERVAL_DS;
     record.atmClearedDs = atmClearedDs;
     record.firstDrop = firstDrop;
     record.extended = extended;
@@ -329,9 +332,8 @@ inline bool settleShotCurveEndWeight(ShotCurveRecord &curve, float weight) {
   }
   curve.ended.weightCg = cg;
 
-  const uint16_t intervalDs = static_cast<uint16_t>(curve.intervalS) * 10U;
-  if (intervalDs != 0U && curve.ended.atDs % intervalDs == 0U) {
-    const size_t index = curve.ended.atDs / intervalDs;
+  if (curve.intervalDs != 0U && curve.ended.atDs % curve.intervalDs == 0U) {
+    const size_t index = curve.ended.atDs / curve.intervalDs;
     if (index < curve.count && index < SHOT_CURVE_MAX_POINTS) {
       curve.weightCg[index] = cg;
     }
@@ -393,9 +395,10 @@ inline bool formatShotCurveJsonBody(char *out, size_t capacity,
     }
   }
   char piece[40] = {};
-  snprintf(piece, sizeof(piece), "],\"wDtS\":%u",
-           static_cast<unsigned>(curve.intervalS == 0 ? SHOT_CURVE_INTERVAL_S
-                                                      : curve.intervalS));
+  const uint8_t intervalDs =
+      curve.intervalDs == 0 ? SHOT_CURVE_INTERVAL_DS : curve.intervalDs;
+  snprintf(piece, sizeof(piece), "],\"wDtS\":%.1f",
+           static_cast<double>(intervalDs) / 10.0);
   if (!append(piece)) {
     return false;
   }
@@ -432,13 +435,13 @@ inline const ShotCurveRecord *findShotCurveById(const ShotCurveRecord *curves,
 }
 
 inline void copyShotCurveRecordToStatusFields(
-    const ShotCurveRecord &curve, uint8_t &count, uint8_t &intervalS,
+    const ShotCurveRecord &curve, uint8_t &count, uint8_t &intervalDs,
     uint16_t &firstDropDs, int16_t &firstDropCg, uint16_t &extendedDs,
     int16_t &extendedCg, uint16_t &atmDs, int16_t &atmCg,
     uint16_t &atmClearedDs, uint16_t &endedDs, int16_t &endedCg,
     int16_t *weightCg, size_t weightCapacity) {
   count = curve.count;
-  intervalS = curve.intervalS == 0 ? SHOT_CURVE_INTERVAL_S : curve.intervalS;
+  intervalDs = curve.intervalDs == 0 ? SHOT_CURVE_INTERVAL_DS : curve.intervalDs;
   firstDropDs = curve.firstDrop.atDs;
   firstDropCg = curve.firstDrop.weightCg;
   extendedDs = curve.extended.atDs;
@@ -458,7 +461,7 @@ inline void copyShotCurveRecordToStatusFields(
 }
 
 inline ShotCurveRecord shotCurveRecordFromStatusFields(
-    uint8_t count, uint8_t intervalS, uint16_t firstDropDs, int16_t firstDropCg,
+    uint8_t count, uint8_t intervalDs, uint16_t firstDropDs, int16_t firstDropCg,
     uint16_t extendedDs, int16_t extendedCg, uint16_t atmDs, int16_t atmCg,
     uint16_t atmClearedDs, uint16_t endedDs, int16_t endedCg,
     const int16_t *weightCg, size_t weightCount) {
@@ -466,7 +469,7 @@ inline ShotCurveRecord shotCurveRecordFromStatusFields(
   // Clamp at the boundary: weightCg only holds SHOT_CURVE_MAX_POINTS samples,
   // and count arrives from Web-UI status input.
   curve.count = count > SHOT_CURVE_MAX_POINTS ? SHOT_CURVE_MAX_POINTS : count;
-  curve.intervalS = intervalS == 0 ? SHOT_CURVE_INTERVAL_S : intervalS;
+  curve.intervalDs = intervalDs == 0 ? SHOT_CURVE_INTERVAL_DS : intervalDs;
   curve.atmClearedDs = atmClearedDs;
   curve.firstDrop.atDs = firstDropDs;
   curve.firstDrop.weightCg = firstDropCg;

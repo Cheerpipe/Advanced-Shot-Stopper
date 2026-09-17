@@ -334,12 +334,12 @@ app0 only on a readable installed layout.
 ### Partition-layout migrations
 
 An installed 20 KiB NVS layout, or a current layout without the dedicated
-40 KiB `shotcurve` partition or the 32 KiB `shotlog` and `history` partitions,
+56 KiB `shotcurve` partition or the 32 KiB `shotlog` and `history` partitions,
 needs a one-time clean USB installation. A normal flash refuses an incompatible
 layout. **The following erases both firmware
 slots and all saved data:** settings, Wi-Fi credentials and password, recipes
 and presets, calibration, scale preferences, shot history and last shot. There
-is no automatic curve migration; the new one-second curve schema starts empty.
+is no automatic curve migration; the new half-second curve schema starts empty.
 
 ```sh
 ./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \

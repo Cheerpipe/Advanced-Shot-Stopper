@@ -156,8 +156,8 @@ if [[ "$SS_CLI_ERASE_ALL" != "1" && "$installed_layout" == "present" ]]; then
       ! installed_shotcurve_size_bytes="$(size_bytes "$installed_shotcurve_size")" ||
       (( installed_shotcurve_subtype_bytes != 0x40 ||
          installed_shotcurve_offset_bytes != required_shotcurve_offset ||
-         installed_shotcurve_size_bytes != 0xA000 )); then
-    printf 'Installed layout lacks the required %s shotcurve partition (data/0x40 at 0x%X, size 40960).\n' \
+         installed_shotcurve_size_bytes != 0xE000 )); then
+    printf 'Installed layout lacks the required %s shotcurve partition (data/0x40 at 0x%X, size 57344).\n' \
       "$SHOTSTOPPER_ARCH" "$required_shotcurve_offset" >&2
     echo 'Re-run with --erase-all to migrate the partition layout. This destroys all saved data.' >&2
     exit 1

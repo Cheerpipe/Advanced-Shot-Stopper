@@ -573,7 +573,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(control.cupTare.placementId));
     if (ok) {
       const ShotCurveRecord curve = shotCurveRecordFromStatusFields(
-          control.shotCurveCount, control.shotCurveIntervalS,
+          control.shotCurveCount, control.shotCurveIntervalDs,
           control.shotCurveFirstDropDs, control.shotCurveFirstDropCg,
           control.shotCurveExtendedDs, control.shotCurveExtendedCg,
           control.shotCurveAtmDs, control.shotCurveAtmCg,
@@ -581,7 +581,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           control.shotCurveEndedCg, control.shotCurveWeightCg,
           sizeof(control.shotCurveWeightCg) /
               sizeof(control.shotCurveWeightCg[0]));
-      char curveJson[768] = {};
+      char curveJson[SHOT_CURVE_JSON_CAPACITY] = {};
       if (formatShotCurveJsonBody(curveJson, sizeof(curveJson), curve)) {
         ok = statusJsonAppend(&used, ",\"shotCurve\":{%s}", curveJson);
       }

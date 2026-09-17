@@ -185,7 +185,7 @@ void publishControlStatus() {
     const ShotCurveRecord curve =
         session.active ? shotCurveSampler.snapshot() : statusLastGoodCurve;
     copyShotCurveRecordToStatusFields(
-        curve, next.shotCurveCount, next.shotCurveIntervalS,
+        curve, next.shotCurveCount, next.shotCurveIntervalDs,
         next.shotCurveFirstDropDs, next.shotCurveFirstDropCg,
         next.shotCurveExtendedDs, next.shotCurveExtendedCg,
         next.shotCurveAtmDs, next.shotCurveAtmCg,

@@ -11,8 +11,8 @@
 
 namespace shotstopper {
 
-// Two 20 KiB dual-slots fill the dedicated shotcurve data partition.
-constexpr size_t SHOT_CURVE_FLASH_SLOT_BYTES = 20480;
+// Two 28 KiB dual-slots fill the dedicated shotcurve data partition.
+constexpr size_t SHOT_CURVE_FLASH_SLOT_BYTES = 28672;
 constexpr size_t SHOT_CURVE_FLASH_SLOT_COUNT = 2;
 
 inline ShotCurveStore &shotCurveScratchStore() {

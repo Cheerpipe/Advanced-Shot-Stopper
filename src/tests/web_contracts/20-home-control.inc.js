@@ -79,6 +79,7 @@
   const missing = model({wCg:[0,null,100,200],wDtS:1,durationS:3});
   const falling = model({wCg:[200,100,100],wDtS:1,durationS:2});
   const atm = model({wCg:[0,100,200,300],wDtS:1,durationS:4,atmS:2,atmCg:200,endS:4,endCg:300});
+  const half = model({wCg:[0,50,100,150],wDtS:.5,durationS:2});
   if (partial.maxFlow !== 1 || partial.flowSegs[0].pts.length !== 4 ||
       partial.flowSegs.at(-1).pts.at(-1).t !== 2.5 ||
       partial.flowSegs.at(-1).pts[0].cg !== 100 || startup.maxFlow !== 1 ||
@@ -87,13 +88,15 @@
       startup.flowSegs[0].pts[0].t !== 2.5 || startup.flowSegs[0].pts[0].cg !== 50 ||
       ending.maxFlow !== 2 || ending.flowSegs.at(-1).pts[0].cg !== 200 ||
       missing.maxFlow !== null || falling.maxFlow !== 0 ||
+      half.maxFlow !== 1 ||
       atm.flowSegs.some((s) => s.pts[0].t < 4 && s.pts[1].t > 2)) {
     throw new Error('Flow curves must stay continuous and smoothed without changing gap semantics');
   }
   const flowCol = (m, e) => JSON.stringify(m.flowCurve) === JSON.stringify(e);
   if (!flowCol(partial, [null, 1, null]) || !flowCol(startup, [null, null, .5, 1, 1]) ||
       !flowCol(ending, [null, 2, 2]) || !flowCol(missing, [null, null, null, null]) ||
-      !flowCol(falling, [null, 0, null]) || !flowCol(atm, [null, 2, null, null])) {
+      !flowCol(falling, [null, 0, null]) || !flowCol(atm, [null, 2, null, null]) ||
+      !flowCol(half, [null, 1, 1, 1])) {
     throw new Error('Exported flow columns must reuse the exact chart measured rates with gaps where flow is not measured');
   }
   render(host, null);

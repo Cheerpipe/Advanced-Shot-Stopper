@@ -2147,7 +2147,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   PersistedLastShot lastGoodShot = {};
   bool lastGoodShotHistoryLinked = false;
   uint8_t shotCurveCount = 0;
-  uint8_t shotCurveIntervalS = 1;
+  uint8_t shotCurveIntervalDs = 5;
   uint16_t shotCurveFirstDropDs = UINT16_MAX;
   int16_t shotCurveFirstDropCg = INT16_MIN;
   uint16_t shotCurveExtendedDs = UINT16_MAX;
@@ -2157,7 +2157,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   uint16_t shotCurveAtmClearedDs = UINT16_MAX;
   uint16_t shotCurveEndedDs = UINT16_MAX;
   int16_t shotCurveEndedCg = INT16_MIN;
-  int16_t shotCurveWeightCg[61] = {};
+  int16_t shotCurveWeightCg[121] = {};
   HwmonSnapshot hwmon = {};
   uint32_t debugEventsDropped = 0;
   bool cycleFlowDuringRetare = false;

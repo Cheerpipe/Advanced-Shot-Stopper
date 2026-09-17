@@ -24,7 +24,7 @@ The preset snapshot is also shown on that Home card and on every Stats history
 card. Renaming or deleting a preset later does not rewrite a shot's displayed
 name.
 
-The log holds up to **120** shots. The following are never stored:
+The log holds up to **100** shots. The following are never stored:
 
 - Quick rinses and cycles that do not outlast the brew-by-weight protection
   window (12 s with default settings)
@@ -92,13 +92,14 @@ Flow rate adds them every 0.5 g/s. Each displayed range rounds up to the next
 reference interval and each chart grows vertically when all required labels
 would not fit at its normal compact height.
 
-The Flow rate chart draws the per-second measured rates as one continuous line
-per color instead of separate blocks. Each measured rate sits at the middle of
-the second it describes, and neighboring rates are joined with a light
-three-point average, so the curve reads as a smooth flow profile while the
-first and last measured rates stay exact. Color segments (aqua flow, orange
-Fast guard, blue Slow guard, gray A→M) break only where the extraction
-actually changes or where a gap leaves nothing to draw.
+The Flow rate chart draws the measured rates as one continuous line per color
+instead of separate blocks. Samples are saved every half-second, so each
+measured rate sits at the middle of the half-second it describes, and
+neighboring rates are joined with a light three-point average, so the curve
+reads as a smooth flow profile while the first and last measured rates stay
+exact. Color segments (aqua flow, orange Fast guard, blue Slow guard, gray
+A→M) break only where the extraction actually changes or where a gap leaves
+nothing to draw.
 
 The cards call shot output **Yield** while chart, goal, scale, and cup labels
 continue to use Weight where they describe weight itself. **Avg flow** remains
@@ -138,26 +139,28 @@ exports by column name need the renames above.
 
 The yield curve columns follow `max_flow_g_s` so every exported row also
 carries the weights captured during that shot. `yield_dt_s` (JSON `wDtS`) is the
-seconds between saved samples, then one `yield_<n>s` column holds each sample in
-grams — the same series as the JSON `wCg` array, which counts in centigrams.
-Each column is named for the second its sample closes, so `yield_1s` is the
-weight known at one second, `yield_2s` the next, and so on up to the longest
-curve in the export — the same dating the Weight and Flow rate charts use.
+seconds between saved samples — 0.5 with current firmware — then one
+`yield_<n>s` column holds each sample in grams — the same series as the JSON
+`wCg` array, which counts in centigrams. Each column is named for the moment
+its sample closes, so with half-second sampling the columns run `yield_0.5s`,
+`yield_1s`, `yield_1.5s`, and so on up to the longest curve in the export —
+the same dating the Weight and Flow rate charts use.
 Plot a row's yield cells against their column times in a spreadsheet to
 redraw its curve aligned with the shot's events. Shots without a saved
 curve, and samples beyond a shot's own curve length, leave those cells empty.
 
 The flow rate columns follow the yield curve columns and hold the same
-per-second measured rates the Flow rate chart and Max flow derive from that
-curve: one `flow_<n>s` column per curve sample, in grams per second with two
-decimals. `flow_2s` is the rate measured over the second that closes with the
-sample in `yield_2s`, `flow_3s` the next, and so on. `flow_1s` stays empty
-unless the exact first-drop marker falls within the first second, in which
-case it carries the chart's rate for that interval. A falling weight
+measured rates the Flow rate chart and Max flow derive from that curve: one
+`flow_<n>s` column per curve sample, in grams per second with two decimals.
+`flow_1s` is the rate measured over the half-second that closes with the
+sample in `yield_1s`, `flow_1.5s` the next, and so on. `flow_0.5s` stays
+empty unless the exact first-drop marker falls within the first half-second,
+in which case it carries the chart's rate for that interval. A falling weight
 reports 0, and cells stay empty where the chart draws no flow: before the
 first drop, across a missing sample, and during an A→M scale-loss period.
-When no event marker falls on or inside the second, a flow cell is simply the
-rise between its two neighboring yield cells divided by the sample interval.
+When no event marker falls on or inside a sample interval, a flow cell is
+simply the rise between its two neighboring yield cells divided by the sample
+interval.
 
 `preset_id` (JSON `presetId`) and JSON `presetName` are captured from the preset
 used for that shot, not the currently selected recipe. The name is a snapshot,
@@ -178,11 +181,14 @@ Learning applied is `1`/`0` in CSV and true/false in JSON; a skipped shot still
 retains its assigned gain. For example, appended CSV values can be
 `linear_ewma,2,0.37,1` and later `linear_ewma,2,0.50,1` for the same preset.
 
-History schema V6 uses 72-byte records and retains the 120-shot limit. The
-log now lives in its own flash partition, so moving from firmware that kept it
-in general-purpose storage requires a one-time clean USB installation and
-starts the log empty; older records are not migrated. Records written by
-older schemas are simply absent rather than relabeled. Select Linear
+History schema V6 uses 72-byte records; the log now holds 100 shots. Each
+shot's curve is saved by schema V3 with twice the resolution — a sample every
+half-second — and older curve stores are discarded rather than migrated. The
+curve partition grew to hold the finer samples, so updating from firmware
+with the earlier layout or one-second curves requires a one-time clean USB
+installation and starts the log empty; export the CSV first if you want to
+keep older shots. Records written by older schemas are simply absent rather
+than relabeled. Select Linear
 regression + offset correction in current firmware for like-for-like
 algorithm comparison. Renaming the visible method does not rename API/CSV
 identifiers.

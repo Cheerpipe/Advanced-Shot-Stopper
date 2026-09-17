@@ -100,15 +100,15 @@
   const assert = require('assert');
   const vm = require('vm');
   let blob;
-  const records = Array.from({length: 120}, (_, i) => ({id: i + 1, bootId: 1,
+  const records = Array.from({length: 100}, (_, i) => ({id: i + 1, bootId: 1,
     goalG: 36, actualG: 36.2, offsetG: i ? 1.5 : 0, durationS: 30,
     bbwAlgorithm: i % 2 ? 'legacy' : 'linear_ewma', bbwAlgorithmVersion: i % 2 ? 1 : 2,
     bbwAlpha: i % 2 ? 1 : .37, bbwLearningApplied: i ? true : null, presetId: i ? 255 : 0}));
-  records[1].wCg = [0, 1520, 3105, 3620]; records[1].wDtS = 1;
-  records[2].wCg = [0, 800]; records[2].wDtS = 1;
+  records[1].wCg = [0, 1520, 3105, 3620]; records[1].wDtS = 0.5;
+  records[2].wCg = [0, 800]; records[2].wDtS = 0.5;
   const context = vm.createContext({
-    api: async url => {assert.equal(url, '0/120/date/desc'); return {shots: records};},
-    shotsUrl: (...args) => args.join('/'), SHOTS_EXPORT_LIMIT: 120,
+    api: async url => {assert.equal(url, '0/100/date/desc'); return {shots: records};},
+    shotsUrl: (...args) => args.join('/'), SHOTS_EXPORT_LIMIT: 100,
     formatShotTimeCsv: () => '', shotDisplayActualG: weight => weight,
     shotDisplayFlowGS: () => 1.2, shotMaxFlowGS: r => r.id === 1 ? null : 2.5,
     shotFlowCurveGS: r => r.id === 2 ? [null, 7.85] : [], Blob,
@@ -119,11 +119,11 @@
   vm.runInContext(runtimeJs.split('\n').find(line => line.startsWith('async function exportShotsCsv(')), context);
   await vm.runInContext('exportShotsCsv()', context);
   const lines = (await blob.text()).split('\n').map(line => line.split(','));
-  assert.equal(lines.length, 121);
+  assert.equal(lines.length, 101);
   assert.equal(lines[0][11], 'offset_g');
   assert.equal(lines[1][11], '0');
-  assert.deepEqual(lines[0].slice(-15), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id', 'max_flow_g_s', 'yield_dt_s', 'yield_1s', 'yield_2s', 'yield_3s', 'yield_4s', 'flow_1s', 'flow_2s', 'flow_3s', 'flow_4s']);
+  assert.deepEqual(lines[0].slice(-15), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id', 'max_flow_g_s', 'yield_dt_s', 'yield_0.5s', 'yield_1s', 'yield_1.5s', 'yield_2s', 'flow_0.5s', 'flow_1s', 'flow_1.5s', 'flow_2s']);
   assert.deepEqual(lines[1].slice(-15), ['linear_ewma', '2', '0.37', '', '', '', '', '', '', '', '', '', '', '', '']);
-  assert.deepEqual(lines[2].slice(-15), ['legacy', '1', '1.00', '1', '255', '2.5', '1', '0', '15.2', '31.05', '36.2', '', '7.85', '', '']);
-  assert.deepEqual(lines[3].slice(-15), ['linear_ewma', '2', '0.37', '1', '255', '2.5', '1', '0', '8', '', '', '', '', '', '']);
+  assert.deepEqual(lines[2].slice(-15), ['legacy', '1', '1.00', '1', '255', '2.5', '0.5', '0', '15.2', '31.05', '36.2', '', '7.85', '', '']);
+  assert.deepEqual(lines[3].slice(-15), ['linear_ewma', '2', '0.37', '1', '255', '2.5', '0.5', '0', '8', '', '', '', '', '', '']);
 })().catch(error => {console.error(error); process.exitCode = 1;});

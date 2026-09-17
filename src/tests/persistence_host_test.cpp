@@ -569,7 +569,7 @@ void p65_factory_settings_survives_second_slot_write_fail() {
 
 void p66_shot_log_dual_slot_generation_flip() {
   resetHostPersistence();
-  CHECK(sizeof(ShotLogStore) == 8668);
+  CHECK(sizeof(ShotLogStore) == 7228);
   CHECK(sizeof(ShotLogStore) <= FLASH_IO_SCRATCH_BYTES);
   CHECK(SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES <= 0x8000);
   ShotLog log;
@@ -1639,7 +1639,7 @@ void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
   ShotCurveRecord curve = {};
   curve.shotId = 1;
   curve.count = 2;
-  curve.intervalS = SHOT_CURVE_INTERVAL_S;
+  curve.intervalDs = SHOT_CURVE_INTERVAL_DS;
   curve.weightCg[0] = 0;
   curve.weightCg[1] = 1800;
   CHECK(curves.append(curve));
@@ -1736,28 +1736,28 @@ void p60_factory_intent_survives_failed_store_reset() {
 
 void p61_shot_curve_dual_slot_round_trip_and_delete() {
   resetHostPersistence();
-  CHECK(SHOT_CURVE_INTERVAL_MS == 1000);
-  CHECK(SHOT_CURVE_MAX_POINTS == 61);
-  CHECK(sizeof(ShotCurveRecord) == 148);
-  CHECK(sizeof(ShotCurveStore) == 17780);
+  CHECK(SHOT_CURVE_INTERVAL_MS == 500);
+  CHECK(SHOT_CURVE_MAX_POINTS == 121);
+  CHECK(sizeof(ShotCurveRecord) == 268);
+  CHECK(sizeof(ShotCurveStore) == 26820);
   CHECK(sizeof(ShotCurveStore) <= FLASH_IO_SCRATCH_BYTES);
-  CHECK(SHOT_CURVE_FLASH_SLOT_BYTES == 20 * 1024);
+  CHECK(SHOT_CURVE_FLASH_SLOT_BYTES == 28 * 1024);
   ShotCurveRecord full = emptyShotCurveRecord();
   full.count = SHOT_CURVE_MAX_POINTS;
   for (size_t i = 0; i < SHOT_CURVE_MAX_POINTS; ++i) {
     full.weightCg[i] = static_cast<int16_t>(i * 50);
   }
-  char curveJson[768] = {};
+  char curveJson[SHOT_CURVE_JSON_CAPACITY] = {};
   CHECK(formatShotCurveJsonBody(curveJson, sizeof(curveJson), full));
-  CHECK(strstr(curveJson, "\"wDtS\":1") != nullptr);
-  CHECK(strstr(curveJson, "3000]") != nullptr);
+  CHECK(strstr(curveJson, "\"wDtS\":0.5") != nullptr);
+  CHECK(strstr(curveJson, "6000]") != nullptr);
   ShotCurveLog curves;
   CHECK(curves.load());
   CHECK(curves.count() == 0);
   ShotCurveRecord first = emptyShotCurveRecord();
   first.shotId = 7;
   first.count = 3;
-  first.intervalS = SHOT_CURVE_INTERVAL_S;
+  first.intervalDs = SHOT_CURVE_INTERVAL_DS;
   first.firstDrop.atDs = 45;
   first.firstDrop.weightCg = 50;
   first.extended.atDs = 180;
@@ -1773,7 +1773,7 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   ShotCurveRecord second = emptyShotCurveRecord();
   second.shotId = 8;
   second.count = 2;
-  second.intervalS = SHOT_CURVE_INTERVAL_S;
+  second.intervalDs = SHOT_CURVE_INTERVAL_DS;
   second.weightCg[0] = 10;
   second.weightCg[1] = 400;
   CHECK(curves.append(second));

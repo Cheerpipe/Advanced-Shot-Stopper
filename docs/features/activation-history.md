@@ -49,7 +49,7 @@ The two pages record different things and never substitute for each other:
 | Records | Automatic brew-by-weight shots with a settled weight of at least 1 g | Every confirmed activation, including rinses and manual brews |
 | Minimum duration | Longer than the BBW protection window | Longer than the BBW protection window to count as a shot |
 | Detail | Goal, yield, error, flow, guards, rating, curve | Time, duration, type |
-| Capacity | 120 shots | 1000 activations |
+| Capacity | 100 shots | 1000 activations |
 
 A good shot appears in both. A rinse or a short activation appears only
 here. Deleting or clearing in one page never touches the other.

@@ -54,7 +54,7 @@ struct NetworkWorkBuf {
   static constexpr size_t kStatusJson = 12288;
   static constexpr size_t kPresetsJson = 2800;
   static constexpr size_t kHistoryJson = 1400;
-  static constexpr size_t kJsonItem = 1800;
+  static constexpr size_t kJsonItem = 2048;
   // Includes resumable-session identity (transfer id + SHA-256) as well as
   // two image tags. This buffer is in the shared external work area, never
   // used by the flash-writing path.
