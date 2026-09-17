@@ -239,6 +239,27 @@ for (const name of webUi.LAZY_PARTIALS) {
     throw new Error('Generated gzip partial does not round-trip: ' + name);
   }
 }
+// A top-level name shared by two secondary view modules collides inside the
+// concatenated bundle after mangling, and the browser then refuses the whole
+// module when any secondary tab loads. Parse every generated module before
+// it can ship; --check validates ESM when the temp file ends in .mjs.
+{
+  const spawnSync = require('child_process').spawnSync;
+  const os = require('os');
+  for (const [moduleName, code] of Object.entries({
+    app: generated.js, runtime: generated.runtimeJs,
+    'ota-image': generated.otaImageJs, secondary: generated.secondaryJs,
+    settings: generated.settingsJs,
+  })) {
+    const file = path.join(os.tmpdir(), `ss-webui-${moduleName}-${process.pid}.mjs`);
+    fs.writeFileSync(file, code);
+    const parsed = spawnSync(process.execPath, ['--check', file]);
+    fs.unlinkSync(file);
+    if (parsed.status !== 0) {
+      throw new Error(`Generated ${moduleName}.js must parse as a module: ${parsed.stderr}`);
+    }
+  }
+}
 const cssRoundTrip = zlib.gunzipSync(generated.cssGzip).toString('utf8');
 if (cssRoundTrip !== generated.css) {
   throw new Error('Generated gzip Web CSS does not round-trip to the minified CSS');
