@@ -1754,7 +1754,7 @@ inline const char *webCommandTypeName(WebCommandType type) {
     case WebCommandType::WEBUI_START: return "start Web UI";
     case WebCommandType::WEBUI_STOP: return "stop Web UI";
     case WebCommandType::WEBUI_RESTART: return "restart Web UI";
-    case WebCommandType::BLE_SCAN_INTENSITY: return "set BLE scan intensity";
+    case WebCommandType::BLE_SCAN_INTENSITY: return "set BLE scan settings";
     case WebCommandType::TASK_PROFILER_START: return "start task profiler";
     case WebCommandType::TASK_PROFILER_STOP: return "stop task profiler";
     case WebCommandType::STATE_OVERRIDE_OFF:
@@ -1852,8 +1852,7 @@ struct WebCommand {
   BuzzerPattern buzzerPattern = BuzzerPattern::NONE;
   BookooDebugAction bookooDebugAction = BookooDebugAction::START;
   uint8_t bookooBeepLevel = 0;
-  bool bleScanIntensitySpecified = false;
-  uint8_t bleScanIntensity = 0;
+  BleScanCommandPayload bleScan = {};
   // Only these builders activate the network member. Queue/copy operations
   // remain trivial; presets retain config plus their separate preset fields.
   void setNetworkType(WebCommandType next) {
@@ -2212,6 +2211,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   bool usbConsoleIo4Closed = false;
   UsbSerialEnableSource usbSerialEnableSource = UsbSerialEnableSource::OFF;
   uint8_t bleScanIntensity = 0;
+  uint8_t bleScanBackoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
 };
 
 // Published copy lives in BSS, not on the 8 KiB loop stack.

@@ -514,6 +514,8 @@ bool settingsPersistenceReady = false;
 TaskMutex bleScanPersistMux;
 bool bleScanPersistPending = false;
 uint8_t bleScanPersistIntensity = 0;
+bool bleScanBackoffPersistPending = false;
+uint8_t bleScanPersistBackoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
 bool bleScanPersistResultReady = false;
 bool bleScanPersistResultOk = false;
 uint32_t pendingBleScanRequestId = 0;
@@ -1203,10 +1205,11 @@ bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
     return false;
   }
   // Drop transient dirty state only after the durable factory reset succeeds.
-  // A staged scan intensity must not survive the reset's default write.
+  // A staged scan setting must not survive the reset's default write.
   clearLastShotRuntimeState();
   bleScanPersistMux.lock();
   bleScanPersistPending = false;
+  bleScanBackoffPersistPending = false;
   pendingBleScanRequestId = 0;
   bleScanPersistFailLatched = false;
   bleScanPersistMux.unlock();

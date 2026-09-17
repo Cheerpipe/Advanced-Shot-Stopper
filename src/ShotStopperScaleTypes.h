@@ -121,6 +121,31 @@ inline const char *bleScanIntensityName(BleScanIntensity intensity) {
   }
 }
 
+// Quiet-hunt backoff: minutes without any compatible advert, live link, or
+// preference reset before the idle discovery scan drops to Light duty.
+// Zero disables the backoff (always saved intensity).
+constexpr uint8_t SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN = 5;
+constexpr uint8_t SCALE_SCAN_QUIET_BACKOFF_MAX_MIN = 240;
+
+inline bool validBleScanBackoffMin(uint8_t minutes) {
+  return minutes <= SCALE_SCAN_QUIET_BACKOFF_MAX_MIN;
+}
+
+inline uint8_t clampBleScanBackoffMin(uint8_t minutes) {
+  return validBleScanBackoffMin(minutes) ? minutes
+                                         : SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
+}
+
+// PUT /api/v1/admin/ble-scan payload. `specified` records which optional
+// field the request carried so each one can be applied on its own.
+struct BleScanCommandPayload {
+  static constexpr uint8_t INTENSITY = 0x01;
+  static constexpr uint8_t BACKOFF_MIN = 0x02;
+  uint8_t specified = 0;
+  uint8_t intensity = static_cast<uint8_t>(BleScanIntensity::NORMAL);
+  uint8_t backoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
+};
+
 inline bool parseBleScanIntensityId(const char *id, BleScanIntensity &out) {
   if (id == nullptr || id[0] == '\0') {
     return false;

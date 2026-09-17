@@ -338,26 +338,42 @@ esp_err_t ShotStopperNetwork::bleScanHandler(httpd_req_t *request) {
     return bodyStatus;
   }
   cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  static const char *const fields[] = {"scanIntensity"};
+  static const char *const fields[] = {"scanIntensity", "backoffMin"};
   char intensityText[12] = {};
   BleScanIntensity intensity = BleScanIntensity::NORMAL;
+  uint8_t backoffMin = 0;
+  const bool intensityPresent =
+      root != nullptr && jsonFieldPresent(root, "scanIntensity");
+  const bool backoffPresent =
+      root != nullptr && jsonFieldPresent(root, "backoffMin");
   const bool parsed =
-      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
-      jsonString(root, "scanIntensity", intensityText, sizeof(intensityText),
-                 false) &&
-      parseBleScanIntensityId(intensityText, intensity);
+      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 2) &&
+      (intensityPresent || backoffPresent) &&
+      (!intensityPresent ||
+       (jsonString(root, "scanIntensity", intensityText,
+                   sizeof(intensityText), false) &&
+        parseBleScanIntensityId(intensityText, intensity))) &&
+      (!backoffPresent || (jsonUint8(root, "backoffMin", backoffMin) &&
+                           validBleScanBackoffMin(backoffMin)));
   if (root != nullptr) {
     cJSON_Delete(root);
   }
   self.unlockJsonBody();
   if (!parsed) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_BLE_CONFIG",
-                     "scanIntensity must be normal, aggressive, or light.");
+                     "scanIntensity must be normal, aggressive, or light; "
+                     "backoffMin must be 0 (off) or 1-240 minutes.");
   }
   WebCommand command;
   command.type = WebCommandType::BLE_SCAN_INTENSITY;
-  command.bleScanIntensitySpecified = true;
-  command.bleScanIntensity = static_cast<uint8_t>(intensity);
+  if (intensityPresent) {
+    command.bleScan.specified |= BleScanCommandPayload::INTENSITY;
+    command.bleScan.intensity = static_cast<uint8_t>(intensity);
+  }
+  if (backoffPresent) {
+    command.bleScan.specified |= BleScanCommandPayload::BACKOFF_MIN;
+    command.bleScan.backoffMin = backoffMin;
+  }
   command.requestId = self.allocateRequestId();
   if (!self.callbacks_.enqueueWebCommand(command)) {
     return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",

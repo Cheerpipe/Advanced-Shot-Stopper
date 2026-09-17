@@ -629,7 +629,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           "\"configuredIp\":\"%s\",\"configuredNetmask\":\"%s\","
           "\"configuredGateway\":\"%s\",\"configuredDns1\":\"%s\","
           "\"configuredDns2\":\"%s\"},"
-          "\"bleScan\":{\"scanIntensity\":\"%s\"}",
+          "\"bleScan\":{\"scanIntensity\":\"%s\",\"backoffMin\":%u}",
           network.apActive ? "true" : "false", safeApSsid, network.apIp,
           static_cast<unsigned>(network.apClients),
           network.wifiConfigured ? "true" : "false", safeStaSsid,
@@ -642,7 +642,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           network.configuredGateway, network.configuredDns1,
           network.configuredDns2,
           bleScanIntensityName(clampBleScanIntensity(
-              control.bleScanIntensity)));
+              control.bleScanIntensity)),
+          static_cast<unsigned>(control.bleScanBackoffMin));
       if (ok) {
         ok = statusJsonAppend(
             &used,

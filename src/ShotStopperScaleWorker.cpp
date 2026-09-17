@@ -234,6 +234,8 @@ uint8_t scaleLoggedGattConnectAttempts = 0;
 bool scaleDiscoveryDirected = false;
 std::atomic<uint8_t> liveBleScanIntensityRaw{
     static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE)};
+std::atomic<uint8_t> liveBleScanBackoffMinRaw{
+    SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN};
 bool bookooConnectVolumePending = false;
 static std::atomic<bool> bleStackReady{false};
 static std::atomic<bool> scaleWorkerStartupFinished{false};
@@ -1500,9 +1502,11 @@ void logScaleConnectionFailed(bool directed) {
 
 void logScaleScanStarted(bool directed) {
   scaleDiscoveryDirected = directed;
+  // Report the duty this scan actually applies, so a quiet hunt at Light is
+  // visible even while the saved preference stays aggressive.
   addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_SCAN_STARTED,
                 directed ? SCALE_SCAN_TARGET_PREFERRED : SCALE_SCAN_TARGET_ANY,
-                static_cast<int32_t>(liveBleScanIntensity()));
+                static_cast<int32_t>(discoveryScanIntensity()));
 }
 
 void logScaleConnectFailed(int32_t step) {
@@ -1686,15 +1690,26 @@ void applyLiveBleScanIntensity(BleScanIntensity intensity) {
                                 std::memory_order_relaxed);
 }
 
+void applyLiveBleScanBackoff(uint8_t backoffMin) {
+  liveBleScanBackoffMinRaw.store(clampBleScanBackoffMin(backoffMin),
+                                 std::memory_order_relaxed);
+}
+
+uint8_t liveBleScanBackoffMin() {
+  return liveBleScanBackoffMinRaw.load(std::memory_order_relaxed);
+}
+
 BleScanIntensity liveBleScanIntensity() {
   return clampBleScanIntensity(
       liveBleScanIntensityRaw.load(std::memory_order_relaxed));
 }
 
 BleScanIntensity discoveryScanIntensity() {
+  const uint8_t backoffMin = liveBleScanBackoffMin();
   if (powerIdleSavings() ||
-      elapsedMs(scaleScanCompatibleActivityAtMs) >=
-          SCALE_SCAN_QUIET_BACKOFF_MS) {
+      (backoffMin != 0 &&
+       elapsedMs(scaleScanCompatibleActivityAtMs) >=
+           static_cast<uint32_t>(backoffMin) * 60000U)) {
     return BleScanIntensity::LIGHT;
   }
   return liveBleScanIntensity();

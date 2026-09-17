@@ -235,6 +235,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   scalePreferredMacDirty = false;
   scaleDiscoveryPausedUntilMs = 0;
   scaleScanCompatibleActivityAtMs = 0;
+  applyLiveBleScanBackoff(SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN);
   scalePreferredDirectedResetGeneration = 0;
   scaleLinkState = ScaleLinkState::DISCONNECTED;
   scaleConnecting = false;
@@ -10928,8 +10929,8 @@ void bc05_ble_scan_intensity_applies_live_without_restart() {
         static_cast<uint8_t>(BleScanIntensity::LIGHT));
 
   WebCommand command = webControlCommand(WebCommandType::BLE_SCAN_INTENSITY);
-  command.bleScanIntensitySpecified = true;
-  command.bleScanIntensity =
+  command.bleScan.specified |= BleScanCommandPayload::INTENSITY;
+  command.bleScan.intensity =
       static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE);
   processWebCommand(command);
   CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
@@ -10947,7 +10948,7 @@ void bc05_ble_scan_intensity_applies_live_without_restart() {
   // Mid-cycle the command is rejected: no staged flash write is accepted.
   startCycle();
   command.requestId = 2;
-  command.bleScanIntensity =
+  command.bleScan.intensity =
       static_cast<uint8_t>(BleScanIntensity::LIGHT);
   processWebCommand(command);
   CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
@@ -10955,6 +10956,45 @@ void bc05_ble_scan_intensity_applies_live_without_restart() {
   CHECK(hostLastForwardedNetworkCommand.resultState ==
         CommandResultState::FAILED);
   CHECK(!bleScanPersistPending);
+}
+
+void bc06_ble_scan_backoff_applies_live_without_restart() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  CHECK(liveBleScanBackoffMin() == SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN);
+
+  // Zero (off) is a valid value the handler must be able to deliver.
+  CHECK(persistBleScanBackoff(0));
+  CHECK(liveBleScanBackoffMin() == 0);
+  publishControlStatus();
+  ControlStatusSnapshot control;
+  copyControlStatus(control);
+  CHECK(control.bleScanBackoffMin == 0);
+
+  WebCommand command = webControlCommand(WebCommandType::BLE_SCAN_INTENSITY);
+  command.bleScan.specified |= BleScanCommandPayload::BACKOFF_MIN;
+  command.bleScan.backoffMin = 15;
+  processWebCommand(command);
+  CHECK(liveBleScanBackoffMin() == 15);
+  // The durable write is deferred like intensity: PERSISTED only after the
+  // staged flush completes.
+  CHECK(hostLastForwardedNetworkCommand.requestId == 0);
+  runLoopAfter(1);
+  CHECK(hostLastForwardedNetworkCommand.requestId == 1);
+  CHECK(hostLastForwardedNetworkCommand.resultState ==
+        CommandResultState::PERSISTED);
+  CHECK(!bleScanBackoffPersistPending);
+
+  // Mid-cycle the command is rejected: no staged flash write is accepted.
+  startCycle();
+  command.requestId = 2;
+  command.bleScan.backoffMin = 30;
+  processWebCommand(command);
+  CHECK(liveBleScanBackoffMin() == 15);
+  CHECK(hostLastForwardedNetworkCommand.requestId == 2);
+  CHECK(hostLastForwardedNetworkCommand.resultState ==
+        CommandResultState::FAILED);
+  CHECK(!bleScanBackoffPersistPending);
 }
 
 void sc07_reset_device_password_and_clear_wifi_queue() {
@@ -11237,6 +11277,7 @@ void sc15_status_printers_use_dump_views() {
   CHECK(serialTxContains("recoveredStaleMs=0"));
   CHECK(serialTxContains("rssi=-"));
   CHECK(serialTxContains("weightG=18.50"));
+  CHECK(serialTxContains("scanBackoffMin=5"));
 
   scale.rssiValid = true;
   scale.rssi = -62;
@@ -14542,6 +14583,29 @@ void pow02_idle_scan_preserves_saved_preference() {
   CHECK(powerScaleBusy.load());
 }
 
+void pow03b_quiet_backoff_setting_controls_discovery_duty() {
+  resetHarness(false, false);
+  applyLiveBleScanIntensity(BleScanIntensity::AGGRESSIVE);
+  // Off: even an hour with no scale evidence keeps the saved duty.
+  applyLiveBleScanBackoff(0);
+  CHECK(startScaleDiscoveryScan(nullptr, false));
+  hostMillis += 3600UL * 1000UL;
+  serviceScaleScanIntensity();
+  uint16_t interval = 0, window = 0;
+  bleScanHciParams(BleScanIntensity::AGGRESSIVE, interval, window);
+  CHECK(scale.lastScanInterval == interval && scale.lastScanWindow == window);
+
+  // Five minutes (the default) drops the quiet hunt to Light duty.
+  applyLiveBleScanBackoff(5);
+  serviceScaleScanIntensity();
+  bleScanHciParams(BleScanIntensity::LIGHT, interval, window);
+  CHECK(scale.lastScanInterval == interval && scale.lastScanWindow == window);
+  // The duty the scan applies differs from the saved preference, and that
+  // applied duty is what SCALE_SCAN_STARTED reports.
+  CHECK(discoveryScanIntensity() == BleScanIntensity::LIGHT);
+  CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
+}
+
 void pow03_ble_wake_without_link_is_bounded() {
   resetHarness(false, false);
   hostBtSleeping = true; // Initial controller wake is asynchronous too.
@@ -14651,6 +14715,7 @@ const TestCase testCases[] = {
     {"POW01", pow01_weighted_loss_and_manual_rinse_clock},
     {"POW02", pow02_idle_scan_preserves_saved_preference},
     {"POW03", pow03_ble_wake_without_link_is_bounded},
+    {"POW03B", pow03b_quiet_backoff_setting_controls_discovery_duty},
     {"POW04", pow04_ble_policy_failure_recovery},
     {"POW05", pow05_power_config_command_and_persistence},
     {"T01", t01_boot_with_paddle_off},
@@ -15228,6 +15293,7 @@ const TestCase testCases[] = {
     {"SC15", sc15_status_printers_use_dump_views},
     {"SC16", sc16_debug_status_and_log_dump},
     {"BC05", bc05_ble_scan_intensity_applies_live_without_restart},
+    {"BC06", bc06_ble_scan_backoff_applies_live_without_restart},
 };
 
 }  // namespace

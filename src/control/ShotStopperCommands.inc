@@ -4,6 +4,7 @@ void rejectWebCommand(const WebCommand &command) {
   reportControlCommandResult(command, CommandResultState::FAILED);
 }
 bool persistBleScanIntensity(BleScanIntensity intensity);
+bool persistBleScanBackoff(uint8_t backoffMin);
 
 void processWebCommand(const WebCommand &command) {
   switch (command.type) {
@@ -590,8 +591,18 @@ void processWebCommand(const WebCommand &command) {
         rejectWebCommand(command);
         return;
       }
-      if (!persistBleScanIntensity(clampBleScanIntensity(
-              command.bleScanIntensity))) {
+      bool applied = false;
+      bool staged = true;
+      if (command.bleScan.specified & BleScanCommandPayload::INTENSITY) {
+        applied = true;
+        staged = staged && persistBleScanIntensity(
+                               clampBleScanIntensity(command.bleScan.intensity));
+      }
+      if (command.bleScan.specified & BleScanCommandPayload::BACKOFF_MIN) {
+        applied = true;
+        staged = staged && persistBleScanBackoff(command.bleScan.backoffMin);
+      }
+      if (!applied || !staged) {
         rejectWebCommand(command);
         return;
       }
@@ -601,7 +612,7 @@ void processWebCommand(const WebCommand &command) {
       pendingBleScanRequestId = command.requestId;
       bleScanPersistMux.unlock();
       addDebugEvent(DebugCategory::CONFIG, DebugCode::CONFIG_ACCEPTED,
-                    static_cast<int32_t>(command.bleScanIntensity));
+                    static_cast<int32_t>(command.bleScan.intensity));
       return;
     }
 
@@ -637,6 +648,18 @@ bool persistBleScanIntensity(BleScanIntensity intensity) {
   bleScanPersistMux.lock();
   bleScanPersistIntensity = static_cast<uint8_t>(clamped);
   bleScanPersistPending = true;
+  bleScanPersistMux.unlock();
+  return true;
+}
+
+bool persistBleScanBackoff(uint8_t backoffMin) {
+  const uint8_t clamped = clampBleScanBackoffMin(backoffMin);
+  applyLiveBleScanBackoff(clamped);
+  // Stage only: the settings_persist worker owns the durable NVS write, so
+  // the Arduino control loop never performs flash I/O for this command.
+  bleScanPersistMux.lock();
+  bleScanPersistBackoffMin = clamped;
+  bleScanBackoffPersistPending = true;
   bleScanPersistMux.unlock();
   return true;
 }

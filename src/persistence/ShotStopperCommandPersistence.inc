@@ -538,8 +538,10 @@ bool serviceBleScanPersist() {
 #if defined(SHOT_STOPPER_HOST_TEST)
   // Host harness: no NVS layer; a staged change completes immediately.
   bleScanPersistMux.lock();
-  const bool pending = bleScanPersistPending;
+  const bool pending =
+      bleScanPersistPending || bleScanBackoffPersistPending;
   bleScanPersistPending = false;
+  bleScanBackoffPersistPending = false;
   bleScanPersistResultOk = true;
   bleScanPersistResultReady = pending;
   bleScanPersistMux.unlock();
@@ -547,17 +549,26 @@ bool serviceBleScanPersist() {
 #else
   bleScanPersistMux.lock();
   const bool pending = bleScanPersistPending;
-  const uint8_t staged = bleScanPersistIntensity;
+  const bool backoffPending = bleScanBackoffPersistPending;
+  // An unstaged field keeps its durable value, so both share one save.
+  const uint8_t intensity = pending ? bleScanPersistIntensity
+                                    : bleScanPersistedSettings.scanIntensity;
+  const uint8_t backoffMin = backoffPending
+                                 ? bleScanPersistBackoffMin
+                                 : bleScanPersistedSettings.scanBackoffMin;
   bleScanPersistMux.unlock();
-  if (!pending) {
+  if (!pending && !backoffPending) {
     return true;
   }
   const bool ok =
-      persistBleScanSettingsIntensity(bleScanPersistedSettings, staged);
+      persistBleScanSettings(bleScanPersistedSettings, intensity, backoffMin);
   bleScanPersistMux.lock();
-  if (ok && bleScanPersistIntensity == staged) {
+  if (ok && pending && bleScanPersistIntensity == intensity) {
     // A newer staged value stays pending for the next idle pass.
     bleScanPersistPending = false;
+  }
+  if (ok && backoffPending && bleScanPersistBackoffMin == backoffMin) {
+    bleScanBackoffPersistPending = false;
   }
   bleScanPersistResultOk = ok;
   bleScanPersistResultReady = true;

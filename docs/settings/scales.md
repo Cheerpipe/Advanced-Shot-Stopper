@@ -79,10 +79,11 @@ discovery begins.
 4. If discovery is slow, check **Admin → Bluetooth → Scan intensity**:
    factory **Aggressive**, with Normal and Light reducing scan duty.
    Optional [Power management](power-management.md) temporarily uses Light in
-   idle; switching it off restores the saved intensity. After about five
-   minutes of searching with no compatible scale in range, discovery also
-   drops to Light on its own and returns to the saved intensity as soon as a
-   compatible scale appears.
+   idle; switching it off restores the saved intensity. Below it, **Idle scan
+   backoff** chooses how long to search at full strength with no scale in
+   range before slowing down to save power — factory default 5 minutes,
+   **OFF** keeps full strength always, and the first sign of a scale
+   restores the saved intensity on its own.
 
 Related: [Brew by weight](../features/brew-by-weight.md), [Tare](tare.md),
 [Alerts](../alerts.md).

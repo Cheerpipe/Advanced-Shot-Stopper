@@ -190,11 +190,13 @@ if (htmlBytes > 64500) {
 // ~1.1 KB of combined source allowance.
 // Activation-history paging, sorting, clear, and per-card delete add
 // ~6 KB of JS source allowance.
-if (jsBytes > 178500) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 178500)`);
+// The Admin idle-scan backoff select and its save helper add 900 bytes; the
+// fallback option that keeps an API-set value visible adds 100 more.
+if (jsBytes > 179600) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 179600)`);
 }
-if (htmlBytes + jsBytes > 243000) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 243000)`);
+if (htmlBytes + jsBytes > 244100) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 244100)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
@@ -475,14 +477,19 @@ if (ui.includes('bleCompanionEnabled') ||
     ui.includes('Light 25%') ||
     !ui.includes('How aggressively the stopper looks for a scale') ||
     !ui.includes("scanIntensity:wanted") ||
+    !ui.includes('bleScanBackoff') ||
+    !ui.includes('Idle scan backoff') ||
+    !ui.includes("backoffMin:wanted") ||
     !ui.includes('/api/v1/admin/ble-scan') ||
     !ui.includes("method:'PUT'") ||
     !network.includes('scanIntensity') ||
+    !network.includes('backoffMin') ||
     !network.includes('WebCommandType::BLE_SCAN_INTENSITY') ||
     !network.includes('command.type = WebCommandType::BLE_SCAN_INTENSITY') ||
     !firmwareCore.includes('bool persistBleScanIntensity') ||
+    !firmwareCore.includes('bool persistBleScanBackoff') ||
     !networkHeader.includes('bleScanHandler')) {
-  throw new Error('Bluetooth Admin controls must keep live scan intensity without Companion');
+  throw new Error('Bluetooth Admin controls must keep live scan intensity and idle backoff without Companion');
 }
 {
   const persistStart = firmwareCore.indexOf(
@@ -505,10 +512,11 @@ if (!domain.includes('DebugCode::SCALE_SCAN_STARTED') ||
     !domain.includes('DebugCode::SCALE_CONNECT_FAILED') ||
     !domain.includes('scale connect failed: %s (step=%s)') ||
     !firmware.includes('logScaleScanStarted') ||
+    !firmware.includes('static_cast<int32_t>(discoveryScanIntensity())') ||
     !firmware.includes('SCALE_GATT_CONNECTING') ||
     firmware.includes('addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_CONNECTING)')) {
   throw new Error(
-      'Scale discovery debug must report scan, GATT connect, attempt, and fail reason');
+      'Scale discovery debug must report the applied scan duty, GATT connect, attempt, and fail reason');
 }
 if (!domain.includes('inline bool scaleHistoryIdentityEqual') ||
     !domain.includes('inline ScaleMacNvsAction decideScaleMacNvsAction') ||

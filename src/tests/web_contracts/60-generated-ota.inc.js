@@ -289,8 +289,9 @@ if (generated.cssGzip.length > 7050) {
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
 // Continuous smoothed flow-rate polylines raise the cap from 32600 to 32800 bytes.
 // Activation-history paging, sorting, clear, and per-card delete raise it to 33700.
-if (generated.runtimeGzip.length > 33700) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 33700-byte gzip budget');
+// The Admin idle-scan backoff select and its save helper raise it to 33900.
+if (generated.runtimeGzip.length > 33900) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 33900-byte gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
