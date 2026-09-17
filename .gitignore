@@ -79,3 +79,4 @@ docs/BACKLOG.md
 .zcode
 ai_temp_*
 *.ai_temp
+.freebuff
