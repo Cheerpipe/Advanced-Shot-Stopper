@@ -20,8 +20,8 @@ entry keeps the local time, the duration, and a type:
   window, such as a brief paddle blip or an aborted brew.
 
 Abandoned starts, where the machine never confirmed the activation, record
-nothing. When the wall clock has never synced, the time column shows "—"
-until the controller gets time from the network.
+nothing. When the controller's clock has never synced, cards show "no time"
+until it gets the time from the network.
 
 The log holds up to **1000** activations. When it fills, the oldest entry is
 dropped to make room for the newest. Entries are written to memory the
@@ -33,8 +33,11 @@ is idle, so recording never slows down a brew.
 Open the **History** page (next to Stats) to browse the diary. The list loads
 **20 entries at a time** as you scroll and refreshes every 20 s. Sort by date,
 newest or oldest first, from the sort control at the top. Each card shows the
-duration large, the type as a badge, and the local time; the timestamp falls
-back to "—" when the clock was not synced when the entry was recorded.
+duration large, the type as a small label, and the local date and time in the
+same format as the Stats cards. Shots carry a coffee-cup icon on the left of
+the card, rinses a droplet, and other activations have no icon. When the
+clock was not synced when the entry was recorded, the card shows "no time"
+instead of a date.
 
 Delete a single entry with the ✕ on its card, or clear the whole diary with
 the Clear button. Clearing asks for an explicit confirmation and cannot be

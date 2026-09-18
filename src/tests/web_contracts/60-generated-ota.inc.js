@@ -290,8 +290,9 @@ if (generated.cssGzip.length > 7050) {
 // Continuous smoothed flow-rate polylines raise the cap from 32600 to 32800 bytes.
 // Activation-history paging, sorting, clear, and per-card delete raise it to 33700.
 // The Admin idle-scan backoff select and its save helper raise it to 33900.
-if (generated.runtimeGzip.length > 33900) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 33900-byte gzip budget');
+// Activation-history card type icons (inline coffee/rinse SVG) raise it to 35000.
+if (generated.runtimeGzip.length > 35000) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 35000-byte gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -318,9 +319,9 @@ if (generated.icon48Gzip.length > 3500) {
 // Continuous color-segment flow curves close each segment at its boundary,
 // raising the combined cap from 66400 to 66500 bytes; the PWA manifest and
 // icons raise it further to 101000 bytes; the activation-history view raises
-// it to 103000 bytes.
-if (generated.combined > 103000) {
-  throw new Error('Combined Web UI gzip exceeds the 103000-byte flash budget');
+// it to 103000 bytes; its card type icons raise it to 104500 bytes.
+if (generated.combined > 104500) {
+  throw new Error('Combined Web UI gzip exceeds the 104500-byte flash budget');
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

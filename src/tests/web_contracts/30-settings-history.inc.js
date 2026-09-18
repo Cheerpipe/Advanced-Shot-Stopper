@@ -734,7 +734,6 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !css.includes('#historySentinel{min-height:1px') ||
     !css.includes('#historyTable td[colspan]') ||
     !css.includes('.histBadge{') ||
-    !css.includes('.histBadgeShot') ||
     !runtimeJs.includes('HISTORY_PAGE_SIZE=20') ||
     !runtimeJs.includes("function historyUrl(offset,limit,dir){return '/api/v1/history?offset='") ||
     !runtimeJs.includes('function applyHistoryPage(') ||

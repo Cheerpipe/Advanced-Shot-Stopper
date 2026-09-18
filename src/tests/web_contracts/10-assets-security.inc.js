@@ -197,11 +197,14 @@ if (htmlBytes > 65600) {
 // fallback option that keeps an API-set value visible adds 100 more.
 // The Admin machine-use scan boost select, save helper, and status fill add
 // ~700 bytes of combined source allowance.
-if (jsBytes > 179600) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 179600)`);
+// Activation-history type icons (inline coffee/rinse SVG paths, coordinates
+// rounded to one decimal) and their card wiring add ~3.2 KB of JS+combined
+// source allowance.
+if (jsBytes > 182800) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 182800)`);
 }
-if (htmlBytes + jsBytes > 244800) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 244800)`);
+if (htmlBytes + jsBytes > 248200) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 248200)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
