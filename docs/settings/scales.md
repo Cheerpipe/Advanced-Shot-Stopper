@@ -76,15 +76,15 @@ discovery begins.
    Clearing pauses discovery for 30 s; it does not erase scale history.
 3. With **Preferred only** and no saved preference, let the intended scale
    complete its first connection. Check Home for fresh weight, not just a name.
-4. If discovery is slow, check **Admin → Bluetooth → Scan intensity**:
+4. If discovery is slow, check **Admin → Power management → BLE scan mode**:
    factory **Balanced**, with **Aggressive** searching harder and **Relaxed**
    trading some speed for less radio time. Optional
    [Power management](power-management.md) temporarily uses Relaxed in
-   idle; switching it off restores the saved intensity. Below it, **Idle scan
+   idle; switching it off restores the saved mode. Below it, **Idle scan
    backoff** chooses how long to search at full strength with no scale in
-   range before slowing down to save power — factory default 5 minutes,
-   **OFF** keeps full strength always, and the first sign of a scale
-   restores the saved intensity on its own.
+   range before slowing down to save power — factory default **OFF** keeps
+   full strength always, and with Aggressive or Balanced the first sign of a
+   scale restores the saved mode on its own.
 
 Related: [Brew by weight](../features/brew-by-weight.md), [Tare](tare.md),
 [Alerts](../alerts.md).

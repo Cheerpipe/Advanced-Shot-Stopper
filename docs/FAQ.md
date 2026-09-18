@@ -106,12 +106,12 @@ much more. Compare the procedures before choosing one.
 ### The scale connects slowly or the UI stutters
 
 Close other scale-connected apps. Check the saved preferred scale and
-**Admin → Bluetooth → Scan intensity**. Factory default is **Balanced**;
+**Admin → Power management → BLE scan mode**. Factory default is **Balanced**;
 Relaxed uses less scanning radio time and Aggressive uses more. Try Relaxed
-if idle scanning hurts UI response. **Admin → Bluetooth → Idle scan backoff**
-(factory 5 minutes, or OFF) only slows searching after a long time with no
+if idle scanning hurts UI response. **Admin → Power management → Idle scan
+backoff** (factory OFF) only slows searching after a long time with no
 scale in range, so it rarely affects an active session.
-**Admin → Wi-Fi → Wi-Fi sleep** can also affect latency.
+**Admin → Power management → Wi-Fi sleep** can also affect latency.
 See [Scales](settings/scales.md) and [Wi-Fi](settings/wifi.md).
 
 ### Why is there no remote Start or rinse?

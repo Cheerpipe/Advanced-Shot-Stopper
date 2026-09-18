@@ -10997,6 +10997,26 @@ void bc06_ble_scan_backoff_applies_live_without_restart() {
   CHECK(!bleScanBackoffPersistPending);
 }
 
+void bc07_ble_scan_relaxed_with_backoff_is_api_valid() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  // The Admin UI grays the backoff select out while Relaxed is selected, but
+  // that guard is client-side only: the API keeps accepting both fields.
+  WebCommand command = webControlCommand(WebCommandType::BLE_SCAN_INTENSITY);
+  command.bleScan.specified |= BleScanCommandPayload::INTENSITY |
+                               BleScanCommandPayload::BACKOFF_MIN;
+  command.bleScan.intensity = static_cast<uint8_t>(BleScanIntensity::LIGHT);
+  command.bleScan.backoffMin = 45;
+  processWebCommand(command);
+  CHECK(liveBleScanIntensity() == BleScanIntensity::LIGHT);
+  CHECK(liveBleScanBackoffMin() == 45);
+  runLoopAfter(1);
+  CHECK(hostLastForwardedNetworkCommand.requestId == 1);
+  CHECK(hostLastForwardedNetworkCommand.resultState ==
+        CommandResultState::PERSISTED);
+  CHECK(!bleScanBackoffPersistPending);
+}
+
 void sc07_reset_device_password_and_clear_wifi_queue() {
   resetHarness(false, false);
   reachReadyFromBoot();
@@ -11277,7 +11297,7 @@ void sc15_status_printers_use_dump_views() {
   CHECK(serialTxContains("recoveredStaleMs=0"));
   CHECK(serialTxContains("rssi=-"));
   CHECK(serialTxContains("weightG=18.50"));
-  CHECK(serialTxContains("scanBackoffMin=5"));
+  CHECK(serialTxContains("scanBackoffMin=0"));
 
   scale.rssiValid = true;
   scale.rssi = -62;
@@ -15294,6 +15314,7 @@ const TestCase testCases[] = {
     {"SC16", sc16_debug_status_and_log_dump},
     {"BC05", bc05_ble_scan_intensity_applies_live_without_restart},
     {"BC06", bc06_ble_scan_backoff_applies_live_without_restart},
+    {"BC07", bc07_ble_scan_relaxed_with_backoff_is_api_valid},
 };
 
 }  // namespace

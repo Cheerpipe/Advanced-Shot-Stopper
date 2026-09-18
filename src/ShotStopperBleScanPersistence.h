@@ -9,7 +9,7 @@ namespace shotstopper {
 // without renaming NVS entries. Version 2 stopped using the Companion enable
 // flag; that byte is reserved and always written 0. Version 3 turned one
 // reserved byte into scanBackoffMin without changing the blob size, so V2
-// slots stay readable and upgrade to the default backoff.
+// slots stay readable and upgrade to the default backoff (now OFF).
 constexpr uint32_t BLE_SCAN_SETTINGS_MAGIC = 0x424C4543U;  // "BLEC"
 constexpr uint16_t BLE_SCAN_SETTINGS_VERSION = 3;
 constexpr uint16_t BLE_SCAN_SETTINGS_V2_VERSION = 2;
@@ -44,7 +44,7 @@ inline uint32_t bleScanSettingsChecksum(
 inline void finalizeBleScanSettings(BleScanPersistedSettings &settings) {
   if (settings.version < BLE_SCAN_SETTINGS_VERSION) {
     // Older blobs kept this byte reserved (always 0): adopt the default
-    // backoff instead of reading 0 minutes as "backoff off".
+    // backoff rather than trusting the reserved zero as a stored choice.
     settings.scanBackoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
   }
   settings.magic = BLE_SCAN_SETTINGS_MAGIC;

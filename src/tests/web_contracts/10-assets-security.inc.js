@@ -173,7 +173,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // setting must raise this allowance when needed; hints must not be cut to fit it.
 // The activation-history view (nav link, partial, runtime helpers) adds
 // ~1.4 KB of HTML source allowance.
-if (htmlBytes > 64500) {
+// The grouped Admin Power management panel (power policy, Wi-Fi sleep, BLE
+// scan mode, idle scan backoff) replaces two JS-built controls with static
+// markup and fuller hints, adding ~1.7 KB of HTML source allowance.
+if (htmlBytes > 65600) {
   throw new Error('Web UI HTML source exceeds the authoring budget');
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
@@ -465,20 +468,22 @@ if (ui.includes('bleCompanionEnabled') ||
     ui.includes('/api/v1/admin/ble-compat') ||
     ui.includes('Companion characteristics') ||
     ui.includes('BLE companion') ||
+    ui.includes('ensureBleScanPanel') ||
     network.includes('bleCompanion') ||
     network.includes('WebCommandType::BLE_COMPAT') ||
     networkHeader.includes('bleCompatHandler') ||
     firmwareCore.includes('persistBleCompanionEnabled') ||
-    !ui.includes('<legend>') || !ui.includes('Bluetooth') ||
+    !ui.includes('<legend>') || !ui.includes('Power management') ||
     !ui.includes('bleScanIntensity') ||
-    !ui.includes('Detection intensity') ||
+    !ui.includes('BLE scan mode') ||
     ui.includes('Aggressive 100%') ||
     ui.includes('Normal 50%') ||
     ui.includes('Light 25%') ||
-    !ui.includes('How aggressively the stopper looks for a scale') ||
+    !ui.includes('How much radio time is spent searching for Bluetooth espresso scales') ||
     !ui.includes("scanIntensity:wanted") ||
     !ui.includes('bleScanBackoff') ||
     !ui.includes('Idle scan backoff') ||
+    !ui.includes("b.disabled=!webUiOwner||i.value==='light'") ||
     !ui.includes("backoffMin:wanted") ||
     !ui.includes('/api/v1/admin/ble-scan') ||
     !ui.includes("method:'PUT'") ||
@@ -489,7 +494,7 @@ if (ui.includes('bleCompanionEnabled') ||
     !firmwareCore.includes('bool persistBleScanIntensity') ||
     !firmwareCore.includes('bool persistBleScanBackoff') ||
     !networkHeader.includes('bleScanHandler')) {
-  throw new Error('Bluetooth Admin controls must keep live scan intensity and idle backoff without Companion');
+  throw new Error('Power management Admin controls must keep live scan mode and idle backoff without Companion');
 }
 {
   const persistStart = firmwareCore.indexOf(

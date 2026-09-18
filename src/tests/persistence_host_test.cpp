@@ -553,7 +553,7 @@ void p64_factory_settings_overwrite_does_not_clear_ble_namespace() {
 void p82_ble_scan_backoff_v2_migration_and_roundtrip() {
   resetHostPersistence();
   // A V2 blob kept the backoff byte reserved (always 0); loading it must
-  // upgrade to the default backoff without losing the saved intensity.
+  // adopt the default backoff (now OFF) without losing the saved intensity.
   BleScanPersistedSettings v2;
   v2.version = BLE_SCAN_SETTINGS_V2_VERSION;
   v2.revision = 7;

@@ -1,6 +1,26 @@
 # Power management
 
-**Admin → Frontend → Power management** enables a global, persistent energy
+The **Admin → Power management** group holds the four settings that control
+how much energy the controller uses, in this order:
+
+- **Power policy** — hardware-level energy management described on this page.
+  Scales the CPU clock and bus/radio sleep to demand: on saves energy when
+  idle and boosts to 160 MHz for weight-controlled shots; off holds a fixed
+  80 MHz.
+- **Wi-Fi sleep** — puts the Wi-Fi radio into modem sleep between the
+  router's beacons while connected. Saves immediately without restarting or
+  waiting for a reconnect, and stays disabled until a network is configured.
+  Details in [Wi-Fi](wifi.md).
+- **BLE scan mode** — how much radio time is spent searching for Bluetooth
+  espresso scales: **Aggressive**, **Balanced** (factory default), or
+  **Relaxed**. See [Scales](scales.md).
+- **Idle scan backoff** — with Aggressive or Balanced selected, after this
+  many idle minutes with no scale in range the search drops to Relaxed until
+  a scale appears. **OFF** (factory default) keeps the saved mode always.
+  The control is grayed out while Relaxed is selected because it has no
+  effect then.
+
+The **Power policy** enables a global, persistent energy
 policy. It defaults **on**, including after migration and factory reset, and
 does not belong to a shot preset. Save it while the machine is stopped; the
 existing Admin unlock and configuration revision checks apply.

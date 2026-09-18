@@ -149,20 +149,25 @@ if (!network.includes('restoreLkgToActive(next)') ||
   throw new Error('STA confirm timeout must reassociate last-known-good before SoftAP fallback');
 }
 {
-  if (      !html.includes('id="staWifiSleep"') ||
-      !html.includes('id="staWifiSleep" type="checkbox" checked') ||
-      !html.includes('Wi-Fi sleep<small') ||
-      !html.includes('Saves power; may slow the UI. Off during AP/OTA.') ||
+  const powerPanelAt = html.indexOf('<fieldset id="powerPanel">');
+  const powerPanel = powerPanelAt >= 0
+      ? html.slice(powerPanelAt, html.indexOf('</fieldset>', powerPanelAt))
+      : '';
+  if (      !powerPanel.includes('id="staWifiSleep" type="checkbox" checked') ||
+      !powerPanel.includes('Wi-Fi sleep<small') ||
+      !powerPanel.includes('Puts the Wi-Fi radio into modem sleep') ||
       !ui.includes("wifiSleep:$('staWifiSleep').checked") ||
       !ui.includes("savedStaWifiSleep=!!n.wifiSleep") ||
       !ui.includes("if($('staWifiSleep'))$('staWifiSleep').checked=savedStaWifiSleep") ||
       !ui.includes("if(n.wifiSleep)t+=' — sleep on'") ||
-      !ui.includes('function networkSaveIsSleepOnly(') ||
+      !ui.includes('function setWifiSleep(') ||
       !ui.includes('_noReconnectWait') ||
       !ui.includes('delete payload._noReconnectWait') ||
-      !ui.includes('sleepOnly') ||
+      !ui.includes('function updateWifiSleepState(') ||
+      !ui.includes('!webUiOwner||!savedStaSsid') ||
+      !ui.includes("$('staWifiSleep').onchange=R.setWifiSleep") ||
       !ui.includes('if(noReconnect)savedStaWifiSleep=') ||
-      !ui.includes('if(!sleepOnly)R.resetNetworkAddressLoaded()') ||
+      !ui.includes('R.resetNetworkAddressLoaded()') ||
       !ui.includes('Wi-Fi sleep saved.') ||
       !network.includes('\\"wifiSleep\\":%s') ||
       !network.includes('jsonHasOnlyUniqueFields(root, saveFields, 11)') ||
@@ -521,7 +526,7 @@ if (!ui.includes('setMutable(!!s.configMutable||!!s.webUiOverrideActive)') ||
     !ui.includes("uiOverridePanel") ||
     !ui.includes("uiOverrideButton") ||
     !ui.includes('UI Override') ||
-    !ui.includes("closest('#adminLockPanel,#diagnosticLockPanel,#uiOverridePanel,#bleScanPanel')") ||
+    !ui.includes("closest('#adminLockPanel,#diagnosticLockPanel,#uiOverridePanel,#powerPanel')") ||
     !ui.includes('function ensureUiOverridePanel(') ||
     !ui.includes('/api/v1/ui/unlock') ||
     !ui.includes('UNSAFE_WEBUI_OVERRIDE') ||

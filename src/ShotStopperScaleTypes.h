@@ -123,8 +123,8 @@ inline const char *bleScanIntensityName(BleScanIntensity intensity) {
 
 // Quiet-hunt backoff: minutes without any compatible advert, live link, or
 // preference reset before the idle discovery scan drops to Light duty.
-// Zero disables the backoff (always saved intensity).
-constexpr uint8_t SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN = 5;
+// Zero disables the backoff (always saved intensity) and is the default.
+constexpr uint8_t SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN = 0;
 constexpr uint8_t SCALE_SCAN_QUIET_BACKOFF_MAX_MIN = 240;
 
 inline bool validBleScanBackoffMin(uint8_t minutes) {
