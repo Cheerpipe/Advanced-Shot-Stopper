@@ -170,7 +170,7 @@ if (!network.includes('restoreLkgToActive(next)') ||
       !ui.includes('R.resetNetworkAddressLoaded()') ||
       !ui.includes('Wi-Fi sleep saved.') ||
       !network.includes('\\"wifiSleep\\":%s') ||
-      !network.includes('jsonHasOnlyUniqueFields(root, saveFields, 11)') ||
+      !network.includes('jsonHasOnlyUniqueFields(root, saveFields, 12)') ||
       !network.includes('jsonBoolean(root, "wifiSleep", command.network.wifiSleep)') ||
       !network.includes('command.network.wifiSleepSpecified = true') ||
       !network.includes('void ShotStopperNetwork::applyWifiPowerSave(bool apStarting)') ||
@@ -220,18 +220,40 @@ if (!network.includes('restoreLkgToActive(next)') ||
   const saveBody = saveStart >= 0 && saveEnd > saveStart
       ? network.slice(saveStart, saveEnd)
       : '';
-  const sleepOnlyAt = saveBody.indexOf('wifiSleepSpecified && sameCredentials');
+  const prefsAt = saveBody.indexOf('sameCredentials &&');
   const copyLkgAt = saveBody.indexOf('copyActiveStaToLkg');
-  const sleepOnly = sleepOnlyAt >= 0 && copyLkgAt > sleepOnlyAt
-      ? saveBody.slice(sleepOnlyAt, copyLkgAt)
+  const prefsOnly = prefsAt >= 0 && copyLkgAt > prefsAt
+      ? saveBody.slice(prefsAt, copyLkgAt)
       : '';
   if (!saveBody.includes('applyWifiPsAfterPersist') ||
       saveBody.includes('wifiSleepSpecified && sameCredentials &&') ||
-      sleepOnly.includes('restartPending_') ||
-      !sleepOnly.includes('break;') ||
-      !sleepOnly.includes('next.staWifiSleep != command.network.wifiSleep')) {
+      prefsOnly.includes('restartPending_') ||
+      !prefsOnly.includes('break;') ||
+      !prefsOnly.includes('next.staWifiSleep != command.network.wifiSleep') ||
+      !prefsOnly.includes('strcmp(next.deviceName, command.network.deviceName) != 0') ||
+      !prefsOnly.includes('validDeviceName(command.network.deviceName)') ||
+      !saveBody.includes('command.network.deviceNameSpecified')) {
     throw new Error(
-        'Identical STA credentials must persist sleep without restart, and no-op when sleep is unchanged');
+        'Identical STA credentials must persist sleep and/or device name without restart, and no-op when unchanged');
+  }
+  if (!network.includes('bool ShotStopperNetwork::ensureMdns()') ||
+      !network.includes('mdns_init()') ||
+      !network.includes('mdns_hostname_set(host)') ||
+      !network.includes('mdns_service_add(name, "_http", "_tcp", 80, nullptr, 0)') ||
+      !network.includes('void ShotStopperNetwork::stopMdns()') ||
+      !network.includes('mdns_free()') ||
+      !network.includes('ensureMdns();') ||
+      !network.includes('applyMdnsName();') ||
+      !network.includes('WiFi.setHostname(host)') ||
+      !network.includes('\\"deviceName\\":\\"%s\\",\\"mdnsHost\\":\\"%s\\"') ||
+      !ui.includes('function networkPreferencesOnly(') ||
+      !ui.includes("name:$('deviceName')") ||
+      !ui.includes("savedDeviceName=n.deviceName||''") ||
+      !ui.includes('function validDeviceNameClient(') ||
+      !ui.includes('id="deviceName"') ||
+      network.includes('mdns_query_(')) {
+    throw new Error(
+        'mDNS must advertise hostname and _http._tcp from the persisted device name, stay network-task owned, and never query');
   }
 }
 if (!firmwareCore.includes('command.network.commitConfirmed = true') ||

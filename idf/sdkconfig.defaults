@@ -66,8 +66,21 @@ CONFIG_LWIP_IPV6=y
 CONFIG_LWIP_IPV6_NUM_ADDRESSES=3
 CONFIG_LWIP_TCP_SND_BUF_DEFAULT=2880
 CONFIG_LWIP_TCP_WND_DEFAULT=2880
-CONFIG_LWIP_MAX_SOCKETS=8
+# httpd alone can hold (max_open_sockets + 3) = 7 sockets at peak; the mDNS
+# responder keeps one more open permanently, leaving SNTP/webhooks no room.
+CONFIG_LWIP_MAX_SOCKETS=10
 CONFIG_LWIP_DHCPS_MAX_STATION_NUM=4
+# mDNS advertises only (hostname + _http._tcp): two interfaces (STA + SoftAP),
+# one service, no browse/CLI/multi-instance query machinery. Arduino pulls
+# CONFIG_ETH_ENABLED in transitively, so the predefined Ethernet slot must be
+# dropped explicitly or the responder counts 3 predefined interfaces against
+# MAX_INTERFACES=2 and fails to compile.
+CONFIG_MDNS_MAX_INTERFACES=2
+CONFIG_MDNS_MAX_SERVICES=1
+# CONFIG_MDNS_PREDEF_NETIF_ETH is not set
+# CONFIG_MDNS_ENABLE_CONSOLE_CLI is not set
+# CONFIG_MDNS_ENABLE_BROWSE is not set
+# CONFIG_MDNS_MULTIPLE_INSTANCE is not set
 # SoftAP is WPA2-PSK (WiFi.softAP); STA may still join WPA3-SAE networks.
 # CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT is not set
 # CONFIG_ESP_WIFI_ENABLE_WPA3_OWE_STA is not set

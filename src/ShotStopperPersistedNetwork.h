@@ -73,6 +73,16 @@ inline bool initializeDefaultDevicePassword(PersistedSettings &settings) {
   return true;
 }
 
+inline bool initializeDefaultDeviceName(PersistedSettings &settings) {
+  if (!validDeviceName(DEFAULT_DEVICE_NAME)) {
+    return false;
+  }
+  memset(settings.deviceName, 0, sizeof(settings.deviceName));
+  copyCString(settings.deviceName, sizeof(settings.deviceName),
+              DEFAULT_DEVICE_NAME);
+  return true;
+}
+
 inline void clearStaAddressFields(PersistedSettings &settings) {
   settings.staIpMode = static_cast<uint8_t>(StaIpMode::DHCP);
   memset(settings.staIp, 0, sizeof(settings.staIp));

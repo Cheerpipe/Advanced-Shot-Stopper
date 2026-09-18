@@ -42,6 +42,9 @@ bool ShotStopperNetwork::startNetwork() {
   copyCString(status_.apIp, sizeof(status_.apIp), AP_IP);
   dataMux_.unlock();
   publishConfiguredAddressStatus();
+  // Idempotent on startNetwork retries: the component stays passive until an
+  // interface gets an address, so modem sleep and BLE coexistence are intact.
+  ensureMdns();
   if (settings.staConfigured) {
     startStation(settings, now);
     startupComplete_ = true;
@@ -65,8 +68,17 @@ void ShotStopperNetwork::publishConfiguredAddressStatus() {
   char configuredGateway[16] = {};
   char configuredDns1[16] = {};
   char configuredDns2[16] = {};
+  char deviceName[DEVICE_NAME_CAPACITY] = {};
+  char mdnsHost[DEVICE_NAME_CAPACITY] = {};
   if (settings.staConfigured) {
     copyCString(staSsid, sizeof(staSsid), settings.staSsid);
+  }
+  if (validDeviceName(settings.deviceName)) {
+    copyCString(deviceName, sizeof(deviceName), settings.deviceName);
+    if (deviceNameToMdnsHost(mdnsHost, sizeof(mdnsHost),
+                             settings.deviceName) == 0) {
+      mdnsHost[0] = '\0';
+    }
   }
   if (settings.staIpMode == static_cast<uint8_t>(StaIpMode::STATIC)) {
     formatIpv4(settings.staIp, configuredIp);
@@ -93,6 +105,8 @@ void ShotStopperNetwork::publishConfiguredAddressStatus() {
               configuredDns1);
   copyCString(status_.configuredDns2, sizeof(status_.configuredDns2),
               configuredDns2);
+  copyCString(status_.deviceName, sizeof(status_.deviceName), deviceName);
+  copyCString(status_.mdnsHost, sizeof(status_.mdnsHost), mdnsHost);
   dataMux_.unlock();
 }
 
@@ -363,6 +377,75 @@ void ShotStopperNetwork::applyWifiPowerSave(bool apStarting) {
   lastAppliedWifiPs_ = desiredPs;
   lastAppliedWifiPsValid_ = true;
   wifiPsNextWriteAtMs_ = now + WIFI_PS_RETRY_MS;
+}
+
+// The responder is passive: it answers queries and sends the component's
+// low-rate announcements. MIN_MODEM modem sleep wakes every DTIM, so
+// multicast (and discovery) keeps working with Wi-Fi sleep enabled; no RF
+// gating is needed on scale-connect/brew like SNTP requires.
+bool ShotStopperNetwork::ensureMdns() {
+  if (mdnsActive_) {
+    return true;
+  }
+  if (mdns_init() != ESP_OK) {
+    lifecycleLog("mDNS init failed");
+    return false;
+  }
+  mdnsActive_ = true;
+  mdnsServiceActive_ = false;
+  activeMdnsHost_[0] = '\0';
+  applyMdnsName();
+  return true;
+}
+
+void ShotStopperNetwork::applyMdnsName() {
+  char name[DEVICE_NAME_CAPACITY] = {};
+  {
+    TaskLockGuard lock(dataMux_);
+    memcpy(name, settings_.deviceName, sizeof(name));
+  }
+  if (!validDeviceName(name)) {
+    return;
+  }
+  char host[DEVICE_NAME_CAPACITY] = {};
+  if (deviceNameToMdnsHost(host, sizeof(host), name) == 0) {
+    return;
+  }
+  // DHCP-side hostname; visible in routers once STA (re)associates.
+  WiFi.setHostname(host);
+  if (!mdnsActive_) {
+    return;  // ensureMdns() applies the name right after mdns_init().
+  }
+  if (strcmp(host, activeMdnsHost_) == 0 && mdnsServiceActive_) {
+    return;
+  }
+  if (strcmp(host, activeMdnsHost_) != 0) {
+    if (mdns_hostname_set(host) != ESP_OK) {
+      lifecycleLog("mDNS hostname set failed");
+      return;
+    }
+    copyCString(activeMdnsHost_, sizeof(activeMdnsHost_), host);
+  }
+  if (mdnsServiceActive_) {
+    (void)mdns_service_instance_name_set("_http", "_tcp", name);
+  } else if (mdns_service_add(name, "_http", "_tcp", 80, nullptr, 0) ==
+             ESP_OK) {
+    mdnsServiceActive_ = true;
+  } else {
+    lifecycleLog("mDNS service add failed");
+    return;
+  }
+  lifecycleLogf("mDNS announcing %s.local", host);
+}
+
+void ShotStopperNetwork::stopMdns() {
+  if (!mdnsActive_) {
+    return;
+  }
+  mdns_free();
+  mdnsActive_ = false;
+  mdnsServiceActive_ = false;
+  activeMdnsHost_[0] = '\0';
 }
 
 bool ShotStopperNetwork::beginStationConnect(const NetworkSettingsSnapshot &settings,

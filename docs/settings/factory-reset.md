@@ -9,7 +9,8 @@ Wi-Fi (STA and last-known-good network), workflow settings, presets,
 calibration (including learned offset and A→M samples), preferred scale,
 shot history, activation history, last completed shot, and last
 qualifying-good shot. The device
-password returns to **`ineedacoffee`**. The device then restarts.
+password returns to **`ineedacoffee`** and the device name to
+**`AdvancedShotStopper`**. The device then restarts.
 
 ## Ways to run it
 

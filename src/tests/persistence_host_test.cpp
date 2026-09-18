@@ -136,15 +136,29 @@ void p01_defaults_are_valid() {
   CHECK(!validPreferredScaleMac("GG:BB:CC:DD:EE:FF"));
 }
 
+// Builds a legacy (V6–V13 layout) blob from current defaults so migration
+// tests can store old-version records at the legacy blob size.
+bool legacyV13BlobFromDefaults(PersistedSettingsV13 &legacy, uint32_t version) {
+  PersistedSettings defaults;
+  if (!initializeDefaultSettings(defaults)) {
+    return false;
+  }
+  legacy = PersistedSettingsV13{};
+  copyPersistedBytes(legacy, defaults, offsetof(PersistedSettingsV13, checksum));
+  legacy.schemaVersion = version;
+  legacy.structureSize = sizeof(PersistedSettingsV13);
+  legacy.checksum = persistedSettingsV13Checksum(legacy);
+  return true;
+}
+
 void p75_idle_tare_legacy_padding_and_saved_off() {
   for (uint32_t version : {6U, 7U, 8U}) {
     for (uint8_t padding : {uint8_t{0}, uint8_t{1}, uint8_t{255}}) {
       resetHostPersistence();
-      PersistedSettings legacy;
-      CHECK(initializeDefaultSettings(legacy));
-      legacy.schemaVersion = version;
+      PersistedSettingsV13 legacy;
+      CHECK(legacyV13BlobFromDefaults(legacy, version));
       if (version < 8) reinterpret_cast<uint8_t *>(&legacy.runtime)[250] = padding;
-      legacy.checksum = persistedSettingsChecksum(legacy);
+      legacy.checksum = persistedSettingsV13Checksum(legacy);
       persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A,
                                &legacy, sizeof(legacy));
       PersistedSettings loaded;
@@ -1069,7 +1083,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(ShotPreset) <= 136);
   CHECK(sizeof(ShotPresetBank) <= 1100);
   CHECK(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET);
-  CHECK(sizeof(PersistedSettings) == 2616);
+  CHECK(sizeof(PersistedSettings) == 2648);
   CHECK(sizeof(RuntimeConfig) == 252);
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
   CHECK(sizeof(ControlStatusSnapshot) <= 4096);
@@ -2047,12 +2061,12 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
   constexpr size_t remainingRecords = lastShotEntries + 6U + 3U + 24U + 32U;
   constexpr size_t applicationEntries = settingsEntries + remainingRecords;
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
-  CHECK(sizeof(PersistedSettings) == 2616U);
-  CHECK(settingsEntries == 168U);
+  CHECK(sizeof(PersistedSettings) == 2648U);
+  CHECK(settingsEntries == 170U);
   CHECK(lastShotEntries == 10U);
-  CHECK(applicationEntries == 243U);
+  CHECK(applicationEntries == 245U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 2151U);
+  CHECK(conservativeEntries - applicationEntries == 2149U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {
@@ -2163,12 +2177,11 @@ void p63_flash_io_lock_fails_closed_without_mutex() {
 void p78_power_management_migration_and_global_scope() {
   for (uint32_t version = 6; version <= 10; ++version) {
     resetHostPersistence();
-    PersistedSettings legacy;
-    CHECK(initializeDefaultSettings(legacy));
-    legacy.schemaVersion = version;
+    PersistedSettingsV13 legacy;
+    CHECK(legacyV13BlobFromDefaults(legacy, version));
     // Previous schemas never initialized this padding byte.
     reinterpret_cast<unsigned char *>(&legacy.runtime)[5] = 0xa5;
-    legacy.checksum = persistedSettingsChecksum(legacy);
+    legacy.checksum = persistedSettingsV13Checksum(legacy);
     persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A,
                             &legacy, sizeof(legacy));
     PersistedSettings loaded;
@@ -2192,12 +2205,11 @@ void p78_power_management_migration_and_global_scope() {
 
 void p79_webhook_preset_changes_migrates_dirty_v11_padding() {
   resetHostPersistence();
-  PersistedSettings legacy;
-  CHECK(initializeDefaultSettings(legacy));
-  legacy.schemaVersion = 11;
+  PersistedSettingsV13 legacy;
+  CHECK(legacyV13BlobFromDefaults(legacy, 11));
   reinterpret_cast<unsigned char *>(&legacy.webhook)
       [offsetof(WebhookConfig, presetChanges)] = 0xa5;
-  legacy.checksum = persistedSettingsChecksum(legacy);
+  legacy.checksum = persistedSettingsV13Checksum(legacy);
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A,
                            &legacy, sizeof(legacy));
   PersistedSettings loaded;
@@ -2212,12 +2224,11 @@ void p79_webhook_preset_changes_migrates_dirty_v11_padding() {
 
 void p81_v12_clears_allow_rinse_while_armed_bit() {
   resetHostPersistence();
-  PersistedSettings legacy;
-  CHECK(initializeDefaultSettings(legacy));
-  legacy.schemaVersion = 12;
+  PersistedSettingsV13 legacy;
+  CHECK(legacyV13BlobFromDefaults(legacy, 12));
   legacy.runtime.noScaleBbwMode = static_cast<uint8_t>(
       static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE) | 0x80U);
-  legacy.checksum = persistedSettingsChecksum(legacy);
+  legacy.checksum = persistedSettingsV13Checksum(legacy);
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacy,
                            sizeof(legacy));
   PersistedSettings loaded;
@@ -2228,12 +2239,55 @@ void p81_v12_clears_allow_rinse_while_armed_bit() {
   CHECK(!noScaleAllowRinseWhileArmed(loaded.runtime.noScaleBbwMode));
 }
 
+void p83_v14_device_name_default_migration_and_keep_on_forget() {
+  CHECK(validDeviceName(DEFAULT_DEVICE_NAME));
+  CHECK(validDeviceName("Cafe Bar 2"));
+  CHECK(!validDeviceName(""));
+  CHECK(!validDeviceName(" leading"));
+  CHECK(!validDeviceName("trailing-"));
+  CHECK(!validDeviceName("bad_underscore"));
+  char host[DEVICE_NAME_CAPACITY];
+  CHECK(deviceNameToMdnsHost(host, sizeof(host), "Cafe Bar 2") == 10);
+  CHECK(strcmp(host, "cafe-bar-2") == 0);
+  CHECK(deviceNameToMdnsHost(host, sizeof(host), "A--  B") == 3);
+  CHECK(strcmp(host, "a-b") == 0);
+
+  resetHostPersistence();
+  PersistedSettingsV13 legacy;
+  CHECK(legacyV13BlobFromDefaults(legacy, 13));
+  legacy.staConfigured = true;
+  strcpy(legacy.staSsid, "CafeLAN");
+  strcpy(legacy.staPassword, "CafePass1");
+  legacy.checksum = persistedSettingsV13Checksum(legacy);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacy,
+                           sizeof(legacy));
+  PersistedSettings loaded;
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
+  CHECK(strcmp(loaded.staSsid, "CafeLAN") == 0);
+  // V13 blobs predate the field: migration seeds the default name.
+  CHECK(strcmp(loaded.deviceName, DEFAULT_DEVICE_NAME) == 0);
+
+  strcpy(loaded.deviceName, "Cafe Bar 2");
+  CHECK(savePersistedSettings(loaded));
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(strcmp(loaded.deviceName, "Cafe Bar 2") == 0);
+  // Forget network is a device preference boundary: the name survives.
+  CHECK(resetPersistedNetworkAccess(loaded));
+  CHECK(!loaded.staConfigured);
+  CHECK(strcmp(loaded.deviceName, "Cafe Bar 2") == 0);
+  // Factory reset restores the default name.
+  CHECK(resetPersistedSettingsToFactory(loaded));
+  CHECK(strcmp(loaded.deviceName, DEFAULT_DEVICE_NAME) == 0);
+}
+
 struct TestCase {
   const char *id;
   void (*function)();
 };
 
 const TestCase tests[] = {
+    {"P83", p83_v14_device_name_default_migration_and_keep_on_forget},
     {"P81", p81_v12_clears_allow_rinse_while_armed_bit},
     {"P82", p82_ble_scan_backoff_boost_migration_and_roundtrip},
     {"P80", p80_boot_id_remains_dirty_until_durable},

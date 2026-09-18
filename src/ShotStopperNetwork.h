@@ -12,6 +12,7 @@
 
 #include <WiFi.h>
 #include <esp_http_server.h>
+#include <mdns.h>
 #include "ShotStopperRfCoex.h"
 
 #include "ShotStopperTaskProfiler.h"
@@ -84,13 +85,14 @@ struct NetworkSettingsSnapshot {
   char staSsid[WIFI_SSID_CAPACITY] = {};
   char staPassword[WIFI_PASSWORD_CAPACITY] = {};
   char devicePassword[WIFI_PASSWORD_CAPACITY] = {};
+  char deviceName[DEVICE_NAME_CAPACITY] = {};
   uint8_t staIp[4] = {};
   uint8_t staNetmask[4] = {};
   uint8_t staGateway[4] = {};
   uint8_t staDns1[4] = {};
   uint8_t staDns2[4] = {};
 };
-static_assert(sizeof(NetworkSettingsSnapshot) <= 192,
+static_assert(sizeof(NetworkSettingsSnapshot) <= 224,
               "Radio snapshot exceeds its stack budget");
 
 struct NetworkStatusSnapshot {
@@ -141,6 +143,8 @@ struct NetworkStatusSnapshot {
   char apMac[18] = {};
   char apSsid[WIFI_SSID_CAPACITY] = {};
   char ntpActiveServer[NTP_SERVER_HOST_CAPACITY] = {};
+  char deviceName[DEVICE_NAME_CAPACITY] = {};
+  char mdnsHost[DEVICE_NAME_CAPACITY] = {};
 };
 
 inline uint8_t wifiRssiToSignalQualityPct(int32_t rssi) {
@@ -340,6 +344,9 @@ class ShotStopperNetwork {
   wifi_ps_type_t lastAppliedWifiPs_{WIFI_PS_NONE};
   bool lastAppliedWifiPsValid_{false};
   uint32_t wifiPsNextWriteAtMs_{0};
+  bool mdnsActive_ = false;
+  bool mdnsServiceActive_ = false;
+  char activeMdnsHost_[DEVICE_NAME_CAPACITY] = {};
   std::atomic<bool> otaRestartPending_{false};
   bool otaRollbackRestartPending_ = false;
   const char *otaBootReason_ = "";
@@ -400,6 +407,12 @@ class ShotStopperNetwork {
   void applyStationAddressConfig(const NetworkSettingsSnapshot &settings);
   bool beginStationConnect(const NetworkSettingsSnapshot &settings, uint32_t now);
   void applyWifiPowerSave(bool apStarting = false);
+  // mDNS responder (network-task-only ownership). ensureMdns() starts the
+  // component once Wi-Fi comes up; applyMdnsName() publishes the persisted
+  // device name (no-op when unchanged); stopMdns() releases everything.
+  bool ensureMdns();
+  void applyMdnsName();
+  void stopMdns();
   void clearStaLinkMetrics();
   bool brewRfActive() const;
   bool ensureAccessPoint(uint32_t now, bool force = false);

@@ -58,6 +58,7 @@
 #include "ShotStopperMachinePaddleConfig.h"
 #include "ShotStopperScaleTypes.h"
 #include "ShotStopperBrewTypes.h"
+#include "ShotStopperNetworkTypes.h"
 
 namespace shotstopper {
 
@@ -66,7 +67,7 @@ constexpr uint32_t SERIAL_BAUD = 115200;
 // after staOpen). V2 names that byte staWifiSleep without growing the blob.
 // Bump and add a migration when the blob layout changes
 // (see ShotStopperSettingsMigrate.h).
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 13;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 14;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;
@@ -1546,11 +1547,6 @@ inline bool validDevicePassword(const char *password) {
   return validWifiPassword(password, false);
 }
 
-
-enum class StaIpMode : uint8_t { DHCP = 0, STATIC = 1 };
-
-enum class StaConfigState : uint8_t { CONFIRMED = 0, PENDING = 1 };
-
 inline bool ipv4IsZero(const uint8_t ip[4]) {
   return ip != nullptr && ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0;
 }
@@ -1811,6 +1807,9 @@ struct WebCommandNetworkPayload {
   bool wifiSleepSpecified = false;
   // USB SET_WIFI only. Web UI keeps the HTTP confirm window.
   bool commitConfirmed = false;
+  // mDNS device name; optional (USB SET_WIFI keeps the stored name).
+  char deviceName[DEVICE_NAME_CAPACITY] = {};
+  bool deviceNameSpecified = false;
   uint8_t staIpMode = static_cast<uint8_t>(StaIpMode::DHCP);
   uint8_t staIp[4] = {};
   uint8_t staNetmask[4] = {};

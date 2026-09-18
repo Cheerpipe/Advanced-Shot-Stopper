@@ -115,6 +115,19 @@ after automated tests pass. Record build, machine, scale, preset and reset state
 | BBW-M06 | Desktop/mobile, light/dark Settings: inspect both selectors, BBW OFF, locked state and dirty forms. Save distinct alpha bases, switch presets and reboot; test 0.01/0.30/0.37/1.00 and invalid precision/range. | Fields/actions stack; reset styles match; complete method names remain readable; only EWMA exposes alpha base; dirty/locked controls cannot reset, and reset confirms saved values. |
 | BBW-M05 | Collect representative repeated shots with fixed recipe/scale/coffee and export before 120 rows are overwritten. Compare by algorithm/profile, gain, captured preset_id and day; keep a separate preset for each physical portafilter/basket. | Check bias, absolute-error tails and changes after resets; verify switching presets does not relabel earlier rows. Qualify physical improvement against measurement variation. No accuracy improvement is assumed from host tests. |
 
+## Local discovery acceptance
+
+Pending hardware qualification; run only with explicit authorization on an
+isolated bench. Record board variant, SDK version, client OS/browser and LAN
+setup. The responder is always on; there is no per-shot or AP gating to
+exercise.
+
+| ID | Action | Expected result |
+| --- | --- | --- |
+| MDNS-M01 | With STA associated, resolve `<name>.local` (ping/browser) and browse `_http._tcp` (`dns-sd -B _http._tcp` or `avahi-browse -r _http._tcp`). Repeat with Wi-Fi sleep on, then while associated to the SoftAP. | The configured name resolves to the STA IP (192.168.4.1 on the AP); the service shows the device name as instance on port 80. Sleep on adds only latency. |
+| MDNS-M02 | Rename in Admin → Network with nothing else changed; retry after reboot, Forget network, and factory reset. Try invalid names (empty, 33 chars, leading/trailing space or hyphen, symbols) and a locked admin. | Rename applies live without a restart or reconnect wait and survives reboot and Forget; factory reset restores `AdvancedShotStopper`; invalid or unauthorized requests are rejected and leave the name unchanged. |
+| MDNS-M03 | Duplicate the name on a second controller; capture idle task-profiler and heap snapshots over 10+ minutes with discovery idle. | The SDK resolves the conflict with a numbered suffix; the responder adds no periodic traffic beyond its low-rate announcements and no idle CPU/heap drift in the profiler. |
+
 ## Idle tare and tared cup acceptance
 
 Run these hardware checks only with explicit authorization. Record scale model,

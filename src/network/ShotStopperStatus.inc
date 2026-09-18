@@ -122,6 +122,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char safeFirmwareVersion[32] = {};
   char safeStaSsid[WIFI_SSID_CAPACITY] = {};
   char safeApSsid[WIFI_SSID_CAPACITY] = {};
+  char safeDeviceName[DEVICE_NAME_CAPACITY] = {};
+  char safeMdnsHost[DEVICE_NAME_CAPACITY] = {};
   char safeWebhookUrl[WEBHOOK_URL_CAPACITY * 2] = {};
   sanitizeJsonEmbed(control.config.ntpServerCustom, safeNtpCustom,
                     sizeof(safeNtpCustom));
@@ -141,6 +143,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                     sizeof(safeFirmwareVersion));
   sanitizeJsonEmbed(network.staSsid, safeStaSsid, sizeof(safeStaSsid));
   sanitizeJsonEmbed(network.apSsid, safeApSsid, sizeof(safeApSsid));
+  sanitizeJsonEmbed(network.deviceName, safeDeviceName, sizeof(safeDeviceName));
+  sanitizeJsonEmbed(network.mdnsHost, safeMdnsHost, sizeof(safeMdnsHost));
   const WebhookConfig webhookConfig = self.webhooks_.config();
   const WebhookStatus webhookStatus = self.webhooks_.status();
   sanitizeJsonEmbed(webhookConfig.url, safeWebhookUrl,
@@ -628,7 +632,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           "\"rssi\":%s,\"signalQualityPct\":%s,"
           "\"configuredIp\":\"%s\",\"configuredNetmask\":\"%s\","
           "\"configuredGateway\":\"%s\",\"configuredDns1\":\"%s\","
-          "\"configuredDns2\":\"%s\"},"
+          "\"configuredDns2\":\"%s\","
+          "\"deviceName\":\"%s\",\"mdnsHost\":\"%s\"},"
           "\"bleScan\":{\"scanIntensity\":\"%s\",\"backoffMin\":%u,"
           "\"boostMin\":%u}",
           network.apActive ? "true" : "false", safeApSsid, network.apIp,
@@ -641,7 +646,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           static_cast<unsigned long>(network.confirmRemainingMs), staRssiJson,
           staSignalQualityJson, network.configuredIp, network.configuredNetmask,
           network.configuredGateway, network.configuredDns1,
-          network.configuredDns2,
+          network.configuredDns2, safeDeviceName, safeMdnsHost,
           bleScanIntensityName(clampBleScanIntensity(
               control.bleScanIntensity)),
           static_cast<unsigned>(control.bleScanBackoffMin),

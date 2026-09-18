@@ -176,7 +176,9 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // The grouped Admin Power management panel (power policy, Wi-Fi sleep, BLE
 // scan mode, idle scan backoff) replaces two JS-built controls with static
 // markup and fuller hints, adding ~1.7 KB of HTML source allowance.
-if (htmlBytes > 65600) {
+// The Admin Network device-name label and hint add ~0.1 KB of HTML source
+// allowance.
+if (htmlBytes > 65800) {
   throw new Error('Web UI HTML source exceeds the authoring budget');
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
@@ -200,11 +202,14 @@ if (htmlBytes > 65600) {
 // Activation-history type icons (inline coffee/rinse SVG paths, coordinates
 // rounded to one decimal) and their card wiring add ~3.2 KB of JS+combined
 // source allowance.
-if (jsBytes > 182800) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 182800)`);
+// The Admin device-name field adds client validation, the no-reconnect
+// preference save, and the .local status suffix: ~0.7 KB of JS and ~1 KB of
+// combined source allowance.
+if (jsBytes > 183500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 183500)`);
 }
-if (htmlBytes + jsBytes > 248200) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 248200)`);
+if (htmlBytes + jsBytes > 249200) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 249200)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

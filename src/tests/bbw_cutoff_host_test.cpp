@@ -125,13 +125,17 @@ int main() {
   settings.presets.presets[0].bbwAlgorithm = 255;
   settings.presets.presets[0].bbwEwmaAlpha = 255;
   settings.presets.presets[0].bbwEwmaOffsetG = -300.0f;  // Obsolete cup float.
-  settings.checksum = persistedSettingsChecksum(settings);
+  PersistedSettingsV13 v8{};
+  copyPersistedBytes(v8, settings, offsetof(PersistedSettingsV13, checksum));
+  v8.schemaVersion = 8;
+  v8.structureSize = sizeof(v8);
+  v8.checksum = persistedSettingsV13Checksum(v8);
   PersistedSettings migrated;
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings, sizeof(settings));
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &v8, sizeof(v8));
   assert(loadPersistedSettings(migrated));
   assert(migrated.schemaVersion == CONFIG_SCHEMA_VERSION &&
          migrated.presets.presets[0].bbwEwmaAlpha == 30);
-  assert(migratePersistedSettingsFromV8(settings, migrated));
+  assert(migratePersistedSettingsFromV8(v8, migrated));
   assert(validPersistedSettings(migrated));
   assert(migrated.presets.presets[0].bbwEwmaOffsetG == 2.25f);
   for (uint8_t mode : {0, 1}) {
@@ -144,9 +148,13 @@ int main() {
     preset.bbwAlphaBaseline = 255;  // Previously reserved, not a valid baseline.
     preset.bbwEwmaAlpha = 50;
     preset.bbwAlphaLearned = 1;
-    v9.checksum = persistedSettingsChecksum(v9);
+    PersistedSettingsV13 legacy9{};
+    copyPersistedBytes(legacy9, v9, offsetof(PersistedSettingsV13, checksum));
+    legacy9.schemaVersion = 9;
+    legacy9.structureSize = sizeof(legacy9);
+    legacy9.checksum = persistedSettingsV13Checksum(legacy9);
     PersistedSettings upgraded;
-    persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &v9, sizeof(v9));
+    persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacy9, sizeof(legacy9));
     assert(loadPersistedSettings(upgraded));
     assert(upgraded.runtime.bbwAlgorithm == mode);
     assert(upgraded.presets.presets[0].bbwAlphaBaseline == 30);
@@ -171,9 +179,14 @@ int main() {
       old.checksum = persistedSettingsV4Checksum(old);
       persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &old, sizeof(old));
     } else {
-      settings.schemaVersion = version;
-      settings.checksum = persistedSettingsChecksum(settings);
-      persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings, sizeof(settings));
+      PersistedSettingsV13 legacy13{};
+      copyPersistedBytes(legacy13, settings,
+                         offsetof(PersistedSettingsV13, checksum));
+      legacy13.schemaVersion = version;
+      legacy13.structureSize = sizeof(legacy13);
+      legacy13.checksum = persistedSettingsV13Checksum(legacy13);
+      persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A,
+                               &legacy13, sizeof(legacy13));
     }
     assert(loadPersistedSettings(migrated));
     assert(validPersistedSettings(migrated));

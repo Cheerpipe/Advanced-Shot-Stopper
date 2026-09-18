@@ -291,8 +291,9 @@ if (generated.cssGzip.length > 7050) {
 // Activation-history paging, sorting, clear, and per-card delete raise it to 33700.
 // The Admin idle-scan backoff select and its save helper raise it to 33900.
 // Activation-history card type icons (inline coffee/rinse SVG) raise it to 35000.
-if (generated.runtimeGzip.length > 35000) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 35000-byte gzip budget');
+// The Admin device-name validation, preference save, and .local status raise it to 35200.
+if (generated.runtimeGzip.length > 35200) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 35200-byte gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

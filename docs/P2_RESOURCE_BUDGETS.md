@@ -30,17 +30,19 @@ which doubles the per-shot weight series retained in PSRAM.
 | Shared flash-I/O scratch | internal heap, 26,880 bytes; one owner at a time under the flash-I/O lock, with no PSRAM fallback |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
-| Settings handoff | one 2620-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
+| Settings handoff | one 2652-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
 | Web command | trivially copyable, at most 328 bytes; configuration and network payloads share a discriminated union |
-| Radio settings snapshot | at most 192 bytes; full 2616-byte settings remain for durable mutations |
+| Radio settings snapshot | at most 224 bytes; full 2648-byte settings remain for durable mutations |
+| mDNS responder | NetworkService-owned; one 4096-byte priority-1 task on core 0 plus one persistent UDP socket (lwIP socket budget 8→10); always-on passive responder, never gated for shots/scale/AP/HTTP, freed once in `ShotStopperNetwork::stop()`; SDK heap allocations bypass application counters |
 | Fixed buzzer melodies | at most 8 notes each; custom tune capacity remains 250 notes |
 | JSON parser | PSRAM only; input at most 2047 bytes, nesting 32, values 128 |
 | BBW adaptive candidates | control-owned fixed RAM, at most 3,000 bytes for eight presets; 20 observations and five trajectory anchors each |
 
 Network command builders must activate their union member with
 `setNetworkType()` before writing credentials. Preset metadata remains outside
-the union because a preset operation also carries configuration. Persisted
-settings and command layouts are unchanged.
+the union because a preset operation also carries configuration. Settings V14
+grows the persisted blob by the 33-byte mDNS device name (explicit migration
+from V13); command layouts are unchanged.
 
 Settings V12 changes byte meanings through explicit migration without growing
 its blob. History V5 grows each record from 48 to 72 bytes to retain an exact

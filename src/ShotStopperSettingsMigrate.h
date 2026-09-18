@@ -2,6 +2,8 @@
 
 // Settings schema migrations.
 //
+// V14 adds the mDNS deviceName field (default AdvancedShotStopper) before
+// checksum; V6–V13 blobs are a 2,616-byte layout-compatible prefix.
 // V13 names bit 7 of noScaleBbwMode as Allow rinse while Armed (default OFF).
 // V12 names WebhookConfig tail padding for preset-change delivery (default OFF).
 // V11 names RuntimeConfig padding for power management (default ON).
@@ -34,11 +36,10 @@ namespace shotstopper {
 constexpr size_t PERSISTED_SETTINGS_V7_SIZE = 2616;
 constexpr size_t PERSISTED_SETTINGS_V10_SIZE = 2616;
 constexpr size_t PERSISTED_SETTINGS_V11_SIZE = 2616;
+constexpr size_t PERSISTED_SETTINGS_V13_SIZE = 2616;
 static_assert(offsetof(RuntimeConfig, powerManagementEnabled) == 5 &&
                   offsetof(RuntimeConfig, weightOffsetG) == 8,
               "V11 must use legacy padding without moving recipe fields");
-static_assert(sizeof(PersistedSettings) == PERSISTED_SETTINGS_V7_SIZE,
-              "V7 migration requires the original blob layout");
 
 template <typename Destination, typename Source>
 inline void copyPersistedBytes(Destination &destination, const Source &source,
@@ -49,6 +50,79 @@ inline void copyPersistedBytes(Destination &destination, const Source &source,
                 "persisted source must be trivially copyable");
   memcpy(static_cast<void *>(&destination),
          static_cast<const void *>(&source), byteCount);
+}
+
+// V6–V13 on-disk layout: the current blob without deviceName. Kept verbatim
+// so those 2,616-byte blobs stay a layout-compatible prefix of V14.
+struct PersistedSettingsV13 {
+  uint32_t magic = PERSISTED_SETTINGS_MAGIC;
+  uint32_t schemaVersion = 13;
+  uint32_t structureSize = 0;
+  uint32_t storageRevision = 0;
+  RuntimeConfig runtime = {};
+  BullseyeMelodyConfig bullseyeMelody = {};
+  ShotPresetBank presets = {};
+  bool staConfigured = false;
+  bool staOpen = false;
+  bool staWifiSleep = true;
+  char staSsid[WIFI_SSID_CAPACITY] = {};
+  char staPassword[WIFI_PASSWORD_CAPACITY] = {};
+  uint8_t staIpMode = static_cast<uint8_t>(StaIpMode::DHCP);
+  uint8_t staIp[4] = {};
+  uint8_t staNetmask[4] = {};
+  uint8_t staGateway[4] = {};
+  uint8_t staDns1[4] = {};
+  uint8_t staDns2[4] = {};
+  uint8_t staConfigState = static_cast<uint8_t>(StaConfigState::CONFIRMED);
+  bool lkgValid = false;
+  bool lkgOpen = false;
+  char lkgSsid[WIFI_SSID_CAPACITY] = {};
+  char lkgPassword[WIFI_PASSWORD_CAPACITY] = {};
+  uint8_t lkgIpMode = static_cast<uint8_t>(StaIpMode::DHCP);
+  uint8_t lkgIp[4] = {};
+  uint8_t lkgNetmask[4] = {};
+  uint8_t lkgGateway[4] = {};
+  uint8_t lkgDns1[4] = {};
+  uint8_t lkgDns2[4] = {};
+  char devicePassword[WIFI_PASSWORD_CAPACITY] = {};
+  char preferredScaleMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
+  char preferredScaleName[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  ScaleHistoryEntry scaleHistory[SCALE_HISTORY_CAPACITY] = {};
+  WebhookConfig webhook = {};
+  uint32_t checksum = 0;
+};
+
+static_assert(sizeof(PersistedSettingsV13) == PERSISTED_SETTINGS_V7_SIZE,
+              "V7–V13 migration requires the original blob layout");
+static_assert(offsetof(PersistedSettings, webhook) ==
+                      offsetof(PersistedSettingsV13, webhook) &&
+                  offsetof(PersistedSettingsV13, webhook) +
+                          sizeof(WebhookConfig) <=
+                      offsetof(PersistedSettingsV13, checksum),
+              "V14 must keep the V13 field order through webhook");
+
+inline uint32_t persistedSettingsV13Checksum(const PersistedSettingsV13 &settings) {
+  return crc32(reinterpret_cast<const uint8_t *>(&settings),
+               offsetof(PersistedSettingsV13, checksum));
+}
+
+// Pre-V14 blobs never stored a device name; every migration seeds the
+// default so validPersistedSettings accepts the result.
+inline void seedDefaultDeviceName(PersistedSettings &out) {
+  memset(out.deviceName, 0, sizeof(out.deviceName));
+  memcpy(out.deviceName, DEFAULT_DEVICE_NAME, sizeof(DEFAULT_DEVICE_NAME));
+}
+
+// Shared V6–V13 tail: prefix-copy the legacy bytes (everything through
+// webhook), seed the V14 deviceName default, and stamp current header fields.
+// Version-specific fixes run after this; callers recompute the checksum.
+inline void seedMigratedSettingsFromV13(PersistedSettings &out,
+                                         const PersistedSettingsV13 &legacy) {
+  out = PersistedSettings{};
+  copyPersistedBytes(out, legacy, offsetof(PersistedSettingsV13, checksum));
+  seedDefaultDeviceName(out);
+  out.schemaVersion = CONFIG_SCHEMA_VERSION;
+  out.structureSize = sizeof(PersistedSettings);
 }
 
 inline void ensurePersistedPresetBank(PersistedSettings &settings) {
@@ -76,67 +150,75 @@ inline void initializeMigratedBbw(PersistedSettings &out) {
   }
 }
 
-inline bool migratePersistedSettingsFromV10(const PersistedSettings &v10,
+inline bool migratePersistedSettingsFromV10(const PersistedSettingsV13 &v10,
                                            PersistedSettings &out) {
   if (v10.magic != PERSISTED_SETTINGS_MAGIC || v10.schemaVersion != 10 ||
       v10.structureSize != PERSISTED_SETTINGS_V10_SIZE ||
-      v10.checksum != persistedSettingsChecksum(v10)) return false;
-  copyPersistedBytes(out, v10, sizeof(out));
+      v10.checksum != persistedSettingsV13Checksum(v10)) return false;
+  seedMigratedSettingsFromV13(out, v10);
   out.runtime.powerManagementEnabled = true;
-  out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }
 
-inline bool migratePersistedSettingsFromV11(const PersistedSettings &v11,
+inline bool migratePersistedSettingsFromV11(const PersistedSettingsV13 &v11,
                                              PersistedSettings &out) {
   if (v11.magic != PERSISTED_SETTINGS_MAGIC || v11.schemaVersion != 11 ||
       v11.structureSize != PERSISTED_SETTINGS_V11_SIZE ||
-      v11.checksum != persistedSettingsChecksum(v11)) return false;
-  copyPersistedBytes(out, v11, sizeof(out));
+      v11.checksum != persistedSettingsV13Checksum(v11)) return false;
+  seedMigratedSettingsFromV13(out, v11);
   out.webhook.presetChanges = false;
-  out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }
 
-inline bool migratePersistedSettingsFromV12(const PersistedSettings &v12,
+inline bool migratePersistedSettingsFromV12(const PersistedSettingsV13 &v12,
                                             PersistedSettings &out) {
   if (v12.magic != PERSISTED_SETTINGS_MAGIC || v12.schemaVersion != 12 ||
-      v12.structureSize != sizeof(PersistedSettings) ||
-      v12.checksum != persistedSettingsChecksum(v12)) return false;
-  copyPersistedBytes(out, v12, sizeof(out));
+      v12.structureSize != PERSISTED_SETTINGS_V13_SIZE ||
+      v12.checksum != persistedSettingsV13Checksum(v12)) return false;
+  seedMigratedSettingsFromV13(out, v12);
   out.runtime.noScaleBbwMode =
       packNoScaleBbwMode(noScaleBbwModeValue(out.runtime.noScaleBbwMode), false);
-  out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }
 
-inline bool migratePersistedSettingsFromV9(const PersistedSettings &v9,
+// Current-version-minus-one migration: identical fields, plus the V14
+// deviceName default seeded by the shared helper.
+inline bool migratePersistedSettingsFromV13(const PersistedSettingsV13 &v13,
+                                            PersistedSettings &out) {
+  if (v13.magic != PERSISTED_SETTINGS_MAGIC || v13.schemaVersion != 13 ||
+      v13.structureSize != PERSISTED_SETTINGS_V13_SIZE ||
+      v13.checksum != persistedSettingsV13Checksum(v13)) return false;
+  seedMigratedSettingsFromV13(out, v13);
+  out.checksum = persistedSettingsChecksum(out);
+  return true;
+}
+
+inline bool migratePersistedSettingsFromV9(const PersistedSettingsV13 &v9,
                                            PersistedSettings &out) {
   if (v9.magic != PERSISTED_SETTINGS_MAGIC || v9.schemaVersion != 9 ||
-      v9.structureSize != sizeof(out) || v9.checksum != persistedSettingsChecksum(v9))
+      v9.structureSize != PERSISTED_SETTINGS_V13_SIZE ||
+      v9.checksum != persistedSettingsV13Checksum(v9))
     return false;
-  copyPersistedBytes(out, v9, sizeof(out));
+  seedMigratedSettingsFromV13(out, v9);
   out.runtime.powerManagementEnabled = true;
   for (ShotPreset &preset : out.presets.presets) {
     preset.bbwAlphaBaseline = DEFAULT_BBW_EWMA_ALPHA;
     preset.bbwProfileVersion = BBW_PROFILE_VERSION;
   }
-  out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }
 
-inline bool migratePersistedSettingsFromV8(const PersistedSettings &v8,
+inline bool migratePersistedSettingsFromV8(const PersistedSettingsV13 &v8,
                                            PersistedSettings &out) {
   if (v8.magic != PERSISTED_SETTINGS_MAGIC || v8.schemaVersion != 8 ||
-      v8.structureSize != 2616 || v8.checksum != persistedSettingsChecksum(v8))
+      v8.structureSize != 2616 || v8.checksum != persistedSettingsV13Checksum(v8))
     return false;
-  copyPersistedBytes(out, v8, sizeof(out));
+  seedMigratedSettingsFromV13(out, v8);
   initializeMigratedBbw(out);
-  out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }
@@ -144,36 +226,32 @@ inline bool migratePersistedSettingsFromV8(const PersistedSettings &v8,
 // V6 and V7 have the same physical layout. The byte at serialLogLevel was a
 // boolean in V6, so migrate true to INFO (the old effective default) instead
 // of interpreting it as the numeric ERROR enum value.
-inline bool migratePersistedSettingsFromV6(const PersistedSettings &v6,
+inline bool migratePersistedSettingsFromV6(const PersistedSettingsV13 &v6,
                                            PersistedSettings &out) {
   if (v6.magic != PERSISTED_SETTINGS_MAGIC || v6.schemaVersion != 6 ||
-      v6.structureSize != sizeof(PersistedSettings) ||
-      v6.checksum != persistedSettingsChecksum(v6)) {
+      v6.structureSize != PERSISTED_SETTINGS_V13_SIZE ||
+      v6.checksum != persistedSettingsV13Checksum(v6)) {
     return false;
   }
-  copyPersistedBytes(out, v6, sizeof(out));
+  seedMigratedSettingsFromV13(out, v6);
   out.runtime.autoTareOutsideBrew = true;
   setSerialLogLevel(out.runtime, v6.runtime.serialLogLevel != 0
                                      ? LogLevel::INFO
                                      : LogLevel::NONE);
-  out.schemaVersion = CONFIG_SCHEMA_VERSION;
-  out.structureSize = sizeof(PersistedSettings);
-  out.checksum = 0;
   initializeMigratedBbw(out);
   out.checksum = persistedSettingsChecksum(out);
   return true;
 }
 
-inline bool migratePersistedSettingsFromV7(const PersistedSettings &v7,
+inline bool migratePersistedSettingsFromV7(const PersistedSettingsV13 &v7,
                                            PersistedSettings &out) {
   if (v7.magic != PERSISTED_SETTINGS_MAGIC || v7.schemaVersion != 7 ||
       v7.structureSize != PERSISTED_SETTINGS_V7_SIZE ||
-      v7.checksum != persistedSettingsChecksum(v7)) {
+      v7.checksum != persistedSettingsV13Checksum(v7)) {
     return false;
   }
-  copyPersistedBytes(out, v7, sizeof(out));
+  seedMigratedSettingsFromV13(out, v7);
   out.runtime.autoTareOutsideBrew = true;
-  out.schemaVersion = CONFIG_SCHEMA_VERSION;
   initializeMigratedBbw(out);
   out.checksum = persistedSettingsChecksum(out);
   return true;
@@ -381,6 +459,7 @@ inline bool migratePersistedSettingsFromV4(const PersistedSettingsV4 &v4,
     return false;
   }
   out = PersistedSettings{};
+  seedDefaultDeviceName(out);
   copyPersistedBytes(out, v4, offsetof(PersistedSettingsV4, webhook));
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.runtime.showDiagnosticPage = true;
@@ -405,6 +484,7 @@ inline bool migratePersistedSettingsFromV5(const PersistedSettingsV5 &v5,
     return false;
   }
   out = PersistedSettings{};
+  seedDefaultDeviceName(out);
   copyPersistedBytes(out, v5, offsetof(PersistedSettingsV5, webhook));
   out.runtime.autoTareOutsideBrew = true;
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
@@ -428,6 +508,7 @@ inline bool migratePersistedSettingsFromV3(const PersistedSettingsV3 &v3,
     return false;
   }
   out = PersistedSettings{};
+  seedDefaultDeviceName(out);
   copyPersistedBytes(out, v3, offsetof(PersistedSettingsV3, checksum));
   out.runtime.autoTareOutsideBrew = true;
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
@@ -446,6 +527,7 @@ inline bool migratePersistedSettingsFromV1(const PersistedSettingsV1 &v1,
     return false;
   }
   out = PersistedSettings{};
+  seedDefaultDeviceName(out);
   out.storageRevision = v1.storageRevision;
   copyPersistedBytes(out.runtime, v1.runtime, sizeof(out.runtime));
   out.runtime.autoTareOutsideBrew = true;
@@ -473,6 +555,7 @@ inline bool migratePersistedSettingsFromV2(const PersistedSettingsV2 &v2,
     return false;
   }
   out = PersistedSettings{};
+  seedDefaultDeviceName(out);
   out.storageRevision = v2.storageRevision;
   copyPersistedBytes(out.runtime, v2.runtime, sizeof(out.runtime));
   out.runtime.autoTareOutsideBrew = true;

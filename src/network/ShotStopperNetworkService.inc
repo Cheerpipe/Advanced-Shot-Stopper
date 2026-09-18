@@ -97,6 +97,9 @@ bool ShotStopperNetwork::stop() {
     }
   }
 
+  // Network task is joined: no mDNS caller remains, release its task/socket.
+  stopMdns();
+
   if (!webhooks_.stop()) return false;
 
   instance_ = nullptr;
@@ -213,6 +216,7 @@ NetworkSettingsSnapshot ShotStopperNetwork::networkSettingsSnapshot() {
   memcpy(output.staSsid, settings_.staSsid, sizeof(output.staSsid));
   memcpy(output.staPassword, settings_.staPassword, sizeof(output.staPassword));
   memcpy(output.devicePassword, settings_.devicePassword, sizeof(output.devicePassword));
+  memcpy(output.deviceName, settings_.deviceName, sizeof(output.deviceName));
   memcpy(output.staIp, settings_.staIp, sizeof(output.staIp));
   memcpy(output.staNetmask, settings_.staNetmask, sizeof(output.staNetmask));
   memcpy(output.staGateway, settings_.staGateway, sizeof(output.staGateway));

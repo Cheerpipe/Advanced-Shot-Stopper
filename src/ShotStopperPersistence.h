@@ -29,6 +29,7 @@ inline bool validPersistedSettings(const PersistedSettings &settings) {
       !validateShotPresetBank(settings.presets, settings.runtime.retareWindowMs,
                               settings.runtime.autoRetare) ||
       !validDevicePassword(settings.devicePassword) ||
+      !validDeviceName(settings.deviceName) ||
       !validPreferredScaleMac(settings.preferredScaleMac) ||
       !validPreferredScaleName(settings.preferredScaleName) ||
       !validScaleHistoryEntries(settings.scaleHistory) ||
@@ -96,13 +97,15 @@ inline PersistedSettingsV1 &persistedSettingsV1MigrationScratch() {
   return *reinterpret_cast<PersistedSettingsV1 *>(
       persistedSettingsMigrationScratch());
 }
-// Same-size V6→current migration target: a full PersistedSettings would be
-// 2,616 B on the NVS call chain of the 8 KiB loop task if left on the stack.
-inline PersistedSettings &persistedSettingsV6MigrationScratch() {
-  static_assert(2 * sizeof(PersistedSettings) + sizeof(PersistedSettings) <=
+// V6–V13 blobs share the 2,616-byte legacy layout. Reading them into this
+// scratch avoids stacking the record on the NVS call chain of the 8 KiB
+// loop task; migrations write the current-size result into `settings`.
+inline PersistedSettingsV13 &persistedSettingsV13MigrationScratch() {
+  static_assert(2 * sizeof(PersistedSettings) +
+                      sizeof(PersistedSettingsV13) <=
                     FLASH_IO_SCRATCH_BYTES,
-                "V6 migration scratch exceeds flash I/O buffer");
-  return *reinterpret_cast<PersistedSettings *>(
+                "V13 migration scratch exceeds flash I/O buffer");
+  return *reinterpret_cast<PersistedSettingsV13 *>(
       persistedSettingsMigrationScratch());
 }
 
@@ -141,29 +144,43 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
         sizeof(settings)) {
       return false;
     }
-    if (settings.schemaVersion >= 6 && settings.schemaVersion <= 12) {
-      PersistedSettings &migrated = persistedSettingsV6MigrationScratch();
-      if (!(settings.schemaVersion == 6
-                ? migratePersistedSettingsFromV6(settings, migrated)
-                : settings.schemaVersion == 7
-                      ? migratePersistedSettingsFromV7(settings, migrated)
-                      : settings.schemaVersion == 8
-                            ? migratePersistedSettingsFromV8(settings, migrated)
-                            : settings.schemaVersion == 9
-                                  ? migratePersistedSettingsFromV9(settings, migrated)
-                                  : settings.schemaVersion == 10
-                                        ? migratePersistedSettingsFromV10(settings, migrated)
-                                        : settings.schemaVersion == 11
-                                              ? migratePersistedSettingsFromV11(settings, migrated)
-                                              : migratePersistedSettingsFromV12(settings, migrated))) {
+    return validPersistedSettings(settings);
+  }
+  if (storedLength == PERSISTED_SETTINGS_V13_SIZE) {
+    PersistedSettingsV13 &legacy = persistedSettingsV13MigrationScratch();
+    if (preferences.getBytes(key, &legacy, sizeof(legacy)) != sizeof(legacy)) {
+      return false;
+    }
+    bool migrated = false;
+    switch (legacy.schemaVersion) {
+      case 6:
+        migrated = migratePersistedSettingsFromV6(legacy, settings);
+        break;
+      case 7:
+        migrated = migratePersistedSettingsFromV7(legacy, settings);
+        break;
+      case 8:
+        migrated = migratePersistedSettingsFromV8(legacy, settings);
+        break;
+      case 9:
+        migrated = migratePersistedSettingsFromV9(legacy, settings);
+        break;
+      case 10:
+        migrated = migratePersistedSettingsFromV10(legacy, settings);
+        break;
+      case 11:
+        migrated = migratePersistedSettingsFromV11(legacy, settings);
+        break;
+      case 12:
+        migrated = migratePersistedSettingsFromV12(legacy, settings);
+        break;
+      case 13:
+        migrated = migratePersistedSettingsFromV13(legacy, settings);
+        break;
+      default:
         return false;
-      }
-      settings = migrated;
-      return validPersistedSettings(settings);
     }
-    if (validPersistedSettings(settings)) {
-      return true;
-    }
+    return migrated && validPersistedSettings(settings);
   }
   if (storedLength == sizeof(PersistedSettingsV2)) {
     PersistedSettingsV2 &legacy = persistedSettingsV2MigrationScratch();
@@ -327,7 +344,8 @@ inline bool savePersistedSettings(PersistedSettings &settings) {
 
 inline bool initializeDefaultSettings(PersistedSettings &settings) {
   settings = PersistedSettings{};
-  if (!initializeDefaultDevicePassword(settings)) {
+  if (!initializeDefaultDevicePassword(settings) ||
+      !initializeDefaultDeviceName(settings)) {
     return false;
   }
   finalizePersistedSettings(settings);

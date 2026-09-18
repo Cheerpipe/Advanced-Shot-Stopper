@@ -15,7 +15,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
   static const char *const confirmFields[] = {"action"};
   static const char *const saveFields[] = {
       "action", "ssid",     "password", "open",  "wifiSleep", "ipMode",
-      "ip",     "netmask",  "gateway",  "dns1",  "dns2"};
+      "ip",     "netmask",  "gateway",  "dns1",  "dns2",      "name"};
   const char *networkError = nullptr;
   bool parsed = root != nullptr &&
                 jsonString(root, "action", action, sizeof(action), false);
@@ -94,7 +94,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
         cJSON_GetObjectItemCaseSensitive(root, "dns1") != nullptr;
     const bool hasDns2 =
         cJSON_GetObjectItemCaseSensitive(root, "dns2") != nullptr;
-    if (!jsonHasOnlyUniqueFields(root, saveFields, 11) ||
+    if (!jsonHasOnlyUniqueFields(root, saveFields, 12) ||
         !jsonString(root, "ssid", command.network.ssid, sizeof(command.network.ssid), false) ||
         !jsonString(root, "password", command.network.password,
                     sizeof(command.network.password), true) ||
@@ -134,8 +134,24 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
       parsed = false;
       networkError = "ipMode must be \"dhcp\" or \"static\".";
     }
+    const bool hasName = cJSON_GetObjectItemCaseSensitive(root, "name") != nullptr;
+    if (parsed && hasName &&
+        !jsonString(root, "name", command.network.deviceName,
+                    sizeof(command.network.deviceName), false)) {
+      parsed = false;
+      networkError = "Save request name must be 1-32 characters.";
+    } else if (parsed && hasName &&
+               !validDeviceName(command.network.deviceName)) {
+      parsed = false;
+      networkError =
+          "Device name must be 1-32 letters, digits, spaces, or hyphens, "
+          "without a leading or trailing space or hyphen.";
+    }
     if (parsed) {
       command.network.wifiSleepSpecified = true;
+    }
+    if (parsed && hasName) {
+      command.network.deviceNameSpecified = true;
     }
     if (parsed && !validWifiSsid(command.network.ssid)) {
       parsed = false;

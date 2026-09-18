@@ -10,7 +10,9 @@ how much energy the controller uses, in this order:
 - **Wi-Fi sleep** — puts the Wi-Fi radio into modem sleep between the
   router's beacons while connected. Saves immediately without restarting or
   waiting for a reconnect, and stays disabled until a network is configured.
-  Details in [Wi-Fi](wifi.md).
+  [Discovery by name](wifi.md#discovery-by-name) keeps working while sleep is
+  on: the radio wakes for every beacon window, so name lookups stay slightly
+  delayed but are not lost. Details in [Wi-Fi](wifi.md).
 - **BLE scan mode** — how much radio time is spent searching for Bluetooth
   espresso scales: **Aggressive**, **Balanced** (factory default), or
   **Relaxed**. See [Scales](scales.md).

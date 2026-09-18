@@ -27,7 +27,10 @@ same folder under your Home Assistant configuration directory.
 
 1. In Home Assistant, go to **Settings → Devices & services → Add integration**
    and select **Advanced Shot Stopper**.
-2. Enter only the controller IP address or local host name.
+2. Enter only the controller IP address or local host name. On networks with
+   discovery, the controller's address is `<device-name>.local`, for example
+   `advancedshotstopper.local` (see
+   [Discovery by name](../settings/wifi.md#discovery-by-name)).
 3. If another webhook currently owns the controller, explicitly approve its
    replacement.
 

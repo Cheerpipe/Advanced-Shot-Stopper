@@ -261,14 +261,33 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
                  sizeof(next.staGateway)) == 0 &&
           memcmp(next.staDns1, command.network.staDns1, sizeof(next.staDns1)) == 0 &&
           memcmp(next.staDns2, command.network.staDns2, sizeof(next.staDns2)) == 0;
-      // Specified sleep + identical STA: persist sleep if it changed,
-      // otherwise no-op. Never restart (second Save must not go PENDING).
-      if (command.network.wifiSleepSpecified && sameCredentials) {
+      // Specified sleep and/or device name + identical STA: persist the
+      // delta if anything changed, otherwise no-op. Never restart (a second
+      // Save must not go PENDING).
+      if (sameCredentials &&
+          (command.network.wifiSleepSpecified ||
+           command.network.deviceNameSpecified)) {
         memset(password, 0, sizeof(password));
-        if (next.staWifiSleep != command.network.wifiSleep) {
+        bool preferenceChanged = false;
+        if (command.network.deviceNameSpecified &&
+            strcmp(next.deviceName, command.network.deviceName) != 0) {
+          if (!validDeviceName(command.network.deviceName)) {
+            log(DebugCategory::CONFIG, DebugCode::CONFIG_REJECTED);
+            return false;
+          }
+          memset(next.deviceName, 0, sizeof(next.deviceName));
+          copyCString(next.deviceName, sizeof(next.deviceName),
+                      command.network.deviceName);
+          preferenceChanged = true;
+        }
+        if (command.network.wifiSleepSpecified &&
+            next.staWifiSleep != command.network.wifiSleep) {
           next.staWifiSleep = command.network.wifiSleep;
-          persist = true;
+          preferenceChanged = true;
           applyWifiPsAfterPersist = true;
+        }
+        if (preferenceChanged) {
+          persist = true;
         }
         break;
       }
@@ -281,6 +300,11 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
       next.staOpen = command.network.openNetwork;
       if (command.network.wifiSleepSpecified) {
         next.staWifiSleep = command.network.wifiSleep;
+      }
+      if (command.network.deviceNameSpecified) {
+        memset(next.deviceName, 0, sizeof(next.deviceName));
+        copyCString(next.deviceName, sizeof(next.deviceName),
+                    command.network.deviceName);
       }
       memset(next.staSsid, 0, sizeof(next.staSsid));
       memset(next.staPassword, 0, sizeof(next.staPassword));
@@ -408,6 +432,7 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
       clearStagedWebhook(command.webhookStageRequestId);
     }
     publishConfiguredAddressStatus();
+    applyMdnsName();
     log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
         static_cast<int32_t>(next.runtime.revision));
   } else if (factoryReset) {
@@ -418,6 +443,7 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
         static_cast<uint8_t>(StaConfigState::CONFIRMED);
     dataMux_.unlock();
     publishConfiguredAddressStatus();
+    applyMdnsName();
     log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
         static_cast<int32_t>(next.runtime.revision));
   }

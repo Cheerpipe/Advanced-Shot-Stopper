@@ -46,6 +46,9 @@ and OTA use that same device password.
    `AdvancedShotStopperAP` with no suffix. The scale may wait to connect
    until you finish this setup network.
 3. Open **`http://192.168.4.1`** within the idle window (or stay associated).
+   On clients that support it, the controller's
+   [device name](wifi.md#discovery-by-name) also resolves while you are on
+   this AP.
 4. Select **Reload** if prompted to claim the Web UI. Unlock Admin to save
    home Wi-Fi. Continue with [first setup](../GETTING_STARTED.md).
 

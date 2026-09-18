@@ -18,6 +18,7 @@ subscribed nor part of control. Stack values are configured bytes in ESP-IDF.
 | scale_worker | periodic / 1 ms linked, 10 ms idle | 10 ms | 9000 us | idle+1 | 3000 ms GATT step | 6656 | 1 | 5 s |
 | settings_persist | event-driven | 1000 ms service | n/a | idle+1 | 3000 ms flash take | 4096 | 1 | 5 s |
 | network_manager | periodic / 50 ms | 250 ms | 200000 us | idle+1 | 2500 ms lifecycle/cancel | 10240 | 0 | 5 s |
+| mdns | event-driven (action queue) | n/a | n/a | 1 | freed once in network stop | 4096 | 0 | no |
 | httpd | framework event | n/a | n/a | idle+1 | 30000 ms OTA receive budget | 8192 | 0 | no |
 | webhook | event-driven | n/a | n/a | idle | 1800 ms HTTP | 4096 | 0 | no |
 | serial_log | event-driven | n/a | n/a | idle | unbounded USB sink | 3072 | 0 | no |

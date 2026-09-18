@@ -33,7 +33,7 @@ if (/R\.(homeFlushConfig|homeFlushPreset|configLoaded|formRev|brewDirty)\s*=/.te
 }
 if (!ui.includes('<legend>Brew</legend>') ||
     !ui.includes('<legend>Machine and scale</legend>') ||
-    !ui.includes('<legend>Wi-Fi</legend>') ||
+    !ui.includes('<legend>Network</legend>') ||
     !ui.includes('<legend>Device password</legend>') ||
     !ui.includes('<legend>Frontend</legend>') ||
     !ui.includes('id="presetCards"') ||
@@ -61,7 +61,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     html.indexOf('id="saveConfigButton"') <
         html.indexOf('<summary>Alerts</summary>') ||
     html.indexOf('id="saveConfigButton"') >
-        html.indexOf('<legend>Wi-Fi</legend>') ||
+        html.indexOf('<legend>Network</legend>') ||
     !ui.includes('id="presetResetBtn"') ||
     !ui.includes('id="presetDeleteBtn"') ||
     !ui.includes('id="presetRenameDialog"') ||
