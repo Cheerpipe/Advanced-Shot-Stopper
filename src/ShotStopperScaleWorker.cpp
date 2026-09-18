@@ -236,6 +236,10 @@ std::atomic<uint8_t> liveBleScanIntensityRaw{
     static_cast<uint8_t>(BleScanIntensity::BALANCED)};
 std::atomic<uint8_t> liveBleScanBackoffMinRaw{
     SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN};
+std::atomic<uint8_t> liveBleScanBoostMinRaw{SCALE_SCAN_BOOST_DEFAULT_MIN};
+// RAM-only boost deadline armed by the control loop; boot zero-init and
+// natural expiry are the only clear paths.
+std::atomic<uint32_t> scaleScanBoostUntilMs{0};
 bool bookooConnectVolumePending = false;
 static std::atomic<bool> bleStackReady{false};
 static std::atomic<bool> scaleWorkerStartupFinished{false};
@@ -1699,12 +1703,38 @@ uint8_t liveBleScanBackoffMin() {
   return liveBleScanBackoffMinRaw.load(std::memory_order_relaxed);
 }
 
+void applyLiveBleScanBoost(uint8_t boostMin) {
+  liveBleScanBoostMinRaw.store(clampBleScanBoostMin(boostMin),
+                               std::memory_order_relaxed);
+}
+
+uint8_t liveBleScanBoostMin() {
+  return liveBleScanBoostMinRaw.load(std::memory_order_relaxed);
+}
+
+void armBleScanBoost() {
+  const uint8_t boostMin = liveBleScanBoostMin();
+  if (boostMin == 0) {
+    return;
+  }
+  scaleScanBoostUntilMs.store(millis() + static_cast<uint32_t>(boostMin) * 60000U,
+                              std::memory_order_relaxed);
+}
+
+bool bleScanBoostActive() {
+  const uint32_t untilMs = scaleScanBoostUntilMs.load(std::memory_order_relaxed);
+  return untilMs != 0 && static_cast<int32_t>(millis() - untilMs) < 0;
+}
+
 BleScanIntensity liveBleScanIntensity() {
   return clampBleScanIntensity(
       liveBleScanIntensityRaw.load(std::memory_order_relaxed));
 }
 
 BleScanIntensity discoveryScanIntensity() {
+  if (bleScanBoostActive()) {
+    return BleScanIntensity::AGGRESSIVE;
+  }
   const uint8_t backoffMin = liveBleScanBackoffMin();
   if (powerIdleSavings() ||
       (backoffMin != 0 &&

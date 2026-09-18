@@ -614,6 +614,7 @@ struct SerialCliScaleDump {
   float currentWeightG = 0.0f;
   const char *scanIntensity = "balanced";
   uint8_t scanBackoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
+  uint8_t scanBoostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
 };
 
 struct SerialCliNtpDump {
@@ -903,6 +904,8 @@ inline void serialCliPrintScaleStatus(const SerialCliScaleDump &dump) {
   Serial.println(dump.scanIntensity != nullptr ? dump.scanIntensity : "-");
   Serial.print("scanBackoffMin=");
   Serial.println(static_cast<unsigned>(dump.scanBackoffMin));
+  Serial.print("scanBoostMin=");
+  Serial.println(static_cast<unsigned>(dump.scanBoostMin));
 }
 
 inline void serialCliPrintNtpStatus(const SerialCliNtpDump &dump) {

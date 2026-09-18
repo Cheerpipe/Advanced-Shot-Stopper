@@ -538,10 +538,11 @@ bool serviceBleScanPersist() {
 #if defined(SHOT_STOPPER_HOST_TEST)
   // Host harness: no NVS layer; a staged change completes immediately.
   bleScanPersistMux.lock();
-  const bool pending =
-      bleScanPersistPending || bleScanBackoffPersistPending;
+  const bool pending = bleScanPersistPending || bleScanBackoffPersistPending ||
+                       bleScanBoostPersistPending;
   bleScanPersistPending = false;
   bleScanBackoffPersistPending = false;
+  bleScanBoostPersistPending = false;
   bleScanPersistResultOk = true;
   bleScanPersistResultReady = pending;
   bleScanPersistMux.unlock();
@@ -550,18 +551,22 @@ bool serviceBleScanPersist() {
   bleScanPersistMux.lock();
   const bool pending = bleScanPersistPending;
   const bool backoffPending = bleScanBackoffPersistPending;
-  // An unstaged field keeps its durable value, so both share one save.
+  const bool boostPending = bleScanBoostPersistPending;
+  // An unstaged field keeps its durable value, so all three share one save.
   const uint8_t intensity = pending ? bleScanPersistIntensity
                                     : bleScanPersistedSettings.scanIntensity;
   const uint8_t backoffMin = backoffPending
                                  ? bleScanPersistBackoffMin
                                  : bleScanPersistedSettings.scanBackoffMin;
+  const uint8_t boostMin = boostPending
+                               ? bleScanPersistBoostMin
+                               : bleScanPersistedSettings.scanBoostMin;
   bleScanPersistMux.unlock();
-  if (!pending && !backoffPending) {
+  if (!pending && !backoffPending && !boostPending) {
     return true;
   }
-  const bool ok =
-      persistBleScanSettings(bleScanPersistedSettings, intensity, backoffMin);
+  const bool ok = persistBleScanSettings(bleScanPersistedSettings, intensity,
+                                         backoffMin, boostMin);
   bleScanPersistMux.lock();
   if (ok && pending && bleScanPersistIntensity == intensity) {
     // A newer staged value stays pending for the next idle pass.
@@ -569,6 +574,9 @@ bool serviceBleScanPersist() {
   }
   if (ok && backoffPending && bleScanPersistBackoffMin == backoffMin) {
     bleScanBackoffPersistPending = false;
+  }
+  if (ok && boostPending && bleScanPersistBoostMin == boostMin) {
+    bleScanBoostPersistPending = false;
   }
   bleScanPersistResultOk = ok;
   bleScanPersistResultReady = true;

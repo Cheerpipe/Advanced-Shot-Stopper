@@ -516,6 +516,8 @@ bool bleScanPersistPending = false;
 uint8_t bleScanPersistIntensity = 0;
 bool bleScanBackoffPersistPending = false;
 uint8_t bleScanPersistBackoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
+bool bleScanBoostPersistPending = false;
+uint8_t bleScanPersistBoostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
 bool bleScanPersistResultReady = false;
 bool bleScanPersistResultOk = false;
 uint32_t pendingBleScanRequestId = 0;
@@ -1210,6 +1212,7 @@ bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
   bleScanPersistMux.lock();
   bleScanPersistPending = false;
   bleScanBackoffPersistPending = false;
+  bleScanBoostPersistPending = false;
   pendingBleScanRequestId = 0;
   bleScanPersistFailLatched = false;
   bleScanPersistMux.unlock();

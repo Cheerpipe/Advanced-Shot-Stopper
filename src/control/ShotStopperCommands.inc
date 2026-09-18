@@ -5,6 +5,7 @@ void rejectWebCommand(const WebCommand &command) {
 }
 bool persistBleScanIntensity(BleScanIntensity intensity);
 bool persistBleScanBackoff(uint8_t backoffMin);
+bool persistBleScanBoost(uint8_t boostMin);
 
 void processWebCommand(const WebCommand &command) {
   switch (command.type) {
@@ -602,6 +603,10 @@ void processWebCommand(const WebCommand &command) {
         applied = true;
         staged = staged && persistBleScanBackoff(command.bleScan.backoffMin);
       }
+      if (command.bleScan.specified & BleScanCommandPayload::BOOST_MIN) {
+        applied = true;
+        staged = staged && persistBleScanBoost(command.bleScan.boostMin);
+      }
       if (!applied || !staged) {
         rejectWebCommand(command);
         return;
@@ -660,6 +665,18 @@ bool persistBleScanBackoff(uint8_t backoffMin) {
   bleScanPersistMux.lock();
   bleScanPersistBackoffMin = clamped;
   bleScanBackoffPersistPending = true;
+  bleScanPersistMux.unlock();
+  return true;
+}
+
+bool persistBleScanBoost(uint8_t boostMin) {
+  const uint8_t clamped = clampBleScanBoostMin(boostMin);
+  applyLiveBleScanBoost(clamped);
+  // Stage only: the settings_persist worker owns the durable NVS write, so
+  // the Arduino control loop never performs flash I/O for this command.
+  bleScanPersistMux.lock();
+  bleScanPersistBoostMin = clamped;
+  bleScanBoostPersistPending = true;
   bleScanPersistMux.unlock();
   return true;
 }

@@ -137,14 +137,30 @@ inline uint8_t clampBleScanBackoffMin(uint8_t minutes) {
                                          : SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
 }
 
+// Machine-use scan boost: minutes of Aggressive discovery duty armed by a
+// machine activation (paddle/momentary ON edge) while no scale is connected.
+// Zero disables the boost (saved intensity always decides) and is the default.
+constexpr uint8_t SCALE_SCAN_BOOST_DEFAULT_MIN = 0;
+constexpr uint8_t SCALE_SCAN_BOOST_MAX_MIN = 240;
+
+inline bool validBleScanBoostMin(uint8_t minutes) {
+  return minutes <= SCALE_SCAN_BOOST_MAX_MIN;
+}
+
+inline uint8_t clampBleScanBoostMin(uint8_t minutes) {
+  return validBleScanBoostMin(minutes) ? minutes : SCALE_SCAN_BOOST_DEFAULT_MIN;
+}
+
 // PUT /api/v1/admin/ble-scan payload. `specified` records which optional
 // field the request carried so each one can be applied on its own.
 struct BleScanCommandPayload {
   static constexpr uint8_t INTENSITY = 0x01;
   static constexpr uint8_t BACKOFF_MIN = 0x02;
+  static constexpr uint8_t BOOST_MIN = 0x04;
   uint8_t specified = 0;
   uint8_t intensity = static_cast<uint8_t>(BleScanIntensity::BALANCED);
   uint8_t backoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
+  uint8_t boostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
 };
 
 inline bool parseBleScanIntensityId(const char *id, BleScanIntensity &out) {

@@ -175,7 +175,8 @@ if (!statusFormat.includes('page == StatusPage::Admin') ||
     'wifiSleep',
     'staState', 'staIp', 'ipMode', 'configState', 'confirmRemainingMs', 'rssi',
     'signalQualityPct', 'configuredIp', 'configuredNetmask', 'configuredGateway',
-    'configuredDns1', 'configuredDns2', 'scanIntensity', 'backoffMin'
+    'configuredDns1', 'configuredDns2', 'scanIntensity', 'backoffMin',
+    'boostMin'
   ]) {
     if (!adminBody.includes(field)) {
       throw new Error('status/admin missing required network field: ' + field);
@@ -207,7 +208,7 @@ if (!statusFormat.includes('page == StatusPage::Admin') ||
     }
   }
   if (!ui.includes(
-          "v==='admin'?!!(typeof s.adminUnlocked==='boolean'&&s.network&&(s.adminUnlocked?(s.bleScan&&typeof s.bleScan.scanIntensity==='string'&&typeof s.bleScan.backoffMin==='number'&&typeof c.timezoneOffsetMinutes==='number'&&c.ntpServerPreset!=null&&s.ota&&typeof s.ota.available==='boolean'&&s.webhooks&&typeof s.webhooks.enabled==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'):typeof s.network.configState==='string'))")) {
+          "v==='admin'?!!(typeof s.adminUnlocked==='boolean'&&s.network&&(s.adminUnlocked?(s.bleScan&&typeof s.bleScan.scanIntensity==='string'&&typeof s.bleScan.backoffMin==='number'&&typeof s.bleScan.boostMin==='number'&&typeof c.timezoneOffsetMinutes==='number'&&c.ntpServerPreset!=null&&s.ota&&typeof s.ota.available==='boolean'&&s.webhooks&&typeof s.webhooks.enabled==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'):typeof s.network.configState==='string'))")) {
     throw new Error(
         'statusPageOk(admin) must accept a locked payload and validate unlocked network/BLE scan/NTP/OTA/webhooks/lastCommand');
   }

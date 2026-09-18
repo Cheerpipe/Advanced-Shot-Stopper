@@ -236,6 +236,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   scaleDiscoveryPausedUntilMs = 0;
   scaleScanCompatibleActivityAtMs = 0;
   applyLiveBleScanBackoff(SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN);
+  applyLiveBleScanBoost(SCALE_SCAN_BOOST_DEFAULT_MIN);
+  scaleScanBoostUntilMs = 0;
   scalePreferredDirectedResetGeneration = 0;
   scaleLinkState = ScaleLinkState::DISCONNECTED;
   scaleConnecting = false;
@@ -11001,20 +11003,30 @@ void bc07_ble_scan_relaxed_with_backoff_is_api_valid() {
   resetHarness(false, false);
   reachReadyFromBoot();
   // The Admin UI grays the backoff select out while Relaxed is selected, but
-  // that guard is client-side only: the API keeps accepting both fields.
+  // that guard is client-side only: the API keeps accepting both fields. The
+  // boost stays settable in every mode because it overrides the demotions.
   WebCommand command = webControlCommand(WebCommandType::BLE_SCAN_INTENSITY);
   command.bleScan.specified |= BleScanCommandPayload::INTENSITY |
-                               BleScanCommandPayload::BACKOFF_MIN;
+                               BleScanCommandPayload::BACKOFF_MIN |
+                               BleScanCommandPayload::BOOST_MIN;
   command.bleScan.intensity = static_cast<uint8_t>(BleScanIntensity::RELAXED);
   command.bleScan.backoffMin = 45;
+  command.bleScan.boostMin = 10;
   processWebCommand(command);
   CHECK(liveBleScanIntensity() == BleScanIntensity::RELAXED);
   CHECK(liveBleScanBackoffMin() == 45);
+  CHECK(liveBleScanBoostMin() == 10);
+  publishControlStatus();
+  ControlStatusSnapshot control;
+  copyControlStatus(control);
+  CHECK(control.bleScanBoostMin == 10);
+  // All three fields share one staged flush.
   runLoopAfter(1);
   CHECK(hostLastForwardedNetworkCommand.requestId == 1);
   CHECK(hostLastForwardedNetworkCommand.resultState ==
         CommandResultState::PERSISTED);
   CHECK(!bleScanBackoffPersistPending);
+  CHECK(!bleScanBoostPersistPending);
 }
 
 void sc07_reset_device_password_and_clear_wifi_queue() {
@@ -11298,6 +11310,7 @@ void sc15_status_printers_use_dump_views() {
   CHECK(serialTxContains("rssi=-"));
   CHECK(serialTxContains("weightG=18.50"));
   CHECK(serialTxContains("scanBackoffMin=0"));
+  CHECK(serialTxContains("scanBoostMin=0"));
 
   scale.rssiValid = true;
   scale.rssi = -62;
@@ -14626,6 +14639,77 @@ void pow03b_quiet_backoff_setting_controls_discovery_duty() {
   CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
 }
 
+void pow06_scan_boost_on_machine_use_overrides_idle_demotions() {
+  resetHarness(false, false);
+  applyLiveBleScanIntensity(BleScanIntensity::RELAXED);
+  applyLiveBleScanBackoff(1);
+  powerAppliedProfile.store(PowerProfile::IDLE);
+  hostMillis += 3600UL * 1000UL;  // Quiet backoff long lapsed.
+
+  // OFF never arms, so the saved duty decides (Relaxed here).
+  applyLiveBleScanBoost(0);
+  armBleScanBoost();
+  CHECK(!bleScanBoostActive());
+  CHECK(discoveryScanIntensity() == BleScanIntensity::RELAXED);
+
+  // An armed window wins over both the power-idle demotion and the backoff.
+  applyLiveBleScanBoost(5);
+  armBleScanBoost();
+  CHECK(bleScanBoostActive());
+  CHECK(discoveryScanIntensity() == BleScanIntensity::AGGRESSIVE);
+  CHECK(liveBleScanIntensity() == BleScanIntensity::RELAXED);
+  CHECK(startScaleDiscoveryScan(nullptr, false));
+  uint16_t interval = 0, window = 0;
+  bleScanHciParams(BleScanIntensity::AGGRESSIVE, interval, window);
+  CHECK(scale.lastScanInterval == interval && scale.lastScanWindow == window);
+
+  // Expiry resumes the idle demotion through the normal duty change.
+  hostMillis += 5UL * 60UL * 1000UL + 1000UL;
+  CHECK(!bleScanBoostActive());
+  CHECK(discoveryScanIntensity() == BleScanIntensity::RELAXED);
+  serviceScaleScanIntensity();
+  bleScanHciParams(BleScanIntensity::RELAXED, interval, window);
+  CHECK(scale.lastScanInterval == interval && scale.lastScanWindow == window);
+}
+
+void pow06b_control_loop_arms_scan_boost_only_without_scale() {
+  resetHarness(false, false);
+  applyLiveBleScanBoost(5);
+  reachReadyFromBoot();
+  setRawPaddle(true);
+  CHECK(!bleScanBoostActive());  // The debounced ON edge has not fired yet.
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(bleScanBoostActive());
+  CHECK(discoveryScanIntensity() == BleScanIntensity::AGGRESSIVE);
+  const uint32_t firstDeadlineMs = hostMillis + 5UL * 60UL * 1000UL;
+
+  // A repeated activation inside the window restarts (extends) the deadline.
+  hostMillis += 4UL * 60UL * 1000UL;
+  setRawPaddle(false);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(bleScanBoostActive());
+  // Two seconds past the first deadline, still inside the restarted one.
+  hostMillis = firstDeadlineMs + 2000UL;
+  runLoopAfter(1);
+  CHECK(bleScanBoostActive());
+  // Natural expiry after the restarted deadline clears the window.
+  hostMillis += 5UL * 60UL * 1000UL + 1000UL;
+  CHECK(!bleScanBoostActive());
+
+  // With a connected scale the activation must not arm the boost.
+  resetHarness(false, true);
+  applyLiveBleScanBoost(5);
+  reachReadyFromBoot();
+  setScaleConnected(true);
+  CHECK(scaleLinkAvailable(getScaleLinkSnapshot()));
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(!bleScanBoostActive());
+  CHECK(scaleLinkAvailable(getScaleLinkSnapshot()));
+}
+
 void pow03_ble_wake_without_link_is_bounded() {
   resetHarness(false, false);
   hostBtSleeping = true; // Initial controller wake is asynchronous too.
@@ -14736,6 +14820,8 @@ const TestCase testCases[] = {
     {"POW02", pow02_idle_scan_preserves_saved_preference},
     {"POW03", pow03_ble_wake_without_link_is_bounded},
     {"POW03B", pow03b_quiet_backoff_setting_controls_discovery_duty},
+    {"POW06", pow06_scan_boost_on_machine_use_overrides_idle_demotions},
+    {"POW06B", pow06b_control_loop_arms_scan_boost_only_without_scale},
     {"POW04", pow04_ble_policy_failure_recovery},
     {"POW05", pow05_power_config_command_and_persistence},
     {"T01", t01_boot_with_paddle_off},

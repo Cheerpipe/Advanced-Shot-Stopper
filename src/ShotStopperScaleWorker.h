@@ -43,6 +43,12 @@ inline void bleScanHciParams(BleScanIntensity intensity, uint16_t &interval,
 void applyLiveBleScanIntensity(BleScanIntensity intensity);
 void applyLiveBleScanBackoff(uint8_t backoffMin);
 uint8_t liveBleScanBackoffMin();
+void applyLiveBleScanBoost(uint8_t boostMin);
+uint8_t liveBleScanBoostMin();
+// Arms the Aggressive-discovery window for the configured minutes; no-op when
+// the setting is OFF. Atomic store only: safe from the Arduino control loop.
+void armBleScanBoost();
+bool bleScanBoostActive();
 BleScanIntensity liveBleScanIntensity();
 BleScanIntensity discoveryScanIntensity();
 

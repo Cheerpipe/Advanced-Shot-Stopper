@@ -1869,10 +1869,9 @@ struct WebCommand {
   CommandResultState resultState = CommandResultState::NONE;
 };
 
-static_assert(sizeof(WebCommand) <= 320, "WebCommand too large for queue");
+static_assert(sizeof(WebCommand) <= 328, "WebCommand too large for queue");
 static_assert(std::is_trivially_copyable<WebCommand>::value,
               "FreeRTOS queues copy WebCommand as bytes");
-
 
 inline const char *commandResultStateName(CommandResultState state) {
   switch (state) {
@@ -2212,6 +2211,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   UsbSerialEnableSource usbSerialEnableSource = UsbSerialEnableSource::OFF;
   uint8_t bleScanIntensity = 0;
   uint8_t bleScanBackoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
+  uint8_t bleScanBoostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
 };
 
 // Published copy lives in BSS, not on the 8 KiB loop stack.

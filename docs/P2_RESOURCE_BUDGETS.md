@@ -31,7 +31,7 @@ which doubles the per-shot weight series retained in PSRAM.
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
 | Settings handoff | one 2620-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
-| Web command | trivially copyable, at most 320 bytes; configuration and network payloads share a discriminated union |
+| Web command | trivially copyable, at most 328 bytes; configuration and network payloads share a discriminated union |
 | Radio settings snapshot | at most 192 bytes; full 2616-byte settings remain for durable mutations |
 | Fixed buzzer melodies | at most 8 notes each; custom tune capacity remains 250 notes |
 | JSON parser | PSRAM only; input at most 2047 bytes, nesting 32, values 128 |

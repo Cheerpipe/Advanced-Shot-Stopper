@@ -550,10 +550,11 @@ void p64_factory_settings_overwrite_does_not_clear_ble_namespace() {
   CHECK(verifyFactorySettings(loaded));
 }
 
-void p82_ble_scan_backoff_v2_migration_and_roundtrip() {
+void p82_ble_scan_backoff_boost_migration_and_roundtrip() {
   resetHostPersistence();
-  // A V2 blob kept the backoff byte reserved (always 0); loading it must
-  // adopt the default backoff (now OFF) without losing the saved intensity.
+  // A V2 blob kept the backoff and boost bytes reserved (always 0); loading it
+  // must adopt the default backoff and boost (now OFF) without losing the
+  // saved intensity.
   BleScanPersistedSettings v2;
   v2.version = BLE_SCAN_SETTINGS_V2_VERSION;
   v2.revision = 7;
@@ -567,30 +568,49 @@ void p82_ble_scan_backoff_v2_migration_and_roundtrip() {
   CHECK(loaded.scanIntensity ==
         static_cast<uint8_t>(BleScanIntensity::RELAXED));
   CHECK(loaded.scanBackoffMin == SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN);
+  CHECK(loaded.scanBoostMin == SCALE_SCAN_BOOST_DEFAULT_MIN);
 
-  CHECK(persistBleScanSettings(loaded, loaded.scanIntensity, 30));
+  // A V3 blob stored the backoff but kept the boost byte reserved: the stored
+  // backoff choice survives while the boost adopts OFF.
+  BleScanPersistedSettings v3;
+  v3.version = BLE_SCAN_SETTINGS_V3_VERSION;
+  v3.revision = 8;
+  v3.scanIntensity = static_cast<uint8_t>(BleScanIntensity::BALANCED);
+  v3.scanBackoffMin = 30;
+  v3.checksum = bleScanSettingsChecksum(v3);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, BLE_SCAN_SLOT_A, &v3,
+                           sizeof(v3));
+  CHECK(loadBleScanSettings(loaded));
+  CHECK(loaded.version == BLE_SCAN_SETTINGS_VERSION);
   CHECK(loaded.scanBackoffMin == 30);
+  CHECK(loaded.scanBoostMin == SCALE_SCAN_BOOST_DEFAULT_MIN);
+
+  CHECK(persistBleScanSettings(loaded, loaded.scanIntensity, 30, 15));
+  CHECK(loaded.scanBoostMin == 15);
   BleScanPersistedSettings reloaded;
   CHECK(loadBleScanSettings(reloaded));
   CHECK(reloaded.scanBackoffMin == 30);
+  CHECK(reloaded.scanBoostMin == 15);
   CHECK(reloaded.scanIntensity ==
-        static_cast<uint8_t>(BleScanIntensity::RELAXED));
+        static_cast<uint8_t>(BleScanIntensity::BALANCED));
 
   // Zero is a stored choice ("off"), never an unset marker.
-  CHECK(persistBleScanSettings(reloaded, reloaded.scanIntensity, 0));
+  CHECK(persistBleScanSettings(reloaded, reloaded.scanIntensity, 0, 0));
   CHECK(loadBleScanSettings(loaded));
   CHECK(loaded.scanBackoffMin == 0);
+  CHECK(loaded.scanBoostMin == 0);
 
-  // Both fields in one call cost a single revision bump.
+  // All three fields in one call cost a single revision bump.
   const uint32_t revisionBefore = loaded.revision;
   CHECK(persistBleScanSettings(loaded,
                                static_cast<uint8_t>(BleScanIntensity::RELAXED),
-                               60));
+                               60, 45));
   CHECK(loadBleScanSettings(reloaded));
   CHECK(reloaded.revision == revisionBefore + 1);
   CHECK(reloaded.scanIntensity ==
         static_cast<uint8_t>(BleScanIntensity::RELAXED));
   CHECK(reloaded.scanBackoffMin == 60);
+  CHECK(reloaded.scanBoostMin == 45);
 
   BleScanPersistedSettings factory;
   finalizeBleScanSettings(factory);
@@ -1054,7 +1074,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
   CHECK(sizeof(ControlStatusSnapshot) <= 4096);
   CHECK(sizeof(ControlGateSnapshot) <= 32);
-  CHECK(sizeof(WebCommand) <= 320);
+  CHECK(sizeof(WebCommand) <= 328);
   WebCommand command;
   command.type = WebCommandType::PRESET_OP;
   command.config.goalWeightG = 42;
@@ -1410,6 +1430,7 @@ void p48_ble_scan_defaults_and_dual_slot_round_trip() {
         static_cast<uint8_t>(BleScanIntensity::RELAXED));
   CHECK(upgraded.reservedEnabled == 0);
   CHECK(upgraded.version == BLE_SCAN_SETTINGS_VERSION);
+  CHECK(upgraded.scanBoostMin == SCALE_SCAN_BOOST_DEFAULT_MIN);
   CHECK(validBleScanSettingsBlob(upgraded));
   CHECK(readLatestBleScanSettings(onDisk));
   CHECK(onDisk.version == BLE_SCAN_SETTINGS_V1_VERSION);
@@ -1417,7 +1438,7 @@ void p48_ble_scan_defaults_and_dual_slot_round_trip() {
   CHECK(!verifyFactoryBleScanSettings(onDisk));
   CHECK(persistBleScanSettings(
       upgraded, static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE),
-      upgraded.scanBackoffMin));
+      upgraded.scanBackoffMin, upgraded.scanBoostMin));
   CHECK(readLatestBleScanSettings(onDisk));
   CHECK(onDisk.version == BLE_SCAN_SETTINGS_VERSION);
   CHECK(onDisk.scanIntensity ==
@@ -2214,7 +2235,7 @@ struct TestCase {
 
 const TestCase tests[] = {
     {"P81", p81_v12_clears_allow_rinse_while_armed_bit},
-    {"P82", p82_ble_scan_backoff_v2_migration_and_roundtrip},
+    {"P82", p82_ble_scan_backoff_boost_migration_and_roundtrip},
     {"P80", p80_boot_id_remains_dirty_until_durable},
     {"P79", p79_webhook_preset_changes_migrates_dirty_v11_padding},
     {"P78", p78_power_management_migration_and_global_scope},

@@ -84,7 +84,10 @@ discovery begins.
    backoff** chooses how long to search at full strength with no scale in
    range before slowing down to save power — factory default **OFF** keeps
    full strength always, and with Aggressive or Balanced the first sign of a
-   scale restores the saved mode on its own.
+   scale restores the saved mode on its own. **Scan boost on machine use**
+   is the inverse safety net for people who leave the backoff on: switching
+   on the machine with no scale connected searches at Aggressive for the
+   chosen minutes (factory default **OFF**), overriding both slowdowns.
 
 Related: [Brew by weight](../features/brew-by-weight.md), [Tare](tare.md),
 [Alerts](../alerts.md).

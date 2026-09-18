@@ -195,11 +195,13 @@ if (htmlBytes > 65600) {
 // ~6 KB of JS source allowance.
 // The Admin idle-scan backoff select and its save helper add 900 bytes; the
 // fallback option that keeps an API-set value visible adds 100 more.
+// The Admin machine-use scan boost select, save helper, and status fill add
+// ~700 bytes of combined source allowance.
 if (jsBytes > 179600) {
   throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 179600)`);
 }
-if (htmlBytes + jsBytes > 244100) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 244100)`);
+if (htmlBytes + jsBytes > 244800) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 244800)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
@@ -485,16 +487,21 @@ if (ui.includes('bleCompanionEnabled') ||
     !ui.includes('Idle scan backoff') ||
     !ui.includes("b.disabled=!webUiOwner||i.value==='relaxed'") ||
     !ui.includes("backoffMin:wanted") ||
+    !ui.includes('bleScanBoost') ||
+    !ui.includes('Scan boost on machine use') ||
+    !ui.includes("boostMin:wanted") ||
     !ui.includes('/api/v1/admin/ble-scan') ||
     !ui.includes("method:'PUT'") ||
     !network.includes('scanIntensity') ||
     !network.includes('backoffMin') ||
+    !network.includes('boostMin') ||
     !network.includes('WebCommandType::BLE_SCAN_INTENSITY') ||
     !network.includes('command.type = WebCommandType::BLE_SCAN_INTENSITY') ||
     !firmwareCore.includes('bool persistBleScanIntensity') ||
     !firmwareCore.includes('bool persistBleScanBackoff') ||
+    !firmwareCore.includes('bool persistBleScanBoost') ||
     !networkHeader.includes('bleScanHandler')) {
-  throw new Error('Power management Admin controls must keep live scan mode and idle backoff without Companion');
+  throw new Error('Power management Admin controls must keep live scan mode, idle backoff, and machine-use boost without Companion');
 }
 {
   const persistStart = firmwareCore.indexOf(

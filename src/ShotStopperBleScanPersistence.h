@@ -8,10 +8,12 @@ namespace shotstopper {
 // On-disk keys and magic stay BLEC/bleCfg* so V1 Companion blobs upgrade
 // without renaming NVS entries. Version 2 stopped using the Companion enable
 // flag; that byte is reserved and always written 0. Version 3 turned one
-// reserved byte into scanBackoffMin without changing the blob size, so V2
-// slots stay readable and upgrade to the default backoff (now OFF).
+// reserved byte into scanBackoffMin and version 4 turned the last reserved
+// byte into scanBoostMin without changing the blob size, so older slots stay
+// readable and upgrade to the default backoff and boost (both OFF).
 constexpr uint32_t BLE_SCAN_SETTINGS_MAGIC = 0x424C4543U;  // "BLEC"
-constexpr uint16_t BLE_SCAN_SETTINGS_VERSION = 3;
+constexpr uint16_t BLE_SCAN_SETTINGS_VERSION = 4;
+constexpr uint16_t BLE_SCAN_SETTINGS_V3_VERSION = 3;
 constexpr uint16_t BLE_SCAN_SETTINGS_V2_VERSION = 2;
 constexpr uint16_t BLE_SCAN_SETTINGS_V1_VERSION = 1;
 constexpr const char *BLE_SCAN_SLOT_A = "bleCfgA";
@@ -25,7 +27,7 @@ struct BleScanPersistedSettings {
   uint8_t reservedEnabled = 0;
   uint8_t scanIntensity = static_cast<uint8_t>(BleScanIntensity::BALANCED);
   uint8_t scanBackoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
-  uint8_t reserved[1] = {};
+  uint8_t scanBoostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
   uint32_t checksum = 0;
 };
 
@@ -42,10 +44,13 @@ inline uint32_t bleScanSettingsChecksum(
 }
 
 inline void finalizeBleScanSettings(BleScanPersistedSettings &settings) {
-  if (settings.version < BLE_SCAN_SETTINGS_VERSION) {
-    // Older blobs kept this byte reserved (always 0): adopt the default
-    // backoff rather than trusting the reserved zero as a stored choice.
+  // Older blobs kept these bytes reserved (always 0): adopt the defaults
+  // rather than trusting the reserved zeros as stored choices.
+  if (settings.version < BLE_SCAN_SETTINGS_V3_VERSION) {
     settings.scanBackoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
+  }
+  if (settings.version < BLE_SCAN_SETTINGS_VERSION) {
+    settings.scanBoostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
   }
   settings.magic = BLE_SCAN_SETTINGS_MAGIC;
   settings.version = BLE_SCAN_SETTINGS_VERSION;
@@ -54,6 +59,7 @@ inline void finalizeBleScanSettings(BleScanPersistedSettings &settings) {
   settings.scanIntensity =
       static_cast<uint8_t>(clampBleScanIntensity(settings.scanIntensity));
   settings.scanBackoffMin = clampBleScanBackoffMin(settings.scanBackoffMin);
+  settings.scanBoostMin = clampBleScanBoostMin(settings.scanBoostMin);
   settings.checksum = 0;
   settings.checksum = bleScanSettingsChecksum(settings);
 }
@@ -68,11 +74,13 @@ inline bool validBleScanSettingsBlob(const BleScanPersistedSettings &settings) {
   if (settings.version == BLE_SCAN_SETTINGS_V1_VERSION) {
     return settings.reservedEnabled <= 1;
   }
-  if (settings.version == BLE_SCAN_SETTINGS_V2_VERSION) {
+  if (settings.version == BLE_SCAN_SETTINGS_V2_VERSION ||
+      settings.version == BLE_SCAN_SETTINGS_V3_VERSION) {
     return true;
   }
   return settings.version == BLE_SCAN_SETTINGS_VERSION &&
-         validBleScanBackoffMin(settings.scanBackoffMin);
+         validBleScanBackoffMin(settings.scanBackoffMin) &&
+         validBleScanBoostMin(settings.scanBoostMin);
 }
 
 inline bool readBleScanSlot(ShotStopperPreferences &preferences, const char *key,
@@ -130,7 +138,8 @@ inline bool verifyFactoryBleScanSettings(
          settings.reservedEnabled == 0 &&
          settings.scanIntensity ==
              static_cast<uint8_t>(BleScanIntensity::BALANCED) &&
-         settings.scanBackoffMin == SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
+         settings.scanBackoffMin == SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN &&
+         settings.scanBoostMin == SCALE_SCAN_BOOST_DEFAULT_MIN;
 }
 
 inline bool saveBleScanSettings(BleScanPersistedSettings &settings) {
@@ -164,21 +173,25 @@ inline bool saveBleScanSettings(BleScanPersistedSettings &settings) {
   return saved;
 }
 
-// One dual-slot save covers both fields: a request that changes intensity and
-// backoff together must not cost two flash writes and two revisions. An
+// One dual-slot save covers all three fields: a request that changes several
+// of them together must not cost several flash writes and revisions. An
 // unchanged field is passed through by the caller and writes nothing.
 inline bool persistBleScanSettings(BleScanPersistedSettings &settings,
-                                   uint8_t intensity, uint8_t backoffMin) {
+                                   uint8_t intensity, uint8_t backoffMin,
+                                   uint8_t boostMin) {
   const uint8_t storedIntensity =
       static_cast<uint8_t>(clampBleScanIntensity(intensity));
   const uint8_t storedBackoff = clampBleScanBackoffMin(backoffMin);
+  const uint8_t storedBoost = clampBleScanBoostMin(boostMin);
   if (settings.scanIntensity == storedIntensity &&
-      settings.scanBackoffMin == storedBackoff) {
+      settings.scanBackoffMin == storedBackoff &&
+      settings.scanBoostMin == storedBoost) {
     return true;
   }
   BleScanPersistedSettings candidate = settings;
   candidate.scanIntensity = storedIntensity;
   candidate.scanBackoffMin = storedBackoff;
+  candidate.scanBoostMin = storedBoost;
   if (!saveBleScanSettings(candidate)) {
     return false;
   }

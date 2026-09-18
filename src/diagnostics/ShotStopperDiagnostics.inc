@@ -303,6 +303,7 @@ void publishControlStatus() {
   next.usbSerialEnableSource = usbSerialEnableSource;
   next.bleScanIntensity = static_cast<uint8_t>(liveBleScanIntensity());
   next.bleScanBackoffMin = liveBleScanBackoffMin();
+  next.bleScanBoostMin = liveBleScanBoostMin();
   next.debugEventsDropped =
       __atomic_load_n(&debugLogDroppedSnapshot, __ATOMIC_RELAXED) +
       __atomic_load_n(&debugLogContentionDropped, __ATOMIC_RELAXED) +
@@ -566,6 +567,7 @@ void serialCliPrintLiveScaleStatus() {
   dump.currentWeightG = currentWeight;
   dump.scanIntensity = bleScanIntensityName(liveBleScanIntensity());
   dump.scanBackoffMin = liveBleScanBackoffMin();
+  dump.scanBoostMin = liveBleScanBoostMin();
   serialCliPrintScaleStatus(dump);
 }
 

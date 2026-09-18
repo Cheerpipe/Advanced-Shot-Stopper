@@ -113,6 +113,8 @@ void setup() {
       bleScanPersistedSettings.scanIntensity));
   applyLiveBleScanBackoff(
       clampBleScanBackoffMin(bleScanPersistedSettings.scanBackoffMin));
+  applyLiveBleScanBoost(
+      clampBleScanBoostMin(bleScanPersistedSettings.scanBoostMin));
   if (settingsLoaded) {
     runtimeConfig = persistedSettings.runtime;
     bullseyeMelodyConfig = persistedSettings.bullseyeMelody;
@@ -489,6 +491,11 @@ void loop() {
   serviceMachine();
   fillLoopGuardsFromIntention(machinePollIntention(), loopScaleLink);
   const MachineIntention powerIntention = machineLastIntention();
+  // Machine use without a connected scale arms the Aggressive scan boost; the
+  // worker owns the deadline and only receives this atomic store.
+  if (powerIntention.turnedOn && !scaleLinkAvailable(loopScaleLink)) {
+    armBleScanBoost();
+  }
   serviceNoScaleShotGuard(loopGuardInputs);
   serviceCupStartGuard(loopGuardInputs);
   stateMachineTask();

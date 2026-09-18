@@ -1,6 +1,6 @@
 # Power management
 
-The **Admin → Power management** group holds the four settings that control
+The **Admin → Power management** group holds the five settings that control
 how much energy the controller uses, in this order:
 
 - **Power policy** — hardware-level energy management described on this page.
@@ -19,6 +19,12 @@ how much energy the controller uses, in this order:
   a scale appears. **OFF** (factory default) keeps the saved mode always.
   The control is grayed out while Relaxed is selected because it has no
   effect then.
+- **Scan boost on machine use** — the reverse of the backoff: when the
+  machine is switched on (paddle or momentary) with no scale connected, the
+  search runs at Aggressive for this many minutes so a scale that was put to
+  sleep is found quickly. Switching the machine on again restarts the window,
+  and the boost takes priority over the Relaxed slowdowns on this page for as
+  long as it lasts. **OFF** (factory default) never boosts.
 
 The **Power policy** enables a global, persistent energy
 policy. It defaults **on**, including after migration and factory reset, and
@@ -32,10 +38,10 @@ setting, and the existing persistence worker retries it.
 
 | Demand with the option on | CPU policy | Radio policy |
 | --- | --- | --- |
-| Idle, no scale or machine activity | 40–80 MHz after 1 s of stable idle | Relaxed scan duty (25%); BLE controller modem sleep between radio events; saved Wi-Fi sleep preference |
+| Idle, no scale or machine activity | 40–80 MHz after 1 s of stable idle | Relaxed scan duty (25%); BLE controller modem sleep between radio events; saved Wi-Fi sleep preference; a Scan boost on machine use window overrides the duty to Aggressive while it lasts |
 | Scale connecting or connected | Fixed 80 MHz | Controller sleep disabled before GAP connection; existing GATT, weight and heartbeat rates |
 | Shot using weight control | Fixed 160 MHz | Existing Bluetooth-priority coexistence and shot traffic gates |
-| Manual operation without a scale, or rinse | Fixed 80 MHz throughout the operation | Saved scan intensity and BLE service |
+| Manual operation without a scale, or rinse | Fixed 80 MHz throughout the operation | Saved scan intensity and BLE service; switching the machine on without a connected scale also opens a Scan boost on machine use window if the setting is not OFF |
 | Physical-use cooldown | Fixed 80 MHz for 5 minutes after confirmed stop or latest debounced physical edge | Saved Wi-Fi sleep preference; saved scan intensity |
 | Recent visible WebUI activity | Fixed 80 MHz unless a shot needs 160 | Saved Wi-Fi sleep preference |
 | AP provisioning, STA reconnect, maintenance or USB console | At least 80 MHz | Existing provisioning/OTA overrides |
