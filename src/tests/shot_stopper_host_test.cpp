@@ -10318,6 +10318,8 @@ void s03b_good_shot_records_stats_and_history() {
   historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
   CHECK(page.records[0].type == static_cast<uint8_t>(HistoryType::SHOT));
   CHECK(page.records[0].durationDs > runtimeConfig.bbwProtectionMs / 100U);
+  // Scale readings arrived during the cycle, so the weight flag stays clear.
+  CHECK((page.records[0].flags & HISTORY_FLAG_NO_WEIGHT) == 0);
   // The control loop's deferred flush servant already persisted the record.
   CHECK(!historyLog.dirty());
 }
@@ -10374,6 +10376,8 @@ void s03e_manual_over_protection_is_shot_in_history_only() {
   HistoryPage page;
   historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
   CHECK(page.records[0].type == static_cast<uint8_t>(HistoryType::SHOT));
+  // A no-scale manual shot never registered weight, so the flag is set.
+  CHECK((page.records[0].flags & HISTORY_FLAG_NO_WEIGHT) != 0);
 }
 
 void s03f_abandoned_start_records_nothing() {

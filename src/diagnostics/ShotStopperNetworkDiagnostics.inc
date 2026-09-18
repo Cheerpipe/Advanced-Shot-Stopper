@@ -1332,12 +1332,13 @@ esp_err_t ShotStopperNetwork::historyHandler(httpd_req_t *request) {
     char item[192] = {};
     snprintf(item, sizeof(item),
              "%s{\"id\":%lu,\"type\":\"%s\",\"durationS\":%.1f,"
-             "\"hasWallTime\":%s,\"endedAtUnixSec\":%lu,"
+             "\"hasWeight\":%s,\"hasWallTime\":%s,\"endedAtUnixSec\":%lu,"
              "\"endedAtLocalSec\":%lu}",
              index == 0 ? "" : ",",
              static_cast<unsigned long>(record.id),
              historyTypeName(static_cast<HistoryType>(record.type)),
              static_cast<double>(record.durationDs) / 10.0,
+             (record.flags & HISTORY_FLAG_NO_WEIGHT) == 0 ? "true" : "false",
              (record.flags & HISTORY_FLAG_WALL_TIME) != 0 ? "true" : "false",
              static_cast<unsigned long>(record.endedAtUnixSec),
              static_cast<unsigned long>(record.endedAtLocalSec));

@@ -20,6 +20,10 @@ constexpr size_t HISTORY_PAGE_DEFAULT = 20;
 constexpr size_t HISTORY_PAGE_MAX = 120;
 
 constexpr uint8_t HISTORY_FLAG_WALL_TIME = 0x01;
+// Set when the activation ended without any registered scale weight; clear
+// means weight was registered (or the record predates the flag). Fits the
+// existing flags byte, so the flash layout and schema version are unchanged.
+constexpr uint8_t HISTORY_FLAG_NO_WEIGHT = 0x02;
 
 enum class HistoryType : uint8_t {
   SHOT = 0,
@@ -54,7 +58,7 @@ struct HistoryRecord {
   uint32_t endedAtLocalSec;
   uint16_t durationDs;
   uint8_t type;   // HistoryType
-  uint8_t flags;  // bit 0: hasWallTime
+  uint8_t flags;  // bit 0: hasWallTime, bit 1: no registered weight
 };
 
 static_assert(sizeof(HistoryRecord) == 16,

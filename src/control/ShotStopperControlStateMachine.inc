@@ -206,6 +206,9 @@ void appendActivationHistory(EndReason reason, bool rinseEnd,
         shotLogLocalSecFromUtc(utcSec, runtimeConfig.timezoneOffsetMinutes);
     record.flags = HISTORY_FLAG_WALL_TIME;
   }
+  if (!endedCycleWeightValid()) {
+    record.flags |= HISTORY_FLAG_NO_WEIGHT;
+  }
   // O(1) PSRAM append under the existing store mutex; the deferred flush in
   // ActivationStores::service() performs the flash write outside the loop.
   TaskLockGuard lock(shotStoreMutex);
@@ -309,11 +312,7 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
   lastCycle.endedAtMs = millis();
   lastCycle.endReason = reason;
   lastCycle.source = session.source;
-  lastCycle.weightValid =
-      currentWeightSequence != session.weightSequenceAtStart &&
-      std::isfinite(currentWeight) &&
-      static_cast<int32_t>(currentWeightReceivedAtMs - session.startedAtMs) >=
-          0;
+  lastCycle.weightValid = endedCycleWeightValid();
   lastCycle.lastWeightG = lastCycle.weightValid ? currentWeight : 0.0f;
   lastCycle.weightAgeAtEndMs =
       lastCycle.weightValid ? elapsedMs(currentWeightReceivedAtMs) : 0;

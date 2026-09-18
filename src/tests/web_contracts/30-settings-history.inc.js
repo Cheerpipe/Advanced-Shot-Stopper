@@ -561,6 +561,7 @@ if (!ui.includes('id="shotTable"') ||
     js.includes("message('Request queued.','ok')") ||
     js.includes('Request queued successfully.') ||
     !network.includes('hasWallTime') ||
+    !network.includes('hasWeight') ||
     !network.includes('endedAtLocalSec') ||
     !network.includes('\\"presetName\\":\\"%s\\"') ||
     !network.includes('SHOT_LOG_CLEAR_NOT_CONFIRMED')) {

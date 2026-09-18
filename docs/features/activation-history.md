@@ -9,7 +9,8 @@ measurement detail of the [shot history](shot-history.md).
 
 Every activation the machine confirmed is recorded the moment its circuit
 opens, including manual brews and rinses that the shot history skips. Each
-entry keeps the local time, the duration, and a type:
+entry keeps the local time, the duration, a type, and whether the scale
+registered weight during the activation:
 
 - **Shot** — the activation outlasted the brew-by-weight protection window
   (12 s with default settings). This is the same minimum the shot history
@@ -38,7 +39,10 @@ the duration large on the left and the friendly time label small on the right:
 entries count back as "3 days ago" or "2 weeks ago". The activation type sits
 below as a small label.
 Shots carry a coffee-cup icon on the left of
-the card, rinses a droplet, and other activations have no icon. When the
+the card: a filled cup when the scale registered the weight while brewing,
+and an outlined cup when no weight was registered, such as a manual brew
+without a scale. Rinses carry a droplet, and other activations have no icon.
+When the
 clock was not synced when the entry was recorded, the card shows "no time"
 instead of a date.
 

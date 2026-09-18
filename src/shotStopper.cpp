@@ -1315,6 +1315,16 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
   persistLastShotSnapshot(last);
 }
 
+// Weight counts as registered for the ended cycle only when the scale
+// delivered a finite reading after the cycle started. Shared by the persisted
+// last shot, lastCycle, and the activation-history no-weight flag.
+bool endedCycleWeightValid() {
+  return currentWeightSequence != session.weightSequenceAtStart &&
+         std::isfinite(currentWeight) &&
+         static_cast<int32_t>(currentWeightReceivedAtMs - session.startedAtMs) >=
+             0;
+}
+
 void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs) {
   PersistedLastShot last = {};
   last.valid = true;
@@ -1324,11 +1334,7 @@ void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs) {
   copyCString(last.presetName, sizeof(last.presetName), session.activePresetName);
   last.durationMs = durationMs;
   last.endReason = reason;
-  last.weightValid =
-      currentWeightSequence != session.weightSequenceAtStart &&
-      std::isfinite(currentWeight) &&
-      static_cast<int32_t>(currentWeightReceivedAtMs - session.startedAtMs) >=
-          0;
+  last.weightValid = endedCycleWeightValid();
   last.currentWeightG = last.weightValid ? currentWeight : 0.0f;
   const bool lastAcceptedValid =
       session.hasWeightAnchor && std::isfinite(session.lastAcceptedWeightG);

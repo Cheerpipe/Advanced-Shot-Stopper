@@ -293,8 +293,9 @@ if (generated.cssGzip.length > 7050) {
 // Activation-history card type icons (inline coffee/rinse SVG) raise it to 35000.
 // The Admin device-name validation, preference save, and .local status raise it to 35200.
 // Humanized shot/activation time labels (relative day ladder) raise it to 35300.
-if (generated.runtimeGzip.length > 35300) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 35300-byte gzip budget');
+// The outlined-cup shot icon (shots without registered weight) raises it to 35500.
+if (generated.runtimeGzip.length > 35500) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 35500-byte gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -322,9 +323,11 @@ if (generated.icon48Gzip.length > 3500) {
 // raising the combined cap from 66400 to 66500 bytes; the PWA manifest and
 // icons raise it further to 101000 bytes; the activation-history view raises
 // it to 103000 bytes; its card type icons raise it to 104500 bytes; the
-// icon-proof class-based card layout raises it to 104600 bytes.
-if (generated.combined > 104600) {
-  throw new Error('Combined Web UI gzip exceeds the 104600-byte flash budget');
+// icon-proof class-based card layout raises it to 104600 bytes; the
+// outlined-cup shot icon (shots without registered weight) raises it to
+// 104800 bytes.
+if (generated.combined > 104800) {
+  throw new Error('Combined Web UI gzip exceeds the 104800-byte flash budget');
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

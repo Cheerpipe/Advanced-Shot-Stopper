@@ -207,11 +207,14 @@ if (htmlBytes > 65800) {
 // combined source allowance.
 // Humanized shot/activation time labels (relative day ladder plus seven
 // locale strings) add ~0.4 KB of JS and combined source allowance.
-if (jsBytes > 184000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 184000)`);
+// The second shot icon (outlined cup for shots without registered weight,
+// split out of the coffee/rinse inline set) adds ~2.4 KB of JS+combined
+// source allowance.
+if (jsBytes > 187000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 187000)`);
 }
-if (htmlBytes + jsBytes > 249700) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 249700)`);
+if (htmlBytes + jsBytes > 252500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 252500)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
