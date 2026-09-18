@@ -45,9 +45,11 @@ void applyLiveBleScanBackoff(uint8_t backoffMin);
 uint8_t liveBleScanBackoffMin();
 void applyLiveBleScanBoost(uint8_t boostMin);
 uint8_t liveBleScanBoostMin();
-// Arms the Aggressive-discovery window for the configured minutes; no-op when
-// the setting is OFF. Atomic store only: safe from the Arduino control loop.
-void armBleScanBoost();
+// Machine-use notification: arms the Aggressive-discovery window for the
+// configured minutes when no usable scale is connected; no-op when the
+// setting is OFF or a scale is available. Atomic store only: safe from the
+// Arduino control loop.
+void armBleScanBoostOnMachineUse();
 bool bleScanBoostActive();
 BleScanIntensity liveBleScanIntensity();
 BleScanIntensity discoveryScanIntensity();
@@ -91,6 +93,8 @@ bool scaleWorkerTakeConnectedEdge();
 void publishScaleWorkerPolicy(const RuntimeConfig &config, bool controlReady);
 
 ScaleLinkSnapshot getScaleLinkSnapshot();
+// Connected and worker-fresh: the authoritative "a scale is usable" gate.
+bool scaleLinkAvailable(const ScaleLinkSnapshot &snapshot);
 void setScaleLinkState(ScaleLinkState state);
 void markScaleWorkerProgress();
 void wakeScaleWorker();

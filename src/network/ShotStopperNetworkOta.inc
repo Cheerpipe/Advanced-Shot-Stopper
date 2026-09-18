@@ -367,7 +367,7 @@ esp_err_t ShotStopperNetwork::bleScanHandler(httpd_req_t *request) {
   self.unlockJsonBody();
   if (!parsed) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_BLE_CONFIG",
-                     "scanIntensity must be normal, aggressive, or light; "
+                     "scanIntensity must be balanced, aggressive, or relaxed; "
                      "backoffMin must be 0 (off) or 1-240 minutes; "
                      "boostMin must be 0 (off) or 1-240 minutes.");
   }

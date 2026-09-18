@@ -602,10 +602,20 @@ void serviceBleScanPersistResult() {
   }
   if (ok) {
     bleScanPersistFailLatched = false;
-    if (pendingBleScanRequestId != 0) {
+    // The combined dual-slot save covers every id accepted since the last
+    // flush; report each one, oldest first, outside the staging mutex.
+    uint32_t reportedIds[PENDING_BLE_SCAN_REQUEST_CAPACITY];
+    uint8_t reportedCount = 0;
+    bleScanPersistMux.lock();
+    reportedCount = pendingBleScanRequestIdCount;
+    for (uint8_t i = 0; i < reportedCount; ++i) {
+      reportedIds[i] = pendingBleScanRequestIds[i];
+    }
+    pendingBleScanRequestIdCount = 0;
+    bleScanPersistMux.unlock();
+    for (uint8_t i = 0; i < reportedCount; ++i) {
       WebCommand persisted;
-      persisted.requestId = pendingBleScanRequestId;
-      pendingBleScanRequestId = 0;
+      persisted.requestId = reportedIds[i];
       reportControlCommandResult(persisted, CommandResultState::PERSISTED);
     }
   } else if (!bleScanPersistFailLatched) {
@@ -746,7 +756,7 @@ void serviceRuntimePersistence(
 #endif
 }
 
-bool persistBleScanIntensity(BleScanIntensity intensity);
+void persistBleScanIntensity(BleScanIntensity intensity);
 
 void completeMaintenanceLease(const WebCommand &result) {
   if (!maintenanceLease.active ||

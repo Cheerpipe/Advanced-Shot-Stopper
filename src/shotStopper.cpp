@@ -509,8 +509,10 @@ TaskHandle_t settingsPersistTaskHandle = nullptr;
 bool settingsPersistenceReady = false;
 // Staged BLE scan settings: the control loop publishes, the settings_persist
 // worker owns the durable NVS write. pending/intensity/result flags are
-// guarded by bleScanPersistMux; the held request id reports PERSISTED once
-// the flush succeeds. Factory reset clears all staged state.
+// guarded by bleScanPersistMux. Every request id accepted since the last
+// flush is covered by that combined save and reports PERSISTED in FIFO order;
+// a full ring drops the oldest id. Factory reset clears all staged state.
+constexpr uint8_t PENDING_BLE_SCAN_REQUEST_CAPACITY = 4;
 TaskMutex bleScanPersistMux;
 bool bleScanPersistPending = false;
 uint8_t bleScanPersistIntensity = 0;
@@ -520,7 +522,8 @@ bool bleScanBoostPersistPending = false;
 uint8_t bleScanPersistBoostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
 bool bleScanPersistResultReady = false;
 bool bleScanPersistResultOk = false;
-uint32_t pendingBleScanRequestId = 0;
+uint32_t pendingBleScanRequestIds[PENDING_BLE_SCAN_REQUEST_CAPACITY] = {};
+uint8_t pendingBleScanRequestIdCount = 0;
 bool bleScanPersistFailLatched = false;
 uint32_t lastLoopAtMs = 0;
 uint32_t loopMaxGapMs = 0;
@@ -1213,7 +1216,7 @@ bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
   bleScanPersistPending = false;
   bleScanBackoffPersistPending = false;
   bleScanBoostPersistPending = false;
-  pendingBleScanRequestId = 0;
+  pendingBleScanRequestIdCount = 0;
   bleScanPersistFailLatched = false;
   bleScanPersistMux.unlock();
   return true;
@@ -1390,7 +1393,6 @@ void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs) {
 
 bool controlAllowsConfigurationNow();
 RuntimeConfig effectiveRuntimeConfig();
-bool scaleLinkAvailable(const ScaleLinkSnapshot &snapshot);
 void resetCupPresence();
 
 bool enqueueWebCommand(const WebCommand &command) {
@@ -1476,11 +1478,6 @@ void commitLiveBullseyeConfig(const BullseyeMelodyConfig &config) {
 #endif
 }
 
-
-bool scaleLinkAvailable(const ScaleLinkSnapshot &snapshot) {
-  return snapshot.state == ScaleLinkState::CONNECTED &&
-         elapsedMs(snapshot.workerProgressAtMs) <= SCALE_WORKER_STALE_MS;
-}
 
 bool scaleAvailable() {
   return scaleLinkAvailable(getScaleLinkSnapshot());

@@ -612,7 +612,7 @@ struct SerialCliScaleDump {
   uint32_t timerAgeMs = 0;
   bool weightFresh = false;
   float currentWeightG = 0.0f;
-  const char *scanIntensity = "balanced";
+  const char *scanIntensity = bleScanIntensityName(BLE_SCAN_FACTORY_INTENSITY);
   uint8_t scanBackoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
   uint8_t scanBoostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
 };

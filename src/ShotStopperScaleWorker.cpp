@@ -233,12 +233,12 @@ bool scaleLoggedGattConnecting = false;
 uint8_t scaleLoggedGattConnectAttempts = 0;
 bool scaleDiscoveryDirected = false;
 std::atomic<uint8_t> liveBleScanIntensityRaw{
-    static_cast<uint8_t>(BleScanIntensity::BALANCED)};
+    static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY)};
 std::atomic<uint8_t> liveBleScanBackoffMinRaw{
     SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN};
 std::atomic<uint8_t> liveBleScanBoostMinRaw{SCALE_SCAN_BOOST_DEFAULT_MIN};
-// RAM-only boost deadline armed by the control loop; boot zero-init and
-// natural expiry are the only clear paths.
+// RAM-only boost deadline armed by the machine-use notification; boot
+// zero-init and natural expiry are the only clear paths.
 std::atomic<uint32_t> scaleScanBoostUntilMs{0};
 bool bookooConnectVolumePending = false;
 static std::atomic<bool> bleStackReady{false};
@@ -488,6 +488,11 @@ ScaleLinkSnapshot getScaleLinkSnapshot() {
   snapshot.rssi = scaleLinkRssi;
   portEXIT_CRITICAL(&scaleLinkMux);
   return snapshot;
+}
+
+bool scaleLinkAvailable(const ScaleLinkSnapshot &snapshot) {
+  return snapshot.state == ScaleLinkState::CONNECTED &&
+         elapsedMs(snapshot.workerProgressAtMs) <= SCALE_WORKER_STALE_MS;
 }
 
 void setScaleLinkState(ScaleLinkState state) {
@@ -1641,7 +1646,7 @@ void resetScaleWorkerRadioStateForHost() {
   scaleLoggedGattConnectAttempts = 0;
   scaleDiscoveryDirected = false;
   liveBleScanIntensityRaw.store(
-      static_cast<uint8_t>(BleScanIntensity::BALANCED),
+      static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY),
       std::memory_order_relaxed);
   bookooConnectVolumePending = false;
   scaleDebugConnectionGeneration = 0;
@@ -1712,13 +1717,22 @@ uint8_t liveBleScanBoostMin() {
   return liveBleScanBoostMinRaw.load(std::memory_order_relaxed);
 }
 
-void armBleScanBoost() {
+static void armBleScanBoost() {
   const uint8_t boostMin = liveBleScanBoostMin();
   if (boostMin == 0) {
     return;
   }
   scaleScanBoostUntilMs.store(millis() + static_cast<uint32_t>(boostMin) * 60000U,
                               std::memory_order_relaxed);
+}
+
+void armBleScanBoostOnMachineUse() {
+  // The worker owns the whole boost rule: machine use only matters while it
+  // has no usable scale, and this is the same link gate control consumes.
+  if (scaleLinkAvailable(getScaleLinkSnapshot())) {
+    return;
+  }
+  armBleScanBoost();
 }
 
 bool bleScanBoostActive() {

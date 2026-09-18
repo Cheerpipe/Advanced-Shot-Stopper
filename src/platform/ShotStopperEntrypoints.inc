@@ -491,10 +491,10 @@ void loop() {
   serviceMachine();
   fillLoopGuardsFromIntention(machinePollIntention(), loopScaleLink);
   const MachineIntention powerIntention = machineLastIntention();
-  // Machine use without a connected scale arms the Aggressive scan boost; the
-  // worker owns the deadline and only receives this atomic store.
-  if (powerIntention.turnedOn && !scaleLinkAvailable(loopScaleLink)) {
-    armBleScanBoost();
+  // Forward the machine-use edge only; the scale worker owns the whole scan
+  // boost rule (no-scale gate, deadline, duty override).
+  if (powerIntention.turnedOn) {
+    armBleScanBoostOnMachineUse();
   }
   serviceNoScaleShotGuard(loopGuardInputs);
   serviceCupStartGuard(loopGuardInputs);

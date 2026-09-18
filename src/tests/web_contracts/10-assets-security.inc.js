@@ -497,15 +497,15 @@ if (ui.includes('bleCompanionEnabled') ||
     !network.includes('boostMin') ||
     !network.includes('WebCommandType::BLE_SCAN_INTENSITY') ||
     !network.includes('command.type = WebCommandType::BLE_SCAN_INTENSITY') ||
-    !firmwareCore.includes('bool persistBleScanIntensity') ||
-    !firmwareCore.includes('bool persistBleScanBackoff') ||
-    !firmwareCore.includes('bool persistBleScanBoost') ||
+    !firmwareCore.includes('void persistBleScanIntensity') ||
+    !firmwareCore.includes('void persistBleScanBackoff') ||
+    !firmwareCore.includes('void persistBleScanBoost') ||
     !networkHeader.includes('bleScanHandler')) {
   throw new Error('Power management Admin controls must keep live scan mode, idle backoff, and machine-use boost without Companion');
 }
 {
   const persistStart = firmwareCore.indexOf(
-      'bool persistBleScanIntensity(BleScanIntensity intensity) {');
+      'void persistBleScanIntensity(BleScanIntensity intensity) {');
   const persistEnd = persistStart >= 0
       ? firmwareCore.indexOf('\n}', persistStart)
       : -1;

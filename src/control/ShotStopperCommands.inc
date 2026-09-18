@@ -3,9 +3,9 @@ void rejectWebCommand(const WebCommand &command) {
                 static_cast<int32_t>(command.type));
   reportControlCommandResult(command, CommandResultState::FAILED);
 }
-bool persistBleScanIntensity(BleScanIntensity intensity);
-bool persistBleScanBackoff(uint8_t backoffMin);
-bool persistBleScanBoost(uint8_t boostMin);
+void persistBleScanIntensity(BleScanIntensity intensity);
+void persistBleScanBackoff(uint8_t backoffMin);
+void persistBleScanBoost(uint8_t boostMin);
 
 void processWebCommand(const WebCommand &command) {
   switch (command.type) {
@@ -593,28 +593,35 @@ void processWebCommand(const WebCommand &command) {
         return;
       }
       bool applied = false;
-      bool staged = true;
       if (command.bleScan.specified & BleScanCommandPayload::INTENSITY) {
         applied = true;
-        staged = staged && persistBleScanIntensity(
-                               clampBleScanIntensity(command.bleScan.intensity));
+        persistBleScanIntensity(
+            clampBleScanIntensity(command.bleScan.intensity));
       }
       if (command.bleScan.specified & BleScanCommandPayload::BACKOFF_MIN) {
         applied = true;
-        staged = staged && persistBleScanBackoff(command.bleScan.backoffMin);
+        persistBleScanBackoff(command.bleScan.backoffMin);
       }
       if (command.bleScan.specified & BleScanCommandPayload::BOOST_MIN) {
         applied = true;
-        staged = staged && persistBleScanBoost(command.bleScan.boostMin);
+        persistBleScanBoost(command.bleScan.boostMin);
       }
-      if (!applied || !staged) {
+      if (!applied) {
         rejectWebCommand(command);
         return;
       }
       // Hold the result: serviceBleScanPersistResult reports PERSISTED after
       // the settings_persist worker's deferred NVS flush succeeds.
       bleScanPersistMux.lock();
-      pendingBleScanRequestId = command.requestId;
+      if (pendingBleScanRequestIdCount ==
+          PENDING_BLE_SCAN_REQUEST_CAPACITY) {
+        for (uint8_t i = 1; i < PENDING_BLE_SCAN_REQUEST_CAPACITY; ++i) {
+          pendingBleScanRequestIds[i - 1] = pendingBleScanRequestIds[i];
+        }
+        --pendingBleScanRequestIdCount;
+      }
+      pendingBleScanRequestIds[pendingBleScanRequestIdCount++] =
+          command.requestId;
       bleScanPersistMux.unlock();
       addDebugEvent(DebugCategory::CONFIG, DebugCode::CONFIG_ACCEPTED,
                     static_cast<int32_t>(command.bleScan.intensity));
@@ -644,7 +651,7 @@ void processWebCommands() {
   }
 }
 
-bool persistBleScanIntensity(BleScanIntensity intensity) {
+void persistBleScanIntensity(BleScanIntensity intensity) {
   const BleScanIntensity clamped =
       clampBleScanIntensity(static_cast<uint8_t>(intensity));
   applyLiveBleScanIntensity(clamped);
@@ -654,10 +661,9 @@ bool persistBleScanIntensity(BleScanIntensity intensity) {
   bleScanPersistIntensity = static_cast<uint8_t>(clamped);
   bleScanPersistPending = true;
   bleScanPersistMux.unlock();
-  return true;
 }
 
-bool persistBleScanBackoff(uint8_t backoffMin) {
+void persistBleScanBackoff(uint8_t backoffMin) {
   const uint8_t clamped = clampBleScanBackoffMin(backoffMin);
   applyLiveBleScanBackoff(clamped);
   // Stage only: the settings_persist worker owns the durable NVS write, so
@@ -666,10 +672,9 @@ bool persistBleScanBackoff(uint8_t backoffMin) {
   bleScanPersistBackoffMin = clamped;
   bleScanBackoffPersistPending = true;
   bleScanPersistMux.unlock();
-  return true;
 }
 
-bool persistBleScanBoost(uint8_t boostMin) {
+void persistBleScanBoost(uint8_t boostMin) {
   const uint8_t clamped = clampBleScanBoostMin(boostMin);
   applyLiveBleScanBoost(clamped);
   // Stage only: the settings_persist worker owns the durable NVS write, so
@@ -678,5 +683,4 @@ bool persistBleScanBoost(uint8_t boostMin) {
   bleScanPersistBoostMin = clamped;
   bleScanBoostPersistPending = true;
   bleScanPersistMux.unlock();
-  return true;
 }

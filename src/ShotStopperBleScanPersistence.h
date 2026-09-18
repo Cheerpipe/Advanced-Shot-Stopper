@@ -25,7 +25,7 @@ struct BleScanPersistedSettings {
   uint16_t structureSize = sizeof(BleScanPersistedSettings);
   uint32_t revision = 0;
   uint8_t reservedEnabled = 0;
-  uint8_t scanIntensity = static_cast<uint8_t>(BleScanIntensity::BALANCED);
+  uint8_t scanIntensity = static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY);
   uint8_t scanBackoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
   uint8_t scanBoostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
   uint32_t checksum = 0;
@@ -137,7 +137,7 @@ inline bool verifyFactoryBleScanSettings(
          settings.version == BLE_SCAN_SETTINGS_VERSION &&
          settings.reservedEnabled == 0 &&
          settings.scanIntensity ==
-             static_cast<uint8_t>(BleScanIntensity::BALANCED) &&
+             static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY) &&
          settings.scanBackoffMin == SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN &&
          settings.scanBoostMin == SCALE_SCAN_BOOST_DEFAULT_MIN;
 }

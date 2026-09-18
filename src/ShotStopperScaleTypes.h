@@ -122,6 +122,12 @@ inline const char *bleScanIntensityName(BleScanIntensity intensity) {
   }
 }
 
+// One source for the factory scan intensity: the persisted-settings default,
+// the worker's live reset, the serial dump fallback, and factory verification
+// must never drift apart.
+constexpr BleScanIntensity BLE_SCAN_FACTORY_INTENSITY =
+    BleScanIntensity::BALANCED;
+
 // Quiet-hunt backoff: minutes without any compatible advert, live link, or
 // preference reset before the idle discovery scan drops to Relaxed duty.
 // Zero disables the backoff (always saved intensity) and is the default.
@@ -151,14 +157,18 @@ inline uint8_t clampBleScanBoostMin(uint8_t minutes) {
   return validBleScanBoostMin(minutes) ? minutes : SCALE_SCAN_BOOST_DEFAULT_MIN;
 }
 
-// PUT /api/v1/admin/ble-scan payload. `specified` records which optional
-// field the request carried so each one can be applied on its own.
+// Scan-settings command vocabulary owned by ScaleService: the fields, flag
+// bits, and defaults of one Admin ble-scan request. It lives here, with the
+// scan policy it configures, rather than in the Domain root so that legacy
+// concentration cap keeps shrinking instead of absorbing scan settings.
+// `specified` records which optional fields a request carried so each one can
+// be applied on its own.
 struct BleScanCommandPayload {
   static constexpr uint8_t INTENSITY = 0x01;
   static constexpr uint8_t BACKOFF_MIN = 0x02;
   static constexpr uint8_t BOOST_MIN = 0x04;
   uint8_t specified = 0;
-  uint8_t intensity = static_cast<uint8_t>(BleScanIntensity::BALANCED);
+  uint8_t intensity = static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY);
   uint8_t backoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
   uint8_t boostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
 };
@@ -176,6 +186,16 @@ inline bool parseBleScanIntensityId(const char *id, BleScanIntensity &out) {
     return true;
   }
   if (strcmp(id, "balanced") == 0) {
+    out = BleScanIntensity::BALANCED;
+    return true;
+  }
+  // Legacy wire names from before the Relaxed/Balanced rename; accepted as
+  // input aliases only, never emitted.
+  if (strcmp(id, "light") == 0) {
+    out = BleScanIntensity::RELAXED;
+    return true;
+  }
+  if (strcmp(id, "normal") == 0) {
     out = BleScanIntensity::BALANCED;
     return true;
   }

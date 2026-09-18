@@ -10922,7 +10922,7 @@ void bc05_ble_scan_intensity_applies_live_without_restart() {
   reachReadyFromBoot();
   CHECK(liveBleScanIntensity() == BleScanIntensity::BALANCED);
 
-  CHECK(persistBleScanIntensity(BleScanIntensity::RELAXED));
+  persistBleScanIntensity(BleScanIntensity::RELAXED);
   CHECK(liveBleScanIntensity() == BleScanIntensity::RELAXED);
   publishControlStatus();
   ControlStatusSnapshot control;
@@ -10966,7 +10966,7 @@ void bc06_ble_scan_backoff_applies_live_without_restart() {
   CHECK(liveBleScanBackoffMin() == SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN);
 
   // Zero (off) is a valid value the handler must be able to deliver.
-  CHECK(persistBleScanBackoff(0));
+  persistBleScanBackoff(0);
   CHECK(liveBleScanBackoffMin() == 0);
   publishControlStatus();
   ControlStatusSnapshot control;
@@ -11027,6 +11027,42 @@ void bc07_ble_scan_relaxed_with_backoff_is_api_valid() {
         CommandResultState::PERSISTED);
   CHECK(!bleScanBackoffPersistPending);
   CHECK(!bleScanBoostPersistPending);
+}
+
+void bc08_ble_scan_superseded_requests_all_report_persisted() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  // Two requests accepted before the deferred flush share one combined save;
+  // both ids must reach PERSISTED, not just the newest one.
+  WebCommand command = webControlCommand(WebCommandType::BLE_SCAN_INTENSITY);
+  command.bleScan.specified |= BleScanCommandPayload::BACKOFF_MIN;
+  command.bleScan.backoffMin = 15;
+  processWebCommand(command);
+  command.requestId = 2;
+  command.bleScan.backoffMin = 30;
+  processWebCommand(command);
+  CHECK(liveBleScanBackoffMin() == 30);
+  const uint32_t callsBefore = hostForwardAcceptedNetworkCommandCalls;
+  runLoopAfter(1);
+  CHECK(hostForwardAcceptedNetworkCommandCalls - callsBefore == 2);
+  CHECK(hostLastForwardedNetworkCommand.requestId == 2);
+  CHECK(hostLastForwardedNetworkCommand.resultState ==
+        CommandResultState::PERSISTED);
+  CHECK(!bleScanBackoffPersistPending);
+}
+
+void bc09_ble_scan_legacy_intensity_ids_parse_as_aliases() {
+  BleScanIntensity intensity = BleScanIntensity::AGGRESSIVE;
+  CHECK(parseBleScanIntensityId("light", intensity));
+  CHECK(intensity == BleScanIntensity::RELAXED);
+  CHECK(parseBleScanIntensityId("normal", intensity));
+  CHECK(intensity == BleScanIntensity::BALANCED);
+  // New names stay authoritative and unknown ids still fail.
+  CHECK(parseBleScanIntensityId("relaxed", intensity));
+  CHECK(intensity == BleScanIntensity::RELAXED);
+  CHECK(parseBleScanIntensityId("balanced", intensity));
+  CHECK(intensity == BleScanIntensity::BALANCED);
+  CHECK(!parseBleScanIntensityId("medium", intensity));
 }
 
 void sc07_reset_device_password_and_clear_wifi_queue() {
@@ -15401,6 +15437,8 @@ const TestCase testCases[] = {
     {"BC05", bc05_ble_scan_intensity_applies_live_without_restart},
     {"BC06", bc06_ble_scan_backoff_applies_live_without_restart},
     {"BC07", bc07_ble_scan_relaxed_with_backoff_is_api_valid},
+    {"BC08", bc08_ble_scan_superseded_requests_all_report_persisted},
+    {"BC09", bc09_ble_scan_legacy_intensity_ids_parse_as_aliases},
 };
 
 }  // namespace
