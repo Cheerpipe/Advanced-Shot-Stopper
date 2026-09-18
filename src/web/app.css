@@ -244,22 +244,20 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #historyTable{width:100%;border-collapse:collapse;font-size:.82rem}
 #historyTable thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 #historyTable,#historyTable tbody{display:block}
-#historyTable tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"icon dur type" "icon time time";gap:.6rem .8rem;align-items:start;position:relative;background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1rem 3rem 1rem 1rem;margin:0 0 .75rem}
+#historyTable tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"icon dur time" "icon type time";gap:.6rem .8rem;align-items:start;position:relative;background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1rem 3rem 1rem 1rem;margin:0 0 .75rem}
 #historyTable th,#historyTable td{border:0;padding:0;text-align:left;white-space:normal;overflow-wrap:anywhere}
 #historyTable td{display:flex;flex-direction:column;gap:.08rem;min-width:0;font-weight:650}
 #historyTable td::before{content:attr(data-label);font-size:.62rem;font-weight:600;color:var(--mu);letter-spacing:.02em;text-transform:uppercase}
-#historyTable td:first-child{grid-area:time;font-size:.8rem;font-weight:600;color:var(--mu)}
-#historyTable td:first-child::before{content:none}
-#historyTable td:nth-child(2){grid-area:dur;font-size:1.85rem;font-weight:750;line-height:1.1;color:var(--fg);letter-spacing:-.02em;padding-bottom:.1rem;font-variant-numeric:tabular-nums}
-#historyTable td:nth-child(2)::before{font-size:.6875rem;font-weight:700;color:var(--mu);letter-spacing:.04em}
-#historyTable td:nth-child(3){grid-area:type;font-size:.75rem;font-weight:600;color:var(--mu)}
+#historyTable td.histTime{grid-area:time;font-size:.8rem;font-weight:600;color:var(--mu);justify-self:end}
+#historyTable td.shotDur{grid-area:dur;font-size:1.85rem;font-weight:750;line-height:1.1;color:var(--fg);letter-spacing:-.02em;padding-bottom:.1rem;font-variant-numeric:tabular-nums}
+#historyTable td.shotDur::before{font-size:.6875rem;font-weight:700;color:var(--mu);letter-spacing:.04em}
+#historyTable td.histType{grid-area:type;font-size:.75rem;font-weight:600;color:var(--mu)}
 #historyTable td[colspan]{grid-area:auto;grid-column:1/-1;grid-row:1;align-items:flex-start;font-weight:500;color:var(--mu)}
-#historyTable td[colspan]::before{content:none}
+#historyTable td[colspan]::before,#historyTable td.histTime::before,#historyTable td.histIcon::before{content:none}
 #historyTable .shotDel{position:absolute;top:.15rem;right:.15rem;z-index:1;align-items:center;justify-content:center}
 #historyTable td.shotDel,#historyTable td.shotDel>.btnGlyph{background:transparent!important}
 .histBadge{align-self:flex-start;display:inline-block;font-size:.6875rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 #historyTable td.histIcon{grid-area:icon;align-self:center;width:2.6rem;height:2.6rem}
-#historyTable td.histIcon::before{content:none}
 #historyTable td.histIcon svg{width:100%;height:100%}
 .shotSpark{grid-area:plot;display:block;width:100%;height:100%;color:var(--ok);overflow:visible}
 .shotGrid{stroke:var(--ln);stroke-width:.8;opacity:.7}.shotGrid,.shotTrace{vector-effect:non-scaling-stroke}

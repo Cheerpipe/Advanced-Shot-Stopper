@@ -321,9 +321,10 @@ if (generated.icon48Gzip.length > 3500) {
 // Continuous color-segment flow curves close each segment at its boundary,
 // raising the combined cap from 66400 to 66500 bytes; the PWA manifest and
 // icons raise it further to 101000 bytes; the activation-history view raises
-// it to 103000 bytes; its card type icons raise it to 104500 bytes.
-if (generated.combined > 104500) {
-  throw new Error('Combined Web UI gzip exceeds the 104500-byte flash budget');
+// it to 103000 bytes; its card type icons raise it to 104500 bytes; the
+// icon-proof class-based card layout raises it to 104600 bytes.
+if (generated.combined > 104600) {
+  throw new Error('Combined Web UI gzip exceeds the 104600-byte flash budget');
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

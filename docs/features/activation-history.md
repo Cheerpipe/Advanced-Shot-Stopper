@@ -32,10 +32,11 @@ is idle, so recording never slows down a brew.
 
 Open the **History** page (next to Stats) to browse the diary. The list loads
 **20 entries at a time** as you scroll and refreshes every 20 s. Sort by date,
-newest or oldest first, from the sort control at the top. Each card shows the
-duration large, the type as a small label, and a friendly time label in the
-same style as the Stats cards: "Today" or "Yesterday" with the clock time to
-the minute, and older entries count back as "3 days ago" or "2 weeks ago".
+newest or oldest first, from the sort control at the top. Each card leads with
+the duration large on the left and the friendly time label small on the right:
+"Today at" or "Yesterday at" with the clock time to the minute, and older
+entries count back as "3 days ago" or "2 weeks ago". The activation type sits
+below as a small label.
 Shots carry a coffee-cup icon on the left of
 the card, rinses a droplet, and other activations have no icon. When the
 clock was not synced when the entry was recorded, the card shows "no time"
