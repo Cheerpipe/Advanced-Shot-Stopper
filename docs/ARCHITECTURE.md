@@ -123,20 +123,22 @@ lookup through the current preset bank.
 The stats shot log, its curve sidecar, and the independent activation history
 are owned by one data layer (`ActivationStores`) whose every access runs under
 the single `shotStoreMutex`. The shot log's whole 7,228-byte store and the
-16,024-byte activation-history store live in PSRAM and are copied through the
-shared 26,880-byte internal flash-I/O scratch only while that owner holds the
-flash lock. Each keeps two slots in its own data partition — 2×12 KiB for
-`shotlog`, 2×16 KiB for `history` — with generation and checksum selection
-preserving the atomic whole-store update; a failed write never erases the
-last-good slot. Writes remain deferred until the shot has ended. The shot log
-moved from NVS to its partition with schema V6: upgrading requires a one-time
-full-erase USB installation and starts the stats log empty.
+16,024-byte activation-history store live in PSRAM and move to and from their
+slots in 1 KiB chunks staged through the small internal flash-I/O scratch only
+while that owner holds the flash lock. Each keeps two slots in its own data
+partition — 2×12 KiB for `shotlog`, 2×16 KiB for `history` — with generation
+and checksum selection preserving the atomic whole-store update; a failed
+write never erases the last-good slot. Writes remain deferred until the shot
+has ended. The shot log moved from NVS to its partition with schema V6:
+upgrading requires a one-time full-erase USB installation and starts the
+stats log empty.
 
 The separate shot-curve sidecar uses an intentionally incompatible V3 schema:
 up to 121 centigram weights on a fixed half-second grid plus exact event/end
 vertices for each of the same 100 eligible history records. Its 26,820-byte
-whole store lives in PSRAM and is copied through the shared 26,880-byte
-internal flash-I/O scratch only while that owner holds the flash lock. Two
+whole store lives in PSRAM and moves to and from its slots in 1 KiB chunks
+staged through the small internal flash-I/O scratch only while that owner
+holds the flash lock. Two
 28 KiB slots fill the dedicated 56 KiB `shotcurve` data partition; generation
 and checksum selection preserve the existing atomic whole-store update.
 Writes remain deferred until the shot has ended and do not add a transaction

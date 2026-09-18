@@ -92,7 +92,7 @@ struct ShotCurveStore {
 static_assert(sizeof(ShotCurveStore) ==
                   sizeof(ShotCurveHeader) +
                       sizeof(ShotCurveRecord) * SHOT_CURVE_CAPACITY,
-              "ShotCurveStore size must stay within FLASH_IO_SCRATCH_BYTES");
+              "ShotCurveStore packing must stay 4-byte aligned for chunked flash I/O");
 static_assert(sizeof(ShotCurveStore) == 26820,
               "ShotCurveStore packing is part of the flash sidecar schema");
 
@@ -131,31 +131,12 @@ inline void resetShotCurveStore(ShotCurveStore &store) {
   finalizeShotCurveStore(store);
 }
 
-inline void compactShotCurveStoreInto(ShotCurveStore &store,
-                                      ShotCurveStore &scratch) {
-  const uint16_t count = store.header.count;
-  if (count == 0) {
-    store.header.writeIndex = 0;
-    memset(store.records, 0, sizeof(store.records));
-    return;
-  }
-
-  size_t index = store.header.writeIndex;
-  for (uint16_t step = 0; step < count; ++step) {
-    if (index == 0) {
-      index = SHOT_CURVE_CAPACITY;
-    }
-    --index;
-  }
-  for (uint16_t i = 0; i < count; ++i) {
-    scratch.records[i] = store.records[index];
-    index = (index + 1U) % SHOT_CURVE_CAPACITY;
-  }
-  memset(store.records, 0, sizeof(store.records));
-  memcpy(store.records, scratch.records,
-         static_cast<size_t>(count) * sizeof(ShotCurveRecord));
-  store.header.writeIndex =
-      static_cast<uint16_t>(count % SHOT_CURVE_CAPACITY);
+// Pack the ring into records[0..count) (oldest first) in place, mirroring
+// compactShotLogStore.
+inline void compactShotCurveStore(ShotCurveStore &store) {
+  store.header.writeIndex = compactRecordRing(
+      store.records, SHOT_CURVE_CAPACITY, sizeof(ShotCurveRecord),
+      store.header.count, store.header.writeIndex);
 }
 
 struct ShotCurveSampler {

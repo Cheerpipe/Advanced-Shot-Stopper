@@ -514,6 +514,53 @@ inline void resetShotLogStore(ShotLogStore &store, uint32_t bootId) {
   finalizeShotLogStore(store);
 }
 
+// Rotate a record ring in place so the `count` live records (oldest first,
+// ending just before `writeIndex`) occupy records[0..count) and the tail is
+// zero-filled. Triple-reversal rotation: no workspace, safe for any overlap.
+// Shared by the shot-log, shot-curve, and activation-history stores, whose
+// live copies sit in PSRAM. Callers must guarantee count <= capacity and
+// writeIndex < capacity (both are part of each store's validity check).
+// Returns the compacted writeIndex (count % capacity).
+inline uint16_t compactRecordRing(void *records, size_t capacity,
+                                  size_t recordBytes, uint16_t count,
+                                  uint16_t writeIndex) {
+  uint8_t *base = static_cast<uint8_t *>(records);
+  if (count == 0) {
+    memset(base, 0, capacity * recordBytes);
+    return 0;
+  }
+  const size_t shift = (static_cast<size_t>(writeIndex) + capacity - count) %
+                       capacity;
+  if (shift != 0) {
+    auto reverse = [base, recordBytes](size_t first, size_t last) {
+      while (first + 1U < last) {
+        --last;
+        uint8_t *a = base + first * recordBytes;
+        uint8_t *b = base + last * recordBytes;
+        for (size_t i = 0; i < recordBytes; ++i) {
+          const uint8_t byte = a[i];
+          a[i] = b[i];
+          b[i] = byte;
+        }
+        ++first;
+      }
+    };
+    reverse(0, shift);
+    reverse(shift, capacity);
+    reverse(0, capacity);
+  }
+  memset(base + count * recordBytes, 0, (capacity - count) * recordBytes);
+  return static_cast<uint16_t>(count % capacity);
+}
+
+// Pack the ring into records[0..count) (oldest first) in place so the flash
+// slot always holds the used prefix and deletion is a memmove.
+inline void compactShotLogStore(ShotLogStore &store) {
+  store.header.writeIndex = compactRecordRing(
+      store.records, SHOT_LOG_CAPACITY, sizeof(ShotLogRecord),
+      store.header.count, store.header.writeIndex);
+}
+
 inline int16_t shotLogWeightToCentigrams(float weightG) {
   if (!std::isfinite(weightG)) {
     return SHOT_LOG_WEIGHT_MISSING;

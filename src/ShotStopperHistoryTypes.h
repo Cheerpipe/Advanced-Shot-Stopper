@@ -80,7 +80,7 @@ struct HistoryStore {
 };
 
 static_assert(sizeof(HistoryStore) == 16024,
-              "HistoryStore must fit the shared flash I/O scratch and one 16 KiB slot");
+              "HistoryStore must stay 4-byte aligned for chunked flash I/O and fit one 16 KiB slot");
 
 inline size_t historyClampPageLimit(size_t limit) {
   if (limit < 1U) {
@@ -131,30 +131,12 @@ inline void resetHistoryStore(HistoryStore &store) {
   finalizeHistoryStore(store);
 }
 
-inline void compactHistoryStoreInto(HistoryStore &store, HistoryStore &scratch) {
-  const uint16_t count = store.header.count;
-  if (count == 0) {
-    store.header.writeIndex = 0;
-    memset(store.records, 0, sizeof(store.records));
-    return;
-  }
-
-  size_t index = store.header.writeIndex;
-  for (uint16_t step = 0; step < count; ++step) {
-    if (index == 0) {
-      index = HISTORY_CAPACITY;
-    }
-    --index;
-  }
-  for (uint16_t i = 0; i < count; ++i) {
-    scratch.records[i] = store.records[index];
-    index = (index + 1U) % HISTORY_CAPACITY;
-  }
-  memset(store.records, 0, sizeof(store.records));
-  memcpy(store.records, scratch.records,
-         static_cast<size_t>(count) * sizeof(HistoryRecord));
-  store.header.writeIndex =
-      static_cast<uint16_t>(count % HISTORY_CAPACITY);
+// Pack the ring into records[0..count) (oldest first) in place, mirroring
+// compactShotLogStore.
+inline void compactHistoryStore(HistoryStore &store) {
+  store.header.writeIndex = compactRecordRing(
+      store.records, HISTORY_CAPACITY, sizeof(HistoryRecord),
+      store.header.count, store.header.writeIndex);
 }
 
 // One bounded page out of the ring. `dir` selects the walk order: Desc pages

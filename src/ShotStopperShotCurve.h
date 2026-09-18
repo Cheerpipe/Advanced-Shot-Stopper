@@ -15,12 +15,6 @@ namespace shotstopper {
 constexpr size_t SHOT_CURVE_FLASH_SLOT_BYTES = 28672;
 constexpr size_t SHOT_CURVE_FLASH_SLOT_COUNT = 2;
 
-inline ShotCurveStore &shotCurveScratchStore() {
-  static_assert(sizeof(ShotCurveStore) <= FLASH_IO_SCRATCH_BYTES,
-                "ShotCurveStore exceeds shared flash I/O scratch");
-  return *reinterpret_cast<ShotCurveStore *>(flashIoScratchBytes());
-}
-
 class ShotCurveLog {
  public:
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
@@ -74,20 +68,18 @@ class ShotCurveLog {
     const bool aOk =
         readSlot(part, 0, store_) && validShotCurveStore(store_);
     const uint32_t gen0 = aOk ? store_.header.generation : 0;
-    ShotCurveStore &slotB = shotCurveScratchStore();
     const bool bOk =
-        readSlot(part, SHOT_CURVE_FLASH_SLOT_BYTES, slotB) &&
-        validShotCurveStore(slotB);
+        readSlot(part, SHOT_CURVE_FLASH_SLOT_BYTES, store_) &&
+        validShotCurveStore(store_);
     const DualSlotChoice choice =
-        chooseNewerRevision(aOk, gen0, bOk, slotB.header.generation);
+        chooseNewerRevision(aOk, gen0, bOk,
+                            bOk ? store_.header.generation : 0);
     if (choice == DualSlotChoice::SECOND) {
-      memcpy(&store_, &slotB, sizeof(store_));
+      // store_ already holds slot B.
       activeSlot_ = 1;
     } else if (choice == DualSlotChoice::FIRST) {
-      // store_ still holds slot A; slot B only occupied scratch.
-      if (!aOk) {
-        (void)readSlot(part, 0, store_);
-      }
+      // store_ holds slot B or a failed slot-B read; restore the winner.
+      (void)readSlot(part, 0, store_);
       activeSlot_ = 0;
     } else {
       resetShotCurveStore(store_);
@@ -103,7 +95,7 @@ class ShotCurveLog {
     if (!tryLockFlashIo(lockTimeoutMs)) {
       return false;
     }
-    compactShotCurveStoreInto(store_, shotCurveScratchStore());
+    compactShotCurveStore(store_);
     if (store_.header.generation == 0) {
       store_.header.generation = 1;
     } else if (store_.header.generation < UINT32_MAX) {
@@ -133,11 +125,6 @@ class ShotCurveLog {
     feedFlashIoWatchdog();
     const size_t targetOffset =
         static_cast<size_t>(targetSlot) * SHOT_CURVE_FLASH_SLOT_BYTES;
-    void *source = copyToFlashIoScratch(&store_, sizeof(store_));
-    if (source == nullptr) {
-      unlockFlashIo();
-      return false;
-    }
     if (esp_partition_erase_range(part, targetOffset,
                                   SHOT_CURVE_FLASH_SLOT_BYTES) != ESP_OK) {
       unlockFlashIo();
@@ -145,8 +132,10 @@ class ShotCurveLog {
     }
     yieldFlashIo();
     feedFlashIoWatchdog();
-    if (esp_partition_write(part, targetOffset, source, sizeof(store_)) !=
-        ESP_OK) {
+    // Chunked write: each 1 KiB step stages through the internal scratch
+    // because the live store_ sits in PSRAM BSS, unreachable while the flash
+    // cache is disabled inside the partition call.
+    if (!flashIoWriteChunked(part, targetOffset, &store_, sizeof(store_))) {
       unlockFlashIo();
       return false;
     }
@@ -233,7 +222,7 @@ class ShotCurveLog {
     if (!lockFlashIo()) {
       return false;
     }
-    compactShotCurveStoreInto(store_, shotCurveScratchStore());
+    compactShotCurveStore(store_);
     bool found = false;
     size_t foundIndex = 0;
     for (size_t index = 0; index < store_.header.count; ++index) {
@@ -309,16 +298,7 @@ class ShotCurveLog {
     if (part == nullptr) {
       return false;
     }
-    void *scratch = flashIoScratchBytes();
-    if (scratch == nullptr) {
-      return false;
-    }
-    if (esp_partition_read(part, offset, scratch, sizeof(ShotCurveStore)) !=
-        ESP_OK) {
-      return false;
-    }
-    memcpy(&dest, scratch, sizeof(ShotCurveStore));
-    return true;
+    return flashIoReadChunked(part, offset, &dest, sizeof(dest));
   }
 #endif
 

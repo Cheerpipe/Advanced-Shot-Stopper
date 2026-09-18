@@ -651,7 +651,8 @@ void p65_factory_settings_survives_second_slot_write_fail() {
 void p66_shot_log_dual_slot_generation_flip() {
   resetHostPersistence();
   CHECK(sizeof(ShotLogStore) == 7228);
-  CHECK(sizeof(ShotLogStore) <= FLASH_IO_SCRATCH_BYTES);
+  CHECK(sizeof(ShotLogStore) % 4 == 0);
+  CHECK(sizeof(ShotLogStore) <= SHOT_LOG_FLASH_SLOT_BYTES);
   CHECK(SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES <= 0x8000);
   ShotLog log;
   CHECK(log.load());
@@ -1824,7 +1825,8 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   CHECK(SHOT_CURVE_MAX_POINTS == 121);
   CHECK(sizeof(ShotCurveRecord) == 268);
   CHECK(sizeof(ShotCurveStore) == 26820);
-  CHECK(sizeof(ShotCurveStore) <= FLASH_IO_SCRATCH_BYTES);
+  CHECK(sizeof(ShotCurveStore) % 4 == 0);
+  CHECK(sizeof(ShotCurveStore) <= SHOT_CURVE_FLASH_SLOT_BYTES);
   CHECK(SHOT_CURVE_FLASH_SLOT_BYTES == 28 * 1024);
   ShotCurveRecord full = emptyShotCurveRecord();
   full.count = SHOT_CURVE_MAX_POINTS;
@@ -1969,7 +1971,8 @@ void p69_history_log_round_trip_eviction_and_paging() {
   resetHostPersistence();
   CHECK(sizeof(HistoryRecord) == 16);
   CHECK(sizeof(HistoryStore) == 16024);
-  CHECK(sizeof(HistoryStore) <= FLASH_IO_SCRATCH_BYTES);
+  CHECK(sizeof(HistoryStore) % 4 == 0);
+  CHECK(sizeof(HistoryStore) <= HISTORY_FLASH_SLOT_BYTES);
   CHECK(HISTORY_FLASH_SLOT_COUNT * HISTORY_FLASH_SLOT_BYTES == 0x8000);
   CHECK(historyClampPageLimit(0) == 1);
   CHECK(historyClampPageLimit(1000) == HISTORY_PAGE_MAX);

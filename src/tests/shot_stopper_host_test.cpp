@@ -12321,7 +12321,7 @@ void s08_shot_log_without_sync_has_no_wall_time() {
 
 void s11_shot_log_record_includes_preset_snapshot() {
   CHECK(sizeof(ShotLogRecord) == 72);
-  CHECK(sizeof(ShotLogStore) <= FLASH_IO_SCRATCH_BYTES);
+  CHECK(sizeof(ShotLogStore) % 4 == 0);
 }
 
 void s12_shot_rating_pack_preserves_guards() {

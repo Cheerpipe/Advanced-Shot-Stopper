@@ -27,7 +27,7 @@ which doubles the per-shot weight series retained in PSRAM.
 |---|---|
 | Network work buffer | external, at most 68 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex, and a one-curve JSON scratch serves the status and shots-list rows |
 | Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 68 KiB total bound |
-| Shared flash-I/O scratch | internal heap, 26,880 bytes; one owner at a time under the flash-I/O lock, with no PSRAM fallback |
+| Shared flash-I/O scratch | internal heap, 5,296 bytes (2× sizeof(PersistedSettings)) plus a transient 2,616-byte legacy-migration staging block while a V1–V13 blob is being read; one owner at a time under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the scratch |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
 | Settings handoff | one 2652-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
@@ -46,9 +46,9 @@ from V13); command layouts are unchanged.
 
 Settings V12 changes byte meanings through explicit migration without growing
 its blob. History V5 grows each record from 48 to 72 bytes to retain an exact
-24-byte preset-name snapshot; the 100-record store remains below the shared
-26,880-byte flash-I/O scratch limit. The separate last-shot V4 record also retains
-bounded preset provenance. Web gzip is capped at 66,400 bytes combined:
+24-byte preset-name snapshot; the 100-record store transfers through the same
+chunked flash-I/O path as the other partition stores. The separate last-shot V4
+record also retains bounded preset provenance. Web gzip is capped at 66,400 bytes combined:
 500 bytes of the shell-JS allowance are reassigned to runtime (5,444 and 32,000
 bytes respectively before the PM allocation below). Source authoring limits are
 63,000 bytes HTML and 170,300 bytes JS, 233,300 combined. This reviewed increase

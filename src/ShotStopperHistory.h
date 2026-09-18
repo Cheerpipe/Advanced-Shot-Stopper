@@ -3,7 +3,7 @@
 // Activation-history ring store: PSRAM working copy with deferred dual-slot
 // flash persistence in the dedicated `history` data partition. Mirrors the
 // ShotCurveLog flash contract (generation flip through the inactive slot,
-// internal-SRAM scratch copies while the flash cache is disabled).
+// chunked internal-SRAM-staged transfers while the flash cache is disabled).
 
 #include "ShotStopperFlashIoScratch.h"
 #include "ShotStopperHistoryTypes.h"
@@ -19,12 +19,6 @@ namespace shotstopper {
 // Two 16 KiB slots fill the dedicated history data partition.
 constexpr size_t HISTORY_FLASH_SLOT_BYTES = 16384;
 constexpr size_t HISTORY_FLASH_SLOT_COUNT = 2;
-
-inline HistoryStore &historyScratchStore() {
-  static_assert(sizeof(HistoryStore) <= FLASH_IO_SCRATCH_BYTES,
-                "HistoryStore exceeds shared flash I/O scratch");
-  return *reinterpret_cast<HistoryStore *>(flashIoScratchBytes());
-}
 
 class HistoryLog {
  public:
@@ -79,20 +73,18 @@ class HistoryLog {
     const bool aOk =
         readSlot(part, 0, store_) && validHistoryStore(store_);
     const uint32_t gen0 = aOk ? store_.header.generation : 0;
-    HistoryStore &slotB = historyScratchStore();
     const bool bOk =
-        readSlot(part, HISTORY_FLASH_SLOT_BYTES, slotB) &&
-        validHistoryStore(slotB);
+        readSlot(part, HISTORY_FLASH_SLOT_BYTES, store_) &&
+        validHistoryStore(store_);
     const DualSlotChoice choice =
-        chooseNewerRevision(aOk, gen0, bOk, slotB.header.generation);
+        chooseNewerRevision(aOk, gen0, bOk,
+                            bOk ? store_.header.generation : 0);
     if (choice == DualSlotChoice::SECOND) {
-      memcpy(&store_, &slotB, sizeof(store_));
+      // store_ already holds slot B.
       activeSlot_ = 1;
     } else if (choice == DualSlotChoice::FIRST) {
-      // store_ still holds slot A; slot B only occupied scratch.
-      if (!aOk) {
-        (void)readSlot(part, 0, store_);
-      }
+      // store_ holds slot B or a failed slot-B read; restore the winner.
+      (void)readSlot(part, 0, store_);
       activeSlot_ = 0;
     } else {
       resetHistoryStore(store_);
@@ -108,7 +100,7 @@ class HistoryLog {
     if (!tryLockFlashIo(lockTimeoutMs)) {
       return false;
     }
-    compactHistoryStoreInto(store_, historyScratchStore());
+    compactHistoryStore(store_);
     if (store_.header.generation == 0) {
       store_.header.generation = 1;
     } else if (store_.header.generation < UINT32_MAX) {
@@ -138,11 +130,6 @@ class HistoryLog {
     feedFlashIoWatchdog();
     const size_t targetOffset =
         static_cast<size_t>(targetSlot) * HISTORY_FLASH_SLOT_BYTES;
-    void *source = copyToFlashIoScratch(&store_, sizeof(store_));
-    if (source == nullptr) {
-      unlockFlashIo();
-      return false;
-    }
     if (esp_partition_erase_range(part, targetOffset,
                                   HISTORY_FLASH_SLOT_BYTES) != ESP_OK) {
       unlockFlashIo();
@@ -150,8 +137,10 @@ class HistoryLog {
     }
     yieldFlashIo();
     feedFlashIoWatchdog();
-    if (esp_partition_write(part, targetOffset, source, sizeof(store_)) !=
-        ESP_OK) {
+    // Chunked write: each 1 KiB step stages through the internal scratch
+    // because the live store_ sits in PSRAM BSS, unreachable while the flash
+    // cache is disabled inside the partition call.
+    if (!flashIoWriteChunked(part, targetOffset, &store_, sizeof(store_))) {
       unlockFlashIo();
       return false;
     }
@@ -235,7 +224,7 @@ class HistoryLog {
     if (!lockFlashIo()) {
       return false;
     }
-    compactHistoryStoreInto(store_, historyScratchStore());
+    compactHistoryStore(store_);
     bool found = false;
     size_t foundIndex = 0;
     for (size_t index = 0; index < store_.header.count; ++index) {
@@ -345,16 +334,7 @@ class HistoryLog {
     if (part == nullptr) {
       return false;
     }
-    void *scratch = flashIoScratchBytes();
-    if (scratch == nullptr) {
-      return false;
-    }
-    if (esp_partition_read(part, offset, scratch, sizeof(HistoryStore)) !=
-        ESP_OK) {
-      return false;
-    }
-    memcpy(&dest, scratch, sizeof(HistoryStore));
-    return true;
+    return flashIoReadChunked(part, offset, &dest, sizeof(dest));
   }
 #endif
 

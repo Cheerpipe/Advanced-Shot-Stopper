@@ -3,7 +3,7 @@
 // Stats shot-log ring store: PSRAM working copy with deferred dual-slot flash
 // persistence in the dedicated `shotlog` data partition. Mirrors the
 // ShotCurveLog flash contract (generation flip through the inactive slot,
-// internal-SRAM scratch copies while the flash cache is disabled).
+// chunked internal-SRAM-staged transfers while the flash cache is disabled).
 
 #include "ShotStopperFlashIoScratch.h"
 #include "ShotStopperNvsDualSlot.h"
@@ -19,42 +19,6 @@ namespace shotstopper {
 // Two 12 KiB slots fill the dedicated shotlog data partition.
 constexpr size_t SHOT_LOG_FLASH_SLOT_BYTES = 12288;
 constexpr size_t SHOT_LOG_FLASH_SLOT_COUNT = 2;
-
-inline ShotLogStore &shotLogScratchStore() {
-  static_assert(sizeof(ShotLogStore) <= FLASH_IO_SCRATCH_BYTES,
-                "ShotLogStore exceeds shared flash I/O scratch");
-  return *reinterpret_cast<ShotLogStore *>(flashIoScratchBytes());
-}
-
-// Pack the ring into records[0..count) (oldest first) so the flash slot
-// always holds the used prefix and deletion is a memmove.
-// Caller must already hold lockFlashIo() (recursive).
-inline void compactShotLogStore(ShotLogStore &store) {
-  const uint16_t count = store.header.count;
-  if (count == 0) {
-    store.header.writeIndex = 0;
-    memset(store.records, 0, sizeof(store.records));
-    return;
-  }
-
-  ShotLogStore &scratch = shotLogScratchStore();
-  size_t index = store.header.writeIndex;
-  for (uint16_t step = 0; step < count; ++step) {
-    if (index == 0) {
-      index = SHOT_LOG_CAPACITY;
-    }
-    --index;
-  }
-  for (uint16_t i = 0; i < count; ++i) {
-    scratch.records[i] = store.records[index];
-    index = (index + 1U) % SHOT_LOG_CAPACITY;
-  }
-  memset(store.records, 0, sizeof(store.records));
-  memcpy(store.records, scratch.records,
-         static_cast<size_t>(count) * sizeof(ShotLogRecord));
-  store.header.writeIndex =
-      static_cast<uint16_t>(count % SHOT_LOG_CAPACITY);
-}
 
 class ShotLog {
  public:
@@ -109,20 +73,18 @@ class ShotLog {
     const bool aOk =
         readSlot(part, 0, store_) && validShotLogStore(store_);
     const uint32_t gen0 = aOk ? store_.header.generation : 0;
-    ShotLogStore &slotB = shotLogScratchStore();
     const bool bOk =
-        readSlot(part, SHOT_LOG_FLASH_SLOT_BYTES, slotB) &&
-        validShotLogStore(slotB);
+        readSlot(part, SHOT_LOG_FLASH_SLOT_BYTES, store_) &&
+        validShotLogStore(store_);
     const DualSlotChoice choice =
-        chooseNewerRevision(aOk, gen0, bOk, slotB.header.generation);
+        chooseNewerRevision(aOk, gen0, bOk,
+                            bOk ? store_.header.generation : 0);
     if (choice == DualSlotChoice::SECOND) {
-      memcpy(&store_, &slotB, sizeof(store_));
+      // store_ already holds slot B.
       activeSlot_ = 1;
     } else if (choice == DualSlotChoice::FIRST) {
-      // store_ still holds slot A; slot B only occupied scratch.
-      if (!aOk) {
-        (void)readSlot(part, 0, store_);
-      }
+      // store_ holds slot B or a failed slot-B read; restore the winner.
+      (void)readSlot(part, 0, store_);
       activeSlot_ = 0;
     } else {
       resetShotLogStore(store_, 1);
@@ -168,13 +130,6 @@ class ShotLog {
     feedFlashIoWatchdog();
     const size_t targetOffset =
         static_cast<size_t>(targetSlot) * SHOT_LOG_FLASH_SLOT_BYTES;
-    // Source is internal SRAM scratch: the live store_ sits in PSRAM BSS,
-    // unreachable while the flash cache is disabled during the slot write.
-    void *source = copyToFlashIoScratch(&store_, sizeof(store_));
-    if (source == nullptr) {
-      unlockFlashIo();
-      return false;
-    }
     if (esp_partition_erase_range(part, targetOffset,
                                   SHOT_LOG_FLASH_SLOT_BYTES) != ESP_OK) {
       unlockFlashIo();
@@ -182,8 +137,10 @@ class ShotLog {
     }
     yieldFlashIo();
     feedFlashIoWatchdog();
-    if (esp_partition_write(part, targetOffset, source, sizeof(store_)) !=
-        ESP_OK) {
+    // Chunked write: each 1 KiB step stages through the internal scratch
+    // because the live store_ sits in PSRAM BSS, unreachable while the flash
+    // cache is disabled inside the partition call.
+    if (!flashIoWriteChunked(part, targetOffset, &store_, sizeof(store_))) {
       unlockFlashIo();
       return false;
     }
@@ -406,16 +363,7 @@ class ShotLog {
     if (part == nullptr) {
       return false;
     }
-    void *scratch = flashIoScratchBytes();
-    if (scratch == nullptr) {
-      return false;
-    }
-    if (esp_partition_read(part, offset, scratch, sizeof(ShotLogStore)) !=
-        ESP_OK) {
-      return false;
-    }
-    memcpy(&dest, scratch, sizeof(ShotLogStore));
-    return true;
+    return flashIoReadChunked(part, offset, &dest, sizeof(dest));
   }
 #endif
 

@@ -1,9 +1,10 @@
 #pragma once
 
-// Shared internal-SRAM workspace for Preferences getBytes/putBytes while the
-// flash cache may be disabled (PSRAM is then inaccessible on ESP32-S3).
-// Settings dual-slot I/O and shot-log load/compact reuse the same bytes; both
-// paths must hold tryLockFlashIo() for the whole use of the scratch.
+// Shared internal-SRAM workspace for Preferences getBytes/putBytes and chunked
+// partition transfers while the flash cache may be disabled (PSRAM is then
+// inaccessible on ESP32-S3). Settings dual-slot I/O, the last-shot blob, and
+// the per-chunk staging bytes reuse the same allocation; every path must hold
+// tryLockFlashIo() for the whole use of the scratch.
 
 #include "ShotStopperDomain.h"
 #include "ShotStopperPsram.h"
@@ -15,6 +16,7 @@
 #if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
 #include <esp_memory_utils.h>
+#include <esp_partition.h>
 #include <esp_task_wdt.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -23,11 +25,19 @@
 
 namespace shotstopper {
 
-// Large enough for 2× PersistedSettings (NVS budget), one ShotLogStore
-// (100×72 records + header ≈ 7228 B), or one ShotCurveStore v3 (26820 B).
-constexpr size_t FLASH_IO_SCRATCH_BYTES = 26880;
-static_assert(FLASH_IO_SCRATCH_BYTES >= 2 * PERSISTED_SETTINGS_NVS_BUDGET,
-              "Flash I/O scratch must cover settings dual-slot I/O");
+// Floor set by the settings dual-slot staging (2 × sizeof(PersistedSettings);
+// authoritative static_asserts live in persistedSettingsScratch() and
+// LastShotStore) plus the chunk staging below. The larger partition stores
+// (shotlog, history, shotcurve) never fit here: they transfer in
+// FLASH_IO_CHUNK_BYTES steps through flashIoReadChunked/flashIoWriteChunked.
+constexpr size_t FLASH_IO_SCRATCH_BYTES = 5296;
+// One staged step of a partition-store transfer. 4-byte alignment keeps every
+// esp_partition_read/write call word-aligned; store sizes are multiples of 4.
+constexpr size_t FLASH_IO_CHUNK_BYTES = 1024;
+static_assert(FLASH_IO_CHUNK_BYTES % 4 == 0,
+              "Flash I/O chunks must stay 4-byte aligned");
+static_assert(FLASH_IO_CHUNK_BYTES <= FLASH_IO_SCRATCH_BYTES,
+              "Flash I/O chunks must stage through the scratch");
 constexpr uint32_t FLASH_IO_LOCK_TIMEOUT_MS = 3000;
 // Control-loop NVS must fail fast; the durable timeout itself retains two
 // seconds of margin beneath the task watchdog budget.
@@ -170,5 +180,57 @@ inline void *copyToFlashIoScratch(const void *source, size_t bytes) {
   memcpy(scratch, source, bytes);
   return scratch;
 }
+
+#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
+    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+// Chunked partition transfer for PSRAM-backed stores larger than the scratch.
+// Each step copies one chunk between PSRAM and the internal scratch while the
+// flash cache is on; only the internal staging bytes are reachable inside the
+// partition call while it is off. Caller must already hold the flash I/O lock
+// for the whole transfer.
+inline bool flashIoReadChunked(const esp_partition_t *part, size_t offset,
+                               void *destination, size_t bytes) {
+  uint8_t *scratch = flashIoScratchBytes();
+  if (part == nullptr || destination == nullptr || scratch == nullptr) {
+    return false;
+  }
+  uint8_t *out = static_cast<uint8_t *>(destination);
+  for (size_t done = 0; done < bytes;) {
+    const size_t chunk = bytes - done < FLASH_IO_CHUNK_BYTES
+                             ? bytes - done
+                             : FLASH_IO_CHUNK_BYTES;
+    if (esp_partition_read(part, offset + done, scratch, chunk) != ESP_OK) {
+      return false;
+    }
+    memcpy(out + done, scratch, chunk);
+    done += chunk;
+    yieldFlashIo();
+    feedFlashIoWatchdog();
+  }
+  return true;
+}
+
+inline bool flashIoWriteChunked(const esp_partition_t *part, size_t offset,
+                                const void *source, size_t bytes) {
+  uint8_t *scratch = flashIoScratchBytes();
+  if (part == nullptr || source == nullptr || scratch == nullptr) {
+    return false;
+  }
+  const uint8_t *in = static_cast<const uint8_t *>(source);
+  for (size_t done = 0; done < bytes;) {
+    const size_t chunk = bytes - done < FLASH_IO_CHUNK_BYTES
+                             ? bytes - done
+                             : FLASH_IO_CHUNK_BYTES;
+    memcpy(scratch, in + done, chunk);
+    if (esp_partition_write(part, offset + done, scratch, chunk) != ESP_OK) {
+      return false;
+    }
+    done += chunk;
+    yieldFlashIo();
+    feedFlashIoWatchdog();
+  }
+  return true;
+}
+#endif
 
 }  // namespace shotstopper
