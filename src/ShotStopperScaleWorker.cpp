@@ -233,7 +233,7 @@ bool scaleLoggedGattConnecting = false;
 uint8_t scaleLoggedGattConnectAttempts = 0;
 bool scaleDiscoveryDirected = false;
 std::atomic<uint8_t> liveBleScanIntensityRaw{
-    static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE)};
+    static_cast<uint8_t>(BleScanIntensity::NORMAL)};
 std::atomic<uint8_t> liveBleScanBackoffMinRaw{
     SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN};
 bool bookooConnectVolumePending = false;
@@ -1502,8 +1502,8 @@ void logScaleConnectionFailed(bool directed) {
 
 void logScaleScanStarted(bool directed) {
   scaleDiscoveryDirected = directed;
-  // Report the duty this scan actually applies, so a quiet hunt at Light is
-  // visible even while the saved preference stays aggressive.
+  // Report the duty this scan actually applies, so a quiet hunt backed off
+  // to Light stays visible even when the saved intensity is higher.
   addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_SCAN_STARTED,
                 directed ? SCALE_SCAN_TARGET_PREFERRED : SCALE_SCAN_TARGET_ANY,
                 static_cast<int32_t>(discoveryScanIntensity()));
@@ -1637,7 +1637,7 @@ void resetScaleWorkerRadioStateForHost() {
   scaleLoggedGattConnectAttempts = 0;
   scaleDiscoveryDirected = false;
   liveBleScanIntensityRaw.store(
-      static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE),
+      static_cast<uint8_t>(BleScanIntensity::NORMAL),
       std::memory_order_relaxed);
   bookooConnectVolumePending = false;
   scaleDebugConnectionGeneration = 0;

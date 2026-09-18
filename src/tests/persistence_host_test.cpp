@@ -1355,7 +1355,7 @@ void p48_ble_scan_defaults_and_dual_slot_round_trip() {
   BleScanPersistedSettings settings;
   CHECK(settings.reservedEnabled == 0);
   CHECK(settings.scanIntensity ==
-        static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE));
+        static_cast<uint8_t>(BleScanIntensity::NORMAL));
   settings.scanIntensity = 9;
   finalizeBleScanSettings(settings);
   CHECK(settings.scanIntensity == 0);
@@ -1363,6 +1363,7 @@ void p48_ble_scan_defaults_and_dual_slot_round_trip() {
   CHECK(settings.version == BLE_SCAN_SETTINGS_VERSION);
   CHECK(saveBleScanSettings(settings));
   CHECK(settings.revision == 1);
+  CHECK(verifyFactoryBleScanSettings(settings));
   settings.scanIntensity =
       static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE);
   CHECK(saveBleScanSettings(settings));
@@ -1377,7 +1378,7 @@ void p48_ble_scan_defaults_and_dual_slot_round_trip() {
   CHECK(validBleScanSettingsBlob(loaded));
   BleScanPersistedSettings onDisk;
   CHECK(readLatestBleScanSettings(onDisk));
-  CHECK(verifyFactoryBleScanSettings(onDisk));
+  CHECK(!verifyFactoryBleScanSettings(onDisk));
 
   BleScanPersistedSettings v1 = {};
   v1.magic = BLE_SCAN_SETTINGS_MAGIC;
@@ -1415,17 +1416,17 @@ void p48_ble_scan_defaults_and_dual_slot_round_trip() {
   CHECK(onDisk.reservedEnabled == 1);
   CHECK(!verifyFactoryBleScanSettings(onDisk));
   CHECK(persistBleScanSettings(
-      upgraded, static_cast<uint8_t>(BleScanIntensity::NORMAL),
+      upgraded, static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE),
       upgraded.scanBackoffMin));
   CHECK(readLatestBleScanSettings(onDisk));
   CHECK(onDisk.version == BLE_SCAN_SETTINGS_VERSION);
   CHECK(onDisk.scanIntensity ==
-        static_cast<uint8_t>(BleScanIntensity::NORMAL));
+        static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE));
   CHECK(validBleScanSettingsBlob(onDisk));
   CHECK(!verifyFactoryBleScanSettings(onDisk));
 }
 
-void p49_ble_scan_corruption_falls_back_and_reset_stays_aggressive() {
+void p49_ble_scan_corruption_falls_back_to_factory_default() {
   resetHostPersistence();
   BleScanPersistedSettings settings;
   CHECK(saveBleScanSettings(settings));
@@ -1437,13 +1438,13 @@ void p49_ble_scan_corruption_falls_back_and_reset_stays_aggressive() {
   BleScanPersistedSettings loaded;
   CHECK(loadBleScanSettings(loaded));
   CHECK(loaded.scanIntensity ==
-        static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE));
+        static_cast<uint8_t>(BleScanIntensity::NORMAL));
   CHECK(loaded.revision == 1);
   CHECK(validBleScanSettingsBlob(loaded));
   CHECK(resetBleScanSettings(loaded));
   CHECK(loaded.reservedEnabled == 0);
   CHECK(loaded.scanIntensity ==
-        static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE));
+        static_cast<uint8_t>(BleScanIntensity::NORMAL));
   BleScanPersistedSettings onDisk;
   CHECK(readLatestBleScanSettings(onDisk));
   CHECK(verifyFactoryBleScanSettings(onDisk));
@@ -1712,7 +1713,7 @@ void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
   CHECK(!lastShot.get().valid);
   CHECK(ble.reservedEnabled == 0);
   CHECK(ble.scanIntensity ==
-        static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE));
+        static_cast<uint8_t>(BleScanIntensity::NORMAL));
   BleScanPersistedSettings onDisk;
   CHECK(readLatestBleScanSettings(onDisk));
   CHECK(verifyFactoryBleScanSettings(onDisk));
@@ -2258,7 +2259,7 @@ const TestCase tests[] = {
     {"P19", p19_shot_log_weight_sentinel_allows_int16_max},
     {"P29", p29_last_shot_persists_and_clears},
     {"P48", p48_ble_scan_defaults_and_dual_slot_round_trip},
-    {"P49", p49_ble_scan_corruption_falls_back_and_reset_stays_aggressive},
+    {"P49", p49_ble_scan_corruption_falls_back_to_factory_default},
     {"P50", p50_recovery_three_cycles_confirm_network_reset},
     {"P51", p51_recovery_five_cycles_upgrade_factory_candidate},
     {"P52", p52_recovery_rejects_four_slow_and_late_confirmation},

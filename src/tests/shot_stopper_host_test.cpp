@@ -5228,8 +5228,8 @@ void d05_hci_watchdog_force_restarts_same_filter() {
                               scanLastAdvertAtMs);
   CHECK(scale.startScanCalls == 1);
   CHECK(!scale.lastForceRestart);
-  CHECK(scale.lastScanInterval == BLE_SCAN_AGGRESSIVE_INTERVAL);
-  CHECK(scale.lastScanWindow == BLE_SCAN_AGGRESSIVE_WINDOW);
+  CHECK(scale.lastScanInterval == BLE_SCAN_NORMAL_INTERVAL);
+  CHECK(scale.lastScanWindow == BLE_SCAN_NORMAL_WINDOW);
   const size_t callsBeforeRestart = scale.startScanCalls;
   size_t ticks = 0;
   while (scale.startScanCalls == callsBeforeRestart) {
@@ -5263,7 +5263,7 @@ void d05b_scan_intensity_change_restarts_gap() {
                               connectAttemptSeriesActive, scanSessionAtMs,
                               scanLastAdvertAtMs);
   CHECK(scale.startScanCalls == 1);
-  CHECK(scale.lastScanInterval == BLE_SCAN_AGGRESSIVE_INTERVAL);
+  CHECK(scale.lastScanInterval == BLE_SCAN_NORMAL_INTERVAL);
   applyLiveBleScanIntensity(BleScanIntensity::LIGHT);
   serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
                               connectAttemptSeriesActive, scanSessionAtMs,
@@ -5322,7 +5322,7 @@ void d16_scale_connect_debug_reports_phases() {
                               connectAttemptSeriesActive, scanSessionAtMs,
                               scanLastAdvertAtMs);
   CHECK(debugEventExists(DebugCode::SCALE_SCAN_STARTED, SCALE_SCAN_TARGET_ANY,
-                         static_cast<int32_t>(BleScanIntensity::AGGRESSIVE)));
+                         static_cast<int32_t>(BleScanIntensity::NORMAL)));
   CHECK(!debugEventExists(DebugCode::SCALE_CONNECTING));
 
   scale.connecting = true;
@@ -10918,7 +10918,7 @@ void sc06_serial_cli_feed_completes_on_crlf() {
 void bc05_ble_scan_intensity_applies_live_without_restart() {
   resetHarness(false, false);
   reachReadyFromBoot();
-  CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
+  CHECK(liveBleScanIntensity() == BleScanIntensity::NORMAL);
 
   CHECK(persistBleScanIntensity(BleScanIntensity::LIGHT));
   CHECK(liveBleScanIntensity() == BleScanIntensity::LIGHT);
