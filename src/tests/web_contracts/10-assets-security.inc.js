@@ -205,11 +205,13 @@ if (htmlBytes > 65800) {
 // The Admin device-name field adds client validation, the no-reconnect
 // preference save, and the .local status suffix: ~0.7 KB of JS and ~1 KB of
 // combined source allowance.
-if (jsBytes > 183500) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 183500)`);
+// Humanized shot/activation time labels (relative day ladder plus seven
+// locale strings) add ~0.4 KB of JS and combined source allowance.
+if (jsBytes > 184000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 184000)`);
 }
-if (htmlBytes + jsBytes > 249200) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 249200)`);
+if (htmlBytes + jsBytes > 249700) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 249700)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
