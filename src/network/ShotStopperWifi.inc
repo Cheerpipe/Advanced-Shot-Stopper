@@ -42,21 +42,21 @@ bool ShotStopperNetwork::startNetwork() {
   copyCString(status_.apIp, sizeof(status_.apIp), AP_IP);
   dataMux_.unlock();
   publishConfiguredAddressStatus();
-  // Idempotent on startNetwork retries: the component stays passive until an
-  // interface gets an address, so modem sleep and BLE coexistence are intact.
-  ensureMdns();
   if (settings.staConfigured) {
     startStation(settings, now);
     startupComplete_ = true;
-    return true;
-  }
-  if (apAutoRaiseExhausted_ || apStartHeld_) {
+  } else if (apAutoRaiseExhausted_ || apStartHeld_) {
     lifecycleLog(apStartHeld_ ? "SoftAP raise held at boot"
                               : "SoftAP auto-raise exhausted at boot");
     startupComplete_ = false;
+    // The startNetwork retry that actually raises Wi-Fi runs ensureMdns().
     return false;
+  } else {
+    startupComplete_ = ensureAccessPoint(now);
   }
-  startupComplete_ = ensureAccessPoint(now);
+  // mdns_init() registers handlers on Arduino's default event loop, which
+  // only the first WiFi.mode() above creates; init fails without it.
+  ensureMdns();
   return startupComplete_;
 }
 
@@ -387,8 +387,9 @@ bool ShotStopperNetwork::ensureMdns() {
   if (mdnsActive_) {
     return true;
   }
-  if (mdns_init() != ESP_OK) {
-    lifecycleLog("mDNS init failed");
+  const esp_err_t err = mdns_init();
+  if (err != ESP_OK) {
+    lifecycleLogf("mDNS init failed (0x%x)", static_cast<unsigned>(err));
     return false;
   }
   mdnsActive_ = true;
