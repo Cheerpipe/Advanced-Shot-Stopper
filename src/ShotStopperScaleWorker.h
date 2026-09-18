@@ -28,14 +28,14 @@ inline void bleScanHciParams(BleScanIntensity intensity, uint16_t &interval,
       interval = BLE_SCAN_AGGRESSIVE_INTERVAL;
       window = BLE_SCAN_AGGRESSIVE_WINDOW;
       return;
-    case BleScanIntensity::LIGHT:
-      interval = BLE_SCAN_LIGHT_INTERVAL;
-      window = BLE_SCAN_LIGHT_WINDOW;
+    case BleScanIntensity::RELAXED:
+      interval = BLE_SCAN_RELAXED_INTERVAL;
+      window = BLE_SCAN_RELAXED_WINDOW;
       return;
-    case BleScanIntensity::NORMAL:
+    case BleScanIntensity::BALANCED:
     default:
-      interval = BLE_SCAN_NORMAL_INTERVAL;
-      window = BLE_SCAN_NORMAL_WINDOW;
+      interval = BLE_SCAN_BALANCED_INTERVAL;
+      window = BLE_SCAN_BALANCED_WINDOW;
       return;
   }
 }

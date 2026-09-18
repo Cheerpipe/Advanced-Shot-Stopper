@@ -36,11 +36,11 @@
 #define LINK_DOWN_DEBOUNCE_MS             120UL
 // GAP scan duty while discovering. Connecting and GATT-up paths never start
 // a scan. Intervals avoid 20/60/100/120 ms advertising harmonics.
-// Light 25% (28.75/115 ms), Normal 50% (31.25/62.5 ms), Aggressive 100% (20/20).
-#define BLE_SCAN_LIGHT_INTERVAL           0x00B8
-#define BLE_SCAN_LIGHT_WINDOW             0x002E
-#define BLE_SCAN_NORMAL_INTERVAL          0x0064
-#define BLE_SCAN_NORMAL_WINDOW            0x0032
+// Relaxed 25% (28.75/115 ms), Balanced 50% (31.25/62.5 ms), Aggressive 100% (20/20).
+#define BLE_SCAN_RELAXED_INTERVAL         0x00B8
+#define BLE_SCAN_RELAXED_WINDOW           0x002E
+#define BLE_SCAN_BALANCED_INTERVAL        0x0064
+#define BLE_SCAN_BALANCED_WINDOW          0x0032
 #define BLE_SCAN_AGGRESSIVE_INTERVAL      0x0020
 #define BLE_SCAN_AGGRESSIVE_WINDOW        0x0020
 #define SCALE_CONNECT_ATTEMPTS           3U
@@ -110,8 +110,8 @@ class EspressoScaleBLE {
         bool init(const char *mac = nullptr);
 
         bool startScan(const char *mac = nullptr, bool forceRestart = false,
-                       uint16_t interval = BLE_SCAN_NORMAL_INTERVAL,
-                       uint16_t window = BLE_SCAN_NORMAL_WINDOW,
+                       uint16_t interval = BLE_SCAN_BALANCED_INTERVAL,
+                       uint16_t window = BLE_SCAN_BALANCED_WINDOW,
                        bool addressScan = false);
         bool pollScan();
         bool isScanning() const;

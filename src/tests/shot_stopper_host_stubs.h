@@ -48,17 +48,17 @@ using portMUX_TYPE = std::recursive_mutex;
 #ifndef BLE_DISCOVER_TIMEOUT_MS
 #define BLE_DISCOVER_TIMEOUT_MS 3000UL
 #endif
-#ifndef BLE_SCAN_LIGHT_INTERVAL
-#define BLE_SCAN_LIGHT_INTERVAL 0x00B8
+#ifndef BLE_SCAN_RELAXED_INTERVAL
+#define BLE_SCAN_RELAXED_INTERVAL 0x00B8
 #endif
-#ifndef BLE_SCAN_LIGHT_WINDOW
-#define BLE_SCAN_LIGHT_WINDOW 0x002E
+#ifndef BLE_SCAN_RELAXED_WINDOW
+#define BLE_SCAN_RELAXED_WINDOW 0x002E
 #endif
-#ifndef BLE_SCAN_NORMAL_INTERVAL
-#define BLE_SCAN_NORMAL_INTERVAL 0x0064
+#ifndef BLE_SCAN_BALANCED_INTERVAL
+#define BLE_SCAN_BALANCED_INTERVAL 0x0064
 #endif
-#ifndef BLE_SCAN_NORMAL_WINDOW
-#define BLE_SCAN_NORMAL_WINDOW 0x0032
+#ifndef BLE_SCAN_BALANCED_WINDOW
+#define BLE_SCAN_BALANCED_WINDOW 0x0032
 #endif
 #ifndef BLE_SCAN_AGGRESSIVE_INTERVAL
 #define BLE_SCAN_AGGRESSIVE_INTERVAL 0x0020
@@ -351,8 +351,8 @@ class EspressoScaleBLE {
     return connected;
   }
   bool startScan(const char *mac = nullptr, bool forceRestart = false,
-                 uint16_t interval = BLE_SCAN_NORMAL_INTERVAL,
-                 uint16_t window = BLE_SCAN_NORMAL_WINDOW,
+                 uint16_t interval = BLE_SCAN_BALANCED_INTERVAL,
+                 uint16_t window = BLE_SCAN_BALANCED_WINDOW,
                  bool addressScan = false) {
     lastForceRestart = forceRestart;
     lastScanInterval = interval;
@@ -645,8 +645,8 @@ class EspressoScaleBLE {
   uint8_t connectAttempts = 0;
   uint8_t connectStep = 0;
   bool lastForceRestart = false;
-  uint16_t lastScanInterval = BLE_SCAN_NORMAL_INTERVAL;
-  uint16_t lastScanWindow = BLE_SCAN_NORMAL_WINDOW;
+  uint16_t lastScanInterval = BLE_SCAN_BALANCED_INTERVAL;
+  uint16_t lastScanWindow = BLE_SCAN_BALANCED_WINDOW;
   uint16_t lastAppliedScanInterval = 0;
   uint16_t lastAppliedScanWindow = 0;
   bool lastAddressScan = false;

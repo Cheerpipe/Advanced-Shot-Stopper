@@ -279,14 +279,14 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
     throw new Error(
         'Legacy FQBN must use CDCOnBoot=default to match jumper-gated CDC');
   }
-  if (!bleHeader.includes('#define BLE_SCAN_LIGHT_INTERVAL           0x00B8') ||
-      !bleHeader.includes('#define BLE_SCAN_LIGHT_WINDOW             0x002E') ||
-      !bleHeader.includes('#define BLE_SCAN_NORMAL_INTERVAL          0x0064') ||
-      !bleHeader.includes('#define BLE_SCAN_NORMAL_WINDOW            0x0032') ||
+  if (!bleHeader.includes('#define BLE_SCAN_RELAXED_INTERVAL         0x00B8') ||
+      !bleHeader.includes('#define BLE_SCAN_RELAXED_WINDOW           0x002E') ||
+      !bleHeader.includes('#define BLE_SCAN_BALANCED_INTERVAL        0x0064') ||
+      !bleHeader.includes('#define BLE_SCAN_BALANCED_WINDOW          0x0032') ||
       !bleHeader.includes('#define BLE_SCAN_AGGRESSIVE_INTERVAL      0x0020') ||
       !bleHeader.includes('#define BLE_SCAN_AGGRESSIVE_WINDOW        0x0020')) {
     throw new Error(
-        'BLE scan presets must be Light 25% (28.75/115), Normal 50% (31.25/62.5), Aggressive 100% (20/20)');
+        'BLE scan presets must be Relaxed 25% (28.75/115), Balanced 50% (31.25/62.5), Aggressive 100% (20/20)');
   }
   if (!firmware.includes('USB_CONSOLE_GPIO') ||
       !firmware.includes('SHOT_STOPPER_USB_CONSOLE_GPIO 4') ||

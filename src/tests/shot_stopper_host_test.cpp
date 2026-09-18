@@ -5228,8 +5228,8 @@ void d05_hci_watchdog_force_restarts_same_filter() {
                               scanLastAdvertAtMs);
   CHECK(scale.startScanCalls == 1);
   CHECK(!scale.lastForceRestart);
-  CHECK(scale.lastScanInterval == BLE_SCAN_NORMAL_INTERVAL);
-  CHECK(scale.lastScanWindow == BLE_SCAN_NORMAL_WINDOW);
+  CHECK(scale.lastScanInterval == BLE_SCAN_BALANCED_INTERVAL);
+  CHECK(scale.lastScanWindow == BLE_SCAN_BALANCED_WINDOW);
   const size_t callsBeforeRestart = scale.startScanCalls;
   size_t ticks = 0;
   while (scale.startScanCalls == callsBeforeRestart) {
@@ -5263,15 +5263,15 @@ void d05b_scan_intensity_change_restarts_gap() {
                               connectAttemptSeriesActive, scanSessionAtMs,
                               scanLastAdvertAtMs);
   CHECK(scale.startScanCalls == 1);
-  CHECK(scale.lastScanInterval == BLE_SCAN_NORMAL_INTERVAL);
-  applyLiveBleScanIntensity(BleScanIntensity::LIGHT);
+  CHECK(scale.lastScanInterval == BLE_SCAN_BALANCED_INTERVAL);
+  applyLiveBleScanIntensity(BleScanIntensity::RELAXED);
   serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
                               connectAttemptSeriesActive, scanSessionAtMs,
                               scanLastAdvertAtMs);
   CHECK(scale.startScanCalls == 2);
   CHECK(scale.lastForceRestart);
-  CHECK(scale.lastScanInterval == BLE_SCAN_LIGHT_INTERVAL);
-  CHECK(scale.lastScanWindow == BLE_SCAN_LIGHT_WINDOW);
+  CHECK(scale.lastScanInterval == BLE_SCAN_RELAXED_INTERVAL);
+  CHECK(scale.lastScanWindow == BLE_SCAN_RELAXED_WINDOW);
   const size_t calls = scale.startScanCalls;
   serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
                               connectAttemptSeriesActive, scanSessionAtMs,
@@ -5280,32 +5280,32 @@ void d05b_scan_intensity_change_restarts_gap() {
 }
 
 void d05c_scan_intensity_hci_presets() {
-  CHECK(BLE_SCAN_LIGHT_INTERVAL == 0x00B8);
-  CHECK(BLE_SCAN_LIGHT_WINDOW == 0x002E);
-  CHECK(BLE_SCAN_NORMAL_INTERVAL == 0x0064);
-  CHECK(BLE_SCAN_NORMAL_WINDOW == 0x0032);
+  CHECK(BLE_SCAN_RELAXED_INTERVAL == 0x00B8);
+  CHECK(BLE_SCAN_RELAXED_WINDOW == 0x002E);
+  CHECK(BLE_SCAN_BALANCED_INTERVAL == 0x0064);
+  CHECK(BLE_SCAN_BALANCED_WINDOW == 0x0032);
   CHECK(BLE_SCAN_AGGRESSIVE_INTERVAL == 0x0020);
   CHECK(BLE_SCAN_AGGRESSIVE_WINDOW == 0x0020);
   uint16_t interval = 0;
   uint16_t window = 0;
-  bleScanHciParams(BleScanIntensity::LIGHT, interval, window);
-  CHECK(interval == BLE_SCAN_LIGHT_INTERVAL);
-  CHECK(window == BLE_SCAN_LIGHT_WINDOW);
-  bleScanHciParams(BleScanIntensity::NORMAL, interval, window);
-  CHECK(interval == BLE_SCAN_NORMAL_INTERVAL);
-  CHECK(window == BLE_SCAN_NORMAL_WINDOW);
+  bleScanHciParams(BleScanIntensity::RELAXED, interval, window);
+  CHECK(interval == BLE_SCAN_RELAXED_INTERVAL);
+  CHECK(window == BLE_SCAN_RELAXED_WINDOW);
+  bleScanHciParams(BleScanIntensity::BALANCED, interval, window);
+  CHECK(interval == BLE_SCAN_BALANCED_INTERVAL);
+  CHECK(window == BLE_SCAN_BALANCED_WINDOW);
   bleScanHciParams(BleScanIntensity::AGGRESSIVE, interval, window);
   CHECK(interval == BLE_SCAN_AGGRESSIVE_INTERVAL);
   CHECK(window == BLE_SCAN_AGGRESSIVE_WINDOW);
-  BleScanIntensity parsed = BleScanIntensity::LIGHT;
+  BleScanIntensity parsed = BleScanIntensity::RELAXED;
   CHECK(parseBleScanIntensityId("aggressive", parsed));
   CHECK(parsed == BleScanIntensity::AGGRESSIVE);
-  CHECK(parseBleScanIntensityId("light", parsed));
-  CHECK(parsed == BleScanIntensity::LIGHT);
-  CHECK(parseBleScanIntensityId("normal", parsed));
-  CHECK(parsed == BleScanIntensity::NORMAL);
+  CHECK(parseBleScanIntensityId("relaxed", parsed));
+  CHECK(parsed == BleScanIntensity::RELAXED);
+  CHECK(parseBleScanIntensityId("balanced", parsed));
+  CHECK(parsed == BleScanIntensity::BALANCED);
   CHECK(!parseBleScanIntensityId("burst", parsed));
-  CHECK(strcmp(bleScanIntensityName(BleScanIntensity::NORMAL), "normal") == 0);
+  CHECK(strcmp(bleScanIntensityName(BleScanIntensity::BALANCED), "balanced") == 0);
 }
 
 void d16_scale_connect_debug_reports_phases() {
@@ -5322,7 +5322,7 @@ void d16_scale_connect_debug_reports_phases() {
                               connectAttemptSeriesActive, scanSessionAtMs,
                               scanLastAdvertAtMs);
   CHECK(debugEventExists(DebugCode::SCALE_SCAN_STARTED, SCALE_SCAN_TARGET_ANY,
-                         static_cast<int32_t>(BleScanIntensity::NORMAL)));
+                         static_cast<int32_t>(BleScanIntensity::BALANCED)));
   CHECK(!debugEventExists(DebugCode::SCALE_CONNECTING));
 
   scale.connecting = true;
@@ -10918,15 +10918,15 @@ void sc06_serial_cli_feed_completes_on_crlf() {
 void bc05_ble_scan_intensity_applies_live_without_restart() {
   resetHarness(false, false);
   reachReadyFromBoot();
-  CHECK(liveBleScanIntensity() == BleScanIntensity::NORMAL);
+  CHECK(liveBleScanIntensity() == BleScanIntensity::BALANCED);
 
-  CHECK(persistBleScanIntensity(BleScanIntensity::LIGHT));
-  CHECK(liveBleScanIntensity() == BleScanIntensity::LIGHT);
+  CHECK(persistBleScanIntensity(BleScanIntensity::RELAXED));
+  CHECK(liveBleScanIntensity() == BleScanIntensity::RELAXED);
   publishControlStatus();
   ControlStatusSnapshot control;
   copyControlStatus(control);
   CHECK(control.bleScanIntensity ==
-        static_cast<uint8_t>(BleScanIntensity::LIGHT));
+        static_cast<uint8_t>(BleScanIntensity::RELAXED));
 
   WebCommand command = webControlCommand(WebCommandType::BLE_SCAN_INTENSITY);
   command.bleScan.specified |= BleScanCommandPayload::INTENSITY;
@@ -10949,7 +10949,7 @@ void bc05_ble_scan_intensity_applies_live_without_restart() {
   startCycle();
   command.requestId = 2;
   command.bleScan.intensity =
-      static_cast<uint8_t>(BleScanIntensity::LIGHT);
+      static_cast<uint8_t>(BleScanIntensity::RELAXED);
   processWebCommand(command);
   CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
   CHECK(hostLastForwardedNetworkCommand.requestId == 2);
@@ -11005,10 +11005,10 @@ void bc07_ble_scan_relaxed_with_backoff_is_api_valid() {
   WebCommand command = webControlCommand(WebCommandType::BLE_SCAN_INTENSITY);
   command.bleScan.specified |= BleScanCommandPayload::INTENSITY |
                                BleScanCommandPayload::BACKOFF_MIN;
-  command.bleScan.intensity = static_cast<uint8_t>(BleScanIntensity::LIGHT);
+  command.bleScan.intensity = static_cast<uint8_t>(BleScanIntensity::RELAXED);
   command.bleScan.backoffMin = 45;
   processWebCommand(command);
-  CHECK(liveBleScanIntensity() == BleScanIntensity::LIGHT);
+  CHECK(liveBleScanIntensity() == BleScanIntensity::RELAXED);
   CHECK(liveBleScanBackoffMin() == 45);
   runLoopAfter(1);
   CHECK(hostLastForwardedNetworkCommand.requestId == 1);
@@ -14589,7 +14589,7 @@ void pow02_idle_scan_preserves_saved_preference() {
   powerAppliedProfile.store(PowerProfile::IDLE);
   CHECK(startScaleDiscoveryScan(nullptr, false));
   uint16_t interval = 0, window = 0;
-  bleScanHciParams(BleScanIntensity::LIGHT, interval, window);
+  bleScanHciParams(BleScanIntensity::RELAXED, interval, window);
   CHECK(scale.lastScanInterval == interval && scale.lastScanWindow == window);
   CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
   powerAppliedProfile.store(PowerProfile::OFF);
@@ -14618,11 +14618,11 @@ void pow03b_quiet_backoff_setting_controls_discovery_duty() {
   // Five minutes (the default) drops the quiet hunt to Light duty.
   applyLiveBleScanBackoff(5);
   serviceScaleScanIntensity();
-  bleScanHciParams(BleScanIntensity::LIGHT, interval, window);
+  bleScanHciParams(BleScanIntensity::RELAXED, interval, window);
   CHECK(scale.lastScanInterval == interval && scale.lastScanWindow == window);
   // The duty the scan applies differs from the saved preference, and that
   // applied duty is what SCALE_SCAN_STARTED reports.
-  CHECK(discoveryScanIntensity() == BleScanIntensity::LIGHT);
+  CHECK(discoveryScanIntensity() == BleScanIntensity::RELAXED);
   CHECK(liveBleScanIntensity() == BleScanIntensity::AGGRESSIVE);
 }
 

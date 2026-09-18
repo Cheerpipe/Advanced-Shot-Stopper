@@ -483,7 +483,7 @@ if (ui.includes('bleCompanionEnabled') ||
     !ui.includes("scanIntensity:wanted") ||
     !ui.includes('bleScanBackoff') ||
     !ui.includes('Idle scan backoff') ||
-    !ui.includes("b.disabled=!webUiOwner||i.value==='light'") ||
+    !ui.includes("b.disabled=!webUiOwner||i.value==='relaxed'") ||
     !ui.includes("backoffMin:wanted") ||
     !ui.includes('/api/v1/admin/ble-scan') ||
     !ui.includes("method:'PUT'") ||

@@ -233,7 +233,7 @@ bool scaleLoggedGattConnecting = false;
 uint8_t scaleLoggedGattConnectAttempts = 0;
 bool scaleDiscoveryDirected = false;
 std::atomic<uint8_t> liveBleScanIntensityRaw{
-    static_cast<uint8_t>(BleScanIntensity::NORMAL)};
+    static_cast<uint8_t>(BleScanIntensity::BALANCED)};
 std::atomic<uint8_t> liveBleScanBackoffMinRaw{
     SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN};
 bool bookooConnectVolumePending = false;
@@ -1637,7 +1637,7 @@ void resetScaleWorkerRadioStateForHost() {
   scaleLoggedGattConnectAttempts = 0;
   scaleDiscoveryDirected = false;
   liveBleScanIntensityRaw.store(
-      static_cast<uint8_t>(BleScanIntensity::NORMAL),
+      static_cast<uint8_t>(BleScanIntensity::BALANCED),
       std::memory_order_relaxed);
   bookooConnectVolumePending = false;
   scaleDebugConnectionGeneration = 0;
@@ -1710,7 +1710,7 @@ BleScanIntensity discoveryScanIntensity() {
       (backoffMin != 0 &&
        elapsedMs(scaleScanCompatibleActivityAtMs) >=
            static_cast<uint32_t>(backoffMin) * 60000U)) {
-    return BleScanIntensity::LIGHT;
+    return BleScanIntensity::RELAXED;
   }
   return liveBleScanIntensity();
 }
@@ -1720,8 +1720,8 @@ bool startScaleDiscoveryScan(const char *mac, bool forceRestart) {
       !scale.isConnecting() && !scale.isLinkUp()) {
     return false;
   }
-  uint16_t interval = BLE_SCAN_NORMAL_INTERVAL;
-  uint16_t window = BLE_SCAN_NORMAL_WINDOW;
+  uint16_t interval = BLE_SCAN_BALANCED_INTERVAL;
+  uint16_t window = BLE_SCAN_BALANCED_WINDOW;
   bleScanHciParams(discoveryScanIntensity(), interval, window);
   const bool scanningBefore = scale.isScanning();
   const uint16_t prevInterval = scaleScanAppliedInterval;
@@ -1758,8 +1758,8 @@ void serviceScaleScanIntensity() {
   if (!scale.isScanning() || scale.isConnecting()) {
     return;
   }
-  uint16_t interval = BLE_SCAN_NORMAL_INTERVAL;
-  uint16_t window = BLE_SCAN_NORMAL_WINDOW;
+  uint16_t interval = BLE_SCAN_BALANCED_INTERVAL;
+  uint16_t window = BLE_SCAN_BALANCED_WINDOW;
   bleScanHciParams(discoveryScanIntensity(), interval, window);
   if (scaleScanAppliedInterval == interval &&
       scaleScanAppliedWindow == window) {

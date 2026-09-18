@@ -91,38 +91,39 @@ enum class ScaleMacCacheMode : uint8_t {
   PREFER = 2, // Bootstrap if empty; else prefer MAC, then fall back to any.
 };
 
-// GAP scan duty while discovering a scale. 0 is Normal so a zeroed
-// scanIntensity byte stays a valid duty without a version bump.
+// GAP scan duty while discovering a scale. Numeric values are stored in NVS:
+// 0 stays Balanced so a zeroed scanIntensity byte remains a valid duty
+// without a version bump.
 enum class BleScanIntensity : uint8_t {
-  NORMAL = 0,      // 50% — 31.25 ms / 62.5 ms
+  BALANCED = 0,    // 50% — 31.25 ms / 62.5 ms
   AGGRESSIVE = 1,  // 100% — 20 ms / 20 ms
-  LIGHT = 2        // 25% — 28.75 ms / 115 ms
+  RELAXED = 2      // 25% — 28.75 ms / 115 ms
 };
 
 inline bool validBleScanIntensity(uint8_t value) {
-  return value <= static_cast<uint8_t>(BleScanIntensity::LIGHT);
+  return value <= static_cast<uint8_t>(BleScanIntensity::RELAXED);
 }
 
 inline BleScanIntensity clampBleScanIntensity(uint8_t value) {
   return validBleScanIntensity(value)
              ? static_cast<BleScanIntensity>(value)
-             : BleScanIntensity::NORMAL;
+             : BleScanIntensity::BALANCED;
 }
 
 inline const char *bleScanIntensityName(BleScanIntensity intensity) {
   switch (intensity) {
     case BleScanIntensity::AGGRESSIVE:
       return "aggressive";
-    case BleScanIntensity::LIGHT:
-      return "light";
-    case BleScanIntensity::NORMAL:
+    case BleScanIntensity::RELAXED:
+      return "relaxed";
+    case BleScanIntensity::BALANCED:
     default:
-      return "normal";
+      return "balanced";
   }
 }
 
 // Quiet-hunt backoff: minutes without any compatible advert, live link, or
-// preference reset before the idle discovery scan drops to Light duty.
+// preference reset before the idle discovery scan drops to Relaxed duty.
 // Zero disables the backoff (always saved intensity) and is the default.
 constexpr uint8_t SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN = 0;
 constexpr uint8_t SCALE_SCAN_QUIET_BACKOFF_MAX_MIN = 240;
@@ -142,7 +143,7 @@ struct BleScanCommandPayload {
   static constexpr uint8_t INTENSITY = 0x01;
   static constexpr uint8_t BACKOFF_MIN = 0x02;
   uint8_t specified = 0;
-  uint8_t intensity = static_cast<uint8_t>(BleScanIntensity::NORMAL);
+  uint8_t intensity = static_cast<uint8_t>(BleScanIntensity::BALANCED);
   uint8_t backoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
 };
 
@@ -154,12 +155,12 @@ inline bool parseBleScanIntensityId(const char *id, BleScanIntensity &out) {
     out = BleScanIntensity::AGGRESSIVE;
     return true;
   }
-  if (strcmp(id, "light") == 0) {
-    out = BleScanIntensity::LIGHT;
+  if (strcmp(id, "relaxed") == 0) {
+    out = BleScanIntensity::RELAXED;
     return true;
   }
-  if (strcmp(id, "normal") == 0) {
-    out = BleScanIntensity::NORMAL;
+  if (strcmp(id, "balanced") == 0) {
+    out = BleScanIntensity::BALANCED;
     return true;
   }
   return false;

@@ -70,7 +70,7 @@ with uncertain outcomes are never automatically replayed. GAP/reset causes and
 teardown errors are recorded separately from command failures and survive
 reconnection in `diagnostics()`.
 
-Light / Normal / Aggressive scan presets retain their 25%, 50% and 100% duty
+Relaxed / Balanced / Aggressive scan presets retain their 25%, 50% and 100% duty
 semantics. Fixed advertisement slots and fixed GATT handle storage avoid a
 heap allocation per advertisement. Protocols that permit UUID-only discovery
 still match without a GAP name; Varia and Eureka continue to require one. The

@@ -340,7 +340,7 @@ esp_err_t ShotStopperNetwork::bleScanHandler(httpd_req_t *request) {
   cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const fields[] = {"scanIntensity", "backoffMin"};
   char intensityText[12] = {};
-  BleScanIntensity intensity = BleScanIntensity::NORMAL;
+  BleScanIntensity intensity = BleScanIntensity::BALANCED;
   uint8_t backoffMin = 0;
   const bool intensityPresent =
       root != nullptr && jsonFieldPresent(root, "scanIntensity");

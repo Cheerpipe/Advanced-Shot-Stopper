@@ -311,8 +311,8 @@ class NimbleScaleClient {
       return false;
     }
     if (window == 0 || window > interval) {
-      interval = BLE_SCAN_NORMAL_INTERVAL;
-      window = BLE_SCAN_NORMAL_WINDOW;
+      interval = BLE_SCAN_BALANCED_INTERVAL;
+      window = BLE_SCAN_BALANCED_WINDOW;
     }
 
     uint8_t parsedFilter[6] = {};
@@ -2313,8 +2313,8 @@ EspressoScaleBLE::~EspressoScaleBLE() {
 bool EspressoScaleBLE::init(const char *mac) {
   NimbleScaleClient &client = clientFromStorage(_nimbleClientStorage);
   client.disconnect();
-  if (!client.startScan(mac, false, BLE_SCAN_NORMAL_INTERVAL,
-                        BLE_SCAN_NORMAL_WINDOW, false)) {
+  if (!client.startScan(mac, false, BLE_SCAN_BALANCED_INTERVAL,
+                        BLE_SCAN_BALANCED_WINDOW, false)) {
     return false;
   }
   const uint32_t startedAt = nowMs();
