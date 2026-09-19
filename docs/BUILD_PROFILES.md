@@ -220,7 +220,7 @@ only field; do not retain a GPIO for hardware that is not installed.
 | Role | Fields when present | Current constraints |
 | --- | --- | --- |
 | `scale_status_led` | `gpio`, `active_level` | Level is `low` or `high`. |
-| `speaker` | `type`, `gpio` | Type is currently `passive_pwm`. Presence does not enable sounds by itself; use `-DSHOT_STOPPER_ENABLE_BUZZER=1` when wanted. |
+| `speaker` | `type`, `gpio` | Type is currently `passive_pwm`. Presence enables the local buzzer; `-DSHOT_STOPPER_ENABLE_BUZZER=0` omits it. |
 | `usb_console_jumper` | `gpio`, `active_level`, `pull`, `sample_at` | Current driver requires active-low, pull-up, sampled at `boot`; GPIO 0, 45, and 46 are rejected as strapping pins. |
 | `reed` | `gpio`, `active_level`, `pull`, `debounce_ms` | Current driver requires active-low and pull-up; debounce is 1–99 ms and must equal the activator debounce. |
 | `external_safety` | `heartbeat_gpio`, `heartbeat_idle_level`, `feedback_gpio`, `feedback_closed_level`, `feedback_pull`, `heartbeat_period_ms`, `feedback_settle_ms` | Current driver requires low heartbeat idle and feedback pull-up; periods are 10–1000 ms and 1–1000 ms respectively. |
@@ -384,7 +384,7 @@ additions. For example:
 ./scripts/dev build \
   --hardware esp32-s3-relay-x1-speaker \
   --machine la-marzocco-linea-micra \
-  --flags "-DSHOT_STOPPER_RELAY_GPIO=3 -DSHOT_STOPPER_ENABLE_BUZZER=1"
+  --flags "-DSHOT_STOPPER_RELAY_GPIO=3"
 ```
 
 Supported physical overrides cover activator, relay, present LED/speaker/USB
@@ -402,7 +402,7 @@ The following safety rules still apply after overrides:
 - `SHOT_STOPPER_MACHINE_TYPE` may only repeat the type implied by the machine
   profile; a conflicting value fails.
 - A machine requesting reed feedback requires hardware with `reed.present=true`.
-- Buzzer support requires `speaker.present=true`.
+- Buzzer support follows `speaker.present`; forcing `=1` without a speaker fails.
 - The architecture cannot contradict `target`.
 
 Development mode, JTAG, remote machine control, buzzer enablement, warnings,
@@ -425,7 +425,7 @@ Its `generated/` directory contains:
 - `build-profile.json`: the fully resolved hardware and machine data after
   supported overrides;
 - `ShotStopperBuildProfileGenerated.h`: compile-time macros consumed by the
-  firmware;
+  firmware, including `SHOT_STOPPER_ENABLE_BUZZER` from `speaker.present`;
 - `ShotStopperVersion.h`: firmware version plus architecture and profile
   compatibility identities.
 

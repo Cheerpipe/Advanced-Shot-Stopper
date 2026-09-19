@@ -104,7 +104,7 @@ editable from the Web UI.
 | Reed (momentary+reed builds) | **13** | Active **LOW** (internal pull-up; ON = GPIO LOW). Compile `SHOT_STOPPER_MACHINE_TYPE=2`. Override with `-DSHOT_STOPPER_REED_GPIO`. Must stay distinct from activator, relay, LED, buzzer, USB console, and safety GPIOs. |
 | Onboard relay coil | **2** | Active **HIGH** (HIGH energizes the coil and closes NO) |
 | Scale-connected LED | **1** | Active HIGH while a BLE scale is connected (switchable in Alerts) |
-| Optional buzzer | **14** | Compile with `SHOT_STOPPER_ENABLE_BUZZER=1` (passive piezo, RTTTL). `=0` omits the local buzzer. |
+| Optional buzzer | **14** | Present on speaker builds (passive piezo, RTTTL); sounds are compiled in from the hardware profile. `-DSHOT_STOPPER_ENABLE_BUZZER=0` omits them. |
 | USB console jumper | **4** | Active **LOW**. Dupont **IO4 → a GND pad you choose**. Sampled once at boot. **Do not** jumper IO4 to **EN** (that column is reset). Override with `-DSHOT_STOPPER_USB_CONSOLE_GPIO`. Must stay distinct from activator, relay, LED, buzzer, reed, and safety GPIOs. |
 
 Optional external K2 safety (both pins or neither; no defaults, because they
@@ -183,7 +183,7 @@ the marked **+** to the GPIO and the other lead to GND.
 
 Example used: [3.3 V passive buzzer module (AliExpress)](https://es.aliexpress.com/item/1005007287329656.html).
 
-`SHOT_STOPPER_ENABLE_BUZZER=0` omits the driver. See [Alerts](alerts.md) and
+`-DSHOT_STOPPER_ENABLE_BUZZER=0` omits the driver. See [Alerts](alerts.md) and
 [Build environment](BUILD.md).
 
 ## Additional hardware used

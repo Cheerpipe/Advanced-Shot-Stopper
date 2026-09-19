@@ -182,6 +182,47 @@ expect_failure(flags='-DSHOT_STOPPER_HARDWARE_PROFILE_ID="other"',
 expect_failure(flags="-DSHOT_STOPPER_DEFAULT_SHOT_REACTION_TIMEOUT_S=2",
                text="must be an integer from 3 to 30")
 
+temporary, result = run()
+try:
+    assert result.returncode == 0, result.stderr
+    generated = Path(dict(line.split("=", 1) for line in
+                          result.stdout.splitlines())["generated_dir"])
+    header = (generated / "ShotStopperBuildProfileGenerated.h").read_text()
+    # Buzzer support follows the hardware profile's speaker presence.
+    assert "#define SHOT_STOPPER_ENABLE_BUZZER 1" in header
+finally:
+    temporary.cleanup()
+
+temporary, result = run(flags="-DSHOT_STOPPER_ENABLE_BUZZER=0")
+try:
+    assert result.returncode == 0, result.stderr
+    output = dict(line.split("=", 1) for line in result.stdout.splitlines())
+    generated = Path(output["generated_dir"])
+    header = (generated / "ShotStopperBuildProfileGenerated.h").read_text()
+    # The header keeps the presence-derived value; the #ifndef guard lets the
+    # explicit =0 win at compile time.
+    assert "#define SHOT_STOPPER_ENABLE_BUZZER 1" in header
+finally:
+    temporary.cleanup()
+
+bad = changed(HARDWARE, lambda value: value.update(speaker={"present": False}))
+expect_failure(hardware=bad, flags="-DSHOT_STOPPER_ENABLE_BUZZER=1",
+               text="buzzer support cannot be enabled when the hardware speaker is absent")
+bad.unlink()
+
+no_speaker = changed(HARDWARE, lambda value: value.update(
+    speaker={"present": False}))
+temporary, result = run(hardware=no_speaker)
+try:
+    assert result.returncode == 0, result.stderr
+    generated = Path(dict(line.split("=", 1) for line in
+                          result.stdout.splitlines())["generated_dir"])
+    header = (generated / "ShotStopperBuildProfileGenerated.h").read_text()
+    assert "#define SHOT_STOPPER_ENABLE_BUZZER 0" in header
+finally:
+    temporary.cleanup()
+    no_speaker.unlink()
+
 with tempfile.TemporaryDirectory(prefix="shotstopper-profile-id-") as temporary:
     selected = subprocess.run(
         ["python3", str(RESOLVER), "--hardware", HARDWARE.stem,

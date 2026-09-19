@@ -15,8 +15,8 @@ kept.
 
 Most sounds follow their event: tare/start/stop, first drop, paddle reminder,
 completion extra, and ATM / no-scale / scale-link alerts follow **Output channel** when a
-local buzzer is compiled in (`SHOT_STOPPER_ENABLE_BUZZER=1`, passive piezo
-with RTTTL). `=0` omits the local buzzer. Channel selection is independent
+local buzzer is compiled in (hardware builds with a speaker; passive piezo
+with RTTTL). `-DSHOT_STOPPER_ENABLE_BUZZER=0` omits the local buzzer. Channel selection is independent
 of that flag, **except shot start and
 stop**: those two cues always play on the local buzzer at the machine circuit relay
 edge (close = start, open = stop), including auto, manual, and rinse.

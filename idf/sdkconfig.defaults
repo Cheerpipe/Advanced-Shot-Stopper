@@ -19,7 +19,8 @@ CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID=y
 # An existing build-idf/<arch>/sdkconfig keeps a previous =y until that tree
 # is deleted or changed in menuconfig.
 # CONFIG_SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL is not set
-CONFIG_SHOT_STOPPER_ENABLE_BUZZER=1
+# Buzzer support follows the resolved hardware profile (speaker presence);
+# do not force SHOT_STOPPER_ENABLE_BUZZER here.
 
 # Shot Stopper runs at 80 MHz (setup() calls setCpuFrequencyMhz(80)).
 # Arduino-CLI boots at 240 (F_CPU) until that line; IDF's S3 default is 160.

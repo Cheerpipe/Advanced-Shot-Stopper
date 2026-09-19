@@ -544,6 +544,9 @@ def header_for(resolved: dict[str, Any]) -> str:
         define(lines, "SHOT_STOPPER_SCALE_CONNECTED_LED_GPIO", hardware["scale_status_led"]["gpio"])
         define(lines, "SHOT_STOPPER_SCALE_CONNECTED_LED_ACTIVE_LEVEL",
                LEVELS[hardware["scale_status_led"]["active_level"]])
+    # Buzzer support follows the physical speaker; the #ifndef guard lets an
+    # explicit -DSHOT_STOPPER_ENABLE_BUZZER=… on the command line win.
+    define(lines, "SHOT_STOPPER_ENABLE_BUZZER", hardware["speaker"]["present"])
     if hardware["speaker"]["present"]:
         define(lines, "SHOT_STOPPER_BUZZER_GPIO", hardware["speaker"]["gpio"])
     if hardware["usb_console_jumper"]["present"]:
