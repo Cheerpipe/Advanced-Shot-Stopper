@@ -475,19 +475,29 @@ struct ClientImpl {
     writeLength = length;
     enter(ClientState::OPERATING);
     const uint32_t operationId = nextOperation();
-    os_mbuf *buffer = ble_hs_mbuf_from_flat(writeBuffer, writeLength);
-    if (buffer == nullptr) {
-      std::memset(writeBuffer, 0, sizeof(writeBuffer));
-      writeLength = 0;
-      portENTER_CRITICAL(&mux);
-      ++health.mbufFailures;
-      portEXIT_CRITICAL(&mux);
-      fail(BLE_HS_ENOMEM);
-      return false;
+    uint16_t mtu = 23;
+    portENTER_CRITICAL(&mux);
+    mtu = health.negotiatedMtu;
+    portEXIT_CRITICAL(&mux);
+    int rc = 0;
+    if (mtu > 3 && writeLength <= mtu - 3) {
+      rc = ble_gattc_write_flat(connectionHandle, handle, writeBuffer,
+                                writeLength, writeCallback,
+                                callbackArg(operationId));
+    } else {
+      os_mbuf *buffer = ble_hs_mbuf_from_flat(writeBuffer, writeLength);
+      if (buffer == nullptr) {
+        std::memset(writeBuffer, 0, sizeof(writeBuffer));
+        writeLength = 0;
+        portENTER_CRITICAL(&mux);
+        ++health.mbufFailures;
+        portEXIT_CRITICAL(&mux);
+        fail(BLE_HS_ENOMEM);
+        return false;
+      }
+      rc = ble_gattc_write_long(connectionHandle, handle, 0, buffer,
+                                writeCallback, callbackArg(operationId));
     }
-    const int rc = ble_gattc_write_long(connectionHandle, handle, 0, buffer,
-                                         writeCallback,
-                                         callbackArg(operationId));
     std::memset(writeBuffer, 0, sizeof(writeBuffer));
     writeLength = 0;
     if (rc != 0) {
@@ -693,6 +703,9 @@ bool LineaMicraBLE::connect(const PeerAddress &peer, const ClientConfig &config,
   self.readHandle = self.writeHandle = self.authHandle = 0;
   self.readProperties = self.writeProperties = self.authProperties = 0;
   self.responseLength = 0;
+  portENTER_CRITICAL(&self.mux);
+  self.health.negotiatedMtu = 23;
+  portEXIT_CRITICAL(&self.mux);
   self.enter(ClientState::CONNECTING);
   ble_addr_t address = {};
   address.type = peer.type;

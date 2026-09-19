@@ -41,6 +41,7 @@ class ShotStopperMicraService {
     char identity[LINEA_MICRA_IDENTITY_CAPACITY] = {};
     int8_t rssi = INT8_MIN;
     uint8_t addressType = 0;
+    bool connectable = false;
     bool used = false;
   };
 

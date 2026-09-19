@@ -22,7 +22,8 @@ void resetPlatform() {
   testConnectSubmitStatus = 0;
   testTerminateStatus = 0;
   testConnectCancelStatus = 0;
-  testTerminations = testConnectCancels = testConnects = testWrites = 0;
+  testTerminations = testConnectCancels = testConnects = testWrites =
+      testLongWrites = 0;
   testMbufAllocFails = false;
   testMtuCallback = nullptr;
   testServiceCallback = nullptr;
@@ -133,14 +134,20 @@ void testReadOnlyAssociationFlow() {
   service.service();
   assert(service.status().phase == shotstopper::LineaMicraPhase::QUEUED);
 
-  uint8_t payload[] = {11, 0x09, 'M', 'I', 'C', 'R', 'A', '_', 'U', 'N', 'I', 'T'};
+  uint8_t primaryPayload[] = {2, 0x01, 0x06};
+  uint8_t scanResponse[] = {11, 0x09, 'M', 'I', 'C', 'R', 'A', '_',
+                            'U', 'N',  'I', 'T'};
   ShotStopperBleAdvertisement advertisement;
   advertisement.addressType = 1;
   advertisement.address[0] = 0xaa;
   advertisement.rssi = -40;
   advertisement.connectable = true;
-  advertisement.payload = payload;
-  advertisement.payloadLength = sizeof(payload);
+  advertisement.payload = primaryPayload;
+  advertisement.payloadLength = sizeof(primaryPayload);
+  shotStopperBleArbiterPublishAdvertisement(advertisement);
+  advertisement.connectable = false;
+  advertisement.payload = scanResponse;
+  advertisement.payloadLength = sizeof(scanResponse);
   shotStopperBleArbiterPublishAdvertisement(advertisement);
   fakeMillis += shotstopper::micra_timing::kDiscoverySliceMs;
   testNowMs = fakeMillis;

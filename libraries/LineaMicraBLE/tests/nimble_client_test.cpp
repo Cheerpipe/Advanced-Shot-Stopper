@@ -27,7 +27,7 @@ static void resetPlatform() {
   testConnectSubmitStatus = 0;
   testTerminateStatus = 0;
   testConnectCancelStatus = 0;
-  testTerminations = testConnectCancels = testWrites = 0;
+  testTerminations = testConnectCancels = testWrites = testLongWrites = 0;
   testMbufAllocFails = false;
   testMtuCallback = nullptr;
   testServiceCallback = nullptr;
@@ -134,6 +134,7 @@ static void testSession(uint16_t mtu) {
   assert(client.health().staleCallbacks == 1);
   completeWrite(client);
   assert(client.takeEvent(event) && event.type == EventType::WRITE_COMPLETE);
+  assert(testLongWrites == (mtu == 23 ? 2U : 0U));
 
   client.disconnect();
   ble_gap_event disconnected = {};
@@ -166,6 +167,25 @@ static void testFailures() {
   assert(client.takeEvent(event) && event.type == EventType::ERROR);
   assert(event.status == BLE_HS_ENOMEM);
   assert(client.health().mbufFailures == 1);
+}
+
+static void testMtuResetsBetweenConnections() {
+  resetPlatform();
+  lineamicra::LineaMicraBLE client;
+  connectReady(client, 185);
+  assert(client.health().negotiatedMtu == 185);
+  client.disconnect();
+  ble_gap_event disconnected = {};
+  disconnected.type = BLE_GAP_EVENT_DISCONNECT;
+  disconnected.disconnect.reason = 0x13;
+  disconnected.disconnect.conn.conn_handle = 7;
+  assert(testGapCallback(&disconnected, testGapArg) == 0);
+  client.service();
+  ClientEvent event;
+  assert(client.takeEvent(event) && event.type == EventType::DISCONNECTED);
+  lineamicra::PeerAddress peer = {};
+  assert(client.connect(peer, {3000, 1000, 6000}, 51));
+  assert(client.health().negotiatedMtu == 23);
 }
 
 static void testTimeoutAndReset() {
@@ -255,6 +275,7 @@ int main() {
   testSession(23);
   testSession(185);
   testFailures();
+  testMtuResetsBetweenConnections();
   testTimeoutAndReset();
   testPreemptionCancelsConnectingAndClosesConnectRace();
   testTerminationFailureQuarantinesClientAndReleasesAdmission();

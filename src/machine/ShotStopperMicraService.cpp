@@ -212,7 +212,8 @@ void ShotStopperMicraService::startRequest() {
     uint8_t index = 0;
     uint8_t bestIndex = UINT8_MAX;
     for (const Candidate &candidate : candidates_) {
-      if (candidate.used &&
+      if (candidate.used && candidate.connectable &&
+          strncmp(candidate.identity, "MICRA_", 6) == 0 &&
           (!found || candidate.rssi > best.rssi ||
            (candidate.rssi == best.rssi &&
             memcmp(candidate.address, best.address,
@@ -464,7 +465,9 @@ bool ShotStopperMicraService::takeBinding(
     LineaMicraBindingResult &result) {
   portENTER_CRITICAL(&mux_);
   if (!bindingReady_ || selectedCandidate_ >= 4 ||
-      !candidates_[selectedCandidate_].used) {
+      !candidates_[selectedCandidate_].used ||
+      !candidates_[selectedCandidate_].connectable ||
+      strncmp(candidates_[selectedCandidate_].identity, "MICRA_", 6) != 0) {
     portEXIT_CRITICAL(&mux_);
     return false;
   }
@@ -481,6 +484,9 @@ bool ShotStopperMicraService::takeBinding(
 
 void ShotStopperMicraService::acceptAdvertisement(
     const ShotStopperBleAdvertisement &advertisement) {
+  bool nonzeroAddress = false;
+  for (uint8_t value : advertisement.address) nonzeroAddress |= value != 0;
+  if (!nonzeroAddress || advertisement.addressType > 3) return;
   char identity[LINEA_MICRA_IDENTITY_CAPACITY] = {};
   size_t offset = 0;
   while (advertisement.payload != nullptr &&
@@ -498,10 +504,9 @@ void ShotStopperMicraService::acceptAdvertisement(
     }
     offset += static_cast<size_t>(fieldLength) + 1U;
   }
-  if (strncmp(identity, "MICRA_", 6) != 0 || !advertisement.connectable) return;
-  bool nonzeroAddress = false;
-  for (uint8_t value : advertisement.address) nonzeroAddress |= value != 0;
-  if (!nonzeroAddress || advertisement.addressType > 3) return;
+  const bool hasIdentity = identity[0] != '\0';
+  if ((hasIdentity && strncmp(identity, "MICRA_", 6) != 0) ||
+      (!hasIdentity && !advertisement.connectable)) return;
   for (const char value : identity) {
     if (value == '\0') break;
     if (value < 0x20 || value > 0x7e) return;
@@ -532,10 +537,16 @@ void ShotStopperMicraService::acceptAdvertisement(
       return;
     }
   }
+  if (!slot->used || slot->addressType != advertisement.addressType ||
+      memcmp(slot->address, advertisement.address,
+             sizeof(slot->address)) != 0) {
+    *slot = {};
+  }
   memcpy(slot->address, advertisement.address, sizeof(slot->address));
-  memcpy(slot->identity, identity, sizeof(slot->identity));
+  if (hasIdentity) memcpy(slot->identity, identity, sizeof(slot->identity));
   slot->rssi = advertisement.rssi;
   slot->addressType = advertisement.addressType;
+  slot->connectable |= advertisement.connectable;
   slot->used = true;
   portEXIT_CRITICAL(&mux_);
 }

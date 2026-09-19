@@ -35,6 +35,8 @@ for (const id of ['dMicraPower', 'dMicraMode', 'dMicraQuality', 'dMicraAge',
 }
 if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes("s.machineIntegration==='linea_micra_ble'") ||
+    !rawRuntimeJs.includes("['queued','running','backoff'].includes(m.phase)") ||
+    !rawRuntimeJs.includes("['queued','running','backoff'].includes(lm.phase)") ||
     !rawRuntimeJs.includes("expired?'UNKNOWN':lm.powerState") ||
     !rawRuntimeJs.includes('age>=lm.freshnessMs')) {
   throw new Error('Linea Micra UI must use compiled capability gating and local freshness expiry');

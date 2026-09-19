@@ -135,7 +135,7 @@ inline TestWriteCallback testWriteCallback=nullptr;
 inline void *testWriteArg=nullptr;
 inline int testSubmitStatus=0, testTerminateStatus=0, testConnectCancelStatus=0;
 inline unsigned testTerminations=0, testConnectCancels=0, testConnects=0,
-                testWrites=0;
+                testWrites=0, testLongWrites=0;
 inline uint16_t testLastWriteHandle=0,testLastWriteLength=0;
 inline uint8_t testLastWriteData[600]={};
 inline bool testMbufAllocFails=false;
@@ -162,6 +162,7 @@ inline int ble_gattc_write_no_rsp_flat(uint16_t,uint16_t,const void *,uint16_t) 
 inline int ble_gattc_write_long(uint16_t connection, uint16_t handle, uint16_t,
                                 os_mbuf *buffer, TestWriteCallback callback,
                                 void *argument) {
+  ++testLongWrites;
   const int result = ble_gattc_write_flat(connection, handle, buffer->data,
                                           buffer->length, callback, argument);
   delete buffer;
