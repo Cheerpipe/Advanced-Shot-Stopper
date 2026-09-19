@@ -2,6 +2,7 @@
   Native ESP-IDF NimBLE implementation of the EspressoScaleBLE facade.
 */
 #include "EspressoScaleBLE.h"
+#include "ShotStopperBleArbiter.h"
 
 #include "nimble/NimbleAdvertisement.h"
 #include "nimble/NimbleResilience.h"
@@ -47,6 +48,7 @@ constexpr size_t kProtocolCapacity = 11;
 constexpr uint32_t kScanCancelTimeoutMs = 1000;
 constexpr uint32_t kUnsupportedCooldownMs = 60000;
 constexpr uint32_t kConnectCallbackMarginMs = 50;
+constexpr uint32_t kArbiterRetryMs = 1;
 
 void scaleLogDebug(const char *format, ...) {
   if (format == nullptr) {
@@ -873,6 +875,16 @@ class NimbleScaleClient {
     if (!scanning) {
       return;
     }
+    ShotStopperBleAdvertisement observation;
+    observation.addressType = discovery.addr.type;
+    memcpy(observation.address, discovery.addr.val, sizeof(observation.address));
+    observation.rssi = discovery.rssi;
+    observation.connectable =
+        discovery.event_type == BLE_HCI_ADV_RPT_EVTYPE_ADV_IND ||
+        discovery.event_type == BLE_HCI_ADV_RPT_EVTYPE_DIR_IND;
+    observation.payload = discovery.data;
+    observation.payloadLength = discovery.length_data;
+    shotStopperBleArbiterPublishAdvertisement(observation);
     portENTER_CRITICAL(&mux_);
     ++advertisementsSeen_;
     portEXIT_CRITICAL(&mux_);
@@ -957,7 +969,7 @@ class NimbleScaleClient {
         shouldQueue = true;
       }
       portEXIT_CRITICAL(&mux_);
-      (void)shouldQueue;
+      if (shouldQueue) shotStopperBleArbiterReserveScaleCandidate();
     } else if (!compatible && !addressMatches) {
       portENTER_CRITICAL(&mux_);
       ++discardedAdvertisements_;
@@ -1667,6 +1679,12 @@ class NimbleScaleClient {
   }
 
   void beginConnect() {
+    if (scaleLease_.id == 0 &&
+        !shotStopperBleArbiterTryAcquire(ShotStopperBleOwner::Scale,
+                                         scaleLease_)) {
+      enterState(State::Settling, kArbiterRetryMs);
+      return;
+    }
     enterState(State::Connecting,
                BLE_CONNECT_TIMEOUT_MS + kConnectCallbackMarginMs);
     portENTER_CRITICAL(&mux_);
@@ -1959,6 +1977,7 @@ class NimbleScaleClient {
       ++reconnects_;
     }
     ++successfulConnections_;
+    releaseScaleAdmission();
     portENTER_CRITICAL(&mux_);
     if (timing_.has(ScaleBleTimingFirstCompatibleAdvertisement)) {
       lastAdvertisementToConnectMs_ =
@@ -2004,6 +2023,7 @@ class NimbleScaleClient {
     const uint16_t oldHandle = connectionHandle_;
     const uint32_t finishedGeneration = generation_;
     lifecycleActive_ = false;
+    releaseScaleAdmission();
     backoffScanActive_ = false;
     invalidateGeneration(reason, rawStatus, terminatePeer);
     enterState(State::Idle);
@@ -2121,6 +2141,14 @@ class NimbleScaleClient {
     diagnostics_.teardownStatus = status;
   }
 
+  void releaseScaleAdmission() {
+    if (scaleLease_.id != 0) {
+      shotStopperBleArbiterRelease(scaleLease_);
+      scaleLease_ = {};
+    }
+    shotStopperBleArbiterClearScaleReservation();
+  }
+
   void clearScanData() {
     portENTER_CRITICAL(&advertMux_);
     memset(candidates_, 0, sizeof(candidates_));
@@ -2163,6 +2191,7 @@ class NimbleScaleClient {
 
   mutable portMUX_TYPE mux_ = portMUX_INITIALIZER_UNLOCKED;
   mutable portMUX_TYPE advertMux_ = portMUX_INITIALIZER_UNLOCKED;
+  ShotStopperBleLease scaleLease_ = {};
   State state_ = State::Idle;
   bool debug_ = false;
   bool callbackOwner_ = false;

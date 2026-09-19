@@ -506,10 +506,17 @@ def resolve(hardware: dict[str, Any], machine: dict[str, Any], flags: str) -> di
             fail("SHOT_STOPPER_MACHINE_TYPE override conflicts with the machine profile")
     if definitions.get("SHOT_STOPPER_ENABLE_BUZZER") == "1" and not hardware["speaker"]["present"]:
         fail("buzzer support cannot be enabled when the hardware speaker is absent")
+    machine_integration = "none"
+    if (machine["id"] == "la-marzocco-linea-micra" and
+            machine["brand"] == "La Marzocco" and
+            machine["model"] == "Linea Micra" and
+            machine["interface"] == {"control": "paddle", "feedback": "none"}):
+        machine_integration = "linea_micra_ble"
     return {
         "schema_version": 1,
         "variant": f"{hardware['id']}--{machine['id']}",
         "arch": TARGETS[(hardware["target"]["chip"], hardware["target"]["memory_profile"])],
+        "machine_integration": machine_integration,
         "hardware": hardware,
         "machine": machine,
     }
@@ -527,6 +534,10 @@ def header_for(resolved: dict[str, Any]) -> str:
     define(lines, "SHOT_STOPPER_MACHINE_BRAND", machine["brand"])
     define(lines, "SHOT_STOPPER_MACHINE_MODEL", machine["model"])
     define(lines, "SHOT_STOPPER_MACHINE_COMPATIBILITY_REVISION", machine["compatibility_revision"])
+    define(lines, "SHOT_STOPPER_MACHINE_INTEGRATION_NONE", 0)
+    define(lines, "SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE", 1)
+    define(lines, "SHOT_STOPPER_MACHINE_INTEGRATION",
+           {"none": 0, "linea_micra_ble": 1}[resolved["machine_integration"]])
     define(lines, "SHOT_STOPPER_ACTIVATOR_GPIO", hardware["activator"]["gpio"])
     define(lines, "SHOT_STOPPER_ACTIVATOR_ACTIVE_LEVEL", LEVELS[hardware["activator"]["active_level"]])
     define(lines, "SHOT_STOPPER_ACTIVATOR_DEBOUNCE_MS", hardware["activator"]["debounce_ms"])
@@ -633,6 +644,7 @@ def main() -> int:
     print(f"variant={resolved['variant']}")
     print(f"hardware_compat={resolved['hardware']['id']}-r{resolved['hardware']['compatibility_revision']}")
     print(f"machine_compat={resolved['machine']['id']}-r{resolved['machine']['compatibility_revision']}")
+    print(f"machine_integration={resolved['machine_integration']}")
     print(f"generated_dir={output_dir}")
     return 0
 

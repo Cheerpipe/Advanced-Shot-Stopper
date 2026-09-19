@@ -91,6 +91,9 @@ bool scaleWorkerTakeConnectedEdge();
 // Control publishes only the worker-owned subset of RuntimeConfig. The worker
 // never reads the orchestrator's mutable runtimeConfig object directly.
 void publishScaleWorkerPolicy(const RuntimeConfig &config, bool controlReady);
+// Control closes machine admission at cycle acceptance with one atomic
+// publication; the worker remains the only transport owner.
+void publishScaleCriticalRadio(bool critical);
 
 ScaleLinkSnapshot getScaleLinkSnapshot();
 // Connected and worker-fresh: the authoritative "a scale is usable" gate.

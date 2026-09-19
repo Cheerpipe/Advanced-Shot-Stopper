@@ -46,10 +46,10 @@ def expect_failure(hardware=HARDWARE, machine=PRO_X, flags="", text=""):
         temporary.cleanup()
 
 
-for hardware, machine, expected_type, brand, model in (
-        (HARDWARE, PRO_X, "1", "Rancilio", "Silvia Pro X"),
-        (HARDWARE_REED, PRO_X_REED, "2", "Rancilio", "Silvia Pro X"),
-        (HARDWARE, MICRA, "0", "La Marzocco", "Linea Micra")):
+for hardware, machine, expected_type, integration, brand, model in (
+        (HARDWARE, PRO_X, "1", "none", "Rancilio", "Silvia Pro X"),
+        (HARDWARE_REED, PRO_X_REED, "2", "none", "Rancilio", "Silvia Pro X"),
+        (HARDWARE, MICRA, "0", "linea_micra_ble", "La Marzocco", "Linea Micra")):
     temporary, result = run(hardware=hardware, machine=machine)
     try:
         assert result.returncode == 0, result.stderr
@@ -61,6 +61,10 @@ for hardware, machine, expected_type, brand, model in (
         manifest = json.loads((generated / "build-profile.json").read_text())
         assert f"#define SHOT_STOPPER_MACHINE_TYPE {expected_type}" in header
         assert f'#define SHOT_STOPPER_MACHINE_MODEL "{model}"' in header
+        expected_integration = "1" if integration == "linea_micra_ble" else "0"
+        assert (f"#define SHOT_STOPPER_MACHINE_INTEGRATION "
+                f"{expected_integration}") in header
+        assert manifest["machine_integration"] == integration
         assert manifest["machine"]["brand"] == brand
         assert manifest["hardware"]["relay"] == {
             "gpio": 2, "contact_type": "normally_open",
@@ -85,6 +89,20 @@ try:
         "shot_reaction_timeout_s": 0}
 finally:
     temporary.cleanup()
+
+custom_micra = changed(MICRA, lambda value: value.update(id="custom-micra"))
+temporary, result = run(machine=custom_micra)
+try:
+    assert result.returncode == 0, result.stderr
+    generated = Path(dict(line.split("=", 1) for line in
+                          result.stdout.splitlines())["generated_dir"])
+    manifest = json.loads((generated / "build-profile.json").read_text())
+    header = (generated / "ShotStopperBuildProfileGenerated.h").read_text()
+    assert manifest["machine_integration"] == "none"
+    assert "#define SHOT_STOPPER_MACHINE_INTEGRATION 0" in header
+finally:
+    temporary.cleanup()
+    custom_micra.unlink()
 
 temporary, result = run(hardware=HARDWARE_REED, machine=PRO_X_REED)
 try:

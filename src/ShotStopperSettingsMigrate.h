@@ -2,7 +2,8 @@
 
 // Settings schema migrations.
 //
-// V14 adds the mDNS deviceName field (default AdvancedShotStopper) before
+// V15 names the preset target padding and adds the Micra credential/binding
+// record. V14 adds the mDNS deviceName field (default AdvancedShotStopper) before
 // checksum; V6–V13 blobs are a 2,616-byte layout-compatible prefix.
 // V13 names bit 7 of noScaleBbwMode as Allow rinse while Armed (default OFF).
 // V12 names WebhookConfig tail padding for preset-change delivery (default OFF).
@@ -37,6 +38,7 @@ constexpr size_t PERSISTED_SETTINGS_V7_SIZE = 2616;
 constexpr size_t PERSISTED_SETTINGS_V10_SIZE = 2616;
 constexpr size_t PERSISTED_SETTINGS_V11_SIZE = 2616;
 constexpr size_t PERSISTED_SETTINGS_V13_SIZE = 2616;
+constexpr size_t PERSISTED_SETTINGS_V14_SIZE = 2648;
 static_assert(offsetof(RuntimeConfig, powerManagementEnabled) == 5 &&
                   offsetof(RuntimeConfig, weightOffsetG) == 8,
               "V11 must use legacy padding without moving recipe fields");
@@ -113,6 +115,13 @@ inline void seedDefaultDeviceName(PersistedSettings &out) {
   memcpy(out.deviceName, DEFAULT_DEVICE_NAME, sizeof(DEFAULT_DEVICE_NAME));
 }
 
+inline void seedDefaultMachineIntegration(PersistedSettings &out) {
+  out.machineIntegration = {};
+  for (ShotPreset &preset : out.presets.presets) {
+    preset.brewTargetDeciC = 930;
+  }
+}
+
 // Shared V6–V13 tail: prefix-copy the legacy bytes (everything through
 // webhook), seed the V14 deviceName default, and stamp current header fields.
 // Version-specific fixes run after this; callers recompute the checksum.
@@ -121,6 +130,7 @@ inline void seedMigratedSettingsFromV13(PersistedSettings &out,
   out = PersistedSettings{};
   copyPersistedBytes(out, legacy, offsetof(PersistedSettingsV13, checksum));
   seedDefaultDeviceName(out);
+  seedDefaultMachineIntegration(out);
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.structureSize = sizeof(PersistedSettings);
 }
@@ -148,6 +158,41 @@ inline void initializeMigratedBbw(PersistedSettings &out) {
     preset.bbwProfileVersion = BBW_PROFILE_VERSION;
     preset.bbwAlphaBaseline = DEFAULT_BBW_EWMA_ALPHA;
   }
+  seedDefaultMachineIntegration(out);
+}
+
+// V14 is the previous current blob. Its final checksum occupied the position
+// where V15 appends the machine record, so copy only the authenticated prefix.
+struct PersistedSettingsV14 {
+  uint8_t bytes[PERSISTED_SETTINGS_V14_SIZE] = {};
+};
+
+inline uint32_t persistedSettingsV14Checksum(
+    const PersistedSettingsV14 &settings) {
+  return crc32(settings.bytes, PERSISTED_SETTINGS_V14_SIZE - sizeof(uint32_t));
+}
+
+inline bool migratePersistedSettingsFromV14(
+    const PersistedSettingsV14 &v14, PersistedSettings &out) {
+  PersistedSettingsHeader header;
+  uint32_t checksum = 0;
+  memcpy(&header, v14.bytes, sizeof(header));
+  memcpy(&checksum,
+         v14.bytes + PERSISTED_SETTINGS_V14_SIZE - sizeof(checksum),
+         sizeof(checksum));
+  if (header.magic != PERSISTED_SETTINGS_MAGIC || header.schemaVersion != 14 ||
+      header.structureSize != PERSISTED_SETTINGS_V14_SIZE ||
+      checksum != persistedSettingsV14Checksum(v14)) {
+    return false;
+  }
+  out = PersistedSettings{};
+  copyPersistedBytes(out, v14,
+                     PERSISTED_SETTINGS_V14_SIZE - sizeof(uint32_t));
+  seedDefaultMachineIntegration(out);
+  out.schemaVersion = CONFIG_SCHEMA_VERSION;
+  out.structureSize = sizeof(PersistedSettings);
+  out.checksum = persistedSettingsChecksum(out);
+  return true;
 }
 
 inline bool migratePersistedSettingsFromV10(const PersistedSettingsV13 &v10,

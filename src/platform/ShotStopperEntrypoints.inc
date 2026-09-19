@@ -124,6 +124,8 @@ void setup() {
     scaleWorkerLoadPreferred(persistedSettings.preferredScaleMac,
                              persistedSettings.preferredScaleName,
                              persistedSettings.scaleHistory);
+    publishMachineIntegrationConfig(persistedSettings.machineIntegration,
+                                    persistedSettings.storageRevision);
   }
 #else
   runtimeConfig = RuntimeConfig{};
@@ -200,7 +202,9 @@ void setup() {
 #else
   const bool scaleBridgeOk = true;
 #endif
-  const bool scaleWorkerOk = scaleBridgeOk && initializeScaleWorker();
+  const bool machineIntegrationOk = initializeMachineIntegration();
+  const bool scaleWorkerOk = scaleBridgeOk && machineIntegrationOk &&
+                             initializeScaleWorker();
   if (!scaleWorkerOk) {
     logEmit(LogLevel::ERROR, DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,
             BOOT_SUBSYSTEM_SCALE_WORKER, 0);

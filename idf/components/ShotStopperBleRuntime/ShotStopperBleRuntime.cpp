@@ -1,4 +1,5 @@
 #include "ShotStopperBleRuntime.h"
+#include "ShotStopperBleArbiter.h"
 
 #include "sdkconfig.h"
 
@@ -60,6 +61,7 @@ void storeMemoryLocked(const MemorySnapshot &memory) {
 }
 
 void onReset(int reason) {
+  shotStopperBleArbiterInvalidateAll();
   const MemorySnapshot memory = captureMemory();
   portENTER_CRITICAL(&gMux);
   gHealth.state = ShotStopperBleRuntimeState::Unsynced;
@@ -150,6 +152,7 @@ bool shotStopperBleRuntimeStart(uint32_t timeoutMs) {
   portENTER_CRITICAL(&gMux);
   const bool canStart = !gPortInitialized;
   if (canStart) {
+    shotStopperBleArbiterSealObservers();
     gHostTask = nullptr;
     gHealth.state = ShotStopperBleRuntimeState::Starting;
     gHealth.lastError = 0;
@@ -264,6 +267,7 @@ bool shotStopperBleRuntimeStop(uint32_t timeoutMs) {
   portENTER_CRITICAL(&gMux);
   gHealth.state = ShotStopperBleRuntimeState::Stopping;
   portEXIT_CRITICAL(&gMux);
+  shotStopperBleArbiterInvalidateAll();
   xEventGroupClearBits(gEvents, kReadyBit | kHostStoppedBit);
   const int rc = nimble_port_stop();
   if (rc != 0) {

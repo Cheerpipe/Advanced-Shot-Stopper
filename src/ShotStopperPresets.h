@@ -142,6 +142,7 @@ inline bool validateShotPresetRecipe(const ShotPreset &preset,
   if (preset.bbwAlgorithm > 1 || !validBbwAlpha(preset.bbwEwmaAlpha) ||
       !validBbwAlpha(preset.bbwAlphaBaseline) ||
       preset.bbwAlphaLearned > 1 || preset.bbwProfileVersion != BBW_PROFILE_VERSION ||
+      preset.brewTargetDeciC < 800 || preset.brewTargetDeciC > 1000 ||
       !std::isfinite(preset.bbwEwmaOffsetG) || preset.bbwEwmaOffsetG < 0.0f ||
       preset.bbwEwmaOffsetG > MAX_OFFSET_G) return false;
   RuntimeConfig probe;
@@ -325,6 +326,16 @@ inline bool setActiveShotPreset(ShotPresetBank &bank, uint8_t id) {
     return false;
   }
   bank.activeId = id;
+  return true;
+}
+
+inline bool setShotPresetBrewTarget(ShotPresetBank &bank, uint8_t id,
+                                    uint16_t targetDeciC) {
+  ShotPreset *preset = mutableShotPreset(bank, id);
+  if (preset == nullptr || targetDeciC < 800 || targetDeciC > 1000) {
+    return false;
+  }
+  preset->brewTargetDeciC = targetDeciC;
   return true;
 }
 

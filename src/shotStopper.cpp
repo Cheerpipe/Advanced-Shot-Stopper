@@ -64,6 +64,7 @@
 #endif
 
 #include "ShotStopperDomain.h"
+#include "machine/ShotStopperMachineIntegration.h"
 #include "ShotStopperIntegrationState.h"
 #include "ShotStopperDebugExport.h"
 #if !defined(SHOT_STOPPER_HOST_TEST)
@@ -852,6 +853,7 @@ void latchControlCriticalLogging() {
 void publishControlCriticalLoggingState() {
   const bool critical = session.active || getRelaySafetySnapshot().closed;
   controlCriticalForLogging.store(critical, std::memory_order_release);
+  publishScaleCriticalRadio(critical);
 }
 
 bool serialApplicationLogAllowed() {

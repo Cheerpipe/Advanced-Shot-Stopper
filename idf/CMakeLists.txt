@@ -14,6 +14,28 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # and drops CMakeCache.txt when that stamp changes.
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
+# Select optional machine-specific components from the validated profile. A
+# direct legacy CMake invocation without that manifest intentionally selects none.
+set(_ss_profile_manifest "${CMAKE_BINARY_DIR}/generated/build-profile.json")
+if(NOT DEFINED SHOT_STOPPER_MACHINE_INTEGRATION)
+  set(SHOT_STOPPER_MACHINE_INTEGRATION "none")
+endif()
+if(NOT SHOT_STOPPER_MACHINE_INTEGRATION MATCHES "^(none|linea_micra_ble)$")
+  message(FATAL_ERROR "Invalid SHOT_STOPPER_MACHINE_INTEGRATION=${SHOT_STOPPER_MACHINE_INTEGRATION}")
+endif()
+if(EXISTS "${_ss_profile_manifest}")
+  file(READ "${_ss_profile_manifest}" _ss_profile_json)
+  string(REGEX MATCH
+    "\"machine_integration\"[ \t\r\n]*:[ \t\r\n]*\"([^\"]+)\""
+    _ss_profile_match "${_ss_profile_json}")
+  if(NOT CMAKE_MATCH_1 MATCHES "^(none|linea_micra_ble)$")
+    message(FATAL_ERROR "Invalid or missing machine_integration in ${_ss_profile_manifest}")
+  endif()
+  if(NOT "${SHOT_STOPPER_MACHINE_INTEGRATION}" STREQUAL "${CMAKE_MATCH_1}")
+    message(FATAL_ERROR "Machine integration disagrees with ${_ss_profile_manifest}")
+  endif()
+endif()
+
 idf_build_set_property(COMPILE_DEFINITIONS "BOARD_HAS_PSRAM" APPEND)
 idf_build_set_property(COMPILE_DEFINITIONS "ARDUINO_USB_MODE=1" APPEND)
 
@@ -92,7 +114,11 @@ target_compile_options(${_ss_modbus_lib} PRIVATE -Wno-stringop-truncation)
 # firmware-focused analyzer pass.
 if(_ss_enable_gcc_analyzer)
   foreach(_ss_analyzer_component IN ITEMS
-      main shotStopper EspressoScaleBLE ShotStopperBleRuntime)
+      main shotStopper EspressoScaleBLE ShotStopperBleRuntime LineaMicraBLE)
+    if(_ss_analyzer_component STREQUAL "LineaMicraBLE" AND
+       NOT SHOT_STOPPER_MACHINE_INTEGRATION STREQUAL "linea_micra_ble")
+      continue()
+    endif()
     idf_component_get_property(_ss_analyzer_component_lib
       ${_ss_analyzer_component} COMPONENT_LIB)
     target_compile_options(${_ss_analyzer_component_lib} PRIVATE -fanalyzer)
@@ -104,7 +130,11 @@ endif()
 # tolerate them, so only project-owned components see them.
 if(_ss_enable_unused_parameter)
   foreach(_ss_unused_parameter_component IN ITEMS
-      main shotStopper EspressoScaleBLE ShotStopperBleRuntime)
+      main shotStopper EspressoScaleBLE ShotStopperBleRuntime LineaMicraBLE)
+    if(_ss_unused_parameter_component STREQUAL "LineaMicraBLE" AND
+       NOT SHOT_STOPPER_MACHINE_INTEGRATION STREQUAL "linea_micra_ble")
+      continue()
+    endif()
     idf_component_get_property(_ss_unused_parameter_component_lib
       ${_ss_unused_parameter_component} COMPONENT_LIB)
     target_compile_options(${_ss_unused_parameter_component_lib} PRIVATE

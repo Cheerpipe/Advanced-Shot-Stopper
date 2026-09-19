@@ -10102,6 +10102,39 @@ void w91_preset_persistence_serializes_and_survives_retry() {
   CHECK(hostQuickSettingsWebhookCount == 1);
 }
 
+void w90c_preset_temperature_presence_and_learning_invalidation() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  ShotPreset &preset = mutableActiveShotPreset(presetBank);
+  preset.brewTargetDeciC = 930;
+  WebCommand save;
+  save.type = WebCommandType::PRESET_OP;
+  save.requestId = 901;
+  save.presetAction = static_cast<uint8_t>(PresetAction::SAVE);
+  save.presetId = preset.id;
+  save.config = runtimeConfig;
+  processWebCommand(save);
+  CHECK(preset.brewTargetDeciC == 930);
+  runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
+
+  auto &learning = bbwLearningBank.forPreset(preset.id, presetBank);
+  const uint32_t generation = learning.generations[preset.bbwAlgorithm];
+  save.requestId = 902;
+  save.brewTargetSpecified = true;
+  save.brewTargetDeciC = 945;
+  processWebCommand(save);
+  CHECK(preset.brewTargetDeciC == 945);
+  CHECK(learning.generations[preset.bbwAlgorithm] != generation);
+  runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
+
+  save.requestId = 903;
+  save.brewTargetDeciC = 1001;
+  processWebCommand(save);
+  CHECK(preset.brewTargetDeciC == 945);
+  CHECK(hostLastForwardedNetworkCommand.resultState ==
+        CommandResultState::FAILED);
+}
+
 void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   resetHarness(false, false);
   reachReadyFromBoot();
@@ -15346,6 +15379,7 @@ const TestCase testCases[] = {
     {"S17", s17_new_cycle_commits_pending_log_as_last_known},
     {"W90", w90_save_unknown_preset_id_does_not_overwrite_active},
     {"W90b", w91_preset_persistence_serializes_and_survives_retry},
+    {"W90c", w90c_preset_temperature_presence_and_learning_invalidation},
     {"W87c", w87c_runtime_persist_io_backoff_is_bounded_and_resets},
     {"HQ01", hq01_quick_settings_are_revisioned_and_preserve_recipe_fields},
     {"S03", s03_shot_log_clear_empties_records},

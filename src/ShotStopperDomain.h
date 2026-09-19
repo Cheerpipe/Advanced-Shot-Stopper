@@ -67,7 +67,7 @@ constexpr uint32_t SERIAL_BAUD = 115200;
 // after staOpen). V2 names that byte staWifiSleep without growing the blob.
 // Bump and add a migration when the blob layout changes
 // (see ShotStopperSettingsMigrate.h).
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 14;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 15;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;
@@ -1841,6 +1841,8 @@ struct WebCommand {
   // PRESET_OP payload (keep small — no full bank on the queue element).
   uint8_t presetAction = 0;
   uint8_t presetId = 0;
+  bool brewTargetSpecified = false;
+  uint16_t brewTargetDeciC = 0;
   char presetName[24] = {};
   bool persistPresets = false;
   bool bbwAlgorithmSpecified = false;

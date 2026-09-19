@@ -70,22 +70,35 @@ constexpr int BLE_GAP_EVENT_DISC=1, BLE_GAP_EVENT_DISC_COMPLETE=2,
   BLE_GAP_EVENT_CONNECT=3, BLE_GAP_EVENT_DISCONNECT=4, BLE_GAP_EVENT_NOTIFY_RX=5;
 constexpr int BLE_HCI_ADV_RPT_EVTYPE_ADV_IND=0, BLE_HCI_ADV_RPT_EVTYPE_DIR_IND=1;
 constexpr uint8_t BLE_GATT_CHR_PROP_NOTIFY=0x10, BLE_GATT_CHR_PROP_INDICATE=0x20,
-  BLE_GATT_CHR_PROP_WRITE=8, BLE_GATT_CHR_PROP_WRITE_NO_RSP=4;
+  BLE_GATT_CHR_PROP_WRITE=8, BLE_GATT_CHR_PROP_WRITE_NO_RSP=4,
+  BLE_GATT_CHR_PROP_READ=2;
 constexpr uint16_t BLE_GATT_DSC_CLT_CFG_UUID16=0x2902;
 struct ble_addr_t { uint8_t type; uint8_t val[6]; };
 struct ble_uuid_t { uint16_t value; };
 struct ble_uuid_any_t { ble_uuid_t u; };
 inline int ble_uuid_from_str(ble_uuid_any_t *u, const char *s) {
-  u->u.value = static_cast<uint16_t>(strtoul(s,nullptr,16)); return 0;
+  uint16_t value = 0x811c;
+  for (const unsigned char *p = reinterpret_cast<const unsigned char *>(s);
+       *p != '\0'; ++p) {
+    value = static_cast<uint16_t>((value ^ *p) * 0x0193U);
+  }
+  u->u.value = value;
+  return 0;
 }
 inline int ble_uuid_cmp(const ble_uuid_t *a,const ble_uuid_t *b) { return a->value != b->value; }
 inline uint16_t ble_uuid_u16(const ble_uuid_t *u) { return u->value; }
-struct os_mbuf { uint16_t length; uint8_t data[32]; };
+struct os_mbuf { uint16_t length; uint8_t data[600]; };
 #define OS_MBUF_PKTLEN(b) ((b)->length)
 inline int os_mbuf_copydata(os_mbuf *b,int offset,int length,void *out) {
   memcpy(out,b->data+offset,length); return 0;
 }
-struct ble_gap_disc_desc { ble_addr_t addr; uint8_t event_type; uint8_t *data; uint8_t length_data; };
+struct ble_gap_disc_desc {
+  ble_addr_t addr;
+  uint8_t event_type;
+  uint8_t *data;
+  uint8_t length_data;
+  int8_t rssi;
+};
 struct ble_gap_event {
   int type;
   ble_gap_disc_desc disc;
@@ -106,7 +119,7 @@ inline int ble_hs_adv_parse_fields(ble_hs_adv_fields *fields, const uint8_t *, u
 }
 struct ble_gap_disc_params { uint8_t passive,filter_duplicates,filter_policy,limited; uint16_t itvl,window; };
 struct ble_gatt_error { int status; uint16_t att_handle; };
-struct ble_gatt_attr {};
+struct ble_gatt_attr { uint16_t handle,offset; os_mbuf *om; };
 struct ble_gatt_svc { uint16_t start_handle,end_handle; };
 struct ble_gatt_chr { uint16_t def_handle,val_handle; uint8_t properties; ble_uuid_any_t uuid; };
 struct ble_gatt_dsc { uint16_t handle; ble_uuid_any_t uuid; };
@@ -115,18 +128,70 @@ inline TestWriteCallback testWriteCallback=nullptr;
 inline void *testWriteArg=nullptr;
 inline int testSubmitStatus=0, testTerminateStatus=0;
 inline unsigned testTerminations=0, testWrites=0;
+inline uint16_t testLastWriteHandle=0,testLastWriteLength=0;
+inline uint8_t testLastWriteData[600]={};
+inline bool testMbufAllocFails=false;
 inline std::function<void()> testOnSubmit;
-inline int ble_gattc_write_flat(uint16_t,uint16_t,const void *,uint16_t,TestWriteCallback cb,void *arg) {
+inline os_mbuf *ble_hs_mbuf_from_flat(const void *data, uint16_t length) {
+  if (testMbufAllocFails || length > 600) return nullptr;
+  auto *buffer = new (std::nothrow) os_mbuf{};
+  if (buffer != nullptr) {
+    buffer->length = length;
+    memcpy(buffer->data, data, length);
+  }
+  return buffer;
+}
+inline void os_mbuf_free_chain(os_mbuf *buffer) { delete buffer; }
+inline int ble_gattc_write_flat(uint16_t,uint16_t handle,const void *data,uint16_t length,TestWriteCallback cb,void *arg) {
   ++testWrites;
+  testLastWriteHandle=handle; testLastWriteLength=length;
+  memcpy(testLastWriteData,data,length);
   testWriteCallback=cb; testWriteArg=arg;
   if (testOnSubmit) testOnSubmit();
   return testSubmitStatus;
 }
 inline int ble_gattc_write_no_rsp_flat(uint16_t,uint16_t,const void *,uint16_t) { ++testWrites; return testSubmitStatus; }
-template<class... T> int ble_gattc_disc_all_svcs(T...) { return BLE_HS_EINVAL; }
-template<class... T> int ble_gattc_disc_all_chrs(T...) { return BLE_HS_EINVAL; }
+inline int ble_gattc_write_long(uint16_t connection, uint16_t handle, uint16_t,
+                                os_mbuf *buffer, TestWriteCallback callback,
+                                void *argument) {
+  const int result = ble_gattc_write_flat(connection, handle, buffer->data,
+                                          buffer->length, callback, argument);
+  delete buffer;
+  return result;
+}
+using TestMtuCallback = int(*)(uint16_t,const ble_gatt_error *,uint16_t,void *);
+using TestServiceCallback = int(*)(uint16_t,const ble_gatt_error *,const ble_gatt_svc *,void *);
+using TestCharacteristicCallback = int(*)(uint16_t,const ble_gatt_error *,const ble_gatt_chr *,void *);
+using TestReadCallback = int(*)(uint16_t,const ble_gatt_error *,ble_gatt_attr *,void *);
+using TestGapCallback = int(*)(ble_gap_event *,void *);
+inline TestMtuCallback testMtuCallback=nullptr;
+inline TestServiceCallback testServiceCallback=nullptr;
+inline TestCharacteristicCallback testCharacteristicCallback=nullptr;
+inline TestReadCallback testReadCallback=nullptr;
+inline TestGapCallback testGapCallback=nullptr;
+inline int testGattSubmitStatus=BLE_HS_EINVAL,testConnectSubmitStatus=BLE_HS_EINVAL;
+inline void *testMtuArg=nullptr,*testServiceArg=nullptr,*testCharacteristicArg=nullptr,
+  *testReadArg=nullptr,*testGapArg=nullptr;
+inline int ble_gattc_exchange_mtu(uint16_t,TestMtuCallback callback,void *argument) {
+  testMtuCallback=callback; testMtuArg=argument; return testGattSubmitStatus;
+}
+inline int ble_gattc_disc_all_svcs(uint16_t,TestServiceCallback callback,void *argument) {
+  testServiceCallback=callback; testServiceArg=argument; return testGattSubmitStatus;
+}
+inline int ble_gattc_disc_all_chrs(uint16_t,uint16_t,uint16_t,
+                                   TestCharacteristicCallback callback,void *argument) {
+  testCharacteristicCallback=callback; testCharacteristicArg=argument;
+  return testGattSubmitStatus;
+}
+inline int ble_gattc_read_long(uint16_t,uint16_t,uint16_t,
+                               TestReadCallback callback,void *argument) {
+  testReadCallback=callback; testReadArg=argument; return testGattSubmitStatus;
+}
 template<class... T> int ble_gattc_disc_all_dscs(T...) { return BLE_HS_EINVAL; }
-template<class... T> int ble_gap_connect(T...) { return BLE_HS_EINVAL; }
+inline int ble_gap_connect(uint8_t,const ble_addr_t *,uint32_t,const void *,
+                           TestGapCallback callback,void *argument) {
+  testGapCallback=callback; testGapArg=argument; return testConnectSubmitStatus;
+}
 template<class... T> int ble_gap_disc(T...) { return 0; }
 inline int ble_gap_disc_cancel() { return 0; }
 inline int ble_gap_conn_cancel() { return 0; }

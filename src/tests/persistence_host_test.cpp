@@ -8,6 +8,7 @@
 #include "../ShotStopperShotCurve.h"
 #include "../ShotStopperHistory.h"
 #include "../ShotStopperLastShot.h"
+#include "../machine/ShotStopperMachineIntegrationSettings.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -1084,7 +1085,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(ShotPreset) <= 136);
   CHECK(sizeof(ShotPresetBank) <= 1100);
   CHECK(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET);
-  CHECK(sizeof(PersistedSettings) == 2648);
+  CHECK(sizeof(PersistedSettings) == 2748);
   CHECK(sizeof(RuntimeConfig) == 252);
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
   CHECK(sizeof(ControlStatusSnapshot) <= 4096);
@@ -2064,12 +2065,12 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
   constexpr size_t remainingRecords = lastShotEntries + 6U + 3U + 24U + 32U;
   constexpr size_t applicationEntries = settingsEntries + remainingRecords;
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
-  CHECK(sizeof(PersistedSettings) == 2648U);
-  CHECK(settingsEntries == 170U);
+  CHECK(sizeof(PersistedSettings) == 2748U);
+  CHECK(settingsEntries == 176U);
   CHECK(lastShotEntries == 10U);
-  CHECK(applicationEntries == 245U);
+  CHECK(applicationEntries == 251U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 2149U);
+  CHECK(conservativeEntries - applicationEntries == 2143U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {
@@ -2284,12 +2285,98 @@ void p83_v14_device_name_default_migration_and_keep_on_forget() {
   CHECK(strcmp(loaded.deviceName, DEFAULT_DEVICE_NAME) == 0);
 }
 
+void p84_v14_micra_defaults_and_v15_round_trip() {
+  resetHostPersistence();
+  PersistedSettings source;
+  CHECK(initializeDefaultSettings(source));
+  source.schemaVersion = 14;
+  source.structureSize = PERSISTED_SETTINGS_V14_SIZE;
+  for (ShotPreset &preset : source.presets.presets) {
+    preset.brewTargetDeciC = 0xa5a5;
+  }
+  PersistedSettingsV14 legacy;
+  memcpy(legacy.bytes, &source,
+         PERSISTED_SETTINGS_V14_SIZE - sizeof(uint32_t));
+  const uint32_t legacyChecksum = persistedSettingsV14Checksum(legacy);
+  memcpy(legacy.bytes + PERSISTED_SETTINGS_V14_SIZE - sizeof(uint32_t),
+         &legacyChecksum, sizeof(legacyChecksum));
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacy,
+                           sizeof(legacy));
+
+  PersistedSettings loaded;
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
+  for (const ShotPreset &preset : loaded.presets.presets) {
+    CHECK(preset.brewTargetDeciC == 930);
+  }
+  CHECK(loaded.machineIntegration.token[0] == '\0');
+  CHECK(!loaded.machineIntegration.bindingVerified);
+  CHECK(loaded.machineIntegration.options == 0);
+
+  memset(loaded.machineIntegration.token, 'T', 64);
+  loaded.machineIntegration.token[64] = '\0';
+  const uint8_t address[6] = {1, 2, 3, 4, 5, 6};
+  memcpy(loaded.machineIntegration.peerAddress, address, sizeof(address));
+  strcpy(loaded.machineIntegration.identity, "MICRA_TEST");
+  loaded.machineIntegration.peerAddressType = 1;
+  loaded.machineIntegration.options =
+      MACHINE_INTEGRATION_APPLY_TEMPERATURE |
+      MACHINE_INTEGRATION_OBSERVE_STATE;
+  loaded.machineIntegration.bindingVerified = true;
+  loaded.presets.presets[0].brewTargetDeciC = 935;
+  CHECK(savePersistedSettings(loaded));
+  loaded = {};
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.presets.presets[0].brewTargetDeciC == 935);
+  CHECK(loaded.machineIntegration.bindingVerified);
+  CHECK(strcmp(loaded.machineIntegration.identity, "MICRA_TEST") == 0);
+  CHECK(loaded.machineIntegration.options == 3);
+
+  uint8_t replacementAddress[6] = {6, 5, 4, 3, 2, 1};
+  CHECK(setMachineIntegrationBinding(loaded.machineIntegration, 1,
+                                     replacementAddress, "MICRA_SAVED"));
+  char replacementToken[64];
+  memset(replacementToken, 'R', sizeof(replacementToken));
+  CHECK(setMachineIntegrationToken(loaded.machineIntegration,
+                                   replacementToken,
+                                   sizeof(replacementToken)));
+  CHECK(!loaded.machineIntegration.bindingVerified);
+  CHECK(setMachineIntegrationOptions(loaded.machineIntegration, false, true));
+  CHECK(loaded.machineIntegration.options ==
+        MACHINE_INTEGRATION_OBSERVE_STATE);
+  clearMachineIntegrationToken(loaded.machineIntegration);
+  CHECK(loaded.machineIntegration.token[0] == '\0');
+  CHECK(!loaded.machineIntegration.bindingVerified);
+
+  ShotPresetBank bank = loaded.presets;
+  CHECK(setShotPresetBrewTarget(bank, bank.activeId, 947));
+  uint8_t duplicateId = 0;
+  CHECK(duplicateShotPreset(bank, bank.activeId, duplicateId));
+  CHECK(findShotPreset(bank, duplicateId)->brewTargetDeciC == 947);
+  uint8_t createdId = 0;
+  CHECK(createUntitledShotPreset(bank, createdId));
+  CHECK(findShotPreset(bank, createdId)->brewTargetDeciC == 930);
+  CHECK(!setShotPresetBrewTarget(bank, createdId, 799));
+  CHECK(restoreFactoryShotPresetValues(bank, FACTORY_PRESET_ID_DOUBLE));
+  CHECK(findShotPreset(bank, FACTORY_PRESET_ID_DOUBLE)->brewTargetDeciC == 930);
+
+  legacy.bytes[0] ^= 1;
+  PersistedSettings rejected;
+  CHECK(!migratePersistedSettingsFromV14(legacy, rejected));
+  CHECK(resetPersistedSettingsToFactory(loaded));
+  CHECK(loaded.machineIntegration.token[0] == '\0');
+  CHECK(!loaded.machineIntegration.bindingVerified);
+  CHECK(loaded.machineIntegration.options == 0);
+  CHECK(loaded.presets.presets[0].brewTargetDeciC == 930);
+}
+
 struct TestCase {
   const char *id;
   void (*function)();
 };
 
 const TestCase tests[] = {
+    {"P84", p84_v14_micra_defaults_and_v15_round_trip},
     {"P83", p83_v14_device_name_default_migration_and_keep_on_forget},
     {"P81", p81_v12_clears_allow_rinse_while_armed_bit},
     {"P82", p82_ble_scan_backoff_boost_migration_and_roundtrip},

@@ -30,6 +30,7 @@ inline bool validPersistedSettings(const PersistedSettings &settings) {
                               settings.runtime.autoRetare) ||
       !validDevicePassword(settings.devicePassword) ||
       !validDeviceName(settings.deviceName) ||
+      !validMachineIntegrationSettings(settings.machineIntegration) ||
       !validPreferredScaleMac(settings.preferredScaleMac) ||
       !validPreferredScaleName(settings.preferredScaleName) ||
       !validScaleHistoryEntries(settings.scaleHistory) ||
@@ -119,6 +120,10 @@ inline PersistedSettingsV13 *persistedSettingsV13MigrationScratch() {
   return reinterpret_cast<PersistedSettingsV13 *>(
       persistedSettingsMigrationScratch());
 }
+inline PersistedSettingsV14 *persistedSettingsV14MigrationScratch() {
+  return reinterpret_cast<PersistedSettingsV14 *>(
+      persistedSettingsMigrationScratch());
+}
 
 inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *key,
                              PersistedSettings &settings) {
@@ -158,6 +163,15 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
       return false;
     }
     return validPersistedSettings(settings);
+  }
+  if (storedLength == PERSISTED_SETTINGS_V14_SIZE) {
+    PersistedSettingsV14 *legacy = persistedSettingsV14MigrationScratch();
+    if (legacy == nullptr ||
+        preferences.getBytes(key, legacy, sizeof(*legacy)) != sizeof(*legacy)) {
+      return false;
+    }
+    return migratePersistedSettingsFromV14(*legacy, settings) &&
+           validPersistedSettings(settings);
   }
   if (storedLength == PERSISTED_SETTINGS_V13_SIZE) {
     PersistedSettingsV13 *legacy = persistedSettingsV13MigrationScratch();

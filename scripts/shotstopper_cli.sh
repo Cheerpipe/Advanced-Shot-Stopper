@@ -409,10 +409,12 @@ ss_cli_resolve_profiles() {
   SHOTSTOPPER_VARIANT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^variant=//p')"
   SHOTSTOPPER_HARDWARE_COMPAT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^hardware_compat=//p')"
   SHOTSTOPPER_MACHINE_COMPAT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^machine_compat=//p')"
+  SHOTSTOPPER_MACHINE_INTEGRATION="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^machine_integration=//p')"
   SHOTSTOPPER_GENERATED_DIR="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^generated_dir=//p')"
   if [[ -z "$resolved_arch" || -z "$SHOTSTOPPER_VARIANT" ||
-        -z "$SHOTSTOPPER_HARDWARE_COMPAT" || -z "$SHOTSTOPPER_MACHINE_COMPAT" ||
-        -z "$SHOTSTOPPER_GENERATED_DIR" ]]; then
+    -z "$SHOTSTOPPER_HARDWARE_COMPAT" || -z "$SHOTSTOPPER_MACHINE_COMPAT" ||
+    -z "$SHOTSTOPPER_MACHINE_INTEGRATION" ||
+    -z "$SHOTSTOPPER_GENERATED_DIR" ]]; then
     ss_cli_die "Profile resolver returned incomplete build metadata."
     return 2
   fi
@@ -423,7 +425,7 @@ ss_cli_resolve_profiles() {
     return 2
   fi
   ss_put arch "$resolved_arch" profile
-  export SHOTSTOPPER_VARIANT SHOTSTOPPER_GENERATED_DIR
+  export SHOTSTOPPER_VARIANT SHOTSTOPPER_MACHINE_INTEGRATION SHOTSTOPPER_GENERATED_DIR
 }
 
 ss_cli_load_store() {

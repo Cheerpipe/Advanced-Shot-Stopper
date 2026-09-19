@@ -5,6 +5,7 @@
 #if defined(SHOT_STOPPER_HOST_TEST)
 #include "tests/shot_stopper_host_stubs.h"
 #else
+#include "ShotStopperBleArbiter.h"
 #include "ShotStopperBleRuntime.h"
 #include "ShotStopperWatchdog.h"
 #include "ShotStopperHardwareTimer.h"
@@ -23,6 +24,7 @@
 #endif  // !SHOT_STOPPER_SCALE_WORKER_IN_ORCHESTRATOR
 
 #include "ShotStopperPowerManagement.h"
+#include "machine/ShotStopperMachineIntegration.h"
 #if !defined(SHOT_STOPPER_HOST_TEST)
 #include <esp_bt.h>
 #endif
@@ -306,6 +308,15 @@ void publishScaleWorkerPolicy(const RuntimeConfig &config, bool controlReady) {
           << kPolicyBookooLevelShift;
   bits |= static_cast<uint32_t>(cacheMode) << kPolicyMacCacheModeShift;
   scaleWorkerPolicyBits.store(bits, std::memory_order_release);
+  wakeScaleWorker();
+}
+
+void publishScaleCriticalRadio(bool critical) {
+#if !defined(SHOT_STOPPER_HOST_TEST)
+  shotStopperBleArbiterSetCritical(critical);
+#else
+  (void)critical;
+#endif
   wakeScaleWorker();
 }
 
@@ -1822,6 +1833,10 @@ static bool scalePowerWaking = false;
 static uint32_t scalePowerWakeStartedMs = 0;
 bool syncScalePower() {
   bool busy = scale.isConnecting() || scale.isLinkUp();
+#if !defined(SHOT_STOPPER_HOST_TEST)
+  busy = busy ||
+         shotStopperBleArbiterSnapshot().owner != ShotStopperBleOwner::None;
+#endif
   powerScaleBusy.store(busy, std::memory_order_release);
   bool sleep = powerIdleSavings() && !busy &&
                powerBleError.load(std::memory_order_relaxed) == 0;
@@ -1859,8 +1874,11 @@ bool syncScalePower() {
 void syncScaleRadioCoex() {
 #if !defined(SHOT_STOPPER_HOST_TEST)
   if (scaleWorkerBridge.syncNetworkRf != nullptr) {
-    scaleWorkerBridge.syncNetworkRf(scale.isConnecting() || scale.isLinkUp(),
-                                    scale.isConnecting(),
+    const bool machineActive = shotStopperBleArbiterSnapshot().owner ==
+                               ShotStopperBleOwner::Machine;
+    scaleWorkerBridge.syncNetworkRf(scale.isConnecting() || scale.isLinkUp() ||
+                                        machineActive,
+                                    scale.isConnecting() || machineActive,
                                     scaleHuntRfClearActive());
   }
 #endif
@@ -2300,6 +2318,9 @@ void scaleWorkerTask(void *) {
     }
 
     syncScaleRadioCoex();
+    // Lowest-priority radio consumer: scale link, packets and commands above
+    // have already been serviced for this worker turn.
+    serviceMachineIntegrationWorker();
 
     static uint32_t watchdogFedAtMs = 0;
     if (watchdogFedAtMs == 0 ||

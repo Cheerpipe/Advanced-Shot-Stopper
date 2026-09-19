@@ -46,6 +46,8 @@ static void notify(NimbleScaleClient &c,uint16_t length) {
 }
 static void run() {
   {
+    testScaleReservations = 0;
+    testAdvertisementPublications = 0;
     NimbleScaleClient c(false);
     c.beginGeneration();
     c.state_ = NimbleScaleClient::State::Scanning;
@@ -55,8 +57,10 @@ static void run() {
     testAdvertisementParseStatus = 0;
     testAdvertisementFields = {firstName, sizeof(firstName) - 1, 1, 0, nullptr};
     ble_gap_disc_desc first = {{0, {1, 2, 3, 4, 5, 6}},
-                              BLE_HCI_ADV_RPT_EVTYPE_ADV_IND, nullptr, 0};
+                              BLE_HCI_ADV_RPT_EVTYPE_ADV_IND, nullptr, 0, -42};
     c.onAdvertisement(first, operation);
+    CHECK(testAdvertisementPublications == 1);
+    CHECK(testScaleReservations == 1);
     char mac[32] = {};
     char name[32] = {};
     // Publication after the consumption lock releases must remain pending,

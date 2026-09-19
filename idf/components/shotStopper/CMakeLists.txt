@@ -11,6 +11,18 @@ set(SHOT_STOPPER_SRCS
   "${SHOT_STOPPER_DIR}/ShotStopperNetwork.cpp"
   "${SHOT_STOPPER_DIR}/ShotStopperOta.cpp"
   "${SHOT_STOPPER_DIR}/ShotStopperWebhook.cpp")
+list(APPEND SHOT_STOPPER_SRCS
+  "${SHOT_STOPPER_DIR}/machine/ShotStopperMachineIntegration.cpp")
+
+set(SHOT_STOPPER_REQUIRES
+  arduino-esp32
+  EspressoScaleBLE
+  ShotStopperBleRuntime
+  LineaMicraBLE)
+if(SHOT_STOPPER_MACHINE_INTEGRATION STREQUAL "linea_micra_ble")
+  list(APPEND SHOT_STOPPER_SRCS
+    "${SHOT_STOPPER_DIR}/machine/ShotStopperMicraService.cpp")
+endif()
 
 idf_component_register(
   SRCS ${SHOT_STOPPER_SRCS}
@@ -18,9 +30,7 @@ idf_component_register(
     "${CMAKE_BINARY_DIR}/generated"
     "${SHOT_STOPPER_DIR}"
   REQUIRES
-    arduino-esp32
-    EspressoScaleBLE
-    ShotStopperBleRuntime
+    ${SHOT_STOPPER_REQUIRES}
   PRIV_REQUIRES
     espressif__cjson
     mbedtls
