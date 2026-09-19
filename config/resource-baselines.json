@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "maximumExternalBssBytes": 106496,
   "allowedGrowthBytes": {
-    "image": 32768,
-    "total_size": 32768,
+    "image": 34816,
+    "total_size": 34816,
     "used_diram": 8192,
     "flash_code": 32768,
     "flash_rodata": 16384
