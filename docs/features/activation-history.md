@@ -38,12 +38,11 @@ the duration large on the left and the friendly time label small on the right:
 "Today" or "Yesterday" with the clock time to the minute, the weekday name for
 the rest of the week, "2 weeks ago" for older weeks, and a short date like
 "Sep 15" for older entries. Hovering the label shows the exact date and time.
-The activation type sits below as a small label.
-Shots carry a coffee-cup icon on the left of
-the card: a filled cup when the scale registered the weight while brewing,
-and an outlined cup when no weight was registered, such as a manual brew
-without a scale. Rinses carry a droplet, and other activations have no icon.
-When the
+The activation type sits below as a small label. Shots carry a coffee-cup
+icon on the left of the card: a filled cup when the scale registered the
+weight while brewing, and an outlined cup when no weight was registered,
+such as a manual brew without a scale. Rinses carry a droplet, and other
+activations carry a lightning bolt. When the
 clock was not synced when the entry was recorded, the card shows "no time"
 instead of a date.
 

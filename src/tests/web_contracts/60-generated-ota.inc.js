@@ -326,9 +326,11 @@ if (generated.icon48Gzip.length > 3500) {
 // it to 103000 bytes; its card type icons raise it to 104500 bytes; the
 // icon-proof class-based card layout raises it to 104600 bytes; the
 // outlined-cup shot icon (shots without registered weight) raises it to
-// 104800 bytes.
-if (generated.combined > 104800) {
-  throw new Error('Combined Web UI gzip exceeds the 104800-byte flash budget');
+// 104800 bytes; the other-type card icon (with the per-icon fill attribute
+// hoisted into shared CSS and shortened shot viewBoxes as offsets) raises
+// it to 104900 bytes.
+if (generated.combined > 104900) {
+  throw new Error('Combined Web UI gzip exceeds the 104900-byte flash budget');
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

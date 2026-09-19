@@ -258,7 +258,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #historyTable td.shotDel,#historyTable td.shotDel>.btnGlyph{background:transparent!important}
 .histBadge{align-self:flex-start;display:inline-block;font-size:.6875rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 #historyTable td.histIcon{grid-area:icon;align-self:center;width:2.6rem;height:2.6rem}
-#historyTable td.histIcon svg{width:100%;height:100%}
+#historyTable td.histIcon svg{width:100%;height:100%;fill:currentColor}
 .shotSpark{grid-area:plot;display:block;width:100%;height:100%;color:var(--ok);overflow:visible}
 .shotGrid{stroke:var(--ln);stroke-width:.8;opacity:.7}.shotGrid,.shotTrace{vector-effect:non-scaling-stroke}
 .shotDropOverlay{grid-area:plot;position:relative}
