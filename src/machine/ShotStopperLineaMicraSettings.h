@@ -8,6 +8,7 @@ namespace shotstopper {
 
 constexpr size_t LINEA_MICRA_TOKEN_CAPACITY = 65;
 constexpr size_t LINEA_MICRA_IDENTITY_CAPACITY = 24;
+constexpr size_t LINEA_MICRA_ADDRESS_CAPACITY = 18;
 constexpr uint8_t LINEA_MICRA_APPLY_TEMPERATURE = 1U << 0;
 constexpr uint8_t LINEA_MICRA_OBSERVE_STATE = 1U << 1;
 constexpr uint16_t LINEA_MICRA_BREW_TARGET_MIN_DECI_C = 800;
@@ -59,6 +60,62 @@ inline void clearLineaMicraBinding(LineaMicraPersistedSettings &settings) {
   memset(settings.identity, 0, sizeof(settings.identity));
   settings.peerAddressType = 0;
   settings.bindingVerified = false;
+}
+
+inline bool lineaMicraAddressConfigured(
+    const LineaMicraPersistedSettings &settings) {
+  for (uint8_t value : settings.peerAddress) {
+    if (value != 0) return true;
+  }
+  return false;
+}
+
+inline uint8_t lineaMicraHexNibble(char value) {
+  if (value >= '0' && value <= '9') return value - '0';
+  if (value >= 'A' && value <= 'F') return value - 'A' + 10;
+  if (value >= 'a' && value <= 'f') return value - 'a' + 10;
+  return UINT8_MAX;
+}
+
+inline bool setLineaMicraTargetAddress(
+    LineaMicraPersistedSettings &settings, const char *text) {
+  if (text == nullptr) return false;
+  if (text[0] == '\0') {
+    clearLineaMicraBinding(settings);
+    return true;
+  }
+  if (strnlen(text, LINEA_MICRA_ADDRESS_CAPACITY) != 17) return false;
+  uint8_t address[6] = {};
+  for (uint8_t index = 0; index < 6; ++index) {
+    const size_t offset = index * 3U;
+    const uint8_t high = lineaMicraHexNibble(text[offset]);
+    const uint8_t low = lineaMicraHexNibble(text[offset + 1U]);
+    if (high == UINT8_MAX || low == UINT8_MAX ||
+        (index < 5 && text[offset + 2U] != ':')) {
+      return false;
+    }
+    address[5U - index] = static_cast<uint8_t>((high << 4U) | low);
+  }
+  bool nonzero = false;
+  for (uint8_t value : address) nonzero |= value != 0;
+  if (!nonzero) return false;
+  if (memcmp(settings.peerAddress, address, sizeof(address)) == 0) return true;
+  clearLineaMicraBinding(settings);
+  memcpy(settings.peerAddress, address, sizeof(address));
+  return true;
+}
+
+inline void formatLineaMicraAddress(const uint8_t address[6], char *output,
+                                    size_t outputCapacity) {
+  if (address == nullptr || output == nullptr || outputCapacity < 18) return;
+  constexpr char hex[] = "0123456789ABCDEF";
+  for (uint8_t index = 0; index < 6; ++index) {
+    const uint8_t value = address[5U - index];
+    output[index * 3U] = hex[value >> 4U];
+    output[index * 3U + 1U] = hex[value & 0x0fU];
+    if (index < 5) output[index * 3U + 2U] = ':';
+  }
+  output[17] = '\0';
 }
 
 inline void clearLineaMicraToken(LineaMicraPersistedSettings &settings) {

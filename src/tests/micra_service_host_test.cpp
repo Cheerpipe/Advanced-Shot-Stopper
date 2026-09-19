@@ -109,26 +109,6 @@ void serviceReady(shotstopper::ShotStopperMicraService &service) {
   service.service();
 }
 
-void rejectUnsupportedPeer(shotstopper::ShotStopperMicraService &service) {
-  ble_gap_event connected = {};
-  connected.type = BLE_GAP_EVENT_CONNECT;
-  connected.connect.status = 0;
-  connected.connect.conn_handle = 7;
-  assert(testGapCallback(&connected, testGapArg) == 0);
-  service.service();
-  const ble_gatt_error ok = {0, 0};
-  assert(testMtuCallback(7, &ok, 96, testMtuArg) == 0);
-  service.service();
-  ble_gatt_svc range = {1, 40};
-  assert(testServiceCallback(7, &ok, &range, testServiceArg) == 0);
-  const ble_gatt_error done = {BLE_HS_EDONE, 0};
-  assert(testServiceCallback(7, &done, nullptr, testServiceArg) == 0);
-  service.service();
-  assert(testCharacteristicCallback(7, &done, nullptr,
-                                    testCharacteristicArg) == 0);
-  service.service();
-}
-
 void completeWrite(shotstopper::ShotStopperMicraService &service) {
   const ble_gatt_error ok = {0, 0};
   assert(testWriteCallback(7, &ok, nullptr, testWriteArg) == 0);
@@ -237,7 +217,7 @@ void testReadOnlyAssociationFlow() {
   assert(binding.requestId == request.requestId);
   assert(std::strcmp(binding.identity, "MICRA_UNIT") == 0);
   assert(std::strstr(capturedMicraLogs,
-                     "seen=3 conn=2 named=1 match=1 bad=0 eligible=1 fallback=1"));
+                     "seen=3 conn=2 named=1 match=1 bad=0 eligible=1 target=0"));
   assert(std::strstr(capturedMicraLogs,
                      "Micra candidate req=41 id=MICRA_UNIT"));
   assert(std::strstr(capturedMicraLogs, "Micra connect req=41 attempt=1"));
@@ -247,7 +227,7 @@ void testReadOnlyAssociationFlow() {
   assert(std::strstr(capturedMicraLogs, "CoffeeBoiler1") == nullptr);
 }
 
-void testAnonymousCandidateBindsOnlyAfterProtocolVerification() {
+void testAnonymousCandidatesAreNeverProbedWithoutATarget() {
   resetPlatform();
   shotstopper::ShotStopperMicraService service;
   assert(service.begin());
@@ -279,25 +259,36 @@ void testAnonymousCandidateBindsOnlyAfterProtocolVerification() {
   fakeMillis += shotstopper::micra_timing::kDiscoverySliceMs;
   testNowMs = fakeMillis;
   service.service();
-  rejectUnsupportedPeer(service);
-
-  shotstopper::LineaMicraBindingResult binding;
-  assert(!service.takeBinding(binding));
   assert(service.status().phase == shotstopper::LineaMicraPhase::BACKOFF);
-  assert(std::strstr(capturedMicraLogs,
-                     "eligible=0 fallback=2") != nullptr);
-  assert(std::strstr(capturedMicraLogs,
-                     "Micra candidate req=91 id=anonymous "
-                     "addr=00:00:00:00:00:CC") != nullptr);
-  assert(std::strstr(capturedMicraLogs,
-                     "Micra reject req=91 addr=00:00:00:00:00:CC "
-                     "cache=1") != nullptr);
+  assert(testConnects == 0);
+  assert(std::strstr(capturedMicraLogs, "eligible=0 target=0") != nullptr);
+}
 
-  completeDisconnect(service);
-  fakeMillis += shotstopper::micra_timing::kRetryDelaysMs[0] +
-                shotstopper::micra_timing::kJitterMaxMs + 1;
-  testNowMs = fakeMillis;
+void testConfiguredAddressSelectsOnlyTheTarget() {
+  resetPlatform();
+  shotstopper::ShotStopperMicraService service;
+  assert(service.begin());
+  shotstopper::LineaMicraPersistedSettings config;
+  char token[64];
+  std::memset(token, 'T', sizeof(token));
+  assert(shotstopper::setLineaMicraToken(config, token, sizeof(token)));
+  assert(shotstopper::setLineaMicraTargetAddress(
+      config, "00:00:00:00:00:DD"));
+  service.publishConfig(config, 12);
   service.service();
+
+  shotstopper::LineaMicraRequest request;
+  request.requestId = 92;
+  request.configGeneration = 12;
+  assert(service.queue(request));
+  service.service();
+
+  uint8_t payload[] = {2, 0x01, 0x06};
+  ShotStopperBleAdvertisement advertisement;
+  advertisement.addressType = 1;
+  advertisement.connectable = true;
+  advertisement.payload = payload;
+  advertisement.payloadLength = sizeof(payload);
   advertisement.address[0] = 0xcc;
   advertisement.rssi = -25;
   shotStopperBleArbiterPublishAdvertisement(advertisement);
@@ -309,16 +300,55 @@ void testAnonymousCandidateBindsOnlyAfterProtocolVerification() {
   service.service();
 
   completeReadOnlyQueryFlow(service);
+  shotstopper::LineaMicraBindingResult binding;
   assert(service.takeBinding(binding));
   assert(binding.requestId == request.requestId);
   assert(binding.address[0] == 0xdd);
-  assert(std::strcmp(binding.identity, "MICRA_ANONYMOUS") == 0);
-  assert(std::strstr(capturedMicraLogs, "eligible=0 fallback=1") != nullptr);
+  assert(std::strcmp(binding.identity, "MICRA_00:00:00:00:00:DD") == 0);
+  assert(std::strstr(capturedMicraLogs, "eligible=1 target=1") != nullptr);
   assert(std::strstr(capturedMicraLogs,
-                     "Micra candidate req=91 id=anonymous "
+                     "Micra candidate req=92 id=address-target "
                      "addr=00:00:00:00:00:DD") != nullptr);
-  assert(testConnects == 2);
+  assert(testConnects == 1);
   assert(testWrites == 3);
+}
+
+void testMultipleNamedMicrasAreNotChosenBySignalStrength() {
+  resetPlatform();
+  shotstopper::ShotStopperMicraService service;
+  assert(service.begin());
+  shotstopper::LineaMicraPersistedSettings config;
+  char token[64];
+  std::memset(token, 'T', sizeof(token));
+  assert(shotstopper::setLineaMicraToken(config, token, sizeof(token)));
+  service.publishConfig(config, 13);
+  service.service();
+  shotstopper::LineaMicraRequest request;
+  request.requestId = 93;
+  request.configGeneration = 13;
+  assert(service.queue(request));
+  service.service();
+
+  uint8_t first[] = {10, 0x09, 'M', 'I', 'C', 'R', 'A', '_', 'O', 'N', 'E'};
+  uint8_t second[] = {10, 0x09, 'M', 'I', 'C', 'R', 'A', '_', 'T', 'W', 'O'};
+  ShotStopperBleAdvertisement advertisement;
+  advertisement.addressType = 1;
+  advertisement.address[0] = 1;
+  advertisement.rssi = -20;
+  advertisement.payload = first;
+  advertisement.payloadLength = sizeof(first);
+  shotStopperBleArbiterPublishAdvertisement(advertisement);
+  advertisement.address[0] = 2;
+  advertisement.rssi = -60;
+  advertisement.payload = second;
+  advertisement.payloadLength = sizeof(second);
+  shotStopperBleArbiterPublishAdvertisement(advertisement);
+  fakeMillis += shotstopper::micra_timing::kDiscoverySliceMs;
+  testNowMs = fakeMillis;
+  service.service();
+  assert(service.status().phase == shotstopper::LineaMicraPhase::BACKOFF);
+  assert(testConnects == 0);
+  assert(std::strstr(capturedMicraLogs, "eligible=2 target=0") != nullptr);
 }
 
 void testPairingRetryGetsANewDiscoverySlice() {
@@ -481,7 +511,9 @@ void testPostActivityRefreshPreservesExhaustedCooldown() {
 
 int main() {
   testReadOnlyAssociationFlow();
-  testAnonymousCandidateBindsOnlyAfterProtocolVerification();
+  testAnonymousCandidatesAreNeverProbedWithoutATarget();
+  testConfiguredAddressSelectsOnlyTheTarget();
+  testMultipleNamedMicrasAreNotChosenBySignalStrength();
   testPairingRetryGetsANewDiscoverySlice();
   testAutomaticStateFreshnessAndPostActivityRefresh();
   testPostActivityRefreshPreservesExhaustedCooldown();

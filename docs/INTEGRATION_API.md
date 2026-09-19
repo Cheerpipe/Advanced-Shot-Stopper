@@ -159,17 +159,19 @@ Micra-compiled firmware exposes `POST /api/v1/machine/linea-micra` to the
 claimed Web UI. It accepts one strict `action`: `save`, `test`, `refresh`,
 `forget`, or `remove_token`. `save` also requires the independent
 `applyTemperature` and `observeState` booleans; an optional token must contain
-exactly 64 printable characters. Unknown, duplicate, or action-inappropriate
-fields are rejected. Accepted mutations return `202` and persist through the
-normal single-writer command path.
+exactly 64 printable characters. Its optional `address` is empty or a canonical
+BLE address such as `AA:BB:CC:DD:EE:FF`; changing it clears the verified binding
+until a read-only Test verifies that peer. Unknown, duplicate, or
+action-inappropriate fields are rejected. Accepted mutations return `202` and
+persist through the normal single-writer command path.
 
 Settings and diagnostic status include a Micra subtree only in Micra firmware.
-It reports `tokenConfigured`, verified binding identity/address, option flags,
-request phase, ON/OFF/UNKNOWN power state, raw observed mode, evidence quality,
-effective-state interpretation, sample age/freshness, and the last read-only
-temperature Test result. The token itself is never returned. `refresh` is
-read-only and requires monitoring plus a verified binding; none of these fields
-authorizes machine actuation.
+It reports `tokenConfigured`, configured address, verified binding identity,
+option flags, request phase, ON/OFF/UNKNOWN power state, raw observed mode,
+evidence quality, effective-state interpretation, sample age/freshness, and the
+last read-only temperature Test result. The token itself is never returned.
+`refresh` is read-only and requires monitoring plus a verified binding; none of
+these fields authorizes machine actuation.
 
 ## Webhook version 1
 

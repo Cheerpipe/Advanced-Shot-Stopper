@@ -59,7 +59,9 @@ different feature APIs while retaining only the small lifecycle boundary needed
 by boot and the shared worker.
 
 The adapter receives advertisements through the shared BLE arbiter. Initial
-pairing asks the scale-owned scanner for one bounded observation window; before
+pairing asks the scale-owned scanner for one bounded observation window and
+selects only the configured Micra address, or one uniquely named `MICRA_*`
+device when no address was configured. It never probes anonymous peers. Before
 a machine peer procedure, that same coordinator pauses discovery without
 disconnecting a linked scale. A newly detected scale candidate or a critical
 control interval still wins admission. This keeps scanner and host ownership out

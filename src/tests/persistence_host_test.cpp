@@ -2313,6 +2313,27 @@ void p84_v14_micra_defaults_and_v15_round_trip() {
   CHECK(!loaded.lineaMicra.bindingVerified);
   CHECK(loaded.lineaMicra.options == 0);
 
+  LineaMicraPersistedSettings targeted;
+  CHECK(setLineaMicraTargetAddress(targeted, "84:1f:E8:7B:B0:FE"));
+  const uint8_t parsedAddress[6] = {0xfe, 0xb0, 0x7b, 0xe8, 0x1f, 0x84};
+  CHECK(memcmp(targeted.peerAddress, parsedAddress, sizeof(parsedAddress)) == 0);
+  CHECK(lineaMicraAddressConfigured(targeted));
+  char formattedAddress[LINEA_MICRA_ADDRESS_CAPACITY] = {};
+  formatLineaMicraAddress(targeted.peerAddress, formattedAddress,
+                          sizeof(formattedAddress));
+  CHECK(strcmp(formattedAddress, "84:1F:E8:7B:B0:FE") == 0);
+  CHECK(!setLineaMicraTargetAddress(targeted, "84:1F:E8:7B:B0"));
+  CHECK(!setLineaMicraTargetAddress(targeted, "00:00:00:00:00:00"));
+  char targetToken[64];
+  memset(targetToken, 'T', sizeof(targetToken));
+  CHECK(setLineaMicraToken(targeted, targetToken, sizeof(targetToken)));
+  CHECK(setLineaMicraTargetAddress(targeted, "84:1F:E8:7B:B0:FE"));
+  CHECK(setLineaMicraBinding(targeted, 1, parsedAddress, "MICRA_TEST"));
+  CHECK(setLineaMicraTargetAddress(targeted, "84:1F:E8:7B:B0:FE"));
+  CHECK(targeted.bindingVerified);
+  CHECK(setLineaMicraTargetAddress(targeted, "84:1F:E8:7B:B0:FD"));
+  CHECK(!targeted.bindingVerified);
+
   memset(loaded.lineaMicra.token, 'T', 64);
   loaded.lineaMicra.token[64] = '\0';
   const uint8_t address[6] = {1, 2, 3, 4, 5, 6};

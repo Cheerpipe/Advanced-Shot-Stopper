@@ -44,7 +44,6 @@ class ShotStopperMicraService {
     uint8_t connectable : 1;
     uint8_t used : 1;
   };
-  static constexpr uint8_t kRejectedPeerCapacity = 4;
 
   enum class Stage : uint8_t {
     IDLE,
@@ -67,7 +66,6 @@ class ShotStopperMicraService {
   LineaMicraRequest pendingRequest_ = {};
   LineaMicraStatus publishedStatus_ = {};
   Candidate candidates_[4] = {};
-  uint32_t rejectedPeerKeys_[kRejectedPeerCapacity] = {};
   uint32_t configGeneration_ = 0;
   uint32_t pendingConfigGeneration_ = 0;
   uint32_t acceptedConfigGeneration_ = 0;

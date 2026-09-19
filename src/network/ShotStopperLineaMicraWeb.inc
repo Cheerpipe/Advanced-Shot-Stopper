@@ -15,9 +15,11 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
   if (bodyStatus != ESP_OK) return bodyStatus;
 
   cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  static const char *const fields[] = {"action", "token", "clearToken",
-                                      "applyTemperature", "observeState"};
+  static const char *const fields[] = {
+      "action", "token", "address", "clearToken", "applyTemperature",
+      "observeState"};
   char action[16] = {};
+  char address[LINEA_MICRA_ADDRESS_CAPACITY] = {};
   const bool known = root != nullptr &&
       jsonHasOnlyUniqueFields(root, fields, sizeof(fields) / sizeof(fields[0]));
   const bool actionOk = known &&
@@ -30,6 +32,9 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
   cJSON *tokenField = root == nullptr
                           ? nullptr
                           : cJSON_GetObjectItemCaseSensitive(root, "token");
+  cJSON *addressField = root == nullptr
+                            ? nullptr
+                            : cJSON_GetObjectItemCaseSensitive(root, "address");
   uint32_t currentRevision = 0;
   self.dataMux_.lock();
   candidate = self.settings_.lineaMicra;
@@ -60,9 +65,15 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
                                       strlen(tokenField->valuestring)))) {
         parseError = "token must contain exactly 64 printable characters.";
       }
+      if (parseError == nullptr && addressField != nullptr &&
+          (!jsonString(root, "address", address, sizeof(address), true) ||
+           !setLineaMicraTargetAddress(candidate, address))) {
+        parseError = "address must be empty or a BLE address AA:BB:CC:DD:EE:FF.";
+      }
       setLineaMicraOptions(candidate, applyTemperature, observeState);
     }
   } else if (jsonFieldPresent(root, "token") ||
+             jsonFieldPresent(root, "address") ||
              jsonFieldPresent(root, "clearToken") ||
              jsonFieldPresent(root, "applyTemperature") ||
              jsonFieldPresent(root, "observeState")) {

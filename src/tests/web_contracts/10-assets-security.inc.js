@@ -180,7 +180,8 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // allowance.
 // Profile-gated Linea Micra setup, per-preset temperature, and read-only
 // machine-state diagnostics add 2.4 KB of HTML source.
-if (htmlBytes > 68200) {
+// Directed Micra BLE address selection adds 0.5 KB of labeled setup help.
+if (htmlBytes > 68700) {
   throw new Error('Web UI HTML source exceeds the authoring budget');
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
@@ -216,11 +217,12 @@ if (htmlBytes > 68200) {
 // combined source allowance.
 // Linea Micra save/test/refresh wiring and browser-side state expiry add
 // 4.7 KB of JS source and 7.2 KB to the combined source allowance.
-if (jsBytes > 191700) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 191700)`);
+// Address normalization and validation add 0.4 KB of JS and 0.9 KB combined.
+if (jsBytes > 192100) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 192100)`);
 }
-if (htmlBytes + jsBytes > 259900) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 259900)`);
+if (htmlBytes + jsBytes > 260800) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 260800)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

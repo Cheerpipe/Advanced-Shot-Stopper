@@ -297,8 +297,9 @@ if (generated.cssGzip.length > 7050) {
 // Weekday names, short dates, and the hover <time> wrapper raise it to 35600.
 // Linea Micra setup, read-only state expiry, and preset-temperature wiring
 // raise the measured runtime bundle to 36,479 bytes.
-if (generated.runtimeGzip.length > 36500) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 36500-byte gzip budget');
+// Directed BLE address normalization and validation measure 36,615 bytes.
+if (generated.runtimeGzip.length > 36700) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 36700-byte gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -332,8 +333,9 @@ if (generated.icon48Gzip.length > 3500) {
 // hoisted into shared CSS and shortened shot viewBoxes as offsets) raises
 // it to 104900 bytes. The profile-gated Linea Micra surface raises the
 // measured combined bundle to 106,603 bytes.
-if (generated.combined > 106650) {
-  throw new Error('Combined Web UI gzip exceeds the 106650-byte flash budget');
+// Directed BLE address setup raises the measured bundle to 106,848 bytes.
+if (generated.combined > 106900) {
+  throw new Error('Combined Web UI gzip exceeds the 106900-byte flash budget');
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

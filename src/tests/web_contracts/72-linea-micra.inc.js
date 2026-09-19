@@ -9,6 +9,7 @@ if (!network.includes('/api/v1/machine/linea-micra') ||
     !micraWeb.includes('UNSUPPORTED_MACHINE') ||
     !micraWeb.includes('jsonHasOnlyUniqueFields') ||
     !micraWeb.includes('token must contain exactly 64 printable characters') ||
+    !micraWeb.includes('address must be empty or a BLE address') ||
     !micraWeb.includes('stagedLineaMicra_') ||
     !micraWeb.includes('queueMachineIntegrationRequest')) {
   throw new Error('Linea Micra API must be profile-gated, strict, staged, and asynchronous');
@@ -19,7 +20,8 @@ if (micraStatus.includes('\\"token\\":\\"') ||
     !micraStatus.includes('\\"machineIntegration\\"')) {
   throw new Error('Linea Micra status must be compile-gated and redact the BLE token');
 }
-for (const id of ['lineaMicraToken', 'lineaMicraApplyTemperature',
+for (const id of ['lineaMicraToken', 'lineaMicraAddress',
+  'lineaMicraApplyTemperature',
   'lineaMicraObserveState', 'lineaMicraSaveButton', 'lineaMicraTestButton',
   'lineaMicraForgetButton', 'lineaMicraRemoveTokenButton',
   'lineaMicraBrewTargetC']) {
@@ -35,6 +37,7 @@ for (const id of ['dMicraPower', 'dMicraMode', 'dMicraQuality', 'dMicraAge',
 }
 if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes("s.machineIntegration==='linea_micra_ble'") ||
+    !rawRuntimeJs.includes("payload={action:'save',address") ||
     !rawRuntimeJs.includes("['queued','running','backoff'].includes(m.phase)") ||
     !rawRuntimeJs.includes("['queued','running','backoff'].includes(lm.phase)") ||
     !rawRuntimeJs.includes("expired?'UNKNOWN':lm.powerState") ||

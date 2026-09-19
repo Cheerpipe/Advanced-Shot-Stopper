@@ -7,33 +7,32 @@ profiles omit the panel and its diagnostics.
 ## Pair the machine
 
 1. Obtain the 64-character BLE token for your own Micra.
-2. Enter it under **BLE token**, choose **Save Micra settings**, and wait for
-   the save to finish.
-3. Choose **Test connection** while Shot Stopper is Ready.
-4. Confirm that **Paired machine** shows the discovered Micra and that the
+2. Copy the Micra's exact Bluetooth address from Home Assistant's Bluetooth
+   advertisement monitor, in the form `AA:BB:CC:DD:EE:FF`.
+3. Enter both values under **BLE token** and **Micra Bluetooth address**, choose
+   **Save Micra settings**, and wait for the save to finish.
+4. Choose **Test connection** while Shot Stopper is Ready.
+5. Confirm that **Paired machine** shows the verified Micra and that the
    communication result includes measured and target boiler temperatures.
 
 Test is read-only: it authenticates, verifies the Micra family, and reads the
 brew boiler. It never changes power or temperature. The token is write-only in
 the Web UI and diagnostics; leaving the field blank keeps the saved token.
 
-Pairing prefers a nearby device that identifies itself as a Micra. Some Micras
-do not include their name in every Bluetooth announcement, so each retry can
-also test one nearby unnamed device from a small candidate set. An unnamed
-device is saved only after it exposes the expected La Marzocco connection,
-accepts the token, identifies itself as a Micra, and returns a valid brew-boiler
-reading. Unnamed devices that do not expose the Micra connection are skipped by
-later attempts until the Micra settings change or Shot Stopper restarts. If
-pairing is difficult in a crowded Bluetooth environment, temporarily move or
-turn off unrelated nearby devices and try again.
+The address directs every pairing attempt to that device only. Shot Stopper
+still authenticates it, verifies the Micra protocol, and reads the brew boiler
+before saving it as paired. It never connects to unrelated anonymous Bluetooth
+devices. The address may be left blank only when exactly one nearby device
+advertises a `MICRA_*` name; zero or multiple named Micras fail safely instead
+of selecting one by signal strength.
 
 A scale candidate always has radio priority. Home Assistant or the La Marzocco
 app may temporarily occupy the machine connection, so a Test can need another
 attempt without affecting brewing.
 
-**Forget machine** removes the paired address but keeps the token, options, and
-preset temperatures. **Remove token** also removes the pairing. Neither action
-changes paddle, relay, or shot behavior.
+**Forget machine** removes the paired/configured address but keeps the token,
+options, and preset temperatures. **Remove token** also removes the address and
+pairing. Neither action changes paddle, relay, or shot behavior.
 
 ## Monitor machine power state
 

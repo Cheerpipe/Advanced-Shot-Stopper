@@ -67,11 +67,14 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   uint8_t micraOptions = 0;
   bool micraTokenConfigured = false;
   bool micraBindingVerified = false;
+  bool micraAddressConfigured = false;
   self.dataMux_.lock();
   micraTokenConfigured =
       strnlen(self.settings_.lineaMicra.token,
               sizeof(self.settings_.lineaMicra.token)) == 64;
   micraBindingVerified = self.settings_.lineaMicra.bindingVerified;
+  micraAddressConfigured =
+      lineaMicraAddressConfigured(self.settings_.lineaMicra);
   micraOptions = self.settings_.lineaMicra.options;
   memcpy(micraIdentity, self.settings_.lineaMicra.identity,
          sizeof(micraIdentity));
@@ -81,9 +84,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   micraStatus = machineIntegrationStatus();
   sanitizeJsonEmbed(micraIdentity, safeMicraIdentity,
                     sizeof(safeMicraIdentity));
-  if (micraBindingVerified) {
-    formatWifiMac(micraPeerAddress, micraAddress,
-                  sizeof(micraAddress));
+  if (micraAddressConfigured) {
+    formatLineaMicraAddress(micraPeerAddress, micraAddress,
+                            sizeof(micraAddress));
   }
 #endif
 
