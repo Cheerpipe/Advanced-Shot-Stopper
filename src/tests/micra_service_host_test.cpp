@@ -1,18 +1,48 @@
 #include "machine/ShotStopperMicraService.h"
+#include "ShotStopperDomain.h"
 
 #include <Arduino.h>
 
 #include <atomic>
 #include <cassert>
+#include <cstdarg>
+#include <cstdio>
 #include <cstring>
 #include <thread>
 
 uint32_t fakeMillis = 0;
 FakeSerialClass Serial;
+char capturedMicraLogs[8192] = {};
+size_t capturedMicraLogsLength = 0;
+
+void serialTraceCategoryf(shotstopper::LogLevel,
+                          shotstopper::DebugCategory,
+                          const char *format, ...) {
+  if (format == nullptr || capturedMicraLogsLength >=
+                               sizeof(capturedMicraLogs) - 2U) return;
+  char line[shotstopper::DEBUG_EVENT_TEXT_CAPACITY] = {};
+  va_list arguments;
+  va_start(arguments, format);
+  std::vsnprintf(line, sizeof(line), format, arguments);
+  va_end(arguments);
+  const size_t remaining = sizeof(capturedMicraLogs) -
+                           capturedMicraLogsLength - 1U;
+  const size_t length = std::strlen(line) < remaining
+                            ? std::strlen(line)
+                            : remaining;
+  std::memcpy(capturedMicraLogs + capturedMicraLogsLength, line, length);
+  capturedMicraLogsLength += length;
+  if (capturedMicraLogsLength < sizeof(capturedMicraLogs) - 1U) {
+    capturedMicraLogs[capturedMicraLogsLength++] = '\n';
+  }
+  capturedMicraLogs[capturedMicraLogsLength] = '\0';
+}
 
 namespace {
 
 void resetPlatform() {
+  capturedMicraLogsLength = 0;
+  capturedMicraLogs[0] = '\0';
   fakeMillis = 100;
   testNowMs = 100;
   testRuntimeReady = true;
@@ -174,6 +204,14 @@ void testReadOnlyAssociationFlow() {
   assert(service.takeBinding(binding));
   assert(binding.requestId == request.requestId);
   assert(std::strcmp(binding.identity, "MICRA_UNIT") == 0);
+  assert(std::strstr(capturedMicraLogs,
+                     "seen=2 conn=1 named=1 match=1 bad=0 eligible=1"));
+  assert(std::strstr(capturedMicraLogs, "Micra candidate req=41"));
+  assert(std::strstr(capturedMicraLogs, "Micra connect req=41 attempt=1"));
+  assert(std::strstr(capturedMicraLogs, "Micra test confirmed req=41"));
+  assert(std::strstr(capturedMicraLogs, "TTTTTTTT") == nullptr);
+  assert(std::strstr(capturedMicraLogs, "machineCapabilities") == nullptr);
+  assert(std::strstr(capturedMicraLogs, "CoffeeBoiler1") == nullptr);
 }
 
 void testPairingRetryGetsANewDiscoverySlice() {
@@ -190,7 +228,19 @@ void testPairingRetryGetsANewDiscoverySlice() {
   request.requestId = 77;
   request.configGeneration = 8;
   assert(service.queue(request));
+  testObservationWindowAvailable = false;
   service.service();
+  assert(service.status().phase == shotstopper::LineaMicraPhase::BACKOFF);
+  assert(std::strstr(capturedMicraLogs, "Micra scan denied req=77"));
+  assert(std::strstr(capturedMicraLogs,
+                     "Micra fail req=77 stage=discovery raw=") != nullptr);
+
+  testObservationWindowAvailable = true;
+  fakeMillis += shotstopper::micra_timing::kRetryDelaysMs[0] +
+                shotstopper::micra_timing::kJitterMaxMs + 1;
+  testNowMs = fakeMillis;
+  service.service();
+  assert(service.status().phase == shotstopper::LineaMicraPhase::QUEUED);
 
   uint8_t invalidPayload[] = {11, 0x09, 'M', 'I', 'C', 'R', 'A', '_',
                               'B',  'A',  'D', 0x01};
@@ -207,8 +257,10 @@ void testPairingRetryGetsANewDiscoverySlice() {
   service.service();
   assert(service.status().phase == shotstopper::LineaMicraPhase::BACKOFF);
   assert(testConnects == 0);
+  assert(std::strstr(capturedMicraLogs,
+                     "seen=1 conn=1 named=1 match=0 bad=1 eligible=0"));
 
-  fakeMillis += shotstopper::micra_timing::kRetryDelaysMs[0] +
+  fakeMillis += shotstopper::micra_timing::kRetryDelaysMs[1] +
                 shotstopper::micra_timing::kJitterMaxMs + 1;
   testNowMs = fakeMillis;
   service.service();
@@ -298,6 +350,9 @@ void testPostActivityRefreshPreservesExhaustedCooldown() {
   }
   assert(service.status().phase == shotstopper::LineaMicraPhase::FAILED);
   assert(testConnects == shotstopper::micra_timing::kMaxAttempts);
+  assert(std::strstr(capturedMicraLogs,
+                     "stage=connect raw=") != nullptr);
+  assert(std::strstr(capturedMicraLogs, "try=4/4 retryMs=0") != nullptr);
 
   testBleCritical = true;
   ++testBleCriticalEpoch;

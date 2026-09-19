@@ -1,13 +1,45 @@
 #include "ShotStopperMicraService.h"
+#include "ShotStopperDomain.h"
 
 #include <Arduino.h>
+#include <cerrno>
 #include <cstring>
 
+void serialTraceCategoryf(shotstopper::LogLevel level,
+                          shotstopper::DebugCategory category,
+                          const char *format, ...);
+
 namespace shotstopper {
+namespace {
+
+void incrementSaturating(uint16_t &value) {
+  if (value != UINT16_MAX) ++value;
+}
+
+}  // namespace
+
+const char *ShotStopperMicraService::stageName(Stage stage) {
+  switch (stage) {
+    case Stage::IDLE: return "idle";
+    case Stage::WAIT_CANDIDATES: return "discovery";
+    case Stage::CONNECT: return "connect";
+    case Stage::AUTH: return "auth";
+    case Stage::CAPABILITIES: return "capabilities";
+    case Stage::BOILERS: return "boilers";
+    case Stage::MODE: return "mode";
+    case Stage::DISCONNECT: return "disconnect";
+  }
+  return "unknown";
+}
 
 bool ShotStopperMicraService::begin() {
-  return shotStopperBleArbiterRegisterObserver(
+  const bool registered = shotStopperBleArbiterRegisterObserver(
       ShotStopperBleOwner::Machine, observeAdvertisement, this);
+  if (!registered) {
+    serialTraceCategoryf(LogLevel::WARNING, DebugCategory::SYSTEM,
+                         "Micra BLE observer registration failed");
+  }
+  return registered;
 }
 
 void ShotStopperMicraService::service() {
@@ -130,27 +162,63 @@ void ShotStopperMicraService::service() {
                          !config_.bindingVerified;
     portENTER_CRITICAL(&mux_);
     collectCandidates_ = collect;
-    if (collect) memset(candidates_, 0, sizeof(candidates_));
+    if (collect) {
+      memset(candidates_, 0, sizeof(candidates_));
+      advertisementsObserved_ = connectableFragments_ = namedFragments_ = 0;
+      micraFragments_ = malformedFragments_ = 0;
+    }
     portEXIT_CRITICAL(&mux_);
     stage_ = collect ? Stage::WAIT_CANDIDATES : Stage::CONNECT;
     if (collect) discoveryStartedAtMs_ = millis();
     start = !collect;
     publishStatus();
-    if (collect &&
-        !shotStopperBleArbiterStartObservationWindow(
-            micra_timing::kDiscoverySliceMs)) {
-      stage_ = Stage::IDLE;
-      failRequest();
+    if (collect && !shotStopperBleArbiterStartObservationWindow(
+                       micra_timing::kDiscoverySliceMs)) {
+      const ShotStopperBleArbiterSnapshot state =
+          shotStopperBleArbiterSnapshot();
+      serialTraceCategoryf(
+          LogLevel::WARNING, DebugCategory::SYSTEM,
+          "Micra scan denied req=%lu owner=%u critical=%u reserved=%u",
+          static_cast<unsigned long>(request_.requestId),
+          static_cast<unsigned>(state.owner),
+          static_cast<unsigned>(state.critical),
+          static_cast<unsigned>(state.scaleReserved));
+      failRequest(-EBUSY);
       return;
+    }
+    if (collect) {
+      serialTraceCategoryf(
+          LogLevel::DEBUG, DebugCategory::SYSTEM,
+          "Micra scan started req=%lu windowMs=%lu",
+          static_cast<unsigned long>(request_.requestId),
+          static_cast<unsigned long>(micra_timing::kDiscoverySliceMs));
     }
   }
   if (start) startRequest();
   if (stage_ == Stage::WAIT_CANDIDATES &&
       static_cast<uint32_t>(millis() - discoveryStartedAtMs_) >=
           micra_timing::kDiscoverySliceMs) {
+    uint8_t eligible = 0;
+    uint16_t seen = 0, connectable = 0, named = 0, micra = 0, malformed = 0;
     portENTER_CRITICAL(&mux_);
     collectCandidates_ = false;
+    for (const Candidate &candidate : candidates_) {
+      eligible += candidate.used && candidate.connectable &&
+                  strncmp(candidate.identity, "MICRA_", 6) == 0;
+    }
+    seen = advertisementsObserved_;
+    connectable = connectableFragments_;
+    named = namedFragments_;
+    micra = micraFragments_;
+    malformed = malformedFragments_;
     portEXIT_CRITICAL(&mux_);
+    serialTraceCategoryf(
+        LogLevel::DEBUG, DebugCategory::SYSTEM,
+        "Micra scan req=%lu seen=%u conn=%u named=%u match=%u bad=%u eligible=%u",
+        static_cast<unsigned long>(request_.requestId),
+        static_cast<unsigned>(seen), static_cast<unsigned>(connectable),
+        static_cast<unsigned>(named), static_cast<unsigned>(micra),
+        static_cast<unsigned>(malformed), static_cast<unsigned>(eligible));
     startRequest();
   }
 }
@@ -226,21 +294,31 @@ void ShotStopperMicraService::startRequest() {
     }
     portEXIT_CRITICAL(&mux_);
     if (!found) {
-      stage_ = Stage::IDLE;
-      failRequest();
+      failRequest(-ENOENT);
       return;
     }
     peer.type = best.addressType;
     memcpy(peer.value, best.address, sizeof(peer.value));
     selectedCandidate_ = bestIndex;
+    serialTraceCategoryf(
+        LogLevel::DEBUG, DebugCategory::SYSTEM,
+        "Micra candidate req=%lu id=%s rssi=%d type=%u",
+        static_cast<unsigned long>(request_.requestId), best.identity,
+        best.rssi, static_cast<unsigned>(best.addressType));
   }
   if (!shotStopperBleArbiterPrepareMachineProcedure()) {
-    failRequest();
+    failRequest(-EBUSY);
     return;
   }
   workingStatus_.phase = LineaMicraPhase::RUNNING;
   publishStatus();
   stage_ = Stage::CONNECT;
+  serialTraceCategoryf(
+      LogLevel::DEBUG, DebugCategory::SYSTEM,
+      "Micra connect req=%lu attempt=%u bound=%u type=%u",
+      static_cast<unsigned long>(request_.requestId), attempt_ + 1U,
+      static_cast<unsigned>(config_.bindingVerified),
+      static_cast<unsigned>(peer.type));
   handleSubmission(client_.connect(peer,
                                    {micra_timing::kConnectTimeoutMs,
                                     micra_timing::kAttTimeoutMs,
@@ -257,15 +335,14 @@ void ShotStopperMicraService::handleClientEvent(
   if (event.type == lineamicra::EventType::DISCONNECTED) {
     if (stage_ != Stage::DISCONNECT &&
         workingStatus_.phase != LineaMicraPhase::CONFIRMED) {
-      stage_ = Stage::IDLE;
-      failRequest();
+      failRequest(event.status);
       return;
     }
     stage_ = Stage::IDLE;
     return;
   }
   if (event.type == lineamicra::EventType::ERROR) {
-    failRequest();
+    failRequest(event.status);
     return;
   }
   if (event.type == lineamicra::EventType::READY) {
@@ -310,6 +387,14 @@ void ShotStopperMicraService::handleClientEvent(
       workingStatus_.temperatureAtMs = millis();
       workingStatus_.phase = LineaMicraPhase::CONFIRMED;
       publishStatus();
+      if (request_.type == LineaMicraRequestType::TEST) {
+        serialTraceCategoryf(
+            LogLevel::INFO, DebugCategory::SYSTEM,
+            "Micra test confirmed req=%lu measuredDeciC=%u targetDeciC=%u",
+            static_cast<unsigned long>(request_.requestId),
+            static_cast<unsigned>(boiler.currentDeciC),
+            static_cast<unsigned>(boiler.targetDeciC));
+      }
       if (request_.type == LineaMicraRequestType::TEST &&
           !config_.bindingVerified && selectedCandidate_ < 4) {
         portENTER_CRITICAL(&mux_);
@@ -355,17 +440,25 @@ void ShotStopperMicraService::handleClientEvent(
       return;
     }
   }
-  failRequest();
+  serialTraceCategoryf(
+      LogLevel::WARNING, DebugCategory::SYSTEM,
+      "Micra response rejected req=%lu stage=%s parser=%u length=%u",
+      static_cast<unsigned long>(request_.requestId), stageName(stage_),
+      static_cast<unsigned>(error),
+      static_cast<unsigned>(event.payloadLength));
+  failRequest(-static_cast<int32_t>(error));
 }
 
 void ShotStopperMicraService::handleSubmission(bool accepted) {
   if (accepted) return;
   lineamicra::ClientEvent event;
   if (client_.takeEvent(event)) handleClientEvent(event);
-  else failRequest();
+  else failRequest(-EBUSY);
 }
 
-void ShotStopperMicraService::failRequest() {
+void ShotStopperMicraService::failRequest(int32_t status) {
+  const Stage failedStage = stage_;
+  const uint32_t requestId = request_.requestId;
   workingStatus_.quality = LineaMicraObservationQuality::COMMUNICATION_ERROR;
   workingStatus_.powerState = LineaMicraPowerState::UNKNOWN;
   workingStatus_.effectiveOn = true;
@@ -377,8 +470,10 @@ void ShotStopperMicraService::failRequest() {
       (request_.requestId ^ (static_cast<uint32_t>(attempt_) + 1U) *
                                 2654435761UL) %
       (micra_timing::kJitterMaxMs + 1U);
+  uint32_t retryDelayMs = 0;
   if (withinDeadline && attempt_ + 1U < micra_timing::kMaxAttempts) {
-    retryAtMs_ = now + micra_timing::kRetryDelaysMs[attempt_] + jitter;
+    retryDelayMs = micra_timing::kRetryDelaysMs[attempt_] + jitter;
+    retryAtMs_ = now + retryDelayMs;
     ++attempt_;
     retryPending_ = true;
     workingStatus_.phase = LineaMicraPhase::BACKOFF;
@@ -387,6 +482,38 @@ void ShotStopperMicraService::failRequest() {
     retryPending_ = false;
     nextObservationAtMs_ = now + micra_timing::kExhaustedCooldownMs + jitter;
     retryAtMs_ = now + micra_timing::kMinDisconnectedMs;
+  }
+  const lineamicra::ClientHealth health = client_.health();
+  const ShotStopperBleArbiterSnapshot arbiter = shotStopperBleArbiterSnapshot();
+  serialTraceCategoryf(
+      LogLevel::WARNING, DebugCategory::SYSTEM,
+      "Micra fail req=%lu stage=%s raw=%ld try=%u/%u retryMs=%lu client=%u mtu=%u",
+      static_cast<unsigned long>(requestId), stageName(failedStage),
+      static_cast<long>(status), attempt_ + (retryPending_ ? 0U : 1U),
+      static_cast<unsigned>(micra_timing::kMaxAttempts),
+      static_cast<unsigned long>(retryDelayMs),
+      static_cast<unsigned>(client_.state()),
+      static_cast<unsigned>(health.negotiatedMtu));
+  serialTraceCategoryf(
+      LogLevel::DEBUG, DebugCategory::SYSTEM,
+      "Micra arbiter owner=%u epoch=%lu critical=%u reserved=%u preempt=%lu denials=%lu",
+      static_cast<unsigned>(arbiter.owner),
+      static_cast<unsigned long>(arbiter.epoch),
+      static_cast<unsigned>(arbiter.critical),
+      static_cast<unsigned>(arbiter.scaleReserved),
+      static_cast<unsigned long>(arbiter.machinePreemptions),
+      static_cast<unsigned long>(arbiter.machineDenials));
+  if (health.staleCallbacks || health.droppedEvents || health.rejectedResponses ||
+      health.mbufFailures) {
+    serialTraceCategoryf(
+        LogLevel::DEBUG, DebugCategory::SYSTEM,
+        "Micra health stale=%lu drops=%lu rejected=%lu mbuf=%lu",
+        static_cast<unsigned long>(health.staleCallbacks),
+        static_cast<unsigned long>(health.droppedEvents),
+        static_cast<unsigned long>(health.rejectedResponses),
+        static_cast<unsigned long>(health.mbufFailures));
+  }
+  if (!retryPending_) {
     request_ = {};
     automaticRequest_ = false;
   }
@@ -484,20 +611,39 @@ bool ShotStopperMicraService::takeBinding(
 
 void ShotStopperMicraService::acceptAdvertisement(
     const ShotStopperBleAdvertisement &advertisement) {
+  portENTER_CRITICAL(&mux_);
+  const bool collecting = collectCandidates_;
+  if (collecting) incrementSaturating(advertisementsObserved_);
+  portEXIT_CRITICAL(&mux_);
+  if (!collecting) return;
+  const auto noteMalformed = [this]() {
+    portENTER_CRITICAL(&mux_);
+    if (collectCandidates_) incrementSaturating(malformedFragments_);
+    portEXIT_CRITICAL(&mux_);
+  };
   bool nonzeroAddress = false;
   for (uint8_t value : advertisement.address) nonzeroAddress |= value != 0;
-  if (!nonzeroAddress || advertisement.addressType > 3) return;
+  if (!nonzeroAddress || advertisement.addressType > 3) {
+    noteMalformed();
+    return;
+  }
   char identity[LINEA_MICRA_IDENTITY_CAPACITY] = {};
   size_t offset = 0;
   while (advertisement.payload != nullptr &&
          offset < advertisement.payloadLength) {
     const uint8_t fieldLength = advertisement.payload[offset];
     if (fieldLength == 0) break;
-    if (offset + fieldLength >= advertisement.payloadLength) return;
+    if (offset + fieldLength >= advertisement.payloadLength) {
+      noteMalformed();
+      return;
+    }
     const uint8_t type = advertisement.payload[offset + 1];
     if ((type == 0x08 || type == 0x09) && fieldLength > 1) {
       const size_t length = fieldLength - 1;
-      if (length >= sizeof(identity)) return;
+      if (length >= sizeof(identity)) {
+        noteMalformed();
+        return;
+      }
       memcpy(identity, advertisement.payload + offset + 2, length);
       identity[length] = '\0';
       break;
@@ -505,12 +651,31 @@ void ShotStopperMicraService::acceptAdvertisement(
     offset += static_cast<size_t>(fieldLength) + 1U;
   }
   const bool hasIdentity = identity[0] != '\0';
-  if ((hasIdentity && strncmp(identity, "MICRA_", 6) != 0) ||
-      (!hasIdentity && !advertisement.connectable)) return;
+  bool printableIdentity = true;
   for (const char value : identity) {
     if (value == '\0') break;
-    if (value < 0x20 || value > 0x7e) return;
+    if (value < 0x20 || value > 0x7e) {
+      printableIdentity = false;
+      break;
+    }
   }
+  const bool micraIdentity = hasIdentity && printableIdentity &&
+                             strncmp(identity, "MICRA_", 6) == 0;
+  portENTER_CRITICAL(&mux_);
+  if (!collectCandidates_) {
+    portEXIT_CRITICAL(&mux_);
+    return;
+  }
+  if (advertisement.connectable) incrementSaturating(connectableFragments_);
+  if (hasIdentity) incrementSaturating(namedFragments_);
+  if (micraIdentity) incrementSaturating(micraFragments_);
+  portEXIT_CRITICAL(&mux_);
+  if (!printableIdentity) {
+    noteMalformed();
+    return;
+  }
+  if ((hasIdentity && !micraIdentity) ||
+      (!hasIdentity && !advertisement.connectable)) return;
 
   portENTER_CRITICAL(&mux_);
   if (!collectCandidates_) {

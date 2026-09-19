@@ -31,7 +31,7 @@ class ShotStopperMicraService {
   void startRequest();
   void handleClientEvent(const lineamicra::ClientEvent &event);
   void handleSubmission(bool accepted);
-  void failRequest();
+  void failRequest(int32_t status);
   void finishRequest();
   void scheduleAutomaticObservation(uint32_t now);
   void publishStatus();
@@ -55,6 +55,7 @@ class ShotStopperMicraService {
     MODE,
     DISCONNECT
   };
+  static const char *stageName(Stage stage);
 
   lineamicra::LineaMicraBLE client_;
   // Worker-owned state; producers only touch the pending/published fields below.
@@ -75,6 +76,11 @@ class ShotStopperMicraService {
   uint32_t nextObservationAtMs_ = 0;
   uint32_t retryAtMs_ = 0;
   uint32_t nextAutomaticRequestId_ = 0x80000000UL;
+  uint16_t advertisementsObserved_ = 0;
+  uint16_t connectableFragments_ = 0;
+  uint16_t namedFragments_ = 0;
+  uint16_t micraFragments_ = 0;
+  uint16_t malformedFragments_ = 0;
   Stage stage_ = Stage::IDLE;
   uint8_t selectedCandidate_ = UINT8_MAX;
   uint8_t attempt_ = 0;
