@@ -8,7 +8,7 @@
 #include "../ShotStopperShotCurve.h"
 #include "../ShotStopperHistory.h"
 #include "../ShotStopperLastShot.h"
-#include "../machine/ShotStopperMachineIntegrationSettings.h"
+#include "../machine/ShotStopperLineaMicraSettings.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -2292,7 +2292,7 @@ void p84_v14_micra_defaults_and_v15_round_trip() {
   source.schemaVersion = 14;
   source.structureSize = PERSISTED_SETTINGS_V14_SIZE;
   for (ShotPreset &preset : source.presets.presets) {
-    preset.brewTargetDeciC = 0xa5a5;
+    preset.lineaMicraBrewTargetDeciC = 0xa5a5;
   }
   PersistedSettingsV14 legacy;
   memcpy(legacy.bytes, &source,
@@ -2307,67 +2307,65 @@ void p84_v14_micra_defaults_and_v15_round_trip() {
   CHECK(loadPersistedSettings(loaded));
   CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
   for (const ShotPreset &preset : loaded.presets.presets) {
-    CHECK(preset.brewTargetDeciC == 930);
+    CHECK(preset.lineaMicraBrewTargetDeciC == 930);
   }
-  CHECK(loaded.machineIntegration.token[0] == '\0');
-  CHECK(!loaded.machineIntegration.bindingVerified);
-  CHECK(loaded.machineIntegration.options == 0);
+  CHECK(loaded.lineaMicra.token[0] == '\0');
+  CHECK(!loaded.lineaMicra.bindingVerified);
+  CHECK(loaded.lineaMicra.options == 0);
 
-  memset(loaded.machineIntegration.token, 'T', 64);
-  loaded.machineIntegration.token[64] = '\0';
+  memset(loaded.lineaMicra.token, 'T', 64);
+  loaded.lineaMicra.token[64] = '\0';
   const uint8_t address[6] = {1, 2, 3, 4, 5, 6};
-  memcpy(loaded.machineIntegration.peerAddress, address, sizeof(address));
-  strcpy(loaded.machineIntegration.identity, "MICRA_TEST");
-  loaded.machineIntegration.peerAddressType = 1;
-  loaded.machineIntegration.options =
-      MACHINE_INTEGRATION_APPLY_TEMPERATURE |
-      MACHINE_INTEGRATION_OBSERVE_STATE;
-  loaded.machineIntegration.bindingVerified = true;
-  loaded.presets.presets[0].brewTargetDeciC = 935;
+  memcpy(loaded.lineaMicra.peerAddress, address, sizeof(address));
+  strcpy(loaded.lineaMicra.identity, "MICRA_TEST");
+  loaded.lineaMicra.peerAddressType = 1;
+  loaded.lineaMicra.options =
+      LINEA_MICRA_APPLY_TEMPERATURE | LINEA_MICRA_OBSERVE_STATE;
+  loaded.lineaMicra.bindingVerified = true;
+  loaded.presets.presets[0].lineaMicraBrewTargetDeciC = 935;
   CHECK(savePersistedSettings(loaded));
   loaded = {};
   CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.presets.presets[0].brewTargetDeciC == 935);
-  CHECK(loaded.machineIntegration.bindingVerified);
-  CHECK(strcmp(loaded.machineIntegration.identity, "MICRA_TEST") == 0);
-  CHECK(loaded.machineIntegration.options == 3);
+  CHECK(loaded.presets.presets[0].lineaMicraBrewTargetDeciC == 935);
+  CHECK(loaded.lineaMicra.bindingVerified);
+  CHECK(strcmp(loaded.lineaMicra.identity, "MICRA_TEST") == 0);
+  CHECK(loaded.lineaMicra.options == 3);
 
   uint8_t replacementAddress[6] = {6, 5, 4, 3, 2, 1};
-  CHECK(setMachineIntegrationBinding(loaded.machineIntegration, 1,
-                                     replacementAddress, "MICRA_SAVED"));
+  CHECK(setLineaMicraBinding(loaded.lineaMicra, 1, replacementAddress,
+                             "MICRA_SAVED"));
   char replacementToken[64];
   memset(replacementToken, 'R', sizeof(replacementToken));
-  CHECK(setMachineIntegrationToken(loaded.machineIntegration,
-                                   replacementToken,
-                                   sizeof(replacementToken)));
-  CHECK(!loaded.machineIntegration.bindingVerified);
-  CHECK(setMachineIntegrationOptions(loaded.machineIntegration, false, true));
-  CHECK(loaded.machineIntegration.options ==
-        MACHINE_INTEGRATION_OBSERVE_STATE);
-  clearMachineIntegrationToken(loaded.machineIntegration);
-  CHECK(loaded.machineIntegration.token[0] == '\0');
-  CHECK(!loaded.machineIntegration.bindingVerified);
+  CHECK(setLineaMicraToken(loaded.lineaMicra, replacementToken,
+                           sizeof(replacementToken)));
+  CHECK(!loaded.lineaMicra.bindingVerified);
+  CHECK(setLineaMicraOptions(loaded.lineaMicra, false, true));
+  CHECK(loaded.lineaMicra.options == LINEA_MICRA_OBSERVE_STATE);
+  clearLineaMicraToken(loaded.lineaMicra);
+  CHECK(loaded.lineaMicra.token[0] == '\0');
+  CHECK(!loaded.lineaMicra.bindingVerified);
 
   ShotPresetBank bank = loaded.presets;
-  CHECK(setShotPresetBrewTarget(bank, bank.activeId, 947));
+  CHECK(setShotPresetLineaMicraBrewTarget(bank, bank.activeId, 947));
   uint8_t duplicateId = 0;
   CHECK(duplicateShotPreset(bank, bank.activeId, duplicateId));
-  CHECK(findShotPreset(bank, duplicateId)->brewTargetDeciC == 947);
+  CHECK(findShotPreset(bank, duplicateId)->lineaMicraBrewTargetDeciC == 947);
   uint8_t createdId = 0;
   CHECK(createUntitledShotPreset(bank, createdId));
-  CHECK(findShotPreset(bank, createdId)->brewTargetDeciC == 930);
-  CHECK(!setShotPresetBrewTarget(bank, createdId, 799));
+  CHECK(findShotPreset(bank, createdId)->lineaMicraBrewTargetDeciC == 930);
+  CHECK(!setShotPresetLineaMicraBrewTarget(bank, createdId, 799));
   CHECK(restoreFactoryShotPresetValues(bank, FACTORY_PRESET_ID_DOUBLE));
-  CHECK(findShotPreset(bank, FACTORY_PRESET_ID_DOUBLE)->brewTargetDeciC == 930);
+  CHECK(findShotPreset(bank, FACTORY_PRESET_ID_DOUBLE)
+            ->lineaMicraBrewTargetDeciC == 930);
 
   legacy.bytes[0] ^= 1;
   PersistedSettings rejected;
   CHECK(!migratePersistedSettingsFromV14(legacy, rejected));
   CHECK(resetPersistedSettingsToFactory(loaded));
-  CHECK(loaded.machineIntegration.token[0] == '\0');
-  CHECK(!loaded.machineIntegration.bindingVerified);
-  CHECK(loaded.machineIntegration.options == 0);
-  CHECK(loaded.presets.presets[0].brewTargetDeciC == 930);
+  CHECK(loaded.lineaMicra.token[0] == '\0');
+  CHECK(!loaded.lineaMicra.bindingVerified);
+  CHECK(loaded.lineaMicra.options == 0);
+  CHECK(loaded.presets.presets[0].lineaMicraBrewTargetDeciC == 930);
 }
 
 struct TestCase {

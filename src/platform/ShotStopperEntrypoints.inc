@@ -124,7 +124,7 @@ void setup() {
     scaleWorkerLoadPreferred(persistedSettings.preferredScaleMac,
                              persistedSettings.preferredScaleName,
                              persistedSettings.scaleHistory);
-    publishMachineIntegrationConfig(persistedSettings.machineIntegration,
+    publishMachineIntegrationConfig(persistedSettings,
                                     persistedSettings.storageRevision);
   }
 #else

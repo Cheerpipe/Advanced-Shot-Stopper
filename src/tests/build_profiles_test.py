@@ -98,11 +98,18 @@ try:
                           result.stdout.splitlines())["generated_dir"])
     manifest = json.loads((generated / "build-profile.json").read_text())
     header = (generated / "ShotStopperBuildProfileGenerated.h").read_text()
-    assert manifest["machine_integration"] == "none"
-    assert "#define SHOT_STOPPER_MACHINE_INTEGRATION 0" in header
+    assert manifest["machine_integration"] == "linea_micra_ble"
+    assert "#define SHOT_STOPPER_MACHINE_INTEGRATION 1" in header
 finally:
     temporary.cleanup()
     custom_micra.unlink()
+
+unknown_integration = changed(
+    PRO_X, lambda value: value.update(integration="future_machine_bus"))
+try:
+    expect_failure(machine=unknown_integration, text="machine.integration")
+finally:
+    unknown_integration.unlink()
 
 temporary, result = run(hardware=HARDWARE_REED, machine=PRO_X_REED)
 try:

@@ -253,13 +253,15 @@ def validate_hardware(obj: dict[str, Any]) -> dict[str, Any]:
 def validate_machine(obj: dict[str, Any]) -> dict[str, Any]:
     where = "machine"
     exact(obj, {"schema_version", "id", "display_name", "compatibility_revision",
-                "brand", "model", "integration_revision", "interface",
+                "brand", "model", "integration_revision", "integration", "interface",
                 "factory_defaults"}, where)
     common_profile(obj, where)
     profile_text(obj["brand"], "machine.brand")
     profile_text(obj["model"], "machine.model")
     profile_text(obj["integration_revision"], "machine.integration_revision",
                  identifier=True)
+    integration = choice(obj["integration"], {"none", "linea_micra_ble"},
+                         "machine.integration")
     interface = exact(obj["interface"], {"control", "feedback"}, "machine.interface")
     control = choice(interface["control"], {"paddle", "momentary"},
                      "machine.interface.control")
@@ -267,6 +269,8 @@ def validate_machine(obj: dict[str, Any]) -> dict[str, Any]:
                       "machine.interface.feedback")
     if control == "paddle" and feedback != "none":
         fail("paddle control does not support reed feedback")
+    if integration == "linea_micra_ble" and (control, feedback) != ("paddle", "none"):
+        fail("linea_micra_ble requires paddle control without feedback")
     defaults = obj["factory_defaults"]
     specific = "paddle" if control == "paddle" else "momentary"
     exact(defaults, {"operational_wall_ms", specific, "quick_rinse"},
@@ -506,17 +510,11 @@ def resolve(hardware: dict[str, Any], machine: dict[str, Any], flags: str) -> di
             fail("SHOT_STOPPER_MACHINE_TYPE override conflicts with the machine profile")
     if definitions.get("SHOT_STOPPER_ENABLE_BUZZER") == "1" and not hardware["speaker"]["present"]:
         fail("buzzer support cannot be enabled when the hardware speaker is absent")
-    machine_integration = "none"
-    if (machine["id"] == "la-marzocco-linea-micra" and
-            machine["brand"] == "La Marzocco" and
-            machine["model"] == "Linea Micra" and
-            machine["interface"] == {"control": "paddle", "feedback": "none"}):
-        machine_integration = "linea_micra_ble"
     return {
         "schema_version": 1,
         "variant": f"{hardware['id']}--{machine['id']}",
         "arch": TARGETS[(hardware["target"]["chip"], hardware["target"]["memory_profile"])],
-        "machine_integration": machine_integration,
+        "machine_integration": machine["integration"],
         "hardware": hardware,
         "machine": machine,
     }

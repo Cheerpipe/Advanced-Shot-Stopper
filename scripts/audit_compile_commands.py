@@ -12,9 +12,11 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "scripts" / "project-translation-units.txt"
+KNOWN_INTEGRATIONS = {"none", "linea_micra_ble"}
 SOURCE_ROOTS = (
     ROOT / "src",
     ROOT / "libraries" / "EspressoScaleBLE" / "src",
+    ROOT / "libraries" / "LineaMicraBLE" / "src",
     ROOT / "idf" / "main",
     ROOT / "idf" / "components",
 )
@@ -27,16 +29,35 @@ def relative_project_path(path: pathlib.Path) -> str | None:
         return None
 
 
-def manifest_paths(path: pathlib.Path) -> set[str]:
-    entries: set[str] = set()
+def manifest_paths(path: pathlib.Path) -> dict[str, str | None]:
+    entries: dict[str, str | None] = {}
     for raw in path.read_text(encoding="utf-8").splitlines():
         entry = raw.strip()
         if not entry or entry.startswith("#"):
             continue
-        if entry in entries:
-            raise ValueError(f"duplicate manifest entry: {entry}")
-        entries.add(entry)
+        relative, separator, selector = entry.partition("|")
+        relative = relative.strip()
+        integration = None
+        if separator:
+            key, equals, value = selector.strip().partition("=")
+            if key != "integration" or not equals or not value:
+                raise ValueError(f"invalid manifest selector: {entry}")
+            integration = value
+            if integration not in KNOWN_INTEGRATIONS:
+                raise ValueError(f"unknown integration selector: {integration}")
+        if relative in entries:
+            raise ValueError(f"duplicate manifest entry: {relative}")
+        entries[relative] = integration
     return entries
+
+
+def selected_integration(database: pathlib.Path) -> str:
+    profile = database.resolve().parent / "generated" / "build-profile.json"
+    value = json.loads(profile.read_text(encoding="utf-8"))
+    integration = value.get("machine_integration")
+    if integration not in KNOWN_INTEGRATIONS:
+        raise ValueError(f"invalid machine_integration in {profile}")
+    return integration
 
 
 def disk_paths() -> set[str]:
@@ -82,7 +103,12 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        expected = manifest_paths(args.manifest)
+        declared = manifest_paths(args.manifest)
+        integration = selected_integration(args.database)
+        expected = {
+            relative for relative, selector in declared.items()
+            if selector is None or selector == integration
+        }
         on_disk = disk_paths()
         database = database_paths(args.database)
     except (OSError, ValueError, json.JSONDecodeError) as error:
@@ -90,8 +116,9 @@ def main() -> int:
         return 2
 
     database_set = set(database)
-    disk_missing = expected - on_disk
-    disk_untracked = on_disk - expected
+    declared_paths = set(declared)
+    disk_missing = declared_paths - on_disk
+    disk_untracked = on_disk - declared_paths
     database_missing = expected - database_set
     database_untracked = (database_set & on_disk) - expected
     duplicates = {entry for entry, count in database.items() if count != 1 and entry in expected}
@@ -107,7 +134,8 @@ def main() -> int:
 
     print(
         f"translation-unit coverage: {len(expected)}/{len(expected)} "
-        f"production C++ files, each compiled exactly once"
+        f"production C++ files for integration={integration}, "
+        "each compiled exactly once"
     )
     return 0
 

@@ -58,10 +58,10 @@ else()
     LABEL "host;ble;concurrency")
   target_include_directories(ble_arbiter_host_test PRIVATE
     "${CMAKE_SOURCE_DIR}/idf/components/ShotStopperBleRuntime")
-  host_test(micra_service_host_test
+  host_test(machine_integration_host_test
     SOURCES "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMachineIntegration.cpp"
     LABEL "host;ble;control")
-  set_tests_properties(micra_service_host_test PROPERTIES LABELS "host;ble;control")
+  host_test(linea_micra_contract_host_test LABEL "host;ble;control")
   host_test(reset_guard_instance_host_test
     SOURCES reset_guard_instance_a.cpp reset_guard_instance_b.cpp
     LABEL "host;safety")

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "ShotStopperBleArbiter.h"
-#include "ShotStopperMachineIntegrationSettings.h"
-#include "ShotStopperMachineIntegrationTypes.h"
+#include "ShotStopperLineaMicraSettings.h"
+#include "ShotStopperLineaMicraTypes.h"
 #include "ShotStopperMicraTiming.h"
 
 #include <LineaMicraBLE.h>
@@ -14,10 +14,10 @@ class ShotStopperMicraService {
  public:
   bool begin();
   void service();
-  void publishConfig(const MachineIntegrationPersistedSettings &settings,
+  void publishConfig(const LineaMicraPersistedSettings &settings,
                      uint32_t configGeneration);
-  bool queue(const MachineIntegrationRequest &request);
-  MachineIntegrationStatus status() const;
+  bool queue(const LineaMicraRequest &request);
+  LineaMicraStatus status() const;
 
  private:
   static void observeAdvertisement(
@@ -28,7 +28,7 @@ class ShotStopperMicraService {
 
   struct Candidate {
     uint8_t address[6] = {};
-    char identity[MICRA_IDENTITY_CAPACITY] = {};
+    char identity[LINEA_MICRA_IDENTITY_CAPACITY] = {};
     int8_t rssi = INT8_MIN;
     uint8_t addressType = 0;
     bool used = false;
@@ -46,9 +46,9 @@ class ShotStopperMicraService {
   };
 
   lineamicra::LineaMicraBLE client_;
-  MachineIntegrationPersistedSettings config_ = {};
-  MachineIntegrationRequest request_ = {};
-  MachineIntegrationStatus status_ = {};
+  LineaMicraPersistedSettings config_ = {};
+  LineaMicraRequest request_ = {};
+  LineaMicraStatus status_ = {};
   Candidate candidates_[4] = {};
   uint32_t configGeneration_ = 0;
   uint32_t requestStartedAtMs_ = 0;

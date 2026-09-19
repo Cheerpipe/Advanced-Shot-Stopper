@@ -6,6 +6,7 @@
   "brand": "Rancilio",
   "model": "Silvia Pro X",
   "integration_revision": "momentary-reed-v1-unqualified",
+  "integration": "none",
   "interface": {
     "control": "momentary",
     "feedback": "reed"

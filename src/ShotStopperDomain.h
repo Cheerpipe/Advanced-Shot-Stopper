@@ -1,5 +1,4 @@
 #pragma once
-
 #include <cmath>
 #include <new>
 #include <type_traits>
@@ -1841,8 +1840,8 @@ struct WebCommand {
   // PRESET_OP payload (keep small — no full bank on the queue element).
   uint8_t presetAction = 0;
   uint8_t presetId = 0;
-  bool brewTargetSpecified = false;
-  uint16_t brewTargetDeciC = 0;
+  bool lineaMicraBrewTargetSpecified = false;
+  uint16_t lineaMicraBrewTargetDeciC = 0;
   char presetName[24] = {};
   bool persistPresets = false;
   bool bbwAlgorithmSpecified = false;

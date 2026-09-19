@@ -10106,7 +10106,7 @@ void w90c_preset_temperature_presence_and_learning_invalidation() {
   resetHarness(false, false);
   reachReadyFromBoot();
   ShotPreset &preset = mutableActiveShotPreset(presetBank);
-  preset.brewTargetDeciC = 930;
+  preset.lineaMicraBrewTargetDeciC = 930;
   WebCommand save;
   save.type = WebCommandType::PRESET_OP;
   save.requestId = 901;
@@ -10114,23 +10114,23 @@ void w90c_preset_temperature_presence_and_learning_invalidation() {
   save.presetId = preset.id;
   save.config = runtimeConfig;
   processWebCommand(save);
-  CHECK(preset.brewTargetDeciC == 930);
+  CHECK(preset.lineaMicraBrewTargetDeciC == 930);
   runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
 
   auto &learning = bbwLearningBank.forPreset(preset.id, presetBank);
   const uint32_t generation = learning.generations[preset.bbwAlgorithm];
   save.requestId = 902;
-  save.brewTargetSpecified = true;
-  save.brewTargetDeciC = 945;
+  save.lineaMicraBrewTargetSpecified = true;
+  save.lineaMicraBrewTargetDeciC = 945;
   processWebCommand(save);
-  CHECK(preset.brewTargetDeciC == 945);
+  CHECK(preset.lineaMicraBrewTargetDeciC == 945);
   CHECK(learning.generations[preset.bbwAlgorithm] != generation);
   runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
 
   save.requestId = 903;
-  save.brewTargetDeciC = 1001;
+  save.lineaMicraBrewTargetDeciC = 1001;
   processWebCommand(save);
-  CHECK(preset.brewTargetDeciC == 945);
+  CHECK(preset.lineaMicraBrewTargetDeciC == 945);
   CHECK(hostLastForwardedNetworkCommand.resultState ==
         CommandResultState::FAILED);
 }

@@ -15,6 +15,7 @@ or explicit callback tables; each service owns its mutable state.
 | SafetyKernel | relay, safety timers, watchdog and reset history | bounded control intention | `RelaySafetySnapshot`, safety events |
 | ControlOrchestrator | active session, cup/recipe policy and command arbitration | scale/machine/network messages | fixed-size control snapshots and commands |
 | ScaleService | BLE central link, scale queues and radio policy | `ScaleCommand`, immutable worker policy | `ScaleEvent`, `ScaleLinkSnapshot`, RF state callback |
+| SelectedMachineIntegration | only the concrete machine's digital integration state; absent integrations use a no-op adapter | common lifecycle/config publication plus that machine's own feature requests | that machine's own bounded status types; no universal feature model |
 | NetworkService | Wi-Fi/httpd/mDNS, request parsing and webhook transport | `NetworkBridgeCallbacks`, control snapshots | `WebCommand`, transport diagnostics |
 | PersistenceService | NVS/EEPROM/partition serialization and write schedule | fixed-size records | success/failure result messages |
 | DiagnosticsService | logs, counters, task/heap snapshots and exports | observational snapshots | JSON/serial evidence only |
@@ -34,6 +35,11 @@ or explicit callback tables; each service owns its mutable state.
 6. C task handles are borrowed lifecycle tokens: their owner must execute
    stop/ack/join. Other ESP/FreeRTOS handles use a unique non-allocating owner
    or an explicitly documented static lifetime.
+7. Common machine-integration code exposes only boot, configuration-publication,
+   worker-service and timing hooks. Capabilities, requests, status, protocol and
+   policy types belong to the selected machine module; another machine is not
+   required to implement or understand them. CMake compiles exactly one concrete
+   adapter and only its private component dependencies.
 
 `scripts/check_architecture.py` gates these rules and caps growth of the three
 legacy concentration points. The caps are not quality targets: when a feature
@@ -41,6 +47,23 @@ would exceed one, extract it into its owning service rather than raising the
 limit. Current independent host harnesses exercise SafetyKernel, OTA,
 persistence, webhook policy, BLE protocol/runtime and shared resource owners
 without including either monolithic integration root.
+
+## Machine integration modules
+
+The machine profile declares an allow-listed `integration` value explicitly;
+brand, model, ID and display text never select executable code. Profiles with
+`integration: none` compile the no-op adapter and do not link a concrete machine
+protocol component. Linea Micra builds compile its adapter, service, bounded
+feature types and native BLE client. Future machines may expose entirely
+different feature APIs while retaining only the small lifecycle boundary needed
+by boot and the shared worker.
+
+The shared settings blob retains the exact 98-byte V15
+`LineaMicraPersistedSettings` record and the two-byte per-preset Micra target in
+every profile so switching a build profile cannot reinterpret the persistence
+layout. Their names, validation and helpers remain Micra-owned; unrelated
+machine modules must not reuse them. Changing either stored layout requires the
+normal schema migration even though non-Micra builds do not execute Micra code.
 
 ## BBW policy and storage
 

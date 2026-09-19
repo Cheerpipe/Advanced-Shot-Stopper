@@ -6,6 +6,7 @@
   "brand": "Rancilio",
   "model": "Silvia Pro X",
   "integration_revision": "momentary-only-v1-unqualified",
+  "integration": "none",
   "interface": {
     "control": "momentary",
     "feedback": "none"

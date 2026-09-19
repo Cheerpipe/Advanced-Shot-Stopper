@@ -42,7 +42,7 @@ struct ShotPreset {
       AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS};
   // V15 names the two former tail-padding bytes without changing the preset
   // or bank ABI. Stored in deci-Celsius (80.0–100.0 °C).
-  uint16_t brewTargetDeciC = 930;
+  uint16_t lineaMicraBrewTargetDeciC = 930;
 };
 
 struct ShotPresetBank {
@@ -59,6 +59,6 @@ static_assert(offsetof(ShotPreset, bbwAlgorithm) == 45, "V9 preset selector");
 static_assert(offsetof(ShotPreset, bbwEwmaOffsetG) == 84, "V9 preset offset");
 static_assert(offsetof(ShotPreset, bbwEwmaAlpha) == 88, "V9 preset alpha");
 static_assert(offsetof(ShotPreset, bbwAlphaBaseline) == 91, "V10 preset alpha baseline");
-static_assert(offsetof(ShotPreset, brewTargetDeciC) == 102,
+static_assert(offsetof(ShotPreset, lineaMicraBrewTargetDeciC) == 102,
               "V15 preset target must consume former tail padding");
 static_assert(sizeof(ShotPreset) == 104, "V9 preserves preset size");

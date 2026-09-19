@@ -115,10 +115,11 @@ inline void seedDefaultDeviceName(PersistedSettings &out) {
   memcpy(out.deviceName, DEFAULT_DEVICE_NAME, sizeof(DEFAULT_DEVICE_NAME));
 }
 
-inline void seedDefaultMachineIntegration(PersistedSettings &out) {
-  out.machineIntegration = {};
+inline void seedDefaultLineaMicraSettings(PersistedSettings &out) {
+  out.lineaMicra = {};
   for (ShotPreset &preset : out.presets.presets) {
-    preset.brewTargetDeciC = 930;
+    preset.lineaMicraBrewTargetDeciC =
+        LINEA_MICRA_BREW_TARGET_DEFAULT_DECI_C;
   }
 }
 
@@ -130,7 +131,7 @@ inline void seedMigratedSettingsFromV13(PersistedSettings &out,
   out = PersistedSettings{};
   copyPersistedBytes(out, legacy, offsetof(PersistedSettingsV13, checksum));
   seedDefaultDeviceName(out);
-  seedDefaultMachineIntegration(out);
+  seedDefaultLineaMicraSettings(out);
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.structureSize = sizeof(PersistedSettings);
 }
@@ -158,7 +159,7 @@ inline void initializeMigratedBbw(PersistedSettings &out) {
     preset.bbwProfileVersion = BBW_PROFILE_VERSION;
     preset.bbwAlphaBaseline = DEFAULT_BBW_EWMA_ALPHA;
   }
-  seedDefaultMachineIntegration(out);
+  seedDefaultLineaMicraSettings(out);
 }
 
 // V14 is the previous current blob. Its final checksum occupied the position
@@ -188,7 +189,7 @@ inline bool migratePersistedSettingsFromV14(
   out = PersistedSettings{};
   copyPersistedBytes(out, v14,
                      PERSISTED_SETTINGS_V14_SIZE - sizeof(uint32_t));
-  seedDefaultMachineIntegration(out);
+  seedDefaultLineaMicraSettings(out);
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.structureSize = sizeof(PersistedSettings);
   out.checksum = persistedSettingsChecksum(out);

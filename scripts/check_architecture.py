@@ -59,6 +59,32 @@ def main() -> int:
         ):
             failures.append(f"ScaleService bridge contract missing {required!r}")
 
+    machine_common = (
+        "src/machine/ShotStopperMachineIntegration.h",
+        "src/machine/ShotStopperMachineIntegration.cpp",
+    )
+    for relative in machine_common:
+        source = text(relative)
+        for token in ("Micra", "Linea", "brewTarget", "ObservedMode", "Capabilities"):
+            if token in source:
+                failures.append(
+                    f"common machine lifecycle exposes concrete feature {token!r} "
+                    f"in {relative}"
+                )
+    machine_cmake = text("idf/components/shotStopper/CMakeLists.txt")
+    base_requires = machine_cmake.split(
+        "set(SHOT_STOPPER_REQUIRES", 1
+    )[1].split(")", 1)[0]
+    if "LineaMicraBLE" in base_requires:
+        failures.append("non-Micra firmware unconditionally depends on LineaMicraBLE")
+    for required in (
+        "ShotStopperLineaMicraIntegration.cpp",
+        "idf_component_optional_requires(PRIVATE LineaMicraBLE)",
+        "ShotStopperMachineIntegration.cpp",
+    ):
+        if required not in machine_cmake:
+            failures.append(f"selected machine source contract missing {required!r}")
+
     network = service_text("src/ShotStopperNetwork.cpp", "src/network") + text(
         "src/ShotStopperNetwork.h"
     )
@@ -77,6 +103,8 @@ def main() -> int:
         "src/tests/persistence_host_test.cpp",
         "src/tests/webhook_error_host_test.cpp",
         "src/tests/resource_owner_host_test.cpp",
+        "src/tests/machine_integration_host_test.cpp",
+        "src/tests/linea_micra_contract_host_test.cpp",
         "libraries/EspressoScaleBLE/tests/scale_ble_portable_test.cpp",
     )
     for relative in independent_harnesses:
@@ -115,7 +143,10 @@ def main() -> int:
         for failure in failures:
             print(f"architecture error: {failure}", file=sys.stderr)
         return 1
-    print("architecture boundaries: Safety/Control/Scale/Network/Persistence/Diagnostics OK")
+    print(
+        "architecture boundaries: "
+        "Safety/Control/Scale/Machine/Network/Persistence/Diagnostics OK"
+    )
     return 0
 
 

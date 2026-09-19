@@ -6,6 +6,7 @@
   "brand": "La Marzocco",
   "model": "Linea Micra",
   "integration_revision": "paddle-v1-unqualified",
+  "integration": "linea_micra_ble",
   "interface": {
     "control": "paddle",
     "feedback": "none"

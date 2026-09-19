@@ -376,8 +376,9 @@ void processWebCommand(const WebCommand &command) {
           }
           ShotPreset candidateRecipe = *preset;
           copyUserRecipeFromConfig(command.config, candidateRecipe);
-          if (command.brewTargetSpecified)
-            candidateRecipe.brewTargetDeciC = command.brewTargetDeciC;
+          if (command.lineaMicraBrewTargetSpecified)
+            candidateRecipe.lineaMicraBrewTargetDeciC =
+                command.lineaMicraBrewTargetDeciC;
           if (!command.bbwAlgorithmSpecified)
             candidateRecipe.bbwAlgorithm = preset->bbwAlgorithm;
           if (!command.bbwBaselineSpecified)

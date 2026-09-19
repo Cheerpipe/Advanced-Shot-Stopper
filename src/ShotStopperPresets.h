@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ShotStopperDomain.h"
+#include "machine/ShotStopperLineaMicraSettings.h"
 
 namespace shotstopper {
 
@@ -142,7 +143,10 @@ inline bool validateShotPresetRecipe(const ShotPreset &preset,
   if (preset.bbwAlgorithm > 1 || !validBbwAlpha(preset.bbwEwmaAlpha) ||
       !validBbwAlpha(preset.bbwAlphaBaseline) ||
       preset.bbwAlphaLearned > 1 || preset.bbwProfileVersion != BBW_PROFILE_VERSION ||
-      preset.brewTargetDeciC < 800 || preset.brewTargetDeciC > 1000 ||
+      preset.lineaMicraBrewTargetDeciC <
+          LINEA_MICRA_BREW_TARGET_MIN_DECI_C ||
+      preset.lineaMicraBrewTargetDeciC >
+          LINEA_MICRA_BREW_TARGET_MAX_DECI_C ||
       !std::isfinite(preset.bbwEwmaOffsetG) || preset.bbwEwmaOffsetG < 0.0f ||
       preset.bbwEwmaOffsetG > MAX_OFFSET_G) return false;
   RuntimeConfig probe;
@@ -329,13 +333,14 @@ inline bool setActiveShotPreset(ShotPresetBank &bank, uint8_t id) {
   return true;
 }
 
-inline bool setShotPresetBrewTarget(ShotPresetBank &bank, uint8_t id,
-                                    uint16_t targetDeciC) {
+inline bool setShotPresetLineaMicraBrewTarget(ShotPresetBank &bank, uint8_t id,
+                                              uint16_t targetDeciC) {
   ShotPreset *preset = mutableShotPreset(bank, id);
-  if (preset == nullptr || targetDeciC < 800 || targetDeciC > 1000) {
+  if (preset == nullptr || targetDeciC < LINEA_MICRA_BREW_TARGET_MIN_DECI_C ||
+      targetDeciC > LINEA_MICRA_BREW_TARGET_MAX_DECI_C) {
     return false;
   }
-  preset->brewTargetDeciC = targetDeciC;
+  preset->lineaMicraBrewTargetDeciC = targetDeciC;
   return true;
 }
 

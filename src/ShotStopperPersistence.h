@@ -30,7 +30,7 @@ inline bool validPersistedSettings(const PersistedSettings &settings) {
                               settings.runtime.autoRetare) ||
       !validDevicePassword(settings.devicePassword) ||
       !validDeviceName(settings.deviceName) ||
-      !validMachineIntegrationSettings(settings.machineIntegration) ||
+      !validLineaMicraSettings(settings.lineaMicra) ||
       !validPreferredScaleMac(settings.preferredScaleMac) ||
       !validPreferredScaleName(settings.preferredScaleName) ||
       !validScaleHistoryEntries(settings.scaleHistory) ||
@@ -72,7 +72,7 @@ inline PersistedSettings &persistedSettingsScratch(uint8_t index) {
 
 // Legacy migration runs during setup() on the 8 KiB Arduino loop task.
 // Legacy blobs stage in this temporary internal allocation — taken only
-// while a legacy V1–V13 blob is actually being read (boot migration or a
+// while a legacy V1–V14 blob is actually being read (boot migration or a
 // post-boot probe while a legacy blob is still stored) and released by the
 // callers of readSettingsSlot once the read path finishes. It keeps the
 // record off the NVS call chain without permanently reserving scratch.
@@ -85,7 +85,7 @@ inline uint8_t *persistedSettingsMigrationScratch() {
   uint8_t *&block = persistedSettingsMigrationBlock();
   if (block == nullptr) {
     block = static_cast<uint8_t *>(
-        allocInternal(sizeof(PersistedSettingsV13), AllocationOwner::FLASH_IO));
+        allocInternal(sizeof(PersistedSettingsV14), AllocationOwner::FLASH_IO));
   }
   return block;
 }
