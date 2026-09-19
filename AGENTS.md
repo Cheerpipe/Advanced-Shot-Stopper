@@ -135,6 +135,12 @@ process-discovery preflight. `lsof -p $$` is usable only for the invoking
 process, not general discovery. If external process state is essential, report
 the limitation and request the needed permission instead of retrying.
 
+On macOS, run any validation gate that includes ESP-IDF compilation with
+`require_escalated` permission from the outset because the component manager
+queries processes internally. Do not first run it in the sandbox to reproduce
+the expected denial; keep the gate unchanged and do not enable network access,
+flashing, OTA, or hardware interaction.
+
 When staging or committing requires creating `.git/index.lock`, invoke the
 narrow `git add` or `git commit` command with `require_escalated` permission
 directly; do not first run it in the sandbox to reproduce the expected
