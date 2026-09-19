@@ -20,7 +20,7 @@ presets, but not the last remaining preset. The active preset survives reboot.
 
 | Scope | Settings |
 | --- | --- |
-| Preset | Target, BBW, cutoff algorithm, protection time, Fast/Slow/A→M guards, cup-protection options, accidental-touch protection, offset/alpha baselines, separate regression/EWMA offsets, EWMA gain and initial/learned provenance |
+| Preset | Target, BBW, cutoff algorithm, protection time, Fast/Slow/A→M guards, cup-protection options, accidental-touch protection, offset/alpha baselines, separate regression/EWMA offsets, EWMA gain and initial/learned provenance; Linea Micra builds also retain a brew-boiler target |
 | Shared machine settings | Physical switch behavior, rinse, no-scale policy, all three tare switches and timing, cup detection, alerts, preferred scale, network |
 | Home session | Quick Settings BBW affects the current workflow. Turning it off selects Manual without saving BBW off in the recipe. |
 | Home / Home Assistant active preset | Quick guard switches persist Fast, Slow, A→M, cup protection, and accidental-touch values only in the active preset. |
@@ -32,6 +32,10 @@ shared machine policy, and the five guard switches persist only the active
 preset without changing its target or learned values.
 Save remains bound to the preset whose fields were loaded into the form; an
 asynchronous active-preset change cannot redirect those values to another recipe.
+The Linea Micra brew target accepts 80.0–100.0 °C in 0.1 °C steps and defaults
+to 93.0 °C for new and migrated recipes. Duplicating a preset copies this value;
+disabling or removing the Micra integration does not erase it. See
+[Linea Micra settings](../settings/linea-micra.md).
 
 ## Factory recipes
 

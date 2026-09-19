@@ -257,6 +257,15 @@ void ShotStopperNetwork::clearStagedWebhook(uint32_t requestId) {
   dataMux_.unlock();
 }
 
+void ShotStopperNetwork::clearStagedLineaMicra(uint32_t requestId) {
+  dataMux_.lock();
+  if (requestId == 0 || stagedLineaMicraRequestId_ == requestId) {
+    memset(&stagedLineaMicra_, 0, sizeof(stagedLineaMicra_));
+    stagedLineaMicraRequestId_ = 0;
+  }
+  dataMux_.unlock();
+}
+
 void ShotStopperNetwork::mergePreferredScaleMac(PersistedSettings &settings) {
   if (callbacks_.copyPreferredScaleMac != nullptr) {
     callbacks_.copyPreferredScaleMac(settings.preferredScaleMac,
@@ -432,6 +441,42 @@ void ShotStopperNetwork::service() {
   // A successful AP_START / WIFI_CONNECT can mark startup complete and skip
   // the automatic retry that would otherwise fight the user's command.
   processAcceptedCommands();
+
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE
+  // A successful read-only Test produces a verified peer result on the BLE
+  // worker. Persist it through the same maintenance owner as every Web change;
+  // never write flash, carry the token, or block from the BLE worker.
+  bool bindingStageAvailable = false;
+  dataMux_.lock();
+  bindingStageAvailable = stagedLineaMicraRequestId_ == 0;
+  dataMux_.unlock();
+  if (bindingStageAvailable) {
+    LineaMicraBindingResult binding = {};
+    if (takeMachineIntegrationBinding(binding)) {
+      LineaMicraPersistedSettings current = {};
+      uint32_t storageRevision = 0;
+      dataMux_.lock();
+      current = settings_.lineaMicra;
+      storageRevision = settings_.storageRevision;
+      dataMux_.unlock();
+      if (binding.configGeneration == storageRevision &&
+          setLineaMicraBinding(current, binding.addressType,
+                               binding.address, binding.identity)) {
+        WebCommand command;
+        command.type = WebCommandType::SAVE_LINEA_MICRA;
+        command.requestId = allocateRequestId();
+        command.webhookStageRequestId = command.requestId;
+        dataMux_.lock();
+        stagedLineaMicra_ = current;
+        stagedLineaMicraRequestId_ = command.requestId;
+        dataMux_.unlock();
+        if (!callbacks_.enqueueWebCommand(command)) {
+          clearStagedLineaMicra(command.requestId);
+        }
+      }
+    }
+  }
+#endif
 
   // Boot confirmation must also run while a requested restart is waiting.
   serviceOtaRollback(now);

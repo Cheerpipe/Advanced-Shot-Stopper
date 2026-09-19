@@ -134,7 +134,8 @@ using TestWriteCallback = int(*)(uint16_t,const ble_gatt_error *,ble_gatt_attr *
 inline TestWriteCallback testWriteCallback=nullptr;
 inline void *testWriteArg=nullptr;
 inline int testSubmitStatus=0, testTerminateStatus=0, testConnectCancelStatus=0;
-inline unsigned testTerminations=0, testConnectCancels=0, testWrites=0;
+inline unsigned testTerminations=0, testConnectCancels=0, testConnects=0,
+                testWrites=0;
 inline uint16_t testLastWriteHandle=0,testLastWriteLength=0;
 inline uint8_t testLastWriteData[600]={};
 inline bool testMbufAllocFails=false;
@@ -197,6 +198,7 @@ inline int ble_gattc_read_long(uint16_t,uint16_t,uint16_t,
 template<class... T> int ble_gattc_disc_all_dscs(T...) { return BLE_HS_EINVAL; }
 inline int ble_gap_connect(uint8_t,const ble_addr_t *,uint32_t,const void *,
                            TestGapCallback callback,void *argument) {
+  ++testConnects;
   testGapCallback=callback; testGapArg=argument; return testConnectSubmitStatus;
 }
 template<class... T> int ble_gap_disc(T...) { return 0; }

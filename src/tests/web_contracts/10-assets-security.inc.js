@@ -178,7 +178,9 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // markup and fuller hints, adding ~1.7 KB of HTML source allowance.
 // The Admin Network device-name label and hint add ~0.1 KB of HTML source
 // allowance.
-if (htmlBytes > 65800) {
+// Profile-gated Linea Micra setup, per-preset temperature, and read-only
+// machine-state diagnostics add 2.4 KB of HTML source.
+if (htmlBytes > 68200) {
   throw new Error('Web UI HTML source exceeds the authoring budget');
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
@@ -212,11 +214,13 @@ if (htmlBytes > 65800) {
 // source allowance.
 // Weekday names, short dates, and the hover <time> wrapper add ~0.2 KB of
 // combined source allowance.
-if (jsBytes > 187000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 187000)`);
+// Linea Micra save/test/refresh wiring and browser-side state expiry add
+// 4.7 KB of JS source and 7.2 KB to the combined source allowance.
+if (jsBytes > 191700) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 191700)`);
 }
-if (htmlBytes + jsBytes > 252700) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 252700)`);
+if (htmlBytes + jsBytes > 259900) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 259900)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

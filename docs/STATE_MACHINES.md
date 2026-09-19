@@ -21,6 +21,7 @@ Related product docs: [Brew by weight](features/brew-by-weight.md),
 | --- | --- |
 | Brew and electrical safety | [Stopper](#1-stopper-stopperstate), [relay](#2-relay-safety-relaysafetystate) |
 | Physical controls | [Machine state](#3-machine-run-state-machinerunstate), [user intent](#4-user-intent-userintent) |
+| Optional machine integration | [Linea Micra observer](#linea-micra-read-only-observer) |
 | Weight and cup sensing | [Weight control](#5-weight-control-weightcontrolstate), [stream](#6-weight-stream-weightstreamstate), [cup](#7-cup-presence-cuppresencestate), [first flow](#8-first-flow-firstflowphase--firstflowclass), [touch](#9-accidental-touch-accidentaltouchphase--accidentaltouchclass) |
 | Scale connection | [Link and commands](#10-scale-link-scalelinkstate), [no-scale guard](#11-no-scale-bbw-guard) |
 | Access and updates | [Recovery](#12-recovery-gesture), [Wi-Fi](#13-station-wi-fi-stastate), [scan](#14-wi-fi-scan-wifiscanstate), [clock](#15-wall-clock-timesyncstate), [OTA](#16-ota-otastate), [Web commands](#17-web-command-pipeline-commandresultstate) |
@@ -860,6 +861,26 @@ Source: `ShotStopperDomain.h`.
 The development-only unsafe Web UI override is **not** a state machine: it is a flag on the
 queued command (`unsafeWebUiOverride`) that bypasses the config-lock
 gate. It never changes relay safety.
+
+---
+
+## Linea Micra read-only observer
+
+Micra builds may run a separate BLE observer when **Monitor machine power
+state** is enabled and a verified machine is paired. It reconnects on a nominal
+15-second cadence, authenticates, reads `machineMode`, and disconnects. A current
+`StandBy` response maps to OFF, `BrewingMode` to ON, and ECO or an unknown value
+to UNKNOWN. Communication errors and samples older than 30 seconds are also
+UNKNOWN; the separate `effectiveOn` presentation policy treats UNKNOWN as ON
+without claiming that ON was measured.
+
+The observer uses four total attempts with 3/6/9-second waits and bounded
+jitter. Exhaustion starts a 60-second cooldown. Scale activity and local cycles
+have priority: existing evidence is invalidated while critical activity is in
+progress, no machine operation is admitted, and one read becomes due after the
+critical interval without bypassing an active cooldown. The observer never
+starts or stops a cycle, drives the relay, selects a preset, or changes paddle
+behavior.
 
 ---
 

@@ -58,6 +58,14 @@ feature types and native BLE client. Future machines may expose entirely
 different feature APIs while retaining only the small lifecycle boundary needed
 by boot and the shared worker.
 
+The adapter receives advertisements through the shared BLE arbiter. Initial
+pairing asks the scale-owned scanner for one bounded observation window; before
+a machine peer procedure, that same coordinator pauses discovery without
+disconnecting a linked scale. A newly detected scale candidate or a critical
+control interval still wins admission. This keeps scanner and host ownership out
+of the machine-specific service while allowing other adapters to define
+different capabilities.
+
 The shared settings blob retains the exact 98-byte V15
 `LineaMicraPersistedSettings` record and the two-byte per-preset Micra target in
 every profile so switching a build profile cannot reinterpret the persistence

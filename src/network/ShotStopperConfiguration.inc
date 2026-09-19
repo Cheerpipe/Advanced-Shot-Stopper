@@ -828,6 +828,28 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
             jsonFieldPresent(root, "bbwAlphaLearned") ||
             jsonFieldPresent(root, "bbwEwmaOffsetG"))
           parseError = "BBW learning state is read-only.";
+        const cJSON *micraTarget =
+            cJSON_GetObjectItemCaseSensitive(root, "lineaMicraBrewTargetC");
+        if (parseError == nullptr && micraTarget != nullptr) {
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE
+          const double scaled = cJSON_IsNumber(micraTarget)
+                                    ? micraTarget->valuedouble * 10.0
+                                    : NAN;
+          const long rounded = lround(scaled);
+          if (!std::isfinite(scaled) || fabs(scaled - rounded) > 0.0001 ||
+              rounded < LINEA_MICRA_BREW_TARGET_MIN_DECI_C ||
+              rounded > LINEA_MICRA_BREW_TARGET_MAX_DECI_C) {
+            parseError =
+                "lineaMicraBrewTargetC must be 80.0–100.0 in 0.1 degree steps.";
+          } else {
+            command.lineaMicraBrewTargetSpecified = true;
+            command.lineaMicraBrewTargetDeciC =
+                static_cast<uint16_t>(rounded);
+          }
+#else
+          parseError = "Linea Micra preset temperature is not supported by this firmware.";
+#endif
+        }
       }
     }
   } else {

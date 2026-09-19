@@ -153,6 +153,24 @@ restart path accepted the request. During an extraction it waits for the cycle
 to end; it never closes the relay or resumes a cycle after boot. This trusted-
 LAN route exposes no machine actuation counterpart.
 
+## Linea Micra Web API
+
+Micra-compiled firmware exposes `POST /api/v1/machine/linea-micra` to the
+claimed Web UI. It accepts one strict `action`: `save`, `test`, `refresh`,
+`forget`, or `remove_token`. `save` also requires the independent
+`applyTemperature` and `observeState` booleans; an optional token must contain
+exactly 64 printable characters. Unknown, duplicate, or action-inappropriate
+fields are rejected. Accepted mutations return `202` and persist through the
+normal single-writer command path.
+
+Settings and diagnostic status include a Micra subtree only in Micra firmware.
+It reports `tokenConfigured`, verified binding identity/address, option flags,
+request phase, ON/OFF/UNKNOWN power state, raw observed mode, evidence quality,
+effective-state interpretation, sample age/freshness, and the last read-only
+temperature Test result. The token itself is never returned. `refresh` is
+read-only and requires monitoring plus a verified binding; none of these fields
+authorizes machine actuation.
+
 ## Webhook version 1
 
 All messages are POSTed as bounded JSON. Common fields are `schemaVersion: 1`,

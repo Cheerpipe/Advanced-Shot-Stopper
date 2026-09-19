@@ -64,6 +64,14 @@ under the existing nested spinlocks; the consumer formats its private address
 copy after unlocking. A concurrent advertisement remains pending for the next
 consumption.
 
+The shared BLE arbiter is also the single scan admission point for optional
+machine integrations. EspressoScaleBLE owns the physical scanner and exposes a
+bounded observation window plus a prepare-for-machine callback. Observer
+callbacks are copied and invoked after the arbiter lock is released. Scale
+candidate reservation or critical activity invalidates a machine lease; the
+machine client then tears down through its normal generation-checked event path.
+No machine-specific service owns a second scanner, BLE host, or worker task.
+
 The relay and independent safety-timer `portMUX` sections are independent and
 may never nest with another lock. The timer captures callback state under its
 spinlock, invokes the relay callback after releasing it, and rejects stop/re-arm

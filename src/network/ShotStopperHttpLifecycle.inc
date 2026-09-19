@@ -94,6 +94,9 @@ void ShotStopperNetwork::processAcceptedMaintenanceCommand(uint32_t now) {
       if (acceptedCommand_.type == WebCommandType::SAVE_WEBHOOK) {
         clearStagedWebhook(acceptedCommand_.webhookStageRequestId);
       }
+      if (acceptedCommand_.type == WebCommandType::SAVE_LINEA_MICRA) {
+        clearStagedLineaMicra(acceptedCommand_.webhookStageRequestId);
+      }
       (void)enqueueMaintenanceCompletion(
           acceptedCommand_, false, CommandResultState::CANCELED);
       acceptedCommandPending_ = false;
@@ -105,6 +108,9 @@ void ShotStopperNetwork::processAcceptedMaintenanceCommand(uint32_t now) {
       control.physicalActivatorOn) {
     if (acceptedCommand_.type == WebCommandType::SAVE_WEBHOOK) {
       clearStagedWebhook(acceptedCommand_.webhookStageRequestId);
+    }
+    if (acceptedCommand_.type == WebCommandType::SAVE_LINEA_MICRA) {
+      clearStagedLineaMicra(acceptedCommand_.webhookStageRequestId);
     }
     (void)enqueueMaintenanceCompletion(
         acceptedCommand_, false, CommandResultState::CANCELED);
@@ -127,6 +133,9 @@ void ShotStopperNetwork::processAcceptedMaintenanceCommand(uint32_t now) {
     }
     if (acceptedCommand_.type == WebCommandType::SAVE_WEBHOOK) {
       clearStagedWebhook(acceptedCommand_.webhookStageRequestId);
+    }
+    if (acceptedCommand_.type == WebCommandType::SAVE_LINEA_MICRA) {
+      clearStagedLineaMicra(acceptedCommand_.webhookStageRequestId);
     }
     (void)enqueueMaintenanceCompletion(acceptedCommand_, false);
     log(DebugCategory::SECURITY, DebugCode::COMMAND_FAILED,
@@ -156,6 +165,7 @@ bool ShotStopperNetwork::enqueueMaintenanceCompletion(
       succeeded ? (command.type == WebCommandType::PERSIST_RUNTIME ||
                            command.type == WebCommandType::SAVE_NETWORK ||
                            command.type == WebCommandType::SAVE_WEBHOOK ||
+                           command.type == WebCommandType::SAVE_LINEA_MICRA ||
                            command.type == WebCommandType::FORGET_NETWORK ||
                            command.type == WebCommandType::CHANGE_DEVICE_PASSWORD ||
                            command.type == WebCommandType::RESET_DEVICE_PASSWORD ||
@@ -229,6 +239,23 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
         return false;
       }
       next.webhook = staged;
+      persist = true;
+      break;
+    }
+
+    case WebCommandType::SAVE_LINEA_MICRA: {
+      LineaMicraPersistedSettings staged = {};
+      dataMux_.lock();
+      const bool matches = stagedLineaMicraRequestId_ != 0 &&
+                           stagedLineaMicraRequestId_ ==
+                               command.webhookStageRequestId;
+      if (matches) staged = stagedLineaMicra_;
+      dataMux_.unlock();
+      if (!matches || !validLineaMicraSettings(staged)) {
+        log(DebugCategory::CONFIG, DebugCode::CONFIG_REJECTED);
+        return false;
+      }
+      next.lineaMicra = staged;
       persist = true;
       break;
     }
@@ -431,6 +458,10 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
       webhooks_.setConfig(next.webhook);
       clearStagedWebhook(command.webhookStageRequestId);
     }
+    if (command.type == WebCommandType::SAVE_LINEA_MICRA) {
+      clearStagedLineaMicra(command.webhookStageRequestId);
+    }
+    publishMachineIntegrationConfig(next, next.storageRevision);
     publishConfiguredAddressStatus();
     applyMdnsName();
     log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
@@ -444,6 +475,7 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
     dataMux_.unlock();
     publishConfiguredAddressStatus();
     applyMdnsName();
+    publishMachineIntegrationConfig(next, next.storageRevision);
     log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
         static_cast<int32_t>(next.runtime.revision));
   }
@@ -1124,6 +1156,7 @@ bool ShotStopperNetwork::startHttpServer() {
       registerHandler(server_, "/api/v1/time/sync", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/config", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/webhooks", HTTP_POST, ownedApiHandler) &&
+      registerHandler(server_, "/api/v1/machine/linea-micra", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/bullseye/test", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/scale/preferred/clear", HTTP_POST, ownedApiHandler) &&
       registerHandler(server_, "/api/v1/scale/preferred/select", HTTP_POST, ownedApiHandler) &&

@@ -78,10 +78,11 @@
   assert.equal(select.value, 'legacy');
 
   const payload = runtimeJs.split('\n').find(line => line.startsWith('function brewPayload('));
-  const makePayload = new Function('$', 'number', 'sToMs', 'presetState', 'bbwFormPresetId',
+  const makePayload = new Function('$', 'number', 'sToMs', 'presetState', 'bbwFormPresetId', 'document',
     payload + ';return brewPayload();');
+  const nonMicraDocument = {documentElement: {classList: {contains: () => false}}};
   const fields = makePayload(id => elements.get(id) || {checked: true, value: 'auto'},
-    () => 36, () => 30000, {activeId: 1}, 2);
+    () => 36, () => 30000, {activeId: 1}, 2, nonMicraDocument);
   assert.equal(fields.id, 2, 'A selection change must not retarget the rendered recipe');
   assert(!('bbwAlgorithm' in fields));
   assert(!('weightOffsetBaselineG' in fields));
@@ -92,7 +93,8 @@
   select.value = 'linear_ewma';
   refresh();
   const withBase = makePayload(id => elements.get(id) || {checked: true, value: 'auto'},
-    id => id === 'bbwAlphaBaseline' ? .37 : 36, () => 30000, {activeId: 1}, 2);
+    id => id === 'bbwAlphaBaseline' ? .37 : 36, () => 30000,
+    {activeId: 1}, 2, nonMicraDocument);
   assert.equal(withBase.bbwAlphaBaseline, .37);
 }
 

@@ -1682,6 +1682,7 @@ enum class WebCommandType : uint8_t {
   CLEAR_SHOT_LOG,
   CLEAR_RESET_HISTORY,
   SAVE_WEBHOOK,
+  SAVE_LINEA_MICRA,
   CLEAR_PREFERRED_SCALE,
   SELECT_PREFERRED_SCALE,
   PERSIST_RUNTIME,
@@ -1704,7 +1705,6 @@ enum class WebCommandType : uint8_t {
   FORCE_SWITCH_PULSE,
   MAINTENANCE_COMPLETE
 };
-
 inline const char *webCommandTypeName(WebCommandType type) {
   switch (type) {
     case WebCommandType::REMOTE_ON: return "remote web on";
@@ -1733,6 +1733,7 @@ inline const char *webCommandTypeName(WebCommandType type) {
     case WebCommandType::CLEAR_SHOT_LOG: return "clear shot history";
     case WebCommandType::CLEAR_RESET_HISTORY: return "clear reset history";
     case WebCommandType::SAVE_WEBHOOK: return "save webhook";
+    case WebCommandType::SAVE_LINEA_MICRA: return "save Linea Micra settings";
     case WebCommandType::CLEAR_PREFERRED_SCALE:
       return "forget paired scale";
     case WebCommandType::SELECT_PREFERRED_SCALE:
@@ -1761,7 +1762,6 @@ inline const char *webCommandTypeName(WebCommandType type) {
   }
   return "unknown web command";
 }
-
 inline bool isCliNetworkAction(WebCommandType type) {
   switch (type) {
     case WebCommandType::WIFI_CONNECT:

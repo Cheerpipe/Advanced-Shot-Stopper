@@ -244,6 +244,7 @@ class ShotStopperNetwork {
   private:
   void mergePreferredScaleMac(PersistedSettings &settings);
   void clearStagedWebhook(uint32_t requestId);
+  void clearStagedLineaMicra(uint32_t requestId);
   void overlayLiveShotSettings(PersistedSettings &settings);
   static constexpr uint32_t STA_CONNECT_TIMEOUT_MS = 25000;
   static constexpr uint32_t STA_RECOVERY_ATTEMPT_MS = 60000;
@@ -388,6 +389,8 @@ class ShotStopperNetwork {
   WebhookDispatcher webhooks_;
   WebhookConfig stagedWebhook_ = {};
   uint32_t stagedWebhookRequestId_ = 0;
+  LineaMicraPersistedSettings stagedLineaMicra_ = {};
+  uint32_t stagedLineaMicraRequestId_ = 0;
   uint32_t stagedPresetRequestId_ = 0;
 
   static void taskEntry(void *parameter);
@@ -503,6 +506,7 @@ class ShotStopperNetwork {
   static esp_err_t timeSyncHandler(httpd_req_t *request);
   static esp_err_t configHandler(httpd_req_t *request);
   static esp_err_t webhookHandler(httpd_req_t *request);
+  static esp_err_t lineaMicraHandler(httpd_req_t *request);
   static esp_err_t integrationHandler(httpd_req_t *request);
   static esp_err_t bullseyeTestHandler(httpd_req_t *request);
   static esp_err_t preferredScaleClearHandler(httpd_req_t *request);

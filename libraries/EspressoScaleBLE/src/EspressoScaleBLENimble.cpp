@@ -376,6 +376,53 @@ class NimbleScaleClient {
            state_ == State::Subscribing || state_ == State::Initializing;
   }
 
+  bool startObservationScan(uint32_t durationMs) {
+    service();
+    if (durationMs == 0 || durationMs > INT32_MAX || state_ != State::Ready ||
+        observationScanActive_) return observationScanActive_;
+    const uint32_t operationId = beginOperation(CallbackDomain::Scan);
+    ble_gap_disc_params params = {};
+    params.passive = 0;
+    params.filter_duplicates = 0;
+    params.itvl = scanInterval_ == 0 ? BLE_SCAN_BALANCED_INTERVAL : scanInterval_;
+    params.window = scanWindow_ == 0 ? BLE_SCAN_BALANCED_WINDOW : scanWindow_;
+    portENTER_CRITICAL(&mux_);
+    observationScanActive_ = true;
+    portEXIT_CRITICAL(&mux_);
+    const int rc = ble_gap_disc(shotStopperBleRuntimeOwnAddressType(),
+                                static_cast<int32_t>(durationMs), &params,
+                                gapCallback, callbackArg(operationId));
+    if (rc != 0) {
+      portENTER_CRITICAL(&mux_);
+      scanOperationId_ = 0;
+      observationScanActive_ = false;
+      portEXIT_CRITICAL(&mux_);
+      return false;
+    }
+    return true;
+  }
+
+  bool prepareMachineProcedure() {
+    service();
+    if (isConnecting()) return false;
+    bool observationScan = false;
+    portENTER_CRITICAL(&mux_);
+    observationScan = observationScanActive_;
+    if (observationScan) {
+      observationScanActive_ = false;
+      scanOperationId_ = 0;
+    }
+    portEXIT_CRITICAL(&mux_);
+    if (observationScan) {
+      const int rc = ble_gap_disc_cancel();
+      return rc == 0 || rc == BLE_HS_EALREADY;
+    }
+    if (state_ == State::Scanning || state_ == State::Backoff) {
+      (void)finishLink(false, ScaleDisconnectReason::NONE, 0);
+    }
+    return state_ == State::Idle || state_ == State::Ready;
+  }
+
   void disconnect() {
     finishLink(true, ScaleDisconnectReason::USER_REQUEST, 0);
   }
@@ -814,6 +861,15 @@ class NimbleScaleClient {
         }
         return 0;
       case BLE_GAP_EVENT_DISC_COMPLETE:
+        portENTER_CRITICAL(&mux_);
+        if (observationScanActive_ && operationId == scanOperationId_ &&
+            state_ == State::Ready) {
+          observationScanActive_ = false;
+          scanOperationId_ = 0;
+          portEXIT_CRITICAL(&mux_);
+          return 0;
+        }
+        portEXIT_CRITICAL(&mux_);
         if (callbackMatches(operationId, CallbackDomain::Scan)) {
           pushCriticalEvent(EventType::ScanComplete,
                             event->disc_complete.reason, kInvalidHandle,
@@ -868,9 +924,13 @@ class NimbleScaleClient {
   void onAdvertisement(const ble_gap_disc_desc &discovery,
                        uint32_t operationId) {
     portENTER_CRITICAL(&mux_);
+    const bool observationScan = observationScanActive_ &&
+                                 state_ == State::Ready &&
+                                 operationId == scanOperationId_;
     const bool scanning =
-        (state_ == State::Scanning || state_ == State::Backoff) &&
-        operationId == scanOperationId_;
+        observationScan ||
+        ((state_ == State::Scanning || state_ == State::Backoff) &&
+         operationId == scanOperationId_);
     portEXIT_CRITICAL(&mux_);
     if (!scanning) {
       return;
@@ -885,6 +945,7 @@ class NimbleScaleClient {
     observation.payload = discovery.data;
     observation.payloadLength = discovery.length_data;
     shotStopperBleArbiterPublishAdvertisement(observation);
+    if (observationScan) return;
     portENTER_CRITICAL(&mux_);
     ++advertisementsSeen_;
     portEXIT_CRITICAL(&mux_);
@@ -2020,6 +2081,12 @@ class NimbleScaleClient {
       return false;
     }
     const State previous = state_;
+    bool observationScan = false;
+    portENTER_CRITICAL(&mux_);
+    observationScan = observationScanActive_;
+    observationScanActive_ = false;
+    portEXIT_CRITICAL(&mux_);
+    if (observationScan) noteTeardownResult(ble_gap_disc_cancel());
     const uint16_t oldHandle = connectionHandle_;
     const uint32_t finishedGeneration = generation_;
     lifecycleActive_ = false;
@@ -2243,6 +2310,7 @@ class NimbleScaleClient {
   uint16_t scanWindow_ = 0;
   uint32_t scanStartedAt_ = 0;
   bool seenPending_ = false;
+  bool observationScanActive_ = false;
   uint8_t seenAddress_[6] = {};
   char seenName_[SCALE_NAME_CAPACITY] = {};
 
@@ -2371,6 +2439,14 @@ bool EspressoScaleBLE::pollScan() {
 
 bool EspressoScaleBLE::isScanning() const {
   return clientFromStorage(_nimbleClientStorage).isScanning();
+}
+
+bool EspressoScaleBLE::startObservationScan(uint32_t durationMs) {
+  return clientFromStorage(_nimbleClientStorage).startObservationScan(durationMs);
+}
+
+bool EspressoScaleBLE::prepareMachineProcedure() {
+  return clientFromStorage(_nimbleClientStorage).prepareMachineProcedure();
 }
 
 bool EspressoScaleBLE::isConnecting() const {

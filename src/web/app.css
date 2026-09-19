@@ -99,6 +99,7 @@ label:has(>input[type=checkbox]) .fieldHint{margin-left:1.9rem}
 .error{color:var(--dn)}.ok{color:var(--ok)}.warn{color:var(--wn)}
 .hidden,[hidden]{display:none!important}.fieldOff{opacity:.45}
 html.momentaryMachine .paddleOnly,html:not(.reedMachine) .reedOnly,html:not(.momentaryMachine) .momentaryOnly,html.reedMachine .switchOnly,html:not(.momentaryMachine) .switchOnly{display:none}
+html:not(.lineaMicraIntegration) .micraOnly,html:not(.micraTemperatureEnabled) .micraTempOpt{display:none!important}
 #message{position:sticky;top:var(--hdr);z-index:12;display:flex;align-items:center;gap:.6rem;padding:.55rem .25rem .55rem .75rem;margin:0 0 .75rem;min-height:var(--tap);border:1px solid var(--ln);border-left:4px solid var(--bd);border-radius:.5rem;background:var(--sf);font-size:.875rem;font-weight:500;line-height:1.4}
 #message:before{content:__WEBUI_CSS_TEXT__("css.i");display:grid;place-items:center;flex:none;width:1.35rem;height:1.35rem;border:1px solid currentColor;border-radius:50%;font-size:.75rem;font-weight:800}
 #messageText{flex:1;min-width:0}

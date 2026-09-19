@@ -96,6 +96,21 @@ static void run() {
   }
   {
     NimbleScaleClient c(false); ready(c);
+    testAdvertisementPublications = 0;
+    testScaleReservations = 0;
+    CHECK(c.startObservationScan(2000));
+    const uint32_t operation = c.scanOperationId_;
+    ble_gap_disc_desc observation = {{0, {1, 2, 3, 4, 5, 6}},
+                                     BLE_HCI_ADV_RPT_EVTYPE_ADV_IND,
+                                     nullptr, 0, -42};
+    c.onAdvertisement(observation, operation);
+    CHECK(testAdvertisementPublications == 1);
+    CHECK(testScaleReservations == 0);
+    CHECK(c.prepareMachineProcedure());
+    CHECK(c.isConnected() && !c.observationScanActive_);
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
     testOnSubmit=[] { xTaskNotifyGive(xTaskGetCurrentTaskHandle()); };
     testOnWait=[] { complete(); };
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);

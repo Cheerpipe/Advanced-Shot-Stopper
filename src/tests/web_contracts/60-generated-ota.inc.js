@@ -295,8 +295,10 @@ if (generated.cssGzip.length > 7050) {
 // Humanized shot/activation time labels (relative day ladder) raise it to 35300.
 // The outlined-cup shot icon (shots without registered weight) raises it to 35500.
 // Weekday names, short dates, and the hover <time> wrapper raise it to 35600.
-if (generated.runtimeGzip.length > 35600) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 35600-byte gzip budget');
+// Linea Micra setup, read-only state expiry, and preset-temperature wiring
+// raise the measured runtime bundle to 36,479 bytes.
+if (generated.runtimeGzip.length > 36500) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 36500-byte gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -328,9 +330,10 @@ if (generated.icon48Gzip.length > 3500) {
 // outlined-cup shot icon (shots without registered weight) raises it to
 // 104800 bytes; the other-type card icon (with the per-icon fill attribute
 // hoisted into shared CSS and shortened shot viewBoxes as offsets) raises
-// it to 104900 bytes.
-if (generated.combined > 104900) {
-  throw new Error('Combined Web UI gzip exceeds the 104900-byte flash budget');
+// it to 104900 bytes. The profile-gated Linea Micra surface raises the
+// measured combined bundle to 106,603 bytes.
+if (generated.combined > 106650) {
+  throw new Error('Combined Web UI gzip exceeds the 106650-byte flash budget');
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

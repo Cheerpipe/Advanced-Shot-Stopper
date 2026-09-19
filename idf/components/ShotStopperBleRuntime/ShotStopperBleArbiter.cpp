@@ -15,6 +15,8 @@ struct ObserverSlot {
 
 struct State {
   ObserverSlot observers[2];
+  ShotStopperBleScanCoordinator scanCoordinator = nullptr;
+  void *scanCoordinatorContext = nullptr;
   ShotStopperBleOwner owner = ShotStopperBleOwner::None;
   uint32_t nextLeaseId = 0;
   uint32_t leaseId = 0;
@@ -78,6 +80,18 @@ bool shotStopperBleArbiterRegisterObserver(
   return true;
 }
 
+bool shotStopperBleArbiterRegisterScanCoordinator(
+    ShotStopperBleScanCoordinator coordinator, void *context) {
+  if (coordinator == nullptr) return false;
+  Lock lock;
+  if (gState.scanCoordinator == coordinator &&
+      gState.scanCoordinatorContext == context) return true;
+  if (gState.observersSealed || gState.scanCoordinator != nullptr) return false;
+  gState.scanCoordinator = coordinator;
+  gState.scanCoordinatorContext = context;
+  return true;
+}
+
 void shotStopperBleArbiterSealObservers() {
   Lock lock;
   gState.observersSealed = true;
@@ -94,6 +108,31 @@ void shotStopperBleArbiterPublishAdvertisement(
   for (const ObserverSlot &slot : observers) {
     if (slot.observer != nullptr) slot.observer(advertisement, slot.context);
   }
+}
+
+bool shotStopperBleArbiterStartObservationWindow(uint32_t durationMs) {
+  ShotStopperBleScanCoordinator coordinator = nullptr;
+  void *context = nullptr;
+  {
+    Lock lock;
+    if (durationMs == 0 || gState.critical || gState.scaleReserved) return false;
+    coordinator = gState.scanCoordinator;
+    context = gState.scanCoordinatorContext;
+  }
+  return coordinator != nullptr && coordinator(false, durationMs, context);
+}
+
+bool shotStopperBleArbiterPrepareMachineProcedure() {
+  ShotStopperBleScanCoordinator coordinator = nullptr;
+  void *context = nullptr;
+  {
+    Lock lock;
+    if (gState.critical || gState.scaleReserved ||
+        gState.owner != ShotStopperBleOwner::None) return false;
+    coordinator = gState.scanCoordinator;
+    context = gState.scanCoordinatorContext;
+  }
+  return coordinator != nullptr && coordinator(true, 0, context);
 }
 
 void shotStopperBleArbiterReserveScaleCandidate() {

@@ -58,6 +58,22 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   }
   const NetworkStatusSnapshot network = self.snapshot();
   const TimeStatusSnapshot timeStatus = g_wallClock.snapshot(millis());
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE
+  LineaMicraPersistedSettings micraSettings = {};
+  LineaMicraStatus micraStatus = {};
+  char safeMicraIdentity[LINEA_MICRA_IDENTITY_CAPACITY * 6] = {};
+  char micraAddress[18] = {};
+  self.dataMux_.lock();
+  micraSettings = self.settings_.lineaMicra;
+  self.dataMux_.unlock();
+  micraStatus = machineIntegrationStatus();
+  sanitizeJsonEmbed(micraSettings.identity, safeMicraIdentity,
+                    sizeof(safeMicraIdentity));
+  if (micraSettings.bindingVerified) {
+    formatWifiMac(micraSettings.peerAddress, micraAddress,
+                  sizeof(micraAddress));
+  }
+#endif
 
   char currentWeight[32] = "null";
   char cupWeight[32] = "null";
@@ -211,8 +227,15 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
       static_cast<unsigned long>(webUiOverrideRemainingMs),
       configLockReason(control), liveShot ? "true" : "false");
   if (ok) {
-    ok = statusJsonAppend(&used, ",\"machineType\":\"%s\"",
-                          compiledMachineTypeId());
+    ok = statusJsonAppend(
+        &used, ",\"machineType\":\"%s\",\"machineIntegration\":\"%s\"",
+        compiledMachineTypeId(),
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE
+        "linea_micra_ble"
+#else
+        "none"
+#endif
+    );
   }
   if (ok && (page == StatusPage::Admin || page == StatusPage::Diagnostic)) {
     const PowerProfile applied = powerAppliedProfile.load(std::memory_order_acquire);
@@ -434,6 +457,50 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   if (ok) {
     ok = statusJsonAppend(&used, "}");
   }
+
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE
+  if (ok && (page == StatusPage::Settings || page == StatusPage::Diagnostic)) {
+    const uint32_t sampleAgeMs = micraStatus.sampleAtMs == 0
+                                     ? 0
+                                     : static_cast<uint32_t>(millis() -
+                                                              micraStatus.sampleAtMs);
+    const bool sampleValid = micraStatus.sampleAtMs != 0 &&
+        (micraStatus.quality == LineaMicraObservationQuality::CURRENT ||
+         micraStatus.quality == LineaMicraObservationQuality::STALE ||
+         micraStatus.quality == LineaMicraObservationQuality::UNSUPPORTED);
+    ok = statusJsonAppend(
+        &used,
+        ",\"lineaMicra\":{\"tokenConfigured\":%s,\"bindingVerified\":%s,"
+        "\"identity\":\"%s\",\"address\":\"%s\",\"applyTemperature\":%s,\"observeState\":%s,"
+        "\"requestId\":%lu,\"phase\":\"%s\",\"powerState\":\"%s\","
+        "\"observedMode\":\"%s\",\"quality\":\"%s\",\"effectiveOn\":%s,"
+        "\"sampleValid\":%s,\"sampleAgeMs\":%lu,\"freshnessMs\":%lu,"
+        "\"pollIntervalMs\":%lu,\"measuredValid\":%s,\"measuredDeciC\":%u,"
+        "\"targetValid\":%s,\"targetDeciC\":%u}",
+        strnlen(micraSettings.token, sizeof(micraSettings.token)) == 64
+            ? "true" : "false",
+        micraSettings.bindingVerified ? "true" : "false", safeMicraIdentity,
+        micraAddress,
+        (micraSettings.options & LINEA_MICRA_APPLY_TEMPERATURE) != 0
+            ? "true" : "false",
+        (micraSettings.options & LINEA_MICRA_OBSERVE_STATE) != 0
+            ? "true" : "false",
+        static_cast<unsigned long>(micraStatus.requestId),
+        lineaMicraPhaseName(micraStatus.phase),
+        lineaMicraPowerStateName(micraStatus.powerState),
+        lineaMicraObservedModeName(micraStatus.observedMode),
+        lineaMicraObservationQualityName(micraStatus.quality),
+        micraStatus.effectiveOn ? "true" : "false",
+        sampleValid ? "true" : "false",
+        static_cast<unsigned long>(sampleAgeMs),
+        static_cast<unsigned long>(micra_timing::kStateFreshnessMs),
+        static_cast<unsigned long>(micra_timing::kStatePollNoScaleMs),
+        micraStatus.measuredValid ? "true" : "false",
+        static_cast<unsigned>(micraStatus.measuredDeciC),
+        micraStatus.targetValid ? "true" : "false",
+        static_cast<unsigned>(micraStatus.targetDeciC));
+  }
+#endif
 
   if (ok && page == StatusPage::Home) {
     ok = statusJsonAppend(&used, ",\"adminUnlocked\":%s,\"development\":%s",

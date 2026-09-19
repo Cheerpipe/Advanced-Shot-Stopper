@@ -1,4 +1,5 @@
 #include "ShotStopperMachineIntegration.h"
+#include "ShotStopperLineaMicraIntegration.h"
 
 #include "ShotStopperMicraService.h"
 #include "ShotStopperPersistedSettings.h"
@@ -35,6 +36,16 @@ uint32_t machineIntegrationMaxExecutionUs() {
 void publishMachineIntegrationConfig(const PersistedSettings &settings,
                                      uint32_t configGeneration) {
   service.publishConfig(settings.lineaMicra, configGeneration);
+}
+
+bool queueMachineIntegrationRequest(const LineaMicraRequest &request) {
+  return service.queue(request);
+}
+
+LineaMicraStatus machineIntegrationStatus() { return service.status(); }
+
+bool takeMachineIntegrationBinding(LineaMicraBindingResult &result) {
+  return service.takeBinding(result);
 }
 
 static_assert(machineIntegrationTaskCount() == 0,

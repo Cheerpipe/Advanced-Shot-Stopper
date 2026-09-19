@@ -364,6 +364,7 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
   if (apiUriMatches(request->uri, "/api/v1/time/sync")) return timeSyncHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/config")) return configHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/webhooks")) return webhookHandler(request);
+  if (apiUriMatches(request->uri, "/api/v1/machine/linea-micra")) return lineaMicraHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/bullseye/test")) return bullseyeTestHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/scale/preferred/clear")) return preferredScaleClearHandler(request);
   if (apiUriMatches(request->uri, "/api/v1/scale/preferred/select")) return preferredScaleSelectHandler(request);

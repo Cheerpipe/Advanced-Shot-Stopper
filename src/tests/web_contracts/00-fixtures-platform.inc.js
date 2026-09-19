@@ -24,6 +24,7 @@ const network = readSources([
   'network/ShotStopperIntegrationApi.inc',
   'diagnostics/ShotStopperNetworkDiagnostics.inc',
   'network/ShotStopperConfiguration.inc',
+  'network/ShotStopperLineaMicraWeb.inc',
   'network/ShotStopperNetworkOta.inc',
 ]);
 const networkHeader = fs.readFileSync(path.join(sketchDir, 'ShotStopperNetwork.h'), 'utf8');

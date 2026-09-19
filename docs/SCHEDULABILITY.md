@@ -28,6 +28,13 @@ explicit connection/discovery operation whose bounded step is listed above;
 those paths are separately bounded by the 5 s TWDT. HIL qualification must
 report active-link and connect/discovery distributions separately.
 
+The optional Micra service executes last in `scale_worker`; it creates no task
+and has the same 10 ms body budget. Its state observer is due nominally every
+15 seconds, uses bounded connect/ATT/session deadlines, leaves at least one
+second between disconnected sessions, and stops retrying for at least 60
+seconds after four failed attempts. These are admission intervals, not a
+guaranteed detection latency under scale or Home Assistant contention.
+
 The scale worker blocks on a task notification with the state-dependent 1 ms
 linked/connecting or 10 ms idle timeout. Commands, policy changes
 and sound mailboxes notify it immediately. The timeout remains the

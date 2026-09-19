@@ -1796,6 +1796,15 @@ bool startScaleDiscoveryScan(const char *mac, bool forceRestart) {
   return true;
 }
 
+#if !defined(SHOT_STOPPER_HOST_TEST)
+bool coordinateMachineScan(bool prepareMachineProcedure, uint32_t durationMs,
+                           void *) {
+  if (scale.isConnecting()) return false;
+  if (prepareMachineProcedure) return scale.prepareMachineProcedure();
+  return scale.isScanning() || scale.startObservationScan(durationMs);
+}
+#endif
+
 void fillCurrentScaleScanFilter(char *macOut, size_t cap, bool &useDirected) {
   char preferredMac[PREFERRED_SCALE_MAC_CAPACITY];
   copyPreferredScaleMac(preferredMac, sizeof(preferredMac));
@@ -2353,6 +2362,8 @@ void scaleWorkerTask(void *) {
 bool initializeScaleWorker() {
 #if !defined(SHOT_STOPPER_HOST_TEST)
   if (scaleWorkerBridge.syncNetworkRf == nullptr) return false;
+  if (!shotStopperBleArbiterRegisterScanCoordinator(coordinateMachineScan,
+                                                    nullptr)) return false;
 #endif
   scaleWorkerStartupFinished.store(false, std::memory_order_relaxed);
 #if !defined(SHOT_STOPPER_HOST_TEST)

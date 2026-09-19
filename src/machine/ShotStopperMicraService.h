@@ -22,6 +22,7 @@ class ShotStopperMicraService {
                      uint32_t configGeneration);
   bool queue(const LineaMicraRequest &request);
   LineaMicraStatus status() const;
+  bool takeBinding(LineaMicraBindingResult &result);
 
  private:
   static void observeAdvertisement(
@@ -29,7 +30,10 @@ class ShotStopperMicraService {
   void acceptAdvertisement(const ShotStopperBleAdvertisement &advertisement);
   void startRequest();
   void handleClientEvent(const lineamicra::ClientEvent &event);
+  void handleSubmission(bool accepted);
   void failRequest();
+  void finishRequest();
+  void scheduleAutomaticObservation(uint32_t now);
   void publishStatus();
 
   struct Candidate {
@@ -64,10 +68,19 @@ class ShotStopperMicraService {
   uint32_t pendingConfigGeneration_ = 0;
   uint32_t acceptedConfigGeneration_ = 0;
   uint32_t requestStartedAtMs_ = 0;
+  uint32_t nextObservationAtMs_ = 0;
+  uint32_t retryAtMs_ = 0;
+  uint32_t nextAutomaticRequestId_ = 0x80000000UL;
   Stage stage_ = Stage::IDLE;
+  uint8_t selectedCandidate_ = UINT8_MAX;
+  uint8_t attempt_ = 0;
   bool configPending_ = false;
   bool requestPending_ = false;
   bool collectCandidates_ = false;
+  bool retryPending_ = false;
+  bool automaticRequest_ = false;
+  bool bindingReady_ = false;
+  bool criticalSeen_ = false;
   mutable portMUX_TYPE mux_ = portMUX_INITIALIZER_UNLOCKED;
 };
 

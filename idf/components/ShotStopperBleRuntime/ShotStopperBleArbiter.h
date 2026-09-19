@@ -22,6 +22,9 @@ struct ShotStopperBleAdvertisement {
 
 using ShotStopperBleAdvertisementObserver = void (*)(
     const ShotStopperBleAdvertisement &advertisement, void *context);
+using ShotStopperBleScanCoordinator = bool (*)(bool prepareMachineProcedure,
+                                               uint32_t durationMs,
+                                               void *context);
 
 struct ShotStopperBleArbiterSnapshot {
   ShotStopperBleOwner owner = ShotStopperBleOwner::None;
@@ -38,9 +41,13 @@ struct ShotStopperBleArbiterSnapshot {
 bool shotStopperBleArbiterRegisterObserver(
     ShotStopperBleOwner owner, ShotStopperBleAdvertisementObserver observer,
     void *context);
+bool shotStopperBleArbiterRegisterScanCoordinator(
+    ShotStopperBleScanCoordinator coordinator, void *context);
 void shotStopperBleArbiterSealObservers();
 void shotStopperBleArbiterPublishAdvertisement(
     const ShotStopperBleAdvertisement &advertisement);
+bool shotStopperBleArbiterStartObservationWindow(uint32_t durationMs);
+bool shotStopperBleArbiterPrepareMachineProcedure();
 
 // A scale candidate reserves the next peer procedure immediately from the host
 // callback. Existing machine work is invalidated and must release its lease.

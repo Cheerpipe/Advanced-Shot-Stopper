@@ -22,7 +22,7 @@ void resetPlatform() {
   testConnectSubmitStatus = 0;
   testTerminateStatus = 0;
   testConnectCancelStatus = 0;
-  testTerminations = testConnectCancels = testWrites = 0;
+  testTerminations = testConnectCancels = testConnects = testWrites = 0;
   testMbufAllocFails = false;
   testMtuCallback = nullptr;
   testServiceCallback = nullptr;
@@ -33,8 +33,12 @@ void resetPlatform() {
   testScaleLeaseAvailable = true;
   testScaleLeaseActive = false;
   testScaleLeaseId = 0;
+  testBleCritical = false;
+  testBleCriticalEpoch = 0;
   testMachineObserver = nullptr;
   testMachineObserverContext = nullptr;
+  testObservationWindowAvailable = true;
+  testMachineProcedureAvailable = true;
 }
 
 void emitCharacteristic(const char *uuid, uint16_t handle,
@@ -90,6 +94,14 @@ void completeRead(shotstopper::ShotStopperMicraService &service,
   assert(testReadCallback(7, &ok, &attribute, testReadArg) == 0);
   const ble_gatt_error done = {BLE_HS_EDONE, 0};
   assert(testReadCallback(7, &done, nullptr, testReadArg) == 0);
+  service.service();
+}
+
+void completeDisconnect(shotstopper::ShotStopperMicraService &service) {
+  ble_gap_event disconnected = {};
+  disconnected.type = BLE_GAP_EVENT_DISCONNECT;
+  disconnected.disconnect.conn.conn_handle = 7;
+  assert(testGapCallback(&disconnected, testGapArg) == 0);
   service.service();
 }
 
@@ -168,10 +180,91 @@ void testConcurrentConfigAndStatusPublication() {
   assert(service.status().configGeneration == 100);
 }
 
+void testAutomaticStateFreshnessAndPostActivityRefresh() {
+  resetPlatform();
+  shotstopper::ShotStopperMicraService service;
+  assert(service.begin());
+  shotstopper::LineaMicraPersistedSettings config;
+  char token[64];
+  std::memset(token, 'T', sizeof(token));
+  const uint8_t address[6] = {1, 2, 3, 4, 5, 6};
+  assert(shotstopper::setLineaMicraToken(config, token, sizeof(token)));
+  assert(shotstopper::setLineaMicraBinding(config, 1, address, "MICRA_TEST"));
+  assert(shotstopper::setLineaMicraOptions(config, false, true));
+  service.publishConfig(config, 9);
+  service.service();
+  serviceReady(service);
+  completeWrite(service);
+  assert(std::memcmp(testLastWriteData, "machineMode\0", 12) == 0);
+  completeWrite(service);
+  completeRead(service, "\"BrewingMode\"");
+  auto status = service.status();
+  assert(status.powerState == shotstopper::LineaMicraPowerState::ON);
+  assert(status.quality == shotstopper::LineaMicraObservationQuality::CURRENT);
+  completeDisconnect(service);
+
+  fakeMillis += shotstopper::micra_timing::kStateFreshnessMs;
+  testNowMs = fakeMillis;
+  status = service.status();
+  assert(status.powerState == shotstopper::LineaMicraPowerState::UNKNOWN);
+  assert(status.quality == shotstopper::LineaMicraObservationQuality::STALE);
+
+  testBleCritical = true;
+  ++testBleCriticalEpoch;
+  service.service();
+  testBleCritical = false;
+  fakeMillis += shotstopper::micra_timing::kMinDisconnectedMs;
+  testNowMs = fakeMillis;
+  service.service();
+  assert(service.status().phase == shotstopper::LineaMicraPhase::QUEUED ||
+         service.status().phase == shotstopper::LineaMicraPhase::RUNNING);
+}
+
+void testPostActivityRefreshPreservesExhaustedCooldown() {
+  resetPlatform();
+  testConnectSubmitStatus = BLE_HS_EBUSY;
+  shotstopper::ShotStopperMicraService service;
+  assert(service.begin());
+  shotstopper::LineaMicraPersistedSettings config;
+  char token[64];
+  std::memset(token, 'T', sizeof(token));
+  const uint8_t address[6] = {1, 2, 3, 4, 5, 6};
+  assert(shotstopper::setLineaMicraToken(config, token, sizeof(token)));
+  assert(shotstopper::setLineaMicraBinding(config, 1, address, "MICRA_TEST"));
+  assert(shotstopper::setLineaMicraOptions(config, false, true));
+  service.publishConfig(config, 10);
+  service.service();
+  for (unsigned retry = 1; retry < shotstopper::micra_timing::kMaxAttempts;
+       ++retry) {
+    fakeMillis += 11000;
+    testNowMs = fakeMillis;
+    service.service();
+  }
+  assert(service.status().phase == shotstopper::LineaMicraPhase::FAILED);
+  assert(testConnects == shotstopper::micra_timing::kMaxAttempts);
+
+  testBleCritical = true;
+  ++testBleCriticalEpoch;
+  service.service();
+  testBleCritical = false;
+  fakeMillis += shotstopper::micra_timing::kMinDisconnectedMs;
+  testNowMs = fakeMillis;
+  service.service();
+  assert(testConnects == shotstopper::micra_timing::kMaxAttempts);
+
+  fakeMillis += shotstopper::micra_timing::kExhaustedCooldownMs +
+                shotstopper::micra_timing::kJitterMaxMs;
+  testNowMs = fakeMillis;
+  service.service();
+  assert(testConnects == shotstopper::micra_timing::kMaxAttempts + 1);
+}
+
 }  // namespace
 
 int main() {
   testReadOnlyAssociationFlow();
+  testAutomaticStateFreshnessAndPostActivityRefresh();
+  testPostActivityRefreshPreservesExhaustedCooldown();
   testConcurrentConfigAndStatusPublication();
   return 0;
 }

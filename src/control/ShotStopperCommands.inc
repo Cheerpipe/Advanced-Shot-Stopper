@@ -459,6 +459,7 @@ void processWebCommand(const WebCommand &command) {
 
     case WebCommandType::SAVE_NETWORK:
     case WebCommandType::SAVE_WEBHOOK:
+    case WebCommandType::SAVE_LINEA_MICRA:
     case WebCommandType::FORGET_NETWORK:
     case WebCommandType::CHANGE_DEVICE_PASSWORD:
     case WebCommandType::RESET_DEVICE_PASSWORD:
