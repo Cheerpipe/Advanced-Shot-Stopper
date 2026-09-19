@@ -109,6 +109,26 @@ void serviceReady(shotstopper::ShotStopperMicraService &service) {
   service.service();
 }
 
+void rejectUnsupportedPeer(shotstopper::ShotStopperMicraService &service) {
+  ble_gap_event connected = {};
+  connected.type = BLE_GAP_EVENT_CONNECT;
+  connected.connect.status = 0;
+  connected.connect.conn_handle = 7;
+  assert(testGapCallback(&connected, testGapArg) == 0);
+  service.service();
+  const ble_gatt_error ok = {0, 0};
+  assert(testMtuCallback(7, &ok, 96, testMtuArg) == 0);
+  service.service();
+  ble_gatt_svc range = {1, 40};
+  assert(testServiceCallback(7, &ok, &range, testServiceArg) == 0);
+  const ble_gatt_error done = {BLE_HS_EDONE, 0};
+  assert(testServiceCallback(7, &done, nullptr, testServiceArg) == 0);
+  service.service();
+  assert(testCharacteristicCallback(7, &done, nullptr,
+                                    testCharacteristicArg) == 0);
+  service.service();
+}
+
 void completeWrite(shotstopper::ShotStopperMicraService &service) {
   const ble_gatt_error ok = {0, 0};
   assert(testWriteCallback(7, &ok, nullptr, testWriteArg) == 0);
@@ -256,10 +276,10 @@ void testAnonymousCandidateBindsOnlyAfterProtocolVerification() {
   advertisement.address[0] = 0xdd;
   advertisement.rssi = -35;
   shotStopperBleArbiterPublishAdvertisement(advertisement);
-  testConnectSubmitStatus = BLE_HS_EBUSY;
   fakeMillis += shotstopper::micra_timing::kDiscoverySliceMs;
   testNowMs = fakeMillis;
   service.service();
+  rejectUnsupportedPeer(service);
 
   shotstopper::LineaMicraBindingResult binding;
   assert(!service.takeBinding(binding));
@@ -267,9 +287,13 @@ void testAnonymousCandidateBindsOnlyAfterProtocolVerification() {
   assert(std::strstr(capturedMicraLogs,
                      "eligible=0 fallback=2") != nullptr);
   assert(std::strstr(capturedMicraLogs,
-                     "Micra candidate req=91 id=anonymous") != nullptr);
+                     "Micra candidate req=91 id=anonymous "
+                     "addr=00:00:00:00:00:CC") != nullptr);
+  assert(std::strstr(capturedMicraLogs,
+                     "Micra reject req=91 addr=00:00:00:00:00:CC "
+                     "cache=1") != nullptr);
 
-  testConnectSubmitStatus = 0;
+  completeDisconnect(service);
   fakeMillis += shotstopper::micra_timing::kRetryDelaysMs[0] +
                 shotstopper::micra_timing::kJitterMaxMs + 1;
   testNowMs = fakeMillis;
@@ -289,6 +313,10 @@ void testAnonymousCandidateBindsOnlyAfterProtocolVerification() {
   assert(binding.requestId == request.requestId);
   assert(binding.address[0] == 0xdd);
   assert(std::strcmp(binding.identity, "MICRA_ANONYMOUS") == 0);
+  assert(std::strstr(capturedMicraLogs, "eligible=0 fallback=1") != nullptr);
+  assert(std::strstr(capturedMicraLogs,
+                     "Micra candidate req=91 id=anonymous "
+                     "addr=00:00:00:00:00:DD") != nullptr);
   assert(testConnects == 2);
   assert(testWrites == 3);
 }

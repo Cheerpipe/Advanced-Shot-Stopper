@@ -22,8 +22,10 @@ do not include their name in every Bluetooth announcement, so each retry can
 also test one nearby unnamed device from a small candidate set. An unnamed
 device is saved only after it exposes the expected La Marzocco connection,
 accepts the token, identifies itself as a Micra, and returns a valid brew-boiler
-reading. If pairing is difficult in a crowded Bluetooth environment,
-temporarily move or turn off unrelated nearby devices and try again.
+reading. Unnamed devices that do not expose the Micra connection are skipped by
+later attempts until the Micra settings change or Shot Stopper restarts. If
+pairing is difficult in a crowded Bluetooth environment, temporarily move or
+turn off unrelated nearby devices and try again.
 
 A scale candidate always has radio priority. Home Assistant or the La Marzocco
 app may temporarily occupy the machine connection, so a Test can need another

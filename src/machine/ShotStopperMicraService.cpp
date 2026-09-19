@@ -4,6 +4,9 @@
 #include <Arduino.h>
 #include <cerrno>
 #include <cstring>
+#if !defined(LINEA_MICRA_BLE_HOST_TEST)
+#include "host/ble_hs.h"
+#endif
 
 void serialTraceCategoryf(shotstopper::LogLevel level,
                           shotstopper::DebugCategory category,
@@ -14,6 +17,14 @@ namespace {
 
 void incrementSaturating(uint16_t &value) {
   if (value != UINT16_MAX) ++value;
+}
+
+uint32_t peerKey(uint8_t type, const uint8_t *address) {
+  uint32_t key = 2166136261UL ^ type;
+  for (uint8_t index = 0; index < 6; ++index) {
+    key = (key ^ address[index]) * 16777619UL;
+  }
+  return key == 0 ? UINT32_MAX : key;
 }
 
 }  // namespace
@@ -265,6 +276,7 @@ void ShotStopperMicraService::publishConfig(
   collectCandidates_ = false;
   bindingReady_ = false;
   memset(candidates_, 0, sizeof(candidates_));
+  memset(rejectedPeerKeys_, 0, sizeof(rejectedPeerKeys_));
   portEXIT_CRITICAL(&mux_);
 }
 
@@ -278,7 +290,7 @@ void ShotStopperMicraService::startRequest() {
     peer.type = config_.peerAddressType;
     memcpy(peer.value, config_.peerAddress, sizeof(peer.value));
   } else {
-    Candidate best;
+    Candidate best = {};
     bool found = false;
     portENTER_CRITICAL(&mux_);
     uint8_t index = 0;
@@ -336,10 +348,12 @@ void ShotStopperMicraService::startRequest() {
     selectedCandidate_ = bestIndex;
     serialTraceCategoryf(
         LogLevel::DEBUG, DebugCategory::SYSTEM,
-        "Micra candidate req=%lu id=%s rssi=%d type=%u",
+        "Micra candidate req=%lu id=%s addr=%02X:%02X:%02X:%02X:%02X:%02X rssi=%d type=%u",
         static_cast<unsigned long>(request_.requestId),
         best.identity[0] == '\0' ? "anonymous" : best.identity,
-        best.rssi, static_cast<unsigned>(best.addressType));
+        best.address[5], best.address[4], best.address[3], best.address[2],
+        best.address[1], best.address[0], best.rssi,
+        static_cast<unsigned>(best.addressType));
   }
   if (!shotStopperBleArbiterPrepareMachineProcedure()) {
     failRequest(-EBUSY);
@@ -377,6 +391,38 @@ void ShotStopperMicraService::handleClientEvent(
     return;
   }
   if (event.type == lineamicra::EventType::ERROR) {
+    bool added = false;
+    uint8_t cacheCount = 0, address[6] = {};
+    if (event.status == BLE_HS_ENOENT && stage_ == Stage::CONNECT &&
+        !config_.bindingVerified && selectedCandidate_ < 4) {
+      portENTER_CRITICAL(&mux_);
+      const Candidate &candidate = candidates_[selectedCandidate_];
+      if (candidate.used && candidate.identity[0] == '\0') {
+        const uint32_t key = peerKey(candidate.addressType, candidate.address);
+        bool known = false;
+        for (uint32_t rejectedKey : rejectedPeerKeys_) {
+          known |= rejectedKey == key;
+        }
+        for (uint32_t &rejectedKey : rejectedPeerKeys_) {
+          if (!known && rejectedKey == 0) {
+            rejectedKey = key;
+            added = true;
+            known = true;
+          }
+          cacheCount += rejectedKey != 0;
+        }
+        memcpy(address, candidate.address, sizeof(address));
+      }
+      portEXIT_CRITICAL(&mux_);
+    }
+    if (added) {
+      serialTraceCategoryf(
+          LogLevel::DEBUG, DebugCategory::SYSTEM,
+          "Micra reject req=%lu addr=%02X:%02X:%02X:%02X:%02X:%02X cache=%u",
+          static_cast<unsigned long>(request_.requestId), address[5], address[4],
+          address[3], address[2], address[1], address[0],
+          static_cast<unsigned>(cacheCount));
+    }
     failRequest(event.status);
     return;
   }
@@ -725,6 +771,16 @@ void ShotStopperMicraService::acceptAdvertisement(
   if (!collectCandidates_) {
     portEXIT_CRITICAL(&mux_);
     return;
+  }
+  if (!micraIdentity) {
+    const uint32_t key = peerKey(advertisement.addressType,
+                                 advertisement.address);
+    for (uint32_t rejectedKey : rejectedPeerKeys_) {
+      if (rejectedKey == key) {
+        portEXIT_CRITICAL(&mux_);
+        return;
+      }
+    }
   }
   Candidate *slot = nullptr;
   for (Candidate &candidate : candidates_) {
