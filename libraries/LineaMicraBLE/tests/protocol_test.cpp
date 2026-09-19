@@ -20,6 +20,8 @@ static void testFraming() {
                                sizeof(output), length));
   assert(std::memcmp(output, "machineCapabilities\0", length) == 0);
   assert(!lineamicra::buildQuery(lineamicra::Query::BOILERS, output, 7, length));
+  assert(!lineamicra::buildQuery(static_cast<lineamicra::Query>(0xff), output,
+                                sizeof(output), length));
   assert(lineamicra::buildSetBrewTarget(935, output, sizeof(output), length));
   assert(std::strcmp(output,
       "{\"name\":\"SettingBoilerTarget\",\"parameter\":{\"identifier\":\"CoffeeBoiler1\",\"value\":93.5}}") == 0);
@@ -88,6 +90,11 @@ static void testBoilers() {
       "[{\"id\":\"CoffeeBoiler1\",\"target\":93,\"current\":25,\"x\":{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":1}}}}}}]";
   assert(!lineamicra::parseBrewBoiler(deep, std::strlen(deep), boiler, error));
   assert(error == Error::TOO_DEEP);
+  const char *quotedBraces =
+      "[{\"id\":\"CoffeeBoiler1\",\"target\":93,\"current\":25,"
+      "\"note\":\"[[[[[[[[ escaped \\\" {\"}]";
+  assert(lineamicra::parseBrewBoiler(quotedBraces, std::strlen(quotedBraces),
+                                    boiler, error));
 }
 
 static void testModeCapabilitiesAndStatus() {

@@ -6,7 +6,11 @@
 #include "ShotStopperMicraTiming.h"
 
 #include <LineaMicraBLE.h>
+#if defined(LINEA_MICRA_BLE_HOST_TEST)
+#include "nimble_client_platform.h"
+#else
 #include <freertos/FreeRTOS.h>
+#endif
 
 namespace shotstopper {
 
@@ -25,6 +29,8 @@ class ShotStopperMicraService {
   void acceptAdvertisement(const ShotStopperBleAdvertisement &advertisement);
   void startRequest();
   void handleClientEvent(const lineamicra::ClientEvent &event);
+  void failRequest();
+  void publishStatus();
 
   struct Candidate {
     uint8_t address[6] = {};
@@ -46,17 +52,26 @@ class ShotStopperMicraService {
   };
 
   lineamicra::LineaMicraBLE client_;
+  // Worker-owned state; producers only touch the pending/published fields below.
   LineaMicraPersistedSettings config_ = {};
   LineaMicraRequest request_ = {};
-  LineaMicraStatus status_ = {};
+  LineaMicraStatus workingStatus_ = {};
+  LineaMicraPersistedSettings pendingConfig_ = {};
+  LineaMicraRequest pendingRequest_ = {};
+  LineaMicraStatus publishedStatus_ = {};
   Candidate candidates_[4] = {};
   uint32_t configGeneration_ = 0;
+  uint32_t pendingConfigGeneration_ = 0;
+  uint32_t acceptedConfigGeneration_ = 0;
   uint32_t requestStartedAtMs_ = 0;
   Stage stage_ = Stage::IDLE;
+  bool configPending_ = false;
   bool requestPending_ = false;
   bool collectCandidates_ = false;
-  bool configChanged_ = false;
   mutable portMUX_TYPE mux_ = portMUX_INITIALIZER_UNLOCKED;
 };
+
+static_assert(sizeof(ShotStopperMicraService) <= 2048,
+              "Micra service exceeds its fixed internal-RAM envelope");
 
 }  // namespace shotstopper

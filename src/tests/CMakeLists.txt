@@ -146,3 +146,14 @@ target_include_directories(linea_micra_nimble_client_test PRIVATE
 target_link_libraries(linea_micra_nimble_client_test PRIVATE "${CJSON_LIBRARY}")
 set_tests_properties(linea_micra_nimble_client_test PROPERTIES
   LABELS "host;ble;concurrency")
+host_test(micra_service_host_test
+  SOURCES
+    "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMicraService.cpp"
+    "${micra_dir}/src/LineaMicraBLE.cpp"
+    "${micra_dir}/src/LineaMicraProtocol.cpp"
+  DEFINITIONS LINEA_MICRA_BLE_HOST_TEST LABEL "host;ble;concurrency")
+target_include_directories(micra_service_host_test PRIVATE
+  "${ble_dir}/tests/stubs" "${micra_dir}/src" "${CJSON_INCLUDE_DIR}")
+target_link_libraries(micra_service_host_test PRIVATE "${CJSON_LIBRARY}")
+set_tests_properties(micra_service_host_test PROPERTIES
+  LABELS "host;ble;concurrency")

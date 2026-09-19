@@ -9,17 +9,24 @@
 #include <algorithm>
 #include <new>
 #include <cassert>
+#include <mutex>
 
 using TickType_t = uint32_t;
 using TaskHandle_t = void *;
 using portMUX_TYPE = int;
 #define portMUX_INITIALIZER_UNLOCKED 0
-inline unsigned testCriticalDepth = 0;
+inline std::recursive_mutex testCriticalMutex;
+inline thread_local unsigned testCriticalDepth = 0;
 inline std::function<void()> testAfterCriticalExit;
-inline void testEnterCritical(portMUX_TYPE *) { ++testCriticalDepth; }
+inline void testEnterCritical(portMUX_TYPE *) {
+  testCriticalMutex.lock();
+  ++testCriticalDepth;
+}
 inline void testExitCritical(portMUX_TYPE *) {
   assert(testCriticalDepth != 0);
-  if (--testCriticalDepth == 0 && testAfterCriticalExit) {
+  const bool outermost = --testCriticalDepth == 0;
+  testCriticalMutex.unlock();
+  if (outermost && testAfterCriticalExit) {
     auto callback = std::move(testAfterCriticalExit);
     testAfterCriticalExit = {};
     callback();
@@ -126,8 +133,8 @@ struct ble_gatt_dsc { uint16_t handle; ble_uuid_any_t uuid; };
 using TestWriteCallback = int(*)(uint16_t,const ble_gatt_error *,ble_gatt_attr *,void *);
 inline TestWriteCallback testWriteCallback=nullptr;
 inline void *testWriteArg=nullptr;
-inline int testSubmitStatus=0, testTerminateStatus=0;
-inline unsigned testTerminations=0, testWrites=0;
+inline int testSubmitStatus=0, testTerminateStatus=0, testConnectCancelStatus=0;
+inline unsigned testTerminations=0, testConnectCancels=0, testWrites=0;
 inline uint16_t testLastWriteHandle=0,testLastWriteLength=0;
 inline uint8_t testLastWriteData[600]={};
 inline bool testMbufAllocFails=false;
@@ -194,7 +201,10 @@ inline int ble_gap_connect(uint8_t,const ble_addr_t *,uint32_t,const void *,
 }
 template<class... T> int ble_gap_disc(T...) { return 0; }
 inline int ble_gap_disc_cancel() { return 0; }
-inline int ble_gap_conn_cancel() { return 0; }
+inline int ble_gap_conn_cancel() {
+  ++testConnectCancels;
+  return testConnectCancelStatus;
+}
 inline int ble_gap_terminate(uint16_t,uint8_t) { ++testTerminations; return testTerminateStatus; }
 inline int ble_gap_conn_rssi(uint16_t,int8_t *rssi) { *rssi=-50; return 0; }
 struct ShotStopperBleHealth { int lastResetReason; };

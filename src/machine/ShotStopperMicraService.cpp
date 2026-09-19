@@ -11,34 +11,77 @@ bool ShotStopperMicraService::begin() {
 }
 
 void ShotStopperMicraService::service() {
+  LineaMicraPersistedSettings nextConfig;
+  uint32_t nextConfigGeneration = 0;
   portENTER_CRITICAL(&mux_);
-  const bool configChanged = configChanged_;
-  configChanged_ = false;
+  const bool configChanged = configPending_;
+  if (configChanged) {
+    nextConfig = pendingConfig_;
+    nextConfigGeneration = pendingConfigGeneration_;
+    configPending_ = false;
+    collectCandidates_ = false;
+  }
   portEXIT_CRITICAL(&mux_);
-  if (configChanged) client_.abort();
+  if (configChanged) {
+    client_.abort();
+    config_ = nextConfig;
+    configGeneration_ = nextConfigGeneration;
+    request_ = {};
+    workingStatus_ = {};
+    workingStatus_.configGeneration = configGeneration_;
+    const bool configured = strnlen(config_.token, sizeof(config_.token)) == 64;
+    workingStatus_.phase = configured ? LineaMicraPhase::IDLE
+                                      : LineaMicraPhase::Disabled;
+    workingStatus_.quality = configured
+                                 ? LineaMicraObservationQuality::UNCONFIGURED
+                                 : LineaMicraObservationQuality::Disabled;
+    stage_ = Stage::IDLE;
+    publishStatus();
+  }
   client_.service();
   lineamicra::ClientEvent event;
   if (client_.takeEvent(event)) handleClientEvent(event);
-  portENTER_CRITICAL(&mux_);
-  bool start = false;
-  if (requestPending_) {
-    status_.requestId = request_.requestId;
-    status_.configGeneration = request_.configGeneration;
-    status_.activityGeneration = request_.activityGeneration;
-    status_.phase = LineaMicraPhase::QUEUED;
-    collectCandidates_ = request_.type == LineaMicraRequestType::TEST &&
-                         !config_.bindingVerified;
-    requestStartedAtMs_ = millis();
-    stage_ = collectCandidates_ ? Stage::WAIT_CANDIDATES : Stage::CONNECT;
-    requestPending_ = false;
-    start = !collectCandidates_;
+  if (stage_ == Stage::DISCONNECT &&
+      client_.state() == lineamicra::ClientState::IDLE) {
+    stage_ = Stage::IDLE;
   }
-  portEXIT_CRITICAL(&mux_);
+
+  bool start = false;
+  if (stage_ == Stage::IDLE &&
+      client_.state() == lineamicra::ClientState::IDLE) {
+    portENTER_CRITICAL(&mux_);
+    if (requestPending_) {
+      request_ = pendingRequest_;
+      requestPending_ = false;
+      start = true;
+    }
+    portEXIT_CRITICAL(&mux_);
+  }
+  if (start) {
+    workingStatus_.requestId = request_.requestId;
+    workingStatus_.configGeneration = request_.configGeneration;
+    workingStatus_.activityGeneration = request_.activityGeneration;
+    workingStatus_.phase = LineaMicraPhase::QUEUED;
+    workingStatus_.measuredValid = false;
+    workingStatus_.targetValid = false;
+    const bool collect = request_.type == LineaMicraRequestType::TEST &&
+                         !config_.bindingVerified;
+    portENTER_CRITICAL(&mux_);
+    collectCandidates_ = collect;
+    if (collect) memset(candidates_, 0, sizeof(candidates_));
+    portEXIT_CRITICAL(&mux_);
+    requestStartedAtMs_ = millis();
+    stage_ = collect ? Stage::WAIT_CANDIDATES : Stage::CONNECT;
+    start = !collect;
+    publishStatus();
+  }
   if (start) startRequest();
   if (stage_ == Stage::WAIT_CANDIDATES &&
       static_cast<uint32_t>(millis() - requestStartedAtMs_) >=
           micra_timing::kDiscoverySliceMs) {
+    portENTER_CRITICAL(&mux_);
     collectCandidates_ = false;
+    portEXIT_CRITICAL(&mux_);
     startRequest();
   }
 }
@@ -53,58 +96,60 @@ void ShotStopperMicraService::publishConfig(
     const LineaMicraPersistedSettings &settings,
     uint32_t configGeneration) {
   portENTER_CRITICAL(&mux_);
-  config_ = settings;
-  configGeneration_ = configGeneration;
+  pendingConfig_ = settings;
+  pendingConfigGeneration_ = configGeneration;
+  acceptedConfigGeneration_ = configGeneration;
+  configPending_ = true;
   requestPending_ = false;
   collectCandidates_ = false;
   memset(candidates_, 0, sizeof(candidates_));
-  status_ = {};
-  status_.configGeneration = configGeneration;
-  const bool configured = strnlen(settings.token, sizeof(settings.token)) == 64;
-  status_.phase = configured ? LineaMicraPhase::IDLE
-                             : LineaMicraPhase::Disabled;
-  status_.quality = configured ? LineaMicraObservationQuality::UNCONFIGURED
-                               : LineaMicraObservationQuality::Disabled;
-  configChanged_ = true;
-  stage_ = Stage::IDLE;
   portEXIT_CRITICAL(&mux_);
 }
 
 void ShotStopperMicraService::startRequest() {
+  portENTER_CRITICAL(&mux_);
+  const bool configSuperseded = configPending_;
+  portEXIT_CRITICAL(&mux_);
+  if (configSuperseded) return;
   lineamicra::PeerAddress peer;
   if (config_.bindingVerified) {
     peer.type = config_.peerAddressType;
     memcpy(peer.value, config_.peerAddress, sizeof(peer.value));
   } else {
-    const Candidate *best = nullptr;
+    Candidate best;
+    bool found = false;
+    portENTER_CRITICAL(&mux_);
     for (const Candidate &candidate : candidates_) {
       if (candidate.used &&
-          (best == nullptr || candidate.rssi > best->rssi ||
-           (candidate.rssi == best->rssi &&
-            memcmp(candidate.address, best->address,
+          (!found || candidate.rssi > best.rssi ||
+           (candidate.rssi == best.rssi &&
+            memcmp(candidate.address, best.address,
                    sizeof(candidate.address)) < 0))) {
-        best = &candidate;
+        best = candidate;
+        found = true;
       }
     }
-    if (best == nullptr) {
-      status_.phase = LineaMicraPhase::FAILED;
-      status_.quality = LineaMicraObservationQuality::COMMUNICATION_ERROR;
+    portEXIT_CRITICAL(&mux_);
+    if (!found) {
+      workingStatus_.phase = LineaMicraPhase::FAILED;
+      workingStatus_.quality =
+          LineaMicraObservationQuality::COMMUNICATION_ERROR;
       stage_ = Stage::IDLE;
+      publishStatus();
       return;
     }
-    peer.type = best->addressType;
-    memcpy(peer.value, best->address, sizeof(peer.value));
+    peer.type = best.addressType;
+    memcpy(peer.value, best.address, sizeof(peer.value));
   }
-  status_.phase = LineaMicraPhase::RUNNING;
+  workingStatus_.phase = LineaMicraPhase::RUNNING;
+  publishStatus();
   stage_ = Stage::CONNECT;
   if (!client_.connect(peer,
                        {micra_timing::kConnectTimeoutMs,
                         micra_timing::kAttTimeoutMs,
                         micra_timing::kConnectedSessionMaxMs},
                        request_.requestId)) {
-    status_.phase = LineaMicraPhase::FAILED;
-    status_.quality = LineaMicraObservationQuality::COMMUNICATION_ERROR;
-    stage_ = Stage::IDLE;
+    failRequest();
   }
 }
 
@@ -114,33 +159,43 @@ void ShotStopperMicraService::handleClientEvent(
       request_.configGeneration != configGeneration_) {
     return;
   }
+  if (event.type == lineamicra::EventType::DISCONNECTED) {
+    if (stage_ != Stage::DISCONNECT &&
+        workingStatus_.phase != LineaMicraPhase::CONFIRMED) {
+      workingStatus_.phase = LineaMicraPhase::FAILED;
+      workingStatus_.quality =
+          LineaMicraObservationQuality::COMMUNICATION_ERROR;
+      workingStatus_.powerState = LineaMicraPowerState::UNKNOWN;
+      workingStatus_.effectiveOn = true;
+      publishStatus();
+    }
+    stage_ = Stage::IDLE;
+    return;
+  }
   if (event.type == lineamicra::EventType::ERROR) {
-    status_.phase = LineaMicraPhase::FAILED;
-    status_.quality = LineaMicraObservationQuality::COMMUNICATION_ERROR;
-    status_.powerState = LineaMicraPowerState::UNKNOWN;
-    status_.effectiveOn = true;
-    client_.disconnect();
-    stage_ = Stage::DISCONNECT;
+    failRequest();
     return;
   }
   if (event.type == lineamicra::EventType::READY) {
     stage_ = Stage::AUTH;
     if (!client_.authenticate(config_.token, 64, request_.requestId)) {
-      status_.phase = LineaMicraPhase::FAILED;
+      failRequest();
     }
     return;
   }
   if (event.type == lineamicra::EventType::AUTHENTICATED) {
     if (request_.type == LineaMicraRequestType::OBSERVE_STATE) {
       stage_ = Stage::MODE;
-      (void)client_.query(lineamicra::Query::MACHINE_MODE, request_.requestId);
+      if (!client_.query(lineamicra::Query::MACHINE_MODE,
+                         request_.requestId)) failRequest();
     } else if (!config_.bindingVerified) {
       stage_ = Stage::CAPABILITIES;
-      (void)client_.query(lineamicra::Query::MACHINE_CAPABILITIES,
-                          request_.requestId);
+      if (!client_.query(lineamicra::Query::MACHINE_CAPABILITIES,
+                         request_.requestId)) failRequest();
     } else {
       stage_ = Stage::BOILERS;
-      (void)client_.query(lineamicra::Query::BOILERS, request_.requestId);
+      if (!client_.query(lineamicra::Query::BOILERS,
+                         request_.requestId)) failRequest();
     }
     return;
   }
@@ -150,18 +205,20 @@ void ShotStopperMicraService::handleClientEvent(
     if (lineamicra::parseMachineCapabilities(event.payload, event.payloadLength,
                                               error)) {
       stage_ = Stage::BOILERS;
-      (void)client_.query(lineamicra::Query::BOILERS, request_.requestId);
+      if (!client_.query(lineamicra::Query::BOILERS,
+                         request_.requestId)) failRequest();
       return;
     }
   } else if (stage_ == Stage::BOILERS) {
     lineamicra::BrewBoiler boiler;
     if (lineamicra::parseBrewBoiler(event.payload, event.payloadLength, boiler,
                                     error)) {
-      status_.measuredDeciC = boiler.currentDeciC;
-      status_.targetDeciC = boiler.targetDeciC;
-      status_.measuredValid = status_.targetValid = true;
-      status_.sampleAtMs = millis();
-      status_.phase = LineaMicraPhase::CONFIRMED;
+      workingStatus_.measuredDeciC = boiler.currentDeciC;
+      workingStatus_.targetDeciC = boiler.targetDeciC;
+      workingStatus_.measuredValid = workingStatus_.targetValid = true;
+      workingStatus_.sampleAtMs = millis();
+      workingStatus_.phase = LineaMicraPhase::CONFIRMED;
+      publishStatus();
       client_.disconnect();
       stage_ = Stage::DISCONNECT;
       return;
@@ -170,8 +227,8 @@ void ShotStopperMicraService::handleClientEvent(
     lineamicra::Mode mode;
     if (lineamicra::parseMachineMode(event.payload, event.payloadLength, mode,
                                      error)) {
-      status_.sampleAtMs = millis();
-      status_.observedMode =
+      workingStatus_.sampleAtMs = millis();
+      workingStatus_.observedMode =
           mode == lineamicra::Mode::STANDBY
               ? LineaMicraObservedMode::STANDBY
               : (mode == lineamicra::Mode::BREWING
@@ -179,35 +236,59 @@ void ShotStopperMicraService::handleClientEvent(
                      : (mode == lineamicra::Mode::ECO
                             ? LineaMicraObservedMode::ECO
                             : LineaMicraObservedMode::UNSUPPORTED));
-      status_.powerState = mode == lineamicra::Mode::STANDBY
+      workingStatus_.powerState = mode == lineamicra::Mode::STANDBY
                                ? LineaMicraPowerState::OFF
                                : (mode == lineamicra::Mode::BREWING
                                       ? LineaMicraPowerState::ON
                                       : LineaMicraPowerState::UNKNOWN);
-      status_.effectiveOn = status_.powerState != LineaMicraPowerState::OFF;
-      status_.quality = status_.powerState == LineaMicraPowerState::UNKNOWN
+      workingStatus_.effectiveOn =
+          workingStatus_.powerState != LineaMicraPowerState::OFF;
+      workingStatus_.quality =
+          workingStatus_.powerState == LineaMicraPowerState::UNKNOWN
                             ? LineaMicraObservationQuality::UNSUPPORTED
                             : LineaMicraObservationQuality::CURRENT;
-      status_.phase = LineaMicraPhase::CONFIRMED;
+      workingStatus_.phase = LineaMicraPhase::CONFIRMED;
+      publishStatus();
       client_.disconnect();
       stage_ = Stage::DISCONNECT;
       return;
     }
   }
-  status_.phase = LineaMicraPhase::FAILED;
-  status_.quality = LineaMicraObservationQuality::COMMUNICATION_ERROR;
+  failRequest();
+}
+
+void ShotStopperMicraService::failRequest() {
+  workingStatus_.phase = LineaMicraPhase::FAILED;
+  workingStatus_.quality = LineaMicraObservationQuality::COMMUNICATION_ERROR;
+  workingStatus_.powerState = LineaMicraPowerState::UNKNOWN;
+  workingStatus_.effectiveOn = true;
+  publishStatus();
   client_.disconnect();
-  stage_ = Stage::DISCONNECT;
+  stage_ = client_.state() == lineamicra::ClientState::IDLE
+               ? Stage::IDLE
+               : Stage::DISCONNECT;
+}
+
+void ShotStopperMicraService::publishStatus() {
+  portENTER_CRITICAL(&mux_);
+  publishedStatus_ = workingStatus_;
+  portEXIT_CRITICAL(&mux_);
 }
 
 bool ShotStopperMicraService::queue(
     const LineaMicraRequest &request) {
   portENTER_CRITICAL(&mux_);
-  const bool accepted = request.requestId != 0 &&
-                        request.configGeneration == configGeneration_ &&
-                        strnlen(config_.token, sizeof(config_.token)) == 64;
+  const bool supported = request.type == LineaMicraRequestType::TEST ||
+                         (request.type == LineaMicraRequestType::OBSERVE_STATE &&
+                          (pendingConfig_.options &
+                           LINEA_MICRA_OBSERVE_STATE) != 0);
+  const bool accepted = supported && request.requestId != 0 &&
+                        request.configGeneration == acceptedConfigGeneration_ &&
+                        strnlen(pendingConfig_.token,
+                                sizeof(pendingConfig_.token)) == 64 &&
+                        !requestPending_;
   if (accepted) {
-    request_ = request;
+    pendingRequest_ = request;
     requestPending_ = true;
   }
   portEXIT_CRITICAL(&mux_);
@@ -216,7 +297,7 @@ bool ShotStopperMicraService::queue(
 
 LineaMicraStatus ShotStopperMicraService::status() const {
   portENTER_CRITICAL(&mux_);
-  const LineaMicraStatus snapshot = status_;
+  const LineaMicraStatus snapshot = publishedStatus_;
   portEXIT_CRITICAL(&mux_);
   return snapshot;
 }

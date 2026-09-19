@@ -16,7 +16,8 @@ static void resetPlatform() {
   testGattSubmitStatus = 0;
   testConnectSubmitStatus = 0;
   testTerminateStatus = 0;
-  testTerminations = testWrites = 0;
+  testConnectCancelStatus = 0;
+  testTerminations = testConnectCancels = testWrites = 0;
   testMbufAllocFails = false;
   testMtuCallback = nullptr;
   testServiceCallback = nullptr;
@@ -174,10 +175,77 @@ static void testTimeoutAndReset() {
   client.service();
 }
 
+static void testPreemptionCancelsConnectingAndClosesConnectRace() {
+  resetPlatform();
+  lineamicra::LineaMicraBLE client;
+  lineamicra::PeerAddress peer = {};
+  assert(client.connect(peer, {3000, 1000, 6000}, 70));
+  testScaleLeaseActive = false;
+  client.service();
+  assert(testConnectCancels == 1);
+  ClientEvent event;
+  assert(client.takeEvent(event) && event.type == EventType::ERROR);
+  assert(event.status == BLE_HS_EBUSY);
+
+  ble_gap_event connected = {};
+  connected.type = BLE_GAP_EVENT_CONNECT;
+  connected.connect.status = 0;
+  connected.connect.conn_handle = 9;
+  assert(testGapCallback(&connected, testGapArg) == 0);
+  client.service();
+  assert(testTerminations == 1);
+  assert(client.state() == lineamicra::ClientState::DISCONNECTING);
+
+  ble_gap_event disconnected = {};
+  disconnected.type = BLE_GAP_EVENT_DISCONNECT;
+  disconnected.disconnect.reason = 0x13;
+  disconnected.disconnect.conn.conn_handle = 9;
+  assert(testGapCallback(&disconnected, testGapArg) == 0);
+  client.service();
+  assert(client.takeEvent(event) && event.type == EventType::DISCONNECTED);
+  assert(client.state() == lineamicra::ClientState::IDLE);
+}
+
+static void testTerminationFailureQuarantinesClientAndReleasesAdmission() {
+  resetPlatform();
+  lineamicra::LineaMicraBLE client;
+  connectReady(client, 23);
+  testTerminateStatus = BLE_HS_EBUSY;
+  client.disconnect();
+  assert(client.state() == lineamicra::ClientState::FAILED);
+  assert(!testScaleLeaseActive);
+  ClientEvent event;
+  assert(client.takeEvent(event) && event.type == EventType::ERROR);
+  assert(event.status == BLE_HS_EBUSY);
+}
+
+static void testCanceledConnectPreservesOrderedCompletions() {
+  resetPlatform();
+  lineamicra::LineaMicraBLE client;
+  lineamicra::PeerAddress peer = {};
+  assert(client.connect(peer, {3000, 1000, 6000}, 71));
+  testScaleLeaseActive = false;
+  client.service();
+  ble_gap_event canceled = {};
+  canceled.type = BLE_GAP_EVENT_CONNECT;
+  canceled.connect.status = BLE_HS_ETIMEOUT;
+  canceled.connect.conn_handle = 0xffff;
+  assert(testGapCallback(&canceled, testGapArg) == 0);
+  client.service();
+  ClientEvent event;
+  assert(client.takeEvent(event) && event.type == EventType::ERROR);
+  client.service();
+  assert(client.takeEvent(event) && event.type == EventType::DISCONNECTED);
+  assert(client.state() == lineamicra::ClientState::IDLE);
+}
+
 int main() {
   testSession(23);
   testSession(185);
   testFailures();
   testTimeoutAndReset();
+  testPreemptionCancelsConnectingAndClosesConnectRace();
+  testTerminationFailureQuarantinesClientAndReleasesAdmission();
+  testCanceledConnectPreservesOrderedCompletions();
   return 0;
 }

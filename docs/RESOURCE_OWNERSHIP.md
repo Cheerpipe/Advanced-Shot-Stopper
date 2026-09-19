@@ -42,7 +42,7 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | shot history, curves, activation history and last-shot aggregate | `ActivationStores` data layer (control finalization/deferred-save path); Network borrows only through mutex-guarded callbacks | static `shotStoreMutex` covers each complete RAM operation and its flash snapshot; Home receives one control-published exact-ID rating/curve snapshot |
 | webhook queue / payload | `WebhookDispatcher` | internal queue storage and external HTTP payload; release after worker join, or startup rollback |
 | profiler workspace / capture | `TaskProfiler` | external processing workspace and separate internal kernel capture; free both on stop or failed start |
-| cJSON document | parsing caller | PSRAM allocations through process-wide hooks installed once before HTTP starts; `cJSON_Delete` releases each independent document |
+| cJSON document | parsing caller | PSRAM allocations through process-wide hooks installed once before BLE workers and HTTP start; `cJSON_Delete` releases each independent document |
 
 `initJsonParser()` installs the cJSON allocator once, before concurrent users
 start. No caller may replace the process-wide hooks afterward. This is not a

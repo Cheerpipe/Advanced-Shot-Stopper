@@ -1,6 +1,10 @@
 #include "ShotStopperBleArbiter.h"
 
-#include <atomic>
+#if defined(ESP_PLATFORM)
+#include <freertos/FreeRTOS.h>
+#else
+#include <mutex>
+#endif
 
 namespace {
 
@@ -24,16 +28,29 @@ struct State {
   bool scaleReserved = false;
 };
 
-std::atomic_flag gLock = ATOMIC_FLAG_INIT;
+#if defined(ESP_PLATFORM)
+portMUX_TYPE gLock = portMUX_INITIALIZER_UNLOCKED;
+#else
+std::mutex gLock;
+#endif
 State gState;
 
 class Lock {
  public:
   Lock() {
-    while (gLock.test_and_set(std::memory_order_acquire)) {
-    }
+#if defined(ESP_PLATFORM)
+    portENTER_CRITICAL(&gLock);
+#else
+    gLock.lock();
+#endif
   }
-  ~Lock() { gLock.clear(std::memory_order_release); }
+  ~Lock() {
+#if defined(ESP_PLATFORM)
+    portEXIT_CRITICAL(&gLock);
+#else
+    gLock.unlock();
+#endif
+  }
 };
 
 ObserverSlot *slotFor(ShotStopperBleOwner owner) {

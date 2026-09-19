@@ -174,8 +174,11 @@ struct ClientImpl {
   }
 
   uint32_t nextOperation() {
+    portENTER_CRITICAL(&mux);
     if (++operationGeneration == 0) ++operationGeneration;
-    return operationGeneration;
+    const uint32_t next = operationGeneration;
+    portEXIT_CRITICAL(&mux);
+    return next;
   }
 
   void enter(ClientState next) {
@@ -212,7 +215,9 @@ struct ClientImpl {
 
   void emit(EventType type, int32_t status = 0) {
     if (completionPending) {
+      portENTER_CRITICAL(&mux);
       ++health.droppedEvents;
+      portEXIT_CRITICAL(&mux);
       return;
     }
     completion = {};
@@ -229,9 +234,14 @@ struct ClientImpl {
     completionPending = true;
   }
 
-  bool callbackMatches(uint32_t actual, uint32_t expected) {
+  bool callbackContext(uint32_t actual, bool link, uint32_t &session) {
+    portENTER_CRITICAL(&mux);
+    const uint32_t expected = link ? linkOperationGeneration
+                                   : operationGeneration;
     const bool matches = actual != 0 && actual == expected;
-    if (!matches) ++health.staleCallbacks;
+    if (matches) session = sessionGeneration;
+    else ++health.staleCallbacks;
+    portEXIT_CRITICAL(&mux);
     return matches;
   }
 
@@ -240,9 +250,10 @@ struct ClientImpl {
     ClientImpl *self = lease.owner();
     if (self == nullptr || event == nullptr) return 0;
     const uint32_t operation = callbackOperation(argument);
-    if (!self->callbackMatches(operation, self->linkOperationGeneration)) return 0;
+    uint32_t session = 0;
+    if (!self->callbackContext(operation, true, session)) return 0;
     InternalEvent result = {};
-    result.sessionGeneration = self->sessionGeneration;
+    result.sessionGeneration = session;
     result.operationGeneration = operation;
     if (event->type == BLE_GAP_EVENT_CONNECT) {
       result.type = InternalEventType::CONNECTED;
@@ -264,8 +275,9 @@ struct ClientImpl {
     ClientImpl *self = lease.owner();
     if (self == nullptr) return 0;
     const uint32_t operation = callbackOperation(argument);
-    if (!self->callbackMatches(operation, self->operationGeneration)) return 0;
-    self->push({InternalEventType::MTU_DONE, self->sessionGeneration, operation,
+    uint32_t session = 0;
+    if (!self->callbackContext(operation, false, session)) return 0;
+    self->push({InternalEventType::MTU_DONE, session, operation,
                 error == nullptr ? BLE_HS_EUNKNOWN : error->status,
                 connection, mtu});
     return 0;
@@ -277,7 +289,8 @@ struct ClientImpl {
     ClientImpl *self = lease.owner();
     if (self == nullptr || error == nullptr) return 0;
     const uint32_t operation = callbackOperation(argument);
-    if (!self->callbackMatches(operation, self->operationGeneration)) return 0;
+    uint32_t session = 0;
+    if (!self->callbackContext(operation, false, session)) return 0;
     if (error->status == 0 && service != nullptr) {
       portENTER_CRITICAL(&self->mux);
       if (self->serviceCount < kServiceCapacity) {
@@ -288,7 +301,7 @@ struct ClientImpl {
       }
       portEXIT_CRITICAL(&self->mux);
     } else {
-      self->push({InternalEventType::SERVICES_DONE, self->sessionGeneration,
+      self->push({InternalEventType::SERVICES_DONE, session,
                   operation, error->status, connection, 0});
     }
     return 0;
@@ -302,7 +315,8 @@ struct ClientImpl {
     ClientImpl *self = lease.owner();
     if (self == nullptr || error == nullptr) return 0;
     const uint32_t operation = callbackOperation(argument);
-    if (!self->callbackMatches(operation, self->operationGeneration)) return 0;
+    uint32_t session = 0;
+    if (!self->callbackContext(operation, false, session)) return 0;
     if (error->status == 0 && characteristic != nullptr) {
       ble_uuid_any_t readUuid = {}, writeUuid = {}, authUuid = {};
       ble_uuid_from_str(&readUuid, kReadCharacteristicUuid);
@@ -322,7 +336,7 @@ struct ClientImpl {
       portEXIT_CRITICAL(&self->mux);
     } else {
       self->push({InternalEventType::CHARACTERISTICS_DONE,
-                  self->sessionGeneration, operation, error->status,
+                  session, operation, error->status,
                   connection, 0});
     }
     return 0;
@@ -334,8 +348,9 @@ struct ClientImpl {
     ClientImpl *self = lease.owner();
     if (self == nullptr) return 0;
     const uint32_t operation = callbackOperation(argument);
-    if (!self->callbackMatches(operation, self->operationGeneration)) return 0;
-    self->push({InternalEventType::WRITE_DONE, self->sessionGeneration,
+    uint32_t session = 0;
+    if (!self->callbackContext(operation, false, session)) return 0;
+    self->push({InternalEventType::WRITE_DONE, session,
                 operation, error == nullptr ? BLE_HS_EUNKNOWN : error->status,
                 connection, 0});
     return 0;
@@ -347,7 +362,8 @@ struct ClientImpl {
     ClientImpl *self = lease.owner();
     if (self == nullptr || error == nullptr) return 0;
     const uint32_t operation = callbackOperation(argument);
-    if (!self->callbackMatches(operation, self->operationGeneration)) return 0;
+    uint32_t session = 0;
+    if (!self->callbackContext(operation, false, session)) return 0;
     if (error->status == 0 && attribute != nullptr && attribute->om != nullptr) {
       const uint16_t bytes = OS_MBUF_PKTLEN(attribute->om);
       portENTER_CRITICAL(&self->mux);
@@ -366,20 +382,35 @@ struct ClientImpl {
         portEXIT_CRITICAL(&self->mux);
       }
     } else {
-      self->push({InternalEventType::READ_DONE, self->sessionGeneration,
+      self->push({InternalEventType::READ_DONE, session,
                   operation, error->status, connection, 0});
     }
     return 0;
   }
 
   void fail(int32_t status) {
+    const ClientState previous = state;
     operation = ActiveOperation::NONE;
     emit(EventType::ERROR, status);
-    enter(ClientState::FAILED);
     if (connectionHandle != kInvalidHandle) {
-      (void)ble_gap_terminate(connectionHandle, BLE_ERR_REM_USER_CONN_TERM);
-      enter(ClientState::DISCONNECTING);
+      cancelRequested = true;
+      const int rc = ble_gap_terminate(connectionHandle,
+                                       BLE_ERR_REM_USER_CONN_TERM);
+      if (rc == 0 || rc == BLE_HS_EALREADY) enter(ClientState::DISCONNECTING);
+      else {
+        enter(ClientState::FAILED);
+        releaseRadio();
+      }
+    } else if (previous == ClientState::CONNECTING) {
+      cancelRequested = true;
+      const int rc = ble_gap_conn_cancel();
+      if (rc == 0 || rc == BLE_HS_EALREADY) enter(ClientState::DISCONNECTING);
+      else {
+        enter(ClientState::FAILED);
+        releaseRadio();
+      }
     } else {
+      enter(ClientState::FAILED);
       releaseRadio();
     }
   }
@@ -446,7 +477,9 @@ struct ClientImpl {
     const uint32_t operationId = nextOperation();
     os_mbuf *buffer = ble_hs_mbuf_from_flat(writeBuffer, writeLength);
     if (buffer == nullptr) {
+      portENTER_CRITICAL(&mux);
       ++health.mbufFailures;
+      portEXIT_CRITICAL(&mux);
       fail(BLE_HS_ENOMEM);
       return false;
     }
@@ -492,16 +525,24 @@ struct ClientImpl {
       return;
     }
     InternalEvent event;
-    while (pop(event)) {
+    while (!completionPending && pop(event)) {
       if (event.sessionGeneration != sessionGeneration) {
+        portENTER_CRITICAL(&mux);
         ++health.staleCallbacks;
+        portEXIT_CRITICAL(&mux);
         continue;
       }
       switch (event.type) {
         case InternalEventType::CONNECTED:
-          if (event.status != 0 || cancelRequested) {
-            if (event.status != 0) fail(event.status);
-            else disconnectNow();
+          if (event.status != 0) {
+            operation = ActiveOperation::NONE;
+            releaseRadio();
+            enter(ClientState::IDLE);
+            emit(cancelRequested ? EventType::DISCONNECTED : EventType::ERROR,
+                 event.status);
+          } else if (cancelRequested) {
+            connectionHandle = event.connectionHandle;
+            disconnectNow();
           } else {
             connectionHandle = event.connectionHandle;
             beginMtu();
@@ -515,7 +556,11 @@ struct ClientImpl {
           emit(EventType::DISCONNECTED, event.status);
           break;
         case InternalEventType::MTU_DONE:
-          if (event.status == 0 && event.mtu >= 23) health.negotiatedMtu = event.mtu;
+          if (event.status == 0 && event.mtu >= 23) {
+            portENTER_CRITICAL(&mux);
+            health.negotiatedMtu = event.mtu;
+            portEXIT_CRITICAL(&mux);
+          }
           beginServices();
           break;
         case InternalEventType::SERVICES_DONE:
@@ -560,8 +605,16 @@ struct ClientImpl {
           break;
       }
     }
+    // Preserve output ordering: the caller consumes one completion at a time,
+    // then a later service pass may advance queued native callbacks.
+    if (completionPending) return;
     const uint32_t now = nowMs();
-    if ((state == ClientState::CONNECTING &&
+    if (state == ClientState::DISCONNECTING &&
+        elapsedAtLeast(now, stateStartedAtMs, config.operationTimeoutMs)) {
+      if (!completionPending) emit(EventType::ERROR, BLE_HS_ETIMEOUT);
+      enter(ClientState::FAILED);
+      releaseRadio();
+    } else if ((state == ClientState::CONNECTING &&
          elapsedAtLeast(now, stateStartedAtMs, config.connectTimeoutMs)) ||
         ((state == ClientState::DISCOVERING || state == ClientState::OPERATING) &&
          elapsedAtLeast(now, stateStartedAtMs, config.operationTimeoutMs)) ||
@@ -574,11 +627,22 @@ struct ClientImpl {
   void disconnectNow() {
     cancelRequested = true;
     if (connectionHandle != kInvalidHandle) {
-      (void)ble_gap_terminate(connectionHandle, BLE_ERR_REM_USER_CONN_TERM);
-      enter(ClientState::DISCONNECTING);
+      const int rc = ble_gap_terminate(connectionHandle,
+                                       BLE_ERR_REM_USER_CONN_TERM);
+      if (rc == 0 || rc == BLE_HS_EALREADY) enter(ClientState::DISCONNECTING);
+      else {
+        if (!completionPending) emit(EventType::ERROR, rc);
+        enter(ClientState::FAILED);
+        releaseRadio();
+      }
     } else if (state == ClientState::CONNECTING) {
-      (void)ble_gap_conn_cancel();
-      enter(ClientState::DISCONNECTING);
+      const int rc = ble_gap_conn_cancel();
+      if (rc == 0 || rc == BLE_HS_EALREADY) enter(ClientState::DISCONNECTING);
+      else {
+        if (!completionPending) emit(EventType::ERROR, rc);
+        enter(ClientState::FAILED);
+        releaseRadio();
+      }
     } else {
       enter(ClientState::IDLE);
       releaseRadio();
@@ -615,24 +679,30 @@ bool LineaMicraBLE::connect(const PeerAddress &peer, const ClientConfig &config,
   self.peer = peer;
   self.config = config;
   self.requestGeneration = requestGeneration;
+  portENTER_CRITICAL(&self.mux);
   if (++self.sessionGeneration == 0) ++self.sessionGeneration;
+  self.eventHead = self.eventTail = self.eventCount = 0;
+  portEXIT_CRITICAL(&self.mux);
   self.hostGeneration = shotStopperBleRuntimeSyncGeneration();
   self.sessionStartedAtMs = nowMs();
   self.cancelRequested = false;
   self.readHandle = self.writeHandle = self.authHandle = 0;
   self.readProperties = self.writeProperties = self.authProperties = 0;
   self.responseLength = 0;
-  self.eventHead = self.eventTail = self.eventCount = 0;
   self.enter(ClientState::CONNECTING);
   ble_addr_t address = {};
   address.type = peer.type;
   std::memcpy(address.val, peer.value, sizeof(address.val));
-  self.linkOperationGeneration = self.nextOperation();
+  const uint32_t linkOperation = self.nextOperation();
+  portENTER_CRITICAL(&self.mux);
+  self.linkOperationGeneration = linkOperation;
+  portEXIT_CRITICAL(&self.mux);
   const int rc = ble_gap_connect(shotStopperBleRuntimeOwnAddressType(), &address,
                                  config.connectTimeoutMs, nullptr,
                                  ClientImpl::gapCallback,
-                                 ClientImpl::callbackArg(self.linkOperationGeneration));
+                                 ClientImpl::callbackArg(linkOperation));
   if (rc != 0) {
+    self.enter(ClientState::FAILED);
     self.fail(rc);
     return false;
   }
@@ -693,6 +763,12 @@ ClientState LineaMicraBLE::state() const { return implementation(storage_)->stat
 bool LineaMicraBLE::connected() const {
   return implementation(storage_)->connectionHandle != kInvalidHandle;
 }
-ClientHealth LineaMicraBLE::health() const { return implementation(storage_)->health; }
+ClientHealth LineaMicraBLE::health() const {
+  ClientImpl &self = *implementation(const_cast<uint8_t *>(storage_));
+  portENTER_CRITICAL(&self.mux);
+  const ClientHealth snapshot = self.health;
+  portEXIT_CRITICAL(&self.mux);
+  return snapshot;
+}
 
 }  // namespace lineamicra

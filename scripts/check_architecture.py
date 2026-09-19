@@ -84,6 +84,9 @@ def main() -> int:
     ):
         if required not in machine_cmake:
             failures.append(f"selected machine source contract missing {required!r}")
+    entrypoints = text("src/platform/ShotStopperEntrypoints.inc")
+    if "scaleBridgeOk && machineIntegrationOk" in entrypoints:
+        failures.append("optional machine integration gates scale-worker startup")
 
     network = service_text("src/ShotStopperNetwork.cpp", "src/network") + text(
         "src/ShotStopperNetwork.h"
@@ -105,6 +108,7 @@ def main() -> int:
         "src/tests/resource_owner_host_test.cpp",
         "src/tests/machine_integration_host_test.cpp",
         "src/tests/linea_micra_contract_host_test.cpp",
+        "src/tests/micra_service_host_test.cpp",
         "libraries/EspressoScaleBLE/tests/scale_ble_portable_test.cpp",
     )
     for relative in independent_harnesses:

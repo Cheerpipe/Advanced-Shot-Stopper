@@ -16,6 +16,11 @@ void setup() {
   bootState = BootState::BOOTING;
   bootDegraded = false;
   firmwareInitializationComplete = false;
+#ifndef SHOT_STOPPER_HOST_TEST
+  // cJSON hooks are process-wide; install the external allocator before the
+  // BLE worker or network task can parse concurrently.
+  initJsonParser();
+#endif
 #ifdef SHOT_STOPPER_HOST_TEST
   // Host tests may invoke setup() after constructing a ready harness. Its task
   // stub never runs, so tear down that synthetic worker before boot injection.
@@ -203,8 +208,11 @@ void setup() {
   const bool scaleBridgeOk = true;
 #endif
   const bool machineIntegrationOk = initializeMachineIntegration();
-  const bool scaleWorkerOk = scaleBridgeOk && machineIntegrationOk &&
-                             initializeScaleWorker();
+  const bool scaleWorkerOk = scaleBridgeOk && initializeScaleWorker();
+  if (!machineIntegrationOk) {
+    logEmit(LogLevel::WARNING, DebugCategory::BOOT,
+            DebugCode::INITIALIZATION_FAILED, BOOT_SUBSYSTEM_BLE);
+  }
   if (!scaleWorkerOk) {
     logEmit(LogLevel::ERROR, DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,
             BOOT_SUBSYSTEM_SCALE_WORKER, 0);

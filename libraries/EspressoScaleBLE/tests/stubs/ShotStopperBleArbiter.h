@@ -17,16 +17,33 @@ struct ShotStopperBleAdvertisement {
   const uint8_t *payload = nullptr;
   uint8_t payloadLength = 0;
 };
+using ShotStopperBleAdvertisementObserver = void (*)(
+    const ShotStopperBleAdvertisement &, void *);
 
 inline uint32_t testScaleReservations = 0;
 inline uint32_t testAdvertisementPublications = 0;
 inline bool testScaleLeaseAvailable = true;
 inline bool testScaleLeaseActive = false;
 inline uint32_t testScaleLeaseId = 0;
+inline ShotStopperBleAdvertisementObserver testMachineObserver = nullptr;
+inline void *testMachineObserverContext = nullptr;
+
+inline bool shotStopperBleArbiterRegisterObserver(
+    ShotStopperBleOwner owner, ShotStopperBleAdvertisementObserver observer,
+    void *context) {
+  if (owner != ShotStopperBleOwner::Machine || observer == nullptr ||
+      testMachineObserver != nullptr) return false;
+  testMachineObserver = observer;
+  testMachineObserverContext = context;
+  return true;
+}
 
 inline void shotStopperBleArbiterPublishAdvertisement(
-    const ShotStopperBleAdvertisement &) {
+    const ShotStopperBleAdvertisement &advertisement) {
   ++testAdvertisementPublications;
+  if (testMachineObserver != nullptr) {
+    testMachineObserver(advertisement, testMachineObserverContext);
+  }
 }
 inline void shotStopperBleArbiterReserveScaleCandidate() {
   ++testScaleReservations;

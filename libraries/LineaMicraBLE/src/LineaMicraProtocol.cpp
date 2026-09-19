@@ -11,14 +11,25 @@ namespace {
 
 constexpr unsigned kMaxJsonDepth = 6;
 
-unsigned jsonDepth(const cJSON *item) {
-  unsigned childDepth = 0;
-  for (const cJSON *child = item == nullptr ? nullptr : item->child; child != nullptr;
-       child = child->next) {
-    const unsigned depth = jsonDepth(child);
-    if (depth > childDepth) childDepth = depth;
+bool nestingWithinLimit(const char *json, size_t length) {
+  unsigned depth = 0;
+  bool escaped = false;
+  bool quoted = false;
+  for (size_t index = 0; index < length; ++index) {
+    const char value = json[index];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (value == '\\') escaped = true;
+      else if (value == '"') quoted = false;
+    } else if (value == '"') {
+      quoted = true;
+    } else if (value == '{' || value == '[') {
+      if (++depth > kMaxJsonDepth) return false;
+    } else if ((value == '}' || value == ']') && depth != 0) {
+      --depth;
+    }
   }
-  return item == nullptr ? 0U : 1U + childDepth;
+  return true;
 }
 
 cJSON *parseRoot(const char *json, size_t length, Error &error) {
@@ -31,6 +42,10 @@ cJSON *parseRoot(const char *json, size_t length, Error &error) {
     error = Error::OVERSIZED;
     return nullptr;
   }
+  if (!nestingWithinLimit(json, length)) {
+    error = Error::TOO_DEEP;
+    return nullptr;
+  }
   char bounded[kMaxResponseBytes + 1];
   std::memcpy(bounded, json, length);
   bounded[length] = '\0';
@@ -38,11 +53,6 @@ cJSON *parseRoot(const char *json, size_t length, Error &error) {
   cJSON *root = cJSON_ParseWithOpts(bounded, &end, true);
   if (root == nullptr) {
     error = Error::MALFORMED;
-    return nullptr;
-  }
-  if (jsonDepth(root) > kMaxJsonDepth) {
-    cJSON_Delete(root);
-    error = Error::TOO_DEEP;
     return nullptr;
   }
   return root;
@@ -116,6 +126,7 @@ bool buildQuery(Query query, char *output, size_t capacity, size_t &payloadLengt
     case Query::BOILERS: text = "boilers"; break;
     case Query::MACHINE_MODE: text = "machineMode"; break;
   }
+  if (text == nullptr) return false;
   const size_t length = std::strlen(text) + 1;
   if (output == nullptr || capacity < length) return false;
   std::memcpy(output, text, length);
