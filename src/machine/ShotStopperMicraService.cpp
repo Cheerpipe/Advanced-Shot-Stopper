@@ -164,6 +164,7 @@ void ShotStopperMicraService::service() {
     collectCandidates_ = collect;
     if (collect) {
       memset(candidates_, 0, sizeof(candidates_));
+      selectedCandidate_ = UINT8_MAX;
       advertisementsObserved_ = connectableFragments_ = namedFragments_ = 0;
       micraFragments_ = malformedFragments_ = 0;
     }
@@ -198,13 +199,15 @@ void ShotStopperMicraService::service() {
   if (stage_ == Stage::WAIT_CANDIDATES &&
       static_cast<uint32_t>(millis() - discoveryStartedAtMs_) >=
           micra_timing::kDiscoverySliceMs) {
-    uint8_t eligible = 0;
+    uint8_t eligible = 0, fallback = 0;
     uint16_t seen = 0, connectable = 0, named = 0, micra = 0, malformed = 0;
     portENTER_CRITICAL(&mux_);
     collectCandidates_ = false;
     for (const Candidate &candidate : candidates_) {
       eligible += candidate.used && candidate.connectable &&
                   strncmp(candidate.identity, "MICRA_", 6) == 0;
+      fallback += candidate.used && candidate.connectable &&
+                  candidate.identity[0] == '\0';
     }
     seen = advertisementsObserved_;
     connectable = connectableFragments_;
@@ -214,11 +217,12 @@ void ShotStopperMicraService::service() {
     portEXIT_CRITICAL(&mux_);
     serialTraceCategoryf(
         LogLevel::DEBUG, DebugCategory::SYSTEM,
-        "Micra scan req=%lu seen=%u conn=%u named=%u match=%u bad=%u eligible=%u",
+        "Micra scan req=%lu seen=%u conn=%u named=%u match=%u bad=%u eligible=%u fallback=%u",
         static_cast<unsigned long>(request_.requestId),
         static_cast<unsigned>(seen), static_cast<unsigned>(connectable),
         static_cast<unsigned>(named), static_cast<unsigned>(micra),
-        static_cast<unsigned>(malformed), static_cast<unsigned>(eligible));
+        static_cast<unsigned>(malformed), static_cast<unsigned>(eligible),
+        static_cast<unsigned>(fallback));
     startRequest();
   }
 }
@@ -279,6 +283,7 @@ void ShotStopperMicraService::startRequest() {
     portENTER_CRITICAL(&mux_);
     uint8_t index = 0;
     uint8_t bestIndex = UINT8_MAX;
+    uint8_t anonymousCount = 0;
     for (const Candidate &candidate : candidates_) {
       if (candidate.used && candidate.connectable &&
           strncmp(candidate.identity, "MICRA_", 6) == 0 &&
@@ -290,7 +295,36 @@ void ShotStopperMicraService::startRequest() {
         found = true;
         bestIndex = index;
       }
+      anonymousCount += candidate.used && candidate.connectable &&
+                        candidate.identity[0] == '\0';
       ++index;
+    }
+    if (!found && anonymousCount != 0) {
+      const uint8_t wantedRank = attempt_ % anonymousCount;
+      index = 0;
+      for (const Candidate &candidate : candidates_) {
+        if (!candidate.used || !candidate.connectable ||
+            candidate.identity[0] != '\0') {
+          ++index;
+          continue;
+        }
+        uint8_t rank = 0;
+        for (const Candidate &other : candidates_) {
+          rank += other.used && other.connectable &&
+                  other.identity[0] == '\0' &&
+                  (other.rssi > candidate.rssi ||
+                   (other.rssi == candidate.rssi &&
+                    memcmp(other.address, candidate.address,
+                           sizeof(candidate.address)) < 0));
+        }
+        if (rank == wantedRank) {
+          best = candidate;
+          bestIndex = index;
+          found = true;
+          break;
+        }
+        ++index;
+      }
     }
     portEXIT_CRITICAL(&mux_);
     if (!found) {
@@ -303,7 +337,8 @@ void ShotStopperMicraService::startRequest() {
     serialTraceCategoryf(
         LogLevel::DEBUG, DebugCategory::SYSTEM,
         "Micra candidate req=%lu id=%s rssi=%d type=%u",
-        static_cast<unsigned long>(request_.requestId), best.identity,
+        static_cast<unsigned long>(request_.requestId),
+        best.identity[0] == '\0' ? "anonymous" : best.identity,
         best.rssi, static_cast<unsigned>(best.addressType));
   }
   if (!shotStopperBleArbiterPrepareMachineProcedure()) {
@@ -372,6 +407,15 @@ void ShotStopperMicraService::handleClientEvent(
   if (stage_ == Stage::CAPABILITIES) {
     if (lineamicra::parseMachineCapabilities(event.payload, event.payloadLength,
                                               error)) {
+      if (!config_.bindingVerified && selectedCandidate_ < 4) {
+        portENTER_CRITICAL(&mux_);
+        Candidate &candidate = candidates_[selectedCandidate_];
+        if (candidate.used && candidate.identity[0] == '\0') {
+          memcpy(candidate.identity, "MICRA_ANONYMOUS",
+                 sizeof("MICRA_ANONYMOUS"));
+        }
+        portEXIT_CRITICAL(&mux_);
+      }
       stage_ = Stage::BOILERS;
       handleSubmission(client_.query(lineamicra::Query::BOILERS,
                                      request_.requestId));
@@ -693,14 +737,20 @@ void ShotStopperMicraService::acceptAdvertisement(
     if (!candidate.used && slot == nullptr) slot = &candidate;
   }
   if (slot == nullptr) {
-    slot = &candidates_[0];
+    Candidate *weakestAnonymous = nullptr;
     for (Candidate &candidate : candidates_) {
-      if (candidate.rssi < slot->rssi) slot = &candidate;
+      if (candidate.identity[0] == '\0' &&
+          (weakestAnonymous == nullptr ||
+           candidate.rssi < weakestAnonymous->rssi)) {
+        weakestAnonymous = &candidate;
+      }
     }
-    if (advertisement.rssi <= slot->rssi) {
+    if (weakestAnonymous == nullptr ||
+        (!micraIdentity && advertisement.rssi <= weakestAnonymous->rssi)) {
       portEXIT_CRITICAL(&mux_);
       return;
     }
+    slot = weakestAnonymous;
   }
   if (!slot->used || slot->addressType != advertisement.addressType ||
       memcmp(slot->address, advertisement.address,

@@ -17,9 +17,15 @@ Test is read-only: it authenticates, verifies the Micra family, and reads the
 brew boiler. It never changes power or temperature. The token is write-only in
 the Web UI and diagnostics; leaving the field blank keeps the saved token.
 
-Pairing collects a bounded candidate set and tries the strongest candidate,
-saving it only after authentication and a valid Micra response. A
-scale candidate always has radio priority. Home Assistant or the La Marzocco
+Pairing prefers a nearby device that identifies itself as a Micra. Some Micras
+do not include their name in every Bluetooth announcement, so each retry can
+also test one nearby unnamed device from a small candidate set. An unnamed
+device is saved only after it exposes the expected La Marzocco connection,
+accepts the token, identifies itself as a Micra, and returns a valid brew-boiler
+reading. If pairing is difficult in a crowded Bluetooth environment,
+temporarily move or turn off unrelated nearby devices and try again.
+
+A scale candidate always has radio priority. Home Assistant or the La Marzocco
 app may temporarily occupy the machine connection, so a Test can need another
 attempt without affecting brewing.
 
