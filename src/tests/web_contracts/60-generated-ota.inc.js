@@ -294,8 +294,9 @@ if (generated.cssGzip.length > 7050) {
 // The Admin device-name validation, preference save, and .local status raise it to 35200.
 // Humanized shot/activation time labels (relative day ladder) raise it to 35300.
 // The outlined-cup shot icon (shots without registered weight) raises it to 35500.
-if (generated.runtimeGzip.length > 35500) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 35500-byte gzip budget');
+// Weekday names, short dates, and the hover <time> wrapper raise it to 35600.
+if (generated.runtimeGzip.length > 35600) {
+  throw new Error('Compressed Web UI runtime JS exceeds the 35600-byte gzip budget');
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

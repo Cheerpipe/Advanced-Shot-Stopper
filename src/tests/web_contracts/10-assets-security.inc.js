@@ -210,11 +210,13 @@ if (htmlBytes > 65800) {
 // The second shot icon (outlined cup for shots without registered weight,
 // split out of the coffee/rinse inline set) adds ~2.4 KB of JS+combined
 // source allowance.
+// Weekday names, short dates, and the hover <time> wrapper add ~0.2 KB of
+// combined source allowance.
 if (jsBytes > 187000) {
   throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 187000)`);
 }
-if (htmlBytes + jsBytes > 252500) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 252500)`);
+if (htmlBytes + jsBytes > 252700) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 252700)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

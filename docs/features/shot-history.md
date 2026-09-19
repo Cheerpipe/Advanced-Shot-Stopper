@@ -81,11 +81,12 @@ first page of the current sort so new shots appear without re-downloading
 the whole log. Export CSV fetches the full log newest-first in one
 request, independent of the on-screen sort.
 
-The Time column reads the way people talk: recent shots show "Today" or
-"Yesterday" with the clock time to the minute, and older ones count back as
-"3 days ago", "2 weeks ago", or "5 months ago". Shots older than a year show
-their date instead. The CSV export always keeps the exact date and time down
-to the second, no matter how the table displays it.
+The Time column reads the way people talk: "Today" or "Yesterday" with the
+clock time to the minute, the weekday name for the rest of the week, then
+"2 weeks ago" for older weeks, and a short date like "Sep 15" (with the year
+when it is not the current one). Hovering a time shows its exact date and
+time to the second, and the CSV export always keeps that full detail no
+matter how the table displays it.
 
 History averages (duration, yield, error, flow) use only **auto** shots
 with actual weight at least 1 g from the last 10 stored entries, even
