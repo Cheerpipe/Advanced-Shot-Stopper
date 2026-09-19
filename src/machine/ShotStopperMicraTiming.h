@@ -18,8 +18,8 @@ inline constexpr uint32_t kJitterMaxMs = 1000;
 inline constexpr uint32_t kMinDisconnectedMs = 1000;
 inline constexpr uint32_t kDiscoverySliceMs = 2000;
 inline constexpr uint32_t kConnectTimeoutMs = 3000;
-inline constexpr uint32_t kAttTimeoutMs = 1000;
-inline constexpr uint32_t kConnectedSessionMaxMs = 6000;
+inline constexpr uint32_t kAttTimeoutMs = 2000;
+inline constexpr uint32_t kConnectedSessionMaxMs = 10000;
 inline constexpr uint32_t kRequestDeadlineMs = 90000;
 
 static_assert(kMaxAttempts <= UINT8_MAX, "attempt count must fit request state");

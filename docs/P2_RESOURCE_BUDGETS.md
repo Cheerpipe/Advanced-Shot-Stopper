@@ -15,11 +15,12 @@ requires explicit architecture and resource review.
 The current baselines were measured with ESP-IDF 6.1, its GCC 15.2 toolchain,
 and the qualified `CONFIG_FREERTOS_IN_IRAM=y` build profile.
 
-The reviewed Linea Micra BLE connection diagnostics raise the image and total
-size growth allowances from 32 KiB to 34 KiB. The n16r8 Micra development/JTAG
-profile measures 1,980,928 image bytes and 1,980,803 total bytes, leaving 512
-and 520 bytes of allowance respectively. DIRAM, flash-code, flash-rodata, and
-OTA-slot limits are unchanged.
+The reviewed Linea Micra BLE connection diagnostics and bounded discovery
+hardening raise the image and total-size growth allowances from 32 KiB to
+36 KiB. The n16r8 Micra development/JTAG profile measures 1,981,568 image bytes
+and 1,981,443 total bytes, leaving 1,920 and 1,928 bytes of allowance
+respectively. DIRAM, flash-code, flash-rodata, external-BSS, and OTA-slot limits
+are unchanged; this is flash headroom, not RAM or heap allowance.
 
 Both linker maps must also keep external BSS at or below 104 KiB and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing

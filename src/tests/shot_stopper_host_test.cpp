@@ -65,6 +65,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   resetSerialCliState();
 
   hostMillis = 0;
+  hostMachineBleProcedureActive = false;
   powerPolicy = PowerPolicy{};
   powerWebUntilMs.store(0);
   powerNetworkBusy.store(false);
@@ -4958,6 +4959,29 @@ void d01_idle_scan_stays_enabled_between_ticks() {
   CHECK(scale.scanning);
   CHECK(scale.directedScan);
   CHECK(scale.startScanCalls == calls);
+}
+
+void d01b_machine_owner_pauses_scale_discovery() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  uint32_t lastScanCycleMs = 0;
+  uint32_t lastConnectLogMs = 0;
+  bool connectAttemptSeriesActive = false;
+  uint32_t scanSessionAtMs = 0;
+  uint32_t scanLastAdvertAtMs = 0;
+  hostMachineBleProcedureActive = true;
+  serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
+                              connectAttemptSeriesActive, scanSessionAtMs,
+                              scanLastAdvertAtMs);
+  CHECK(!scale.scanning);
+  CHECK(scale.startScanCalls == 0);
+
+  hostMachineBleProcedureActive = false;
+  serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
+                              connectAttemptSeriesActive, scanSessionAtMs,
+                              scanLastAdvertAtMs);
+  CHECK(scale.scanning);
+  CHECK(scale.startScanCalls == 1);
 }
 
 void d13_idle_delays_relax_without_scale() {
@@ -15343,6 +15367,7 @@ const TestCase testCases[] = {
     {"W96", w96_echo_inverted_uses_long_bookend_tones},
     {"W98", w98_buzzer_sequences_start_and_end_with_sound},
     {"D01", d01_idle_scan_stays_enabled_between_ticks},
+    {"D01b", d01b_machine_owner_pauses_scale_discovery},
     {"D13", d13_idle_delays_relax_without_scale},
     {"D14", d14_control_status_publishes_on_cycle_edge},
     {"D02", d02_first_mode_uses_name_scan},

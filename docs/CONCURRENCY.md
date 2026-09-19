@@ -70,6 +70,10 @@ bounded observation window plus a prepare-for-machine callback. Observer
 callbacks are copied and invoked after the arbiter lock is released. Scale
 candidate reservation or critical activity invalidates a machine lease; the
 machine client then tears down through its normal generation-checked event path.
+After machine admission, background scale discovery remains suspended until the
+machine releases its lease; an already reserved or linked scale prevents that
+admission instead. Late GATT completions from teardown are quarantined and
+cannot create new machine retries.
 No machine-specific service owns a second scanner, BLE host, or worker task.
 
 The relay and independent safety-timer `portMUX` sections are independent and

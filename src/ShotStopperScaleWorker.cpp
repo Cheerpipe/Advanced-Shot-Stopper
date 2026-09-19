@@ -1893,6 +1893,14 @@ void syncScaleRadioCoex() {
 #endif
 }
 
+bool machineOwnsBleRadio() {
+#if defined(SHOT_STOPPER_HOST_TEST)
+  return hostMachineBleProcedureActive;
+#else
+  return shotStopperBleArbiterSnapshot().owner == ShotStopperBleOwner::Machine;
+#endif
+}
+
 bool configureScaleWorkerBridge(const ScaleWorkerBridgeCallbacks &callbacks) {
   if (scaleWorkerTaskHandle.load(std::memory_order_acquire) != nullptr ||
       callbacks.syncNetworkRf == nullptr) {
@@ -1907,6 +1915,7 @@ void serviceScaleWorkerDiscovery(uint32_t &lastScanCycleMs,
                                  bool &connectAttemptSeriesActive,
                                  uint32_t &scanSessionAtMs,
                                  uint32_t &scanLastAdvertAtMs) {
+  if (machineOwnsBleRadio()) return;
   const bool preferenceRestarted = applyScalePreferenceReset();
   if (preferenceRestarted) {
     connectAttemptSeriesActive = false;

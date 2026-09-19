@@ -188,6 +188,74 @@ static void testMtuResetsBetweenConnections() {
   assert(client.health().negotiatedMtu == 23);
 }
 
+static void testDisconnectQuarantinesPendingGattCompletion() {
+  resetPlatform();
+  lineamicra::LineaMicraBLE client;
+  connectReady(client, 23);
+  char token[64];
+  std::memset(token, 'T', sizeof(token));
+  assert(client.authenticate(token, sizeof(token), 52));
+  const ble_gatt_error timeout = {BLE_HS_ETIMEOUT, 0};
+  assert(testWriteCallback(7, &timeout, nullptr, testWriteArg) == 0);
+
+  client.disconnect();
+  client.service();
+  ClientEvent event;
+  assert(!client.takeEvent(event));
+  assert(client.health().staleCallbacks == 1);
+
+  ble_gap_event disconnected = {};
+  disconnected.type = BLE_GAP_EVENT_DISCONNECT;
+  disconnected.disconnect.reason = 0x13;
+  disconnected.disconnect.conn.conn_handle = 7;
+  assert(testGapCallback(&disconnected, testGapArg) == 0);
+  client.service();
+  assert(client.takeEvent(event) && event.type == EventType::DISCONNECTED);
+}
+
+static void testDiscoveryTimeoutResetsPerGattProcedure() {
+  resetPlatform();
+  lineamicra::LineaMicraBLE client;
+  lineamicra::PeerAddress peer = {};
+  peer.type = 1;
+  peer.value[0] = 0xaa;
+  assert(client.connect(peer, {3000, 100, 1000}, 53));
+  ble_gap_event connected = {};
+  connected.type = BLE_GAP_EVENT_CONNECT;
+  connected.connect.status = 0;
+  connected.connect.conn_handle = 7;
+  assert(testGapCallback(&connected, testGapArg) == 0);
+  client.service();
+
+  testNowMs += 80;
+  const ble_gatt_error ok = {0, 0};
+  assert(testMtuCallback(7, &ok, 96, testMtuArg) == 0);
+  client.service();
+  testNowMs += 80;
+  client.service();
+  assert(client.state() == lineamicra::ClientState::DISCOVERING);
+
+  ble_gatt_svc service = {1, 40};
+  const ble_gatt_error done = {BLE_HS_EDONE, 0};
+  assert(testServiceCallback(7, &ok, &service, testServiceArg) == 0);
+  assert(testServiceCallback(7, &done, nullptr, testServiceArg) == 0);
+  client.service();
+  testNowMs += 80;
+  client.service();
+  assert(client.state() == lineamicra::ClientState::DISCOVERING);
+
+  constexpr uint8_t rw = BLE_GATT_CHR_PROP_READ | BLE_GATT_CHR_PROP_WRITE;
+  emitCharacteristic(lineamicra::kReadCharacteristicUuid, 10, rw);
+  emitCharacteristic(lineamicra::kWriteCharacteristicUuid, 11, rw);
+  emitCharacteristic(lineamicra::kAuthCharacteristicUuid, 13,
+                     BLE_GATT_CHR_PROP_WRITE);
+  assert(testCharacteristicCallback(7, &done, nullptr,
+                                    testCharacteristicArg) == 0);
+  client.service();
+  ClientEvent event;
+  assert(client.takeEvent(event) && event.type == EventType::READY);
+}
+
 static void testTimeoutAndReset() {
   resetPlatform();
   lineamicra::LineaMicraBLE client;
@@ -276,6 +344,8 @@ int main() {
   testSession(185);
   testFailures();
   testMtuResetsBetweenConnections();
+  testDisconnectQuarantinesPendingGattCompletion();
+  testDiscoveryTimeoutResetsPerGattProcedure();
   testTimeoutAndReset();
   testPreemptionCancelsConnectingAndClosesConnectRace();
   testTerminationFailureQuarantinesClientAndReleasesAdmission();

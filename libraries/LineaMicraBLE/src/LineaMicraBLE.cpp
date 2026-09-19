@@ -433,6 +433,7 @@ struct ClientImpl {
     serviceCount = 0;
     serviceIndex = 0;
     serviceOverflow = false;
+    enter(ClientState::DISCOVERING);
     const uint32_t operationId = nextOperation();
     const int rc = ble_gattc_disc_all_svcs(connectionHandle, serviceCallback,
                                            callbackArg(operationId));
@@ -455,6 +456,7 @@ struct ClientImpl {
       return;
     }
     const ServiceRange range = services[serviceIndex];
+    enter(ClientState::DISCOVERING);
     const uint32_t operationId = nextOperation();
     const int rc = ble_gattc_disc_all_chrs(connectionHandle, range.start,
                                             range.end, characteristicCallback,
@@ -541,6 +543,13 @@ struct ClientImpl {
     InternalEvent event;
     while (!completionPending && pop(event)) {
       if (event.sessionGeneration != sessionGeneration) {
+        portENTER_CRITICAL(&mux);
+        ++health.staleCallbacks;
+        portEXIT_CRITICAL(&mux);
+        continue;
+      }
+      if (cancelRequested && event.type != InternalEventType::CONNECTED &&
+          event.type != InternalEventType::DISCONNECTED) {
         portENTER_CRITICAL(&mux);
         ++health.staleCallbacks;
         portEXIT_CRITICAL(&mux);
