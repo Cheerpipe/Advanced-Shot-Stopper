@@ -21,11 +21,13 @@ start with [Hardware](HARDWARE.md).
    password change, reconnect using the new password.
 5. In **Admin → Wi-Fi**, enter your home network and save. Rejoin that network
    on your phone/computer when the controller's AP closes.
-6. Open the controller at its new IP address within the 3-minute confirmation
-   window. Find it in the router's connected-device list or via
-   [USB NET_STATUS](SERIAL_CLI.md). The old AP address does not automatically
-   become a home-network address. A successful browser claim confirms the new
-   settings; unreachable settings revert.
+6. Open the controller within the 3-minute confirmation window. On most home
+   networks it answers at `advancedshotstopper.local`, its default device name
+   (a renamed controller answers at `<name>.local` instead). If that name does
+   not open, find the controller's IP address in the router's connected-device
+   list or via [USB NET_STATUS](SERIAL_CLI.md). The old AP address does not
+   automatically become a home-network address. A successful browser claim
+   confirms the new settings; unreachable settings revert.
 
 You can also operate locally over the AP while your client remains associated.
 The [AP guide](settings/ap.md) explains its idle shutdown and recovery.

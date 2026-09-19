@@ -90,6 +90,25 @@ address in the router or USB `NET_STATUS`, then open that address and claim
 the UI within 3 minutes. The AP address cannot follow a change to a different
 network. Unconfirmed changes revert; see [Wi-Fi](settings/wifi.md).
 
+### How do I reach the Shot Stopper the first time?
+
+Once the controller has joined your home Wi-Fi, open
+`advancedshotstopper.local` in a browser on any phone or computer connected to
+the same network — there is no need to look up the IP address. The name comes
+from the controller's default device name; if you renamed it in
+Admin → Network, open `<name>.local` instead (spaces become hyphens, so
+`Cafe Bar` is `cafe-bar.local`). See [Wi-Fi](settings/wifi.md#discovery-by-name).
+
+### I cannot open `advancedshotstopper.local`
+
+Usually one of two things is happening. Either the controller never joined
+your Wi-Fi (or your phone/computer is on a different network) — check that
+both are connected to the same network. Or your network does not allow the
+discovery behind `.local` names (mDNS), which guest and hotel networks
+commonly block. In that case, find the controller's IP address in your
+router's device list and open that instead. See
+[Wi-Fi](settings/wifi.md#discovery-by-name).
+
 ### Controls are locked or another browser took over
 
 Reload claims the Web UI. Admin unlock is a separate password check. Idle
