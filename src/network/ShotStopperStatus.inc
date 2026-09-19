@@ -59,18 +59,30 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   const NetworkStatusSnapshot network = self.snapshot();
   const TimeStatusSnapshot timeStatus = g_wallClock.snapshot(millis());
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE
-  LineaMicraPersistedSettings micraSettings = {};
   LineaMicraStatus micraStatus = {};
-  char safeMicraIdentity[LINEA_MICRA_IDENTITY_CAPACITY * 6] = {};
+  char micraIdentity[LINEA_MICRA_IDENTITY_CAPACITY] = {};
+  char safeMicraIdentity[LINEA_MICRA_IDENTITY_CAPACITY] = {};
   char micraAddress[18] = {};
+  uint8_t micraPeerAddress[6] = {};
+  uint8_t micraOptions = 0;
+  bool micraTokenConfigured = false;
+  bool micraBindingVerified = false;
   self.dataMux_.lock();
-  micraSettings = self.settings_.lineaMicra;
+  micraTokenConfigured =
+      strnlen(self.settings_.lineaMicra.token,
+              sizeof(self.settings_.lineaMicra.token)) == 64;
+  micraBindingVerified = self.settings_.lineaMicra.bindingVerified;
+  micraOptions = self.settings_.lineaMicra.options;
+  memcpy(micraIdentity, self.settings_.lineaMicra.identity,
+         sizeof(micraIdentity));
+  memcpy(micraPeerAddress, self.settings_.lineaMicra.peerAddress,
+         sizeof(micraPeerAddress));
   self.dataMux_.unlock();
   micraStatus = machineIntegrationStatus();
-  sanitizeJsonEmbed(micraSettings.identity, safeMicraIdentity,
+  sanitizeJsonEmbed(micraIdentity, safeMicraIdentity,
                     sizeof(safeMicraIdentity));
-  if (micraSettings.bindingVerified) {
-    formatWifiMac(micraSettings.peerAddress, micraAddress,
+  if (micraBindingVerified) {
+    formatWifiMac(micraPeerAddress, micraAddress,
                   sizeof(micraAddress));
   }
 #endif
@@ -477,13 +489,12 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"sampleValid\":%s,\"sampleAgeMs\":%lu,\"freshnessMs\":%lu,"
         "\"pollIntervalMs\":%lu,\"measuredValid\":%s,\"measuredDeciC\":%u,"
         "\"targetValid\":%s,\"targetDeciC\":%u}",
-        strnlen(micraSettings.token, sizeof(micraSettings.token)) == 64
-            ? "true" : "false",
-        micraSettings.bindingVerified ? "true" : "false", safeMicraIdentity,
+        micraTokenConfigured ? "true" : "false",
+        micraBindingVerified ? "true" : "false", safeMicraIdentity,
         micraAddress,
-        (micraSettings.options & LINEA_MICRA_APPLY_TEMPERATURE) != 0
+        (micraOptions & LINEA_MICRA_APPLY_TEMPERATURE) != 0
             ? "true" : "false",
-        (micraSettings.options & LINEA_MICRA_OBSERVE_STATE) != 0
+        (micraOptions & LINEA_MICRA_OBSERVE_STATE) != 0
             ? "true" : "false",
         static_cast<unsigned long>(micraStatus.requestId),
         lineaMicraPhaseName(micraStatus.phase),

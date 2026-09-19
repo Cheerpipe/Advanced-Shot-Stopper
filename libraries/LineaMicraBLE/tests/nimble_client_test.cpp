@@ -8,6 +8,16 @@
 using lineamicra::ClientEvent;
 using lineamicra::EventType;
 
+static bool objectContainsToken(const lineamicra::LineaMicraBLE &client) {
+  const auto *bytes = reinterpret_cast<const unsigned char *>(&client);
+  size_t run = 0;
+  for (size_t index = 0; index < sizeof(client); ++index) {
+    run = bytes[index] == 'T' ? run + 1U : 0U;
+    if (run == 64) return true;
+  }
+  return false;
+}
+
 static void resetPlatform() {
   testNowMs = 100;
   testRuntimeReady = true;
@@ -91,6 +101,7 @@ static void testSession(uint16_t mtu) {
   assert(client.authenticate(token, sizeof(token), 42));
   assert(testLastWriteHandle == 13 && testLastWriteLength == 64);
   assert(std::memcmp(testLastWriteData, token, 64) == 0);
+  assert(!objectContainsToken(client));
   completeWrite(client);
   ClientEvent event;
   assert(client.takeEvent(event) && event.type == EventType::AUTHENTICATED);
@@ -150,6 +161,7 @@ static void testFailures() {
   std::memset(token, 'T', sizeof(token));
   testMbufAllocFails = true;
   assert(!client.authenticate(token, sizeof(token), 50));
+  assert(!objectContainsToken(client));
   ClientEvent event;
   assert(client.takeEvent(event) && event.type == EventType::ERROR);
   assert(event.status == BLE_HS_ENOMEM);

@@ -12,8 +12,9 @@ int main() {
   std::memset(token, 'T', sizeof(token));
   assert(setLineaMicraToken(settings, token, sizeof(token)));
   assert(validLineaMicraSettings(settings));
-  assert(LineaMicraRequest{}.brewTargetDeciC ==
-         LINEA_MICRA_BREW_TARGET_DEFAULT_DECI_C);
+  wipeLineaMicraSettings(settings);
+  for (uint8_t byte : settings.token) assert(byte == 0);
+  assert(sizeof(LineaMicraRequest) <= 16);
   assert(micra_timing::kMaxAttempts == 4);
   assert(micra_timing::kRetryDelaysMs[0] == 3000);
   assert(micra_timing::kRetryDelaysMs[2] == 9000);

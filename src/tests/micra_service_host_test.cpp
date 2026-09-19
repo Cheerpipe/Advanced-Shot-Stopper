@@ -120,7 +120,7 @@ void testReadOnlyAssociationFlow() {
   shotstopper::LineaMicraRequest unsupported;
   unsupported.requestId = 40;
   unsupported.configGeneration = 7;
-  unsupported.type = shotstopper::LineaMicraRequestType::RECONCILE_TARGET;
+  unsupported.type = static_cast<shotstopper::LineaMicraRequestType>(0xff);
   assert(!service.queue(unsupported));
   unsupported.type = shotstopper::LineaMicraRequestType::OBSERVE_STATE;
   assert(!service.queue(unsupported));
@@ -160,6 +160,53 @@ void testReadOnlyAssociationFlow() {
   assert(status.phase == shotstopper::LineaMicraPhase::CONFIRMED);
   assert(status.measuredDeciC == 925 && status.targetDeciC == 930);
   assert(testWrites == 3);  // auth and two read-only query writes
+  shotstopper::LineaMicraRequest overlapping = request;
+  overlapping.requestId = 42;
+  assert(!service.queue(overlapping));
+  shotstopper::LineaMicraBindingResult binding;
+  assert(service.takeBinding(binding));
+  assert(binding.requestId == request.requestId);
+  assert(std::strcmp(binding.identity, "MICRA_UNIT") == 0);
+}
+
+void testPairingRetryGetsANewDiscoverySlice() {
+  resetPlatform();
+  shotstopper::ShotStopperMicraService service;
+  assert(service.begin());
+  shotstopper::LineaMicraPersistedSettings config;
+  char token[64];
+  std::memset(token, 'T', sizeof(token));
+  assert(shotstopper::setLineaMicraToken(config, token, sizeof(token)));
+  service.publishConfig(config, 8);
+  service.service();
+  shotstopper::LineaMicraRequest request;
+  request.requestId = 77;
+  request.configGeneration = 8;
+  assert(service.queue(request));
+  service.service();
+
+  uint8_t invalidPayload[] = {11, 0x09, 'M', 'I', 'C', 'R', 'A', '_',
+                              'B',  'A',  'D', 0x01};
+  ShotStopperBleAdvertisement advertisement;
+  advertisement.addressType = 1;
+  advertisement.address[0] = 0xaa;
+  advertisement.rssi = -30;
+  advertisement.connectable = true;
+  advertisement.payload = invalidPayload;
+  advertisement.payloadLength = sizeof(invalidPayload);
+  shotStopperBleArbiterPublishAdvertisement(advertisement);
+  fakeMillis += shotstopper::micra_timing::kDiscoverySliceMs;
+  testNowMs = fakeMillis;
+  service.service();
+  assert(service.status().phase == shotstopper::LineaMicraPhase::BACKOFF);
+  assert(testConnects == 0);
+
+  fakeMillis += shotstopper::micra_timing::kRetryDelaysMs[0] +
+                shotstopper::micra_timing::kJitterMaxMs + 1;
+  testNowMs = fakeMillis;
+  service.service();
+  assert(service.status().phase == shotstopper::LineaMicraPhase::QUEUED);
+  assert(testConnects == 0);
 }
 
 void testConcurrentConfigAndStatusPublication() {
@@ -197,10 +244,12 @@ void testAutomaticStateFreshnessAndPostActivityRefresh() {
   completeWrite(service);
   assert(std::memcmp(testLastWriteData, "machineMode\0", 12) == 0);
   completeWrite(service);
-  completeRead(service, "\"BrewingMode\"");
+  completeRead(service, "\"EcoMode\"");
   auto status = service.status();
-  assert(status.powerState == shotstopper::LineaMicraPowerState::ON);
-  assert(status.quality == shotstopper::LineaMicraObservationQuality::CURRENT);
+  assert(status.powerState == shotstopper::LineaMicraPowerState::UNKNOWN);
+  assert(status.observedMode == shotstopper::LineaMicraObservedMode::ECO);
+  assert(status.quality ==
+         shotstopper::LineaMicraObservationQuality::UNSUPPORTED);
   completeDisconnect(service);
 
   fakeMillis += shotstopper::micra_timing::kStateFreshnessMs;
@@ -263,6 +312,7 @@ void testPostActivityRefreshPreservesExhaustedCooldown() {
 
 int main() {
   testReadOnlyAssociationFlow();
+  testPairingRetryGetsANewDiscoverySlice();
   testAutomaticStateFreshnessAndPostActivityRefresh();
   testPostActivityRefreshPreservesExhaustedCooldown();
   testConcurrentConfigAndStatusPublication();

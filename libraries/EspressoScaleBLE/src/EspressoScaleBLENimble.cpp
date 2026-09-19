@@ -378,8 +378,11 @@ class NimbleScaleClient {
 
   bool startObservationScan(uint32_t durationMs) {
     service();
+    portENTER_CRITICAL(&mux_);
+    const bool observationScanActive = observationScanActive_;
+    portEXIT_CRITICAL(&mux_);
     if (durationMs == 0 || durationMs > INT32_MAX || state_ != State::Ready ||
-        observationScanActive_) return observationScanActive_;
+        observationScanActive) return observationScanActive;
     const uint32_t operationId = beginOperation(CallbackDomain::Scan);
     ble_gap_disc_params params = {};
     params.passive = 0;
@@ -862,8 +865,7 @@ class NimbleScaleClient {
         return 0;
       case BLE_GAP_EVENT_DISC_COMPLETE:
         portENTER_CRITICAL(&mux_);
-        if (observationScanActive_ && operationId == scanOperationId_ &&
-            state_ == State::Ready) {
+        if (observationScanActive_ && operationId == scanOperationId_) {
           observationScanActive_ = false;
           scanOperationId_ = 0;
           portEXIT_CRITICAL(&mux_);
@@ -925,7 +927,6 @@ class NimbleScaleClient {
                        uint32_t operationId) {
     portENTER_CRITICAL(&mux_);
     const bool observationScan = observationScanActive_ &&
-                                 state_ == State::Ready &&
                                  operationId == scanOperationId_;
     const bool scanning =
         observationScan ||

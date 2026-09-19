@@ -68,6 +68,9 @@ class ShotStopperMicraService {
   uint32_t pendingConfigGeneration_ = 0;
   uint32_t acceptedConfigGeneration_ = 0;
   uint32_t requestStartedAtMs_ = 0;
+  uint32_t discoveryStartedAtMs_ = 0;
+  uint32_t bindingRequestId_ = 0;
+  uint32_t bindingConfigGeneration_ = 0;
   uint32_t nextObservationAtMs_ = 0;
   uint32_t retryAtMs_ = 0;
   uint32_t nextAutomaticRequestId_ = 0x80000000UL;

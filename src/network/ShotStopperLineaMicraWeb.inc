@@ -23,6 +23,13 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
   const bool actionOk = known &&
       jsonString(root, "action", action, sizeof(action), false);
   LineaMicraPersistedSettings candidate = {};
+  struct CandidateWiper {
+    LineaMicraPersistedSettings &settings;
+    ~CandidateWiper() { wipeLineaMicraSettings(settings); }
+  } candidateWiper{candidate};
+  cJSON *tokenField = root == nullptr
+                          ? nullptr
+                          : cJSON_GetObjectItemCaseSensitive(root, "token");
   uint32_t currentRevision = 0;
   self.dataMux_.lock();
   candidate = self.settings_.lineaMicra;
@@ -44,13 +51,13 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
     } else if (clearToken && jsonFieldPresent(root, "token")) {
       parseError = "token and clearToken cannot be used together.";
     } else {
-      const cJSON *token = cJSON_GetObjectItemCaseSensitive(root, "token");
       if (clearToken) {
         clearLineaMicraToken(candidate);
-      } else if (token != nullptr &&
-                 (!cJSON_IsString(token) || token->valuestring == nullptr ||
-                  !setLineaMicraToken(candidate, token->valuestring,
-                                      strlen(token->valuestring)))) {
+      } else if (tokenField != nullptr &&
+                 (!cJSON_IsString(tokenField) ||
+                  tokenField->valuestring == nullptr ||
+                  !setLineaMicraToken(candidate, tokenField->valuestring,
+                                      strlen(tokenField->valuestring)))) {
         parseError = "token must contain exactly 64 printable characters.";
       }
       setLineaMicraOptions(candidate, applyTemperature, observeState);
@@ -69,6 +76,9 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
     parseError = "Unknown Linea Micra action.";
   }
 
+  if (tokenField != nullptr && tokenField->valuestring != nullptr) {
+    memset(tokenField->valuestring, 0, strlen(tokenField->valuestring));
+  }
   if (root != nullptr) cJSON_Delete(root);
   self.unlockJsonBody();
   if (parseError != nullptr) {
@@ -91,7 +101,6 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
     integrationRequest.configGeneration = currentRevision;
     integrationRequest.type = refresh ? LineaMicraRequestType::OBSERVE_STATE
                                       : LineaMicraRequestType::TEST;
-    integrationRequest.reason = LineaMicraRequestReason::USER;
     if (!queueMachineIntegrationRequest(integrationRequest)) {
       return sendError(request, STATUS_UNAVAILABLE, "MICRA_BUSY",
                        "The Linea Micra integration is busy; try again shortly.");

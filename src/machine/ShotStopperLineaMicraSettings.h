@@ -66,6 +66,11 @@ inline void clearLineaMicraToken(LineaMicraPersistedSettings &settings) {
   clearLineaMicraBinding(settings);
 }
 
+inline void wipeLineaMicraSettings(LineaMicraPersistedSettings &settings) {
+  volatile uint8_t *bytes = reinterpret_cast<volatile uint8_t *>(&settings);
+  for (size_t index = 0; index < sizeof(settings); ++index) bytes[index] = 0;
+}
+
 inline bool setLineaMicraToken(LineaMicraPersistedSettings &settings,
                                const char *token, size_t length) {
   if (token == nullptr || length != 64) return false;

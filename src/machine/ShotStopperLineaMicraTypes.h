@@ -9,16 +9,7 @@ namespace shotstopper {
 
 enum class LineaMicraRequestType : uint8_t {
   TEST,
-  RECONCILE_TARGET,
   OBSERVE_STATE
-};
-enum class LineaMicraRequestReason : uint8_t {
-  USER,
-  BOOT,
-  PRESET,
-  SCALE_READY,
-  PERIODIC,
-  POST_ACTIVITY
 };
 enum class LineaMicraPowerState : uint8_t { UNKNOWN, ON, OFF };
 enum class LineaMicraObservedMode : uint8_t {
@@ -43,8 +34,7 @@ enum class LineaMicraPhase : uint8_t {
   RUNNING,
   BACKOFF,
   CONFIRMED,
-  FAILED,
-  CANCELED
+  FAILED
 };
 
 inline const char *lineaMicraPowerStateName(LineaMicraPowerState state) {
@@ -90,7 +80,6 @@ inline const char *lineaMicraPhaseName(LineaMicraPhase phase) {
     case LineaMicraPhase::BACKOFF: return "backoff";
     case LineaMicraPhase::CONFIRMED: return "confirmed";
     case LineaMicraPhase::FAILED: return "failed";
-    case LineaMicraPhase::CANCELED: return "canceled";
   }
   return "disabled";
 }
@@ -99,10 +88,7 @@ struct LineaMicraRequest {
   uint32_t requestId = 0;
   uint32_t configGeneration = 0;
   uint32_t activityGeneration = 0;
-  uint16_t brewTargetDeciC = LINEA_MICRA_BREW_TARGET_DEFAULT_DECI_C;
-  uint8_t presetId = 0;
   LineaMicraRequestType type = LineaMicraRequestType::TEST;
-  LineaMicraRequestReason reason = LineaMicraRequestReason::USER;
 };
 
 struct LineaMicraStatus {

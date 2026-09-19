@@ -471,12 +471,14 @@ struct ClientImpl {
     }
     requestGeneration = nextRequestGeneration;
     operation = nextOperationKind;
-    std::memcpy(writeBuffer, data, length);
+    if (data != writeBuffer) std::memcpy(writeBuffer, data, length);
     writeLength = length;
     enter(ClientState::OPERATING);
     const uint32_t operationId = nextOperation();
     os_mbuf *buffer = ble_hs_mbuf_from_flat(writeBuffer, writeLength);
     if (buffer == nullptr) {
+      std::memset(writeBuffer, 0, sizeof(writeBuffer));
+      writeLength = 0;
       portENTER_CRITICAL(&mux);
       ++health.mbufFailures;
       portEXIT_CRITICAL(&mux);
@@ -486,6 +488,8 @@ struct ClientImpl {
     const int rc = ble_gattc_write_long(connectionHandle, handle, 0, buffer,
                                          writeCallback,
                                          callbackArg(operationId));
+    std::memset(writeBuffer, 0, sizeof(writeBuffer));
+    writeLength = 0;
     if (rc != 0) {
       fail(rc);
       return false;

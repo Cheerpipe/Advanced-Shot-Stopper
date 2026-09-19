@@ -57,6 +57,7 @@ void ShotStopperMicraService::service() {
     retryPending_ = false;
     automaticRequest_ = false;
     bindingReady_ = false;
+    bindingRequestId_ = bindingConfigGeneration_ = 0;
     selectedCandidate_ = UINT8_MAX;
     attempt_ = 0;
     nextObservationAtMs_ = retryAtMs_ = millis();
@@ -97,7 +98,7 @@ void ShotStopperMicraService::service() {
       const bool observeCooldown =
           requestPending_ &&
           pendingRequest_.type == LineaMicraRequestType::OBSERVE_STATE &&
-          workingStatus_.phase == LineaMicraPhase::FAILED &&
+          publishedStatus_.phase == LineaMicraPhase::FAILED &&
           static_cast<int32_t>(now - nextObservationAtMs_) < 0;
       if (requestPending_ && !observeCooldown &&
           static_cast<int32_t>(now - retryAtMs_) >= 0) {
@@ -132,6 +133,7 @@ void ShotStopperMicraService::service() {
     if (collect) memset(candidates_, 0, sizeof(candidates_));
     portEXIT_CRITICAL(&mux_);
     stage_ = collect ? Stage::WAIT_CANDIDATES : Stage::CONNECT;
+    if (collect) discoveryStartedAtMs_ = millis();
     start = !collect;
     publishStatus();
     if (collect &&
@@ -144,7 +146,7 @@ void ShotStopperMicraService::service() {
   }
   if (start) startRequest();
   if (stage_ == Stage::WAIT_CANDIDATES &&
-      static_cast<uint32_t>(millis() - requestStartedAtMs_) >=
+      static_cast<uint32_t>(millis() - discoveryStartedAtMs_) >=
           micra_timing::kDiscoverySliceMs) {
     portENTER_CRITICAL(&mux_);
     collectCandidates_ = false;
@@ -168,7 +170,6 @@ void ShotStopperMicraService::scheduleAutomaticObservation(uint32_t now) {
   request_.configGeneration = configGeneration_;
   request_.activityGeneration = arbiter.criticalEpoch;
   request_.type = LineaMicraRequestType::OBSERVE_STATE;
-  request_.reason = LineaMicraRequestReason::PERIODIC;
   automaticRequest_ = true;
   attempt_ = 0;
   requestStartedAtMs_ = now;
@@ -311,6 +312,8 @@ void ShotStopperMicraService::handleClientEvent(
       if (request_.type == LineaMicraRequestType::TEST &&
           !config_.bindingVerified && selectedCandidate_ < 4) {
         portENTER_CRITICAL(&mux_);
+        bindingRequestId_ = request_.requestId;
+        bindingConfigGeneration_ = request_.configGeneration;
         bindingReady_ = true;
         portEXIT_CRITICAL(&mux_);
       }
@@ -410,7 +413,13 @@ void ShotStopperMicraService::publishStatus() {
 
 bool ShotStopperMicraService::queue(
     const LineaMicraRequest &request) {
+  const uint32_t activityGeneration =
+      shotStopperBleArbiterSnapshot().criticalEpoch;
   portENTER_CRITICAL(&mux_);
+  const LineaMicraPhase phase = publishedStatus_.phase;
+  const bool available = phase == LineaMicraPhase::IDLE ||
+                         phase == LineaMicraPhase::CONFIRMED ||
+                         phase == LineaMicraPhase::FAILED;
   const bool supported = request.type == LineaMicraRequestType::TEST ||
                          (request.type == LineaMicraRequestType::OBSERVE_STATE &&
                           (pendingConfig_.options &
@@ -419,12 +428,11 @@ bool ShotStopperMicraService::queue(
                         request.configGeneration == acceptedConfigGeneration_ &&
                         strnlen(pendingConfig_.token,
                                 sizeof(pendingConfig_.token)) == 64 &&
-                        !requestPending_;
+                        available && !bindingReady_ && !requestPending_;
   if (accepted) {
     pendingRequest_ = request;
     if (pendingRequest_.type == LineaMicraRequestType::OBSERVE_STATE) {
-      pendingRequest_.activityGeneration =
-          shotStopperBleArbiterSnapshot().criticalEpoch;
+      pendingRequest_.activityGeneration = activityGeneration;
     }
     requestPending_ = true;
   }
@@ -439,7 +447,8 @@ LineaMicraStatus ShotStopperMicraService::status() const {
   LineaMicraStatus effective = snapshot;
   const ShotStopperBleArbiterSnapshot arbiter =
       shotStopperBleArbiterSnapshot();
-  if (effective.quality == LineaMicraObservationQuality::CURRENT &&
+  if ((effective.quality == LineaMicraObservationQuality::CURRENT ||
+       effective.quality == LineaMicraObservationQuality::UNSUPPORTED) &&
       effective.sampleAtMs != 0 &&
       (effective.activityGeneration != arbiter.criticalEpoch ||
        static_cast<uint32_t>(millis() - effective.sampleAtMs) >=
@@ -461,8 +470,8 @@ bool ShotStopperMicraService::takeBinding(
   }
   const Candidate candidate = candidates_[selectedCandidate_];
   result = {};
-  result.requestId = workingStatus_.requestId;
-  result.configGeneration = workingStatus_.configGeneration;
+  result.requestId = bindingRequestId_;
+  result.configGeneration = bindingConfigGeneration_;
   result.addressType = candidate.addressType;
   memcpy(result.address, candidate.address, sizeof(result.address));
   memcpy(result.identity, candidate.identity, sizeof(result.identity));
@@ -490,6 +499,13 @@ void ShotStopperMicraService::acceptAdvertisement(
     offset += static_cast<size_t>(fieldLength) + 1U;
   }
   if (strncmp(identity, "MICRA_", 6) != 0 || !advertisement.connectable) return;
+  bool nonzeroAddress = false;
+  for (uint8_t value : advertisement.address) nonzeroAddress |= value != 0;
+  if (!nonzeroAddress || advertisement.addressType > 3) return;
+  for (const char value : identity) {
+    if (value == '\0') break;
+    if (value < 0x20 || value > 0x7e) return;
+  }
 
   portENTER_CRITICAL(&mux_);
   if (!collectCandidates_) {
