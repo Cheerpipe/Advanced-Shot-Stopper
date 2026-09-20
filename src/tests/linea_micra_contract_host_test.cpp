@@ -103,8 +103,9 @@ int main() {
   const uint32_t edgeGeneration = power.generation();
   assert(edgeGeneration != preEdgeGeneration);
   LineaMicraStatus effective = power.effectiveStatus(authoritative, true, 200);
-  assert(effective.powerState == LineaMicraPowerState::ON);
+  assert(effective.powerState == LineaMicraPowerState::OFF);
   assert(effective.optimisticOn);
+  assert(effective.effectiveOn);
   assert(effective.quality == LineaMicraObservationQuality::OPTIMISTIC);
   assert(!power.notePhysicalStart(authoritative, true, true, 201));
   assert(power.generation() == edgeGeneration);
@@ -117,13 +118,43 @@ int main() {
   authoritative.sampleAtMs = 1000;
   assert(!power.notePhysicalStart(authoritative, true, false, 1100));
   const uint32_t disabledWakeGeneration = power.generation();
-  effective = power.effectiveStatus(
-      authoritative, true, 1100 + micra_timing::kOptimisticOnMs);
-  assert(effective.powerState == LineaMicraPowerState::UNKNOWN);
+  effective = power.effectiveStatus(authoritative, true, 1100);
+  assert(effective.powerState == LineaMicraPowerState::OFF);
   assert(!effective.optimisticOn);
+  assert(!effective.effectiveOn);
+
+  const uint32_t freshness = micra_timing::kStateFreshnessMs;
+  effective = power.effectiveStatus(authoritative, true, 1000 + freshness - 1);
+  assert(effective.powerState == LineaMicraPowerState::OFF);
+  assert(effective.quality == LineaMicraObservationQuality::CURRENT);
+  effective = power.effectiveStatus(authoritative, true, 1000 + freshness);
+  assert(effective.powerState == LineaMicraPowerState::OFF);
+  assert(effective.quality == LineaMicraObservationQuality::STALE);
+  assert(!effective.effectiveOn);
   assert(!power.notePhysicalStart(
-      authoritative, true, true, 1100 + micra_timing::kOptimisticOnMs));
+      authoritative, true, true, 1000 + freshness));
   assert(power.generation() == disabledWakeGeneration);
+
+  authoritative.powerState = LineaMicraPowerState::ON;
+  authoritative.effectiveOn = true;
+  effective = power.effectiveStatus(authoritative, true, 1000 + freshness);
+  assert(effective.powerState == LineaMicraPowerState::ON);
+  assert(effective.quality == LineaMicraObservationQuality::STALE);
+
+  authoritative.sampleAtMs = 0;
+  effective = power.effectiveStatus(authoritative, true, 1000 + freshness);
+  assert(effective.powerState == LineaMicraPowerState::UNKNOWN);
+  assert(effective.effectiveOn);
+  authoritative.quality = LineaMicraObservationQuality::UNCONFIGURED;
+  effective = power.effectiveStatus(authoritative, false, 1000 + freshness);
+  assert(effective.powerState == LineaMicraPowerState::UNKNOWN);
+  assert(effective.quality == LineaMicraObservationQuality::UNCONFIGURED);
+  authoritative.sampleAtMs = 1000;
+  authoritative.powerState = LineaMicraPowerState::UNKNOWN;
+  authoritative.quality = LineaMicraObservationQuality::UNSUPPORTED;
+  effective = power.effectiveStatus(authoritative, true, 1000 + freshness);
+  assert(effective.powerState == LineaMicraPowerState::UNKNOWN);
+  assert(effective.quality == LineaMicraObservationQuality::UNSUPPORTED);
   assert(!power.notePhysicalStart(authoritative, false, true, 1101));
   return 0;
 }

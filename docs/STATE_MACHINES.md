@@ -872,18 +872,19 @@ nominal 30-second cadence over HTTPS. At startup it waits for an eligible STA
 connection, a closed setup AP, no local shot or rinse, and a synchronized wall
 clock, then starts the initial read on the next worker opportunity. A current
 `StandBy` response maps to OFF, `BrewingMode` to ON, and ECO or an unknown value
-to UNKNOWN. Communication errors and samples older than 30 seconds are also
-UNKNOWN; the separate `effectiveOn` presentation policy treats UNKNOWN as ON
-without claiming that ON was measured.
+to UNKNOWN. A confirmed ON or OFF older than 30 seconds remains the last cloud
+classification but its quality becomes stale. Only an unsupported response or
+an exhausted communication cycle replaces it with UNKNOWN; the separate
+`effectiveOn` policy treats UNKNOWN as ON without claiming that ON was measured.
 
 On every physical paddle ON edge, the Micra state owner first evaluates the
-pre-edge effective state. A fresh OFF starts a 60-second optimistic ON interval,
-defined as twice the normal poll interval. If the edge also qualifies as a wake
-gesture, the owner delays automatic and requested reads for 15 seconds so cloud
-state can converge. The first authoritative dashboard read initiated after the
-deadline replaces optimism. Reads initiated before the edge cannot overwrite
-that optimism or move the deadline. ON and UNKNOWN edges do not change the
-tracked state.
+pre-edge effective state. A fresh OFF starts a 60-second optimistic overlay,
+defined as twice the normal poll interval. It makes `effectiveOn` true without
+replacing the cloud-confirmed OFF. The owner delays automatic and requested reads
+for 15 seconds so cloud state can converge. The first authoritative dashboard
+read initiated after the deadline replaces the overlay. Reads initiated before
+the edge cannot overwrite it or move the deadline. ON, UNKNOWN, and stale OFF
+edges do not change the tracked state.
 
 The observer uses four total attempts with 3/6/9-second waits and bounded
 jitter. After exhaustion, the next observation follows the normal 30-second

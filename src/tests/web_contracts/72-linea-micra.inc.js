@@ -20,6 +20,12 @@ const networkService = fs.readFileSync(
     path.join(sketchDir, 'network/ShotStopperNetworkService.inc'), 'utf8');
 const micraSettingsHtml = rawPartialHtml.settings;
 const micraDiagnosticHtml = rawPartialHtml.diagnostic;
+const deferObservation = micraService.slice(
+  micraService.indexOf('void ShotStopperMicraService::deferObservation('),
+  micraService.indexOf('void ShotStopperMicraService::fail('));
+const terminalFailure = micraService.slice(
+  micraService.indexOf('void ShotStopperMicraService::fail('),
+  micraService.indexOf('void ShotStopperMicraService::scheduleAutomatic('));
 
 if (!network.includes('/api/v1/machine/linea-micra') ||
     !micraWeb.includes('UNSUPPORTED_MACHINE') ||
@@ -60,6 +66,13 @@ if (!micraTiming.includes('kStatePollMs = 30000') ||
     (micraService.match(/\(config_\.options & LINEA_MICRA_OBSERVE_STATE\) == 0/g) || []).length < 3 ||
     !micraService.includes('scheduleAutomatic(millis(), connecting)')) {
   throw new Error('Linea Micra observations must wait for readiness and the post-wake convergence deadline');
+}
+if (deferObservation.includes('powerState') ||
+    !micraService.includes('status.phase = LineaMicraPhase::BACKOFF;\n    publish(status);') ||
+    !terminalFailure.includes('status.powerState = LineaMicraPowerState::UNKNOWN;') ||
+    !terminalFailure.includes('status.effectiveOn = true;') ||
+    !terminalFailure.includes('status.quality = LineaMicraObservationQuality::COMMUNICATION_ERROR;')) {
+  throw new Error('Pending, retry, and canceled observations must preserve power until terminal failure publishes UNKNOWN');
 }
 if (!micraTypes.includes('APPLY_TEMPERATURE') ||
     !machineIntegration.includes('requestMachineIntegrationPresetTemperature') ||
@@ -127,12 +140,13 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes("m.temperatureState&&m.temperatureState!=='disabled'") ||
     !rawRuntimeJs.includes("$('dMicraAge').textContent=lm.temperatureState+'/'+lm.temperatureError+' · '") ||
     !rawRuntimeJs.includes("refresh.setAttribute('aria-disabled',String(disabled))") ||
-    !rawRuntimeJs.includes("expired?'UNKNOWN':lm.powerState") ||
-    !rawRuntimeJs.includes('expired=!lm.optimisticOn&&lm.sampleValid&&age>=lm.freshnessMs') ||
+    rawRuntimeJs.includes("expired?'UNKNOWN':lm.powerState") ||
+    !rawRuntimeJs.includes('power=lm.powerState') ||
+    !rawRuntimeJs.includes("stale=lm.quality==='current'&&age>=lm.freshnessMs") ||
     !micraSettingsHtml.includes('id="lineaMicraApplyTemperature" type="checkbox" checked') ||
     !micraSettingsHtml.includes('id="lineaMicraObserveState" type="checkbox" checked') ||
     !micraSettingsHtml.includes('id="lineaMicraRecognizeWake" type="checkbox" checked')) {
-  throw new Error('Linea Micra UI must implement account connection, selection, and freshness expiry');
+  throw new Error('Linea Micra UI must implement account connection, selection, and quality-only freshness expiry');
 }
 if (micraService.includes('keep_alive_enable = true') ||
     micraService.includes('esp_http_client_close(work_->client)') ||

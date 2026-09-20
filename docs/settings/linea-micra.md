@@ -78,14 +78,16 @@ Diagnostics → Machine shows:
 | --- | --- |
 | `StandBy` | OFF |
 | `BrewingMode` | ON |
-| Other valid mode, stale sample, or communication failure | UNKNOWN |
+| Other valid mode or communication failure | UNKNOWN |
 
-A confirmed sample is current for 30 seconds. The firmware and browser replace
-an expired ON or OFF display with UNKNOWN. Failures use bounded 3, 6, and 9
-second retry delays; after four failed attempts the next automatic cycle follows
-the normal 30-second cadence. Select **(Refresh)** beside the displayed state to
-add a read to the same bounded queue. It cannot bypass STA, AP, clock, shot,
-busy, or post-wake timing rules.
+A confirmed sample is current for 30 seconds. After that, diagnostics retain its
+last completed ON or OFF classification and mark the observation quality as
+stale. A queued, running, paused, or retrying read also leaves that classification
+unchanged. Failures use bounded 3, 6, and 9 second retry delays; only after all
+four attempts fail does the state become UNKNOWN with communication-error
+quality. The next automatic cycle then follows the normal 30-second cadence.
+Select **(Refresh)** beside the displayed state to add a read to the same bounded
+queue. It cannot bypass STA, AP, clock, shot, busy, or post-wake timing rules.
 
 UNKNOWN is treated like ON for paddle behavior. It never qualifies a wake
 gesture, so brewing and rinse behavior remain unchanged when a current OFF
@@ -102,14 +104,17 @@ history. Returning the paddle to OFF opens the relay and ends the gesture,
 regardless of how long it was held. History adds one **Power ON** entry with
 the gesture's date, time, and duration; Stats remains unchanged.
 
-The OFF→ON edge immediately publishes an optimistic ON state for at most 60
+The OFF→ON edge immediately adds an optimistic ON overlay for at most 60
 seconds—twice the normal read interval—and delays the next dashboard read for 15
-seconds so the cloud can converge. **(Refresh)** waits for the same deadline.
-The first successful read started after that delay replaces optimism with the
-real state. A request started before the edge cannot publish stale OFF or change
-the deadline. A failed read does not clear or extend optimism; expiry becomes
-UNKNOWN. Paddle movement while the state is already ON or UNKNOWN does not
-create or extend optimism and follows the normal brew/rinse flow.
+seconds so the cloud can converge. The overlay makes the operational state ON
+without rewriting the last cloud-confirmed OFF classification. **(Refresh)**
+waits for the same deadline. The first successful read started after that delay
+removes optimism and supplies the next confirmed classification. A request
+started before the edge cannot publish stale OFF or change the deadline. A
+failed read does not clear or extend optimism; after all retries, the confirmed
+state becomes UNKNOWN. Paddle movement while the confirmed state is ON, UNKNOWN,
+or stale OFF does not create or extend optimism and follows the normal brew/rinse
+flow.
 
 This option is independent from monitoring. Turning monitoring off keeps the
 saved wake preference, but the effective state becomes UNKNOWN, so wake

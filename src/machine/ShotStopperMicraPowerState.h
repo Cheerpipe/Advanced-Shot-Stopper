@@ -10,34 +10,35 @@ class LineaMicraPowerStateTracker {
   LineaMicraStatus effectiveStatus(const LineaMicraStatus &authoritative,
                                    bool observing, uint32_t now) const {
     LineaMicraStatus result = authoritative;
-    if (observing && optimisticOn_ &&
+    if (!observing || result.sampleAtMs == 0) {
+      result.powerState = LineaMicraPowerState::UNKNOWN;
+      result.effectiveOn = true;
+    } else if (optimisticOn_ &&
         static_cast<uint32_t>(now - optimisticOnAtMs_) <
             micra_timing::kOptimisticOnMs) {
-      result.powerState = LineaMicraPowerState::ON;
       result.quality = LineaMicraObservationQuality::OPTIMISTIC;
       result.effectiveOn = true;
       result.optimisticOn = true;
-    } else if (!observing || result.sampleAtMs == 0 ||
+    } else if (result.powerState != LineaMicraPowerState::UNKNOWN &&
                static_cast<uint32_t>(now - result.sampleAtMs) >=
                    micra_timing::kStateFreshnessMs) {
-      result.powerState = LineaMicraPowerState::UNKNOWN;
-      result.effectiveOn = true;
-      if (observing && result.sampleAtMs != 0) {
-        result.quality = LineaMicraObservationQuality::STALE;
-      }
+      result.quality = LineaMicraObservationQuality::STALE;
     }
     return result;
   }
 
   bool notePhysicalStart(const LineaMicraStatus &authoritative, bool observing,
                          bool recognizeWake, uint32_t now) {
+    if (!recognizeWake) return false;
     const LineaMicraStatus before =
         effectiveStatus(authoritative, observing, now);
-    if (before.powerState != LineaMicraPowerState::OFF) return false;
+    if (before.powerState != LineaMicraPowerState::OFF ||
+        before.quality != LineaMicraObservationQuality::CURRENT)
+      return false;
     optimisticOn_ = true;
     optimisticOnAtMs_ = now;
     ++generation_;
-    return recognizeWake;
+    return true;
   }
 
   uint32_t generation() const { return generation_; }
