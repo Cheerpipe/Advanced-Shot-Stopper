@@ -92,10 +92,10 @@ void ShotStopperNetwork::processAcceptedMaintenanceCommand(uint32_t now) {
     if (control.maintenanceLeaseActive || control.activeCycle ||
         control.physicalActivatorOn || publicationTimedOut) {
       if (acceptedCommand_.type == WebCommandType::SAVE_WEBHOOK) {
-        clearStagedWebhook(acceptedCommand_.webhookStageRequestId);
+        clearStagedWebhook(acceptedCommand_.stagedConfigRequestId);
       }
       if (acceptedCommand_.type == WebCommandType::SAVE_LINEA_MICRA) {
-        clearStagedLineaMicra(acceptedCommand_.webhookStageRequestId);
+        clearStagedLineaMicra(acceptedCommand_.stagedConfigRequestId);
       }
       (void)enqueueMaintenanceCompletion(
           acceptedCommand_, false, CommandResultState::CANCELED);
@@ -107,10 +107,10 @@ void ShotStopperNetwork::processAcceptedMaintenanceCommand(uint32_t now) {
   if (control.activeCycle || control.relayClosed ||
       control.physicalActivatorOn) {
     if (acceptedCommand_.type == WebCommandType::SAVE_WEBHOOK) {
-      clearStagedWebhook(acceptedCommand_.webhookStageRequestId);
+      clearStagedWebhook(acceptedCommand_.stagedConfigRequestId);
     }
     if (acceptedCommand_.type == WebCommandType::SAVE_LINEA_MICRA) {
-      clearStagedLineaMicra(acceptedCommand_.webhookStageRequestId);
+      clearStagedLineaMicra(acceptedCommand_.stagedConfigRequestId);
     }
     (void)enqueueMaintenanceCompletion(
         acceptedCommand_, false, CommandResultState::CANCELED);
@@ -132,10 +132,10 @@ void ShotStopperNetwork::processAcceptedMaintenanceCommand(uint32_t now) {
       return;
     }
     if (acceptedCommand_.type == WebCommandType::SAVE_WEBHOOK) {
-      clearStagedWebhook(acceptedCommand_.webhookStageRequestId);
+      clearStagedWebhook(acceptedCommand_.stagedConfigRequestId);
     }
     if (acceptedCommand_.type == WebCommandType::SAVE_LINEA_MICRA) {
-      clearStagedLineaMicra(acceptedCommand_.webhookStageRequestId);
+      clearStagedLineaMicra(acceptedCommand_.stagedConfigRequestId);
     }
     (void)enqueueMaintenanceCompletion(acceptedCommand_, false);
     log(DebugCategory::SECURITY, DebugCode::COMMAND_FAILED,
@@ -231,7 +231,7 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
       WebhookConfig staged = {};
       dataMux_.lock();
       const bool matches = stagedWebhookRequestId_ != 0 &&
-                           stagedWebhookRequestId_ == command.webhookStageRequestId;
+                           stagedWebhookRequestId_ == command.stagedConfigRequestId;
       if (matches) staged = stagedWebhook_;
       dataMux_.unlock();
       if (!matches || !validWebhookConfig(staged)) {
@@ -248,7 +248,7 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
       dataMux_.lock();
       const bool matches = stagedLineaMicraRequestId_ != 0 &&
                            stagedLineaMicraRequestId_ ==
-                               command.webhookStageRequestId;
+                               command.stagedConfigRequestId;
       if (matches) staged = stagedLineaMicra_;
       dataMux_.unlock();
       if (!matches || !validLineaMicraSettings(staged)) {
@@ -456,10 +456,10 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
     dataMux_.unlock();
     if (command.type == WebCommandType::SAVE_WEBHOOK) {
       webhooks_.setConfig(next.webhook);
-      clearStagedWebhook(command.webhookStageRequestId);
+      clearStagedWebhook(command.stagedConfigRequestId);
     }
     if (command.type == WebCommandType::SAVE_LINEA_MICRA) {
-      clearStagedLineaMicra(command.webhookStageRequestId);
+      clearStagedLineaMicra(command.stagedConfigRequestId);
     }
     publishMachineIntegrationConfig(next, next.storageRevision);
     publishConfiguredAddressStatus();

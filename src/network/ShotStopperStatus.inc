@@ -474,6 +474,13 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         (micraStatus.quality == LineaMicraObservationQuality::CURRENT ||
          micraStatus.quality == LineaMicraObservationQuality::STALE ||
          micraStatus.quality == LineaMicraObservationQuality::UNSUPPORTED);
+    const bool sampleFresh =
+        sampleValid && sampleAgeMs < micra_timing::kStateFreshnessMs;
+    const LineaMicraPowerState reportedPower =
+        sampleFresh ? micraStatus.powerState : LineaMicraPowerState::UNKNOWN;
+    const LineaMicraObservationQuality reportedQuality =
+        sampleValid && !sampleFresh ? LineaMicraObservationQuality::STALE
+                                    : micraStatus.quality;
     ok = statusJsonAppend(
         &used,
         ",\"lineaMicra\":{\"accountConfigured\":%s,"
@@ -495,10 +502,10 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(micraStatus.requestId),
         lineaMicraPhaseName(micraStatus.phase),
         lineaMicraErrorName(micraStatus.error),
-        lineaMicraPowerStateName(micraStatus.powerState),
+        lineaMicraPowerStateName(reportedPower),
         lineaMicraObservedModeName(micraStatus.observedMode),
-        lineaMicraObservationQualityName(micraStatus.quality),
-        micraStatus.effectiveOn ? "true" : "false",
+        lineaMicraObservationQualityName(reportedQuality),
+        reportedPower != LineaMicraPowerState::OFF ? "true" : "false",
         sampleValid ? "true" : "false",
         static_cast<unsigned long>(sampleAgeMs),
         static_cast<unsigned long>(micra_timing::kStateFreshnessMs),

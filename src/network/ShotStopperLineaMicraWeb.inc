@@ -155,7 +155,7 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
   command.type = WebCommandType::SAVE_LINEA_MICRA;
   command.requestId = self.allocateRequestId();
   command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
-  command.webhookStageRequestId = command.requestId;
+  command.stagedConfigRequestId = command.requestId;
   self.dataMux_.lock();
   const bool available = self.stagedLineaMicraRequestId_ == 0;
   if (available) {

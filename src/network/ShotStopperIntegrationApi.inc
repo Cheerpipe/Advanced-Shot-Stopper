@@ -262,7 +262,7 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     WebCommand command;
     command.type = WebCommandType::SAVE_WEBHOOK;
     command.requestId = self.allocateRequestId();
-    command.webhookStageRequestId = command.requestId;
+    command.stagedConfigRequestId = command.requestId;
     self.dataMux_.lock();
     const bool available = self.stagedWebhookRequestId_ == 0;
     if (available) {

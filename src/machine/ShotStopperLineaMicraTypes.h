@@ -46,10 +46,17 @@ enum class LineaMicraError : uint8_t {
   INVALID_AUTH,
   NO_MACHINES,
   HTTP_ERROR,
-  INVALID_RESPONSE,
-  RESOURCE_ERROR,
   CANCELED
 };
+
+inline LineaMicraPowerState lineaMicraPowerStateForMode(
+    LineaMicraObservedMode mode) {
+  if (mode == LineaMicraObservedMode::STANDBY)
+    return LineaMicraPowerState::OFF;
+  if (mode == LineaMicraObservedMode::BREWING)
+    return LineaMicraPowerState::ON;
+  return LineaMicraPowerState::UNKNOWN;
+}
 
 inline const char *lineaMicraPowerStateName(LineaMicraPowerState state) {
   switch (state) {
@@ -110,8 +117,6 @@ inline const char *lineaMicraErrorName(LineaMicraError error) {
     case LineaMicraError::INVALID_AUTH: return "invalid_auth";
     case LineaMicraError::NO_MACHINES: return "no_machines";
     case LineaMicraError::HTTP_ERROR: return "communication_error";
-    case LineaMicraError::INVALID_RESPONSE: return "invalid_response";
-    case LineaMicraError::RESOURCE_ERROR: return "resource_error";
     case LineaMicraError::CANCELED: return "canceled";
   }
   return "unknown";

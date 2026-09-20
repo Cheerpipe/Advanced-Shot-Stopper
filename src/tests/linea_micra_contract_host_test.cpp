@@ -27,6 +27,14 @@ int main() {
   wipeLineaMicraSettings(settings);
   for (uint8_t byte : settings.installationPrivateKey) assert(byte == 0);
   assert(sizeof(LineaMicraRequest) <= 16);
+  assert(lineaMicraPowerStateForMode(LineaMicraObservedMode::STANDBY) ==
+         LineaMicraPowerState::OFF);
+  assert(lineaMicraPowerStateForMode(LineaMicraObservedMode::BREWING) ==
+         LineaMicraPowerState::ON);
+  assert(lineaMicraPowerStateForMode(LineaMicraObservedMode::ECO) ==
+         LineaMicraPowerState::UNKNOWN);
+  assert(lineaMicraPowerStateForMode(LineaMicraObservedMode::UNSUPPORTED) ==
+         LineaMicraPowerState::UNKNOWN);
   assert(micra_timing::kMaxAttempts == 4);
   assert(micra_timing::kRetryDelaysMs[0] == 3000);
   assert(micra_timing::kRetryDelaysMs[2] == 9000);

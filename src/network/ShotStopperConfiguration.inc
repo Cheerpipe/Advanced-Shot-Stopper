@@ -557,7 +557,7 @@ esp_err_t ShotStopperNetwork::webhookHandler(httpd_req_t *request) {
   command.type = WebCommandType::SAVE_WEBHOOK;
   command.requestId = self.allocateRequestId();
   command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
-  command.webhookStageRequestId = command.requestId;
+  command.stagedConfigRequestId = command.requestId;
   self.dataMux_.lock();
   const bool stageAvailable = self.stagedWebhookRequestId_ == 0;
   if (stageAvailable) {

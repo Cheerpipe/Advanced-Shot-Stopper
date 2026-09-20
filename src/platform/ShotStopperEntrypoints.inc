@@ -17,8 +17,8 @@ void setup() {
   bootDegraded = false;
   firmwareInitializationComplete = false;
 #ifndef SHOT_STOPPER_HOST_TEST
-  // cJSON hooks are process-wide; install the external allocator before the
-  // BLE worker or network task can parse concurrently.
+  // cJSON hooks are process-wide; install the external allocator before any
+  // worker task can parse concurrently.
   initJsonParser();
 #endif
 #ifdef SHOT_STOPPER_HOST_TEST
@@ -211,7 +211,8 @@ void setup() {
   const bool scaleWorkerOk = scaleBridgeOk && initializeScaleWorker();
   if (!machineIntegrationOk) {
     logEmit(LogLevel::WARNING, DebugCategory::BOOT,
-            DebugCode::INITIALIZATION_FAILED, BOOT_SUBSYSTEM_BLE);
+            DebugCode::INITIALIZATION_FAILED,
+            BOOT_SUBSYSTEM_MACHINE_INTEGRATION);
   }
   if (!scaleWorkerOk) {
     logEmit(LogLevel::ERROR, DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,

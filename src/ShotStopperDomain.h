@@ -1836,7 +1836,7 @@ struct WebCommand {
   // inflating every four-deep FreeRTOS command queue element in internal RAM.
   bool bullseyeConfigSpecified = false;
   uint32_t bullseyeStageRequestId = 0;
-  uint32_t webhookStageRequestId = 0;
+  uint32_t stagedConfigRequestId = 0;
   // PRESET_OP payload (keep small — no full bank on the queue element).
   uint8_t presetAction = 0;
   uint8_t presetId = 0;
@@ -2463,8 +2463,8 @@ constexpr int32_t BOOT_SUBSYSTEM_TASK_WDT = 6;
 constexpr int32_t BOOT_SUBSYSTEM_SCALE_WORKER = 7;
 constexpr int32_t BOOT_SUBSYSTEM_WEB_QUEUE = 8;
 constexpr int32_t BOOT_SUBSYSTEM_NETWORK = 9;
+constexpr int32_t BOOT_SUBSYSTEM_MACHINE_INTEGRATION = 10;
 constexpr int32_t BOOT_SUBSYSTEM_PSRAM = 11;
-
 struct DebugEvent {
   uint32_t sequence = 0;
   uint32_t atMs = 0;
@@ -2785,7 +2785,6 @@ inline const char *circuitArmFailReasonName(CircuitArmFailReason reason) {
   }
   return "unknown";
 }
-
 inline const char *bootSubsystemName(int32_t subsystem) {
   switch (subsystem) {
     case BOOT_SUBSYSTEM_CPU: return "cpu";
@@ -2797,6 +2796,7 @@ inline const char *bootSubsystemName(int32_t subsystem) {
     case BOOT_SUBSYSTEM_SCALE_WORKER: return "scale_worker";
     case BOOT_SUBSYSTEM_WEB_QUEUE: return "web_queue";
     case BOOT_SUBSYSTEM_NETWORK: return "network";
+    case BOOT_SUBSYSTEM_MACHINE_INTEGRATION: return "machine_integration";
     case BOOT_SUBSYSTEM_PSRAM: return "psram";
   }
   return "unknown";
