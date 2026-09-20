@@ -21,6 +21,7 @@ const micraStatusFailures = [
   micraStatus.includes('\"password\"') && 'password exposed',
   micraStatus.includes('\"username\"') && 'username exposed',
   !micraStatus.includes('\\\"accountConfigured\\\"') && 'account status missing',
+  !micraStatus.includes('\\\"email\\\"') && 'account email missing',
   !micraStatus.includes('\\\"machines\\\"') && 'machine list missing',
   !micraStatus.includes('SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD') && 'compile gate missing',
   !micraStatus.includes('\\\"machineIntegration\\\"') && 'integration capability missing',
@@ -52,7 +53,13 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes("{action:'connect',username,password}") ||
     !rawRuntimeJs.includes("{action:'select',serial") ||
     !rawRuntimeJs.includes("lineaMicraAction('disconnect')") ||
-    !rawRuntimeJs.includes("['queued','authenticating','listing','running','backoff'].includes(m.phase)") ||
+    rawRuntimeJs.includes("['queued','authenticating','listing','running','backoff'].includes(m.phase)") ||
+    !rawRuntimeJs.includes('if(connected)u.value=m.email') ||
+    !rawRuntimeJs.includes("u.readOnly=$('lineaMicraPassword').disabled=connected") ||
+    !rawRuntimeJs.includes("$('lineaMicraConnectButton').disabled=!canEdit||connected") ||
+    !rawRuntimeJs.includes("$('lineaMicraApplyTemperature').disabled=!canEdit||!connected") ||
+    !rawRuntimeJs.includes("$('lineaMicraObserveState').disabled=!canEdit||!connected") ||
+    !rawRuntimeJs.includes("$('lineaMicraDisconnectButton').disabled=!canEdit||(!connected&&!machines.length)") ||
     !rawRuntimeJs.includes("$('dMicraPowerValue').textContent=power") ||
     !rawRuntimeJs.includes("refresh.setAttribute('aria-disabled',String(disabled))") ||
     !rawRuntimeJs.includes("expired?'UNKNOWN':lm.powerState") ||

@@ -61,6 +61,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   LineaMicraStatus micraStatus = {};
   LineaMicraDiscoverySnapshot micraDiscovery = {};
+  char safeMicraUsername[LINEA_MICRA_USERNAME_CAPACITY] = {};
   char micraSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
   char safeMicraSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
   char micraName[LINEA_MICRA_NAME_CAPACITY] = {};
@@ -70,6 +71,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   self.dataMux_.lock();
   micraAccountConfigured = self.settings_.lineaMicra.accountConfigured;
   micraOptions = self.settings_.lineaMicra.options;
+  memcpy(safeMicraUsername, self.settings_.lineaMicra.username,
+         sizeof(safeMicraUsername));
   memcpy(micraSerial, self.settings_.lineaMicra.selectedSerial,
          sizeof(micraSerial));
   memcpy(micraName, self.settings_.lineaMicra.selectedName,
@@ -77,6 +80,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   self.dataMux_.unlock();
   micraStatus = machineIntegrationStatus();
   micraDiscovery = machineIntegrationDiscovery();
+  sanitizeJsonEmbed(safeMicraUsername, safeMicraUsername,
+                    sizeof(safeMicraUsername));
   sanitizeJsonEmbed(micraSerial, safeMicraSerial, sizeof(safeMicraSerial));
   sanitizeJsonEmbed(micraName, safeMicraName, sizeof(safeMicraName));
 #endif
@@ -484,6 +489,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     ok = statusJsonAppend(
         &used,
         ",\"lineaMicra\":{\"accountConfigured\":%s,"
+        "\"email\":\"%s\","
         "\"selectedSerial\":\"%s\",\"selectedName\":\"%s\","
         "\"applyTemperature\":%s,\"observeState\":%s,"
         "\"requestId\":%lu,\"phase\":\"%s\",\"error\":\"%s\","
@@ -493,8 +499,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"pollIntervalMs\":%lu,\"targetValid\":%s,\"targetDeciC\":%u,"
         "\"staConnected\":%s,\"apActive\":%s,\"shotPaused\":%s,"
         "\"httpStatus\":%u,\"transportStatus\":%ld,\"machines\":[",
-        micraAccountConfigured ? "true" : "false", safeMicraSerial,
-        safeMicraName,
+        micraAccountConfigured ? "true" : "false",
+        page == StatusPage::Settings ? safeMicraUsername : "",
+        safeMicraSerial, safeMicraName,
         (micraOptions & LINEA_MICRA_APPLY_TEMPERATURE) != 0
             ? "true" : "false",
         (micraOptions & LINEA_MICRA_OBSERVE_STATE) != 0

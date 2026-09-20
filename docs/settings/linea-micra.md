@@ -21,15 +21,20 @@ internet connection is unavailable.
 4. Choose **Use selected machine**. Only then are monitoring and Micra preset
    options enabled and saved.
 
+After a machine is selected, Settings continues to show the saved account email
+as a read-only value. The password field and **Connect** are disabled until the
+account is disconnected.
+
 If the account returns no Linea Micra machines, the account is not enabled and
 the machine-specific options remain unavailable. Accounts with several Micras
 show each returned name and serial number so the intended machine can be
 selected explicitly.
 
 The email, password, selected machine, and device installation key are stored
-in the controller so it can sign in again after a restart. Short-lived access
-and refresh tokens stay only in RAM and are never returned by the Web UI or
-diagnostics. The access token is reused for state reads and renewed after 50
+in the controller so it can sign in again after a restart. Settings returns the
+saved email so it can display the read-only value; the password, installation
+key, and short-lived access and refresh tokens are never returned by the Web UI
+or diagnostics. The access token is reused for state reads and renewed after 50
 minutes. Renewal normally replaces one scheduled state read, and the next read
 occurs at the normal interval. After a restart, the first successful STA session
 continues directly to a dashboard read so the displayed state is initialized.
@@ -37,6 +42,11 @@ It also reuses the secure HTTP connection while the cloud service allows it,
 avoiding a new connection handshake for every read. **Disconnect**
 removes the saved account credentials, installation key, selected machine,
 cached list, in-memory session tokens, and cloud connection.
+
+Scheduled reads and cloud failures do not disable **Disconnect**, **Allow brew
+boiler temperature in presets**, or **Monitor machine power state**. Disconnect
+only forgets the saved integration; it does not send a live command to the
+machine.
 
 The cloud interface used by the La Marzocco app is not a documented public API
 and can change independently of this firmware. A cloud outage or API change
