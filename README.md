@@ -109,6 +109,7 @@ circuit and follow the [hardware safety guidance](docs/HARDWARE.md) before insta
 | --- | --- |
 | Stop near a recipe weight | [Brew by weight](docs/features/brew-by-weight.md), with learned drip compensation |
 | Use different recipes | [Presets](docs/features/presets.md), including factory Single and Double |
+| Integrate with a Linea Micra | [La Marzocco Cloud](docs/settings/linea-micra.md) reads and sets preset brew-boiler temperatures and recognizes when the paddle is waking the machine instead of starting a brew |
 | Place the cup after starting | [Tare and retare](docs/features/tare-retare.md) |
 | Handle cup removal or bumps | [Cup protection](docs/features/cup-protection.md) |
 | Handle unexpectedly fast or slow shots | [Fast](docs/features/fast-extraction-guard.md) and [Slow](docs/features/slow-extraction-guard.md) guards |
