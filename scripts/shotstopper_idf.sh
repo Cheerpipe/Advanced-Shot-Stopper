@@ -132,6 +132,9 @@ ss_idf_resolve_paths() {
   IDF_MAP="$IDF_BUILD_DIR/${IDF_PROJECT_NAME}.map"
   IDF_SDKCONFIG="$IDF_BUILD_DIR/sdkconfig"
   IDF_SDKCONFIG_DEFAULTS="$IDF_PROJECT/sdkconfig.defaults;$IDF_PROJECT/sdkconfig.defaults.nimble;$IDF_PROJECT/sdkconfig.defaults.$SHOTSTOPPER_ARCH"
+  if [[ "${SHOTSTOPPER_MACHINE_INTEGRATION:-none}" == "linea_micra_cloud" ]]; then
+    IDF_SDKCONFIG_DEFAULTS="$IDF_SDKCONFIG_DEFAULTS;$IDF_PROJECT/sdkconfig.defaults.micra"
+  fi
   if ss_idf_jtag_enabled; then
     IDF_SDKCONFIG_DEFAULTS="$IDF_SDKCONFIG_DEFAULTS;$IDF_PROJECT/sdkconfig.defaults.jtag"
   fi
@@ -243,6 +246,18 @@ ss_idf_sync_nimble_config() {
     echo "Native NimBLE production profile changed; recreating the IDF build configuration"
     rm -f "$IDF_SDKCONFIG" "$IDF_BUILD_DIR/CMakeCache.txt"
   fi
+}
+
+ss_idf_sync_micra_tls() {
+  ss_idf_resolve_paths
+  [[ -f "$IDF_SDKCONFIG" ]] || return 0
+  local want=0 has=0
+  [[ "${SHOTSTOPPER_MACHINE_INTEGRATION:-none}" == "linea_micra_cloud" ]] && want=1
+  grep -q '^CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC=y$' "$IDF_SDKCONFIG" &&
+    grep -q '^CONFIG_MBEDTLS_DYNAMIC_BUFFER=y$' "$IDF_SDKCONFIG" && has=1
+  [[ "$want" -eq "$has" ]] && return 0
+  echo "Micra TLS allocator profile changed; recreating the IDF build configuration"
+  rm -f "$IDF_SDKCONFIG" "$IDF_BUILD_DIR/CMakeCache.txt"
 }
 
 # idf.py set-target always fullcleans. fullclean is a no-op on an empty dir,

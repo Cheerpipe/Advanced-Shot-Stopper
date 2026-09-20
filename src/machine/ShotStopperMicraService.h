@@ -29,6 +29,7 @@ class ShotStopperMicraService {
   LineaMicraDiscoverySnapshot discovery() const;
 
  private:
+  struct IoBuffer;
   struct WorkBuffer;
   struct PendingRequest {
     LineaMicraRequest request = {};
@@ -58,7 +59,11 @@ class ShotStopperMicraService {
                bool installationInit = false);
   bool applySignedHeaders(const LineaMicraPersistedSettings &settings);
   bool networkEligible(LineaMicraError &error) const;
+  bool ensureIoBuffer();
+  bool ensureWorkBuffer();
   void clearSession();
+  void releaseIoBuffer();
+  void releaseWorkBuffer();
   void publish(const LineaMicraStatus &status);
   void fail(LineaMicraStatus &status, LineaMicraError error);
   void scheduleAutomatic(uint32_t now, bool failed);
@@ -75,6 +80,7 @@ class ShotStopperMicraService {
   uint32_t nextAutomaticAtMs_ = 0;
   bool active_ = false;
   TaskHandle_t task_ = nullptr;
+  IoBuffer *io_ = nullptr;
   WorkBuffer *work_ = nullptr;
   std::atomic<bool> staConnected_{false};
   std::atomic<bool> apActive_{false};

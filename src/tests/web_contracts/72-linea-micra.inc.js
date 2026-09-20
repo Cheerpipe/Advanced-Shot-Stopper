@@ -68,12 +68,20 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
 }
 if (micraService.includes('keep_alive_enable = true') ||
     micraService.includes('esp_http_client_close(work_->client)') ||
+    micraService.includes('char authorization[kTokenCapacity + 8]') ||
     !micraService.includes('config.buffer_size = 1024;') ||
+    !micraService.includes('struct ShotStopperMicraService::IoBuffer') ||
+    !micraService.includes('union {') ||
+    !micraService.includes('allocExternal(sizeof(WorkBuffer), AllocationOwner::NETWORK)') ||
+    !micraService.includes('allocExternal(sizeof(IoBuffer), AllocationOwner::NETWORK)') ||
+    !micraService.includes('if (connecting) releaseWorkBuffer();') ||
+    !micraService.includes('if (!staConnected || apActive) {') ||
+    !micraService.includes('releaseIoBuffer();') ||
     !micraService.includes('const bool staEligible =') ||
     !micraService.includes('} else if (staEligible && config_.accountConfigured &&') ||
     !micraService.includes('const bool initialSample = status.sampleAtMs == 0;') ||
     !micraService.includes('(sessionRenewed && !initialSample) ||')) {
-  throw new Error('Linea Micra polling must fit cloud headers, wait for STA, initialize state, reuse HTTP sessions, and avoid continuous probes');
+  throw new Error('Linea Micra polling must bound transient PSRAM/stack use, release idle sessions, wait for STA, reuse active HTTP sessions, and avoid continuous probes');
 }
 for (const file of ['ShotStopperMachinePaddleControl.h',
   'ShotStopperMachinePaddleInput.h', 'ShotStopperMachinePaddlePolicy.h',

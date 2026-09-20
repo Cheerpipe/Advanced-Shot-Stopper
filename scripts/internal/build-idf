@@ -101,6 +101,7 @@ ss_idf_py_args
 ss_idf_sync_extra_flags
 ss_idf_sync_jtag_console
 ss_idf_sync_nimble_config
+ss_idf_sync_micra_tls
 
 if [[ ! -f "$IDF_SDKCONFIG" ]] ||
    ! grep -q '^CONFIG_IDF_TARGET="esp32s3"$' "$IDF_SDKCONFIG"; then

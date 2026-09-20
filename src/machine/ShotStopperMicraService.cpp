@@ -280,9 +280,16 @@ LineaMicraObservedMode parseMode(const char *mode) {
 
 }  // namespace
 
+struct ShotStopperMicraService::IoBuffer {
+  union {
+    char response[kResponseCapacity];
+    char body[kBodyCapacity];
+  };
+
+  IoBuffer() : response{} {}
+};
+
 struct ShotStopperMicraService::WorkBuffer {
-  char response[kResponseCapacity] = {};
-  char body[kBodyCapacity] = {};
   char accessToken[kTokenCapacity] = {};
   char refreshToken[kTokenCapacity] = {};
   esp_http_client_handle_t client = nullptr;
@@ -294,18 +301,11 @@ struct ShotStopperMicraService::WorkBuffer {
 };
 
 bool ShotStopperMicraService::begin() {
-  if (task_ != nullptr || work_ != nullptr || psa_crypto_init() != PSA_SUCCESS) {
+  if (task_ != nullptr || psa_crypto_init() != PSA_SUCCESS) {
     return false;
   }
-  work_ = static_cast<WorkBuffer *>(
-      allocExternal(sizeof(WorkBuffer), AllocationOwner::NETWORK));
-  if (work_ == nullptr) return false;
-  new (work_) WorkBuffer{};
   if (xTaskCreatePinnedToCore(taskEntry, "micra_cloud", kWorkerStackBytes, this,
                              tskIDLE_PRIORITY, &task_, 0) != pdPASS) {
-    work_->~WorkBuffer();
-    heapCapsFree(work_);
-    work_ = nullptr;
     return false;
   }
   return true;
@@ -341,7 +341,8 @@ void ShotStopperMicraService::publishConfig(
       nextAutomaticAtMs_ = millis();
     }
   }
-  if (!settings.accountConfigured) {
+  if (!settings.accountConfigured ||
+      (settings.options & LINEA_MICRA_OBSERVE_STATE) == 0) {
     clearSessionRequested_.store(true, std::memory_order_release);
     abortRequested_.store(true, std::memory_order_release);
   }
@@ -361,6 +362,9 @@ void ShotStopperMicraService::publishNetworkState(bool staConnected,
   if ((!staConnected && wasSta) || (apActive && !wasAp) ||
       (shotActive && !wasActive)) {
     abortRequested_.store(true, std::memory_order_release);
+    if (!staConnected || apActive) {
+      clearSessionRequested_.store(true, std::memory_order_release);
+    }
   } else if (eligible) {
     abortRequested_.store(false, std::memory_order_release);
     if (!wasEligible) {
@@ -481,7 +485,7 @@ void ShotStopperMicraService::taskEntry(void *context) {
 void ShotStopperMicraService::taskLoop() {
   for (;;) {
     if (clearSessionRequested_.exchange(false, std::memory_order_acq_rel)) {
-      clearSession();
+      releaseWorkBuffer();
     }
     PendingRequest pending;
     bool haveRequest = false;
@@ -549,11 +553,6 @@ void ShotStopperMicraService::execute(PendingRequest &pending) {
   status.error = LineaMicraError::NONE;
   status.transportStatus = 0;
   status.httpStatus = 0;
-  if (work_ != nullptr) {
-    work_->transportStatus = 0;
-    work_->httpStatus = 0;
-  }
-
   LineaMicraError gateError = LineaMicraError::NONE;
   if (!networkEligible(gateError)) {
     fail(status, gateError);
@@ -569,10 +568,18 @@ void ShotStopperMicraService::execute(PendingRequest &pending) {
     nextAutomaticAtMs_ = millis();
     return;
   }
-  const bool success = pending.request.type == LineaMicraRequestType::CONNECT
-                           ? executeConnect(pending)
-                           : executeObservation(pending);
+  if (!ensureWorkBuffer()) {
+    fail(status, LineaMicraError::HTTP_ERROR);
+    scheduleAutomatic(millis(), true);
+    return;
+  }
+  work_->transportStatus = 0;
+  work_->httpStatus = 0;
+  const bool connecting = pending.request.type == LineaMicraRequestType::CONNECT;
+  const bool success = connecting ? executeConnect(pending)
+                                  : executeObservation(pending);
   if (!success) scheduleAutomatic(millis(), true);
+  if (connecting) releaseWorkBuffer();
 }
 
 bool ShotStopperMicraService::executeConnect(PendingRequest &pending) {
@@ -781,31 +788,39 @@ bool ShotStopperMicraService::ensureSession(
 
 bool ShotStopperMicraService::registerInstallation(
     const LineaMicraPersistedSettings &settings) {
-  return request(settings, kRegisterUrl, HTTP_METHOD_POST, nullptr, false, true);
+  if (!ensureIoBuffer()) return false;
+  const bool ok =
+      request(settings, kRegisterUrl, HTTP_METHOD_POST, nullptr, false, true);
+  releaseIoBuffer();
+  return ok;
 }
 
 bool ShotStopperMicraService::signIn(
     const LineaMicraPersistedSettings &settings) {
+  if (!ensureIoBuffer()) return false;
   char username[2 * LINEA_MICRA_USERNAME_CAPACITY];
   char password[2 * LINEA_MICRA_PASSWORD_CAPACITY];
   if (!jsonEscape(settings.username, username, sizeof(username)) ||
       !jsonEscape(settings.password, password, sizeof(password))) {
     secureWipe(username, sizeof(username));
     secureWipe(password, sizeof(password));
+    releaseIoBuffer();
     return false;
   }
-  const int length = snprintf(work_->body, sizeof(work_->body),
+  const int length = snprintf(io_->body, sizeof(io_->body),
                               "{\"username\":\"%s\",\"password\":\"%s\"}",
                               username, password);
   secureWipe(username, sizeof(username));
   secureWipe(password, sizeof(password));
-  if (length <= 0 || static_cast<size_t>(length) >= sizeof(work_->body) ||
-      !request(settings, kSignInUrl, HTTP_METHOD_POST, work_->body, false)) {
-    secureWipe(work_->body, sizeof(work_->body));
+  if (length <= 0 || static_cast<size_t>(length) >= sizeof(io_->body)) {
+    releaseIoBuffer();
     return false;
   }
-  secureWipe(work_->body, sizeof(work_->body));
-  cJSON *root = parseResponse(work_->response);
+  if (!request(settings, kSignInUrl, HTTP_METHOD_POST, io_->body, false)) {
+    releaseIoBuffer();
+    return false;
+  }
+  cJSON *root = parseResponse(io_->response);
   const char *access = root == nullptr ? nullptr : jsonText(root, "accessToken");
   const char *refresh = root == nullptr ? nullptr : jsonText(root, "refreshToken");
   const bool ok = access != nullptr && refresh != nullptr &&
@@ -814,8 +829,8 @@ bool ShotStopperMicraService::signIn(
                   secureCopy(work_->refreshToken, sizeof(work_->refreshToken),
                              refresh);
   if (root != nullptr) cJSON_Delete(root);
-  secureWipe(work_->response, sizeof(work_->response));
   work_->responseUsed = 0;
+  releaseIoBuffer();
   if (!ok) {
     secureWipe(work_->accessToken, sizeof(work_->accessToken));
     secureWipe(work_->refreshToken, sizeof(work_->refreshToken));
@@ -828,19 +843,22 @@ bool ShotStopperMicraService::signIn(
 bool ShotStopperMicraService::refreshToken(
     const LineaMicraPersistedSettings &settings) {
   if (work_->refreshToken[0] == '\0') return false;
+  if (!ensureIoBuffer()) return false;
   cJSON *body = cJSON_CreateObject();
   const bool bodyOk = body != nullptr &&
       cJSON_AddStringToObject(body, "username", settings.username) != nullptr &&
       cJSON_AddStringToObject(body, "refreshToken", work_->refreshToken) != nullptr &&
-      cJSON_PrintPreallocated(body, work_->body, sizeof(work_->body), false);
+      cJSON_PrintPreallocated(body, io_->body, sizeof(io_->body), false);
   if (body != nullptr) cJSON_Delete(body);
-  if (!bodyOk ||
-      !request(settings, kRefreshUrl, HTTP_METHOD_POST, work_->body, false)) {
-    secureWipe(work_->body, sizeof(work_->body));
+  if (!bodyOk) {
+    releaseIoBuffer();
     return false;
   }
-  secureWipe(work_->body, sizeof(work_->body));
-  cJSON *root = parseResponse(work_->response);
+  if (!request(settings, kRefreshUrl, HTTP_METHOD_POST, io_->body, false)) {
+    releaseIoBuffer();
+    return false;
+  }
+  cJSON *root = parseResponse(io_->response);
   const char *access = root == nullptr ? nullptr : jsonText(root, "accessToken");
   const char *newRefresh =
       root == nullptr ? nullptr : jsonText(root, "refreshToken");
@@ -850,8 +868,8 @@ bool ShotStopperMicraService::refreshToken(
                   secureCopy(work_->refreshToken, sizeof(work_->refreshToken),
                              newRefresh);
   if (root != nullptr) cJSON_Delete(root);
-  secureWipe(work_->response, sizeof(work_->response));
   work_->responseUsed = 0;
+  releaseIoBuffer();
   if (ok) work_->accessTokenIssuedAtMs = millis();
   return ok;
 }
@@ -859,12 +877,16 @@ bool ShotStopperMicraService::refreshToken(
 bool ShotStopperMicraService::listMachines(
     const LineaMicraPersistedSettings &settings,
     LineaMicraDiscoverySnapshot &result) {
-  if (!request(settings, kThingsUrl, HTTP_METHOD_GET, nullptr, true)) return false;
-  cJSON *root = parseResponse(work_->response);
+  if (!ensureIoBuffer()) return false;
+  if (!request(settings, kThingsUrl, HTTP_METHOD_GET, nullptr, true)) {
+    releaseIoBuffer();
+    return false;
+  }
+  cJSON *root = parseResponse(io_->response);
   if (!cJSON_IsArray(root)) {
     if (root != nullptr) cJSON_Delete(root);
-    secureWipe(work_->response, sizeof(work_->response));
     work_->responseUsed = 0;
+    releaseIoBuffer();
     return false;
   }
   const cJSON *thing = nullptr;
@@ -891,27 +913,29 @@ bool ShotStopperMicraService::listMachines(
     ++result.count;
   }
   cJSON_Delete(root);
-  secureWipe(work_->response, sizeof(work_->response));
   work_->responseUsed = 0;
+  releaseIoBuffer();
   return true;
 }
 
 bool ShotStopperMicraService::readDashboard(
     const LineaMicraPersistedSettings &settings, LineaMicraStatus &result) {
+  if (!ensureIoBuffer()) return false;
   char url[sizeof(kApiRoot) + LINEA_MICRA_SERIAL_CAPACITY + 24];
   const int length = snprintf(url, sizeof(url), "%s/things/%s/dashboard",
                               kApiRoot, settings.selectedSerial);
   if (length <= 0 || static_cast<size_t>(length) >= sizeof(url) ||
       !request(settings, url, HTTP_METHOD_GET, nullptr, true)) {
+    releaseIoBuffer();
     return false;
   }
-  cJSON *root = parseResponse(work_->response);
+  cJSON *root = parseResponse(io_->response);
   cJSON *widgets =
       root == nullptr ? nullptr : cJSON_GetObjectItemCaseSensitive(root, "widgets");
   if (!cJSON_IsArray(widgets)) {
     if (root != nullptr) cJSON_Delete(root);
-    secureWipe(work_->response, sizeof(work_->response));
     work_->responseUsed = 0;
+    releaseIoBuffer();
     return false;
   }
   LineaMicraObservedMode mode = LineaMicraObservedMode::NONE;
@@ -937,8 +961,8 @@ bool ShotStopperMicraService::readDashboard(
     }
   }
   cJSON_Delete(root);
-  secureWipe(work_->response, sizeof(work_->response));
   work_->responseUsed = 0;
+  releaseIoBuffer();
   if (mode == LineaMicraObservedMode::NONE) return false;
   result.observedMode = mode;
   result.powerState = lineaMicraPowerStateForMode(mode);
@@ -1009,7 +1033,7 @@ bool ShotStopperMicraService::request(
     const LineaMicraPersistedSettings &settings, const char *url,
     esp_http_client_method_t method, const char *body, bool authenticated,
     bool installationInit) {
-  if (work_ == nullptr || url == nullptr) return false;
+  if (work_ == nullptr || io_ == nullptr || url == nullptr) return false;
   if (work_->client == nullptr) {
     esp_http_client_config_t config{};
     config.url = kApiRoot;
@@ -1022,8 +1046,11 @@ bool ShotStopperMicraService::request(
     work_->client = esp_http_client_init(&config);
     if (work_->client == nullptr) return false;
   }
+  // Blocking esp_http_client_perform sends the complete POST body before its
+  // response callback runs, so those mutually exclusive phases share storage.
+  const bool bodySharesResponse = body == io_->body;
   work_->responseUsed = 0;
-  work_->response[0] = '\0';
+  if (!bodySharesResponse) io_->response[0] = '\0';
   work_->responseOverflow = false;
   work_->httpStatus = 0;
   work_->transportStatus = 0;
@@ -1065,11 +1092,11 @@ bool ShotStopperMicraService::request(
     ok = ok && baseLength > 0 && static_cast<size_t>(baseLength) < sizeof(base) &&
          requestProof(base, secret, proof);
     const int bodyLength =
-        ok ? snprintf(work_->body, sizeof(work_->body), "{\"pk\":\"%s\"}",
+        ok ? snprintf(io_->body, sizeof(io_->body), "{\"pk\":\"%s\"}",
                       publicB64)
            : -1;
     ok = ok && bodyLength > 0 &&
-         static_cast<size_t>(bodyLength) < sizeof(work_->body) &&
+         static_cast<size_t>(bodyLength) < sizeof(io_->body) &&
          esp_http_client_set_header(work_->client, "X-App-Installation-Id", id) ==
              ESP_OK &&
          esp_http_client_set_header(work_->client, "X-Request-Proof", proof) ==
@@ -1081,22 +1108,26 @@ bool ShotStopperMicraService::request(
     secureWipe(base, sizeof(base));
     secureWipe(proof, sizeof(proof));
     if (!ok) {
-      secureWipe(work_->body, sizeof(work_->body));
+      secureWipe(io_->body, sizeof(io_->body));
       return false;
     }
-    body = work_->body;
+    body = io_->body;
   } else if (!applySignedHeaders(settings)) {
     return false;
   }
   if (authenticated) {
-    char authorization[kTokenCapacity + 8];
-    const int length = snprintf(authorization, sizeof(authorization),
+    static_assert(kResponseCapacity >= kTokenCapacity + 8);
+    const int length = snprintf(io_->response, sizeof(io_->response),
                                 "Bearer %s", work_->accessToken);
     const bool ok = length > 0 &&
-                    static_cast<size_t>(length) < sizeof(authorization) &&
+                    static_cast<size_t>(length) < sizeof(io_->response) &&
                     esp_http_client_set_header(work_->client, "Authorization",
-                                               authorization) == ESP_OK;
-    secureWipe(authorization, sizeof(authorization));
+                                               io_->response) == ESP_OK;
+    if (length > 0 && static_cast<size_t>(length) < sizeof(io_->response)) {
+      secureWipe(io_->response, static_cast<size_t>(length) + 1U);
+    } else {
+      io_->response[0] = '\0';
+    }
     if (!ok) return false;
   }
   if (body != nullptr &&
@@ -1116,7 +1147,7 @@ bool ShotStopperMicraService::request(
       abortRequested_.exchange(false, std::memory_order_acq_rel)) {
     TaskLockGuard lock(clientMux_);
     activeClient_ = nullptr;
-    if (installationInit) secureWipe(work_->body, sizeof(work_->body));
+    if (installationInit) secureWipe(io_->body, sizeof(io_->body));
     return false;
   }
   const esp_err_t performed = esp_http_client_perform(work_->client);
@@ -1127,19 +1158,40 @@ bool ShotStopperMicraService::request(
   work_->transportStatus = performed;
   work_->httpStatus = static_cast<uint16_t>(
       esp_http_client_get_status_code(work_->client));
-  if (installationInit) secureWipe(work_->body, sizeof(work_->body));
-  if (work_->responseUsed < sizeof(work_->response)) {
-    work_->response[work_->responseUsed] = '\0';
+  if (work_->responseUsed < sizeof(io_->response)) {
+    io_->response[work_->responseUsed] = '\0';
   }
-  return performed == ESP_OK && !work_->responseOverflow &&
-         work_->httpStatus >= 200 && work_->httpStatus < 300;
+  const bool ok = performed == ESP_OK && !work_->responseOverflow &&
+                  work_->httpStatus >= 200 && work_->httpStatus < 300;
+  if (installationInit) {
+    secureWipe(io_->response, sizeof(io_->response));
+    work_->responseUsed = 0;
+  }
+  return ok;
+}
+
+bool ShotStopperMicraService::ensureWorkBuffer() {
+  if (work_ != nullptr) return true;
+  work_ = static_cast<WorkBuffer *>(
+      allocExternal(sizeof(WorkBuffer), AllocationOwner::NETWORK));
+  if (work_ == nullptr) return false;
+  new (work_) WorkBuffer{};
+  return true;
+}
+
+bool ShotStopperMicraService::ensureIoBuffer() {
+  if (io_ != nullptr) return true;
+  io_ = static_cast<IoBuffer *>(
+      allocExternal(sizeof(IoBuffer), AllocationOwner::NETWORK));
+  if (io_ == nullptr) return false;
+  new (io_) IoBuffer{};
+  return true;
 }
 
 void ShotStopperMicraService::clearSession() {
+  releaseIoBuffer();
   if (work_ == nullptr) return;
   abortRequested_.store(false, std::memory_order_release);
-  secureWipe(work_->response, sizeof(work_->response));
-  secureWipe(work_->body, sizeof(work_->body));
   secureWipe(work_->accessToken, sizeof(work_->accessToken));
   secureWipe(work_->refreshToken, sizeof(work_->refreshToken));
   work_->responseUsed = 0;
@@ -1154,22 +1206,39 @@ void ShotStopperMicraService::clearSession() {
   }
 }
 
+void ShotStopperMicraService::releaseIoBuffer() {
+  if (io_ == nullptr) return;
+  secureWipe(io_->response, sizeof(io_->response));
+  io_->~IoBuffer();
+  heapCapsFree(io_);
+  io_ = nullptr;
+}
+
+void ShotStopperMicraService::releaseWorkBuffer() {
+  clearSession();
+  if (work_ == nullptr) return;
+  work_->~WorkBuffer();
+  heapCapsFree(work_);
+  work_ = nullptr;
+}
+
 esp_err_t ShotStopperMicraService::httpEvent(esp_http_client_event_t *event) {
   if (event == nullptr || event->user_data == nullptr) return ESP_FAIL;
   auto *self = static_cast<ShotStopperMicraService *>(event->user_data);
   if (event->event_id != HTTP_EVENT_ON_DATA || event->data == nullptr ||
-      event->data_len <= 0 || self->work_ == nullptr) {
+      event->data_len <= 0 || self->work_ == nullptr || self->io_ == nullptr) {
     return ESP_OK;
   }
   WorkBuffer &work = *self->work_;
+  IoBuffer &io = *self->io_;
   const size_t length = static_cast<size_t>(event->data_len);
-  if (length >= sizeof(work.response) - work.responseUsed) {
+  if (length >= sizeof(io.response) - work.responseUsed) {
     work.responseOverflow = true;
     return ESP_FAIL;
   }
-  memcpy(work.response + work.responseUsed, event->data, length);
+  memcpy(io.response + work.responseUsed, event->data, length);
   work.responseUsed += length;
-  work.response[work.responseUsed] = '\0';
+  io.response[work.responseUsed] = '\0';
   return ESP_OK;
 }
 

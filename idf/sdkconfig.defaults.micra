@@ -1,0 +1,5 @@
+# The Micra integration keeps its HTTPS client between polls. Route large TLS
+# records through the size-aware allocator and free record payloads when idle.
+# CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC is not set
+CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC=y
+CONFIG_MBEDTLS_DYNAMIC_BUFFER=y

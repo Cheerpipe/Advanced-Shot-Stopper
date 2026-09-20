@@ -131,6 +131,8 @@ const taskProfiler = fs.readFileSync(
   path.join(sketchDir, 'ShotStopperTaskProfiler.h'), 'utf8');
 const sdkconfigDefaults = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'sdkconfig.defaults'), 'utf8');
+const sdkconfigMicra = fs.readFileSync(
+  path.resolve(sketchDir, '..', 'idf', 'sdkconfig.defaults.micra'), 'utf8');
 const sdkconfigNimble = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'sdkconfig.defaults.nimble'), 'utf8');
 const bleComponentCmake = fs.readFileSync(
@@ -138,6 +140,8 @@ const bleComponentCmake = fs.readFileSync(
                'CMakeLists.txt'), 'utf8');
 const idfBuildScript = fs.readFileSync(
   path.resolve(sketchDir, '..', 'scripts', 'internal', 'build-idf'), 'utf8');
+const idfHelpers = fs.readFileSync(
+  path.resolve(sketchDir, '..', 'scripts', 'shotstopper_idf.sh'), 'utf8');
 const bleRuntime = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'components',
                'ShotStopperBleRuntime', 'ShotStopperBleRuntime.cpp'),
@@ -225,6 +229,15 @@ if (!sdkconfigDefaults.includes('CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768') |
     sdkconfigDefaults.includes('CONFIG_FREERTOS_PLACE_TASK_STACKS_IN_EXT_RAM=y')) {
   throw new Error(
       'sdkconfig.defaults must pin SPIRAM_MALLOC_RESERVE_INTERNAL=32768 and keep task stacks internal');
+}
+if (!idfHelpers.includes('sdkconfig.defaults.micra') ||
+    !idfHelpers.includes('ss_idf_sync_micra_tls') ||
+    !idfBuildScript.includes('ss_idf_sync_micra_tls') ||
+    !sdkconfigMicra.includes('# CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC is not set') ||
+    !sdkconfigMicra.includes('CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC=y') ||
+    !sdkconfigMicra.includes('CONFIG_MBEDTLS_DYNAMIC_BUFFER=y')) {
+  throw new Error(
+      'Micra-only mbedTLS must use the size-aware allocator and release dynamic record buffers');
 }
 if (sdkconfigDefaults.includes('CONFIG_FREERTOS_USE_TICKLESS_IDLE=y') ||
     !sdkconfigDefaults.includes('CONFIG_PM_ENABLE=y') ||
@@ -315,8 +328,6 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
   }
   const buildIdf = fs.readFileSync(
       path.resolve(sketchDir, '..', 'scripts', 'internal', 'build-idf'), 'utf8');
-  const idfHelpers = fs.readFileSync(
-      path.resolve(sketchDir, '..', 'scripts', 'shotstopper_idf.sh'), 'utf8');
   if (!idfHelpers.includes('ss_idf_prepare_set_target') ||
       !idfHelpers.includes('ss_idf_commit_extra_flags_stamp') ||
       !idfHelpers.includes('ss_idf_jtag_enabled') ||

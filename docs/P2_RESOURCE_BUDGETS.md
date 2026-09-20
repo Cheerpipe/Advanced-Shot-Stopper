@@ -22,10 +22,12 @@ and the qualified `CONFIG_FREERTOS_IN_IRAM=y` build profile.
 The n16r8 baseline represents the largest reviewed supported profile, currently
 the Linea Micra cloud build. HTTPS server verification adds the ESP certificate
 bundle in flash; it is retained rather than weakening TLS. The development
-profile measures 2,052,928 image bytes and 2,052,815 total bytes, leaving 38,640
+profile measures 2,055,856 image bytes and 2,055,735 total bytes, leaving 38,640
 and 38,628 bytes of reviewed growth allowance respectively. Flash rodata is
-502,388 bytes with 10,004 bytes remaining; DIRAM and flash-code keep their
-existing allowances. The 3 MiB OTA slot still has more than 1 MiB free.
+502,976 bytes with 9,416 bytes remaining; flash code is 1,394,916 bytes with
+776 bytes remaining, and DIRAM keeps its existing allowance. The 3 MiB OTA
+slot still has more than 1 MiB free. The 2,928-byte image increase funds
+dynamic TLS record ownership so idle Micra sessions return their RX/TX payloads.
 
 Both linker maps must also keep external BSS at or below 105 KiB and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
@@ -41,7 +43,7 @@ heap. The earlier 96→104 KiB raise covers the V3 half-second shot-curve store.
 | Network work buffer | external, at most 68 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex, and a one-curve JSON scratch serves the status and shots-list rows |
 | Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 68 KiB total bound |
 | Shared flash-I/O scratch | internal heap, 5,920 bytes (2× the 2,960-byte PersistedSettings) plus a transient V15 legacy-migration staging block while an older blob is being read; one owner at a time under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the scratch |
-| Micra cloud workspace | external, at most 26 KiB; one 16 KiB response, bounded request/token buffers, and one HTTPS client handle owned for the boot lifetime by the Micra worker and wiped on Disconnect |
+| Micra cloud workspace | external and lazy; exactly 4,120 bytes of bounded session/token state while cloud observation is active, plus one request-scoped 16 KiB buffer whose mutually exclusive request-body and response phases share storage; Disconnect, disabled observation, STA loss, and AP entry destroy the client and free both blocks |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
 | Settings handoff | one 2,964-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
@@ -92,6 +94,8 @@ allocation counts and do not include allocations made directly by SDK code.
 The retained legacy external-fallback counter stays zero: there is no fallback.
 JSON still allocates individual nodes, but those allocations no longer churn
 the internal heap; an arena would require separate lifetime/concurrency evidence.
+The Micra worker deletes each bounded cloud document before releasing its
+request buffer, so those temporary PSRAM blocks can coalesce after each poll.
 The compatibility field `jsonArenaExternal=false` means no arena is installed;
 it does not describe the placement of the independently allocated documents.
 The 4096-byte OTA transfer chunk remains request-scoped; retain it across
