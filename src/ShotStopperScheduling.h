@@ -51,7 +51,7 @@ constexpr TaskScheduleContract TASK_SCHEDULE_CONTRACTS[] = {
     {"health", 0, 0, 4096, TaskActivation::PERIODIC, 100, 0, 0, 0, 0, false},
     {"network_manager", 0, 1, 10240, TaskActivation::PERIODIC, 50, 250,
      200000, 2500, 5000, true},
-    {"httpd", 0, 1, 8192, TaskActivation::FRAMEWORK, 0, 0, 0, 30000, 0,
+    {"httpd", 0, 1, 10240, TaskActivation::FRAMEWORK, 0, 0, 0, 30000, 0,
      false},
     {"webhook", 0, 0, 4096, TaskActivation::EVENT_DRIVEN, 0, 0, 0, 1800, 0,
      false},

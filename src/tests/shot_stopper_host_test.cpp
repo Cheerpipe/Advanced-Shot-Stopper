@@ -12328,6 +12328,8 @@ void f13_schedule_contract_and_snapshot_evidence_are_explicit() {
   CHECK(TASK_SCHEDULE_CONTRACTS[2].core == PERSISTENCE_TASK_CORE);
   CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[3].name, "health") == 0);
   CHECK(TASK_SCHEDULE_CONTRACTS[3].core == 0);
+  CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[5].name, "httpd") == 0);
+  CHECK(TASK_SCHEDULE_CONTRACTS[5].configuredStackBytes == 10240);
   CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[7].name, "micra_cloud") == 0);
   CHECK(TASK_SCHEDULE_CONTRACTS[7].maxBlockingMs == 10000);
   CHECK(TASK_SCHEDULE_CONTRACTS[8].maxBlockingMs ==
@@ -13087,6 +13089,29 @@ void h03_task_profiler_start_stop_updates_snapshot() {
   copyTaskProfiler(snap);
   CHECK(snap.state == TaskProfilerState::FAILED);
   CHECK(snap.stopReason == TaskProfilerStopReason::CAPTURE_FAILED);
+}
+
+void h04_loop_phase_profiler_publishes_window_and_session_totals() {
+  LoopPhaseProfiler profiler;
+  LoopPhaseProfilerSnapshot snap;
+  profiler.beginIteration(true, 1000U);
+  profiler.record(LoopPhase::SAFETY_HEALTH, 100U, 1100U);
+  profiler.record(LoopPhase::CONTROL, 200U, 1300U);
+  profiler.record(LoopPhase::DIAGNOSTICS, 50U, 1001000U);
+  profiler.copySnapshot(snap);
+  CHECK(snap.rowCount == LOOP_PHASE_COUNT);
+  CHECK(strcmp(snap.rows[0].name, "safety/health") == 0);
+  CHECK(snap.rows[0].sampleCount == 1U);
+  CHECK(snap.rows[0].averageExecutionUs == 100U);
+  CHECK(snap.rows[0].maxExecutionUs == 100U);
+  CHECK(snap.rows[0].currentCpuPct > 0.009f);
+  CHECK(snap.rows[0].currentCpuPct < 0.011f);
+  CHECK(snap.rows[2].averageExecutionUs == 200U);
+
+  profiler.beginIteration(false, 1501000U);
+  profiler.copySnapshot(snap);
+  CHECK(snap.rows[0].averageCpuPct > 0.006f);
+  CHECK(snap.rows[0].averageCpuPct < 0.007f);
 }
 
 void r51_auto_to_manual_guard_fires_while_scale_lost() {
@@ -15645,6 +15670,7 @@ const TestCase testCases[] = {
     {"H01b", h01b_health_heap_low_restarts_only_when_ready_and_sustained},
     {"H02", h02_hwmon_cpu_load_uses_refreshed_idle_and_ema},
     {"H03", h03_task_profiler_start_stop_updates_snapshot},
+    {"H04", h04_loop_phase_profiler_publishes_window_and_session_totals},
     {"N01", n01_wall_clock_tracks_utc_from_anchor},
     {"N01b", n01b_wall_clock_survives_millis_wrap},
     {"N01c", n01c_wall_clock_cancel_syncing_restores_anchor},

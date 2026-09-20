@@ -20,7 +20,7 @@ subscribed nor part of control. Stack values are configured bytes in ESP-IDF.
 | health | periodic / 100 ms | diagnostic | n/a | idle | none | 4096 | 0 | no |
 | network_manager | periodic / 50 ms | 250 ms | 200000 us | idle+1 | 2500 ms lifecycle/cancel | 10240 | 0 | 5 s |
 | mdns | event-driven (action queue) | n/a | n/a | 1 | freed once in network stop | 4096 | 0 | no |
-| httpd | framework event | n/a | n/a | idle+1 | 30000 ms OTA receive budget | 8192 | 0 | no |
+| httpd | framework event | n/a | n/a | idle+1 | 30000 ms OTA receive budget | 10240 | 0 | no |
 | webhook | event-driven | n/a | n/a | idle | 1800 ms HTTP | 4096 | 0 | no |
 | micra_cloud | event-driven | n/a | n/a | idle | 10000 ms per HTTPS request | 8192 | 0 | no |
 | serial_log | event-driven | n/a | n/a | idle | unbounded USB sink | 3072 | 0 | no |
@@ -75,6 +75,13 @@ runs on core 0, samples heap/CPU and services the optional task profiler, then
 publishes a one-element latest-wins mailbox. Network and scale metrics are
 published under their owning snapshot or as monotonic atomics.
 
+While the optional task profiler is running, the control loop also attributes
+its execution time to coarse safety/health, scale/input, control, alerts/timers,
+commands/persistence, diagnostics and final-scale-drain phases. The loop owns
+the accumulators and publishes at one-second boundaries, so the hot path takes
+no cross-core diagnostic lock. Stopping the task profiler removes the phase
+timing calls; the reported phase totals include their own measurement cost.
+
 Partition-backed shot stores advance through one 4 KiB erase or one 1 KiB
 program operation per worker step. The flash lock is released and the current
 machine/scale gates are rechecked between steps; the body precedes the slot
@@ -99,8 +106,11 @@ JSON and `HEALTH` publish `stackUnit=bytes` and an unavailable sentinel of
 `4294967295`; legacy field names ending in `Words` retain their historical
 byte-valued numbers for compatibility. Zero is a measured exhausted margin,
 not a missing sample. The low-stack alert enters below 1024 bytes and clears
-at 1536 bytes. Configured task stack sizes are unchanged; reducing them needs
-target measurements under the combined workload.
+at 1536 bytes. Reducing a configured stack needs target measurements under the
+combined workload.
+The HTTP server task is configured with 10240 bytes after an 8192-byte target
+run left only 452 bytes free under Diagnostic traffic; repeat that workload on
+target and retain the new watermark as manual acceptance evidence.
 
 ## Release test
 

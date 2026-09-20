@@ -621,6 +621,7 @@ bool healthLoopGapAlertLatched = false;
 Hwmon hwmon;
 HwmonSnapshot hwmonSnapshot = {};
 TaskProfiler taskProfiler;
+LoopPhaseProfiler loopPhaseProfiler;
 bool platformClockReady = false;
 bool persistenceReady = false;
 bool firmwareInitializationComplete = false;
@@ -1127,6 +1128,7 @@ size_t copyDebugEvents(uint32_t afterSequence, DebugEvent *output,
 
 void copyTaskProfiler(TaskProfilerSnapshot &output) {
   taskProfiler.copySnapshot(output);
+  loopPhaseProfiler.copySnapshot(output.loopPhases);
 }
 
 void copyControlStatus(ControlStatusSnapshot &output) {

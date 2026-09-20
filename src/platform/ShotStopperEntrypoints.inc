@@ -543,6 +543,16 @@ void serviceHealthThresholdAlerts(uint32_t intervalMaxGapMs) {
 void loop() {
   const uint32_t loopStartedAtMs = millis();
   const uint32_t loopStartedAtUs = micros();
+  const bool profileLoopPhases = taskProfiler.loopPhaseProfilingEnabled();
+  loopPhaseProfiler.beginIteration(profileLoopPhases, loopStartedAtUs);
+  uint32_t loopPhaseStartedAtUs = loopStartedAtUs;
+  const auto finishLoopPhase = [&](LoopPhase phase) {
+    if (!profileLoopPhases) return;
+    const uint32_t endedAtUs = micros();
+    loopPhaseProfiler.record(phase, endedAtUs - loopPhaseStartedAtUs,
+                             endedAtUs);
+    loopPhaseStartedAtUs = endedAtUs;
+  };
   recordResetUptime(loopStartedAtMs);
   if (lastLoopAtMs != 0) {
     const uint32_t gap = loopStartedAtMs - lastLoopAtMs;
@@ -580,6 +590,7 @@ void loop() {
     // and reset immediately so a hung firmware cannot keep the group on.
   }
   serviceHealthWorkerSample();
+  finishLoopPhase(LoopPhase::SAFETY_HEALTH);
   // One link snapshot per iteration; the two event drains below keep their
   // own fresh fetch by contract and must not take this copy.
   const ScaleLinkSnapshot loopScaleLink = getScaleLinkSnapshot();
@@ -600,10 +611,12 @@ void loop() {
     serviceNoScaleShotGuard(loopGuardInputs);
     serviceCupStartGuard(loopGuardInputs);
   }
+  finishLoopPhase(LoopPhase::SCALE_INPUT);
   stateMachineTask();
   publishControlCriticalLoggingState();
   serviceWebhookBrewStart();
   machineOnBrewOutcome(session.active);
+  finishLoopPhase(LoopPhase::CONTROL);
   serviceExtendedPulseAlert();
   localBuzzer.service(millis());
   servicePendingBrewRfRestore();
@@ -612,6 +625,7 @@ void loop() {
   serviceRemoteTimerStopRetry();
   serviceBullseyeMelody();
   pendingShotFinalizeTask();
+  finishLoopPhase(LoopPhase::ALERTS_TIMERS);
   serviceSerialLogDump();
   serviceSerialCli();
   serviceMaintenanceCancellation();
@@ -626,6 +640,7 @@ void loop() {
       (powerIntention.turnedOn || powerIntention.turnedOff));
   servicePendingResetHistoryClear();
   servicePendingPlannedRestart();
+  finishLoopPhase(LoopPhase::COMMANDS_PERSISTENCE);
   serviceWeightStreamTelemetry(loopScaleLink);
   serviceControlStatusPublish();
   serviceScaleConnectedLed(loopScaleLink);
@@ -642,7 +657,9 @@ void loop() {
     }
   }
   serviceSafetyHeartbeat(true);
+  finishLoopPhase(LoopPhase::DIAGNOSTICS);
   processScaleWorkerEvents();
+  finishLoopPhase(LoopPhase::FINAL_SCALE_DRAIN);
   const uint32_t executionUs = micros() - loopStartedAtUs;
   if (executionUs > loopMaxExecutionUs) {
     loopMaxExecutionUs = executionUs;

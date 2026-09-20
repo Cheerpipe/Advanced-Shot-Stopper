@@ -272,7 +272,7 @@ constexpr uint32_t NETWORK_MANAGER_TASK_STACK_SIZE = 10240;
 // POST JSON bodies live in NetworkWorkBuf (PSRAM), so the httpd worker no
 // longer needs a 2 KiB request-body frame on top of headers and send buffers.
 // Stack stays internal: OTA flash writes run on this task.
-constexpr uint32_t HTTP_SERVER_TASK_STACK_SIZE = 8192;
+constexpr uint32_t HTTP_SERVER_TASK_STACK_SIZE = 10240;
 
 const char *scaleDisconnectReasonName(uint8_t reason) {
   // Mirrors ScaleDisconnectReason without coupling the network task to the
@@ -995,6 +995,24 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
             static_cast<double>(tasks.rows[i].currentCpuPct),
             static_cast<double>(tasks.rows[i].averageCpuPct),
             static_cast<unsigned long>(tasks.rows[i].stackMinBytes))) {
+      return false;
+    }
+  }
+  for (uint8_t i = 0; i < tasks.loopPhases.rowCount; ++i) {
+    const LoopPhaseProfilerRow &row = tasks.loopPhases.rows[i];
+    if (!jsonScratchAppend(
+            buf, cap, used,
+            "%s{\"name\":\"loop/%s\",\"core\":1,\"stackMinWords\":4294967295,"
+            "\"sampleCount\":%lu,"
+            "\"currentCpuPct\":%.1f,\"averageCpuPct\":%.1f,"
+            "\"averageExecutionUs\":%lu,\"maxExecutionUs\":%lu}",
+            tasks.rowCount == 0 && i == 0 ? "" : ",",
+            row.name != nullptr ? row.name : "unknown",
+            static_cast<unsigned long>(row.sampleCount),
+            static_cast<double>(row.currentCpuPct),
+            static_cast<double>(row.averageCpuPct),
+            static_cast<unsigned long>(row.averageExecutionUs),
+            static_cast<unsigned long>(row.maxExecutionUs))) {
       return false;
     }
   }

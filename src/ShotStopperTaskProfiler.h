@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 
@@ -22,6 +23,126 @@ constexpr size_t TASK_PROFILER_MAX_ROWS = 20;
 constexpr size_t TASK_PROFILER_NAME_CAPACITY = 24;
 constexpr uint32_t TASK_PROFILER_SAMPLE_INTERVAL_MS = 1000;
 constexpr uint32_t TASK_PROFILER_MAX_DURATION_MS = 5UL * 60UL * 1000UL;
+constexpr uint8_t LOOP_PHASE_COUNT = 7;
+
+enum class LoopPhase : uint8_t {
+  SAFETY_HEALTH,
+  SCALE_INPUT,
+  CONTROL,
+  ALERTS_TIMERS,
+  COMMANDS_PERSISTENCE,
+  DIAGNOSTICS,
+  FINAL_SCALE_DRAIN
+};
+
+inline const char *loopPhaseName(LoopPhase phase) {
+  switch (phase) {
+    case LoopPhase::SAFETY_HEALTH: return "safety/health";
+    case LoopPhase::SCALE_INPUT: return "scale/input";
+    case LoopPhase::CONTROL: return "control";
+    case LoopPhase::ALERTS_TIMERS: return "alerts/timers";
+    case LoopPhase::COMMANDS_PERSISTENCE: return "commands/persistence";
+    case LoopPhase::DIAGNOSTICS: return "diagnostics";
+    case LoopPhase::FINAL_SCALE_DRAIN: return "final scale drain";
+  }
+  return "unknown";
+}
+
+struct LoopPhaseProfilerRow {
+  const char *name = nullptr;
+  uint32_t sampleCount = 0;
+  uint32_t averageExecutionUs = 0;
+  uint32_t maxExecutionUs = 0;
+  float currentCpuPct = 0.0f;
+  float averageCpuPct = 0.0f;
+};
+
+struct LoopPhaseProfilerSnapshot {
+  uint8_t rowCount = 0;
+  LoopPhaseProfilerRow rows[LOOP_PHASE_COUNT] = {};
+};
+
+class LoopPhaseProfiler {
+ public:
+  void beginIteration(bool enabled, uint32_t nowUs) {
+    if (enabled && !active_) {
+      reset_(nowUs);
+    } else if (!enabled && active_) {
+      publish_(nowUs);
+      active_ = false;
+    }
+  }
+
+  void record(LoopPhase phase, uint32_t durationUs, uint32_t nowUs) {
+    if (!active_) return;
+    const uint8_t index = static_cast<uint8_t>(phase);
+    if (index >= LOOP_PHASE_COUNT) return;
+    totalsUs_[index] += durationUs;
+    windowUs_[index] += durationUs;
+    ++sampleCounts_[index];
+    if (durationUs > maxUs_[index]) maxUs_[index] = durationUs;
+    if (static_cast<uint32_t>(nowUs - windowStartedAtUs_) >= 1000000U) {
+      publish_(nowUs);
+    }
+  }
+
+  void copySnapshot(LoopPhaseProfilerSnapshot &out) const {
+    TaskLockGuard lock(snapshotMutex_);
+    out = snapshot_;
+  }
+
+ private:
+  void reset_(uint32_t nowUs) {
+    memset(totalsUs_, 0, sizeof(totalsUs_));
+    memset(windowUs_, 0, sizeof(windowUs_));
+    memset(sampleCounts_, 0, sizeof(sampleCounts_));
+    memset(maxUs_, 0, sizeof(maxUs_));
+    startedAtUs_ = nowUs;
+    windowStartedAtUs_ = nowUs;
+    active_ = true;
+    TaskLockGuard lock(snapshotMutex_);
+    snapshot_ = LoopPhaseProfilerSnapshot{};
+  }
+
+  void publish_(uint32_t nowUs) {
+    const uint32_t elapsedUs = nowUs - startedAtUs_;
+    const uint32_t windowElapsedUs = nowUs - windowStartedAtUs_;
+    LoopPhaseProfilerSnapshot next;
+    next.rowCount = LOOP_PHASE_COUNT;
+    for (uint8_t i = 0; i < LOOP_PHASE_COUNT; ++i) {
+      LoopPhaseProfilerRow &row = next.rows[i];
+      row.name = loopPhaseName(static_cast<LoopPhase>(i));
+      row.sampleCount = sampleCounts_[i];
+      row.averageExecutionUs = sampleCounts_[i] == 0
+                                   ? 0
+                                   : static_cast<uint32_t>(totalsUs_[i] /
+                                                           sampleCounts_[i]);
+      row.maxExecutionUs = maxUs_[i];
+      row.currentCpuPct = windowElapsedUs == 0
+                              ? 0.0f
+                              : static_cast<float>(windowUs_[i]) * 100.0f /
+                                    static_cast<float>(windowElapsedUs);
+      row.averageCpuPct = elapsedUs == 0
+                              ? 0.0f
+                              : static_cast<float>(totalsUs_[i]) * 100.0f /
+                                    static_cast<float>(elapsedUs);
+      windowUs_[i] = 0;
+    }
+    windowStartedAtUs_ = nowUs;
+    TaskLockGuard lock(snapshotMutex_);
+    snapshot_ = next;
+  }
+
+  bool active_ = false;
+  uint32_t startedAtUs_ = 0;
+  uint32_t windowStartedAtUs_ = 0;
+  uint64_t totalsUs_[LOOP_PHASE_COUNT] = {};
+  uint32_t windowUs_[LOOP_PHASE_COUNT] = {};
+  uint32_t sampleCounts_[LOOP_PHASE_COUNT] = {};
+  uint32_t maxUs_[LOOP_PHASE_COUNT] = {};
+  mutable TaskMutex snapshotMutex_;
+  LoopPhaseProfilerSnapshot snapshot_ = {};
+};
 
 enum class TaskProfilerState : uint8_t { NEVER, RUNNING, STOPPED, FAILED };
 enum class TaskProfilerStopReason : uint8_t {
@@ -77,6 +198,7 @@ struct TaskProfilerSnapshot {
   bool truncated = false;
   uint8_t rowCount = 0;
   TaskProfilerRow rows[TASK_PROFILER_MAX_ROWS] = {};
+  LoopPhaseProfilerSnapshot loopPhases = {};
 };
 
 class TaskProfiler {
@@ -133,6 +255,7 @@ class TaskProfiler {
     report_.maxCaptureUs = report_.lastCaptureUs;
     refreshReport_(nowMs);
     endSnapshotWrite_();
+    loopPhaseEnabled_.store(true, std::memory_order_release);
     return true;
 #else
     (void)nowMs;
@@ -188,6 +311,9 @@ class TaskProfiler {
   bool running() const {
     TaskLockGuard lock(reportMutex_);
     return report_.state == TaskProfilerState::RUNNING;
+  }
+  bool loopPhaseProfilingEnabled() const {
+    return loopPhaseEnabled_.load(std::memory_order_acquire);
   }
   TaskProfilerSnapshot snapshot() const {
     TaskProfilerSnapshot out;
@@ -246,6 +372,7 @@ class TaskProfiler {
   }
 
   void noteStartFailure_(TaskProfilerStopReason reason) {
+    loopPhaseEnabled_.store(false, std::memory_order_release);
     beginSnapshotWrite_();
     if (report_.state == TaskProfilerState::NEVER) {
       report_.state = TaskProfilerState::FAILED;
@@ -448,6 +575,7 @@ class TaskProfiler {
 
   void finish_(TaskProfilerState state, TaskProfilerStopReason reason,
                uint32_t nowMs) {
+    loopPhaseEnabled_.store(false, std::memory_order_release);
     beginSnapshotWrite_();
     refreshReport_(nowMs);
     report_.state = state;
@@ -480,6 +608,7 @@ class TaskProfiler {
 #endif
 
   TaskProfilerSnapshot report_ = {};
+  std::atomic<bool> loopPhaseEnabled_{false};
   mutable TaskMutex reportMutex_;
 };
 
