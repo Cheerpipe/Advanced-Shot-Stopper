@@ -418,6 +418,12 @@ if (!webhookSource.includes('xSemaphoreTake(lifecycleMutex_, 0)') ||
     !webhookSource.includes('releaseWorkerFromTask()')) {
   throw new Error('Webhook dispatch must remain non-blocking and release disabled worker resources');
 }
+if ((webhookSource.match(/"Content-Type", "application\/json"/g) || []).length !== 1 ||
+    (webhookSource.match(/"User-Agent", "ShotStopper\/1"/g) || []).length !== 1 ||
+    webhookSource.indexOf('esp_http_client_set_header(client, "Content-Type"') >
+        webhookSource.indexOf('httpClient_.reset(client)')) {
+  throw new Error('Webhook constant headers must be installed once before client ownership');
+}
 const networkWebhookBegin = network.indexOf('webhooks_.begin(settings.webhook)');
 const networkPassiveInit = [
   network.indexOf('xQueueCreate(WEB_COMMAND_QUEUE_LENGTH'),

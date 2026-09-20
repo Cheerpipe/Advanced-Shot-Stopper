@@ -340,56 +340,71 @@ bool ShotStopperNetwork::requireActiveWebUiClient(httpd_req_t *request) {
 
 esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
+  struct Route {
+    const char *uri;
+    httpd_method_t method;
+    esp_err_t (*handler)(httpd_req_t *);
+  };
+  static const Route routes[] = {
+      {"/api/v1/status/home", HTTP_GET, statusHandler},
+      {"/api/v1/status/settings", HTTP_GET, statusHandler},
+      {"/api/v1/status/admin", HTTP_GET, statusHandler},
+      {"/api/v1/status/diagnostic", HTTP_GET, statusHandler},
+      {"/api/v1/debug/export", HTTP_GET, debugExportHandler},
+      {"/api/v1/log", HTTP_GET, logHandler},
+      {"/api/v1/shots", HTTP_GET, shotsHandler},
+      {"/api/v1/shots/clear", HTTP_POST, shotsClearHandler},
+      {"/api/v1/shots/delete", HTTP_POST, shotsDeleteHandler},
+      {"/api/v1/shots/rate", HTTP_POST, shotsRateHandler},
+      {"/api/v1/history", HTTP_GET, historyHandler},
+      {"/api/v1/history/clear", HTTP_POST, historyClearHandler},
+      {"/api/v1/history/delete", HTTP_POST, historyDeleteHandler},
+      {"/api/v1/last-shot/clear", HTTP_POST, lastShotClearHandler},
+      {"/api/v1/time/sync", HTTP_POST, timeSyncHandler},
+      {"/api/v1/config", HTTP_POST, configHandler},
+      {"/api/v1/webhooks", HTTP_POST, webhookHandler},
+      {"/api/v1/machine/linea-micra", HTTP_POST, lineaMicraHandler},
+      {"/api/v1/bullseye/test", HTTP_POST, bullseyeTestHandler},
+      {"/api/v1/scale/preferred/clear", HTTP_POST, preferredScaleClearHandler},
+      {"/api/v1/scale/preferred/select", HTTP_POST, preferredScaleSelectHandler},
+      {"/api/v1/presets", HTTP_POST, presetsHandler},
+      {"/api/v1/calibration/reset", HTTP_POST, resetCalibrationHandler},
+      {"/api/v1/calibration/reset-guard-samples", HTTP_POST,
+       resetGuardSamplesHandler},
+      {"/api/v1/control/paddle", HTTP_POST, paddleHandler},
+      {"/api/v1/control/rinse", HTTP_POST, rinseHandler},
+      {"/api/v1/control/stop", HTTP_POST, stopHandler},
+      {"/api/v1/control/force-pulse", HTTP_POST, forcePulseHandler},
+      {"/api/v1/control/state-override", HTTP_POST, stateOverrideHandler},
+      {"/api/v1/control/restart", HTTP_POST, restartHandler},
+      {"/api/v1/diagnostic/reset-history", HTTP_POST,
+       clearResetHistoryHandler},
+      {"/api/v1/factory-reset", HTTP_POST, factoryResetHandler},
+      {"/api/v1/network", HTTP_POST, networkHandler},
+      {"/api/v1/network/scan", HTTP_GET, wifiScanStatusHandler},
+      {"/api/v1/network/scan", HTTP_POST, wifiScanStartHandler},
+      {"/api/v1/device/password", HTTP_POST, devicePasswordHandler},
+      {"/api/v1/admin/unlock", HTTP_POST, adminUnlockHandler},
+      {"/api/v1/admin/lock", HTTP_POST, adminLockHandler},
+      {"/api/v1/admin/ble-scan", HTTP_PUT, bleScanHandler},
+      {"/api/v1/diagnostic/profiler", HTTP_POST, taskProfilerHandler},
+  };
+  const Route *matched = nullptr;
+  for (const Route &route : routes) {
+    if (request->method == route.method &&
+        apiUriMatches(request->uri, route.uri)) {
+      matched = &route;
+      break;
+    }
+  }
+  if (matched == nullptr) {
+    return sendError(request, STATUS_NOT_FOUND, "NOT_FOUND",
+                     "Unknown API route.");
+  }
   if (!self.requireActiveWebUiClient(request)) {
     return ESP_OK;
   }
-  if (apiUriMatches(request->uri, "/api/v1/status/home") ||
-      apiUriMatches(request->uri, "/api/v1/status/settings") ||
-      apiUriMatches(request->uri, "/api/v1/status/admin") ||
-      apiUriMatches(request->uri, "/api/v1/status/diagnostic")) {
-    return statusHandler(request);
-  }
-  if (apiUriMatches(request->uri, "/api/v1/debug/export")) {
-    return debugExportHandler(request);
-  }
-  if (apiUriMatches(request->uri, "/api/v1/log")) return logHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/shots")) return shotsHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/shots/clear")) return shotsClearHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/shots/delete")) return shotsDeleteHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/shots/rate")) return shotsRateHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/history")) return historyHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/history/clear")) return historyClearHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/history/delete")) return historyDeleteHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/last-shot/clear")) return lastShotClearHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/time/sync")) return timeSyncHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/config")) return configHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/webhooks")) return webhookHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/machine/linea-micra")) return lineaMicraHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/bullseye/test")) return bullseyeTestHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/scale/preferred/clear")) return preferredScaleClearHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/scale/preferred/select")) return preferredScaleSelectHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/presets")) return presetsHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/calibration/reset")) return resetCalibrationHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/calibration/reset-guard-samples")) return resetGuardSamplesHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/control/paddle")) return paddleHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/control/rinse")) return rinseHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/control/stop")) return stopHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/control/force-pulse")) return forcePulseHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/control/state-override")) return stateOverrideHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/control/restart")) return restartHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/diagnostic/reset-history")) return clearResetHistoryHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/factory-reset")) return factoryResetHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/network/scan")) {
-    return request->method == HTTP_GET ? wifiScanStatusHandler(request)
-                                       : wifiScanStartHandler(request);
-  }
-  if (apiUriMatches(request->uri, "/api/v1/network")) return networkHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/device/password")) return devicePasswordHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/admin/unlock")) return adminUnlockHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/admin/lock")) return adminLockHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/admin/ble-scan")) return bleScanHandler(request);
-  if (apiUriMatches(request->uri, "/api/v1/diagnostic/profiler")) return taskProfilerHandler(request);
-  return sendError(request, STATUS_NOT_FOUND, "NOT_FOUND", "Unknown API route.");
+  return matched->handler(request);
 }
 
 bool ShotStopperNetwork::requireJsonContentType(httpd_req_t *request) {

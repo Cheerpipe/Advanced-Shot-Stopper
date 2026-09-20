@@ -77,6 +77,13 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
 if (micraService.includes('keep_alive_enable = true') ||
     micraService.includes('esp_http_client_close(work_->client)') ||
     micraService.includes('char authorization[kTokenCapacity + 8]') ||
+    (micraService.match(/"Accept",\s*"application\/json"/g) || []).length !== 1 ||
+    (micraService.match(/"User-Agent",\s*\n?\s*"AdvancedShotStopper\/1"/g) || []).length !== 1 ||
+    !micraService.includes('RequestStateGuard requestState{*this};') ||
+    !micraService.includes('~RequestStateGuard() { service.clearRequestState(); }') ||
+    !micraService.includes('esp_http_client_delete_header(work_->client, "Authorization")') ||
+    !micraService.includes('esp_http_client_delete_header(work_->client, "X-Request-Proof")') ||
+    !micraService.includes('esp_http_client_set_post_field(work_->client, nullptr, 0)') ||
     !micraService.includes('config.buffer_size = 1024;') ||
     !micraService.includes('struct ShotStopperMicraService::IoBuffer') ||
     !micraService.includes('union {') ||

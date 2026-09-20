@@ -34,6 +34,7 @@ class ShotStopperMicraService {
  private:
   struct IoBuffer;
   struct WorkBuffer;
+  struct RequestStateGuard;
   struct PendingRequest {
     LineaMicraRequest request = {};
     LineaMicraPersistedSettings credentials = {};
@@ -61,6 +62,7 @@ class ShotStopperMicraService {
                bool authenticated,
                bool installationInit = false);
   bool applySignedHeaders(const LineaMicraPersistedSettings &settings);
+  void clearRequestState();
   bool networkEligible(LineaMicraError &error) const;
   bool ensureIoBuffer();
   bool ensureWorkBuffer();

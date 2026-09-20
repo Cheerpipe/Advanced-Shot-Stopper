@@ -300,6 +300,11 @@ struct ShotStopperMicraService::WorkBuffer {
   bool responseOverflow = false;
 };
 
+struct ShotStopperMicraService::RequestStateGuard {
+  ShotStopperMicraService &service;
+  ~RequestStateGuard() { service.clearRequestState(); }
+};
+
 bool ShotStopperMicraService::begin() {
   if (task_ != nullptr || psa_crypto_init() != PSA_SUCCESS) {
     return false;
@@ -1090,6 +1095,14 @@ bool ShotStopperMicraService::request(
     config.buffer_size = 1024;
     work_->client = esp_http_client_init(&config);
     if (work_->client == nullptr) return false;
+    if (esp_http_client_set_header(work_->client, "Accept", "application/json") !=
+            ESP_OK ||
+        esp_http_client_set_header(work_->client, "User-Agent",
+                                   "AdvancedShotStopper/1") != ESP_OK) {
+      esp_http_client_cleanup(work_->client);
+      work_->client = nullptr;
+      return false;
+    }
   }
   // Blocking esp_http_client_perform sends the complete POST body before its
   // response callback runs, so those mutually exclusive phases share storage.
@@ -1099,22 +1112,10 @@ bool ShotStopperMicraService::request(
   work_->responseOverflow = false;
   work_->httpStatus = 0;
   work_->transportStatus = 0;
-  (void)esp_http_client_delete_header(work_->client, "Authorization");
-  (void)esp_http_client_delete_header(work_->client, "Content-Type");
-  (void)esp_http_client_delete_header(work_->client,
-                                      "X-App-Installation-Id");
-  (void)esp_http_client_delete_header(work_->client, "X-Timestamp");
-  (void)esp_http_client_delete_header(work_->client, "X-Nonce");
-  (void)esp_http_client_delete_header(work_->client,
-                                      "X-Request-Signature");
-  (void)esp_http_client_delete_header(work_->client, "X-Request-Proof");
-  (void)esp_http_client_set_post_field(work_->client, nullptr, 0);
+  clearRequestState();
+  RequestStateGuard requestState{*this};
   if (esp_http_client_set_url(work_->client, url) != ESP_OK ||
-      esp_http_client_set_method(work_->client, method) != ESP_OK ||
-      esp_http_client_set_header(work_->client, "Accept", "application/json") !=
-          ESP_OK ||
-      esp_http_client_set_header(work_->client, "User-Agent",
-                                 "AdvancedShotStopper/1") != ESP_OK) {
+      esp_http_client_set_method(work_->client, method) != ESP_OK) {
     return false;
   }
   if (installationInit) {
@@ -1213,6 +1214,20 @@ bool ShotStopperMicraService::request(
     work_->responseUsed = 0;
   }
   return ok;
+}
+
+void ShotStopperMicraService::clearRequestState() {
+  if (work_ == nullptr || work_->client == nullptr) return;
+  (void)esp_http_client_delete_header(work_->client, "Authorization");
+  (void)esp_http_client_delete_header(work_->client, "Content-Type");
+  (void)esp_http_client_delete_header(work_->client,
+                                      "X-App-Installation-Id");
+  (void)esp_http_client_delete_header(work_->client, "X-Timestamp");
+  (void)esp_http_client_delete_header(work_->client, "X-Nonce");
+  (void)esp_http_client_delete_header(work_->client,
+                                      "X-Request-Signature");
+  (void)esp_http_client_delete_header(work_->client, "X-Request-Proof");
+  (void)esp_http_client_set_post_field(work_->client, nullptr, 0);
 }
 
 bool ShotStopperMicraService::ensureWorkBuffer() {

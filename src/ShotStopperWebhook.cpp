@@ -240,6 +240,13 @@ esp_http_client_handle_t WebhookDispatcher::ensureHttpClient(const char *url) {
   config.event_handler = httpEventHandler;
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (client == nullptr) return nullptr;
+  if (esp_http_client_set_header(client, "Content-Type", "application/json") !=
+          ESP_OK ||
+      esp_http_client_set_header(client, "User-Agent", "ShotStopper/1") !=
+          ESP_OK) {
+    (void)esp_http_client_cleanup(client);
+    return nullptr;
+  }
   httpClient_.reset(client);
   const size_t length = strnlen(url, sizeof(httpClientUrl_) - 1U);
   memcpy(httpClientUrl_, url, length);
@@ -630,14 +637,6 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
           [&]() {
             return static_cast<int32_t>(
                 esp_http_client_set_method(client, HTTP_METHOD_POST));
-          },
-          [&]() {
-            return static_cast<int32_t>(esp_http_client_set_header(
-                client, "Content-Type", "application/json"));
-          },
-          [&]() {
-            return static_cast<int32_t>(esp_http_client_set_header(
-                client, "User-Agent", "ShotStopper/1"));
           },
           [&]() {
             return static_cast<int32_t>(esp_http_client_set_post_field(

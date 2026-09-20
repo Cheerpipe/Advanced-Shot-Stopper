@@ -76,20 +76,54 @@ if (!maxHandlersMatch) {
   throw new Error('HTTP server max_uri_handlers not found');
 }
 const maxUriHandlers = Number(maxHandlersMatch[1]);
-if (maxUriHandlers < expected.size) {
+const registeredRouteCount = (network.match(/registerHandler\(server_/g) || []).length;
+if (registeredRouteCount > 40 || maxUriHandlers <= registeredRouteCount ||
+    maxUriHandlers - registeredRouteCount < 8) {
   throw new Error(
-    `HTTP server max_uri_handlers (${maxUriHandlers}) is below registered route count (${expected.size})`
+    `HTTP wildcard routing must retain at least 8 spare slots and at most 40 registrations ` +
+    `(routes=${registeredRouteCount}, limit=${maxUriHandlers})`
   );
+}
+const ownedWildcardAt = network.indexOf(
+    'registerHandler(server_, "/api/v1/*", HTTP_GET, ownedApiHandler)');
+const integrationWildcardAt = network.indexOf(
+    'registerHandler(server_, "/api/v1/integration*", HTTP_GET,');
+const claimAt = network.indexOf(
+    'registerHandler(server_, "/api/v1/ui/claim", HTTP_POST, claimHandler)');
+const otaAt = network.indexOf(
+    'registerHandler(server_, "/api/v1/ota", HTTP_GET, otaStatusHandler)');
+if (!network.includes('config.uri_match_fn = httpd_uri_match_wildcard') ||
+    ownedWildcardAt < 0 || integrationWildcardAt < 0 || claimAt < 0 || otaAt < 0 ||
+    claimAt > integrationWildcardAt || integrationWildcardAt > ownedWildcardAt ||
+    otaAt > ownedWildcardAt) {
+  throw new Error(
+      'Exact claim/OTA and integration wildcard routes must precede the owned API wildcard');
+}
+for (const method of ['GET', 'POST', 'PUT']) {
+  if (!network.includes(
+      `registerHandler(server_, "/api/v1/integration*", HTTP_${method},`) ||
+      !network.includes(
+      `registerHandler(server_, "/api/v1/*", HTTP_${method}, ownedApiHandler)`)) {
+    throw new Error(`Missing ordered API wildcard registration for ${method}`);
+  }
 }
 
 for (const [route, handler] of expected) {
   const [method, uri] = route.split(' ');
   const escapedUri = uri.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const registration = new RegExp(
-    `registerHandler\\(server_,\\s*"${escapedUri}",\\s*HTTP_${method},\\s*${handler}\\)`
-  );
-  if (!registration.test(network)) {
-    throw new Error(`Missing HTTP registration: ${route} -> ${handler}`);
+  if (handler === 'ownedApiHandler') {
+    const tableRoute = new RegExp(
+        `\\{"${escapedUri}",\\s*HTTP_${method},\\s*[A-Za-z0-9_]+Handler`);
+    if (!tableRoute.test(network)) {
+      throw new Error(`Missing owned API dispatch entry: ${route}`);
+    }
+  } else {
+    const registration = new RegExp(
+      `registerHandler\\(server_,\\s*"${escapedUri}",\\s*HTTP_${method},\\s*${handler}\\)`
+    );
+    if (!registration.test(network)) {
+      throw new Error(`Missing HTTP registration: ${route} -> ${handler}`);
+    }
   }
   if (uri !== '/' && !ui.includes(uri.split('?')[0])) {
     const statusPage = uri.match(/^\/api\/v1\/status\/(home|settings|admin|diagnostic)$/);

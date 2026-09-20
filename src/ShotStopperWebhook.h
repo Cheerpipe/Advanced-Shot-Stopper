@@ -164,15 +164,10 @@ inline bool webhookClientMustRecreate(const char *currentUrl,
 
 // Keep HTTP client setup fail-fast and host-testable. ESP_OK is zero; the
 // concrete callbacks return esp_err_t converted to its stable int32_t ABI.
-template <typename MethodSetter, typename ContentTypeSetter,
-          typename UserAgentSetter, typename BodySetter>
+template <typename MethodSetter, typename BodySetter>
 inline int32_t configureWebhookHttpRequest(MethodSetter methodSetter,
-                                           ContentTypeSetter contentTypeSetter,
-                                           UserAgentSetter userAgentSetter,
                                            BodySetter bodySetter) {
   int32_t error = methodSetter();
-  if (error == 0) error = contentTypeSetter();
-  if (error == 0) error = userAgentSetter();
   if (error == 0) error = bodySetter();
   return error;
 }

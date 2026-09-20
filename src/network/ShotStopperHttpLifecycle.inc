@@ -1067,15 +1067,11 @@ bool ShotStopperNetwork::startHttpServer() {
   // One active WebUI client plus a brief parallel asset fetch; 6 was oversized
   // for steady-state DRAM (each open socket carries TCP wnd/snd buffers).
   config.max_open_sockets = 4;
-  // Keep several slots of headroom above the owned API routes; /api/v1/ui/unlock
-  // and the four OTA routes are registered separately because they do not use
-  // the exclusive WebUI claim.
-  // Kept ahead of the number of routes actually registered. Exhausting this
-  // makes the last registerHandler fail, which tears down the whole Web UI, so
-  // check_web_assets.js fails the build before the margin is gone.
-  // Shell + app.js/css/runtime + secondary + settings + 4 HTML partials +
-  // PWA manifest/icon + APIs.
-  config.max_uri_handlers = 88;
+  // Exact special routes precede wildcard dispatchers so claim, integration,
+  // and OTA retain their distinct authentication boundaries. Keep ten spare
+  // slots; exhausting this tears down the whole Web UI at startup.
+  config.max_uri_handlers = 48;
+  config.uri_match_fn = httpd_uri_match_wildcard;
   // Safari sends a long UA + Accept-Language + optional Cookie/Sec-Fetch-*;
   // the IDF default (1024) is enough most of the time but intermittent
   // long browser headers have returned 431 Request Header Fields Too Large.
@@ -1130,62 +1126,22 @@ bool ShotStopperNetwork::startHttpServer() {
                       browserIconHandler) &&
       registerHandler(server_, "/api/v1/ui/claim", HTTP_POST, claimHandler) &&
       registerHandler(server_, "/api/v1/ui/unlock", HTTP_POST, unlockHandler) &&
-      registerHandler(server_, "/api/v1/integration", HTTP_GET, integrationHandler) &&
-      registerHandler(server_, "/api/v1/integration/request", HTTP_GET, integrationHandler) &&
-      registerHandler(server_, "/api/v1/integration/webhook", HTTP_GET, integrationHandler) &&
-      registerHandler(server_, "/api/v1/integration/webhook", HTTP_PUT, integrationHandler) &&
-      registerHandler(server_, "/api/v1/integration/webhook/test", HTTP_POST, integrationHandler) &&
-      registerHandler(server_, "/api/v1/integration/presets", HTTP_GET, integrationHandler) &&
-      registerHandler(server_, "/api/v1/integration/presets/active", HTTP_PUT, integrationHandler) &&
-      registerHandler(server_, "/api/v1/integration/quick-settings", HTTP_PUT, integrationHandler) &&
-      registerHandler(server_, "/api/v1/integration/restart", HTTP_POST, integrationHandler) &&
-      registerHandler(server_, "/api/v1/status/home", HTTP_GET, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/status/settings", HTTP_GET, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/status/admin", HTTP_GET, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/status/diagnostic", HTTP_GET, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/debug/export", HTTP_GET, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/log", HTTP_GET, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/shots", HTTP_GET, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/shots/clear", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/shots/delete", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/shots/rate", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/history", HTTP_GET, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/history/clear", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/history/delete", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/last-shot/clear", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/time/sync", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/config", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/webhooks", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/machine/linea-micra", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/bullseye/test", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/scale/preferred/clear", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/scale/preferred/select", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/presets", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/calibration/reset", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/calibration/reset-guard-samples", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/control/paddle", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/control/rinse", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/control/stop", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/control/force-pulse", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/control/state-override", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/control/restart", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/diagnostic/reset-history", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/factory-reset", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/network", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/network/scan", HTTP_GET, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/network/scan", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/device/password", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/admin/unlock", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/admin/lock", HTTP_POST, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/admin/ble-scan", HTTP_PUT, ownedApiHandler) &&
-      registerHandler(server_, "/api/v1/diagnostic/profiler", HTTP_POST, ownedApiHandler) &&
+      registerHandler(server_, "/api/v1/integration*", HTTP_GET,
+                      integrationHandler) &&
+      registerHandler(server_, "/api/v1/integration*", HTTP_POST,
+                      integrationHandler) &&
+      registerHandler(server_, "/api/v1/integration*", HTTP_PUT,
+                      integrationHandler) &&
       registerHandler(server_, "/api/v1/ota", HTTP_GET, otaStatusHandler) &&
       registerHandler(server_, "/api/v1/ota", HTTP_POST, otaUploadHandler) &&
       registerHandler(server_, "/api/v1/ota/session", HTTP_GET, otaSessionHandler) &&
       registerHandler(server_, "/api/v1/ota/session", HTTP_POST, otaSessionHandler) &&
       registerHandler(server_, "/api/v1/ota", HTTP_PATCH, otaPatchHandler) &&
       registerHandler(server_, "/api/v1/ota/flash", HTTP_POST, otaFlashHandler) &&
-      registerHandler(server_, "/api/v1/ota/abort", HTTP_POST, otaAbortHandler);
+      registerHandler(server_, "/api/v1/ota/abort", HTTP_POST, otaAbortHandler) &&
+      registerHandler(server_, "/api/v1/*", HTTP_GET, ownedApiHandler) &&
+      registerHandler(server_, "/api/v1/*", HTTP_POST, ownedApiHandler) &&
+      registerHandler(server_, "/api/v1/*", HTTP_PUT, ownedApiHandler);
   if (!registered ||
       httpd_register_err_handler(server_, HTTPD_404_NOT_FOUND,
                                  notFoundHandler) != ESP_OK) {
