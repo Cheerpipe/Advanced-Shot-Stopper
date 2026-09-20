@@ -342,6 +342,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !ui.includes('h.uptimeMs') ||
       !ui.includes('h.minimumFreeHeapBytes') ||
       !ui.includes('h.largestFreeHeapBlockBytes') ||
+      !ui.includes('h.heap') ||
       !ui.includes('h.psramSizeBytes') ||
       !ui.includes('h.psramFreeBytes') ||
       !ui.includes('h.psramLargestFreeBlockBytes') ||

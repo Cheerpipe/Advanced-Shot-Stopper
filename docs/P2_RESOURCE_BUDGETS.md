@@ -42,7 +42,8 @@ heap. The earlier 96→104 KiB raise covers the V3 half-second shot-curve store.
 |---|---|
 | Network work buffer | external, at most 68 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex, and a one-curve JSON scratch serves the status and shots-list rows |
 | Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 68 KiB total bound |
-| Shared flash-I/O scratch | internal heap, 5,920 bytes (2× the 2,960-byte PersistedSettings); one owner at a time under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the scratch |
+| Shared flash-I/O scratch | internal heap, 2,960 bytes (one PersistedSettings record); slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |
+| USB serial queue payload | internal heap, 2,064 bytes only when USB logging is enabled at boot; the static queue control block stays internal, startup failures free the payload, and successful startup retains one boot-lifetime owner |
 | Micra cloud workspace | external and lazy; exactly 4,120 bytes of bounded session/token state while cloud observation is active, plus one request-scoped 16 KiB buffer whose mutually exclusive request-body and response phases share storage; Disconnect, disabled observation, STA loss, and AP entry destroy the client and free both blocks |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
@@ -65,8 +66,8 @@ the shared chunked flash-I/O path. The separate last-shot V4 record retains the
 same provenance. The rendered English Web UI is capped at 69,100 bytes HTML,
 193,300 bytes JavaScript, and 262,300 bytes combined authoring source. Compressed
 limits are 36,900 bytes for runtime JavaScript and 107,200 bytes for all embedded
-Web assets; the Micra cloud build measures 69,031 / 193,226 authoring bytes and
-36,865 / 107,166 compressed bytes respectively.
+Web assets; the Micra cloud build measures 69,031 / 193,267 authoring bytes and
+36,851 / 107,156 compressed bytes respectively.
 
 Every new setting must include concise, natural help that explains its effect on
 the barista's workflow, including what changes when an option is enabled or
@@ -99,6 +100,24 @@ The compatibility field `jsonArenaExternal=false` means no arena is installed;
 it does not describe the placement of the independently allocated documents.
 The 4096-byte OTA transfer chunk remains request-scoped; retain it across
 requests only if target traces justify the extra resident memory.
+
+Internal-heap diagnostics also publish allocated, free, and total block counts.
+`internalHeapFragmentationPermille` is
+`1000 × (total free - largest free block) / total free`, guarded to zero when
+total free is zero or the reported largest block covers it. ESP32-S3 internal
+memory contains multiple allocator regions, so this ratio is a trend indicator,
+not a claim that all free bytes can form one allocation. HTTP, Wi-Fi, OTA,
+Micra TLS, and webhook TLS owners retain only a bounded last before/after sample,
+signed deltas, cycle count, stale-start count, worst free/largest loss, and
+maximum free-block increase. Sampling occurs outside owner locks and outside
+OTA chunk/cache-off work; only the fixed result is copied under the existing
+owner mutex.
+
+The n16r8 Micra development+JTAG candidate measured 169,166 linked DIRAM bytes,
+1,808 bytes below its frozen 170,974-byte task baseline after adding telemetry.
+The one-record scratch removes 2,960 bytes from its lazy runtime allocation,
+while the disabled-USB path avoids the 2,064-byte serial payload. Their actual
+free/largest-block effects remain target measurements, not linked-memory claims.
 
 ## OTA NVS endurance
 
@@ -177,7 +196,8 @@ writes, and interrupted/resumed OTA at every checkpoint. The runner fails on
 fetch errors, reboot/uptime regression, stale snapshots, deadline misses,
 increased BLE allocation fallback/HCI drops, heap below the versioned limits,
 stack below 1536 bytes, PSRAM free below 128 KiB or largest block below 68 KiB,
-or a sustained internal largest-block loss over 16 KiB. Zero values are retained
+or sustained internal free/largest-block loss over 16 KiB, free-block growth
+over 8, or fragmentation growth over 50 permille. Zero values are retained
 and fail the limits; missing, invalid or unavailable required samples fail.
 Control, scale-worker and BLE-host stack samples are required in every snapshot.
 Use repeated `--require-task NAME` options for additional profiler tasks; each
@@ -191,11 +211,16 @@ The profiler stops after five minutes, so qualify those tasks in separate
 bounded captures and retain their evidence with the long soak. A long capture
 of the three always-exported stacks alone does not qualify every task.
 `--min-stack-bytes` controls the stack gate; the deprecated `--min-stack-words`
-alias also takes bytes for compatibility. Summary schema 2 uses explicit byte
-names. Review allocation-failure counter deltas for every exercised owner.
+alias also takes bytes for compatibility. Capture schema 2 and summary schema 3
+use explicit byte names and add block topology plus per-lifecycle recovery
+metrics. Review allocation-failure counter deltas for every exercised owner.
 
 The diagnostic snapshot also carries webhook worker/client lifecycle and
-before/after heap-by-capability samples for each send. The analyzer rejects
+bounded before/after heap samples for HTTP, Wi-Fi, OTA, webhook TLS, and Micra
+TLS. Repeated `--require-lifecycle FAMILY` options require the selected family
+to advance its cycle count and recover its largest block within the configured
+limit; the summary reports final/worst deltas, block-count trends, and the
+largest/free ratio trend per family. The analyzer also rejects
 more than one worker creation during a capture, missing lifecycle counters, or
 more than one live HTTP client. A disabled webhook keeps an already-created
 worker idle; only service shutdown performs stop/ack/join and releases it.

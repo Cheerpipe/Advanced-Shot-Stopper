@@ -592,6 +592,9 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"loopStackMinWords\":%lu,"
            "\"scaleStackMinWords\":%lu,\"freeHeapBytes\":%lu,"
            "\"minimumFreeHeapBytes\":%lu,\"largestFreeHeapBlockBytes\":%lu,"
+           "\"internalHeapAllocatedBlocks\":%lu,"
+           "\"internalHeapFreeBlocks\":%lu,\"internalHeapTotalBlocks\":%lu,"
+           "\"internalHeapFragmentationPermille\":%u,"
            "\"psramSizeBytes\":%lu,\"psramFreeBytes\":%lu,"
            "\"psramMinimumFreeBytes\":%lu,"
            "\"psramLargestFreeBlockBytes\":%lu,\"bleHostAllocPsram\":%lu,"
@@ -621,6 +624,11 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<unsigned long>(c.freeHeapBytes),
            static_cast<unsigned long>(c.minimumFreeHeapBytes),
            static_cast<unsigned long>(c.largestFreeHeapBlockBytes),
+           static_cast<unsigned long>(c.internalHeapAllocatedBlocks),
+           static_cast<unsigned long>(c.internalHeapFreeBlocks),
+           static_cast<unsigned long>(c.internalHeapAllocatedBlocks +
+                                      c.internalHeapFreeBlocks),
+           static_cast<unsigned>(c.internalHeapFragmentationPermille),
            static_cast<unsigned long>(c.psramSizeBytes),
            static_cast<unsigned long>(c.psramFreeBytes),
            static_cast<unsigned long>(c.psramMinimumFreeBytes),

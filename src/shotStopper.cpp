@@ -540,6 +540,9 @@ uint32_t healthTelemetryAtMs = 0;
 uint32_t freeHeapBytes = 0;
 uint32_t minimumFreeHeapBytes = 0;
 uint32_t largestFreeHeapBlockBytes = 0;
+uint32_t internalHeapAllocatedBlocks = 0;
+uint32_t internalHeapFreeBlocks = 0;
+uint16_t internalHeapFragmentationPermille = 0;
 uint32_t psramSizeBytes = 0;
 uint32_t psramFreeBytes = 0;
 uint32_t psramMinimumFreeBytes = 0;
@@ -577,7 +580,7 @@ struct SerialLogLine {
 
 constexpr UBaseType_t SERIAL_LOG_QUEUE_DEPTH = 8;
 StaticQueue_t serialLogQueueStorage;
-uint8_t serialLogQueueBytes[SERIAL_LOG_QUEUE_DEPTH * sizeof(SerialLogLine)] = {};
+uint8_t *serialLogQueueBytes = nullptr;
 QueueHandle_t serialLogQueue = nullptr;
 TaskHandle_t serialLogTaskHandle = nullptr;
 uint32_t serialLogQueueDropped = 0;
@@ -793,16 +796,28 @@ bool initializeSerialLogSink() {
   if (serialLogQueue != nullptr && serialLogTaskHandle != nullptr) {
     return true;
   }
+  constexpr size_t queueBytes = SERIAL_LOG_QUEUE_DEPTH * sizeof(SerialLogLine);
+  serialLogQueueBytes = static_cast<uint8_t *>(
+      allocInternal(queueBytes, AllocationOwner::SERIAL_LOG));
+  if (serialLogQueueBytes == nullptr || !esp_ptr_internal(serialLogQueueBytes)) {
+    heapCapsFree(serialLogQueueBytes);
+    serialLogQueueBytes = nullptr;
+    return false;
+  }
   serialLogQueue = xQueueCreateStatic(
       SERIAL_LOG_QUEUE_DEPTH, sizeof(SerialLogLine), serialLogQueueBytes,
       &serialLogQueueStorage);
   if (serialLogQueue == nullptr) {
+    heapCapsFree(serialLogQueueBytes);
+    serialLogQueueBytes = nullptr;
     return false;
   }
   if (xTaskCreatePinnedToCore(serialLogTask, "serial_log", 3072, nullptr,
                              tskIDLE_PRIORITY, &serialLogTaskHandle, 0) !=
       pdPASS) {
     vQueueDelete(serialLogQueue);
+    heapCapsFree(serialLogQueueBytes);
+    serialLogQueueBytes = nullptr;
     serialLogQueue = nullptr;
     serialLogTaskHandle = nullptr;
     return false;

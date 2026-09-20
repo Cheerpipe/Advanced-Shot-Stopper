@@ -9,6 +9,7 @@
 
 #include "ShotStopperDomain.h"
 #include "ShotStopperIntegrationState.h"
+#include "ShotStopperPsram.h"
 #include "ShotStopperTaskMutex.h"
 #include "ShotStopperResourceOwner.h"
 
@@ -254,6 +255,7 @@ class WebhookDispatcher {
   void setConfig(const WebhookConfig &config);
   WebhookConfig config() const;
   WebhookStatus status() const;
+  HeapLifecycleAggregate heapTelemetry() const;
   bool enqueue(const WebhookEvent &event);
   // Radio-heavy delivery is deferred while control/BLE owns the machine when
   // configured; scale connection attempts are always protected.
@@ -296,6 +298,7 @@ class WebhookDispatcher {
   mutable TaskMutex mux_;
   WebhookConfig config_ = {};
   WebhookStatus status_ = {};
+  HeapLifecycleTracker tlsHeap_ = {};
   uint32_t configGeneration_ = 1;
   WorkerState workerState_ = WorkerState::STOPPED;
   SemaphoreHandle_t lifecycleMutex_ = nullptr;

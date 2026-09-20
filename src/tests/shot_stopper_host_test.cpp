@@ -11454,6 +11454,9 @@ void sc15_status_printers_use_dump_views() {
 
   SerialCliHealthDump health;
   health.freeHeapBytes = 80000;
+  health.internalHeapAllocatedBlocks = 120;
+  health.internalHeapFreeBlocks = 8;
+  health.internalHeapFragmentationPermille = 375;
   health.loopMaxGapMs = 12;
   health.healthIntervalMaxGapMs = 5;
   health.networkStackMinBytes = 400;
@@ -11472,6 +11475,9 @@ void sc15_status_printers_use_dump_views() {
   CHECK(serialTxContains("stackUnit=bytes stackUnavailable=4294967295"));
   CHECK(serialTxContains("HEALTH"));
   CHECK(serialTxContains("heapFree=80000"));
+  CHECK(serialTxContains("heapAllocatedBlocks=120"));
+  CHECK(serialTxContains("heapFreeBlocks=8"));
+  CHECK(serialTxContains("heapFragmentationPermille=375"));
   CHECK(serialTxContains("loopMaxGapMs=12"));
   CHECK(serialTxContains("loopIntervalGapMs=5"));
   CHECK(serialTxContains("psramSize=0"));

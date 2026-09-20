@@ -193,6 +193,27 @@ NetworkStatusSnapshot ShotStopperNetwork::snapshot() {
   return copy;
 }
 
+NetworkHeapTelemetrySnapshot ShotStopperNetwork::heapTelemetrySnapshot() {
+  TaskLockGuard lock(dataMux_);
+  return {httpHeap_.aggregate, wifiHeap_.aggregate, otaHeap_.aggregate};
+}
+
+void ShotStopperNetwork::beginOwnedHeapLifecycle(
+    HeapLifecycleTracker &tracker, HeapLifecycleEvent event) {
+  const HeapCapSnapshot before = sampleHeapCaps();
+  dataMux_.lock();
+  beginHeapLifecycle(tracker, event, before);
+  dataMux_.unlock();
+}
+
+void ShotStopperNetwork::finishOwnedHeapLifecycle(
+    HeapLifecycleTracker &tracker, HeapLifecycleResult result) {
+  const HeapCapSnapshot after = sampleHeapCaps();
+  dataMux_.lock();
+  (void)finishHeapLifecycle(tracker, result, after);
+  dataMux_.unlock();
+}
+
 PersistedSettings ShotStopperNetwork::settingsCopy() {
   PersistedSettings copy;
   copySettings(copy);

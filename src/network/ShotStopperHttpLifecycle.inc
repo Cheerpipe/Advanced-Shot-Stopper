@@ -1055,6 +1055,7 @@ bool ShotStopperNetwork::startHttpServer() {
   if (server_ != nullptr) {
     return true;
   }
+  beginOwnedHeapLifecycle(httpHeap_, HeapLifecycleEvent::HTTP_START);
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.task_priority = tskIDLE_PRIORITY + 1;
   config.stack_size = HTTP_SERVER_TASK_STACK_SIZE;
@@ -1084,6 +1085,7 @@ bool ShotStopperNetwork::startHttpServer() {
   config.send_wait_timeout = 5;
   if (httpd_start(&server_, &config) != ESP_OK) {
     server_ = nullptr;
+    finishOwnedHeapLifecycle(httpHeap_, HeapLifecycleResult::FAILURE);
     lifecycleLog("httpd_start failed");
     return false;
   }
@@ -1145,16 +1147,23 @@ bool ShotStopperNetwork::startHttpServer() {
   if (!registered ||
       httpd_register_err_handler(server_, HTTPD_404_NOT_FOUND,
                                  notFoundHandler) != ESP_OK) {
-    stopHttpServer();
+    (void)httpd_stop(server_);
+    server_ = nullptr;
+    finishOwnedHeapLifecycle(httpHeap_, HeapLifecycleResult::FAILURE);
     return false;
   }
+  finishOwnedHeapLifecycle(httpHeap_, HeapLifecycleResult::SUCCESS);
   return true;
 }
 
 void ShotStopperNetwork::stopHttpServer() {
   if (server_ != nullptr) {
-    httpd_stop(server_);
+    beginOwnedHeapLifecycle(httpHeap_, HeapLifecycleEvent::HTTP_STOP);
+    const esp_err_t stopped = httpd_stop(server_);
     server_ = nullptr;
+    finishOwnedHeapLifecycle(
+        httpHeap_, stopped == ESP_OK ? HeapLifecycleResult::SUCCESS
+                                     : HeapLifecycleResult::FAILURE);
   }
 }
 

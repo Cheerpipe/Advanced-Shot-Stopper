@@ -24,6 +24,7 @@ COUNTERS = (
     "hciRxDropped",
     "hciTxDropped",
 )
+LIFECYCLE_FAMILIES = ("http", "wifi", "ota", "webhookTls", "micraTls")
 
 
 def number(source: dict[str, Any], key: str) -> float | None:
@@ -107,6 +108,108 @@ def analyze(records: list[dict[str, Any]], args: argparse.Namespace) -> dict[str
                 "internal largest block has sustained negative trend "
                 f"(delta={delta:g}, slope={slope:.1f} B/h)"
             )
+
+    internal_free = [
+        value for item in health
+        if (value := number(item, "freeHeapBytes")) is not None
+    ]
+    if len(internal_free) >= 2:
+        delta = internal_free[-1] - internal_free[0]
+        slope = linear_slope_per_hour(internal_free, args.interval)
+        metrics["internalFreeFirstLastDeltaBytes"] = delta
+        metrics["internalFreeSlopeBytesPerHour"] = slope
+        if delta < -args.max_free_drop and slope < 0:
+            failures.append(
+                "internal free heap has sustained negative trend "
+                f"(delta={delta:g}, slope={slope:.1f} B/h)"
+            )
+
+    free_blocks = [
+        value for item in health
+        if (value := number(item, "internalHeapFreeBlocks")) is not None
+    ]
+    fragmentation = [
+        value for item in health
+        if (value := number(item, "internalHeapFragmentationPermille")) is not None
+    ]
+    for key in ("internalHeapAllocatedBlocks", "internalHeapFreeBlocks",
+                "internalHeapTotalBlocks", "internalHeapFragmentationPermille"):
+        if sum(number(item, key) is not None for item in health) != len(health):
+            failures.append(f"missing or invalid {key} in memory samples")
+    if len(free_blocks) >= 2:
+        delta = free_blocks[-1] - free_blocks[0]
+        metrics["internalFreeBlocksFirstLastDelta"] = delta
+        if delta > args.max_free_blocks_growth:
+            failures.append(f"internal free-block count increased by {delta:g}")
+    if len(fragmentation) >= 2:
+        delta = fragmentation[-1] - fragmentation[0]
+        slope = linear_slope_per_hour(fragmentation, args.interval)
+        metrics["fragmentationFirstLastDeltaPermille"] = delta
+        metrics["fragmentationSlopePermillePerHour"] = slope
+        if delta > args.max_fragmentation_growth and slope > 0:
+            failures.append(
+                "internal fragmentation has sustained positive trend "
+                f"(delta={delta:g}, slope={slope:.1f} permille/h)"
+            )
+
+    lifecycle_metrics: dict[str, Any] = {}
+    required_lifecycles = set(args.require_lifecycle)
+    for family in LIFECYCLE_FAMILIES:
+        samples = []
+        for payload in payloads:
+            lifecycle = payload.get("heapLifecycle", {})
+            item = lifecycle.get(family) if isinstance(lifecycle, dict) else None
+            if isinstance(item, dict):
+                samples.append(item)
+        if not samples:
+            if family in required_lifecycles:
+                failures.append(f"missing required lifecycle telemetry: {family}")
+            continue
+        cycles = [value for item in samples
+                  if (value := number(item, "cycles")) is not None]
+        final = samples[-1]
+        last_delta = final.get("lastDelta", {})
+        after_samples = [item.get("after", {}) for item in samples]
+        free_blocks_after = [value for item in after_samples
+                             if (value := number(item, "freeBlocks")) is not None]
+        allocated_blocks_after = [value for item in after_samples
+                                  if (value := number(item, "allocatedBlocks")) is not None]
+        largest_free_ratios = []
+        for item in after_samples:
+            free_bytes = number(item, "freeBytes")
+            largest_block = number(item, "largestBlock")
+            if free_bytes is not None and free_bytes > 0 and largest_block is not None:
+                largest_free_ratios.append(largest_block / free_bytes)
+        lifecycle_metrics[family] = {
+            "cycleCountDelta": max(cycles) - min(cycles) if cycles else 0,
+            "finalFreeDeltaBytes": number(last_delta, "freeBytes"),
+            "finalLargestDeltaBytes": number(last_delta, "largestBlock"),
+            "finalFreeBlocksDelta": number(last_delta, "freeBlocks"),
+            "worstFreeDeltaBytes": number(final, "worstFreeDelta"),
+            "worstLargestDeltaBytes": number(final, "worstLargestDelta"),
+            "maximumFreeBlocksIncrease": number(
+                final, "maximumFreeBlocksIncrease"),
+            "freeBlocksFirstLastDelta": (
+                free_blocks_after[-1] - free_blocks_after[0]
+                if len(free_blocks_after) >= 2 else None),
+            "allocatedBlocksFirstLastDelta": (
+                allocated_blocks_after[-1] - allocated_blocks_after[0]
+                if len(allocated_blocks_after) >= 2 else None),
+            "largestFreeRatioFirstLastDelta": (
+                largest_free_ratios[-1] - largest_free_ratios[0]
+                if len(largest_free_ratios) >= 2 else None),
+        }
+        cycle_delta = lifecycle_metrics[family]["cycleCountDelta"]
+        if family in required_lifecycles and cycle_delta <= 0:
+            failures.append(f"required lifecycle had no cycle coverage: {family}")
+        final_largest = lifecycle_metrics[family]["finalLargestDeltaBytes"]
+        if (family in required_lifecycles and final_largest is not None and
+                final_largest < -args.max_lifecycle_largest_loss):
+            failures.append(
+                f"{family} largest block did not recover "
+                f"({final_largest:g} bytes)"
+            )
+    metrics["lifecycles"] = lifecycle_metrics
 
     psram_largest = [
         value
@@ -217,7 +320,7 @@ def analyze(records: list[dict[str, Any]], args: argparse.Namespace) -> dict[str
         failures.append("no valid stack watermarks")
 
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "scenario": args.scenario,
         "passed": not failures,
         "metrics": metrics,
@@ -226,11 +329,16 @@ def analyze(records: list[dict[str, Any]], args: argparse.Namespace) -> dict[str
             "minInternalFreeBytes": args.min_internal_free,
             "minInternalLargestBytes": args.min_internal_largest,
             "maxLargestFirstLastDropBytes": args.max_largest_drop,
+            "maxFreeFirstLastDropBytes": args.max_free_drop,
+            "maxFreeBlocksGrowth": args.max_free_blocks_growth,
+            "maxFragmentationGrowthPermille": args.max_fragmentation_growth,
+            "maxLifecycleLargestLossBytes": args.max_lifecycle_largest_loss,
             "maxPsramLargestFirstLastDropBytes": args.max_psram_largest_drop,
             "minStackBytes": args.min_stack_bytes,
             "minPsramFreeBytes": args.min_psram_free,
             "minPsramLargestBytes": args.min_psram_largest,
             "requiredTasks": args.require_task,
+            "requiredLifecycles": args.require_lifecycle,
         },
         "failures": list(dict.fromkeys(failures)),
     }
@@ -271,6 +379,10 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--min-internal-free", type=int, default=48 * 1024)
     result.add_argument("--min-internal-largest", type=int, default=16 * 1024)
     result.add_argument("--max-largest-drop", type=int, default=16 * 1024)
+    result.add_argument("--max-free-drop", type=int, default=16 * 1024)
+    result.add_argument("--max-free-blocks-growth", type=int, default=8)
+    result.add_argument("--max-fragmentation-growth", type=int, default=50)
+    result.add_argument("--max-lifecycle-largest-loss", type=int, default=4096)
     result.add_argument("--max-psram-largest-drop", type=int, default=64 * 1024)
     result.add_argument("--min-stack-bytes", "--min-stack-words",
                         dest="min_stack_bytes", type=int, default=1536,
@@ -281,6 +393,9 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--min-psram-largest", type=int, default=68 * 1024)
     result.add_argument("--require-task", action="append", default=[],
                         help="Require this task in every running profiler snapshot (repeatable)")
+    result.add_argument("--require-lifecycle", action="append", default=[],
+                        choices=LIFECYCLE_FAMILIES,
+                        help="Require cycles and recovery for this lifecycle family")
     result.add_argument("--self-test", action="store_true")
     return result
 
@@ -295,6 +410,10 @@ def self_test(args: argparse.Namespace) -> int:
             "scaleWorkerDeadlineMisses": 0,
             "freeHeapBytes": 100000,
             "largestFreeHeapBlockBytes": 60000,
+            "internalHeapAllocatedBlocks": 120,
+            "internalHeapFreeBlocks": 8,
+            "internalHeapTotalBlocks": 128,
+            "internalHeapFragmentationPermille": 400,
             "loopStackMinBytes": 2048,
             "scaleStackMinBytes": 2048,
             "bleRuntimeHostStackMinWords": 2048,
@@ -305,6 +424,19 @@ def self_test(args: argparse.Namespace) -> int:
             "workerStarts": 1,
             "clientCreates": 1,
             "clientCleanups": 0,
+        },
+        "heapLifecycle": {
+            family: {
+                "cycles": 1,
+                "lastResult": 1,
+                "after": {"freeBytes": 100000, "largestBlock": 60000,
+                          "allocatedBlocks": 120, "freeBlocks": 8},
+                "lastDelta": {"freeBytes": 0, "largestBlock": 0,
+                              "freeBlocks": 0},
+                "worstFreeDelta": 0,
+                "worstLargestDelta": 0,
+                "maximumFreeBlocksIncrease": 0,
+            } for family in LIFECYCLE_FAMILIES
         },
     }
     records = [{"payload": healthy}, {"payload": json.loads(json.dumps(healthy))}]
@@ -345,11 +477,57 @@ def self_test(args: argparse.Namespace) -> int:
     records[1]["payload"]["tasks"]["rows"][-1]["stackMinWords"] = 0
     assert not analyze(records, args)["passed"]
     records[1]["payload"]["tasks"]["rows"][-1]["stackMinWords"] = 512
+
+    legacy = json.loads(json.dumps(records))
+    del legacy[1]["payload"]["health"]["internalHeapFreeBlocks"]
+    assert "missing or invalid internalHeapFreeBlocks in memory samples" in \
+        analyze(legacy, args)["failures"]
     records[1]["payload"]["tasks"]["state"] = "stopped"
     assert not analyze(records, args)["passed"]
     args.require_task = []
     records[1]["payload"]["tasks"]["rows"][-1]["stackMinWords"] = 0
     assert not analyze(records, args)["passed"]
+    records[1]["payload"]["tasks"]["rows"][-1]["stackMinWords"] = 512
+
+    # A transient handshake dip is acceptable when the quiescent sample recovers.
+    transient = json.loads(json.dumps(records[0]))
+    transient["payload"]["health"]["freeHeapBytes"] = 70000
+    transient["payload"]["health"]["largestFreeHeapBlockBytes"] = 30000
+    recovered = json.loads(json.dumps(records[0]))
+    recovered["payload"]["health"]["uptimeMs"] = 3000
+    assert analyze([records[0], transient, recovered], args)["passed"]
+
+    args.require_lifecycle = ["http", "webhookTls"]
+    degraded = json.loads(json.dumps(records[1]))
+    for family in args.require_lifecycle:
+        degraded["payload"]["heapLifecycle"][family]["cycles"] = 2
+        degraded["payload"]["heapLifecycle"][family]["lastDelta"][
+            "largestBlock"] = -8192
+    assert not analyze([records[0], degraded], args)["passed"]
+
+    # A failed asynchronous Wi-Fi attempt and OTA abort may dip transiently;
+    # the following retry/success sample must restore the same block topology.
+    transient_lifecycle = json.loads(json.dumps(records[1]))
+    stable = json.loads(json.dumps(records[1]))
+    for family in ("webhookTls", "wifi", "ota"):
+        transient_item = transient_lifecycle["payload"]["heapLifecycle"][family]
+        transient_item["cycles"] = 2
+        transient_item["lastResult"] = 2
+        transient_item["after"] = {
+            "freeBytes": 92000, "largestBlock": 50000,
+            "allocatedBlocks": 125, "freeBlocks": 12,
+        }
+        stable_item = stable["payload"]["heapLifecycle"][family]
+        stable_item["cycles"] = 3
+        stable_item["lastResult"] = 1
+    args.require_lifecycle = ["webhookTls", "wifi", "ota"]
+    recovered_summary = analyze(
+        [records[0], transient_lifecycle, stable], args)
+    assert recovered_summary["passed"]
+    for family in args.require_lifecycle:
+        family_metrics = recovered_summary["metrics"]["lifecycles"][family]
+        assert family_metrics["freeBlocksFirstLastDelta"] == 0
+        assert family_metrics["largestFreeRatioFirstLastDelta"] == 0
     return 0
 
 
@@ -384,7 +562,7 @@ def main() -> int:
         while not stopped and time.monotonic() - started < args.duration:
             captured = time.time()
             record: dict[str, Any] = {
-                "schemaVersion": 1,
+                "schemaVersion": 2,
                 "capturedUnixSec": captured,
                 "elapsedSec": time.monotonic() - started,
                 "scenario": args.scenario,

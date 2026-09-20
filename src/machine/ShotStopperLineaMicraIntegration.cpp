@@ -61,6 +61,10 @@ void clearMachineIntegrationDiscovery() { service.clearDiscovery(); }
 
 LineaMicraStatus machineIntegrationStatus() { return service.status(); }
 
+HeapLifecycleAggregate machineIntegrationHeapTelemetry() {
+  return service.heapTelemetry();
+}
+
 LineaMicraDiscoverySnapshot machineIntegrationDiscovery() {
   return service.discovery();
 }

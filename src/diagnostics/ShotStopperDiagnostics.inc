@@ -157,6 +157,9 @@ void publishControlStatus() {
   next.freeHeapBytes = freeHeapBytes;
   next.minimumFreeHeapBytes = minimumFreeHeapBytes;
   next.largestFreeHeapBlockBytes = largestFreeHeapBlockBytes;
+  next.internalHeapAllocatedBlocks = internalHeapAllocatedBlocks;
+  next.internalHeapFreeBlocks = internalHeapFreeBlocks;
+  next.internalHeapFragmentationPermille = internalHeapFragmentationPermille;
   next.psramSizeBytes = psramSizeBytes;
   next.psramFreeBytes = psramFreeBytes;
   next.psramMinimumFreeBytes = psramMinimumFreeBytes;
@@ -494,6 +497,9 @@ void serialCliPrintLiveHealth() {
   dump.freeHeapBytes = freeHeapBytes;
   dump.minimumFreeHeapBytes = minimumFreeHeapBytes;
   dump.largestFreeHeapBlockBytes = largestFreeHeapBlockBytes;
+  dump.internalHeapAllocatedBlocks = internalHeapAllocatedBlocks;
+  dump.internalHeapFreeBlocks = internalHeapFreeBlocks;
+  dump.internalHeapFragmentationPermille = internalHeapFragmentationPermille;
   dump.psramSizeBytes = psramSizeBytes;
   dump.psramFreeBytes = psramFreeBytes;
   dump.psramLargestFreeBlockBytes = psramLargestFreeBlockBytes;

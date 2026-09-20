@@ -472,6 +472,9 @@ void loop() {
     freeHeapBytes = heap.internalFree;
     minimumFreeHeapBytes = heap.internalMinimum;
     largestFreeHeapBlockBytes = heap.internalLargest;
+    internalHeapAllocatedBlocks = heap.internalAllocatedBlocks;
+    internalHeapFreeBlocks = heap.internalFreeBlocks;
+    internalHeapFragmentationPermille = heap.internalFragmentationPermille;
     psramSizeBytes = heap.psramTotal;
     psramFreeBytes = heap.psramFree;
     psramMinimumFreeBytes = heap.psramMinimum;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ShotStopperLineaMicraTypes.h"
+#include "ShotStopperPsram.h"
 
 namespace shotstopper {
 
@@ -11,6 +12,7 @@ bool selectMachineIntegrationDevice(const char *serial,
                                     LineaMicraPersistedSettings &settings);
 void clearMachineIntegrationDiscovery();
 LineaMicraStatus machineIntegrationStatus();
+HeapLifecycleAggregate machineIntegrationHeapTelemetry();
 LineaMicraDiscoverySnapshot machineIntegrationDiscovery();
 
 }  // namespace shotstopper

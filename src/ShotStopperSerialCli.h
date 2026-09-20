@@ -553,6 +553,9 @@ struct SerialCliHealthDump {
   uint32_t freeHeapBytes = 0;
   uint32_t minimumFreeHeapBytes = 0;
   uint32_t largestFreeHeapBlockBytes = 0;
+  uint32_t internalHeapAllocatedBlocks = 0;
+  uint32_t internalHeapFreeBlocks = 0;
+  uint16_t internalHeapFragmentationPermille = 0;
   uint32_t psramSizeBytes = 0;
   uint32_t psramFreeBytes = 0;
   uint32_t psramLargestFreeBlockBytes = 0;
@@ -776,6 +779,13 @@ inline void serialCliPrintHealth(const SerialCliHealthDump &dump) {
   Serial.println(static_cast<unsigned long>(dump.minimumFreeHeapBytes));
   Serial.print("heapLargest=");
   Serial.println(static_cast<unsigned long>(dump.largestFreeHeapBlockBytes));
+  Serial.print("heapAllocatedBlocks=");
+  Serial.println(static_cast<unsigned long>(dump.internalHeapAllocatedBlocks));
+  Serial.print("heapFreeBlocks=");
+  Serial.println(static_cast<unsigned long>(dump.internalHeapFreeBlocks));
+  Serial.print("heapFragmentationPermille=");
+  Serial.println(
+      static_cast<unsigned>(dump.internalHeapFragmentationPermille));
   Serial.print("psramSize=");
   Serial.println(static_cast<unsigned long>(dump.psramSizeBytes));
   Serial.print("psramFree=");

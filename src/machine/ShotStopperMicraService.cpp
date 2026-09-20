@@ -608,6 +608,11 @@ LineaMicraStatus ShotStopperMicraService::status() const {
   return result;
 }
 
+HeapLifecycleAggregate ShotStopperMicraService::heapTelemetry() const {
+  TaskLockGuard lock(mux_);
+  return tlsHeap_.aggregate;
+}
+
 MachinePhysicalStartDisposition ShotStopperMicraService::physicalStart() {
   TaskLockGuard lock(mux_);
   const uint32_t now = millis();
@@ -1638,7 +1643,23 @@ bool ShotStopperMicraService::request(
     if (installationInit) secureWipe(io_->body, sizeof(io_->body));
     return false;
   }
+  const HeapCapSnapshot heapBefore = sampleHeapCaps();
+  {
+    TaskLockGuard lock(mux_);
+    beginHeapLifecycle(tlsHeap_, HeapLifecycleEvent::TLS_REQUEST, heapBefore);
+  }
   const esp_err_t performed = esp_http_client_perform(work_->client);
+  const HeapCapSnapshot heapAfter = sampleHeapCaps();
+  {
+    TaskLockGuard lock(mux_);
+    (void)finishHeapLifecycle(
+        tlsHeap_, performed == ESP_OK
+                      ? HeapLifecycleResult::SUCCESS
+                      : (abortRequested_.load(std::memory_order_acquire)
+                             ? HeapLifecycleResult::CANCELLED
+                             : HeapLifecycleResult::FAILURE),
+        heapAfter);
+  }
   {
     TaskLockGuard lock(clientMux_);
     activeClient_ = nullptr;

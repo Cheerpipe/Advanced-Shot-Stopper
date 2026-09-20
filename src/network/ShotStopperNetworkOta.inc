@@ -873,7 +873,12 @@ esp_err_t ShotStopperNetwork::otaSessionHandler(httpd_req_t *request) {
                      "size, sha256, arch, hardware, machine, version, and transferId must identify one image.");
   }
   ShotStopperOta &ota = ShotStopperOta::instance();
+  self.beginOwnedHeapLifecycle(self.otaHeap_,
+                               HeapLifecycleEvent::OTA_SESSION_BEGIN);
   const OtaResult result = ota.createSession(identity, millis());
+  self.finishOwnedHeapLifecycle(
+      self.otaHeap_, result == OtaResult::OK ? HeapLifecycleResult::SUCCESS
+                                             : HeapLifecycleResult::FAILURE);
   if (result != OtaResult::OK) {
     return sendError(request, otaResultHttpStatus(result),
                      ShotStopperOta::resultName(result), otaResultMessage(result));
@@ -972,7 +977,12 @@ esp_err_t ShotStopperNetwork::otaFlashHandler(httpd_req_t *request) {
                      "The flashed image is already waiting for the restart.");
   }
   const OtaImageTag staged = ota.snapshot().staged;
+  self.beginOwnedHeapLifecycle(self.otaHeap_,
+                               HeapLifecycleEvent::OTA_FLASH_BEGIN);
   const OtaResult result = ota.commit();
+  self.finishOwnedHeapLifecycle(
+      self.otaHeap_, result == OtaResult::OK ? HeapLifecycleResult::SUCCESS
+                                             : HeapLifecycleResult::FAILURE);
   if (result != OtaResult::OK) {
     return sendError(request, otaResultHttpStatus(result),
                      ShotStopperOta::resultName(result),
@@ -1003,7 +1013,9 @@ esp_err_t ShotStopperNetwork::otaAbortHandler(httpd_req_t *request) {
     return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
                      "Send the device password, or unlock administration first.");
   }
+  self.beginOwnedHeapLifecycle(self.otaHeap_, HeapLifecycleEvent::OTA_ABORT);
   ShotStopperOta::instance().discard();
+  self.finishOwnedHeapLifecycle(self.otaHeap_, HeapLifecycleResult::SUCCESS);
   return self.sendOtaSnapshot(request, STATUS_OK);
 }
 

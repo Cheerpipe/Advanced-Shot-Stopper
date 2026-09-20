@@ -826,6 +826,14 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
       }
     }
   } else if (ok && page == StatusPage::Diagnostic) {
+    const NetworkHeapTelemetrySnapshot networkHeap =
+        self.heapTelemetrySnapshot();
+    const HeapLifecycleAggregate webhookHeap =
+        self.webhooks_.heapTelemetry();
+    HeapLifecycleAggregate micraHeap = {};
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+    micraHeap = machineIntegrationHeapTelemetry();
+#endif
     // Reading the diagnostic page is public while it is enabled; adminUnlocked
     // reflects the caller's real Admin session (controls chrome on the UI).
     ok = statusJsonAppend(&used, ",\"adminUnlocked\":%s,\"diagnosticPublic\":true,\"development\":%s",
@@ -879,6 +887,13 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"scaleWorkerMaxExecutionUs\":%lu,"
         "\"freeHeapBytes\":%lu,\"minimumFreeHeapBytes\":%lu,"
         "\"largestFreeHeapBlockBytes\":%lu,"
+        "\"internalHeapAllocatedBlocks\":%lu,"
+        "\"internalHeapFreeBlocks\":%lu,\"internalHeapTotalBlocks\":%lu,"
+        "\"internalHeapFragmentationPermille\":%u,"
+        "\"heap\":\"blocks allocated/free %lu/%lu frag %u/1000; "
+        "HTTP %ld/%ld "
+        "WiFi %ld/%ld OTA %ld/%ld webhook TLS %ld/%ld "
+        "Micra TLS %ld/%ld\","
         "\"psramSizeBytes\":%lu,\"psramFreeBytes\":%lu,"
         "\"psramMinimumFreeBytes\":%lu,"
         "\"psramLargestFreeBlockBytes\":%lu,"
@@ -970,6 +985,24 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(control.freeHeapBytes),
         static_cast<unsigned long>(control.minimumFreeHeapBytes),
         static_cast<unsigned long>(control.largestFreeHeapBlockBytes),
+        static_cast<unsigned long>(control.internalHeapAllocatedBlocks),
+        static_cast<unsigned long>(control.internalHeapFreeBlocks),
+        static_cast<unsigned long>(control.internalHeapAllocatedBlocks +
+                                   control.internalHeapFreeBlocks),
+        static_cast<unsigned>(control.internalHeapFragmentationPermille),
+        static_cast<unsigned long>(control.internalHeapAllocatedBlocks),
+        static_cast<unsigned long>(control.internalHeapFreeBlocks),
+        static_cast<unsigned>(control.internalHeapFragmentationPermille),
+        static_cast<long>(networkHeap.http.lastDelta.largestBlock),
+        static_cast<long>(networkHeap.http.worstLargestDelta),
+        static_cast<long>(networkHeap.wifi.lastDelta.largestBlock),
+        static_cast<long>(networkHeap.wifi.worstLargestDelta),
+        static_cast<long>(networkHeap.ota.lastDelta.largestBlock),
+        static_cast<long>(networkHeap.ota.worstLargestDelta),
+        static_cast<long>(webhookHeap.lastDelta.largestBlock),
+        static_cast<long>(webhookHeap.worstLargestDelta),
+        static_cast<long>(micraHeap.lastDelta.largestBlock),
+        static_cast<long>(micraHeap.worstLargestDelta),
         static_cast<unsigned long>(control.psramSizeBytes),
         static_cast<unsigned long>(control.psramFreeBytes),
         static_cast<unsigned long>(control.psramMinimumFreeBytes),
@@ -1096,6 +1129,15 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           static_cast<unsigned long>(webhookStatus.psramLargestAfter));
     }
     if (ok) {
+      ok = statusJsonAppend(&used, ",\"heapLifecycle\":{") &&
+           appendHeapLifecycleJson(&used, "http", networkHeap.http, "") &&
+           appendHeapLifecycleJson(&used, "wifi", networkHeap.wifi, ",") &&
+           appendHeapLifecycleJson(&used, "ota", networkHeap.ota, ",") &&
+           appendHeapLifecycleJson(&used, "webhookTls", webhookHeap, ",") &&
+           appendHeapLifecycleJson(&used, "micraTls", micraHeap, ",") &&
+           statusJsonAppend(&used, "}");
+    }
+    if (ok) {
       const NvsDiagnosticSnapshot nvs = captureNvsDiagnostics();
       ok = statusJsonAppend(
           &used,
@@ -1139,7 +1181,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     if (ok) {
       static constexpr const char *owners[] = {
           "other", "network", "webhook", "companion", "profiler",
-          "flash_io", "ota", "buzzer", "json"};
+          "flash_io", "ota", "buzzer", "json", "serial_log"};
       static_assert(sizeof(owners) / sizeof(owners[0]) ==
                         static_cast<size_t>(AllocationOwner::COUNT),
                     "Allocation owner names must match metrics");

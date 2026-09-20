@@ -311,6 +311,14 @@ WebhookStatus WebhookDispatcher::status() const {
   return copy;
 }
 
+HeapLifecycleAggregate WebhookDispatcher::heapTelemetry() const {
+  HeapLifecycleAggregate copy;
+  mux_.lock();
+  copy = tlsHeap_.aggregate;
+  mux_.unlock();
+  return copy;
+}
+
 void WebhookDispatcher::setControlCritical(bool active) {
   controlCritical_.store(active, std::memory_order_release);
   if (active) {
@@ -624,6 +632,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   status_.lastAttemptAtMs = millis();
   status_.lastHttpStatus = 0;
   status_.lastError = 0;
+  beginHeapLifecycle(tlsHeap_, HeapLifecycleEvent::TLS_REQUEST, heapBefore);
   mux_.unlock();
 
   bool ok = false;
@@ -708,6 +717,12 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   }
   status_.psramLargestBefore = heapBefore.psramLargest;
   status_.psramLargestAfter = heapAfter.psramLargest;
+  (void)finishHeapLifecycle(
+      tlsHeap_, ok ? HeapLifecycleResult::SUCCESS
+                   : (cancelActive_.load(std::memory_order_acquire)
+                          ? HeapLifecycleResult::CANCELLED
+                          : HeapLifecycleResult::FAILURE),
+      heapAfter);
   mux_.unlock();
   return ok;
 }

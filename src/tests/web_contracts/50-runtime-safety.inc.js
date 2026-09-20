@@ -270,6 +270,8 @@ if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
     'signalQualityPct', 'utcSec', 'lastSyncAgeMs', 'nextRetryInMs',
     'activeServer', 'maintenance', 'persistPending', 'uptimeMs', 'hwmon',
     'freeHeapBytes', 'minimumFreeHeapBytes', 'largestFreeHeapBlockBytes',
+    'internalHeapAllocatedBlocks', 'internalHeapFreeBlocks',
+    'internalHeapTotalBlocks', 'internalHeapFragmentationPermille',
     'psramSizeBytes', 'psramFreeBytes', 'psramLargestFreeBlockBytes',
     'bleHostAllocPsram', 'bleHostAllocFallback',
     'hciRxDropped', 'hciTxDropped',
@@ -286,6 +288,16 @@ if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
   ]) {
     if (!diagBody.includes(field)) {
       throw new Error('status/diagnostic missing required field: ' + field);
+    }
+  }
+  for (const field of ['heapLifecycle', 'webhookTls', 'micraTls']) {
+    if (!statusFormat.includes(field)) {
+      throw new Error('status/diagnostic missing heap lifecycle field: ' + field);
+    }
+  }
+  for (const field of ['worstLargestDelta', 'maximumFreeBlocksIncrease']) {
+    if (!network.includes(field)) {
+      throw new Error('heap lifecycle schema missing field: ' + field);
     }
   }
   if (!diagBody.includes('\\"recoveredStaleMs\\":%lu,\\"rssi\\":%s,') ||

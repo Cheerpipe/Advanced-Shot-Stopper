@@ -459,6 +459,7 @@ bool ShotStopperNetwork::beginStationConnect(const NetworkSettingsSnapshot &sett
     lifecycleLog("WiFi STA associate deferred; scale connecting");
     return false;
   }
+  beginOwnedHeapLifecycle(wifiHeap_, HeapLifecycleEvent::WIFI_CONNECT);
   const bool apActive = snapshot().apActive;
   if (apActive) {
     WiFi.mode(WIFI_AP_STA);
@@ -501,6 +502,7 @@ bool ShotStopperNetwork::beginStationConnect(const NetworkSettingsSnapshot &sett
   // WiFi.begin() uses begin(true) then connect(ssid), and that extra connect()
   // can disconnect while the start handler runs (ESP_ERR_WIFI_STOP_STATE 12308).
   if (!WiFi.STA.begin(false)) {
+    finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::FAILURE);
     lifecycleLog("WiFi STA enable failed");
     return false;
   }
@@ -511,6 +513,7 @@ bool ShotStopperNetwork::beginStationConnect(const NetworkSettingsSnapshot &sett
     dataMux_.lock();
     status_.staState = StaState::DISCONNECTED;
     dataMux_.unlock();
+    finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::FAILURE);
     lifecycleLog("WiFi STA connect request failed");
     return false;
   }
@@ -553,6 +556,7 @@ void ShotStopperNetwork::stopSoftAp(bool stopHttp) {
   if (!snapshot().apActive) {
     return;
   }
+  beginOwnedHeapLifecycle(wifiHeap_, HeapLifecycleEvent::AP_STOP);
   // Keep WIFI_AP_STA (or current mode) after SoftAP stop so the fresh STA
   // association is not reset by a mode switch to WIFI_STA.
   WiFi.softAPdisconnect(true);
@@ -573,6 +577,7 @@ void ShotStopperNetwork::stopSoftAp(bool stopHttp) {
   lifecycleLog(stopHttp ? "WiFi SoftAP stopped; HTTP stopped"
                         : "WiFi SoftAP stopped; HTTP kept");
   applyWifiPowerSave();
+  finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::SUCCESS);
 }
 
 void ShotStopperNetwork::stopSoftApKeepStation() {
@@ -696,6 +701,7 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
                               : "SoftAP auto-raise exhausted");
     return false;
   }
+  beginOwnedHeapLifecycle(wifiHeap_, HeapLifecycleEvent::AP_START);
 
   abortWifiScan(now, false);
   const bool keepStation = settings.staConfigured;
@@ -764,14 +770,17 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
     clearSoftApIdleState();
     applyWifiPowerSave();
     syncScaleSoftApRadio(false);
+    finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::FAILURE);
     return false;
   }
   armSoftApIdleDeadline(now);
   applyWifiPowerSave(true);
+  finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::SUCCESS);
   return true;
 }
 
 void ShotStopperNetwork::stopNetwork() {
+  beginOwnedHeapLifecycle(wifiHeap_, HeapLifecycleEvent::WIFI_DISCONNECT);
   esp_wifi_scan_stop();
   WiFi.scanDelete();
   stopHttpServer();
@@ -796,6 +805,7 @@ void ShotStopperNetwork::stopNetwork() {
   dataMux_.unlock();
   clearSoftApIdleState();
   log(DebugCategory::NETWORK, DebugCode::AP_STOPPED);
+  finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::SUCCESS);
 }
 
 void ShotStopperNetwork::serviceStaState(uint32_t now) {
@@ -818,11 +828,13 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     lifecycleLog(brewRf ? "WiFi STA associate aborted; brew RF active"
                         : "WiFi STA associate aborted; scale connecting");
     applyWifiPowerSave();
+    finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::CANCELLED);
     return;
   }
 
   if (status.staState == StaState::CONNECTED) {
     if (WiFi.status() != WL_CONNECTED) {
+      beginOwnedHeapLifecycle(wifiHeap_, HeapLifecycleEvent::WIFI_DISCONNECT);
       dataMux_.lock();
       status_.staState = StaState::DISCONNECTED;
       status_.networkActive = false;
@@ -840,6 +852,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       staReconnectAttemptAtMs_ = now;
       lifecycleLog("WiFi STA disconnected; retrying STA (no SoftAP after prior connect)");
       applyWifiPowerSave();
+      finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::SUCCESS);
       if (!staReconnectHeld_ && !wifiScanInProgress() && !brewRf &&
           !scaleConnecting) {
         beginStationConnect(networkSettingsSnapshot(), now);
@@ -907,6 +920,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       WiFi.status() == WL_CONNECTED) {
     char address[16] = {};
     formatIp(WiFi.localIP(), address);
+    finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::SUCCESS);
     if (!apKeepRequested_) {
       stopSoftApKeepStation();
     }
@@ -958,6 +972,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       return;
     }
     WiFi.disconnect(false, false);
+    finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::FAILURE);
     dataMux_.lock();
     status_.staState = StaState::FAILED;
     dataMux_.unlock();

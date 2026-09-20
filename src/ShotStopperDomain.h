@@ -2107,6 +2107,8 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   uint32_t freeHeapBytes = 0;
   uint32_t minimumFreeHeapBytes = 0;
   uint32_t largestFreeHeapBlockBytes = 0;
+  uint32_t internalHeapAllocatedBlocks = 0, internalHeapFreeBlocks = 0;
+  uint16_t internalHeapFragmentationPermille = 0;
   uint32_t psramSizeBytes = 0;
   uint32_t psramFreeBytes = 0;
   uint32_t psramMinimumFreeBytes = 0;

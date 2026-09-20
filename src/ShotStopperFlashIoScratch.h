@@ -7,6 +7,7 @@
 // tryLockFlashIo() for the whole use of the scratch.
 
 #include "ShotStopperDomain.h"
+#include "ShotStopperPersistedSettings.h"
 #include "ShotStopperPsram.h"
 
 #include <stddef.h>
@@ -25,15 +26,16 @@
 
 namespace shotstopper {
 
-// Floor set by the settings dual-slot staging (2 × sizeof(PersistedSettings);
-// authoritative static_asserts live in persistedSettingsScratch() and
-// LastShotStore) plus the chunk staging below. The larger partition stores
-// (shotlog, history, shotcurve) never fit here: they transfer in
-// FLASH_IO_CHUNK_BYTES steps through flashIoReadChunked/flashIoWriteChunked.
-constexpr size_t FLASH_IO_SCRATCH_BYTES = 5920;
 // One staged step of a partition-store transfer. 4-byte alignment keeps every
 // esp_partition_read/write call word-aligned; store sizes are multiples of 4.
 constexpr size_t FLASH_IO_CHUNK_BYTES = 1024;
+// Settings slots are processed sequentially; the shared internal workspace
+// therefore needs one record or one partition-transfer chunk, whichever is
+// larger. Larger stores transfer in FLASH_IO_CHUNK_BYTES steps.
+constexpr size_t FLASH_IO_SCRATCH_BYTES =
+    sizeof(PersistedSettings) > FLASH_IO_CHUNK_BYTES
+        ? sizeof(PersistedSettings)
+        : FLASH_IO_CHUNK_BYTES;
 static_assert(FLASH_IO_CHUNK_BYTES % 4 == 0,
               "Flash I/O chunks must stay 4-byte aligned");
 static_assert(FLASH_IO_CHUNK_BYTES <= FLASH_IO_SCRATCH_BYTES,

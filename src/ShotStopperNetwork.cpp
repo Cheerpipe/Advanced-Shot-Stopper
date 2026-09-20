@@ -902,6 +902,48 @@ statusJsonAppend(size_t *used, const char *fmt, ...) {
   return true;
 }
 
+bool appendHeapLifecycleJson(size_t *used, const char *name,
+                             const HeapLifecycleAggregate &heap,
+                             const char *prefix) {
+  return statusJsonAppend(
+      used,
+      "%s\"%s\":{\"cycles\":%lu,\"staleReplacements\":%lu,"
+      "\"lastEvent\":%u,\"lastResult\":%u,"
+      "\"before\":{\"freeBytes\":%lu,\"largestBlock\":%lu,"
+      "\"allocatedBlocks\":%lu,\"freeBlocks\":%lu,"
+      "\"fragmentationPermille\":%u},"
+      "\"after\":{\"freeBytes\":%lu,\"largestBlock\":%lu,"
+      "\"allocatedBlocks\":%lu,\"freeBlocks\":%lu,"
+      "\"fragmentationPermille\":%u},"
+      "\"lastDelta\":{\"freeBytes\":%ld,\"largestBlock\":%ld,"
+      "\"allocatedBlocks\":%ld,\"freeBlocks\":%ld,"
+      "\"fragmentationPermille\":%ld},"
+      "\"worstFreeDelta\":%ld,\"worstLargestDelta\":%ld,"
+      "\"maximumFreeBlocksIncrease\":%ld}",
+      prefix, name, static_cast<unsigned long>(heap.cycles),
+      static_cast<unsigned long>(heap.staleReplacements),
+      static_cast<unsigned>(heap.lastEvent),
+      static_cast<unsigned>(heap.lastResult),
+      static_cast<unsigned long>(heap.before.freeBytes),
+      static_cast<unsigned long>(heap.before.largestBlock),
+      static_cast<unsigned long>(heap.before.allocatedBlocks),
+      static_cast<unsigned long>(heap.before.freeBlocks),
+      static_cast<unsigned>(heap.before.fragmentationPermille),
+      static_cast<unsigned long>(heap.after.freeBytes),
+      static_cast<unsigned long>(heap.after.largestBlock),
+      static_cast<unsigned long>(heap.after.allocatedBlocks),
+      static_cast<unsigned long>(heap.after.freeBlocks),
+      static_cast<unsigned>(heap.after.fragmentationPermille),
+      static_cast<long>(heap.lastDelta.freeBytes),
+      static_cast<long>(heap.lastDelta.largestBlock),
+      static_cast<long>(heap.lastDelta.allocatedBlocks),
+      static_cast<long>(heap.lastDelta.freeBlocks),
+      static_cast<long>(heap.lastDelta.fragmentationPermille),
+      static_cast<long>(heap.worstFreeDelta),
+      static_cast<long>(heap.worstLargestDelta),
+      static_cast<long>(heap.maximumFreeBlocksIncrease));
+}
+
 bool jsonScratchAppend(char *buf, size_t cap, size_t *used, const char *fmt,
                        ...) {
   if (buf == nullptr || used == nullptr || *used >= cap) {

@@ -5,6 +5,7 @@
 #include "ShotStopperMachineIntegration.h"
 #include "ShotStopperMicraPowerState.h"
 #include "ShotStopperMicraTiming.h"
+#include "ShotStopperPsram.h"
 #include "ShotStopperTaskMutex.h"
 
 #include <atomic>
@@ -30,6 +31,7 @@ class ShotStopperMicraService {
   void clearDiscovery();
   void serviceAbort();
   LineaMicraStatus status() const;
+  HeapLifecycleAggregate heapTelemetry() const;
   LineaMicraDiscoverySnapshot discovery() const;
   MachinePhysicalStartDisposition physicalStart();
 
@@ -106,6 +108,7 @@ class ShotStopperMicraService {
   PendingRequest pending_ = {};
   DesiredTemperature desiredTemperature_ = {};
   LineaMicraStatus published_ = {};
+  HeapLifecycleTracker tlsHeap_ = {};
   LineaMicraDiscoverySnapshot discovery_ = {};
   uint32_t configGeneration_ = 0;
   uint32_t identityGeneration_ = 0;

@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <atomic>
+#include <limits.h>
+#include <type_traits>
 
 #if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
@@ -30,7 +32,8 @@
 namespace shotstopper {
 
 enum class AllocationOwner : uint8_t {
-  OTHER, NETWORK, WEBHOOK, COMPANION, PROFILER, FLASH_IO, OTA, BUZZER, JSON, COUNT
+  OTHER, NETWORK, WEBHOOK, COMPANION, PROFILER, FLASH_IO, OTA, BUZZER, JSON,
+  SERIAL_LOG, COUNT
 };
 
 struct AllocationMetrics {
@@ -168,29 +171,174 @@ struct HeapCapSnapshot {
   uint32_t internalFree = 0;
   uint32_t internalMinimum = 0;
   uint32_t internalLargest = 0;
+  uint32_t internalAllocatedBlocks = 0;
+  uint32_t internalFreeBlocks = 0;
+  uint16_t internalFragmentationPermille = 0;
   uint32_t psramTotal = 0;
   uint32_t psramFree = 0;
   uint32_t psramMinimum = 0;
   uint32_t psramLargest = 0;
 };
 
+inline uint16_t heapFragmentationPermille(uint32_t freeBytes,
+                                          uint32_t largestBlock) {
+  if (freeBytes == 0 || largestBlock >= freeBytes) {
+    return 0;
+  }
+  return static_cast<uint16_t>(
+      (static_cast<uint64_t>(freeBytes - largestBlock) * 1000U) / freeBytes);
+}
+
+enum class HeapLifecycleEvent : uint8_t {
+  NONE,
+  HTTP_START,
+  HTTP_STOP,
+  TLS_REQUEST,
+  WIFI_CONNECT,
+  WIFI_DISCONNECT,
+  AP_START,
+  AP_STOP,
+  OTA_SESSION_BEGIN,
+  OTA_FLASH_BEGIN,
+  OTA_ABORT
+};
+
+enum class HeapLifecycleResult : uint8_t {
+  NONE,
+  SUCCESS,
+  FAILURE,
+  CANCELLED
+};
+
+struct HeapLifecycleDelta {
+  int32_t freeBytes = 0;
+  int32_t largestBlock = 0;
+  int32_t allocatedBlocks = 0;
+  int32_t freeBlocks = 0;
+  int32_t fragmentationPermille = 0;
+};
+
+struct HeapLifecycleSample {
+  uint32_t freeBytes = 0;
+  uint32_t largestBlock = 0;
+  uint32_t allocatedBlocks = 0;
+  uint32_t freeBlocks = 0;
+  uint16_t fragmentationPermille = 0;
+};
+
+inline HeapLifecycleSample heapLifecycleSample(const HeapCapSnapshot &snapshot) {
+  return {snapshot.internalFree, snapshot.internalLargest,
+          snapshot.internalAllocatedBlocks, snapshot.internalFreeBlocks,
+          snapshot.internalFragmentationPermille};
+}
+
+struct HeapLifecycleAggregate {
+  uint32_t cycles = 0;
+  uint32_t staleReplacements = 0;
+  HeapLifecycleEvent lastEvent = HeapLifecycleEvent::NONE;
+  HeapLifecycleResult lastResult = HeapLifecycleResult::NONE;
+  HeapLifecycleSample before = {};
+  HeapLifecycleSample after = {};
+  HeapLifecycleDelta lastDelta = {};
+  int32_t worstFreeDelta = 0;
+  int32_t worstLargestDelta = 0;
+  int32_t maximumFreeBlocksIncrease = 0;
+};
+
+struct HeapLifecycleTracker {
+  HeapLifecycleAggregate aggregate = {};
+  HeapLifecycleSample pendingBefore = {};
+  HeapLifecycleEvent pendingEvent = HeapLifecycleEvent::NONE;
+  bool pending = false;
+};
+
+inline int32_t boundedHeapDelta(uint32_t before, uint32_t after) {
+  const int64_t delta = static_cast<int64_t>(after) - before;
+  if (delta > INT32_MAX) return INT32_MAX;
+  if (delta < INT32_MIN) return INT32_MIN;
+  return static_cast<int32_t>(delta);
+}
+
+inline void beginHeapLifecycle(HeapLifecycleTracker &tracker,
+                               HeapLifecycleEvent event,
+                               const HeapCapSnapshot &before) {
+  if (tracker.pending) {
+    ++tracker.aggregate.staleReplacements;
+  }
+  tracker.pendingBefore = heapLifecycleSample(before);
+  tracker.pendingEvent = event;
+  tracker.pending = true;
+}
+
+inline bool finishHeapLifecycle(HeapLifecycleTracker &tracker,
+                                HeapLifecycleResult result,
+                                const HeapCapSnapshot &after) {
+  if (!tracker.pending) return false;
+  HeapLifecycleAggregate &out = tracker.aggregate;
+  out.before = tracker.pendingBefore;
+  out.after = heapLifecycleSample(after);
+  out.lastEvent = tracker.pendingEvent;
+  out.lastResult = result;
+  out.lastDelta.freeBytes =
+      boundedHeapDelta(out.before.freeBytes, out.after.freeBytes);
+  out.lastDelta.largestBlock =
+      boundedHeapDelta(out.before.largestBlock, out.after.largestBlock);
+  out.lastDelta.allocatedBlocks = boundedHeapDelta(
+      out.before.allocatedBlocks, out.after.allocatedBlocks);
+  out.lastDelta.freeBlocks = boundedHeapDelta(
+      out.before.freeBlocks, out.after.freeBlocks);
+  out.lastDelta.fragmentationPermille = boundedHeapDelta(
+      out.before.fragmentationPermille, out.after.fragmentationPermille);
+  if (out.lastDelta.freeBytes < out.worstFreeDelta) {
+    out.worstFreeDelta = out.lastDelta.freeBytes;
+  }
+  if (out.lastDelta.largestBlock < out.worstLargestDelta) {
+    out.worstLargestDelta = out.lastDelta.largestBlock;
+  }
+  if (out.lastDelta.freeBlocks > out.maximumFreeBlocksIncrease) {
+    out.maximumFreeBlocksIncrease = out.lastDelta.freeBlocks;
+  }
+  ++out.cycles;
+  tracker.pending = false;
+  tracker.pendingEvent = HeapLifecycleEvent::NONE;
+  return true;
+}
+
+static_assert(std::is_trivially_copyable<HeapCapSnapshot>::value,
+              "Heap snapshots must remain lock-copyable");
+static_assert(std::is_trivially_copyable<HeapLifecycleAggregate>::value,
+              "Lifecycle telemetry must remain lock-copyable");
+static_assert(sizeof(HeapLifecycleAggregate) <= 84 &&
+                  sizeof(HeapLifecycleTracker) <= 108,
+              "Lifecycle telemetry exceeds its internal-RAM budget");
+
+#if defined(SHOT_STOPPER_HOST_TEST) ||                                         \
+    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+inline HeapCapSnapshot &hostHeapCapsSnapshot() {
+  static HeapCapSnapshot snapshot = {327680, 200000, 180000, 100000,
+                                     120, 8, 500};
+  return snapshot;
+}
+#endif
+
 inline HeapCapSnapshot sampleHeapCaps() {
   HeapCapSnapshot snap;
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-  snap.internalTotal = 327680;
-  snap.internalFree = 200000;
-  snap.internalMinimum = 180000;
-  snap.internalLargest = 100000;
+  snap = hostHeapCapsSnapshot();
 #else
   const uint32_t internalCaps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+  multi_heap_info_t internalInfo = {};
+  heap_caps_get_info(&internalInfo, internalCaps);
   snap.internalTotal =
       static_cast<uint32_t>(heap_caps_get_total_size(internalCaps));
-  snap.internalFree =
-      static_cast<uint32_t>(heap_caps_get_free_size(internalCaps));
-  snap.internalMinimum =
-      static_cast<uint32_t>(heap_caps_get_minimum_free_size(internalCaps));
-  snap.internalLargest = static_cast<uint32_t>(
-      heap_caps_get_largest_free_block(internalCaps));
+  snap.internalFree = static_cast<uint32_t>(internalInfo.total_free_bytes);
+  snap.internalMinimum = static_cast<uint32_t>(internalInfo.minimum_free_bytes);
+  snap.internalLargest = static_cast<uint32_t>(internalInfo.largest_free_block);
+  snap.internalAllocatedBlocks =
+      static_cast<uint32_t>(internalInfo.allocated_blocks);
+  snap.internalFreeBlocks = static_cast<uint32_t>(internalInfo.free_blocks);
+  snap.internalFragmentationPermille =
+      heapFragmentationPermille(snap.internalFree, snap.internalLargest);
 #if defined(BOARD_HAS_PSRAM)
   if (psramFound()) {
     const uint32_t psramCaps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;

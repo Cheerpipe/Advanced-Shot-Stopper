@@ -224,6 +224,32 @@ void p02c_overlay_live_runtime_is_saved_not_stale_blob() {
   CHECK(loaded.storageRevision == stale.storageRevision);
 }
 
+void p02d_single_scratch_handles_wrap_and_external_destination() {
+  resetHostPersistence();
+  PersistedSettings beforeWrap;
+  CHECK(initializeDefaultSettings(beforeWrap));
+  beforeWrap.storageRevision = UINT32_MAX;
+  beforeWrap.runtime.goalWeightG = 40;
+  finalizePersistedSettings(beforeWrap);
+  PersistedSettings afterWrap = beforeWrap;
+  afterWrap.storageRevision = 1;
+  afterWrap.runtime.goalWeightG = 48;
+  afterWrap.runtime.maxRecoveryWeightG = 55.0f;
+  finalizePersistedSettings(afterWrap);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &beforeWrap,
+                           sizeof(beforeWrap));
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_B, &afterWrap,
+                           sizeof(afterWrap));
+
+  auto *loaded = static_cast<PersistedSettings *>(
+      allocExternal(sizeof(PersistedSettings)));
+  CHECK(loaded != nullptr);
+  CHECK(loadPersistedSettings(*loaded));
+  CHECK(loaded->storageRevision == 1);
+  CHECK(loaded->runtime.goalWeightG == 48);
+  heapCapsFree(loaded);
+}
+
 void p03_corrupt_newest_slot_falls_back() {
   resetHostPersistence();
   PersistedSettings settings;
@@ -952,6 +978,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(ShotPresetBank) <= 1100);
   CHECK(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET);
   CHECK(sizeof(PersistedSettings) == 2960);
+  CHECK(FLASH_IO_SCRATCH_BYTES == sizeof(PersistedSettings));
   CHECK(sizeof(RuntimeConfig) == 252);
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
   CHECK(sizeof(ControlStatusSnapshot) <= 4096);
@@ -2125,6 +2152,7 @@ const TestCase tests[] = {
     {"P02", p02_newest_valid_slot_is_loaded},
     {"P02B", p02b_save_uses_ram_revision_when_slots_unreadable},
     {"P02C", p02c_overlay_live_runtime_is_saved_not_stale_blob},
+    {"P02D", p02d_single_scratch_handles_wrap_and_external_destination},
     {"P03", p03_corrupt_newest_slot_falls_back},
     {"P04", p04_crc_and_semantic_validation_reject_corruption},
     {"P05", p05_password_change_updates_hash},

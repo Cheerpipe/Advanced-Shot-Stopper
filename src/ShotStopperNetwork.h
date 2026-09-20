@@ -4,6 +4,7 @@
 #include "ShotStopperDebugExport.h"
 #include "ShotStopperHistoryTypes.h"
 #include "ShotStopperPersistence.h"
+#include "ShotStopperPsram.h"
 #include "ShotStopperShotCurveTypes.h"
 #include "ShotStopperShotLogTypes.h"
 #include "ShotStopperTime.h"
@@ -147,6 +148,12 @@ struct NetworkStatusSnapshot {
   char mdnsHost[DEVICE_NAME_CAPACITY] = {};
 };
 
+struct NetworkHeapTelemetrySnapshot {
+  HeapLifecycleAggregate http = {};
+  HeapLifecycleAggregate wifi = {};
+  HeapLifecycleAggregate ota = {};
+};
+
 inline uint8_t wifiRssiToSignalQualityPct(int32_t rssi) {
   if (rssi <= -100) {
     return 0;
@@ -223,6 +230,7 @@ class ShotStopperNetwork {
   bool stop();
   bool enqueueAcceptedCommand(const WebCommand &command);
   NetworkStatusSnapshot snapshot();
+  NetworkHeapTelemetrySnapshot heapTelemetrySnapshot();
   void requestNtpSyncIfNeeded();
   void syncPreferredScaleMac(const char *mac);
   void syncPreferredScale(const char *mac, const char *name);
@@ -318,6 +326,9 @@ class ShotStopperNetwork {
   uint32_t adminUnlockCooldownUntilMs_ = 0;
   uint8_t adminUnlockFailures_ = 0;
   NetworkStatusSnapshot status_ = {};
+  HeapLifecycleTracker httpHeap_ = {};
+  HeapLifecycleTracker wifiHeap_ = {};
+  HeapLifecycleTracker otaHeap_ = {};
   bool startupComplete_ = false;
   // Latched for process lifetime after first STA CONNECTED. SoftAP auto-raise
   // is boot/bootstrap only; never cleared by startStation / pending revert.
@@ -448,6 +459,10 @@ class ShotStopperNetwork {
   ControlGateSnapshot controlGate() const;
   bool lockWorkBufForStatus();
   void loadControlStatus(ControlStatusSnapshot &control);
+  void beginOwnedHeapLifecycle(HeapLifecycleTracker &tracker,
+                               HeapLifecycleEvent event);
+  void finishOwnedHeapLifecycle(HeapLifecycleTracker &tracker,
+                                HeapLifecycleResult result);
   void log(DebugCategory category, DebugCode code, int32_t argument1 = 0,
            int32_t argument2 = 0);
   void actionLog(const char *message);

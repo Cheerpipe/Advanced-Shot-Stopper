@@ -420,6 +420,16 @@ if (!psram.includes('#define SHOT_STOPPER_PSRAM_BSS EXT_RAM_BSS_ATTR') ||
   throw new Error(
       'Large history/settings/debug-ring/recipe BSS must use SHOT_STOPPER_PSRAM_BSS; flash scratch and live status snapshots stay internal');
 }
+if (!firmwareCore.includes('uint8_t *serialLogQueueBytes = nullptr') ||
+    !firmwareCore.includes(
+      'allocInternal(queueBytes, AllocationOwner::SERIAL_LOG)') ||
+    !firmwareCore.includes('esp_ptr_internal(serialLogQueueBytes)') ||
+    (firmwareCore.match(/heapCapsFree\(serialLogQueueBytes\)/g) || []).length < 2 ||
+    firmwareCore.includes(
+      'uint8_t serialLogQueueBytes[SERIAL_LOG_QUEUE_DEPTH * sizeof(SerialLogLine)]')) {
+  throw new Error(
+    'USB serial queue payload must be lazy internal heap with complete startup rollback');
+}
 if (!buzzer.includes('struct RtttlCatalog') ||
     !buzzer.includes('RtttlCatalog *rtttlCatalog') ||
     !buzzer.includes('allocInternal(sizeof(RtttlCatalog), AllocationOwner::BUZZER)') ||

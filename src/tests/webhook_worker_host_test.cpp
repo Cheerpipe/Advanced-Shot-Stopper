@@ -78,6 +78,11 @@ static void testSamplingAndAccounting() {
     assert(status.internalFreeAfter == (scenario == 2 || scenario == 3 ? 1000U : 700U));
     assert(status.internalLargestAfter == status.internalFreeAfter / 2);
     assert(status.psramLargestAfter == status.internalFreeAfter * 2);
+    const HeapLifecycleAggregate heap = d.heapTelemetry();
+    assert(heap.cycles == 1);
+    assert(heap.lastEvent == HeapLifecycleEvent::TLS_REQUEST);
+    assert(heap.lastDelta.freeBytes ==
+           static_cast<int32_t>(status.internalFreeAfter) - 1000);
     assert(status.sent == (scenario == 0 ? 1U : 0U));
     assert(status.dropped == (scenario == 0 ? 0U : 1U));
     assert(workerTrace.front() == "sample" && workerTrace.back() == "sample");
