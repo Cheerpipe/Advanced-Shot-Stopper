@@ -61,8 +61,12 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
 }
 if (micraService.includes('keep_alive_enable = true') ||
     micraService.includes('esp_http_client_close(work_->client)') ||
-    !micraService.includes('(sessionRenewed || readDashboard(settings, status))')) {
-  throw new Error('Linea Micra polling must reuse HTTP sessions without continuous probes and separate token renewal from state reads');
+    !micraService.includes('config.buffer_size = 1024;') ||
+    !micraService.includes('const bool staEligible =') ||
+    !micraService.includes('} else if (staEligible && config_.accountConfigured &&') ||
+    !micraService.includes('const bool initialSample = status.sampleAtMs == 0;') ||
+    !micraService.includes('(sessionRenewed && !initialSample) ||')) {
+  throw new Error('Linea Micra polling must fit cloud headers, wait for STA, initialize state, reuse HTTP sessions, and avoid continuous probes');
 }
 for (const file of ['ShotStopperMachinePaddleControl.h',
   'ShotStopperMachinePaddleInput.h', 'ShotStopperMachinePaddlePolicy.h',

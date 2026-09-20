@@ -868,7 +868,9 @@ gate. It never changes relay safety.
 
 Micra builds run a separate cloud worker when **Monitor machine power state**
 is enabled and an account machine is selected. It queues a dashboard read on a nominal
-15-second cadence over HTTPS. A current
+15-second cadence over HTTPS. At startup it waits for an eligible STA connection,
+then establishes its cloud session and immediately reads the dashboard to
+initialize the observed state. A current
 `StandBy` response maps to OFF, `BrewingMode` to ON, and ECO or an unknown value
 to UNKNOWN. Communication errors and samples older than 30 seconds are also
 UNKNOWN; the separate `effectiveOn` presentation policy treats UNKNOWN as ON

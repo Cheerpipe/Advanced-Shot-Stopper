@@ -30,10 +30,11 @@ The email, password, selected machine, and device installation key are stored
 in the controller so it can sign in again after a restart. Short-lived access
 and refresh tokens stay only in RAM and are never returned by the Web UI or
 diagnostics. The access token is reused for state reads and renewed after 50
-minutes. Renewal replaces one scheduled state read, and the next read occurs at
-the normal interval, so the controller does not make both cloud requests back
-to back. It also reuses the secure HTTP connection while the cloud service
-allows it, avoiding a new connection handshake for every read. **Disconnect**
+minutes. Renewal normally replaces one scheduled state read, and the next read
+occurs at the normal interval. After a restart, the first successful STA session
+continues directly to a dashboard read so the displayed state is initialized.
+It also reuses the secure HTTP connection while the cloud service allows it,
+avoiding a new connection handshake for every read. **Disconnect**
 removes the saved account credentials, installation key, selected machine,
 cached list, in-memory session tokens, and cloud connection.
 
@@ -46,8 +47,10 @@ safety, or local shot control.
 
 Enable **Monitor machine power state** and save. Shot Stopper then queues a
 dashboard read approximately every 15 seconds while STA is connected. It never
-starts a request in setup AP mode. A shot or rinse cancels an in-flight read and
-pauses new state reads; one becomes due again after local activity ends.
+starts an automatic request before STA connects or while setup AP mode is open.
+After startup, the first eligible STA connection makes the initial dashboard
+read due immediately. A shot or rinse cancels an in-flight read and pauses new
+state reads; one becomes due again after local activity ends.
 
 Diagnostics → Machine shows:
 

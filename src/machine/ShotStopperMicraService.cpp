@@ -486,6 +486,9 @@ void ShotStopperMicraService::taskLoop() {
     PendingRequest pending;
     bool haveRequest = false;
     const uint32_t now = millis();
+    const bool staEligible =
+        staConnected_.load(std::memory_order_acquire) &&
+        !apActive_.load(std::memory_order_acquire);
     {
       TaskLockGuard lock(mux_);
       if (pending_.present) {
@@ -494,7 +497,7 @@ void ShotStopperMicraService::taskLoop() {
         pending_.present = false;
         active_ = true;
         haveRequest = true;
-      } else if (config_.accountConfigured &&
+      } else if (staEligible && config_.accountConfigured &&
                  (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0 &&
                  !shotActive_.load(std::memory_order_acquire) &&
                  static_cast<int32_t>(now - nextAutomaticAtMs_) >= 0) {
@@ -637,6 +640,7 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
   publish(status);
   bool success = false;
   bool sessionRenewed = false;
+  const bool initialSample = status.sampleAtMs == 0;
   for (size_t attempt = 0; attempt < micra_timing::kMaxAttempts; ++attempt) {
     if (shotActive_.load(std::memory_order_acquire)) {
       status.phase = LineaMicraPhase::PAUSED;
@@ -657,7 +661,8 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
       return false;
     }
     success = ensureSession(settings, false, &sessionRenewed) &&
-              (sessionRenewed || readDashboard(settings, status));
+              ((sessionRenewed && !initialSample) ||
+               readDashboard(settings, status));
     if (success) break;
     if (shotActive_.load(std::memory_order_acquire)) continue;
     if (!networkEligible(gateError)) {
@@ -688,7 +693,7 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
     fail(status, error);
     return false;
   }
-  if (sessionRenewed) {
+  if (sessionRenewed && !initialSample) {
     status.phase = LineaMicraPhase::IDLE;
     status.error = LineaMicraError::NONE;
     publish(status);
@@ -1013,6 +1018,7 @@ bool ShotStopperMicraService::request(
     config.crt_bundle_attach = esp_crt_bundle_attach;
     config.event_handler = httpEvent;
     config.user_data = this;
+    config.buffer_size = 1024;
     work_->client = esp_http_client_init(&config);
     if (work_->client == nullptr) return false;
   }
