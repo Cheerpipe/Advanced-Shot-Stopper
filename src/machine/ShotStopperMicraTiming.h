@@ -12,6 +12,7 @@ inline constexpr uint32_t kStatePollMs = 15000;
 inline constexpr uint32_t kStateFreshnessMs = 30000;
 inline constexpr uint32_t kOptimisticOnMs = 30000;
 inline constexpr uint32_t kExhaustedCooldownMs = 60000;
+inline constexpr uint32_t kGateRetryMs = 1000;
 inline constexpr uint32_t kHttpTimeoutMs = 10000;
 inline constexpr uint32_t kRequestDeadlineMs = 60000;
 inline constexpr uint32_t kAccessTokenLifetimeMs = 60U * 60U * 1000U;

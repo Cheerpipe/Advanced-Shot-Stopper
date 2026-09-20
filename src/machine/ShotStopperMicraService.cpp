@@ -278,6 +278,14 @@ LineaMicraObservedMode parseMode(const char *mode) {
   return LineaMicraObservedMode::UNSUPPORTED;
 }
 
+bool sameTemperatureRequest(const LineaMicraRequest &left,
+                            const LineaMicraRequest &right) {
+  return left.requestId == right.requestId &&
+         left.configGeneration == right.configGeneration &&
+         left.targetDeciC == right.targetDeciC &&
+         left.presetId == right.presetId && left.type == right.type;
+}
+
 }  // namespace
 
 struct ShotStopperMicraService::IoBuffer {
@@ -318,6 +326,7 @@ bool ShotStopperMicraService::begin() {
 
 void ShotStopperMicraService::publishConfig(
     const LineaMicraPersistedSettings &settings, uint32_t configGeneration) {
+  bool cancelTemperature = false;
   {
     TaskLockGuard lock(mux_);
     const bool configChanged =
@@ -330,6 +339,8 @@ void ShotStopperMicraService::publishConfig(
     if (identityChanged) {
       published_ = {};
       powerState_.reset();
+      desiredTemperature_ = {};
+      cancelTemperature = true;
     }
     published_.configGeneration = configGeneration;
     published_.accountConfigured = settings.accountConfigured;
@@ -340,8 +351,10 @@ void ShotStopperMicraService::publishConfig(
       powerState_.reset();
       wipeLineaMicraSettings(pending_.credentials);
       pending_.present = false;
+      desiredTemperature_ = {};
       published_.phase = LineaMicraPhase::Disabled;
       published_.quality = LineaMicraObservationQuality::UNCONFIGURED;
+      published_.temperatureState = LineaMicraTemperatureState::Disabled;
       nextAutomaticAtMs_ = 0;
     } else if (identityChanged ||
                published_.phase == LineaMicraPhase::Disabled) {
@@ -352,10 +365,26 @@ void ShotStopperMicraService::publishConfig(
     if ((settings.options & LINEA_MICRA_OBSERVE_STATE) == 0) {
       powerState_.reset();
     }
+    if ((settings.options & LINEA_MICRA_APPLY_TEMPERATURE) == 0) {
+      desiredTemperature_ = {};
+      published_.temperatureState = LineaMicraTemperatureState::Disabled;
+      published_.temperatureError = LineaMicraError::NONE;
+      cancelTemperature = true;
+    } else if (settings.accountConfigured &&
+               published_.temperatureState ==
+                   LineaMicraTemperatureState::Disabled) {
+      published_.temperatureState = LineaMicraTemperatureState::IDLE;
+    }
   }
-  if (!settings.accountConfigured ||
-      (settings.options & LINEA_MICRA_OBSERVE_STATE) == 0) {
+  const bool cloudDisabled =
+      !settings.accountConfigured ||
+      (settings.options & (LINEA_MICRA_APPLY_TEMPERATURE |
+                           LINEA_MICRA_OBSERVE_STATE)) == 0;
+  if (cloudDisabled) {
     clearSessionRequested_.store(true, std::memory_order_release);
+    abortRequested_.store(true, std::memory_order_release);
+  } else if (cancelTemperature &&
+             temperatureActive_.load(std::memory_order_acquire)) {
     abortRequested_.store(true, std::memory_order_release);
   }
   if (task_ != nullptr) xTaskNotifyGive(task_);
@@ -363,16 +392,20 @@ void ShotStopperMicraService::publishConfig(
 
 void ShotStopperMicraService::publishNetworkState(bool staConnected,
                                                   bool apActive,
-                                                  bool shotActive) {
+                                                  bool shotActive,
+                                                  bool scaleConnecting) {
   const bool wasSta = staConnected_.exchange(staConnected,
                                               std::memory_order_acq_rel);
   const bool wasAp = apActive_.exchange(apActive, std::memory_order_acq_rel);
   const bool wasActive = shotActive_.exchange(shotActive,
                                                std::memory_order_acq_rel);
-  const bool wasEligible = wasSta && !wasAp && !wasActive;
-  const bool eligible = staConnected && !apActive && !shotActive;
+  const bool wasScale = scaleConnecting_.exchange(
+      scaleConnecting, std::memory_order_acq_rel);
+  const bool wasEligible = wasSta && !wasAp && !wasActive && !wasScale;
+  const bool eligible =
+      staConnected && !apActive && !shotActive && !scaleConnecting;
   if ((!staConnected && wasSta) || (apActive && !wasAp) ||
-      (shotActive && !wasActive)) {
+      (shotActive && !wasActive) || (scaleConnecting && !wasScale)) {
     abortRequested_.store(true, std::memory_order_release);
     if (!staConnected || apActive) {
       clearSessionRequested_.store(true, std::memory_order_release);
@@ -384,6 +417,9 @@ void ShotStopperMicraService::publishNetworkState(bool staConnected,
       if (config_.accountConfigured &&
           (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0) {
         nextAutomaticAtMs_ = millis();
+      }
+      if (desiredTemperature_.present) {
+        desiredTemperature_.retryAtMs = millis();
       }
     }
   }
@@ -426,6 +462,33 @@ bool ShotStopperMicraService::queueConnect(uint32_t requestId,
 
 bool ShotStopperMicraService::queue(const LineaMicraRequest &request) {
   TaskLockGuard lock(mux_);
+  if (request.type == LineaMicraRequestType::APPLY_TEMPERATURE) {
+    if (task_ == nullptr || !config_.accountConfigured ||
+        (config_.options & LINEA_MICRA_APPLY_TEMPERATURE) == 0 ||
+        request.presetId == 0 ||
+        request.targetDeciC < LINEA_MICRA_BREW_TARGET_MIN_DECI_C ||
+        request.targetDeciC > LINEA_MICRA_BREW_TARGET_MAX_DECI_C) {
+      return false;
+    }
+    if (desiredTemperature_.present &&
+        static_cast<int32_t>(request.configGeneration -
+                             desiredTemperature_.request.configGeneration) < 0) {
+      return true;
+    }
+    desiredTemperature_.request = request;
+    desiredTemperature_.request.requestId = nextAutomaticRequestId_++;
+    desiredTemperature_.machineConfigGeneration = configGeneration_;
+    desiredTemperature_.retryAtMs = millis();
+    desiredTemperature_.present = true;
+    published_.requestedTargetDeciC = request.targetDeciC;
+    published_.temperatureState = LineaMicraTemperatureState::PENDING;
+    published_.temperatureError = LineaMicraError::NONE;
+    if (temperatureActive_.load(std::memory_order_acquire)) {
+      abortRequested_.store(true, std::memory_order_release);
+    }
+    xTaskNotifyGive(task_);
+    return true;
+  }
   if (pending_.present || active_ || task_ == nullptr ||
       request.type != LineaMicraRequestType::OBSERVE_STATE) {
     return false;
@@ -478,6 +541,7 @@ LineaMicraStatus ShotStopperMicraService::status() const {
   result.staConnected = staConnected_.load(std::memory_order_acquire);
   result.apActive = apActive_.load(std::memory_order_acquire);
   result.shotPaused = shotActive_.load(std::memory_order_acquire);
+  result.scalePaused = scaleConnecting_.load(std::memory_order_acquire);
   return result;
 }
 
@@ -517,6 +581,8 @@ void ShotStopperMicraService::taskLoop() {
     }
     PendingRequest pending;
     bool haveRequest = false;
+    bool haveTemperature = false;
+    uint32_t temperatureMachineConfigGeneration = 0;
     const uint32_t now = millis();
     const bool staEligible =
         staConnected_.load(std::memory_order_acquire) &&
@@ -529,6 +595,17 @@ void ShotStopperMicraService::taskLoop() {
         pending_.present = false;
         active_ = true;
         haveRequest = true;
+      } else if (staEligible && !shotActive_.load(std::memory_order_acquire) &&
+                 !scaleConnecting_.load(std::memory_order_acquire) &&
+                 desiredTemperature_.present &&
+                 static_cast<int32_t>(now - desiredTemperature_.retryAtMs) >= 0) {
+        pending.request = desiredTemperature_.request;
+        temperatureMachineConfigGeneration =
+            desiredTemperature_.machineConfigGeneration;
+        active_ = true;
+        haveRequest = true;
+        haveTemperature = true;
+        temperatureActive_.store(true, std::memory_order_release);
       } else if (staEligible && config_.accountConfigured &&
                  (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0 &&
                  !shotActive_.load(std::memory_order_acquire) &&
@@ -541,7 +618,14 @@ void ShotStopperMicraService::taskLoop() {
       }
     }
     if (haveRequest) {
-      execute(pending);
+      if (haveTemperature) {
+        abortRequested_.store(false, std::memory_order_release);
+        executeTemperatureApplication(pending.request,
+                                      temperatureMachineConfigGeneration);
+        temperatureActive_.store(false, std::memory_order_release);
+      } else {
+        execute(pending);
+      }
       wipeLineaMicraSettings(pending.credentials);
       TaskLockGuard lock(mux_);
       active_ = false;
@@ -567,6 +651,17 @@ bool ShotStopperMicraService::networkEligible(LineaMicraError &error) const {
     return false;
   }
   error = LineaMicraError::NONE;
+  return true;
+}
+
+bool ShotStopperMicraService::temperatureEligible(
+    LineaMicraError &error) const {
+  if (!networkEligible(error)) return false;
+  if (shotActive_.load(std::memory_order_acquire) ||
+      scaleConnecting_.load(std::memory_order_acquire)) {
+    error = LineaMicraError::CANCELED;
+    return false;
+  }
   return true;
 }
 
@@ -608,6 +703,138 @@ void ShotStopperMicraService::execute(PendingRequest &pending) {
                                   : executeObservation(pending);
   if (!success) scheduleAutomatic(millis(), true);
   if (connecting) releaseWorkBuffer();
+}
+
+bool ShotStopperMicraService::temperatureRequestCurrent(
+    const LineaMicraRequest &request,
+    uint32_t machineConfigGeneration) const {
+  TaskLockGuard lock(mux_);
+  return desiredTemperature_.present &&
+         desiredTemperature_.machineConfigGeneration ==
+             machineConfigGeneration &&
+         sameTemperatureRequest(desiredTemperature_.request, request) &&
+         configGeneration_ == machineConfigGeneration &&
+         config_.accountConfigured &&
+         (config_.options & LINEA_MICRA_APPLY_TEMPERATURE) != 0;
+}
+
+void ShotStopperMicraService::deferTemperature(
+    const LineaMicraRequest &request, uint32_t machineConfigGeneration,
+    LineaMicraError error, uint32_t delayMs) {
+  TaskLockGuard lock(mux_);
+  if (!desiredTemperature_.present ||
+      desiredTemperature_.machineConfigGeneration !=
+          machineConfigGeneration ||
+      !sameTemperatureRequest(desiredTemperature_.request, request)) {
+    return;
+  }
+  desiredTemperature_.retryAtMs = millis() + delayMs;
+  published_.temperatureState = error == LineaMicraError::CANCELED
+                                    ? LineaMicraTemperatureState::CANCELED
+                                    : LineaMicraTemperatureState::FAILED;
+  published_.temperatureError = error;
+}
+
+bool ShotStopperMicraService::executeTemperatureApplication(
+    const LineaMicraRequest &request,
+    uint32_t machineConfigGeneration) {
+  LineaMicraPersistedSettings settings;
+  {
+    TaskLockGuard lock(mux_);
+    if (!desiredTemperature_.present ||
+        desiredTemperature_.machineConfigGeneration !=
+            machineConfigGeneration ||
+        !sameTemperatureRequest(desiredTemperature_.request, request) ||
+        configGeneration_ != machineConfigGeneration) {
+      return true;
+    }
+    settings = config_;
+    published_.requestId = request.requestId;
+    published_.requestedTargetDeciC = request.targetDeciC;
+    published_.temperatureState = LineaMicraTemperatureState::RUNNING;
+    published_.temperatureError = LineaMicraError::NONE;
+  }
+  if (!ensureWorkBuffer()) {
+    wipeLineaMicraSettings(settings);
+    deferTemperature(request, machineConfigGeneration,
+                     LineaMicraError::HTTP_ERROR,
+                     micra_timing::kExhaustedCooldownMs);
+    return false;
+  }
+
+  for (size_t attempt = 0; attempt < micra_timing::kMaxAttempts; ++attempt) {
+    LineaMicraError gateError = LineaMicraError::NONE;
+    if (!temperatureRequestCurrent(request, machineConfigGeneration)) {
+      wipeLineaMicraSettings(settings);
+      return true;
+    }
+    if (!temperatureEligible(gateError)) {
+      wipeLineaMicraSettings(settings);
+      deferTemperature(request, machineConfigGeneration, gateError,
+                       gateError == LineaMicraError::CANCELED
+                           ? micra_timing::kGateRetryMs
+                           : micra_timing::kExhaustedCooldownMs);
+      return false;
+    }
+
+    LineaMicraStatus verification;
+    {
+      TaskLockGuard lock(mux_);
+      verification = published_;
+    }
+    const bool success = ensureSession(settings, false) &&
+                         temperatureRequestCurrent(
+                             request, machineConfigGeneration) &&
+                         writeTemperature(settings, request.targetDeciC) &&
+                         temperatureRequestCurrent(
+                             request, machineConfigGeneration) &&
+                         readDashboard(settings, verification) &&
+                         verification.targetValid &&
+                         verification.targetDeciC == request.targetDeciC;
+    if (success) {
+      wipeLineaMicraSettings(settings);
+      TaskLockGuard lock(mux_);
+      if (desiredTemperature_.present &&
+          desiredTemperature_.machineConfigGeneration ==
+              machineConfigGeneration &&
+          sameTemperatureRequest(desiredTemperature_.request, request)) {
+        desiredTemperature_ = {};
+        published_.targetValid = true;
+        published_.targetDeciC = request.targetDeciC;
+        published_.temperatureAtMs = millis();
+        published_.appliedTargetDeciC = request.targetDeciC;
+        published_.temperatureState = LineaMicraTemperatureState::CONFIRMED;
+        published_.temperatureError = LineaMicraError::NONE;
+      }
+      return true;
+    }
+
+    if (!temperatureRequestCurrent(request, machineConfigGeneration)) {
+      wipeLineaMicraSettings(settings);
+      return true;
+    }
+    if (!temperatureEligible(gateError)) {
+      wipeLineaMicraSettings(settings);
+      deferTemperature(request, machineConfigGeneration, gateError,
+                       micra_timing::kGateRetryMs);
+      return false;
+    }
+    if (work_->httpStatus == 401) {
+      secureWipe(work_->accessToken, sizeof(work_->accessToken));
+      work_->accessTokenIssuedAtMs = 0;
+    }
+    if (attempt + 1U >= micra_timing::kMaxAttempts) break;
+    (void)ulTaskNotifyTake(
+        pdTRUE, pdMS_TO_TICKS(micra_timing::kRetryDelaysMs[attempt]));
+  }
+
+  wipeLineaMicraSettings(settings);
+  const LineaMicraError error =
+      work_->httpStatus == 401 ? LineaMicraError::INVALID_AUTH
+                               : LineaMicraError::HTTP_ERROR;
+  deferTemperature(request, machineConfigGeneration, error,
+                   micra_timing::kExhaustedCooldownMs);
+  return false;
 }
 
 bool ShotStopperMicraService::executeConnect(PendingRequest &pending) {
@@ -829,9 +1056,9 @@ bool ShotStopperMicraService::ensureSession(
   const uint32_t age = millis() - work_->accessTokenIssuedAtMs;
   if (work_->accessToken[0] != '\0' &&
       !micra_timing::accessTokenRefreshDue(age)) return true;
-  const bool ok = work_->accessToken[0] == '\0'
-                      ? signIn(settings)
-                      : refreshToken(settings) || signIn(settings);
+  const bool ok = work_->refreshToken[0] != '\0'
+                      ? refreshToken(settings) || signIn(settings)
+                      : signIn(settings);
   if (ok && renewed != nullptr) *renewed = true;
   return ok;
 }
@@ -1023,6 +1250,29 @@ bool ShotStopperMicraService::readDashboard(
   return true;
 }
 
+bool ShotStopperMicraService::writeTemperature(
+    const LineaMicraPersistedSettings &settings, uint16_t targetDeciC) {
+  if (!ensureIoBuffer()) return false;
+  char url[sizeof(kApiRoot) + LINEA_MICRA_SERIAL_CAPACITY + 80];
+  const int urlLength = snprintf(
+      url, sizeof(url),
+      "%s/things/%s/command/"
+      "CoffeeMachineSettingCoffeeBoilerTargetTemperature",
+      kApiRoot, settings.selectedSerial);
+  const int bodyLength = snprintf(
+      io_->body, sizeof(io_->body),
+      "{\"boilerIndex\":1,\"targetTemperature\":%u.%u}",
+      static_cast<unsigned>(targetDeciC / 10U),
+      static_cast<unsigned>(targetDeciC % 10U));
+  const bool ok = urlLength > 0 &&
+                  static_cast<size_t>(urlLength) < sizeof(url) &&
+                  bodyLength > 0 &&
+                  static_cast<size_t>(bodyLength) < sizeof(io_->body) &&
+                  request(settings, url, HTTP_METHOD_POST, io_->body, true);
+  releaseIoBuffer();
+  return ok;
+}
+
 bool ShotStopperMicraService::applySignedHeaders(
     const LineaMicraPersistedSettings &settings) {
   char id[37];
@@ -1192,6 +1442,7 @@ bool ShotStopperMicraService::request(
   LineaMicraError gateError = LineaMicraError::NONE;
   if (!networkEligible(gateError) ||
       shotActive_.load(std::memory_order_acquire) ||
+      scaleConnecting_.load(std::memory_order_acquire) ||
       abortRequested_.exchange(false, std::memory_order_acq_rel)) {
     TaskLockGuard lock(clientMux_);
     activeClient_ = nullptr;

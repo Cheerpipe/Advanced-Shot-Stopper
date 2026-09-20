@@ -28,6 +28,16 @@ int main() {
   wipeLineaMicraSettings(settings);
   for (uint8_t byte : settings.installationPrivateKey) assert(byte == 0);
   assert(sizeof(LineaMicraRequest) <= 16);
+  LineaMicraRequest temperatureRequest;
+  temperatureRequest.type = LineaMicraRequestType::APPLY_TEMPERATURE;
+  temperatureRequest.configGeneration = 7;
+  temperatureRequest.presetId = 2;
+  temperatureRequest.targetDeciC = 935;
+  assert(temperatureRequest.type == LineaMicraRequestType::APPLY_TEMPERATURE);
+  assert(temperatureRequest.targetDeciC == 935);
+  assert(std::strcmp(lineaMicraTemperatureStateName(
+                         LineaMicraTemperatureState::PENDING),
+                     "pending") == 0);
   assert(lineaMicraPowerStateForMode(LineaMicraObservedMode::STANDBY) ==
          LineaMicraPowerState::OFF);
   assert(lineaMicraPowerStateForMode(LineaMicraObservedMode::BREWING) ==

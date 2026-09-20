@@ -117,9 +117,28 @@ recognition is inactive until monitoring produces a fresh OFF observation.
 duplicates copy the source value. Turning the option off or disconnecting the
 account keeps every saved preset value.
 
-The current read-only feature stores these values and reports the selected
-machine's target temperature, but it does not yet apply preset temperatures to
-the machine. Use the La Marzocco app to change the boiler target.
+When a preset becomes active, Shot Stopper sends its saved target to the
+selected Micra. Saving an already-active preset also sends the target when the
+temperature changed. A newly connected scale sends the current active target
+again, which covers sessions where the machine or controller was unavailable
+when the preset was selected. Repeated triggers are combined, and only the
+latest active target remains pending.
+
+Application waits while a shot or rinse is active and while the scale is
+connecting. Either event cancels an in-progress cloud request without affecting
+the relay, BLE connection, or local shot control; the latest target remains
+pending and is retried after activity ends. Temporary cloud and authorization
+failures use the same bounded retries and saved account session as power-state
+monitoring. The integration never asks for credentials or registers a new
+installation merely to retry a temperature.
+
+The cloud command is complete only after a dashboard read reports the requested
+target. Status and diagnostics distinguish a pending, running, confirmed,
+canceled, or failed application from the Micra's last reported target. A failure
+remains retryable. Turning this option off, disconnecting the account, losing
+station Wi-Fi, or entering setup AP mode prevents writes; saved preset values
+remain unchanged. Temperature application does not require **Monitor machine
+power state** to be enabled.
 
 Factory reset removes the Micra cloud account, selected machine, installation
 key, and RAM session. The three Micra options return to their checked defaults,

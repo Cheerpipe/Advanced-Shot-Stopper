@@ -175,6 +175,10 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   hostMachinePhysicalStartDisposition =
       MachinePhysicalStartDisposition::NORMAL;
   hostMachinePhysicalStartCount = 0;
+  hostMachineTemperatureRequestCount = 0;
+  hostMachineTemperaturePresetId = 0;
+  hostMachineTemperatureGeneration = 0;
+  hostMachineTemperatureTargetDeciC = 0;
   debugLog.clear();
   serialLogLevel = LogLevel::NONE;
   ringRetainLogLevel = LogLevel::INFO;
@@ -4291,6 +4295,10 @@ void f01_link_side_effects_run_only_on_control() {
   processScaleLinkTransitions();
   CHECK(localBuzzer.acceptedRequests == beforeConnect + 1);
   CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(hostMachineTemperatureRequestCount == 1);
+  CHECK(hostMachineTemperaturePresetId == presetBank.activeId);
+  CHECK(hostMachineTemperatureTargetDeciC ==
+        activeShotPreset(presetBank).lineaMicraBrewTargetDeciC);
 
   const uint32_t beforeDisconnect = localBuzzer.acceptedRequests;
   scale.connected = false;
@@ -4316,8 +4324,10 @@ void f01_link_side_effects_run_only_on_control() {
   updateWorkerLinkState();
   processScaleLinkTransitions();
   CHECK(localBuzzer.acceptedRequests == beforeCoalesced + 2);
+  CHECK(hostMachineTemperatureRequestCount == 3);
   processScaleLinkTransitions();
   CHECK(localBuzzer.acceptedRequests == beforeCoalesced + 2);
+  CHECK(hostMachineTemperatureRequestCount == 3);
 
   scale.bleDiagnostics.commandFailureSequence = 1;
   scale.bleDiagnostics.commandStatus = 15;
@@ -10182,6 +10192,11 @@ void w91_preset_persistence_serializes_and_survives_retry() {
   CHECK(pendingPresetPersistence.revision == runtimeConfig.revision);
   CHECK(hostPresetWebhookCount == 0);
   CHECK(hostQuickSettingsWebhookCount == 0);
+  CHECK(hostMachineTemperatureRequestCount == 1);
+  CHECK(hostMachineTemperaturePresetId == FACTORY_PRESET_ID_SINGLE);
+  CHECK(hostMachineTemperatureGeneration == runtimeConfig.revision);
+  CHECK(hostMachineTemperatureTargetDeciC ==
+        activeShotPreset(presetBank).lineaMicraBrewTargetDeciC);
 
   WebCommand competing = first;
   competing.requestId = 92;
@@ -10220,6 +10235,7 @@ void w90c_preset_temperature_presence_and_learning_invalidation() {
   save.config = runtimeConfig;
   processWebCommand(save);
   CHECK(preset.lineaMicraBrewTargetDeciC == 930);
+  CHECK(hostMachineTemperatureRequestCount == 0);
   runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
 
   auto &learning = bbwLearningBank.forPreset(preset.id, presetBank);
@@ -10229,6 +10245,10 @@ void w90c_preset_temperature_presence_and_learning_invalidation() {
   save.lineaMicraBrewTargetDeciC = 945;
   processWebCommand(save);
   CHECK(preset.lineaMicraBrewTargetDeciC == 945);
+  CHECK(hostMachineTemperatureRequestCount == 1);
+  CHECK(hostMachineTemperaturePresetId == preset.id);
+  CHECK(hostMachineTemperatureGeneration == runtimeConfig.revision);
+  CHECK(hostMachineTemperatureTargetDeciC == 945);
   CHECK(learning.generations[preset.bbwAlgorithm] != generation);
   runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
 
@@ -10238,6 +10258,7 @@ void w90c_preset_temperature_presence_and_learning_invalidation() {
   CHECK(preset.lineaMicraBrewTargetDeciC == 945);
   CHECK(hostLastForwardedNetworkCommand.resultState ==
         CommandResultState::FAILED);
+  CHECK(hostMachineTemperatureRequestCount == 1);
 }
 
 void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {

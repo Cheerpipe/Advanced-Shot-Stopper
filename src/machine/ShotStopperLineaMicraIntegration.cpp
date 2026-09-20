@@ -19,8 +19,20 @@ void publishMachineIntegrationConfig(const PersistedSettings &settings,
 }
 
 void publishMachineIntegrationNetworkState(bool staConnected, bool apActive,
-                                           bool shotActive) {
-  service.publishNetworkState(staConnected, apActive, shotActive);
+                                           bool shotActive,
+                                           bool scaleConnecting) {
+  service.publishNetworkState(staConnected, apActive, shotActive,
+                              scaleConnecting);
+}
+
+void requestMachineIntegrationPresetTemperature(
+    uint8_t presetId, uint32_t configGeneration, uint16_t targetDeciC) {
+  LineaMicraRequest request;
+  request.configGeneration = configGeneration;
+  request.targetDeciC = targetDeciC;
+  request.presetId = presetId;
+  request.type = LineaMicraRequestType::APPLY_TEMPERATURE;
+  service.queue(request);
 }
 
 void serviceMachineIntegrationAbort() { service.serviceAbort(); }

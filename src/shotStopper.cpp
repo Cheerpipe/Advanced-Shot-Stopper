@@ -1419,6 +1419,12 @@ void publishRecipeState() {
   publishedPresetBank = presetBank;
 }
 
+void requestActivePresetMachineTemperature() {
+  const ShotPreset &preset = activeShotPreset(presetBank);
+  requestMachineIntegrationPresetTemperature(
+      preset.id, runtimeConfig.revision, preset.lineaMicraBrewTargetDeciC);
+}
+
 void copyRecipeSnapshot(RecipeSnapshot *out) {
   if (out == nullptr) {
     return;

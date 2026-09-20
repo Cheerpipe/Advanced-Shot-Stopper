@@ -443,6 +443,13 @@ void processWebCommand(const WebCommand &command) {
         candidate.revision = 1;
       }
       commitLiveRuntimeConfig(candidate, RUNTIME_PERSIST_REASON_USER);
+      const ShotPreset &beforeActive = activeShotPreset(quickBefore.presets);
+      const ShotPreset &afterActive = activeShotPreset(presetBank);
+      if (beforeActive.id != afterActive.id ||
+          beforeActive.lineaMicraBrewTargetDeciC !=
+              afterActive.lineaMicraBrewTargetDeciC) {
+        requestActivePresetMachineTemperature();
+      }
       RecipeSnapshot quickAfter;
       quickAfter.presets = presetBank;
       quickAfter.runtime = runtimeConfig;

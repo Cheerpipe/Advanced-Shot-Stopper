@@ -9,7 +9,11 @@ namespace shotstopper {
 
 constexpr size_t LINEA_MICRA_MAX_ACCOUNT_MACHINES = 8;
 
-enum class LineaMicraRequestType : uint8_t { CONNECT, OBSERVE_STATE };
+enum class LineaMicraRequestType : uint8_t {
+  CONNECT,
+  OBSERVE_STATE,
+  APPLY_TEMPERATURE
+};
 enum class LineaMicraPowerState : uint8_t { UNKNOWN, ON, OFF };
 enum class LineaMicraObservedMode : uint8_t {
   NONE,
@@ -47,6 +51,15 @@ enum class LineaMicraError : uint8_t {
   INVALID_AUTH,
   NO_MACHINES,
   HTTP_ERROR,
+  CANCELED
+};
+enum class LineaMicraTemperatureState : uint8_t {
+  Disabled,
+  IDLE,
+  PENDING,
+  RUNNING,
+  CONFIRMED,
+  FAILED,
   CANCELED
 };
 
@@ -124,9 +137,25 @@ inline const char *lineaMicraErrorName(LineaMicraError error) {
   return "unknown";
 }
 
+inline const char *lineaMicraTemperatureStateName(
+    LineaMicraTemperatureState state) {
+  switch (state) {
+    case LineaMicraTemperatureState::Disabled: return "disabled";
+    case LineaMicraTemperatureState::IDLE: return "idle";
+    case LineaMicraTemperatureState::PENDING: return "pending";
+    case LineaMicraTemperatureState::RUNNING: return "running";
+    case LineaMicraTemperatureState::CONFIRMED: return "confirmed";
+    case LineaMicraTemperatureState::FAILED: return "failed";
+    case LineaMicraTemperatureState::CANCELED: return "canceled";
+  }
+  return "disabled";
+}
+
 struct LineaMicraRequest {
   uint32_t requestId = 0;
   uint32_t configGeneration = 0;
+  uint16_t targetDeciC = 0;
+  uint8_t presetId = 0;
   LineaMicraRequestType type = LineaMicraRequestType::OBSERVE_STATE;
 };
 
@@ -148,6 +177,8 @@ struct LineaMicraStatus {
   uint32_t temperatureAtMs = 0;
   uint32_t configGeneration = 0;
   uint16_t targetDeciC = 0;
+  uint16_t requestedTargetDeciC = 0;
+  uint16_t appliedTargetDeciC = 0;
   int32_t transportStatus = 0;
   uint16_t httpStatus = 0;
   LineaMicraPhase phase = LineaMicraPhase::Disabled;
@@ -155,18 +186,22 @@ struct LineaMicraStatus {
   LineaMicraPowerState powerState = LineaMicraPowerState::UNKNOWN;
   LineaMicraObservedMode observedMode = LineaMicraObservedMode::NONE;
   LineaMicraObservationQuality quality = LineaMicraObservationQuality::Disabled;
+  LineaMicraTemperatureState temperatureState =
+      LineaMicraTemperatureState::Disabled;
+  LineaMicraError temperatureError = LineaMicraError::NONE;
   bool effectiveOn = true;
   bool targetValid = false;
   bool accountConfigured = false;
   bool staConnected = false;
   bool apActive = false;
   bool shotPaused = false;
+  bool scalePaused = false;
   bool optimisticOn = false;
 };
 
 static_assert(sizeof(LineaMicraRequest) <= 16,
               "Linea Micra request must stay compact");
-static_assert(sizeof(LineaMicraStatus) <= 40,
+static_assert(sizeof(LineaMicraStatus) <= 56,
               "Linea Micra status must stay compact");
 static_assert(std::is_trivially_copyable<LineaMicraRequest>::value);
 static_assert(std::is_trivially_copyable<LineaMicraStatus>::value);

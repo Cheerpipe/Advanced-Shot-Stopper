@@ -344,6 +344,7 @@ void processScaleLinkTransitions() {
       link.disconnectSequence != handledScaleDisconnectSequence;
 
   auto handleConnected = [&]() {
+    requestActivePresetMachineTemperature();
     if (runtimeConfig.buzzerScaleConnectedBeep) {
       emitAlert(AlertEvent::SCALE_CONNECTED);
     }

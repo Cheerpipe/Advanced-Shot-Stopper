@@ -517,7 +517,8 @@ void ShotStopperNetwork::service() {
       networkSnapshot.wifiConfigured && networkSnapshot.staIp[0] != '\0';
   publishMachineIntegrationNetworkState(
       staConnected, networkSnapshot.apActive,
-      controlCriticalRfActive_.load(std::memory_order_acquire));
+      controlCriticalRfActive_.load(std::memory_order_acquire),
+      scaleConnecting_.load(std::memory_order_acquire));
   serviceNtp(now, staConnected);
 
   const uint8_t apClients = networkSnapshot.apActive

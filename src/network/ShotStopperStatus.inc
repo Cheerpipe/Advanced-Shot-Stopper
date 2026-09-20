@@ -492,7 +492,10 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"optimisticOn\":%s,"
         "\"sampleValid\":%s,\"sampleAgeMs\":%lu,\"freshnessMs\":%lu,"
         "\"pollIntervalMs\":%lu,\"targetValid\":%s,\"targetDeciC\":%u,"
+        "\"temperatureState\":\"%s\",\"temperatureError\":\"%s\","
+        "\"requestedTargetDeciC\":%u,\"appliedTargetDeciC\":%u,"
         "\"staConnected\":%s,\"apActive\":%s,\"shotPaused\":%s,"
+        "\"scalePaused\":%s,"
         "\"httpStatus\":%u,\"transportStatus\":%ld,\"machines\":[",
         micraAccountConfigured ? "true" : "false",
         page == StatusPage::Settings ? safeMicraUsername : "",
@@ -517,9 +520,14 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(micra_timing::kStatePollMs),
         micraStatus.targetValid ? "true" : "false",
         static_cast<unsigned>(micraStatus.targetDeciC),
+        lineaMicraTemperatureStateName(micraStatus.temperatureState),
+        lineaMicraErrorName(micraStatus.temperatureError),
+        static_cast<unsigned>(micraStatus.requestedTargetDeciC),
+        static_cast<unsigned>(micraStatus.appliedTargetDeciC),
         micraStatus.staConnected ? "true" : "false",
         micraStatus.apActive ? "true" : "false",
         micraStatus.shotPaused ? "true" : "false",
+        micraStatus.scalePaused ? "true" : "false",
         static_cast<unsigned>(micraStatus.httpStatus),
         static_cast<long>(micraStatus.transportStatus));
     for (uint8_t index = 0; ok && index < micraDiscovery.count; ++index) {

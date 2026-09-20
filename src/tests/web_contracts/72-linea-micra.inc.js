@@ -4,6 +4,16 @@ const micraStatus = fs.readFileSync(
     path.join(sketchDir, 'network/ShotStopperStatus.inc'), 'utf8');
 const micraService = fs.readFileSync(
     path.join(sketchDir, 'machine/ShotStopperMicraService.cpp'), 'utf8');
+const micraTypes = fs.readFileSync(
+    path.join(sketchDir, 'machine/ShotStopperLineaMicraTypes.h'), 'utf8');
+const machineIntegration = fs.readFileSync(
+    path.join(sketchDir, 'machine/ShotStopperLineaMicraIntegration.cpp'), 'utf8');
+const controlCommands = fs.readFileSync(
+    path.join(sketchDir, 'control/ShotStopperCommands.inc'), 'utf8');
+const scaleEvents = fs.readFileSync(
+    path.join(sketchDir, 'scale/ShotStopperScaleEvents.inc'), 'utf8');
+const networkService = fs.readFileSync(
+    path.join(sketchDir, 'network/ShotStopperNetworkService.inc'), 'utf8');
 const micraSettingsHtml = rawPartialHtml.settings;
 const micraDiagnosticHtml = rawPartialHtml.diagnostic;
 
@@ -31,6 +41,21 @@ if (micraStatusFailures.length) {
 }
 if (!micraService.includes('config.save_client_session = true')) {
   throw new Error('Linea Micra cloud client must save TLS sessions for reuse');
+}
+if (!micraTypes.includes('APPLY_TEMPERATURE') ||
+    !machineIntegration.includes('requestMachineIntegrationPresetTemperature') ||
+    !controlCommands.includes('requestActivePresetMachineTemperature()') ||
+    !scaleEvents.includes('requestActivePresetMachineTemperature()') ||
+    !networkService.includes('scaleConnecting_.load(std::memory_order_acquire)') ||
+    !micraService.includes('CoffeeMachineSettingCoffeeBoilerTargetTemperature') ||
+    !micraService.includes('{\\\"boilerIndex\\\":1,\\\"targetTemperature\\\":%u.%u}') ||
+    !micraService.includes('verification.targetDeciC == request.targetDeciC') ||
+    !micraService.includes('refreshToken(settings) || signIn(settings)') ||
+    !micraStatus.includes('\\\"temperatureState\\\"') ||
+    !micraStatus.includes('\\\"requestedTargetDeciC\\\"') ||
+    !micraStatus.includes('\\\"appliedTargetDeciC\\\"') ||
+    !micraStatus.includes('\\\"scalePaused\\\"')) {
+  throw new Error('Linea Micra preset temperature must coalesce, gate on scale/shot activity, reuse authentication, and confirm dashboard readback');
 }
 for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
   'lineaMicraConnectButton', 'lineaMicraMachine', 'lineaMicraSelectButton',
@@ -69,6 +94,7 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes("$('lineaMicraRecognizeWake').disabled=!canEdit||!connected") ||
     !rawRuntimeJs.includes("$('lineaMicraDisconnectButton').disabled=!canEdit||(!connected&&!machines.length)") ||
     !rawRuntimeJs.includes("$('dMicraPowerValue').textContent=power") ||
+    !rawRuntimeJs.includes("m.temperatureState&&m.temperatureState!=='disabled'") ||
     !rawRuntimeJs.includes("refresh.setAttribute('aria-disabled',String(disabled))") ||
     !rawRuntimeJs.includes("expired?'UNKNOWN':lm.powerState") ||
     !rawRuntimeJs.includes('expired=!lm.optimisticOn&&lm.sampleValid&&age>=lm.freshnessMs') ||
