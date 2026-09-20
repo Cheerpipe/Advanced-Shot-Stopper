@@ -64,11 +64,11 @@ legend .hint{font-weight:400;font-size:.8125rem;color:var(--mu)}
 label{display:block;margin:.75rem 0;font-size:.875rem;font-weight:600;line-height:1.35}
 input,select,textarea,button{font:inherit;padding:.65rem .75rem;line-height:1.25}
 button{-webkit-appearance:none;appearance:none;border-radius:2rem}
-input:is([type=number],[type=text],[type=password],[type=url]),select,textarea{display:block;width:100%;margin-top:.35rem;border:1px solid var(--bd);border-radius:.5rem;background:var(--in);color:var(--fg);font-size:1rem;font-weight:400}
-input:is([type=number],[type=text],[type=password],[type=url]),select{min-height:3rem}textarea{resize:vertical}
+input:not([type=file],[type=checkbox]),select,textarea{display:block;width:100%;margin-top:.35rem;border:1px solid var(--bd);border-radius:.5rem;background:var(--in);color:var(--fg);font-size:1rem;font-weight:400}
+input:not([type=file],[type=checkbox]),select{min-height:3rem}textarea{resize:vertical}
 input[type=file]{display:block;width:100%;margin-top:.35rem;padding:.25rem;border:1px solid var(--bd);border-radius:.5rem;background:var(--in);color:var(--mu);font-weight:400}
 input[type=file]::file-selector-button{min-height:2.5rem;margin-right:.65rem;padding:.5rem .75rem;border:0;border-right:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-weight:650;cursor:pointer}
-input[type=text],input[type=password],input[type=url]{-webkit-appearance:none;appearance:none}
+input[type=text],input[type=email],input[type=password],input[type=url]{-webkit-appearance:none;appearance:none}
 select{-webkit-appearance:none;appearance:none;padding-right:1.85rem;background-image:linear-gradient(45deg,transparent 50%,var(--mu) 50%),linear-gradient(135deg,var(--mu) 50%,transparent 50%);background-position:calc(100% - 1.05rem) calc(50% - .12rem),calc(100% - .7rem) calc(50% - .12rem);background-size:.4rem .4rem,.4rem .4rem;background-repeat:no-repeat}
 ::placeholder{color:var(--mu);opacity:1}
 input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus{-webkit-text-fill-color:var(--fg);caret-color:var(--fg);-webkit-box-shadow:0 0 0 3rem var(--in) inset}
@@ -94,8 +94,8 @@ label:has(>input[type=checkbox]) .fieldHint{margin-left:1.9rem}
 .stateActive,#machineStateValue.stateActive{color:var(--ac);font-weight:700}
 .stateFault,#machineStateValue.stateFault{color:var(--dn);font-weight:700}
 #machineStateValue .switchOnly,#machineStateValue a{font-size:.78rem;font-weight:400}
-#machineStateValue a{color:inherit;text-decoration:underline;cursor:pointer}
-#machineStateValue a[aria-disabled=true]{pointer-events:none;cursor:default}
+.metric a{color:inherit;text-decoration:underline;cursor:pointer}
+.metric a[aria-disabled=true]{pointer-events:none}
 .error{color:var(--dn)}.ok{color:var(--ok)}.warn{color:var(--wn)}
 .hidden,[hidden]{display:none!important}.fieldOff{opacity:.45}
 html.momentaryMachine .paddleOnly,html:not(.reedMachine) .reedOnly,html:not(.momentaryMachine) .momentaryOnly,html.reedMachine .switchOnly,html:not(.momentaryMachine) .switchOnly{display:none}

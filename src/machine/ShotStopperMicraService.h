@@ -42,7 +42,8 @@ class ShotStopperMicraService {
   void execute(PendingRequest &pending);
   bool executeConnect(PendingRequest &pending);
   bool executeObservation(PendingRequest &pending);
-  bool ensureSession(LineaMicraPersistedSettings &settings, bool registerKey);
+  bool ensureSession(LineaMicraPersistedSettings &settings, bool registerKey,
+                     bool *renewed = nullptr);
   bool generateInstallationKey(LineaMicraPersistedSettings &settings);
   bool registerInstallation(const LineaMicraPersistedSettings &settings);
   bool signIn(const LineaMicraPersistedSettings &settings);

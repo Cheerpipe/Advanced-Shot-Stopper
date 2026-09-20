@@ -13,9 +13,16 @@ inline constexpr uint32_t kStateFreshnessMs = 30000;
 inline constexpr uint32_t kExhaustedCooldownMs = 60000;
 inline constexpr uint32_t kHttpTimeoutMs = 10000;
 inline constexpr uint32_t kRequestDeadlineMs = 60000;
+inline constexpr uint32_t kAccessTokenLifetimeMs = 60U * 60U * 1000U;
+inline constexpr uint32_t kAccessTokenRefreshAgeMs = 50U * 60U * 1000U;
+
+inline constexpr bool accessTokenRefreshDue(uint32_t ageMs) {
+  return ageMs >= kAccessTokenRefreshAgeMs;
+}
 
 static_assert(kRetryDelaysMs[0] < kRetryDelaysMs[1] &&
                   kRetryDelaysMs[1] < kRetryDelaysMs[2]);
 static_assert(kStatePollMs > 0 && kStateFreshnessMs >= kStatePollMs);
+static_assert(kAccessTokenRefreshAgeMs < kAccessTokenLifetimeMs);
 
 }  // namespace shotstopper::micra_timing

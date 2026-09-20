@@ -2,6 +2,8 @@ const micraWeb = fs.readFileSync(
     path.join(sketchDir, 'network/ShotStopperLineaMicraWeb.inc'), 'utf8');
 const micraStatus = fs.readFileSync(
     path.join(sketchDir, 'network/ShotStopperStatus.inc'), 'utf8');
+const micraService = fs.readFileSync(
+    path.join(sketchDir, 'machine/ShotStopperMicraService.cpp'), 'utf8');
 const micraSettingsHtml = rawPartialHtml.settings;
 const micraDiagnosticHtml = rawPartialHtml.diagnostic;
 
@@ -35,21 +37,32 @@ for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
     throw new Error(`Linea Micra settings control is missing: ${id}`);
   }
 }
-for (const id of ['dMicraPower', 'dMicraMode', 'dMicraQuality', 'dMicraAge',
-  'lineaMicraRefreshButton']) {
+for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
+  'dMicraQuality', 'dMicraAge', 'lineaMicraRefreshLink']) {
   if (!micraDiagnosticHtml.includes(`id="${id}"`)) {
     throw new Error(`Linea Micra diagnostic control is missing: ${id}`);
   }
 }
 if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
+    !rawCss.includes('[type=email]') ||
+    !micraDiagnosticHtml.includes('<span id="dMicraPowerValue">{{webui:diagnostic.unknown}}</span> - <a id="lineaMicraRefreshLink" href="#" aria-disabled="true" tabindex="-1">({{webui:diagnostic.refresh_state}})</a>') ||
+    micraDiagnosticHtml.includes('id="lineaMicraRefreshButton"') ||
+    !viewJs.diagnostic.includes("e.preventDefault();R.lineaMicraAction('refresh')") ||
     !rawRuntimeJs.includes("s.machineIntegration==='linea_micra_cloud'") ||
     !rawRuntimeJs.includes("{action:'connect',username,password}") ||
     !rawRuntimeJs.includes("{action:'select',serial") ||
     !rawRuntimeJs.includes("lineaMicraAction('disconnect')") ||
     !rawRuntimeJs.includes("['queued','authenticating','listing','running','backoff'].includes(m.phase)") ||
+    !rawRuntimeJs.includes("$('dMicraPowerValue').textContent=power") ||
+    !rawRuntimeJs.includes("refresh.setAttribute('aria-disabled',String(disabled))") ||
     !rawRuntimeJs.includes("expired?'UNKNOWN':lm.powerState") ||
     !rawRuntimeJs.includes('age>=lm.freshnessMs')) {
   throw new Error('Linea Micra UI must implement account connection, selection, and freshness expiry');
+}
+if (micraService.includes('keep_alive_enable = true') ||
+    micraService.includes('esp_http_client_close(work_->client)') ||
+    !micraService.includes('(sessionRenewed || readDashboard(settings, status))')) {
+  throw new Error('Linea Micra polling must reuse HTTP sessions without continuous probes and separate token renewal from state reads');
 }
 for (const file of ['ShotStopperMachinePaddleControl.h',
   'ShotStopperMachinePaddleInput.h', 'ShotStopperMachinePaddlePolicy.h',

@@ -38,5 +38,8 @@ int main() {
   assert(micra_timing::kMaxAttempts == 4);
   assert(micra_timing::kRetryDelaysMs[0] == 3000);
   assert(micra_timing::kRetryDelaysMs[2] == 9000);
+  assert(!micra_timing::accessTokenRefreshDue(50U * 60U * 1000U - 1U));
+  assert(micra_timing::accessTokenRefreshDue(50U * 60U * 1000U));
+  assert(micra_timing::kAccessTokenLifetimeMs == 60U * 60U * 1000U);
   return 0;
 }

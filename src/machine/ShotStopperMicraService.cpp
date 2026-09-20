@@ -39,8 +39,6 @@ constexpr size_t kResponseMaxValues = 1024;
 constexpr size_t kTokenCapacity = 2048;
 constexpr size_t kBodyCapacity = 4608;
 constexpr size_t kWorkerStackBytes = 8192;
-constexpr uint32_t kAccessTokenLifetimeMs = 60U * 60U * 1000U;
-constexpr uint32_t kRefreshBeforeExpiryMs = 10U * 60U * 1000U;
 
 constexpr uint8_t kP256SpkiPrefix[] = {
     0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48,
@@ -638,6 +636,7 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
   status.error = LineaMicraError::NONE;
   publish(status);
   bool success = false;
+  bool sessionRenewed = false;
   for (size_t attempt = 0; attempt < micra_timing::kMaxAttempts; ++attempt) {
     if (shotActive_.load(std::memory_order_acquire)) {
       status.phase = LineaMicraPhase::PAUSED;
@@ -657,7 +656,8 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
       fail(status, gateError);
       return false;
     }
-    success = ensureSession(settings, false) && readDashboard(settings, status);
+    success = ensureSession(settings, false, &sessionRenewed) &&
+              (sessionRenewed || readDashboard(settings, status));
     if (success) break;
     if (shotActive_.load(std::memory_order_acquire)) continue;
     if (!networkEligible(gateError)) {
@@ -687,6 +687,13 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
     }
     fail(status, error);
     return false;
+  }
+  if (sessionRenewed) {
+    status.phase = LineaMicraPhase::IDLE;
+    status.error = LineaMicraError::NONE;
+    publish(status);
+    scheduleAutomatic(millis(), false);
+    return true;
   }
   status.phase = LineaMicraPhase::CONFIRMED;
   status.error = LineaMicraError::NONE;
@@ -750,16 +757,21 @@ bool ShotStopperMicraService::generateInstallationKey(
 }
 
 bool ShotStopperMicraService::ensureSession(
-    LineaMicraPersistedSettings &settings, bool registerKey) {
+    LineaMicraPersistedSettings &settings, bool registerKey, bool *renewed) {
+  if (renewed != nullptr) *renewed = false;
   if (work_ == nullptr) return false;
   if (registerKey) {
     clearSession();
     return registerInstallation(settings) && signIn(settings);
   }
   const uint32_t age = millis() - work_->accessTokenIssuedAtMs;
-  if (work_->accessToken[0] == '\0') return signIn(settings);
-  if (age + kRefreshBeforeExpiryMs < kAccessTokenLifetimeMs) return true;
-  return refreshToken(settings) || signIn(settings);
+  if (work_->accessToken[0] != '\0' &&
+      !micra_timing::accessTokenRefreshDue(age)) return true;
+  const bool ok = work_->accessToken[0] == '\0'
+                      ? signIn(settings)
+                      : refreshToken(settings) || signIn(settings);
+  if (ok && renewed != nullptr) *renewed = true;
+  return ok;
 }
 
 bool ShotStopperMicraService::registerInstallation(
@@ -998,7 +1010,6 @@ bool ShotStopperMicraService::request(
     config.url = kApiRoot;
     config.timeout_ms = static_cast<int>(micra_timing::kHttpTimeoutMs);
     config.disable_auto_redirect = true;
-    config.keep_alive_enable = true;
     config.crt_bundle_attach = esp_crt_bundle_attach;
     config.event_handler = httpEvent;
     config.user_data = this;
@@ -1110,7 +1121,6 @@ bool ShotStopperMicraService::request(
   work_->transportStatus = performed;
   work_->httpStatus = static_cast<uint16_t>(
       esp_http_client_get_status_code(work_->client));
-  (void)esp_http_client_close(work_->client);
   if (installationInit) secureWipe(work_->body, sizeof(work_->body));
   if (work_->responseUsed < sizeof(work_->response)) {
     work_->response[work_->responseUsed] = '\0';

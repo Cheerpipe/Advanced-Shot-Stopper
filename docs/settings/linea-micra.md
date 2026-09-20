@@ -29,8 +29,13 @@ selected explicitly.
 The email, password, selected machine, and device installation key are stored
 in the controller so it can sign in again after a restart. Short-lived access
 and refresh tokens stay only in RAM and are never returned by the Web UI or
-diagnostics. **Disconnect** removes the saved account credentials, installation
-key, selected machine, cached list, and in-memory session tokens.
+diagnostics. The access token is reused for state reads and renewed after 50
+minutes. Renewal replaces one scheduled state read, and the next read occurs at
+the normal interval, so the controller does not make both cloud requests back
+to back. It also reuses the secure HTTP connection while the cloud service
+allows it, avoiding a new connection handshake for every read. **Disconnect**
+removes the saved account credentials, installation key, selected machine,
+cached list, in-memory session tokens, and cloud connection.
 
 The cloud interface used by the La Marzocco app is not a documented public API
 and can change independently of this firmware. A cloud outage or API change
@@ -55,8 +60,8 @@ Diagnostics → Machine shows:
 A confirmed sample is current for 30 seconds. The firmware and browser replace
 an expired ON or OFF display with UNKNOWN. Failures use bounded 3, 6, and 9
 second retry delays; after four failed attempts automatic reads wait at least
-60 seconds. **Refresh state** adds a read to the same bounded queue and cannot
-bypass STA, AP, shot, busy, or cooldown rules.
+60 seconds. Select **(Refresh)** beside the displayed state to add a read to the
+same bounded queue. It cannot bypass STA, AP, shot, busy, or cooldown rules.
 
 UNKNOWN is treated as effectively on only for the conservative diagnostic
 policy. The observed state never starts or stops the machine, gates a shot,

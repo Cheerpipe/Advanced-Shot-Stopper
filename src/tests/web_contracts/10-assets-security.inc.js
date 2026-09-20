@@ -239,8 +239,8 @@ if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !css.includes('color-scheme:light dark') ||
     !css.includes('html,input,select,textarea{color-scheme:dark}') ||
     !css.includes('--in:#fbfaf8') ||
-    !css.includes('input:is([type=number],[type=text],[type=password],[type=url]),select,textarea{') ||
-    !css.includes('input[type=text],input[type=password],input[type=url]{-webkit-appearance:none;appearance:none}') ||
+    !css.includes('input:not([type=file],[type=checkbox]),select,textarea{') ||
+    !css.includes('input[type=text],input[type=email],input[type=password],input[type=url]{-webkit-appearance:none;appearance:none}') ||
     !css.includes('min-height:3rem') ||
     !css.includes('background:var(--in)') ||
     !css.includes('input:-webkit-autofill') ||
