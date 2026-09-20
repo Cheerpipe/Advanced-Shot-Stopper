@@ -178,6 +178,11 @@ if (!sdkconfigDefaults.includes('CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y') ||
   throw new Error(
       'sdkconfig.defaults must enable run-time stats and vTaskList core IDs');
 }
+if (!sdkconfigDefaults.includes('CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8') ||
+    !idfBuildScript.includes('CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8')) {
+  throw new Error(
+      'IDF defaults and stale-tree recovery must retain eight static Wi-Fi TX buffers');
+}
 if (!sdkconfigNimble.includes('CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y') ||
     !sdkconfigNimble.includes('CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE=4096') ||
     !sdkconfigNimble.includes('CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=96') ||
