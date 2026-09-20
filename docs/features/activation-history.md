@@ -1,7 +1,8 @@
 # Activation history
 
 The activation history is a simple, independent diary of every confirmed
-machine activation: shots, rinses, and short runs that never became shots.
+machine activation: shots, rinses, short runs, and recognized machine wake
+gestures.
 It answers "what did the machine actually do, and when?" without the
 measurement detail of the [shot history](shot-history.md).
 
@@ -19,14 +20,17 @@ registered weight during the activation:
 - **Rinse** — a quick rinse cycle.
 - **Other** — a confirmed activation that ended at or before the protection
   window, such as a brief paddle blip or an aborted brew.
+- **Power ON** — a paddle gesture recognized as a Linea Micra standby wake.
+  It records how long the paddle kept the wake circuit active but never counts
+  as a shot in Stats.
 
 Abandoned starts, where the machine never confirmed the activation, record
 nothing. When the controller's clock has never synced, cards show "no time"
 until it gets the time from the network.
 
-A recognized Linea Micra standby wake is not an activation for this diary. It
-only mirrors the paddle to wake the machine and creates no Shot, Rinse, or Other
-entry. See [Linea Micra](../settings/linea-micra.md#recognize-paddle-wake-gestures).
+A recognized Linea Micra standby wake creates one **Power ON** entry when the
+paddle returns to OFF. See
+[Linea Micra](../settings/linea-micra.md#recognize-paddle-wake-gestures).
 
 The log holds up to **1000** activations. When it fills, the oldest entry is
 dropped to make room for the newest. Entries are written to memory the
@@ -46,7 +50,8 @@ The activation type sits below as a small label. Shots carry a coffee-cup
 icon on the left of the card: a filled cup when the scale registered the
 weight while brewing, and an outlined cup when no weight was registered,
 such as a manual brew without a scale. Rinses carry a droplet, and other
-activations carry a lightning bolt. When the
+activations carry a lightning bolt, and Power ON entries use the power symbol.
+When the
 clock was not synced when the entry was recorded, the card shows "no time"
 instead of a date.
 

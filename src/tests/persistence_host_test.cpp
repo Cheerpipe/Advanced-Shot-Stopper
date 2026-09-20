@@ -1879,6 +1879,7 @@ void p69_history_log_round_trip_eviction_and_paging() {
   CHECK(strcmp(historyTypeName(HistoryType::SHOT), "shot") == 0);
   CHECK(strcmp(historyTypeName(HistoryType::RINSE), "rinse") == 0);
   CHECK(strcmp(historyTypeName(HistoryType::OTHER), "other") == 0);
+  CHECK(strcmp(historyTypeName(HistoryType::POWER_ON), "power_on") == 0);
 
   HistoryLog log;
   CHECK(log.load());

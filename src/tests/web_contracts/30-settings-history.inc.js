@@ -739,15 +739,17 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !css.includes('#historyTable td[colspan]') ||
     !css.includes('.histBadge{') ||
     !runtimeJs.includes('HISTORY_PAGE_SIZE=20') ||
-    !runtimeJs.includes("function historyUrl(offset,limit,dir){return '/api/v1/history?offset='") ||
+    !runtimeJs.includes("const historyUrl=(offset,limit,dir)=>'/api/v1/history?offset='") ||
     !runtimeJs.includes('function applyHistoryPage(') ||
     !runtimeJs.includes('function renderHistory(') ||
     !runtimeJs.includes('function deleteOneHistory(') ||
     !runtimeJs.includes('function clearActivationHistory(') ||
+    !runtimeJs.includes("power_on:'Power ON'") ||
+    !runtimeJs.includes("HIST_TYPE_SVG.power_on='⏻'") ||
     !runtimeJs.includes("confirm:'CLEAR_HISTORY'") ||
     !runtimeJs.includes("'/api/v1/history/delete'") ||
     !runtimeJs.includes("'/api/v1/history/clear'") ||
-    !runtimeJs.includes("function toggleHistoryDir(){") ||
+    !runtimeJs.includes('const toggleHistoryDir=()=>{') ||
     !runtimeJs.includes('historyData.records.length,HISTORY_PAGE_SIZE,\'append\'') ||
     runtimeJs.includes('exportShotsCsv') && runtimeJs.includes('historyCsv') ||
     !network.includes('parseHistoryPageQuery') ||

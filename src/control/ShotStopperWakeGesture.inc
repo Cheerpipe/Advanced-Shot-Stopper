@@ -7,6 +7,8 @@ bool serviceMachineWakeGesture(const MachineIntention &intent) {
     if (intent.turnedOff || intent.stablyOff || !intent.holdActive) {
       machineRequestStop();
       machineWakePassthroughActive = false;
+      appendHistoryRecord(HistoryType::POWER_ON,
+                          elapsedMs(machineWakeStartedAtMs), true);
     }
     return true;
   }
@@ -30,6 +32,7 @@ bool serviceMachineWakeGesture(const MachineIntention &intent) {
     transitionTo(StopperState::REQUIRES_OFF);
     return true;
   }
+  machineWakeStartedAtMs = millis();
   machineWakePassthroughActive = true;
   return true;
 }

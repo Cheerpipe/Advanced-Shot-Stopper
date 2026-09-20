@@ -187,18 +187,11 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
   maybeRequestNtpSyncOnActivity();
 }
 
-// Every confirmed machine activation lands in the independent history log:
-// rinses as `rinse`, anything longer than the cycle's BBW protection window
-// as `shot`, the rest as `other`. Abandoned starts recorded nothing.
-void appendActivationHistory(EndReason reason, bool rinseEnd,
-                             uint32_t durationMs) {
-  if (brewEndIsAbandonedStart(reason)) {
-    return;
-  }
+void appendHistoryRecord(HistoryType type, uint32_t durationMs,
+                         bool noWeight) {
   HistoryRecord record = {};
   record.durationDs = static_cast<uint16_t>(durationMs / 100U);
-  record.type = static_cast<uint8_t>(historyTypeFromCycle(
-      rinseEnd, durationMs, session.config.bbwProtectionMs));
+  record.type = static_cast<uint8_t>(type);
   if (g_wallClock.synced()) {
     const uint32_t utcSec = g_wallClock.nowUtcSec(millis());
     record.endedAtUnixSec = utcSec;
@@ -206,7 +199,7 @@ void appendActivationHistory(EndReason reason, bool rinseEnd,
         shotLogLocalSecFromUtc(utcSec, runtimeConfig.timezoneOffsetMinutes);
     record.flags = HISTORY_FLAG_WALL_TIME;
   }
-  if (!endedCycleWeightValid()) {
+  if (noWeight) {
     record.flags |= HISTORY_FLAG_NO_WEIGHT;
   }
   // O(1) PSRAM append under the existing store mutex; the deferred flush in
@@ -219,6 +212,20 @@ void appendActivationHistory(EndReason reason, bool rinseEnd,
     return;
   }
   shotStoreDirtyGeneration.fetch_add(1, std::memory_order_relaxed);
+}
+
+// Every confirmed machine activation lands in the independent history log:
+// rinses as `rinse`, anything longer than the cycle's BBW protection window
+// as `shot`, the rest as `other`. Abandoned starts recorded nothing.
+void appendActivationHistory(EndReason reason, bool rinseEnd,
+                             uint32_t durationMs) {
+  if (brewEndIsAbandonedStart(reason)) {
+    return;
+  }
+  appendHistoryRecord(historyTypeFromCycle(
+                          rinseEnd, durationMs,
+                          session.config.bbwProtectionMs),
+                      durationMs, !endedCycleWeightValid());
 }
 
 bool finalizeCycle(EndReason reason, StopperState nextState,
@@ -493,6 +500,8 @@ void enterBrewOrManualFromStart() {
 }
 
 void handleGlobalLimitTrip() {
+  const bool endedWakeGesture = machineWakePassthroughActive;
+  const uint32_t wakeDurationMs = elapsedMs(machineWakeStartedAtMs);
   machineWakePassthroughActive = false;
   const bool wasAlreadyOpenedByTimer = consumeRelaySafetyTrip();
   if (wasAlreadyOpenedByTimer) {
@@ -503,6 +512,9 @@ void handleGlobalLimitTrip() {
   }
 
   if (!session.active) {
+    if (endedWakeGesture) {
+      appendHistoryRecord(HistoryType::POWER_ON, wakeDurationMs, true);
+    }
     transitionTo(StopperState::REQUIRES_OFF);
     return;
   }

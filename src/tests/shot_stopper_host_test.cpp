@@ -171,6 +171,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   cupStartGuardHold = false;
   cupStartGuardHoldAtMs = 0;
   machineWakePassthroughActive = false;
+  machineWakeStartedAtMs = 0;
   machineWakeGestureConsumedThisLoop = false;
   hostMachinePhysicalStartDisposition =
       MachinePhysicalStartDisposition::NORMAL;
@@ -756,7 +757,7 @@ void t02_boot_with_activator_on() {
   startCycle();
 }
 
-void t02b_off_wake_bypasses_brew_guards_scale_and_history() {
+void t02b_off_wake_bypasses_brew_guards_and_records_power_on() {
   for (const NoScaleBbwMode mode : {NoScaleBbwMode::WARN_ONCE,
                                     NoScaleBbwMode::REQUIRE_SCALE}) {
     resetHarness(false, false);
@@ -767,6 +768,9 @@ void t02b_off_wake_bypasses_brew_guards_scale_and_history() {
     runtimeConfig.requireCupToStart = true;
     hostMachinePhysicalStartDisposition =
         MachinePhysicalStartDisposition::WAKE_PASSTHROUGH;
+    g_wallClock.setSyncing("pool.ntp.org", hostMillis);
+    g_wallClock.queueSyncFromCallback(1'700'000'000U);
+    CHECK(g_wallClock.applyPendingSync(hostMillis));
     const uint32_t buzzerRequests = localBuzzer.acceptedRequests;
 
     setRawPaddle(true);
@@ -794,7 +798,14 @@ void t02b_off_wake_bypasses_brew_guards_scale_and_history() {
     CHECK(!getRelaySafetySnapshot().closed);
     CHECK(stopperState == StopperState::READY);
     CHECK(!session.active);
-    CHECK(historyLog.count() == 0);
+    CHECK(historyLog.count() == 1);
+    HistoryPage page;
+    historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+    CHECK(page.records[0].type ==
+          static_cast<uint8_t>(HistoryType::POWER_ON));
+    CHECK(page.records[0].durationDs >= runtimeConfig.rinseGestureMs / 100U);
+    CHECK((page.records[0].flags & HISTORY_FLAG_WALL_TIME) != 0);
+    CHECK(page.records[0].endedAtUnixSec >= 1'700'000'000U);
     CHECK(scaleCommandQueue->items.empty());
   }
 }
@@ -815,6 +826,11 @@ void t02c_wake_hard_limit_requires_release_before_rearming() {
   CHECK(!machineWakePassthroughActive);
   CHECK(stopperState == StopperState::REQUIRES_OFF);
   CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(historyLog.count() == 1);
+  HistoryPage page;
+  historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+  CHECK(page.records[0].type ==
+        static_cast<uint8_t>(HistoryType::POWER_ON));
   const size_t closedWrites = hostRelayClosedWrites;
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS * 2);
   CHECK(hostRelayClosedWrites == closedWrites);
@@ -836,6 +852,7 @@ void t02d_wake_timer_arm_failure_stays_open() {
   CHECK(stopperState == StopperState::REQUIRES_OFF);
   CHECK(!getRelaySafetySnapshot().closed);
   CHECK(hostRelayClosedWrites == 0);
+  CHECK(historyLog.count() == 0);
 }
 
 void t02e_wake_restores_suppressed_held_paddle() {
@@ -15036,7 +15053,7 @@ const TestCase testCases[] = {
     {"POW05", pow05_power_config_command_and_persistence},
     {"T01", t01_boot_with_paddle_off},
     {"T02", t02_boot_with_activator_on},
-    {"T02B", t02b_off_wake_bypasses_brew_guards_scale_and_history},
+    {"T02B", t02b_off_wake_bypasses_brew_guards_and_records_power_on},
     {"T02C", t02c_wake_hard_limit_requires_release_before_rearming},
     {"T02D", t02d_wake_timer_arm_failure_stays_open},
     {"T02E", t02e_wake_restores_suppressed_held_paddle},

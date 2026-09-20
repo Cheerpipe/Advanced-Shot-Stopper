@@ -99,7 +99,8 @@ gesture. Shot Stopper mirrors the paddle through its normal relay safety path,
 but it does not start brew or rinse, evaluate or consume guards, command the
 scale, boost BLE discovery, play alerts, call brew webhooks, or add shot/rinse
 history. Returning the paddle to OFF opens the relay and ends the gesture,
-regardless of how long it was held.
+regardless of how long it was held. History adds one **Power ON** entry with
+the gesture's date, time, and duration; Stats remains unchanged.
 
 The OFF→ON edge immediately publishes an optimistic ON state for at most 60
 seconds—twice the normal read interval—and delays the next dashboard read for 15
