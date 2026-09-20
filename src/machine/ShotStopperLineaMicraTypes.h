@@ -51,7 +51,9 @@ enum class LineaMicraError : uint8_t {
   INVALID_AUTH,
   NO_MACHINES,
   HTTP_ERROR,
-  CANCELED
+  CANCELED,
+  REJECTED,
+  UNCONFIRMED
 };
 enum class LineaMicraTemperatureState : uint8_t {
   Disabled,
@@ -133,6 +135,8 @@ inline const char *lineaMicraErrorName(LineaMicraError error) {
     case LineaMicraError::NO_MACHINES: return "no_machines";
     case LineaMicraError::HTTP_ERROR: return "communication_error";
     case LineaMicraError::CANCELED: return "canceled";
+    case LineaMicraError::REJECTED: return "rejected";
+    case LineaMicraError::UNCONFIRMED: return "unconfirmed";
   }
   return "unknown";
 }
@@ -176,11 +180,14 @@ struct LineaMicraStatus {
   uint32_t sampleAtMs = 0;
   uint32_t temperatureAtMs = 0;
   uint32_t configGeneration = 0;
+  uint32_t identityGeneration = 0;
   uint16_t targetDeciC = 0;
   uint16_t requestedTargetDeciC = 0;
   uint16_t appliedTargetDeciC = 0;
   int32_t transportStatus = 0;
+  int32_t temperatureTransportStatus = 0;
   uint16_t httpStatus = 0;
+  uint16_t temperatureHttpStatus = 0;
   LineaMicraPhase phase = LineaMicraPhase::Disabled;
   LineaMicraError error = LineaMicraError::NONE;
   LineaMicraPowerState powerState = LineaMicraPowerState::UNKNOWN;
@@ -201,7 +208,7 @@ struct LineaMicraStatus {
 
 static_assert(sizeof(LineaMicraRequest) <= 16,
               "Linea Micra request must stay compact");
-static_assert(sizeof(LineaMicraStatus) <= 56,
+static_assert(sizeof(LineaMicraStatus) <= 64,
               "Linea Micra status must stay compact");
 static_assert(std::is_trivially_copyable<LineaMicraRequest>::value);
 static_assert(std::is_trivially_copyable<LineaMicraStatus>::value);

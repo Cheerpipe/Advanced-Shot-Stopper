@@ -292,7 +292,8 @@ void processWebCommand(const WebCommand &command) {
       if (composed.revision == 0) composed.revision = 1;
       commitLiveRuntimeConfig(composed, RUNTIME_PERSIST_REASON_USER);
       quickSettingsPersistPending = true;
-      pendingPresetPersistence = {command.requestId, composed.revision, false};
+      pendingPresetPersistence = {command.requestId, composed.revision, false,
+                                  false};
       reportControlCommandResult(command, CommandResultState::APPLIED);
       return;
     }
@@ -445,17 +446,17 @@ void processWebCommand(const WebCommand &command) {
       commitLiveRuntimeConfig(candidate, RUNTIME_PERSIST_REASON_USER);
       const ShotPreset &beforeActive = activeShotPreset(quickBefore.presets);
       const ShotPreset &afterActive = activeShotPreset(presetBank);
-      if (beforeActive.id != afterActive.id ||
+      const bool applyMachineTemperature =
+          beforeActive.id != afterActive.id ||
           beforeActive.lineaMicraBrewTargetDeciC !=
-              afterActive.lineaMicraBrewTargetDeciC) {
-        requestActivePresetMachineTemperature();
-      }
+              afterActive.lineaMicraBrewTargetDeciC;
       RecipeSnapshot quickAfter;
       quickAfter.presets = presetBank;
       quickAfter.runtime = runtimeConfig;
       quickSettingsPersistPending |= !quickSettingsEqual(
           quickSettingsSnapshot(quickBefore), quickSettingsSnapshot(quickAfter));
-      pendingPresetPersistence = {command.requestId, candidate.revision, true};
+      pendingPresetPersistence = {command.requestId, candidate.revision, true,
+                                  applyMachineTemperature};
       reportControlCommandResult(command, CommandResultState::APPLIED);
       return;
     }

@@ -489,6 +489,7 @@ struct PendingPresetPersistence {
   uint32_t requestId = 0;
   uint32_t revision = 0;
   bool notifyPresets = false;
+  bool applyMachineTemperature = false;
 };
 PendingPresetPersistence pendingPresetPersistence;
 bool quickSettingsPersistPending = false;

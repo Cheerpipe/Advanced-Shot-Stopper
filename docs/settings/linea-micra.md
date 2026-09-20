@@ -117,12 +117,12 @@ recognition is inactive until monitoring produces a fresh OFF observation.
 duplicates copy the source value. Turning the option off or disconnecting the
 account keeps every saved preset value.
 
-When a preset becomes active, Shot Stopper sends its saved target to the
-selected Micra. Saving an already-active preset also sends the target when the
-temperature changed. A newly connected scale sends the current active target
-again, which covers sessions where the machine or controller was unavailable
-when the preset was selected. Repeated triggers are combined, and only the
-latest active target remains pending.
+When a preset change has been saved successfully, Shot Stopper sends its target
+to the selected Micra. Saving an already-active preset also sends the target
+after persistence when the temperature changed. A newly connected scale sends
+the current active target again, which covers sessions where the machine or
+controller was unavailable when the preset was selected. Repeated triggers are
+combined, and only the latest active target remains pending.
 
 Application waits while a shot or rinse is active and while the scale is
 connecting. Either event cancels an in-progress cloud request without affecting
@@ -133,9 +133,11 @@ monitoring. The integration never asks for credentials or registers a new
 installation merely to retry a temperature.
 
 The cloud command is complete only after a dashboard read reports the requested
-target. Status and diagnostics distinguish a pending, running, confirmed,
-canceled, or failed application from the Micra's last reported target. A failure
-remains retryable. Turning this option off, disconnecting the account, losing
+target. Once the cloud accepts a change, delayed confirmation retries only the
+dashboard read instead of resending the change. Status and diagnostics
+distinguish a pending, running, confirmed, canceled, rejected, unconfirmed, or
+communication-failed application from the Micra's last reported target. A
+failure remains retryable. Turning this option off, disconnecting the account, losing
 station Wi-Fi, or entering setup AP mode prevents writes; saved preset values
 remain unchanged. Temperature application does not require **Monitor machine
 power state** to be enabled.

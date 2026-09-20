@@ -10192,11 +10192,7 @@ void w91_preset_persistence_serializes_and_survives_retry() {
   CHECK(pendingPresetPersistence.revision == runtimeConfig.revision);
   CHECK(hostPresetWebhookCount == 0);
   CHECK(hostQuickSettingsWebhookCount == 0);
-  CHECK(hostMachineTemperatureRequestCount == 1);
-  CHECK(hostMachineTemperaturePresetId == FACTORY_PRESET_ID_SINGLE);
-  CHECK(hostMachineTemperatureGeneration == runtimeConfig.revision);
-  CHECK(hostMachineTemperatureTargetDeciC ==
-        activeShotPreset(presetBank).lineaMicraBrewTargetDeciC);
+  CHECK(hostMachineTemperatureRequestCount == 0);
 
   WebCommand competing = first;
   competing.requestId = 92;
@@ -10213,11 +10209,17 @@ void w91_preset_persistence_serializes_and_survives_retry() {
   CHECK(pendingPresetPersistence.requestId == 91);
   CHECK(hostPresetWebhookCount == 0);
   CHECK(hostQuickSettingsWebhookCount == 0);
+  CHECK(hostMachineTemperatureRequestCount == 0);
   hostRuntimePersistSucceeds = true;
   runLoopAfter(RUNTIME_PERSIST_RETRY_MS + 1);
   CHECK(!runtimePersistPending && !runtimePersistFailed);
   CHECK(pendingPresetPersistence.requestId == 0);
   CHECK(hostLastFlushedPresets.activeId == FACTORY_PRESET_ID_SINGLE);
+  CHECK(hostMachineTemperatureRequestCount == 1);
+  CHECK(hostMachineTemperaturePresetId == FACTORY_PRESET_ID_SINGLE);
+  CHECK(hostMachineTemperatureGeneration == runtimeConfig.revision);
+  CHECK(hostMachineTemperatureTargetDeciC ==
+        activeShotPreset(presetBank).lineaMicraBrewTargetDeciC);
   CHECK(hostPresetWebhookCount == 1);
   CHECK(hostQuickSettingsWebhookCount == 1);
 }
@@ -10245,12 +10247,13 @@ void w90c_preset_temperature_presence_and_learning_invalidation() {
   save.lineaMicraBrewTargetDeciC = 945;
   processWebCommand(save);
   CHECK(preset.lineaMicraBrewTargetDeciC == 945);
+  CHECK(hostMachineTemperatureRequestCount == 0);
+  CHECK(learning.generations[preset.bbwAlgorithm] != generation);
+  runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
   CHECK(hostMachineTemperatureRequestCount == 1);
   CHECK(hostMachineTemperaturePresetId == preset.id);
   CHECK(hostMachineTemperatureGeneration == runtimeConfig.revision);
   CHECK(hostMachineTemperatureTargetDeciC == 945);
-  CHECK(learning.generations[preset.bbwAlgorithm] != generation);
-  runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
 
   save.requestId = 903;
   save.lineaMicraBrewTargetDeciC = 1001;

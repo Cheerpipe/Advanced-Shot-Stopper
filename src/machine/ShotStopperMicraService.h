@@ -39,6 +39,7 @@ class ShotStopperMicraService {
   struct PendingRequest {
     LineaMicraRequest request = {};
     LineaMicraPersistedSettings credentials = {};
+    uint32_t identityGeneration = 0;
     bool present = false;
   };
   struct DesiredTemperature {
@@ -87,6 +88,7 @@ class ShotStopperMicraService {
   void scheduleAutomatic(uint32_t now, bool failed);
   bool temperatureRequestCurrent(const LineaMicraRequest &request,
                                  uint32_t machineConfigGeneration) const;
+  bool identityCurrent(uint32_t identityGeneration) const;
   bool temperatureEligible(LineaMicraError &error) const;
   void deferTemperature(const LineaMicraRequest &request,
                         uint32_t machineConfigGeneration,
@@ -101,6 +103,7 @@ class ShotStopperMicraService {
   LineaMicraStatus published_ = {};
   LineaMicraDiscoverySnapshot discovery_ = {};
   uint32_t configGeneration_ = 0;
+  uint32_t identityGeneration_ = 0;
   uint32_t nextAutomaticRequestId_ = 0x80000000UL;
   uint32_t nextAutomaticAtMs_ = 0;
   LineaMicraPowerStateTracker powerState_;

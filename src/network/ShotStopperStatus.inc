@@ -494,6 +494,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"pollIntervalMs\":%lu,\"targetValid\":%s,\"targetDeciC\":%u,"
         "\"temperatureState\":\"%s\",\"temperatureError\":\"%s\","
         "\"requestedTargetDeciC\":%u,\"appliedTargetDeciC\":%u,"
+        "\"temperatureHttpStatus\":%u,"
+        "\"temperatureTransportStatus\":%ld,"
         "\"staConnected\":%s,\"apActive\":%s,\"shotPaused\":%s,"
         "\"scalePaused\":%s,"
         "\"httpStatus\":%u,\"transportStatus\":%ld,\"machines\":[",
@@ -524,6 +526,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         lineaMicraErrorName(micraStatus.temperatureError),
         static_cast<unsigned>(micraStatus.requestedTargetDeciC),
         static_cast<unsigned>(micraStatus.appliedTargetDeciC),
+        static_cast<unsigned>(micraStatus.temperatureHttpStatus),
+        static_cast<long>(micraStatus.temperatureTransportStatus),
         micraStatus.staConnected ? "true" : "false",
         micraStatus.apActive ? "true" : "false",
         micraStatus.shotPaused ? "true" : "false",

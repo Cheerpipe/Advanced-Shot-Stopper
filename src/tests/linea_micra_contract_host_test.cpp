@@ -38,6 +38,10 @@ int main() {
   assert(std::strcmp(lineaMicraTemperatureStateName(
                          LineaMicraTemperatureState::PENDING),
                      "pending") == 0);
+  assert(std::strcmp(lineaMicraErrorName(LineaMicraError::REJECTED),
+                     "rejected") == 0);
+  assert(std::strcmp(lineaMicraErrorName(LineaMicraError::UNCONFIRMED),
+                     "unconfirmed") == 0);
   assert(lineaMicraPowerStateForMode(LineaMicraObservedMode::STANDBY) ==
          LineaMicraPowerState::OFF);
   assert(lineaMicraPowerStateForMode(LineaMicraObservedMode::BREWING) ==

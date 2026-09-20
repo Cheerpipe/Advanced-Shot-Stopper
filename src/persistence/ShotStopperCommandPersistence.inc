@@ -433,10 +433,13 @@ void serviceSettingsPersistResult() {
         static_cast<int32_t>(runtimeRevision -
                              pendingPresetPersistence.revision) >= 0) {
       const bool notifyPresets = pendingPresetPersistence.notifyPresets;
+      const bool applyMachineTemperature =
+          pendingPresetPersistence.applyMachineTemperature;
       WebCommand persisted;
       persisted.requestId = pendingPresetPersistence.requestId;
       reportControlCommandResult(persisted, CommandResultState::PERSISTED);
       pendingPresetPersistence = {};
+      if (applyMachineTemperature) requestActivePresetMachineTemperature();
       if (notifyPresets) queueWebhookPresetsChanged();
     }
     char liveMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
@@ -746,7 +749,10 @@ void serviceRuntimePersistence(
       static_cast<int32_t>(runtimeConfig.revision -
                            pendingPresetPersistence.revision) >= 0) {
     const bool notifyPresets = pendingPresetPersistence.notifyPresets;
+    const bool applyMachineTemperature =
+        pendingPresetPersistence.applyMachineTemperature;
     pendingPresetPersistence = {};
+    if (applyMachineTemperature) requestActivePresetMachineTemperature();
     if (notifyPresets) queueWebhookPresetsChanged();
   }
   if (quickSettingsPersistPending) {
