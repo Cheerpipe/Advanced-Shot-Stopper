@@ -74,9 +74,9 @@ DRAM scalar state. The local buzzer, debug ring, and other task-only compound
 state use `TaskMutex`. Heap/CPU sampling and task-profiler capture belong to the
 core-0 health worker; control consumes its one-slot mailbox without waiting and
 ages stale samples explicitly. USB application logs are emitted by the bounded
-`serial_log` queue on core 0. CLI formatters write through the same bounded
-non-blocking queue; saturation increments dropped/truncated counters instead of
-waiting in control.
+`serial_log` queue on core 0. One internal allocation contains eight short log
+records and a bounded 2.5 KiB buffer that CLI formatters publish to that owner;
+saturation increments dropped/truncated counters instead of waiting in control.
 
 ## P2 spinlock inventory
 

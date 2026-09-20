@@ -837,7 +837,9 @@ void serviceSerialCli() {
     SerialCliRequest request;
     if (serialCliFeed(serialCliParser, static_cast<char>(incoming),
                       request)) {
+      (void)beginSerialCliOutput();
       dispatchSerialCliRequest(request);
+      endSerialCliOutput();
     }
   }
 }

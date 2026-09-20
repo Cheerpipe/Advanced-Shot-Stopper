@@ -432,8 +432,15 @@ if (!psram.includes('#define SHOT_STOPPER_PSRAM_BSS EXT_RAM_BSS_ATTR') ||
 }
 if (!firmwareCore.includes('uint8_t *serialLogQueueBytes = nullptr') ||
     !firmwareCore.includes(
-      'allocInternal(queueBytes, AllocationOwner::SERIAL_LOG)') ||
+      'allocInternal(storageBytes, AllocationOwner::SERIAL_LOG)') ||
     !firmwareCore.includes('esp_ptr_internal(serialLogQueueBytes)') ||
+    !firmwareCore.includes('SERIAL_LOG_QUEUE_DEPTH = 8') ||
+    !serialCli.includes('SERIAL_CLI_OUTPUT_CAPACITY = 2560') ||
+    !firmwareCore.includes(
+      'queueBytes + SERIAL_CLI_OUTPUT_CAPACITY') ||
+    !firmwareCore.includes(
+      'serialCliOutputBytes = serialLogQueueBytes + queueBytes') ||
+    !firmwareCore.includes('drainSerialCliOutput()') ||
     !firmwareCore.includes('Print &serialCliOutput()') ||
     !firmwareCore.includes('serialLogQueueTruncated') ||
     !firmwareCore.includes('serialCliOutput().println(message)') ||

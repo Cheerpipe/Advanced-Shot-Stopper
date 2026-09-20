@@ -11375,6 +11375,7 @@ void sc10_help_prints_one_line_per_command() {
   CHECK(serialTxContains("SCALE_STATUS  BLE scale link"));
   CHECK(serialTxContains("NTP_STATUS  wall clock"));
   CHECK(serialTxContains("e.g. SET_WIFI CafeLAN CafePass1"));
+  CHECK(Serial.tx.size() <= SERIAL_CLI_OUTPUT_CAPACITY);
   CHECK(session.active);
 }
 
@@ -11533,6 +11534,7 @@ void sc15_status_printers_use_dump_views() {
   CHECK(serialTxContains("tempValid=true"));
   CHECK(serialTxContains("tempC=42.5"));
   CHECK(serialTxContains("tempPeakC=47.0"));
+  CHECK(Serial.tx.size() <= SERIAL_CLI_OUTPUT_CAPACITY);
 
   SerialCliScaleDump scale;
   scale.state = "CONNECTED";

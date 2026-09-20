@@ -4,20 +4,33 @@ struct SerialLogLine {
   char text[256] = {};
 };
 
-constexpr UBaseType_t SERIAL_LOG_QUEUE_DEPTH = 64;
+constexpr UBaseType_t SERIAL_LOG_QUEUE_DEPTH = 8;
 StaticQueue_t serialLogQueueStorage;
 uint8_t *serialLogQueueBytes = nullptr;
+uint8_t *serialCliOutputBytes = nullptr;
 QueueHandle_t serialLogQueue = nullptr;
 TaskHandle_t serialLogTaskHandle = nullptr;
 uint32_t serialLogQueueDropped = 0;
 uint32_t serialLogQueueTruncated = 0;
+enum class SerialCliOutputState : uint8_t { FREE, WRITING, READY, READING };
+std::atomic<SerialCliOutputState> serialCliOutputState{
+    SerialCliOutputState::FREE};
+size_t serialCliOutputLength = 0;
+bool serialCliOutputOverflow = false;
 
 class SerialCliQueuePrint : public Print {
  public:
   size_t write(uint8_t value) override {
-    if (line_.length == sizeof(line_.text)) flushLine();
-    line_.text[line_.length++] = static_cast<char>(value);
-    if (value == '\n') flushLine();
+    if (serialCliOutputState.load(std::memory_order_relaxed) !=
+            SerialCliOutputState::WRITING ||
+        serialCliOutputBytes == nullptr) {
+      return 1;
+    }
+    if (serialCliOutputLength < SERIAL_CLI_OUTPUT_CAPACITY) {
+      serialCliOutputBytes[serialCliOutputLength++] = value;
+    } else {
+      serialCliOutputOverflow = true;
+    }
     return 1;
   }
 
@@ -26,18 +39,6 @@ class SerialCliQueuePrint : public Print {
     for (size_t i = 0; i < size; ++i) write(buffer[i]);
     return size;
   }
-
- private:
-  void flushLine() {
-    if (line_.length == 0) return;
-    if (serialLogQueue == nullptr ||
-        xQueueSend(serialLogQueue, &line_, 0) != pdTRUE) {
-      (void)__atomic_add_fetch(&serialLogQueueDropped, 1U, __ATOMIC_RELAXED);
-    }
-    line_ = SerialLogLine{};
-  }
-
-  SerialLogLine line_;
 };
 
 SerialCliQueuePrint serialCliQueuePrint;
@@ -45,6 +46,52 @@ SerialCliQueuePrint serialCliQueuePrint;
 namespace shotstopper {
 Print &serialCliOutput() { return serialCliQueuePrint; }
 }  // namespace shotstopper
+
+bool beginSerialCliOutput() {
+  if (serialCliOutputBytes == nullptr) return false;
+  SerialCliOutputState expected = SerialCliOutputState::FREE;
+  if (!serialCliOutputState.compare_exchange_strong(
+          expected, SerialCliOutputState::WRITING,
+          std::memory_order_acquire, std::memory_order_relaxed)) {
+    (void)__atomic_add_fetch(&serialLogQueueDropped, 1U, __ATOMIC_RELAXED);
+    return false;
+  }
+  serialCliOutputLength = 0;
+  serialCliOutputOverflow = false;
+  return true;
+}
+
+void endSerialCliOutput() {
+  if (serialCliOutputState.load(std::memory_order_relaxed) !=
+      SerialCliOutputState::WRITING) {
+    return;
+  }
+  if (serialCliOutputOverflow) {
+    (void)__atomic_add_fetch(&serialLogQueueTruncated, 1U, __ATOMIC_RELAXED);
+  }
+  serialCliOutputState.store(serialCliOutputLength == 0
+                                 ? SerialCliOutputState::FREE
+                                 : SerialCliOutputState::READY,
+                             std::memory_order_release);
+}
+
+bool drainSerialCliOutput() {
+  SerialCliOutputState expected = SerialCliOutputState::READY;
+  if (!serialCliOutputState.compare_exchange_strong(
+          expected, SerialCliOutputState::READING,
+          std::memory_order_acquire, std::memory_order_relaxed)) {
+    return false;
+  }
+  if (serialCliOutputLength > 0) {
+    (void)Serial.write(serialCliOutputBytes, serialCliOutputLength);
+  }
+  serialCliOutputState.store(SerialCliOutputState::FREE,
+                             std::memory_order_release);
+  return true;
+}
+#else
+bool beginSerialCliOutput() { return true; }
+void endSerialCliOutput() {}
 #endif
 
 uint32_t serialLogDroppedCount() {

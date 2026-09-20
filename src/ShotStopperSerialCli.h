@@ -10,6 +10,7 @@ namespace shotstopper {
 constexpr size_t SERIAL_CLI_LINE_CAPACITY = 160;
 constexpr size_t SERIAL_CLI_MAX_BYTES_PER_LOOP = 8;
 constexpr size_t SERIAL_CLI_VERB_CAPACITY = 24;
+constexpr size_t SERIAL_CLI_OUTPUT_CAPACITY = 2560;
 
 enum class SerialCliVerb : uint8_t {
   NONE = 0,
