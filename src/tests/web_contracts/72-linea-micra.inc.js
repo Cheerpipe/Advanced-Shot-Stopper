@@ -29,6 +29,9 @@ const micraStatusFailures = [
 if (micraStatusFailures.length) {
   throw new Error('Linea Micra status contract: ' + micraStatusFailures.join(', '));
 }
+if (!micraService.includes('config.save_client_session = true')) {
+  throw new Error('Linea Micra cloud client must save TLS sessions for reuse');
+}
 for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
   'lineaMicraConnectButton', 'lineaMicraMachine', 'lineaMicraSelectButton',
   'lineaMicraApplyTemperature', 'lineaMicraObserveState',

@@ -235,9 +235,10 @@ if (!idfHelpers.includes('sdkconfig.defaults.micra') ||
     !idfBuildScript.includes('ss_idf_sync_micra_tls') ||
     !sdkconfigMicra.includes('# CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC is not set') ||
     !sdkconfigMicra.includes('CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC=y') ||
-    !sdkconfigMicra.includes('CONFIG_MBEDTLS_DYNAMIC_BUFFER=y')) {
+    !sdkconfigMicra.includes('CONFIG_MBEDTLS_DYNAMIC_BUFFER=y') ||
+    !sdkconfigMicra.includes('CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y')) {
   throw new Error(
-      'Micra-only mbedTLS must use the size-aware allocator and release dynamic record buffers');
+      'Micra-only mbedTLS must use the size-aware allocator, dynamic record buffers, and TLS session tickets');
 }
 if (sdkconfigDefaults.includes('CONFIG_FREERTOS_USE_TICKLESS_IDLE=y') ||
     !sdkconfigDefaults.includes('CONFIG_PM_ENABLE=y') ||

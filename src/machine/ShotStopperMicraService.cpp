@@ -1094,6 +1094,7 @@ bool ShotStopperMicraService::request(
     config.user_data = this;
     config.buffer_size = 1024;
     config.buffer_size_tx = 1024;
+    config.save_client_session = true;
     work_->client = esp_http_client_init(&config);
     if (work_->client == nullptr) return false;
     if (esp_http_client_set_header(work_->client, "Accept", "application/json") !=
