@@ -304,6 +304,8 @@ void preserveTemperatureStatus(const LineaMicraStatus &current,
   next.temperatureHttpStatus = current.temperatureHttpStatus;
   next.temperatureState = current.temperatureState;
   next.temperatureError = current.temperatureError;
+  next.temperatureCommandAccepted = current.temperatureCommandAccepted;
+  next.temperatureRetryable = current.temperatureRetryable;
 }
 
 }  // namespace
@@ -396,6 +398,8 @@ void ShotStopperMicraService::publishConfig(
       published_.temperatureError = LineaMicraError::NONE;
       published_.temperatureTransportStatus = 0;
       published_.temperatureHttpStatus = 0;
+      published_.temperatureCommandAccepted = false;
+      published_.temperatureRetryable = false;
       cancelTemperature = true;
     } else if (settings.accountConfigured &&
                published_.temperatureState ==
@@ -508,11 +512,14 @@ bool ShotStopperMicraService::queue(const LineaMicraRequest &request) {
     desiredTemperature_.machineConfigGeneration = configGeneration_;
     desiredTemperature_.retryAtMs = millis();
     desiredTemperature_.present = true;
+    desiredTemperature_.commandAccepted = false;
     published_.requestedTargetDeciC = request.targetDeciC;
     published_.temperatureState = LineaMicraTemperatureState::PENDING;
     published_.temperatureError = LineaMicraError::NONE;
     published_.temperatureTransportStatus = 0;
     published_.temperatureHttpStatus = 0;
+    published_.temperatureCommandAccepted = false;
+    published_.temperatureRetryable = true;
     if (temperatureActive_.load(std::memory_order_acquire)) {
       abortRequested_.store(true, std::memory_order_release);
     }
@@ -758,16 +765,21 @@ bool ShotStopperMicraService::identityCurrent(
 }
 
 void ShotStopperMicraService::deferTemperature(
-    const LineaMicraRequest &request, uint32_t machineConfigGeneration,
-    LineaMicraError error, uint32_t delayMs) {
+    const LineaMicraRequest &request, LineaMicraError error, uint32_t delayMs,
+    bool retryable) {
   TaskLockGuard lock(mux_);
   if (!desiredTemperature_.present ||
-      desiredTemperature_.machineConfigGeneration !=
-          machineConfigGeneration ||
       !sameTemperatureRequest(desiredTemperature_.request, request)) {
     return;
   }
-  desiredTemperature_.retryAtMs = millis() + delayMs;
+  published_.temperatureCommandAccepted =
+      desiredTemperature_.commandAccepted;
+  published_.temperatureRetryable = retryable;
+  if (retryable) {
+    desiredTemperature_.retryAtMs = millis() + delayMs;
+  } else {
+    desiredTemperature_ = {};
+  }
   published_.temperatureState = error == LineaMicraError::CANCELED
                                     ? LineaMicraTemperatureState::CANCELED
                                     : LineaMicraTemperatureState::FAILED;
@@ -782,6 +794,7 @@ bool ShotStopperMicraService::executeTemperatureApplication(
     const LineaMicraRequest &request,
     uint32_t machineConfigGeneration) {
   LineaMicraPersistedSettings settings;
+  bool commandAccepted = false;
   {
     TaskLockGuard lock(mux_);
     if (!desiredTemperature_.present ||
@@ -792,20 +805,24 @@ bool ShotStopperMicraService::executeTemperatureApplication(
       return true;
     }
     settings = config_;
+    commandAccepted = desiredTemperature_.commandAccepted;
     published_.requestId = request.requestId;
     published_.requestedTargetDeciC = request.targetDeciC;
     published_.temperatureState = LineaMicraTemperatureState::RUNNING;
     published_.temperatureError = LineaMicraError::NONE;
+    published_.temperatureCommandAccepted = commandAccepted;
+    published_.temperatureRetryable = true;
   }
   if (!ensureWorkBuffer()) {
     wipeLineaMicraSettings(settings);
-    deferTemperature(request, machineConfigGeneration,
-                     LineaMicraError::HTTP_ERROR,
+    deferTemperature(request, LineaMicraError::HTTP_ERROR,
                      micra_timing::kExhaustedCooldownMs);
     return false;
   }
 
-  bool commandAccepted = false;
+  bool commandAttempted = false;
+  int32_t commandTransportStatus = 0;
+  uint16_t commandHttpStatus = 0;
   for (size_t attempt = 0; attempt < micra_timing::kMaxAttempts; ++attempt) {
     LineaMicraError gateError = LineaMicraError::NONE;
     if (!temperatureRequestCurrent(request, machineConfigGeneration)) {
@@ -814,7 +831,7 @@ bool ShotStopperMicraService::executeTemperatureApplication(
     }
     if (!temperatureEligible(gateError)) {
       wipeLineaMicraSettings(settings);
-      deferTemperature(request, machineConfigGeneration, gateError,
+      deferTemperature(request, gateError,
                        gateError == LineaMicraError::CANCELED
                            ? micra_timing::kGateRetryMs
                            : micra_timing::kExhaustedCooldownMs);
@@ -830,7 +847,18 @@ bool ShotStopperMicraService::executeTemperatureApplication(
     if (ensureSession(settings, false) &&
         temperatureRequestCurrent(request, machineConfigGeneration)) {
       if (!commandAccepted) {
+        commandAttempted = true;
         commandAccepted = writeTemperature(settings, request.targetDeciC);
+        commandTransportStatus = work_->transportStatus;
+        commandHttpStatus = work_->httpStatus;
+        if (commandAccepted) {
+          TaskLockGuard lock(mux_);
+          if (desiredTemperature_.present &&
+              sameTemperatureRequest(desiredTemperature_.request, request)) {
+            desiredTemperature_.commandAccepted = true;
+            published_.temperatureCommandAccepted = true;
+          }
+        }
       }
       success = commandAccepted &&
                 temperatureRequestCurrent(request, machineConfigGeneration) &&
@@ -842,8 +870,6 @@ bool ShotStopperMicraService::executeTemperatureApplication(
       wipeLineaMicraSettings(settings);
       TaskLockGuard lock(mux_);
       if (desiredTemperature_.present &&
-          desiredTemperature_.machineConfigGeneration ==
-              machineConfigGeneration &&
           sameTemperatureRequest(desiredTemperature_.request, request)) {
         desiredTemperature_ = {};
         published_.targetValid = true;
@@ -854,6 +880,8 @@ bool ShotStopperMicraService::executeTemperatureApplication(
         published_.temperatureError = LineaMicraError::NONE;
         published_.temperatureTransportStatus = work_->transportStatus;
         published_.temperatureHttpStatus = work_->httpStatus;
+        published_.temperatureCommandAccepted = true;
+        published_.temperatureRetryable = false;
       }
       return true;
     }
@@ -864,7 +892,7 @@ bool ShotStopperMicraService::executeTemperatureApplication(
     }
     if (!temperatureEligible(gateError)) {
       wipeLineaMicraSettings(settings);
-      deferTemperature(request, machineConfigGeneration, gateError,
+      deferTemperature(request, gateError,
                        micra_timing::kGateRetryMs);
       return false;
     }
@@ -872,22 +900,33 @@ bool ShotStopperMicraService::executeTemperatureApplication(
       secureWipe(work_->accessToken, sizeof(work_->accessToken));
       work_->accessTokenIssuedAtMs = 0;
     }
+    if (!commandAccepted && commandAttempted &&
+        commandTransportStatus == ESP_OK && commandHttpStatus != 0 &&
+        !lineaMicraTemperatureHttpRetryable(commandHttpStatus)) {
+      break;
+    }
     if (attempt + 1U >= micra_timing::kMaxAttempts) break;
     (void)ulTaskNotifyTake(
         pdTRUE, pdMS_TO_TICKS(micra_timing::kRetryDelaysMs[attempt]));
   }
 
   wipeLineaMicraSettings(settings);
+  const uint16_t failureHttpStatus =
+      commandAttempted ? commandHttpStatus : work_->httpStatus;
+  const int32_t failureTransportStatus =
+      commandAttempted ? commandTransportStatus : work_->transportStatus;
   const LineaMicraError error =
       commandAccepted
           ? LineaMicraError::UNCONFIRMED
-          : work_->httpStatus == 401
+          : failureHttpStatus == 401
                 ? LineaMicraError::INVALID_AUTH
-                : work_->transportStatus == ESP_OK && work_->httpStatus != 0
+                : failureTransportStatus == ESP_OK &&
+                          failureHttpStatus != 0 &&
+                          !lineaMicraTemperatureHttpRetryable(failureHttpStatus)
                       ? LineaMicraError::REJECTED
                       : LineaMicraError::HTTP_ERROR;
-  deferTemperature(request, machineConfigGeneration, error,
-                   micra_timing::kExhaustedCooldownMs);
+  deferTemperature(request, error, micra_timing::kExhaustedCooldownMs,
+                   lineaMicraTemperatureCycleRetryable(error));
   return false;
 }
 
@@ -1338,13 +1377,18 @@ bool ShotStopperMicraService::writeTemperature(
       "{\"boilerIndex\":1,\"targetTemperature\":%u.%u}",
       static_cast<unsigned>(targetDeciC / 10U),
       static_cast<unsigned>(targetDeciC % 10U));
+  work_->transportStatus = 0;
+  work_->httpStatus = 0;
   const bool ok = urlLength > 0 &&
                   static_cast<size_t>(urlLength) < sizeof(url) &&
                   bodyLength > 0 &&
                   static_cast<size_t>(bodyLength) < sizeof(io_->body) &&
                   request(settings, url, HTTP_METHOD_POST, io_->body, true);
+  const bool accepted =
+      ok || (work_->transportStatus == ESP_OK && work_->httpStatus >= 200 &&
+             work_->httpStatus < 300);
   releaseIoBuffer();
-  return ok;
+  return accepted;
 }
 
 bool ShotStopperMicraService::applySignedHeaders(

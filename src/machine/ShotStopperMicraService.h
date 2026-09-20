@@ -47,6 +47,7 @@ class ShotStopperMicraService {
     uint32_t machineConfigGeneration = 0;
     uint32_t retryAtMs = 0;
     bool present = false;
+    bool commandAccepted = false;
   };
 
   static void taskEntry(void *context);
@@ -91,8 +92,8 @@ class ShotStopperMicraService {
   bool identityCurrent(uint32_t identityGeneration) const;
   bool temperatureEligible(LineaMicraError &error) const;
   void deferTemperature(const LineaMicraRequest &request,
-                        uint32_t machineConfigGeneration,
-                        LineaMicraError error, uint32_t delayMs);
+                        LineaMicraError error, uint32_t delayMs,
+                        bool retryable = true);
 
   mutable TaskMutex mux_;
   TaskMutex clientMux_;

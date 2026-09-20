@@ -136,11 +136,20 @@ The cloud command is complete only after a dashboard read reports the requested
 target. Once the cloud accepts a change, delayed confirmation retries only the
 dashboard read instead of resending the change. Status and diagnostics
 distinguish a pending, running, confirmed, canceled, rejected, unconfirmed, or
-communication-failed application from the Micra's last reported target. A
-failure remains retryable. Turning this option off, disconnecting the account, losing
-station Wi-Fi, or entering setup AP mode prevents writes; saved preset values
-remain unchanged. Temperature application does not require **Monitor machine
-power state** to be enabled.
+communication-failed application from the Micra's last reported target, without
+mixing that result into power-observation quality. Status also reports whether
+the change was already accepted and whether another automatic attempt remains
+scheduled.
+
+Connection timeouts, rate limits, and temporary server failures remain pending
+and retry after the cooldown. An expired session gets bounded refresh/sign-in
+attempts first; if authorization remains invalid, automatic attempts stop. A
+redirect or other permanent request rejection also stops automatic attempts for
+that trigger, avoiding repeated cloud requests. Selecting or saving a preset
+again, or reconnecting the scale, creates a new trigger. Turning this option
+off, disconnecting the account, losing station Wi-Fi, or entering setup AP mode
+prevents writes; saved preset values remain unchanged. Temperature application
+does not require **Monitor machine power state** to be enabled.
 
 Factory reset removes the Micra cloud account, selected machine, installation
 key, and RAM session. The three Micra options return to their checked defaults,

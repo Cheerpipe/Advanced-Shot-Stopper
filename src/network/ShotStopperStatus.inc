@@ -493,6 +493,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"sampleValid\":%s,\"sampleAgeMs\":%lu,\"freshnessMs\":%lu,"
         "\"pollIntervalMs\":%lu,\"targetValid\":%s,\"targetDeciC\":%u,"
         "\"temperatureState\":\"%s\",\"temperatureError\":\"%s\","
+        "\"temperatureCommandAccepted\":%s,\"temperatureRetryable\":%s,"
         "\"requestedTargetDeciC\":%u,\"appliedTargetDeciC\":%u,"
         "\"temperatureHttpStatus\":%u,"
         "\"temperatureTransportStatus\":%ld,"
@@ -524,6 +525,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned>(micraStatus.targetDeciC),
         lineaMicraTemperatureStateName(micraStatus.temperatureState),
         lineaMicraErrorName(micraStatus.temperatureError),
+        micraStatus.temperatureCommandAccepted ? "true" : "false",
+        micraStatus.temperatureRetryable ? "true" : "false",
         static_cast<unsigned>(micraStatus.requestedTargetDeciC),
         static_cast<unsigned>(micraStatus.appliedTargetDeciC),
         static_cast<unsigned>(micraStatus.temperatureHttpStatus),

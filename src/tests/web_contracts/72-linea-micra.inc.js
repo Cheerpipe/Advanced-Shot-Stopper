@@ -53,12 +53,17 @@ if (!micraTypes.includes('APPLY_TEMPERATURE') ||
     !micraService.includes('CoffeeMachineSettingCoffeeBoilerTargetTemperature') ||
     !micraService.includes('{\\\"boilerIndex\\\":1,\\\"targetTemperature\\\":%u.%u}') ||
     !micraService.includes('verification.targetDeciC == request.targetDeciC') ||
-    !micraService.includes('if (!commandAccepted)') ||
+    !micraService.includes('commandAccepted = desiredTemperature_.commandAccepted;') ||
+    !micraService.includes('desiredTemperature_.commandAccepted = true;') ||
+    !micraService.includes('lineaMicraTemperatureHttpRetryable') ||
+    !micraService.includes('lineaMicraTemperatureCycleRetryable') ||
     !micraService.includes('preserveTemperatureStatus(published_, next)') ||
     !micraService.includes('desiredTemperature_.machineConfigGeneration = configGeneration;') ||
     !micraService.includes('abortRequested_.load(std::memory_order_acquire)') ||
     !micraService.includes('refreshToken(settings) || signIn(settings)') ||
     !micraStatus.includes('\\\"temperatureState\\\"') ||
+    !micraStatus.includes('\\\"temperatureCommandAccepted\\\"') ||
+    !micraStatus.includes('\\\"temperatureRetryable\\\"') ||
     !micraStatus.includes('\\\"requestedTargetDeciC\\\"') ||
     !micraStatus.includes('\\\"appliedTargetDeciC\\\"') ||
     !micraStatus.includes('\\\"temperatureHttpStatus\\\"') ||
@@ -103,7 +108,7 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes("$('lineaMicraDisconnectButton').disabled=!canEdit||(!connected&&!machines.length)") ||
     !rawRuntimeJs.includes("$('dMicraPowerValue').textContent=power") ||
     !rawRuntimeJs.includes("m.temperatureState&&m.temperatureState!=='disabled'") ||
-    !rawRuntimeJs.includes("lm.temperatureState+'/'+lm.temperatureError") ||
+    !rawRuntimeJs.includes("$('dMicraAge').textContent=lm.temperatureState+'/'+lm.temperatureError+' · '") ||
     !rawRuntimeJs.includes("refresh.setAttribute('aria-disabled',String(disabled))") ||
     !rawRuntimeJs.includes("expired?'UNKNOWN':lm.powerState") ||
     !rawRuntimeJs.includes('expired=!lm.optimisticOn&&lm.sampleValid&&age>=lm.freshnessMs') ||

@@ -155,6 +155,16 @@ inline const char *lineaMicraTemperatureStateName(
   return "disabled";
 }
 
+inline bool lineaMicraTemperatureHttpRetryable(uint16_t status) {
+  return status < 200 || status == 401 || status == 408 || status == 425 ||
+         status == 429 || status >= 500;
+}
+
+inline bool lineaMicraTemperatureCycleRetryable(LineaMicraError error) {
+  return error == LineaMicraError::HTTP_ERROR ||
+         error == LineaMicraError::UNCONFIRMED;
+}
+
 struct LineaMicraRequest {
   uint32_t requestId = 0;
   uint32_t configGeneration = 0;
@@ -204,6 +214,8 @@ struct LineaMicraStatus {
   bool shotPaused = false;
   bool scalePaused = false;
   bool optimisticOn = false;
+  bool temperatureCommandAccepted = false;
+  bool temperatureRetryable = false;
 };
 
 static_assert(sizeof(LineaMicraRequest) <= 16,
