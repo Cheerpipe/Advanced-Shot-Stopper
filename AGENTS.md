@@ -62,10 +62,11 @@ or required by the requested validation gate.
 
 Keep unrelated user changes. Use `apply_patch` for edits. Store temporary working
 files in task-specific `temp/ai_temp_<task>/` directories and clean up only files
-no longer needed for evidence or recovery. Never
-commit unless explicitly asked. Every completed change report must include a
-copy-ready suggested commit message in English. Suggested commit messages and
-agent-created commits must follow exactly the same title and body requirements:
+no longer needed for evidence or recovery. Every request that results in a code
+modification must finish with a commit containing only its task files, using
+exactly the suggested title and description. Every completed change report must
+include that copy-ready suggested commit message in English. Suggested commit
+messages and agent-created commits must follow exactly the same title and body requirements:
 use Extended Conventional Commits, and never provide only a title. Every title
 must carry the mandatory `type(scope)` prefix and follow
 `type(scope): description` (or
