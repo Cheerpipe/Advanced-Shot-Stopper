@@ -21,9 +21,16 @@ internet connection is unavailable.
 4. Choose **Use selected machine**. Only then are monitoring and Micra preset
    options enabled and saved.
 
-After a machine is selected, Settings continues to show the saved account email
-as a read-only value. The password field and **Connect** are disabled until the
-account is disconnected.
+After a machine is selected, Settings hides the account email, password,
+**Connect**, machine list, and **Use selected machine** controls. **Selected
+machine** shows the saved cloud account email, followed by the machine name and
+serial number. Choose **Disconnect** to remove the saved credentials and
+selected machine and make the connection controls available again.
+
+With a machine selected, **Save Micra settings** saves only **Allow brew boiler
+temperature in presets** and **Monitor machine power state**. It does not sign
+in again, validate the cloud account, or reload the machine list. Normal state
+monitoring continues according to the saved monitoring option.
 
 If the account returns no Linea Micra machines, the account is not enabled and
 the machine-specific options remain unavailable. Accounts with several Micras

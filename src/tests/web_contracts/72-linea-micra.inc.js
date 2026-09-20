@@ -52,11 +52,14 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes("s.machineIntegration==='linea_micra_cloud'") ||
     !rawRuntimeJs.includes("{action:'connect',username,password}") ||
     !rawRuntimeJs.includes("{action:'select',serial") ||
+    !rawRuntimeJs.includes("{action:'save',applyTemperature:$('lineaMicraApplyTemperature').checked,observeState:$('lineaMicraObserveState').checked}") ||
     !rawRuntimeJs.includes("lineaMicraAction('disconnect')") ||
     rawRuntimeJs.includes("['queued','authenticating','listing','running','backoff'].includes(m.phase)") ||
-    !rawRuntimeJs.includes('if(connected)u.value=m.email') ||
-    !rawRuntimeJs.includes("u.readOnly=$('lineaMicraPassword').disabled=connected") ||
-    !rawRuntimeJs.includes("$('lineaMicraConnectButton').disabled=!canEdit||connected") ||
+    !rawRuntimeJs.includes("m.email+'\\n'+m.selectedName+' - '+m.selectedSerial") ||
+    !rawRuntimeJs.includes("$('lineaMicraIdentity').innerText=connected?") ||
+    !rawRuntimeJs.includes("for(let e=$('lineaMicraUsername').parentElement,n=5;n--;e=e.nextSibling)e.hidden=connected") ||
+    !rawRuntimeJs.includes("$('lineaMicraConnectButton').disabled=!canEdit||!m.staConnected||m.apActive") ||
+    !rawRuntimeJs.includes('select.disabled=!canEdit||!machines.length') ||
     !rawRuntimeJs.includes("$('lineaMicraApplyTemperature').disabled=!canEdit||!connected") ||
     !rawRuntimeJs.includes("$('lineaMicraObserveState').disabled=!canEdit||!connected") ||
     !rawRuntimeJs.includes("$('lineaMicraDisconnectButton').disabled=!canEdit||(!connected&&!machines.length)") ||
