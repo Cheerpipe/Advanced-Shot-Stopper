@@ -866,19 +866,20 @@ gate. It never changes relay safety.
 
 ## Linea Micra read-only observer
 
-Micra builds may run a separate BLE observer when **Monitor machine power
-state** is enabled and a verified machine is paired. It reconnects on a nominal
-15-second cadence, authenticates, reads `machineMode`, and disconnects. A current
+Micra builds run a separate cloud worker when **Monitor machine power state**
+is enabled and an account machine is selected. It queues a dashboard read on a nominal
+15-second cadence over HTTPS. A current
 `StandBy` response maps to OFF, `BrewingMode` to ON, and ECO or an unknown value
 to UNKNOWN. Communication errors and samples older than 30 seconds are also
 UNKNOWN; the separate `effectiveOn` presentation policy treats UNKNOWN as ON
 without claiming that ON was measured.
 
 The observer uses four total attempts with 3/6/9-second waits and bounded
-jitter. Exhaustion starts a 60-second cooldown. Scale activity and local cycles
-have priority: existing evidence is invalidated while critical activity is in
-progress, no machine operation is admitted, and one read becomes due after the
-critical interval without bypassing an active cooldown. The observer never
+jitter. Exhaustion starts a 60-second cooldown. It runs only with STA connected
+and the setup AP closed. Local shots and rinses cancel any in-flight read and
+pause further observations; one read becomes due after activity ends without
+bypassing an active cooldown. Scale BLE runs independently and has no shared
+radio arbiter with the cloud worker. The observer never
 starts or stops a cycle, drives the relay, selects a preset, or changes paddle
 behavior.
 

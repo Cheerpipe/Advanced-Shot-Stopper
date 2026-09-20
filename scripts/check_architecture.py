@@ -72,18 +72,24 @@ def main() -> int:
                     f"in {relative}"
                 )
     machine_cmake = text("idf/components/shotStopper/CMakeLists.txt")
-    base_requires = machine_cmake.split(
-        "set(SHOT_STOPPER_REQUIRES", 1
-    )[1].split(")", 1)[0]
-    if "LineaMicraBLE" in base_requires:
-        failures.append("non-Micra firmware unconditionally depends on LineaMicraBLE")
     for required in (
         "ShotStopperLineaMicraIntegration.cpp",
-        "idf_component_optional_requires(PRIVATE LineaMicraBLE)",
         "ShotStopperMachineIntegration.cpp",
     ):
         if required not in machine_cmake:
             failures.append(f"selected machine source contract missing {required!r}")
+    micra_service = text("src/machine/ShotStopperMicraService.cpp")
+    for required in (
+        "esp_crt_bundle_attach",
+        "networkEligible",
+        "parseJsonDocumentWithinLimits",
+        "clearSession",
+    ):
+        if required not in micra_service:
+            failures.append(f"Micra cloud boundary missing {required!r}")
+    for forbidden in ("NimBLE", "ShotStopperBle", "ble_gap", "ble_gatt"):
+        if forbidden in micra_service:
+            failures.append(f"Micra cloud service depends on BLE via {forbidden!r}")
     entrypoints = text("src/platform/ShotStopperEntrypoints.inc")
     if "scaleBridgeOk && machineIntegrationOk" in entrypoints:
         failures.append("optional machine integration gates scale-worker startup")
@@ -108,7 +114,6 @@ def main() -> int:
         "src/tests/resource_owner_host_test.cpp",
         "src/tests/machine_integration_host_test.cpp",
         "src/tests/linea_micra_contract_host_test.cpp",
-        "src/tests/micra_service_host_test.cpp",
         "libraries/EspressoScaleBLE/tests/scale_ble_portable_test.cpp",
     )
     for relative in independent_harnesses:

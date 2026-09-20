@@ -20,7 +20,7 @@ set(_ss_profile_manifest "${CMAKE_BINARY_DIR}/generated/build-profile.json")
 if(NOT DEFINED SHOT_STOPPER_MACHINE_INTEGRATION)
   set(SHOT_STOPPER_MACHINE_INTEGRATION "none")
 endif()
-if(NOT SHOT_STOPPER_MACHINE_INTEGRATION MATCHES "^(none|linea_micra_ble)$")
+if(NOT SHOT_STOPPER_MACHINE_INTEGRATION MATCHES "^(none|linea_micra_cloud)$")
   message(FATAL_ERROR "Invalid SHOT_STOPPER_MACHINE_INTEGRATION=${SHOT_STOPPER_MACHINE_INTEGRATION}")
 endif()
 if(EXISTS "${_ss_profile_manifest}")
@@ -28,7 +28,7 @@ if(EXISTS "${_ss_profile_manifest}")
   string(REGEX MATCH
     "\"machine_integration\"[ \t\r\n]*:[ \t\r\n]*\"([^\"]+)\""
     _ss_profile_match "${_ss_profile_json}")
-  if(NOT CMAKE_MATCH_1 MATCHES "^(none|linea_micra_ble)$")
+  if(NOT CMAKE_MATCH_1 MATCHES "^(none|linea_micra_cloud)$")
     message(FATAL_ERROR "Invalid or missing machine_integration in ${_ss_profile_manifest}")
   endif()
   if(NOT "${SHOT_STOPPER_MACHINE_INTEGRATION}" STREQUAL "${CMAKE_MATCH_1}")
@@ -114,11 +114,7 @@ target_compile_options(${_ss_modbus_lib} PRIVATE -Wno-stringop-truncation)
 # firmware-focused analyzer pass.
 if(_ss_enable_gcc_analyzer)
   foreach(_ss_analyzer_component IN ITEMS
-      main shotStopper EspressoScaleBLE ShotStopperBleRuntime LineaMicraBLE)
-    if(_ss_analyzer_component STREQUAL "LineaMicraBLE" AND
-       NOT SHOT_STOPPER_MACHINE_INTEGRATION STREQUAL "linea_micra_ble")
-      continue()
-    endif()
+      main shotStopper EspressoScaleBLE ShotStopperBleRuntime)
     idf_component_get_property(_ss_analyzer_component_lib
       ${_ss_analyzer_component} COMPONENT_LIB)
     target_compile_options(${_ss_analyzer_component_lib} PRIVATE -fanalyzer)
@@ -130,11 +126,7 @@ endif()
 # tolerate them, so only project-owned components see them.
 if(_ss_enable_unused_parameter)
   foreach(_ss_unused_parameter_component IN ITEMS
-      main shotStopper EspressoScaleBLE ShotStopperBleRuntime LineaMicraBLE)
-    if(_ss_unused_parameter_component STREQUAL "LineaMicraBLE" AND
-       NOT SHOT_STOPPER_MACHINE_INTEGRATION STREQUAL "linea_micra_ble")
-      continue()
-    endif()
+      main shotStopper EspressoScaleBLE ShotStopperBleRuntime)
     idf_component_get_property(_ss_unused_parameter_component_lib
       ${_ss_unused_parameter_component} COMPONENT_LIB)
     target_compile_options(${_ss_unused_parameter_component_lib} PRIVATE

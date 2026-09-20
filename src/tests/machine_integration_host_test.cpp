@@ -6,7 +6,7 @@ int main() {
   using namespace shotstopper;
   assert(machineIntegrationTaskCount() == 0);
   assert(initializeMachineIntegration());
-  serviceMachineIntegrationWorker();
-  assert(machineIntegrationMaxExecutionUs() == 0);
+  publishMachineIntegrationNetworkState(true, false, false);
+  serviceMachineIntegrationAbort();
   return 0;
 }

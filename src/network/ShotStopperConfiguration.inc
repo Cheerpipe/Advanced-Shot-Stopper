@@ -831,7 +831,7 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
         const cJSON *micraTarget =
             cJSON_GetObjectItemCaseSensitive(root, "lineaMicraBrewTargetC");
         if (parseError == nullptr && micraTarget != nullptr) {
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
           const double scaled = cJSON_IsNumber(micraTarget)
                                     ? micraTarget->valuedouble * 10.0
                                     : NAN;

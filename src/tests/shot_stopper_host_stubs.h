@@ -70,7 +70,6 @@ using portMUX_TYPE = std::recursive_mutex;
 #include "../../libraries/EspressoScaleBLE/src/ScaleFeatures.h"
 
 inline uint32_t hostMillis = 0;
-inline bool hostMachineBleProcedureActive = false;
 inline std::array<int, 64> hostPinLevel = {};
 inline std::array<int, 64> hostPinMode = {};
 inline size_t hostRelayOpenWrites = 0;

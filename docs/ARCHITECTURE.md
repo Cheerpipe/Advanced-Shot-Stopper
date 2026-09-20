@@ -54,22 +54,21 @@ The machine profile declares an allow-listed `integration` value explicitly;
 brand, model, ID and display text never select executable code. Profiles with
 `integration: none` compile the no-op adapter and do not link a concrete machine
 protocol component. Linea Micra builds compile its adapter, service, bounded
-feature types and native BLE client. Future machines may expose entirely
+feature types and HTTPS cloud client. Future machines may expose entirely
 different feature APIs while retaining only the small lifecycle boundary needed
-by boot and the shared worker.
+by boot and network-state publication.
 
-The adapter receives advertisements through the shared BLE arbiter. Initial
-pairing asks the scale-owned scanner for one bounded observation window and
-selects only the configured Micra address, or one uniquely named `MICRA_*`
-device when no address was configured. It never probes anonymous peers. Before
-a machine peer procedure, that same coordinator pauses discovery without
-disconnecting a linked scale. A newly detected scale candidate or a critical
-control interval still wins admission. This keeps scanner and host ownership out
-of the machine-specific service while allowing other adapters to define
-different capabilities.
+The Micra adapter owns a dedicated low-priority worker and bounded PSRAM response
+workspace. It registers an installation key, signs La Marzocco cloud requests,
+keeps short-lived access and refresh tokens in RAM, lists account machines, and
+reads only the selected serial's dashboard. The network service publishes STA,
+AP, and shot state through the common lifecycle boundary. The worker never
+starts cloud work without STA, cancels it when AP starts or STA is lost, and
+pauses state observations during shots. It has no NimBLE dependency and cannot
+delay scale discovery, scale commands, or weight delivery.
 
-The shared settings blob retains the exact 98-byte V15
-`LineaMicraPersistedSettings` record and the two-byte per-preset Micra target in
+The shared settings blob retains the exact 310-byte V16
+`LineaMicraPersistedSettings` cloud account record and the two-byte per-preset Micra target in
 every profile so switching a build profile cannot reinterpret the persistence
 layout. Their names, validation and helpers remain Micra-owned; unrelated
 machine modules must not reuse them. Changing either stored layout requires the

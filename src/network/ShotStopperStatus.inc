@@ -58,36 +58,27 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   }
   const NetworkStatusSnapshot network = self.snapshot();
   const TimeStatusSnapshot timeStatus = g_wallClock.snapshot(millis());
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   LineaMicraStatus micraStatus = {};
-  char micraIdentity[LINEA_MICRA_IDENTITY_CAPACITY] = {};
-  char safeMicraIdentity[LINEA_MICRA_IDENTITY_CAPACITY] = {};
-  char micraAddress[18] = {};
-  uint8_t micraPeerAddress[6] = {};
+  LineaMicraDiscoverySnapshot micraDiscovery = {};
+  char micraSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
+  char safeMicraSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
+  char micraName[LINEA_MICRA_NAME_CAPACITY] = {};
+  char safeMicraName[LINEA_MICRA_NAME_CAPACITY] = {};
   uint8_t micraOptions = 0;
-  bool micraTokenConfigured = false;
-  bool micraBindingVerified = false;
-  bool micraAddressConfigured = false;
+  bool micraAccountConfigured = false;
   self.dataMux_.lock();
-  micraTokenConfigured =
-      strnlen(self.settings_.lineaMicra.token,
-              sizeof(self.settings_.lineaMicra.token)) == 64;
-  micraBindingVerified = self.settings_.lineaMicra.bindingVerified;
-  micraAddressConfigured =
-      lineaMicraAddressConfigured(self.settings_.lineaMicra);
+  micraAccountConfigured = self.settings_.lineaMicra.accountConfigured;
   micraOptions = self.settings_.lineaMicra.options;
-  memcpy(micraIdentity, self.settings_.lineaMicra.identity,
-         sizeof(micraIdentity));
-  memcpy(micraPeerAddress, self.settings_.lineaMicra.peerAddress,
-         sizeof(micraPeerAddress));
+  memcpy(micraSerial, self.settings_.lineaMicra.selectedSerial,
+         sizeof(micraSerial));
+  memcpy(micraName, self.settings_.lineaMicra.selectedName,
+         sizeof(micraName));
   self.dataMux_.unlock();
   micraStatus = machineIntegrationStatus();
-  sanitizeJsonEmbed(micraIdentity, safeMicraIdentity,
-                    sizeof(safeMicraIdentity));
-  if (micraAddressConfigured) {
-    formatLineaMicraAddress(micraPeerAddress, micraAddress,
-                            sizeof(micraAddress));
-  }
+  micraDiscovery = machineIntegrationDiscovery();
+  sanitizeJsonEmbed(micraSerial, safeMicraSerial, sizeof(safeMicraSerial));
+  sanitizeJsonEmbed(micraName, safeMicraName, sizeof(safeMicraName));
 #endif
 
   char currentWeight[32] = "null";
@@ -245,8 +236,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     ok = statusJsonAppend(
         &used, ",\"machineType\":\"%s\",\"machineIntegration\":\"%s\"",
         compiledMachineTypeId(),
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE
-        "linea_micra_ble"
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+        "linea_micra_cloud"
 #else
         "none"
 #endif
@@ -473,7 +464,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     ok = statusJsonAppend(&used, "}");
   }
 
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   if (ok && (page == StatusPage::Settings || page == StatusPage::Diagnostic)) {
     const uint32_t sampleAgeMs = micraStatus.sampleAtMs == 0
                                      ? 0
@@ -485,22 +476,25 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
          micraStatus.quality == LineaMicraObservationQuality::UNSUPPORTED);
     ok = statusJsonAppend(
         &used,
-        ",\"lineaMicra\":{\"tokenConfigured\":%s,\"bindingVerified\":%s,"
-        "\"identity\":\"%s\",\"address\":\"%s\",\"applyTemperature\":%s,\"observeState\":%s,"
-        "\"requestId\":%lu,\"phase\":\"%s\",\"powerState\":\"%s\","
+        ",\"lineaMicra\":{\"accountConfigured\":%s,"
+        "\"selectedSerial\":\"%s\",\"selectedName\":\"%s\","
+        "\"applyTemperature\":%s,\"observeState\":%s,"
+        "\"requestId\":%lu,\"phase\":\"%s\",\"error\":\"%s\","
+        "\"powerState\":\"%s\","
         "\"observedMode\":\"%s\",\"quality\":\"%s\",\"effectiveOn\":%s,"
         "\"sampleValid\":%s,\"sampleAgeMs\":%lu,\"freshnessMs\":%lu,"
-        "\"pollIntervalMs\":%lu,\"measuredValid\":%s,\"measuredDeciC\":%u,"
-        "\"targetValid\":%s,\"targetDeciC\":%u}",
-        micraTokenConfigured ? "true" : "false",
-        micraBindingVerified ? "true" : "false", safeMicraIdentity,
-        micraAddress,
+        "\"pollIntervalMs\":%lu,\"targetValid\":%s,\"targetDeciC\":%u,"
+        "\"staConnected\":%s,\"apActive\":%s,\"shotPaused\":%s,"
+        "\"httpStatus\":%u,\"transportStatus\":%ld,\"machines\":[",
+        micraAccountConfigured ? "true" : "false", safeMicraSerial,
+        safeMicraName,
         (micraOptions & LINEA_MICRA_APPLY_TEMPERATURE) != 0
             ? "true" : "false",
         (micraOptions & LINEA_MICRA_OBSERVE_STATE) != 0
             ? "true" : "false",
         static_cast<unsigned long>(micraStatus.requestId),
         lineaMicraPhaseName(micraStatus.phase),
+        lineaMicraErrorName(micraStatus.error),
         lineaMicraPowerStateName(micraStatus.powerState),
         lineaMicraObservedModeName(micraStatus.observedMode),
         lineaMicraObservationQualityName(micraStatus.quality),
@@ -508,11 +502,26 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         sampleValid ? "true" : "false",
         static_cast<unsigned long>(sampleAgeMs),
         static_cast<unsigned long>(micra_timing::kStateFreshnessMs),
-        static_cast<unsigned long>(micra_timing::kStatePollNoScaleMs),
-        micraStatus.measuredValid ? "true" : "false",
-        static_cast<unsigned>(micraStatus.measuredDeciC),
+        static_cast<unsigned long>(micra_timing::kStatePollMs),
         micraStatus.targetValid ? "true" : "false",
-        static_cast<unsigned>(micraStatus.targetDeciC));
+        static_cast<unsigned>(micraStatus.targetDeciC),
+        micraStatus.staConnected ? "true" : "false",
+        micraStatus.apActive ? "true" : "false",
+        micraStatus.shotPaused ? "true" : "false",
+        static_cast<unsigned>(micraStatus.httpStatus),
+        static_cast<long>(micraStatus.transportStatus));
+    for (uint8_t index = 0; ok && index < micraDiscovery.count; ++index) {
+      char safeSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
+      char safeName[LINEA_MICRA_NAME_CAPACITY] = {};
+      sanitizeJsonEmbed(micraDiscovery.machines[index].serial, safeSerial,
+                        sizeof(safeSerial));
+      sanitizeJsonEmbed(micraDiscovery.machines[index].name, safeName,
+                        sizeof(safeName));
+      ok = statusJsonAppend(&used,
+                            "%s{\"serial\":\"%s\",\"name\":\"%s\"}",
+                            index == 0 ? "" : ",", safeSerial, safeName);
+    }
+    if (ok) ok = statusJsonAppend(&used, "]}");
   }
 #endif
 

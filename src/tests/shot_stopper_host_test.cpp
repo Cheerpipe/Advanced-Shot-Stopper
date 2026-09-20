@@ -65,7 +65,6 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   resetSerialCliState();
 
   hostMillis = 0;
-  hostMachineBleProcedureActive = false;
   powerPolicy = PowerPolicy{};
   powerWebUntilMs.store(0);
   powerNetworkBusy.store(false);
@@ -4959,29 +4958,6 @@ void d01_idle_scan_stays_enabled_between_ticks() {
   CHECK(scale.scanning);
   CHECK(scale.directedScan);
   CHECK(scale.startScanCalls == calls);
-}
-
-void d01b_machine_owner_pauses_scale_discovery() {
-  resetHarness(false, false);
-  reachReadyFromBoot();
-  uint32_t lastScanCycleMs = 0;
-  uint32_t lastConnectLogMs = 0;
-  bool connectAttemptSeriesActive = false;
-  uint32_t scanSessionAtMs = 0;
-  uint32_t scanLastAdvertAtMs = 0;
-  hostMachineBleProcedureActive = true;
-  serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
-                              connectAttemptSeriesActive, scanSessionAtMs,
-                              scanLastAdvertAtMs);
-  CHECK(!scale.scanning);
-  CHECK(scale.startScanCalls == 0);
-
-  hostMachineBleProcedureActive = false;
-  serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
-                              connectAttemptSeriesActive, scanSessionAtMs,
-                              scanLastAdvertAtMs);
-  CHECK(scale.scanning);
-  CHECK(scale.startScanCalls == 1);
 }
 
 void d13_idle_delays_relax_without_scale() {
@@ -12164,7 +12140,7 @@ void f14_relay_timer_initialization_rolls_back_partial_handles() {
 }
 
 void f13_schedule_contract_and_snapshot_evidence_are_explicit() {
-  CHECK(TASK_SCHEDULE_CONTRACT_COUNT == 7);
+  CHECK(TASK_SCHEDULE_CONTRACT_COUNT == 8);
   CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[0].name, "control") == 0);
   CHECK(TASK_SCHEDULE_CONTRACTS[0].core == CONTROL_TASK_CORE);
   CHECK(TASK_SCHEDULE_CONTRACTS[0].serviceDeadlineMs ==
@@ -12177,7 +12153,9 @@ void f13_schedule_contract_and_snapshot_evidence_are_explicit() {
         SCALE_SERVICE_DEADLINE_MS);
   CHECK(TASK_SCHEDULE_CONTRACTS[2].priorityOffset == 1);
   CHECK(TASK_SCHEDULE_CONTRACTS[2].watchdogSubscribed);
-  CHECK(TASK_SCHEDULE_CONTRACTS[6].maxBlockingMs ==
+  CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[6].name, "micra_cloud") == 0);
+  CHECK(TASK_SCHEDULE_CONTRACTS[6].maxBlockingMs == 10000);
+  CHECK(TASK_SCHEDULE_CONTRACTS[7].maxBlockingMs ==
         TASK_BLOCKING_UNBOUNDED_MS);
 
   resetHarness(false, true);
@@ -15367,7 +15345,6 @@ const TestCase testCases[] = {
     {"W96", w96_echo_inverted_uses_long_bookend_tones},
     {"W98", w98_buzzer_sequences_start_and_end_with_sound},
     {"D01", d01_idle_scan_stays_enabled_between_ticks},
-    {"D01b", d01b_machine_owner_pauses_scale_discovery},
     {"D13", d13_idle_delays_relax_without_scale},
     {"D14", d14_control_status_publishes_on_cycle_edge},
     {"D02", d02_first_mode_uses_name_scan},

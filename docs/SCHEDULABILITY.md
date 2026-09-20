@@ -21,6 +21,7 @@ subscribed nor part of control. Stack values are configured bytes in ESP-IDF.
 | mdns | event-driven (action queue) | n/a | n/a | 1 | freed once in network stop | 4096 | 0 | no |
 | httpd | framework event | n/a | n/a | idle+1 | 30000 ms OTA receive budget | 8192 | 0 | no |
 | webhook | event-driven | n/a | n/a | idle | 1800 ms HTTP | 4096 | 0 | no |
+| micra_cloud | event-driven | n/a | n/a | idle | 10000 ms per HTTPS request | 8192 | 0 | no |
 | serial_log | event-driven | n/a | n/a | idle | unbounded USB sink | 3072 | 0 | no |
 
 The 10 ms service deadline does not apply while `scale_worker` is executing an
@@ -28,12 +29,12 @@ explicit connection/discovery operation whose bounded step is listed above;
 those paths are separately bounded by the 5 s TWDT. HIL qualification must
 report active-link and connect/discovery distributions separately.
 
-The optional Micra service executes last in `scale_worker`; it creates no task
-and has the same 10 ms body budget. Its state observer is due nominally every
-15 seconds, uses bounded connect/ATT/session deadlines, leaves at least one
-second between disconnected sessions, and stops retrying for at least 60
-seconds after four failed attempts. These are admission intervals, not a
-guaranteed detection latency under scale or Home Assistant contention.
+The optional Micra cloud service owns a low-priority core-0 worker so HTTPS and
+signature work never enters the scale or control deadlines. Its state observer
+is due nominally every 15 seconds, each HTTPS operation has a 10-second timeout,
+and it stops retrying for at least 60 seconds after four failed attempts. AP,
+STA-loss, and shot transitions cancel active I/O. These are admission intervals,
+not a guaranteed cloud detection latency.
 
 The scale worker blocks on a task notification with the state-dependent 1 ms
 linked/connecting or 10 ms idle timeout. Commands, policy changes

@@ -66,7 +66,7 @@ constexpr uint32_t SERIAL_BAUD = 115200;
 // after staOpen). V2 names that byte staWifiSleep without growing the blob.
 // Bump and add a migration when the blob layout changes
 // (see ShotStopperSettingsMigrate.h).
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 15;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 16;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;

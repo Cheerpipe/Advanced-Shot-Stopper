@@ -178,11 +178,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // markup and fuller hints, adding ~1.7 KB of HTML source allowance.
 // The Admin Network device-name label and hint add ~0.1 KB of HTML source
 // allowance.
-// Profile-gated Linea Micra setup, per-preset temperature, and read-only
-// machine-state diagnostics add 2.4 KB of HTML source.
-// Directed Micra BLE address selection adds 0.5 KB of labeled setup help.
-if (htmlBytes > 68700) {
-  throw new Error('Web UI HTML source exceeds the authoring budget');
+// Profile-gated Linea Micra cloud account selection, per-preset temperature,
+// and read-only machine-state diagnostics add labeled setup help.
+if (htmlBytes > 69000) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 69000)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -215,14 +214,13 @@ if (htmlBytes > 68700) {
 // source allowance.
 // Weekday names, short dates, and the hover <time> wrapper add ~0.2 KB of
 // combined source allowance.
-// Linea Micra save/test/refresh wiring and browser-side state expiry add
-// 4.7 KB of JS source and 7.2 KB to the combined source allowance.
-// Address normalization and validation add 0.4 KB of JS and 0.9 KB combined.
-if (jsBytes > 192100) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 192100)`);
+// Linea Micra account connection, machine selection, settings, refresh, and
+// browser-side state expiry add the profile-gated cloud workflow.
+if (jsBytes > 193300) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 193300)`);
 }
-if (htmlBytes + jsBytes > 260800) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 260800)`);
+if (htmlBytes + jsBytes > 262300) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 262300)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

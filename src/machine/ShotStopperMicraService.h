@@ -1,100 +1,86 @@
 #pragma once
 
-#include "ShotStopperBleArbiter.h"
 #include "ShotStopperLineaMicraSettings.h"
 #include "ShotStopperLineaMicraTypes.h"
-#include "ShotStopperMicraTiming.h"
+#include "ShotStopperTaskMutex.h"
 
-#include <LineaMicraBLE.h>
-#if defined(LINEA_MICRA_BLE_HOST_TEST)
-#include "nimble_client_platform.h"
-#else
+#include <atomic>
+#include <Arduino.h>
+#include <esp_http_client.h>
 #include <freertos/FreeRTOS.h>
-#endif
+#include <freertos/task.h>
 
 namespace shotstopper {
 
 class ShotStopperMicraService {
  public:
   bool begin();
-  void service();
   void publishConfig(const LineaMicraPersistedSettings &settings,
                      uint32_t configGeneration);
+  void publishNetworkState(bool staConnected, bool apActive, bool shotActive);
+  bool queueConnect(uint32_t requestId, const char *username,
+                    const char *password);
   bool queue(const LineaMicraRequest &request);
+  bool selectDiscoveredMachine(const char *serial,
+                               LineaMicraPersistedSettings &settings);
+  void clearDiscovery();
+  void serviceAbort();
   LineaMicraStatus status() const;
-  bool takeBinding(LineaMicraBindingResult &result);
+  LineaMicraDiscoverySnapshot discovery() const;
 
  private:
-  static void observeAdvertisement(
-      const ShotStopperBleAdvertisement &advertisement, void *context);
-  void acceptAdvertisement(const ShotStopperBleAdvertisement &advertisement);
-  void startRequest();
-  void handleClientEvent(const lineamicra::ClientEvent &event);
-  void handleSubmission(bool accepted);
-  void failRequest(int32_t status);
-  void finishRequest();
-  void scheduleAutomaticObservation(uint32_t now);
-  void publishStatus();
-
-  struct Candidate {
-    uint8_t address[6] = {};
-    char identity[LINEA_MICRA_IDENTITY_CAPACITY] = {};
-    int8_t rssi = INT8_MIN;
-    uint8_t addressType : 2;
-    uint8_t connectable : 1;
-    uint8_t used : 1;
+  struct WorkBuffer;
+  struct PendingRequest {
+    LineaMicraRequest request = {};
+    LineaMicraPersistedSettings credentials = {};
+    bool present = false;
   };
 
-  enum class Stage : uint8_t {
-    IDLE,
-    WAIT_CANDIDATES,
-    CONNECT,
-    AUTH,
-    CAPABILITIES,
-    BOILERS,
-    MODE,
-    DISCONNECT
-  };
-  static const char *stageName(Stage stage);
+  static void taskEntry(void *context);
+  static esp_err_t httpEvent(esp_http_client_event_t *event);
+  void taskLoop();
+  void execute(PendingRequest &pending);
+  bool executeConnect(PendingRequest &pending);
+  bool executeObservation(PendingRequest &pending);
+  bool ensureSession(LineaMicraPersistedSettings &settings, bool registerKey);
+  bool generateInstallationKey(LineaMicraPersistedSettings &settings);
+  bool registerInstallation(const LineaMicraPersistedSettings &settings);
+  bool signIn(const LineaMicraPersistedSettings &settings);
+  bool refreshToken(const LineaMicraPersistedSettings &settings);
+  bool listMachines(const LineaMicraPersistedSettings &settings,
+                    LineaMicraDiscoverySnapshot &result);
+  bool readDashboard(const LineaMicraPersistedSettings &settings,
+                     LineaMicraStatus &result);
+  bool request(const LineaMicraPersistedSettings &settings, const char *url,
+               esp_http_client_method_t method, const char *body,
+               bool authenticated,
+               bool installationInit = false);
+  bool applySignedHeaders(const LineaMicraPersistedSettings &settings);
+  bool networkEligible(LineaMicraError &error) const;
+  void clearSession();
+  void publish(const LineaMicraStatus &status);
+  void fail(LineaMicraStatus &status, LineaMicraError error);
+  void scheduleAutomatic(uint32_t now, bool failed);
 
-  lineamicra::LineaMicraBLE client_;
-  // Worker-owned state; producers only touch the pending/published fields below.
+  mutable TaskMutex mux_;
+  TaskMutex clientMux_;
   LineaMicraPersistedSettings config_ = {};
-  LineaMicraRequest request_ = {};
-  LineaMicraStatus workingStatus_ = {};
-  LineaMicraPersistedSettings pendingConfig_ = {};
-  LineaMicraRequest pendingRequest_ = {};
-  LineaMicraStatus publishedStatus_ = {};
-  Candidate candidates_[4] = {};
+  LineaMicraPersistedSettings candidate_ = {};
+  PendingRequest pending_ = {};
+  LineaMicraStatus published_ = {};
+  LineaMicraDiscoverySnapshot discovery_ = {};
   uint32_t configGeneration_ = 0;
-  uint32_t pendingConfigGeneration_ = 0;
-  uint32_t acceptedConfigGeneration_ = 0;
-  uint32_t requestStartedAtMs_ = 0;
-  uint32_t discoveryStartedAtMs_ = 0;
-  uint32_t bindingRequestId_ = 0;
-  uint32_t bindingConfigGeneration_ = 0;
-  uint32_t nextObservationAtMs_ = 0;
-  uint32_t retryAtMs_ = 0;
   uint32_t nextAutomaticRequestId_ = 0x80000000UL;
-  uint16_t advertisementsObserved_ = 0;
-  uint16_t connectableFragments_ = 0;
-  uint16_t namedFragments_ = 0;
-  uint16_t micraFragments_ = 0;
-  uint16_t malformedFragments_ = 0;
-  Stage stage_ = Stage::IDLE;
-  uint8_t selectedCandidate_ = UINT8_MAX;
-  uint8_t attempt_ = 0;
-  bool configPending_ = false;
-  bool requestPending_ = false;
-  bool collectCandidates_ = false;
-  bool retryPending_ = false;
-  bool automaticRequest_ = false;
-  bool bindingReady_ = false;
-  bool criticalSeen_ = false;
-  mutable portMUX_TYPE mux_ = portMUX_INITIALIZER_UNLOCKED;
+  uint32_t nextAutomaticAtMs_ = 0;
+  bool active_ = false;
+  TaskHandle_t task_ = nullptr;
+  WorkBuffer *work_ = nullptr;
+  std::atomic<bool> staConnected_{false};
+  std::atomic<bool> apActive_{false};
+  std::atomic<bool> shotActive_{false};
+  std::atomic<bool> abortRequested_{false};
+  std::atomic<bool> clearSessionRequested_{false};
+  esp_http_client_handle_t activeClient_ = nullptr;
 };
-
-static_assert(sizeof(ShotStopperMicraService) <= 2048,
-              "Micra service exceeds its fixed internal-RAM envelope");
 
 }  // namespace shotstopper

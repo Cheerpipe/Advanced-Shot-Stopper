@@ -30,7 +30,7 @@ namespace shotstopper {
 // LastShotStore) plus the chunk staging below. The larger partition stores
 // (shotlog, history, shotcurve) never fit here: they transfer in
 // FLASH_IO_CHUNK_BYTES steps through flashIoReadChunked/flashIoWriteChunked.
-constexpr size_t FLASH_IO_SCRATCH_BYTES = 5496;
+constexpr size_t FLASH_IO_SCRATCH_BYTES = 5920;
 // One staged step of a partition-store transfer. 4-byte alignment keeps every
 // esp_partition_read/write call word-aligned; store sizes are multiples of 4.
 constexpr size_t FLASH_IO_CHUNK_BYTES = 1024;

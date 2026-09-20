@@ -260,7 +260,7 @@ def validate_machine(obj: dict[str, Any]) -> dict[str, Any]:
     profile_text(obj["model"], "machine.model")
     profile_text(obj["integration_revision"], "machine.integration_revision",
                  identifier=True)
-    integration = choice(obj["integration"], {"none", "linea_micra_ble"},
+    integration = choice(obj["integration"], {"none", "linea_micra_cloud"},
                          "machine.integration")
     interface = exact(obj["interface"], {"control", "feedback"}, "machine.interface")
     control = choice(interface["control"], {"paddle", "momentary"},
@@ -269,8 +269,8 @@ def validate_machine(obj: dict[str, Any]) -> dict[str, Any]:
                       "machine.interface.feedback")
     if control == "paddle" and feedback != "none":
         fail("paddle control does not support reed feedback")
-    if integration == "linea_micra_ble" and (control, feedback) != ("paddle", "none"):
-        fail("linea_micra_ble requires paddle control without feedback")
+    if integration == "linea_micra_cloud" and (control, feedback) != ("paddle", "none"):
+        fail("linea_micra_cloud requires paddle control without feedback")
     defaults = obj["factory_defaults"]
     specific = "paddle" if control == "paddle" else "momentary"
     exact(defaults, {"operational_wall_ms", specific, "quick_rinse"},
@@ -533,9 +533,9 @@ def header_for(resolved: dict[str, Any]) -> str:
     define(lines, "SHOT_STOPPER_MACHINE_MODEL", machine["model"])
     define(lines, "SHOT_STOPPER_MACHINE_COMPATIBILITY_REVISION", machine["compatibility_revision"])
     define(lines, "SHOT_STOPPER_MACHINE_INTEGRATION_NONE", 0)
-    define(lines, "SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE", 1)
+    define(lines, "SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD", 1)
     define(lines, "SHOT_STOPPER_MACHINE_INTEGRATION",
-           {"none": 0, "linea_micra_ble": 1}[resolved["machine_integration"]])
+           {"none": 0, "linea_micra_cloud": 1}[resolved["machine_integration"]])
     define(lines, "SHOT_STOPPER_ACTIVATOR_GPIO", hardware["activator"]["gpio"])
     define(lines, "SHOT_STOPPER_ACTIVATOR_ACTIVE_LEVEL", LEVELS[hardware["activator"]["active_level"]])
     define(lines, "SHOT_STOPPER_ACTIVATOR_DEBOUNCE_MS", hardware["activator"]["debounce_ms"])

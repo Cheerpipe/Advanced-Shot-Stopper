@@ -27,6 +27,7 @@ inline thread_local bool g_jsonLimitRejectedRecently = false;
 struct JsonStructureScanner {
   const char *body;
   size_t length;
+  size_t maxValues;
   size_t cursor = 0;
   size_t values = 0;
 
@@ -109,7 +110,7 @@ struct JsonStructureScanner {
 
   bool scanValue() {
     skipWhitespace();
-    if (++values > JSON_DOCUMENT_MAX_VALUES) return false;
+    if (++values > maxValues) return false;
     switch (current()) {
       case '{':
         return scanObject();
@@ -190,8 +191,9 @@ inline bool jsonNestingWithinLimit(const char *body, size_t length) {
   return true;
 }
 
-inline bool jsonValuesWithinLimit(const char *body, size_t length) {
-  JsonStructureScanner scanner{body, length};
+inline bool jsonValuesWithinLimit(const char *body, size_t length,
+                                  size_t maxValues) {
+  JsonStructureScanner scanner{body, length, maxValues};
   // Syntax failures are delegated to cJSON, which retains its detailed and
   // compatible JSON validation. A false result here is only used as an early
   // rejection after the value budget is exceeded.
@@ -222,18 +224,24 @@ inline void initJsonParser() {
   (void)initialized;
 }
 
-inline cJSON *parseJsonDocument(const char *body) {
+inline cJSON *parseJsonDocumentWithinLimits(const char *body, size_t maxBytes,
+                                            size_t maxValues) {
   detail::g_jsonLimitRejectedRecently = false;
-  if (body == nullptr) return nullptr;
+  if (body == nullptr || maxBytes == 0 || maxValues == 0) return nullptr;
 
-  const size_t length = strnlen(body, JSON_DOCUMENT_MAX_BYTES + 1);
-  if (length > JSON_DOCUMENT_MAX_BYTES ||
+  const size_t length = strnlen(body, maxBytes + 1);
+  if (length > maxBytes ||
       !detail::jsonNestingWithinLimit(body, length) ||
-      !detail::jsonValuesWithinLimit(body, length)) {
+      !detail::jsonValuesWithinLimit(body, length, maxValues)) {
     detail::noteJsonLimitRejection();
     return nullptr;
   }
   return cJSON_ParseWithLengthOpts(body, length + 1, nullptr, 1);
+}
+
+inline cJSON *parseJsonDocument(const char *body) {
+  return parseJsonDocumentWithinLimits(body, JSON_DOCUMENT_MAX_BYTES,
+                                       JSON_DOCUMENT_MAX_VALUES);
 }
 
 inline uint32_t jsonDocumentLimitRejections() {

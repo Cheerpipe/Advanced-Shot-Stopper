@@ -238,7 +238,7 @@ A machine profile adds these required identity and integration fields:
 | `brand` | Manufacturer stored separately, for example `Rancilio` or `La Marzocco`. |
 | `model` | Product model stored separately, for example `Silvia Pro X` or `Linea Micra`. |
 | `integration_revision` | Kebab-case description of the reviewed integration. Initial profiles end in `unqualified` until physically tested. |
-| `integration` | Compile-time digital integration: `none` or the allow-listed `linea_micra_ble`. This is explicit and is never inferred from brand, model, ID, or display name. |
+| `integration` | Compile-time digital integration: `none` or the allow-listed `linea_micra_cloud`. This is explicit and is never inferred from brand, model, ID, or display name. |
 | `interface.control` | `momentary` or `paddle`. |
 | `interface.feedback` | `none` or `reed`. Paddle currently permits only `none`. |
 | `factory_defaults` | Defaults appropriate to the selected control topology. |
@@ -338,7 +338,7 @@ for this machine profile:
   "brand": "La Marzocco",
   "model": "Linea Micra",
   "integration_revision": "paddle-v1-unqualified",
-  "integration": "linea_micra_ble",
+  "integration": "linea_micra_cloud",
   "interface": { "control": "paddle", "feedback": "none" },
   "factory_defaults": {
     "operational_wall_ms": 50000,

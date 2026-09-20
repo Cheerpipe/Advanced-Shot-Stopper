@@ -52,16 +52,10 @@ else()
     DEFINITIONS SHOT_STOPPER_HOST_TEST LABEL "host;network")
   host_test(webhook_worker_host_test LABEL "host;network")
   host_test(resource_owner_host_test LABEL "host;resources")
-  host_test(ble_arbiter_host_test
-    SOURCES
-      "${CMAKE_SOURCE_DIR}/idf/components/ShotStopperBleRuntime/ShotStopperBleArbiter.cpp"
-    LABEL "host;ble;concurrency")
-  target_include_directories(ble_arbiter_host_test PRIVATE
-    "${CMAKE_SOURCE_DIR}/idf/components/ShotStopperBleRuntime")
   host_test(machine_integration_host_test
     SOURCES "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMachineIntegration.cpp"
-    LABEL "host;ble;control")
-  host_test(linea_micra_contract_host_test LABEL "host;ble;control")
+    LABEL "host;control")
+  host_test(linea_micra_contract_host_test LABEL "host;network;control")
   host_test(reset_guard_instance_host_test
     SOURCES reset_guard_instance_a.cpp reset_guard_instance_b.cpp
     LABEL "host;safety")
@@ -126,34 +120,3 @@ target_link_libraries(json_arena_host_test PRIVATE "${CJSON_LIBRARY}")
 host_test(integration_request_host_test LABEL "host;network;safety")
 target_include_directories(integration_request_host_test PRIVATE "${CJSON_INCLUDE_DIR}")
 target_link_libraries(integration_request_host_test PRIVATE "${CJSON_LIBRARY}")
-
-set(micra_dir "${CMAKE_SOURCE_DIR}/libraries/LineaMicraBLE")
-host_test(linea_micra_protocol_test
-  SOURCE "${micra_dir}/tests/protocol_test.cpp"
-  SOURCES "${micra_dir}/src/LineaMicraProtocol.cpp"
-  LABEL "host;ble")
-target_include_directories(linea_micra_protocol_test PRIVATE
-  "${micra_dir}/src" "${CJSON_INCLUDE_DIR}")
-target_link_libraries(linea_micra_protocol_test PRIVATE "${CJSON_LIBRARY}")
-set_tests_properties(linea_micra_protocol_test PROPERTIES LABELS "host;ble")
-host_test(linea_micra_nimble_client_test
-  SOURCE "${micra_dir}/tests/nimble_client_test.cpp"
-  SOURCES "${micra_dir}/src/LineaMicraBLE.cpp"
-    "${micra_dir}/src/LineaMicraProtocol.cpp"
-  DEFINITIONS LINEA_MICRA_BLE_HOST_TEST LABEL "host;ble;concurrency")
-target_include_directories(linea_micra_nimble_client_test PRIVATE
-  "${micra_dir}/src" "${ble_dir}/tests/stubs" "${CJSON_INCLUDE_DIR}")
-target_link_libraries(linea_micra_nimble_client_test PRIVATE "${CJSON_LIBRARY}")
-set_tests_properties(linea_micra_nimble_client_test PROPERTIES
-  LABELS "host;ble;concurrency")
-host_test(micra_service_host_test
-  SOURCES
-    "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMicraService.cpp"
-    "${micra_dir}/src/LineaMicraBLE.cpp"
-    "${micra_dir}/src/LineaMicraProtocol.cpp"
-  DEFINITIONS LINEA_MICRA_BLE_HOST_TEST LABEL "host;ble;concurrency")
-target_include_directories(micra_service_host_test PRIVATE
-  "${ble_dir}/tests/stubs" "${micra_dir}/src" "${CJSON_INCLUDE_DIR}")
-target_link_libraries(micra_service_host_test PRIVATE "${CJSON_LIBRARY}")
-set_tests_properties(micra_service_host_test PROPERTIES
-  LABELS "host;ble;concurrency")

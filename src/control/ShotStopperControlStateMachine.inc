@@ -9,7 +9,6 @@ void resetSessionForNewCycle(ControlSource source) {
     nextCycleId = 1;
   }
   session.active = true;
-  publishScaleCriticalRadio(true);
   session.source = source;
   serviceIdleTare();
 #if !defined(SHOT_STOPPER_HOST_TEST)

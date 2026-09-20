@@ -1,7 +1,6 @@
 # Versioned production translation-unit baseline for F-21.
 # Update this manifest and the component CMake files in the same change.
 idf/components/ShotStopperBleRuntime/ShotStopperBleRuntime.cpp
-idf/components/ShotStopperBleRuntime/ShotStopperBleArbiter.cpp
 idf/main/main.cpp
 libraries/EspressoScaleBLE/src/EspressoScaleBLENimble.cpp
 libraries/EspressoScaleBLE/src/ScaleBleStateMachine.cpp
@@ -19,8 +18,6 @@ libraries/EspressoScaleBLE/src/protocols/Myscale.cpp
 libraries/EspressoScaleBLE/src/protocols/Registry.cpp
 libraries/EspressoScaleBLE/src/protocols/Varia.cpp
 libraries/EspressoScaleBLE/src/protocols/WeighMyBru.cpp
-libraries/LineaMicraBLE/src/LineaMicraBLE.cpp | integration=linea_micra_ble
-libraries/LineaMicraBLE/src/LineaMicraProtocol.cpp | integration=linea_micra_ble
 src/ShotStopperNetwork.cpp
 src/ShotStopperOta.cpp
 src/ShotStopperPowerManagement.cpp
@@ -28,6 +25,6 @@ src/ShotStopperResetGuard.cpp
 src/ShotStopperScaleWorker.cpp
 src/ShotStopperWebhook.cpp
 src/machine/ShotStopperMachineIntegration.cpp | integration=none
-src/machine/ShotStopperLineaMicraIntegration.cpp | integration=linea_micra_ble
-src/machine/ShotStopperMicraService.cpp | integration=linea_micra_ble
+src/machine/ShotStopperLineaMicraIntegration.cpp | integration=linea_micra_cloud
+src/machine/ShotStopperMicraService.cpp | integration=linea_micra_cloud
 src/shotStopper.cpp

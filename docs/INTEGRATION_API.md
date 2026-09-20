@@ -156,22 +156,27 @@ LAN route exposes no machine actuation counterpart.
 ## Linea Micra Web API
 
 Micra-compiled firmware exposes `POST /api/v1/machine/linea-micra` to the
-claimed Web UI. It accepts one strict `action`: `save`, `test`, `refresh`,
-`forget`, or `remove_token`. `save` also requires the independent
-`applyTemperature` and `observeState` booleans; an optional token must contain
-exactly 64 printable characters. Its optional `address` is empty or a canonical
-BLE address such as `AA:BB:CC:DD:EE:FF`; changing it clears the verified binding
-until a read-only Test verifies that peer. Unknown, duplicate, or
-action-inappropriate fields are rejected. Accepted mutations return `202` and
-persist through the normal single-writer command path.
+claimed Web UI. It accepts one strict `action`: `connect`, `select`, `save`,
+`refresh`, or `disconnect`. `connect` requires only `username` and `password`
+and is rejected unless STA is connected and the setup AP is closed. It queues
+cloud authentication and account-machine discovery but does not persist or
+enable an account. `select` requires a `serial` from the latest discovery plus
+the independent `applyTemperature` and `observeState` booleans; it persists the
+account credentials, installation key, and chosen machine through the normal
+single-writer command path. `save` updates those two options for an already
+selected machine. `refresh` and `disconnect` accept no additional fields;
+disconnect erases durable credentials/selection and the RAM session. Unknown,
+duplicate, or action-inappropriate fields are rejected. Accepted commands
+return `202`.
 
 Settings and diagnostic status include a Micra subtree only in Micra firmware.
-It reports `tokenConfigured`, configured address, verified binding identity,
-option flags, request phase, ON/OFF/UNKNOWN power state, raw observed mode,
-evidence quality, effective-state interpretation, sample age/freshness, and the
-last read-only temperature Test result. The token itself is never returned.
-`refresh` is read-only and requires monitoring plus a verified binding; none of
-these fields authorizes machine actuation.
+It reports whether an account is configured, selected name/serial, option flags,
+request phase/error, ON/OFF/UNKNOWN power state, raw observed mode, evidence
+quality, sample age/freshness, selected target temperature, STA/AP/shot gates,
+last HTTP/transport status, and the bounded machine list returned while
+connecting. Email, password, installation private key, access token, and refresh
+token are never returned. `refresh` is read-only and requires a selected
+machine; none of these fields authorizes machine actuation.
 
 ## Webhook version 1
 

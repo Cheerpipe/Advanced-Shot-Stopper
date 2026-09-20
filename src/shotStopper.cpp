@@ -853,7 +853,6 @@ void latchControlCriticalLogging() {
 void publishControlCriticalLoggingState() {
   const bool critical = session.active || getRelaySafetySnapshot().closed;
   controlCriticalForLogging.store(critical, std::memory_order_release);
-  publishScaleCriticalRadio(critical);
 }
 
 bool serialApplicationLogAllowed() {

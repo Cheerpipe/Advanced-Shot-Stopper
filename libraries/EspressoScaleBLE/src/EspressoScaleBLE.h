@@ -116,8 +116,6 @@ class EspressoScaleBLE {
         bool pollScan();
         bool isScanning() const;
         bool isConnecting() const;
-        bool startObservationScan(uint32_t durationMs);
-        bool prepareMachineProcedure();
 
         void disconnect();
 

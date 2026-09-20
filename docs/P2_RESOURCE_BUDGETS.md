@@ -15,18 +15,20 @@ requires explicit architecture and resource review.
 The current baselines were measured with ESP-IDF 6.1, its GCC 15.2 toolchain,
 and the qualified `CONFIG_FREERTOS_IN_IRAM=y` build profile.
 
-The reviewed Linea Micra BLE connection diagnostics and bounded discovery
-hardening raise the image and total-size growth allowances from 32 KiB to
-36 KiB. The n16r8 Micra development/JTAG profile measures 1,981,568 image bytes
-and 1,981,443 total bytes, leaving 1,920 and 1,928 bytes of allowance
-respectively. DIRAM, flash-code, flash-rodata, external-BSS, and OTA-slot limits
-are unchanged; this is flash headroom, not RAM or heap allowance.
+The n16r8 baseline represents the largest reviewed supported profile, currently
+the Linea Micra cloud build. HTTPS server verification adds the ESP certificate
+bundle in flash; it is retained rather than weakening TLS. The development
+profile measures 2,048,448 image bytes and 2,048,335 total bytes, leaving 2,560
+and 2,568 bytes of reviewed growth allowance respectively. Flash rodata is
+502,000 bytes with 10,392 bytes remaining; DIRAM and flash-code keep their
+existing allowances. The 3 MiB OTA slot still has more than 1 MiB free.
 
-Both linker maps must also keep external BSS at or below 104 KiB and retain
+Both linker maps must also keep external BSS at or below 105 KiB and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
 objects to PSRAM would move synchronization state accessed under spinlocks.
-The 96→104 KiB external-BSS raise covers the V3 half-second shot-curve store,
-which doubles the per-shot weight series retained in PSRAM.
+The extra 1 KiB ceiling covers the versioned Micra cloud account record while
+the build remains below 104.4 KiB measured. This is static PSRAM, not internal
+heap. The earlier 96→104 KiB raise covers the V3 half-second shot-curve store.
 
 ## Runtime placement and allocation
 
@@ -34,37 +36,32 @@ which doubles the per-shot weight series retained in PSRAM.
 |---|---|
 | Network work buffer | external, at most 68 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex, and a one-curve JSON scratch serves the status and shots-list rows |
 | Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 68 KiB total bound |
-| Shared flash-I/O scratch | internal heap, 5,296 bytes (2× sizeof(PersistedSettings)) plus a transient 2,616-byte legacy-migration staging block while a V1–V13 blob is being read; one owner at a time under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the scratch |
+| Shared flash-I/O scratch | internal heap, 5,920 bytes (2× the 2,960-byte PersistedSettings) plus a transient V15 legacy-migration staging block while an older blob is being read; one owner at a time under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the scratch |
+| Micra cloud workspace | external, at most 26 KiB; one 16 KiB response, bounded request/token buffers, and one HTTPS client handle owned for the boot lifetime by the Micra worker and wiped on Disconnect |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
-| Settings handoff | one 2652-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
+| Settings handoff | one 2,964-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
 | Web command | trivially copyable, at most 328 bytes; configuration and network payloads share a discriminated union |
-| Radio settings snapshot | at most 224 bytes; full 2648-byte settings remain for durable mutations |
+| Radio settings snapshot | at most 224 bytes; full 2,960-byte settings remain for durable mutations |
 | mDNS responder | NetworkService-owned; one 4096-byte priority-1 task on core 0 plus one persistent UDP socket (lwIP socket budget 8→10); always-on passive responder, never gated for shots/scale/AP/HTTP, freed once in `ShotStopperNetwork::stop()`; SDK heap allocations bypass application counters |
 | Fixed buzzer melodies | at most 8 notes each; custom tune capacity remains 250 notes |
-| JSON parser | PSRAM only; input at most 2047 bytes, nesting 32, values 128 |
+| JSON parser | PSRAM only; Web input remains at most 2047 bytes / 128 values; the Micra worker explicitly admits at most 16 KiB / 1024 values for bounded cloud responses; nesting remains 32 |
 | BBW adaptive candidates | control-owned fixed RAM, at most 3,000 bytes for eight presets; 20 observations and five trajectory anchors each |
 
 Network command builders must activate their union member with
 `setNetworkType()` before writing credentials. Preset metadata remains outside
-the union because a preset operation also carries configuration. Settings V14
-grows the persisted blob by the 33-byte mDNS device name (explicit migration
-from V13); command layouts are unchanged.
+the union because a preset operation also carries configuration. Settings V16
+grows the persisted blob to 2,960 bytes for the bounded Micra cloud account and
+selected machine; explicit migration preserves non-secret Micra options and
+preset temperatures while discarding the obsolete BLE credential/binding.
 
-Settings V12 changes byte meanings through explicit migration without growing
-its blob. History V5 grows each record from 48 to 72 bytes to retain an exact
-24-byte preset-name snapshot; the 100-record store transfers through the same
-chunked flash-I/O path as the other partition stores. The separate last-shot V4
-record also retains bounded preset provenance. Web gzip is capped at 66,400 bytes combined:
-500 bytes of the shell-JS allowance are reassigned to runtime (5,444 and 32,000
-bytes respectively before the PM allocation below). Source authoring limits are
-63,000 bytes HTML and 170,300 bytes JS, 233,300 combined. This reviewed increase
-preserves complete field-level help and separate explanations for each option
-when a selector changes the user's workflow or has materially different modes.
-The limits are measured after the selected Web UI catalog is rendered, excluding
-catalog metadata and keys; every emitted byte still counts toward the per-asset
-and combined gzip limits. These source allowances do not by themselves raise
-firmware or combined compressed-asset limits.
+History V5 retains an exact bounded preset-name snapshot and transfers through
+the shared chunked flash-I/O path. The separate last-shot V4 record retains the
+same provenance. The rendered English Web UI is capped at 69,000 bytes HTML,
+193,300 bytes JavaScript, and 262,300 bytes combined authoring source. Compressed
+limits are 36,900 bytes for runtime JavaScript and 107,100 bytes for all embedded
+Web assets; the Micra cloud build measures 68,849 / 193,086 authoring bytes and
+36,794 / 107,030 compressed bytes respectively.
 
 Every new setting must include concise, natural help that explains its effect on
 the barista's workflow, including what changes when an option is enabled or
@@ -73,33 +70,8 @@ applicable source, compressed-asset, and firmware limits must be raised through
 the normal measured review when necessary. Removing, shortening, or making help
 less useful merely to fit an earlier budget is not acceptable: a clear,
 friendly, well-constructed UI takes priority over preserving the previous Web UI
-byte allowance.
-Power management shares the Admin toggle persistence handler and adds 1,024
-source bytes of allowance. It reallocates 400 compressed bytes from shell JS:
-current limits are 5,044 shell JS, 32,500 runtime and 6,050 secondary views.
-Complete Settings help raises the reviewed combined Web gzip cap from 64,000 to
-66,000 bytes; that measured English build was 65,248 bytes. Zero chart baselines
-and a fixed-size first-drop icon with an adjacent time raise the runtime cap
-from 32,250 to 32,500 bytes, CSS from 6,600 to 6,750 bytes, and the combined cap
-to 66,400 bytes, with another 1,000 bytes of JavaScript source allowance.
-Exporting the saved weight curve as per-shot CSV columns later raises the
-runtime cap from 32,500 to 32,600 bytes; the measured English build is 32,597
-bytes after the shot-curve boundary dating and flow-boundary fixes and the
-combined gzip stays below the 66,400-byte cap.
-Rendering the derived Flow rate chart as one continuous polyline per color
-segment with a light centered average raises the runtime cap from 32,600 to
-32,800 bytes; the measured English build is 32,726 bytes and the combined gzip
-stays below the 66,400-byte cap at 66,390 bytes. The same change adds 273
-JavaScript source bytes and raises the JS authoring allowance from 171,500 to
-172,000 bytes, with the HTML+JS combined source at 233,010 of 233,300 bytes.
-Closing every color segment exactly at its guard boundary so the smoothed
-curve has no transition gaps raises the combined cap from 66,400 to 66,500
-bytes; the measured English build is 66,416 bytes with runtime at 32,751 of
-32,800 bytes.
-Firmware and DRAM caps are unchanged.
-The asynchronous configuration-save acknowledgement adds 256 source bytes of
-allowance for revision/value readback and pending/failed persistence checks;
-it does not raise compressed-asset limits.
+byte allowance. Per-asset caps remain independently enforced by Web contract
+tests, so one asset cannot consume all combined headroom.
 
 Both supported partition tables reserve a dedicated `shotcurve` data partition
 at custom subtype `0x40`, exactly `0xE000` (56 KiB). It contains two

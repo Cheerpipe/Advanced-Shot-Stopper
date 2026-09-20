@@ -295,11 +295,10 @@ if (generated.cssGzip.length > 7050) {
 // Humanized shot/activation time labels (relative day ladder) raise it to 35300.
 // The outlined-cup shot icon (shots without registered weight) raises it to 35500.
 // Weekday names, short dates, and the hover <time> wrapper raise it to 35600.
-// Linea Micra setup, read-only state expiry, and preset-temperature wiring
-// raise the measured runtime bundle to 36,479 bytes.
-// Directed BLE address normalization and validation measure 36,615 bytes.
-if (generated.runtimeGzip.length > 36700) {
-  throw new Error('Compressed Web UI runtime JS exceeds the 36700-byte gzip budget');
+// Linea Micra cloud account selection, read-only state expiry, and
+// preset-temperature wiring are part of the profile-gated runtime bundle.
+if (generated.runtimeGzip.length > 36900) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 36900-byte gzip budget (${generated.runtimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -331,11 +330,10 @@ if (generated.icon48Gzip.length > 3500) {
 // outlined-cup shot icon (shots without registered weight) raises it to
 // 104800 bytes; the other-type card icon (with the per-icon fill attribute
 // hoisted into shared CSS and shortened shot viewBoxes as offsets) raises
-// it to 104900 bytes. The profile-gated Linea Micra surface raises the
-// measured combined bundle to 106,603 bytes.
-// Directed BLE address setup raises the measured bundle to 106,848 bytes.
-if (generated.combined > 106900) {
-  throw new Error('Combined Web UI gzip exceeds the 106900-byte flash budget');
+// it to 104900 bytes. The profile-gated Linea Micra cloud surface includes
+// account connection, machine selection, and read-only diagnostics.
+if (generated.combined > 107100) {
+  throw new Error(`Combined Web UI gzip exceeds the 107100-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

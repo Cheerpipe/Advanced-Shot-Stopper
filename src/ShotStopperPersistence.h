@@ -85,7 +85,7 @@ inline uint8_t *persistedSettingsMigrationScratch() {
   uint8_t *&block = persistedSettingsMigrationBlock();
   if (block == nullptr) {
     block = static_cast<uint8_t *>(
-        allocInternal(sizeof(PersistedSettingsV14), AllocationOwner::FLASH_IO));
+        allocInternal(sizeof(PersistedSettingsV15), AllocationOwner::FLASH_IO));
   }
   return block;
 }
@@ -122,6 +122,10 @@ inline PersistedSettingsV13 *persistedSettingsV13MigrationScratch() {
 }
 inline PersistedSettingsV14 *persistedSettingsV14MigrationScratch() {
   return reinterpret_cast<PersistedSettingsV14 *>(
+      persistedSettingsMigrationScratch());
+}
+inline PersistedSettingsV15 *persistedSettingsV15MigrationScratch() {
+  return reinterpret_cast<PersistedSettingsV15 *>(
       persistedSettingsMigrationScratch());
 }
 
@@ -163,6 +167,15 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
       return false;
     }
     return validPersistedSettings(settings);
+  }
+  if (storedLength == PERSISTED_SETTINGS_V15_SIZE) {
+    PersistedSettingsV15 *legacy = persistedSettingsV15MigrationScratch();
+    if (legacy == nullptr ||
+        preferences.getBytes(key, legacy, sizeof(*legacy)) != sizeof(*legacy)) {
+      return false;
+    }
+    return migratePersistedSettingsFromV15(*legacy, settings) &&
+           validPersistedSettings(settings);
   }
   if (storedLength == PERSISTED_SETTINGS_V14_SIZE) {
     PersistedSettingsV14 *legacy = persistedSettingsV14MigrationScratch();

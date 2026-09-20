@@ -2,8 +2,9 @@
 
 // Settings schema migrations.
 //
-// V15 names the preset target padding and adds the Micra credential/binding
-// record. V14 adds the mDNS deviceName field (default AdvancedShotStopper) before
+// V16 replaces the Micra BLE credential/binding tail with a cloud account and
+// selected-machine record. V15 names the preset target padding and appended the
+// former Micra BLE record. V14 adds the mDNS deviceName field before
 // checksum; V6–V13 blobs are a 2,616-byte layout-compatible prefix.
 // V13 names bit 7 of noScaleBbwMode as Allow rinse while Armed (default OFF).
 // V12 names WebhookConfig tail padding for preset-change delivery (default OFF).
@@ -39,6 +40,7 @@ constexpr size_t PERSISTED_SETTINGS_V10_SIZE = 2616;
 constexpr size_t PERSISTED_SETTINGS_V11_SIZE = 2616;
 constexpr size_t PERSISTED_SETTINGS_V13_SIZE = 2616;
 constexpr size_t PERSISTED_SETTINGS_V14_SIZE = 2648;
+constexpr size_t PERSISTED_SETTINGS_V15_SIZE = 2748;
 static_assert(offsetof(RuntimeConfig, powerManagementEnabled) == 5 &&
                   offsetof(RuntimeConfig, weightOffsetG) == 8,
               "V11 must use legacy padding without moving recipe fields");
@@ -162,8 +164,8 @@ inline void initializeMigratedBbw(PersistedSettings &out) {
   seedDefaultLineaMicraSettings(out);
 }
 
-// V14 is the previous current blob. Its final checksum occupied the position
-// where V15 appends the machine record, so copy only the authenticated prefix.
+// V14 predates both Micra records. Its final checksum occupied the position
+// where later schemas append machine settings, so copy only the authenticated prefix.
 struct PersistedSettingsV14 {
   uint8_t bytes[PERSISTED_SETTINGS_V14_SIZE] = {};
 };
@@ -190,6 +192,44 @@ inline bool migratePersistedSettingsFromV14(
   copyPersistedBytes(out, v14,
                      PERSISTED_SETTINGS_V14_SIZE - sizeof(uint32_t));
   seedDefaultLineaMicraSettings(out);
+  out.schemaVersion = CONFIG_SCHEMA_VERSION;
+  out.structureSize = sizeof(PersistedSettings);
+  out.checksum = persistedSettingsChecksum(out);
+  return true;
+}
+
+// V15 is retained only as an opaque migration input. The BLE secret, peer
+// address and identity are never copied; only the two transport-independent
+// option bits and the already-versioned preset targets survive the upgrade.
+struct PersistedSettingsV15 {
+  uint8_t bytes[PERSISTED_SETTINGS_V15_SIZE] = {};
+};
+
+inline uint32_t persistedSettingsV15Checksum(
+    const PersistedSettingsV15 &settings) {
+  return crc32(settings.bytes, PERSISTED_SETTINGS_V15_SIZE - sizeof(uint32_t));
+}
+
+inline bool migratePersistedSettingsFromV15(
+    const PersistedSettingsV15 &v15, PersistedSettings &out) {
+  PersistedSettingsHeader header;
+  uint32_t checksum = 0;
+  memcpy(&header, v15.bytes, sizeof(header));
+  memcpy(&checksum,
+         v15.bytes + PERSISTED_SETTINGS_V15_SIZE - sizeof(checksum),
+         sizeof(checksum));
+  if (header.magic != PERSISTED_SETTINGS_MAGIC || header.schemaVersion != 15 ||
+      header.structureSize != PERSISTED_SETTINGS_V15_SIZE ||
+      checksum != persistedSettingsV15Checksum(v15)) {
+    return false;
+  }
+  out = PersistedSettings{};
+  constexpr size_t machineOffset = offsetof(PersistedSettings, lineaMicra);
+  copyPersistedBytes(out, v15, machineOffset);
+  // The historical options byte was byte 96 of the 98-byte V15 machine tail.
+  const uint8_t options = v15.bytes[machineOffset + 96U];
+  out.lineaMicra.options =
+      options & (LINEA_MICRA_APPLY_TEMPERATURE | LINEA_MICRA_OBSERVE_STATE);
   out.schemaVersion = CONFIG_SCHEMA_VERSION;
   out.structureSize = sizeof(PersistedSettings);
   out.checksum = persistedSettingsChecksum(out);

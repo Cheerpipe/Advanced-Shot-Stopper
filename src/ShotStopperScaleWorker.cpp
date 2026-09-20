@@ -5,7 +5,6 @@
 #if defined(SHOT_STOPPER_HOST_TEST)
 #include "tests/shot_stopper_host_stubs.h"
 #else
-#include "ShotStopperBleArbiter.h"
 #include "ShotStopperBleRuntime.h"
 #include "ShotStopperWatchdog.h"
 #include "ShotStopperHardwareTimer.h"
@@ -24,7 +23,6 @@
 #endif  // !SHOT_STOPPER_SCALE_WORKER_IN_ORCHESTRATOR
 
 #include "ShotStopperPowerManagement.h"
-#include "machine/ShotStopperMachineIntegration.h"
 #if !defined(SHOT_STOPPER_HOST_TEST)
 #include <esp_bt.h>
 #endif
@@ -308,15 +306,6 @@ void publishScaleWorkerPolicy(const RuntimeConfig &config, bool controlReady) {
           << kPolicyBookooLevelShift;
   bits |= static_cast<uint32_t>(cacheMode) << kPolicyMacCacheModeShift;
   scaleWorkerPolicyBits.store(bits, std::memory_order_release);
-  wakeScaleWorker();
-}
-
-void publishScaleCriticalRadio(bool critical) {
-#if !defined(SHOT_STOPPER_HOST_TEST)
-  shotStopperBleArbiterSetCritical(critical);
-#else
-  (void)critical;
-#endif
   wakeScaleWorker();
 }
 
@@ -1796,15 +1785,6 @@ bool startScaleDiscoveryScan(const char *mac, bool forceRestart) {
   return true;
 }
 
-#if !defined(SHOT_STOPPER_HOST_TEST)
-bool coordinateMachineScan(bool prepareMachineProcedure, uint32_t durationMs,
-                           void *) {
-  if (scale.isConnecting()) return false;
-  if (prepareMachineProcedure) return scale.prepareMachineProcedure();
-  return scale.isScanning() || scale.startObservationScan(durationMs);
-}
-#endif
-
 void fillCurrentScaleScanFilter(char *macOut, size_t cap, bool &useDirected) {
   char preferredMac[PREFERRED_SCALE_MAC_CAPACITY];
   copyPreferredScaleMac(preferredMac, sizeof(preferredMac));
@@ -1842,10 +1822,6 @@ static bool scalePowerWaking = false;
 static uint32_t scalePowerWakeStartedMs = 0;
 bool syncScalePower() {
   bool busy = scale.isConnecting() || scale.isLinkUp();
-#if !defined(SHOT_STOPPER_HOST_TEST)
-  busy = busy ||
-         shotStopperBleArbiterSnapshot().owner != ShotStopperBleOwner::None;
-#endif
   powerScaleBusy.store(busy, std::memory_order_release);
   bool sleep = powerIdleSavings() && !busy &&
                powerBleError.load(std::memory_order_relaxed) == 0;
@@ -1883,21 +1859,10 @@ bool syncScalePower() {
 void syncScaleRadioCoex() {
 #if !defined(SHOT_STOPPER_HOST_TEST)
   if (scaleWorkerBridge.syncNetworkRf != nullptr) {
-    const bool machineActive = shotStopperBleArbiterSnapshot().owner ==
-                               ShotStopperBleOwner::Machine;
-    scaleWorkerBridge.syncNetworkRf(scale.isConnecting() || scale.isLinkUp() ||
-                                        machineActive,
-                                    scale.isConnecting() || machineActive,
+    scaleWorkerBridge.syncNetworkRf(scale.isConnecting() || scale.isLinkUp(),
+                                    scale.isConnecting(),
                                     scaleHuntRfClearActive());
   }
-#endif
-}
-
-bool machineOwnsBleRadio() {
-#if defined(SHOT_STOPPER_HOST_TEST)
-  return hostMachineBleProcedureActive;
-#else
-  return shotStopperBleArbiterSnapshot().owner == ShotStopperBleOwner::Machine;
 #endif
 }
 
@@ -1915,7 +1880,6 @@ void serviceScaleWorkerDiscovery(uint32_t &lastScanCycleMs,
                                  bool &connectAttemptSeriesActive,
                                  uint32_t &scanSessionAtMs,
                                  uint32_t &scanLastAdvertAtMs) {
-  if (machineOwnsBleRadio()) return;
   const bool preferenceRestarted = applyScalePreferenceReset();
   if (preferenceRestarted) {
     connectAttemptSeriesActive = false;
@@ -2336,9 +2300,6 @@ void scaleWorkerTask(void *) {
     }
 
     syncScaleRadioCoex();
-    // Lowest-priority radio consumer: scale link, packets and commands above
-    // have already been serviced for this worker turn.
-    serviceMachineIntegrationWorker();
 
     static uint32_t watchdogFedAtMs = 0;
     if (watchdogFedAtMs == 0 ||
@@ -2371,8 +2332,6 @@ void scaleWorkerTask(void *) {
 bool initializeScaleWorker() {
 #if !defined(SHOT_STOPPER_HOST_TEST)
   if (scaleWorkerBridge.syncNetworkRf == nullptr) return false;
-  if (!shotStopperBleArbiterRegisterScanCoordinator(coordinateMachineScan,
-                                                    nullptr)) return false;
 #endif
   scaleWorkerStartupFinished.store(false, std::memory_order_relaxed);
 #if !defined(SHOT_STOPPER_HOST_TEST)

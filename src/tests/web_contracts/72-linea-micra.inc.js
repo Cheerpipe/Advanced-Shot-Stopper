@@ -8,22 +8,28 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
 if (!network.includes('/api/v1/machine/linea-micra') ||
     !micraWeb.includes('UNSUPPORTED_MACHINE') ||
     !micraWeb.includes('jsonHasOnlyUniqueFields') ||
-    !micraWeb.includes('token must contain exactly 64 printable characters') ||
-    !micraWeb.includes('address must be empty or a BLE address') ||
-    !micraWeb.includes('stagedLineaMicra_') ||
-    !micraWeb.includes('queueMachineIntegrationRequest')) {
-  throw new Error('Linea Micra API must be profile-gated, strict, staged, and asynchronous');
+    !micraWeb.includes('MICRA_STA_REQUIRED') ||
+    !micraWeb.includes('queueMachineIntegrationConnect') ||
+    !micraWeb.includes('selectMachineIntegrationDevice') ||
+    !micraWeb.includes('disconnectLineaMicra(candidate)') ||
+    !micraWeb.includes('stagedLineaMicra_')) {
+  throw new Error('Linea Micra API must be profile-gated, strict, STA-only, staged, and asynchronous');
 }
-if (micraStatus.includes('\\"token\\":\\"') ||
-    !micraStatus.includes('\\"tokenConfigured\\"') ||
-    !micraStatus.includes('SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE') ||
-    !micraStatus.includes('\\"machineIntegration\\"')) {
-  throw new Error('Linea Micra status must be compile-gated and redact the BLE token');
+const micraStatusFailures = [
+  micraStatus.includes('\"password\"') && 'password exposed',
+  micraStatus.includes('\"username\"') && 'username exposed',
+  !micraStatus.includes('\\\"accountConfigured\\\"') && 'account status missing',
+  !micraStatus.includes('\\\"machines\\\"') && 'machine list missing',
+  !micraStatus.includes('SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD') && 'compile gate missing',
+  !micraStatus.includes('\\\"machineIntegration\\\"') && 'integration capability missing',
+].filter(Boolean);
+if (micraStatusFailures.length) {
+  throw new Error('Linea Micra status contract: ' + micraStatusFailures.join(', '));
 }
-for (const id of ['lineaMicraToken', 'lineaMicraAddress',
-  'lineaMicraApplyTemperature',
-  'lineaMicraObserveState', 'lineaMicraSaveButton', 'lineaMicraTestButton',
-  'lineaMicraForgetButton', 'lineaMicraRemoveTokenButton',
+for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
+  'lineaMicraConnectButton', 'lineaMicraMachine', 'lineaMicraSelectButton',
+  'lineaMicraApplyTemperature', 'lineaMicraObserveState',
+  'lineaMicraSaveButton', 'lineaMicraDisconnectButton',
   'lineaMicraBrewTargetC']) {
   if (!micraSettingsHtml.includes(`id="${id}"`)) {
     throw new Error(`Linea Micra settings control is missing: ${id}`);
@@ -36,13 +42,14 @@ for (const id of ['dMicraPower', 'dMicraMode', 'dMicraQuality', 'dMicraAge',
   }
 }
 if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
-    !rawRuntimeJs.includes("s.machineIntegration==='linea_micra_ble'") ||
-    !rawRuntimeJs.includes("payload={action:'save',address") ||
-    !rawRuntimeJs.includes("['queued','running','backoff'].includes(m.phase)") ||
-    !rawRuntimeJs.includes("['queued','running','backoff'].includes(lm.phase)") ||
+    !rawRuntimeJs.includes("s.machineIntegration==='linea_micra_cloud'") ||
+    !rawRuntimeJs.includes("{action:'connect',username,password}") ||
+    !rawRuntimeJs.includes("{action:'select',serial") ||
+    !rawRuntimeJs.includes("lineaMicraAction('disconnect')") ||
+    !rawRuntimeJs.includes("['queued','authenticating','listing','running','backoff'].includes(m.phase)") ||
     !rawRuntimeJs.includes("expired?'UNKNOWN':lm.powerState") ||
     !rawRuntimeJs.includes('age>=lm.freshnessMs')) {
-  throw new Error('Linea Micra UI must use compiled capability gating and local freshness expiry');
+  throw new Error('Linea Micra UI must implement account connection, selection, and freshness expiry');
 }
 for (const file of ['ShotStopperMachinePaddleControl.h',
   'ShotStopperMachinePaddleInput.h', 'ShotStopperMachinePaddlePolicy.h',

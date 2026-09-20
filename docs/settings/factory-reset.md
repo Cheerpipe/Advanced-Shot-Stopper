@@ -8,8 +8,8 @@ credentials. Firmware on the flash is not erased.
 Wi-Fi (STA and last-known-good network), workflow settings, presets,
 calibration (including learned offset and A→M samples), preferred scale,
 shot history, activation history, last completed shot, and last
-qualifying-good shot. On Linea Micra firmware it also erases the BLE token,
-paired-machine identity, and both integration options; factory preset boiler
+qualifying-good shot. On Linea Micra firmware it also erases the cloud account
+credentials, installation key, selected machine, session, and both integration options; factory preset boiler
 targets return to 93.0 °C. The device
 password returns to **`ineedacoffee`** and the device name to
 **`AdvancedShotStopper`**. The device then restarts.

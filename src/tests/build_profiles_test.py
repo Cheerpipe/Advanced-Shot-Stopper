@@ -49,7 +49,7 @@ def expect_failure(hardware=HARDWARE, machine=PRO_X, flags="", text=""):
 for hardware, machine, expected_type, integration, brand, model in (
         (HARDWARE, PRO_X, "1", "none", "Rancilio", "Silvia Pro X"),
         (HARDWARE_REED, PRO_X_REED, "2", "none", "Rancilio", "Silvia Pro X"),
-        (HARDWARE, MICRA, "0", "linea_micra_ble", "La Marzocco", "Linea Micra")):
+        (HARDWARE, MICRA, "0", "linea_micra_cloud", "La Marzocco", "Linea Micra")):
     temporary, result = run(hardware=hardware, machine=machine)
     try:
         assert result.returncode == 0, result.stderr
@@ -61,7 +61,7 @@ for hardware, machine, expected_type, integration, brand, model in (
         manifest = json.loads((generated / "build-profile.json").read_text())
         assert f"#define SHOT_STOPPER_MACHINE_TYPE {expected_type}" in header
         assert f'#define SHOT_STOPPER_MACHINE_MODEL "{model}"' in header
-        expected_integration = "1" if integration == "linea_micra_ble" else "0"
+        expected_integration = "1" if integration == "linea_micra_cloud" else "0"
         assert (f"#define SHOT_STOPPER_MACHINE_INTEGRATION "
                 f"{expected_integration}") in header
         assert manifest["machine_integration"] == integration
@@ -98,7 +98,7 @@ try:
                           result.stdout.splitlines())["generated_dir"])
     manifest = json.loads((generated / "build-profile.json").read_text())
     header = (generated / "ShotStopperBuildProfileGenerated.h").read_text()
-    assert manifest["machine_integration"] == "linea_micra_ble"
+    assert manifest["machine_integration"] == "linea_micra_cloud"
     assert "#define SHOT_STOPPER_MACHINE_INTEGRATION 1" in header
 finally:
     temporary.cleanup()

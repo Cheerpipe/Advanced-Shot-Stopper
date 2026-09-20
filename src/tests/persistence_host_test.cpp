@@ -1085,7 +1085,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(ShotPreset) <= 136);
   CHECK(sizeof(ShotPresetBank) <= 1100);
   CHECK(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET);
-  CHECK(sizeof(PersistedSettings) == 2748);
+  CHECK(sizeof(PersistedSettings) == 2960);
   CHECK(sizeof(RuntimeConfig) == 252);
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
   CHECK(sizeof(ControlStatusSnapshot) <= 4096);
@@ -2065,12 +2065,12 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
   constexpr size_t remainingRecords = lastShotEntries + 6U + 3U + 24U + 32U;
   constexpr size_t applicationEntries = settingsEntries + remainingRecords;
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
-  CHECK(sizeof(PersistedSettings) == 2748U);
-  CHECK(settingsEntries == 176U);
+  CHECK(sizeof(PersistedSettings) == 2960U);
+  CHECK(settingsEntries == 190U);
   CHECK(lastShotEntries == 10U);
-  CHECK(applicationEntries == 251U);
+  CHECK(applicationEntries == 265U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 2143U);
+  CHECK(conservativeEntries - applicationEntries == 2129U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {
@@ -2285,7 +2285,7 @@ void p83_v14_device_name_default_migration_and_keep_on_forget() {
   CHECK(strcmp(loaded.deviceName, DEFAULT_DEVICE_NAME) == 0);
 }
 
-void p84_v14_micra_defaults_and_v15_round_trip() {
+void p84_v14_v15_migration_and_v16_micra_cloud_round_trip() {
   resetHostPersistence();
   PersistedSettings source;
   CHECK(initializeDefaultSettings(source));
@@ -2309,62 +2309,57 @@ void p84_v14_micra_defaults_and_v15_round_trip() {
   for (const ShotPreset &preset : loaded.presets.presets) {
     CHECK(preset.lineaMicraBrewTargetDeciC == 930);
   }
-  CHECK(loaded.lineaMicra.token[0] == '\0');
-  CHECK(!loaded.lineaMicra.bindingVerified);
+  CHECK(!loaded.lineaMicra.accountConfigured);
+  CHECK(loaded.lineaMicra.username[0] == '\0');
   CHECK(loaded.lineaMicra.options == 0);
 
-  LineaMicraPersistedSettings targeted;
-  CHECK(setLineaMicraTargetAddress(targeted, "84:1f:E8:7B:B0:FE"));
-  const uint8_t parsedAddress[6] = {0xfe, 0xb0, 0x7b, 0xe8, 0x1f, 0x84};
-  CHECK(memcmp(targeted.peerAddress, parsedAddress, sizeof(parsedAddress)) == 0);
-  CHECK(lineaMicraAddressConfigured(targeted));
-  char formattedAddress[LINEA_MICRA_ADDRESS_CAPACITY] = {};
-  formatLineaMicraAddress(targeted.peerAddress, formattedAddress,
-                          sizeof(formattedAddress));
-  CHECK(strcmp(formattedAddress, "84:1F:E8:7B:B0:FE") == 0);
-  CHECK(!setLineaMicraTargetAddress(targeted, "84:1F:E8:7B:B0"));
-  CHECK(!setLineaMicraTargetAddress(targeted, "00:00:00:00:00:00"));
-  char targetToken[64];
-  memset(targetToken, 'T', sizeof(targetToken));
-  CHECK(setLineaMicraToken(targeted, targetToken, sizeof(targetToken)));
-  CHECK(setLineaMicraTargetAddress(targeted, "84:1F:E8:7B:B0:FE"));
-  CHECK(setLineaMicraBinding(targeted, 1, parsedAddress, "MICRA_TEST"));
-  CHECK(setLineaMicraTargetAddress(targeted, "84:1F:E8:7B:B0:FE"));
-  CHECK(targeted.bindingVerified);
-  CHECK(setLineaMicraTargetAddress(targeted, "84:1F:E8:7B:B0:FD"));
-  CHECK(!targeted.bindingVerified);
-
-  memset(loaded.lineaMicra.token, 'T', 64);
-  loaded.lineaMicra.token[64] = '\0';
-  const uint8_t address[6] = {1, 2, 3, 4, 5, 6};
-  memcpy(loaded.lineaMicra.peerAddress, address, sizeof(address));
-  strcpy(loaded.lineaMicra.identity, "MICRA_TEST");
-  loaded.lineaMicra.peerAddressType = 1;
-  loaded.lineaMicra.options =
-      LINEA_MICRA_APPLY_TEMPERATURE | LINEA_MICRA_OBSERVE_STATE;
-  loaded.lineaMicra.bindingVerified = true;
+  strcpy(loaded.lineaMicra.username, "barista@example.com");
+  strcpy(loaded.lineaMicra.password, "correct horse battery staple");
+  memset(loaded.lineaMicra.installationPrivateKey, 0x5a,
+         sizeof(loaded.lineaMicra.installationPrivateKey));
+  strcpy(loaded.lineaMicra.selectedSerial, "MR123456");
+  strcpy(loaded.lineaMicra.selectedName, "Kitchen Micra");
+  loaded.lineaMicra.accountConfigured = true;
+  setLineaMicraOptions(loaded.lineaMicra, true, true);
   loaded.presets.presets[0].lineaMicraBrewTargetDeciC = 935;
+  CHECK(validLineaMicraSettings(loaded.lineaMicra));
   CHECK(savePersistedSettings(loaded));
   loaded = {};
   CHECK(loadPersistedSettings(loaded));
   CHECK(loaded.presets.presets[0].lineaMicraBrewTargetDeciC == 935);
-  CHECK(loaded.lineaMicra.bindingVerified);
-  CHECK(strcmp(loaded.lineaMicra.identity, "MICRA_TEST") == 0);
+  CHECK(loaded.lineaMicra.accountConfigured);
+  CHECK(strcmp(loaded.lineaMicra.username, "barista@example.com") == 0);
+  CHECK(strcmp(loaded.lineaMicra.selectedSerial, "MR123456") == 0);
+  CHECK(strcmp(loaded.lineaMicra.selectedName, "Kitchen Micra") == 0);
   CHECK(loaded.lineaMicra.options == 3);
 
-  uint8_t replacementAddress[6] = {6, 5, 4, 3, 2, 1};
-  CHECK(setLineaMicraBinding(loaded.lineaMicra, 1, replacementAddress,
-                             "MICRA_SAVED"));
-  char replacementToken[64];
-  memset(replacementToken, 'R', sizeof(replacementToken));
-  CHECK(setLineaMicraToken(loaded.lineaMicra, replacementToken,
-                           sizeof(replacementToken)));
-  CHECK(!loaded.lineaMicra.bindingVerified);
-  CHECK(setLineaMicraOptions(loaded.lineaMicra, false, true));
-  CHECK(loaded.lineaMicra.options == LINEA_MICRA_OBSERVE_STATE);
-  clearLineaMicraToken(loaded.lineaMicra);
-  CHECK(loaded.lineaMicra.token[0] == '\0');
-  CHECK(!loaded.lineaMicra.bindingVerified);
+  PersistedSettingsV15 v15;
+  memcpy(v15.bytes, &loaded, offsetof(PersistedSettings, lineaMicra));
+  PersistedSettingsHeader v15Header = {PERSISTED_SETTINGS_MAGIC, 15,
+                                      PERSISTED_SETTINGS_V15_SIZE,
+                                      loaded.storageRevision};
+  memcpy(v15.bytes, &v15Header, sizeof(v15Header));
+  memset(v15.bytes + offsetof(PersistedSettings, lineaMicra), 'T', 96);
+  v15.bytes[offsetof(PersistedSettings, lineaMicra) + 96] =
+      LINEA_MICRA_APPLY_TEMPERATURE | LINEA_MICRA_OBSERVE_STATE;
+  const uint32_t v15Checksum = persistedSettingsV15Checksum(v15);
+  memcpy(v15.bytes + PERSISTED_SETTINGS_V15_SIZE - sizeof(v15Checksum),
+         &v15Checksum, sizeof(v15Checksum));
+  PersistedSettings migrated;
+  CHECK(migratePersistedSettingsFromV15(v15, migrated));
+  CHECK(!migrated.lineaMicra.accountConfigured);
+  CHECK(migrated.lineaMicra.username[0] == '\0');
+  CHECK(!lineaMicraPrivateKeyConfigured(migrated.lineaMicra));
+  CHECK(migrated.lineaMicra.options == 3);
+  CHECK(migrated.presets.presets[0].lineaMicraBrewTargetDeciC == 935);
+
+  disconnectLineaMicra(loaded.lineaMicra);
+  CHECK(validLineaMicraSettings(loaded.lineaMicra));
+  CHECK(!loaded.lineaMicra.accountConfigured);
+  CHECK(loaded.lineaMicra.password[0] == '\0');
+  CHECK(loaded.lineaMicra.selectedSerial[0] == '\0');
+  CHECK(!lineaMicraPrivateKeyConfigured(loaded.lineaMicra));
+  CHECK(loaded.lineaMicra.options == 3);
 
   ShotPresetBank bank = loaded.presets;
   CHECK(setShotPresetLineaMicraBrewTarget(bank, bank.activeId, 947));
@@ -2382,9 +2377,11 @@ void p84_v14_micra_defaults_and_v15_round_trip() {
   legacy.bytes[0] ^= 1;
   PersistedSettings rejected;
   CHECK(!migratePersistedSettingsFromV14(legacy, rejected));
+  v15.bytes[0] ^= 1;
+  CHECK(!migratePersistedSettingsFromV15(v15, rejected));
   CHECK(resetPersistedSettingsToFactory(loaded));
-  CHECK(loaded.lineaMicra.token[0] == '\0');
-  CHECK(!loaded.lineaMicra.bindingVerified);
+  CHECK(!loaded.lineaMicra.accountConfigured);
+  CHECK(loaded.lineaMicra.username[0] == '\0');
   CHECK(loaded.lineaMicra.options == 0);
   CHECK(loaded.presets.presets[0].lineaMicraBrewTargetDeciC == 930);
 }
@@ -2395,7 +2392,7 @@ struct TestCase {
 };
 
 const TestCase tests[] = {
-    {"P84", p84_v14_micra_defaults_and_v15_round_trip},
+    {"P84", p84_v14_v15_migration_and_v16_micra_cloud_round_trip},
     {"P83", p83_v14_device_name_default_migration_and_keep_on_forget},
     {"P81", p81_v12_clears_allow_rinse_while_armed_bit},
     {"P82", p82_ble_scan_backoff_boost_migration_and_roundtrip},

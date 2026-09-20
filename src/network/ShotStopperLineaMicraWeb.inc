@@ -1,5 +1,5 @@
 esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
-#if SHOT_STOPPER_MACHINE_INTEGRATION != SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_BLE
+#if SHOT_STOPPER_MACHINE_INTEGRATION != SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   return sendError(request, "404 Not Found", "UNSUPPORTED_MACHINE",
                    "Linea Micra integration is not compiled in this firmware.");
 #else
@@ -16,102 +16,126 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
 
   cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const fields[] = {
-      "action", "token", "address", "clearToken", "applyTemperature",
+      "action", "username", "password", "serial", "applyTemperature",
       "observeState"};
   char action[16] = {};
-  char address[LINEA_MICRA_ADDRESS_CAPACITY] = {};
+  char username[LINEA_MICRA_USERNAME_CAPACITY] = {};
+  char password[LINEA_MICRA_PASSWORD_CAPACITY] = {};
+  char serial[LINEA_MICRA_SERIAL_CAPACITY] = {};
   const bool known = root != nullptr &&
       jsonHasOnlyUniqueFields(root, fields, sizeof(fields) / sizeof(fields[0]));
   const bool actionOk = known &&
       jsonString(root, "action", action, sizeof(action), false);
+  const char *parseError = actionOk ? nullptr
+                                    : "action is required and all fields must be known.";
+  bool applyTemperature = false;
+  bool observeState = false;
   LineaMicraPersistedSettings candidate = {};
-  struct CandidateWiper {
+  struct SensitiveWiper {
+    char *username = nullptr;
+    char *password = nullptr;
     LineaMicraPersistedSettings &settings;
-    ~CandidateWiper() { wipeLineaMicraSettings(settings); }
-  } candidateWiper{candidate};
-  cJSON *tokenField = root == nullptr
-                          ? nullptr
-                          : cJSON_GetObjectItemCaseSensitive(root, "token");
-  cJSON *addressField = root == nullptr
-                            ? nullptr
-                            : cJSON_GetObjectItemCaseSensitive(root, "address");
+    ~SensitiveWiper() {
+      memset(username, 0, LINEA_MICRA_USERNAME_CAPACITY);
+      memset(password, 0, LINEA_MICRA_PASSWORD_CAPACITY);
+      wipeLineaMicraSettings(settings);
+    }
+  } sensitiveWiper{username, password, candidate};
   uint32_t currentRevision = 0;
   self.dataMux_.lock();
   candidate = self.settings_.lineaMicra;
   currentRevision = self.settings_.storageRevision;
   self.dataMux_.unlock();
-  const char *parseError = nullptr;
 
-  if (!actionOk) {
-    parseError = "action is required and all fields must be known.";
-  } else if (strcmp(action, "save") == 0) {
-    bool applyTemperature = false;
-    bool observeState = false;
-    bool clearToken = false;
-    const bool clearPresent = jsonFieldPresent(root, "clearToken");
-    if (!jsonBoolean(root, "applyTemperature", applyTemperature) ||
+  if (parseError == nullptr && strcmp(action, "connect") == 0) {
+    if (!jsonString(root, "username", username, sizeof(username), false) ||
+        !jsonString(root, "password", password, sizeof(password), false) ||
+        jsonFieldPresent(root, "serial") ||
+        jsonFieldPresent(root, "applyTemperature") ||
+        jsonFieldPresent(root, "observeState")) {
+      parseError = "connect requires only username and password.";
+    }
+  } else if (parseError == nullptr && strcmp(action, "select") == 0) {
+    if (!jsonString(root, "serial", serial, sizeof(serial), false) ||
+        !jsonBoolean(root, "applyTemperature", applyTemperature) ||
         !jsonBoolean(root, "observeState", observeState) ||
-        (clearPresent && !jsonBoolean(root, "clearToken", clearToken))) {
-      parseError = "save requires boolean applyTemperature and observeState.";
-    } else if (clearToken && jsonFieldPresent(root, "token")) {
-      parseError = "token and clearToken cannot be used together.";
+        jsonFieldPresent(root, "username") ||
+        jsonFieldPresent(root, "password")) {
+      parseError = "select requires serial and both machine options.";
     } else {
-      if (clearToken) {
-        clearLineaMicraToken(candidate);
-      } else if (tokenField != nullptr &&
-                 (!cJSON_IsString(tokenField) ||
-                  tokenField->valuestring == nullptr ||
-                  !setLineaMicraToken(candidate, tokenField->valuestring,
-                                      strlen(tokenField->valuestring)))) {
-        parseError = "token must contain exactly 64 printable characters.";
+      wipeLineaMicraSettings(candidate);
+      if (!selectMachineIntegrationDevice(serial, candidate)) {
+        parseError = "Select a machine returned by the latest account connection.";
+      } else {
+        setLineaMicraOptions(candidate, applyTemperature, observeState);
       }
-      if (parseError == nullptr && addressField != nullptr &&
-          (!jsonString(root, "address", address, sizeof(address), true) ||
-           !setLineaMicraTargetAddress(candidate, address))) {
-        parseError = "address must be empty or a BLE address AA:BB:CC:DD:EE:FF.";
-      }
+    }
+  } else if (parseError == nullptr && strcmp(action, "save") == 0) {
+    if (!candidate.accountConfigured ||
+        !jsonBoolean(root, "applyTemperature", applyTemperature) ||
+        !jsonBoolean(root, "observeState", observeState) ||
+        jsonFieldPresent(root, "username") ||
+        jsonFieldPresent(root, "password") ||
+        jsonFieldPresent(root, "serial")) {
+      parseError = "save requires a selected machine and both machine options.";
+    } else {
       setLineaMicraOptions(candidate, applyTemperature, observeState);
     }
-  } else if (jsonFieldPresent(root, "token") ||
-             jsonFieldPresent(root, "address") ||
-             jsonFieldPresent(root, "clearToken") ||
-             jsonFieldPresent(root, "applyTemperature") ||
-             jsonFieldPresent(root, "observeState")) {
-    parseError = "Only save accepts Linea Micra setting fields.";
-  } else if (strcmp(action, "forget") == 0) {
-    clearLineaMicraBinding(candidate);
-  } else if (strcmp(action, "remove_token") == 0) {
-    clearLineaMicraToken(candidate);
-  } else if (strcmp(action, "test") != 0 &&
-             strcmp(action, "refresh") != 0) {
+  } else if (parseError == nullptr &&
+             (strcmp(action, "disconnect") == 0 ||
+              strcmp(action, "refresh") == 0)) {
+    if (jsonFieldPresent(root, "username") ||
+        jsonFieldPresent(root, "password") ||
+        jsonFieldPresent(root, "serial") ||
+        jsonFieldPresent(root, "applyTemperature") ||
+        jsonFieldPresent(root, "observeState")) {
+      parseError = "disconnect and refresh do not accept setting fields.";
+    }
+  } else if (parseError == nullptr) {
     parseError = "Unknown Linea Micra action.";
   }
 
-  if (tokenField != nullptr && tokenField->valuestring != nullptr) {
-    memset(tokenField->valuestring, 0, strlen(tokenField->valuestring));
+  cJSON *passwordField = root == nullptr
+                             ? nullptr
+                             : cJSON_GetObjectItemCaseSensitive(root, "password");
+  if (passwordField != nullptr && cJSON_IsString(passwordField) &&
+      passwordField->valuestring != nullptr) {
+    memset(passwordField->valuestring, 0, strlen(passwordField->valuestring));
   }
   if (root != nullptr) cJSON_Delete(root);
+  memset(self.workBuf_->requestBody, 0, sizeof(self.workBuf_->requestBody));
   self.unlockJsonBody();
   if (parseError != nullptr) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_FIELD",
                      parseError);
   }
 
-  if (strcmp(action, "test") == 0 || strcmp(action, "refresh") == 0) {
-    const bool refresh = strcmp(action, "refresh") == 0;
-    if (strnlen(candidate.token, sizeof(candidate.token)) != 64 ||
-        (refresh && (!candidate.bindingVerified ||
-                     (candidate.options & LINEA_MICRA_OBSERVE_STATE) == 0))) {
+  if (strcmp(action, "connect") == 0) {
+    const NetworkStatusSnapshot network = self.snapshot();
+    const bool staConnected = network.staState == StaState::CONNECTED &&
+                              network.wifiConfigured &&
+                              network.staIp[0] != '\0';
+    if (!staConnected || network.apActive) {
+      return sendError(request, STATUS_CONFLICT, "MICRA_STA_REQUIRED",
+                       "Connect to Wi-Fi station mode and close setup AP first.");
+    }
+    const uint32_t requestId = self.allocateRequestId();
+    if (!queueMachineIntegrationConnect(requestId, username, password)) {
+      return sendError(request, STATUS_UNAVAILABLE, "MICRA_BUSY",
+                       "The Linea Micra integration is busy; try again shortly.");
+    }
+    return self.sendAccepted(request, requestId);
+  }
+
+  if (strcmp(action, "refresh") == 0) {
+    if (!candidate.accountConfigured) {
       return sendError(request, STATUS_CONFLICT, "MICRA_NOT_READY",
-                       refresh
-                           ? "Save a token, pair the Micra, and enable state monitoring first."
-                           : "Save a valid token before testing the Micra.");
+                       "Connect an account and select a machine first.");
     }
     LineaMicraRequest integrationRequest = {};
     integrationRequest.requestId = self.allocateRequestId();
     integrationRequest.configGeneration = currentRevision;
-    integrationRequest.type = refresh ? LineaMicraRequestType::OBSERVE_STATE
-                                      : LineaMicraRequestType::TEST;
+    integrationRequest.type = LineaMicraRequestType::OBSERVE_STATE;
     if (!queueMachineIntegrationRequest(integrationRequest)) {
       return sendError(request, STATUS_UNAVAILABLE, "MICRA_BUSY",
                        "The Linea Micra integration is busy; try again shortly.");
@@ -119,6 +143,10 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
     return self.sendAccepted(request, integrationRequest.requestId);
   }
 
+  if (strcmp(action, "disconnect") == 0) {
+    disconnectLineaMicra(candidate);
+    clearMachineIntegrationDiscovery();
+  }
   if (!validLineaMicraSettings(candidate)) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_MICRA_CONFIG",
                      "The Linea Micra settings are not valid.");

@@ -3,8 +3,9 @@
 namespace shotstopper {
 
 bool initializeMachineIntegration() { return true; }
-void serviceMachineIntegrationWorker() {}
-uint32_t machineIntegrationMaxExecutionUs() { return 0; }
 void publishMachineIntegrationConfig(const PersistedSettings &, uint32_t) {}
+void publishMachineIntegrationNetworkState(bool, bool, bool) {}
+void serviceMachineIntegrationAbort() {}
+uint8_t machineIntegrationTaskCount() { return 0; }
 
 }  // namespace shotstopper

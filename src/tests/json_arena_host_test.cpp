@@ -103,6 +103,15 @@ void testSizeLimitAndNullRejectCleanly() {
   CHECK(!shotstopper::jsonDocumentLimitRejectedRecently());
 }
 
+void testExplicitResponseLimitsDoNotRelaxRequestDefaults() {
+  const std::string large = "{\"payload\":\"" + std::string(3000, 'a') + "\"}";
+  CHECK(shotstopper::parseJsonDocument(large.c_str()) == nullptr);
+  cJSON *root = shotstopper::parseJsonDocumentWithinLimits(
+      large.c_str(), 4095, shotstopper::JSON_DOCUMENT_MAX_VALUES);
+  CHECK(root != nullptr);
+  cJSON_Delete(root);
+}
+
 std::string repeatedArrayValues(size_t count) {
   std::string body = "[";
   for (size_t i = 0; i < count; ++i) {
@@ -183,6 +192,7 @@ int main() {
   testConcurrentParsesDoNotShareStorage();
   testDepthLimitRejectsWithoutDamagingPriorDocument();
   testSizeLimitAndNullRejectCleanly();
+  testExplicitResponseLimitsDoNotRelaxRequestDefaults();
   testValueLimitAtBoundaryForArraysAndObjects();
   testStringsEscapesAndInvalidDocuments();
   testAllocationFailureLeavesOtherDocumentsAlive();

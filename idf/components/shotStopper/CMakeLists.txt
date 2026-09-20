@@ -16,7 +16,7 @@ set(SHOT_STOPPER_REQUIRES
   arduino-esp32
   EspressoScaleBLE
   ShotStopperBleRuntime)
-if(SHOT_STOPPER_MACHINE_INTEGRATION STREQUAL "linea_micra_ble")
+if(SHOT_STOPPER_MACHINE_INTEGRATION STREQUAL "linea_micra_cloud")
   list(APPEND SHOT_STOPPER_SRCS
     "${SHOT_STOPPER_DIR}/machine/ShotStopperLineaMicraIntegration.cpp"
     "${SHOT_STOPPER_DIR}/machine/ShotStopperMicraService.cpp")
@@ -56,6 +56,3 @@ idf_component_register(
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)
-if(SHOT_STOPPER_MACHINE_INTEGRATION STREQUAL "linea_micra_ble")
-  idf_component_optional_requires(PRIVATE LineaMicraBLE)
-endif()

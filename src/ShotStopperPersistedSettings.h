@@ -51,7 +51,7 @@ struct PersistedSettings {
   // V14: mDNS device name. Must stay immediately before checksum so V6–V13
   // blobs remain a layout-compatible prefix (see ShotStopperSettingsMigrate.h).
   char deviceName[DEVICE_NAME_CAPACITY] = {};
-  // V15: optional Micra credential, verified peer and independent options.
+  // V16: optional Micra cloud account, selected machine and independent options.
   LineaMicraPersistedSettings lineaMicra = {};
   uint32_t checksum = 0;
 };
@@ -78,7 +78,7 @@ static_assert(offsetof(PersistedSettings, storageRevision) + sizeof(uint32_t) ==
 
 static_assert(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET,
               "PersistedSettings exceeds NVS dual-slot budget");
-static_assert(sizeof(PersistedSettings) == 2748,
+static_assert(sizeof(PersistedSettings) == 2960,
               "PersistedSettings size changed; bump CONFIG_SCHEMA_VERSION");
 
 inline uint32_t persistedSettingsChecksum(const PersistedSettings &settings) {

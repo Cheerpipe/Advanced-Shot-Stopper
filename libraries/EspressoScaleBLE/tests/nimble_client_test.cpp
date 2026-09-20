@@ -46,8 +46,6 @@ static void notify(NimbleScaleClient &c,uint16_t length) {
 }
 static void run() {
   {
-    testScaleReservations = 0;
-    testAdvertisementPublications = 0;
     NimbleScaleClient c(false);
     c.beginGeneration();
     c.state_ = NimbleScaleClient::State::Scanning;
@@ -57,10 +55,8 @@ static void run() {
     testAdvertisementParseStatus = 0;
     testAdvertisementFields = {firstName, sizeof(firstName) - 1, 1, 0, nullptr};
     ble_gap_disc_desc first = {{0, {1, 2, 3, 4, 5, 6}},
-                              BLE_HCI_ADV_RPT_EVTYPE_ADV_IND, nullptr, 0, -42};
+                              BLE_HCI_ADV_RPT_EVTYPE_ADV_IND, nullptr, 0};
     c.onAdvertisement(first, operation);
-    CHECK(testAdvertisementPublications == 1);
-    CHECK(testScaleReservations == 1);
     char mac[32] = {};
     char name[32] = {};
     // Publication after the consumption lock releases must remain pending,
@@ -93,21 +89,6 @@ static void run() {
     CHECK(!c.seenPending_ && testCriticalDepth == 0);
     testAdvertisementParseStatus = BLE_HS_EINVAL;
     testAdvertisementFields = {};
-  }
-  {
-    NimbleScaleClient c(false); ready(c);
-    testAdvertisementPublications = 0;
-    testScaleReservations = 0;
-    CHECK(c.startObservationScan(2000));
-    const uint32_t operation = c.scanOperationId_;
-    ble_gap_disc_desc observation = {{0, {1, 2, 3, 4, 5, 6}},
-                                     BLE_HCI_ADV_RPT_EVTYPE_ADV_IND,
-                                     nullptr, 0, -42};
-    c.onAdvertisement(observation, operation);
-    CHECK(testAdvertisementPublications == 1);
-    CHECK(testScaleReservations == 0);
-    CHECK(c.prepareMachineProcedure());
-    CHECK(c.isConnected() && !c.observationScanActive_);
   }
   {
     NimbleScaleClient c(false); ready(c);
