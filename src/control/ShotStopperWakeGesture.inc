@@ -24,6 +24,7 @@ bool serviceMachineWakeGesture(const MachineIntention &intent) {
     return true;
   }
   machineSetActivatorDriveAllowed(true);
+  machineAllowCurrentActivatorHold();
   if (!servicePowerManagement() ||
       !machineRequestStart(HARD_MAX_CIRCUIT_CLOSED_MS, false)) {
     transitionTo(StopperState::REQUIRES_OFF);

@@ -85,6 +85,7 @@ if (micraService.includes('keep_alive_enable = true') ||
     !micraService.includes('esp_http_client_delete_header(work_->client, "X-Request-Proof")') ||
     !micraService.includes('esp_http_client_set_post_field(work_->client, nullptr, 0)') ||
     !micraService.includes('config.buffer_size = 1024;') ||
+    !micraService.includes('config.buffer_size_tx = 1024;') ||
     !micraService.includes('struct ShotStopperMicraService::IoBuffer') ||
     !micraService.includes('union {') ||
     !micraService.includes('allocExternal(sizeof(WorkBuffer), AllocationOwner::NETWORK)') ||

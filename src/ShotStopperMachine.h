@@ -73,6 +73,10 @@ inline void machineSetActivatorDriveAllowed(bool allowed) {
   machineActivatorDriveAllowed = allowed;
 }
 
+inline void machineAllowCurrentActivatorHold() {
+  machineActivatorDriveSuppressedThisHold = false;
+}
+
 inline bool machineMayForwardActivatorOn() {
   if (!machineActivatorDriveAllowed) {
     machineActivatorDriveSuppressedThisHold = true;

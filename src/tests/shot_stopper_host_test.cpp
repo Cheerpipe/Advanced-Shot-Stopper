@@ -834,6 +834,20 @@ void t02d_wake_timer_arm_failure_stays_open() {
   CHECK(hostRelayClosedWrites == 0);
 }
 
+void t02e_wake_restores_suppressed_held_paddle() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  hostMachinePhysicalStartDisposition =
+      MachinePhysicalStartDisposition::WAKE_PASSTHROUGH;
+  machineActivatorDriveSuppressedThisHold = true;
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(machineWakePassthroughActive);
+  CHECK(getRelaySafetySnapshot().closed);
+  runLoopAfter(1);
+  CHECK(getRelaySafetySnapshot().closed);
+}
+
 void t03_sustained_on_enters_brew_once() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -14995,6 +15009,7 @@ const TestCase testCases[] = {
     {"T02B", t02b_off_wake_bypasses_brew_guards_scale_and_history},
     {"T02C", t02c_wake_hard_limit_requires_release_before_rearming},
     {"T02D", t02d_wake_timer_arm_failure_stays_open},
+    {"T02E", t02e_wake_restores_suppressed_held_paddle},
     {"T03", t03_sustained_on_enters_brew_once},
     {"T04", t04_exact_rinse_boundary_and_duration},
     {"T04B", t04b_rinse_disabled_short_on_off_is_not_rinse},
