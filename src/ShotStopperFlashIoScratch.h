@@ -29,6 +29,7 @@ namespace shotstopper {
 // One staged step of a partition-store transfer. 4-byte alignment keeps every
 // esp_partition_read/write call word-aligned; store sizes are multiples of 4.
 constexpr size_t FLASH_IO_CHUNK_BYTES = 1024;
+constexpr size_t FLASH_IO_SECTOR_BYTES = 4096;
 // Settings slots are processed sequentially; the shared internal workspace
 // therefore needs one record or one partition-transfer chunk, whichever is
 // larger. Larger stores transfer in FLASH_IO_CHUNK_BYTES steps.
@@ -86,6 +87,15 @@ inline std::atomic<uint32_t> &flashIoLockTimeoutCount() {
   return count;
 }
 
+inline std::atomic<uint32_t> &flashIoForbiddenAttemptCount() {
+  static std::atomic<uint32_t> count{0};
+  return count;
+}
+
+inline uint32_t flashIoForbiddenAttempts() {
+  return flashIoForbiddenAttemptCount().load(std::memory_order_relaxed);
+}
+
 inline uint32_t flashIoLockTimeouts() {
   return flashIoLockTimeoutCount().load(std::memory_order_relaxed);
 }
@@ -108,7 +118,20 @@ inline bool ensureFlashIoMutex() {
 
 inline SemaphoreHandle_t flashIoMutexHandle() { return flashIoMutexSlot(); }
 
+inline TaskHandle_t &flashIoForbiddenTaskSlot() {
+  static TaskHandle_t task = nullptr;
+  return task;
+}
+
+inline void forbidFlashIoFromCurrentTask() {
+  flashIoForbiddenTaskSlot() = xTaskGetCurrentTaskHandle();
+}
+
 inline bool tryLockFlashIo(uint32_t timeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
+  if (flashIoForbiddenTaskSlot() == xTaskGetCurrentTaskHandle()) {
+    flashIoForbiddenAttemptCount().fetch_add(1, std::memory_order_relaxed);
+    return false;
+  }
   if (!ensureFlashIoMutex()) {
     return false;
   }
@@ -134,6 +157,7 @@ inline void unlockFlashIo() {
 inline bool g_hostFlashIoMutexAvailable = true;
 
 inline bool ensureFlashIoMutex() { return g_hostFlashIoMutexAvailable; }
+inline void forbidFlashIoFromCurrentTask() {}
 
 inline bool tryLockFlashIo(uint32_t = FLASH_IO_LOCK_TIMEOUT_MS) {
   if (!g_hostFlashIoMutexAvailable) {
@@ -181,6 +205,30 @@ inline void *copyToFlashIoScratch(const void *source, size_t bytes) {
   }
   memcpy(scratch, source, bytes);
   return scratch;
+}
+
+enum class FlashStoreStepResult : uint8_t { MORE, COMPLETE, FAILED };
+
+struct FlashStoreTransaction {
+  enum class Phase : uint8_t { IDLE, ERASE, BODY, COMMIT };
+  Phase phase = Phase::IDLE;
+  size_t targetOffset = 0;
+  size_t offset = 0;
+  size_t slotBytes = 0;
+  size_t headerBytes = 0;
+  size_t totalBytes = 0;
+};
+
+inline void beginFlashStoreTransaction(FlashStoreTransaction &tx,
+                                       size_t targetOffset, size_t slotBytes,
+                                       size_t headerBytes,
+                                       size_t totalBytes) {
+  tx.phase = FlashStoreTransaction::Phase::ERASE;
+  tx.targetOffset = targetOffset;
+  tx.offset = 0;
+  tx.slotBytes = slotBytes;
+  tx.headerBytes = headerBytes;
+  tx.totalBytes = totalBytes;
 }
 
 #if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
@@ -232,6 +280,69 @@ inline bool flashIoWriteChunked(const esp_partition_t *part, size_t offset,
     feedFlashIoWatchdog();
   }
   return true;
+}
+
+// Perform exactly one cache-off erase/program operation. The body is written
+// first and the validity-bearing header last, so an interrupted replacement
+// never supersedes the previous valid slot.
+inline FlashStoreStepResult flashIoStoreStep(
+    const esp_partition_t *part, const void *source,
+    FlashStoreTransaction &tx,
+    uint32_t lockTimeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
+  if (part == nullptr || source == nullptr ||
+      tx.phase == FlashStoreTransaction::Phase::IDLE ||
+      !tryLockFlashIo(lockTimeoutMs)) {
+    return FlashStoreStepResult::FAILED;
+  }
+  bool ok = false;
+  if (tx.phase == FlashStoreTransaction::Phase::ERASE) {
+    ok = esp_partition_erase_range(part, tx.targetOffset + tx.offset,
+                                   FLASH_IO_SECTOR_BYTES) == ESP_OK;
+    if (ok) {
+      tx.offset += FLASH_IO_SECTOR_BYTES;
+      if (tx.offset == tx.slotBytes) {
+        tx.phase = FlashStoreTransaction::Phase::BODY;
+        tx.offset = tx.headerBytes;
+      }
+    }
+  } else {
+    const uint8_t *bytes = static_cast<const uint8_t *>(source);
+    const size_t remaining = tx.phase == FlashStoreTransaction::Phase::COMMIT
+                                 ? tx.headerBytes
+                                 : tx.totalBytes - tx.offset;
+    const size_t chunk = remaining < FLASH_IO_CHUNK_BYTES
+                             ? remaining
+                             : FLASH_IO_CHUNK_BYTES;
+    void *scratch = copyToFlashIoScratch(
+        bytes + (tx.phase == FlashStoreTransaction::Phase::COMMIT ? 0
+                                                                  : tx.offset),
+        chunk);
+    ok = scratch != nullptr &&
+         esp_partition_write(
+             part,
+             tx.targetOffset +
+                 (tx.phase == FlashStoreTransaction::Phase::COMMIT ? 0
+                                                                    : tx.offset),
+             scratch, chunk) == ESP_OK;
+    if (ok && tx.phase == FlashStoreTransaction::Phase::COMMIT) {
+      tx.phase = FlashStoreTransaction::Phase::IDLE;
+    } else if (ok) {
+      tx.offset += chunk;
+      if (tx.offset == tx.totalBytes) {
+        tx.phase = FlashStoreTransaction::Phase::COMMIT;
+        tx.offset = 0;
+      }
+    }
+  }
+  unlockFlashIo();
+  feedFlashIoWatchdog();
+  if (!ok) {
+    tx.phase = FlashStoreTransaction::Phase::IDLE;
+    return FlashStoreStepResult::FAILED;
+  }
+  return tx.phase == FlashStoreTransaction::Phase::IDLE
+             ? FlashStoreStepResult::COMPLETE
+             : FlashStoreStepResult::MORE;
 }
 #endif
 

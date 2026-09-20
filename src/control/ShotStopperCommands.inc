@@ -641,12 +641,14 @@ void processWebCommand(const WebCommand &command) {
     }
 
     case WebCommandType::TASK_PROFILER_START:
-      (void)taskProfiler.start(millis());
+      healthProfilerRequest.store(HealthProfilerRequest::START,
+                                  std::memory_order_release);
       reportControlCommandResult(command, CommandResultState::APPLIED);
       return;
 
     case WebCommandType::TASK_PROFILER_STOP:
-      (void)taskProfiler.stop(millis());
+      healthProfilerRequest.store(HealthProfilerRequest::STOP,
+                                  std::memory_order_release);
       reportControlCommandResult(command, CommandResultState::APPLIED);
       return;
   }

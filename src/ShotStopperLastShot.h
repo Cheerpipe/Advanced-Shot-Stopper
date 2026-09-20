@@ -250,10 +250,11 @@ class LastShotStore {
     return false;
   }
 
-  bool clearLast() {
+  bool clearLast(bool persistNow = true) {
     const LastShotBlob previous = blob_;
     blob_.lastShot = PersistedLastShot{};
     finalizeLastShotBlob(blob_);
+    if (!persistNow) return true;
     if (save()) return true;
     blob_ = previous;
     return false;

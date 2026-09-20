@@ -45,6 +45,9 @@ uint8_t hostBbwAlgorithm = 0;
 
 void deleteHostResources() {
   releaseSettingsPersistenceWorkerForHost();
+  delete healthSampleQueue;
+  healthSampleQueue = nullptr;
+  healthTaskHandle = nullptr;
   delete scaleCommandQueue;
   delete scaleEventQueue;
   delete webCommandQueue;
@@ -148,6 +151,13 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   shotStorePersistIoRetryMs = 0;
   shotStoreDirtyGeneration.store(0, std::memory_order_relaxed);
   shotStoreObservedDirtyGeneration = 0;
+  shotStorePersistInFlight = false;
+  shotStorePersistResultReady = false;
+  shotStorePersistResultOk = false;
+  shotStorePersistResultIoFail = false;
+  shotStorePersistImageLastShotDirty = false;
+  shotStorePersistImageGeneration = 0;
+  shotStorePersistResultGeneration = 0;
   LastShotStore::setHostSaveSucceeds(true);
   lastShotStore.clear();
   g_hostFlashIoMutexAvailable = true;
@@ -185,6 +195,11 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   ringRetainLogLevel = LogLevel::INFO;
   publishedControlStatus = ControlStatusSnapshot{};
   taskProfiler.resetForHost();
+  healthProfilerRequest.store(HealthProfilerRequest::NONE,
+                              std::memory_order_relaxed);
+  healthSnapshotVersion = 0;
+  healthSnapshotAtMs = 0;
+  healthSnapshotValid = false;
   publishedControlGate = ControlGateSnapshot{};
   controlStatusPublishRequested = false;
   maintenanceLease = MaintenanceLease{};
@@ -285,7 +300,6 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   healthIntervalMaxGapMs = 0;
   healthHeapAlertLatched = false;
   healthHeapRestartLatched = false;
-  healthHeapLowSinceMs = 0;
   healthStackAlertLatched = false;
   healthLoopGapAlertLatched = false;
   scaleCriticalEvent = ScaleEvent{};
@@ -10419,12 +10433,14 @@ void s20_last_good_shot_advances_independently() {
   CHECK(persistedLastGoodShot.shotLogId == 91);
   CHECK(persistedLastGoodShot.rating == 4);
   LastShotStore::setHostSaveSucceeds(false);
-  CHECK(!clearLastShot());
-  CHECK(persistedLastShot.cycleId == 1);
-  CHECK(lastShotStore.get().durationMs == 12000);
+  CHECK(clearLastShot());
+  CHECK(!persistedLastShot.valid);
+  CHECK(lastShotNvsDirty);
+  serviceShotStorePersistence();
   CHECK(lastShotNvsDirty);
   LastShotStore::setHostSaveSucceeds(true);
-  CHECK(clearLastShot());
+  hostMillis = shotStorePersistRetryAtMs;
+  serviceShotStorePersistence();
   CHECK(!persistedLastShot.valid);
   CHECK(persistedLastGoodShot.durationMs == 13000);
   CHECK(lastShotStore.getGood().shotLogId == 91);
@@ -11673,7 +11689,7 @@ void s04d_delete_shot_record_ok_without_curve() {
   CHECK(shotLog.count() == 0);
 }
 
-void s04e_delete_shot_record_keeps_log_if_curve_remove_fails() {
+void s04e_delete_shot_record_is_ram_only_when_flash_is_busy() {
   resetHarness(false, true);
   shotLog.clear();
   ShotCurveLog::resetHostStorage();
@@ -11691,9 +11707,11 @@ void s04e_delete_shot_record_keeps_log_if_curve_remove_fails() {
   g_hostFlashIoMutexAvailable = false;
   const bool deleted = deleteShotRecord(id);
   g_hostFlashIoMutexAvailable = true;
-  CHECK(!deleted);
-  CHECK(shotLog.containsId(id));
-  CHECK(shotCurves.containsShotId(id));
+  CHECK(deleted);
+  CHECK(!shotLog.containsId(id));
+  CHECK(!shotCurves.containsShotId(id));
+  CHECK(shotLog.dirty());
+  CHECK(shotCurves.dirty());
 }
 
 void b01_scale_worker_requires_ble_stack() {
@@ -12292,7 +12310,7 @@ void f14_relay_timer_initialization_rolls_back_partial_handles() {
 }
 
 void f13_schedule_contract_and_snapshot_evidence_are_explicit() {
-  CHECK(TASK_SCHEDULE_CONTRACT_COUNT == 8);
+  CHECK(TASK_SCHEDULE_CONTRACT_COUNT == 9);
   CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[0].name, "control") == 0);
   CHECK(TASK_SCHEDULE_CONTRACTS[0].core == CONTROL_TASK_CORE);
   CHECK(TASK_SCHEDULE_CONTRACTS[0].serviceDeadlineMs ==
@@ -12303,11 +12321,14 @@ void f13_schedule_contract_and_snapshot_evidence_are_explicit() {
   CHECK(TASK_SCHEDULE_CONTRACTS[1].core == SCALE_WORKER_TASK_CORE);
   CHECK(TASK_SCHEDULE_CONTRACTS[1].serviceDeadlineMs ==
         SCALE_SERVICE_DEADLINE_MS);
-  CHECK(TASK_SCHEDULE_CONTRACTS[2].priorityOffset == 1);
+  CHECK(TASK_SCHEDULE_CONTRACTS[2].priorityOffset == 0);
   CHECK(TASK_SCHEDULE_CONTRACTS[2].watchdogSubscribed);
-  CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[6].name, "micra_cloud") == 0);
-  CHECK(TASK_SCHEDULE_CONTRACTS[6].maxBlockingMs == 10000);
-  CHECK(TASK_SCHEDULE_CONTRACTS[7].maxBlockingMs ==
+  CHECK(TASK_SCHEDULE_CONTRACTS[2].core == PERSISTENCE_TASK_CORE);
+  CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[3].name, "health") == 0);
+  CHECK(TASK_SCHEDULE_CONTRACTS[3].core == 0);
+  CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[7].name, "micra_cloud") == 0);
+  CHECK(TASK_SCHEDULE_CONTRACTS[7].maxBlockingMs == 10000);
+  CHECK(TASK_SCHEDULE_CONTRACTS[8].maxBlockingMs ==
         TASK_BLOCKING_UNBOUNDED_MS);
 
   resetHarness(false, true);
@@ -12926,7 +12947,16 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   CHECK(!safeRestartPending());
 
   hostMillis += 1;
-  serviceHealthThresholdAlerts(0);
+  healthSampleQueue = xQueueCreate(1, sizeof(HealthWorkerSample));
+  HealthWorkerSample restartSample;
+  restartSample.version = 1;
+  restartSample.sampledAtMs = hostMillis;
+  restartSample.heapValid = true;
+  restartSample.restartRequested = true;
+  restartSample.heap.internalFree = freeHeapBytes;
+  restartSample.heap.internalLargest = largestFreeHeapBlockBytes;
+  CHECK(xQueueOverwrite(healthSampleQueue, &restartSample) == pdTRUE);
+  serviceHealthWorkerSample();
   CHECK(safeRestartPending());
   CHECK(debugEventExists(DebugCode::HEALTH_HEAP_RESTART,
                          static_cast<int32_t>(freeHeapBytes),
@@ -12953,7 +12983,11 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   serviceHealthThresholdAlerts(0);
   CHECK(!healthHeapAlertLatched);
   hostMillis += HEALTH_HEAP_LOW_RESTART_MS;
-  serviceHealthThresholdAlerts(0);
+  healthSampleQueue = xQueueCreate(1, sizeof(HealthWorkerSample));
+  restartSample.sampledAtMs = hostMillis;
+  restartSample.restartRequested = false;
+  CHECK(xQueueOverwrite(healthSampleQueue, &restartSample) == pdTRUE);
+  serviceHealthWorkerSample();
   CHECK(!safeRestartPending());
 
   resetHarness(false, true);
@@ -12966,7 +13000,11 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   setScaleWorkerStackMinBytesForHost(HEALTH_STACK_MIN_CLEAR_BYTES);
   serviceHealthThresholdAlerts(0);
   hostMillis += HEALTH_HEAP_LOW_RESTART_MS;
-  serviceHealthThresholdAlerts(0);
+  healthSampleQueue = xQueueCreate(1, sizeof(HealthWorkerSample));
+  restartSample.sampledAtMs = hostMillis;
+  restartSample.restartRequested = true;
+  CHECK(xQueueOverwrite(healthSampleQueue, &restartSample) == pdTRUE);
+  serviceHealthWorkerSample();
   CHECK(healthHeapAlertLatched);
   CHECK(!safeRestartPending());
   CHECK(!debugEventExists(DebugCode::HEALTH_HEAP_RESTART));
@@ -13035,6 +13073,7 @@ void h03_task_profiler_start_stop_updates_snapshot() {
   WebCommand start = {};
   start.type = WebCommandType::TASK_PROFILER_START;
   processWebCommand(start);
+  serviceHealthProfiler(millis());
   copyTaskProfiler(snap);
   CHECK(snap.state == TaskProfilerState::FAILED);
   CHECK(snap.stopReason == TaskProfilerStopReason::CAPTURE_FAILED);
@@ -13042,6 +13081,7 @@ void h03_task_profiler_start_stop_updates_snapshot() {
   WebCommand stop = {};
   stop.type = WebCommandType::TASK_PROFILER_STOP;
   processWebCommand(stop);
+  serviceHealthProfiler(millis());
   copyTaskProfiler(snap);
   CHECK(snap.state == TaskProfilerState::FAILED);
   CHECK(snap.stopReason == TaskProfilerStopReason::CAPTURE_FAILED);
@@ -15562,7 +15602,7 @@ const TestCase testCases[] = {
     {"S04", s04_shot_log_remove_by_id},
     {"S04c", s04c_delete_shot_record_removes_log_and_curve},
     {"S04d", s04d_delete_shot_record_ok_without_curve},
-    {"S04e", s04e_delete_shot_record_keeps_log_if_curve_remove_fails},
+    {"S04e", s04e_delete_shot_record_is_ram_only_when_flash_is_busy},
     {"B01", b01_scale_worker_requires_ble_stack},
     {"B02", b02_setup_degrades_without_ble},
 #if SHOT_STOPPER_ENABLE_JTAG == 1

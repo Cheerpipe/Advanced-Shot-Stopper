@@ -212,9 +212,42 @@ class ShotLog {
     return save(lockTimeoutMs);
   }
 
+  FlashStoreStepResult flushStep(
+      uint32_t lockTimeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
+    if (!dirty_) return FlashStoreStepResult::COMPLETE;
+#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+    return save(lockTimeoutMs) ? FlashStoreStepResult::COMPLETE
+                               : FlashStoreStepResult::FAILED;
+#else
+    const esp_partition_t *part = shotLogPartition();
+    if (part == nullptr ||
+        part->size < SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES) {
+      return FlashStoreStepResult::FAILED;
+    }
+    if (persistProgress_.phase == FlashStoreTransaction::Phase::IDLE) {
+      compactShotLogStore(store_);
+      if (store_.header.generation == 0) store_.header.generation = 1;
+      else if (store_.header.generation < UINT32_MAX) ++store_.header.generation;
+      finalizeShotLogStore(store_);
+      beginFlashStoreTransaction(
+          persistProgress_,
+          static_cast<size_t>(1U - (activeSlot_ & 1U)) *
+              SHOT_LOG_FLASH_SLOT_BYTES,
+          SHOT_LOG_FLASH_SLOT_BYTES, sizeof(ShotLogHeader), sizeof(store_));
+    }
+    const FlashStoreStepResult result = flashIoStoreStep(
+        part, &store_, persistProgress_, lockTimeoutMs);
+    if (result == FlashStoreStepResult::COMPLETE) {
+      activeSlot_ = static_cast<uint8_t>(1U - (activeSlot_ & 1U));
+      dirty_ = false;
+    }
+    return result;
+#endif
+  }
+
   bool dirty() const { return dirty_; }
 
-  bool updateRating(uint32_t id, uint8_t rating) {
+  bool updateRating(uint32_t id, uint8_t rating, bool persistNow = true) {
     if (id == 0 || rating > SHOT_LOG_RATING_MAX || store_.header.count == 0) {
       return false;
     }
@@ -234,6 +267,10 @@ class ShotLog {
     }
     if (!found) {
       return false;
+    }
+    if (!persistNow) {
+      dirty_ = true;
+      return true;
     }
     if (save()) {
       return true;
@@ -273,11 +310,11 @@ class ShotLog {
     return false;
   }
 
-  bool removeById(uint32_t id) {
+  bool removeById(uint32_t id, bool persistNow = true) {
     if (id == 0 || store_.header.count == 0) {
       return false;
     }
-    if (!lockFlashIo()) {
+    if (persistNow && !lockFlashIo()) {
       return false;
     }
     // Compact to a linear prefix so deletion is a memmove, avoiding two
@@ -293,7 +330,7 @@ class ShotLog {
       }
     }
     if (!found) {
-      unlockFlashIo();
+      if (persistNow) unlockFlashIo();
       return false;
     }
     const uint16_t previousCount = store_.header.count;
@@ -306,6 +343,10 @@ class ShotLog {
     store_.header.writeIndex =
         static_cast<uint16_t>(store_.header.count % SHOT_LOG_CAPACITY);
     memset(&store_.records[store_.header.count], 0, sizeof(ShotLogRecord));
+    if (!persistNow) {
+      dirty_ = true;
+      return true;
+    }
     const bool saved = save();
     unlockFlashIo();
     if (saved) {
@@ -315,13 +356,17 @@ class ShotLog {
     return false;
   }
 
-  bool clear() {
+  bool clear(bool persistNow = true) {
     const uint32_t bootId = store_.header.bootId;
     // Keep the monotonic generation: a regressed generation would make the
     // pre-clear slot look newer on the next load.
     const uint32_t generation = store_.header.generation;
     resetShotLogStore(store_, bootId);
     store_.header.generation = generation;
+    if (!persistNow) {
+      dirty_ = true;
+      return true;
+    }
     if (save()) {
       return true;
     }
@@ -330,6 +375,11 @@ class ShotLog {
   }
 
   size_t count() const { return store_.header.count; }
+
+  void acknowledgePersisted(const ShotLog &image, bool clearDirty) {
+    activeSlot_ = image.activeSlot_;
+    if (clearDirty) dirty_ = false;
+  }
 
   size_t copyNewestFirst(ShotLogRecord *output, size_t capacity) const {
     if (output == nullptr || capacity == 0 || store_.header.count == 0) {
@@ -368,6 +418,7 @@ class ShotLog {
 #endif
 
   ShotLogStore store_{};
+  FlashStoreTransaction persistProgress_{};
   uint8_t activeSlot_ = 0;
   bool dirty_ = false;
 

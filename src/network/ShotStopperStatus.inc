@@ -885,6 +885,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"loopMaxExecutionUs\":%lu,"
         "\"scaleWorkerMaxGapMs\":%lu,\"scaleWorkerDeadlineMisses\":%lu,"
         "\"scaleWorkerMaxExecutionUs\":%lu,"
+        "\"healthSnapshotVersion\":%lu,\"healthSnapshotAgeMs\":%lu,"
+        "\"healthSnapshotValid\":%s,"
         "\"freeHeapBytes\":%lu,\"minimumFreeHeapBytes\":%lu,"
         "\"largestFreeHeapBlockBytes\":%lu,"
         "\"internalHeapAllocatedBlocks\":%lu,"
@@ -982,6 +984,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(control.scaleWorkerMaxGapMs),
         static_cast<unsigned long>(control.scaleWorkerDeadlineMisses),
         static_cast<unsigned long>(control.scaleWorkerMaxExecutionUs),
+        static_cast<unsigned long>(control.healthSnapshotVersion),
+        static_cast<unsigned long>(control.healthSnapshotAgeMs),
+        control.healthSnapshotValid ? "true" : "false",
         static_cast<unsigned long>(control.freeHeapBytes),
         static_cast<unsigned long>(control.minimumFreeHeapBytes),
         static_cast<unsigned long>(control.largestFreeHeapBlockBytes),

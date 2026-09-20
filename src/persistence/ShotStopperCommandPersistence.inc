@@ -273,6 +273,55 @@ void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits) 
 
 bool serviceBleScanPersist();
 
+#ifndef SHOT_STOPPER_HOST_TEST
+bool shotStoreWorkerWriteAllowed() {
+  ControlGateSnapshot control;
+  copyControlGate(control);
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  return !control.maintenanceLeaseActive &&
+         durableFlashWriteAllowed(control.activeCycle || control.relayClosed ||
+                                      control.machineRunning ||
+                                      control.physicalActivatorOn,
+                                  link.connecting);
+}
+
+void waitForShotStoreWriteGate() {
+  while (!shotStoreWorkerWriteAllowed()) {
+    feedOrTripCurrentTaskWatchdog();
+    vTaskDelay(pdMS_TO_TICKS(25));
+  }
+}
+#endif
+
+void persistShotStoreImage() {
+  const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
+  ActivationStoresFlushReport report;
+  do {
+#ifndef SHOT_STOPPER_HOST_TEST
+    waitForShotStoreWriteGate();
+#endif
+    report = shotStorePersistImage->serviceStep(FLASH_IO_LOCK_TIMEOUT_MS,
+                                                addDebugEvent);
+    if (!report.complete && !report.anyFail) yieldFlashIo();
+  } while (!report.complete && !report.anyFail);
+  bool ok = !report.anyFail;
+  if (shotStorePersistImageLastShotDirty) {
+#ifndef SHOT_STOPPER_HOST_TEST
+    waitForShotStoreWriteGate();
+    yieldFlashIo();
+#endif
+    if (!lastShotPersistImage->save(FLASH_IO_LOCK_TIMEOUT_MS)) ok = false;
+  }
+  shotStorePersistMux.lock();
+  shotStorePersistResultReady = true;
+  shotStorePersistResultOk = ok;
+  shotStorePersistResultIoFail =
+      !ok && flashIoLockTimeouts() == lockTimeoutsBefore;
+  shotStorePersistResultGeneration = shotStorePersistImageGeneration;
+  shotStorePersistInFlight = false;
+  shotStorePersistMux.unlock();
+}
+
 #ifdef SHOT_STOPPER_HOST_TEST
 void settingsPersistTask(void *) {}
 #else
@@ -283,8 +332,8 @@ void settingsPersistTask(void *parameter) {
   }
   for (;;) {
     // Must not block forever: this task is subscribed to the TWDT.
-    uint8_t token = 0;
-    if (xQueueReceive(settingsPersistQueue, &token,
+    PersistenceWork work = PersistenceWork::SETTINGS;
+    if (xQueueReceive(settingsPersistQueue, &work,
                       pdMS_TO_TICKS(SETTINGS_PERSIST_IDLE_WAIT_MS)) !=
         pdTRUE) {
       feedOrTripCurrentTaskWatchdog();
@@ -303,6 +352,11 @@ void settingsPersistTask(void *parameter) {
     }
     yieldSettingsNvs();
     feedOrTripCurrentTaskWatchdog();
+    if (work == PersistenceWork::SHOT_STORES) {
+      persistShotStoreImage();
+      feedOrTripCurrentTaskWatchdog();
+      continue;
+    }
     // The producer owns the mailbox until enqueue; this worker owns it until
     // publishing the result. Only the control task consumes that result.
     const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
@@ -343,13 +397,25 @@ bool initializeSettingsPersistenceWorker() {
     ++hostSettingsPersistRollbackDeletes;
 #endif
   }
+  if (shotStorePersistImage == nullptr) {
+    void *block = allocExternal(sizeof(ActivationStores));
+    if (block == nullptr) return false;
+    shotStorePersistImage = new (block) ActivationStores();
+  }
+  if (lastShotPersistImage == nullptr) {
+    void *block = allocExternal(sizeof(LastShotStore));
+    if (block == nullptr) return false;
+    lastShotPersistImage = new (block) LastShotStore();
+  }
 
 #ifdef SHOT_STOPPER_HOST_TEST
   QueueHandle_t queue = hostSettingsPersistQueueCreateSucceeds
-                            ? xQueueCreate(1, sizeof(uint8_t))
+                            ? xQueueCreate(PERSISTENCE_WORK_QUEUE_DEPTH,
+                                           sizeof(PersistenceWork))
                             : nullptr;
 #else
-  QueueHandle_t queue = xQueueCreate(1, sizeof(uint8_t));
+  QueueHandle_t queue =
+      xQueueCreate(PERSISTENCE_WORK_QUEUE_DEPTH, sizeof(PersistenceWork));
 #endif
   if (queue == nullptr) {
     return false;
@@ -365,14 +431,13 @@ bool initializeSettingsPersistenceWorker() {
           ? xTaskCreatePinnedToCore(
                 settingsPersistTask, "settings_persist",
                 SETTINGS_PERSIST_TASK_STACK_SIZE, nullptr,
-                tskIDLE_PRIORITY + 1,
-                &task, CONTROL_TASK_CORE)
+                tskIDLE_PRIORITY, &task, PERSISTENCE_TASK_CORE)
           : pdFALSE;
 #else
   const BaseType_t created = xTaskCreatePinnedToCore(
       settingsPersistTask, "settings_persist",
-      SETTINGS_PERSIST_TASK_STACK_SIZE, nullptr, tskIDLE_PRIORITY + 1, &task,
-      CONTROL_TASK_CORE);
+      SETTINGS_PERSIST_TASK_STACK_SIZE, nullptr, tskIDLE_PRIORITY, &task,
+      PERSISTENCE_TASK_CORE);
 #endif
   if (created != pdPASS || task == nullptr) {
     // Task creation failed, so no consumer can still reference the queue.
@@ -397,6 +462,16 @@ void releaseSettingsPersistenceWorkerForHost() {
   settingsPersistQueue = nullptr;
   settingsPersistTaskHandle = nullptr;
   settingsPersistenceReady = false;
+  if (shotStorePersistImage != nullptr) {
+    shotStorePersistImage->~ActivationStores();
+    free(shotStorePersistImage);
+    shotStorePersistImage = nullptr;
+  }
+  if (lastShotPersistImage != nullptr) {
+    lastShotPersistImage->~LastShotStore();
+    free(lastShotPersistImage);
+    lastShotPersistImage = nullptr;
+  }
 }
 #endif
 
@@ -522,8 +597,8 @@ bool dispatchSettingsPersist() {
   settingsPersistMux.lock();
   settingsPersistInFlight = true;
   settingsPersistMux.unlock();
-  const uint8_t token = 1;
-  if (xQueueSend(settingsPersistQueue, &token, 0) != pdTRUE) {
+  const PersistenceWork work = PersistenceWork::SETTINGS;
+  if (xQueueSend(settingsPersistQueue, &work, 0) != pdTRUE) {
     settingsPersistMux.lock();
     settingsPersistInFlight = false;
     settingsPersistMux.unlock();
@@ -629,6 +704,50 @@ void serviceBleScanPersistResult() {
 }
 
 void serviceShotStorePersistence() {
+  bool resultReady = false;
+  bool resultOk = false;
+  bool resultIoFail = false;
+  uint32_t resultGeneration = 0;
+  shotStorePersistMux.lock();
+  resultReady = shotStorePersistResultReady;
+  if (resultReady) {
+    shotStorePersistResultReady = false;
+    resultOk = shotStorePersistResultOk;
+    resultIoFail = shotStorePersistResultIoFail;
+    resultGeneration = shotStorePersistResultGeneration;
+  }
+  const bool inFlight = shotStorePersistInFlight;
+  shotStorePersistMux.unlock();
+  if (resultReady) {
+    const uint32_t liveGeneration =
+        shotStoreDirtyGeneration.load(std::memory_order_acquire);
+    const bool current = liveGeneration == resultGeneration;
+    {
+      TaskLockGuard lock(shotStoreMutex);
+      activationStores.acknowledgePersisted(*shotStorePersistImage,
+                                            resultOk && current);
+      if (resultOk && current && shotStorePersistImageLastShotDirty) {
+        lastShotNvsDirty = false;
+        lastShotPersistFailLatched = false;
+      }
+    }
+    if (resultOk) {
+      shotStorePersistIoRetryMs = 0;
+      shotStorePersistRetryAtMs = 0;
+      if (controllerStartedPending && !shotLog.dirty()) {
+        (void)enqueueControllerStartedWebhook();
+      }
+    } else {
+      if (resultIoFail) {
+        shotStorePersistIoRetryMs = nextPersistenceIoRetry(
+            shotStorePersistIoRetryMs, SHOT_STORE_PERSIST_RETRY_MS);
+      }
+      shotStorePersistRetryAtMs =
+          millis() + (resultIoFail ? shotStorePersistIoRetryMs
+                                  : SHOT_STORE_PERSIST_RETRY_MS);
+    }
+  }
+  if (inFlight || !settingsPersistenceAvailable()) return;
   if (maintenanceLease.active) return;
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   if (!durableFlashWriteAllowed(session.active || machineIsRunning(),
@@ -645,50 +764,35 @@ void serviceShotStorePersistence() {
   if (static_cast<int32_t>(millis() - shotStorePersistRetryAtMs) < 0) {
     return;
   }
-  // Do not wait on the durable flash mutex from the 1 ms control loop: a
-  // 50 ms take while settings_persist holds the lock stalls pala/weight and
-  // can spam SHOT_LOG_PERSIST_FAILED into the 96-event ring.
-  constexpr uint32_t kTryLockMs = 0;
-  bool anyFail = false;
-  bool anyIoFail = false;
-  TaskLockGuard lock(shotStoreMutex);
-  // ActivationStores owns the three flash-backed activation stores
-  // (stats log, curves, activation history) and their latched failure events.
-  const ActivationStoresFlushReport storesReport =
-      activationStores.service(kTryLockMs, addDebugEvent);
-  anyFail = storesReport.anyFail;
-  anyIoFail = storesReport.anyIoFail;
-  if (lastShotNvsDirty) {
-    const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
-    if (lastShotStore.save(kTryLockMs)) {
-      lastShotNvsDirty = false;
-      lastShotPersistFailLatched = false;
-    } else {
-      anyFail = true;
-      anyIoFail |= flashIoLockTimeouts() == lockTimeoutsBefore;
-      if (!lastShotPersistFailLatched) {
-        lastShotPersistFailLatched = true;
-        addDebugEvent(DebugCategory::CONFIG, DebugCode::SHOT_LOG_PERSIST_FAILED,
-                      0, 2);
-      }
+  {
+    TaskLockGuard lock(shotStoreMutex);
+    if (!shotLog.dirty() && !shotCurves.dirty() && !historyLog.dirty() &&
+        !lastShotNvsDirty) {
+      return;
     }
+    *shotStorePersistImage = activationStores;
+    *lastShotPersistImage = lastShotStore;
+    shotStorePersistImageLastShotDirty = lastShotNvsDirty;
+    shotStorePersistImageGeneration = dirtyGeneration;
   }
-  const bool controllerStartedReady =
-      controllerStartedPending && !shotLog.dirty();
-  lock.unlock();
-  if (controllerStartedReady && !enqueueControllerStartedWebhook()) {
-    anyFail = true;
+  shotStorePersistMux.lock();
+  shotStorePersistInFlight = true;
+  shotStorePersistMux.unlock();
+  const PersistenceWork work = PersistenceWork::SHOT_STORES;
+  if (xQueueSend(settingsPersistQueue, &work, 0) != pdTRUE) {
+    shotStorePersistMux.lock();
+    shotStorePersistInFlight = false;
+    shotStorePersistMux.unlock();
+    return;
   }
-  if (anyIoFail) {
-    shotStorePersistIoRetryMs = nextPersistenceIoRetry(
-        shotStorePersistIoRetryMs, SHOT_STORE_PERSIST_RETRY_MS);
-  } else if (!anyFail) {
-    shotStorePersistIoRetryMs = 0;
+#ifdef SHOT_STOPPER_HOST_TEST
+  PersistenceWork queued = PersistenceWork::SETTINGS;
+  if (xQueueReceive(settingsPersistQueue, &queued, 0) == pdTRUE &&
+      queued == PersistenceWork::SHOT_STORES) {
+    persistShotStoreImage();
+    serviceShotStorePersistence();
   }
-  shotStorePersistRetryAtMs =
-      anyFail ? millis() + (anyIoFail ? shotStorePersistIoRetryMs
-                                     : SHOT_STORE_PERSIST_RETRY_MS)
-              : 0;
+#endif
 }
 
 void serviceRuntimePersistence(

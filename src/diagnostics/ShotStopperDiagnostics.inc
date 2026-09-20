@@ -152,6 +152,11 @@ void publishControlStatus() {
   next.scaleWorkerMaxGapMs = scaleWorkerMaxGapMsValue();
   next.scaleWorkerDeadlineMisses = scaleWorkerDeadlineMissCount();
   next.scaleWorkerMaxExecutionUs = scaleWorkerMaxExecutionUsValue();
+  next.healthSnapshotVersion = healthSnapshotVersion;
+  next.healthSnapshotAgeMs = healthSnapshotVersion == 0
+                                 ? UINT32_MAX
+                                 : elapsedMs(healthSnapshotAtMs);
+  next.healthSnapshotValid = healthSnapshotValid;
   next.loopStackMinBytes = loopStackMinBytes;
   next.scaleStackMinBytes = scaleWorkerStackMinBytesValue();
   next.freeHeapBytes = freeHeapBytes;
@@ -367,7 +372,11 @@ void resetSerialCliState() {
 }
 
 void serialCliReply(const char *message) {
+#if !defined(SHOT_STOPPER_HOST_TEST)
+  serialCliOutput().println(message);
+#else
   Serial.println(message);
+#endif
 }
 
 void serialCliWipeCommandSecrets(WebCommand &command) {
@@ -672,9 +681,15 @@ void dispatchSerialCliRequest(SerialCliRequest &request) {
     case SerialCliVerb::UNKNOWN:
     case SerialCliVerb::LINE_TOO_LONG:
     case SerialCliVerb::INVALID_ARGS:
+#if !defined(SHOT_STOPPER_HOST_TEST)
+      serialCliOutput().print("ERR ");
+      serialCliOutput().println(request.error != nullptr ? request.error
+                                                        : "invalid arguments");
+#else
       Serial.print("ERR ");
       Serial.println(request.error != nullptr ? request.error
                                               : "invalid arguments");
+#endif
       return;
     case SerialCliVerb::FACTORY_RESET: {
       WebCommand command;

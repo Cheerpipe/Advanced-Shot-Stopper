@@ -9,11 +9,10 @@
 //    control loop, HTTP queries and mutations, deferred flush, delete/clear)
 //    runs under the caller's TaskLockGuard(shotStoreMutex). This component
 //    takes no hidden internal locks, so it can never recurse into that mutex.
-// 2. Only the flash-writing methods (save/removeById/clear, reached through
-//    flush) additionally take the shared flash I/O lock, as they always have.
-// 3. No FreeRTOS task or ISR is created here. The stores are touched only
-//    from the control loop and the network task, both already serialized by
-//    the store mutex.
+// 2. The persistence worker copies an immutable image under that mutex, then
+//    owns its stepped flash transaction after releasing the mutex.
+// 3. No FreeRTOS task or ISR is created here. Live stores are touched only
+//    from control and network through the mutex; the worker touches its image.
 // 4. Flash reads/writes copy through the internal-SRAM FlashIoScratch while
 //    the flash cache may be disabled; PSRAM is never referenced inside that
 //    window. Multi-word records are only read or rewritten under the store
@@ -39,6 +38,7 @@ using ActivationStoreEvent =
 struct ActivationStoresFlushReport {
   bool anyFail = false;
   bool anyIoFail = false;
+  bool complete = true;
 };
 
 class ActivationStores {
@@ -72,6 +72,62 @@ class ActivationStores {
     return report;
   }
 
+  // Advance at most one erase/program operation. This keeps every cache-off
+  // window bounded and lets the worker re-check safety gates between steps.
+  ActivationStoresFlushReport serviceStep(uint32_t tryLockMs,
+                                           ActivationStoreEvent emit) {
+    ActivationStoresFlushReport report;
+    while (persistCursor_ < 3) {
+      FlashStoreStepResult result = FlashStoreStepResult::COMPLETE;
+      bool *latched = nullptr;
+      bool hadDirty = false;
+      int32_t discriminator = 0;
+      size_t count = 0;
+      const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
+      if (persistCursor_ == 0) {
+        hadDirty = shotLog.dirty();
+        result = shotLog.flushStep(tryLockMs);
+        latched = &shotLogPersistFailLatched_;
+        count = shotLog.count();
+      } else if (persistCursor_ == 1) {
+        hadDirty = shotCurves.dirty();
+        result = shotCurves.flushStep(tryLockMs);
+        latched = &shotCurvePersistFailLatched_;
+        discriminator = 1;
+        count = shotCurves.count();
+      } else {
+        hadDirty = historyLog.dirty();
+        result = historyLog.flushStep(tryLockMs);
+        latched = &historyPersistFailLatched_;
+        discriminator = 3;
+        count = historyLog.count();
+      }
+      if (result == FlashStoreStepResult::FAILED) {
+        report.anyFail = true;
+        report.anyIoFail = flashIoLockTimeouts() == lockTimeoutsBefore;
+        if (!*latched && emit != nullptr) {
+          *latched = true;
+          emit(DebugCategory::CONFIG, DebugCode::SHOT_LOG_PERSIST_FAILED,
+               static_cast<int32_t>(count), discriminator);
+        }
+        persistCursor_ = 0;
+        return report;
+      }
+      if (result == FlashStoreStepResult::MORE) {
+        report.complete = false;
+        return report;
+      }
+      *latched = false;
+      ++persistCursor_;
+      if (persistCursor_ < 3 && hadDirty) {
+        report.complete = false;
+        return report;
+      }
+    }
+    persistCursor_ = 0;
+    return report;
+  }
+
   ShotLog shotLog;
   ShotCurveLog shotCurves;
   HistoryLog historyLog;
@@ -86,6 +142,17 @@ class ActivationStores {
   bool anyPersistFailLatched() const {
     return shotLogPersistFailLatched_ || shotCurvePersistFailLatched_ ||
            historyPersistFailLatched_;
+  }
+
+  void acknowledgePersisted(const ActivationStores &image, bool clearDirty) {
+    shotLog.acknowledgePersisted(image.shotLog, clearDirty);
+    shotCurves.acknowledgePersisted(image.shotCurves, clearDirty);
+    historyLog.acknowledgePersisted(image.historyLog, clearDirty);
+    if (clearDirty) {
+      shotLogPersistFailLatched_ = image.shotLogPersistFailLatched_;
+      shotCurvePersistFailLatched_ = image.shotCurvePersistFailLatched_;
+      historyPersistFailLatched_ = image.historyPersistFailLatched_;
+    }
   }
 
  private:
@@ -115,6 +182,7 @@ class ActivationStores {
   bool shotLogPersistFailLatched_ = false;
   bool shotCurvePersistFailLatched_ = false;
   bool historyPersistFailLatched_ = false;
+  uint8_t persistCursor_ = 0;
 };
 
 }  // namespace shotstopper

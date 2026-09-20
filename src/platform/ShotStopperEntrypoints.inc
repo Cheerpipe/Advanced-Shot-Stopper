@@ -9,6 +9,128 @@ bool usbConsoleJumperPresent() {
   return digitalRead(USB_CONSOLE_GPIO) == USB_CONSOLE_ACTIVE_LEVEL;
 }
 
+void serviceHealthProfiler(uint32_t now) {
+  const HealthProfilerRequest profiler =
+      healthProfilerRequest.exchange(HealthProfilerRequest::NONE,
+                                     std::memory_order_acq_rel);
+  if (profiler == HealthProfilerRequest::START) {
+    (void)taskProfiler.start(now);
+  } else if (profiler == HealthProfilerRequest::STOP) {
+    (void)taskProfiler.stop(now);
+  }
+  taskProfiler.service(now);
+}
+
+void healthWorkerTask(void *) {
+  hwmon.begin();
+  uint32_t version = 0;
+  uint32_t sampledAtMs = 0;
+  uint32_t heapLowSinceMs = 0;
+  for (;;) {
+    const uint32_t now = millis();
+    serviceHealthProfiler(now);
+    if (sampledAtMs == 0 || elapsedMs(sampledAtMs) >= HEALTH_TELEMETRY_INTERVAL_MS) {
+      HealthWorkerSample sample;
+      sample.version = ++version;
+      if (sample.version == 0) sample.version = ++version;
+      sample.sampledAtMs = now;
+#ifndef SHOT_STOPPER_HOST_TEST
+      sample.heap = sampleHeapCaps();
+      sample.heapValid = true;
+      const ShotStopperBleHealth ble = shotStopperBleRuntimeHealth();
+      sample.bleRuntimeState = static_cast<uint8_t>(ble.state);
+      sample.bleRuntimeLastError = ble.lastError;
+      sample.bleRuntimeLastResetReason = ble.lastResetReason;
+      sample.bleRuntimeSyncGeneration = ble.syncGeneration;
+      sample.bleRuntimeResetCount = ble.resetCount;
+      sample.bleRuntimeHostStackMinBytes = ble.hostTaskStackHighWaterBytes;
+      sample.hwmon = hwmon.sample(
+          sampledAtMs == 0 ? HEALTH_TELEMETRY_INTERVAL_MS
+                           : static_cast<uint32_t>(now - sampledAtMs),
+          &sample.heap);
+#else
+      sample.heapValid = true;
+      sample.heap.internalFree = freeHeapBytes;
+      sample.heap.internalLargest = largestFreeHeapBlockBytes;
+      sample.hwmon = hwmon.sample(HEALTH_TELEMETRY_INTERVAL_MS);
+#endif
+      const bool heapLow =
+          sample.heap.internalFree > 0 &&
+          (sample.heap.internalFree < HEALTH_HEAP_FREE_ALERT_BYTES ||
+           (sample.heap.internalLargest > 0 &&
+            sample.heap.internalLargest < HEALTH_HEAP_LARGEST_ALERT_BYTES));
+      if (heapLow) {
+        if (heapLowSinceMs == 0) heapLowSinceMs = now;
+        sample.restartRequested =
+            elapsedMs(heapLowSinceMs) >= HEALTH_HEAP_LOW_RESTART_MS;
+      } else {
+        heapLowSinceMs = 0;
+      }
+      (void)xQueueOverwrite(healthSampleQueue, &sample);
+      sampledAtMs = now;
+    }
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+}
+
+bool initializeHealthWorker() {
+  if (healthSampleQueue != nullptr && healthTaskHandle != nullptr) return true;
+  healthSampleQueue = xQueueCreate(1, sizeof(HealthWorkerSample));
+  if (healthSampleQueue == nullptr) return false;
+  if (xTaskCreatePinnedToCore(healthWorkerTask, "health", 4096, nullptr,
+                              tskIDLE_PRIORITY, &healthTaskHandle, 0) != pdPASS ||
+      healthTaskHandle == nullptr) {
+    vQueueDelete(healthSampleQueue);
+    healthSampleQueue = nullptr;
+    return false;
+  }
+  return true;
+}
+
+void serviceHealthWorkerSample() {
+  HealthWorkerSample sample;
+  if (healthSampleQueue != nullptr &&
+      xQueueReceive(healthSampleQueue, &sample, 0) == pdTRUE) {
+    healthSnapshotVersion = sample.version;
+    healthSnapshotAtMs = sample.sampledAtMs;
+    healthSnapshotValid = sample.heapValid;
+    freeHeapBytes = sample.heap.internalFree;
+    minimumFreeHeapBytes = sample.heap.internalMinimum;
+    largestFreeHeapBlockBytes = sample.heap.internalLargest;
+    internalHeapAllocatedBlocks = sample.heap.internalAllocatedBlocks;
+    internalHeapFreeBlocks = sample.heap.internalFreeBlocks;
+    internalHeapFragmentationPermille = sample.heap.internalFragmentationPermille;
+    psramSizeBytes = sample.heap.psramTotal;
+    psramFreeBytes = sample.heap.psramFree;
+    psramMinimumFreeBytes = sample.heap.psramMinimum;
+    psramLargestFreeBlockBytes = sample.heap.psramLargest;
+    bleRuntimeState = sample.bleRuntimeState;
+    bleRuntimeLastError = sample.bleRuntimeLastError;
+    bleRuntimeLastResetReason = sample.bleRuntimeLastResetReason;
+    bleRuntimeSyncGeneration = sample.bleRuntimeSyncGeneration;
+    bleRuntimeResetCount = sample.bleRuntimeResetCount;
+    bleRuntimeHostStackMinBytes = sample.bleRuntimeHostStackMinBytes;
+    hwmonSnapshot = sample.hwmon;
+    loopStackMinBytes =
+        static_cast<uint32_t>(uxTaskGetStackHighWaterMark(nullptr));
+    serviceHealthThresholdAlerts(healthIntervalMaxGapMs);
+    loopIntervalGapMs = healthIntervalMaxGapMs;
+    healthIntervalMaxGapMs = 0;
+    if (sample.restartRequested && !healthHeapRestartLatched &&
+        controlAllowsConfigurationNow() && !circuitClosed) {
+      healthHeapRestartLatched = true;
+      addDebugEvent(DebugCategory::SYSTEM, DebugCode::HEALTH_HEAP_RESTART,
+                    static_cast<int32_t>(freeHeapBytes),
+                    static_cast<int32_t>(largestFreeHeapBlockBytes));
+      requestSafeRestart();
+    }
+  }
+  healthSnapshotValid =
+      healthSnapshotVersion != 0 &&
+      elapsedMs(healthSnapshotAtMs) <= HEALTH_SAMPLE_STALE_MS;
+  if (!healthSnapshotValid) hwmonSnapshot.cpuLoadValid = false;
+}
+
 // cppcheck-suppress unusedFunction ; Arduino framework entry point
 void setup() {
   bootStartedAtMs = millis();
@@ -242,8 +364,11 @@ void setup() {
             BOOT_SUBSYSTEM_SETTINGS_SAVE, 1);
   }
 
-  hwmon.begin();
-  hwmonSnapshot = hwmon.sample(1);
+  const bool healthWorkerOk = initializeHealthWorker();
+  if (!healthWorkerOk) {
+    logEmit(LogLevel::WARNING, DebugCategory::BOOT,
+            DebugCode::INITIALIZATION_FAILED, BOOT_SUBSYSTEM_CPU);
+  }
   publishControlStatus();
   bool networkOk = true;
   bool psramOk = true;
@@ -344,6 +469,9 @@ void setup() {
 #ifndef SHOT_STOPPER_HOST_TEST
   controllerStartedPending = networkOk && settingsLoaded;
   if (bootIdentityDurable) (void)enqueueControllerStartedWebhook();
+  // Boot-time reads/writes are complete. Any later flash call from loopTask
+  // is an ownership violation and must fail rather than stall control.
+  forbidFlashIoFromCurrentTask();
 #endif
   serviceScaleConnectedLed();
 }
@@ -362,24 +490,13 @@ void serviceHealthThresholdAlerts(uint32_t intervalMaxGapMs) {
   if (heapLow) {
     if (!healthHeapAlertLatched) {
       healthHeapAlertLatched = true;
-      healthHeapLowSinceMs = millis();
       addDebugEvent(DebugCategory::SYSTEM, DebugCode::HEALTH_HEAP_LOW,
                     static_cast<int32_t>(freeHeapBytes),
                     static_cast<int32_t>(largestFreeHeapBlockBytes));
     }
-    if (!healthHeapRestartLatched && healthHeapLowSinceMs != 0 &&
-        elapsedMs(healthHeapLowSinceMs) >= HEALTH_HEAP_LOW_RESTART_MS &&
-        controlAllowsConfigurationNow() && !circuitClosed) {
-      healthHeapRestartLatched = true;
-      addDebugEvent(DebugCategory::SYSTEM, DebugCode::HEALTH_HEAP_RESTART,
-                    static_cast<int32_t>(freeHeapBytes),
-                    static_cast<int32_t>(largestFreeHeapBlockBytes));
-      requestSafeRestart();
-    }
   } else if (heapClear) {
     healthHeapAlertLatched = false;
     healthHeapRestartLatched = false;
-    healthHeapLowSinceMs = 0;
   }
 
   uint32_t worstStackBytes = UINT32_MAX;
@@ -462,41 +579,7 @@ void loop() {
     // Planned restart waits for the shot. Fault paths above still open K1
     // and reset immediately so a hung firmware cannot keep the group on.
   }
-  if (elapsedMs(healthTelemetryAtMs) >= HEALTH_TELEMETRY_INTERVAL_MS) {
-    const uint32_t intervalMs = elapsedMs(healthTelemetryAtMs);
-    healthTelemetryAtMs = loopStartedAtMs;
-    loopStackMinBytes =
-        static_cast<uint32_t>(uxTaskGetStackHighWaterMark(nullptr));
-#ifndef SHOT_STOPPER_HOST_TEST
-    const HeapCapSnapshot heap = sampleHeapCaps();
-    freeHeapBytes = heap.internalFree;
-    minimumFreeHeapBytes = heap.internalMinimum;
-    largestFreeHeapBlockBytes = heap.internalLargest;
-    internalHeapAllocatedBlocks = heap.internalAllocatedBlocks;
-    internalHeapFreeBlocks = heap.internalFreeBlocks;
-    internalHeapFragmentationPermille = heap.internalFragmentationPermille;
-    psramSizeBytes = heap.psramTotal;
-    psramFreeBytes = heap.psramFree;
-    psramMinimumFreeBytes = heap.psramMinimum;
-    psramLargestFreeBlockBytes = heap.psramLargest;
-    const ShotStopperBleHealth bleRuntime = shotStopperBleRuntimeHealth();
-    bleRuntimeState = static_cast<uint8_t>(bleRuntime.state);
-    bleRuntimeLastError = bleRuntime.lastError;
-    bleRuntimeLastResetReason = bleRuntime.lastResetReason;
-    bleRuntimeSyncGeneration = bleRuntime.syncGeneration;
-    bleRuntimeResetCount = bleRuntime.resetCount;
-    bleRuntimeHostStackMinBytes = bleRuntime.hostTaskStackHighWaterBytes;
-    hwmonSnapshot = hwmon.sample(intervalMs > 0U ? intervalMs
-                                                 : HEALTH_TELEMETRY_INTERVAL_MS,
-                                 &heap);
-#else
-    hwmonSnapshot = hwmon.sample(intervalMs > 0U ? intervalMs
-                                                 : HEALTH_TELEMETRY_INTERVAL_MS);
-#endif
-    serviceHealthThresholdAlerts(healthIntervalMaxGapMs);
-    loopIntervalGapMs = healthIntervalMaxGapMs;
-    healthIntervalMaxGapMs = 0;
-  }
+  serviceHealthWorkerSample();
   // One link snapshot per iteration; the two event drains below keep their
   // own fresh fetch by contract and must not take this copy.
   const ScaleLinkSnapshot loopScaleLink = getScaleLinkSnapshot();
@@ -533,7 +616,6 @@ void loop() {
   serviceSerialCli();
   serviceMaintenanceCancellation();
   processWebCommands();
-  taskProfiler.service(millis());
   serviceControlCommandResult();
   serviceRuntimePersistence(loopScaleLink);
   serviceShotStorePersistence();

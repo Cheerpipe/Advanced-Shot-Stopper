@@ -194,6 +194,39 @@ class HistoryLog {
     return save(lockTimeoutMs);
   }
 
+  FlashStoreStepResult flushStep(
+      uint32_t lockTimeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
+    if (!dirty_) return FlashStoreStepResult::COMPLETE;
+#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+    return save(lockTimeoutMs) ? FlashStoreStepResult::COMPLETE
+                               : FlashStoreStepResult::FAILED;
+#else
+    const esp_partition_t *part = historyPartition();
+    if (part == nullptr ||
+        part->size < HISTORY_FLASH_SLOT_COUNT * HISTORY_FLASH_SLOT_BYTES) {
+      return FlashStoreStepResult::FAILED;
+    }
+    if (persistProgress_.phase == FlashStoreTransaction::Phase::IDLE) {
+      compactHistoryStore(store_);
+      if (store_.header.generation == 0) store_.header.generation = 1;
+      else if (store_.header.generation < UINT32_MAX) ++store_.header.generation;
+      finalizeHistoryStore(store_);
+      beginFlashStoreTransaction(
+          persistProgress_,
+          static_cast<size_t>(1U - (activeSlot_ & 1U)) *
+              HISTORY_FLASH_SLOT_BYTES,
+          HISTORY_FLASH_SLOT_BYTES, sizeof(HistoryHeader), sizeof(store_));
+    }
+    const FlashStoreStepResult result = flashIoStoreStep(
+        part, &store_, persistProgress_, lockTimeoutMs);
+    if (result == FlashStoreStepResult::COMPLETE) {
+      activeSlot_ = static_cast<uint8_t>(1U - (activeSlot_ & 1U));
+      dirty_ = false;
+    }
+    return result;
+#endif
+  }
+
   bool dirty() const { return dirty_; }
 
   size_t count() const { return store_.header.count; }
@@ -217,11 +250,11 @@ class HistoryLog {
     return false;
   }
 
-  bool removeById(uint32_t id) {
+  bool removeById(uint32_t id, bool persistNow = true) {
     if (id == 0 || store_.header.count == 0) {
       return false;
     }
-    if (!lockFlashIo()) {
+    if (persistNow && !lockFlashIo()) {
       return false;
     }
     compactHistoryStore(store_);
@@ -235,7 +268,7 @@ class HistoryLog {
       }
     }
     if (!found) {
-      unlockFlashIo();
+      if (persistNow) unlockFlashIo();
       return false;
     }
     const uint16_t previousCount = store_.header.count;
@@ -248,6 +281,10 @@ class HistoryLog {
     store_.header.writeIndex =
         static_cast<uint16_t>(store_.header.count % HISTORY_CAPACITY);
     memset(&store_.records[store_.header.count], 0, sizeof(HistoryRecord));
+    if (!persistNow) {
+      dirty_ = true;
+      return true;
+    }
     const bool saved = save();
     unlockFlashIo();
     if (saved) {
@@ -257,12 +294,16 @@ class HistoryLog {
     return false;
   }
 
-  bool clear() {
+  bool clear(bool persistNow = true) {
     // Keep the monotonic generation: a regressed generation would make the
     // pre-clear slot look newer on the next load.
     const uint32_t generation = store_.header.generation;
     resetHistoryStore(store_);
     store_.header.generation = generation;
+    if (!persistNow) {
+      dirty_ = true;
+      return true;
+    }
     if (save()) {
       return true;
     }
@@ -319,6 +360,11 @@ class HistoryLog {
     page.count = pageCount;
   }
 
+  void acknowledgePersisted(const HistoryLog &image, bool clearDirty) {
+    activeSlot_ = image.activeSlot_;
+    if (clearDirty) dirty_ = false;
+  }
+
  private:
 #if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
@@ -339,6 +385,7 @@ class HistoryLog {
 #endif
 
   HistoryStore store_{};
+  FlashStoreTransaction persistProgress_{};
   uint8_t activeSlot_ = 0;
   bool dirty_ = false;
 

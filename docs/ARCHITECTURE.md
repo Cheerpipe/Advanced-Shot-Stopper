@@ -148,8 +148,14 @@ preset allocation, while the stored name is historical data rather than a
 lookup through the current preset bank.
 
 The stats shot log, its curve sidecar, and the independent activation history
-are owned by one data layer (`ActivationStores`) whose every access runs under
-the single `shotStoreMutex`. The shot log's whole 7,228-byte store and the
+are owned by one RAM data layer (`ActivationStores`) whose every access runs
+under the single `shotStoreMutex`. Control and HTTP mutate only RAM and advance
+a generation. The core-0 persistence worker copies an immutable image under
+that mutex, releases it before flash I/O, and clears live dirtiness only when
+the completion generation still matches. Each inactive partition slot is
+erased one 4 KiB sector at a time, programmed one 1 KiB staged chunk at a time,
+and receives its validity-bearing header last; the worker rechecks the current
+machine and scale gates between steps. The shot log's whole 7,228-byte store and the
 16,024-byte activation-history store live in PSRAM and move to and from their
 slots in 1 KiB chunks staged through the small internal flash-I/O scratch only
 while that owner holds the flash lock. Each keeps two slots in its own data

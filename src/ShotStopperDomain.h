@@ -2095,13 +2095,12 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   // Recent loop gap: max over the last completed ~5 s health window (and any
   // larger gap already seen in the in-progress window). Lifetime max is
   // loopMaxGapMs and never decreases until reboot.
-  uint32_t loopIntervalGapMs = 0;
-  uint32_t loopMaxGapMs = 0;
-  uint32_t loopDeadlineMisses = 0;
-  uint32_t loopMaxExecutionUs = 0;
-  uint32_t scaleWorkerMaxGapMs = 0;
-  uint32_t scaleWorkerDeadlineMisses = 0;
-  uint32_t scaleWorkerMaxExecutionUs = 0;
+  uint32_t loopIntervalGapMs = 0, loopMaxGapMs = 0, loopDeadlineMisses = 0,
+           loopMaxExecutionUs = 0;
+  uint32_t scaleWorkerMaxGapMs = 0, scaleWorkerDeadlineMisses = 0,
+           scaleWorkerMaxExecutionUs = 0;
+  uint32_t healthSnapshotVersion = 0, healthSnapshotAgeMs = UINT32_MAX;
+  bool healthSnapshotValid = false;
   uint32_t loopStackMinBytes = UINT32_MAX;
   uint32_t scaleStackMinBytes = UINT32_MAX;
   uint32_t freeHeapBytes = 0;
@@ -2481,7 +2480,8 @@ static_assert(sizeof(DebugEvent) <= 160,
               "DebugEvent exceeded its retained-log RAM budget");
 
 struct DebugLogReadMetadata {
-  uint32_t historyOverwritten = 0, missedEvents = 0, serialDropped = 0;
+  uint32_t historyOverwritten = 0, missedEvents = 0, serialDropped = 0,
+           serialTruncated = 0;
   bool hasMore = false, cursorInvalid = false;
 };
 class DebugRingBuffer {

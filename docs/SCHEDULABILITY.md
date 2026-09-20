@@ -16,7 +16,8 @@ subscribed nor part of control. Stack values are configured bytes in ESP-IDF.
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | control | periodic / 1 ms active | 10 ms | 9000 us | idle+1 | 50 ms maintenance flash take | 8192 | 1 | 5 s |
 | scale_worker | periodic / 1 ms linked, 10 ms idle | 10 ms | 9000 us | idle+1 | 3000 ms GATT step | 6656 | 1 | 5 s |
-| settings_persist | event-driven | 1000 ms service | n/a | idle+1 | 3000 ms flash take | 4096 | 1 | 5 s |
+| settings_persist | event-driven | 1000 ms service | n/a | idle | 3000 ms lock acquisition; one flash primitive/step | 4096 | 0 | 5 s |
+| health | periodic / 100 ms | diagnostic | n/a | idle | none | 4096 | 0 | no |
 | network_manager | periodic / 50 ms | 250 ms | 200000 us | idle+1 | 2500 ms lifecycle/cancel | 10240 | 0 | 5 s |
 | mdns | event-driven (action queue) | n/a | n/a | 1 | freed once in network stop | 4096 | 0 | no |
 | httpd | framework event | n/a | n/a | idle+1 | 30000 ms OTA receive budget | 8192 | 0 | no |
@@ -67,21 +68,31 @@ The coherent control-status snapshot publishes a monotonic version/timestamp,
 the lifetime maximum control and scale-worker service gaps, monotonic deadline
 miss counts, maximum observed loop-body execution in microseconds, and stack
 high-water marks. A 10 ms deadline applies to both 1 ms
-loops. Settings persistence runs at `idle + 1`, blocks on its queue and yields
-around flash work, so it cannot be indefinitely starved while subscribed to the
-Task Watchdog. Network and scale metrics are published under their owning
-snapshot or as monotonic atomics.
+loops. The generalized persistence owner runs at idle priority on core 0,
+blocks on its bounded queue and yields around flash work. Control only stages
+an immutable generation and attempts a zero-wait enqueue. The health worker
+runs on core 0, samples heap/CPU and services the optional task profiler, then
+publishes a one-element latest-wins mailbox. Network and scale metrics are
+published under their owning snapshot or as monotonic atomics.
+
+Partition-backed shot stores advance through one 4 KiB erase or one 1 KiB
+program operation per worker step. The flash lock is released and the current
+machine/scale gates are rechecked between steps; the body precedes the slot
+header so a reset cannot expose a partially written generation. Runtime control
+is explicitly forbidden from taking the flash lock after boot initialization.
 
 Periodic reset-uptime checkpoints run only when coherent control/scale gates
 permit flash I/O. Durable I/O failures back off exponentially from 500 ms to a
 30 s ceiling; flash-lock contention retains the short retry, and a successful
 write or newly dirtied data resets the I/O backoff.
 
-The five-second CPU-load sample refreshes the other core through ESP-IDF's
+The health worker's five-second CPU-load sample refreshes the other core through ESP-IDF's
 existing IPC task before reading the two IDLE run-time counters. This bounds the
 counter age to the sampling point; without that context switch, a core that
 remains continuously in IDLE can appear busy because FreeRTOS commits task
 run-time only when the task switches out. IPC failure invalidates the sample.
+Control reports the worker sample's monotonic version and age; data older than
+15 seconds is invalid rather than reported as fresh.
 
 Stack high-water marks are bytes on the supported ESP32-S3 port. Diagnostic
 JSON and `HEALTH` publish `stackUnit=bytes` and an unavailable sentinel of

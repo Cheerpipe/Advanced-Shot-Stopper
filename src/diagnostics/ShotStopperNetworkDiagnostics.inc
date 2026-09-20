@@ -589,6 +589,8 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"loopMaxExecutionUs\":%lu,"
            "\"scaleWorkerMaxGapMs\":%lu,\"scaleWorkerDeadlineMisses\":%lu,"
            "\"scaleWorkerMaxExecutionUs\":%lu,"
+           "\"healthSnapshotVersion\":%lu,\"healthSnapshotAgeMs\":%lu,"
+           "\"healthSnapshotValid\":%s,"
            "\"loopStackMinWords\":%lu,"
            "\"scaleStackMinWords\":%lu,\"freeHeapBytes\":%lu,"
            "\"minimumFreeHeapBytes\":%lu,\"largestFreeHeapBlockBytes\":%lu,"
@@ -619,6 +621,9 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<unsigned long>(c.scaleWorkerMaxGapMs),
            static_cast<unsigned long>(c.scaleWorkerDeadlineMisses),
            static_cast<unsigned long>(c.scaleWorkerMaxExecutionUs),
+           static_cast<unsigned long>(c.healthSnapshotVersion),
+           static_cast<unsigned long>(c.healthSnapshotAgeMs),
+           c.healthSnapshotValid ? "true" : "false",
            static_cast<unsigned long>(c.loopStackMinBytes),
            static_cast<unsigned long>(c.scaleStackMinBytes),
            static_cast<unsigned long>(c.freeHeapBytes),
@@ -876,17 +881,18 @@ esp_err_t ShotStopperNetwork::logHandler(httpd_req_t *request) {
   httpd_resp_set_type(request, JSON_CONTENT_TYPE);
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   httpd_resp_set_hdr(request, "Connection", "close");
-  char header[224] = {};
+  char header[256] = {};
   snprintf(header, sizeof(header),
            "{\"dropped\":%lu,\"bootId\":%lu,"
            "\"historyOverwritten\":%lu,\"missedEvents\":%lu,"
-           "\"serialDropped\":%lu,\"hasMore\":%s,"
+           "\"serialDropped\":%lu,\"serialTruncated\":%lu,\"hasMore\":%s,"
            "\"cursorInvalid\":%s,\"events\":[",
            static_cast<unsigned long>(work.control.debugEventsDropped),
            static_cast<unsigned long>(work.control.bootId),
            static_cast<unsigned long>(work.logMetadata.historyOverwritten),
            static_cast<unsigned long>(work.logMetadata.missedEvents),
            static_cast<unsigned long>(work.logMetadata.serialDropped),
+           static_cast<unsigned long>(work.logMetadata.serialTruncated),
            work.logMetadata.hasMore ? "true" : "false",
            work.logMetadata.cursorInvalid ? "true" : "false");
   if (httpd_resp_send_chunk(request, header, HTTPD_RESP_USE_STRLEN) != ESP_OK) {

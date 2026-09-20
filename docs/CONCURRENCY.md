@@ -8,9 +8,11 @@ formatting, a PSRAM walk, or an unbounded copy while holding a `portMUX`.
 
 This also applies to kernel copies: FreeRTOS queue storage, queue source and
 destination buffers, and the `uxTaskGetSystemState` capture array must be in
-internal RAM. The persistence queue carries a one-byte token; its single
-PSRAM mailbox is immutable from enqueue until the control task consumes the
-worker's completion. A failed enqueue releases that ownership immediately.
+internal RAM. The persistence queue carries a small work discriminator. Its
+settings mailbox and PSRAM-backed shot-store image are immutable from enqueue
+until control consumes the worker's generation-tagged completion. A failed
+enqueue releases that ownership immediately; the dirty generation remains
+pending.
 
 ## Lock DAG
 
@@ -69,8 +71,12 @@ may never nest with another lock. The timer captures callback state under its
 spinlock, invokes the relay callback after releasing it, and rejects stop/re-arm
 while that callback is in flight. Relay sections contain only GPIO and bounded
 DRAM scalar state. The local buzzer, debug ring, and other task-only compound
-state use `TaskMutex`; USB output is emitted by the bounded `serial_log` queue
-on core 0.
+state use `TaskMutex`. Heap/CPU sampling and task-profiler capture belong to the
+core-0 health worker; control consumes its one-slot mailbox without waiting and
+ages stale samples explicitly. USB application logs are emitted by the bounded
+`serial_log` queue on core 0. CLI formatters write through the same bounded
+non-blocking queue; saturation increments dropped/truncated counters instead of
+waiting in control.
 
 ## P2 spinlock inventory
 

@@ -182,6 +182,39 @@ class ShotCurveLog {
     return save(lockTimeoutMs);
   }
 
+  FlashStoreStepResult flushStep(
+      uint32_t lockTimeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
+    if (!dirty_) return FlashStoreStepResult::COMPLETE;
+#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+    return save(lockTimeoutMs) ? FlashStoreStepResult::COMPLETE
+                               : FlashStoreStepResult::FAILED;
+#else
+    const esp_partition_t *part = curvePartition();
+    if (part == nullptr ||
+        part->size < SHOT_CURVE_FLASH_SLOT_COUNT * SHOT_CURVE_FLASH_SLOT_BYTES) {
+      return FlashStoreStepResult::FAILED;
+    }
+    if (persistProgress_.phase == FlashStoreTransaction::Phase::IDLE) {
+      compactShotCurveStore(store_);
+      if (store_.header.generation == 0) store_.header.generation = 1;
+      else if (store_.header.generation < UINT32_MAX) ++store_.header.generation;
+      finalizeShotCurveStore(store_);
+      beginFlashStoreTransaction(
+          persistProgress_,
+          static_cast<size_t>(1U - (activeSlot_ & 1U)) *
+              SHOT_CURVE_FLASH_SLOT_BYTES,
+          SHOT_CURVE_FLASH_SLOT_BYTES, sizeof(ShotCurveHeader), sizeof(store_));
+    }
+    const FlashStoreStepResult result = flashIoStoreStep(
+        part, &store_, persistProgress_, lockTimeoutMs);
+    if (result == FlashStoreStepResult::COMPLETE) {
+      activeSlot_ = static_cast<uint8_t>(1U - (activeSlot_ & 1U));
+      dirty_ = false;
+    }
+    return result;
+#endif
+  }
+
   bool dirty() const { return dirty_; }
 
   bool containsShotId(uint32_t id) const {
@@ -215,11 +248,11 @@ class ShotCurveLog {
     return false;
   }
 
-  bool removeById(uint32_t id) {
+  bool removeById(uint32_t id, bool persistNow = true) {
     if (id == 0 || store_.header.count == 0) {
       return false;
     }
-    if (!lockFlashIo()) {
+    if (persistNow && !lockFlashIo()) {
       return false;
     }
     compactShotCurveStore(store_);
@@ -233,7 +266,7 @@ class ShotCurveLog {
       }
     }
     if (!found) {
-      unlockFlashIo();
+      if (persistNow) unlockFlashIo();
       return false;
     }
     const uint16_t previousCount = store_.header.count;
@@ -246,6 +279,10 @@ class ShotCurveLog {
     store_.header.writeIndex =
         static_cast<uint16_t>(store_.header.count % SHOT_CURVE_CAPACITY);
     memset(&store_.records[store_.header.count], 0, sizeof(ShotCurveRecord));
+    if (!persistNow) {
+      dirty_ = true;
+      return true;
+    }
     const bool saved = save();
     unlockFlashIo();
     if (saved) {
@@ -255,8 +292,12 @@ class ShotCurveLog {
     return false;
   }
 
-  bool clear() {
+  bool clear(bool persistNow = true) {
     resetShotCurveStore(store_);
+    if (!persistNow) {
+      dirty_ = true;
+      return true;
+    }
     if (save()) {
       return true;
     }
@@ -265,6 +306,11 @@ class ShotCurveLog {
   }
 
   size_t count() const { return store_.header.count; }
+
+  void acknowledgePersisted(const ShotCurveLog &image, bool clearDirty) {
+    activeSlot_ = image.activeSlot_;
+    if (clearDirty) dirty_ = false;
+  }
 
   size_t copyNewestFirst(ShotCurveRecord *output, size_t capacity) const {
     if (output == nullptr || capacity == 0 || store_.header.count == 0) {
@@ -303,6 +349,7 @@ class ShotCurveLog {
 #endif
 
   ShotCurveStore store_{};
+  FlashStoreTransaction persistProgress_{};
   uint8_t activeSlot_ = 0;
   bool dirty_ = false;
 

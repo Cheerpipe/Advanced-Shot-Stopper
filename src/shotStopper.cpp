@@ -76,7 +76,28 @@
 #include "ShotStopperAlertTone.h"
 #include "ShotStopperPresets.h"
 #include "ShotStopperBbwLearning.h"
+#if !defined(SHOT_STOPPER_HOST_TEST)
+namespace shotstopper {
+Print &serialCliOutput();
+}
+#ifdef Serial
+#undef Serial
+#endif
+#define Serial serialCliOutput()
+#endif
 #include "ShotStopperSerialCli.h"
+#if !defined(SHOT_STOPPER_HOST_TEST)
+#undef Serial
+#if ARDUINO_USB_CDC_ON_BOOT
+#if ARDUINO_USB_MODE
+#define Serial HWCDCSerial
+#else
+#define Serial USBSerial
+#endif
+#else
+#define Serial Serial0
+#endif
+#endif
 #if defined(SHOT_STOPPER_USB_CONSOLE_OWN_HWCDC)
 HWCDC shotStopperUsbConsole;
 #endif
@@ -131,9 +152,11 @@ constexpr uint32_t SHOT_STORE_PERSIST_RETRY_MS = 500;
 constexpr uint32_t PERSIST_IO_RETRY_MAX_MS = 30000;
 constexpr uint32_t RUNTIME_PERSIST_DEBOUNCE_MS = 300;
 constexpr uint32_t SETTINGS_PERSIST_IDLE_WAIT_MS = 1000;
+constexpr UBaseType_t PERSISTENCE_WORK_QUEUE_DEPTH = 4;
 // Pin control/BLE/LED work with Arduino loopTask on APP_CPU (core 1).
 // network_manager is pinned to PRO_CPU (core 0) in ShotStopperNetwork.cpp.
 constexpr BaseType_t CONTROL_TASK_CORE = 1;
+constexpr BaseType_t PERSISTENCE_TASK_CORE = 0;
 static_assert(SCALE_WORKER_TASK_CORE == CONTROL_TASK_CORE,
               "Scale worker must stay pinned with the control/BLE task");
 
@@ -499,6 +522,7 @@ uint32_t runtimePersistRetryAtMs = 0;
 uint32_t runtimePersistIoRetryMs = 0;
 int32_t runtimePersistReasonBits = 0;
 uint32_t nextInternalRequestId = 0x80000000UL;
+enum class PersistenceWork : uint8_t { SETTINGS = 1, SHOT_STORES = 2 };
 #ifndef SHOT_STOPPER_HOST_TEST
 SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistRequest;
 TaskMutex settingsPersistMux;
@@ -512,6 +536,16 @@ uint32_t settingsPersistResultStorageRevision = 0;
 QueueHandle_t settingsPersistQueue = nullptr;
 TaskHandle_t settingsPersistTaskHandle = nullptr;
 bool settingsPersistenceReady = false;
+ActivationStores *shotStorePersistImage = nullptr;
+LastShotStore *lastShotPersistImage = nullptr;
+TaskMutex shotStorePersistMux;
+bool shotStorePersistInFlight = false;
+bool shotStorePersistResultReady = false;
+bool shotStorePersistResultOk = false;
+bool shotStorePersistResultIoFail = false;
+bool shotStorePersistImageLastShotDirty = false;
+uint32_t shotStorePersistImageGeneration = 0;
+uint32_t shotStorePersistResultGeneration = 0;
 // Staged BLE scan settings: the control loop publishes, the settings_persist
 // worker owns the durable NVS write. pending/intensity/result flags are
 // guarded by bleScanPersistMux. Every request id accepted since the last
@@ -537,7 +571,29 @@ uint32_t loopMaxExecutionUs = 0;
 uint32_t loopIntervalGapMs = 0;
 uint32_t healthIntervalMaxGapMs = 0;
 uint32_t loopStackMinBytes = UINT32_MAX;
-uint32_t healthTelemetryAtMs = 0;
+constexpr uint32_t HEALTH_SAMPLE_STALE_MS = 3U * HEALTH_TELEMETRY_INTERVAL_MS;
+enum class HealthProfilerRequest : uint8_t { NONE, START, STOP };
+struct HealthWorkerSample {
+  uint32_t version = 0;
+  uint32_t sampledAtMs = 0;
+  bool heapValid = false;
+  bool restartRequested = false;
+  HeapCapSnapshot heap = {};
+  uint8_t bleRuntimeState = 0;
+  int32_t bleRuntimeLastError = 0;
+  int32_t bleRuntimeLastResetReason = 0;
+  uint32_t bleRuntimeSyncGeneration = 0;
+  uint32_t bleRuntimeResetCount = 0;
+  uint32_t bleRuntimeHostStackMinBytes = UINT32_MAX;
+  HwmonSnapshot hwmon = {};
+};
+QueueHandle_t healthSampleQueue = nullptr;
+TaskHandle_t healthTaskHandle = nullptr;
+std::atomic<HealthProfilerRequest> healthProfilerRequest{
+    HealthProfilerRequest::NONE};
+uint32_t healthSnapshotVersion = 0;
+uint32_t healthSnapshotAtMs = 0;
+bool healthSnapshotValid = false;
 uint32_t freeHeapBytes = 0;
 uint32_t minimumFreeHeapBytes = 0;
 uint32_t largestFreeHeapBlockBytes = 0;
@@ -560,7 +616,6 @@ uint32_t bleRuntimeResetCount = 0;
 uint32_t bleRuntimeHostStackMinBytes = UINT32_MAX;
 bool healthHeapAlertLatched = false;
 bool healthHeapRestartLatched = false;
-uint32_t healthHeapLowSinceMs = 0;
 bool healthStackAlertLatched = false;
 bool healthLoopGapAlertLatched = false;
 Hwmon hwmon;
@@ -573,19 +628,7 @@ bool serialLogSinkInstalled = false;
 bool serialLogSinkEnabled = false;
 std::atomic<bool> controlCriticalForLogging{false};
 
-#if !defined(SHOT_STOPPER_HOST_TEST)
-struct SerialLogLine {
-  uint16_t length = 0;
-  char text[256] = {};
-};
-
-constexpr UBaseType_t SERIAL_LOG_QUEUE_DEPTH = 8;
-StaticQueue_t serialLogQueueStorage;
-uint8_t *serialLogQueueBytes = nullptr;
-QueueHandle_t serialLogQueue = nullptr;
-TaskHandle_t serialLogTaskHandle = nullptr;
-uint32_t serialLogQueueDropped = 0;
-#endif
+#include "diagnostics/ShotStopperSerialOutput.inc"
 
 SHOT_STOPPER_PSRAM_BSS DebugEvent serialLogDumpSnapshot[DEBUG_EVENT_CAPACITY];
 size_t serialLogDumpCount = 0;
@@ -619,6 +662,7 @@ void servicePendingResetHistoryClear();
 void queueRuntimePersist(int32_t reasonBits);
 void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits);
 bool settingsPersistenceAvailable();
+void serviceHealthThresholdAlerts(uint32_t intervalMaxGapMs);
 
 WebhookEvent baseWebhookEvent(WebhookEventType type, uint32_t cycleId,
                               uint32_t occurredAtMs);
@@ -772,6 +816,7 @@ int shotStopperEspLogVprintf(const char *format, va_list args) {
   size_t length = static_cast<size_t>(formatted);
   if (length >= sizeof(line.text)) {
     length = sizeof(line.text) - 1;
+    (void)__atomic_add_fetch(&serialLogQueueTruncated, 1U, __ATOMIC_RELAXED);
   }
   line.length = static_cast<uint16_t>(length);
   if (serialLogQueue == nullptr ||
@@ -856,14 +901,6 @@ void configureEspLogRuntime() {
 void installEspLogSink() {}
 void configureEspLogRuntime() {}
 #endif
-
-uint32_t serialLogDroppedCount() {
-#if !defined(SHOT_STOPPER_HOST_TEST)
-  return __atomic_load_n(&serialLogQueueDropped, __ATOMIC_RELAXED);
-#else
-  return 0;
-#endif
-}
 
 void latchControlCriticalLogging() {
   controlCriticalForLogging.store(true, std::memory_order_release);
@@ -1080,6 +1117,7 @@ size_t copyDebugEvents(uint32_t afterSequence, DebugEvent *output,
       debugLog.copyAfter(afterSequence, output, capacity, metadata);
   if (metadata != nullptr) {
     metadata->serialDropped = serialLogDroppedCount();
+    metadata->serialTruncated = serialLogTruncatedCount();
   }
   return copied;
 }
@@ -1155,12 +1193,16 @@ void copyHistoryPage(HistoryPage &page, size_t offset, size_t limit,
 
 bool deleteHistoryRecord(uint32_t id) {
   TaskLockGuard lock(shotStoreMutex);
-  return historyLog.removeById(id);
+  const bool changed = historyLog.removeById(id, false);
+  if (changed) shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  return changed;
 }
 
 bool clearHistoryLog() {
   TaskLockGuard lock(shotStoreMutex);
-  return historyLog.clear();
+  const bool changed = historyLog.clear(false);
+  if (changed) shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  return changed;
 }
 
 uint32_t copyShotLogBootId() {
@@ -1194,27 +1236,31 @@ bool deleteShotRecord(uint32_t id) {
   if (!hadLog && !hadCurve) {
     return false;
   }
-  if (hadCurve && !shotCurves.removeById(id)) {
+  if (hadCurve && !shotCurves.removeById(id, false)) {
     return false;
   }
-  if (hadLog && !shotLog.removeById(id)) {
+  if (hadLog && !shotLog.removeById(id, false)) {
     return false;
   }
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
   return true;
 }
 
 bool clearShotLog() {
   TaskLockGuard lock(shotStoreMutex);
-  if (!shotCurves.clear()) {
+  if (!shotCurves.clear(false)) {
     return false;
   }
-  return shotLog.clear();
+  if (!shotLog.clear(false)) return false;
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  return true;
 }
 
 bool clearLastShot() {
   TaskLockGuard lock(shotStoreMutex);
-  if (!lastShotStore.clearLast()) return false;
-  lastShotNvsDirty = false;
+  if (!lastShotStore.clearLast(false)) return false;
+  lastShotNvsDirty = true;
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
   return true;
 }
 
@@ -1260,7 +1306,9 @@ bool rateShotRecord(uint32_t id, uint8_t rating) {
   if (id == 0 || rating > SHOT_LOG_RATING_MAX) {
     return false;
   }
-  return shotLog.updateRating(id, rating);
+  const bool changed = shotLog.updateRating(id, rating, false);
+  if (changed) shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  return changed;
 }
 
 bool rateLastShot(uint8_t rating) {
@@ -1269,7 +1317,10 @@ bool rateLastShot(uint8_t rating) {
       persistedLastGoodShot.shotLogId == 0) {
     return false;
   }
-  return shotLog.updateRating(persistedLastGoodShot.shotLogId, rating);
+  const bool changed =
+      shotLog.updateRating(persistedLastGoodShot.shotLogId, rating, false);
+  if (changed) shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  return changed;
 }
 
 void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,

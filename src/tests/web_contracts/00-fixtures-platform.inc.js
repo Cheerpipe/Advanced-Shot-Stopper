@@ -40,6 +40,7 @@ const firmwareCore = readSources([
   'control/ShotStopperControlStateMachine.inc',
   'persistence/ShotStopperCommandPersistence.inc',
   'control/ShotStopperCommands.inc',
+  'diagnostics/ShotStopperSerialOutput.inc',
   'diagnostics/ShotStopperDiagnostics.inc',
   'platform/ShotStopperEntrypoints.inc',
 ]);
@@ -359,7 +360,7 @@ if (!taskProfiler.includes('void copySnapshot(TaskProfilerSnapshot &out) const')
 }
 if (!firmwareCore.includes('#include "ShotStopperTaskProfiler.h"') ||
     !firmwareCore.includes('TaskProfiler taskProfiler') ||
-    !firmwareCore.includes('taskProfiler.service(millis())') ||
+    !firmwareCore.includes('taskProfiler.service(now)') ||
     !firmwareCore.includes('void copyTaskProfiler(TaskProfilerSnapshot &output)') ||
     !firmwareCore.includes('taskProfiler.copySnapshot(output)') ||
     !firmwareCore.includes('WebCommandType::TASK_PROFILER_START') ||
@@ -407,8 +408,9 @@ if (!psram.includes('#define SHOT_STOPPER_PSRAM_BSS EXT_RAM_BSS_ATTR') ||
     firmwareCore.includes(
         'SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistReceive') ||
     !firmwareCore.includes(
-        'xQueueReceive(settingsPersistQueue, &token') ||
-    !firmwareCore.includes('xQueueCreate(1, sizeof(uint8_t))') ||
+        'xQueueReceive(settingsPersistQueue, &work') ||
+    !firmwareCore.includes(
+        'xQueueCreate(PERSISTENCE_WORK_QUEUE_DEPTH, sizeof(PersistenceWork))') ||
     !firmwareCore.includes(
         'constexpr uint32_t SETTINGS_PERSIST_TASK_STACK_SIZE = 4096') ||
     !network.includes(
@@ -432,11 +434,23 @@ if (!firmwareCore.includes('uint8_t *serialLogQueueBytes = nullptr') ||
     !firmwareCore.includes(
       'allocInternal(queueBytes, AllocationOwner::SERIAL_LOG)') ||
     !firmwareCore.includes('esp_ptr_internal(serialLogQueueBytes)') ||
+    !firmwareCore.includes('Print &serialCliOutput()') ||
+    !firmwareCore.includes('serialLogQueueTruncated') ||
+    !firmwareCore.includes('serialCliOutput().println(message)') ||
     (firmwareCore.match(/heapCapsFree\(serialLogQueueBytes\)/g) || []).length < 2 ||
     firmwareCore.includes(
       'uint8_t serialLogQueueBytes[SERIAL_LOG_QUEUE_DEPTH * sizeof(SerialLogLine)]')) {
   throw new Error(
     'USB serial queue payload must be lazy internal heap with complete startup rollback');
+}
+if (!flashIoScratch.includes('FlashStoreTransaction') ||
+    !flashIoScratch.includes('FLASH_IO_SECTOR_BYTES') ||
+    !flashIoScratch.includes('Phase::COMMIT') ||
+    !flashIoScratch.includes('flashIoForbiddenTaskSlot() == xTaskGetCurrentTaskHandle()') ||
+    !activationStoresIo.includes('serviceStep(') ||
+    !firmwareCore.includes('forbidFlashIoFromCurrentTask();')) {
+  throw new Error(
+    'Partition stores must advance one body-first transaction step at a time and forbid runtime control flash ownership');
 }
 if (!buzzer.includes('struct RtttlCatalog') ||
     !buzzer.includes('RtttlCatalog *rtttlCatalog') ||
@@ -566,8 +580,8 @@ if (/\bruntimeConfig\b/.test(scaleWorker) ||
   const hwmon = fs.readFileSync(path.join(sketchDir, 'ShotStopperHwmon.h'), 'utf8');
   if (!hwmon.includes('const HeapCapSnapshot *heap = nullptr') ||
       !hwmon.includes('heap != nullptr ? *heap : sampleHeapCaps()') ||
-      !firmwareCore.includes('hwmon.sample(intervalMs > 0U ? intervalMs') ||
-      !firmwareCore.includes('&heap)')) {
+      !firmwareCore.includes('sample.hwmon = hwmon.sample(') ||
+      !firmwareCore.includes('&sample.heap)')) {
     throw new Error('Hwmon must reuse the 5 s HeapCapSnapshot instead of sampling heap twice');
   }
 }

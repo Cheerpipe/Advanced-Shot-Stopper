@@ -4,13 +4,13 @@ BBW prediction/learning has no resource authority. Control owns the fixed
 per-preset candidate bank and immutable shot/finalizer snapshots; persistence
 owns deferred durable writes. Network consumes the published Home snapshot;
 bounded history reads and explicit user mutations share the one static
-`shotStoreMutex` with control finalization and deferred saves. The
+`shotStoreMutex` with control finalization and persistence-image capture. The
 `ActivationStores` component is the single explicit owner of the three
 activation ring stores (stats shot log, curve sidecar, activation history):
-every read, append, page query, mutation, and deferred flush runs under that
-mutex, and only its flash-writing methods additionally take the shared flash
-I/O lock. This adds no task, queue or heap owner; the store mutex is acquired
-before the flash lock. See
+every read, append, page query, mutation, and immutable image capture runs under
+that mutex. The generalized persistence worker writes the captured image after
+releasing the mutex and acknowledges it only when its generation is still
+current; control never acquires the flash lock. See
 [BBW policy and storage](ARCHITECTURE.md#bbw-policy-and-storage).
 
 Every fallible resource acquisition needs one owner and a defined rollback
@@ -38,11 +38,12 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | static task mutex/event storage | containing static object | no heap allocation and no dynamic teardown |
 | HTTP server | NetworkService | manager-task-only stop/restart; handle cleared immediately after `httpd_stop` |
 | mDNS responder and its service task | NetworkService | network-task-only `mdns_init`/`mdns_hostname_set`/`mdns_free`; mDNS 1.13.1 allocates the 4096-byte task stack and dynamic responder memory in PSRAM while static synchronization/control storage remains internal; always-on passive responder (no gating for shots, scale, AP or HTTP); `mdns_free` only in `stop()` after the task join |
-| persistence mailbox | control producer, then persistence worker | one external request; internal token queue; producer may reuse only after consuming completion, or failed enqueue |
+| persistence mailbox | control producer, then persistence worker | fixed-capacity internal work queue plus one external settings request and one PSRAM shot-store image; generation-tagged completion prevents clearing newer dirtiness |
 | reset-history durable state | existing maintenance lease and NetworkService persistence owner | control holds clear requests until the machine is configuration-safe; NetworkService writes through the shared flash lock, and control publishes completion only after success |
-| shot history, curves, activation history and last-shot aggregate | `ActivationStores` data layer (control finalization/deferred-save path); Network borrows only through mutex-guarded callbacks | static `shotStoreMutex` covers each complete RAM operation and its flash snapshot; Home receives one control-published exact-ID rating/curve snapshot |
+| shot history, curves, activation history and last-shot aggregate | `ActivationStores` RAM data layer plus the core-0 persistence worker; Network borrows only through mutex-guarded callbacks | `shotStoreMutex` covers RAM operations and immutable image capture only; no flash/network I/O spans it, and Home receives one control-published exact-ID rating/curve snapshot |
 | webhook queue / payload | `WebhookDispatcher` | internal queue storage and external HTTP payload; release after worker join, or startup rollback |
-| profiler workspace / capture | `TaskProfiler` | external processing workspace and separate internal kernel capture; free both on stop or failed start |
+| profiler workspace / capture | core-0 health worker via `TaskProfiler` | control/HTTP publish requests only; external processing workspace and separate internal kernel capture are freed on stop or failed start |
+| USB application output | core-0 `serial_log` task | ESP logs and CLI replies use the same bounded zero-wait queue; queue saturation is counted and never backpressures control |
 | cJSON document | parsing caller | PSRAM allocations through process-wide hooks installed once before BLE workers and HTTP start; `cJSON_Delete` releases each independent document |
 
 `initJsonParser()` installs the cJSON allocator once, before concurrent users
