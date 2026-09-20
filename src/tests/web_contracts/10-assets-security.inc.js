@@ -179,9 +179,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // The Admin Network device-name label and hint add ~0.1 KB of HTML source
 // allowance.
 // Profile-gated Linea Micra cloud account selection, per-preset temperature,
-// and read-only machine-state diagnostics add labeled setup help.
-if (htmlBytes > 69000) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 69000)`);
+// and read-only machine-state diagnostics add labeled setup help. Wake-gesture
+// recognition adds one default-on machine option.
+if (htmlBytes > 69100) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 69100)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.

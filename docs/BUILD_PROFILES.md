@@ -32,7 +32,7 @@ The initial profiles are:
 | `config/hardware/esp32-s3-relay-x1-speaker-reed.json` | Same controller assembly with the reed input physically installed on GPIO13 |
 | `config/machines/rancilio-silvia-pro-x.json` | Rancilio Silvia Pro X, momentary button without machine-state feedback |
 | `config/machines/rancilio-silvia-pro-x-reed.json` | Rancilio Silvia Pro X, momentary button with required reed feedback |
-| `config/machines/la-marzocco-linea-micra.json` | La Marzocco Linea Micra, maintained paddle input plus optional read-only cloud state diagnostics |
+| `config/machines/la-marzocco-linea-micra.json` | La Marzocco Linea Micra, maintained paddle input plus cloud power observation and optional wake-gesture recognition |
 
 Every initial integration is marked `unqualified`. The JSON is a supported
 build definition, not evidence that its wiring has passed the manual electrical

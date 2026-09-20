@@ -2,6 +2,8 @@
 
 #include "ShotStopperLineaMicraSettings.h"
 #include "ShotStopperLineaMicraTypes.h"
+#include "ShotStopperMachineIntegration.h"
+#include "ShotStopperMicraPowerState.h"
 #include "ShotStopperTaskMutex.h"
 
 #include <atomic>
@@ -27,6 +29,7 @@ class ShotStopperMicraService {
   void serviceAbort();
   LineaMicraStatus status() const;
   LineaMicraDiscoverySnapshot discovery() const;
+  MachinePhysicalStartDisposition physicalStart();
 
  private:
   struct IoBuffer;
@@ -65,6 +68,8 @@ class ShotStopperMicraService {
   void releaseIoBuffer();
   void releaseWorkBuffer();
   void publish(const LineaMicraStatus &status);
+  void publishObservation(const LineaMicraStatus &status,
+                          uint32_t powerGeneration);
   void fail(LineaMicraStatus &status, LineaMicraError error);
   void scheduleAutomatic(uint32_t now, bool failed);
 
@@ -78,6 +83,7 @@ class ShotStopperMicraService {
   uint32_t configGeneration_ = 0;
   uint32_t nextAutomaticRequestId_ = 0x80000000UL;
   uint32_t nextAutomaticAtMs_ = 0;
+  LineaMicraPowerStateTracker powerState_;
   bool active_ = false;
   TaskHandle_t task_ = nullptr;
   IoBuffer *io_ = nullptr;

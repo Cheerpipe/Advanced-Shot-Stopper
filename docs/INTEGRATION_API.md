@@ -161,9 +161,10 @@ claimed Web UI. It accepts one strict `action`: `connect`, `select`, `save`,
 and is rejected unless STA is connected and the setup AP is closed. It queues
 cloud authentication and account-machine discovery but does not persist or
 enable an account. `select` requires a `serial` from the latest discovery plus
-the independent `applyTemperature` and `observeState` booleans; it persists the
+the independent `applyTemperature`, `observeState`, and
+`recognizeWakeGesture` booleans; it persists the
 account credentials, installation key, and chosen machine through the normal
-single-writer command path. `save` updates those two options for an already
+single-writer command path. `save` updates those three options for an already
 selected machine. `refresh` and `disconnect` accept no additional fields;
 disconnect erases durable credentials/selection and the RAM session. Unknown,
 duplicate, or action-inappropriate fields are rejected. Accepted commands
@@ -172,7 +173,8 @@ return `202`.
 Settings and diagnostic status include a Micra subtree only in Micra firmware.
 It reports whether an account is configured, selected name/serial, option flags,
 request phase/error, ON/OFF/UNKNOWN power state, raw observed mode, evidence
-quality, sample age/freshness, selected target temperature, STA/AP/shot gates,
+quality, optimistic-ON provenance, sample age/freshness, selected target
+temperature, STA/AP/shot gates,
 last HTTP/transport status, and the bounded machine list returned while
 connecting. Email, password, installation private key, access token, and refresh
 token are never returned. `refresh` is read-only and requires a selected

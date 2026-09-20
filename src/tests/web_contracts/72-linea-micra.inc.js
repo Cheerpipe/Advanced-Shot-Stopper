@@ -32,6 +32,7 @@ if (micraStatusFailures.length) {
 for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
   'lineaMicraConnectButton', 'lineaMicraMachine', 'lineaMicraSelectButton',
   'lineaMicraApplyTemperature', 'lineaMicraObserveState',
+  'lineaMicraRecognizeWake',
   'lineaMicraSaveButton', 'lineaMicraDisconnectButton',
   'lineaMicraBrewTargetC']) {
   if (!micraSettingsHtml.includes(`id="${id}"`)) {
@@ -52,7 +53,7 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes("s.machineIntegration==='linea_micra_cloud'") ||
     !rawRuntimeJs.includes("{action:'connect',username,password}") ||
     !rawRuntimeJs.includes("{action:'select',serial") ||
-    !rawRuntimeJs.includes("{action:'save',applyTemperature:$('lineaMicraApplyTemperature').checked,observeState:$('lineaMicraObserveState').checked}") ||
+    !rawRuntimeJs.includes("observeState:$('lineaMicraObserveState').checked,recognizeWakeGesture:$('lineaMicraRecognizeWake').checked}") ||
     !rawRuntimeJs.includes("lineaMicraAction('disconnect')") ||
     rawRuntimeJs.includes("['queued','authenticating','listing','running','backoff'].includes(m.phase)") ||
     !rawRuntimeJs.includes("m.email+'\\n'+m.selectedName+' - '+m.selectedSerial") ||
@@ -62,11 +63,15 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes('select.disabled=!canEdit||!machines.length') ||
     !rawRuntimeJs.includes("$('lineaMicraApplyTemperature').disabled=!canEdit||!connected") ||
     !rawRuntimeJs.includes("$('lineaMicraObserveState').disabled=!canEdit||!connected") ||
+    !rawRuntimeJs.includes("$('lineaMicraRecognizeWake').disabled=!canEdit||!connected") ||
     !rawRuntimeJs.includes("$('lineaMicraDisconnectButton').disabled=!canEdit||(!connected&&!machines.length)") ||
     !rawRuntimeJs.includes("$('dMicraPowerValue').textContent=power") ||
     !rawRuntimeJs.includes("refresh.setAttribute('aria-disabled',String(disabled))") ||
     !rawRuntimeJs.includes("expired?'UNKNOWN':lm.powerState") ||
-    !rawRuntimeJs.includes('age>=lm.freshnessMs')) {
+    !rawRuntimeJs.includes('expired=!lm.optimisticOn&&lm.sampleValid&&age>=lm.freshnessMs') ||
+    !micraSettingsHtml.includes('id="lineaMicraApplyTemperature" type="checkbox" checked') ||
+    !micraSettingsHtml.includes('id="lineaMicraObserveState" type="checkbox" checked') ||
+    !micraSettingsHtml.includes('id="lineaMicraRecognizeWake" type="checkbox" checked')) {
   throw new Error('Linea Micra UI must implement account connection, selection, and freshness expiry');
 }
 if (micraService.includes('keep_alive_enable = true') ||

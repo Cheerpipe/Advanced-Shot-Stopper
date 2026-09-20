@@ -33,7 +33,7 @@ preset without changing its target or learned values.
 Save remains bound to the preset whose fields were loaded into the form; an
 asynchronous active-preset change cannot redirect those values to another recipe.
 The Linea Micra brew target accepts 80.0–100.0 °C in 0.1 °C steps and defaults
-to 93.0 °C for new and migrated recipes. Duplicating a preset copies this value;
+to 93.0 °C for new and factory-reset recipes. Duplicating a preset copies this value;
 disabling the option or disconnecting the Micra account does not erase it. See
 [Linea Micra settings](../settings/linea-micra.md).
 

@@ -17,7 +17,7 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
   cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   static const char *const fields[] = {
       "action", "username", "password", "serial", "applyTemperature",
-      "observeState"};
+      "observeState", "recognizeWakeGesture"};
   char action[16] = {};
   char username[LINEA_MICRA_USERNAME_CAPACITY] = {};
   char password[LINEA_MICRA_PASSWORD_CAPACITY] = {};
@@ -30,6 +30,7 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
                                     : "action is required and all fields must be known.";
   bool applyTemperature = false;
   bool observeState = false;
+  bool recognizeWakeGesture = false;
   LineaMicraPersistedSettings candidate = {};
   struct SensitiveWiper {
     char *username = nullptr;
@@ -52,34 +53,39 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
         !jsonString(root, "password", password, sizeof(password), false) ||
         jsonFieldPresent(root, "serial") ||
         jsonFieldPresent(root, "applyTemperature") ||
-        jsonFieldPresent(root, "observeState")) {
+        jsonFieldPresent(root, "observeState") ||
+        jsonFieldPresent(root, "recognizeWakeGesture")) {
       parseError = "connect requires only username and password.";
     }
   } else if (parseError == nullptr && strcmp(action, "select") == 0) {
     if (!jsonString(root, "serial", serial, sizeof(serial), false) ||
         !jsonBoolean(root, "applyTemperature", applyTemperature) ||
         !jsonBoolean(root, "observeState", observeState) ||
+        !jsonBoolean(root, "recognizeWakeGesture", recognizeWakeGesture) ||
         jsonFieldPresent(root, "username") ||
         jsonFieldPresent(root, "password")) {
-      parseError = "select requires serial and both machine options.";
+      parseError = "select requires serial and all machine options.";
     } else {
       wipeLineaMicraSettings(candidate);
       if (!selectMachineIntegrationDevice(serial, candidate)) {
         parseError = "Select a machine returned by the latest account connection.";
       } else {
-        setLineaMicraOptions(candidate, applyTemperature, observeState);
+        setLineaMicraOptions(candidate, applyTemperature, observeState,
+                             recognizeWakeGesture);
       }
     }
   } else if (parseError == nullptr && strcmp(action, "save") == 0) {
     if (!candidate.accountConfigured ||
         !jsonBoolean(root, "applyTemperature", applyTemperature) ||
         !jsonBoolean(root, "observeState", observeState) ||
+        !jsonBoolean(root, "recognizeWakeGesture", recognizeWakeGesture) ||
         jsonFieldPresent(root, "username") ||
         jsonFieldPresent(root, "password") ||
         jsonFieldPresent(root, "serial")) {
-      parseError = "save requires a selected machine and both machine options.";
+      parseError = "save requires a selected machine and all machine options.";
     } else {
-      setLineaMicraOptions(candidate, applyTemperature, observeState);
+      setLineaMicraOptions(candidate, applyTemperature, observeState,
+                           recognizeWakeGesture);
     }
   } else if (parseError == nullptr &&
              (strcmp(action, "disconnect") == 0 ||
@@ -88,7 +94,8 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
         jsonFieldPresent(root, "password") ||
         jsonFieldPresent(root, "serial") ||
         jsonFieldPresent(root, "applyTemperature") ||
-        jsonFieldPresent(root, "observeState")) {
+        jsonFieldPresent(root, "observeState") ||
+        jsonFieldPresent(root, "recognizeWakeGesture")) {
       parseError = "disconnect and refresh do not accept setting fields.";
     }
   } else if (parseError == nullptr) {

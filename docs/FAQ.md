@@ -1,7 +1,7 @@
 # Troubleshooting
 
 Start with the symptom below. Defaults refer to fresh factory settings; a
-saved recipe or migrated device may differ. [First setup](GETTING_STARTED.md)
+saved recipe may differ. [First setup](GETTING_STARTED.md)
 covers the normal path.
 
 ## Shot and scale

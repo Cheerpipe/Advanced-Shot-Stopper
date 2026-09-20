@@ -62,11 +62,9 @@
 namespace shotstopper {
 
 constexpr uint32_t SERIAL_BAUD = 115200;
-// Current persisted settings schema. V1 is the 1912-byte baseline (padding
-// after staOpen). V2 names that byte staWifiSleep without growing the blob.
-// Bump and add a migration when the blob layout changes
-// (see ShotStopperSettingsMigrate.h).
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 16;
+// Fresh persistence baseline. Earlier firmware schemas are intentionally not
+// accepted; this contract is installed with a full flash erase.
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 1;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;
@@ -89,7 +87,7 @@ enum class NoScaleBbwMode : uint8_t {
   REQUIRE_SCALE = 2
 };
 
-// V13: bit 7 of noScaleBbwMode is Allow rinse while Armed; low bits stay 0–2.
+// Bit 7 of noScaleBbwMode is Allow rinse while Armed; low bits stay 0–2.
 constexpr uint8_t NO_SCALE_ALLOW_RINSE_WHILE_ARMED = 0x80U;
 
 inline uint8_t noScaleBbwModeValue(uint8_t stored) {
@@ -600,13 +598,13 @@ enum class LogLevel : uint8_t {
   NONE = 5
 };
 
-// NVS/UI compose of Machine + Scale + Brew settings. Baseline schema is V1;
+// NVS/UI compose of Machine + Scale + Brew settings. Current schema is V1;
 // do not change this blob layout without bumping CONFIG_SCHEMA_VERSION.
 // New fields: consider debug export (ShotStopperDebugExport.h).
 struct RuntimeConfig {
   uint32_t revision = 1;
   uint8_t goalWeightG = DEFAULT_GOAL_WEIGHT_G;
-  // Global setting, never copied into a preset. V11 names former padding.
+  // Global setting, never copied into a preset.
   bool powerManagementEnabled = true;
   float weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   // Seed for Reset learned stop offset; factory default remains 1.5 g.
@@ -689,12 +687,12 @@ struct RuntimeConfig {
   float cupPresentWeightG = DEFAULT_CUP_PRESENT_WEIGHT_G;
   float cupRemovedWeightG = DEFAULT_CUP_REMOVED_WEIGHT_G;
   // Reuses the legacy avoidBbwShotWithoutScale byte: low bits OFF/WARN_ONCE/
-  // REQUIRE_SCALE. V13 names bit 7 as Allow rinse while Armed (default off).
+  // REQUIRE_SCALE. Bit 7 is Allow rinse while Armed (default off).
   uint8_t noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE);
   uint32_t lastShotCooldownMs = DEFAULT_LAST_SHOT_COOLDOWN_MS;
   // Minimum level sent to the ESP-IDF serial backend. NONE is off; CLI
   // request/reply traffic remains independent. V7 reuses the old serial-debug
-  // boolean byte, preserving the V6 persisted record size.
+  // boolean byte.
   uint8_t serialLogLevel = static_cast<uint8_t>(LogLevel::NONE);
   // Minimum level retained in the RAM debug ring (WebUI Log). NONE disables.
   uint8_t ringRetainLogLevel = static_cast<uint8_t>(LogLevel::NONE);
@@ -717,7 +715,7 @@ struct RuntimeConfig {
   // Makes the read-only Diagnostic view available without an Admin unlock.
   // This occupies a former trailing padding byte, preserving the blob size.
   bool showDiagnosticPage = true;
-  // V8 names former padding; legacy migrations explicitly initialize it.
+  // Retare even when no brew is active.
   bool autoTareOutsideBrew = true;
   uint8_t bbwAlgorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
 };

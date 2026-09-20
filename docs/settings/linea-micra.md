@@ -18,8 +18,12 @@ internet connection is unavailable.
 1. Enter the email address and password used by the La Marzocco app.
 2. Choose **Connect** and wait for the account's Linea Micra machines to appear.
 3. Select the machine used with this Shot Stopper.
-4. Choose **Use selected machine**. Only then are monitoring and Micra preset
-   options enabled and saved.
+4. Choose **Use selected machine**. Only then can the three Micra options be
+   edited and saved.
+
+All three options start on. Before a machine is selected they remain visibly
+checked but disabled, so the defaults are clear without implying that the
+integration is already active.
 
 After a machine is selected, Settings hides the account email, password,
 **Connect**, machine list, and **Use selected machine** controls. **Selected
@@ -27,10 +31,10 @@ machine** shows the saved cloud account email, followed by the machine name and
 serial number. Choose **Disconnect** to remove the saved credentials and
 selected machine and make the connection controls available again.
 
-With a machine selected, **Save Micra settings** saves only **Allow brew boiler
-temperature in presets** and **Monitor machine power state**. It does not sign
-in again, validate the cloud account, or reload the machine list. Normal state
-monitoring continues according to the saved monitoring option.
+With a machine selected, **Save Micra settings** saves **Allow brew boiler
+temperature in presets**, **Monitor machine power state**, and **Recognize
+paddle wake gestures**. It does not sign in again, validate the cloud account,
+or reload the machine list.
 
 If the account returns no Linea Micra machines, the account is not enabled and
 the machine-specific options remain unavailable. Accounts with several Micras
@@ -50,10 +54,9 @@ avoiding a new connection handshake for every read. **Disconnect**
 removes the saved account credentials, installation key, selected machine,
 cached list, in-memory session tokens, and cloud connection.
 
-Scheduled reads and cloud failures do not disable **Disconnect**, **Allow brew
-boiler temperature in presets**, or **Monitor machine power state**. Disconnect
-only forgets the saved integration; it does not send a live command to the
-machine.
+Scheduled reads and cloud failures do not disable **Disconnect** or the three
+Micra options. Disconnect only forgets the saved integration; it does not send
+a live command to the machine.
 
 The cloud interface used by the La Marzocco app is not a documented public API
 and can change independently of this firmware. A cloud outage or API change
@@ -83,14 +86,34 @@ second retry delays; after four failed attempts automatic reads wait at least
 60 seconds. Select **(Refresh)** beside the displayed state to add a read to the
 same bounded queue. It cannot bypass STA, AP, shot, busy, or cooldown rules.
 
-UNKNOWN is treated as effectively on only for the conservative diagnostic
-policy. The observed state never starts or stops the machine, gates a shot,
-changes a preset, or changes paddle behavior.
+UNKNOWN is treated like ON for paddle behavior. It never qualifies a wake
+gesture, so brewing and rinse behavior remain unchanged when a current OFF
+observation is unavailable.
+
+## Recognize paddle wake gestures
+
+Keep **Recognize paddle wake gestures** on to use a fresh monitored OFF state.
+The next physical paddle ON is then treated only as the Micra's standby wake
+gesture. Shot Stopper mirrors the paddle through its normal relay safety path,
+but it does not start brew or rinse, evaluate or consume guards, command the
+scale, boost BLE discovery, play alerts, call brew webhooks, or add shot/rinse
+history. Returning the paddle to OFF opens the relay and ends the gesture,
+regardless of how long it was held.
+
+The OFF→ON edge immediately publishes an optimistic ON state for at most 30
+seconds. The first successful dashboard read started after that edge replaces
+it with the real state. A failed read does not clear or extend it; expiry becomes
+UNKNOWN. Paddle movement while the state is already ON or UNKNOWN does not
+create or extend optimism and follows the normal brew/rinse flow.
+
+This option is independent from monitoring. Turning monitoring off keeps the
+saved wake preference, but the effective state becomes UNKNOWN, so wake
+recognition is inactive until monitoring produces a fresh OFF observation.
 
 ## Brew temperature in presets
 
 **Allow brew boiler temperature in presets** reveals a per-preset value from
-80.0 to 100.0 °C in 0.1 °C steps. New and migrated presets start at 93.0 °C;
+80.0 to 100.0 °C in 0.1 °C steps. New and factory-reset presets start at 93.0 °C;
 duplicates copy the source value. Turning the option off or disconnecting the
 account keeps every saved preset value.
 
@@ -99,5 +122,6 @@ machine's target temperature, but it does not yet apply preset temperatures to
 the machine. Use the La Marzocco app to change the boiler target.
 
 Factory reset removes the Micra cloud account, selected machine, installation
-key, options, and RAM session. Preset temperatures return to 93.0 °C. See
+key, and RAM session. The three Micra options return to their checked defaults,
+and preset temperatures return to 93.0 °C. See
 [Factory reset](factory-reset.md) and [Presets](../features/presets.md).

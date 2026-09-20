@@ -56,7 +56,7 @@ brand, model, ID and display text never select executable code. Profiles with
 protocol component. Linea Micra builds compile its adapter, service, bounded
 feature types and HTTPS cloud client. Future machines may expose entirely
 different feature APIs while retaining only the small lifecycle boundary needed
-by boot and network-state publication.
+by boot, network-state publication, and generic physical-start disposition.
 
 The Micra adapter owns a dedicated low-priority worker and bounded PSRAM response
 workspace. It registers an installation key, signs La Marzocco cloud requests,
@@ -67,12 +67,19 @@ starts cloud work without STA, cancels it when AP starts or STA is lost, and
 pauses state observations during shots. It has no NimBLE dependency and cannot
 delay scale discovery, scale commands, or weight delivery.
 
-The shared settings blob retains the exact 310-byte V16
-`LineaMicraPersistedSettings` cloud account record and the two-byte per-preset Micra target in
-every profile so switching a build profile cannot reinterpret the persistence
-layout. Their names, validation and helpers remain Micra-owned; unrelated
-machine modules must not reuse them. Changing either stored layout requires the
-normal schema migration even though non-Micra builds do not execute Micra code.
+The Micra service also owns power-state freshness and optimistic ON lifetime.
+Its adapter exposes only `NORMAL` or `WAKE_PASSTHROUGH`; Shot Stopper owns relay
+passthrough and consumes wake gestures before brew, rinse, guards, scale,
+alerts, webhooks, and history. Those subsystems never depend on Micra types.
+
+The schema-1 settings blob retains the exact 310-byte
+`LineaMicraPersistedSettings` cloud account record and the two-byte per-preset
+Micra target in every profile so switching a build profile cannot reinterpret
+the persistence layout. Their names, validation and helpers remain Micra-owned;
+unrelated machine modules must not reuse them. Settings persistence accepts only
+the current magic, schema, size, checksum, and semantic contract. Every earlier
+settings schema is rejected rather than migrated; this cutover requires a clean
+`--erase-all` installation.
 
 ## BBW policy and storage
 
@@ -96,26 +103,14 @@ Editing reset bases alone preserves current learning and evidence.
 Settings status publishes active-preset identity, both offsets, alpha baseline, gain/provenance
 and evidence count together in the existing coherent control snapshot.
 
-Settings V12 retains the 252-byte RuntimeConfig, 104-byte ShotPreset and
-2616-byte settings blob. Runtime byte 251 and preset byte 45 hold the selector;
-obsolete preset cup floats at bytes 84–91 become EWMA offset (float), alpha
-(hundredths), initial/learned provenance, EWMA profile version and alpha baseline
-(hundredths, byte 91; reserved zero in V9).
-V1–V8 decoders verify the original checksum before explicitly initializing these
-bytes. The old offset remains regression's and seeds EWMA. V9 migration adds
-baseline 0.30 and EWMA profile v2 while retaining selection, offsets and gain/source.
-New schemas retain saved choices and valid learned gains. Candidate anchors/observations/generations are RAM
-only; deferred persistence retains offsets, gain/provenance and profile through
-the existing dual-slot owner. Unknown/invalid schemas follow existing recovery;
-old binaries do not understand V13, so downgrades are not settings-preserving.
-V11 names RuntimeConfig byte 5 (former padding) as global
-`powerManagementEnabled`. Every V1–V10 migration initializes it to false after
-validating the original CRC; presets never copy it.
-V12 names the WebhookConfig tail byte as `presetChanges`; V11 migration validates
-the historical CRC and explicitly initializes that opt-in delivery flag to off.
-V13 keeps the 252-byte RuntimeConfig layout and names bit 7 of `noScaleBbwMode`
-as Allow rinse while Armed (default off). V12 migration validates the historical
-CRC and clears that bit.
+Settings schema 1 uses the current 252-byte `RuntimeConfig`, 104-byte
+`ShotPreset`, and 2,960-byte settings blob. Candidate
+anchors/observations/generations are RAM only; deferred persistence retains
+offsets, gain/provenance, and profile through the existing dual-slot owner.
+`powerManagementEnabled`, webhook preset delivery, and Allow rinse while Armed
+are current explicit fields. Presets never copy the global power setting.
+Earlier settings lengths or schema numbers are rejected before field access;
+there is no settings decoder or migration fallback.
 Last-shot schema V4 atomically stores independent last-completed and
 last-qualifying-good aggregates and appends average flow to each complete
 record. `LastShotStore` owns both live RAM views and their one durable blob;
@@ -186,10 +181,10 @@ and [shot history](features/shot-history.md).
 
 ## Residual qualification
 
-RuntimeConfig V8 names byte 250 as the default-ON `autoTareOutsideBrew` switch,
-preserving its 252-byte layout and the 2616-byte settings blob. V1–V7 migrations
-initialize the former padding explicitly; V8 loads retain saved OFF. This
-machine setting is not part of the per-shot/preset recipe snapshot.
+`RuntimeConfig` retains a 252-byte fixed layout inside the current schema-1
+settings blob. `autoTareOutsideBrew` remains a global machine setting rather
+than part of the per-shot/preset recipe snapshot. No historical settings layout
+is interpreted at boot.
 
 Idle tare arbitration lives in `control/ShotStopperCycleRuntime.inc`, reusing
 the cup FSM's PLACED event and ScaleService's TARE_ONLY transport. Worker

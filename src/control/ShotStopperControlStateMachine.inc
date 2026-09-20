@@ -493,6 +493,7 @@ void enterBrewOrManualFromStart() {
 }
 
 void handleGlobalLimitTrip() {
+  machineWakePassthroughActive = false;
   const bool wasAlreadyOpenedByTimer = consumeRelaySafetyTrip();
   if (wasAlreadyOpenedByTimer) {
     addDebugEvent(DebugCategory::RELAY, DebugCode::RELAY_OPENED);
@@ -510,6 +511,7 @@ void handleGlobalLimitTrip() {
 }
 
 void handleOperationalLimitTrip() {
+  machineWakePassthroughActive = false;
   const bool wasAlreadyOpenedByTimer = consumeOperationalLimitTrip();
   if (wasAlreadyOpenedByTimer) {
     addDebugEvent(DebugCategory::RELAY, DebugCode::RELAY_OPENED);
@@ -544,6 +546,10 @@ void stateMachineTask() {
       machineAllowsAutomationStop() &&
       elapsedMs(relay.closedAtMs) >= session.config.operationalWallMs) {
     handleOperationalLimitTrip();
+    return;
+  }
+
+  if (machineWakePassthroughActive || machineWakeGestureConsumedThisLoop) {
     return;
   }
 

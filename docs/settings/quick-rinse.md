@@ -24,6 +24,10 @@ Rancilio profiles. With it off, paddle short ON→OFF is a shot, and a momentary
 long-press is native 1:1 (no `RINSE` cycle). Existing persisted choices survive
 ordinary boot and OTA.
 
+A Linea Micra paddle gesture recognized from a fresh OFF machine state only
+wakes the machine. It never becomes a rinse, regardless of its hold duration.
+See [Linea Micra](linea-micra.md#recognize-paddle-wake-gestures).
+
 - **Paddle:** from Ready or during a brew, ON then OFF within the **gesture**
   time is a rinse. Holding ON past that time keeps a brew (or, if
   [No-scale BBW](no-scale-bbw.md) is Armed, may refuse to close the machine

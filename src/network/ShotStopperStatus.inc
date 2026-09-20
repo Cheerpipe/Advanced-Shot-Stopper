@@ -479,22 +479,17 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         (micraStatus.quality == LineaMicraObservationQuality::CURRENT ||
          micraStatus.quality == LineaMicraObservationQuality::STALE ||
          micraStatus.quality == LineaMicraObservationQuality::UNSUPPORTED);
-    const bool sampleFresh =
-        sampleValid && sampleAgeMs < micra_timing::kStateFreshnessMs;
-    const LineaMicraPowerState reportedPower =
-        sampleFresh ? micraStatus.powerState : LineaMicraPowerState::UNKNOWN;
-    const LineaMicraObservationQuality reportedQuality =
-        sampleValid && !sampleFresh ? LineaMicraObservationQuality::STALE
-                                    : micraStatus.quality;
     ok = statusJsonAppend(
         &used,
         ",\"lineaMicra\":{\"accountConfigured\":%s,"
         "\"email\":\"%s\","
         "\"selectedSerial\":\"%s\",\"selectedName\":\"%s\","
         "\"applyTemperature\":%s,\"observeState\":%s,"
+        "\"recognizeWakeGesture\":%s,"
         "\"requestId\":%lu,\"phase\":\"%s\",\"error\":\"%s\","
         "\"powerState\":\"%s\","
         "\"observedMode\":\"%s\",\"quality\":\"%s\",\"effectiveOn\":%s,"
+        "\"optimisticOn\":%s,"
         "\"sampleValid\":%s,\"sampleAgeMs\":%lu,\"freshnessMs\":%lu,"
         "\"pollIntervalMs\":%lu,\"targetValid\":%s,\"targetDeciC\":%u,"
         "\"staConnected\":%s,\"apActive\":%s,\"shotPaused\":%s,"
@@ -506,13 +501,16 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             ? "true" : "false",
         (micraOptions & LINEA_MICRA_OBSERVE_STATE) != 0
             ? "true" : "false",
+        (micraOptions & LINEA_MICRA_RECOGNIZE_WAKE) != 0
+            ? "true" : "false",
         static_cast<unsigned long>(micraStatus.requestId),
         lineaMicraPhaseName(micraStatus.phase),
         lineaMicraErrorName(micraStatus.error),
-        lineaMicraPowerStateName(reportedPower),
+        lineaMicraPowerStateName(micraStatus.powerState),
         lineaMicraObservedModeName(micraStatus.observedMode),
-        lineaMicraObservationQualityName(reportedQuality),
-        reportedPower != LineaMicraPowerState::OFF ? "true" : "false",
+        lineaMicraObservationQualityName(micraStatus.quality),
+        micraStatus.effectiveOn ? "true" : "false",
+        micraStatus.optimisticOn ? "true" : "false",
         sampleValid ? "true" : "false",
         static_cast<unsigned long>(sampleAgeMs),
         static_cast<unsigned long>(micra_timing::kStateFreshnessMs),

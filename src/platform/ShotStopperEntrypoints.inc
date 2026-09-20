@@ -504,13 +504,16 @@ void loop() {
   serviceMachine();
   fillLoopGuardsFromIntention(machinePollIntention(), loopScaleLink);
   const MachineIntention powerIntention = machineLastIntention();
+  const bool wakeGestureConsumed = serviceMachineWakeGesture(powerIntention);
   // Forward the machine-use edge only; the scale worker owns the whole scan
   // boost rule (no-scale gate, deadline, duty override).
-  if (powerIntention.turnedOn) {
+  if (powerIntention.turnedOn && !wakeGestureConsumed) {
     armBleScanBoostOnMachineUse();
   }
-  serviceNoScaleShotGuard(loopGuardInputs);
-  serviceCupStartGuard(loopGuardInputs);
+  if (!wakeGestureConsumed) {
+    serviceNoScaleShotGuard(loopGuardInputs);
+    serviceCupStartGuard(loopGuardInputs);
+  }
   stateMachineTask();
   publishControlCriticalLoggingState();
   serviceWebhookBrewStart();
@@ -533,7 +536,9 @@ void loop() {
   serviceShotStorePersistence();
   servicePreferredScaleMacPersistence();
   serviceMaintenanceLease();
-  servicePowerManagement(powerIntention.turnedOn || powerIntention.turnedOff);
+  servicePowerManagement(
+      !wakeGestureConsumed &&
+      (powerIntention.turnedOn || powerIntention.turnedOff));
   servicePendingResetHistoryClear();
   servicePendingPlannedRestart();
   serviceWeightStreamTelemetry(loopScaleLink);

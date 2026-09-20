@@ -24,6 +24,10 @@ Abandoned starts, where the machine never confirmed the activation, record
 nothing. When the controller's clock has never synced, cards show "no time"
 until it gets the time from the network.
 
+A recognized Linea Micra standby wake is not an activation for this diary. It
+only mirrors the paddle to wake the machine and creates no Shot, Rinse, or Other
+entry. See [Linea Micra](../settings/linea-micra.md#recognize-paddle-wake-gestures).
+
 The log holds up to **1000** activations. When it fills, the oldest entry is
 dropped to make room for the newest. Entries are written to memory the
 instant a cycle ends and saved to flash a moment later when the controller

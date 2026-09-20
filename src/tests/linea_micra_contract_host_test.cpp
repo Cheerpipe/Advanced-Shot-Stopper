@@ -1,6 +1,7 @@
 #include "machine/ShotStopperLineaMicraSettings.h"
 #include "machine/ShotStopperLineaMicraTypes.h"
 #include "machine/ShotStopperMicraTiming.h"
+#include "machine/ShotStopperMicraPowerState.h"
 
 #include <cassert>
 #include <cstring>
@@ -8,6 +9,7 @@
 int main() {
   using namespace shotstopper;
   LineaMicraPersistedSettings settings;
+  assert(settings.options == LINEA_MICRA_DEFAULT_OPTIONS);
   std::strcpy(settings.username, "barista@example.com");
   std::strcpy(settings.password, "correct horse battery staple");
   std::memset(settings.installationPrivateKey, 0x5a,
@@ -15,12 +17,11 @@ int main() {
   std::strcpy(settings.selectedSerial, "MR123456");
   std::strcpy(settings.selectedName, "Kitchen Micra");
   settings.accountConfigured = true;
-  setLineaMicraOptions(settings, true, true);
+  setLineaMicraOptions(settings, true, true, true);
   assert(validLineaMicraSettings(settings));
   disconnectLineaMicra(settings);
   assert(validLineaMicraSettings(settings));
-  assert(settings.options ==
-         (LINEA_MICRA_APPLY_TEMPERATURE | LINEA_MICRA_OBSERVE_STATE));
+  assert(settings.options == LINEA_MICRA_DEFAULT_OPTIONS);
   assert(settings.username[0] == '\0');
   assert(settings.password[0] == '\0');
   assert(settings.selectedSerial[0] == '\0');
@@ -41,5 +42,39 @@ int main() {
   assert(!micra_timing::accessTokenRefreshDue(50U * 60U * 1000U - 1U));
   assert(micra_timing::accessTokenRefreshDue(50U * 60U * 1000U));
   assert(micra_timing::kAccessTokenLifetimeMs == 60U * 60U * 1000U);
+
+  LineaMicraPowerStateTracker power;
+  LineaMicraStatus authoritative;
+  authoritative.sampleAtMs = 100;
+  authoritative.powerState = LineaMicraPowerState::OFF;
+  authoritative.quality = LineaMicraObservationQuality::CURRENT;
+  authoritative.effectiveOn = false;
+  const uint32_t preEdgeGeneration = power.generation();
+  assert(power.notePhysicalStart(authoritative, true, true, 200));
+  const uint32_t edgeGeneration = power.generation();
+  assert(edgeGeneration != preEdgeGeneration);
+  LineaMicraStatus effective = power.effectiveStatus(authoritative, true, 200);
+  assert(effective.powerState == LineaMicraPowerState::ON);
+  assert(effective.optimisticOn);
+  assert(effective.quality == LineaMicraObservationQuality::OPTIMISTIC);
+  assert(!power.notePhysicalStart(authoritative, true, true, 201));
+  assert(power.generation() == edgeGeneration);
+  assert(!power.acceptAuthoritative(preEdgeGeneration));
+  assert(power.effectiveStatus(authoritative, true, 202).optimisticOn);
+  assert(power.acceptAuthoritative(edgeGeneration));
+  assert(power.effectiveStatus(authoritative, true, 203).powerState ==
+         LineaMicraPowerState::OFF);
+
+  authoritative.sampleAtMs = 1000;
+  assert(!power.notePhysicalStart(authoritative, true, false, 1100));
+  const uint32_t disabledWakeGeneration = power.generation();
+  effective = power.effectiveStatus(
+      authoritative, true, 1100 + micra_timing::kOptimisticOnMs);
+  assert(effective.powerState == LineaMicraPowerState::UNKNOWN);
+  assert(!effective.optimisticOn);
+  assert(!power.notePhysicalStart(
+      authoritative, true, true, 1100 + micra_timing::kOptimisticOnMs));
+  assert(power.generation() == disabledWakeGeneration);
+  assert(!power.notePhysicalStart(authoritative, false, true, 1101));
   return 0;
 }

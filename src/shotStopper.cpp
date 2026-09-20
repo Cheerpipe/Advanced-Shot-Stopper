@@ -400,6 +400,8 @@ uint32_t noScaleRequireBypassStartedAtMs = 0;
 bool noScaleRequireBypassCompletedThisLoop = false;
 bool cupStartGuardHold = false;
 uint32_t cupStartGuardHoldAtMs = 0;
+bool machineWakePassthroughActive = false;
+bool machineWakeGestureConsumedThisLoop = false;
 
 float currentWeight = 0.0f;
 uint32_t currentWeightReceivedAtMs = 0;
@@ -1903,6 +1905,7 @@ void servicePendingBrewRfRestore() {
 
 // Behavior-preserving service fragments; kept in this translation unit.
 #include "platform/ShotStopperPowerRuntime.inc"
+#include "control/ShotStopperWakeGesture.inc"
 #include "control/ShotStopperCycleRuntime.inc"
 #include "scale/ShotStopperScaleEvents.inc"
 #include "control/ShotStopperControlStateMachine.inc"

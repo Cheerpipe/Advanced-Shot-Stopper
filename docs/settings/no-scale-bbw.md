@@ -7,6 +7,10 @@ It applies only while **Brew by weight** is on. With BBW off, shots and rinses
 remain manual regardless of this setting. A scale is usable only when its link
 is available and its weight stream is fresh.
 
+On Linea Micra, a recognized standby wake gesture is not a shot or rinse
+attempt. It mirrors the paddle only, so this protection is neither evaluated
+nor disarmed. See [Linea Micra](linea-micra.md#recognize-paddle-wake-gestures).
+
 ## Modes
 
 | Mode | Shot without a scale | Rinse without a scale | Cooldown |

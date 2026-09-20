@@ -22,6 +22,7 @@ enum class LineaMicraObservationQuality : uint8_t {
   Disabled,
   UNCONFIGURED,
   CURRENT,
+  OPTIMISTIC,
   STALE,
   COMMUNICATION_ERROR,
   UNSUPPORTED
@@ -84,6 +85,7 @@ inline const char *lineaMicraObservationQualityName(
     case LineaMicraObservationQuality::Disabled: return "disabled";
     case LineaMicraObservationQuality::UNCONFIGURED: return "unconfigured";
     case LineaMicraObservationQuality::CURRENT: return "current";
+    case LineaMicraObservationQuality::OPTIMISTIC: return "optimistic";
     case LineaMicraObservationQuality::STALE: return "stale";
     case LineaMicraObservationQuality::COMMUNICATION_ERROR:
       return "communication_error";
@@ -159,6 +161,7 @@ struct LineaMicraStatus {
   bool staConnected = false;
   bool apActive = false;
   bool shotPaused = false;
+  bool optimisticOn = false;
 };
 
 static_assert(sizeof(LineaMicraRequest) <= 16,

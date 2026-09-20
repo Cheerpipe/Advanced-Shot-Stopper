@@ -170,6 +170,11 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   noScaleRequireBypassCompletedThisLoop = false;
   cupStartGuardHold = false;
   cupStartGuardHoldAtMs = 0;
+  machineWakePassthroughActive = false;
+  machineWakeGestureConsumedThisLoop = false;
+  hostMachinePhysicalStartDisposition =
+      MachinePhysicalStartDisposition::NORMAL;
+  hostMachinePhysicalStartCount = 0;
   debugLog.clear();
   serialLogLevel = LogLevel::NONE;
   ringRetainLogLevel = LogLevel::INFO;
@@ -412,14 +417,18 @@ void verifySafetyInvariants() {
   const bool stateMayCloseRelay =
       stopperState == StopperState::BREW ||
       stopperState == StopperState::RINSE ||
-      stopperState == StopperState::MANUAL_NO_SCALE;
+      stopperState == StopperState::MANUAL_NO_SCALE ||
+      machineWakePassthroughActive;
 
-  if (relay.closed && (!stateMayCloseRelay || !session.active)) {
+  if (relay.closed &&
+      (!stateMayCloseRelay ||
+       (!session.active && !machineWakePassthroughActive))) {
     std::cerr << "Safety invariant failed: machine circuit closed in "
               << stopperStateName(stopperState) << "\n";
     ++failures;
   }
-  if ((stopperState == StopperState::READY ||
+  if (!machineWakePassthroughActive &&
+      (stopperState == StopperState::READY ||
        stopperState == StopperState::REQUIRES_OFF) &&
       relay.closed) {
     std::cerr << "Safety invariant failed: safe state has machine circuit closed\n";
@@ -741,6 +750,88 @@ void t02_boot_with_activator_on() {
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
   CHECK(stopperState == StopperState::READY);
   startCycle();
+}
+
+void t02b_off_wake_bypasses_brew_guards_scale_and_history() {
+  for (const NoScaleBbwMode mode : {NoScaleBbwMode::WARN_ONCE,
+                                    NoScaleBbwMode::REQUIRE_SCALE}) {
+    resetHarness(false, false);
+    reachReadyFromBoot();
+    historyLog.clear();
+    runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(mode);
+    runtimeConfig.cupProtectionEnabled = true;
+    runtimeConfig.requireCupToStart = true;
+    hostMachinePhysicalStartDisposition =
+        MachinePhysicalStartDisposition::WAKE_PASSTHROUGH;
+    const uint32_t buzzerRequests = localBuzzer.acceptedRequests;
+
+    setRawPaddle(true);
+    runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+    CHECK(hostMachinePhysicalStartCount == 1);
+    CHECK(machineWakePassthroughActive);
+    CHECK(getRelaySafetySnapshot().closed);
+    CHECK(stopperState == StopperState::READY);
+    CHECK(!session.active);
+    CHECK(noScaleShotGuardArmed);
+    CHECK(!noScaleShotGuardHold);
+    CHECK(!cupStartGuardHold);
+    CHECK(scaleCommandQueue->items.empty());
+    CHECK(scaleScanBoostUntilMs == 0);
+    CHECK(localBuzzer.acceptedRequests == buzzerRequests);
+    CHECK(historyLog.count() == 0);
+
+    runLoopAfter(runtimeConfig.rinseGestureMs + 1);
+    CHECK(machineWakePassthroughActive);
+    CHECK(stopperState == StopperState::READY);
+    CHECK(!session.active);
+    setRawPaddle(false);
+    runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+    CHECK(!machineWakePassthroughActive);
+    CHECK(!getRelaySafetySnapshot().closed);
+    CHECK(stopperState == StopperState::READY);
+    CHECK(!session.active);
+    CHECK(historyLog.count() == 0);
+    CHECK(scaleCommandQueue->items.empty());
+  }
+}
+
+void t02c_wake_hard_limit_requires_release_before_rearming() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  hostMachinePhysicalStartDisposition =
+      MachinePhysicalStartDisposition::WAKE_PASSTHROUGH;
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(machineWakePassthroughActive);
+  CHECK(getRelaySafetySnapshot().closed);
+
+  hostMillis = circuitClosedAtMs + HARD_MAX_CIRCUIT_CLOSED_MS;
+  hostServiceEspTimer(relaySafetyTimer);
+  loop();
+  CHECK(!machineWakePassthroughActive);
+  CHECK(stopperState == StopperState::REQUIRES_OFF);
+  CHECK(!getRelaySafetySnapshot().closed);
+  const size_t closedWrites = hostRelayClosedWrites;
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS * 2);
+  CHECK(hostRelayClosedWrites == closedWrites);
+
+  setRawPaddle(false);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(stopperState == StopperState::READY);
+}
+
+void t02d_wake_timer_arm_failure_stays_open() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  hostMachinePhysicalStartDisposition =
+      MachinePhysicalStartDisposition::WAKE_PASSTHROUGH;
+  hostGptimerArmSucceeds = false;
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(!machineWakePassthroughActive);
+  CHECK(stopperState == StopperState::REQUIRES_OFF);
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(hostRelayClosedWrites == 0);
 }
 
 void t03_sustained_on_enters_brew_once() {
@@ -14901,6 +14992,9 @@ const TestCase testCases[] = {
     {"POW05", pow05_power_config_command_and_persistence},
     {"T01", t01_boot_with_paddle_off},
     {"T02", t02_boot_with_activator_on},
+    {"T02B", t02b_off_wake_bypasses_brew_guards_scale_and_history},
+    {"T02C", t02c_wake_hard_limit_requires_release_before_rearming},
+    {"T02D", t02d_wake_timer_arm_failure_stays_open},
     {"T03", t03_sustained_on_enters_brew_once},
     {"T04", t04_exact_rinse_boundary_and_duration},
     {"T04B", t04b_rinse_disabled_short_on_off_is_not_rinse},

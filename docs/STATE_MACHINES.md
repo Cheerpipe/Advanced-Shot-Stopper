@@ -21,7 +21,7 @@ Related product docs: [Brew by weight](features/brew-by-weight.md),
 | --- | --- |
 | Brew and electrical safety | [Stopper](#1-stopper-stopperstate), [relay](#2-relay-safety-relaysafetystate) |
 | Physical controls | [Machine state](#3-machine-run-state-machinerunstate), [user intent](#4-user-intent-userintent) |
-| Optional machine integration | [Linea Micra observer](#linea-micra-read-only-observer) |
+| Optional machine integration | [Linea Micra observer](#linea-micra-power-observer-and-wake-qualification) |
 | Weight and cup sensing | [Weight control](#5-weight-control-weightcontrolstate), [stream](#6-weight-stream-weightstreamstate), [cup](#7-cup-presence-cuppresencestate), [first flow](#8-first-flow-firstflowphase--firstflowclass), [touch](#9-accidental-touch-accidentaltouchphase--accidentaltouchclass) |
 | Scale connection | [Link and commands](#10-scale-link-scalelinkstate), [no-scale guard](#11-no-scale-bbw-guard) |
 | Access and updates | [Recovery](#12-recovery-gesture), [Wi-Fi](#13-station-wi-fi-stastate), [scan](#14-wi-fi-scan-wifiscanstate), [clock](#15-wall-clock-timesyncstate), [OTA](#16-ota-otastate), [Web commands](#17-web-command-pipeline-commandresultstate) |
@@ -864,7 +864,7 @@ gate. It never changes relay safety.
 
 ---
 
-## Linea Micra read-only observer
+## Linea Micra power observer and wake qualification
 
 Micra builds run a separate cloud worker when **Monitor machine power state**
 is enabled and an account machine is selected. It queues a dashboard read on a nominal
@@ -876,14 +876,25 @@ to UNKNOWN. Communication errors and samples older than 30 seconds are also
 UNKNOWN; the separate `effectiveOn` presentation policy treats UNKNOWN as ON
 without claiming that ON was measured.
 
+On every physical paddle ON edge, the Micra state owner first evaluates the
+pre-edge effective state. A fresh OFF starts a bounded optimistic ON interval;
+the first authoritative dashboard read initiated after the edge replaces it,
+and a 30-second expiry falls back to UNKNOWN. Reads initiated before the edge
+cannot overwrite that optimism. ON and UNKNOWN edges do not change the tracked
+state.
+
 The observer uses four total attempts with 3/6/9-second waits and bounded
 jitter. Exhaustion starts a 60-second cooldown. It runs only with STA connected
 and the setup AP closed. Local shots and rinses cancel any in-flight read and
 pause further observations; one read becomes due after activity ends without
 bypassing an active cooldown. Scale BLE runs independently and has no shared
-radio arbiter with the cloud worker. The observer never
-starts or stops a cycle, drives the relay, selects a preset, or changes paddle
-behavior.
+radio arbiter with the cloud worker.
+
+When wake recognition is enabled, the adapter reduces that pre-edge decision
+to a generic normal/wake disposition. Shot Stopper owns the wake passthrough:
+it mirrors only the physical paddle through the existing relay safety authority
+and consumes the entire ON/OFF interaction before brew, rinse, guards, scale,
+alerts, webhooks, or history. No guard or scale component knows Micra state.
 
 ---
 

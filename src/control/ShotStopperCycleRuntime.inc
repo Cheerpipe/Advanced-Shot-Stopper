@@ -745,7 +745,8 @@ void pushActivatorDrivePermission(const ScaleLinkSnapshot &link) {
   serviceIdleTare();
   refreshLoopGuardsFromLastIntention(link);
   machineSetActivatorDriveAllowed(
-      session.active || !guardsWouldBlockActivatorDrive(loopGuardInputs));
+      machineWakePassthroughActive || session.active ||
+      !guardsWouldBlockActivatorDrive(loopGuardInputs));
 }
 
 void orchestratePostTareBaselineArm() {

@@ -137,46 +137,6 @@ void p01_defaults_are_valid() {
   CHECK(!validPreferredScaleMac("GG:BB:CC:DD:EE:FF"));
 }
 
-// Builds a legacy (V6–V13 layout) blob from current defaults so migration
-// tests can store old-version records at the legacy blob size.
-bool legacyV13BlobFromDefaults(PersistedSettingsV13 &legacy, uint32_t version) {
-  PersistedSettings defaults;
-  if (!initializeDefaultSettings(defaults)) {
-    return false;
-  }
-  legacy = PersistedSettingsV13{};
-  copyPersistedBytes(legacy, defaults, offsetof(PersistedSettingsV13, checksum));
-  legacy.schemaVersion = version;
-  legacy.structureSize = sizeof(PersistedSettingsV13);
-  legacy.checksum = persistedSettingsV13Checksum(legacy);
-  return true;
-}
-
-void p75_idle_tare_legacy_padding_and_saved_off() {
-  for (uint32_t version : {6U, 7U, 8U}) {
-    for (uint8_t padding : {uint8_t{0}, uint8_t{1}, uint8_t{255}}) {
-      resetHostPersistence();
-      PersistedSettingsV13 legacy;
-      CHECK(legacyV13BlobFromDefaults(legacy, version));
-      if (version < 8) reinterpret_cast<uint8_t *>(&legacy.runtime)[250] = padding;
-      legacy.checksum = persistedSettingsV13Checksum(legacy);
-      persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A,
-                               &legacy, sizeof(legacy));
-      PersistedSettings loaded;
-      CHECK(loadPersistedSettings(loaded));
-      CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
-      CHECK(loaded.runtime.autoTareOutsideBrew);
-      loaded.runtime.autoTareOutsideBrew = false;
-      CHECK(savePersistedSettings(loaded));
-      PersistedSettings again;
-      CHECK(loadPersistedSettings(again));
-      CHECK(!again.runtime.autoTareOutsideBrew);
-      CHECK(initializeDefaultSettings(again));
-      CHECK(again.runtime.autoTareOutsideBrew);
-    }
-  }
-}
-
 void p02_newest_valid_slot_is_loaded() {
   resetHostPersistence();
   PersistedSettings settings;
@@ -812,74 +772,6 @@ void p47_rejects_non_current_schema_blob() {
   CHECK(!loadPersistedSettings(loaded));
 }
 
-void p47b_migrates_v1_blob_wifi_sleep_defaults_off() {
-  resetHostPersistence();
-  PersistedSettings current;
-  CHECK(initializeDefaultSettings(current));
-  current.staConfigured = true;
-  current.staOpen = false;
-  current.staWifiSleep = true;
-  strcpy(current.staSsid, "CafeLAN");
-  strcpy(current.staPassword, "CafePass1");
-  finalizePersistedSettings(current);
-
-  PersistedSettingsV1 v1{};
-  v1.storageRevision = current.storageRevision;
-  v1.runtime = current.runtime;
-  copyPersistedBytes(v1.presets, current.presets,
-                     offsetof(PersistedSettingsV1, staSsid) -
-                         offsetof(PersistedSettingsV1, presets));
-  memcpy(&v1.staSsid, &current.staSsid,
-         offsetof(PersistedSettingsV1, checksum) -
-             offsetof(PersistedSettingsV1, staSsid));
-  v1.schemaVersion = 1;
-  v1.structureSize = sizeof(PersistedSettingsV1);
-  v1.checksum = 0;
-  v1.checksum = persistedSettingsV1Checksum(v1);
-
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &v1,
-                           sizeof(v1));
-  PersistedSettings loaded;
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
-  CHECK(loaded.structureSize == sizeof(PersistedSettings));
-  CHECK(!loaded.staWifiSleep);
-  CHECK(loaded.staConfigured);
-  CHECK(strcmp(loaded.staSsid, "CafeLAN") == 0);
-  CHECK(strcmp(loaded.staPassword, "CafePass1") == 0);
-}
-
-void p47e_migrates_v2_blob_with_bullseye_disabled() {
-  resetHostPersistence();
-  PersistedSettings current;
-  CHECK(initializeDefaultSettings(current));
-  current.staWifiSleep = false;
-  strcpy(current.preferredScaleMac, "AA:BB:CC:DD:EE:22");
-  finalizePersistedSettings(current);
-
-  PersistedSettingsV2 v2{};
-  v2.storageRevision = 17;
-  v2.runtime = current.runtime;
-  copyPersistedBytes(v2.presets, current.presets,
-                     offsetof(PersistedSettingsV2, checksum) -
-                         offsetof(PersistedSettingsV2, presets));
-  v2.schemaVersion = 2;
-  v2.structureSize = sizeof(PersistedSettingsV2);
-  v2.checksum = 0;
-  v2.checksum = persistedSettingsV2Checksum(v2);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &v2,
-                           sizeof(v2));
-
-  PersistedSettings loaded;
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
-  CHECK(loaded.storageRevision == 17);
-  CHECK(!loaded.staWifiSleep);
-  CHECK(strcmp(loaded.preferredScaleMac, "AA:BB:CC:DD:EE:22") == 0);
-  CHECK(!loaded.bullseyeMelody.enabled);
-  CHECK(loaded.bullseyeMelody.rtttl[0] == '\0');
-}
-
 void p47f_bullseye_melody_persists_as_fixed_record() {
   resetHostPersistence();
   PersistedSettings settings;
@@ -894,32 +786,6 @@ void p47f_bullseye_melody_persists_as_fixed_record() {
   CHECK(loaded.bullseyeMelody.enabled);
   CHECK(strcmp(loaded.bullseyeMelody.rtttl,
                "bullseye:d=8,o=5,b=180:c,e,g,c6") == 0);
-}
-
-void p47g_migrates_v3_with_webhooks_disabled() {
-  resetHostPersistence();
-  PersistedSettings current;
-  CHECK(initializeDefaultSettings(current));
-  current.bullseyeMelody.enabled = true;
-  copyCString(current.bullseyeMelody.rtttl,
-              sizeof(current.bullseyeMelody.rtttl),
-              "bullseye:d=8,o=5,b=180:c,e,g,c6");
-  finalizePersistedSettings(current);
-  PersistedSettingsV3 v3{};
-  copyPersistedBytes(v3, current, offsetof(PersistedSettingsV3, checksum));
-  v3.schemaVersion = 3;
-  v3.structureSize = sizeof(PersistedSettingsV3);
-  v3.checksum = persistedSettingsV3Checksum(v3);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &v3,
-                           sizeof(v3));
-  PersistedSettings loaded;
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(!loaded.webhook.enabled);
-  CHECK(loaded.webhook.url[0] == '\0');
-  CHECK(loaded.webhook.brewState);
-  CHECK(loaded.webhook.firstDrop);
-  CHECK(loaded.webhook.end);
-  CHECK(loaded.bullseyeMelody.enabled);
 }
 
 void p47h_webhook_url_validation_is_http_only() {
@@ -2177,73 +2043,7 @@ void p63_flash_io_lock_fails_closed_without_mutex() {
   CHECK(FLASH_IO_LOCK_TIMEOUT_MS == 3000);
 }
 
-
-void p78_power_management_migration_and_global_scope() {
-  for (uint32_t version = 6; version <= 10; ++version) {
-    resetHostPersistence();
-    PersistedSettingsV13 legacy;
-    CHECK(legacyV13BlobFromDefaults(legacy, version));
-    // Previous schemas never initialized this padding byte.
-    reinterpret_cast<unsigned char *>(&legacy.runtime)[5] = 0xa5;
-    legacy.checksum = persistedSettingsV13Checksum(legacy);
-    persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A,
-                            &legacy, sizeof(legacy));
-    PersistedSettings loaded;
-    CHECK(loadPersistedSettings(loaded));
-    CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
-    CHECK(loaded.runtime.powerManagementEnabled);
-    loaded.runtime.powerManagementEnabled = true;
-    applyShotPresetToConfig(loaded.presets.presets[0], loaded.runtime, false);
-    CHECK(loaded.runtime.powerManagementEnabled);
-    CHECK(savePersistedSettings(loaded));
-    CHECK(loadPersistedSettings(loaded));
-    CHECK(loaded.runtime.powerManagementEnabled);
-    CHECK(resetPersistedSettingsToFactory(loaded));
-    CHECK(loaded.runtime.powerManagementEnabled);
-    if (version == 10) {
-      legacy.checksum ^= 1;
-      CHECK(!migratePersistedSettingsFromV10(legacy, loaded));
-    }
-  }
-}
-
-void p79_webhook_preset_changes_migrates_dirty_v11_padding() {
-  resetHostPersistence();
-  PersistedSettingsV13 legacy;
-  CHECK(legacyV13BlobFromDefaults(legacy, 11));
-  reinterpret_cast<unsigned char *>(&legacy.webhook)
-      [offsetof(WebhookConfig, presetChanges)] = 0xa5;
-  legacy.checksum = persistedSettingsV13Checksum(legacy);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A,
-                           &legacy, sizeof(legacy));
-  PersistedSettings loaded;
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
-  CHECK(!loaded.webhook.presetChanges);
-  loaded.webhook.presetChanges = true;
-  CHECK(savePersistedSettings(loaded));
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.webhook.presetChanges);
-}
-
-void p81_v12_clears_allow_rinse_while_armed_bit() {
-  resetHostPersistence();
-  PersistedSettingsV13 legacy;
-  CHECK(legacyV13BlobFromDefaults(legacy, 12));
-  legacy.runtime.noScaleBbwMode = static_cast<uint8_t>(
-      static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE) | 0x80U);
-  legacy.checksum = persistedSettingsV13Checksum(legacy);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacy,
-                           sizeof(legacy));
-  PersistedSettings loaded;
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
-  CHECK(noScaleBbwModeValue(loaded.runtime.noScaleBbwMode) ==
-        static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE));
-  CHECK(!noScaleAllowRinseWhileArmed(loaded.runtime.noScaleBbwMode));
-}
-
-void p83_v14_device_name_default_migration_and_keep_on_forget() {
+void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   CHECK(validDeviceName(DEFAULT_DEVICE_NAME));
   CHECK(validDeviceName("Cafe Bar 2"));
   CHECK(!validDeviceName(""));
@@ -2257,111 +2057,47 @@ void p83_v14_device_name_default_migration_and_keep_on_forget() {
   CHECK(strcmp(host, "a-b") == 0);
 
   resetHostPersistence();
-  PersistedSettingsV13 legacy;
-  CHECK(legacyV13BlobFromDefaults(legacy, 13));
-  legacy.staConfigured = true;
-  strcpy(legacy.staSsid, "CafeLAN");
-  strcpy(legacy.staPassword, "CafePass1");
-  legacy.checksum = persistedSettingsV13Checksum(legacy);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacy,
-                           sizeof(legacy));
-  PersistedSettings loaded;
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
-  CHECK(strcmp(loaded.staSsid, "CafeLAN") == 0);
-  // V13 blobs predate the field: migration seeds the default name.
-  CHECK(strcmp(loaded.deviceName, DEFAULT_DEVICE_NAME) == 0);
+  PersistedSettings settings;
+  CHECK(initializeDefaultSettings(settings));
+  CHECK(settings.schemaVersion == 1);
+  CHECK(settings.lineaMicra.options == LINEA_MICRA_DEFAULT_OPTIONS);
 
-  strcpy(loaded.deviceName, "Cafe Bar 2");
-  CHECK(savePersistedSettings(loaded));
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(strcmp(loaded.deviceName, "Cafe Bar 2") == 0);
-  // Forget network is a device preference boundary: the name survives.
-  CHECK(resetPersistedNetworkAccess(loaded));
-  CHECK(!loaded.staConfigured);
-  CHECK(strcmp(loaded.deviceName, "Cafe Bar 2") == 0);
-  // Factory reset restores the default name.
-  CHECK(resetPersistedSettingsToFactory(loaded));
-  CHECK(strcmp(loaded.deviceName, DEFAULT_DEVICE_NAME) == 0);
-}
+  uint8_t oldBlob[sizeof(PersistedSettings) - 1] = {};
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, oldBlob,
+                           sizeof(oldBlob));
+  PersistedSettings rejected;
+  CHECK(!loadPersistedSettings(rejected));
 
-void p84_v14_v15_migration_and_v16_micra_cloud_round_trip() {
-  resetHostPersistence();
-  PersistedSettings source;
-  CHECK(initializeDefaultSettings(source));
-  source.schemaVersion = 14;
-  source.structureSize = PERSISTED_SETTINGS_V14_SIZE;
-  for (ShotPreset &preset : source.presets.presets) {
-    preset.lineaMicraBrewTargetDeciC = 0xa5a5;
-  }
-  PersistedSettingsV14 legacy;
-  memcpy(legacy.bytes, &source,
-         PERSISTED_SETTINGS_V14_SIZE - sizeof(uint32_t));
-  const uint32_t legacyChecksum = persistedSettingsV14Checksum(legacy);
-  memcpy(legacy.bytes + PERSISTED_SETTINGS_V14_SIZE - sizeof(uint32_t),
-         &legacyChecksum, sizeof(legacyChecksum));
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacy,
-                           sizeof(legacy));
+  strcpy(settings.lineaMicra.username, "barista@example.com");
+  strcpy(settings.lineaMicra.password, "correct horse battery staple");
+  memset(settings.lineaMicra.installationPrivateKey, 0x5a,
+         sizeof(settings.lineaMicra.installationPrivateKey));
+  strcpy(settings.lineaMicra.selectedSerial, "MR123456");
+  strcpy(settings.lineaMicra.selectedName, "Kitchen Micra");
+  settings.lineaMicra.accountConfigured = true;
+  setLineaMicraOptions(settings.lineaMicra, true, true, true);
+  strcpy(settings.deviceName, "Cafe Bar 2");
+  settings.presets.presets[0].lineaMicraBrewTargetDeciC = 935;
+  CHECK(savePersistedSettings(settings));
+  CHECK(loadPersistedSettings(settings));
+  CHECK(settings.lineaMicra.options == LINEA_MICRA_DEFAULT_OPTIONS);
+  CHECK(settings.lineaMicra.accountConfigured);
+  CHECK(strcmp(settings.lineaMicra.username, "barista@example.com") == 0);
+  CHECK(strcmp(settings.lineaMicra.selectedSerial, "MR123456") == 0);
+  CHECK(settings.presets.presets[0].lineaMicraBrewTargetDeciC == 935);
+  CHECK(strcmp(settings.deviceName, "Cafe Bar 2") == 0);
 
-  PersistedSettings loaded;
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
-  for (const ShotPreset &preset : loaded.presets.presets) {
-    CHECK(preset.lineaMicraBrewTargetDeciC == 930);
-  }
-  CHECK(!loaded.lineaMicra.accountConfigured);
-  CHECK(loaded.lineaMicra.username[0] == '\0');
-  CHECK(loaded.lineaMicra.options == 0);
+  setLineaMicraOptions(settings.lineaMicra, false, false, false);
+  CHECK(savePersistedSettings(settings));
+  CHECK(loadPersistedSettings(settings));
+  CHECK(settings.lineaMicra.options == 0);
+  disconnectLineaMicra(settings.lineaMicra);
+  CHECK(validLineaMicraSettings(settings.lineaMicra));
+  CHECK(settings.lineaMicra.options == 0);
+  CHECK(resetPersistedNetworkAccess(settings));
+  CHECK(strcmp(settings.deviceName, "Cafe Bar 2") == 0);
 
-  strcpy(loaded.lineaMicra.username, "barista@example.com");
-  strcpy(loaded.lineaMicra.password, "correct horse battery staple");
-  memset(loaded.lineaMicra.installationPrivateKey, 0x5a,
-         sizeof(loaded.lineaMicra.installationPrivateKey));
-  strcpy(loaded.lineaMicra.selectedSerial, "MR123456");
-  strcpy(loaded.lineaMicra.selectedName, "Kitchen Micra");
-  loaded.lineaMicra.accountConfigured = true;
-  setLineaMicraOptions(loaded.lineaMicra, true, true);
-  loaded.presets.presets[0].lineaMicraBrewTargetDeciC = 935;
-  CHECK(validLineaMicraSettings(loaded.lineaMicra));
-  CHECK(savePersistedSettings(loaded));
-  loaded = {};
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.presets.presets[0].lineaMicraBrewTargetDeciC == 935);
-  CHECK(loaded.lineaMicra.accountConfigured);
-  CHECK(strcmp(loaded.lineaMicra.username, "barista@example.com") == 0);
-  CHECK(strcmp(loaded.lineaMicra.selectedSerial, "MR123456") == 0);
-  CHECK(strcmp(loaded.lineaMicra.selectedName, "Kitchen Micra") == 0);
-  CHECK(loaded.lineaMicra.options == 3);
-
-  PersistedSettingsV15 v15;
-  memcpy(v15.bytes, &loaded, offsetof(PersistedSettings, lineaMicra));
-  PersistedSettingsHeader v15Header = {PERSISTED_SETTINGS_MAGIC, 15,
-                                      PERSISTED_SETTINGS_V15_SIZE,
-                                      loaded.storageRevision};
-  memcpy(v15.bytes, &v15Header, sizeof(v15Header));
-  memset(v15.bytes + offsetof(PersistedSettings, lineaMicra), 'T', 96);
-  v15.bytes[offsetof(PersistedSettings, lineaMicra) + 96] =
-      LINEA_MICRA_APPLY_TEMPERATURE | LINEA_MICRA_OBSERVE_STATE;
-  const uint32_t v15Checksum = persistedSettingsV15Checksum(v15);
-  memcpy(v15.bytes + PERSISTED_SETTINGS_V15_SIZE - sizeof(v15Checksum),
-         &v15Checksum, sizeof(v15Checksum));
-  PersistedSettings migrated;
-  CHECK(migratePersistedSettingsFromV15(v15, migrated));
-  CHECK(!migrated.lineaMicra.accountConfigured);
-  CHECK(migrated.lineaMicra.username[0] == '\0');
-  CHECK(!lineaMicraPrivateKeyConfigured(migrated.lineaMicra));
-  CHECK(migrated.lineaMicra.options == 3);
-  CHECK(migrated.presets.presets[0].lineaMicraBrewTargetDeciC == 935);
-
-  disconnectLineaMicra(loaded.lineaMicra);
-  CHECK(validLineaMicraSettings(loaded.lineaMicra));
-  CHECK(!loaded.lineaMicra.accountConfigured);
-  CHECK(loaded.lineaMicra.password[0] == '\0');
-  CHECK(loaded.lineaMicra.selectedSerial[0] == '\0');
-  CHECK(!lineaMicraPrivateKeyConfigured(loaded.lineaMicra));
-  CHECK(loaded.lineaMicra.options == 3);
-
-  ShotPresetBank bank = loaded.presets;
+  ShotPresetBank bank = settings.presets;
   CHECK(setShotPresetLineaMicraBrewTarget(bank, bank.activeId, 947));
   uint8_t duplicateId = 0;
   CHECK(duplicateShotPreset(bank, bank.activeId, duplicateId));
@@ -2370,20 +2106,10 @@ void p84_v14_v15_migration_and_v16_micra_cloud_round_trip() {
   CHECK(createUntitledShotPreset(bank, createdId));
   CHECK(findShotPreset(bank, createdId)->lineaMicraBrewTargetDeciC == 930);
   CHECK(!setShotPresetLineaMicraBrewTarget(bank, createdId, 799));
-  CHECK(restoreFactoryShotPresetValues(bank, FACTORY_PRESET_ID_DOUBLE));
-  CHECK(findShotPreset(bank, FACTORY_PRESET_ID_DOUBLE)
-            ->lineaMicraBrewTargetDeciC == 930);
-
-  legacy.bytes[0] ^= 1;
-  PersistedSettings rejected;
-  CHECK(!migratePersistedSettingsFromV14(legacy, rejected));
-  v15.bytes[0] ^= 1;
-  CHECK(!migratePersistedSettingsFromV15(v15, rejected));
-  CHECK(resetPersistedSettingsToFactory(loaded));
-  CHECK(!loaded.lineaMicra.accountConfigured);
-  CHECK(loaded.lineaMicra.username[0] == '\0');
-  CHECK(loaded.lineaMicra.options == 0);
-  CHECK(loaded.presets.presets[0].lineaMicraBrewTargetDeciC == 930);
+  CHECK(resetPersistedSettingsToFactory(settings));
+  CHECK(settings.lineaMicra.options == LINEA_MICRA_DEFAULT_OPTIONS);
+  CHECK(strcmp(settings.deviceName, DEFAULT_DEVICE_NAME) == 0);
+  CHECK(settings.presets.presets[0].lineaMicraBrewTargetDeciC == 930);
 }
 
 struct TestCase {
@@ -2392,15 +2118,10 @@ struct TestCase {
 };
 
 const TestCase tests[] = {
-    {"P84", p84_v14_v15_migration_and_v16_micra_cloud_round_trip},
-    {"P83", p83_v14_device_name_default_migration_and_keep_on_forget},
-    {"P81", p81_v12_clears_allow_rinse_while_armed_bit},
+    {"P85", p85_schema1_is_strict_and_micra_defaults_round_trip},
     {"P82", p82_ble_scan_backoff_boost_migration_and_roundtrip},
     {"P80", p80_boot_id_remains_dirty_until_durable},
-    {"P79", p79_webhook_preset_changes_migrates_dirty_v11_padding},
-    {"P78", p78_power_management_migration_and_global_scope},
     {"P01", p01_defaults_are_valid},
-    {"P75", p75_idle_tare_legacy_padding_and_saved_off},
     {"P02", p02_newest_valid_slot_is_loaded},
     {"P02B", p02b_save_uses_ram_revision_when_slots_unreadable},
     {"P02C", p02c_overlay_live_runtime_is_saved_not_stale_blob},
@@ -2417,10 +2138,7 @@ const TestCase tests[] = {
     {"P10", p10_auto_to_manual_guard_trend_and_validation},
     {"P12", p12_shot_log_persists_compact_blob},
     {"P47", p47_rejects_non_current_schema_blob},
-    {"P47B", p47b_migrates_v1_blob_wifi_sleep_defaults_off},
-    {"P47E", p47e_migrates_v2_blob_with_bullseye_disabled},
     {"P47F", p47f_bullseye_melody_persists_as_fixed_record},
-    {"P47G", p47g_migrates_v3_with_webhooks_disabled},
     {"P47H", p47h_webhook_url_validation_is_http_only},
     {"P47C", p47c_desired_wifi_power_save_policy},
     {"P47D", p47d_durable_flash_write_gate},

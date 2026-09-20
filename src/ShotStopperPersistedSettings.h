@@ -48,10 +48,9 @@ struct PersistedSettings {
   char preferredScaleName[PREFERRED_SCALE_NAME_CAPACITY] = {};
   ScaleHistoryEntry scaleHistory[SCALE_HISTORY_CAPACITY] = {};
   WebhookConfig webhook = {};
-  // V14: mDNS device name. Must stay immediately before checksum so V6–V13
-  // blobs remain a layout-compatible prefix (see ShotStopperSettingsMigrate.h).
+  // mDNS device name.
   char deviceName[DEVICE_NAME_CAPACITY] = {};
-  // V16: optional Micra cloud account, selected machine and independent options.
+  // Optional Micra cloud account, selected machine and independent options.
   LineaMicraPersistedSettings lineaMicra = {};
   uint32_t checksum = 0;
 };

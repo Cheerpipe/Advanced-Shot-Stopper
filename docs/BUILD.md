@@ -331,15 +331,18 @@ initial OTA metadata and application without invoking a build. `--no-check`
 only skips local identity verification. An external `--image` still replaces
 app0 only on a readable installed layout.
 
-### Partition-layout migrations
+### Clean-install cutovers
 
-An installed 20 KiB NVS layout, or a current layout without the dedicated
+The current settings contract restarts at schema 1 and deliberately does not
+migrate any earlier settings blob. Install this firmware with `--erase-all`
+even when the partition table already matches. An installed 20 KiB NVS layout,
+or a current layout without the dedicated
 56 KiB `shotcurve` partition or the 32 KiB `shotlog` and `history` partitions,
 needs a one-time clean USB installation. A normal flash refuses an incompatible
 layout. **The following erases both firmware
 slots and all saved data:** settings, Wi-Fi credentials and password, recipes
 and presets, calibration, scale preferences, shot history and last shot. There
-is no automatic curve migration; the new half-second curve schema starts empty.
+is no automatic settings or curve migration; both start from factory defaults.
 
 ```sh
 ./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \

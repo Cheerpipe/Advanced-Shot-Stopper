@@ -331,9 +331,10 @@ if (generated.icon48Gzip.length > 3500) {
 // 104800 bytes; the other-type card icon (with the per-icon fill attribute
 // hoisted into shared CSS and shortened shot viewBoxes as offsets) raises
 // it to 104900 bytes. The profile-gated Linea Micra cloud surface includes
-// account connection, machine selection, and read-only diagnostics.
-if (generated.combined > 107100) {
-  throw new Error(`Combined Web UI gzip exceeds the 107100-byte flash budget (${generated.combined})`);
+// account connection, machine selection, read-only diagnostics, and one
+// default-on wake-gesture option.
+if (generated.combined > 107200) {
+  throw new Error(`Combined Web UI gzip exceeds the 107200-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

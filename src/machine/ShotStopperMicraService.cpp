@@ -322,13 +322,17 @@ void ShotStopperMicraService::publishConfig(
         strcmp(config_.selectedSerial, settings.selectedSerial) != 0;
     config_ = settings;
     configGeneration_ = configGeneration;
-    if (identityChanged) published_ = {};
+    if (identityChanged) {
+      published_ = {};
+      powerState_.reset();
+    }
     published_.configGeneration = configGeneration;
     published_.accountConfigured = settings.accountConfigured;
     if (!configChanged) return;
     wipeLineaMicraSettings(candidate_);
     discovery_ = {};
     if (!settings.accountConfigured) {
+      powerState_.reset();
       wipeLineaMicraSettings(pending_.credentials);
       pending_.present = false;
       published_.phase = LineaMicraPhase::Disabled;
@@ -339,6 +343,9 @@ void ShotStopperMicraService::publishConfig(
       published_.phase = LineaMicraPhase::IDLE;
       published_.quality = LineaMicraObservationQuality::STALE;
       nextAutomaticAtMs_ = millis();
+    }
+    if ((settings.options & LINEA_MICRA_OBSERVE_STATE) == 0) {
+      powerState_.reset();
     }
   }
   if (!settings.accountConfigured ||
@@ -459,10 +466,26 @@ void ShotStopperMicraService::clearDiscovery() {
 LineaMicraStatus ShotStopperMicraService::status() const {
   TaskLockGuard lock(mux_);
   LineaMicraStatus result = published_;
+  const uint32_t now = millis();
+  const bool observing = config_.accountConfigured &&
+                         (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0;
+  result = powerState_.effectiveStatus(result, observing, now);
   result.staConnected = staConnected_.load(std::memory_order_acquire);
   result.apActive = apActive_.load(std::memory_order_acquire);
   result.shotPaused = shotActive_.load(std::memory_order_acquire);
   return result;
+}
+
+MachinePhysicalStartDisposition ShotStopperMicraService::physicalStart() {
+  TaskLockGuard lock(mux_);
+  const uint32_t now = millis();
+  const bool observing = config_.accountConfigured &&
+                         (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0;
+  return powerState_.notePhysicalStart(
+             published_, observing,
+             (config_.options & LINEA_MICRA_RECOGNIZE_WAKE) != 0, now)
+             ? MachinePhysicalStartDisposition::WAKE_PASSTHROUGH
+             : MachinePhysicalStartDisposition::NORMAL;
 }
 
 LineaMicraDiscoverySnapshot ShotStopperMicraService::discovery() const {
@@ -583,7 +606,11 @@ void ShotStopperMicraService::execute(PendingRequest &pending) {
 }
 
 bool ShotStopperMicraService::executeConnect(PendingRequest &pending) {
-  LineaMicraStatus status = this->status();
+  LineaMicraStatus status;
+  {
+    TaskLockGuard lock(mux_);
+    status = published_;
+  }
   status.requestId = pending.request.requestId;
   status.phase = LineaMicraPhase::AUTHENTICATING;
   status.error = LineaMicraError::NONE;
@@ -636,11 +663,14 @@ bool ShotStopperMicraService::executeConnect(PendingRequest &pending) {
 
 bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
   LineaMicraPersistedSettings settings;
+  LineaMicraStatus status;
+  uint32_t powerGeneration = 0;
   {
     TaskLockGuard lock(mux_);
     settings = config_;
+    status = published_;
+    powerGeneration = powerState_.generation();
   }
-  LineaMicraStatus status = this->status();
   status.requestId = pending.request.requestId;
   status.phase = LineaMicraPhase::RUNNING;
   status.error = LineaMicraError::NONE;
@@ -713,7 +743,7 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
                        ? LineaMicraObservationQuality::UNSUPPORTED
                        : LineaMicraObservationQuality::CURRENT;
   status.sampleAtMs = millis();
-  publish(status);
+  publishObservation(status, powerGeneration);
   scheduleAutomatic(status.sampleAtMs, false);
   return true;
 }
@@ -721,6 +751,21 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
 void ShotStopperMicraService::publish(const LineaMicraStatus &status) {
   TaskLockGuard lock(mux_);
   published_ = status;
+  published_.accountConfigured = config_.accountConfigured;
+}
+
+void ShotStopperMicraService::publishObservation(
+    const LineaMicraStatus &status, uint32_t powerGeneration) {
+  TaskLockGuard lock(mux_);
+  LineaMicraStatus next = status;
+  if (!powerState_.acceptAuthoritative(powerGeneration)) {
+    next.sampleAtMs = published_.sampleAtMs;
+    next.powerState = published_.powerState;
+    next.observedMode = published_.observedMode;
+    next.quality = published_.quality;
+    next.effectiveOn = published_.effectiveOn;
+  }
+  published_ = next;
   published_.accountConfigured = config_.accountConfigured;
 }
 

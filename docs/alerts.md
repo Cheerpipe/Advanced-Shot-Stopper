@@ -22,6 +22,10 @@ stop**: those two cues always play on the local buzzer at the machine circuit re
 edge (close = start, open = stop), including auto, manual, and rinse.
 They never wait for Bluetooth or for the scale timer to start or stop.
 
+A recognized Linea Micra standby wake is relay-only and intentionally silent:
+it does not play shot start/stop, missing-scale, or missing-cup cues. See
+[Linea Micra](settings/linea-micra.md#recognize-paddle-wake-gestures).
+
 If the local tare cue is sounding or waiting when the machine circuit starts,
 the shot-start cue cuts it off and plays immediately. A sound that the scale
 itself has already started as command feedback cannot be recalled over

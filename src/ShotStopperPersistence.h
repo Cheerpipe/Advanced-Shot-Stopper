@@ -5,7 +5,6 @@
 #include "ShotStopperPersistedNetwork.h"
 #include "ShotStopperPersistedSettings.h"
 #include "ShotStopperPreferences.h"
-#include "ShotStopperSettingsMigrate.h"
 
 #include <stdint.h>
 
@@ -18,6 +17,14 @@
 #endif
 
 namespace shotstopper {
+
+inline void ensurePersistedPresetBank(PersistedSettings &settings) {
+  if (settings.presets.count == 0) {
+    migrateRecipeFromRuntimeToBank(settings.runtime, settings.presets);
+  }
+  ensureShotPresetBank(settings.presets, settings.runtime.retareWindowMs,
+                       settings.runtime.autoRetare);
+}
 
 inline bool validPersistedSettings(const PersistedSettings &settings) {
   if (settings.magic != PERSISTED_SETTINGS_MAGIC ||
@@ -70,176 +77,17 @@ inline PersistedSettings &persistedSettingsScratch(uint8_t index) {
   return slots[index & 1U];
 }
 
-// Legacy migration runs during setup() on the 8 KiB Arduino loop task.
-// Legacy blobs stage in this temporary internal allocation — taken only
-// while a legacy V1–V14 blob is actually being read (boot migration or a
-// post-boot probe while a legacy blob is still stored) and released by the
-// callers of readSettingsSlot once the read path finishes. It keeps the
-// record off the NVS call chain without permanently reserving scratch.
-inline uint8_t *&persistedSettingsMigrationBlock() {
-  static uint8_t *block = nullptr;
-  return block;
-}
-
-inline uint8_t *persistedSettingsMigrationScratch() {
-  uint8_t *&block = persistedSettingsMigrationBlock();
-  if (block == nullptr) {
-    block = static_cast<uint8_t *>(
-        allocInternal(sizeof(PersistedSettingsV15), AllocationOwner::FLASH_IO));
-  }
-  return block;
-}
-
-inline void releasePersistedSettingsMigrationScratch() {
-  heapCapsFree(persistedSettingsMigrationBlock());
-  persistedSettingsMigrationBlock() = nullptr;
-}
-
-// A null staging block (allocation failure) reads the legacy blob as
-// invalid, failing the migration closed.
-inline PersistedSettingsV4 *persistedSettingsV4MigrationScratch() {
-  return reinterpret_cast<PersistedSettingsV4 *>(
-      persistedSettingsMigrationScratch());
-}
-inline PersistedSettingsV3 *persistedSettingsV3MigrationScratch() {
-  return reinterpret_cast<PersistedSettingsV3 *>(
-      persistedSettingsMigrationScratch());
-}
-inline PersistedSettingsV2 *persistedSettingsV2MigrationScratch() {
-  return reinterpret_cast<PersistedSettingsV2 *>(
-      persistedSettingsMigrationScratch());
-}
-inline PersistedSettingsV1 *persistedSettingsV1MigrationScratch() {
-  return reinterpret_cast<PersistedSettingsV1 *>(
-      persistedSettingsMigrationScratch());
-}
-// V6–V13 blobs share the 2,616-byte legacy layout. Reading them into this
-// scratch avoids stacking the record on the NVS call chain of the 8 KiB
-// loop task; migrations write the current-size result into `settings`.
-inline PersistedSettingsV13 *persistedSettingsV13MigrationScratch() {
-  return reinterpret_cast<PersistedSettingsV13 *>(
-      persistedSettingsMigrationScratch());
-}
-inline PersistedSettingsV14 *persistedSettingsV14MigrationScratch() {
-  return reinterpret_cast<PersistedSettingsV14 *>(
-      persistedSettingsMigrationScratch());
-}
-inline PersistedSettingsV15 *persistedSettingsV15MigrationScratch() {
-  return reinterpret_cast<PersistedSettingsV15 *>(
-      persistedSettingsMigrationScratch());
-}
-
 inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *key,
                              PersistedSettings &settings) {
-  if (!preferences.isKey(key)) {
+  if (!preferences.isKey(key) ||
+      preferences.getBytesLength(key) != sizeof(PersistedSettings)) {
     return false;
   }
-  const size_t storedLength = preferences.getBytesLength(key);
-  // Staging may contain old data; each path requires a complete read/copy
-  // before inspecting it. Default initialization would be overwritten.
-  if (storedLength == sizeof(PersistedSettingsV4)) {
-    PersistedSettingsV4 *legacy = persistedSettingsV4MigrationScratch();
-    if (legacy == nullptr ||
-        preferences.getBytes(key, legacy, sizeof(*legacy)) != sizeof(*legacy)) {
-      return false;
-    }
-    if (legacy->schemaVersion == 4) {
-      return migratePersistedSettingsFromV4(*legacy, settings) &&
-             validPersistedSettings(settings);
-    }
-    if (legacy->schemaVersion == 5) {
-      return migratePersistedSettingsFromV5(*legacy, settings) &&
-             validPersistedSettings(settings);
-    }
+  if (preferences.getBytes(key, &settings, sizeof(settings)) !=
+      sizeof(settings)) {
+    return false;
   }
-  if (storedLength == sizeof(PersistedSettingsV3)) {
-    PersistedSettingsV3 *legacy = persistedSettingsV3MigrationScratch();
-    if (legacy == nullptr ||
-        preferences.getBytes(key, legacy, sizeof(*legacy)) != sizeof(*legacy)) {
-      return false;
-    }
-    return migratePersistedSettingsFromV3(*legacy, settings) &&
-           validPersistedSettings(settings);
-  }
-  if (storedLength == sizeof(PersistedSettings)) {
-    if (preferences.getBytes(key, &settings, sizeof(settings)) !=
-        sizeof(settings)) {
-      return false;
-    }
-    return validPersistedSettings(settings);
-  }
-  if (storedLength == PERSISTED_SETTINGS_V15_SIZE) {
-    PersistedSettingsV15 *legacy = persistedSettingsV15MigrationScratch();
-    if (legacy == nullptr ||
-        preferences.getBytes(key, legacy, sizeof(*legacy)) != sizeof(*legacy)) {
-      return false;
-    }
-    return migratePersistedSettingsFromV15(*legacy, settings) &&
-           validPersistedSettings(settings);
-  }
-  if (storedLength == PERSISTED_SETTINGS_V14_SIZE) {
-    PersistedSettingsV14 *legacy = persistedSettingsV14MigrationScratch();
-    if (legacy == nullptr ||
-        preferences.getBytes(key, legacy, sizeof(*legacy)) != sizeof(*legacy)) {
-      return false;
-    }
-    return migratePersistedSettingsFromV14(*legacy, settings) &&
-           validPersistedSettings(settings);
-  }
-  if (storedLength == PERSISTED_SETTINGS_V13_SIZE) {
-    PersistedSettingsV13 *legacy = persistedSettingsV13MigrationScratch();
-    if (legacy == nullptr ||
-        preferences.getBytes(key, legacy, sizeof(*legacy)) != sizeof(*legacy)) {
-      return false;
-    }
-    bool migrated = false;
-    switch (legacy->schemaVersion) {
-      case 6:
-        migrated = migratePersistedSettingsFromV6(*legacy, settings);
-        break;
-      case 7:
-        migrated = migratePersistedSettingsFromV7(*legacy, settings);
-        break;
-      case 8:
-        migrated = migratePersistedSettingsFromV8(*legacy, settings);
-        break;
-      case 9:
-        migrated = migratePersistedSettingsFromV9(*legacy, settings);
-        break;
-      case 10:
-        migrated = migratePersistedSettingsFromV10(*legacy, settings);
-        break;
-      case 11:
-        migrated = migratePersistedSettingsFromV11(*legacy, settings);
-        break;
-      case 12:
-        migrated = migratePersistedSettingsFromV12(*legacy, settings);
-        break;
-      case 13:
-        migrated = migratePersistedSettingsFromV13(*legacy, settings);
-        break;
-      default:
-        return false;
-    }
-    return migrated && validPersistedSettings(settings);
-  }
-  if (storedLength == sizeof(PersistedSettingsV2)) {
-    PersistedSettingsV2 *legacy = persistedSettingsV2MigrationScratch();
-    if (legacy == nullptr ||
-        preferences.getBytes(key, legacy, sizeof(*legacy)) != sizeof(*legacy)) {
-      return false;
-    }
-    if (legacy->schemaVersion == 2) {
-      return migratePersistedSettingsFromV2(*legacy, settings) &&
-             validPersistedSettings(settings);
-    }
-    if (legacy->schemaVersion == 1) {
-      return migratePersistedSettingsFromV1(
-                 *reinterpret_cast<PersistedSettingsV1 *>(legacy), settings) &&
-             validPersistedSettings(settings);
-    }
-  }
-  return false;
+  return validPersistedSettings(settings);
 }
 
 inline bool lockSettingsNvs() { return lockFlashIo(); }
@@ -264,7 +112,6 @@ inline bool loadPersistedSettings(PersistedSettings &settings) {
   bool firstValid = readSettingsSlot(preferences, SETTINGS_SLOT_A, first);
   bool secondValid = readSettingsSlot(preferences, SETTINGS_SLOT_B, second);
   preferences.end();
-  releasePersistedSettingsMigrationScratch();
 
   const DualSlotChoice choice = chooseNewerRevision(
       firstValid, first.storageRevision, secondValid, second.storageRevision);
@@ -347,7 +194,6 @@ inline bool savePersistedSettings(PersistedSettings &settings) {
       }
       probe.end();
     }
-    releasePersistedSettingsMigrationScratch();
     if (haveRevision) {
       candidate.storageRevision = revision;
     }
@@ -419,7 +265,6 @@ inline bool resetPersistedSettingsToFactory(PersistedSettings &settings) {
       durableStorageRevision() > existingMax) {
     existingMax = durableStorageRevision();
   }
-  releasePersistedSettingsMigrationScratch();
   if (existingMax > UINT32_MAX - 2U) {
     existingMax = UINT32_MAX - 2U;
   }

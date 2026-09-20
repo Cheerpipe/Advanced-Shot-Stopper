@@ -42,7 +42,7 @@ heap. The earlier 96→104 KiB raise covers the V3 half-second shot-curve store.
 |---|---|
 | Network work buffer | external, at most 68 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex, and a one-curve JSON scratch serves the status and shots-list rows |
 | Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 68 KiB total bound |
-| Shared flash-I/O scratch | internal heap, 5,920 bytes (2× the 2,960-byte PersistedSettings) plus a transient V15 legacy-migration staging block while an older blob is being read; one owner at a time under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the scratch |
+| Shared flash-I/O scratch | internal heap, 5,920 bytes (2× the 2,960-byte PersistedSettings); one owner at a time under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the scratch |
 | Micra cloud workspace | external and lazy; exactly 4,120 bytes of bounded session/token state while cloud observation is active, plus one request-scoped 16 KiB buffer whose mutually exclusive request-body and response phases share storage; Disconnect, disabled observation, STA loss, and AP entry destroy the client and free both blocks |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
@@ -56,18 +56,17 @@ heap. The earlier 96→104 KiB raise covers the V3 half-second shot-curve store.
 
 Network command builders must activate their union member with
 `setNetworkType()` before writing credentials. Preset metadata remains outside
-the union because a preset operation also carries configuration. Settings V16
-grows the persisted blob to 2,960 bytes for the bounded Micra cloud account and
-selected machine; explicit migration preserves non-secret Micra options and
-preset temperatures while discarding the obsolete BLE credential/binding.
+the union because a preset operation also carries configuration. Settings
+schema 1 uses a 2,960-byte blob for the bounded Micra cloud account and selected
+machine. Earlier settings schemas are rejected and require `--erase-all`.
 
 History V5 retains an exact bounded preset-name snapshot and transfers through
 the shared chunked flash-I/O path. The separate last-shot V4 record retains the
-same provenance. The rendered English Web UI is capped at 69,000 bytes HTML,
+same provenance. The rendered English Web UI is capped at 69,100 bytes HTML,
 193,300 bytes JavaScript, and 262,300 bytes combined authoring source. Compressed
-limits are 36,900 bytes for runtime JavaScript and 107,100 bytes for all embedded
-Web assets; the Micra cloud build measures 68,849 / 193,086 authoring bytes and
-36,794 / 107,030 compressed bytes respectively.
+limits are 36,900 bytes for runtime JavaScript and 107,200 bytes for all embedded
+Web assets; the Micra cloud build measures 69,031 / 193,226 authoring bytes and
+36,865 / 107,166 compressed bytes respectively.
 
 Every new setting must include concise, natural help that explains its effect on
 the barista's workflow, including what changes when an option is enabled or

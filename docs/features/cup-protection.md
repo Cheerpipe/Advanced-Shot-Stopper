@@ -19,6 +19,10 @@ A cup-start refusal holds the relay open for that attempt. Release the physical
 activator, correct the cup/scale condition, then activate again. A blocked
 held button is not forwarded halfway through the hold.
 
+On Linea Micra, a recognized standby wake gesture is not a brew attempt, so
+**Require cup to start** does not block it or emit a missing-cup alert. See
+[Linea Micra](../settings/linea-micra.md#recognize-paddle-wake-gestures).
+
 A detected cup that was tared to 0 g remains **present** and passes **Require
 cup to start**, including after idle tare and with shot-start tare disabled.
 The guard uses cup presence, not a positive-weight threshold. An empty pan at

@@ -13,11 +13,15 @@ constexpr size_t LINEA_MICRA_NAME_CAPACITY = 49;
 constexpr size_t LINEA_MICRA_PRIVATE_KEY_BYTES = 32;
 constexpr uint8_t LINEA_MICRA_APPLY_TEMPERATURE = 1U << 0;
 constexpr uint8_t LINEA_MICRA_OBSERVE_STATE = 1U << 1;
+constexpr uint8_t LINEA_MICRA_RECOGNIZE_WAKE = 1U << 2;
+constexpr uint8_t LINEA_MICRA_DEFAULT_OPTIONS =
+    LINEA_MICRA_APPLY_TEMPERATURE | LINEA_MICRA_OBSERVE_STATE |
+    LINEA_MICRA_RECOGNIZE_WAKE;
 constexpr uint16_t LINEA_MICRA_BREW_TARGET_MIN_DECI_C = 800;
 constexpr uint16_t LINEA_MICRA_BREW_TARGET_MAX_DECI_C = 1000;
 constexpr uint16_t LINEA_MICRA_BREW_TARGET_DEFAULT_DECI_C = 930;
 
-// V16 cloud account record. Access and refresh tokens are deliberately absent:
+// Cloud account record. Access and refresh tokens are deliberately absent:
 // they are short-lived worker state and are never written to flash.
 struct LineaMicraPersistedSettings {
   char username[LINEA_MICRA_USERNAME_CAPACITY] = {};
@@ -25,7 +29,7 @@ struct LineaMicraPersistedSettings {
   uint8_t installationPrivateKey[LINEA_MICRA_PRIVATE_KEY_BYTES] = {};
   char selectedSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
   char selectedName[LINEA_MICRA_NAME_CAPACITY] = {};
-  uint8_t options = 0;
+  uint8_t options = LINEA_MICRA_DEFAULT_OPTIONS;
   bool accountConfigured = false;
 };
 
@@ -66,7 +70,7 @@ inline bool validLineaMicraSerial(const char *serial) {
 inline bool validLineaMicraSettings(
     const LineaMicraPersistedSettings &settings) {
   if ((settings.options &
-       ~(LINEA_MICRA_APPLY_TEMPERATURE | LINEA_MICRA_OBSERVE_STATE)) != 0) {
+       ~LINEA_MICRA_DEFAULT_OPTIONS) != 0) {
     return false;
   }
   if (!settings.accountConfigured) {
@@ -99,14 +103,16 @@ inline void disconnectLineaMicra(LineaMicraPersistedSettings &settings) {
 }
 
 inline bool setLineaMicraOptions(LineaMicraPersistedSettings &settings,
-                                 bool applyTemperature, bool observeState) {
+                                 bool applyTemperature, bool observeState,
+                                 bool recognizeWake) {
   settings.options =
       (applyTemperature ? LINEA_MICRA_APPLY_TEMPERATURE : 0U) |
-      (observeState ? LINEA_MICRA_OBSERVE_STATE : 0U);
+      (observeState ? LINEA_MICRA_OBSERVE_STATE : 0U) |
+      (recognizeWake ? LINEA_MICRA_RECOGNIZE_WAKE : 0U);
   return true;
 }
 
 static_assert(sizeof(LineaMicraPersistedSettings) == 310,
-              "V16 Linea Micra cloud settings ABI changed");
+              "Linea Micra cloud settings ABI changed");
 
 }  // namespace shotstopper

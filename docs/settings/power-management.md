@@ -29,7 +29,7 @@ how much energy the controller uses, in this order:
   long as it lasts. **OFF** (factory default) never boosts.
 
 The **Power policy** enables a global, persistent energy
-policy. It defaults **on**, including after migration and factory reset, and
+policy. It defaults **on** on a clean install and after factory reset, and
 does not belong to a shot preset. Save it while the machine is stopped; the
 existing Admin unlock and configuration revision checks apply.
 Admin confirms the applied revision and selected value, then waits for the

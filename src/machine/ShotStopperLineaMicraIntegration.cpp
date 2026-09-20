@@ -27,6 +27,10 @@ void serviceMachineIntegrationAbort() { service.serviceAbort(); }
 
 uint8_t machineIntegrationTaskCount() { return 1; }
 
+MachinePhysicalStartDisposition machineIntegrationPhysicalStart() {
+  return service.physicalStart();
+}
+
 bool queueMachineIntegrationConnect(uint32_t requestId, const char *username,
                                     const char *password) {
   return service.queueConnect(requestId, username, password);
