@@ -340,7 +340,6 @@ void refreshControlStatus() {
 }
 
 void serviceControlStatusPublish() {
-  publishControlGate();
   const RelaySafetySnapshot relaySnap = getRelaySafetySnapshot();
   const bool requested =
       __atomic_load_n(&controlStatusPublishRequested, __ATOMIC_ACQUIRE);

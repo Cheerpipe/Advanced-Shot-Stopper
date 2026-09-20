@@ -25,6 +25,14 @@ subscribed nor part of control. Stack values are configured bytes in ESP-IDF.
 | micra_cloud | event-driven | n/a | n/a | idle | 10000 ms per HTTPS request | 8192 | 0 | no |
 | serial_log | event-driven | n/a | n/a | idle | unbounded USB sink | 3072 | 0 | no |
 
+The control task keeps safety, machine sampling and actuation, brew guards,
+scale-event drains, maintenance cancellation, Web commands, power transitions,
+alerts, the compact remote-control gate, and watchdog service on every
+activation. Administrative polling for the serial CLI, persistence completion,
+diagnostic weight-stream state, the full Web status snapshot, and the scale
+status LED runs at boot and then every 10 ms. This cadence does not change the
+1 ms active control period or its 10 ms service deadline.
+
 The 10 ms service deadline does not apply while `scale_worker` is executing an
 explicit connection/discovery operation whose bounded step is listed above;
 those paths are separately bounded by the 5 s TWDT. HIL qualification must

@@ -528,7 +528,8 @@ if (!bleLibrary.includes('params.filter_duplicates = 0') ||
       'Native GAP scan must retain duplicate reports, UUID matching and ONLY address filtering');
 }
 if (!firmware.includes('scaleWorkerTickDelayMs()') ||
-    !firmware.includes('controlLoopTickDelayMs()') ||
+    !firmware.includes('controlLoopTickDelayMs(loopScaleLink)') ||
+    !firmware.includes('controlHousekeepingDue(loopStartedAtMs)') ||
     !firmware.includes('SCALE_WORKER_NO_SCALE_DELAY_MS') ||
     !firmware.includes('SCALE_STREAM_GAP_MS') ||
     !firmwareCore.includes('void refreshControlStatus()') ||

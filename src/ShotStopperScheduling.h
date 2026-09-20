@@ -12,6 +12,7 @@ namespace shotstopper {
 // coherent ControlStatus snapshot.
 constexpr uint32_t CONTROL_SERVICE_DEADLINE_MS = 10;
 constexpr uint32_t SCALE_SERVICE_DEADLINE_MS = 10;
+constexpr uint32_t CONTROL_HOUSEKEEPING_INTERVAL_MS = 10;
 constexpr uint32_t CONTROL_EXECUTION_BUDGET_US = 9000;
 constexpr uint32_t SCALE_EXECUTION_BUDGET_US = 9000;
 // The 1 ms loops feed the 5 s Task Watchdog at this cadence instead of every
@@ -66,6 +67,8 @@ constexpr size_t TASK_SCHEDULE_CONTRACT_COUNT =
 
 static_assert(CONTROL_SERVICE_DEADLINE_MS < 200,
               "control deadline must precede health warning threshold");
+static_assert(CONTROL_HOUSEKEEPING_INTERVAL_MS <= CONTROL_SERVICE_DEADLINE_MS,
+              "control housekeeping must fit the control deadline");
 static_assert(SCALE_SERVICE_DEADLINE_MS < 250,
               "scale deadline must precede stale-link detection");
 static_assert(CONTROL_EXECUTION_BUDGET_US <

@@ -539,6 +539,15 @@ void serviceHealthThresholdAlerts(uint32_t intervalMaxGapMs) {
   }
 }
 
+bool controlHousekeepingDue(uint32_t now) {
+  if (lastControlHousekeepingAtMs != UINT32_MAX &&
+      now - lastControlHousekeepingAtMs < CONTROL_HOUSEKEEPING_INTERVAL_MS) {
+    return false;
+  }
+  lastControlHousekeepingAtMs = now;
+  return true;
+}
+
 // cppcheck-suppress unusedFunction ; Arduino framework entry point
 void loop() {
   const uint32_t loopStartedAtMs = millis();
@@ -626,24 +635,27 @@ void loop() {
   serviceBullseyeMelody();
   pendingShotFinalizeTask();
   finishLoopPhase(LoopPhase::ALERTS_TIMERS);
-  serviceSerialLogDump();
-  serviceSerialCli();
+  publishControlGate();
   serviceMaintenanceCancellation();
   processWebCommands();
   serviceControlCommandResult();
-  serviceRuntimePersistence(loopScaleLink);
-  serviceShotStorePersistence();
-  servicePreferredScaleMacPersistence();
   serviceMaintenanceLease();
   servicePowerManagement(
       !wakeGestureConsumed &&
       (powerIntention.turnedOn || powerIntention.turnedOff));
   servicePendingResetHistoryClear();
   servicePendingPlannedRestart();
+  if (controlHousekeepingDue(loopStartedAtMs)) {
+    serviceSerialLogDump();
+    serviceSerialCli();
+    serviceRuntimePersistence(loopScaleLink);
+    serviceShotStorePersistence();
+    servicePreferredScaleMacPersistence();
+    serviceWeightStreamTelemetry(loopScaleLink);
+    serviceControlStatusPublish();
+    serviceScaleConnectedLed(loopScaleLink);
+  }
   finishLoopPhase(LoopPhase::COMMANDS_PERSISTENCE);
-  serviceWeightStreamTelemetry(loopScaleLink);
-  serviceControlStatusPublish();
-  serviceScaleConnectedLed(loopScaleLink);
   static uint32_t watchdogFedAtMs = 0;
   if (watchdogFedAtMs == 0 ||
       elapsedMs(watchdogFedAtMs) >= TASK_WATCHDOG_FEED_INTERVAL_MS) {
@@ -664,5 +676,5 @@ void loop() {
   if (executionUs > loopMaxExecutionUs) {
     loopMaxExecutionUs = executionUs;
   }
-  vTaskDelay(pdMS_TO_TICKS(controlLoopTickDelayMs()));
+  vTaskDelay(pdMS_TO_TICKS(controlLoopTickDelayMs(loopScaleLink)));
 }

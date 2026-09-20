@@ -565,6 +565,7 @@ uint32_t pendingBleScanRequestIds[PENDING_BLE_SCAN_REQUEST_CAPACITY] = {};
 uint8_t pendingBleScanRequestIdCount = 0;
 bool bleScanPersistFailLatched = false;
 uint32_t lastLoopAtMs = 0;
+uint32_t lastControlHousekeepingAtMs = UINT32_MAX;
 uint32_t loopMaxGapMs = 0;
 uint32_t loopDeadlineMisses = 0;
 uint32_t loopMaxExecutionUs = 0;
@@ -1566,14 +1567,12 @@ void commitLiveBullseyeConfig(const BullseyeMelodyConfig &config) {
 #endif
 }
 
-
 bool scaleAvailable() {
   return scaleLinkAvailable(getScaleLinkSnapshot());
 }
 
-
-uint32_t controlLoopTickDelayMs() {
-  return scaleAvailable() ? 1 : LOOP_NO_SCALE_DELAY_MS;
+uint32_t controlLoopTickDelayMs(const ScaleLinkSnapshot &link) {
+  return scaleLinkAvailable(link) ? 1 : LOOP_NO_SCALE_DELAY_MS;
 }
 
 bool weightStreamIsLive(WeightStreamState state) {

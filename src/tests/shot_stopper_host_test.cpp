@@ -380,6 +380,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   lastScaleConnectedLedOn = false;
   lastScaleConnectedLedPattern = ScaleConnectedLedPattern::OFF;
   lastScaleConnectedLedToggleAtMs = 0;
+  lastControlHousekeepingAtMs = UINT32_MAX;
 
   scaleCommandQueue =
       xQueueCreate(SCALE_COMMAND_QUEUE_LENGTH, sizeof(ScaleCommand));
@@ -5111,11 +5112,13 @@ void d13_idle_delays_relax_without_scale() {
   CHECK(!scale.isConnected());
   CHECK(!scale.isConnecting());
   CHECK(scaleWorkerTickDelayMs() == SCALE_WORKER_NO_SCALE_DELAY_MS);
-  CHECK(controlLoopTickDelayMs() == LOOP_NO_SCALE_DELAY_MS);
+  CHECK(controlLoopTickDelayMs(getScaleLinkSnapshot()) ==
+        LOOP_NO_SCALE_DELAY_MS);
 
   scale.connecting = true;
   CHECK(scaleWorkerTickDelayMs() == 1);
-  CHECK(controlLoopTickDelayMs() == LOOP_NO_SCALE_DELAY_MS);
+  CHECK(controlLoopTickDelayMs(getScaleLinkSnapshot()) ==
+        LOOP_NO_SCALE_DELAY_MS);
   scale.connecting = false;
 
   ScaleCommand command;
@@ -5128,7 +5131,17 @@ void d13_idle_delays_relax_without_scale() {
   setScaleConnected(true);
   markScaleWorkerProgress();
   CHECK(scaleWorkerTickDelayMs() == 1);
-  CHECK(controlLoopTickDelayMs() == 1);
+  CHECK(controlLoopTickDelayMs(getScaleLinkSnapshot()) == 1);
+}
+
+void d15_control_housekeeping_has_wrap_safe_10ms_cadence() {
+  resetHarness(false, false);
+  CHECK(controlHousekeepingDue(0));
+  CHECK(!controlHousekeepingDue(CONTROL_HOUSEKEEPING_INTERVAL_MS - 1));
+  CHECK(controlHousekeepingDue(CONTROL_HOUSEKEEPING_INTERVAL_MS));
+  lastControlHousekeepingAtMs = UINT32_MAX - 4;
+  CHECK(!controlHousekeepingDue(3));
+  CHECK(controlHousekeepingDue(5));
 }
 
 void d14_control_status_publishes_on_cycle_edge() {
@@ -10958,10 +10971,10 @@ void feedSerial(const char *text) {
   Serial.inject(text);
   size_t guard = 0;
   while (Serial.available() > 0 && guard < 40) {
-    runLoopAfter(0);
+    runLoopAfter(CONTROL_HOUSEKEEPING_INTERVAL_MS);
     ++guard;
   }
-  runLoopAfter(0);
+  runLoopAfter(CONTROL_HOUSEKEEPING_INTERVAL_MS);
 }
 
 bool serialTxContains(const char *text) {
@@ -11138,7 +11151,7 @@ void bc05_ble_scan_intensity_applies_live_without_restart() {
   // The durable write is deferred: the loop's persistence servicer reports
   // the held command as PERSISTED only after the staged flush completes.
   CHECK(hostLastForwardedNetworkCommand.requestId == 0);
-  runLoopAfter(1);
+  runLoopAfter(CONTROL_HOUSEKEEPING_INTERVAL_MS);
   CHECK(hostLastForwardedNetworkCommand.type ==
         WebCommandType::MAINTENANCE_COMPLETE);
   CHECK(hostLastForwardedNetworkCommand.requestId == 1);
@@ -11180,7 +11193,7 @@ void bc06_ble_scan_backoff_applies_live_without_restart() {
   // The durable write is deferred like intensity: PERSISTED only after the
   // staged flush completes.
   CHECK(hostLastForwardedNetworkCommand.requestId == 0);
-  runLoopAfter(1);
+  runLoopAfter(CONTROL_HOUSEKEEPING_INTERVAL_MS);
   CHECK(hostLastForwardedNetworkCommand.requestId == 1);
   CHECK(hostLastForwardedNetworkCommand.resultState ==
         CommandResultState::PERSISTED);
@@ -11220,7 +11233,7 @@ void bc07_ble_scan_relaxed_with_backoff_is_api_valid() {
   copyControlStatus(control);
   CHECK(control.bleScanBoostMin == 10);
   // All three fields share one staged flush.
-  runLoopAfter(1);
+  runLoopAfter(CONTROL_HOUSEKEEPING_INTERVAL_MS);
   CHECK(hostLastForwardedNetworkCommand.requestId == 1);
   CHECK(hostLastForwardedNetworkCommand.resultState ==
         CommandResultState::PERSISTED);
@@ -11242,7 +11255,7 @@ void bc08_ble_scan_superseded_requests_all_report_persisted() {
   processWebCommand(command);
   CHECK(liveBleScanBackoffMin() == 30);
   const uint32_t callsBefore = hostForwardAcceptedNetworkCommandCalls;
-  runLoopAfter(1);
+  runLoopAfter(CONTROL_HOUSEKEEPING_INTERVAL_MS);
   CHECK(hostForwardAcceptedNetworkCommandCalls - callsBefore == 2);
   CHECK(hostLastForwardedNetworkCommand.requestId == 2);
   CHECK(hostLastForwardedNetworkCommand.resultState ==
@@ -15569,6 +15582,7 @@ const TestCase testCases[] = {
     {"W98", w98_buzzer_sequences_start_and_end_with_sound},
     {"D01", d01_idle_scan_stays_enabled_between_ticks},
     {"D13", d13_idle_delays_relax_without_scale},
+    {"D15", d15_control_housekeeping_has_wrap_safe_10ms_cadence},
     {"D14", d14_control_status_publishes_on_cycle_edge},
     {"D02", d02_first_mode_uses_name_scan},
     {"D02b", d02b_only_without_preferred_bootstraps_and_adopts_on_connect},
