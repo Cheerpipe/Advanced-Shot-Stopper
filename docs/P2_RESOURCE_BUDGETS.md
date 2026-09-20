@@ -22,9 +22,9 @@ and the qualified `CONFIG_FREERTOS_IN_IRAM=y` build profile.
 The n16r8 baseline represents the largest reviewed supported profile, currently
 the Linea Micra cloud build. HTTPS server verification adds the ESP certificate
 bundle in flash; it is retained rather than weakening TLS. The development
-profile measures 2,048,448 image bytes and 2,048,335 total bytes, leaving 2,560
-and 2,568 bytes of reviewed growth allowance respectively. Flash rodata is
-502,000 bytes with 10,392 bytes remaining; DIRAM and flash-code keep their
+profile measures 2,052,928 image bytes and 2,052,815 total bytes, leaving 38,640
+and 38,628 bytes of reviewed growth allowance respectively. Flash rodata is
+502,388 bytes with 10,004 bytes remaining; DIRAM and flash-code keep their
 existing allowances. The 3 MiB OTA slot still has more than 1 MiB free.
 
 Both linker maps must also keep external BSS at or below 105 KiB and retain
