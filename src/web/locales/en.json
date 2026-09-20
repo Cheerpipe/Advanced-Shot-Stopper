@@ -849,7 +849,6 @@
     "runtime.unknown_3": " — ",
     "runtime.unknown_4": "Unknown",
     "runtime.unknown_size": "unknown size",
-    "runtime.unknown_treated_as_on": "Unknown is treated as ON for display policy only; it never controls the machine.",
     "runtime.unlock_1_min": "Unlock 1 min",
     "runtime.update_result_unverified_firmware_does_not_expose": "Update result unverified: firmware does not expose the required boot and image identity.",
     "runtime.update_slot": " — update slot ",
