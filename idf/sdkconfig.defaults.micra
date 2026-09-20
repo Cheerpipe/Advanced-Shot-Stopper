@@ -1,7 +1,9 @@
-# The Micra integration keeps its HTTPS client between polls. Route large TLS
-# records through the size-aware allocator and free record payloads when idle.
+# The Micra integration keeps its HTTPS client between polls. Keep every
+# mbedTLS allocation in PSRAM so short-lived certificate/handshake objects do
+# not fragment scarce internal DRAM; dynamic record buffers still free at idle.
 # CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC is not set
-CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC=y
+# CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC is not set
+CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
 CONFIG_MBEDTLS_DYNAMIC_BUFFER=y
 # Reuse the cloud's TLS 1.3 tickets after it closes an HTTP connection.
 CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y

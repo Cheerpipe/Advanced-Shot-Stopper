@@ -58,14 +58,16 @@ feature types and HTTPS cloud client. Future machines may expose entirely
 different feature APIs while retaining only the small lifecycle boundary needed
 by boot, network-state publication, and generic physical-start disposition.
 
-The Micra adapter owns a dedicated low-priority worker and bounded PSRAM response
-workspace. It registers an installation key, signs La Marzocco cloud requests,
-keeps short-lived access and refresh tokens in RAM, lists account machines, and
-reads only the selected serial's dashboard. The network service publishes STA,
-AP, and shot state through the common lifecycle boundary. The worker never
-starts cloud work without STA, cancels it when AP starts or STA is lost, and
-pauses state observations during shots. It has no NimBLE dependency and cannot
-delay scale discovery, scale commands, or weight delivery.
+The Micra adapter owns a dedicated low-priority worker, bounded PSRAM response
+workspace, and a PSRAM-only mbedTLS allocation profile so transient handshakes
+do not fragment internal DRAM. It registers an installation key, signs La
+Marzocco cloud requests, keeps short-lived access and refresh tokens in RAM,
+lists account machines, and reads only the selected serial's dashboard. The
+network service publishes STA, AP, and shot state through the common lifecycle
+boundary. The worker never starts cloud work without STA, cancels it when AP
+starts or STA is lost, and pauses state observations during shots. It has no
+NimBLE dependency and cannot delay scale discovery, scale commands, or weight
+delivery.
 
 The Micra service also owns power-state freshness and optimistic ON lifetime.
 Its adapter exposes only `NORMAL` or `WAKE_PASSTHROUGH`; Shot Stopper owns relay

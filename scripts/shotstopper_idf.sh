@@ -253,7 +253,7 @@ ss_idf_sync_micra_tls() {
   [[ -f "$IDF_SDKCONFIG" ]] || return 0
   local want=0 has=0
   [[ "${SHOTSTOPPER_MACHINE_INTEGRATION:-none}" == "linea_micra_cloud" ]] && want=1
-  grep -q '^CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC=y$' "$IDF_SDKCONFIG" &&
+  grep -q '^CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y$' "$IDF_SDKCONFIG" &&
     grep -q '^CONFIG_MBEDTLS_DYNAMIC_BUFFER=y$' "$IDF_SDKCONFIG" &&
     grep -q '^CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y$' "$IDF_SDKCONFIG" && has=1
   [[ "$want" -eq "$has" ]] && return 0

@@ -42,8 +42,9 @@ heap. The earlier 96→104 KiB raise covers the V3 half-second shot-curve store.
 | Network work buffer | external, at most 68 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex, and a one-curve JSON scratch serves the status and shots-list rows |
 | Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 68 KiB total bound |
 | Shared flash-I/O scratch | internal heap, 2,960 bytes (one PersistedSettings record); slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |
-| USB serial queue payload | internal heap, 2,064 bytes only when USB logging is enabled at boot; the static queue control block stays internal, startup failures free the payload, and successful startup retains one boot-lifetime owner |
+| USB serial output | internal heap, 2,064 bytes for the eight-record ESP log queue; one external 2,560-byte CLI reply buffer; startup failures free both allocations, and successful startup retains one boot-lifetime owner |
 | Micra cloud workspace | external and lazy; exactly 4,120 bytes of bounded session/token state while cloud observation is active, plus one request-scoped 16 KiB buffer whose mutually exclusive request-body and response phases share storage; Disconnect, disabled observation, STA loss, and AP entry destroy the client and free both blocks |
+| Micra/Webhook TLS allocations | external through the Micra profile's mbedTLS allocator; dynamic record, certificate, handshake, and session objects never fragment internal DRAM and are freed through the matching capability allocator |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
 | Settings handoff | one 2,964-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
@@ -92,8 +93,9 @@ successes, failures, largest requested size, and last failed size by owner for
 the application's capability-allocation wrappers. These counters are not live
 allocation counts and do not include allocations made directly by SDK code.
 The retained legacy external-fallback counter stays zero: there is no fallback.
-JSON still allocates individual nodes, but those allocations no longer churn
-the internal heap; an arena would require separate lifetime/concurrency evidence.
+JSON and Micra-profile mbedTLS still allocate individual objects, but those
+allocations no longer churn the internal heap; an arena would require separate
+lifetime/concurrency evidence.
 The Micra worker deletes each bounded cloud document before releasing its
 request buffer, so those temporary PSRAM blocks can coalesce after each poll.
 The compatibility field `jsonArenaExternal=false` means no arena is installed;

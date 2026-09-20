@@ -42,8 +42,9 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | reset-history durable state | existing maintenance lease and NetworkService persistence owner | control holds clear requests until the machine is configuration-safe; NetworkService writes through the shared flash lock, and control publishes completion only after success |
 | shot history, curves, activation history and last-shot aggregate | `ActivationStores` RAM data layer plus the core-0 persistence worker; Network borrows only through mutex-guarded callbacks | `shotStoreMutex` covers RAM operations and immutable image capture only; no flash/network I/O spans it, and Home receives one control-published exact-ID rating/curve snapshot |
 | webhook queue / payload | `WebhookDispatcher` | internal queue storage and external HTTP payload; release after worker join, or startup rollback |
+| Micra-profile TLS state | mbedTLS / owning HTTPS client | certificate, handshake, record, and session allocations use PSRAM only and are released by mbedTLS; no internal fallback |
 | profiler workspace / capture | core-0 health worker via `TaskProfiler` | control/HTTP publish requests only; external processing workspace and separate internal kernel capture are freed on stop or failed start |
-| USB application output | core-0 `serial_log` task | one internal allocation holds the eight-record ESP-log queue and bounded 2.5 KiB CLI reply; ownership transfers without copying or waiting, and saturation never backpressures control |
+| USB application output | core-0 `serial_log` task | the eight-record ESP-log queue stays internal for cache-off logging; the bounded 2.5 KiB CLI reply lives in PSRAM and transfers without copying or waiting |
 | cJSON document | parsing caller | PSRAM allocations through process-wide hooks installed once before BLE workers and HTTP start; `cJSON_Delete` releases each independent document |
 
 `initJsonParser()` installs the cJSON allocator once, before concurrent users

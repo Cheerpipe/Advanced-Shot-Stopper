@@ -844,32 +844,30 @@ bool initializeSerialLogSink() {
     return true;
   }
   constexpr size_t queueBytes = SERIAL_LOG_QUEUE_DEPTH * sizeof(SerialLogLine);
-  constexpr size_t storageBytes = queueBytes + SERIAL_CLI_OUTPUT_CAPACITY;
   serialLogQueueBytes = static_cast<uint8_t *>(
-      allocInternal(storageBytes, AllocationOwner::SERIAL_LOG));
+      allocInternal(queueBytes, AllocationOwner::SERIAL_LOG));
   if (serialLogQueueBytes == nullptr || !esp_ptr_internal(serialLogQueueBytes)) {
     heapCapsFree(serialLogQueueBytes);
     serialLogQueueBytes = nullptr;
     return false;
   }
-  serialCliOutputBytes = serialLogQueueBytes + queueBytes;
   serialLogQueue = xQueueCreateStatic(
       SERIAL_LOG_QUEUE_DEPTH, sizeof(SerialLogLine), serialLogQueueBytes,
       &serialLogQueueStorage);
   if (serialLogQueue == nullptr) {
-    heapCapsFree(serialLogQueueBytes);
-    serialLogQueueBytes = nullptr;
-    serialCliOutputBytes = nullptr;
+    releaseSerialLogStorage();
+    return false;
+  }
+  serialCliOutputBytes = static_cast<uint8_t *>(
+      allocExternal(SERIAL_CLI_OUTPUT_CAPACITY, AllocationOwner::SERIAL_LOG));
+  if (serialCliOutputBytes == nullptr) {
+    releaseSerialLogStorage();
     return false;
   }
   if (xTaskCreatePinnedToCore(serialLogTask, "serial_log", 3072, nullptr,
                              tskIDLE_PRIORITY, &serialLogTaskHandle, 0) !=
       pdPASS) {
-    vQueueDelete(serialLogQueue);
-    serialCliOutputBytes = nullptr;
-    heapCapsFree(serialLogQueueBytes);
-    serialLogQueueBytes = nullptr;
-    serialLogQueue = nullptr;
+    releaseSerialLogStorage();
     serialLogTaskHandle = nullptr;
     return false;
   }

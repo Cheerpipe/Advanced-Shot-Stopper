@@ -243,11 +243,12 @@ if (!idfHelpers.includes('sdkconfig.defaults.micra') ||
     !idfHelpers.includes('ss_idf_sync_micra_tls') ||
     !idfBuildScript.includes('ss_idf_sync_micra_tls') ||
     !sdkconfigMicra.includes('# CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC is not set') ||
-    !sdkconfigMicra.includes('CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC=y') ||
+    !sdkconfigMicra.includes('# CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC is not set') ||
+    !sdkconfigMicra.includes('CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y') ||
     !sdkconfigMicra.includes('CONFIG_MBEDTLS_DYNAMIC_BUFFER=y') ||
     !sdkconfigMicra.includes('CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y')) {
   throw new Error(
-      'Micra-only mbedTLS must use the size-aware allocator, dynamic record buffers, and TLS session tickets');
+      'Micra-only mbedTLS must use PSRAM, dynamic record buffers, and TLS session tickets');
 }
 if (sdkconfigDefaults.includes('CONFIG_FREERTOS_USE_TICKLESS_IDLE=y') ||
     !sdkconfigDefaults.includes('CONFIG_PM_ENABLE=y') ||
@@ -432,23 +433,23 @@ if (!psram.includes('#define SHOT_STOPPER_PSRAM_BSS EXT_RAM_BSS_ATTR') ||
 }
 if (!firmwareCore.includes('uint8_t *serialLogQueueBytes = nullptr') ||
     !firmwareCore.includes(
-      'allocInternal(storageBytes, AllocationOwner::SERIAL_LOG)') ||
+      'allocInternal(queueBytes, AllocationOwner::SERIAL_LOG)') ||
     !firmwareCore.includes('esp_ptr_internal(serialLogQueueBytes)') ||
     !firmwareCore.includes('SERIAL_LOG_QUEUE_DEPTH = 8') ||
     !serialCli.includes('SERIAL_CLI_OUTPUT_CAPACITY = 2560') ||
     !firmwareCore.includes(
-      'queueBytes + SERIAL_CLI_OUTPUT_CAPACITY') ||
-    !firmwareCore.includes(
-      'serialCliOutputBytes = serialLogQueueBytes + queueBytes') ||
+      'allocExternal(SERIAL_CLI_OUTPUT_CAPACITY') ||
+    !firmwareCore.includes('releaseSerialLogStorage()') ||
     !firmwareCore.includes('drainSerialCliOutput()') ||
     !firmwareCore.includes('Print &serialCliOutput()') ||
     !firmwareCore.includes('serialLogQueueTruncated') ||
     !firmwareCore.includes('serialCliOutput().println(message)') ||
-    (firmwareCore.match(/heapCapsFree\(serialLogQueueBytes\)/g) || []).length < 2 ||
+    !firmwareCore.includes('heapCapsFree(serialLogQueueBytes)') ||
+    !firmwareCore.includes('heapCapsFree(serialCliOutputBytes)') ||
     firmwareCore.includes(
       'uint8_t serialLogQueueBytes[SERIAL_LOG_QUEUE_DEPTH * sizeof(SerialLogLine)]')) {
   throw new Error(
-    'USB serial queue payload must be lazy internal heap with complete startup rollback');
+    'USB log queue must stay internal while CLI output uses PSRAM with complete startup rollback');
 }
 if (!flashIoScratch.includes('FlashStoreTransaction') ||
     !flashIoScratch.includes('FLASH_IO_SECTOR_BYTES') ||

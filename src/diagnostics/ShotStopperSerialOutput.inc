@@ -18,6 +18,15 @@ std::atomic<SerialCliOutputState> serialCliOutputState{
 size_t serialCliOutputLength = 0;
 bool serialCliOutputOverflow = false;
 
+void releaseSerialLogStorage() {
+  if (serialLogQueue != nullptr) vQueueDelete(serialLogQueue);
+  serialLogQueue = nullptr;
+  heapCapsFree(serialCliOutputBytes);
+  serialCliOutputBytes = nullptr;
+  heapCapsFree(serialLogQueueBytes);
+  serialLogQueueBytes = nullptr;
+}
+
 class SerialCliQueuePrint : public Print {
  public:
   size_t write(uint8_t value) override {
