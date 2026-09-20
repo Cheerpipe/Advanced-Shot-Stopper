@@ -867,28 +867,30 @@ gate. It never changes relay safety.
 ## Linea Micra power observer and wake qualification
 
 Micra builds run a separate cloud worker when **Monitor machine power state**
-is enabled and an account machine is selected. It queues a dashboard read on a nominal
-15-second cadence over HTTPS. At startup it waits for an eligible STA connection,
-then establishes its cloud session and immediately reads the dashboard to
-initialize the observed state. A current
+is enabled and an account machine is selected. It queues a dashboard read on a
+nominal 30-second cadence over HTTPS. At startup it waits for an eligible STA
+connection, a closed setup AP, no local shot or rinse, and a synchronized wall
+clock, then starts the initial read on the next worker opportunity. A current
 `StandBy` response maps to OFF, `BrewingMode` to ON, and ECO or an unknown value
 to UNKNOWN. Communication errors and samples older than 30 seconds are also
 UNKNOWN; the separate `effectiveOn` presentation policy treats UNKNOWN as ON
 without claiming that ON was measured.
 
 On every physical paddle ON edge, the Micra state owner first evaluates the
-pre-edge effective state. A fresh OFF starts a bounded optimistic ON interval;
-the first authoritative dashboard read initiated after the edge replaces it,
-and a 30-second expiry falls back to UNKNOWN. Reads initiated before the edge
-cannot overwrite that optimism. ON and UNKNOWN edges do not change the tracked
-state.
+pre-edge effective state. A fresh OFF starts a 60-second optimistic ON interval,
+defined as twice the normal poll interval. If the edge also qualifies as a wake
+gesture, the owner delays automatic and requested reads for 15 seconds so cloud
+state can converge. The first authoritative dashboard read initiated after the
+deadline replaces optimism. Reads initiated before the edge cannot overwrite
+that optimism or move the deadline. ON and UNKNOWN edges do not change the
+tracked state.
 
 The observer uses four total attempts with 3/6/9-second waits and bounded
-jitter. Exhaustion starts a 60-second cooldown. It runs only with STA connected
-and the setup AP closed. Local shots and rinses cancel any in-flight read and
-pause further observations; one read becomes due after activity ends without
-bypassing an active cooldown. Scale BLE runs independently and has no shared
-radio arbiter with the cloud worker.
+jitter. After exhaustion, the next observation follows the normal 30-second
+cadence. Missing STA, an open setup AP, an unsynchronized clock, and local shots
+or rinses are readiness gates rather than failed cloud attempts: requested work
+remains pending and starts when the gate clears. Scale BLE runs independently
+and has no shared radio arbiter with the cloud worker.
 
 When wake recognition is enabled, the adapter reduces that pre-edge decision
 to a generic normal/wake disposition. Shot Stopper owns the wake passthrough:

@@ -67,10 +67,30 @@ int main() {
          LineaMicraPowerState::UNKNOWN);
   assert(micra_timing::kMaxAttempts == 4);
   assert(micra_timing::kRetryDelaysMs[0] == 3000);
+  assert(micra_timing::kRetryDelaysMs[1] == 6000);
   assert(micra_timing::kRetryDelaysMs[2] == 9000);
+  assert(micra_timing::kStatePollMs == 30000);
+  assert(micra_timing::kOptimisticOnMs ==
+         2U * micra_timing::kStatePollMs);
+  assert(micra_timing::kPostWakeObservationDelayMs == 15000);
+  assert(micra_timing::kPostWakeObservationDelayMs <
+         micra_timing::kOptimisticOnMs);
   assert(!micra_timing::accessTokenRefreshDue(50U * 60U * 1000U - 1U));
   assert(micra_timing::accessTokenRefreshDue(50U * 60U * 1000U));
   assert(micra_timing::kAccessTokenLifetimeMs == 60U * 60U * 1000U);
+
+  micra_timing::ObservationSchedule schedule;
+  schedule.dueNow(100);
+  assert(schedule.automaticDue(100));
+  schedule.armPostWake(200);
+  assert(!schedule.observationAllowed(15199));
+  schedule.scheduleNext(300);  // A pre-edge completion preserves the deadline.
+  assert(schedule.observationAllowed(15200));
+  assert(schedule.automaticDue(15200));
+  schedule.observationStarted(15200);
+  schedule.scheduleNext(15200);
+  assert(!schedule.automaticDue(45199));
+  assert(schedule.automaticDue(45200));
 
   LineaMicraPowerStateTracker power;
   LineaMicraStatus authoritative;

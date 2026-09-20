@@ -361,6 +361,7 @@ void ShotStopperMicraService::publishConfig(
       ++identityGeneration_;
       published_ = {};
       powerState_.reset();
+      observationSchedule_ = {};
       wipeLineaMicraSettings(pending_.credentials);
       pending_.present = false;
       desiredTemperature_ = {};
@@ -382,12 +383,12 @@ void ShotStopperMicraService::publishConfig(
       published_.phase = LineaMicraPhase::Disabled;
       published_.quality = LineaMicraObservationQuality::UNCONFIGURED;
       published_.temperatureState = LineaMicraTemperatureState::Disabled;
-      nextAutomaticAtMs_ = 0;
+      observationSchedule_ = {};
     } else if (identityChanged ||
                published_.phase == LineaMicraPhase::Disabled) {
       published_.phase = LineaMicraPhase::IDLE;
       published_.quality = LineaMicraObservationQuality::STALE;
-      nextAutomaticAtMs_ = millis();
+      observationSchedule_.dueNow(millis());
     }
     if ((settings.options & LINEA_MICRA_OBSERVE_STATE) == 0) {
       powerState_.reset();
@@ -447,7 +448,7 @@ void ShotStopperMicraService::publishNetworkState(bool staConnected,
       TaskLockGuard lock(mux_);
       if (config_.accountConfigured &&
           (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0) {
-        nextAutomaticAtMs_ = millis();
+        observationSchedule_.dueNow(millis());
       }
       if (desiredTemperature_.present) {
         desiredTemperature_.retryAtMs = millis();
@@ -588,11 +589,13 @@ MachinePhysicalStartDisposition ShotStopperMicraService::physicalStart() {
   const uint32_t now = millis();
   const bool observing = config_.accountConfigured &&
                          (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0;
-  return powerState_.notePhysicalStart(
-             published_, observing,
-             (config_.options & LINEA_MICRA_RECOGNIZE_WAKE) != 0, now)
-             ? MachinePhysicalStartDisposition::WAKE_PASSTHROUGH
-             : MachinePhysicalStartDisposition::NORMAL;
+  if (!powerState_.notePhysicalStart(
+          published_, observing,
+          (config_.options & LINEA_MICRA_RECOGNIZE_WAKE) != 0, now)) {
+    return MachinePhysicalStartDisposition::NORMAL;
+  }
+  observationSchedule_.armPostWake(now);
+  return MachinePhysicalStartDisposition::WAKE_PASSTHROUGH;
 }
 
 LineaMicraDiscoverySnapshot ShotStopperMicraService::discovery() const {
@@ -622,15 +625,24 @@ void ShotStopperMicraService::taskLoop() {
     bool haveTemperature = false;
     uint32_t temperatureMachineConfigGeneration = 0;
     const uint32_t now = millis();
-    const bool staEligible =
-        staConnected_.load(std::memory_order_acquire) &&
-        !apActive_.load(std::memory_order_acquire);
+    LineaMicraError observationGate = LineaMicraError::NONE;
+    const bool networkReady = networkEligible(observationGate);
+    const bool localActivity = shotActive_.load(std::memory_order_acquire);
+    const bool staEligible = staConnected_.load(std::memory_order_acquire) &&
+                             !apActive_.load(std::memory_order_acquire);
     {
       TaskLockGuard lock(mux_);
-      if (pending_.present) {
+      const bool pendingObservation =
+          pending_.present &&
+          pending_.request.type == LineaMicraRequestType::OBSERVE_STATE;
+      const bool observationReady =
+          networkReady && !localActivity &&
+          observationSchedule_.observationAllowed(now);
+      if (pending_.present && (!pendingObservation || observationReady)) {
         pending = pending_;
         wipeLineaMicraSettings(pending_.credentials);
         pending_.present = false;
+        if (pendingObservation) observationSchedule_.observationStarted(now);
         active_ = true;
         haveRequest = true;
       } else if (staEligible && !shotActive_.load(std::memory_order_acquire) &&
@@ -644,14 +656,14 @@ void ShotStopperMicraService::taskLoop() {
         haveRequest = true;
         haveTemperature = true;
         temperatureActive_.store(true, std::memory_order_release);
-      } else if (staEligible && config_.accountConfigured &&
+      } else if (observationReady && config_.accountConfigured &&
                  (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0 &&
-                 !shotActive_.load(std::memory_order_acquire) &&
-                 static_cast<int32_t>(now - nextAutomaticAtMs_) >= 0) {
+                 observationSchedule_.automaticDue(now)) {
         pending.request.requestId = nextAutomaticRequestId_++;
         pending.request.configGeneration = configGeneration_;
         pending.request.type = LineaMicraRequestType::OBSERVE_STATE;
         pending.identityGeneration = identityGeneration_;
+        observationSchedule_.observationStarted(now);
         active_ = true;
         haveRequest = true;
       }
@@ -718,22 +730,23 @@ void ShotStopperMicraService::execute(PendingRequest &pending) {
   status.httpStatus = 0;
   LineaMicraError gateError = LineaMicraError::NONE;
   if (!networkEligible(gateError)) {
+    if (pending.request.type == LineaMicraRequestType::OBSERVE_STATE) {
+      deferObservation(pending, status, gateError);
+      return;
+    }
     fail(status, gateError);
     scheduleAutomatic(millis(), true);
     return;
   }
   if (pending.request.type == LineaMicraRequestType::OBSERVE_STATE &&
       shotActive_.load(std::memory_order_acquire)) {
-    status.phase = LineaMicraPhase::PAUSED;
-    status.shotPaused = true;
-    publish(status);
-    TaskLockGuard lock(mux_);
-    nextAutomaticAtMs_ = millis();
+    deferObservation(pending, status, LineaMicraError::CANCELED);
     return;
   }
   if (!ensureWorkBuffer()) {
     fail(status, LineaMicraError::HTTP_ERROR);
-    scheduleAutomatic(millis(), true);
+    scheduleAutomatic(
+        millis(), pending.request.type == LineaMicraRequestType::CONNECT);
     return;
   }
   work_->transportStatus = 0;
@@ -741,7 +754,7 @@ void ShotStopperMicraService::execute(PendingRequest &pending) {
   const bool connecting = pending.request.type == LineaMicraRequestType::CONNECT;
   const bool success = connecting ? executeConnect(pending)
                                   : executeObservation(pending);
-  if (!success) scheduleAutomatic(millis(), true);
+  if (!success) scheduleAutomatic(millis(), connecting);
   if (connecting) releaseWorkBuffer();
 }
 
@@ -1015,22 +1028,15 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
       return true;
     }
     if (shotActive_.load(std::memory_order_acquire)) {
-      status.phase = LineaMicraPhase::PAUSED;
-      status.shotPaused = true;
-      status.error = LineaMicraError::CANCELED;
-      publish(status);
-      {
-        TaskLockGuard lock(mux_);
-        nextAutomaticAtMs_ = millis();
-      }
       wipeLineaMicraSettings(settings);
+      deferObservation(pending, status, LineaMicraError::CANCELED);
       return true;
     }
     LineaMicraError gateError = LineaMicraError::NONE;
     if (!networkEligible(gateError)) {
       wipeLineaMicraSettings(settings);
-      fail(status, gateError);
-      return false;
+      deferObservation(pending, status, gateError);
+      return true;
     }
     success = ensureSession(settings, false, &sessionRenewed) &&
               ((sessionRenewed && !initialSample) ||
@@ -1043,8 +1049,8 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
     if (shotActive_.load(std::memory_order_acquire)) continue;
     if (!networkEligible(gateError)) {
       wipeLineaMicraSettings(settings);
-      fail(status, gateError);
-      return false;
+      deferObservation(pending, status, gateError);
+      return true;
     }
     if (work_ != nullptr && work_->httpStatus == 401) {
       secureWipe(work_->accessToken, sizeof(work_->accessToken));
@@ -1114,6 +1120,23 @@ void ShotStopperMicraService::publishObservation(
   published_.accountConfigured = config_.accountConfigured;
 }
 
+void ShotStopperMicraService::deferObservation(
+    const PendingRequest &pending, LineaMicraStatus status,
+    LineaMicraError reason) {
+  TaskLockGuard lock(mux_);
+  if (pending.identityGeneration != identityGeneration_) return;
+  if (!pending_.present) pending_ = pending;
+  pending_.present = true;
+  status.phase = reason == LineaMicraError::CANCELED
+                     ? LineaMicraPhase::PAUSED
+                     : LineaMicraPhase::QUEUED;
+  status.error = LineaMicraError::NONE;
+  status.shotPaused = reason == LineaMicraError::CANCELED;
+  preserveTemperatureStatus(published_, status);
+  published_ = status;
+  published_.accountConfigured = config_.accountConfigured;
+}
+
 void ShotStopperMicraService::fail(LineaMicraStatus &status,
                                    LineaMicraError error) {
   const LineaMicraPhase failedStage = status.phase;
@@ -1137,8 +1160,11 @@ void ShotStopperMicraService::fail(LineaMicraStatus &status,
 
 void ShotStopperMicraService::scheduleAutomatic(uint32_t now, bool failed) {
   TaskLockGuard lock(mux_);
-  nextAutomaticAtMs_ = now + (failed ? micra_timing::kExhaustedCooldownMs
-                                    : micra_timing::kStatePollMs);
+  if (failed) {
+    observationSchedule_.dueNow(now + micra_timing::kExhaustedCooldownMs);
+  } else {
+    observationSchedule_.scheduleNext(now);
+  }
 }
 
 bool ShotStopperMicraService::generateInstallationKey(

@@ -4,6 +4,7 @@
 #include "ShotStopperLineaMicraTypes.h"
 #include "ShotStopperMachineIntegration.h"
 #include "ShotStopperMicraPowerState.h"
+#include "ShotStopperMicraTiming.h"
 #include "ShotStopperTaskMutex.h"
 
 #include <atomic>
@@ -85,6 +86,8 @@ class ShotStopperMicraService {
   void publish(const LineaMicraStatus &status);
   void publishObservation(const LineaMicraStatus &status,
                           uint32_t powerGeneration);
+  void deferObservation(const PendingRequest &pending,
+                        LineaMicraStatus status, LineaMicraError reason);
   void fail(LineaMicraStatus &status, LineaMicraError error);
   void scheduleAutomatic(uint32_t now, bool failed);
   bool temperatureRequestCurrent(const LineaMicraRequest &request,
@@ -106,7 +109,7 @@ class ShotStopperMicraService {
   uint32_t configGeneration_ = 0;
   uint32_t identityGeneration_ = 0;
   uint32_t nextAutomaticRequestId_ = 0x80000000UL;
-  uint32_t nextAutomaticAtMs_ = 0;
+  micra_timing::ObservationSchedule observationSchedule_;
   LineaMicraPowerStateTracker powerState_;
   bool active_ = false;
   TaskHandle_t task_ = nullptr;

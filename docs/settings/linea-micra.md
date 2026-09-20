@@ -66,11 +66,11 @@ safety, or local shot control.
 ## Monitor machine power state
 
 Enable **Monitor machine power state** and save. Shot Stopper then queues a
-dashboard read approximately every 15 seconds while STA is connected. It never
-starts an automatic request before STA connects or while setup AP mode is open.
-After startup, the first eligible STA connection makes the initial dashboard
-read due immediately. A shot or rinse cancels an in-flight read and pauses new
-state reads; one becomes due again after local activity ends.
+dashboard read approximately every 30 seconds while STA is connected. It never
+starts an automatic or requested read before STA connects, while setup AP mode
+is open, or before the clock is synchronized. After startup, the first worker
+opportunity following those conditions starts the initial dashboard read. A shot
+or rinse keeps automatic and requested reads pending until local activity ends.
 
 Diagnostics → Machine shows:
 
@@ -82,9 +82,10 @@ Diagnostics → Machine shows:
 
 A confirmed sample is current for 30 seconds. The firmware and browser replace
 an expired ON or OFF display with UNKNOWN. Failures use bounded 3, 6, and 9
-second retry delays; after four failed attempts automatic reads wait at least
-60 seconds. Select **(Refresh)** beside the displayed state to add a read to the
-same bounded queue. It cannot bypass STA, AP, shot, busy, or cooldown rules.
+second retry delays; after four failed attempts the next automatic cycle follows
+the normal 30-second cadence. Select **(Refresh)** beside the displayed state to
+add a read to the same bounded queue. It cannot bypass STA, AP, clock, shot,
+busy, or post-wake timing rules.
 
 UNKNOWN is treated like ON for paddle behavior. It never qualifies a wake
 gesture, so brewing and rinse behavior remain unchanged when a current OFF
@@ -100,9 +101,12 @@ scale, boost BLE discovery, play alerts, call brew webhooks, or add shot/rinse
 history. Returning the paddle to OFF opens the relay and ends the gesture,
 regardless of how long it was held.
 
-The OFF→ON edge immediately publishes an optimistic ON state for at most 30
-seconds. The first successful dashboard read started after that edge replaces
-it with the real state. A failed read does not clear or extend it; expiry becomes
+The OFF→ON edge immediately publishes an optimistic ON state for at most 60
+seconds—twice the normal read interval—and delays the next dashboard read for 15
+seconds so the cloud can converge. **(Refresh)** waits for the same deadline.
+The first successful read started after that delay replaces optimism with the
+real state. A request started before the edge cannot publish stale OFF or change
+the deadline. A failed read does not clear or extend optimism; expiry becomes
 UNKNOWN. Paddle movement while the state is already ON or UNKNOWN does not
 create or extend optimism and follows the normal brew/rinse flow.
 

@@ -4,6 +4,8 @@ const micraStatus = fs.readFileSync(
     path.join(sketchDir, 'network/ShotStopperStatus.inc'), 'utf8');
 const micraService = fs.readFileSync(
     path.join(sketchDir, 'machine/ShotStopperMicraService.cpp'), 'utf8');
+const micraTiming = fs.readFileSync(
+    path.join(sketchDir, 'machine/ShotStopperMicraTiming.h'), 'utf8');
 const micraTypes = fs.readFileSync(
     path.join(sketchDir, 'machine/ShotStopperLineaMicraTypes.h'), 'utf8');
 const machineIntegration = fs.readFileSync(
@@ -43,6 +45,16 @@ if (micraStatusFailures.length) {
 }
 if (!micraService.includes('config.save_client_session = true')) {
   throw new Error('Linea Micra cloud client must save TLS sessions for reuse');
+}
+if (!micraTiming.includes('kStatePollMs = 30000') ||
+    !micraTiming.includes('kOptimisticOnMs = 2U * kStatePollMs') ||
+    !micraTiming.includes('kPostWakeObservationDelayMs = 15000') ||
+    !micraService.includes('const bool networkReady = networkEligible(observationGate)') ||
+    !micraService.includes('pending_.present && (!pendingObservation || observationReady)') ||
+    !micraService.includes('observationSchedule_.armPostWake(now)') ||
+    !micraService.includes('deferObservation(pending, status, gateError)') ||
+    !micraService.includes('scheduleAutomatic(millis(), connecting)')) {
+  throw new Error('Linea Micra observations must wait for readiness and the post-wake convergence deadline');
 }
 if (!micraTypes.includes('APPLY_TEMPERATURE') ||
     !machineIntegration.includes('requestMachineIntegrationPresetTemperature') ||
@@ -137,7 +149,7 @@ if (micraService.includes('keep_alive_enable = true') ||
     !micraService.includes('if (!staConnected || apActive) {') ||
     !micraService.includes('releaseIoBuffer();') ||
     !micraService.includes('const bool staEligible =') ||
-    !micraService.includes('} else if (staEligible && config_.accountConfigured &&') ||
+    !micraService.includes('} else if (observationReady && config_.accountConfigured &&') ||
     !micraService.includes('const bool initialSample = status.sampleAtMs == 0;') ||
     !micraService.includes('(sessionRenewed && !initialSample) ||')) {
   throw new Error('Linea Micra polling must bound transient PSRAM/stack use, release idle sessions, wait for STA, reuse active HTTP sessions, and avoid continuous probes');

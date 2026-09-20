@@ -31,10 +31,11 @@ report active-link and connect/discovery distributions separately.
 
 The optional Micra cloud service owns a low-priority core-0 worker so HTTPS and
 signature work never enters the scale or control deadlines. Its state observer
-is due nominally every 15 seconds, each HTTPS operation has a 10-second timeout,
-and it stops retrying for at least 60 seconds after four failed attempts. AP,
-STA-loss, and shot transitions cancel active I/O. These are admission intervals,
-not a guaranteed cloud detection latency.
+is due nominally every 30 seconds, each HTTPS operation has a 10-second timeout,
+and its four-attempt cycle waits 3, 6, then 9 seconds. After exhaustion the next
+cycle follows the normal 30-second cadence. AP, STA-loss, unsynchronized clock,
+and shot activity gate observations without consuming attempts. These are
+admission intervals, not a guaranteed cloud detection latency.
 
 The scale worker blocks on a task notification with the state-dependent 1 ms
 linked/connecting or 10 ms idle timeout. Commands, policy changes
