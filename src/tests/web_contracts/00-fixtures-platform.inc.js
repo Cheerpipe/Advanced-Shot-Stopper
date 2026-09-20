@@ -225,10 +225,13 @@ if (!bleRuntime.includes('gHostTask = xTaskGetCurrentTaskHandle()') ||
       'NimBLE HEALTH must sample the live host-task stack watermark');
 }
 if (!sdkconfigDefaults.includes('CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768') ||
+    !sdkconfigDefaults.includes('CONFIG_MDNS_TASK_CREATE_FROM_SPIRAM=y') ||
+    !sdkconfigDefaults.includes('CONFIG_MDNS_MEMORY_ALLOC_SPIRAM=y') ||
+    !sdkconfigDefaults.includes('CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y') ||
     !sdkconfigDefaults.includes('xTaskCreate still allocates internal stacks') ||
     sdkconfigDefaults.includes('CONFIG_FREERTOS_PLACE_TASK_STACKS_IN_EXT_RAM=y')) {
   throw new Error(
-      'sdkconfig.defaults must pin SPIRAM_MALLOC_RESERVE_INTERNAL=32768 and keep task stacks internal');
+      'sdkconfig.defaults must place only mDNS runtime memory in PSRAM and keep other task stacks internal');
 }
 if (!idfHelpers.includes('sdkconfig.defaults.micra') ||
     !idfHelpers.includes('ss_idf_sync_micra_tls') ||

@@ -49,7 +49,7 @@ heap. The earlier 96→104 KiB raise covers the V3 half-second shot-curve store.
 | Settings handoff | one 2,964-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
 | Web command | trivially copyable, at most 328 bytes; configuration and network payloads share a discriminated union |
 | Radio settings snapshot | at most 224 bytes; full 2,960-byte settings remain for durable mutations |
-| mDNS responder | NetworkService-owned; one 4096-byte priority-1 task on core 0 plus one persistent UDP socket (lwIP socket budget 8→10); always-on passive responder, never gated for shots/scale/AP/HTTP, freed once in `ShotStopperNetwork::stop()`; SDK heap allocations bypass application counters |
+| mDNS responder | NetworkService-owned; mDNS 1.13.1 places its 4096-byte priority-1 task stack on core 0 and dynamic responder allocations in PSRAM, while static synchronization/control storage stays internal; one persistent UDP socket (lwIP socket budget 8→10); always-on passive responder, never gated for shots/scale/AP/HTTP, freed once in `ShotStopperNetwork::stop()`; SDK heap allocations bypass application counters |
 | Fixed buzzer melodies | at most 8 notes each; custom tune capacity remains 250 notes |
 | JSON parser | PSRAM only; Web input remains at most 2047 bytes / 128 values; the Micra worker explicitly admits at most 16 KiB / 1024 values for bounded cloud responses; nesting remains 32 |
 | BBW adaptive candidates | control-owned fixed RAM, at most 3,000 bytes for eight presets; 20 observations and five trajectory anchors each |

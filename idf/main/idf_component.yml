@@ -8,3 +8,5 @@ dependencies:
     version: "==3.3.11"
   espressif/cjson:
     version: "^1.7.19"
+  espressif/mdns:
+    version: "==1.13.1"

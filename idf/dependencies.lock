@@ -264,15 +264,15 @@ dependencies:
       type: service
     version: 1.2.0
   espressif/mdns:
-    component_hash: 3ba256ac95e07c274be53cbd73f06cb846c403b61e8fbdf1be57bdb79db7a63e
+    component_hash: b679eafd0acae2066e2645bd91d073e33ca5be515e2545cd3c4e55a3e3bce3cb
     dependencies:
     - name: idf
       require: private
       version: '>=5.0'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
-    version: 1.12.0
+    version: 1.13.1
   espressif/network_provisioning:
     component_hash: 72d27784e3daf807418a34fb00be136ec50c6db49d989ce981d22e031fc0e7f8
     dependencies:
@@ -316,6 +316,7 @@ dependencies:
 direct_dependencies:
 - espressif/arduino-esp32
 - espressif/cjson
-manifest_hash: bccd2616627877a3eb1753d4519553924e43866bd3f811382c829956df3f8c26
+- espressif/mdns
+manifest_hash: 4ab748d6b9c923777788f9e38ed4558317b0fd3505aad9349459f8d0f5547185
 target: esp32s3
 version: 3.0.0

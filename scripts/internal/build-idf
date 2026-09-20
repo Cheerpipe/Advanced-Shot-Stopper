@@ -90,6 +90,8 @@ if [[ -f "$IDF_BUILD_DIR/shotstopper_idf_spike.elf" ]] ||
    { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_LWIP_IPV6=y$' "$IDF_SDKCONFIG"; } ||
    { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y$' "$IDF_SDKCONFIG"; } ||
    { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_MDNS_MAX_INTERFACES=2$' "$IDF_SDKCONFIG"; } ||
+   { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_MDNS_TASK_CREATE_FROM_SPIRAM=y$' "$IDF_SDKCONFIG"; } ||
+   { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_MDNS_MEMORY_ALLOC_SPIRAM=y$' "$IDF_SDKCONFIG"; } ||
    { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_LWIP_MAX_SOCKETS=10$' "$IDF_SDKCONFIG"; }; then
   echo "Cleaning stale IDF build tree"
   rm -rf "$IDF_BUILD_DIR"

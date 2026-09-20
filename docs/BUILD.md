@@ -105,8 +105,9 @@ source its `export.sh`. Otherwise they discover `$HOME/esp/esp-idf-v6.1`.
 Every path rejects versions outside 6.1.x.
 
 `idf/main/idf_component.yml` and `idf/dependencies.lock` pin the component
-graph. First firmware builds may need network access to resolve SDK components;
-prepare these dependencies before attempting an offline validation run.
+graph, including mDNS 1.13.1. First firmware builds may need network access to
+resolve SDK components; prepare these dependencies before attempting an offline
+validation run.
 
 ## 4. Validate before installation
 
@@ -233,9 +234,11 @@ The final verifier also rejects drift from the qualified production profile:
 n8r4 uses 8 MB flash, `partitions-n8r4.csv`, and QUAD PSRAM; n16r8 uses 16 MB
 flash, `partitions-n16r8.csv`, and OCT PSRAM. Both require DIO/80 MHz flash,
 80 MHz PSRAM, a 32 KiB internal reserve, 64 KiB MMU pages, rollback support,
-the pinned boot/task/interrupt watchdog and panic settings, and the GPTimer ISR
-handler in IRAM. These checks verify current hardware settings; they do not
-retune clocks, partitions, or watchdog durations.
+the mDNS task stack and dynamic responder allocations in PSRAM, the pinned
+boot/task/interrupt watchdog and panic settings, and the GPTimer ISR handler in
+IRAM. Other application, NimBLE/VHCI, HTTP, persistence, control, and
+flash-writing stacks remain internal. These checks verify current hardware
+settings; they do not retune clocks, partitions, or watchdog durations.
 
 Defaults seed a new `build-idf/<hardware-id>--<machine-id>/sdkconfig`; they do
 not overwrite an existing file. Inspect one current tree with:
