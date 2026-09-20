@@ -36,9 +36,11 @@ strictly greater, preserving at least one spare slot.
 
 Missing tools or dependencies fail profiles that require them with exit 127.
 Tests never bootstrap packages or access hardware/network implicitly. R3 is not
-release-ready while required HIL/manual evidence is pending. Image and memory
-regions are compared by `src/tests/check_firmware_size.js` against the versioned
-budgets in `docs/P2_RESOURCE_BUDGETS.md`.
+release-ready while required HIL/manual evidence is pending. Every firmware
+budget measurement must build with both `--jtag` and `--development`, as defined
+by `docs/P2_RESOURCE_BUDGETS.md`; these options usually produce the largest
+image. Image and memory regions are compared by
+`src/tests/check_firmware_size.js` against those versioned budgets.
 
 The documentation check covers root guides, canonical guides in `docs/`, the BLE
 library README, and the safety README. Local working files in `temp/`,
