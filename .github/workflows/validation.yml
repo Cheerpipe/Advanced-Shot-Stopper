@@ -136,19 +136,16 @@ jobs:
       - run: mkdir -p ci-results/idf
       - run: apt-get update && apt-get install -y --no-install-recommends nodejs npm cppcheck && rm -rf /var/lib/apt/lists/*
       - run: npm ci --no-audit --no-fund
-      - name: Build firmware
+      - name: Build validation firmware
         shell: bash
         run: |
           set -o pipefail
           ./scripts/dev build --hardware ${{ matrix.hardware }} \
             --machine ${{ matrix.machine }} \
             --webui-language en \
-            --flags "-DSHOT_STOPPER_ENABLE_JTAG=0 -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0" \
-            2>&1 | tee ci-results/idf/build.log
-      - name: Name OTA image
-        run: >-
-          cp build-idf/${{ matrix.hardware }}--${{ matrix.machine }}/shotstopper.bin
-          build-idf/${{ matrix.hardware }}--${{ matrix.machine }}/shotstopper-ota-${{ matrix.name }}-jtag-off-remote-off.bin
+            --flags=-DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0 \
+            --jtag --development \
+            2>&1 | tee ci-results/idf/build-validation.log
       - name: Cppcheck
         if: needs.classify.outputs.risk == 'R3'
         shell: bash
@@ -164,11 +161,24 @@ jobs:
       - name: Extra GCC warnings
         if: needs.classify.outputs.risk == 'R3'
         shell: bash
-        run: set -o pipefail; ./scripts/warnings-idf --hardware ${{ matrix.hardware }} --machine ${{ matrix.machine }} 2>&1 | tee ci-results/idf/warnings.log
+        run: set -o pipefail; ./scripts/warnings-idf --hardware ${{ matrix.hardware }} --machine ${{ matrix.machine }} --jtag --development 2>&1 | tee ci-results/idf/warnings.log
       - name: Full scheduled GCC analysis
         if: needs.classify.outputs.risk == 'R3' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         shell: bash
-        run: set -o pipefail; ./scripts/gcc_analyzer --hardware ${{ matrix.hardware }} --machine ${{ matrix.machine }} --flags= 2>&1 | tee ci-results/idf/gcc-analyzer.log
+        run: set -o pipefail; ./scripts/gcc_analyzer --hardware ${{ matrix.hardware }} --machine ${{ matrix.machine }} --flags= --jtag --development 2>&1 | tee ci-results/idf/gcc-analyzer.log
+      - name: Build installable firmware
+        shell: bash
+        run: |
+          set -o pipefail
+          ./scripts/dev build --hardware ${{ matrix.hardware }} \
+            --machine ${{ matrix.machine }} \
+            --webui-language en \
+            --flags "-DSHOT_STOPPER_ENABLE_JTAG=0 -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0" \
+            2>&1 | tee ci-results/idf/build-installable.log
+      - name: Name OTA image
+        run: >-
+          cp build-idf/${{ matrix.hardware }}--${{ matrix.machine }}/shotstopper.bin
+          build-idf/${{ matrix.hardware }}--${{ matrix.machine }}/shotstopper-ota-${{ matrix.name }}-jtag-off-remote-off.bin
       - name: Upload firmware and diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

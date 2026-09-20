@@ -37,6 +37,7 @@ BUILD_PROFILES = (
     ("esp32-s3-relay-x1-speaker", "rancilio-silvia-pro-x"),
     ("esp32-s3-relay-x1-speaker-reed", "rancilio-silvia-pro-x-reed"),
 )
+FIRMWARE_BUDGET_OPTIONS = ["--flags=", "--jtag", "--development"]
 FIRMWARE_STAGES = {"build", "flash", "ota", "monitor"}
 FIRMWARE_PIPELINES = {
     ("build",), ("flash",), ("ota",), ("monitor",),
@@ -502,7 +503,7 @@ def main() -> int:
                     steps.append((f"idf-{hardware}--{machine}", [
                         "./scripts/internal/build-idf", "--hardware", hardware,
                         "--machine", machine, "--webui-language", webui_language,
-                        "--flags="]))
+                        *FIRMWARE_BUDGET_OPTIONS]))
             if risk == "R3":
                 for hardware, machine in BUILD_PROFILES:
                     variant = f"{hardware}--{machine}"
@@ -510,7 +511,8 @@ def main() -> int:
                                 "--arch", "n16r8", "--build-dir", f"build-idf/{variant}"]),
                               (f"warnings-{variant}", ["./scripts/warnings-idf",
                                 "--hardware", hardware, "--machine", machine,
-                                "--webui-language", webui_language, "--flags="])]
+                                "--webui-language", webui_language,
+                                *FIRMWARE_BUDGET_OPTIONS])]
             manual = ["Complete and attach applicable HIL/manual evidence"] if risk == "R3" else []
             return execute(command, risk, steps, verbosity, manual, prelude)
 

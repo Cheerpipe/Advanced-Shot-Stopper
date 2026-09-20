@@ -28,6 +28,8 @@ tests never install packages or contact hardware implicitly.
    behavior in the same change. Link to reference tables rather than copying them.
 6. Run `./scripts/dev validate` on the final changed paths. Consult
    [VALIDATION.md](VALIDATION.md) for required gates and evidence.
+   R2/R3 validation builds every profile with transient development and USB
+   Serial/JTAG options so its size check matches the conservative resource baseline.
    Changes to HTTP route or handler definitions must also run
    `./scripts/dev test web`; its first check verifies that registered routes
    remain below the configured handler limit.

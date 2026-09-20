@@ -22,12 +22,11 @@ and the qualified `CONFIG_FREERTOS_IN_IRAM=y` build profile.
 The n16r8 baseline represents the largest reviewed supported profile, currently
 the Linea Micra cloud build. HTTPS server verification adds the ESP certificate
 bundle in flash; it is retained rather than weakening TLS. The development
-profile measures 2,057,792 image bytes and 2,057,667 total bytes, leaving 38,640
-and 38,628 bytes of reviewed growth allowance respectively. Flash rodata is
-503,204 bytes with 9,188 bytes remaining; flash code is 1,396,284 bytes with
-32,768 bytes remaining, and DIRAM keeps its existing allowance. The 3 MiB OTA
-slot still has more than 1 MiB free. The 2,928-byte image increase funds
-dynamic TLS record ownership so idle Micra sessions return their RX/TX payloads.
+profile with USB Serial/JTAG measures 2,063,520 image bytes and 2,063,403 total
+bytes. The versioned allowances retain 38,640 and 38,628 bytes of reviewed
+growth headroom respectively. Flash rodata is 506,660 bytes, flash code is
+1,398,548 bytes, and linked DIRAM is 169,502 bytes; each retains its versioned
+allowance. The 3 MiB OTA slot still has more than 1 MiB free.
 
 Both linker maps must also keep external BSS at or below 105 KiB and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
@@ -113,8 +112,7 @@ maximum free-block increase. Sampling occurs outside owner locks and outside
 OTA chunk/cache-off work; only the fixed result is copied under the existing
 owner mutex.
 
-The n16r8 Micra development+JTAG candidate measured 169,166 linked DIRAM bytes,
-1,808 bytes below its frozen 170,974-byte task baseline after adding telemetry.
+The n16r8 Micra development+JTAG candidate measured 169,502 linked DIRAM bytes.
 The one-record scratch removes 2,960 bytes from its lazy runtime allocation,
 while the disabled-USB path avoids the 2,064-byte serial payload. Their actual
 free/largest-block effects remain target measurements, not linked-memory claims.

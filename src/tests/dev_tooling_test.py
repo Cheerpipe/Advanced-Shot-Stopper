@@ -432,6 +432,8 @@ for validate_args, environment, expected in (
     assert all(argv.count("--webui-language") == 1 and
                argv[argv.index("--webui-language") + 1] == expected
                for argv in build_steps), build_steps
+    assert all("--jtag" in argv and "--development" in argv
+               for argv in build_steps), build_steps
 
 
 def dispatched(stages: tuple[str, ...], args: list[str], fail: str = "",
@@ -875,6 +877,10 @@ for profile_row in (
 for disabled_flag in ("SHOT_STOPPER_ENABLE_JTAG=0",
                       "SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0"):
     assert disabled_flag in idf_job, f"CI production flag missing: {disabled_flag}"
+validation_build = idf_job.split("- name: Build validation firmware", 1)[1].split(
+    "- name: Cppcheck", 1)[0]
+assert "--jtag" in validation_build and "--development" in validation_build, \
+    "CI resource validation must use the conservative development/JTAG image"
 ota_name = "shotstopper-ota-${{ matrix.name }}-jtag-off-remote-off"
 assert f"name: {ota_name}" in idf_job
 assert (f"build-idf/${{{{ matrix.hardware }}}}--${{{{ matrix.machine }}}}/"
@@ -897,9 +903,10 @@ tidy = idf_job.index("./scripts/static-tidy-idf")
 iwyu = idf_job.index("./scripts/iwyu-idf")
 warnings = idf_job.index("./scripts/warnings-idf")
 gcc_analyzer = idf_job.index("./scripts/gcc_analyzer")
-assert build < cppcheck < tidy < warnings < gcc_analyzer < firmware_upload
+installable_build = idf_job.index("./scripts/dev build", build + 1)
+assert build < cppcheck < tidy < warnings < gcc_analyzer < installable_build < firmware_upload
 assert cppcheck < iwyu < warnings
-assert idf_job.count("set -o pipefail") == 6 and idf_job.count("tee ci-results/idf/") == 6, \
+assert idf_job.count("set -o pipefail") == 7 and idf_job.count("tee ci-results/idf/") == 7, \
     "IDF command logs must be retained without masking failures"
 assert "compile_commands.json" not in idf_job, \
     "compile commands are not a portable standalone artifact"

@@ -472,6 +472,10 @@ Exit the ESP-IDF monitor with **Ctrl+]**.
 Complete validation is selected by [VALIDATION.md](../VALIDATION.md), not by a
 single convenient focused test. `dev` never installs dependencies. Missing
 required tools produce exit code 127 instead of silently skipping work.
+For R2/R3, validation builds every compatible hardware/machine pair with
+`--jtag --development`; this checks the largest supported local image and leaves
+each build directory prepared with those transient options. CI then rebuilds
+the explicitly JTAG-off, non-development artifact before publishing it for OTA.
 
 Advanced static-analysis helpers remain documented in
 [Static analysis](STATIC_ANALYSIS.md); they are not alternative firmware build,
