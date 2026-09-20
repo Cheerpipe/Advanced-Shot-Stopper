@@ -93,6 +93,7 @@ class ShotStopperMicraService {
   bool temperatureRequestCurrent(const LineaMicraRequest &request,
                                  uint32_t machineConfigGeneration) const;
   bool identityCurrent(uint32_t identityGeneration) const;
+  bool observationCurrent(uint32_t identityGeneration) const;
   bool temperatureEligible(LineaMicraError &error) const;
   void deferTemperature(const LineaMicraRequest &request,
                         LineaMicraError error, uint32_t delayMs,
@@ -119,6 +120,7 @@ class ShotStopperMicraService {
   std::atomic<bool> apActive_{false};
   std::atomic<bool> shotActive_{false};
   std::atomic<bool> scaleConnecting_{false};
+  std::atomic<bool> observationActive_{false};
   std::atomic<bool> temperatureActive_{false};
   std::atomic<bool> abortRequested_{false};
   std::atomic<bool> clearSessionRequested_{false};

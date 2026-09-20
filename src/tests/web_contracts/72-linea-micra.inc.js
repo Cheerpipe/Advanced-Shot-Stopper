@@ -53,6 +53,11 @@ if (!micraTiming.includes('kStatePollMs = 30000') ||
     !micraService.includes('pending_.present && (!pendingObservation || observationReady)') ||
     !micraService.includes('observationSchedule_.armPostWake(now)') ||
     !micraService.includes('deferObservation(pending, status, gateError)') ||
+    !micraService.includes('observationActive_.load(std::memory_order_acquire)') ||
+    !micraService.includes('bool ShotStopperMicraService::observationCurrent(') ||
+    !micraService.includes('pending_.request.type == LineaMicraRequestType::OBSERVE_STATE) {') ||
+    !micraService.includes('!config_.accountConfigured ||\n      (config_.options & LINEA_MICRA_OBSERVE_STATE) == 0 ||') ||
+    (micraService.match(/\(config_\.options & LINEA_MICRA_OBSERVE_STATE\) == 0/g) || []).length < 3 ||
     !micraService.includes('scheduleAutomatic(millis(), connecting)')) {
   throw new Error('Linea Micra observations must wait for readiness and the post-wake convergence deadline');
 }
