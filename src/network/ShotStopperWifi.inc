@@ -919,14 +919,13 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       }
     }
     return;
-  }
-
-  if ((status.staState == StaState::CONNECTING ||
+  }    if ((status.staState == StaState::CONNECTING ||
        status.staState == StaState::DISCONNECTED ||
        status.staState == StaState::FAILED) &&
       WiFi.status() == WL_CONNECTED) {
     char address[16] = {};
     formatIp(WiFi.localIP(), address);
+    char previousAddress[16] = {};
     finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::SUCCESS);
     if (!apKeepRequested_) {
       stopSoftApKeepStation();
@@ -946,6 +945,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       dataMux_.lock();
       status_.staState = StaState::CONNECTED;
       status_.networkActive = httpReady;
+      copyCString(previousAddress, sizeof(previousAddress), status_.staIp);
       copyCString(status_.staIp, sizeof(status_.staIp), address);
       status_.staLinkMetricsValid = true;
       status_.staRssi = clampWifiRssi(rssi);
@@ -953,6 +953,10 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       status_.windowRemainingMs = 0;
       copyCString(status_.staBssid, sizeof(status_.staBssid), bssidText);
       dataMux_.unlock();
+      if (callbacks_.reportStationIpChange != nullptr &&
+          strcmp(previousAddress, address) != 0) {
+        callbacks_.reportStationIpChange(address);
+      }
       staRssiSampledAtMs_ = now;
       log(DebugCategory::NETWORK, DebugCode::STA_CONNECTED);
       lifecycleLogf("WiFi STA connected; IP: %s bssid=%s rssi=%ld http=%s",

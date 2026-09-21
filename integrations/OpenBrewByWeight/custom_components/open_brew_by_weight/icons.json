@@ -19,7 +19,8 @@
       "last_shot_preset": {"default": "mdi:tune-variant"},
       "last_good_shot_preset": {"default": "mdi:tune-variant"},
       "controller": {"default": "mdi:chip"},
-      "machine": {"default": "mdi:coffee-maker"}
+      "machine": {"default": "mdi:coffee-maker"},
+      "ip": {"default": "mdi:ip"}
     },
     "select": {"active_preset": {"default": "mdi:tune"}},
     "switch": {

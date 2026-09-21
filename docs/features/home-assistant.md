@@ -60,6 +60,9 @@ integration is reloaded:
   `esp32-s3-relay-x1-speaker`).
 - **Machine**, the espresso machine the controller was built for (for example
   `La Marzocco Linea Micra (la-marzocco-linea-micra)`).
+- **Controller IP**, the controller's current network address. It starts at
+  setup and updates on its own whenever the router assigns a new one, even
+  while Home Assistant shows nothing else changing.
 
 Its remaining entities are:
 

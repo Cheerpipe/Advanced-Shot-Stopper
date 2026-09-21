@@ -181,7 +181,8 @@ enum class WebhookEventType : uint8_t {
   TEST,
   PRESETS_CHANGED,
   QUICK_SETTINGS_CHANGED,
-  CONTROLLER_STARTED
+  CONTROLLER_STARTED,
+  IP_CHANGED
 };
 
 struct WebhookPresetItem {
@@ -213,6 +214,7 @@ struct WebhookEvent {
   WebhookPresetItem presets[8] = {};
   char shotType[16] = {};
   char stopDetail[32] = {};
+  char ipAddress[16] = {};
 };
 
 struct WebhookStatus {

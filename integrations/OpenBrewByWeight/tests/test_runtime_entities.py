@@ -32,6 +32,7 @@ from custom_components.open_brew_by_weight.select import ActivePresetSelect
 from custom_components.open_brew_by_weight.sensor import (
     SHOT_DESCRIPTIONS,
     ControllerSensor,
+    IpSensor,
     MachineSensor,
     ShotStateSensor,
     StoredShotSensor,
@@ -171,6 +172,7 @@ async def test_webhook_ordering_aggregates_and_gap_refresh(hass) -> None:
         await hass.async_block_till_done()
     refresh.assert_awaited_once()
     assert coordinator.data.snapshot.active_preset_id == changed.data["activeId"]
+
     accepted_revision = coordinator.data.presets.revision
     lower = _event(
         "webhook_presets_changed_v1.json", uptimeMs=changed.uptime_ms + 1
@@ -179,6 +181,19 @@ async def test_webhook_ordering_aggregates_and_gap_refresh(hass) -> None:
     lower.data["activeId"] = 1
     await coordinator.async_process_webhook(lower)
     assert coordinator.data.presets.revision == accepted_revision
+
+
+async def test_ip_changed_webhook_updates_snapshot(hass) -> None:
+    """A DHCP change push refreshes the address without any REST call."""
+    coordinator, api, _entry = _coordinator(hass)
+    assert coordinator.data.snapshot.ip == "192.168.1.8"
+    await coordinator.async_process_webhook(_event("webhook_ip_changed_v1.json"))
+    assert coordinator.data.snapshot.ip == "192.168.1.42"
+    api.async_snapshot.assert_not_awaited()
+
+    duplicate = _event("webhook_ip_changed_v1.json")
+    await coordinator.async_process_webhook(duplicate)
+    assert coordinator.data.snapshot.ip == "192.168.1.42"
 
 
 async def test_quick_settings_and_controller_started_webhooks(hass) -> None:
@@ -465,6 +480,10 @@ async def test_entities_and_select(hass) -> None:
     assert machine.unique_id.endswith("_machine")
     assert machine.native_value == "La Marzocco Linea Micra (la-marzocco-linea-micra)"
     assert machine.entity_category is EntityCategory.DIAGNOSTIC
+    ip = IpSensor(coordinator)
+    assert ip.unique_id.endswith("_ip")
+    assert ip.entity_category is EntityCategory.DIAGNOSTIC
+    assert ip.native_value == "192.168.1.8"
     assert len(SHOT_DESCRIPTIONS) == 16
     empty = [StoredShotSensor(coordinator, item) for item in SHOT_DESCRIPTIONS]
     assert all(entity.native_value is None for entity in empty)

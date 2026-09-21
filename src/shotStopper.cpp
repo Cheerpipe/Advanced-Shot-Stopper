@@ -506,6 +506,8 @@ uint32_t hostControllerStartedWebhookCount = 0;
 bool hostControllerStartedWebhookSucceeds = true;
 bool (*hostControllerStartedWebhookBuildGuard)() = nullptr;
 WebhookEvent hostControllerStartedWebhookEvent;
+uint32_t hostIpChangedWebhookCount = 0;
+char hostIpChangedWebhookAddress[16] = {};
 #endif
 bool runtimePersistPending = false;
 bool runtimePersistFailed = false;
@@ -657,6 +659,7 @@ bool beginMaintenanceLease(const WebCommand &networkCommand,
                            bool applyRuntimeOnSuccess);
 void completeMaintenanceLease(const WebCommand &result);
 void rejectWebCommand(const WebCommand &command);
+void reportStationIpChange(const char *ip);
 void holdOrBeginPlannedRestart(const WebCommand &command);
 void servicePendingPlannedRestart();
 void holdOrBeginResetHistoryClear(const WebCommand &command);
@@ -682,6 +685,15 @@ bool enqueueControllerStartedWebhook() {
   return true;
 }
 
+void reportStationIpChange(const char *ip) {
+  if (ip == nullptr || ip[0] == '\0') return;
+  if (controlCriticalForLogging.load(std::memory_order_acquire)) return;
+  WebhookEvent changed =
+      baseWebhookEvent(WebhookEventType::IP_CHANGED, 0, millis());
+  copyCString(changed.ipAddress, sizeof(changed.ipAddress), ip);
+  (void)networkManager.enqueueWebhook(changed);
+}
+
 void syncScaleWorkerNetworkRf(bool scaleLinkOrConnecting,
                               bool scaleConnectingNow,
                               bool huntWindowActive) {
@@ -704,6 +716,14 @@ bool enqueueControllerStartedWebhook() {
   ++hostControllerStartedWebhookCount;
   controllerStartedPending = false;
   return true;
+}
+
+void reportStationIpChange(const char *ip) {
+  if (ip == nullptr || ip[0] == '\0') return;
+  if (controlCriticalForLogging.load(std::memory_order_acquire)) return;
+  ++hostIpChangedWebhookCount;
+  copyCString(hostIpChangedWebhookAddress, sizeof(hostIpChangedWebhookAddress),
+              ip);
 }
 #endif
 

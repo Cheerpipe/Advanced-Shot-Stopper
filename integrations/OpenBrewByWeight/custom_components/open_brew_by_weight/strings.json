@@ -85,7 +85,8 @@
       },
       "last_good_shot_preset": {"name": "Last good shot preset"},
       "controller": {"name": "Controller"},
-      "machine": {"name": "Machine"}
+      "machine": {"name": "Machine"},
+      "ip": {"name": "Controller IP"}
     },
     "select": {
       "active_preset": {"name": "Active preset"}

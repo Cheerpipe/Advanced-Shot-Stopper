@@ -13,6 +13,10 @@ from .const import API_VERSION, REQUIRED_CAPABILITIES, SHOT_TYPES, STOP_DETAILS
 MAX_WEBHOOK_BYTES = 8192
 MAX_PRESETS = 8
 DEVICE_ID = re.compile(r"^[0-9A-F]{2}(?::[0-9A-F]{2}){5}$")
+IPV4 = re.compile(
+    r"^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
+    r"(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}$"
+)
 EVENT_TYPES = {
     "brew_state",
     "first_drop",
@@ -21,6 +25,7 @@ EVENT_TYPES = {
     "presets_changed",
     "quick_settings_changed",
     "controller_started",
+    "ip_changed",
 }
 NO_SCALE_BBW_MODES = ("off", "warn_once", "require_scale")
 DEFAULT_MANUFACTURER = "Cheerpipe"
@@ -64,6 +69,15 @@ def _number(value: Any, field: str) -> float:
 def _optional_string(value: Any, fallback: str, maximum: int) -> str:
     """Accept an optional informational string; fall back when absent."""
     return fallback if value is None else _string(value, "identity field", maximum)
+
+
+def _optional_ip(value: Any) -> str | None:
+    """Accept an optional dotted-quad IPv4 address; None when absent."""
+    if value is None:
+        return None
+    if not isinstance(value, str) or not IPV4.fullmatch(value):
+        raise ProtocolError("ip is invalid")
+    return value
 
 
 def _boolean(value: Any, field: str) -> bool:
@@ -265,6 +279,7 @@ class DeviceSnapshot:
     hardware_profile: str = DEFAULT_HARDWARE_PROFILE
     machine_name: str = DEFAULT_MACHINE_NAME
     machine_profile: str = DEFAULT_MACHINE_PROFILE
+    ip: str | None = None
 
     @classmethod
     def from_dict(cls, value: Any) -> Self:
@@ -320,6 +335,7 @@ class DeviceSnapshot:
             machine_profile=_optional_string(
                 data.get("machineProfile"), DEFAULT_MACHINE_PROFILE, 64
             ),
+            ip=_optional_ip(data.get("ip")),
         )
 
 
@@ -376,6 +392,8 @@ class WebhookEvent:
                 raise ProtocolError("quick settings webhook is incomplete") from err
         if event == "controller_started":
             _integer(data.get("revision"), "revision")
+        if event == "ip_changed":
+            _optional_ip(data.get("ip"))
         return cls(
             event=event,
             device_id=device_id,

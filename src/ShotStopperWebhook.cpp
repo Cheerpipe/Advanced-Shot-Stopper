@@ -31,6 +31,7 @@ const char *eventName(WebhookEventType type) {
     case WebhookEventType::QUICK_SETTINGS_CHANGED:
       return "quick_settings_changed";
     case WebhookEventType::CONTROLLER_STARTED: return "controller_started";
+    case WebhookEventType::IP_CHANGED: return "ip_changed";
   }
   return "unknown";
 }
@@ -398,7 +399,8 @@ bool WebhookDispatcher::enqueue(const WebhookEvent &event) {
   if (event.type == WebhookEventType::END) selected = live.end;
   if (event.type == WebhookEventType::PRESETS_CHANGED ||
       event.type == WebhookEventType::QUICK_SETTINGS_CHANGED ||
-      event.type == WebhookEventType::CONTROLLER_STARTED)
+      event.type == WebhookEventType::CONTROLLER_STARTED ||
+      event.type == WebhookEventType::IP_CHANGED)
     selected = live.presetChanges;
   if (workerState != WorkerState::READY || queue == nullptr ||
       !validWebhookUrl(live.url) ||
@@ -607,6 +609,13 @@ bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,
       if (!append(",\"revision\":%lu",
                   static_cast<unsigned long>(event.presetRevision))) return false;
       break;
+    case WebhookEventType::IP_CHANGED: {
+      char address[sizeof(event.ipAddress) * 6] = {};
+      if (!escapeJsonString(event.ipAddress, address, sizeof(address)))
+        return false;
+      if (!append(",\"ip\":\"%s\"", address)) return false;
+      break;
+    }
   }
   return append("}");
 }

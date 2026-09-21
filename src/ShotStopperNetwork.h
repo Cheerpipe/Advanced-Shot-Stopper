@@ -215,6 +215,10 @@ struct NetworkBridgeCallbacks {
   void (*copyDebugExportExtras)(DebugExportExtras &out,
                                 const ControlStatusSnapshot &control) = nullptr;
   void (*copyTaskProfiler)(TaskProfilerSnapshot &out) = nullptr;
+  // Notify the controller that the STA address was assigned or changed.
+  // Called from the network task with the dotted IP; implementations must be
+  // non-blocking and enqueue-only.
+  void (*reportStationIpChange)(const char *ip) = nullptr;
 };
 
 class ShotStopperNetwork {

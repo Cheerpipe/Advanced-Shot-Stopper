@@ -336,6 +336,17 @@ class OpenBrewByWeightCoordinator(DataUpdateCoordinator[CoordinatorData]):
             if preserve_failure:
                 self.async_set_update_error(UpdateFailed("reconciliation pending"))
             return
+        if event.event == "ip_changed":
+            address = event.data.get("ip")
+            if not isinstance(address, str) or not address:
+                raise ProtocolError("ip is invalid")
+            self._accept_event(key, event)
+            self.async_set_updated_data(
+                replace(data, snapshot=replace(data.snapshot, ip=address))
+            )
+            if preserve_failure:
+                self.async_set_update_error(UpdateFailed("reconciliation pending"))
+            return
         if event.event == "controller_started":
             revision = event.data.get("revision")
             if isinstance(revision, bool) or not isinstance(revision, int):

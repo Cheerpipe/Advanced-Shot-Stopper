@@ -124,6 +124,7 @@ async def async_setup_entry(
             ShotStateSensor(runtime.coordinator),
             ControllerSensor(runtime.coordinator),
             MachineSensor(runtime.coordinator),
+            IpSensor(runtime.coordinator),
             *(
                 StoredShotSensor(runtime.coordinator, description)
                 for description in SHOT_DESCRIPTIONS
@@ -158,6 +159,21 @@ class MachineSensor(OpenBrewByWeightEntity, SensorEntity):
         self._attr_native_value = (
             f"{snapshot.machine_name} ({profile})" if profile else snapshot.machine_name
         )
+
+
+class IpSensor(OpenBrewByWeightEntity, SensorEntity):
+    """Current controller IP; webhook pushes refresh it on DHCP change."""
+
+    _attr_translation_key = "ip"
+    _attr_icon = "mdi:ip"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: OpenBrewByWeightCoordinator) -> None:
+        super().__init__(coordinator, "ip")
+
+    @property
+    def native_value(self) -> StateType:
+        return self.coordinator.data.snapshot.ip
 
 
 class ShotStateSensor(OpenBrewByWeightEntity, SensorEntity):

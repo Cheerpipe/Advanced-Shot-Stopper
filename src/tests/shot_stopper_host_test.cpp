@@ -231,6 +231,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   hostControllerStartedWebhookSucceeds = true;
   hostControllerStartedWebhookBuildGuard = nullptr;
   hostControllerStartedWebhookEvent = WebhookEvent{};
+  hostIpChangedWebhookCount = 0;
+  hostIpChangedWebhookAddress[0] = '\0';
   g_wallClock.reset();
   runtimePersistPending = false;
   runtimePersistFailed = false;
@@ -10495,6 +10497,26 @@ void s21_controller_started_waits_for_durable_boot_id() {
   CHECK(hostControllerStartedWebhookEvent.bootId == copyShotLogBootId());
 }
 
+void s21_ip_change_reports_webhook() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  CHECK(hostIpChangedWebhookCount == 0);
+  reportStationIpChange("192.168.1.42");
+  CHECK(hostIpChangedWebhookCount == 1);
+  CHECK(strcmp(hostIpChangedWebhookAddress, "192.168.1.42") == 0);
+  reportStationIpChange(nullptr);
+  reportStationIpChange("");
+  CHECK(hostIpChangedWebhookCount == 1);
+  // Deferred while the control path is critical; reported once it clears.
+  latchControlCriticalLogging();
+  reportStationIpChange("192.168.1.43");
+  CHECK(hostIpChangedWebhookCount == 1);
+  publishControlCriticalLoggingState();
+  reportStationIpChange("192.168.1.43");
+  CHECK(hostIpChangedWebhookCount == 2);
+  CHECK(strcmp(hostIpChangedWebhookAddress, "192.168.1.43") == 0);
+}
+
 void s03_shot_log_clear_empties_records() {
   resetHarness(false, true);
   shotLog.clear();
@@ -15640,6 +15662,7 @@ const TestCase testCases[] = {
     {"S18", s18_last_shot_keeps_no_scale_guard_from_cycle},
     {"S20", s20_last_good_shot_advances_independently},
     {"S21", s21_controller_started_waits_for_durable_boot_id},
+    {"S21", s21_ip_change_reports_webhook},
     {"S04", s04_shot_log_remove_by_id},
     {"S04c", s04c_delete_shot_record_removes_log_and_curve},
     {"S04d", s04d_delete_shot_record_ok_without_curve},

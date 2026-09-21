@@ -410,6 +410,7 @@ void setup() {
     callbacks.stageBullseyeConfig = stageBullseyeConfig;
     callbacks.copyDebugExportExtras = copyDebugExportExtras;
     callbacks.copyTaskProfiler = copyTaskProfiler;
+    callbacks.reportStationIpChange = reportStationIpChange;
     if (!networkManager.begin(persistedSettings, callbacks)) {
       networkOk = false;
       logEmit(LogLevel::WARNING, DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,

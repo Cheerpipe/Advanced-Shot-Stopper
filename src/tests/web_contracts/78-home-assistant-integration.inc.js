@@ -38,7 +38,7 @@
     'integration_snapshot.json', 'integration_presets.json',
     'webhook_end_v1.json', 'webhook_presets_changed_v1.json',
     'webhook_quick_settings_changed_v1.json',
-    'webhook_controller_started_v1.json',
+    'webhook_controller_started_v1.json', 'webhook_ip_changed_v1.json',
   ]) {
     JSON.parse(fs.readFileSync(path.join(sketchDir, 'tests', 'fixtures', fixture), 'utf8'));
   }

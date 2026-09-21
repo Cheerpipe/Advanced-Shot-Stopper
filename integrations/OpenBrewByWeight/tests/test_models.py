@@ -45,6 +45,13 @@ def test_snapshot_and_presets_contract() -> None:
     assert [item.name for item in presets.items] == ["Double", "Single"]
 
 
+def test_ip_changed_webhook_contract() -> None:
+    """Parse the IP-change webhook envelope and its address."""
+    event = WebhookEvent.from_bytes((FIXTURES / "webhook_ip_changed_v1.json").read_bytes())
+    assert event.event == "ip_changed"
+    assert event.data["ip"] == "192.168.1.42"
+
+
 def test_snapshot_identity_fields_fall_back_when_absent() -> None:
     """Older firmware without identity fields still parses with defaults."""
     payload = load("integration_snapshot.json")

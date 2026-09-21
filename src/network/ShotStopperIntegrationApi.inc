@@ -121,6 +121,8 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
         sizeof(quickSettingsJson));
     const NetworkStatusSnapshot network = self.snapshot();
     char id[18] = {};
+    char currentIp[16] = {};
+    copyCString(currentIp, sizeof(currentIp), network.staIp);
     integrationDeviceId(id);
     char firmware[32] = {};
     sanitizeJsonEmbed(FW_VERSION, firmware, sizeof(firmware));
@@ -131,6 +133,7 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
         "\"model\":\"Open Brew by Weight\",\"firmwareVersion\":\"%s\","
         "\"hardwareProfile\":\"%s\","
         "\"machineName\":\"%s\",\"machineProfile\":\"%s\","
+        "\"ip\":\"%s\","
         "\"capabilities\":[\"webhook_v1\",\"preset_select_v1\","
         "\"quick_settings_v1\",\"restart_v1\",\"stored_shots_v1\"],"
         "\"shotState\":\"%s\",\"bootId\":%lu,\"activePresetId\":%u,"
@@ -140,7 +143,7 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
         id, firmware,
         SHOT_STOPPER_HARDWARE_PROFILE_ID,
         SHOT_STOPPER_MACHINE_BRAND " " SHOT_STOPPER_MACHINE_MODEL,
-        SHOT_STOPPER_MACHINE_PROFILE_ID,
+        SHOT_STOPPER_MACHINE_PROFILE_ID, currentIp,
         control.activeCycle ? "brewing" : "idle",
         static_cast<unsigned long>(control.bootId),
         static_cast<unsigned>(recipe.presets.activeId),
