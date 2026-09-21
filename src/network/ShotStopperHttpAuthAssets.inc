@@ -606,6 +606,9 @@ esp_err_t ShotStopperNetwork::browserIconHandler(httpd_req_t *request) {
                               SHOT_STOPPER_WEB_ICON_48_GZIP,
                               SHOT_STOPPER_WEB_ICON_48_GZIP_LEN);
   }
+  // The /apple-touch-icon* wildcard lands here with the full size-specific
+  // URI (e.g. /apple-touch-icon-167x167-precomposed.png); every variant
+  // serves the same 192px artwork.
   return serveImmutableGzip(request, "image/png",
                             SHOT_STOPPER_WEB_ICON_192_GZIP,
                             SHOT_STOPPER_WEB_ICON_192_GZIP_LEN);

@@ -129,8 +129,7 @@ for (const [route, handler] of expected) {
     const statusPage = uri.match(/^\/api\/v1\/status\/(home|settings|admin|diagnostic)$/);
     const lazyAsset = uri.match(/^\/(partials|js)\//);
     const browserIcon = uri === '/favicon.ico' ||
-        uri === '/apple-touch-icon.png' ||
-        uri === '/apple-touch-icon-precomposed.png';
+        uri.startsWith('/apple-touch-icon');
     const rawLastShotApi = uri === '/api/v1/last-shot/clear';
     if (!(statusPage && ui.includes('function statusUrl(') && ui.includes('/api/v1/status/')) &&
         !(lazyAsset && (ui.includes('/partials/') || ui.includes('/js/'))) &&

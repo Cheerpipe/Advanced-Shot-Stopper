@@ -1122,9 +1122,9 @@ bool ShotStopperNetwork::startHttpServer() {
                       iconHandler) &&
       registerHandler(server_, "/favicon.ico", HTTP_GET,
                       browserIconHandler) &&
-      registerHandler(server_, "/apple-touch-icon.png", HTTP_GET,
-                      browserIconHandler) &&
-      registerHandler(server_, "/apple-touch-icon-precomposed.png", HTTP_GET,
+      // iOS probes size-specific paths like /apple-touch-icon-120x120.png that
+      // ignore the shell's <link> tags; one wildcard covers every variant.
+      registerHandler(server_, "/apple-touch-icon*", HTTP_GET,
                       browserIconHandler) &&
       registerHandler(server_, "/api/v1/ui/claim", HTTP_POST, claimHandler) &&
       registerHandler(server_, "/api/v1/ui/unlock", HTTP_POST, unlockHandler) &&
