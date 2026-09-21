@@ -138,6 +138,11 @@ Named parameters (long and short):
       --development        Build-only development mode (not persisted)
       --jtag               Enable the USB Serial/JTAG console at boot (adds
                            -DSHOT_STOPPER_ENABLE_JTAG=1 to the build flags)
+      --o0|--og|--o2|--os  Firmware optimization level for this build (build
+                           only; exclusive; not persisted). ESP-IDF Kconfig
+                           levels: -O0, -Og, -O2 (default), -Os. The saved
+                           profile keeps -O2 unless a level is passed again.
+                           -O1/-O3 are not ESP-IDF levels and are rejected.
       --yes                Commit OTA without an interactive question
       --wait-for-confirmation
                            Wait for verified boot after OTA commit
@@ -168,6 +173,7 @@ SS_CLI_ERASE_ALL=0
 SS_CLI_DISCARD_OTA_SESSION=0
 SS_CLI_DEVELOPMENT=0
 SS_CLI_JTAG=0
+SS_CLI_OPT_LEVEL=""
 
 ss_cli_die() {
   printf '%s\n' "$1" >&2
@@ -244,6 +250,21 @@ ss_cli_parse() {
         ;;
       --jtag=*)
         printf '%s\n' '--jtag does not take a value.' >&2
+        return 2
+        ;;
+      --o0|--og|--o2|--os)
+        if [[ -n "$SS_CLI_OPT_LEVEL" && "$SS_CLI_OPT_LEVEL" != "$1" ]]; then
+          printf 'Optimization levels are exclusive: %s already selected.\n' \
+            "$SS_CLI_OPT_LEVEL" >&2
+          return 2
+        fi
+        SS_CLI_OPT_LEVEL="$1"
+        shift
+        continue
+        ;;
+      --o1|--o3|--o1=*|--o3=*|--oz|--oz=*|--Ofast|--Ofast=*)
+        printf '%s\n' "$1 is not an ESP-IDF Kconfig optimization level." >&2
+        printf '%s\n' 'Supported: --o0 (-O0), --og (-Og), --o2 (-O2), --os (-Os).' >&2
         return 2
         ;;
       --*=*)
@@ -882,6 +903,10 @@ ss_cli_flags_for() {
     fi
     if [[ "$key" == "jtag" ]]; then
       [[ "$SS_CLI_JTAG" == "1" ]] && SS_CLI_FORWARD+=(--jtag)
+      continue
+    fi
+    if [[ "$key" == "opt_level" ]]; then
+      [[ -n "$SS_CLI_OPT_LEVEL" ]] && SS_CLI_FORWARD+=("$SS_CLI_OPT_LEVEL")
       continue
     fi
     ss_is_set "$key" || continue

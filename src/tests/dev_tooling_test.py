@@ -9,6 +9,7 @@ import csv
 import io
 import runpy
 import shutil
+from tempfile import mkdtemp
 import sys
 import tempfile
 from unittest.mock import patch
@@ -133,6 +134,11 @@ jtag_rejected = run("monitor", "--jtag")
 assert jtag_rejected.returncode == 2 and "does not apply" in jtag_rejected.stderr
 flash_jtag_rejected = run("flash", "monitor", "--jtag")
 assert flash_jtag_rejected.returncode == 2 and "does not apply" in flash_jtag_rejected.stderr
+opt_forwarded = captured_firmware("build", "--os")
+assert opt_forwarded["steps"][0][1][-2:] == ["--", "--os"]
+for level in ("--o0", "--og", "--o2", "--os"):
+    rejected = run("flash", level)
+    assert rejected.returncode == 2 and "does not apply" in rejected.stderr, level
 
 stdin_password = captured_firmware(
     "ota", "--confirm", "--yes", "--password-stdin", stdin="stdin-secret\n")
@@ -295,6 +301,39 @@ jtag_forward = subprocess.run(
      'printf "%s" "${SS_CLI_FORWARD[*]}"', "probe", "--jtag"],
     cwd=ROOT, capture_output=True, text=True)
 assert jtag_forward.returncode == 0 and jtag_forward.stdout == "--jtag"
+
+
+def cli_opt_level(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", "-c",
+         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         'ss_cli_parse "$@" || exit $?; ss_cli_flags_for opt_level; '
+         'printf "%s" "${SS_CLI_FORWARD[*]:-}"', "probe", *args],
+        cwd=ROOT, capture_output=True, text=True)
+
+
+for level in ("--o0", "--og", "--o2", "--os"):
+    forwarded = cli_opt_level(level)
+    assert forwarded.returncode == 0 and forwarded.stdout == level, level
+opt_none = cli_opt_level()
+assert opt_none.returncode == 0 and opt_none.stdout == ""
+opt_exclusive = cli_opt_level("--o2", "--os")
+assert opt_exclusive.returncode == 2 and "exclusive" in opt_exclusive.stderr
+opt_repeat = cli_opt_level("--o2", "--o2")
+assert opt_repeat.returncode == 0 and opt_repeat.stdout == "--o2"
+for level in ("--o1", "--o3", "--o1=1", "--oz", "--Ofast"):
+    rejected = cli_opt_level(level)
+    assert rejected.returncode == 2 and "not an ESP-IDF Kconfig" in rejected.stderr, level
+opt_not_stored = subprocess.run(
+    ["bash", "-c",
+     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+     'ss_cli_parse "$@" || exit $?; ss_cli_save; cat "$SS_CLI_STORE"',
+     "probe", "--os", "--flags=-DCUSTOM=1"],
+    cwd=ROOT, env={**os.environ, "SS_CLI_ROOT": str(Path(mkdtemp()))},
+    capture_output=True, text=True)
+assert opt_not_stored.returncode == 0 and \
+    "opt_level" not in opt_not_stored.stdout and \
+    "--os" not in opt_not_stored.stdout
 with tempfile.TemporaryDirectory(prefix="shotstopper-jtag-store-") as temporary:
     jtag_saved = subprocess.run(
         ["bash", "-c",
@@ -527,6 +566,11 @@ assert [line.split(":", 1)[0] for line in ota_monitor] == [
 assert "--yes --wait-for-confirmation" in ota_monitor[1]
 assert "--jtag" in ota_monitor[0]
 assert "test-only" not in "\n".join(ota_monitor)
+
+build_opt = stubbed_dispatcher(
+    ("build",), [*profile_args, "--webui-language", "EN_us", "--o0"])
+assert build_opt == [] or "--o0" in build_opt[0]
+assert len(build_opt) == 1
 
 stopped = stubbed_dispatcher(
     ("build", "flash"), [*profile_args, "--port", "/dev/null"],

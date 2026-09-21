@@ -222,13 +222,37 @@ Machine type is derived from `interface.control` plus `interface.feedback`; a co
 
 ### Compiler optimization and existing sdkconfig
 
-Supported ESP-IDF firmware builds use `CONFIG_COMPILER_OPTIMIZATION_PERF=y`
+Supported ESP-IDF firmware builds default to `CONFIG_COMPILER_OPTIMIZATION_PERF=y`
 from `idf/sdkconfig.defaults`, which selects GCC `-O2` for both supported
-architectures. After compiling, the build verifier prints
-`sdkconfig: CONFIG_COMPILER_OPTIMIZATION_PERF=y (-O2)` and fails if the
-architecture-specific configuration selects another optimization level.
+architectures. After compiling, the build verifier prints the selected
+optimization level (`sdkconfig: CONFIG_COMPILER_OPTIMIZATION_PERF=y` on
+default builds) and fails if the configuration does not hold it.
 The `Debug` setting in the root `CMakePresets.json` applies only to host tests;
 it does not change firmware optimization.
+
+ESP-IDF offers exactly four optimization levels; `-O1` and `-O3` are not
+selectable and the wrapper rejects them. To compile an experiment at another
+level, pass exactly one of the transient build options; omitting them keeps
+the qualified `-O2` default:
+
+```sh
+./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x --os
+```
+
+| Option | GCC level | Kconfig choice |
+| --- | --- | --- |
+| `--o0` | `-O0` | `CONFIG_COMPILER_OPTIMIZATION_NONE` |
+| `--og` | `-Og` | `CONFIG_COMPILER_OPTIMIZATION_DEBUG` |
+| `--o2` | `-O2` | `CONFIG_COMPILER_OPTIMIZATION_PERF` |
+| `--os` | `-Os` | `CONFIG_COMPILER_OPTIMIZATION_SIZE` |
+
+The options are mutually exclusive, apply to that invocation only, and are
+never persisted. They work through a generated defaults file appended to
+`SDKCONFIG_DEFAULTS`; when an existing sdkconfig holds a different level, the
+build recreates the configuration so the requested level takes effect, which
+discards every other local `menuconfig` choice stored in that file. A later
+build without a level option restores `-O2` the same way.
 
 The final verifier also rejects drift from the qualified production profile:
 n8r4 uses 8 MB flash, `partitions-n8r4.csv`, and QUAD PSRAM; n16r8 uses 16 MB
@@ -258,22 +282,14 @@ rm build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x/sdkconfig
   --machine rancilio-silvia-pro-x
 ```
 
-To preserve other local choices, first load the ESP-IDF environment described
-in section 3, then change only **Compiler options → Optimization Level** to
-**Optimize for performance (-O2)** and rebuild through the project wrapper:
+Use the directory produced by the exact selected pair. Do not add optimization
+flags through `--flags`; the supported optimization contract is the Kconfig
+selection above, which the build verifier checks. The `menuconfig` route for
+the optimization level is gone: the wrapper recreates the configuration
+whenever the level differs from the requested one.
 
-```sh
-idf.py -C idf \
-  -B build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x menuconfig
-./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x
-```
-
-Use the directory produced by the exact selected pair. Do not add `-O2` through
-`--flags`; the supported optimization contract is the
-Kconfig selection above, which the build verifier checks.
-
-Other choices in an existing IDF `sdkconfig` are retained in the same way.
+Other choices in an existing IDF `sdkconfig` are retained in the same way, as
+long as the optimization level does not change.
 Omitting a macro does not always mean its feature is off; explicit flags
 override matching choices. Review Diagnostic build identity and options before
 installation.

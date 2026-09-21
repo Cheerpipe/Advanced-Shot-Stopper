@@ -26,6 +26,13 @@ $(ss_flag_help)
 
 $(shotstopper_arch_help)
 
+Firmware optimization level (build-only, exclusive, not persisted):
+  --o0 -O0 debug without optimization; --og -Og IDF debug default;
+  --o2 -O2 performance (repository default and the qualified profile);
+  --os -Os size. -O1 and -O3 are not ESP-IDF Kconfig levels and are rejected.
+  The level is a Kconfig choice: the build reconfigures when it changes and
+  the verifier checks the selected level. mbedTLS keeps its own level.
+
 Recommended development compile flags (Enter at the prompt):
   $SS_CLI_DEFAULT_FLAGS
 
@@ -61,6 +68,20 @@ printf '%s\n' "$SS_PROFILE_OUTPUT"
 
 shotstopper_resolve_board "$(ss_get arch)"
 ss_idf_source
+
+# Map the exclusive CLI level flags to their ESP-IDF Kconfig choices. Empty
+# keeps the repository default (-O2 / PERF). ss_idf_py_args registers the
+# generated overlay as the last SDKCONFIG_DEFAULTS entry so the chosen level
+# wins over every earlier default file.
+case "${SS_CLI_OPT_LEVEL:-}" in
+  --o0) SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_NONE ;;
+  --og) SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_DEBUG ;;
+  --o2) SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF ;;
+  --os) SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_SIZE ;;
+  *)    SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF ;;
+esac
+export SS_IDF_OPT_LEVEL_KCONFIG
+
 ss_idf_py_args
 
 command -v node >/dev/null 2>&1 || {
@@ -105,6 +126,7 @@ ss_idf_sync_extra_flags
 ss_idf_sync_jtag_console
 ss_idf_sync_nimble_config
 ss_idf_sync_micra_tls
+ss_idf_emit_opt_overlay
 
 if [[ ! -f "$IDF_SDKCONFIG" ]] ||
    ! grep -q '^CONFIG_IDF_TARGET="esp32s3"$' "$IDF_SDKCONFIG"; then
@@ -119,6 +141,13 @@ python3 ./scripts/resolve_build_profiles.py \
   --hardware "$(ss_get hardware_config)" \
   --machine "$(ss_get machine_config)" \
   --flags="$effective_flags" --output-root "$root/build-idf" >/dev/null
+
+# Re-emit the optimization overlay after set-target (fullclean removes
+# generated files from a fresh variant tree), then recreate the configuration
+# when an existing sdkconfig holds a different level.
+ss_idf_emit_opt_overlay
+ss_idf_sync_opt_level
+
 ./scripts/gen_version.sh "$SHOTSTOPPER_ARCH" \
   "$SHOTSTOPPER_HARDWARE_COMPAT" "$SHOTSTOPPER_MACHINE_COMPAT" \
   "$SHOTSTOPPER_GENERATED_DIR/ShotStopperVersion.h"

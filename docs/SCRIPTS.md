@@ -128,6 +128,7 @@ console output.
 | `-f`, `--flags "<flags>"` | `SHOTSTOPPER_FLAGS` | build | Extra compile definitions/options as one shell argument. |
 | `--development` | — | build | Development-mode build for this invocation only. Never persisted. |
 | `--jtag` | — | build | Compile the USB Serial/JTAG console on at boot by adding `-DSHOT_STOPPER_ENABLE_JTAG=1` on top of `--flags`. Never persisted. |
+| `--o0`, `--og`, `--o2`, `--os` | — | build | Firmware optimization level for this build only (`-O0`, `-Og`, `-O2`, `-Os`); mutually exclusive, and the `-O2` default is kept when none is passed. `-O1` and `-O3` are not ESP-IDF levels and are rejected. Switching levels recreates the sdkconfig, discarding other local `menuconfig` choices. Never persisted. |
 | `--webui-language <code>` | `SHOTSTOPPER_WEBUI_LANGUAGE` | build | Compile-time Web UI language; defaults to `en` and is never persisted. |
 | `-p`, `--port <path>` | `SHOTSTOPPER_PORT` | flash, monitor | USB serial device. Validated before use and remembered. |
 | `-s`, `--speed <baud>` | `SHOTSTOPPER_SPEED` | monitor | Monitor baud rate, normally `115200`; remembered. |
