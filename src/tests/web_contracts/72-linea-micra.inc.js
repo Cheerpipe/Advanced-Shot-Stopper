@@ -157,7 +157,7 @@ if (micraService.includes('keep_alive_enable = true') ||
     micraService.includes('esp_http_client_close(work_->client)') ||
     micraService.includes('char authorization[kTokenCapacity + 8]') ||
     (micraService.match(/"Accept",\s*"application\/json"/g) || []).length !== 1 ||
-    (micraService.match(/"User-Agent",\s*\n?\s*"AdvancedShotStopper\/1"/g) || []).length !== 1 ||
+    (micraService.match(/"User-Agent",\s*\n?\s*"OpenBrewByWeight\/1"/g) || []).length !== 1 ||
     !micraService.includes('RequestStateGuard requestState{*this};') ||
     !micraService.includes('~RequestStateGuard() { service.clearRequestState(); }') ||
     !micraService.includes('esp_http_client_delete_header(work_->client, "Authorization")') ||

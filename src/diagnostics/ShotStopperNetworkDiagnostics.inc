@@ -905,7 +905,7 @@ esp_err_t ShotStopperNetwork::logHandler(httpd_req_t *request) {
     if (event.code == DebugCode::LOG_TEXT) {
       copyCString(message, sizeof(message), event.text);
     } else if (event.code == DebugCode::BOOT_BANNER) {
-      snprintf(message, sizeof(message), "Advanced Shot Stopper %s (bootId=%ld)",
+      snprintf(message, sizeof(message), "Open Brew by Weight %s (bootId=%ld)",
                FW_VERSION, static_cast<long>(event.argument1));
     } else if (event.code == DebugCode::STATE_TRANSITION &&
         event.argument1 >=

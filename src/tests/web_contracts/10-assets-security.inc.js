@@ -131,7 +131,7 @@ if (css.includes('.brandLogo') || allHtml.includes('logo.svg') || allHtml.includ
 }
 if (!css.includes('.brand') || !css.includes('inline-flex') ||
     !css.includes('.brandMark') || !shellHtml.includes('class="brandMark"') ||
-    !shellHtml.includes('<svg') || !shellHtml.includes('<small>Advanced</small>Shot Stopper') ||
+    !shellHtml.includes('<svg') ||    !shellHtml.includes('<small>Open</small>Brew by Weight') ||
     shellHtml.includes('logo.svg')) {
   throw new Error('Brand lockup must use inline SVG mark plus HTML wordmark');
 }
@@ -710,7 +710,7 @@ if (ui.includes('authenticatedOnly') ||
     !ui.includes('function knownPath(') ||
     !ui.includes('class="brand"') ||
     !ui.includes('class="brandMark"') ||
-    !ui.includes('<small>Advanced</small>Shot Stopper') ||
+    !ui.includes('<small>Open</small>Brew by Weight') ||
     !ui.includes('href="/" data-route="/"') ||
     !ui.includes("querySelectorAll('a[data-route]')") ||
     !ui.includes('ensureView') ||

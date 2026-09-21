@@ -69,7 +69,7 @@ shotstopper_resolve_board() {
       ;;
     esp32|esp32c3|nanoesp32|"")
       echo "Unsupported architecture: ${arch:-<empty>}." >&2
-      echo "Shot Stopper only supports ESP32-S3 with PSRAM (n8r4 or n16r8)." >&2
+      echo "Open Brew by Weight only supports ESP32-S3 with PSRAM (n8r4 or n16r8)." >&2
       return 2
       ;;
     *)

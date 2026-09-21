@@ -373,7 +373,7 @@ ss_ota_run() {
       [[ "$(ss_ota_field running.arch)" != "$SS_OTA_IMAGE_ARCH" ]] ||
       [[ "$(ss_ota_field running.hardware)" != "$SS_OTA_IMAGE_HARDWARE" ]] ||
       [[ "$(ss_ota_field running.machine)" != "$SS_OTA_IMAGE_MACHINE" ]]; then
-    echo 'The running firmware has no usable Shot Stopper image identity.' >&2
+    echo 'The running firmware has no usable Open Brew by Weight image identity.' >&2
     echo 'Update it once over USB before using OTA.' >&2
     return 1
   fi

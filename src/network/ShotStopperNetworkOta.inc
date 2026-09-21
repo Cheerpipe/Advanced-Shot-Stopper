@@ -579,7 +579,7 @@ const char *otaResultMessage(OtaResult result) {
     case OtaResult::BAD_IMAGE:
       return "This file is not an ESP32-S3 application image.";
     case OtaResult::NO_TAG:
-      return "This image is not a Shot Stopper build.";
+      return "This image is not an Open Brew by Weight build.";
     case OtaResult::NO_IDENTITY:
       return "The running firmware has no complete hardware and machine "
              "identity, so no image can be checked against it. Reflash once "

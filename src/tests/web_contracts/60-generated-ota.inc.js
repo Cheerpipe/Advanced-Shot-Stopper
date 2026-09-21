@@ -887,8 +887,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   // one, and would also accept a foreign image.
   if (!version.includes('FW_IMAGE_TAG_STRING') ||
       !version.includes('FW_BOARD_ARCH_STRING') ||
-      !ota.includes('FW_IMAGE_TAG_STRING')) {
-    throw new Error('Firmware must embed the Shot Stopper OTA image tag');
+      !ota.includes('FW_IMAGE_TAG_STRING')) {      throw new Error('Firmware must embed the Open Brew by Weight OTA image tag');
   }
   // The needle is assembled at run time so a compiled image contains exactly
   // one contiguous copy of the prefix: its own tag, never the search pattern.

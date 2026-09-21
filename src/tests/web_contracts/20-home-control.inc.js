@@ -781,7 +781,7 @@ if (!html.includes('<summary>Switch</summary>') ||
     html.indexOf('id="stopPulseMs"') >
         html.indexOf('<summary>No-scale BBW</summary>') ||
     !html.includes(
-        'How long Shot Stopper holds the machine button when stopping automatically') ||
+        'How long the controller holds the machine button when stopping automatically') ||
     !ui.includes('stopPulseMs:number(') ||
     !ui.includes("if($('stopPulseMs'))$('stopPulseMs').value=") ||
     !ui.includes('Auto-stop pulse') ||

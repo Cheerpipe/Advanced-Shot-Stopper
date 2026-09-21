@@ -127,8 +127,8 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     const int written = snprintf(
         self.workBuf_->statusJson, NetworkWorkBuf::kStatusJson,
         "{\"apiVersion\":1,\"minimumClientApiVersion\":1,"
-        "\"deviceId\":\"%s\",\"manufacturer\":\"Advanced Shot Stopper\","
-        "\"model\":\"Advanced Shot Stopper\",\"firmwareVersion\":\"%s\","
+        "\"deviceId\":\"%s\",\"manufacturer\":\"Open Brew by Weight\","
+        "\"model\":\"Open Brew by Weight\",\"firmwareVersion\":\"%s\","
         "\"capabilities\":[\"webhook_v1\",\"preset_select_v1\","
         "\"quick_settings_v1\",\"restart_v1\",\"stored_shots_v1\"],"
         "\"shotState\":\"%s\",\"bootId\":%lu,\"activePresetId\":%u,"

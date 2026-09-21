@@ -13,7 +13,7 @@ namespace shotstopper {
 // letters, digits, spaces, and hyphens; deviceNameToMdnsHost() derives the
 // RFC 1123 host label announced as <host>.local.
 constexpr size_t DEVICE_NAME_CAPACITY = 33;
-constexpr char DEFAULT_DEVICE_NAME[] = "AdvancedShotStopper";
+constexpr char DEFAULT_DEVICE_NAME[] = "Open Brew by Weight";
 static_assert(sizeof(DEFAULT_DEVICE_NAME) <= DEVICE_NAME_CAPACITY,
               "Default device name must fit its persisted capacity");
 

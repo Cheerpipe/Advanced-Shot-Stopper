@@ -2587,7 +2587,7 @@ void w04_wifi_credentials_have_strict_bounds() {
     const uint8_t mac[6] = {0x3C, 0xDC, 0x75, 0xFC, 0xBF, 0x0D};
     char ssid[WIFI_SSID_CAPACITY] = {};
     CHECK(formatSoftApSsid(ssid, sizeof(ssid), mac));
-    CHECK(strcmp(ssid, "AdvancedShotStopperAP-75fcbf0d") == 0);
+    CHECK(strcmp(ssid, "OpenBrewByWeightAP-75fcbf0d") == 0);
     CHECK(validWifiSsid(ssid));
     CHECK(!formatSoftApSsid(ssid, SOFT_AP_SSID_LENGTH, mac));
   }
@@ -11488,16 +11488,16 @@ void sc15_status_printers_use_dump_views() {
   CHECK(serialTxContains("wifiStatus=3 CONNECTED"));
   CHECK(serialTxContains("staReconnectHeld=true"));
   CHECK(serialTxContains("AP_STATUS"));
-  CHECK(serialTxContains("ssid=AdvancedShotStopperAP"));
+  CHECK(serialTxContains("ssid=OpenBrewByWeightAP"));
   CHECK(serialTxContains("wifiPs=NONE"));
   CHECK(serialTxContains("WEBUI_STATUS"));
   CHECK(serialTxContains("httpActive=true"));
   CHECK(serialTxContains("httpStartHeld=true"));
 
-  strncpy(dump.apSsid, "AdvancedShotStopperAP-75fcbf0d", sizeof(dump.apSsid) - 1);
+  strncpy(dump.apSsid, "OpenBrewByWeightAP-75fcbf0d", sizeof(dump.apSsid) - 1);
   Serial.tx.clear();
   serialCliPrintApStatus(dump);
-  CHECK(serialTxContains("ssid=AdvancedShotStopperAP-75fcbf0d"));
+  CHECK(serialTxContains("ssid=OpenBrewByWeightAP-75fcbf0d"));
 
   SerialCliHealthDump health;
   health.freeHeapBytes = 80000;

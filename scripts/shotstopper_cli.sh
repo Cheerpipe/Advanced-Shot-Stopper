@@ -823,7 +823,7 @@ ss_cli_save() {
   tmp="$(mktemp "$tmp")" || return 0
   chmod 600 "$tmp" 2>/dev/null || true
   {
-    printf '# Values remembered by the Shot Stopper scripts.\n'
+    printf '# Values remembered by the Open Brew by Weight scripts.\n'
     printf '# Local file, ignored by git. Does not store the device password.\n'
     for key in $SS_CLI_KEYS; do
       ss_is_transient "$key" && continue

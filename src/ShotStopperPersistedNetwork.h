@@ -33,10 +33,10 @@ inline bool passwordIsFactoryDefault(const PersistedSettings &settings) {
   return isFactoryDefaultPassword(settings.devicePassword);
 }
 
-constexpr const char *SOFT_AP_SSID_PREFIX = "AdvancedShotStopperAP";
-constexpr size_t SOFT_AP_SSID_LENGTH = 30;
+constexpr const char *SOFT_AP_SSID_PREFIX = "OpenBrewByWeightAP";
+constexpr size_t SOFT_AP_SSID_LENGTH = 27;
 static_assert(SOFT_AP_SSID_LENGTH + 1 <= WIFI_SSID_CAPACITY, "SoftAP SSID fits");
-static_assert(sizeof("AdvancedShotStopperAP-xxxxxxxx") - 1 == SOFT_AP_SSID_LENGTH,
+static_assert(sizeof("OpenBrewByWeightAP-xxxxxxxx") - 1 == SOFT_AP_SSID_LENGTH,
               "SoftAP SSID is prefix plus eight hex digits");
 
 inline bool formatSoftApSsid(char *out, size_t cap, const uint8_t mac[6]) {

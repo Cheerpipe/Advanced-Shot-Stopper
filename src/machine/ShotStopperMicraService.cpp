@@ -1559,7 +1559,7 @@ bool ShotStopperMicraService::request(
     if (esp_http_client_set_header(work_->client, "Accept", "application/json") !=
             ESP_OK ||
         esp_http_client_set_header(work_->client, "User-Agent",
-                                   "AdvancedShotStopper/1") != ESP_OK) {
+                                   "OpenBrewByWeight/1") != ESP_OK) {
       esp_http_client_cleanup(work_->client);
       work_->client = nullptr;
       return false;
