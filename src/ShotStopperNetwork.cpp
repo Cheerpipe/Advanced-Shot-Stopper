@@ -58,7 +58,10 @@ struct NetworkWorkBuf {
   static constexpr size_t kStatusJson = 12288;
   static constexpr size_t kPresetsJson = 2800;
   static constexpr size_t kHistoryJson = 1400;
-  static constexpr size_t kJsonItem = 2048;
+  // 2432 keeps the -Os format-truncation bound of the shots-row builder
+  // (curveJson up to 1280 + fields) under capacity; HistoryPage (1940) and
+  // kOtaJson (1664) stay below it, so the union member sizes are unchanged.
+  static constexpr size_t kJsonItem = 2432;
   // Includes resumable-session identity (transfer id + SHA-256) as well as
   // two image tags. This buffer is in the shared external work area, never
   // used by the flash-writing path.
