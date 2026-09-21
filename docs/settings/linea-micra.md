@@ -147,8 +147,10 @@ cancels the shutdown and nothing happens. The delay also covers an accidental
 power-off: pick the value that gives you comfortable time to notice and turn
 the scale back on.
 
-Turning this option off, disconnecting the account, or losing the cloud
-connection stops any pending shutdown. The saved delay is kept with the
+Turning this option off or disconnecting the account stops any pending
+shutdown. If the controller temporarily cannot reach the La Marzocco cloud
+when the delay ends, the command stays pending and is retried, so the machine
+goes to standby once the connection returns. The saved delay is kept with the
 option so it is restored the next time it is enabled.
 
 ## Brew temperature in presets
