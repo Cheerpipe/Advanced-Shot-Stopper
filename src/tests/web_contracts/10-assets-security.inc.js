@@ -180,9 +180,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // allowance.
 // Profile-gated Linea Micra cloud account selection, per-preset temperature,
 // and read-only machine-state diagnostics add labeled setup help. Wake-gesture
-// recognition adds one default-on machine option.
-if (htmlBytes > 69100) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 69100)`);
+// recognition adds one default-on machine option. Scale-triggered shutdown
+// adds one default-off machine option plus a grace-delay select.
+if (htmlBytes > 69900) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 69900)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -217,11 +218,11 @@ if (htmlBytes > 69100) {
 // combined source allowance.
 // Linea Micra account connection, machine selection, settings, refresh, and
 // browser-side state expiry add the profile-gated cloud workflow.
-if (jsBytes > 193300) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 193300)`);
+if (jsBytes > 194100) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 194100)`);
 }
-if (htmlBytes + jsBytes > 262300) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 262300)`);
+if (htmlBytes + jsBytes > 264200) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 264200)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

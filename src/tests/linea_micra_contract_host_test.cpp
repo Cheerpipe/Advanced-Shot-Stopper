@@ -1,7 +1,8 @@
 #include "machine/ShotStopperLineaMicraSettings.h"
 #include "machine/ShotStopperLineaMicraTypes.h"
-#include "machine/ShotStopperMicraTiming.h"
 #include "machine/ShotStopperMicraPowerState.h"
+#include "machine/ShotStopperMicraScaleShutdown.h"
+#include "machine/ShotStopperMicraTiming.h"
 
 #include <cassert>
 #include <cstring>
@@ -10,6 +11,11 @@ int main() {
   using namespace shotstopper;
   LineaMicraPersistedSettings settings;
   assert(settings.options == LINEA_MICRA_DEFAULT_OPTIONS);
+  assert((LINEA_MICRA_DEFAULT_OPTIONS &
+          LINEA_MICRA_SHUTDOWN_WITH_SCALE) == 0);
+  assert(LINEA_MICRA_KNOWN_OPTIONS ==
+         (LINEA_MICRA_DEFAULT_OPTIONS | LINEA_MICRA_SHUTDOWN_WITH_SCALE |
+          LINEA_MICRA_SHUTDOWN_GRACE_MASK));
   std::strcpy(settings.username, "barista@example.com");
   std::strcpy(settings.password, "correct horse battery staple");
   std::memset(settings.installationPrivateKey, 0x5a,
@@ -17,17 +23,37 @@ int main() {
   std::strcpy(settings.selectedSerial, "MR123456");
   std::strcpy(settings.selectedName, "Kitchen Micra");
   settings.accountConfigured = true;
-  setLineaMicraOptions(settings, true, true, true);
+  setLineaMicraOptions(settings, true, true, true, false, 0);
+  assert(validLineaMicraSettings(settings));
+  assert((settings.options & LINEA_MICRA_SHUTDOWN_WITH_SCALE) == 0);
+  assert(lineaMicraShutdownGraceSeconds(settings.options) == 0);
+  setLineaMicraOptions(settings, true, true, true, true, 4);
+  assert((settings.options & LINEA_MICRA_SHUTDOWN_WITH_SCALE) != 0);
+  assert(lineaMicraShutdownGraceSeconds(settings.options) == 60);
+  assert(lineaMicraShutdownGraceCode(settings.options) == 4);
+  assert(validLineaMicraSettings(settings));
+  setLineaMicraOptions(settings, true, true, true, true, 5);
+  assert(lineaMicraShutdownGraceCode(settings.options) == 0);
+  settings.options |= static_cast<uint8_t>(5U)
+                      << LINEA_MICRA_SHUTDOWN_GRACE_SHIFT;
+  assert(!validLineaMicraSettings(settings));
+  settings.options &= ~LINEA_MICRA_SHUTDOWN_GRACE_MASK;
+  settings.options |= static_cast<uint8_t>(1U << 7);
+  assert(!validLineaMicraSettings(settings));
+  setLineaMicraOptions(settings, true, true, true, true, 2);
   assert(validLineaMicraSettings(settings));
   disconnectLineaMicra(settings);
   assert(validLineaMicraSettings(settings));
-  assert(settings.options == LINEA_MICRA_DEFAULT_OPTIONS);
+  assert(settings.options ==
+         (LINEA_MICRA_DEFAULT_OPTIONS | LINEA_MICRA_SHUTDOWN_WITH_SCALE |
+          (2U << LINEA_MICRA_SHUTDOWN_GRACE_SHIFT)));
   assert(settings.username[0] == '\0');
   assert(settings.password[0] == '\0');
   assert(settings.selectedSerial[0] == '\0');
   wipeLineaMicraSettings(settings);
   for (uint8_t byte : settings.installationPrivateKey) assert(byte == 0);
   assert(sizeof(LineaMicraRequest) <= 16);
+  assert(sizeof(LineaMicraPersistedSettings) == 310);
   LineaMicraRequest temperatureRequest;
   temperatureRequest.type = LineaMicraRequestType::APPLY_TEMPERATURE;
   temperatureRequest.configGeneration = 7;
@@ -35,6 +61,9 @@ int main() {
   temperatureRequest.targetDeciC = 935;
   assert(temperatureRequest.type == LineaMicraRequestType::APPLY_TEMPERATURE);
   assert(temperatureRequest.targetDeciC == 935);
+  LineaMicraRequest standbyRequest;
+  standbyRequest.type = LineaMicraRequestType::SET_STANDBY;
+  assert(standbyRequest.type == LineaMicraRequestType::SET_STANDBY);
   assert(std::strcmp(lineaMicraTemperatureStateName(
                          LineaMicraTemperatureState::PENDING),
                      "pending") == 0);
@@ -156,5 +185,71 @@ int main() {
   assert(effective.powerState == LineaMicraPowerState::UNKNOWN);
   assert(effective.quality == LineaMicraObservationQuality::UNSUPPORTED);
   assert(!power.notePhysicalStart(authoritative, false, true, 1101));
+
+  const uint8_t shutdownOptions15s =
+      LINEA_MICRA_DEFAULT_OPTIONS | LINEA_MICRA_SHUTDOWN_WITH_SCALE |
+      static_cast<uint8_t>(2U << LINEA_MICRA_SHUTDOWN_GRACE_SHIFT);
+  const uint8_t shutdownOptionsImmediate =
+      LINEA_MICRA_DEFAULT_OPTIONS | LINEA_MICRA_SHUTDOWN_WITH_SCALE;
+  MicraScaleShutdownTracker::Snapshot scale;
+  MicraScaleShutdownTracker shutdown;
+
+  // Option off: the explicit power-off is ignored.
+  scale.disconnectSequence = 1;
+  scale.disconnectReason = LINEA_MICRA_SCALE_EXPLICIT_DISCONNECT;
+  assert(!shutdown.service(1000, scale, LINEA_MICRA_DEFAULT_OPTIONS, true));
+  assert(!shutdown.service(60000, scale, LINEA_MICRA_DEFAULT_OPTIONS, true));
+  // No cloud account: ignored even with the option on.
+  assert(!shutdown.service(1000, scale, shutdownOptions15s, false));
+  assert(!shutdown.service(60000, scale, shutdownOptions15s, false));
+  // Radio silence (supervision timeout) never triggers the shutdown.
+  scale.disconnectSequence = 2;
+  scale.disconnectReason = 14;
+  assert(!shutdown.service(2000, scale, shutdownOptions15s, true));
+  assert(!shutdown.service(60000, scale, shutdownOptions15s, true));
+  // Grace 15 s: armed, held before the deadline, fires once after it.
+  scale.disconnectSequence = 3;
+  scale.disconnectReason = LINEA_MICRA_SCALE_EXPLICIT_DISCONNECT;
+  assert(shutdown.pending() == false);
+  assert(!shutdown.service(10000, scale, shutdownOptions15s, true));
+  assert(shutdown.pending());
+  assert(!shutdown.service(24999, scale, shutdownOptions15s, true));
+  assert(shutdown.pending());
+  assert(shutdown.service(25000, scale, shutdownOptions15s, true));
+  assert(!shutdown.pending());
+  assert(!shutdown.service(25001, scale, shutdownOptions15s, true));
+  // Grace OFF: fires immediately on the observed event.
+  scale.disconnectSequence = 4;
+  assert(shutdown.service(30000, scale, shutdownOptionsImmediate, true));
+  assert(!shutdown.service(30001, scale, shutdownOptionsImmediate, true));
+  // Scale back online inside the window cancels the shutdown.
+  scale.disconnectSequence = 5;
+  assert(!shutdown.service(40000, scale, shutdownOptions15s, true));
+  scale.linkUp = true;
+  assert(!shutdown.service(45000, scale, shutdownOptions15s, true));
+  assert(!shutdown.pending());
+  scale.linkUp = false;
+  assert(!shutdown.service(60000, scale, shutdownOptions15s, true));
+  assert(!shutdown.pending());
+  // Relay closed at the event: ignored completely, never deferred.
+  scale.disconnectSequence = 6;
+  scale.relayClosed = true;
+  assert(!shutdown.service(70000, scale, shutdownOptions15s, true));
+  scale.relayClosed = false;
+  assert(!shutdown.service(90000, scale, shutdownOptions15s, true));
+  assert(!shutdown.pending());
+  // Relay closing during the grace window cancels at fire time.
+  scale.disconnectSequence = 7;
+  assert(!shutdown.service(100000, scale, shutdownOptions15s, true));
+  scale.relayClosed = true;
+  assert(!shutdown.service(115000, scale, shutdownOptions15s, true));
+  assert(!shutdown.pending());
+  scale.relayClosed = false;
+  // Option disabled mid-grace cancels.
+  scale.disconnectSequence = 8;
+  assert(!shutdown.service(120000, scale, shutdownOptions15s, true));
+  assert(!shutdown.service(121000, scale, LINEA_MICRA_DEFAULT_OPTIONS, true));
+  assert(!shutdown.pending());
+  assert(!shutdown.service(140000, scale, shutdownOptions15s, true));
   return 0;
 }

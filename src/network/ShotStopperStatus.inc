@@ -486,6 +486,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"selectedSerial\":\"%s\",\"selectedName\":\"%s\","
         "\"applyTemperature\":%s,\"observeState\":%s,"
         "\"recognizeWakeGesture\":%s,"
+        "\"shutdownWithScale\":%s,\"shutdownGraceSeconds\":%u,"
         "\"requestId\":%lu,\"phase\":\"%s\",\"error\":\"%s\","
         "\"powerState\":\"%s\","
         "\"observedMode\":\"%s\",\"quality\":\"%s\",\"effectiveOn\":%s,"
@@ -509,6 +510,10 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             ? "true" : "false",
         (micraOptions & LINEA_MICRA_RECOGNIZE_WAKE) != 0
             ? "true" : "false",
+        (micraOptions & LINEA_MICRA_SHUTDOWN_WITH_SCALE) != 0
+            ? "true" : "false",
+        static_cast<unsigned>(
+            lineaMicraShutdownGraceSeconds(micraOptions)),
         static_cast<unsigned long>(micraStatus.requestId),
         lineaMicraPhaseName(micraStatus.phase),
         lineaMicraErrorName(micraStatus.error),

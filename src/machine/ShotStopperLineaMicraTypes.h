@@ -12,7 +12,8 @@ constexpr size_t LINEA_MICRA_MAX_ACCOUNT_MACHINES = 8;
 enum class LineaMicraRequestType : uint8_t {
   CONNECT,
   OBSERVE_STATE,
-  APPLY_TEMPERATURE
+  APPLY_TEMPERATURE,
+  SET_STANDBY
 };
 enum class LineaMicraPowerState : uint8_t { UNKNOWN, ON, OFF };
 enum class LineaMicraObservedMode : uint8_t {

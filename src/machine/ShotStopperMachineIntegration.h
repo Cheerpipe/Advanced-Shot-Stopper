@@ -17,6 +17,8 @@ inline void publishMachineIntegrationConfig(const PersistedSettings &,
                                             uint32_t) {}
 inline void publishMachineIntegrationNetworkState(bool, bool, bool,
                                                   bool = false) {}
+inline void serviceMachineIntegrationScaleLink(uint32_t, bool, uint32_t,
+                                               uint8_t, bool) {}
 inline uint32_t hostMachineTemperatureRequestCount = 0;
 inline uint8_t hostMachineTemperaturePresetId = 0;
 inline uint32_t hostMachineTemperatureGeneration = 0;
@@ -45,6 +47,13 @@ void publishMachineIntegrationConfig(const PersistedSettings &settings,
 void publishMachineIntegrationNetworkState(bool staConnected, bool apActive,
                                            bool shotActive,
                                            bool scaleConnecting = false);
+// Forwards one scale link observation per control loop so the machine
+// integration can apply its own scale power-off policy (Micra: shutdown with
+// grace). The stopper stays a coordinator and owns no machine logic.
+void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
+                                        uint32_t scaleDisconnectSequence,
+                                        uint8_t scaleDisconnectReason,
+                                        bool relayClosed);
 void requestMachineIntegrationPresetTemperature(
     uint8_t presetId, uint32_t configGeneration, uint16_t targetDeciC);
 void serviceMachineIntegrationAbort();

@@ -108,7 +108,8 @@ if (!micraTypes.includes('APPLY_TEMPERATURE') ||
 for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
   'lineaMicraConnectButton', 'lineaMicraMachine', 'lineaMicraSelectButton',
   'lineaMicraApplyTemperature', 'lineaMicraObserveState',
-  'lineaMicraRecognizeWake',
+  'lineaMicraRecognizeWake', 'lineaMicraShutdownWithScale',
+  'lineaMicraShutdownGraceWrap', 'lineaMicraShutdownGrace',
   'lineaMicraSaveButton', 'lineaMicraDisconnectButton',
   'lineaMicraBrewTargetC']) {
   if (!micraSettingsHtml.includes(`id="${id}"`)) {
@@ -129,7 +130,7 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes("s.machineIntegration==='linea_micra_cloud'") ||
     !rawRuntimeJs.includes("{action:'connect',username,password}") ||
     !rawRuntimeJs.includes("{action:'select',serial") ||
-    !rawRuntimeJs.includes("observeState:$('lineaMicraObserveState').checked,recognizeWakeGesture:$('lineaMicraRecognizeWake').checked}") ||
+    !rawRuntimeJs.includes("recognizeWakeGesture:$('lineaMicraRecognizeWake').checked,shutdownWithScale:$('lineaMicraShutdownWithScale').checked,shutdownGraceSeconds:Number($('lineaMicraShutdownGrace').value)||0}") ||
     !rawRuntimeJs.includes("lineaMicraAction('disconnect')") ||
     rawRuntimeJs.includes("['queued','authenticating','listing','running','backoff'].includes(m.phase)") ||
     !rawRuntimeJs.includes("m.email+'\\n'+m.selectedName+' - '+m.selectedSerial") ||
@@ -140,6 +141,16 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes("$('lineaMicraApplyTemperature').disabled=!canEdit||!connected") ||
     !rawRuntimeJs.includes("$('lineaMicraObserveState').disabled=!canEdit||!connected") ||
     !rawRuntimeJs.includes("$('lineaMicraRecognizeWake').disabled=!canEdit||!connected") ||
+    !rawRuntimeJs.includes("updateMicraShutdownControls(canEdit,connected)") ||
+    !rawRuntimeJs.includes("$('lineaMicraShutdownGrace').disabled=!canEdit||!connected||!on") ||
+    !rawRuntimeJs.includes("$('lineaMicraShutdownGraceWrap').classList.toggle('hidden',!on)") ||
+    !rawRuntimeJs.includes("$('lineaMicraShutdownWithScale').checked=!!m.shutdownWithScale") ||
+    !rawRuntimeJs.includes("$('lineaMicraShutdownGrace').value=String(m.shutdownGraceSeconds||0)") ||
+    !viewJs.settings.includes("$('lineaMicraShutdownWithScale').onchange=()=>R.updateMicraShutdownControls()") ||
+    !micraSettingsHtml.includes('id="lineaMicraShutdownWithScale" type="checkbox">') ||
+    !micraSettingsHtml.includes('id="lineaMicraShutdownGraceWrap" class="hidden"') ||
+    !micraSettingsHtml.includes('<option value="60">') ||
+    micraSettingsHtml.includes('id="lineaMicraShutdownWithScale" type="checkbox" checked') ||
     !rawRuntimeJs.includes("$('lineaMicraDisconnectButton').disabled=!canEdit||(!connected&&!machines.length)") ||
     !rawRuntimeJs.includes("$('dMicraPowerValue').textContent=power") ||
     !rawRuntimeJs.includes("m.temperatureState&&m.temperatureState!=='disabled'") ||
@@ -155,7 +166,7 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
 }
 if (micraService.includes('keep_alive_enable = true') ||
     micraService.includes('esp_http_client_close(work_->client)') ||
-    micraService.includes('char authorization[kTokenCapacity + 8]') ||
+    micraService.includes('char authorization[kTokenCapacity + 8];') ||
     (micraService.match(/"Accept",\s*"application\/json"/g) || []).length !== 1 ||
     (micraService.match(/"User-Agent",\s*\n?\s*"OpenBrewByWeight\/1"/g) || []).length !== 1 ||
     !micraService.includes('RequestStateGuard requestState{*this};') ||
@@ -184,4 +195,28 @@ for (const file of ['ShotStopperMachinePaddleControl.h',
   if (fs.readFileSync(path.join(sketchDir, file), 'utf8').includes('LineaMicra')) {
     throw new Error(`Paddle behavior must remain independent of Linea Micra: ${file}`);
   }
+}
+
+const micraScaleShutdown = fs.readFileSync(
+    path.join(sketchDir, 'machine/ShotStopperMicraScaleShutdown.h'), 'utf8');
+const entrypoints = fs.readFileSync(
+    path.join(sketchDir, 'platform/ShotStopperEntrypoints.inc'), 'utf8');
+if (!micraScaleShutdown.includes('LINEA_MICRA_SCALE_EXPLICIT_DISCONNECT = 9') ||
+    !micraScaleShutdown.includes('!scale.relayClosed') ||
+    !micraScaleShutdown.includes('LINEA_MICRA_SHUTDOWN_WITH_SCALE') ||
+    !micraScaleShutdown.includes('lineaMicraShutdownGraceSeconds') ||
+    !micraService.includes('CoffeeMachineChangeMode') ||
+    !micraService.includes('{\\"mode\\":\\"StandBy\\"}') ||
+    !micraService.includes('bool ShotStopperMicraService::executePowerOffApplication(') ||
+    !micraService.includes('void ShotStopperMicraService::deferPowerOff(') ||
+    !micraService.includes('deferPowerOff(request, LineaMicraError::CANCELED, 0, false)') ||
+    !micraService.includes('(config_.options & LINEA_MICRA_SHUTDOWN_WITH_SCALE) == 0') ||
+    !machineIntegration.includes('void serviceMachineIntegrationScaleLink(') ||
+    !machineIntegration.includes('MicraScaleShutdownTracker') ||
+    !entrypoints.includes('serviceMachineIntegrationScaleLink(') ||
+    !micraWeb.includes('"shutdownWithScale"') ||
+    !micraWeb.includes('"shutdownGraceSeconds"') ||
+    !micraStatus.includes('\\"shutdownWithScale\\"') ||
+    !micraStatus.includes('\\"shutdownGraceSeconds\\"')) {
+  throw new Error('Scale power-off shutdown must be machine-side, explicit-disconnect only, relay-guarded, grace-cancelled, and cloud-gated');
 }

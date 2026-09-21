@@ -621,6 +621,13 @@ void loop() {
     serviceNoScaleShotGuard(loopGuardInputs);
     serviceCupStartGuard(loopGuardInputs);
   }
+  // Machine integrations observe the scale link once per loop; the Micra owns
+  // its scale power-off policy (explicit disconnect, grace, relay guard).
+  serviceMachineIntegrationScaleLink(
+      loopStartedAtMs,
+      loopScaleLink.state == ScaleLinkState::CONNECTED,
+      loopScaleLink.disconnectSequence, loopScaleLink.lastDisconnectReason,
+      getRelaySafetySnapshot().closed);
   finishLoopPhase(LoopPhase::SCALE_INPUT);
   stateMachineTask();
   publishControlCriticalLoggingState();

@@ -18,12 +18,13 @@ internet connection is unavailable.
 1. Enter the email address and password used by the La Marzocco app.
 2. Choose **Connect** and wait for the account's Linea Micra machines to appear.
 3. Select the machine used with this controller.
-4. Choose **Use selected machine**. Only then can the three Micra options be
+4. Choose **Use selected machine**. Only then can the Micra options be
    edited and saved.
 
-All three options start on. Before a machine is selected they remain visibly
-checked but disabled, so the defaults are clear without implying that the
-integration is already active.
+The first three options start on and the scale shutdown option starts off.
+Before a machine is selected they remain visibly checked (or unchecked) but
+disabled, so the defaults are clear without implying that the integration is
+already active.
 
 After a machine is selected, Settings hides the account email, password,
 **Connect**, machine list, and **Use selected machine** controls. **Selected
@@ -32,9 +33,10 @@ serial number. Choose **Disconnect** to remove the saved credentials and
 selected machine and make the connection controls available again.
 
 With a machine selected, **Save Micra settings** saves **Allow brew boiler
-temperature in presets**, **Monitor machine power state**, and **Recognize
-paddle wake gestures**. It does not sign in again, validate the cloud account,
-or reload the machine list.
+temperature in presets**, **Monitor machine power state**, **Recognize
+paddle wake gestures**, and **Turn machine off when the scale powers off**.
+It does not sign in again, validate the cloud account, or reload the machine
+list.
 
 If the account returns no Linea Micra machines, the account is not enabled and
 the machine-specific options remain unavailable. Accounts with several Micras
@@ -54,7 +56,7 @@ avoiding a new connection handshake for every read. **Disconnect**
 removes the saved account credentials, installation key, selected machine,
 cached list, in-memory session tokens, and cloud connection.
 
-Scheduled reads and cloud failures do not disable **Disconnect** or the three
+Scheduled reads and cloud failures do not disable **Disconnect** or the
 Micra options. Disconnect only forgets the saved integration; it does not send
 a live command to the machine.
 
@@ -120,6 +122,35 @@ This option is independent from monitoring. Turning monitoring off keeps the
 saved wake preference, but the effective state becomes UNKNOWN, so wake
 recognition is inactive until monitoring produces a fresh OFF observation.
 
+## Turn machine off when the scale powers off
+
+Keep **Turn machine off when the scale powers off** on to put the Micra in
+standby — the same state the La Marzocco app calls standby — when you switch
+the scale off. It reacts only to the scale being switched off by its own
+control: a scale that merely loses signal, stops reporting weight, or runs out
+of range never turns the machine off.
+
+The machine is never turned off while a shot or rinse is running. If the
+scale is switched off during one, that power-off is ignored completely and
+the shot finishes with its normal protections; nothing is queued for later.
+
+The option only works with scales that report their power-off to the
+controller. Because the command travels through the La Marzocco cloud, a
+saved, connected account is required: without one the option stays disabled
+and has no effect even if it was on before the account was removed.
+
+When you enable the option, a **Shutdown delay** choice appears below it:
+**OFF**, **5 s**, **15 s**, **30 s**, or **60 s**. With **OFF** the machine
+goes to standby as soon as the scale powers off. With a delay, the controller
+waits that long first, so switching the scale back on inside the window
+cancels the shutdown and nothing happens. The delay also covers an accidental
+power-off: pick the value that gives you comfortable time to notice and turn
+the scale back on.
+
+Turning this option off, disconnecting the account, or losing the cloud
+connection stops any pending shutdown. The saved delay is kept with the
+option so it is restored the next time it is enabled.
+
 ## Brew temperature in presets
 
 **Allow brew boiler temperature in presets** reveals a per-preset value from
@@ -162,6 +193,7 @@ prevents writes; saved preset values remain unchanged. Temperature application
 does not require **Monitor machine power state** to be enabled.
 
 Factory reset removes the Micra cloud account, selected machine, installation
-key, and RAM session. The three Micra options return to their checked defaults,
-and preset temperatures return to 93.0 °C. See
+key, and RAM session. The first three Micra options return to their checked
+defaults, the scale shutdown option returns to off, and preset temperatures
+return to 93.0 °C. See
 [Factory reset](factory-reset.md) and [Presets](../features/presets.md).

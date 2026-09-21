@@ -52,6 +52,13 @@ class ShotStopperMicraService {
     bool present = false;
     bool commandAccepted = false;
   };
+  struct DesiredPowerOff {
+    LineaMicraRequest request = {};
+    uint32_t machineConfigGeneration = 0;
+    uint32_t retryAtMs = 0;
+    bool present = false;
+    bool commandAccepted = false;
+  };
 
   static void taskEntry(void *context);
   static esp_err_t httpEvent(esp_http_client_event_t *event);
@@ -61,6 +68,8 @@ class ShotStopperMicraService {
   bool executeObservation(PendingRequest &pending);
   bool executeTemperatureApplication(const LineaMicraRequest &request,
                                      uint32_t machineConfigGeneration);
+  bool executePowerOffApplication(const LineaMicraRequest &request,
+                                  uint32_t machineConfigGeneration);
   bool ensureSession(LineaMicraPersistedSettings &settings, bool registerKey,
                      bool *renewed = nullptr);
   bool generateInstallationKey(LineaMicraPersistedSettings &settings);
@@ -73,6 +82,7 @@ class ShotStopperMicraService {
                      LineaMicraStatus &result);
   bool writeTemperature(const LineaMicraPersistedSettings &settings,
                         uint16_t targetDeciC);
+  bool writeStandby(const LineaMicraPersistedSettings &settings);
   bool request(const LineaMicraPersistedSettings &settings, const char *url,
                esp_http_client_method_t method, const char *body,
                bool authenticated,
@@ -94,12 +104,17 @@ class ShotStopperMicraService {
   void scheduleAutomatic(uint32_t now, bool failed);
   bool temperatureRequestCurrent(const LineaMicraRequest &request,
                                  uint32_t machineConfigGeneration) const;
+  bool powerOffRequestCurrent(const LineaMicraRequest &request,
+                              uint32_t machineConfigGeneration) const;
   bool identityCurrent(uint32_t identityGeneration) const;
   bool observationCurrent(uint32_t identityGeneration) const;
   bool temperatureEligible(LineaMicraError &error) const;
   void deferTemperature(const LineaMicraRequest &request,
                         LineaMicraError error, uint32_t delayMs,
                         bool retryable = true);
+  void deferPowerOff(const LineaMicraRequest &request,
+                     LineaMicraError error, uint32_t delayMs,
+                     bool retryable = true);
 
   mutable TaskMutex mux_;
   TaskMutex clientMux_;
@@ -107,6 +122,7 @@ class ShotStopperMicraService {
   LineaMicraPersistedSettings candidate_ = {};
   PendingRequest pending_ = {};
   DesiredTemperature desiredTemperature_ = {};
+  DesiredPowerOff desiredPowerOff_ = {};
   LineaMicraStatus published_ = {};
   HeapLifecycleTracker tlsHeap_ = {};
   LineaMicraDiscoverySnapshot discovery_ = {};
@@ -125,6 +141,7 @@ class ShotStopperMicraService {
   std::atomic<bool> scaleConnecting_{false};
   std::atomic<bool> observationActive_{false};
   std::atomic<bool> temperatureActive_{false};
+  std::atomic<bool> powerOffActive_{false};
   std::atomic<bool> abortRequested_{false};
   std::atomic<bool> clearSessionRequested_{false};
   esp_http_client_handle_t activeClient_ = nullptr;

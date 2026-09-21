@@ -2111,7 +2111,7 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   strcpy(settings.lineaMicra.selectedSerial, "MR123456");
   strcpy(settings.lineaMicra.selectedName, "Kitchen Micra");
   settings.lineaMicra.accountConfigured = true;
-  setLineaMicraOptions(settings.lineaMicra, true, true, true);
+  setLineaMicraOptions(settings.lineaMicra, true, true, true, false, 0);
   strcpy(settings.deviceName, "Cafe Bar 2");
   settings.presets.presets[0].lineaMicraBrewTargetDeciC = 935;
   CHECK(savePersistedSettings(settings));
@@ -2123,13 +2123,17 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   CHECK(settings.presets.presets[0].lineaMicraBrewTargetDeciC == 935);
   CHECK(strcmp(settings.deviceName, "Cafe Bar 2") == 0);
 
-  setLineaMicraOptions(settings.lineaMicra, false, false, false);
+  setLineaMicraOptions(settings.lineaMicra, false, false, false, true, 3);
   CHECK(savePersistedSettings(settings));
   CHECK(loadPersistedSettings(settings));
-  CHECK(settings.lineaMicra.options == 0);
+  CHECK(settings.lineaMicra.options ==
+        (LINEA_MICRA_SHUTDOWN_WITH_SCALE |
+         (3U << LINEA_MICRA_SHUTDOWN_GRACE_SHIFT)));
   disconnectLineaMicra(settings.lineaMicra);
   CHECK(validLineaMicraSettings(settings.lineaMicra));
-  CHECK(settings.lineaMicra.options == 0);
+  CHECK(settings.lineaMicra.options ==
+        (LINEA_MICRA_SHUTDOWN_WITH_SCALE |
+         (3U << LINEA_MICRA_SHUTDOWN_GRACE_SHIFT)));
   CHECK(resetPersistedNetworkAccess(settings));
   CHECK(strcmp(settings.deviceName, "Cafe Bar 2") == 0);
 
