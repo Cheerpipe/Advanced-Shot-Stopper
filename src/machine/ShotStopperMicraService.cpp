@@ -334,6 +334,7 @@ struct ShotStopperMicraService::WorkBuffer {
   uint16_t httpStatus = 0;
   int32_t transportStatus = 0;
   bool responseOverflow = false;
+  bool transportFailure = false;
 };
 
 struct ShotStopperMicraService::RequestStateGuard {
@@ -1076,18 +1077,18 @@ bool ShotStopperMicraService::executeTemperatureApplication(
   wipeLineaMicraSettings(settings);
   const uint16_t failureHttpStatus =
       commandAttempted ? commandHttpStatus : work_->httpStatus;
-  const int32_t failureTransportStatus =
-      commandAttempted ? commandTransportStatus : work_->transportStatus;
   const LineaMicraError error =
       commandAccepted
           ? LineaMicraError::UNCONFIRMED
           : failureHttpStatus == 401
                 ? LineaMicraError::INVALID_AUTH
-                : failureTransportStatus == ESP_OK &&
-                          failureHttpStatus != 0 &&
-                          !lineaMicraTemperatureHttpRetryable(failureHttpStatus)
-                      ? LineaMicraError::REJECTED
-                      : LineaMicraError::HTTP_ERROR;
+                : work_->transportFailure
+                      ? LineaMicraError::TRANSPORT
+                      : failureHttpStatus != 0 &&
+                                !lineaMicraTemperatureHttpRetryable(
+                                    failureHttpStatus)
+                            ? LineaMicraError::REJECTED
+                            : LineaMicraError::HTTP_ERROR;
   deferTemperature(request, error, micra_timing::kExhaustedCooldownMs,
                    lineaMicraTemperatureCycleRetryable(error));
   return false;
@@ -1205,18 +1206,18 @@ bool ShotStopperMicraService::executePowerOffApplication(
   wipeLineaMicraSettings(settings);
   const uint16_t failureHttpStatus =
       commandAttempted ? commandHttpStatus : work_->httpStatus;
-  const int32_t failureTransportStatus =
-      commandAttempted ? commandTransportStatus : work_->transportStatus;
   const LineaMicraError error =
       commandAccepted
           ? LineaMicraError::UNCONFIRMED
           : failureHttpStatus == 401
                 ? LineaMicraError::INVALID_AUTH
-                : failureTransportStatus == ESP_OK &&
-                          failureHttpStatus != 0 &&
-                          !lineaMicraTemperatureHttpRetryable(failureHttpStatus)
-                      ? LineaMicraError::REJECTED
-                      : LineaMicraError::HTTP_ERROR;
+                : work_->transportFailure
+                      ? LineaMicraError::TRANSPORT
+                      : failureHttpStatus != 0 &&
+                                !lineaMicraTemperatureHttpRetryable(
+                                    failureHttpStatus)
+                            ? LineaMicraError::REJECTED
+                            : LineaMicraError::HTTP_ERROR;
   deferPowerOff(request, error, micra_timing::kExhaustedCooldownMs,
                 lineaMicraTemperatureCycleRetryable(error));
   return false;
@@ -1241,9 +1242,7 @@ bool ShotStopperMicraService::executeConnect(PendingRequest &pending) {
   if (!ensureSession(pending.credentials, true)) {
     LineaMicraError error = LineaMicraError::NONE;
     if (networkEligible(error)) {
-      error = work_ != nullptr && work_->httpStatus == 401
-                  ? LineaMicraError::INVALID_AUTH
-                  : LineaMicraError::HTTP_ERROR;
+      error = classifyFailure();
     }
     fail(status, error);
     return false;
@@ -1256,9 +1255,7 @@ bool ShotStopperMicraService::executeConnect(PendingRequest &pending) {
   if (!listMachines(pending.credentials, found)) {
     LineaMicraError error = LineaMicraError::NONE;
     if (networkEligible(error)) {
-      error = work_ != nullptr && work_->httpStatus == 401
-                  ? LineaMicraError::INVALID_AUTH
-                  : LineaMicraError::HTTP_ERROR;
+      error = classifyFailure();
     }
     fail(status, error);
     return false;
@@ -1349,9 +1346,7 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
   if (!success) {
     LineaMicraError error = LineaMicraError::NONE;
     if (networkEligible(error)) {
-      error = work_ != nullptr && work_->httpStatus == 401
-                  ? LineaMicraError::INVALID_AUTH
-                  : LineaMicraError::HTTP_ERROR;
+      error = classifyFailure();
     }
     fail(status, error);
     return false;
@@ -1423,6 +1418,14 @@ void ShotStopperMicraService::deferObservation(
   preserveTemperatureStatus(published_, status);
   published_ = status;
   published_.accountConfigured = config_.accountConfigured;
+}
+
+LineaMicraError ShotStopperMicraService::classifyFailure() const {
+  if (work_ != nullptr) {
+    if (work_->httpStatus == 401) return LineaMicraError::INVALID_AUTH;
+    if (work_->transportFailure) return LineaMicraError::TRANSPORT;
+  }
+  return LineaMicraError::HTTP_ERROR;
 }
 
 void ShotStopperMicraService::fail(LineaMicraStatus &status,
@@ -1815,6 +1818,7 @@ bool ShotStopperMicraService::request(
   work_->responseOverflow = false;
   work_->httpStatus = 0;
   work_->transportStatus = 0;
+  work_->transportFailure = false;
   clearRequestState();
   RequestStateGuard requestState{*this};
   if (esp_http_client_set_url(work_->client, url) != ESP_OK ||
@@ -1920,6 +1924,13 @@ bool ShotStopperMicraService::request(
   work_->transportStatus = performed;
   work_->httpStatus = static_cast<uint16_t>(
       esp_http_client_get_status_code(work_->client));
+  work_->transportFailure = performed != ESP_OK;
+  if (work_->transportFailure) {
+    // A failed perform typically leaves a dead cached socket; rebuild the
+    // session on the next attempt instead of reusing it for all retries.
+    esp_http_client_cleanup(work_->client);
+    work_->client = nullptr;
+  }
   if (work_->responseUsed < sizeof(io_->response)) {
     io_->response[work_->responseUsed] = '\0';
   }

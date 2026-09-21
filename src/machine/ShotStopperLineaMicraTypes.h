@@ -52,6 +52,7 @@ enum class LineaMicraError : uint8_t {
   INVALID_AUTH,
   NO_MACHINES,
   HTTP_ERROR,
+  TRANSPORT,
   CANCELED,
   REJECTED,
   UNCONFIRMED
@@ -135,6 +136,7 @@ inline const char *lineaMicraErrorName(LineaMicraError error) {
     case LineaMicraError::INVALID_AUTH: return "invalid_auth";
     case LineaMicraError::NO_MACHINES: return "no_machines";
     case LineaMicraError::HTTP_ERROR: return "communication_error";
+    case LineaMicraError::TRANSPORT: return "transport_error";
     case LineaMicraError::CANCELED: return "canceled";
     case LineaMicraError::REJECTED: return "rejected";
     case LineaMicraError::UNCONFIRMED: return "unconfirmed";
@@ -163,6 +165,7 @@ inline bool lineaMicraTemperatureHttpRetryable(uint16_t status) {
 
 inline bool lineaMicraTemperatureCycleRetryable(LineaMicraError error) {
   return error == LineaMicraError::HTTP_ERROR ||
+         error == LineaMicraError::TRANSPORT ||
          error == LineaMicraError::UNCONFIRMED;
 }
 
@@ -207,6 +210,7 @@ struct LineaMicraStatus {
   LineaMicraTemperatureState temperatureState =
       LineaMicraTemperatureState::Disabled;
   LineaMicraError temperatureError = LineaMicraError::NONE;
+  bool transportFailure = false;
   bool effectiveOn = true;
   bool targetValid = false;
   bool accountConfigured = false;
