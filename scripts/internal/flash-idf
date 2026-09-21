@@ -98,8 +98,8 @@ fi
 port="$(ss_get port)"
 echo "Flashing $image ($SHOTSTOPPER_ARCH) via $port (IDF)"
 
-command -v esptool.py >/dev/null 2>&1 || {
-  echo "esptool.py not found on PATH (did ESP-IDF export.sh run?)." >&2
+command -v esptool >/dev/null 2>&1 || {
+  echo "esptool not found on PATH (did ESP-IDF export.sh run?)." >&2
   exit 127
 }
 
@@ -114,7 +114,7 @@ installed_layout=unknown
 installed_nvs_size=""
 installed_app0_offset=""
 installed_shotcurve_row=""
-if esptool.py --chip esp32s3 --port "$port" read_flash 0x8000 0x1000 "$partition_bin" >/dev/null; then
+if esptool --chip esp32s3 --port "$port" read-flash 0x8000 0x1000 "$partition_bin" >/dev/null; then
   if python -c 'import pathlib,sys; b=pathlib.Path(sys.argv[1]).read_bytes(); sys.exit(0 if b and all(x == 255 for x in b) else 1)' "$partition_bin"; then
     installed_layout=blank
   elif python "$IDF_PATH/components/partition_table/gen_esp32part.py" --quiet \
@@ -166,7 +166,7 @@ fi
 
 if [[ "$SS_CLI_ERASE_ALL" == "1" ]]; then
   echo 'Erasing the complete flash: firmware, settings, Wi-Fi, calibration, and history.'
-  esptool.py --chip esp32s3 --port "$port" erase_flash
+  esptool --chip esp32s3 --port "$port" erase-flash
 elif [[ "$installed_layout" == "unknown" ]]; then
   echo 'Could not verify the installed partition layout.' >&2
   exit 1
@@ -179,7 +179,7 @@ if ss_is_set image; then
     echo 'An external image requires a readable installed partition table.' >&2
     exit 1
   fi
-  esptool.py --chip esp32s3 --port "$port" write_flash \
+  esptool --chip esp32s3 --port "$port" write-flash \
     "$installed_app0_offset" "$image"
 else
   # Flash the already-built project outputs directly. `idf.py flash` would
@@ -193,7 +193,7 @@ else
   # offsets with relative paths, so esptool must run from the build directory.
   (
     cd "$IDF_BUILD_DIR" &&
-      esptool.py --chip esp32s3 --port "$port" write_flash @flash_args
+      esptool --chip esp32s3 --port "$port" write-flash @flash_args
   )
 fi
 

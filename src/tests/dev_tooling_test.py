@@ -223,9 +223,9 @@ for filename, contract in partition_contracts.items():
     assert rows["history"][1] == 32 * 1024, "activation-history partition changed"
 
 flash_idf = (INTERNAL / "flash-idf").read_text()
-for required in ("read_flash 0x8000 0x1000", "installed_nvs_bytes != 0x15000",
+for required in ("read-flash 0x8000 0x1000", "installed_nvs_bytes != 0x15000",
                  "installed_layout=blank", "installed_shotcurve_row",
-                 "required_shotcurve_offset=0x680000", "0x620000", "erase_flash",
+                 "required_shotcurve_offset=0x680000", "0x620000", "erase-flash",
                  '"$installed_app0_offset" "$image"'):
     assert required in flash_idf, f"flash-idf migration contract missing: {required}"
 assert '0x10000 "$image"' not in flash_idf, \
@@ -697,15 +697,15 @@ def flash_command(layout: str, *extra: str, arch: str = "n8r4"):
             "case \" $* \" in *' --version '*) echo 'ESP-IDF v6.1';; esac\n")
         (tools / "node").write_text("#!/bin/sh\nexit 0\n")
         (tools / "python").write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
-        (tools / "esptool.py").write_text(
+        (tools / "esptool").write_text(
             "#!/usr/bin/env python3\nimport os, pathlib, sys\n"
             f"open({str(log)!r}, 'a').write('esptool:' + ' '.join(sys.argv[1:]) + '\\n')\n"
-            "if 'read_flash' in sys.argv:\n"
+            "if 'read-flash' in sys.argv:\n"
             "    if os.environ['FLASH_LAYOUT'] == 'unknown': sys.exit(1)\n"
             "    fill = 255 if os.environ['FLASH_LAYOUT'] == 'blank' else 0\n"
             "    pathlib.Path(sys.argv[-1]).write_bytes(bytes([fill]) * 4096)\n")
         for executable in (tools / "idf.py", tools / "node", tools / "python",
-                           tools / "esptool.py"):
+                           tools / "esptool"):
             executable.chmod(0o755)
         env = os.environ.copy()
         env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
@@ -722,25 +722,25 @@ def flash_command(layout: str, *extra: str, arch: str = "n8r4"):
 
 blank_result, blank_flash = flash_command("blank")
 assert blank_result.returncode == 0 and \
-    any("write_flash @flash_args" in line for line in blank_flash), blank_result.stderr
+    any("write-flash @flash_args" in line for line in blank_flash), blank_result.stderr
 erased_result, erased_flash = flash_command("missing", "--erase-all")
 assert erased_result.returncode == 0 and \
-    any("erase_flash" in line for line in erased_flash) and \
-    any("write_flash @flash_args" in line for line in erased_flash), erased_flash
+    any("erase-flash" in line for line in erased_flash) and \
+    any("write-flash @flash_args" in line for line in erased_flash), erased_flash
 present_result, present_flash = flash_command("present")
 assert present_result.returncode == 0 and \
-    any("write_flash @flash_args" in line for line in present_flash) and \
+    any("write-flash @flash_args" in line for line in present_flash) and \
     not any(" flash" in line for line in present_flash if line.startswith("idf:")), present_flash
 present_n16_result, _ = flash_command("present", arch="n16r8")
 assert present_n16_result.returncode == 0, present_n16_result.stderr
 unchecked_result, unchecked_flash = flash_command("present", "--no-check")
 assert unchecked_result.returncode == 0 and \
-    any("write_flash @flash_args" in line for line in unchecked_flash) and \
+    any("write-flash @flash_args" in line for line in unchecked_flash) and \
     not any(" flash" in line for line in unchecked_flash if line.startswith("idf:")), \
     unchecked_flash
 external_result, external_flash = flash_command("present", "--image", "placeholder")
 assert external_result.returncode == 0 and \
-    any("write_flash 0x20000" in line for line in external_flash) and \
+    any("write-flash 0x20000" in line for line in external_flash) and \
     not any(" flash" in line for line in external_flash if line.startswith("idf:")), \
     external_flash
 for incompatible_layout in ("missing", "wrong", "type", "subtype", "size"):
@@ -748,7 +748,7 @@ for incompatible_layout in ("missing", "wrong", "type", "subtype", "size"):
         rejected, commands = flash_command(incompatible_layout, *extra)
         assert rejected.returncode == 1 and "required n8r4 shotcurve" in rejected.stderr, \
             (incompatible_layout, extra, rejected.stderr)
-        assert not any("write_flash" in line for line in commands), commands
+        assert not any("write-flash" in line for line in commands), commands
 flash_language = subprocess.run(
     [str(INTERNAL / "flash-idf"), "--webui-language", "en"],
     cwd=ROOT, capture_output=True, text=True)
