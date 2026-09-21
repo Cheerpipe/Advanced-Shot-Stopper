@@ -219,6 +219,7 @@ struct LineaMicraStatus {
   bool shotPaused = false;
   bool scalePaused = false;
   bool optimisticOn = false;
+  bool optimisticOff = false;
   bool temperatureCommandAccepted = false;
   bool temperatureRetryable = false;
 };

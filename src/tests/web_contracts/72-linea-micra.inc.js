@@ -54,12 +54,14 @@ if (!micraService.includes('config.save_client_session = true')) {
 }
 if (!micraTiming.includes('kStatePollMs = 30000') ||
     !micraTiming.includes('kStateFreshnessMs = kStatePollMs') ||
-    !micraTiming.includes('kOptimisticOnMs = 2U * kStatePollMs') ||
-    !micraTiming.includes('kExhaustedCooldownMs = kOptimisticOnMs') ||
+    !micraTiming.includes('kOptimisticOverlayMs = 2U * kStatePollMs') ||
+    !micraTiming.includes('kExhaustedCooldownMs = kOptimisticOverlayMs') ||
     !micraTiming.includes('kPostWakeObservationDelayMs = 15000') ||
     !micraService.includes('const bool networkReady = networkEligible(observationGate)') ||
     !micraService.includes('pending_.present && (!pendingObservation || observationReady)') ||
-    !micraService.includes('observationSchedule_.armPostWake(now)') ||
+    !micraService.includes('observationSchedule_.armPostEvent(now)') ||
+    !micraService.includes('powerState_.noteStandbyCommandAccepted(published_, observing,') ||
+    !micraService.includes('observationSchedule_.armPostEvent(millis())') ||
     !micraService.includes('deferObservation(pending, status, gateError)') ||
     !micraService.includes('observationActive_.load(std::memory_order_acquire)') ||
     !micraService.includes('bool ShotStopperMicraService::observationCurrent(') ||
@@ -69,7 +71,8 @@ if (!micraTiming.includes('kStatePollMs = 30000') ||
     !micraService.includes('scheduleAutomatic(millis(), connecting)')) {
   throw new Error('Linea Micra observations must wait for readiness and the post-wake convergence deadline');
 }
-if (deferObservation.includes('powerState') ||
+if (!micraStatus.includes('\\\"optimisticOn\\\":%s,\\\"optimisticOff\\\":%s') ||
+    deferObservation.includes('powerState') ||
     !micraService.includes('status.phase = LineaMicraPhase::BACKOFF;\n    publish(status);') ||
     !terminalFailure.includes('status.powerState = LineaMicraPowerState::UNKNOWN;') ||
     !terminalFailure.includes('status.effectiveOn = true;') ||

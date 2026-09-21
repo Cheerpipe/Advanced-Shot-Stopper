@@ -69,7 +69,8 @@ starts or STA is lost, and pauses state observations during shots. It has no
 NimBLE dependency and cannot delay scale discovery, scale commands, or weight
 delivery.
 
-The Micra service also owns power-state freshness and optimistic ON lifetime.
+The Micra service also owns power-state freshness and the optimistic ON/OFF
+overlay lifetime.
 Its adapter exposes only `NORMAL` or `WAKE_PASSTHROUGH`; Open Brew by Weight owns relay
 passthrough and consumes wake gestures before brew, rinse, guards, scale,
 alerts, webhooks, and history. Those subsystems never depend on Micra types.

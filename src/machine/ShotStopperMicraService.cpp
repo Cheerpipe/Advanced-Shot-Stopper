@@ -667,7 +667,7 @@ MachinePhysicalStartDisposition ShotStopperMicraService::physicalStart() {
           (config_.options & LINEA_MICRA_RECOGNIZE_WAKE) != 0, now)) {
     return MachinePhysicalStartDisposition::NORMAL;
   }
-  observationSchedule_.armPostWake(now);
+  observationSchedule_.armPostEvent(now);
   return MachinePhysicalStartDisposition::WAKE_PASSTHROUGH;
 }
 
@@ -1165,6 +1165,14 @@ bool ShotStopperMicraService::executePowerOffApplication(
           if (desiredPowerOff_.present &&
               sameCommandRequest(desiredPowerOff_.request, request)) {
             desiredPowerOff_.commandAccepted = true;
+            // The cloud accepted the standby command: assert optimistic OFF
+            // and delay reads until the cloud can have converged.
+            const bool observing = config_.accountConfigured &&
+                (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0;
+            if (powerState_.noteStandbyCommandAccepted(published_, observing,
+                                                       millis())) {
+              observationSchedule_.armPostEvent(millis());
+            }
           }
         }
       }

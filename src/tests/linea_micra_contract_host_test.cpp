@@ -100,13 +100,13 @@ int main() {
   assert(micra_timing::kRetryDelaysMs[2] == 9000);
   assert(micra_timing::kStatePollMs == 30000);
   assert(micra_timing::kStateFreshnessMs == micra_timing::kStatePollMs);
-  assert(micra_timing::kOptimisticOnMs ==
+  assert(micra_timing::kOptimisticOverlayMs ==
          2U * micra_timing::kStatePollMs);
   assert(micra_timing::kExhaustedCooldownMs ==
-         micra_timing::kOptimisticOnMs);
+         micra_timing::kOptimisticOverlayMs);
   assert(micra_timing::kPostWakeObservationDelayMs == 15000);
   assert(micra_timing::kPostWakeObservationDelayMs <
-         micra_timing::kOptimisticOnMs);
+         micra_timing::kOptimisticOverlayMs);
   assert(!micra_timing::accessTokenRefreshDue(50U * 60U * 1000U - 1U));
   assert(micra_timing::accessTokenRefreshDue(50U * 60U * 1000U));
   assert(micra_timing::kAccessTokenLifetimeMs == 60U * 60U * 1000U);
@@ -114,7 +114,7 @@ int main() {
   micra_timing::ObservationSchedule schedule;
   schedule.dueNow(100);
   assert(schedule.automaticDue(100));
-  schedule.armPostWake(200);
+  schedule.armPostEvent(200);
   assert(!schedule.observationAllowed(15199));
   schedule.scheduleNext(300);  // A pre-edge completion preserves the deadline.
   assert(schedule.observationAllowed(15200));
@@ -172,6 +172,41 @@ int main() {
   effective = power.effectiveStatus(authoritative, true, 1000 + freshness);
   assert(effective.powerState == LineaMicraPowerState::ON);
   assert(effective.quality == LineaMicraObservationQuality::STALE);
+
+  // Optimistic OFF mirrors the wake overlay: an accepted scale-shutdown
+  // command over a fresh confirmed ON asserts effective OFF until the first
+  // authoritative read accepted by generation replaces it.
+  authoritative.sampleAtMs = 2000;
+  const uint32_t preShutdownGeneration = power.generation();
+  assert(power.noteStandbyCommandAccepted(authoritative, true, 2100));
+  const uint32_t shutdownGeneration = power.generation();
+  assert(shutdownGeneration != preShutdownGeneration);
+  effective = power.effectiveStatus(authoritative, true, 2100);
+  assert(effective.powerState == LineaMicraPowerState::ON);
+  assert(effective.optimisticOff);
+  assert(!effective.optimisticOn);
+  assert(!effective.effectiveOn);
+  assert(effective.quality == LineaMicraObservationQuality::OPTIMISTIC);
+  assert(!power.noteStandbyCommandAccepted(authoritative, true, 2101));
+  assert(power.generation() == shutdownGeneration);
+  assert(!power.acceptAuthoritative(preShutdownGeneration));
+  assert(power.effectiveStatus(authoritative, true, 2102).optimisticOff);
+  assert(power.acceptAuthoritative(shutdownGeneration));
+  effective = power.effectiveStatus(authoritative, true, 2103);
+  assert(effective.powerState == LineaMicraPowerState::ON);
+  assert(!effective.optimisticOff);
+  assert(effective.effectiveOn);
+  const uint32_t overlayMs = micra_timing::kOptimisticOverlayMs;
+  authoritative.sampleAtMs = 2104;
+  assert(power.noteStandbyCommandAccepted(authoritative, true, 2200));
+  effective = power.effectiveStatus(authoritative, true, 2200 + overlayMs);
+  assert(!effective.optimisticOff);
+  assert(effective.effectiveOn);
+  // The overlay expires without a successful read: the confirmed ON shows
+  // again, already stale because no observation ran during the overlay.
+  assert(effective.quality == LineaMicraObservationQuality::STALE);
+  // Clear the expired overlay so later preconditions see a clean tracker.
+  power.reset();
 
   authoritative.sampleAtMs = 0;
   effective = power.effectiveStatus(authoritative, true, 1000 + freshness);

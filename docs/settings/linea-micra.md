@@ -153,6 +153,16 @@ when the delay ends, the command stays pending and is retried, so the machine
 goes to standby once the connection returns. The saved delay is kept with the
 option so it is restored the next time it is enabled.
 
+The moment the cloud accepts the shutdown command, the controller treats the
+machine as already off: the operational state reads OFF for at most 60
+seconds—twice the normal read interval—while the last confirmed reading still
+says ON, and the next dashboard read is delayed 15 seconds so the cloud can
+settle. This mirrors the wake gesture, where the paddle ON is trusted before
+the cloud agrees. The first successful read started after that delay replaces
+the overlay with the confirmed state. If no read succeeds within the 60
+seconds, the confirmed ON simply becomes the visible state again until the
+next read lands.
+
 ## Brew temperature in presets
 
 **Allow brew boiler temperature in presets** reveals a per-preset value from

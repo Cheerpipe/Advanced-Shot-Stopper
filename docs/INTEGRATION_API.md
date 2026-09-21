@@ -173,7 +173,8 @@ return `202`.
 Settings and diagnostic status include a Micra subtree only in Micra firmware.
 It reports whether an account is configured, selected name/serial, option flags,
 request phase/error, ON/OFF/UNKNOWN power state, raw observed mode, evidence
-quality, optimistic-ON provenance, sample age/freshness, selected target
+quality, optimistic-ON and optimistic-OFF provenance, sample age/freshness,
+selected target
 temperature, STA/AP/shot gates,
 last HTTP/transport status, and the bounded machine list returned while
 connecting. Email, password, installation private key, access token, and refresh

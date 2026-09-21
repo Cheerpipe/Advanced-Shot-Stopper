@@ -490,7 +490,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"requestId\":%lu,\"phase\":\"%s\",\"error\":\"%s\","
         "\"powerState\":\"%s\","
         "\"observedMode\":\"%s\",\"quality\":\"%s\",\"effectiveOn\":%s,"
-        "\"optimisticOn\":%s,"
+        "\"optimisticOn\":%s,\"optimisticOff\":%s,"
         "\"sampleValid\":%s,\"sampleAgeMs\":%lu,\"freshnessMs\":%lu,"
         "\"pollIntervalMs\":%lu,\"targetValid\":%s,\"targetDeciC\":%u,"
         "\"temperatureState\":\"%s\",\"temperatureError\":\"%s\","
@@ -522,6 +522,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         lineaMicraObservationQualityName(micraStatus.quality),
         micraStatus.effectiveOn ? "true" : "false",
         micraStatus.optimisticOn ? "true" : "false",
+        micraStatus.optimisticOff ? "true" : "false",
         sampleValid ? "true" : "false",
         static_cast<unsigned long>(sampleAgeMs),
         static_cast<unsigned long>(micra_timing::kStateFreshnessMs),
