@@ -50,7 +50,18 @@ and then adds entities. No API credential or pairing step is required.
 
 ## Device and entities
 
-The integration creates one device. Its entities are:
+The integration creates one device. It is published by **Cheerpipe**, and the
+device page also shows the controller's hardware identity — for example
+`esp32-s3-relay-x1-speaker` — alongside the firmware version. Two diagnostic
+sensors capture that identity once at setup and never change until the
+integration is reloaded:
+
+- **Controller**, the controller hardware profile (for example
+  `esp32-s3-relay-x1-speaker`).
+- **Machine**, the espresso machine the controller was built for (for example
+  `La Marzocco Linea Micra (la-marzocco-linea-micra)`).
+
+Its remaining entities are:
 
 - **Shot state** (`idle` or `brewing`).
 - Duration, final weight, target weight, average flow, first-drop time, shot

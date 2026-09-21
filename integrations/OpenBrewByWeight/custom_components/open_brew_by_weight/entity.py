@@ -5,6 +5,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import OpenBrewByWeightCoordinator
+from .models import DEFAULT_MANUFACTURER, DEFAULT_MODEL
 
 
 class OpenBrewByWeightEntity(CoordinatorEntity[OpenBrewByWeightCoordinator]):
@@ -18,9 +19,10 @@ class OpenBrewByWeightEntity(CoordinatorEntity[OpenBrewByWeightCoordinator]):
         self._attr_unique_id = f"{snapshot.device_id}_{key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, snapshot.device_id)},
-            name="Open Brew by Weight",
-            manufacturer=snapshot.manufacturer,
-            model=snapshot.model,
+            name=snapshot.model or DEFAULT_MODEL,
+            manufacturer=snapshot.manufacturer or DEFAULT_MANUFACTURER,
+            model=snapshot.model or DEFAULT_MODEL,
+            hw_version=snapshot.hardware_profile or None,
             sw_version=snapshot.firmware_version,
             configuration_url=f"http://{coordinator.api.host}/",
         )

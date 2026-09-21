@@ -1,7 +1,7 @@
 {
   "domain": "open_brew_by_weight",
   "name": "Open Brew by Weight",
-  "codeowners": ["@felipeurzua"],
+  "codeowners": ["@Cheerpipe"],
   "config_flow": true,
   "documentation": "https://github.com/Cheerpipe/AcaiaArduinoBLE/blob/main/docs/features/home-assistant.md",
   "integration_type": "device",

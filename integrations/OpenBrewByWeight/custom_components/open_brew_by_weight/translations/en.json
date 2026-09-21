@@ -54,7 +54,9 @@
       "last_good_shot_first_drop": {"name": "Last good shot first drop"},
       "last_good_shot_type": {"name": "Last good shot type", "state": {"auto": "Automatic", "timer_only": "Timer only", "manual": "Manual"}},
       "last_good_shot_stop_detail": {"name": "Last good shot stop detail", "state": {"normal_target": "Target reached", "extended_max_weight": "Fast-shot maximum weight", "extended_min_time": "Fast-shot minimum time", "auto_to_manual": "Automatic to manual", "slow_max_time": "Slow-shot maximum time", "slow_min_weight": "Slow-shot minimum weight", "cup_removed": "Cup removed", "activator": "Physical control", "web_stop": "Web stop", "web_heartbeat": "Web heartbeat timeout", "physical_override": "Physical override", "hard_limit": "Hard time limit", "wall_limit": "Configured time limit", "relay_safety": "Relay safety", "weight_anomaly": "Weight anomaly", "other": "Other"}},
-      "last_good_shot_preset": {"name": "Last good shot preset"}
+      "last_good_shot_preset": {"name": "Last good shot preset"},
+      "controller": {"name": "Controller"},
+      "machine": {"name": "Machine"}
     },
     "select": {"active_preset": {"name": "Active preset"}},
     "switch": {

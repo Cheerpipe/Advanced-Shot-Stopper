@@ -127,15 +127,21 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     const int written = snprintf(
         self.workBuf_->statusJson, NetworkWorkBuf::kStatusJson,
         "{\"apiVersion\":1,\"minimumClientApiVersion\":1,"
-        "\"deviceId\":\"%s\",\"manufacturer\":\"Open Brew by Weight\","
+        "\"deviceId\":\"%s\",\"manufacturer\":\"Cheerpipe\","
         "\"model\":\"Open Brew by Weight\",\"firmwareVersion\":\"%s\","
+        "\"hardwareProfile\":\"%s\","
+        "\"machineName\":\"%s\",\"machineProfile\":\"%s\","
         "\"capabilities\":[\"webhook_v1\",\"preset_select_v1\","
         "\"quick_settings_v1\",\"restart_v1\",\"stored_shots_v1\"],"
         "\"shotState\":\"%s\",\"bootId\":%lu,\"activePresetId\":%u,"
         "\"presetRevision\":%lu,\"quickSettings\":%s,"
         "\"lastShot\":%s,\"lastGoodShot\":%s,"
         "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"}}",
-        id, firmware, control.activeCycle ? "brewing" : "idle",
+        id, firmware,
+        SHOT_STOPPER_HARDWARE_PROFILE_ID,
+        SHOT_STOPPER_MACHINE_BRAND " " SHOT_STOPPER_MACHINE_MODEL,
+        SHOT_STOPPER_MACHINE_PROFILE_ID,
+        control.activeCycle ? "brewing" : "idle",
         static_cast<unsigned long>(control.bootId),
         static_cast<unsigned>(recipe.presets.activeId),
         static_cast<unsigned long>(recipe.runtime.revision), quickSettingsJson,

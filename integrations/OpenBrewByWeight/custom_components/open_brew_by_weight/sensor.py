@@ -12,7 +12,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfMass, UnitOfTime
+from homeassistant.const import EntityCategory, UnitOfMass, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
@@ -122,12 +122,42 @@ async def async_setup_entry(
     async_add_entities(
         [
             ShotStateSensor(runtime.coordinator),
+            ControllerSensor(runtime.coordinator),
+            MachineSensor(runtime.coordinator),
             *(
                 StoredShotSensor(runtime.coordinator, description)
                 for description in SHOT_DESCRIPTIONS
             ),
         ]
     )
+
+
+class ControllerSensor(OpenBrewByWeightEntity, SensorEntity):
+    """Controller hardware identity, read once from the initial snapshot."""
+
+    _attr_translation_key = "controller"
+    _attr_icon = "mdi:chip"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: OpenBrewByWeightCoordinator) -> None:
+        super().__init__(coordinator, "controller")
+        self._attr_native_value = coordinator.data.snapshot.hardware_profile
+
+
+class MachineSensor(OpenBrewByWeightEntity, SensorEntity):
+    """Espresso machine identity, read once from the initial snapshot."""
+
+    _attr_translation_key = "machine"
+    _attr_icon = "mdi:coffee-maker"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: OpenBrewByWeightCoordinator) -> None:
+        super().__init__(coordinator, "machine")
+        snapshot = coordinator.data.snapshot
+        profile = snapshot.machine_profile
+        self._attr_native_value = (
+            f"{snapshot.machine_name} ({profile})" if profile else snapshot.machine_name
+        )
 
 
 class ShotStateSensor(OpenBrewByWeightEntity, SensorEntity):

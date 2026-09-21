@@ -19,6 +19,7 @@ from .const import (
     PLATFORMS,
 )
 from .coordinator import OpenBrewByWeightCoordinator
+from .models import DEFAULT_MANUFACTURER, DEFAULT_MODEL
 from .runtime import OpenBrewByWeightRuntimeData, webhook_url
 
 type OpenBrewByWeightConfigEntry = ConfigEntry[OpenBrewByWeightRuntimeData]
@@ -51,9 +52,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpenBrewByWeightConfigEn
     registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, snapshot.device_id)},
-        name="Open Brew by Weight",
-        manufacturer=snapshot.manufacturer,
-        model=snapshot.model,
+        name=snapshot.model or DEFAULT_MODEL,
+        manufacturer=snapshot.manufacturer or DEFAULT_MANUFACTURER,
+        model=snapshot.model or DEFAULT_MODEL,
+        hw_version=snapshot.hardware_profile or None,
         sw_version=snapshot.firmware_version,
         configuration_url=f"http://{api.host}/",
     )

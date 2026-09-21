@@ -23,6 +23,11 @@ EVENT_TYPES = {
     "controller_started",
 }
 NO_SCALE_BBW_MODES = ("off", "warn_once", "require_scale")
+DEFAULT_MANUFACTURER = "Cheerpipe"
+DEFAULT_MODEL = "Open Brew by Weight"
+DEFAULT_HARDWARE_PROFILE = "unknown"
+DEFAULT_MACHINE_NAME = "Unknown machine"
+DEFAULT_MACHINE_PROFILE = "unknown"
 
 
 class ProtocolError(ValueError):
@@ -54,6 +59,11 @@ def _number(value: Any, field: str) -> float:
     if not math.isfinite(result) or result < 0:
         raise ProtocolError(f"{field} is invalid")
     return result
+
+
+def _optional_string(value: Any, fallback: str, maximum: int) -> str:
+    """Accept an optional informational string; fall back when absent."""
+    return fallback if value is None else _string(value, "identity field", maximum)
 
 
 def _boolean(value: Any, field: str) -> bool:
@@ -252,6 +262,9 @@ class DeviceSnapshot:
     quick_settings: QuickSettings
     last_shot: Shot | None
     last_good_shot: Shot | None
+    hardware_profile: str = DEFAULT_HARDWARE_PROFILE
+    machine_name: str = DEFAULT_MACHINE_NAME
+    machine_profile: str = DEFAULT_MACHINE_PROFILE
 
     @classmethod
     def from_dict(cls, value: Any) -> Self:
@@ -283,8 +296,10 @@ class DeviceSnapshot:
             raise ProtocolError("quickSettings revision is inconsistent")
         return cls(
             device_id=device_id,
-            manufacturer=_string(data.get("manufacturer"), "manufacturer", 64),
-            model=_string(data.get("model"), "model", 64),
+            manufacturer=_optional_string(
+                data.get("manufacturer"), DEFAULT_MANUFACTURER, 64
+            ),
+            model=_optional_string(data.get("model"), DEFAULT_MODEL, 64),
             firmware_version=_string(
                 data.get("firmwareVersion"), "firmwareVersion", 31
             ),
@@ -296,6 +311,15 @@ class DeviceSnapshot:
             quick_settings=quick,
             last_shot=None if raw_shot is None else Shot.from_dict(raw_shot),
             last_good_shot=None if raw_good is None else Shot.from_dict(raw_good),
+            hardware_profile=_optional_string(
+                data.get("hardwareProfile"), DEFAULT_HARDWARE_PROFILE, 64
+            ),
+            machine_name=_optional_string(
+                data.get("machineName"), DEFAULT_MACHINE_NAME, 64
+            ),
+            machine_profile=_optional_string(
+                data.get("machineProfile"), DEFAULT_MACHINE_PROFILE, 64
+            ),
         )
 
 

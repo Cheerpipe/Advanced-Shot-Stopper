@@ -8,6 +8,7 @@ from dataclasses import replace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from homeassistant.const import EntityCategory
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
@@ -30,6 +31,8 @@ from custom_components.open_brew_by_weight.runtime import OpenBrewByWeightRuntim
 from custom_components.open_brew_by_weight.select import ActivePresetSelect
 from custom_components.open_brew_by_weight.sensor import (
     SHOT_DESCRIPTIONS,
+    ControllerSensor,
+    MachineSensor,
     ShotStateSensor,
     StoredShotSensor,
 )
@@ -454,6 +457,14 @@ async def test_entities_and_select(hass) -> None:
     assert state.native_value == "idle"
     assert state.device_info["identifiers"]
     assert state.device_info["name"] == "Open Brew by Weight"
+    controller = ControllerSensor(coordinator)
+    assert controller.unique_id.endswith("_controller")
+    assert controller.native_value == "esp32-s3-relay-x1-speaker"
+    assert controller.entity_category is EntityCategory.DIAGNOSTIC
+    machine = MachineSensor(coordinator)
+    assert machine.unique_id.endswith("_machine")
+    assert machine.native_value == "La Marzocco Linea Micra (la-marzocco-linea-micra)"
+    assert machine.entity_category is EntityCategory.DIAGNOSTIC
     assert len(SHOT_DESCRIPTIONS) == 16
     empty = [StoredShotSensor(coordinator, item) for item in SHOT_DESCRIPTIONS]
     assert all(entity.native_value is None for entity in empty)

@@ -17,7 +17,9 @@
       "last_shot_stop_detail": {"default": "mdi:stop-circle-outline"},
       "last_good_shot_stop_detail": {"default": "mdi:stop-circle-outline"},
       "last_shot_preset": {"default": "mdi:tune-variant"},
-      "last_good_shot_preset": {"default": "mdi:tune-variant"}
+      "last_good_shot_preset": {"default": "mdi:tune-variant"},
+      "controller": {"default": "mdi:chip"},
+      "machine": {"default": "mdi:coffee-maker"}
     },
     "select": {"active_preset": {"default": "mdi:tune"}},
     "switch": {
