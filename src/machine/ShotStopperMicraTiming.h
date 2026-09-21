@@ -9,13 +9,15 @@ namespace shotstopper::micra_timing {
 inline constexpr std::array<uint32_t, 3> kRetryDelaysMs{{3000, 6000, 9000}};
 inline constexpr size_t kMaxAttempts = 1U + kRetryDelaysMs.size();
 inline constexpr uint32_t kStatePollMs = 30000;
-inline constexpr uint32_t kStateFreshnessMs = 30000;
+// Sample freshness tracks the poll cadence: a confirmed sample stays CURRENT
+// until the next poll was due. The exhausted-cycle cooldown shares the
+// optimistic-ON grace policy: two full poll intervals.
+inline constexpr uint32_t kStateFreshnessMs = kStatePollMs;
 inline constexpr uint32_t kOptimisticOnMs = 2U * kStatePollMs;
 inline constexpr uint32_t kPostWakeObservationDelayMs = 15000;
-inline constexpr uint32_t kExhaustedCooldownMs = 60000;
+inline constexpr uint32_t kExhaustedCooldownMs = kOptimisticOnMs;
 inline constexpr uint32_t kGateRetryMs = 1000;
 inline constexpr uint32_t kHttpTimeoutMs = 10000;
-inline constexpr uint32_t kRequestDeadlineMs = 60000;
 inline constexpr uint32_t kAccessTokenLifetimeMs = 60U * 60U * 1000U;
 inline constexpr uint32_t kAccessTokenRefreshAgeMs = 50U * 60U * 1000U;
 
@@ -62,7 +64,7 @@ class ObservationSchedule {
 
 static_assert(kRetryDelaysMs[0] < kRetryDelaysMs[1] &&
                   kRetryDelaysMs[1] < kRetryDelaysMs[2]);
-static_assert(kStatePollMs > 0 && kStateFreshnessMs >= kStatePollMs);
+static_assert(kStatePollMs > 0);
 static_assert(kOptimisticOnMs == 2U * kStatePollMs);
 static_assert(kPostWakeObservationDelayMs < kOptimisticOnMs);
 static_assert(kAccessTokenRefreshAgeMs < kAccessTokenLifetimeMs);

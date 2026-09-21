@@ -99,8 +99,11 @@ int main() {
   assert(micra_timing::kRetryDelaysMs[1] == 6000);
   assert(micra_timing::kRetryDelaysMs[2] == 9000);
   assert(micra_timing::kStatePollMs == 30000);
+  assert(micra_timing::kStateFreshnessMs == micra_timing::kStatePollMs);
   assert(micra_timing::kOptimisticOnMs ==
          2U * micra_timing::kStatePollMs);
+  assert(micra_timing::kExhaustedCooldownMs ==
+         micra_timing::kOptimisticOnMs);
   assert(micra_timing::kPostWakeObservationDelayMs == 15000);
   assert(micra_timing::kPostWakeObservationDelayMs <
          micra_timing::kOptimisticOnMs);

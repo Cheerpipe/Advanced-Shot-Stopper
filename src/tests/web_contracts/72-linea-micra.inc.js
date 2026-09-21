@@ -53,7 +53,9 @@ if (!micraService.includes('config.save_client_session = true')) {
   throw new Error('Linea Micra cloud client must save TLS sessions for reuse');
 }
 if (!micraTiming.includes('kStatePollMs = 30000') ||
+    !micraTiming.includes('kStateFreshnessMs = kStatePollMs') ||
     !micraTiming.includes('kOptimisticOnMs = 2U * kStatePollMs') ||
+    !micraTiming.includes('kExhaustedCooldownMs = kOptimisticOnMs') ||
     !micraTiming.includes('kPostWakeObservationDelayMs = 15000') ||
     !micraService.includes('const bool networkReady = networkEligible(observationGate)') ||
     !micraService.includes('pending_.present && (!pendingObservation || observationReady)') ||
