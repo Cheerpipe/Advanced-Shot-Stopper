@@ -381,7 +381,7 @@ It would not exist without
 **[tatemazer](https://github.com/tatemazer)** and
 [tatemazer/AcaiaArduinoBLE](https://github.com/tatemazer/AcaiaArduinoBLE).
 That project proved BLE brew-by-weight stop, shared the core scale protocol
-work, and shipped the original as a plug-and-play kit. This
+work, and shipped the original Shot Stopper as a plug-and-play kit. This
 application firmware, Web UI, paddle and momentary machine models, and safety
 workflow are new work on top of that foundation.
 
