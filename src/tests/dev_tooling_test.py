@@ -136,6 +136,17 @@ flash_jtag_rejected = run("flash", "monitor", "--jtag")
 assert flash_jtag_rejected.returncode == 2 and "does not apply" in flash_jtag_rejected.stderr
 opt_forwarded = captured_firmware("build", "--os")
 assert opt_forwarded["steps"][0][1][-2:] == ["--", "--os"]
+# The repository default optimization level is -Os/SIZE: sdkconfig.defaults
+# selects it and every script fallback agrees.
+defaults_text = (ROOT / "idf" / "sdkconfig.defaults").read_text()
+assert "CONFIG_COMPILER_OPTIMIZATION_SIZE=y" in defaults_text
+assert "CONFIG_COMPILER_OPTIMIZATION_PERF=y" not in defaults_text
+internal_build = (INTERNAL / "build-idf").read_text()
+assert internal_build.count("SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_SIZE") == 2
+assert "SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF" in internal_build
+idf_helper = (INTERNAL / ".." / "shotstopper_idf.sh").resolve().read_text()
+assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_SIZE}") == 2
+assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_PERF}") == 0
 for level in ("--o0", "--og", "--o2", "--os"):
     rejected = run("flash", level)
     assert rejected.returncode == 2 and "does not apply" in rejected.stderr, level

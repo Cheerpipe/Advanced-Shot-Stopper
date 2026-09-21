@@ -128,7 +128,7 @@ console output.
 | `-f`, `--flags "<flags>"` | `OPENBREWBYWEIGHT_FLAGS` | build | Extra compile definitions/options as one shell argument. |
 | `--development` | — | build | Development-mode build for this invocation only. Never persisted. |
 | `--jtag` | — | build | Compile the USB Serial/JTAG console on at boot by adding `-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1` on top of `--flags`. Never persisted. |
-| `--o0`, `--og`, `--o2`, `--os` | — | build | Firmware optimization level for this build only (`-O0`, `-Og`, `-O2`, `-Os`); mutually exclusive, and the `-O2` default is kept when none is passed. `-O1` and `-O3` are not ESP-IDF levels and are rejected. Switching levels recreates the sdkconfig, discarding other local `menuconfig` choices. Never persisted. |
+| `--o0`, `--og`, `--o2`, `--os` | — | build | Firmware optimization level for this build only (`-O0`, `-Og`, `-O2`, `-Os`); mutually exclusive, and the `-Os` default is kept when none is passed. `-O1` and `-O3` are not ESP-IDF levels and are rejected. Switching levels recreates the sdkconfig, discarding other local `menuconfig` choices. Never persisted. |
 | `--webui-language <code>` | `OPENBREWBYWEIGHT_WEBUI_LANGUAGE` | build | Compile-time Web UI language; defaults to `en` and is never persisted. |
 | `-p`, `--port <path>` | `OPENBREWBYWEIGHT_PORT` | flash, monitor | USB serial device. Validated before use and remembered. |
 | `-s`, `--speed <baud>` | `OPENBREWBYWEIGHT_SPEED` | monitor | Monitor baud rate, normally `115200`; remembered. |

@@ -31,7 +31,7 @@ CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_80=y
 # (lower CPU duty). Flash is plentiful on n16r8/n8r4; size is not the goal.
 # Existing build-idf/<arch>/sdkconfig keeps the old choice until deleted or
 # menuconfig — defaults only apply when that file is created.
-CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 
 # Qualified flash/MMU profile shared by both supported S3 variants.
 CONFIG_ESPTOOLPY_FLASHMODE_DIO=y

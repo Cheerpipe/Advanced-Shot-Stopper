@@ -140,8 +140,8 @@ Named parameters (long and short):
                            -DSHOT_STOPPER_ENABLE_JTAG=1 to the build flags)
       --o0|--og|--o2|--os  Firmware optimization level for this build (build
                            only; exclusive; not persisted). ESP-IDF Kconfig
-                           levels: -O0, -Og, -O2 (default), -Os. The saved
-                           profile keeps -O2 unless a level is passed again.
+                           levels: -O0, -Og, -O2, -Os (default). The saved
+                           profile keeps -Os unless a level is passed again.
                            -O1/-O3 are not ESP-IDF levels and are rejected.
       --yes                Commit OTA without an interactive question
       --wait-for-confirmation

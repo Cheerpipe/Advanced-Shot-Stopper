@@ -222,18 +222,18 @@ Machine type is derived from `interface.control` plus `interface.feedback`; a co
 
 ### Compiler optimization and existing sdkconfig
 
-Supported ESP-IDF firmware builds default to `CONFIG_COMPILER_OPTIMIZATION_PERF=y`
-from `idf/sdkconfig.defaults`, which selects GCC `-O2` for both supported
-architectures. After compiling, the build verifier prints the selected
-optimization level (`sdkconfig: CONFIG_COMPILER_OPTIMIZATION_PERF=y` on
-default builds) and fails if the configuration does not hold it.
+Supported ESP-IDF firmware builds default to `CONFIG_COMPILER_OPTIMIZATION_SIZE=y`
+from `idf/sdkconfig.defaults`, which selects GCC `-Os` (optimize for size) for
+both supported architectures. After compiling, the build verifier prints the
+selected optimization level (`sdkconfig: CONFIG_COMPILER_OPTIMIZATION_SIZE=y`
+on default builds) and fails if the configuration does not hold it.
 The `Debug` setting in the root `CMakePresets.json` applies only to host tests;
 it does not change firmware optimization.
 
 ESP-IDF offers exactly four optimization levels; `-O1` and `-O3` are not
 selectable and the wrapper rejects them. To compile an experiment at another
 level, pass exactly one of the transient build options; omitting them keeps
-the qualified `-O2` default:
+the default `-Os` build:
 
 ```sh
 ./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
@@ -245,14 +245,14 @@ the qualified `-O2` default:
 | `--o0` | `-O0` | `CONFIG_COMPILER_OPTIMIZATION_NONE` |
 | `--og` | `-Og` | `CONFIG_COMPILER_OPTIMIZATION_DEBUG` |
 | `--o2` | `-O2` | `CONFIG_COMPILER_OPTIMIZATION_PERF` |
-| `--os` | `-Os` | `CONFIG_COMPILER_OPTIMIZATION_SIZE` |
+| `--os` | `-Os` | `CONFIG_COMPILER_OPTIMIZATION_SIZE` (default) |
 
 The options are mutually exclusive, apply to that invocation only, and are
 never persisted. They work through a generated defaults file appended to
 `SDKCONFIG_DEFAULTS`; when an existing sdkconfig holds a different level, the
 build recreates the configuration so the requested level takes effect, which
 discards every other local `menuconfig` choice stored in that file. A later
-build without a level option restores `-O2` the same way.
+build without a level option restores `-Os` the same way.
 
 The final verifier also rejects drift from the qualified production profile:
 n8r4 uses 8 MB flash, `partitions-n8r4.csv`, and QUAD PSRAM; n16r8 uses 16 MB

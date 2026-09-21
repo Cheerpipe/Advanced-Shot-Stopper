@@ -28,8 +28,8 @@ $(shotstopper_arch_help)
 
 Firmware optimization level (build-only, exclusive, not persisted):
   --o0 -O0 debug without optimization; --og -Og IDF debug default;
-  --o2 -O2 performance (repository default and the qualified profile);
-  --os -Os size. -O1 and -O3 are not ESP-IDF Kconfig levels and are rejected.
+  --o2 -O2 performance; --os -Os size (repository default and the
+  qualified profile); -O1 and -O3 are not ESP-IDF Kconfig levels and are rejected.
   The level is a Kconfig choice: the build reconfigures when it changes and
   the verifier checks the selected level. mbedTLS keeps its own level.
 
@@ -70,7 +70,7 @@ shotstopper_resolve_board "$(ss_get arch)"
 ss_idf_source
 
 # Map the exclusive CLI level flags to their ESP-IDF Kconfig choices. Empty
-# keeps the repository default (-O2 / PERF). ss_idf_py_args registers the
+# keeps the repository default (-Os / SIZE). ss_idf_py_args registers the
 # generated overlay as the last SDKCONFIG_DEFAULTS entry so the chosen level
 # wins over every earlier default file.
 case "${SS_CLI_OPT_LEVEL:-}" in
@@ -78,7 +78,7 @@ case "${SS_CLI_OPT_LEVEL:-}" in
   --og) SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_DEBUG ;;
   --o2) SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF ;;
   --os) SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_SIZE ;;
-  *)    SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF ;;
+  *)    SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_SIZE ;;
 esac
 export SS_IDF_OPT_LEVEL_KCONFIG
 
