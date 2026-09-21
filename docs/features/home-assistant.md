@@ -1,6 +1,6 @@
 # Home Assistant
 
-The native **Advanced Shot Stopper** integration adds one controller device,
+The native **Open Brew by Weight** integration adds one controller device,
 live shot state, the latest completed shot and the controller's durable last
 good shot, an active-preset
 selector, seven Home Quick Settings switches, and a safe restart button. It
@@ -20,16 +20,16 @@ not use this integration on an untrusted or shared network.
 
 ## Install and connect
 
-Install **Advanced Shot Stopper** from its dedicated HACS repository after a
+Install **Open Brew by Weight** from its dedicated HACS repository after a
 release is published, then restart Home Assistant. For development, copy
-`custom_components/advanced_shot_stopper` from the integration source into the
+`custom_components/open_brew_by_weight` from the integration source into the
 same folder under your Home Assistant configuration directory.
 
 1. In Home Assistant, go to **Settings → Devices & services → Add integration**
-   and select **Advanced Shot Stopper**.
+   and select **Open Brew by Weight**.
 2. Enter only the controller IP address or local host name. On networks with
    discovery, the controller's address is `<device-name>.local`, for example
-   `advancedshotstopper.local` (see
+   `openbrewbyweight.local` (see
    [Discovery by name](../settings/wifi.md#discovery-by-name)).
 3. If another webhook currently owns the controller, explicitly approve its
    replacement.
@@ -52,7 +52,7 @@ The integration creates one device. Its entities are:
 - **Brew by weight**, **No-scale BBW**, **A-to-M time guard**, **Slow
   extraction guard**, **Fast extraction guard**, **Avoid accidental touch**,
   and **Cup protection** switches.
-- **Restart Shot Stopper**, a configuration button.
+- **Restart Open Brew by Weight**, a configuration button.
 
 Selecting a preset waits for the controller to persist it and then refreshes
 the authoritative value. If the machine is busy or the write fails, Home
@@ -118,7 +118,7 @@ callback.
 
 ## Migrate from the YAML example
 
-1. Remove the old Shot Stopper package and receiving automation from your Home
+1. Remove the old plug-and-play brew control package and receiving automation from your Home
    Assistant configuration.
 2. Remove its `input_number`, `input_text`, template sensors, and any obsolete
    `rest` or `rest_command` entries after deciding whether to retain their

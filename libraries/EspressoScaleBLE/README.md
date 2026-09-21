@@ -133,7 +133,7 @@ Build and validate the bundled application with:
 ```
 
 For a new consumer, follow the ownership/lifecycle rules above and inspect the
-existing [scale worker](../../src/ShotStopperScaleWorker.cpp). It demonstrates
+existing `OpenBrewByWeightScaleWorker.cpp` scale worker. It demonstrates
 host readiness, serialized commands and connection-generation handling; calling
 BLE APIs from arbitrary application callbacks is not an equivalent integration.
 
@@ -145,7 +145,7 @@ library. Use the current [machine types](../../README.md#machine-types) and
 does not certify an installation of this firmware.
 
 <a id="printed-circuit-board"></a>
-<a id="historical-shotstopper-configuration-notes"></a>
+<a id="historical-upstream-configuration-notes"></a>
 <a id="demo"></a>
 <a id="scale-compatibility-1"></a>
 <a id="bugsmissing"></a>

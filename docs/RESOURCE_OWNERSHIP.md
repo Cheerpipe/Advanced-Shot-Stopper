@@ -25,11 +25,11 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | Energy activity mailbox | HTTP publishes bounded presence; control expires it and publishes applied profile/cooldown; ScaleService and NetworkService publish busy/error state | static atomics, no new tasks or flash writes; requests never authorize actuation |
 | BLE modem sleep / scan and Wi-Fi sleep | ScaleService / NetworkService respectively | owner-local application, live link/connecting gates, saved preferences restored when PM is off; see [Power management](settings/power-management.md) |
 | scale NimBLE peer procedure | ScaleService | owns scanning, connection, commands, and weight notifications; no machine integration can acquire or pause this BLE client |
-| Micra cloud HTTPS client | build-selected `ShotStopperMicraService` worker | boot-lifetime 8 KiB task; lazy external session state is 4,120 bytes and request E/S is one transient 16 KiB union; shot transitions cancel active I/O, while Disconnect, disabled observation, STA loss, and AP entry wipe/free both workspaces and destroy the client handle |
+| Micra cloud HTTPS client | build-selected `OpenBrewByWeightMicraService` worker | boot-lifetime 8 KiB task; lazy external session state is 4,120 bytes and request E/S is one transient 16 KiB union; shot transitions cancel active I/O, while Disconnect, disabled observation, STA loss, and AP entry wipe/free both workspaces and destroy the client handle |
 | webhook `esp_http_client` | `WebhookDispatcher::httpClient_` (`UniqueResource`) | normal cleanup after worker join; destructor is final rollback |
-| OTA write handle | `ShotStopperOta::otaHandle_` (`UniqueResource`) | abort under `FlashIoGuard`; `release()` transfers it exactly once to `esp_ota_end` |
-| OTA SHA context | `ShotStopperOta::sessionSha256_` (`UniqueResource`) | `psa_hash_abort` then capability-aware heap free |
-| Network command queue and lifecycle semaphores | `ShotStopperNetwork` (`UniqueResource`) | acquired before task creation; reset in reverse order after manager join |
+| OTA write handle | `OpenBrewByWeightOta::otaHandle_` (`UniqueResource`) | abort under `FlashIoGuard`; `release()` transfers it exactly once to `esp_ota_end` |
+| OTA SHA context | `OpenBrewByWeightOta::sessionSha256_` (`UniqueResource`) | `psa_hash_abort` then capability-aware heap free |
+| Network command queue and lifecycle semaphores | `OpenBrewByWeightNetwork` (`UniqueResource`) | acquired before task creation; reset in reverse order after manager join |
 | relay `esp_timer` constructor temporaries | local `TimerRollbackOwner` | automatic reverse rollback until both timers and the independent timer are ready |
 | network/webhook tasks | owning service, borrowed `TaskHandle_t` | stop request, task acknowledgement, join, then queues/buffers/clients |
 | scale and persistence tasks/queues | boot-lifetime owning service | BLE startup failure remains TWDT-covered through a bounded 1 s native-host stop, then clears the task handle and releases callback queues only after quiescence; resources remain stable after successful boot |

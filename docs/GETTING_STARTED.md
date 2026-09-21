@@ -9,7 +9,7 @@ start with [Hardware](HARDWARE.md).
 1. Keep the physical activator OFF (release a momentary button) and power the
    controller. Turn on the scale with no other app connected to it.
 2. Join the controller's [fallback access point](settings/ap.md#first-connection)
-   from your phone or computer. The name is **`AdvancedShotStopperAP-`** plus
+   from your phone or computer. The name is **`OpenBrewByWeightAP-`** plus
    eight characters unique to this controller (USB `AP_STATUS` shows the exact
    name). Stay connected even if the phone reports "no internet"; open the AP
    address in a browser. The scale may wait to connect until you finish this
@@ -22,7 +22,7 @@ start with [Hardware](HARDWARE.md).
 5. In **Admin → Wi-Fi**, enter your home network and save. Rejoin that network
    on your phone/computer when the controller's AP closes.
 6. Open the controller within the 3-minute confirmation window. On most home
-   networks it answers at `advancedshotstopper.local`, its default device name
+   networks it answers at `openbrewbyweight.local`, its default device name
    (a renamed controller answers at `<name>.local` instead). If that name does
    not open, find the controller's IP address in the router's connected-device
    list or via [USB NET_STATUS](SERIAL_CLI.md). The old AP address does not
@@ -40,13 +40,13 @@ stops polling. Scrolling does not keep it active; use Reload to resume.
 
 **Add to home screen** installs the page like an app. On iPhone or iPad, open
 the controller page in Safari, tap **Share**, then **Add to Home Screen**; from
-then on it opens full screen with the Shot Stopper icon. On Android, open the
+then on it opens full screen with the Open Brew by Weight icon. On Android, open the
 page in Chrome, tap the **⋮ menu**, and choose **Add to Home screen**. Because
 the controller is reached directly at its local address, browsers do not offer
 an automatic install prompt — the menu option above is the installation.
 
 **Out of reach**: when the page opens but the controller cannot be reached —
-for example while you are away from home — it shows the Shot Stopper logo with
+for example while you are away from home — it shows the Open Brew by Weight logo with
 an out-of-reach message and a **Reload** button instead of a raw error. The same
 message appears if the connection drops while the page is open; in that case
 the page resumes on its own once the controller answers. When the page opens

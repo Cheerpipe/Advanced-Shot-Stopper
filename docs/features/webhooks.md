@@ -1,6 +1,6 @@
 # Webhooks
 
-Advanced Shot Stopper can send shot updates to one HTTP receiver on your local
+Open Brew by Weight can send shot updates to one HTTP receiver on your local
 network. Webhooks are useful for software other than Home Assistant; Home
 Assistant users should follow the [native integration guide](home-assistant.md)
 instead of configuring this page manually.

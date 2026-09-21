@@ -1,6 +1,6 @@
 # Scheduling qualification
 
-The authoritative task contract is `ShotStopperScheduling.h`. It fixes core,
+The authoritative task contract is `OpenBrewByWeightScheduling.h`. It fixes core,
 priority, nominal period, service deadline and Task Watchdog participation for
 every application task. A task without a periodic deadline is event-driven or
 diagnostic and must never execute on a safety path.

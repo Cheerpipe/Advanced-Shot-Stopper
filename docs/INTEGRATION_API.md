@@ -1,6 +1,6 @@
 # Integration API
 
-This is the public LAN contract used by the Advanced Shot Stopper Home
+This is the public LAN contract used by the Open Brew by Weight Home
 Assistant integration. It is available in firmware `0.1.0` and later at
 `http://<controller>/api/v1/integration`. Like the Web UI API, it is deliberately
 unauthenticated and must be used only on a trusted local network. It observes
@@ -52,8 +52,8 @@ aggregates, preset revision, and the complete Quick Settings snapshot.
   "apiVersion": 1,
   "minimumClientApiVersion": 1,
   "deviceId": "AA:BB:CC:DD:EE:FF",
-  "manufacturer": "Advanced Shot Stopper",
-  "model": "Advanced Shot Stopper",
+  "manufacturer": "Open Brew by Weight",
+  "model": "Open Brew by Weight",
   "firmwareVersion": "0.1.0",
   "capabilities": ["webhook_v1", "preset_select_v1", "quick_settings_v1", "restart_v1", "stored_shots_v1"],
   "shotState": "idle",

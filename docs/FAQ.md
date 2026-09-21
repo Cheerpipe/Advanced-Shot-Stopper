@@ -67,9 +67,9 @@ without scale/reed evidence, a tap-started machine may not receive it. Read
 ### I cannot find the controller's Wi-Fi
 
 On fresh settings, the [AP](settings/ap.md) starts at boot. Its name is
-**`AdvancedShotStopperAP-`** plus eight characters unique to this controller.
+**`OpenBrewByWeightAP-`** plus eight characters unique to this controller.
 USB `AP_STATUS` prints the exact name. Forget any saved network named only
-`AdvancedShotStopperAP`. With saved Wi-Fi, fallback begins after roughly 25 s
+`OpenBrewByWeightAP`. With saved Wi-Fi, fallback begins after roughly 25 s
 without association. Automatic AP shuts down after 3 minutes with no associated
 clients and does not restart after a later successful home-network connection
 drops. Use USB `AP_START` or reboot.
@@ -78,8 +78,8 @@ drops. Use USB `AP_START` or reboot.
 
 After a factory reset the password is still **`ineedacoffee`**. Phones and
 computers often show that message when they cannot finish joining, not only
-when the letters are wrong. Join the unique `AdvancedShotStopperAP-xxxxxxxx`
-name from USB `AP_STATUS`, forget any unsuffixed `AdvancedShotStopperAP`, and
+when the letters are wrong. Join the unique `OpenBrewByWeightAP-xxxxxxxx`
+name from USB `AP_STATUS`, forget any unsuffixed `OpenBrewByWeightAP`, and
 retry next to the controller. The scale may wait to connect until you finish
 this setup network.
 
@@ -90,16 +90,16 @@ address in the router or USB `NET_STATUS`, then open that address and claim
 the UI within 3 minutes. The AP address cannot follow a change to a different
 network. Unconfirmed changes revert; see [Wi-Fi](settings/wifi.md).
 
-### How do I reach the Shot Stopper the first time?
+### How do I reach the controller the first time?
 
 Once the controller has joined your home Wi-Fi, open
-`advancedshotstopper.local` in a browser on any phone or computer connected to
+`openbrewbyweight.local` in a browser on any phone or computer connected to
 the same network — there is no need to look up the IP address. The name comes
 from the controller's default device name; if you renamed it in
 Admin → Network, open `<name>.local` instead (spaces become hyphens, so
 `Cafe Bar` is `cafe-bar.local`). See [Wi-Fi](settings/wifi.md#discovery-by-name).
 
-### I cannot open `advancedshotstopper.local`
+### I cannot open `openbrewbyweight.local`
 
 Usually one of two things is happening. Either the controller never joined
 your Wi-Fi (or your phone/computer is on a different network) — check that

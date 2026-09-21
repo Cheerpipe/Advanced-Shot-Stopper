@@ -1,7 +1,7 @@
 # Firmware state machines
 
-This page is a map of the **runtime finite-state machines** in Advanced Shot
-Stopper. It is written for someone who already knows the product
+This page is a map of the **runtime finite-state machines** in Open Brew by
+Weight. It is written for someone who already knows the product
 (activator → machine circuit → scale) and wants to know **what each machine is for**,
 **what each state means**, and **which events move it**.
 
@@ -19,13 +19,13 @@ Related product docs: [Brew by weight](features/brew-by-weight.md),
 
 | Topic | Sections |
 | --- | --- |
-| Brew and electrical safety | [Stopper](#1-stopper-stopperstate), [relay](#2-relay-safety-relaysafetystate) |
+| Brew and electrical safety | [Brew orchestrator](#1-brew-orchestrator-brewstate), [relay](#2-relay-safety-relaysafetystate) |
 | Physical controls | [Machine state](#3-machine-run-state-machinerunstate), [user intent](#4-user-intent-userintent) |
 | Optional machine integration | [Linea Micra observer](#linea-micra-power-observer-and-wake-qualification) |
 | Weight and cup sensing | [Weight control](#5-weight-control-weightcontrolstate), [stream](#6-weight-stream-weightstreamstate), [cup](#7-cup-presence-cuppresencestate), [first flow](#8-first-flow-firstflowphase--firstflowclass), [touch](#9-accidental-touch-accidentaltouchphase--accidentaltouchclass) |
 | Scale connection | [Link and commands](#10-scale-link-scalelinkstate), [no-scale guard](#11-no-scale-bbw-guard) |
 | Access and updates | [Recovery](#12-recovery-gesture), [Wi-Fi](#13-station-wi-fi-stastate), [scan](#14-wi-fi-scan-wifiscanstate), [clock](#15-wall-clock-timesyncstate), [OTA](#16-ota-otastate), [Web commands](#17-web-command-pipeline-commandresultstate) |
-| Cross-cutting | [End reasons](#end-reasons-stopper-outcomes), [loop ordering](#control-loop-ordering) |
+| Cross-cutting | [End reasons](#end-reasons-brew-outcomes), [loop ordering](#control-loop-ordering) |
 
 [Power management](settings/power-management.md) derives energy demand from
 these existing states. It has no actuation authority: active or uncertain
@@ -44,14 +44,14 @@ Each section has:
    timers, Web UI commands). Not every enum is an event; some machines
    are derived (they recompute from another machine every loop).
 
-The control task in `shotStopper.cpp` is the orchestrator. Brew, scale sense,
-and cup presence do not call each other: the stopper polls machine **once** per
+The control task in `openBrewByWeight.cpp` is the orchestrator. Brew, scale sense,
+and cup presence do not call each other: the brew orchestrator polls machine **once** per
 loop (`machinePollIntention` → `machineLastIntention`), builds `GuardInputs` for
 brew guards, pushes a `MachineSense` snapshot into machine, and applies scale
 events (first-drop, post-tare cup hold). The **activator** reads user intention
 on `ACTIVATOR_GPIO` (paddle, switch, or another compatible mechanism),
-interprets that signal, and publishes `UserIntent` / `MachineIntention`. Shot
-stopper / brew / cup / scale consume that contract; they do not read the GPIO
+interprets that signal, and publishes `UserIntent` / `MachineIntention`. Brew
+by weight / brew / cup / scale consume that contract; they do not read the GPIO
 or know paddle vs switch. Machine specializations never read `session` or live
 scale globals. One machine
 is special: **relay safety can open the machine circuit without waiting for brew
@@ -64,8 +64,8 @@ contact.
 | --- | --- | --- |
 | Electrical | Relay safety | Can de-energize K1 from an ISR or trip path. Hard 60 s cap. |
 | Machine view | Machine run state, user intent | Derived. Status/UI only; they do not drive GPIO themselves. |
-| Brew orchestrator | Stopper | Orchestrates rinse vs shot vs idle from `UserIntent` (including `REQUEST_RINSE`) and *requests* circuit start/stop. Does not classify paddle ON→OFF or long-press. |
-| In-shot sensing | Weight stream, weight control, cup presence, first flow, accidental touch | Consume scale samples. Only **weight control** can ask the stopper to cut. |
+| Brew orchestrator | Brew orchestrator | Orchestrates rinse vs shot vs idle from `UserIntent` (including `REQUEST_RINSE`) and *requests* circuit start/stop. Does not classify paddle ON→OFF or long-press. |
+| In-shot sensing | Weight stream, weight control, cup presence, first flow, accidental touch | Consume scale samples. Only **weight control** can ask the brew orchestrator to cut. |
 | Scale link | BLE link + scale command/result | Connects the pan; does not close the machine circuit. |
 | Off-brew | STA, Wi-Fi scan, NTP, OTA, Web command results, recovery gesture | Must not leave machine circuit closed. OTA and recovery keep the relay open. |
 
@@ -73,9 +73,9 @@ contact.
 flowchart TB
   gpio[ACTIVATOR_GPIO] --> activator[Activator]
   activator -->|UserIntent| intent[User intent]
-  intent --> stopper[Stopper]
-  web[Web] --> stopper
-  stopper -->|request start/stop| safety[Relay safety]
+  intent --> brew[Brew orchestrator]
+  web[Web] --> brew
+  brew -->|request start/stop| safety[Relay safety]
   safety -->|K1| circuit[machine circuit]
   safety --> run[Machine run state]
   ble[BLE scale] --> link[Scale link]
@@ -84,9 +84,9 @@ flowchart TB
   stream --> flow[First flow]
   stream --> touch[Accidental touch]
   stream --> wctl[Weight control]
-  cup --> stopper
-  wctl -->|cut / suspend| stopper
-  safety -->|trip| stopper
+  cup --> brew
+  wctl -->|cut / suspend| brew
+  safety -->|trip| brew
 ```
 
 ## How the machines interact
@@ -96,27 +96,27 @@ firmware uses pulses and separate inferred/reed state; relay OPEN alone does
 not mean the group is idle. See section 3 before applying this sequence to a
 button machine.
 
-**Idle.** Stopper is `READY`. Relay safety is `OPEN`. Machine run state
+**Idle.** The brew orchestrator is `READY`. Relay safety is `OPEN`. Machine run state
 is `CONFIRMED_OFF`. The scale link may be `CONNECTED` or
 `DISCONNECTED`; that only matters when a shot starts.
 
 **Start.** A debounced activator ON (or a Web start, if remote machine control is
-compiled in) is `REQUEST_START`. The stopper may **block** that start
+compiled in) is `REQUEST_START`. The brew orchestrator may **block** that start
 (no-scale BBW guard, cup-to-start guard) without closing the machine circuit. With Quick rinse enabled, a short
 ON→OFF in its window becomes `RINSE`.
 
-If the start is accepted, the stopper calls `machineRequestStart`.
-On paddle, relay safety goes `OPEN → ARMING → CLOSED` (or refuses and the stopper
+If the start is accepted, the brew orchestrator calls `machineRequestStart`.
+On paddle, relay safety goes `OPEN → ARMING → CLOSED` (or refuses and the brew orchestrator
 goes to `REQUIRES_OFF`). Machine run state follows: `ASSUMED_ON` while
 arming, then `CONFIRMED_ON`.
 
-**During a shot.** The stopper is `BREW` or `MANUAL_NO_SCALE`. Weight
+**During a shot.** The brew orchestrator is `BREW` or `MANUAL_NO_SCALE`. Weight
 control is `ACTIVE` only if the cycle started with a usable scale and
 brew-by-weight is on. Fresh BLE weights update the stream, cup
 presence, first-flow, and accidental-touch detectors. BLE drop or
 **silent notifications** (no parsed `WEIGHT` for 1 s) **suspends**
 weight control; rejected brew samples (post-tare, slew) and a stable
-accepted weight do not. The stopper stays in `BREW` and A→M may still
+accepted weight do not. The brew orchestrator stays in `BREW` and A→M may still
 cut later. Cup `REMOVED` can cut if that option is on.
 
 At cycle start, control snapshots the preset's BBW algorithm, profile, offset,
@@ -141,7 +141,7 @@ runs in the active cutoff or ISR path.
 **Stop.** Brew policy (`SCALE_THRESHOLD`, paddle OFF, guards, Web Stop)
 or a safety trip asks to open the machine circuit. `machineRequestStop` drives safety
 back to `OPEN` unless it already tripped. If the paddle is still ON,
-the stopper lands in `REQUIRES_OFF` until a stable OFF (`STABLE_IDLE`).
+the brew orchestrator lands in `REQUIRES_OFF` until a stable OFF (`STABLE_IDLE`).
 Otherwise it returns to `READY`.
 
 **Independence.** A 60 s (or operational-wall) timer ISR can trip
@@ -149,17 +149,17 @@ safety while the control task is in BLE or flash I/O. The next loop
 sees `TRIPPED` / `LOCKOUT` and finalizes the cycle with
 `RELAY_SAFETY_FAILURE`. Network, OTA, and NTP never close the machine circuit. A
 maintenance lease (Wi-Fi scan, some admin work) forces machine circuit open and
-parks the stopper in `REQUIRES_OFF` if the paddle is ON.
+parks the brew orchestrator in `REQUIRES_OFF` if the paddle is ON.
 
 ---
 
-## 1. Stopper (`StopperState`)
+## 1. Brew orchestrator (`BrewState`)
 
 **Purpose.** The brew *workflow*: idle, rinse, automatic shot, or
 manual no-scale shot. It is the only machine that decides *when* to
 request machine circuit close, and *why* a cycle ended (`EndReason`).
 
-Source: `ShotStopperBrewTypes.h`, orchestrated in `shotStopper.cpp`.
+Source: `OpenBrewByWeightBrewTypes.h`, orchestrated in `openBrewByWeight.cpp`.
 
 ### States
 
@@ -200,7 +200,7 @@ de-energize from an ISR if the control task is stuck. This is the
 last firmware line of defence short of a second hardware barrier
 (K2). See [Hardware](HARDWARE.md).
 
-Source: `ShotStopperSafety.h`, `ShotStopperMachine.h`.
+Source: `OpenBrewByWeightSafety.h`, `OpenBrewByWeightMachine.h`.
 
 ### States
 
@@ -237,7 +237,7 @@ Source: `ShotStopperSafety.h`, `ShotStopperMachine.h`.
 `machineRequestStop` (CLOSED/ARMING→OPEN, unless already TRIPPED/LOCKOUT).
 
 Machine run state is **derived** from this machine (next section). The
-stopper observes trips on the next control-loop pass.
+The brew orchestrator observes trips on the next control-loop pass.
 
 ---
 
@@ -247,8 +247,8 @@ stopper observes trips on the next control-loop pass.
 without exposing ARMING vs CLOSED vs TRIPPED. It does not command
 GPIO.
 
-Source: `ShotStopperMachineTypes.h`, `machineRunState()` in
-`ShotStopperMachinePaddleState.h` (included from `ShotStopperMachine.h`).
+Source: `OpenBrewByWeightMachineTypes.h`, `machineRunState()` in
+`OpenBrewByWeightMachinePaddleState.h` (included from `OpenBrewByWeightMachine.h`).
 Config lock uses `machineIsRunning()`, which for paddle equals machine circuit closed.
 
 ### States
@@ -267,11 +267,11 @@ Two different “desync” stories. Do not mix them:
 
 | Build | Source of truth for machine run | Internal software/pin desync | Paddle ON / K1 OFF after an automatic cut |
 | --- | --- | --- | --- |
-| Paddle (`SHOT_STOPPER_MACHINE_TYPE=0`) | Relay GPIO / commanded closed | **None expected.** Software CLOSED with pin OPEN is a bug; firmware rewrites the closed level every loop and logs `RELAY_GPIO_DESYNC`. If the rewrite does not stick, `GPIO_DESYNC` trips. | **Expected:** stopper `REQUIRES_OFF` + paddle-return reminder until a stable OFF. K1 must stay open; the ON-only mirror must not re-close. |
-| Reed (`SHOT_STOPPER_MACHINE_TYPE=2`) | Reed, except Assumed after the configured edge | Only **reed confirm timeout** (about 1 s) | N/A (cut is a pulse) |
-| Momentary-only (`SHOT_STOPPER_MACHINE_TYPE=1`) | Inferred | Yes, outside reed | N/A |
+| Paddle (`OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=0`) | Relay GPIO / commanded closed | **None expected.** Software CLOSED with pin OPEN is a bug; firmware rewrites the closed level every loop and logs `RELAY_GPIO_DESYNC`. If the rewrite does not stick, `GPIO_DESYNC` trips. | **Expected:** brew orchestrator `REQUIRES_OFF` + paddle-return reminder until a stable OFF. K1 must stay open; the ON-only mirror must not re-close. |
+| Reed (`OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=2`) | Reed, except Assumed after the configured edge | Only **reed confirm timeout** (about 1 s) | N/A (cut is a pulse) |
+| Momentary-only (`OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=1`) | Inferred | Yes, outside reed | N/A |
 
-On **momentary-only** builds (`SHOT_STOPPER_MACHINE_TYPE=1`) these labels are
+On **momentary-only** builds (`OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=1`) these labels are
 inferred from brew-accepted weight, not from K1. Boot is `CONFIRMED_OFF`. A
 START pulse goes to `ASSUMED_ON`. Espresso-like flow (about 0.60 g/s, below
 the finger-jump rate, ≥1 g
@@ -284,7 +284,7 @@ Confirmed off — so a late first drop can still confirm ON without a second
 pulse. A START nack (or Assumed on that never left a 1 g band around the
 shot baseline) that lasts until the compiled hard cap
 (`HARD_MAX_CIRCUIT_CLOSED_MS`, 60 s) still settles to Confirmed off with
-no relay pulse and no beep; the stopper abandons the cycle so the next
+no relay pulse and no beep; the brew orchestrator abandons the cycle so the next
 press is a new Start (tare + timer). A logical STOP (user or firmware) goes to `ASSUMED_OFF` while the
 pan settles. A STOP ack needs a quiet pan; timeout without quiet does
 **not** force Idle, but later quiet still settles to Confirmed off. A START
@@ -311,7 +311,7 @@ auto-cut does not. Max BBW time is not armed on timer-only or no-scale
 shots. At the 60 s hard cap without Confirmed on, firmware settles to
 Confirmed off with no stop pulse so the next press is Start.
 
-On **momentary+reed** builds (`SHOT_STOPPER_MACHINE_TYPE=2`) the reed is
+On **momentary+reed** builds (`OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=2`) the reed is
 canonical except for a short assumed window after the configured start/stop
 edge (press or release per Start/stop on — not the 1:1 relay close; button
 → solenoid → reed lag). Reed is polled every control loop (`digitalRead`
@@ -343,10 +343,10 @@ windows as described above; it is not derived from K1 alone.
 
 **Purpose.** Generic brew request after the **activator** reads `ACTIVATOR_GPIO`
 (paddle, switch, or another compatible mechanism), interprets that signal, and
-translates it to something the shot stopper understands. The stopper never
+translates it to something the brew orchestrator understands. The brew orchestrator never
 reads GPIO, paddle mode, or machine type.
 
-Source: `ShotStopperMachineTypes.h`, `machinePollIntention()`. Latch TYPE=0
+Source: `OpenBrewByWeightMachineTypes.h`, `machinePollIntention()`. Latch TYPE=0
 maps GPIO + snapshotted `PaddleMode` onto these intents (Original/Auto may
 omit `REQUEST_STOP` after the rinse window). A short ON→OFF with rinse
 enabled publishes `REQUEST_RINSE`. Momentary maps a hold no longer than
@@ -366,7 +366,7 @@ rinse off, a longer hold is mirror-only.
 | `HOLD_ACTIVE` | User is still requesting brew. |
 | `STABLE_IDLE` | User is idle long enough to leave `REQUIRES_OFF`. |
 
-The machine owns debounce and bounce-safety. The stopper only sees
+The machine owns debounce and bounce-safety. The brew orchestrator only sees
 `HOLD_ACTIVE` vs `STABLE_IDLE`.
 
 ---
@@ -378,8 +378,8 @@ link or silent notifications must not slam machine circuit open; they
 **suspend** automation and let A→M / paddle / walls decide. Brew
 rejecting a sample is not a lost scale.
 
-Source: `ShotStopperScaleTypes.h`, `setWeightControlState()` in
-`shotStopper.cpp`.
+Source: `OpenBrewByWeightScaleTypes.h`, `setWeightControlState()` in
+`openBrewByWeight.cpp`.
 
 ### States
 
@@ -414,7 +414,7 @@ control is still `ACTIVE` until the next loop notices. Control
 `SUSPENDED` after a disconnect can also overlap a still-`FRESH`
 observed sample until the 1 s timer elapses.
 
-Source: `ShotStopperScaleTypes.h`.
+Source: `OpenBrewByWeightScaleTypes.h`.
 
 ### States
 
@@ -441,7 +441,7 @@ stream `STALE`.
 late cup can retare and a lifted cup can stop. A tare must **not**
 flip presence (the zero moves; the cup did not leave).
 
-Source: `ShotStopperScaleTypes.h`, `ShotStopperCupPresence.h`.
+Source: `OpenBrewByWeightScaleTypes.h`, `OpenBrewByWeightCupPresence.h`.
 
 ### States
 
@@ -459,7 +459,7 @@ transient is not a remove/place.
 | --- | --- |
 | `NONE` | Sample did not complete a transition (still counting stability or confirmations). |
 | `PLACED` | ABSENT → PRESENT after the shared stable-sample/time requirements. Drives late retare inside its shot window, or independent idle tare on an eligible new placement. |
-| `REMOVED` | PRESENT → ABSENT after consecutive samples below **Cup removed** (default −3 g). May set `cupRemovedPending` on the stopper. |
+| `REMOVED` | PRESENT → ABSENT after consecutive samples below **Cup removed** (default −3 g). May set `cupRemovedPending` on the brew orchestrator. |
 
 Placement retains an occupied reference and identity. For a negative occupied
 plateau, the removal threshold applies to a further drop from that reference,
@@ -548,7 +548,7 @@ unobservable from final weight alone.
 first-drop beep and shot clock are not fooled. It does **not** stop
 the shot.
 
-Source: `ShotStopperScaleTypes.h` (`stepFirstFlow`).
+Source: `OpenBrewByWeightScaleTypes.h` (`stepFirstFlow`).
 
 ### States (`FirstFlowPhase`)
 
@@ -578,7 +578,7 @@ sequence. A packet or timing gap starts a new sequence.
 without ending the shot. Complements BBW protection (time window) with
 a live rate/residual check.
 
-Source: `ShotStopperScaleTypes.h`. Only runs while weight control is
+Source: `OpenBrewByWeightScaleTypes.h`. Only runs while weight control is
 `ACTIVE` and the setting is on.
 
 ### States (`AccidentalTouchPhase`)
@@ -603,7 +603,7 @@ Source: `ShotStopperScaleTypes.h`. Only runs while weight control is
 **Purpose.** BLE session with the preferred / discovered scale.
 Connects the weight path; **never** drives the machine circuit.
 
-Source: `shotStopper.cpp` (`ScaleLinkState`).
+Source: `openBrewByWeight.cpp` (`ScaleLinkState`).
 
 ### States
 
@@ -681,7 +681,7 @@ and rinse gestures stay blocked; the three-cycle emergency gesture temporarily
 allows manual use. See
 [No-scale BBW](settings/no-scale-bbw.md).
 
-The stopper, not the guard, pushes `machineSetActivatorDriveAllowed` so
+The brew orchestrator, not the guard, pushes `machineSetActivatorDriveAllowed` so
 momentary does not 1:1-forward while this guard (or cup-start) would
 block. Paddle's ON-level refresh does not bypass start permission; `beginCycle`
 still withholds `machineRequestStart` when blocked.
@@ -718,7 +718,7 @@ still exposes the Armed/cooldown latch.
 **Purpose.** Restore network or factory-reset when Wi-Fi, Web UI, BLE,
 and USB are all unusable. **machine circuit stays open** for the whole window.
 
-Source: `ShotStopperRecoveryGesture.h`. Entry: power-on reset **and**
+Source: `OpenBrewByWeightRecoveryGesture.h`. Entry: power-on reset **and**
 paddle already stably ON.
 
 ### Internal flags (not published)
@@ -749,7 +749,7 @@ mid-shot. SoftAP auto-raise is **boot/bootstrap only**, before the first success
 STA join. Auto SoftAP also idle-stops after 3 minutes with zero SoftAP
 stations (latched for the rest of the boot; USB `AP_START` still works).
 
-Source: `ShotStopperNetwork.h`.
+Source: `OpenBrewByWeightNetwork.h`.
 
 ### States
 
@@ -796,7 +796,7 @@ takes a **maintenance lease**: machine circuit is forced open for the scan.
 
 **Purpose.** Timestamp shot history. Brewing does **not** wait on NTP.
 
-Source: `ShotStopperTime.h`.
+Source: `OpenBrewByWeightTime.h`.
 
 | State | Meaning |
 | --- | --- |
@@ -822,7 +822,7 @@ the UI.
 image. Machine circuit stays open. Transfer writes the **inactive** slot; boot
 selection changes only on an explicit flash/commit.
 
-Source: `ShotStopperOta.h`. Product notes: [OTA](features/ota.md).
+Source: `OpenBrewByWeightOta.h`. Product notes: [OTA](features/ota.md).
 
 ### States
 
@@ -846,7 +846,7 @@ has not confirmed HTTP is refused.
 The Web UI shows an action-specific success or failure toast when the
 HTTP handler accepts or rejects the command, not when NVS is done.
 
-Source: `ShotStopperDomain.h`.
+Source: `OpenBrewByWeightDomain.h`.
 
 | State | Meaning |
 | --- | --- |
@@ -894,14 +894,14 @@ remains pending and starts when the gate clears. Scale BLE runs independently
 and has no shared radio arbiter with the cloud worker.
 
 When wake recognition is enabled, the adapter reduces that pre-edge decision
-to a generic normal/wake disposition. Shot Stopper owns the wake passthrough:
+to a generic normal/wake disposition. Open Brew by Weight owns the wake passthrough:
 it mirrors only the physical paddle through the existing relay safety authority
 and consumes the entire ON/OFF interaction before brew, rinse, guards, scale,
 alerts, webhooks, or history. No guard or scale component knows Micra state.
 
 ---
 
-## End reasons (stopper outcomes)
+## End reasons (brew outcomes)
 
 These are not a machine. They are **why** the last `finalizeCycle`
 ran, stored on the session, last-shot blob, and shot log.
@@ -940,7 +940,7 @@ One pass of the control task, simplified:
 1. Feed watchdogs. The activator samples `ACTIVATOR_GPIO` and publishes `UserIntent`.
 2. Service relay safety (honor ISR trips, echo GPIO if present).
 3. Recovery gesture only in the boot window; it never closes the machine circuit.
-4. Apply stopper `switch (stopperState)` using intent, weight control,
+4. Apply brew orchestrator `switch (brewState)` using intent, weight control,
    cup, A→M, and rinse timers.
 5. Drain scale events; update link, stream, cup, first flow, touch,
    weight control.
@@ -958,8 +958,8 @@ from IRAM.
 
 | Name | Why it is omitted |
 | --- | --- |
-| `PaddleMode` (Natural / Original / Auto) | Latch TYPE=0 translator setting. Lives in `ShotStopperMachinePaddleConfig.h`; the stopper never branches on it. |
-| `BrewCommand` | Declared, unused at runtime. `ENTER_RINSE` was removed; rinse is `REQUEST_RINSE` via the stopper. |
+| `PaddleMode` (Natural / Original / Auto) | Latch TYPE=0 translator setting. Lives in `OpenBrewByWeightMachinePaddleConfig.h`; the brew orchestrator never branches on it. |
+| `BrewCommand` | Declared, unused at runtime. `ENTER_RINSE` was removed; rinse is `REQUEST_RINSE` via the brew orchestrator. |
 | `AlertEvent` | Outputs (beeps), not a mode. |
 | `TaskProfilerState` | Diagnostics only. |
 | Shot-log / NVS dual-slot enums | Storage format, not live control. |

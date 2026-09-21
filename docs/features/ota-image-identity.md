@@ -1,7 +1,7 @@
 # OTA image identity contract
 
 The firmware, browser, and developer scripts use this contract to decide
-whether an ESP32-S3 application image belongs to Shot Stopper and targets the
+whether an ESP32-S3 application image belongs to Open Brew by Weight and targets the
 same architecture, assembled hardware, and coffee machine as the running
 controller.
 
@@ -13,17 +13,17 @@ implementers; these checks do not replace the controller's verification.
 - ESP image magic: `0xE9` at byte 0.
 - ESP chip ID: `0x0009` (ESP32-S3), little-endian, at bytes 12–13.
 - `esp_app_desc_t` magic: `0xABCD5432`, little-endian, at byte 32.
-- Project name at byte 80, capacity 32 bytes: `shotstopper` for native IDF or
+- Project name at byte 80, capacity 32 bytes: `openbrewbyweight` for native IDF or
   `arduino-lib-builder` for the Arduino core build.
 - `hash_appended` at byte 23 must be 1. The last 32 bytes are the SHA-256 of
   every preceding byte in the application image.
 
-## Shot Stopper tag
+## Open Brew by Weight tag
 
 The image contains one generated ASCII tag:
 
 ```text
-SHOTSTOPPER_FW_TAG_V2|arch=<arch>|hw=<hardware>|machine=<machine>|ver=<version>|packed=<uint32>|END
+OPENBREWBYWEIGHT_FW_TAG_V2|arch=<arch>|hw=<hardware>|machine=<machine>|ver=<version>|packed=<uint32>|END
 ```
 
 - The tag may occur at any byte offset. Its position is linker-dependent and

@@ -1,14 +1,14 @@
 # USB serial CLI
 
-Shot Stopper accepts **line-based commands** on the same USB serial port as
+Open Brew by Weight accepts **line-based commands** on the same USB serial port as
 the logs (**115200** baud). Verbs are case-insensitive. SSIDs and passwords
 are case-sensitive; wrap values with spaces in double quotes.
 
 App CDC is off unless **GPIO 4 is jumpered to GND at reset**, or the
-firmware was compiled with `-DSHOT_STOPPER_ENABLE_JTAG=1`. See
+firmware was compiled with `-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1`. See
 [Hardware](HARDWARE.md). Without that Dupont (on the default build), the CLI
 port does not enumerate while the app is running; use **OTA** or **BOOT + RST**
-(ROM download) to flash. Remove the jumper before installing the stopper in
+(ROM download) to flash. Remove the jumper before installing the controller in
 the machine.
 
 Type firmware commands into the serial monitor, not your shell. Build/flash
@@ -23,7 +23,7 @@ Open the port through the supported developer facade:
 ```
 
 On Linux the port is often `/dev/ttyACM0` or `/dev/ttyUSB0`. Exit with
-**Ctrl+]**. The script prompts for and remembers the port in `.shotstopper`.
+**Ctrl+]**. The script prompts for and remembers the port in `.openbrewbyweight`.
 
 To install and open the monitor in one ordered command:
 
@@ -122,7 +122,7 @@ boot; `AP_START` still works).
 
 | Command | Parameters | Effect |
 | --- | --- | --- |
-| `AP_START` | none | Raises SoftAP (`AdvancedShotStopperAP-xxxxxxxx` at `192.168.4.1`). Stays up if STA is connected. Skips SoftAP idle shutdown until `AP_STOP`. Does not start HTTP if `WEBUI_STOP` is held |
+| `AP_START` | none | Raises SoftAP (`OpenBrewByWeightAP-xxxxxxxx` at `192.168.4.1`). Stays up if STA is connected. Skips SoftAP idle shutdown until `AP_STOP`. Does not start HTTP if `WEBUI_STOP` is held |
 | `AP_STOP` | none | Stops SoftAP and holds auto-raise. HTTP stays if STA is up |
 | `AP_STATUS` | none | Dumps SoftAP state including the live name and Wi-Fi sleep (never the device password) |
 

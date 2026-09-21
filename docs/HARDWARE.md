@@ -77,10 +77,10 @@ are not supported.
 A simple two-part enclosure is provided for the ESP32-S3 relay development
 board. Choose a matching box-and-cover pair:
 
-- **Standard:** [`AdvancedShotStopper-Box.stl`](../stl/AdvancedShotStopper-Box.stl)
-  and its [open/partial cover](../stl/AdvancedShotStopper-Cover.stl).
-- **Thick:** [`AdvancedShotStopper-Box-thick.stl`](../stl/AdvancedShotStopper-Box-thick.stl)
-  and its [thicker cover](../stl/AdvancedShotStopper-Cover-thick.stl). This pair
+- **Standard:** `OpenBrewByWeight-Box.stl` with its open/partial cover
+  `OpenBrewByWeight-Cover.stl`.
+- **Thick:** `OpenBrewByWeight-Box-thick.stl` with its thicker cover
+  `OpenBrewByWeight-Cover-thick.stl`. This pair
   better resists deformation where the ESP32 is exposed to more heat; PETG is
   recommended.
 
@@ -90,10 +90,10 @@ clearances; a printed case does not establish suitability inside a hot machine.
 
 Example of the assembled, printed enclosure:
 
-![Printed Advanced Shot Stopper enclosure](images/case-1.png)
+![Printed Open Brew by Weight enclosure](images/case-1.png)
 
 Named wiring lives in `config/hardware/`; compile-time safety assertions remain
-in [`src/ShotStopperHardware.h`](../src/ShotStopperHardware.h). Pins are **not**
+in `src/OpenBrewByWeightHardware.h`. Pins are **not**
 editable from the Web UI.
 
 ## Default GPIOs
@@ -101,28 +101,28 @@ editable from the Web UI.
 | Function | GPIO | Level |
 | --- | ---: | --- |
 | Activator (to GND) | **21** | Active **LOW** (internal pull-up; ON = GPIO LOW). Paddle or switch, depending on machine type. |
-| Reed (momentary+reed builds) | **13** | Active **LOW** (internal pull-up; ON = GPIO LOW). Compile `SHOT_STOPPER_MACHINE_TYPE=2`. Override with `-DSHOT_STOPPER_REED_GPIO`. Must stay distinct from activator, relay, LED, buzzer, USB console, and safety GPIOs. |
+| Reed (momentary+reed builds) | **13** | Active **LOW** (internal pull-up; ON = GPIO LOW). Compile `OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=2`. Override with `-DOPEN_BREW_BY_WEIGHT_REED_GPIO`. Must stay distinct from activator, relay, LED, buzzer, USB console, and safety GPIOs. |
 | Onboard relay coil | **2** | Active **HIGH** (HIGH energizes the coil and closes NO) |
 | Scale-connected LED | **1** | Active HIGH while a BLE scale is connected (switchable in Alerts) |
-| Optional buzzer | **14** | Present on speaker builds (passive piezo, RTTTL); sounds are compiled in from the hardware profile. `-DSHOT_STOPPER_ENABLE_BUZZER=0` omits them. |
-| USB console jumper | **4** | Active **LOW**. Dupont **IO4 → a GND pad you choose**. Sampled once at boot. **Do not** jumper IO4 to **EN** (that column is reset). Override with `-DSHOT_STOPPER_USB_CONSOLE_GPIO`. Must stay distinct from activator, relay, LED, buzzer, reed, and safety GPIOs. |
+| Optional buzzer | **14** | Present on speaker builds (passive piezo, RTTTL); sounds are compiled in from the hardware profile. `-DOPEN_BREW_BY_WEIGHT_ENABLE_BUZZER=0` omits them. |
+| USB console jumper | **4** | Active **LOW**. Dupont **IO4 → a GND pad you choose**. Sampled once at boot. **Do not** jumper IO4 to **EN** (that column is reset). Override with `-DOPEN_BREW_BY_WEIGHT_USB_CONSOLE_GPIO`. Must stay distinct from activator, relay, LED, buzzer, reed, and safety GPIOs. |
 
 Optional external K2 safety (both pins or neither; no defaults, because they
 depend on a reviewed board):
 
-- `SHOT_STOPPER_SAFETY_HEARTBEAT_GPIO`
-- `SHOT_STOPPER_CIRCUIT_FEEDBACK_GPIO`
-- `SHOT_STOPPER_CIRCUIT_FEEDBACK_CLOSED_LEVEL` (optional; default LOW)
+- `OPEN_BREW_BY_WEIGHT_SAFETY_HEARTBEAT_GPIO`
+- `OPEN_BREW_BY_WEIGHT_CIRCUIT_FEEDBACK_GPIO`
+- `OPEN_BREW_BY_WEIGHT_CIRCUIT_FEEDBACK_CLOSED_LEVEL` (optional; default LOW)
 
 Compile example (GPIO overrides). Add
-`-DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=1` only for an explicit
+`-DOPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=1` only for an explicit
 opt-in remote-control development build; default firmware leaves start/rinse
 on the physical activator:
 
 ```sh
 ./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
   --machine rancilio-silvia-pro-x \
-  --flags "-DSHOT_STOPPER_SAFETY_HEARTBEAT_GPIO=16 -DSHOT_STOPPER_CIRCUIT_FEEDBACK_GPIO=17"
+  --flags "-DOPEN_BREW_BY_WEIGHT_SAFETY_HEARTBEAT_GPIO=16 -DOPEN_BREW_BY_WEIGHT_CIRCUIT_FEEDBACK_GPIO=17"
 ```
 
 To use a different paddle, relay, LED, buzzer, or USB-console pin, add or edit
@@ -134,14 +134,14 @@ Wrong pins can leave machine circuit closed or misread the paddle.
 ## USB console jumper
 
 App USB CDC is **off** unless GPIO 4 is held LOW at reset (Dupont to GND),
-or the firmware was compiled with `-DSHOT_STOPPER_ENABLE_JTAG=1`. Leave the
-pin floating when the stopper is inside the machine. Pull the Dupont
+or the firmware was compiled with `-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1`. Leave the
+pin floating when the controller is inside the machine. Pull the Dupont
 **before** installing.
 
 - **With jumper at reset (default firmware):** `/dev/cu.usbmodem*` /
   `/dev/ttyACM*` appears; [USB serial CLI](SERIAL_CLI.md) and `monitor-idf`
   work.
-- **JTAG build (`-DSHOT_STOPPER_ENABLE_JTAG=1`):** USB Serial/JTAG is on at
+- **JTAG build (`-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1`):** USB Serial/JTAG is on at
   boot (OpenOCD + CDC) with no jumper. Do not ship this to a machine build.
 - **Without jumper, default app running:** no CDC port. Flash with
   **BOOT + RST** (ROM USB download) or **OTA**.
@@ -168,13 +168,13 @@ GPIO 1 is HIGH while a BLE scale is connected and **Settings → Alerts → Blue
 LED while scale connected** is on. It is diagnostic only and is never part of
 the machine-circuit decision.
 
-Override at compile time with `-DSHOT_STOPPER_SCALE_CONNECTED_LED_GPIO=…`.
+Override at compile time with `-DOPEN_BREW_BY_WEIGHT_SCALE_CONNECTED_LED_GPIO=…`.
 The pin must be output-capable and distinct from paddle, relay, buzzer,
 heartbeat, and feedback.
 
 ## Local buzzer
 
-Wire a **passive** 3.3 V piezo/speaker to `SHOT_STOPPER_BUZZER_GPIO` (default
+Wire a **passive** 3.3 V piezo/speaker to `OPEN_BREW_BY_WEIGHT_BUZZER_GPIO` (default
 14). The firmware drives it with PWM (RTTTL melodies), so it must be
 **passive, not active**. A module with three pins — **GND**, **VCC** and
 **IN** — is preferred over a loose two-wire speaker: connect GND to GND, VCC
@@ -183,7 +183,7 @@ the marked **+** to the GPIO and the other lead to GND.
 
 Example used: [3.3 V passive buzzer module (AliExpress)](https://es.aliexpress.com/item/1005007287329656.html).
 
-`-DSHOT_STOPPER_ENABLE_BUZZER=0` omits the driver. See [Alerts](alerts.md) and
+`-DOPEN_BREW_BY_WEIGHT_ENABLE_BUZZER=0` omits the driver. See [Alerts](alerts.md) and
 [Build environment](BUILD.md).
 
 ## Additional hardware used
@@ -196,7 +196,7 @@ its internal state machine with scale readings to infer whether the machine is
 running. With a reed switch on the solenoid, it reads the machine state
 directly, which is substantially more reliable and precise.
 
-Use it with the momentary+reed build (`SHOT_STOPPER_MACHINE_TYPE=2`); the
+Use it with the momentary+reed build (`OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=2`); the
 default input is GPIO 13, as documented in [Default GPIOs](#default-gpios).
 It is generally unnecessary for latch/paddle machines such as the **Linea
 Micra**.

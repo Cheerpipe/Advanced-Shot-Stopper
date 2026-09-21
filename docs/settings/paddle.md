@@ -1,6 +1,6 @@
 # Paddle
 
-For latch/paddle firmware (`SHOT_STOPPER_MACHINE_TYPE=0`), choose
+For latch/paddle firmware (`OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=0`), choose
 **Settings → Machine and scale → Paddle**. The mode is shared across presets.
 Momentary builds show [Switch](momentary.md) instead.
 

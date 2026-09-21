@@ -26,8 +26,8 @@ in [Build](docs/BUILD.md), [scripts](docs/SCRIPTS.md), and
 the [manual test plan](docs/MANUAL_TEST_PLAN.md) and curated evidence by
 [target trace qualification](docs/P2_TARGET_TRACE.md).
 
-Any change to `src/ShotStopperNetwork.cpp`,
-`src/network/ShotStopperHttpLifecycle.inc`, or another source that defines or
+Any change to `src/OpenBrewByWeightNetwork.cpp`,
+`src/network/OpenBrewByWeightHttpLifecycle.inc`, or another source that defines or
 registers HTTP routes or handlers must run `./scripts/dev test web`. That profile,
 and every R2/R3 validation gate, runs the named `http-route-capacity` check before
 the broader Web contracts. The check counts all `registerHandler(server_, ...)`
@@ -63,7 +63,7 @@ record the gate as failed and prepare the dependency explicitly.
 GitHub Actions publishes bounded-retention artifacts even when a validation
 command fails. The `validation-classify`, `validation-fast`, and
 `validation-host` archives contain the available console logs and `scripts/dev`
-run records. Each `shotstopper-ota-<profile>-jtag-off-remote-off` archive
+run records. Each `open-brew-by-weight-ota-<profile>-jtag-off-remote-off` archive
 contains its firmware binary when the build succeeds, plus the
 available IDF command logs, static-analysis reports, and run records. Only steps
 that started can produce diagnostics; a failed prerequisite may leave later

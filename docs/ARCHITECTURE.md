@@ -4,7 +4,7 @@ Use this reference when changing module boundaries. For the runtime sequence,
 read [State machines](STATE_MACHINES.md); for a first code change, start with
 [Contributing](../CONTRIBUTING.md).
 
-The integration roots `src/shotStopper.cpp` and `src/ShotStopperNetwork.cpp`
+The integration roots `src/openBrewByWeight.cpp` and `src/OpenBrewByWeightNetwork.cpp`
 assemble implementation fragments in `src/control/`, `scale/`, `network/`,
 `persistence/`, `diagnostics/`, and `platform/`. Fragments compile in their
 owning translation unit. Shared headers carry fixed-size values, pure policy,
@@ -70,7 +70,7 @@ NimBLE dependency and cannot delay scale discovery, scale commands, or weight
 delivery.
 
 The Micra service also owns power-state freshness and optimistic ON lifetime.
-Its adapter exposes only `NORMAL` or `WAKE_PASSTHROUGH`; Shot Stopper owns relay
+Its adapter exposes only `NORMAL` or `WAKE_PASSTHROUGH`; Open Brew by Weight owns relay
 passthrough and consumes wake gestures before brew, rinse, guards, scale,
 alerts, webhooks, and history. Those subsystems never depend on Micra types.
 
@@ -85,7 +85,7 @@ settings schema is rejected rather than migrated; this cutover requires a clean
 
 ## BBW policy and storage
 
-`ShotStopperBbwCutoff.h` dispatches fixed-size prediction/learning inputs to
+`OpenBrewByWeightBbwCutoff.h` dispatches fixed-size prediction/learning inputs to
 independent regression and adaptive EWMA implementations. Shared scale qualification,
 direct confirmation, guards, control arbitration and machine/safety authority
 remain outside the policy. The original trend fit remains shared with accidental
@@ -194,7 +194,7 @@ settings blob. `autoTareOutsideBrew` remains a global machine setting rather
 than part of the per-shot/preset recipe snapshot. No historical settings layout
 is interpreted at boot.
 
-Idle tare arbitration lives in `control/ShotStopperCycleRuntime.inc`, reusing
+Idle tare arbitration lives in `control/OpenBrewByWeightCycleRuntime.inc`, reusing
 the cup FSM's PLACED event and ScaleService's TARE_ONLY transport. Worker
 request lifetime and control-owned cup provenance remain separate; see
 [scale commands](STATE_MACHINES.md#scale-commands-scalecommandtype--outbound).

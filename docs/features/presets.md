@@ -57,7 +57,7 @@ Both start with BBW and Fast/Slow/A→M enabled, Max BBW time 50 s and initial
 BBW protection 12 s. These are factory seeds, not a description of a modified
 or migrated preset. Definitions: `fillFactorySinglePreset` /
 `fillDoubleFirmwareDefaults` in
-[ShotStopperPresets.h](../../src/ShotStopperPresets.h).
+`OpenBrewByWeightPresets.h` in the firmware sources.
 
 Both algorithms' learning follows the preset. New and factory recipes select
 adaptive EWMA, seed both offsets from the table above and use current/base α=0.30. Duplicate

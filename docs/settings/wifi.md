@@ -24,7 +24,7 @@ stays available.
 | Setting / behavior | Default | Effect |
 | --- | --- | --- |
 | **Home Wi-Fi (STA)** | none on a fresh flash | Saved SSID/password. Device joins your network and serves the Web UI at the STA IP. |
-| **Device name** (Admin → Network) | `AdvancedShotStopper` | Friendly name for the controller on your local network. 1–32 letters, digits, spaces, or hyphens; no leading/trailing space or hyphen. Renaming saves immediately without restarting Wi-Fi, survives reboots and **Forget network**, and returns to the default only on factory reset. See [Discovery by name](#discovery-by-name). |
+| **Device name** (Admin → Network) | `Open Brew by Weight` | Friendly name for the controller on your local network. 1–32 letters, digits, spaces, or hyphens; no leading/trailing space or hyphen. Renaming saves immediately without restarting Wi-Fi, survives reboots and **Forget network**, and returns to the default only on factory reset. See [Discovery by name](#discovery-by-name). |
 | **Wi-Fi sleep** (Admin → Power management) | on | When on, STA uses modem sleep (`MIN_MODEM`) whenever it is associated and SoftAP is down. Stays `NONE` on SoftAP, during OTA, while STA is disconnected, or when this toggle is off. Toggling it alone saves immediately — no restart, no reconnect wait — and the toggle stays disabled until a network is configured; a full network save still carries the sleep value. It remains independent of the [Power policy](power-management.md), WebUI activity, and scale connection state. Factory default on. Scale discovery duty is Admin → Power management → BLE scan mode, not this toggle. |
 | **IP mode** | DHCP | **DHCP** or **static** (`ip` / `netmask` / `gateway` / `dns1` / `dns2`). |
 | **Confirm window** | 3 minutes | After a Web UI STA save, a wait overlay retries the current address for confirmation. If the network/IP changed, reconnect your client and open the new IP yourself. The first successful UI claim confirms the new network. If this page never returns, previous network settings are restored. USB `SET_WIFI` commits immediately. |
@@ -41,7 +41,7 @@ Factory credentials and the first-connection walkthrough are in the
 
 The controller announces itself on the local network using the **Device name**
 (Admin → Network), so you can open the Web UI at
-`<name>.local` — for example `advancedshotstopper.local` — instead of hunting
+`<name>.local` — for example `openbrewbyweight.local` — instead of hunting
 for the IP address, and the device shows up when you browse for web services
 (`_http._tcp`). The address also works while the controller runs its own
 access point (then it resolves to `192.168.4.1`).

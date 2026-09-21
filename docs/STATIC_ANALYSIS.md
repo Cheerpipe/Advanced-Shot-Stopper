@@ -1,7 +1,7 @@
 # Static analysis
 
-How to prepare the tooling and run the static inspection suite for Shot
-Stopper on macOS, Linux (Ubuntu) and Windows. Walkthrough from clone to
+How to prepare the tooling and run the static inspection suite for Open
+Brew by Weight on macOS, Linux (Ubuntu) and Windows. Walkthrough from clone to
 flash: [Build environment](BUILD.md). Script reference: [Build scripts](SCRIPTS.md).
 
 ## 1. What the suite runs
@@ -45,7 +45,7 @@ Prepare the database once, then run any tool:
 
 `--arch` is `n8r4` or `n16r8`; see [Build scripts](SCRIPTS.md) for how
 parameters resolve. `--build-dir` and `--output-dir` are one-shot overrides on
-the analysis scripts and are never persisted to `.shotstopper`.
+the analysis scripts and are never persisted to `.openbrewbyweight`.
 
 ## 2. macOS prerequisites
 
@@ -198,7 +198,7 @@ saying why (third-party noise vs. pending project debt). To grow it:
    reliably suppressed by NOLINT; use a local
    `#pragma GCC diagnostic ignored "-Wformat-security"` instead — the
    GCC-style pragma is accepted by both compilers (see
-   `ShotStopperWebhook.cpp` for an example).
+   `OpenBrewByWeightWebhook.cpp` for an example).
 
 **Caution with `clang-tidy -fix`:** fixes are applied for every file that
 contributed diagnostics, including headers outside this repository (the
@@ -231,7 +231,7 @@ Workflow for the suggestions:
 3. Rebuild with the same hardware and machine profiles and re-run the host tests
    (`src/tests/run_host_tests.sh`) before committing.
 
-The mapping file `scripts/iwyu-shotstopper.imp` is intentionally empty: stock
+The mapping file `scripts/iwyu-openbrewbyweight.imp` is intentionally empty: stock
 IWYU already maps the C standard headers to their C++ wrappers, and
 re-mapping them aborts IWYU. Add entries there only when IWYU repeatedly
 suggests something wrong for ESP-IDF/Arduino headers in this codebase, and

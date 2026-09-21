@@ -1,6 +1,6 @@
 # Hardware and machine build profiles
 
-Build profiles describe one complete Shot Stopper installation at compile time.
+Build profiles describe one complete Open Brew by Weight installation at compile time.
 They separate facts about the assembled controller from facts about the coffee
 machine connected to it:
 
@@ -28,7 +28,7 @@ The initial profiles are:
 
 | File | Meaning |
 | --- | --- |
-| `config/hardware/esp32-s3-relay-x1-speaker.json` | ESP32-S3 Relay X1 assembly, N16R8, passive speaker, current Shot Stopper pinout |
+| `config/hardware/esp32-s3-relay-x1-speaker.json` | ESP32-S3 Relay X1 assembly, N16R8, passive speaker, current Open Brew by Weight pinout |
 | `config/hardware/esp32-s3-relay-x1-speaker-reed.json` | Same controller assembly with the reed input physically installed on GPIO13 |
 | `config/machines/rancilio-silvia-pro-x.json` | Rancilio Silvia Pro X, momentary button without machine-state feedback |
 | `config/machines/rancilio-silvia-pro-x-reed.json` | Rancilio Silvia Pro X, momentary button with required reed feedback |
@@ -57,8 +57,8 @@ Then select exactly one hardware profile and one machine profile:
 Each selector accepts either an exact built-in ID or an explicit JSON path.
 IDs are not fuzzy-matched. Both options are mandatory for every firmware build;
 there is no architecture-only build, implicit default, or remembered previous
-pair. They may also come from `SHOTSTOPPER_HARDWARE` and
-`SHOTSTOPPER_MACHINE`, but neither selection is saved in `.shotstopper`.
+pair. They may also come from `OPENBREWBYWEIGHT_HARDWARE` and
+`OPENBREWBYWEIGHT_MACHINE`, but neither selection is saved in `.openbrewbyweight`.
 The deprecated `--hardware-config` / `--machine-config` flags and corresponding
 `*_CONFIG` environment variables remain temporary aliases and print a warning.
 
@@ -70,7 +70,7 @@ database may still use `--arch` and `--build-dir`.
 The resolver performs these operations in order:
 
 1. Parse both JSON files and reject missing, unknown, or invalid fields.
-2. Apply supported `SHOT_STOPPER_*` definitions from `--flags` to a copy of the
+2. Apply supported `OPEN_BREW_BY_WEIGHT_*` definitions from `--flags` to a copy of the
    profile data.
 3. Validate the complete resolved hardware, machine, GPIO ownership, and
    cross-profile compatibility.
@@ -88,7 +88,7 @@ matches the two contracts:
 
 | Machine requirement | Hardware capability | Result |
 | --- | --- | --- |
-| `feedback: "reed"` | `reed.present: true` | Valid momentary+reed build (`SHOT_STOPPER_MACHINE_TYPE=2`) |
+| `feedback: "reed"` | `reed.present: true` | Valid momentary+reed build (`OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=2`) |
 | `feedback: "reed"` | `reed.present: false` | Hard error before CMake: required feedback is absent |
 | `feedback: "none"` | `reed.present: false` | Valid momentary-only or paddle build |
 | `feedback: "none"` | `reed.present: true` | Valid; the extra passive input is compiled as unused by that machine topology |
@@ -220,7 +220,7 @@ only field; do not retain a GPIO for hardware that is not installed.
 | Role | Fields when present | Current constraints |
 | --- | --- | --- |
 | `scale_status_led` | `gpio`, `active_level` | Level is `low` or `high`. |
-| `speaker` | `type`, `gpio` | Type is currently `passive_pwm`. Presence enables the local buzzer; `-DSHOT_STOPPER_ENABLE_BUZZER=0` omits it. |
+| `speaker` | `type`, `gpio` | Type is currently `passive_pwm`. Presence enables the local buzzer; `-DOPEN_BREW_BY_WEIGHT_ENABLE_BUZZER=0` omits it. |
 | `usb_console_jumper` | `gpio`, `active_level`, `pull`, `sample_at` | Current driver requires active-low, pull-up, sampled at `boot`; GPIO 0, 45, and 46 are rejected as strapping pins. |
 | `reed` | `gpio`, `active_level`, `pull`, `debounce_ms` | Current driver requires active-low and pull-up; debounce is 1–99 ms and must equal the activator debounce. |
 | `external_safety` | `heartbeat_gpio`, `heartbeat_idle_level`, `feedback_gpio`, `feedback_closed_level`, `feedback_pull`, `heartbeat_period_ms`, `feedback_settle_ms` | Current driver requires low heartbeat idle and feedback pull-up; periods are 10–1000 ms and 1–1000 ms respectively. |
@@ -390,7 +390,7 @@ additions. For example:
 ./scripts/dev build \
   --hardware esp32-s3-relay-x1-speaker \
   --machine la-marzocco-linea-micra \
-  --flags "-DSHOT_STOPPER_RELAY_GPIO=3"
+  --flags "-DOPEN_BREW_BY_WEIGHT_RELAY_GPIO=3"
 ```
 
 Supported physical overrides cover activator, relay, present LED/speaker/USB
@@ -405,7 +405,7 @@ The following safety rules still apply after overrides:
 - Presence flags cannot contradict the physical profile. A GPIO cannot be
   assigned to a role whose `present` value is `false`.
 - Overridden GPIOs are checked again for ownership collisions.
-- `SHOT_STOPPER_MACHINE_TYPE` may only repeat the type implied by the machine
+- `OPEN_BREW_BY_WEIGHT_MACHINE_TYPE` may only repeat the type implied by the machine
   profile; a conflicting value fails.
 - A machine requesting reed feedback requires hardware with `reed.present=true`.
 - Buzzer support follows `speaker.present`; forcing `=1` without a speaker fails.
@@ -414,8 +414,8 @@ The following safety rules still apply after overrides:
 Development mode, JTAG, remote machine control, buzzer enablement, warnings,
 and other non-physical build switches remain CLI concerns. Use the transient
 `--development` flag for a development build; it adds
-`SHOT_STOPPER_DEVELOPMENT=1` for that run without saving it. It conflicts with
-an explicit `SHOT_STOPPER_DEVELOPMENT=0`. Development mode must never be added
+`OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1` for that run without saving it. It conflicts with
+an explicit `OPEN_BREW_BY_WEIGHT_DEVELOPMENT=0`. Development mode must never be added
 to a JSON profile.
 
 ## Generated files and runtime identity
@@ -430,13 +430,13 @@ Its `generated/` directory contains:
 
 - `build-profile.json`: the fully resolved hardware and machine data after
   supported overrides;
-- `ShotStopperBuildProfileGenerated.h`: compile-time macros consumed by the
-  firmware, including `SHOT_STOPPER_ENABLE_BUZZER` from `speaker.present`;
-- `ShotStopperVersion.h`: firmware version plus architecture and profile
+- `OpenBrewByWeightBuildProfileGenerated.h`: compile-time macros consumed by the
+  firmware, including `OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER` from `speaker.present`;
+- `OpenBrewByWeightVersion.h`: firmware version plus architecture and profile
   compatibility identities.
 
 The build also copies a named binary to
-`shotstopper-<hardware-id>--<machine-id>.bin` inside the same build directory.
+`openbrewbyweight-<hardware-id>--<machine-id>.bin` inside the same build directory.
 Generated files are build outputs; edit source profiles instead of editing
 them.
 

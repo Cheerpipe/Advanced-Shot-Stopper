@@ -1,7 +1,7 @@
 # The `dev` command
 
 `./scripts/dev` is the single supported entry point for building, installing,
-updating, monitoring, testing, and validating Shot Stopper. Run it from the
+updating, monitoring, testing, and validating Open Brew by Weight. Run it from the
 repository root. It writes complete logs and a redacted JSON summary under
 `artifacts/runs/`.
 
@@ -83,13 +83,13 @@ Required values resolve in this order:
 
 1. A named command-line option.
 2. Its environment variable.
-3. `.shotstopper` at the repository root.
+3. `.openbrewbyweight` at the repository root.
 4. An interactive prompt.
 
 The whole pipeline resolves its required values before the first stage. This
 means a missing USB port or OTA host is reported before a long build begins.
 In a terminal, Enter accepts the suggested value. In CI, a pipe, or with
-`SHOTSTOPPER_NONINTERACTIVE=1`, missing values are errors instead of prompts.
+`OPENBREWBYWEIGHT_NONINTERACTIVE=1`, missing values are errors instead of prompts.
 
 The following ordinary values may be remembered: port, architecture, monitor
 speed, OTA host, and extra compiler flags. A missing or stale serial path is
@@ -97,8 +97,8 @@ forgotten before use. Hardware and machine profiles, image paths, build/report
 overrides, Web UI language, development mode, confirmation options, and OTA
 one-shot controls are never persisted.
 
-The device password is never read from `.shotstopper`, displayed as a default,
-written to logs, or persisted. `.shotstopper` is Git-ignored and created with
+The device password is never read from `.openbrewbyweight`, displayed as a default,
+written to logs, or persisted. `.openbrewbyweight` is Git-ignored and created with
 mode `600`.
 
 ### USB port discovery
@@ -110,11 +110,11 @@ the first match. It never silently selects a device; press Enter to accept the
 suggestion or type another path.
 
 App CDC requires the [GPIO 4 console jumper](HARDWARE.md#usb-console-jumper) at
-reset unless the firmware was built with `SHOT_STOPPER_ENABLE_JTAG=1`. ROM
+reset unless the firmware was built with `OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1`. ROM
 download mode through BOOT + RST can still expose a flashing port without that
 jumper. The scripts cannot see the physical jumper, so `dev` refuses a
 pipeline that combines `build` with `monitor` unless that JTAG build is
-requested: pass `--jtag` (or include `-DSHOT_STOPPER_ENABLE_JTAG=1` in
+requested: pass `--jtag` (or include `-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1` in
 `--flags`), or run the monitor separately against firmware you know has
 console output.
 
@@ -122,18 +122,18 @@ console output.
 
 | Option | Environment | Applies to | Meaning |
 | --- | --- | --- | --- |
-| `--hardware <id-or-json>` | `SHOTSTOPPER_HARDWARE` | all profile-aware stages | Exact built-in hardware ID or JSON path. Pair with `--machine`; never persisted. |
-| `--machine <id-or-json>` | `SHOTSTOPPER_MACHINE` | all profile-aware stages | Exact built-in machine ID or JSON path. Pair with `--hardware`; never persisted. |
-| `-a`, `--arch <arch>` | `SHOTSTOPPER_ARCH` | legacy image, monitor, analysis | `n8r4` or `n16r8`. Builds derive it from hardware; it may only confirm that result. |
-| `-f`, `--flags "<flags>"` | `SHOTSTOPPER_FLAGS` | build | Extra compile definitions/options as one shell argument. |
+| `--hardware <id-or-json>` | `OPENBREWBYWEIGHT_HARDWARE` | all profile-aware stages | Exact built-in hardware ID or JSON path. Pair with `--machine`; never persisted. |
+| `--machine <id-or-json>` | `OPENBREWBYWEIGHT_MACHINE` | all profile-aware stages | Exact built-in machine ID or JSON path. Pair with `--hardware`; never persisted. |
+| `-a`, `--arch <arch>` | `OPENBREWBYWEIGHT_ARCH` | legacy image, monitor, analysis | `n8r4` or `n16r8`. Builds derive it from hardware; it may only confirm that result. |
+| `-f`, `--flags "<flags>"` | `OPENBREWBYWEIGHT_FLAGS` | build | Extra compile definitions/options as one shell argument. |
 | `--development` | — | build | Development-mode build for this invocation only. Never persisted. |
-| `--jtag` | — | build | Compile the USB Serial/JTAG console on at boot by adding `-DSHOT_STOPPER_ENABLE_JTAG=1` on top of `--flags`. Never persisted. |
+| `--jtag` | — | build | Compile the USB Serial/JTAG console on at boot by adding `-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1` on top of `--flags`. Never persisted. |
 | `--o0`, `--og`, `--o2`, `--os` | — | build | Firmware optimization level for this build only (`-O0`, `-Og`, `-O2`, `-Os`); mutually exclusive, and the `-O2` default is kept when none is passed. `-O1` and `-O3` are not ESP-IDF levels and are rejected. Switching levels recreates the sdkconfig, discarding other local `menuconfig` choices. Never persisted. |
-| `--webui-language <code>` | `SHOTSTOPPER_WEBUI_LANGUAGE` | build | Compile-time Web UI language; defaults to `en` and is never persisted. |
-| `-p`, `--port <path>` | `SHOTSTOPPER_PORT` | flash, monitor | USB serial device. Validated before use and remembered. |
-| `-s`, `--speed <baud>` | `SHOTSTOPPER_SPEED` | monitor | Monitor baud rate, normally `115200`; remembered. |
-| `-H`, `--host <host>` | `SHOTSTOPPER_HOST` | OTA | Controller IP or hostname; remembered. |
-| `-i`, `--image <file>` | `SHOTSTOPPER_IMAGE` | standalone flash or OTA | Existing `.bin`; verified and never persisted. Rejected with `build`. |
+| `--webui-language <code>` | `OPENBREWBYWEIGHT_WEBUI_LANGUAGE` | build | Compile-time Web UI language; defaults to `en` and is never persisted. |
+| `-p`, `--port <path>` | `OPENBREWBYWEIGHT_PORT` | flash, monitor | USB serial device. Validated before use and remembered. |
+| `-s`, `--speed <baud>` | `OPENBREWBYWEIGHT_SPEED` | monitor | Monitor baud rate, normally `115200`; remembered. |
+| `-H`, `--host <host>` | `OPENBREWBYWEIGHT_HOST` | OTA | Controller IP or hostname; remembered. |
+| `-i`, `--image <file>` | `OPENBREWBYWEIGHT_IMAGE` | standalone flash or OTA | Existing `.bin`; verified and never persisted. Rejected with `build`. |
 | `--no-check` | — | flash | Skip local image identity checking. It does not skip partition checks and is unavailable for OTA. |
 | `--erase-all` | — | flash | Erase all flash before installing project outputs. Destructive and rejected with `--image`. |
 | `--discard-ota-session` | — | OTA | Intentionally discard a different partial/staged remote image. |
@@ -141,7 +141,7 @@ console output.
 | `--wait-for-confirmation` | — | OTA | Poll after commit until the expected new image confirms or the existing timeout/error is reached. |
 | `--password-stdin` | — | OTA | Read one password line from standard input. The value is passed internally through the environment. |
 | `--confirm` | — | flash, OTA | Authorize a hardware-affecting pipeline at the public facade. |
-| `--verbosity compact\|normal\|verbose` | `SHOTSTOPPER_VERBOSITY` | `dev` | Select facade output detail; independent of firmware logging. Place before the command. |
+| `--verbosity compact\|normal\|verbose` | `OPENBREWBYWEIGHT_VERBOSITY` | `dev` | Select facade output detail; independent of firmware logging. Place before the command. |
 
 `--hardware-config` and `--machine-config` remain deprecated spellings for the
 two profile selectors. `--force` has been removed because it coupled two
@@ -192,7 +192,7 @@ Build with explicit compiler options:
 
 Build a development image with the USB Serial/JTAG console on at boot (OpenOCD
 plus the serial CLI without the GPIO 4 jumper). `--jtag` adds
-`-DSHOT_STOPPER_ENABLE_JTAG=1` on top of any other flags; passing the same
+`-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1` on top of any other flags; passing the same
 define through `--flags` still works:
 
 ```sh
@@ -300,7 +300,7 @@ bootloader or partition table:
   --hardware esp32-s3-relay-x1-speaker \
   --machine rancilio-silvia-pro-x \
   --port /dev/cu.usbmodem2101 \
-  --image /path/to/shotstopper.bin
+  --image /path/to/openbrewbyweight.bin
 ```
 
 ## OTA examples
@@ -339,7 +339,7 @@ For unattended automation, provide the password through a secret environment,
 accept commit, and require post-boot confirmation:
 
 ```sh
-SHOTSTOPPER_DEVICE_PASSWORD="$DEVICE_SECRET" \
+OPENBREWBYWEIGHT_DEVICE_PASSWORD="$DEVICE_SECRET" \
   ./scripts/dev build ota --confirm \
     --hardware esp32-s3-relay-x1-speaker \
     --machine rancilio-silvia-pro-x \
@@ -386,7 +386,7 @@ Upload an existing external image without rebuilding:
   --hardware esp32-s3-relay-x1-speaker \
   --machine rancilio-silvia-pro-x \
   --host 192.168.1.50 \
-  --image /path/to/shotstopper.bin \
+  --image /path/to/openbrewbyweight.bin \
   --wait-for-confirmation
 ```
 

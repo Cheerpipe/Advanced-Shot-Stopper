@@ -1,7 +1,7 @@
 # Web UI instructions
 
 - Edit `src/web/app.css`, `src/web/app.js`, `src/web/html/`, and `src/web/js/`.
-  Never edit generated `src/ShotStopperWebAssetsGzip.h` by hand.
+  Never edit generated `src/OpenBrewByWeightWebAssetsGzip.h` by hand.
 - Preserve progressive enhancement, admin-lock behavior, remote-actuation
   lockdown, endpoint schemas, and the embedded asset budget.
 - `node_modules/` is dependency output and must not be loaded wholesale.

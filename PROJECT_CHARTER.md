@@ -1,6 +1,6 @@
 # Project charter
 
-Advanced Shot Stopper is ESP32-S3 firmware that adds local brew-by-weight to
+Open Brew by Weight is ESP32-S3 firmware that adds local brew-by-weight to
 espresso machines while preserving their physical human interface. It supports
 n8r4 and n16r8 ESP32-S3 boards with PSRAM, latch/paddle machines, momentary
 machines, and momentary machines with a reed or hall sensor. EspressoScaleBLE is

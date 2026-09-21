@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="docs/advanced-shot-stopper.svg" alt="Advanced Shot Stopper">
+  <img src="docs/images/OpenBrewByWeight.svg" alt="Open Brew by Weight">
 </p>
 
-# Advanced Shot Stopper
+# Open Brew by Weight
 
-Advanced Shot Stopper adds brew-by-weight to an espresso machine: a Bluetooth
+Open Brew by Weight adds brew-by-weight to an espresso machine: a Bluetooth
 scale measures the drink, and an ESP32-S3 controller requests a stop near your
 recipe's target weight. You keep using the machine's physical brew switch.
 
@@ -27,7 +27,7 @@ and stop behavior.
 | Choose a controller and machine build | [Hardware and machine build profiles](docs/BUILD_PROFILES.md) |
 | Connect and make the first shot | [First setup and daily use](docs/GETTING_STARTED.md) |
 | Change how brewing works | [Features and settings](#main-features) |
-| Integrate Advanced Shot Stopper with Home Assistant | [Home Assistant setup](docs/features/home-assistant.md) |
+| Integrate Open Brew by Weight with Home Assistant | [Home Assistant setup](docs/features/home-assistant.md) |
 | Understand an unexpected result | [Troubleshooting](docs/FAQ.md) |
 | Update or recover the controller | [OTA](docs/features/ota.md) / [Recovery](docs/EMERGENCY_RECOVERY.md) |
 | Develop or contribute | [Contributing](CONTRIBUTING.md) |
@@ -169,7 +169,7 @@ After installation and bench verification, follow
 [First setup and daily use](docs/GETTING_STARTED.md). It covers connecting to the
 controller's access point, opening the Web UI, joining home Wi-Fi, selecting a
 scale, and making the first shot. Once the controller has joined your home
-Wi-Fi, reach the Web UI at `advancedshotstopper.local`. Factory network details
+Wi-Fi, reach the Web UI at `openbrewbyweight.local`. Factory network details
 are in [AP → First connection](docs/settings/ap.md#first-connection).
 
 ## Admin
@@ -358,7 +358,7 @@ verified wiring, isolation, and behavior on your own setup.
 
 ## License
 
-Advanced Shot Stopper is licensed under the
+Open Brew by Weight is licensed under the
 [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
 
 You may use, modify, and distribute it freely, including for commercial
@@ -373,7 +373,7 @@ Portions derive from [tatemazer/AcaiaArduinoBLE](https://github.com/tatemazer/Ac
 
 ## Credits
 
-Advanced Shot Stopper is maintained by **Felipe Urzúa**
+Open Brew by Weight is maintained by **Felipe Urzúa**
 (`cheerpipe@gmail.com`) —
 [Cheerpipe/AcaiaArduinoBLE](https://github.com/Cheerpipe/AcaiaArduinoBLE).
 
@@ -381,7 +381,7 @@ It would not exist without
 **[tatemazer](https://github.com/tatemazer)** and
 [tatemazer/AcaiaArduinoBLE](https://github.com/tatemazer/AcaiaArduinoBLE).
 That project proved BLE brew-by-weight stop, shared the core scale protocol
-work, and shipped the original Shot Stopper as a plug-and-play kit. This
+work, and shipped the original as a plug-and-play kit. This
 application firmware, Web UI, paddle and momentary machine models, and safety
 workflow are new work on top of that foundation.
 

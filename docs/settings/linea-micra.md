@@ -11,13 +11,13 @@ client.
 
 ## Connect an account and select a machine
 
-Shot Stopper must be connected to your normal Wi-Fi network in station mode.
+Open Brew by Weight must be connected to your normal Wi-Fi network in station mode.
 Cloud communication is disabled while the setup access point is open or the
 internet connection is unavailable.
 
 1. Enter the email address and password used by the La Marzocco app.
 2. Choose **Connect** and wait for the account's Linea Micra machines to appear.
-3. Select the machine used with this Shot Stopper.
+3. Select the machine used with this controller.
 4. Choose **Use selected machine**. Only then can the three Micra options be
    edited and saved.
 
@@ -65,7 +65,7 @@ safety, or local shot control.
 
 ## Monitor machine power state
 
-Enable **Monitor machine power state** and save. Shot Stopper then queues a
+Enable **Monitor machine power state** and save. Open Brew by Weight then queues a
 dashboard read approximately every 30 seconds while STA is connected. It never
 starts an automatic or requested read before STA connects, while setup AP mode
 is open, or before the clock is synchronized. After startup, the first worker
@@ -97,7 +97,7 @@ observation is unavailable.
 
 Keep **Recognize paddle wake gestures** on to use a fresh monitored OFF state.
 The next physical paddle ON is then treated only as the Micra's standby wake
-gesture. Shot Stopper mirrors the paddle through its normal relay safety path,
+gesture. The controller mirrors the paddle through its normal relay safety path,
 but it does not start brew or rinse, evaluate or consume guards, command the
 scale, boost BLE discovery, play alerts, call brew webhooks, or add shot/rinse
 history. Returning the paddle to OFF opens the relay and ends the gesture,
@@ -127,7 +127,7 @@ recognition is inactive until monitoring produces a fresh OFF observation.
 duplicates copy the source value. Turning the option off or disconnecting the
 account keeps every saved preset value.
 
-When a preset change has been saved successfully, Shot Stopper sends its target
+When a preset change has been saved successfully, Open Brew by Weight sends its target
 to the selected Micra. Saving an already-active preset also sends the target
 after persistence when the temperature changed. A newly connected scale sends
 the current active target again, which covers sessions where the machine or

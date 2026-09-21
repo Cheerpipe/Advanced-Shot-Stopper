@@ -185,7 +185,7 @@ The Web UI is compiled in English by default. To select it explicitly:
 
 Language selection happens while the Web assets are generated; it does not add
 a browser setting or embed every catalog. The flag overrides
-`SHOTSTOPPER_WEBUI_LANGUAGE`, and an omitted selection always uses `en`. Codes
+`OPENBREWBYWEIGHT_WEBUI_LANGUAGE`, and an omitted selection always uses `en`. Codes
 are case-insensitive, `_` is normalized to `-`, and a regional code tries its
 exact catalog followed by its base language. English is currently the only
 shipped catalog, so another base language fails instead of silently producing
@@ -210,15 +210,15 @@ For local development, use the transient convenience flag:
 ```
 
 Machine type is derived from `interface.control` plus `interface.feedback`; a conflicting
-`SHOT_STOPPER_MACHINE_TYPE` override is rejected.
+`OPEN_BREW_BY_WEIGHT_MACHINE_TYPE` override is rejected.
 
 | Option | Meaning |
 | --- | --- |
-| `SHOT_STOPPER_MACHINE_TYPE=0/1/2` | Paddle / momentary / momentary+reed; see [machine types](../README.md#machine-types). |
-| `SHOT_STOPPER_ENABLE_BUZZER=0/1` | Omit / include local passive buzzer. Follows the hardware profile's `speaker.present` by default; `=0` omits it even when a speaker is present. |
-| `SHOT_STOPPER_ENABLE_JTAG=1` | Development USB Serial/JTAG at boot without the GPIO4 console jumper; build it with `./scripts/dev build --jtag`. |
-| `SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0/1` | Remote start/rinse disabled / explicit opt-in. Default is disabled. |
-| `SHOT_STOPPER_DEVELOPMENT=1` | Bypasses Admin unlock for local development only. Never use for an installed machine. |
+| `OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=0/1/2` | Paddle / momentary / momentary+reed; see [machine types](../README.md#machine-types). |
+| `OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER=0/1` | Omit / include local passive buzzer. Follows the hardware profile's `speaker.present` by default; `=0` omits it even when a speaker is present. |
+| `OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1` | Development USB Serial/JTAG at boot without the GPIO4 console jumper; build it with `./scripts/dev build --jtag`. |
+| `OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=0/1` | Remote start/rinse disabled / explicit opt-in. Default is disabled. |
+| `OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1` | Bypasses Admin unlock for local development only. Never use for an installed machine. |
 
 ### Compiler optimization and existing sdkconfig
 
@@ -295,14 +295,14 @@ override matching choices. Review Diagnostic build identity and options before
 installation.
 
 The build renders the selected catalog into
-`src/ShotStopperWebAssetsGzip.h`, generates version identity and
-`build-idf/<hardware-id>--<machine-id>/shotstopper.bin`, then checks image and
+`src/OpenBrewByWeightWebAssetsGzip.h`, generates version identity and
+`build-idf/<hardware-id>--<machine-id>/openbrewbyweight.bin`, then checks image and
 memory budgets. Use only the image for the intended profile pair. The supported partition layouts have
 two app slots; arbitrary 4 MB layouts cannot hold this firmware.
 
 GitHub Actions publishes the three reviewed profile pairs: Linea Micra, Silvia
 Pro X without reed, and Silvia Pro X with reed. Their names follow
-`shotstopper-ota-<profile>-jtag-off-remote-off.bin`; those two features are
+`openbrewbyweight-ota-<profile>-jtag-off-remote-off.bin`; those two features are
 explicitly disabled at compile time. GitHub downloads each artifact as a ZIP
 container, but that container holds only the named OTA-ready `.bin` file.
 
