@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from custom_components.open_brew_by_weight.api import (
     CannotConnect,
@@ -356,3 +358,125 @@ async def test_reconfigure_maps_protocol_error(hass) -> None:
             data={CONF_HOST: "controller.local", CONF_WEBHOOK_ID: WEBHOOK_ID},
         )
     assert result["errors"] == {"base": "reconfigure_failed"}
+
+
+def _discovery_info(host: str = "192.168.1.8", port: int = 80) -> ZeroconfServiceInfo:
+    return ZeroconfServiceInfo(
+        ip_address=host,
+        ip_addresses=[host],
+        port=port,
+        hostname="controller.local.",
+        name="Cafe Bar 2._http._tcp.local.",
+        type="_http._tcp.local.",
+        properties={"obbw": "1"},
+    )
+
+
+@contextmanager
+def _discovery_patches(api: MagicMock):
+    with (
+        patch(
+            "custom_components.open_brew_by_weight.config_flow.OpenBrewByWeightApi",
+            return_value=api,
+        ),
+        patch(
+            "custom_components.open_brew_by_weight.config_flow.webhook_url",
+            return_value="http://homeassistant.local/api/webhook/candidate",
+        ),
+        patch(
+            "custom_components.open_brew_by_weight.config_flow.webhook.async_generate_id",
+            return_value=WEBHOOK_ID,
+        ),
+    ):
+        yield
+
+
+async def _discover(hass, api: MagicMock):
+    with _discovery_patches(api):
+        return await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_ZEROCONF},
+            data=_discovery_info(),
+        )
+
+
+async def _confirm(hass, api: MagicMock, result, user_input):
+    with _discovery_patches(api):
+        return await hass.config_entries.flow.async_configure(result["flow_id"], user_input)
+
+
+async def test_zeroconf_flow_creates_entry(hass) -> None:
+    """A discovered controller is confirmed once, then set up like the user flow."""
+    api = api_mock()
+    _configure_api(api)
+    result = await _discover(hass, api)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "confirm"
+    assert result["description_placeholders"]["name"] == "Cafe Bar 2"
+    result = await _confirm(hass, api, result, {})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_HOST] == "192.168.1.8"
+    assert result["data"][CONF_WEBHOOK_ID] == WEBHOOK_ID
+
+
+async def test_zeroconf_flow_updates_existing_entry_host(hass) -> None:
+    """Rediscovery of a configured controller refreshes its address (discovery-update-info)."""
+    existing = config_entry()
+    existing.add_to_hass(hass)
+    api = api_mock()
+    _configure_api(api)
+    result = await _discover(hass, api)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert existing.data[CONF_HOST] == "192.168.1.8"
+
+
+async def test_zeroconf_flow_takeover_still_requires_confirmation(hass) -> None:
+    """Discovery never silently replaces another webhook destination."""
+    api = api_mock()
+    _configure_api(api, remote_url="http://other/receiver")
+    result = await _discover(hass, api)
+    assert result["step_id"] == "confirm"
+    result = await _confirm(hass, api, result, {})
+    assert result["step_id"] == "takeover"
+    rejected = await _confirm(hass, api, result, {"confirm": False})
+    assert rejected["reason"] == "takeover_rejected"
+
+    api = api_mock()
+    _configure_api(api, remote_url="http://other/receiver")
+    result = await _discover(hass, api)
+    result = await _confirm(hass, api, result, {})
+    accepted = await _confirm(hass, api, result, {"confirm": True})
+    assert accepted["type"] is FlowResultType.CREATE_ENTRY
+
+
+@pytest.mark.parametrize(
+    ("failure", "reason"),
+    [
+        (CannotConnect(), "cannot_connect"),
+        (IncompatibleApi(), "incompatible_api"),
+        (ProtocolError("bad response"), "cannot_connect"),
+    ],
+)
+async def test_zeroconf_flow_unreachable_aborts(
+    hass, failure, reason: str
+) -> None:
+    """A controller that fails identity probing is not offered for setup."""
+    api = api_mock()
+    _configure_api(api)
+    api.async_snapshot.side_effect = failure
+    result = await _discover(hass, api)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == reason
+
+
+async def test_zeroconf_flow_confirm_retries_after_transient_failure(hass) -> None:
+    """Confirm keeps the form with an error when the second probe fails once."""
+    api = api_mock()
+    _configure_api(api)
+    result = await _discover(hass, api)
+    api.async_snapshot.side_effect = CannotConnect()
+    result = await _confirm(hass, api, result, {})
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "confirm"
+    assert result["errors"] == {"base": "cannot_connect"}

@@ -7,6 +7,10 @@
         "description": "Enter the controller's IP address. Home Assistant will inspect it and prepare the webhook automatically.",
         "data": {"host": "Controller IP address"}
       },
+      "confirm": {
+        "title": "Discovered Open Brew by Weight",
+        "description": "Home Assistant discovered the controller **{name}** on your network. Set it up now?"
+      },
       "takeover": {
         "title": "Replace the existing webhook",
         "description": "This controller already sends webhooks somewhere else. Continuing replaces that destination with Home Assistant.",

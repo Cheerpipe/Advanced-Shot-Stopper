@@ -127,6 +127,7 @@ exercise.
 | MDNS-M01 | With STA associated, resolve `<name>.local` (ping/browser) and browse `_http._tcp` (`dns-sd -B _http._tcp` or `avahi-browse -r _http._tcp`). Repeat with Wi-Fi sleep on, then while associated to the SoftAP. | The configured name resolves to the STA IP (192.168.4.1 on the AP); the service shows the device name as instance on port 80. Sleep on adds only latency. |
 | MDNS-M02 | Rename in Admin → Network with nothing else changed; retry after reboot, Forget network, and factory reset. Try invalid names (empty, 33 chars, leading/trailing space or hyphen, symbols) and a locked admin. | Rename applies live without a restart or reconnect wait and survives reboot and Forget; factory reset restores `Open Brew by Weight`; invalid or unauthorized requests are rejected and leave the name unchanged. |
 | MDNS-M03 | Duplicate the name on a second controller; capture idle task-profiler and heap snapshots over 10+ minutes with discovery idle. | The SDK resolves the conflict with a numbered suffix; the responder adds no periodic traffic beyond its low-rate announcements and no idle CPU/heap drift in the profiler. |
+| MDNS-M04 | Browse the service's TXT record (`dns-sd -L <name> _http._tcp` or `avahi-browse -r _http._tcp`) after boot, after a live rename in Admin → Network, and after a reboot. | The TXT record shows `obbw=1` in all three states; renaming and rebooting keep the single `_http._tcp` service and its TXT record unchanged. |
 
 ## Idle tare and tared cup acceptance
 

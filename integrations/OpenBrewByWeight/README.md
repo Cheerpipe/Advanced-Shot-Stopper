@@ -20,10 +20,11 @@ be on the same trusted network.
 
 ## Configure
 
-1. Add **Open Brew by Weight** from **Settings → Devices & services**.
-2. Enter only the controller IP address or local host name.
-3. Confirm webhook takeover only if Home Assistant should replace the existing
-   receiver.
+If the controller is on a network that passes multicast, it appears
+automatically under **Discovered** in **Settings → Devices & services**;
+confirming it is the only step needed. Otherwise add **Open Brew by Weight**
+manually and enter the controller IP address or local host name. Confirm
+webhook takeover only if Home Assistant should replace the existing receiver.
 
 Setup registers and tests the local callback before entities appear. The
 controller API is intentionally open on the trusted LAN, like its Web UI. The
@@ -56,7 +57,8 @@ seconds and over 2 grams. It is not a quality rating.
   but waits until the controller is idle.
 - A silent power loss cannot be detected before a REST operation fails because
   the integration deliberately has no polling heartbeat.
-- No discovery is advertised, so setup requires the IP/host.
+- Automatic discovery needs multicast on the network; guest and hotel Wi-Fi
+  that blocks it falls back to manual IP/host setup.
 
 Use **Reconfigure** to view or rotate the administrator-only webhook ID, change
 the address, or resend/test the current callback. Deleting the entry clears

@@ -25,6 +25,13 @@ release is published, then restart Home Assistant. For development, copy
 `custom_components/open_brew_by_weight` from the integration source into the
 same folder under your Home Assistant configuration directory.
 
+On networks that pass multicast, the controller announces itself and appears
+under **Discovered** in **Settings → Devices & services**; selecting it and
+confirming is the only step needed. Home Assistant identifies the device by
+its stable controller identity, so rediscovery after an address change keeps
+the same entry up to date. If discovery does not find the controller (for
+example on guest or hotel networks that block multicast), add it manually:
+
 1. In Home Assistant, go to **Settings → Devices & services → Add integration**
    and select **Open Brew by Weight**.
 2. Enter only the controller IP address or local host name. On networks with
@@ -139,6 +146,7 @@ briefly unregisters only Home Assistant's local handler.
 
 | Symptom | Resolution |
 | --- | --- |
+| Controller not discovered | Confirm both devices are on the same network and that it passes multicast; add the integration manually with the IP address instead |
 | Callback URL unavailable | Set a LAN-reachable HTTP Internal URL in Home Assistant network settings |
 | Another webhook is configured | Confirm takeover only if Home Assistant should become the sole receiver |
 | Entities are unavailable | Confirm the controller address and LAN reachability; reload after the finite recovery sequence if no new action or webhook arrives |

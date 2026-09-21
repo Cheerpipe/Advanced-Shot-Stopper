@@ -432,6 +432,9 @@ void ShotStopperNetwork::applyMdnsName() {
   } else if (mdns_service_add(name, "_http", "_tcp", 80, nullptr, 0) ==
              ESP_OK) {
     mdnsServiceActive_ = true;
+    // Home Assistant discovery matcher: identification TXT on the one
+    // advertised service. Best-effort; failure only disables discovery.
+    (void)mdns_service_txt_item_set("_http", "_tcp", "obbw", "1");
   } else {
     lifecycleLog("mDNS service add failed");
     return;

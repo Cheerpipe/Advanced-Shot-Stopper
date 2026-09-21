@@ -49,7 +49,9 @@ access point (then it resolves to `192.168.4.1`).
 Spaces become hyphens and letters are lowercased for the address, so
 `Cafe Bar` is reachable as `cafe-bar.local`. Two controllers with the same
 name on one network resolve the conflict automatically with a numbered
-suffix; rename one to keep them apart.
+suffix; rename one to keep them apart. The same announcement also lets the
+Home Assistant integration find the controller on its own, so it usually
+shows up under **Discovered** without typing an address.
 
 Discovery relies on mDNS, which most home routers, computers (macOS,
 Windows 10+, Linux with Avahi), and Android 12+ phones support out of the

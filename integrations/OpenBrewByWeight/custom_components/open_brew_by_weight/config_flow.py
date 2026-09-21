@@ -10,6 +10,7 @@ from homeassistant.components import webhook
 from homeassistant.const import CONF_HOST
 from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .api import (
     ApiError,
@@ -28,6 +29,8 @@ from .models import ProtocolError
 from .repairs import async_create_webhook_repair
 from .runtime import webhook_url
 
+MDNS_SERVICE_SUFFIX = "._http._tcp.local."
+
 
 class OpenBrewByWeightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Configure a controller from its LAN address."""
@@ -37,6 +40,8 @@ class OpenBrewByWeightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         self._pending: dict[str, Any] | None = None
+        self._discovered_host: str | None = None
+        self._discovered_name: str | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -49,31 +54,12 @@ class OpenBrewByWeightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         try:
             host = normalize_host(user_input[CONF_HOST])
-            session = async_get_clientsession(self.hass)
-            api = OpenBrewByWeightApi(session, host)
-            snapshot = await api.async_snapshot()
-            await self.async_set_unique_id(snapshot.device_id)
-            self._abort_if_unique_id_configured()
-            webhook_id = webhook.async_generate_id()
-            callback = webhook_url(self.hass, webhook_id)
-            existing = await api.async_webhook_config()
-            self._pending = {
-                CONF_HOST: host,
-                CONF_DEVICE_ID: snapshot.device_id,
-                CONF_WEBHOOK_ID: webhook_id,
-                "callback": callback,
-                "takeover": bool(
-                    existing.get("enabled") and existing.get("url") != callback
-                ),
-            }
-            if self._pending["takeover"]:
-                return await self.async_step_takeover()
-            return self._create_pending_entry()
+            return await self._prepare_entry(host)
         except CannotConnect:
             errors["base"] = "cannot_connect"
         except IncompatibleApi:
             errors["base"] = "incompatible_api"
-        except ApiError, ProtocolError:
+        except (ApiError, ProtocolError):
             errors["base"] = "cannot_connect"
         except ValueError:
             errors["base"] = "invalid_host"
@@ -84,6 +70,77 @@ class OpenBrewByWeightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
         )
+
+    async def async_step_zeroconf(
+        self, discovery_info: ZeroconfServiceInfo
+    ) -> config_entries.ConfigFlowResult:
+        """Identify a controller announced over mDNS and ask for confirmation."""
+        host = discovery_info.host
+        if discovery_info.port not in (None, 80):
+            host = f"{host}:{discovery_info.port}"
+        name = discovery_info.name
+        if name.endswith(MDNS_SERVICE_SUFFIX):
+            name = name[: -len(MDNS_SERVICE_SUFFIX)]
+        try:
+            snapshot = await OpenBrewByWeightApi(
+                async_get_clientsession(self.hass), host
+            ).async_snapshot()
+        except IncompatibleApi:
+            return self.async_abort(reason="incompatible_api")
+        except (ApiError, ProtocolError):
+            return self.async_abort(reason="cannot_connect")
+        await self.async_set_unique_id(snapshot.device_id)
+        self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+        self._discovered_host = host
+        self._discovered_name = name
+        return await self.async_step_confirm()
+
+    async def async_step_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Confirm adding the discovered controller."""
+        assert self._discovered_host is not None
+        if user_input is None:
+            return self.async_show_form(
+                step_id="confirm",
+                description_placeholders={"name": self._discovered_name or ""},
+            )
+        errors: dict[str, str] = {}
+        try:
+            return await self._prepare_entry(self._discovered_host)
+        except IncompatibleApi:
+            errors["base"] = "incompatible_api"
+        except (ApiError, ProtocolError):
+            errors["base"] = "cannot_connect"
+        return self.async_show_form(
+            step_id="confirm",
+            errors=errors,
+            description_placeholders={"name": self._discovered_name or ""},
+        )
+
+    async def _prepare_entry(
+        self, host: str
+    ) -> config_entries.ConfigFlowResult:
+        """Identify the controller and stage the webhook configuration."""
+        api = OpenBrewByWeightApi(async_get_clientsession(self.hass), host)
+        snapshot = await api.async_snapshot()
+        await self.async_set_unique_id(snapshot.device_id)
+        self._abort_if_unique_id_configured()
+        webhook_id = webhook.async_generate_id()
+        callback = webhook_url(self.hass, webhook_id)
+        existing = await api.async_webhook_config()
+        self._pending = {
+            CONF_HOST: host,
+            CONF_DEVICE_ID: snapshot.device_id,
+            CONF_WEBHOOK_ID: webhook_id,
+            "callback": callback,
+            "takeover": bool(
+                existing.get("enabled") and existing.get("url") != callback
+            ),
+        }
+        if self._pending["takeover"]:
+            return await self.async_step_takeover()
+        return self._create_pending_entry()
 
     async def async_step_takeover(
         self, user_input: dict[str, Any] | None = None
@@ -174,7 +231,7 @@ class OpenBrewByWeightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
         except CannotConnect:
             errors["base"] = "cannot_connect"
-        except ApiError, ProtocolError:
+        except (ApiError, ProtocolError):
             errors["base"] = "reconfigure_failed"
         except ValueError:
             errors["base"] = "invalid_webhook_id"

@@ -236,10 +236,12 @@ if (!network.includes('restoreLkgToActive(next)') ||
     throw new Error(
         'Identical STA credentials must persist sleep and/or device name without restart, and no-op when unchanged');
   }
+  const mdnsAddCount = (network.match(/mdns_service_add\(/g) || []).length;
   if (!network.includes('bool ShotStopperNetwork::ensureMdns()') ||
       !network.includes('mdns_init()') ||
       !network.includes('mdns_hostname_set(host)') ||
       !network.includes('mdns_service_add(name, "_http", "_tcp", 80, nullptr, 0)') ||
+      !network.includes('mdns_service_txt_item_set("_http", "_tcp", "obbw", "1")') ||
       !network.includes('void ShotStopperNetwork::stopMdns()') ||
       !network.includes('mdns_free()') ||
       !network.includes('ensureMdns();') ||
@@ -251,9 +253,10 @@ if (!network.includes('restoreLkgToActive(next)') ||
       !ui.includes("savedDeviceName=n.deviceName||''") ||
       !ui.includes('function validDeviceNameClient(') ||
       !ui.includes('id="deviceName"') ||
-      network.includes('mdns_query_(')) {
+      network.includes('mdns_query_(') ||
+      mdnsAddCount !== 1) {
     throw new Error(
-        'mDNS must advertise hostname and _http._tcp from the persisted device name, stay network-task owned, and never query');
+        'mDNS must advertise hostname and _http._tcp with the obbw identification TXT from the persisted device name, stay network-task owned, never query, and never register a second service');
   }
 }
 if (!firmwareCore.includes('command.network.commitConfirmed = true') ||
