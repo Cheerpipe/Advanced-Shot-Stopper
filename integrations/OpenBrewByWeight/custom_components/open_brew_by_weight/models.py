@@ -17,6 +17,9 @@ IPV4 = re.compile(
     r"^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
     r"(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}$"
 )
+MDNS_HOST = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", re.IGNORECASE
+)
 EVENT_TYPES = {
     "brew_state",
     "first_drop",
@@ -78,6 +81,15 @@ def _optional_ip(value: Any) -> str | None:
     if not isinstance(value, str) or not IPV4.fullmatch(value):
         raise ProtocolError("ip is invalid")
     return value
+
+
+def _optional_mdns_host(value: Any) -> str | None:
+    """Accept an optional single DNS label; None when absent or empty."""
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str) or not MDNS_HOST.fullmatch(value):
+        raise ProtocolError("mdnsHost is invalid")
+    return value.lower()
 
 
 def _boolean(value: Any, field: str) -> bool:
@@ -280,6 +292,7 @@ class DeviceSnapshot:
     machine_name: str = DEFAULT_MACHINE_NAME
     machine_profile: str = DEFAULT_MACHINE_PROFILE
     ip: str | None = None
+    mdns_host: str | None = None
 
     @classmethod
     def from_dict(cls, value: Any) -> Self:
@@ -336,6 +349,7 @@ class DeviceSnapshot:
                 data.get("machineProfile"), DEFAULT_MACHINE_PROFILE, 64
             ),
             ip=_optional_ip(data.get("ip")),
+            mdns_host=_optional_mdns_host(data.get("mdnsHost")),
         )
 
 

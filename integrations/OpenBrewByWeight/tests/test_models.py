@@ -39,6 +39,7 @@ def test_snapshot_and_presets_contract() -> None:
     assert snapshot.hardware_profile == "esp32-s3-relay-x1-speaker"
     assert snapshot.machine_name == "La Marzocco Linea Micra"
     assert snapshot.machine_profile == "la-marzocco-linea-micra"
+    assert snapshot.mdns_host == "controller"
     assert snapshot.shot_state == "idle"
     assert snapshot.quick_settings.no_scale_bbw_mode == "warn_once"
     assert presets.active_id == 2
@@ -61,6 +62,7 @@ def test_snapshot_identity_fields_fall_back_when_absent() -> None:
         "hardwareProfile",
         "machineName",
         "machineProfile",
+        "mdnsHost",
     ):
         payload.pop(key)
     snapshot = DeviceSnapshot.from_dict(payload)
@@ -69,6 +71,7 @@ def test_snapshot_identity_fields_fall_back_when_absent() -> None:
     assert snapshot.hardware_profile == DEFAULT_HARDWARE_PROFILE
     assert snapshot.machine_name == DEFAULT_MACHINE_NAME
     assert snapshot.machine_profile == DEFAULT_MACHINE_PROFILE
+    assert snapshot.mdns_host is None
 
 
 def test_shot_and_webhook_contract() -> None:

@@ -19,6 +19,7 @@ from .const import (
     PLATFORMS,
 )
 from .coordinator import OpenBrewByWeightCoordinator
+from .entity import _configuration_url
 from .models import DEFAULT_MANUFACTURER, DEFAULT_MODEL
 from .runtime import OpenBrewByWeightRuntimeData, webhook_url
 
@@ -57,7 +58,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpenBrewByWeightConfigEn
         model=snapshot.model or DEFAULT_MODEL,
         hw_version=snapshot.hardware_profile or None,
         sw_version=snapshot.firmware_version,
-        configuration_url=f"http://{api.host}/",
+        configuration_url=_configuration_url(api.host, snapshot.mdns_host),
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

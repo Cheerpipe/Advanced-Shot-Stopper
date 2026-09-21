@@ -484,7 +484,15 @@ async def test_entities_and_select(hass) -> None:
     assert ip.unique_id.endswith("_ip")
     assert ip.entity_category is EntityCategory.DIAGNOSTIC
     assert ip.native_value == "192.168.1.8"
+    assert state.device_info["configuration_url"] == "http://controller.local/"
     assert len(SHOT_DESCRIPTIONS) == 16
+
+    snapshot_without_mdns = replace(coordinator.data.snapshot, mdns_host=None)
+    coordinator.async_set_updated_data(
+        replace(coordinator.data, snapshot=snapshot_without_mdns)
+    )
+    fallback = ShotStateSensor(coordinator)
+    assert fallback.device_info["configuration_url"] == "http://controller.local/"
     empty = [StoredShotSensor(coordinator, item) for item in SHOT_DESCRIPTIONS]
     assert all(entity.native_value is None for entity in empty)
     await coordinator.async_process_webhook(_event("webhook_end_v1.json"))

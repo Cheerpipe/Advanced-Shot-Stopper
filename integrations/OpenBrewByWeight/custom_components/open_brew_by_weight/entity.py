@@ -8,6 +8,13 @@ from .coordinator import OpenBrewByWeightCoordinator
 from .models import DEFAULT_MANUFACTURER, DEFAULT_MODEL
 
 
+def _configuration_url(host: str, mdns_host: str | None) -> str:
+    """Prefer the announced .local name; fall back to the setup host."""
+    if mdns_host:
+        return f"http://{mdns_host}.local/"
+    return f"http://{host}/"
+
+
 class OpenBrewByWeightEntity(CoordinatorEntity[OpenBrewByWeightCoordinator]):
     """Associate every entity with the one controller device."""
 
@@ -24,5 +31,7 @@ class OpenBrewByWeightEntity(CoordinatorEntity[OpenBrewByWeightCoordinator]):
             model=snapshot.model or DEFAULT_MODEL,
             hw_version=snapshot.hardware_profile or None,
             sw_version=snapshot.firmware_version,
-            configuration_url=f"http://{coordinator.api.host}/",
+            configuration_url=_configuration_url(
+                coordinator.api.host, snapshot.mdns_host
+            ),
         )
