@@ -144,6 +144,15 @@ class ControllerSensor(OpenBrewByWeightEntity, SensorEntity):
         super().__init__(coordinator, "controller")
         self._attr_native_value = coordinator.data.snapshot.hardware_profile
 
+    @property
+    def extra_state_attributes(self) -> dict[str, StateType]:
+        """Static identity details captured from the initial snapshot."""
+        snapshot = self.coordinator.data.snapshot
+        return {
+            "arch": snapshot.arch,
+            "firmware_version": snapshot.firmware_version,
+        }
+
 
 class MachineSensor(OpenBrewByWeightEntity, SensorEntity):
     """Espresso machine identity, read once from the initial snapshot."""

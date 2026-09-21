@@ -59,7 +59,8 @@ need to keep the IP address at hand. Two diagnostic sensors capture that
 identity once at setup and never change until the integration is reloaded:
 
 - **Controller**, the controller hardware profile (for example
-  `esp32-s3-relay-x1-speaker`).
+  `esp32-s3-relay-x1-speaker`), with the chip architecture (`n16r8`) and
+  firmware version as attributes.
 - **Machine**, the espresso machine the controller was built for (for example
   `La Marzocco Linea Micra (la-marzocco-linea-micra)`).
 - **Controller IP**, the controller's current network address. It starts at

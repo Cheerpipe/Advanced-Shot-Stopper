@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from custom_components.open_brew_by_weight.models import (
+    DEFAULT_ARCH,
     DEFAULT_HARDWARE_PROFILE,
     DEFAULT_MACHINE_NAME,
     DEFAULT_MACHINE_PROFILE,
@@ -37,6 +38,7 @@ def test_snapshot_and_presets_contract() -> None:
     assert snapshot.manufacturer == "Cheerpipe"
     assert snapshot.model == "Open Brew by Weight"
     assert snapshot.hardware_profile == "esp32-s3-relay-x1-speaker"
+    assert snapshot.arch == "n16r8"
     assert snapshot.machine_name == "La Marzocco Linea Micra"
     assert snapshot.machine_profile == "la-marzocco-linea-micra"
     assert snapshot.mdns_host == "controller"
@@ -60,6 +62,7 @@ def test_snapshot_identity_fields_fall_back_when_absent() -> None:
         "manufacturer",
         "model",
         "hardwareProfile",
+        "arch",
         "machineName",
         "machineProfile",
         "mdnsHost",
@@ -69,6 +72,7 @@ def test_snapshot_identity_fields_fall_back_when_absent() -> None:
     assert snapshot.manufacturer == DEFAULT_MANUFACTURER
     assert snapshot.model == DEFAULT_MODEL
     assert snapshot.hardware_profile == DEFAULT_HARDWARE_PROFILE
+    assert snapshot.arch == DEFAULT_ARCH
     assert snapshot.machine_name == DEFAULT_MACHINE_NAME
     assert snapshot.machine_profile == DEFAULT_MACHINE_PROFILE
     assert snapshot.mdns_host is None

@@ -34,6 +34,7 @@ NO_SCALE_BBW_MODES = ("off", "warn_once", "require_scale")
 DEFAULT_MANUFACTURER = "Cheerpipe"
 DEFAULT_MODEL = "Open Brew by Weight"
 DEFAULT_HARDWARE_PROFILE = "unknown"
+DEFAULT_ARCH = "unknown"
 DEFAULT_MACHINE_NAME = "Unknown machine"
 DEFAULT_MACHINE_PROFILE = "unknown"
 
@@ -289,6 +290,7 @@ class DeviceSnapshot:
     last_shot: Shot | None
     last_good_shot: Shot | None
     hardware_profile: str = DEFAULT_HARDWARE_PROFILE
+    arch: str = DEFAULT_ARCH
     machine_name: str = DEFAULT_MACHINE_NAME
     machine_profile: str = DEFAULT_MACHINE_PROFILE
     ip: str | None = None
@@ -342,6 +344,7 @@ class DeviceSnapshot:
             hardware_profile=_optional_string(
                 data.get("hardwareProfile"), DEFAULT_HARDWARE_PROFILE, 64
             ),
+            arch=_optional_string(data.get("arch"), DEFAULT_ARCH, 16),
             machine_name=_optional_string(
                 data.get("machineName"), DEFAULT_MACHINE_NAME, 64
             ),

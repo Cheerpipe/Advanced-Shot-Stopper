@@ -476,6 +476,10 @@ async def test_entities_and_select(hass) -> None:
     assert controller.unique_id.endswith("_controller")
     assert controller.native_value == "esp32-s3-relay-x1-speaker"
     assert controller.entity_category is EntityCategory.DIAGNOSTIC
+    assert controller.extra_state_attributes == {
+        "arch": "n16r8",
+        "firmware_version": "0.1.0",
+    }
     machine = MachineSensor(coordinator)
     assert machine.unique_id.endswith("_machine")
     assert machine.native_value == "La Marzocco Linea Micra (la-marzocco-linea-micra)"

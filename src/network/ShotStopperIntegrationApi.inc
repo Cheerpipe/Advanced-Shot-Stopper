@@ -133,7 +133,7 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
         "{\"apiVersion\":1,\"minimumClientApiVersion\":1,"
         "\"deviceId\":\"%s\",\"manufacturer\":\"Cheerpipe\","
         "\"model\":\"Open Brew by Weight\",\"firmwareVersion\":\"%s\","
-        "\"hardwareProfile\":\"%s\","
+        "\"hardwareProfile\":\"%s\",\"arch\":\"%s\","
         "\"machineName\":\"%s\",\"machineProfile\":\"%s\","
         "\"ip\":\"%s\",\"mdnsHost\":\"%s\","
         "\"capabilities\":[\"webhook_v1\",\"preset_select_v1\","
@@ -143,7 +143,7 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
         "\"lastShot\":%s,\"lastGoodShot\":%s,"
         "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"}}",
         id, firmware,
-        SHOT_STOPPER_HARDWARE_PROFILE_ID,
+        SHOT_STOPPER_HARDWARE_PROFILE_ID, FW_BOARD_ARCH_STRING,
         SHOT_STOPPER_MACHINE_BRAND " " SHOT_STOPPER_MACHINE_MODEL,
         SHOT_STOPPER_MACHINE_PROFILE_ID, currentIp, mdnsHost,
         control.activeCycle ? "brewing" : "idle",
