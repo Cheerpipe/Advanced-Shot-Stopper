@@ -838,9 +838,20 @@ void ShotStopperMicraService::deferTemperature(
                                     ? LineaMicraTemperatureState::CANCELED
                                     : LineaMicraTemperatureState::FAILED;
   published_.temperatureError = error;
-  if (work_ != nullptr) {
-    published_.temperatureTransportStatus = work_->transportStatus;
-    published_.temperatureHttpStatus = work_->httpStatus;
+  const uint16_t httpStatus = work_ != nullptr ? work_->httpStatus : 0;
+  const int32_t transportStatus =
+      work_ != nullptr ? work_->transportStatus : 0;
+  published_.temperatureTransportStatus = transportStatus;
+  published_.temperatureHttpStatus = httpStatus;
+  if (error != LineaMicraError::CANCELED) {
+    serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,
+                         "Micra temperature request failed preset=%u target=%u.%u error=%s http=%u raw=%ld",
+                         static_cast<unsigned>(request.presetId),
+                         static_cast<unsigned>(request.targetDeciC / 10U),
+                         static_cast<unsigned>(request.targetDeciC % 10U),
+                         lineaMicraErrorName(error),
+                         static_cast<unsigned>(httpStatus),
+                         static_cast<long>(transportStatus));
   }
 }
 
