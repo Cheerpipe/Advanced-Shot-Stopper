@@ -91,6 +91,11 @@ if (!micraTypes.includes('APPLY_TEMPERATURE') ||
     !micraService.includes('desiredTemperature_.machineConfigGeneration = configGeneration;') ||
     !micraService.includes('abortRequested_.load(std::memory_order_acquire)') ||
     !micraService.includes('refreshToken(settings) || signIn(settings)') ||
+    !micraService.includes('char authorization[kTokenCapacity + 8] = {};') ||
+    !micraService.includes('snprintf(authorization, kTokenCapacity + 8,') ||
+    !micraService.includes('esp_http_client_set_header(work_->client, "Authorization",\n                                               authorization) == ESP_OK') ||
+    !micraService.includes('secureWipe(authorization, kTokenCapacity + 8);') ||
+    micraService.includes('Bearer %s", work_->accessToken);\n    const bool ok = length > 0 &&\n                    static_cast<size_t>(length) < sizeof(io_->response)') ||
     !micraStatus.includes('\\\"temperatureState\\\"') ||
     !micraStatus.includes('\\\"temperatureCommandAccepted\\\"') ||
     !micraStatus.includes('\\\"temperatureRetryable\\\"') ||

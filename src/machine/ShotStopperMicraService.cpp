@@ -322,6 +322,10 @@ struct ShotStopperMicraService::IoBuffer {
 struct ShotStopperMicraService::WorkBuffer {
   char accessToken[kTokenCapacity] = {};
   char refreshToken[kTokenCapacity] = {};
+  // Scratch for the formatted Authorization header. Lives beside the tokens in
+  // external RAM so request() never renders the header over the IoBuffer union
+  // (which aliases response and body) and never adds a large stack frame.
+  char authorization[kTokenCapacity + 8] = {};
   esp_http_client_handle_t client = nullptr;
   size_t responseUsed = 0;
   uint32_t accessTokenIssuedAtMs = 0;
@@ -1619,18 +1623,14 @@ bool ShotStopperMicraService::request(
     return false;
   }
   if (authenticated) {
-    static_assert(kResponseCapacity >= kTokenCapacity + 8);
-    const int length = snprintf(io_->response, sizeof(io_->response),
+    char *authorization = work_->authorization;
+    const int length = snprintf(authorization, kTokenCapacity + 8,
                                 "Bearer %s", work_->accessToken);
     const bool ok = length > 0 &&
-                    static_cast<size_t>(length) < sizeof(io_->response) &&
+                    static_cast<size_t>(length) < kTokenCapacity + 8 &&
                     esp_http_client_set_header(work_->client, "Authorization",
-                                               io_->response) == ESP_OK;
-    if (length > 0 && static_cast<size_t>(length) < sizeof(io_->response)) {
-      secureWipe(io_->response, static_cast<size_t>(length) + 1U);
-    } else {
-      io_->response[0] = '\0';
-    }
+                                               authorization) == ESP_OK;
+    secureWipe(authorization, kTokenCapacity + 8);
     if (!ok) return false;
   }
   if (body != nullptr &&
