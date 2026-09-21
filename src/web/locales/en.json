@@ -46,7 +46,7 @@
     "admin.e_g_ntp_example_com": "e.g. ntp.example.com",
     "admin.end": "End",
     "admin.enter_a_lowercase_http_url_https_is": "Enter a lowercase http:// URL. HTTPS is not supported.",
-    "admin.erase_every_saved_setting_and_restore_the": "Erase every saved setting and restore the stopper to its factory defaults.",
+    "admin.erase_every_saved_setting_and_restore_the": "Erase every saved setting and restore the controller to its factory defaults.",
     "admin.events": "Events",
     "admin.factory_reset": "Factory reset",
     "admin.firmware_file": "Firmware file",
