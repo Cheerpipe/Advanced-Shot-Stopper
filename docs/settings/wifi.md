@@ -60,6 +60,12 @@ address shown in Admin → Network. Discovery keeps working with
 [Wi-Fi sleep](power-management.md) enabled; first responses can take a
 moment longer while the radio sleeps between the router's beacons.
 
+When a service browser or Home Assistant lists the controller, it shows the
+device name as you wrote it, with each word capitalized — `Cafe Bar` appears
+as `Cafe Bar`, and the default name appears as `Open Brew By Weight`. Only the
+`.local` address is lowercased with hyphens; the friendly display name keeps
+its capitalization.
+
 Scan lists up to **12** networks. The firmware scan operation has a **20 s**
 timeout; the browser's overall wait can be longer. Cancel from
 the same maintenance window.

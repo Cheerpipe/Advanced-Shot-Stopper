@@ -134,6 +134,7 @@ class OpenBrewByWeightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_DEVICE_ID: snapshot.device_id,
             CONF_WEBHOOK_ID: webhook_id,
             "callback": callback,
+            "title": self._discovered_name or "Open Brew by Weight",
             "takeover": bool(
                 existing.get("enabled") and existing.get("url") != callback
             ),
@@ -165,7 +166,9 @@ class OpenBrewByWeightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_WEBHOOK_ID,
             )
         }
-        return self.async_create_entry(title="Open Brew by Weight", data=data)
+        return self.async_create_entry(
+            title=str(self._pending["title"]), data=data
+        )
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None

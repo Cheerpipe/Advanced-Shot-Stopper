@@ -39,6 +39,47 @@ inline bool validDeviceName(const char *name) {
   return true;
 }
 
+// Maps a valid device name onto a mDNS/Bonjour display instance name:
+// words of the name in title case joined by single spaces (e.g. the default
+// name yields "Open Brew By Weight"). Returns the length, or 0 when the
+// arguments are unusable.
+inline size_t deviceNameToInstanceLabel(char *out, size_t capacity,
+                                         const char *name) {
+  if (out == nullptr || name == nullptr || capacity == 0) {
+    return 0;
+  }
+  size_t length = 0;
+  bool atWordStart = true;
+  for (size_t index = 0; name[index] != '\0' && index < DEVICE_NAME_CAPACITY;
+       ++index) {
+    char c = name[index];
+    if (c == ' ' || c == '-') {
+      c = ' ';
+      if (!atWordStart && length > 0) {
+        if (length + 1 >= capacity) {
+          return 0;
+        }
+        out[length++] = c;
+      }
+      atWordStart = true;
+      continue;
+    }
+    if (c >= 'a' && c <= 'z' && atWordStart) {
+      c = static_cast<char>(c - 'a' + 'A');
+    }
+    if (length + 1 >= capacity) {
+      return 0;
+    }
+    out[length++] = c;
+    atWordStart = false;
+  }
+  while (length > 0 && out[length - 1] == ' ') {
+    --length;
+  }
+  out[length] = '\0';
+  return length;
+}
+
 // Maps a valid device name onto its mDNS host label: lowercase, spaces to
 // hyphens, collapsed and trimmed hyphens. Returns the label length, or 0
 // when the arguments are unusable. A valid name always yields length >= 1

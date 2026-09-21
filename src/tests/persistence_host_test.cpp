@@ -2083,6 +2083,14 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   CHECK(strcmp(host, "cafe-bar-2") == 0);
   CHECK(deviceNameToMdnsHost(host, sizeof(host), "A--  B") == 3);
   CHECK(strcmp(host, "a-b") == 0);
+  CHECK(deviceNameToInstanceLabel(host, sizeof(host), "open brew by weight") == 19);
+  CHECK(strcmp(host, "Open Brew By Weight") == 0);
+  CHECK(deviceNameToInstanceLabel(host, sizeof(host), "cafe bar 2") == 10);
+  CHECK(strcmp(host, "Cafe Bar 2") == 0);
+  CHECK(deviceNameToInstanceLabel(host, sizeof(host), "down-stairs-espresso") == 20);
+  CHECK(strcmp(host, "Down Stairs Espresso") == 0);
+  CHECK(deviceNameToInstanceLabel(host, sizeof(host), "A--  B") == 3);
+  CHECK(strcmp(host, "A B") == 0);
 
   resetHostPersistence();
   PersistedSettings settings;

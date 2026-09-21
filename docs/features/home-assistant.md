@@ -27,10 +27,13 @@ same folder under your Home Assistant configuration directory.
 
 On networks that pass multicast, the controller announces itself and appears
 under **Discovered** in **Settings → Devices & services**; selecting it and
-confirming is the only step needed. Home Assistant identifies the device by
-its stable controller identity, so rediscovery after an address change keeps
-the same entry up to date. If discovery does not find the controller (for
-example on guest or hotel networks that block multicast), add it manually:
+confirming is the only step needed. The discovered card and the device show
+your controller's name with each word capitalized — by default **Open Brew By
+Weight**, or the custom name you set under Admin → Network. Home Assistant
+identifies the device by its stable controller identity, so rediscovery after
+an address change keeps the same entry up to date. If discovery does not find
+the controller (for example on guest or hotel networks that block multicast),
+add it manually:
 
 1. In Home Assistant, go to **Settings → Devices & services → Add integration**
    and select **Open Brew by Weight**.

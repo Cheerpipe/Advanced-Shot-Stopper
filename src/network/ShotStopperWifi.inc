@@ -412,6 +412,10 @@ void ShotStopperNetwork::applyMdnsName() {
   if (deviceNameToMdnsHost(host, sizeof(host), name) == 0) {
     return;
   }
+  char instance[DEVICE_NAME_CAPACITY] = {};
+  if (deviceNameToInstanceLabel(instance, sizeof(instance), name) == 0) {
+    return;
+  }
   // DHCP-side hostname; visible in routers once STA (re)associates.
   WiFi.setHostname(host);
   if (!mdnsActive_) {
@@ -428,8 +432,8 @@ void ShotStopperNetwork::applyMdnsName() {
     copyCString(activeMdnsHost_, sizeof(activeMdnsHost_), host);
   }
   if (mdnsServiceActive_) {
-    (void)mdns_service_instance_name_set("_http", "_tcp", name);
-  } else if (mdns_service_add(name, "_http", "_tcp", 80, nullptr, 0) ==
+    (void)mdns_service_instance_name_set("_http", "_tcp", instance);
+  } else if (mdns_service_add(instance, "_http", "_tcp", 80, nullptr, 0) ==
              ESP_OK) {
     mdnsServiceActive_ = true;
     // Home Assistant discovery matcher: identification TXT on the one
