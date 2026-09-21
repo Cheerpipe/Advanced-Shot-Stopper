@@ -93,13 +93,13 @@ network. Unconfirmed changes revert; see [Wi-Fi](settings/wifi.md).
 ### How do I reach the controller the first time?
 
 Once the controller has joined your home Wi-Fi, open
-`openbrewbyweight.local` in a browser on any phone or computer connected to
+`open-brew-by-weight.local` in a browser on any phone or computer connected to
 the same network — there is no need to look up the IP address. The name comes
 from the controller's default device name; if you renamed it in
 Admin → Network, open `<name>.local` instead (spaces become hyphens, so
 `Cafe Bar` is `cafe-bar.local`). See [Wi-Fi](settings/wifi.md#discovery-by-name).
 
-### I cannot open `openbrewbyweight.local`
+### I cannot open `open-brew-by-weight.local`
 
 Usually one of two things is happening. Either the controller never joined
 your Wi-Fi (or your phone/computer is on a different network) — check that

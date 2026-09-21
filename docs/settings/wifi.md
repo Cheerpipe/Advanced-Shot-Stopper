@@ -41,7 +41,7 @@ Factory credentials and the first-connection walkthrough are in the
 
 The controller announces itself on the local network using the **Device name**
 (Admin → Network), so you can open the Web UI at
-`<name>.local` — for example `openbrewbyweight.local` — instead of hunting
+`<name>.local` — for example `open-brew-by-weight.local` — instead of hunting
 for the IP address, and the device shows up when you browse for web services
 (`_http._tcp`). The address also works while the controller runs its own
 access point (then it resolves to `192.168.4.1`).

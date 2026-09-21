@@ -169,7 +169,7 @@ After installation and bench verification, follow
 [First setup and daily use](docs/GETTING_STARTED.md). It covers connecting to the
 controller's access point, opening the Web UI, joining home Wi-Fi, selecting a
 scale, and making the first shot. Once the controller has joined your home
-Wi-Fi, reach the Web UI at `openbrewbyweight.local`. Factory network details
+Wi-Fi, reach the Web UI at `open-brew-by-weight.local`. Factory network details
 are in [AP → First connection](docs/settings/ap.md#first-connection).
 
 ## Admin

@@ -242,7 +242,7 @@ esp_http_client_handle_t WebhookDispatcher::ensureHttpClient(const char *url) {
   if (client == nullptr) return nullptr;
   if (esp_http_client_set_header(client, "Content-Type", "application/json") !=
           ESP_OK ||
-      esp_http_client_set_header(client, "User-Agent", "ShotStopper/1") !=
+      esp_http_client_set_header(client, "User-Agent", "OpenBrewByWeight/1") !=
           ESP_OK) {
     (void)esp_http_client_cleanup(client);
     return nullptr;

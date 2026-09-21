@@ -424,7 +424,7 @@
     "runtime.active": "Active",
     "runtime.active_2": "active",
     "runtime.administration_locked": "Administration locked.",
-    "runtime.advancedshotstopperap": "AdvancedShotStopperAP",
+    "runtime.advancedshotstopperap": "OpenBrewByWeightAP",
     "runtime.advancedshotstopperap_2": " — ",
     "runtime.aggressive": "Aggressive",
     "runtime.ago": " ago",

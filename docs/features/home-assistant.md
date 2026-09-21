@@ -29,7 +29,7 @@ same folder under your Home Assistant configuration directory.
    and select **Open Brew by Weight**.
 2. Enter only the controller IP address or local host name. On networks with
    discovery, the controller's address is `<device-name>.local`, for example
-   `openbrewbyweight.local` (see
+   `open-brew-by-weight.local` (see
    [Discovery by name](../settings/wifi.md#discovery-by-name)).
 3. If another webhook currently owns the controller, explicitly approve its
    replacement.
