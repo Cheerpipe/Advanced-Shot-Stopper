@@ -140,8 +140,10 @@ ss_idf_resolve_paths() {
   fi
   # The optimization level overlay is generated per build from --o0/--og/--o2/--os
   # (empty means the repository default, -O2). Appended last so the chosen level
-  # wins over every earlier default file.
-  IDF_OPT_OVERLAY="$IDF_BUILD_DIR/sdkconfig.defaults.optlevel"
+  # wins over every earlier default file. It must live outside the build dir:
+  # ss_idf_prepare_set_target wipes that directory and idf.py requires every
+  # SDKCONFIG_DEFAULTS entry to exist while set-target runs its first cmake.
+  IDF_OPT_OVERLAY="$SS_CLI_ROOT/build-idf/sdkconfig.defaults.optlevel"
   IDF_SDKCONFIG_DEFAULTS="$IDF_SDKCONFIG_DEFAULTS;$IDF_OPT_OVERLAY"
 }
 
