@@ -7,8 +7,6 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem 1.5rem;c
 .brand{margin:0;min-width:0;position:relative;z-index:22;--brandGap:.55rem}
 .brand a{color:var(--ac);text-decoration:none;display:flex;align-items:center;gap:var(--brandGap)}
 .brandMark{width:2.35rem;height:3.1rem;flex:0 0 auto;display:block;overflow:visible;fill:currentColor}
-.brandMark .hole{fill-rule:evenodd}
-.brandMark .cup{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .brand span{display:flex;flex-direction:column;justify-content:center;gap:.08rem;min-width:0;line-height:1.05;font-size:1.4rem;font-weight:800;letter-spacing:-.02em;white-space:nowrap}
 .brand small{font-size:.84rem;font-weight:600;letter-spacing:.02em}
 .navToggle{flex-shrink:0;width:var(--tap);height:var(--tap);margin:0;border:1px solid transparent;border-radius:2rem;background:transparent;color:var(--ac);font:inherit;font-size:1.75rem;line-height:1;cursor:pointer;position:relative;z-index:22}

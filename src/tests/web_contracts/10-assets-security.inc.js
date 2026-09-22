@@ -135,6 +135,13 @@ if (!css.includes('.brand') || !css.includes('inline-flex') ||
     shellHtml.includes('logo.svg')) {
   throw new Error('Brand lockup must use inline SVG mark plus HTML wordmark');
 }
+if (shellHtml.split('M10 3h16v16H10z').length !== 2 ||
+    shellHtml.split('class="brandMark"').length !== 4 ||
+    !shellHtml.includes('<svg hidden><symbol id="brandMark" viewBox="0 0 36 48">') ||
+    !shellHtml.includes('<use href="#brandMark"/>')) {
+  throw new Error(
+      'Brand mark must be defined once as an inline symbol sprite and referenced from the header, the loading view, and the inactive overlay');
+}
 if (!shellHtml.includes('class="pageNav"') ||
     !shellHtml.includes('id="navToggle"') ||
     shellHtml.indexOf('class="pageNav"') > shellHtml.indexOf('id="app"') ||
