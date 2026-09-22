@@ -201,6 +201,20 @@ ss_idf_default_build_dir() {
   printf '%s' "${newest%/*}"
 }
 
+# Shared build_dir resolution for the static analysis scripts: an explicit
+# --build-dir wins, then the newest per-variant tree, then the legacy
+# per-arch directory.
+ss_idf_resolve_build_dir() {
+  local default_dir
+  if ss_is_set build_dir; then
+    ss_get build_dir
+  elif default_dir="$(ss_idf_default_build_dir)"; then
+    printf '%s' "$default_dir"
+  else
+    printf 'build-idf/%s' "$SHOTSTOPPER_ARCH"
+  fi
+}
+
 # Call after shotstopper_resolve_board. Sets IDF_PROJECT, IDF_BUILD_DIR,
 # IDF_IMAGE, IDF_ELF, IDF_MAP, IDF_SDKCONFIG, IDF_SDKCONFIG_DEFAULTS.
 ss_idf_resolve_paths() {

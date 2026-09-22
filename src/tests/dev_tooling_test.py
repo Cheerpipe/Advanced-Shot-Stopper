@@ -375,6 +375,56 @@ legacy_profile_cli = subprocess.run(
 assert legacy_profile_cli.returncode == 0
 
 
+def build_dir_probe(*args: str, builds: dict[str, float] | None = None,
+                    empty_variants: tuple[str, ...] = ()) -> subprocess.CompletedProcess[str]:
+    """Resolve the static-analysis build directory in a sandboxed CLI root."""
+    with tempfile.TemporaryDirectory(prefix="shotstopper-build-dir-") as temporary:
+        root = Path(temporary)
+        env = os.environ.copy()
+        env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
+                   HOME=str(root))
+        for name in ("IDF_PATH", "IDF_PYTHON_ENV_PATH"):
+            env.pop(name, None)
+        for database, stamp in (builds or {}).items():
+            target = root / database
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("[]")
+            os.utime(target, (stamp, stamp))
+        for variant in empty_variants:
+            (root / variant).mkdir(parents=True, exist_ok=True)
+        command = (
+            f'source "{ROOT / "scripts/shotstopper_board.sh"}"; '
+            f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+            f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
+            'ss_cli_parse "$@" || exit $?; '
+            'shotstopper_resolve_board "$(ss_get arch)" || exit 2; '
+            'ss_idf_resolve_paths; ss_idf_resolve_build_dir')
+        return subprocess.run(["bash", "-c", command, "probe", *args],
+                              env=env, cwd=ROOT, capture_output=True, text=True)
+
+
+assert build_dir_probe("--arch", "n16r8").stdout == "build-idf/n16r8", \
+    "no variant tree must fall back to the legacy per-arch directory"
+newer = build_dir_probe(
+    "--arch", "n16r8",
+    builds={"build-idf/older--pair/compile_commands.json": 1000.0,
+            "build-idf/newer--pair/compile_commands.json": 2000.0})
+assert newer.stdout.endswith("build-idf/newer--pair"), newer.stdout
+spaced = build_dir_probe(
+    "--arch", "n16r8",
+    builds={"build-idf/my variant--pair/compile_commands.json": 3000.0})
+assert spaced.stdout.endswith("build-idf/my variant--pair"), spaced.stdout
+ignored_empty = build_dir_probe(
+    "--arch", "n16r8",
+    builds={"build-idf/older--pair/compile_commands.json": 1000.0},
+    empty_variants=("build-idf/empty--pair",))
+assert ignored_empty.stdout.endswith("build-idf/older--pair"), ignored_empty.stdout
+explicit = build_dir_probe(
+    "--arch", "n16r8", "--build-dir", "build-idf/older--pair",
+    builds={"build-idf/newer--pair/compile_commands.json": 2000.0})
+assert explicit.stdout == "build-idf/older--pair", explicit.stdout
+
+
 def cli_probe(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", "-c",
