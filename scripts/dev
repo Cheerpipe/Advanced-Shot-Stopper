@@ -356,7 +356,7 @@ def help_text() -> str:
     return """usage: ./scripts/dev [--verbosity compact|normal|verbose] COMMAND [ARGS]
 
 commands:
-  doctor                     report local tools; never installs
+  doctor                     report local tools and the ESP-IDF environment; never installs
   context AREA               list focused paths and their purpose
   classify [PATH ...]        print path risks and aggregate risk
   test [normal|asan|tsan|web|ble|ota|tooling]
@@ -415,7 +415,32 @@ def main() -> int:
             tools = ["git", "python3", "cmake", "ctest", "c++", "node", "npm", "cppcheck"]
             lines = [f"{tool}: {shutil.which(tool) or 'MISSING'}" for tool in tools]
             missing = require(tools[:5])
-            lines.append("ESP-IDF: discovered by scripts/shotstopper_idf.sh at build time")
+            probe = subprocess.run(
+                ["bash", "-c",
+                 'source scripts/shotstopper_board.sh; '
+                 'source scripts/shotstopper_cli.sh; '
+                 'source scripts/shotstopper_idf.sh; ss_idf_environment_report'],
+                cwd=ROOT, text=True, capture_output=True)
+            report = dict(field.split("=", 1)
+                          for field in probe.stdout.splitlines() if "=" in field)
+            idf_path = report.get("IDF_PATH")
+            venv = report.get("IDF_PYTHON_ENV_PATH")
+            venv_source = report.get("venv_source", "")
+            mismatch = report.get("venv_mismatch") == "yes"
+            if idf_path is None:
+                lines.append("ESP-IDF: not found; install 6.1.x per docs/BUILD.md")
+            else:
+                if venv_source == "active":
+                    detail = f"active environment: {venv}"
+                elif venv:
+                    detail = f"auto-selected installed venv: {venv}"
+                elif mismatch:
+                    detail = "export.sh venv is missing; builds self-heal at activation"
+                else:
+                    detail = "resolved by export.sh at build time"
+                lines.append("ESP-IDF: " + idf_path +
+                             (" (venv mismatch)" if mismatch else ""))
+                lines.append(f"IDF Python environment: {detail}")
             return record(command, "R0", verbosity, lines, 127 if missing else 0, "doctor")
 
         if verb == "context":

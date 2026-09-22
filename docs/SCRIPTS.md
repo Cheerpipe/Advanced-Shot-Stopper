@@ -461,6 +461,7 @@ Exit the ESP-IDF monitor with **Ctrl+]**.
 ## Development and validation commands
 
 ```sh
+./scripts/dev doctor
 ./scripts/dev context build
 ./scripts/dev classify
 ./scripts/dev test tooling
@@ -469,6 +470,14 @@ Exit the ESP-IDF monitor with **Ctrl+]**.
 ./scripts/dev analyze --arch n16r8 \
   --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
 ```
+
+`doctor` reports the local tools and the ESP-IDF environment the build
+scripts would use: the SDK checkout they discover, the Python environment
+activation ends up with, and whether that environment comes from the active
+shell, was auto-selected from an installed environment, or will be resolved
+by the SDK at build time. It flags the mismatch case where the checkout's
+environment points at a missing Python installation that builds self-heal at
+activation. It never installs anything.
 
 Complete validation is selected by [VALIDATION.md](../VALIDATION.md), not by a
 single convenient focused test. `dev` never installs dependencies. Missing

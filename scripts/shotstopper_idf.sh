@@ -50,8 +50,42 @@ ss_idf_select_python_env() {
   return 1
 }
 
+# Read-only diagnosis for ./scripts/dev doctor: report which ESP-IDF checkout
+# the build scripts would use, which Python environment the activation would
+# end up with, and the venv mismatch case (a Python-upgraded SDK clone whose
+# export.sh target no longer exists). Reuses ss_idf_find and the same python
+# environment selection as ss_idf_source without sourcing export.sh, mutating
+# the caller's environment, or running idf.py.
+ss_idf_environment_report() {
+  local idf_root selected
+  idf_root="$(ss_idf_find)" || return 1
+  printf 'IDF_PATH=%s\n' "${idf_root}"
+  if [[ -n "${IDF_PYTHON_ENV_PATH:-}" && -x "${IDF_PYTHON_ENV_PATH}/bin/python" ]]; then
+    printf 'IDF_PYTHON_ENV_PATH=%s\n' "${IDF_PYTHON_ENV_PATH}"
+    printf 'venv_source=active\n'
+    printf 'venv_mismatch=no\n'
+    return 0
+  fi
+  # Selection in a subshell: ss_idf_select_python_env exports, never prints.
+  selected="$(SS_IDF_QUIET=1 ss_idf_select_python_env "${idf_root}" && \
+    printf '%s' "${IDF_PYTHON_ENV_PATH-}")" || selected=""
+  if [[ -n "${selected}" ]]; then
+    printf 'IDF_PYTHON_ENV_PATH=%s\n' "${selected}"
+    printf 'venv_source=installed-selection\n'
+  else
+    printf 'venv_source=export.sh\n'
+  fi
+  if [[ -n "${IDF_PYTHON_ENV_PATH:-}" && ! -x "${IDF_PYTHON_ENV_PATH}/bin/python" ]]; then
+    printf 'venv_mismatch=yes\n'
+  else
+    printf 'venv_mismatch=no\n'
+  fi
+  return 0
+}
+
 ss_idf_source() {
   local idf_root
+
   if [[ -n "${IDF_PYTHON_ENV_PATH:-}" ]]; then
     if ss_idf_active_valid; then
       if [[ "${SS_IDF_QUIET:-}" != "1" ]]; then

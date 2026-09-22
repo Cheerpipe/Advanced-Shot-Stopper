@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import subprocess
+from contextlib import contextmanager
 from pathlib import Path
 import os
 import re
@@ -167,6 +168,99 @@ for area in ("safety", "control", "machine", "scale", "ble", "network",
 
 dry_run = run("clean", "--dry-run")
 assert dry_run.returncode == 0 and "build-host" in dry_run.stdout
+
+
+@contextmanager
+def idf_doctor_fixture(with_install: bool, with_venv: bool):
+    """Create a sandbox HOME with an optional ESP-IDF checkout and python_env."""
+    with tempfile.TemporaryDirectory(prefix="shotstopper-doctor-idf-") as temporary:
+        root = Path(temporary)
+        fallback = root / "esp/esp-idf-v6.1"
+        installed_env = root / ".espressif/python_env/idf6.1_py3.14_env"
+        missing_env = root / ".espressif/python_env/idf6.1_py3.11_env"
+        if with_install:
+            (fallback / "components/esp_common/include").mkdir(parents=True)
+            (fallback / "export.sh").write_text("#!/bin/sh\n")
+            (fallback / "components/esp_common/include/esp_idf_version.h").write_text(
+                "#define ESP_IDF_VERSION_MAJOR 6\n"
+                "#define ESP_IDF_VERSION_MINOR 1\n")
+        if with_venv:
+            (installed_env / "bin").mkdir(parents=True, exist_ok=True)
+            (installed_env / "bin/python").write_text("#!/bin/sh\nexit 0\n")
+            (installed_env / "bin/python").chmod(0o755)
+            (installed_env / "idf_version.txt").write_text("6.1")
+        missing_env.mkdir(parents=True, exist_ok=True)
+        yield root, fallback, installed_env, missing_env
+
+
+def idf_environment_probe(root: Path, extra_env: dict[str, str] | None = None):
+    env = os.environ.copy()
+    env.update(HOME=str(root), SS_CLI_ROOT=str(root))
+    for name in ("IDF_PATH", "IDF_PYTHON_ENV_PATH", "ESP_PYTHON",
+                 "ESP_IDF_VERSION", "IDF_DEACTIVATE_FILE_PATH"):
+        env.pop(name, None)
+    env.update(extra_env or {})
+    command = (
+        f'source "{ROOT / "scripts/shotstopper_board.sh"}"; '
+        f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+        f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
+        'ss_idf_environment_report')
+    return subprocess.run(["bash", "-c", command], env=env, cwd=ROOT,
+                          capture_output=True, text=True)
+
+
+def doctor_with_probe_stdout(probe_stdout: str) -> list[str]:
+    """Render doctor output for a canned environment probe result."""
+    captured = {}
+
+    def capture(command, risk, verbosity, lines, code=0, check="contract"):
+        captured.update(lines=list(lines))
+        return 0
+
+    class FakeSubprocess:
+        @staticmethod
+        def run(*args, **kwargs):
+            return subprocess.CompletedProcess(args=[], returncode=0,
+                                               stdout=probe_stdout, stderr="")
+
+    main = dev_module["main"]
+    with patch.dict(main.__globals__, {"subprocess": FakeSubprocess,
+                                       "record": capture}), \
+            patch.object(sys, "argv", [str(DEV), "doctor"]):
+        assert main() == 0
+    return captured["lines"]
+
+
+for with_install, with_venv, extra, expected_idf, expected_venv, mismatched in (
+        (True, True, None, True, "auto-selected installed venv", False),
+        (True, True, {"IDF_PYTHON_ENV_PATH": "ACTIVE"}, True, "active environment", False),
+        (True, False, None, True, "resolved by export.sh at build time", False),
+        (True, True, {"IDF_PYTHON_ENV_PATH": "STALE"}, True,
+         "auto-selected installed venv", True),
+        (False, True, None, False, None, False)):
+    with idf_doctor_fixture(with_install, with_venv) as (root, fallback,
+                                                         installed_env,
+                                                         missing_env):
+        extra_env = {name: (str(installed_env) if value == "ACTIVE" else
+                            str(missing_env) if value == "STALE" else value)
+                     for name, value in (extra or {}).items()}
+        probe = idf_environment_probe(root, extra_env)
+        assert (probe.returncode == 0) == expected_idf, probe.stderr
+        lines = doctor_with_probe_stdout(probe.stdout)
+        if expected_idf:
+            assert any(line == f"ESP-IDF: {fallback}" +
+                       (" (venv mismatch)" if mismatched else "")
+                       for line in lines), lines
+            assert any(expected_venv in line and
+                       line.startswith("IDF Python environment: ")
+                       for line in lines), lines
+            assert any("venv mismatch" in line for line in lines) == mismatched, lines
+        else:
+            assert "ESP-IDF: not found; install 6.1.x per docs/BUILD.md" in lines, lines
+
+live_doctor = run("doctor")
+assert live_doctor.returncode == 0 and "ESP-IDF:" in live_doctor.stdout, \
+    live_doctor.stderr
 
 for script in (ROOT / "scripts").rglob("*"):
     if not script.is_file() or script.suffix == ".js":
