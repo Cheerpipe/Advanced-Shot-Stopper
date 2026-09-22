@@ -50,10 +50,15 @@ straight away.
 
 **Add to home screen** installs the page like an app. On iPhone or iPad, open
 the controller page in Safari, tap **Share**, then **Add to Home Screen**; from
-then on it opens full screen with the Open Brew by Weight icon. On Android, open the
-page in Chrome, tap the **⋮ menu**, and choose **Add to Home screen**. Because
+then on it opens full screen with the Open Brew by Weight icon — the brand mark
+on the brand colour, edge to edge, so it fills its place on the home screen
+without a white frame around it. On Android, open the controller page in Chrome,
+tap the **⋮ menu**, and choose **Add to Home screen**. Because
 the controller is reached directly at its local address, browsers do not offer
-an automatic install prompt — the menu option above is the installation.
+an automatic install prompt — the menu option above is the installation. The
+icon is taken from the page when you add it, so an icon added before a firmware
+update keeps the artwork it was installed with: remove it and add the page again
+to pick up the current one.
 
 **Out of reach**: when the page opens but the controller cannot be reached —
 for example while you are away from home — it shows the Open Brew by Weight logo with

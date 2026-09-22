@@ -226,6 +226,26 @@ if (!zlib.gunzipSync(generated.icon192Gzip).equals(generated.icon192Raw)) {
 if (!zlib.gunzipSync(generated.icon48Gzip).equals(generated.icon48Raw)) {
   throw new Error('Generated gzip 48 px icon does not round-trip to the PNG bytes');
 }
+// iOS composites the home-screen icon onto white and only rounds its own
+// corners, so the 192 px asset must stay opaque and full-bleed: truecolour
+// without an alpha channel, and the canvas corner in the tile colour instead
+// of the light background the artwork used to carry.
+const iconIdat = [];
+for (let offset = 8; offset < generated.icon192Raw.length - 8;) {
+  const length = generated.icon192Raw.readUInt32BE(offset);
+  const type = generated.icon192Raw.toString('ascii', offset + 4, offset + 8);
+  if (type === 'IDAT') {
+    iconIdat.push(generated.icon192Raw.subarray(offset + 8, offset + 8 + length));
+  }
+  offset += 12 + length;
+}
+const iconRow0 = zlib.inflateSync(Buffer.concat(iconIdat));
+if (generated.icon192Raw.readUInt32BE(16) !== 192 ||
+    generated.icon192Raw.readUInt32BE(20) !== 192 ||
+    generated.icon192Raw[25] !== 2 ||
+    iconRow0[1] > 0xb0 || iconRow0[2] > 0xa0) {
+  throw new Error('The 192 px icon must be an opaque 192x192 PNG with the tile colour at its canvas corner');
+}
 if (generated.runtimeJs.includes('__FW_RELEASE__') ||
     !generated.runtimeJs.includes('ssFwReload') ||
     !generated.runtimeJs.includes('location.reload()') ||
