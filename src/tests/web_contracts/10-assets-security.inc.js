@@ -157,7 +157,10 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !css.includes('.brand span{display:flex;flex-direction:column;') ||
     !css.includes('.bootOverlay.isDone{opacity:0;pointer-events:none}') ||
     !css.includes('transition:opacity .25s ease') ||
-    !css.includes('.bootRing{animation:none}') ||
+    !shellHtml.includes('class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i>') ||
+    !css.includes('.bootWave i{width:.55rem;height:100%;border-radius:.3rem;background:var(--ac);animation:bootWave 1.1s ease-in-out infinite}') ||
+    !css.includes('@keyframes bootWave{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}') ||
+    !css.includes('.bootWave i{animation:none}') ||
     !runtimeJs.includes('let homeBootDone=false,fwReloading=false') ||
     !runtimeJs.includes('function hideHomeBoot(){if(homeBootDone||fwReloading)return;homeBootDone=true;const el=$(\'homeBoot\');if(!el)return;requestAnimationFrame(') ||
     !runtimeJs.includes('setTimeout(()=>el.classList.add(\'hidden\'),250)') ||
