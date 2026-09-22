@@ -878,17 +878,18 @@ an exhausted communication cycle replaces it with UNKNOWN; the separate
 `effectiveOn` policy treats UNKNOWN as ON without claiming that ON was measured.
 
 On every physical paddle ON edge, the Micra state owner first evaluates the
-pre-edge effective state. A fresh OFF starts a 60-second optimistic ON overlay,
-defined as twice the normal poll interval. It makes `effectiveOn` true without
+pre-edge effective state. A confirmed OFF, current or stale, starts a
+60-second optimistic ON overlay, defined as twice the normal poll interval. It makes `effectiveOn` true without
 replacing the cloud-confirmed OFF. When a scale shutdown command is accepted
-by the cloud over a fresh confirmed ON, the owner starts the same overlay in
+by the cloud over a confirmed ON, current or stale, the owner starts the same
+overlay in
 the opposite direction: it makes `effectiveOn` false without replacing the
 confirmed ON. The owner delays automatic and requested reads for 15 seconds
 after either event so cloud state can converge. The first authoritative
 dashboard read initiated after the deadline replaces the overlay. Reads
-initiated before the event cannot overwrite it or move the deadline. Events
-over other confirmed states or qualities do not change the tracked state, and
-repeated events while an overlay is live never re-arm or extend it.
+initiated before the event cannot overwrite it or move the deadline. Events over other states (ON, UNKNOWN), a live
+overlay, or unsupported samples do not change the tracked state, and repeated
+events while an overlay is live never re-arm or extend it.
 
 The observer uses four total attempts with 3/6/9-second waits and bounded
 jitter. After exhaustion, the next observation follows the normal 30-second

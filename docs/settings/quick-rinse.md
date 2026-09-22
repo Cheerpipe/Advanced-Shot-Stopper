@@ -24,7 +24,8 @@ Rancilio profiles. With it off, paddle short ON→OFF is a shot, and a momentary
 long-press is native 1:1 (no `RINSE` cycle). Existing persisted choices survive
 ordinary boot and OTA.
 
-A Linea Micra paddle gesture recognized from a fresh OFF machine state only
+A Linea Micra paddle gesture recognized from a monitored OFF machine state —
+current or stale, the last confirmed reading — only
 wakes the machine. It never becomes a rinse, regardless of its hold duration.
 See [Linea Micra](linea-micra.md#recognize-paddle-wake-gestures).
 

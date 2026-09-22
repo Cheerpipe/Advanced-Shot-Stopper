@@ -92,13 +92,14 @@ Select **(Refresh)** beside the displayed state to add a read to the same bounde
 queue. It cannot bypass STA, AP, clock, shot, busy, or post-wake timing rules.
 
 UNKNOWN is treated like ON for paddle behavior. It never qualifies a wake
-gesture, so brewing and rinse behavior remain unchanged when a current OFF
-observation is unavailable.
+gesture, so brewing and rinse behavior remain unchanged when no confirmed ON
+or OFF observation is available.
 
 ## Recognize paddle wake gestures
 
-Keep **Recognize paddle wake gestures** on to use a fresh monitored OFF state.
-The next physical paddle ON is then treated only as the Micra's standby wake
+Keep **Recognize paddle wake gestures** on to use a monitored OFF state. The
+last confirmed OFF counts while it is current or stale, so the next physical
+paddle ON is then treated only as the Micra's standby wake
 gesture. The controller mirrors the paddle through its normal relay safety path,
 but it does not start brew or rinse, evaluate or consume guards, command the
 scale, boost BLE discovery, play alerts, call brew webhooks, or add shot/rinse
@@ -114,13 +115,14 @@ waits for the same deadline. The first successful read started after that delay
 removes optimism and supplies the next confirmed classification. A request
 started before the edge cannot publish stale OFF or change the deadline. A
 failed read does not clear or extend optimism; after all retries, the confirmed
-state becomes UNKNOWN. Paddle movement while the confirmed state is ON, UNKNOWN,
-or stale OFF does not create or extend optimism and follows the normal brew/rinse
+state becomes UNKNOWN. Paddle movement while the confirmed state is ON,
+UNKNOWN, or an optimistic overlay is already live does not create or extend
+optimism and follows the normal brew/rinse
 flow.
 
 This option is independent from monitoring. Turning monitoring off keeps the
 saved wake preference, but the effective state becomes UNKNOWN, so wake
-recognition is inactive until monitoring produces a fresh OFF observation.
+recognition is inactive until monitoring produces a confirmed OFF observation.
 
 ## Turn machine off when the scale powers off
 

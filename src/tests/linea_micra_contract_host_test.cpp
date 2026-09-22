@@ -163,15 +163,39 @@ int main() {
   assert(effective.powerState == LineaMicraPowerState::OFF);
   assert(effective.quality == LineaMicraObservationQuality::STALE);
   assert(!effective.effectiveOn);
-  assert(!power.notePhysicalStart(
-      authoritative, true, true, 1000 + freshness));
-  assert(power.generation() == disabledWakeGeneration);
+  // A stale sample keeps the last confirmed state: stale OFF still qualifies
+  // the wake gesture and starts the optimistic ON overlay.
+  assert(power.notePhysicalStart(authoritative, true, true,
+                                 1000 + freshness + 1));
+  assert(power.generation() != disabledWakeGeneration);
+  effective = power.effectiveStatus(authoritative, true, 1000 + freshness + 1);
+  assert(effective.powerState == LineaMicraPowerState::OFF);
+  assert(effective.optimisticOn);
+  assert(effective.effectiveOn);
+  assert(effective.quality == LineaMicraObservationQuality::OPTIMISTIC);
+  assert(!power.notePhysicalStart(authoritative, true, true,
+                                  1000 + freshness + 2));
+  power.reset();
 
   authoritative.powerState = LineaMicraPowerState::ON;
   authoritative.effectiveOn = true;
-  effective = power.effectiveStatus(authoritative, true, 1000 + freshness);
+  effective = power.effectiveStatus(authoritative, true, 1000 + freshness + 3);
   assert(effective.powerState == LineaMicraPowerState::ON);
   assert(effective.quality == LineaMicraObservationQuality::STALE);
+  // Stale ON qualifies the opposite overlay too: an accepted scale shutdown
+  // over a stale confirmed ON asserts optimistic OFF.
+  assert(power.noteStandbyCommandAccepted(authoritative, true,
+                                          1000 + freshness + 4));
+  effective = power.effectiveStatus(authoritative, true, 1000 + freshness + 4);
+  assert(effective.powerState == LineaMicraPowerState::ON);
+  assert(effective.optimisticOff);
+  assert(!effective.effectiveOn);
+  assert(effective.quality == LineaMicraObservationQuality::OPTIMISTIC);
+  power.reset();
+  effective = power.effectiveStatus(authoritative, true, 1000 + freshness + 4);
+  assert(effective.powerState == LineaMicraPowerState::ON);
+  assert(effective.quality == LineaMicraObservationQuality::STALE);
+  assert(effective.effectiveOn);
 
   // Optimistic OFF mirrors the wake overlay: an accepted scale-shutdown
   // command over a fresh confirmed ON asserts effective OFF until the first

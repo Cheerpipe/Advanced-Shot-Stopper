@@ -11,6 +11,9 @@ namespace shotstopper {
 // changes only the effective state and observation quality; the confirmed
 // classification and its sample stay untouched until an authoritative read
 // started after the overlay accepts, matched by generation.
+// Qualification depends only on the power state: a stale sample still reports
+// its last confirmed ON or OFF and qualifies; UNKNOWN and a live overlay do
+// not.
 enum class OptimisticDirection : uint8_t { NONE, ON, OFF };
 
 class LineaMicraPowerStateTracker {
@@ -43,8 +46,8 @@ class LineaMicraPowerStateTracker {
   }
 
   // A scale shutdown only asserts optimistic OFF once the cloud command was
-  // accepted and the confirmed state is a fresh ON: the machine is certainly
-  // heading to standby, but the dashboard has not said so yet.
+  // accepted and the confirmed state is ON, current or stale: the machine is
+  // certainly heading to standby, but the dashboard has not said so yet.
   bool noteStandbyCommandAccepted(const LineaMicraStatus &authoritative,
                                   bool observing, uint32_t now) {
     return arm(authoritative, observing, OptimisticDirection::OFF, now);
@@ -73,7 +76,8 @@ class LineaMicraPowerStateTracker {
             ? LineaMicraPowerState::OFF
             : LineaMicraPowerState::ON;
     if (before.powerState != required ||
-        before.quality != LineaMicraObservationQuality::CURRENT)
+        (before.quality != LineaMicraObservationQuality::CURRENT &&
+         before.quality != LineaMicraObservationQuality::STALE))
       return false;
     direction_ = direction;
     optimisticAtMs_ = now;
