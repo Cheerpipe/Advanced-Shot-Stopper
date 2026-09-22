@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
@@ -423,6 +424,62 @@ explicit = build_dir_probe(
     "--arch", "n16r8", "--build-dir", "build-idf/older--pair",
     builds={"build-idf/newer--pair/compile_commands.json": 2000.0})
 assert explicit.stdout == "build-idf/older--pair", explicit.stdout
+
+
+def static_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path]:
+    """Run static-idf end to end over a sandboxed fake compile database."""
+    report_dir = ROOT / "reports/static-idf-golden"
+    with tempfile.TemporaryDirectory(prefix="shotstopper-static-idf-") as temporary:
+        root = Path(temporary)
+        build = root / "build-idf" / "n16r8"
+        (build / "generated").mkdir(parents=True)
+        (build / "generated" / "build-profile.json").write_text(
+            '{"machine_integration": "none"}\n')
+        # The real audit enumerates the manifest for the integration the
+        # build profile selects; mirror that selection for "none".
+        expected = []
+        for raw in (ROOT / "scripts/project-translation-units.txt").read_text().splitlines():
+            entry = raw.strip()
+            if not entry or entry.startswith("#"):
+                continue
+            relative, separator, selector = entry.partition("|")
+            if separator and selector.strip().partition("=")[2] != "none":
+                continue
+            expected.append(relative.strip())
+        (build / "compile_commands.json").write_text(json.dumps(
+            [{"directory": str(ROOT), "file": str(ROOT / relative),
+              "arguments": ["cc", relative]} for relative in expected]))
+        tools = root / "tools"
+        tools.mkdir()
+        stub = tools / "cppcheck"
+        stub.write_text("#!/bin/sh\nprintf 'cppcheck-stub\\n'\n")
+        stub.chmod(0o755)
+        env = os.environ.copy()
+        env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
+                   PATH=f"{tools}:{os.environ['PATH']}")
+        result = subprocess.run(
+            ["bash", str(ROOT / "scripts/static-idf"), "--arch", "n16r8",
+             "--build-dir", str(build), *extra],
+            cwd=ROOT, env=env, capture_output=True, text=True)
+        return result, report_dir
+
+
+static_idf_result, static_idf_report = static_idf_run(
+    "--output-dir", "reports/static-idf-golden")
+try:
+    assert static_idf_result.returncode == 0, (
+        static_idf_result.returncode, static_idf_result.stdout,
+        static_idf_result.stderr)
+    assert re.search(r"translation-unit coverage: (\d+)/\1 production C\+\+ "
+                     "files for integration=none", static_idf_result.stdout), \
+        static_idf_result.stdout
+    assert "Reports saved under reports/static-idf-golden/" in static_idf_result.stdout
+    assert "cppcheck-stub" in (static_idf_report / "cppcheck.txt").read_text()
+    static_idf_readme = (static_idf_report / "README.txt").read_text()
+    assert "Cppcheck exit status: 0" in static_idf_readme
+    assert "Build database: " in static_idf_readme
+finally:
+    shutil.rmtree(static_idf_report, ignore_errors=True)
 
 
 def cli_probe(*args: str) -> subprocess.CompletedProcess[str]:
