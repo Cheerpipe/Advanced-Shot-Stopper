@@ -151,6 +151,9 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     shellHtml.indexOf('id="homeBoot"') > shellHtml.indexOf('class="topBar"') ||
     !css.includes('.bootOverlay{position:fixed;inset:0;z-index:39') ||
     !css.includes('.inactiveOverlay{position:fixed;inset:0;z-index:40') ||
+    !shellHtml.includes('id="homeBoot" class="bootOverlay" role="status"><div class="brand" aria-hidden="true">') ||
+    !css.includes('.bootOverlay .brand,.inactiveOverlay .brand{') ||
+    !css.includes('.brand span{display:flex;flex-direction:column;') ||
     !css.includes('.bootOverlay.isDone{opacity:0;pointer-events:none}') ||
     !css.includes('transition:opacity .25s ease') ||
     !css.includes('.bootRing{animation:none}') ||
@@ -202,8 +205,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // adds one default-off machine option plus a grace-delay select.
 // The Home boot splash adds one full-screen status surface plus its label to
 // the shell markup; no partial, view, or control markup changes.
-if (htmlBytes > 70050) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 70050)`);
+// The Home loading view reuses the header brand mark; the repeated inline
+// artwork adds ~0.5 KB of shell source but only bytes of compressed payload.
+if (htmlBytes > 70550) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 70550)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -245,8 +250,10 @@ if (htmlBytes > 70050) {
 if (jsBytes > 194500) {
   throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 194500)`);
 }
-if (htmlBytes + jsBytes > 264500) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 264500)`);
+// Sharing the brand wordmark selectors between the header, the loading view,
+// and the inactive overlay pays for the added shell markup.
+if (htmlBytes + jsBytes > 265000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 265000)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
