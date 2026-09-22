@@ -111,13 +111,28 @@ struct GuardInputs {
   uint32_t blockedHoldTimeoutMs = 0;
 };
 
+// Single source for StopperState renderings: serial and JSON status use the
+// stable identifier, the web UI shows the human-readable label.
+struct StopperStateLabel {
+  StopperState state;
+  const char *apiName;
+  const char *humanLabel;
+};
+
+inline constexpr StopperStateLabel kStopperStateLabels[] = {
+    {StopperState::REQUIRES_OFF, "REQUIRES_OFF", "Paddle release required"},
+    {StopperState::READY, "READY", "Ready"},
+    {StopperState::BREW, "BREW", "Automatic brew"},
+    {StopperState::RINSE, "RINSE", "Rinse in progress"},
+    {StopperState::MANUAL_NO_SCALE, "MANUAL_NO_SCALE",
+     "Manual shot without scale"},
+};
+
 inline const char *stopperStateName(StopperState state) {
-  switch (state) {
-    case StopperState::REQUIRES_OFF: return "REQUIRES_OFF";
-    case StopperState::READY: return "READY";
-    case StopperState::BREW: return "BREW";
-    case StopperState::RINSE: return "RINSE";
-    case StopperState::MANUAL_NO_SCALE: return "MANUAL_NO_SCALE";
+  for (const auto &label : kStopperStateLabels) {
+    if (label.state == state) {
+      return label.apiName;
+    }
   }
   return "UNKNOWN";
 }
@@ -144,6 +159,85 @@ enum class EndReason : uint8_t {
   CUP_REMOVED = 18,
   UNCONFIRMED_START = 19
 };
+
+// Single source for EndReason renderings: the configuration API uses
+// UPPER_SNAKE identifiers, serial/debug messages use human-readable labels.
+// Adding an enumerator without a row here fails the static_assert below.
+struct EndReasonLabel {
+  EndReason reason;
+  const char *apiName;
+  const char *debugName;
+};
+
+inline constexpr EndReasonLabel kEndReasonLabels[] = {
+    {EndReason::NONE, "NONE", "none"},
+    {EndReason::ACTIVATOR, "ACTIVATOR", "activator"},
+    {EndReason::SCALE_THRESHOLD, "SCALE_THRESHOLD", "scale threshold"},
+    {EndReason::WEIGHT_ANOMALY, "WEIGHT_ANOMALY", "weight anomaly"},
+    {EndReason::GLOBAL_LIMIT, "GLOBAL_LIMIT", "global machine circuit limit"},
+    {EndReason::CONFIGURED_WALL_LIMIT, "CONFIGURED_WALL_LIMIT",
+     "configured wall limit"},
+    {EndReason::SHORT_SHOT, "SHORT_SHOT", "short shot"},
+    {EndReason::RINSE_COMPLETE, "RINSE_COMPLETE", "rinse complete"},
+    {EndReason::WEB_STOP, "WEB_STOP", "web stop"},
+    {EndReason::PHYSICAL_OVERRIDE, "PHYSICAL_OVERRIDE", "physical override"},
+    {EndReason::WEB_HEARTBEAT_TIMEOUT, "WEB_HEARTBEAT_TIMEOUT",
+     "web heartbeat timeout"},
+    {EndReason::RELAY_SAFETY_FAILURE, "RELAY_SAFETY_FAILURE",
+     "relay safety failure"},
+    {EndReason::FAST_EXTRACTION_MAX_WEIGHT, "FAST_EXTRACTION_MAX_WEIGHT",
+     "fast extraction max weight"},
+    {EndReason::FAST_EXTRACTION_MIN_TIME, "FAST_EXTRACTION_MIN_TIME",
+     "fast extraction min time"},
+    {EndReason::SLOW_EXTRACTION_MAX_TIME, "SLOW_EXTRACTION_MAX_TIME",
+     "slow extraction max time"},
+    {EndReason::SLOW_EXTRACTION_MIN_WEIGHT, "SLOW_EXTRACTION_MIN_WEIGHT",
+     "slow extraction min weight"},
+    {EndReason::AUTO_TO_MANUAL_GUARD, "AUTO_TO_MANUAL_GUARD",
+     "auto-to-manual time guard"},
+    {EndReason::CUP_REMOVED, "CUP_REMOVED", "cup removed"},
+    {EndReason::UNCONFIRMED_START, "UNCONFIRMED_START", "unconfirmed start"},
+};
+
+inline const EndReasonLabel *findEndReasonLabel(EndReason reason) {
+  for (const auto &label : kEndReasonLabels) {
+    if (label.reason == reason) {
+      return &label;
+    }
+  }
+  return nullptr;
+}
+
+constexpr bool endReasonHasLabelRow(EndReason reason) {
+  for (const auto &label : kEndReasonLabels) {
+    if (label.reason == reason) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Compile-time completeness guard: every enumerator must have a table row.
+static_assert(endReasonHasLabelRow(EndReason::NONE) &&
+                  endReasonHasLabelRow(EndReason::ACTIVATOR) &&
+                  endReasonHasLabelRow(EndReason::SCALE_THRESHOLD) &&
+                  endReasonHasLabelRow(EndReason::WEIGHT_ANOMALY) &&
+                  endReasonHasLabelRow(EndReason::GLOBAL_LIMIT) &&
+                  endReasonHasLabelRow(EndReason::CONFIGURED_WALL_LIMIT) &&
+                  endReasonHasLabelRow(EndReason::SHORT_SHOT) &&
+                  endReasonHasLabelRow(EndReason::RINSE_COMPLETE) &&
+                  endReasonHasLabelRow(EndReason::WEB_STOP) &&
+                  endReasonHasLabelRow(EndReason::PHYSICAL_OVERRIDE) &&
+                  endReasonHasLabelRow(EndReason::WEB_HEARTBEAT_TIMEOUT) &&
+                  endReasonHasLabelRow(EndReason::RELAY_SAFETY_FAILURE) &&
+                  endReasonHasLabelRow(EndReason::FAST_EXTRACTION_MAX_WEIGHT) &&
+                  endReasonHasLabelRow(EndReason::FAST_EXTRACTION_MIN_TIME) &&
+                  endReasonHasLabelRow(EndReason::SLOW_EXTRACTION_MAX_TIME) &&
+                  endReasonHasLabelRow(EndReason::SLOW_EXTRACTION_MIN_WEIGHT) &&
+                  endReasonHasLabelRow(EndReason::AUTO_TO_MANUAL_GUARD) &&
+                  endReasonHasLabelRow(EndReason::CUP_REMOVED) &&
+                  endReasonHasLabelRow(EndReason::UNCONFIRMED_START),
+              "kEndReasonLabels must cover every EndReason enumerator");
 
 inline bool brewWeightCutSettlesMachineOff(EndReason reason) {
   switch (reason) {

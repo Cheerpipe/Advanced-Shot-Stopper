@@ -615,13 +615,10 @@ esp_err_t ShotStopperNetwork::notFoundHandler(httpd_req_t *request,
 
 
 const char *ShotStopperNetwork::stateLabel(StopperState state) {
-  switch (state) {
-    case StopperState::REQUIRES_OFF: return "Paddle release required";
-    case StopperState::READY: return "Ready";
-    case StopperState::BREW: return "Automatic brew";
-    case StopperState::RINSE: return "Rinse in progress";
-    case StopperState::MANUAL_NO_SCALE:
-      return "Manual shot without scale";
+  for (const auto &label : kStopperStateLabels) {
+    if (label.state == state) {
+      return label.humanLabel;
+    }
   }
   return "Unknown";
 }
@@ -648,37 +645,8 @@ const char *activeCycleShotTypeLabel(const ControlStatusSnapshot &control) {
 }
 
 const char *ShotStopperNetwork::endReasonName(EndReason reason) {
-  switch (reason) {
-    case EndReason::NONE: return "NONE";
-    case EndReason::ACTIVATOR: return "ACTIVATOR";
-    case EndReason::SCALE_THRESHOLD: return "SCALE_THRESHOLD";
-    case EndReason::WEIGHT_ANOMALY: return "WEIGHT_ANOMALY";
-    case EndReason::GLOBAL_LIMIT: return "GLOBAL_LIMIT";
-    case EndReason::CONFIGURED_WALL_LIMIT:
-      return "CONFIGURED_WALL_LIMIT";
-    case EndReason::SHORT_SHOT: return "SHORT_SHOT";
-    case EndReason::RINSE_COMPLETE: return "RINSE_COMPLETE";
-    case EndReason::WEB_STOP: return "WEB_STOP";
-    case EndReason::PHYSICAL_OVERRIDE: return "PHYSICAL_OVERRIDE";
-    case EndReason::WEB_HEARTBEAT_TIMEOUT:
-      return "WEB_HEARTBEAT_TIMEOUT";
-    case EndReason::RELAY_SAFETY_FAILURE: return "RELAY_SAFETY_FAILURE";
-    case EndReason::FAST_EXTRACTION_MAX_WEIGHT:
-      return "FAST_EXTRACTION_MAX_WEIGHT";
-    case EndReason::FAST_EXTRACTION_MIN_TIME:
-      return "FAST_EXTRACTION_MIN_TIME";
-    case EndReason::SLOW_EXTRACTION_MAX_TIME:
-      return "SLOW_EXTRACTION_MAX_TIME";
-    case EndReason::SLOW_EXTRACTION_MIN_WEIGHT:
-      return "SLOW_EXTRACTION_MIN_WEIGHT";
-    case EndReason::AUTO_TO_MANUAL_GUARD:
-      return "AUTO_TO_MANUAL_GUARD";
-    case EndReason::CUP_REMOVED:
-      return "CUP_REMOVED";
-    case EndReason::UNCONFIRMED_START:
-      return "UNCONFIRMED_START";
-  }
-  return "UNKNOWN";
+  const EndReasonLabel *label = findEndReasonLabel(reason);
+  return label ? label->apiName : "UNKNOWN";
 }
 
 const char *ShotStopperNetwork::staStateName(StaState state) {

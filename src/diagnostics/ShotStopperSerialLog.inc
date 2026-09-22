@@ -2,22 +2,6 @@
 // mapping, the queue-backed serial writer, ring retention policy, and the
 // logEmit/addDebugEvent entry points. Part of the shotStopper control TU;
 // included at the position of the original definitions.
-const char *espLogTag(DebugCategory category) {
-  switch (category) {
-    case DebugCategory::ACTIVATOR: return "ss.activator";
-    case DebugCategory::RELAY: return "ss.relay";
-    case DebugCategory::STATE: return "ss.state";
-    case DebugCategory::SCALE: return "ss.scale";
-    case DebugCategory::CONFIG: return "ss.config";
-    case DebugCategory::NETWORK: return "ss.network";
-    case DebugCategory::SECURITY: return "ss.security";
-    case DebugCategory::WEB: return "ss.web";
-    case DebugCategory::BOOT: return "ss.boot";
-    case DebugCategory::SYSTEM: return "ss.system";
-  }
-  return "ss.unknown";
-}
-
 #if !defined(SHOT_STOPPER_HOST_TEST)
 esp_log_level_t espLogLevel(LogLevel level) {
   switch (level) {
@@ -163,7 +147,11 @@ void emitEspLog(LogLevel level, DebugCategory category, const char *message) {
     return;
   }
 #if !defined(SHOT_STOPPER_HOST_TEST)
-  const char *tag = espLogTag(category);
+  // espLogTag was removed: the tag is debugCategoryName() prefixed with
+  // "ss.". Derive it here so the category names have a single source.
+  char tag[24];
+  copyCString(tag, sizeof(tag), "ss.");
+  copyCString(tag + 3, sizeof(tag) - 3, debugCategoryName(category));
   const char *criticalPrefix =
       level == LogLevel::CRITICAL ? "[CRITICAL] " : "";
   // ESP_LOG_LEVEL accepts a runtime level without the ESP_LOGx local-level

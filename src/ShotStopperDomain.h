@@ -81,6 +81,38 @@ enum class NtpServerPreset : uint8_t {
   NIST = 3
 };
 
+// Single source for the NTP preset renderings: the configuration API uses
+// stable identifiers, time sync and diagnostics use the hostnames.
+struct NtpPresetLabel {
+  NtpServerPreset preset;
+  const char *hostname;
+  const char *apiId;
+};
+
+inline constexpr NtpPresetLabel kNtpPresetLabels[] = {
+    {NtpServerPreset::POOL, "pool.ntp.org", "pool"},
+    {NtpServerPreset::GOOGLE, "time.google.com", "google"},
+    {NtpServerPreset::CLOUDFLARE, "time.cloudflare.com", "cloudflare"},
+    {NtpServerPreset::NIST, "time.nist.gov", "nist"},
+};
+
+inline const NtpPresetLabel &ntpPresetLabel(uint8_t preset) {
+  for (const auto &label : kNtpPresetLabels) {
+    if (label.preset == static_cast<NtpServerPreset>(preset)) {
+      return label;
+    }
+  }
+  return kNtpPresetLabels[0];
+}
+
+inline const char *ntpPresetHostname(uint8_t preset) {
+  return ntpPresetLabel(preset).hostname;
+}
+
+inline const char *ntpPresetId(uint8_t preset) {
+  return ntpPresetLabel(preset).apiId;
+}
+
 enum class NoScaleBbwMode : uint8_t {
   OFF = 0,
   WARN_ONCE = 1,
@@ -152,19 +184,6 @@ inline bool validNtpHostname(const char *host) {
   return true;
 }
 
-inline const char *ntpPresetHostname(uint8_t preset) {
-  switch (preset) {
-    case static_cast<uint8_t>(NtpServerPreset::GOOGLE):
-      return "time.google.com";
-    case static_cast<uint8_t>(NtpServerPreset::CLOUDFLARE):
-      return "time.cloudflare.com";
-    case static_cast<uint8_t>(NtpServerPreset::NIST):
-      return "time.nist.gov";
-    case static_cast<uint8_t>(NtpServerPreset::POOL):
-    default:
-      return "pool.ntp.org";
-  }
-}
 constexpr int16_t MIN_TIMEZONE_OFFSET_MINUTES = -720;
 constexpr int16_t MAX_TIMEZONE_OFFSET_MINUTES = 840;
 constexpr int16_t DEFAULT_TIMEZONE_OFFSET_MINUTES = 0;
@@ -3078,32 +3097,8 @@ inline const char *scaleConnectStepDebugName(int32_t step) {
 }
 
 inline const char *endReasonDebugName(EndReason reason) {
-  switch (reason) {
-    case EndReason::NONE: return "none";
-    case EndReason::ACTIVATOR: return "activator";
-    case EndReason::SCALE_THRESHOLD: return "scale threshold";
-    case EndReason::WEIGHT_ANOMALY: return "weight anomaly";
-    case EndReason::GLOBAL_LIMIT: return "global machine circuit limit";
-    case EndReason::CONFIGURED_WALL_LIMIT: return "configured wall limit";
-    case EndReason::SHORT_SHOT: return "short shot";
-    case EndReason::RINSE_COMPLETE: return "rinse complete";
-    case EndReason::WEB_STOP: return "web stop";
-    case EndReason::PHYSICAL_OVERRIDE: return "physical override";
-    case EndReason::WEB_HEARTBEAT_TIMEOUT: return "web heartbeat timeout";
-    case EndReason::RELAY_SAFETY_FAILURE: return "relay safety failure";
-    case EndReason::FAST_EXTRACTION_MAX_WEIGHT:
-      return "fast extraction max weight";
-    case EndReason::FAST_EXTRACTION_MIN_TIME:
-      return "fast extraction min time";
-    case EndReason::SLOW_EXTRACTION_MAX_TIME:
-      return "slow extraction max time";
-    case EndReason::SLOW_EXTRACTION_MIN_WEIGHT:
-      return "slow extraction min weight";
-    case EndReason::AUTO_TO_MANUAL_GUARD: return "auto-to-manual time guard";
-    case EndReason::CUP_REMOVED: return "cup removed";
-    case EndReason::UNCONFIRMED_START: return "unconfirmed start";
-  }
-  return "unknown";
+  const EndReasonLabel *label = findEndReasonLabel(reason);
+  return label != nullptr ? label->debugName : "unknown";
 }
 
 inline bool formatLifecycleDebugMessage(const DebugEvent &event, char *message,

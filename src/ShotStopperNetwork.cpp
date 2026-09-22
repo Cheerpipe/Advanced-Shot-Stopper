@@ -692,20 +692,6 @@ bool jsonExtendedPulseRate(cJSON *object, const char *name, uint8_t &output) {
   return parseExtendedPulseRate(item->valuestring, output);
 }
 
-const char *ntpPresetId(uint8_t preset) {
-  switch (preset) {
-    case static_cast<uint8_t>(NtpServerPreset::GOOGLE):
-      return "google";
-    case static_cast<uint8_t>(NtpServerPreset::CLOUDFLARE):
-      return "cloudflare";
-    case static_cast<uint8_t>(NtpServerPreset::NIST):
-      return "nist";
-    case static_cast<uint8_t>(NtpServerPreset::POOL):
-    default:
-      return "pool";
-  }
-}
-
 void formatIp(const IPAddress &ip, char output[16]) {
   snprintf(output, 16, "%u.%u.%u.%u", static_cast<unsigned>(ip[0]),
            static_cast<unsigned>(ip[1]), static_cast<unsigned>(ip[2]),
