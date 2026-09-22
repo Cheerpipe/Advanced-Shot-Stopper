@@ -979,7 +979,7 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
     const LoopPhaseProfilerRow &row = tasks.loopPhases.rows[i];
     if (!jsonScratchAppend(
             buf, cap, used,
-            "%s{\"name\":\"loop/%s\",\"core\":1,\"stackMinWords\":4294967295,"
+            "%s{\"name\":\"loopTask/%s\",\"core\":1,\"stackMinWords\":4294967295,"
             "\"sampleCount\":%lu,"
             "\"currentCpuPct\":%.1f,\"averageCpuPct\":%.1f,"
             "\"averageExecutionUs\":%lu,\"maxExecutionUs\":%lu}",

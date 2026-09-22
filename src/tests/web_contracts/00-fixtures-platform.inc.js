@@ -392,7 +392,7 @@ if (!network.includes('copyTaskProfiler') ||
     !network.includes('\\"tasks\\"') ||
     !network.includes('\\"currentTotalCpuPct\\"') ||
     !network.includes('\\"unreportedCurrentCpuPct\\"') ||
-    !network.includes('\\"name\\":\\"loop/%s\\"') ||
+    !network.includes('\\"name\\":\\"loopTask/%s\\"') ||
     !network.includes('\\"averageExecutionUs\\"') ||
     !network.includes('/api/v1/diagnostic/profiler') ||
     !network.includes('taskProfilerHandler') ||
