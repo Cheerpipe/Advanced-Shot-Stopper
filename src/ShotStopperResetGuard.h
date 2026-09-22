@@ -59,13 +59,14 @@ inline uint32_t resetUptimeLastCheckpointMs = 0;
 
 inline bool safetyResetRecordValid() {
   volatile SafetyResetRecord &safetyResetRecord = detail::safetyResetRecord;
-  uint32_t checksum = SAFETY_RESET_RECORD_MAGIC ^ safetyResetRecord.historyCount;
-  for (uint32_t i = 0;
-       i < safetyResetRecord.historyCount && i < RESET_HISTORY_CAPACITY;
-       ++i) {
-    checksum = (checksum * 16777619UL) ^ safetyResetRecord.history[i].reasonCode;
-    checksum = (checksum * 16777619UL) ^ safetyResetRecord.history[i].uptimeMs;
-  }
+  uint32_t checksum =
+      resetHistoryChecksum(safetyResetRecord.history,
+                           safetyResetRecord.historyCount <
+                                   RESET_HISTORY_CAPACITY
+                               ? safetyResetRecord.historyCount
+                               : RESET_HISTORY_CAPACITY,
+                           SAFETY_RESET_RECORD_MAGIC ^
+                               safetyResetRecord.historyCount);
   return safetyResetRecord.magic == SAFETY_RESET_RECORD_MAGIC &&
          safetyResetRecord.magicInverse == ~SAFETY_RESET_RECORD_MAGIC &&
          safetyResetRecord.relayMarkerInverse ==
@@ -100,12 +101,11 @@ inline void initializeSafetyResetRecord(
         history && i < safetyResetRecord.historyCount ? history[i].uptimeMs
                                                        : 0;
   }
-  uint32_t checksum = SAFETY_RESET_RECORD_MAGIC ^ safetyResetRecord.historyCount;
-  for (uint32_t i = 0; i < safetyResetRecord.historyCount; ++i) {
-    checksum = (checksum * 16777619UL) ^ safetyResetRecord.history[i].reasonCode;
-    checksum = (checksum * 16777619UL) ^ safetyResetRecord.history[i].uptimeMs;
-  }
-  safetyResetRecord.historyChecksum = checksum;
+  safetyResetRecord.historyChecksum =
+      resetHistoryChecksum(safetyResetRecord.history,
+                           safetyResetRecord.historyCount,
+                           SAFETY_RESET_RECORD_MAGIC ^
+                               safetyResetRecord.historyCount);
   safetyResetRecord.currentUptimeMs = 0;
   safetyResetRecord.currentUptimeMsInverse = UINT32_MAX;
   safetyResetRecord.magicInverse = ~SAFETY_RESET_RECORD_MAGIC;

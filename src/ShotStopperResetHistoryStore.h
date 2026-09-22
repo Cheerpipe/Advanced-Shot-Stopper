@@ -18,13 +18,10 @@ struct ResetHistoryStoreBlob {
 };
 
 inline uint32_t resetHistoryStoreChecksum(const ResetHistoryStoreBlob &blob) {
-  uint32_t value = RESET_HISTORY_STORE_MAGIC ^ blob.count;
-  for (uint8_t i = 0; i < blob.count; ++i) {
-    value = (value * 16777619UL) ^ blob.entries[i].reasonCode;
-    value = (value * 16777619UL) ^ blob.entries[i].uptimeMs;
-  }
-  value = (value * 16777619UL) ^ blob.currentUptimeMs;
-  return value;
+  const uint32_t value =
+      resetHistoryChecksum(blob.entries, blob.count,
+                           RESET_HISTORY_STORE_MAGIC ^ blob.count);
+  return (value * 16777619UL) ^ blob.currentUptimeMs;
 }
 
 #ifndef SHOT_STOPPER_HOST_TEST
