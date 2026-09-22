@@ -201,14 +201,6 @@ inline bool machineIsRunning() {
   return reedOn || reedAssume == ReedAssume::ON || momentaryLogicalRunActive;
 }
 
-inline uint32_t machineElapsedMs() {
-  uint32_t elapsed = 0U;
-  if (machineRunningElapsed(elapsed)) {
-    return elapsed;
-  }
-  return momentaryElapsedLatched ? momentaryLatchedElapsedMs : 0U;
-}
-
 inline MachineRunState machineRunState() {
   if ((reedAssume == ReedAssume::ON || reedAssume == ReedAssume::GRACE_ON) &&
       !reedOn) {

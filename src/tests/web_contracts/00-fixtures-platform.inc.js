@@ -571,10 +571,17 @@ if (/\bruntimeConfig\b/.test(scaleWorker) ||
 {
   const reedState = fs.readFileSync(
       path.join(sketchDir, 'ShotStopperMachineMomentaryReedState.h'), 'utf8');
+  const momentaryInput = fs.readFileSync(
+      path.join(sketchDir, 'ShotStopperMachineMomentaryInput.h'), 'utf8');
+  if (!momentaryInput.includes('inline uint32_t machineElapsedMs() {') ||
+      reedState.includes('inline uint32_t machineElapsedMs')) {
+    throw new Error(
+        'machineElapsedMs must be defined once in the shared momentary input');
+  }
   const getterNames = [
     ['bool machineAllowsFirmwareStopPulse', 'inline bool machineRunningElapsed'],
     ['inline bool machineRunningElapsed', 'inline bool machineIsRunning'],
-    ['inline bool machineIsRunning', 'inline uint32_t machineElapsedMs'],
+    ['inline bool machineIsRunning', 'inline MachineRunState machineRunState'],
     ['inline MachineRunState machineRunState', 'inline void machineFillInferenceStatus'],
   ];
   for (const [startName, endName] of getterNames) {

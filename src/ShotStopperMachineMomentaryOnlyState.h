@@ -511,14 +511,6 @@ inline bool machineIsRunning() {
          momentaryInferredState == MachineRunState::ASSUMED_ON;
 }
 
-inline uint32_t machineElapsedMs() {
-  uint32_t elapsed = 0U;
-  if (machineRunningElapsed(elapsed)) {
-    return elapsed;
-  }
-  return momentaryElapsedLatched ? momentaryLatchedElapsedMs : 0U;
-}
-
 inline MachineRunState machineRunState() {
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
   if (relay.state == RelaySafetyState::LOCKOUT ||

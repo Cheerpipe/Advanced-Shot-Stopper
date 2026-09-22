@@ -44,6 +44,14 @@ bool firmwarePulsePending = false;
 FirmwarePulseKind firmwarePulsePendingKind = FirmwarePulseKind::FORCED;
 uint32_t firmwarePulsePendingReadyAtMs = 0;
 
+inline uint32_t machineElapsedMs() {
+  uint32_t elapsed = 0U;
+  if (machineRunningElapsed(elapsed)) {
+    return elapsed;
+  }
+  return momentaryElapsedLatched ? momentaryLatchedElapsedMs : 0U;
+}
+
 bool readRawActivatorOn() {
   return digitalRead(ACTIVATOR_GPIO) == ACTIVATOR_ACTIVE_LEVEL;
 }
@@ -55,6 +63,7 @@ void noteMomentaryLogicalStop();
 void noteMomentaryLogicalStartCanceled();
 void noteMomentaryDisqualifiedPress(bool restoreRunning);
 MachineRunState machineRunState();
+inline bool machineRunningElapsed(uint32_t &elapsedOut);
 #if SHOT_STOPPER_MACHINE_TYPE == 2
 void resetReedRuntime();
 #endif
