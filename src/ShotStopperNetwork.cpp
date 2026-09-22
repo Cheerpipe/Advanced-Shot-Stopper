@@ -277,35 +277,6 @@ constexpr uint32_t NETWORK_MANAGER_TASK_STACK_SIZE = 10240;
 // Stack stays internal: OTA flash writes run on this task.
 constexpr uint32_t HTTP_SERVER_TASK_STACK_SIZE = 10240;
 
-const char *scaleDisconnectReasonName(uint8_t reason) {
-  // Mirrors ScaleDisconnectReason without coupling the network task to the
-  // single-owner BLE implementation.
-  switch (reason) {
-    case 0: return "NONE";
-    case 1: return "USER_REQUEST";
-    case 2: return "SCAN_START_FAILED";
-    case 3: return "SCAN_TIMEOUT";
-    case 4: return "CONNECT_FAILED";
-    case 5: return "DISCOVERY_FAILED";
-    case 6: return "UNSUPPORTED_SCALE";
-    case 7: return "SUBSCRIBE_FAILED";
-    case 8: return "INITIALIZATION_WRITE_FAILED";
-    case 9: return "REMOTE_DISCONNECTED";
-    case 10: return "FIRST_PACKET_TIMEOUT";
-    case 11: return "PACKET_TIMEOUT";
-    case 12: return "INVALID_PACKET_STREAM";
-    case 13: return "COMMAND_WRITE_FAILED";
-    case 14: return "SUPERVISION_TIMEOUT";
-    case 15: return "CONNECTION_FAILED_TO_ESTABLISH";
-    case 16: return "RX_QUEUE_OVERFLOW";
-    case 17: return "EVENT_QUEUE_OVERFLOW";
-    case 18: return "HOST_RESET";
-    case 19: return "OPERATION_TIMEOUT";
-    case 20: return "MBUF_ALLOCATION_FAILED";
-  }
-  return "UNKNOWN";
-}
-
 bool jsonFieldPresent(cJSON *object, const char *name) {
   return object != nullptr && name != nullptr &&
          cJSON_GetObjectItemCaseSensitive(object, name) != nullptr;

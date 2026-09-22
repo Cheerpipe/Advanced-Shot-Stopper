@@ -3065,28 +3065,6 @@ inline bool formatPersistDebugMessage(const DebugEvent &event, char *message,
   }
 }
 
-inline const char *scaleDisconnectReasonDebugName(int32_t reason) {
-  switch (reason) {
-    case 0: return "none";
-    case 1: return "user request";
-    case 2: return "scan start failed";
-    case 3: return "scan timeout";
-    case 4: return "connect failed";
-    case 5: return "discovery failed";
-    case 6: return "unsupported scale";
-    case 7: return "subscribe failed";
-    case 8: return "initialization write failed";
-    case 9: return "remote disconnected";
-    case 10: return "first packet timeout";
-    case 11: return "packet timeout";
-    case 12: return "invalid packet stream";
-    case 13: return "command write failed";
-    case 14: return "supervision timeout";
-    case 15: return "connection failed to be established";
-  }
-  return "unknown";
-}
-
 inline const char *scaleConnectStepDebugName(int32_t step) {
   switch (step) {
     case 1: return "settle";

@@ -9,6 +9,55 @@
 
 namespace shotstopper {
 
+// Single source of truth for scale disconnect reason labels, mirroring the
+// BLE library's ScaleDisconnectReason by code without coupling the domain,
+// network, or serial layers to the NimBLE implementation. API consumers get
+// SCREAMING_CASE names; serial/debug consumers get human-readable labels.
+struct ScaleDisconnectReasonLabel {
+  uint8_t code;
+  const char *apiName;
+  const char *debugName;
+};
+
+inline constexpr ScaleDisconnectReasonLabel kScaleDisconnectReasonLabels[] = {
+    {0, "NONE", "none"},
+    {1, "USER_REQUEST", "user request"},
+    {2, "SCAN_START_FAILED", "scan start failed"},
+    {3, "SCAN_TIMEOUT", "scan timeout"},
+    {4, "CONNECT_FAILED", "connect failed"},
+    {5, "DISCOVERY_FAILED", "discovery failed"},
+    {6, "UNSUPPORTED_SCALE", "unsupported scale"},
+    {7, "SUBSCRIBE_FAILED", "subscribe failed"},
+    {8, "INITIALIZATION_WRITE_FAILED", "initialization write failed"},
+    {9, "REMOTE_DISCONNECTED", "remote disconnected"},
+    {10, "FIRST_PACKET_TIMEOUT", "first packet timeout"},
+    {11, "PACKET_TIMEOUT", "packet timeout"},
+    {12, "INVALID_PACKET_STREAM", "invalid packet stream"},
+    {13, "COMMAND_WRITE_FAILED", "command write failed"},
+    {14, "SUPERVISION_TIMEOUT", "supervision timeout"},
+    {15, "CONNECTION_FAILED_TO_ESTABLISH",
+     "connection failed to be established"},
+    {16, "RX_QUEUE_OVERFLOW", "rx queue overflow"},
+    {17, "EVENT_QUEUE_OVERFLOW", "event queue overflow"},
+    {18, "HOST_RESET", "host reset"},
+    {19, "OPERATION_TIMEOUT", "operation timeout"},
+    {20, "MBUF_ALLOCATION_FAILED", "mbuf allocation failed"},
+};
+
+inline const char *scaleDisconnectReasonName(uint8_t reason) {
+  for (const auto &label : kScaleDisconnectReasonLabels) {
+    if (label.code == reason) return label.apiName;
+  }
+  return "UNKNOWN";
+}
+
+inline const char *scaleDisconnectReasonDebugName(int32_t reason) {
+  for (const auto &label : kScaleDisconnectReasonLabels) {
+    if (label.code == reason) return label.debugName;
+  }
+  return "unknown";
+}
+
 inline int32_t weightToCentigrams(float weightG) {
   if (!std::isfinite(weightG)) {
     return 0;
