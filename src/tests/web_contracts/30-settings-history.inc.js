@@ -240,9 +240,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     wallClock.includes('monotonicMs >= anchorMonotonicMs_') ||
     !wallClock.includes('monotonicElapsedMs(monotonicMs, anchorMonotonicMs_)') ||
     !network.includes('StaJoinHints ShotStopperNetwork::staJoinHints()') ||
-    !shotLogIo.includes(
-        'flashIoWriteChunked(part, targetOffset, &store_, sizeof(store_))') ||
-    !shotCurveIo.includes(
+    !dualSlotFlashIo.includes(
         'flashIoWriteChunked(part, targetOffset, &store_, sizeof(store_))') ||
     !lastShotIo.includes('copyToFlashIoScratch(&blob_') ||
     !jsonArena.includes('static const bool initialized') ||

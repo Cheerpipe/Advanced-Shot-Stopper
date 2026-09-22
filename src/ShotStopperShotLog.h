@@ -1,18 +1,14 @@
 #pragma once
 
 // Stats shot-log ring store: PSRAM working copy with deferred dual-slot flash
-// persistence in the dedicated `shotlog` data partition. Mirrors the
-// ShotCurveLog flash contract (generation flip through the inactive slot,
-// chunked internal-SRAM-staged transfers while the flash cache is disabled).
+// persistence in the dedicated `shotlog` data partition. The flash mechanics
+// (generation flip through the inactive slot, chunked internal-SRAM-staged
+// transfers while the flash cache is disabled) live in
+// ShotStopperDualSlotFlashLog.h; this header owns the shot-log schema hooks
+// and the record-level API.
 
-#include "ShotStopperFlashIoScratch.h"
-#include "ShotStopperNvsDualSlot.h"
+#include "ShotStopperDualSlotFlashLog.h"
 #include "ShotStopperShotLogTypes.h"
-
-#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-#include <esp_partition.h>
-#endif
 
 namespace shotstopper {
 
@@ -20,137 +16,25 @@ namespace shotstopper {
 constexpr size_t SHOT_LOG_FLASH_SLOT_BYTES = 12288;
 constexpr size_t SHOT_LOG_FLASH_SLOT_COUNT = 2;
 
-class ShotLog {
+// Alias matching the DualSlotFlashLogTraits hook signatures (the schema
+// validator takes an optional expected schema version).
+inline bool validShotLogStoreCurrent(const ShotLogStore &store) {
+  return validShotLogStore(store);
+}
+
+template <>
+struct DualSlotFlashLogTraits<ShotLogStore> {
+  static constexpr const char *kPartitionName = "shotlog";
+  static constexpr size_t kSlotBytes = SHOT_LOG_FLASH_SLOT_BYTES;
+  static constexpr size_t kSlotCount = SHOT_LOG_FLASH_SLOT_COUNT;
+  static constexpr size_t kHeaderBytes = sizeof(ShotLogHeader);
+  static constexpr void (*reset)(ShotLogStore &) = resetShotLogStoreWithBootId;
+};
+
+class ShotLog
+    : public DualSlotFlashLog<ShotLogStore, validShotLogStoreCurrent,
+                              compactShotLogStore, finalizeShotLogStore> {
  public:
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-  static void resetHostStorage() {
-    memset(hostSlots_, 0, sizeof(hostSlots_));
-    hostSlotValid_[0] = false;
-    hostSlotValid_[1] = false;
-    hostSaveSucceeds_ = true;
-  }
-  static void setHostSaveSucceeds(bool succeeds) { hostSaveSucceeds_ = succeeds; }
-#endif
-
-  bool load() {
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-    uint8_t bestSlot = 0;
-    bool haveBest = false;
-    for (uint8_t slot = 0; slot < 2; ++slot) {
-      if (!hostSlotValid_[slot] || !validShotLogStore(hostSlots_[slot])) {
-        continue;
-      }
-      if (!haveBest || secondRevisionIsNewer(hostSlots_[bestSlot].header.generation,
-                                             hostSlots_[slot].header.generation)) {
-        bestSlot = slot;
-        haveBest = true;
-      }
-    }
-    if (haveBest) {
-      memcpy(&store_, &hostSlots_[bestSlot], sizeof(store_));
-      activeSlot_ = bestSlot;
-    } else {
-      resetShotLogStore(store_, 1);
-      activeSlot_ = 0;
-    }
-    dirty_ = false;
-    return true;
-#else
-    if (!lockFlashIo()) {
-      resetShotLogStore(store_, 1);
-      dirty_ = false;
-      return false;
-    }
-    const esp_partition_t *part = shotLogPartition();
-    if (part == nullptr ||
-        part->size < SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES) {
-      resetShotLogStore(store_, 1);
-      dirty_ = false;
-      unlockFlashIo();
-      return false;
-    }
-
-    const bool aOk =
-        readSlot(part, 0, store_) && validShotLogStore(store_);
-    const uint32_t gen0 = aOk ? store_.header.generation : 0;
-    const bool bOk =
-        readSlot(part, SHOT_LOG_FLASH_SLOT_BYTES, store_) &&
-        validShotLogStore(store_);
-    const DualSlotChoice choice =
-        chooseNewerRevision(aOk, gen0, bOk,
-                            bOk ? store_.header.generation : 0);
-    if (choice == DualSlotChoice::SECOND) {
-      // store_ already holds slot B.
-      activeSlot_ = 1;
-    } else if (choice == DualSlotChoice::FIRST) {
-      // store_ holds slot B or a failed slot-B read; restore the winner.
-      (void)readSlot(part, 0, store_);
-      activeSlot_ = 0;
-    } else {
-      resetShotLogStore(store_, 1);
-      activeSlot_ = 0;
-    }
-    dirty_ = false;
-    unlockFlashIo();
-    return true;
-#endif
-  }
-
-  bool save(uint32_t lockTimeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
-    if (!tryLockFlashIo(lockTimeoutMs)) {
-      return false;
-    }
-    compactShotLogStore(store_);
-    if (store_.header.generation == 0) {
-      store_.header.generation = 1;
-    } else if (store_.header.generation < UINT32_MAX) {
-      ++store_.header.generation;
-    }
-    finalizeShotLogStore(store_);
-    const uint8_t targetSlot = static_cast<uint8_t>(1U - (activeSlot_ & 1U));
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-    if (!hostSaveSucceeds_) {
-      unlockFlashIo();
-      return false;
-    }
-    memcpy(&hostSlots_[targetSlot], &store_, sizeof(store_));
-    hostSlotValid_[targetSlot] = true;
-    activeSlot_ = targetSlot;
-    dirty_ = false;
-    unlockFlashIo();
-    return true;
-#else
-    const esp_partition_t *part = shotLogPartition();
-    if (part == nullptr ||
-        part->size < SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES) {
-      unlockFlashIo();
-      return false;
-    }
-    yieldFlashIo();
-    feedFlashIoWatchdog();
-    const size_t targetOffset =
-        static_cast<size_t>(targetSlot) * SHOT_LOG_FLASH_SLOT_BYTES;
-    if (esp_partition_erase_range(part, targetOffset,
-                                  SHOT_LOG_FLASH_SLOT_BYTES) != ESP_OK) {
-      unlockFlashIo();
-      return false;
-    }
-    yieldFlashIo();
-    feedFlashIoWatchdog();
-    // Chunked write: each 1 KiB step stages through the internal scratch
-    // because the live store_ sits in PSRAM BSS, unreachable while the flash
-    // cache is disabled inside the partition call.
-    if (!flashIoWriteChunked(part, targetOffset, &store_, sizeof(store_))) {
-      unlockFlashIo();
-      return false;
-    }
-    activeSlot_ = targetSlot;
-    dirty_ = false;
-    unlockFlashIo();
-    return true;
-#endif
-  }
-
   void onBoot() {
     if (store_.header.bootId == 0) {
       store_.header.bootId = 1;
@@ -204,48 +88,6 @@ class ShotLog {
     store_.header.nextRecordId = previousNextRecordId;
     return false;
   }
-
-  bool flush(uint32_t lockTimeoutMs = FLASH_IO_CONTROL_LOCK_TIMEOUT_MS) {
-    if (!dirty_) {
-      return true;
-    }
-    return save(lockTimeoutMs);
-  }
-
-  FlashStoreStepResult flushStep(
-      uint32_t lockTimeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
-    if (!dirty_) return FlashStoreStepResult::COMPLETE;
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-    return save(lockTimeoutMs) ? FlashStoreStepResult::COMPLETE
-                               : FlashStoreStepResult::FAILED;
-#else
-    const esp_partition_t *part = shotLogPartition();
-    if (part == nullptr ||
-        part->size < SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES) {
-      return FlashStoreStepResult::FAILED;
-    }
-    if (persistProgress_.phase == FlashStoreTransaction::Phase::IDLE) {
-      compactShotLogStore(store_);
-      if (store_.header.generation == 0) store_.header.generation = 1;
-      else if (store_.header.generation < UINT32_MAX) ++store_.header.generation;
-      finalizeShotLogStore(store_);
-      beginFlashStoreTransaction(
-          persistProgress_,
-          static_cast<size_t>(1U - (activeSlot_ & 1U)) *
-              SHOT_LOG_FLASH_SLOT_BYTES,
-          SHOT_LOG_FLASH_SLOT_BYTES, sizeof(ShotLogHeader), sizeof(store_));
-    }
-    const FlashStoreStepResult result = flashIoStoreStep(
-        part, &store_, persistProgress_, lockTimeoutMs);
-    if (result == FlashStoreStepResult::COMPLETE) {
-      activeSlot_ = static_cast<uint8_t>(1U - (activeSlot_ & 1U));
-      dirty_ = false;
-    }
-    return result;
-#endif
-  }
-
-  bool dirty() const { return dirty_; }
 
   bool updateRating(uint32_t id, uint8_t rating, bool persistNow = true) {
     if (id == 0 || rating > SHOT_LOG_RATING_MAX || store_.header.count == 0) {
@@ -361,7 +203,8 @@ class ShotLog {
     // Keep the monotonic generation: a regressed generation would make the
     // pre-clear slot look newer on the next load.
     const uint32_t generation = store_.header.generation;
-    resetShotLogStore(store_, bootId);
+    resetShotLogStoreWithBootId(store_);
+    store_.header.bootId = bootId;
     store_.header.generation = generation;
     if (!persistNow) {
       dirty_ = true;
@@ -397,42 +240,6 @@ class ShotLog {
     }
     return toCopy;
   }
-
- private:
-#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-  static const esp_partition_t *shotLogPartition() {
-    return esp_partition_find_first(
-        ESP_PARTITION_TYPE_DATA,
-        static_cast<esp_partition_subtype_t>(0x40), "shotlog");
-  }
-
-  static bool readSlot(const esp_partition_t *part, size_t offset,
-                       ShotLogStore &dest) {
-    memset(&dest, 0, sizeof(dest));
-    if (part == nullptr) {
-      return false;
-    }
-    return flashIoReadChunked(part, offset, &dest, sizeof(dest));
-  }
-#endif
-
-  ShotLogStore store_{};
-  FlashStoreTransaction persistProgress_{};
-  uint8_t activeSlot_ = 0;
-  bool dirty_ = false;
-
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-  static ShotLogStore hostSlots_[2];
-  static bool hostSlotValid_[2];
-  static bool hostSaveSucceeds_;
-#endif
 };
-
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-ShotLogStore ShotLog::hostSlots_[2] = {};
-bool ShotLog::hostSlotValid_[2] = {};
-bool ShotLog::hostSaveSucceeds_ = true;
-#endif
 
 }  // namespace shotstopper

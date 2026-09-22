@@ -81,6 +81,8 @@ const activationStoresIo = fs.readFileSync(
     path.join(sketchDir, 'ShotStopperActivationStores.h'), 'utf8');
 const shotLogIo = fs.readFileSync(path.join(sketchDir, 'ShotStopperShotLog.h'), 'utf8');
 const shotCurveIo = fs.readFileSync(path.join(sketchDir, 'ShotStopperShotCurve.h'), 'utf8');
+const dualSlotFlashIo = fs.readFileSync(
+    path.join(sketchDir, 'ShotStopperDualSlotFlashLog.h'), 'utf8');
 const lastShotIo = fs.readFileSync(path.join(sketchDir, 'ShotStopperLastShot.h'), 'utf8');
 const jsonArena = fs.readFileSync(path.join(sketchDir, 'ShotStopperJsonArena.h'), 'utf8');
 const wallClock = fs.readFileSync(path.join(sketchDir, 'ShotStopperTime.h'), 'utf8');

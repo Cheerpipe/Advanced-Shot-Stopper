@@ -514,6 +514,11 @@ inline void resetShotLogStore(ShotLogStore &store, uint32_t bootId) {
   finalizeShotLogStore(store);
 }
 
+// Fixed boot-id variant matching the DualSlotFlashLogTraits reset signature.
+inline void resetShotLogStoreWithBootId(ShotLogStore &store) {
+  resetShotLogStore(store, 1);
+}
+
 // Rotate a record ring in place so the `count` live records (oldest first,
 // ending just before `writeIndex`) occupy records[0..count) and the tail is
 // zero-filled. Triple-reversal rotation: no workspace, safe for any overlap.
