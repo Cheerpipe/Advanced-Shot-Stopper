@@ -460,42 +460,48 @@ for unsafe in ("/tmp/escape", "reports/../.."):
     assert "relative path inside the repository" in rejected.stderr, rejected.stderr
 
 
-def static_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path]:
-    """Run static-idf end to end over a sandboxed fake compile database."""
+def fake_database_sandbox() -> tuple[Path, Path, tempfile.TemporaryDirectory]:
+    """Sandbox holding a fake compile database mirroring the project manifest."""
     sandbox = tempfile.TemporaryDirectory(prefix="shotstopper-static-idf-")
-    if sandbox:
-        root = Path(sandbox.name)
-        build = root / "build-idf" / "n16r8"
-        (build / "generated").mkdir(parents=True)
-        (build / "generated" / "build-profile.json").write_text(
-            '{"machine_integration": "none"}\n')
-        # The real audit enumerates the manifest for the integration the
-        # build profile selects; mirror that selection for "none".
-        expected = []
-        for raw in (ROOT / "scripts/project-translation-units.txt").read_text().splitlines():
-            entry = raw.strip()
-            if not entry or entry.startswith("#"):
-                continue
-            relative, separator, selector = entry.partition("|")
-            if separator and selector.strip().partition("=")[2] != "none":
-                continue
-            expected.append(relative.strip())
-        (build / "compile_commands.json").write_text(json.dumps(
-            [{"directory": str(ROOT), "file": str(ROOT / relative),
-              "arguments": ["cc", relative]} for relative in expected]))
-        tools = root / "tools"
-        tools.mkdir()
-        stub = tools / "cppcheck"
-        stub.write_text("#!/bin/sh\nprintf 'cppcheck-stub\\n'\n")
-        stub.chmod(0o755)
-        env = os.environ.copy()
-        env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
-                   PATH=f"{tools}:{os.environ['PATH']}")
-        result = subprocess.run(
-            ["bash", str(ROOT / "scripts/static-idf"), "--arch", "n16r8",
-             "--build-dir", str(build), *extra],
-            cwd=ROOT, env=env, capture_output=True, text=True)
-        return result, root / "reports" / "static-idf-golden", sandbox
+    root = Path(sandbox.name)
+    build = root / "build-idf" / "n16r8"
+    (build / "generated").mkdir(parents=True)
+    (build / "generated" / "build-profile.json").write_text(
+        '{"machine_integration": "none"}\n')
+    # The real audit enumerates the manifest for the integration the
+    # build profile selects; mirror that selection for "none".
+    expected = []
+    for raw in (ROOT / "scripts/project-translation-units.txt").read_text().splitlines():
+        entry = raw.strip()
+        if not entry or entry.startswith("#"):
+            continue
+        relative, separator, selector = entry.partition("|")
+        if separator and selector.strip().partition("=")[2] != "none":
+            continue
+        expected.append(relative.strip())
+    (build / "compile_commands.json").write_text(json.dumps(
+        [{"directory": str(ROOT), "file": str(ROOT / relative),
+          "arguments": ["cc", relative]} for relative in expected]))
+    tools = root / "tools"
+    tools.mkdir()
+    return root, tools, sandbox
+
+
+def static_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path,
+                                         tempfile.TemporaryDirectory]:
+    """Run static-idf end to end over a sandboxed fake compile database."""
+    root, tools, sandbox = fake_database_sandbox()
+    stub = tools / "cppcheck"
+    stub.write_text("#!/bin/sh\nprintf 'cppcheck-stub\\n'\n")
+    stub.chmod(0o755)
+    env = os.environ.copy()
+    env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
+               PATH=f"{tools}:{os.environ['PATH']}")
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts/static-idf"), "--arch", "n16r8",
+         "--build-dir", str(root / "build-idf" / "n16r8"), *extra],
+        cwd=ROOT, env=env, capture_output=True, text=True)
+    return result, root / "reports" / "static-idf-golden", sandbox
 
 
 static_idf_result, static_idf_report, static_idf_sandbox = static_idf_run(
@@ -514,6 +520,48 @@ try:
     assert "Build database: " in static_idf_readme
 finally:
     static_idf_sandbox.cleanup()
+
+
+def iwyu_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path,
+                                       tempfile.TemporaryDirectory]:
+    """Run iwyu-idf end to end over a sandboxed fake compile database."""
+    root, tools, sandbox = fake_database_sandbox()
+    stub = tools / "include-what-you-use"
+    stub.write_text(
+        "#!/bin/sh\n"
+        "if [ \"$1\" = \"--version\" ]; then\n"
+        "  printf 'include-what-you-use 0.23-stub\\n'\n"
+        "  exit 0\n"
+        "fi\n"
+        "printf 'iwyu-stub suggestion\\n'\n")
+    stub.chmod(0o755)
+    env = os.environ.copy()
+    env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
+               PATH=f"{tools}:{os.environ['PATH']}")
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts/iwyu-idf"), "--arch", "n16r8",
+         "--build-dir", str(root / "build-idf" / "n16r8"), *extra],
+        cwd=ROOT, env=env, capture_output=True, text=True)
+    return result, root / "reports" / "iwyu-golden", sandbox
+
+
+iwyu_result, iwyu_report, iwyu_sandbox = iwyu_idf_run(
+    "--output-dir", "reports/iwyu-golden")
+try:
+    assert iwyu_result.returncode == 0, (
+        iwyu_result.returncode, iwyu_result.stdout, iwyu_result.stderr)
+    # The shared translation-unit audit now also gates the IWYU run.
+    assert re.search(r"translation-unit coverage: (\d+)/\1 production C\+\+ "
+                     "files for integration=none", iwyu_result.stdout), \
+        iwyu_result.stdout
+    parsed = re.search(r"Parsed (\d+) of (\d+) translation units", iwyu_result.stdout)
+    assert parsed and parsed.group(1) == parsed.group(2), iwyu_result.stdout
+    assert "iwyu-stub suggestion" in (iwyu_report / "iwyu.txt").read_text()
+    iwyu_readme = (iwyu_report / "README.txt").read_text()
+    assert "Tool: include-what-you-use 0.23-stub" in iwyu_readme
+    assert "Build database: " in iwyu_readme and "Mappings: " in iwyu_readme
+finally:
+    iwyu_sandbox.cleanup()
 
 
 def cli_probe(*args: str) -> subprocess.CompletedProcess[str]:

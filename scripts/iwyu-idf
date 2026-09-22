@@ -72,6 +72,11 @@ command -v python3 >/dev/null 2>&1 || {
   exit 127
 }
 
+ss_idf_audit_translation_units || {
+  echo "Translation-unit coverage audit failed." >&2
+  exit 1
+}
+
 # Homebrew clang cannot locate the macOS SDK when SDKROOT is unset.
 if [[ "$(uname -s)" == "Darwin" && -z "${SDKROOT:-}" ]] && command -v xcrun >/dev/null 2>&1; then
   SDKROOT="$(xcrun --show-sdk-path 2>/dev/null)" && export SDKROOT

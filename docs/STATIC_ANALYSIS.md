@@ -21,7 +21,7 @@ reduce coverage.
 | Cppcheck | `./scripts/static-idf` | `reports/static-analysis/` | Fails (exit 1) on any warning/performance/portability finding |
 | GCC `-fanalyzer` | `./scripts/gcc_analyzer` | `reports/gcc-analyzer/` | Fails on diagnostics in versioned code (builds with the analyzer enabled) |
 | clang-tidy | `./scripts/static-tidy-idf` | `reports/static-tidy/` | Fails on in-scope diagnostics or parse errors |
-| Include-What-You-Use | `./scripts/iwyu-idf` | `reports/iwyu/` | Advisory: never fails on suggestions, only when tooling is missing or nothing parses |
+| Include-What-You-Use | `./scripts/iwyu-idf` | `reports/iwyu/` | Advisory on suggestions: fails only when tooling is missing, the translation-unit audit fails, or nothing parses |
 
 Analysis scope (identical for every tool): `src/`,
 `libraries/EspressoScaleBLE/`, `idf/main/`, and `idf/components/` (the
@@ -223,7 +223,9 @@ IWYU is **advisory**: the script sanitizes the database for the host compiler
 suggestions into `reports/iwyu/iwyu.txt`. Translation units that reach
 Xtensa-specific headers may fail to parse on the host; they are skipped and
 listed, which is expected. The run only fails when IWYU is missing or nothing
-parsed at all.
+parsed at all. Like the other tools, it first audits the database against the
+project translation-unit manifest, so a database that misses project files
+fails before IWYU runs.
 
 Workflow for the suggestions:
 
@@ -234,7 +236,7 @@ Workflow for the suggestions:
 3. Rebuild with the same hardware and machine profiles and re-run the host tests
    (`src/tests/run_host_tests.sh`) before committing.
 
-The mapping file `scripts/iwyu-openbrewbyweight.imp` is intentionally empty: stock
+The mapping file `scripts/iwyu-shotstopper.imp` is intentionally empty: stock
 IWYU already maps the C standard headers to their C++ wrappers, and
 re-mapping them aborts IWYU. Add entries there only when IWYU repeatedly
 suggests something wrong for ESP-IDF/Arduino headers in this codebase, and
