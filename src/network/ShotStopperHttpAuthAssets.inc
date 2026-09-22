@@ -67,23 +67,9 @@ esp_err_t ShotStopperNetwork::unlockHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   if (!self.requireActiveWebUiClient(request)) return ESP_OK;
   if (!self.requireAdminUnlock(request)) return ESP_OK;
-  const esp_err_t bodyStatus = self.lockJsonBody(
-      request, "An explicit confirmation is required.");
-  if (bodyStatus != ESP_OK) {
-    return bodyStatus;
-  }
-  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  char confirmation[32] = {};
-  static const char *const fields[] = {"confirm"};
-  const bool confirmed = root != nullptr &&
-                         jsonHasOnlyUniqueFields(root, fields, 1) &&
-                         jsonString(root, "confirm", confirmation,
-                                    sizeof(confirmation), false) &&
-                         strcmp(confirmation, "UNSAFE_WEBUI_OVERRIDE") == 0;
-  if (root != nullptr) cJSON_Delete(root);
-  self.unlockJsonBody();
-  memset(confirmation, 0, sizeof(confirmation));
-  if (!confirmed) {
+  if (!self.lockConfirmedBody(request,
+                              "An explicit confirmation is required.",
+                              "UNSAFE_WEBUI_OVERRIDE")) {
     return sendError(request, STATUS_UNPROCESSABLE, "UNLOCK_NOT_CONFIRMED",
                      "The unsafe WebUI override was not explicitly confirmed.");
   }

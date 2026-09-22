@@ -1146,20 +1146,9 @@ esp_err_t ShotStopperNetwork::clearResetHistoryHandler(httpd_req_t *request) {
   if (!self.diagnosticPageEnabled() && !self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
-  const esp_err_t bodyStatus = self.lockJsonBody(
-      request, "An explicit reset-history confirmation is required.");
-  if (bodyStatus != ESP_OK) return bodyStatus;
-  char confirmation[32] = {};
-  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  static const char *const fields[] = {"confirm"};
-  const bool parsed =
-      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
-      jsonString(root, "confirm", confirmation, sizeof(confirmation), false) &&
-      strcmp(confirmation, "CLEAR_RESET_HISTORY") == 0;
-  if (root != nullptr) cJSON_Delete(root);
-  self.unlockJsonBody();
-  memset(confirmation, 0, sizeof(confirmation));
-  if (!parsed) {
+  if (!self.lockConfirmedBody(
+          request, "An explicit reset-history confirmation is required.",
+          "CLEAR_RESET_HISTORY")) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_CONFIRMATION",
                      "Confirm reset-history clearing explicitly.");
   }
@@ -1185,24 +1174,9 @@ esp_err_t ShotStopperNetwork::factoryResetHandler(httpd_req_t *request) {
                      "Stop the cycle, switch the physical activator OFF, and wait for Ready before restoring factory settings.");
   }
 
-  const esp_err_t bodyStatus = self.lockJsonBody(
-      request, "An explicit factory-reset confirmation is required.");
-  if (bodyStatus != ESP_OK) {
-    return bodyStatus;
-  }
-  char confirmation[32] = {};
-  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  static const char *const fields[] = {"confirm"};
-  const bool parsed =
-      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
-      jsonString(root, "confirm", confirmation, sizeof(confirmation), false) &&
-      strcmp(confirmation, "ERASE_ALL_SETTINGS") == 0;
-  if (root != nullptr) {
-    cJSON_Delete(root);
-  }
-  self.unlockJsonBody();
-  memset(confirmation, 0, sizeof(confirmation));
-  if (!parsed) {
+  if (!self.lockConfirmedBody(
+          request, "An explicit factory-reset confirmation is required.",
+          "ERASE_ALL_SETTINGS")) {
     return sendError(request, STATUS_UNPROCESSABLE,
                      "FACTORY_RESET_NOT_CONFIRMED",
                      "The factory reset was not explicitly confirmed.");

@@ -578,6 +578,8 @@ class ShotStopperNetwork {
   void unlockWorkBuf();
   void unlockJsonBody();
   esp_err_t lockJsonBody(httpd_req_t *request, const char *invalidMessage);
+  bool lockConfirmedBody(httpd_req_t *request, const char *invalidMessage,
+                         const char *expectedConfirmation);
   esp_err_t workBufBusy(httpd_req_t *request);
   bool requireActiveWebUiClient(httpd_req_t *request);
   void clearAdminUnlock();

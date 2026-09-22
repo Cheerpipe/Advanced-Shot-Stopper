@@ -1140,24 +1140,9 @@ esp_err_t ShotStopperNetwork::shotsClearHandler(httpd_req_t *request) {
                      "Stop the cycle, switch the physical activator OFF, and wait for Ready before clearing shot history.");
   }
 
-  const esp_err_t bodyStatus = self.lockJsonBody(
-      request, "An explicit confirmation is required.");
-  if (bodyStatus != ESP_OK) {
-    return bodyStatus;
-  }
-  char confirmation[32] = {};
-  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  static const char *const fields[] = {"confirm"};
-  const bool parsed =
-      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
-      jsonString(root, "confirm", confirmation, sizeof(confirmation), false) &&
-      strcmp(confirmation, "CLEAR_SHOT_LOG") == 0;
-  if (root != nullptr) {
-    cJSON_Delete(root);
-  }
-  self.unlockJsonBody();
-  memset(confirmation, 0, sizeof(confirmation));
-  if (!parsed) {
+  if (!self.lockConfirmedBody(request,
+                              "An explicit confirmation is required.",
+                              "CLEAR_SHOT_LOG")) {
     return sendError(request, STATUS_UNPROCESSABLE,
                      "SHOT_LOG_CLEAR_NOT_CONFIRMED",
                      "The shot-history clear was not explicitly confirmed.");
@@ -1181,24 +1166,9 @@ esp_err_t ShotStopperNetwork::lastShotClearHandler(httpd_req_t *request) {
                      "Stop the cycle, switch the physical activator OFF, and wait for Ready before clearing the last shot.");
   }
 
-  const esp_err_t bodyStatus = self.lockJsonBody(
-      request, "An explicit confirmation is required.");
-  if (bodyStatus != ESP_OK) {
-    return bodyStatus;
-  }
-  char confirmation[32] = {};
-  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  static const char *const fields[] = {"confirm"};
-  const bool parsed =
-      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
-      jsonString(root, "confirm", confirmation, sizeof(confirmation), false) &&
-      strcmp(confirmation, "CLEAR_LAST_SHOT") == 0;
-  if (root != nullptr) {
-    cJSON_Delete(root);
-  }
-  self.unlockJsonBody();
-  memset(confirmation, 0, sizeof(confirmation));
-  if (!parsed) {
+  if (!self.lockConfirmedBody(request,
+                              "An explicit confirmation is required.",
+                              "CLEAR_LAST_SHOT")) {
     return sendError(request, STATUS_UNPROCESSABLE,
                      "LAST_SHOT_CLEAR_NOT_CONFIRMED",
                      "The last-shot clear was not explicitly confirmed.");
@@ -1377,24 +1347,9 @@ esp_err_t ShotStopperNetwork::historyClearHandler(httpd_req_t *request) {
                      "Stop the cycle, switch the physical activator OFF, and wait for Ready before clearing the activation history.");
   }
 
-  const esp_err_t bodyStatus = self.lockJsonBody(
-      request, "An explicit confirmation is required.");
-  if (bodyStatus != ESP_OK) {
-    return bodyStatus;
-  }
-  char confirmation[32] = {};
-  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  static const char *const fields[] = {"confirm"};
-  const bool parsed =
-      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
-      jsonString(root, "confirm", confirmation, sizeof(confirmation), false) &&
-      strcmp(confirmation, "CLEAR_HISTORY") == 0;
-  if (root != nullptr) {
-    cJSON_Delete(root);
-  }
-  self.unlockJsonBody();
-  memset(confirmation, 0, sizeof(confirmation));
-  if (!parsed) {
+  if (!self.lockConfirmedBody(request,
+                              "An explicit confirmation is required.",
+                              "CLEAR_HISTORY")) {
     return sendError(request, STATUS_UNPROCESSABLE,
                      "HISTORY_CLEAR_NOT_CONFIRMED",
                      "The activation-history clear was not explicitly confirmed.");

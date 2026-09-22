@@ -150,6 +150,30 @@ esp_err_t ShotStopperNetwork::lockJsonBody(httpd_req_t *request,
   return ESP_OK;
 }
 
+// Shared tail for destructive-action handlers: parse the JSON body while the
+// work buffer is locked and accept it only when it carries exactly
+// {"confirm": expectedConfirmation}. Handlers keep their own error responses.
+bool ShotStopperNetwork::lockConfirmedBody(httpd_req_t *request,
+                                           const char *invalidMessage,
+                                           const char *expectedConfirmation) {
+  if (lockJsonBody(request, invalidMessage) != ESP_OK) {
+    return false;
+  }
+  char confirmation[32] = {};
+  cJSON *root = parseJsonDocument(workBuf_->requestBody);
+  static const char *const fields[] = {"confirm"};
+  const bool confirmed =
+      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
+      jsonString(root, "confirm", confirmation, sizeof(confirmation), false) &&
+      strcmp(confirmation, expectedConfirmation) == 0;
+  if (root != nullptr) {
+    cJSON_Delete(root);
+  }
+  unlockJsonBody();
+  memset(confirmation, 0, sizeof(confirmation));
+  return confirmed;
+}
+
 esp_err_t ShotStopperNetwork::workBufBusy(httpd_req_t *request) {
   return sendError(request, STATUS_UNAVAILABLE, "STATUS_BUSY",
                    "Status snapshot is busy; retry shortly.");
