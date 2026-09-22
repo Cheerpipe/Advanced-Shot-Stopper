@@ -366,7 +366,7 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     if (!parsed)
       return sendError(request, STATUS_BAD_REQUEST, "INVALID_REQUEST",
                        "Restart requires an empty JSON object.");
-    return enqueueAcceptedCommand(request, WebCommandType::RESTART, false,
+    return self.enqueueAcceptedCommand(request, WebCommandType::RESTART, false,
                                   "Control is busy; restart was not queued.",
                                   "\"apiVersion\":1");
   }
