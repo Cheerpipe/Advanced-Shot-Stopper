@@ -147,6 +147,24 @@ if (!shellHtml.includes('class="pageNav"') ||
 if (!css.includes('.inactiveMain{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;max-width:24rem;width:100%;text-align:center}')) {
   throw new Error('Inactive Web UI must use a full-screen surface with centered content');
 }
+if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">') ||
+    shellHtml.indexOf('id="homeBoot"') > shellHtml.indexOf('class="topBar"') ||
+    !css.includes('.bootOverlay{position:fixed;inset:0;z-index:39') ||
+    !css.includes('.inactiveOverlay{position:fixed;inset:0;z-index:40') ||
+    !css.includes('.bootOverlay.isDone{opacity:0;pointer-events:none}') ||
+    !css.includes('transition:opacity .25s ease') ||
+    !css.includes('.bootRing{animation:none}') ||
+    !runtimeJs.includes('let homeBootDone=false,fwReloading=false') ||
+    !runtimeJs.includes('function hideHomeBoot(){if(homeBootDone||fwReloading)return;homeBootDone=true;const el=$(\'homeBoot\');if(!el)return;requestAnimationFrame(') ||
+    !runtimeJs.includes('setTimeout(()=>el.classList.add(\'hidden\'),250)') ||
+    !runtimeJs.includes('function message(text,kind=\'\'){hideHomeBoot();') ||
+    !runtimeJs.includes('function applyHomeStatus(s){hideHomeBoot();') ||
+    !runtimeJs.includes('function showInactiveOverlay(){const el=$(\'webUiInactive\');if(!el)return;hideHomeBoot();') ||
+    !runtimeJs.includes('if(!reloaded){fwReloading=true;location.reload()}') ||
+    !appJsSource.includes("if(view!=='home')R.hideHomeBoot();")) {
+  throw new Error(
+      'Home must boot behind a full-screen splash that paints before fading out in 250 ms once the first home status lands, never dismisses itself while a firmware reload is pending, hands the screen to the inactive overlay before it shows, stays below the inactive overlay, and never covers another view');
+}
 if (!shellHtml.includes('type="module"') ||
     !shellHtml.includes('src="/app.js?v=__FW_VERSION__"') ||
     /<script(?![^>]*\bsrc=)[^>]*>\s*\S/i.test(shellHtml)) {
@@ -182,8 +200,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // and read-only machine-state diagnostics add labeled setup help. Wake-gesture
 // recognition adds one default-on machine option. Scale-triggered shutdown
 // adds one default-off machine option plus a grace-delay select.
-if (htmlBytes > 69900) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 69900)`);
+// The Home boot splash adds one full-screen status surface plus its label to
+// the shell markup; no partial, view, or control markup changes.
+if (htmlBytes > 70050) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 70050)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -218,11 +238,15 @@ if (htmlBytes > 69900) {
 // combined source allowance.
 // Linea Micra account connection, machine selection, settings, refresh, and
 // browser-side state expiry add the profile-gated cloud workflow.
-if (jsBytes > 194100) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 194100)`);
+// The Home boot splash one-shot hide helper and its non-home boot route keep
+// the added runtime and shell logic inside 200 bytes. Painting the splash
+// before it fades, holding it through a pending firmware reload, and releasing
+// it to the inactive overlay raise that allowance to 194500.
+if (jsBytes > 194500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 194500)`);
 }
-if (htmlBytes + jsBytes > 264200) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 264200)`);
+if (htmlBytes + jsBytes > 264500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 264500)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

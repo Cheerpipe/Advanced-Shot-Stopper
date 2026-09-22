@@ -38,6 +38,16 @@ The [AP guide](settings/ap.md) explains its idle shutdown and recovery.
 can take the claim, and 15 minutes without using a control locks the page and
 stops polling. Scrolling does not keep it active; use Reload to resume.
 
+**While Home loads**: the first time the page opens, it shows a full-screen
+loading view with a spinning ring and **Loading…**, while it connects to the
+controller and collects what **Home** needs. It stays there until that data is
+ready, so the home screen never appears half-filled, and it then fades away in a
+quarter of a second. This view belongs to that first load: if the controller
+needs to be reclaimed, or the page reloads itself after an update, the loading
+view keeps or hands over the screen instead of flashing the previous screen, and
+opening **Settings** directly, or coming back to **Home** later, shows the page
+straight away.
+
 **Add to home screen** installs the page like an app. On iPhone or iPad, open
 the controller page in Safari, tap **Share**, then **Add to Home Screen**; from
 then on it opens full screen with the Open Brew by Weight icon. On Android, open the

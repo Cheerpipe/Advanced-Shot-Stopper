@@ -282,8 +282,10 @@ if (generated.jsGzip.length > 5044) {
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
-if (generated.cssGzip.length > 7050) {
-  throw new Error('Compressed Web CSS exceeds the 7050-byte gzip budget');
+// The Home boot splash surface, ring animation, and reduced-motion override
+// raise the cap to 7300.
+if (generated.cssGzip.length > 7300) {
+  throw new Error('Compressed Web CSS exceeds the 7300-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -298,7 +300,8 @@ if (generated.cssGzip.length > 7050) {
 // Linea Micra cloud account selection, read-only state expiry, and
 // preset-temperature wiring are part of the profile-gated runtime bundle.
 // Rebranded user-visible strings (longer brand names and hints) raise it to 37000.
-if (generated.runtimeGzip.length > 37000) {
+// The Home boot splash one-shot hide helper raises it to 37150.
+if (generated.runtimeGzip.length > 37150) {
   throw new Error(`Compressed Web UI runtime JS exceeds the 37000-byte gzip budget (${generated.runtimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
@@ -335,8 +338,11 @@ if (generated.icon48Gzip.length > 3500) {
 // account connection, machine selection, read-only diagnostics, and one
 // default-on wake-gesture option. Rebranded user-visible strings raise it
 // to 107600 bytes.
-if (generated.combined > 107600) {
-  throw new Error(`Combined Web UI gzip exceeds the 107600-byte flash budget (${generated.combined})`);
+// The Home boot splash (markup, styles, and the hide helper) raises it to
+// 108200 bytes; the firmware image carries the same assets once, so the
+// versioned image and rodata growth budgets stay untouched.
+if (generated.combined > 108200) {
+  throw new Error(`Combined Web UI gzip exceeds the 108200-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

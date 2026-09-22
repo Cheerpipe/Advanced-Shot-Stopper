@@ -44,6 +44,11 @@ body.devBuild .adminSession,body.devBuild #navAdminLock{display:none}
 .navMeta a{display:inline;min-height:0;padding:0;font-weight:600;color:var(--ac);text-decoration:none}
 body.homeAdminActions #view-home:not(.hidden)~.pageFooter{margin-bottom:calc(7rem + env(safe-area-inset-bottom))}
 body.webUiInactive{overflow:hidden}
+.bootOverlay{position:fixed;inset:0;z-index:39;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.15rem;padding:1.25rem;background:var(--bg);transition:opacity .25s ease}
+.bootOverlay.isDone{opacity:0;pointer-events:none}
+.bootRing{width:4rem;height:4rem;border:.32rem solid var(--ln);border-top-color:var(--ac);border-radius:50%;animation:bootSpin .9s linear infinite}
+@keyframes bootSpin{to{transform:rotate(1turn)}}
+.bootText{margin:0;color:var(--mu);font-size:.95rem;font-weight:600}
 .inactiveOverlay{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;padding:1.25rem 1.25rem max(1.25rem,env(safe-area-inset-bottom));background:var(--bg);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .5s ease,visibility 0s linear .5s}
 .inactiveOverlay.isVisible{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .5s ease,visibility 0s}
 .inactiveOverlay .brand{z-index:auto;display:inline-flex;align-items:center;gap:var(--brandGap);color:var(--ac)}
@@ -336,5 +341,5 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 .switch input:focus-visible+.slider{outline:3px solid var(--ac);outline-offset:2px}
 .btnGlyph:not(:disabled):hover{filter:brightness(.95)}
 @media(max-width:340px){body{padding-inline:.75rem}.topBar{margin-inline:-.75rem;padding-inline:.75rem}.brand a span{font-size:1.25rem}.brandMark{width:2.1rem}.statusColumn{grid-template-columns:1fr}}
-@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition-duration:.01ms!important}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition-duration:.01ms!important}.bootRing{animation:none}}
 @media(forced-colors:active){input[type=checkbox]{appearance:auto}.slider{forced-color-adjust:auto}.btnGlyph,.presetCard,input,select,textarea{border-color:ButtonText}}
