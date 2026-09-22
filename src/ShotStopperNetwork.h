@@ -580,6 +580,23 @@ class ShotStopperNetwork {
   esp_err_t lockJsonBody(httpd_req_t *request, const char *invalidMessage);
   bool lockConfirmedBody(httpd_req_t *request, const char *invalidMessage,
                          const char *expectedConfirmation);
+  // Shared destructive-action handler bodies: gate → confirm/parse → callback
+  // → reply. Per-handler texts stay at the call sites; the response bytes are
+  // identical to the previous inline implementations.
+  esp_err_t runConfirmedClear(httpd_req_t *request, const char *lockedDetail,
+                              const char *expectedConfirmation,
+                              const char *notConfirmedCode,
+                              const char *notConfirmedDetail,
+                              bool (*clearFn)(), const char *failedCode,
+                              const char *failedDetail);
+  esp_err_t runDeleteById(httpd_req_t *request, const char *lockedDetail,
+                          bool (*deleteFn)(uint32_t),
+                          const char *invalidDetail, const char *notFoundCode,
+                          const char *notFoundDetail);
+  esp_err_t enqueueAcceptedCommand(httpd_req_t *request, WebCommandType type,
+                                   bool unsafeWebUiOverride,
+                                   const char *queueFullDetail,
+                                   const char *extraJson = nullptr);
   esp_err_t workBufBusy(httpd_req_t *request);
   bool requireActiveWebUiClient(httpd_req_t *request);
   void clearAdminUnlock();

@@ -640,15 +640,10 @@ esp_err_t ShotStopperNetwork::preferredScaleClearHandler(httpd_req_t *request) {
                      "The paired scale cannot be forgotten while a cycle "
                      "is active.");
   }
-  WebCommand command;
-  command.type = WebCommandType::CLEAR_PREFERRED_SCALE;
-  command.requestId = self.allocateRequestId();
-  command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
-  if (!self.callbacks_.enqueueWebCommand(command)) {
-    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
-                     "Control is busy; nothing was cleared.");
-  }
-  return self.sendAccepted(request, command.requestId);
+  return enqueueAcceptedCommand(request,
+                                WebCommandType::CLEAR_PREFERRED_SCALE,
+                                self.webUiOverrideAllowed(request),
+                                "Control is busy; nothing was cleared.");
 }
 
 esp_err_t ShotStopperNetwork::preferredScaleSelectHandler(httpd_req_t *request) {
@@ -943,15 +938,10 @@ esp_err_t ShotStopperNetwork::resetGuardSamplesHandler(httpd_req_t *request) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_REQUEST",
                      "The guard samples reset request must be an empty object.");
   }
-  WebCommand command;
-  command.type = WebCommandType::RESET_AUTO_TO_MANUAL_GUARD_SAMPLES;
-  command.requestId = self.allocateRequestId();
-  command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
-  if (!self.callbacks_.enqueueWebCommand(command)) {
-    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
-                     "Control is busy; guard samples were not reset.");
-  }
-  return self.sendAccepted(request, command.requestId);
+  return enqueueAcceptedCommand(
+      request, WebCommandType::RESET_AUTO_TO_MANUAL_GUARD_SAMPLES,
+      self.webUiOverrideAllowed(request),
+      "Control is busy; guard samples were not reset.");
 }
 
 esp_err_t ShotStopperNetwork::paddleHandler(httpd_req_t *request) {
@@ -1015,15 +1005,9 @@ esp_err_t ShotStopperNetwork::rinseHandler(httpd_req_t *request) {
     return sendError(request, STATUS_CONFLICT, "CONTROL_STATE_CONFLICT",
                      "Rinse can only start from Ready.");
   }
-  WebCommand command;
-  command.type = WebCommandType::RINSE;
-  command.requestId = self.allocateRequestId();
-  command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
-  if (!self.callbacks_.enqueueWebCommand(command)) {
-    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
-                     "Control queue is full.");
-  }
-  return self.sendAccepted(request, command.requestId);
+  return enqueueAcceptedCommand(request, WebCommandType::RINSE,
+                                self.webUiOverrideAllowed(request),
+                                "Control queue is full.");
 }
 
 esp_err_t ShotStopperNetwork::stopHandler(httpd_req_t *request) {
@@ -1036,14 +1020,8 @@ esp_err_t ShotStopperNetwork::stopHandler(httpd_req_t *request) {
     return sendError(request, STATUS_CONFLICT, "CONTROL_STATE_CONFLICT",
                      "There is no active shot to stop.");
   }
-  WebCommand command;
-  command.type = WebCommandType::STOP;
-  command.requestId = self.allocateRequestId();
-  if (!self.callbacks_.enqueueWebCommand(command)) {
-    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
-                     "Control queue is full.");
-  }
-  return self.sendAccepted(request, command.requestId);
+  return enqueueAcceptedCommand(request, WebCommandType::STOP, false,
+                                "Control queue is full.");
 }
 
 esp_err_t ShotStopperNetwork::forcePulseHandler(httpd_req_t *request) {
@@ -1076,14 +1054,8 @@ esp_err_t ShotStopperNetwork::forcePulseHandler(httpd_req_t *request) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_REQUEST",
                      "The forced pulse request must be an empty object.");
   }
-  WebCommand command;
-  command.type = WebCommandType::FORCE_SWITCH_PULSE;
-  command.requestId = self.allocateRequestId();
-  if (!self.callbacks_.enqueueWebCommand(command)) {
-    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
-                     "Control queue is full.");
-  }
-  return self.sendAccepted(request, command.requestId);
+  return enqueueAcceptedCommand(request, WebCommandType::FORCE_SWITCH_PULSE,
+                                false, "Control queue is full.");
 }
 
 esp_err_t ShotStopperNetwork::stateOverrideHandler(httpd_req_t *request) {
@@ -1130,14 +1102,8 @@ esp_err_t ShotStopperNetwork::restartHandler(httpd_req_t *request) {
   // Shot always wins. Queue the restart even mid-cycle; the control task
   // holds it until idle instead of opening K1 to make way for the reset.
   // Override must not cut a pour.
-  WebCommand command;
-  command.type = WebCommandType::RESTART;
-  command.requestId = self.allocateRequestId();
-  if (!self.callbacks_.enqueueWebCommand(command)) {
-    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
-                     "Control queue is full.");
-  }
-  return self.sendAccepted(request, command.requestId);
+  return enqueueAcceptedCommand(request, WebCommandType::RESTART, false,
+                                "Control queue is full.");
 }
 
 esp_err_t ShotStopperNetwork::clearResetHistoryHandler(httpd_req_t *request) {
@@ -1152,14 +1118,9 @@ esp_err_t ShotStopperNetwork::clearResetHistoryHandler(httpd_req_t *request) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_CONFIRMATION",
                      "Confirm reset-history clearing explicitly.");
   }
-  WebCommand command;
-  command.type = WebCommandType::CLEAR_RESET_HISTORY;
-  command.requestId = self.allocateRequestId();
-  if (!self.callbacks_.enqueueWebCommand(command)) {
-    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
-                     "Control is busy; reset history was not cleared.");
-  }
-  return self.sendAccepted(request, command.requestId);
+  return enqueueAcceptedCommand(request, WebCommandType::CLEAR_RESET_HISTORY,
+                                false,
+                                "Control is busy; reset history was not cleared.");
 }
 
 esp_err_t ShotStopperNetwork::factoryResetHandler(httpd_req_t *request) {
@@ -1182,14 +1143,8 @@ esp_err_t ShotStopperNetwork::factoryResetHandler(httpd_req_t *request) {
                      "The factory reset was not explicitly confirmed.");
   }
 
-  WebCommand command;
-  command.type = WebCommandType::FACTORY_RESET;
-  command.requestId = self.allocateRequestId();
-  command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
-  if (!self.callbacks_.enqueueWebCommand(command)) {
-    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
-                     "Control is busy; no settings were erased.");
-  }
-  return self.sendAccepted(request, command.requestId,
-                           "\"state\":\"QUEUED\"");
+  return enqueueAcceptedCommand(request, WebCommandType::FACTORY_RESET,
+                                self.webUiOverrideAllowed(request),
+                                "Control is busy; no settings were erased.",
+                                "\"state\":\"QUEUED\"");
 }

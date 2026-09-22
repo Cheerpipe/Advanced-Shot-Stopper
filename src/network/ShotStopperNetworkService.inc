@@ -435,6 +435,77 @@ esp_err_t ShotStopperNetwork::sendAccepted(httpd_req_t *request,
   return sendJson(request, STATUS_ACCEPTED, response);
 }
 
+esp_err_t ShotStopperNetwork::runConfirmedClear(
+    httpd_req_t *request, const char *lockedDetail,
+    const char *expectedConfirmation, const char *notConfirmedCode,
+    const char *notConfirmedDetail, bool (*clearFn)(),
+    const char *failedCode, const char *failedDetail) {
+  const ControlGateSnapshot status = controlGate();
+  if (!historyMutationAllowed(request, status)) {
+    return sendError(request, STATUS_CONFLICT,
+                     "CONFIG_LOCKED_DURING_ACTIVE_CYCLE", lockedDetail);
+  }
+  if (!lockConfirmedBody(request, "An explicit confirmation is required.",
+                         expectedConfirmation)) {
+    return sendError(request, STATUS_UNPROCESSABLE, notConfirmedCode,
+                     notConfirmedDetail);
+  }
+  if (clearFn == nullptr || !clearFn()) {
+    return sendError(request, STATUS_UNAVAILABLE, failedCode, failedDetail);
+  }
+  return sendJson(request, STATUS_OK, "{\"cleared\":true}");
+}
+
+esp_err_t ShotStopperNetwork::runDeleteById(httpd_req_t *request,
+                                            const char *lockedDetail,
+                                            bool (*deleteFn)(uint32_t),
+                                            const char *invalidDetail,
+                                            const char *notFoundCode,
+                                            const char *notFoundDetail) {
+  const ControlGateSnapshot status = controlGate();
+  if (!historyMutationAllowed(request, status)) {
+    return sendError(request, STATUS_CONFLICT,
+                     "CONFIG_LOCKED_DURING_ACTIVE_CYCLE", lockedDetail);
+  }
+  const esp_err_t bodyStatus =
+      lockJsonBody(request, "A bounded JSON request is required.");
+  if (bodyStatus != ESP_OK) {
+    return bodyStatus;
+  }
+  cJSON *root = parseJsonDocument(workBuf_->requestBody);
+  uint32_t id = 0;
+  static const char *const fields[] = {"id"};
+  const bool parsed =
+      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
+      jsonUint32(root, "id", id) && id != 0;
+  if (root != nullptr) {
+    cJSON_Delete(root);
+  }
+  unlockJsonBody();
+  if (!parsed) {
+    return sendError(request, STATUS_UNPROCESSABLE, "INVALID_FIELD",
+                     invalidDetail);
+  }
+  if (deleteFn == nullptr || !deleteFn(id)) {
+    return sendError(request, STATUS_NOT_FOUND, notFoundCode, notFoundDetail);
+  }
+  return sendJson(request, STATUS_OK, "{\"deleted\":true}");
+}
+
+esp_err_t ShotStopperNetwork::enqueueAcceptedCommand(
+    httpd_req_t *request, WebCommandType type, bool unsafeWebUiOverride,
+    const char *queueFullDetail, const char *extraJson) {
+  WebCommand command;
+  command.type = type;
+  command.requestId = allocateRequestId();
+  command.unsafeWebUiOverride = unsafeWebUiOverride;
+  if (!callbacks_.enqueueWebCommand(command)) {
+    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
+                     queueFullDetail);
+  }
+  return sendAccepted(request, command.requestId, extraJson);
+}
+
 void ShotStopperNetwork::taskEntry(void *parameter) {
   static_cast<ShotStopperNetwork *>(parameter)->taskLoop();
 }

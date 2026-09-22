@@ -1133,89 +1133,38 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
 
 esp_err_t ShotStopperNetwork::shotsClearHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  const ControlGateSnapshot status = self.controlGate();
-  if (!self.historyMutationAllowed(request, status)) {
-    return sendError(request, STATUS_CONFLICT,
-                     "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
-                     "Stop the cycle, switch the physical activator OFF, and wait for Ready before clearing shot history.");
-  }
-
-  if (!self.lockConfirmedBody(request,
-                              "An explicit confirmation is required.",
-                              "CLEAR_SHOT_LOG")) {
-    return sendError(request, STATUS_UNPROCESSABLE,
-                     "SHOT_LOG_CLEAR_NOT_CONFIRMED",
-                     "The shot-history clear was not explicitly confirmed.");
-  }
-
-  if (self.callbacks_.clearShotLog == nullptr ||
-      !self.callbacks_.clearShotLog()) {
-    return sendError(request, STATUS_UNAVAILABLE, "SHOT_LOG_CLEAR_FAILED",
-                     "Shot history could not be cleared. Check Diagnostic → "
-                     "NVS for capacity and the last storage error.");
-  }
-  return sendJson(request, STATUS_OK, "{\"cleared\":true}");
+  return self.runConfirmedClear(
+      request,
+      "Stop the cycle, switch the physical activator OFF, and wait for Ready "
+      "before clearing shot history.",
+      "CLEAR_SHOT_LOG", "SHOT_LOG_CLEAR_NOT_CONFIRMED",
+      "The shot-history clear was not explicitly confirmed.",
+      self.callbacks_.clearShotLog, "SHOT_LOG_CLEAR_FAILED",
+      "Shot history could not be cleared. Check Diagnostic → NVS for "
+      "capacity and the last storage error.");
 }
 
 esp_err_t ShotStopperNetwork::lastShotClearHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  const ControlGateSnapshot status = self.controlGate();
-  if (!self.historyMutationAllowed(request, status)) {
-    return sendError(request, STATUS_CONFLICT,
-                     "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
-                     "Stop the cycle, switch the physical activator OFF, and wait for Ready before clearing the last shot.");
-  }
-
-  if (!self.lockConfirmedBody(request,
-                              "An explicit confirmation is required.",
-                              "CLEAR_LAST_SHOT")) {
-    return sendError(request, STATUS_UNPROCESSABLE,
-                     "LAST_SHOT_CLEAR_NOT_CONFIRMED",
-                     "The last-shot clear was not explicitly confirmed.");
-  }
-
-  if (self.callbacks_.clearLastShot == nullptr ||
-      !self.callbacks_.clearLastShot()) {
-    return sendError(request, STATUS_UNAVAILABLE, "LAST_SHOT_CLEAR_FAILED",
-                     "Last shot could not be cleared.");
-  }
-  return sendJson(request, STATUS_OK, "{\"cleared\":true}");
+  return self.runConfirmedClear(
+      request,
+      "Stop the cycle, switch the physical activator OFF, and wait for Ready "
+      "before clearing the last shot.",
+      "CLEAR_LAST_SHOT", "LAST_SHOT_CLEAR_NOT_CONFIRMED",
+      "The last-shot clear was not explicitly confirmed.",
+      self.callbacks_.clearLastShot, "LAST_SHOT_CLEAR_FAILED",
+      "Last shot could not be cleared.");
 }
 
 esp_err_t ShotStopperNetwork::shotsDeleteHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  const ControlGateSnapshot status = self.controlGate();
-  if (!self.historyMutationAllowed(request, status)) {
-    return sendError(request, STATUS_CONFLICT,
-                     "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
-                     "Stop the cycle, switch the physical activator OFF, and wait for Ready before deleting shot records.");
-  }
-
-  const esp_err_t bodyStatus = self.lockJsonBody(
-      request, "A bounded JSON request is required.");
-  if (bodyStatus != ESP_OK) {
-    return bodyStatus;
-  }
-  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  uint32_t shotId = 0;
-  static const char *const fields[] = {"id"};
-  const bool parsed = root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
-                      jsonUint32(root, "id", shotId) && shotId != 0;
-  if (root != nullptr) {
-    cJSON_Delete(root);
-  }
-  self.unlockJsonBody();
-  if (!parsed) {
-    return sendError(request, STATUS_UNPROCESSABLE, "INVALID_FIELD",
-                     "A non-zero shot id is required.");
-  }
-
-  if (self.callbacks_.deleteShotRecord == nullptr ||
-      !self.callbacks_.deleteShotRecord(shotId)) {
-    return sendError(request, STATUS_NOT_FOUND, "SHOT_NOT_FOUND",
-                     "The requested shot record was not found.");
-  }
-  return sendJson(request, STATUS_OK, "{\"deleted\":true}");
+  return self.runDeleteById(
+      request,
+      "Stop the cycle, switch the physical activator OFF, and wait for Ready "
+      "before deleting shot records.",
+      self.callbacks_.deleteShotRecord,
+      "A non-zero shot id is required.", "SHOT_NOT_FOUND",
+      "The requested shot record was not found.");
 }
 
 esp_err_t ShotStopperNetwork::shotsRateHandler(httpd_req_t *request) {
@@ -1340,62 +1289,24 @@ esp_err_t ShotStopperNetwork::historyHandler(httpd_req_t *request) {
 
 esp_err_t ShotStopperNetwork::historyClearHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  const ControlGateSnapshot status = self.controlGate();
-  if (!self.historyMutationAllowed(request, status)) {
-    return sendError(request, STATUS_CONFLICT,
-                     "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
-                     "Stop the cycle, switch the physical activator OFF, and wait for Ready before clearing the activation history.");
-  }
-
-  if (!self.lockConfirmedBody(request,
-                              "An explicit confirmation is required.",
-                              "CLEAR_HISTORY")) {
-    return sendError(request, STATUS_UNPROCESSABLE,
-                     "HISTORY_CLEAR_NOT_CONFIRMED",
-                     "The activation-history clear was not explicitly confirmed.");
-  }
-
-  if (self.callbacks_.clearHistoryLog == nullptr ||
-      !self.callbacks_.clearHistoryLog()) {
-    return sendError(request, STATUS_UNAVAILABLE, "HISTORY_CLEAR_FAILED",
-                     "Activation history could not be cleared. Check the "
-                     "last storage error in Diagnostic.");
-  }
-  return sendJson(request, STATUS_OK, "{\"cleared\":true}");
+  return self.runConfirmedClear(
+      request,
+      "Stop the cycle, switch the physical activator OFF, and wait for Ready "
+      "before clearing the activation history.",
+      "CLEAR_HISTORY", "HISTORY_CLEAR_NOT_CONFIRMED",
+      "The activation-history clear was not explicitly confirmed.",
+      self.callbacks_.clearHistoryLog, "HISTORY_CLEAR_FAILED",
+      "Activation history could not be cleared. Check the last storage "
+      "error in Diagnostic.");
 }
 
 esp_err_t ShotStopperNetwork::historyDeleteHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  const ControlGateSnapshot status = self.controlGate();
-  if (!self.historyMutationAllowed(request, status)) {
-    return sendError(request, STATUS_CONFLICT,
-                     "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
-                     "Stop the cycle, switch the physical activator OFF, and wait for Ready before deleting history records.");
-  }
-
-  const esp_err_t bodyStatus = self.lockJsonBody(
-      request, "A bounded JSON request is required.");
-  if (bodyStatus != ESP_OK) {
-    return bodyStatus;
-  }
-  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  uint32_t recordId = 0;
-  static const char *const fields[] = {"id"};
-  const bool parsed = root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
-                      jsonUint32(root, "id", recordId) && recordId != 0;
-  if (root != nullptr) {
-    cJSON_Delete(root);
-  }
-  self.unlockJsonBody();
-  if (!parsed) {
-    return sendError(request, STATUS_UNPROCESSABLE, "INVALID_FIELD",
-                     "A non-zero history record id is required.");
-  }
-
-  if (self.callbacks_.deleteHistoryRecord == nullptr ||
-      !self.callbacks_.deleteHistoryRecord(recordId)) {
-    return sendError(request, STATUS_NOT_FOUND, "HISTORY_RECORD_NOT_FOUND",
-                     "The requested history record was not found.");
-  }
-  return sendJson(request, STATUS_OK, "{\"deleted\":true}");
+  return self.runDeleteById(
+      request,
+      "Stop the cycle, switch the physical activator OFF, and wait for Ready "
+      "before deleting history records.",
+      self.callbacks_.deleteHistoryRecord,
+      "A non-zero history record id is required.", "HISTORY_RECORD_NOT_FOUND",
+      "The requested history record was not found.");
 }
