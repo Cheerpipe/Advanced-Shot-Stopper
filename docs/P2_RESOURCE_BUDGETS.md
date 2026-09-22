@@ -31,9 +31,10 @@ allowance. The 3 MiB OTA slot still has more than 1 MiB free.
 Both linker maps must also keep external BSS at or below 105 KiB and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
 objects to PSRAM would move synchronization state accessed under spinlocks.
-The extra 1 KiB ceiling covers the versioned Micra cloud account record while
-the build remains below 104.4 KiB measured. This is static PSRAM, not internal
-heap. The earlier 96→104 KiB raise covers the V3 half-second shot-curve store.
+The extra 1 KiB ceiling covers the versioned Micra cloud account record; the
+qualified gate builds measure 106,936 bytes, 584 bytes below the 105 KiB
+budget. This is static PSRAM, not internal heap. The earlier 96→104 KiB
+raise covers the V3 half-second shot-curve store.
 
 ## Runtime placement and allocation
 
