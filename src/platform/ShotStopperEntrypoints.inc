@@ -610,6 +610,7 @@ void loop() {
   observeMachineSenseFromSession(loopScaleLink);
   serviceMachine();
   fillLoopGuardsFromIntention(machinePollIntention(), loopScaleLink);
+  finishLoopPhase(LoopPhase::SCALE_MACHINE_INPUT);
   const MachineIntention powerIntention = machineLastIntention();
   const bool wakeGestureConsumed = serviceMachineWakeGesture(powerIntention);
   // Forward the machine-use edge only; the scale worker owns the whole scan
@@ -628,7 +629,7 @@ void loop() {
       loopScaleLink.state == ScaleLinkState::CONNECTED,
       loopScaleLink.disconnectSequence, loopScaleLink.lastDisconnectReason,
       getRelaySafetySnapshot().closed);
-  finishLoopPhase(LoopPhase::SCALE_INPUT);
+  finishLoopPhase(LoopPhase::MACHINE_GUARDS);
   stateMachineTask();
   publishControlCriticalLoggingState();
   serviceWebhookBrewStart();
@@ -653,6 +654,7 @@ void loop() {
       (powerIntention.turnedOn || powerIntention.turnedOff));
   servicePendingResetHistoryClear();
   servicePendingPlannedRestart();
+  finishLoopPhase(LoopPhase::COMMANDS);
   if (controlHousekeepingDue(loopStartedAtMs)) {
     serviceSerialLogDump();
     serviceSerialCli();
@@ -662,8 +664,8 @@ void loop() {
     serviceWeightStreamTelemetry(loopScaleLink);
     serviceControlStatusPublish();
     serviceScaleConnectedLed(loopScaleLink);
+    finishLoopPhase(LoopPhase::HOUSEKEEPING);
   }
-  finishLoopPhase(LoopPhase::COMMANDS_PERSISTENCE);
   static uint32_t watchdogFedAtMs = 0;
   if (watchdogFedAtMs == 0 ||
       elapsedMs(watchdogFedAtMs) >= TASK_WATCHDOG_FEED_INTERVAL_MS) {

@@ -55,7 +55,10 @@ namespace shotstopper {
 WallClock g_wallClock;
 
 struct NetworkWorkBuf {
-  static constexpr size_t kStatusJson = 12288;
+  // Diagnostic status with the task profiler running needs ~14 KB (base view
+  // ~10.6 KB + up to 20 task rows and 9 loop-phase rows ~3.6 KB); 16 KB keeps
+  // headroom so profiling never fails the status view with STATUS_TOO_LARGE.
+  static constexpr size_t kStatusJson = 16384;
   static constexpr size_t kPresetsJson = 2800;
   static constexpr size_t kHistoryJson = 1400;
   // 2432 keeps the -Os format-truncation bound of the shots-row builder
@@ -95,7 +98,7 @@ struct NetworkWorkBuf {
   char requestBody[2048]{};
   WifiScanSnapshot wifiScan{};
 };
-static_assert(sizeof(NetworkWorkBuf) <= 69632,
+static_assert(sizeof(NetworkWorkBuf) <= 73728,
               "Network workspace exceeds its external-memory budget");
 
 // Wi-Fi scan snapshots. Network task / httpd only; not BLE.

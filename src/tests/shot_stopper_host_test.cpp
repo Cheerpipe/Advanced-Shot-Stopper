@@ -13132,6 +13132,8 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   profiler.beginIteration(true, 1000U);
   profiler.record(LoopPhase::SAFETY_HEALTH, 100U, 1100U);
   profiler.record(LoopPhase::CONTROL, 200U, 1300U);
+  // Housekeeping only records on iterations that run the gated block.
+  profiler.record(LoopPhase::HOUSEKEEPING, 70U, 1400U);
   profiler.record(LoopPhase::DIAGNOSTICS, 50U, 1001000U);
   profiler.copySnapshot(snap);
   CHECK(snap.rowCount == LOOP_PHASE_COUNT);
@@ -13141,7 +13143,14 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   CHECK(snap.rows[0].maxExecutionUs == 100U);
   CHECK(snap.rows[0].currentCpuPct > 0.009f);
   CHECK(snap.rows[0].currentCpuPct < 0.011f);
-  CHECK(snap.rows[2].averageExecutionUs == 200U);
+  CHECK(strcmp(snap.rows[1].name, "scale/machine input") == 0);
+  CHECK(strcmp(snap.rows[2].name, "machine guards") == 0);
+  CHECK(strcmp(snap.rows[5].name, "commands") == 0);
+  CHECK(snap.rows[6].sampleCount == 1U);
+  CHECK(snap.rows[6].maxExecutionUs == 70U);
+  CHECK(snap.rows[7].averageExecutionUs == 50U);
+  CHECK(snap.rows[8].averageExecutionUs == 0U);
+  CHECK(snap.rows[3].averageExecutionUs == 200U);
 
   profiler.beginIteration(false, 1501000U);
   profiler.copySnapshot(snap);

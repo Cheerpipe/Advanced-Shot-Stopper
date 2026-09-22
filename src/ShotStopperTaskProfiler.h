@@ -23,14 +23,16 @@ constexpr size_t TASK_PROFILER_MAX_ROWS = 20;
 constexpr size_t TASK_PROFILER_NAME_CAPACITY = 24;
 constexpr uint32_t TASK_PROFILER_SAMPLE_INTERVAL_MS = 1000;
 constexpr uint32_t TASK_PROFILER_MAX_DURATION_MS = 5UL * 60UL * 1000UL;
-constexpr uint8_t LOOP_PHASE_COUNT = 7;
+constexpr uint8_t LOOP_PHASE_COUNT = 9;
 
 enum class LoopPhase : uint8_t {
   SAFETY_HEALTH,
-  SCALE_INPUT,
+  SCALE_MACHINE_INPUT,
+  MACHINE_GUARDS,
   CONTROL,
   ALERTS_TIMERS,
-  COMMANDS_PERSISTENCE,
+  COMMANDS,
+  HOUSEKEEPING,
   DIAGNOSTICS,
   FINAL_SCALE_DRAIN
 };
@@ -38,10 +40,12 @@ enum class LoopPhase : uint8_t {
 inline const char *loopPhaseName(LoopPhase phase) {
   switch (phase) {
     case LoopPhase::SAFETY_HEALTH: return "safety/health";
-    case LoopPhase::SCALE_INPUT: return "scale/input";
+    case LoopPhase::SCALE_MACHINE_INPUT: return "scale/machine input";
+    case LoopPhase::MACHINE_GUARDS: return "machine guards";
     case LoopPhase::CONTROL: return "control";
     case LoopPhase::ALERTS_TIMERS: return "alerts/timers";
-    case LoopPhase::COMMANDS_PERSISTENCE: return "commands/persistence";
+    case LoopPhase::COMMANDS: return "commands";
+    case LoopPhase::HOUSEKEEPING: return "housekeeping";
     case LoopPhase::DIAGNOSTICS: return "diagnostics";
     case LoopPhase::FINAL_SCALE_DRAIN: return "final scale drain";
   }
@@ -249,6 +253,7 @@ class TaskProfiler {
     startedAtUs_ = captureEndedUs;
     lastCaptureAtMs_ = nowMs;
     lastCaptureAtUs_ = captureEndedUs;
+    intervalUs_ = 0;
     const uint64_t initialCost =
         captureEndedUs > captureStartedUs ? captureEndedUs - captureStartedUs : 0;
     report_.lastCaptureUs = clampU32_(initialCost);

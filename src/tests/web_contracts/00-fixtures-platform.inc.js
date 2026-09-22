@@ -396,7 +396,7 @@ if (!network.includes('copyTaskProfiler') ||
     !network.includes('\\"averageExecutionUs\\"') ||
     !network.includes('/api/v1/diagnostic/profiler') ||
     !network.includes('taskProfilerHandler') ||
-    !network.includes('static constexpr size_t kStatusJson = 12288') ||
+    !network.includes('static constexpr size_t kStatusJson = 16384') ||
     !networkHeader.includes('void (*copyTaskProfiler)(TaskProfilerSnapshot &out)') ||
     !fs.readFileSync(path.join(sketchDir, 'ShotStopperDebugExport.h'), 'utf8')
         .includes('DEBUG_EXPORT_SCHEMA_VERSION = 7')) {

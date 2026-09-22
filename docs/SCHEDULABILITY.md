@@ -84,9 +84,12 @@ publishes a one-element latest-wins mailbox. Network and scale metrics are
 published under their owning snapshot or as monotonic atomics.
 
 While the optional task profiler is running, the control loop also attributes
-its execution time to coarse safety/health, scale/input, control, alerts/timers,
-commands/persistence, diagnostics and final-scale-drain phases. The loop owns
-the accumulators and publishes at one-second boundaries, so the hot path takes
+its execution time to coarse safety/health, scale/machine-input,
+machine-guards, control, alerts/timers, commands, housekeeping, diagnostics
+and final-scale-drain phases. The housekeeping phase records only on
+iterations that run the 10 ms-gated housekeeping block, so its sample count
+is the number of billed iterations. The loop owns the accumulators and
+publishes at one-second boundaries, so the hot path takes
 no cross-core diagnostic lock. Stopping the task profiler removes the phase
 timing calls; the reported phase totals include their own measurement cost.
 
