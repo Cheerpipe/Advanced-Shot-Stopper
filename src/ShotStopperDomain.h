@@ -756,81 +756,74 @@ static_assert(offsetof(RuntimeConfig, rinseEnabled) == 248,
 static_assert(offsetof(RuntimeConfig, autoTareOutsideBrew) == 250,
               "RuntimeConfig autoTareOutsideBrew offset changed");
 
-inline uint32_t runtimeStopPulseMs(const RuntimeConfig &config) {
-  if (config.stopPulseTenMs == 0) {
-    return COMPILED_STOP_PULSE_MS;
+// Shared shape of the runtime timeout accessors/setters: the stored raw field
+// is scaled milliseconds; zero means the compiled default and an out-of-range
+// stored value falls back to it too. Setters clamp then round with
+// scale/2 before storing.
+template <uint32_t ScaleMs, uint32_t MinMs, uint32_t MaxMs, uint32_t FallbackMs,
+          typename FieldT>
+inline uint32_t runtimeScaledMs(FieldT raw) {
+  if (raw == 0) {
+    return FallbackMs;
   }
-  const uint32_t ms = static_cast<uint32_t>(config.stopPulseTenMs) * 10U;
-  if (ms < 50U || ms > 1000U) {
-    return COMPILED_STOP_PULSE_MS;
+  const uint32_t ms = static_cast<uint32_t>(raw) * ScaleMs;
+  if (ms < MinMs || ms > MaxMs) {
+    return FallbackMs;
   }
   return ms;
+}
+
+template <uint32_t ScaleMs, uint32_t MinMs, uint32_t MaxMs, typename FieldT>
+inline void setRuntimeScaledMs(FieldT &raw, uint32_t ms) {
+  if (ms < MinMs) {
+    ms = MinMs;
+  }
+  if (ms > MaxMs) {
+    ms = MaxMs;
+  }
+  raw = static_cast<FieldT>((ms + ScaleMs / 2U) / ScaleMs);
+}
+
+inline uint32_t runtimeStopPulseMs(const RuntimeConfig &config) {
+  return runtimeScaledMs<10U, 50U, 1000U, COMPILED_STOP_PULSE_MS>(
+      config.stopPulseTenMs);
 }
 
 inline uint32_t runtimeMaxSinglePressMs(const RuntimeConfig &config) {
-  if (config.maxSinglePressHundredMs == 0) {
-    return COMPILED_MAX_SINGLE_PRESS_MS;
-  }
-  const uint32_t ms =
-      static_cast<uint32_t>(config.maxSinglePressHundredMs) * 100U;
-  if (ms < 100U || ms > 5000U) {
-    return COMPILED_MAX_SINGLE_PRESS_MS;
-  }
-  return ms;
+  return runtimeScaledMs<100U, 100U, 5000U, COMPILED_MAX_SINGLE_PRESS_MS>(
+      config.maxSinglePressHundredMs);
 }
 
 inline void setRuntimeStopPulseMs(RuntimeConfig &config, uint32_t ms) {
-  if (ms < 50U) {
-    ms = 50U;
-  }
-  if (ms > 1000U) {
-    ms = 1000U;
-  }
-  config.stopPulseTenMs = static_cast<uint8_t>((ms + 5U) / 10U);
+  setRuntimeScaledMs<10U, 50U, 1000U>(config.stopPulseTenMs, ms);
 }
 
 inline void setRuntimeMaxSinglePressMs(RuntimeConfig &config, uint32_t ms) {
-  if (ms < 100U) {
-    ms = 100U;
-  }
-  if (ms > 5000U) {
-    ms = 5000U;
-  }
-  config.maxSinglePressHundredMs = static_cast<uint8_t>((ms + 50U) / 100U);
+  setRuntimeScaledMs<100U, 100U, 5000U>(config.maxSinglePressHundredMs, ms);
 }
 
 inline uint32_t runtimeReedConfirmTimeoutMs(const RuntimeConfig &config) {
-  if (config.reedConfirmTimeoutHundredMs == 0) {
-    return COMPILED_REED_CONFIRM_TIMEOUT_MS;
-  }
-  const uint32_t ms =
-      static_cast<uint32_t>(config.reedConfirmTimeoutHundredMs) * 100U;
-  if (ms < MIN_REED_CONFIRM_TIMEOUT_MS || ms > MAX_REED_CONFIRM_TIMEOUT_MS) {
-    return COMPILED_REED_CONFIRM_TIMEOUT_MS;
-  }
-  return ms;
+  return runtimeScaledMs<100U, MIN_REED_CONFIRM_TIMEOUT_MS,
+                         MAX_REED_CONFIRM_TIMEOUT_MS,
+                         COMPILED_REED_CONFIRM_TIMEOUT_MS>(
+      config.reedConfirmTimeoutHundredMs);
 }
 
 inline void setRuntimeReedConfirmTimeoutMs(RuntimeConfig &config, uint32_t ms) {
-  if (ms < MIN_REED_CONFIRM_TIMEOUT_MS) {
-    ms = MIN_REED_CONFIRM_TIMEOUT_MS;
-  }
-  if (ms > MAX_REED_CONFIRM_TIMEOUT_MS) {
-    ms = MAX_REED_CONFIRM_TIMEOUT_MS;
-  }
-  config.reedConfirmTimeoutHundredMs =
-      static_cast<uint8_t>((ms + 50U) / 100U);
+  setRuntimeScaledMs<100U, MIN_REED_CONFIRM_TIMEOUT_MS,
+                     MAX_REED_CONFIRM_TIMEOUT_MS>(
+      config.reedConfirmTimeoutHundredMs, ms);
 }
 
 inline uint32_t runtimeShotReactTimeoutMs(const RuntimeConfig &config) {
-  if (config.shotReactTimeoutS == 0) {
-    return COMPILED_SHOT_REACT_TIMEOUT_MS;
-  }
-  if (config.shotReactTimeoutS < MIN_SHOT_REACT_TIMEOUT_S ||
-      config.shotReactTimeoutS > MAX_SHOT_REACT_TIMEOUT_S) {
-    return COMPILED_SHOT_REACT_TIMEOUT_MS;
-  }
-  return static_cast<uint32_t>(config.shotReactTimeoutS) * 1000U;
+  // Seconds-based field: the [3,30] s range equals [3000,30000] ms scaled.
+  return runtimeScaledMs<1000U,
+                         static_cast<uint32_t>(MIN_SHOT_REACT_TIMEOUT_S) *
+                             1000U,
+                         static_cast<uint32_t>(MAX_SHOT_REACT_TIMEOUT_S) *
+                             1000U,
+                         COMPILED_SHOT_REACT_TIMEOUT_MS>(
+      config.shotReactTimeoutS);
 }
 
 inline uint8_t runtimeShotReactTimeoutS(const RuntimeConfig &config) {
