@@ -376,17 +376,24 @@ legacy_profile_cli = subprocess.run(
 assert legacy_profile_cli.returncode == 0
 
 
-def build_dir_probe(*args: str, builds: dict[str, float] | None = None,
-                    empty_variants: tuple[str, ...] = ()) -> subprocess.CompletedProcess[str]:
-    """Resolve the static-analysis build directory in a sandboxed CLI root."""
-    with tempfile.TemporaryDirectory(prefix="shotstopper-build-dir-") as temporary:
+def static_paths_probe(*args: str, output_dir: str | None = None,
+                       build_dir: str | None = None,
+                       databases: tuple[str, ...] = (),
+                       empty_variants: tuple[str, ...] = ()) -> subprocess.CompletedProcess[str]:
+    """Resolve the shared static-analysis path set in a sandboxed CLI root."""
+    with tempfile.TemporaryDirectory(prefix="shotstopper-static-paths-") as temporary:
         root = Path(temporary)
         env = os.environ.copy()
         env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
                    HOME=str(root))
         for name in ("IDF_PATH", "IDF_PYTHON_ENV_PATH"):
             env.pop(name, None)
-        for database, stamp in (builds or {}).items():
+        flags = ["--arch", "n16r8"]
+        if build_dir is not None:
+            flags += ["--build-dir", build_dir]
+        if output_dir is not None:
+            flags += ["--output-dir", output_dir]
+        for database, stamp in databases:
             target = root / database
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text("[]")
@@ -399,38 +406,65 @@ def build_dir_probe(*args: str, builds: dict[str, float] | None = None,
             f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
             'ss_cli_parse "$@" || exit $?; '
             'shotstopper_resolve_board "$(ss_get arch)" || exit 2; '
-            'ss_idf_resolve_paths; ss_idf_resolve_build_dir')
-        return subprocess.run(["bash", "-c", command, "probe", *args],
+            'ss_idf_resolve_paths; ss_idf_static_paths reports/static-tidy || exit $?; '
+            'printf "build_dir=%s\\nbuild_path=%s\\noutput_dir=%s\\n" '
+            '"$build_dir" "$build_path" "$output_dir"')
+        return subprocess.run(["bash", "-c", command, "probe", *flags, *args],
                               env=env, cwd=ROOT, capture_output=True, text=True)
 
 
-assert build_dir_probe("--arch", "n16r8").stdout == "build-idf/n16r8", \
-    "no variant tree must fall back to the legacy per-arch directory"
-newer = build_dir_probe(
-    "--arch", "n16r8",
-    builds={"build-idf/older--pair/compile_commands.json": 1000.0,
-            "build-idf/newer--pair/compile_commands.json": 2000.0})
-assert newer.stdout.endswith("build-idf/newer--pair"), newer.stdout
-spaced = build_dir_probe(
-    "--arch", "n16r8",
-    builds={"build-idf/my variant--pair/compile_commands.json": 3000.0})
-assert spaced.stdout.endswith("build-idf/my variant--pair"), spaced.stdout
-ignored_empty = build_dir_probe(
-    "--arch", "n16r8",
-    builds={"build-idf/older--pair/compile_commands.json": 1000.0},
+discovered = static_paths_probe(
+    databases=(("build-idf/n16r8/compile_commands.json", 1000.0),))
+assert discovered.returncode == 0, (discovered.returncode, discovered.stdout,
+                                    discovered.stderr)
+fields = dict(line.split("=", 1) for line in discovered.stdout.splitlines())
+assert fields["build_dir"].endswith("build-idf/n16r8"), discovered.stdout
+assert fields["build_path"].endswith("build-idf/n16r8"), discovered.stdout
+
+newer = static_paths_probe(
+    databases=(("build-idf/older--pair/compile_commands.json", 1000.0),
+               ("build-idf/newer--pair/compile_commands.json", 2000.0)))
+fields = dict(line.split("=", 1) for line in newer.stdout.splitlines())
+assert newer.returncode == 0 and \
+    fields["build_dir"].endswith("build-idf/newer--pair"), newer.stdout
+spaced = static_paths_probe(
+    databases=(("build-idf/my variant--pair/compile_commands.json", 3000.0),))
+fields = dict(line.split("=", 1) for line in spaced.stdout.splitlines())
+assert spaced.returncode == 0 and \
+    fields["build_dir"].endswith("build-idf/my variant--pair"), spaced.stdout
+ignored_empty = static_paths_probe(
+    databases=(("build-idf/older--pair/compile_commands.json", 1000.0),),
     empty_variants=("build-idf/empty--pair",))
-assert ignored_empty.stdout.endswith("build-idf/older--pair"), ignored_empty.stdout
-explicit = build_dir_probe(
-    "--arch", "n16r8", "--build-dir", "build-idf/older--pair",
-    builds={"build-idf/newer--pair/compile_commands.json": 2000.0})
-assert explicit.stdout == "build-idf/older--pair", explicit.stdout
+fields = dict(line.split("=", 1) for line in ignored_empty.stdout.splitlines())
+assert ignored_empty.returncode == 0 and \
+    fields["build_dir"].endswith("build-idf/older--pair"), ignored_empty.stdout
+explicit = static_paths_probe(
+    build_dir="build-idf/older--pair", output_dir="reports/custom",
+    databases=(("build-idf/older--pair/compile_commands.json", 1000.0),
+               ("build-idf/newer--pair/compile_commands.json", 2000.0)))
+assert explicit.returncode == 0, (explicit.returncode, explicit.stdout, explicit.stderr)
+fields = dict(line.split("=", 1) for line in explicit.stdout.splitlines())
+assert fields["build_dir"] == "build-idf/older--pair", explicit.stdout
+assert fields["build_path"].endswith("build-idf/older--pair"), explicit.stdout
+assert fields["output_dir"] == "reports/custom", explicit.stdout
+
+missing = static_paths_probe()
+assert missing.returncode == 1, (missing.returncode, missing.stdout, missing.stderr)
+assert "build-idf/n16r8/compile_commands.json does not exist." in missing.stderr, \
+    missing.stderr
+
+for unsafe in ("/tmp/escape", "reports/../.."):
+    rejected = static_paths_probe(output_dir=unsafe)
+    assert rejected.returncode == 2, (unsafe, rejected.returncode,
+                                      rejected.stdout, rejected.stderr)
+    assert "relative path inside the repository" in rejected.stderr, rejected.stderr
 
 
 def static_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path]:
     """Run static-idf end to end over a sandboxed fake compile database."""
-    report_dir = ROOT / "reports/static-idf-golden"
-    with tempfile.TemporaryDirectory(prefix="shotstopper-static-idf-") as temporary:
-        root = Path(temporary)
+    sandbox = tempfile.TemporaryDirectory(prefix="shotstopper-static-idf-")
+    if sandbox:
+        root = Path(sandbox.name)
         build = root / "build-idf" / "n16r8"
         (build / "generated").mkdir(parents=True)
         (build / "generated" / "build-profile.json").write_text(
@@ -461,10 +495,10 @@ def static_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path]
             ["bash", str(ROOT / "scripts/static-idf"), "--arch", "n16r8",
              "--build-dir", str(build), *extra],
             cwd=ROOT, env=env, capture_output=True, text=True)
-        return result, report_dir
+        return result, root / "reports" / "static-idf-golden", sandbox
 
 
-static_idf_result, static_idf_report = static_idf_run(
+static_idf_result, static_idf_report, static_idf_sandbox = static_idf_run(
     "--output-dir", "reports/static-idf-golden")
 try:
     assert static_idf_result.returncode == 0, (
@@ -479,7 +513,7 @@ try:
     assert "Cppcheck exit status: 0" in static_idf_readme
     assert "Build database: " in static_idf_readme
 finally:
-    shutil.rmtree(static_idf_report, ignore_errors=True)
+    static_idf_sandbox.cleanup()
 
 
 def cli_probe(*args: str) -> subprocess.CompletedProcess[str]:

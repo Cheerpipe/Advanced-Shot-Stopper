@@ -201,18 +201,56 @@ ss_idf_default_build_dir() {
   printf '%s' "${newest%/*}"
 }
 
-# Shared build_dir resolution for the static analysis scripts: an explicit
-# --build-dir wins, then the newest per-variant tree, then the legacy
-# per-arch directory.
-ss_idf_resolve_build_dir() {
+# Shared preparation for the static analysis scripts: an explicit --build-dir
+# wins, then the newest per-variant tree, then the legacy per-arch directory.
+# --output-dir must stay a relative path inside the repository so the callers'
+# destructive cleanup can never escape it. Relative paths resolve against
+# SS_CLI_ROOT. Sets build_dir, build_path, output_dir, output_path, and
+# compile_commands. Requires the default output directory as $1; returns 2 for
+# an unsafe output directory and 1 when the compilation database is missing.
+ss_idf_static_paths() {
   local default_dir
   if ss_is_set build_dir; then
-    ss_get build_dir
+    build_dir="$(ss_get build_dir)"
   elif default_dir="$(ss_idf_default_build_dir)"; then
-    printf '%s' "$default_dir"
+    build_dir="$default_dir"
   else
-    printf 'build-idf/%s' "$SHOTSTOPPER_ARCH"
+    build_dir="build-idf/$SHOTSTOPPER_ARCH"
   fi
+  if ss_is_set output_dir; then
+    output_dir="$(ss_get output_dir)"
+  else
+    output_dir="$1"
+  fi
+  case "$build_dir" in
+    /*) build_path="$build_dir" ;;
+    *) build_path="$SS_CLI_ROOT/$build_dir" ;;
+  esac
+  # Keep the destructive cleanup strictly inside the repository.
+  case "$output_dir" in
+    /*|*'..'*)
+      echo "Output directory must be a relative path inside the repository." >&2
+      return 2
+      ;;
+  esac
+  output_path="$SS_CLI_ROOT/$output_dir"
+  compile_commands="$build_path/compile_commands.json"
+  if [[ ! -f "$compile_commands" ]]; then
+    echo "$compile_commands does not exist." >&2
+    echo "Build with --hardware and --machine, then pass its directory with --build-dir." >&2
+    return 1
+  fi
+}
+
+# Shared translation-unit coverage audit for the static analysis scripts:
+# recreates the output directory, audits the database against the project
+# manifest, and saves the report. Returns the audit's exit status.
+ss_idf_audit_translation_units() {
+  rm -rf "$output_path"
+  mkdir -p "$output_path"
+  python3 "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/audit_compile_commands.py" \
+    --database "$compile_commands" | tee "$output_path/translation-units.txt"
+  return "${PIPESTATUS[0]}"
 }
 
 # Call after shotstopper_resolve_board. Sets IDF_PROJECT, IDF_BUILD_DIR,

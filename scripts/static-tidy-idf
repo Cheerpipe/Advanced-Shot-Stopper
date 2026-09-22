@@ -47,27 +47,7 @@ ss_cli_resolve "arch" || exit $?
 shotstopper_resolve_board "$(ss_get arch)" || exit 2
 ss_idf_resolve_paths
 
-build_dir="$(ss_idf_resolve_build_dir)"
-if ss_is_set output_dir; then
-  output_dir="$(ss_get output_dir)"
-else
-  output_dir="reports/static-tidy"
-fi
-
-case "$build_dir" in
-  /*) build_path="$build_dir" ;;
-  *) build_path="$ROOT/$build_dir" ;;
-esac
-
-# Keep the destructive cleanup strictly inside the repository.
-case "$output_dir" in
-  /*|*'..'*)
-    echo "Output directory must be a relative path inside the repository." >&2
-    exit 2
-    ;;
-esac
-output_path="$ROOT/$output_dir"
-compile_commands="$build_path/compile_commands.json"
+ss_idf_static_paths reports/static-tidy || exit $?
 
 if [[ -n "${ESP_CLANG_TIDY:-}" ]]; then
   tidy_bin="$ESP_CLANG_TIDY"
@@ -90,27 +70,15 @@ if [[ -z "${tidy_bin:-}" || ! -x "$tidy_bin" ]]; then
   exit 127
 fi
 
-if [[ ! -f "$compile_commands" ]]; then
-  echo "$compile_commands does not exist." >&2
-  echo "Build with --hardware and --machine, then pass its directory with --build-dir." >&2
-  exit 1
-fi
-
 command -v python3 >/dev/null 2>&1 || {
   echo "python3 not found on PATH." >&2
   exit 127
 }
 
-rm -rf "$output_path"
-mkdir -p "$output_path"
-
-python3 "$ROOT/scripts/audit_compile_commands.py" \
-  --database "$compile_commands" | tee "$output_path/translation-units.txt"
-tu_audit_status=${PIPESTATUS[0]}
-if [[ $tu_audit_status -ne 0 ]]; then
+ss_idf_audit_translation_units || {
   echo "Translation-unit coverage audit failed." >&2
   exit 1
-fi
+}
 
 printf 'Tool: %s\n' "$tidy_bin" > "$output_path/README.txt"
 printf 'Build database: %s\n' "$compile_commands" >> "$output_path/README.txt"
