@@ -9,7 +9,8 @@ const defaultLocalesDir = path.join(repoRoot, 'src', 'web', 'locales');
 const KEY_RE = /^[a-z0-9_]+(?:\.[a-z0-9_]+)+$/;
 const LANGUAGE_RE = /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/;
 const HTML_MARKER_RE = /\{\{webui:([a-z0-9_.]+)\}\}/g;
-const META_MARKER_RE = /\{\{webui-meta:(locale|direction-attribute)\}\}/g;
+const META_MARKER_RE =
+    /\{\{webui-meta:(locale|direction-attribute|development-class)\}\}/g;
 const JS_MARKER_RE = /__WEBUI_TEXT__\("([a-z0-9_.]+)"\)/g;
 const CSS_MARKER_RE = /__WEBUI_CSS_TEXT__\("([a-z0-9_.]+)"\)/g;
 
@@ -149,6 +150,14 @@ function renderHtml(source, file, state) {
       if (!inTag) fail(`${file}: ${marker} must be inside the html start tag`);
       return state.catalog.direction === 'rtl' ? ' dir="rtl"' : '';
     }
+    // Static build-mode marker, resolved from the render options rather than
+    // the locale catalog: a development Web UI only ships in a build whose
+    // generator ran with developmentMode enabled.
+    if (name === 'development-class') {
+      const inTag = rendered.lastIndexOf('<', offset) > rendered.lastIndexOf('>', offset);
+      if (!inTag) fail(`${file}: ${marker} must be inside the html start tag`);
+      return state.options.developmentMode === true ? 'devBuild' : '';
+    }
     assertHtmlContext(rendered, marker, offset, true);
     return htmlEscape(state.catalog.locale);
   });
@@ -184,7 +193,7 @@ function assertNoMarkers(source, file) {
 
 function renderSources(sources, options = {}) {
   const loaded = loadCatalog(options.language || process.env.SHOTSTOPPER_WEBUI_LANGUAGE || 'en', options);
-  const state = {catalog: loaded.catalog, used: new Set()};
+  const state = {catalog: loaded.catalog, used: new Set(), options};
   const rendered = sources.map((source) => {
     let content;
     if (source.type === 'html') content = renderHtml(source.content, source.file, state);

@@ -156,7 +156,11 @@ ss_idf_sync_opt_level
 # version equals the reported firmware version; the UI compares them to reload
 # a stale cached shell exactly once after an update.
 echo "WebUI language: $(ss_get webui_language)"
-node ./scripts/gen_web_ui.js --webui-language "$(ss_get webui_language)"
+# Bake the shell body class in development builds so the dev UI never paints
+# the lock panel or the timed UI Override section.
+webui_dev_flag=''
+grep -q -- '-DSHOT_STOPPER_DEVELOPMENT=1' <<<"$effective_flags" && webui_dev_flag='--development'
+node ./scripts/gen_web_ui.js --webui-language "$(ss_get webui_language)" $webui_dev_flag
 
 ss_idf_commit_extra_flags_stamp
 

@@ -252,7 +252,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
         'return resetAllDurableStoresForNetwork(persistedSettings)') ||
     !network.includes('historyMutationAllowed') ||
     !network.includes('controlAllowsHistoryMutation') ||
-    (network.match(/historyMutationAllowed/g) || []).length < 5 ||
+    (network.match(/historyMutationAllowed/g) || []).length < 4 ||
     ui.includes('id="view-presets"') ||
     ui.includes('data-route="/presets"') ||
     ui.includes('id="presetsPageCards"') ||

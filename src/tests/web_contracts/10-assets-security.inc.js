@@ -676,9 +676,16 @@ if (!domainCore.includes('#ifndef SHOT_STOPPER_DEVELOPMENT') ||
     (network.match(/\\"development\\":%s/g) || []).length < 4 ||
     !js.includes('developmentMode') ||
     !js.includes("'development'in s") ||
-    !js.includes('||developmentMode')) {
+    !js.includes('if(!developmentMode)syncAdminSessionUi(false)') ||
+    !js.includes('if(developmentMode||$(\'uiOverridePanel\'))return;') ||
+    !js.includes("classList.toggle('devBuild',developmentMode)") ||
+    !js.includes('const on=!!unlocked||developmentMode') ||
+    !js.includes("if(R.developmentActive())return;") ||
+    !rawShellHtml.includes('class="{{webui-meta:development-class}}"') ||
+    !css.includes('body.devBuild #adminLockPanel') ||
+    !css.includes('body.devBuild #diagnosticLockPanel')) {
   throw new Error(
-      'SHOT_STOPPER_DEVELOPMENT must default off, bypass adminUnlockAllowed when on, and unlock Web UI');
+      'SHOT_STOPPER_DEVELOPMENT must default off, make administration public by compile flag, and never flash the locked admin UI');
 }
 if (!domainCore.includes('#ifndef SHOT_STOPPER_ENABLE_JTAG') ||
     !domainCore.includes('#define SHOT_STOPPER_ENABLE_JTAG 0') ||

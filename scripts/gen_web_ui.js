@@ -216,7 +216,8 @@ async function generate(options = {}) {
     ...VIEW_NAMES.map((name) => ({file: path.join(jsDir, `${name}.js`),
       type: 'js', content: viewJsRaw[name]})),
     {file: cssSourcePath, type: 'css', content: cssSource},
-  ], {language: webUiLanguage, localesDir: options.localesDir});
+  ], {language: webUiLanguage, localesDir: options.localesDir,
+    developmentMode: options.developmentMode === true});
   let at = 0;
   shellHtmlRaw = localized.sources[at++].content;
   for (const name of VIEW_NAMES) partialsRaw[name] = localized.sources[at++].content;
@@ -256,7 +257,9 @@ async function generate(options = {}) {
   let shellHtml = await minifyHtml(
       stampAssetTag(shellHtmlRaw, assetTag)
           .split('__FW_VERSION__')
-          .join(`${version}.${assetTag}`));
+          .join(`${version}.${assetTag}`)
+          .split('{{webui-meta:development-class}}')
+          .join(options.developmentMode === true ? 'devBuild' : ''));
   shellHtml = injectHomePartial(shellHtml, partials.home);
 
   const appWithHome =
@@ -425,6 +428,7 @@ module.exports = {
 if (require.main === module) {
   Promise.resolve().then(() => {
     let webUiLanguage;
+    let developmentMode;
     for (let i = 2; i < process.argv.length; i++) {
       const arg = process.argv[i];
       if (arg === '--webui-language') {
@@ -432,11 +436,13 @@ if (require.main === module) {
         webUiLanguage = process.argv[i];
       } else if (arg.startsWith('--webui-language=')) {
         webUiLanguage = arg.slice('--webui-language='.length);
+      } else if (arg === '--development') {
+        developmentMode = true;
       } else {
         throw new Error(`Unknown argument: ${arg}`);
       }
     }
-    return generate({webUiLanguage});
+    return generate({webUiLanguage, developmentMode});
   })
       .then((result) => {
         const parts = [

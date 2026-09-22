@@ -32,6 +32,15 @@ if (!generated.assetTag || !generated.cacheVersion ||
 }
 const normalizedEnglish = await webUi.generate({webUiLanguage: 'EN', write: false});
 const regionalEnglish = await webUi.generate({webUiLanguage: 'En_en', write: false});
+const developmentShell = await webUi.generate({developmentMode: true, write: false});
+if (!developmentShell.html.includes('<body class="devBuild">')) {
+  throw new Error(
+      'developmentMode generation must bake the devBuild class into the shell body');
+}
+if (generated.html.includes('<body class="devBuild">') ||
+    generated.html.includes('devBuild')) {
+  throw new Error('release shell must not carry the devBuild class');
+}
 localeAssert.equal(normalizedEnglish.resolvedLanguage, 'en');
 localeAssert.equal(regionalEnglish.requestedLanguage, 'en-en');
 localeAssert.equal(regionalEnglish.resolvedLanguage, 'en');
@@ -1205,6 +1214,13 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   if (!statusFormat.includes('!adminUnlocked') ||
       !js.includes('s.adminUnlocked')) {
     throw new Error('Locked admin status must omit Wi-Fi/BLE/OTA bodies until unlocked');
+  }
+  if (!fs.readFileSync(path.join(__dirname, '../../scripts/localize_web_ui.js'), 'utf8')
+          .includes('development-class') ||
+      !fs.readFileSync(path.join(__dirname, '../../scripts/gen_web_ui.js'), 'utf8')
+          .includes('developmentMode')) {
+    throw new Error(
+        'the generator must resolve the shell development-class marker from the developmentMode option');
   }
   if (!network.includes('serviceOtaRollback(now)') ||
       !otaSource.includes('decideOtaPendingVerify(') ||

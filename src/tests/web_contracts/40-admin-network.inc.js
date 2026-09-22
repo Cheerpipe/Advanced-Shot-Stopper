@@ -558,6 +558,7 @@ if (!ui.includes('setMutable(!!s.configMutable||!!s.webUiOverrideActive)') ||
     !ui.includes('UI Override') ||
     !ui.includes("closest('#adminLockPanel,#diagnosticLockPanel,#uiOverridePanel,#powerPanel')") ||
     !ui.includes('function ensureUiOverridePanel(') ||
+    !ui.includes('if(developmentMode||$(\'uiOverridePanel\'))return;') ||
     !ui.includes('/api/v1/ui/unlock') ||
     !ui.includes('UNSAFE_WEBUI_OVERRIDE') ||
     !network.includes('/api/v1/ui/unlock') ||
