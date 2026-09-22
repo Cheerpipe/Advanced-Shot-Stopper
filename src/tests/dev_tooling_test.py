@@ -1319,17 +1319,22 @@ assert "cppcheck" in idf_job, "IDF CI must install Cppcheck"
 assert "github.event_name != 'pull_request'" in idf_job, \
     "main, scheduled, and manual CI runs must publish firmware profiles"
 for profile_row in (
-        "{name: linea-micra, hardware: esp32-s3-relay-x1-speaker, machine: la-marzocco-linea-micra}",
-        "{name: silvia-pro-x, hardware: esp32-s3-relay-x1-speaker, machine: rancilio-silvia-pro-x}",
-        "{name: silvia-pro-x-reed, hardware: esp32-s3-relay-x1-speaker-reed, machine: rancilio-silvia-pro-x-reed}"):
+        "{name: linea-micra, hardware: esp32-s3-relay-x1-speaker, machine: la-marzocco-linea-micra}",):
     assert profile_row in idf_job, f"IDF CI profile missing: {profile_row}"
+assert "silvia-pro-x" not in idf_job, \
+    "CI must build only the Linea Micra profile pair"
 for disabled_flag in ("SHOT_STOPPER_ENABLE_JTAG=0",
                       "SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0"):
     assert disabled_flag in idf_job, f"CI production flag missing: {disabled_flag}"
 validation_build = idf_job.split("- name: Build validation firmware", 1)[1].split(
     "- name: Cppcheck", 1)[0]
+assert "--os" in validation_build, "validation build must pin the --os optimization level"
 assert "--development" in validation_build and "--jtag" not in validation_build, \
     "CI resource validation must use the development build profile"
+installable_build = idf_job.split("- name: Build installable firmware", 1)[1].split(
+    "- name: Name OTA image", 1)[0]
+assert "--os" in installable_build and "--release" in installable_build, \
+    "installable build must pin the --os optimization level with --release"
 ota_name = "shotstopper-ota-${{ matrix.name }}-jtag-off-remote-off"
 assert f"name: {ota_name}" in idf_job
 assert (f"build-idf/${{{{ matrix.hardware }}}}--${{{{ matrix.machine }}}}/"

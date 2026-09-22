@@ -313,8 +313,7 @@ The build renders the selected catalog into
 memory budgets. Use only the image for the intended profile pair. The supported partition layouts have
 two app slots; arbitrary 4 MB layouts cannot hold this firmware.
 
-GitHub Actions publishes the three reviewed profile pairs: Linea Micra, Silvia
-Pro X without reed, and Silvia Pro X with reed. Their names follow
+GitHub Actions publishes only the reviewed Linea Micra profile pair. Names follow
 `openbrewbyweight-ota-<profile>-jtag-off-remote-off.bin`; those two features are
 explicitly disabled at compile time. GitHub downloads each artifact as a ZIP
 container, but that container holds only the named OTA-ready `.bin` file.
