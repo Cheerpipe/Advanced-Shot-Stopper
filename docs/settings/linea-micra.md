@@ -150,8 +150,9 @@ the scale back on.
 Turning this option off or disconnecting the account stops any pending
 shutdown. If the controller temporarily cannot reach the La Marzocco cloud
 when the delay ends, the command stays pending and is retried, so the machine
-goes to standby once the connection returns. The saved delay is kept with the
-option so it is restored the next time it is enabled.
+goes to standby once the connection returns (a shutdown queued while the clock
+is still synchronizing is also sent as soon as readiness clears). The saved
+delay is kept with the option so it is restored the next time it is enabled.
 
 The moment the cloud accepts the shutdown command, the controller treats the
 machine as already off: the operational state reads OFF for at most 60
@@ -180,9 +181,11 @@ combined, and only the latest active target remains pending.
 Application waits while a shot or rinse is active and while the scale is
 connecting. Either event cancels an in-progress cloud request without affecting
 the relay, BLE connection, or local shot control; the latest target remains
-pending and is retried after activity ends. Temporary cloud and authorization
-failures use the same bounded retries and saved account session as power-state
-monitoring. The integration never asks for credentials or registers a new
+pending and is retried after activity ends. If a change is queued while the
+clock is still synchronizing or station Wi-Fi is not ready, it is sent as soon
+as those conditions clear, without waiting for a cooldown. Temporary cloud and
+authorization failures use the same bounded retries and saved account session
+as power-state monitoring. The integration never asks for credentials or registers a new
 installation merely to retry a temperature.
 
 The cloud command is complete only after a dashboard read reports the requested

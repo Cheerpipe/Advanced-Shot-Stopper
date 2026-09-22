@@ -145,6 +145,7 @@ class ShotStopperMicraService {
   std::atomic<bool> powerOffActive_{false};
   std::atomic<bool> abortRequested_{false};
   std::atomic<bool> clearSessionRequested_{false};
+  bool wasNetworkReady_ = false;
   esp_http_client_handle_t activeClient_ = nullptr;
 };
 

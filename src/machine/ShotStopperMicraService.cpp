@@ -702,6 +702,21 @@ void ShotStopperMicraService::taskLoop() {
     const uint32_t now = millis();
     LineaMicraError observationGate = LineaMicraError::NONE;
     const bool networkReady = networkEligible(observationGate);
+    if (wasNetworkReady_ != networkReady) {
+      wasNetworkReady_ = networkReady;
+      if (networkReady) {
+        // The readiness gates just started passing (clock sync or STA
+        // recovery): a deferred command must not wait out a stale cooldown
+        // before its next attempt.
+        TaskLockGuard lock(mux_);
+        if (desiredTemperature_.present) {
+          desiredTemperature_.retryAtMs = now;
+        }
+        if (desiredPowerOff_.present) {
+          desiredPowerOff_.retryAtMs = now;
+        }
+      }
+    }
     const bool localActivity = shotActive_.load(std::memory_order_acquire);
     const bool staEligible = staConnected_.load(std::memory_order_acquire) &&
                              !apActive_.load(std::memory_order_acquire);
