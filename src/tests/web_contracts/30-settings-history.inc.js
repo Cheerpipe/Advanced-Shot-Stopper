@@ -252,6 +252,9 @@ if (!ui.includes('<legend>Brew</legend>') ||
         'return resetAllDurableStoresForNetwork(persistedSettings)') ||
     !network.includes('historyMutationAllowed') ||
     !network.includes('controlAllowsHistoryMutation') ||
+    // One gate call per destructive history handler (shared helper plus
+    // call sites); a dedup that reduces the raw occurrences is fine as long
+    // as the gate itself stays in the network sources.
     (network.match(/historyMutationAllowed/g) || []).length < 4 ||
     ui.includes('id="view-presets"') ||
     ui.includes('data-route="/presets"') ||

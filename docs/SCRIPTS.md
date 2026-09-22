@@ -153,6 +153,13 @@ arguments and shell history can expose them.
 
 ## Build examples
 
+Builds serialize per variant automatically: a lock file under
+`build-idf/.locks/` lets several terminals, agents, or sessions run at the
+same time, but two builds for the same hardware/machine pair wait for each
+other instead of corrupting the shared build tree. A waiting build resumes as
+soon as the current one finishes, and the lock is always released even if a
+build is interrupted.
+
 List profile IDs before selecting a pair:
 
 ```sh

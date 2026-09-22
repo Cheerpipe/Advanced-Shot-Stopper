@@ -170,6 +170,38 @@ for area in ("safety", "control", "machine", "scale", "ble", "network",
 dry_run = run("clean", "--dry-run")
 assert dry_run.returncode == 0 and "build-host" in dry_run.stdout
 
+# Parallel-agent hardening: gates must name changed paths outside an explicit
+# scope instead of silently classifying only what was passed.
+assert dev_module["uncovered_changes"]([]) == []
+assert dev_module["uncovered_changes"](["."]) == []
+assert (dev_module["uncovered_changes"](["./scripts/dev"])
+        == dev_module["uncovered_changes"](["scripts/dev"]))
+
+# Per-variant build serialization: build-idf must re-exec through with-flock
+# holding the variant lock, and the helper must be the portable fcntl holder.
+with_flock = INTERNAL / "with-flock"
+assert with_flock.is_file() and with_flock.stat().st_mode & 0o111
+assert "fcntl.flock" in with_flock.read_text()
+assert "set_inheritable" in with_flock.read_text(), (
+    "PEP 446 close-on-exec would release the lock before the build starts")
+assert "SS_BUILD_LOCKED" in internal_build and "with-flock" in internal_build
+assert ".locks/" in internal_build and "SHOTSTOPPER_VARIANT.lock" in internal_build
+
+# Serialization actually blocks: a held lock must delay a second holder.
+import time as _time
+with tempfile.TemporaryDirectory(prefix="ss-flock-probe-") as flock_dir:
+    lock_path = Path(flock_dir) / "probe.lock"
+    first = subprocess.Popen(
+        [sys.executable, str(with_flock), str(lock_path), "sleep", "2"])
+    _time.sleep(0.5)
+    started = _time.monotonic()
+    second = subprocess.run(
+        [sys.executable, str(with_flock), str(lock_path), "true"])
+    elapsed = _time.monotonic() - started
+    first.wait()
+    assert first.returncode == 0 and second.returncode == 0
+    assert elapsed >= 1.0, f"lock did not serialize (waited {elapsed:.2f}s)"
+
 
 @contextmanager
 def idf_doctor_fixture(with_install: bool, with_venv: bool):

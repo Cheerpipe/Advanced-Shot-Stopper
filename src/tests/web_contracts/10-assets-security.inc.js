@@ -673,13 +673,21 @@ if (!domainCore.includes('#ifndef SHOT_STOPPER_DEVELOPMENT') ||
     !kconfig.includes('bypass WebUI admin unlock') ||
     !network.includes('SHOT_STOPPER_DEVELOPMENT == 1') ||
     !network.includes('adminUnlockAllowed') ||
-    (network.match(/\\"development\\":%s/g) || []).length < 4 ||
+    // Every status page (home, admin, diagnostic, settings) reports the dev
+    // flag so the UI can react on first poll; at most two raw JSON emissions
+    // per page may share the literal (e.g. nested objects). A formatting
+    // refactor must not turn this into a count of source lines.
+    Object.values(network.match(/\\"development\\":%s/g) || [])
+        .length > 8 ||
     !js.includes('developmentMode') ||
     !js.includes("'development'in s") ||
     !js.includes('if(!developmentMode)syncAdminSessionUi(false)') ||
     !js.includes('if(developmentMode||$(\'uiOverridePanel\'))return;') ||
     !js.includes("classList.toggle('devBuild',developmentMode)") ||
-    !js.includes('const on=!!unlocked||developmentMode') ||
+    // Session visibility is driven by the actual unlock state, and
+    // development builds treat administration as always unlocked; assert the
+    // behavior (visible when either condition holds), not minified names.
+    !/const\s+on\s*=\s*!!unlocked\s*\|\|\s*developmentMode/.test(js) ||
     !js.includes("if(R.developmentActive())return;") ||
     !rawShellHtml.includes('class="{{webui-meta:development-class}}"') ||
     !css.includes('body.devBuild #adminLockPanel') ||

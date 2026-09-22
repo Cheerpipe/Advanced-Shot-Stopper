@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+"""Hold an exclusive file lock for the wrapped command (fcntl-based).
+
+`flock` is unavailable on stock macOS and shell traps drop through `exec`,
+which the build path uses for prompts. fcntl locks survive exec and are
+released by the kernel on every exit path (including signals), so a python3
+holder is the only portable primitive with no leak window.
+"""
+import fcntl
+import os
+import sys
+
+if len(sys.argv) < 3:
+    sys.exit("usage: with-flock LOCKFILE COMMAND [ARGS...]")
+lock_path, command = sys.argv[1], sys.argv[2:]
+holder = open(lock_path, "w")
+try:
+    fcntl.flock(holder.fileno(), fcntl.LOCK_EX)
+except OSError:
+    sys.exit(f"with-flock: cannot lock {lock_path}")
+# Python marks fds close-on-exec by default (PEP 446); the lock must survive
+# the exec below or it would be released before the command even starts.
+os.set_inheritable(holder.fileno(), True)
+os.execvp(command[0], command)

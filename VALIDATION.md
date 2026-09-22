@@ -4,6 +4,12 @@ Classify changed paths with `./scripts/dev classify [paths...]`. Unknown paths
 are R3 and an override can only raise risk. Complete logs and a redacted JSON
 summary are written to `artifacts/runs/`.
 
+When several agents share this checkout, always pass the paths of your change
+and read the `warning: changed path outside requested scope` lines: they name
+other sessions' working-tree edits that your gate did not cover, so a clean
+gate is never mistaken for a clean tree. Omitting paths classifies the whole
+working tree and prints no warning.
+
 Every change — including documentation-only edits — must be reviewed and
 validated rigorously: run **all** gates that apply to the change's classified
 risk, review the complete diff against the affected invariants, and record a

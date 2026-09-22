@@ -52,19 +52,45 @@ Examples through the public facade:
 EOF
 }
 
-ss_cli_parse "$@" || exit $?
-if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
-  usage
-  exit 0
+if [[ "${SS_BUILD_LOCKED:-}" != "1" ]]; then
+  ss_cli_parse "$@" || exit $?
+  if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
+    usage
+    exit 0
+  fi
+
+  ss_cli_resolve "hardware_config machine_config webui_language" "flags" || exit $?
+  effective_flags="$(ss_cli_effective_flags)" || exit $?
+
+  root="$SS_CLI_ROOT"
+  cd "$root"
+  ss_cli_resolve_profiles "$effective_flags" || exit $?
+  printf '%s\n' "$SS_PROFILE_OUTPUT"
+
+  # Serialize per-variant builds across parallel agents and sessions: the
+  # variant tree (generated headers, sdkconfig, artifacts) is mutated by the
+  # whole remainder of this script. Prompted input happened above, so no
+  # interactive pause holds the lock. The shell state crosses the exec via a
+  # declare -p dump (arrays survive; export would flatten them); with-flock
+  # holds the lock and execs the second pass, so the kernel releases it on
+  # every exit path including signals.
+  SS_BUILD_STATE_FILE="$(mktemp "${TMPDIR:-/tmp}/ss-build-state.XXXXXX")"
+  state_vars="$(compgen -A variable 2>/dev/null | grep -E '^(SS_|SHOTSTOPPER_)' || true)"
+  # shellcheck disable=SC2086  # names list is meant to word-split
+  { [[ -z "$state_vars" ]] || declare -p $state_vars 2>/dev/null; } \
+    >"$SS_BUILD_STATE_FILE" || true
+  mkdir -p "$SS_CLI_ROOT/build-idf/.locks"
+  SS_BUILD_LOCKED=1 SS_BUILD_STATE_FILE="$SS_BUILD_STATE_FILE" \
+    exec python3 "$SCRIPT_DIR/internal/with-flock" \
+    "$SS_CLI_ROOT/build-idf/.locks/$SHOTSTOPPER_VARIANT.lock" \
+    bash "$SCRIPT_DIR/internal/${0##*/}"
 fi
 
-ss_cli_resolve "hardware_config machine_config webui_language" "flags" || exit $?
-effective_flags="$(ss_cli_effective_flags)" || exit $?
-
+eval "$(cat "$SS_BUILD_STATE_FILE")"
+rm -f "$SS_BUILD_STATE_FILE"
 root="$SS_CLI_ROOT"
 cd "$root"
-ss_cli_resolve_profiles "$effective_flags" || exit $?
-printf '%s\n' "$SS_PROFILE_OUTPUT"
+effective_flags="$(ss_cli_effective_flags)" || exit $?
 
 shotstopper_resolve_board "$(ss_get arch)"
 ss_idf_source

@@ -85,6 +85,24 @@ def path_risk(path: str) -> str:
     return "R3"
 
 
+def uncovered_changes(paths: list[str]) -> list[str]:
+    """Changed working-tree paths not covered by an explicit path list.
+
+    Several agents may share this checkout: a gate run on explicit paths
+    silently excludes everyone else's edits. The warning keeps the gate's
+    classification honest without blocking parallel work. Empty paths means
+    the whole tree is in scope, so nothing can be missed.
+    """
+    normalized = sorted({
+        re.sub(r"^\./+", "", p.replace("\\", "/")).rstrip("/")
+        for p in paths
+    })
+    if not normalized or any(a in {"", "."} for a in normalized):
+        return []
+    return [p for p in changed_paths()
+            if not any(p == a or p.startswith(a + "/") for a in normalized)]
+
+
 def classify(paths: list[str]) -> tuple[str, list[tuple[str, str]]]:
     paths = paths or changed_paths()
     details = [(p, path_risk(p)) for p in paths]
@@ -454,7 +472,10 @@ def main() -> int:
 
         if verb == "classify":
             risk, details = classify(args)
-            lines = [*(f"{item_risk} {path}" for path, item_risk in details), f"risk={risk}"]
+            lines = [*(f"{item_risk} {path}" for path, item_risk in details),
+                     *(f"warning: changed path outside requested scope: {p}"
+                       for p in uncovered_changes(args)),
+                     f"risk={risk}"]
             return record(command, risk, verbosity, lines, 0, "risk-classification")
 
         if verb == "profiles":
@@ -517,7 +538,10 @@ def main() -> int:
                     raise ValueError(f"risk override cannot lower {inferred} to {override}")
                 risk = override
             doc_errors = markdown_errors()
-            prelude = [*(f"{r} {p}" for p, r in details), f"risk={risk}"]
+            prelude = [*(f"{r} {p}" for p, r in details),
+                       *(f"warning: changed path outside requested scope: {p}"
+                         for p in uncovered_changes(paths)),
+                       f"risk={risk}"]
             if doc_errors:
                 return record(command, risk, verbosity, doc_errors, 1, "docs-and-paths")
             if risk == "R0":
