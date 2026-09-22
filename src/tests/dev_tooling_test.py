@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Golden contracts for the developer facade."""
 
+from __future__ import annotations
+
 import subprocess
 from pathlib import Path
 import os
@@ -614,13 +616,25 @@ def idf_activation(active_version: str | None, active_python: bool = True):
             (env / "bin").mkdir(parents=True)
             (env / "bin/python").write_text("#!/bin/sh\nexit 0\n")
             (env / "bin/python").chmod(0o755)
+            (env / "idf_version.txt").write_text(
+                "6.1" if version is not None else "\n")
             (idf / "tools/idf.py").write_text(
                 f"#!/bin/sh\necho 'ESP-IDF v{version}'\n")
             (idf / "tools/idf.py").chmod(0o755)
+            (idf / "components/esp_common/include").mkdir(parents=True,
+                                                          exist_ok=True)
+            (idf / "components/esp_common/include/esp_idf_version.h").write_text(
+                "#define ESP_IDF_VERSION_MAJOR 6\n"
+                "#define ESP_IDF_VERSION_MINOR 1\n")
         (active / "export.sh").write_text("return 99\n")
         (fallback / "export.sh").write_text(
             f'export IDF_PATH="{fallback}"\n'
-            f'export IDF_PYTHON_ENV_PATH="{fallback_env}"\n'
+            'if [ -n "${IDF_PYTHON_ENV_PATH:-}" ] && '
+            '[ -x "${IDF_PYTHON_ENV_PATH}/bin/python" ]; then\n'
+            '  :\n'
+            'else\n'
+            f'  export IDF_PYTHON_ENV_PATH="{fallback_env}"\n'
+            'fi\n'
             f'export PATH="{fallback}/tools:$PATH"\n')
         if not active_python:
             (active_env / "bin/python").unlink()
@@ -657,6 +671,60 @@ legacy_values = legacy_idf.stdout.split("|")
 assert legacy_idf.returncode == 0 and legacy_values == [
     str(fallback_root), str(fallback_root.parent.parent / "fallback-python"),
     str(fallback_root / "tools/idf.py")], legacy_idf.stderr
+
+
+def idf_python_env_selection(python_env: str | None):
+    """Run the fallback path with an optional installed python_env layout."""
+    with tempfile.TemporaryDirectory(prefix="shotstopper-idf-env-") as temporary:
+        root = Path(temporary)
+        fallback = root / "esp/esp-idf-v6.1"
+        missing_env = root / ".espressif/python_env/idf6.1_py3.11_env"
+        installed_env = root / ".espressif/python_env/idf6.1_py3.14_env"
+        for directory in (fallback / "tools",
+                          fallback / "components/esp_common/include",
+                          missing_env / "bin", installed_env / "bin"):
+            directory.mkdir(parents=True)
+        (fallback / "tools/idf.py").write_text("#!/bin/sh\necho 'ESP-IDF v6.1'\n")
+        (fallback / "tools/idf.py").chmod(0o755)
+        (fallback / "components/esp_common/include/esp_idf_version.h").write_text(
+            "#define ESP_IDF_VERSION_MAJOR   6\n"
+            "#define ESP_IDF_VERSION_MINOR   1\n")
+        if python_env == "installed":
+            (installed_env / "bin/python").write_text("#!/bin/sh\nexit 0\n")
+            (installed_env / "bin/python").chmod(0o755)
+            (installed_env / "idf_version.txt").write_text("6.1")
+        (fallback / "export.sh").write_text(
+            f'export IDF_PATH="{fallback}"\n'
+            'if [ -n "${IDF_PYTHON_ENV_PATH:-}" ] && '
+            '[ -x "${IDF_PYTHON_ENV_PATH}/bin/python" ]; then\n'
+            '  :\n'
+            'else\n'
+            f'  export IDF_PYTHON_ENV_PATH="{missing_env}"\n'
+            'fi\n'
+            f'export PATH="{fallback}/tools:$PATH"\n')
+        env = os.environ.copy()
+        env.update(HOME=str(root), PATH="/usr/bin:/bin")
+        for name in ("IDF_PATH", "IDF_PYTHON_ENV_PATH", "ESP_PYTHON",
+                     "ESP_IDF_VERSION", "IDF_DEACTIVATE_FILE_PATH"):
+            env.pop(name, None)
+        expected = (str(installed_env) if python_env == "installed"
+                    else str(missing_env))
+        command = (
+            f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
+            'SS_IDF_QUIET=1; ss_idf_source; '
+            'printf "%s|%s" "$IDF_PATH" "$IDF_PYTHON_ENV_PATH"')
+        result = subprocess.run(["bash", "-c", command], env=env,
+                                capture_output=True, text=True)
+        return result, fallback, installed_env, missing_env, expected
+
+
+selection, fallback_root, installed_env, missing_env, expected = \
+    idf_python_env_selection("installed")
+assert selection.returncode == 0 and selection.stdout == (
+    f"{fallback_root}|{expected}"), selection.stderr
+selection, fallback_root, _, _, expected = idf_python_env_selection("missing")
+assert selection.returncode == 0 and selection.stdout == (
+    f"{fallback_root}|{expected}"), selection.stderr
 
 
 def flash_command(layout: str, *extra: str, arch: str = "n8r4"):

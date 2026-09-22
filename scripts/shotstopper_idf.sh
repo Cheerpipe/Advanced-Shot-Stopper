@@ -28,6 +28,28 @@ ss_idf_active_valid() {
   (SS_IDF_QUIET=1 ss_idf_require_version) >/dev/null 2>&1
 }
 
+# A Python upgrade leaves the SDK clone's export.sh pointing at a python_env
+# name that no longer exists while an installed, still-valid environment for
+# the same IDF release sits unused in ~/.espressif/python_env. Prefer such an
+# environment before export.sh so the documented fallback keeps working.
+ss_idf_select_python_env() {
+  local idf_root="$1" version_header marker major minor candidate
+  version_header="${idf_root}/components/esp_common/include/esp_idf_version.h"
+  [[ -f "$version_header" ]] || return 1
+  major="$(awk '$1 == "#define" && $2 == "ESP_IDF_VERSION_MAJOR" { print $3 }' "$version_header")"
+  minor="$(awk '$1 == "#define" && $2 == "ESP_IDF_VERSION_MINOR" { print $3 }' "$version_header")"
+  [[ -n "$major" && -n "$minor" ]] || return 1
+  marker="${major}.${minor}"
+  for candidate in $(find "${HOME}/.espressif/python_env" -maxdepth 1 -type d \
+    -name "idf${marker}_py*_env" 2>/dev/null | sort -rV); do
+    [[ -x "${candidate}/bin/python" ]] || continue
+    [[ "$(cat "${candidate}/idf_version.txt" 2>/dev/null)" == "${marker}"* ]] || continue
+    export IDF_PYTHON_ENV_PATH="${candidate}"
+    return 0
+  done
+  return 1
+}
+
 ss_idf_source() {
   local idf_root
   if [[ -n "${IDF_PYTHON_ENV_PATH:-}" ]]; then
@@ -50,6 +72,14 @@ ss_idf_source() {
     exit 127
   }
   unset IDF_PYTHON_ENV_PATH ESP_PYTHON
+  # The SDK clone's export.sh derives its python_env name from whatever
+  # Python built it; after a host Python upgrade that directory may not
+  # exist while an installed environment for the same release does.
+  # Selecting it here keeps the documented fallback self-healing.
+  if [[ -z "${IDF_PYTHON_ENV_PATH:-}" ||
+        ! -x "${IDF_PYTHON_ENV_PATH}/bin/python" ]]; then
+    ss_idf_select_python_env "${idf_root}" || true
+  fi
   # shellcheck disable=SC1091
   . "${idf_root}/export.sh" >/dev/null
   command -v idf.py >/dev/null 2>&1 || {

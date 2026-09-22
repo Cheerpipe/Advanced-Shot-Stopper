@@ -84,6 +84,13 @@ The project scripts reuse an active environment only when `IDF_PATH`, its
 `IDF_PYTHON_ENV_PATH/bin/python`, `idf.py`, and the reported 6.1.x version all
 agree. A stale or mismatched active environment is discarded before fallback.
 
+When the legacy SDK's own activation script points at a Python environment
+that no longer exists on the machine (for example after a macOS or Python
+upgrade), the scripts pick up an installed environment for the same 6.1
+release from `~/.espressif/python_env` automatically, preferring the newest
+one. If none matches, the activation error names the missing directory so you
+can run the install script for it.
+
 The supported legacy fallback is a separate SDK clone. This subshell returns
 you to the repository when installation finishes:
 
