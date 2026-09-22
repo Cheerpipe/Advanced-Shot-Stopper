@@ -18,6 +18,13 @@ and it cannot start or stop the espresso machine.
 The controller API is intentionally open over local HTTP, like the Web UI. Do
 not use this integration on an untrusted or shared network.
 
+Security scanners may flag library versions in this integration's development
+and test environment, which mirror the versions Home Assistant itself ships.
+At runtime the integration uses only the libraries your Home Assistant
+installation already provides, so such warnings require no action on your
+part: the development environment adopts Home Assistant's updated library
+versions as they ship.
+
 ## Install and connect
 
 Install **Open Brew by Weight** from its dedicated HACS repository after a
