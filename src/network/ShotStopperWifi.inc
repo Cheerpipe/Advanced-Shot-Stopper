@@ -2,6 +2,36 @@ bool ShotStopperNetwork::controlAllowsNetworkMutation() {
   return controlAllowsConfiguration(controlGate());
 }
 
+// Shared WiFi failure bookkeeping (see header): schedule the retry backoff
+// after a bump, publishing the counter; optionally log the retry.
+void ShotStopperNetwork::noteNetworkRetryBackoff(bool logRetry) {
+  const uint32_t now = millis();
+  startupComplete_ = false;
+  if (startupFailures_ < UINT8_MAX) {
+    ++startupFailures_;
+  }
+  networkRetryAtMs_ = now + NETWORK_RETRY_MIN_MS;
+  dataMux_.lock();
+  status_.startupFailures = startupFailures_;
+  dataMux_.unlock();
+  if (logRetry) {
+    log(DebugCategory::NETWORK, DebugCode::NETWORK_RETRY, startupFailures_,
+        NETWORK_RETRY_MIN_MS);
+  }
+}
+
+// Shared WiFi failure bookkeeping (see header): reset the failure counter,
+// optionally flipping the published STA state to DISCONNECTED.
+void ShotStopperNetwork::clearNetworkFailureStatus(bool staDisconnected) {
+  startupFailures_ = 0;
+  dataMux_.lock();
+  status_.startupFailures = 0;
+  if (staDisconnected) {
+    status_.staState = StaState::DISCONNECTED;
+  }
+  dataMux_.unlock();
+}
+
 // Settings NVS writes on this task must respect the shared durable-write
 // gate: defer while a shot/machine circuit is busy, during a maintenance
 // lease, or while the scale is mid-connect (see durableFlashWriteAllowed).
@@ -903,19 +933,9 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
         static_cast<int32_t>(now - staConfirmDeadlineMs_) >= 0) {
       WiFi.disconnect(false, false);
       if (!revertPendingNetwork(now, "confirm timeout")) {
-        startupComplete_ = false;
-        if (startupFailures_ < UINT8_MAX) {
-          ++startupFailures_;
-        }
-        networkRetryAtMs_ = now + NETWORK_RETRY_MIN_MS;
-        dataMux_.lock();
-        status_.startupFailures = startupFailures_;
-        dataMux_.unlock();
+        noteNetworkRetryBackoff(false);
       } else {
-        startupFailures_ = 0;
-        dataMux_.lock();
-        status_.startupFailures = 0;
-        dataMux_.unlock();
+        clearNetworkFailureStatus(false);
       }
     }
     return;
@@ -994,31 +1014,15 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     if (pending) {
       lifecycleLog("WiFi STA failed; reverting pending config");
       if (!revertPendingNetwork(now, "connect timeout")) {
-        startupComplete_ = false;
-        if (startupFailures_ < UINT8_MAX) {
-          ++startupFailures_;
-        }
-        networkRetryAtMs_ = now + NETWORK_RETRY_MIN_MS;
-        dataMux_.lock();
-        status_.startupFailures = startupFailures_;
-        dataMux_.unlock();
-        log(DebugCategory::NETWORK, DebugCode::NETWORK_RETRY,
-            startupFailures_, NETWORK_RETRY_MIN_MS);
+        noteNetworkRetryBackoff(true);
       } else {
-        startupFailures_ = 0;
-        dataMux_.lock();
-        status_.startupFailures = 0;
-        dataMux_.unlock();
+        clearNetworkFailureStatus(false);
       }
       return;
     }
     if (staEverConnected_) {
       lifecycleLog("WiFi STA failed; SoftAP suppressed after prior connect");
-      startupFailures_ = 0;
-      dataMux_.lock();
-      status_.startupFailures = 0;
-      status_.staState = StaState::DISCONNECTED;
-      dataMux_.unlock();
+      clearNetworkFailureStatus(true);
       staReconnectAttemptAtMs_ = now;
       return;
     }
@@ -1026,28 +1030,11 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     if (apStartHeld_ || apAutoRaiseExhausted_) {
       lifecycleLog(apStartHeld_ ? "SoftAP raise held after STA fail"
                                 : "SoftAP auto-raise exhausted after STA fail");
-      startupFailures_ = 0;
-      dataMux_.lock();
-      status_.startupFailures = 0;
-      status_.staState = StaState::DISCONNECTED;
-      dataMux_.unlock();
+      clearNetworkFailureStatus(true);
     } else if (!ensureAccessPoint(now)) {
-      startupComplete_ = false;
-      if (startupFailures_ < UINT8_MAX) {
-        ++startupFailures_;
-      }
-      networkRetryAtMs_ = now + NETWORK_RETRY_MIN_MS;
-      dataMux_.lock();
-      status_.startupFailures = startupFailures_;
-      dataMux_.unlock();
-      log(DebugCategory::NETWORK, DebugCode::NETWORK_RETRY,
-          startupFailures_, NETWORK_RETRY_MIN_MS);
+      noteNetworkRetryBackoff(true);
     } else {
-      startupFailures_ = 0;
-      dataMux_.lock();
-      status_.startupFailures = 0;
-      status_.staState = StaState::DISCONNECTED;
-      dataMux_.unlock();
+      clearNetworkFailureStatus(true);
     }
     staReconnectAttemptAtMs_ = now;
     return;
@@ -1065,16 +1052,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
           STA_CONNECT_TIMEOUT_MS &&
       !wifiScanInProgress()) {
     if (!ensureAccessPoint(now)) {
-      startupComplete_ = false;
-      if (startupFailures_ < UINT8_MAX) {
-        ++startupFailures_;
-      }
-      networkRetryAtMs_ = now + NETWORK_RETRY_MIN_MS;
-      dataMux_.lock();
-      status_.startupFailures = startupFailures_;
-      dataMux_.unlock();
-      log(DebugCategory::NETWORK, DebugCode::NETWORK_RETRY,
-          startupFailures_, NETWORK_RETRY_MIN_MS);
+      noteNetworkRetryBackoff(true);
       return;
     }
     staReconnectAttemptAtMs_ = now;

@@ -597,6 +597,12 @@ class ShotStopperNetwork {
                                    bool unsafeWebUiOverride,
                                    const char *queueFullDetail,
                                    const char *extraJson = nullptr);
+  // WiFi failure bookkeeping shared by the STA failure paths: bump variant
+  // records a failure, schedules the retry backoff and (optionally) logs it;
+  // the clear variant resets the counter and optionally publishes
+  // DISCONNECTED. Log payloads and timing values are unchanged.
+  void noteNetworkRetryBackoff(bool logRetry);
+  void clearNetworkFailureStatus(bool staDisconnected);
   esp_err_t workBufBusy(httpd_req_t *request);
   bool requireActiveWebUiClient(httpd_req_t *request);
   void clearAdminUnlock();
