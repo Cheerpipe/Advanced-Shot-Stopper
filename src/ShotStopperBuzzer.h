@@ -151,6 +151,7 @@ struct LocalBuzzer {
   bool startPendingLocked(BuzzerPattern pattern, BuzzerCue cue,
                           uint8_t pulseRate, uint32_t durationMs,
                           uint32_t nowMs);
+  void startPendingDrainedLocked(uint32_t nowMs);
   static void phaseTimerCallback(void *arg);
 };
 
@@ -341,9 +342,9 @@ inline bool LocalBuzzer::startPendingLocked(BuzzerPattern pattern, BuzzerCue cue
   return started;
 }
 
-inline void LocalBuzzer::finish(uint32_t nowMs) {
-  stopTone();
-  clearPlayback();
+// Starts the queued pending tone (if any) after the active one stops.
+// Callers hold the mutex; a no-op cancels the phase timer.
+inline void LocalBuzzer::startPendingDrainedLocked(uint32_t nowMs) {
   if (pending == BuzzerPattern::NONE && pendingCue == BuzzerCue::NONE) {
     cancelPhaseTimer();
     return;
@@ -360,6 +361,12 @@ inline void LocalBuzzer::finish(uint32_t nowMs) {
                           nowMs)) {
     cancelPhaseTimer();
   }
+}
+
+inline void LocalBuzzer::finish(uint32_t nowMs) {
+  stopTone();
+  clearPlayback();
+  startPendingDrainedLocked(nowMs);
 }
 
 inline void LocalBuzzer::applySequenceNote(uint8_t index) {
@@ -663,22 +670,7 @@ inline void LocalBuzzer::stopIf(BuzzerPattern pattern) {
   const uint32_t nowMs = millis();
   stopTone();
   clearPlayback();
-  if (pending == BuzzerPattern::NONE && pendingCue == BuzzerCue::NONE) {
-    cancelPhaseTimer();
-    return;
-  }
-  const BuzzerPattern next = pending;
-  const BuzzerCue nextCue = pendingCue;
-  const uint8_t nextPulseRate = pendingPulseRate;
-  const uint32_t nextDurationMs = pendingDurationMs;
-  pending = BuzzerPattern::NONE;
-  pendingCue = BuzzerCue::NONE;
-  pendingPulseRate = 0;
-  pendingDurationMs = 0;
-  if (!startPendingLocked(next, nextCue, nextPulseRate, nextDurationMs,
-                          nowMs)) {
-    cancelPhaseTimer();
-  }
+  startPendingDrainedLocked(nowMs);
 }
 
 inline void LocalBuzzer::stopIfCue(BuzzerCue cue) {
@@ -698,22 +690,7 @@ inline void LocalBuzzer::stopIfCue(BuzzerCue cue) {
   const uint32_t nowMs = millis();
   stopTone();
   clearPlayback();
-  if (pending == BuzzerPattern::NONE && pendingCue == BuzzerCue::NONE) {
-    cancelPhaseTimer();
-    return;
-  }
-  const BuzzerPattern next = pending;
-  const BuzzerCue nextCue = pendingCue;
-  const uint8_t nextPulseRate = pendingPulseRate;
-  const uint32_t nextDurationMs = pendingDurationMs;
-  pending = BuzzerPattern::NONE;
-  pendingCue = BuzzerCue::NONE;
-  pendingPulseRate = 0;
-  pendingDurationMs = 0;
-  if (!startPendingLocked(next, nextCue, nextPulseRate, nextDurationMs,
-                          nowMs)) {
-    cancelPhaseTimer();
-  }
+  startPendingDrainedLocked(nowMs);
 }
 
 inline void LocalBuzzer::stopExtendedPulse() {
