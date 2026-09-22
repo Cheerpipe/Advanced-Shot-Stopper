@@ -41,6 +41,7 @@ const firmwareCore = readSources([
   'persistence/ShotStopperCommandPersistence.inc',
   'control/ShotStopperCommands.inc',
   'diagnostics/ShotStopperSerialOutput.inc',
+  'diagnostics/ShotStopperSerialLog.inc',
   'diagnostics/ShotStopperDiagnostics.inc',
   'platform/ShotStopperEntrypoints.inc',
 ]);

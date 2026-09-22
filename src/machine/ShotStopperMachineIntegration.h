@@ -48,8 +48,8 @@ void publishMachineIntegrationNetworkState(bool staConnected, bool apActive,
                                            bool shotActive,
                                            bool scaleConnecting = false);
 // Forwards one scale link observation per control loop so the machine
-// integration can apply its own scale power-off policy (Micra: shutdown with
-// grace). The stopper stays a coordinator and owns no machine logic.
+// integration can apply its own scale power-off policy. The stopper stays a
+// coordinator and owns no machine logic.
 void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
                                         uint32_t scaleDisconnectSequence,
                                         uint8_t scaleDisconnectReason,
