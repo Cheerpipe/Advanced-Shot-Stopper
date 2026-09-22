@@ -40,13 +40,13 @@ ss_idf_select_python_env() {
   minor="$(awk '$1 == "#define" && $2 == "ESP_IDF_VERSION_MINOR" { print $3 }' "$version_header")"
   [[ -n "$major" && -n "$minor" ]] || return 1
   marker="${major}.${minor}"
-  for candidate in $(find "${HOME}/.espressif/python_env" -maxdepth 1 -type d \
-    -name "idf${marker}_py*_env" 2>/dev/null | sort -rV); do
+  while IFS= read -r candidate; do
     [[ -x "${candidate}/bin/python" ]] || continue
     [[ "$(cat "${candidate}/idf_version.txt" 2>/dev/null)" == "${marker}"* ]] || continue
     export IDF_PYTHON_ENV_PATH="${candidate}"
     return 0
-  done
+  done < <(find "${HOME}/.espressif/python_env" -maxdepth 1 -type d \
+    -name "idf${marker}_py*_env" 2>/dev/null | sort -rV)
   return 1
 }
 

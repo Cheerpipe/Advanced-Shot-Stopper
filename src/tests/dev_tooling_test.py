@@ -673,13 +673,14 @@ assert legacy_idf.returncode == 0 and legacy_values == [
     str(fallback_root / "tools/idf.py")], legacy_idf.stderr
 
 
-def idf_python_env_selection(python_env: str | None):
+def idf_python_env_selection(python_env: str | None, home_leaf: str = "home"):
     """Run the fallback path with an optional installed python_env layout."""
     with tempfile.TemporaryDirectory(prefix="shotstopper-idf-env-") as temporary:
         root = Path(temporary)
-        fallback = root / "esp/esp-idf-v6.1"
-        missing_env = root / ".espressif/python_env/idf6.1_py3.11_env"
-        installed_env = root / ".espressif/python_env/idf6.1_py3.14_env"
+        home = root / home_leaf
+        fallback = home / "esp/esp-idf-v6.1"
+        missing_env = home / ".espressif/python_env/idf6.1_py3.11_env"
+        installed_env = home / ".espressif/python_env/idf6.1_py3.14_env"
         for directory in (fallback / "tools",
                           fallback / "components/esp_common/include",
                           missing_env / "bin", installed_env / "bin"):
@@ -703,7 +704,7 @@ def idf_python_env_selection(python_env: str | None):
             'fi\n'
             f'export PATH="{fallback}/tools:$PATH"\n')
         env = os.environ.copy()
-        env.update(HOME=str(root), PATH="/usr/bin:/bin")
+        env.update(HOME=str(home), PATH="/usr/bin:/bin")
         for name in ("IDF_PATH", "IDF_PYTHON_ENV_PATH", "ESP_PYTHON",
                      "ESP_IDF_VERSION", "IDF_DEACTIVATE_FILE_PATH"):
             env.pop(name, None)
@@ -723,6 +724,11 @@ selection, fallback_root, installed_env, missing_env, expected = \
 assert selection.returncode == 0 and selection.stdout == (
     f"{fallback_root}|{expected}"), selection.stderr
 selection, fallback_root, _, _, expected = idf_python_env_selection("missing")
+assert selection.returncode == 0 and selection.stdout == (
+    f"{fallback_root}|{expected}"), selection.stderr
+# A HOME containing spaces must not break the environment scan.
+selection, fallback_root, _, _, expected = \
+    idf_python_env_selection("installed", home_leaf="my esp home")
 assert selection.returncode == 0 and selection.stdout == (
     f"{fallback_root}|{expected}"), selection.stderr
 
