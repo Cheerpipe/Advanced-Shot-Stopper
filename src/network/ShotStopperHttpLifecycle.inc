@@ -412,18 +412,11 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
       log(DebugCategory::SECURITY, DebugCode::RESTART_REQUESTED);
       break;
 
-    case WebCommandType::WIFI_CONNECT:
-    case WebCommandType::WIFI_DISCONNECT:
-    case WebCommandType::WIFI_RESTART:
-    case WebCommandType::AP_START:
-    case WebCommandType::AP_STOP:
-    case WebCommandType::WEBUI_START:
-    case WebCommandType::WEBUI_STOP:
-    case WebCommandType::WEBUI_RESTART:
-    case WebCommandType::START_WIFI_SCAN:
-      return false;
-
     default:
+      // Network-command types (Wi-Fi, AP, WebUI, scan) are owned by the
+      // network task, not the control task: they must not persist here and
+      // always reach this default. Keep the enum list single-sourced in
+      // isCliNetworkAction().
       return false;
   }
 
