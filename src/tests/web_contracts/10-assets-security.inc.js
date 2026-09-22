@@ -153,6 +153,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !css.includes('.inactiveOverlay{position:fixed;inset:0;z-index:40') ||
     !shellHtml.includes('id="homeBoot" class="bootOverlay" role="status"><div class="brand" aria-hidden="true">') ||
     !css.includes('.bootOverlay .brand,.inactiveOverlay .brand{') ||
+    !css.includes('.bootOverlay .brandMark{width:2.85rem;height:3.8rem}') ||
     !css.includes('.brand span{display:flex;flex-direction:column;') ||
     !css.includes('.bootOverlay.isDone{opacity:0;pointer-events:none}') ||
     !css.includes('transition:opacity .25s ease') ||
