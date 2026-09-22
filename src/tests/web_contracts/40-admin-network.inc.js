@@ -610,13 +610,42 @@ if (!ui.includes('id="forcePulseButton"') ||
     !firmware.includes('machineRequestForcedPulse()') ||
     !firmwareCore.includes('machineRequestWebStop()')) {
   throw new Error('Momentary Web controls must expose an admin-gated forced pulse and a dedicated Web STOP path');
-}
-if (!network.includes('/api/v1/status/home') ||
+}if (!network.includes('/api/v1/status/home') ||
     !network.includes('/api/v1/status/settings') ||
     !network.includes('/api/v1/status/admin') ||
     !network.includes('/api/v1/status/diagnostic')) {
   throw new Error('Status API must expose per-page /api/v1/status/{home|settings|admin|diagnostic}');
 }
+
+// Development builds compile out the unlock endpoints: administration is
+// public there, the UI never calls them, and leaving them reachable would be
+// dead attack surface. Release keeps the full password unlock flow.
+{
+  const unlockEndpoints = ['/api/v1/admin/unlock', '/api/v1/admin/lock', '/api/v1/ui/unlock'];
+  for (const endpoint of unlockEndpoints) {
+    if (!network.includes('"' + endpoint + '"') && !network.includes("'" + endpoint + "'")) {
+      throw new Error(endpoint + ' route string vanished from the firmware sources entirely');
+    }
+  }
+  const devGuards = network.split('#if SHOT_STOPPER_DEVELOPMENT == 1').length - 1;
+  const releaseElse = network.split('#else').length - 1;
+  if (devGuards < 4 || releaseElse < 3) {
+    throw new Error('Unlock routes and handlers must be release-only via SHOT_STOPPER_DEVELOPMENT guards');
+  }
+  // Exactly one /api/v1/ui/unlock registration may exist in the sources; the
+  // dev branch of its guard keeps the &&-chain shape intact.
+  const uiUnlockRegistrations =
+      (network.match(/registerHandler\(server_, "\/api\/v1\/ui\/unlock"/g) || []).length;
+  if (uiUnlockRegistrations !== 1) {
+    throw new Error('Exactly one /api/v1/ui/unlock registration must exist (release branch)');
+  }
+  // The dev branch keeps the server-start &&-chain valid with a plain true;
+  // if someone removes the guard entirely, registration becomes unguarded.
+  if (!network.includes('// Unlock routes are not served in development builds')) {
+    throw new Error('Unlock route guards must carry the dev-branch rationale comment');
+  }
+}
+
 if (!network.includes('statusResponseMux_') ||
     !network.includes('STATUS_BUSY')) {
   throw new Error(
@@ -668,3 +697,4 @@ if (!ui.includes('function withPollGate(') ||
     !ui.includes('command(path,value={},soft,okMsg,failMsg)') ||
     !ui.includes('/api/v1/status/') ||
     !ui.includes('function statusPageOk(') ||
+    !ui.includes("throw new Error('Invalid response')") ||

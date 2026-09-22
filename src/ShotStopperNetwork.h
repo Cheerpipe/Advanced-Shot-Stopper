@@ -507,9 +507,14 @@ class ShotStopperNetwork {
   static esp_err_t browserIconHandler(httpd_req_t *request);
   static esp_err_t notFoundHandler(httpd_req_t *request, httpd_err_code_t error);
   static esp_err_t claimHandler(httpd_req_t *request);
+#if SHOT_STOPPER_DEVELOPMENT == 1
+  // Unlock handlers are release-only: development builds serve public
+  // administration and never compile the unlock endpoints.
+#else
   static esp_err_t unlockHandler(httpd_req_t *request);
   static esp_err_t adminUnlockHandler(httpd_req_t *request);
   static esp_err_t adminLockHandler(httpd_req_t *request);
+#endif
   static esp_err_t ownedApiHandler(httpd_req_t *request);
   static esp_err_t statusHandler(httpd_req_t *request);
   static esp_err_t debugExportHandler(httpd_req_t *request);

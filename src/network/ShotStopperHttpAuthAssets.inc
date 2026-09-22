@@ -63,6 +63,11 @@ esp_err_t ShotStopperNetwork::claimHandler(httpd_req_t *request) {
   return sendJson(request, STATUS_OK, "{\"active\":true}");
 }
 
+#if SHOT_STOPPER_DEVELOPMENT == 1
+// Development builds keep administration public: the UI never calls the
+// unlock endpoints, so the handlers are not compiled and their routes are
+// not registered. The unlock state machine below stays for release builds.
+#else
 esp_err_t ShotStopperNetwork::unlockHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   if (!self.requireActiveWebUiClient(request)) return ESP_OK;
@@ -80,6 +85,7 @@ esp_err_t ShotStopperNetwork::unlockHandler(httpd_req_t *request) {
   self.dataMux_.unlock();
   return sendJson(request, STATUS_OK, "{\"unlocked\":true}");
 }
+#endif
 
 bool ShotStopperNetwork::webUiOverrideAllowed(httpd_req_t *request) {
   char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
@@ -212,6 +218,9 @@ bool ShotStopperNetwork::diagnosticPageEnabled() {
   return visible;
 }
 
+#if SHOT_STOPPER_DEVELOPMENT == 1
+// Password unlock/lock handlers are release-only (see unlockHandler above).
+#else
 esp_err_t ShotStopperNetwork::adminUnlockHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   const esp_err_t bodyStatus =
@@ -297,6 +306,7 @@ esp_err_t ShotStopperNetwork::adminLockHandler(httpd_req_t *request) {
   self.clearAdminUnlock();
   return sendJson(request, STATUS_OK, "{\"unlocked\":false}");
 }
+#endif
 
 bool ShotStopperNetwork::requireActiveWebUiClient(httpd_req_t *request) {
   char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
@@ -373,8 +383,13 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
       {"/api/v1/network/scan", HTTP_GET, wifiScanStatusHandler},
       {"/api/v1/network/scan", HTTP_POST, wifiScanStartHandler},
       {"/api/v1/device/password", HTTP_POST, devicePasswordHandler},
+#if SHOT_STOPPER_DEVELOPMENT == 1
+// Unlock routes are not served in development builds; administration is
+// public there and the UI never calls these endpoints.
+#else
       {"/api/v1/admin/unlock", HTTP_POST, adminUnlockHandler},
       {"/api/v1/admin/lock", HTTP_POST, adminLockHandler},
+#endif
       {"/api/v1/admin/ble-scan", HTTP_PUT, bleScanHandler},
       {"/api/v1/diagnostic/profiler", HTTP_POST, taskProfilerHandler},
   };

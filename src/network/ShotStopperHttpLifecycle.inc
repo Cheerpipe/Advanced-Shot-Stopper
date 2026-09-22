@@ -1120,7 +1120,13 @@ bool ShotStopperNetwork::startHttpServer() {
       registerHandler(server_, "/apple-touch-icon*", HTTP_GET,
                       browserIconHandler) &&
       registerHandler(server_, "/api/v1/ui/claim", HTTP_POST, claimHandler) &&
+#if SHOT_STOPPER_DEVELOPMENT == 1
+      // Unlock routes are not served in development builds; administration
+      // is public there and the UI never calls this endpoint.
+      true &&
+#else
       registerHandler(server_, "/api/v1/ui/unlock", HTTP_POST, unlockHandler) &&
+#endif
       registerHandler(server_, "/api/v1/integration*", HTTP_GET,
                       integrationHandler) &&
       registerHandler(server_, "/api/v1/integration*", HTTP_POST,

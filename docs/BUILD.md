@@ -231,7 +231,7 @@ Machine type is derived from `interface.control` plus `interface.feedback`; a co
 | `OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER=0/1` | Omit / include local passive buzzer. Follows the hardware profile's `speaker.present` by default; `=0` omits it even when a speaker is present. |
 | `OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1` | Development USB Serial/JTAG at boot without the GPIO4 console jumper; build it with `./scripts/dev build --jtag` (or the `--development` profile). |
 | `OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=0/1` | Remote start/rinse disabled / explicit opt-in. Default is disabled. |
-| `OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1` | Compiles administration as public: Admin and Diagnostic need no device-password session and the UI shows no lock panel. Build it with `--no-auth-admin` or the `--development` profile. Local development only — never use for an installed machine. |
+| `OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1` | Compiles administration as public: Admin and Diagnostic need no device-password session and the UI shows no lock panel. The password-unlock endpoints are not compiled in this mode. Build it with `--no-auth-admin` or the `--development` profile. Local development only — never use for an installed machine. |
 
 ### Compiler optimization and existing sdkconfig
 
