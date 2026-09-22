@@ -39,32 +39,19 @@ static const ScaleFeatureSet kAcaiaFeatures = {
     5000
 };
 
-bool copyPayload(const uint8_t *command, int commandLength, uint8_t *out,
-                 int *length) {
-    if (out == nullptr || length == nullptr || commandLength <= 0 ||
-        commandLength > SCALE_MAX_COMMAND_LENGTH) {
-        return false;
-    }
-    for (int i = 0; i < commandLength; ++i) {
-        out[i] = command[i];
-    }
-    *length = commandLength;
-    return true;
-}
-
 bool encodeAcaiaCommand(ScaleOp op, uint8_t arg, uint8_t *out, int *length) {
     (void)arg;
     switch (op) {
         case ScaleOp::Tare:
-            return copyPayload(TARE_ACAIA, sizeof(TARE_ACAIA), out, length);
+            return scaleCopyPayload(TARE_ACAIA, sizeof(TARE_ACAIA), out, length);
         case ScaleOp::StartTimer:
-            return copyPayload(START_TIMER, sizeof(START_TIMER), out, length);
+            return scaleCopyPayload(START_TIMER, sizeof(START_TIMER), out, length);
         case ScaleOp::StopTimer:
-            return copyPayload(STOP_TIMER, sizeof(STOP_TIMER), out, length);
+            return scaleCopyPayload(STOP_TIMER, sizeof(STOP_TIMER), out, length);
         case ScaleOp::ResetTimer:
-            return copyPayload(RESET_TIMER, sizeof(RESET_TIMER), out, length);
+            return scaleCopyPayload(RESET_TIMER, sizeof(RESET_TIMER), out, length);
         case ScaleOp::Heartbeat:
-            return copyPayload(HEARTBEAT, sizeof(HEARTBEAT), out, length);
+            return scaleCopyPayload(HEARTBEAT, sizeof(HEARTBEAT), out, length);
         default:
             break;
     }

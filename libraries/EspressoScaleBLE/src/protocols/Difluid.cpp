@@ -26,19 +26,6 @@ static const ScaleFeatureSet kDifluidFeatures = {
     5000
 };
 
-bool copyPayload(const uint8_t *command, int commandLength, uint8_t *out,
-                 int *length) {
-    if (out == nullptr || length == nullptr || commandLength <= 0 ||
-        commandLength > SCALE_MAX_COMMAND_LENGTH) {
-        return false;
-    }
-    for (int i = 0; i < commandLength; ++i) {
-        out[i] = command[i];
-    }
-    *length = commandLength;
-    return true;
-}
-
 uint8_t difluidChecksum(const uint8_t *data, int length) {
     uint16_t sum = 0;
     for (int i = 0; i < length - 1; ++i) {
@@ -77,10 +64,10 @@ bool encodeDifluidCommand(ScaleOp op, uint8_t arg, uint8_t *out, int *length) {
     (void)arg;
     switch (op) {
         case ScaleOp::Tare:
-            return copyPayload(TARE_DIFLUID, sizeof(TARE_DIFLUID), out,
+            return scaleCopyPayload(TARE_DIFLUID, sizeof(TARE_DIFLUID), out,
                                length);
         case ScaleOp::Heartbeat:
-            return copyPayload(HEARTBEAT_DIFLUID, sizeof(HEARTBEAT_DIFLUID),
+            return scaleCopyPayload(HEARTBEAT_DIFLUID, sizeof(HEARTBEAT_DIFLUID),
                                out, length);
         default:
             break;

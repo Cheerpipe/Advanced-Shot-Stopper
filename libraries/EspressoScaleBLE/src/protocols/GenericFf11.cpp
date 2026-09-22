@@ -40,19 +40,6 @@ void fillGenericCommand(uint8_t out[6], uint8_t data1, uint8_t data2, uint8_t da
     out[5] = static_cast<uint8_t>(out[0] ^ out[1] ^ out[2] ^ out[3] ^ out[4]);
 }
 
-bool copyPayload(const uint8_t *command, int commandLength, uint8_t *out,
-                 int *length) {
-    if (out == nullptr || length == nullptr || commandLength <= 0 ||
-        commandLength > SCALE_MAX_COMMAND_LENGTH) {
-        return false;
-    }
-    for (int i = 0; i < commandLength; ++i) {
-        out[i] = command[i];
-    }
-    *length = commandLength;
-    return true;
-}
-
 bool genericSupportedPacketLength(int length) {
     return length == 20;
 }
@@ -87,23 +74,23 @@ bool parseGenericTimer(const uint8_t *data, int length, uint32_t *timerMs) {
 bool encodeGenericCommand(ScaleOp op, uint8_t arg, uint8_t *out, int *length) {
     switch (op) {
         case ScaleOp::Tare:
-            return copyPayload(TARE_GENERIC, sizeof(TARE_GENERIC), out, length);
+            return scaleCopyPayload(TARE_GENERIC, sizeof(TARE_GENERIC), out, length);
         case ScaleOp::StartTimer:
-            return copyPayload(START_TIMER_GENERIC, sizeof(START_TIMER_GENERIC),
+            return scaleCopyPayload(START_TIMER_GENERIC, sizeof(START_TIMER_GENERIC),
                                out, length);
         case ScaleOp::StopTimer:
-            return copyPayload(STOP_TIMER_GENERIC, sizeof(STOP_TIMER_GENERIC),
+            return scaleCopyPayload(STOP_TIMER_GENERIC, sizeof(STOP_TIMER_GENERIC),
                                out, length);
         case ScaleOp::ResetTimer:
-            return copyPayload(RESET_TIMER_GENERIC, sizeof(RESET_TIMER_GENERIC),
+            return scaleCopyPayload(RESET_TIMER_GENERIC, sizeof(RESET_TIMER_GENERIC),
                                out, length);
         case ScaleOp::CombinedTareStart:
-            return copyPayload(TARE_START_TIMER_BOOKOO,
+            return scaleCopyPayload(TARE_START_TIMER_BOOKOO,
                                sizeof(TARE_START_TIMER_BOOKOO), out, length);
         case ScaleOp::SetVolume: {
             uint8_t command[6];
             fillGenericCommand(command, GENERIC_BEEP_LEVEL_CMD, 0x00, arg);
-            return copyPayload(command, sizeof(command), out, length);
+            return scaleCopyPayload(command, sizeof(command), out, length);
         }
         default:
             break;

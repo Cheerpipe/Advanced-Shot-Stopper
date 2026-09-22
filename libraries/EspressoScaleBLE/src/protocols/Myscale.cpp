@@ -22,19 +22,6 @@ static const ScaleFeatureSet kMyscaleFeatures = {
     5000
 };
 
-bool copyPayload(const uint8_t *command, int commandLength, uint8_t *out,
-                 int *length) {
-    if (out == nullptr || length == nullptr || commandLength <= 0 ||
-        commandLength > SCALE_MAX_COMMAND_LENGTH) {
-        return false;
-    }
-    for (int i = 0; i < commandLength; ++i) {
-        out[i] = command[i];
-    }
-    *length = commandLength;
-    return true;
-}
-
 bool myscaleSupportedPacketLength(int length) {
     return length >= 15 && length <= SCALE_MAX_PACKET_LENGTH;
 }
@@ -58,7 +45,7 @@ bool parseMyscaleWeight(const uint8_t *data, int length, float *weight) {
 bool encodeMyscaleCommand(ScaleOp op, uint8_t arg, uint8_t *out, int *length) {
     (void)arg;
     if (op == ScaleOp::Tare) {
-        return copyPayload(TARE_MYSCALE, sizeof(TARE_MYSCALE), out, length);
+        return scaleCopyPayload(TARE_MYSCALE, sizeof(TARE_MYSCALE), out, length);
     }
     return false;
 }

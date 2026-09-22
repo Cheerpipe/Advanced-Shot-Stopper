@@ -7,6 +7,19 @@ bool scaleValidWeight(float weight) {
     return std::isfinite(weight) && fabsf(weight) <= SCALE_MAX_WEIGHT_GRAMS;
 }
 
+bool scaleCopyPayload(const uint8_t *command, int commandLength, uint8_t *out,
+                      int *length) {
+    if (out == nullptr || length == nullptr || commandLength <= 0 ||
+        commandLength > SCALE_MAX_COMMAND_LENGTH) {
+        return false;
+    }
+    for (int i = 0; i < commandLength; ++i) {
+        out[i] = command[i];
+    }
+    *length = commandLength;
+    return true;
+}
+
 bool scaleNameMatchesProtocol(const char *name, const ScaleProtocol *protocol) {
     if (name == nullptr || name[0] == '\0' || protocol == nullptr ||
         protocol->namePrefixes == nullptr) {

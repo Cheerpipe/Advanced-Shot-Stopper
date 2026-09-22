@@ -23,19 +23,6 @@ static const ScaleFeatureSet kVariaFeatures = {
     5000
 };
 
-bool copyPayload(const uint8_t *command, int commandLength, uint8_t *out,
-                 int *length) {
-    if (out == nullptr || length == nullptr || commandLength <= 0 ||
-        commandLength > SCALE_MAX_COMMAND_LENGTH) {
-        return false;
-    }
-    for (int i = 0; i < commandLength; ++i) {
-        out[i] = command[i];
-    }
-    *length = commandLength;
-    return true;
-}
-
 bool variaXorValid(const uint8_t *data, int length) {
     if (length < 3) {
         return false;
@@ -77,15 +64,15 @@ bool encodeVariaCommand(ScaleOp op, uint8_t arg, uint8_t *out, int *length) {
     (void)arg;
     switch (op) {
         case ScaleOp::Tare:
-            return copyPayload(TARE_VARIA, sizeof(TARE_VARIA), out, length);
+            return scaleCopyPayload(TARE_VARIA, sizeof(TARE_VARIA), out, length);
         case ScaleOp::StartTimer:
-            return copyPayload(START_TIMER_VARIA, sizeof(START_TIMER_VARIA),
+            return scaleCopyPayload(START_TIMER_VARIA, sizeof(START_TIMER_VARIA),
                                out, length);
         case ScaleOp::StopTimer:
-            return copyPayload(STOP_TIMER_VARIA, sizeof(STOP_TIMER_VARIA), out,
+            return scaleCopyPayload(STOP_TIMER_VARIA, sizeof(STOP_TIMER_VARIA), out,
                                length);
         case ScaleOp::ResetTimer:
-            return copyPayload(RESET_TIMER_VARIA, sizeof(RESET_TIMER_VARIA),
+            return scaleCopyPayload(RESET_TIMER_VARIA, sizeof(RESET_TIMER_VARIA),
                                out, length);
         default:
             break;

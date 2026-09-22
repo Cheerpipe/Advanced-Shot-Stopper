@@ -17,19 +17,6 @@ static const ScaleFeatureSet kEclairFeatures = {
     5000
 };
 
-bool copyPayload(const uint8_t *command, int commandLength, uint8_t *out,
-                 int *length) {
-    if (out == nullptr || length == nullptr || commandLength <= 0 ||
-        commandLength > SCALE_MAX_COMMAND_LENGTH) {
-        return false;
-    }
-    for (int i = 0; i < commandLength; ++i) {
-        out[i] = command[i];
-    }
-    *length = commandLength;
-    return true;
-}
-
 bool eclairSupportedPacketLength(int length) {
     return length == 10;
 }
@@ -58,15 +45,15 @@ bool encodeEclairCommand(ScaleOp op, uint8_t arg, uint8_t *out, int *length) {
     (void)arg;
     switch (op) {
         case ScaleOp::Tare:
-            return copyPayload(TARE_ECLAIR, sizeof(TARE_ECLAIR), out, length);
+            return scaleCopyPayload(TARE_ECLAIR, sizeof(TARE_ECLAIR), out, length);
         case ScaleOp::StartTimer:
-            return copyPayload(START_TIMER_ECLAIR, sizeof(START_TIMER_ECLAIR),
+            return scaleCopyPayload(START_TIMER_ECLAIR, sizeof(START_TIMER_ECLAIR),
                                out, length);
         case ScaleOp::StopTimer:
-            return copyPayload(STOP_TIMER_ECLAIR, sizeof(STOP_TIMER_ECLAIR),
+            return scaleCopyPayload(STOP_TIMER_ECLAIR, sizeof(STOP_TIMER_ECLAIR),
                                out, length);
         case ScaleOp::ResetTimer:
-            return copyPayload(RESET_TIMER_ECLAIR, sizeof(RESET_TIMER_ECLAIR),
+            return scaleCopyPayload(RESET_TIMER_ECLAIR, sizeof(RESET_TIMER_ECLAIR),
                                out, length);
         default:
             break;

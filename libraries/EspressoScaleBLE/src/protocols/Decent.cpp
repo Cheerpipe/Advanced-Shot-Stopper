@@ -20,19 +20,6 @@ static const ScaleFeatureSet kDecentFeatures = {
     5000
 };
 
-bool copyPayload(const uint8_t *command, int commandLength, uint8_t *out,
-                 int *length) {
-    if (out == nullptr || length == nullptr || commandLength <= 0 ||
-        commandLength > SCALE_MAX_COMMAND_LENGTH) {
-        return false;
-    }
-    for (int i = 0; i < commandLength; ++i) {
-        out[i] = command[i];
-    }
-    *length = commandLength;
-    return true;
-}
-
 bool decentSupportedPacketLength(int length) {
     return length == 7 || length == 10;
 }
@@ -56,9 +43,9 @@ bool encodeDecentCommand(ScaleOp op, uint8_t arg, uint8_t *out, int *length) {
     (void)arg;
     switch (op) {
         case ScaleOp::Tare:
-            return copyPayload(TARE_DECENT, sizeof(TARE_DECENT), out, length);
+            return scaleCopyPayload(TARE_DECENT, sizeof(TARE_DECENT), out, length);
         case ScaleOp::Heartbeat:
-            return copyPayload(HEARTBEAT_DECENT, sizeof(HEARTBEAT_DECENT), out,
+            return scaleCopyPayload(HEARTBEAT_DECENT, sizeof(HEARTBEAT_DECENT), out,
                                length);
         default:
             break;

@@ -42,6 +42,8 @@ bool scaleParseUuid16(const char *uuid, uint16_t *out);
 bool scaleUuid16AllowsNamelessConnect(uint16_t uuid);
 
 bool scaleValidWeight(float weight);
+bool scaleCopyPayload(const uint8_t *command, int commandLength, uint8_t *out,
+                      int *length);
 uint8_t scaleXorBytes(const uint8_t *data, int length);
 uint32_t scaleReadUint32LittleEndian(const uint8_t *data);
 float scaleDecimalDivisor(uint8_t exponent);

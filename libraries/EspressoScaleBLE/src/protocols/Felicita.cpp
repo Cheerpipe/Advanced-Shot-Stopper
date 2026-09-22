@@ -23,19 +23,6 @@ static const ScaleFeatureSet kFelicitaFeatures = {
     5000
 };
 
-bool copyPayload(const uint8_t *command, int commandLength, uint8_t *out,
-                 int *length) {
-    if (out == nullptr || length == nullptr || commandLength <= 0 ||
-        commandLength > SCALE_MAX_COMMAND_LENGTH) {
-        return false;
-    }
-    for (int i = 0; i < commandLength; ++i) {
-        out[i] = command[i];
-    }
-    *length = commandLength;
-    return true;
-}
-
 bool felicitaSupportedPacketLength(int length) {
     return length == 18;
 }
@@ -85,16 +72,16 @@ bool encodeFelicitaCommand(ScaleOp op, uint8_t arg, uint8_t *out, int *length) {
     (void)arg;
     switch (op) {
         case ScaleOp::Tare:
-            return copyPayload(TARE_FELICITA, sizeof(TARE_FELICITA), out,
+            return scaleCopyPayload(TARE_FELICITA, sizeof(TARE_FELICITA), out,
                                length);
         case ScaleOp::StartTimer:
-            return copyPayload(START_TIMER_FELICITA, sizeof(START_TIMER_FELICITA),
+            return scaleCopyPayload(START_TIMER_FELICITA, sizeof(START_TIMER_FELICITA),
                                out, length);
         case ScaleOp::StopTimer:
-            return copyPayload(STOP_TIMER_FELICITA, sizeof(STOP_TIMER_FELICITA),
+            return scaleCopyPayload(STOP_TIMER_FELICITA, sizeof(STOP_TIMER_FELICITA),
                                out, length);
         case ScaleOp::ResetTimer:
-            return copyPayload(RESET_TIMER_FELICITA, sizeof(RESET_TIMER_FELICITA),
+            return scaleCopyPayload(RESET_TIMER_FELICITA, sizeof(RESET_TIMER_FELICITA),
                                out, length);
         default:
             break;
