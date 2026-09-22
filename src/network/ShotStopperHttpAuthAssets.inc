@@ -615,12 +615,10 @@ esp_err_t ShotStopperNetwork::notFoundHandler(httpd_req_t *request,
 
 
 const char *ShotStopperNetwork::stateLabel(StopperState state) {
-  for (const auto &label : kStopperStateLabels) {
-    if (label.state == state) {
-      return label.humanLabel;
-    }
-  }
-  return "Unknown";
+  const size_t index = static_cast<size_t>(state);
+  return index < kStopperStateLabelCount
+             ? kStopperStateLabels[index].humanLabel
+             : "Unknown";
 }
 
 const char *ShotStopperNetwork::controlSourceName(ControlSource source) {

@@ -81,36 +81,34 @@ enum class NtpServerPreset : uint8_t {
   NIST = 3
 };
 
-// Single source for the NTP preset renderings: the configuration API uses
-// stable identifiers, time sync and diagnostics use the hostnames.
-struct NtpPresetLabel {
-  NtpServerPreset preset;
+// Single source for NTP preset renderings (API id and hostname), indexed by
+// NtpServerPreset; invalid presets fall back to POOL like the old switches.
+inline constexpr struct {
   const char *hostname;
   const char *apiId;
+} kNtpPresetLabels[] = {
+    {"pool.ntp.org", "pool"},
+    {"time.google.com", "google"},
+    {"time.cloudflare.com", "cloudflare"},
+    {"time.nist.gov", "nist"},
 };
 
-inline constexpr NtpPresetLabel kNtpPresetLabels[] = {
-    {NtpServerPreset::POOL, "pool.ntp.org", "pool"},
-    {NtpServerPreset::GOOGLE, "time.google.com", "google"},
-    {NtpServerPreset::CLOUDFLARE, "time.cloudflare.com", "cloudflare"},
-    {NtpServerPreset::NIST, "time.nist.gov", "nist"},
-};
+constexpr size_t kNtpPresetLabelCount =
+    sizeof(kNtpPresetLabels) / sizeof(kNtpPresetLabels[0]);
 
-inline const NtpPresetLabel &ntpPresetLabel(uint8_t preset) {
-  for (const auto &label : kNtpPresetLabels) {
-    if (label.preset == static_cast<NtpServerPreset>(preset)) {
-      return label;
-    }
-  }
-  return kNtpPresetLabels[0];
+static_assert(kNtpPresetLabelCount == 4,
+              "keep kNtpPresetLabels in sync with NtpServerPreset");
+
+inline size_t ntpPresetLabelIndex(uint8_t preset) {
+  return preset < kNtpPresetLabelCount ? preset : 0U;
 }
 
 inline const char *ntpPresetHostname(uint8_t preset) {
-  return ntpPresetLabel(preset).hostname;
+  return kNtpPresetLabels[ntpPresetLabelIndex(preset)].hostname;
 }
 
 inline const char *ntpPresetId(uint8_t preset) {
-  return ntpPresetLabel(preset).apiId;
+  return kNtpPresetLabels[ntpPresetLabelIndex(preset)].apiId;
 }
 
 enum class NoScaleBbwMode : uint8_t {

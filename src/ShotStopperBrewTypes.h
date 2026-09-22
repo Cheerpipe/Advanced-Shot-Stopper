@@ -111,30 +111,29 @@ struct GuardInputs {
   uint32_t blockedHoldTimeoutMs = 0;
 };
 
-// Single source for StopperState renderings: serial and JSON status use the
-// stable identifier, the web UI shows the human-readable label.
-struct StopperStateLabel {
-  StopperState state;
+// Single source for StopperState renderings (API id and human label), indexed
+// by StopperState; out-of-range values keep the previous "UNKNOWN" fallbacks.
+inline constexpr struct {
   const char *apiName;
   const char *humanLabel;
+} kStopperStateLabels[] = {
+    {"REQUIRES_OFF", "Paddle release required"},
+    {"READY", "Ready"},
+    {"BREW", "Automatic brew"},
+    {"RINSE", "Rinse in progress"},
+    {"MANUAL_NO_SCALE", "Manual shot without scale"},
 };
 
-inline constexpr StopperStateLabel kStopperStateLabels[] = {
-    {StopperState::REQUIRES_OFF, "REQUIRES_OFF", "Paddle release required"},
-    {StopperState::READY, "READY", "Ready"},
-    {StopperState::BREW, "BREW", "Automatic brew"},
-    {StopperState::RINSE, "RINSE", "Rinse in progress"},
-    {StopperState::MANUAL_NO_SCALE, "MANUAL_NO_SCALE",
-     "Manual shot without scale"},
-};
+constexpr size_t kStopperStateLabelCount =
+    sizeof(kStopperStateLabels) / sizeof(kStopperStateLabels[0]);
+
+static_assert(kStopperStateLabelCount == 5,
+              "keep kStopperStateLabels in sync with StopperState");
 
 inline const char *stopperStateName(StopperState state) {
-  for (const auto &label : kStopperStateLabels) {
-    if (label.state == state) {
-      return label.apiName;
-    }
-  }
-  return "UNKNOWN";
+  const size_t index = static_cast<size_t>(state);
+  return index < kStopperStateLabelCount ? kStopperStateLabels[index].apiName
+                                         : "UNKNOWN";
 }
 
 enum class EndReason : uint8_t {
@@ -160,9 +159,8 @@ enum class EndReason : uint8_t {
   UNCONFIRMED_START = 19
 };
 
-// Single source for EndReason renderings: the configuration API uses
-// UPPER_SNAKE identifiers, serial/debug messages use human-readable labels.
-// Adding an enumerator without a row here fails the static_assert below.
+// Single source for EndReason renderings: API UPPER_SNAKE and debug labels in
+// one table so new enumerators are added once (row count is asserted below).
 struct EndReasonLabel {
   EndReason reason;
   const char *apiName;
@@ -208,35 +206,12 @@ inline const EndReasonLabel *findEndReasonLabel(EndReason reason) {
   return nullptr;
 }
 
-constexpr bool endReasonHasLabelRow(EndReason reason) {
-  for (const auto &label : kEndReasonLabels) {
-    if (label.reason == reason) {
-      return true;
-    }
-  }
-  return false;
-}
+constexpr size_t kEndReasonLabelCount =
+    sizeof(kEndReasonLabels) / sizeof(kEndReasonLabels[0]);
 
-// Compile-time completeness guard: every enumerator must have a table row.
-static_assert(endReasonHasLabelRow(EndReason::NONE) &&
-                  endReasonHasLabelRow(EndReason::ACTIVATOR) &&
-                  endReasonHasLabelRow(EndReason::SCALE_THRESHOLD) &&
-                  endReasonHasLabelRow(EndReason::WEIGHT_ANOMALY) &&
-                  endReasonHasLabelRow(EndReason::GLOBAL_LIMIT) &&
-                  endReasonHasLabelRow(EndReason::CONFIGURED_WALL_LIMIT) &&
-                  endReasonHasLabelRow(EndReason::SHORT_SHOT) &&
-                  endReasonHasLabelRow(EndReason::RINSE_COMPLETE) &&
-                  endReasonHasLabelRow(EndReason::WEB_STOP) &&
-                  endReasonHasLabelRow(EndReason::PHYSICAL_OVERRIDE) &&
-                  endReasonHasLabelRow(EndReason::WEB_HEARTBEAT_TIMEOUT) &&
-                  endReasonHasLabelRow(EndReason::RELAY_SAFETY_FAILURE) &&
-                  endReasonHasLabelRow(EndReason::FAST_EXTRACTION_MAX_WEIGHT) &&
-                  endReasonHasLabelRow(EndReason::FAST_EXTRACTION_MIN_TIME) &&
-                  endReasonHasLabelRow(EndReason::SLOW_EXTRACTION_MAX_TIME) &&
-                  endReasonHasLabelRow(EndReason::SLOW_EXTRACTION_MIN_WEIGHT) &&
-                  endReasonHasLabelRow(EndReason::AUTO_TO_MANUAL_GUARD) &&
-                  endReasonHasLabelRow(EndReason::CUP_REMOVED) &&
-                  endReasonHasLabelRow(EndReason::UNCONFIRMED_START),
+// Compile-time completeness guard: one row per enumerator (19; ordinal 2 was
+// retired). Adding an enumerator without a row breaks this assert.
+static_assert(kEndReasonLabelCount == 19,
               "kEndReasonLabels must cover every EndReason enumerator");
 
 inline bool brewWeightCutSettlesMachineOff(EndReason reason) {
