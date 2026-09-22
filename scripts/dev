@@ -37,7 +37,7 @@ BUILD_PROFILES = (
     ("esp32-s3-relay-x1-speaker", "rancilio-silvia-pro-x"),
     ("esp32-s3-relay-x1-speaker-reed", "rancilio-silvia-pro-x-reed"),
 )
-FIRMWARE_BUDGET_OPTIONS = ["--flags=", "--jtag", "--development"]
+FIRMWARE_BUDGET_OPTIONS = ["--flags=", "--development"]
 FIRMWARE_STAGES = {"build", "flash", "ota", "monitor"}
 FIRMWARE_PIPELINES = {
     ("build",), ("flash",), ("ota",), ("monitor",),
@@ -319,10 +319,11 @@ def validate_firmware_options(stages: tuple[str, ...], args: list[str]) -> None:
         "--speed": {"monitor"}, "-s": {"monitor"},
         "--host": {"ota"}, "-H": {"ota"},
         "--flags": {"build"}, "-f": {"build"},
-        "--jtag": {"build"},
+        "--jtag": {"build"}, "--release": {"build"},
+        "--development": {"build"}, "--no-auth-admin": {"build"},
         "--o0": {"build"}, "--og": {"build"}, "--o2": {"build"}, "--os": {"build"},
         "--image": {"flash", "ota"}, "-i": {"flash", "ota"},
-        "--webui-language": {"build"}, "--development": {"build"},
+        "--webui-language": {"build"},
         "--no-check": {"flash"}, "--erase-all": {"flash"},
         "--discard-ota-session": {"ota"}, "--yes": {"ota"},
         "--wait-for-confirmation": {"ota"},
@@ -383,7 +384,8 @@ flash monitor; ota monitor; build flash monitor; build ota monitor.
 
 Profiles: --hardware ID --machine ID
 Existing images: --arch ARCH; standalone flash/OTA: --image PATH
-Build:  --flags STRING --jtag --development --webui-language CODE
+Build:  --flags STRING --development | --release (default)
+        --no-auth-admin --jtag --webui-language CODE
         --o0 --og --o2 --os (exclusive firmware optimization level)
 Flash:  --port PATH --no-check --erase-all
 OTA:    --host HOST --yes --wait-for-confirmation --discard-ota-session

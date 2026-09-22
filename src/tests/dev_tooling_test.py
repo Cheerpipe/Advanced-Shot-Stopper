@@ -582,6 +582,43 @@ assert jtag_existing.returncode == 0 and \
 jtag_with_dev = cli_probe("--jtag", "--development")
 assert jtag_with_dev.returncode == 0 and jtag_with_dev.stdout == \
     "-DSHOT_STOPPER_ENABLE_JTAG=1 -DSHOT_STOPPER_DEVELOPMENT=1"
+
+
+def cli_profile(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", "-c",
+         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         'ss_cli_parse "$@" || exit $?; ss_cli_flags_for development release '
+         'no_auth_admin jtag; '
+         'printf "%s|%s" "$(ss_cli_effective_flags)" '
+         '"${SS_CLI_FORWARD[*]:-}"', "probe", *args],
+        cwd=ROOT, capture_output=True, text=True)
+
+
+release_profile = cli_profile("--release")
+assert release_profile.returncode == 0 and release_profile.stdout == "|--release"
+no_profile = cli_profile()
+assert no_profile.returncode == 0 and no_profile.stdout == "|", no_profile.stdout
+release_jtag = cli_profile("--release", "--jtag")
+assert release_jtag.returncode == 0 and \
+    release_jtag.stdout == "-DSHOT_STOPPER_ENABLE_JTAG=1|--release --jtag"
+admin_unlock = cli_profile("--no-auth-admin")
+assert admin_unlock.returncode == 0 and \
+    admin_unlock.stdout == "-DSHOT_STOPPER_DEVELOPMENT=1|--no-auth-admin"
+dev_profile = cli_profile("--development")
+assert dev_profile.returncode == 0 and dev_profile.stdout == (
+    "-DSHOT_STOPPER_ENABLE_JTAG=1 -DSHOT_STOPPER_DEVELOPMENT=1"
+    "|--development --no-auth-admin --jtag")
+release_wins = cli_profile("--release", "--no-auth-admin")
+assert release_wins.returncode == 0 and release_wins.stdout == (
+    "-DSHOT_STOPPER_DEVELOPMENT=1|--release --no-auth-admin")
+profile_conflict = cli_profile("--development", "--release")
+assert profile_conflict.returncode == 2 and \
+    "mutually exclusive" in profile_conflict.stderr
+admin_conflict = cli_probe("--no-auth-admin", "--flags=-DSHOT_STOPPER_DEVELOPMENT=0")
+assert admin_conflict.returncode == 2 and \
+    "--no-auth-admin conflicts with SHOT_STOPPER_DEVELOPMENT=0" in admin_conflict.stderr
+
 jtag_off_untouched = cli_probe("--flags=-DSHOT_STOPPER_ENABLE_JTAG=0")
 assert jtag_off_untouched.returncode == 0 and \
     jtag_off_untouched.stdout == "-DSHOT_STOPPER_ENABLE_JTAG=0"
@@ -646,10 +683,10 @@ assert "deprecated; use --machine" in legacy_profile_cli.stderr
 development_conflict = subprocess.run(
     ["bash", "-c",
      f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
-     'ss_cli_parse --development --flags=-DSHOT_STOPPER_DEVELOPMENT=0; '
-     'ss_cli_effective_flags'], cwd=ROOT, capture_output=True, text=True)
+     'ss_cli_parse --development --release || exit $?; ss_cli_effective_flags'],
+    cwd=ROOT, capture_output=True, text=True)
 assert development_conflict.returncode == 2 and \
-    "conflicts" in development_conflict.stderr
+    "mutually exclusive" in development_conflict.stderr
 
 with tempfile.TemporaryDirectory(prefix="shotstopper-defaults-") as temporary:
     defaults_root = Path(temporary)
@@ -767,7 +804,7 @@ for validate_args, environment, expected in (
     assert all(argv.count("--webui-language") == 1 and
                argv[argv.index("--webui-language") + 1] == expected
                for argv in build_steps), build_steps
-    assert all("--jtag" in argv and "--development" in argv
+    assert all("--development" in argv and "--jtag" not in argv
                for argv in build_steps), build_steps
 
 
@@ -1291,8 +1328,8 @@ for disabled_flag in ("SHOT_STOPPER_ENABLE_JTAG=0",
     assert disabled_flag in idf_job, f"CI production flag missing: {disabled_flag}"
 validation_build = idf_job.split("- name: Build validation firmware", 1)[1].split(
     "- name: Cppcheck", 1)[0]
-assert "--jtag" in validation_build and "--development" in validation_build, \
-    "CI resource validation must use the conservative development/JTAG image"
+assert "--development" in validation_build and "--jtag" not in validation_build, \
+    "CI resource validation must use the development build profile"
 ota_name = "shotstopper-ota-${{ matrix.name }}-jtag-off-remote-off"
 assert f"name: {ota_name}" in idf_job
 assert (f"build-idf/${{{{ matrix.hardware }}}}--${{{{ matrix.machine }}}}/"

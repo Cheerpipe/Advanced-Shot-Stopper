@@ -144,7 +144,7 @@ jobs:
             --machine ${{ matrix.machine }} \
             --webui-language en \
             --flags=-DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0 \
-            --jtag --development \
+            --development \
             2>&1 | tee ci-results/idf/build-validation.log
       - name: Cppcheck
         if: needs.classify.outputs.risk == 'R3'
@@ -161,11 +161,11 @@ jobs:
       - name: Extra GCC warnings
         if: needs.classify.outputs.risk == 'R3'
         shell: bash
-        run: set -o pipefail; ./scripts/warnings-idf --hardware ${{ matrix.hardware }} --machine ${{ matrix.machine }} --jtag --development 2>&1 | tee ci-results/idf/warnings.log
+        run: set -o pipefail; ./scripts/warnings-idf --hardware ${{ matrix.hardware }} --machine ${{ matrix.machine }} --development 2>&1 | tee ci-results/idf/warnings.log
       - name: Full scheduled GCC analysis
         if: needs.classify.outputs.risk == 'R3' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         shell: bash
-        run: set -o pipefail; ./scripts/gcc_analyzer --hardware ${{ matrix.hardware }} --machine ${{ matrix.machine }} --flags= --jtag --development 2>&1 | tee ci-results/idf/gcc-analyzer.log
+        run: set -o pipefail; ./scripts/gcc_analyzer --hardware ${{ matrix.hardware }} --machine ${{ matrix.machine }} --flags= --development 2>&1 | tee ci-results/idf/gcc-analyzer.log
       - name: Build installable firmware
         shell: bash
         run: |
@@ -173,6 +173,7 @@ jobs:
           ./scripts/dev build --hardware ${{ matrix.hardware }} \
             --machine ${{ matrix.machine }} \
             --webui-language en \
+            --release \
             --flags "-DSHOT_STOPPER_ENABLE_JTAG=0 -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0" \
             2>&1 | tee ci-results/idf/build-installable.log
       - name: Name OTA image

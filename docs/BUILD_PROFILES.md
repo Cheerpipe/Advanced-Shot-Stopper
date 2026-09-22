@@ -412,11 +412,12 @@ The following safety rules still apply after overrides:
 - The architecture cannot contradict `target`.
 
 Development mode, JTAG, remote machine control, buzzer enablement, warnings,
-and other non-physical build switches remain CLI concerns. Use the transient
-`--development` flag for a development build; it adds
-`OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1` for that run without saving it. It conflicts with
-an explicit `OPEN_BREW_BY_WEIGHT_DEVELOPMENT=0`. Development mode must never be added
-to a JSON profile.
+and other non-physical build switches remain CLI concerns. The `--release`
+profile (the default) compiles with neither admin unlock nor the JTAG console;
+the `--development` profile combines `--no-auth-admin --jtag`. `--no-auth-admin`
+adds `OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1` for that run without saving it and
+conflicts with an explicit `OPEN_BREW_BY_WEIGHT_DEVELOPMENT=0`. These profile
+and unlock switches must never be added to a JSON profile.
 
 ## Generated files and runtime identity
 

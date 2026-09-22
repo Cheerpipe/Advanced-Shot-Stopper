@@ -97,7 +97,7 @@ ss_cli_normalize_image || exit $?
 for stage in "${stages[@]}"; do
   case "$stage" in
     build)
-      ss_cli_flags_for hardware_config machine_config flags webui_language development jtag opt_level
+      ss_cli_flags_for hardware_config machine_config flags webui_language development release no_auth_admin jtag opt_level
       "$INTERNAL_DIR/build-idf" ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}
       ;;
     flash)

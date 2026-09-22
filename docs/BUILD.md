@@ -132,9 +132,10 @@ Node dependencies are failures, not skipped tests.
 For changed code, run `./scripts/dev classify` and the complete gate from
 [VALIDATION.md](../VALIDATION.md), including sanitizers/builds where required.
 Host tests cannot verify wiring, radio timing, or physical stop behavior.
-R2/R3 validation compiles every supported profile with `--jtag --development`,
-including the Linea Micra pair, so a passing gate leaves the conservative local
-image ready in its normal `build-idf/<hardware>--<machine>/` directory.
+R2/R3 validation compiles every supported profile with the `--development`
+profile, including the Linea Micra pair, so a passing gate leaves the
+conservative local image ready in its normal `build-idf/<hardware>--<machine>/`
+directory.
 
 <a id="8-host-tests-before-you-flash"></a>
 <a id="4-ble-backend"></a>
@@ -207,7 +208,8 @@ separately.
 The facade passes empty extra flags unless supplied; it does not reuse a saved
 extra-flags preference implicitly.
 
-For local development, use the transient convenience flag:
+For local development, use the development build profile
+(`--no-auth-admin --jtag` combined):
 
 ```sh
 ./scripts/dev build \
@@ -216,6 +218,10 @@ For local development, use the transient convenience flag:
   --development
 ```
 
+Omitting the profile, or passing `--release` explicitly, builds without admin
+unlock and without the JTAG console. `--no-auth-admin` and `--jtag` also work
+individually on top of a release build.
+
 Machine type is derived from `interface.control` plus `interface.feedback`; a conflicting
 `OPEN_BREW_BY_WEIGHT_MACHINE_TYPE` override is rejected.
 
@@ -223,9 +229,9 @@ Machine type is derived from `interface.control` plus `interface.feedback`; a co
 | --- | --- |
 | `OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=0/1/2` | Paddle / momentary / momentary+reed; see [machine types](../README.md#machine-types). |
 | `OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER=0/1` | Omit / include local passive buzzer. Follows the hardware profile's `speaker.present` by default; `=0` omits it even when a speaker is present. |
-| `OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1` | Development USB Serial/JTAG at boot without the GPIO4 console jumper; build it with `./scripts/dev build --jtag`. |
+| `OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1` | Development USB Serial/JTAG at boot without the GPIO4 console jumper; build it with `./scripts/dev build --jtag` (or the `--development` profile). |
 | `OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=0/1` | Remote start/rinse disabled / explicit opt-in. Default is disabled. |
-| `OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1` | Bypasses Admin unlock for local development only. Never use for an installed machine. |
+| `OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1` | Compile-time admin unlock without a device-password session; build it with `--no-auth-admin` or the `--development` profile. Local development only — never use for an installed machine. |
 
 ### Compiler optimization and existing sdkconfig
 

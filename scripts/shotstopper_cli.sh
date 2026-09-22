@@ -2,6 +2,10 @@
 # Shared named-flag front end for the Shot Stopper developer scripts.
 # Source from other scripts; do not execute this file directly.
 #
+# Build profiles: --release (the default) compiles with neither the admin
+# unlock define nor the USB Serial/JTAG console; --development means
+# --no-auth-admin --jtag. The profiles are mutually exclusive; --jtag and
+# --no-auth-admin also work individually on top of a release profile.
 # Except for the transient WebUI language default, every value comes from:
 #   1. a named flag on the command line
 #   2. the matching environment variable
@@ -95,7 +99,9 @@ ss_cli_reset() {
   SS_CLI_NO_CHECK=0
   SS_CLI_ERASE_ALL=0
   SS_CLI_DISCARD_OTA_SESSION=0
+  SS_CLI_RELEASE=0
   SS_CLI_DEVELOPMENT=0
+  SS_CLI_NO_AUTH_ADMIN=0
   SS_CLI_JTAG=0
   for key in $SS_CLI_KEYS; do
     ss_set "$key" ""
@@ -135,7 +141,13 @@ Named parameters (long and short):
                            Compile-time WebUI language (default: en; not persisted)
       --hardware <id|json> Exact hardware profile ID or JSON path (not persisted)
       --machine <id|json>  Exact machine profile ID or JSON path (not persisted)
-      --development        Build-only development mode (not persisted)
+      --development        Build profile: admin unlock (--no-auth-admin) plus
+                           the USB Serial/JTAG console (--jtag)
+      --release            Build profile: no admin unlock and no JTAG console
+                           (default when no profile is given)
+      --no-auth-admin      Build-only admin unlock without a device-password
+                           session (adds -DSHOT_STOPPER_DEVELOPMENT=1 to the
+                           build flags; not persisted)
       --jtag               Enable the USB Serial/JTAG console at boot (adds
                            -DSHOT_STOPPER_ENABLE_JTAG=1 to the build flags)
       --o0|--og|--o2|--os  Firmware optimization level for this build (build
@@ -171,7 +183,9 @@ SS_CLI_WAIT_FOR_CONFIRMATION=0
 SS_CLI_NO_CHECK=0
 SS_CLI_ERASE_ALL=0
 SS_CLI_DISCARD_OTA_SESSION=0
+SS_CLI_RELEASE=0
 SS_CLI_DEVELOPMENT=0
+SS_CLI_NO_AUTH_ADMIN=0
 SS_CLI_JTAG=0
 SS_CLI_OPT_LEVEL=""
 
@@ -241,6 +255,24 @@ ss_cli_parse() {
         ;;
       --development=*)
         printf '%s\n' '--development does not take a value.' >&2
+        return 2
+        ;;
+      --release)
+        SS_CLI_RELEASE=1
+        shift
+        continue
+        ;;
+      --release=*)
+        printf '%s\n' '--release does not take a value.' >&2
+        return 2
+        ;;
+      --no-auth-admin)
+        SS_CLI_NO_AUTH_ADMIN=1
+        shift
+        continue
+        ;;
+      --no-auth-admin=*)
+        printf '%s\n' '--no-auth-admin does not take a value.' >&2
         return 2
         ;;
       --jtag)
@@ -336,6 +368,17 @@ ss_cli_parse() {
     fi
     ss_put "$key" "$value" "cli"
   done
+  if [[ "$SS_CLI_DEVELOPMENT" == "1" && "$SS_CLI_RELEASE" == "1" ]]; then
+    printf '%s\n' '--development and --release are mutually exclusive build profiles.' >&2
+    return 2
+  fi
+  # --development selects the debug profile: admin unlock plus the JTAG
+  # console. --release is the explicit form of the default and keeps any
+  # individually requested --jtag/--no-auth-admin switches.
+  if [[ "$SS_CLI_DEVELOPMENT" == "1" ]]; then
+    SS_CLI_NO_AUTH_ADMIN=1
+    SS_CLI_JTAG=1
+  fi
   return 0
 }
 
@@ -379,9 +422,10 @@ ss_cli_apply_env() {
   done
 }
 
-# Prints the compile flags for this run. --development and --jtag are
-# deliberately kept outside both profiles and .shotstopper so they cannot
-# affect a later build.
+# Prints the compile flags for this run. The build profile switches are
+# deliberately kept outside .shotstopper so they cannot affect a later build:
+# --development means --no-auth-admin plus --jtag, --release means neither,
+# and --no-auth-admin and --jtag also work individually on a release build.
 ss_cli_effective_flags() {
   local raw token found=0 jtag=0
   raw="$(ss_get flags)"
@@ -391,8 +435,8 @@ ss_cli_effective_flags() {
   for token in "$@"; do
     case "$token" in
       -DSHOT_STOPPER_DEVELOPMENT=0|SHOT_STOPPER_DEVELOPMENT=0)
-        if [[ "$SS_CLI_DEVELOPMENT" == "1" ]]; then
-          ss_cli_die "--development conflicts with SHOT_STOPPER_DEVELOPMENT=0 in --flags."
+        if [[ "$SS_CLI_NO_AUTH_ADMIN" == "1" ]]; then
+          ss_cli_die "--no-auth-admin conflicts with SHOT_STOPPER_DEVELOPMENT=0 in --flags."
           return 2
         fi
         ;;
@@ -409,7 +453,7 @@ ss_cli_effective_flags() {
   if [[ "$SS_CLI_JTAG" == "1" && "$jtag" != "1" ]]; then
     raw="${raw:+$raw }-DSHOT_STOPPER_ENABLE_JTAG=1"
   fi
-  if [[ "$SS_CLI_DEVELOPMENT" != "1" || "$found" == "1" ]]; then
+  if [[ "$SS_CLI_NO_AUTH_ADMIN" != "1" || "$found" == "1" ]]; then
     printf '%s' "$raw"
   else
     printf '%s' "${raw:+$raw }-DSHOT_STOPPER_DEVELOPMENT=1"
@@ -899,6 +943,14 @@ ss_cli_flags_for() {
     fi
     if [[ "$key" == "development" ]]; then
       [[ "$SS_CLI_DEVELOPMENT" == "1" ]] && SS_CLI_FORWARD+=(--development)
+      continue
+    fi
+    if [[ "$key" == "release" ]]; then
+      [[ "$SS_CLI_RELEASE" == "1" ]] && SS_CLI_FORWARD+=(--release)
+      continue
+    fi
+    if [[ "$key" == "no_auth_admin" ]]; then
+      [[ "$SS_CLI_NO_AUTH_ADMIN" == "1" ]] && SS_CLI_FORWARD+=(--no-auth-admin)
       continue
     fi
     if [[ "$key" == "jtag" ]]; then

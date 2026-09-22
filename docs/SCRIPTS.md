@@ -94,7 +94,7 @@ In a terminal, Enter accepts the suggested value. In CI, a pipe, or with
 The following ordinary values may be remembered: port, architecture, monitor
 speed, OTA host, and extra compiler flags. A missing or stale serial path is
 forgotten before use. Hardware and machine profiles, image paths, build/report
-overrides, Web UI language, development mode, confirmation options, and OTA
+overrides, Web UI language, build profiles, confirmation options, and OTA
 one-shot controls are never persisted.
 
 The device password is never read from `.openbrewbyweight`, displayed as a default,
@@ -114,9 +114,9 @@ reset unless the firmware was built with `OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1`. RO
 download mode through BOOT + RST can still expose a flashing port without that
 jumper. The scripts cannot see the physical jumper, so `dev` refuses a
 pipeline that combines `build` with `monitor` unless that JTAG build is
-requested: pass `--jtag` (or include `-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1` in
-`--flags`), or run the monitor separately against firmware you know has
-console output.
+requested: pass `--jtag`, `--development`, or include
+`-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1` in `--flags`, or run the monitor
+separately against firmware you know has console output.
 
 ## Options
 
@@ -126,7 +126,9 @@ console output.
 | `--machine <id-or-json>` | `OPENBREWBYWEIGHT_MACHINE` | all profile-aware stages | Exact built-in machine ID or JSON path. Pair with `--hardware`; never persisted. |
 | `-a`, `--arch <arch>` | `OPENBREWBYWEIGHT_ARCH` | legacy image, monitor, analysis | `n8r4` or `n16r8`. Builds derive it from hardware; it may only confirm that result. |
 | `-f`, `--flags "<flags>"` | `OPENBREWBYWEIGHT_FLAGS` | build | Extra compile definitions/options as one shell argument. |
-| `--development` | — | build | Development-mode build for this invocation only. Never persisted. |
+| `--development` | — | build | Development build profile: same as `--no-auth-admin --jtag`. Never persisted. |
+| `--release` | — | build | Release build profile: no admin unlock and no JTAG console. This is the default when neither profile is passed; individual `--no-auth-admin`/`--jtag` switches still apply on top of it. Never persisted. |
+| `--no-auth-admin` | — | build | Compile-time admin unlock without a device-password session by adding `-DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1` on top of `--flags`. Never persisted. |
 | `--jtag` | — | build | Compile the USB Serial/JTAG console on at boot by adding `-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1` on top of `--flags`. Never persisted. |
 | `--o0`, `--og`, `--o2`, `--os` | — | build | Firmware optimization level for this build only (`-O0`, `-Og`, `-O2`, `-Os`); mutually exclusive, and the `-Os` default is kept when none is passed. `-O1` and `-O3` are not ESP-IDF levels and are rejected. Switching levels recreates the sdkconfig, discarding other local `menuconfig` choices. Never persisted. |
 | `--webui-language <code>` | `OPENBREWBYWEIGHT_WEBUI_LANGUAGE` | build | Compile-time Web UI language; defaults to `en` and is never persisted. |
@@ -202,13 +204,27 @@ define through `--flags` still works:
   --jtag
 ```
 
-Build a transient local-development image:
+Build a transient local-development image. `--development` means
+`--no-auth-admin --jtag`: compile-time admin unlock plus the USB Serial/JTAG
+console:
 
 ```sh
 ./scripts/dev build \
   --hardware esp32-s3-relay-x1-speaker \
   --machine la-marzocco-linea-micra \
   --development
+```
+
+Omitting the profile, or passing `--release` explicitly, builds without admin
+unlock and without the JTAG console. Individual switches still work on top of
+a release build: `--jtag` alone adds only the console, and `--no-auth-admin`
+alone adds only the admin unlock:
+
+```sh
+./scripts/dev build \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine la-marzocco-linea-micra \
+  --no-auth-admin
 ```
 
 Explicit `--flags` are applied after JSON profile values. The resolver rejects
@@ -482,10 +498,10 @@ activation. It never installs anything.
 Complete validation is selected by [VALIDATION.md](../VALIDATION.md), not by a
 single convenient focused test. `dev` never installs dependencies. Missing
 required tools produce exit code 127 instead of silently skipping work.
-For R2/R3, validation builds every compatible hardware/machine pair with
-`--jtag --development`; this checks the largest supported local image and leaves
-each build directory prepared with those transient options. CI then rebuilds
-the explicitly JTAG-off, non-development artifact before publishing it for OTA.
+For R2/R3, validation builds every compatible hardware/machine pair with the
+`--development` profile; this checks the largest supported local image and
+leaves each build directory prepared with those transient options. CI then
+rebuilds the explicit `--release` artifact before publishing it for OTA.
 
 Advanced static-analysis helpers remain documented in
 [Static analysis](STATIC_ANALYSIS.md); they are not alternative firmware build,

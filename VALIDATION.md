@@ -36,11 +36,11 @@ strictly greater, preserving at least one spare slot.
 
 Missing tools or dependencies fail profiles that require them with exit 127.
 Tests never bootstrap packages or access hardware/network implicitly. R3 is not
-release-ready while required HIL/manual evidence is pending. Every firmware
-budget measurement must build with both `--jtag` and `--development`, as defined
-by `docs/P2_RESOURCE_BUDGETS.md`; these options usually produce the largest
-image. R2/R3 validation applies both options to every compatible profile pair
-and leaves those conservative images in their profile build directories. Image
+release-ready while required HIL/manual evidence is pending.Every firmware budget measurement must build with the `--development` profile
+(admin unlock plus the JTAG console), as defined by
+`docs/P2_RESOURCE_BUDGETS.md`; this profile usually produces the largest image.
+R2/R3 validation applies it to every compatible profile pair and leaves those
+conservative images in their profile build directories. Image
 and memory regions are compared by
 `src/tests/check_firmware_size.js` against those versioned budgets.
 

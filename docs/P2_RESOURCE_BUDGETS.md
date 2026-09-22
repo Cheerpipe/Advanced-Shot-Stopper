@@ -7,11 +7,11 @@ an implementation contract, not a substitute for target/HIL evidence.
 ## Firmware image and static regions
 
 `config/resource-baselines.json` records the canonical baselines for both
-targets. Every test or review that measures these budgets must compile with
-both `--jtag` and `--development`; these options usually produce a larger
-firmware image and therefore provide the conservative measurement. Comparisons
-must use the same hardware and machine profiles and the same two options on
-both sides. Every supported build emits `size.json` from the linker map and
+targets. Every test or review that measures these budgets must compile with the
+`--development` profile; it enables the admin unlock and the USB Serial/JTAG
+console and therefore usually produces a larger firmware image, giving the
+conservative measurement. Comparisons must use the same hardware and machine
+profiles and the same profile on both sides. Every supported build emits `size.json` from the linker map and
 checks image bytes, total linked bytes, DIRAM, flash code, and flash rodata.
 Small reviewed growth allowances catch regressions without coupling unrelated
 toolchain padding to an exact byte count; raising a baseline or allowance
