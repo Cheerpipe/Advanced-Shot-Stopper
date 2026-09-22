@@ -42,6 +42,8 @@ def test_snapshot_and_presets_contract() -> None:
     assert snapshot.machine_name == "La Marzocco Linea Micra"
     assert snapshot.machine_profile == "la-marzocco-linea-micra"
     assert snapshot.mdns_host == "controller"
+    assert snapshot.wifi_mac == "AA:BB:CC:DD:EE:FF"
+    assert snapshot.bluetooth_mac == "AA:BB:CC:DD:EE:10"
     assert snapshot.shot_state == "idle"
     assert snapshot.quick_settings.no_scale_bbw_mode == "warn_once"
     assert presets.active_id == 2
@@ -179,6 +181,8 @@ def test_optional_shot_fields_and_legacy_mapping() -> None:
     [
         ("apiVersion", 2),
         ("deviceId", "invalid"),
+        ("wifiMac", "aa:bb:cc:dd:ee:ff"),
+        ("bluetoothMac", "AA:BB:CC:DD:EE"),
         ("capabilities", ["x" * 33]),
         ("shotState", "unknown"),
     ],

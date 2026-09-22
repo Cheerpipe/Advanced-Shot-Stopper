@@ -1,11 +1,12 @@
 """Base entity for Open Brew by Weight."""
 
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import OpenBrewByWeightCoordinator
-from .models import DEFAULT_MANUFACTURER, DEFAULT_MODEL
+from .models import DEFAULT_MANUFACTURER, DEFAULT_MODEL, DeviceSnapshot
 
 
 def _configuration_url(host: str, mdns_host: str | None) -> str:
@@ -13,6 +14,18 @@ def _configuration_url(host: str, mdns_host: str | None) -> str:
     if mdns_host:
         return f"http://{mdns_host}.local/"
     return f"http://{host}/"
+
+
+def _connections(
+    snapshot: DeviceSnapshot,
+) -> set[tuple[str, str]]:
+    """Report the controller's WiFi and Bluetooth addresses when announced."""
+    connections: set[tuple[str, str]] = set()
+    if snapshot.wifi_mac:
+        connections.add((dr.CONNECTION_NETWORK_MAC, snapshot.wifi_mac))
+    if snapshot.bluetooth_mac:
+        connections.add((dr.CONNECTION_BLUETOOTH, snapshot.bluetooth_mac))
+    return connections
 
 
 class OpenBrewByWeightEntity(CoordinatorEntity[OpenBrewByWeightCoordinator]):
@@ -34,4 +47,5 @@ class OpenBrewByWeightEntity(CoordinatorEntity[OpenBrewByWeightCoordinator]):
             configuration_url=_configuration_url(
                 coordinator.api.host, snapshot.mdns_host
             ),
+            connections=_connections(snapshot),
         )

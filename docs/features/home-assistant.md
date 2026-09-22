@@ -59,7 +59,10 @@ and then adds entities. No API credential or pairing step is required.
 
 The integration creates one device. It is published by **Cheerpipe**, and the
 device page also shows the controller's hardware identity — for example
-`esp32-s3-relay-x1-speaker` — alongside the firmware version. The device page
+`esp32-s3-relay-x1-speaker` — alongside the firmware version. Home Assistant
+also links the controller's **WiFi and Bluetooth addresses** on the same page,
+so you can match the device to what your router or Bluetooth scanner shows. The
+device page
 offers a **visit** link that opens the controller's Web UI directly at its
 friendly name-address, for example `http://controller.local/`, so you do not
 need to keep the IP address at hand. Two diagnostic sensors capture that

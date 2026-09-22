@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import device_registry as dr
 
 from custom_components.open_brew_by_weight import (
     async_remove_entry,
@@ -15,6 +16,7 @@ from custom_components.open_brew_by_weight import (
 from custom_components.open_brew_by_weight.button import (
     async_setup_entry as async_setup_button,
 )
+from custom_components.open_brew_by_weight.const import DOMAIN
 from custom_components.open_brew_by_weight.runtime import OpenBrewByWeightRuntimeData
 from custom_components.open_brew_by_weight.select import (
     async_setup_entry as async_setup_select,
@@ -80,6 +82,16 @@ async def test_setup_order_device_and_unload(hass) -> None:
     assert events == ["register", "test", "refresh"]
     forward.assert_awaited_once()
     assert entry.runtime_data is runtime
+    device = dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, "AA:BB:CC:DD:EE:FF"), entry.entry_id
+    )
+    assert device is not None
+    # The registry normalizes MAC connections to lower case; the Bluetooth
+    # address keeps its announced form.
+    assert device.connections == {
+        (dr.CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff"),
+        (dr.CONNECTION_BLUETOOTH, "AA:BB:CC:DD:EE:10"),
+    }
 
     with patch.object(
         hass.config_entries,

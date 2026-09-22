@@ -52,6 +52,8 @@ aggregates, preset revision, and the complete Quick Settings snapshot.
   "apiVersion": 1,
   "minimumClientApiVersion": 1,
   "deviceId": "AA:BB:CC:DD:EE:FF",
+  "wifiMac": "AA:BB:CC:DD:EE:FF",
+  "bluetoothMac": "AA:BB:CC:DD:EE:10",
   "manufacturer": "Open Brew by Weight",
   "model": "Open Brew by Weight",
   "firmwareVersion": "0.1.0",
@@ -87,7 +89,11 @@ this same `lastGoodShot` value; a newer non-qualifying shot does not replace
 either view. If migrated legacy data lacks trustworthy preset identity, both
 views report the last good shot as unknown until a qualifying identified shot
 finishes. Shot-history deletion never selects a replacement aggregate.
-`shotState` is `idle` or `brewing`.
+`shotState` is `idle` or `brewing`. `wifiMac` and `bluetoothMac` repeat the
+station interface addresses as upper-case `AA:BB:CC:DD:EE:FF` strings; the
+Bluetooth address uses the controller's Bluetooth MAC base. Receivers may
+surface them as device connections but must keep using `deviceId` as the
+stable identity.
 
 ### `GET /api/v1/integration/request`
 

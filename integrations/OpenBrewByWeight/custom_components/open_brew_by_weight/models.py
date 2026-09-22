@@ -13,6 +13,7 @@ from .const import API_VERSION, REQUIRED_CAPABILITIES, SHOT_TYPES, STOP_DETAILS
 MAX_WEBHOOK_BYTES = 8192
 MAX_PRESETS = 8
 DEVICE_ID = re.compile(r"^[0-9A-F]{2}(?::[0-9A-F]{2}){5}$")
+MAC = re.compile(r"^[0-9A-F]{2}(?::[0-9A-F]{2}){5}$")
 IPV4 = re.compile(
     r"^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
     r"(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}$"
@@ -81,6 +82,15 @@ def _optional_ip(value: Any) -> str | None:
         return None
     if not isinstance(value, str) or not IPV4.fullmatch(value):
         raise ProtocolError("ip is invalid")
+    return value
+
+
+def _optional_mac(value: Any) -> str | None:
+    """Accept an optional upper-case MAC address; None when absent."""
+    if value is None:
+        return None
+    if not isinstance(value, str) or not MAC.fullmatch(value):
+        raise ProtocolError("MAC address is invalid")
     return value
 
 
@@ -295,6 +305,8 @@ class DeviceSnapshot:
     machine_profile: str = DEFAULT_MACHINE_PROFILE
     ip: str | None = None
     mdns_host: str | None = None
+    wifi_mac: str | None = None
+    bluetooth_mac: str | None = None
 
     @classmethod
     def from_dict(cls, value: Any) -> Self:
@@ -353,6 +365,8 @@ class DeviceSnapshot:
             ),
             ip=_optional_ip(data.get("ip")),
             mdns_host=_optional_mdns_host(data.get("mdnsHost")),
+            wifi_mac=_optional_mac(data.get("wifiMac")),
+            bluetooth_mac=_optional_mac(data.get("bluetoothMac")),
         )
 
 

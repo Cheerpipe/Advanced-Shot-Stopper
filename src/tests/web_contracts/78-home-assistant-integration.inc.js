@@ -14,6 +14,10 @@
       viewJs.admin.includes('/api/v1/integration/pairing/open')) {
     throw new Error('The integration API must share the open local-LAN posture of the Web UI');
   }
+  if (!integrationApi.includes('\\"wifiMac\\"') ||
+      !integrationApi.includes('\\"bluetoothMac\\"')) {
+    throw new Error('The integration snapshot must announce the WiFi and Bluetooth MAC addresses');
+  }
   if (!webhookHeader.includes('bool presetChanges = false') ||
       !webhookHeader.includes('PRESETS_CHANGED') ||
       !webhookHeader.includes('QUICK_SETTINGS_CHANGED') ||

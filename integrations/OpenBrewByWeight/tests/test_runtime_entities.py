@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from homeassistant.const import EntityCategory
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.open_brew_by_weight.api import CannotConnect, RequestRejected
@@ -472,6 +473,10 @@ async def test_entities_and_select(hass) -> None:
     assert state.native_value == "idle"
     assert state.device_info["identifiers"]
     assert state.device_info["name"] == "Open Brew by Weight"
+    assert state.device_info["connections"] == {
+        (dr.CONNECTION_NETWORK_MAC, "AA:BB:CC:DD:EE:FF"),
+        (dr.CONNECTION_BLUETOOTH, "AA:BB:CC:DD:EE:10"),
+    }
     controller = ControllerSensor(coordinator)
     assert controller.unique_id.endswith("_controller")
     assert controller.native_value == "esp32-s3-relay-x1-speaker"
@@ -491,12 +496,15 @@ async def test_entities_and_select(hass) -> None:
     assert state.device_info["configuration_url"] == "http://controller.local/"
     assert len(SHOT_DESCRIPTIONS) == 16
 
-    snapshot_without_mdns = replace(coordinator.data.snapshot, mdns_host=None)
+    snapshot_without_mdns = replace(
+        coordinator.data.snapshot, mdns_host=None, wifi_mac=None, bluetooth_mac=None
+    )
     coordinator.async_set_updated_data(
         replace(coordinator.data, snapshot=snapshot_without_mdns)
     )
     fallback = ShotStateSensor(coordinator)
     assert fallback.device_info["configuration_url"] == "http://controller.local/"
+    assert fallback.device_info["connections"] == set()
     empty = [StoredShotSensor(coordinator, item) for item in SHOT_DESCRIPTIONS]
     assert all(entity.native_value is None for entity in empty)
     await coordinator.async_process_webhook(_event("webhook_end_v1.json"))

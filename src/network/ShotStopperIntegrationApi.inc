@@ -9,6 +9,15 @@ void integrationDeviceId(char output[18]) {
   formatWifiMac(mac, output, 18);
 }
 
+void integrationBluetoothMac(char output[18]) {
+  uint8_t mac[6] = {};
+  if (esp_read_mac(mac, ESP_MAC_BT) != ESP_OK) {
+    output[0] = '\0';
+    return;
+  }
+  formatWifiMac(mac, output, 18);
+}
+
 bool validCorrelationId(const char *value) {
   const size_t length = value == nullptr ? 0 : strnlen(value, 65);
   if (length == 0 || length >= 65) return false;
@@ -126,12 +135,15 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     copyCString(currentIp, sizeof(currentIp), network.staIp);
     copyCString(mdnsHost, sizeof(mdnsHost), network.mdnsHost);
     integrationDeviceId(id);
+    char btMac[18] = {};
+    integrationBluetoothMac(btMac);
     char firmware[32] = {};
     sanitizeJsonEmbed(FW_VERSION, firmware, sizeof(firmware));
     const int written = snprintf(
         self.workBuf_->statusJson, NetworkWorkBuf::kStatusJson,
         "{\"apiVersion\":1,\"minimumClientApiVersion\":1,"
-        "\"deviceId\":\"%s\",\"manufacturer\":\"Cheerpipe\","
+        "\"deviceId\":\"%s\",\"wifiMac\":\"%s\",\"bluetoothMac\":\"%s\","
+        "\"manufacturer\":\"Cheerpipe\","
         "\"model\":\"Open Brew by Weight\",\"firmwareVersion\":\"%s\","
         "\"hardwareProfile\":\"%s\",\"arch\":\"%s\","
         "\"machineName\":\"%s\",\"machineProfile\":\"%s\","
@@ -142,7 +154,7 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
         "\"presetRevision\":%lu,\"quickSettings\":%s,"
         "\"lastShot\":%s,\"lastGoodShot\":%s,"
         "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"}}",
-        id, firmware,
+        id, id, btMac, firmware,
         SHOT_STOPPER_HARDWARE_PROFILE_ID, FW_BOARD_ARCH_STRING,
         SHOT_STOPPER_MACHINE_BRAND " " SHOT_STOPPER_MACHINE_MODEL,
         SHOT_STOPPER_MACHINE_PROFILE_ID, currentIp, mdnsHost,
