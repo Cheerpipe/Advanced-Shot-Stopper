@@ -15,6 +15,10 @@ namespace shotstopper {
 constexpr size_t HISTORY_FLASH_SLOT_BYTES = 16384;
 constexpr size_t HISTORY_FLASH_SLOT_COUNT = 2;
 
+inline uint32_t historyRecordId(const HistoryRecord &record) {
+  return record.id;
+}
+
 template <>
 struct DualSlotFlashLogTraits<HistoryStore> {
   static constexpr const char *kPartitionName = "history";
@@ -22,108 +26,16 @@ struct DualSlotFlashLogTraits<HistoryStore> {
   static constexpr size_t kSlotCount = HISTORY_FLASH_SLOT_COUNT;
   static constexpr size_t kHeaderBytes = sizeof(HistoryHeader);
   static constexpr void (*reset)(HistoryStore &) = resetHistoryStore;
+  using Record = HistoryRecord;
+  static constexpr size_t kCapacity = HISTORY_CAPACITY;
+  static constexpr uint32_t (*recordIdOf)(const HistoryRecord &) =
+      historyRecordId;
 };
 
 class HistoryLog
     : public DualSlotFlashLog<HistoryStore, validHistoryStore,
                               compactHistoryStore, finalizeHistoryStore> {
  public:
-  bool append(const HistoryRecord &record, bool persistNow = true) {
-    const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
-    const uint16_t previousWriteIndex = store_.header.writeIndex;
-    const uint16_t previousCount = store_.header.count;
-    const uint32_t previousNextRecordId = store_.header.nextRecordId;
-    const HistoryRecord overwritten = store_.records[previousWriteIndex];
-
-    HistoryRecord stored = record;
-    stored.id = store_.header.nextRecordId;
-    if (store_.header.nextRecordId < UINT32_MAX) {
-      ++store_.header.nextRecordId;
-    }
-    store_.records[store_.header.writeIndex] = stored;
-    store_.header.writeIndex = static_cast<uint16_t>(
-        (store_.header.writeIndex + 1U) % HISTORY_CAPACITY);
-    if (store_.header.count < HISTORY_CAPACITY) {
-      ++store_.header.count;
-    }
-    if (!persistNow) {
-      dirty_ = true;
-      return true;
-    }
-    if (save()) {
-      return true;
-    }
-    if (flashIoLockTimeouts() == lockTimeoutsBefore) {
-      (void)load();
-      return false;
-    }
-    store_.records[previousWriteIndex] = overwritten;
-    store_.header.writeIndex = previousWriteIndex;
-    store_.header.count = previousCount;
-    store_.header.nextRecordId = previousNextRecordId;
-    return false;
-  }
-
-  bool containsId(uint32_t id) const {
-    if (id == 0 || store_.header.count == 0) {
-      return false;
-    }
-    size_t index = store_.header.writeIndex;
-    for (size_t n = 0; n < store_.header.count; ++n) {
-      if (index == 0) {
-        index = HISTORY_CAPACITY;
-      }
-      --index;
-      if (store_.records[index].id == id) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  bool removeById(uint32_t id, bool persistNow = true) {
-    if (id == 0 || store_.header.count == 0) {
-      return false;
-    }
-    if (persistNow && !lockFlashIo()) {
-      return false;
-    }
-    compactHistoryStore(store_);
-    bool found = false;
-    size_t foundIndex = 0;
-    for (size_t index = 0; index < store_.header.count; ++index) {
-      if (store_.records[index].id == id) {
-        found = true;
-        foundIndex = index;
-        break;
-      }
-    }
-    if (!found) {
-      if (persistNow) unlockFlashIo();
-      return false;
-    }
-    const uint16_t previousCount = store_.header.count;
-    if (foundIndex + 1U < previousCount) {
-      memmove(&store_.records[foundIndex], &store_.records[foundIndex + 1U],
-              static_cast<size_t>(previousCount - foundIndex - 1U) *
-                  sizeof(HistoryRecord));
-    }
-    --store_.header.count;
-    store_.header.writeIndex =
-        static_cast<uint16_t>(store_.header.count % HISTORY_CAPACITY);
-    memset(&store_.records[store_.header.count], 0, sizeof(HistoryRecord));
-    if (!persistNow) {
-      dirty_ = true;
-      return true;
-    }
-    const bool saved = save();
-    unlockFlashIo();
-    if (saved) {
-      return true;
-    }
-    load();
-    return false;
-  }
 
   bool clear(bool persistNow = true) {
     // Keep the monotonic generation: a regressed generation would make the

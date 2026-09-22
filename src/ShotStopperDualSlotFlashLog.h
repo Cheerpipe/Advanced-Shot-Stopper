@@ -25,6 +25,9 @@ struct DualSlotFlashLogTraits;
 template <typename StoreT, bool (*ValidFn)(const StoreT &),
           void (*CompactFn)(StoreT &), void (*FinalizeFn)(StoreT &)>
 class DualSlotFlashLog {
+  using Traits = DualSlotFlashLogTraits<StoreT>;
+  using Record = typename Traits::Record;
+
  public:
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
   static void resetHostStorage() {
@@ -123,7 +126,6 @@ class DualSlotFlashLog {
     unlockFlashIo();
     return true;
 #else
-    using Traits = DualSlotFlashLogTraits<StoreT>;
     const esp_partition_t *part = flashLogPartition();
     if (part == nullptr ||
         part->size < Traits::kSlotCount * Traits::kSlotBytes) {
@@ -169,7 +171,6 @@ class DualSlotFlashLog {
     return save(lockTimeoutMs) ? FlashStoreStepResult::COMPLETE
                                : FlashStoreStepResult::FAILED;
 #else
-    using Traits = DualSlotFlashLogTraits<StoreT>;
     const esp_partition_t *part = flashLogPartition();
     if (part == nullptr ||
         part->size < Traits::kSlotCount * Traits::kSlotBytes) {
@@ -196,6 +197,137 @@ class DualSlotFlashLog {
   }
 
   bool dirty() const { return dirty_; }
+
+  // Record-level ring API shared by the stores. The per-store traits supply
+  // the record type, ring capacity, and the record field that carries the
+  // record id (ShotLog/History use `id`, ShotCurve uses `shotId`).
+  const Record *findNewestById(uint32_t id) const {
+    if (id == 0 || store_.header.count == 0) {
+      return nullptr;
+    }
+    size_t index = store_.header.writeIndex;
+    for (size_t n = 0; n < store_.header.count; ++n) {
+      if (index == 0) {
+        index = Traits::kCapacity;
+      }
+      --index;
+      if (Traits::recordIdOf(store_.records[index]) == id) {
+        return &store_.records[index];
+      }
+    }
+    return nullptr;
+  }
+
+  Record *findNewestById(uint32_t id) {
+    return const_cast<Record *>(
+        static_cast<const DualSlotFlashLog *>(this)->findNewestById(id));
+  }
+
+  bool containsId(uint32_t id) const { return findNewestById(id) != nullptr; }
+
+  size_t copyNewestFirst(Record *output, size_t capacity) const {
+    if (output == nullptr || capacity == 0 || store_.header.count == 0) {
+      return 0;
+    }
+    const size_t toCopy =
+        store_.header.count < capacity ? store_.header.count : capacity;
+    size_t index = store_.header.writeIndex;
+    for (size_t copied = 0; copied < toCopy; ++copied) {
+      if (index == 0) {
+        index = Traits::kCapacity;
+      }
+      --index;
+      output[copied] = store_.records[index];
+    }
+    return toCopy;
+  }
+
+  // Assigns the next record id, advances the ring, and persists. On a failed
+  // immediate save the store is rolled back when the failure was a lock
+  // timeout, or reloaded from the last-good slot otherwise (compaction may
+  // have moved records, making the pre-append snapshot stale).
+  bool append(const Record &record, bool persistNow = true) {
+    const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
+    const uint16_t previousWriteIndex = store_.header.writeIndex;
+    const uint16_t previousCount = store_.header.count;
+    const uint32_t previousNextRecordId = store_.header.nextRecordId;
+    const Record overwritten = store_.records[previousWriteIndex];
+
+    Record stored = record;
+    stored.id = store_.header.nextRecordId;
+    if (store_.header.nextRecordId < UINT32_MAX) {
+      ++store_.header.nextRecordId;
+    }
+    store_.records[store_.header.writeIndex] = stored;
+    store_.header.writeIndex =
+        static_cast<uint16_t>((store_.header.writeIndex + 1U) %
+                              Traits::kCapacity);
+    if (store_.header.count < Traits::kCapacity) {
+      ++store_.header.count;
+    }
+    if (!persistNow) {
+      dirty_ = true;
+      return true;
+    }
+    if (save()) {
+      return true;
+    }
+    if (flashIoLockTimeouts() == lockTimeoutsBefore) {
+      load();
+      return false;
+    }
+    store_.records[previousWriteIndex] = overwritten;
+    store_.header.writeIndex = previousWriteIndex;
+    store_.header.count = previousCount;
+    store_.header.nextRecordId = previousNextRecordId;
+    return false;
+  }
+
+  // Compacts to a linear prefix so deletion is a memmove, avoiding a second
+  // capacity-sized record array on the loopTask stack.
+  bool removeById(uint32_t id, bool persistNow = true) {
+    if (id == 0 || store_.header.count == 0) {
+      return false;
+    }
+    if (persistNow && !lockFlashIo()) {
+      return false;
+    }
+    CompactFn(store_);
+    bool found = false;
+    size_t foundIndex = 0;
+    for (size_t index = 0; index < store_.header.count; ++index) {
+      if (Traits::recordIdOf(store_.records[index]) == id) {
+        found = true;
+        foundIndex = index;
+        break;
+      }
+    }
+    if (!found) {
+      if (persistNow) unlockFlashIo();
+      return false;
+    }
+    const uint16_t previousCount = store_.header.count;
+    if (foundIndex + 1U < previousCount) {
+      memmove(&store_.records[foundIndex], &store_.records[foundIndex + 1U],
+              static_cast<size_t>(previousCount - foundIndex - 1U) *
+                  sizeof(Record));
+    }
+    --store_.header.count;
+    store_.header.writeIndex =
+        static_cast<uint16_t>(store_.header.count % Traits::kCapacity);
+    memset(&store_.records[store_.header.count], 0, sizeof(Record));
+    if (!persistNow) {
+      dirty_ = true;
+      return true;
+    }
+    const bool saved = save();
+    unlockFlashIo();
+    if (saved) {
+      return true;
+    }
+    load();
+    return false;
+  }
 
  protected:
 #if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \

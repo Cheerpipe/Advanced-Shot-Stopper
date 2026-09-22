@@ -165,6 +165,9 @@ void ShotStopperNetwork::touchAdminUnlock() {
 
 bool ShotStopperNetwork::adminUnlockAllowed(httpd_req_t *request) {
 #if SHOT_STOPPER_DEVELOPMENT == 1
+  // Development build: administration is public by design. Returning true
+  // here makes every admin-gated handler and the status page report an
+  // always-unlocked session without ever touching the unlock state.
   (void)request;
   return true;
 #else

@@ -14,6 +14,10 @@ namespace shotstopper {
 constexpr size_t SHOT_CURVE_FLASH_SLOT_BYTES = 28672;
 constexpr size_t SHOT_CURVE_FLASH_SLOT_COUNT = 2;
 
+inline uint32_t shotCurveRecordId(const ShotCurveRecord &record) {
+  return record.shotId;
+}
+
 template <>
 struct DualSlotFlashLogTraits<ShotCurveStore> {
   static constexpr const char *kPartitionName = "shotcurve";
@@ -21,6 +25,10 @@ struct DualSlotFlashLogTraits<ShotCurveStore> {
   static constexpr size_t kSlotCount = SHOT_CURVE_FLASH_SLOT_COUNT;
   static constexpr size_t kHeaderBytes = sizeof(ShotCurveHeader);
   static constexpr void (*reset)(ShotCurveStore &) = resetShotCurveStore;
+  using Record = ShotCurveRecord;
+  static constexpr size_t kCapacity = SHOT_CURVE_CAPACITY;
+  static constexpr uint32_t (*recordIdOf)(const ShotCurveRecord &) =
+      shotCurveRecordId;
 };
 
 class ShotCurveLog
@@ -57,78 +65,16 @@ class ShotCurveLog
   }
 
   bool containsShotId(uint32_t id) const {
-    if (id == 0 || store_.header.count == 0) {
-      return false;
-    }
-    size_t index = store_.header.writeIndex;
-    for (size_t n = 0; n < store_.header.count; ++n) {
-      if (index == 0) {
-        index = SHOT_CURVE_CAPACITY;
-      }
-      --index;
-      if (store_.records[index].shotId == id) {
-        return true;
-      }
-    }
-    return false;
+    return findNewestById(id) != nullptr;
   }
 
   bool copyByShotId(uint32_t id, ShotCurveRecord &output) const {
-    if (id == 0 || store_.header.count == 0) return false;
-    size_t index = store_.header.writeIndex;
-    for (size_t n = 0; n < store_.header.count; ++n) {
-      if (index == 0) index = SHOT_CURVE_CAPACITY;
-      --index;
-      if (store_.records[index].shotId == id) {
-        output = store_.records[index];
-        return true;
-      }
-    }
-    return false;
-  }
-
-  bool removeById(uint32_t id, bool persistNow = true) {
-    if (id == 0 || store_.header.count == 0) {
+    const ShotCurveRecord *found = findNewestById(id);
+    if (found == nullptr) {
       return false;
     }
-    if (persistNow && !lockFlashIo()) {
-      return false;
-    }
-    compactShotCurveStore(store_);
-    bool found = false;
-    size_t foundIndex = 0;
-    for (size_t index = 0; index < store_.header.count; ++index) {
-      if (store_.records[index].shotId == id) {
-        found = true;
-        foundIndex = index;
-        break;
-      }
-    }
-    if (!found) {
-      if (persistNow) unlockFlashIo();
-      return false;
-    }
-    const uint16_t previousCount = store_.header.count;
-    if (foundIndex + 1U < previousCount) {
-      memmove(&store_.records[foundIndex], &store_.records[foundIndex + 1U],
-              static_cast<size_t>(previousCount - foundIndex - 1U) *
-                  sizeof(ShotCurveRecord));
-    }
-    --store_.header.count;
-    store_.header.writeIndex =
-        static_cast<uint16_t>(store_.header.count % SHOT_CURVE_CAPACITY);
-    memset(&store_.records[store_.header.count], 0, sizeof(ShotCurveRecord));
-    if (!persistNow) {
-      dirty_ = true;
-      return true;
-    }
-    const bool saved = save();
-    unlockFlashIo();
-    if (saved) {
-      return true;
-    }
-    load();
-    return false;
+    output = *found;
+    return true;
   }
 
   bool clear(bool persistNow = true) {
@@ -149,23 +95,6 @@ class ShotCurveLog
   void acknowledgePersisted(const ShotCurveLog &image, bool clearDirty) {
     activeSlot_ = image.activeSlot_;
     if (clearDirty) dirty_ = false;
-  }
-
-  size_t copyNewestFirst(ShotCurveRecord *output, size_t capacity) const {
-    if (output == nullptr || capacity == 0 || store_.header.count == 0) {
-      return 0;
-    }
-    const size_t toCopy =
-        store_.header.count < capacity ? store_.header.count : capacity;
-    size_t index = store_.header.writeIndex;
-    for (size_t copied = 0; copied < toCopy; ++copied) {
-      if (index == 0) {
-        index = SHOT_CURVE_CAPACITY;
-      }
-      --index;
-      output[copied] = store_.records[index];
-    }
-    return toCopy;
   }
 };
 
