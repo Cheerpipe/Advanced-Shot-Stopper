@@ -693,9 +693,8 @@ bool jsonExtendedPulseRate(cJSON *object, const char *name, uint8_t &output) {
 }
 
 void formatIp(const IPAddress &ip, char output[16]) {
-  snprintf(output, 16, "%u.%u.%u.%u", static_cast<unsigned>(ip[0]),
-           static_cast<unsigned>(ip[1]), static_cast<unsigned>(ip[2]),
-           static_cast<unsigned>(ip[3]));
+  const uint8_t octets[4] = {ip[0], ip[1], ip[2], ip[3]};
+  formatIpv4(octets, output);
 }
 
 bool registerHandler(httpd_handle_t server, const char *uri,
