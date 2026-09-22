@@ -152,6 +152,21 @@ ss_idf_jtag_enabled() {
   return 1
 }
 
+# Static analysis defaults predate the per-variant build trees: without an
+# explicit --build-dir, prefer the newest variant database instead of the
+# legacy per-arch directory that recent builds no longer write.
+ss_idf_default_build_dir() {
+  local database newest=""
+  for database in "$SS_CLI_ROOT"/build-idf/*/compile_commands.json; do
+    [[ -f "$database" ]] || continue
+    if [[ -z "$newest" || "$database" -nt "$newest" ]]; then
+      newest="$database"
+    fi
+  done
+  [[ -n "$newest" ]] || return 1
+  printf '%s' "${newest%/*}"
+}
+
 # Call after shotstopper_resolve_board. Sets IDF_PROJECT, IDF_BUILD_DIR,
 # IDF_IMAGE, IDF_ELF, IDF_MAP, IDF_SDKCONFIG, IDF_SDKCONFIG_DEFAULTS.
 ss_idf_resolve_paths() {
