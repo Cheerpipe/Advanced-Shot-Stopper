@@ -240,7 +240,7 @@ if (!network.includes('restoreLkgToActive(next)') ||
   if (!network.includes('bool ShotStopperNetwork::ensureMdns()') ||
       !network.includes('mdns_init()') ||
       !network.includes('mdns_hostname_set(host)') ||
-      !network.includes('mdns_service_add(name, "_http", "_tcp", 80, nullptr, 0)') ||
+      !network.includes('mdns_service_add(instance, "_http", "_tcp", 80, nullptr, 0)') ||
       !network.includes('mdns_service_txt_item_set("_http", "_tcp", "obbw", "1")') ||
       !network.includes('void ShotStopperNetwork::stopMdns()') ||
       !network.includes('mdns_free()') ||
@@ -421,7 +421,7 @@ if (!webhookSource.includes('xSemaphoreTake(lifecycleMutex_, 0)') ||
   throw new Error('Webhook dispatch must remain non-blocking and release disabled worker resources');
 }
 if ((webhookSource.match(/"Content-Type", "application\/json"/g) || []).length !== 1 ||
-    (webhookSource.match(/"User-Agent", "ShotStopper\/1"/g) || []).length !== 1 ||
+    (webhookSource.match(/"User-Agent", "OpenBrewByWeight\/1"/g) || []).length !== 1 ||
     webhookSource.indexOf('esp_http_client_set_header(client, "Content-Type"') >
         webhookSource.indexOf('httpClient_.reset(client)')) {
   throw new Error('Webhook constant headers must be installed once before client ownership');

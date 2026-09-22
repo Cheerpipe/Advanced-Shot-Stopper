@@ -232,11 +232,11 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !firmware.includes('durableFlashWriteAllowed(') ||
     !domainCore.includes('durableFlashWriteAllowed') ||
     !activationStoresIo.includes('shotLogPersistFailLatched_') ||
-    !firmwareCore.includes('activationStores.service(kTryLockMs, addDebugEvent)') ||
+    !firmwareCore.includes(
+        'shotStorePersistImage->serviceStep(FLASH_IO_LOCK_TIMEOUT_MS,') ||
     !firmwareCore.includes('shotStorePersistRetryAtMs') ||
     !firmwareCore.includes('SHOT_STORE_PERSIST_RETRY_MS') ||
     !firmware.includes('noteScaleHistory(seenMac, seenName, false)') ||
-    !firmwareCore.includes('constexpr uint32_t kTryLockMs = 0') ||
     wallClock.includes('monotonicMs >= anchorMonotonicMs_') ||
     !wallClock.includes('monotonicElapsedMs(monotonicMs, anchorMonotonicMs_)') ||
     !network.includes('StaJoinHints ShotStopperNetwork::staJoinHints()') ||
