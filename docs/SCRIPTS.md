@@ -16,6 +16,11 @@ flash over USB.
 | Run host tests | `./scripts/dev test normal` |
 | Validate changes | `./scripts/dev validate` |
 
+Successful firmware builds automatically retain ELF/BIN pairs in
+`artifacts/firmware/<hardware>--<machine>/<ELF SHA>/`, including `build` without
+`flash`. The directory also contains image identity for matching a crash log to
+its ELF; `./scripts/dev clean` keeps these archives.
+
 Wi-Fi OTA is intentionally unsupported. Any `ota` pipeline is rejected before
 the controller is contacted; use the USB `flash` pipeline instead.
 

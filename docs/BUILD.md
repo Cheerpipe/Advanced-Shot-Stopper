@@ -159,6 +159,14 @@ Both options are required together. The X1 profile always resolves to
 `build-idf/esp32-s3-relay-x1-speaker--<machine>/` and also creates a `.bin`
 whose filename contains that complete variant.
 
+Every successful `build` also preserves the matching `shotstopper.elf` and
+`shotstopper.bin` under
+`artifacts/firmware/<hardware>--<machine>/<ELF SHA>/`, alongside
+`identity.json`. The SHA is the one printed in an ESP32 panic log; its prefix
+can locate the matching archive. These Git-ignored copies are created without
+flashing and are retained by `./scripts/dev clean`. A later build cannot replace
+an archive whose SHA already exists with different files.
+
 Explicit `--flags` are applied after the JSON values. Supported profile values
 are reflected in the resolved manifest; additive compiler flags keep working.
 The resolver rejects unsafe or contradictory overrides, including GPIO

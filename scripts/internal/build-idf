@@ -214,6 +214,27 @@ node "$root/src/tests/check_firmware_size.js" "$IDF_BUILD_DIR/shotstopper.bin" \
   --arch "$SHOTSTOPPER_ARCH"
 
 ss_idf_verify_firmware
+identity="$(node ./scripts/image_tag.js "$IDF_IMAGE" --json)"
+elf_sha="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).elfSha256)' "$identity")"
+archive_parent="$root/artifacts/firmware/$SHOTSTOPPER_VARIANT"
+archive="$archive_parent/$elf_sha"
+mkdir -p "$archive_parent"
+if [[ -d "$archive" ]]; then
+  if ! cmp -s "$IDF_BUILD_DIR/shotstopper.elf" "$archive/shotstopper.elf" ||
+    ! cmp -s "$IDF_IMAGE" "$archive/shotstopper.bin"; then
+    echo "Firmware archive collision: $archive" >&2
+    exit 1
+  fi
+else
+  stage="$(mktemp -d "$archive_parent/.pending.XXXXXXXX")"
+  trap 'rm -rf "$stage"' EXIT
+  cp "$IDF_BUILD_DIR/shotstopper.elf" "$stage/shotstopper.elf"
+  cp "$IDF_IMAGE" "$stage/shotstopper.bin"
+  printf '%s\n' "$identity" >"$stage/identity.json"
+  mv "$stage" "$archive"
+  trap - EXIT
+fi
+echo "Firmware archive: $archive"
 if [[ -n "${SHOTSTOPPER_VARIANT:-}" ]]; then
   artifact="$IDF_BUILD_DIR/shotstopper-${SHOTSTOPPER_VARIANT}.bin"
   cp "$IDF_IMAGE" "$artifact"

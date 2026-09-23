@@ -23,6 +23,7 @@ const ESP_CHIP_ID_ESP32S3 = 0x0009;
 const APP_DESC_OFFSET = 32;
 const APP_DESC_MAGIC = 0xabcd5432;
 const APP_DESC_PROJECT_NAME_OFFSET = APP_DESC_OFFSET + 48;
+const APP_DESC_ELF_SHA256_OFFSET = APP_DESC_OFFSET + 144;
 // esp_image_header_t.hash_appended: when set, the last 32 bytes are the
 // SHA-256 of everything before them. This is the same digest the controller
 // recomputes in esp_ota_end(), so checking it here catches a truncated or
@@ -146,6 +147,8 @@ function inspectImage(filePath) {
         `marker ${TAG_PREFIX}… not found (built without scripts/dev build?)`);
   }
   return {problems, tag, sizeBytes: buffer.length, projectName,
+    elfSha256: buffer.subarray(APP_DESC_ELF_SHA256_OFFSET,
+        APP_DESC_ELF_SHA256_OFFSET + 32).toString('hex'),
     imageSha256: buffer.subarray(buffer.length - IMAGE_HASH_BYTES).toString('hex')};
 }
 
@@ -223,6 +226,7 @@ function main(argv) {
       sizeBytes: result.sizeBytes,
       tagOffset: result.tag.tagOffset,
       projectName: result.projectName,
+      elfSha256: result.elfSha256,
       imageSha256: result.imageSha256,
       formatVersion: 2,
     }) + '\n');
