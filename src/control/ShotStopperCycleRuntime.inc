@@ -499,7 +499,11 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
       feedCupPresence(weight, receivedAtMs, packetSequence,
                       session.active ||
                           (!runtimeConfig.autoTareOutsideBrew && idleTare.requestId == 0) ||
-                          placementInRange, !session.active) : CupPresenceEvent::NONE;
+                          placementInRange, !session.active,
+                      !session.active &&
+                          (idleKnownAccessoryRemoval(weight) ||
+                           idleAccessoryUnloadUnsettled(weight, receivedAtMs)))
+      : CupPresenceEvent::NONE;
   if (!session.active && pendingFinalize.pending &&
       (observedUnload || cupEvent != CupPresenceEvent::NONE)) {
     machineCancelSettledWeightCutOff();

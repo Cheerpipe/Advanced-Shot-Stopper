@@ -21,6 +21,8 @@ struct IdleTareRuntime {
   uint32_t accessoryCycleId = 0;
   uint32_t accessoryStartedAtMs = 0;
   uint32_t accessoryLastAtMs = 0;
+  uint32_t unloadStartedAtMs = 0;
+  uint32_t unloadLastAtMs = 0;
   float previousReferenceG = 0.0f;
   float requestMinimumG = 0.0f;
   float requestMaximumG = 0.0f;
@@ -28,8 +30,13 @@ struct IdleTareRuntime {
   float lastWeightG = 0.0f;
   float accessoryMinimumG = 0.0f;
   float accessoryMaximumG = 0.0f;
+  float knownAccessoryMassG = 0.0f;
+  float unloadMinimumG = 0.0f;
+  float unloadMaximumG = 0.0f;
   uint8_t accessorySamples = 0;
+  uint8_t unloadSamples = 0;
   bool accessoryUsed = false;
+  bool accessoryRemovalAttempted = false;
   bool accessoryRequest = false;
   bool unchangedAfterWrite = false;
   IdleTareReason eligibilityReason = IdleTareReason::NONE;
@@ -86,8 +93,13 @@ void releaseIdleTareRequest(IdleTareReason reason = IdleTareReason::NONE) {
       released.preTareWeightG);
   if (idleTare.accessoryRequest && released.phase == IdleTarePhase::SUCCEEDED &&
       idleTare.tareNotified && cupPresence.weight.valid &&
-      std::isfinite(cupPresence.emptyAnchorG))
+      std::isfinite(cupPresence.emptyAnchorG)) {
     cupPresence.weight.weightG = -cupPresence.emptyAnchorG;
+    idleTare.knownAccessoryMassG = released.preTareWeightG > 0.0f
+        ? released.preTareWeightG : 0.0f;
+    if (released.preTareWeightG < 0.0f) idleTare.accessoryUsed = false;
+    else idleTare.accessoryRemovalAttempted = false;
+  }
   if (idleTare.cupStillPresent &&
       cupPresencePlacementId() == idleTare.placementId) {
     if (released.phase == IdleTarePhase::SUCCEEDED) {
@@ -97,6 +109,8 @@ void releaseIdleTareRequest(IdleTareReason reason = IdleTareReason::NONE) {
           idleTare.accessoryPlacementId = idleTare.placementId;
           idleTare.accessoryCycleId = session.id;
           idleTare.accessoryUsed = false;
+          idleTare.accessoryRemovalAttempted = false;
+          idleTare.knownAccessoryMassG = 0.0f;
         }
         reason = IdleTareReason::EFFECT_CONFIRMED;
       } else {
@@ -142,6 +156,9 @@ void serviceIdleTare() {
     idleTare.absentObserved = false;
     idleTare.accessoryPlacementId = 0;
     idleTare.accessorySamples = 0;
+    idleTare.unloadSamples = 0;
+    idleTare.accessoryRemovalAttempted = false;
+    idleTare.knownAccessoryMassG = 0.0f;
     resetCupPlaceStabilityStreak();
     cupPresence.weight.unloadQualified = false;
     cupPresence.weight.unloadSamples = 0;
@@ -216,6 +233,7 @@ bool observeIdleTareSample(float weight, uint32_t atMs, uint32_t sequence,
        (static_cast<int32_t>(sequence - idleTare.lastPacketSequence) <= 0 ||
         static_cast<int32_t>(atMs - idleTare.lastSampleAtMs) < 0))) {
     resetCupSampleEvidence();
+    idleTare.unloadSamples = 0;
     ++idleTare.rejectedSamples;
     if (idleTare.requestId != 0 &&
         idleScaleTareStatus().phase == IdleTarePhase::QUEUED)
@@ -226,6 +244,28 @@ bool observeIdleTareSample(float weight, uint32_t atMs, uint32_t sequence,
   idleTare.lastPacketSequence = sequence;
   idleTare.lastCaptureSequence = captureSequence;
   idleTare.lastWeightG = weight;
+  // Hold a partial negative ramp until it settles; a full unload keeps the
+  // cup detector's existing fast path through the empty-pan anchor.
+  if (idleTare.knownAccessoryMassG >= runtimeConfig.minimumCupWeightG &&
+      weight <= runtimeConfig.cupRemovedWeightG &&
+      std::isfinite(cupPresence.emptyAnchorG) &&
+      weight > cupPresence.emptyAnchorG + runtimeConfig.retareStabilityToleranceG) {
+    if (idleTare.unloadSamples == 0 ||
+        atMs - idleTare.unloadLastAtMs > runtimeConfig.retareStabilityMaxGapMs ||
+        fmaxf(weight, idleTare.unloadMaximumG) -
+            fminf(weight, idleTare.unloadMinimumG) >
+            runtimeConfig.retareStabilityToleranceG) {
+      idleTare.unloadSamples = 0;
+      idleTare.unloadStartedAtMs = atMs;
+      idleTare.unloadMinimumG = idleTare.unloadMaximumG = weight;
+    }
+    idleTare.unloadMinimumG = fminf(weight, idleTare.unloadMinimumG);
+    idleTare.unloadMaximumG = fmaxf(weight, idleTare.unloadMaximumG);
+    idleTare.unloadLastAtMs = atMs;
+    if (idleTare.unloadSamples < UINT8_MAX) ++idleTare.unloadSamples;
+  } else {
+    idleTare.unloadSamples = 0;
+  }
   if (idleTare.requestId != 0 && idleTare.cupStillPresent) {
     const IdleTareStatus status = idleScaleTareStatus();
     if (status.requestId == idleTare.requestId && status.phase == IdleTarePhase::QUEUED) {
@@ -269,6 +309,9 @@ void handleIdleCupEvent(CupPresenceEvent event, bool accessory = false) {
     idleTare.cupStillPresent = false;
     idleTare.accessoryPlacementId = 0;
     idleTare.accessorySamples = 0;
+    idleTare.unloadSamples = 0;
+    idleTare.accessoryRemovalAttempted = false;
+    idleTare.knownAccessoryMassG = 0.0f;
     if (idleTare.requestId != 0) releaseIdleTareRequest(IdleTareReason::REMOVED);
   }
   if (!idleTare.eligible) return;
@@ -310,9 +353,15 @@ void handleIdleCupEvent(CupPresenceEvent event, bool accessory = false) {
   idleTare.requestMaximumG = accessory ? idleTare.accessoryMaximumG : cupPresenceMaximumG();
   idleTare.requestPlacementThresholdG = accessory ? runtimeConfig.minimumCupWeightG
                                                 : cupPresencePlacementThresholdG();
+  if (accessory && idleTare.accessoryMinimumG < 0.0f)
+    idleTare.requestPlacementThresholdG =
+        cupPresence.emptyAnchorG + runtimeConfig.minimumCupWeightG;
   idleTare.placementId = cupPresencePlacementId();
   idleTare.accessoryRequest = accessory;
-  if (accessory) idleTare.accessoryUsed = true;
+  if (accessory) {
+    if (idleTare.accessoryMinimumG < 0.0f) idleTare.accessoryRemovalAttempted = true;
+    else idleTare.accessoryUsed = true;
+  }
   idleTare.unchangedAfterWrite = false;
   idleTare.effectAtMs = 0;
   idleTare.deferredReason = IdleTareReason::NONE;
@@ -320,12 +369,41 @@ void handleIdleCupEvent(CupPresenceEvent event, bool accessory = false) {
   emitImmediateCommandAlertIfBuzzer(AlertEvent::TARE);
 }
 
+bool idleKnownAccessoryRemoval(float weight) {
+  const float toleranceG = runtimeConfig.retareStabilityToleranceG;
+  const float cupMassG = -cupPresence.emptyAnchorG - idleTare.knownAccessoryMassG;
+  return idleTare.eligible && idleAccessoryRetareEnabled(runtimeConfig.noScaleBbwMode) &&
+      idleTare.knownAccessoryMassG >= runtimeConfig.minimumCupWeightG &&
+      idleTare.accessoryPlacementId == cupPresencePlacementId() &&
+      idleTare.accessoryCycleId == session.id && cupPresenceIsTared() &&
+      cupPresence.weight.valid && std::isfinite(cupPresence.emptyAnchorG) &&
+      cupMassG >= runtimeConfig.minimumCupWeightG &&
+      fabsf(cupMassG - idleTare.knownAccessoryMassG) > 2.0f * toleranceG &&
+      weight >= MIN_AUTOMATION_WEIGHT_G &&
+      fabsf(weight + idleTare.knownAccessoryMassG) <= toleranceG;
+}
+
+bool idleAccessoryUnloadUnsettled(float weight, uint32_t atMs) {
+  return idleTare.eligible && idleAccessoryRetareEnabled(runtimeConfig.noScaleBbwMode) &&
+      idleTare.knownAccessoryMassG >= runtimeConfig.minimumCupWeightG &&
+      idleTare.accessoryPlacementId == cupPresencePlacementId() &&
+      idleTare.accessoryCycleId == session.id && cupPresenceIsTared() &&
+      cupPresence.weight.valid && std::isfinite(cupPresence.emptyAnchorG) &&
+      weight <= runtimeConfig.cupRemovedWeightG &&
+      weight > cupPresence.emptyAnchorG + runtimeConfig.retareStabilityToleranceG &&
+      (idleTare.unloadSamples < runtimeConfig.retareStabilitySamples ||
+       atMs - idleTare.unloadStartedAtMs < runtimeConfig.retareStabilityMinDurationMs);
+}
+
 void observeIdleAccessory(float weight, uint32_t atMs) {
   if (!idleTare.eligible || !idleAccessoryRetareEnabled(runtimeConfig.noScaleBbwMode) ||
-      idleTare.requestId != 0 || idleTare.accessoryUsed ||
+      idleTare.requestId != 0 ||
       idleTare.accessoryPlacementId != cupPresencePlacementId() ||
       idleTare.accessoryCycleId != session.id || !cupPresenceIsTared() ||
-      !cupPresence.weight.valid || weight < runtimeConfig.minimumCupWeightG ||
+      !cupPresence.weight.valid ||
+      !((weight >= runtimeConfig.minimumCupWeightG && !idleTare.accessoryUsed) ||
+        (weight <= -runtimeConfig.minimumCupWeightG &&
+         !idleTare.accessoryRemovalAttempted && idleKnownAccessoryRemoval(weight))) ||
       weight > MAX_AUTOMATION_WEIGHT_G) {
     idleTare.accessorySamples = 0;
     return;

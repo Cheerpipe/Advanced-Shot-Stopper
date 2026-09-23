@@ -2367,8 +2367,9 @@ void w01_default_runtime_configuration_is_valid() {
   CHECK(fabsf(config.minRecoveryWeightG - DEFAULT_MIN_RECOVERY_WEIGHT_G) <
         0.001f);
   CHECK(config.maxBbwBrewTimeMs == DEFAULT_MAX_BBW_BREW_TIME_MS);
-  CHECK(config.noScaleBbwMode ==
+  CHECK(noScaleBbwModeValue(config.noScaleBbwMode) ==
         static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE));
+  CHECK(idleAccessoryRetareEnabled(config.noScaleBbwMode));
   CHECK(!noScaleAllowRinseWhileArmed(config.noScaleBbwMode));
   CHECK(config.cupProtectionEnabled);
   CHECK(config.stopIfCupRemoved);
@@ -9072,6 +9073,204 @@ void it38_accessory_retare_requires_continuous_confirmed_placement() {
   }
 }
 
+void prepareTaredCupAndAccessory(float cupG, float accessoryG) {
+  prepareIdleTare();
+  runtimeConfig.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
+  idleCup(cupG);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  idleCup(accessoryG);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(fabsf(captureCupTareDiagnostics().weightG - cupG - accessoryG) < 0.1f);
+}
+
+void it39_known_accessory_removal_retares_without_losing_cup() {
+  for (const auto &masses : {std::pair{80.0f, 40.0f}, std::pair{80.0f, 120.0f}}) {
+    prepareTaredCupAndAccessory(masses.first, masses.second);
+    idleCup(-masses.second);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(fabsf(captureCupTareDiagnostics().weightG - masses.first) < 0.1f);
+    idleWeight(-masses.first);
+    idleWeight(-masses.first);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    idleCup(-masses.first);
+    idleCup(0.0f);
+    idleCup(masses.first);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  }
+}
+
+void it40_accessory_unload_sequences_keep_next_placement_eligible() {
+  for (unsigned scenario = 0; scenario < 6; ++scenario) {
+    prepareTaredCupAndAccessory(80.0f, scenario == 5 ? 80.0f : 40.0f);
+    const float totalG = scenario == 5 ? 160.0f : 120.0f;
+    if (scenario == 0) { // Both lifted together.
+      idleWeight(-totalG);
+      idleWeight(-totalG);
+    } else if (scenario == 1) { // Cup lifted first, accessory remains.
+      idleWeight(-80.0f);
+      idleWeight(-80.0f);
+      idleCup(-80.0f);
+    } else if (scenario == 2) { // Accessory lifted briefly, then both.
+      idleWeight(-40.0f);
+      idleWeight(-totalG);
+      idleWeight(-totalG);
+    } else if (scenario == 3) { // Accessory put back before it settles.
+      idleWeight(-40.0f);
+      idleCup(0.0f);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+      idleWeight(-totalG);
+      idleWeight(-totalG);
+    } else if (scenario == 4) { // Unmatched partial drop.
+      idleWeight(-60.0f);
+      idleWeight(-60.0f);
+      idleCup(-60.0f);
+    } else { // Equal component masses are ambiguous.
+      idleWeight(-80.0f);
+      idleWeight(-80.0f);
+      idleCup(-80.0f);
+    }
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    idleCup(-totalG);
+    idleCup(0.0f);
+    idleCup(80.0f);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  }
+}
+
+void it41_combined_placement_partial_unload_recovers_at_empty_pan() {
+  for (bool partial : {false, true}) {
+    prepareIdleTare();
+    runtimeConfig.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
+    idleCup(120.0f); // Cup and accessory arrive as one unknown mass.
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    if (partial) {
+      idleCup(-40.0f);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    }
+    idleWeight(-120.0f);
+    idleWeight(-120.0f);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    idleCup(-120.0f);
+    idleCup(0.0f);
+    idleCup(80.0f);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  }
+}
+
+void it42_accessory_can_be_readded_after_known_removal() {
+  prepareTaredCupAndAccessory(80.0f, 40.0f);
+  idleCup(-40.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  idleCup(40.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  idleWeight(-120.0f);
+  idleWeight(-120.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+}
+
+void it43_queued_accessory_removal_survives_fresh_negative_samples() {
+  prepareTaredCupAndAccessory(80.0f, 40.0f);
+  idleCup(-40.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  idleWeight(-40.2f);
+  idleWeight(-40.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(idleTare.requestId != 0);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(fabsf(captureCupTareDiagnostics().weightG - 80.0f) < 0.3f);
+}
+
+void it44_interrupted_removal_recovers_after_empty_pan() {
+  prepareTaredCupAndAccessory(80.0f, 40.0f);
+  idleCup(-40.0f);
+  idleWeight(-120.0f); // Both leave before the queued write.
+  idleWeight(-120.0f);
+  CHECK(executeNextScaleCommand());
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleCup(-120.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  idleCup(0.0f);
+  idleCup(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+}
+
+void it45_failed_accessory_removal_does_not_retry_on_unknown_zero() {
+  prepareTaredCupAndAccessory(80.0f, 40.0f);
+  idleCup(-40.0f);
+  scale.tareSucceeds = false;
+  CHECK(executeNextScaleCommand());
+  idleCup(-40.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleCup(0.0f); // Failed writes do not certify a new scale zero.
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+}
+
+void it46_accessory_removal_never_uses_idle_tare_during_shot() {
+  prepareTaredCupAndAccessory(80.0f, 40.0f);
+  startCycle();
+  while (executeNextScaleCommand()) {}
+  establishPostTareBaseline();
+  idleWeight(-40.0f);
+  idleWeight(-40.0f);
+  idleCup(-40.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+}
+
+void it47_stale_or_disabled_accessory_evidence_never_tares_removal() {
+  for (bool enabled : {false, true}) {
+    prepareTaredCupAndAccessory(80.0f, 40.0f);
+    if (!enabled) {
+      runtimeConfig.noScaleBbwMode &= ~IDLE_ACCESSORY_RETARE;
+      ++runtimeConfig.revision;
+    } else {
+      idleWeight(0.0f, runtimeConfig.retareStabilityMaxGapMs + 1);
+    }
+    idleCup(-40.0f);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    idleCup(-120.0f);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  }
+}
+
+void it48_gradual_accessory_or_cup_unload_waits_for_settled_mass() {
+  for (unsigned scenario = 0; scenario < 3; ++scenario) {
+    const float accessoryG = scenario == 2 ? 120.0f : 40.0f;
+    prepareTaredCupAndAccessory(80.0f, accessoryG);
+    const float finalDropG = scenario == 1 ? 80.0f : accessoryG;
+    for (float dropG = 10.0f; dropG < finalDropG; dropG += 10.0f) {
+      idleWeight(-dropG);
+      CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    }
+    idleCup(-finalDropG);
+    if (scenario == 1) {
+      idleWeight(-finalDropG);
+      CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    } else {
+      CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+    }
+  }
+}
+
 void cup_fsm_put_back_without_tare_is_present() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -15604,6 +15803,16 @@ const TestCase testCases[] = {
     {"IT36", it36_bookoo_startup_zero_unload_rearms_relative_tare},
     {"IT37", it37_accessory_retare_is_opt_in_and_once_before_shot},
     {"IT38", it38_accessory_retare_requires_continuous_confirmed_placement},
+    {"IT39", it39_known_accessory_removal_retares_without_losing_cup},
+    {"IT40", it40_accessory_unload_sequences_keep_next_placement_eligible},
+    {"IT41", it41_combined_placement_partial_unload_recovers_at_empty_pan},
+    {"IT42", it42_accessory_can_be_readded_after_known_removal},
+    {"IT43", it43_queued_accessory_removal_survives_fresh_negative_samples},
+    {"IT44", it44_interrupted_removal_recovers_after_empty_pan},
+    {"IT45", it45_failed_accessory_removal_does_not_retry_on_unknown_zero},
+    {"IT46", it46_accessory_removal_never_uses_idle_tare_during_shot},
+    {"IT47", it47_stale_or_disabled_accessory_evidence_never_tares_removal},
+    {"IT48", it48_gradual_accessory_or_cup_unload_waits_for_settled_mass},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},

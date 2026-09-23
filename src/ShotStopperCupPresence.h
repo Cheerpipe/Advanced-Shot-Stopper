@@ -242,7 +242,8 @@ void notifyCupPresenceTare() {
 
 CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
                                  uint32_t packetSequence, bool allowPlacement = true,
-                                 bool allowFastReplacement = false) {
+                                 bool allowFastReplacement = false,
+                                 bool protectedPartialUnload = false) {
   if (!std::isfinite(weight)) {
     return CupPresenceEvent::NONE;
   }
@@ -269,10 +270,10 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   // A lighter put-back may remain below zero until tare. Its stationary
   // occupied plateau is not a second lift; preserve the additional drop.
   const float removalReferenceG = fminf(0.0f, cupPresence.occupiedReferenceG);
-  const bool removalCandidate =
+  const bool removalCandidate = !protectedPartialUnload && (
       nearEmpty || weight <= removalReferenceG + removedG ||
       (!cupPresence.taredWhilePresent && !cupPresence.referenceUncertain &&
-       weight < minCupG);
+       weight < minCupG));
 
   if (!removalCandidate) {
     cupPresence.removedArmed = true;

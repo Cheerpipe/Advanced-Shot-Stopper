@@ -55,7 +55,7 @@ void p01_defaults_are_valid() {
   CHECK(settings.staWifiSleep);
   CHECK(settings.runtime.showDiagnosticPage);
   CHECK(settings.runtime.autoTareOutsideBrew);
-  CHECK(!idleAccessoryRetareEnabled(settings.runtime.noScaleBbwMode));
+  CHECK(idleAccessoryRetareEnabled(settings.runtime.noScaleBbwMode));
   CHECK(settings.runtime.powerManagementEnabled);
   CHECK(!settings.webhook.deferDuringShot);
   CHECK(settings.runtime.fastExtractionGuardEnabled);
@@ -108,7 +108,7 @@ void p01_defaults_are_valid() {
         static_cast<uint8_t>(DEFAULT_EXTENDED_PULSE_RATE));
   CHECK(settings.runtime.buzzerSlowExtendedPulseRate ==
         static_cast<uint8_t>(DEFAULT_EXTENDED_PULSE_RATE));
-  CHECK(settings.runtime.noScaleBbwMode ==
+  CHECK(noScaleBbwModeValue(settings.runtime.noScaleBbwMode) ==
         static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE));
   CHECK(!noScaleAllowRinseWhileArmed(settings.runtime.noScaleBbwMode));
   CHECK(settings.runtime.cupProtectionEnabled);
@@ -145,7 +145,7 @@ void p02_newest_valid_slot_is_loaded() {
   CHECK(savePersistedSettings(settings));
   const uint32_t firstRevision = settings.storageRevision;
   settings.runtime.goalWeightG = 47;
-  settings.runtime.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
+  settings.runtime.noScaleBbwMode &= ~IDLE_ACCESSORY_RETARE;
   settings.runtime.maxRecoveryWeightG = 55.0f;
   settings.runtime.soundAlertsMuted = true;
   settings.runtime.cupProtectionEnabled = false;
@@ -167,7 +167,7 @@ void p02_newest_valid_slot_is_loaded() {
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
   CHECK(loaded.runtime.goalWeightG == 47);
-  CHECK(idleAccessoryRetareEnabled(loaded.runtime.noScaleBbwMode));
+  CHECK(!idleAccessoryRetareEnabled(loaded.runtime.noScaleBbwMode));
   CHECK(loaded.runtime.soundAlertsMuted);
   CHECK(!loaded.runtime.cupProtectionEnabled);
   CHECK(!loaded.runtime.stopIfCupRemoved);
@@ -474,6 +474,7 @@ void p08_factory_reset_rebuilds_defaults() {
   resetHostPersistence();
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
+  settings.runtime.noScaleBbwMode &= ~IDLE_ACCESSORY_RETARE;
   settings.runtime.goalWeightG = 63;
   settings.runtime.maxRecoveryWeightG = 70.0f;
   strcpy(settings.preferredScaleMac, "AA:BB:CC:DD:EE:FF");
@@ -483,6 +484,7 @@ void p08_factory_reset_rebuilds_defaults() {
   finalizePersistedSettings(settings);
   CHECK(savePersistedSettings(settings));
   CHECK(resetPersistedSettingsToFactory(settings));
+  CHECK(idleAccessoryRetareEnabled(settings.runtime.noScaleBbwMode));
   CHECK(settings.schemaVersion == CONFIG_SCHEMA_VERSION);
   CHECK(settings.staWifiSleep);
   CHECK(settings.runtime.goalWeightG == DEFAULT_GOAL_WEIGHT_G);
@@ -500,6 +502,7 @@ void p08_factory_reset_rebuilds_defaults() {
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
   CHECK(verifyFactorySettings(loaded));
+  CHECK(idleAccessoryRetareEnabled(loaded.runtime.noScaleBbwMode));
   CHECK(loaded.runtime.goalWeightG == DEFAULT_GOAL_WEIGHT_G);
 }
 

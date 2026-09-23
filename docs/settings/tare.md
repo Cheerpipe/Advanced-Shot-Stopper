@@ -32,7 +32,7 @@ controller does not promise another automatic tare outside that window.
 | Setting | Default | Range | Effect on the shot |
 | --- | --- | --- | --- |
 | **Automatic tare outside a brew** | ON | ON / OFF | Tare once on a new stable cup placement while idle, independently of shot-start tare, BBW, and cup protection. Never tares merely because a shot ends. |
-| **Retare when adding an accessory to the cup** | OFF | ON / OFF | Before brewing, tare one stable added load on a cup that the controller already tared outside a brew. Requires **Automatic tare outside a brew**. |
+| **Retare when adding or removing an accessory** | ON | ON / OFF | Before brewing, tare a stable added load on a cup already tared outside a brew, then retare its known removal while the cup remains. Requires **Automatic tare outside a brew**. |
 | **Automatic tare at shot start** | ON | ON / OFF | Tare at shot start when a usable scale supports it, including timer-only shots. |
 | **Post-tare grace (s)** | 2 s | 0.5–10 s | After a tare (start or late-cup retare), wait this long for ~0 g before using weight for **stop/control**. |
 | **Late-cup retare during a shot** | ON | ON / OFF | Allow one late-cup retare during the retare window. Requires shot-start tare and fires on the cup-presence **placed** event. |
@@ -43,9 +43,10 @@ All tare switches are shared machine settings, not preset values. Save changes
 while idle. **Automatic tare outside a brew** defaults ON on first setup, factory
 reset, and upgrade from a configuration without this field. A saved OFF value
 survives reboot and later upgrades. Enabling it with a cup already present does
-not tare that cup. Accessory retare defaults OFF after installation or reset;
-its saved value survives reboot. Turning it on for an already-tared cup takes
-effect with the next cup placement and controller-confirmed tare.
+not tare that cup. Accessory retare defaults ON after installation or factory
+reset; its saved OFF value survives reboot and firmware upgrades. Turning it on
+for an already-tared cup takes effect with the next cup placement and
+controller-confirmed tare.
 
 ## Outside a brew
 
@@ -59,16 +60,27 @@ Either placement path triggers another tare, even if the cup contains coffee.
 With accessory retare OFF, adding coffee or a spoon while the cup stays present
 does not tare.
 
-With **Retare when adding an accessory to the cup** ON, place and let the cup
+With **Retare when adding or removing an accessory** ON, place and let the cup
 auto-tare first. Add the accessory before starting the shot, then wait for its
 added weight to meet **Minimum cup weight** and the configured stability window.
 The controller tares that addition once; the cup remains present and its
-calculated load includes the accessory. A second addition to the same placement,
-or any increase during or after its shot, does not trigger this option. Remove
-and replace the cup to prepare another set. Because the scale reports weight
+calculated load includes the accessory. If you then remove that accessory before
+brewing, a matching stable weight drop triggers another tare while the cup stays
+present. You can add the accessory again after that removal. A second addition
+without an intervening known removal, or any change during or after its shot,
+does not trigger this option. Because the scale reports weight
 rather than what was added, a stable addition of coffee can also be tared.
 Leave this option OFF if you put ingredients in the cup before brewing.
 Disconnected, stale, uncertain, or interrupted readings cannot authorize it.
+
+When the cup and accessory were placed together, the controller knows only their
+combined weight. Removing one part cannot be identified reliably, so it does
+not retare that partial drop. Remove everything, let the empty pan settle, and
+place the cup again to resume automatic tare. If the separately measured cup
+and accessory have nearly equal weights, their individual removal is also
+ambiguous and does not trigger accessory retare. A failed or unconfirmed tare
+may require a diagnostic tare with the pan empty before automatic placement
+can resume.
 
 Moving an empty scale and returning it near its original zero does not authorize
 an idle tare. A negative reading first seen at boot/reconnect, without a

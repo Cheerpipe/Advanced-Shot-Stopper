@@ -1,10 +1,10 @@
 {
   const labels = ['Automatic tare outside a brew',
-    'Retare when adding an accessory to the cup', 'Automatic tare at shot start',
+    'Retare when adding or removing an accessory', 'Automatic tare at shot start',
     'Late-cup retare during a shot'];
   if (labels.some(label => !html.includes(label)) ||
       !html.includes('id="autoTareOutsideBrew" type="checkbox" checked') ||
-      !html.includes('id="retareAccessoryOutsideBrew" type="checkbox"') ||
+      !html.includes('id="retareAccessoryOutsideBrew" type="checkbox" checked') ||
       html.indexOf('id="retareAccessoryOutsideBrew"') <
           html.indexOf('id="autoTareOutsideBrew"') ||
       html.indexOf('id="retareAccessoryOutsideBrew"') >

@@ -194,9 +194,9 @@ and [shot history](features/shot-history.md).
 settings blob. `autoTareOutsideBrew` remains a global machine setting rather
 than part of the per-shot/preset recipe snapshot. No historical settings layout
 is interpreted at boot. The optional idle accessory retare uses spare bit 6 of
-the already-packed `noScaleBbwMode` byte, defaults off for existing schema-1
-records, and is preserved when the no-scale mode changes; the blob size and
-schema stay unchanged.
+the already-packed `noScaleBbwMode` byte. New and factory-reset records default
+on; existing saved records retain their stored bit, including OFF. The bit is
+preserved when the no-scale mode changes; blob size and schema stay unchanged.
 
 Idle tare arbitration lives in `control/OpenBrewByWeightCycleRuntime.inc`, reusing
 the cup FSM's PLACED event and ScaleService's TARE_ONLY transport. Worker

@@ -525,6 +525,14 @@ Idle tare accepts this path or stable absence, never one ABSENT sample or a
 stable-to-stable load difference alone. In-shot confirmation remains unchanged.
 See [Displayed cup weight](settings/cup.md#displayed-cup-weight).
 
+For idle accessory retare, a separately measured accessory mass can identify
+its later negative removal. That matching partial unload leaves PRESENT in place
+until the normal stability window qualifies a retare. Removing the cup or the
+whole load still emits REMOVED. Similar component masses, an unknown component
+of a combined placement, stale evidence, or a failed write do not authorize
+negative retare; full unloading to the known empty reference re-arms placement.
+The active-shot removal rule is unchanged.
+
 The shot-start resync preserves known tared PRESENT at zero. Require-cup checks
 consume that state, not a positive net-weight threshold. Untared lift-to-zero
 still removes the cup. Idle eligibility/connection/config changes reset the
