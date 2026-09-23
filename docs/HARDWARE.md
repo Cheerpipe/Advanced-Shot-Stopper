@@ -144,7 +144,7 @@ pin floating when the controller is inside the machine. Pull the Dupont
 - **JTAG build (`-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1`):** USB Serial/JTAG is on at
   boot (OpenOCD + CDC) with no jumper. Do not ship this to a machine build.
 - **Without jumper, default app running:** no CDC port. Flash with
-  **BOOT + RST** (ROM USB download) or **OTA**.
+  **BOOT + RST** (ROM USB download).
 - ROM download always works, jumper or not. On this board IO4 sits next to
   **EN** — never short that pair.
 

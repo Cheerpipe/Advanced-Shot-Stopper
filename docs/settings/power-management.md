@@ -46,7 +46,7 @@ setting, and the existing persistence worker retries it.
 | Manual operation without a scale, or rinse | Fixed 80 MHz throughout the operation | Saved scan intensity and BLE service; switching the machine on without a connected scale also opens a Scan boost on machine use window if the setting is not OFF |
 | Physical-use cooldown | Fixed 80 MHz for 5 minutes after confirmed stop or latest debounced physical edge | Saved Wi-Fi sleep preference; saved scan intensity |
 | Recent visible WebUI activity | Fixed 80 MHz unless a shot needs 160 | Saved Wi-Fi sleep preference |
-| AP provisioning, STA reconnect, maintenance or USB console | At least 80 MHz | Existing provisioning/OTA overrides |
+| AP provisioning, STA reconnect, maintenance or USB console | At least 80 MHz | Existing provisioning/USB overrides |
 
 Forty MHz is an eligible minimum: radio drivers can hold the CPU at 80 MHz.
 The Admin status shows the instantaneous CPU clock and configured range, not

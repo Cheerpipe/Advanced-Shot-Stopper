@@ -63,8 +63,8 @@ namespace shotstopper {
 
 constexpr uint32_t SERIAL_BAUD = 115200;
 // Fresh persistence baseline. Earlier firmware schemas are intentionally not
-// accepted; this contract is installed with a full flash erase.
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 2;
+// accepted; install this contract with a full flash erase over USB.
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 1;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;

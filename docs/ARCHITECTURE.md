@@ -114,7 +114,7 @@ offsets, gain/provenance, and profile through the existing dual-slot owner.
 are current explicit fields. Presets never copy the global power setting.
 Earlier settings lengths or schema numbers are rejected before field access;
 there is no settings decoder or migration fallback.
-Last-shot schema V4 atomically stores independent last-completed and
+Last-shot schema 1 atomically stores independent last-completed and
 last-qualifying-good aggregates and appends average flow to each complete
 record. `LastShotStore` owns both live RAM views and their one durable blob;
 controller status publishes those store-owned values rather than maintaining a
@@ -124,31 +124,23 @@ only by exact ID, never an alternate aggregate or newest-history fallback. The
 linked history row owns its rating; control publishes that exact rating and
 curve under the shared shot-store mutex without copying the history collection.
 
-V2/V3 records retain their last shot during migration and seed the good
-aggregate only when duration exceeds 12 seconds and finite final weight exceeds
-2 g. The migrated V4 blob is queued through the normal flash owner and retry
-policy. A legacy aggregate without retained preset identity remains unknown to
-both public consumers. Clear-last preserves the good aggregate; deleting or
-clearing history only makes its optional rating/curve link unavailable, and
-factory reset clears both aggregates.
+Any other last-shot blob is discarded and starts empty. A legacy aggregate
+without retained preset identity is never reconstructed. Clear-last preserves
+the good aggregate; deleting or clearing history only makes its optional
+rating/curve link unavailable, and factory reset clears both aggregates.
 
-History V5 keeps 72-byte records and 120 entries. Its final 24 bytes hold the
-exact preset-name snapshot captured at shot start; V1–V4 migration preserves
-the old 48-byte prefix and leaves this new field empty. Guard byte bits 5–7 encode
+History schema 1 keeps the current fixed records and entries. Guard byte bits 5–7 encode
 profile (0 unknown, 1 pre-selector regression with unknown version, 2 regression v1,
 3 adaptive EWMA v1, 4 EWMA v2). Alpha is 0 unknown or 1–100 hundredths;
 extension bits 2–4 hold its low three bits, cut-type bits 4–7 its high four.
 Extension bits 5–6 encode learning application (0 unknown,
 1 skipped, 2 applied). Guard, rating, extension and weight-source meanings are
-preserved. V1 migration clears newly assigned bits explicitly after CRC
-validation, preserving records and offsets. Shot-type bits 2–7 and cut-type
+are preserved in the current layout. Shot-type bits 2–7 and cut-type
 bits 2–3 hold the captured preset ID (low six/high two bits); type/cut readers
-mask the low two bits. V1/V2 migration explicitly sets unknown preset ID zero
-after CRC validation; V2/V3 alpha codes become hundredths, with V3 preset IDs
-and all historical policy versions retained. Preset/BBW writers preserve each
-other's bit fields. V5 is rejected by older firmware. The ID follows existing
-preset allocation, while the stored name is historical data rather than a
-lookup through the current preset bank.
+mask the low two bits. Preset/BBW writers preserve each other's bit fields.
+Any non-v1 history store is discarded instead of decoded. The ID follows
+existing preset allocation, while the stored name is historical data rather
+than a lookup through the current preset bank.
 
 The stats shot log, its curve sidecar, and the independent activation history
 are owned by one RAM data layer (`ActivationStores`) whose every access runs
@@ -165,11 +157,10 @@ while that owner holds the flash lock. Each keeps two slots in its own data
 partition — 2×12 KiB for `shotlog`, 2×16 KiB for `history` — with generation
 and checksum selection preserving the atomic whole-store update; a failed
 write never erases the last-good slot. Writes remain deferred until the shot
-has ended. The shot log moved from NVS to its partition with schema V6:
-upgrading requires a one-time full-erase USB installation and starts the
-stats log empty.
+has ended. The shot log uses schema 1 in its dedicated partition; any other
+schema is discarded and the stats log starts empty.
 
-The separate shot-curve sidecar uses an intentionally incompatible V3 schema:
+The separate shot-curve sidecar uses schema 1:
 up to 121 centigram weights on a fixed half-second grid plus exact event/end
 vertices for each of the same 100 eligible history records. Its 26,820-byte
 whole store lives in PSRAM and moves to and from its slots in 1 KiB chunks
@@ -178,7 +169,7 @@ holds the flash lock. Two
 28 KiB slots fill the dedicated 56 KiB `shotcurve` data partition; generation
 and checksum selection preserve the existing atomic whole-store update.
 Writes remain deferred until the shot has ended and do not add a transaction
-for derived flow. Older curve stores are discarded rather than migrated. The
+for derived flow. Any other curve store is discarded. The
 shot-log record's existing metric prefix and average-flow field are unchanged.
 
 Decoding checks the supplied length before reading record CRCs and copies only

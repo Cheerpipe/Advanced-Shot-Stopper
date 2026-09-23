@@ -17,7 +17,7 @@ and hardware-installation steps are not qualified here; the Windows notes in
 cover tool preparation only.
 
 Read [Hardware](HARDWARE.md) before connecting equipment. Building and host tests
-do not need a connected controller. Flash/OTA sections explicitly affect it.
+do not need a connected controller. USB flash sections explicitly affect it.
 
 ## 1. Clone the repository
 
@@ -167,11 +167,10 @@ relay profile, or a different `--arch`. Development mode remains CLI-only and
 must never be added to a profile.
 
 Machine defaults seed a new installation and factory reset. Valid persisted
-settings survive ordinary boot and OTA; settings written by an older schema
-version are upgraded in place when the layout allows it (schema V1 records
-gain the machine–scale power-link options as off). Each compatibility-relevant profile
-revision is embedded in the firmware identity, so OTA refuses an image for a
-different hardware or machine profile even when both use n16r8.
+settings survive ordinary boot. Every persistent store is schema 1; older
+settings, logs, and curves are rejected and replaced with factory defaults.
+Firmware installation is USB-only, so a clean flash is required for this
+cutover and profile identity is checked before writing the device.
 
 List available IDs and compatibility before building:
 
@@ -323,9 +322,9 @@ memory budgets. Use only the image for the intended profile pair. The supported 
 two app slots; arbitrary 4 MB layouts cannot hold this firmware.
 
 GitHub Actions publishes only the reviewed Linea Micra profile pair. Names follow
-`openbrewbyweight-ota-<profile>-jtag-off-remote-off.bin`; those two features are
+`openbrewbyweight-<profile>-jtag-off-remote-off.bin`; those two features are
 explicitly disabled at compile time. GitHub downloads each artifact as a ZIP
-container, but that container holds only the named OTA-ready `.bin` file.
+container, but that container holds only the named `.bin` file.
 
 ## 6. Flash (USB)
 
@@ -393,10 +392,10 @@ is no automatic settings or curve migration; both start from factory defaults.
   --erase-all
 ```
 
-Record the settings you need before migrating. Do not combine `--erase-all`
+Record the settings you need before reinstalling. Do not combine `--erase-all`
 with an external `--image`; the project build outputs are required to write the
-bootloader, new partition table, initial OTA metadata and application. OTA and
-an app-only image cannot activate a changed partition table.
+bootloader, new partition table, initial metadata and application. An app-only
+image cannot activate a changed partition table.
 
 ## 7. Serial monitor and first setup
 
@@ -414,24 +413,11 @@ with [First setup and daily use](GETTING_STARTED.md).
 
 <a id="9-update-over-wi-fi-ota"></a>
 
-## 8. Update over Wi-Fi (OTA)
+## 8. Firmware updates
 
-After installation, follow [OTA](features/ota.md) for upload, verification,
-commit, confirmation and recovery. OTA cannot migrate the partition table.
-
-Build and update the same profile in one command:
-
-```sh
-./scripts/dev build ota --confirm \
-  --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x \
-  --host 192.168.1.50 \
-  --yes --wait-for-confirmation
-```
-
-`--yes` accepts the commit question; `--wait-for-confirmation` independently
-verifies the rebooted image. See the [complete `dev` examples](SCRIPTS.md) for
-standalone and combined build, flash, OTA, and monitor commands.
+Firmware installation is USB-only. Use `./scripts/dev flash --confirm` with
+the exact hardware and machine profiles; Wi-Fi OTA commands are intentionally
+rejected.
 
 ## One supported command interface
 

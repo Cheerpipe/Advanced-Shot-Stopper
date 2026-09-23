@@ -55,7 +55,7 @@ reported only after the Micra dashboard confirms the same temperature.
 
 Both start with BBW and Fast/Slow/A→M enabled, Max BBW time 50 s and initial
 BBW protection 12 s. These are factory seeds, not a description of a modified
-or migrated preset. Definitions: `fillFactorySinglePreset` /
+or factory preset. Definitions: `fillFactorySinglePreset` /
 `fillDoubleFirmwareDefaults` in
 `OpenBrewByWeightPresets.h` in the firmware sources.
 

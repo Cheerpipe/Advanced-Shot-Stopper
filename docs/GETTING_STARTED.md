@@ -17,7 +17,7 @@ start with [Hardware](HARDWARE.md).
 3. If the Web UI shows **Reload**, select it to claim this browser session.
    Open **Admin** and unlock it with the device password.
 4. Change the factory device password in **Admin → Device password**. It is
-   shared by Admin, OTA, and the access point. If the AP disconnects after a
+   shared by Admin and the access point. If the AP disconnects after a
    password change, reconnect using the new password.
 5. In **Admin → Wi-Fi**, enter your home network and save. Rejoin that network
    on your phone/computer when the controller's AP closes.
@@ -138,4 +138,4 @@ before relying on automatic operation.
 | Cannot reach the controller | Use [network troubleshooting](FAQ.md#network-and-access) before considering a reset. |
 
 Next: [settings index](README.md#settings) · [troubleshooting](FAQ.md) ·
-[updates](features/ota.md).
+[USB firmware installation](features/ota.md).

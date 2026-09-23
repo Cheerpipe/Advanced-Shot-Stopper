@@ -173,7 +173,7 @@ interval.
 used for that shot, not the currently selected recipe. The name is a snapshot,
 not a lookup through the mutable preset list, so it survives switching, renaming,
 or deleting the preset. Pre-V3 records have unknown identity (JSON 0, CSV empty),
-and records migrated from history V1–V4 have no recoverable preset name. IDs are
+IDs are
 local to the controller, use 1–255 and may be reused after allocation wraps or
 settings are reset; use the captured name when comparing historical shots.
 
@@ -188,14 +188,10 @@ Learning applied is `1`/`0` in CSV and true/false in JSON; a skipped shot still
 retains its assigned gain. For example, appended CSV values can be
 `linear_ewma,2,0.37,1` and later `linear_ewma,2,0.50,1` for the same preset.
 
-History schema V6 uses 72-byte records; the log now holds 100 shots. Each
-shot's curve is saved by schema V3 with twice the resolution — a sample every
-half-second — and older curve stores are discarded rather than migrated. The
-curve partition grew to hold the finer samples, so updating from firmware
-with the earlier layout or one-second curves requires a one-time clean USB
-installation and starts the log empty; export the CSV first if you want to
-keep older shots. Records written by older schemas are simply absent rather
-than relabeled. Select Linear
+History and curve stores use schema 1. Any older or incompatible store is
+discarded and starts empty; export the CSV before a clean USB installation if
+you want to keep older shots. Records written by older schemas are simply
+absent rather than relabeled. Select Linear
 regression + offset correction in current firmware for like-for-like
 algorithm comparison. Renaming the visible method does not rename API/CSV
 identifiers.

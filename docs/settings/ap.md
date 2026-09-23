@@ -26,14 +26,14 @@ eight lowercase characters from the end of this device's AP address. USB
 `AP_STATUS` prints the exact name. SoftAP WPA2 uses the **device password**.
 Change it from **Admin** (unlock with the device password) **→ Device password**
 or from USB (`SET_DEVICE_PASSWORD` / `RESET_DEVICE_PASSWORD`). Admin unlock
-and OTA use that same device password.
+use that same device password.
 
 ## Parameters
 
 | Setting | Default | Notes |
 | --- | --- | --- |
 | **AP name** | `OpenBrewByWeightAP-xxxxxxxx` | Not user-editable. The eight characters are unique to this controller. USB `AP_STATUS` shows the live name. |
-| **Device password** | `ineedacoffee` | Case-sensitive. 8–63 characters when you change it; USB `SET_DEVICE_PASSWORD` will not accept the factory string as the new value. SoftAP WPA2, Admin unlock, and OTA all use this same device password. |
+| **Device password** | `ineedacoffee` | Case-sensitive. 8–63 characters when you change it; USB `SET_DEVICE_PASSWORD` will not accept the factory string as the new value. SoftAP WPA2 and Admin unlock use this same device password. |
 | **AP address** | `http://192.168.4.1` | SoftAP IPv4. |
 
 ## First connection

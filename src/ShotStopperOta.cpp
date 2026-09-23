@@ -62,7 +62,7 @@ constexpr uint32_t OTA_MIN_IMAGE_BYTES = 65536;
 
 constexpr uint32_t OTA_SESSION_TTL_MS = 15U * 60U * 1000U;
 constexpr uint32_t OTA_JOURNAL_MAGIC = 0x4f544a31U;  // OTJ1
-constexpr uint16_t OTA_JOURNAL_VERSION = 2;
+constexpr uint16_t OTA_JOURNAL_VERSION = 1;
 constexpr uint32_t OTA_PUBLISHED_AVAILABLE = 1U << 0;
 constexpr uint32_t OTA_PUBLISHED_BUSY = 1U << 1;
 constexpr uint32_t OTA_PUBLISHED_PENDING_VERIFY = 1U << 2;
@@ -313,7 +313,12 @@ void ShotStopperOta::begin() {
     }
   }
   targetPartition_ = target;
-  available_ = running != nullptr && target != nullptr && target != running;
+  // Keep checking the inactive slot for boot diagnostics, but USB-only builds
+  // never expose it as a writable network target.
+  const bool inactiveSlot = running != nullptr && target != nullptr &&
+                            target != running;
+  (void)inactiveSlot;
+  available_ = false;
   slotBytes_ = target != nullptr ? target->size : 0;
   state_ = available_ ? OtaState::IDLE : OtaState::UNAVAILABLE;
 

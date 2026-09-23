@@ -7,63 +7,8 @@
 namespace shotstopper {
 
 constexpr uint32_t LAST_SHOT_MAGIC = 0x4C534854U;  // "LSHT"
-// Current last-shot schema (v5: wall-clock tail on each shot). Unrecognized
-// blobs decode as empty (no upgrade).
-constexpr uint16_t LAST_SHOT_SCHEMA_VERSION = 5;
-
-// Bytes v5 appended to each stored shot (two wall-clock words, one flag byte,
-// tail alignment). Keeps the legacy v4 buffer size derived, not hardcoded.
-constexpr size_t kLastShotV5AppendedBytes = sizeof(uint32_t) * 2 + 1;
-constexpr size_t kLastShotV4ShotBytes =
-    sizeof(PersistedLastShot) -
-    ((kLastShotV5AppendedBytes + 3u) & ~static_cast<size_t>(3));
-
-struct LastShotBlobV2 {
-  uint32_t magic;
-  uint16_t schemaVersion;
-  uint16_t structureSize;
-  uint8_t shot[80];
-  uint32_t checksum;
-};
-
-static_assert(offsetof(PersistedLastShot, endedAtUptimeMs) == 80,
-              "V2 last-shot prefix changed");
-
-inline uint32_t lastShotV2Checksum(const LastShotBlobV2 &blob) {
-  return crc32(reinterpret_cast<const uint8_t *>(&blob),
-               offsetof(LastShotBlobV2, checksum));
-}
-
-struct LastShotBlobV3 {
-  uint32_t magic;
-  uint16_t schemaVersion;
-  uint16_t structureSize;
-  uint8_t shot[112];
-  uint32_t checksum;
-};
-
-static_assert(offsetof(PersistedLastShot, averageFlowGps) == 112,
-              "V3 last-shot prefix changed");
-
-inline uint32_t lastShotV3Checksum(const LastShotBlobV3 &blob) {
-  return crc32(reinterpret_cast<const uint8_t *>(&blob),
-               offsetof(LastShotBlobV3, checksum));
-}
-
-// v4 layout: identical header and shot order; each stored shot just lacked
-// the v5 wall-clock tail.
-struct LastShotBlobV4 {
-  uint32_t magic;
-  uint16_t schemaVersion;
-  uint16_t structureSize;
-  uint8_t shot[2 * kLastShotV4ShotBytes];
-  uint32_t checksum;
-};
-
-inline uint32_t lastShotV4Checksum(const LastShotBlobV4 &blob) {
-  return crc32(reinterpret_cast<const uint8_t *>(&blob),
-               offsetof(LastShotBlobV4, checksum));
-}
+// Fixed v1 last-shot schema. Older blobs decode as empty and are not upgraded.
+constexpr uint16_t LAST_SHOT_SCHEMA_VERSION = 1;
 
 struct LastShotBlob {
   uint32_t magic = LAST_SHOT_MAGIC;
@@ -104,11 +49,10 @@ inline void resetLastShotBlob(LastShotBlob &blob) {
 
 class LastShotStore {
  public:
-  // `goodShotProtectionMs` sets the minimum duration for the migrated/last
-  // shot to also qualify as the last good shot (BBW protection window).
+  // `goodShotProtectionMs` remains part of the call contract for the live
+  // last-good-shot policy; persisted blobs are never upgraded.
   bool load(uint32_t goodShotProtectionMs = DEFAULT_BBW_PROTECTION_MS) {
-    loadedLegacy_ = false;
-    goodShotProtectionMs_ = goodShotProtectionMs;
+    (void)goodShotProtectionMs;
 #if defined(SHOT_STOPPER_HOST_TEST)
     if (hostStorageValid_) {
       blob_ = hostStorage_;
@@ -145,54 +89,6 @@ class LastShotStore {
         validLastShotBlob(candidate)) {
       blob_ = candidate;
       loaded = true;
-    } else if (length == sizeof(LastShotBlobV4)) {
-      LastShotBlobV4 legacy = {};
-      if (preferences.getBytes(LAST_SHOT_KEY, &legacy, sizeof(legacy)) ==
-              sizeof(legacy) &&
-          legacy.magic == LAST_SHOT_MAGIC && legacy.schemaVersion == 4 &&
-          legacy.structureSize == sizeof(legacy) &&
-          legacy.checksum == lastShotV4Checksum(legacy)) {
-        resetLastShotBlob(blob_);
-        memcpy(static_cast<void *>(&blob_.lastShot), legacy.shot,
-               kLastShotV4ShotBytes);
-        memcpy(static_cast<void *>(&blob_.lastGoodShot),
-               legacy.shot + kLastShotV4ShotBytes, kLastShotV4ShotBytes);
-        finalizeLastShotBlob(blob_);
-        loadedLegacy_ = true;
-        loaded = true;
-      }
-    } else if (length == sizeof(LastShotBlobV3)) {
-      LastShotBlobV3 legacy = {};
-      if (preferences.getBytes(LAST_SHOT_KEY, &legacy, sizeof(legacy)) ==
-              sizeof(legacy) &&
-          legacy.magic == LAST_SHOT_MAGIC && legacy.schemaVersion == 3 &&
-          legacy.structureSize == sizeof(legacy) &&
-          legacy.checksum == lastShotV3Checksum(legacy)) {
-        resetLastShotBlob(blob_);
-        memcpy(static_cast<void *>(&blob_.lastShot), legacy.shot, sizeof(legacy.shot));
-        if (qualifyingGoodShot(blob_.lastShot, goodShotProtectionMs_)) {
-          blob_.lastGoodShot = blob_.lastShot;
-        }
-        finalizeLastShotBlob(blob_);
-        loadedLegacy_ = true;
-        loaded = true;
-      }
-    } else if (length == sizeof(LastShotBlobV2)) {
-      LastShotBlobV2 legacy = {};
-      if (preferences.getBytes(LAST_SHOT_KEY, &legacy, sizeof(legacy)) ==
-              sizeof(legacy) &&
-          legacy.magic == LAST_SHOT_MAGIC && legacy.schemaVersion == 2 &&
-          legacy.structureSize == sizeof(legacy) &&
-          legacy.checksum == lastShotV2Checksum(legacy)) {
-        resetLastShotBlob(blob_);
-        memcpy(static_cast<void *>(&blob_.lastShot), legacy.shot, sizeof(legacy.shot));
-        if (qualifyingGoodShot(blob_.lastShot, goodShotProtectionMs_)) {
-          blob_.lastGoodShot = blob_.lastShot;
-        }
-        finalizeLastShotBlob(blob_);
-        loadedLegacy_ = true;
-        loaded = true;
-      }
     }
     preferences.end();
     if (!loaded) {
@@ -301,8 +197,6 @@ class LastShotStore {
 
   const PersistedLastShot &get() const { return blob_.lastShot; }
   const PersistedLastShot &getGood() const { return blob_.lastGoodShot; }
-  bool loadedLegacy() const { return loadedLegacy_; }
-
 #if defined(SHOT_STOPPER_HOST_TEST)
   static void setHostSaveSucceeds(bool succeeds) {
     hostSaveSucceeds_ = succeeds;
@@ -314,9 +208,6 @@ class LastShotStore {
   static constexpr const char *LAST_SHOT_KEY = "record";
 
   LastShotBlob blob_;
-  uint32_t goodShotProtectionMs_ = DEFAULT_BBW_PROTECTION_MS;
-  bool loadedLegacy_ = false;
-
 #if defined(SHOT_STOPPER_HOST_TEST)
   static LastShotBlob hostStorage_;
   static bool hostStorageValid_;

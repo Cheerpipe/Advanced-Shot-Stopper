@@ -22,7 +22,7 @@ and reed firmware. Home **Start rinse** follows the same Quick rinse setting.
 from the machine profile: it is **on** for Linea Micra and **off** for the
 Rancilio profiles. With it off, paddle short ON→OFF is a shot, and a momentary
 long-press is native 1:1 (no `RINSE` cycle). Existing persisted choices survive
-ordinary boot and OTA.
+ordinary boot.
 
 A Linea Micra paddle gesture recognized from a monitored OFF machine state —
 current or stale, the last confirmed reading — only

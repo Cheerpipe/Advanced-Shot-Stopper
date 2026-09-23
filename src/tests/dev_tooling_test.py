@@ -91,8 +91,7 @@ assert unsafe.returncode == 2 and "requires --confirm" in unsafe.stderr
 secret = run("ota", "--confirm", "--password", "do-not-log")
 assert secret.returncode == 2 and "never argv" in secret.stderr
 obsolete = run("ota", "--confirm", "--force")
-assert obsolete.returncode == 2 and "--yes" in obsolete.stderr and \
-    "--wait-for-confirmation" in obsolete.stderr
+assert obsolete.returncode == 2 and "USB" in obsolete.stderr
 for invalid in (("build", "monitor"), ("build", "flash", "ota", "--confirm"),
                 ("monitor", "--host", "controller.local"),
                 ("build", "flash", "--confirm", "--image", "firmware.bin")):
@@ -117,11 +116,11 @@ def captured_firmware(*args: str, stdin: str = "") -> dict:
     return captured
 
 
-for pipeline in (("build",), ("flash",), ("ota",), ("monitor",),
-                 ("build", "flash"), ("build", "ota"),
-                 ("flash", "monitor"), ("ota", "monitor"),
+for pipeline in (("build",), ("flash",), ("monitor",),
+                 ("build", "flash"),
+                 ("flash", "monitor"),
                  ("build", "flash", "monitor"),
-                 ("build", "ota", "monitor")):
+                 ):
     invocation = list(pipeline)
     if {"flash", "ota"}.intersection(pipeline):
         invocation.append("--confirm")
@@ -154,13 +153,6 @@ assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_PERF}") == 0
 for level in ("--o0", "--og", "--o2", "--os"):
     rejected = run("flash", level)
     assert rejected.returncode == 2 and "does not apply" in rejected.stderr, level
-
-stdin_password = captured_firmware(
-    "ota", "--confirm", "--yes", "--password-stdin", stdin="stdin-secret\n")
-assert stdin_password["env_extra"] == {
-    "SHOTSTOPPER_DEVICE_PASSWORD": "stdin-secret"}
-assert "stdin-secret" not in repr(stdin_password["command"] +
-                                  stdin_password["steps"][0][1])
 
 for area in ("safety", "control", "machine", "scale", "ble", "network",
              "ota", "persistence", "web", "build", "tests"):

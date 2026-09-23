@@ -601,11 +601,11 @@ if (!ui.includes('id="shotRating"') ||
     !network.includes('LAST_SHOT_NOT_FOUND') ||
     !network.includes('\\"rating\\":%u') ||
     !network.includes('\\"shotLogId\\":%lu') ||
-    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 5') ||
+    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 1') ||
     !lastShotIo.includes(
         'void advance(const PersistedLastShot &shot,') ||
     !lastShotIo.includes('uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS') ||
-    !firmwareCore.includes('lastShotNvsDirty = lastShotStore.loadedLegacy()') ||
+    !firmwareCore.includes('lastShotNvsDirty = false') ||
     !shotLogIo.includes('updateRating') ||
     !shotLogIo.includes('copyRatingById') ||
     !firmwareCore.includes('rateLastShot') ||

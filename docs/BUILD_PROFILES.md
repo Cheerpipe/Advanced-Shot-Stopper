@@ -372,7 +372,7 @@ disabled in the Rancilio profiles and enabled in the Linea Micra profile.
 
 Machine values are factory defaults, not a forced runtime policy. They seed a
 new installation and are restored by factory reset. Valid settings already in
-persistent storage continue to win after a normal boot or OTA update, so
+persistent storage continue to win after a normal boot, so
 changing a profile default does not silently rewrite an existing user's setup.
 
 Topology and physical wiring are compile-time choices. A persisted setting

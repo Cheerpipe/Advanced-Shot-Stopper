@@ -16,9 +16,7 @@ namespace shotstopper {
 constexpr size_t SHOT_LOG_FLASH_SLOT_BYTES = 12288;
 constexpr size_t SHOT_LOG_FLASH_SLOT_COUNT = 2;
 
-// Byte layout is compatible with v6 (frozen header + record offsets; v7 adds
-// a stats trailer). Strict current-version validation: legacy v6 slots are
-// re-tagged by the loader's shotLogValidateOrMigrateV6 hook before this runs.
+// Only the fixed v1 layout is accepted; any older slot is discarded.
 inline bool validShotLogStoreCurrent(const ShotLogStore &store) {
   return validShotLogStore(store);
 }
@@ -42,8 +40,7 @@ struct DualSlotFlashLogTraits<ShotLogStore> {
 
 class ShotLog
     : public DualSlotFlashLog<ShotLogStore, validShotLogStoreCurrent,
-                              compactShotLogStore, finalizeShotLogStore,
-                              shotLogValidateOrMigrateV6> {
+                              compactShotLogStore, finalizeShotLogStore> {
  public:
   void onBoot() {
     if (store_.header.bootId == 0) {
@@ -51,8 +48,6 @@ class ShotLog
     } else if (store_.header.bootId < UINT32_MAX) {
       ++store_.header.bootId;
     }
-    // A migrated v6 blob already has its stats trailer rebuilt by the loader
-    // hook; an empty migrated log just gets an explicit zeroed aggregate.
     if (shotLogStatsTotalCount(store_.stats) == 0) {
       recomputeStats();
     }

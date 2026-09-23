@@ -1,6 +1,6 @@
 #pragma once
 
-// Current shot-log schema (v7) and domain helpers. No Preferences / NVS:
+// Fixed v1 shot-log schema and domain helpers. No Preferences / NVS:
 // persistence lives in the dedicated shotlog flash partition (dual slot).
 
 #include "ShotStopperDomain.h"
@@ -13,7 +13,7 @@
 namespace shotstopper {
 
 constexpr uint32_t SHOT_LOG_MAGIC = 0x534C4F47U;  // "SLOG"
-constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 7;
+constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 1;
 constexpr size_t SHOT_LOG_CAPACITY = 100;
 constexpr size_t SHOT_LOG_PAGE_DEFAULT = 10;
 // The pre-computed stats aggregate mirrors the WebUI Stats card window.
@@ -489,14 +489,6 @@ inline uint32_t shotLogLocalSecFromUtc(uint32_t utcSec, int16_t offsetMinutes) {
   return utcSec + static_cast<int32_t>(offsetMinutes) * 60;
 }
 
-inline uint32_t shotLogChecksumBytes(const ShotLogHeader &header) {
-  return crc32(reinterpret_cast<const uint8_t *>(&header),
-               offsetof(ShotLogHeader, checksum));
-}
-
-// v7 CRC: header + packed records[0..count) + the stats trailer. The records
-// span is included only when count > 0 so an empty v7 blob stays byte-equal
-// to its v6 encoding (see shotLogVersionAcceptable).
 inline uint32_t shotLogChecksum(const ShotLogStore &store) {
   uint32_t crc = crc32Update(
       0xFFFFFFFFU, reinterpret_cast<const uint8_t *>(&store.header),
@@ -509,21 +501,6 @@ inline uint32_t shotLogChecksum(const ShotLogStore &store) {
   crc = crc32Update(crc, reinterpret_cast<const uint8_t *>(&store.stats),
                     sizeof(store.stats));
   return ~crc;
-}
-
-// Legacy v2–v6 header-only CRC (via shotLogChecksumBytes), used to accept and
-// migrate a v6 slot without touching its record offsets.
-inline uint32_t shotLogV6Checksum(const ShotLogHeader &header) {
-  return shotLogChecksumBytes(header);
-}
-
-inline bool validShotLogV6Store(const ShotLogStore &store) {
-  return store.header.magic == SHOT_LOG_MAGIC &&
-         store.header.schemaVersion == 6 &&
-         store.header.recordSize == sizeof(ShotLogRecord) &&
-         store.header.count <= SHOT_LOG_CAPACITY &&
-         store.header.writeIndex < SHOT_LOG_CAPACITY &&
-         store.header.checksum == shotLogV6Checksum(store.header);
 }
 
 inline void finalizeShotLogStore(ShotLogStore &store) {
@@ -546,26 +523,9 @@ inline bool validShotLogStore(const ShotLogStore &store) {
   return true;
 }
 
-// Accepted blob versions: only the exact current schema. Legacy v6 slots are
-// detected and migrated by shotLogValidateOrMigrateV6 (the loader's migrate
-// hook) before validation runs.
 inline void updateShotLogStats(ShotLogStore &store,
                                const ShotLogRecord *newestFirst,
                                size_t available);
-
-inline bool shotLogValidateOrMigrateV6(ShotLogStore &store) {
-  if (validShotLogStore(store)) return true;
-  if (!validShotLogV6Store(store)) return false;
-  store.header.schemaVersion = SHOT_LOG_SCHEMA_VERSION;
-  const uint32_t bootId = store.header.bootId;
-  const uint32_t generation = store.header.generation;
-  updateShotLogStats(store, store.records + store.header.writeIndex,
-                     store.header.count);
-  store.header.bootId = bootId;
-  store.header.generation = generation;
-  finalizeShotLogStore(store);
-  return true;
-}
 
 inline void resetShotLogStore(ShotLogStore &store, uint32_t bootId) {
   memset(&store, 0, sizeof(store));

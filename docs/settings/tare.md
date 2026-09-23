@@ -159,7 +159,7 @@ prove a qualifying placement: a gap longer than **Max sample gap** also requires
 fresh removal/placement evidence. After a successful tare, the message stays
 **Tared** while that cup remains present.
 
-Debug export schema 7 includes `idleTare`: request/placement IDs, eligibility
+Debug export schema 1 includes `idleTare`: request/placement IDs, eligibility
 and terminal reasons, reference confidence, qualifying weight range, capture
 and command times, sequence boundary, and dropped/rejected sample counts.
 These fields come from the control snapshot. `effect_unconfirmed`, `unstable`,

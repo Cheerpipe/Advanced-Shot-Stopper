@@ -631,36 +631,4 @@ inline bool restoreFactoryShotPresetValues(ShotPresetBank &bank, uint8_t id) {
   return true;
 }
 
-inline void migrateRecipeFromRuntimeToBank(const RuntimeConfig &runtime,
-                                           ShotPresetBank &bank) {
-  seedDefaultShotPresetBank(bank);
-  ShotPreset *dbl = mutableShotPreset(bank, FACTORY_PRESET_ID_DOUBLE);
-  if (dbl == nullptr) {
-    return;
-  }
-  dbl->goalWeightG = runtime.goalWeightG;
-  dbl->operationalWallMs = runtime.operationalWallMs;
-  dbl->bbwProtectionMs = runtime.bbwProtectionMs;
-  dbl->weightOffsetBaselineG = runtime.weightOffsetBaselineG;
-  dbl->weightOffsetG = runtime.weightOffsetG;
-  dbl->bbwEwmaOffsetG = runtime.weightOffsetG;
-  dbl->fastExtractionGuardEnabled = runtime.fastExtractionGuardEnabled;
-  dbl->maxRecoveryWeightG = runtime.maxRecoveryWeightG;
-  dbl->minBbwBrewTimeMs = runtime.minBbwBrewTimeMs;
-  dbl->slowExtractionGuardEnabled = runtime.slowExtractionGuardEnabled;
-  dbl->minRecoveryWeightG = runtime.minRecoveryWeightG;
-  dbl->maxBbwBrewTimeMs = runtime.maxBbwBrewTimeMs;
-  dbl->autoToManualGuardEnabled = runtime.autoToManualGuardEnabled;
-  dbl->autoToManualGuardLimitMode = runtime.autoToManualGuardLimitMode;
-  dbl->autoToManualGuardManualLimitMs = runtime.autoToManualGuardManualLimitMs;
-  dbl->autoToManualGuardBaselineMs = runtime.autoToManualGuardBaselineMs;
-  memcpy(dbl->autoToManualGuardSamplesDs, runtime.autoToManualGuardSamplesDs,
-         sizeof(dbl->autoToManualGuardSamplesDs));
-  dbl->cupProtectionEnabled = runtime.cupProtectionEnabled;
-  dbl->stopIfCupRemoved = runtime.stopIfCupRemoved;
-  dbl->requireCupToStart = runtime.requireCupToStart;
-  dbl->avoidAccidentalTouchEnabled = runtime.avoidAccidentalTouchEnabled;
-  dbl->brewByWeight = !runtime.timerOnly;
-}
-
 }  // namespace shotstopper

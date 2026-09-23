@@ -358,7 +358,6 @@ void p29_last_shot_persists_and_clears() {
 
   LastShotStore reloaded;
   CHECK(reloaded.load());
-  CHECK(!reloaded.loadedLegacy());
   CHECK(reloaded.get().valid);
   CHECK(reloaded.get().cycleId == 42);
   CHECK(reloaded.get().goalWeightG == 36);
@@ -394,47 +393,11 @@ void p29_last_shot_persists_and_clears() {
   CHECK(!emptied.getGood().valid);
 
   resetHostPersistence();
-  LastShotBlobV3 v3 = {};
-  v3.magic = LAST_SHOT_MAGIC;
-  v3.schemaVersion = 3;
-  v3.structureSize = sizeof(v3);
-  memcpy(v3.shot, &shot, sizeof(v3.shot));
-  v3.checksum = lastShotV3Checksum(v3);
-  persistence_host::putRaw("lastshot", "record", &v3, sizeof(v3));
-  LastShotStore migratedV3;
-  CHECK(migratedV3.load());
-  CHECK(migratedV3.loadedLegacy());
-  CHECK(migratedV3.get().cycleId == 42);
-  CHECK(migratedV3.getGood().cycleId == 42);
-  CHECK(!migratedV3.get().averageFlowValid);
-  CHECK(publishableLastShot(migratedV3.getGood()));
-  CHECK(migratedV3.save());
-  LastShotStore migratedV3Reboot;
-  CHECK(migratedV3Reboot.load());
-  CHECK(!migratedV3Reboot.loadedLegacy());
-  CHECK(migratedV3Reboot.getGood().cycleId == 42);
-
-  resetHostPersistence();
-  LastShotBlobV2 legacy = {};
-  legacy.magic = LAST_SHOT_MAGIC;
-  legacy.schemaVersion = 2;
-  legacy.structureSize = sizeof(legacy);
-  memcpy(legacy.shot, &shot, sizeof(legacy.shot));
-  legacy.checksum = lastShotV2Checksum(legacy);
-  persistence_host::putRaw("lastshot", "record", &legacy, sizeof(legacy));
-  LastShotStore migrated;
-  CHECK(migrated.load());
-  CHECK(migrated.loadedLegacy());
-  CHECK(migrated.get().cycleId == 42);
-  CHECK(migrated.get().endedAtUptimeMs == 0);
-  CHECK(migrated.get().presetId == 0);
-  CHECK(migrated.getGood().cycleId == 42);
-  CHECK(!publishableLastShot(migrated.getGood()));
-  CHECK(migrated.save());
-  LastShotStore migratedReboot;
-  CHECK(migratedReboot.load());
-  CHECK(!migratedReboot.loadedLegacy());
-  CHECK(migratedReboot.get().presetId == 0);
+  uint8_t oldBlob[sizeof(LastShotBlob) - 1] = {};
+  persistence_host::putRaw("lastshot", "record", oldBlob, sizeof(oldBlob));
+  LastShotStore rejected;
+  CHECK(rejected.load());
+  CHECK(!rejected.get().valid);
 }
 
 void p80_boot_id_remains_dirty_until_durable() {
@@ -557,40 +520,18 @@ void p64_factory_settings_overwrite_does_not_clear_ble_namespace() {
   CHECK(verifyFactorySettings(loaded));
 }
 
-void p82_ble_scan_backoff_boost_migration_and_roundtrip() {
+void p82_ble_scan_v1_is_strict_and_roundtrip() {
   resetHostPersistence();
-  // A V2 blob kept the backoff and boost bytes reserved (always 0); loading it
-  // must adopt the default backoff and boost (now OFF) without losing the
-  // saved intensity.
-  BleScanPersistedSettings v2;
-  v2.version = BLE_SCAN_SETTINGS_V2_VERSION;
-  v2.revision = 7;
-  v2.scanIntensity = static_cast<uint8_t>(BleScanIntensity::RELAXED);
-  v2.checksum = bleScanSettingsChecksum(v2);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, BLE_SCAN_SLOT_A, &v2,
-                           sizeof(v2));
+  BleScanPersistedSettings old;
+  old.version = 2;
+  old.revision = 7;
+  old.scanIntensity = static_cast<uint8_t>(BleScanIntensity::RELAXED);
+  old.checksum = bleScanSettingsChecksum(old);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, BLE_SCAN_SLOT_A, &old,
+                           sizeof(old));
   BleScanPersistedSettings loaded;
-  CHECK(loadBleScanSettings(loaded));
-  CHECK(loaded.version == BLE_SCAN_SETTINGS_VERSION);
-  CHECK(loaded.scanIntensity ==
-        static_cast<uint8_t>(BleScanIntensity::RELAXED));
-  CHECK(loaded.scanBackoffMin == SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN);
-  CHECK(loaded.scanBoostMin == SCALE_SCAN_BOOST_DEFAULT_MIN);
-
-  // A V3 blob stored the backoff but kept the boost byte reserved: the stored
-  // backoff choice survives while the boost adopts OFF.
-  BleScanPersistedSettings v3;
-  v3.version = BLE_SCAN_SETTINGS_V3_VERSION;
-  v3.revision = 8;
-  v3.scanIntensity = static_cast<uint8_t>(BleScanIntensity::BALANCED);
-  v3.scanBackoffMin = 30;
-  v3.checksum = bleScanSettingsChecksum(v3);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, BLE_SCAN_SLOT_A, &v3,
-                           sizeof(v3));
-  CHECK(loadBleScanSettings(loaded));
-  CHECK(loaded.version == BLE_SCAN_SETTINGS_VERSION);
-  CHECK(loaded.scanBackoffMin == 30);
-  CHECK(loaded.scanBoostMin == SCALE_SCAN_BOOST_DEFAULT_MIN);
+  CHECK(!loadBleScanSettings(loaded));
+  loaded = BleScanPersistedSettings{};
 
   CHECK(persistBleScanSettings(loaded, loaded.scanIntensity, 30, 15));
   CHECK(loaded.scanBoostMin == 15);
@@ -1317,13 +1258,13 @@ void p48_ble_scan_defaults_and_dual_slot_round_trip() {
 
   BleScanPersistedSettings v1 = {};
   v1.magic = BLE_SCAN_SETTINGS_MAGIC;
-  v1.version = BLE_SCAN_SETTINGS_V1_VERSION;
+  v1.version = BLE_SCAN_SETTINGS_VERSION;
   v1.structureSize = sizeof(BleScanPersistedSettings);
   v1.revision = 3;
   v1.reservedEnabled = 1;
   v1.scanIntensity = static_cast<uint8_t>(BleScanIntensity::RELAXED);
   v1.checksum = bleScanSettingsChecksum(v1);
-  CHECK(validBleScanSettingsBlob(v1));
+  CHECK(!validBleScanSettingsBlob(v1));
   CHECK(!verifyFactoryBleScanSettings(v1));
   v1.reservedEnabled = 0;
   v1.scanIntensity = static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE);
@@ -1333,6 +1274,7 @@ void p48_ble_scan_defaults_and_dual_slot_round_trip() {
   v1.reservedEnabled = 1;
   v1.scanIntensity = static_cast<uint8_t>(BleScanIntensity::RELAXED);
   v1.checksum = bleScanSettingsChecksum(v1);
+  resetHostPersistence();
   CHECK(lockSettingsNvs());
   ShotStopperPreferences preferences(NvsSubsystem::BLE_SCAN);
   CHECK(preferences.begin(SETTINGS_NAMESPACE, false));
@@ -1340,17 +1282,8 @@ void p48_ble_scan_defaults_and_dual_slot_round_trip() {
   preferences.end();
   unlockSettingsNvs();
   BleScanPersistedSettings upgraded;
-  CHECK(loadBleScanSettings(upgraded));
-  CHECK(upgraded.scanIntensity ==
-        static_cast<uint8_t>(BleScanIntensity::RELAXED));
-  CHECK(upgraded.reservedEnabled == 0);
-  CHECK(upgraded.version == BLE_SCAN_SETTINGS_VERSION);
-  CHECK(upgraded.scanBoostMin == SCALE_SCAN_BOOST_DEFAULT_MIN);
-  CHECK(validBleScanSettingsBlob(upgraded));
-  CHECK(readLatestBleScanSettings(onDisk));
-  CHECK(onDisk.version == BLE_SCAN_SETTINGS_V1_VERSION);
-  CHECK(onDisk.reservedEnabled == 1);
-  CHECK(!verifyFactoryBleScanSettings(onDisk));
+  CHECK(!loadBleScanSettings(upgraded));
+  upgraded = BleScanPersistedSettings{};
   CHECK(persistBleScanSettings(
       upgraded, static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE),
       upgraded.scanBackoffMin, upgraded.scanBoostMin));
@@ -2114,21 +2047,19 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   PersistedSettings rejected;
   CHECK(!loadPersistedSettings(rejected));
 
-  // A checksum-valid V1 blob upgrades losslessly: only the version and the
-  // new scaleOptions byte (V1 tail padding) change.
-  settings.schemaVersion = 1;
+  // A checksum-valid v1 blob is accepted without conversion.
+  settings.schemaVersion = CONFIG_SCHEMA_VERSION;
   settings.checksum = 0;
   settings.checksum = persistedSettingsChecksum(settings);
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_B, &settings,
                            sizeof(settings));
-  PersistedSettings upgraded;
-  CHECK(loadPersistedSettings(upgraded));
-  CHECK(upgraded.schemaVersion == CONFIG_SCHEMA_VERSION);
-  CHECK(upgraded.lineaMicra.scaleOptions == 0);
-  CHECK(upgraded.lineaMicra.options == settings.lineaMicra.options);
-  CHECK(strcmp(upgraded.lineaMicra.username, settings.lineaMicra.username) ==
-        0);
-  // A corrupted V1 checksum stays invalid.
+  PersistedSettings loaded;
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
+  CHECK(loaded.lineaMicra.scaleOptions == settings.lineaMicra.scaleOptions);
+  CHECK(loaded.lineaMicra.options == settings.lineaMicra.options);
+  CHECK(strcmp(loaded.lineaMicra.username, settings.lineaMicra.username) == 0);
+  // A corrupted v1 checksum stays invalid.
   settings.checksum ^= 0xff;
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_B, &settings,
                            sizeof(settings));
@@ -2189,7 +2120,7 @@ struct TestCase {
 
 const TestCase tests[] = {
     {"P85", p85_schema1_is_strict_and_micra_defaults_round_trip},
-    {"P82", p82_ble_scan_backoff_boost_migration_and_roundtrip},
+    {"P82", p82_ble_scan_v1_is_strict_and_roundtrip},
     {"P80", p80_boot_id_remains_dirty_until_durable},
     {"P01", p01_defaults_are_valid},
     {"P02", p02_newest_valid_slot_is_loaded},

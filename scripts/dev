@@ -558,9 +558,9 @@ def main() -> int:
             elif profile == "ble":
                 steps = cmake_steps("normal", "ble")
             elif profile == "ota":
-                steps = cmake_steps("normal", "ota") + [
-                    ("ota-cli", ["bash", "src/tests/ota_cli_resilience_test.sh"]),
-                    ("ota-web", ["node", "src/tests/ota_web_resilience_test.js"])]
+                return record(command, "R1", verbosity,
+                              ["OTA is disabled; firmware installation is USB-only"],
+                              0, "ota-disabled")
             elif profile == "web":
                 deps = [ROOT / "node_modules" / name for name in
                         ["terser", "html-minifier-terser", "clean-css", "@gfx/zopfli"]]
@@ -629,6 +629,8 @@ def main() -> int:
         if verb in FIRMWARE_STAGES:
             ensure_no_secret_argv(args)
             stages, args = firmware_pipeline(verb, args)
+            if "ota" in stages:
+                raise ValueError("OTA is disabled; install firmware over USB with flash")
             if any(arg in {"-h", "--help", "help"} for arg in args):
                 print(help_text() + "\n" + firmware_help())
                 return 0

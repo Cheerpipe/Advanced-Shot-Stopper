@@ -5,17 +5,10 @@
 
 namespace shotstopper {
 
-// On-disk keys and magic stay BLEC/bleCfg* so V1 Companion blobs upgrade
-// without renaming NVS entries. Version 2 stopped using the Companion enable
-// flag; that byte is reserved and always written 0. Version 3 turned one
-// reserved byte into scanBackoffMin and version 4 turned the last reserved
-// byte into scanBoostMin without changing the blob size, so older slots stay
-// readable and upgrade to the default backoff and boost (both OFF).
+// The BLE scan store has one fixed v1 layout. Older blobs are rejected and
+// replaced with factory defaults by the boot loader.
 constexpr uint32_t BLE_SCAN_SETTINGS_MAGIC = 0x424C4543U;  // "BLEC"
-constexpr uint16_t BLE_SCAN_SETTINGS_VERSION = 4;
-constexpr uint16_t BLE_SCAN_SETTINGS_V3_VERSION = 3;
-constexpr uint16_t BLE_SCAN_SETTINGS_V2_VERSION = 2;
-constexpr uint16_t BLE_SCAN_SETTINGS_V1_VERSION = 1;
+constexpr uint16_t BLE_SCAN_SETTINGS_VERSION = 1;
 constexpr const char *BLE_SCAN_SLOT_A = "bleCfgA";
 constexpr const char *BLE_SCAN_SLOT_B = "bleCfgB";
 
@@ -44,14 +37,6 @@ inline uint32_t bleScanSettingsChecksum(
 }
 
 inline void finalizeBleScanSettings(BleScanPersistedSettings &settings) {
-  // Older blobs kept these bytes reserved (always 0): adopt the defaults
-  // rather than trusting the reserved zeros as stored choices.
-  if (settings.version < BLE_SCAN_SETTINGS_V3_VERSION) {
-    settings.scanBackoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
-  }
-  if (settings.version < BLE_SCAN_SETTINGS_VERSION) {
-    settings.scanBoostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
-  }
   settings.magic = BLE_SCAN_SETTINGS_MAGIC;
   settings.version = BLE_SCAN_SETTINGS_VERSION;
   settings.structureSize = sizeof(BleScanPersistedSettings);
@@ -71,14 +56,8 @@ inline bool validBleScanSettingsBlob(const BleScanPersistedSettings &settings) {
       settings.checksum != bleScanSettingsChecksum(settings)) {
     return false;
   }
-  if (settings.version == BLE_SCAN_SETTINGS_V1_VERSION) {
-    return settings.reservedEnabled <= 1;
-  }
-  if (settings.version == BLE_SCAN_SETTINGS_V2_VERSION ||
-      settings.version == BLE_SCAN_SETTINGS_V3_VERSION) {
-    return true;
-  }
   return settings.version == BLE_SCAN_SETTINGS_VERSION &&
+         settings.reservedEnabled == 0 &&
          validBleScanBackoffMin(settings.scanBackoffMin) &&
          validBleScanBoostMin(settings.scanBoostMin);
 }

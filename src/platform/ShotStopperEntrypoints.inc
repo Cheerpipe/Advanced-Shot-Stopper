@@ -293,14 +293,14 @@ void setup() {
     TaskLockGuard storeLock(shotStoreMutex);
     bootIdentityDurable = activationStores.begin();
     lastShotStore.load(runtimeConfig.bbwProtectionMs);
-    lastShotNvsDirty = lastShotStore.loadedLegacy();
+    lastShotNvsDirty = false;
   }
 #else
   {
     TaskLockGuard storeLock(shotStoreMutex);
     activationStores.begin();
     lastShotStore.load(runtimeConfig.bbwProtectionMs);
-    lastShotNvsDirty = lastShotStore.loadedLegacy();
+    lastShotNvsDirty = false;
   }
 #endif
 

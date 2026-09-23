@@ -8,7 +8,7 @@ Momentary builds show [Switch](momentary.md) instead.
 the initial La Marzocco Linea Micra integration. Factory reset seeds Natural
 mode, the 10-second return reminder with a 15-minute limit, and Quick rinse on
 (1-second gesture, 4-second duration). Persisted user choices remain unchanged
-by normal OTA. This integration is not described as hardware-qualified until
+by normal USB firmware installation. This integration is not described as hardware-qualified until
 its actual maintained-input circuit passes the manual checks.
 
 ## Choose a mode

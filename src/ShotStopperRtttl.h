@@ -37,7 +37,7 @@ inline bool parseRtttlBounded(const char *rtttl, RtttlNote *out,
                               uint8_t capacity, uint8_t &count) {
   count = 0;
   // A null output validates the RTTTL grammar without materializing notes.
-  // Keeping validation allocation-free is important while boot migration is
+  // Keeping validation allocation-free is important during boot initialization
   // already using the bounded internal flash-I/O workspace.
   if (rtttl == nullptr || capacity == 0) return false;
   const size_t inputLength = strnlen(rtttl, RTTTL_INPUT_CAPACITY);

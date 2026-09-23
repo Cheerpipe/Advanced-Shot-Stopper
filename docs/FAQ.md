@@ -200,6 +200,5 @@ and [shot history](features/shot-history.md) help explain the observed result.
 ## Where to change it
 
 Use the [settings index](README.md#settings) for parameter references,
-[OTA troubleshooting](features/ota.md#session-start-troubleshooting) for update
-errors, and [webhook troubleshooting](features/webhooks.md#troubleshooting)
+[USB firmware installation](features/ota.md) for update errors, and [webhook troubleshooting](features/webhooks.md#troubleshooting)
 for delivery problems.
