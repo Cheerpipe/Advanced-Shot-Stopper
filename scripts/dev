@@ -311,6 +311,8 @@ def execute(command: list[str], risk: str, steps: list[tuple[str, list[str]]],
         shown = lines[-max(0, limit - 3):]
         headline = f"{status.upper()}: {' '.join(safe_args(command))}"
         print(painted(headline))
+        if code:
+            print(painted(failed_check_line(checks, lines, status)))
         for line in shown:
             print(painted(line) if len(line) <= 500 else line[:500] + " …[truncated; see full log]")
         print(painted(f"summary: {summary.relative_to(ROOT)}"))
@@ -326,6 +328,35 @@ def record(command: list[str], risk: str, verbosity: str, lines: list[str],
     else:
         step = [check, ["sh", "-c", "exit 0" if code == 0 else "exit 1"]]
     return execute(command, risk, [step], verbosity, prelude=lines)
+
+
+def failed_check_line(checks: list[dict[str, str]], lines: list[str],
+                      status: str) -> str:
+    """Compact-mode hint: the failed check plus the likeliest cause, drawn
+    from the same captured output the run summary records."""
+    failed = next((c["name"] for c in reversed(checks)
+                   if c["status"] != "passed"), "unknown")
+    start = next((i for i, line in enumerate(lines)
+                  if line.startswith(f"==> {failed}:")), None)
+    output = lines[start + 1:] if start is not None else []
+    why = next((line for line in output if re.search(r"\berror\b", line, re.I)),
+               None)
+    if why is None:
+        why = next((line for line in output
+                    if re.search(r"\((Failed|Timeout|Not Run)\)$", line)), None)
+    if why is None:
+        why = next((line for line in output if line.startswith("FAILED:")), None)
+    if why is None:
+        why = next((line for line in output if line.strip()), None)
+    if why is None and status != "missing_dependency":
+        why = next((line for line in reversed(lines)
+                    if line.strip() and not line.startswith("==>")), None)
+    if status == "missing_dependency":
+        why = (next((line for line in lines if ": MISSING" in line), None)
+               or why or "a required dependency was not found")
+    if why and len(why) > 300:
+        why = why[:300] + " …[see full log]"
+    return f"failed check: {failed} — {why or 'no output captured'}"
 
 
 def ensure_no_secret_argv(args: list[str]) -> None:

@@ -8,7 +8,10 @@ repository root. It writes complete logs and a redacted JSON summary under
 When the output goes to a real terminal, the facade tints status lines so the
 final result is readable at a glance: green for success, yellow for warnings,
 and red for errors. The coloring turns off automatically for redirected output
-and whenever the `NO_COLOR` variable is set.
+and whenever the `NO_COLOR` variable is set. When a gate fails in compact
+mode, the facade prints one `failed check:` line naming the failing step and
+the most relevant error from its captured output, so the summary path shows
+what broke without reading the full log.
 
 ```sh
 ./scripts/dev --help

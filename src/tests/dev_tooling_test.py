@@ -177,6 +177,18 @@ assert dev_module["uncovered_changes"](["."]) == []
 assert (dev_module["uncovered_changes"](["./scripts/dev"])
         == dev_module["uncovered_changes"](["scripts/dev"]))
 
+# Compact-mode failure hint: a failed gate must summarize the failing check
+# and the likeliest cause instead of making the reader dig through the tail.
+failed_line = dev_module["failed_check_line"]
+hint = failed_line([{"name": "build-normal", "status": "failed"}],
+                   ["==> build-normal: cmake --build build-host",
+                    "src/X.h:37:15: error: something broke"], "failed")
+assert hint == ("failed check: build-normal — src/X.h:37:15: error: "
+                "something broke"), hint
+assert "cmake: MISSING" in failed_line(
+    [{"name": "doctor", "status": "failed"}], ["cmake: MISSING"],
+    "missing_dependency")
+
 # Per-variant build serialization: build-idf must re-exec through with-flock
 # holding the variant lock, and the helper must be the portable fcntl holder.
 with_flock = INTERNAL / "with-flock"
