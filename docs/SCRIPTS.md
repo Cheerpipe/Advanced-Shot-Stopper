@@ -5,6 +5,11 @@ updating, monitoring, testing, and validating Open Brew by Weight. Run it from t
 repository root. It writes complete logs and a redacted JSON summary under
 `artifacts/runs/`.
 
+When the output goes to a real terminal, the facade tints status lines so the
+final result is readable at a glance: green for success, yellow for warnings,
+and red for errors. The coloring turns off automatically for redirected output
+and whenever the `NO_COLOR` variable is set.
+
 ```sh
 ./scripts/dev --help
 ./scripts/dev build --help
@@ -143,7 +148,7 @@ separately against firmware you know has console output.
 | `--wait-for-confirmation` | — | OTA | Poll after commit until the expected new image confirms or the existing timeout/error is reached. |
 | `--password-stdin` | — | OTA | Read one password line from standard input. The value is passed internally through the environment. |
 | `--confirm` | — | flash, OTA | Authorize a hardware-affecting pipeline at the public facade. |
-| `--verbosity compact\|normal\|verbose` | `OPENBREWBYWEIGHT_VERBOSITY` | `dev` | Select facade output detail; independent of firmware logging. Place before the command. |
+| `--verbosity compact\|normal\|verbose` | `SHOTSTOPPER_VERBOSITY` | `dev` | Select facade output detail; independent of firmware logging. Place before the command. |
 
 `--hardware-config` and `--machine-config` remain deprecated spellings for the
 two profile selectors. `--force` has been removed because it coupled two

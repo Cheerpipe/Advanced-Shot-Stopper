@@ -15,6 +15,31 @@ import time
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
+# ANSI status colors: honor NO_COLOR and only tint real terminals.
+COLOR_ENABLED = (os.getenv("NO_COLOR") is None and
+                 os.getenv("TERM") != "dumb" and sys.stdout.isatty())
+
+def paint(text: str, code: str) -> str:
+    """Wrap text in an ANSI escape if colors are on, else return it bare."""
+    return f"\x1b[{code}m{text}\x1b[0m" if COLOR_ENABLED else text
+
+
+def painted(text: str) -> str:
+    """Tint a line by meaning: error red, warning yellow, success green,
+    neutral header cyan."""
+    head = text[:30].lower()
+    if head.startswith(("error", "failed", "missing_dependency", "dev:")) or \
+            ": missing" in head or "error:" in head:
+        return paint(text, "31")
+    if "warning" in head:
+        return paint(text, "33")
+    if head.startswith("passed"):
+        return paint(text, "32")
+    if head.startswith(("==>", "risk=")):
+        return paint(text, "36")
+    return text
+
+
 RANK = {f"R{i}": i for i in range(4)}
 AREAS = {
     "safety": ("relay, boot, watchdog, and fail-open contracts", ["PROJECT_CHARTER.md", "src/ShotStopperSafety.h", "src/ShotStopperMachineRelay.h", "src/tests/safety_external_host_test.cpp", "docs/MANUAL_TEST_PLAN.md"]),
@@ -256,7 +281,7 @@ def execute(command: list[str], risk: str, steps: list[tuple[str, list[str]]],
             marker = f"==> {name}: {' '.join(safe_args(argv))}"
             log.write(marker + "\n")
             if verbosity != "compact":
-                print(marker, flush=True)
+                print(painted(marker), flush=True)
             child_env = {**os.environ, **(env_extra or {})}
             if interactive:
                 child_env.pop("SHOTSTOPPER_NONINTERACTIVE", None)
@@ -272,7 +297,7 @@ def execute(command: list[str], risk: str, steps: list[tuple[str, list[str]]],
                 log.write(clean + "\n")
                 lines.append(clean)
                 if verbosity != "compact":
-                    print(clean, flush=True)
+                    print(painted(clean), flush=True)
             child_code = process.wait()
             checks.append({"name": name, "status": "passed" if child_code == 0 else "failed"})
             if child_code:
@@ -284,12 +309,13 @@ def execute(command: list[str], risk: str, steps: list[tuple[str, list[str]]],
     if verbosity == "compact":
         limit = 20 if code == 0 else 80
         shown = lines[-max(0, limit - 3):]
-        print(f"{status.upper()}: {' '.join(safe_args(command))}")
+        headline = f"{status.upper()}: {' '.join(safe_args(command))}"
+        print(painted(headline))
         for line in shown:
-            print(line if len(line) <= 500 else line[:500] + " …[truncated; see full log]")
-        print(f"summary: {summary.relative_to(ROOT)}")
+            print(painted(line) if len(line) <= 500 else line[:500] + " …[truncated; see full log]")
+        print(painted(f"summary: {summary.relative_to(ROOT)}"))
     else:
-        print(f"{status}: summary {summary.relative_to(ROOT)}")
+        print(painted(f"{status}: summary {summary.relative_to(ROOT)}"))
     return code
 
 
@@ -622,7 +648,7 @@ def main() -> int:
 
         raise ValueError("unknown command: " + verb)
     except ValueError as error:
-        print(f"dev: {error}", file=sys.stderr)
+        print(painted(f"dev: {error}"), file=sys.stderr)
         return 2
 
 
