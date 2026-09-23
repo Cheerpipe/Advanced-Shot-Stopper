@@ -13,7 +13,7 @@ credentials, installation key, selected machine, and session. Its three
 integration options return to ON, and factory preset boiler targets return to
 93.0 °C. The device
 password returns to **`ineedacoffee`** and the device name to
-**`Open Brew by Weight`**. The device then restarts.
+**`openbrewbyweight`**. The device then restarts.
 
 ## Ways to run it
 

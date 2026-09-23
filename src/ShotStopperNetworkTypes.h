@@ -13,7 +13,7 @@ namespace shotstopper {
 // letters, digits, spaces, and hyphens; deviceNameToMdnsHost() derives the
 // RFC 1123 host label announced as <host>.local.
 constexpr size_t DEVICE_NAME_CAPACITY = 33;
-constexpr char DEFAULT_DEVICE_NAME[] = "Open Brew by Weight";
+constexpr char DEFAULT_DEVICE_NAME[] = "openbrewbyweight";
 static_assert(sizeof(DEFAULT_DEVICE_NAME) <= DEVICE_NAME_CAPACITY,
               "Default device name must fit its persisted capacity");
 
@@ -41,7 +41,7 @@ inline bool validDeviceName(const char *name) {
 
 // Maps a valid device name onto a mDNS/Bonjour display instance name:
 // words of the name in title case joined by single spaces (e.g. the default
-// name yields "Open Brew By Weight"). Returns the length, or 0 when the
+// name yields "Openbrewbyweight"). Returns the length, or 0 when the
 // arguments are unusable.
 inline size_t deviceNameToInstanceLabel(char *out, size_t capacity,
                                          const char *name) {

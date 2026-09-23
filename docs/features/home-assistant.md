@@ -35,8 +35,8 @@ same folder under your Home Assistant configuration directory.
 On networks that pass multicast, the controller announces itself and appears
 under **Discovered** in **Settings → Devices & services**; selecting it and
 confirming is the only step needed. The discovered card and the device show
-your controller's name with each word capitalized — by default **Open Brew By
-Weight**, or the custom name you set under Admin → Network. Home Assistant
+your controller's name with each word capitalized — by default
+**Openbrewbyweight**, or the custom name you set under Admin → Network. Home Assistant
 identifies the device by its stable controller identity, so rediscovery after
 an address change keeps the same entry up to date. If discovery does not find
 the controller (for example on guest or hotel networks that block multicast),
@@ -46,7 +46,7 @@ add it manually:
    and select **Open Brew by Weight**.
 2. Enter only the controller IP address or local host name. On networks with
    discovery, the controller's address is `<device-name>.local`, for example
-   `open-brew-by-weight.local` (see
+   `openbrewbyweight.local` (see
    [Discovery by name](../settings/wifi.md#discovery-by-name)).
 3. If another webhook currently owns the controller, explicitly approve its
    replacement.

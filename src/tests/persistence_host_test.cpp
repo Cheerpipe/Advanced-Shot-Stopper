@@ -2079,6 +2079,7 @@ void p63_flash_io_lock_fails_closed_without_mutex() {
 
 void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   CHECK(validDeviceName(DEFAULT_DEVICE_NAME));
+  CHECK(strcmp(DEFAULT_DEVICE_NAME, "openbrewbyweight") == 0);
   CHECK(validDeviceName("Cafe Bar 2"));
   CHECK(!validDeviceName(""));
   CHECK(!validDeviceName(" leading"));
@@ -2087,6 +2088,8 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   char host[DEVICE_NAME_CAPACITY];
   CHECK(deviceNameToMdnsHost(host, sizeof(host), "Cafe Bar 2") == 10);
   CHECK(strcmp(host, "cafe-bar-2") == 0);
+  CHECK(deviceNameToMdnsHost(host, sizeof(host), DEFAULT_DEVICE_NAME) == 16);
+  CHECK(strcmp(host, "openbrewbyweight") == 0);
   CHECK(deviceNameToMdnsHost(host, sizeof(host), "A--  B") == 3);
   CHECK(strcmp(host, "a-b") == 0);
   CHECK(deviceNameToInstanceLabel(host, sizeof(host), "open brew by weight") == 19);
