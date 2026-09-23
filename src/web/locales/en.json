@@ -1100,6 +1100,8 @@
     "settings.reset_ewma_learning": "Reset EWMA learning",
     "settings.reset_learned_stop_offset": "Reset learned stop offset",
     "settings.reset_this_factory_preset_to_its_default": "Reset this factory preset to its default values?",
+    "settings.retare_accessory_hint": "Before brewing, tare one stable addition to an already-tared cup. This can also tare coffee.",
+    "settings.retare_accessory_outside_brew": "Retare when adding an accessory to the cup",
     "settings.retare_window_s": "Retare window (s)",
     "settings.rinse_duration_s": "Rinse duration (s)",
     "settings.rinse_gesture_s": "Rinse gesture (s)",

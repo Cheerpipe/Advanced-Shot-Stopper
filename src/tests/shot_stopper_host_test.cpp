@@ -2479,6 +2479,8 @@ void w03_runtime_timing_relations_are_transactional() {
   config.noScaleBbwMode = packNoScaleBbwMode(
       static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE), true);
   CHECK(validateRuntimeConfig(config) == ConfigValidationError::NONE);
+  config.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::NONE);
   config = RuntimeConfig{};
   config.lastShotCooldownMs = MIN_LAST_SHOT_COOLDOWN_MS - 1;
   CHECK(validateRuntimeConfig(config) ==
@@ -9015,6 +9017,61 @@ void it36_bookoo_startup_zero_unload_rearms_relative_tare() {
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
 }
 
+void it37_accessory_retare_is_opt_in_and_once_before_shot() {
+  for (bool enabled : {false, true}) {
+    prepareIdleTare();
+    if (enabled) runtimeConfig.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
+    idleCup(80.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(idleTare.lastReason == IdleTareReason::EFFECT_CONFIRMED);
+    idleCup(5.0f); // Below the configured minimum added mass.
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    idleWeight(40.0f);
+    idleWeight(44.0f); // Spread exceeds the stable-weight tolerance.
+    idleCup(40.0f);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == (enabled ? 1U : 0U));
+    if (!enabled) continue;
+    CHECK(idleTare.accessoryRequest);
+    CHECK(idleTare.requestMinimumG == 40.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(idleTare.lastReason == IdleTareReason::EFFECT_CONFIRMED);
+    CHECK(captureCupTareDiagnostics().weightG == 120.0f);
+    idleCup(30.0f); // A second stable addition does not repeat the retare.
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    startCycle();
+    while (executeNextScaleCommand()) {}
+    establishPostTareBaseline();
+    idleCup(40.0f); // In-shot weight must not use the idle accessory path.
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    CHECK(finalizeCycle(EndReason::ACTIVATOR, StopperState::READY));
+    idleCup(45.0f); // Same cup after the shot cannot rearm the option.
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  }
+}
+
+void it38_accessory_retare_requires_continuous_confirmed_placement() {
+  for (unsigned mode = 0; mode < 4; ++mode) {
+    prepareIdleTare();
+    runtimeConfig.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
+    idleCup(80.0f);
+    if (mode == 0) scale.tareSucceeds = false;
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    if (mode == 1) {
+      setScaleConnected(false);
+      setScaleConnected(true);
+    } else if (mode == 2) {
+      ++runtimeConfig.revision;
+    } else if (mode == 3) {
+      idleWeight(0.0f, runtimeConfig.retareStabilityMaxGapMs + 1);
+    }
+    idleCup(40.0f);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  }
+}
+
 void cup_fsm_put_back_without_tare_is_present() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -10436,6 +10493,7 @@ void w90c_preset_temperature_presence_and_learning_invalidation() {
 void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   resetHarness(false, false);
   reachReadyFromBoot();
+  runtimeConfig.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
   ShotPreset &initialPreset = mutableActiveShotPreset(presetBank);
   initialPreset.autoToManualGuardEnabled = true;
   initialPreset.slowExtractionGuardEnabled = true;
@@ -10474,8 +10532,9 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
     CHECK(pendingPresetPersistence.requestId == 0);
   }
   CHECK(runtimeConfig.timerOnly);
-  CHECK(runtimeConfig.noScaleBbwMode ==
+  CHECK(noScaleBbwModeValue(runtimeConfig.noScaleBbwMode) ==
         static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE));
+  CHECK(idleAccessoryRetareEnabled(runtimeConfig.noScaleBbwMode));
   CHECK(!runtimeConfig.autoToManualGuardEnabled);
   CHECK(!runtimeConfig.slowExtractionGuardEnabled);
   CHECK(!runtimeConfig.fastExtractionGuardEnabled);
@@ -15543,6 +15602,8 @@ const TestCase testCases[] = {
     {"IT34", it34_final_prewrite_sample_requires_control_approval},
     {"IT35", it35_loaded_startup_and_sample_gap_need_fresh_placement},
     {"IT36", it36_bookoo_startup_zero_unload_rearms_relative_tare},
+    {"IT37", it37_accessory_retare_is_opt_in_and_once_before_shot},
+    {"IT38", it38_accessory_retare_requires_continuous_confirmed_placement},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},

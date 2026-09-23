@@ -40,7 +40,8 @@ gain to the preset's saved alpha baseline and clears evidence. Neither is a
 device factory reset. The regression selector is named **Linear regression +
 offset correction**. See [BBW](../features/brew-by-weight.md#cutoff-algorithms-and-learning).
 
-**Automatic tare outside a brew** returns to ON. See [Tare](tare.md) for the
+**Automatic tare outside a brew** returns to ON; **Retare when adding an accessory
+to the cup** returns to OFF. See [Tare](tare.md) for the
 placement trigger and how a tared cup at zero satisfies the cup-start guard.
 
 Follow [first setup](../GETTING_STARTED.md) using the

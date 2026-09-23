@@ -327,9 +327,7 @@ if (!statusSection || !statusSection[1].includes('class="statusColumn"') ||
     !ui.includes(':prev;updateScalePreferenceOptions()') ||
     !ui.includes('preferredScaleSelectSyncing') ||
     !ui.includes("mac===(sel.dataset.applied||'')") ||
-    !ui.includes("scaleMacCacheMode:(()=>{const el=$('scalePreference')") ||
-    !ui.includes("const v=el?el.value:'only';return['first','prefer','only'].includes(v)?v:'only'") ||
-    ui.includes("const v=el?el.value:'first';return['first','prefer','only'].includes(v)?v:'first'") ||
+    !ui.includes("scaleMacCacheMode:['first','prefer','only'].includes($('scalePreference')?.value)?$('scalePreference').value:'only'") ||
     !ui.includes("el.id==='preferredScaleSelect'") ||
     ui.includes('id="alwaysUseThisScale"') ||
     ui.includes('Always use this scale') ||

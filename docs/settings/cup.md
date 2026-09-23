@@ -71,8 +71,9 @@ For example, place a 300 g cup on a scale reading 0 g: the UI shows **≈ 300.0 
 After firmware tare, the live reading is 0 g and cup weight stays 300 g. Remove
 the cup and let the scale settle at −300 g. A 350 g replacement reads 50 g;
 the UI shows **≈ 350.0 g**, from **50 − (−300)**. Further successful firmware
-tares and coffee additions preserve that mass. It represents the load added at
-placement, so an empty-cup interpretation assumes the cup was empty then.
+tares and coffee additions preserve that mass, except an enabled accessory
+retare updates it to include the added accessory. It represents the load added
+at placement, so an empty-cup interpretation assumes the cup was empty then.
 
 The absent baseline uses the same sample count, whole-window tolerance, maximum
 gap, and minimum stable time as placement. Once qualified, that reference survives
@@ -111,7 +112,9 @@ Invalid/out-of-range readings and readings older than one second, future-dated
 or out of order cannot qualify cup
 placement or removal, including during a shot; they break the stability streak.
 The stable absent reference is shared by placement detection and mass calculation.
-The calculated mass itself does not control brewing or schedule additional tares.
+The calculated mass itself does not control brewing. The optional accessory
+retare requires a known cup reference but uses the added live weight, not the
+calculated mass, to qualify its one outside-shot tare.
 
 ## Parameters
 

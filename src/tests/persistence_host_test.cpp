@@ -55,6 +55,7 @@ void p01_defaults_are_valid() {
   CHECK(settings.staWifiSleep);
   CHECK(settings.runtime.showDiagnosticPage);
   CHECK(settings.runtime.autoTareOutsideBrew);
+  CHECK(!idleAccessoryRetareEnabled(settings.runtime.noScaleBbwMode));
   CHECK(settings.runtime.powerManagementEnabled);
   CHECK(!settings.webhook.deferDuringShot);
   CHECK(settings.runtime.fastExtractionGuardEnabled);
@@ -144,6 +145,7 @@ void p02_newest_valid_slot_is_loaded() {
   CHECK(savePersistedSettings(settings));
   const uint32_t firstRevision = settings.storageRevision;
   settings.runtime.goalWeightG = 47;
+  settings.runtime.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
   settings.runtime.maxRecoveryWeightG = 55.0f;
   settings.runtime.soundAlertsMuted = true;
   settings.runtime.cupProtectionEnabled = false;
@@ -165,6 +167,7 @@ void p02_newest_valid_slot_is_loaded() {
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
   CHECK(loaded.runtime.goalWeightG == 47);
+  CHECK(idleAccessoryRetareEnabled(loaded.runtime.noScaleBbwMode));
   CHECK(loaded.runtime.soundAlertsMuted);
   CHECK(!loaded.runtime.cupProtectionEnabled);
   CHECK(!loaded.runtime.stopIfCupRemoved);

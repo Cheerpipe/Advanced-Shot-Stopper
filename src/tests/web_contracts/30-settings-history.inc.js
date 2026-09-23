@@ -1,9 +1,17 @@
 {
-  const labels = ['Automatic tare outside a brew', 'Automatic tare at shot start',
+  const labels = ['Automatic tare outside a brew',
+    'Retare when adding an accessory to the cup', 'Automatic tare at shot start',
     'Late-cup retare during a shot'];
   if (labels.some(label => !html.includes(label)) ||
       !html.includes('id="autoTareOutsideBrew" type="checkbox" checked') ||
+      !html.includes('id="retareAccessoryOutsideBrew" type="checkbox"') ||
+      html.indexOf('id="retareAccessoryOutsideBrew"') <
+          html.indexOf('id="autoTareOutsideBrew"') ||
+      html.indexOf('id="retareAccessoryOutsideBrew"') >
+          html.indexOf('id="autoTare"') ||
       !network.includes('autoTareOutsideBrew must be a boolean.') ||
+      !network.includes('retareAccessoryOutsideBrew must be a boolean.') ||
+      !network.includes('"retareAccessoryOutsideBrew"') ||
       !firmwareCore.includes('candidate.autoTareOutsideBrew = command.config.autoTareOutsideBrew;')) {
     throw new Error('Idle tare must have an independent default-ON machine setting');
   }
@@ -12,15 +20,17 @@
   const makePayload = new Function('$', 'number', 'sToMs', 'extRate',
     'HOME_GUARD_SWITCHES', 'homeSwitchPending', 'syncSettingsFromHomeSwitches',
     payloadLine + ';return machinePayload();');
-  for (const idleOn of [false, true]) {
-    const payload = makePayload(id => ({checked: id === 'autoTareOutsideBrew' && idleOn,
+  for (const idleOn of [false, true]) for (const accessoryOn of [false, true]) {
+    const payload = makePayload(id => ({checked: (id === 'autoTareOutsideBrew' && idleOn) ||
+      (id === 'retareAccessoryOutsideBrew' && accessoryOn),
       value: 'off'}), () => 1, () => 1000, value => value, [], {}, () => {});
-    if (payload.autoTareOutsideBrew !== idleOn || payload.autoTare !== false) {
-      throw new Error('Idle tare payload must be independent of shot-start tare');
+    if (payload.autoTareOutsideBrew !== idleOn ||
+        payload.retareAccessoryOutsideBrew !== accessoryOn || payload.autoTare !== false) {
+      throw new Error('Idle/accessory tare payload must be independent of shot-start tare');
     }
   }
-  if (!js.includes("['autoTare','autoTareOutsideBrew','brewByWeight'")) {
-    throw new Error('Settings hydration must restore the saved idle tare value');
+  if (!js.includes("['autoTare','autoTareOutsideBrew','retareAccessoryOutsideBrew','brewByWeight'")) {
+    throw new Error('Settings hydration must restore both saved idle tare values');
   }
 }
 

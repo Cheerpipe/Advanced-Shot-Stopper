@@ -117,8 +117,9 @@ enum class NoScaleBbwMode : uint8_t {
   REQUIRE_SCALE = 2
 };
 
-// Bit 7 of noScaleBbwMode is Allow rinse while Armed; low bits stay 0–2.
+// Independent option bits share this persisted byte; low bits stay 0–2.
 constexpr uint8_t NO_SCALE_ALLOW_RINSE_WHILE_ARMED = 0x80U;
+constexpr uint8_t IDLE_ACCESSORY_RETARE = 0x40U;
 
 inline uint8_t noScaleBbwModeValue(uint8_t stored) {
   return static_cast<uint8_t>(stored & 0x03U);
@@ -128,13 +129,17 @@ inline bool noScaleAllowRinseWhileArmed(uint8_t stored) {
   return (stored & NO_SCALE_ALLOW_RINSE_WHILE_ARMED) != 0;
 }
 
+inline bool idleAccessoryRetareEnabled(uint8_t stored) {
+  return (stored & IDLE_ACCESSORY_RETARE) != 0;
+}
+
 inline uint8_t packNoScaleBbwMode(uint8_t mode, bool allowRinseWhileArmed) {
   return static_cast<uint8_t>(
       (mode & 0x03U) | (allowRinseWhileArmed ? NO_SCALE_ALLOW_RINSE_WHILE_ARMED : 0U));
 }
 
 inline bool validNoScaleBbwMode(uint8_t stored) {
-  return (stored & ~0x83U) == 0 &&
+  return (stored & ~0xC3U) == 0 &&
          noScaleBbwModeValue(stored) <=
              static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE);
 }
@@ -704,7 +709,7 @@ struct RuntimeConfig {
   float cupPresentWeightG = DEFAULT_CUP_PRESENT_WEIGHT_G;
   float cupRemovedWeightG = DEFAULT_CUP_REMOVED_WEIGHT_G;
   // Reuses the legacy avoidBbwShotWithoutScale byte: low bits OFF/WARN_ONCE/
-  // REQUIRE_SCALE. Bit 7 is Allow rinse while Armed (default off).
+  // REQUIRE_SCALE; bits 6/7 are idle accessory retare/armed rinse (both off).
   uint8_t noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE);
   uint32_t lastShotCooldownMs = DEFAULT_LAST_SHOT_COOLDOWN_MS;
   // Minimum level sent to the ESP-IDF serial backend. NONE is off; CLI

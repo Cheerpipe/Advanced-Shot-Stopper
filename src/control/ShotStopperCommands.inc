@@ -254,7 +254,8 @@ void processWebCommand(const WebCommand &command) {
           }
           candidateRuntime.noScaleBbwMode = packNoScaleBbwMode(
               command.presetId,
-              noScaleAllowRinseWhileArmed(candidateRuntime.noScaleBbwMode));
+              noScaleAllowRinseWhileArmed(candidateRuntime.noScaleBbwMode)) |
+              (candidateRuntime.noScaleBbwMode & IDLE_ACCESSORY_RETARE);
           break;
         case QuickSettingField::AUTO_TO_MANUAL_GUARD:
           preset.autoToManualGuardEnabled = enabled;

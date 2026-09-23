@@ -1,7 +1,7 @@
 # Tare
 
-Three controls distinguish cup-placement tare outside a brew, shot-start tare,
-and late-cup retare. Machine-level, under
+Four controls distinguish cup-placement tare outside a brew, optional accessory
+retare while idle, shot-start tare, and late-cup retare. Machine-level, under
 **Settings → Machine and scale → Tare**, except **BBW protection**, which is
 on the active brew preset.
 
@@ -32,6 +32,7 @@ controller does not promise another automatic tare outside that window.
 | Setting | Default | Range | Effect on the shot |
 | --- | --- | --- | --- |
 | **Automatic tare outside a brew** | ON | ON / OFF | Tare once on a new stable cup placement while idle, independently of shot-start tare, BBW, and cup protection. Never tares merely because a shot ends. |
+| **Retare when adding an accessory to the cup** | OFF | ON / OFF | Before brewing, tare one stable added load on a cup that the controller already tared outside a brew. Requires **Automatic tare outside a brew**. |
 | **Automatic tare at shot start** | ON | ON / OFF | Tare at shot start when a usable scale supports it, including timer-only shots. |
 | **Post-tare grace (s)** | 2 s | 0.5–10 s | After a tare (start or late-cup retare), wait this long for ~0 g before using weight for **stop/control**. |
 | **Late-cup retare during a shot** | ON | ON / OFF | Allow one late-cup retare during the retare window. Requires shot-start tare and fires on the cup-presence **placed** event. |
@@ -42,7 +43,9 @@ All tare switches are shared machine settings, not preset values. Save changes
 while idle. **Automatic tare outside a brew** defaults ON on first setup, factory
 reset, and upgrade from a configuration without this field. A saved OFF value
 survives reboot and later upgrades. Enabling it with a cup already present does
-not tare that cup.
+not tare that cup. Accessory retare defaults OFF after installation or reset;
+its saved value survives reboot. Turning it on for an already-tared cup takes
+effect with the next cup placement and controller-confirmed tare.
 
 ## Outside a brew
 
@@ -52,8 +55,20 @@ The existing [Cup](cup.md) stability settings qualify the placement and the empt
 reference. Once that reference is known, a
 [qualified brief unload](cup.md#fast-replacement-outside-a-shot) followed by stable
 placement also works without another stable-empty pause.
-Either placement path triggers another tare, even if the cup contains coffee;
-adding coffee or a spoon while the cup stays present does not.
+Either placement path triggers another tare, even if the cup contains coffee.
+With accessory retare OFF, adding coffee or a spoon while the cup stays present
+does not tare.
+
+With **Retare when adding an accessory to the cup** ON, place and let the cup
+auto-tare first. Add the accessory before starting the shot, then wait for its
+added weight to meet **Minimum cup weight** and the configured stability window.
+The controller tares that addition once; the cup remains present and its
+calculated load includes the accessory. A second addition to the same placement,
+or any increase during or after its shot, does not trigger this option. Remove
+and replace the cup to prepare another set. Because the scale reports weight
+rather than what was added, a stable addition of coffee can also be tared.
+Leave this option OFF if you put ingredients in the cup before brewing.
+Disconnected, stale, uncertain, or interrupted readings cannot authorize it.
 
 Moving an empty scale and returning it near its original zero does not authorize
 an idle tare. A negative reading first seen at boot/reconnect, without a
@@ -76,8 +91,12 @@ treated as possible empty-scale movement. For an equal-weight replacement, a
 reading gap, or a negative reading first seen at connection, tare the empty pan
 from **Diagnostic**, wait for stable zero, then place the cup.
 The integrated protocols currently do not report a verifiable physical-button
-tare event; a zero reading alone cannot distinguish that action from removing
-an untared cup.
+tare event; a zero reading alone cannot distinguish that action from returning
+to the previous displayed weight. **Tared** on Home describes the controller's
+last known cup state, not proof that the physical button was or was not pressed.
+If you press the scale's button after removing the cup, tare the empty pan from
+**Diagnostic**, let zero settle, and place the cup again. Accessory retare does
+not resolve this ambiguity.
 
 An accepted physical shot or Quick rinse start takes priority over a pending
 idle tare; use the normal paddle or button gesture without releasing and

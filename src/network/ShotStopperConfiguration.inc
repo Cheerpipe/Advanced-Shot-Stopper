@@ -67,13 +67,14 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   uint8_t parsedNoScaleMode = noScaleBbwModeValue(candidate.noScaleBbwMode);
   bool parsedAllowRinseWhileArmed =
       noScaleAllowRinseWhileArmed(candidate.noScaleBbwMode);
+  bool parsedAccessoryRetare = idleAccessoryRetareEnabled(candidate.noScaleBbwMode);
   bool legacySerialDebugOutput = false;
   uint8_t requestedSerialLogLevel = 0;
   char customNtp[NTP_SERVER_HOST_CAPACITY] = {};
   memcpy(customNtp, candidate.ntpServerCustom, sizeof(customNtp));
   static const char *const fields[] = {
       "baseRevision", "goalWeightG", "rinseEnabled", "rinseGestureMs", "rinseDurationMs",
-      "operationalWallMs", "autoTare", "autoTareOutsideBrew", "postTareBaselineGraceMs",
+      "operationalWallMs", "autoTare", "autoTareOutsideBrew", "retareAccessoryOutsideBrew", "postTareBaselineGraceMs",
       "brewByWeight", "canTareStartTimer",
       "scaleTimerStopExtraDelayMs",       "dripDelayMs", "soundAlertsEnabled",
       "firstDropBeep", "scaleConnectedLed",
@@ -142,6 +143,9 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   } else if (jsonFieldPresent(root, "autoTareOutsideBrew") &&
              !jsonBoolean(root, "autoTareOutsideBrew", candidate.autoTareOutsideBrew)) {
     parseError = "autoTareOutsideBrew must be a boolean.";
+  } else if (jsonFieldPresent(root, "retareAccessoryOutsideBrew") &&
+             !jsonBoolean(root, "retareAccessoryOutsideBrew", parsedAccessoryRetare)) {
+    parseError = "retareAccessoryOutsideBrew must be a boolean.";
   } else if (jsonFieldPresent(root, "postTareBaselineGraceMs") &&
              !jsonUint32(root, "postTareBaselineGraceMs",
                          candidate.postTareBaselineGraceMs)) {
@@ -453,7 +457,8 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
                                        : NoScaleBbwMode::OFF);
   }
   candidate.noScaleBbwMode =
-      packNoScaleBbwMode(parsedNoScaleMode, parsedAllowRinseWhileArmed);
+      packNoScaleBbwMode(parsedNoScaleMode, parsedAllowRinseWhileArmed) |
+      (parsedAccessoryRetare ? IDLE_ACCESSORY_RETARE : 0U);
   candidate.soundAlertsMuted = !soundAlertsEnabled;
   memcpy(candidate.ntpServerCustom, customNtp, sizeof(candidate.ntpServerCustom));
   memset(customNtp, 0, sizeof(customNtp));

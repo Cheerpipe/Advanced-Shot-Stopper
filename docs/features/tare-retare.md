@@ -1,8 +1,10 @@
 # Tare and retare
 
-Three settings control automatic zeroing: **Automatic tare outside a brew**
+Three main settings control automatic zeroing: **Automatic tare outside a brew**
 on a new cup placement, **Automatic tare at shot start**, and **Late-cup retare
-during a shot** if you place the cup after the shot starts.
+during a shot** if you place the cup after the shot starts. An optional fourth
+switch, **Retare when adding an accessory to the cup**, extends only the
+outside-brew behavior.
 
 All three are **on by default**. Late retare also requires shot-start tare.
 
@@ -33,7 +35,18 @@ the detector reuses the known reference, not the removal minimum. Without that
 reference or sufficient unloading evidence, remove the cup, let the empty pan
 settle, and replace it. A swap hidden between notifications cannot be guaranteed.
 See [Cup settings](../settings/cup.md#fast-replacement-outside-a-shot) for the
-unloading and stability requirements. A stable load change alone never triggers tare.
+unloading and stability requirements. A stable load change alone does not
+trigger tare with the accessory option OFF.
+
+If you use a chilling bar or another accessory, enable the accessory option
+under **Automatic tare outside a brew**. Let the cup auto-tare to zero, then
+add the accessory before brewing and wait for its added weight to stabilize.
+The controller tares one such addition per cup placement. The same positive
+increase during a shot follows the existing shot behavior, and a full cup
+settling after the shot does not trigger accessory retare. A stable addition of
+coffee is indistinguishable from an accessory, so leave the option OFF if that
+could happen during preparation. See [Tare settings](../settings/tare.md#outside-a-brew)
+for prerequisites and limits.
 
 The empty reference remains fixed across disturbances while absent. A stable
 negative excursion followed by a return near zero does not represent an added

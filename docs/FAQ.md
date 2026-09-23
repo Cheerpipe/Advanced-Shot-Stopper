@@ -135,6 +135,16 @@ weight alone is insufficient after lost readings or a failed tare; an unchanged
 cup is not automatically retried. See
 [outside-brew tare](settings/tare.md#outside-a-brew).
 
+### I pressed tare on the scale and the controller did not retare
+
+The controller cannot verify a press of the scale's physical tare button from
+the documented weight notifications. A return to 0 g can also mean a previously
+removed load was put back. Home may still say **Cup present** and **Tared**
+because those are its last known states. Tare the empty pan from **Diagnostic**,
+wait for stable zero, then place the cup again. The optional accessory retare
+handles one stable addition to a controller-tared cup before a shot; it cannot
+identify physical button presses. See [Tare](settings/tare.md#outside-a-brew).
+
 ### The scale connects slowly or the UI stutters
 
 Close other scale-connected apps. Check the saved preferred scale and
