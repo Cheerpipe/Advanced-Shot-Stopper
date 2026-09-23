@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -17,98 +18,223 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
-from .coordinator import OpenBrewByWeightCoordinator
+from .const import ACTIVATION_TYPES, STOP_DETAILS
+from .coordinator import CoordinatorData, OpenBrewByWeightCoordinator
 from .entity import OpenBrewByWeightEntity
-from .models import Shot
 from .runtime import OpenBrewByWeightRuntimeData
 
 PARALLEL_UPDATES = 1
 
 
 @dataclass(frozen=True, kw_only=True)
-class ShotDescription(SensorEntityDescription):
-    """Description of a stored-shot sensor."""
+class MirroredDescription(SensorEntityDescription):
+    """Description of one mirrored WebUI value."""
 
-    source: str
-    value_fn: Callable[[Shot], StateType]
+    value_fn: Callable[[CoordinatorData], StateType]
+    options: list[str] | None = None
 
 
-def _seconds(field: str) -> Callable[[Shot], float | None]:
-    return lambda shot: (
-        None if getattr(shot, field) is None else getattr(shot, field) / 1000
+def _shot(
+    value_fn: Callable[[object], StateType],
+) -> Callable[[CoordinatorData], StateType]:
+    return lambda data: None if data.last_shot is None else value_fn(data.last_shot)
+
+
+def _activation(
+    value_fn: Callable[[object], StateType],
+) -> Callable[[CoordinatorData], StateType]:
+    return lambda data: (
+        None if data.last_activation is None else value_fn(data.last_activation)
     )
 
 
-def _value(field: str) -> Callable[[Shot], StateType]:
-    return lambda shot: getattr(shot, field)
+def _stats(field: str) -> Callable[[CoordinatorData], StateType]:
+    return lambda data: None if data.stats is None else getattr(data.stats, field)
 
 
-SHOT_DESCRIPTIONS = tuple(
-    ShotDescription(
-        key=f"{source}_{key}",
-        translation_key=f"{source}_{key}",
-        source=source,
-        value_fn=value_fn,
-        icon="mdi:water-check"
-        if source == "last_good_shot" and key == "first_drop"
-        else icon,
-        device_class=device_class,
-        native_unit_of_measurement=unit,
-        state_class=state_class,
-    )
-    for source in ("last_shot", "last_good_shot")
-    for key, value_fn, icon, device_class, unit, state_class in (
-        (
-            "duration",
-            _seconds("duration_ms"),
-            "mdi:timer-outline",
-            SensorDeviceClass.DURATION,
-            UnitOfTime.SECONDS,
-            SensorStateClass.MEASUREMENT,
+def _seconds(
+    value_fn: Callable[[object], float | None],
+) -> Callable[[object], float | None]:
+    return lambda source: None if value_fn(source) is None else value_fn(source) / 1000
+
+
+MIRRORED_DESCRIPTIONS = (
+    # Last shot: a mirror of the WebUI last-shot card.
+    *(
+        MirroredDescription(
+            key=f"last_shot_{key}",
+            translation_key=f"last_shot_{key}",
+            value_fn=_shot(value_fn),
+            icon=icon,
+            device_class=device_class,
+            native_unit_of_measurement=unit,
+            state_class=state_class,
+            options=options,
+        )
+        for key, value_fn, icon, device_class, unit, state_class, options in (
+            (
+                "duration",
+                _seconds(lambda shot: shot.duration_ms),
+                "mdi:timer-outline",
+                SensorDeviceClass.DURATION,
+                UnitOfTime.SECONDS,
+                SensorStateClass.MEASUREMENT,
+                None,
+            ),
+            (
+                "final_weight",
+                lambda shot: shot.weight_g,
+                "mdi:scale",
+                SensorDeviceClass.WEIGHT,
+                UnitOfMass.GRAMS,
+                SensorStateClass.MEASUREMENT,
+                None,
+            ),
+            (
+                "target_weight",
+                lambda shot: shot.target_weight_g,
+                "mdi:target",
+                SensorDeviceClass.WEIGHT,
+                UnitOfMass.GRAMS,
+                SensorStateClass.MEASUREMENT,
+                None,
+            ),
+            (
+                "average_flow",
+                lambda shot: shot.average_flow_gps,
+                "mdi:waves-arrow-right",
+                None,
+                "g/s",
+                SensorStateClass.MEASUREMENT,
+                None,
+            ),
+            (
+                "first_drop",
+                _seconds(lambda shot: shot.first_drop_ms),
+                "mdi:water-outline",
+                SensorDeviceClass.DURATION,
+                UnitOfTime.SECONDS,
+                SensorStateClass.MEASUREMENT,
+                None,
+            ),
+            (
+                "rating",
+                lambda shot: shot.rating,
+                "mdi:star",
+                None,
+                None,
+                None,
+                None,
+            ),
+            (
+                "type",
+                lambda shot: shot.shot_type,
+                "mdi:coffee",
+                SensorDeviceClass.ENUM,
+                None,
+                None,
+                ["auto", "timer_only", "manual"],
+            ),
+            (
+                "stop_detail",
+                lambda shot: shot.stop_detail,
+                "mdi:stop-circle-outline",
+                SensorDeviceClass.ENUM,
+                None,
+                None,
+                list(STOP_DETAILS),
+            ),
+            (
+                "preset",
+                lambda shot: shot.preset_name,
+                "mdi:tune-variant",
+                None,
+                None,
+                None,
+                None,
+            ),
+        )
+    ),
+    # Last activation: a mirror of the newest WebUI History entry.
+    MirroredDescription(
+        key="last_activation_time",
+        translation_key="last_activation_time",
+        value_fn=_activation(
+            lambda record: (
+                None
+                if not record.has_wall_time or record.ended_at_unix_sec == 0
+                else datetime.fromtimestamp(record.ended_at_unix_sec, tz=UTC)
+            )
         ),
-        (
-            "final_weight",
-            _value("weight_g"),
-            "mdi:scale",
-            SensorDeviceClass.WEIGHT,
-            UnitOfMass.GRAMS,
-            SensorStateClass.MEASUREMENT,
-        ),
-        (
-            "target_weight",
-            _value("target_weight_g"),
-            "mdi:target",
-            SensorDeviceClass.WEIGHT,
-            UnitOfMass.GRAMS,
-            SensorStateClass.MEASUREMENT,
-        ),
-        (
-            "average_flow",
-            _value("average_flow_gps"),
-            "mdi:waves-arrow-right",
-            None,
-            "g/s",
-            SensorStateClass.MEASUREMENT,
-        ),
-        (
-            "first_drop",
-            _seconds("first_drop_ms"),
-            "mdi:water-outline",
-            SensorDeviceClass.DURATION,
-            UnitOfTime.SECONDS,
-            SensorStateClass.MEASUREMENT,
-        ),
-        ("type", _value("shot_type"), "mdi:coffee", SensorDeviceClass.ENUM, None, None),
-        (
-            "stop_detail",
-            _value("stop_detail"),
-            "mdi:stop-circle-outline",
-            SensorDeviceClass.ENUM,
-            None,
-            None,
-        ),
-        ("preset", _value("preset_name"), "mdi:tune-variant", None, None, None),
-    )
+        icon="mdi:history",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    ),
+    MirroredDescription(
+        key="last_activation_type",
+        translation_key="last_activation_type",
+        value_fn=_activation(lambda record: record.type),
+        icon="mdi:gesture-tap",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(ACTIVATION_TYPES),
+    ),
+    MirroredDescription(
+        key="last_activation_duration",
+        translation_key="last_activation_duration",
+        value_fn=_activation(lambda record: record.duration_s),
+        icon="mdi:timer-outline",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    # Stats: a mirror of the firmware-computed Stats card averages.
+    MirroredDescription(
+        key="stats_shot_count",
+        translation_key="stats_shot_count",
+        value_fn=_stats("shot_count"),
+        icon="mdi:counter",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    MirroredDescription(
+        key="stats_avg_duration",
+        translation_key="stats_avg_duration",
+        value_fn=_stats("avg_duration_s"),
+        icon="mdi:timer-outline",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    MirroredDescription(
+        key="stats_avg_yield",
+        translation_key="stats_avg_yield",
+        value_fn=_stats("avg_yield_g"),
+        icon="mdi:scale",
+        device_class=SensorDeviceClass.WEIGHT,
+        native_unit_of_measurement=UnitOfMass.GRAMS,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    MirroredDescription(
+        key="stats_avg_error",
+        translation_key="stats_avg_error",
+        value_fn=_stats("avg_error_pct"),
+        icon="mdi:percent",
+        native_unit_of_measurement="%",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    MirroredDescription(
+        key="stats_avg_flow",
+        translation_key="stats_avg_flow",
+        value_fn=_stats("avg_flow_gps"),
+        icon="mdi:waves-arrow-right",
+        native_unit_of_measurement="g/s",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    MirroredDescription(
+        key="stats_shots_per_day",
+        translation_key="stats_shots_per_day",
+        value_fn=_stats("shots_per_day"),
+        icon="mdi:calendar-clock",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
 )
 
 
@@ -126,8 +252,8 @@ async def async_setup_entry(
             MachineSensor(runtime.coordinator),
             IpSensor(runtime.coordinator),
             *(
-                StoredShotSensor(runtime.coordinator, description)
-                for description in SHOT_DESCRIPTIONS
+                MirroredSensor(runtime.coordinator, description)
+                for description in MIRRORED_DESCRIPTIONS
             ),
         ]
     )
@@ -201,24 +327,19 @@ class ShotStateSensor(OpenBrewByWeightEntity, SensorEntity):
         return self.coordinator.data.snapshot.shot_state
 
 
-class StoredShotSensor(OpenBrewByWeightEntity, SensorEntity):
-    """One value from the last or last-good shot."""
+class MirroredSensor(OpenBrewByWeightEntity, SensorEntity):
+    """One value mirrored from the WebUI last shot, history, or stats view."""
 
-    entity_description: ShotDescription
+    entity_description: MirroredDescription
 
     def __init__(
-        self, coordinator: OpenBrewByWeightCoordinator, description: ShotDescription
+        self, coordinator: OpenBrewByWeightCoordinator, description: MirroredDescription
     ) -> None:
         super().__init__(coordinator, description.key)
         self.entity_description = description
-        if description.key.endswith("_type"):
-            self._attr_options = ["auto", "timer_only", "manual"]
-        elif description.key.endswith("_stop_detail"):
-            from .const import STOP_DETAILS
-
-            self._attr_options = list(STOP_DETAILS)
+        if description.options is not None:
+            self._attr_options = description.options
 
     @property
     def native_value(self) -> StateType:
-        shot = getattr(self.coordinator.data, self.entity_description.source)
-        return None if shot is None else self.entity_description.value_fn(shot)
+        return self.entity_description.value_fn(self.coordinator.data)

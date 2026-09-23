@@ -450,6 +450,21 @@ inline void shotLogSortRecords(ShotLogRecord *records, size_t count,
 // Pre-computed WebUI/HA stats aggregate over the newest shots of the log,
 // mirroring the WebUI Stats card. Maintained by updateShotLogStats when a
 // shot is committed; 0 counts mean "unknown" (no qualifying shots yet).
+struct ShotLogHeader {
+  uint32_t magic;
+  uint16_t schemaVersion;
+  uint16_t recordSize;
+  uint32_t generation;
+  uint32_t bootId;
+  uint32_t nextRecordId;
+  uint16_t count;
+  uint16_t writeIndex;
+  uint32_t checksum;
+};
+
+// Header fields are frozen: the v7 stats aggregate is a store trailer placed
+// AFTER the records, so v6 blobs load byte-identically and only need a stats
+// rebuild on boot (records keep their offsets; the header CRC stays valid).
 struct ShotLogStats {
   uint32_t shotCount = 0;         // qualifying auto shots included
   uint32_t missCount = 0;         // qualifying shots without a weight/flow
@@ -464,22 +479,10 @@ inline uint32_t shotLogStatsTotalCount(const ShotLogStats &stats) {
   return stats.shotCount + stats.missCount;
 }
 
-struct ShotLogHeader {
-  uint32_t magic;
-  uint16_t schemaVersion;
-  uint16_t recordSize;
-  uint32_t generation;
-  uint32_t bootId;
-  uint32_t nextRecordId;
-  uint16_t count;
-  uint16_t writeIndex;
-  ShotLogStats stats;
-  uint32_t checksum;
-};
-
 struct ShotLogStore {
   ShotLogHeader header;
   ShotLogRecord records[SHOT_LOG_CAPACITY];
+  ShotLogStats stats;
 };
 
 inline uint32_t shotLogLocalSecFromUtc(uint32_t utcSec, int16_t offsetMinutes) {
@@ -491,8 +494,9 @@ inline uint32_t shotLogChecksumBytes(const ShotLogHeader &header) {
                offsetof(ShotLogHeader, checksum));
 }
 
-// Header prefix + packed records[0..count). Legacy v2–v6 used header-only
-// CRCs via shotLogChecksumBytes.
+// v7 CRC: header + packed records[0..count) + the stats trailer. The records
+// span is included only when count > 0 so an empty v7 blob stays byte-equal
+// to its v6 encoding (see shotLogVersionAcceptable).
 inline uint32_t shotLogChecksum(const ShotLogStore &store) {
   uint32_t crc = crc32Update(
       0xFFFFFFFFU, reinterpret_cast<const uint8_t *>(&store.header),
@@ -502,7 +506,24 @@ inline uint32_t shotLogChecksum(const ShotLogStore &store) {
                       static_cast<size_t>(store.header.count) *
                           sizeof(ShotLogRecord));
   }
+  crc = crc32Update(crc, reinterpret_cast<const uint8_t *>(&store.stats),
+                    sizeof(store.stats));
   return ~crc;
+}
+
+// Legacy v2–v6 header-only CRC (via shotLogChecksumBytes), used to accept and
+// migrate a v6 slot without touching its record offsets.
+inline uint32_t shotLogV6Checksum(const ShotLogHeader &header) {
+  return shotLogChecksumBytes(header);
+}
+
+inline bool validShotLogV6Store(const ShotLogStore &store) {
+  return store.header.magic == SHOT_LOG_MAGIC &&
+         store.header.schemaVersion == 6 &&
+         store.header.recordSize == sizeof(ShotLogRecord) &&
+         store.header.count <= SHOT_LOG_CAPACITY &&
+         store.header.writeIndex < SHOT_LOG_CAPACITY &&
+         store.header.checksum == shotLogV6Checksum(store.header);
 }
 
 inline void finalizeShotLogStore(ShotLogStore &store) {
@@ -513,23 +534,36 @@ inline void finalizeShotLogStore(ShotLogStore &store) {
   store.header.checksum = shotLogChecksum(store);
 }
 
-// Accepted shot-log blob versions: the current schema plus the previous v6,
-// whose byte layout is identical (v7 only adds the stats aggregate before
-// the checksum; onBoot() rebuilds it for migrated slots).
-inline bool shotLogVersionAcceptable(uint16_t version) {
-  return version == SHOT_LOG_SCHEMA_VERSION || version == 6;
-}
-
-inline bool validShotLogStore(const ShotLogStore &store,
-                              uint16_t version = SHOT_LOG_SCHEMA_VERSION) {
+inline bool validShotLogStore(const ShotLogStore &store) {
   if (store.header.magic != SHOT_LOG_MAGIC ||
-      !shotLogVersionAcceptable(store.header.schemaVersion) ||
+      store.header.schemaVersion != SHOT_LOG_SCHEMA_VERSION ||
       store.header.recordSize != sizeof(ShotLogRecord) ||
       store.header.count > SHOT_LOG_CAPACITY ||
       store.header.writeIndex >= SHOT_LOG_CAPACITY ||
       store.header.checksum != shotLogChecksum(store)) {
     return false;
   }
+  return true;
+}
+
+// Accepted blob versions: only the exact current schema. Legacy v6 slots are
+// detected and migrated by shotLogValidateOrMigrateV6 (the loader's migrate
+// hook) before validation runs.
+inline void updateShotLogStats(ShotLogStore &store,
+                               const ShotLogRecord *newestFirst,
+                               size_t available);
+
+inline bool shotLogValidateOrMigrateV6(ShotLogStore &store) {
+  if (validShotLogStore(store)) return true;
+  if (!validShotLogV6Store(store)) return false;
+  store.header.schemaVersion = SHOT_LOG_SCHEMA_VERSION;
+  const uint32_t bootId = store.header.bootId;
+  const uint32_t generation = store.header.generation;
+  updateShotLogStats(store, store.records + store.header.writeIndex,
+                     store.header.count);
+  store.header.bootId = bootId;
+  store.header.generation = generation;
+  finalizeShotLogStore(store);
   return true;
 }
 
@@ -550,6 +584,10 @@ inline void resetShotLogStoreWithBootId(ShotLogStore &store) {
 // (which must be newest-first). O(window), called under the store mutex only
 // when a shot is committed; the aggregate is then persisted with the log.
 // Mirrors the WebUI Stats card: auto shots with a display weight >= 1 g.
+inline void updateShotLogStatsImpl(ShotLogStats &stats,
+                                   const ShotLogRecord *newestFirst,
+                                   size_t available);
+
 inline void updateShotLogStats(ShotLogStore &store,
                                const ShotLogRecord *newestFirst,
                                size_t available) {
@@ -596,7 +634,7 @@ inline void updateShotLogStats(ShotLogStore &store,
       newestDay >= 0 && oldestDay >= 0
           ? static_cast<uint32_t>(newestDay - oldestDay)
           : 0;
-  store.header.stats = stats;
+  store.stats = stats;
 }
 
 // Rotate a record ring in place so the `count` live records (oldest first,

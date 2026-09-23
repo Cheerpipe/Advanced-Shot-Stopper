@@ -203,7 +203,9 @@ int main() {
     assert(decoded.records[0].extractionExtended == record.extractionExtended);
     decoded.header.checksum ^= 1;
     assert(!validShotLogStore(decoded));
-    assert(!validShotLogStore(store, 5));
+    decoded.header.checksum ^= 1;
+    decoded.header.schemaVersion = 5;
+    assert(!validShotLogStore(decoded));
   }
   std::cout << "BBW numeric, adaptation, state, and history checks passed\n";
 }

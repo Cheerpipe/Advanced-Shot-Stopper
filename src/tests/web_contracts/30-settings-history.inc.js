@@ -591,7 +591,7 @@ if (!ui.includes('id="shotRating"') ||
     !network.includes('LAST_SHOT_NOT_FOUND') ||
     !network.includes('\\"rating\\":%u') ||
     !network.includes('\\"shotLogId\\":%lu') ||
-    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 4') ||
+    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 5') ||
     !lastShotIo.includes(
         'void advance(const PersistedLastShot &shot,') ||
     !lastShotIo.includes('uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS') ||
@@ -809,21 +809,23 @@ if (!statsSection ||
     !css.includes('#statsDurChart{margin-top:') ||
     !css.includes('.shotCurve .shotSparkHost,#statsDurChartPlot{display:grid;') ||
     !runtimeJs.includes('function renderShotStats(){') ||
-    !runtimeJs.includes('shotHistory.shots.slice(0,SHOTS_PAGE_SIZE)') ||
+    !runtimeJs.includes('s.avgDurationS') ||
+    !runtimeJs.includes('shotStats=d.stats') ||
     !runtimeJs.includes('renderShotStats();') ||
     runtimeJs.includes('slice(0,20)') ||
+    runtimeJs.includes("shotsUrl(0,SHOTS_PAGE_SIZE,'date','desc')") ||
     !css.includes('.shotCard:has(>:nth-child(5):last-child){grid-template-areas:"dur dur dur actual actual actual" "goal goal err err avgflow avgflow"}') ||
     css.includes('#shotStatsPanel') ||
     css.includes('#statsAvgDur') ||
     css.includes('statsAvgDaily') ||
     network.includes('shotLogComputeAverages') ||
-    network.includes('SHOT_LOG_STATS_WINDOW') ||
     network.includes('\\"avgDailyShots\\"') ||
     network.includes('/api/v1/shots/stats') ||
     shotLogTypes.includes('shotLogComputeAverages') ||
-    shotLogTypes.includes('SHOT_LOG_STATS_WINDOW')) {
+    !shotLogTypes.includes('SHOT_LOG_STATS_WINDOW') ||
+    !shotLogTypes.includes('updateShotLogStats')) {
   throw new Error(
-      'Stats view must be a 2+3 shotCard, duration histogram, last-10 window in JS, and no stats API/firmware');
+      'Stats view must be a 2+3 shotCard, duration histogram, and firmware-computed stats aggregate (no client recompute or second fetch)');
 }
 
 {

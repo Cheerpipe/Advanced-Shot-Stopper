@@ -8,7 +8,13 @@ import re
 from dataclasses import asdict, dataclass
 from typing import Any, Self
 
-from .const import API_VERSION, REQUIRED_CAPABILITIES, SHOT_TYPES, STOP_DETAILS
+from .const import (
+    ACTIVATION_TYPES,
+    API_VERSION,
+    REQUIRED_CAPABILITIES,
+    SHOT_TYPES,
+    STOP_DETAILS,
+)
 
 MAX_WEBHOOK_BYTES = 8192
 MAX_PRESETS = 8
@@ -18,9 +24,7 @@ IPV4 = re.compile(
     r"^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
     r"(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}$"
 )
-MDNS_HOST = re.compile(
-    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", re.IGNORECASE
-)
+MDNS_HOST = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", re.IGNORECASE)
 EVENT_TYPES = {
     "brew_state",
     "first_drop",
@@ -30,6 +34,7 @@ EVENT_TYPES = {
     "quick_settings_changed",
     "controller_started",
     "ip_changed",
+    "integration_history_end",
 }
 NO_SCALE_BBW_MODES = ("off", "warn_once", "require_scale")
 DEFAULT_MANUFACTURER = "Cheerpipe"
@@ -168,6 +173,7 @@ class Shot:
     first_drop_ms: int | None = None
     weight_g: float | None = None
     average_flow_gps: float | None = None
+    rating: int | None = None
 
     @classmethod
     def from_dict(cls, value: Any) -> Self:
@@ -183,6 +189,7 @@ class Shot:
         optional_int = data.get("firstDropMs")
         optional_weight = data.get("weightG")
         optional_flow = data.get("averageFlowGps")
+        optional_rating = data.get("rating")
         return cls(
             cycle_id=_integer(data.get("cycleId"), "cycleId"),
             uptime_ms=_integer(data.get("uptimeMs"), "uptimeMs"),
@@ -201,6 +208,9 @@ class Shot:
             average_flow_gps=None
             if optional_flow is None
             else _number(optional_flow, "averageFlowGps"),
+            rating=None
+            if optional_rating is None
+            else _integer(optional_rating, "rating", 1),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -218,6 +228,7 @@ class Shot:
             "firstDropMs": data["first_drop_ms"],
             "weightG": data["weight_g"],
             "averageFlowGps": data["average_flow_gps"],
+            "rating": data["rating"],
         }
 
 
@@ -256,9 +267,7 @@ class QuickSettings:
             raise ProtocolError("noScaleBbwMode is invalid")
         return cls(
             revision=_integer(data.get("revision"), "revision"),
-            active_preset_id=_integer(
-                data.get("activePresetId"), "activePresetId", 1
-            ),
+            active_preset_id=_integer(data.get("activePresetId"), "activePresetId", 1),
             brew_by_weight=_boolean(data.get("brewByWeight"), "brewByWeight"),
             no_scale_bbw_mode=mode,
             auto_to_manual_guard_enabled=_boolean(
@@ -284,6 +293,79 @@ class QuickSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class LastActivation:
+    """Newest confirmed machine activation (History card mirror)."""
+
+    activation_id: int
+    type: str
+    duration_s: float
+    has_wall_time: bool
+    ended_at_unix_sec: int
+    ended_at_local_sec: int
+
+    @classmethod
+    def from_dict(cls, value: Any) -> Self:
+        data = _mapping(value, "lastActivation")
+        activation_type = data.get("type")
+        if activation_type not in ACTIVATION_TYPES:
+            raise ProtocolError("lastActivation type is invalid")
+        return cls(
+            activation_id=_integer(data.get("id"), "lastActivation.id", 1),
+            type=activation_type,
+            duration_s=_number(data.get("durationS"), "lastActivation.durationS"),
+            has_wall_time=_boolean(
+                data.get("hasWallTime"), "lastActivation.hasWallTime"
+            ),
+            ended_at_unix_sec=_integer(
+                data.get("endedAtUnixSec"), "lastActivation.endedAtUnixSec"
+            ),
+            ended_at_local_sec=_integer(
+                data.get("endedAtLocalSec"), "lastActivation.endedAtLocalSec"
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-safe storage representation."""
+        return {
+            "id": self.activation_id,
+            "type": self.type,
+            "durationS": self.duration_s,
+            "hasWallTime": self.has_wall_time,
+            "endedAtUnixSec": self.ended_at_unix_sec,
+            "endedAtLocalSec": self.ended_at_local_sec,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ShotStats:
+    """Firmware-computed rolling stats (Stats card mirror)."""
+
+    shot_count: int
+    avg_duration_s: float | None
+    avg_yield_g: float | None
+    avg_error_pct: float | None
+    avg_flow_gps: float | None
+    shots_per_day: float | None
+
+    @classmethod
+    def from_dict(cls, value: Any) -> Self:
+        data = _mapping(value, "stats")
+
+        def optional(field: str) -> float | None:
+            raw = data.get(field)
+            return None if raw is None else _number(raw, f"stats.{field}")
+
+        return cls(
+            shot_count=_integer(data.get("shotCount"), "stats.shotCount"),
+            avg_duration_s=optional("avgDurationS"),
+            avg_yield_g=optional("avgYieldG"),
+            avg_error_pct=optional("avgErrorPct"),
+            avg_flow_gps=optional("avgFlowGps"),
+            shots_per_day=optional("shotsPerDay"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class DeviceSnapshot:
     """Authoritative controller snapshot."""
 
@@ -298,8 +380,9 @@ class DeviceSnapshot:
     preset_revision: int
     quick_settings: QuickSettings
     last_shot: Shot | None
-    last_good_shot: Shot | None
     hardware_profile: str = DEFAULT_HARDWARE_PROFILE
+    last_activation: LastActivation | None = None
+    stats: ShotStats | None = None
     arch: str = DEFAULT_ARCH
     machine_name: str = DEFAULT_MACHINE_NAME
     machine_profile: str = DEFAULT_MACHINE_PROFILE
@@ -330,7 +413,8 @@ class DeviceSnapshot:
         if state not in ("idle", "brewing"):
             raise ProtocolError("shotState is invalid")
         raw_shot = data.get("lastShot")
-        raw_good = data.get("lastGoodShot")
+        raw_activation = data.get("lastActivation")
+        raw_stats = data.get("stats")
         quick = QuickSettings.from_dict(data.get("quickSettings"))
         if quick.active_preset_id != data.get("activePresetId") or (
             quick.revision != data.get("presetRevision")
@@ -352,7 +436,10 @@ class DeviceSnapshot:
             preset_revision=_integer(data.get("presetRevision"), "presetRevision"),
             quick_settings=quick,
             last_shot=None if raw_shot is None else Shot.from_dict(raw_shot),
-            last_good_shot=None if raw_good is None else Shot.from_dict(raw_good),
+            last_activation=None
+            if raw_activation is None
+            else LastActivation.from_dict(raw_activation),
+            stats=None if raw_stats is None else ShotStats.from_dict(raw_stats),
             hardware_profile=_optional_string(
                 data.get("hardwareProfile"), DEFAULT_HARDWARE_PROFILE, 64
             ),

@@ -216,10 +216,20 @@ def test_snapshot_accepts_embedded_last_shot() -> None:
     """A REST snapshot may seed the aggregate before any webhook arrives."""
     payload = load("integration_snapshot.json")
     payload["lastShot"] = load("webhook_end_v1.json")
-    payload["lastGoodShot"] = load("webhook_end_v1.json")
+    payload["lastActivation"] = {
+        "id": 1042,
+        "type": "rinse",
+        "durationS": 12.0,
+        "hasWallTime": True,
+        "endedAtUnixSec": 1767225611,
+        "endedAtLocalSec": 1767236411,
+    }
     snapshot = DeviceSnapshot.from_dict(payload)
     assert snapshot.last_shot.preset_name == "Double"
-    assert snapshot.last_good_shot.average_flow_gps == 1.57
+    assert snapshot.last_activation is not None
+    assert snapshot.last_activation.type == "rinse"
+    assert snapshot.stats is not None
+    assert snapshot.stats.avg_flow_gps == 1.55
 
 
 @pytest.mark.parametrize(

@@ -23,7 +23,8 @@ template <typename StoreT>
 struct DualSlotFlashLogTraits;
 
 template <typename StoreT, bool (*ValidFn)(const StoreT &),
-          void (*CompactFn)(StoreT &), void (*FinalizeFn)(StoreT &)>
+          void (*CompactFn)(StoreT &), void (*FinalizeFn)(StoreT &),
+          bool (*MigrateFn)(StoreT &) = nullptr>
 class DualSlotFlashLog {
   using Traits = DualSlotFlashLogTraits<StoreT>;
   using Record = typename Traits::Record;
@@ -78,10 +79,13 @@ class DualSlotFlashLog {
       return false;
     }
 
-    const bool aOk = readSlot(part, 0, store_) && ValidFn(store_);
+    const bool aOk =
+        readSlot(part, 0, store_) &&
+        (ValidFn(store_) || (MigrateFn != nullptr && MigrateFn(store_)));
     const uint32_t gen0 = aOk ? store_.header.generation : 0;
-    const bool bOk =
-        readSlot(part, Traits::kSlotBytes, store_) && ValidFn(store_);
+    const bool bOk = readSlot(part, Traits::kSlotBytes, store_) &&
+                     (ValidFn(store_) ||
+                      (MigrateFn != nullptr && MigrateFn(store_)));
     const DualSlotChoice choice =
         chooseNewerRevision(aOk, gen0, bOk,
                             bOk ? store_.header.generation : 0);

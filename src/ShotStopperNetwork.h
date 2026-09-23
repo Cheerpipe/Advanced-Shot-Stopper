@@ -222,6 +222,12 @@ struct NetworkBridgeCallbacks {
   void (*reportStationIpChange)(const char *ip) = nullptr;
 };
 
+// Pre-computed stats JSON fragment (WebUI/HA Stats mirror); defined in the
+// integration API include with external linkage so the shots-page handler
+// (inlined earlier in the same translation unit) can share it.
+bool buildIntegrationStats(const ShotLogStats &stats, char *output,
+                           size_t capacity);
+
 class ShotStopperNetwork {
  public:
   ShotStopperNetwork();
@@ -405,9 +411,14 @@ class ShotStopperNetwork {
   WebhookDispatcher webhooks_;
   WebhookConfig stagedWebhook_ = {};
   uint32_t stagedWebhookRequestId_ = 0;
-  // True after a native-integration webhook save; gates the rich
-  // integration-state webhook events (controller_started, history mirror).
+  // Set by the native-integration PUT /webhooks (integrationEvents flag);
+  // gates the rich integration_* webhook events. Public read accessor.
   bool integrationOwnedEvents_ = false;
+
+ public:
+  bool integrationOwnedEvents() const { return integrationOwnedEvents_; }
+
+ private:
   LineaMicraPersistedSettings stagedLineaMicra_ = {};
   uint32_t stagedLineaMicraRequestId_ = 0;
   uint32_t stagedPresetRequestId_ = 0;
@@ -626,9 +637,6 @@ class ShotStopperNetwork {
                                  const ControlGateSnapshot &status);
   bool historyMutationAllowed(httpd_req_t *request,
                               const ControlGateSnapshot &status);
-  // True after a native-integration webhook save; gates the rich
-  // integration-state webhook events (controller_started, history mirror).
-  bool integrationOwnedEvents() const { return integrationOwnedEvents_; }
   static const char *stateLabel(StopperState state);
   static const char *controlSourceName(ControlSource source);
   static const char *endReasonName(EndReason reason);

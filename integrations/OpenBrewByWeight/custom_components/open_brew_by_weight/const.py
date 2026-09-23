@@ -25,6 +25,7 @@ STORE_VERSION = 1
 STORE_KEY_PREFIX = f"{DOMAIN}.shots"
 
 SHOT_TYPES = ("auto", "timer_only", "manual")
+ACTIVATION_TYPES = ("shot", "rinse", "other", "power_on")
 STOP_DETAILS = (
     "normal_target",
     "extended_max_weight",

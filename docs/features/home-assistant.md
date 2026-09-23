@@ -80,11 +80,17 @@ identity once at setup and never change until the integration is reloaded:
 Its remaining entities are:
 
 - **Shot state** (`idle` or `brewing`).
-- Duration, final weight, target weight, average flow, first-drop time, shot
-  type, stop detail, and preset for the last completed shot.
-- The same eight measurements for the last good shot. A good shot follows the
-  legacy rule: duration over 12 seconds and final weight over 2 grams. This is
-  a continuity filter, not a taste judgment.
+- **Last shot** sensors — duration, final weight, target weight, average flow,
+  first-drop time, star rating, shot type, stop detail, and preset. These
+  mirror exactly what the controller's home page shows for the most recent
+  completed shot.
+- **Last activation** sensors — when the machine last did something, what it
+  was (a shot, a rinse, power on, or other), and how long it lasted. These
+  mirror the newest entry on the controller's History page.
+- **Stats** sensors — average duration, average yield, average error, average
+  flow, shots per day, and the shot count behind them. The controller computes
+  these over its ten most recent qualifying shots, so they always match its
+  Stats page.
 - **Active preset**, a select populated from the controller's preset names.
 - **Brew by weight**, **No-scale BBW**, **A-to-M time guard**, **Slow
   extraction guard**, **Fast extraction guard**, **Avoid accidental touch**,

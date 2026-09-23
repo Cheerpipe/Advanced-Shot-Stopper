@@ -74,21 +74,29 @@ aggregates, preset revision, and the complete Quick Settings snapshot.
     "cupProtectionEnabled": true
   },
   "lastShot": null,
-  "lastGoodShot": null
+  "lastActivation": null,
+  "stats": null
 }
 ```
 
-`lastShot` and `lastGoodShot` are independently nullable. When present, each
-contains `cycleId`, `uptimeMs`, `durationMs`,
-`targetWeightG`, `presetId`, `presetName`, `shotType`, `stopDetail`, and the
-optional `firstDropMs`, `weightG`, and `averageFlowGps` fields defined by the
-webhook contract. The controller is authoritative for both aggregates;
-`lastGoodShot` advances only for a shot over 12 seconds with a finite final
-weight over 2 g. While idle, the Web UI's **Current / Last Good Shot** card reads
-this same `lastGoodShot` value; a newer non-qualifying shot does not replace
-either view. If migrated legacy data lacks trustworthy preset identity, both
-views report the last good shot as unknown until a qualifying identified shot
-finishes. Shot-history deletion never selects a replacement aggregate.
+`lastShot` is nullable. When present it contains `cycleId`, `uptimeMs`,
+`durationMs`, `targetWeightG`, `presetId`, `presetName`, `shotType`,
+`stopDetail`, and the optional `firstDropMs`, `weightG`, `averageFlowGps`, and
+`rating` fields defined by the webhook contract. The controller is
+authoritative for this mirror of its most recent shot.
+
+`lastActivation` mirrors the newest activation-history record (the Web UI
+History page). It is null before the first activation after a full data reset
+and otherwise carries `id`, `type` (`shot`, `rinse`, `other`, or `power_on`),
+`durationS`, `hasWallTime`, `endedAtUnixSec`, and `endedAtLocalSec`.
+
+`stats` carries the pre-computed rolling aggregate shown at the top of the Web
+UI Stats page: `shotCount`, `totalDurationS`, `avgDurationS`, `avgYieldG`,
+`avgErrorPct`, `avgFlowGps`, and `shotsPerDay`. Averages are `null` when no
+qualifying shot is in the window. The controller recomputes the aggregate
+once per saved shot, so reading it costs no extra flash scans; the same values
+are also embedded in every `GET /api/v1/shots` response header under `stats`.
+
 `shotState` is `idle` or `brewing`. `wifiMac` and `bluetoothMac` repeat the
 station interface addresses as upper-case `AA:BB:CC:DD:EE:FF` strings; the
 Bluetooth address uses the controller's Bluetooth MAC base. Receivers may
@@ -227,8 +235,16 @@ Quick Settings snapshot is flat in the event envelope:
 `controller_started` is one best-effort boot hint containing controller identity,
 `bootId`, and the current revision; receivers use it to perform one full REST
 reconciliation. The existing
-`presetChanges` subscription bit gates all three integration-state events:
-`presets_changed`, `quick_settings_changed`, and `controller_started`.
+`presetChanges` subscription bit gates all integration-state events:
+`presets_changed`, `quick_settings_changed`, `controller_started`, and
+`integration_history_end`.
+
+`integration_history_end` mirrors the newest activation-history record
+(shot, rinse, other, or power on) and carries `id`, `type`, `durationS`,
+`hasWallTime`, `endedAtUnixSec`, and `endedAtLocalSec` — the same shape as the
+snapshot's `lastActivation`. It is emitted only after the activation record is
+confirmed in history, so a receiver that misses it recovers the value on the
+next reconciliation.
 
 Receivers deduplicate by `(deviceId, bootId, cycleId, event, uptimeMs)`, reject
 older events for the same boot, and refresh the REST snapshot when configuration

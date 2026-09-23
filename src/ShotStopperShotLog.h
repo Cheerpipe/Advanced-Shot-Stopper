@@ -16,8 +16,9 @@ namespace shotstopper {
 constexpr size_t SHOT_LOG_FLASH_SLOT_BYTES = 12288;
 constexpr size_t SHOT_LOG_FLASH_SLOT_COUNT = 2;
 
-// Byte layout is identical to the current version; v6 slots only lack the
-// stats aggregate, which onBoot() rebuilds.
+// Byte layout is compatible with v6 (frozen header + record offsets; v7 adds
+// a stats trailer). Strict current-version validation: legacy v6 slots are
+// re-tagged by the loader's shotLogValidateOrMigrateV6 hook before this runs.
 inline bool validShotLogStoreCurrent(const ShotLogStore &store) {
   return validShotLogStore(store);
 }
@@ -41,7 +42,8 @@ struct DualSlotFlashLogTraits<ShotLogStore> {
 
 class ShotLog
     : public DualSlotFlashLog<ShotLogStore, validShotLogStoreCurrent,
-                              compactShotLogStore, finalizeShotLogStore> {
+                              compactShotLogStore, finalizeShotLogStore,
+                              shotLogValidateOrMigrateV6> {
  public:
   void onBoot() {
     if (store_.header.bootId == 0) {
@@ -49,10 +51,9 @@ class ShotLog
     } else if (store_.header.bootId < UINT32_MAX) {
       ++store_.header.bootId;
     }
-    // A migrated v6 blob carries no stats aggregate; rebuild it once so the
-    // WebUI and HA see the same values the v6 records still support.
-    if (store_.header.schemaVersion != SHOT_LOG_SCHEMA_VERSION ||
-        shotLogStatsTotalCount(store_.header.stats) == 0) {
+    // A migrated v6 blob already has its stats trailer rebuilt by the loader
+    // hook; an empty migrated log just gets an explicit zeroed aggregate.
+    if (shotLogStatsTotalCount(store_.stats) == 0) {
       recomputeStats();
     }
     store_.header.schemaVersion = SHOT_LOG_SCHEMA_VERSION;
@@ -74,7 +75,7 @@ class ShotLog
     dirty_ = true;
   }
 
-  const ShotLogStats &stats() const { return store_.header.stats; }
+  const ShotLogStats &stats() const { return store_.stats; }
 
   bool updateRating(uint32_t id, uint8_t rating, bool persistNow = true) {
     ShotLogRecord *found = findNewestById(id);

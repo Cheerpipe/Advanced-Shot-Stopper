@@ -7,8 +7,16 @@
 namespace shotstopper {
 
 constexpr uint32_t LAST_SHOT_MAGIC = 0x4C534854U;  // "LSHT"
-// Current last-shot schema. Unrecognized blobs decode as empty (no upgrade).
-constexpr uint16_t LAST_SHOT_SCHEMA_VERSION = 4;
+// Current last-shot schema (v5: wall-clock tail on each shot). Unrecognized
+// blobs decode as empty (no upgrade).
+constexpr uint16_t LAST_SHOT_SCHEMA_VERSION = 5;
+
+// Bytes v5 appended to each stored shot (two wall-clock words, one flag byte,
+// tail alignment). Keeps the legacy v4 buffer size derived, not hardcoded.
+constexpr size_t kLastShotV5AppendedBytes = sizeof(uint32_t) * 2 + 1;
+constexpr size_t kLastShotV4ShotBytes =
+    sizeof(PersistedLastShot) -
+    ((kLastShotV5AppendedBytes + 3u) & ~static_cast<size_t>(3));
 
 struct LastShotBlobV2 {
   uint32_t magic;
@@ -40,6 +48,21 @@ static_assert(offsetof(PersistedLastShot, averageFlowGps) == 112,
 inline uint32_t lastShotV3Checksum(const LastShotBlobV3 &blob) {
   return crc32(reinterpret_cast<const uint8_t *>(&blob),
                offsetof(LastShotBlobV3, checksum));
+}
+
+// v4 layout: identical header and shot order; each stored shot just lacked
+// the v5 wall-clock tail.
+struct LastShotBlobV4 {
+  uint32_t magic;
+  uint16_t schemaVersion;
+  uint16_t structureSize;
+  uint8_t shot[2 * kLastShotV4ShotBytes];
+  uint32_t checksum;
+};
+
+inline uint32_t lastShotV4Checksum(const LastShotBlobV4 &blob) {
+  return crc32(reinterpret_cast<const uint8_t *>(&blob),
+               offsetof(LastShotBlobV4, checksum));
 }
 
 struct LastShotBlob {
@@ -122,6 +145,22 @@ class LastShotStore {
         validLastShotBlob(candidate)) {
       blob_ = candidate;
       loaded = true;
+    } else if (length == sizeof(LastShotBlobV4)) {
+      LastShotBlobV4 legacy = {};
+      if (preferences.getBytes(LAST_SHOT_KEY, &legacy, sizeof(legacy)) ==
+              sizeof(legacy) &&
+          legacy.magic == LAST_SHOT_MAGIC && legacy.schemaVersion == 4 &&
+          legacy.structureSize == sizeof(legacy) &&
+          legacy.checksum == lastShotV4Checksum(legacy)) {
+        resetLastShotBlob(blob_);
+        memcpy(static_cast<void *>(&blob_.lastShot), legacy.shot,
+               kLastShotV4ShotBytes);
+        memcpy(static_cast<void *>(&blob_.lastGoodShot),
+               legacy.shot + kLastShotV4ShotBytes, kLastShotV4ShotBytes);
+        finalizeLastShotBlob(blob_);
+        loadedLegacy_ = true;
+        loaded = true;
+      }
     } else if (length == sizeof(LastShotBlobV3)) {
       LastShotBlobV3 legacy = {};
       if (preferences.getBytes(LAST_SHOT_KEY, &legacy, sizeof(legacy)) ==

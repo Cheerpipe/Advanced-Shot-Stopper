@@ -15,7 +15,7 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.open_brew_by_weight.api import CannotConnect, RequestRejected
 from custom_components.open_brew_by_weight.button import RestartButton
-from custom_components.open_brew_by_weight.const import STOP_DETAILS
+from custom_components.open_brew_by_weight.const import ACTIVATION_TYPES, STOP_DETAILS
 from custom_components.open_brew_by_weight.coordinator import (
     OpenBrewByWeightCoordinator,
 )
@@ -31,12 +31,12 @@ from custom_components.open_brew_by_weight.repairs import async_create_webhook_r
 from custom_components.open_brew_by_weight.runtime import OpenBrewByWeightRuntimeData
 from custom_components.open_brew_by_weight.select import ActivePresetSelect
 from custom_components.open_brew_by_weight.sensor import (
-    SHOT_DESCRIPTIONS,
+    MIRRORED_DESCRIPTIONS,
     ControllerSensor,
     IpSensor,
     MachineSensor,
+    MirroredSensor,
     ShotStateSensor,
-    StoredShotSensor,
 )
 from custom_components.open_brew_by_weight.switch import (
     DESCRIPTIONS,
@@ -70,11 +70,9 @@ def _event(name: str, **updates) -> WebhookEvent:
 async def test_coordinator_refresh_and_failures(hass) -> None:
     """REST reconciliation publishes data and maps availability failures."""
     coordinator, api, _entry = _coordinator(hass)
-    migrated = Shot.from_dict(fixture("webhook_end_v1.json"))
-    coordinator._stored_good = migrated
     result = await coordinator._async_update_data()
     assert result.snapshot.shot_state == "idle"
-    assert result.last_good_shot is None
+    assert result.last_shot is not None and result.last_shot.rating == 4
     recovered = Shot.from_dict(fixture("webhook_end_v1.json"))
     api.async_snapshot.return_value = result.snapshot.__class__.from_dict(
         {
@@ -82,22 +80,10 @@ async def test_coordinator_refresh_and_failures(hass) -> None:
             "lastShot": recovered.to_dict(),
         }
     )
-    coordinator._stored_good = migrated
-    result = await coordinator._async_update_data()
-    assert result.last_good_shot is None
-    assert coordinator._stored_good is None
-    api.async_snapshot.return_value = result.snapshot.__class__.from_dict(
-        {
-            **fixture("integration_snapshot.json"),
-            "lastShot": recovered.to_dict(),
-            "lastGoodShot": recovered.to_dict(),
-        }
-    )
-    coordinator._stored_good = None
+    coordinator._stored_last = None
     with patch.object(coordinator._store, "async_delay_save") as save:
         result = await coordinator._async_update_data()
     assert result.last_shot == recovered
-    assert result.last_good_shot == recovered
     save.assert_called_once()
     api.async_snapshot.side_effect = RuntimeError("offline")
     with pytest.raises(UpdateFailed, match="offline"):
@@ -132,11 +118,11 @@ async def test_store_restore_save_and_corruption(hass) -> None:
     coordinator, _api, _entry = _coordinator(hass)
     shot = Shot.from_dict(fixture("webhook_end_v1.json"))
     coordinator._store.async_load = AsyncMock(
-        return_value={"last_shot": shot.to_dict(), "last_good_shot": shot.to_dict()}
+        return_value={"last_shot": shot.to_dict()}
     )
     await coordinator.async_load_store()
     assert coordinator._stored_last == shot
-    assert coordinator._storage_data()["last_good_shot"]["presetName"] == "Double"
+    assert coordinator._storage_data()["last_shot"]["presetName"] == "Double"
     coordinator._store.async_load.return_value = {"last_shot": {"bad": True}}
     await coordinator.async_load_store()
     assert coordinator._stored_last is None
@@ -152,7 +138,6 @@ async def test_webhook_ordering_aggregates_and_gap_refresh(hass) -> None:
         await coordinator.async_process_webhook(end)
         await coordinator.async_process_webhook(end)
     assert coordinator.data.last_shot.preset_name == "Double"
-    assert coordinator.data.last_good_shot == coordinator.data.last_shot
     save.assert_called_once()
 
     short_payload = fixture("webhook_end_v1.json")
@@ -160,7 +145,7 @@ async def test_webhook_ordering_aggregates_and_gap_refresh(hass) -> None:
     await coordinator.async_process_webhook(
         WebhookEvent.from_bytes(json.dumps(short_payload).encode())
     )
-    assert coordinator.data.last_good_shot.cycle_id == end.cycle_id
+    assert coordinator.data.last_shot.cycle_id == 8
 
     stale = _event("webhook_end_v1.json", cycleId=9, uptimeMs=1)
     await coordinator.async_process_webhook(stale)
@@ -494,7 +479,7 @@ async def test_entities_and_select(hass) -> None:
     assert ip.entity_category is EntityCategory.DIAGNOSTIC
     assert ip.native_value == "192.168.1.8"
     assert state.device_info["configuration_url"] == "http://controller.local/"
-    assert len(SHOT_DESCRIPTIONS) == 16
+    assert len(MIRRORED_DESCRIPTIONS) == 18
 
     snapshot_without_mdns = replace(
         coordinator.data.snapshot, mdns_host=None, wifi_mac=None, bluetooth_mac=None
@@ -505,10 +490,14 @@ async def test_entities_and_select(hass) -> None:
     fallback = ShotStateSensor(coordinator)
     assert fallback.device_info["configuration_url"] == "http://controller.local/"
     assert fallback.device_info["connections"] == set()
-    empty = [StoredShotSensor(coordinator, item) for item in SHOT_DESCRIPTIONS]
+    empty_data = replace(
+        coordinator.data, last_shot=None, last_activation=None, stats=None
+    )
+    coordinator.async_set_updated_data(empty_data)
+    empty = [MirroredSensor(coordinator, item) for item in MIRRORED_DESCRIPTIONS]
     assert all(entity.native_value is None for entity in empty)
     await coordinator.async_process_webhook(_event("webhook_end_v1.json"))
-    entities = [StoredShotSensor(coordinator, item) for item in SHOT_DESCRIPTIONS]
+    entities = [MirroredSensor(coordinator, item) for item in MIRRORED_DESCRIPTIONS]
     values = {entity.entity_description.key: entity.native_value for entity in entities}
     assert values["last_shot_duration"] == 27.8
     assert values["last_shot_final_weight"] == 36.72
@@ -520,6 +509,22 @@ async def test_entities_and_select(hass) -> None:
         for entity in entities
         if entity.entity_description.key.endswith("_stop_detail")
     ).options == list(STOP_DETAILS)
+    assert values["last_activation_type"] is None
+    assert values["stats_shot_count"] is None
+    coordinator.async_set_updated_data(coordinator_data())
+    entities = [MirroredSensor(coordinator, item) for item in MIRRORED_DESCRIPTIONS]
+    values = {entity.entity_description.key: entity.native_value for entity in entities}
+    assert values["last_activation_type"] == "shot"
+    assert values["last_activation_duration"] == 27.8
+    assert values["last_activation_time"] is not None
+    assert next(
+        entity
+        for entity in entities
+        if entity.entity_description.key == "last_activation_type"
+    ).options == list(ACTIVATION_TYPES)
+    assert values["stats_shot_count"] == 7
+    assert values["stats_avg_yield"] == 35.9
+    assert values["stats_avg_flow"] == 1.55
 
     select = ActivePresetSelect(coordinator)
     assert select.options == ["Double", "Single"]

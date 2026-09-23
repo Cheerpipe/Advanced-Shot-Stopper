@@ -17,10 +17,12 @@ from .api import CannotConnect, OpenBrewByWeightApi
 from .const import DOMAIN, RECOVERY_DELAYS, STORE_KEY_PREFIX, STORE_VERSION
 from .models import (
     DeviceSnapshot,
+    LastActivation,
     PresetState,
     ProtocolError,
     QuickSettings,
     Shot,
+    ShotStats,
     WebhookEvent,
 )
 
@@ -32,7 +34,8 @@ class CoordinatorData:
     snapshot: DeviceSnapshot
     presets: PresetState
     last_shot: Shot | None
-    last_good_shot: Shot | None
+    last_activation: LastActivation | None = None
+    stats: ShotStats | None = None
 
 
 class OpenBrewByWeightCoordinator(DataUpdateCoordinator[CoordinatorData]):
@@ -58,7 +61,7 @@ class OpenBrewByWeightCoordinator(DataUpdateCoordinator[CoordinatorData]):
             hass, STORE_VERSION, f"{STORE_KEY_PREFIX}.{entry.entry_id}"
         )
         self._stored_last: Shot | None = None
-        self._stored_good: Shot | None = None
+        self._stored_activation: LastActivation | None = None
         self._seen_order: deque[tuple[str, int, int, str, int]] = deque(maxlen=256)
         self._seen: set[tuple[str, int, int, str, int]] = set()
         self._last_uptime_by_boot: dict[int, int] = {}
@@ -79,13 +82,13 @@ class OpenBrewByWeightCoordinator(DataUpdateCoordinator[CoordinatorData]):
                 if stored.get("last_shot") is None
                 else Shot.from_dict(stored["last_shot"])
             )
-            self._stored_good = (
+            self._stored_activation = (
                 None
-                if stored.get("last_good_shot") is None
-                else Shot.from_dict(stored["last_good_shot"])
+                if stored.get("last_activation") is None
+                else LastActivation.from_dict(stored["last_activation"])
             )
         except KeyError, TypeError, ValueError:
-            self._stored_last = self._stored_good = None
+            self._stored_last = self._stored_activation = None
 
     async def _async_update_data(self) -> CoordinatorData:
         for attempt in range(2):
@@ -105,15 +108,33 @@ class OpenBrewByWeightCoordinator(DataUpdateCoordinator[CoordinatorData]):
             if attempt:
                 raise UpdateFailed("controller snapshots are inconsistent")
         last = snapshot.last_shot
-        good = snapshot.last_good_shot
-        if last != self._stored_last or good != self._stored_good:
-            self._stored_last, self._stored_good = last, good
+        activation = snapshot.last_activation
+        stats = await self._async_fetch_stats(snapshot)
+        if (
+            last != self._stored_last
+            or activation != self._stored_activation
+            or stats != getattr(self.data, "stats", None)
+        ):
+            self._stored_last = last
+            self._stored_activation = activation
             self._store.async_delay_save(self._storage_data, 1)
-        return CoordinatorData(snapshot, presets, last, good)
+        return CoordinatorData(snapshot, presets, last, activation, stats)
 
-    @staticmethod
-    def _is_good(shot: Shot) -> bool:
-        return shot.duration_ms > 12000 and shot.weight_g is not None and shot.weight_g > 2
+    async def _async_fetch_stats(self, snapshot: DeviceSnapshot) -> ShotStats | None:
+        """Prefer the snapshot aggregate; fall back to one bounded page read."""
+        if snapshot.stats is not None:
+            return snapshot.stats
+        if "stored_shots_v1" not in snapshot.capabilities:
+            return None
+        try:
+            page = await self.api.async_shots_page()
+        except Exception:
+            return None
+        stats = page.get("stats") if isinstance(page, dict) else None
+        try:
+            return None if stats is None else ShotStats.from_dict(stats)
+        except ProtocolError:
+            return None
 
     def expect_test(self, correlation_id: str) -> asyncio.Future[None]:
         """Create the waiter before requesting a test callback."""
@@ -247,7 +268,10 @@ class OpenBrewByWeightCoordinator(DataUpdateCoordinator[CoordinatorData]):
             return
         if event.boot_id < self.data.snapshot.boot_id:
             return
-        if event.boot_id > self.data.snapshot.boot_id and event.event != "controller_started":
+        if (
+            event.boot_id > self.data.snapshot.boot_id
+            and event.event != "controller_started"
+        ):
             self._schedule_explicit_refresh(
                 f"{DOMAIN} newer-boot reconciliation",
                 required_boot_id=event.boot_id,
@@ -270,13 +294,19 @@ class OpenBrewByWeightCoordinator(DataUpdateCoordinator[CoordinatorData]):
             return
         if event.event == "end":
             shot = Shot.from_dict(event.data)
-            good = shot if self._is_good(shot) else data.last_good_shot
             self._accept_event(key, event)
-            self._stored_last, self._stored_good = shot, good
+            self._stored_last = shot
             self._store.async_delay_save(self._storage_data, 1)
-            self.async_set_updated_data(
-                replace(data, last_shot=shot, last_good_shot=good)
-            )
+            self.async_set_updated_data(replace(data, last_shot=shot))
+            if preserve_failure:
+                self.async_set_update_error(UpdateFailed("reconciliation pending"))
+            return
+        if event.event == "integration_history_end":
+            activation = LastActivation.from_dict(event.data)
+            self._accept_event(key, event)
+            self._stored_activation = activation
+            self._store.async_delay_save(self._storage_data, 1)
+            self.async_set_updated_data(replace(data, last_activation=activation))
             if preserve_failure:
                 self.async_set_update_error(UpdateFailed("reconciliation pending"))
             return
@@ -375,7 +405,7 @@ class OpenBrewByWeightCoordinator(DataUpdateCoordinator[CoordinatorData]):
             "last_shot": None
             if self._stored_last is None
             else self._stored_last.to_dict(),
-            "last_good_shot": None
-            if self._stored_good is None
-            else self._stored_good.to_dict(),
+            "last_activation": None
+            if self._stored_activation is None
+            else self._stored_activation.to_dict(),
         }

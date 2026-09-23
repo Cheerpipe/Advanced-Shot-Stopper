@@ -36,42 +36,6 @@ const char *formatStatFloat(double value, unsigned decimals) {
   return buffer;
 }
 
-// Pre-computed stats over the newest shots (WebUI Stats card mirror).
-bool buildIntegrationStats(const ShotLogStats &stats, char *output,
-                           size_t capacity) {
-  const int written = snprintf(
-      output, capacity,
-      "{\"shotCount\":%lu,\"totalDurationS\":%.1f,\"avgDurationS\":%s,"
-      "\"avgYieldG\":%s,\"avgErrorPct\":%s,\"avgFlowGps\":%s,"
-      "\"shotsPerDay\":%s}",
-      static_cast<unsigned long>(stats.shotCount),
-      static_cast<double>(stats.durationDsSum) / 1000.0,
-      stats.shotCount > 0
-          ? formatStatFloat(static_cast<double>(stats.durationDsSum) /
-                            (1000.0 * stats.shotCount), 1)
-          : "null",
-      stats.shotCount > 0
-          ? formatStatFloat(static_cast<double>(stats.actualCgSum) /
-                            (100.0 * stats.shotCount), 1)
-          : "null",
-      stats.shotCount > 0
-          ? formatStatFloat(static_cast<double>(stats.errorPctTenthsSum) /
-                            stats.shotCount / 10.0, 1)
-          : "null",
-      shotLogStatsTotalCount(stats) > 0
-          ? formatStatFloat(static_cast<double>(stats.flowCgSx100Sum) /
-                                shotLogStatsTotalCount(stats) / 10000.0,
-                            2)
-          : "null",
-      stats.daysSpan > 0
-          ? formatStatFloat(
-                static_cast<double>(stats.shotCount) /
-                    (static_cast<double>(stats.daysSpan) + 1.0),
-                1)
-          : "null");
-  return written > 0 && static_cast<size_t>(written) < capacity;
-}
-
 // Newest activation-history record (WebUI History card mirror).
 bool buildIntegrationLastActivation(const ControlStatusSnapshot &control,
                                     char *output, size_t capacity) {
@@ -180,6 +144,44 @@ bool buildIntegrationQuickSettings(const QuickSettingsSnapshot &snapshot,
 
 }  // namespace
 
+// Pre-computed stats over the newest shots (WebUI Stats card mirror).
+// External linkage with a header declaration: the shots-page handler is
+// inlined into this translation unit before this include.
+bool buildIntegrationStats(const ShotLogStats &stats, char *output,
+                           size_t capacity) {
+  const int written = snprintf(
+      output, capacity,
+      "{\"shotCount\":%lu,\"totalDurationS\":%.1f,\"avgDurationS\":%s,"
+      "\"avgYieldG\":%s,\"avgErrorPct\":%s,\"avgFlowGps\":%s,"
+      "\"shotsPerDay\":%s}",
+      static_cast<unsigned long>(stats.shotCount),
+      static_cast<double>(stats.durationDsSum) / 1000.0,
+      stats.shotCount > 0
+          ? formatStatFloat(static_cast<double>(stats.durationDsSum) /
+                            (1000.0 * stats.shotCount), 1)
+          : "null",
+      stats.shotCount > 0
+          ? formatStatFloat(static_cast<double>(stats.actualCgSum) /
+                            (100.0 * stats.shotCount), 1)
+          : "null",
+      stats.shotCount > 0
+          ? formatStatFloat(static_cast<double>(stats.errorPctTenthsSum) /
+                            stats.shotCount / 10.0, 1)
+          : "null",
+      shotLogStatsTotalCount(stats) > 0
+          ? formatStatFloat(static_cast<double>(stats.flowCgSx100Sum) /
+                                shotLogStatsTotalCount(stats) / 10000.0,
+                            2)
+          : "null",
+      stats.daysSpan > 0
+          ? formatStatFloat(
+                static_cast<double>(stats.shotCount) /
+                    (static_cast<double>(stats.daysSpan) + 1.0),
+                1)
+          : "null");
+  return written > 0 && static_cast<size_t>(written) < capacity;
+}
+
 esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   const char *uri = request->uri;
@@ -204,10 +206,11 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     const bool quickSettingsOk = buildIntegrationQuickSettings(
         quickSettingsSnapshot(recipe), quickSettingsJson,
         sizeof(quickSettingsJson));
-    const bool statsOk = buildIntegrationStats(
-        callbacks_.copyShotStats != nullptr ? callbacks_.copyShotStats()
-                                            : ShotLogStats{},
-        statsJson, sizeof(statsJson));
+    ShotLogStats stats = {};
+    if (self.callbacks_.copyShotStats != nullptr)
+      stats = self.callbacks_.copyShotStats();
+    const bool statsOk =
+        buildIntegrationStats(stats, statsJson, sizeof(statsJson));
     const bool lastActivationOk = buildIntegrationLastActivation(
         control, lastActivationJson, sizeof(lastActivationJson));
     const NetworkStatusSnapshot network = self.snapshot();

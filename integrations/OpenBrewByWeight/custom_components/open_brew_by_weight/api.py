@@ -115,6 +115,11 @@ class OpenBrewByWeightApi:
         _, payload = await self._json("GET", "/presets")
         return PresetState.from_dict(payload)
 
+    async def async_shots_page(self) -> dict[str, Any]:
+        """Read one bounded shots page carrying the firmware stats aggregate."""
+        _, payload = await self._json("GET", "/shots?limit=1")
+        return payload if isinstance(payload, dict) else {}
+
     async def async_webhook_config(self) -> dict[str, Any]:
         _, payload = await self._json("GET", "/webhook")
         return payload
@@ -188,7 +193,9 @@ class OpenBrewByWeightApi:
         """Queue one safe restart without polling the rebooting controller."""
         status, payload = await self._json("POST", "/restart", body={})
         request_id = payload.get("requestId")
-        if status != 202 or isinstance(request_id, bool) or not isinstance(
-            request_id, int
+        if (
+            status != 202
+            or isinstance(request_id, bool)
+            or not isinstance(request_id, int)
         ):
             raise ProtocolError("restart did not return requestId")

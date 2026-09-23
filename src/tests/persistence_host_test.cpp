@@ -637,7 +637,7 @@ void p65_factory_settings_survives_second_slot_write_fail() {
 
 void p66_shot_log_dual_slot_generation_flip() {
   resetHostPersistence();
-  CHECK(sizeof(ShotLogStore) == 7228);
+  CHECK(sizeof(ShotLogStore) == 7256);
   CHECK(sizeof(ShotLogStore) % 4 == 0);
   CHECK(sizeof(ShotLogStore) <= SHOT_LOG_FLASH_SLOT_BYTES);
   CHECK(SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES <= 0x8000);
@@ -1961,10 +1961,10 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
   CHECK(sizeof(PersistedSettings) == 2960U);
   CHECK(settingsEntries == 190U);
-  CHECK(lastShotEntries == 10U);
-  CHECK(applicationEntries == 265U);
+  CHECK(lastShotEntries == 11U);
+  CHECK(applicationEntries == 266U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 2129U);
+  CHECK(conservativeEntries - applicationEntries == 2128U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {

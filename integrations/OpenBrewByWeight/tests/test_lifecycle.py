@@ -187,7 +187,7 @@ async def test_platform_factories(hass) -> None:
     entry.runtime_data = runtime
     add = MagicMock()
     await async_setup_sensors(hass, entry, add)
-    assert len(add.call_args.args[0]) == 20
+    assert len(add.call_args.args[0]) == 22
     add.reset_mock()
     await async_setup_select(hass, entry, add)
     assert len(add.call_args.args[0]) == 1

@@ -38,11 +38,13 @@ def config_entry(**updates) -> MockConfigEntry:
 
 def coordinator_data() -> CoordinatorData:
     """Build authoritative data from shared fixtures."""
+    snapshot = DeviceSnapshot.from_dict(fixture("integration_snapshot.json"))
     return CoordinatorData(
-        DeviceSnapshot.from_dict(fixture("integration_snapshot.json")),
+        snapshot,
         PresetState.from_dict(fixture("integration_presets.json")),
-        DeviceSnapshot.from_dict(fixture("integration_snapshot.json")).last_shot,
-        DeviceSnapshot.from_dict(fixture("integration_snapshot.json")).last_good_shot,
+        snapshot.last_shot,
+        snapshot.last_activation,
+        snapshot.stats,
     )
 
 
@@ -60,6 +62,7 @@ def api_mock() -> MagicMock:
         "async_set_quick_setting",
         "async_restart",
         "async_apply_webhook_config",
+        "async_shots_page",
     ):
         setattr(api, method, AsyncMock())
     api.async_snapshot.return_value = coordinator_data().snapshot

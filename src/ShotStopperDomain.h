@@ -1954,12 +1954,6 @@ struct PersistedLastShot {
   float currentWeightG = 0.0f;
   bool weightValid = false;
   uint8_t goalWeightG = 0;
-  // Wall-clock end of the shot (0/hasWallTime=false when the clock was not
-  // synced at the end) and the live star rating, mirrored by the WebUI.
-  uint32_t endedAtUnixSec = 0;
-  uint32_t endedAtLocalSec = 0;
-  uint8_t hasWallTime = 0;
-  uint8_t rating = 0;
   bool extractionExtended = false;
   float activeStopWeightG = 0.0f;
   uint32_t firstDropElapsedMs = 0;
@@ -1986,6 +1980,13 @@ struct PersistedLastShot {
   char presetName[24] = {};
   float averageFlowGps = 0.0f;
   bool averageFlowValid = false;
+  // Wall-clock end of the shot (0/hasWallTime=false when the clock was not
+  // synced at the end), mirrored by the WebUI. Appended in the former
+  // trailing padding: offsets above are frozen (v2/v3 legacy prefixes keep
+  // validating) and the blob only grows.
+  uint32_t endedAtUnixSec = 0;
+  uint32_t endedAtLocalSec = 0;
+  uint8_t hasWallTime = 0;
 };
 
 inline bool qualifyingGoodShot(const PersistedLastShot &shot, uint32_t protectionMs) {
@@ -2167,7 +2168,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   uint32_t lastActivationEndedAtUnixSec = 0;
   uint32_t lastActivationEndedAtLocalSec = 0;
   uint32_t lastActivationDurationDs = 0;
-  uint8_t lastActivationType = static_cast<uint8_t>(HistoryType::OTHER);
+  uint8_t lastActivationType = 2;  // shotstopper::HistoryType::OTHER (history header not included)
   uint8_t lastActivationFlags = 0;
   uint8_t shotCurveCount = 0;
   uint8_t shotCurveIntervalDs = 5;
