@@ -44,11 +44,30 @@ function stripMachineTypeMarkup(html, machineType) {
   if (!excluded) return html;
   let out = html;
   for (const cls of excluded) {
-    out = out.replace(
-        new RegExp(
-            `<([a-z]+)\\b[^>]*\\bclass="[^\"]*\\b${cls}\\b[^\"]*"[^>]*>[\\s\\S]*?</\\1>`,
-            'g'),
-        '');
+    const openRe = new RegExp(
+        `<([a-z]+)\\b[^>]*\\bclass="[^\"]*\\b${cls}\\b[^\"]*"[^>]*>`, 'g');
+    const removals = [];
+    let match;
+    // Remove each matching element's whole subtree by scanning to the tag's
+    // matching close; a first-close regex leaves stray closers that break the
+    // surrounding layout.
+    while ((match = openRe.exec(out))) {
+      const tokenRe = new RegExp(`<(/?)${match[1]}\\b[^>]*>`, 'gi');
+      tokenRe.lastIndex = match.index + match[0].length;
+      let depth = 1;
+      let token;
+      while ((token = tokenRe.exec(out))) {
+        depth += token[1] === '/' ? -1 : 1;
+        if (depth === 0) break;
+      }
+      if (depth === 0 && token) {
+        removals.push([match.index, tokenRe.lastIndex - match.index]);
+      }
+    }
+    for (let i = removals.length - 1; i >= 0; i--) {
+      out = out.slice(0, removals[i][0]) +
+          out.slice(removals[i][0] + removals[i][1]);
+    }
   }
   return out;
 }

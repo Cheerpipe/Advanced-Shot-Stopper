@@ -68,6 +68,29 @@ for (const [machineType, forbidden] of Object.entries(machineTypeExclusive)) {
   if (!variant.html.includes(expectedClass)) {
     throw new Error(`machine-type ${machineType} shell must carry ${expectedClass}`);
   }
+  // Stripping must remove whole balanced subtrees; an unbalanced regex once
+  // left stray closers that ended the diagnostic panel before Relay..Recovery.
+  const machineTypePartial = variant.partials.diagnostic;
+  const divOpen = (machineTypePartial.match(/<div\b/g) || []).length;
+  const divClose = (machineTypePartial.match(/<\/div>/g) || []).length;
+  if (divOpen !== divClose) {
+    throw new Error(`machine-type ${machineType} diagnostic partial has ` +
+        `unbalanced div tags (${divOpen} open / ${divClose} close)`);
+  }
+  const ioPanelStart = machineTypePartial.indexOf('Machine I/O');
+  const scalePanelStart = machineTypePartial.indexOf('Scale', ioPanelStart);
+  const ioPanel = machineTypePartial.slice(ioPanelStart, scalePanelStart);
+  for (const keptId of ['dActivator', 'dRelay', 'dSafety', 'dWatchdog',
+    'dRecovery']) {
+    if (!ioPanel.includes(keptId)) {
+      throw new Error(`machine-type ${machineType} diagnostic Machine I/O ` +
+          `panel must keep ${keptId}`);
+    }
+  }
+  if (ioPanel.includes('</fieldset></div>')) {
+    throw new Error(`machine-type ${machineType} diagnostic Machine I/O ` +
+        'panel must not close the diagnostics container early');
+  }
 }
 const typeAgnostic = await webUi.generate({webUiLanguage: 'EN', write: false});
 const typeAgnosticText =
