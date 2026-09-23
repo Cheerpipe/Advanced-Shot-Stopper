@@ -42,6 +42,11 @@ nonconsecutive readings. No parsing or cup-state transition runs under that
 mutex. Idle-tare claim/cancel/approved-sequence updates use the separate request
 mutex; neither mutex nests with the other or spans ATT. Unvalidated publication
 defers claim using the existing worker tick and unchanged command expiry.
+The final pre-write harvest precedes the idle claim. Its weight sample must
+match the latest notification sequence and the control-approved published
+packet; otherwise the still-queued command yields to control. The claim freezes
+the capture boundary immediately before command issuance, so a buffered
+pre-write zero cannot acknowledge the tare. No new mutex spans ATT.
 The same request mutex protects a control-approved pre-tare sample copy. Control
 publishes that copy before approving the corresponding idle claim. Immediately
 before each tare, the worker copies it only if its packet/generation matches the
@@ -60,7 +65,8 @@ empty anchor without forging a new stable-absence record. The scale worker retur
 an opaque request ID, pre-write weight, and tare outcome for uncertainty handling.
 Both status JSON paths publish `cupPresence`
 with `weightG` (finite grams or null), `weightValid`, and `placementId` from that
-committed snapshot.
+committed snapshot. `cupPresence.idleTare` projects readiness from those same
+diagnostics; the Web layer never reads or changes the cup FSM directly.
 The NimBLE advertisement mailbox copies a raw six-byte address and bounded name
 under the existing nested spinlocks; the consumer formats its private address
 copy after unlocking. A concurrent advertisement remains pending for the next

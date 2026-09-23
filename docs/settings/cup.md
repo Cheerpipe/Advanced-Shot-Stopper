@@ -77,7 +77,7 @@ intermediate readings while a cup is being placed (for example, 0 → 5 → 300 
 A transient removal minimum is not a baseline. Successful tracked tares translate
 the empty reference using the latest control-approved reading at the write
 boundary, without changing the previous placement's recorded mass. Unvalidated
-pre-write evidence discards that anchor. Lost sample evidence requires fresh
+pre-write evidence defers an idle write; other tracked tares discard that anchor. Lost sample evidence requires fresh
 qualification but does not permit the reference to drift to a different plateau.
 Without a reliable empty reference
 before placement, the UI shows **—**, including when booting with a cup
@@ -86,6 +86,14 @@ connection changes, lost evidence, and uncertain tares clear the value.
 Acquisition requires stable absence or a newly qualified unload with a trusted
 anchor, followed by placement; tare alone cannot recover missing mass.
 Nothing is persisted across restarts.
+
+**Home → Cup → Automatic tare** explains readiness separately from presence and
+mass. A cup that was already tared to zero when the controller connected can
+appear absent; lifting and replacing it alone may leave detection unchanged.
+Remove it, tare the empty scale from **Diagnostic**, wait for stable zero, and
+replace it. For a positive-weight cup at startup, stable empty-pan removal and
+replacement are sufficient. Physical-button tare does not restore tracked
+reference history.
 
 All tares must be firmware-issued: physical-button/external tare is outside the
 supported contract. Older firmware payloads and unavailable readings show **—**.

@@ -390,20 +390,14 @@ class NimbleScaleClient {
     if (state_ != State::Ready || protocol_ == nullptr) {
       return false;
     }
-    if (!hasValidPacket_ && elapsedMs(connectedAt_) >= FIRST_PACKET_TIMEOUT_MS) {
-      finishLink(true, ScaleDisconnectReason::FIRST_PACKET_TIMEOUT,
-                 BLE_HS_ETIMEOUT);
-      return false;
-    }
-    if (hasValidPacket_ && elapsedMs(lastPacket_) >= maxPacketPeriodMs()) {
-      finishLink(true, ScaleDisconnectReason::PACKET_TIMEOUT,
-                 BLE_HS_ETIMEOUT);
-      return false;
-    }
-
     RxFrame frame = {};
     for (size_t drained = 0; drained < kRxFrameCount && popRx(frame);
          ++drained) {
+      const uint32_t limit = hasValidPacket_ ? maxPacketPeriodMs() : FIRST_PACKET_TIMEOUT_MS;
+      const uint32_t anchor = hasValidPacket_ ? lastPacket_ : connectedAt_;
+      if (elapsedMs(frame.receivedAtMs) >= limit ||
+          static_cast<int32_t>(frame.receivedAtMs - anchor) >= static_cast<int32_t>(limit))
+        continue; // Queued stale/late data cannot revive an expired stream.
       if (!supportedPacketLength(frame.length)) {
         rejectPacket();
         continue;
@@ -452,6 +446,13 @@ class NimbleScaleClient {
         currentWeightSample_ = {weight, frame.receivedAtMs, frame.captureSequence};
         return true;
       }
+    }
+    if (state_ == State::Ready &&
+        elapsedMs(hasValidPacket_ ? lastPacket_ : connectedAt_) >=
+            (hasValidPacket_ ? maxPacketPeriodMs() : FIRST_PACKET_TIMEOUT_MS)) {
+      finishLink(true, hasValidPacket_ ? ScaleDisconnectReason::PACKET_TIMEOUT
+                                      : ScaleDisconnectReason::FIRST_PACKET_TIMEOUT,
+                 BLE_HS_ETIMEOUT);
     }
     return false;
   }

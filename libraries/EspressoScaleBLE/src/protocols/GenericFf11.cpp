@@ -5,13 +5,13 @@ namespace {
 static const uint8_t TARE_GENERIC[6] =
     {0x03, 0x0a, 0x01, 0x00, 0x00, 0x08};
 static const uint8_t START_TIMER_GENERIC[6] =
-    {0x03, 0x0a, 0x04, 0x00, 0x00, 0x0a};
+    {0x03, 0x0a, 0x04, 0x00, 0x00, 0x0d};
 static const uint8_t STOP_TIMER_GENERIC[6] =
-    {0x03, 0x0a, 0x05, 0x00, 0x00, 0x0d};
+    {0x03, 0x0a, 0x05, 0x00, 0x00, 0x0c};
 static const uint8_t RESET_TIMER_GENERIC[6] =
-    {0x03, 0x0a, 0x06, 0x00, 0x00, 0x0c};
+    {0x03, 0x0a, 0x06, 0x00, 0x00, 0x0f};
 static const uint8_t TARE_START_TIMER_BOOKOO[6] =
-    {0x03, 0x0a, 0x07, 0x00, 0x00, 0x00};
+    {0x03, 0x0a, 0x07, 0x00, 0x00, 0x0e};
 static const uint8_t FLOW_SMOOTHING_OFF[6] __attribute__((unused)) =
     {0x03, 0x0a, 0x08, 0x00, 0x00, 0x01};
 
@@ -45,11 +45,14 @@ bool genericSupportedPacketLength(int length) {
 }
 
 bool parseGenericWeight(const uint8_t *data, int length, float *weight) {
-    if (length != 20 || data[0] != 0x03 ||
+    if (length != 20 || data[0] != 0x03 || data[1] != 0x0b ||
         (data[6] != '-' && data[6] != '+' && data[6] != ' ' &&
          data[6] != 0x00)) {
         return false;
     }
+    uint8_t checksum = 0;
+    for (int i = 0; i < length - 1; ++i) checksum ^= data[i];
+    if (checksum != data[length - 1]) return false;
 
     const uint32_t raw = (static_cast<uint32_t>(data[7]) << 16) |
                          (static_cast<uint32_t>(data[8]) << 8) |

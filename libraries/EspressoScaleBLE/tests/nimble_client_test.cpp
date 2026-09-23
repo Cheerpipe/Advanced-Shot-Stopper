@@ -42,9 +42,80 @@ static void complete(int status=0) {
 }
 static void notify(NimbleScaleClient &c,uint16_t length) {
   os_mbuf b={}; b.length=length; b.data[0]=3;
+  b.data[1]=0x0b;
+  b.data[19]=0x08;
   c.onNotification(1,10,&b,c.linkOperationId_);
 }
 static void run() {
+  for (bool first : {false, true}) {
+    for (bool stale : {false, true}) {
+      for (bool wrap : {false, true}) {
+        testNowMs=wrap ? UINT32_MAX-2000ULL : 100;
+        NimbleScaleClient c(false); ready(c);
+        if (!first) { notify(c,20); CHECK(c.newWeightAvailable()); }
+        const uint32_t limit=first ? FIRST_PACKET_TIMEOUT_MS : 8000;
+        testNowMs+=stale ? 0 : limit-1;
+        notify(c,20);
+        testNowMs+=stale ? limit : 1;
+        CHECK(c.newWeightAvailable()==!stale);
+        CHECK(c.isConnected()==!stale);
+        if (stale) CHECK(c.lastReason()==(first
+            ? ScaleDisconnectReason::FIRST_PACKET_TIMEOUT
+            : ScaleDisconnectReason::PACKET_TIMEOUT));
+        else CHECK(c.lastPacketAgeMs()==1);
+      }
+    }
+  }
+  for (bool first : {false, true}) {
+    for (unsigned invalid=0; invalid<3; ++invalid) {
+      testNowMs=100;
+      NimbleScaleClient c(false); ready(c);
+      if (!first) { notify(c,20); CHECK(c.newWeightAvailable()); }
+      const uint32_t limit=first ? FIRST_PACKET_TIMEOUT_MS : 8000;
+      testNowMs+=limit-1;
+      if (invalid==0) notify(c,19); // Fresh but truncated.
+      if (invalid==1) {
+        os_mbuf b={}; b.length=20; b.data[0]=3; b.data[1]=0x0b; b.data[19]=8;
+        c.onNotification(1,10,&b,c.linkOperationId_+1);
+      }
+      ++testNowMs;
+      if (invalid==2) notify(c,20); // First valid frame arrived too late.
+      CHECK(!c.newWeightAvailable()); CHECK(!c.isConnected());
+      CHECK(c.lastReason()==(first ? ScaleDisconnectReason::FIRST_PACKET_TIMEOUT
+                                  : ScaleDisconnectReason::PACKET_TIMEOUT));
+    }
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    os_mbuf b={}; b.length=20; b.data[0]=3; b.data[1]=0x0b;
+    b.data[3]=0x12; b.data[4]=0x34;
+    b.data[6]='-'; b.data[8]=0x1f; b.data[9]=0x40;
+    for (unsigned i=0;i<19;++i) b.data[19]^=b.data[i];
+    for (unsigned invalid=0;invalid<2;++invalid) {
+      b.data[invalid ? 19 : 1]^=1;
+      if (!invalid) b.data[19]^=1; // Wrong type with an otherwise valid checksum.
+      c.onNotification(1,10,&b,c.linkOperationId_);
+      CHECK(!c.newWeightAvailable());
+      CHECK(!c.hasValidPacket_);
+      b.data[invalid ? 19 : 1]^=1;
+      if (!invalid) b.data[19]^=1;
+    }
+    c.onNotification(1,10,&b,c.linkOperationId_);
+    CHECK(c.newWeightAvailable()); CHECK(c.weight()==-80.0f);
+    CHECK(c.currentTimerMs_==0x1234);
+    CHECK(c.rejectedPackets()==2);
+    const uint8_t codes[]={1,4,5,6,7,2}; unsigned command=0;
+    for (ScaleOp op : {ScaleOp::Tare,ScaleOp::StartTimer,ScaleOp::StopTimer,
+                      ScaleOp::ResetTimer,ScaleOp::CombinedTareStart,ScaleOp::SetVolume}) {
+      uint8_t payload[SCALE_MAX_COMMAND_LENGTH]={}; int length=0;
+      CHECK(kScaleProtocolGenericFf11.encodeCommand(op,3,payload,&length));
+      CHECK(length==6); uint8_t sum=0;
+      CHECK(payload[0]==3 && payload[1]==0x0a && payload[2]==codes[command++]);
+      CHECK(payload[3]==0 && payload[4]==(op==ScaleOp::SetVolume ? 3 : 0));
+      for (int i=0;i<length-1;++i) sum^=payload[i];
+      CHECK(payload[length-1]==sum);
+    }
+  }
   {
     NimbleScaleClient c(false);
     c.beginGeneration();

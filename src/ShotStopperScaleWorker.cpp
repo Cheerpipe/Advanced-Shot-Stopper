@@ -909,8 +909,26 @@ void executeScaleTareCommand(const ScaleCommand &command) {
   event.commandFeedbackExpected = command.commandFeedbackExpected;
 
   if (scale.isConnected()) {
-    event.commandAttempted = true;
     event.preTareWeightG = capturePreTareWeight(command);
+    if (command.idleTareRequestId != 0) {
+      const uint32_t boundary = scale.notificationSequence();
+      if (static_cast<int32_t>(millis() - command.expiresAtMs) >= 0) {
+        finishIdleScaleTare(command.idleTareRequestId, false, IdleTareReason::EXPIRED);
+        return;
+      }
+      if (!std::isfinite(event.preTareWeightG) ||
+          scale.getWeightSample().captureSequence != boundary ||
+          !claimIdleScaleTare(command.idleTareRequestId,
+                              getScaleLinkSnapshot().packetSequence, boundary)) {
+        const IdleTareStatus status = idleScaleTareStatus();
+        if (status.requestId == command.idleTareRequestId &&
+            status.phase == IdleTarePhase::QUEUED &&
+            xQueueSend(scaleCommandQueue, &command, 0) != pdTRUE)
+          finishIdleScaleTare(command.idleTareRequestId, false, IdleTareReason::QUEUE_FULL);
+        return; // Control validates the final harvest before the next worker turn.
+      }
+    }
+    event.commandAttempted = true;
     event.writeSucceeded = scaleCommandOk(scale.tare());
     yieldBetweenScaleAttOps();
   }
@@ -1215,30 +1233,6 @@ void executeScaleCommand(const ScaleCommand &command) {
   publishPendingScaleWeightEvent();
   markScaleWorkerProgress();
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
-  if (command.idleTareRequestId != 0) {
-    if (static_cast<int32_t>(millis() - command.expiresAtMs) >= 0) {
-      idleScaleTareMux.lock();
-      if (workerIdleTare.requestId == command.idleTareRequestId &&
-          workerIdleTare.phase == IdleTarePhase::QUEUED) {
-        workerIdleTare.phase = IdleTarePhase::FAILED;
-        workerIdleTare.reason = IdleTareReason::EXPIRED;
-      }
-      idleScaleTareMux.unlock();
-      return;
-    }
-    if (!claimIdleScaleTare(command.idleTareRequestId, link.packetSequence,
-                            scale.notificationSequence())) {
-      const IdleTareStatus status = idleScaleTareStatus();
-      if (status.requestId == command.idleTareRequestId &&
-          status.phase == IdleTarePhase::QUEUED &&
-          xQueueSend(scaleCommandQueue, &command, 0) != pdTRUE) {
-        finishIdleScaleTare(command.idleTareRequestId, false, IdleTareReason::QUEUE_FULL);
-      }
-      // Let control validate already-published samples on its normal turn.
-      // One attempt per existing worker tick, no notification or extra wait.
-      return;
-    }
-  }
   if (command.connectionGeneration == 0 ||
       command.connectionGeneration != link.connectionGeneration ||
       link.state != ScaleLinkState::CONNECTED) {

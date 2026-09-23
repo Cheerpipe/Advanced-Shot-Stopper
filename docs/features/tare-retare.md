@@ -14,6 +14,13 @@ does not start the timer. A cup that remains on the scale after a shot never
 triggers this tare, even after the beverage becomes stable. Removing and
 replacing that full cup does trigger it.
 
+**Home → Cup → Automatic tare** shows readiness and what to do when tare cannot
+proceed. If you switch on with a cup already showing a positive weight, remove
+it, let the empty scale settle near zero, then replace it. If the cup was already
+tared to zero before connecting, remove it and use **Diagnostic** to tare the
+empty scale first; wait for stable zero before replacing the cup. The controller
+cannot distinguish that initial zero-weight cup from an empty pan.
+
 Once an empty reference is known, two consecutive fresh readings showing
 near-total unloading can authorize a stable replacement without another stable
 empty-pan pause. This works for lighter, equal, and heavier replacements,

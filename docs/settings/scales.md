@@ -70,6 +70,13 @@ discovery begins.
 
 ## Replace a scale or diagnose a missing connection
 
+Home distinguishes **No sample** (connected but no accepted weight yet), **Stale**
+(last weight too old), and **Disconnected**. A saved scale name or last displayed
+weight does not prove the connection is usable. The first valid packet has a
+5 s deadline; Bookoo disconnects after 8 s without valid packets. Automation
+rejects readings older than 1 s, before that link timeout. Check
+**Cup → Automatic tare** for the separate placement/readiness requirements.
+
 1. Turn off other compatible scales and close phone apps connected to the one
    you want.
 2. Select the intended remembered scale, or **Clear preferred** for a new one.

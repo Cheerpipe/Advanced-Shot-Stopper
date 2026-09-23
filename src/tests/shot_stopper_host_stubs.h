@@ -556,6 +556,7 @@ class EspressoScaleBLE {
   }
   bool newWeightAvailable() {
     ++newWeightAvailableCalls;
+    if (beforeWeightCheck != nullptr) beforeWeightCheck();
     const bool available = newWeightAvailableValue;
     newWeightAvailableValue = false;
     if (disconnectWhenCheckingWeight) {
@@ -671,6 +672,7 @@ class EspressoScaleBLE {
   bool heartbeatSucceeds = true;
   bool heartbeatRequiredValue = false;
   bool newWeightAvailableValue = false;
+  void (*beforeWeightCheck)() = nullptr;
   bool disconnectWhenCheckingWeight = false;
   float weight = 0.0f;
   uint32_t weightCapturedAtMs = UINT32_MAX;

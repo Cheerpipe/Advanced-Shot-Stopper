@@ -122,6 +122,16 @@ Use [USB commands](SERIAL_CLI.md) or
 preserves Wi-Fi; access recovery also forgets the network. Factory reset erases
 much more. Compare the procedures before choosing one.
 
+### Automatic tare does not happen after switching on
+
+Check **Home → Cup → Automatic tare** and the scale status. With a positive
+weight already present at startup, remove the cup, let the empty pan settle,
+and replace it. If the cup already read zero before connection, remove it and
+tare the empty scale from **Diagnostic**, then wait for stable zero and replace
+it. Stable-looking weight alone is insufficient after lost readings or a failed
+tare; an unchanged cup is not automatically retried. See
+[outside-brew tare](settings/tare.md#outside-a-brew).
+
 ### The scale connects slowly or the UI stutters
 
 Close other scale-connected apps. Check the saved preferred scale and

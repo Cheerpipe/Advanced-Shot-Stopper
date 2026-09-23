@@ -67,7 +67,10 @@ maintenance exclude idle tare. An excluded placement is not replayed later.
 
 A cup detected before tare remains present at 0 g and satisfies **Require cup
 to start**. Other start protections still apply. Boot/reconnect loses presence
-evidence: a pre-tared cup at zero must be removed and replaced to be detected.
+evidence. With a cup already reading a positive weight, remove it, let the empty
+pan settle near zero, and replace it. With a pre-tared cup at zero, first remove
+it and issue a firmware diagnostic tare on the empty pan; wait for stable zero
+before replacing it. Removal and replacement alone may not recover that case.
 The integrated protocols currently do not report a verifiable physical-button
 tare event; a zero reading alone cannot distinguish that action from removing
 an untared cup.
@@ -103,8 +106,19 @@ physical motion hidden by simultaneous tare.
 
 Tracked tares translate the known empty reference from the latest control-approved
 reading captured immediately before the write, rather than the enqueue weight.
-Missing or unvalidated pre-write evidence invalidates the anchor and cup mass;
-it does not prevent the existing tare operation or fabricate a new empty zero.
+An idle request waits for control to approve any readings collected at the final
+pre-write check, within its original expiry. Contradictory evidence cancels it.
+Other tracked tares invalidate the anchor and cup mass when that evidence is
+missing; they do not fabricate a new empty zero.
+
+**Home → Cup → Automatic tare** shows whether the empty pan must settle, the
+controller is ready for a cup, the machine must turn off, tare is pending, or the
+cup needs removal and replacement. An uncertain reference asks for a diagnostic
+tare with the pan empty. **Stale**, **No sample**, and **Disconnected** take
+precedence when scale data is unavailable. A smoothly displayed weight does not
+prove a qualifying placement: a gap longer than **Max sample gap** also requires
+fresh removal/placement evidence. After a successful tare, the message stays
+**Tared** while that cup remains present.
 
 Debug export schema 7 includes `idleTare`: request/placement IDs, eligibility
 and terminal reasons, reference confidence, qualifying weight range, capture
@@ -115,6 +129,12 @@ attempts. `qualificationMinG`/`qualificationMaxG` describe the observed window,
 not configured minimum/maximum cup mass. `requestPlacementId` identifies the
 originating placement even after a different cup replaces it. No periodic retry
 is performed.
+
+Both Home and full Web status payloads additionally expose `cupPresence.idleTare`
+as a presentation code: `empty`, `ready`, `pending`, `tared`, `remove`,
+`retry`, `uncertain`, or the existing eligibility reason. It is derived from the
+same control snapshot; it neither authorizes commands nor changes the separate
+integration API. Clients must also check scale availability and stream state.
 
 ## Example
 

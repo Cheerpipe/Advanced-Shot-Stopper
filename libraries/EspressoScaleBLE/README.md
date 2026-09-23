@@ -62,6 +62,18 @@ connection. Cleanup is idempotent, eight consecutive invalid notifications
 force a recoverable disconnect, and the first-valid-packet and silence limits
 remain protocol-specific.
 
+The owner consumes bounded queued RX evidence before deciding packet silence.
+Only frames captured before the relevant deadline and still fresh when serviced
+can refresh it; malformed, stale, or previous-generation frames cannot revive
+the stream. First-packet timeout is 5 s; Bookoo's valid-packet timeout is 8 s.
+
+Bookoo weight/timer packets require the 20-byte `03 0B` envelope and XOR of the
+first 19 bytes. Command packets use `03 0A` and XOR of the first five bytes,
+including start/stop/reset and combined tare-start. Host fixtures check this
+against the [manufacturer's protocol](https://github.com/BooKooCode/OpenSource/blob/main/bookoo_mini_scale/protocols.md).
+These checks establish protocol conformance; the tightened parser and corrected
+commands still require qualification on the actual scale model and firmware.
+
 Command responses use a dedicated, statically allocated semaphore; general
 worker wakeups cannot complete an ATT write. Submission resource errors and
 completed ATT rejections preserve a usable link. Unknown errors, stale GATT

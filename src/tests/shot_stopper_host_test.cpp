@@ -8892,6 +8892,76 @@ void it33_stale_connection_gap_cannot_cancel_current_tare() {
   CHECK(idleScaleTareStatus().phase == IdleTarePhase::QUEUED);
 }
 
+void it34_final_prewrite_sample_requires_control_approval() {
+  for (bool contradictory : {false, true}) {
+    prepareIdleTare();
+    idleCup(80.0f);
+    scale.weight = contradictory ? 0.0f : 80.0f;
+    scale.weightCaptureSequence = 41;
+    scale.newWeightAvailableCalls = 0;
+    scale.beforeWeightCheck = [] {
+      if (scale.newWeightAvailableCalls != 2) return;
+      ++scale.weightCaptureSequence;
+      scale.newWeightAvailableValue = true;
+      scale.beforeWeightCheck = nullptr;
+    };
+    CHECK(executeNextScaleCommand());
+    CHECK(scale.tareCalls == 0);
+    CHECK(!cupPresenceIsTared());
+    if (contradictory) {
+      CHECK(idleTare.requestId == 0);
+      CHECK(idleTare.lastReason == IdleTareReason::UNSTABLE);
+      CHECK(executeNextScaleCommand()); // Cancelled queue entry cannot write.
+      CHECK(scale.tareCalls == 0);
+    } else {
+      CHECK(idleScaleTareStatus().phase == IdleTarePhase::QUEUED);
+      CHECK(executeNextScaleCommand());
+      CHECK(scale.tareCalls == 1);
+      CHECK(idleScaleTareStatus().captureBoundary == 42);
+      idleWeight(0.0f);
+      CHECK(idleTare.lastReason == IdleTareReason::EFFECT_CONFIRMED);
+    }
+  }
+}
+
+void it35_loaded_startup_and_sample_gap_need_fresh_placement() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  runtimeConfig.autoTareOutsideBrew = true;
+  idleCup(80.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(idleTare.lastReason == IdleTareReason::NO_ABSENCE);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleCup(0.0f);
+  idleCup(0.0f);
+  idleCup(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+
+  prepareIdleTare(); // An already-tared cup at boot is indistinguishable from empty.
+  for (unsigned i = 0; i < 3; ++i) {
+    idleCup(-80.0f);
+    idleCup(0.0f);
+  }
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleCup(-80.0f);
+  executeScaleDebugCommand(BookooDebugAction::TARE, 0); // Empty-pan recovery.
+  processScaleWorkerEvents();
+  idleCup(0.0f);
+  idleCup(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+
+  prepareIdleTare();
+  idleWeight(80.0f, runtimeConfig.retareStabilityMaxGapMs + 1);
+  idleCup(80.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleCup(0.0f);
+  idleCup(0.0f);
+  idleCup(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+}
+
 void cup_fsm_put_back_without_tare_is_present() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -15417,6 +15487,8 @@ const TestCase testCases[] = {
     {"IT31", it31_idle_request_and_effect_deadline_cross_clock_wrap},
     {"IT32", it32_queued_minimum_is_independent_of_tolerance},
     {"IT33", it33_stale_connection_gap_cannot_cancel_current_tare},
+    {"IT34", it34_final_prewrite_sample_requires_control_approval},
+    {"IT35", it35_loaded_startup_and_sample_gap_need_fresh_placement},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},
