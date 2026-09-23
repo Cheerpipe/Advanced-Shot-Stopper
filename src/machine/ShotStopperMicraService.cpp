@@ -1081,7 +1081,7 @@ bool ShotStopperMicraService::executeTemperatureApplication(
     }
     if (!commandAccepted && commandAttempted &&
         commandTransportStatus == ESP_OK && commandHttpStatus != 0 &&
-        !lineaMicraTemperatureHttpRetryable(commandHttpStatus)) {
+        !lineaMicraHttpRetryable(commandHttpStatus)) {
       break;
     }
     if (attempt + 1U >= micra_timing::kMaxAttempts) break;
@@ -1100,7 +1100,7 @@ bool ShotStopperMicraService::executeTemperatureApplication(
                 : work_->transportFailure
                       ? LineaMicraError::TRANSPORT
                       : failureHttpStatus != 0 &&
-                                !lineaMicraTemperatureHttpRetryable(
+                                !lineaMicraHttpRetryable(
                                     failureHttpStatus)
                             ? LineaMicraError::REJECTED
                             : LineaMicraError::HTTP_ERROR;
@@ -1218,7 +1218,7 @@ bool ShotStopperMicraService::executePowerOffApplication(
     }
     if (!commandAccepted && commandAttempted &&
         commandTransportStatus == ESP_OK && commandHttpStatus != 0 &&
-        !lineaMicraTemperatureHttpRetryable(commandHttpStatus)) {
+        !lineaMicraHttpRetryable(commandHttpStatus)) {
       break;
     }
     if (attempt + 1U >= micra_timing::kMaxAttempts) break;
@@ -1237,7 +1237,7 @@ bool ShotStopperMicraService::executePowerOffApplication(
                 : work_->transportFailure
                       ? LineaMicraError::TRANSPORT
                       : failureHttpStatus != 0 &&
-                                !lineaMicraTemperatureHttpRetryable(
+                                !lineaMicraHttpRetryable(
                                     failureHttpStatus)
                             ? LineaMicraError::REJECTED
                             : LineaMicraError::HTTP_ERROR;

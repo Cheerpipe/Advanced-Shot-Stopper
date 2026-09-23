@@ -71,17 +71,17 @@ int main() {
                      "rejected") == 0);
   assert(std::strcmp(lineaMicraErrorName(LineaMicraError::UNCONFIRMED),
                      "unconfirmed") == 0);
-  assert(lineaMicraTemperatureHttpRetryable(0));
-  assert(lineaMicraTemperatureHttpRetryable(401));
-  assert(lineaMicraTemperatureHttpRetryable(408));
-  assert(lineaMicraTemperatureHttpRetryable(425));
-  assert(lineaMicraTemperatureHttpRetryable(429));
-  assert(lineaMicraTemperatureHttpRetryable(500));
-  assert(!lineaMicraTemperatureHttpRetryable(200));
-  assert(!lineaMicraTemperatureHttpRetryable(302));
-  assert(!lineaMicraTemperatureHttpRetryable(400));
-  assert(!lineaMicraTemperatureHttpRetryable(403));
-  assert(!lineaMicraTemperatureHttpRetryable(422));
+  assert(lineaMicraHttpRetryable(0));
+  assert(lineaMicraHttpRetryable(401));
+  assert(lineaMicraHttpRetryable(408));
+  assert(lineaMicraHttpRetryable(425));
+  assert(lineaMicraHttpRetryable(429));
+  assert(lineaMicraHttpRetryable(500));
+  assert(!lineaMicraHttpRetryable(200));
+  assert(!lineaMicraHttpRetryable(302));
+  assert(!lineaMicraHttpRetryable(400));
+  assert(!lineaMicraHttpRetryable(403));
+  assert(!lineaMicraHttpRetryable(422));
   assert(lineaMicraTemperatureCycleRetryable(LineaMicraError::HTTP_ERROR));
   assert(lineaMicraTemperatureCycleRetryable(LineaMicraError::UNCONFIRMED));
   assert(!lineaMicraTemperatureCycleRetryable(LineaMicraError::INVALID_AUTH));

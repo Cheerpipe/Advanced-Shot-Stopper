@@ -90,7 +90,7 @@ if (!micraTypes.includes('APPLY_TEMPERATURE') ||
     !micraService.includes('verification.targetDeciC == request.targetDeciC') ||
     !micraService.includes('commandAccepted = desiredTemperature_.commandAccepted;') ||
     !micraService.includes('desiredTemperature_.commandAccepted = true;') ||
-    !micraService.includes('lineaMicraTemperatureHttpRetryable') ||
+    !micraService.includes('lineaMicraHttpRetryable') ||
     !micraService.includes('lineaMicraTemperatureCycleRetryable') ||
     !micraService.includes('preserveTemperatureStatus(published_, next)') ||
     !micraService.includes('desiredTemperature_.machineConfigGeneration = configGeneration;') ||

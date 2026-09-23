@@ -158,7 +158,7 @@ inline const char *lineaMicraTemperatureStateName(
   return "disabled";
 }
 
-inline bool lineaMicraTemperatureHttpRetryable(uint16_t status) {
+inline bool lineaMicraHttpRetryable(uint16_t status) {
   return status < 200 || status == 401 || status == 408 || status == 425 ||
          status == 429 || status >= 500;
 }

@@ -12,8 +12,6 @@ static const uint8_t RESET_TIMER_GENERIC[6] =
     {0x03, 0x0a, 0x06, 0x00, 0x00, 0x0f};
 static const uint8_t TARE_START_TIMER_BOOKOO[6] =
     {0x03, 0x0a, 0x07, 0x00, 0x00, 0x0e};
-static const uint8_t FLOW_SMOOTHING_OFF[6] __attribute__((unused)) =
-    {0x03, 0x0a, 0x08, 0x00, 0x00, 0x01};
 
 static const uint8_t GENERIC_PRODUCT = 0x03;
 static const uint8_t GENERIC_TYPE = 0x0a;
