@@ -412,7 +412,7 @@ class DeviceSnapshot:
         state = data.get("shotState")
         if state not in ("idle", "brewing"):
             raise ProtocolError("shotState is invalid")
-        raw_shot = data.get("lastShot")
+        raw_shot = data.get("lastGoodShot")
         raw_activation = data.get("lastActivation")
         raw_stats = data.get("stats")
         quick = QuickSettings.from_dict(data.get("quickSettings"))

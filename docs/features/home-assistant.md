@@ -125,11 +125,14 @@ Web UI history does not replace it; only its optional curve/rating actions becom
 unavailable. After an upgrade, legacy data without retained preset identity is
 reported as unknown until the controller records a qualifying identified shot.
 
-After setup, validated webhooks update entities immediately. There is no
-healthy-state or background polling. Home Assistant performs a single bounded
-REST reconciliation after a confirmed command, a revision gap, or a
-`controller_started` hint. A missed final best-effort webhook can therefore
-leave values stale until one of those triggers occurs.
+After setup, validated webhooks update live state immediately. A completed-cycle
+webhook triggers a REST reconciliation so the Last shot sensors continue to
+mirror the controller's durable last-good-shot record, even when that cycle was
+too short or light to qualify as a shot. There is no healthy-state or background
+polling. Home Assistant also performs a single bounded REST reconciliation after
+a confirmed command, a revision gap, or a `controller_started` hint. A missed
+final best-effort webhook can therefore leave values stale until one of those
+triggers occurs.
 
 If the controller is offline during setup or reload, Home Assistant keeps the
 entry unavailable and applies its normal bounded setup retry; entities are not

@@ -74,16 +74,23 @@ aggregates, preset revision, and the complete Quick Settings snapshot.
     "cupProtectionEnabled": true
   },
   "lastShot": null,
+  "lastGoodShot": null,
   "lastActivation": null,
   "stats": null
 }
 ```
 
-`lastShot` is nullable. When present it contains `cycleId`, `uptimeMs`,
-`durationMs`, `targetWeightG`, `presetId`, `presetName`, `shotType`,
-`stopDetail`, and the optional `firstDropMs`, `weightG`, `averageFlowGps`, and
-`rating` fields defined by the webhook contract. The controller is
-authoritative for this mirror of its most recent shot.
+`lastShot` is nullable and describes the newest completed activation cycle,
+including cycles that do not qualify as a good shot. When present it contains
+`cycleId`, `uptimeMs`, `durationMs`, `targetWeightG`, `presetId`, `presetName`,
+`shotType`, `stopDetail`, and the optional `firstDropMs`, `weightG`,
+`averageFlowGps`, and `rating` fields defined by the webhook contract.
+`lastGoodShot` is nullable and
+uses the same shape, but changes only when a completed shot passes the
+controller's good-shot qualification. It is the controller's durable last-good
+shot shown on the Web UI home page. Consumers that present “last shot” as the
+last completed qualifying shot should use `lastGoodShot`; `lastShot` is useful
+for the newest cycle outcome.
 
 `lastActivation` mirrors the newest activation-history record (the Web UI
 History page). It is null before the first activation after a full data reset

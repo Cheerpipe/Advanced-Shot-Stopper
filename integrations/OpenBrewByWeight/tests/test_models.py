@@ -45,6 +45,7 @@ def test_snapshot_and_presets_contract() -> None:
     assert snapshot.wifi_mac == "AA:BB:CC:DD:EE:FF"
     assert snapshot.bluetooth_mac == "AA:BB:CC:DD:EE:10"
     assert snapshot.shot_state == "idle"
+    assert snapshot.last_shot is not None and snapshot.last_shot.cycle_id == 42
     assert snapshot.quick_settings.no_scale_bbw_mode == "warn_once"
     assert presets.active_id == 2
     assert [item.name for item in presets.items] == ["Double", "Single"]
@@ -213,9 +214,9 @@ def test_snapshot_requires_integration_capabilities(missing: str) -> None:
 
 
 def test_snapshot_accepts_embedded_last_shot() -> None:
-    """A REST snapshot may seed the aggregate before any webhook arrives."""
+    """A REST snapshot seeds the durable good-shot aggregate."""
     payload = load("integration_snapshot.json")
-    payload["lastShot"] = load("webhook_end_v1.json")
+    payload["lastGoodShot"] = load("webhook_end_v1.json")
     payload["lastActivation"] = {
         "id": 1042,
         "type": "rinse",
@@ -230,6 +231,9 @@ def test_snapshot_accepts_embedded_last_shot() -> None:
     assert snapshot.last_activation.type == "rinse"
     assert snapshot.stats is not None
     assert snapshot.stats.avg_flow_gps == 1.55
+
+    payload["lastGoodShot"] = None
+    assert DeviceSnapshot.from_dict(payload).last_shot is None
 
 
 @pytest.mark.parametrize(

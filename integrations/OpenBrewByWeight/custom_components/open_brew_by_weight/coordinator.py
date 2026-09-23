@@ -293,13 +293,8 @@ class OpenBrewByWeightCoordinator(DataUpdateCoordinator[CoordinatorData]):
                 self.async_set_update_error(UpdateFailed("reconciliation pending"))
             return
         if event.event == "end":
-            shot = Shot.from_dict(event.data)
             self._accept_event(key, event)
-            self._stored_last = shot
-            self._store.async_delay_save(self._storage_data, 1)
-            self.async_set_updated_data(replace(data, last_shot=shot))
-            if preserve_failure:
-                self.async_set_update_error(UpdateFailed("reconciliation pending"))
+            self._schedule_explicit_refresh(f"{DOMAIN} last-good-shot reconciliation")
             return
         if event.event == "integration_history_end":
             activation = LastActivation.from_dict(event.data)

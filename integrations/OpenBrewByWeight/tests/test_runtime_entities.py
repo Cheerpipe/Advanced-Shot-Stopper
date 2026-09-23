@@ -77,7 +77,7 @@ async def test_coordinator_refresh_and_failures(hass) -> None:
     api.async_snapshot.return_value = result.snapshot.__class__.from_dict(
         {
             **fixture("integration_snapshot.json"),
-            "lastShot": recovered.to_dict(),
+            "lastGoodShot": recovered.to_dict(),
         }
     )
     coordinator._stored_last = None
@@ -134,22 +134,28 @@ async def test_webhook_ordering_aggregates_and_gap_refresh(hass) -> None:
     """Pushes deduplicate, reject stale data, and refresh revision gaps."""
     coordinator, _api, _entry = _coordinator(hass)
     end = _event("webhook_end_v1.json")
-    with patch.object(coordinator._store, "async_delay_save") as save:
+    with patch.object(
+        coordinator, "async_request_refresh", new=AsyncMock()
+    ) as refresh:
         await coordinator.async_process_webhook(end)
         await coordinator.async_process_webhook(end)
-    assert coordinator.data.last_shot.preset_name == "Double"
-    save.assert_called_once()
+        await hass.async_block_till_done()
+        assert coordinator.data.last_shot.cycle_id == 42
 
-    short_payload = fixture("webhook_end_v1.json")
-    short_payload.update(cycleId=8, uptimeMs=930000, durationMs=10000, weightG=1.5)
-    await coordinator.async_process_webhook(
-        WebhookEvent.from_bytes(json.dumps(short_payload).encode())
-    )
-    assert coordinator.data.last_shot.cycle_id == 8
+        short_payload = fixture("webhook_end_v1.json")
+        short_payload.update(
+            cycleId=43, uptimeMs=930000, durationMs=1400, weightG=None
+        )
+        await coordinator.async_process_webhook(
+            WebhookEvent.from_bytes(json.dumps(short_payload).encode())
+        )
+        await hass.async_block_till_done()
+        assert coordinator.data.last_shot.cycle_id == 42
+        assert refresh.await_count == 2
 
     stale = _event("webhook_end_v1.json", cycleId=9, uptimeMs=1)
     await coordinator.async_process_webhook(stale)
-    assert coordinator.data.last_shot.cycle_id == 8
+    assert coordinator.data.last_shot.cycle_id == 42
 
     changed = _event("webhook_presets_changed_v1.json")
     changed.data["revision"] = coordinator.data.presets.revision + 3
@@ -399,9 +405,14 @@ async def test_runtime_register_validate_and_transaction(hass) -> None:
     }
 
     good = (FIXTURES / "webhook_end_v1.json").read_bytes()
-    assert (
-        await runtime.async_handle_webhook(hass, WEBHOOK_ID, _Request(good))
-    ).status == 204
+    with patch.object(
+        coordinator, "async_request_refresh", new=AsyncMock()
+    ) as refresh:
+        assert (
+            await runtime.async_handle_webhook(hass, WEBHOOK_ID, _Request(good))
+        ).status == 204
+        await hass.async_block_till_done()
+        refresh.assert_awaited_once()
     assert (
         await runtime.async_handle_webhook(
             hass, WEBHOOK_ID, _Request(good, "text/plain")
@@ -496,7 +507,7 @@ async def test_entities_and_select(hass) -> None:
     coordinator.async_set_updated_data(empty_data)
     empty = [MirroredSensor(coordinator, item) for item in MIRRORED_DESCRIPTIONS]
     assert all(entity.native_value is None for entity in empty)
-    await coordinator.async_process_webhook(_event("webhook_end_v1.json"))
+    coordinator.async_set_updated_data(coordinator_data())
     entities = [MirroredSensor(coordinator, item) for item in MIRRORED_DESCRIPTIONS]
     values = {entity.entity_description.key: entity.native_value for entity in entities}
     assert values["last_shot_duration"] == 27.8
@@ -509,8 +520,8 @@ async def test_entities_and_select(hass) -> None:
         for entity in entities
         if entity.entity_description.key.endswith("_stop_detail")
     ).options == list(STOP_DETAILS)
-    assert values["last_activation_type"] is None
-    assert values["stats_shot_count"] is None
+    assert values["last_activation_type"] == "shot"
+    assert values["stats_shot_count"] == 7
     coordinator.async_set_updated_data(coordinator_data())
     entities = [MirroredSensor(coordinator, item) for item in MIRRORED_DESCRIPTIONS]
     values = {entity.entity_description.key: entity.native_value for entity in entities}
