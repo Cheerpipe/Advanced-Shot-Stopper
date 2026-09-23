@@ -20,7 +20,7 @@ reduce coverage.
 |------|--------|-------------------|----------|
 | Cppcheck | `./scripts/static-idf` | `reports/static-analysis/` | Fails (exit 1) on any warning/performance/portability finding |
 | GCC `-fanalyzer` | `./scripts/gcc_analyzer` | `reports/gcc-analyzer/` | Fails on diagnostics in versioned code (builds with the analyzer enabled) |
-| clang-tidy | `./scripts/static-tidy-idf` | `reports/static-tidy/` | Fails on in-scope diagnostics or parse errors |
+| clang-tidy | `./scripts/static-tidy-idf` | `reports/static-tidy/` | Fails on in-scope diagnostics, parse errors, or a tool error |
 | Include-What-You-Use | `./scripts/iwyu-idf` | `reports/iwyu/` | Advisory on suggestions: fails only when tooling is missing, the translation-unit audit fails, or nothing parses |
 
 Analysis scope (identical for every tool): `src/`,
@@ -174,17 +174,19 @@ What the script does:
 1. Rewrites the GCC compilation database into a clang-friendly one
    (`reports/static-tidy/compile_commands.json`): splices CMake `@response`
    files, drops GCC-only flags (`-fno-tree-*`, `-mdisable-hardware-atomics`,
-   `-fanalyzer`, …), adds the explicit `-target xtensa-esp32s3-elf` plus the
-   GCC sysroot and libstdc++ include paths that GCC resolves internally.
+   `-fanalyzer`, `-mno-target-align`, `-freorder-blocks`, `-mlongcalls`, …),
+   adds the explicit `-target xtensa-esp32s3-elf`, and uses the selected
+   picolibc headers with the GCC sysroot and libstdc++ include paths.
 2. Runs esp-clang clang-tidy per translation unit, using the check set from
    `.clang-tidy` at the repository root.
 3. Reports to `reports/static-tidy/tidy.txt` (full output, including
    third-party diagnostics) and `reports/static-tidy/README.txt` (summary).
 
-Exit code: **1** when any in-scope file has diagnostics or failed to parse,
-**0** when clean. Diagnostics inside ESP-IDF/managed-component headers are
-written to the report but never fail the run — the scope is defined by the
-`HeaderFilterRegex` in `.clang-tidy` and mirrored by the script.
+Exit code: **1** when any in-scope file has diagnostics, failed to parse, or
+clang-tidy exits unsuccessfully; **0** when clean. Missing picolibc specs or
+headers also fail the run. Third-party advisory diagnostics alone are recorded
+without failing the run; compiler and tool failures still fail. In-scope
+diagnostics follow the `HeaderFilterRegex` in `.clang-tidy`, mirrored by the script.
 
 ### Configuration and suppressions policy
 

@@ -20,7 +20,7 @@ subset of the applicable gates does not validate the change.
 | --- | --- | --- | --- |
 | R0 | Non-critical docs/meta | contract, link, and path checks | none |
 | R1 | Web UI, tests, tooling, pure logic | R0 + focused tests and generated assets | as identified |
-| R2 | BLE, network, persistence, OTA, build | full host + ASan/UBSan + TSAN + architecture + every built-in compatible profile pair | subsystem-dependent |
+| R2 | BLE, network, persistence, OTA, build | full host + ASan/UBSan + TSAN + architecture + every official validation profile pair | subsystem-dependent |
 | R3 | Relay, machine, ISR, watchdog, boot, GPIO, partitions, remote control, unknown | R2 + warnings/cppcheck + build variants | HIL/manual required |
 | Release | Candidate firmware image | complete analysis, resource budgets, applicable soak, HIL and manual plan | required |
 
@@ -42,10 +42,12 @@ strictly greater, preserving at least one spare slot.
 
 Missing tools or dependencies fail profiles that require them with exit 127.
 Tests never bootstrap packages or access hardware/network implicitly. R3 is not
-release-ready while required HIL/manual evidence is pending.Every firmware budget measurement must build with the `--development` profile
+release-ready while required HIL/manual evidence is pending.
+Every firmware budget measurement must build with the `--development` profile
 (admin unlock plus the JTAG console), as defined by
 `docs/P2_RESOURCE_BUDGETS.md`; this profile usually produces the largest image.
-R2/R3 validation applies it to every compatible profile pair and leaves those
+R2/R3 validation applies it to the three official profile pairs in
+`docs/BUILD_PROFILES.md` and leaves those
 conservative images in their profile build directories. Image
 and memory regions are compared by
 `src/tests/check_firmware_size.js` against those versioned budgets.

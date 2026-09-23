@@ -1352,13 +1352,38 @@ assert "libcjson-dev" in host_job, \
     "host CI must install the cJSON development files"
 idf_job = workflow.split("  idf:\n", 1)[1].split("\n  gate:\n", 1)[0]
 assert "cppcheck" in idf_job, "IDF CI must install Cppcheck"
+cppcheck_help = subprocess.run([str(ROOT / "scripts/static-idf"), "--help"],
+                              cwd=ROOT, text=True, capture_output=True)
+assert cppcheck_help.returncode == 0 and "`unusedFunction`" in cppcheck_help.stdout
+assert "--arch" in cppcheck_help.stdout and "command not found" not in cppcheck_help.stderr
 assert "github.event_name != 'pull_request'" in idf_job, \
     "main, scheduled, and manual CI runs must publish firmware profiles"
-for profile_row in (
-        "{name: linea-micra, hardware: esp32-s3-relay-x1-speaker, machine: la-marzocco-linea-micra}",):
-    assert profile_row in idf_job, f"IDF CI profile missing: {profile_row}"
-assert "silvia-pro-x" not in idf_job, \
-    "CI must build only the Linea Micra profile pair"
+resolver = runpy.run_path(str(ROOT / "scripts/resolve_build_profiles.py"))
+hardware = [resolver["validate_hardware"](json.loads(path.read_text()))
+            for path in (ROOT / "config/hardware").glob("*.json")]
+machines = [resolver["validate_machine"](json.loads(path.read_text()))
+            for path in (ROOT / "config/machines").glob("*.json")]
+supported_pairs = set()
+for hardware_profile in hardware:
+    for machine_profile in machines:
+        if machine_profile["interface"]["feedback"] != "none" or (
+                machine_profile["integration"] == "linea_micra_cloud" and
+                hardware_profile["reed"]["present"]):
+            continue
+        try:
+            resolver["resolve"](hardware_profile, machine_profile, "")
+        except resolver["ProfileError"]:
+            continue
+        supported_pairs.add((hardware_profile["id"], machine_profile["id"]))
+local_pairs = dev_module["BUILD_PROFILES"]
+assert len(local_pairs) == len(supported_pairs) and set(local_pairs) == supported_pairs, \
+    "local validation must cover every supported profile pair exactly once"
+ci_rows = re.findall(
+    r"- \{name: ([^,]+), hardware: ([^,]+), machine: ([^}]+)\}", idf_job)
+assert len(ci_rows) == len(supported_pairs) and \
+    len({name for name, _, _ in ci_rows}) == len(ci_rows) and \
+    {(hardware, machine) for _, hardware, machine in ci_rows} == supported_pairs, \
+    "CI matrix must name every supported pair exactly once"
 for disabled_flag in ("SHOT_STOPPER_ENABLE_JTAG=0",
                       "SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0"):
     assert disabled_flag in idf_job, f"CI production flag missing: {disabled_flag}"

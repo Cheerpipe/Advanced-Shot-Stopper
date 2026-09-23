@@ -60,7 +60,7 @@ HTTP_ROUTE_CAPACITY_STEP = (
 BUILD_PROFILES = (
     ("esp32-s3-relay-x1-speaker", "la-marzocco-linea-micra"),
     ("esp32-s3-relay-x1-speaker", "rancilio-silvia-pro-x"),
-    ("esp32-s3-relay-x1-speaker-reed", "rancilio-silvia-pro-x-reed"),
+    ("esp32-s3-relay-x1-speaker-reed", "rancilio-silvia-pro-x"),
 )
 FIRMWARE_BUDGET_OPTIONS = ["--flags=", "--development"]
 FIRMWARE_STAGES = {"build", "flash", "ota", "monitor"}

@@ -8,7 +8,7 @@ flash over USB.
 
 | Task | Command |
 | --- | --- |
-| List profile pairs | `./scripts/dev profiles` |
+| Inspect profile compatibility | `./scripts/dev profiles` |
 | Build firmware | `./scripts/dev build --hardware <hardware> --machine <machine>` |
 | Build and install over USB | `./scripts/dev build flash --confirm --hardware <hardware> --machine <machine> --port <port>` |
 | Flash an existing image | `./scripts/dev flash --confirm --hardware <hardware> --machine <machine> --port <port>` |
@@ -46,9 +46,14 @@ device. On macOS use `/dev/cu.usbmodem*`; on Linux use `/dev/ttyACM*` or
 ## Build profiles
 
 Every project build requires an exact hardware and machine profile. Use
-`./scripts/dev profiles` to list supported pairs. The optional `--development`
+`./scripts/dev profiles` to inspect built-in profiles and physically compatible
+pairs. The three official automated validation pairs are listed in
+[Build profiles](BUILD_PROFILES.md#capability-matching). The optional `--development`
 profile enables the development admin/JTAG settings; `--release` is the
 default. These options are compile-time only and are never persisted.
+
+`./scripts/dev validate --risk R2` builds each official validation pair;
+`--risk R3` also checks each pair with Cppcheck and a GCC warning build.
 
 The supported transient options are `--webui-language`, `--flags`, `--o0`,
 `--og`, `--o2`, and `--os`. The stored device password is never accepted on a

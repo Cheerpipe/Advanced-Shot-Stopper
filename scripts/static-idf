@@ -3,7 +3,7 @@
 # This script deliberately never builds the firmware.
 set -uo pipefail
 
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)" || exit $?
 # shellcheck source=scripts/shotstopper_board.sh
 source "$SCRIPT_DIR/shotstopper_board.sh"
 # shellcheck source=scripts/shotstopper_cli.sh
@@ -11,15 +11,16 @@ source "$SCRIPT_DIR/shotstopper_cli.sh"
 # shellcheck source=scripts/shotstopper_idf.sh
 source "$SCRIPT_DIR/shotstopper_idf.sh"
 
-readonly ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)" || exit $?
+readonly ROOT
 readonly SUPPRESSIONS_FILE="$ROOT/scripts/cppcheck-suppressions.txt"
 
 usage() {
-  cat <<EOF
+  cat << EOF
 Usage: ./scripts/static-idf [flags]
 
 Run Cppcheck against a compilation database already produced by ESP-IDF.
-Checks warning, performance and portability. `unusedFunction` is deliberately
+Checks warning, performance and portability. \`unusedFunction\` is deliberately
 excluded: Cppcheck reports project APIs used across filtered translation units
 and build variants as unused. Dead-code review is tracked separately from this
 F-21 gate. The output directory is deleted and recreated on every run. This
@@ -47,7 +48,7 @@ shotstopper_resolve_board "$(ss_get arch)" || exit 2
 ss_idf_resolve_paths
 
 for tool in cppcheck python3; do
-  command -v "$tool" >/dev/null 2>&1 || {
+  command -v "$tool" > /dev/null 2>&1 || {
     echo "$tool not found on PATH." >&2
     exit 127
   }

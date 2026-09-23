@@ -3,7 +3,7 @@
 # compilation database. This script deliberately never builds the firmware.
 set -uo pipefail
 
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)" || exit $?
 # shellcheck source=scripts/shotstopper_board.sh
 source "$SCRIPT_DIR/shotstopper_board.sh"
 # shellcheck source=scripts/shotstopper_cli.sh
@@ -11,10 +11,11 @@ source "$SCRIPT_DIR/shotstopper_cli.sh"
 # shellcheck source=scripts/shotstopper_idf.sh
 source "$SCRIPT_DIR/shotstopper_idf.sh"
 
-readonly ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+ROOT="$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)" || exit $?
+readonly ROOT
 
 usage() {
-  cat <<EOF
+  cat << EOF
 Usage: ./scripts/static-tidy-idf [flags]
 
 Run clang-tidy (Espressif esp-clang) against a compilation database already
@@ -54,7 +55,7 @@ if [[ -n "${ESP_CLANG_TIDY:-}" ]]; then
 else
   tidy_bin=""
   for candidate in "$HOME"/.espressif/tools/esp-clang/*/esp-clang/bin/clang-tidy \
-                   "$HOME"/.espressif/tools/esp-clang/*/bin/clang-tidy; do
+    "$HOME"/.espressif/tools/esp-clang/*/bin/clang-tidy; do
     if [[ -x "$candidate" ]]; then
       tidy_bin="$candidate"
       break
@@ -70,7 +71,7 @@ if [[ -z "${tidy_bin:-}" || ! -x "$tidy_bin" ]]; then
   exit 127
 fi
 
-command -v python3 >/dev/null 2>&1 || {
+command -v python3 > /dev/null 2>&1 || {
   echo "python3 not found on PATH." >&2
   exit 127
 }
@@ -92,7 +93,7 @@ printf 'Generated: %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" >> "$output_path/READM
 #     target in the compiler name (xtensa-esp32s3-elf-g++) and esp-clang needs
 #     the flag form. Only esp-clang knows this target; the stock clang from
 #     Homebrew does not.
-python3 - "$compile_commands" "$output_path" "$ROOT" <<'PY'
+python3 - "$compile_commands" "$output_path" "$ROOT" << 'PY'
 import json, os, shlex, subprocess, sys
 
 cc_path, out_dir, repo_root = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -108,7 +109,8 @@ patterns = [
     "idf/components/shotStopper/*.cpp",
 ]
 drop_prefixes = ("-fno-tree-", "-fstrict-volatile-bitfields", "-fuse-ld=",
-                 "-Wl,", "--param=", "-mdisable-hardware-", "-fanalyzer")
+                 "-Wl,", "--param=", "-mdisable-hardware-", "-fanalyzer",
+                 "-specs=", "-mno-target-align", "-freorder-blocks", "-mlongcalls")
 drop_two_token = ("--param", "-specs")
 
 def fnmatch_any(path):
@@ -125,20 +127,27 @@ def triple_of(compiler):
 
 sysroots = {}
 
-def toolchain_args(compiler):
+def toolchain_args(compiler, specs):
     # GCC resolves its own C library and libstdc++ include paths internally;
     # the esp-clang driver does not consume --gcc-toolchain for Xtensa, so the
     # paths must be spelled out. Ask the GCC driver that produced the database
-    # where its sysroot is, then add the C++ standard library include dirs.
-    if compiler in sysroots:
-        return sysroots[compiler]
-    args = []
+    # where its sysroot is, then add the selected picolibc and C++ dirs.
+    key = (compiler, specs)
+    if key in sysroots:
+        return sysroots[key]
+    picolibc = os.path.join(os.path.dirname(os.path.dirname(compiler)),
+                            "picolibc", "include")
+    if (os.path.basename(specs) != "picolibc.specs" or
+            not os.path.isfile(specs) or
+            not os.path.isfile(os.path.join(picolibc, "stdio.h"))):
+        sys.exit("Missing or mismatched picolibc specs/headers for %s" % compiler)
+    args = ["-isystem%s" % picolibc]
     try:
         result = subprocess.run([compiler, "-print-sysroot"],
                                 capture_output=True, text=True, timeout=30)
         sysroot = result.stdout.strip()
         if result.returncode == 0 and sysroot and os.path.isdir(sysroot):
-            args = ["--sysroot=%s" % sysroot]
+            args.append("--sysroot=%s" % sysroot)
             import glob
             for cxx_dir in sorted(glob.glob(
                     os.path.join(sysroot, "include", "c++", "*"))):
@@ -155,9 +164,11 @@ def toolchain_args(compiler):
                         args.append("-isystem%s" % sub_path)
                     elif sub == "backward":
                         args.append("-isystem%s" % sub_path)
-    except (OSError, subprocess.SubprocessError):
-        pass
-    sysroots[compiler] = args
+    except (OSError, subprocess.SubprocessError) as error:
+        sys.exit("Cannot resolve GCC sysroot for %s: %s" % (compiler, error))
+    if len(args) == 1:
+        sys.exit("Cannot resolve GCC sysroot for %s" % compiler)
+    sysroots[key] = args
     return args
 
 def expand_args(args):
@@ -188,6 +199,9 @@ for entry in db:
     args = expand_args(list(args))
     if not args:
         continue
+    specs = [tok[7:] for tok in args if tok.startswith("-specs=")]
+    if len(specs) != 1:
+        sys.exit("Expected one picolibc specs file for %s" % src)
     triple = triple_of(args[0])
     cleaned = []
     skip_next = False
@@ -202,7 +216,7 @@ for entry in db:
             continue
         cleaned.append(tok)
     if triple:
-        cleaned = ["-target", triple] + toolchain_args(args[0]) + cleaned
+        cleaned = ["-target", triple] + toolchain_args(args[0], specs[0]) + cleaned
     # NimBLE's C log headers trip clang's C/C++ compat warning inside code
     # this project does not own; tidy would otherwise treat it as a parse
     # error for the whole translation unit.
@@ -248,16 +262,12 @@ while IFS= read -r src; do
   findings="$(grep -Ec "$scope_regex" "$tmp" || true)"
   parse_errors="$(grep -c 'clang-diagnostic-error' "$tmp" || true)"
   rm -f "$tmp"
-  if [[ "$findings" -gt 0 || "$parse_errors" -gt 0 ]]; then
+  if [[ "$run_status" -ne 0 || "$findings" -gt 0 || "$parse_errors" -gt 0 ]]; then
     failed=$((failed + 1))
     failed_files="$failed_files $src"
     tidy_status=1
-    if [[ "$parse_errors" -gt 0 ]]; then
-      printf 'FAILED: %d in-scope diagnostics, %d parse errors\n' \
-        "$findings" "$parse_errors"
-    else
-      printf 'FAILED: %d in-scope diagnostics\n' "$findings"
-    fi
+    printf 'FAILED: exit %d, %d in-scope diagnostics, %d parse errors\n' \
+      "$run_status" "$findings" "$parse_errors"
   fi
 done < "$output_path/files.txt"
 

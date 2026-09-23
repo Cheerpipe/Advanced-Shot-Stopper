@@ -21,28 +21,30 @@ from homeassistant.helpers.typing import StateType
 from .const import ACTIVATION_TYPES, STOP_DETAILS
 from .coordinator import CoordinatorData, OpenBrewByWeightCoordinator
 from .entity import OpenBrewByWeightEntity
+from .models import LastActivation, Shot
 from .runtime import OpenBrewByWeightRuntimeData
 
 PARALLEL_UPDATES = 1
+SensorValue = StateType | datetime
 
 
 @dataclass(frozen=True, kw_only=True)
 class MirroredDescription(SensorEntityDescription):
     """Description of one mirrored WebUI value."""
 
-    value_fn: Callable[[CoordinatorData], StateType]
+    value_fn: Callable[[CoordinatorData], SensorValue]
     options: list[str] | None = None
 
 
 def _shot(
-    value_fn: Callable[[object], StateType],
-) -> Callable[[CoordinatorData], StateType]:
+    value_fn: Callable[[Shot], SensorValue],
+) -> Callable[[CoordinatorData], SensorValue]:
     return lambda data: None if data.last_shot is None else value_fn(data.last_shot)
 
 
 def _activation(
-    value_fn: Callable[[object], StateType],
-) -> Callable[[CoordinatorData], StateType]:
+    value_fn: Callable[[LastActivation], SensorValue],
+) -> Callable[[CoordinatorData], SensorValue]:
     return lambda data: (
         None if data.last_activation is None else value_fn(data.last_activation)
     )
@@ -53,9 +55,13 @@ def _stats(field: str) -> Callable[[CoordinatorData], StateType]:
 
 
 def _seconds(
-    value_fn: Callable[[object], float | None],
-) -> Callable[[object], float | None]:
-    return lambda source: None if value_fn(source) is None else value_fn(source) / 1000
+    value_fn: Callable[[Shot], int | None],
+) -> Callable[[Shot], float | None]:
+    def converted(source: Shot) -> float | None:
+        value = value_fn(source)
+        return None if value is None else value / 1000
+
+    return converted
 
 
 MIRRORED_DESCRIPTIONS = (
@@ -341,5 +347,5 @@ class MirroredSensor(OpenBrewByWeightEntity, SensorEntity):
             self._attr_options = description.options
 
     @property
-    def native_value(self) -> StateType:
+    def native_value(self) -> SensorValue:
         return self.entity_description.value_fn(self.coordinator.data)

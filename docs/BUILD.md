@@ -321,8 +321,9 @@ The build renders the selected catalog into
 memory budgets. Use only the image for the intended profile pair. The supported partition layouts have
 two app slots; arbitrary 4 MB layouts cannot hold this firmware.
 
-GitHub Actions publishes only the reviewed Linea Micra profile pair. Names follow
-`openbrewbyweight-<profile>-jtag-off-remote-off.bin`; those two features are
+GitHub Actions publishes the three official validation pairs listed in
+[Build profiles](BUILD_PROFILES.md#capability-matching). Names follow
+`shotstopper-ota-<profile>-jtag-off-remote-off.bin`; those two features are
 explicitly disabled at compile time. GitHub downloads each artifact as a ZIP
 container, but that container holds only the named `.bin` file.
 

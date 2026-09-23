@@ -33,9 +33,12 @@ tests never install packages or contact hardware implicitly.
    Changes to HTTP route or handler definitions must also run
    `./scripts/dev test web`; its first check verifies that registered routes
    remain below the configured handler limit.
-7. Update the plan or audit with final status and evidence. Report risk, checks, failures,
-   full-log location and any manual evidence
-   still needed, plus an English proposed commit title. Commit only if requested.
+7. Update the plan or audit with final status and evidence. Report risk, checks,
+   failures, full-log location, and any manual evidence still needed. Every
+   code-modification request ends with a commit containing only task files. Use
+   the exact suggested Extended Conventional Commit title and a nonempty body
+   that lists the changes and explains their purpose or impact. A read-only
+   audit with no tracked changes needs no commit.
 
 ## Examples
 
