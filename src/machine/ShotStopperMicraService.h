@@ -86,7 +86,7 @@ class ShotStopperMicraService {
   bool writePowerOn(const LineaMicraPersistedSettings &settings);
   bool request(const LineaMicraPersistedSettings &settings, const char *url,
                esp_http_client_method_t method, const char *body,
-               bool authenticated,
+               bool authenticated, const char *purpose,
                bool installationInit = false);
   LineaMicraError classifyFailure() const;
   bool applySignedHeaders(const LineaMicraPersistedSettings &settings);

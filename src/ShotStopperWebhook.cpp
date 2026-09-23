@@ -1,5 +1,6 @@
 #include "ShotStopperWebhook.h"
 #include "ShotStopperPsram.h"
+#include "ShotStopperHttpDiagnostics.h"
 
 #if defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM) || \
     (!defined(SHOT_STOPPER_HOST_TEST) && \
@@ -9,6 +10,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_http_client.h>
+#include <esp_log.h>
 #include <esp_mac.h>
 #endif
 
@@ -659,6 +661,9 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   mux_.unlock();
 
   bool ok = false;
+#if !defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
+  bool performed = false;
+#endif
   int statusCode = 0;
   esp_err_t error = ESP_FAIL;
   if (WiFi.status() == WL_CONNECTED && validWebhookUrl(live.url) &&
@@ -683,6 +688,9 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
         mux_.unlock();
         if (dispatchAllowed() &&
             !cancelActive_.load(std::memory_order_acquire)) {
+#if !defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
+          performed = true;
+#endif
           error = esp_http_client_perform(client);
           statusCode = esp_http_client_get_status_code(client);
           ok = error == ESP_OK && statusCode >= 200 && statusCode < 300 &&
@@ -722,6 +730,16 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   }
 
   const HeapCapSnapshot heapAfter = sampleHeapCaps();
+#if !defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
+  if (performed && error != ESP_OK) {
+    char endpoint[160];
+    formatSafeHttpEndpoint(live.url, endpoint, sizeof(endpoint));
+    ESP_LOGE("WebhookHTTP",
+             "perform failed owner=WebhookDispatcher caller=WebhookDispatcher::send purpose=webhook_delivery event=%s endpoint=%s method=POST error=0x%x",
+             eventName(event.type), endpoint,
+             static_cast<unsigned>(error));
+  }
+#endif
   mux_.lock();
   status_.sending = false;
   status_.lastSuccess = ok;

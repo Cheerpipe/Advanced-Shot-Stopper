@@ -4,6 +4,7 @@
 #include "ShotStopperDomain.h"
 #include "ShotStopperMicraTiming.h"
 #include "ShotStopperPsram.h"
+#include "ShotStopperHttpDiagnostics.h"
 
 #include <Arduino.h>
 #include <cJSON.h>
@@ -1548,7 +1549,8 @@ bool ShotStopperMicraService::registerInstallation(
     const LineaMicraPersistedSettings &settings) {
   if (!ensureIoBuffer()) return false;
   const bool ok =
-      request(settings, kRegisterUrl, HTTP_METHOD_POST, nullptr, false, true);
+      request(settings, kRegisterUrl, HTTP_METHOD_POST, nullptr, false,
+              "register_installation", true);
   releaseIoBuffer();
   return ok;
 }
@@ -1574,7 +1576,8 @@ bool ShotStopperMicraService::signIn(
     releaseIoBuffer();
     return false;
   }
-  if (!request(settings, kSignInUrl, HTTP_METHOD_POST, io_->body, false)) {
+  if (!request(settings, kSignInUrl, HTTP_METHOD_POST, io_->body, false,
+               "sign_in")) {
     releaseIoBuffer();
     return false;
   }
@@ -1612,7 +1615,8 @@ bool ShotStopperMicraService::refreshToken(
     releaseIoBuffer();
     return false;
   }
-  if (!request(settings, kRefreshUrl, HTTP_METHOD_POST, io_->body, false)) {
+  if (!request(settings, kRefreshUrl, HTTP_METHOD_POST, io_->body, false,
+               "refresh_token")) {
     releaseIoBuffer();
     return false;
   }
@@ -1636,7 +1640,8 @@ bool ShotStopperMicraService::listMachines(
     const LineaMicraPersistedSettings &settings,
     LineaMicraDiscoverySnapshot &result) {
   if (!ensureIoBuffer()) return false;
-  if (!request(settings, kThingsUrl, HTTP_METHOD_GET, nullptr, true)) {
+  if (!request(settings, kThingsUrl, HTTP_METHOD_GET, nullptr, true,
+               "list_machines")) {
     releaseIoBuffer();
     return false;
   }
@@ -1683,7 +1688,8 @@ bool ShotStopperMicraService::readDashboard(
   const int length = snprintf(url, sizeof(url), "%s/things/%s/dashboard",
                               kApiRoot, settings.selectedSerial);
   if (length <= 0 || static_cast<size_t>(length) >= sizeof(url) ||
-      !request(settings, url, HTTP_METHOD_GET, nullptr, true)) {
+      !request(settings, url, HTTP_METHOD_GET, nullptr, true,
+               "read_dashboard")) {
     releaseIoBuffer();
     return false;
   }
@@ -1751,7 +1757,8 @@ bool ShotStopperMicraService::writeTemperature(
                   static_cast<size_t>(urlLength) < sizeof(url) &&
                   bodyLength > 0 &&
                   static_cast<size_t>(bodyLength) < sizeof(io_->body) &&
-                  request(settings, url, HTTP_METHOD_POST, io_->body, true);
+                  request(settings, url, HTTP_METHOD_POST, io_->body, true,
+                          "set_boiler_temperature");
   const bool accepted =
       ok || (work_->transportStatus == ESP_OK && work_->httpStatus >= 200 &&
              work_->httpStatus < 300);
@@ -1773,7 +1780,7 @@ bool ShotStopperMicraService::writeStandby(
   const bool ok = urlLength > 0 &&
                   static_cast<size_t>(urlLength) < sizeof(url) &&
                   request(settings, url, HTTP_METHOD_POST,
-                          "{\"mode\":\"StandBy\"}", true);
+                          "{\"mode\":\"StandBy\"}", true, "set_standby");
   releaseIoBuffer();
   return ok;
 }
@@ -1792,7 +1799,7 @@ bool ShotStopperMicraService::writePowerOn(
   const bool ok = urlLength > 0 &&
                   static_cast<size_t>(urlLength) < sizeof(url) &&
                   request(settings, url, HTTP_METHOD_POST,
-                          "{\"mode\":\"BrewingMode\"}", true);
+                          "{\"mode\":\"BrewingMode\"}", true, "set_power_on");
   releaseIoBuffer();
   return ok;
 }
@@ -1856,7 +1863,7 @@ bool ShotStopperMicraService::applySignedHeaders(
 bool ShotStopperMicraService::request(
     const LineaMicraPersistedSettings &settings, const char *url,
     esp_http_client_method_t method, const char *body, bool authenticated,
-    bool installationInit) {
+    const char *purpose, bool installationInit) {
   if (work_ == nullptr || io_ == nullptr || url == nullptr) return false;
   if (work_->client == nullptr) {
     esp_http_client_config_t config{};
@@ -1996,6 +2003,14 @@ bool ShotStopperMicraService::request(
       esp_http_client_get_status_code(work_->client));
   work_->transportFailure = performed != ESP_OK;
   if (work_->transportFailure) {
+    char endpoint[160];
+    formatSafeHttpEndpoint(url, endpoint, sizeof(endpoint));
+    serialTraceCategoryf(
+        LogLevel::ERROR, DebugCategory::NETWORK,
+        "ERR HTTP perform failed owner=ShotStopperMicraService caller=ShotStopperMicraService::request purpose=%s endpoint=%s method=%s error=0x%x",
+        purpose == nullptr ? "unknown" : purpose, endpoint,
+        method == HTTP_METHOD_POST ? "POST" : "GET",
+        static_cast<unsigned>(performed));
     // A failed perform typically leaves a dead cached socket; rebuild the
     // session on the next attempt instead of reusing it for all retries.
     esp_http_client_cleanup(work_->client);
