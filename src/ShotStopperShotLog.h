@@ -16,8 +16,8 @@ namespace shotstopper {
 constexpr size_t SHOT_LOG_FLASH_SLOT_BYTES = 12288;
 constexpr size_t SHOT_LOG_FLASH_SLOT_COUNT = 2;
 
-// Alias matching the DualSlotFlashLogTraits hook signatures (the schema
-// validator takes an optional expected schema version).
+// Byte layout is identical to the current version; v6 slots only lack the
+// stats aggregate, which onBoot() rebuilds.
 inline bool validShotLogStoreCurrent(const ShotLogStore &store) {
   return validShotLogStore(store);
 }
@@ -49,12 +49,32 @@ class ShotLog
     } else if (store_.header.bootId < UINT32_MAX) {
       ++store_.header.bootId;
     }
+    // A migrated v6 blob carries no stats aggregate; rebuild it once so the
+    // WebUI and HA see the same values the v6 records still support.
+    if (store_.header.schemaVersion != SHOT_LOG_SCHEMA_VERSION ||
+        shotLogStatsTotalCount(store_.header.stats) == 0) {
+      recomputeStats();
+    }
+    store_.header.schemaVersion = SHOT_LOG_SCHEMA_VERSION;
     dirty_ = true;
   }
 
   uint32_t bootId() const { return store_.header.bootId; }
 
   uint32_t nextRecordId() const { return store_.header.nextRecordId; }
+
+  // Recompute the stats aggregate from the live newest-first window and mark
+  // the store dirty; caller holds the store mutex. Used when a shot is
+  // committed so stats never lag behind the log (and are never recomputed
+  // per HTTP read).
+  void recomputeStats() {
+    ShotLogRecord window[SHOT_LOG_STATS_WINDOW];
+    const size_t available = copyNewestFirst(window, SHOT_LOG_STATS_WINDOW);
+    updateShotLogStats(store_, window, available);
+    dirty_ = true;
+  }
+
+  const ShotLogStats &stats() const { return store_.header.stats; }
 
   bool updateRating(uint32_t id, uint8_t rating, bool persistNow = true) {
     ShotLogRecord *found = findNewestById(id);

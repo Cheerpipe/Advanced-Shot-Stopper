@@ -29,6 +29,69 @@ bool validCorrelationId(const char *value) {
   return true;
 }
 
+// Formats a bounded non-negative stat, trimming to `decimals` places.
+const char *formatStatFloat(double value, unsigned decimals) {
+  static thread_local char buffer[32];
+  snprintf(buffer, sizeof(buffer), "%.*f", decimals, value);
+  return buffer;
+}
+
+// Pre-computed stats over the newest shots (WebUI Stats card mirror).
+bool buildIntegrationStats(const ShotLogStats &stats, char *output,
+                           size_t capacity) {
+  const int written = snprintf(
+      output, capacity,
+      "{\"shotCount\":%lu,\"totalDurationS\":%.1f,\"avgDurationS\":%s,"
+      "\"avgYieldG\":%s,\"avgErrorPct\":%s,\"avgFlowGps\":%s,"
+      "\"shotsPerDay\":%s}",
+      static_cast<unsigned long>(stats.shotCount),
+      static_cast<double>(stats.durationDsSum) / 1000.0,
+      stats.shotCount > 0
+          ? formatStatFloat(static_cast<double>(stats.durationDsSum) /
+                            (1000.0 * stats.shotCount), 1)
+          : "null",
+      stats.shotCount > 0
+          ? formatStatFloat(static_cast<double>(stats.actualCgSum) /
+                            (100.0 * stats.shotCount), 1)
+          : "null",
+      stats.shotCount > 0
+          ? formatStatFloat(static_cast<double>(stats.errorPctTenthsSum) /
+                            stats.shotCount / 10.0, 1)
+          : "null",
+      shotLogStatsTotalCount(stats) > 0
+          ? formatStatFloat(static_cast<double>(stats.flowCgSx100Sum) /
+                                shotLogStatsTotalCount(stats) / 10000.0,
+                            2)
+          : "null",
+      stats.daysSpan > 0
+          ? formatStatFloat(
+                static_cast<double>(stats.shotCount) /
+                    (static_cast<double>(stats.daysSpan) + 1.0),
+                1)
+          : "null");
+  return written > 0 && static_cast<size_t>(written) < capacity;
+}
+
+// Newest activation-history record (WebUI History card mirror).
+bool buildIntegrationLastActivation(const ControlStatusSnapshot &control,
+                                    char *output, size_t capacity) {
+  if (control.lastActivationId == 0) {
+    return snprintf(output, capacity, "null") == 4;
+  }
+  const int written = snprintf(
+      output, capacity,
+      "{\"id\":%lu,\"type\":\"%s\",\"durationS\":%.1f,"
+      "\"hasWallTime\":%s,\"endedAtUnixSec\":%lu,\"endedAtLocalSec\":%lu}",
+      static_cast<unsigned long>(control.lastActivationId),
+      historyTypeName(static_cast<HistoryType>(control.lastActivationType)),
+      static_cast<double>(control.lastActivationDurationDs) / 10.0,
+      (control.lastActivationFlags & HISTORY_FLAG_WALL_TIME) != 0 ? "true"
+                                                                  : "false",
+      static_cast<unsigned long>(control.lastActivationEndedAtUnixSec),
+      static_cast<unsigned long>(control.lastActivationEndedAtLocalSec));
+  return written > 0 && static_cast<size_t>(written) < capacity;
+}
+
 bool buildIntegrationPresets(const ShotPresetBank &bank, uint32_t revision,
                              char *output, size_t capacity) {
   size_t used = 0;
@@ -71,6 +134,17 @@ bool buildIntegrationLastShot(const PersistedLastShot &shot, char *output,
           shotLogStopDetailName(shotLogStopDetailFromEndReason(
               shot.endReason, shot.fastExtractionGuardEnabled,
               shot.extractionExtended)))) return false;
+  if (shot.hasWallTime &&
+      !jsonScratchAppend(
+          output, capacity, &used,
+          ",\"endedAtUnixSec\":%lu,\"endedAtLocalSec\":%lu",
+          static_cast<unsigned long>(shot.endedAtUnixSec),
+          static_cast<unsigned long>(shot.endedAtLocalSec)))
+    return false;
+  if (shot.rating != 0 &&
+      !jsonScratchAppend(output, capacity, &used, ",\"rating\":%u",
+                         static_cast<unsigned>(shot.rating)))
+    return false;
   if (shot.firstDropElapsedMs != 0 &&
       !jsonScratchAppend(output, capacity, &used, ",\"firstDropMs\":%lu",
                          static_cast<unsigned long>(shot.firstDropElapsedMs)))
@@ -118,9 +192,11 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     RecipeSnapshot recipe;
     if (self.callbacks_.copyRecipeSnapshot != nullptr)
       self.callbacks_.copyRecipeSnapshot(&recipe);
-    char lastShotJson[640] = {};
-    char lastGoodShotJson[640] = {};
+    char lastShotJson[768] = {};
+    char lastGoodShotJson[768] = {};
     char quickSettingsJson[384] = {};
+    char statsJson[256] = {};
+    char lastActivationJson[192] = {};
     const bool lastShotOk = buildIntegrationLastShot(
         control.lastShot, lastShotJson, sizeof(lastShotJson));
     const bool lastGoodShotOk = buildIntegrationLastShot(
@@ -128,6 +204,12 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     const bool quickSettingsOk = buildIntegrationQuickSettings(
         quickSettingsSnapshot(recipe), quickSettingsJson,
         sizeof(quickSettingsJson));
+    const bool statsOk = buildIntegrationStats(
+        callbacks_.copyShotStats != nullptr ? callbacks_.copyShotStats()
+                                            : ShotLogStats{},
+        statsJson, sizeof(statsJson));
+    const bool lastActivationOk = buildIntegrationLastActivation(
+        control, lastActivationJson, sizeof(lastActivationJson));
     const NetworkStatusSnapshot network = self.snapshot();
     char id[18] = {};
     char currentIp[16] = {};
@@ -153,6 +235,7 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
         "\"shotState\":\"%s\",\"bootId\":%lu,\"activePresetId\":%u,"
         "\"presetRevision\":%lu,\"quickSettings\":%s,"
         "\"lastShot\":%s,\"lastGoodShot\":%s,"
+        "\"lastActivation\":%s,\"stats\":%s,"
         "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"}}",
         id, id, btMac, firmware,
         SHOT_STOPPER_HARDWARE_PROFILE_ID, FW_BOARD_ARCH_STRING,
@@ -162,10 +245,11 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
         static_cast<unsigned long>(control.bootId),
         static_cast<unsigned>(recipe.presets.activeId),
         static_cast<unsigned long>(recipe.runtime.revision), quickSettingsJson,
-        lastShotJson, lastGoodShotJson,
+        lastShotJson, lastGoodShotJson, lastActivationJson, statsJson,
         static_cast<unsigned long>(network.lastCommandRequestId),
         commandResultStateName(network.lastCommandState));
-    const bool ok = lastShotOk && lastGoodShotOk && quickSettingsOk && written > 0 &&
+    const bool ok = lastShotOk && lastGoodShotOk && quickSettingsOk &&
+                    statsOk && lastActivationOk && written > 0 &&
                     static_cast<size_t>(written) < NetworkWorkBuf::kStatusJson;
     const esp_err_t result = ok
         ? sendJson(request, STATUS_OK, self.workBuf_->statusJson)
@@ -286,6 +370,9 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     command.type = WebCommandType::SAVE_WEBHOOK;
     command.requestId = self.allocateRequestId();
     command.stagedConfigRequestId = command.requestId;
+    // The native integration's PUT enables the rich integration-state events
+    // (controller_started, presets/quick-settings, activation history).
+    command.integrationEvents = true;
     self.dataMux_.lock();
     const bool available = self.stagedWebhookRequestId_ == 0;
     if (available) {

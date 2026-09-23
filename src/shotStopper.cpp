@@ -508,6 +508,9 @@ bool (*hostControllerStartedWebhookBuildGuard)() = nullptr;
 WebhookEvent hostControllerStartedWebhookEvent;
 uint32_t hostIpChangedWebhookCount = 0;
 char hostIpChangedWebhookAddress[16] = {};
+bool hostIntegrationOwnedEvents = false;
+uint32_t hostActivationHistoryWebhookCount = 0;
+WebhookEvent hostActivationHistoryEvent;
 #endif
 bool runtimePersistPending = false;
 bool runtimePersistFailed = false;
@@ -674,6 +677,7 @@ WebhookEvent baseWebhookEvent(WebhookEventType type, uint32_t cycleId,
 #ifndef SHOT_STOPPER_HOST_TEST
 SHOT_STOPPER_PSRAM_BSS PersistedSettings persistedSettings;
 ShotStopperNetwork networkManager;
+void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record);
 
 bool enqueueControllerStartedWebhook() {
   if (!controllerStartedPending) return true;
@@ -683,6 +687,22 @@ bool enqueueControllerStartedWebhook() {
   if (!networkManager.enqueueWebhook(started)) return false;
   controllerStartedPending = false;
   return true;
+}
+
+// Mirrors the newest activation-history entry (History card) to the native
+// integration. Sent only while the integration owns the callback, so plain
+// webhook receivers are never shown the internal history feed.
+void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record) {
+  if (!networkManager.integrationOwnedEvents()) return;
+  WebhookEvent event =
+      baseWebhookEvent(WebhookEventType::ACTIVATION_HISTORY, 0, millis());
+  event.activationId = id;
+  event.activationEndedAtUnixSec = record.endedAtUnixSec;
+  event.activationEndedAtLocalSec = record.endedAtLocalSec;
+  event.durationMs = static_cast<uint32_t>(record.durationDs) * 100U;
+  event.activationType = record.type;
+  event.activationHasWallTime = (record.flags & HISTORY_FLAG_WALL_TIME) != 0;
+  (void)networkManager.enqueueWebhook(event);
 }
 
 void reportStationIpChange(const char *ip) {
@@ -716,6 +736,22 @@ bool enqueueControllerStartedWebhook() {
   ++hostControllerStartedWebhookCount;
   controllerStartedPending = false;
   return true;
+}
+
+void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record) {
+  if (!hostIntegrationOwnedEvents) return;
+  hostActivationHistoryEvent =
+      baseWebhookEvent(WebhookEventType::ACTIVATION_HISTORY, 0, millis());
+  hostActivationHistoryEvent.activationId = id;
+  hostActivationHistoryEvent.activationEndedAtUnixSec = record.endedAtUnixSec;
+  hostActivationHistoryEvent.activationEndedAtLocalSec =
+      record.endedAtLocalSec;
+  hostActivationHistoryEvent.durationMs =
+      static_cast<uint32_t>(record.durationDs) * 100U;
+  hostActivationHistoryEvent.activationType = record.type;
+  hostActivationHistoryEvent.activationHasWallTime =
+      (record.flags & HISTORY_FLAG_WALL_TIME) != 0;
+  ++hostActivationHistoryWebhookCount;
 }
 
 void reportStationIpChange(const char *ip) {
@@ -880,12 +916,22 @@ uint32_t copyShotLogBootId() {
   return shotLog.bootId();
 }
 
+ShotLogStats copyShotStats() {
+  TaskLockGuard lock(shotStoreMutex);
+  return shotLog.stats();
+}
+
 bool copyShotStoreStatus(uint32_t &bootId, PersistedLastShot &last,
                          PersistedLastShot &good, ShotCurveRecord &goodCurve,
                          bool includeGoodHistory) {
   TaskLockGuard lock(shotStoreMutex);
   bootId = shotLog.bootId();
   last = persistedLastShot;
+  // The star rating lives in the shot-log record once the shot is committed;
+  // mirror it into the status aggregate so the WebUI and HA see one value.
+  if (last.valid && last.shotLogId != 0) {
+    (void)shotLog.copyRatingById(last.shotLogId, last.rating);
+  }
   good = persistedLastGoodShot;
   good.rating = 0;
   goodCurve = emptyShotCurveRecord();
@@ -922,6 +968,14 @@ bool clearShotLog() {
     return false;
   }
   if (!shotLog.clear(false)) return false;
+  shotLog.recomputeStats();
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  return true;
+}
+
+bool clearShotLogStats() {
+  TaskLockGuard lock(shotStoreMutex);
+  shotLog.recomputeStats();
   shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
   return true;
 }
@@ -1003,6 +1057,13 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
   copyCString(last.presetName, sizeof(last.presetName), snapshot.activePresetName);
   last.durationMs = static_cast<uint32_t>(snapshot.durationDs) * 100U;
   last.endReason = snapshot.endReason;
+  if (g_wallClock.synced()) {
+    const uint32_t utcSec = g_wallClock.nowUtcSec(millis());
+    last.endedAtUnixSec = utcSec;
+    last.endedAtLocalSec =
+        shotLogLocalSecFromUtc(utcSec, runtimeConfig.timezoneOffsetMinutes);
+    last.hasWallTime = 1;
+  }
   last.weightValid = finalWeightValid;
   last.currentWeightG = finalWeightValid ? finalWeightG : 0.0f;
   last.goalWeightG = snapshot.goalWeightG;
@@ -1075,6 +1136,13 @@ void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs) {
   copyCString(last.presetName, sizeof(last.presetName), session.activePresetName);
   last.durationMs = durationMs;
   last.endReason = reason;
+  if (g_wallClock.synced()) {
+    const uint32_t utcSec = g_wallClock.nowUtcSec(millis());
+    last.endedAtUnixSec = utcSec;
+    last.endedAtLocalSec =
+        shotLogLocalSecFromUtc(utcSec, runtimeConfig.timezoneOffsetMinutes);
+    last.hasWallTime = 1;
+  }
   last.weightValid = endedCycleWeightValid();
   last.currentWeightG = last.weightValid ? currentWeight : 0.0f;
   const bool lastAcceptedValid =

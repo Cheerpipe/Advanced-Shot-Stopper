@@ -73,6 +73,8 @@ void publishControlStatus() {
   const bool lastGoodHistoryLinked = copyShotStoreStatus(
       shotBootId, statusLastShot, statusLastGoodShot, statusLastGoodCurve,
       !session.active);
+  HistoryPage statusHistoryPage = {};
+  copyHistoryPage(statusHistoryPage, 0, 1, ShotLogSortDir::Desc);
   TaskLockGuard lock(controlStatusMutex);
   ControlStatusSnapshot &next = publishedControlStatus;
   next = ControlStatusSnapshot{};
@@ -203,6 +205,15 @@ void publishControlStatus() {
   next.lastShot = statusLastShot;
   next.lastGoodShot = statusLastGoodShot;
   next.lastGoodShotHistoryLinked = lastGoodHistoryLinked;
+  if (statusHistoryPage.count > 0) {
+    const HistoryRecord &newest = statusHistoryPage.records[0];
+    next.lastActivationId = newest.id;
+    next.lastActivationEndedAtUnixSec = newest.endedAtUnixSec;
+    next.lastActivationEndedAtLocalSec = newest.endedAtLocalSec;
+    next.lastActivationDurationDs = newest.durationDs;
+    next.lastActivationType = newest.type;
+    next.lastActivationFlags = newest.flags;
+  }
   {
     const ShotCurveRecord curve =
         session.active ? shotCurveSampler.snapshot() : statusLastGoodCurve;

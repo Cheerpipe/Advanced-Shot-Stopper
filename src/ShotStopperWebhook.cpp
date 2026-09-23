@@ -32,6 +32,8 @@ const char *eventName(WebhookEventType type) {
       return "quick_settings_changed";
     case WebhookEventType::CONTROLLER_STARTED: return "controller_started";
     case WebhookEventType::IP_CHANGED: return "ip_changed";
+    case WebhookEventType::ACTIVATION_HISTORY:
+      return "integration_history_end";
   }
   return "unknown";
 }
@@ -608,6 +610,18 @@ bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,
     case WebhookEventType::CONTROLLER_STARTED:
       if (!append(",\"revision\":%lu",
                   static_cast<unsigned long>(event.presetRevision))) return false;
+      break;
+    case WebhookEventType::ACTIVATION_HISTORY:
+      if (!append(",\"id\":%lu,\"type\":\"%s\",\"durationS\":%.1f,"
+                  "\"hasWallTime\":%s,\"endedAtUnixSec\":%lu,"
+                  "\"endedAtLocalSec\":%lu",
+                  static_cast<unsigned long>(event.activationId),
+                  historyTypeName(static_cast<HistoryType>(event.activationType)),
+                  static_cast<double>(event.durationMs) / 1000.0,
+                  event.activationHasWallTime ? "true" : "false",
+                  static_cast<unsigned long>(event.activationEndedAtUnixSec),
+                  static_cast<unsigned long>(event.activationEndedAtLocalSec)))
+        return false;
       break;
     case WebhookEventType::IP_CHANGED: {
       char address[sizeof(event.ipAddress) * 6] = {};

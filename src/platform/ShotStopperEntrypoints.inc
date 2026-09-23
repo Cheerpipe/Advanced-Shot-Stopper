@@ -389,6 +389,7 @@ void setup() {
     callbacks.copyShotRecords = copyShotRecords;
     callbacks.copyShotCurves = copyShotCurves;
     callbacks.copyHistoryPage = copyHistoryPage;
+    callbacks.copyShotStats = copyShotStats;
     callbacks.deleteHistoryRecord = deleteHistoryRecord;
     callbacks.clearHistoryLog = clearHistoryLog;
     callbacks.deleteShotRecord = deleteShotRecord;

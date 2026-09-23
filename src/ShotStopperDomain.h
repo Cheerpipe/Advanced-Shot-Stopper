@@ -1845,7 +1845,10 @@ struct WebCommand {
   bool bullseyeConfigSpecified = false;
   uint32_t bullseyeStageRequestId = 0;
   uint32_t stagedConfigRequestId = 0;
+  // SAVE_WEBHOOK only: the sender is the native integration, enabling the
+  // rich integration-state events (controller_started, activation history).
   // PRESET_OP payload (keep small — no full bank on the queue element).
+  bool integrationEvents = false;
   uint8_t presetAction = 0;
   uint8_t presetId = 0;
   bool lineaMicraBrewTargetSpecified = false;
@@ -1951,6 +1954,12 @@ struct PersistedLastShot {
   float currentWeightG = 0.0f;
   bool weightValid = false;
   uint8_t goalWeightG = 0;
+  // Wall-clock end of the shot (0/hasWallTime=false when the clock was not
+  // synced at the end) and the live star rating, mirrored by the WebUI.
+  uint32_t endedAtUnixSec = 0;
+  uint32_t endedAtLocalSec = 0;
+  uint8_t hasWallTime = 0;
+  uint8_t rating = 0;
   bool extractionExtended = false;
   float activeStopWeightG = 0.0f;
   uint32_t firstDropElapsedMs = 0;
@@ -2153,6 +2162,13 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   PersistedLastShot lastShot = {};
   PersistedLastShot lastGoodShot = {};
   bool lastGoodShotHistoryLinked = false;
+  // Mirror of the newest activation-history record (WebUI History card).
+  uint32_t lastActivationId = 0;
+  uint32_t lastActivationEndedAtUnixSec = 0;
+  uint32_t lastActivationEndedAtLocalSec = 0;
+  uint32_t lastActivationDurationDs = 0;
+  uint8_t lastActivationType = static_cast<uint8_t>(HistoryType::OTHER);
+  uint8_t lastActivationFlags = 0;
   uint8_t shotCurveCount = 0;
   uint8_t shotCurveIntervalDs = 5;
   uint16_t shotCurveFirstDropDs = UINT16_MAX;

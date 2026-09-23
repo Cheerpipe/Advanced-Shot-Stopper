@@ -66,6 +66,9 @@ bool ShotStopperNetwork::begin(const PersistedSettings &settings,
     log(DebugCategory::NETWORK, DebugCode::INITIALIZATION_FAILED,
         BOOT_SUBSYSTEM_NETWORK, 1);
   }
+  // Rich integration-state events resume only after the native integration
+  // saves the callback again (controller_started then re-establishes state).
+  integrationOwnedEvents_ = false;
   // Pin beside the Wi-Fi/LwIP stacks on PRO_CPU (core 0).
   // Stack must stay in internal RAM: this task calls NVS/Preferences (flash
   // write disables the cache, which makes a PSRAM stack inaccessible).

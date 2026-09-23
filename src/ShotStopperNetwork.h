@@ -192,6 +192,7 @@ struct NetworkBridgeCallbacks {
   size_t (*copyShotCurves)(ShotCurveRecord *output, size_t capacity) = nullptr;
   void (*copyHistoryPage)(HistoryPage &page, size_t offset, size_t limit,
                           ShotLogSortDir dir) = nullptr;
+  ShotLogStats (*copyShotStats)() = nullptr;
   bool (*deleteHistoryRecord)(uint32_t id) = nullptr;
   bool (*clearHistoryLog)() = nullptr;
   bool (*deleteShotRecord)(uint32_t id) = nullptr;
@@ -404,6 +405,9 @@ class ShotStopperNetwork {
   WebhookDispatcher webhooks_;
   WebhookConfig stagedWebhook_ = {};
   uint32_t stagedWebhookRequestId_ = 0;
+  // True after a native-integration webhook save; gates the rich
+  // integration-state webhook events (controller_started, history mirror).
+  bool integrationOwnedEvents_ = false;
   LineaMicraPersistedSettings stagedLineaMicra_ = {};
   uint32_t stagedLineaMicraRequestId_ = 0;
   uint32_t stagedPresetRequestId_ = 0;
@@ -622,6 +626,9 @@ class ShotStopperNetwork {
                                  const ControlGateSnapshot &status);
   bool historyMutationAllowed(httpd_req_t *request,
                               const ControlGateSnapshot &status);
+  // True after a native-integration webhook save; gates the rich
+  // integration-state webhook events (controller_started, history mirror).
+  bool integrationOwnedEvents() const { return integrationOwnedEvents_; }
   static const char *stateLabel(StopperState state);
   static const char *controlSourceName(ControlSource source);
   static const char *endReasonName(EndReason reason);

@@ -8,6 +8,7 @@
 #include <atomic>
 
 #include "ShotStopperDomain.h"
+#include "ShotStopperHistoryTypes.h"
 #include "ShotStopperIntegrationState.h"
 #include "ShotStopperPsram.h"
 #include "ShotStopperTaskMutex.h"
@@ -182,7 +183,10 @@ enum class WebhookEventType : uint8_t {
   PRESETS_CHANGED,
   QUICK_SETTINGS_CHANGED,
   CONTROLLER_STARTED,
-  IP_CHANGED
+  IP_CHANGED,
+  // Integration-state event mirroring the newest activation-history record;
+  // sent only while the native integration owns the callback.
+  ACTIVATION_HISTORY
 };
 
 struct WebhookPresetItem {
@@ -198,6 +202,12 @@ struct WebhookEvent {
   uint32_t unixSec = 0;
   uint32_t bootId = 0;
   uint32_t durationMs = 0;
+  // ACTIVATION_HISTORY payload: newest History entry mirrored as-is.
+  uint32_t activationId = 0;
+  uint32_t activationEndedAtUnixSec = 0;
+  uint32_t activationEndedAtLocalSec = 0;
+  uint8_t activationType = 0;
+  uint8_t activationHasWallTime = 0;
   uint32_t firstDropMs = 0;
   float weightG = 0.0f;
   float targetWeightG = 0.0f;

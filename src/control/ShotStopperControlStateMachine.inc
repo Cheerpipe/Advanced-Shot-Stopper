@@ -187,6 +187,8 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
   maybeRequestNtpSyncOnActivity();
 }
 
+void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record);
+
 void appendHistoryRecord(HistoryType type, uint32_t durationMs,
                          bool noWeight) {
   HistoryRecord record = {};
@@ -212,6 +214,7 @@ void appendHistoryRecord(HistoryType type, uint32_t durationMs,
     return;
   }
   shotStoreDirtyGeneration.fetch_add(1, std::memory_order_relaxed);
+  enqueueActivationHistoryWebhook(historyLog.nextRecordId() - 1U, record);
 }
 
 // Every confirmed machine activation lands in the independent history log:
