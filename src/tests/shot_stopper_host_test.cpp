@@ -5167,6 +5167,50 @@ void d13_idle_delays_relax_without_scale() {
   CHECK(controlLoopTickDelayMs(getScaleLinkSnapshot()) == 1);
 }
 
+void d13b_scale_power_off_is_terminal_for_connection_generation() {
+  resetHarness(false, false);
+  scale.connectedFeatures.flags |= ScaleFeaturePowerOff;
+  setScaleConnected(true);
+  const uint32_t generation = getScaleLinkSnapshot().connectionGeneration;
+
+  ScaleCommand queued;
+  queued.type = ScaleCommandType::TARE_ONLY;
+  CHECK(enqueueScaleCommand(queued));
+  requestScaleBrewBeep(1);
+  CHECK(enqueueScaleDebugCommand(BookooDebugAction::VOLUME, 0));
+
+  requestScalePowerOff();
+  CHECK(scalePowerOffBlocksGeneration(generation));
+  CHECK(!scaleBeepPending);
+  CHECK(!scaleDebugPending);
+  CHECK(!enqueueScaleCommand(queued));
+  CHECK(takeScalePowerOff());
+  executeScalePowerOffCommand();
+  CHECK(scale.commandLog.size() == 1);
+  CHECK(scale.commandLog[0] == "powerOff");
+  requestScalePowerOff();
+  CHECK(!takeScalePowerOff());
+
+  CHECK(executeNextScaleCommand());
+  CHECK(scale.commandLog.size() == 1);
+  hostMillis += SCALE_POWER_OFF_DISCONNECT_TIMEOUT_MS;
+  serviceScalePowerOffTimeout(hostMillis);
+  CHECK(!scale.isConnected());
+  CHECK(!scalePowerOffBlocksGeneration(generation));
+  CHECK(scaleMacCachePauseRemainingMs(hostMillis) ==
+        SCALE_POWER_OFF_RECONNECT_PAUSE_MS);
+  uint32_t lastScanCycleMs=0, lastConnectLogMs=0, scanSessionAtMs=0;
+  uint32_t scanLastAdvertAtMs=0;
+  bool connectAttemptSeriesActive=false;
+  serviceScaleWorkerDiscovery(lastScanCycleMs,lastConnectLogMs,
+      connectAttemptSeriesActive,scanSessionAtMs,scanLastAdvertAtMs);
+  CHECK(scale.startScanCalls==0);
+  hostMillis+=SCALE_POWER_OFF_RECONNECT_PAUSE_MS;
+  serviceScaleWorkerDiscovery(lastScanCycleMs,lastConnectLogMs,
+      connectAttemptSeriesActive,scanSessionAtMs,scanLastAdvertAtMs);
+  CHECK(!scaleDiscoveryPaused()); CHECK(scale.startScanCalls==1);
+}
+
 void d15_control_housekeeping_has_wrap_safe_10ms_cadence() {
   resetHarness(false, false);
   CHECK(controlHousekeepingDue(0));
@@ -16191,6 +16235,7 @@ const TestCase testCases[] = {
     {"W98", w98_buzzer_sequences_start_and_end_with_sound},
     {"D01", d01_idle_scan_stays_enabled_between_ticks},
     {"D13", d13_idle_delays_relax_without_scale},
+    {"D13B", d13b_scale_power_off_is_terminal_for_connection_generation},
     {"D15", d15_control_housekeeping_has_wrap_safe_10ms_cadence},
     {"D14", d14_control_status_publishes_on_cycle_edge},
     {"D02", d02_first_mode_uses_name_scan},

@@ -470,6 +470,12 @@ class NimbleScaleClient {
         length > SCALE_MAX_COMMAND_LENGTH) {
       return ScaleCommandResult::Unsupported;
     }
+    if (closedCommandGeneration_ == generation_) {
+      return ScaleCommandResult::NotConnected;
+    }
+    if (op == ScaleOp::PowerOff) {
+      closedCommandGeneration_ = generation_;
+    }
     commandStartedAt_ = nowMs();
     activeCommand_ = static_cast<uint8_t>(op);
     const ScaleCommandResult result =
@@ -1869,13 +1875,52 @@ class NimbleScaleClient {
     return true;
   }
 
+  bool commandSubmissionAllowed(uint32_t commandGeneration) {
+    bool allowed = false;
+    portENTER_CRITICAL(&mux_);
+    allowed = state_ == State::Ready && !pendingDisconnect_ &&
+              generation_ == commandGeneration &&
+              connectionHandle_ != kInvalidHandle && writeHandle_ != 0;
+    portEXIT_CRITICAL(&mux_);
+    return allowed;
+  }
+
+  bool waitForCommandInterval(uint32_t commandGeneration) {
+    const uint16_t interval = protocol_ == nullptr
+                                  ? 0
+                                  : protocol_->features.minimumCommandIntervalMs;
+    while (lastCommandSubmitted_ && elapsedMs(lastCommandSubmittedAtMs_) < interval) {
+      service();
+      if (!commandSubmissionAllowed(commandGeneration)) return false;
+      const uint32_t remaining = interval - elapsedMs(lastCommandSubmittedAtMs_);
+      vTaskDelay(pdMS_TO_TICKS(remaining < 10 ? remaining : 10));
+    }
+    service();
+    return commandSubmissionAllowed(commandGeneration);
+  }
+
   ScaleCommandResult writeCommand(const uint8_t *data, uint16_t length) {
     const uint32_t commandGeneration = generation_;
     const bool withResponse =
         (writeProperties_ & BLE_GATT_CHR_PROP_WRITE) != 0;
     (void)xSemaphoreTake(writeSignal_, 0);
-    const bool submitted = submitWrite(writeHandle_, data, length,
-                                      WritePurpose::Command, withResponse);
+    const bool admitted = waitForCommandInterval(commandGeneration);
+    const uint32_t previousSubmittedAtMs = lastCommandSubmittedAtMs_;
+    const bool submitted = admitted &&
+        submitWrite(writeHandle_, data, length, WritePurpose::Command,
+                    withResponse);
+    if (submitted) {
+      lastCommandSubmittedAtMs_ = nowMs();
+      if (debug_) {
+        scaleLogDebug("command submit op=%u gen=%lu gap=%lu response=%u",
+                      static_cast<unsigned>(activeCommand_),
+                      static_cast<unsigned long>(commandGeneration),
+                      static_cast<unsigned long>(lastCommandSubmitted_
+                          ? lastCommandSubmittedAtMs_ - previousSubmittedAtMs : 0),
+                      withResponse ? 1U : 0U);
+      }
+      lastCommandSubmitted_ = true;
+    }
     bool completed = false;
     bool interrupted = false;
     int result = submitted ? 0 : lastRawStatus_;
@@ -1941,6 +1986,7 @@ class NimbleScaleClient {
   void finishReady() {
     enterState(State::Ready);
     connectedAt_ = nowMs();
+    lastCommandSubmitted_ = false;
     portENTER_CRITICAL(&mux_);
     timing_.readyMs = connectedAt_;
     timing_.recordedFlags |= ScaleBleTimingReady;
@@ -2250,6 +2296,9 @@ class NimbleScaleClient {
   bool pendingDisconnect_ = false;
   int32_t pendingDisconnectStatus_ = 0;
   int writeResult_ = 0;
+  bool lastCommandSubmitted_ = false;
+  uint32_t lastCommandSubmittedAtMs_ = 0;
+  uint32_t closedCommandGeneration_ = 0;
 
   RxFrame rxFrames_[kRxFrameCount] = {};
   size_t rxHead_ = 0;

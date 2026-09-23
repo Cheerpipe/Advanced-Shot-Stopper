@@ -19,7 +19,8 @@ static const ScaleFeatureSet kEurekaFeatures = {
     0,
     0,
     0,
-    5000
+    5000,
+    0
 };
 
 bool eurekaSupportedPacketLength(int length) {

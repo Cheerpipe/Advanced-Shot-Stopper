@@ -23,6 +23,7 @@ struct ScaleFeatureSet {
     uint8_t volumeMax;
     uint16_t heartbeatPeriodMs;
     uint16_t maxPacketSilenceMs;
+    uint16_t minimumCommandIntervalMs;
 
     bool has(ScaleFeature feature) const {
         return (flags & static_cast<uint32_t>(feature)) != 0;
@@ -30,13 +31,7 @@ struct ScaleFeatureSet {
 };
 
 inline ScaleFeatureSet scaleFeatureSetNone() {
-    ScaleFeatureSet features;
-    features.flags = 0;
-    features.volumeMin = 0;
-    features.volumeMax = 0;
-    features.heartbeatPeriodMs = 0;
-    features.maxPacketSilenceMs = 0;
-    return features;
+    return {};
 }
 
 enum class ScaleCommandResult : uint8_t {

@@ -295,6 +295,45 @@ static void run() {
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::WriteFailed);
     CHECK(c.isConnected()); CHECK(testTerminations==0);
   }
+  for (const bool response : {false,true}) {
+    NimbleScaleClient c(false); ready(c);
+    ScaleProtocol paced=*c.protocol_;
+    paced.features.minimumCommandIntervalMs=100;
+    c.protocol_=&paced;
+    if (!response) c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    else testOnSubmit=[] { complete(); };
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
+    const uint64_t firstAt=testNowMs;
+    CHECK(c.writeOp(ScaleOp::StopTimer)==ScaleCommandResult::Ok);
+    CHECK(testNowMs-firstAt==100); CHECK(testWrites==2);
+  }
+  {
+    testNowMs=UINT32_MAX-50ULL;
+    NimbleScaleClient c(false); ready(c);
+    c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
+    const uint64_t firstAt=testNowMs;
+    CHECK(c.writeOp(ScaleOp::StopTimer)==ScaleCommandResult::Ok);
+    CHECK(testNowMs-firstAt==100); CHECK(testWrites==2);
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    c.pendingDisconnect_=true;
+    c.pendingDisconnectStatus_=BLE_HS_HCI_ERR(8);
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::WriteFailed);
+    CHECK(testWrites==0); CHECK(!c.isConnected());
+    CHECK(c.lastReason()==ScaleDisconnectReason::SUPERVISION_TIMEOUT);
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    CHECK(c.writeOp(ScaleOp::PowerOff)==ScaleCommandResult::Ok);
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::NotConnected);
+    CHECK(testWrites==1);
+    ready(c);
+    c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
+  }
   {
     NimbleScaleClient c(false); ready(c);
     const uint64_t before=testNowMs;

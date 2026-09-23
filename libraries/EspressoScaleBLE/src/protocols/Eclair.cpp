@@ -14,7 +14,8 @@ static const ScaleFeatureSet kEclairFeatures = {
     0,
     0,
     0,
-    5000
+    5000,
+    0
 };
 
 bool eclairSupportedPacketLength(int length) {

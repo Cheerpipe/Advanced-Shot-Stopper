@@ -225,6 +225,11 @@ bool scaleCompletionBeepPending = false;
 uint32_t scaleCompletionBeepConnectionGeneration = 0;
 bool scalePowerOffPending = false;
 uint32_t scalePowerOffConnectionGeneration = 0;
+uint32_t scalePowerOffBlockedGeneration = 0;
+uint32_t scalePowerOffSentAtMs = 0;
+bool scalePowerOffSent = false;
+bool scalePowerOffBlocksGeneration(uint32_t generation);
+void clearScalePowerOffLifecycle();
 uint16_t scaleScanAppliedInterval = 0;
 uint16_t scaleScanAppliedWindow = 0;
 // Last evidence of a compatible scale (advert seen, live link, preference
@@ -500,10 +505,12 @@ bool scaleLinkAvailable(const ScaleLinkSnapshot &snapshot) {
 void setScaleLinkState(ScaleLinkState state) {
   const uint32_t progressAtMs = millis();
   ScaleLinkState previous;
+  uint32_t disconnectedGeneration = 0;
   portENTER_CRITICAL(&scaleLinkMux);
   previous = scaleLinkState;
   if (scaleLinkState == ScaleLinkState::CONNECTED &&
       state == ScaleLinkState::DISCONNECTED) {
+    disconnectedGeneration = scaleConnectionGeneration;
     ++scaleDisconnectSequence;
     lastScaleWeightAtMs = 0;
     scaleWeightUpdateIntervalMs = 0;
@@ -531,6 +538,23 @@ void setScaleLinkState(ScaleLinkState state) {
     lastScaleLinkRssiSampleMs = 0;
   }
   portEXIT_CRITICAL(&scaleLinkMux);
+  if (disconnectedGeneration != 0 &&
+      scalePowerOffBlocksGeneration(disconnectedGeneration)) {
+    scalePreferredMacMux.lock();
+    const int32_t delta = static_cast<int32_t>(
+        scaleDiscoveryPausedUntilMs - progressAtMs);
+    const uint32_t remaining = scaleDiscoveryPausedUntilMs != 0 && delta > 0
+        ? static_cast<uint32_t>(delta) : 0;
+    if (remaining < SCALE_POWER_OFF_RECONNECT_PAUSE_MS) {
+      scaleDiscoveryPausedUntilMs =
+          progressAtMs + SCALE_POWER_OFF_RECONNECT_PAUSE_MS;
+    }
+    scalePreferredMacMux.unlock();
+    clearScalePowerOffLifecycle();
+  } else if (previous != ScaleLinkState::CONNECTED &&
+             state == ScaleLinkState::CONNECTED) {
+    clearScalePowerOffLifecycle();
+  }
   if (previous != state) {
     addDebugEvent(DebugCategory::SCALE,
                   state == ScaleLinkState::CONNECTED
@@ -547,6 +571,24 @@ void markScaleWorkerProgress() {
   portENTER_CRITICAL(&scaleLinkMux);
   scaleWorkerProgressAtMs = progressAtMs;
   portEXIT_CRITICAL(&scaleLinkMux);
+}
+
+bool scalePowerOffBlocksGeneration(uint32_t generation) {
+  portENTER_CRITICAL(&scaleBeepMux);
+  const bool blocked = generation != 0 &&
+      scalePowerOffBlockedGeneration == generation;
+  portEXIT_CRITICAL(&scaleBeepMux);
+  return blocked;
+}
+
+void clearScalePowerOffLifecycle() {
+  portENTER_CRITICAL(&scaleBeepMux);
+  scalePowerOffPending = false;
+  scalePowerOffConnectionGeneration = 0;
+  scalePowerOffBlockedGeneration = 0;
+  scalePowerOffSentAtMs = 0;
+  scalePowerOffSent = false;
+  portEXIT_CRITICAL(&scaleBeepMux);
 }
 
 uint32_t scaleWorkerTickDelayMs() {
@@ -629,6 +671,9 @@ bool enqueueScaleCommand(const ScaleCommand &command, bool toFront) {
   ScaleCommand stamped = command;
   if (stamped.connectionGeneration == 0) {
     stamped.connectionGeneration = getScaleLinkSnapshot().connectionGeneration;
+  }
+  if (scalePowerOffBlocksGeneration(stamped.connectionGeneration)) {
+    return false;
   }
   if (stamped.idleTareRequestId != 0) {
     idleScaleTareMux.lock();
@@ -968,7 +1013,8 @@ bool scaleHasVolumeControl() {
 bool enqueueScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   if (link.state != ScaleLinkState::CONNECTED ||
-      !link.features.has(ScaleFeatureVolume)) {
+      !link.features.has(ScaleFeatureVolume) ||
+      scalePowerOffBlocksGeneration(link.connectionGeneration)) {
     return false;
   }
   if (action == BookooDebugAction::VOLUME && beepLevel > BOOKOO_BEEP_LEVEL_MAX) {
@@ -1007,7 +1053,8 @@ bool takeScaleDebugCommand(BookooDebugAction &action, uint8_t &beepLevel) {
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   if (link.state != ScaleLinkState::CONNECTED ||
       connectionGeneration == 0 ||
-      connectionGeneration != link.connectionGeneration) {
+      connectionGeneration != link.connectionGeneration ||
+      scalePowerOffBlocksGeneration(connectionGeneration)) {
     addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_STALE_EVENT_REJECTED,
                   static_cast<int32_t>(connectionGeneration),
                   static_cast<int32_t>(link.connectionGeneration));
@@ -1076,6 +1123,10 @@ void executeScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
 }
 
 void applyBookooConnectBeepPolicy() {
+  if (scalePowerOffBlocksGeneration(
+          getScaleLinkSnapshot().connectionGeneration)) {
+    return;
+  }
   if (!scaleHasVolumeControl() ||
       !scale.features().has(ScaleFeatureIndependentBeep)) {
     return;
@@ -1129,12 +1180,18 @@ void serviceBookooConnectBeepPolicy(bool sawWeightThisTick) {
   if (!sawWeightThisTick) {
     return;
   }
+  if (scalePowerOffBlocksGeneration(
+          getScaleLinkSnapshot().connectionGeneration)) {
+    cancelBookooConnectBeepPolicy();
+    return;
+  }
   bookooConnectVolumePending = false;
   applyBookooConnectBeepPolicy();
 }
 
 void requestScaleBrewBeep(uint32_t cycleId) {
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  if (scalePowerOffBlocksGeneration(link.connectionGeneration)) return;
   portENTER_CRITICAL(&scaleBeepMux);
   scaleBeepPending = true;
   scaleBeepCycleId = cycleId;
@@ -1159,7 +1216,8 @@ bool takeScaleBrewBeep(uint32_t &cycleId) {
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   return pending && link.state == ScaleLinkState::CONNECTED &&
          connectionGeneration != 0 &&
-         connectionGeneration == link.connectionGeneration;
+         connectionGeneration == link.connectionGeneration &&
+         !scalePowerOffBlocksGeneration(connectionGeneration);
 }
 
 void cancelScaleBrewBeep(uint32_t cycleId) {
@@ -1174,6 +1232,7 @@ void cancelScaleBrewBeep(uint32_t cycleId) {
 
 void requestScalePaddleReturnReminderBeep() {
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  if (scalePowerOffBlocksGeneration(link.connectionGeneration)) return;
   portENTER_CRITICAL(&scaleBeepMux);
   scalePaddleReturnReminderBeepPending = true;
   scalePaddleReturnReminderBeepConnectionGeneration = link.connectionGeneration;
@@ -1195,7 +1254,8 @@ bool takeScalePaddleReturnReminderBeep() {
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   return pending && link.state == ScaleLinkState::CONNECTED &&
          connectionGeneration != 0 &&
-         connectionGeneration == link.connectionGeneration;
+         connectionGeneration == link.connectionGeneration &&
+         !scalePowerOffBlocksGeneration(connectionGeneration);
 }
 
 void cancelScalePaddleReturnReminderBeep() {
@@ -1207,6 +1267,7 @@ void cancelScalePaddleReturnReminderBeep() {
 
 void requestScaleCompletionBeep() {
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  if (scalePowerOffBlocksGeneration(link.connectionGeneration)) return;
   portENTER_CRITICAL(&scaleBeepMux);
   scaleCompletionBeepPending = true;
   scaleCompletionBeepConnectionGeneration = link.connectionGeneration;
@@ -1228,7 +1289,8 @@ bool takeScaleCompletionBeep() {
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   return pending && link.state == ScaleLinkState::CONNECTED &&
          connectionGeneration != 0 &&
-         connectionGeneration == link.connectionGeneration;
+         connectionGeneration == link.connectionGeneration &&
+         !scalePowerOffBlocksGeneration(connectionGeneration);
 }
 
 // Machine-link request: power the connected scale off. Generation-guarded
@@ -1236,10 +1298,27 @@ bool takeScaleCompletionBeep() {
 // drops the command instead of writing to a stale connection.
 void requestScalePowerOff() {
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  if (link.state != ScaleLinkState::CONNECTED ||
+      link.connectionGeneration == 0) {
+    return;
+  }
+  bool accepted = false;
   portENTER_CRITICAL(&scaleBeepMux);
-  scalePowerOffPending = true;
-  scalePowerOffConnectionGeneration = link.connectionGeneration;
+  if (scalePowerOffBlockedGeneration != link.connectionGeneration) {
+    scalePowerOffPending = true;
+    scalePowerOffConnectionGeneration = link.connectionGeneration;
+    scalePowerOffBlockedGeneration = link.connectionGeneration;
+    scalePowerOffSentAtMs = 0;
+    scalePowerOffSent = false;
+    accepted = true;
+  }
   portEXIT_CRITICAL(&scaleBeepMux);
+  if (!accepted) return;
+  cancelOperationalScaleBeeps();
+  portENTER_CRITICAL(&scaleDebugMux);
+  scaleDebugPending = false;
+  scaleDebugConnectionGeneration = 0;
+  portEXIT_CRITICAL(&scaleDebugMux);
   wakeScaleWorker();
 }
 
@@ -1268,9 +1347,14 @@ void executeScalePowerOffCommand() {
     return;
   }
   if (!scale.supportsPowerOff()) {
+    clearScalePowerOffLifecycle();
     addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
     return;
   }
+  portENTER_CRITICAL(&scaleBeepMux);
+  scalePowerOffSentAtMs = millis();
+  scalePowerOffSent = true;
+  portEXIT_CRITICAL(&scaleBeepMux);
   const bool succeeded = scaleCommandOk(scale.powerOff());
   yieldBetweenScaleAttOps();
   addDebugEvent(DebugCategory::SCALE,
@@ -1279,13 +1363,35 @@ void executeScalePowerOffCommand() {
   updateWorkerLinkState();
 }
 
+void serviceScalePowerOffTimeout(uint32_t nowMs) {
+  uint32_t generation = 0;
+  uint32_t sentAtMs = 0;
+  bool sent = false;
+  portENTER_CRITICAL(&scaleBeepMux);
+  generation = scalePowerOffBlockedGeneration;
+  sentAtMs = scalePowerOffSentAtMs;
+  sent = scalePowerOffSent;
+  portEXIT_CRITICAL(&scaleBeepMux);
+  if (generation == 0 || !sent ||
+      !scalePowerOffBlocksGeneration(
+          getScaleLinkSnapshot().connectionGeneration) ||
+      static_cast<uint32_t>(nowMs - sentAtMs) <
+          SCALE_POWER_OFF_DISCONNECT_TIMEOUT_MS) {
+    return;
+  }
+  scale.disconnect();
+  updateWorkerLinkState();
+  setScaleLinkState(ScaleLinkState::DISCONNECTED);
+}
+
 void executeScaleCommand(const ScaleCommand &command) {
   publishPendingScaleWeightEvent();
   markScaleWorkerProgress();
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   if (command.connectionGeneration == 0 ||
       command.connectionGeneration != link.connectionGeneration ||
-      link.state != ScaleLinkState::CONNECTED) {
+      link.state != ScaleLinkState::CONNECTED ||
+      scalePowerOffBlocksGeneration(command.connectionGeneration)) {
     ScaleEvent event;
     event.cycleId = command.cycleId;
     event.cupWeightRequestId = command.cupWeightRequestId;
@@ -1697,6 +1803,7 @@ void resetScaleWorkerRadioStateForHost() {
   scaleBeepConnectionGeneration = 0;
   scalePaddleReturnReminderBeepConnectionGeneration = 0;
   scaleCompletionBeepConnectionGeneration = 0;
+  clearScalePowerOffLifecycle();
   for (auto &entry : scaleHistory) {
     clearScaleHistorySessionMarker(entry);
   }
@@ -2152,7 +2259,9 @@ void serviceScaleWorkerLink() {
   }
 
   bool snapshotDirty = false;
-  if (scale.heartbeatRequired()) {
+  if (scale.heartbeatRequired() &&
+      !scalePowerOffBlocksGeneration(
+          getScaleLinkSnapshot().connectionGeneration)) {
     if (!scaleCommandOk(scale.heartbeat())) {
       cancelBookooConnectBeepPolicy();
       updateWorkerLinkState();
@@ -2275,6 +2384,8 @@ void scaleWorkerTask(void *) {
     }
     syncScaleRadioCoex();
 
+    serviceScalePowerOffTimeout(nowMs);
+
     // Live GAP check once per tick. Packet timeouts and HCI events cover the
     // rest of the hot path via isLinkUp().
     const bool linked = scale.isConnected();
@@ -2311,12 +2422,12 @@ void scaleWorkerTask(void *) {
                                   connectAttemptSeriesActive, scanSessionAtMs,
                                   scanLastAdvertAtMs);
     } else {
-      ScaleCommand command;
-      if (xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE) {
-        executeScaleCommand(command);
+      if (takeScalePowerOff()) {
+        executeScalePowerOffCommand();
       } else {
-        if (takeScalePowerOff()) {
-          executeScalePowerOffCommand();
+        ScaleCommand command;
+        if (xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE) {
+          executeScaleCommand(command);
         } else {
           uint32_t beepCycleId = 0;
           if (takeScaleBrewBeep(beepCycleId)) {

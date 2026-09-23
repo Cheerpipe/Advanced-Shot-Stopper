@@ -17,7 +17,8 @@ static const ScaleFeatureSet kDecentFeatures = {
     0,
     0,
     5000,
-    5000
+    5000,
+    0
 };
 
 bool decentSupportedPacketLength(int length) {

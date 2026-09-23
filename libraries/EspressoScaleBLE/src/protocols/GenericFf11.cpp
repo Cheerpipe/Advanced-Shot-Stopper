@@ -32,7 +32,8 @@ static const ScaleFeatureSet kGenericFeatures = {
     0,
     5,
     0,
-    8000
+    8000,
+    100
 };
 
 void fillGenericCommand(uint8_t out[6], uint8_t data1, uint8_t data2, uint8_t data3) {

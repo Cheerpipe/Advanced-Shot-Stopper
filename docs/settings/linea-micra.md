@@ -218,6 +218,11 @@ down cannot queue another machine shutdown, and the machine going to
 standby through the shutdown option above only powers the scale off once.
 Neither option acts while a shot or rinse is running.
 
+After sending the scale shutdown command, the controller blocks any later
+scale command on that connection and waits 500 ms after disconnection before
+searching again. Normal reconnection resumes immediately after that pause,
+without waiting for a second advertisement.
+
 Like every cloud option, it requires a saved, connected account: without one
 the checkbox stays disabled. The account requirement covers the machine
 observation; the scale command itself is local Bluetooth and works with the

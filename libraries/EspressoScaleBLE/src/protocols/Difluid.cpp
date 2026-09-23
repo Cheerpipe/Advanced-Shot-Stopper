@@ -23,7 +23,8 @@ static const ScaleFeatureSet kDifluidFeatures = {
     0,
     0,
     2000,
-    5000
+    5000,
+    0
 };
 
 uint8_t difluidChecksum(const uint8_t *data, int length) {

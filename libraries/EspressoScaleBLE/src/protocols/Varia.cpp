@@ -20,7 +20,8 @@ static const ScaleFeatureSet kVariaFeatures = {
     0,
     0,
     0,
-    5000
+    5000,
+    0
 };
 
 bool variaXorValid(const uint8_t *data, int length) {

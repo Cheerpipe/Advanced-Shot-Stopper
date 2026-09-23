@@ -72,6 +72,16 @@ under the existing nested spinlocks; the consumer formats its private address
 copy after unlocking. A concurrent advertisement remains pending for the next
 consumption.
 
+Application scale writes remain single-owner operations. Protocol metadata
+sets their minimum interval (100 ms for Bookoo), and the NimBLE owner services
+callbacks while waiting before rechecking ready state, disconnect evidence,
+handle, and connection generation. A power-off request publishes a terminal
+generation barrier under the existing scale mailbox spinlock before it can
+compete with queued work. Producers then reject new commands, queued commands
+complete through their stale-result path, and heartbeat/beep/debug mailboxes
+cannot bypass the barrier. No scale lock spans ATT or GAP; disconnect clears
+the lifecycle and arms the bounded 500 ms discovery pause.
+
 The relay and independent safety-timer `portMUX` sections are independent and
 may never nest with another lock. The timer captures callback state under its
 spinlock, invokes the relay callback after releasing it, and rejects stop/re-arm

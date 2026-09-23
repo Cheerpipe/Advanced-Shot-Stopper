@@ -49,7 +49,9 @@ Themis Ultra with firmware V4.0.0 and later (ignored while charging and by
 V3.1.2 and earlier). The Themis Mini contract has no shutdown command, and
 both models advertise as `BOOKOO`, so the command is sent to the family and
 ignored by units that do not implement it. Every other protocol reports
-`ScaleCommandResult::Unsupported`.
+`ScaleCommandResult::Unsupported`. Once shutdown is requested, that BLE
+connection generation is closed to every later application command, even if
+the scale takes time to disconnect.
 
 
 ## Requirements
@@ -93,6 +95,11 @@ handles and unresolved one-second command timeouts still terminate it. Commands
 with uncertain outcomes are never automatically replayed. GAP/reset causes and
 teardown errors are recorded separately from command failures and survive
 reconnection in `diagnostics()`.
+
+Each protocol may define a minimum application-command interval. Bookoo uses
+100 ms for both acknowledged and unacknowledged writes; the client services
+disconnect evidence while waiting and revalidates the connection generation
+immediately before submission. Other protocols keep their existing timing.
 
 Relaxed / Balanced / Aggressive scan presets retain their 25%, 50% and 100% duty
 semantics. Fixed advertisement slots and fixed GATT handle storage avoid a
