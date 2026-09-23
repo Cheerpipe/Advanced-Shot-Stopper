@@ -9271,6 +9271,51 @@ void it48_gradual_accessory_or_cup_unload_waits_for_settled_mass() {
   }
 }
 
+void it49_cancelled_accessory_removal_rearms_after_return_to_zero() {
+  prepareTaredCupAndAccessory(80.0f, 40.0f);
+  idleCup(-40.0f);
+  CHECK(idleTare.requestId != 0);
+  idleCup(0.0f); // Accessory returned before the queued write.
+  CHECK(idleTare.requestId == 0);
+  CHECK(executeNextScaleCommand());
+  CHECK(scale.tareCalls == 2);
+  idleCup(-40.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+}
+
+void it50_cancelled_accessory_addition_rearms_after_return_to_zero() {
+  prepareIdleTare();
+  runtimeConfig.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  idleCup(40.0f);
+  CHECK(idleTare.requestId != 0);
+  idleCup(0.0f); // Addition returned before the queued write.
+  CHECK(idleTare.requestId == 0);
+  CHECK(executeNextScaleCommand());
+  CHECK(scale.tareCalls == 1);
+  idleCup(40.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+}
+
+void it51_failed_accessory_write_does_not_rearm_from_zero() {
+  prepareIdleTare();
+  runtimeConfig.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  idleCup(40.0f);
+  scale.tareSucceeds = false;
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  idleCup(40.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  CHECK(!captureCupTareDiagnostics().weightValid);
+}
+
 void cup_fsm_put_back_without_tare_is_present() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -15813,6 +15858,9 @@ const TestCase testCases[] = {
     {"IT46", it46_accessory_removal_never_uses_idle_tare_during_shot},
     {"IT47", it47_stale_or_disabled_accessory_evidence_never_tares_removal},
     {"IT48", it48_gradual_accessory_or_cup_unload_waits_for_settled_mass},
+    {"IT49", it49_cancelled_accessory_removal_rearms_after_return_to_zero},
+    {"IT50", it50_cancelled_accessory_addition_rearms_after_return_to_zero},
+    {"IT51", it51_failed_accessory_write_does_not_rearm_from_zero},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},

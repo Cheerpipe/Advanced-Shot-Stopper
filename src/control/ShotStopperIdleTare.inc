@@ -396,6 +396,11 @@ bool idleAccessoryUnloadUnsettled(float weight, uint32_t atMs) {
 }
 
 void observeIdleAccessory(float weight, uint32_t atMs) {
+  if (idleTare.requestId == 0 && cupPresence.weight.valid &&
+      fabsf(weight) <= FIRST_DROP_BASELINE_SETTLE_G) {
+    if (idleTare.knownAccessoryMassG == 0.0f) idleTare.accessoryUsed = false;
+    idleTare.accessoryRemovalAttempted = false;
+  }
   if (!idleTare.eligible || !idleAccessoryRetareEnabled(runtimeConfig.noScaleBbwMode) ||
       idleTare.requestId != 0 ||
       idleTare.accessoryPlacementId != cupPresencePlacementId() ||

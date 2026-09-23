@@ -122,6 +122,10 @@ Queued requests expire after 1 s. An executing write stays serialized until it
 returns, and its result is cleaned up within the 1 s write allowance plus the
 configured post-tare grace. Failed requests are not automatically retried on a
 cup that remains present.
+If an accessory is added or removed but returned to the previous zero before
+its queued tare is written, that cancelled change can be tried again on the
+same cup. A failed or unconfirmed scale write still needs fresh reference
+evidence; merely returning to zero does not retry it.
 
 Before an idle write starts, fresh readings must still satisfy the configured
 minimum using the original direct/relative reference and the placement stability
