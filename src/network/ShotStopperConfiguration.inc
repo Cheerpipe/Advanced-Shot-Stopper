@@ -206,12 +206,16 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   } else if (jsonFieldPresent(root, "maxSinglePressMs") &&
              !jsonMaxSinglePressMs(root, candidate)) {
     parseError = "maxSinglePressMs must be an integer from 100 to 5000.";
+#if SHOT_STOPPER_MACHINE_TYPE != 0
   } else if (jsonFieldPresent(root, "momentaryStartEdge") &&
              !jsonMomentaryStartEdge(root, candidate)) {
     parseError = "momentaryStartEdge must be press or release.";
+#endif
+#if SHOT_STOPPER_MACHINE_TYPE == 2
   } else if (jsonFieldPresent(root, "reedConfirmTimeoutMs") &&
              !jsonReedConfirmTimeoutMs(root, candidate)) {
     parseError = "reedConfirmTimeoutMs must be an integer from 200 to 5000.";
+#endif
   } else if (jsonFieldPresent(root, "assumeIdleWhenScaleConnects") &&
              !jsonAssumeIdleWhenScaleConnects(root, candidate)) {
     parseError = "assumeIdleWhenScaleConnects must be a boolean.";
@@ -1033,10 +1037,12 @@ esp_err_t ShotStopperNetwork::forcePulseHandler(httpd_req_t *request) {
     return sendError(request, "403 Forbidden", "REMOTE_CONTROL_DISABLED",
                      "Remote machine control actuation is disabled in this firmware build.");
   }
+#if SHOT_STOPPER_MACHINE_TYPE == 0
   if (SHOT_STOPPER_MACHINE_TYPE == 0) {
     return sendError(request, STATUS_CONFLICT, "MACHINE_TYPE_UNSUPPORTED",
                      "Forced switch pulses require a momentary machine build.");
   }
+#endif
   const esp_err_t bodyStatus =
       self.lockJsonBody(request, "An empty JSON object is required.");
   if (bodyStatus != ESP_OK) {

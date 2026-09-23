@@ -363,6 +363,11 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
     throw new Error(
         'IDF builds must bake the machine-type-exclusive Web UI by forwarding the resolved machine type to gen_web_ui.js');
   }
+  if (!buildIdf.includes('SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL') ||
+      !buildIdf.includes('--no-remote-control')) {
+    throw new Error(
+        'IDF builds without remote machine control must forward --no-remote-control to gen_web_ui.js');
+  }
 }
 if (!taskProfiler.includes('void copySnapshot(TaskProfilerSnapshot &out) const') ||
     !taskProfiler.includes('TaskLockGuard lock(reportMutex_)') ||

@@ -246,6 +246,11 @@ markup and styles of that machine type (a paddle build ships no switch or reed
 controls, a momentary build no paddle settings). Direct generator runs keep the
 type-agnostic output unless `--machine-type` is passed explicitly.
 
+Builds likewise forward `--no-remote-control` when remote machine control is
+off, omitting the Home remote-action bar (rinse, start/stop, force pulse) from
+markup, styles, and runtime code; enable the feature flag to ship those
+controls.
+
 Extra flags follow the same CLI, environment, saved-value, and prompt
 precedence. Pass `--flags=""` when you intentionally want an empty value and
 want any remembered flags removed. Generated files live under

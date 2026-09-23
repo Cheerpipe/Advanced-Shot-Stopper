@@ -596,6 +596,7 @@ bool jsonMaxSinglePressMs(cJSON *object, RuntimeConfig &config) {
   return true;
 }
 
+#if SHOT_STOPPER_MACHINE_TYPE == 2
 bool jsonReedConfirmTimeoutMs(cJSON *object, RuntimeConfig &config) {
   uint32_t ms = 0;
   if (!jsonUint32(object, "reedConfirmTimeoutMs", ms) || ms < 200 ||
@@ -605,6 +606,7 @@ bool jsonReedConfirmTimeoutMs(cJSON *object, RuntimeConfig &config) {
   setRuntimeReedConfirmTimeoutMs(config, ms);
   return true;
 }
+#endif
 
 bool jsonAssumeIdleWhenScaleConnects(cJSON *object, RuntimeConfig &config) {
   return jsonBoolean(object, "assumeIdleWhenScaleConnects",
@@ -624,6 +626,7 @@ bool jsonShotReactTimeoutS(cJSON *object, RuntimeConfig &config) {
   return true;
 }
 
+#if SHOT_STOPPER_MACHINE_TYPE != 0
 bool jsonMomentaryStartEdge(cJSON *object, RuntimeConfig &config) {
   cJSON *item = cJSON_GetObjectItemCaseSensitive(object, "momentaryStartEdge");
   if (!cJSON_IsString(item) || item->valuestring == nullptr) {
@@ -631,6 +634,7 @@ bool jsonMomentaryStartEdge(cJSON *object, RuntimeConfig &config) {
   }
   return parseMomentaryStartEdge(item->valuestring, config.momentaryStartOnPress);
 }
+#endif
 
 bool jsonNtpPreset(cJSON *object, const char *name, uint8_t &output) {
   cJSON *item = cJSON_GetObjectItemCaseSensitive(object, name);

@@ -115,7 +115,7 @@ depend on a reviewed board):
 - `OPEN_BREW_BY_WEIGHT_CIRCUIT_FEEDBACK_CLOSED_LEVEL` (optional; default LOW)
 
 Compile example (GPIO overrides). Add
-`-DOPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=1` only for an explicit
+`-DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=1` only for an explicit
 opt-in remote-control development build; default firmware leaves start/rinse
 on the physical activator:
 

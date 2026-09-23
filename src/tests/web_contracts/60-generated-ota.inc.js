@@ -78,6 +78,29 @@ for (const id of [...new Set(Object.values(machineTypeExclusive).flat())]) {
     throw new Error(`type-agnostic UI must keep every type's markup (${id})`);
   }
 }
+// Remote machine control is compile-time opt-in; builds without the flag must
+// ship neither the fixed Home action bar nor the runtime helper driving it,
+// while remote builds keep every piece.
+for (const remoteControl of [false, true]) {
+  const variant =
+      await webUi.generate({webUiLanguage: 'EN', remoteControl, write: false});
+  const uiText =
+      [variant.html, ...Object.values(variant.partials), variant.css].join('\n');
+  const forbidden = ['id="actionsPanel"', '#actionsPanel', 'homeAdminActions'];
+  const leaked = forbidden.filter((n) => uiText.includes(n));
+  if (remoteControl === false && leaked.length) {
+    throw new Error(`no-remote-control UI must not ship ${leaked.join(',')}`);
+  }
+  if (remoteControl === true &&
+      forbidden.filter((n) => !uiText.includes(n)).length) {
+    throw new Error('remote-control UI must ship the Home action bar (markup and CSS)');
+  }
+  if (remoteControl === false &&
+      variant.runtimeJs.length >=
+      (await webUi.generate({webUiLanguage: 'EN', write: false})).runtimeJs.length) {
+    throw new Error('no-remote-control runtime must drop the action-bar helper');
+  }
+}
 localeAssert.equal(normalizedEnglish.resolvedLanguage, 'en');
 localeAssert.equal(regionalEnglish.requestedLanguage, 'en-en');
 localeAssert.equal(regionalEnglish.resolvedLanguage, 'en');

@@ -62,6 +62,29 @@ function stripMachineTypeCss(css, machineType) {
     classRe.test(rule) ? '' : rule);
 }
 
+// Remote machine control is opt-in at compile time; builds without the flag
+// must not embed the fixed Home action bar (rinse/start/stop/force pulse) or
+// its layout CSS, which only ever shows for remote-enabled firmware.
+const REMOTE_CONTROL_CSS_RE = /#actionsPanel|homeAdminActions/;
+
+function stripRemoteControlMarkup(html) {
+  return html.replace(
+      /<fieldset\b[^>]*\bid="actionsPanel"[^>]*>[\s\S]*?<\/fieldset>/g, '');
+}
+
+function stripRemoteControlCss(css) {
+  return css.replace(/([^{}]+\{[^{}]*\})/g, (rule) =>
+    REMOTE_CONTROL_CSS_RE.test(rule) ? '' : rule);
+}
+
+// Drop the runtime helper that toggles the action bar and its only call site;
+// without the panel they are dead bytes in every non-remote build.
+function stripRemoteControlJs(js) {
+  return js
+      .replace(/function updateHomeAdminActions\([^)]*\)\{.*\}(?=\n)/, '')
+      .replace(/updateHomeAdminActions\([^)]*\);/g, '');
+}
+
 function readFirmwareVersion() {
   if (!fs.existsSync(versionPath)) {
     return 'dev';
@@ -269,6 +292,11 @@ async function generate(options = {}) {
           stripMachineTypeMarkup(partialsRaw[name], options.machineType);
     }
   }
+  if (options.remoteControl === false) {
+    for (const name of VIEW_NAMES) {
+      partialsRaw[name] = stripRemoteControlMarkup(partialsRaw[name]);
+    }
+  }
 
   // Fingerprint unstamped sources so import ?v= tags stay stable and match
   // WEB_UI_ASSET_TAG embedded in the firmware header.
@@ -310,15 +338,20 @@ async function generate(options = {}) {
   const appJs = await minifyJs(appWithHome);
   // The runtime bakes the release version alone (no asset tag) so it can
   // compare it against the firmwareVersion reported by the status API.
-  const runtimeJs = await minifyJs(stampAssetTag(localizedRuntime, assetTag)
+  const runtimeJs = await minifyJs(stampAssetTag(
+      options.remoteControl === false ? stripRemoteControlJs(localizedRuntime)
+                                      : localizedRuntime,
+      assetTag)
       .split('__FW_RELEASE__').join(version));
   const otaImageJs = await minifyJs(localizedOtaImage);
   const secondaryJs =
       await minifyJs(buildSecondaryJs(viewJsRaw, assetTag));
   const settingsJs =
       await minifyJs(stampAssetTag(viewJsRaw.settings, assetTag));
-  const css = minifyCss(options.machineType
-      ? stripMachineTypeCss(localizedCss, options.machineType) : localizedCss);
+  let css = localizedCss;
+  if (options.remoteControl === false) css = stripRemoteControlCss(css);
+  if (options.machineType) css = stripMachineTypeCss(css, options.machineType);
+  css = minifyCss(css);
 
   return finish({
     shellHtml,
@@ -474,6 +507,7 @@ if (require.main === module) {
     let webUiLanguage;
     let developmentMode;
     let machineType;
+    let remoteControl;
     for (let i = 2; i < process.argv.length; i++) {
       const arg = process.argv[i];
       if (arg === '--webui-language') {
@@ -481,7 +515,9 @@ if (require.main === module) {
         webUiLanguage = process.argv[i];
       } else if (arg.startsWith('--webui-language=')) {
         webUiLanguage = arg.slice('--webui-language='.length);
-      } else      if (arg === '--development') {
+      } else if (arg === '--no-remote-control') {
+        remoteControl = false;
+      } else if (arg === '--development') {
         developmentMode = true;
       } else if (arg === '--machine-type') {
         if (++i >= process.argv.length) throw new Error('--machine-type requires a value');
@@ -492,7 +528,7 @@ if (require.main === module) {
         throw new Error(`Unknown argument: ${arg}`);
       }
     }
-    return generate({webUiLanguage, developmentMode, machineType});
+    return generate({webUiLanguage, developmentMode, machineType, remoteControl});
   })
       .then((result) => {
         const parts = [
