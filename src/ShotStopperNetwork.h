@@ -190,9 +190,11 @@ struct NetworkBridgeCallbacks {
   void (*requestSafeRestart)() = nullptr;
   size_t (*copyShotRecords)(ShotLogRecord *output, size_t capacity) = nullptr;
   size_t (*copyShotCurves)(ShotCurveRecord *output, size_t capacity) = nullptr;
+  bool (*copyHomeShot)(ShotLogRecord &record, ShotCurveRecord &curve) = nullptr;
+  bool (*shotLogSavePending)() = nullptr;
   void (*copyHistoryPage)(HistoryPage &page, size_t offset, size_t limit,
                           ShotLogSortDir dir) = nullptr;
-  ShotLogStats (*copyShotStats)() = nullptr;
+  ShotStatsView (*copyShotStats)() = nullptr;
   bool (*deleteHistoryRecord)(uint32_t id) = nullptr;
   bool (*clearHistoryLog)() = nullptr;
   bool (*deleteShotRecord)(uint32_t id) = nullptr;
@@ -225,7 +227,7 @@ struct NetworkBridgeCallbacks {
 // Pre-computed stats JSON fragment (WebUI/HA Stats mirror); defined in the
 // integration API include with external linkage so the shots-page handler
 // (inlined earlier in the same translation unit) can share it.
-bool buildIntegrationStats(const ShotLogStats &stats, char *output,
+bool buildIntegrationStats(const ShotStatsView &stats, char *output,
                            size_t capacity);
 
 class ShotStopperNetwork {

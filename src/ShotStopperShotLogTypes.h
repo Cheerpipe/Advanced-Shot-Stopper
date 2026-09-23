@@ -59,7 +59,8 @@ inline bool shotLogPageSlice(size_t total, size_t offset, size_t limit,
   return (start + pageCount) < total;
 }
 
-constexpr float MIN_SHOT_LOG_WEIGHT_G = 1.0f;
+constexpr float MIN_SHOT_LOG_WEIGHT_G = 2.0f;
+constexpr uint32_t MIN_SHOT_LOG_DURATION_MS = 12000U;
 // INT16_MIN leaves the full positive int16 centigram range usable.
 constexpr int16_t SHOT_LOG_WEIGHT_MISSING = INT16_MIN;
 constexpr int16_t SHOT_LOG_WEIGHT_MISSING_LEGACY = INT16_MAX;
@@ -270,20 +271,17 @@ inline ShotLogCut shotLogCutFromEndReason(EndReason reason) {
   }
 }
 
-inline bool shotLogEligible(EndReason reason, uint32_t durationMs,
-                            uint32_t protectionMs) {
+inline bool shotLogEligible(EndReason reason, uint32_t durationMs) {
   if (reason == EndReason::SHORT_SHOT ||
       reason == EndReason::RINSE_COMPLETE ||
       brewEndIsAbandonedStart(reason)) {
     return false;
   }
-  // The BBW protection window is the minimum time an activation needs before
-  // it can count as a shot, for stats, last-good-shot, and history alike.
-  return durationMs > protectionMs;
+  return durationMs > MIN_SHOT_LOG_DURATION_MS;
 }
 
 inline bool shotLogWeightEligible(float weightG, bool valid) {
-  return valid && std::isfinite(weightG) && weightG >= MIN_SHOT_LOG_WEIGHT_G;
+  return valid && std::isfinite(weightG) && weightG > MIN_SHOT_LOG_WEIGHT_G;
 }
 
 inline bool shotLogBbwEligible(bool startedWithScale, bool timerOnly,
@@ -338,6 +336,47 @@ struct ShotLogRecord {
 
 static_assert(sizeof(ShotLogRecord) == 72,
               "ShotLogRecord v5 must include the preset-name snapshot");
+
+inline bool shotLogRecordEligible(const ShotLogRecord &record) {
+  return record.durationDs > MIN_SHOT_LOG_DURATION_MS / 100U &&
+         !shotLogWeightIsMissing(record.actualWeightCg) &&
+         record.actualWeightCg > 200;
+}
+
+inline ShotLogType shotLogType(const ShotLogRecord &record);
+inline uint8_t shotLogPresetId(const ShotLogRecord &record);
+
+inline PersistedLastShot shotLogProjectLastShot(
+    const ShotLogRecord &record, const PersistedLastShot &linked) {
+  PersistedLastShot shot = linked.shotLogId == record.id
+                               ? linked : PersistedLastShot{};
+  shot.valid = true;
+  shot.shotLogId = record.id;
+  shot.endedAtUptimeMs = record.endedAtMs;
+  shot.endedAtUnixSec = record.endedAtUnixSec;
+  shot.endedAtLocalSec = record.endedAtLocalSec;
+  shot.hasWallTime = record.hasWallTime;
+  shot.durationMs = static_cast<uint32_t>(record.durationDs) * 100U;
+  shot.currentWeightG = record.actualWeightCg / 100.0f;
+  shot.weightValid = true;
+  shot.goalWeightG = record.goalWeightG;
+  shot.presetId = shotLogPresetId(record);
+  copyCString(shot.presetName, sizeof(shot.presetName), record.presetName);
+  shot.shotType = static_cast<uint8_t>(shotLogType(record));
+  shot.firstDropElapsedMs = record.firstDropDs == SHOT_LOG_METRIC_MISSING
+      ? 0U : static_cast<uint32_t>(record.firstDropDs) * 100U;
+  shot.averageFlowValid = record.avgFlowCgS != SHOT_LOG_METRIC_MISSING;
+  shot.averageFlowGps = shot.averageFlowValid
+      ? record.avgFlowCgS / 100.0f : 0.0f;
+  shot.fastExtractionGuardEnabled =
+      shotLogFastGuardEnabled(record.extractionGuardEnabled);
+  shot.slowExtractionGuardEnabled =
+      shotLogSlowGuardEnabled(record.extractionGuardEnabled);
+  shot.extractionExtended = shotLogFastExtended(record.extractionExtended);
+  shot.slowExtractionExtended = shotLogSlowExtended(record.extractionExtended);
+  shot.rating = shotLogRating(record.extractionGuardEnabled);
+  return shot;
+}
 
 inline ShotLogType shotLogType(const ShotLogRecord &record) {
   return static_cast<ShotLogType>(record.shotType & 3);
@@ -475,6 +514,60 @@ struct ShotLogStats {
   uint32_t daysSpan = 0;          // newest-oldest day index, 0 when <2 days
 };
 
+// Read-time view; the persisted trailer above keeps its original binary layout.
+struct ShotStatsView {
+  uint32_t shotCount = 0;
+  uint32_t flowCount = 0;
+  uint32_t bbwCount = 0;
+  uint32_t timedCount = 0;
+  uint32_t durationDsSum = 0;
+  uint32_t actualCgSum = 0;
+  uint32_t errorPctTenthsSum = 0;
+  uint32_t flowCgSx100Sum = 0;
+  uint32_t daysSpan = 0;
+  uint16_t durationsDs[SHOT_LOG_STATS_WINDOW] = {};
+};
+
+inline ShotStatsView shotLogStatsView(const ShotLogRecord *newestFirst,
+                                     size_t available) {
+  ShotStatsView stats = {};
+  int32_t newestDay = -1;
+  int32_t oldestDay = -1;
+  for (size_t i = 0; i < available && stats.shotCount < SHOT_LOG_STATS_WINDOW;
+       ++i) {
+    const ShotLogRecord &record = newestFirst[i];
+    if (!shotLogRecordEligible(record)) continue;
+    stats.durationsDs[stats.shotCount++] = record.durationDs;
+    stats.durationDsSum += record.durationDs;
+    stats.actualCgSum += static_cast<uint32_t>(record.actualWeightCg);
+    if (record.avgFlowCgS != SHOT_LOG_METRIC_MISSING) {
+      ++stats.flowCount;
+      stats.flowCgSx100Sum += static_cast<uint32_t>(record.avgFlowCgS) * 100U;
+    }
+    const ShotLogStopDetail detail =
+        static_cast<ShotLogStopDetail>(record.stopDetail);
+    if (shotLogType(record) == ShotLogType::AUTO && record.goalWeightG > 0 &&
+        (detail == ShotLogStopDetail::NORMAL_TARGET ||
+         detail == ShotLogStopDetail::PREDICTION)) {
+      ++stats.bbwCount;
+      const int32_t error = static_cast<int32_t>(record.actualWeightCg) -
+                            static_cast<int32_t>(record.goalWeightG) * 100;
+      stats.errorPctTenthsSum +=
+          static_cast<uint32_t>(error < 0 ? -error : error) * 10U /
+          record.goalWeightG;
+    }
+    if (record.hasWallTime && record.endedAtLocalSec != 0) {
+      ++stats.timedCount;
+      const int32_t day = static_cast<int32_t>(record.endedAtLocalSec / 86400U);
+      if (newestDay < day) newestDay = day;
+      if (oldestDay < 0 || oldestDay > day) oldestDay = day;
+    }
+  }
+  if (newestDay >= 0 && oldestDay >= 0)
+    stats.daysSpan = static_cast<uint32_t>(newestDay - oldestDay);
+  return stats;
+}
+
 inline uint32_t shotLogStatsTotalCount(const ShotLogStats &stats) {
   return stats.shotCount + stats.missCount;
 }
@@ -540,10 +633,8 @@ inline void resetShotLogStoreWithBootId(ShotLogStore &store) {
   resetShotLogStore(store, 1);
 }
 
-// Recompute the stats aggregate from the newest SHOT_LOG_STATS_WINDOW records
-// (which must be newest-first). O(window), called under the store mutex only
-// when a shot is committed; the aggregate is then persisted with the log.
-// Mirrors the WebUI Stats card: auto shots with a display weight >= 1 g.
+// Maintain the legacy persisted stats trailer without changing the flash
+// layout. The public Stats view above uses eligible records instead.
 inline void updateShotLogStatsImpl(ShotLogStats &stats,
                                    const ShotLogRecord *newestFirst,
                                    size_t available);

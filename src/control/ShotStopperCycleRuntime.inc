@@ -729,10 +729,7 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs) {
   if (brewEndIsAbandonedStart(reason) || endingRinseCycle(reason)) {
     return;
   }
-  const bool logEligible = shotLogEligible(reason, durationMs, session.config.bbwProtectionMs);
-  const bool bbwEligible =
-      shotLogBbwEligible(session.startedWithScale, session.config.timerOnly,
-                         shot.automaticBrew);
+  const bool logEligible = shotLogEligible(reason, durationMs);
   const bool offsetAnalysis = shot.automaticBrew && !session.config.timerOnly &&
                               session.calibrationEligible &&
                               !session.extractionExtended &&
@@ -742,7 +739,7 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs) {
   const WebhookConfig webhook = networkManager.webhookConfig();
   webhookEligible = webhook.enabled && webhook.end;
 #endif
-  if (!(logEligible && bbwEligible) && !offsetAnalysis && !webhookEligible) {
+  if (!logEligible && !offsetAnalysis && !webhookEligible) {
     return;
   }
 
@@ -860,7 +857,9 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
     record.timezoneOffsetMinutesAtCommit = 0;
     record.hasWallTime = 0;
   }
-  record.durationDs = snapshot.durationDs;
+  // The persisted duration has decisecond precision; keep a just-over-12 s
+  // shot distinguishable from an old row recorded at exactly 12.0 s.
+  record.durationDs = snapshot.durationDs > 120U ? snapshot.durationDs : 121U;
   record.goalWeightG = snapshot.goalWeightG;
   record.offsetUsedCg = shotLogWeightToCentigrams(snapshot.weightOffsetG);
   record.shotType = static_cast<uint8_t>(shotLogTypeFromCycle(
@@ -894,6 +893,8 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
 
   if (finalWeightValid) {
     record.actualWeightCg = shotLogWeightToCentigrams(finalWeightG);
+    if (finalWeightG > 2.0f && record.actualWeightCg <= 200)
+      record.actualWeightCg = 201;
     record.errorCg =
         shotLogWeightToCentigrams(finalWeightG -
                            static_cast<float>(snapshot.goalWeightG));
@@ -1047,18 +1048,14 @@ void cancelPendingFinalize(const char *reason) {
     valid = true;
   }
   const bool persistEligible =
-      snapshot.logEligible &&
-      shotLogBbwEligible(snapshot.startedWithScale, snapshot.timerOnly,
-                         snapshot.automaticBrew) &&
-      shotLogWeightEligible(weightG, valid);
-  // Home last shot is independent of history eligibility (incl. weight < 1 g).
+      snapshot.logEligible && shotLogWeightEligible(weightG, valid);
+  // Keep the internal completed-cycle snapshot for linked metadata.
   if (!pendingFinalizeIsRinse(snapshot) &&
       !brewEndIsAbandonedStart(snapshot.endReason)) {
     persistLastShotFromFinalize(snapshot, weightG, valid);
   }
-  if (persistEligible && !pendingFinalizeIsRinse(snapshot)) {
+  if (persistEligible && !pendingFinalizeIsRinse(snapshot))
     commitPendingShotLog(snapshot, weightG, valid, source);
-  }
   queueWebhookEnd(snapshot, weightG, valid);
 }
 
@@ -1068,7 +1065,7 @@ void maybeQueueAutoToManualGuardSample(const PendingShotFinalize &snapshot,
   if (!postDripWeightValid || snapshot.timerOnly ||
       !shotLogBbwEligible(snapshot.startedWithScale, snapshot.timerOnly,
                           snapshot.automaticBrew) ||
-      !shotLogWeightEligible(finalWeightG, postDripWeightValid) ||
+      !std::isfinite(finalWeightG) || finalWeightG < 1.0f ||
       snapshot.extractionExtended || snapshot.slowExtractionExtended ||
       snapshot.endReason == EndReason::AUTO_TO_MANUAL_GUARD ||
       pendingFinalizeIsRinse(snapshot) ||
@@ -1159,21 +1156,15 @@ void pendingShotFinalizeTask() {
       learnPendingBbw(snapshot, finalWeightG, postDripWeightValid);
 
   const bool persistEligible =
-      snapshot.logEligible &&
-      shotLogBbwEligible(snapshot.startedWithScale, snapshot.timerOnly,
-                         snapshot.automaticBrew) &&
-      shotLogWeightEligible(logWeightG, logWeightValid);
+      snapshot.logEligible && shotLogWeightEligible(logWeightG, logWeightValid);
 
-  // Home last shot always reflects the finished cycle, even when history
-  // skips (weight < 1 g, non-AUTO, etc.). Rinses and abandoned starts do not
-  // overwrite it.
+  // Keep the internal completed-cycle snapshot for linked metadata.
   if (!pendingFinalizeIsRinse(snapshot) &&
       !brewEndIsAbandonedStart(snapshot.endReason)) {
     persistLastShotFromFinalize(snapshot, logWeightG, logWeightValid);
   }
-  if (persistEligible && !pendingFinalizeIsRinse(snapshot)) {
+  if (persistEligible && !pendingFinalizeIsRinse(snapshot))
     commitPendingShotLog(snapshot, logWeightG, logWeightValid, weightSource);
-  }
   queueWebhookEnd(snapshot, logWeightG, logWeightValid);
 
   maybeQueueAutoToManualGuardSample(snapshot, finalWeightG, postDripWeightValid);

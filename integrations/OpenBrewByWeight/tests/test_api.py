@@ -124,7 +124,7 @@ async def test_transport_and_response_validation() -> None:
 async def test_incompatible_snapshot() -> None:
     """An incompatible version is rejected before config-entry creation."""
     incompatible = fixture("integration_snapshot.json")
-    incompatible["apiVersion"] = 2
+    incompatible["apiVersion"] = 3
     with pytest.raises(IncompatibleApi):
         await OpenBrewByWeightApi(
             Session(Response(200, incompatible)), "controller"

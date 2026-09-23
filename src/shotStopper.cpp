@@ -891,6 +891,19 @@ size_t copyShotCurves(ShotCurveRecord *output, size_t capacity) {
   return shotCurves.copyNewestFirst(output, capacity);
 }
 
+bool copyHomeShot(ShotLogRecord &record, ShotCurveRecord &curve) {
+  TaskLockGuard lock(shotStoreMutex);
+  curve = emptyShotCurveRecord();
+  if (!shotLog.copyNewestEligible(record)) return false;
+  (void)shotCurves.copyByShotId(record.id, curve);
+  return true;
+}
+
+bool shotLogSavePending() {
+  TaskLockGuard lock(shotStoreMutex);
+  return shotLog.dirty() || shotCurves.dirty();
+}
+
 void copyHistoryPage(HistoryPage &page, size_t offset, size_t limit,
                      ShotLogSortDir dir) {
   TaskLockGuard lock(shotStoreMutex);
@@ -916,9 +929,9 @@ uint32_t copyShotLogBootId() {
   return shotLog.bootId();
 }
 
-ShotLogStats copyShotStats() {
+ShotStatsView copyShotStats() {
   TaskLockGuard lock(shotStoreMutex);
-  return shotLog.stats();
+  return shotLog.statsView();
 }
 
 bool copyShotStoreStatus(uint32_t &bootId, PersistedLastShot &last,
@@ -982,8 +995,12 @@ bool clearShotLogStats() {
 
 bool clearLastShot() {
   TaskLockGuard lock(shotStoreMutex);
-  if (!lastShotStore.clearLast(false)) return false;
-  lastShotNvsDirty = true;
+  ShotLogRecord latest = {};
+  if (!shotLog.copyNewestEligible(latest)) return false;
+  if (shotCurves.containsShotId(latest.id) &&
+      !shotCurves.removeById(latest.id, false)) return false;
+  if (!shotLog.removeById(latest.id, false)) return false;
+  shotLog.recomputeStats();
   shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
   return true;
 }
@@ -1037,12 +1054,10 @@ bool rateShotRecord(uint32_t id, uint8_t rating) {
 
 bool rateLastShot(uint8_t rating) {
   TaskLockGuard lock(shotStoreMutex);
-  if (rating > SHOT_LOG_RATING_MAX || !persistedLastGoodShot.valid ||
-      persistedLastGoodShot.shotLogId == 0) {
+  ShotLogRecord latest = {};
+  if (rating > SHOT_LOG_RATING_MAX || !shotLog.copyNewestEligible(latest))
     return false;
-  }
-  const bool changed =
-      shotLog.updateRating(persistedLastGoodShot.shotLogId, rating, false);
+  const bool changed = shotLog.updateRating(latest.id, rating, false);
   if (changed) shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
   return changed;
 }

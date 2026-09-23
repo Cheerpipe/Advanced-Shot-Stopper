@@ -8,18 +8,16 @@ measurement detail of the [shot history](shot-history.md).
 
 ## What is recorded
 
-Every activation the machine confirmed is recorded the moment its circuit
-opens, including manual brews and rinses that the shot history skips. Each
-entry keeps the local time, the duration, a type, and whether the scale
-registered weight during the activation:
+Every activation the machine confirmed is recorded when its circuit opens,
+including manual brews and rinses that the shot history skips. Each
+entry keeps the local time, duration, and activation type:
 
-- **Shot** — the activation outlasted the brew-by-weight protection window
-  (12 s with default settings). This is the same minimum the shot history
-  and Home's last-good shot use, so the three views agree on what counts as
-  a shot.
+- **Shot** — an activation that outlasted the brew-by-weight protection
+  window (12 seconds by default). The label records the intention to brew,
+  even when no measured shot is saved in [Stats](shot-history.md).
 - **Rinse** — a quick rinse cycle.
-- **Other** — a confirmed activation that ended at or before the protection
-  window, such as a brief paddle blip or an aborted brew.
+- **Other** — a confirmed activation that ended within the protection
+  window or exactly at its end, such as a brief paddle blip.
 - **Power ON** — a paddle gesture recognized as a Linea Micra standby wake.
   It records how long the paddle kept the wake circuit active but never counts
   as a shot in Stats.
@@ -33,9 +31,9 @@ paddle returns to OFF. See
 [Linea Micra](../settings/linea-micra.md#recognize-paddle-wake-gestures).
 
 The log holds up to **1000** activations. When it fills, the oldest entry is
-dropped to make room for the newest. Entries are written to memory the
-instant a cycle ends and saved to flash a moment later when the controller
-is idle, so recording never slows down a brew.
+dropped to make room for the newest. Entries enter memory when a cycle ends.
+Flash saving follows when the controller is idle, so recording never slows down
+a brew.
 
 ## In the Web UI
 
@@ -47,9 +45,7 @@ the duration large on the left and the friendly time label small on the right:
 the rest of the week, "2 weeks ago" for older weeks, and a short date like
 "Sep 15" for older entries. Hovering the label shows the exact date and time.
 The activation type sits below as a small label. Shots carry a coffee-cup
-icon on the left of the card: a filled cup when the scale registered the
-weight while brewing, and an outlined cup when no weight was registered,
-such as a manual brew without a scale. Rinses carry a droplet, and other
+icon on the left of the card. Rinses carry a droplet, and other
 activations carry a lightning bolt, and Power ON entries use the power symbol.
 When the
 clock was not synced when the entry was recorded, the card shows "no time"
@@ -65,13 +61,14 @@ The two pages record different things and never substitute for each other:
 
 | | Stats (shot history) | History (activation diary) |
 | --- | --- | --- |
-| Records | Automatic brew-by-weight shots with a settled weight of at least 1 g | Every confirmed activation, including rinses and manual brews |
-| Minimum duration | Longer than the BBW protection window | Longer than the BBW protection window to count as a shot |
+| Records | Brews with a valid settled yield over 2 g | Every confirmed activation, including rinses and manual brews |
+| Minimum duration | Longer than 12 seconds | Longer than the configured BBW protection window to carry a Shot label |
 | Detail | Goal, yield, error, flow, guards, rating, curve | Time, duration, type |
 | Capacity | 100 shots | 1000 activations |
 
-A good shot appears in both. A rinse or a short activation appears only
-here. Deleting or clearing in one page never touches the other.
+A measured shot appears in both. A longer activation without a valid yield
+can appear as Shot here while staying out of Stats. Deleting or clearing in
+one page never touches the other.
 
 USB: see [USB serial CLI](../SERIAL_CLI.md) for factory reset, which clears
 both logs.

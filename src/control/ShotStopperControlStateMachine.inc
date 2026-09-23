@@ -218,8 +218,8 @@ void appendHistoryRecord(HistoryType type, uint32_t durationMs,
 }
 
 // Every confirmed machine activation lands in the independent history log:
-// rinses as `rinse`, anything longer than the cycle's BBW protection window
-// as `shot`, the rest as `other`. Abandoned starts recorded nothing.
+// its `shot` label describes intent from the protection window, regardless
+// of whether a settled weight qualifies for the separate shot log.
 void appendActivationHistory(EndReason reason, bool rinseEnd,
                              uint32_t durationMs) {
   if (brewEndIsAbandonedStart(reason)) {

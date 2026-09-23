@@ -12,7 +12,9 @@ or directly actuate the machine.
 
 - Requests and responses use `application/json`; request bodies are limited to
   2,048 bytes and response collections to `MAX_SHOT_PRESETS` items.
-- Every success response contains `apiVersion: 1`. Errors use
+- Success responses contain `apiVersion: 1`, except the integration snapshot,
+  which uses `apiVersion: 2` and `minimumClientApiVersion: 2` for its unified
+  `lastShot` contract. Errors use
   `{"error":"STABLE_CODE","message":"English diagnostic"}`.
 - All routes are open on the trusted LAN and use no token, pairing window, or
   authorization header.
@@ -44,13 +46,13 @@ or directly actuate the machine.
 
 ### `GET /api/v1/integration`
 
-Returns identity, compatibility, current shot state, both durable shot
-aggregates, preset revision, and the complete Quick Settings snapshot.
+Returns identity, compatibility, current shot state, the newest recorded shot,
+preset revision, and the complete Quick Settings snapshot.
 
 ```json
 {
-  "apiVersion": 1,
-  "minimumClientApiVersion": 1,
+  "apiVersion": 2,
+  "minimumClientApiVersion": 2,
   "deviceId": "AA:BB:CC:DD:EE:FF",
   "wifiMac": "AA:BB:CC:DD:EE:FF",
   "bluetoothMac": "AA:BB:CC:DD:EE:10",
@@ -74,35 +76,37 @@ aggregates, preset revision, and the complete Quick Settings snapshot.
     "cupProtectionEnabled": true
   },
   "lastShot": null,
-  "lastGoodShot": null,
   "lastActivation": null,
-  "stats": null
+  "stats": {"shotCount": 0, "totalDurationS": 0, "avgDurationS": null, "avgYieldG": null, "avgErrorPct": null, "avgFlowGps": null, "shotsPerDay": null, "durationsS": []}
 }
 ```
 
-`lastShot` is nullable and describes the newest completed activation cycle,
-including cycles that do not qualify as a good shot. When present it contains
+`lastShot` is nullable and describes the newest qualifying record in shot
+history: a confirmed non-rinse cycle longer than 12 seconds with a valid final
+yield over 2 g. Other completed activations appear only in `lastActivation`.
+When present, `lastShot` contains
 `cycleId`, `uptimeMs`, `durationMs`, `targetWeightG`, `presetId`, `presetName`,
-`shotType`, `stopDetail`, and the optional `firstDropMs`, `weightG`,
+`shotType`, `stopDetail`, `savePending`, and the optional `firstDropMs`, `weightG`,
 `averageFlowGps`, and `rating` fields defined by the webhook contract.
-`lastGoodShot` is nullable and
-uses the same shape, but changes only when a completed shot passes the
-controller's good-shot qualification. It is the controller's durable last-good
-shot shown on the Web UI home page. Consumers that present “last shot” as the
-last completed qualifying shot should use `lastGoodShot`; `lastShot` is useful
-for the newest cycle outcome.
+`savePending` is true while the deferred flash write still needs confirmation;
+if saving fails, the record remains in RAM for a retry. Firmware with the
+earlier v1 snapshot instead had distinct `lastShot` and `lastGoodShot` fields.
+Clients that require that older meaning should check `apiVersion` before using
+the new field.
 
 `lastActivation` mirrors the newest activation-history record (the Web UI
 History page). It is null before the first activation after a full data reset
 and otherwise carries `id`, `type` (`shot`, `rinse`, `other`, or `power_on`),
 `durationS`, `hasWallTime`, `endedAtUnixSec`, and `endedAtLocalSec`.
 
-`stats` carries the pre-computed rolling aggregate shown at the top of the Web
+`stats` carries the rolling aggregate shown at the top of the Web
 UI Stats page: `shotCount`, `totalDurationS`, `avgDurationS`, `avgYieldG`,
-`avgErrorPct`, `avgFlowGps`, and `shotsPerDay`. Averages are `null` when no
-qualifying shot is in the window. The controller recomputes the aggregate
-once per saved shot, so reading it costs no extra flash scans; the same values
-are also embedded in every `GET /api/v1/shots` response header under `stats`.
+`avgErrorPct`, `avgFlowGps`, `shotsPerDay`, and `durationsS` for the duration
+chart. The window is the newest ten eligible shot records, including manual and
+timer-only endings. `avgErrorPct` is the mean absolute percentage miss of only
+normal BBW target cuts in that window. Unavailable averages are `null`.
+The controller derives these values from RAM; the same object appears in every
+`GET /api/v1/shots` response header under `stats`, alongside `savePending`.
 
 `shotState` is `idle` or `brewing`. `wifiMac` and `bluetoothMac` repeat the
 station interface addresses as upper-case `AA:BB:CC:DD:EE:FF` strings; the

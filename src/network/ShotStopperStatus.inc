@@ -37,12 +37,21 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
 
   ControlStatusSnapshot &control = self.workBuf_->control;
   self.loadControlStatus(control);
-  const PersistedLastShot &homeLastShot = control.lastGoodShot;
-  const bool homeLastShotValid =
-      page == StatusPage::Home && publishableLastShot(homeLastShot);
-  const bool homeHistoryLinked =
-      homeLastShotValid && !control.activeCycle &&
-      control.lastGoodShotHistoryLinked;
+  PersistedLastShot homeLastShot = {};
+  ShotLogRecord homeRecord = {};
+  ShotCurveRecord homeCurve = emptyShotCurveRecord();
+  const bool homeHistoryLinked = page == StatusPage::Home &&
+      self.callbacks_.copyHomeShot != nullptr &&
+      self.callbacks_.copyHomeShot(homeRecord, homeCurve);
+  const bool homeLastShotValid = homeHistoryLinked;
+  const bool homeSavePending = homeHistoryLinked &&
+      self.callbacks_.shotLogSavePending != nullptr &&
+      self.callbacks_.shotLogSavePending();
+  if (homeHistoryLinked) {
+    const PersistedLastShot &linked = control.lastShot.shotLogId == homeRecord.id
+        ? control.lastShot : control.lastGoodShot;
+    homeLastShot = shotLogProjectLastShot(homeRecord, linked);
+  }
   const bool configMutable = controlAllowsConfiguration(control);
   const bool webUiOverrideActive = self.webUiOverrideAllowed(request);
   const uint32_t webUiOverrideRemainingMs =
@@ -623,7 +632,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"noScaleShotGuardEnabled\":%s,"
         "\"noScaleShotGuardArmed\":%s,\"noScaleBbwMode\":\"%s\","
         "\"endReason\":\"%s\","
-        "\"rating\":%u,\"shotLogId\":%lu},"
+        "\"rating\":%u,\"shotLogId\":%lu,\"savePending\":%s},"
         "\"noScaleShotGuard\":{\"enabled\":%s,\"armed\":%s,"
         "\"mode\":\"%s\",\"cooldownRemainingMs\":%lu,"
         "\"scaleUsable\":%s},"
@@ -690,17 +699,13 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         homeLastShot.noScaleShotGuardEnabled ? "true" : "false",
         homeLastShot.noScaleShotGuardArmed ? "true" : "false",
         noScaleBbwModeId(homeLastShot.noScaleBbwMode),
-        homeLastShotValid
-            ? shotLogStopDetailName(
-                  shotLogStopDetailFromEndReason(
-                      homeLastShot.endReason,
-                      homeLastShot.fastExtractionGuardEnabled,
-                      homeLastShot.extractionExtended))
-            : "none",
+        homeLastShotValid ? shotLogStopDetailName(
+            static_cast<ShotLogStopDetail>(homeRecord.stopDetail)) : "none",
         homeHistoryLinked ? static_cast<unsigned>(homeLastShot.rating) : 0U,
         homeHistoryLinked
             ? static_cast<unsigned long>(homeLastShot.shotLogId)
             : 0UL,
+        homeSavePending ? "true" : "false",
         control.noScaleShotGuardEnabled ? "true" : "false",
         control.noScaleShotGuardArmed ? "true" : "false",
         noScaleBbwModeId(control.config.noScaleBbwMode),
@@ -715,7 +720,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         cupWeightValid ? "true" : "false",
         static_cast<unsigned long>(control.cupTare.placementId), idleTare);
     if (ok) {
-      const ShotCurveRecord curve = shotCurveRecordFromStatusFields(
+      const ShotCurveRecord curve = control.activeCycle ? shotCurveRecordFromStatusFields(
           control.shotCurveCount, control.shotCurveIntervalDs,
           control.shotCurveFirstDropDs, control.shotCurveFirstDropCg,
           control.shotCurveExtendedDs, control.shotCurveExtendedCg,
@@ -723,7 +728,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           control.shotCurveAtmClearedDs, control.shotCurveEndedDs,
           control.shotCurveEndedCg, control.shotCurveWeightCg,
           sizeof(control.shotCurveWeightCg) /
-              sizeof(control.shotCurveWeightCg[0]));
+              sizeof(control.shotCurveWeightCg[0])) : homeCurve;
       char *const curveJson = g_work->curveJson;
       if (formatShotCurveJsonBody(curveJson, SHOT_CURVE_JSON_CAPACITY,
                                   curve)) {

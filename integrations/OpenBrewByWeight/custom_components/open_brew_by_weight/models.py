@@ -395,8 +395,8 @@ class DeviceSnapshot:
     def from_dict(cls, value: Any) -> Self:
         data = _mapping(value)
         if (
-            data.get("apiVersion") != API_VERSION
-            or data.get("minimumClientApiVersion", 1) > API_VERSION
+            data.get("apiVersion") not in (API_VERSION, 2)
+            or data.get("minimumClientApiVersion", 1) > 2
         ):
             raise ProtocolError("incompatible API version")
         device_id = _string(data.get("deviceId"), "deviceId", 17).upper()
@@ -412,7 +412,7 @@ class DeviceSnapshot:
         state = data.get("shotState")
         if state not in ("idle", "brewing"):
             raise ProtocolError("shotState is invalid")
-        raw_shot = data.get("lastGoodShot")
+        raw_shot = data.get("lastGoodShot") if "lastGoodShot" in data else data.get("lastShot")
         raw_activation = data.get("lastActivation")
         raw_stats = data.get("stats")
         quick = QuickSettings.from_dict(data.get("quickSettings"))

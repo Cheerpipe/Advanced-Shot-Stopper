@@ -388,6 +388,8 @@ void setup() {
     callbacks.requestSafeRestart = requestSafeRestart;
     callbacks.copyShotRecords = copyShotRecords;
     callbacks.copyShotCurves = copyShotCurves;
+    callbacks.copyHomeShot = copyHomeShot;
+    callbacks.shotLogSavePending = shotLogSavePending;
     callbacks.copyHistoryPage = copyHistoryPage;
     callbacks.copyShotStats = copyShotStats;
     callbacks.deleteHistoryRecord = deleteHistoryRecord;

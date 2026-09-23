@@ -44,8 +44,7 @@ inline const char *historyTypeName(HistoryType type) {
 
 // A rinse end is always `rinse`. Otherwise an activation strictly longer than
 // the cycle's BBW protection window counts as a `shot`; anything shorter is
-// `other`. The same strict-greater protection threshold decides stats and
-// last-good-shot eligibility.
+// `other`. This labels the activation's intent, independent of shot metrics.
 inline HistoryType historyTypeFromCycle(bool rinseEnd, uint32_t durationMs,
                                         uint32_t protectionMs) {
   if (rinseEnd) {

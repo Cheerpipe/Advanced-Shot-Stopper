@@ -59,10 +59,8 @@ class ShotLog
 
   uint32_t nextRecordId() const { return store_.header.nextRecordId; }
 
-  // Recompute the stats aggregate from the live newest-first window and mark
-  // the store dirty; caller holds the store mutex. Used when a shot is
-  // committed so stats never lag behind the log (and are never recomputed
-  // per HTTP read).
+  // Refresh the persisted legacy trailer and mark the store dirty; the
+  // public Stats view is computed from eligible RAM records on read.
   void recomputeStats() {
     ShotLogRecord window[SHOT_LOG_STATS_WINDOW];
     const size_t available = copyNewestFirst(window, SHOT_LOG_STATS_WINDOW);
@@ -71,6 +69,32 @@ class ShotLog
   }
 
   const ShotLogStats &stats() const { return store_.stats; }
+
+  ShotStatsView statsView() const {
+    ShotLogRecord eligible[SHOT_LOG_STATS_WINDOW];
+    size_t found = 0;
+    size_t index = store_.header.writeIndex;
+    for (size_t n = 0; n < store_.header.count && found < SHOT_LOG_STATS_WINDOW;
+         ++n) {
+      if (index == 0) index = SHOT_LOG_CAPACITY;
+      const ShotLogRecord &record = store_.records[--index];
+      if (shotLogRecordEligible(record)) eligible[found++] = record;
+    }
+    return shotLogStatsView(eligible, found);
+  }
+
+  bool copyNewestEligible(ShotLogRecord &output) const {
+    size_t index = store_.header.writeIndex;
+    for (size_t n = 0; n < store_.header.count; ++n) {
+      if (index == 0) index = SHOT_LOG_CAPACITY;
+      const ShotLogRecord &record = store_.records[--index];
+      if (shotLogRecordEligible(record)) {
+        output = record;
+        return true;
+      }
+    }
+    return false;
+  }
 
   bool updateRating(uint32_t id, uint8_t rating, bool persistNow = true) {
     ShotLogRecord *found = findNewestById(id);

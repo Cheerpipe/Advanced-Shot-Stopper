@@ -984,9 +984,9 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
   }
   NetworkWorkBuf &work = *self.workBuf_;
   self.loadControlStatus(work.control);
-  const ShotLogStats stats =
+  const ShotStatsView stats =
       self.callbacks_.copyShotStats != nullptr ? self.callbacks_.copyShotStats()
-                                               : ShotLogStats{};
+                                               : ShotStatsView{};
   const size_t count =
       self.callbacks_.copyShotRecords != nullptr
           ? self.callbacks_.copyShotRecords(work.shotRecords, SHOT_LOG_CAPACITY)
@@ -1006,23 +1006,28 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
   httpd_resp_set_hdr(request, "Connection", "close");
   httpd_resp_set_hdr(request, "Access-Control-Allow-Origin", "*");
   char header[288] = {};
-  char statsHeader[256] = {};
+  char statsHeader[384] = {};
   const bool statsOk = buildIntegrationStats(stats, statsHeader,
                                              sizeof(statsHeader));
+  const bool savePending = self.callbacks_.shotLogSavePending != nullptr &&
+      self.callbacks_.shotLogSavePending();
   snprintf(header, sizeof(header),
            "{\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
-           "\"hasMore\":%s,%s\"shots\":[",
+           "\"hasMore\":%s,\"savePending\":%s,%s",
            static_cast<unsigned long>(work.control.bootId),
            static_cast<unsigned>(count), static_cast<unsigned>(start),
-           static_cast<unsigned>(limit),           hasMore ? "true" : "false",
-           statsOk ? "\"stats\":" : "");
+           static_cast<unsigned>(limit), hasMore ? "true" : "false",
+           savePending ? "true" : "false",
+           statsOk ? "\"stats\":" : "\"shots\":[");
   if (httpd_resp_send_chunk(request, header, HTTPD_RESP_USE_STRLEN) != ESP_OK) {
     self.unlockWorkBuf();
     return ESP_FAIL;
   }
   if (statsOk &&
-      httpd_resp_send_chunk(request, statsHeader, HTTPD_RESP_USE_STRLEN) !=
-          ESP_OK) {
+      (httpd_resp_send_chunk(request, statsHeader, HTTPD_RESP_USE_STRLEN) !=
+           ESP_OK ||
+       httpd_resp_send_chunk(request, ",\"shots\":[",
+                             HTTPD_RESP_USE_STRLEN) != ESP_OK)) {
     self.unlockWorkBuf();
     return ESP_FAIL;
   }

@@ -180,7 +180,7 @@ def test_optional_shot_fields_and_legacy_mapping() -> None:
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("apiVersion", 2),
+        ("apiVersion", 3),
         ("deviceId", "invalid"),
         ("wifiMac", "aa:bb:cc:dd:ee:ff"),
         ("bluetoothMac", "AA:BB:CC:DD:EE"),
@@ -214,7 +214,7 @@ def test_snapshot_requires_integration_capabilities(missing: str) -> None:
 
 
 def test_snapshot_accepts_embedded_last_shot() -> None:
-    """A REST snapshot seeds the durable good-shot aggregate."""
+    """An older REST snapshot still seeds its recorded-shot sensors."""
     payload = load("integration_snapshot.json")
     payload["lastGoodShot"] = load("webhook_end_v1.json")
     payload["lastActivation"] = {
@@ -233,6 +233,18 @@ def test_snapshot_accepts_embedded_last_shot() -> None:
     assert snapshot.stats.avg_flow_gps == 1.55
 
     payload["lastGoodShot"] = None
+    assert DeviceSnapshot.from_dict(payload).last_shot is None
+
+
+def test_snapshot_reads_unified_recorded_shot() -> None:
+    payload = load("integration_snapshot.json")
+    payload["apiVersion"] = 2
+    payload["minimumClientApiVersion"] = 2
+    payload["lastShot"] = payload.pop("lastGoodShot")
+    snapshot = DeviceSnapshot.from_dict(payload)
+    assert snapshot.last_shot is not None
+    assert snapshot.last_shot.duration_ms == 27800
+    payload["lastShot"] = None
     assert DeviceSnapshot.from_dict(payload).last_shot is None
 
 

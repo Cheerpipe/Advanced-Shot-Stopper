@@ -32,7 +32,7 @@ Active preset. The ON/OFF switch is also on **Home → Quick Settings**
 | Setting | Default | Range / notes | Effect on the shot |
 | --- | --- | --- | --- |
 | **Enable A→M time guard** | ON | ON / OFF | Master switch. OFF: if the scale never returns, the shot runs until paddle OFF or the machine circuit / 60 s wall. |
-| **Limit mode** | Auto | Auto / Manual | **Auto** uses a trend of the last five good shot durations. **Manual** uses a fixed number of seconds. |
+| **Limit mode** | Auto | Auto / Manual | **Auto** uses a trend of the last five eligible BBW shot durations. **Manual** uses a fixed number of seconds. |
 | **Manual limit (s)** | 32 s | 10 s … Max BBW time | Used when Limit mode is Manual. |
 | **Trend (s)** | ~32 s | Read-only | Current Auto prediction. Always shown. |
 | **Baseline duration (s)** | 32 s | — | Seed for **Reset A→M samples** (five equal values). Also the factory default for Manual limit. |

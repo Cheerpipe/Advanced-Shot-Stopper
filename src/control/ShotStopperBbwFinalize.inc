@@ -16,7 +16,7 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
     return false;
   }
 
-  if (!shotLogWeightEligible(finalWeightG, true)) {
+  if (finalWeightG < 1.0f) {
     serialTrace(LogLevel::INFO,
                 "Final weight below history threshold; offset unchanged");
     return false;

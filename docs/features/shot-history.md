@@ -1,14 +1,17 @@
 # Shot history
 
-Automatic brew-by-weight shots with a connected scale are stored on the
-controller and shown in the Web UI shot log. Use it to see why a shot ended
-and how close it landed to the target.
+Completed shots with a measured yield are stored on the controller and shown
+in the Web UI shot log. Use it to see how long a shot ran, why it ended, and
+how close it landed to the target when brew by weight was in use.
 
 ## What is recorded
 
-Only **automatic BBW** shots qualify: scale present at start, brew-by-weight
-enabled (not timer-only), and automatic weight control active. Manual shots,
-timer-only brews, and cycles without a scale are **not** stored.
+A confirmed, non-rinse cycle becomes a shot when it lasts **more than 12 seconds**
+and its settled final yield is valid and **more than 2 g**. Manual stops,
+timer-only brews, normal BBW cuts, guard stops, and time or safety limits all
+use this same rule. A cycle without a valid measured yield cannot qualify.
+The 12-second recording rule is fixed; changing BBW's start-of-shot protection
+time changes weight stopping, not which completed cycles are recorded.
 
 Typical fields include local time (from the configured timezone offset),
 duration, the exact preset name captured at shot start, goal and yield (the
@@ -18,24 +21,22 @@ guards ran or extended the shot, `shot_type`, `cut_type`
 `normal_target`, `activator`, `web_stop`, `wall_limit`, `hard_limit`,
 `extended_max_weight`, `cup_removed`), and a manual `rating` from 0
 (unrated) to 5. Rate a stored shot from its history card. The same stars are
-available on Home's **Current / Last Good Shot** card only while that aggregate's
-exact history row still exists; tapping the current star again clears the score.
+available on Home's **Current / Last Shot** card while the shot is the newest
+eligible history row; tapping the current star again clears the score.
 The preset snapshot is also shown on that Home card and on every Stats history
 card. Renaming or deleting a preset later does not rewrite a shot's displayed
 name.
 
 The log holds up to **100** shots. The following are never stored:
 
-- Quick rinses and cycles that do not outlast the brew-by-weight protection
-  window (12 s with default settings)
-- Manual, timer-only, or no-scale shots
-- Shots whose final weight is missing or below 1 g (e.g. scale off the
-  machine or disconnected)
+- Rinses and starts that were not confirmed
+- Cycles lasting 12 seconds or less
+- Cycles whose final yield is missing, invalid, or 2 g or less
 
-Those empty or sub-1 g shots are not written to history, used in averages, or
-used for learned stop offset or A→M samples. They also do not replace Home's
-idle last-good aggregate. During a live cycle, Home still shows that current
-cycle.
+Those cycles do not replace the idle Home shot, but confirmed activations still
+appear in the separate [activation history](activation-history.md). During a
+live cycle, Home shows the current cycle. BBW offset learning and A→M samples
+keep their own eligibility rules.
 
 Curve samples and the history record are written **once** when the cycle
 closes (after the configured drip delay), not during an active brew. Shot
@@ -49,8 +50,8 @@ the weight chart only. The time axis shows only its fixed 10-second labels;
 Fast, Slow, and A-to-M changes remain visible through the curve colors without
 adding competing time labels. Curves without a first-drop event keep their full
 available grid. The current-shot curve exposed to Home is an in-memory view;
-when idle, Home loads a saved curve only by the last-good aggregate's exact
-history ID. It never falls back to the newest curve. Neither is a persistent
+when idle, Home loads the newest eligible shot and its exact curve by history
+ID. Neither is a persistent
 live-telemetry service.
 
 Observed removal or a new placement during the drip delay preserves the weight
@@ -65,13 +66,13 @@ weight alone cannot establish that the final reading belongs to another cup.
 Open the shot history table to browse rows, delete one entry, clear the
 whole log, or export CSV. Clearing requires an explicit confirm.
 
-History is not Home's source of truth. Deleting the row or clearing the log
-never substitutes another shot into **Current / Last Good Shot** and does not
-erase its measurements. It only removes the optional saved curve and disables
-rating there. Factory reset clears both history and the durable shot aggregates.
-The shot history also does not feed the [activation history](activation-history.md):
-that diary records every confirmed activation, while this log keeps only
-qualifying automatic shots. Deleting or clearing here never changes that page.
+Home and Stats read the same shot history. Deleting the newest shot shows the
+next newest qualifying shot on Home; clearing the log empties the idle card.
+Factory reset clears both histories. The [activation history](activation-history.md)
+records every confirmed activation, including rinses and cycles that do not
+qualify as shots. Deleting or clearing shot history never changes that diary.
+New rows appear after the configured drip delay. If flash saving is still
+pending, the API reports `savePending`; a failed write remains pending for retry.
 
 Sort the list by **Date** or **Rating**, ascending or descending. Date
 defaults to newest first. Rating puts unrated shots (0 stars) at the end
@@ -88,9 +89,14 @@ when it is not the current one). Hovering a time shows its exact date and
 time to the second, and the CSV export always keeps that full detail no
 matter how the table displays it.
 
-History averages (duration, yield, error, flow) use only **auto** shots
-with actual weight at least 1 g from the last 10 stored entries, even
-when the list is sorted by rating or oldest-first.
+Stats uses the newest **10 qualifying shots** for duration, yield, available
+flow, daily count, and the duration chart, regardless of how the table is
+sorted. **Avg BBW error** uses only normal BBW target cuts among those ten and
+averages the absolute percentage miss, so overshoots and undershoots cannot
+cancel each other. It is unavailable when none of those shots has a valid
+target. An erase-all firmware installation starts with empty shot history.
+If a low-weight older row is imported later, it remains in the table and CSV
+but does not enter Home or these summaries.
 
 Every available weight curve has a **Flow rate (g/s)** chart directly below it
 on Home and in its Stats history card. Both charts share a time axis with
@@ -225,8 +231,8 @@ not reconstruct post-stop drip decay. See [BBW learning](brew-by-weight.md#cutof
 For example, 39 g against a 36 g goal with a Fast stop detail is not the same
 calibration problem as a normal target cut followed by excess drip. Check the
 reason before resetting learned offset. A live 2 s cycle can appear on Home,
-but once completed it is excluded from persistent history and does not replace
-the idle last-good card. An unrated shot uses rating 0.
+but once completed it is excluded from shot history and does not replace the
+idle last-shot card. An unrated shot uses rating 0.
 
 USB: `CLEAR_SHOTS` (see [USB serial CLI](../SERIAL_CLI.md)).
 

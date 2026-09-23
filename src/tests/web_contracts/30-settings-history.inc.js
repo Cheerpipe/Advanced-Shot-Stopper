@@ -693,7 +693,6 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !runtimeJs.includes("shotsUrl(offset,limit,sort,dir)") ||
     !runtimeJs.includes("'date','desc'") ||
     !runtimeJs.includes("shotSort==='rating'") ||
-    !runtimeJs.includes('shotStatsWindow') ||
     !js.includes('Highest rating') ||
     !js.includes('Oldest first') ||
     !js.includes('Lowest rating') ||
@@ -798,7 +797,7 @@ if (!statsSection ||
     !statsSection[1].includes('<strong>Avg time</strong>') ||
     !statsSection[1].includes('<strong>Avg yield</strong>') ||
     !statsSection[1].includes('<strong>Daily shots</strong>') ||
-    !statsSection[1].includes('<strong>Avg error</strong>') ||
+    !statsSection[1].includes('<strong>Avg BBW error</strong>') ||
     !statsSection[1].includes('<strong>Avg flow</strong>') ||
     !statsSection[1].includes('id="statsAvgDur"') ||
     !statsSection[1].includes('id="statsAvgWeight"') ||
@@ -806,7 +805,7 @@ if (!statsSection ||
     !statsSection[1].includes('id="statsAvgErr"') ||
     !statsSection[1].includes('id="statsAvgFlow"') ||
     !statsSection[1].includes('class="fieldHint"') ||
-    !statsSection[1].includes('Based on the last 10 shots.') ||
+    !statsSection[1].includes('Last 10 shots.') ||
     !statsSection[1].includes('id="statsDurChart"') ||
     !runtimeJs.includes('function renderStatsDurChart(') ||
     !runtimeJs.includes('statsDurChartPlot') ||
@@ -863,32 +862,18 @@ if (!statsSection ||
     }
     return null;
   };
-  global.shotHistory = {
-    shots: [
-      {shotType: 'auto', actualG: 36, durationS: 30.2},
-      {shotType: 'auto', actualG: 36, durationS: 30.2},
-      {shotType: 'auto', actualG: 36, durationS: 27.1},
-      {shotType: 'manual', actualG: 36, durationS: 40},
-      {shotType: 'auto', actualG: 0.5, durationS: 30},
-    ]
-  };
-  global.shotStatsWindow = [];
-  global.SHOTS_PAGE_SIZE = 10;
-  global.shotDisplayActualG = (actual) => actual;
+  global.shotStats = {durationsS: [30.2, 30.2, 27.1, 40]};
   global.fillChartTicks = () => {};
   helpers.renderStatsDurChart();
   const filled = (histPlot.innerHTML.match(/fill-opacity=".22"/g) || []).length;
-  if (filled !== 2) {
-    throw new Error('Duration histogram must render filled area peaks for auto shots');
+  if (filled !== 3) {
+    throw new Error('Duration histogram must render every eligible shot type');
   }
   if (!histPlot.innerHTML.includes('statsDurSparkY">2<')) {
     throw new Error('Duration histogram Y axis must scale to the max bin count');
   }
   delete global.$;
-  delete global.shotHistory;
-  delete global.shotStatsWindow;
-  delete global.SHOTS_PAGE_SIZE;
-  delete global.shotDisplayActualG;
+  delete global.shotStats;
   delete global.fillChartTicks;
 }
 

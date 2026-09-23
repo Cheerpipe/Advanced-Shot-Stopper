@@ -365,7 +365,7 @@ if (!ui.includes('id="shotPanel"') ||
     !ui.includes('id="shotBarFast"') ||
     !ui.includes('id="shotBarTicks"') ||
     !partialHtml.home.includes('id="shotBarTicks"') ||
-    !partialHtml.home.includes('<legend>Current / Last Good Shot</legend>') ||
+    !partialHtml.home.includes('<legend>Current / Last Shot</legend>') ||
     !partialHtml.home.includes('class="ruleChartLabel">Weight (g)</div>') ||
     partialHtml.home.includes('id="shotIdle"') ||
     css.includes('content:"Weight (g)"') ||
@@ -619,14 +619,11 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !ui.includes("cupRemovedWeightG:number('cupRemovedWeightG')")) {
   throw new Error('Auto-to-manual time guard must be wired in config UI, live panel, shots API, and routes');
 }
-if (!network.includes('const PersistedLastShot &homeLastShot = control.lastGoodShot') ||
-    !network.includes('buildIntegrationLastShot(\n        control.lastGoodShot') ||
-    network.includes('copyShotRecords(&homeLastShot, 1)') ||
-    !network.includes('control.lastGoodShotHistoryLinked') ||
-    network.includes('callbacks_.shotRecordExists') ||
-    network.includes('callbacks_.copyShotCurveById') ||
-    !firmwareCore.includes('copyShotStoreStatus') ||
-    !firmwareCore.includes('shotLog.copyRatingById(good.shotLogId, rating)') ||
+if (!network.includes('self.callbacks_.copyHomeShot(homeRecord, homeCurve)') ||
+    !network.includes('shotLogProjectLastShot(homeRecord, linked)') ||
+    !network.includes('shotLogProjectLastShot(latestShot, control.lastShot)') ||
+    network.includes('\"lastGoodShot\":%s') ||
+    !firmwareCore.includes('shotLog.copyNewestEligible(record)') ||
     !network.includes('\\"cycleId\\":%lu') ||
     !network.includes('\\"presetId\\":%u') ||
     !network.includes('\\"presetName\\":\\"%s\\"') ||
@@ -635,7 +632,7 @@ if (!network.includes('const PersistedLastShot &homeLastShot = control.lastGoodS
     !ui.includes('rateLastShotValue(ls.shotLogId,n)') ||
     !ui.includes('controlsMutable&&last&&!live&&ls.shotLogId') ||
     ui.includes('clearLastShotButton')) {
-  throw new Error('Home must use the canonical last-good aggregate and exact history links');
+  throw new Error('Home and integration must project the newest eligible history row');
 }
 const paddleHelp = html.slice(html.indexOf('<summary>Paddle</summary>'),
     html.indexOf('</details>', html.indexOf('<summary>Paddle</summary>')));

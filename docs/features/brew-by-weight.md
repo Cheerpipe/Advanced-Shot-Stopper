@@ -20,6 +20,11 @@ A short linear prediction can stop a moment earlier. The learned offset is
 capped at 5.0 g and can be reset to a
 baseline from the Web UI.
 
+The protection window affects when BBW may stop the machine. It does not
+decide whether a completed cycle appears in [shot history](shot-history.md):
+recording always requires more than 12 seconds and a valid final yield over
+2 g, including for manual and timer-only endings.
+
 Automatic brew-by-weight cycles are limited by **Max BBW time** and a
 firmware hard cap of **60 seconds**. Timer-only (BBW off) and manual
 no-scale shots skip Max BBW time. In Original paddle mode, weight stop and the
@@ -42,7 +47,7 @@ noted. **Home → Quick Settings** can toggle brew by weight for the session
 | **Target (g)** | 36 g | 10–200 g | Goal weight. Stop aims at `target − learned offset`. |
 | **Max BBW time (s)** | 50 s | 5–60 s | Operational time limit for an **automatic BBW** cycle. Ignored on timer-only and no-scale shots. Cannot exceed the hard 60 s cap. |
 | **Baseline offset (g)** | 1.5 g | 0–5 g | Seed used by **Reset learned stop offset**. Save this before reset. |
-| **Learned stop offset** | starts at 1.5 g | 0–5 g | Subtracted from the target (and from Fast/Slow recovery weights). Updated from post-drip weight after good shots. |
+| **Learned stop offset** | starts at 1.5 g | 0–5 g | Subtracted from the target (and from Fast/Slow recovery weights). Updated from eligible BBW measurements after the drip delay. |
 | **Learning factor (α)** | 0.30 initially | Read-only | EWMA only; current gain, initial/learned provenance and collecting/evaluating status. |
 | **Baseline learning factor (α)** | 0.30 | 0.01–1.00, step 0.01 | EWMA reset seed, saved per preset. Saving it preserves current offset, gain and evidence. |
 

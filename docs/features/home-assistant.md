@@ -1,9 +1,8 @@
 # Home Assistant
 
 The native **Open Brew by Weight** integration adds one controller device,
-live shot state, the latest completed shot and the controller's durable last
-good shot, an active-preset
-selector, seven Home Quick Settings switches, and a safe restart button. It
+live shot state, the newest recorded shot, an active-preset selector, seven
+Home Quick Settings switches, and a safe restart button. It
 does not create YAML helpers, template entities, REST commands, or automations,
 and it cannot start or stop the espresso machine.
 
@@ -82,15 +81,14 @@ Its remaining entities are:
 - **Shot state** (`idle` or `brewing`).
 - **Last shot** sensors — duration, final weight, target weight, average flow,
   first-drop time, star rating, shot type, stop detail, and preset. These
-  mirror exactly what the controller's home page shows for the most recent
-  completed shot.
+  mirror the newest recorded shot on the controller's idle Home page.
 - **Last activation** sensors — when the machine last did something, what it
   was (a shot, a rinse, power on, or other), and how long it lasted. These
   mirror the newest entry on the controller's History page.
-- **Stats** sensors — average duration, average yield, average error, average
+- **Stats** sensors — average duration, average yield, average BBW error, average
   flow, shots per day, and the shot count behind them. The controller computes
-  these over its ten most recent qualifying shots, so they always match its
-  Stats page.
+  the summaries over its ten most recent recorded shots; BBW error uses only
+  normal target cuts in that window.
 - **Active preset**, a select populated from the controller's preset names.
 - **Brew by weight**, **No-scale BBW**, **A-to-M time guard**, **Slow
   extraction guard**, **Fast extraction guard**, **Avoid accidental touch**,
@@ -115,20 +113,18 @@ close the machine circuit and the controller never resumes a cycle after boot.
 ## Updates and availability
 
 Home Assistant reads a complete REST snapshot before it adds any entities.
-That snapshot restores both controller-owned durable shot aggregates, so one
-may be unknown while the other is immediately available. The controller is
-authoritative: a null last-good aggregate clears any older Home Assistant value
-instead of reconstructing history after a factory reset. The Web UI's idle
-**Current / Last Good Shot** card reads that same aggregate. A newer short,
-weightless, or 2 g-or-less shot leaves both views unchanged. Deleting or clearing
-Web UI history does not replace it; only its optional curve/rating actions become
-unavailable. After an upgrade, legacy data without retained preset identity is
-reported as unknown until the controller records a qualifying identified shot.
+The controller's `lastShot` is authoritative: it is the newest recorded shot,
+or null after the log is cleared or an erase-all installation. The Web UI's idle
+**Current / Last Shot** card reads that same record. A short, weightless, or
+2 g-or-less activation leaves both views unchanged. Deleting the newest history
+row reveals the next eligible shot; clearing the log clears both views.
+Home Assistant can also read the older `lastGoodShot` field when connected to
+firmware that still exposes the previous snapshot version.
 
 After setup, validated webhooks update live state immediately. A completed-cycle
 webhook triggers a REST reconciliation so the Last shot sensors continue to
-mirror the controller's durable last-good-shot record, even when that cycle was
-too short or light to qualify as a shot. There is no healthy-state or background
+mirror the newest recorded shot, even when that cycle was too short or light
+to qualify. There is no healthy-state or background
 polling. Home Assistant also performs a single bounded REST reconciliation after
 a confirmed command, a revision gap, or a `controller_started` hint. A missed
 final best-effort webhook can therefore leave values stale until one of those

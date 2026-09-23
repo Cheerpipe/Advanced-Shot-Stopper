@@ -6551,7 +6551,7 @@ void r31_confirmed_overload_opens_without_learning() {
   CHECK(stopperState == StopperState::REQUIRES_OFF);
   CHECK(session.endReason == EndReason::WEIGHT_ANOMALY);
   CHECK(!session.calibrationEligible);
-  CHECK(pendingFinalize.pending);
+  CHECK(!pendingFinalize.pending);
   CHECK(!pendingFinalize.offsetAnalysis);
 }
 
@@ -8025,6 +8025,7 @@ void cw28_observed_unload_preserves_previous_shot() {
       while (executeNextScaleCommand()) {}
       establishPostTareBaseline();
       advanceToBrew();
+      runLoopAfter(1000);
       for (int i = 1; i <= 36; ++i) idleWeight(static_cast<float>(i), 300);
       CHECK(finalizeCycle(EndReason::SCALE_THRESHOLD, StopperState::REQUIRES_OFF));
       CHECK(pendingFinalize.pending);
@@ -10125,24 +10126,134 @@ void w38_scale_connected_led_tracks_link_and_setting() {
 }
 
 void s01_shot_log_filters_short_and_rinse() {
-  const uint32_t protection = DEFAULT_BBW_PROTECTION_MS;
-  CHECK(!shotLogEligible(EndReason::SHORT_SHOT, 15000, protection));
-  CHECK(!shotLogEligible(EndReason::RINSE_COMPLETE, 15000, protection));
-  CHECK(!shotLogEligible(EndReason::UNCONFIRMED_START, 60000, protection));
+  CHECK(!shotLogEligible(EndReason::SHORT_SHOT, 15000));
+  CHECK(!shotLogEligible(EndReason::RINSE_COMPLETE, 15000));
+  CHECK(!shotLogEligible(EndReason::UNCONFIRMED_START, 60000));
   CHECK(brewEndIsAbandonedStart(EndReason::UNCONFIRMED_START));
   CHECK(!brewEndIsAbandonedStart(EndReason::RINSE_COMPLETE));
-  CHECK(!shotLogEligible(EndReason::ACTIVATOR, 9000, protection));
-  // The BBW protection window is the strict minimum duration of a shot.
-  CHECK(!shotLogEligible(EndReason::ACTIVATOR, protection, protection));
-  CHECK(shotLogEligible(EndReason::ACTIVATOR, protection + 1, protection));
-  CHECK(shotLogEligible(EndReason::ACTIVATOR, 3001, 3000));
+  CHECK(!shotLogEligible(EndReason::ACTIVATOR, 9000));
+  CHECK(!shotLogEligible(EndReason::ACTIVATOR, 12000));
+  CHECK(shotLogEligible(EndReason::ACTIVATOR, 12001));
+  CHECK(!shotLogEligible(EndReason::ACTIVATOR, 3001));
   CHECK(!shotLogBbwEligible(false, false, true));
   CHECK(!shotLogBbwEligible(true, true, true));
   CHECK(!shotLogBbwEligible(true, false, false));
   CHECK(shotLogBbwEligible(true, false, true));
-  CHECK(!shotLogWeightEligible(0.9f, true));
-  CHECK(shotLogWeightEligible(1.0f, true));
-  CHECK(!shotLogWeightEligible(1.0f, false));
+  CHECK(!shotLogWeightEligible(2.0f, true));
+  CHECK(shotLogWeightEligible(2.001f, true));
+  CHECK(!shotLogWeightEligible(2.1f, false));
+}
+
+void s01c_mixed_shots_share_stats_and_home_authority() {
+  resetHarness(false, true);
+  shotLog.clear(false);
+  ShotLogRecord record = {};
+  record.durationDs = 120;
+  record.actualWeightCg = 201;
+  CHECK(!shotLogRecordEligible(record));
+  record.durationDs = 121;
+  record.actualWeightCg = 200;
+  CHECK(!shotLogRecordEligible(record));
+  record.actualWeightCg = 201;
+  CHECK(shotLogRecordEligible(record));
+
+  record.durationDs = 130;
+  record.actualWeightCg = 3000;
+  record.goalWeightG = 20;
+  record.avgFlowCgS = SHOT_LOG_METRIC_MISSING;
+  record.shotType = static_cast<uint8_t>(ShotLogType::AUTO);
+  record.stopDetail = static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET);
+  CHECK(shotLog.append(record, false));  // Outside the newest ten eligible.
+  record.shotType = static_cast<uint8_t>(ShotLogType::MANUAL);
+  record.stopDetail = static_cast<uint8_t>(ShotLogStopDetail::ACTIVATOR);
+  for (int i = 0; i < 8; ++i) {
+    record.avgFlowCgS = i == 0 ? 100 : SHOT_LOG_METRIC_MISSING;
+    if (i == 1) {
+      record.shotType = static_cast<uint8_t>(ShotLogType::AUTO);
+      record.stopDetail = static_cast<uint8_t>(ShotLogStopDetail::SLOW_MAX_TIME);
+    }
+    CHECK(shotLog.append(record, false));
+    record.shotType = static_cast<uint8_t>(ShotLogType::MANUAL);
+    record.stopDetail = static_cast<uint8_t>(ShotLogStopDetail::ACTIVATOR);
+  }
+  record.shotType = static_cast<uint8_t>(ShotLogType::AUTO);
+  record.stopDetail = static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET);
+  record.avgFlowCgS = 150;
+  record.actualWeightCg = 2200;
+  CHECK(shotLog.append(record, false));
+  record.avgFlowCgS = SHOT_LOG_METRIC_MISSING;
+  record.actualWeightCg = 1800;
+  CHECK(shotLog.append(record, false));
+  ShotLogRecord eligible = {};
+  ShotCurveRecord curve = emptyShotCurveRecord();
+  CHECK(copyHomeShot(eligible, curve));
+  const uint32_t newestId = eligible.id;
+  CHECK(eligible.actualWeightCg == 1800);
+  record.actualWeightCg = 150;
+  CHECK(shotLog.append(record, false));  // Historical low-weight exception.
+  PersistedLastShot oldManual = {};
+  oldManual.valid = true;
+  oldManual.cycleId = 77;
+  oldManual.durationMs = 20000;
+  oldManual.weightValid = true;
+  oldManual.currentWeightG = 35.0f;
+  persistLastShotSnapshot(oldManual);  // No safe record identity to migrate.
+  CHECK(copyHomeShot(eligible, curve));
+  CHECK(eligible.id == newestId);
+  CHECK(shotLog.save());
+  CHECK(shotLog.load());
+  CHECK(copyHomeShot(eligible, curve));
+  CHECK(eligible.id == newestId);
+  const ShotStatsView stats = copyShotStats();
+  CHECK(stats.shotCount == 10);
+  CHECK(stats.bbwCount == 2);
+  CHECK(stats.errorPctTenthsSum == 200);
+  CHECK(stats.flowCount == 2);
+  CHECK(stats.flowCgSx100Sum == 25000);
+  CHECK(deleteShotRecord(newestId));
+  CHECK(copyHomeShot(eligible, curve));
+  CHECK(eligible.actualWeightCg == 2200);
+  CHECK(clearShotLog());
+  CHECK(!copyHomeShot(eligible, curve));
+}
+
+void s01d_manual_timer_and_limit_share_settled_finalize() {
+  struct Case {
+    bool timerOnly;
+    EndReason reason;
+    ShotLogType type;
+    ShotLogCut cut;
+  };
+  const Case cases[] = {
+      {false, EndReason::ACTIVATOR, ShotLogType::MANUAL, ShotLogCut::MANUAL},
+      {true, EndReason::WEB_STOP, ShotLogType::TIMER_ONLY, ShotLogCut::MANUAL},
+      {false, EndReason::GLOBAL_LIMIT, ShotLogType::MANUAL, ShotLogCut::LIMIT},
+      {false, EndReason::RELAY_SAFETY_FAILURE, ShotLogType::MANUAL,
+       ShotLogCut::LIMIT},
+  };
+  for (const Case &sample : cases) {
+    resetHarness(false, true);
+    shotLog.clear(false);
+    session.config = snapshotConfig(runtimeConfig);
+    session.config.bbwProtectionMs = 30000;
+    session.config.dripDelayMs = 0;
+    session.config.timerOnly = sample.timerOnly;
+    session.startedWithScale = true;
+    session.hasWeightAnchor = true;
+    session.lastAcceptedWeightG = 3.0f;
+    session.activePresetId = presetBank.activeId;
+    shot.automaticBrew = false;
+    stopperState = StopperState::BREW;
+    schedulePendingShotFinalize(sample.reason, 12001);
+    CHECK(pendingFinalize.pending);
+    CHECK(pendingFinalize.logEligible);
+    pendingShotFinalizeTask();
+    ShotLogRecord saved[1] = {};
+    CHECK(shotLog.copyNewestFirst(saved, 1) == 1);
+    CHECK(shotLogType(saved[0]) == sample.type);
+    CHECK(shotLogCut(saved[0]) == sample.cut);
+    CHECK(saved[0].actualWeightCg == 300);
+  }
 }
 
 void s01b_shot_log_stop_detail_names_end_reasons() {
@@ -10229,7 +10340,7 @@ void s02e_shot_log_appends_auto_bbw_after_drip_delay() {
   CHECK(shotLog.count() == 1);
   ShotLogRecord records[1] = {};
   CHECK(shotLog.copyNewestFirst(records, 1) == 1);
-  CHECK(records[0].durationDs == 120);
+  CHECK(records[0].durationDs == 121);
   CHECK(shotLogType(records[0]) == ShotLogType::AUTO);
   CHECK(records[0].stopDetail ==
         static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET));
@@ -10567,7 +10678,7 @@ void s02b_drip_delay_is_snapshotted_and_honors_boundaries() {
   session.startedWithScale = true;
   session.config.timerOnly = false;
   shot.automaticBrew = true;
-  schedulePendingShotFinalize(EndReason::ACTIVATOR, 12000);
+  schedulePendingShotFinalize(EndReason::ACTIVATOR, 12001);
   CHECK(pendingFinalize.dripDelayMs == 1700);
 
   pendingFinalize = PendingShotFinalize{};
@@ -10873,16 +10984,8 @@ void s20_last_good_shot_advances_independently() {
   CHECK(persistedLastGoodShot.durationMs == 13000);
   CHECK(persistedLastGoodShot.shotLogId == 91);
   CHECK(persistedLastGoodShot.rating == 4);
-  LastShotStore::setHostSaveSucceeds(false);
-  CHECK(clearLastShot());
-  CHECK(!persistedLastShot.valid);
-  CHECK(lastShotNvsDirty);
-  serviceShotStorePersistence();
-  CHECK(lastShotNvsDirty);
-  LastShotStore::setHostSaveSucceeds(true);
-  hostMillis = shotStorePersistRetryAtMs;
-  serviceShotStorePersistence();
-  CHECK(!persistedLastShot.valid);
+  CHECK(!clearLastShot());
+  CHECK(persistedLastShot.valid);
   CHECK(persistedLastGoodShot.durationMs == 13000);
   CHECK(lastShotStore.getGood().shotLogId == 91);
 }
@@ -10963,7 +11066,7 @@ void s03b_good_shot_records_stats_and_history() {
   advanceToBrew();
   endBbwProtectionForTests();
   publishWeight(20.0f);
-  const uint32_t duration = runtimeConfig.bbwProtectionMs + 9000U;
+  const uint32_t duration = runtimeConfig.bbwProtectionMs + 9001U;
   releaseAtPhysicalDuration(rawOnAt, duration);
   publishWeight(36.0f, hostMillis + 1);
   runLoopAfter(runtimeConfig.dripDelayMs + 100U);
@@ -11025,8 +11128,7 @@ void s03e_manual_over_protection_is_shot_in_history_only() {
   CHECK(stopperState == StopperState::MANUAL_NO_SCALE);
   releaseAtPhysicalDuration(rawOnAt, runtimeConfig.bbwProtectionMs + 9500U);
   runLoopAfter(runtimeConfig.dripDelayMs + 100U);
-  // Long enough to be a shot for history, but a no-scale manual cycle never
-  // reaches the stats log.
+  // Intent qualifies the activation diary, but no yield enters Stats.
   CHECK(shotLog.count() == 0);
   CHECK(historyLog.count() == 1);
   HistoryPage page;
@@ -11049,18 +11151,17 @@ void s03f_abandoned_start_records_nothing() {
 }
 
 void s03g_stats_threshold_follows_protection_parameter() {
-  const uint32_t protection = DEFAULT_BBW_PROTECTION_MS;
   // Default protection (12 s): the former fixed 10 s window no longer
   // qualifies, and exactly the protection time does not either.
-  CHECK(!shotLogEligible(EndReason::ACTIVATOR, 10000, protection));
-  CHECK(!shotLogEligible(EndReason::ACTIVATOR, protection, protection));
-  CHECK(shotLogEligible(EndReason::ACTIVATOR, protection + 100, protection));
-  // A tighter protection window lowers the bar for cycles that use it.
-  CHECK(shotLogEligible(EndReason::ACTIVATOR, 3100, 3000));
-  CHECK(historyTypeFromCycle(false, 10000, protection) == HistoryType::OTHER);
-  CHECK(historyTypeFromCycle(false, protection + 1, protection) ==
-        HistoryType::SHOT);
-  CHECK(historyTypeFromCycle(true, 500, protection) == HistoryType::RINSE);
+  CHECK(!shotLogEligible(EndReason::ACTIVATOR, 10000));
+  CHECK(!shotLogEligible(EndReason::ACTIVATOR, 12000));
+  CHECK(shotLogEligible(EndReason::ACTIVATOR, 12100));
+  // History follows the configurable protection window, independently of Stats.
+  CHECK(!shotLogEligible(EndReason::ACTIVATOR, 3100));
+  CHECK(historyTypeFromCycle(false, 12000, 12000) == HistoryType::OTHER);
+  CHECK(historyTypeFromCycle(false, 12001, 12000) == HistoryType::SHOT);
+  CHECK(historyTypeFromCycle(false, 3101, 3100) == HistoryType::SHOT);
+  CHECK(historyTypeFromCycle(true, 12001, 12000) == HistoryType::RINSE);
 }
 
 void s14_last_shot_persists_manual_cycle() {
@@ -11221,12 +11322,14 @@ void s15_last_shot_persists_after_drip_when_eligible() {
 
 void s16_last_shot_clear_empties_snapshot() {
   resetHarness(false, false);
-  PersistedLastShot retained = {};
-  retained.valid = true;
-  persistLastShotSnapshot(retained);
+  ShotLogRecord record = {};
+  record.durationDs = 130;
+  record.actualWeightCg = 3600;
+  CHECK(shotLog.append(record));
   CHECK(clearLastShot());
-  CHECK(!persistedLastShot.valid);
-  CHECK(!lastShotStore.get().valid);
+  CHECK(shotLog.count() == 0);
+  ShotCurveRecord curve = emptyShotCurveRecord();
+  CHECK(!copyHomeShot(record, curve));
 }
 
 void s16b_factory_reset_hides_last_shot_on_status() {
@@ -12093,7 +12196,8 @@ void s04c_delete_shot_record_removes_log_and_curve() {
   ShotCurveLog::resetHostStorage();
   shotCurves.load();
   ShotLogRecord record = {};
-  record.durationDs = 120;
+  record.durationDs = 130;
+  record.actualWeightCg = 3600;
   CHECK(shotLog.append(record));
   ShotLogRecord stored[1] = {};
   CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
@@ -13071,7 +13175,8 @@ void s12d_rate_last_shot_and_history() {
   CHECK(!rateLastShot(3));
 
   ShotLogRecord record = {};
-  record.durationDs = 120;
+  record.durationDs = 130;
+  record.actualWeightCg = 3600;
   CHECK(shotLog.append(record));
   ShotLogRecord stored[1] = {};
   CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
@@ -16080,6 +16185,8 @@ const TestCase testCases[] = {
     {"D10c", d10c_softap_yields_discovery},
     {"D11", d11_select_preferred_is_noop_when_unchanged},
     {"S01", s01_shot_log_filters_short_and_rinse},
+    {"S01c", s01c_mixed_shots_share_stats_and_home_authority},
+    {"S01d", s01d_manual_timer_and_limit_share_settled_finalize},
     {"S01b", s01b_shot_log_stop_detail_names_end_reasons},
     {"S02", s02_shot_log_appends_after_drip_delay},
     {"S02E", s02e_shot_log_appends_auto_bbw_after_drip_delay},

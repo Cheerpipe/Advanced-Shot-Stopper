@@ -114,20 +114,17 @@ offsets, gain/provenance, and profile through the existing dual-slot owner.
 are current explicit fields. Presets never copy the global power setting.
 Earlier settings lengths or schema numbers are rejected before field access;
 there is no settings decoder or migration fallback.
-Last-shot schema 1 atomically stores independent last-completed and
-last-qualifying-good aggregates and appends average flow to each complete
-record. `LastShotStore` owns both live RAM views and their one durable blob;
-controller status publishes those store-owned values rather than maintaining a
-second mutable copy. The idle Web UI Home card and native integration both use
-`LastShotStore.lastGoodShot`. Shot-log IDs and curves are optional links resolved
-only by exact ID, never an alternate aggregate or newest-history fallback. The
-linked history row owns its rating; control publishes that exact rating and
-curve under the shared shot-store mutex without copying the history collection.
-
-Any other last-shot blob is discarded and starts empty. A legacy aggregate
-without retained preset identity is never reconstructed. Clear-last preserves
-the good aggregate; deleting or clearing history only makes its optional
-rating/curve link unavailable, and factory reset clears both aggregates.
+The shot log is the authority for a completed shot: confirmed, non-rinse,
+strictly more than 12,000 ms of brewing and a finite settled yield strictly
+above 2 g. The fixed recording threshold does not alter the configurable BBW
+protection window or actuation. Home and the integration snapshot resolve the
+newest eligible log record by ID under `shotStoreMutex`; the curve sidecar and
+rating use that same ID. Deleting the newest record advances Home to the next
+eligible row, and clearing the log empties the idle card. The in-progress card
+continues to use the live control snapshot. The legacy `LastShotStore` blob
+remains in the binary layout for internal completed-cycle diagnostics, but its
+separate good-shot field is not a public shot authority. An erase-all install
+starts both histories empty; no upgrade migration is required.
 
 History schema 1 keeps the current fixed records and entries. Guard byte bits 5–7 encode
 profile (0 unknown, 1 pre-selector regression with unknown version, 2 regression v1,
@@ -135,12 +132,17 @@ profile (0 unknown, 1 pre-selector regression with unknown version, 2 regression
 extension bits 2–4 hold its low three bits, cut-type bits 4–7 its high four.
 Extension bits 5–6 encode learning application (0 unknown,
 1 skipped, 2 applied). Guard, rating, extension and weight-source meanings are
-are preserved in the current layout. Shot-type bits 2–7 and cut-type
+preserved in the current layout. Shot-type bits 2–7 and cut-type
 bits 2–3 hold the captured preset ID (low six/high two bits); type/cut readers
 mask the low two bits. Preset/BBW writers preserve each other's bit fields.
 Any non-v1 history store is discarded instead of decoded. The ID follows
 existing preset allocation, while the stored name is historical data rather
 than a lookup through the current preset bank.
+The fixed persisted stats trailer remains part of the store checksum, but
+public Stats values are derived under the store mutex from the newest ten
+eligible records in RAM. The read visits at most 100 ring entries and copies
+at most ten records. It counts available flow separately and computes absolute
+percentage error only for normal BBW target or legacy prediction cuts.
 
 The stats shot log, its curve sidecar, and the independent activation history
 are owned by one RAM data layer (`ActivationStores`) whose every access runs
