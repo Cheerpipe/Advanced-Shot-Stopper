@@ -888,9 +888,10 @@ class NimbleScaleClient {
     portENTER_CRITICAL(&advertMux_);
     Candidate *candidate = candidateFor(discovery.addr);
     candidate->sequence = ++candidateSequence_;
-    if (discovery.event_type == BLE_HCI_ADV_RPT_EVTYPE_ADV_IND ||
-        discovery.event_type == BLE_HCI_ADV_RPT_EVTYPE_DIR_IND) {
-      candidate->connectable = true;
+    if (discovery.event_type != BLE_HCI_ADV_RPT_EVTYPE_SCAN_RSP) {
+      candidate->connectable =
+          discovery.event_type == BLE_HCI_ADV_RPT_EVTYPE_ADV_IND ||
+          discovery.event_type == BLE_HCI_ADV_RPT_EVTYPE_DIR_IND;
     }
     nimbleAccumulateAdvertisementName(
         fields.name, fields.name_len, fields.name_is_complete != 0,

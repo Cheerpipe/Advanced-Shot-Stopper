@@ -2,7 +2,8 @@
 
 namespace {
 
-constexpr uint32_t kBackoffDelaysMs[] = {50, 80, 100};
+constexpr uint32_t kBackoffDelaysMs[] = {50, 80, 100, 250, 500, 1000, 2000,
+                                         5000};
 constexpr uint32_t kBackoffJitterMs = 30;
 
 }  // namespace
@@ -22,12 +23,16 @@ uint32_t NimbleBackoffPolicy::nextRandom(uint32_t entropy) {
 }
 
 uint32_t NimbleBackoffPolicy::schedule(uint32_t nowMs, uint32_t entropy) {
-  const size_t index = failureCount_ < 3 ? failureCount_ : 2;
+  constexpr size_t delayCount =
+      sizeof(kBackoffDelaysMs) / sizeof(kBackoffDelaysMs[0]);
+  const size_t index = failureCount_ < delayCount ? failureCount_
+                                                  : delayCount - 1;
   if (failureCount_ != 0xff) {
     ++failureCount_;
   }
   const uint32_t jitter = nextRandom(entropy) % (kBackoffJitterMs + 1U);
-  const uint32_t delayMs = kBackoffDelaysMs[index] + jitter;
+  const uint32_t delayMs = kBackoffDelaysMs[index] +
+                           (index + 1 == delayCount ? 0 : jitter);
   deadlineMs_ = nowMs + delayMs;
   armed_ = true;
   return delayMs;

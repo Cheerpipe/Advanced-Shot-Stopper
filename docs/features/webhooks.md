@@ -21,6 +21,11 @@ receiver. Enable **Queue webhooks during shots** only when the receiver's
 network traffic disrupts a sensitive scale connection; queued delivery may be
 delayed until the extraction ends.
 
+After a failed attempt, diagnostic status identifies the event, the request
+phase, and whether brewing control or a scale connection cancelled delivery.
+The recorded destination keeps only the scheme, host, port, and path; URL query
+values and credentials are never included in that diagnostic.
+
 For a quick local receiver, listen with a development HTTP tool and point the
 controller to it. To inspect a captured payload with `curl`, save it as
 `event.json` and run:

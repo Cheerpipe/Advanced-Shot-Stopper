@@ -96,6 +96,12 @@ immediately with the new filter. If **Preferred only** is enabled while a
 different scale is connected, that connection is closed before directed
 discovery begins.
 
+If a visible scale repeatedly refuses a Bluetooth connection, the first few
+attempts remain quick and later attempts spread out, up to five seconds apart.
+The controller keeps trying automatically; fresh weight after a healthy
+connection restores the quick initial timing. A scale that stops advertising
+does not trigger blind connection attempts.
+
 ## Replace a scale or diagnose a missing connection
 
 Home distinguishes **No sample** (connected but no accepted weight yet), **Stale**

@@ -189,6 +189,45 @@ enum class WebhookEventType : uint8_t {
   ACTIVATION_HISTORY
 };
 
+enum class WebhookRequestPhase : uint8_t {
+  PREPARE,
+  CLIENT,
+  CONFIGURE,
+  DISPATCH,
+  PERFORM,
+  RESPONSE
+};
+
+enum class WebhookCancellationReason : uint8_t {
+  NONE,
+  CONTROL_CRITICAL,
+  SCALE_CONNECTING
+};
+
+inline const char *webhookRequestPhaseName(WebhookRequestPhase phase) {
+  switch (phase) {
+    case WebhookRequestPhase::PREPARE: return "prepare";
+    case WebhookRequestPhase::CLIENT: return "client";
+    case WebhookRequestPhase::CONFIGURE: return "configure";
+    case WebhookRequestPhase::DISPATCH: return "dispatch";
+    case WebhookRequestPhase::PERFORM: return "perform";
+    case WebhookRequestPhase::RESPONSE: return "response";
+  }
+  return "unknown";
+}
+
+inline const char *webhookCancellationReasonName(
+    WebhookCancellationReason reason) {
+  switch (reason) {
+    case WebhookCancellationReason::NONE: return "none";
+    case WebhookCancellationReason::CONTROL_CRITICAL:
+      return "control_critical";
+    case WebhookCancellationReason::SCALE_CONNECTING:
+      return "scale_connecting";
+  }
+  return "unknown";
+}
+
 struct WebhookPresetItem {
   uint8_t id = 0;
   bool isFactory = false;
@@ -234,6 +273,11 @@ struct WebhookStatus {
   uint16_t lastHttpStatus = 0;
   int32_t lastError = 0;
   uint32_t lastAttemptAtMs = 0;
+  char lastEvent[24] = {};
+  char lastEndpoint[160] = {};
+  WebhookRequestPhase lastPhase = WebhookRequestPhase::PREPARE;
+  WebhookCancellationReason lastCancellation =
+      WebhookCancellationReason::NONE;
   uint32_t sent = 0;
   uint32_t dropped = 0;
   uint32_t staleConfigDropped = 0;
@@ -326,6 +370,8 @@ class WebhookDispatcher {
   std::atomic<bool> scaleConnecting_{false};
   std::atomic<bool> abortRequested_{false};
   std::atomic<int32_t> activeCloseError_{0};
+  std::atomic<WebhookCancellationReason> cancellationReason_{
+      WebhookCancellationReason::NONE};
   // Latched per active perform so a short critical pulse still cancels after
   // the level gate has cleared, including cancel_request's reconnect event.
   std::atomic<bool> cancelActive_{false};

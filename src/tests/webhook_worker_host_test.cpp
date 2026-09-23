@@ -46,7 +46,7 @@ using namespace shotstopper;
 static WebhookConfig config(bool enabled) {
   WebhookConfig result;
   result.enabled = enabled;
-  strcpy(result.url, "http://example.test/hook");
+  strcpy(result.url, "http://example.test/hook?token=secret");
   return result;
 }
 static void resetPlatform() {
@@ -85,12 +85,29 @@ static void testSamplingAndAccounting() {
            static_cast<int32_t>(status.internalFreeAfter) - 1000);
     assert(status.sent == (scenario == 0 ? 1U : 0U));
     assert(status.dropped == (scenario == 0 ? 0U : 1U));
+    assert(strcmp(status.lastEvent, "test") == 0);
+    assert(strcmp(status.lastEndpoint, "http://example.test/hook") == 0);
+    const WebhookRequestPhase expectedPhase =
+        scenario == 0 ? WebhookRequestPhase::RESPONSE
+        : scenario == 2 ? WebhookRequestPhase::CLIENT
+        : scenario == 3 ? WebhookRequestPhase::PREPARE
+                        : WebhookRequestPhase::PERFORM;
+    assert(status.lastPhase == expectedPhase);
+    assert(status.lastCancellation ==
+           (scenario == 4 ? WebhookCancellationReason::SCALE_CONNECTING
+                          : WebhookCancellationReason::NONE));
     assert(workerTrace.front() == "sample" && workerTrace.back() == "sample");
     workerTrace.clear();
     assert(!WebhookDispatcherTest::send(d, true));
     assert(samples == 2 && workerTrace.empty());
     assert(d.status().staleConfigDropped == 1);
     assert(d.status().heapSamples == 1);
+    if (scenario == 4) {
+      d.setScaleConnecting(false);
+      wifiStatus = 0;
+      assert(!WebhookDispatcherTest::send(d));
+      assert(d.status().lastCancellation == WebhookCancellationReason::NONE);
+    }
     WebhookDispatcherTest::finish(d);
   }
 }

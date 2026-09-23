@@ -803,6 +803,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             "\"deferDuringShot\":%s,"
             "\"workerReady\":%s,\"sending\":%s,\"lastSuccess\":%s,"
             "\"lastHttpStatus\":%u,\"lastError\":%ld,"
+            "\"lastEvent\":\"%s\",\"lastEndpoint\":\"%s\","
+            "\"lastPhase\":\"%s\",\"lastCancellation\":\"%s\","
             "\"lastAttemptAtMs\":%lu,\"sent\":%lu,\"dropped\":%lu,"
             "\"staleConfigDropped\":%lu,\"workerStarts\":%lu,"
             "\"workerStops\":%lu,\"workerStartFailures\":%lu,"
@@ -823,6 +825,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             webhookStatus.lastSuccess ? "true" : "false",
             static_cast<unsigned>(webhookStatus.lastHttpStatus),
             static_cast<long>(webhookStatus.lastError),
+            webhookStatus.lastEvent, webhookStatus.lastEndpoint,
+            webhookRequestPhaseName(webhookStatus.lastPhase),
+            webhookCancellationReasonName(webhookStatus.lastCancellation),
             static_cast<unsigned long>(webhookStatus.lastAttemptAtMs),
             static_cast<unsigned long>(webhookStatus.sent),
             static_cast<unsigned long>(webhookStatus.dropped),

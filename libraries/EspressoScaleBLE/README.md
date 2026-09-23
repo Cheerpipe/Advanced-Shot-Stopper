@@ -101,6 +101,13 @@ still match without a GAP name; Varia and Eureka continue to require one. The
 production host uses the hardware-qualified external NimBLE allocator, a 4096
 byte internal host-task stack, MTU 96 and conservative fixed pools.
 
+Connectability follows the newest advertisement from each peer. A later
+nonconnectable report cannot reuse an older connectable report, while the scan
+response paired with a connectable advertisement can still complete name or
+service discovery. Failed connection attempts begin with short delays, then
+spread out progressively to a five-second maximum; valid weight data restores
+the short initial delay.
+
 `EspressoScaleBLE` is a single-owner object: create it, call it, and destroy it
 from one task only. It is intentionally non-copyable and is not thread-safe.
 Call `disconnect()` before transferring BLE ownership to another component.

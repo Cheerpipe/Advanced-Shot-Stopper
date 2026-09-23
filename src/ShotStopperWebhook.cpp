@@ -119,6 +119,8 @@ bool WebhookDispatcher::stop() {
   abortRequested_.store(false, std::memory_order_release);
   cancelActive_.store(false, std::memory_order_release);
   activeCloseError_.store(0, std::memory_order_release);
+  cancellationReason_.store(WebhookCancellationReason::NONE,
+                            std::memory_order_release);
   return true;
 }
 
@@ -327,6 +329,8 @@ HeapLifecycleAggregate WebhookDispatcher::heapTelemetry() const {
 void WebhookDispatcher::setControlCritical(bool active) {
   controlCritical_.store(active, std::memory_order_release);
   if (active) {
+    cancellationReason_.store(WebhookCancellationReason::CONTROL_CRITICAL,
+                              std::memory_order_release);
     cancelActive_.store(true, std::memory_order_release);
     abortRequested_.store(true, std::memory_order_release);
   }
@@ -335,6 +339,8 @@ void WebhookDispatcher::setControlCritical(bool active) {
 void WebhookDispatcher::setScaleConnecting(bool active) {
   scaleConnecting_.store(active, std::memory_order_release);
   if (active) {
+    cancellationReason_.store(WebhookCancellationReason::SCALE_CONNECTING,
+                              std::memory_order_release);
     cancelActive_.store(true, std::memory_order_release);
     abortRequested_.store(true, std::memory_order_release);
   }
@@ -652,24 +658,33 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   }
   const HeapCapSnapshot heapBefore = sampleHeapCaps();
   const WebhookEvent &event = queued.event;
+  char endpoint[sizeof(status_.lastEndpoint)] = {};
+  formatSafeHttpEndpoint(live.url, endpoint, sizeof(endpoint));
+  cancellationReason_.store(WebhookCancellationReason::NONE,
+                            std::memory_order_release);
   mux_.lock();
   status_.sending = true;
   status_.lastAttemptAtMs = millis();
   status_.lastHttpStatus = 0;
   status_.lastError = 0;
+  strncpy(status_.lastEvent, eventName(event.type),
+          sizeof(status_.lastEvent) - 1);
+  strncpy(status_.lastEndpoint, endpoint, sizeof(status_.lastEndpoint) - 1);
+  status_.lastPhase = WebhookRequestPhase::PREPARE;
+  status_.lastCancellation = WebhookCancellationReason::NONE;
   beginHeapLifecycle(tlsHeap_, HeapLifecycleEvent::TLS_REQUEST, heapBefore);
   mux_.unlock();
 
   bool ok = false;
-#if !defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
-  bool performed = false;
-#endif
+  WebhookRequestPhase phase = WebhookRequestPhase::PREPARE;
   int statusCode = 0;
   esp_err_t error = ESP_FAIL;
   if (WiFi.status() == WL_CONNECTED && validWebhookUrl(live.url) &&
       buildPayload(event, payload_, kWebhookPayloadCapacity)) {
+    phase = WebhookRequestPhase::CLIENT;
     esp_http_client_handle_t client = ensureHttpClient(live.url);
     if (client != nullptr) {
+      phase = WebhookRequestPhase::CONFIGURE;
       error = static_cast<esp_err_t>(configureWebhookHttpRequest(
           [&]() {
             return static_cast<int32_t>(
@@ -680,6 +695,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
                 client, payload_, strlen(payload_)));
           }));
       if (error == ESP_OK) {
+        phase = WebhookRequestPhase::DISPATCH;
         cancelActive_.store(false, std::memory_order_release);
         activeCloseError_.store(0, std::memory_order_release);
         mux_.lock();
@@ -688,15 +704,27 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
         mux_.unlock();
         if (dispatchAllowed() &&
             !cancelActive_.load(std::memory_order_acquire)) {
-#if !defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
-          performed = true;
-#endif
+          phase = WebhookRequestPhase::PERFORM;
           error = esp_http_client_perform(client);
           statusCode = esp_http_client_get_status_code(client);
+          const bool allowedAfterPerform = dispatchAllowed();
+          const bool cancelled =
+              cancelActive_.load(std::memory_order_acquire);
+          if (error == ESP_OK && allowedAfterPerform && !cancelled) {
+            phase = WebhookRequestPhase::RESPONSE;
+          }
           ok = error == ESP_OK && statusCode >= 200 && statusCode < 300 &&
-               dispatchAllowed() &&
-               !cancelActive_.load(std::memory_order_acquire);
+               allowedAfterPerform && !cancelled;
         } else {
+          if (scaleConnecting_.load(std::memory_order_acquire)) {
+            cancellationReason_.store(
+                WebhookCancellationReason::SCALE_CONNECTING,
+                std::memory_order_release);
+          } else if (controlCritical_.load(std::memory_order_acquire)) {
+            cancellationReason_.store(
+                WebhookCancellationReason::CONTROL_CRITICAL,
+                std::memory_order_release);
+          }
           error = ESP_ERR_INVALID_STATE;
         }
         mux_.lock();
@@ -731,12 +759,13 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
 
   const HeapCapSnapshot heapAfter = sampleHeapCaps();
 #if !defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
-  if (performed && error != ESP_OK) {
-    char endpoint[160];
-    formatSafeHttpEndpoint(live.url, endpoint, sizeof(endpoint));
+  if (!ok) {
+    const WebhookCancellationReason cancellation =
+        cancellationReason_.load(std::memory_order_acquire);
     ESP_LOGE("WebhookHTTP",
-             "perform failed owner=WebhookDispatcher caller=WebhookDispatcher::send purpose=webhook_delivery event=%s endpoint=%s method=POST error=0x%x",
-             eventName(event.type), endpoint,
+             "delivery failed owner=WebhookDispatcher caller=WebhookDispatcher::send purpose=webhook_delivery event=%s endpoint=%s method=POST phase=%s cancellation=%s error=0x%x",
+             eventName(event.type), endpoint, webhookRequestPhaseName(phase),
+             webhookCancellationReasonName(cancellation),
              static_cast<unsigned>(error));
   }
 #endif
@@ -745,6 +774,9 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   status_.lastSuccess = ok;
   status_.lastHttpStatus = statusCode > 0 ? static_cast<uint16_t>(statusCode) : 0;
   status_.lastError = static_cast<int32_t>(error);
+  status_.lastPhase = phase;
+  status_.lastCancellation =
+      cancellationReason_.load(std::memory_order_acquire);
   if (ok) ++status_.sent;
   else ++status_.dropped;
   ++status_.heapSamples;

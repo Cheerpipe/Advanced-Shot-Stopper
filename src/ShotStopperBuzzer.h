@@ -737,6 +737,7 @@ inline void LocalBuzzer::service(uint32_t nowMs) {
     return;
   }
   TaskLockGuard lock(mutex);
+  nowMs = millis();
   if (active == BuzzerPattern::NONE && activeCue == BuzzerCue::NONE) {
     return;
   }

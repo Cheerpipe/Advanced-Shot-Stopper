@@ -46,6 +46,16 @@ static void notify(NimbleScaleClient &c,uint16_t length) {
   b.data[19]=0x08;
   c.onNotification(1,10,&b,c.linkOperationId_);
 }
+static void advertise(NimbleScaleClient &c, uint8_t eventType,
+                      const char *name = "BOOKOO Mini") {
+  testAdvertisementParseStatus = 0;
+  testAdvertisementFields = {
+      reinterpret_cast<uint8_t *>(const_cast<char *>(name)),
+      static_cast<uint8_t>(strlen(name)), 1, 0, nullptr};
+  ble_gap_disc_desc advertisement = {
+      {0, {1, 2, 3, 4, 5, 6}}, eventType, nullptr, 0};
+  c.onAdvertisement(advertisement, c.scanOperationId_);
+}
 static void run() {
   for (bool first : {false, true}) {
     for (bool stale : {false, true}) {
@@ -165,6 +175,53 @@ static void run() {
     CHECK(!c.seenPending_ && testCriticalDepth == 0);
     testAdvertisementParseStatus = BLE_HS_EINVAL;
     testAdvertisementFields = {};
+  }
+  {
+    NimbleScaleClient c(false);
+    CHECK(c.beginConfiguredScan(false));
+    c.enterState(NimbleScaleClient::State::Backoff, 1);
+    advertise(c, BLE_HCI_ADV_RPT_EVTYPE_ADV_IND);
+    CHECK(!c.candidatePending_);
+    c.enterState(NimbleScaleClient::State::Scanning);
+    advertise(c, BLE_HCI_ADV_RPT_EVTYPE_ADV_NONCONN_IND);
+    CHECK(!c.candidatePending_);
+
+    c.clearScanData();
+    advertise(c, BLE_HCI_ADV_RPT_EVTYPE_ADV_IND, "");
+    CHECK(!c.candidatePending_);
+    advertise(c, BLE_HCI_ADV_RPT_EVTYPE_SCAN_RSP);
+    CHECK(c.candidatePending_);
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    c.finishLink(false, ScaleDisconnectReason::REMOTE_DISCONNECTED,
+                 BLE_HS_HCI_ERR(0x13));
+    testNowMs = c.backoff_.deadlineMs();
+    c.service();
+    CHECK(c.state_ == NimbleScaleClient::State::Scanning);
+    CHECK(c.connectAttemptsTotal_ == 0);
+  }
+  {
+    NimbleScaleClient c(false);
+    CHECK(c.beginConfiguredScan(false));
+    for (unsigned attempt = 0; attempt < 12; ++attempt) {
+      if (c.state_ == NimbleScaleClient::State::Backoff) {
+        testNowMs = c.backoff_.deadlineMs();
+        c.service();
+      }
+      advertise(c, BLE_HCI_ADV_RPT_EVTYPE_ADV_IND);
+      c.service();
+      testNowMs += SCALE_CONNECT_SETTLE_MS;
+      c.service();
+      CHECK(c.state_ == NimbleScaleClient::State::Backoff);
+    }
+    CHECK(c.connectAttemptsTotal_ == 12);
+    CHECK(c.backoff_.failureCount() == 12);
+    testNowMs = c.backoff_.deadlineMs();
+    c.service();
+    advertise(c, BLE_HCI_ADV_RPT_EVTYPE_ADV_IND);
+    c.service();
+    CHECK(c.isConnecting());
   }
   {
     NimbleScaleClient c(false); ready(c);

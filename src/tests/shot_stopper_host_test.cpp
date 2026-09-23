@@ -4288,6 +4288,34 @@ void w93_scale_connected_echo_on_rising_edge() {
   CHECK(localBuzzer.activeCue == BuzzerCue::SCALE_CONNECTED);
 }
 
+void w93b_buzzer_phase_timestamp_is_refreshed_after_lock() {
+  resetHarness(false, false);
+  const BuzzerToneCommand connected =
+      deriveBuzzerTone(AlertEvent::SCALE_CONNECTED, false, 0, 0);
+  CHECK(localBuzzer.requestTone(connected));
+  const uint32_t staleCallerTime =
+      localBuzzer.phaseStartedAtMs + localBuzzer.onMs - 1;
+  hostMillis = localBuzzer.phaseStartedAtMs + localBuzzer.onMs;
+  localBuzzer.service(hostMillis);
+  const uint8_t index = localBuzzer.beepIndex;
+  const uint32_t phase = localBuzzer.phaseStartedAtMs;
+  const bool on = localBuzzer.toneOn;
+  localBuzzer.service(staleCallerTime);
+  CHECK(localBuzzer.beepIndex == index);
+  CHECK(localBuzzer.phaseStartedAtMs == phase);
+  CHECK(localBuzzer.toneOn == on);
+  localBuzzer.stopAll();
+
+  hostMillis = UINT32_MAX - 10;
+  CHECK(localBuzzer.requestTone(connected));
+  const uint32_t duration = localBuzzer.onMs;
+  hostMillis += duration;
+  localBuzzer.service(hostMillis);
+  CHECK(localBuzzer.phaseStartedAtMs == hostMillis);
+  CHECK(localBuzzer.busy());
+  localBuzzer.stopAll();
+}
+
 void w94_scale_connected_silent_when_flag_off_or_scale_only() {
   resetHarness(false, false);
   runtimeConfig.alertOutputChannel =
@@ -16154,6 +16182,7 @@ const TestCase testCases[] = {
     {"W91", w91_chime_sequence_uses_irregular_note_timings},
     {"W92", w92_parse_sequence_pattern_ids},
     {"W93", w93_scale_connected_echo_on_rising_edge},
+    {"W93B", w93b_buzzer_phase_timestamp_is_refreshed_after_lock},
     {"W94", w94_scale_connected_silent_when_flag_off_or_scale_only},
     {"F01A", f01_link_side_effects_run_only_on_control},
     {"F01B", f01_worker_uses_only_published_policy},

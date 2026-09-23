@@ -36,16 +36,23 @@ void testBackoffAndWrap() {
   const uint32_t third = policy.schedule(3000, 3);
   CHECK(third >= 100 && third <= 130);
   CHECK(third + 120 <= 250);
-  const uint32_t capped = policy.schedule(4000, 4);
-  CHECK(capped >= 100 && capped <= 130);
-  CHECK(capped + 120 <= 250);
-  CHECK(policy.failureCount() == 4);
+  const uint32_t fourth = policy.schedule(4000, 4);
+  CHECK(fourth >= 250 && fourth <= 280);
+  uint32_t capped = 0;
+  for (uint8_t attempt = 5; attempt <= 12; ++attempt) {
+    capped = policy.schedule(4000 + attempt, attempt);
+  }
+  CHECK(capped == 5000);
+  CHECK(policy.failureCount() == 12);
   policy.clearDeadline();
   CHECK(!policy.active(4000));
-  CHECK(policy.failureCount() == 4);
+  CHECK(policy.failureCount() == 12);
   policy.reset();
   CHECK(policy.failureCount() == 0);
   CHECK(!policy.active(0));
+  const uint32_t recovered = policy.schedule(5000, 13);
+  CHECK(recovered >= 50 && recovered <= 80);
+  policy.reset();
 
   const uint32_t nearWrap = 0xfffffff0U;
   const uint32_t wrappedDelay = policy.schedule(nearWrap, 9);
