@@ -1,0 +1,43 @@
+#pragma once
+
+#include "ShotStopperLineaMicraSettings.h"
+#include "ShotStopperMicraScaleShutdown.h"
+
+#include <cstdint>
+
+namespace shotstopper {
+
+// Machine-side policy for turning the Micra on when the scale powers on: the
+// inverse of MicraScaleShutdownTracker. A link-up edge counts as the scale
+// powering on only when the preceding disconnect was the scale's own
+// power-off (REMOTE_DISCONNECTED), so radio-loss reconnects and the first
+// connection after boot never wake the machine. The Micra cloud service owns
+// the BrewingMode command.
+class MicraScalePowerOnTracker {
+ public:
+  struct Snapshot {
+    bool linkUp = false;
+    uint8_t lastDisconnectReason = 0;
+    bool relayClosed = false;
+  };
+
+  // Returns true exactly once per accepted trigger: the scale came back from
+  // its own explicit power-off while the option and account stayed active and
+  // the relay stayed open. A trigger observed with the option off or a closed
+  // relay is consumed, never deferred.
+  bool service(const Snapshot &scale, uint8_t micraOptions,
+               bool accountConfigured) {
+    const bool enabled =
+        accountConfigured &&
+        (micraOptions & LINEA_MICRA_POWER_ON_WITH_SCALE) != 0;
+    const bool edge = !lastLinkUp_ && scale.linkUp;
+    lastLinkUp_ = scale.linkUp;
+    if (!edge || !enabled || scale.relayClosed) return false;
+    return scale.lastDisconnectReason == LINEA_MICRA_SCALE_EXPLICIT_DISCONNECT;
+  }
+
+ private:
+  bool lastLinkUp_ = false;
+};
+
+}  // namespace shotstopper

@@ -13,7 +13,8 @@ enum ScaleFeature {
     ScaleFeatureIndependentBeep = 1u << 6,
     ScaleFeatureVolume = 1u << 7,
     ScaleFeatureCommandAudibleFeedback = 1u << 8,
-    ScaleFeatureHeartbeat = 1u << 9
+    ScaleFeatureHeartbeat = 1u << 9,
+    ScaleFeaturePowerOff = 1u << 10
 };
 
 struct ScaleFeatureSet {
@@ -57,7 +58,8 @@ enum class ScaleOp : uint8_t {
     ResetTimer,
     CombinedTareStart,
     Heartbeat,
-    SetVolume
+    SetVolume,
+    PowerOff
 };
 
 #endif

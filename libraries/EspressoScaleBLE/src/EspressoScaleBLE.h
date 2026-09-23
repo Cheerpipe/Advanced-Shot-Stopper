@@ -133,6 +133,10 @@ class EspressoScaleBLE {
         ScaleCommandResult setBeepLevel(uint8_t level);
 
         ScaleCommandResult heartbeat();
+        // Powers the scale down when the protocol supports it; the link then
+        // drops from the remote side.
+        ScaleCommandResult powerOff();
+        bool supportsPowerOff();
         float getWeight() const;
         ScaleWeightSample getWeightSample() const;
         uint32_t notificationSequence() const;

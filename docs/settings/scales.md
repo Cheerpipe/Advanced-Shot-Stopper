@@ -14,6 +14,34 @@ details:
 Timemore Black Mirror DUO, Timemore Dot, Acaia Umbra, and Eureka units that
 advertise no GAP name are not supported.
 
+## Scale power-off support
+
+**Turn scale off when the machine powers off**
+([La Marzocco Linea Micra](linea-micra.md#turn-scale-off-when-the-machine-powers-off))
+switches the connected scale off over Bluetooth, but only when the scale
+itself accepts a power-off command. The explicit support list:
+
+| Scale | Power-off over Bluetooth |
+| --- | --- |
+| Bookoo Themis Ultra (firmware V4.0.0 and later) | Yes — BooKoo's published protocol, command `0x15`; ignored while charging |
+| Bookoo Themis Ultra (firmware V3.1.2 and earlier) | No — the shutdown command is not in BooKoo's published contract for those versions; the scale ignores it |
+| Bookoo Themis Mini | No — BooKoo's published protocol for the Mini has no shutdown command |
+| Acaia (Lunar, Pearl S, Pyxis, Cinco, Proch) | No — no power-off command is documented for the Acaia protocol |
+| Felicita (Arc) | No |
+| AtomHeart Eclair | No |
+| Decent Scale | No |
+| DiFluid Microbalance / Ti | No |
+| MyScale KP2048B | No |
+| Varia AKU / Mini / Pro | No |
+| Eureka Precisa | No |
+| WeighMyBru | No |
+
+Both Bookoo models advertise under the same `BOOKOO` name, so the controller
+cannot tell a Themis Mini from a Themis Ultra; a shutdown sent to a Mini or
+an older Ultra is simply ignored by the scale. With any unsupported scale
+connected, enabling the option logs a warning and writes nothing to the
+scale.
+
 ## When it applies
 
 A usable scale is required for automatic brew-by-weight. If the scale is

@@ -2101,13 +2101,34 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   resetHostPersistence();
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
-  CHECK(settings.schemaVersion == 1);
+  CHECK(settings.schemaVersion == CONFIG_SCHEMA_VERSION);
   CHECK(settings.lineaMicra.options == LINEA_MICRA_DEFAULT_OPTIONS);
+  CHECK(settings.lineaMicra.scaleOptions == 0);
 
   uint8_t oldBlob[sizeof(PersistedSettings) - 1] = {};
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, oldBlob,
                            sizeof(oldBlob));
   PersistedSettings rejected;
+  CHECK(!loadPersistedSettings(rejected));
+
+  // A checksum-valid V1 blob upgrades losslessly: only the version and the
+  // new scaleOptions byte (V1 tail padding) change.
+  settings.schemaVersion = 1;
+  settings.checksum = 0;
+  settings.checksum = persistedSettingsChecksum(settings);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_B, &settings,
+                           sizeof(settings));
+  PersistedSettings upgraded;
+  CHECK(loadPersistedSettings(upgraded));
+  CHECK(upgraded.schemaVersion == CONFIG_SCHEMA_VERSION);
+  CHECK(upgraded.lineaMicra.scaleOptions == 0);
+  CHECK(upgraded.lineaMicra.options == settings.lineaMicra.options);
+  CHECK(strcmp(upgraded.lineaMicra.username, settings.lineaMicra.username) ==
+        0);
+  // A corrupted V1 checksum stays invalid.
+  settings.checksum ^= 0xff;
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_B, &settings,
+                           sizeof(settings));
   CHECK(!loadPersistedSettings(rejected));
 
   strcpy(settings.lineaMicra.username, "barista@example.com");
@@ -2117,7 +2138,7 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   strcpy(settings.lineaMicra.selectedSerial, "MR123456");
   strcpy(settings.lineaMicra.selectedName, "Kitchen Micra");
   settings.lineaMicra.accountConfigured = true;
-  setLineaMicraOptions(settings.lineaMicra, true, true, true, false, 0);
+  setLineaMicraOptions(settings.lineaMicra, true, true, true, false, false, 0, false);
   strcpy(settings.deviceName, "Cafe Bar 2");
   settings.presets.presets[0].lineaMicraBrewTargetDeciC = 935;
   CHECK(savePersistedSettings(settings));
@@ -2129,7 +2150,7 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   CHECK(settings.presets.presets[0].lineaMicraBrewTargetDeciC == 935);
   CHECK(strcmp(settings.deviceName, "Cafe Bar 2") == 0);
 
-  setLineaMicraOptions(settings.lineaMicra, false, false, false, true, 3);
+  setLineaMicraOptions(settings.lineaMicra, false, false, false, true, false, 3, false);
   CHECK(savePersistedSettings(settings));
   CHECK(loadPersistedSettings(settings));
   CHECK(settings.lineaMicra.options ==

@@ -185,8 +185,10 @@ enable an account. `select` requires a `serial` from the latest discovery plus
 the independent `applyTemperature`, `observeState`, and
 `recognizeWakeGesture` booleans; it persists the
 account credentials, installation key, and chosen machine through the normal
-single-writer command path. `save` updates those three options for an already
-selected machine. `refresh` and `disconnect` accept no additional fields;
+single-writer command path. `select` and `save` also carry the `powerOnWithScale`
+and `shutdownWithScale` machine-link booleans with `shutdownGraceSeconds`,
+and the `scaleOffWithMachine` scale-link boolean. `save` updates those options
+for an already selected machine. `refresh` and `disconnect` accept no additional fields;
 disconnect erases durable credentials/selection and the RAM session. Unknown,
 duplicate, or action-inappropriate fields are rejected. Accepted commands
 return `202`.

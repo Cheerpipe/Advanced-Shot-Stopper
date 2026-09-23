@@ -148,6 +148,9 @@ void cancelScalePaddleReturnReminderBeep();
 void requestScaleCompletionBeep();
 void cancelScaleCompletionBeepMailbox();
 void cancelOperationalScaleBeeps();
+// Machine-link request: power the connected scale off. Dropped unless the
+// link stays on the same connection generation and the protocol supports it.
+void requestScalePowerOff();
 
 // Orchestrator-owned scale BLE client.
 extern EspressoScaleBLE scale;

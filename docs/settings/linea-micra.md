@@ -21,7 +21,8 @@ internet connection is unavailable.
 4. Choose **Use selected machine**. Only then can the Micra options be
    edited and saved.
 
-The first three options start on and the scale shutdown option starts off.
+The first three options start on; the scale power-on, scale shutdown, and
+scale-off-with-machine options start off.
 Before a machine is selected they remain visibly checked (or unchecked) but
 disabled, so the defaults are clear without implying that the integration is
 already active.
@@ -34,7 +35,9 @@ selected machine and make the connection controls available again.
 
 With a machine selected, **Save Micra settings** saves **Allow brew boiler
 temperature in presets**, **Monitor machine power state**, **Recognize
-paddle wake gestures**, and **Turn machine off when the scale powers off**.
+paddle wake gestures**, **Turn machine on when the scale powers on**,
+**Turn machine off when the scale powers off**, its **Shutdown delay**, and
+**Turn scale off when the machine powers off**.
 It does not sign in again, validate the cloud account, or reload the machine
 list.
 
@@ -124,6 +127,35 @@ This option is independent from monitoring. Turning monitoring off keeps the
 saved wake preference, but the effective state becomes UNKNOWN, so wake
 recognition is inactive until monitoring produces a confirmed OFF observation.
 
+## Turn machine on when the scale powers on
+
+Keep **Turn machine on when the scale powers on** on to wake the Micra when
+you switch the scale on. It is the mirror of the shutdown option above: the
+machine turns on — the same wake the La Marzocco app performs — when the
+scale comes back from its own power-off. A scale that merely reconnects after
+a lost signal, and the first connection after the controller starts, never
+wake the machine, so an ordinary reconnect never sends a cloud command.
+
+The machine is never woken while a shot or rinse is running; that power-on
+is ignored completely and nothing is queued for later. Because the command
+travels through the La Marzocco cloud, a saved, connected account is
+required: without one the option stays disabled and has no effect even if it
+was on before the account was removed.
+
+The command uses the same retries as the shutdown option: if the controller
+temporarily cannot reach the La Marzocco cloud when the scale powers on, the
+command stays pending and is retried, so the machine wakes once the
+connection returns. The moment the cloud accepts it, the controller treats
+the machine as already on, exactly like the paddle wake gesture, and the
+next dashboard read replaces that optimistic view with the confirmed state.
+Turning this option off or disconnecting the account cancels a pending
+wake.
+
+Turning the scale off and then quickly back on combines naturally with the
+shutdown option and its delay: switching the scale off starts the shutdown
+countdown, and switching it back on inside the window cancels the shutdown
+while leaving the machine on.
+
 ## Turn machine off when the scale powers off
 
 Keep **Turn machine off when the scale powers off** on to put the Micra in
@@ -165,6 +197,31 @@ the cloud agrees. The first successful read started after that delay replaces
 the overlay with the confirmed state. If no read succeeds within the 60
 seconds, the confirmed ON simply becomes the visible state again until the
 next read lands.
+
+## Turn scale off when the machine powers off
+
+Keep **Turn scale off when the machine powers off** on and the connected
+scale switches itself off once the Micra is confirmed off — after the cloud
+dashboard reports standby following a confirmed on state. A stale or
+optimistic reading never triggers it, and it happens exactly once per
+on-to-off transition, so a flaky connection cannot switch the scale off.
+
+Only scales that accept a power-off command over Bluetooth are switched off.
+See [Scales](scales.md#scale-power-off-support) for the explicit list. If the
+connected scale does not support the command, nothing is written to it and
+the log records a warning that the power-off was skipped; if no scale is
+connected at that moment, nothing happens either.
+
+The two directions never loop: this option runs only after the machine is
+already confirmed off, so the disconnect that follows the scale powering
+down cannot queue another machine shutdown, and the machine going to
+standby through the shutdown option above only powers the scale off once.
+Neither option acts while a shot or rinse is running.
+
+Like every cloud option, it requires a saved, connected account: without one
+the checkbox stays disabled. The account requirement covers the machine
+observation; the scale command itself is local Bluetooth and works with the
+connected scale regardless of brand.
 
 ## Brew temperature in presets
 
@@ -211,6 +268,7 @@ does not require **Monitor machine power state** to be enabled.
 
 Factory reset removes the Micra cloud account, selected machine, installation
 key, and RAM session. The first three Micra options return to their checked
-defaults, the scale shutdown option returns to off, and preset temperatures
+defaults, the scale power-on and shutdown options and the scale-off-with-
+machine option return to off, and preset temperatures
 return to 93.0 °C. See
 [Factory reset](factory-reset.md) and [Presets](../features/presets.md).

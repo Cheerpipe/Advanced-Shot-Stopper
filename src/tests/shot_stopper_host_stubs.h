@@ -535,6 +535,17 @@ class EspressoScaleBLE {
     ++heartbeatCalls;
     return runCommand(heartbeatSucceeds);
   }
+  bool supportsPowerOff() const {
+    return connected && features().has(ScaleFeaturePowerOff);
+  }
+  ScaleCommandResult powerOff() {
+    commandLog.push_back("powerOff");
+    ++powerOffCalls;
+    if (!supportsPowerOff()) {
+      return ScaleCommandResult::Unsupported;
+    }
+    return runCommand(powerOffSucceeds);
+  }
   float getWeight() const { return weight; }
   ScaleWeightSample getWeightSample() const {
     return {weight, weightCapturedAtMs == UINT32_MAX ? hostMillis : weightCapturedAtMs,
@@ -670,6 +681,7 @@ class EspressoScaleBLE {
   bool commandFeedbackSupported = true;
   bool beepSucceeds = true;
   bool heartbeatSucceeds = true;
+  bool powerOffSucceeds = true;
   bool heartbeatRequiredValue = false;
   bool newWeightAvailableValue = false;
   void (*beforeWeightCheck)() = nullptr;
@@ -693,6 +705,7 @@ class EspressoScaleBLE {
   size_t setBeepLevelCalls = 0;
   uint8_t lastBeepLevel = 0;
   size_t heartbeatCalls = 0;
+  size_t powerOffCalls = 0;
   size_t newWeightAvailableCalls = 0;
   std::vector<std::string> commandLog;
 

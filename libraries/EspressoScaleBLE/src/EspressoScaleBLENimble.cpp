@@ -2420,6 +2420,17 @@ ScaleCommandResult EspressoScaleBLE::heartbeat() {
   return result;
 }
 
+ScaleCommandResult EspressoScaleBLE::powerOff() {
+  if (!supportsPowerOff()) {
+    return ScaleCommandResult::Unsupported;
+  }
+  return clientFromStorage(_nimbleClientStorage).writeOp(ScaleOp::PowerOff);
+}
+
+bool EspressoScaleBLE::supportsPowerOff() {
+  return isConnected() && features().has(ScaleFeaturePowerOff);
+}
+
 float EspressoScaleBLE::getWeight() const {
   return clientFromStorage(_nimbleClientStorage).weight();
 }

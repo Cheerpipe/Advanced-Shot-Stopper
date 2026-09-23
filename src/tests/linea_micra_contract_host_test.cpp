@@ -1,6 +1,8 @@
 #include "machine/ShotStopperLineaMicraSettings.h"
 #include "machine/ShotStopperLineaMicraTypes.h"
+#include "machine/ShotStopperMicraMachinePower.h"
 #include "machine/ShotStopperMicraPowerState.h"
+#include "machine/ShotStopperMicraScalePowerOn.h"
 #include "machine/ShotStopperMicraScaleShutdown.h"
 #include "machine/ShotStopperMicraTiming.h"
 
@@ -11,11 +13,14 @@ int main() {
   using namespace shotstopper;
   LineaMicraPersistedSettings settings;
   assert(settings.options == LINEA_MICRA_DEFAULT_OPTIONS);
+  assert(settings.scaleOptions == 0);
   assert((LINEA_MICRA_DEFAULT_OPTIONS &
           LINEA_MICRA_SHUTDOWN_WITH_SCALE) == 0);
+  assert((LINEA_MICRA_DEFAULT_OPTIONS & LINEA_MICRA_POWER_ON_WITH_SCALE) ==
+         0);
   assert(LINEA_MICRA_KNOWN_OPTIONS ==
          (LINEA_MICRA_DEFAULT_OPTIONS | LINEA_MICRA_SHUTDOWN_WITH_SCALE |
-          LINEA_MICRA_SHUTDOWN_GRACE_MASK));
+          LINEA_MICRA_POWER_ON_WITH_SCALE | LINEA_MICRA_SHUTDOWN_GRACE_MASK));
   std::strcpy(settings.username, "barista@example.com");
   std::strcpy(settings.password, "correct horse battery staple");
   std::memset(settings.installationPrivateKey, 0x5a,
@@ -23,24 +28,31 @@ int main() {
   std::strcpy(settings.selectedSerial, "MR123456");
   std::strcpy(settings.selectedName, "Kitchen Micra");
   settings.accountConfigured = true;
-  setLineaMicraOptions(settings, true, true, true, false, 0);
+  setLineaMicraOptions(settings, true, true, true, false, false, 0, false);
   assert(validLineaMicraSettings(settings));
   assert((settings.options & LINEA_MICRA_SHUTDOWN_WITH_SCALE) == 0);
+  assert((settings.options & LINEA_MICRA_POWER_ON_WITH_SCALE) == 0);
+  assert(settings.scaleOptions == 0);
   assert(lineaMicraShutdownGraceSeconds(settings.options) == 0);
-  setLineaMicraOptions(settings, true, true, true, true, 4);
+  setLineaMicraOptions(settings, true, true, true, true, false, 4, false);
   assert((settings.options & LINEA_MICRA_SHUTDOWN_WITH_SCALE) != 0);
+  assert((settings.options & LINEA_MICRA_POWER_ON_WITH_SCALE) == 0);
   assert(lineaMicraShutdownGraceSeconds(settings.options) == 60);
   assert(lineaMicraShutdownGraceCode(settings.options) == 4);
   assert(validLineaMicraSettings(settings));
-  setLineaMicraOptions(settings, true, true, true, true, 5);
+  setLineaMicraOptions(settings, true, true, true, true, true, 5, true);
   assert(lineaMicraShutdownGraceCode(settings.options) == 0);
+  assert((settings.options & LINEA_MICRA_POWER_ON_WITH_SCALE) != 0);
+  assert(settings.scaleOptions == LINEA_MICRA_SCALE_OFF_WITH_MACHINE);
+  assert(validLineaMicraSettings(settings));
+  settings.scaleOptions |= static_cast<uint8_t>(1U << 1);
+  assert(!validLineaMicraSettings(settings));
+  settings.scaleOptions = LINEA_MICRA_SCALE_OFF_WITH_MACHINE;
   settings.options |= static_cast<uint8_t>(5U)
                       << LINEA_MICRA_SHUTDOWN_GRACE_SHIFT;
   assert(!validLineaMicraSettings(settings));
   settings.options &= ~LINEA_MICRA_SHUTDOWN_GRACE_MASK;
-  settings.options |= static_cast<uint8_t>(1U << 7);
-  assert(!validLineaMicraSettings(settings));
-  setLineaMicraOptions(settings, true, true, true, true, 2);
+  setLineaMicraOptions(settings, true, true, true, true, false, 2, false);
   assert(validLineaMicraSettings(settings));
   disconnectLineaMicra(settings);
   assert(validLineaMicraSettings(settings));
@@ -53,7 +65,7 @@ int main() {
   wipeLineaMicraSettings(settings);
   for (uint8_t byte : settings.installationPrivateKey) assert(byte == 0);
   assert(sizeof(LineaMicraRequest) <= 16);
-  assert(sizeof(LineaMicraPersistedSettings) == 310);
+  assert(sizeof(LineaMicraPersistedSettings) == 311);
   LineaMicraRequest temperatureRequest;
   temperatureRequest.type = LineaMicraRequestType::APPLY_TEMPERATURE;
   temperatureRequest.configGeneration = 7;
@@ -232,6 +244,27 @@ int main() {
   // Clear the expired overlay so later preconditions see a clean tracker.
   power.reset();
 
+  // Optimistic ON mirrors the standby overlay: a cloud-accepted power-on
+  // command over a fresh confirmed OFF asserts effective ON until the first
+  // authoritative read accepted by generation replaces it.
+  authoritative.sampleAtMs = 3000;
+  authoritative.powerState = LineaMicraPowerState::OFF;
+  authoritative.quality = LineaMicraObservationQuality::CURRENT;
+  const uint32_t prePowerOnGeneration = power.generation();
+  assert(power.notePowerOnCommandAccepted(authoritative, true, 3100));
+  const uint32_t powerOnGeneration = power.generation();
+  assert(powerOnGeneration != prePowerOnGeneration);
+  effective = power.effectiveStatus(authoritative, true, 3101);
+  assert(effective.powerState == LineaMicraPowerState::OFF);
+  assert(effective.optimisticOn);
+  assert(effective.effectiveOn);
+  assert(effective.quality == LineaMicraObservationQuality::OPTIMISTIC);
+  // A confirmed ON no longer accepts a second ON-direction overlay.
+  authoritative.powerState = LineaMicraPowerState::ON;
+  assert(!power.notePowerOnCommandAccepted(authoritative, true, 3102));
+  assert(power.acceptAuthoritative(powerOnGeneration));
+  power.reset();
+
   authoritative.sampleAtMs = 0;
   effective = power.effectiveStatus(authoritative, true, 1000 + freshness);
   assert(effective.powerState == LineaMicraPowerState::UNKNOWN);
@@ -313,5 +346,89 @@ int main() {
   assert(!shutdown.service(121000, scale, LINEA_MICRA_DEFAULT_OPTIONS, true));
   assert(!shutdown.pending());
   assert(!shutdown.service(140000, scale, shutdownOptions15s, true));
+
+  const uint8_t powerOnOptions =
+      LINEA_MICRA_DEFAULT_OPTIONS | LINEA_MICRA_POWER_ON_WITH_SCALE;
+  MicraScalePowerOnTracker::Snapshot link;
+  MicraScalePowerOnTracker powerOn;
+
+  // First link-up after boot never wakes the machine: no explicit power-off
+  // was observed.
+  link.linkUp = true;
+  link.lastDisconnectReason = 0;
+  assert(!powerOn.service(link, powerOnOptions, true));
+  link.linkUp = false;
+  (void)powerOn.service(link, powerOnOptions, true);
+  // Reconnect after radio silence (supervision timeout) never wakes it.
+  link.lastDisconnectReason = 14;
+  link.linkUp = true;
+  assert(!powerOn.service(link, powerOnOptions, true));
+  link.linkUp = false;
+  (void)powerOn.service(link, powerOnOptions, true);
+  // Option off: the trigger is consumed.
+  link.lastDisconnectReason = LINEA_MICRA_SCALE_EXPLICIT_DISCONNECT;
+  link.linkUp = true;
+  assert(!powerOn.service(link, LINEA_MICRA_DEFAULT_OPTIONS, true));
+  link.linkUp = false;
+  (void)powerOn.service(link, powerOnOptions, true);
+  // No account: consumed as well.
+  link.linkUp = true;
+  assert(!powerOn.service(link, powerOnOptions, false));
+  link.linkUp = false;
+  (void)powerOn.service(link, powerOnOptions, true);
+  // Relay closed at the edge: consumed, never deferred.
+  link.relayClosed = true;
+  link.linkUp = true;
+  assert(!powerOn.service(link, powerOnOptions, true));
+  link.linkUp = false;
+  link.relayClosed = false;
+  (void)powerOn.service(link, powerOnOptions, true);
+  // The scale returning from its own power-off fires exactly once.
+  link.linkUp = true;
+  assert(powerOn.service(link, powerOnOptions, true));
+  assert(!powerOn.service(link, powerOnOptions, true));
+  // Link held: no new edge, no new trigger.
+  assert(!powerOn.service(link, powerOnOptions, true));
+  // A later non-explicit reconnect still does not fire.
+  link.linkUp = false;
+  (void)powerOn.service(link, powerOnOptions, true);
+  link.lastDisconnectReason = 14;
+  link.linkUp = true;
+  assert(!powerOn.service(link, powerOnOptions, true));
+
+  const uint8_t scaleOffOptions = LINEA_MICRA_SCALE_OFF_WITH_MACHINE;
+  LineaMicraStatus machine;
+  MicraMachinePowerTracker machinePower;
+
+  // Stale, optimistic, unknown, and failed observations never arm or fire.
+  machine.quality = LineaMicraObservationQuality::STALE;
+  machine.powerState = LineaMicraPowerState::ON;
+  assert(!machinePower.service(machine, scaleOffOptions, true));
+  machine.quality = LineaMicraObservationQuality::OPTIMISTIC;
+  machine.powerState = LineaMicraPowerState::OFF;
+  assert(!machinePower.service(machine, scaleOffOptions, true));
+  machine.quality = LineaMicraObservationQuality::CURRENT;
+  machine.powerState = LineaMicraPowerState::UNKNOWN;
+  assert(!machinePower.service(machine, scaleOffOptions, true));
+  // Confirmed ON arms; a stale OFF in between is ignored; the confirmed OFF
+  // fires exactly once. A stale ON without a prior confirmed ON never fires.
+  machine.powerState = LineaMicraPowerState::ON;
+  assert(!machinePower.service(machine, scaleOffOptions, true));
+  machine.quality = LineaMicraObservationQuality::STALE;
+  machine.powerState = LineaMicraPowerState::OFF;
+  assert(!machinePower.service(machine, scaleOffOptions, true));
+  machine.quality = LineaMicraObservationQuality::CURRENT;
+  machine.powerState = LineaMicraPowerState::OFF;
+  assert(machinePower.service(machine, scaleOffOptions, true));
+  assert(!machinePower.service(machine, scaleOffOptions, true));
+  // A second ON -> OFF cycle fires again; with the option off it is consumed.
+  machine.powerState = LineaMicraPowerState::ON;
+  assert(!machinePower.service(machine, scaleOffOptions, true));
+  machine.powerState = LineaMicraPowerState::OFF;
+  assert(machinePower.service(machine, scaleOffOptions, true));
+  machine.powerState = LineaMicraPowerState::ON;
+  assert(!machinePower.service(machine, scaleOffOptions, true));
+  machine.powerState = LineaMicraPowerState::OFF;
+  assert(!machinePower.service(machine, 0, true));
   return 0;
 }

@@ -288,6 +288,13 @@ bool sameCommandRequest(const LineaMicraRequest &left,
          left.presetId == right.presetId && left.type == right.type;
 }
 
+// Persisted option bit that authorizes each power command direction.
+uint8_t powerOptionBit(LineaMicraRequestType type) {
+  return type == LineaMicraRequestType::SET_POWER_ON
+             ? LINEA_MICRA_POWER_ON_WITH_SCALE
+             : LINEA_MICRA_SHUTDOWN_WITH_SCALE;
+}
+
 bool sameSessionIdentity(const LineaMicraPersistedSettings &left,
                          const LineaMicraPersistedSettings &right) {
   return left.accountConfigured == right.accountConfigured &&
@@ -377,16 +384,17 @@ void ShotStopperMicraService::publishConfig(
       wipeLineaMicraSettings(pending_.credentials);
       pending_.present = false;
       desiredTemperature_ = {};
-      desiredPowerOff_ = {};
+      desiredPower_ = {};
       cancelTemperature = true;
       cancelPowerOff = true;
     } else {
       if (desiredTemperature_.present) {
         desiredTemperature_.machineConfigGeneration = configGeneration;
       }
-      if (desiredPowerOff_.present &&
-          (settings.options & LINEA_MICRA_SHUTDOWN_WITH_SCALE) != 0) {
-        desiredPowerOff_.machineConfigGeneration = configGeneration;
+      if (desiredPower_.present &&
+          (settings.options &
+           powerOptionBit(desiredPower_.request.type)) != 0) {
+        desiredPower_.machineConfigGeneration = configGeneration;
       }
     }
     published_.configGeneration = configGeneration;
@@ -403,7 +411,7 @@ void ShotStopperMicraService::publishConfig(
       wipeLineaMicraSettings(pending_.credentials);
       pending_.present = false;
       desiredTemperature_ = {};
-      desiredPowerOff_ = {};
+      desiredPower_ = {};
       published_.phase = LineaMicraPhase::Disabled;
       published_.quality = LineaMicraObservationQuality::UNCONFIGURED;
       published_.temperatureState = LineaMicraTemperatureState::Disabled;
@@ -444,8 +452,9 @@ void ShotStopperMicraService::publishConfig(
                    LineaMicraTemperatureState::Disabled) {
       published_.temperatureState = LineaMicraTemperatureState::IDLE;
     }
-    if ((settings.options & LINEA_MICRA_SHUTDOWN_WITH_SCALE) == 0) {
-      desiredPowerOff_ = {};
+    if (desiredPower_.present &&
+        (settings.options & powerOptionBit(desiredPower_.request.type)) == 0) {
+      desiredPower_ = {};
       cancelPowerOff = true;
     }
   }
@@ -453,7 +462,8 @@ void ShotStopperMicraService::publishConfig(
       !settings.accountConfigured ||
       (settings.options & (LINEA_MICRA_APPLY_TEMPERATURE |
                            LINEA_MICRA_OBSERVE_STATE |
-                           LINEA_MICRA_SHUTDOWN_WITH_SCALE)) == 0;
+                           LINEA_MICRA_SHUTDOWN_WITH_SCALE |
+                           LINEA_MICRA_POWER_ON_WITH_SCALE)) == 0;
   if (identityChanged || cloudDisabled) {
     clearSessionRequested_.store(true, std::memory_order_release);
     abortRequested_.store(true, std::memory_order_release);
@@ -462,7 +472,7 @@ void ShotStopperMicraService::publishConfig(
              (cancelTemperature &&
               temperatureActive_.load(std::memory_order_acquire)) ||
              (cancelPowerOff &&
-              powerOffActive_.load(std::memory_order_acquire))) {
+              powerActive_.load(std::memory_order_acquire))) {
     abortRequested_.store(true, std::memory_order_release);
   }
   if (task_ != nullptr) xTaskNotifyGive(task_);
@@ -499,8 +509,8 @@ void ShotStopperMicraService::publishNetworkState(bool staConnected,
       if (desiredTemperature_.present) {
         desiredTemperature_.retryAtMs = millis();
       }
-      if (desiredPowerOff_.present) {
-        desiredPowerOff_.retryAtMs = millis();
+      if (desiredPower_.present) {
+        desiredPower_.retryAtMs = millis();
       }
     }
   }
@@ -576,18 +586,19 @@ bool ShotStopperMicraService::queue(const LineaMicraRequest &request) {
     xTaskNotifyGive(task_);
     return true;
   }
-  if (request.type == LineaMicraRequestType::SET_STANDBY) {
+  if (request.type == LineaMicraRequestType::SET_STANDBY ||
+      request.type == LineaMicraRequestType::SET_POWER_ON) {
     if (task_ == nullptr || !config_.accountConfigured ||
-        (config_.options & LINEA_MICRA_SHUTDOWN_WITH_SCALE) == 0) {
+        (config_.options & powerOptionBit(request.type)) == 0) {
       return false;
     }
-    desiredPowerOff_.request = request;
-    desiredPowerOff_.request.requestId = nextAutomaticRequestId_++;
-    desiredPowerOff_.machineConfigGeneration = configGeneration_;
-    desiredPowerOff_.retryAtMs = millis();
-    desiredPowerOff_.present = true;
-    desiredPowerOff_.commandAccepted = false;
-    if (powerOffActive_.load(std::memory_order_acquire)) {
+    desiredPower_.request = request;
+    desiredPower_.request.requestId = nextAutomaticRequestId_++;
+    desiredPower_.machineConfigGeneration = configGeneration_;
+    desiredPower_.retryAtMs = millis();
+    desiredPower_.present = true;
+    desiredPower_.commandAccepted = false;
+    if (powerActive_.load(std::memory_order_acquire)) {
       abortRequested_.store(true, std::memory_order_release);
     }
     xTaskNotifyGive(task_);
@@ -696,9 +707,9 @@ void ShotStopperMicraService::taskLoop() {
     PendingRequest pending;
     bool haveRequest = false;
     bool haveTemperature = false;
-    bool havePowerOff = false;
+    bool havePower = false;
     uint32_t temperatureMachineConfigGeneration = 0;
-    uint32_t powerOffMachineConfigGeneration = 0;
+    uint32_t powerMachineConfigGeneration = 0;
     const uint32_t now = millis();
     LineaMicraError observationGate = LineaMicraError::NONE;
     const bool networkReady = networkEligible(observationGate);
@@ -712,8 +723,8 @@ void ShotStopperMicraService::taskLoop() {
         if (desiredTemperature_.present) {
           desiredTemperature_.retryAtMs = now;
         }
-        if (desiredPowerOff_.present) {
-          desiredPowerOff_.retryAtMs = now;
+        if (desiredPower_.present) {
+          desiredPower_.retryAtMs = now;
         }
       }
     }
@@ -750,15 +761,15 @@ void ShotStopperMicraService::taskLoop() {
         temperatureActive_.store(true, std::memory_order_release);
       } else if (staEligible &&
                  !scaleConnecting_.load(std::memory_order_acquire) &&
-                 desiredPowerOff_.present &&
-                 static_cast<int32_t>(now - desiredPowerOff_.retryAtMs) >= 0) {
-        pending.request = desiredPowerOff_.request;
-        powerOffMachineConfigGeneration =
-            desiredPowerOff_.machineConfigGeneration;
+                 desiredPower_.present &&
+                 static_cast<int32_t>(now - desiredPower_.retryAtMs) >= 0) {
+        pending.request = desiredPower_.request;
+        powerMachineConfigGeneration =
+            desiredPower_.machineConfigGeneration;
         active_ = true;
         haveRequest = true;
-        havePowerOff = true;
-        powerOffActive_.store(true, std::memory_order_release);
+        havePower = true;
+        powerActive_.store(true, std::memory_order_release);
       } else if (observationReady && config_.accountConfigured &&
                  (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0 &&
                  observationSchedule_.automaticDue(now)) {
@@ -778,10 +789,10 @@ void ShotStopperMicraService::taskLoop() {
         executeTemperatureApplication(pending.request,
                                       temperatureMachineConfigGeneration);
         temperatureActive_.store(false, std::memory_order_release);
-      } else if (havePowerOff) {
-        executePowerOffApplication(pending.request,
-                                   powerOffMachineConfigGeneration);
-        powerOffActive_.store(false, std::memory_order_release);
+      } else if (havePower) {
+        executePowerApplication(pending.request,
+                                   powerMachineConfigGeneration);
+        powerActive_.store(false, std::memory_order_release);
       } else {
         execute(pending);
         observationActive_.store(false, std::memory_order_release);
@@ -880,16 +891,16 @@ bool ShotStopperMicraService::temperatureRequestCurrent(
          (config_.options & LINEA_MICRA_APPLY_TEMPERATURE) != 0;
 }
 
-bool ShotStopperMicraService::powerOffRequestCurrent(
+bool ShotStopperMicraService::powerRequestCurrent(
     const LineaMicraRequest &request,
     uint32_t machineConfigGeneration) const {
   TaskLockGuard lock(mux_);
-  return desiredPowerOff_.present &&
-         desiredPowerOff_.machineConfigGeneration == machineConfigGeneration &&
-         sameCommandRequest(desiredPowerOff_.request, request) &&
+  return desiredPower_.present &&
+         desiredPower_.machineConfigGeneration == machineConfigGeneration &&
+         sameCommandRequest(desiredPower_.request, request) &&
          configGeneration_ == machineConfigGeneration &&
          config_.accountConfigured &&
-         (config_.options & LINEA_MICRA_SHUTDOWN_WITH_SCALE) != 0;
+         (config_.options & powerOptionBit(request.type)) != 0;
 }
 
 bool ShotStopperMicraService::identityCurrent(
@@ -943,18 +954,18 @@ void ShotStopperMicraService::deferTemperature(
   }
 }
 
-void ShotStopperMicraService::deferPowerOff(
+void ShotStopperMicraService::deferPower(
     const LineaMicraRequest &request, LineaMicraError error, uint32_t delayMs,
     bool retryable) {
   TaskLockGuard lock(mux_);
-  if (!desiredPowerOff_.present ||
-      !sameCommandRequest(desiredPowerOff_.request, request)) {
+  if (!desiredPower_.present ||
+      !sameCommandRequest(desiredPower_.request, request)) {
     return;
   }
   if (retryable) {
-    desiredPowerOff_.retryAtMs = millis() + delayMs;
+    desiredPower_.retryAtMs = millis() + delayMs;
   } else {
-    desiredPowerOff_ = {};
+    desiredPower_ = {};
   }
   const uint16_t httpStatus = work_ != nullptr ? work_->httpStatus : 0;
   const int32_t transportStatus =
@@ -962,8 +973,11 @@ void ShotStopperMicraService::deferPowerOff(
   serialTraceCategoryf(error == LineaMicraError::CANCELED ? LogLevel::INFO
                                                           : LogLevel::WARNING,
                        DebugCategory::NETWORK,
-                       "Micra scale shutdown request %s error=%s http=%u raw=%ld",
+                       "Micra scale power request %s type=%s error=%s http=%u raw=%ld",
                        retryable ? "deferred" : "dropped",
+                       request.type == LineaMicraRequestType::SET_POWER_ON
+                           ? "power_on"
+                           : "standby",
                        lineaMicraErrorName(error),
                        static_cast<unsigned>(httpStatus),
                        static_cast<long>(transportStatus));
@@ -1109,25 +1123,25 @@ bool ShotStopperMicraService::executeTemperatureApplication(
   return false;
 }
 
-bool ShotStopperMicraService::executePowerOffApplication(
+bool ShotStopperMicraService::executePowerApplication(
     const LineaMicraRequest &request,
     uint32_t machineConfigGeneration) {
   LineaMicraPersistedSettings settings;
   bool commandAccepted = false;
   {
     TaskLockGuard lock(mux_);
-    if (!desiredPowerOff_.present ||
-        desiredPowerOff_.machineConfigGeneration != machineConfigGeneration ||
-        !sameCommandRequest(desiredPowerOff_.request, request) ||
+    if (!desiredPower_.present ||
+        desiredPower_.machineConfigGeneration != machineConfigGeneration ||
+        !sameCommandRequest(desiredPower_.request, request) ||
         configGeneration_ != machineConfigGeneration) {
       return true;
     }
     settings = config_;
-    commandAccepted = desiredPowerOff_.commandAccepted;
+    commandAccepted = desiredPower_.commandAccepted;
   }
   if (!ensureWorkBuffer()) {
     wipeLineaMicraSettings(settings);
-    deferPowerOff(request, LineaMicraError::HTTP_ERROR,
+    deferPower(request, LineaMicraError::HTTP_ERROR,
                   micra_timing::kExhaustedCooldownMs);
     return false;
   }
@@ -1135,16 +1149,19 @@ bool ShotStopperMicraService::executePowerOffApplication(
   bool commandAttempted = false;
   int32_t commandTransportStatus = 0;
   uint16_t commandHttpStatus = 0;
+  const bool standby = request.type == LineaMicraRequestType::SET_STANDBY;
+  const LineaMicraPowerState wantedState =
+      standby ? LineaMicraPowerState::OFF : LineaMicraPowerState::ON;
   for (size_t attempt = 0; attempt < micra_timing::kMaxAttempts; ++attempt) {
-    if (!powerOffRequestCurrent(request, machineConfigGeneration)) {
+    if (!powerRequestCurrent(request, machineConfigGeneration)) {
       wipeLineaMicraSettings(settings);
       return true;
     }
-    // A shot or rinse (closed relay) cancels the shutdown outright; the
-    // machine is never powered off around an active cycle.
+    // A shot or rinse (closed relay) cancels the command outright; the
+    // machine power state is never changed around an active cycle.
     if (shotActive_.load(std::memory_order_acquire)) {
       wipeLineaMicraSettings(settings);
-      deferPowerOff(request, LineaMicraError::CANCELED, 0, false);
+      deferPower(request, LineaMicraError::CANCELED, 0, false);
       return false;
     }
     LineaMicraError gateError = LineaMicraError::NONE;
@@ -1155,7 +1172,7 @@ bool ShotStopperMicraService::executePowerOffApplication(
     }
     if (gateError != LineaMicraError::NONE) {
       wipeLineaMicraSettings(settings);
-      deferPowerOff(request, gateError,
+      deferPower(request, gateError,
                     gateError == LineaMicraError::CANCELED
                         ? micra_timing::kGateRetryMs
                         : micra_timing::kExhaustedCooldownMs);
@@ -1169,46 +1186,57 @@ bool ShotStopperMicraService::executePowerOffApplication(
     }
     bool success = false;
     if (ensureSession(settings, false) &&
-        powerOffRequestCurrent(request, machineConfigGeneration)) {
+        powerRequestCurrent(request, machineConfigGeneration)) {
       if (!commandAccepted) {
         commandAttempted = true;
-        commandAccepted = writeStandby(settings);
+        commandAccepted =
+            standby ? writeStandby(settings) : writePowerOn(settings);
         commandTransportStatus = work_->transportStatus;
         commandHttpStatus = work_->httpStatus;
         if (commandAccepted) {
           TaskLockGuard lock(mux_);
-          if (desiredPowerOff_.present &&
-              sameCommandRequest(desiredPowerOff_.request, request)) {
-            desiredPowerOff_.commandAccepted = true;
-            // The cloud accepted the standby command: assert optimistic OFF
-            // and delay reads until the cloud can have converged.
+          if (desiredPower_.present &&
+              sameCommandRequest(desiredPower_.request, request)) {
+            desiredPower_.commandAccepted = true;
+            // The cloud accepted the mode change: assert the optimistic
+            // overlay and delay reads until the cloud can have converged.
             const bool observing = config_.accountConfigured &&
                 (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0;
-            if (powerState_.noteStandbyCommandAccepted(published_, observing,
-                                                       millis())) {
+            const bool overlaid =
+                standby
+                    ? powerState_.noteStandbyCommandAccepted(published_,
+                                                             observing,
+                                                             millis())
+                    : powerState_.notePowerOnCommandAccepted(published_,
+                                                             observing,
+                                                             millis());
+            if (overlaid) {
               observationSchedule_.armPostEvent(millis());
             }
           }
         }
       }
       success = commandAccepted &&
-                powerOffRequestCurrent(request, machineConfigGeneration) &&
+                powerRequestCurrent(request, machineConfigGeneration) &&
                 readDashboard(settings, verification) &&
-                verification.powerState == LineaMicraPowerState::OFF;
+                verification.powerState == wantedState;
     }
     if (success) {
       wipeLineaMicraSettings(settings);
       TaskLockGuard lock(mux_);
-      if (desiredPowerOff_.present &&
-          sameCommandRequest(desiredPowerOff_.request, request)) {
-        desiredPowerOff_ = {};
+      if (desiredPower_.present &&
+          sameCommandRequest(desiredPower_.request, request)) {
+        desiredPower_ = {};
       }
-      serialTraceCategoryf(LogLevel::INFO, DebugCategory::NETWORK,
-                           "Micra scale shutdown confirmed: machine is in StandBy");
+      serialTraceCategoryf(
+          LogLevel::INFO, DebugCategory::NETWORK,
+          standby
+              ? "Micra scale shutdown confirmed: machine is in StandBy"
+              : "Micra scale power-on confirmed: machine is in BrewingMode");
       return true;
     }
 
-    if (!powerOffRequestCurrent(request, machineConfigGeneration)) {
+    if (!powerRequestCurrent(request, machineConfigGeneration)) {
       wipeLineaMicraSettings(settings);
       return true;
     }
@@ -1241,7 +1269,7 @@ bool ShotStopperMicraService::executePowerOffApplication(
                                     failureHttpStatus)
                             ? LineaMicraError::REJECTED
                             : LineaMicraError::HTTP_ERROR;
-  deferPowerOff(request, error, micra_timing::kExhaustedCooldownMs,
+  deferPower(request, error, micra_timing::kExhaustedCooldownMs,
                 lineaMicraTemperatureCycleRetryable(error));
   return false;
 }
@@ -1746,6 +1774,25 @@ bool ShotStopperMicraService::writeStandby(
                   static_cast<size_t>(urlLength) < sizeof(url) &&
                   request(settings, url, HTTP_METHOD_POST,
                           "{\"mode\":\"StandBy\"}", true);
+  releaseIoBuffer();
+  return ok;
+}
+
+// The power-on counterpart sends the BrewingMode the dashboard reports while
+// the machine is on; the same command pylamarzocco's set_power(True) uses.
+bool ShotStopperMicraService::writePowerOn(
+    const LineaMicraPersistedSettings &settings) {
+  if (!ensureIoBuffer()) return false;
+  char url[sizeof(kApiRoot) + LINEA_MICRA_SERIAL_CAPACITY + 80];
+  const int urlLength = snprintf(
+      url, sizeof(url), "%s/things/%s/command/CoffeeMachineChangeMode",
+      kApiRoot, settings.selectedSerial);
+  work_->transportStatus = 0;
+  work_->httpStatus = 0;
+  const bool ok = urlLength > 0 &&
+                  static_cast<size_t>(urlLength) < sizeof(url) &&
+                  request(settings, url, HTTP_METHOD_POST,
+                          "{\"mode\":\"BrewingMode\"}", true);
   releaseIoBuffer();
   return ok;
 }

@@ -15,8 +15,9 @@ constexpr uint8_t LINEA_MICRA_APPLY_TEMPERATURE = 1U << 0;
 constexpr uint8_t LINEA_MICRA_OBSERVE_STATE = 1U << 1;
 constexpr uint8_t LINEA_MICRA_RECOGNIZE_WAKE = 1U << 2;
 constexpr uint8_t LINEA_MICRA_SHUTDOWN_WITH_SCALE = 1U << 3;
+constexpr uint8_t LINEA_MICRA_POWER_ON_WITH_SCALE = 1U << 7;
 // Grace delay for the scale-triggered shutdown, packed into spare option bits
-// so the persisted ABI stays 310 bytes. Codes 0..4 map to seconds below.
+// so the option byte stays fully allocated. Codes 0..4 map to seconds below.
 constexpr uint8_t LINEA_MICRA_SHUTDOWN_GRACE_SHIFT = 4;
 constexpr uint8_t LINEA_MICRA_SHUTDOWN_GRACE_MASK = 0x70U;
 constexpr uint8_t LINEA_MICRA_SHUTDOWN_GRACE_CODE_MAX = 4;
@@ -25,7 +26,13 @@ constexpr uint8_t LINEA_MICRA_DEFAULT_OPTIONS =
     LINEA_MICRA_RECOGNIZE_WAKE;
 constexpr uint8_t LINEA_MICRA_KNOWN_OPTIONS =
     LINEA_MICRA_DEFAULT_OPTIONS | LINEA_MICRA_SHUTDOWN_WITH_SCALE |
-    LINEA_MICRA_SHUTDOWN_GRACE_MASK;
+    LINEA_MICRA_POWER_ON_WITH_SCALE | LINEA_MICRA_SHUTDOWN_GRACE_MASK;
+// Scale-directed machine-link options live in their own byte so the option
+// layout above stays stable. Bit 0 powers the scale off when the machine is
+// confirmed off; higher bits are reserved and must stay zero.
+constexpr uint8_t LINEA_MICRA_SCALE_OFF_WITH_MACHINE = 1U << 0;
+constexpr uint8_t LINEA_MICRA_KNOWN_SCALE_OPTIONS =
+    LINEA_MICRA_SCALE_OFF_WITH_MACHINE;
 constexpr uint16_t LINEA_MICRA_SHUTDOWN_GRACE_SECONDS[] = {0, 5, 15, 30, 60};
 constexpr uint16_t LINEA_MICRA_BREW_TARGET_MIN_DECI_C = 800;
 constexpr uint16_t LINEA_MICRA_BREW_TARGET_MAX_DECI_C = 1000;
@@ -40,6 +47,7 @@ struct LineaMicraPersistedSettings {
   char selectedSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
   char selectedName[LINEA_MICRA_NAME_CAPACITY] = {};
   uint8_t options = LINEA_MICRA_DEFAULT_OPTIONS;
+  uint8_t scaleOptions = 0;
   bool accountConfigured = false;
 };
 
@@ -97,6 +105,7 @@ inline bool validLineaMicraSerial(const char *serial) {
 inline bool validLineaMicraSettings(
     const LineaMicraPersistedSettings &settings) {
   if ((settings.options & ~LINEA_MICRA_KNOWN_OPTIONS) != 0 ||
+      (settings.scaleOptions & ~LINEA_MICRA_KNOWN_SCALE_OPTIONS) != 0 ||
       !validLineaMicraShutdownGrace(settings.options)) {
     return false;
   }
@@ -125,14 +134,18 @@ inline void wipeLineaMicraSettings(LineaMicraPersistedSettings &settings) {
 
 inline void disconnectLineaMicra(LineaMicraPersistedSettings &settings) {
   const uint8_t options = settings.options;
+  const uint8_t scaleOptions = settings.scaleOptions;
   wipeLineaMicraSettings(settings);
   settings.options = options;
+  settings.scaleOptions = scaleOptions;
 }
 
-inline bool setLineaMicraOptions(LineaMicraPersistedSettings &settings,
+inline void setLineaMicraOptions(LineaMicraPersistedSettings &settings,
                                  bool applyTemperature, bool observeState,
                                  bool recognizeWake, bool shutdownWithScale,
-                                 uint8_t shutdownGraceCode) {
+                                 bool powerOnWithScale,
+                                 uint8_t shutdownGraceCode,
+                                 bool scaleOffWithMachine) {
   if (shutdownGraceCode > LINEA_MICRA_SHUTDOWN_GRACE_CODE_MAX) {
     shutdownGraceCode = 0;
   }
@@ -141,12 +154,14 @@ inline bool setLineaMicraOptions(LineaMicraPersistedSettings &settings,
       (observeState ? LINEA_MICRA_OBSERVE_STATE : 0U) |
       (recognizeWake ? LINEA_MICRA_RECOGNIZE_WAKE : 0U) |
       (shutdownWithScale ? LINEA_MICRA_SHUTDOWN_WITH_SCALE : 0U) |
+      (powerOnWithScale ? LINEA_MICRA_POWER_ON_WITH_SCALE : 0U) |
       static_cast<uint8_t>(static_cast<uint8_t>(shutdownGraceCode)
                            << LINEA_MICRA_SHUTDOWN_GRACE_SHIFT);
-  return true;
+  settings.scaleOptions =
+      scaleOffWithMachine ? LINEA_MICRA_SCALE_OFF_WITH_MACHINE : 0U;
 }
 
-static_assert(sizeof(LineaMicraPersistedSettings) == 310,
+static_assert(sizeof(LineaMicraPersistedSettings) == 311,
               "Linea Micra cloud settings ABI changed");
 
 }  // namespace shotstopper

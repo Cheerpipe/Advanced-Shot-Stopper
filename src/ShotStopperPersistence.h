@@ -75,6 +75,23 @@ inline PersistedSettings &persistedSettingsScratch() {
   return *reinterpret_cast<PersistedSettings *>(flashIoScratchBytes());
 }
 
+// V1 predates LineaMicraPersistedSettings::scaleOptions, which occupies V1's
+// tail padding byte, so a checksum-valid V1 record upgrades losslessly: the
+// new option starts off and only the version and checksum change. Older or
+// corrupted records stay invalid and fall back to defaults.
+inline bool upgradePersistedSettingsV1(PersistedSettings &settings) {
+  if (settings.magic != PERSISTED_SETTINGS_MAGIC ||
+      settings.structureSize != sizeof(PersistedSettings) ||
+      settings.schemaVersion != 1 ||
+      settings.checksum != persistedSettingsChecksum(settings)) {
+    return false;
+  }
+  settings.lineaMicra.scaleOptions = 0;
+  settings.schemaVersion = CONFIG_SCHEMA_VERSION;
+  settings.checksum = persistedSettingsChecksum(settings);
+  return validPersistedSettings(settings);
+}
+
 inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *key,
                              PersistedSettings &settings) {
   if (!preferences.isKey(key) ||
@@ -85,7 +102,8 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
       sizeof(settings)) {
     return false;
   }
-  return validPersistedSettings(settings);
+  if (validPersistedSettings(settings)) return true;
+  return upgradePersistedSettingsV1(settings);
 }
 
 inline bool lockSettingsNvs() { return lockFlashIo(); }

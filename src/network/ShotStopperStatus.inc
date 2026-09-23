@@ -67,10 +67,12 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char micraName[LINEA_MICRA_NAME_CAPACITY] = {};
   char safeMicraName[LINEA_MICRA_NAME_CAPACITY] = {};
   uint8_t micraOptions = 0;
+  uint8_t micraScaleOptions = 0;
   bool micraAccountConfigured = false;
   self.dataMux_.lock();
   micraAccountConfigured = self.settings_.lineaMicra.accountConfigured;
   micraOptions = self.settings_.lineaMicra.options;
+  micraScaleOptions = self.settings_.lineaMicra.scaleOptions;
   memcpy(safeMicraUsername, self.settings_.lineaMicra.username,
          sizeof(safeMicraUsername));
   memcpy(micraSerial, self.settings_.lineaMicra.selectedSerial,
@@ -494,7 +496,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"selectedSerial\":\"%s\",\"selectedName\":\"%s\","
         "\"applyTemperature\":%s,\"observeState\":%s,"
         "\"recognizeWakeGesture\":%s,"
+        "\"powerOnWithScale\":%s,"
         "\"shutdownWithScale\":%s,\"shutdownGraceSeconds\":%u,"
+        "\"scaleOffWithMachine\":%s,"
         "\"requestId\":%lu,\"phase\":\"%s\",\"error\":\"%s\","
         "\"powerState\":\"%s\","
         "\"observedMode\":\"%s\",\"quality\":\"%s\",\"effectiveOn\":%s,"
@@ -518,10 +522,14 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             ? "true" : "false",
         (micraOptions & LINEA_MICRA_RECOGNIZE_WAKE) != 0
             ? "true" : "false",
+        (micraOptions & LINEA_MICRA_POWER_ON_WITH_SCALE) != 0
+            ? "true" : "false",
         (micraOptions & LINEA_MICRA_SHUTDOWN_WITH_SCALE) != 0
             ? "true" : "false",
         static_cast<unsigned>(
             lineaMicraShutdownGraceSeconds(micraOptions)),
+        (micraScaleOptions & LINEA_MICRA_SCALE_OFF_WITH_MACHINE) != 0
+            ? "true" : "false",
         static_cast<unsigned long>(micraStatus.requestId),
         lineaMicraPhaseName(micraStatus.phase),
         lineaMicraErrorName(micraStatus.error),

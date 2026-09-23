@@ -31,7 +31,7 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
   static const char *const fields[] = {
       "action", "username", "password", "serial", "applyTemperature",
       "observeState", "recognizeWakeGesture", "shutdownWithScale",
-      "shutdownGraceSeconds"};
+      "shutdownGraceSeconds", "powerOnWithScale", "scaleOffWithMachine"};
   char action[16] = {};
   char username[LINEA_MICRA_USERNAME_CAPACITY] = {};
   char password[LINEA_MICRA_PASSWORD_CAPACITY] = {};
@@ -46,6 +46,8 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
   bool observeState = false;
   bool recognizeWakeGesture = false;
   bool shutdownWithScale = false;
+  bool powerOnWithScale = false;
+  bool scaleOffWithMachine = false;
   int16_t shutdownGraceSeconds = -1;
   uint8_t shutdownGraceCode = 0;
   LineaMicraPersistedSettings candidate = {};
@@ -73,7 +75,9 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
         jsonFieldPresent(root, "observeState") ||
         jsonFieldPresent(root, "recognizeWakeGesture") ||
         jsonFieldPresent(root, "shutdownWithScale") ||
-        jsonFieldPresent(root, "shutdownGraceSeconds")) {
+        jsonFieldPresent(root, "shutdownGraceSeconds") ||
+        jsonFieldPresent(root, "powerOnWithScale") ||
+        jsonFieldPresent(root, "scaleOffWithMachine")) {
       parseError = "connect requires only username and password.";
     }
   } else if (parseError == nullptr && strcmp(action, "select") == 0) {
@@ -82,6 +86,8 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
         !jsonBoolean(root, "observeState", observeState) ||
         !jsonBoolean(root, "recognizeWakeGesture", recognizeWakeGesture) ||
         !jsonBoolean(root, "shutdownWithScale", shutdownWithScale) ||
+        !jsonBoolean(root, "powerOnWithScale", powerOnWithScale) ||
+        !jsonBoolean(root, "scaleOffWithMachine", scaleOffWithMachine) ||
         !jsonInt16(root, "shutdownGraceSeconds", shutdownGraceSeconds) ||
         !lineaMicraGraceCodeFromSeconds(shutdownGraceSeconds,
                                         shutdownGraceCode) ||
@@ -95,7 +101,8 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
       } else {
         setLineaMicraOptions(candidate, applyTemperature, observeState,
                              recognizeWakeGesture, shutdownWithScale,
-                             shutdownGraceCode);
+                             powerOnWithScale, shutdownGraceCode,
+                             scaleOffWithMachine);
       }
     }
   } else if (parseError == nullptr && strcmp(action, "save") == 0) {
@@ -104,6 +111,8 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
         !jsonBoolean(root, "observeState", observeState) ||
         !jsonBoolean(root, "recognizeWakeGesture", recognizeWakeGesture) ||
         !jsonBoolean(root, "shutdownWithScale", shutdownWithScale) ||
+        !jsonBoolean(root, "powerOnWithScale", powerOnWithScale) ||
+        !jsonBoolean(root, "scaleOffWithMachine", scaleOffWithMachine) ||
         !jsonInt16(root, "shutdownGraceSeconds", shutdownGraceSeconds) ||
         !lineaMicraGraceCodeFromSeconds(shutdownGraceSeconds,
                                         shutdownGraceCode) ||
@@ -114,7 +123,8 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
     } else {
       setLineaMicraOptions(candidate, applyTemperature, observeState,
                            recognizeWakeGesture, shutdownWithScale,
-                           shutdownGraceCode);
+                           powerOnWithScale, shutdownGraceCode,
+                           scaleOffWithMachine);
     }
   } else if (parseError == nullptr &&
              (strcmp(action, "disconnect") == 0 ||
@@ -126,7 +136,9 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
         jsonFieldPresent(root, "observeState") ||
         jsonFieldPresent(root, "recognizeWakeGesture") ||
         jsonFieldPresent(root, "shutdownWithScale") ||
-        jsonFieldPresent(root, "shutdownGraceSeconds")) {
+        jsonFieldPresent(root, "shutdownGraceSeconds") ||
+        jsonFieldPresent(root, "powerOnWithScale") ||
+        jsonFieldPresent(root, "scaleOffWithMachine")) {
       parseError = "disconnect and refresh do not accept setting fields.";
     }
   } else if (parseError == nullptr) {

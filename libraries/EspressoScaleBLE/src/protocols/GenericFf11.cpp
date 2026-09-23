@@ -12,6 +12,12 @@ static const uint8_t RESET_TIMER_GENERIC[6] =
     {0x03, 0x0a, 0x06, 0x00, 0x00, 0x0f};
 static const uint8_t TARE_START_TIMER_BOOKOO[6] =
     {0x03, 0x0a, 0x07, 0x00, 0x00, 0x0e};
+// BooKoo's public contract: shutdown command 0x15, Ultra firmware V4.0.0 and
+// later (invalid while charging). The Themis Mini contract has no shutdown
+// command; both models advertise as "BOOKOO", so the family protocol carries
+// the feature and the scale ignores the command when its firmware predates it.
+static const uint8_t POWER_OFF_BOOKOO[6] =
+    {0x03, 0x0a, 0x15, 0x00, 0x00, 0x1c};
 
 static const uint8_t GENERIC_PRODUCT = 0x03;
 static const uint8_t GENERIC_TYPE = 0x0a;
@@ -22,7 +28,7 @@ static const char *const kGenericPrefixes[] = {"BOOKO"};
 static const ScaleFeatureSet kGenericFeatures = {
     SCALE_CORE_FEATURES | ScaleFeatureCombinedTareStart |
         ScaleFeatureIndependentBeep | ScaleFeatureVolume |
-        ScaleFeatureCommandAudibleFeedback,
+        ScaleFeatureCommandAudibleFeedback | ScaleFeaturePowerOff,
     0,
     5,
     0,
@@ -93,6 +99,9 @@ bool encodeGenericCommand(ScaleOp op, uint8_t arg, uint8_t *out, int *length) {
             fillGenericCommand(command, GENERIC_BEEP_LEVEL_CMD, 0x00, arg);
             return scaleCopyPayload(command, sizeof(command), out, length);
         }
+        case ScaleOp::PowerOff:
+            return scaleCopyPayload(POWER_OFF_BOOKOO,
+                                    sizeof(POWER_OFF_BOOKOO), out, length);
         default:
             break;
     }

@@ -624,12 +624,17 @@ void loop() {
     serviceCupStartGuard(loopGuardInputs);
   }
   // Machine integrations observe the scale link once per loop; the Micra owns
-  // its scale power-off policy (explicit disconnect, grace, relay guard).
+  // its scale power policy (explicit disconnect, grace, relay guard, and the
+  // confirmed machine power edge).
+  const bool loopRelayClosed = getRelaySafetySnapshot().closed;
+  const bool loopScaleConnected =
+      loopScaleLink.state == ScaleLinkState::CONNECTED;
   serviceMachineIntegrationScaleLink(
-      loopStartedAtMs,
-      loopScaleLink.state == ScaleLinkState::CONNECTED,
-      loopScaleLink.disconnectSequence, loopScaleLink.lastDisconnectReason,
-      getRelaySafetySnapshot().closed);
+      loopStartedAtMs, loopScaleConnected, loopScaleLink.disconnectSequence,
+      loopScaleLink.lastDisconnectReason, loopRelayClosed);
+  serviceMachineIntegrationMachinePower(
+      loopScaleConnected, loopScaleLink.features.has(ScaleFeaturePowerOff),
+      loopRelayClosed);
   finishLoopPhase(LoopPhase::MACHINE_GUARDS);
   stateMachineTask();
   publishControlCriticalLoggingState();

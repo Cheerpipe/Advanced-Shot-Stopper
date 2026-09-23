@@ -223,6 +223,8 @@ bool scalePaddleReturnReminderBeepPending = false;
 uint32_t scalePaddleReturnReminderBeepConnectionGeneration = 0;
 bool scaleCompletionBeepPending = false;
 uint32_t scaleCompletionBeepConnectionGeneration = 0;
+bool scalePowerOffPending = false;
+uint32_t scalePowerOffConnectionGeneration = 0;
 uint16_t scaleScanAppliedInterval = 0;
 uint16_t scaleScanAppliedWindow = 0;
 // Last evidence of a compatible scale (advert seen, live link, preference
@@ -1227,6 +1229,54 @@ bool takeScaleCompletionBeep() {
   return pending && link.state == ScaleLinkState::CONNECTED &&
          connectionGeneration != 0 &&
          connectionGeneration == link.connectionGeneration;
+}
+
+// Machine-link request: power the connected scale off. Generation-guarded
+// like the beep mailboxes so a disconnect between request and execution
+// drops the command instead of writing to a stale connection.
+void requestScalePowerOff() {
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  portENTER_CRITICAL(&scaleBeepMux);
+  scalePowerOffPending = true;
+  scalePowerOffConnectionGeneration = link.connectionGeneration;
+  portEXIT_CRITICAL(&scaleBeepMux);
+  wakeScaleWorker();
+}
+
+bool takeScalePowerOff() {
+  bool pending = false;
+  uint32_t connectionGeneration = 0;
+  portENTER_CRITICAL(&scaleBeepMux);
+  if (scalePowerOffPending) {
+    pending = true;
+    scalePowerOffPending = false;
+    connectionGeneration = scalePowerOffConnectionGeneration;
+    scalePowerOffConnectionGeneration = 0;
+  }
+  portEXIT_CRITICAL(&scaleBeepMux);
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  return pending && link.state == ScaleLinkState::CONNECTED &&
+         connectionGeneration != 0 &&
+         connectionGeneration == link.connectionGeneration;
+}
+
+void executeScalePowerOffCommand() {
+  if (!scale.isConnected()) {
+    updateWorkerLinkState();
+    setScaleLinkState(ScaleLinkState::DISCONNECTED);
+    addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_FAILED);
+    return;
+  }
+  if (!scale.supportsPowerOff()) {
+    addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
+    return;
+  }
+  const bool succeeded = scaleCommandOk(scale.powerOff());
+  yieldBetweenScaleAttOps();
+  addDebugEvent(DebugCategory::SCALE,
+                succeeded ? DebugCode::SCALE_DEBUG_OK
+                          : DebugCode::SCALE_DEBUG_FAILED);
+  updateWorkerLinkState();
 }
 
 void executeScaleCommand(const ScaleCommand &command) {
@@ -2265,29 +2315,33 @@ void scaleWorkerTask(void *) {
       if (xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE) {
         executeScaleCommand(command);
       } else {
-        uint32_t beepCycleId = 0;
-        if (takeScaleBrewBeep(beepCycleId)) {
-          (void)beepCycleId;
-          executeScaleBeepCommand(DebugCode::SCALE_BEEP_OK,
-                                  DebugCode::SCALE_BEEP_FAILED,
-                                  DebugCode::SCALE_BEEP_UNSUPPORTED);
-        } else if (takeScalePaddleReturnReminderBeep()) {
-          executeScaleBeepCommand(DebugCode::SCALE_PADDLE_REMINDER_BEEP_OK,
-                                  DebugCode::SCALE_PADDLE_REMINDER_BEEP_FAILED,
-                                  DebugCode::SCALE_PADDLE_REMINDER_BEEP_UNSUPPORTED);
-        } else if (takeScaleCompletionBeep()) {
-          executeScaleBeepCommand(DebugCode::SCALE_BEEP_OK,
-                                  DebugCode::SCALE_BEEP_FAILED,
-                                  DebugCode::SCALE_BEEP_UNSUPPORTED);
+        if (takeScalePowerOff()) {
+          executeScalePowerOffCommand();
         } else {
-          BookooDebugAction debugAction = BookooDebugAction::START;
-          uint8_t debugLevel = 0;
-          if (takeScaleDebugCommand(debugAction, debugLevel)) {
-            executeScaleDebugCommand(debugAction, debugLevel);
-          } else if (!linked && !applyScaleDiscoveryPause()) {
-            serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
-                                        connectAttemptSeriesActive,
-                                        scanSessionAtMs, scanLastAdvertAtMs);
+          uint32_t beepCycleId = 0;
+          if (takeScaleBrewBeep(beepCycleId)) {
+            (void)beepCycleId;
+            executeScaleBeepCommand(DebugCode::SCALE_BEEP_OK,
+                                    DebugCode::SCALE_BEEP_FAILED,
+                                    DebugCode::SCALE_BEEP_UNSUPPORTED);
+          } else if (takeScalePaddleReturnReminderBeep()) {
+            executeScaleBeepCommand(DebugCode::SCALE_PADDLE_REMINDER_BEEP_OK,
+                                    DebugCode::SCALE_PADDLE_REMINDER_BEEP_FAILED,
+                                    DebugCode::SCALE_PADDLE_REMINDER_BEEP_UNSUPPORTED);
+          } else if (takeScaleCompletionBeep()) {
+            executeScaleBeepCommand(DebugCode::SCALE_BEEP_OK,
+                                    DebugCode::SCALE_BEEP_FAILED,
+                                    DebugCode::SCALE_BEEP_UNSUPPORTED);
+          } else {
+            BookooDebugAction debugAction = BookooDebugAction::START;
+            uint8_t debugLevel = 0;
+            if (takeScaleDebugCommand(debugAction, debugLevel)) {
+              executeScaleDebugCommand(debugAction, debugLevel);
+            } else if (!linked && !applyScaleDiscoveryPause()) {
+              serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
+                                          connectAttemptSeriesActive,
+                                          scanSessionAtMs, scanLastAdvertAtMs);
+            }
           }
         }
       }

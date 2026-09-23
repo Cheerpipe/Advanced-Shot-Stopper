@@ -167,7 +167,9 @@ relay profile, or a different `--arch`. Development mode remains CLI-only and
 must never be added to a profile.
 
 Machine defaults seed a new installation and factory reset. Valid persisted
-settings survive ordinary boot and OTA. Each compatibility-relevant profile
+settings survive ordinary boot and OTA; settings written by an older schema
+version are upgraded in place when the layout allows it (schema V1 records
+gain the machine–scale power-link options as off). Each compatibility-relevant profile
 revision is embedded in the firmware identity, so OTA refuses an image for a
 different hardware or machine profile even when both use n16r8.
 

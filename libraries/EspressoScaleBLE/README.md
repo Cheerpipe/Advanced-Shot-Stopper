@@ -39,6 +39,18 @@ always reported in grams.
 Scales without timer or volume bits follow the Eclair-like firmware path:
 tare if present, local buzzer for alerts, no combined tare+start.
 
+## Scale power-off command
+
+`EspressoScaleBLE::powerOff()` switches a connected scale off when its
+protocol implements a power-off command (`ScaleFeaturePowerOff`). Only the
+Bookoo protocol family carries the feature today: BooKoo's published
+contract defines shutdown command `0x15` (`03 0A 15 00 00 1C`) for the
+Themis Ultra with firmware V4.0.0 and later (ignored while charging and by
+V3.1.2 and earlier). The Themis Mini contract has no shutdown command, and
+both models advertise as `BOOKOO`, so the command is sent to the family and
+ignored by units that do not implement it. Every other protocol reports
+`ScaleCommandResult::Unsupported`.
+
 
 ## Requirements
 

@@ -104,9 +104,10 @@ static void run() {
     CHECK(c.newWeightAvailable()); CHECK(c.weight()==-80.0f);
     CHECK(c.currentTimerMs_==0x1234);
     CHECK(c.rejectedPackets()==2);
-    const uint8_t codes[]={1,4,5,6,7,2}; unsigned command=0;
+    const uint8_t codes[]={1,4,5,6,7,2,0x15}; unsigned command=0;
     for (ScaleOp op : {ScaleOp::Tare,ScaleOp::StartTimer,ScaleOp::StopTimer,
-                      ScaleOp::ResetTimer,ScaleOp::CombinedTareStart,ScaleOp::SetVolume}) {
+                      ScaleOp::ResetTimer,ScaleOp::CombinedTareStart,ScaleOp::SetVolume,
+                      ScaleOp::PowerOff}) {
       uint8_t payload[SCALE_MAX_COMMAND_LENGTH]={}; int length=0;
       CHECK(kScaleProtocolGenericFf11.encodeCommand(op,3,payload,&length));
       CHECK(length==6); uint8_t sum=0;
@@ -115,6 +116,10 @@ static void run() {
       for (int i=0;i<length-1;++i) sum^=payload[i];
       CHECK(payload[length-1]==sum);
     }
+    CHECK(kScaleProtocolGenericFf11.features.has(ScaleFeaturePowerOff));
+    CHECK(!kScaleProtocolAcaia.features.has(ScaleFeaturePowerOff));
+    CHECK(!kScaleProtocolDifluid.features.has(ScaleFeaturePowerOff));
+    CHECK(!kScaleProtocolFelicita.features.has(ScaleFeaturePowerOff));
   }
   {
     NimbleScaleClient c(false);

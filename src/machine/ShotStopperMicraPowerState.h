@@ -42,6 +42,15 @@ class LineaMicraPowerStateTracker {
   bool notePhysicalStart(const LineaMicraStatus &authoritative, bool observing,
                          bool recognizeWake, uint32_t now) {
     if (!recognizeWake) return false;
+    return notePowerOnCommandAccepted(authoritative, observing, now);
+  }
+
+  // Optimistic ON arms for any cloud-accepted power-on command — the paddle
+  // wake gesture or a scale-triggered turn-on — once the confirmed state is
+  // OFF, current or stale: the machine is certainly waking, but the dashboard
+  // has not said so yet.
+  bool notePowerOnCommandAccepted(const LineaMicraStatus &authoritative,
+                                  bool observing, uint32_t now) {
     return arm(authoritative, observing, OptimisticDirection::ON, now);
   }
 
