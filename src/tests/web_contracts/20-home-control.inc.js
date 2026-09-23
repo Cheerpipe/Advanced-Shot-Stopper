@@ -664,7 +664,7 @@ if (!html.includes('<summary>Paddle</summary>') ||
     !html.includes('Neither transition stops early') ||
     !html.includes('early ON→OFF demotes the tentative shot to a rinse') ||
     !html.includes('Without weight control, OFF stops normally') ||
-    !ui.includes("paddleMode:['auto','natural','original']") ||
+    !ui.includes("paddleMode:$('paddleMode')?(['auto','natural','original']") ||
     !ui.includes("if($('paddleMode'))$('paddleMode').value=") ||
     !network.includes('"paddleMode"') ||
     !network.includes('paddleMode must be auto, natural or original.') ||
@@ -783,7 +783,7 @@ if (!html.includes('<summary>Switch</summary>') ||
         html.indexOf('<summary>No-scale BBW</summary>') ||
     !html.includes(
         'How long the controller holds the machine button when stopping automatically') ||
-    !ui.includes('stopPulseMs:number(') ||
+    !ui.includes("stopPulseMs:$('stopPulseMs')?number(") ||
     !ui.includes("if($('stopPulseMs'))$('stopPulseMs').value=") ||
     !ui.includes('Auto-stop pulse') ||
     !ui.includes('Single-press limit') ||

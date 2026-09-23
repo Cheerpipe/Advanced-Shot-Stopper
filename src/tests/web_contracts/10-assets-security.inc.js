@@ -258,13 +258,16 @@ if (htmlBytes > 70550) {
 // the added runtime and shell logic inside 200 bytes. Painting the splash
 // before it fades, holding it through a pending firmware reload, and releasing
 // it to the inactive overlay raise that allowance to 194500.
-if (jsBytes > 194500) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 194500)`);
+// Machine-type-exclusive builds strip other types' markup at generation, so
+// the runtime guards every read, write, validation, and save of a stripped
+// element: ~1 KB of null-safe JS that ships in every variant.
+if (jsBytes > 195500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 195500)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
-if (htmlBytes + jsBytes > 265000) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 265000)`);
+if (htmlBytes + jsBytes > 266000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 266000)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

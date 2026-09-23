@@ -240,6 +240,12 @@ configurations outside the supported safety contract, and incompatible
 compile-time overrides. Development mode is CLI-only and must not be shipped.
 See [build profiles](BUILD_PROFILES.md) for the complete JSON contract.
 
+Firmware builds also derive the compiled machine type from the resolved profile
+and forward it to the Web UI generator, so the served interface embeds only the
+markup and styles of that machine type (a paddle build ships no switch or reed
+controls, a momentary build no paddle settings). Direct generator runs keep the
+type-agnostic output unless `--machine-type` is passed explicitly.
+
 Extra flags follow the same CLI, environment, saved-value, and prompt
 precedence. Pass `--flags=""` when you intentionally want an empty value and
 want any remembered flags removed. Generated files live under

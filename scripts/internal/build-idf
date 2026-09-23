@@ -186,7 +186,18 @@ echo "WebUI language: $(ss_get webui_language)"
 # the lock panel or the timed UI Override section.
 webui_dev_flag=''
 grep -q -- '-DSHOT_STOPPER_DEVELOPMENT=1' <<<"$effective_flags" && webui_dev_flag='--development'
-node ./scripts/gen_web_ui.js --webui-language "$(ss_get webui_language)" $webui_dev_flag
+# Bake only the UI of the compiled machine type into the served Web UI.
+webui_type_flag=''
+webui_machine_type="$(sed -n 's/^#define SHOT_STOPPER_MACHINE_TYPE //p' \
+  "$SHOTSTOPPER_GENERATED_DIR/ShotStopperBuildProfileGenerated.h" 2>/dev/null)"
+case "$webui_machine_type" in
+  0) webui_type_flag='--machine-type paddle' ;;
+  1) webui_type_flag='--machine-type momentary' ;;
+  2) webui_type_flag='--machine-type momentary_reed' ;;
+  *) echo "warning: unknown machine type '${webui_machine_type}'; generating type-agnostic Web UI" >&2 ;;
+esac
+# shellcheck disable=SC2086  # flags hold zero or one complete token
+node ./scripts/gen_web_ui.js --webui-language "$(ss_get webui_language)" $webui_dev_flag $webui_type_flag
 
 ss_idf_commit_extra_flags_stamp
 

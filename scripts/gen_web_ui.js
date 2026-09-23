@@ -30,6 +30,38 @@ const VIEW_NAMES = ['home', 'stats', 'history', 'diagnostic', 'settings', 'admin
 const LAZY_PARTIALS = ['stats', 'history', 'diagnostic', 'settings', 'admin'];
 const SECONDARY_VIEWS = ['stats', 'history', 'diagnostic', 'admin'];
 
+// Machine-type exclusive markup classes. Sources stay type-agnostic and hide
+// excluded elements via CSS at runtime; typed builds strip them at generation
+// so a build only ships the UI of the machine type it was compiled for.
+const MACHINE_TYPE_EXCLUSIONS = {
+  paddle: ['momentaryOnly', 'reedOnly', 'switchOnly'],
+  momentary: ['paddleOnly', 'reedOnly'],
+  momentary_reed: ['paddleOnly'],
+};
+
+function stripMachineTypeMarkup(html, machineType) {
+  const excluded = MACHINE_TYPE_EXCLUSIONS[machineType];
+  if (!excluded) return html;
+  let out = html;
+  for (const cls of excluded) {
+    out = out.replace(
+        new RegExp(
+            `<([a-z]+)\\b[^>]*\\bclass="[^\"]*\\b${cls}\\b[^\"]*"[^>]*>[\\s\\S]*?</\\1>`,
+            'g'),
+        '');
+  }
+  return out;
+}
+
+function stripMachineTypeCss(css, machineType) {
+  const excluded = MACHINE_TYPE_EXCLUSIONS[machineType];
+  if (!excluded) return css;
+  const classRe = new RegExp(
+      `\\.(?:${excluded.join('|')})\\b`);
+  return css.replace(/([^{}]+\{[^{}]*\})/g, (rule) =>
+    classRe.test(rule) ? '' : rule);
+}
+
 function readFirmwareVersion() {
   if (!fs.existsSync(versionPath)) {
     return 'dev';
@@ -183,6 +215,10 @@ async function generate(options = {}) {
   const icon192Raw = fs.readFileSync(icon192Path);
   const icon48Raw = fs.readFileSync(icon48Path);
   const version = readFirmwareVersion();
+  if (options.machineType && options.machineType !== 'all' &&
+      !MACHINE_TYPE_EXCLUSIONS[options.machineType]) {
+    throw new Error(`Unknown --machine-type: ${options.machineType}`);
+  }
 
   let shellHtmlRaw = source;
   const partialsRaw = {};
@@ -217,7 +253,8 @@ async function generate(options = {}) {
       type: 'js', content: viewJsRaw[name]})),
     {file: cssSourcePath, type: 'css', content: cssSource},
   ], {language: webUiLanguage, localesDir: options.localesDir,
-    developmentMode: options.developmentMode === true});
+    developmentMode: options.developmentMode === true,
+    machineType: options.machineType});
   let at = 0;
   shellHtmlRaw = localized.sources[at++].content;
   for (const name of VIEW_NAMES) partialsRaw[name] = localized.sources[at++].content;
@@ -226,6 +263,12 @@ async function generate(options = {}) {
   const localizedOtaImage = localized.sources[at++].content;
   for (const name of VIEW_NAMES) viewJsRaw[name] = localized.sources[at++].content;
   const localizedCss = localized.sources[at].content;
+  if (options.machineType) {
+    for (const name of VIEW_NAMES) {
+      partialsRaw[name] =
+          stripMachineTypeMarkup(partialsRaw[name], options.machineType);
+    }
+  }
 
   // Fingerprint unstamped sources so import ?v= tags stay stable and match
   // WEB_UI_ASSET_TAG embedded in the firmware header.
@@ -274,7 +317,8 @@ async function generate(options = {}) {
       await minifyJs(buildSecondaryJs(viewJsRaw, assetTag));
   const settingsJs =
       await minifyJs(stampAssetTag(viewJsRaw.settings, assetTag));
-  const css = minifyCss(localizedCss);
+  const css = minifyCss(options.machineType
+      ? stripMachineTypeCss(localizedCss, options.machineType) : localizedCss);
 
   return finish({
     shellHtml,
@@ -429,6 +473,7 @@ if (require.main === module) {
   Promise.resolve().then(() => {
     let webUiLanguage;
     let developmentMode;
+    let machineType;
     for (let i = 2; i < process.argv.length; i++) {
       const arg = process.argv[i];
       if (arg === '--webui-language') {
@@ -436,13 +481,18 @@ if (require.main === module) {
         webUiLanguage = process.argv[i];
       } else if (arg.startsWith('--webui-language=')) {
         webUiLanguage = arg.slice('--webui-language='.length);
-      } else if (arg === '--development') {
+      } else      if (arg === '--development') {
         developmentMode = true;
+      } else if (arg === '--machine-type') {
+        if (++i >= process.argv.length) throw new Error('--machine-type requires a value');
+        machineType = process.argv[i];
+      } else if (arg.startsWith('--machine-type=')) {
+        machineType = arg.slice('--machine-type='.length);
       } else {
         throw new Error(`Unknown argument: ${arg}`);
       }
     }
-    return generate({webUiLanguage, developmentMode});
+    return generate({webUiLanguage, developmentMode, machineType});
   })
       .then((result) => {
         const parts = [

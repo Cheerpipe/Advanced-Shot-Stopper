@@ -200,6 +200,13 @@ shipped catalog, so another base language fails instead of silently producing
 English. Adding a complete locale file does not affect existing firmware until
 that locale is selected.
 
+The served Web UI is also machine-type exclusive: a build compiled for a paddle
+machine ships only the paddle controls, a momentary build ships only the switch
+timings and the forced-pulse action, and a reed build additionally exposes the
+reed confirmation window. Controls for other machine types are not embedded at
+generation time, so each firmware binary carries only the interface its machine
+can use.
+
 The wrapper preserves project diagnostics but hides ESP-IDF 6.1's known
 `esp_wifi`/`wpa_supplicant` component-validation warnings. Extra-warning
 reports retain their unfiltered SDK log and report project-owned warnings

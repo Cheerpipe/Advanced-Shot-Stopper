@@ -601,7 +601,7 @@ if (!ui.includes('id="forcePulseButton"') ||
     !runtimeJs.includes("force.disabled=!(admin&&remoteReady&&relayStartReady&&webUiOwner)") ||
     !css.includes('.presetActions>.btnGlyph{min-height:var(--tap);') ||
     !css.includes('#actionsPanel .btnGlyph{flex:1;') ||
-    !css.includes('#actionsPanel #forcePulseButton{flex:.6;min-height:var(--tap);min-width:4.5rem}') ||
+    !css.includes('#actionsPanel .momentaryOnly{flex:.6;min-height:var(--tap);min-width:4.5rem}') ||
     !network.includes('"/api/v1/control/force-pulse"') ||
     !network.includes('ShotStopperNetwork::forcePulseHandler') ||
     !network.includes('WebCommandType::FORCE_SWITCH_PULSE') ||

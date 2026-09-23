@@ -41,6 +41,43 @@ if (generated.html.includes('<body class="devBuild">') ||
     generated.html.includes('devBuild')) {
   throw new Error('release shell must not carry the devBuild class');
 }
+// Machine-type exclusive Web UI: typed generation strips other types'
+// exclusive markup and CSS, and bakes the type class into <html>. JS keeps
+// ids in every variant behind null-safe guards, so only markup/CSS are pinned.
+const machineTypeExclusive = {
+  paddle: ['momentaryStartEdge', 'stopPulseMs', 'maxSinglePressMs',
+    'reedConfirmTimeoutS', 'dReed', 'forcePulseButton'],
+  momentary: ['paddleMode', 'paddleReturnReminderBeep',
+    'paddleReturnReminderIntervalS', 'paddleReturnReminderMaxDurationMin',
+    'dReed'],
+  momentary_reed: ['paddleMode', 'paddleReturnReminderBeep',
+    'paddleReturnReminderIntervalS', 'paddleReturnReminderMaxDurationMin'],
+};
+for (const [machineType, forbidden] of Object.entries(machineTypeExclusive)) {
+  const variant =
+      await webUi.generate({webUiLanguage: 'EN', machineType, write: false});
+  const uiText =
+      [variant.html, ...Object.values(variant.partials), variant.css].join('\n');
+  const leaked = forbidden.filter((id) => uiText.includes(id));
+  if (leaked.length) {
+    throw new Error(`machine-type ${machineType} UI must not ship ${leaked.join(',')}`);
+  }
+  const expectedClass =
+      {paddle: 'paddleBuild', momentary: 'momentaryBuild',
+       momentary_reed: 'momentaryBuild reedBuild'}[machineType];
+  if (!variant.html.includes(expectedClass)) {
+    throw new Error(`machine-type ${machineType} shell must carry ${expectedClass}`);
+  }
+}
+const typeAgnostic = await webUi.generate({webUiLanguage: 'EN', write: false});
+const typeAgnosticText =
+    [typeAgnostic.html, ...Object.values(typeAgnostic.partials),
+     typeAgnostic.css].join('\n');
+for (const id of [...new Set(Object.values(machineTypeExclusive).flat())]) {
+  if (!typeAgnosticText.includes(id)) {
+    throw new Error(`type-agnostic UI must keep every type's markup (${id})`);
+  }
+}
 localeAssert.equal(normalizedEnglish.resolvedLanguage, 'en');
 localeAssert.equal(regionalEnglish.requestedLanguage, 'en-en');
 localeAssert.equal(regionalEnglish.resolvedLanguage, 'en');
@@ -330,8 +367,10 @@ if (generated.cssGzip.length > 7300) {
 // preset-temperature wiring are part of the profile-gated runtime bundle.
 // Rebranded user-visible strings (longer brand names and hints) raise it to 37000.
 // The Home boot splash one-shot hide helper raises it to 37150.
-if (generated.runtimeGzip.length > 37150) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 37000-byte gzip budget (${generated.runtimeGzip.length})`);
+// Machine-type-exclusive builds guard every stripped element access in the
+// runtime (loads, save payload, validation, hydration) raising it to 37400.
+if (generated.runtimeGzip.length > 37400) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 37400-byte gzip budget (${generated.runtimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

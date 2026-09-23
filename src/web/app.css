@@ -201,7 +201,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #actionsPanel .fieldHint,#actionsPanel #controlPolicy{display:none}
 #actionsPanel .btnBar{gap:.55rem}
 #actionsPanel .btnGlyph{flex:1;border:1.5px solid var(--ac);border-radius:2rem;background:transparent;color:var(--ac);min-height:3.25rem}
-#actionsPanel #forcePulseButton{flex:.6;min-height:var(--tap);min-width:4.5rem}
+#actionsPanel .momentaryOnly{flex:.6;min-height:var(--tap);min-width:4.5rem}
 #actionsPanel .btnGlyph.btnDanger{background:var(--pri);color:var(--on);border-color:var(--pri)}
 #shotLogPanel .btnBar{position:sticky;top:var(--hdr);z-index:6;background:var(--sf);margin:0 0 .75rem;padding:.25rem 0}
 #shotLogPanel .btnGlyph:not(.btnInvert){background:var(--bg);color:var(--ac);border-color:var(--ln)}

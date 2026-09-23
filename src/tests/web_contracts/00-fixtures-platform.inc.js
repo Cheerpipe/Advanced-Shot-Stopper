@@ -354,6 +354,15 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
     throw new Error(
         'dev build must empty a non-CMake tree before idf.py set-target fullclean');
   }
+  if (!buildIdf.includes('ShotStopperBuildProfileGenerated.h') ||
+      !buildIdf.includes('SHOT_STOPPER_MACHINE_TYPE') ||
+      !buildIdf.includes('--machine-type paddle') ||
+      !buildIdf.includes('--machine-type momentary') ||
+      !buildIdf.includes('--machine-type momentary_reed') ||
+      !buildIdf.includes('gen_web_ui.js')) {
+    throw new Error(
+        'IDF builds must bake the machine-type-exclusive Web UI by forwarding the resolved machine type to gen_web_ui.js');
+  }
 }
 if (!taskProfiler.includes('void copySnapshot(TaskProfilerSnapshot &out) const') ||
     !taskProfiler.includes('TaskLockGuard lock(reportMutex_)') ||

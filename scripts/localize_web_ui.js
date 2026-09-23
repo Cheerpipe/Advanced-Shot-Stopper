@@ -10,7 +10,7 @@ const KEY_RE = /^[a-z0-9_]+(?:\.[a-z0-9_]+)+$/;
 const LANGUAGE_RE = /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/;
 const HTML_MARKER_RE = /\{\{webui:([a-z0-9_.]+)\}\}/g;
 const META_MARKER_RE =
-    /\{\{webui-meta:(locale|direction-attribute|development-class)\}\}/g;
+    /\{\{webui-meta:(locale|direction-attribute|development-class|machine-type-class)\}\}/g;
 const JS_MARKER_RE = /__WEBUI_TEXT__\("([a-z0-9_.]+)"\)/g;
 const CSS_MARKER_RE = /__WEBUI_CSS_TEXT__\("([a-z0-9_.]+)"\)/g;
 
@@ -157,6 +157,15 @@ function renderHtml(source, file, state) {
       const inTag = rendered.lastIndexOf('<', offset) > rendered.lastIndexOf('>', offset);
       if (!inTag) fail(`${file}: ${marker} must be inside the html start tag`);
       return state.options.developmentMode === true ? 'devBuild' : '';
+    }
+    // Static build-mode marker for the compiled machine type; lets CSS and
+    // contracts select on the type without any runtime status round-trip.
+    if (name === 'machine-type-class') {
+      const inTag = rendered.lastIndexOf('<', offset) > rendered.lastIndexOf('>', offset);
+      if (!inTag) fail(`${file}: ${marker} must be inside the html start tag`);
+      const classByType = {paddle: 'paddleBuild', momentary: 'momentaryBuild',
+        momentary_reed: 'momentaryBuild reedBuild'};
+      return classByType[state.options.machineType] || '';
     }
     assertHtmlContext(rendered, marker, offset, true);
     return htmlEscape(state.catalog.locale);
