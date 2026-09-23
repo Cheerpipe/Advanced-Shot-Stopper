@@ -42,7 +42,6 @@ struct CupWeightRuntime {
   uint32_t pendingId = 0;
   uint32_t pendingPlacementId = 0;
   uint32_t pendingAtMs = 0;
-  float sampleWeightG = 0.0f;
   float pendingEmptyAnchorG = NAN;
   uint32_t droppedEvents = 0;
   bool valid = false;
@@ -112,6 +111,7 @@ void invalidateCupWeight() {
   cupPresence.weight.emptySamples = 0;
   cupPresence.weight.unloadSamples = 0;
   cupPresence.weight.unloadQualified = false;
+  if (cupPresence.placementId == 0) cupPresence.inNegativeHole = false;
 }
 
 bool cupWeightNearKnownEmpty(float weight) {
@@ -326,8 +326,30 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
     return CupPresenceEvent::REMOVED;
   }
 
+  if (allowFastReplacement && cupPresence.placementId == 0 &&
+      !cupPresence.referenceUncertain && !cupPresence.holdTransitions &&
+      std::isfinite(cupPresence.emptyAnchorG) &&
+      fabsf(cupPresence.emptyAnchorG) <= FIRST_DROP_BASELINE_SETTLE_G &&
+      (mass.emptyValid || cupPresence.inNegativeHole) &&
+      weight < cupPresence.emptyAnchorG - FIRST_DROP_BASELINE_SETTLE_G) {
+    cupPresence.inNegativeHole = true;
+    if (weight <= cupPresence.emptyAnchorG - minCupG) {
+      cupPresence.emptyAnchorG = NAN;
+      mass.emptyValid = false;
+    }
+  }
   if (cupPresence.inNegativeHole && weight < cupPresence.holeWeightG) {
     cupPresence.holeWeightG = weight;
+  }
+  if (cupPresence.placementId == 0 && cupPresence.inNegativeHole &&
+      std::isfinite(cupPresence.emptyAnchorG) &&
+      cupPresence.emptyAnchorG <= FIRST_DROP_BASELINE_SETTLE_G - minCupG &&
+      fabsf(weight) <= FIRST_DROP_BASELINE_SETTLE_G) {
+    // Returning to the original zero is indistinguishable from pan movement.
+    cupPresence.emptyAnchorG = 0.0f;
+    mass.emptyValid = false;
+    mass.emptySamples = 0;
+    cupPresence.inNegativeHole = false;
   }
   // A brief confirmed unload can reuse the anchor; never use a lift minimum.
   const bool qualifiedReference = mass.emptyValid ||

@@ -29,11 +29,14 @@ Stability tolerance bounds sample spread; it is neither a minimum placement mass
 nor a threshold that identifies a different cup.
 
 At boot/reconnect, initial empty-reference acquisition requires a stable reading
-within ±0.5 g of zero. An unexplained negative offset, such as −350 g, cannot
-authorize relative placement or idle tare. With the pan empty, use the firmware's
-diagnostic tare and let zero stabilize before placing a cup. Negative references
-from an observed cup removal remain supported. Weight alone cannot distinguish
-every sustained external force from a real cup.
+within ±0.5 g of zero. If a Bookoo zeroed an initial load at power-on, removing
+it can reveal a negative empty reading. After a qualified zero, a continuous
+downward change of at least **Minimum cup weight** followed by stable negative
+readings can establish that new reference. A negative offset first seen at
+connection, a reading gap or a return near the original zero cannot establish
+it; tare the empty pan from **Diagnostic** and let zero settle before placing
+a cup. Weight alone cannot distinguish every sustained external force from a
+real cup.
 
 ## Fast replacement outside a shot
 
@@ -88,12 +91,14 @@ anchor, followed by placement; tare alone cannot recover missing mass.
 Nothing is persisted across restarts.
 
 **Home → Cup → Automatic tare** explains readiness separately from presence and
-mass. A cup that was already tared to zero when the controller connected can
-appear absent; lifting and replacing it alone may leave detection unchanged.
-Remove it, tare the empty scale from **Diagnostic**, wait for stable zero, and
-replace it. For a positive-weight cup at startup, stable empty-pan removal and
-replacement are sufficient. Physical-button tare does not restore tracked
-reference history.
+mass. A cup already tared to zero when the controller connected can appear
+absent. If the controller first sees stable zero, then its continuous removal
+produces a stable negative reading, a different-weight replacement can be
+detected. An equal-weight replacement returns near the original zero and cannot
+be distinguished from moving an empty scale; use **Diagnostic** to tare the
+empty pan, wait for stable zero, and replace it. A positive-weight cup at
+startup still needs stable empty-pan removal and replacement. Physical-button
+tare does not restore tracked reference history.
 
 All tares must be firmware-issued: physical-button/external tare is outside the
 supported contract. Older firmware payloads and unavailable readings show **—**.

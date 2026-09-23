@@ -17,9 +17,13 @@ replacing that full cup does trigger it.
 **Home → Cup → Automatic tare** shows readiness and what to do when tare cannot
 proceed. If you switch on with a cup already showing a positive weight, remove
 it, let the empty scale settle near zero, then replace it. If the cup was already
-tared to zero before connecting, remove it and use **Diagnostic** to tare the
-empty scale first; wait for stable zero before replacing the cup. The controller
-cannot distinguish that initial zero-weight cup from an empty pan.
+tared to zero before connecting, let the controller see its steady zero, then
+remove it. A continuous stable negative reading can become the empty reference;
+placing a **different-weight** cup then triggers tare. If readings were lost, the
+replacement reads near the original zero, or the scale started negative, use
+**Diagnostic** to tare the empty scale, wait for stable zero, then place the cup.
+Weight readings alone cannot distinguish an equal-weight replacement from the
+scale being moved and returned.
 
 Once an empty reference is known, two consecutive fresh readings showing
 near-total unloading can authorize a stable replacement without another stable
@@ -34,7 +38,7 @@ unloading and stability requirements. A stable load change alone never triggers 
 The empty reference remains fixed across disturbances while absent. A stable
 negative excursion followed by a return near zero does not represent an added
 cup. Let the original empty reference stabilize before the next placement.
-Initial negative offsets without known reference history cannot authorize
+Initial negative offsets without a preceding qualified zero cannot authorize
 relative placement; recovery is described in [Cup settings](../settings/cup.md).
 
 A known tared cup remains present at 0 g, so **Require cup to start** accepts

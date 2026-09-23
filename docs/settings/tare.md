@@ -55,10 +55,10 @@ placement also works without another stable-empty pause.
 Either placement path triggers another tare, even if the cup contains coffee;
 adding coffee or a spoon while the cup stays present does not.
 
-Moving an empty scale does not authorize learning a new negative zero. Return
-it to its support and let the original empty reference stabilize. An unexplained
-negative offset at boot/reconnect requires an empty-pan firmware diagnostic tare
-and stable zero before relative placement can work; see [Cup](cup.md).
+Moving an empty scale and returning it near its original zero does not authorize
+an idle tare. A negative reading first seen at boot/reconnect, without a
+preceding qualified zero and continuous unload, requires an empty-pan firmware
+diagnostic tare and stable zero; see [Cup](cup.md).
 
 The machine must be confirmed off. A new placement can tare after a normal
 shot stop while the paddle is still ON; the paddle still must be released before
@@ -68,9 +68,13 @@ maintenance exclude idle tare. An excluded placement is not replayed later.
 A cup detected before tare remains present at 0 g and satisfies **Require cup
 to start**. Other start protections still apply. Boot/reconnect loses presence
 evidence. With a cup already reading a positive weight, remove it, let the empty
-pan settle near zero, and replace it. With a pre-tared cup at zero, first remove
-it and issue a firmware diagnostic tare on the empty pan; wait for stable zero
-before replacing it. Removal and replacement alone may not recover that case.
+pan settle near zero, and replace it. If the Bookoo zeroed a cup already on its
+pan at power-on, let that zero settle first, then remove the cup. A continuous,
+stable negative reading can establish the empty reference; placing a cup with a
+different weight can then trigger tare. A return near the original zero is
+treated as possible empty-scale movement. For an equal-weight replacement, a
+reading gap, or a negative reading first seen at connection, tare the empty pan
+from **Diagnostic**, wait for stable zero, then place the cup.
 The integrated protocols currently do not report a verifiable physical-button
 tare event; a zero reading alone cannot distinguish that action from removing
 an untared cup.

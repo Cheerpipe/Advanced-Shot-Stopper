@@ -138,6 +138,7 @@ bool observeCupWeight(float weight, uint32_t atMs, uint32_t sequence,
   auto &mass = cupPresence.weight;
   const uint32_t currentGeneration = getScaleLinkSnapshot().connectionGeneration;
   if (mass.configRevision != runtimeConfig.revision) {
+    if (cupPresence.placementId == 0) invalidateCupWeight();
     mass.unloadSamples = 0;
     mass.unloadQualified = false;
     resetCupPlaceStabilityStreak();
@@ -156,7 +157,6 @@ bool observeCupWeight(float weight, uint32_t atMs, uint32_t sequence,
   if (mass.sampleSequence != 0 && atMs - mass.sampleAtMs >
       runtimeConfig.retareStabilityMaxGapMs) invalidateCupWeight();
   mass.sampleAtMs = atMs;
-  mass.sampleWeightG = weight;
   mass.sampleSequence = sequence;
   mass.connectionGeneration = generation;
   approveScaleTareSample(ScaleTareSample{weight, atMs, sequence, generation});

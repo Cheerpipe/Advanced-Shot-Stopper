@@ -126,10 +126,13 @@ much more. Compare the procedures before choosing one.
 
 Check **Home → Cup → Automatic tare** and the scale status. With a positive
 weight already present at startup, remove the cup, let the empty pan settle,
-and replace it. If the cup already read zero before connection, remove it and
-tare the empty scale from **Diagnostic**, then wait for stable zero and replace
-it. Stable-looking weight alone is insufficient after lost readings or a failed
-tare; an unchanged cup is not automatically retried. See
+and replace it. If the Bookoo zeroed a load already on its pan, wait for the
+initial zero to settle, remove it, let the negative empty reading settle, then
+place a different-weight load. If it returns near zero, readings were lost, or
+the negative reading was present from the first connection, tare the empty pan
+from **Diagnostic**, wait for stable zero and replace the load. Stable-looking
+weight alone is insufficient after lost readings or a failed tare; an unchanged
+cup is not automatically retried. See
 [outside-brew tare](settings/tare.md#outside-a-brew).
 
 ### The scale connects slowly or the UI stutters

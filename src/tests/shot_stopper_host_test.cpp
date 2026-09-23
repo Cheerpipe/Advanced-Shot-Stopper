@@ -8937,18 +8937,12 @@ void it35_loaded_startup_and_sample_gap_need_fresh_placement() {
   idleCup(80.0f);
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
 
-  prepareIdleTare(); // An already-tared cup at boot is indistinguishable from empty.
-  for (unsigned i = 0; i < 3; ++i) {
-    idleCup(-80.0f);
-    idleCup(0.0f);
-  }
+  prepareIdleTare(); // Bookoo zeroed an 80 g load before first connection.
+  idleCup(-80.0f);
   CHECK(cupPresenceState() == CupPresenceState::ABSENT);
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
-  idleCup(-80.0f);
-  executeScaleDebugCommand(BookooDebugAction::TARE, 0); // Empty-pan recovery.
-  processScaleWorkerEvents();
-  idleCup(0.0f);
-  idleCup(80.0f);
+  CHECK(cupPresence.emptyAnchorG == -80.0f);
+  idleCup(20.0f); // Different 100 g replacement does not revisit original zero.
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
 
   prepareIdleTare();
@@ -8960,6 +8954,65 @@ void it35_loaded_startup_and_sample_gap_need_fresh_placement() {
   idleCup(0.0f);
   idleCup(80.0f);
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+}
+
+void it36_bookoo_startup_zero_unload_rearms_relative_tare() {
+  for (float initial : {100.0f, 200.0f}) {
+    prepareIdleTare(); // Initial loaded pan reports zero.
+    const float replacement = initial == 100.0f ? 200.0f : 100.0f;
+    if (initial == 200.0f) {
+      idleWeight(-1.0f);
+      idleWeight(-5.0f);
+      idleWeight(-20.0f); // A continuous unload may cross the minimum gradually.
+    }
+    idleWeight(-initial - 15.0f); // One removal undershoot is not the baseline.
+    CHECK(!cupPresence.weight.emptyValid);
+    idleCup(-initial);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    CHECK(cupPresence.weight.emptyValid);
+    CHECK(cupPresence.emptyAnchorG == -initial);
+    CHECK(idleTare.absentObserved);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    idleCup(replacement - initial);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(captureCupTareDiagnostics().weightValid);
+    CHECK(captureCupTareDiagnostics().weightG == replacement);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(idleTare.lastReason == IdleTareReason::EFFECT_CONFIRMED);
+    CHECK(scale.tareCalls == 1);
+  }
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  runtimeConfig.autoTareOutsideBrew = true;
+  idleCup(-100.0f); // No preceding zero: unknown offset, not observed removal.
+  idleCup(100.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+
+  prepareIdleTare();
+  idleWeight(-2.0f);
+  idleWeight(-100.0f, runtimeConfig.retareStabilityMaxGapMs + 1);
+  idleCup(-100.0f);
+  CHECK(!cupPresence.weight.emptyValid);
+  idleCup(100.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+
+  prepareIdleTare();
+  idleCup(-100.0f);
+  idleCup(0.0f); // Same-mass replacement looks like pan motion returning to zero.
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  runtimeConfig.autoTareOutsideBrew = true;
+  idleCup(0.2f);
+  idleCup(-9.9f);
+  CHECK(cupPresence.emptyAnchorG == -9.9f);
+  idleCup(0.2f); // Initial zero may be slightly positive, not exactly 0 g.
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
 }
 
 void cup_fsm_put_back_without_tare_is_present() {
@@ -15489,6 +15542,7 @@ const TestCase testCases[] = {
     {"IT33", it33_stale_connection_gap_cannot_cancel_current_tare},
     {"IT34", it34_final_prewrite_sample_requires_control_approval},
     {"IT35", it35_loaded_startup_and_sample_gap_need_fresh_placement},
+    {"IT36", it36_bookoo_startup_zero_unload_rearms_relative_tare},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},
