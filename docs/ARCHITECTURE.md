@@ -162,6 +162,18 @@ write never erases the last-good slot. Writes remain deferred until the shot
 has ended. The shot log uses schema 1 in its dedicated partition; any other
 schema is discarded and the stats log starts empty.
 
+On n16r8, ESP-IDF writes one ELF core dump to a 640 KiB capture partition
+after a panic. Once the relay is open and the durable boot ID has been saved,
+boot code validates that image and promotes it into one of two 704 KiB slots
+in the crash-history partition. Each slot commits a checksum-protected metadata
+sector last, after the dump copy and SHA-256 verification. The copy replaces
+the oldest valid slot only when both slots are occupied; interruption before
+commit leaves the capture available for retry. The capture's first sector is
+erased only after commit, so a reboot between those operations is recognized
+by the boot ID and dump digest. HTTP download reads bounded chunks under the
+shared flash lock and releases the lock before sending each chunk. The raw
+archive requires Admin unlock because task stacks may contain secrets.
+
 The separate shot-curve sidecar uses schema 1:
 up to 121 centigram weights on a fixed half-second grid plus exact event/end
 vertices for each of the same 100 eligible history records. Its 26,820-byte

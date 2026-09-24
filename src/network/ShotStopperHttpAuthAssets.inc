@@ -350,6 +350,8 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
       {"/api/v1/status/admin", HTTP_GET, statusHandler},
       {"/api/v1/status/diagnostic", HTTP_GET, statusHandler},
       {"/api/v1/debug/export", HTTP_GET, debugExportHandler},
+      {"/api/v1/diagnostic/crashes", HTTP_GET, crashArchiveDownloadHandler},
+      {"/api/v1/diagnostic/crashes/empty", HTTP_POST, crashArchiveClearHandler},
       {"/api/v1/log", HTTP_GET, logHandler},
       {"/api/v1/shots", HTTP_GET, shotsHandler},
       {"/api/v1/shots/clear", HTTP_POST, shotsClearHandler},

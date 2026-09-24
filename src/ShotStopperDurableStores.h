@@ -6,6 +6,7 @@
 #include "ShotStopperPersistence.h"
 #include "ShotStopperShotCurve.h"
 #include "ShotStopperShotLog.h"
+#include "ShotStopperCrashArchive.h"
 
 namespace shotstopper {
 
@@ -82,6 +83,9 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
       !lastShot.clear()) {
     return false;
   }
+#if !defined(SHOT_STOPPER_HOST_TEST) && !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+  if (!crashArchiveClear()) return false;
+#endif
   yieldFlashIo();
   feedFlashIoWatchdog();
   if (!resetPersistedSettingsToFactory(settings)) {

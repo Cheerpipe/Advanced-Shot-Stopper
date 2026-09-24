@@ -4,6 +4,7 @@
 #include "ShotStopperMachineTypes.h"
 #include "ShotStopperResourceOwner.h"
 #include "ShotStopperSafety.h"
+#include "ShotStopperCrashArchive.h"
 
 // K1 electrical driver and independent deadline/feedback safety.
 // Included from ShotStopperMachine.h in the shotStopper.cpp translation unit.
@@ -151,11 +152,12 @@ void openRelayElectricalFromIsr() {
 #endif
 
 #ifndef SHOT_STOPPER_HOST_TEST
-void IRAM_ATTR shotStopperPanicHandler(arduino_panic_info_t *, void *) {
+void IRAM_ATTR shotStopperPanicHandler(arduino_panic_info_t *info, void *) {
   // The Arduino core invokes this before its normal panic/reboot path. Keep
   // it allocation-free and flash-independent: only de-energize K1 through
   // the same direct-register path used by the independent safety timer.
   openRelayElectricalFromIsr();
+  shotstopper::crashArchiveRecordPanic(info);
 }
 #endif
 

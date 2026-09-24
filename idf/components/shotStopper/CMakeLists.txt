@@ -6,6 +6,7 @@ file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated")
 set(SHOT_STOPPER_SRCS
   "${SHOT_STOPPER_DIR}/shotStopper.cpp"
   "${SHOT_STOPPER_DIR}/ShotStopperResetGuard.cpp"
+  "${SHOT_STOPPER_DIR}/ShotStopperCrashArchive.cpp"
   "${SHOT_STOPPER_DIR}/ShotStopperPowerManagement.cpp"
   "${SHOT_STOPPER_DIR}/ShotStopperScaleWorker.cpp"
   "${SHOT_STOPPER_DIR}/ShotStopperNetwork.cpp"
@@ -46,6 +47,7 @@ idf_component_register(
     esp_http_server
     esp_http_client
     esp_partition
+    espcoredump
     esp_hw_support
     log
     heap

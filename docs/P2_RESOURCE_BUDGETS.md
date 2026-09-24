@@ -52,7 +52,7 @@ raise covers the V3 half-second shot-curve store.
 | Web command | trivially copyable, at most 328 bytes; configuration and network payloads share a discriminated union |
 | Radio settings snapshot | at most 224 bytes; full 2,960-byte settings remain for durable mutations |
 | Wi-Fi static TX pool | eight internal buffers reserved while Wi-Fi is initialized; sized for the bounded Web UI, OTA, webhook, STA, and SoftAP workload, with reliability taking priority over peak Web UI throughput |
-| mDNS responder | NetworkService-owned; mDNS 1.13.1 places its 4096-byte priority-1 task stack on core 0 and dynamic responder allocations in PSRAM, while static synchronization/control storage stays internal; one persistent UDP socket (lwIP socket budget 8→10); always-on passive responder, never gated for shots/scale/AP/HTTP, freed once in `OpenBrewByWeightNetwork::stop()`; SDK heap allocations bypass application counters |
+| mDNS responder | NetworkService-owned; mDNS 1.13.1 places its 4096-byte priority-1 task stack on core 0 in internal RAM on n16r8 for core dumps, and in PSRAM on n8r4; dynamic responder allocations remain in PSRAM; one persistent UDP socket; freed once in `OpenBrewByWeightNetwork::stop()` |
 | Fixed buzzer melodies | at most 8 notes each; custom tune capacity remains 250 notes |
 | JSON parser | PSRAM only; Web input remains at most 2047 bytes / 128 values; the Micra worker explicitly admits at most 16 KiB / 1024 values for bounded cloud responses; nesting remains 32 |
 | BBW adaptive candidates | control-owned fixed RAM, at most 3,000 bytes for eight presets; 20 observations and five trajectory anchors each |
@@ -65,11 +65,12 @@ machine. Earlier settings schemas are rejected and require `--erase-all`.
 
 History V5 retains an exact bounded preset-name snapshot and transfers through
 the shared chunked flash-I/O path. The separate last-shot V4 record retains the
-same provenance. The rendered English Web UI is capped at 69,100 bytes HTML,
-193,300 bytes JavaScript, and 262,300 bytes combined authoring source. Compressed
-limits are 36,900 bytes for runtime JavaScript and 107,200 bytes for all embedded
-Web assets; the Micra cloud build measures 69,031 / 193,267 authoring bytes and
-36,851 / 107,156 compressed bytes respectively.
+same provenance. The current rendered English Web UI is capped at 71,276 bytes
+HTML, 197,500 bytes JavaScript, and 268,500 bytes combined authoring source.
+The crash-download controls use 6,578 of the 6,600-byte compressed secondary
+view limit. The development n16r8 build measured 71,192 / 197,229 authoring
+bytes and 102,808 combined gzip bytes; the total embedded limit remains
+108,200 bytes.
 
 Every new setting must include concise, natural help that explains its effect on
 the barista's workflow, including what changes when an option is enabled or

@@ -157,6 +157,9 @@ void setup() {
   // digitalWrite until the pad is a GPIO. After reset the pin is Hi-Z and
   // the output latch is 0, which is OPEN for the active-HIGH relay.
   machineInitialize();
+#ifndef SHOT_STOPPER_HOST_TEST
+  crashArchivePrepareBoot();
+#endif
   initializeScaleConnectedLed();
 #ifndef SHOT_STOPPER_HOST_TEST
   set_arduino_panic_handler(shotStopperPanicHandler, nullptr);
@@ -306,6 +309,11 @@ void setup() {
 
   addDebugEvent(DebugCategory::BOOT, DebugCode::BOOT_BANNER,
                 static_cast<int32_t>(shotLog.bootId()));
+#ifndef SHOT_STOPPER_HOST_TEST
+  crashArchiveSetBootId(bootIdentityDurable ? shotLog.bootId() : 0);
+  crashArchivePromote(bootIdentityDurable ? shotLog.bootId() : 0,
+                      safetyResetStatus.reasonCode);
+#endif
 
   if (!persistenceReady) {
     addDebugEvent(DebugCategory::CONFIG, DebugCode::INITIALIZATION_FAILED,

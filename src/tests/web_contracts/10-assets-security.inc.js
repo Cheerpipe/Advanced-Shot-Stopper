@@ -265,13 +265,15 @@ if (htmlBytes > 71276) {
 // Machine-type-exclusive builds strip other types' markup at generation, so
 // the runtime guards every read, write, validation, and save of a stripped
 // element: ~1 KB of null-safe JS that ships in every variant.
-if (jsBytes > 195989) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 195989)`);
+// Crash-archive download and confirmed deletion add a bounded browser-only
+// path without changing the normal polling payload or firmware compressor.
+if (jsBytes > 197500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 197500)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
-if (htmlBytes + jsBytes > 267065) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 267065)`);
+if (htmlBytes + jsBytes > 268500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 268500)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

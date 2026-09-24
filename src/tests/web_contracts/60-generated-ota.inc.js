@@ -22,6 +22,19 @@ if (firmware.includes('maybeCaptureScaleStartLag') ||
 
 (async () => {
 const generated = await webUi.generate();
+if (!generated.secondaryJs.includes('new CompressionStream("gzip")') ||
+    !generated.secondaryJs.includes('shotstopper-crashes.tar') ||
+    !generated.secondaryJs.includes('?".gz":""')) {
+  throw new Error('Crash download must gzip in the browser with a TAR fallback');
+}
+const tarFixture = Buffer.alloc(1024);
+tarFixture.write('ustar', 257);
+const browserGzip = await new Response(
+    new Blob([tarFixture]).stream().pipeThrough(new CompressionStream('gzip'))
+).arrayBuffer();
+if (!zlib.gunzipSync(Buffer.from(browserGzip)).equals(tarFixture)) {
+  throw new Error('Browser gzip must preserve TAR bytes');
+}
 if (!generated.assetTag || !generated.cacheVersion ||
     !generated.html.includes(`v=${generated.cacheVersion}`) ||
     !fs.readFileSync(path.join(sketchDir, 'ShotStopperWebAssetsGzip.h'), 'utf8')
@@ -421,9 +434,10 @@ if (generated.runtimeGzip.length > 37400) {
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
 }
-// Reviewed Admin view changes raise the secondary bundle budget by 250 bytes.
-if (generated.secondaryGzip.length > 6050) {
-  throw new Error('Compressed secondary view JS exceeds the 6050-byte gzip budget');
+// The crash archive controls add download, compression, and confirmation to
+// the secondary diagnostic view; retain a narrow 83-byte compression margin.
+if (generated.secondaryGzip.length > 6600) {
+  throw new Error('Compressed secondary view JS exceeds the 6600-byte gzip budget');
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');

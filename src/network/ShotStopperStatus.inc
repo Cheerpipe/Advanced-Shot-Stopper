@@ -872,6 +872,11 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                           adminUnlocked ? "true" : "false",
                           DEVELOPMENT_BUILD ? "true" : "false");
     if (ok) {
+      const CrashArchiveStatus crash = crashArchiveStatus();
+      ok = statusJsonAppend(&used, ",\"crashCount\":%u,\"crashState\":%u",
+                            crash.count, static_cast<unsigned>(crash.state));
+    }
+    if (ok) {
     // Lean diagnostic snapshot: metrics + log controls only (no STA address
     // form fields; those stay on status/admin).
     const ScaleBleDiagnostics &ble = control.scaleBleDiagnostics;

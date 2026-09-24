@@ -7,7 +7,8 @@ credentials. Firmware on the flash is not erased.
 
 Wi-Fi (STA and last-known-good network), workflow settings, presets,
 calibration (including learned offset and A→M samples), preferred scale,
-shot history, and activation history. On Linea Micra firmware it also erases
+shot history, activation history, and saved crash records on 16 MB controllers.
+On Linea Micra firmware it also erases
 the cloud account credentials, installation key, selected machine, and session.
 Its three integration options return to ON, and factory preset boiler targets return to
 93.0 °C. The device

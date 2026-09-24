@@ -40,6 +40,10 @@ if(SHOTSTOPPER_SANITIZER STREQUAL "thread")
 else()
   host_test(shot_stopper_host_test LABEL "host;control")
   host_test(persistence_host_test LABEL "host;persistence")
+  host_test(crash_archive_host_test
+    DEFINITIONS SHOT_STOPPER_CRASH_HOST_TEST LABEL "host;persistence;safety")
+  host_test(crash_archive_routes_host_test
+    DEFINITIONS SHOT_STOPPER_HOST_TEST LABEL "host;network;web")
   host_test(bbw_cutoff_host_test LABEL "host;control;persistence")
   host_test(safety_external_host_test LABEL "host;safety")
   host_test(remote_policy_host_test LABEL "host;safety")

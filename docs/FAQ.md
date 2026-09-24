@@ -192,6 +192,21 @@ After a watchdog/panic reset, the relay is forced open and the interrupted shot
 does not resume. Persistent hardware/feedback faults may still block starting.
 An open K1 cannot stop a welded contact; see [isolation](HARDWARE.md#isolation-must).
 
+On a 16 MB controller, **Diagnostic → Misc → Coredump** shows how many complete
+crash records are saved, up to two. Unlock Admin to download them. The browser
+saves a `.tar.gz` file when gzip is supported, or a `.tar` file otherwise.
+Extract it with `tar -xzf <archive.tar.gz>` or `tar -xf <archive.tar>`.
+Each crash folder contains the raw core dump, a short address list, and a
+manifest with the matching firmware ELF fingerprint. Use the ELF from that
+exact build when interpreting addresses. A watchdog dump may contain several
+tasks; the short address list describes only the panic callback's view.
+The archive can contain passwords or other private data, so share it only with
+someone you trust. Downloading does not delete records. **Empty** asks for
+confirmation and permanently removes them; a full factory reset does too.
+An incomplete panic or a reboot loop before the record is copied can leave
+fewer than two records. The screen reports an error if a temporary dump cannot
+be archived. The 8 MB profile does not offer persistent crash downloads.
+
 To report an issue, include firmware version, board and machine type, scale
 model/firmware, exact gesture/settings, and redacted diagnostic export. Never
 include passwords or webhook secrets. [USB HEALTH](SERIAL_CLI.md#diagnostics)

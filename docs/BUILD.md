@@ -329,6 +329,12 @@ The build renders the selected catalog into
 memory budgets. Use only the image for the intended profile pair. The supported partition layouts have
 two app slots; arbitrary 4 MB layouts cannot hold this firmware.
 
+The n16r8 layout reserves 640 KiB for a temporary ESP-IDF core dump and
+1,408 KiB for two saved crash records. Its unused FFAT area is 7,944 KiB
+(`0x7C2000` bytes). The n8r4 layout keeps its existing 64 KiB core-dump
+partition but does not enable persistent crash capture. On n16r8, the mDNS
+task stack is internal so that stack remains available to a core dump.
+
 GitHub Actions publishes the three official validation pairs listed in
 [Build profiles](BUILD_PROFILES.md#capability-matching). Names follow
 `shotstopper-ota-<profile>-jtag-off-remote-off.bin`; those two features are
@@ -389,11 +395,13 @@ migrate any earlier settings blob. Install this firmware with `--erase-all`
 even when the partition table already matches. An installed 20 KiB NVS layout,
 or a current layout without the dedicated
 56 KiB `shotcurve` partition or the 32 KiB `shotlog` and `history` partitions,
+or an n16r8 layout without the new crash-history area,
 needs a one-time clean USB installation. A normal flash refuses an incompatible
 layout. **The following erases both firmware
 slots and all saved data:** settings, Wi-Fi credentials and password, recipes
 and presets, calibration, scale preferences, shot history and last shot. There
-is no automatic settings or curve migration; both start from factory defaults.
+are also no retained crash records after this installation. Settings and
+curves start from factory defaults without migration.
 
 ```sh
 ./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \

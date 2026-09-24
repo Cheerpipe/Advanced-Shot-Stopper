@@ -516,6 +516,8 @@ class ShotStopperNetwork {
   static esp_err_t partialStatsHandler(httpd_req_t *request);
   static esp_err_t partialHistoryHandler(httpd_req_t *request);
   static esp_err_t partialDiagnosticHandler(httpd_req_t *request);
+  static esp_err_t crashArchiveDownloadHandler(httpd_req_t *request);
+  static esp_err_t crashArchiveClearHandler(httpd_req_t *request);
   static esp_err_t partialSettingsHandler(httpd_req_t *request);
   static esp_err_t partialAdminHandler(httpd_req_t *request);
   static esp_err_t viewSettingsHandler(httpd_req_t *request);

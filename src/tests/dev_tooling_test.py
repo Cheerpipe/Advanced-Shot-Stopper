@@ -327,8 +327,9 @@ partition_contracts = {
                  "shotcurve": (0x620000, 0xE000),
                  "shotlog": (0x62E000, 0x8000),
                  "history": (0x636000, 0x8000),
-                 "ffat": (0x63E000, 0x9B2000),
-                 "coredump": (0xFF0000, 0x10000)},
+                 "ffat": (0x63E000, 0x7C2000),
+                 "coredump": (0xE00000, 0xA0000),
+                 "crashhist": (0xEA0000, 0x160000)},
     },
     "partitions-n8r4.csv": {
         "flash": 0x800000,
