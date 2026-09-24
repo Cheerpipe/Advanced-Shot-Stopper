@@ -220,8 +220,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // artwork adds ~0.5 KB of shell source but only bytes of compressed payload.
 // Scale↔machine power linkage adds two default-off Linea Micra options with
 // setup help: power-on with the scale and scale-off with the machine.
-if (htmlBytes > 71076) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 71076)`);
+// The Diagnostic standalone tare button adds 200 bytes of HTML allowance;
+// compressed asset and firmware budgets remain unchanged.
+if (htmlBytes > 71276) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 71276)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.

@@ -1117,6 +1117,39 @@ esp_err_t ShotStopperNetwork::restartHandler(httpd_req_t *request) {
                                 "Control queue is full.");
 }
 
+esp_err_t ShotStopperNetwork::scaleTareHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  if (!self.diagnosticPageEnabled() && !self.requireAdminUnlock(request)) {
+    return ESP_OK;
+  }
+  if (!controlAllowsConfiguration(self.controlGate())) {
+    return sendError(request, STATUS_CONFLICT, "CONTROL_STATE_CONFLICT",
+                     "Stop the cycle and wait for Ready before taring.");
+  }
+  const esp_err_t bodyStatus =
+      self.lockJsonBody(request, "An empty JSON object is required.");
+  if (bodyStatus != ESP_OK) return bodyStatus;
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
+  static const char *const noFields[] = {nullptr};
+  const bool parsed = root != nullptr &&
+                      jsonHasOnlyUniqueFields(root, noFields, 0);
+  if (root != nullptr) cJSON_Delete(root);
+  self.unlockJsonBody();
+  if (!parsed) {
+    return sendError(request, STATUS_UNPROCESSABLE, "INVALID_REQUEST",
+                     "The tare request must be an empty object.");
+  }
+  WebCommand command;
+  command.type = WebCommandType::BOOKOO_DEBUG;
+  command.bookooDebugAction = BookooDebugAction::TARE;
+  command.requestId = self.allocateRequestId();
+  if (!self.callbacks_.enqueueWebCommand(command)) {
+    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
+                     "Control queue is full.");
+  }
+  return self.sendAccepted(request, command.requestId);
+}
+
 esp_err_t ShotStopperNetwork::clearResetHistoryHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   // Public while the diagnostic page is enabled; Admin unlock otherwise.

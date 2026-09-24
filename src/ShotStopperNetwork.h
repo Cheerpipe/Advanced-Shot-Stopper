@@ -569,6 +569,7 @@ class ShotStopperNetwork {
   static esp_err_t devicePasswordHandler(httpd_req_t *request);
   static esp_err_t bleScanHandler(httpd_req_t *request);
   static esp_err_t taskProfilerHandler(httpd_req_t *request);
+  static esp_err_t scaleTareHandler(httpd_req_t *request);
   // OTA routes authenticate with the device password instead of the
   // exclusive WebUI claim, so the command line client works without stealing
   // control from an open browser window.

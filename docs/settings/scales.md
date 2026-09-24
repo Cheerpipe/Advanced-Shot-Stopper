@@ -50,6 +50,16 @@ interval as soon as the scale's disconnect is observed. The first valid
 advertisement after that quiet period can reconnect normally; there is no
 additional two-advertisement delay.
 
+## Manual tare for diagnosis
+
+With a Bookoo connected and the controller **Ready**, use **Diagnostic → Scale
+→ Tare** to request one standalone tare. It zeroes the scale without starting
+or resetting its timer, changing volume, or sending another scale command.
+The button is unavailable during a cycle. For an isolated test, turn off
+automatic tare outside a brew and late-cup retare beforehand; this button does
+not change those settings. **Tare requested** confirms the request was queued;
+check the scale's reading and diagnostic log for its result.
+
 ## When it applies
 
 A usable scale is required for automatic brew-by-weight. If the scale is
