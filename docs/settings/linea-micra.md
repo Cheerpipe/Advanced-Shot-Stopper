@@ -220,7 +220,7 @@ Neither option acts while a shot or rinse is running.
 
 After sending the scale shutdown command, the controller blocks any later
 scale command on that connection. Its BLE library also blocks reads, scanning,
-and reconnection for 1,000 ms, beginning before shutdown is submitted and
+and reconnection for 3,000 ms, beginning before shutdown is submitted and
 restarting the interval when the scale's disconnect is observed. Normal
 reconnection resumes after that quiet period, without waiting for a second
 advertisement.

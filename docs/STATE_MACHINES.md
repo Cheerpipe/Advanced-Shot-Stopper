@@ -622,7 +622,7 @@ Source: `openBrewByWeight.cpp` (`ScaleLinkState`).
 
 A `connectionGeneration` and `disconnectSequence` ride on the snapshot
 so a *new* connection cannot be mistaken for the one that started the
-shot (that is what suspends weight control). The library also owns a 1,000 ms
+shot (that is what suspends weight control). The library also owns a 3,000 ms
 quiet interval that begins inside its GAP disconnect callback. During it, no
 new BLE procedure or old-link weight event is admitted; discovery becomes
 eligible only after the interval expires.

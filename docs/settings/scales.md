@@ -45,7 +45,7 @@ scale.
 For Bookoo, the controller leaves at least 100 ms between Bluetooth commands.
 Once it asks the scale to shut down, it sends no more commands on that
 connection. The BLE library blocks commands, reads, scanning, and reconnection
-for 1,000 ms, starting before the shutdown command and restarting the full
+for 3,000 ms, starting before the shutdown command and restarting the full
 interval as soon as the scale's disconnect is observed. The first valid
 advertisement after that quiet period can reconnect normally; there is no
 additional two-advertisement delay.

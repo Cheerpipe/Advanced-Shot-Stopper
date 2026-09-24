@@ -78,7 +78,7 @@ connection. Cleanup is idempotent, eight consecutive invalid notifications
 force a recoverable disconnect, and the first-valid-packet and silence limits
 remain protocol-specific.
 
-The client owns a fixed 1,000 ms post-disconnect communication barrier. The GAP
+The client owns a fixed 3,000 ms post-disconnect communication barrier. The GAP
 callback arms it directly—before worker or application notification—and the
 same final admission point covers writes, RSSI, scan/cancel, connect/cancel,
 discovery, subscription, initialization, and termination. No blocked operation
