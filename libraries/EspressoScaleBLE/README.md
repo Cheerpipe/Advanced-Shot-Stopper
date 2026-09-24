@@ -51,7 +51,7 @@ both models advertise as `BOOKOO`, so the command is sent to the family and
 ignored by units that do not implement it. Every other protocol reports
 `ScaleCommandResult::Unsupported`. Once shutdown is requested, that BLE
 connection generation is closed to every later application command, even if
-the scale takes time to disconnect. The one-second communication barrier is
+the scale takes time to disconnect. The three-second communication barrier is
 armed immediately before this terminal write. A later GAP disconnect callback
 restarts the full interval before the application can observe the link loss.
 
@@ -118,6 +118,14 @@ response mode, and full hexadecimal payload. A separate `command done` line
 records command outcomes, connection generation, inter-command gap, raw result,
 and elapsed time. A locally rejected command has only `command done` with
 `submitted=0`. Peer addresses are not logged.
+
+Classified BLE failures produce one `WARNING` `ble error` line with the
+operation, status domain, NimBLE raw value (decimal and hexadecimal), low-byte
+code, and firmware reason. This includes connection failures, unexpected scan
+and GATT failures, recoverable command rejections, RSSI read errors, and cleanup
+errors; normal discovery completion is not an error. The log covers statuses
+reaching this client, not every controller-internal HCI event. A command failure
+may also have its existing `INFO` `command done` outcome line.
 
 Relaxed / Balanced / Aggressive scan presets retain their 25%, 50% and 100% duty
 semantics. Fixed advertisement slots and fixed GATT handle storage avoid a

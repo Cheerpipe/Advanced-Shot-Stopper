@@ -29,6 +29,7 @@ inline void testExitCritical(portMUX_TYPE *) {
 #define portEXIT_CRITICAL(m) testExitCritical(m)
 #define ESP_LOGD(...) ((void)0)
 #define ESP_LOGI(...) ((void)0)
+#define ESP_LOGW(...) ((void)0)
 #define pdTRUE 1
 #define pdFALSE 0
 #define pdMS_TO_TICKS(ms) (ms)
@@ -115,7 +116,7 @@ struct ble_gatt_dsc { uint16_t handle; ble_uuid_any_t uuid; };
 using TestWriteCallback = int(*)(uint16_t,const ble_gatt_error *,ble_gatt_attr *,void *);
 inline TestWriteCallback testWriteCallback=nullptr;
 inline void *testWriteArg=nullptr;
-inline int testSubmitStatus=0, testTerminateStatus=0;
+inline int testSubmitStatus=0, testTerminateStatus=0, testRssiStatus=0;
 inline unsigned testRadioProcedures=0, testTerminations=0, testWrites=0;
 inline std::function<void()> testOnSubmit;
 inline int ble_gattc_write_flat(uint16_t,uint16_t,const void *,uint16_t,TestWriteCallback cb,void *arg) {
@@ -133,7 +134,7 @@ template<class... T> int ble_gap_disc(T...) { ++testRadioProcedures; return 0; }
 inline int ble_gap_disc_cancel() { ++testRadioProcedures; return 0; }
 inline int ble_gap_conn_cancel() { ++testRadioProcedures; return 0; }
 inline int ble_gap_terminate(uint16_t,uint8_t) { ++testRadioProcedures; ++testTerminations; return testTerminateStatus; }
-inline int ble_gap_conn_rssi(uint16_t,int8_t *rssi) { ++testRadioProcedures; *rssi=-50; return 0; }
+inline int ble_gap_conn_rssi(uint16_t,int8_t *rssi) { ++testRadioProcedures; *rssi=-50; return testRssiStatus; }
 struct ShotStopperBleHealth { int lastResetReason; };
 inline bool testRuntimeReady=true;
 inline uint32_t testSyncGeneration=1;

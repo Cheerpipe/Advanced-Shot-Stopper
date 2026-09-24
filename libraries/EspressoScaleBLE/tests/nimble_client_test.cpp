@@ -33,7 +33,7 @@ namespace {
 struct NimbleScaleClientTest {
 static void ready(NimbleScaleClient &c) {
   testOnWait={}; testOnSubmit={}; testSubmitStatus=0;
-  testTerminateStatus=0; testRadioProcedures=0; testTerminations=0;
+  testTerminateStatus=0; testRssiStatus=0; testRadioProcedures=0; testTerminations=0;
   testWrites=0; testWakeCount=0;
   capturedScaleLogs.clear();
   testRuntimeReady=true; testSyncGeneration=1;
@@ -360,6 +360,10 @@ static void run() {
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::WriteFailed);
     CHECK(c.isConnected()); CHECK(testTerminations==0);
     CHECK(c.diagnostics().commandStatus==BLE_HS_ATT_ERR(3));
+    CHECK(capturedScaleLogs.size()==3);
+    CHECK(capturedScaleLogs[1].first==kScaleLogWarningSeverity);
+    CHECK(capturedScaleLogs[1].second.find(
+        "op=tare domain=att raw=259 hex=0x103 code=0x03")!=std::string::npos);
   }
   for (const bool response : {false,true}) {
     NimbleScaleClient c(false); ready(c);
@@ -440,10 +444,45 @@ static void run() {
     c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
     testSubmitStatus=BLE_HS_EBUSY;
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::WriteFailed);
-    CHECK(capturedScaleLogs.size()==1);
-    CHECK(capturedScaleLogs[0].first==kScaleLogInfoSeverity);
-    CHECK(capturedScaleLogs[0].second.find(
+    CHECK(capturedScaleLogs.size()==2);
+    CHECK(capturedScaleLogs[0].first==kScaleLogWarningSeverity);
+    CHECK(capturedScaleLogs[0].second.find("op=tare domain=host raw=15")!=std::string::npos);
+    CHECK(capturedScaleLogs[1].first==kScaleLogInfoSeverity);
+    CHECK(capturedScaleLogs[1].second.find(
         "submitted=0 result=failed raw=15")!=std::string::npos);
+  }
+  for (const int code : {0x0b, 0x1f}) {
+    NimbleScaleClient c(false); ready(c);
+    ble_gap_event e={};
+    if (code==0x0b) {
+      c.enterState(NimbleScaleClient::State::Connecting);
+      e.type=BLE_GAP_EVENT_CONNECT;
+      e.connect.status=BLE_HS_HCI_ERR(code);
+      e.connect.conn_handle=1;
+    } else {
+      e.type=BLE_GAP_EVENT_DISCONNECT;
+      e.disconnect.reason=BLE_HS_HCI_ERR(code);
+      e.disconnect.conn.conn_handle=1;
+    }
+    c.onGapEvent(&e,c.linkOperationId_);
+    c.service(); c.service();
+    CHECK(capturedScaleLogs.size()==1);
+    CHECK(capturedScaleLogs[0].first==kScaleLogWarningSeverity);
+    CHECK(capturedScaleLogs[0].second.find(
+        code==0x0b ? "op=connect domain=hci" : "op=link domain=hci")!=std::string::npos);
+    CHECK(capturedScaleLogs[0].second.find(
+        code==0x0b ? "raw=523 hex=0x20B code=0x0B" :
+                     "raw=543 hex=0x21F code=0x1F")!=std::string::npos);
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    testRssiStatus=BLE_HS_HCI_ERR(0x1f);
+    CHECK(c.rssi()==SCALE_LINK_RSSI_UNAVAILABLE);
+    CHECK(c.isConnected());
+    CHECK(capturedScaleLogs.size()==1);
+    CHECK(capturedScaleLogs[0].first==kScaleLogWarningSeverity);
+    CHECK(capturedScaleLogs[0].second.find(
+        "op=rssi domain=hci raw=543 hex=0x21F code=0x1F")!=std::string::npos);
   }
   {
     NimbleScaleClient c(false); ready(c);

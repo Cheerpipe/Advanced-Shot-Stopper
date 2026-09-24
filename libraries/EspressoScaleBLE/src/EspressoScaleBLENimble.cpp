@@ -48,6 +48,7 @@ constexpr uint32_t kScanCancelTimeoutMs = 1000;
 constexpr uint32_t kUnsupportedCooldownMs = 60000;
 constexpr uint32_t kConnectCallbackMarginMs = 50;
 constexpr uint8_t kScaleLogInfoSeverity = 4;
+constexpr uint8_t kScaleLogWarningSeverity = 1;
 
 void scaleLogV(uint8_t severity, bool info, const char *format, va_list args) {
   if (format == nullptr) {
@@ -57,6 +58,8 @@ void scaleLogV(uint8_t severity, bool info, const char *format, va_list args) {
   vsnprintf(message, sizeof(message), format, args);
   if (shotStopperScaleLog != nullptr) {
     shotStopperScaleLog(severity, message);
+  } else if (severity == kScaleLogWarningSeverity) {
+    ESP_LOGW(kTag, "%s", message);
   } else if (info) {
     ESP_LOGI(kTag, "%s", message);
   } else {
@@ -76,6 +79,23 @@ void scaleLogInfo(const char *format, ...) {
   va_start(args, format);
   scaleLogV(kScaleLogInfoSeverity, true, format, args);
   va_end(args);
+}
+
+void scaleLogWarning(const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+  scaleLogV(kScaleLogWarningSeverity, false, format, args);
+  va_end(args);
+}
+
+void scaleLogError(const char *operation, int32_t status, const char *reason,
+                   ScaleBleDisconnectOrigin origin =
+                       ScaleBleDisconnectOrigin::Local) {
+  if (status == 0) return;
+  scaleLogWarning("ble error op=%s domain=%s raw=%ld hex=0x%lX code=0x%02lX reason=%s",
+                  operation, scaleBleStatusDomain(status, origin),
+                  static_cast<long>(status), static_cast<unsigned long>(status),
+                  static_cast<unsigned long>(status & 0xff), reason);
 }
 
 const char *scaleOpName(ScaleOp op) {
@@ -330,16 +350,19 @@ class NimbleScaleClient {
     if (!callbackOwner_) {
       lastReason_ = ScaleDisconnectReason::SCAN_START_FAILED;
       lastRawStatus_ = BLE_HS_EBUSY;
+      scaleLogError("scan", lastRawStatus_, "callback owner unavailable");
       return false;
     }
     if (scaleProtocolCount() > kProtocolCapacity) {
       lastReason_ = ScaleDisconnectReason::UNSUPPORTED_SCALE;
       lastRawStatus_ = BLE_HS_EINVAL;
+      scaleLogError("scan", lastRawStatus_, "protocol capacity exceeded");
       return false;
     }
     if (!shotStopperBleRuntimeReady()) {
       lastReason_ = ScaleDisconnectReason::SCAN_START_FAILED;
       lastRawStatus_ = BLE_HS_ENOTSYNCED;
+      scaleLogError("scan", lastRawStatus_, "NimBLE not ready");
       return false;
     }
     if (window == 0 || window > interval) {
@@ -352,6 +375,7 @@ class NimbleScaleClient {
     if (filtered && !parseAddress(mac, parsedFilter)) {
       lastReason_ = ScaleDisconnectReason::SCAN_START_FAILED;
       lastRawStatus_ = BLE_HS_EINVAL;
+      scaleLogError("scan", lastRawStatus_, "invalid address filter");
       return false;
     }
     const bool useAddressScan = filtered && addressScan;
@@ -638,11 +662,11 @@ class NimbleScaleClient {
       return SCALE_LINK_RSSI_UNAVAILABLE;
     }
     int8_t value = 0;
-    return submitRadioProcedure(false, [&] {
-             return ble_gap_conn_rssi(connectionHandle_, &value);
-           }) == 0
-               ? static_cast<int>(value)
-               : SCALE_LINK_RSSI_UNAVAILABLE;
+    const int status = submitRadioProcedure(false, [&] {
+      return ble_gap_conn_rssi(connectionHandle_, &value);
+    });
+    if (status != 0) scaleLogError("rssi", status, "read failed");
+    return status == 0 ? static_cast<int>(value) : SCALE_LINK_RSSI_UNAVAILABLE;
   }
 
   uint16_t rxHighWater() const {
@@ -2167,6 +2191,8 @@ class NimbleScaleClient {
                            ? ScaleDisconnectReason::MBUF_ALLOCATION_FAILED
                            : ScaleDisconnectReason::COMMAND_WRITE_FAILED, result);
       diagnostics_.commandStatus = diagnostics_.disconnectStatus;
+    } else if (linkSurvived) {
+      scaleLogError(operation, result, "command rejected");
     }
     scaleLogInfo("command done op=%s gen=%lu submitted=%u result=failed raw=%ld elapsed_ms=%lu gap_ms=%lu",
                  operation, static_cast<unsigned long>(commandGeneration),
@@ -2269,6 +2295,22 @@ class NimbleScaleClient {
       diagnostics_.disconnectOrigin = reason == ScaleDisconnectReason::HOST_RESET
           ? ScaleBleDisconnectOrigin::HostReset
           : (gapLoss ? ScaleBleDisconnectOrigin::Gap : ScaleBleDisconnectOrigin::Local);
+      const char *operation = "discover";
+      if (previous == State::Ready) {
+        operation = activeCommand_ == 0xff ? "link"
+                                        : scaleOpName(static_cast<ScaleOp>(activeCommand_));
+      } else if (previous == State::Scanning || previous == State::Backoff) {
+        operation = "scan";
+      } else if (previous == State::Connecting ||
+                 previous == State::CancelPending || previous == State::Settling) {
+        operation = "connect";
+      } else if (previous == State::Subscribing) {
+        operation = "subscribe";
+      } else if (previous == State::Initializing) {
+        operation = "initialize";
+      }
+      scaleLogError(operation, rawStatus, disconnectReasonName(reason),
+                    diagnostics_.disconnectOrigin);
     }
     // Generation is invalidated before touching NimBLE. A cancellation can
     // synchronously or asynchronously surface a callback, but neither may
@@ -2370,6 +2412,7 @@ class NimbleScaleClient {
     if (status == 0 || status == BLE_HS_EALREADY) return;
     ++teardownFailures_;
     diagnostics_.teardownStatus = status;
+    scaleLogError("teardown", status, "cleanup failed");
   }
 
   void clearScanData() {
