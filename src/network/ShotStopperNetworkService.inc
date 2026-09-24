@@ -551,9 +551,8 @@ void ShotStopperNetwork::taskLoop() {
 void ShotStopperNetwork::service() {
   const uint32_t now = millis();
 
-  // Socket cancellation can wait inside ESP-IDF, so it is serviced only by
-  // this low-priority task. Gate setters merely publish atomics and notify us.
-  webhooks_.serviceAbort();
+  // NTP and machine-API cancellation can wait inside ESP-IDF, so only this
+  // low-priority task services them. Gate setters merely publish atomics.
   abortNtpForRfGate();
   serviceMachineIntegrationAbort();
 

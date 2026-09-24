@@ -447,23 +447,24 @@ if (!webhookSource.includes('allocInternal(queueStorageBytes, AllocationOwner::W
     !webhookSource.includes('xQueueCreateStatic') ||
     !webhookSource.includes('tskIDLE_PRIORITY') ||
     !webhookSource.includes('dispatchAllowed()') ||
-    !webhookSource.includes('config.event_handler') ||
     !webhookSource.includes('setControlCritical') ||
-    !webhookSource.includes('setScaleConnecting') ||
     !webhookSource.includes('bool haveQueued = false') ||
     !webhookSource.includes('if (haveQueued && dispatchAllowed())') ||
-    !webhookSource.includes('esp_http_client_close(event->client)') ||
-    !webhookSource.includes('esp_http_client_cancel_request(client)') ||
-    !webhookSource.includes('cancelActive_') ||
     !webhookSource.includes('ensureHttpClient(live.url)') ||
     !webhookSource.includes('sampleHeapCaps()') ||
     !webhookSource.includes('webhookClientMustRecreate') ||
     !webhookSource.includes('++status_.clientReuses') ||
-    !webhookSource.includes('++status_.transportResets') ||
-    !webhookSource.includes('void WebhookDispatcher::serviceAbort()') ||
-    !network.includes('webhooks_.serviceAbort()')) {
+    !webhookSource.includes('++status_.transportResets')) {
   throw new Error(
-      'Webhook queue must be internal and payload external; delivery must recheck its gate and actively cancel HTTP outside control/BLE');
+      'Webhook queue must be internal and payload external; delivery must recheck the explicit shot-deferral gate before HTTP');
+}
+if (webhookSource.includes('esp_http_client_cancel_request') ||
+    webhookSource.includes('cancelActive_') ||
+    webhookSource.includes('void WebhookDispatcher::serviceAbort()') ||
+    network.includes('webhooks_.serviceAbort()') ||
+    network.includes('webhooks_.setScaleConnecting(')) {
+  throw new Error(
+      'Webhook delivery must never be cancelled or gated by scale connection activity');
 }
 if (!webhookHeader.includes('UniqueResource<esp_http_client_handle_t') ||
     webhookHeader.includes('void *httpClient_') ||

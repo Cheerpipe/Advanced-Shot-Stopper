@@ -315,7 +315,6 @@ void ShotStopperNetwork::syncScaleConnectingRf(bool connecting) {
   const bool changed =
       scaleConnecting_.exchange(connecting, std::memory_order_acq_rel) !=
       connecting;
-  webhooks_.setScaleConnecting(connecting);
   if (connecting) {
     // The lwIP callback may race the low-priority task that stops SNTP. Close
     // its publication gate immediately without touching network APIs here.

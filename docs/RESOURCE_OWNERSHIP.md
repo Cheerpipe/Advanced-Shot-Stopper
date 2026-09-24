@@ -65,10 +65,11 @@ harness, OTA concurrent TSAN, ASan/UBSan tests and
 idempotent reset and scope rollback. Target resource counts remain part of the
 combined soak gate.
 
-The webhook worker keeps a dequeued event pending while the radio gate is
-closed; stop-after-drain includes that locally held event. An empty 50 ms queue
-wait is followed by the lifecycle check without an additional 25 ms delay.
-The 25 ms gated wait and the gate check immediately before HTTP remain.
-`webhook_worker_host_test.cpp` executes this worker with deterministic queue,
-transport and heap injection, including stale configuration and cancellation.
+The webhook worker keeps a dequeued event pending while the configured shot
+gate is closed; stop-after-drain includes that locally held event. An empty 50
+ms queue wait is followed by the lifecycle check without an additional 25 ms
+delay. The 25 ms gated wait and the gate check before starting delivery remain;
+once delivery starts, it runs to completion. `webhook_worker_host_test.cpp`
+executes this worker with deterministic queue, transport and heap injection,
+including stale configuration and an active shot beginning during delivery.
 These tests establish ordering and accounting, not target CPU or RF latency.

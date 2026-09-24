@@ -313,15 +313,11 @@ class WebhookDispatcher {
   WebhookStatus status() const;
   HeapLifecycleAggregate heapTelemetry() const;
   bool enqueue(const WebhookEvent &event);
-  // Radio-heavy delivery is deferred while control/BLE owns the machine when
-  // configured; scale connection attempts are always protected.
-  // Setters are lock-free so control and scale workers never wait on webhook
-  // lifecycle/network locks.
+  // When configured, queued delivery is deferred while control owns the
+  // machine. An HTTP request that already started is always allowed to finish.
+  // The setter is lock-free so control never waits on webhook lifecycle or
+  // network locks.
   void setControlCritical(bool active);
-  void setScaleConnecting(bool active);
-  // Called by the low-priority network manager. Never call from control/BLE:
-  // esp_http_client_cancel_request may wait while it tears down its socket.
-  void serviceAbort();
 
  private:
 #if defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
@@ -343,7 +339,6 @@ class WebhookDispatcher {
   bool startWorker();
   void releaseWorkerFromTask();
   static void taskEntry(void *parameter);
-  static esp_err_t httpEventHandler(esp_http_client_event_t *event);
   void task();
   bool send(const QueuedWebhook &queued);
   esp_http_client_handle_t ensureHttpClient(const char *url);
@@ -367,24 +362,9 @@ class WebhookDispatcher {
   char *payload_ = nullptr;
   std::atomic<bool> controlCritical_{false};
   std::atomic<bool> deferDuringShot_{false};
-  std::atomic<bool> scaleConnecting_{false};
-  std::atomic<bool> abortRequested_{false};
-  std::atomic<int32_t> activeCloseError_{0};
-  std::atomic<WebhookCancellationReason> cancellationReason_{
-      WebhookCancellationReason::NONE};
-  // Latched per active perform so a short critical pulse still cancels after
-  // the level gate has cleared, including cancel_request's reconnect event.
-  std::atomic<bool> cancelActive_{false};
-  // Opaque here so the header does not expose esp_http_client internals.
-  // mux_ protects publication/lifetime while the network task cancels a
-  // perform owned by the webhook task.
-  void *activeClient_ = nullptr;
-  uint8_t activeClientUsers_ = 0;
-  bool cancelInProgress_ = false;
-  // Worker-owned and reused for every request with the same URL. activeClient_
-  // is only the cancellable publication while perform() is in flight. The
-  // owner is a final rollback guard; normal cleanup still runs after join so
-  // its result can be published in WebhookStatus.
+  // Worker-owned and reused for every request with the same URL. The owner is
+  // a final rollback guard; normal cleanup still runs after join so its result
+  // can be published in WebhookStatus.
   UniqueResource<esp_http_client_handle_t, HttpClientDeleter> httpClient_;
   char httpClientUrl_[WEBHOOK_URL_CAPACITY] = {};
 };

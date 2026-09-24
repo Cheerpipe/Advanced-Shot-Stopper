@@ -116,11 +116,6 @@ bool WebhookDispatcher::stop() {
   lifecycleMutex_ = nullptr;
   vSemaphoreDelete(workerStopped_);
   workerStopped_ = nullptr;
-  abortRequested_.store(false, std::memory_order_release);
-  cancelActive_.store(false, std::memory_order_release);
-  activeCloseError_.store(0, std::memory_order_release);
-  cancellationReason_.store(WebhookCancellationReason::NONE,
-                            std::memory_order_release);
   return true;
 }
 
@@ -243,8 +238,6 @@ esp_http_client_handle_t WebhookDispatcher::ensureHttpClient(const char *url) {
   config.url = url;
   config.timeout_ms = kWebhookTimeoutMs;
   config.disable_auto_redirect = true;
-  config.user_data = this;
-  config.event_handler = httpEventHandler;
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (client == nullptr) return nullptr;
   if (esp_http_client_set_header(client, "Content-Type", "application/json") !=
@@ -328,58 +321,11 @@ HeapLifecycleAggregate WebhookDispatcher::heapTelemetry() const {
 
 void WebhookDispatcher::setControlCritical(bool active) {
   controlCritical_.store(active, std::memory_order_release);
-  if (active) {
-    cancellationReason_.store(WebhookCancellationReason::CONTROL_CRITICAL,
-                              std::memory_order_release);
-    cancelActive_.store(true, std::memory_order_release);
-    abortRequested_.store(true, std::memory_order_release);
-  }
-}
-
-void WebhookDispatcher::setScaleConnecting(bool active) {
-  scaleConnecting_.store(active, std::memory_order_release);
-  if (active) {
-    cancellationReason_.store(WebhookCancellationReason::SCALE_CONNECTING,
-                              std::memory_order_release);
-    cancelActive_.store(true, std::memory_order_release);
-    abortRequested_.store(true, std::memory_order_release);
-  }
 }
 
 bool WebhookDispatcher::dispatchAllowed() const {
-  return (!deferDuringShot_.load(std::memory_order_acquire) ||
-          !controlCritical_.load(std::memory_order_acquire)) &&
-         !scaleConnecting_.load(std::memory_order_acquire);
-}
-
-void WebhookDispatcher::serviceAbort() {
-  if (!abortRequested_.exchange(false, std::memory_order_acq_rel)) return;
-
-  esp_http_client_handle_t client = nullptr;
-  mux_.lock();
-  if (activeClient_ != nullptr && !cancelInProgress_) {
-    cancelInProgress_ = true;
-    ++activeClientUsers_;
-    client = static_cast<esp_http_client_handle_t>(activeClient_);
-  }
-  mux_.unlock();
-  if (client == nullptr) return;
-
-  // This is the ESP-IDF API intended to interrupt a blocking perform from a
-  // different task. Its reconnect is immediately closed by the event handler
-  // below while the RF gate remains active.
-  const esp_err_t result = esp_http_client_cancel_request(client);
-  mux_.lock();
-  cancelInProgress_ = false;
-  if (activeClientUsers_ > 0) --activeClientUsers_;
-  const bool stillActive = activeClient_ == client;
-  mux_.unlock();
-  if (stillActive && result != ESP_OK &&
-      cancelActive_.load(std::memory_order_acquire)) {
-    // CONNECTING/DNS is not cancellable until the client reaches CONNECTED.
-    // Retry from the next 20 Hz network-manager pass.
-    abortRequested_.store(true, std::memory_order_release);
-  }
+  return !deferDuringShot_.load(std::memory_order_acquire) ||
+         !controlCritical_.load(std::memory_order_acquire);
 }
 
 bool WebhookDispatcher::enqueue(const WebhookEvent &event) {
@@ -431,34 +377,6 @@ bool WebhookDispatcher::enqueue(const WebhookEvent &event) {
 
 void WebhookDispatcher::taskEntry(void *parameter) {
   static_cast<WebhookDispatcher *>(parameter)->task();
-}
-
-esp_err_t WebhookDispatcher::httpEventHandler(esp_http_client_event_t *event) {
-  if (event == nullptr || event->user_data == nullptr ||
-      event->event_id == HTTP_EVENT_ERROR ||
-      event->event_id == HTTP_EVENT_DISCONNECTED) {
-    return ESP_OK;
-  }
-  auto *dispatcher = static_cast<WebhookDispatcher *>(event->user_data);
-  if (!dispatcher->dispatchAllowed() ||
-      dispatcher->cancelActive_.load(std::memory_order_acquire)) {
-    dispatcher->abortRequested_.store(true, std::memory_order_release);
-    // ESP-IDF ignores event-handler return values in perform(). Closing the
-    // transport here makes connected/header/data events actually abort.
-    // DISCONNECTED is excluded above to avoid recursive close dispatch.
-    if (event->client != nullptr) {
-      const esp_err_t closeError = esp_http_client_close(event->client);
-      // INVALID_STATE is expected if cancellation won the race and already
-      // closed the transport. Any other failure remains visible in status.
-      if (closeError != ESP_OK && closeError != ESP_ERR_INVALID_STATE) {
-        int32_t expected = 0;
-        (void)dispatcher->activeCloseError_.compare_exchange_strong(
-            expected, static_cast<int32_t>(closeError),
-            std::memory_order_acq_rel);
-      }
-    }
-  }
-  return ESP_OK;
 }
 
 void WebhookDispatcher::task() {
@@ -660,8 +578,6 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   const WebhookEvent &event = queued.event;
   char endpoint[sizeof(status_.lastEndpoint)] = {};
   formatSafeHttpEndpoint(live.url, endpoint, sizeof(endpoint));
-  cancellationReason_.store(WebhookCancellationReason::NONE,
-                            std::memory_order_release);
   mux_.lock();
   status_.sending = true;
   status_.lastAttemptAtMs = millis();
@@ -696,54 +612,17 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
           }));
       if (error == ESP_OK) {
         phase = WebhookRequestPhase::DISPATCH;
-        cancelActive_.store(false, std::memory_order_release);
-        activeCloseError_.store(0, std::memory_order_release);
-        mux_.lock();
-        activeClient_ = client;
-        cancelInProgress_ = false;
-        mux_.unlock();
-        if (dispatchAllowed() &&
-            !cancelActive_.load(std::memory_order_acquire)) {
-          phase = WebhookRequestPhase::PERFORM;
-          error = esp_http_client_perform(client);
-          statusCode = esp_http_client_get_status_code(client);
-          const bool allowedAfterPerform = dispatchAllowed();
-          const bool cancelled =
-              cancelActive_.load(std::memory_order_acquire);
-          if (error == ESP_OK && allowedAfterPerform && !cancelled) {
-            phase = WebhookRequestPhase::RESPONSE;
-          }
-          ok = error == ESP_OK && statusCode >= 200 && statusCode < 300 &&
-               allowedAfterPerform && !cancelled;
-        } else {
-          if (scaleConnecting_.load(std::memory_order_acquire)) {
-            cancellationReason_.store(
-                WebhookCancellationReason::SCALE_CONNECTING,
-                std::memory_order_release);
-          } else if (controlCritical_.load(std::memory_order_acquire)) {
-            cancellationReason_.store(
-                WebhookCancellationReason::CONTROL_CRITICAL,
-                std::memory_order_release);
-          }
-          error = ESP_ERR_INVALID_STATE;
+        phase = WebhookRequestPhase::PERFORM;
+        error = esp_http_client_perform(client);
+        statusCode = esp_http_client_get_status_code(client);
+        if (error == ESP_OK) {
+          phase = WebhookRequestPhase::RESPONSE;
         }
-        mux_.lock();
-        activeClient_ = nullptr;
-        mux_.unlock();
-        for (;;) {
-          mux_.lock();
-          const bool referenced = activeClientUsers_ != 0;
-          mux_.unlock();
-          if (!referenced) break;
-          vTaskDelay(pdMS_TO_TICKS(1));
-        }
-        const int32_t closeError =
-            activeCloseError_.exchange(0, std::memory_order_acq_rel);
-        if (closeError != 0) error = static_cast<esp_err_t>(closeError);
+        ok = error == ESP_OK && statusCode >= 200 && statusCode < 300;
       }
       if (!ok) {
         // Keep the allocated client/configuration, but discard any socket/TLS
-        // session left by a timeout, RF cancellation or protocol failure. A
+        // session left by a timeout or protocol failure. A
         // later event can reconnect without repeating handle allocation.
         const esp_err_t closeError = esp_http_client_close(client);
         if (closeError != ESP_OK && closeError != ESP_ERR_INVALID_STATE &&
@@ -760,12 +639,10 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   const HeapCapSnapshot heapAfter = sampleHeapCaps();
 #if !defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
   if (!ok) {
-    const WebhookCancellationReason cancellation =
-        cancellationReason_.load(std::memory_order_acquire);
     ESP_LOGE("WebhookHTTP",
              "delivery failed owner=WebhookDispatcher caller=WebhookDispatcher::send purpose=webhook_delivery event=%s endpoint=%s method=POST phase=%s cancellation=%s error=0x%x",
              eventName(event.type), endpoint, webhookRequestPhaseName(phase),
-             webhookCancellationReasonName(cancellation),
+             webhookCancellationReasonName(WebhookCancellationReason::NONE),
              static_cast<unsigned>(error));
   }
 #endif
@@ -775,8 +652,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   status_.lastHttpStatus = statusCode > 0 ? static_cast<uint16_t>(statusCode) : 0;
   status_.lastError = static_cast<int32_t>(error);
   status_.lastPhase = phase;
-  status_.lastCancellation =
-      cancellationReason_.load(std::memory_order_acquire);
+  status_.lastCancellation = WebhookCancellationReason::NONE;
   if (ok) ++status_.sent;
   else ++status_.dropped;
   ++status_.heapSamples;
@@ -790,12 +666,9 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   }
   status_.psramLargestBefore = heapBefore.psramLargest;
   status_.psramLargestAfter = heapAfter.psramLargest;
-  (void)finishHeapLifecycle(
-      tlsHeap_, ok ? HeapLifecycleResult::SUCCESS
-                   : (cancelActive_.load(std::memory_order_acquire)
-                          ? HeapLifecycleResult::CANCELLED
-                          : HeapLifecycleResult::FAILURE),
-      heapAfter);
+  (void)finishHeapLifecycle(tlsHeap_, ok ? HeapLifecycleResult::SUCCESS
+                                        : HeapLifecycleResult::FAILURE,
+                            heapAfter);
   mux_.unlock();
   return ok;
 }

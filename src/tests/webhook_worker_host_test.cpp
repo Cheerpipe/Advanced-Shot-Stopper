@@ -43,9 +43,10 @@ struct WebhookDispatcherTest {
 }
 
 using namespace shotstopper;
-static WebhookConfig config(bool enabled) {
+static WebhookConfig config(bool enabled, bool deferDuringShot = false) {
   WebhookConfig result;
   result.enabled = enabled;
+  result.deferDuringShot = deferDuringShot;
   strcpy(result.url, "http://example.test/hook?token=secret");
   return result;
 }
@@ -63,15 +64,16 @@ static void testSamplingAndAccounting() {
   for (unsigned scenario = 0; scenario != 5; ++scenario) {
     resetPlatform();
     WebhookDispatcher d;
-    assert(d.begin(config(true)));
+    assert(d.begin(config(true, scenario == 4)));
     if (scenario == 1) httpResult = ESP_FAIL;
     if (scenario == 2) failHttpAllocation = true;
     if (scenario == 3) wifiStatus = 0;
     duringPerform = [&]() {
       heapFree = 700;
-      if (scenario == 4) d.setScaleConnecting(true);
+      if (scenario == 4) d.setControlCritical(true);
     };
-    assert(WebhookDispatcherTest::send(d) == (scenario == 0));
+    const bool expectedSuccess = scenario == 0 || scenario == 4;
+    assert(WebhookDispatcherTest::send(d) == expectedSuccess);
     const auto status = d.status();
     assert(samples == 2 && status.heapSamples == 1);
     assert(status.internalFreeBefore == 1000);
@@ -83,19 +85,17 @@ static void testSamplingAndAccounting() {
     assert(heap.lastEvent == HeapLifecycleEvent::TLS_REQUEST);
     assert(heap.lastDelta.freeBytes ==
            static_cast<int32_t>(status.internalFreeAfter) - 1000);
-    assert(status.sent == (scenario == 0 ? 1U : 0U));
-    assert(status.dropped == (scenario == 0 ? 0U : 1U));
+    assert(status.sent == (expectedSuccess ? 1U : 0U));
+    assert(status.dropped == (expectedSuccess ? 0U : 1U));
     assert(strcmp(status.lastEvent, "test") == 0);
     assert(strcmp(status.lastEndpoint, "http://example.test/hook") == 0);
     const WebhookRequestPhase expectedPhase =
-        scenario == 0 ? WebhookRequestPhase::RESPONSE
+        expectedSuccess ? WebhookRequestPhase::RESPONSE
         : scenario == 2 ? WebhookRequestPhase::CLIENT
         : scenario == 3 ? WebhookRequestPhase::PREPARE
                         : WebhookRequestPhase::PERFORM;
     assert(status.lastPhase == expectedPhase);
-    assert(status.lastCancellation ==
-           (scenario == 4 ? WebhookCancellationReason::SCALE_CONNECTING
-                          : WebhookCancellationReason::NONE));
+    assert(status.lastCancellation == WebhookCancellationReason::NONE);
     assert(workerTrace.front() == "sample" && workerTrace.back() == "sample");
     workerTrace.clear();
     assert(!WebhookDispatcherTest::send(d, true));
@@ -103,7 +103,7 @@ static void testSamplingAndAccounting() {
     assert(d.status().staleConfigDropped == 1);
     assert(d.status().heapSamples == 1);
     if (scenario == 4) {
-      d.setScaleConnecting(false);
+      d.setControlCritical(false);
       wifiStatus = 0;
       assert(!WebhookDispatcherTest::send(d));
       assert(d.status().lastCancellation == WebhookCancellationReason::NONE);
@@ -129,16 +129,16 @@ static void testHeldItemSurvivesDrainAndGate() {
   for (bool changeConfig : {false, true}) {
     resetPlatform();
     WebhookDispatcher d;
-    assert(d.begin(config(false)));
+    assert(d.begin(config(false, true)));
     WebhookEvent event;
     event.type = WebhookEventType::TEST;
     assert(d.enqueue(event)); // Disabled test worker stops after draining.
-    afterReceive = [&]() { d.setScaleConnecting(true); };
+    afterReceive = [&]() { d.setControlCritical(true); };
     unsigned delays = 0;
     afterDelay = [&]() {
       if (++delays == 2) {
-        if (changeConfig) d.setConfig(config(true));
-        d.setScaleConnecting(false);
+        if (changeConfig) d.setConfig(config(true, true));
+        d.setControlCritical(false);
       }
       assert(delays <= 2);
     };

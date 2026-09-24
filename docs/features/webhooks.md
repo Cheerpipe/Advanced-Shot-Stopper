@@ -19,10 +19,12 @@ delivery result and drop count.
 The controller supports one callback. Changing it replaces the previous
 receiver. Enable **Queue webhooks during shots** only when the receiver's
 network traffic disrupts a sensitive scale connection; queued delivery may be
-delayed until the extraction ends.
+delayed until the extraction ends. A delivery that has already started is
+allowed to finish; webhook requests are never cancelled when a shot or scale
+connection begins.
 
-After a failed attempt, diagnostic status identifies the event, the request
-phase, and whether brewing control or a scale connection cancelled delivery.
+After a failed attempt, diagnostic status identifies the event, request phase,
+transport result, and HTTP status.
 The recorded destination keeps only the scheme, host, port, and path; URL query
 values and credentials are never included in that diagnostic.
 

@@ -124,7 +124,8 @@ the mutation response. Valid terminal states are `PERSISTED`, `FAILED`, and
 ### `GET /api/v1/integration/webhook`
 
 Returns `enabled`, `url`, `brewState`, `firstDrop`, `end`, `presetChanges`, and
-`deferDuringShot`.
+`deferDuringShot`. When that flag is true, queued requests wait while a shot is
+active; a request that already started is never cancelled.
 
 ### `PUT /api/v1/integration/webhook`
 
