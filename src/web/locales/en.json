@@ -46,7 +46,7 @@
     "admin.dropped": ", dropped ",
     "admin.e_g_ntp_example_com": "e.g. ntp.example.com",
     "admin.enable_bluetooth": "Enable Bluetooth",
-    "admin.enable_bluetooth_hint": "Master switch for Bluetooth scales. On: scales connect as usual. Off: searching stops and any connected scale disconnects, exactly as if no scale were present. Everything else keeps its own settings.",
+    "admin.enable_bluetooth_hint": "Master switch that enables or disables Bluetooth connections to scales. When disabled, scale discovery stops and any connected scale disconnects. The firmware continues to operate normally as it would with no scale connected. It only affects Bluetooth communication.",
     "admin.end": "End",
     "admin.enter_a_lowercase_http_url_https_is": "Enter a lowercase http:// URL. HTTPS is not supported.",
     "admin.erase_every_saved_setting_and_restore_the": "Erase every saved setting and restore the controller to its factory defaults.",
