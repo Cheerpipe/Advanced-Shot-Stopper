@@ -169,7 +169,7 @@ void formatDebugEventMessage(const DebugEvent &event, char *message,
   if (message == nullptr || capacity == 0) {
     return;
   }
-  if (event.code == DebugCode::LOG_TEXT) {
+  if (event.text[0] != '\0') {
     copyCString(message, capacity, event.text);
     return;
   }
@@ -292,8 +292,9 @@ void serialTraceCategoryf(LogLevel level, DebugCategory category,
   logText(level, category, line);
 }
 
-void logEmit(LogLevel level, DebugCategory category, DebugCode code,
-             int32_t argument1 = 0, int32_t argument2 = 0) {
+void logEmitDetail(LogLevel level, DebugCategory category, DebugCode code,
+                   int32_t argument1, int32_t argument2,
+                   const char *detail) {
   if (level == LogLevel::NONE) {
     return;
   }
@@ -307,6 +308,9 @@ void logEmit(LogLevel level, DebugCategory category, DebugCode code,
   event.code = code;
   event.argument1 = argument1;
   event.argument2 = argument2;
+  if (detail != nullptr) {
+    copyCString(event.text, sizeof(event.text), detail);
+  }
 
   const bool toSerial =
       logLevelAtMost(level, currentSerialLogLevel());
@@ -319,7 +323,8 @@ void logEmit(LogLevel level, DebugCategory category, DebugCode code,
   {
     TaskLockGuard lock(debugLogMutex);
     if (toRing) {
-      debugLog.add(atMs, wallSec, level, category, code, argument1, argument2);
+      debugLog.add(atMs, wallSec, level, category, code, argument1, argument2,
+                   detail);
       __atomic_store_n(&debugLogDroppedSnapshot, debugLog.overwritten(),
                        __ATOMIC_RELAXED);
     }
@@ -332,9 +337,21 @@ void logEmit(LogLevel level, DebugCategory category, DebugCode code,
   }
 }
 
+void logEmit(LogLevel level, DebugCategory category, DebugCode code,
+             int32_t argument1 = 0, int32_t argument2 = 0) {
+  logEmitDetail(level, category, code, argument1, argument2, nullptr);
+}
+
 void addDebugEvent(DebugCategory category, DebugCode code,
                    int32_t argument1 = 0, int32_t argument2 = 0) {
   logEmit(debugCodeDefaultLevel(code), category, code, argument1, argument2);
+}
+
+void addDebugEventDetail(DebugCategory category, DebugCode code,
+                         int32_t argument1, int32_t argument2,
+                         const char *detail) {
+  logEmitDetail(debugCodeDefaultLevel(code), category, code, argument1,
+                argument2, detail);
 }
 
 size_t copyDebugEvents(uint32_t afterSequence, DebugEvent *output,

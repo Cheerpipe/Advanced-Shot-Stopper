@@ -422,10 +422,19 @@ void processScaleWorkerEvents() {
     const ScaleLinkSnapshot eventLink = getScaleLinkSnapshot();
     if (event.connectionGeneration != eventLink.connectionGeneration ||
         event.disconnectSequence != eventLink.disconnectSequence) {
-      addDebugEvent(DebugCategory::SCALE,
+      char detail[DEBUG_EVENT_TEXT_CAPACITY];
+      snprintf(detail, sizeof(detail),
+               "stale scale event rejected: %s reason=link_epoch "
+               "gen(e/n)=%lu/%lu disc(e/n)=%lu/%lu",
+               scaleEventTypeName(event.type),
+               static_cast<unsigned long>(event.connectionGeneration),
+               static_cast<unsigned long>(eventLink.connectionGeneration),
+               static_cast<unsigned long>(event.disconnectSequence),
+               static_cast<unsigned long>(eventLink.disconnectSequence));
+      addDebugEventDetail(DebugCategory::SCALE,
                     DebugCode::SCALE_STALE_EVENT_REJECTED,
                     static_cast<int32_t>(event.connectionGeneration),
-                    static_cast<int32_t>(eventLink.connectionGeneration));
+                    static_cast<int32_t>(eventLink.connectionGeneration), detail);
       continue;
     }
     switch (event.type) {
@@ -455,10 +464,18 @@ void processScaleWorkerEvents() {
           if (session.active &&
               static_cast<int32_t>(event.receivedAtMs -
                                    session.startedAtMs) < 0) {
-            addDebugEvent(DebugCategory::SCALE,
+            char detail[DEBUG_EVENT_TEXT_CAPACITY];
+            snprintf(detail, sizeof(detail),
+                     "stale scale event rejected: weight reason=before cycle "
+                     "sample_ms=%lu cycle_ms=%lu cycle=%lu",
+                     static_cast<unsigned long>(event.receivedAtMs),
+                     static_cast<unsigned long>(session.startedAtMs),
+                     static_cast<unsigned long>(session.id));
+            addDebugEventDetail(DebugCategory::SCALE,
                           DebugCode::SCALE_STALE_EVENT_REJECTED,
                           static_cast<int32_t>(event.connectionGeneration),
-                          static_cast<int32_t>(eventLink.connectionGeneration));
+                          static_cast<int32_t>(eventLink.connectionGeneration),
+                          detail);
             break;
           }
         }

@@ -39,6 +39,26 @@ enum class ScaleEventType : uint8_t {
   REFERENCE_CHANGED
 };
 
+inline const char *scaleEventTypeName(ScaleEventType type) {
+  switch (type) {
+    case ScaleEventType::WEIGHT: return "weight";
+    case ScaleEventType::TIMER_START_RESULT: return "timer_start_result";
+    case ScaleEventType::TARE_RESULT: return "tare_result";
+    case ScaleEventType::TIMER_STOP_RESULT: return "timer_stop_result";
+    case ScaleEventType::REFERENCE_CHANGED: return "reference_changed";
+  }
+  return "unknown";
+}
+
+inline const char *scaleCommandTypeName(ScaleCommandType type) {
+  switch (type) {
+    case ScaleCommandType::START_TIMER_AND_TARE: return "start_timer_and_tare";
+    case ScaleCommandType::TARE_ONLY: return "tare_only";
+    case ScaleCommandType::STOP_TIMER: return "stop_timer";
+  }
+  return "unknown";
+}
+
 // Worker-owned command lifetime. Terminal state survives a dropped result.
 enum class IdleTarePhase : uint8_t { NONE, QUEUED, WRITING, SUCCEEDED, FAILED };
 enum class IdleTareReason : uint8_t {

@@ -32,6 +32,9 @@
 uint32_t elapsedMs(uint32_t sinceMs);
 void addDebugEvent(shotstopper::DebugCategory category, shotstopper::DebugCode code,
                    int32_t argument1 = 0, int32_t argument2 = 0);
+void addDebugEventDetail(shotstopper::DebugCategory category,
+                         shotstopper::DebugCode code, int32_t argument1,
+                         int32_t argument2, const char *detail);
 void serialTrace(shotstopper::LogLevel level, const char *message);
 void serialTracef(shotstopper::LogLevel level, const char *fmt, ...);
 void logEmit(shotstopper::LogLevel level, shotstopper::DebugCategory category,
@@ -1070,9 +1073,23 @@ bool takeScaleDebugCommand(BookooDebugAction &action, uint8_t &beepLevel) {
       connectionGeneration == 0 ||
       connectionGeneration != link.connectionGeneration ||
       scalePowerOffBlocksGeneration(connectionGeneration)) {
-    addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_STALE_EVENT_REJECTED,
+    static const char *const actionNames[] = {
+        "start", "stop", "tare", "combined", "beep", "volume"};
+    const size_t actionIndex = static_cast<size_t>(action);
+    char detail[DEBUG_EVENT_TEXT_CAPACITY];
+    snprintf(detail, sizeof(detail),
+             "stale scale event rejected: debug=%s reason=%s gen=%lu/%lu",
+             actionIndex < sizeof(actionNames) / sizeof(actionNames[0])
+                 ? actionNames[actionIndex] : "unknown",
+             link.state != ScaleLinkState::CONNECTED ? "disconnected" :
+             connectionGeneration == 0 ? "missing generation" :
+             connectionGeneration != link.connectionGeneration
+                 ? "generation mismatch" : "power-off pending",
+             static_cast<unsigned long>(connectionGeneration),
+             static_cast<unsigned long>(link.connectionGeneration));
+    addDebugEventDetail(DebugCategory::SCALE, DebugCode::SCALE_STALE_EVENT_REJECTED,
                   static_cast<int32_t>(connectionGeneration),
-                  static_cast<int32_t>(link.connectionGeneration));
+                  static_cast<int32_t>(link.connectionGeneration), detail);
     return false;
   }
   return true;
@@ -1428,9 +1445,22 @@ void executeScaleCommand(const ScaleCommand &command) {
         break;
     }
     publishScaleEvent(event, true);
-    addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_STALE_EVENT_REJECTED,
+    char detail[DEBUG_EVENT_TEXT_CAPACITY];
+    snprintf(detail, sizeof(detail),
+             "stale scale event rejected: command=%s reason=%s "
+             "gen=%lu/%lu cycle=%lu",
+             scaleCommandTypeName(command.type),
+             command.connectionGeneration == 0 ? "missing generation" :
+             command.connectionGeneration != link.connectionGeneration
+                 ? "generation mismatch" :
+             link.state != ScaleLinkState::CONNECTED ? "disconnected" :
+                                                        "power-off pending",
+             static_cast<unsigned long>(command.connectionGeneration),
+             static_cast<unsigned long>(link.connectionGeneration),
+             static_cast<unsigned long>(command.cycleId));
+    addDebugEventDetail(DebugCategory::SCALE, DebugCode::SCALE_STALE_EVENT_REJECTED,
                   static_cast<int32_t>(command.connectionGeneration),
-                  static_cast<int32_t>(link.connectionGeneration));
+                  static_cast<int32_t>(link.connectionGeneration), detail);
     return;
   }
   switch (command.type) {

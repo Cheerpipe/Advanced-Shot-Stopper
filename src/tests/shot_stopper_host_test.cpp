@@ -1712,6 +1712,16 @@ void r09b_old_commands_are_discarded_after_reconnect_but_new_stop_runs() {
   CHECK(scale.tareStartTimerCalls == 0);
   CHECK(scale.tareCalls == 0);
   CHECK(scale.stopTimerCalls == 0);
+  DebugEvent rejected[8] = {};
+  const size_t rejectedCount = copyDebugEvents(0, rejected, 8);
+  bool sawTare = false;
+  for (size_t index = 0; index < rejectedCount; ++index) {
+    if (rejected[index].code == DebugCode::SCALE_STALE_EVENT_REJECTED) {
+      sawTare |= strstr(rejected[index].text,
+                        "command=tare_only reason=generation mismatch") != nullptr;
+    }
+  }
+  CHECK(sawTare);
 
   ScaleCommand currentStop;
   currentStop.type = ScaleCommandType::STOP_TIMER;
@@ -4873,6 +4883,15 @@ void w75b_old_debug_volume_and_beeps_do_not_cross_connections() {
   CHECK(!takeScaleDebugCommand(action, level));
   CHECK(!takeScaleBrewBeep(cycleId));
   CHECK(scale.commandLog.empty());
+  DebugEvent rejected[8] = {};
+  const size_t rejectedCount = copyDebugEvents(0, rejected, 8);
+  bool sawVolume = false;
+  for (size_t index = 0; index < rejectedCount; ++index) {
+    sawVolume |= rejected[index].code == DebugCode::SCALE_STALE_EVENT_REJECTED &&
+                 strstr(rejected[index].text,
+                        "debug=volume reason=generation mismatch") != nullptr;
+  }
+  CHECK(sawVolume);
 
   CHECK(enqueueScaleDebugCommand(BookooDebugAction::VOLUME, 0));
   CHECK(takeScaleDebugCommand(action, level));
@@ -9016,9 +9035,48 @@ void it33b_pre_disconnect_weight_cannot_cross_disconnect_epoch() {
   setScaleConnected(false);
   CHECK(getScaleLinkSnapshot().disconnectSequence ==
         before.disconnectSequence + 1);
+  debugLog.clear();
   processScaleWorkerEvents();
   CHECK(observedWeight == 0.0f);
   CHECK(currentWeight == 0.0f);
+  DebugEvent rejected[4] = {};
+  const size_t count = copyDebugEvents(0, rejected, 4);
+  bool found = false;
+  for (size_t index = 0; index < count; ++index) {
+    if (rejected[index].code != DebugCode::SCALE_STALE_EVENT_REJECTED) continue;
+    found = true;
+    CHECK(strstr(rejected[index].text,
+                 "weight reason=link_epoch gen(e/n)=") != nullptr);
+    CHECK(strstr(rejected[index].text, "disc(e/n)=") != nullptr);
+    char message[128] = {};
+    formatDebugEventMessage(rejected[index], message, sizeof(message));
+    CHECK(strcmp(message, rejected[index].text) == 0);
+  }
+  CHECK(found);
+}
+
+void it33d_pre_cycle_weight_warning_identifies_timestamps() {
+  resetHarness(false, true);
+  session.active = true;
+  session.id = 42;
+  session.startedAtMs = hostMillis + 100;
+  ScaleEvent stale;
+  stale.type = ScaleEventType::WEIGHT;
+  stale.receivedAtMs = hostMillis;
+  stale.weightG = 12.0f;
+  CHECK(publishScaleEvent(stale, false));
+  debugLog.clear();
+  processScaleWorkerEvents();
+  DebugEvent events[4] = {};
+  const size_t count = copyDebugEvents(0, events, 4);
+  bool found = false;
+  for (size_t index = 0; index < count; ++index) {
+    found |= events[index].code == DebugCode::SCALE_STALE_EVENT_REJECTED &&
+             strstr(events[index].text,
+                    "weight reason=before cycle sample_ms=") != nullptr &&
+             strstr(events[index].text, "cycle=42") != nullptr;
+  }
+  CHECK(found);
 }
 
 void it33c_pre_disconnect_command_result_cannot_cross_disconnect_epoch() {
@@ -16153,6 +16211,7 @@ const TestCase testCases[] = {
     {"IT33", it33_stale_connection_gap_cannot_cancel_current_tare},
     {"IT33B", it33b_pre_disconnect_weight_cannot_cross_disconnect_epoch},
     {"IT33C", it33c_pre_disconnect_command_result_cannot_cross_disconnect_epoch},
+    {"IT33D", it33d_pre_cycle_weight_warning_identifies_timestamps},
     {"IT34", it34_final_prewrite_sample_requires_control_approval},
     {"IT35", it35_loaded_startup_and_sample_gap_need_fresh_placement},
     {"IT36", it36_bookoo_startup_zero_unload_rearms_relative_tare},

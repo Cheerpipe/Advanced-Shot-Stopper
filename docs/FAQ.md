@@ -212,6 +212,12 @@ model/firmware, exact gesture/settings, and redacted diagnostic export. Never
 include passwords or webhook secrets. [USB HEALTH](SERIAL_CLI.md#diagnostics)
 and [shot history](features/shot-history.md) help explain the observed result.
 
+A `stale scale event rejected` warning means an old weight update or scale
+command was ignored. Its detail names the rejected item and reason; `gen(e/n)`
+and `disc(e/n)` compare the event's link identifiers (`e`) with the current
+link (`n`).
+This can happen briefly after a scale disconnects or reconnects.
+
 ## Where to change it
 
 Use the [settings index](README.md#settings) for parameter references,

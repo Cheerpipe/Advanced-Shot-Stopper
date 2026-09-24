@@ -902,7 +902,7 @@ esp_err_t ShotStopperNetwork::logHandler(httpd_req_t *request) {
   for (size_t index = 0; index < count; ++index) {
     const DebugEvent &event = work.logBatch[index];
     char message[128] = {};
-    if (event.code == DebugCode::LOG_TEXT) {
+    if (event.text[0] != '\0') {
       copyCString(message, sizeof(message), event.text);
     } else if (event.code == DebugCode::BOOT_BANNER) {
       snprintf(message, sizeof(message), "Open Brew by Weight %s (bootId=%ld)",
