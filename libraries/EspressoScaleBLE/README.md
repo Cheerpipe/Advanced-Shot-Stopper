@@ -100,6 +100,10 @@ Each protocol may define a minimum application-command interval. Bookoo uses
 100 ms for both acknowledged and unacknowledged writes; the client services
 disconnect evidence while waiting and revalidates the connection generation
 immediately before submission. Other protocols keep their existing timing.
+Actual submissions and terminal outcomes are sent through the optional log
+bridge at INFO with the operation, connection generation, response mode,
+inter-command gap, raw result, and elapsed time. Payload bytes and peer
+addresses are never included.
 
 Relaxed / Balanced / Aggressive scan presets retain their 25%, 50% and 100% duty
 semantics. Fixed advertisement slots and fixed GATT handle storage avoid a
@@ -142,7 +146,11 @@ The single worker owner can read `getWeightSample()` after
 are returned from the same consumed RX frame. `notificationSequence()` reads
 the latest queued notification identity to establish a command boundary;
 buffered earlier frames retain their original identity/time. Sequence zero is
-reserved and skipped on wrap. `getWeight()` remains available. Neither write
+reserved and skipped on wrap. Native notification callbacks only copy bounded
+frames into the RX ring; the bundled owner processes that ring on a 10 ms
+cadence and never from an ATT command-yield path. Its final pre-tare safety
+harvest remains immediately before tare. `getWeight()` remains available.
+Neither write
 completion nor these metadata certify unobservable physical cup motion.
 
 Run the host lifecycle/parser suite with:

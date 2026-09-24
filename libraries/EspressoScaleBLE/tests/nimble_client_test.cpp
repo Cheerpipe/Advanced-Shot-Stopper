@@ -5,6 +5,9 @@
 #include <cstdio>
 #include <cassert>
 #include <cstdarg>
+#include <string>
+#include <utility>
+#include <vector>
 
 static int unlockedSnprintf(char *out, size_t capacity, const char *format, ...) {
   assert(testCriticalDepth == 0);
@@ -18,7 +21,10 @@ static int unlockedSnprintf(char *out, size_t capacity, const char *format, ...)
 #define snprintf unlockedSnprintf
 #include "../src/EspressoScaleBLENimble.cpp"
 #undef snprintf
-extern "C" void shotStopperScaleLog(uint8_t, const char *) {}
+static std::vector<std::pair<uint8_t,std::string>> capturedScaleLogs;
+extern "C" void shotStopperScaleLog(uint8_t severity, const char *message) {
+  capturedScaleLogs.emplace_back(severity,message==nullptr ? "" : message);
+}
 
 static unsigned checks=0;
 #define CHECK(x) do { ++checks; if (!(x)) { fprintf(stderr,"line %d: %s\n",__LINE__,#x); exit(1); } } while(0)
@@ -28,6 +34,7 @@ struct NimbleScaleClientTest {
 static void ready(NimbleScaleClient &c) {
   testOnWait={}; testOnSubmit={}; testSubmitStatus=0;
   testTerminateStatus=0; testTerminations=0; testWrites=0; testWakeCount=0;
+  capturedScaleLogs.clear();
   testRuntimeReady=true; testSyncGeneration=1;
   c.beginGeneration(); c.lifecycleActive_=true; c.syncGeneration_=1;
   c.beginOperation(NimbleScaleClient::CallbackDomain::Link);
@@ -333,6 +340,25 @@ static void run() {
     ready(c);
     c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
+    CHECK(capturedScaleLogs.size()==2);
+    CHECK(capturedScaleLogs[0].first==kScaleLogInfoSeverity);
+    CHECK(capturedScaleLogs[0].second.find("command tx op=tare")!=std::string::npos);
+    CHECK(capturedScaleLogs[1].second.find("submitted=1 result=ok raw=0")!=std::string::npos);
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    testSubmitStatus=BLE_HS_EBUSY;
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::WriteFailed);
+    CHECK(capturedScaleLogs.size()==1);
+    CHECK(capturedScaleLogs[0].first==kScaleLogInfoSeverity);
+    CHECK(capturedScaleLogs[0].second.find(
+        "submitted=0 result=failed raw=15")!=std::string::npos);
   }
   {
     NimbleScaleClient c(false); ready(c);

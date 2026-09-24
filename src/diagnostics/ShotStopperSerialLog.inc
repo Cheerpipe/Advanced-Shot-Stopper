@@ -257,7 +257,9 @@ void serialTraceCategory(LogLevel level, DebugCategory category,
 
 extern "C" void shotStopperScaleLog(uint8_t severity, const char *message) {
   LogLevel level = LogLevel::DEBUG;
-  if (severity == 1) {
+  if (severity == 4) {
+    level = LogLevel::INFO;
+  } else if (severity == 1) {
     level = LogLevel::WARNING;
   } else if (severity >= 2) {
     level = LogLevel::ERROR;

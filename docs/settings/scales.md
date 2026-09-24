@@ -108,6 +108,12 @@ The controller keeps trying automatically; fresh weight after a healthy
 connection restores the quick initial timing. A scale that stops advertising
 does not trigger blind connection attempts.
 
+With INFO serial logging enabled, `command tx` records identify each Bluetooth
+command actually sent to the scale and `command done` records its outcome. The
+operation name and `gap_ms` make it possible to distinguish a command-related
+shutdown from a disconnect or reconnect with no preceding command. These lines
+do not contain the scale address or command payload.
+
 ## Replace a scale or diagnose a missing connection
 
 Home distinguishes **No sample** (connected but no accepted weight yet), **Stale**

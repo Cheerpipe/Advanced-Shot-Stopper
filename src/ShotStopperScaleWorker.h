@@ -56,6 +56,7 @@ BleScanIntensity discoveryScanIntensity();
 
 constexpr uint32_t SCALE_WORKER_STALE_MS = 2000;
 constexpr uint32_t SCALE_WORKER_NO_SCALE_DELAY_MS = 10;
+constexpr uint32_t SCALE_WEIGHT_POLL_INTERVAL_MS = 10;
 constexpr uint32_t SCALE_POWER_OFF_DISCONNECT_TIMEOUT_MS = 3000;
 constexpr uint32_t SCALE_POWER_OFF_RECONNECT_PAUSE_MS = 500;
 constexpr uint32_t SCALE_WORKER_BACKGROUND_MS = 25;

@@ -176,6 +176,8 @@ uint32_t scalePacketGaps = 0;
 uint32_t lastScalePacketGapLogMs = 0;
 uint32_t lastScaleWeightAtMs = 0;
 uint32_t scaleWeightUpdateIntervalMs = 0;
+uint32_t scaleWeightPolledAtMs = 0;
+bool scaleWeightPollStarted = false;
 uint32_t scaleRejectedPackets = 0;
 uint32_t scaleReconnects = 0;
 uint8_t scaleLastDisconnectReason = 0;
@@ -538,6 +540,9 @@ void setScaleLinkState(ScaleLinkState state) {
     lastScaleLinkRssiSampleMs = 0;
   }
   portEXIT_CRITICAL(&scaleLinkMux);
+  if (previous != state) {
+    scaleWeightPollStarted = false;
+  }
   if (disconnectedGeneration != 0 &&
       scalePowerOffBlocksGeneration(disconnectedGeneration)) {
     scalePreferredMacMux.lock();
@@ -592,9 +597,10 @@ void clearScalePowerOffLifecycle() {
 }
 
 uint32_t scaleWorkerTickDelayMs() {
-  if (scale.isLinkUp() || scale.isConnecting()) {
+  if (scale.isConnecting()) {
     return 1;
   }
+  if (scale.isLinkUp()) return SCALE_WEIGHT_POLL_INTERVAL_MS;
   if (scaleCommandQueue != nullptr &&
       uxQueueMessagesWaiting(scaleCommandQueue) > 0) {
     return 1;
@@ -855,10 +861,18 @@ bool publishPendingScaleWeightEvent() {
   return true;
 }
 
+bool pollPendingScaleWeightEvent(uint32_t nowMs) {
+  if (scaleWeightPollStarted &&
+      static_cast<uint32_t>(nowMs - scaleWeightPolledAtMs) <
+          SCALE_WEIGHT_POLL_INTERVAL_MS) {
+    return false;
+  }
+  scaleWeightPollStarted = true;
+  scaleWeightPolledAtMs = nowMs;
+  return publishPendingScaleWeightEvent();
+}
+
 void yieldBetweenScaleAttOps() {
-  // Harvest notifications that arrived while issuing the command so observed
-  // weight (A→M / suspend) does not freeze while the link is up.
-  publishPendingScaleWeightEvent();
   markScaleWorkerProgress();
   feedOrTripCurrentTaskWatchdog();
 }
@@ -1385,7 +1399,6 @@ void serviceScalePowerOffTimeout(uint32_t nowMs) {
 }
 
 void executeScaleCommand(const ScaleCommand &command) {
-  publishPendingScaleWeightEvent();
   markScaleWorkerProgress();
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   if (command.connectionGeneration == 0 ||
@@ -1788,6 +1801,8 @@ bool applyScalePreferenceReset() {
 
 void resetScaleWorkerRadioStateForHost() {
   scaleConnecting = false;
+  scaleWeightPolledAtMs = 0;
+  scaleWeightPollStarted = false;
   scaleScanAppliedInterval = 0;
   scaleScanAppliedWindow = 0;
   scaleHuntRfUntilMs = 0;
@@ -2271,7 +2286,7 @@ void serviceScaleWorkerLink() {
     snapshotDirty = true;
   }
 
-  const bool sawWeight = publishPendingScaleWeightEvent();
+  const bool sawWeight = pollPendingScaleWeightEvent(millis());
   if (sawWeight) {
     snapshotDirty = true;
   }

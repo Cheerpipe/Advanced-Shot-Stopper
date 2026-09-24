@@ -28,6 +28,7 @@ inline void testExitCritical(portMUX_TYPE *) {
 #define portENTER_CRITICAL(m) testEnterCritical(m)
 #define portEXIT_CRITICAL(m) testExitCritical(m)
 #define ESP_LOGD(...) ((void)0)
+#define ESP_LOGI(...) ((void)0)
 #define pdTRUE 1
 #define pdFALSE 0
 #define pdMS_TO_TICKS(ms) (ms)

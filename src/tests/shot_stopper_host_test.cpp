@@ -1991,12 +1991,39 @@ void r12_scale_worker_service_publishes_weight_and_detects_failure() {
   CHECK(fabsf(currentWeight - 12.34f) < 0.001f);
   CHECK(scaleAvailable());
 
+  scale.weight = 23.45f;
+  scale.newWeightAvailableValue = true;
+  serviceScaleWorkerLink();
+  CHECK(scale.newWeightAvailableCalls == 1);
+  hostMillis += SCALE_WEIGHT_POLL_INTERVAL_MS - 1;
+  serviceScaleWorkerLink();
+  CHECK(scale.newWeightAvailableCalls == 1);
+  ++hostMillis;
+  serviceScaleWorkerLink();
+  processScaleWorkerEvents();
+  CHECK(scale.newWeightAvailableCalls == 2);
+  CHECK(fabsf(currentWeight - 23.45f) < 0.001f);
+
   scale.heartbeatRequiredValue = true;
   scale.heartbeatSucceeds = false;
   serviceScaleWorkerLink();
   CHECK(scale.heartbeatCalls == 1);
   CHECK(!scaleAvailable());
   CHECK(getScaleLinkSnapshot().disconnectSequence == 1);
+}
+
+void r12d_command_does_not_drain_buffered_weight() {
+  resetHarness(false, true);
+  ScaleCommand command;
+  command.type = ScaleCommandType::STOP_TIMER;
+  CHECK(enqueueScaleCommand(command));
+  scale.weight = 9.87f;
+  scale.newWeightAvailableValue = true;
+  CHECK(executeNextScaleCommand());
+  CHECK(scale.stopTimerCalls == 1);
+  CHECK(scale.newWeightAvailableCalls == 0);
+  CHECK(pollPendingScaleWeightEvent(hostMillis));
+  CHECK(scale.newWeightAvailableCalls == 1);
 }
 
 void r12b_discovery_clears_stale_connected_link_snapshot() {
@@ -4779,6 +4806,7 @@ void w75_bookoo_discovery_connect_applies_beep_policy() {
   serviceScaleWorkerLink();
   CHECK(scale.commandLog.empty());
   scale.newWeightAvailableValue = true;
+  hostMillis += SCALE_WEIGHT_POLL_INTERVAL_MS;
   serviceScaleWorkerLink();
   CHECK(scale.commandLog.size() == 1);
   CHECK(scale.commandLog[0] == "setBeepLevel:0");
@@ -5163,7 +5191,7 @@ void d13_idle_delays_relax_without_scale() {
 
   setScaleConnected(true);
   markScaleWorkerProgress();
-  CHECK(scaleWorkerTickDelayMs() == 1);
+  CHECK(scaleWorkerTickDelayMs() == SCALE_WEIGHT_POLL_INTERVAL_MS);
   CHECK(controlLoopTickDelayMs(getScaleLinkSnapshot()) == 1);
 }
 
@@ -8976,7 +9004,7 @@ void it34_final_prewrite_sample_requires_control_approval() {
     scale.weightCaptureSequence = 41;
     scale.newWeightAvailableCalls = 0;
     scale.beforeWeightCheck = [] {
-      if (scale.newWeightAvailableCalls != 2) return;
+      if (scale.newWeightAvailableCalls != 1) return;
       ++scale.weightCaptureSequence;
       scale.newWeightAvailableValue = true;
       scale.beforeWeightCheck = nullptr;
@@ -15843,6 +15871,7 @@ const TestCase testCases[] = {
     {"BBW02", bbw02_freshness_reset_and_safety},
     {"BBW03", bbw03_shared_guard_parity},
     {"R12", r12_scale_worker_service_publishes_weight_and_detects_failure},
+    {"R12d", r12d_command_does_not_drain_buffered_weight},
     {"R12b", r12b_discovery_clears_stale_connected_link_snapshot},
     {"R12c", r12c_connected_link_rssi_samples_and_clears},
     {"R13", r13_full_queue_prevents_stop_without_delaying_relay_open},

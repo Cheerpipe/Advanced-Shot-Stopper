@@ -39,7 +39,13 @@ event after unlocking and retains both control-loop drain checkpoints.
 Weight delivery uses a fixed 16-event FIFO under its existing task mutex;
 overflow explicitly invalidates sample evidence instead of silently joining
 nonconsecutive readings. No parsing or cup-state transition runs under that
-mutex. Idle-tare claim/cancel/approved-sequence updates use the separate request
+mutex. Native NimBLE notification callbacks only copy bounded frames into the
+client RX ring. The scale owner parses and publishes queued weight frames on a
+10 ms cadence; command, policy, and beep wakeups cannot accelerate that normal
+polling, and ATT-yield paths do not drain it. The safety-critical final
+pre-tare harvest remains immediately before tare. The worker keeps its 1 ms
+service cadence only while establishing a connection. Idle-tare
+claim/cancel/approved-sequence updates use the separate request
 mutex; neither mutex nests with the other or spans ATT. Unvalidated publication
 defers claim using the existing worker tick and unchanged command expiry.
 The final pre-write harvest precedes the idle claim. Its weight sample must
@@ -80,7 +86,10 @@ generation barrier under the existing scale mailbox spinlock before it can
 compete with queued work. Producers then reject new commands, queued commands
 complete through their stale-result path, and heartbeat/beep/debug mailboxes
 cannot bypass the barrier. No scale lock spans ATT or GAP; disconnect clears
-the lifecycle and arms the bounded 500 ms discovery pause.
+the lifecycle and arms the bounded 500 ms discovery pause. Every actual
+application-command submission and terminal outcome is emitted at INFO with
+its operation, generation, response mode, spacing, raw status, and elapsed
+time; payload bytes and peer addresses are excluded.
 
 The relay and independent safety-timer `portMUX` sections are independent and
 may never nest with another lock. The timer captures callback state under its

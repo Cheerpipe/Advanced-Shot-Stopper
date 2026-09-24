@@ -47,21 +47,49 @@ constexpr size_t kProtocolCapacity = 11;
 constexpr uint32_t kScanCancelTimeoutMs = 1000;
 constexpr uint32_t kUnsupportedCooldownMs = 60000;
 constexpr uint32_t kConnectCallbackMarginMs = 50;
+constexpr uint8_t kScaleLogInfoSeverity = 4;
 
-void scaleLogDebug(const char *format, ...) {
+void scaleLogV(uint8_t severity, bool info, const char *format, va_list args) {
   if (format == nullptr) {
     return;
   }
   char message[128] = {};
-  va_list args;
-  va_start(args, format);
   vsnprintf(message, sizeof(message), format, args);
-  va_end(args);
   if (shotStopperScaleLog != nullptr) {
-    shotStopperScaleLog(0, message);
+    shotStopperScaleLog(severity, message);
+  } else if (info) {
+    ESP_LOGI(kTag, "%s", message);
   } else {
     ESP_LOGD(kTag, "%s", message);
   }
+}
+
+void scaleLogDebug(const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+  scaleLogV(0, false, format, args);
+  va_end(args);
+}
+
+void scaleLogInfo(const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+  scaleLogV(kScaleLogInfoSeverity, true, format, args);
+  va_end(args);
+}
+
+const char *scaleOpName(ScaleOp op) {
+  switch (op) {
+    case ScaleOp::Tare: return "tare";
+    case ScaleOp::StartTimer: return "start_timer";
+    case ScaleOp::StopTimer: return "stop_timer";
+    case ScaleOp::ResetTimer: return "reset_timer";
+    case ScaleOp::CombinedTareStart: return "tare_start";
+    case ScaleOp::Heartbeat: return "heartbeat";
+    case ScaleOp::SetVolume: return "set_volume";
+    case ScaleOp::PowerOff: return "power_off";
+  }
+  return "unknown";
 }
 
 uint32_t nowMs() {
@@ -1901,6 +1929,8 @@ class NimbleScaleClient {
 
   ScaleCommandResult writeCommand(const uint8_t *data, uint16_t length) {
     const uint32_t commandGeneration = generation_;
+    const char *operation =
+        scaleOpName(static_cast<ScaleOp>(activeCommand_));
     const bool withResponse =
         (writeProperties_ & BLE_GATT_CHR_PROP_WRITE) != 0;
     (void)xSemaphoreTake(writeSignal_, 0);
@@ -1911,14 +1941,11 @@ class NimbleScaleClient {
                     withResponse);
     if (submitted) {
       lastCommandSubmittedAtMs_ = nowMs();
-      if (debug_) {
-        scaleLogDebug("command submit op=%u gen=%lu gap=%lu response=%u",
-                      static_cast<unsigned>(activeCommand_),
-                      static_cast<unsigned long>(commandGeneration),
-                      static_cast<unsigned long>(lastCommandSubmitted_
-                          ? lastCommandSubmittedAtMs_ - previousSubmittedAtMs : 0),
-                      withResponse ? 1U : 0U);
-      }
+      scaleLogInfo("command tx op=%s gen=%lu gap_ms=%lu response=%u",
+                   operation, static_cast<unsigned long>(commandGeneration),
+                   static_cast<unsigned long>(lastCommandSubmitted_
+                       ? lastCommandSubmittedAtMs_ - previousSubmittedAtMs : 0),
+                   withResponse ? 1U : 0U);
       lastCommandSubmitted_ = true;
     }
     bool completed = false;
@@ -1954,6 +1981,9 @@ class NimbleScaleClient {
     service();
     const bool linkSurvived = generation_ == commandGeneration && isLinkUp();
     if (submitted && result == 0 && !interrupted && linkSurvived) {
+      scaleLogInfo("command done op=%s gen=%lu submitted=1 result=ok raw=0 elapsed_ms=%lu",
+                   operation, static_cast<unsigned long>(commandGeneration),
+                   static_cast<unsigned long>(elapsedMs(commandStartedAt_)));
       return ScaleCommandResult::Ok;
     }
     if (!linkSurvived) result = diagnostics_.disconnectStatus;
@@ -1980,6 +2010,11 @@ class NimbleScaleClient {
                            : ScaleDisconnectReason::COMMAND_WRITE_FAILED, result);
       diagnostics_.commandStatus = diagnostics_.disconnectStatus;
     }
+    scaleLogInfo("command done op=%s gen=%lu submitted=%u result=failed raw=%ld elapsed_ms=%lu",
+                 operation, static_cast<unsigned long>(commandGeneration),
+                 submitted ? 1U : 0U,
+                 static_cast<long>(diagnostics_.commandStatus),
+                 static_cast<unsigned long>(elapsedMs(commandStartedAt_)));
     return ScaleCommandResult::WriteFailed;
   }
 
