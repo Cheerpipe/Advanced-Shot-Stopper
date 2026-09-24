@@ -116,24 +116,24 @@ using TestWriteCallback = int(*)(uint16_t,const ble_gatt_error *,ble_gatt_attr *
 inline TestWriteCallback testWriteCallback=nullptr;
 inline void *testWriteArg=nullptr;
 inline int testSubmitStatus=0, testTerminateStatus=0;
-inline unsigned testTerminations=0, testWrites=0;
+inline unsigned testRadioProcedures=0, testTerminations=0, testWrites=0;
 inline std::function<void()> testOnSubmit;
 inline int ble_gattc_write_flat(uint16_t,uint16_t,const void *,uint16_t,TestWriteCallback cb,void *arg) {
-  ++testWrites;
+  ++testRadioProcedures; ++testWrites;
   testWriteCallback=cb; testWriteArg=arg;
   if (testOnSubmit) testOnSubmit();
   return testSubmitStatus;
 }
-inline int ble_gattc_write_no_rsp_flat(uint16_t,uint16_t,const void *,uint16_t) { ++testWrites; return testSubmitStatus; }
-template<class... T> int ble_gattc_disc_all_svcs(T...) { return BLE_HS_EINVAL; }
-template<class... T> int ble_gattc_disc_all_chrs(T...) { return BLE_HS_EINVAL; }
-template<class... T> int ble_gattc_disc_all_dscs(T...) { return BLE_HS_EINVAL; }
-template<class... T> int ble_gap_connect(T...) { return BLE_HS_EINVAL; }
-template<class... T> int ble_gap_disc(T...) { return 0; }
-inline int ble_gap_disc_cancel() { return 0; }
-inline int ble_gap_conn_cancel() { return 0; }
-inline int ble_gap_terminate(uint16_t,uint8_t) { ++testTerminations; return testTerminateStatus; }
-inline int ble_gap_conn_rssi(uint16_t,int8_t *rssi) { *rssi=-50; return 0; }
+inline int ble_gattc_write_no_rsp_flat(uint16_t,uint16_t,const void *,uint16_t) { ++testRadioProcedures; ++testWrites; return testSubmitStatus; }
+template<class... T> int ble_gattc_disc_all_svcs(T...) { ++testRadioProcedures; return BLE_HS_EINVAL; }
+template<class... T> int ble_gattc_disc_all_chrs(T...) { ++testRadioProcedures; return BLE_HS_EINVAL; }
+template<class... T> int ble_gattc_disc_all_dscs(T...) { ++testRadioProcedures; return BLE_HS_EINVAL; }
+template<class... T> int ble_gap_connect(T...) { ++testRadioProcedures; return BLE_HS_EINVAL; }
+template<class... T> int ble_gap_disc(T...) { ++testRadioProcedures; return 0; }
+inline int ble_gap_disc_cancel() { ++testRadioProcedures; return 0; }
+inline int ble_gap_conn_cancel() { ++testRadioProcedures; return 0; }
+inline int ble_gap_terminate(uint16_t,uint8_t) { ++testRadioProcedures; ++testTerminations; return testTerminateStatus; }
+inline int ble_gap_conn_rssi(uint16_t,int8_t *rssi) { ++testRadioProcedures; *rssi=-50; return 0; }
 struct ShotStopperBleHealth { int lastResetReason; };
 inline bool testRuntimeReady=true;
 inline uint32_t testSyncGeneration=1;

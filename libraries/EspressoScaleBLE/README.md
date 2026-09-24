@@ -51,7 +51,9 @@ both models advertise as `BOOKOO`, so the command is sent to the family and
 ignored by units that do not implement it. Every other protocol reports
 `ScaleCommandResult::Unsupported`. Once shutdown is requested, that BLE
 connection generation is closed to every later application command, even if
-the scale takes time to disconnect.
+the scale takes time to disconnect. The one-second communication barrier is
+armed immediately before this terminal write. A later GAP disconnect callback
+restarts the full interval before the application can observe the link loss.
 
 
 ## Requirements
@@ -76,6 +78,15 @@ connection. Cleanup is idempotent, eight consecutive invalid notifications
 force a recoverable disconnect, and the first-valid-packet and silence limits
 remain protocol-specific.
 
+The client owns a fixed 1,000 ms post-disconnect communication barrier. The GAP
+callback arms it directly—before worker or application notification—and the
+same final admission point covers writes, RSSI, scan/cancel, connect/cancel,
+discovery, subscription, initialization, and termination. No blocked operation
+is replayed. In-memory callback cleanup may continue, while old-link RX frames
+and results are discarded. `communicationSilenced()` and
+`communicationSilenceRemainingMs()` expose read-only state so an owner can
+avoid futile work but cannot shorten or bypass the barrier.
+
 The owner consumes bounded queued RX evidence before deciding packet silence.
 Only frames captured before the relevant deadline and still fresh when serviced
 can refresh it; malformed, stale, or previous-generation frames cannot revive
@@ -99,7 +110,8 @@ reconnection in `diagnostics()`.
 Each protocol may define a minimum application-command interval. Bookoo uses
 100 ms for both acknowledged and unacknowledged writes; the client services
 disconnect evidence while waiting and revalidates the connection generation
-immediately before submission. Other protocols keep their existing timing.
+at the common NimBLE admission point immediately before submission. Other
+protocols keep their existing timing.
 Actual submissions and terminal outcomes are sent through the optional log
 bridge at INFO with the operation, connection generation, response mode,
 inter-command gap, raw result, and elapsed time. Payload bytes and peer

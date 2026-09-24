@@ -33,7 +33,8 @@ namespace {
 struct NimbleScaleClientTest {
 static void ready(NimbleScaleClient &c) {
   testOnWait={}; testOnSubmit={}; testSubmitStatus=0;
-  testTerminateStatus=0; testTerminations=0; testWrites=0; testWakeCount=0;
+  testTerminateStatus=0; testRadioProcedures=0; testTerminations=0;
+  testWrites=0; testWakeCount=0;
   capturedScaleLogs.clear();
   testRuntimeReady=true; testSyncGeneration=1;
   c.beginGeneration(); c.lifecycleActive_=true; c.syncGeneration_=1;
@@ -244,6 +245,79 @@ static void run() {
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
   }
   {
+    testNowMs=100;
+    NimbleScaleClient c(false); ready(c);
+    notify(c,20);
+    const uint32_t linkOperation=c.linkOperationId_;
+    ble_gap_event e={}; e.type=BLE_GAP_EVENT_DISCONNECT;
+    e.disconnect.reason=BLE_HS_HCI_ERR(8); e.disconnect.conn.conn_handle=1;
+    c.onGapEvent(&e,linkOperation);
+    CHECK(c.communicationSilenceRemainingMs()==SCALE_DISCONNECT_SILENCE_MS);
+    CHECK(c.rxCount_==0);
+    CHECK(c.diagnostics().silenceTrigger==static_cast<uint8_t>(
+        NimbleScaleClient::SilenceTrigger::Gap));
+    const unsigned callsAtDisconnect=testRadioProcedures;
+    bool invoked=false;
+    CHECK(c.submitRadioProcedure(false,[&] { invoked=true; return 0; })==
+          BLE_HS_EBUSY);
+    CHECK(!invoked);
+    CHECK(c.rssi()==SCALE_LINK_RSSI_UNAVAILABLE);
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::NotConnected);
+    CHECK(testRadioProcedures==callsAtDisconnect);
+    testNowMs+=SCALE_DISCONNECT_SILENCE_MS-1;
+    CHECK(!c.startScan(nullptr,false,BLE_SCAN_BALANCED_INTERVAL,
+                       BLE_SCAN_BALANCED_WINDOW,false));
+    CHECK(testRadioProcedures==callsAtDisconnect);
+    ++testNowMs;
+    CHECK(!c.communicationSilenced());
+    CHECK(c.beginConfiguredScan(false));
+    CHECK(testRadioProcedures==callsAtDisconnect+1);
+  }
+  {
+    testNowMs=UINT32_MAX-500ULL;
+    NimbleScaleClient c(false); ready(c);
+    c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    CHECK(c.writeOp(ScaleOp::PowerOff)==ScaleCommandResult::Ok);
+    testNowMs+=SCALE_DISCONNECT_SILENCE_MS-1;
+    CHECK(c.communicationSilenceRemainingMs()==1);
+    ++testNowMs;
+    CHECK(!c.communicationSilenced());
+  }
+  {
+    testNowMs=100;
+    NimbleScaleClient c(false); ready(c);
+    c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    CHECK(c.writeOp(ScaleOp::PowerOff)==ScaleCommandResult::Ok);
+    testNowMs+=500;
+    ble_gap_event e={}; e.type=BLE_GAP_EVENT_DISCONNECT;
+    e.disconnect.reason=BLE_HS_HCI_ERR(8); e.disconnect.conn.conn_handle=1;
+    c.onGapEvent(&e,c.linkOperationId_);
+    CHECK(c.communicationSilenceRemainingMs()==SCALE_DISCONNECT_SILENCE_MS);
+    testNowMs+=SCALE_DISCONNECT_SILENCE_MS-1;
+    CHECK(c.communicationSilenced());
+    ++testNowMs;
+    CHECK(!c.communicationSilenced());
+  }
+  {
+    testNowMs=100;
+    NimbleScaleClient c(false); ready(c);
+    c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    ScaleProtocol paced=*c.protocol_;
+    paced.features.minimumCommandIntervalMs=100;
+    c.protocol_=&paced;
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
+    const uint32_t linkOperation=c.linkOperationId_;
+    testAfterCriticalExit=[&] {
+      ble_gap_event e={}; e.type=BLE_GAP_EVENT_DISCONNECT;
+      e.disconnect.reason=BLE_HS_HCI_ERR(8); e.disconnect.conn.conn_handle=1;
+      c.onGapEvent(&e,linkOperation);
+    };
+    CHECK(c.writeOp(ScaleOp::StopTimer)!=ScaleCommandResult::Ok);
+    CHECK(testWrites==1);
+    CHECK(c.communicationSilenced());
+    testAfterCriticalExit={};
+  }
+  {
     NimbleScaleClient c(false); ready(c);
     ScaleProtocol timerOnly=*c.protocol_;
     timerOnly.parseWeight=[](const uint8_t *,int,float *) { return false; };
@@ -327,7 +401,7 @@ static void run() {
     NimbleScaleClient c(false); ready(c);
     c.pendingDisconnect_=true;
     c.pendingDisconnectStatus_=BLE_HS_HCI_ERR(8);
-    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::WriteFailed);
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::NotConnected);
     CHECK(testWrites==0); CHECK(!c.isConnected());
     CHECK(c.lastReason()==ScaleDisconnectReason::SUPERVISION_TIMEOUT);
   }
@@ -337,6 +411,11 @@ static void run() {
     CHECK(c.writeOp(ScaleOp::PowerOff)==ScaleCommandResult::Ok);
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::NotConnected);
     CHECK(testWrites==1);
+    CHECK(c.communicationSilenceRemainingMs()==SCALE_DISCONNECT_SILENCE_MS);
+    testNowMs+=SCALE_DISCONNECT_SILENCE_MS-1;
+    CHECK(c.communicationSilenced());
+    ++testNowMs;
+    CHECK(!c.communicationSilenced());
     ready(c);
     c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
@@ -373,6 +452,7 @@ static void run() {
     CHECK(c.diagnostics().teardownStatus==BLE_HS_ENOTCONN);
     CHECK(c.diagnostics().disconnectCommand==static_cast<uint8_t>(ScaleOp::CombinedTareStart));
     const auto oldCallback=testWriteCallback; void *oldArg=testWriteArg;
+    testNowMs+=SCALE_DISCONNECT_SILENCE_MS;
     ready(c);
     testOnWait=[&] {
       ble_gatt_error e={0,12}; oldCallback(1,&e,nullptr,oldArg);
@@ -401,8 +481,9 @@ static void run() {
     NimbleScaleClient c(false); ready(c);
     c.activeCommand_=static_cast<uint8_t>(ScaleOp::Tare);
     c.commandStartedAt_=nowMs();
-    c.pushCriticalEvent(NimbleScaleClient::EventType::Disconnected,
-                        BLE_HS_HCI_ERR(8),1,c.linkOperationId_);
+    ble_gap_event e={}; e.type=BLE_GAP_EVENT_DISCONNECT;
+    e.disconnect.reason=BLE_HS_HCI_ERR(8); e.disconnect.conn.conn_handle=1;
+    c.onGapEvent(&e,c.linkOperationId_);
     c.finishLink(true,ScaleDisconnectReason::COMMAND_WRITE_FAILED,BLE_HS_ETIMEOUT);
     CHECK(c.lastReason()==ScaleDisconnectReason::SUPERVISION_TIMEOUT);
     CHECK(c.diagnostics().disconnectStatus==BLE_HS_HCI_ERR(8));

@@ -545,16 +545,6 @@ void setScaleLinkState(ScaleLinkState state) {
   }
   if (disconnectedGeneration != 0 &&
       scalePowerOffBlocksGeneration(disconnectedGeneration)) {
-    scalePreferredMacMux.lock();
-    const int32_t delta = static_cast<int32_t>(
-        scaleDiscoveryPausedUntilMs - progressAtMs);
-    const uint32_t remaining = scaleDiscoveryPausedUntilMs != 0 && delta > 0
-        ? static_cast<uint32_t>(delta) : 0;
-    if (remaining < SCALE_POWER_OFF_RECONNECT_PAUSE_MS) {
-      scaleDiscoveryPausedUntilMs =
-          progressAtMs + SCALE_POWER_OFF_RECONNECT_PAUSE_MS;
-    }
-    scalePreferredMacMux.unlock();
     clearScalePowerOffLifecycle();
   } else if (previous != ScaleLinkState::CONNECTED &&
              state == ScaleLinkState::CONNECTED) {
@@ -712,13 +702,14 @@ bool enqueueScaleCommand(const ScaleCommand &command, bool toFront) {
 }
 
 bool publishScaleEvent(const ScaleEvent &event, bool critical) {
+  ScaleEvent stamped = event;
   if (event.type == ScaleEventType::WEIGHT) {
-    ScaleEvent stamped = event;
     uint32_t streamGapMs = 0;
     portENTER_CRITICAL(&scaleLinkMux);
     if (stamped.connectionGeneration == 0) {
       stamped.connectionGeneration = scaleConnectionGeneration;
     }
+    stamped.disconnectSequence = scaleDisconnectSequence;
     if (stamped.packetSequence == 0) {
       ++scalePacketSequence;
       if (scalePacketSequence == 0) {
@@ -776,25 +767,32 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
     return true;
   }
 
+  portENTER_CRITICAL(&scaleLinkMux);
+  if (stamped.connectionGeneration == 0) {
+    stamped.connectionGeneration = scaleConnectionGeneration;
+  }
+  stamped.disconnectSequence = scaleDisconnectSequence;
+  portEXIT_CRITICAL(&scaleLinkMux);
+
   if (critical) {
     // Weight events use their own bounded FIFO. Command results normally
     // use this FIFO; distinct START and STOP fallback slots ensure those two
     // acknowledgements cannot overwrite each other when the FIFO is full.
     if (scaleEventQueue != nullptr &&
-        xQueueSend(scaleEventQueue, &event, 0) == pdTRUE) {
+        xQueueSend(scaleEventQueue, &stamped, 0) == pdTRUE) {
       return true;
     }
     scaleCriticalEventMux.lock();
     ScaleEvent *fallback = &scaleCriticalEvent;
     bool *fallbackPending = &scaleCriticalEventPending;
-    if (event.type == ScaleEventType::TIMER_START_RESULT) {
+    if (stamped.type == ScaleEventType::TIMER_START_RESULT) {
       fallback = &scaleTimerStartEvent;
       fallbackPending = &scaleTimerStartEventPending;
     }
     if (*fallbackPending) {
       ++scaleEventsDropped;
     }
-    *fallback = event;
+    *fallback = stamped;
     *fallbackPending = true;
     scaleCriticalEventMux.unlock();
     return true;
@@ -802,13 +800,13 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
   if (scaleEventQueue == nullptr) {
     ++scaleEventsDropped;
     addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_EVENT_DROPPED,
-                  static_cast<int32_t>(event.type));
+                  static_cast<int32_t>(stamped.type));
     return false;
   }
-  if (xQueueSend(scaleEventQueue, &event, 0) != pdTRUE) {
+  if (xQueueSend(scaleEventQueue, &stamped, 0) != pdTRUE) {
     ++scaleEventsDropped;
     addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_EVENT_DROPPED,
-                  static_cast<int32_t>(event.type));
+                  static_cast<int32_t>(stamped.type));
     return false;
   }
   return true;
@@ -2053,6 +2051,7 @@ void serviceScaleWorkerDiscovery(uint32_t &lastScanCycleMs,
     scaleScanCompatibleActivityAtMs = scanSessionAtMs;
     scanLastAdvertAtMs = 0;
   }
+  if (scale.communicationSilenced()) return;
   // Library drop can happen on a beep/command path that never refreshed the
   // link snapshot. Clear CONNECTED before idle scan work so the UI cannot sit
   // on "BLE connected" for the whole (indefinite) discovery session.

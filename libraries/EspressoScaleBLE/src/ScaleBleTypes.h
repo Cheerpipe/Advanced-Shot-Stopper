@@ -60,6 +60,10 @@ struct ScaleBleDiagnostics {
     uint32_t commandElapsedMs = 0;
     int32_t commandStatus = 0;
     uint8_t command = 0xff;
+    uint32_t silenceSequence = 0;
+    uint32_t silenceStartedAtMs = 0;
+    uint32_t silenceBlockedProcedures = 0;
+    uint8_t silenceTrigger = 0;
 };
 
 enum class ScaleBleAddressType : uint8_t {

@@ -5225,15 +5225,16 @@ void d13b_scale_power_off_is_terminal_for_connection_generation() {
   serviceScalePowerOffTimeout(hostMillis);
   CHECK(!scale.isConnected());
   CHECK(!scalePowerOffBlocksGeneration(generation));
-  CHECK(scaleMacCachePauseRemainingMs(hostMillis) ==
-        SCALE_POWER_OFF_RECONNECT_PAUSE_MS);
+  CHECK(!scaleDiscoveryPaused());
+  CHECK(scale.communicationSilenceRemainingMs() ==
+        SCALE_DISCONNECT_SILENCE_MS);
   uint32_t lastScanCycleMs=0, lastConnectLogMs=0, scanSessionAtMs=0;
   uint32_t scanLastAdvertAtMs=0;
   bool connectAttemptSeriesActive=false;
   serviceScaleWorkerDiscovery(lastScanCycleMs,lastConnectLogMs,
       connectAttemptSeriesActive,scanSessionAtMs,scanLastAdvertAtMs);
   CHECK(scale.startScanCalls==0);
-  hostMillis+=SCALE_POWER_OFF_RECONNECT_PAUSE_MS;
+  hostMillis+=SCALE_DISCONNECT_SILENCE_MS;
   serviceScaleWorkerDiscovery(lastScanCycleMs,lastConnectLogMs,
       connectAttemptSeriesActive,scanSessionAtMs,scanLastAdvertAtMs);
   CHECK(!scaleDiscoveryPaused()); CHECK(scale.startScanCalls==1);
@@ -6452,6 +6453,7 @@ void r24_web_control_is_available_without_session_owner() {
 
 void r25_critical_scale_mailbox_never_blocks_and_keeps_latest() {
   resetHarness(false, true);
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   ScaleEvent first;
   first.type = ScaleEventType::TIMER_STOP_RESULT;
   first.cycleId = 1;
@@ -6460,6 +6462,8 @@ void r25_critical_scale_mailbox_never_blocks_and_keeps_latest() {
   latest.cycleId = 2;
   ScaleEvent filler = first;
   filler.cycleId = UINT32_MAX;
+  filler.connectionGeneration = link.connectionGeneration;
+  filler.disconnectSequence = link.disconnectSequence;
   for (size_t index = 0; index < SCALE_EVENT_QUEUE_LENGTH; ++index) {
     CHECK(xQueueSend(scaleEventQueue, &filler, 0) == pdTRUE);
   }
@@ -6496,8 +6500,9 @@ void r25b_empty_mailboxes_take_one_critical_lock() {
 void r25c_refilled_critical_mailboxes_remain_live_and_bounded() {
   resetHarness(false, true);
   constexpr uint32_t batches = 2000;
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   std::atomic<bool> done{false};
-  std::thread producer([&]() {
+  std::thread producer([&, link]() {
     for (uint32_t id = 1; id <= batches;) {
       bool published = false;
       {
@@ -6507,6 +6512,8 @@ void r25c_refilled_critical_mailboxes_remain_live_and_bounded() {
           stop.type = ScaleEventType::TIMER_STOP_RESULT;
           stop.cycleId = id;
           stop.discardedStaleConnection = true;
+          stop.connectionGeneration = link.connectionGeneration;
+          stop.disconnectSequence = link.disconnectSequence;
           scaleCriticalEvent = stop;
           scaleCriticalEventPending = true;
           stop.type = ScaleEventType::TIMER_START_RESULT;
@@ -8994,6 +9001,41 @@ void it33_stale_connection_gap_cannot_cancel_current_tare() {
   processScaleWorkerEvents();
   CHECK(idleTare.requestId == id);
   CHECK(idleScaleTareStatus().phase == IdleTarePhase::QUEUED);
+}
+
+void it33b_pre_disconnect_weight_cannot_cross_disconnect_epoch() {
+  resetHarness(false, true);
+  const ScaleLinkSnapshot before = getScaleLinkSnapshot();
+  ScaleEvent stale;
+  stale.type = ScaleEventType::WEIGHT;
+  stale.receivedAtMs = hostMillis;
+  stale.connectionGeneration = before.connectionGeneration;
+  stale.weightG = 77.0f;
+  CHECK(publishScaleEvent(stale, false));
+  setScaleConnected(false);
+  CHECK(getScaleLinkSnapshot().disconnectSequence ==
+        before.disconnectSequence + 1);
+  processScaleWorkerEvents();
+  CHECK(observedWeight == 0.0f);
+  CHECK(currentWeight == 0.0f);
+}
+
+void it33c_pre_disconnect_command_result_cannot_cross_disconnect_epoch() {
+  resetHarness(false, true);
+  session.id = 42;
+  session.active = true;
+  ScaleEvent stale;
+  stale.type = ScaleEventType::TIMER_START_RESULT;
+  stale.cycleId = session.id;
+  stale.commandAttempted = true;
+  stale.writeSucceeded = true;
+  CHECK(publishScaleEvent(stale, true));
+  setScaleConnected(false);
+  const bool settledAfterDisconnect = session.remoteTimerStartSettled;
+  const bool startedAfterDisconnect = session.remoteTimerStarted;
+  processScaleWorkerEvents();
+  CHECK(session.remoteTimerStartSettled == settledAfterDisconnect);
+  CHECK(session.remoteTimerStarted == startedAfterDisconnect);
 }
 
 void it34_final_prewrite_sample_requires_control_approval() {
@@ -16049,6 +16091,8 @@ const TestCase testCases[] = {
     {"IT31", it31_idle_request_and_effect_deadline_cross_clock_wrap},
     {"IT32", it32_queued_minimum_is_independent_of_tolerance},
     {"IT33", it33_stale_connection_gap_cannot_cancel_current_tare},
+    {"IT33B", it33b_pre_disconnect_weight_cannot_cross_disconnect_epoch},
+    {"IT33C", it33c_pre_disconnect_command_result_cannot_cross_disconnect_epoch},
     {"IT34", it34_final_prewrite_sample_requires_control_approval},
     {"IT35", it35_loaded_startup_and_sample_gap_need_fresh_placement},
     {"IT36", it36_bookoo_startup_zero_unload_rearms_relative_tare},

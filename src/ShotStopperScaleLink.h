@@ -95,6 +95,7 @@ struct ScaleEvent {
   uint32_t idleTareRequestId = 0;
   uint32_t receivedAtMs = 0;
   uint32_t connectionGeneration = 0;
+  uint32_t disconnectSequence = 0;
   uint32_t packetSequence = 0;
   uint32_t captureSequence = 0;
   float weightG = 0.0f;

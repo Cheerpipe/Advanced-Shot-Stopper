@@ -66,6 +66,9 @@ using portMUX_TYPE = std::recursive_mutex;
 #ifndef BLE_SCAN_AGGRESSIVE_WINDOW
 #define BLE_SCAN_AGGRESSIVE_WINDOW 0x0020
 #endif
+#ifndef SCALE_DISCONNECT_SILENCE_MS
+#define SCALE_DISCONNECT_SILENCE_MS 1000UL
+#endif
 
 #include "../../libraries/EspressoScaleBLE/src/ScaleFeatures.h"
 
@@ -544,6 +547,8 @@ class EspressoScaleBLE {
     if (!supportsPowerOff()) {
       return ScaleCommandResult::Unsupported;
     }
+    silenceArmed = true;
+    silenceStartedAtMs = hostMillis;
     return runCommand(powerOffSucceeds);
   }
   float getWeight() const { return weight; }
@@ -558,7 +563,21 @@ class EspressoScaleBLE {
   bool heartbeatRequired() const { return heartbeatRequiredValue; }
   bool isConnected() const { return connected; }
   bool isLinkUp() const { return connected; }
+  bool communicationSilenced() const {
+    return communicationSilenceRemainingMs() != 0;
+  }
+  uint32_t communicationSilenceRemainingMs() const {
+    if (!silenceArmed) return 0;
+    const uint32_t elapsed = hostMillis - silenceStartedAtMs;
+    return elapsed < SCALE_DISCONNECT_SILENCE_MS
+               ? SCALE_DISCONNECT_SILENCE_MS - elapsed
+               : 0;
+  }
   void disconnect() {
+    if (connected) {
+      silenceArmed = true;
+      silenceStartedAtMs = hostMillis;
+    }
     connected = false;
     connecting = false;
     scanning = false;
@@ -683,6 +702,8 @@ class EspressoScaleBLE {
   bool heartbeatSucceeds = true;
   bool powerOffSucceeds = true;
   bool heartbeatRequiredValue = false;
+  uint32_t silenceStartedAtMs = 0;
+  bool silenceArmed = false;
   bool newWeightAvailableValue = false;
   void (*beforeWeightCheck)() = nullptr;
   bool disconnectWhenCheckingWeight = false;

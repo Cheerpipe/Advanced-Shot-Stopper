@@ -86,7 +86,11 @@ generation barrier under the existing scale mailbox spinlock before it can
 compete with queued work. Producers then reject new commands, queued commands
 complete through their stale-result path, and heartbeat/beep/debug mailboxes
 cannot bypass the barrier. No scale lock spans ATT or GAP; disconnect clears
-the lifecycle and arms the bounded 500 ms discovery pause. Every actual
+the lifecycle after the library callback has already armed a 1,000 ms
+communication barrier. Every NimBLE procedure shares that library-owned final
+admission point; firmware can observe the remaining time but cannot clear or
+bypass it. Pre-disconnect weight events carry the disconnect sequence and are
+rejected after the epoch changes. Every actual
 application-command submission and terminal outcome is emitted at INFO with
 its operation, generation, response mode, spacing, raw status, and elapsed
 time; payload bytes and peer addresses are excluded.

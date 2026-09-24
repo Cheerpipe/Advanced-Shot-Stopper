@@ -419,10 +419,17 @@ void processScaleWorkerEvents() {
       break;
     }
     ++processed;
+    const ScaleLinkSnapshot eventLink = getScaleLinkSnapshot();
+    if (event.connectionGeneration != eventLink.connectionGeneration ||
+        event.disconnectSequence != eventLink.disconnectSequence) {
+      addDebugEvent(DebugCategory::SCALE,
+                    DebugCode::SCALE_STALE_EVENT_REJECTED,
+                    static_cast<int32_t>(event.connectionGeneration),
+                    static_cast<int32_t>(eventLink.connectionGeneration));
+      continue;
+    }
     switch (event.type) {
       case ScaleEventType::REFERENCE_CHANGED:
-        if (event.connectionGeneration != getScaleLinkSnapshot().connectionGeneration)
-          break;
         if (idleTare.requestId != 0) {
           idleTare.cupStillPresent = false;
           releaseIdleTareRequest(IdleTareReason::SAMPLE_GAP);
@@ -445,18 +452,13 @@ void processScaleWorkerEvents() {
           break;
         }
         {
-          const ScaleLinkSnapshot link = getScaleLinkSnapshot();
-          if (event.connectionGeneration == 0) {
-            event.connectionGeneration = link.connectionGeneration;
-          }
-          if (event.connectionGeneration != link.connectionGeneration ||
-              (session.active &&
-               static_cast<int32_t>(event.receivedAtMs -
-                                    session.startedAtMs) < 0)) {
+          if (session.active &&
+              static_cast<int32_t>(event.receivedAtMs -
+                                   session.startedAtMs) < 0) {
             addDebugEvent(DebugCategory::SCALE,
                           DebugCode::SCALE_STALE_EVENT_REJECTED,
                           static_cast<int32_t>(event.connectionGeneration),
-                          static_cast<int32_t>(link.connectionGeneration));
+                          static_cast<int32_t>(eventLink.connectionGeneration));
             break;
           }
         }

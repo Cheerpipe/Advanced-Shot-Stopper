@@ -34,6 +34,7 @@
 #define BLE_DISCOVER_TIMEOUT_MS           3000UL
 #define SCALE_CONNECT_SETTLE_MS           120UL
 #define LINK_DOWN_DEBOUNCE_MS             120UL
+#define SCALE_DISCONNECT_SILENCE_MS       1000UL
 // GAP scan duty while discovering. Connecting and GATT-up paths never start
 // a scan. Intervals avoid 20/60/100/120 ms advertising harmonics.
 // Relaxed 25% (28.75/115 ms), Balanced 50% (31.25/62.5 ms), Aggressive 100% (20/20).
@@ -146,6 +147,8 @@ class EspressoScaleBLE {
         bool heartbeatRequired() const;
         bool isConnected();
         bool isLinkUp() const;
+        bool communicationSilenced() const;
+        uint32_t communicationSilenceRemainingMs() const;
         bool newWeightAvailable();
         ScaleFeatureSet features() const;
         const char* connectedProtocolName() const;
