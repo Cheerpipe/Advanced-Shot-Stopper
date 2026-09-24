@@ -274,6 +274,69 @@ static void run() {
     CHECK(testRadioProcedures==callsAtDisconnect+1);
   }
   {
+    testNowMs=100;
+    NimbleScaleClient c(false);
+    testRuntimeReady=true; testSyncGeneration=1;
+    c.beginGeneration(); c.lifecycleActive_=true; c.syncGeneration_=1;
+    c.enterState(NimbleScaleClient::State::Connecting);
+    const uint32_t operation=c.beginOperation(NimbleScaleClient::CallbackDomain::Link);
+    ble_gap_event e={}; e.type=BLE_GAP_EVENT_CONNECT;
+    e.connect.conn_handle=42;
+    c.onGapEvent(&e,operation);
+    e.type=BLE_GAP_EVENT_DISCONNECT;
+    e.disconnect.conn.conn_handle=42;
+    e.disconnect.reason=BLE_HS_HCI_ERR(8);
+    c.onGapEvent(&e,operation);
+    CHECK(c.pendingDisconnect_);
+    CHECK(c.communicationSilenceRemainingMs()==SCALE_DISCONNECT_SILENCE_MS);
+    const unsigned procedures=testRadioProcedures;
+    c.service();
+    CHECK(c.lastReason()==ScaleDisconnectReason::SUPERVISION_TIMEOUT);
+    CHECK(testRadioProcedures==procedures);
+  }
+  {
+    NimbleScaleClient c(false);
+    testRuntimeReady=true; testSyncGeneration=1;
+    c.beginGeneration(); c.lifecycleActive_=true; c.syncGeneration_=1;
+    c.enterState(NimbleScaleClient::State::Connecting);
+    const uint32_t oldOperation=c.beginOperation(NimbleScaleClient::CallbackDomain::Link);
+    ble_gap_event e={}; e.type=BLE_GAP_EVENT_CONNECT;
+    e.connect.conn_handle=42;
+    c.onGapEvent(&e,oldOperation);
+    CHECK(c.connectionHandle_==42);
+    e.type=BLE_GAP_EVENT_DISCONNECT;
+    e.disconnect.conn.conn_handle=43;
+    c.onGapEvent(&e,oldOperation);
+    CHECK(!c.pendingDisconnect_);
+    testSyncGeneration=2;
+    c.service();
+    CHECK(c.lastReason()==ScaleDisconnectReason::HOST_RESET);
+    CHECK(c.connectionHandle_==kInvalidHandle);
+    c.beginGeneration(); c.lifecycleActive_=true; c.syncGeneration_=2;
+    c.enterState(NimbleScaleClient::State::Connecting);
+    const uint32_t newOperation=c.beginOperation(NimbleScaleClient::CallbackDomain::Link);
+    e.disconnect.conn.conn_handle=42;
+    c.onGapEvent(&e,oldOperation);
+    CHECK(!c.pendingDisconnect_);
+    e.type=BLE_GAP_EVENT_CONNECT;
+    e.connect.conn_handle=42;
+    c.onGapEvent(&e,newOperation);
+    e.type=BLE_GAP_EVENT_DISCONNECT;
+    e.disconnect.conn.conn_handle=42;
+    c.onGapEvent(&e,newOperation);
+    CHECK(c.pendingDisconnect_);
+  }
+  {
+    NimbleScaleClient c(false);
+    c.beginGeneration(); c.lifecycleActive_=true;
+    c.enterState(NimbleScaleClient::State::Connecting);
+    const uint32_t operation=c.beginOperation(NimbleScaleClient::CallbackDomain::Link);
+    ble_gap_event e={}; e.type=BLE_GAP_EVENT_CONNECT;
+    e.connect.status=BLE_HS_HCI_ERR(8); e.connect.conn_handle=42;
+    c.onGapEvent(&e,operation);
+    CHECK(c.connectionHandle_==kInvalidHandle);
+  }
+  {
     testNowMs=UINT32_MAX-500ULL;
     NimbleScaleClient c(false); ready(c);
     c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
@@ -297,6 +360,54 @@ static void run() {
     CHECK(c.communicationSilenced());
     ++testNowMs;
     CHECK(!c.communicationSilenced());
+  }
+  {
+    testNowMs=100;
+    NimbleScaleClient c(false); ready(c);
+    bool nestedSubmitted=false;
+    CHECK(c.submitRadioProcedure(false,[&] {
+      CHECK(c.submitRadioProcedure(false,[&] {
+        nestedSubmitted=true;
+        return 0;
+      })==BLE_HS_EBUSY);
+      return 0;
+    })==0);
+    CHECK(!nestedSubmitted);
+  }
+  {
+    testNowMs=100;
+    NimbleScaleClient c(false); ready(c);
+    const uint32_t operation=c.linkOperationId_;
+    testAfterCriticalExit=[&] {
+      ble_gap_event e={}; e.type=BLE_GAP_EVENT_DISCONNECT;
+      e.disconnect.reason=BLE_HS_HCI_ERR(8);
+      e.disconnect.conn.conn_handle=1;
+      c.onGapEvent(&e,operation);
+    };
+    bool silencedDuringSubmit=false;
+    CHECK(c.submitRadioProcedure(false,[&] {
+      silencedDuringSubmit=c.communicationSilenced();
+      bool nestedSubmitted=false;
+      CHECK(c.submitRadioProcedure(false,[&] {
+        nestedSubmitted=true;
+        return 0;
+      })==BLE_HS_EBUSY);
+      CHECK(!nestedSubmitted);
+      return 0;
+    })==0);
+    CHECK(!silencedDuringSubmit);
+    CHECK(c.pendingDisconnect_);
+    CHECK(c.communicationSilenceRemainingMs()==SCALE_DISCONNECT_SILENCE_MS);
+    testAfterCriticalExit={};
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    const int raw=BLE_HS_HCI_ERR(8);
+    CHECK(c.armGapSilenceIfCurrent(c.linkOperationId_,1,raw));
+    c.finishLink(true,ScaleDisconnectReason::DISCOVERY_FAILED,BLE_HS_EBUSY);
+    CHECK(c.lastReason()==ScaleDisconnectReason::SUPERVISION_TIMEOUT);
+    CHECK(c.diagnostics().disconnectStatus==raw);
+    CHECK(testTerminations==0);
   }
   {
     testNowMs=100;

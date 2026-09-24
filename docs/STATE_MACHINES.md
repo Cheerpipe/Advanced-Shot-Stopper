@@ -623,8 +623,9 @@ Source: `openBrewByWeight.cpp` (`ScaleLinkState`).
 A `connectionGeneration` and `disconnectSequence` ride on the snapshot
 so a *new* connection cannot be mistaken for the one that started the
 shot (that is what suspends weight control). The library also owns a 3,000 ms
-quiet interval that begins inside its GAP disconnect callback. During it, no
-new BLE procedure or old-link weight event is admitted; discovery becomes
+quiet interval. Its GAP disconnect callback immediately rejects new procedures
+and old-link weight events. The full interval starts in that callback, or as
+soon as an already-admitted radio submission returns; discovery becomes
 eligible only after the interval expires.
 
 ### Scale commands (`ScaleCommandType`) — outbound

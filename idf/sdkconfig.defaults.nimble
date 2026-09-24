@@ -1,11 +1,13 @@
-# Production native NimBLE host. The Companion profile is registered at boot
-# only when its persisted enable flag is set.
+# Production native NimBLE host. The application acts as a central for scales;
+# no Companion profile is registered or advertised in this build.
 # CONFIG_BT_CONTROLLER_ONLY is not set
 CONFIG_BT_NIMBLE_ENABLED=y
 
 CONFIG_BT_NIMBLE_ROLE_CENTRAL=y
 CONFIG_BT_NIMBLE_ROLE_OBSERVER=y
 CONFIG_BT_NIMBLE_GATT_CLIENT=y
+# Retain the qualified role/capacity settings until target resource measurements
+# establish that reducing them preserves NimBLE initialization and recovery.
 CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
 CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
 CONFIG_BT_NIMBLE_GATT_SERVER=y
@@ -32,9 +34,8 @@ CONFIG_BT_NIMBLE_MAX_CONN_REATTEMPT=3
 # CONFIG_BT_NIMBLE_50_FEATURE_SUPPORT is not set
 # CONFIG_BT_NIMBLE_MESH is not set
 
-# Shot Stopper registers only the standard GAP/GATT services and its own static
-# Companion profile. ESP-IDF enables these unrelated services by default; keep
-# them out of production without changing pools or radio behavior.
+# Shot Stopper registers only the standard GAP/GATT services. ESP-IDF enables
+# these unrelated services by default; keep them out of production.
 # CONFIG_BT_NIMBLE_PROX_SERVICE is not set
 # CONFIG_BT_NIMBLE_ANS_SERVICE is not set
 # CONFIG_BT_NIMBLE_CTS_SERVICE is not set
@@ -50,7 +51,7 @@ CONFIG_BT_NIMBLE_MAX_CONN_REATTEMPT=3
 
 # No Direct Test Mode, signed-write counter or characteristic presentation /
 # aggregate descriptors are used. ATT MTU reconfiguration stays enabled for
-# Companion client compatibility under the qualified production profile.
+# scale GATT interoperability under the qualified production profile.
 # CONFIG_BT_NIMBLE_DTM_MODE_TEST is not set
 # CONFIG_BT_NIMBLE_SM_SIGN_CNT is not set
 # CONFIG_BT_NIMBLE_CPFD_CAFD is not set

@@ -14,6 +14,11 @@ details:
 Timemore Black Mirror DUO, Timemore Dot, Acaia Umbra, and Eureka units that
 advertise no GAP name are not supported.
 
+This controller connects to scales without authenticated Bluetooth pairing. Use
+weight-controlled brewing where nearby Bluetooth devices are trusted: a compatible
+transmitter could send misleading weight readings. The machine still requires
+a physical start, and implausible or stale readings suspend weight control.
+
 ## Bluetooth on/off
 
 **Admin → BLE → Enable Bluetooth** is the master switch for Bluetooth scales.

@@ -2,8 +2,10 @@
 #include "ScaleProtocol.h"
 
 #include <cstdlib>
+#include <cmath>
 #include <cstring>
 #include <iostream>
+#include <vector>
 
 namespace {
 
@@ -119,6 +121,51 @@ void testProtocolInitializationContracts() {
   CHECK(sawDifluidInitialization);
 }
 
+void testEurekaWeightFrame() {
+  uint8_t frame[11] = {0xaa, 0x09, 0x41, 0, 0, 0, 0, 0x68, 0x01, 0, 0};
+  float weight = 0;
+  CHECK(kScaleProtocolEureka.parseWeight(frame, sizeof(frame), &weight));
+  CHECK(weight == 36.0f);
+  frame[6] = 1;
+  CHECK(kScaleProtocolEureka.parseWeight(frame, sizeof(frame), &weight));
+  CHECK(weight == -36.0f);
+  frame[6] = 2;
+  CHECK(!kScaleProtocolEureka.parseWeight(frame, sizeof(frame), &weight));
+  frame[6] = 0;
+  for (int index = 0; index < 3; ++index) {
+    const uint8_t original = frame[index];
+    frame[index] = 0;
+    CHECK(!kScaleProtocolEureka.parseWeight(frame, sizeof(frame), &weight));
+    frame[index] = original;
+  }
+  CHECK(!kScaleProtocolEureka.parseWeight(frame, sizeof(frame) - 1, &weight));
+}
+
+void fuzzProtocolPacketBounds() {
+  for (size_t index = 0; index < scaleProtocolCount(); ++index) {
+    const ScaleProtocol *protocol = scaleProtocolAt(index);
+    for (int length = 0; length <= SCALE_MAX_PACKET_LENGTH; ++length) {
+      std::vector<uint8_t> frame(static_cast<size_t>(length));
+      for (uint8_t seed = 0; seed < 16; ++seed) {
+        for (int offset = 0; offset < length; ++offset) {
+          frame[static_cast<size_t>(offset)] =
+              static_cast<uint8_t>(seed * 31U + offset * 17U);
+        }
+        float weight = 0;
+        uint32_t timerMs = 0;
+        if (protocol->parseWeight != nullptr &&
+            protocol->parseWeight(frame.data(), length, &weight)) {
+          CHECK(std::isfinite(weight));
+          CHECK(std::fabs(weight) <= SCALE_MAX_WEIGHT_GRAMS);
+        }
+        if (protocol->parseTimer != nullptr) {
+          protocol->parseTimer(frame.data(), length, &timerMs);
+        }
+      }
+    }
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -127,6 +174,8 @@ int main() {
   testShortNameCannotReplaceCompleteName();
   fuzzEveryTruncation();
   testProtocolInitializationContracts();
+  testEurekaWeightFrame();
+  fuzzProtocolPacketBounds();
   std::cout << "NimBLE advertisement tests passed: " << checks << " checks\n";
   return 0;
 }

@@ -53,7 +53,8 @@ ignored by units that do not implement it. Every other protocol reports
 connection generation is closed to every later application command, even if
 the scale takes time to disconnect. The three-second communication barrier is
 armed immediately before this terminal write. A later GAP disconnect callback
-restarts the full interval before the application can observe the link loss.
+marks the link lost before the application can observe it and restarts the full
+interval after any already-admitted radio submission returns.
 
 
 ## Requirements
@@ -79,9 +80,11 @@ force a recoverable disconnect, and the first-valid-packet and silence limits
 remain protocol-specific.
 
 The client owns a fixed 3,000 ms post-disconnect communication barrier. The GAP
-callback arms it directly—before worker or application notification—and the
-same final admission point covers writes, RSSI, scan/cancel, connect/cancel,
-discovery, subscription, initialization, and termination. No blocked operation
+callback immediately blocks new admissions and invalidates old-link data. If a
+radio submission was already admitted, the full quiet interval starts when
+that submission returns; otherwise it starts in the callback. The same final
+admission point covers writes, RSSI, scan/cancel, connect/cancel, discovery,
+subscription, initialization, and termination. No blocked operation
 is replayed. In-memory callback cleanup may continue, while old-link RX frames
 and results are discarded. `communicationSilenced()` and
 `communicationSilenceRemainingMs()` expose read-only state so an owner can

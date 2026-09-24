@@ -28,7 +28,8 @@ bool eurekaSupportedPacketLength(int length) {
 }
 
 bool parseEurekaWeight(const uint8_t *data, int length, float *weight) {
-    if (length != 11) {
+    if (length != 11 || data[0] != 0xaa || data[1] != 0x09 ||
+        data[2] != 0x41 || data[6] > 1) {
         return false;
     }
     uint16_t raw = static_cast<uint16_t>(

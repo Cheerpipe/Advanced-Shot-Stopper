@@ -2023,6 +2023,36 @@ void r12_scale_worker_service_publishes_weight_and_detects_failure() {
   CHECK(getScaleLinkSnapshot().disconnectSequence == 1);
 }
 
+void r12e_rejected_heartbeat_preserves_connected_epoch() {
+  resetHarness(false, true);
+  scale.weight = 12.34f;
+  scale.newWeightAvailableValue = true;
+  serviceScaleWorkerLink();
+  processScaleWorkerEvents();
+  const ScaleLinkSnapshot before = getScaleLinkSnapshot();
+  CHECK(before.state == ScaleLinkState::CONNECTED);
+  CHECK(currentWeightIsFresh());
+  const uint32_t weightAtMs = lastScaleWeightAtMs;
+  scale.heartbeatRequiredValue = true;
+  scale.heartbeatSucceeds = false;
+  scale.heartbeatFailureKeepsLink = true;
+  serviceScaleWorkerLink();
+  const ScaleLinkSnapshot after = getScaleLinkSnapshot();
+  CHECK(scale.heartbeatCalls == 1);
+  CHECK(after.state == ScaleLinkState::CONNECTED);
+  CHECK(after.connectionGeneration == before.connectionGeneration);
+  CHECK(after.disconnectSequence == before.disconnectSequence);
+  CHECK(lastScaleWeightAtMs == weightAtMs);
+  CHECK(currentWeightIsFresh());
+  CHECK(scaleAvailable());
+  scale.connected = false;
+  serviceScaleWorkerLink();
+  CHECK(getScaleLinkSnapshot().state == ScaleLinkState::DISCONNECTED);
+  CHECK(getScaleLinkSnapshot().disconnectSequence == before.disconnectSequence + 1);
+  CHECK(lastScaleWeightAtMs == 0);
+  CHECK(!scaleAvailable());
+}
+
 void r12d_command_does_not_drain_buffered_weight() {
   resetHarness(false, true);
   ScaleCommand command;
@@ -16031,6 +16061,7 @@ const TestCase testCases[] = {
     {"BBW02", bbw02_freshness_reset_and_safety},
     {"BBW03", bbw03_shared_guard_parity},
     {"R12", r12_scale_worker_service_publishes_weight_and_detects_failure},
+    {"R12e", r12e_rejected_heartbeat_preserves_connected_epoch},
     {"R12d", r12d_command_does_not_drain_buffered_weight},
     {"R12b", r12b_discovery_clears_stale_connected_link_snapshot},
     {"R12c", r12c_connected_link_rssi_samples_and_clears},

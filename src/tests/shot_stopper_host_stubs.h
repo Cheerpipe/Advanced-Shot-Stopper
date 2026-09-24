@@ -536,6 +536,9 @@ class EspressoScaleBLE {
   ScaleCommandResult heartbeat() {
     commandLog.push_back("heartbeat");
     ++heartbeatCalls;
+    if (heartbeatFailureKeepsLink && connected && !heartbeatSucceeds) {
+      return ScaleCommandResult::WriteFailed;
+    }
     return runCommand(heartbeatSucceeds);
   }
   bool supportsPowerOff() const {
@@ -700,6 +703,7 @@ class EspressoScaleBLE {
   bool commandFeedbackSupported = true;
   bool beepSucceeds = true;
   bool heartbeatSucceeds = true;
+  bool heartbeatFailureKeepsLink = false;
   bool powerOffSucceeds = true;
   bool heartbeatRequiredValue = false;
   uint32_t silenceStartedAtMs = 0;
