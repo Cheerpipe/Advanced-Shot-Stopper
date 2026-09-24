@@ -52,15 +52,19 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
   uint8_t shutdownGraceCode = 0;
   LineaMicraPersistedSettings candidate = {};
   struct SensitiveWiper {
-    char *username = nullptr;
-    char *password = nullptr;
+    SensitiveWiper(char (&user)[LINEA_MICRA_USERNAME_CAPACITY],
+                   char (&pass)[LINEA_MICRA_PASSWORD_CAPACITY],
+                   LineaMicraPersistedSettings &settingsToWipe)
+        : username(user), password(pass), settings(settingsToWipe) {}
+    char (&username)[LINEA_MICRA_USERNAME_CAPACITY];
+    char (&password)[LINEA_MICRA_PASSWORD_CAPACITY];
     LineaMicraPersistedSettings &settings;
     ~SensitiveWiper() {
       memset(username, 0, LINEA_MICRA_USERNAME_CAPACITY);
       memset(password, 0, LINEA_MICRA_PASSWORD_CAPACITY);
       wipeLineaMicraSettings(settings);
     }
-  } sensitiveWiper{username, password, candidate};
+  } sensitiveWiper(username, password, candidate);
   uint32_t currentRevision = 0;
   self.dataMux_.lock();
   candidate = self.settings_.lineaMicra;

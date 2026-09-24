@@ -505,13 +505,13 @@ struct ShotLogHeader {
 // AFTER the records, so v6 blobs load byte-identically and only need a stats
 // rebuild on boot (records keep their offsets; the header CRC stays valid).
 struct ShotLogStats {
-  uint32_t shotCount = 0;         // qualifying auto shots included
-  uint32_t missCount = 0;         // qualifying shots without a weight/flow
-  uint32_t durationDsSum = 0;     // centi-precision sums avoid drift
-  uint32_t actualCgSum = 0;
-  uint32_t errorPctTenthsSum = 0; // (actual-goal)/goal*1000 sum
-  uint32_t flowCgSx100Sum = 0;    // avg flow g/s * 10000 sum
-  uint32_t daysSpan = 0;          // newest-oldest day index, 0 when <2 days
+  uint32_t shotCount;         // qualifying auto shots included
+  uint32_t missCount;         // qualifying shots without a weight/flow
+  uint32_t durationDsSum;     // centi-precision sums avoid drift
+  uint32_t actualCgSum;
+  uint32_t errorPctTenthsSum; // (actual-goal)/goal*1000 sum
+  uint32_t flowCgSx100Sum;    // avg flow g/s * 10000 sum
+  uint32_t daysSpan;          // newest-oldest day index, 0 when <2 days
 };
 
 // Read-time view; the persisted trailer above keeps its original binary layout.
