@@ -112,10 +112,12 @@ Each protocol may define a minimum application-command interval. Bookoo uses
 disconnect evidence while waiting and revalidates the connection generation
 at the common NimBLE admission point immediately before submission. Other
 protocols keep their existing timing.
-Actual submissions and terminal outcomes are sent through the optional log
-bridge at INFO with the operation, connection generation, response mode,
-inter-command gap, raw result, and elapsed time. Payload bytes and peer
-addresses are never included.
+The optional log bridge emits one INFO `ble tx` line for each command accepted
+by NimBLE and each subscription or initialization write attempt, with its label,
+response mode, and full hexadecimal payload. A separate `command done` line
+records command outcomes, connection generation, inter-command gap, raw result,
+and elapsed time. A locally rejected command has only `command done` with
+`submitted=0`. Peer addresses are not logged.
 
 Relaxed / Balanced / Aggressive scan presets retain their 25%, 50% and 100% duty
 semantics. Fixed advertisement slots and fixed GATT handle storage avoid a

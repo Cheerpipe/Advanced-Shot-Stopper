@@ -387,6 +387,11 @@ static void run() {
     const uint64_t firstAt=testNowMs;
     CHECK(c.writeOp(ScaleOp::StopTimer)==ScaleCommandResult::Ok);
     CHECK(testNowMs-firstAt==100); CHECK(testWrites==2);
+    CHECK(capturedScaleLogs.size()==4);
+    CHECK(capturedScaleLogs[2].second.find(response
+        ? "ble tx command/stop_timer response=1 bytes=03 0A 05 00 00 0C"
+        : "ble tx command/stop_timer response=0 bytes=03 0A 05 00 00 0C")!=std::string::npos);
+    CHECK(capturedScaleLogs[3].second.find("gap_ms=100")!=std::string::npos);
   }
   {
     testNowMs=UINT32_MAX-50ULL;
@@ -424,21 +429,20 @@ static void run() {
     NimbleScaleClient c(false); ready(c);
     c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
-    CHECK(capturedScaleLogs.size()==3);
+    CHECK(capturedScaleLogs.size()==2);
     CHECK(capturedScaleLogs[0].first==kScaleLogInfoSeverity);
     CHECK(capturedScaleLogs[0].second.find("ble tx command/tare response=0 bytes=03 0A 01 00 00 08")!=std::string::npos);
-    CHECK(capturedScaleLogs[1].second.find("command tx op=tare")!=std::string::npos);
-    CHECK(capturedScaleLogs[2].second.find("submitted=1 result=ok raw=0")!=std::string::npos);
+    CHECK(capturedScaleLogs[1].second.find("submitted=1 result=ok raw=0")!=std::string::npos);
+    CHECK(capturedScaleLogs[1].second.find("gap_ms=0")!=std::string::npos);
   }
   {
     NimbleScaleClient c(false); ready(c);
     c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
     testSubmitStatus=BLE_HS_EBUSY;
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::WriteFailed);
-    CHECK(capturedScaleLogs.size()==2);
+    CHECK(capturedScaleLogs.size()==1);
     CHECK(capturedScaleLogs[0].first==kScaleLogInfoSeverity);
-    CHECK(capturedScaleLogs[0].second.find("ble tx command/tare response=0 bytes=03 0A 01 00 00 08")!=std::string::npos);
-    CHECK(capturedScaleLogs[1].second.find(
+    CHECK(capturedScaleLogs[0].second.find(
         "submitted=0 result=failed raw=15")!=std::string::npos);
   }
   {

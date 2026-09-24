@@ -2009,7 +2009,9 @@ class NimbleScaleClient {
     const bool terminalPowerOff =
         purpose == WritePurpose::Command &&
         activeCommand_ == static_cast<uint8_t>(ScaleOp::PowerOff);
-    logWriteTx(purpose, label, data, length, withResponse);
+    if (purpose != WritePurpose::Command) {
+      logWriteTx(purpose, label, data, length, withResponse);
+    }
     if (!withResponse) {
       const int rc = submitRadioProcedure(terminalPowerOff, [&] {
         return ble_gattc_write_no_rsp_flat(connectionHandle_, handle, data,
@@ -2095,13 +2097,12 @@ class NimbleScaleClient {
     const bool submitted = admitted &&
         submitWrite(writeHandle_, data, length, WritePurpose::Command,
                     operation, withResponse);
+    uint32_t gapMs = 0;
     if (submitted) {
       lastCommandSubmittedAtMs_ = nowMs();
-      scaleLogInfo("command tx op=%s gen=%lu gap_ms=%lu response=%u",
-                   operation, static_cast<unsigned long>(commandGeneration),
-                   static_cast<unsigned long>(lastCommandSubmitted_
-                       ? lastCommandSubmittedAtMs_ - previousSubmittedAtMs : 0),
-                   withResponse ? 1U : 0U);
+      gapMs = lastCommandSubmitted_
+                  ? lastCommandSubmittedAtMs_ - previousSubmittedAtMs : 0;
+      logWriteTx(WritePurpose::Command, operation, data, length, withResponse);
       lastCommandSubmitted_ = true;
     }
     bool completed = false;
@@ -2137,9 +2138,10 @@ class NimbleScaleClient {
     service();
     const bool linkSurvived = generation_ == commandGeneration && isLinkUp();
     if (submitted && result == 0 && !interrupted && linkSurvived) {
-      scaleLogInfo("command done op=%s gen=%lu submitted=1 result=ok raw=0 elapsed_ms=%lu",
+      scaleLogInfo("command done op=%s gen=%lu submitted=1 result=ok raw=0 elapsed_ms=%lu gap_ms=%lu",
                    operation, static_cast<unsigned long>(commandGeneration),
-                   static_cast<unsigned long>(elapsedMs(commandStartedAt_)));
+                   static_cast<unsigned long>(elapsedMs(commandStartedAt_)),
+                   static_cast<unsigned long>(gapMs));
       return ScaleCommandResult::Ok;
     }
     if (!linkSurvived) result = diagnostics_.disconnectStatus;
@@ -2166,11 +2168,12 @@ class NimbleScaleClient {
                            : ScaleDisconnectReason::COMMAND_WRITE_FAILED, result);
       diagnostics_.commandStatus = diagnostics_.disconnectStatus;
     }
-    scaleLogInfo("command done op=%s gen=%lu submitted=%u result=failed raw=%ld elapsed_ms=%lu",
+    scaleLogInfo("command done op=%s gen=%lu submitted=%u result=failed raw=%ld elapsed_ms=%lu gap_ms=%lu",
                  operation, static_cast<unsigned long>(commandGeneration),
                  submitted ? 1U : 0U,
                  static_cast<long>(diagnostics_.commandStatus),
-                 static_cast<unsigned long>(elapsedMs(commandStartedAt_)));
+                 static_cast<unsigned long>(elapsedMs(commandStartedAt_)),
+                 static_cast<unsigned long>(gapMs));
     return ScaleCommandResult::WriteFailed;
   }
 
