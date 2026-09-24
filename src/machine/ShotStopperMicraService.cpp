@@ -1876,6 +1876,7 @@ bool ShotStopperMicraService::request(
     config.buffer_size = 1024;
     config.buffer_size_tx = 1024;
     config.save_client_session = true;
+    config.is_async = true;
     work_->client = esp_http_client_init(&config);
     if (work_->client == nullptr) return false;
     if (esp_http_client_set_header(work_->client, "Accept", "application/json") !=
@@ -1887,8 +1888,8 @@ bool ShotStopperMicraService::request(
       return false;
     }
   }
-  // Blocking esp_http_client_perform sends the complete POST body before its
-  // response callback runs, so those mutually exclusive phases share storage.
+  // The perform state machine sends the complete POST body before its response
+  // callback runs, so those mutually exclusive phases share storage.
   const bool bodySharesResponse = body == io_->body;
   work_->responseUsed = 0;
   if (!bodySharesResponse) io_->response[0] = '\0';
@@ -1968,10 +1969,13 @@ bool ShotStopperMicraService::request(
     activeClient_ = work_->client;
   }
   LineaMicraError gateError = LineaMicraError::NONE;
-  if (!networkEligible(gateError) ||
-      shotActive_.load(std::memory_order_acquire) ||
-      scaleConnecting_.load(std::memory_order_acquire) ||
-      abortRequested_.load(std::memory_order_acquire)) {
+  const auto requestAllowed = [&]() {
+    return networkEligible(gateError) &&
+           !shotActive_.load(std::memory_order_acquire) &&
+           !scaleConnecting_.load(std::memory_order_acquire) &&
+           !abortRequested_.load(std::memory_order_acquire);
+  };
+  if (!requestAllowed()) {
     TaskLockGuard lock(clientMux_);
     activeClient_ = nullptr;
     if (installationInit) secureWipe(io_->body, sizeof(io_->body));
@@ -1982,7 +1986,30 @@ bool ShotStopperMicraService::request(
     TaskLockGuard lock(mux_);
     beginHeapLifecycle(tlsHeap_, HeapLifecycleEvent::TLS_REQUEST, heapBefore);
   }
-  const esp_err_t performed = esp_http_client_perform(work_->client);
+  const uint32_t requestStartedAtMs = millis();
+  esp_err_t performed = ESP_ERR_HTTP_EAGAIN;
+  while (performed == ESP_ERR_HTTP_EAGAIN) {
+    if (!requestAllowed()) {
+      performed = ESP_FAIL;
+      break;
+    }
+    if (static_cast<uint32_t>(millis() - requestStartedAtMs) >=
+        micra_timing::kHttpTimeoutMs) {
+      performed = ESP_ERR_HTTP_READ_TIMEOUT;
+      break;
+    }
+    performed = esp_http_client_perform(work_->client);
+    if (!requestAllowed() && performed == ESP_OK) {
+      performed = ESP_FAIL;
+    } else if (performed == ESP_OK &&
+               static_cast<uint32_t>(millis() - requestStartedAtMs) >=
+                   micra_timing::kHttpTimeoutMs) {
+      performed = ESP_ERR_HTTP_READ_TIMEOUT;
+    }
+    if (performed == ESP_ERR_HTTP_EAGAIN) {
+      (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1));
+    }
+  }
   const HeapCapSnapshot heapAfter = sampleHeapCaps();
   {
     TaskLockGuard lock(mux_);

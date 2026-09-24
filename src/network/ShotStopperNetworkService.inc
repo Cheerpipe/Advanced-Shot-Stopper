@@ -554,7 +554,6 @@ void ShotStopperNetwork::service() {
   // NTP and machine-API cancellation can wait inside ESP-IDF, so only this
   // low-priority task services them. Gate setters merely publish atomics.
   abortNtpForRfGate();
-  serviceMachineIntegrationAbort();
 
   // Drain CLI link mutations even when SoftAP/HTTP startup is still failing.
   // A successful AP_START / WIFI_CONNECT can mark startup complete and skip
@@ -637,6 +636,9 @@ void ShotStopperNetwork::service() {
       staConnected, networkSnapshot.apActive,
       controlCriticalRfActive_.load(std::memory_order_acquire),
       scaleConnecting_.load(std::memory_order_acquire));
+  // Consume the state published above in this same activation. Running this
+  // before publication deferred Micra cancellation to the next 50 ms pass.
+  serviceMachineIntegrationAbort();
   serviceNtp(now, staConnected);
 
   const uint8_t apClients = networkSnapshot.apActive

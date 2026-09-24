@@ -39,12 +39,17 @@ those paths are separately bounded by the 5 s TWDT. HIL qualification must
 report active-link and connect/discovery distributions separately.
 
 The optional Micra cloud service owns a low-priority core-0 worker so HTTPS and
-signature work never enters the scale or control deadlines. Its state observer
-is due nominally every 30 seconds, each HTTPS operation has a 10-second timeout,
-and its four-attempt cycle waits 3, 6, then 9 seconds. After exhaustion the next
-cycle follows the normal 30-second cadence. AP, STA-loss, unsynchronized clock,
-and shot activity gate observations without consuming attempts. These are
-admission intervals, not a guaranteed cloud detection latency.
+signature work never enters the scale or control task bodies. HTTPS uses the
+ESP-IDF asynchronous client contract: incomplete progress yields for one tick,
+rechecks the network/scale/shot gates, and retains one absolute 10-second
+operation deadline. The network manager publishes the current gate before
+servicing client cancellation in the same activation. The state observer is
+due nominally every 30 seconds, and its four-attempt cycle waits 3, 6, then 9
+seconds. After exhaustion the next cycle follows the normal 30-second cadence.
+AP, STA-loss, unsynchronized clock, and shot activity gate observations without
+consuming attempts. These are admission intervals, not a guaranteed cloud
+detection latency; an individual TLS/crypto progress call still requires target
+deadline qualification.
 
 The scale worker blocks on a task notification with the state-dependent 1 ms
 linked/connecting or 10 ms idle timeout. Commands, policy changes

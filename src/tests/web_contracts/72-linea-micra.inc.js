@@ -52,6 +52,18 @@ if (micraStatusFailures.length) {
 if (!micraService.includes('config.save_client_session = true')) {
   throw new Error('Linea Micra cloud client must save TLS sessions for reuse');
 }
+const micraPublishAt = networkService.indexOf(
+    'publishMachineIntegrationNetworkState(');
+const micraAbortAt = networkService.indexOf(
+    'serviceMachineIntegrationAbort();');
+if (!micraService.includes('config.is_async = true;') ||
+    !micraService.includes('while (performed == ESP_ERR_HTTP_EAGAIN)') ||
+    !micraService.includes('(void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1));') ||
+    !micraService.includes('millis() - requestStartedAtMs') ||
+    micraPublishAt < 0 || micraAbortAt < micraPublishAt) {
+  throw new Error(
+      'Linea Micra HTTPS must advance cooperatively and cancel from freshly published network state');
+}
 if (!micraTiming.includes('kStatePollMs = 30000') ||
     !micraTiming.includes('kStateFreshnessMs = kStatePollMs') ||
     !micraTiming.includes('kOptimisticOverlayMs = 2U * kStatePollMs') ||
