@@ -65,12 +65,11 @@ machine. Earlier settings schemas are rejected and require `--erase-all`.
 
 History V5 retains an exact bounded preset-name snapshot and transfers through
 the shared chunked flash-I/O path. The separate last-shot V4 record retains the
-same provenance. The current rendered English Web UI is capped at 71,276 bytes
-HTML, 197,500 bytes JavaScript, and 268,500 bytes combined authoring source.
-The crash-download controls use 6,578 of the 6,600-byte compressed secondary
-view limit. The development n16r8 build measured 71,192 / 197,229 authoring
-bytes and 102,808 combined gzip bytes; the total embedded limit remains
-108,200 bytes.
+same provenance. The current rendered English Web UI is capped at 71,639 bytes
+HTML, 197,776 bytes JavaScript, and 269,415 bytes combined authoring source.
+The compressed runtime JavaScript cap is 37,445 bytes. The Web contract measures
+71,639 / 197,776 authoring bytes and 103,033 combined gzip bytes; the total
+embedded limit remains 108,200 bytes.
 
 Every new setting must include concise, natural help that explains its effect on
 the barista's workflow, including what changes when an option is enabled or

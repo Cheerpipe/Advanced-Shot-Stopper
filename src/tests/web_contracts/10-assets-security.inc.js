@@ -222,10 +222,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // setup help: power-on with the scale and scale-off with the machine.
 // The Diagnostic standalone tare button adds 200 bytes of HTML allowance;
 // compressed asset and firmware budgets remain unchanged.
-// The Admin BLE master switch adds the leading BLE group with one checkbox
-// and setup help.
-if (htmlBytes > 71572) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 71572)`);
+// The Admin BLE master switch's rendered help needs 67 more HTML bytes than
+// its original allowance; retain the complete wording.
+if (htmlBytes > 71639) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 71639)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -276,9 +276,9 @@ if (jsBytes > 197776) {
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
-// The Admin BLE master switch raises it to cover its markup and handler.
-if (htmlBytes + jsBytes > 269348) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 269348)`);
+// Match the corrected 67-byte HTML allowance; JS remains at its existing cap.
+if (htmlBytes + jsBytes > 269415) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 269415)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
@@ -570,7 +570,7 @@ if (ui.includes('bleCompanionEnabled') ||
     !ui.includes('bleEnabled') ||
     !ui.includes('Enable Bluetooth') ||
     !ui.includes("enabled:wanted") ||
-    !ui.includes('Bluetooth scales.') ||
+    !ui.includes('Master switch that enables or disables Bluetooth connections to scales.') ||
     !network.includes('BleScanCommandPayload::ENABLED') ||
     !firmwareCore.includes('void persistBleScanEnabled') ||
     !firmwareCore.includes('applyLiveBleEnabled') ||
