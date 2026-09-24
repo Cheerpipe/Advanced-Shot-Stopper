@@ -26,8 +26,9 @@ static const char *const kAcaiaPrefixes[] = {
 };
 
 static const ScalePayload kAcaiaInitWrites[] = {
-    {IDENTIFY, static_cast<int>(sizeof(IDENTIFY))},
-    {NOTIFICATION_REQUEST, static_cast<int>(sizeof(NOTIFICATION_REQUEST))}
+    {IDENTIFY, static_cast<int>(sizeof(IDENTIFY)), "identify"},
+    {NOTIFICATION_REQUEST, static_cast<int>(sizeof(NOTIFICATION_REQUEST)),
+     "notification_request"}
 };
 
 static const ScaleFeatureSet kAcaiaFeatures = {

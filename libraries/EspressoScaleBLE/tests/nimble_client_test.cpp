@@ -424,20 +424,41 @@ static void run() {
     NimbleScaleClient c(false); ready(c);
     c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
-    CHECK(capturedScaleLogs.size()==2);
+    CHECK(capturedScaleLogs.size()==3);
     CHECK(capturedScaleLogs[0].first==kScaleLogInfoSeverity);
-    CHECK(capturedScaleLogs[0].second.find("command tx op=tare")!=std::string::npos);
-    CHECK(capturedScaleLogs[1].second.find("submitted=1 result=ok raw=0")!=std::string::npos);
+    CHECK(capturedScaleLogs[0].second.find("ble tx command/tare response=0 bytes=03 0A 01 00 00 08")!=std::string::npos);
+    CHECK(capturedScaleLogs[1].second.find("command tx op=tare")!=std::string::npos);
+    CHECK(capturedScaleLogs[2].second.find("submitted=1 result=ok raw=0")!=std::string::npos);
   }
   {
     NimbleScaleClient c(false); ready(c);
     c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
     testSubmitStatus=BLE_HS_EBUSY;
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::WriteFailed);
-    CHECK(capturedScaleLogs.size()==1);
+    CHECK(capturedScaleLogs.size()==2);
     CHECK(capturedScaleLogs[0].first==kScaleLogInfoSeverity);
-    CHECK(capturedScaleLogs[0].second.find(
+    CHECK(capturedScaleLogs[0].second.find("ble tx command/tare response=0 bytes=03 0A 01 00 00 08")!=std::string::npos);
+    CHECK(capturedScaleLogs[1].second.find(
         "submitted=0 result=failed raw=15")!=std::string::npos);
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    const uint8_t cccd[] = {1, 0};
+    CHECK(c.submitWrite(13, cccd, sizeof(cccd),
+                        NimbleScaleClient::WritePurpose::Subscribe,
+                        "enable_notify", true));
+    CHECK(capturedScaleLogs.size()==1);
+    CHECK(capturedScaleLogs[0].second.find(
+        "ble tx subscribe/enable_notify response=1 bytes=01 00")!=std::string::npos);
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    c.protocol_=&kScaleProtocolAcaia;
+    c.initWriteIndex_=0;
+    c.beginNextInitWrite();
+    CHECK(capturedScaleLogs.size()==1);
+    CHECK(capturedScaleLogs[0].second.find(
+        "ble tx initialize/identify response=1 bytes=EF DD 0B 30 31 32 33 34 35 36 37 38 39 30 31 32 33 34 9A 6D")!=std::string::npos);
   }
   {
     NimbleScaleClient c(false); ready(c);

@@ -14,8 +14,8 @@ static const uint8_t HEARTBEAT_DIFLUID[6] =
 static const char *const kDifluidPrefixes[] = {"Microbalance"};
 
 static const ScalePayload kDifluidInitWrites[] = {
-    {UNIT_GRAM, static_cast<int>(sizeof(UNIT_GRAM))},
-    {AUTO_NOTIFY, static_cast<int>(sizeof(AUTO_NOTIFY))}
+    {UNIT_GRAM, static_cast<int>(sizeof(UNIT_GRAM)), "unit_gram"},
+    {AUTO_NOTIFY, static_cast<int>(sizeof(AUTO_NOTIFY)), "auto_notify"}
 };
 
 static const ScaleFeatureSet kDifluidFeatures = {

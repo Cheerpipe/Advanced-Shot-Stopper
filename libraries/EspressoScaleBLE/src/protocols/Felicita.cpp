@@ -12,7 +12,7 @@ static const char *const kFelicitaPrefixes[] = {"FELIC"};
 
 static const ScalePayload kFelicitaInitWrites[] = {
     {WEIGHT_TIMER_MODE_FELICITA,
-     static_cast<int>(sizeof(WEIGHT_TIMER_MODE_FELICITA))}
+     static_cast<int>(sizeof(WEIGHT_TIMER_MODE_FELICITA)), "weight_timer_mode"}
 };
 
 static const ScaleFeatureSet kFelicitaFeatures = {

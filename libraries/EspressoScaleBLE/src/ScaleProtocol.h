@@ -15,6 +15,7 @@
 struct ScalePayload {
     const uint8_t *data;
     int length;
+    const char *label;
 };
 
 struct ScaleProtocol {

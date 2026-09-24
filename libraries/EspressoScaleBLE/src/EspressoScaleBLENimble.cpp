@@ -740,6 +740,29 @@ class NimbleScaleClient {
 
   enum class SilenceTrigger : uint8_t { PowerOff = 1, Gap, LocalDisconnect };
 
+  static const char *writePurposeName(WritePurpose purpose) {
+    switch (purpose) {
+      case WritePurpose::Subscribe: return "subscribe";
+      case WritePurpose::Initialize: return "initialize";
+      case WritePurpose::Command: return "command";
+      default: return "unknown";
+    }
+  }
+
+  void logWriteTx(WritePurpose purpose, const char *label, const uint8_t *data,
+                  uint16_t length, bool withResponse) const {
+    char bytes[SCALE_MAX_COMMAND_LENGTH * 3] = {};
+    size_t used = 0;
+    for (uint16_t index = 0; index < length; ++index) {
+      used += static_cast<size_t>(snprintf(bytes + used, sizeof(bytes) - used,
+                                           "%s%02X", index == 0 ? "" : " ",
+                                           static_cast<unsigned>(data[index])));
+    }
+    scaleLogInfo("ble tx %s/%s response=%u bytes=%s", writePurposeName(purpose),
+                 label != nullptr ? label : "unknown", withResponse ? 1U : 0U,
+                 bytes);
+  }
+
   struct Event {
     EventType type;
     uint32_t generation;
@@ -1932,7 +1955,8 @@ class NimbleScaleClient {
                              static_cast<uint8_t>(value >> 8)};
     enterState(State::Subscribing, BLE_OPERATION_TIMEOUT_MS);
     if (!submitWrite(cccdHandle_, cccd, sizeof(cccd),
-                     WritePurpose::Subscribe, true)) {
+                     WritePurpose::Subscribe,
+                     value == 1 ? "enable_notify" : "enable_indicate", true)) {
       ++subscriptionFailures_;
       finishLink(true, lastRawStatus_ == BLE_HS_ENOMEM
                            ? ScaleDisconnectReason::MBUF_ALLOCATION_FAILED
@@ -1962,7 +1986,7 @@ class NimbleScaleClient {
     enterState(State::Initializing, BLE_OPERATION_TIMEOUT_MS);
     if (!submitWrite(writeHandle_, payload.data,
                      static_cast<uint16_t>(payload.length),
-                     WritePurpose::Initialize, withResponse)) {
+                     WritePurpose::Initialize, payload.label, withResponse)) {
       ++writeFailures_;
       finishLink(true, lastRawStatus_ == BLE_HS_ENOMEM
                            ? ScaleDisconnectReason::MBUF_ALLOCATION_FAILED
@@ -1977,7 +2001,7 @@ class NimbleScaleClient {
   }
 
   bool submitWrite(uint16_t handle, const uint8_t *data, uint16_t length,
-                   WritePurpose purpose, bool withResponse) {
+                   WritePurpose purpose, const char *label, bool withResponse) {
     if (connectionHandle_ == kInvalidHandle || handle == 0 || data == nullptr ||
         length == 0 || length > SCALE_MAX_COMMAND_LENGTH) {
       return false;
@@ -1985,6 +2009,7 @@ class NimbleScaleClient {
     const bool terminalPowerOff =
         purpose == WritePurpose::Command &&
         activeCommand_ == static_cast<uint8_t>(ScaleOp::PowerOff);
+    logWriteTx(purpose, label, data, length, withResponse);
     if (!withResponse) {
       const int rc = submitRadioProcedure(terminalPowerOff, [&] {
         return ble_gattc_write_no_rsp_flat(connectionHandle_, handle, data,
@@ -2069,7 +2094,7 @@ class NimbleScaleClient {
     const uint32_t previousSubmittedAtMs = lastCommandSubmittedAtMs_;
     const bool submitted = admitted &&
         submitWrite(writeHandle_, data, length, WritePurpose::Command,
-                    withResponse);
+                    operation, withResponse);
     if (submitted) {
       lastCommandSubmittedAtMs_ = nowMs();
       scaleLogInfo("command tx op=%s gen=%lu gap_ms=%lu response=%u",
