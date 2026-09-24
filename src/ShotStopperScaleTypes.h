@@ -216,10 +216,12 @@ struct BleScanCommandPayload {
   static constexpr uint8_t INTENSITY = 0x01;
   static constexpr uint8_t BACKOFF_MIN = 0x02;
   static constexpr uint8_t BOOST_MIN = 0x04;
+  static constexpr uint8_t ENABLED = 0x08;
   uint8_t specified = 0;
   uint8_t intensity = static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY);
   uint8_t backoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
   uint8_t boostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
+  uint8_t enabled = 1;
 };
 
 inline bool parseBleScanIntensityId(const char *id, BleScanIntensity &out) {

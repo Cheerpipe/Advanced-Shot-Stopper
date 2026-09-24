@@ -246,6 +246,9 @@ std::atomic<uint8_t> liveBleScanIntensityRaw{
 std::atomic<uint8_t> liveBleScanBackoffMinRaw{
     SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN};
 std::atomic<uint8_t> liveBleScanBoostMinRaw{SCALE_SCAN_BOOST_DEFAULT_MIN};
+// Admin BLE master switch: 0 keeps the scale client idle (no scans, no
+// links), indistinguishable from having no scale for the rest of the FW.
+std::atomic<uint8_t> liveBleEnabledRaw{1};
 // RAM-only boost deadline armed by the machine-use notification; boot
 // zero-init and natural expiry are the only clear paths.
 std::atomic<uint32_t> scaleScanBoostUntilMs{0};
@@ -1743,6 +1746,22 @@ bool applyScaleDiscoveryPause() {
   return true;
 }
 
+// Admin BLE master switch: while off, tear down any scale link or scan and
+// hold the client idle. Firmware-wide this matches "no scale present".
+bool serviceBleMasterSwitch() {
+  if (liveBleEnabledRaw.load(std::memory_order_relaxed) != 0) {
+    return false;
+  }
+  if (scaleLoggedGattConnecting || scale.isScanning() || scale.isConnecting() ||
+      scale.isConnected()) {
+    scale.disconnect();
+    cancelBookooConnectBeepPolicy();
+    updateWorkerLinkState();
+    setScaleLinkState(ScaleLinkState::DISCONNECTED);
+  }
+  return true;
+}
+
 bool applySoftApDiscoveryYield() {
   if (!scaleSoftApActive.load(std::memory_order_relaxed)) {
     return false;
@@ -1811,6 +1830,7 @@ void resetScaleWorkerRadioStateForHost() {
   liveBleScanIntensityRaw.store(
       static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY),
       std::memory_order_relaxed);
+  liveBleEnabledRaw.store(1, std::memory_order_relaxed);
   bookooConnectVolumePending = false;
   scaleDebugConnectionGeneration = 0;
   scaleBeepConnectionGeneration = 0;
@@ -1881,6 +1901,17 @@ uint8_t liveBleScanBoostMin() {
   return liveBleScanBoostMinRaw.load(std::memory_order_relaxed);
 }
 
+void applyLiveBleEnabled(bool enabled) {
+  liveBleEnabledRaw.store(enabled ? 1 : 0, std::memory_order_relaxed);
+  // Wake the worker so an enabling edge resumes discovery on the next tick
+  // and a disabling edge tears the link down without waiting for the cadence.
+  wakeScaleWorker();
+}
+
+bool liveBleEnabled() {
+  return liveBleEnabledRaw.load(std::memory_order_relaxed) != 0;
+}
+
 static void armBleScanBoost() {
   const uint8_t boostMin = liveBleScanBoostMin();
   if (boostMin == 0) {
@@ -1924,6 +1955,11 @@ BleScanIntensity discoveryScanIntensity() {
 }
 
 bool startScaleDiscoveryScan(const char *mac, bool forceRestart) {
+  // Master switch guards the scan funnel itself, like the soft-AP yield
+  // below: no caller may restart radio work while BLE is disabled.
+  if (!liveBleEnabledRaw.load(std::memory_order_relaxed)) {
+    return false;
+  }
   if (scaleSoftApActive.load(std::memory_order_relaxed) &&
       !scale.isConnecting() && !scale.isLinkUp()) {
     return false;
@@ -2395,6 +2431,14 @@ void scaleWorkerTask(void *) {
     if (backgroundDue) {
       lastBackgroundMs = nowMs;
       markScaleWorkerProgress();
+    }
+    // Admin BLE master switch: while off, keep the scale client idle; every
+    // consumer then observes the same state as with no scale present.
+    if (serviceBleMasterSwitch()) {
+      syncScaleRadioCoex();
+      feedOrTripCurrentTaskWatchdog();
+      vTaskDelay(pdMS_TO_TICKS(SCALE_WORKER_BACKGROUND_MS));
+      continue;
     }
     syncScaleRadioCoex();
 

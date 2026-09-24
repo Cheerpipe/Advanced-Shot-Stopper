@@ -14,6 +14,23 @@ details:
 Timemore Black Mirror DUO, Timemore Dot, Acaia Umbra, and Eureka units that
 advertise no GAP name are not supported.
 
+## Bluetooth on/off
+
+**Admin → BLE → Enable Bluetooth** is the master switch for Bluetooth scales.
+It is the first group on the Admin page and defaults to **on**.
+
+- **On** (default): scales are searched for and connected exactly as always.
+- **Off**: searching stops and any connected scale is disconnected within a
+  moment. No new scale can connect until the switch is turned back on.
+
+With the switch off, the controller behaves exactly as if no scale existed:
+brew by weight falls back to the behavior described in
+[No-scale BBW](no-scale-bbw.md), and reconnecting after enabling again takes
+a few seconds because the controller honors the standard quiet period that
+follows every scale disconnect. The setting changes nothing else — scan mode,
+preferred scale, history, and every other setting keep their own values, and
+turning Bluetooth back on restores normal operation without a restart.
+
 ## Scale power-off support
 
 **Turn scale off when the machine powers off**

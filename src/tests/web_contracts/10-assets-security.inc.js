@@ -222,8 +222,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // setup help: power-on with the scale and scale-off with the machine.
 // The Diagnostic standalone tare button adds 200 bytes of HTML allowance;
 // compressed asset and firmware budgets remain unchanged.
-if (htmlBytes > 71276) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 71276)`);
+// The Admin BLE master switch adds the leading BLE group with one checkbox
+// and setup help.
+if (htmlBytes > 71572) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 71572)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -267,13 +269,16 @@ if (htmlBytes > 71276) {
 // element: ~1 KB of null-safe JS that ships in every variant.
 // Crash-archive download and confirmed deletion add a bounded browser-only
 // path without changing the normal polling payload or firmware compressor.
-if (jsBytes > 197500) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 197500)`);
+// The Admin BLE master switch checkbox adds its save handler, status sync,
+// and revert-on-error path to the runtime module.
+if (jsBytes > 197776) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 197776)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
-if (htmlBytes + jsBytes > 268500) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 268500)`);
+// The Admin BLE master switch raises it to cover its markup and handler.
+if (htmlBytes + jsBytes > 269348) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 269348)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
@@ -562,6 +567,13 @@ if (ui.includes('bleCompanionEnabled') ||
     !ui.includes('bleScanBoost') ||
     !ui.includes('Scan boost on machine use') ||
     !ui.includes("boostMin:wanted") ||
+    !ui.includes('bleEnabled') ||
+    !ui.includes('Enable Bluetooth') ||
+    !ui.includes("enabled:wanted") ||
+    !ui.includes('Bluetooth scales.') ||
+    !network.includes('BleScanCommandPayload::ENABLED') ||
+    !firmwareCore.includes('void persistBleScanEnabled') ||
+    !firmwareCore.includes('applyLiveBleEnabled') ||
     !ui.includes('/api/v1/admin/ble-scan') ||
     !ui.includes("method:'PUT'") ||
     !network.includes('scanIntensity') ||
@@ -573,7 +585,7 @@ if (ui.includes('bleCompanionEnabled') ||
     !firmwareCore.includes('void persistBleScanBackoff') ||
     !firmwareCore.includes('void persistBleScanBoost') ||
     !networkHeader.includes('bleScanHandler')) {
-  throw new Error('Power management Admin controls must keep live scan mode, idle backoff, and machine-use boost without Companion');
+    throw new Error('Power management Admin controls must keep live scan mode, idle backoff, machine-use boost, and the BLE master switch without Companion');
 }
 {
   const persistStart = firmwareCore.indexOf(

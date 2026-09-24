@@ -15,7 +15,9 @@ how much energy the controller uses, in this order:
   delayed but are not lost. Details in [Wi-Fi](wifi.md).
 - **BLE scan mode** — how much radio time is spent searching for Bluetooth
   espresso scales: **Aggressive**, **Balanced** (factory default), or
-  **Relaxed**. See [Scales](scales.md).
+  **Relaxed**. See [Scales](scales.md). The separate
+  [Bluetooth on/off](scales.md#bluetooth-onoff) switch in the Admin **BLE**
+  group can stop all scale Bluetooth regardless of this mode.
 - **Idle scan backoff** — with Aggressive or Balanced selected, after this
   many idle minutes with no scale in range the search drops to Relaxed until
   a scale appears. **OFF** (factory default) keeps the saved mode always.

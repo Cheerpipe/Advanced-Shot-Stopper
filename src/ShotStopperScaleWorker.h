@@ -45,6 +45,10 @@ void applyLiveBleScanBackoff(uint8_t backoffMin);
 uint8_t liveBleScanBackoffMin();
 void applyLiveBleScanBoost(uint8_t boostMin);
 uint8_t liveBleScanBoostMin();
+// Admin BLE master switch: while disabled the scale worker holds the client
+// idle (no scans, no links); the rest of the firmware sees "no scale".
+void applyLiveBleEnabled(bool enabled);
+bool liveBleEnabled();
 // Machine-use notification: arms the Aggressive-discovery window for the
 // configured minutes when no usable scale is connected; no-op when the
 // setting is OFF or a scale is available. Atomic store only: safe from the

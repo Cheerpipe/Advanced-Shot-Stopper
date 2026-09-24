@@ -245,6 +245,7 @@ void setup() {
       clampBleScanBackoffMin(bleScanPersistedSettings.scanBackoffMin));
   applyLiveBleScanBoost(
       clampBleScanBoostMin(bleScanPersistedSettings.scanBoostMin));
+  applyLiveBleEnabled(bleScanPersistedSettings.enabled != 0);
   if (settingsLoaded) {
     runtimeConfig = persistedSettings.runtime;
     bullseyeMelodyConfig = persistedSettings.bullseyeMelody;

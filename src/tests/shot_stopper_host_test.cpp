@@ -264,6 +264,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   scaleScanCompatibleActivityAtMs = 0;
   applyLiveBleScanBackoff(SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN);
   applyLiveBleScanBoost(SCALE_SCAN_BOOST_DEFAULT_MIN);
+  applyLiveBleEnabled(true);
   scaleScanBoostUntilMs = 0;
   scalePreferredDirectedResetGeneration = 0;
   scaleLinkState = ScaleLinkState::DISCONNECTED;
@@ -11970,6 +11971,65 @@ void bc09_ble_scan_legacy_intensity_ids_parse_as_aliases() {
   CHECK(!parseBleScanIntensityId("medium", intensity));
 }
 
+void bc10_ble_master_switch_quiesces_scale_link() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  setScaleConnected(true);
+  CHECK(liveBleEnabled());
+  CHECK(!serviceBleMasterSwitch());
+
+  applyLiveBleEnabled(false);
+  CHECK(!liveBleEnabled());
+  CHECK(serviceBleMasterSwitch());
+  CHECK(!scale.isConnected());
+  CHECK(!scale.isScanning());
+  CHECK(getScaleLinkSnapshot().state == ScaleLinkState::DISCONNECTED);
+  CHECK(!scaleLinkAvailable(getScaleLinkSnapshot()));
+  // Scanning cannot restart while the switch stays off.
+  CHECK(!startScaleDiscoveryScan(nullptr, false));
+  CHECK(serviceBleMasterSwitch());
+
+  applyLiveBleEnabled(true);
+  CHECK(liveBleEnabled());
+  CHECK(!serviceBleMasterSwitch());
+}
+
+void bc11_ble_master_switch_command_persists_live_without_restart() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  CHECK(liveBleEnabled());
+
+  WebCommand command = webControlCommand(WebCommandType::BLE_SCAN_INTENSITY);
+  command.bleScan.specified |= BleScanCommandPayload::ENABLED;
+  command.bleScan.enabled = 0;
+  processWebCommand(command);
+  CHECK(!liveBleEnabled());
+  publishControlStatus();
+  ControlStatusSnapshot control;
+  copyControlStatus(control);
+  CHECK(!control.bleScanEnabled);
+  // The durable write is deferred like the other scan fields: PERSISTED only
+  // after the staged flush completes.
+  CHECK(hostLastForwardedNetworkCommand.requestId == 0);
+  runLoopAfter(CONTROL_HOUSEKEEPING_INTERVAL_MS);
+  CHECK(hostLastForwardedNetworkCommand.requestId == 1);
+  CHECK(hostLastForwardedNetworkCommand.resultState ==
+        CommandResultState::PERSISTED);
+  CHECK(!bleScanEnabledPersistPending);
+
+  // Re-enabling shares the same combined save path.
+  command.requestId = 2;
+  command.bleScan.enabled = 1;
+  processWebCommand(command);
+  CHECK(liveBleEnabled());
+  runLoopAfter(CONTROL_HOUSEKEEPING_INTERVAL_MS);
+  CHECK(hostLastForwardedNetworkCommand.requestId == 2);
+  CHECK(hostLastForwardedNetworkCommand.resultState ==
+        CommandResultState::PERSISTED);
+  CHECK(!bleScanEnabledPersistPending);
+  applyLiveBleEnabled(true);
+}
+
 void sc07_reset_device_password_and_clear_wifi_queue() {
   resetHarness(false, false);
   reachReadyFromBoot();
@@ -16447,6 +16507,8 @@ const TestCase testCases[] = {
     {"BC07", bc07_ble_scan_relaxed_with_backoff_is_api_valid},
     {"BC08", bc08_ble_scan_superseded_requests_all_report_persisted},
     {"BC09", bc09_ble_scan_legacy_intensity_ids_parse_as_aliases},
+    {"BC10", bc10_ble_master_switch_quiesces_scale_link},
+    {"BC11", bc11_ble_master_switch_command_persists_live_without_restart},
 };
 
 }  // namespace

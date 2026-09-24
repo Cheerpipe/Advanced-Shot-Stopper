@@ -323,6 +323,7 @@ void publishControlStatus() {
   next.bleScanIntensity = static_cast<uint8_t>(liveBleScanIntensity());
   next.bleScanBackoffMin = liveBleScanBackoffMin();
   next.bleScanBoostMin = liveBleScanBoostMin();
+  next.bleScanEnabled = liveBleEnabled();
   next.debugEventsDropped =
       __atomic_load_n(&debugLogDroppedSnapshot, __ATOMIC_RELAXED) +
       __atomic_load_n(&debugLogContentionDropped, __ATOMIC_RELAXED) +

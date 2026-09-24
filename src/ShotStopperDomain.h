@@ -2244,6 +2244,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   uint8_t bleScanIntensity = 0;
   uint8_t bleScanBackoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
   uint8_t bleScanBoostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
+  bool bleScanEnabled = true;
 };
 
 // Published copy lives in BSS, not on the 8 KiB loop stack.

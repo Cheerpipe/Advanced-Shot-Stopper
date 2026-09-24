@@ -428,8 +428,9 @@ if (generated.cssGzip.length > 7300) {
 // The Home boot splash one-shot hide helper raises it to 37150.
 // Machine-type-exclusive builds guard every stripped element access in the
 // runtime (loads, save payload, validation, hydration) raising it to 37400.
-if (generated.runtimeGzip.length > 37400) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 37400-byte gzip budget (${generated.runtimeGzip.length})`);
+// The Admin BLE master-switch checkbox save handler raises it to 37443.
+if (generated.runtimeGzip.length > 37443) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 37443-byte gzip budget (${generated.runtimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
