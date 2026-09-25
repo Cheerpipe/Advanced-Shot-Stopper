@@ -70,7 +70,10 @@ constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;
 constexpr uint32_t NTP_UNSYNCED_RETRY_MS = 15UL * 1000UL;
 constexpr uint32_t NTP_FIRST_SYNC_TIMEOUT_MS = 10UL * 1000UL;
-constexpr uint32_t NTP_STA_SETTLE_MS = 8000;
+// Post-GOT_IP settle before SNTP may arm. IP is already assigned (WL_CONNECTED
+// only fires on ARDUINO_EVENT_WIFI_STA_GOT_IP), so this only covers brief
+// DHCP/gateway warm-up; failures self-heal via retry plus server failover.
+constexpr uint32_t NTP_STA_SETTLE_MS = 1000;
 constexpr uint32_t NTP_STALE_AFTER_MS = 24UL * 3600UL * 1000UL;
 constexpr uint8_t NTP_MAX_CONSECUTIVE_FAILURES = 255;
 
