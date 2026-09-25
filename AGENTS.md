@@ -52,6 +52,18 @@ Never flash hardware, run OTA, control the relay, or execute HIL unless the user
 explicitly requests it. Never expose credentials in argv, logs, or artifacts.
 Unknown paths are R3; risk overrides may only increase risk.
 
+## OTA capability is preserved
+
+Wi-Fi OTA is a supported, shipping workflow alongside USB flash. Never disable,
+stub, or remove OTA capability, its command pipeline, its HTTP endpoints, or
+its host tests — not as a side effect of a refactor, schema cutover, migration
+removal, or compatibility hardening. If a proposed change would break the OTA
+update path (image identity, slot layout, session/journal schema, endpoints) or
+removes data migrations that OTA updates depended on, stop and ask the user
+whether to proceed knowingly with the risk of breaking OTA or to take a
+different approach; never decide unilaterally to switch the project to
+USB-only firmware installation.
+
 ## Workflow and validation
 
 Use `./scripts/dev context <area>` for orientation and `./scripts/dev classify`

@@ -23,10 +23,7 @@ its ELF; `./scripts/dev clean` keeps these archives.
 
 At the end of every successful command that includes `build`, the terminal
 highlights the absolute build-output folder and the absolute `shotstopper.bin`
-path ready for USB installation.
-
-Wi-Fi OTA is intentionally unsupported. Any `ota` pipeline is rejected before
-the controller is contacted; use the USB `flash` pipeline instead.
+path ready for installation.
 
 ## USB installation
 
@@ -51,6 +48,27 @@ with `build`. `--no-check` skips only local image identity verification; it
 does not skip partition checks. `--port` must name a connected USB serial
 device. On macOS use `/dev/cu.usbmodem*`; on Linux use `/dev/ttyACM*` or
 `/dev/ttyUSB*`.
+
+## Wi-Fi update (OTA)
+
+Upload a built image to a controller on the same network without a USB cable:
+
+```sh
+./scripts/dev build ota --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --host 192.168.1.50 \
+  --yes --wait-for-confirmation
+```
+
+`--host` accepts the controller's station address, or `192.168.4.1` on its
+access point. The hidden prompt, or `SHOTSTOPPER_DEVICE_PASSWORD`, supplies
+the device password; commands never take it as an argument. `--image <path>`
+uploads an existing image instead of building. `--yes` answers the commit
+question; `--wait-for-confirmation` independently verifies the rebooted image.
+Transfers are resumable: an interrupted run queries the confirmed offset and
+repeats only the missing ranges. Safety behavior, session details, and
+troubleshooting: [OTA](features/ota.md).
 
 ## Build profiles
 

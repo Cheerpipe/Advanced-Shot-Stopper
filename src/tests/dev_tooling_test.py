@@ -91,7 +91,7 @@ assert unsafe.returncode == 2 and "requires --confirm" in unsafe.stderr
 secret = run("ota", "--confirm", "--password", "do-not-log")
 assert secret.returncode == 2 and "never argv" in secret.stderr
 obsolete = run("ota", "--confirm", "--force")
-assert obsolete.returncode == 2 and "USB" in obsolete.stderr
+assert obsolete.returncode == 2 and "was removed" in obsolete.stderr
 for invalid in (("build", "monitor"), ("build", "flash", "ota", "--confirm"),
                 ("monitor", "--host", "controller.local"),
                 ("build", "flash", "--confirm", "--image", "firmware.bin")):
@@ -143,8 +143,7 @@ force_forwarded = captured_firmware("build", "--force-sdkconfig-regenerate")
 assert force_forwarded["steps"][0][1][-2:] == ["--", "--force-sdkconfig-regenerate"]
 for stage in ("flash", "ota", "monitor"):
     rejected = run(stage, "--force-sdkconfig-regenerate")
-    assert rejected.returncode == 2 and (
-        "does not apply" in rejected.stderr or stage == "ota" and "OTA is disabled" in rejected.stderr)
+    assert rejected.returncode == 2 and "does not apply" in rejected.stderr
 # The repository default optimization level is -O2/PERF: sdkconfig.defaults
 # selects it and every script fallback agrees.
 defaults_text = (ROOT / "idf" / "sdkconfig.defaults").read_text()

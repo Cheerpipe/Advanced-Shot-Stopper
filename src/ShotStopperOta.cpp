@@ -313,12 +313,7 @@ void ShotStopperOta::begin() {
     }
   }
   targetPartition_ = target;
-  // Keep checking the inactive slot for boot diagnostics, but USB-only builds
-  // never expose it as a writable network target.
-  const bool inactiveSlot = running != nullptr && target != nullptr &&
-                            target != running;
-  (void)inactiveSlot;
-  available_ = false;
+  available_ = running != nullptr && target != nullptr && target != running;
   slotBytes_ = target != nullptr ? target->size : 0;
   state_ = available_ ? OtaState::IDLE : OtaState::UNAVAILABLE;
 

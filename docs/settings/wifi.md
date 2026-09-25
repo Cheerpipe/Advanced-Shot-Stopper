@@ -25,7 +25,7 @@ stays available.
 | --- | --- | --- |
 | **Home Wi-Fi (STA)** | none on a fresh flash | Saved SSID/password. Device joins your network and serves the Web UI at the STA IP. |
 | **Device name** (Admin → Network) | `openbrewbyweight` | Friendly name for the controller on your local network. 1–32 letters, digits, spaces, or hyphens; no leading/trailing space or hyphen. Renaming saves immediately without restarting Wi-Fi, survives reboots and **Forget network**, and returns to the default only on factory reset. See [Discovery by name](#discovery-by-name). |
-| **Wi-Fi sleep** (Admin → Power management) | on | When on, STA uses modem sleep (`MIN_MODEM`) whenever it is associated and SoftAP is down. Stays `NONE` on SoftAP or while STA is disconnected. Toggling it alone saves immediately — no restart, no reconnect wait — and the toggle stays disabled until a network is configured; a full network save still carries the sleep value. It remains independent of the [Power policy](power-management.md), WebUI activity, and scale connection state. Factory default on. Scale discovery duty is Admin → Power management → BLE scan mode, not this toggle. |
+| **Wi-Fi sleep** (Admin → Power management) | on | When on, STA uses modem sleep (`MIN_MODEM`) whenever it is associated and SoftAP is down. Stays `NONE` on SoftAP, during OTA, while STA is disconnected, or when this toggle is off. Toggling it alone saves immediately — no restart, no reconnect wait — and the toggle stays disabled until a network is configured; a full network save still carries the sleep value. It remains independent of the [Power policy](power-management.md), WebUI activity, and scale connection state. Factory default on. Scale discovery duty is Admin → Power management → BLE scan mode, not this toggle. |
 | **IP mode** | DHCP | **DHCP** or **static** (`ip` / `netmask` / `gateway` / `dns1` / `dns2`). |
 | **Confirm window** | 3 minutes | After a Web UI STA save, a wait overlay retries the current address for confirmation. If the network/IP changed, reconnect your client and open the new IP yourself. The first successful UI claim confirms the new network. If this page never returns, previous network settings are restored. USB `SET_WIFI` commits immediately. |
 | **Boot with no credentials** | SoftAP up | SoftAP at boot with a **3 min** idle shutdown when no SoftAP stations are associated. See [AP](ap.md). |
@@ -79,7 +79,7 @@ confirm. The old AP page cannot discover an arbitrary new DHCP address.
 If you later lose that network, the device keeps retrying STA. Recover the AP with USB
 `AP_START` (see [USB serial CLI](../SERIAL_CLI.md)) or a reboot.
 
-Firmware installation is USB-only: [USB installation](../features/ota.md).
-Scripts: [Build scripts](../SCRIPTS.md).
+OTA over Wi-Fi: [OTA](../features/ota.md). Scripts:
+[Build scripts](../SCRIPTS.md).
 
 Related: [AP](ap.md), [Factory reset](factory-reset.md).

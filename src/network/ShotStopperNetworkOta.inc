@@ -585,7 +585,8 @@ const char *otaResultMessage(OtaResult result) {
   switch (result) {
     case OtaResult::OK: return "The firmware image was verified.";
     case OtaResult::UNAVAILABLE:
-      return "Firmware installation is USB-only; use the USB flasher.";
+      return "This controller has no second firmware slot, so it cannot be "
+             "updated over Wi-Fi.";
     case OtaResult::BUSY: return "Another firmware update is already running.";
     case OtaResult::PENDING_VERIFY:
       return "The running firmware awaits boot confirmation. Check "

@@ -7,7 +7,7 @@ are case-sensitive; wrap values with spaces in double quotes.
 App CDC is off unless **GPIO 4 is jumpered to GND at reset**, or the
 firmware was compiled with `-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1`. See
 [Hardware](HARDWARE.md). Without that Dupont (on the default build), the CLI
-port does not enumerate while the app is running; use **BOOT + RST**
+port does not enumerate while the app is running; use **OTA** or **BOOT + RST**
 (ROM download) to flash. Remove the jumper before installing the controller in
 the machine.
 
@@ -96,7 +96,7 @@ boot; `AP_START` still works).
 | --- | --- | --- |
 | `REBOOT` | none | Restarts firmware after any current shot finishes |
 | `FACTORY_RESET` | none | Wipes Wi-Fi, settings, calibration, and shots; device password `ineedacoffee`; restarts (safety gate) |
-| `SET_DEVICE_PASSWORD` | `<password>` | Sets the device password (8–63 chars, not `ineedacoffee`). SoftAP WPA2 and Admin unlock use it. Does not require the current device password. Safety gate |
+| `SET_DEVICE_PASSWORD` | `<password>` | Sets the device password (8–63 chars, not `ineedacoffee`). SoftAP WPA2, Admin unlock, and OTA use it. Does not require the current device password. Safety gate |
 | `RESET_DEVICE_PASSWORD` | none | Restores device password `ineedacoffee`. STA unchanged. Safety gate |
 
 ## STA credentials (persist + reboot)

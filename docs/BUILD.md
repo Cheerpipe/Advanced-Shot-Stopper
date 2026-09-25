@@ -17,7 +17,7 @@ and hardware-installation steps are not qualified here; the Windows notes in
 cover tool preparation only.
 
 Read [Hardware](HARDWARE.md) before connecting equipment. Building and host tests
-do not need a connected controller. USB flash sections explicitly affect it.
+do not need a connected controller. Flash/OTA sections explicitly affect it.
 
 ## 1. Clone the repository
 
@@ -175,10 +175,11 @@ relay profile, or a different `--arch`. Development mode remains CLI-only and
 must never be added to a profile.
 
 Machine defaults seed a new installation and factory reset. Valid persisted
-settings survive ordinary boot. Every persistent store is schema 1; older
-settings, logs, and curves are rejected and replaced with factory defaults.
-Firmware installation is USB-only, so a clean flash is required for this
-cutover and profile identity is checked before writing the device.
+settings survive ordinary boot and OTA. Every persistent store is schema 1;
+older settings, logs, and curves are rejected and replaced with factory
+defaults. Firmware identity is checked before writing the device, so a
+schema-1 controller receives only schema-1 images; a pre-schema-1 device
+needs a one-time clean USB installation.
 
 List available IDs and compatibility before building:
 
@@ -449,11 +450,24 @@ with [First setup and daily use](GETTING_STARTED.md).
 
 <a id="9-update-over-wi-fi-ota"></a>
 
-## 8. Firmware updates
+## 8. Update over Wi-Fi (OTA)
 
-Firmware installation is USB-only. Use `./scripts/dev flash --confirm` with
-the exact hardware and machine profiles; Wi-Fi OTA commands are intentionally
-rejected.
+After installation, follow [OTA](features/ota.md) for upload, verification,
+commit, confirmation and recovery. OTA cannot migrate the partition table.
+
+Build and update the same profile in one command:
+
+```sh
+./scripts/dev build ota --confirm \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine rancilio-silvia-pro-x \
+  --host 192.168.1.50 \
+  --yes --wait-for-confirmation
+```
+
+`--yes` accepts the commit question; `--wait-for-confirmation` independently
+verifies the rebooted image. See the [complete `dev` examples](SCRIPTS.md) for
+standalone and combined build, flash, OTA, and monitor commands.
 
 ## One supported command interface
 

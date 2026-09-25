@@ -221,5 +221,6 @@ This can happen briefly after a scale disconnects or reconnects.
 ## Where to change it
 
 Use the [settings index](README.md#settings) for parameter references,
-[USB firmware installation](features/ota.md) for update errors, and [webhook troubleshooting](features/webhooks.md#troubleshooting)
+[OTA troubleshooting](features/ota.md#session-start-troubleshooting) for update
+errors, and [webhook troubleshooting](features/webhooks.md#troubleshooting)
 for delivery problems.

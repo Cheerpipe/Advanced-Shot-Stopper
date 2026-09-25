@@ -138,4 +138,4 @@ before relying on automatic operation.
 | Cannot reach the controller | Use [network troubleshooting](FAQ.md#network-and-access) before considering a reset. |
 
 Next: [settings index](README.md#settings) · [troubleshooting](FAQ.md) ·
-[USB firmware installation](features/ota.md).
+[updates](features/ota.md).

@@ -10,7 +10,7 @@ needed rather than reading the entire directory.
 - [Hardware and installation prerequisites](HARDWARE.md)
 - [Build, test, and USB installation](BUILD.md)
 - [Troubleshooting](FAQ.md), [USB commands](SERIAL_CLI.md), [recovery](EMERGENCY_RECOVERY.md)
-- [USB firmware installation](features/ota.md), [screenshots](SCREENSHOTS.md)
+- [Firmware updates (OTA)](features/ota.md), [screenshots](SCREENSHOTS.md)
 
 ## Features
 
@@ -67,7 +67,7 @@ risk gate in [VALIDATION.md](../VALIDATION.md).
 | BLE protocols | library README, `CONCURRENCY.md` | `libraries/EspressoScaleBLE/src/`, `src/OpenBrewByWeightScaleWorker.cpp` | library tests, main host BLE-scan cases | `./scripts/dev test ble` |
 | Network/Webhooks | feature docs, `RESOURCE_OWNERSHIP.md` | `src/OpenBrewByWeightNetwork*`, `src/OpenBrewByWeightWebhook*` | `webhook_error_host_test.cpp`, Web contract tests | `./scripts/dev validate --risk R2` |
 | Integration API | [`INTEGRATION_API.md`](INTEGRATION_API.md) | network/webhook sources | shared JSON fixtures and integration tests | `./scripts/dev validate --risk R3` |
-| USB firmware | `features/ota.md`, `features/ota-image-identity.md`, `EMERGENCY_RECOVERY.md` | `scripts/internal/flash-idf`, `src/ShotStopperOta*` (disabled network path) | host and USB-install contracts | `./scripts/dev test normal` |
+| Firmware OTA | `features/ota.md`, `features/ota-image-identity.md`, `EMERGENCY_RECOVERY.md` | `scripts/internal/ota-idf`, `src/ShotStopperOta*` | OTA host, CLI, and Web resilience tests | `./scripts/dev test ota` |
 | Persistence | `ARCHITECTURE.md`, settings docs | `src/OpenBrewByWeightPersist*`, durable stores/logs | `persistence_host_test.cpp` | `./scripts/dev test normal` |
 | Web UI | `SCREENSHOTS.md`, feature/settings docs | `src/web/` | Web asset/contract tests | `./scripts/dev test web` |
 | Build and partitions | `BUILD.md`, `SCRIPTS.md`, `STATIC_ANALYSIS.md` | `idf/`, build scripts | profile, architecture, and size checks | `./scripts/dev profiles` |
