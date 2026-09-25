@@ -937,6 +937,9 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
           "\"unreportedCurrentCpuPct\":%.1f,\"unreportedAverageCpuPct\":%.1f,"
           "\"truncated\":%s,\"lastCaptureUs\":%lu,\"maxCaptureUs\":%lu,"
           "\"peakGapMs\":%lu,\"recentGapMs\":%lu,"
+          "\"peakGapUs\":%lu,\"recentGapUs\":%lu,"
+          "\"peakDelayUs\":%lu,\"recentDelayUs\":%lu,"
+          "\"peakDispatchUs\":%lu,\"recentDispatchUs\":%lu,"
           "\"rows\":[",
           taskProfilerStateName(tasks.state),
           taskProfilerStopReasonName(tasks.stopReason),
@@ -951,7 +954,13 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
           static_cast<unsigned long>(tasks.lastCaptureUs),
           static_cast<unsigned long>(tasks.maxCaptureUs),
           static_cast<unsigned long>(tasks.loopPhases.peakGapMs),
-          static_cast<unsigned long>(tasks.loopPhases.recentGapMs))) {
+          static_cast<unsigned long>(tasks.loopPhases.recentGapMs),
+          static_cast<unsigned long>(tasks.loopPhases.peakGapUs),
+          static_cast<unsigned long>(tasks.loopPhases.recentGapUs),
+          static_cast<unsigned long>(tasks.loopPhases.peakDelayUs),
+          static_cast<unsigned long>(tasks.loopPhases.recentDelayUs),
+          static_cast<unsigned long>(tasks.loopPhases.peakDispatchUs),
+          static_cast<unsigned long>(tasks.loopPhases.recentDispatchUs))) {
     return false;
   }
   for (uint8_t i = 0; i < tasks.rowCount; ++i) {

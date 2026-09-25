@@ -30,7 +30,10 @@ function applyLoopTiming(s){
     recentTotal+=a;peakTotal+=b;
     add([r.name.slice(9),recentReady?ms(a):'—',peakReady?ms(b):'—']);
   }
-  add([__WEBUI_TEXT__("diagnostic.wait_other"),recentReady?ms(recent*1000-recentTotal):'—',peakReady?ms(peak*1000-peakTotal):'—']);
+  const tail=(k,total)=>{const d=s.tasks[k+'DelayUs'],q=s.tasks[k+'DispatchUs'];return[d,q,s.tasks[k+'GapUs']-total-d-q]};
+  const a=tail('recent',recentTotal),b=tail('peak',peakTotal);
+  [__WEBUI_TEXT__("diagnostic.delay_call"),__WEBUI_TEXT__("diagnostic.loop_dispatch"),__WEBUI_TEXT__("diagnostic.other_timing")].forEach((label,i)=>
+    add([label,recentReady?ms(a[i]):'—',peakReady?ms(b[i]):'—']));
 }
 function updateCrashRow(s){
   const misc=$('hResetHistory')?.closest('fieldset.statusColumn');if(!misc)return;

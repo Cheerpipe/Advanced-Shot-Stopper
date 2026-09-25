@@ -435,9 +435,9 @@ if (generated.runtimeGzip.length > 37445) {
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
 }
-// Continuous loop timing adds the phase table and peak-gap detail to Diagnostics.
-if (generated.secondaryGzip.length > 6865) {
-  throw new Error(`Compressed secondary view JS exceeds the 6865-byte gzip budget (${generated.secondaryGzip.length})`);
+// Continuous loop timing and the delay/dispatch breakdown live in Diagnostics.
+if (generated.secondaryGzip.length > 6950) {
+  throw new Error(`Compressed secondary view JS exceeds the 6950-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');

@@ -68,6 +68,12 @@ struct LoopPhaseProfilerSnapshot {
   uint8_t rowCount = 0;
   uint32_t peakGapMs = 0;
   uint32_t recentGapMs = 0;
+  uint32_t peakGapUs = 0;
+  uint32_t recentGapUs = 0;
+  uint32_t peakDelayUs = 0;
+  uint32_t recentDelayUs = 0;
+  uint32_t peakDispatchUs = 0;
+  uint32_t recentDispatchUs = 0;
   LoopPhaseProfilerRow rows[LOOP_PHASE_COUNT] = {};
 };
 
@@ -106,8 +112,14 @@ class LoopPhaseProfiler {
     memset(maxUs_, 0, sizeof(maxUs_));
     memset(peakGapUs_, 0, sizeof(peakGapUs_));
     peakGapMs_ = 0;
+    peakGapDurationUs_ = 0;
+    peakDelayUs_ = 0;
+    peakDispatchUs_ = 0;
     TaskLockGuard lock(snapshotMutex_);
     snapshot_.peakGapMs = 0;
+    snapshot_.peakGapUs = 0;
+    snapshot_.peakDelayUs = 0;
+    snapshot_.peakDispatchUs = 0;
     for (LoopPhaseProfilerRow &row : snapshot_.rows) {
       row.maxExecutionUs = 0;
       row.peakGapExecutionUs = 0;
@@ -115,21 +127,35 @@ class LoopPhaseProfiler {
     return true;
   }
 
-  void capturePeakGap(uint32_t gapMs) {
+  void capturePeakGap(uint32_t gapMs, uint32_t gapUs, uint32_t delayUs,
+                      uint32_t dispatchUs) {
     memcpy(peakGapUs_, iterationUs_, sizeof(peakGapUs_));
     peakGapMs_ = gapMs;
+    peakGapDurationUs_ = gapUs;
+    peakDelayUs_ = delayUs;
+    peakDispatchUs_ = dispatchUs;
   }
 
-  void captureIntervalGap() {
+  void captureIntervalGap(uint32_t gapUs, uint32_t delayUs,
+                          uint32_t dispatchUs) {
     memcpy(intervalGapUs_, iterationUs_, sizeof(intervalGapUs_));
+    intervalDelayUs_ = delayUs;
+    intervalDispatchUs_ = dispatchUs;
+    intervalGapDurationUs_ = gapUs;
   }
 
   void publishIntervalGap(uint32_t gapMs) {
     memcpy(recentGapUs_, intervalGapUs_, sizeof(recentGapUs_));
     memset(intervalGapUs_, 0, sizeof(intervalGapUs_));
     recentGapMs_ = gapMs;
+    recentGapDurationUs_ = intervalGapDurationUs_;
+    recentDelayUs_ = intervalDelayUs_;
+    recentDispatchUs_ = intervalDispatchUs_;
     TaskLockGuard lock(snapshotMutex_);
     snapshot_.recentGapMs = gapMs;
+    snapshot_.recentGapUs = recentGapDurationUs_;
+    snapshot_.recentDelayUs = recentDelayUs_;
+    snapshot_.recentDispatchUs = recentDispatchUs_;
     for (uint8_t i = 0; i < LOOP_PHASE_COUNT; ++i) {
       snapshot_.rows[i].recentGapExecutionUs = recentGapUs_[i];
     }
@@ -159,6 +185,12 @@ class LoopPhaseProfiler {
     next.rowCount = LOOP_PHASE_COUNT;
     next.peakGapMs = peakGapMs_;
     next.recentGapMs = recentGapMs_;
+    next.peakGapUs = peakGapDurationUs_;
+    next.recentGapUs = recentGapDurationUs_;
+    next.peakDelayUs = peakDelayUs_;
+    next.recentDelayUs = recentDelayUs_;
+    next.peakDispatchUs = peakDispatchUs_;
+    next.recentDispatchUs = recentDispatchUs_;
     for (uint8_t i = 0; i < LOOP_PHASE_COUNT; ++i) {
       LoopPhaseProfilerRow &row = next.rows[i];
       row.name = loopPhaseName(static_cast<LoopPhase>(i));
@@ -201,6 +233,15 @@ class LoopPhaseProfiler {
   uint32_t recentGapUs_[LOOP_PHASE_COUNT] = {};
   uint32_t peakGapMs_ = 0;
   uint32_t recentGapMs_ = 0;
+  uint32_t peakGapDurationUs_ = 0;
+  uint32_t recentGapDurationUs_ = 0;
+  uint32_t intervalGapDurationUs_ = 0;
+  uint32_t peakDelayUs_ = 0;
+  uint32_t recentDelayUs_ = 0;
+  uint32_t peakDispatchUs_ = 0;
+  uint32_t recentDispatchUs_ = 0;
+  uint32_t intervalDelayUs_ = 0;
+  uint32_t intervalDispatchUs_ = 0;
   std::atomic<bool> resetRequested_{false};
   mutable TaskMutex snapshotMutex_;
   LoopPhaseProfilerSnapshot snapshot_ = {};

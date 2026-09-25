@@ -565,8 +565,15 @@ bool controlHousekeepingDue(uint32_t now) {
 
 // cppcheck-suppress unusedFunction ; Arduino framework entry point
 void loop() {
+  static uint32_t delayStartedAtUs = 0, delayReturnedAtUs = 0;
+  static uint32_t lastLoopStartedAtUs = 0;
   const uint32_t loopStartedAtMs = millis();
   const uint32_t loopStartedAtUs = micros();
+  const uint32_t gapUs = loopStartedAtUs - lastLoopStartedAtUs;
+  lastLoopStartedAtUs = loopStartedAtUs;
+  const uint32_t delayUs = delayReturnedAtUs - delayStartedAtUs;
+  const uint32_t dispatchUs = delayStartedAtUs == 0
+                                  ? 0 : loopStartedAtUs - delayReturnedAtUs;
   const bool resetLoopMax = loopPhaseProfiler.consumeReset();
   if (resetLoopMax) loopMaxGapMs = 0;
   const bool profileLoopPhases = taskProfiler.loopPhaseProfilingEnabled();
@@ -582,14 +589,14 @@ void loop() {
     const uint32_t gap = loopStartedAtMs - lastLoopAtMs;
     if (!resetLoopMax && gap > loopMaxGapMs) {
       loopMaxGapMs = gap;
-      loopPhaseProfiler.capturePeakGap(gap);
+      loopPhaseProfiler.capturePeakGap(gap, gapUs, delayUs, dispatchUs);
     }
     if (gap > CONTROL_SERVICE_DEADLINE_MS) {
       ++loopDeadlineMisses;
     }
     if (gap > healthIntervalMaxGapMs) {
       healthIntervalMaxGapMs = gap;
-      loopPhaseProfiler.captureIntervalGap();
+      loopPhaseProfiler.captureIntervalGap(gapUs, delayUs, dispatchUs);
     }
   }
   lastLoopAtMs = loopStartedAtMs;
@@ -707,5 +714,7 @@ void loop() {
   if (executionUs > loopMaxExecutionUs) {
     loopMaxExecutionUs = executionUs;
   }
+  delayStartedAtUs = micros();
   vTaskDelay(pdMS_TO_TICKS(controlLoopTickDelayMs(loopScaleLink)));
+  delayReturnedAtUs = micros();
 }

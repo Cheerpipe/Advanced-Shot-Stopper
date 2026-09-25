@@ -533,17 +533,25 @@ if (!ui.includes('<legend>Brew</legend>') ||
   const maximum = {textContent: '12 ms'};
   const render = new Function('$', '__WEBUI_TEXT__', source.slice(first, last) +
     ';return applyLoopTiming;')(id => id === 'loopTimingBody' ? table : maximum,
-    () => 'wait/other');
+    key => key);
   const status = {health: {loopIntervalGapMs: 5, loopMaxGapMs: 12}, tasks: {
-    recentGapMs: 5, peakGapMs: 12, rows: [{name: 'loopTask/safety/health',
+    recentGapMs: 5, peakGapMs: 12, recentGapUs: 5000, peakGapUs: 12000,
+    recentDelayUs: 3600, peakDelayUs: 7500,
+    recentDispatchUs: 800, peakDispatchUs: 1400,
+    rows: [{name: 'loopTask/safety/health',
       recentGapExecutionUs: 180, peakGapExecutionUs: 2630,
       maxExecutionUs: 9999, lastExecutionUs: 9999}]}};
   render(status);
   if (maximum.textContent !== '12 ms' ||
       table.rows[0][1].textContent !== '0.18 ms' ||
       table.rows[0][2].textContent !== '2.63 ms' ||
-      table.rows[1][1].textContent !== '4.82 ms' ||
-      table.rows[1][2].textContent !== '9.37 ms') {
+      table.rows[1][0].textContent !== 'delay call' ||
+      table.rows[1][1].textContent !== '3.60 ms' ||
+      table.rows[1][2].textContent !== '7.50 ms' ||
+      table.rows[2][1].textContent !== '0.80 ms' ||
+      table.rows[2][2].textContent !== '1.40 ms' ||
+      table.rows[3][1].textContent !== '0.42 ms' ||
+      table.rows[3][2].textContent !== '0.47 ms') {
     throw new Error('Loop table must break down the two displayed gap events');
   }
   status.tasks.recentGapMs = 4;
