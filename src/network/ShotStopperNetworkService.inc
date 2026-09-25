@@ -70,8 +70,8 @@ bool ShotStopperNetwork::begin(const PersistedSettings &settings,
   // saves the callback again (controller_started then re-establishes state).
   integrationOwnedEvents_ = false;
   // Pin beside the Wi-Fi/LwIP stacks on PRO_CPU (core 0).
-  // Stack must stay in internal RAM: this task calls NVS/Preferences (flash
-  // write disables the cache, which makes a PSRAM stack inaccessible).
+  // Stack stays internal: NVS writes usually retain cache with XIP, but flash
+  // mapping and driver paths can still disable it.
   if (xTaskCreatePinnedToCore(taskEntry, "network_manager",
                               NETWORK_MANAGER_TASK_STACK_SIZE, this,
                               tskIDLE_PRIORITY + 1, &taskHandle_,

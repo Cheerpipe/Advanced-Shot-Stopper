@@ -3,7 +3,7 @@
 // Stats shot-log ring store: PSRAM working copy with deferred dual-slot flash
 // persistence in the dedicated `shotlog` data partition. The flash mechanics
 // (generation flip through the inactive slot, chunked internal-SRAM-staged
-// transfers while the flash cache is disabled) live in
+// transfers across flash paths that may disable cache) live in
 // ShotStopperDualSlotFlashLog.h; this header owns the shot-log schema hooks
 // and the record-level API.
 

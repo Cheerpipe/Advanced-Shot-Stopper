@@ -709,8 +709,8 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   }
 
   busy_ = true;
-  // Flash cache is disabled briefly for every write. The buffer and hash
-  // state live on the internal httpd stack, never in PSRAM.
+  // XIP keeps cache available for most writes; mapping and driver exceptions
+  // still require the buffer and hash state on the internal httpd stack.
   (void)esp_wifi_set_ps(WIFI_PS_NONE);
 
   const esp_partition_t *target =

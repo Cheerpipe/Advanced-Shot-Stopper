@@ -14,9 +14,9 @@
 // 3. No FreeRTOS task or ISR is created here. Live stores are touched only
 //    from control and network through the mutex; the worker touches its image.
 // 4. Flash reads/writes copy through the internal-SRAM FlashIoScratch while
-//    the flash cache may be disabled; PSRAM is never referenced inside that
-//    window. Multi-word records are only read or rewritten under the store
-//    mutex, so readers never observe a torn record.
+//    a flash path may still disable cache despite XIP; PSRAM is not passed to
+//    partition I/O. Multi-word records are only read or rewritten under the
+//    store mutex, so readers never observe a torn record.
 // 5. begin() completes all loads before the network task serves endpoints;
 //    callers invoke it under the store mutex for uniformity.
 

@@ -1,9 +1,10 @@
 #pragma once
 
 // Shared internal-SRAM workspace for Preferences getBytes/putBytes and chunked
-// partition transfers while the flash cache may be disabled (PSRAM is then
-// inaccessible on ESP32-S3). Settings dual-slot I/O, the last-shot blob, and
-// the per-chunk staging bytes reuse the same allocation; every path must hold
+// partition transfers. XIP retains cache for most writes, but mapping and
+// driver paths may still disable it and make PSRAM inaccessible. Settings
+// dual-slot I/O, the last-shot blob, and per-chunk staging bytes reuse the same
+// allocation; every path must hold
 // tryLockFlashIo() for the whole use of the scratch.
 
 #include "ShotStopperDomain.h"

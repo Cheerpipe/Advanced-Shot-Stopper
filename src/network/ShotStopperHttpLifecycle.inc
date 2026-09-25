@@ -1056,8 +1056,8 @@ bool ShotStopperNetwork::startHttpServer() {
   config.task_priority = tskIDLE_PRIORITY + 1;
   config.stack_size = HTTP_SERVER_TASK_STACK_SIZE;
   // Keep the httpd task stack in internal RAM (default task_caps). OTA upload
-  // erases/writes flash on this task; a PSRAM stack would fault while the
-  // cache is disabled.
+  // erases/writes flash on this task. XIP usually keeps cache available, but
+  // flash mapping and driver paths can still disable it.
   // Web UI serializes API traffic (DEVICE_MAX_INFLIGHT, default 1). Reserve
   // headroom for the HTML/JS/CSS boot burst plus LRU/TCP close. ESP-IDF uses
   // (max_open_sockets + 3) LWIP sockets total.
@@ -1182,7 +1182,7 @@ esp_err_t ShotStopperNetwork::sendJson(httpd_req_t *request,
   httpd_resp_set_hdr(request, "Connection", "close");
   httpd_resp_set_hdr(request, "Access-Control-Allow-Origin", "*");
   const size_t length = json == nullptr ? 0 : strlen(json);
-  return sendCopiedBody(request, json, length);
+  return sendBody(request, json, length);
 }
 
 esp_err_t ShotStopperNetwork::sendError(httpd_req_t *request,

@@ -144,8 +144,8 @@ class DualSlotFlashLog {
     yieldFlashIo();
     feedFlashIoWatchdog();
     // Chunked write: each 1 KiB step stages through the internal scratch
-    // because the live store_ sits in PSRAM BSS, unreachable while the flash
-    // cache is disabled inside the partition call.
+    // because the live store_ sits in PSRAM BSS, which may be unreachable
+    // if a flash path disables cache despite XIP.
     if (!flashIoWriteChunked(part, targetOffset, &store_, sizeof(store_))) {
       unlockFlashIo();
       return false;

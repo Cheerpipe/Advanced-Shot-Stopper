@@ -274,7 +274,8 @@ constexpr const char *STATUS_UNAVAILABLE = "503 Service Unavailable";
 // processPersistedCommand() keeps one copy on the stack via settingsCopy();
 // NVS dual-slot scratch is shared off-stack. 7 168 was too small (canary on
 // FACTORY_RESET). 10 240 keeps headroom without the old 12 KiB margin.
-// Keep this stack in internal RAM: the task writes NVS (flash cache disabled).
+// Keep this stack internal: XIP preserves cache for most writes, but flash
+// mapping and driver paths can still disable it.
 constexpr uint32_t NETWORK_MANAGER_TASK_STACK_SIZE = 10240;
 // POST JSON bodies live in NetworkWorkBuf (PSRAM), so the httpd worker no
 // longer needs a 2 KiB request-body frame on top of headers and send buffers.
@@ -711,38 +712,17 @@ bool registerHandler(httpd_handle_t server, const char *uri,
   return httpd_register_uri_handler(server, &descriptor) == ESP_OK;
 }
 
-// lwIP on ESP32-S3 cannot DMA a PSRAM or flash pointer in one tcp_write.
-// Stream through a small internal bounce buffer; no full-body staging in DRAM.
-// Single httpd server task (HTTPD_DEFAULT_CONFIG). Do not raise workers without
-// giving this bounce its own lock or per-handler stack storage.
-constexpr size_t HTTP_DRAM_BOUNCE_BYTES = 512;
-
-static uint8_t g_httpSendBounce[HTTP_DRAM_BOUNCE_BYTES];
-
-esp_err_t sendCopiedChunk(httpd_req_t *request, const void *data,
-                          size_t length) {
-  const auto *src = static_cast<const uint8_t *>(data);
-  while (length > 0) {
-    const size_t n =
-        length < HTTP_DRAM_BOUNCE_BYTES ? length : HTTP_DRAM_BOUNCE_BYTES;
-    memcpy(g_httpSendBounce, src, n);
-    if (httpd_resp_send_chunk(request,
-                              reinterpret_cast<const char *>(g_httpSendBounce),
-                              n) != ESP_OK) {
-      return ESP_FAIL;
-    }
-    src += n;
-    length -= n;
-  }
-  return ESP_OK;
+// HTTPD's socket send copies source bytes into lwIP; callers retain ownership
+// of PSRAM and embedded-asset data until this synchronous call returns.
+esp_err_t sendChunk(httpd_req_t *request, const void *data, size_t length) {
+  return httpd_resp_send_chunk(request, static_cast<const char *>(data), length);
 }
 
-esp_err_t sendCopiedBody(httpd_req_t *request, const void *data,
-                         size_t length) {
+esp_err_t sendBody(httpd_req_t *request, const void *data, size_t length) {
   if (length == 0) {
     return httpd_resp_send(request, nullptr, 0);
   }
-  if (sendCopiedChunk(request, data, length) != ESP_OK) {
+  if (sendChunk(request, data, length) != ESP_OK) {
     return ESP_FAIL;
   }
   return httpd_resp_send_chunk(request, nullptr, 0);
@@ -778,11 +758,11 @@ esp_err_t sendJsonStringChunk(httpd_req_t *request, const char *value) {
     }
     if (escape != nullptr) {
       if (cursor > segment &&
-          sendCopiedChunk(request, segment,
+          sendChunk(request, segment,
                           static_cast<size_t>(cursor - segment)) != ESP_OK) {
         return ESP_FAIL;
       }
-      if (sendCopiedChunk(request, escape, strlen(escape)) != ESP_OK) {
+      if (sendChunk(request, escape, strlen(escape)) != ESP_OK) {
         return ESP_FAIL;
       }
       segment = cursor + 1;
@@ -790,7 +770,7 @@ esp_err_t sendJsonStringChunk(httpd_req_t *request, const char *value) {
     ++cursor;
   }
   if (cursor > segment &&
-      sendCopiedChunk(request, segment,
+      sendChunk(request, segment,
                       static_cast<size_t>(cursor - segment)) != ESP_OK) {
     return ESP_FAIL;
   }

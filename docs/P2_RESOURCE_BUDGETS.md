@@ -34,13 +34,17 @@ growth headroom respectively. Flash rodata is 516,060 bytes, flash code is
 1,443,820 bytes, and linked DIRAM is 176,286 bytes; each retains its versioned
 allowance. The 3 MiB OTA slot still has more than 1 MiB free.
 
-The N16R8 PSRAM XIP trial moves flash instructions and read-only data to PSRAM
-at startup. The Micra development build with this option uses 2,124,528 image
-bytes and links 1,445,124 bytes of flash code plus 517,132 bytes of `.rodata`;
-these sections require roughly 1.9 MiB of PSRAM before mapping overhead. The
-linker report does not measure remaining runtime PSRAM heap, so target memory
-and loop-gap measurements are required before qualifying this configuration.
-N8R4 remains on the prior memory mapping.
+The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
+PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
+with internal fallback. N8R4 retains its prior mapping and NVS allocation.
+The n16r8 Micra development+JTAG build (`esp32-s3-relay-x1-speaker-reed` /
+`la-marzocco-linea-micra`, ESP-IDF 6.1, validation at `79c4788-dirty`)
+measured 2,123,936 image bytes, 2,123,811 linked bytes, 1,444,516 flash-code
+bytes, 517,148 `.rodata` bytes, 177,438 DIRAM bytes (32,016 internal BSS), and
+106,992 external-BSS bytes. The code and rodata require roughly 1.9 MiB of
+PSRAM before mapping overhead. Linker figures do not measure runtime heap;
+matched target memory, settings latency and loop-gap measurements remain
+required before qualification. PSRAM access may slow NVS integer operations.
 
 Both linker maps must also keep external BSS at or below 105 KiB and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
@@ -55,6 +59,8 @@ raise covers the V3 half-second shot-curve store.
 | Resource | Placement and bound |
 |---|---|
 | Network work buffer | external, at most 68 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex, and a one-curve JSON scratch serves the status and shots-list rows |
+| HTTP response send | assets and PSRAM work buffers pass directly to HTTPD's default socket send, which copies into lwIP; the former 512-byte internal-BSS bounce and application copy are removed, without implying a 512-byte runtime-heap gain |
+| NVS metadata cache | PSRAM preferred with internal fallback on n16r8; n8r4 retains its existing placement; flash I/O still uses the internal scratch below |
 | Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 68 KiB total bound |
 | Shared flash-I/O scratch | internal heap, 2,960 bytes (one PersistedSettings record); slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |
 | USB serial output | internal heap, 2,064 bytes for the eight-record ESP log queue; one external 2,560-byte CLI reply buffer; startup failures free both allocations, and successful startup retains one boot-lifetime owner |
@@ -130,7 +136,7 @@ maximum free-block increase. Sampling occurs outside owner locks and outside
 OTA chunk/cache-off work; only the fixed result is copied under the existing
 owner mutex.
 
-The n16r8 Micra development+JTAG candidate measured 169,502 linked DIRAM bytes.
+The n16r8 Micra development+JTAG candidate measured 177,438 linked DIRAM bytes.
 The one-record scratch removes 2,960 bytes from its lazy runtime allocation,
 while the disabled-USB path avoids the 2,064-byte serial payload. Their actual
 free/largest-block effects remain target measurements, not linked-memory claims.

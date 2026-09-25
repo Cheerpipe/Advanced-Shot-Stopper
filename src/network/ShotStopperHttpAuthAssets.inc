@@ -487,7 +487,7 @@ static esp_err_t serveImmutableGzip(httpd_req_t *request, const char *contentTyp
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
   httpd_resp_set_hdr(request, "X-Frame-Options", "DENY");
   httpd_resp_set_hdr(request, "Connection", "close");
-  return sendCopiedBody(request, data, length);
+  return sendBody(request, data, length);
 }
 
 esp_err_t ShotStopperNetwork::rootHandler(httpd_req_t *request) {
@@ -518,7 +518,7 @@ esp_err_t ShotStopperNetwork::rootHandler(httpd_req_t *request) {
       "default-src 'self'; script-src 'self'; style-src 'self'; "
       "connect-src 'self'; frame-ancestors 'none'");
   httpd_resp_set_hdr(request, "Connection", "close");
-  return sendCopiedBody(request, SHOT_STOPPER_WEB_UI_GZIP,
+  return sendBody(request, SHOT_STOPPER_WEB_UI_GZIP,
                         SHOT_STOPPER_WEB_UI_GZIP_LEN);
 }
 

@@ -398,7 +398,7 @@ if (!network.includes('ShotStopperDebugExport.h') ||
     !network.includes(
         'self.callbacks_.copyDebugExportExtras(work.debugExport, work.control)') ||
     !network.includes(
-        'return sendCopiedChunk(request, text, strlen(text)) == ESP_OK') ||
+        'return sendChunk(request, text, strlen(text)) == ESP_OK') ||
     network.includes('httpd_resp_send_chunk(request, text, HTTPD_RESP_USE_STRLEN)') ||
     !firmware.includes('ShotStopperDebugExport.h') ||
     !ui.includes('/api/v1/debug/export') ||

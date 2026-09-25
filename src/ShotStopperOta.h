@@ -147,7 +147,7 @@ struct OtaSessionIdentity {
 // PENDING_VERIFY policy. Pure: no I/O, no heap. `rollbackPossible` is ignored
 // until the confirm deadline with HTTP still down.
 // `flashWriteSafe` is false while a scale GATT session is connecting or
-// linked: esp_ota_mark_app_valid disables flash cache and drops BLE. At the
+// linked: its flash path may disable cache and disrupt BLE despite XIP. At the
 // deadline the image must still settle, even if that costs the radio.
 enum class OtaPendingVerifyAction : uint8_t {
   NONE = 0,     // not pending, already settled, or busy

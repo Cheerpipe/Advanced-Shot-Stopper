@@ -65,7 +65,7 @@ inline void finalizePersistedSettings(PersistedSettings &settings) {
 
 // Single-record staging inside the shared flash-I/O scratch (see FlashIoScratch).
 // Allocated from internal SRAM (heap, not BSS): source/destination of
-// Preferences putBytes/getBytes while flash cache is disabled.
+// Preferences putBytes/getBytes if a flash path disables cache despite XIP.
 inline PersistedSettings &persistedSettingsScratch() {
   static_assert(sizeof(PersistedSettings) <= FLASH_IO_SCRATCH_BYTES,
                 "PersistedSettings exceeds flash I/O buffer");

@@ -2,7 +2,7 @@ bool debugExportChunk(httpd_req_t *request, const char *text) {
   if (text == nullptr || text[0] == '\0') {
     return true;
   }
-  return sendCopiedChunk(request, text, strlen(text)) == ESP_OK;
+  return sendChunk(request, text, strlen(text)) == ESP_OK;
 }
 bool debugExportChunkf(httpd_req_t *request, char *buf, size_t cap,
                        const char *fmt, ...)
@@ -946,7 +946,7 @@ esp_err_t ShotStopperNetwork::logHandler(httpd_req_t *request) {
              static_cast<unsigned long>(event.wallSec),
              logLevelName(event.level), debugCategoryName(event.category),
              static_cast<unsigned>(event.code));
-    if (sendCopiedChunk(request, work.jsonItem, strlen(work.jsonItem)) !=
+    if (sendChunk(request, work.jsonItem, strlen(work.jsonItem)) !=
         ESP_OK) {
       self.unlockWorkBuf();
       return ESP_FAIL;
@@ -959,7 +959,7 @@ esp_err_t ShotStopperNetwork::logHandler(httpd_req_t *request) {
              ",\"argument1\":%ld,\"argument2\":%ld}",
              static_cast<long>(event.argument1),
              static_cast<long>(event.argument2));
-    if (sendCopiedChunk(request, work.jsonItem, strlen(work.jsonItem)) !=
+    if (sendChunk(request, work.jsonItem, strlen(work.jsonItem)) !=
         ESP_OK) {
       self.unlockWorkBuf();
       return ESP_FAIL;
@@ -1136,7 +1136,7 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
                  static_cast<ActualWeightSource>(record.actualWeightSource)),
              static_cast<unsigned>(shotLogRating(record.extractionGuardEnabled)),
              curveJson);
-    if (sendCopiedChunk(request, work.jsonItem, strlen(work.jsonItem)) !=
+    if (sendChunk(request, work.jsonItem, strlen(work.jsonItem)) !=
         ESP_OK) {
       self.unlockWorkBuf();
       return ESP_FAIL;
@@ -1293,7 +1293,7 @@ esp_err_t ShotStopperNetwork::historyHandler(httpd_req_t *request) {
              (record.flags & HISTORY_FLAG_WALL_TIME) != 0 ? "true" : "false",
              static_cast<unsigned long>(record.endedAtUnixSec),
              static_cast<unsigned long>(record.endedAtLocalSec));
-    if (sendCopiedChunk(request, item, strlen(item)) != ESP_OK) {
+    if (sendChunk(request, item, strlen(item)) != ESP_OK) {
       self.unlockWorkBuf();
       return ESP_FAIL;
     }
