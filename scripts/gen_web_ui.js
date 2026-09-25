@@ -256,7 +256,7 @@ async function generate(options = {}) {
   const manifestObject = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const icon192Raw = fs.readFileSync(icon192Path);
   const icon48Raw = fs.readFileSync(icon48Path);
-  const version = readFirmwareVersion();
+  const version = options.versionOverride || readFirmwareVersion();
   if (options.machineType && options.machineType !== 'all' &&
       !MACHINE_TYPE_EXCLUSIONS[options.machineType]) {
     throw new Error(`Unknown --machine-type: ${options.machineType}`);
@@ -519,6 +519,7 @@ module.exports = {
   SECONDARY_VIEWS,
   htmlDir,
   jsDir,
+  gzipBuffer,
 };
 
 if (require.main === module) {

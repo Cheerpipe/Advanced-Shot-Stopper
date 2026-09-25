@@ -216,6 +216,17 @@ const runtimeRoundTrip = zlib.gunzipSync(generated.runtimeGzip).toString('utf8')
 if (runtimeRoundTrip !== generated.runtimeJs) {
   throw new Error('Generated gzip runtime JS does not round-trip');
 }
+// The runtime bakes the firmware build id (VERSION + short commit SHA), which
+// changes on every commit and shifts the compressed size without any UI change;
+// the per-asset budget would then chase irrelevant SHA noise. Measure a
+// sentinel-stamped generation instead; the combined 108200-byte flash cap still
+// measures the real (version-baked) assets below.
+const sentinel =
+    await webUi.generate({write: false, versionOverride: '00000000'});
+if (sentinel.version !== '00000000') {
+  throw new Error('Sentinel runtime generation did not apply the fixed build id');
+}
+const sentinelRuntimeGzip = sentinel.runtimeGzip;
 const otaImageRoundTrip =
     zlib.gunzipSync(generated.otaImageGzip).toString('utf8');
 if (otaImageRoundTrip !== generated.otaImageJs) {
@@ -428,11 +439,10 @@ if (generated.cssGzip.length > 7300) {
 // The Home boot splash one-shot hide helper raises it to 37150.
 // Machine-type-exclusive builds guard every stripped element access in the
 // runtime (loads, save payload, validation, hydration) raising it to 37400.
-// The Admin BLE master-switch checkbox save handler measures 37445 bytes.
-// The No Scale Guard History label and icon reference add under 55 bytes.
-// The theme-aware no-scale-guard icon re-rolls the asset tag and measures 37507 bytes.
-if (generated.runtimeGzip.length > 37510) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 37510-byte gzip budget (${generated.runtimeGzip.length})`);
+// Measured with a fixed sentinel build id so commit-SHA noise cannot move it:
+// the Admin BLE master-switch checkbox save handler measures 37490 bytes.
+if (sentinelRuntimeGzip.length > 37500) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 37500-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
