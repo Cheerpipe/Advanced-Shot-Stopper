@@ -911,7 +911,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"staState\":\"%s\",\"wifiPs\":\"%s\",\"wifiCoex\":\"%s\",\"channel\":%s,\"staIp\":\"%s\",\"ipMode\":\"%s\","
         "\"configState\":\"%s\",\"confirmRemainingMs\":%lu,"
         "\"rssi\":%s,\"signalQualityPct\":%s},"
-        "\"time\":{\"state\":\"%s\",\"utcSec\":%lu,\"lastSyncAgeMs\":%lu,"
+        "\"time\":{\"state\":\"%s\",\"utcSec\":%lu,\"lastSyncAgeMs\":%lu,\"lastSyncUtcSec\":%lu,"
         "\"nextRetryInMs\":%lu,\"activeServer\":\"%s\"},"
         "\"maintenance\":{\"active\":%s,\"leaseId\":%lu,"
         "\"persistPending\":%s,\"persistFailed\":%s},"
@@ -1005,6 +1005,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         staSignalQualityJson, timeSyncStateName(timeStatus.state),
         static_cast<unsigned long>(timeStatus.utcSec),
         static_cast<unsigned long>(timeStatus.lastSyncAgeMs),
+        static_cast<unsigned long>(timeStatus.lastSyncUtcSec),
         static_cast<unsigned long>(timeStatus.nextRetryInMs), safeActiveServer,
         control.maintenanceLeaseActive ? "true" : "false",
         static_cast<unsigned long>(control.maintenanceLeaseId),

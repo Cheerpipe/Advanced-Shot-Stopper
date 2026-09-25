@@ -22,6 +22,7 @@ struct TimeStatusSnapshot {
   TimeSyncState state = TimeSyncState::OFF;
   uint32_t utcSec = 0;
   uint32_t lastSyncAgeMs = 0;
+  uint32_t lastSyncUtcSec = 0;
   uint32_t nextRetryInMs = 0;
   uint8_t consecutiveFailures = 0;
   char activeServer[NTP_SERVER_HOST_CAPACITY] = {};
@@ -250,6 +251,7 @@ class WallClock {
     portENTER_CRITICAL(&mux_);
 #endif
     output.state = state_;
+    output.lastSyncUtcSec = anchorUtcSec_ >= 1000000000U ? anchorUtcSec_ : 0;
     if (state_ == TimeSyncState::SYNCED && anchorUtcSec_ >= 1000000000U) {
       output.utcSec = anchorUtcSec_ +
                       monotonicElapsedMs(monotonicMs, anchorMonotonicMs_) /

@@ -266,7 +266,7 @@ if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
   for (const field of [
     'apActive', 'apSsid', 'apIp', 'apClients', 'wifiConfigured', 'ssid', 'staState',
     'wifiPs', 'wifiCoex', 'channel', 'staIp', 'ipMode', 'configState', 'confirmRemainingMs', 'rssi',
-    'signalQualityPct', 'utcSec', 'lastSyncAgeMs', 'nextRetryInMs',
+    'signalQualityPct', 'utcSec', 'lastSyncAgeMs', 'lastSyncUtcSec', 'nextRetryInMs',
     'activeServer', 'maintenance', 'persistPending', 'uptimeMs', 'hwmon',
     'freeHeapBytes', 'minimumFreeHeapBytes', 'largestFreeHeapBlockBytes',
     'internalHeapAllocatedBlocks', 'internalHeapFreeBlocks',

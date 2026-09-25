@@ -250,6 +250,7 @@
     "diagnostic.last_disconnect": "Last disconnect",
     "diagnostic.last_failure": "Last failure",
     "diagnostic.last_reset": "Last reset",
+    "diagnostic.last_sync": "Last sync",
     "diagnostic.layout": "Layout",
     "diagnostic.lease": "Lease",
     "diagnostic.level": "Level",

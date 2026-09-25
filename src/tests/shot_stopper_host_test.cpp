@@ -11638,9 +11638,11 @@ void n01c_wall_clock_cancel_syncing_restores_anchor() {
   CHECK(g_wallClock.synced());
   g_wallClock.setSyncing("time.google.com", 5000);
   CHECK(g_wallClock.snapshot(5000).state == TimeSyncState::SYNCING);
+  CHECK(g_wallClock.snapshot(5000).lastSyncUtcSec == 1'700'000'000U);
   g_wallClock.cancelSyncing();
   const TimeStatusSnapshot restored = g_wallClock.snapshot(5000);
   CHECK(restored.state == TimeSyncState::SYNCED);
+  CHECK(restored.lastSyncUtcSec == 1'700'000'000U);
   CHECK(g_wallClock.synced());
   CHECK(g_wallClock.nowUtcSec(5000) == 1'700'000'004U);
   CHECK(restored.consecutiveFailures == 0);
@@ -11652,11 +11654,14 @@ void n01c_wall_clock_cancel_syncing_restores_anchor() {
   CHECK(!g_wallClock.applyPendingSync(5001));
   CHECK(g_wallClock.synced());
   CHECK(g_wallClock.nowUtcSec(5001) == 1'700'000'004U);
+  g_wallClock.markFailed(5001, 5);
+  CHECK(g_wallClock.snapshot(5001).lastSyncUtcSec == 1'700'000'000U);
 
   g_wallClock.reset();
   g_wallClock.setSyncing("pool.ntp.org", 100);
   g_wallClock.cancelSyncing();
   CHECK(g_wallClock.snapshot(100).state == TimeSyncState::OFF);
+  CHECK(g_wallClock.snapshot(100).lastSyncUtcSec == 0);
   CHECK(!g_wallClock.synced());
 }
 

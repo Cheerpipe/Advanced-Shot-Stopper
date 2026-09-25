@@ -41,7 +41,8 @@ including scheduling; loop dispatch measures the time from that return to the
 next loop start. Other timing covers the remaining work outside the listed
 phases. The figures may differ slightly from the rounded gap above. Select
 **Reset** beside Loop max to begin a new maximum
-measurement.
+measurement. In Date and time, **Last sync** shows the local date and time of
+the most recent successful NTP sync, including while the device is retrying.
 
 ![Historical dark Diagnostics screen](images/screenshot-diagnostic-dark.jpeg)
 

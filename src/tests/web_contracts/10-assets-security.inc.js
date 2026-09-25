@@ -225,8 +225,9 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // The Admin BLE master switch's rendered help needs 67 more HTML bytes than
 // its original allowance; retain the complete wording.
 // Continuous loop timing adds a phase table and a Reset control to Diagnostics.
-if (htmlBytes > 72059) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 72059)`);
+// Last NTP sync adds one timestamp cell to the Diagnostics grid.
+if (htmlBytes > 72133) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 72133)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -279,8 +280,8 @@ if (jsBytes > 198966) {
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
 // The loop timing view adds only source allowance; compressed limits stay fixed.
-if (htmlBytes + jsBytes > 271025) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 271025)`);
+if (htmlBytes + jsBytes > 271099) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 271099)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
