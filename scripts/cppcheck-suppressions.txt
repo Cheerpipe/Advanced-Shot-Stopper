@@ -25,6 +25,13 @@ uninitMemberVarNoCtor:*/src/ShotStopperJsonArena.h
 # resetShotLogStore or CRC-validated on load before any member is read, so
 # zero-initializing members would only bloat every dual-slot copy.
 uninitMemberVarNoCtor:*/src/ShotStopperShotLogTypes.h
+# Owner: firmware-platform. Review/expiry: 2027-03-25.
+# Cppcheck 2.13.0 (Ubuntu 24.04 apt) fails to parse the valid guarded
+# ESP_LOGE("WebhookHTTP", ...) macro expansion in WebhookDispatcher::send
+# (src/ShotStopperWebhook.cpp:642, under
+# #if !defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)); GCC and ESP-IDF compile the
+# translation unit cleanly and cppcheck 2.21 does not report it.
+syntaxError:*/src/ShotStopperWebhook.cpp
 # Owner: safety-kernel. Review/expiry: 2027-03-01.
 # This deliberately uninitialized RTC record preserves reset evidence across a
 # reboot. It is always validated by magic, inverse fields, and checksum before

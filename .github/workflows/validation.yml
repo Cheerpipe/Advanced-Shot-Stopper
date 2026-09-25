@@ -136,7 +136,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - run: mkdir -p ci-results/idf
-      - run: apt-get update && apt-get install -y --no-install-recommends nodejs npm cppcheck && rm -rf /var/lib/apt/lists/*
+      - run: apt-get update && apt-get install -y --no-install-recommends nodejs npm cppcheck=2.13.0-2ubuntu3 && rm -rf /var/lib/apt/lists/*
       - run: npm ci --no-audit --no-fund
       - name: Build validation firmware
         shell: bash

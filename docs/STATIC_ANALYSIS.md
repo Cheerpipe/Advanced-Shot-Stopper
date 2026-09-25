@@ -70,6 +70,11 @@ sudo apt-get install git python3 python3-pip python3-venv cmake ninja-build \
   build-essential cppcheck
 ```
 
+CI pins the Ubuntu `cppcheck` package version (see
+`.github/workflows/validation.yml`) so the analyzed diagnostics stay
+reproducible between runs; keep local and CI versions aligned when triaging
+parser-level findings.
+
 IWYU is version-locked to the clang it was compiled against, and the Ubuntu
 `iwyu` package is built against the distro clang, which may not be the clang
 you have. Build it from source instead (replace the versions with your
