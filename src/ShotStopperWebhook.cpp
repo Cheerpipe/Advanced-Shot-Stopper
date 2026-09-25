@@ -585,7 +585,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   status_.lastError = 0;
   strncpy(status_.lastEvent, eventName(event.type),
           sizeof(status_.lastEvent) - 1);
-  strncpy(status_.lastEndpoint, endpoint, sizeof(status_.lastEndpoint) - 1);
+  copyCString(status_.lastEndpoint, sizeof(status_.lastEndpoint), endpoint);
   status_.lastPhase = WebhookRequestPhase::PREPARE;
   status_.lastCancellation = WebhookCancellationReason::NONE;
   beginHeapLifecycle(tlsHeap_, HeapLifecycleEvent::TLS_REQUEST, heapBefore);

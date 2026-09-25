@@ -150,6 +150,38 @@ assert "SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF" in internal_
 idf_helper = (INTERNAL / ".." / "shotstopper_idf.sh").resolve().read_text()
 assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_SIZE}") == 2
 assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_PERF}") == 0
+
+# The resource verifier must validate measurements even when O2 has no baseline.
+(ROOT / "temp").mkdir(exist_ok=True)
+with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp") as temporary:
+    build = Path(temporary)
+    image = build / "shotstopper.bin"
+    image.write_bytes(b"x")
+    (build / "shotstopper.map").write_text(
+        "0x3c000000 _ext_ram_bss_start\n0x3c000010 _ext_ram_bss_end\n"
+        "0x3fc80000 localBuzzer\n0x3fc80010 taskProfiler\n")
+    size = build / "size.json"
+    metrics = {"total_size": 1, "used_diram": 1, "flash_code": 1, "flash_rodata": 1}
+    size.write_text(json.dumps(metrics))
+    sdkconfig = build / "sdkconfig"
+
+    def check_size():
+        return subprocess.run(["node", str(ROOT / "src/tests/check_firmware_size.js"),
+                               str(image), "--arch", "n16r8"], cwd=ROOT,
+                              text=True, capture_output=True)
+
+    sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_PERF=y\n")
+    assert check_size().returncode == 0
+    size.write_text("{}")
+    invalid = check_size()
+    assert invalid.returncode != 0 and "total_size is missing or invalid" in invalid.stderr
+    size.write_text(json.dumps(metrics))
+    sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_UNKNOWN=y\n")
+    assert "must select one supported level" in check_size().stderr
+    sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_SIZE=y\n")
+    size.write_text(json.dumps({**metrics, "total_size": 3_000_000}))
+    assert "total_size 3000000 > baseline budget" in check_size().stderr
+
 for level in ("--o0", "--og", "--o2", "--os"):
     rejected = run("flash", level)
     assert rejected.returncode == 2 and "does not apply" in rejected.stderr, level

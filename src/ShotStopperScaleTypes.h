@@ -121,7 +121,8 @@ inline void copyCString(char *destination, size_t capacity, const char *source) 
   }
   // Bound the copy and always NUL-terminate. Prefer memcpy over strncpy so
   // GCC -O2 does not treat intentional truncation as -Wstringop-truncation.
-  const size_t n = strnlen(source, capacity - 1);
+  size_t n = 0;
+  while (n < capacity - 1 && source[n] != '\0') ++n;
   memcpy(destination, source, n);
   destination[n] = '\0';
 }

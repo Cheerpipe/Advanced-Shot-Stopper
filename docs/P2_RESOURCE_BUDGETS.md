@@ -12,7 +12,12 @@ targets. Every test or review that measures these budgets must compile with the
 console and therefore usually produces a larger firmware image, giving the
 conservative measurement. Comparisons must use the same hardware and machine
 profiles and the same profile on both sides. Every supported build emits `size.json` from the linker map and
-checks image bytes, total linked bytes, DIRAM, flash code, and flash rodata.
+records image bytes, total linked bytes, DIRAM, flash code, and flash rodata.
+The verifier requires valid measurements for all five metrics at every
+optimization level.
+The versioned baseline comparisons apply only to the qualified `-Os` profile;
+experimental optimization levels retain the OTA-slot, external-BSS, and
+internal-placement checks without using `-Os` figures as their baselines.
 Small reviewed growth allowances catch regressions without coupling unrelated
 toolchain padding to an exact byte count; raising a baseline or allowance
 requires explicit architecture and resource review.

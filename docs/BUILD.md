@@ -282,6 +282,10 @@ never persisted. They work through a generated defaults file appended to
 build recreates the configuration so the requested level takes effect, which
 discards every other local `menuconfig` choice stored in that file. A later
 build without a level option restores `-Os` the same way.
+The versioned image and memory baselines were measured with `-Os` and apply
+only to `-Os` builds. Other levels still check the OTA partition limit,
+external BSS ceiling, and required internal-memory placement; their image
+sizes are experimental and do not establish a qualified resource baseline.
 
 The final verifier also rejects drift from the qualified production profile:
 n8r4 uses 8 MB flash, `partitions-n8r4.csv`, and QUAD PSRAM; n16r8 uses 16 MB

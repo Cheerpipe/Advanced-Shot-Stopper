@@ -63,6 +63,8 @@ default. These options are compile-time only and are never persisted.
 The supported transient options are `--webui-language`, `--flags`, `--o0`,
 `--og`, `--o2`, and `--os`. The stored device password is never accepted on a
 command line; use the hidden prompt or the documented USB serial procedure.
+The versioned resource baselines apply to `--os` builds. Other optimization
+levels retain the physical image and memory placement checks; see [Build](BUILD.md#compiler-optimization-and-existing-sdkconfig).
 
 ## Diagnostics and recovery
 

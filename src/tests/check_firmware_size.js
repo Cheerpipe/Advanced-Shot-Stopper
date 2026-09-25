@@ -17,10 +17,18 @@ if (!arch) {
   process.exit(2);
 }
 const sizePath = path.join(path.dirname(binPath), 'size.json');
-if (!fs.existsSync(binPath) || !fs.existsSync(sizePath)) {
-  console.error(`Firmware resource artifacts missing: ${binPath}, ${sizePath}`);
+const sdkconfigPath = path.join(path.dirname(binPath), 'sdkconfig');
+if (!fs.existsSync(binPath) || !fs.existsSync(sizePath) || !fs.existsSync(sdkconfigPath)) {
+  console.error(`Firmware resource artifacts missing: ${binPath}, ${sizePath}, ${sdkconfigPath}`);
   process.exit(127);
 }
+const optimization = fs.readFileSync(sdkconfigPath, 'utf8').match(
+  /^CONFIG_COMPILER_OPTIMIZATION_(SIZE|PERF|DEBUG|NONE)=y$/gm) || [];
+if (optimization.length !== 1) {
+  console.error(`Firmware optimization config must select one supported level: ${sdkconfigPath}`);
+  process.exit(2);
+}
+const qualifiedSizeProfile = optimization[0] === 'CONFIG_COMPILER_OPTIMIZATION_SIZE=y';
 
 const config = JSON.parse(fs.readFileSync(
   path.join(root, 'config', 'resource-baselines.json'), 'utf8'));
@@ -56,9 +64,13 @@ if (actual.image > slotLimits[arch]) {
 for (const [metric, baseline] of Object.entries(config.targets[arch])) {
   const value = actual[metric];
   const limit = baseline + config.allowedGrowthBytes[metric];
-  if (!Number.isFinite(value)) failures.push(`${metric} is missing`);
-  else if (value > limit) failures.push(`${metric} ${value} > baseline budget ${limit}`);
-  else console.log(`${metric}: ${value} (baseline ${baseline}, delta ${value - baseline})`);
+  if (!Number.isFinite(value) || value < 0) failures.push(`${metric} is missing or invalid`);
+  else if (qualifiedSizeProfile && value > limit) failures.push(`${metric} ${value} > baseline budget ${limit}`);
+  else console.log(qualifiedSizeProfile
+    ? `${metric}: ${value} (baseline ${baseline}, delta ${value - baseline})`
+    : `${metric}: ${value} (experimental; no versioned baseline)`);
 }
 if (failures.length) throw new Error(failures.join('; '));
-console.log(`${arch}: image and memory regions are within versioned budgets`);
+console.log(qualifiedSizeProfile
+  ? `${arch}: image and memory regions are within versioned budgets`
+  : `${arch}: experimental optimization; -Os baseline comparisons do not apply`);
