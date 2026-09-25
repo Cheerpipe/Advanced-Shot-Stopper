@@ -298,6 +298,12 @@ IRAM. Other application, NimBLE/VHCI, HTTP, persistence, control, and
 flash-writing stacks remain internal. These checks verify current hardware
 settings; they do not retune clocks, partitions, or watchdog durations.
 
+N16R8 builds enable execution of flash code and read-only data from PSRAM as a
+timing experiment during flash writes. N8R4 builds keep this option disabled.
+An existing N16R8 build tree is regenerated when it lacks the setting. A
+successful build verifies configuration and memory limits; only an on-device
+comparison can establish whether loop gaps improve.
+
 Defaults seed a new `build-idf/<hardware-id>--<machine-id>/sdkconfig`; they do
 not overwrite an existing file. Inspect one current tree with:
 

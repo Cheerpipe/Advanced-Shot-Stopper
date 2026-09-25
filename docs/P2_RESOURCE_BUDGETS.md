@@ -34,6 +34,14 @@ growth headroom respectively. Flash rodata is 516,060 bytes, flash code is
 1,443,820 bytes, and linked DIRAM is 176,286 bytes; each retains its versioned
 allowance. The 3 MiB OTA slot still has more than 1 MiB free.
 
+The N16R8 PSRAM XIP trial moves flash instructions and read-only data to PSRAM
+at startup. The Micra development build with this option uses 2,124,528 image
+bytes and links 1,445,124 bytes of flash code plus 517,132 bytes of `.rodata`;
+these sections require roughly 1.9 MiB of PSRAM before mapping overhead. The
+linker report does not measure remaining runtime PSRAM heap, so target memory
+and loop-gap measurements are required before qualifying this configuration.
+N8R4 remains on the prior memory mapping.
+
 Both linker maps must also keep external BSS at or below 105 KiB and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
 objects to PSRAM would move synchronization state accessed under spinlocks.
