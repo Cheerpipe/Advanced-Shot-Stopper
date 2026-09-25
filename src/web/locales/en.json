@@ -261,7 +261,7 @@
     "diagnostic.loop_gap": "Loop gap",
     "diagnostic.loop_max": "Loop max",
     "diagnostic.loop_phase": "Loop phase",
-    "diagnostic.loop_timing_hint": "Each column shows the phases of its matching loop gap above. Wait/other includes scheduling and waiting; totals may differ slightly because gaps are rounded to milliseconds.",
+    "diagnostic.loop_timing_hint": "",
     "diagnostic.machine": "Machine",
     "diagnostic.machine_i_o": "Machine I/O",
     "diagnostic.machine_power_state": "Machine power state",
