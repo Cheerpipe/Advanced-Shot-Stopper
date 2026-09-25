@@ -5,8 +5,8 @@ how much energy the controller uses, in this order:
 
 - **Power policy** — hardware-level energy management described on this page.
   Scales the CPU clock and bus/radio sleep to demand: on saves energy when
-  idle and boosts to 160 MHz for weight-controlled shots; off holds a fixed
-  80 MHz.
+  idle and boosts to 160 MHz from the start of a scale connection until
+  30 seconds after disconnection; off holds a fixed 80 MHz.
 - **Wi-Fi sleep** — puts the Wi-Fi radio into modem sleep between the
   router's beacons while connected. Saves immediately without restarting or
   waiting for a reconnect, and stays disabled until a network is configured.
@@ -43,11 +43,10 @@ setting, and the existing persistence worker retries it.
 | Demand with the option on | CPU policy | Radio policy |
 | --- | --- | --- |
 | Idle, no scale or machine activity | 40–80 MHz after 1 s of stable idle | Relaxed scan duty (25%); BLE controller modem sleep between radio events; saved Wi-Fi sleep preference; a Scan boost on machine use window overrides the duty to Aggressive while it lasts |
-| Scale connecting or connected | Fixed 80 MHz | Controller sleep disabled before GAP connection; existing GATT, weight and heartbeat rates |
-| Shot using weight control | Fixed 160 MHz | Existing Bluetooth-priority coexistence and shot traffic gates |
-| Manual operation without a scale, or rinse | Fixed 80 MHz throughout the operation | Saved scan intensity and BLE service; switching the machine on without a connected scale also opens a Scan boost on machine use window if the setting is not OFF |
-| Physical-use cooldown | Fixed 80 MHz for 5 minutes after confirmed stop or latest debounced physical edge | Saved Wi-Fi sleep preference; saved scan intensity |
-| Recent visible WebUI activity | Fixed 80 MHz unless a shot needs 160 | Saved Wi-Fi sleep preference |
+| Scale connecting, connected, or within 30 seconds after disconnection | Fixed 160 MHz | Controller sleep disabled throughout the window; existing GATT, weight and heartbeat rates |
+| Manual operation or rinse outside the scale window | Fixed 80 MHz throughout the operation | Saved scan intensity and BLE service; switching the machine on without a connected scale also opens a Scan boost on machine use window if the setting is not OFF |
+| Physical-use cooldown outside the scale window | Fixed 80 MHz for 5 minutes after confirmed stop or latest debounced physical edge | Saved Wi-Fi sleep preference; saved scan intensity |
+| Recent visible WebUI activity outside the scale window | Fixed 80 MHz | Saved Wi-Fi sleep preference |
 | AP provisioning, STA reconnect, maintenance or USB console | At least 80 MHz | Existing provisioning/USB overrides |
 
 Forty MHz is an eligible minimum: radio drivers can hold the CPU at 80 MHz.
@@ -56,8 +55,9 @@ measured residency or electrical consumption. Board measurements are required
 to quantify savings and qualify scale-discovery, HTTP and control latency.
 
 Machine state determines how long operation remains protected. An open relay
-alone does not prove a momentary machine is stopped. A weighted shot retains
-its 160-MHz requirement after scale loss until confirmed completion. The
+alone does not prove a momentary machine is stopped. A scale reconnect starts
+a new 160-MHz window, and the clock returns to the normal operating range
+30 seconds after the final disconnection, even if a shot continues. The
 five-minute cooldown never ends or extends a shot; existing safety limits,
 including the 60-second hard cap, remain unchanged.
 

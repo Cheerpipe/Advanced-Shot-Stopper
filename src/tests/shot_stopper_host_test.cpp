@@ -15724,10 +15724,12 @@ void bbw03_shared_guard_parity() {
   hostBbwAlgorithm = 0;
 }
 
-void pow01_weighted_loss_and_manual_rinse_clock() {
+void pow01_scale_disconnect_grace_and_rinse_clock() {
   resetHarness(false, true);
   runtimeConfig.powerManagementEnabled = true;
   reachReadyFromBoot();
+  CHECK(servicePowerManagement());
+  CHECK(powerAppliedProfile.load() == PowerProfile::WAITING);
   startCycle();
   CHECK(session.active);
   CHECK(powerAppliedProfile.load() == PowerProfile::WORKING);
@@ -15741,8 +15743,12 @@ void pow01_weighted_loss_and_manual_rinse_clock() {
   setRawPaddle(false);
   machineSampleInput();
   CHECK(servicePowerManagement());
-  CHECK(powerAppliedProfile.load() == PowerProfile::COOLDOWN);
+  CHECK(powerAppliedProfile.load() == PowerProfile::WAITING);
   CHECK(powerCooldownRemainingMs.load() == 300000);
+  hostMillis += 30000;
+  CHECK(servicePowerManagement());
+  CHECK(powerAppliedProfile.load() == PowerProfile::COOLDOWN);
+  CHECK(powerCooldownRemainingMs.load() == 270000);
 
   resetHarness(false, true);
   runtimeConfig.powerManagementEnabled = true;
@@ -15750,7 +15756,7 @@ void pow01_weighted_loss_and_manual_rinse_clock() {
   startCycle();
   CHECK(enterRinse());
   CHECK(servicePowerManagement());
-  CHECK(powerAppliedProfile.load() == PowerProfile::MANUAL);
+  CHECK(powerAppliedProfile.load() == PowerProfile::WORKING);
 
   resetHarness(false, false);
   runtimeConfig.powerManagementEnabled = true;
@@ -15983,7 +15989,7 @@ struct TestCase {
 };
 
 const TestCase testCases[] = {
-    {"POW01", pow01_weighted_loss_and_manual_rinse_clock},
+    {"POW01", pow01_scale_disconnect_grace_and_rinse_clock},
     {"POW02", pow02_idle_scan_preserves_saved_preference},
     {"POW03", pow03_ble_wake_without_link_is_bounded},
     {"POW03B", pow03b_quiet_backoff_setting_controls_discovery_duty},

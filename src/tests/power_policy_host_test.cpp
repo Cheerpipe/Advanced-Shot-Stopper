@@ -32,21 +32,31 @@ int main() {
   assert(policy.update(1203000, in) == PowerProfile::IDLE);
   in.scaleBusy = true;
   assert(policy.update(1203001, in) == PowerProfile::WAITING);
+  assert(powerMinMhz(PowerProfile::WAITING) == 160);
+  assert(powerMaxMhz(PowerProfile::WAITING) == 160);
   in.machineBusy = true;
-  in.weighted = true;
   assert(policy.update(1203002, in) == PowerProfile::WORKING);
   in.scaleBusy = false;
-  in.weighted = false;  // Lost scale / uncertain stop, including open K1.
   in.webActive = true;
   assert(policy.update(1600000, in) == PowerProfile::WORKING);
-  in.rinse = true;
-  assert(policy.update(1600000, in) == PowerProfile::MANUAL);
-  in.rinse = false;
+  assert(policy.update(1609999, in) == PowerProfile::WORKING);
+  in.scaleBusy = true;
+  assert(policy.update(1610000, in) == PowerProfile::WORKING);
+  in.scaleBusy = false;
+  assert(policy.update(1610001, in) == PowerProfile::WORKING);
+  assert(policy.update(1640000, in) == PowerProfile::WORKING);
+  assert(policy.update(1640001, in) == PowerProfile::MANUAL);
+  in.scaleBusy = true;
+  assert(policy.update(1640002, in) == PowerProfile::WORKING);
+  in.scaleBusy = false;
+  assert(policy.update(1640003, in) == PowerProfile::WORKING);
   in.machineBusy = false;
   in.webActive = false;
-  assert(policy.update(1600001, in) == PowerProfile::COOLDOWN);
+  assert(policy.update(1640004, in) == PowerProfile::WAITING);
+  assert(policy.update(1670003, in) == PowerProfile::COOLDOWN);
   in.enabled = false;
-  assert(policy.update(1600002, in) == PowerProfile::OFF);
+  in.scaleBusy = true;
+  assert(policy.update(1670004, in) == PowerProfile::OFF);
 
   // Wraparound, connection flaps and maintenance hold must not admit idle.
   policy = PowerPolicy{};
@@ -64,8 +74,17 @@ int main() {
   in.scaleBusy = true;
   assert(policy.update(400500, in) == PowerProfile::WAITING);
   in.scaleBusy = false;
-  assert(policy.update(401001, in) == PowerProfile::SETTLING);
-  assert(policy.update(402001, in) == PowerProfile::IDLE);
+  assert(policy.update(401001, in) == PowerProfile::WAITING);
+  assert(policy.update(431000, in) == PowerProfile::WAITING);
+  assert(policy.update(431001, in) == PowerProfile::SETTLING);
+  assert(policy.update(432001, in) == PowerProfile::IDLE);
+  policy = PowerPolicy{};
+  in.scaleBusy = true;
+  assert(policy.update(UINT32_MAX - 1001, in) == PowerProfile::WAITING);
+  in.scaleBusy = false;
+  assert(policy.update(UINT32_MAX - 1000, in) == PowerProfile::WAITING);
+  assert(policy.update(28998, in) == PowerProfile::WAITING);
+  assert(policy.update(28999, in) == PowerProfile::SETTLING);
 
   notePowerWebActivity(UINT32_MAX - 1000, 30);
   assert(powerWebActive(1000));
@@ -91,10 +110,8 @@ int main() {
     return maximum == 160 ? -1 : 0;
   };
   assert(clock.apply(PowerProfile::OFF, configure));
-  assert(clock.apply(PowerProfile::WAITING, configure));
-  assert(calls == 1);
   assert(clock.apply(PowerProfile::IDLE, configure));
-  assert(clock.apply(PowerProfile::WORKING, configure));
+  assert(clock.apply(PowerProfile::WAITING, configure));
   assert(clock.applied() == PowerProfile::OFF && clock.error() == -1);
   assert(calls == 4);
   assert(clock.apply(PowerProfile::WORKING, configure));

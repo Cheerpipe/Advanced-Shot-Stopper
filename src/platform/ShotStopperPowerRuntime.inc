@@ -6,9 +6,6 @@ bool servicePowerManagement(bool physicalEdge = false) {
   inputs.machineBusy = session.active ||
       machineRunState() != MachineRunState::CONFIRMED_OFF ||
       getRelaySafetySnapshot().closed;
-  inputs.weighted = session.active &&
-      session.weightControlState != WeightControlState::INACTIVE;
-  inputs.rinse = stopperState == StopperState::RINSE;
   inputs.scaleBusy = link.connecting || scaleLinkAvailable(link) ||
                      powerScaleBusy.load(std::memory_order_acquire);
   inputs.physicalEdge = physicalEdge;
