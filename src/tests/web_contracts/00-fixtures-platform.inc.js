@@ -694,17 +694,6 @@ if (otaSource.includes('OTA_PROGRESS_INTERVAL_BYTES') ||
     otaHeader.includes('stagedSizeBytes_')) {
   throw new Error('OTA must not retain the unused F-22 progress constant or inert partition/size state');
 }
-{
-  const restoreStart = firmwareCore.indexOf('void servicePendingBrewRfRestore()');
-  const restoreEnd = firmwareCore.indexOf('\nvoid ', restoreStart + 1);
-  const restore = restoreStart >= 0 && restoreEnd > restoreStart
-      ? firmwareCore.slice(restoreStart, restoreEnd)
-      : '';
-  if (restore.includes('applyBrewRfPreference(false)')) {
-    throw new Error(
-        'servicePendingBrewRfRestore must not force BALANCE; syncScaleRadioCoex owns the BLE claim');
-  }
-}
 if (/setScaleLinkState\(ScaleLinkState::CONNECTED\);\s*applyBookooConnectBeepPolicy/.test(
         firmwareCore)) {
   throw new Error(

@@ -787,7 +787,6 @@ struct PendingScaleTimerStop {
   uint32_t extraDueAtMs = 0;
 };
 PendingScaleTimerStop pendingScaleTimerStop;
-bool pendingBrewRfRestore = false;
 uint32_t operationalLimitAtArmMs = HARD_MAX_CIRCUIT_CLOSED_MS;
 RelaySafetyState relaySafetyState = RelaySafetyState::BOOT_SAFE;
 RelaySafetyFault relaySafetyFault = RelaySafetyFault::NONE;
@@ -1259,15 +1258,15 @@ void copyRecipeSnapshot(RecipeSnapshot *out) {
 }
 
 void copyPresetBank(ShotPresetBank *out) {
-  RecipeSnapshot snapshot;
-  copyRecipeSnapshot(&snapshot);
-  if (out != nullptr) *out = snapshot.presets;
+  if (out == nullptr) return;
+  TaskLockGuard lock(recipeMutex);
+  *out = publishedPresetBank;
 }
 
 void copyRuntimeConfig(RuntimeConfig *out) {
-  RecipeSnapshot snapshot;
-  copyRecipeSnapshot(&snapshot);
-  if (out != nullptr) *out = snapshot.runtime;
+  if (out == nullptr) return;
+  TaskLockGuard lock(recipeMutex);
+  *out = publishedRuntimeConfig;
 }
 
 void copyBullseyeConfig(BullseyeMelodyConfig *out) {
@@ -1720,13 +1719,6 @@ void serviceBootRecoverySafety();
 
 StopperState nextStateForUserHold(const MachineIntention &intent) {
   return intent.holdActive ? StopperState::REQUIRES_OFF : StopperState::READY;
-}
-
-void servicePendingBrewRfRestore() {
-  if (!pendingBrewRfRestore) {
-    return;
-  }
-  pendingBrewRfRestore = false;
 }
 
 // ---------------------------------------------------------------------------

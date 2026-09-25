@@ -653,8 +653,7 @@ void loop() {
   machineOnBrewOutcome(session.active);
   finishLoopPhase(LoopPhase::CONTROL);
   serviceExtendedPulseAlert();
-  localBuzzer.service(millis());
-  servicePendingBrewRfRestore();
+  localBuzzer.service();
   serviceScaleCompletionBeep();
   servicePendingScaleTimerStop();
   serviceRemoteTimerStopRetry();

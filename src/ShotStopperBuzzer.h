@@ -120,7 +120,7 @@ struct LocalBuzzer {
   void stopExtendedPulse();
   // End-of-cycle: drop queued and active pulse trains / looping cues.
   void stopPulseTrains();
-  void service(uint32_t nowMs);
+  void service();
   bool busy() const {
     TaskLockGuard lock(mutex);
     return active != BuzzerPattern::NONE || pending != BuzzerPattern::NONE ||
@@ -205,7 +205,7 @@ inline void LocalBuzzer::phaseTimerCallback(void *arg) {
   if (arg == nullptr) {
     return;
   }
-  static_cast<LocalBuzzer *>(arg)->service(millis());
+  static_cast<LocalBuzzer *>(arg)->service();
 }
 
 inline void LocalBuzzer::clearPlayback() {
@@ -732,12 +732,12 @@ inline void LocalBuzzer::stopPulseTrains() {
   finish(millis());
 }
 
-inline void LocalBuzzer::service(uint32_t nowMs) {
+inline void LocalBuzzer::service() {
   if (!BUZZER_SUPPORT_ENABLED || !ready) {
     return;
   }
   TaskLockGuard lock(mutex);
-  nowMs = millis();
+  const uint32_t nowMs = millis();
   if (active == BuzzerPattern::NONE && activeCue == BuzzerCue::NONE) {
     return;
   }

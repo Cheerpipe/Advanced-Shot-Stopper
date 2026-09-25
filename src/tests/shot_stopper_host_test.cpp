@@ -123,7 +123,6 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   stagedBullseyeMelodyConfig = BullseyeMelodyConfig{};
   stagedBullseyeRequestId = 0;
   pendingScaleTimerStop = PendingScaleTimerStop{};
-  pendingBrewRfRestore = false;
   runtimeConfig = RuntimeConfig{};
   runtimeConfig.bbwAlgorithm = hostBbwAlgorithm;
   bbwLearningBank = BbwLearningBank{};
@@ -4173,11 +4172,11 @@ void w82_pulse_train_loops_until_deadline_or_stopIf() {
   CHECK(localBuzzer.gapMs == BUZZER_PULSE_TRAIN_GAP_MS);
   CHECK(hostPinLevel[BUZZER_GPIO] == HIGH);
   hostMillis += BUZZER_PULSE_TRAIN_ON_MS;
-  localBuzzer.service(hostMillis);
+  localBuzzer.service();
   CHECK(localBuzzer.active == BuzzerPattern::PULSE_TRAIN);
   CHECK(hostPinLevel[BUZZER_GPIO] == LOW);
   hostMillis += BUZZER_PULSE_TRAIN_GAP_MS;
-  localBuzzer.service(hostMillis);
+  localBuzzer.service();
   CHECK(localBuzzer.active == BuzzerPattern::PULSE_TRAIN);
   CHECK(hostPinLevel[BUZZER_GPIO] == HIGH);
   localBuzzer.stopIf(BuzzerPattern::PULSE_TRAIN);
@@ -4360,26 +4359,24 @@ void w93_scale_connected_echo_on_rising_edge() {
   for (uint32_t step = 0; step < 80 && localBuzzer.busy(); ++step) {
     hostMillis += 40;
     hostServiceEspTimer(localBuzzer.phaseTimer);
-    localBuzzer.service(hostMillis);
+    localBuzzer.service();
   }
   setScaleConnected(true);
   CHECK(localBuzzer.acceptedRequests == afterConnect + 2);
   CHECK(localBuzzer.activeCue == BuzzerCue::SCALE_CONNECTED);
 }
 
-void w93b_buzzer_phase_timestamp_is_refreshed_after_lock() {
+void w93b_buzzer_phase_uses_current_time_and_wraps() {
   resetHarness(false, false);
   const BuzzerToneCommand connected =
       deriveBuzzerTone(AlertEvent::SCALE_CONNECTED, false, 0, 0);
   CHECK(localBuzzer.requestTone(connected));
-  const uint32_t staleCallerTime =
-      localBuzzer.phaseStartedAtMs + localBuzzer.onMs - 1;
   hostMillis = localBuzzer.phaseStartedAtMs + localBuzzer.onMs;
-  localBuzzer.service(hostMillis);
+  localBuzzer.service();
   const uint8_t index = localBuzzer.beepIndex;
   const uint32_t phase = localBuzzer.phaseStartedAtMs;
   const bool on = localBuzzer.toneOn;
-  localBuzzer.service(staleCallerTime);
+  localBuzzer.service();
   CHECK(localBuzzer.beepIndex == index);
   CHECK(localBuzzer.phaseStartedAtMs == phase);
   CHECK(localBuzzer.toneOn == on);
@@ -4389,7 +4386,7 @@ void w93b_buzzer_phase_timestamp_is_refreshed_after_lock() {
   CHECK(localBuzzer.requestTone(connected));
   const uint32_t duration = localBuzzer.onMs;
   hostMillis += duration;
-  localBuzzer.service(hostMillis);
+  localBuzzer.service();
   CHECK(localBuzzer.phaseStartedAtMs == hostMillis);
   CHECK(localBuzzer.busy());
   localBuzzer.stopAll();
@@ -4459,7 +4456,7 @@ void f01_link_side_effects_run_only_on_control() {
   for (uint32_t step = 0; step < 160 && localBuzzer.busy(); ++step) {
     hostMillis += 40;
     hostServiceEspTimer(localBuzzer.phaseTimer);
-    localBuzzer.service(hostMillis);
+    localBuzzer.service();
   }
   CHECK(!localBuzzer.busy());
   scale.connected = false;
@@ -14340,7 +14337,7 @@ void r61c_extended_pulse_resumes_after_scale_lost_alert() {
   for (uint32_t step = 0; step < 80 && localBuzzer.busy(); ++step) {
     hostMillis += 40;
     hostServiceEspTimer(localBuzzer.phaseTimer);
-    localBuzzer.service(hostMillis);
+    localBuzzer.service();
   }
   CHECK(!localBuzzer.busy());
   CHECK(session.active);
@@ -16460,7 +16457,7 @@ const TestCase testCases[] = {
     {"W91", w91_chime_sequence_uses_irregular_note_timings},
     {"W92", w92_parse_sequence_pattern_ids},
     {"W93", w93_scale_connected_echo_on_rising_edge},
-    {"W93B", w93b_buzzer_phase_timestamp_is_refreshed_after_lock},
+    {"W93B", w93b_buzzer_phase_uses_current_time_and_wraps},
     {"W94", w94_scale_connected_silent_when_flag_off_or_scale_only},
     {"F01A", f01_link_side_effects_run_only_on_control},
     {"F01B", f01_worker_uses_only_published_policy},

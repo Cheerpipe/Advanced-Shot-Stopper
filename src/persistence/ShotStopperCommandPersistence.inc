@@ -808,11 +808,12 @@ void serviceRuntimePersistence(
 #ifndef SHOT_STOPPER_HOST_TEST
   serviceSettingsPersistResult();
   serviceBleScanPersistResult();
+  if (!runtimePersistPending) return;
   bool inFlight = false;
   settingsPersistMux.lock();
   inFlight = settingsPersistInFlight;
   settingsPersistMux.unlock();
-  if (!runtimePersistPending || inFlight || maintenanceLease.active ||
+  if (inFlight || maintenanceLease.active ||
       static_cast<int32_t>(millis() - runtimePersistRetryAtMs) < 0 ||
       !controlAllowsConfigurationNow() ||
       !durableFlashWriteAllowed(false, link.connecting)) {

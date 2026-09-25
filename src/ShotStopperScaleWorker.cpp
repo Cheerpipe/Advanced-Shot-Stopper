@@ -2435,12 +2435,8 @@ void scaleWorkerTask(void *) {
     static uint32_t previousServiceAtMs = 0;
     if (previousServiceAtMs != 0) {
       const uint32_t gapMs = static_cast<uint32_t>(nowMs - previousServiceAtMs);
-      uint32_t observed = scaleWorkerMaxGapMs.load(std::memory_order_relaxed);
-      while (gapMs > observed &&
-             !scaleWorkerMaxGapMs.compare_exchange_weak(
-                 observed, gapMs, std::memory_order_relaxed,
-                 std::memory_order_relaxed)) {
-      }
+      if (gapMs > scaleWorkerMaxGapMs.load(std::memory_order_relaxed))
+        scaleWorkerMaxGapMs.store(gapMs, std::memory_order_relaxed);
       if (gapMs > SCALE_SERVICE_DEADLINE_MS) {
         scaleWorkerDeadlineMisses.fetch_add(1, std::memory_order_relaxed);
       }
@@ -2565,13 +2561,8 @@ void scaleWorkerTask(void *) {
 #endif
     }
     const uint32_t executionUs = micros() - executionStartedUs;
-    uint32_t observedExecution =
-        scaleWorkerMaxExecutionUs.load(std::memory_order_relaxed);
-    while (executionUs > observedExecution &&
-           !scaleWorkerMaxExecutionUs.compare_exchange_weak(
-               observedExecution, executionUs, std::memory_order_relaxed,
-               std::memory_order_relaxed)) {
-    }
+    if (executionUs > scaleWorkerMaxExecutionUs.load(std::memory_order_relaxed))
+      scaleWorkerMaxExecutionUs.store(executionUs, std::memory_order_relaxed);
   }
 }
 

@@ -15,7 +15,7 @@ subscribed nor part of control. Stack values are configured bytes in ESP-IDF.
 | Task | Activation / period | Deadline | Execution budget | Priority | Max block | Stack | Core | TWDT |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | control | periodic / 1 ms active | 10 ms | 9000 us | idle+1 | 50 ms maintenance flash take | 8192 | 1 | 5 s |
-| scale_worker | periodic / 1 ms linked, 10 ms idle | 10 ms | 9000 us | idle+1 | 3000 ms GATT step | 6656 | 1 | 5 s |
+| scale_worker | notification / 1 ms connecting or unlinked queued command, 10 ms linked/idle | 10 ms | 9000 us | idle+1 | 3000 ms GATT step | 6656 | 1 | 5 s |
 | settings_persist | event-driven | 1000 ms service | n/a | idle | 3000 ms lock acquisition; one flash primitive/step | 4096 | 0 | 5 s |
 | health | periodic / 100 ms | diagnostic | n/a | idle | none | 4096 | 0 | no |
 | network_manager | periodic / 50 ms | 250 ms | 200000 us | idle+1 | 2500 ms lifecycle/cancel | 10240 | 0 | 5 s |
@@ -51,16 +51,17 @@ consuming attempts. These are admission intervals, not a guaranteed cloud
 detection latency; an individual TLS/crypto progress call still requires target
 deadline qualification.
 
-The scale worker blocks on a task notification with the state-dependent 1 ms
-linked/connecting or 10 ms idle timeout. Commands, policy changes
-and sound mailboxes notify it immediately. The timeout remains the
-compatibility path for NimBLE frames and GAP/GATT state until the backend
+The scale worker blocks on a task notification with a 1 ms timeout while
+connecting or while unlinked with queued commands, and 10 ms while linked or
+idle. Commands, policy changes and sound mailboxes notify it immediately. The
+timeout remains the compatibility path for NimBLE frames and GAP/GATT state until
+the backend
 publishes its asynchronous wake edge; no protocol timeout depends solely on a
 notification.
 
 Each NimBLE activation drains at most the physical capacity of its receive,
 critical-event, and control-event rings (16, 6, and 12 respectively). New work
-arriving during a drain is deferred to the next unchanged 1 ms activation; no
+arriving during a drain is deferred to the next activation; no
 event is discarded and BLE sampling/poll cadence is unchanged.
 
 ## Runtime evidence
@@ -80,13 +81,14 @@ not the energy objective; electrical savings require supply measurements.
 The coherent control-status snapshot publishes a monotonic version/timestamp,
 the lifetime maximum control and scale-worker service gaps, monotonic deadline
 miss counts, maximum observed loop-body execution in microseconds, and stack
-high-water marks. A 10 ms deadline applies to both 1 ms
-loops. The generalized persistence owner runs at idle priority on core 0,
+high-water marks. A 10 ms deadline applies to both control and scale worker.
+The generalized persistence owner runs at idle priority on core 0,
 blocks on its bounded queue and yields around flash work. Control only stages
 an immutable generation and attempts a zero-wait enqueue. The health worker
 runs on core 0, samples heap/CPU and services the optional task profiler, then
 publishes a one-element latest-wins mailbox. Network and scale metrics are
-published under their owning snapshot or as monotonic atomics.
+published under their owning snapshot or as monotonic atomics; the scale
+worker alone updates its maximum gap and execution metrics.
 
 While the optional task profiler is running, the control loop also attributes
 its execution time to coarse safety/health, scale/machine-input,

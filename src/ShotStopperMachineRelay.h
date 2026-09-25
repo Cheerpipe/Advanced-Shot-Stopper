@@ -406,7 +406,6 @@ bool setMachineCircuitClosed(bool closed,
     }
     addDebugEvent(DebugCategory::RELAY, DebugCode::RELAY_CLOSED,
                   static_cast<int32_t>(operationalLimitMs));
-    pendingBrewRfRestore = false;
     return true;
   }
 
@@ -435,7 +434,6 @@ bool setMachineCircuitClosed(bool closed,
   stopRelayDeadlineTimers();
   // BLE claim is recomputed on the scale worker (connecting / GATT / closed).
   // Do not force BALANCE here: a live scale link must keep PREFER_BT.
-  pendingBrewRfRestore = true;
   if (wasClosed) {
     addDebugEvent(DebugCategory::RELAY, DebugCode::RELAY_OPENED);
   }

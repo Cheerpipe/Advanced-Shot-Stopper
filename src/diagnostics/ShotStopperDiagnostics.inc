@@ -858,7 +858,7 @@ void serviceSerialCli() {
 #ifndef SHOT_STOPPER_HOST_TEST
 void serviceBootRecoverySafety() {
   serviceRelaySafety();
-  localBuzzer.service(millis());
+  localBuzzer.service();
   if (!feedCurrentTaskWatchdog()) {
     reportTaskWatchdogFault();
     tripRelaySafety(RelaySafetyFault::TASK_WATCHDOG_FAILURE);

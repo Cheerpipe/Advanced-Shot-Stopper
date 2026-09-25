@@ -1184,8 +1184,8 @@ void serviceBullseyeMelody() {
     bullseyeTracker.clear();
     return;
   }
-  if (!scaleAvailable() || !currentWeightIsFresh(nowMs) ||
-      currentWeightSequence == bullseyeTracker.processedWeightSequence) {
+  if (currentWeightSequence == bullseyeTracker.processedWeightSequence ||
+      !scaleAvailable() || !currentWeightIsFresh(nowMs)) {
     return;
   }
   if (bullseyeTracker.accept(currentWeight, currentWeightReceivedAtMs,
