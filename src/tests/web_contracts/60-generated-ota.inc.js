@@ -430,8 +430,9 @@ if (generated.cssGzip.length > 7300) {
 // runtime (loads, save payload, validation, hydration) raising it to 37400.
 // The Admin BLE master-switch checkbox save handler measures 37445 bytes.
 // The No Scale Guard History label and icon reference add under 55 bytes.
-if (generated.runtimeGzip.length > 37500) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 37500-byte gzip budget (${generated.runtimeGzip.length})`);
+// The theme-aware no-scale-guard icon re-rolls the asset tag and measures 37507 bytes.
+if (generated.runtimeGzip.length > 37510) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 37510-byte gzip budget (${generated.runtimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
