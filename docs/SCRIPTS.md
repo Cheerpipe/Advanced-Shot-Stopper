@@ -65,7 +65,13 @@ default. These options are compile-time only and are never persisted.
 `--risk R3` also checks each pair with Cppcheck and a GCC warning build.
 
 The supported transient options are `--webui-language`, `--flags`, `--o0`,
-`--og`, `--o2`, and `--os`. The stored device password is never accepted on a
+`--og`, `--o2`, and `--os`. The build also accepts
+`--force-sdkconfig-regenerate` to recreate its selected variant's configuration
+from repository defaults without cleaning the build tree. Builds do this
+automatically when selected defaults change or a legacy tree has no recorded
+input fingerprint. Regeneration discards local `menuconfig` choices; an
+unchanged variant retains them. The flag is rejected for standalone flash, OTA,
+and monitor. The stored device password is never accepted on a
 command line; use the hidden prompt or the documented USB serial procedure.
 The current n16r8 resource baseline applies to the default `-O2` builds;
 the historical n8r4 baseline applies to `-Os`. Other optimization levels

@@ -274,7 +274,7 @@ ss_idf_resolve_paths() {
   # wins over every earlier default file. It must live outside the build dir:
   # ss_idf_prepare_set_target wipes that directory and idf.py requires every
   # SDKCONFIG_DEFAULTS entry to exist while set-target runs its first cmake.
-  IDF_OPT_OVERLAY="$SS_CLI_ROOT/build-idf/sdkconfig.defaults.optlevel"
+  IDF_OPT_OVERLAY="$SS_CLI_ROOT/build-idf/.defaults/${SHOTSTOPPER_VARIANT:-$SHOTSTOPPER_ARCH}.optlevel"
   IDF_SDKCONFIG_DEFAULTS="$IDF_SDKCONFIG_DEFAULTS;$IDF_OPT_OVERLAY"
 }
 
@@ -287,6 +287,7 @@ ss_idf_py_args() {
     -B "$IDF_BUILD_DIR"
     -D "SDKCONFIG=$IDF_SDKCONFIG"
     -D "SDKCONFIG_DEFAULTS=$IDF_SDKCONFIG_DEFAULTS"
+    -D "IDF_TARGET=esp32s3"
     -D "SHOT_STOPPER_MACHINE_INTEGRATION=${SHOTSTOPPER_MACHINE_INTEGRATION:-none}"
   )
 }
@@ -340,96 +341,50 @@ ss_idf_commit_extra_flags_stamp() {
   printf '%s\n' "${SHOT_STOPPER_EXTRA_FLAGS-}" > "$IDF_BUILD_DIR/shot_stopper_extra_flags"
 }
 
-# Existing sdkconfig keeps CONSOLE_NONE vs USB_SERIAL_JTAG until rewritten.
-# Drop it when the JTAG extra flag does not match so SDKCONFIG_DEFAULTS apply.
-ss_idf_sync_jtag_console() {
-  ss_idf_resolve_paths
-  [[ -f "$IDF_SDKCONFIG" ]] || return 0
-  local want=0 has=0
-  ss_idf_jtag_enabled && want=1
-  grep -q '^CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y$' "$IDF_SDKCONFIG" && has=1
-  if [[ "$want" -eq "$has" ]]; then
-    return 0
-  fi
-  echo "USB Serial/JTAG console mismatch (want=${want} has=${has}); dropping sdkconfig so defaults re-apply"
-  rm -f "$IDF_SDKCONFIG" "$IDF_BUILD_DIR/CMakeCache.txt"
+ss_idf_config_fingerprint() {
+  python3 - "$IDF_SDKCONFIG_DEFAULTS" "$IDF_PROJECT/main/Kconfig.projbuild" \
+    "$SHOTSTOPPER_ARCH" "${SHOTSTOPPER_VARIANT:-$SHOTSTOPPER_ARCH}" \
+    "${SHOTSTOPPER_MACHINE_INTEGRATION:-none}" "${SHOT_STOPPER_EXTRA_FLAGS-}" <<'PY'
+import hashlib, pathlib, sys
+h = hashlib.sha256()
+defaults, kconfig, *selectors = sys.argv[1:]
+for value in selectors:
+    h.update(value.encode() + b'\0')
+for name in defaults.split(';') + [kconfig]:
+    path = pathlib.Path(name)
+    h.update(name.encode() + b'\0' + path.read_bytes() + b'\0')
+print(h.hexdigest())
+PY
 }
 
-# sdkconfig.defaults only seed a new sdkconfig. Recreate an older build tree
-# when it does not match the qualified production NimBLE profile; otherwise an
-# incremental build could silently retain ArduinoBLE or A/B defaults.
-ss_idf_sync_nimble_config() {
-  ss_idf_resolve_paths
-  [[ -f "$IDF_SDKCONFIG" ]] || return 0
-
-  local stale=0 unused_service
-  grep -q '^CONFIG_BT_NIMBLE_ENABLED=y$' "$IDF_SDKCONFIG" || stale=1
-  grep -q '^CONFIG_PM_ENABLE=y$' "$IDF_SDKCONFIG" || stale=1
-  grep -q '^CONFIG_BT_CTRL_MODEM_SLEEP=y$' "$IDF_SDKCONFIG" || stale=1
-  grep -q '^CONFIG_BT_CTRL_LPCLK_SEL_MAIN_XTAL=y$' "$IDF_SDKCONFIG" || stale=1
-  grep -q '^CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y$' "$IDF_SDKCONFIG" || stale=1
-  grep -q '^CONFIG_BT_CONTROLLER_ONLY=y$' "$IDF_SDKCONFIG" && stale=1
-  for unused_service in PROX ANS CTS HTP IPSS TPS IAS LLS SPS HR BAS DIS; do
-    if grep -q "^CONFIG_BT_NIMBLE_${unused_service}_SERVICE=y$" "$IDF_SDKCONFIG"; then
-      stale=1
-    fi
-  done
-  for unused_service in DTM_MODE_TEST SM_SIGN_CNT CPFD_CAFD; do
-    if grep -q "^CONFIG_BT_NIMBLE_${unused_service}=y$" "$IDF_SDKCONFIG"; then
-      stale=1
-    fi
-  done
-  grep -q '^CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE=4096$' "$IDF_SDKCONFIG" || stale=1
-  if [[ "$stale" -eq 1 ]]; then
-    echo "Native NimBLE production profile changed; recreating the IDF build configuration"
+ss_idf_refresh_config() {
+  local fingerprint="$1" stamp="$IDF_BUILD_DIR/sdkconfig.inputs.sha256" reason=''
+  if [[ "${SS_CLI_FORCE_SDKCONFIG_REGENERATE:-0}" == "1" ]]; then
+    reason='requested by --force-sdkconfig-regenerate'
+  elif [[ -f "$IDF_SDKCONFIG" && ! -f "$stamp" ]]; then
+    reason='existing tree has no configuration fingerprint'
+  elif [[ -f "$stamp" && "$(cat "$stamp")" != "$fingerprint" ]]; then
+    reason='repository configuration inputs changed'
+  elif [[ ! -f "$IDF_SDKCONFIG" && -f "$IDF_BUILD_DIR/CMakeCache.txt" ]]; then
+    reason='sdkconfig is missing'
+  fi
+  if [[ -n "$reason" ]]; then
+    echo "Regenerating sdkconfig: $reason; local menuconfig choices will be discarded"
     rm -f "$IDF_SDKCONFIG" "$IDF_BUILD_DIR/CMakeCache.txt"
   fi
-}
-
-ss_idf_sync_micra_tls() {
-  ss_idf_resolve_paths
-  [[ -f "$IDF_SDKCONFIG" ]] || return 0
-  local want=0 has=0
-  [[ "${SHOTSTOPPER_MACHINE_INTEGRATION:-none}" == "linea_micra_cloud" ]] && want=1
-  grep -q '^CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y$' "$IDF_SDKCONFIG" &&
-    grep -q '^CONFIG_MBEDTLS_DYNAMIC_BUFFER=y$' "$IDF_SDKCONFIG" &&
-    grep -q '^CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y$' "$IDF_SDKCONFIG" && has=1
-  [[ "$want" -eq "$has" ]] && return 0
-  echo "Micra TLS allocator profile changed; recreating the IDF build configuration"
-  rm -f "$IDF_SDKCONFIG" "$IDF_BUILD_DIR/CMakeCache.txt"
-}
-
-# sdkconfig.defaults only seed a fresh sdkconfig, and the optimization level
-# is sticky in an existing one. When the requested --o0/--og/--o2/--os level
-# differs from the sdkconfig's current choice, drop the configuration so the
-# overlay re-seeds it (same recovery pattern as the NimBLE and Micra TLS sync).
-ss_idf_sync_opt_level() {
-  ss_idf_resolve_paths
-  local want="${SS_IDF_OPT_LEVEL_KCONFIG:-}"
-  [[ -f "$IDF_SDKCONFIG" ]] || return 0
-  local have=""
-  if grep -q '^CONFIG_COMPILER_OPTIMIZATION_SIZE=y$' "$IDF_SDKCONFIG"; then
-    have="CONFIG_COMPILER_OPTIMIZATION_SIZE"
-  elif grep -q '^CONFIG_COMPILER_OPTIMIZATION_PERF=y$' "$IDF_SDKCONFIG"; then
-    have="CONFIG_COMPILER_OPTIMIZATION_PERF"
-  elif grep -q '^CONFIG_COMPILER_OPTIMIZATION_DEBUG=y$' "$IDF_SDKCONFIG"; then
-    have="CONFIG_COMPILER_OPTIMIZATION_DEBUG"
-  elif grep -q '^CONFIG_COMPILER_OPTIMIZATION_NONE=y$' "$IDF_SDKCONFIG"; then
-    have="CONFIG_COMPILER_OPTIMIZATION_NONE"
-  fi
-  [[ "$have" == "$want" ]] && return 0
-  echo "Optimization level changed (want=${want:-default} have=${have:-unknown}); recreating the IDF build configuration"
-  rm -f "$IDF_SDKCONFIG" "$IDF_BUILD_DIR/CMakeCache.txt"
 }
 
 # idf.py aborts when a SDKCONFIG_DEFAULTS entry is missing, and set-target
 # fullcleans the tree, so the overlay is re-emitted before and after it runs.
 ss_idf_emit_opt_overlay() {
   ss_idf_resolve_paths
-  mkdir -p "$IDF_BUILD_DIR"
-  printf '# Generated by scripts/internal/build-idf; do not edit.\n%s=y\n' \
-    "${SS_IDF_OPT_LEVEL_KCONFIG-CONFIG_COMPILER_OPTIMIZATION_PERF}" \
-    > "$IDF_OPT_OVERLAY"
+  mkdir -p "$(dirname "$IDF_OPT_OVERLAY")"
+  local content
+  content="$(printf '# Generated by scripts/internal/build-idf; do not edit.\n%s=y\n' \
+    "${SS_IDF_OPT_LEVEL_KCONFIG-CONFIG_COMPILER_OPTIMIZATION_PERF}")"
+  if [[ ! -f "$IDF_OPT_OVERLAY" ]] || [[ "$(cat "$IDF_OPT_OVERLAY")" != "$content" ]]; then
+    printf '%s\n' "$content" > "$IDF_OPT_OVERLAY"
+  fi
 }
 
 # idf.py set-target always fullcleans. fullclean is a no-op on an empty dir,
@@ -547,7 +502,33 @@ ss_idf_verify_production_profile() {
     "CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT=y"
     "CONFIG_ESP_SYSTEM_PANIC_REBOOT_DELAY_SECONDS=0"
     "CONFIG_GPTIMER_ISR_HANDLER_IN_IRAM=y"
+    "CONFIG_LWIP_IPV6=y"
+    "CONFIG_LWIP_MAX_SOCKETS=10"
+    "CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8"
+    "CONFIG_MDNS_MAX_INTERFACES=2"
+    "CONFIG_MDNS_MEMORY_ALLOC_SPIRAM=y"
+    "CONFIG_BT_CTRL_MODEM_SLEEP=y"
+    "CONFIG_BT_CTRL_LPCLK_SEL_MAIN_XTAL=y"
   )
+  if [[ "$arch" == "n16r8" ]]; then
+    required+=("CONFIG_SPIRAM_XIP_FROM_PSRAM=y"
+               "CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y"
+               "CONFIG_MDNS_TASK_CREATE_FROM_INTERNAL=y")
+  else
+    required+=("CONFIG_MDNS_TASK_CREATE_FROM_SPIRAM=y")
+    if grep -Fqx 'CONFIG_SPIRAM_XIP_FROM_PSRAM=y' "$sdkconfig"; then
+      echo "Production profile mismatch for $arch: unexpected CONFIG_SPIRAM_XIP_FROM_PSRAM=y" >&2
+      return 1
+    fi
+  fi
+  if [[ "${SHOTSTOPPER_MACHINE_INTEGRATION:-none}" == "linea_micra_cloud" ]]; then
+    required+=("CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y"
+               "CONFIG_MBEDTLS_DYNAMIC_BUFFER=y"
+               "CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y")
+  elif grep -Fqx 'CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y' "$sdkconfig"; then
+    echo "Production profile mismatch: unexpected Micra TLS allocator" >&2
+    return 1
+  fi
   for selector in "${required[@]}"; do
     if ! grep -Fqx "$selector" "$sdkconfig"; then
       echo "Production profile mismatch for $arch: expected $selector" >&2

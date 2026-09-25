@@ -139,6 +139,12 @@ flash_jtag_rejected = run("flash", "monitor", "--jtag")
 assert flash_jtag_rejected.returncode == 2 and "does not apply" in flash_jtag_rejected.stderr
 opt_forwarded = captured_firmware("build", "--os")
 assert opt_forwarded["steps"][0][1][-2:] == ["--", "--os"]
+force_forwarded = captured_firmware("build", "--force-sdkconfig-regenerate")
+assert force_forwarded["steps"][0][1][-2:] == ["--", "--force-sdkconfig-regenerate"]
+for stage in ("flash", "ota", "monitor"):
+    rejected = run(stage, "--force-sdkconfig-regenerate")
+    assert rejected.returncode == 2 and (
+        "does not apply" in rejected.stderr or stage == "ota" and "OTA is disabled" in rejected.stderr)
 # The repository default optimization level is -O2/PERF: sdkconfig.defaults
 # selects it and every script fallback agrees.
 defaults_text = (ROOT / "idf" / "sdkconfig.defaults").read_text()
@@ -153,6 +159,78 @@ assert 'Flash-ready firmware: %s/shotstopper.bin\\n' in firmware_dispatcher
 idf_helper = (INTERNAL / ".." / "shotstopper_idf.sh").resolve().read_text()
 assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_PERF}") == 2
 assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_SIZE}") == 0
+
+# Selected defaults are content-sensitive and refresh only the locked variant.
+(ROOT / "temp").mkdir(exist_ok=True)
+with tempfile.TemporaryDirectory(prefix="ai_temp_sdkconfig_", dir=ROOT / "temp") as temporary:
+    fixture = Path(temporary)
+    project = fixture / "idf"
+    (project / "main").mkdir(parents=True)
+    shared = project / "sdkconfig.defaults"
+    overlay = fixture / "optlevel"
+    kconfig = project / "main/Kconfig.projbuild"
+    shared.write_text("CONFIG_TEST_A=y\n")
+    overlay.write_text("CONFIG_COMPILER_OPTIMIZATION_PERF=y\n")
+    kconfig.write_text("config TEST_A\n    default y\n")
+
+    def config_helper(variant: str, action: str, fingerprint: str = "", force: bool = False):
+        build = fixture / "build-idf" / variant
+        build.mkdir(parents=True, exist_ok=True)
+        env = {**os.environ, "IDF_PROJECT": str(project),
+               "IDF_SDKCONFIG_DEFAULTS": f"{shared};{overlay}",
+               "IDF_BUILD_DIR": str(build), "IDF_SDKCONFIG": str(build / "sdkconfig"),
+               "SHOTSTOPPER_ARCH": "n16r8", "SHOTSTOPPER_VARIANT": variant,
+               "SHOTSTOPPER_MACHINE_INTEGRATION": "none",
+               "SHOT_STOPPER_EXTRA_FLAGS": "", "SS_CLI_FORCE_SDKCONFIG_REGENERATE": str(int(force))}
+        return subprocess.run(
+            ["bash", "-c", f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
+             '"$1" "$2"', "sdkconfig-test", action, fingerprint],
+            cwd=ROOT, env=env, text=True, capture_output=True)
+
+    def digest(variant="pair-a"):
+        result = config_helper(variant, "ss_idf_config_fingerprint")
+        assert result.returncode == 0, result.stderr
+        return result.stdout.strip()
+
+    baseline = digest()
+    assert baseline != digest("pair-b")
+    for variant in ("pair-a", "pair-b"):
+        build = fixture / "build-idf" / variant
+        (build / "sdkconfig").write_text("CONFIG_TEST_A=y\n")
+        (build / "CMakeCache.txt").write_text("IDF_TARGET:STRING=esp32s3\n")
+        (build / "sdkconfig.inputs.sha256").write_text(digest(variant) + "\n")
+    a = fixture / "build-idf/pair-a"
+    b = fixture / "build-idf/pair-b"
+    assert config_helper("pair-a", "ss_idf_refresh_config", baseline).returncode == 0
+    assert (a / "sdkconfig").exists() and (a / "CMakeCache.txt").exists()
+    shared.write_text("CONFIG_TEST_A=y\nCONFIG_TEST_B=y\n")
+    added = digest()
+    assert added != baseline
+    refreshed = config_helper("pair-a", "ss_idf_refresh_config", added)
+    assert "local menuconfig choices will be discarded" in refreshed.stdout
+    assert not (a / "sdkconfig").exists() and not (a / "CMakeCache.txt").exists()
+    assert (b / "sdkconfig").exists() and (b / "CMakeCache.txt").exists()
+    shared.write_text("CONFIG_TEST_B=y\n")
+    removed = digest()
+    assert removed != added  # Removing a managed default also changes the input set.
+    overlay.write_text("CONFIG_COMPILER_OPTIMIZATION_SIZE=y\n")
+    changed_overlay = digest()
+    assert changed_overlay != removed
+    kconfig.write_text("config TEST_A\n    default n\n")
+    assert digest() != changed_overlay
+    (a / "sdkconfig").write_text("CONFIG_TEST_A=y\n")
+    (a / "CMakeCache.txt").write_text("IDF_TARGET:STRING=esp32s3\n")
+    (a / "sdkconfig.inputs.sha256").unlink()
+    assert "no configuration fingerprint" in config_helper(
+        "pair-a", "ss_idf_refresh_config", digest()).stdout
+    assert not (a / "sdkconfig").exists()
+    (b / "sdkconfig").write_text("CONFIG_TEST_A=y\n")
+    assert "requested by" in config_helper(
+        "pair-b", "ss_idf_refresh_config", digest("pair-b"), force=True).stdout
+    assert not (b / "sdkconfig").exists()
+
+assert internal_build.index('ss_idf_verify_firmware') < internal_build.index(
+    'printf \'%s\\n\' "$config_fingerprint" > "$fingerprint_file"')
 
 # The resource verifier must validate measurements at every optimization level.
 (ROOT / "temp").mkdir(exist_ok=True)
@@ -990,6 +1068,9 @@ build_opt = stubbed_dispatcher(
     ("build",), [*profile_args, "--webui-language", "EN_us", "--o0"])
 assert build_opt == [] or "--o0" in build_opt[0]
 assert len(build_opt) == 1
+build_force = stubbed_dispatcher(
+    ("build",), [*profile_args, "--force-sdkconfig-regenerate"])
+assert len(build_force) == 1 and "--force-sdkconfig-regenerate" in build_force[0]
 
 stopped = stubbed_dispatcher(
     ("build", "flash"), [*profile_args, "--port", "/dev/null"],
@@ -1246,7 +1327,7 @@ assert '. "${idf_root}/export.sh" >/dev/null' in idf_helpers, \
     "non-interactive builds must not print ESP-IDF shell-completion warnings"
 
 
-def verify_production_profile(arch: str, selectors: list[str]):
+def verify_production_profile(arch: str, selectors: list[str], integration: str = "none"):
     with tempfile.NamedTemporaryFile(mode="w", prefix="shotstopper-sdkconfig-",
                                      delete=False) as fixture:
         fixture.write("\n".join(selectors) + "\n")
@@ -1257,7 +1338,8 @@ def verify_production_profile(arch: str, selectors: list[str]):
              f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
              'ss_idf_verify_production_profile "$1" "$2"',
              "profile-test", arch, fixture_path],
-            cwd=ROOT, text=True, capture_output=True)
+            cwd=ROOT, env={**os.environ, "SHOTSTOPPER_MACHINE_INTEGRATION": integration},
+            text=True, capture_output=True)
     finally:
         Path(fixture_path).unlink()
 
@@ -1288,18 +1370,29 @@ profile_common = [
     'CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT=y',
     'CONFIG_ESP_SYSTEM_PANIC_REBOOT_DELAY_SECONDS=0',
     'CONFIG_GPTIMER_ISR_HANDLER_IN_IRAM=y',
+    'CONFIG_LWIP_IPV6=y',
+    'CONFIG_LWIP_MAX_SOCKETS=10',
+    'CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8',
+    'CONFIG_MDNS_MAX_INTERFACES=2',
+    'CONFIG_MDNS_MEMORY_ALLOC_SPIRAM=y',
+    'CONFIG_BT_CTRL_MODEM_SLEEP=y',
+    'CONFIG_BT_CTRL_LPCLK_SEL_MAIN_XTAL=y',
 ]
 profile_arch = {
     "n8r4": ['CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y',
               'CONFIG_ESPTOOLPY_FLASHSIZE="8MB"',
               'CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-n8r4.csv"',
               'CONFIG_PARTITION_TABLE_FILENAME="partitions-n8r4.csv"',
-              'CONFIG_SPIRAM_MODE_QUAD=y'],
+              'CONFIG_SPIRAM_MODE_QUAD=y',
+              'CONFIG_MDNS_TASK_CREATE_FROM_SPIRAM=y'],
     "n16r8": ['CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y',
                'CONFIG_ESPTOOLPY_FLASHSIZE="16MB"',
                'CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-n16r8.csv"',
                'CONFIG_PARTITION_TABLE_FILENAME="partitions-n16r8.csv"',
-               'CONFIG_SPIRAM_MODE_OCT=y'],
+               'CONFIG_SPIRAM_MODE_OCT=y',
+               'CONFIG_SPIRAM_XIP_FROM_PSRAM=y',
+               'CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y',
+               'CONFIG_MDNS_TASK_CREATE_FROM_INTERNAL=y'],
 }
 for arch, arch_selectors in profile_arch.items():
     selectors = profile_common + arch_selectors
@@ -1311,6 +1404,18 @@ for arch, arch_selectors in profile_arch.items():
     opposite = "OCT" if arch == "n8r4" else "QUAD"
     assert verify_production_profile(
         arch, selectors + [f"CONFIG_SPIRAM_MODE_{opposite}=y"]).returncode == 1
+    if arch == "n8r4":
+        mismatch = verify_production_profile(
+            arch, selectors + ["CONFIG_SPIRAM_XIP_FROM_PSRAM=y"])
+        assert "unexpected CONFIG_SPIRAM_XIP_FROM_PSRAM=y" in mismatch.stderr
+    micra = selectors + ["CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y",
+                         "CONFIG_MBEDTLS_DYNAMIC_BUFFER=y",
+                         "CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y"]
+    assert verify_production_profile(arch, micra, "linea_micra_cloud").returncode == 0
+    assert "CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y" in verify_production_profile(
+        arch, micra[:-1], "linea_micra_cloud").stderr
+    assert "unexpected Micra TLS allocator" in verify_production_profile(
+        arch, micra).stderr
 
 durable_stores = (ROOT / "src/ShotStopperDurableStores.h").read_text()
 network_reset = durable_stores.split("bool resetPersistedNetworkAccess", 1)[1].split(

@@ -280,7 +280,7 @@ The options are mutually exclusive, apply to that invocation only, and are
 never persisted. They work through a generated defaults file appended to
 `SDKCONFIG_DEFAULTS`; when an existing sdkconfig holds a different level, the
 build recreates the configuration so the requested level takes effect, which
-discards every other local `menuconfig` choice stored in that file. A later
+discards local `menuconfig` choices stored in that file. A later
 build without a level option restores `-O2` the same way.
 The current n16r8 image and memory baselines were measured with `-O2` and
 apply only to `-O2` builds. The historical n8r4 baselines retain their `-Os`
@@ -300,36 +300,44 @@ settings; they do not retune clocks, partitions, or watchdog durations.
 
 N16R8 builds enable execution of flash code and read-only data from PSRAM as a
 timing experiment during flash writes. N8R4 builds keep this option disabled.
-An existing N16R8 build tree is regenerated when it lacks the setting. A
+An existing N16R8 build tree is regenerated when its selected defaults change. A
 successful build verifies configuration and memory limits; only an on-device
 comparison can establish whether loop gaps improve.
 
-Defaults seed a new `build-idf/<hardware-id>--<machine-id>/sdkconfig`; they do
-not overwrite an existing file. Inspect one current tree with:
+Each build compares its selected repository defaults and build profile with the
+last verified build of that variant. If an input changed, was added, or was
+removed, it regenerates `sdkconfig` and checks the effective configuration
+before accepting the firmware image. An unchanged variant keeps its existing
+configuration for incremental builds. Regeneration discards local `menuconfig`
+choices in that variant, so record any custom choices before changing defaults.
+Inspect one current tree with:
 
 ```sh
 grep '^CONFIG_COMPILER_OPTIMIZATION' \
   build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x/sdkconfig
 ```
 
-To restore all repository defaults for that architecture, remove its generated
-configuration and rebuild. This also discards every other local `menuconfig`
-change stored in that file:
+To restore repository defaults manually after changing `menuconfig`, rebuild
+the selected variant with `--force-sdkconfig-regenerate`. This discards its
+local `menuconfig` choices without cleaning the whole build tree:
 
 ```sh
-rm build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x/sdkconfig
 ./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x
+  --machine rancilio-silvia-pro-x --force-sdkconfig-regenerate
 ```
 
-Use the directory produced by the exact selected pair. Do not add optimization
+Use the directory produced by the exact selected pair. The regeneration flag
+applies only to commands that include `build`; standalone flash, OTA, and
+monitor reject it. Do not add optimization
 flags through `--flags`; the supported optimization contract is the Kconfig
 selection above, which the build verifier checks. The `menuconfig` route for
 the optimization level is gone: the wrapper recreates the configuration
 whenever the level differs from the requested one.
 
-Other choices in an existing IDF `sdkconfig` are retained in the same way, as
-long as the optimization level does not change.
+Other choices in an existing IDF `sdkconfig` are retained until selected build
+inputs change or regeneration is requested. A mismatch in a required production
+setting stops the build and identifies the setting; use the regeneration flag
+to restore defaults after a local `menuconfig` edit.
 Omitting a macro does not always mean its feature is off; explicit flags
 override matching choices. Review Diagnostic build identity and options before
 installation.

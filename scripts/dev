@@ -401,6 +401,7 @@ def validate_firmware_options(stages: tuple[str, ...], args: list[str]) -> None:
         "--jtag": {"build"}, "--release": {"build"},
         "--development": {"build"}, "--no-auth-admin": {"build"},
         "--o0": {"build"}, "--og": {"build"}, "--o2": {"build"}, "--os": {"build"},
+        "--force-sdkconfig-regenerate": {"build"},
         "--image": {"flash", "ota"}, "-i": {"flash", "ota"},
         "--webui-language": {"build"},
         "--no-check": {"flash"}, "--erase-all": {"flash"},
@@ -466,6 +467,7 @@ Existing images: --arch ARCH; standalone flash/OTA: --image PATH
 Build:  --flags STRING --development | --release (default)
         --no-auth-admin --jtag --webui-language CODE
         --o0 --og --o2 --os (exclusive firmware optimization level)
+        --force-sdkconfig-regenerate (discard local menuconfig choices)
 Flash:  --port PATH --no-check --erase-all
 OTA:    --host HOST --yes --wait-for-confirmation --discard-ota-session
 Monitor: --port PATH --speed BAUD

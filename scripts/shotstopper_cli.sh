@@ -103,6 +103,7 @@ ss_cli_reset() {
   SS_CLI_DEVELOPMENT=0
   SS_CLI_NO_AUTH_ADMIN=0
   SS_CLI_JTAG=0
+  SS_CLI_FORCE_SDKCONFIG_REGENERATE=0
   for key in $SS_CLI_KEYS; do
     ss_set "$key" ""
     ss_origin_set "$key" ""
@@ -155,6 +156,9 @@ Named parameters (long and short):
                            levels: -O0, -Og, -O2, -Os (default). The saved
                            profile keeps -Os unless a level is passed again.
                            -O1/-O3 are not ESP-IDF levels and are rejected.
+      --force-sdkconfig-regenerate
+                           Recreate build configuration from repository defaults
+                           (build only; discards local menuconfig choices)
       --yes                Commit OTA without an interactive question
       --wait-for-confirmation
                            Wait for verified boot after OTA commit
@@ -187,6 +191,7 @@ SS_CLI_RELEASE=0
 SS_CLI_DEVELOPMENT=0
 SS_CLI_NO_AUTH_ADMIN=0
 SS_CLI_JTAG=0
+SS_CLI_FORCE_SDKCONFIG_REGENERATE=0
 SS_CLI_OPT_LEVEL=""
 
 ss_cli_die() {
@@ -282,6 +287,15 @@ ss_cli_parse() {
         ;;
       --jtag=*)
         printf '%s\n' '--jtag does not take a value.' >&2
+        return 2
+        ;;
+      --force-sdkconfig-regenerate)
+        SS_CLI_FORCE_SDKCONFIG_REGENERATE=1
+        shift
+        continue
+        ;;
+      --force-sdkconfig-regenerate=*)
+        printf '%s\n' '--force-sdkconfig-regenerate does not take a value.' >&2
         return 2
         ;;
       --o0|--og|--o2|--os)
@@ -955,6 +969,11 @@ ss_cli_flags_for() {
     fi
     if [[ "$key" == "jtag" ]]; then
       [[ "$SS_CLI_JTAG" == "1" ]] && SS_CLI_FORWARD+=(--jtag)
+      continue
+    fi
+    if [[ "$key" == "force_sdkconfig_regenerate" ]]; then
+      [[ "$SS_CLI_FORCE_SDKCONFIG_REGENERATE" == "1" ]] &&
+        SS_CLI_FORWARD+=(--force-sdkconfig-regenerate)
       continue
     fi
     if [[ "$key" == "opt_level" ]]; then

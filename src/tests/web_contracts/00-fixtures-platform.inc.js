@@ -184,9 +184,9 @@ if (!sdkconfigDefaults.includes('CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y') ||
       'sdkconfig.defaults must enable run-time stats and vTaskList core IDs');
 }
 if (!sdkconfigDefaults.includes('CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8') ||
-    !idfBuildScript.includes('CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8')) {
+    !idfHelpers.includes('CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8')) {
   throw new Error(
-      'IDF defaults and stale-tree recovery must retain eight static Wi-Fi TX buffers');
+      'IDF defaults and effective-configuration verification must retain eight static Wi-Fi TX buffers');
 }
 if (!sdkconfigNimble.includes('CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y') ||
     !sdkconfigNimble.includes('CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE=4096') ||
@@ -244,8 +244,8 @@ if (!sdkconfigDefaults.includes('CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768') |
       'sdkconfig.defaults must place only mDNS runtime memory in PSRAM and keep other task stacks internal');
 }
 if (!idfHelpers.includes('sdkconfig.defaults.micra') ||
-    !idfHelpers.includes('ss_idf_sync_micra_tls') ||
-    !idfBuildScript.includes('ss_idf_sync_micra_tls') ||
+    !idfHelpers.includes('ss_idf_config_fingerprint') ||
+    !idfBuildScript.includes('ss_idf_refresh_config') ||
     !sdkconfigMicra.includes('# CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC is not set') ||
     !sdkconfigMicra.includes('# CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC is not set') ||
     !sdkconfigMicra.includes('CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y') ||
@@ -346,11 +346,11 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
   if (!idfHelpers.includes('ss_idf_prepare_set_target') ||
       !idfHelpers.includes('ss_idf_commit_extra_flags_stamp') ||
       !idfHelpers.includes('ss_idf_jtag_enabled') ||
-      !idfHelpers.includes('ss_idf_sync_jtag_console') ||
+      !idfHelpers.includes('ss_idf_config_fingerprint') ||
       !idfHelpers.includes('sdkconfig.defaults.jtag') ||
       !buildIdf.includes('ss_idf_prepare_set_target') ||
       !buildIdf.includes('ss_idf_commit_extra_flags_stamp') ||
-      !buildIdf.includes('ss_idf_sync_jtag_console') ||
+      !buildIdf.includes('ss_idf_refresh_config') ||
       !idfHelpers.includes('Preparing empty IDF build tree for set-target')) {
     throw new Error(
         'dev build must empty a non-CMake tree before idf.py set-target fullclean');

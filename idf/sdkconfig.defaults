@@ -10,14 +10,14 @@
 CONFIG_FREERTOS_HZ=1000
 CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y
 CONFIG_FREERTOS_IN_IRAM=y
-# Existing build-idf/<arch>/sdkconfig keeps the old choice until deleted or
-# menuconfig. Firmware reads core pins via xTaskGetCoreID regardless.
+# Builds refresh an existing sdkconfig when selected defaults change.
+# Firmware reads core pins via xTaskGetCoreID regardless.
 CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID=y
 # Product defaults (main/Kconfig.projbuild). Override with
 # SHOT_STOPPER_EXTRA_FLAGS=-DSHOT_STOPPER_… when needed.
 # Remote machine control is opt-in (Kconfig default n). Do not set =y here.
-# An existing build-idf/<arch>/sdkconfig keeps a previous =y until that tree
-# is deleted or changed in menuconfig.
+# Local menuconfig choices persist until selected defaults change or the build
+# is run with --force-sdkconfig-regenerate.
 # CONFIG_SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL is not set
 # Buzzer support follows the resolved hardware profile (speaker presence);
 # do not force SHOT_STOPPER_ENABLE_BUZZER here.
@@ -104,8 +104,8 @@ CONFIG_LOG_MAXIMUM_LEVEL=4
 # USB Serial/JTAG console stays off so the PHY is not started before setup().
 # App CDC starts only when GPIO4 is jumpered to GND at boot (HWCDC begin),
 # unless compiled with -DSHOT_STOPPER_ENABLE_JTAG=1 (sdkconfig.defaults.jtag).
-# ROM USB download (BOOT+RST) still works. build-idf drops a mismatched
-# sdkconfig when the JTAG flag changes.
+# ROM USB download (BOOT+RST) still works. The build refreshes sdkconfig
+# when the JTAG flag changes.
 CONFIG_SHOT_STOPPER_ENABLE_JTAG=0
 CONFIG_ESP_CONSOLE_NONE=y
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y

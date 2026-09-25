@@ -32,6 +32,8 @@ Firmware optimization level (build-only, exclusive, not persisted):
   -O1 and -O3 are not ESP-IDF Kconfig levels and are rejected.
   The level is a Kconfig choice: the build reconfigures when it changes and
   the verifier checks the selected level. mbedTLS keeps its own level.
+  --force-sdkconfig-regenerate refreshes repository defaults in this variant
+  and discards local menuconfig choices.
 
 Recommended development compile flags (Enter at the prompt):
   $SS_CLI_DEFAULT_FLAGS
@@ -122,29 +124,11 @@ SHOT_STOPPER_EXTRA_FLAGS="$effective_flags"
 echo "Extra compile flags: ${SHOT_STOPPER_EXTRA_FLAGS:-(none)}"
 
 mkdir -p "$IDF_BUILD_DIR"
-# Spike sdkconfig / CMake cache predates Arduino autostart and the firmware
-# project name. Reuse would keep ALLOW_BSS but skip AUTOSTART and g_probe checks.
-# Also rebuild when Shot Stopper Kconfig keys are missing from an older tree,
-# when IPv6 was disabled (breaks arduino-esp32 → esp-modbus), when the log
-# ceiling predates runtime-selectable INFO/DEBUG application logging, or when
-# the sdkconfig predates the mDNS responder or Wi-Fi TX-pool budgets (defaults
-# only seed a fresh sdkconfig, so resource changes need a regeneration).
-mdns_stack_location=SPIRAM
-[[ "$SHOTSTOPPER_ARCH" == "n16r8" ]] && mdns_stack_location=INTERNAL
+# Incompatible pre-production trees need a full clean; ordinary defaults drift
+# below only invalidates generated configuration under the variant lock.
 if [[ -f "$IDF_BUILD_DIR/shotstopper_idf_spike.elf" ]] ||
    { [[ -f "$IDF_BUILD_DIR/CMakeCache.txt" ]] && grep -q 'shotstopper_idf_spike' "$IDF_BUILD_DIR/CMakeCache.txt"; } ||
-   { [[ -f "$IDF_BUILD_DIR/CMakeCache.txt" ]] && ! grep -Fq "CMAKE_TOOLCHAIN_FILE:FILEPATH=${IDF_PATH}/tools/cmake/" "$IDF_BUILD_DIR/CMakeCache.txt"; } ||
-   { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_AUTOSTART_ARDUINO=y$' "$IDF_SDKCONFIG"; } ||
-   { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_SHOT_STOPPER_ENABLE_BUZZER=' "$IDF_SDKCONFIG"; } ||
-   { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_LWIP_IPV6=y$' "$IDF_SDKCONFIG"; } ||
-   { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y$' "$IDF_SDKCONFIG"; } ||
-   { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_MDNS_MAX_INTERFACES=2$' "$IDF_SDKCONFIG"; } ||
-   { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q "^CONFIG_MDNS_TASK_CREATE_FROM_${mdns_stack_location}=y$" "$IDF_SDKCONFIG"; } ||
-   { [[ "$SHOTSTOPPER_ARCH" == "n16r8" && -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y$' "$IDF_SDKCONFIG"; } ||
-   { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_MDNS_MEMORY_ALLOC_SPIRAM=y$' "$IDF_SDKCONFIG"; } ||
-   { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8$' "$IDF_SDKCONFIG"; } ||
-   { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_LWIP_MAX_SOCKETS=10$' "$IDF_SDKCONFIG"; } ||
-   { [[ "$SHOTSTOPPER_ARCH" == "n16r8" && -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_SPIRAM_XIP_FROM_PSRAM=y$' "$IDF_SDKCONFIG"; }; then
+   { [[ -f "$IDF_BUILD_DIR/CMakeCache.txt" ]] && ! grep -Fq "CMAKE_TOOLCHAIN_FILE:FILEPATH=${IDF_PATH}/tools/cmake/" "$IDF_BUILD_DIR/CMakeCache.txt"; }; then
   echo "Cleaning stale IDF build tree"
   rm -rf "$IDF_BUILD_DIR"
   mkdir -p "$IDF_BUILD_DIR"
@@ -152,14 +136,19 @@ fi
 
 echo "Building IDF firmware $SHOTSTOPPER_ARCH → $IDF_BUILD_DIR"
 ss_idf_py_args
+target_ready=1
+if [[ ! -f "$IDF_SDKCONFIG" && ! -f "$IDF_BUILD_DIR/CMakeCache.txt" ]] ||
+   { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_IDF_TARGET="esp32s3"$' "$IDF_SDKCONFIG"; } ||
+   { [[ -f "$IDF_BUILD_DIR/CMakeCache.txt" ]] && ! grep -q '^IDF_TARGET:STRING=esp32s3$' "$IDF_BUILD_DIR/CMakeCache.txt"; }; then
+  target_ready=0
+fi
 ss_idf_sync_extra_flags
-ss_idf_sync_jtag_console
-ss_idf_sync_nimble_config
-ss_idf_sync_micra_tls
 ss_idf_emit_opt_overlay
+config_fingerprint="$(ss_idf_config_fingerprint)"
+fingerprint_file="$IDF_BUILD_DIR/sdkconfig.inputs.sha256"
+ss_idf_refresh_config "$config_fingerprint"
 
-if [[ ! -f "$IDF_SDKCONFIG" ]] ||
-   ! grep -q '^CONFIG_IDF_TARGET="esp32s3"$' "$IDF_SDKCONFIG"; then
+if [[ "$target_ready" == "0" ]]; then
   ss_idf_prepare_set_target
   idf.py "${IDF_PY_ARGS[@]}" set-target esp32s3
 fi
@@ -172,11 +161,8 @@ python3 ./scripts/resolve_build_profiles.py \
   --machine "$(ss_get machine_config)" \
   --flags="$effective_flags" --output-root "$root/build-idf" >/dev/null
 
-# Re-emit the optimization overlay after set-target (fullclean removes
-# generated files from a fresh variant tree), then recreate the configuration
-# when an existing sdkconfig holds a different level.
+# The generated overlay lives outside the variant tree cleared by set-target.
 ss_idf_emit_opt_overlay
-ss_idf_sync_opt_level
 
 ./scripts/gen_version.sh "$SHOTSTOPPER_ARCH" \
   "$SHOTSTOPPER_HARDWARE_COMPAT" "$SHOTSTOPPER_MACHINE_COMPAT" \
@@ -212,12 +198,14 @@ ss_idf_commit_extra_flags_stamp
 
 idf.py "${IDF_PY_ARGS[@]}" build 2>&1 | ss_idf_filter_output
 
+ss_idf_verify_firmware
+
 python -m esp_idf_size --format json2 -o "$IDF_BUILD_DIR/size.json" \
   "$IDF_BUILD_DIR/shotstopper.map"
 node "$root/src/tests/check_firmware_size.js" "$IDF_BUILD_DIR/shotstopper.bin" \
   --arch "$SHOTSTOPPER_ARCH"
+printf '%s\n' "$config_fingerprint" > "$fingerprint_file"
 
-ss_idf_verify_firmware
 identity="$(node ./scripts/image_tag.js "$IDF_IMAGE" --json)"
 elf_sha="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).elfSha256)' "$identity")"
 archive_parent="$root/artifacts/firmware/$SHOTSTOPPER_VARIANT"
