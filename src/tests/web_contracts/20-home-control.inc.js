@@ -897,7 +897,13 @@ if (!html.includes('class="cfgGroup paddleOnly"><summary>Paddle</summary>') ||
     !firmware.includes('UserIntent::REQUEST_RINSE') ||
     !firmware.includes('machineBeginRinse') ||
     !html.includes('class="cfgGroup momentaryOnly"><summary>Switch</summary>') ||
-    !html.includes('class="paddleOnly"><input id="paddleReturnReminderBeep"') ||
+    !html.includes('Paddle-off reminder<select id="paddleReturnReminder">') ||
+    !html.includes('<option value="0">OFF</option><option value="15">15</option><option value="30" selected>30</option><option value="60">60</option><option value="120">120</option>') ||
+    !html.includes('When on, repeating beeps remind you to return the paddle after an automatic stop while it is still ON. Turn off to silence this reminder.') ||
+    html.includes('id="paddleReturnReminderBeep"') ||
+    html.includes('id="paddleReturnReminderIntervalS"') ||
+    !runtimeJs.includes('paddleReturnReminderBeep:reminder?!!+reminder.value:undefined') ||
+    !runtimeJs.includes('paddleReturnReminderIntervalMs:reminder?(+reminder.value||30)*1000:undefined') ||
     html.includes('cfgGroup paddleOnly momentaryOnly') ||
     html.includes('cfgGroup momentaryOnly paddleOnly') ||
     !css.includes('html.momentaryMachine .paddleOnly') ||

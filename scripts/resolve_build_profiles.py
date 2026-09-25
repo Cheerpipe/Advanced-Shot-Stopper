@@ -442,7 +442,7 @@ def apply_overrides(hardware: dict[str, Any], machine: dict[str, Any],
         scalar_defaults |= {
             "SHOT_STOPPER_DEFAULT_PADDLE_MODE": (paddle, "mode", 0, 2),
             "SHOT_STOPPER_DEFAULT_PADDLE_RETURN_INTERVAL_MS":
-                (reminder, "interval_ms", 5000, 60000),
+                (reminder, "interval_ms", 5000, 120000),
             "SHOT_STOPPER_DEFAULT_PADDLE_RETURN_MAX_MS":
                 (reminder, "max_duration_ms", 60000, 3600000),
         }

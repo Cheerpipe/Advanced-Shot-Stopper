@@ -134,7 +134,7 @@ try:
         "machine"]["factory_defaults"]
     assert defaults["paddle"] == {
         "mode": "natural", "return_reminder": {
-            "enabled": True, "interval_ms": 10000,
+            "enabled": True, "interval_ms": 30000,
             "max_duration_ms": 900000}}
     assert defaults["quick_rinse"]["enabled"] is True
 finally:

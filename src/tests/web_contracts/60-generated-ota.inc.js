@@ -60,11 +60,11 @@ if (generated.html.includes('<body class="devBuild">') ||
 const machineTypeExclusive = {
   paddle: ['momentaryStartEdge', 'stopPulseMs', 'maxSinglePressMs',
     'reedConfirmTimeoutS', 'dReed', 'forcePulseButton'],
-  momentary: ['paddleMode', 'paddleReturnReminderBeep',
-    'paddleReturnReminderIntervalS', 'paddleReturnReminderMaxDurationMin',
+  momentary: ['paddleMode', 'paddleReturnReminder',
+    'paddleReturnReminderMaxDurationMin',
     'dReed'],
-  momentary_reed: ['paddleMode', 'paddleReturnReminderBeep',
-    'paddleReturnReminderIntervalS', 'paddleReturnReminderMaxDurationMin'],
+  momentary_reed: ['paddleMode', 'paddleReturnReminder',
+    'paddleReturnReminderMaxDurationMin'],
 };
 for (const [machineType, forbidden] of Object.entries(machineTypeExclusive)) {
   const variant =

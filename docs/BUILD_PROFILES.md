@@ -348,7 +348,7 @@ for this machine profile:
       "mode": "natural",
       "return_reminder": {
         "enabled": true,
-        "interval_ms": 10000,
+        "interval_ms": 30000,
         "max_duration_ms": 900000
       }
     },
@@ -361,7 +361,7 @@ for this machine profile:
 | --- | --- | --- |
 | `paddle.mode` | `natural`, `original`, `auto` | Initial paddle behavior. Historical default: `natural`. |
 | `return_reminder.enabled` | Boolean | Enables the reminder while the paddle remains ON after automatic stop. |
-| `return_reminder.interval_ms` | 5000–60000 | Reminder interval. Historical default: 10000 ms. |
+| `return_reminder.interval_ms` | 5000–120000 | Reminder interval. Current factory default: 30000 ms. The Web selector offers OFF, 15, 30, 60, and 120 seconds. |
 | `return_reminder.max_duration_ms` | At least 60000 and the interval, up to 3600000 | Maximum reminder duration. Historical default: 900000 ms. |
 
 Both topologies require `quick_rinse`: `enabled` is Boolean, `gesture_ms` is

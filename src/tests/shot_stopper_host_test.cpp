@@ -2418,6 +2418,10 @@ void w01_default_runtime_configuration_is_valid() {
         DEFAULT_SCALE_TIMER_STOP_EXTRA_DELAY_MS);
   CHECK(config.firstDropBeep);
   CHECK(config.paddleReturnReminderBeep);
+  CHECK(config.paddleReturnReminderIntervalMs == 30000);
+  RuntimeConfig twoMinuteReminder = config;
+  twoMinuteReminder.paddleReturnReminderIntervalMs = 120000;
+  CHECK(validateRuntimeConfig(twoMinuteReminder) == ConfigValidationError::NONE);
   CHECK(!config.soundAlertsMuted);
   CHECK(config.buzzerScaleLostBeep);
   CHECK(config.buzzerAutoToManualGuardEndBeep);

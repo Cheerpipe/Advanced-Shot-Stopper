@@ -44,8 +44,7 @@ changed. On momentary machines, check the actual group and its state feedback.
 | **Sound alerts** | ON | ON / OFF | Master switch in **Settings → Alerts**. |
 | **Output channel** | **Buzzer only** with a local buzzer; **Scale only** without | Buzzer only / Scale only / Scale priority | Where most alerts play. **Buzzer only**: all sound on the local buzzer. **Scale only**: scale path; scale-incapable local cues are muted. **Scale priority**: scale when connected/able, else buzzer; never both for one event. Shot **start** and **stop** always use the local buzzer at machine circuit when a buzzer is compiled in. Shown only with buzzer support. |
 | **Beep when coffee starts** | ON | ON / OFF | One beep on first coffee drops during an automatic shot. Ignored when brew by weight is off. |
-| **Paddle-off reminder** | ON | ON / OFF | Repeat beeps while the **physical paddle stays ON** and **machine circuit is already open**. |
-| **Paddle reminder interval (s)** | 10 s | 5–60 s | Time between reminder beeps. |
+| **Paddle-off reminder** | 30 s | OFF / 15 / 30 / 60 / 120 s | Repeat beeps at the chosen interval while the **physical paddle stays ON** and **machine circuit is already open**; OFF silences them. |
 | **Paddle reminder limit (min)** | 15 min | 1–60 min | Stop beeping after this time even if the paddle remains ON. |
 | **Scale lost** | (buzzer builds) | ON / OFF | Descending RTTTL on the local buzzer when the scale disconnects (idle or during a shot). Hidden / disabled when Output channel is Scale only. |
 | **ATM / manual-no-scale** | (buzzer builds) | ON / OFF | Distinct RTTTL on the local buzzer when A→M ends or when BBW needs a scale that is missing. Disabled when Output channel is Scale only. |
@@ -83,7 +82,7 @@ Alerts group.
 ## Example
 
 Brew by weight finishes, machine circuit opens, but you left the paddle ON. The
-paddle-off reminder repeats every 10 s for up to 15 minutes until you return
+paddle-off reminder repeats every 30 s for up to 15 minutes until you return
 the paddle to OFF.
 
 ## Choose an output
@@ -93,8 +92,9 @@ Use **Buzzer only** for local cues with a compiled passive buzzer. Use
 falls back to the buzzer for unsupported/unavailable scale sounds.
 Start/stop local cues are the exception described above.
 
-If a sound is missing, check Sound alerts, the output mode, the individual
-checkbox and [scale capabilities](settings/scales.md) before changing wiring.
+If a sound is missing, check Sound alerts, the output mode, the reminder
+setting or other individual sound controls, and [scale capabilities](settings/scales.md)
+before changing wiring.
 A scale can support tare/timer without supporting arbitrary beeps.
 Custom RTTTL follows `name:defaults:notes`, for example
 `done:d=8,o=5,b=120:c,e,g`; save it with Bullseye enabled to test its validation.

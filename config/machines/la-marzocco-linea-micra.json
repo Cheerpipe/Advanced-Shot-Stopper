@@ -17,7 +17,7 @@
       "mode": "natural",
       "return_reminder": {
         "enabled": true,
-        "interval_ms": 10000,
+        "interval_ms": 30000,
         "max_duration_ms": 900000
       }
     },

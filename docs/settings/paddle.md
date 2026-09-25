@@ -6,10 +6,19 @@ Momentary builds show [Switch](momentary.md) instead.
 
 `config/machines/la-marzocco-linea-micra.json` selects this paddle topology for
 the initial La Marzocco Linea Micra integration. Factory reset seeds Natural
-mode, the 10-second return reminder with a 15-minute limit, and Quick rinse on
+mode, the 30-second return reminder with a 15-minute limit, and Quick rinse on
 (1-second gesture, 4-second duration). Persisted user choices remain unchanged
 by normal USB firmware installation. This integration is not described as hardware-qualified until
 its actual maintained-input circuit passes the manual checks.
+
+In **Settings → Alerts**, choose **Paddle-off reminder**: **OFF**, **15**, **30**,
+**60**, or **120** seconds. The reminder is on at 30 seconds after a factory
+reset. OFF silences it. The separate **Paddle reminder limit** still stops
+repeating beeps after the chosen number of minutes. Save the machine settings
+to apply a change; the choice is shared across presets. An existing saved
+interval outside the new choices keeps running until you save: the selector
+shows 30 seconds and marks the settings as unsaved so you can choose a listed
+interval and apply it.
 
 ## Choose a mode
 
