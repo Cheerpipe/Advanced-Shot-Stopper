@@ -415,6 +415,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !diagHtml.includes('<legend>RAM</legend>') ||
       !diagHtml.includes('<legend>HEAP</legend>') ||
       !diagHtml.includes('<legend>Scale</legend>') ||
+      !diagHtml.includes('<legend>Date and time</legend>') ||
       !diagHtml.includes('<legend>MISC</legend>') ||
       !diagHtml.includes('id="dMachine"') ||
       !diagHtml.includes('id="dBrew"') ||
@@ -477,10 +478,13 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !diagHtml.includes('id="hBoot"') ||
       !diagHtml.includes('<strong>Firmware</strong>') ||
       !diagHtml.includes('<strong>Boot</strong>') ||
-      !diagHtml.includes('id="currentTime"') ||
       !diagHtml.includes('id="ntpStatus"') ||
-      !diagHtml.includes('id="ntpLastSync"') ||
       !diagHtml.includes('id="ntpServer"') ||
+      !diagHtml.includes('id=uo') ||
+      !diagHtml.includes('id=ut') ||
+      !diagHtml.includes('id=ud') ||
+      !diagHtml.includes('id=lt') ||
+      !diagHtml.includes('id=ld') ||
       diagHtml.indexOf('id="diagnosticsPanel"') > diagHtml.indexOf('id="logPanel"') ||
       diagHtml.indexOf('<legend>States</legend>') > diagHtml.indexOf('<legend>Machine I/O</legend>') ||
       diagHtml.indexOf('<legend>Machine I/O</legend>') > diagHtml.indexOf('<legend>Scale</legend>') ||
@@ -492,7 +496,8 @@ if (!ui.includes('<legend>Brew</legend>') ||
       diagHtml.indexOf('<legend>CPU') > diagHtml.indexOf('<legend>Tasks') ||
       diagHtml.indexOf('<legend>Tasks') > diagHtml.indexOf('<legend>RAM</legend>') ||
       diagHtml.indexOf('<legend>RAM</legend>') > diagHtml.indexOf('<legend>HEAP</legend>') ||
-      diagHtml.indexOf('<legend>HEAP</legend>') > diagHtml.indexOf('<legend>MISC</legend>') ||
+      diagHtml.indexOf('<legend>HEAP</legend>') > diagHtml.indexOf('<legend>Date and time</legend>') ||
+      diagHtml.indexOf('<legend>Date and time</legend>') > diagHtml.indexOf('<legend>MISC</legend>') ||
       diagHtml.indexOf('id="hWifiState"') > diagHtml.indexOf('id="hWifiPs"') ||
       diagHtml.indexOf('id="hWifiPs"') > diagHtml.indexOf('id="hWifiCoex"') ||
       diagHtml.indexOf('id="hWifiCoex"') > diagHtml.indexOf('id="hSsid"') ||
@@ -504,9 +509,12 @@ if (!ui.includes('<legend>Brew</legend>') ||
       diagHtml.indexOf('id="hPsramT"') > diagHtml.indexOf('id="hPsramF"') ||
       diagHtml.indexOf('id="hPsramF"') > diagHtml.indexOf('id="hPsramL"') ||
       diagHtml.indexOf('id="hFirmware"') > diagHtml.indexOf('id="hBoot"') ||
-      diagHtml.indexOf('id="hBoot"') > diagHtml.indexOf('id="currentTime"') ||
-      diagHtml.indexOf('id="currentTime"') > diagHtml.indexOf('id="ntpStatus"') ||
-      diagHtml.indexOf('id="ntpStatus"') > diagHtml.indexOf('id="ntpLastSync"') ||
+      diagHtml.indexOf('id="ntpStatus"') > diagHtml.indexOf('id="ntpServer"') ||
+      diagHtml.indexOf('id="ntpServer"') > diagHtml.indexOf('id=uo') ||
+      diagHtml.indexOf('id=uo') > diagHtml.indexOf('id=ut') ||
+      diagHtml.indexOf('id=ut') > diagHtml.indexOf('id=ud') ||
+      diagHtml.indexOf('id=ud') > diagHtml.indexOf('id=lt') ||
+      diagHtml.indexOf('id=lt') > diagHtml.indexOf('id=ld') ||
       adminHtml.includes('id="diagnosticsPanel"') ||
       adminHtml.includes('id="currentTime"') ||
       adminHtml.includes('<summary>Diagnostics</summary>') ||
@@ -517,7 +525,25 @@ if (!ui.includes('<legend>Brew</legend>') ||
       css.includes('#diagnosticsPanel .metric,#statusPanel .metric,#scalePanel .metric,.shotCard > *{') ||
       css.includes('diagGroup')) {
     throw new Error(
-        'Diagnostics must be a non-collapsible fieldset at the top of Diagnostic, above Log, with States/Machine I/O/Scale/Guards/WiFi/AP/Serial/CPU/Tasks/RAM/HEAP/MISC sections and one value per label');
+        'Diagnostics must be a non-collapsible fieldset at the top of Diagnostic, above Log, with States/Machine I/O/Scale/Guards/WiFi/AP/Serial/CPU/Tasks/RAM/HEAP/Date and time/MISC sections and one value per label');
+  }
+}
+{
+  const assert = require('assert').strict;
+  const first = ui.indexOf('function pad2(');
+  const last = ui.indexOf('const HUMAN_WD', first);
+  if (first < 0 || last < first) throw new Error('Missing wall-time formatter');
+  const {formatWallTime} = new Function('__WEBUI_TEXT__',
+      ui.slice(first, last) + ';return {formatWallTime};')(
+      key => ({'runtime.symbol': ':', 'runtime.symbol_2': '-',
+        'runtime.symbol_3': ' '}[key] || ''));
+  assert.equal(formatWallTime(1704069000, 0), '2024-01-01 00:30:00');
+  assert.equal(formatWallTime(1704069000, -180), '2023-12-31 21:30:00');
+  if (!ui.includes("t('ut',utc&&utc.slice(11))") ||
+      !ui.includes("t('ud',utc&&utc.slice(0,10))") ||
+      !ui.includes("t('lt',local&&local.slice(11))") ||
+      !ui.includes("t('ld',local&&local.slice(0,10))")) {
+    throw new Error('Diagnostic UTC and local date/time fields must use the configured offset');
   }
 }
 {

@@ -406,7 +406,7 @@ if (!network.includes('"firstDropBeep"') ||
     !network.includes('"ntpServerPreset"') ||
     !network.includes('"ntpServerCustom"') ||
     !network.includes('\\"time\\":{') ||
-    !ui.includes('id="currentTime"') ||
+    !ui.includes('id=ut') ||
     !ui.includes('id="ntpStatus"') ||
     !ui.includes('id="ntpServerPreset"') ||
     !ui.includes('id="ntpServerCustom"') ||
