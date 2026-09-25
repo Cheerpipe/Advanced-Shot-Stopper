@@ -226,8 +226,8 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // its original allowance; retain the complete wording.
 // Continuous loop timing adds a phase table and a Reset control to Diagnostics.
 // Last NTP sync adds one timestamp cell to the Diagnostics grid.
-if (htmlBytes > 72133) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 72133)`);
+if (htmlBytes > 72733) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 72733)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -260,6 +260,8 @@ if (htmlBytes > 72133) {
 // source allowance.
 // Weekday names, short dates, and the hover <time> wrapper add ~0.2 KB of
 // combined source allowance.
+// The No Scale Guard abort icon adds 600 bytes of History HTML, 100 bytes of
+// runtime wiring, and 700 combined authoring bytes. Flash budgets stay fixed.
 // Linea Micra account connection, machine selection, settings, refresh, and
 // browser-side state expiry add the profile-gated cloud workflow.
 // The Home boot splash one-shot hide helper and its non-home boot route keep
@@ -274,14 +276,14 @@ if (htmlBytes > 72133) {
 // The Admin BLE master switch checkbox adds its save handler, status sync,
 // and revert-on-error path to the runtime module.
 // Matching recent/lifetime gap columns replace the peak-gap label breakdown.
-if (jsBytes > 198966) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 198966)`);
+if (jsBytes > 199066) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 199066)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
 // The loop timing view adds only source allowance; compressed limits stay fixed.
-if (htmlBytes + jsBytes > 271099) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 271099)`);
+if (htmlBytes + jsBytes > 271799) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 271799)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

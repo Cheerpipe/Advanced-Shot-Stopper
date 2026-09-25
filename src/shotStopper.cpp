@@ -415,6 +415,7 @@ uint32_t noScaleShotGuardActivityAtMs = 0;
 bool noScaleShotGuardScaleWasAvailable = false;
 bool noScaleShotGuardHold = false;
 uint32_t noScaleShotGuardHoldAtMs = 0;
+bool noScaleGuardHistoryPending = false;
 bool noScaleShotGuardNeedsFreshActivator = false;
 bool noScaleRequireBypassReady = false;
 bool noScaleRequireBypassHoldSeen = false;

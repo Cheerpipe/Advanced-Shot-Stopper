@@ -174,6 +174,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   noScaleShotGuardScaleWasAvailable = false;
   noScaleShotGuardHold = false;
   noScaleShotGuardHoldAtMs = 0;
+  noScaleGuardHistoryPending = false;
   noScaleShotGuardNeedsFreshActivator = false;
   resetNoScaleRequireBypassGesture();
   noScaleRequireBypassCompletedThisLoop = false;
@@ -3630,6 +3631,7 @@ void attemptBlockedNoScaleStart() {
   CHECK(!getRelaySafetySnapshot().closed);
   CHECK(noScaleShotGuardArmed);
   CHECK(noScaleShotGuardHold);
+  CHECK(historyLog.count() == 0);
   CHECK(localBuzzer.acceptedRequests == beforeBeeps + 1);
   runLoopAfter(runtimeConfig.rinseGestureMs + 1);
   CHECK(stopperState == StopperState::READY);
@@ -3643,6 +3645,14 @@ void attemptBlockedNoScaleStart() {
   setRawPaddle(false);
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
   CHECK(stopperState == StopperState::READY);
+  CHECK(historyLog.count() == 1);
+  CHECK(shotLog.count() == 0);
+  HistoryPage page;
+  historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+  CHECK(page.records[0].type ==
+        static_cast<uint8_t>(HistoryType::NO_SCALE_GUARD_ABORTED));
+  CHECK(page.records[0].durationDs > 0);
+  CHECK((page.records[0].flags & HISTORY_FLAG_NO_WEIGHT) != 0);
 }
 
 void ns01_armed_blocks_first_bbw_no_scale_shot() {
@@ -3729,6 +3739,7 @@ void ns07_web_rinse_consumes_guard() {
   CHECK(debugEventExists(DebugCode::NO_SCALE_SHOT_GUARD_CONSUMED));
   CHECK(!debugEventExists(DebugCode::NO_SCALE_SHOT_GUARD_BLOCKED));
   CHECK(!debugEventExists(DebugCode::RINSE_CLASSIFIED));
+  CHECK(historyLog.count() == 0);
 }
 
 void ns07b_web_rinse_allowed_while_armed_runs() {
@@ -3782,6 +3793,11 @@ void ns09_armed_rinse_gesture_consumes_guard() {
   CHECK(debugEventExists(DebugCode::NO_SCALE_SHOT_GUARD_CONSUMED));
   CHECK(!debugEventExists(DebugCode::NO_SCALE_SHOT_GUARD_BLOCKED));
   CHECK(localBuzzer.acceptedRequests == beforeBeeps + 1);
+  CHECK(historyLog.count() == 1);
+  HistoryPage page;
+  historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+  CHECK(page.records[0].type ==
+        static_cast<uint8_t>(HistoryType::NO_SCALE_GUARD_ABORTED));
 }
 
 void ns09b_allow_rinse_while_armed_runs() {
@@ -3807,6 +3823,12 @@ void ns09b_allow_rinse_while_armed_runs() {
   CHECK(debugEventExists(DebugCode::NO_SCALE_SHOT_GUARD_CONSUMED));
   CHECK(!debugEventExists(DebugCode::NO_SCALE_SHOT_GUARD_BLOCKED));
   CHECK(localBuzzer.acceptedRequests == beforeBeeps + 2);
+  CHECK(historyLog.count() == 0);
+  runLoopAfter(runtimeConfig.rinseDurationMs + 1);
+  CHECK(historyLog.count() == 1);
+  HistoryPage page;
+  historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+  CHECK(page.records[0].type == static_cast<uint8_t>(HistoryType::RINSE));
 }
 
 void ns10_idle_rinse_gesture_does_not_rearm() {
@@ -3871,9 +3893,11 @@ void ns13_require_scale_blocks_repeated_starts() {
     CHECK(noScaleShotGuardArmed);
     CHECK(noScaleShotGuardHold);
     CHECK(!getRelaySafetySnapshot().closed);
+    CHECK(historyLog.count() == static_cast<size_t>(attempt));
     setRawPaddle(false);
     runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
     CHECK(!noScaleShotGuardHold);
+    CHECK(historyLog.count() == static_cast<size_t>(attempt + 1));
   }
   runLoopAfter(runtimeConfig.lastShotCooldownMs + 1);
   CHECK(noScaleShotGuardArmed);
@@ -3983,6 +4007,7 @@ void ns17_require_scale_triple_cycle_temporarily_allows() {
   CHECK(noScaleShotGuardNeedsFreshActivator);
   CHECK(localBuzzer.activeCue == BuzzerCue::SCALE_CONNECTED);
   CHECK(debugEventExists(DebugCode::NO_SCALE_SHOT_GUARD_CONSUMED));
+  CHECK(historyLog.count() == 3);
 
   runLoopAfter(runtimeConfig.lastShotCooldownMs + 1);
   CHECK(noScaleShotGuardArmed);

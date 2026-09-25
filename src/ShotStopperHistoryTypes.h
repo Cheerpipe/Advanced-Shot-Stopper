@@ -1,8 +1,8 @@
 #pragma once
 
-// Independent activation history: one compact record per confirmed machine
-// activation (shot, rinse, short "other", or machine wake), kept beside the
-// metrics-rich stats shot log. Classification is purely time based; no shot metrics.
+// Independent activation history: confirmed machine activations and physical
+// attempts blocked by No Scale Guard, kept beside the metrics-rich stats shot
+// log. Cycle classification is time based; no shot metrics are stored.
 
 #include "ShotStopperShotLogTypes.h"
 
@@ -30,6 +30,7 @@ enum class HistoryType : uint8_t {
   RINSE = 1,
   OTHER = 2,
   POWER_ON = 3,
+  NO_SCALE_GUARD_ABORTED = 4,
 };
 
 inline const char *historyTypeName(HistoryType type) {
@@ -38,6 +39,7 @@ inline const char *historyTypeName(HistoryType type) {
     case HistoryType::RINSE: return "rinse";
     case HistoryType::OTHER: return "other";
     case HistoryType::POWER_ON: return "power_on";
+    case HistoryType::NO_SCALE_GUARD_ABORTED: return "no_scale_guard_aborted";
   }
   return "unknown";
 }

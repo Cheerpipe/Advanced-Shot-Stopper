@@ -828,6 +828,10 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !runtimeJs.includes('function clearActivationHistory(') ||
     !runtimeJs.includes("power_on:'Power ON'") ||
     !runtimeJs.includes("HIST_TYPE_SVG.power_on='⏻'") ||
+    !runtimeJs.includes('No scale guard aborted') ||
+    !runtimeJs.includes('HIST_TYPE_SVG.no_scale_guard_aborted=') ||
+    !partialHtml.history.includes('id="hNS" viewBox="-40 0 448 448"') ||
+    !historyTypesIo.includes('NO_SCALE_GUARD_ABORTED') ||
     !runtimeJs.includes("confirm:'CLEAR_HISTORY'") ||
     !runtimeJs.includes("'/api/v1/history/delete'") ||
     !runtimeJs.includes("'/api/v1/history/clear'") ||

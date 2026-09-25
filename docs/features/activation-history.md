@@ -1,16 +1,17 @@
 # Activation history
 
-The activation history is a simple, independent diary of every confirmed
-machine activation: shots, rinses, short runs, and recognized machine wake
-gestures.
-It answers "what did the machine actually do, and when?" without the
-measurement detail of the [shot history](shot-history.md).
+The activation history is a simple, independent diary of machine activations
+and paddle attempts: shots, rinses, short runs, recognized machine wake
+gestures, and attempts stopped by No-scale BBW protection. It shows what
+happened and what you tried, without the measurement detail of the
+[shot history](shot-history.md).
 
 ## What is recorded
 
 Every activation the machine confirmed is recorded when its circuit opens,
-including manual brews and rinses that the shot history skips. Each
-entry keeps the local time, duration, and activation type:
+including manual brews and rinses that the shot history skips. A paddle attempt
+stopped by No-scale BBW protection is recorded when you release the paddle.
+Each entry keeps the local time, duration, and activation type:
 
 - **Shot** — an activation that outlasted the brew-by-weight protection
   window (12 seconds by default). The label records the intention to brew,
@@ -21,10 +22,13 @@ entry keeps the local time, duration, and activation type:
 - **Power ON** — a paddle gesture recognized as a Linea Micra standby wake.
   It records how long the paddle kept the wake circuit active but never counts
   as a shot in Stats.
+- **No scale guard aborted** — a paddle attempt that No-scale BBW protection
+  prevented from starting. It records how long the attempt lasted, including
+  repeated attempts in Require a scale mode, and never counts as a shot.
 
-Abandoned starts, where the machine never confirmed the activation, record
-nothing. When the controller's clock has never synced, cards show "no time"
-until it gets the time from the network.
+Other abandoned starts, where the machine never confirmed the activation,
+record nothing. When the controller's clock has never synced, cards show
+"no time" until it gets the time from the network.
 
 A recognized Linea Micra standby wake creates one **Power ON** entry when the
 paddle returns to OFF. See
@@ -46,9 +50,9 @@ the rest of the week, "2 weeks ago" for older weeks, and a short date like
 "Sep 15" for older entries. Hovering the label shows the exact date and time.
 The activation type sits below as a small label. Shots carry a coffee-cup
 icon on the left of the card. Rinses carry a droplet, and other
-activations carry a lightning bolt, and Power ON entries use the power symbol.
-When the
-clock was not synced when the entry was recorded, the card shows "no time"
+activations carry a lightning bolt, Power ON entries use the power symbol,
+and No scale guard aborted entries show a crossed-out scale. When the clock
+was not synced when the entry was recorded, the card shows "no time"
 instead of a date.
 
 Delete a single entry with the ✕ on its card, or clear the whole diary with
@@ -61,7 +65,7 @@ The two pages record different things and never substitute for each other:
 
 | | Stats (shot history) | History (activation diary) |
 | --- | --- | --- |
-| Records | Brews with a valid settled yield over 2 g | Every confirmed activation, including rinses and manual brews |
+| Records | Brews with a valid settled yield over 2 g | Confirmed activations and paddle attempts blocked by No-scale BBW protection |
 | Minimum duration | Longer than 12 seconds | Longer than the configured BBW protection window to carry a Shot label |
 | Detail | Goal, yield, error, flow, guards, rating, curve | Time, duration, type |
 | Capacity | 100 shots | 1000 activations |

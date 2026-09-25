@@ -51,6 +51,9 @@ active recipe.
 
 The optional **Manual without scale (BBW on)** alert sounds once per distinct
 blocked attempt; holding the activator does not repeat it continuously.
+Each blocked paddle attempt also appears in **History** as **No scale guard
+aborted** when you release the paddle. Repeated attempts in **Require a scale**
+each get an entry. A rinse that actually runs is recorded as a rinse instead.
 
 ## Examples
 

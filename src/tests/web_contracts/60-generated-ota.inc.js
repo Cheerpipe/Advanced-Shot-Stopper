@@ -429,8 +429,9 @@ if (generated.cssGzip.length > 7300) {
 // Machine-type-exclusive builds guard every stripped element access in the
 // runtime (loads, save payload, validation, hydration) raising it to 37400.
 // The Admin BLE master-switch checkbox save handler measures 37445 bytes.
-if (generated.runtimeGzip.length > 37445) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 37445-byte gzip budget (${generated.runtimeGzip.length})`);
+// The No Scale Guard History label and icon reference add under 55 bytes.
+if (generated.runtimeGzip.length > 37500) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 37500-byte gzip budget (${generated.runtimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

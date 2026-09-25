@@ -10,6 +10,7 @@ void resetSessionForNewCycle(ControlSource source) {
   }
   session.active = true;
   session.source = source;
+  noScaleGuardHistoryPending = false;
   serviceIdleTare();
 #if !defined(SHOT_STOPPER_HOST_TEST)
   // Publish the RF gate before any deferred NTP request or webhook can wake a
@@ -60,6 +61,7 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
     if (source == ControlSource::PHYSICAL) {
       noScaleShotGuardHold = true;
       noScaleShotGuardHoldAtMs = millis();
+      noScaleGuardHistoryPending = true;
       noScaleShotGuardNeedsFreshActivator = true;
       if (!noScaleBbwRequiresScale(runtimeConfig.noScaleBbwMode) &&
           !machineBlockedStartNeedsHoldQualification()) {
@@ -192,7 +194,8 @@ void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record);
 void appendHistoryRecord(HistoryType type, uint32_t durationMs,
                          bool noWeight) {
   HistoryRecord record = {};
-  record.durationDs = static_cast<uint16_t>(durationMs / 100U);
+  record.durationDs = static_cast<uint16_t>(
+      durationMs / 100U > UINT16_MAX ? UINT16_MAX : durationMs / 100U);
   record.type = static_cast<uint8_t>(type);
   if (g_wallClock.synced()) {
     const uint32_t utcSec = g_wallClock.nowUtcSec(millis());
@@ -360,6 +363,11 @@ bool noScaleArmedRinseIsBlocked(ControlSource source) {
 bool beginRinseCycle(ControlSource source) {
   if (idleTareBlocksStart(source == ControlSource::PHYSICAL)) return false;
   refreshLoopGuardsFromLastIntention();
+  if (source == ControlSource::PHYSICAL && !noScaleGuardHistoryPending &&
+      (noScaleShotGuardWouldBlock(loopGuardInputs) || noScaleShotGuardHold)) {
+    noScaleGuardHistoryPending = true;
+    noScaleShotGuardHoldAtMs = millis();
+  }
   if (noScaleBbwRequiresScale(runtimeConfig.noScaleBbwMode) &&
       noScaleShotGuardWouldBlock(loopGuardInputs)) {
     if (source == ControlSource::WEB) {
@@ -579,6 +587,11 @@ void stateMachineTask() {
   // This also covers momentary builds configured to start on button release.
   if (noScaleRequireBypassCompletedThisLoop) {
     noScaleRequireBypassCompletedThisLoop = false;
+    if (noScaleGuardHistoryPending && !intent.holdActive) {
+      appendHistoryRecord(HistoryType::NO_SCALE_GUARD_ABORTED,
+                          elapsedMs(noScaleShotGuardHoldAtMs), true);
+      noScaleGuardHistoryPending = false;
+    }
     return;
   }
 
@@ -632,17 +645,18 @@ void stateMachineTask() {
       if (intent.intent == UserIntent::REQUEST_START) {
         beginCycle(ControlSource::PHYSICAL);
       }
-      if (intent.intent == UserIntent::REQUEST_RINSE && machineSupportsRinse()) {
-        if (noScaleBbwRequiresScale(runtimeConfig.noScaleBbwMode) &&
-            noScaleShotGuardNeedsFreshActivator) {
-          return;
-        }
-        if (!beginRinseCycle(ControlSource::PHYSICAL)) {
-          return;
-        }
+      if (intent.intent == UserIntent::REQUEST_RINSE && machineSupportsRinse() &&
+          !(noScaleBbwRequiresScale(runtimeConfig.noScaleBbwMode) &&
+            noScaleShotGuardNeedsFreshActivator) &&
+          beginRinseCycle(ControlSource::PHYSICAL)) {
         noScaleShotGuardHold = false;
         cupStartGuardHold = false;
         (void)enterRinse();
+      }
+      if (noScaleGuardHistoryPending && !intent.holdActive && !session.active) {
+        appendHistoryRecord(HistoryType::NO_SCALE_GUARD_ABORTED,
+                            elapsedMs(noScaleShotGuardHoldAtMs), true);
+        noScaleGuardHistoryPending = false;
       }
       return;
 

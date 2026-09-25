@@ -875,6 +875,7 @@
     "runtime.today": "Today",
     "runtime.transfer": "Transfer ",
     "runtime.type": "Type",
+    "runtime.type_no_scale_guard_aborted": "No scale guard aborted",
     "runtime.type_other": "Other",
     "runtime.type_rinse": "Rinse",
     "runtime.type_shot": "Shot",

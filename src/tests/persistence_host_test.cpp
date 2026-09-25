@@ -1838,6 +1838,8 @@ void p69_history_log_round_trip_eviction_and_paging() {
   CHECK(strcmp(historyTypeName(HistoryType::RINSE), "rinse") == 0);
   CHECK(strcmp(historyTypeName(HistoryType::OTHER), "other") == 0);
   CHECK(strcmp(historyTypeName(HistoryType::POWER_ON), "power_on") == 0);
+  CHECK(strcmp(historyTypeName(HistoryType::NO_SCALE_GUARD_ABORTED),
+               "no_scale_guard_aborted") == 0);
 
   HistoryLog log;
   CHECK(log.load());

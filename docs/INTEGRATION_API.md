@@ -96,8 +96,9 @@ the new field.
 
 `lastActivation` mirrors the newest activation-history record (the Web UI
 History page). It is null before the first activation after a full data reset
-and otherwise carries `id`, `type` (`shot`, `rinse`, `other`, or `power_on`),
-`durationS`, `hasWallTime`, `endedAtUnixSec`, and `endedAtLocalSec`.
+and otherwise carries `id`, `type` (`shot`, `rinse`, `other`, `power_on`, or
+`no_scale_guard_aborted`), `durationS`, `hasWallTime`, `endedAtUnixSec`, and
+`endedAtLocalSec`.
 
 `stats` carries the rolling aggregate shown at the top of the Web
 UI Stats page: `shotCount`, `totalDurationS`, `avgDurationS`, `avgYieldG`,
@@ -254,11 +255,11 @@ reconciliation. The existing
 `integration_history_end`.
 
 `integration_history_end` mirrors the newest activation-history record
-(shot, rinse, other, or power on) and carries `id`, `type`, `durationS`,
-`hasWallTime`, `endedAtUnixSec`, and `endedAtLocalSec` — the same shape as the
-snapshot's `lastActivation`. It is emitted only after the activation record is
-confirmed in history, so a receiver that misses it recovers the value on the
-next reconciliation.
+(shot, rinse, other, power on, or a no-scale guard abort) and carries `id`,
+`type`, `durationS`, `hasWallTime`, `endedAtUnixSec`, and `endedAtLocalSec` —
+the same shape as the snapshot's `lastActivation`. It is emitted only after
+the activation record is confirmed in history. A receiver that misses it can
+recover the value at the next reconciliation.
 
 Receivers deduplicate by `(deviceId, bootId, cycleId, event, uptimeMs)`, reject
 older events for the same boot, and refresh the REST snapshot when configuration
