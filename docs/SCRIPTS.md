@@ -21,6 +21,10 @@ Successful firmware builds automatically retain ELF/BIN pairs in
 `flash`. The directory also contains image identity for matching a crash log to
 its ELF; `./scripts/dev clean` keeps these archives.
 
+At the end of every successful command that includes `build`, the terminal
+highlights the absolute build-output folder and the absolute `shotstopper.bin`
+path ready for USB installation.
+
 Wi-Fi OTA is intentionally unsupported. Any `ota` pipeline is rejected before
 the controller is contacted; use the USB `flash` pipeline instead.
 

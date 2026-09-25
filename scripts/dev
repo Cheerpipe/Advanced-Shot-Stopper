@@ -35,6 +35,8 @@ def painted(text: str) -> str:
         return paint(text, "33")
     if head.startswith("passed"):
         return paint(text, "32")
+    if head.startswith(("build output folder:", "flash-ready firmware:")):
+        return paint(text, "1;36")
     if head.startswith(("==>", "risk=")):
         return paint(text, "36")
     return text

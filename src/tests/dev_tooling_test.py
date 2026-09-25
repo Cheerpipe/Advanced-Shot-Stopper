@@ -147,6 +147,9 @@ assert "CONFIG_COMPILER_OPTIMIZATION_SIZE=y" not in defaults_text
 internal_build = (INTERNAL / "build-idf").read_text()
 assert internal_build.count("SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF") == 2
 assert "SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_SIZE" in internal_build
+firmware_dispatcher = (INTERNAL / "firmware-idf").read_text()
+assert 'Build output folder: %s\\n' in firmware_dispatcher
+assert 'Flash-ready firmware: %s/shotstopper.bin\\n' in firmware_dispatcher
 idf_helper = (INTERNAL / ".." / "shotstopper_idf.sh").resolve().read_text()
 assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_PERF}") == 2
 assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_SIZE}") == 0
@@ -890,6 +893,13 @@ def dispatched(stages: tuple[str, ...], args: list[str], fail: str = "",
         for name in ("shotstopper_cli.sh", "shotstopper_board.sh"):
             shutil.copy2(ROOT / "scripts" / name, scripts / name)
         shutil.copy2(INTERNAL / "firmware-idf", internal / "firmware-idf")
+        (scripts / "resolve_build_profiles.py").write_text(
+            "print('arch=n16r8')\n"
+            "print('variant=esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x')\n"
+            "print('hardware_compat=esp32-s3-relay-x1-speaker')\n"
+            "print('machine_compat=rancilio-silvia-pro-x')\n"
+            "print('machine_integration=none')\n"
+            "print('generated_dir=build-idf/generated')\n")
         if store is not None:
             (root / ".shotstopper").write_text(store)
         log = root / "children.log"
@@ -942,6 +952,10 @@ assert blocked.returncode == 2 and "--jtag" in blocked.stderr and \
     not blocked_children, (blocked.returncode, blocked.stderr)
 build_only = stubbed_dispatcher(("build",), [*profile_args, "--webui-language", "EN_us"])
 assert [line.split(":", 1)[0] for line in build_only] == ["build-idf"]
+build_result, _ = dispatched(("build",), [*profile_args, "--webui-language", "EN_us"])
+assert re.search(r"Build output folder: /.+/build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x$",
+                 build_result.stdout, re.M)
+assert re.search(r"Flash-ready firmware: /.+/shotstopper\.bin$", build_result.stdout, re.M)
 flash_monitor_only = stubbed_dispatcher(
     ("flash", "monitor"),
     ["--arch", "n16r8", "--port", "/dev/null", "--speed", "115200"])

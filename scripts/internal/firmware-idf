@@ -43,6 +43,13 @@ has_stage() {
   [[ " ${stages[*]} " == *" $1 "* ]]
 }
 
+emit_build_paths() {
+  ss_cli_resolve_profiles "$(ss_cli_effective_flags)" check || exit $?
+  build_output="$SS_CLI_ROOT/build-idf/$SHOTSTOPPER_VARIANT"
+  printf 'Build output folder: %s\n' "$build_output"
+  printf 'Flash-ready firmware: %s/shotstopper.bin\n' "$build_output"
+}
+
 if has_stage build && ss_is_set image; then
   echo '--image cannot be combined with build; the built artifact is used.' >&2
   exit 2
@@ -123,7 +130,12 @@ for stage in "${stages[@]}"; do
       else
         ss_cli_flags_for port speed arch
       fi
+      has_stage build && emit_build_paths
       exec "$INTERNAL_DIR/monitor-idf" ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}
       ;;
   esac
 done
+
+if has_stage build; then
+  emit_build_paths
+fi
