@@ -27,11 +27,10 @@ CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID=y
 # Start already at 80 so cpu_start and setup agree.
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_80=y
 
-# Prefer -O2 over IDF's default -Og so the same work finishes sooner at 80 MHz
-# (lower CPU duty). Flash is plentiful on n16r8/n8r4; size is not the goal.
-# Existing build-idf/<arch>/sdkconfig keeps the old choice until deleted or
-# menuconfig — defaults only apply when that file is created.
-CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+# Use the measured -O2 resource profile for supported firmware builds.
+# The build wrapper regenerates an existing sdkconfig when its selected level
+# differs from the requested level.
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
 
 # Qualified flash/MMU profile shared by both supported S3 variants.
 CONFIG_ESPTOOLPY_FLASHMODE_DIO=y

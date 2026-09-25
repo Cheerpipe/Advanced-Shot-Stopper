@@ -129,8 +129,10 @@ jobs:
       matrix:
         include:
           - {name: linea-micra, hardware: esp32-s3-relay-x1-speaker, machine: la-marzocco-linea-micra}
+          - {name: linea-micra-reed-hardware, hardware: esp32-s3-relay-x1-speaker-reed, machine: la-marzocco-linea-micra}
           - {name: silvia-pro-x, hardware: esp32-s3-relay-x1-speaker, machine: rancilio-silvia-pro-x}
           - {name: silvia-pro-x-reed, hardware: esp32-s3-relay-x1-speaker-reed, machine: rancilio-silvia-pro-x}
+          - {name: silvia-pro-x-reed-feedback, hardware: esp32-s3-relay-x1-speaker-reed, machine: rancilio-silvia-pro-x-reed}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - run: mkdir -p ci-results/idf
@@ -143,7 +145,7 @@ jobs:
           ./scripts/dev build --hardware ${{ matrix.hardware }} \
             --machine ${{ matrix.machine }} \
             --webui-language en \
-            --os \
+            --o2 \
             --flags=-DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0 \
             --development \
             2>&1 | tee ci-results/idf/build-validation.log
@@ -174,7 +176,7 @@ jobs:
           ./scripts/dev build --hardware ${{ matrix.hardware }} \
             --machine ${{ matrix.machine }} \
             --webui-language en \
-            --os \
+            --o2 \
             --release \
             --flags "-DSHOT_STOPPER_ENABLE_JTAG=0 -DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0" \
             2>&1 | tee ci-results/idf/build-installable.log

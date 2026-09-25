@@ -28,7 +28,8 @@ if (optimization.length !== 1) {
   console.error(`Firmware optimization config must select one supported level: ${sdkconfigPath}`);
   process.exit(2);
 }
-const qualifiedSizeProfile = optimization[0] === 'CONFIG_COMPILER_OPTIMIZATION_SIZE=y';
+const baselineLevel = arch === 'n16r8' ? 'PERF' : 'SIZE';
+const qualifiedSizeProfile = optimization[0] === `CONFIG_COMPILER_OPTIMIZATION_${baselineLevel}=y`;
 
 const config = JSON.parse(fs.readFileSync(
   path.join(root, 'config', 'resource-baselines.json'), 'utf8'));
@@ -73,4 +74,4 @@ for (const [metric, baseline] of Object.entries(config.targets[arch])) {
 if (failures.length) throw new Error(failures.join('; '));
 console.log(qualifiedSizeProfile
   ? `${arch}: image and memory regions are within versioned budgets`
-  : `${arch}: experimental optimization; -Os baseline comparisons do not apply`);
+  : `${arch}: experimental optimization; -${baselineLevel === 'PERF' ? 'O2' : 'Os'} baseline comparisons do not apply`);

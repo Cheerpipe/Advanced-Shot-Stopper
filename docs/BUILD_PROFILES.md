@@ -95,14 +95,15 @@ matches the two contracts:
 
 This keeps electrical facts in hardware and behavioral facts in the machine.
 The machine profile never owns a reed GPIO, and the hardware profile never
-selects momentary or paddle behavior. The official automated validation and CI
-matrix covers these three selected pairs; `./scripts/dev profiles` also reports
-physically compatible combinations outside this matrix:
+selects momentary or paddle behavior. Automated validation and CI build all five
+compatible built-in pairs with `-O2`:
 
 ```text
 esp32-s3-relay-x1-speaker       + rancilio-silvia-pro-x
 esp32-s3-relay-x1-speaker-reed  + rancilio-silvia-pro-x
+esp32-s3-relay-x1-speaker-reed  + rancilio-silvia-pro-x-reed
 esp32-s3-relay-x1-speaker       + la-marzocco-linea-micra
+esp32-s3-relay-x1-speaker-reed  + la-marzocco-linea-micra
 ```
 
 ## Common profile identity

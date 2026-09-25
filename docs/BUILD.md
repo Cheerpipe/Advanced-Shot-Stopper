@@ -251,10 +251,10 @@ Machine type is derived from `interface.control` plus `interface.feedback`; a co
 
 ### Compiler optimization and existing sdkconfig
 
-Supported ESP-IDF firmware builds default to `CONFIG_COMPILER_OPTIMIZATION_SIZE=y`
-from `idf/sdkconfig.defaults`, which selects GCC `-Os` (optimize for size) for
-both supported architectures. After compiling, the build verifier prints the
-selected optimization level (`sdkconfig: CONFIG_COMPILER_OPTIMIZATION_SIZE=y`
+Supported ESP-IDF firmware builds default to `CONFIG_COMPILER_OPTIMIZATION_PERF=y`
+from `idf/sdkconfig.defaults`, which selects GCC `-O2` for every built-in
+hardware and machine profile. After compiling, the build verifier prints the
+selected optimization level (`sdkconfig: CONFIG_COMPILER_OPTIMIZATION_PERF=y`
 on default builds) and fails if the configuration does not hold it.
 The `Debug` setting in the root `CMakePresets.json` applies only to host tests;
 it does not change firmware optimization.
@@ -262,30 +262,31 @@ it does not change firmware optimization.
 ESP-IDF offers exactly four optimization levels; `-O1` and `-O3` are not
 selectable and the wrapper rejects them. To compile an experiment at another
 level, pass exactly one of the transient build options; omitting them keeps
-the default `-Os` build:
+the default `-O2` build:
 
 ```sh
 ./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x --os
+  --machine rancilio-silvia-pro-x
 ```
 
 | Option | GCC level | Kconfig choice |
 | --- | --- | --- |
 | `--o0` | `-O0` | `CONFIG_COMPILER_OPTIMIZATION_NONE` |
 | `--og` | `-Og` | `CONFIG_COMPILER_OPTIMIZATION_DEBUG` |
-| `--o2` | `-O2` | `CONFIG_COMPILER_OPTIMIZATION_PERF` |
-| `--os` | `-Os` | `CONFIG_COMPILER_OPTIMIZATION_SIZE` (default) |
+| `--o2` | `-O2` | `CONFIG_COMPILER_OPTIMIZATION_PERF` (default) |
+| `--os` | `-Os` | `CONFIG_COMPILER_OPTIMIZATION_SIZE` |
 
 The options are mutually exclusive, apply to that invocation only, and are
 never persisted. They work through a generated defaults file appended to
 `SDKCONFIG_DEFAULTS`; when an existing sdkconfig holds a different level, the
 build recreates the configuration so the requested level takes effect, which
 discards every other local `menuconfig` choice stored in that file. A later
-build without a level option restores `-Os` the same way.
-The versioned image and memory baselines were measured with `-Os` and apply
-only to `-Os` builds. Other levels still check the OTA partition limit,
+build without a level option restores `-O2` the same way.
+The current n16r8 image and memory baselines were measured with `-O2` and
+apply only to `-O2` builds. The historical n8r4 baselines retain their `-Os`
+scope. Other optimization levels still check the OTA partition limit,
 external BSS ceiling, and required internal-memory placement; their image
-sizes are experimental and do not establish a qualified resource baseline.
+sizes do not establish a versioned resource baseline.
 
 The final verifier also rejects drift from the qualified production profile:
 n8r4 uses 8 MB flash, `partitions-n8r4.csv`, and QUAD PSRAM; n16r8 uses 16 MB
@@ -339,7 +340,7 @@ The n16r8 layout reserves 640 KiB for a temporary ESP-IDF core dump and
 partition but does not enable persistent crash capture. On n16r8, the mDNS
 task stack is internal so that stack remains available to a core dump.
 
-GitHub Actions publishes the three official validation pairs listed in
+GitHub Actions publishes all five compatible built-in pairs listed in
 [Build profiles](BUILD_PROFILES.md#capability-matching). Names follow
 `shotstopper-ota-<profile>-jtag-off-remote-off.bin`; those two features are
 explicitly disabled at compile time. GitHub downloads each artifact as a ZIP

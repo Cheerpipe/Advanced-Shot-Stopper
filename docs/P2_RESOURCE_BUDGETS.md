@@ -6,8 +6,9 @@ an implementation contract, not a substitute for target/HIL evidence.
 
 ## Firmware image and static regions
 
-`config/resource-baselines.json` records the canonical baselines for both
-targets. Every test or review that measures these budgets must compile with the
+`config/resource-baselines.json` records the current n16r8 `-O2` baseline and
+the historical n8r4 `-Os` baseline. Every test or review that measures these
+budgets must compile with the
 `--development` profile; it enables the admin unlock and the USB Serial/JTAG
 console and therefore usually produces a larger firmware image, giving the
 conservative measurement. Comparisons must use the same hardware and machine
@@ -15,9 +16,9 @@ profiles and the same profile on both sides. Every supported build emits `size.j
 records image bytes, total linked bytes, DIRAM, flash code, and flash rodata.
 The verifier requires valid measurements for all five metrics at every
 optimization level.
-The versioned baseline comparisons apply only to the qualified `-Os` profile;
-experimental optimization levels retain the OTA-slot, external-BSS, and
-internal-placement checks without using `-Os` figures as their baselines.
+The versioned n16r8 baseline comparisons apply to `-O2` builds; the n8r4
+comparisons retain their historical `-Os` scope. Other optimization levels
+retain the OTA-slot, external-BSS, and internal-placement checks.
 Small reviewed growth allowances catch regressions without coupling unrelated
 toolchain padding to an exact byte count; raising a baseline or allowance
 requires explicit architecture and resource review.
@@ -27,17 +28,17 @@ and the qualified `CONFIG_FREERTOS_IN_IRAM=y` build profile.
 The n16r8 baseline represents the largest reviewed supported profile, currently
 the Linea Micra cloud build. HTTPS server verification adds the ESP certificate
 bundle in flash; it is retained rather than weakening TLS. The development
-profile with USB Serial/JTAG measures 2,063,520 image bytes and 2,063,403 total
+profile with USB Serial/JTAG measures 2,121,040 image bytes and 2,120,923 total
 bytes. The versioned allowances retain 38,640 and 38,628 bytes of reviewed
-growth headroom respectively. Flash rodata is 506,660 bytes, flash code is
-1,398,548 bytes, and linked DIRAM is 169,502 bytes; each retains its versioned
+growth headroom respectively. Flash rodata is 516,060 bytes, flash code is
+1,443,820 bytes, and linked DIRAM is 176,286 bytes; each retains its versioned
 allowance. The 3 MiB OTA slot still has more than 1 MiB free.
 
 Both linker maps must also keep external BSS at or below 105 KiB and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
 objects to PSRAM would move synchronization state accessed under spinlocks.
 The extra 1 KiB ceiling covers the versioned Micra cloud account record; the
-qualified gate builds measure 106,936 bytes, 584 bytes below the 105 KiB
+measured O2 development builds use up to 106,992 bytes, 528 bytes below the 105 KiB
 budget. This is static PSRAM, not internal heap. The earlier 96→104 KiB
 raise covers the V3 half-second shot-curve store.
 

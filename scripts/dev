@@ -59,8 +59,10 @@ HTTP_ROUTE_CAPACITY_STEP = (
     "http-route-capacity", ["node", "src/tests/check_http_route_capacity.js"])
 BUILD_PROFILES = (
     ("esp32-s3-relay-x1-speaker", "la-marzocco-linea-micra"),
+    ("esp32-s3-relay-x1-speaker-reed", "la-marzocco-linea-micra"),
     ("esp32-s3-relay-x1-speaker", "rancilio-silvia-pro-x"),
     ("esp32-s3-relay-x1-speaker-reed", "rancilio-silvia-pro-x"),
+    ("esp32-s3-relay-x1-speaker-reed", "rancilio-silvia-pro-x-reed"),
 )
 FIRMWARE_BUDGET_OPTIONS = ["--flags=", "--development"]
 FIRMWARE_STAGES = {"build", "flash", "ota", "monitor"}

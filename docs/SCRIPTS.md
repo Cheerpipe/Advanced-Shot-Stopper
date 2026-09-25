@@ -52,7 +52,7 @@ device. On macOS use `/dev/cu.usbmodem*`; on Linux use `/dev/ttyACM*` or
 
 Every project build requires an exact hardware and machine profile. Use
 `./scripts/dev profiles` to inspect built-in profiles and physically compatible
-pairs. The three official automated validation pairs are listed in
+pairs. All five compatible built-in pairs are listed in
 [Build profiles](BUILD_PROFILES.md#capability-matching). The optional `--development`
 profile enables the development admin/JTAG settings; `--release` is the
 default. These options are compile-time only and are never persisted.
@@ -63,8 +63,9 @@ default. These options are compile-time only and are never persisted.
 The supported transient options are `--webui-language`, `--flags`, `--o0`,
 `--og`, `--o2`, and `--os`. The stored device password is never accepted on a
 command line; use the hidden prompt or the documented USB serial procedure.
-The versioned resource baselines apply to `--os` builds. Other optimization
-levels retain the physical image and memory placement checks; see [Build](BUILD.md#compiler-optimization-and-existing-sdkconfig).
+The current n16r8 resource baseline applies to the default `-O2` builds;
+the historical n8r4 baseline applies to `-Os`. Other optimization levels
+retain the physical image and memory placement checks; see [Build](BUILD.md#compiler-optimization-and-existing-sdkconfig).
 
 ## Diagnostics and recovery
 

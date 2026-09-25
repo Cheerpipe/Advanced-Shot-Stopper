@@ -139,19 +139,19 @@ flash_jtag_rejected = run("flash", "monitor", "--jtag")
 assert flash_jtag_rejected.returncode == 2 and "does not apply" in flash_jtag_rejected.stderr
 opt_forwarded = captured_firmware("build", "--os")
 assert opt_forwarded["steps"][0][1][-2:] == ["--", "--os"]
-# The repository default optimization level is -Os/SIZE: sdkconfig.defaults
+# The repository default optimization level is -O2/PERF: sdkconfig.defaults
 # selects it and every script fallback agrees.
 defaults_text = (ROOT / "idf" / "sdkconfig.defaults").read_text()
-assert "CONFIG_COMPILER_OPTIMIZATION_SIZE=y" in defaults_text
-assert "CONFIG_COMPILER_OPTIMIZATION_PERF=y" not in defaults_text
+assert "CONFIG_COMPILER_OPTIMIZATION_PERF=y" in defaults_text
+assert "CONFIG_COMPILER_OPTIMIZATION_SIZE=y" not in defaults_text
 internal_build = (INTERNAL / "build-idf").read_text()
-assert internal_build.count("SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_SIZE") == 2
-assert "SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF" in internal_build
+assert internal_build.count("SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF") == 2
+assert "SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_SIZE" in internal_build
 idf_helper = (INTERNAL / ".." / "shotstopper_idf.sh").resolve().read_text()
-assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_SIZE}") == 2
-assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_PERF}") == 0
+assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_PERF}") == 2
+assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_SIZE}") == 0
 
-# The resource verifier must validate measurements even when O2 has no baseline.
+# The resource verifier must validate measurements at every optimization level.
 (ROOT / "temp").mkdir(exist_ok=True)
 with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp") as temporary:
     build = Path(temporary)
@@ -165,9 +165,9 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp"
     size.write_text(json.dumps(metrics))
     sdkconfig = build / "sdkconfig"
 
-    def check_size():
+    def check_size(arch="n16r8"):
         return subprocess.run(["node", str(ROOT / "src/tests/check_firmware_size.js"),
-                               str(image), "--arch", "n16r8"], cwd=ROOT,
+                               str(image), "--arch", arch], cwd=ROOT,
                               text=True, capture_output=True)
 
     sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_PERF=y\n")
@@ -178,9 +178,12 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp"
     size.write_text(json.dumps(metrics))
     sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_UNKNOWN=y\n")
     assert "must select one supported level" in check_size().stderr
-    sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_SIZE=y\n")
+    sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_PERF=y\n")
     size.write_text(json.dumps({**metrics, "total_size": 3_000_000}))
     assert "total_size 3000000 > baseline budget" in check_size().stderr
+    sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_SIZE=y\n")
+    assert check_size().returncode == 0
+    assert "total_size 3000000 > baseline budget" in check_size("n8r4").stderr
 
 for level in ("--o0", "--og", "--o2", "--os"):
     rejected = run("flash", level)
@@ -869,7 +872,7 @@ for validate_args, environment, expected in (
     validate_steps = validate_language_steps(validate_args, environment)
     build_steps = [argv for name, argv in validate_steps
                    if name.startswith(("idf-", "warnings-"))]
-    assert len(build_steps) == 6
+    assert len(build_steps) == 10
     assert all(argv.count("--webui-language") == 1 and
                argv[argv.index("--webui-language") + 1] == expected
                for argv in build_steps), build_steps
@@ -1399,10 +1402,6 @@ machines = [resolver["validate_machine"](json.loads(path.read_text()))
 supported_pairs = set()
 for hardware_profile in hardware:
     for machine_profile in machines:
-        if machine_profile["interface"]["feedback"] != "none" or (
-                machine_profile["integration"] == "linea_micra_cloud" and
-                hardware_profile["reed"]["present"]):
-            continue
         try:
             resolver["resolve"](hardware_profile, machine_profile, "")
         except resolver["ProfileError"]:
@@ -1422,13 +1421,13 @@ for disabled_flag in ("SHOT_STOPPER_ENABLE_JTAG=0",
     assert disabled_flag in idf_job, f"CI production flag missing: {disabled_flag}"
 validation_build = idf_job.split("- name: Build validation firmware", 1)[1].split(
     "- name: Cppcheck", 1)[0]
-assert "--os" in validation_build, "validation build must pin the --os optimization level"
+assert "--o2" in validation_build, "validation build must pin the --o2 optimization level"
 assert "--development" in validation_build and "--jtag" not in validation_build, \
     "CI resource validation must use the development build profile"
 installable_build = idf_job.split("- name: Build installable firmware", 1)[1].split(
     "- name: Name OTA image", 1)[0]
-assert "--os" in installable_build and "--release" in installable_build, \
-    "installable build must pin the --os optimization level with --release"
+assert "--o2" in installable_build and "--release" in installable_build, \
+    "installable build must pin the --o2 optimization level with --release"
 ota_name = "shotstopper-ota-${{ matrix.name }}-jtag-off-remote-off"
 assert f"name: {ota_name}" in idf_job
 assert (f"build-idf/${{{{ matrix.hardware }}}}--${{{{ matrix.machine }}}}/"
