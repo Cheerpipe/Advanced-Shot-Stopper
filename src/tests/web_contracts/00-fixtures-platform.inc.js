@@ -409,6 +409,8 @@ if (!network.includes('copyTaskProfiler') ||
     !network.includes('\\"unreportedCurrentCpuPct\\"') ||
     !network.includes('\\"name\\":\\"loopTask/%s\\"') ||
     !network.includes('\\"averageExecutionUs\\"') ||
+    !network.includes('\\"lastExecutionUs\\"') ||
+    !network.includes('\\"peakGapExecutionUs\\"') ||
     !network.includes('/api/v1/diagnostic/profiler') ||
     !network.includes('taskProfilerHandler') ||
     !network.includes('static constexpr size_t kStatusJson = 16384') ||

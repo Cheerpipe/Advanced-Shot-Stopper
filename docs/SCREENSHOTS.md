@@ -33,7 +33,12 @@ ratings and export behavior.
 ### Diagnostics
 
 Technical status for problem reports. A single indicator does not establish
-safe actuation.
+safe actuation. The loop timing table shows the last measured run and maximum
+time for each internal phase, even when the CPU profiler is stopped. Loop max
+shows the largest gap between loop starts and the phase times from that event;
+the remaining time can include waiting or scheduling. Select **Reset** beside
+Loop max to begin a new maximum measurement. Loop gap remains the recent
+five-second window maximum.
 
 ![Historical dark Diagnostics screen](images/screenshot-diagnostic-dark.jpeg)
 

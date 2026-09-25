@@ -394,6 +394,7 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
 #endif
       {"/api/v1/admin/ble-scan", HTTP_PUT, bleScanHandler},
       {"/api/v1/diagnostic/profiler", HTTP_POST, taskProfilerHandler},
+      {"/api/v1/diagnostic/loop-max/reset", HTTP_POST, loopMaxResetHandler},
       {"/api/v1/diagnostic/tare", HTTP_POST, scaleTareHandler},
   };
   const Route *matched = nullptr;

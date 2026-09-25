@@ -422,6 +422,7 @@ void setup() {
     callbacks.stageBullseyeConfig = stageBullseyeConfig;
     callbacks.copyDebugExportExtras = copyDebugExportExtras;
     callbacks.copyTaskProfiler = copyTaskProfiler;
+    callbacks.requestLoopMaxReset = requestLoopMaxReset;
     callbacks.reportStationIpChange = reportStationIpChange;
     if (!networkManager.begin(persistedSettings, callbacks)) {
       networkOk = false;
@@ -565,11 +566,11 @@ bool controlHousekeepingDue(uint32_t now) {
 void loop() {
   const uint32_t loopStartedAtMs = millis();
   const uint32_t loopStartedAtUs = micros();
+  const bool resetLoopMax = loopPhaseProfiler.consumeReset();
+  if (resetLoopMax) loopMaxGapMs = 0;
   const bool profileLoopPhases = taskProfiler.loopPhaseProfilingEnabled();
-  loopPhaseProfiler.beginIteration(profileLoopPhases, loopStartedAtUs);
   uint32_t loopPhaseStartedAtUs = loopStartedAtUs;
   const auto finishLoopPhase = [&](LoopPhase phase) {
-    if (!profileLoopPhases) return;
     const uint32_t endedAtUs = micros();
     loopPhaseProfiler.record(phase, endedAtUs - loopPhaseStartedAtUs,
                              endedAtUs);
@@ -578,8 +579,9 @@ void loop() {
   recordResetUptime(loopStartedAtMs);
   if (lastLoopAtMs != 0) {
     const uint32_t gap = loopStartedAtMs - lastLoopAtMs;
-    if (gap > loopMaxGapMs) {
+    if (!resetLoopMax && gap > loopMaxGapMs) {
       loopMaxGapMs = gap;
+      loopPhaseProfiler.capturePeakGap(gap);
     }
     if (gap > CONTROL_SERVICE_DEADLINE_MS) {
       ++loopDeadlineMisses;
@@ -589,6 +591,7 @@ void loop() {
     }
   }
   lastLoopAtMs = loopStartedAtMs;
+  loopPhaseProfiler.beginIteration(profileLoopPhases, loopStartedAtUs);
   // Relay and paddle control never wait for BLE. The worker owns every scale,
   // heartbeat, packet, timer and connection operation. Restart before heap
   // walks: a failed Wi-Fi stop can leave TLSF unwalkable.

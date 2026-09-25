@@ -224,8 +224,9 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // compressed asset and firmware budgets remain unchanged.
 // The Admin BLE master switch's rendered help needs 67 more HTML bytes than
 // its original allowance; retain the complete wording.
-if (htmlBytes > 71639) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 71639)`);
+// Continuous loop timing adds a phase table and a Reset control to Diagnostics.
+if (htmlBytes > 72059) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 72059)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -271,14 +272,15 @@ if (htmlBytes > 71639) {
 // path without changing the normal polling payload or firmware compressor.
 // The Admin BLE master switch checkbox adds its save handler, status sync,
 // and revert-on-error path to the runtime module.
-if (jsBytes > 197776) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 197776)`);
+// Continuous loop timing renders nine phase rows and the peak-gap breakdown.
+if (jsBytes > 198710) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 198710)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
-// Match the corrected 67-byte HTML allowance; JS remains at its existing cap.
-if (htmlBytes + jsBytes > 269415) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 269415)`);
+// The loop timing view adds only source allowance; compressed limits stay fixed.
+if (htmlBytes + jsBytes > 270769) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 270769)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

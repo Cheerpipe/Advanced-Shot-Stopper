@@ -454,6 +454,19 @@ esp_err_t ShotStopperNetwork::taskProfilerHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
+esp_err_t ShotStopperNetwork::loopMaxResetHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  if (!self.diagnosticPageEnabled() && !self.requireAdminUnlock(request)) {
+    return ESP_OK;
+  }
+  if (self.callbacks_.requestLoopMaxReset == nullptr) {
+    return sendError(request, STATUS_UNAVAILABLE, "LOOP_TIMING_UNAVAILABLE",
+                     "Loop timing could not be reset.");
+  }
+  self.callbacks_.requestLoopMaxReset();
+  return sendJson(request, STATUS_OK, "{\"reset\":true}");
+}
+
 namespace {
 
 struct OtaTransfer {

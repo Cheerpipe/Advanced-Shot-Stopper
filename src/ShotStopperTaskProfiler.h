@@ -57,18 +57,22 @@ struct LoopPhaseProfilerRow {
   uint32_t sampleCount = 0;
   uint32_t averageExecutionUs = 0;
   uint32_t maxExecutionUs = 0;
+  uint32_t lastExecutionUs = 0;
+  uint32_t peakGapExecutionUs = 0;
   float currentCpuPct = 0.0f;
   float averageCpuPct = 0.0f;
 };
 
 struct LoopPhaseProfilerSnapshot {
   uint8_t rowCount = 0;
+  uint32_t peakGapMs = 0;
   LoopPhaseProfilerRow rows[LOOP_PHASE_COUNT] = {};
 };
 
 class LoopPhaseProfiler {
  public:
   void beginIteration(bool enabled, uint32_t nowUs) {
+    memset(iterationUs_, 0, sizeof(iterationUs_));
     if (enabled && !active_) {
       reset_(nowUs);
     } else if (!enabled && active_) {
@@ -78,16 +82,40 @@ class LoopPhaseProfiler {
   }
 
   void record(LoopPhase phase, uint32_t durationUs, uint32_t nowUs) {
-    if (!active_) return;
     const uint8_t index = static_cast<uint8_t>(phase);
     if (index >= LOOP_PHASE_COUNT) return;
-    totalsUs_[index] += durationUs;
-    windowUs_[index] += durationUs;
-    ++sampleCounts_[index];
+    iterationUs_[index] = durationUs;
+    lastUs_[index] = durationUs;
     if (durationUs > maxUs_[index]) maxUs_[index] = durationUs;
+    if (active_) {
+      totalsUs_[index] += durationUs;
+      windowUs_[index] += durationUs;
+      ++sampleCounts_[index];
+    }
     if (static_cast<uint32_t>(nowUs - windowStartedAtUs_) >= 1000000U) {
       publish_(nowUs);
     }
+  }
+
+  void requestReset() { resetRequested_.store(true, std::memory_order_release); }
+
+  bool consumeReset() {
+    if (!resetRequested_.exchange(false, std::memory_order_acq_rel)) return false;
+    memset(maxUs_, 0, sizeof(maxUs_));
+    memset(peakGapUs_, 0, sizeof(peakGapUs_));
+    peakGapMs_ = 0;
+    TaskLockGuard lock(snapshotMutex_);
+    snapshot_.peakGapMs = 0;
+    for (LoopPhaseProfilerRow &row : snapshot_.rows) {
+      row.maxExecutionUs = 0;
+      row.peakGapExecutionUs = 0;
+    }
+    return true;
+  }
+
+  void capturePeakGap(uint32_t gapMs) {
+    memcpy(peakGapUs_, iterationUs_, sizeof(peakGapUs_));
+    peakGapMs_ = gapMs;
   }
 
   void copySnapshot(LoopPhaseProfilerSnapshot &out) const {
@@ -100,28 +128,31 @@ class LoopPhaseProfiler {
     memset(totalsUs_, 0, sizeof(totalsUs_));
     memset(windowUs_, 0, sizeof(windowUs_));
     memset(sampleCounts_, 0, sizeof(sampleCounts_));
-    memset(maxUs_, 0, sizeof(maxUs_));
     startedAtUs_ = nowUs;
     windowStartedAtUs_ = nowUs;
     active_ = true;
-    TaskLockGuard lock(snapshotMutex_);
-    snapshot_ = LoopPhaseProfilerSnapshot{};
+    publish_(nowUs);
   }
 
   void publish_(uint32_t nowUs) {
     const uint32_t elapsedUs = nowUs - startedAtUs_;
     const uint32_t windowElapsedUs = nowUs - windowStartedAtUs_;
     LoopPhaseProfilerSnapshot next;
+    if (!active_) copySnapshot(next);
     next.rowCount = LOOP_PHASE_COUNT;
+    next.peakGapMs = peakGapMs_;
     for (uint8_t i = 0; i < LOOP_PHASE_COUNT; ++i) {
       LoopPhaseProfilerRow &row = next.rows[i];
       row.name = loopPhaseName(static_cast<LoopPhase>(i));
+      row.lastExecutionUs = lastUs_[i];
+      row.peakGapExecutionUs = peakGapUs_[i];
+      row.maxExecutionUs = maxUs_[i];
+      if (!active_) continue;
       row.sampleCount = sampleCounts_[i];
       row.averageExecutionUs = sampleCounts_[i] == 0
                                    ? 0
                                    : static_cast<uint32_t>(totalsUs_[i] /
                                                            sampleCounts_[i]);
-      row.maxExecutionUs = maxUs_[i];
       row.currentCpuPct = windowElapsedUs == 0
                               ? 0.0f
                               : static_cast<float>(windowUs_[i]) * 100.0f /
@@ -144,6 +175,11 @@ class LoopPhaseProfiler {
   uint32_t windowUs_[LOOP_PHASE_COUNT] = {};
   uint32_t sampleCounts_[LOOP_PHASE_COUNT] = {};
   uint32_t maxUs_[LOOP_PHASE_COUNT] = {};
+  uint32_t lastUs_[LOOP_PHASE_COUNT] = {};
+  uint32_t iterationUs_[LOOP_PHASE_COUNT] = {};
+  uint32_t peakGapUs_[LOOP_PHASE_COUNT] = {};
+  uint32_t peakGapMs_ = 0;
+  std::atomic<bool> resetRequested_{false};
   mutable TaskMutex snapshotMutex_;
   LoopPhaseProfilerSnapshot snapshot_ = {};
 };

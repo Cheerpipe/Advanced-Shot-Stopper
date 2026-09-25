@@ -343,6 +343,10 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !ui.includes('id="hPsramL"') ||
       !ui.includes('id="hLoopGap"') ||
       !ui.includes('id="hLoopMax"') ||
+      !ui.includes('id="loopMaxResetButton"') ||
+      !ui.includes('id="loopTimingTable"') ||
+      !ui.includes('id="loopTimingBody"') ||
+      !ui.includes('/api/v1/diagnostic/loop-max/reset') ||
       !ui.includes('id="lastCommandState"') ||
       !ui.includes('function updH(') ||
       !ui.includes('updH(s.health,s.safety)') ||

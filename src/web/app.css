@@ -95,11 +95,13 @@ label:has(>input[type=checkbox]) .fieldHint{margin-left:1.9rem}
 #diagnosticsPanel fieldset:first-of-type{margin-top:.25rem}
 #diagnosticsPanel fieldset>legend{grid-column:1/-1}
 #diagnosticsPanel [id$="Raw"]{font-size:.8125rem;color:var(--mu);font-weight:400}
-#diagnosticsPanel .statusColumn>.btnBar,#taskTableWrap{grid-column:1/-1}
-#taskTableWrap{max-width:100%;overflow:auto}
-#taskTable{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.86rem}
-#taskTable th,#taskTable td{text-align:left;padding:.15rem .35rem;border-bottom:1px solid var(--ln)}
-#taskTable th:nth-child(n+2),#taskTable td:nth-child(n+2){text-align:right}
+#diagnosticsPanel .statusColumn>.btnBar,#taskTableWrap,#loopTimingWrap{grid-column:1/-1}
+#taskTableWrap,#loopTimingWrap{max-width:100%;overflow:auto}
+#taskTable,#loopTimingTable{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.86rem}
+#taskTable th,#taskTable td,#loopTimingTable th,#loopTimingTable td{text-align:left;padding:.15rem .35rem;border-bottom:1px solid var(--ln)}
+#taskTable th:nth-child(n+2),#taskTable td:nth-child(n+2),#loopTimingTable th:nth-child(n+2),#loopTimingTable td:nth-child(n+2){text-align:right}
+.inlineAction{border:0;background:none;padding:0;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}
+.inlineAction:disabled{opacity:.65;cursor:not-allowed}
 .stateReady,#machineStateValue.stateReady{color:var(--ok);font-weight:700}
 .stateActive,#machineStateValue.stateActive{color:var(--ac);font-weight:700}
 .stateFault,#machineStateValue.stateFault{color:var(--dn);font-weight:700}

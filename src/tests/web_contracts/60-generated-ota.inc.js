@@ -435,10 +435,9 @@ if (generated.runtimeGzip.length > 37445) {
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
 }
-// The crash archive controls add download, compression, and confirmation to
-// the secondary diagnostic view; retain a narrow 83-byte compression margin.
-if (generated.secondaryGzip.length > 6600) {
-  throw new Error('Compressed secondary view JS exceeds the 6600-byte gzip budget');
+// Continuous loop timing adds the phase table and peak-gap detail to Diagnostics.
+if (generated.secondaryGzip.length > 6865) {
+  throw new Error(`Compressed secondary view JS exceeds the 6865-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');

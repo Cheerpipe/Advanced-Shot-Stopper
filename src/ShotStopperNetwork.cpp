@@ -936,6 +936,7 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
           "\"currentTotalCpuPct\":%.1f,\"averageTotalCpuPct\":%.1f,"
           "\"unreportedCurrentCpuPct\":%.1f,\"unreportedAverageCpuPct\":%.1f,"
           "\"truncated\":%s,\"lastCaptureUs\":%lu,\"maxCaptureUs\":%lu,"
+          "\"peakGapMs\":%lu,"
           "\"rows\":[",
           taskProfilerStateName(tasks.state),
           taskProfilerStopReasonName(tasks.stopReason),
@@ -948,7 +949,8 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
           static_cast<double>(tasks.unreportedAverageCpuPct),
           tasks.truncated ? "true" : "false",
           static_cast<unsigned long>(tasks.lastCaptureUs),
-          static_cast<unsigned long>(tasks.maxCaptureUs))) {
+          static_cast<unsigned long>(tasks.maxCaptureUs),
+          static_cast<unsigned long>(tasks.loopPhases.peakGapMs))) {
     return false;
   }
   for (uint8_t i = 0; i < tasks.rowCount; ++i) {
@@ -972,14 +974,17 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
             "%s{\"name\":\"loopTask/%s\",\"core\":1,\"stackMinWords\":4294967295,"
             "\"sampleCount\":%lu,"
             "\"currentCpuPct\":%.1f,\"averageCpuPct\":%.1f,"
-            "\"averageExecutionUs\":%lu,\"maxExecutionUs\":%lu}",
+            "\"averageExecutionUs\":%lu,\"maxExecutionUs\":%lu,"
+            "\"lastExecutionUs\":%lu,\"peakGapExecutionUs\":%lu}",
             tasks.rowCount == 0 && i == 0 ? "" : ",",
             row.name != nullptr ? row.name : "unknown",
             static_cast<unsigned long>(row.sampleCount),
             static_cast<double>(row.currentCpuPct),
             static_cast<double>(row.averageCpuPct),
             static_cast<unsigned long>(row.averageExecutionUs),
-            static_cast<unsigned long>(row.maxExecutionUs))) {
+            static_cast<unsigned long>(row.maxExecutionUs),
+            static_cast<unsigned long>(row.lastExecutionUs),
+            static_cast<unsigned long>(row.peakGapExecutionUs))) {
       return false;
     }
   }

@@ -13958,7 +13958,26 @@ void h03_task_profiler_start_stop_updates_snapshot() {
 void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   LoopPhaseProfiler profiler;
   LoopPhaseProfilerSnapshot snap;
+  profiler.beginIteration(false, 1000U);
+  profiler.record(LoopPhase::CONTROL, 150U, 1150U);
+  profiler.capturePeakGap(8U);
+  profiler.beginIteration(false, 2000U);
+  profiler.record(LoopPhase::CONTROL, 90U, 1002000U);
+  profiler.copySnapshot(snap);
+  CHECK(snap.peakGapMs == 8U);
+  CHECK(snap.rows[3].lastExecutionUs == 90U);
+  CHECK(snap.rows[3].maxExecutionUs == 150U);
+  CHECK(snap.rows[3].peakGapExecutionUs == 150U);
+  profiler.requestReset();
+  CHECK(profiler.consumeReset());
+  profiler.copySnapshot(snap);
+  CHECK(snap.peakGapMs == 0U);
+  CHECK(snap.rows[3].maxExecutionUs == 0U);
+  CHECK(snap.rows[3].lastExecutionUs == 90U);
   profiler.beginIteration(true, 1000U);
+  profiler.copySnapshot(snap);
+  CHECK(snap.rows[3].lastExecutionUs == 90U);
+  CHECK(snap.rows[3].sampleCount == 0U);
   profiler.record(LoopPhase::SAFETY_HEALTH, 100U, 1100U);
   profiler.record(LoopPhase::CONTROL, 200U, 1300U);
   // Housekeeping only records on iterations that run the gated block.

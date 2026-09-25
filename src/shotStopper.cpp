@@ -833,6 +833,8 @@ void copyTaskProfiler(TaskProfilerSnapshot &output) {
   loopPhaseProfiler.copySnapshot(output.loopPhases);
 }
 
+void requestLoopMaxReset() { loopPhaseProfiler.requestReset(); }
+
 void copyControlStatus(ControlStatusSnapshot &output) {
   TaskLockGuard lock(controlStatusMutex);
   output = publishedControlStatus;
