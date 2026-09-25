@@ -3,6 +3,7 @@
 #include "ShotStopperJsonArena.h"
 #include "ShotStopperDomain.h"
 #include "ShotStopperMicraTiming.h"
+#include "ShotStopperMicraPublicIdentityCache.h"
 #include "ShotStopperPsram.h"
 #include "ShotStopperHttpDiagnostics.h"
 
@@ -142,16 +143,12 @@ bool publicKeyDer(const LineaMicraPersistedSettings &settings,
   return true;
 }
 
-bool deriveInstallationSecret(const LineaMicraPersistedSettings &settings,
-                              const char *id, uint8_t secret[32],
-                              char publicB64[128]) {
-  uint8_t publicDer[91];
+bool deriveInstallationSecret(const char *id, const char *publicB64,
+                              uint8_t secret[32]) {
   uint8_t idHash[32];
   char idHashB64[48];
   char material[256];
-  bool ok = publicKeyDer(settings, publicDer) &&
-            base64Encode(publicDer, sizeof(publicDer), publicB64, 128) &&
-            sha256(id, strlen(id), idHash) &&
+  bool ok = sha256(id, strlen(id), idHash) &&
             base64Encode(idHash, sizeof(idHash), idHashB64,
                          sizeof(idHashB64));
   if (ok) {
@@ -160,7 +157,6 @@ bool deriveInstallationSecret(const LineaMicraPersistedSettings &settings,
     ok = length > 0 && static_cast<size_t>(length) < sizeof(material) &&
          sha256(material, static_cast<size_t>(length), secret);
   }
-  secureWipe(publicDer, sizeof(publicDer));
   secureWipe(idHash, sizeof(idHash));
   secureWipe(idHashB64, sizeof(idHashB64));
   secureWipe(material, sizeof(material));
@@ -330,6 +326,7 @@ struct ShotStopperMicraService::IoBuffer {
 };
 
 struct ShotStopperMicraService::WorkBuffer {
+  MicraPublicIdentityCache publicIdentity;
   char accessToken[kTokenCapacity] = {};
   char refreshToken[kTokenCapacity] = {};
   // Scratch for the formatted Authorization header. Lives beside the tokens in
@@ -1806,11 +1803,20 @@ bool ShotStopperMicraService::writePowerOn(
 
 bool ShotStopperMicraService::applySignedHeaders(
     const LineaMicraPersistedSettings &settings) {
-  char id[37];
-  char publicB64[128];
+  MicraPublicIdentityCache &identity = work_->publicIdentity;
+  if (!identity.ensure([&](char *id, char *publicB64) {
+        uint8_t publicDer[91];
+        const bool ok = installationId(settings, id) &&
+                        publicKeyDer(settings, publicDer) &&
+                        base64Encode(publicDer, sizeof(publicDer), publicB64,
+                                     sizeof(identity.publicKeyBase64));
+        secureWipe(publicDer, sizeof(publicDer));
+        return ok;
+      })) {
+    return false;
+  }
   uint8_t secret[32];
-  if (!installationId(settings, id) ||
-      !deriveInstallationSecret(settings, id, secret, publicB64)) {
+  if (!deriveInstallationSecret(identity.id, identity.publicKeyBase64, secret)) {
     secureWipe(secret, sizeof(secret));
     return false;
   }
@@ -1826,7 +1832,8 @@ bool ShotStopperMicraService::applySignedHeaders(
       static_cast<unsigned long long>(current.tv_usec / 1000);
   char proofInput[96];
   const int proofInputLength = snprintf(proofInput, sizeof(proofInput),
-                                        "%s.%s.%llu", id, nonce, timestamp);
+                                        "%s.%s.%llu", identity.id, nonce,
+                                        timestamp);
   char proof[48];
   char signatureInput[160];
   bool ok = proofInputLength > 0 &&
@@ -1843,8 +1850,8 @@ bool ShotStopperMicraService::applySignedHeaders(
   char timestampText[24];
   snprintf(timestampText, sizeof(timestampText), "%llu", timestamp);
   if (ok) {
-    ok = esp_http_client_set_header(work_->client, "X-App-Installation-Id", id) ==
-             ESP_OK &&
+    ok = esp_http_client_set_header(work_->client, "X-App-Installation-Id",
+                                    identity.id) == ESP_OK &&
          esp_http_client_set_header(work_->client, "X-Timestamp", timestampText) ==
              ESP_OK &&
          esp_http_client_set_header(work_->client, "X-Nonce", nonce) == ESP_OK &&
@@ -1852,7 +1859,6 @@ bool ShotStopperMicraService::applySignedHeaders(
                                     signature) == ESP_OK;
   }
   secureWipe(secret, sizeof(secret));
-  secureWipe(publicB64, sizeof(publicB64));
   secureWipe(proofInput, sizeof(proofInput));
   secureWipe(proof, sizeof(proof));
   secureWipe(signatureInput, sizeof(signatureInput));
@@ -1913,8 +1919,10 @@ bool ShotStopperMicraService::request(
     char base[224];
     char proof[48];
     bool ok = installationId(settings, id) &&
-              deriveInstallationSecret(settings, id, secret, publicB64) &&
               publicKeyDer(settings, publicDer) &&
+              base64Encode(publicDer, sizeof(publicDer), publicB64,
+                           sizeof(publicB64)) &&
+              deriveInstallationSecret(id, publicB64, secret) &&
               sha256(publicDer, sizeof(publicDer), publicHash) &&
               base64Encode(publicHash, sizeof(publicHash), publicHashB64,
                            sizeof(publicHashB64));
@@ -2093,6 +2101,7 @@ void ShotStopperMicraService::clearSession() {
   abortRequested_.store(false, std::memory_order_release);
   secureWipe(work_->accessToken, sizeof(work_->accessToken));
   secureWipe(work_->refreshToken, sizeof(work_->refreshToken));
+  work_->publicIdentity.clear();
   work_->responseUsed = 0;
   work_->accessTokenIssuedAtMs = 0;
   work_->httpStatus = 0;

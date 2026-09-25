@@ -2,6 +2,7 @@
 #include "machine/ShotStopperLineaMicraTypes.h"
 #include "machine/ShotStopperMicraMachinePower.h"
 #include "machine/ShotStopperMicraPowerState.h"
+#include "machine/ShotStopperMicraPublicIdentityCache.h"
 #include "machine/ShotStopperMicraScalePowerOn.h"
 #include "machine/ShotStopperMicraScaleShutdown.h"
 #include "machine/ShotStopperMicraTiming.h"
@@ -11,6 +12,36 @@
 
 int main() {
   using namespace shotstopper;
+  MicraPublicIdentityCache identity;
+  int derivations = 0;
+  const char *activeId = "installation-a";
+  const auto derive = [&](char *id, char *publicKey) {
+    ++derivations;
+    std::strcpy(id, activeId);
+    std::strcpy(publicKey, "public-key");
+    return true;
+  };
+  assert(identity.ensure(derive));
+  assert(identity.ensure(derive));
+  assert(derivations == 1);
+  identity.clear();  // Identity replacement and session teardown.
+  activeId = "installation-b";
+  assert(identity.ensure(derive));
+  assert(std::strcmp(identity.id, activeId) == 0);
+  assert(derivations == 2);
+  identity.clear();  // Disconnect and reconnect.
+  assert(identity.ensure(derive));
+  assert(derivations == 3);
+  identity.clear();
+  assert(!identity.ensure([](char *id, char *publicKey) {
+    std::strcpy(id, "partial");
+    std::strcpy(publicKey, "partial");
+    return false;
+  }));
+  for (char byte : identity.id) assert(byte == 0);
+  for (char byte : identity.publicKeyBase64) assert(byte == 0);
+  assert(identity.ensure(derive));
+  assert(derivations == 4);
   LineaMicraPersistedSettings settings;
   assert(settings.options == LINEA_MICRA_DEFAULT_OPTIONS);
   assert(settings.scaleOptions == 0);
