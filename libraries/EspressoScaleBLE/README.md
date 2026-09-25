@@ -79,6 +79,20 @@ connection. Cleanup is idempotent, eight consecutive invalid notifications
 force a recoverable disconnect, and the first-valid-packet and silence limits
 remain protocol-specific.
 
+Cancelling a pending connection retains one cleanup operation until GAP reports
+failure or confirms disconnection. If connection success wins the cancellation
+race, the owner terminates that link; callbacks never submit the termination.
+New scans and connections wait for that acknowledgement, including after the
+quiet interval. A missing acknowledgement leaves reconnection blocked until a
+host reset; rejected termination attempts are spaced by the quiet interval.
+Host reset discards the old cleanup operation so a reused handle is untouched.
+
+Keep the facade alive while the BLE runtime is active. Destruction drains
+callbacks already using the object and prevents access after destruction, but
+cannot reconcile a connection success delivered after callback ownership has
+been released. Dynamic destruction during connection setup is therefore not a
+supported way to guarantee peer disconnection.
+
 The client owns a fixed 3,000 ms post-disconnect communication barrier. The GAP
 callback immediately blocks new admissions and invalidates old-link data. If a
 radio submission was already admitted, the full quiet interval starts when
@@ -94,6 +108,9 @@ The owner consumes bounded queued RX evidence before deciding packet silence.
 Only frames captured before the relevant deadline and still fresh when serviced
 can refresh it; malformed, stale, or previous-generation frames cannot revive
 the stream. First-packet timeout is 5 s; Bookoo's valid-packet timeout is 8 s.
+Heartbeat attempts keep their protocol interval even after a recoverable write
+rejection. The worker continues consuming fresh weights and checking packet
+timeouts while the link remains up.
 
 Bookoo weight/timer packets require the 20-byte `03 0B` envelope and XOR of the
 first 19 bytes. Command packets use `03 0A` and XOR of the first five bytes,
@@ -189,6 +206,12 @@ platform doubles for callback ordering, worker wakeups, command errors and
 invalid notifications. The portable lifecycle reducer is a separate model,
 not the production client's state machine. Target scheduling and radio behavior
 still require hardware qualification.
+The client tests also run notification callbacks on a real thread against
+power-off publication using a synchronized platform double. This TSAN coverage
+is limited to that boundary. Accepted parser fixtures seed length and bit
+mutations, including repaired integrity bytes, for nine known grammars; these
+are parser contracts, not device captures. Legacy Acaia and MyScale framing
+still need independent device evidence.
 
 Build the bundled firmware through `./scripts/dev build`; see
 [Build environment](../../docs/BUILD.md).

@@ -2045,6 +2045,17 @@ void r12e_rejected_heartbeat_preserves_connected_epoch() {
   CHECK(lastScaleWeightAtMs == weightAtMs);
   CHECK(currentWeightIsFresh());
   CHECK(scaleAvailable());
+  for (unsigned attempt = 0; attempt < 4; ++attempt) {
+    hostMillis += SCALE_WEIGHT_POLL_INTERVAL_MS;
+    scale.weight += 1.0f;
+    scale.newWeightAvailableValue = true;
+    serviceScaleWorkerLink();
+    processScaleWorkerEvents();
+    CHECK(fabsf(currentWeight - scale.weight) < 0.001f);
+    CHECK(lastScaleWeightAtMs == hostMillis);
+    CHECK(getScaleLinkSnapshot().disconnectSequence == before.disconnectSequence);
+  }
+  CHECK(scale.heartbeatCalls == 5);
   scale.connected = false;
   serviceScaleWorkerLink();
   CHECK(getScaleLinkSnapshot().state == ScaleLinkState::DISCONNECTED);

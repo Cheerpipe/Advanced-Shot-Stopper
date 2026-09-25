@@ -8,6 +8,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <atomic>
+#include <thread>
 
 static int unlockedSnprintf(char *out, size_t capacity, const char *format, ...) {
   assert(testCriticalDepth == 0);
@@ -33,6 +35,7 @@ namespace {
 struct NimbleScaleClientTest {
 static void ready(NimbleScaleClient &c) {
   testOnWait={}; testOnSubmit={}; testSubmitStatus=0;
+  testOnConnectCancel={}; testConnectCancelStatus=0;
   testTerminateStatus=0; testRssiStatus=0; testRadioProcedures=0; testTerminations=0;
   testWrites=0; testWakeCount=0;
   capturedScaleLogs.clear();
@@ -65,6 +68,150 @@ static void advertise(NimbleScaleClient &c, uint8_t eventType,
   c.onAdvertisement(advertisement, c.scanOperationId_);
 }
 static void run() {
+  for (bool synchronous : {false,true}) {
+    NimbleScaleClient c(false); ready(c);
+    c.connectionHandle_=kInvalidHandle;
+    c.enterState(NimbleScaleClient::State::Connecting);
+    const uint32_t operation=c.beginOperation(NimbleScaleClient::CallbackDomain::Link);
+    ble_gap_event success={}; success.type=BLE_GAP_EVENT_CONNECT;
+    success.connect.conn_handle=42;
+    testConnectCancelStatus=BLE_HS_EALREADY;
+    if (synchronous) testOnConnectCancel=[&] { c.onGapEvent(&success,operation); };
+    c.disconnect();
+    CHECK(c.cleanupCount_==1);
+    CHECK(!c.startScan(nullptr,false,BLE_SCAN_BALANCED_INTERVAL,BLE_SCAN_BALANCED_WINDOW,false));
+    if (!synchronous) c.onGapEvent(&success,operation);
+    testOnConnectCancel={};
+    c.service();
+    CHECK(testTerminations==1);
+    c.onGapEvent(&success,operation); // Duplicate cannot submit twice.
+    testNowMs+=SCALE_DISCONNECT_SILENCE_MS+1;
+    c.service();
+    CHECK(testTerminations==1);
+    CHECK(!c.startScan(nullptr,false,BLE_SCAN_BALANCED_INTERVAL,BLE_SCAN_BALANCED_WINDOW,false));
+    ble_gap_event gone={}; gone.type=BLE_GAP_EVENT_DISCONNECT;
+    gone.disconnect.conn.conn_handle=42;
+    c.onGapEvent(&gone,operation);
+    testNowMs+=SCALE_DISCONNECT_SILENCE_MS;
+    CHECK(c.startScan(nullptr,false,BLE_SCAN_BALANCED_INTERVAL,BLE_SCAN_BALANCED_WINDOW,false));
+    c.onGapEvent(&success,operation);
+    c.service(); CHECK(testTerminations==1);
+    CHECK(c.cleanupCount_==1);
+  }
+  for (int cancelStatus : {0,BLE_HS_EALREADY,BLE_HS_EBUSY}) {
+    for (bool reset : {false,true}) {
+      NimbleScaleClient c(false); ready(c);
+      c.connectionHandle_=kInvalidHandle;
+      c.enterState(NimbleScaleClient::State::Connecting);
+      const uint32_t operation=c.beginOperation(NimbleScaleClient::CallbackDomain::Link);
+      testConnectCancelStatus=cancelStatus;
+      c.disconnect();
+      const unsigned procedures=testRadioProcedures;
+      testNowMs+=SCALE_DISCONNECT_SILENCE_MS*2;
+      for (unsigned retry=0;retry<8;++retry) {
+        c.service();
+        CHECK(!c.startScan(nullptr,false,BLE_SCAN_BALANCED_INTERVAL,BLE_SCAN_BALANCED_WINDOW,false));
+      }
+      CHECK(testRadioProcedures==procedures); // Missing callback cannot retry storm.
+      ble_gap_event event={}; event.type=BLE_GAP_EVENT_CONNECT;
+      event.connect.conn_handle=42;
+      c.onGapEvent(&event,operation+1); // An unrelated stale success owns nothing.
+      c.service(); CHECK(testTerminations==0);
+      if (reset) {
+        ++testSyncGeneration;
+        c.service();
+        c.beginGeneration(); c.lifecycleActive_=true; c.syncGeneration_=testSyncGeneration;
+        c.enterState(NimbleScaleClient::State::Connecting);
+        const uint32_t replacement=c.beginOperation(NimbleScaleClient::CallbackDomain::Link);
+        c.onGapEvent(&event,replacement);
+        c.onGapEvent(&event,operation); // Same handle, previous runtime epoch.
+        CHECK(c.connectionHandle_==42);
+        CHECK(!c.cancelledConnectPending());
+        CHECK(testTerminations==0);
+        // Leave no in-flight discovery for this direct callback countercase.
+        c.finishLink(false,ScaleDisconnectReason::HOST_RESET,0);
+      } else {
+        c.onGapEvent(&event,operation);
+        testTerminateStatus=BLE_HS_EBUSY;
+        c.service(); CHECK(testTerminations==1);
+        for (unsigned retry=0;retry<8;++retry) c.service();
+        CHECK(testTerminations==1);
+        testNowMs+=SCALE_DISCONNECT_SILENCE_MS;
+        testTerminateStatus=0;
+        c.service(); CHECK(testTerminations==2);
+        event.type=BLE_GAP_EVENT_DISCONNECT;
+        event.disconnect.conn.conn_handle=42;
+        c.onGapEvent(&event,operation);
+        CHECK(!c.cancelledConnectPending());
+      }
+    }
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    for (unsigned cycle=0;cycle<3;++cycle) {
+      c.connectionHandle_=kInvalidHandle;
+      c.lifecycleActive_=true;
+      c.enterState(NimbleScaleClient::State::Connecting);
+      const uint32_t operation=c.beginOperation(NimbleScaleClient::CallbackDomain::Link);
+      c.disconnect();
+      ble_gap_event failed={}; failed.type=BLE_GAP_EVENT_CONNECT;
+      failed.connect.status=BLE_HS_ETIMEOUT;
+      c.onGapEvent(&failed,operation);
+      CHECK(!c.cancelledConnectPending());
+      CHECK(testTerminations==0);
+    }
+    CHECK(c.cleanupCount_==3);
+  }
+  {
+    testNowMs=100;
+    NimbleScaleClient c(false); ready(c);
+    ScaleProtocol heartbeat=*c.protocol_;
+    heartbeat.features=kScaleProtocolAcaia.features;
+    heartbeat.encodeCommand=kScaleProtocolAcaia.encodeCommand;
+    c.protocol_=&heartbeat;
+    c.lastHeartbeat_=nowMs()-heartbeat.features.heartbeatPeriodMs;
+    testSubmitStatus=BLE_HS_EBUSY;
+    for (unsigned attempt=0;attempt<4;++attempt) {
+      CHECK(c.heartbeatRequired());
+      CHECK(c.writeOp(ScaleOp::Heartbeat)==ScaleCommandResult::WriteFailed);
+      CHECK(!c.heartbeatRequired());
+      notify(c,20); CHECK(c.newWeightAvailable());
+      CHECK(c.isLinkUp());
+      testNowMs+=heartbeat.features.heartbeatPeriodMs;
+    }
+    const uint32_t limit=c.maxPacketPeriodMs();
+    while (nowMs()-c.lastPacket_<limit) {
+      if (c.heartbeatRequired()) {
+        CHECK(c.writeOp(ScaleOp::Heartbeat)==ScaleCommandResult::WriteFailed);
+      }
+      CHECK(!c.newWeightAvailable());
+      testNowMs+=heartbeat.features.heartbeatPeriodMs;
+    }
+    CHECK(!c.newWeightAvailable());
+    CHECK(c.lastReason()==ScaleDisconnectReason::PACKET_TIMEOUT);
+    CHECK(!c.isLinkUp());
+  }
+  for (unsigned iteration=0;iteration<32;++iteration) {
+    NimbleScaleClient c(false); ready(c);
+    c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    const uint32_t operation=c.linkOperationId_;
+    std::atomic<bool> started{false}, stop{false};
+    std::thread callback([&] {
+      os_mbuf b={}; b.length=20; b.data[0]=3; b.data[1]=0x0b; b.data[19]=8;
+      started.store(true,std::memory_order_release);
+      for (unsigned packet=0;packet<8 && !stop.load(std::memory_order_acquire);++packet) {
+        c.onNotification(1,10,&b,operation);
+      }
+    });
+    while (!started.load(std::memory_order_acquire)) std::this_thread::yield();
+    CHECK(c.writeOp(ScaleOp::PowerOff)==ScaleCommandResult::Ok);
+    stop.store(true,std::memory_order_release);
+    callback.join();
+    const uint32_t sequence=c.notificationSequence();
+    notify(c,20);
+    CHECK(c.notificationSequence()==sequence);
+    CHECK(c.closedCommandGeneration_==c.generation_);
+  }
   for (bool first : {false, true}) {
     for (bool stale : {false, true}) {
       for (bool wrap : {false, true}) {

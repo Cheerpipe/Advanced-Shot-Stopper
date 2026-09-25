@@ -166,6 +166,70 @@ void fuzzProtocolPacketBounds() {
   }
 }
 
+void mutateAcceptedProtocolFrames() {
+  // Parser-contract fixtures, not hardware captures. Reuse the reviewed
+  // Generic FF11 and Eureka layouts; exercise the remaining known grammars.
+  // Legacy Acaia and MyScale framing still needs independent device evidence.
+  struct Seed {
+    const ScaleProtocol *protocol;
+    std::vector<uint8_t> bytes;
+    int structuralByte;
+  };
+  const Seed seeds[] = {
+      {&kScaleProtocolAcaia, {0xef,0xdd,0x0c,8,5,0x68,1,0,0,1,0,0x71,6}, 0},
+      {&kScaleProtocolGenericFf11, {3,0x0b,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8}, 0},
+      {&kScaleProtocolFelicita, {0,0,'+','0','0','3','6','0','0','0','0','0','1','0',0,0,0,0}, 2},
+      {&kScaleProtocolEclair, {'W',0xa0,0x8c,0,0,0,0,0,0,0x2c}, 0},
+      {&kScaleProtocolDecent, {3,0xca,1,0x68,0,0,0xa0}, 0},
+      {&kScaleProtocolDifluid, {0xdf,0xdf,3,0,13,0,0,1,0x68,0,0,0,0,0,0,0,0,0,0x37}, 0},
+      {&kScaleProtocolWeighMyBru, {3,0x0b,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,8}, 0},
+      {&kScaleProtocolVaria, {0xfa,1,0,0,0x0e,0x10,0x1f}, 0},
+      {&kScaleProtocolEureka, {0xaa,9,0x41,0,0,0,0,0x68,1,0,0}, 0},
+  };
+  for (const auto &seed : seeds) {
+    const auto *protocol=seed.protocol;
+    float weight=0;
+    const int originalLength=static_cast<int>(seed.bytes.size());
+    CHECK(protocol->parseWeight(seed.bytes.data(),originalLength,&weight));
+    CHECK(std::isfinite(weight));
+    auto malformed=seed.bytes;
+    malformed[seed.structuralByte]=0xff;
+    CHECK(!protocol->parseWeight(malformed.data(),originalLength,&weight));
+    for (int length=0;length<=SCALE_MAX_PACKET_LENGTH;++length) {
+      auto frame=seed.bytes;
+      frame.resize(static_cast<size_t>(length));
+      for (int offset=0;offset<length;++offset) {
+        for (unsigned bit=0;bit<8;++bit) {
+          const auto original=frame;
+          frame[offset]^=static_cast<uint8_t>(1U<<bit);
+          for (bool repairIntegrity : {false,true}) {
+            if (repairIntegrity && length==originalLength) {
+              if (protocol==&kScaleProtocolAcaia) {
+                frame[length-2]=frame[length-1]=0;
+                for (int i=3;i<length-2;++i) frame[length-2+(i-3)%2]+=frame[i];
+              } else if (protocol!=&kScaleProtocolEureka && protocol!=&kScaleProtocolFelicita) {
+                frame[length-1]=0;
+                const int start=(protocol==&kScaleProtocolEclair || protocol==&kScaleProtocolVaria) ? 1 : 0;
+                for (int i=start;i<length-1;++i) {
+                  if (protocol==&kScaleProtocolDifluid) frame[length-1]+=frame[i];
+                  else frame[length-1]^=frame[i];
+                }
+              }
+            }
+            if (protocol->parseWeight(frame.data(),length,&weight)) {
+              CHECK(std::isfinite(weight));
+              CHECK(std::fabs(weight)<=SCALE_MAX_WEIGHT_GRAMS);
+            }
+            uint32_t timer=0;
+            if (protocol->parseTimer) protocol->parseTimer(frame.data(),length,&timer);
+          }
+          frame=original;
+        }
+      }
+    }
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -176,6 +240,7 @@ int main() {
   testProtocolInitializationContracts();
   testEurekaWeightFrame();
   fuzzProtocolPacketBounds();
+  mutateAcceptedProtocolFrames();
   std::cout << "NimBLE advertisement tests passed: " << checks << " checks\n";
   return 0;
 }

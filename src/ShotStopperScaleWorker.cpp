@@ -2345,7 +2345,7 @@ void serviceScaleWorkerLink() {
     if (!scaleCommandOk(scale.heartbeat())) {
       cancelBookooConnectBeepPolicy();
       updateWorkerLinkState();
-      return;
+      if (!scale.isLinkUp()) return;
     }
     snapshotDirty = true;
   }

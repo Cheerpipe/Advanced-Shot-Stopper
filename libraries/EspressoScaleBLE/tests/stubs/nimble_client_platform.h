@@ -9,16 +9,22 @@
 #include <algorithm>
 #include <new>
 #include <cassert>
+#include <mutex>
+#include <memory>
+#include <atomic>
 
 using TickType_t = uint32_t;
 using TaskHandle_t = void *;
-using portMUX_TYPE = int;
-#define portMUX_INITIALIZER_UNLOCKED 0
-inline unsigned testCriticalDepth = 0;
-inline std::function<void()> testAfterCriticalExit;
-inline void testEnterCritical(portMUX_TYPE *) { ++testCriticalDepth; }
-inline void testExitCritical(portMUX_TYPE *) {
+struct portMUX_TYPE {
+  std::unique_ptr<std::recursive_mutex> mutex{new std::recursive_mutex};
+};
+#define portMUX_INITIALIZER_UNLOCKED {}
+inline thread_local unsigned testCriticalDepth = 0;
+inline thread_local std::function<void()> testAfterCriticalExit;
+inline void testEnterCritical(portMUX_TYPE *mux) { mux->mutex->lock(); ++testCriticalDepth; }
+inline void testExitCritical(portMUX_TYPE *mux) {
   assert(testCriticalDepth != 0);
+  mux->mutex->unlock();
   if (--testCriticalDepth == 0 && testAfterCriticalExit) {
     auto callback = std::move(testAfterCriticalExit);
     testAfterCriticalExit = {};
@@ -33,7 +39,7 @@ inline void testExitCritical(portMUX_TYPE *) {
 #define pdTRUE 1
 #define pdFALSE 0
 #define pdMS_TO_TICKS(ms) (ms)
-inline uint64_t testNowMs = 100;
+inline std::atomic<uint64_t> testNowMs{100};
 inline uint32_t testWakeCount = 0;
 inline std::function<void()> testOnWait;
 inline int64_t esp_timer_get_time() { return testNowMs * 1000; }
@@ -119,6 +125,8 @@ inline void *testWriteArg=nullptr;
 inline int testSubmitStatus=0, testTerminateStatus=0, testRssiStatus=0;
 inline unsigned testRadioProcedures=0, testTerminations=0, testWrites=0;
 inline std::function<void()> testOnSubmit;
+inline std::function<void()> testOnConnectCancel;
+inline int testConnectCancelStatus=0;
 inline int ble_gattc_write_flat(uint16_t,uint16_t,const void *,uint16_t,TestWriteCallback cb,void *arg) {
   ++testRadioProcedures; ++testWrites;
   testWriteCallback=cb; testWriteArg=arg;
@@ -132,7 +140,11 @@ template<class... T> int ble_gattc_disc_all_dscs(T...) { ++testRadioProcedures; 
 template<class... T> int ble_gap_connect(T...) { ++testRadioProcedures; return BLE_HS_EINVAL; }
 template<class... T> int ble_gap_disc(T...) { ++testRadioProcedures; return 0; }
 inline int ble_gap_disc_cancel() { ++testRadioProcedures; return 0; }
-inline int ble_gap_conn_cancel() { ++testRadioProcedures; return 0; }
+inline int ble_gap_conn_cancel() {
+  ++testRadioProcedures;
+  if (testOnConnectCancel) testOnConnectCancel();
+  return testConnectCancelStatus;
+}
 inline int ble_gap_terminate(uint16_t,uint8_t) { ++testRadioProcedures; ++testTerminations; return testTerminateStatus; }
 inline int ble_gap_conn_rssi(uint16_t,int8_t *rssi) { ++testRadioProcedures; *rssi=-50; return testRssiStatus; }
 struct ShotStopperBleHealth { int lastResetReason; };

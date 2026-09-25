@@ -136,6 +136,11 @@ immediately with the new filter. If **Preferred only** is enabled while a
 different scale is connected, that connection is closed before directed
 discovery begins.
 
+If you cancel a connection just as it completes, the controller closes that
+connection before starting another search. It waits for Bluetooth to confirm
+the closure; if searching remains stuck because that confirmation never
+arrives, restart the controller.
+
 If a visible scale repeatedly refuses a Bluetooth connection, the first few
 attempts remain quick and later attempts spread out, up to five seconds apart.
 The controller keeps trying automatically; fresh weight after a healthy
