@@ -21,10 +21,10 @@ function updateCrashRow(s){
   let row=$('crashArchiveRow');
   if(!row){row=document.createElement('div');row.id='crashArchiveRow';row.className='metric';const label=document.createElement('strong');label.textContent=__WEBUI_TEXT__("diagnostic.coredump");row.append(label);const value=document.createElement('div');value.id='crashArchiveValue';value.setAttribute('aria-live','polite');row.append(value);misc.append(row)}
   const value=$('crashArchiveValue');value.replaceChildren();
-  const count=Number.isInteger(s.crashCount)?s.crashCount:0,supported=s.crashState!==1;
+  const count=s.crashCount||0,supported=s.crashState!==1;
   value.append(document.createTextNode((supported?count:__WEBUI_TEXT__("diagnostic.unavailable"))+' - '));
   for(const [label,action] of [[__WEBUI_TEXT__("diagnostic.download"),downloadCrashes],[__WEBUI_TEXT__("diagnostic.empty"),emptyCrashes]]){
-    const button=document.createElement('button');button.type='button';button.textContent=label;button.disabled=crashBusy||!supported||!count||!R.webUiOwner||!(s.adminUnlocked||s.development);button.onclick=action;value.append(button);if(action===downloadCrashes)value.append(document.createTextNode(' - '));
+    const l=document.createElement('a'),d=crashBusy||!supported||!count||!R.webUiOwner||!(s.adminUnlocked||s.development);l.href='#';l.textContent=label;l.setAttribute('aria-disabled',d);l.tabIndex=-d;l.onclick=()=>d||(!action(),false);value.append(l);if(action===downloadCrashes)value.append(' - ');
   }
   if(s.crashState>1)value.append(document.createTextNode(' ('+__WEBUI_TEXT__("diagnostic.crash_capture_error")+')'));
 }
