@@ -19,19 +19,18 @@ let crashBusy=false;
 function applyLoopTiming(s){
   const rows=(s.tasks?.rows||[]).filter(r=>r.name?.startsWith('loopTask/'));
   const body=$('loopTimingBody');body.replaceChildren();
-  const ms=us=>(us/1000).toFixed(2)+' ms';
+  const ms=us=>(Math.max(0,us)/1000).toFixed(2)+' ms';
+  const add=values=>{const tr=body.insertRow();for(const value of values)tr.insertCell().textContent=value};
+  const recent=s.health.loopIntervalGapMs||0,peak=s.health.loopMaxGapMs||0;
+  const recentReady=s.tasks?.recentGapMs===recent;
+  const peakReady=s.tasks?.peakGapMs===peak;
+  let recentTotal=0,peakTotal=0;
   for(const r of rows){
-    const tr=body.insertRow();
-    for(const value of [r.name.slice(9),ms(r.maxExecutionUs||0),ms(r.lastExecutionUs||0)])tr.insertCell().textContent=value;
+    const a=r.recentGapExecutionUs,b=r.peakGapExecutionUs;
+    recentTotal+=a;peakTotal+=b;
+    add([r.name.slice(9),recentReady?ms(a):'—',peakReady?ms(b):'—']);
   }
-  const gap=s.health.loopMaxGapMs||0,parts=[];
-  if(s.tasks?.peakGapMs===gap&&gap){
-    let total=0;
-    for(const r of rows)if(r.peakGapExecutionUs){parts.push(r.name.slice(9)+' '+ms(r.peakGapExecutionUs));total+=r.peakGapExecutionUs}
-    const other=gap*1000-total;
-    if(other>1000)parts.push(__WEBUI_TEXT__("diagnostic.wait_other")+' '+ms(other));
-  }
-  $('hLoopMax').textContent=gap+' ms'+(parts.length?' ('+parts.join(' · ')+')':'');
+  add([__WEBUI_TEXT__("diagnostic.wait_other"),recentReady?ms(recent*1000-recentTotal):'—',peakReady?ms(peak*1000-peakTotal):'—']);
 }
 function updateCrashRow(s){
   const misc=$('hResetHistory')?.closest('fieldset.statusColumn');if(!misc)return;

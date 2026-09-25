@@ -59,6 +59,7 @@ struct LoopPhaseProfilerRow {
   uint32_t maxExecutionUs = 0;
   uint32_t lastExecutionUs = 0;
   uint32_t peakGapExecutionUs = 0;
+  uint32_t recentGapExecutionUs = 0;
   float currentCpuPct = 0.0f;
   float averageCpuPct = 0.0f;
 };
@@ -66,6 +67,7 @@ struct LoopPhaseProfilerRow {
 struct LoopPhaseProfilerSnapshot {
   uint8_t rowCount = 0;
   uint32_t peakGapMs = 0;
+  uint32_t recentGapMs = 0;
   LoopPhaseProfilerRow rows[LOOP_PHASE_COUNT] = {};
 };
 
@@ -118,6 +120,21 @@ class LoopPhaseProfiler {
     peakGapMs_ = gapMs;
   }
 
+  void captureIntervalGap() {
+    memcpy(intervalGapUs_, iterationUs_, sizeof(intervalGapUs_));
+  }
+
+  void publishIntervalGap(uint32_t gapMs) {
+    memcpy(recentGapUs_, intervalGapUs_, sizeof(recentGapUs_));
+    memset(intervalGapUs_, 0, sizeof(intervalGapUs_));
+    recentGapMs_ = gapMs;
+    TaskLockGuard lock(snapshotMutex_);
+    snapshot_.recentGapMs = gapMs;
+    for (uint8_t i = 0; i < LOOP_PHASE_COUNT; ++i) {
+      snapshot_.rows[i].recentGapExecutionUs = recentGapUs_[i];
+    }
+  }
+
   void copySnapshot(LoopPhaseProfilerSnapshot &out) const {
     TaskLockGuard lock(snapshotMutex_);
     out = snapshot_;
@@ -141,11 +158,13 @@ class LoopPhaseProfiler {
     if (!active_) copySnapshot(next);
     next.rowCount = LOOP_PHASE_COUNT;
     next.peakGapMs = peakGapMs_;
+    next.recentGapMs = recentGapMs_;
     for (uint8_t i = 0; i < LOOP_PHASE_COUNT; ++i) {
       LoopPhaseProfilerRow &row = next.rows[i];
       row.name = loopPhaseName(static_cast<LoopPhase>(i));
       row.lastExecutionUs = lastUs_[i];
       row.peakGapExecutionUs = peakGapUs_[i];
+      row.recentGapExecutionUs = recentGapUs_[i];
       row.maxExecutionUs = maxUs_[i];
       if (!active_) continue;
       row.sampleCount = sampleCounts_[i];
@@ -178,7 +197,10 @@ class LoopPhaseProfiler {
   uint32_t lastUs_[LOOP_PHASE_COUNT] = {};
   uint32_t iterationUs_[LOOP_PHASE_COUNT] = {};
   uint32_t peakGapUs_[LOOP_PHASE_COUNT] = {};
+  uint32_t intervalGapUs_[LOOP_PHASE_COUNT] = {};
+  uint32_t recentGapUs_[LOOP_PHASE_COUNT] = {};
   uint32_t peakGapMs_ = 0;
+  uint32_t recentGapMs_ = 0;
   std::atomic<bool> resetRequested_{false};
   mutable TaskMutex snapshotMutex_;
   LoopPhaseProfilerSnapshot snapshot_ = {};

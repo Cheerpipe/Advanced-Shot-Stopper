@@ -115,6 +115,7 @@ void serviceHealthWorkerSample() {
         static_cast<uint32_t>(uxTaskGetStackHighWaterMark(nullptr));
     serviceHealthThresholdAlerts(healthIntervalMaxGapMs);
     loopIntervalGapMs = healthIntervalMaxGapMs;
+    loopPhaseProfiler.publishIntervalGap(loopIntervalGapMs);
     healthIntervalMaxGapMs = 0;
     if (sample.restartRequested && !healthHeapRestartLatched &&
         controlAllowsConfigurationNow() && !circuitClosed) {
@@ -588,6 +589,7 @@ void loop() {
     }
     if (gap > healthIntervalMaxGapMs) {
       healthIntervalMaxGapMs = gap;
+      loopPhaseProfiler.captureIntervalGap();
     }
   }
   lastLoopAtMs = loopStartedAtMs;

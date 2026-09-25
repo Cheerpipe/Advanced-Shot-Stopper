@@ -93,16 +93,18 @@ worker alone updates its maximum gap and execution metrics.
 The control loop continuously records the last and maximum execution time for
 coarse safety/health, scale/machine-input,
 machine-guards, control, alerts/timers, commands, housekeeping, diagnostics
-and final-scale-drain phases. It also retains the phases from the iteration
-preceding the largest start-to-start loop gap; this gap includes scheduling
-and waiting beyond phase execution. The housekeeping phase records only on
-iterations that run its 10 ms-gated block. The loop owns the counters; the
-ordinary phase records avoid locking, and one-second publication briefly
-locks the diagnostic snapshot. The optional task profiler uses the same timing
+and final-scale-drain phases. It also retains the phases from the iterations
+preceding the largest start-to-start loop gaps since reset and within the
+current health window. The latter snapshot is frozen and published with the
+recent Loop gap value. Both gaps include scheduling and waiting beyond phase
+execution. The housekeeping phase records only on
+iterations that run its 10 ms-gated block. The loop owns the counters; ordinary
+phase records avoid locking, while one-second and health-window publication
+briefly lock the diagnostic snapshot. The optional task profiler uses the same timing
 calls for session CPU percentages and averages. Reset requests are consumed by
-the loop owner and clear the loop-gap and per-phase maxima without changing
-deadline and health alert accounting. Phase times include their own measurement
-cost.
+the loop owner and clear the historical loop-gap and per-phase maxima without
+changing the recent gap, deadline, or health alert accounting. Phase times
+include their own measurement cost.
 
 Partition-backed shot stores advance through one 4 KiB erase or one 1 KiB
 program operation per worker step. The flash lock is released and the current

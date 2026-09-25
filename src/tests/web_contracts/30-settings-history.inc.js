@@ -346,6 +346,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !ui.includes('id="loopMaxResetButton"') ||
       !ui.includes('id="loopTimingTable"') ||
       !ui.includes('id="loopTimingBody"') ||
+      !diagHtml.includes('<th>Loop gap</th><th>Loop max</th>') ||
       !ui.includes('/api/v1/diagnostic/loop-max/reset') ||
       !ui.includes('id="lastCommandState"') ||
       !ui.includes('function updH(') ||
@@ -353,7 +354,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !ui.includes('function applyDiagnosticStatus(') ||
       !ui.includes('loopIntervalGapMs') ||
       !ui.includes("s.health.loopIntervalGapMs+' ms'") ||
-      !ui.includes("s.health.loopMaxGapMs+' ms'") ||
+      !ui.includes("t('hLoopMax',s.health.loopMaxGapMs+") ||
       !ui.includes('h.uptimeMs') ||
       !ui.includes('h.minimumFreeHeapBytes') ||
       !ui.includes('h.largestFreeHeapBlockBytes') ||
@@ -517,6 +518,39 @@ if (!ui.includes('<legend>Brew</legend>') ||
       css.includes('diagGroup')) {
     throw new Error(
         'Diagnostics must be a non-collapsible fieldset at the top of Diagnostic, above Log, with States/Machine I/O/Scale/Guards/WiFi/AP/Serial/CPU/Tasks/RAM/HEAP/MISC sections and one value per label');
+  }
+}
+{
+  const source = viewJs.diagnostic;
+  const first = source.indexOf('function applyLoopTiming(');
+  const last = source.indexOf('function updateCrashRow(', first);
+  if (first < 0 || last < first) throw new Error('Missing loop timing renderer');
+  const table = {rows: [], replaceChildren() { this.rows = []; }, insertRow() {
+    const cells = [];
+    this.rows.push(cells);
+    return {insertCell() { const cell = {textContent: ''}; cells.push(cell); return cell; }};
+  }};
+  const maximum = {textContent: '12 ms'};
+  const render = new Function('$', '__WEBUI_TEXT__', source.slice(first, last) +
+    ';return applyLoopTiming;')(id => id === 'loopTimingBody' ? table : maximum,
+    () => 'wait/other');
+  const status = {health: {loopIntervalGapMs: 5, loopMaxGapMs: 12}, tasks: {
+    recentGapMs: 5, peakGapMs: 12, rows: [{name: 'loopTask/safety/health',
+      recentGapExecutionUs: 180, peakGapExecutionUs: 2630,
+      maxExecutionUs: 9999, lastExecutionUs: 9999}]}};
+  render(status);
+  if (maximum.textContent !== '12 ms' ||
+      table.rows[0][1].textContent !== '0.18 ms' ||
+      table.rows[0][2].textContent !== '2.63 ms' ||
+      table.rows[1][1].textContent !== '4.82 ms' ||
+      table.rows[1][2].textContent !== '9.37 ms') {
+    throw new Error('Loop table must break down the two displayed gap events');
+  }
+  status.tasks.recentGapMs = 4;
+  render(status);
+  if (table.rows[0][1].textContent !== '—' ||
+      table.rows[0][2].textContent !== '2.63 ms') {
+    throw new Error('Loop table must hide an unmatched recent gap snapshot');
   }
 }
 if (!ui.includes('id="shotTable"') ||

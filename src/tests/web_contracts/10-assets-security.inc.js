@@ -272,15 +272,15 @@ if (htmlBytes > 72059) {
 // path without changing the normal polling payload or firmware compressor.
 // The Admin BLE master switch checkbox adds its save handler, status sync,
 // and revert-on-error path to the runtime module.
-// Continuous loop timing renders nine phase rows and the peak-gap breakdown.
-if (jsBytes > 198710) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 198710)`);
+// Matching recent/lifetime gap columns replace the peak-gap label breakdown.
+if (jsBytes > 198966) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 198966)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
 // The loop timing view adds only source allowance; compressed limits stay fixed.
-if (htmlBytes + jsBytes > 270769) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 270769)`);
+if (htmlBytes + jsBytes > 271025) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 271025)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

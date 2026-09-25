@@ -411,6 +411,8 @@ if (!network.includes('copyTaskProfiler') ||
     !network.includes('\\"averageExecutionUs\\"') ||
     !network.includes('\\"lastExecutionUs\\"') ||
     !network.includes('\\"peakGapExecutionUs\\"') ||
+    !network.includes('\\"recentGapMs\\"') ||
+    !network.includes('\\"recentGapExecutionUs\\"') ||
     !network.includes('/api/v1/diagnostic/profiler') ||
     !network.includes('taskProfilerHandler') ||
     !network.includes('static constexpr size_t kStatusJson = 16384') ||
