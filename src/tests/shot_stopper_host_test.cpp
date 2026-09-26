@@ -5306,6 +5306,14 @@ void d13b_scale_power_off_is_terminal_for_connection_generation() {
   executeScalePowerOffCommand();
   CHECK(scale.commandLog.size() == 1);
   CHECK(scale.commandLog[0] == "powerOff");
+  uint32_t lastScanCycleMs=0, lastConnectLogMs=0, scanSessionAtMs=0;
+  uint32_t scanLastAdvertAtMs=0;
+  bool connectAttemptSeriesActive=false;
+  serviceScaleWorkerDiscovery(lastScanCycleMs,lastConnectLogMs,
+      connectAttemptSeriesActive,scanSessionAtMs,scanLastAdvertAtMs);
+  CHECK(getScaleLinkSnapshot().state == ScaleLinkState::CONNECTED);
+  CHECK(scalePowerOffBlocksGeneration(generation));
+  CHECK(scale.startScanCalls == 0);
   requestScalePowerOff();
   CHECK(!takeScalePowerOff());
 
@@ -5318,9 +5326,6 @@ void d13b_scale_power_off_is_terminal_for_connection_generation() {
   CHECK(!scaleDiscoveryPaused());
   CHECK(scale.communicationSilenceRemainingMs() ==
         SCALE_DISCONNECT_SILENCE_MS);
-  uint32_t lastScanCycleMs=0, lastConnectLogMs=0, scanSessionAtMs=0;
-  uint32_t scanLastAdvertAtMs=0;
-  bool connectAttemptSeriesActive=false;
   serviceScaleWorkerDiscovery(lastScanCycleMs,lastConnectLogMs,
       connectAttemptSeriesActive,scanSessionAtMs,scanLastAdvertAtMs);
   CHECK(scale.startScanCalls==0);
@@ -5328,6 +5333,34 @@ void d13b_scale_power_off_is_terminal_for_connection_generation() {
   serviceScaleWorkerDiscovery(lastScanCycleMs,lastConnectLogMs,
       connectAttemptSeriesActive,scanSessionAtMs,scanLastAdvertAtMs);
   CHECK(!scaleDiscoveryPaused()); CHECK(scale.startScanCalls==1);
+}
+
+void d13c_disconnect_silence_clears_connecting_snapshot() {
+  resetHarness(false, false);
+  scale.connecting = true;
+  scaleLoggedGattConnecting = true;
+  updateWorkerLinkState();
+  CHECK(desiredScaleConnectedLedPattern(getScaleLinkSnapshot()) ==
+        ScaleConnectedLedPattern::FAST_BLINK);
+
+  scale.connecting = false;
+  scale.silenceArmed = true;
+  scale.silenceStartedAtMs = hostMillis;
+  uint32_t lastScanCycleMs = 0, lastConnectLogMs = 0, scanSessionAtMs = 0;
+  uint32_t scanLastAdvertAtMs = 0;
+  bool connectAttemptSeriesActive = false;
+  serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
+      connectAttemptSeriesActive, scanSessionAtMs, scanLastAdvertAtMs);
+  CHECK(!getScaleLinkSnapshot().connecting);
+  CHECK(desiredScaleConnectedLedPattern(getScaleLinkSnapshot()) ==
+        ScaleConnectedLedPattern::OFF);
+  hostMillis += 2999;
+  serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
+      connectAttemptSeriesActive, scanSessionAtMs, scanLastAdvertAtMs);
+  CHECK(scale.communicationSilenceRemainingMs() == 1);
+  CHECK(scale.startScanCalls == 0);
+  ++hostMillis;
+  CHECK(!scale.communicationSilenced());
 }
 
 void d15_control_housekeeping_has_wrap_safe_10ms_cadence() {
@@ -12444,6 +12477,19 @@ void bc10_ble_master_switch_quiesces_scale_link() {
   applyLiveBleEnabled(true);
   CHECK(liveBleEnabled());
   CHECK(!serviceBleMasterSwitch());
+
+  setScaleConnected(false);
+  scale.connecting = true;
+  scaleLoggedGattConnecting = true;
+  updateWorkerLinkState();
+  applyLiveBleEnabled(false);
+  CHECK(serviceBleMasterSwitch());
+  CHECK(!scaleLoggedGattConnecting);
+  const size_t connectionChecks = scale.isConnectedCalls;
+  const size_t disconnects = scale.disconnectCalls;
+  CHECK(serviceBleMasterSwitch());
+  CHECK(scale.isConnectedCalls == connectionChecks + 1);
+  CHECK(scale.disconnectCalls == disconnects);
 }
 
 void bc11_ble_master_switch_command_persists_live_without_restart() {
@@ -16902,6 +16948,7 @@ const TestCase testCases[] = {
     {"D01", d01_idle_scan_stays_enabled_between_ticks},
     {"D13", d13_idle_delays_relax_without_scale},
     {"D13B", d13b_scale_power_off_is_terminal_for_connection_generation},
+    {"D13C", d13c_disconnect_silence_clears_connecting_snapshot},
     {"D15", d15_control_housekeeping_has_wrap_safe_10ms_cadence},
     {"D14", d14_control_status_publishes_on_cycle_edge},
     {"D02", d02_first_mode_uses_name_scan},

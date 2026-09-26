@@ -343,7 +343,7 @@ class NimbleScaleClient {
   bool startScan(const char *mac, bool forceRestart, uint16_t interval,
                  uint16_t window, bool addressScan) {
     service();
-    if (communicationSilenced() || cancelledConnectPending()) {
+    if (communicationSilenced() || linkCleanupPending()) {
       lastRawStatus_ = BLE_HS_EBUSY;
       return false;
     }
@@ -900,9 +900,9 @@ class NimbleScaleClient {
     const int status = submit();
     portENTER_CRITICAL(&mux_);
     radioSubmitActive_ = false;
-    if (pendingDisconnect_ || cancelledDisconnectDuringSubmit_) {
+    if (pendingDisconnect_ || cleanupDisconnectDuringSubmit_) {
       armCommunicationSilenceLocked(SilenceTrigger::Gap, nowMs(), 0);
-      cancelledDisconnectDuringSubmit_ = false;
+      cleanupDisconnectDuringSubmit_ = false;
     }
     portEXIT_CRITICAL(&mux_);
     return status;
@@ -1023,14 +1023,14 @@ class NimbleScaleClient {
           }
           if (current) {
             connectComplete_ = true;
-          } else if (operationId != 0 && operationId == cancelledConnectOperation_ &&
-                     cancelledConnectSyncGeneration_ == runtimeGeneration) {
-            if (cancelledConnectHandle_ == kInvalidHandle) {
+          } else if (operationId != 0 && operationId == linkCleanupOperation_ &&
+                     linkCleanupSyncGeneration_ == runtimeGeneration) {
+            if (linkCleanupHandle_ == kInvalidHandle) {
               if (event->connect.status == 0) {
-                cancelledConnectHandle_ = event->connect.conn_handle;
-                cancelledConnectTerminate_ = true;
+                linkCleanupHandle_ = event->connect.conn_handle;
+                linkCleanupTerminate_ = true;
               } else {
-                cancelledConnectOperation_ = 0;
+                linkCleanupOperation_ = 0;
               }
             }
           } else {
@@ -1046,17 +1046,20 @@ class NimbleScaleClient {
       case BLE_GAP_EVENT_DISCONNECT:
         {
           portENTER_CRITICAL(&mux_);
-          const bool cancelled = operationId != 0 &&
-              operationId == cancelledConnectOperation_ &&
-              event->disconnect.conn.conn_handle == cancelledConnectHandle_ &&
-              cancelledConnectSyncGeneration_ == runtimeGeneration;
-          if (cancelled) {
-            cancelledConnectOperation_ = 0;
-            if (radioSubmitActive_) cancelledDisconnectDuringSubmit_ = true;
-            else armCommunicationSilenceLocked(SilenceTrigger::Gap, nowMs(), 0);
+          const bool cleanup = operationId != 0 &&
+              operationId == linkCleanupOperation_ && !linkCleanupGapReceived_ &&
+              event->disconnect.conn.conn_handle == linkCleanupHandle_ &&
+              linkCleanupSyncGeneration_ == runtimeGeneration;
+          if (cleanup) {
+            linkCleanupGapReceived_ = true;
+            linkCleanupGapStatus_ = event->disconnect.reason;
+            linkCleanupGapAtMs_ = nowMs();
+            if (radioSubmitActive_) cleanupDisconnectDuringSubmit_ = true;
+            else armCommunicationSilenceLocked(SilenceTrigger::Gap,
+                                               linkCleanupGapAtMs_, 0);
           }
           portEXIT_CRITICAL(&mux_);
-          if (cancelled) return 0;
+          if (cleanup) return 0;
         }
         if (armGapSilenceIfCurrent(operationId,
                                    event->disconnect.conn.conn_handle,
@@ -1537,24 +1540,26 @@ class NimbleScaleClient {
     return generation;
   }
 
-  uint16_t invalidateGeneration(ScaleDisconnectReason &reason, int32_t &rawStatus,
-                                bool &terminatePeer) {
+  void invalidateGeneration(ScaleDisconnectReason &reason, int32_t &rawStatus,
+                            bool terminatePeer) {
     portENTER_CRITICAL(&mux_);
     // A GAP callback can arrive after the owner's last service() call. Claim
     // its evidence atomically with invalidation before clearing the queues.
-    if (pendingDisconnect_ && reason != ScaleDisconnectReason::USER_REQUEST &&
-        reason != ScaleDisconnectReason::HOST_RESET) {
-      rawStatus = pendingDisconnectStatus_;
-      reason = mapRawDisconnectReason(rawStatus);
+    if (pendingDisconnect_ && reason != ScaleDisconnectReason::HOST_RESET) {
+      if (reason != ScaleDisconnectReason::USER_REQUEST) {
+        rawStatus = pendingDisconnectStatus_;
+        reason = mapRawDisconnectReason(rawStatus);
+      }
       terminatePeer = false;
     }
-    const uint16_t oldHandle = connectionHandle_;
-    if (terminatePeer && state_ == State::Connecting && !connectComplete_ &&
-        reason != ScaleDisconnectReason::HOST_RESET) {
-      cancelledConnectOperation_ = linkOperationId_;
-      cancelledConnectSyncGeneration_ = syncGeneration_;
-      cancelledConnectHandle_ = kInvalidHandle;
-      cancelledConnectTerminate_ = false;
+    if (terminatePeer && reason != ScaleDisconnectReason::HOST_RESET &&
+        (connectionHandle_ != kInvalidHandle ||
+         (state_ == State::Connecting && !connectComplete_))) {
+      linkCleanupOperation_ = linkOperationId_;
+      linkCleanupSyncGeneration_ = syncGeneration_;
+      linkCleanupHandle_ = connectionHandle_;
+      linkCleanupTerminate_ = connectionHandle_ != kInvalidHandle;
+      linkCleanupGapReceived_ = false;
     }
     connectionHandle_ = kInvalidHandle;
     readHandle_ = 0;
@@ -1567,7 +1572,6 @@ class NimbleScaleClient {
     linkOperationId_ = 0;
     gattOperationId_ = 0;
     portEXIT_CRITICAL(&mux_);
-    return oldHandle;
   }
 
   void enterState(State state, uint32_t timeoutMs = 0) {
@@ -1581,7 +1585,7 @@ class NimbleScaleClient {
 
   bool beginConfiguredScan(bool restart, State initialState = State::Scanning,
                            uint32_t stateTimeoutMs = 0) {
-    if (communicationSilenced() || cancelledConnectPending()) {
+    if (communicationSilenced() || linkCleanupPending()) {
       lastRawStatus_ = BLE_HS_EBUSY;
       return false;
     }
@@ -1640,11 +1644,11 @@ class NimbleScaleClient {
       syncGeneration_ = runtimeGeneration;
     }
     if (!shotStopperBleRuntimeReady() &&
-        (state_ != State::Idle || cancelledConnectPending())) {
+        (state_ != State::Idle || linkCleanupPending())) {
       finishLink(false, ScaleDisconnectReason::HOST_RESET, BLE_HS_ENOTSYNCED);
       return;
     }
-    if (reconcileCancelledConnect()) return;
+    if (reconcileLinkCleanup()) return;
     bool pendingDisconnect = false;
     int32_t pendingDisconnectStatus = 0;
     portENTER_CRITICAL(&mux_);
@@ -2324,7 +2328,9 @@ class NimbleScaleClient {
                   int32_t rawStatus) {
     if (reason == ScaleDisconnectReason::HOST_RESET) {
       portENTER_CRITICAL(&mux_);
-      cancelledConnectOperation_ = 0;
+      linkCleanupOperation_ = 0;
+      linkCleanupGapReceived_ = false;
+      cleanupDisconnectDuringSubmit_ = false;
       portEXIT_CRITICAL(&mux_);
     }
     if (!lifecycleActive_) {
@@ -2348,8 +2354,7 @@ class NimbleScaleClient {
     const bool silenceWasActive = communicationSilenced();
     lifecycleActive_ = false;
     backoffScanActive_ = false;
-    const uint16_t oldHandle =
-        invalidateGeneration(reason, rawStatus, terminatePeer);
+    invalidateGeneration(reason, rawStatus, terminatePeer);
     enterState(State::Idle);
     ++cleanupCount_;
     if (reason != ScaleDisconnectReason::NONE) {
@@ -2396,17 +2401,13 @@ class NimbleScaleClient {
          previous == State::Settling || previous == State::Backoff)) {
       teardownStatus = submitRadioProcedure(
           false, [] { return ble_gap_disc_cancel(); });
-    } else if (!silenceWasActive && previous == State::Connecting) {
+    } else if (!silenceWasActive && previous == State::Connecting &&
+               !connectComplete_) {
       teardownStatus = submitRadioProcedure(
           false, [] { return ble_gap_conn_cancel(); });
     }
     noteTeardownResult(teardownStatus);
-    if (terminatePeer && oldHandle != kInvalidHandle && !silenceWasActive) {
-      noteTeardownResult(submitRadioProcedure(false, [&] {
-        return ble_gap_terminate(oldHandle, BLE_ERR_REM_USER_CONN_TERM);
-      }));
-      armCommunicationSilence(SilenceTrigger::LocalDisconnect);
-    }
+    (void)reconcileLinkCleanup();
     protocol_ = nullptr;
     writeHandle_ = 0;
     cccdHandle_ = 0;
@@ -2459,7 +2460,7 @@ class NimbleScaleClient {
       if (reason == ScaleDisconnectReason::SCAN_START_FAILED) {
         backoffScanActive_ = false;
         enterState(State::Backoff, delayMs);
-      } else if (communicationSilenced()) {
+      } else if (communicationSilenced() || linkCleanupPending()) {
         backoffScanActive_ = false;
         enterState(State::Backoff, delayMs);
       } else {
@@ -2476,20 +2477,32 @@ class NimbleScaleClient {
     return true;
   }
 
-  bool cancelledConnectPending() const {
+  bool linkCleanupPending() const {
     portENTER_CRITICAL(&mux_);
-    const bool pending = cancelledConnectOperation_ != 0;
+    const bool pending = linkCleanupOperation_ != 0;
     portEXIT_CRITICAL(&mux_);
     return pending;
   }
 
-  bool reconcileCancelledConnect() {
+  bool reconcileLinkCleanup() {
     portENTER_CRITICAL(&mux_);
-    const uint32_t operation = cancelledConnectOperation_;
-    const uint32_t runtimeGeneration = cancelledConnectSyncGeneration_;
-    const uint16_t handle = cancelledConnectHandle_;
-    const bool terminate = cancelledConnectTerminate_;
+    const uint32_t operation = linkCleanupOperation_;
+    const uint32_t runtimeGeneration = linkCleanupSyncGeneration_;
+    const uint16_t handle = linkCleanupHandle_;
+    const bool terminate = linkCleanupTerminate_;
+    const bool gapReceived = linkCleanupGapReceived_;
+    const int32_t gapStatus = linkCleanupGapStatus_;
+    const uint32_t gapAtMs = linkCleanupGapAtMs_;
+    if (gapReceived) {
+      linkCleanupOperation_ = 0;
+      linkCleanupGapReceived_ = false;
+    }
     portEXIT_CRITICAL(&mux_);
+    if (gapReceived) {
+      scaleLogInfo("ble teardown complete raw=%ld at_ms=%lu",
+                   static_cast<long>(gapStatus), static_cast<unsigned long>(gapAtMs));
+      return true;
+    }
     if (operation == 0) return false;
     // Keep the sole cleanup slot until GAP acknowledges it. No new scan/link
     // may overwrite it, even if a host callback outlives the quiet interval.
@@ -2501,13 +2514,13 @@ class NimbleScaleClient {
         return ble_gap_terminate(handle, BLE_ERR_REM_USER_CONN_TERM);
       });
       portENTER_CRITICAL(&mux_);
-      if (cancelledConnectOperation_ == operation) {
-        if (rc == 0 || rc == BLE_HS_EALREADY) cancelledConnectTerminate_ = false;
-        if (rc == BLE_HS_ENOTCONN) cancelledConnectOperation_ = 0;
+      if (linkCleanupOperation_ == operation && !linkCleanupGapReceived_) {
+        if (rc == 0 || rc == BLE_HS_EALREADY) linkCleanupTerminate_ = false;
+        if (rc == BLE_HS_ENOTCONN) linkCleanupOperation_ = 0;
+        armCommunicationSilenceLocked(SilenceTrigger::LocalDisconnect, nowMs(), 0);
       }
       portEXIT_CRITICAL(&mux_);
       noteTeardownResult(rc);
-      armCommunicationSilence(SilenceTrigger::LocalDisconnect);
     }
     return true;
   }
@@ -2572,11 +2585,14 @@ class NimbleScaleClient {
   uint32_t operationId_ = 0;
   uint32_t scanOperationId_ = 0;
   uint32_t linkOperationId_ = 0;
-  uint32_t cancelledConnectOperation_ = 0;
-  uint32_t cancelledConnectSyncGeneration_ = 0;
-  uint16_t cancelledConnectHandle_ = kInvalidHandle;
-  bool cancelledConnectTerminate_ = false;
-  bool cancelledDisconnectDuringSubmit_ = false;
+  uint32_t linkCleanupOperation_ = 0;
+  uint32_t linkCleanupSyncGeneration_ = 0;
+  uint16_t linkCleanupHandle_ = kInvalidHandle;
+  bool linkCleanupTerminate_ = false;
+  bool cleanupDisconnectDuringSubmit_ = false;
+  bool linkCleanupGapReceived_ = false;
+  int32_t linkCleanupGapStatus_ = 0;
+  uint32_t linkCleanupGapAtMs_ = 0;
   bool connectComplete_ = false;
   uint32_t gattOperationId_ = 0;
   uint32_t syncGeneration_ = 0;

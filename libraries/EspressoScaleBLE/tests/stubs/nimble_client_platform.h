@@ -126,6 +126,7 @@ inline int testSubmitStatus=0, testTerminateStatus=0, testRssiStatus=0;
 inline unsigned testRadioProcedures=0, testTerminations=0, testWrites=0;
 inline std::function<void()> testOnSubmit;
 inline std::function<void()> testOnConnectCancel;
+inline std::function<void()> testOnTerminate;
 inline int testConnectCancelStatus=0;
 inline int ble_gattc_write_flat(uint16_t,uint16_t,const void *,uint16_t,TestWriteCallback cb,void *arg) {
   ++testRadioProcedures; ++testWrites;
@@ -145,7 +146,11 @@ inline int ble_gap_conn_cancel() {
   if (testOnConnectCancel) testOnConnectCancel();
   return testConnectCancelStatus;
 }
-inline int ble_gap_terminate(uint16_t,uint8_t) { ++testRadioProcedures; ++testTerminations; return testTerminateStatus; }
+inline int ble_gap_terminate(uint16_t,uint8_t) {
+  ++testRadioProcedures; ++testTerminations;
+  if (testOnTerminate) testOnTerminate();
+  return testTerminateStatus;
+}
 inline int ble_gap_conn_rssi(uint16_t,int8_t *rssi) { ++testRadioProcedures; *rssi=-50; return testRssiStatus; }
 struct ShotStopperBleHealth { int lastResetReason; };
 inline bool testRuntimeReady=true;

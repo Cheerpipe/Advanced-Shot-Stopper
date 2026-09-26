@@ -93,8 +93,10 @@ Once it asks the scale to shut down, it sends no more commands on that
 connection. The BLE library blocks commands, reads, scanning, and reconnection
 for 3,000 ms, starting before the shutdown command and restarting the full
 interval as soon as the scale's disconnect is observed. The first valid
-advertisement after that quiet period can reconnect normally; there is no
-additional two-advertisement delay.
+advertisement after that quiet period can reconnect normally, once the previous
+connection has fully closed. If a command times out during shutdown, the
+controller waits for the old connection to close before searching again; a
+delayed disconnect starts a fresh three-second pause.
 
 ## Manual tare for diagnosis
 

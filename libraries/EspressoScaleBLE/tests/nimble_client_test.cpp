@@ -35,7 +35,7 @@ namespace {
 struct NimbleScaleClientTest {
 static void ready(NimbleScaleClient &c) {
   testOnWait={}; testOnSubmit={}; testSubmitStatus=0;
-  testOnConnectCancel={}; testConnectCancelStatus=0;
+  testOnConnectCancel={}; testOnTerminate={}; testConnectCancelStatus=0;
   testTerminateStatus=0; testRssiStatus=0; testRadioProcedures=0; testTerminations=0;
   testWrites=0; testWakeCount=0;
   capturedScaleLogs.clear();
@@ -126,7 +126,7 @@ static void run() {
         c.onGapEvent(&event,replacement);
         c.onGapEvent(&event,operation); // Same handle, previous runtime epoch.
         CHECK(c.connectionHandle_==42);
-        CHECK(!c.cancelledConnectPending());
+        CHECK(!c.linkCleanupPending());
         CHECK(testTerminations==0);
         // Leave no in-flight discovery for this direct callback countercase.
         c.finishLink(false,ScaleDisconnectReason::HOST_RESET,0);
@@ -142,7 +142,8 @@ static void run() {
         event.type=BLE_GAP_EVENT_DISCONNECT;
         event.disconnect.conn.conn_handle=42;
         c.onGapEvent(&event,operation);
-        CHECK(!c.cancelledConnectPending());
+        c.service();
+        CHECK(!c.linkCleanupPending());
       }
     }
   }
@@ -157,10 +158,157 @@ static void run() {
       ble_gap_event failed={}; failed.type=BLE_GAP_EVENT_CONNECT;
       failed.connect.status=BLE_HS_ETIMEOUT;
       c.onGapEvent(&failed,operation);
-      CHECK(!c.cancelledConnectPending());
+      CHECK(!c.linkCleanupPending());
       CHECK(testTerminations==0);
     }
     CHECK(c.cleanupCount_==3);
+  }
+  {
+    testNowMs=100;
+    NimbleScaleClient c(false); ready(c);
+    const uint32_t operation=c.linkOperationId_;
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::WriteFailed);
+    CHECK(testNowMs==1100 && testTerminations==1);
+    CHECK(c.linkCleanupPending() && c.connectionHandle_==kInvalidHandle);
+    testNowMs=4000;
+    ble_gap_event gone={}; gone.type=BLE_GAP_EVENT_DISCONNECT;
+    gone.disconnect.conn.conn_handle=1; gone.disconnect.reason=BLE_HS_HCI_ERR(0x15);
+    c.onGapEvent(&gone,operation);
+    CHECK(c.linkCleanupPending()); // The callback only publishes completion.
+    CHECK(c.communicationSilenceRemainingMs()==SCALE_DISCONNECT_SILENCE_MS);
+    CHECK(c.diagnostics().disconnectReason==static_cast<uint8_t>(
+        ScaleDisconnectReason::COMMAND_WRITE_FAILED));
+    CHECK(c.diagnostics().disconnectStatus==BLE_HS_ETIMEOUT);
+    const auto logsBefore=capturedScaleLogs.size();
+    c.service();
+    CHECK(!c.linkCleanupPending() && c.cleanupCount_==1);
+    CHECK(capturedScaleLogs.size()==logsBefore+1);
+    CHECK(capturedScaleLogs.back().second=="ble teardown complete raw=533 at_ms=4000");
+    c.onGapEvent(&gone,operation); // Duplicate completion cannot extend silence.
+    testNowMs=4100;
+    c.service(); CHECK(c.scanStarts_==0 && testTerminations==1);
+    testNowMs=6999;
+    CHECK(!c.startScan(nullptr,false,BLE_SCAN_BALANCED_INTERVAL,BLE_SCAN_BALANCED_WINDOW,false));
+    testNowMs=7000;
+    c.service(); CHECK(c.scanStarts_==1);
+    CHECK(c.diagnostics().disconnectSequence==1);
+    CHECK(c.diagnostics().commandStatus==BLE_HS_ETIMEOUT);
+  }
+  for (int terminationStatus : {0,BLE_HS_EALREADY}) {
+    NimbleScaleClient c(false); ready(c);
+    const uint32_t operation=c.linkOperationId_;
+    testTerminateStatus=terminationStatus;
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::WriteFailed);
+    testNowMs+=SCALE_DISCONNECT_SILENCE_MS*3;
+    for (unsigned retry=0;retry<8;++retry) {
+      c.service();
+      CHECK(!c.startScan(nullptr,false,BLE_SCAN_BALANCED_INTERVAL,BLE_SCAN_BALANCED_WINDOW,false));
+    }
+    CHECK(testTerminations==1 && c.scanStarts_==0 && c.linkCleanupPending());
+    c.disconnect(); c.disconnect(); // Repeated user cleanup keeps the obligation.
+    CHECK(c.linkCleanupPending() && c.cleanupCount_==1);
+    CHECK(!c.startScan(nullptr,false,BLE_SCAN_BALANCED_INTERVAL,BLE_SCAN_BALANCED_WINDOW,false));
+    ++testSyncGeneration;
+    c.service(); CHECK(!c.linkCleanupPending());
+    c.beginGeneration(); c.lifecycleActive_=true; c.syncGeneration_=testSyncGeneration;
+    c.enterState(NimbleScaleClient::State::Connecting);
+    const uint32_t replacement=c.beginOperation(NimbleScaleClient::CallbackDomain::Link);
+    ble_gap_event event={}; event.type=BLE_GAP_EVENT_CONNECT; event.connect.conn_handle=1;
+    c.onGapEvent(&event,replacement);
+    event.type=BLE_GAP_EVENT_DISCONNECT; event.disconnect.conn.conn_handle=1;
+    c.onGapEvent(&event,operation);
+    CHECK(c.connectionHandle_==1 && !c.pendingDisconnect_ && !c.linkCleanupPending());
+    CHECK(testTerminations==1);
+    c.finishLink(false,ScaleDisconnectReason::HOST_RESET,0);
+  }
+  for (int terminationStatus : {BLE_HS_EBUSY,BLE_HS_EAGAIN,BLE_HS_ENOMEM}) {
+    NimbleScaleClient c(false); ready(c);
+    testTerminateStatus=terminationStatus;
+    c.disconnect();
+    CHECK(c.linkCleanupPending() && testTerminations==1);
+    for (unsigned retry=0;retry<8;++retry) c.service();
+    CHECK(testTerminations==1);
+    testNowMs+=SCALE_DISCONNECT_SILENCE_MS-1;
+    c.service(); CHECK(testTerminations==1);
+    ++testNowMs;
+    testTerminateStatus=0;
+    c.service(); CHECK(testTerminations==2 && c.linkCleanupPending());
+    testNowMs+=SCALE_DISCONNECT_SILENCE_MS*2;
+    c.service(); CHECK(testTerminations==2);
+    CHECK(!c.startScan(nullptr,false,BLE_SCAN_BALANCED_INTERVAL,BLE_SCAN_BALANCED_WINDOW,false));
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    testTerminateStatus=BLE_HS_ENOTCONN;
+    c.disconnect();
+    CHECK(!c.linkCleanupPending() && testTerminations==1);
+    CHECK(c.diagnostics().teardownStatus==BLE_HS_ENOTCONN);
+    testNowMs+=SCALE_DISCONNECT_SILENCE_MS;
+    CHECK(c.startScan(nullptr,false,BLE_SCAN_BALANCED_INTERVAL,BLE_SCAN_BALANCED_WINDOW,false));
+  }
+  for (bool earlyGap : {false,true}) {
+    testNowMs=100;
+    NimbleScaleClient c(false); ready(c);
+    const uint32_t operation=c.linkOperationId_;
+    CHECK(c.writeOp(ScaleOp::PowerOff)==ScaleCommandResult::WriteFailed);
+    CHECK(testNowMs==1100 && testTerminations==0 && c.linkCleanupPending());
+    testNowMs=earlyGap ? 1600 : 3099;
+    c.service(); CHECK(testTerminations==0);
+    if (!earlyGap) {
+      ++testNowMs;
+      c.service(); CHECK(testTerminations==1 && c.scanStarts_==0);
+      testNowMs+=SCALE_DISCONNECT_SILENCE_MS*2;
+      c.service(); CHECK(testTerminations==1 && c.scanStarts_==0);
+    }
+    ble_gap_event gone={}; gone.type=BLE_GAP_EVENT_DISCONNECT;
+    gone.disconnect.conn.conn_handle=1; gone.disconnect.reason=BLE_HS_HCI_ERR(0x15);
+    c.onGapEvent(&gone,operation);
+    CHECK(c.communicationSilenceRemainingMs()==SCALE_DISCONNECT_SILENCE_MS);
+    c.service(); CHECK(!c.linkCleanupPending());
+    CHECK(c.diagnostics().disconnectStatus==BLE_HS_ETIMEOUT);
+    testNowMs+=SCALE_DISCONNECT_SILENCE_MS-1;
+    c.service(); CHECK(c.scanStarts_==0);
+    ++testNowMs;
+    c.service(); CHECK(c.scanStarts_==1);
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    const uint32_t operation=c.linkOperationId_;
+    testOnTerminate=[&] {
+      ble_gap_event gone={}; gone.type=BLE_GAP_EVENT_DISCONNECT;
+      gone.disconnect.conn.conn_handle=1; gone.disconnect.reason=BLE_HS_HCI_ERR(0x15);
+      c.onGapEvent(&gone,operation);
+      testNowMs+=100; // The full quiet interval starts when submission returns.
+    };
+    c.disconnect();
+    CHECK(testTerminations==1 && c.communicationSilenceRemainingMs()==SCALE_DISCONNECT_SILENCE_MS);
+    CHECK(c.diagnostics().silenceTrigger==static_cast<uint8_t>(NimbleScaleClient::SilenceTrigger::Gap));
+    c.service(); CHECK(!c.linkCleanupPending() && testTerminations==1);
+    testOnTerminate={};
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    ble_gap_event gone={}; gone.type=BLE_GAP_EVENT_DISCONNECT;
+    gone.disconnect.conn.conn_handle=1; gone.disconnect.reason=BLE_HS_HCI_ERR(0x15);
+    c.onGapEvent(&gone,c.linkOperationId_);
+    c.disconnect();
+    CHECK(!c.linkCleanupPending() && testTerminations==0);
+    CHECK(c.lastReason()==ScaleDisconnectReason::USER_REQUEST);
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    const uint32_t operation=c.linkOperationId_;
+    c.disconnect();
+    ble_gap_event gone={}; gone.type=BLE_GAP_EVENT_DISCONNECT;
+    gone.disconnect.conn.conn_handle=1; gone.disconnect.reason=BLE_HS_HCI_ERR(0x15);
+    c.onGapEvent(&gone,operation);
+    CHECK(c.linkCleanupGapReceived_);
+    ++testSyncGeneration;
+    c.service();
+    CHECK(!c.linkCleanupPending() && !c.linkCleanupGapReceived_);
+    for (const auto &log : capturedScaleLogs) {
+      CHECK(log.second.find("ble teardown complete")==std::string::npos);
+    }
   }
   {
     testNowMs=100;

@@ -79,13 +79,15 @@ connection. Cleanup is idempotent, eight consecutive invalid notifications
 force a recoverable disconnect, and the first-valid-packet and silence limits
 remain protocol-specific.
 
-Cancelling a pending connection retains one cleanup operation until GAP reports
-failure or confirms disconnection. If connection success wins the cancellation
-race, the owner terminates that link; callbacks never submit the termination.
-New scans and connections wait for that acknowledgement, including after the
-quiet interval. A missing acknowledgement leaves reconnection blocked until a
-host reset; rejected termination attempts are spaced by the quiet interval.
-Host reset discards the old cleanup operation so a reused handle is untouched.
+Cancelling setup or closing an established connection retains one cleanup
+operation until GAP confirms closure or the controller reports that the link
+no longer exists. If connection success wins a cancellation race, the owner
+terminates that link; callbacks never submit the termination. A shutdown write
+timeout retains the same obligation while the quiet interval defers termination.
+New scans and connections wait for confirmed closure and the full quiet interval
+following it. A missing acknowledgement keeps reconnection blocked; rejected
+termination attempts are spaced by the quiet interval. Host reset discards the
+old cleanup operation so a reused handle is untouched.
 
 Keep the facade alive while the BLE runtime is active. Destruction drains
 callbacks already using the object and prevents access after destruction, but
@@ -98,8 +100,9 @@ callback immediately blocks new admissions and invalidates old-link data. If a
 radio submission was already admitted, the full quiet interval starts when
 that submission returns; otherwise it starts in the callback. The same final
 admission point covers writes, RSSI, scan/cancel, connect/cancel, discovery,
-subscription, initialization, and termination. No blocked operation
-is replayed. In-memory callback cleanup may continue, while old-link RX frames
+subscription, initialization, and termination. Blocked commands are not replayed;
+pending link cleanup remains the owner's responsibility. In-memory callback
+cleanup may continue, while old-link RX frames
 and results are discarded. `communicationSilenced()` and
 `communicationSilenceRemainingMs()` expose read-only state so an owner can
 avoid futile work but cannot shorten or bypass the barrier.
@@ -125,7 +128,9 @@ completed ATT rejections preserve a usable link. Unknown errors, stale GATT
 handles and unresolved one-second command timeouts still terminate it. Commands
 with uncertain outcomes are never automatically replayed. GAP/reset causes and
 teardown errors are recorded separately from command failures and survive
-reconnection in `diagnostics()`.
+reconnection in `diagnostics()`. A later disconnect completing local teardown
+also logs `ble teardown complete raw=... at_ms=...`, preserving its reason and
+arrival time without replacing the original command failure.
 
 Each protocol may define a minimum application-command interval. Bookoo uses
 100 ms for both acknowledged and unacknowledged writes; the client services

@@ -78,12 +78,15 @@ under the existing nested spinlocks; the consumer formats its private address
 copy after unlocking. A concurrent advertisement remains pending for the next
 consumption.
 
-Cancelled connection setup retains one operation and runtime epoch until GAP
-acknowledges failure or disconnection. A late success only publishes its handle;
-the scale owner performs termination outside all spinlocks. New attempts remain
-blocked while cleanup is unresolved, preventing slot overwrite and handle reuse.
-Host reset clears that ownership before further radio work. Power-off closes
-the library command generation under the same client mux used by RX callbacks.
+Cancelled setup and established-link teardown retain one operation, handle, and
+runtime epoch until GAP acknowledges closure or the controller reports no link.
+A late success only publishes its handle; the scale owner performs termination
+outside all spinlocks, deferring it through an active quiet interval. New attempts
+remain blocked while cleanup is unresolved, preventing slot overwrite and handle
+reuse. A matching late disconnect restarts the full quiet interval and publishes
+its completion for the owner without reviving old data. Host reset clears that
+ownership before further radio work. Power-off closes the library command
+generation under the same client mux used by RX callbacks.
 
 Application scale writes remain single-owner operations. Protocol metadata
 sets their minimum interval (100 ms for Bookoo), and the NimBLE owner services

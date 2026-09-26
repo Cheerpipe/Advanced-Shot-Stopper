@@ -67,7 +67,7 @@ using portMUX_TYPE = std::recursive_mutex;
 #define BLE_SCAN_AGGRESSIVE_WINDOW 0x0020
 #endif
 #ifndef SCALE_DISCONNECT_SILENCE_MS
-#define SCALE_DISCONNECT_SILENCE_MS 1000UL
+#define SCALE_DISCONNECT_SILENCE_MS 3000UL
 #endif
 
 #include "../../libraries/EspressoScaleBLE/src/ScaleFeatures.h"
@@ -564,7 +564,7 @@ class EspressoScaleBLE {
   uint32_t getTimerMs() const { return timerValid ? timerMs : 0; }
   uint32_t lastTimerAgeMs() const { return timerValid ? timerAgeMs : 0xffffffffUL; }
   bool heartbeatRequired() const { return heartbeatRequiredValue; }
-  bool isConnected() const { return connected; }
+  bool isConnected() const { ++isConnectedCalls; return connected; }
   bool isLinkUp() const { return connected; }
   bool communicationSilenced() const {
     return communicationSilenceRemainingMs() != 0;
@@ -577,6 +577,7 @@ class EspressoScaleBLE {
                : 0;
   }
   void disconnect() {
+    ++disconnectCalls;
     if (connected) {
       silenceArmed = true;
       silenceStartedAtMs = hostMillis;
@@ -721,6 +722,8 @@ class EspressoScaleBLE {
   uint32_t rejectedPackets = 0;
   uint32_t reconnects = 0;
   int linkRssiValue = SCALE_LINK_RSSI_UNAVAILABLE;
+  mutable size_t isConnectedCalls = 0;
+  size_t disconnectCalls = 0;
   size_t tareCalls = 0;
   size_t startTimerCalls = 0;
   size_t stopTimerCalls = 0;

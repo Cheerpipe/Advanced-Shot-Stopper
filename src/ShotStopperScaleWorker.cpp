@@ -1829,6 +1829,7 @@ bool serviceBleMasterSwitch() {
   if (scaleLoggedGattConnecting || scale.isScanning() || scale.isConnecting() ||
       scale.isConnected()) {
     scale.disconnect();
+    scaleLoggedGattConnecting = false;
     cancelBookooConnectBeepPolicy();
     updateWorkerLinkState();
     setScaleLinkState(ScaleLinkState::DISCONNECTED);
@@ -2161,7 +2162,10 @@ void serviceScaleWorkerDiscovery(uint32_t &lastScanCycleMs,
     scaleScanCompatibleActivityAtMs = scanSessionAtMs;
     scanLastAdvertAtMs = 0;
   }
-  if (scale.communicationSilenced()) return;
+  if (scale.communicationSilenced()) {
+    updateWorkerLinkState();
+    return;
+  }
   // Library drop can happen on a beep/command path that never refreshed the
   // link snapshot. Clear CONNECTED before idle scan work so the UI cannot sit
   // on "BLE connected" for the whole (indefinite) discovery session.
