@@ -79,11 +79,14 @@ identity once at setup and never change until the integration is reloaded:
 Its remaining entities are:
 
 - **Shot state** (`idle` or `brewing`).
-- **Last shot** sensors — duration, final weight, target weight, average flow,
+- **Last shot** sensors — when it ended, duration, final weight, target weight, average flow,
   first-drop time, star rating, shot type, stop detail, and preset. These
-  mirror the newest recorded shot on the controller's idle Home page.
+  mirror the newest recorded shot on the controller's idle Home page. The rating
+  reads **Unrated** until you give that shot stars. The time is unavailable if
+  the controller had not set its clock when the shot ended.
 - **Last activation** sensors — when the machine last did something, what it
-  was (a shot, a rinse, power on, or other), and how long it lasted. These
+  was (a shot, a rinse, power on, other, or a blocked No-scale BBW attempt),
+  and how long it lasted. These
   mirror the newest entry on the controller's History page.
 - **Stats** sensors — average duration, average yield, average BBW error, average
   flow, shots per day, and the shot count behind them. The controller computes
@@ -121,8 +124,10 @@ row reveals the next eligible shot; clearing the log clears both views.
 Home Assistant can also read the older `lastGoodShot` field when connected to
 firmware that still exposes the previous snapshot version.
 
-After setup, validated webhooks update live state immediately. A completed-cycle
-webhook triggers a REST reconciliation so the Last shot sensors continue to
+After setup, validated webhooks update live state immediately. Every new History
+entry, including a rinse or blocked No-scale BBW attempt, updates Last
+activation. A completed-cycle webhook triggers a REST reconciliation so the
+Last shot sensors continue to
 mirror the newest recorded shot, even when that cycle was too short or light
 to qualify. There is no healthy-state or background
 polling. Home Assistant also performs a single bounded REST reconciliation after

@@ -174,6 +174,7 @@ class Shot:
     weight_g: float | None = None
     average_flow_gps: float | None = None
     rating: int | None = None
+    ended_at_unix_sec: int | None = None
 
     @classmethod
     def from_dict(cls, value: Any) -> Self:
@@ -190,6 +191,7 @@ class Shot:
         optional_weight = data.get("weightG")
         optional_flow = data.get("averageFlowGps")
         optional_rating = data.get("rating")
+        optional_ended_at = data.get("endedAtUnixSec")
         return cls(
             cycle_id=_integer(data.get("cycleId"), "cycleId"),
             uptime_ms=_integer(data.get("uptimeMs"), "uptimeMs"),
@@ -211,12 +213,15 @@ class Shot:
             rating=None
             if optional_rating is None
             else _integer(optional_rating, "rating", 1),
+            ended_at_unix_sec=None
+            if optional_ended_at is None
+            else _integer(optional_ended_at, "endedAtUnixSec"),
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-safe storage representation."""
         data = asdict(self)
-        return {
+        result = {
             "cycleId": data["cycle_id"],
             "uptimeMs": data["uptime_ms"],
             "durationMs": data["duration_ms"],
@@ -230,6 +235,9 @@ class Shot:
             "averageFlowGps": data["average_flow_gps"],
             "rating": data["rating"],
         }
+        if data["ended_at_unix_sec"] is not None:
+            result["endedAtUnixSec"] = data["ended_at_unix_sec"]
+        return result
 
 
 @dataclass(frozen=True, slots=True)

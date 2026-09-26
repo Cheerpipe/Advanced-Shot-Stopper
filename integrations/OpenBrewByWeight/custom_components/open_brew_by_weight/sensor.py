@@ -79,6 +79,17 @@ MIRRORED_DESCRIPTIONS = (
         )
         for key, value_fn, icon, device_class, unit, state_class, options in (
             (
+                "time",
+                lambda shot: datetime.fromtimestamp(shot.ended_at_unix_sec, tz=UTC)
+                if shot.ended_at_unix_sec
+                else None,
+                "mdi:clock-outline",
+                SensorDeviceClass.TIMESTAMP,
+                None,
+                None,
+                None,
+            ),
+            (
                 "duration",
                 _seconds(lambda shot: shot.duration_ms),
                 "mdi:timer-outline",
@@ -125,7 +136,7 @@ MIRRORED_DESCRIPTIONS = (
             ),
             (
                 "rating",
-                lambda shot: shot.rating,
+                lambda shot: shot.rating if shot.rating is not None else "Unrated",
                 "mdi:star",
                 None,
                 None,

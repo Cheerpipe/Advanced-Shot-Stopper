@@ -52,6 +52,7 @@
           "brewing": "Brewing"
         }
       },
+      "last_shot_time": {"name": "Last shot"},
       "last_shot_duration": {"name": "Last shot duration"},
       "last_shot_final_weight": {"name": "Last shot final weight"},
       "last_shot_target_weight": {"name": "Last shot target weight"},
@@ -72,7 +73,7 @@
       "last_activation_time": {"name": "Last activation"},
       "last_activation_type": {
         "name": "Last activation type",
-        "state": {"shot": "Shot", "rinse": "Rinse", "other": "Other", "power_on": "Power on"}
+        "state": {"shot": "Shot", "rinse": "Rinse", "other": "Other", "power_on": "Power on", "no_scale_guard_aborted": "No-scale guard aborted"}
       },
       "last_activation_duration": {"name": "Last activation duration"},
       "stats_shot_count": {"name": "Stats shot count"},

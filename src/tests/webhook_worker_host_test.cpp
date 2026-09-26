@@ -163,6 +163,55 @@ static void testQueueCapacity() {
   assert(d.status().sent == 4 && d.status().dropped == 1);
   assert(d.stop());
 }
+static void testActivationHistorySubscription() {
+  resetPlatform();
+  WebhookDispatcher d;
+  WebhookConfig live = config(true);
+  assert(d.begin(live));
+  WebhookEvent event;
+  event.type = WebhookEventType::ACTIVATION_HISTORY;
+  event.activationId = 7;
+  event.activationType = static_cast<uint8_t>(HistoryType::RINSE);
+  assert(!d.enqueue(event));
+  live.presetChanges = true;
+  d.setConfig(live);
+  assert(d.enqueue(event));
+  event.type = WebhookEventType::CONTROLLER_STARTED;
+  assert(d.enqueue(event));
+  wifiStatus = 0;
+  afterReceive = [&]() { wifiStatus = WL_CONNECTED; };
+  afterTimeout = [&]() { WebhookDispatcherTest::stopOnNextIteration(d); };
+  WebhookDispatcherTest::run(d);
+  assert(d.status().sent == 2 && d.status().dropped == 1);
+  assert(d.stop());
+}
+static void testBootHintWaitsForSta() {
+  resetPlatform();
+  WebhookDispatcher d;
+  WebhookConfig live = config(true);
+  live.presetChanges = true;
+  assert(d.begin(live));
+  WebhookEvent event;
+  event.type = WebhookEventType::CONTROLLER_STARTED;
+  assert(d.enqueue(event));
+  wifiStatus = 0;
+  unsigned delays = 0;
+  afterDelay = [&]() {
+    if (++delays == 2) wifiStatus = WL_CONNECTED;
+    assert(delays <= 2);
+  };
+  duringPerform = [&]() { WebhookDispatcherTest::stopOnNextIteration(d); };
+  WebhookDispatcherTest::run(d);
+  assert(delays == 2 && d.status().sent == 1 && d.status().dropped == 0);
+  assert(d.stop());
+}
+static void testSecretWebhookEndpointRedacted() {
+  char safe[192] = {};
+  formatSafeHttpEndpoint(
+      "http://example.test:8123/api/webhook/secret-value?token=hidden", safe,
+      sizeof(safe));
+  assert(strcmp(safe, "http://example.test:8123/api/webhook/[redacted]") == 0);
+}
 static void testIntegrationPayloads() {
   resetPlatform();
   WebhookDispatcher d;
@@ -227,11 +276,22 @@ static void testIntegrationPayloads() {
   assert(WebhookDispatcherTest::payload(d, event, payload, sizeof(payload)));
   assert(strstr(payload, "\"event\":\"controller_started\"") != nullptr);
   assert(strstr(payload, "\"revision\":13") != nullptr);
+
+  event = WebhookEvent{};
+  event.type = WebhookEventType::ACTIVATION_HISTORY;
+  event.activationId = 9;
+  event.activationType = static_cast<uint8_t>(HistoryType::RINSE);
+  assert(WebhookDispatcherTest::payload(d, event, payload, sizeof(payload)));
+  assert(strstr(payload, "\"event\":\"integration_history_end\"") != nullptr);
+  assert(strstr(payload, "\"type\":\"rinse\"") != nullptr);
 }
 int main() {
   testSamplingAndAccounting();
   testTimeoutHasNoSecondSleep();
   testHeldItemSurvivesDrainAndGate();
   testQueueCapacity();
+  testActivationHistorySubscription();
+  testBootHintWaitsForSta();
+  testSecretWebhookEndpointRedacted();
   testIntegrationPayloads();
 }

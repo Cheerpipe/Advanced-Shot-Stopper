@@ -22,10 +22,12 @@ inline void formatSafeHttpEndpoint(const char *url, char *output,
   const char *path = *authorityEnd == '/' ? authorityEnd : "";
   const char *end = strpbrk(path, "?#");
   if (end == nullptr) end = path + strlen(path);
-  snprintf(output, capacity, "%.*s://%.*s%.*s",
+  const bool secretWebhook = strncmp(path, "/api/webhook/", 13) == 0;
+  snprintf(output, capacity, "%.*s://%.*s%.*s%s",
            static_cast<int>(scheme - url), url,
            static_cast<int>(authorityEnd - authority), authority,
-           static_cast<int>(end - path), path);
+           static_cast<int>((secretWebhook ? path + 13 : end) - path), path,
+           secretWebhook ? "[redacted]" : "");
 }
 
 }  // namespace shotstopper

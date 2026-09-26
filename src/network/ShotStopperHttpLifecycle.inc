@@ -449,9 +449,6 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
     dataMux_.unlock();
     if (command.type == WebCommandType::SAVE_WEBHOOK) {
       webhooks_.setConfig(next.webhook);
-      integrationOwnedEvents_ =
-          next.webhook.enabled && next.webhook.presetChanges &&
-          command.integrationEvents;
       clearStagedWebhook(command.stagedConfigRequestId);
     }
     if (command.type == WebCommandType::SAVE_LINEA_MICRA) {

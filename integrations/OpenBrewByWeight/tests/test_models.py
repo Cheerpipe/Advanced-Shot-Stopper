@@ -102,6 +102,18 @@ def test_shot_and_webhook_contract() -> None:
     assert started.event == "controller_started"
 
 
+def test_shot_timestamp_round_trip_and_optional_clock() -> None:
+    payload = load("webhook_end_v1.json")
+    assert Shot.from_dict(payload).ended_at_unix_sec is None
+    payload["endedAtUnixSec"] = 1767225611
+    shot = Shot.from_dict(payload)
+    assert shot.ended_at_unix_sec == 1767225611
+    assert Shot.from_dict(shot.to_dict()) == shot
+    payload["endedAtUnixSec"] = "1767225611"
+    with pytest.raises(ProtocolError, match="endedAtUnixSec"):
+        Shot.from_dict(payload)
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -213,13 +225,17 @@ def test_snapshot_requires_integration_capabilities(missing: str) -> None:
         DeviceSnapshot.from_dict(payload)
 
 
-def test_snapshot_accepts_embedded_last_shot() -> None:
+@pytest.mark.parametrize(
+    "activation_type",
+    ("shot", "rinse", "other", "power_on", "no_scale_guard_aborted"),
+)
+def test_snapshot_accepts_embedded_last_shot(activation_type: str) -> None:
     """An older REST snapshot still seeds its recorded-shot sensors."""
     payload = load("integration_snapshot.json")
     payload["lastGoodShot"] = load("webhook_end_v1.json")
     payload["lastActivation"] = {
         "id": 1042,
-        "type": "rinse",
+        "type": activation_type,
         "durationS": 12.0,
         "hasWallTime": True,
         "endedAtUnixSec": 1767225611,
@@ -228,7 +244,7 @@ def test_snapshot_accepts_embedded_last_shot() -> None:
     snapshot = DeviceSnapshot.from_dict(payload)
     assert snapshot.last_shot.preset_name == "Double"
     assert snapshot.last_activation is not None
-    assert snapshot.last_activation.type == "rinse"
+    assert snapshot.last_activation.type == activation_type
     assert snapshot.stats is not None
     assert snapshot.stats.avg_flow_gps == 1.55
 

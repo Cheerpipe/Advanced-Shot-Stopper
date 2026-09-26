@@ -391,9 +391,6 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     command.type = WebCommandType::SAVE_WEBHOOK;
     command.requestId = self.allocateRequestId();
     command.stagedConfigRequestId = command.requestId;
-    // The native integration's PUT enables the rich integration-state events
-    // (controller_started, presets/quick-settings, activation history).
-    command.integrationEvents = true;
     self.dataMux_.lock();
     const bool available = self.stagedWebhookRequestId_ == 0;
     if (available) {

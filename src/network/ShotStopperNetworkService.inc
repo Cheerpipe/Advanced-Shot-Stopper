@@ -66,9 +66,6 @@ bool ShotStopperNetwork::begin(const PersistedSettings &settings,
     log(DebugCategory::NETWORK, DebugCode::INITIALIZATION_FAILED,
         BOOT_SUBSYSTEM_NETWORK, 1);
   }
-  // Rich integration-state events resume only after the native integration
-  // saves the callback again (controller_started then re-establishes state).
-  integrationOwnedEvents_ = false;
   // Pin beside the Wi-Fi/LwIP stacks on PRO_CPU (core 0).
   // Stack stays internal: NVS writes usually retain cache with XIP, but flash
   // mapping and driver paths can still disable it.

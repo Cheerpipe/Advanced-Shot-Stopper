@@ -87,7 +87,9 @@ yield over 2 g. Other completed activations appear only in `lastActivation`.
 When present, `lastShot` contains
 `cycleId`, `uptimeMs`, `durationMs`, `targetWeightG`, `presetId`, `presetName`,
 `shotType`, `stopDetail`, `savePending`, and the optional `firstDropMs`, `weightG`,
-`averageFlowGps`, and `rating` fields defined by the webhook contract.
+`averageFlowGps`, and `rating` fields defined by the webhook contract. When the
+controller has a valid clock at shot completion, it also includes
+`endedAtUnixSec` (UTC) and `endedAtLocalSec`; otherwise both are absent.
 `savePending` is true while the deferred flash write still needs confirmation;
 if saving fails, the record remains in RAM for a retry. Firmware with the
 earlier v1 snapshot instead had distinct `lastShot` and `lastGoodShot` fields.
@@ -258,7 +260,9 @@ reconciliation. The existing
 (shot, rinse, other, power on, or a no-scale guard abort) and carries `id`,
 `type`, `durationS`, `hasWallTime`, `endedAtUnixSec`, and `endedAtLocalSec` —
 the same shape as the snapshot's `lastActivation`. It is emitted only after
-the activation record is confirmed in history. A receiver that misses it can
+the activation record is confirmed in history, including after controller
+restart when the persisted `presetChanges` subscription remains enabled. A
+receiver that misses it can
 recover the value at the next reconciliation.
 
 Receivers deduplicate by `(deviceId, bootId, cycleId, event, uptimeMs)`, reject

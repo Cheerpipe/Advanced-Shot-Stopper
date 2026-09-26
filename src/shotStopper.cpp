@@ -509,7 +509,6 @@ bool (*hostControllerStartedWebhookBuildGuard)() = nullptr;
 WebhookEvent hostControllerStartedWebhookEvent;
 uint32_t hostIpChangedWebhookCount = 0;
 char hostIpChangedWebhookAddress[16] = {};
-bool hostIntegrationOwnedEvents = false;
 uint32_t hostActivationHistoryWebhookCount = 0;
 WebhookEvent hostActivationHistoryEvent;
 #endif
@@ -692,11 +691,10 @@ bool enqueueControllerStartedWebhook() {
   return true;
 }
 
-// Mirrors the newest activation-history entry (History card) to the native
-// integration. Sent only while the integration owns the callback, so plain
-// webhook receivers are never shown the internal history feed.
+// Mirrors each activation-history entry to subscribed webhook receivers.
 void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record) {
-  if (!networkManager.integrationOwnedEvents()) return;
+  const WebhookConfig config = networkManager.webhookConfig();
+  if (!config.enabled || !config.presetChanges) return;
   WebhookEvent event =
       baseWebhookEvent(WebhookEventType::ACTIVATION_HISTORY, 0, millis());
   event.activationId = id;
@@ -742,7 +740,6 @@ bool enqueueControllerStartedWebhook() {
 }
 
 void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record) {
-  if (!hostIntegrationOwnedEvents) return;
   hostActivationHistoryEvent =
       baseWebhookEvent(WebhookEventType::ACTIVATION_HISTORY, 0, millis());
   hostActivationHistoryEvent.activationId = id;

@@ -2,6 +2,7 @@
   "entity": {
     "sensor": {
       "shot_state": {"default": "mdi:coffee-maker"},
+      "last_shot_time": {"default": "mdi:clock-outline"},
       "last_shot_duration": {"default": "mdi:timer-outline"},
       "last_shot_final_weight": {"default": "mdi:scale"},
       "last_shot_target_weight": {"default": "mdi:target"},

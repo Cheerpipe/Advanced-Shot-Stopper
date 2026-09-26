@@ -414,14 +414,6 @@ class ShotStopperNetwork {
   WebhookDispatcher webhooks_;
   WebhookConfig stagedWebhook_ = {};
   uint32_t stagedWebhookRequestId_ = 0;
-  // Set by the native-integration PUT /webhooks (integrationEvents flag);
-  // gates the rich integration_* webhook events. Public read accessor.
-  bool integrationOwnedEvents_ = false;
-
- public:
-  bool integrationOwnedEvents() const { return integrationOwnedEvents_; }
-
- private:
   LineaMicraPersistedSettings stagedLineaMicra_ = {};
   uint32_t stagedLineaMicraRequestId_ = 0;
   uint32_t stagedPresetRequestId_ = 0;

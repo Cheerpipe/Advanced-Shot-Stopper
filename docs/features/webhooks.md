@@ -26,7 +26,8 @@ connection begins.
 After a failed attempt, diagnostic status identifies the event, request phase,
 transport result, and HTTP status.
 The recorded destination keeps only the scheme, host, port, and path; URL query
-values and credentials are never included in that diagnostic.
+values and credentials are never included in that diagnostic. Home Assistant
+webhook IDs in the path are hidden.
 
 For a quick local receiver, listen with a development HTTP tool and point the
 controller to it. To inspect a captured payload with `curl`, save it as
@@ -57,7 +58,8 @@ event, controller, boot, cycle, event uptime, wall-clock time, and send time.
 Preset names on shot events are captured when the cycle starts. Renaming a
 preset later does not rewrite the name attached to that shot. The
 `presetChanges` is the shared subscription for `presets_changed`,
-`quick_settings_changed`, and `controller_started`. It is disabled for existing
+`quick_settings_changed`, `controller_started`, and `integration_history_end`.
+It is disabled for existing
 configurations until selected by a compatible client. Settings events are sent
 only after persistence succeeds; the startup hint is best effort and is not a
 heartbeat.

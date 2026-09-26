@@ -209,15 +209,19 @@ void appendHistoryRecord(HistoryType type, uint32_t durationMs,
   }
   // O(1) PSRAM append under the existing store mutex; the deferred flush in
   // ActivationStores::service() performs the flash write outside the loop.
-  TaskLockGuard lock(shotStoreMutex);
-  if (!historyLog.append(record, false)) {
-    addDebugEvent(DebugCategory::CONFIG, DebugCode::SHOT_LOG_PERSIST_FAILED,
-                  static_cast<int32_t>(sizeof(HistoryStore)),
-                  static_cast<int32_t>(historyLog.count()));
-    return;
+  uint32_t activationId = 0;
+  {
+    TaskLockGuard lock(shotStoreMutex);
+    if (!historyLog.append(record, false)) {
+      addDebugEvent(DebugCategory::CONFIG, DebugCode::SHOT_LOG_PERSIST_FAILED,
+                    static_cast<int32_t>(sizeof(HistoryStore)),
+                    static_cast<int32_t>(historyLog.count()));
+      return;
+    }
+    shotStoreDirtyGeneration.fetch_add(1, std::memory_order_relaxed);
+    activationId = historyLog.nextRecordId() - 1U;
   }
-  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_relaxed);
-  enqueueActivationHistoryWebhook(historyLog.nextRecordId() - 1U, record);
+  enqueueActivationHistoryWebhook(activationId, record);
 }
 
 // Every confirmed machine activation lands in the independent history log:

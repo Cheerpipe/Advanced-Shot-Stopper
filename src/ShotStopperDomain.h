@@ -1854,10 +1854,7 @@ struct WebCommand {
   bool bullseyeConfigSpecified = false;
   uint32_t bullseyeStageRequestId = 0;
   uint32_t stagedConfigRequestId = 0;
-  // SAVE_WEBHOOK only: the sender is the native integration, enabling the
-  // rich integration-state events (controller_started, activation history).
   // PRESET_OP payload (keep small — no full bank on the queue element).
-  bool integrationEvents = false;
   uint8_t presetAction = 0;
   uint8_t presetId = 0;
   bool lineaMicraBrewTargetSpecified = false;

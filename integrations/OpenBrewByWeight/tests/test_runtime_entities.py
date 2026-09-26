@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import replace
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -220,6 +221,27 @@ async def test_quick_settings_and_controller_started_webhooks(hass) -> None:
         await coordinator.async_process_webhook(
             WebhookEvent.from_bytes(json.dumps(invalid).encode())
         )
+
+
+async def test_history_webhook_accepts_no_scale_guard_abort(hass) -> None:
+    coordinator, api, _entry = _coordinator(hass)
+    activation = fixture("integration_snapshot.json")["lastActivation"]
+    payload = {
+        "schemaVersion": 1,
+        "event": "integration_history_end",
+        "deviceId": coordinator.device_id,
+        "bootId": coordinator.data.snapshot.boot_id,
+        "cycleId": 0,
+        "uptimeMs": 930200,
+        **activation,
+        "id": activation["id"] + 1,
+        "type": "no_scale_guard_aborted",
+    }
+    await coordinator.async_process_webhook(
+        WebhookEvent.from_bytes(json.dumps(payload).encode())
+    )
+    assert coordinator.data.last_activation.type == "no_scale_guard_aborted"
+    api.async_snapshot.assert_not_awaited()
 
 
 async def test_webhooks_reject_other_boots_until_reconciled(hass) -> None:
@@ -490,7 +512,7 @@ async def test_entities_and_select(hass) -> None:
     assert ip.entity_category is EntityCategory.DIAGNOSTIC
     assert ip.native_value == "192.168.1.8"
     assert state.device_info["configuration_url"] == "http://controller.local/"
-    assert len(MIRRORED_DESCRIPTIONS) == 18
+    assert len(MIRRORED_DESCRIPTIONS) == 19
 
     snapshot_without_mdns = replace(
         coordinator.data.snapshot, mdns_host=None, wifi_mac=None, bluetooth_mac=None
@@ -507,11 +529,19 @@ async def test_entities_and_select(hass) -> None:
     coordinator.async_set_updated_data(empty_data)
     empty = [MirroredSensor(coordinator, item) for item in MIRRORED_DESCRIPTIONS]
     assert all(entity.native_value is None for entity in empty)
+    shot = coordinator_data().last_shot
+    assert shot is not None
+    unrated = replace(coordinator_data(), last_shot=replace(shot, rating=None))
+    coordinator.async_set_updated_data(unrated)
+    rating = next(item for item in MIRRORED_DESCRIPTIONS if item.key == "last_shot_rating")
+    assert MirroredSensor(coordinator, rating).native_value == "Unrated"
     coordinator.async_set_updated_data(coordinator_data())
     entities = [MirroredSensor(coordinator, item) for item in MIRRORED_DESCRIPTIONS]
     values = {entity.entity_description.key: entity.native_value for entity in entities}
     assert values["last_shot_duration"] == 27.8
+    assert values["last_shot_time"] is None
     assert values["last_shot_final_weight"] == 36.72
+    assert values["last_shot_rating"] == 4
     assert next(
         entity for entity in entities if entity.entity_description.key.endswith("_type")
     ).options == ["auto", "timer_only", "manual"]
@@ -536,6 +566,15 @@ async def test_entities_and_select(hass) -> None:
     assert values["stats_shot_count"] == 7
     assert values["stats_avg_yield"] == 35.9
     assert values["stats_avg_flow"] == 1.55
+
+    timed_shot = replace(coordinator_data().last_shot, ended_at_unix_sec=1767225611)
+    coordinator.async_set_updated_data(replace(coordinator_data(), last_shot=timed_shot))
+    time_sensor = next(
+        item for item in MIRRORED_DESCRIPTIONS if item.key == "last_shot_time"
+    )
+    assert MirroredSensor(coordinator, time_sensor).native_value == datetime.fromtimestamp(
+        1767225611, tz=UTC
+    )
 
     select = ActivePresetSelect(coordinator)
     assert select.options == ["Double", "Single"]

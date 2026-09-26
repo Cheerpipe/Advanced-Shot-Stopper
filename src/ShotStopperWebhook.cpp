@@ -356,7 +356,8 @@ bool WebhookDispatcher::enqueue(const WebhookEvent &event) {
   if (event.type == WebhookEventType::PRESETS_CHANGED ||
       event.type == WebhookEventType::QUICK_SETTINGS_CHANGED ||
       event.type == WebhookEventType::CONTROLLER_STARTED ||
-      event.type == WebhookEventType::IP_CHANGED)
+      event.type == WebhookEventType::IP_CHANGED ||
+      event.type == WebhookEventType::ACTIVATION_HISTORY)
     selected = live.presetChanges;
   if (workerState != WorkerState::READY || queue == nullptr ||
       !validWebhookUrl(live.url) ||
@@ -402,7 +403,10 @@ void WebhookDispatcher::task() {
     }
     // The gate may change while xQueueReceive is blocked. Keep the dequeued
     // item locally and recheck so no request starts after the critical edge.
-    if (haveQueued && dispatchAllowed()) {
+    if (haveQueued && queued.event.type == WebhookEventType::CONTROLLER_STARTED &&
+        WiFi.status() != WL_CONNECTED) {
+      vTaskDelay(pdMS_TO_TICKS(25));
+    } else if (haveQueued && dispatchAllowed()) {
       (void)send(queued);
       haveQueued = false;
     } else if (haveQueued || !waitedForQueue) {
