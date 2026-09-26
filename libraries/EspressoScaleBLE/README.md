@@ -152,7 +152,7 @@ semantics. Fixed advertisement slots and fixed GATT handle storage avoid a
 heap allocation per advertisement. Protocols that permit UUID-only discovery
 still match without a GAP name; Varia and Eureka continue to require one. The
 production host uses the hardware-qualified external NimBLE allocator, a 4096
-byte internal host-task stack, MTU 96 and conservative fixed pools.
+byte internal host-task stack, MTU 32 and conservative fixed pools.
 
 Connectability follows the newest advertisement from each peer. A later
 nonconnectable report cannot reuse an older connectable report, while the scan
