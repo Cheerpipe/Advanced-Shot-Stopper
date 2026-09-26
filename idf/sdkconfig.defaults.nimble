@@ -15,9 +15,9 @@ CONFIG_BT_NIMBLE_GATT_SERVER=y
 # One concurrent link: the scale worker connects a single scale by design.
 CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
 CONFIG_BT_CTRL_BLE_MAX_ACT=3
-# 32 fits the largest qualified scale packet: 20-byte notifications plus the
-# 1-byte ATT opcode, with headroom above the 23-byte ATT minimum.
-CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=32
+# The 23-byte ATT minimum fits the largest qualified scale packet: 20-byte
+# notifications plus the 1-byte ATT opcode.
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=23
 CONFIG_BT_NIMBLE_ATT_MAX_PREP_ENTRIES=4
 CONFIG_BT_NIMBLE_GATT_MAX_PROCS=2
 CONFIG_BT_NIMBLE_MAX_CCCDS=4

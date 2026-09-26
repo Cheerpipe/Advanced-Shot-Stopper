@@ -190,7 +190,7 @@ if (!sdkconfigDefaults.includes('CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8') ||
 }
 if (!sdkconfigNimble.includes('CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y') ||
     !sdkconfigNimble.includes('CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE=4096') ||
-    !sdkconfigNimble.includes('CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=32') ||
+    !sdkconfigNimble.includes('CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=23') ||
     !sdkconfigNimble.includes('CONFIG_BT_NIMBLE_ATT_MAX_PREP_ENTRIES=4') ||
     !sdkconfigNimble.includes('CONFIG_BT_NIMBLE_GATT_MAX_PROCS=2') ||
     !sdkconfigNimble.includes('CONFIG_BT_NIMBLE_MAX_CCCDS=4')) {
