@@ -292,7 +292,8 @@ sizes do not establish a versioned resource baseline.
 The final verifier also rejects drift from the qualified production profile:
 n8r4 uses 8 MB flash, `partitions-n8r4.csv`, and QUAD PSRAM; n16r8 uses 16 MB
 flash, `partitions-n16r8.csv`, and OCT PSRAM. Both require DIO/80 MHz flash,
-80 MHz PSRAM, a 32 KiB internal reserve, 64 KiB MMU pages, rollback support,
+80 MHz PSRAM, a 32 KiB internal reserve, a 2 KiB malloc threshold above which
+`malloc()` prefers PSRAM, 64 KiB MMU pages, rollback support,
 mDNS dynamic responder allocations in PSRAM — the mDNS task stack follows the
 variant: PSRAM on n8r4, internal RAM on n16r8 because flash core dumps cannot
 read a stack in cache-backed PSRAM — the pinned boot/task/interrupt watchdog
