@@ -72,8 +72,15 @@ sudo apt-get install git python3 python3-pip python3-venv cmake ninja-build \
 
 CI pins the Ubuntu `cppcheck` package version (see
 `.github/workflows/validation.yml`) so the analyzed diagnostics stay
-reproducible between runs; keep local and CI versions aligned when triaging
-parser-level findings.
+reproducible between runs; the macOS development checkout pins its Homebrew
+cppcheck (`brew pin cppcheck`, currently 2.21.0) for the same reason.
+
+Diagnostics can still differ across that version gap because cppcheck moves
+checks between enable sets: for example, `arrayIndexThenCheck` belongs to CI's
+enabled 2.13 set but to `style` in 2.21, which `static-idf` does not enable.
+When CI reports a check the local version misses, reproduce it explicitly
+(`cppcheck --enable=style <file>`) and triage the finding on its merits; never
+treat a missing local warning as proof the code is correct.
 
 IWYU is version-locked to the clang it was compiled against, and the Ubuntu
 `iwyu` package is built against the distro clang, which may not be the clang
