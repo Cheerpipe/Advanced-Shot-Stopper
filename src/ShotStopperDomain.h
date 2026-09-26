@@ -701,7 +701,7 @@ struct RuntimeConfig {
       AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
       AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS};
   uint8_t scaleMacCacheMode =
-      static_cast<uint8_t>(ScaleMacCacheMode::ONLY);
+      static_cast<uint8_t>(ScaleMacCacheMode::PREFER);
   bool bookooMuteOnBuzzerOnly = true;
   uint8_t bookooConnectBeepLevel = DEFAULT_BOOKOO_CONNECT_BEEP_LEVEL;
   bool cupProtectionEnabled = true;

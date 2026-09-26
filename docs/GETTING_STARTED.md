@@ -90,9 +90,9 @@ according to the selected [paddle](settings/paddle.md) or
 
 1. Check Home for a connected scale and a fresh weight reading. A Bluetooth
    connection alone is not sufficient for automatic weight control.
-2. On a new controller, **Preferred only → First detected** adopts the first
-   compatible scale that connects successfully. To replace it or use several
-   scales, follow [Scales](settings/scales.md).
+2. On a new controller, **Prefer selected → First detected** adopts the first
+   compatible scale that connects successfully and then prefers it. To replace
+   it or use several scales, follow [Scales](settings/scales.md).
 3. In **Settings → Brew**, load **Double** or **Single**. For your own recipe,
    duplicate a preset, change the target and guards, and save.
    [Presets](features/presets.md) lists the factory values.

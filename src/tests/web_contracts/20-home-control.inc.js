@@ -317,8 +317,9 @@ if (!statusSection || !statusSection[1].includes('class="statusColumn"') ||
     !ui.includes('empty.textContent=bootstrap?') ||
     !ui.includes('First detected') || !ui.includes('No preferred') ||
     ui.includes("msg:'Select a preferred scale first.'") ||
-    !ui.includes('<option value="only" selected>Preferred only</option>') ||
+    !ui.includes('<option value="prefer" selected>Prefer selected</option>') ||
     ui.includes('<option value="first" selected>First available</option>') ||
+    ui.includes('<option value="only" selected>Preferred only</option>') ||
     ui.includes("if(!canPrefer&&(sel.value==='prefer'||sel.value==='only'))") ||
     ui.includes("o.disabled=!canPrefer||!controlsMutable") ||
     // Regression: missing ';' after `prev` concatenated into

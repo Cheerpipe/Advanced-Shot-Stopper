@@ -16,7 +16,7 @@ inline bool verifyFactorySettings(const PersistedSettings &settings) {
       settings.preferredScaleMac[0] != '\0' ||
       settings.preferredScaleName[0] != '\0' ||
       settings.runtime.scaleMacCacheMode !=
-          static_cast<uint8_t>(ScaleMacCacheMode::ONLY)) {
+          static_cast<uint8_t>(ScaleMacCacheMode::PREFER)) {
     return false;
   }
   for (const ScaleHistoryEntry &entry : settings.scaleHistory) {

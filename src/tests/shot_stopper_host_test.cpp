@@ -5236,6 +5236,7 @@ void d01_idle_scan_stays_enabled_between_ticks() {
   reachReadyFromBoot();
   runtimeConfig.scaleMacCacheMode =
       static_cast<uint8_t>(ScaleMacCacheMode::ONLY);
+  publishTestScaleWorkerPolicy();
   setHostPreferredScaleMac("AA:BB:CC:DD:EE:FF");
   uint32_t lastScanCycleMs = 0;
   uint32_t lastConnectLogMs = 0;
@@ -5548,6 +5549,7 @@ void d04_full_cache_keeps_directed_scan() {
   reachReadyFromBoot();
   runtimeConfig.scaleMacCacheMode =
       static_cast<uint8_t>(ScaleMacCacheMode::ONLY);
+  publishTestScaleWorkerPolicy();
   setHostPreferredScaleMac("AA:BB:CC:DD:EE:FF");
   uint32_t lastScanCycleMs = 0;
   uint32_t lastConnectLogMs = 0;
@@ -5573,6 +5575,7 @@ void d05_hci_watchdog_force_restarts_same_filter() {
   reachReadyFromBoot();
   runtimeConfig.scaleMacCacheMode =
       static_cast<uint8_t>(ScaleMacCacheMode::ONLY);
+  publishTestScaleWorkerPolicy();
   setHostPreferredScaleMac("AA:BB:CC:DD:EE:FF");
   uint32_t lastScanCycleMs = 0;
   uint32_t lastConnectLogMs = 0;
@@ -5609,6 +5612,7 @@ void d05b_scan_intensity_change_restarts_gap() {
   reachReadyFromBoot();
   runtimeConfig.scaleMacCacheMode =
       static_cast<uint8_t>(ScaleMacCacheMode::ONLY);
+  publishTestScaleWorkerPolicy();
   setHostPreferredScaleMac("AA:BB:CC:DD:EE:FF");
   uint32_t lastScanCycleMs = 0;
   uint32_t lastConnectLogMs = 0;
@@ -5721,6 +5725,7 @@ void d06_forget_pauses_discovery_for_30s() {
   reachReadyFromBoot();
   runtimeConfig.scaleMacCacheMode =
       static_cast<uint8_t>(ScaleMacCacheMode::ONLY);
+  publishTestScaleWorkerPolicy();
   setHostPreferredScaleMac("AA:BB:CC:DD:EE:FF");
   uint32_t lastScanCycleMs = 0;
   uint32_t lastConnectLogMs = 0;
@@ -5787,6 +5792,7 @@ void d08_select_none_clears_without_pause() {
   reachReadyFromBoot();
   runtimeConfig.scaleMacCacheMode =
       static_cast<uint8_t>(ScaleMacCacheMode::ONLY);
+  publishTestScaleWorkerPolicy();
   setHostPreferredScaleMac("AA:BB:CC:DD:EE:FF");
   selectPreferredScale("", "");
   CHECK(scalePreferredMac[0] == '\0');
@@ -5960,6 +5966,38 @@ void d13_scale_friendly_name_set_clear_and_preserve() {
   CHECK(setScaleFriendlyName("AA:BB:CC:DD:EE:01", ""));
   copyScaleHistory(history);
   CHECK(history[0].friendlyName[0] == '\0');
+}
+
+void d13a_auto_friendly_name_for_themis_models() {
+  // Advertised names map to model display names on first detection.
+  char nameOut[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  CHECK(autoScaleFriendlyName("BOOKOO_SC 715097", nameOut, sizeof(nameOut)));
+  CHECK(strcmp(nameOut, "Bookoo Themis Mini") == 0);
+  CHECK(autoScaleFriendlyName("BOOKOO_SC U 90210", nameOut, sizeof(nameOut)));
+  CHECK(strcmp(nameOut, "Bookoo Themis Ultra") == 0);
+  CHECK(!autoScaleFriendlyName("LUNAR", nameOut, sizeof(nameOut)));
+  CHECK(!autoScaleFriendlyName("BOOKOO_SCTE 1", nameOut, sizeof(nameOut)));
+  CHECK(!autoScaleFriendlyName("", nameOut, sizeof(nameOut)));
+  CHECK(!autoScaleFriendlyName(nullptr, nameOut, sizeof(nameOut)));
+
+  resetHarness(false, false);
+  scalePreferredMac[0] = '\0';
+  for (ScaleHistoryEntry &entry : scaleHistory) {
+    entry = ScaleHistoryEntry{};
+  }
+  scaleHistorySeq = 0;
+  noteScaleHistory("AA:BB:CC:DD:EE:01", "BOOKOO_SC 715097", false);
+  noteScaleHistory("AA:BB:CC:DD:EE:02", "BOOKOO_SC U 90210", false);
+  ScaleHistoryEntry history[SCALE_HISTORY_CAPACITY] = {};
+  copyScaleHistory(history);
+  CHECK(strcmp(history[0].friendlyName, "Bookoo Themis Mini") == 0);
+  CHECK(strcmp(history[1].friendlyName, "Bookoo Themis Ultra") == 0);
+  // Repeat advertisements do not overwrite a user-assigned friendly name.
+  CHECK(setScaleFriendlyName("AA:BB:CC:DD:EE:01", "Left cup scale"));
+  noteScaleHistory("AA:BB:CC:DD:EE:01", "BOOKOO_SC 715098", false);
+  copyScaleHistory(history);
+  CHECK(strcmp(history[0].name, "BOOKOO_SC 715098") == 0);
+  CHECK(strcmp(history[0].friendlyName, "Left cup scale") == 0);
 }
 
 void w62_local_buzzer_drive_matches_compile_flag() {
@@ -16768,6 +16806,7 @@ const TestCase testCases[] = {
     {"D10c", d10c_softap_yields_discovery},
     {"D11", d11_select_preferred_is_noop_when_unchanged},
     {"D13", d13_scale_friendly_name_set_clear_and_preserve},
+    {"D13a", d13a_auto_friendly_name_for_themis_models},
     {"S01", s01_shot_log_filters_short_and_rinse},
     {"S01c", s01c_mixed_shots_share_stats_and_home_authority},
     {"S01d", s01d_manual_timer_and_limit_share_settled_finalize},

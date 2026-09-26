@@ -47,7 +47,7 @@ accessory** return to ON. See [Tare](tare.md) for the
 placement trigger and how a tared cup at zero satisfies the cup-start guard.
 
 Follow [first setup](../GETTING_STARTED.md) using the
-[factory AP connection](ap.md#first-connection). Scale preference returns to **Preferred only**, with
+[factory AP connection](ap.md#first-connection). Scale preference returns to **Prefer selected**, with
 **First detected** shown until the first compatible scale connects
 successfully. See [Scales](scales.md), [AP](ap.md), and the
 [README first connection](../../README.md#first-connection).

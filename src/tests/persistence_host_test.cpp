@@ -85,7 +85,7 @@ void p01_defaults_are_valid() {
   CHECK(settings.preferredScaleMac[0] == '\0');
   CHECK(settings.preferredScaleName[0] == '\0');
   CHECK(settings.runtime.scaleMacCacheMode ==
-        static_cast<uint8_t>(ScaleMacCacheMode::ONLY));
+        static_cast<uint8_t>(ScaleMacCacheMode::PREFER));
   CHECK(settings.runtime.paddleMode ==
         static_cast<uint8_t>(PaddleMode::NATURAL));
   CHECK(runtimeStopPulseMs(settings.runtime) == COMPILED_STOP_PULSE_MS);
@@ -456,7 +456,7 @@ void p08_factory_reset_rebuilds_defaults() {
   CHECK(settings.preferredScaleMac[0] == '\0');
   CHECK(settings.preferredScaleName[0] == '\0');
   CHECK(settings.runtime.scaleMacCacheMode ==
-        static_cast<uint8_t>(ScaleMacCacheMode::ONLY));
+        static_cast<uint8_t>(ScaleMacCacheMode::PREFER));
   for (const ScaleHistoryEntry &entry : settings.scaleHistory) {
     CHECK(entry.mac[0] == '\0');
     CHECK(entry.name[0] == '\0');
@@ -475,14 +475,14 @@ void p08b_scale_preference_without_mac_round_trips() {
   CHECK(initializeDefaultSettings(settings));
   CHECK(settings.preferredScaleMac[0] == '\0');
   CHECK(settings.runtime.scaleMacCacheMode ==
-        static_cast<uint8_t>(ScaleMacCacheMode::ONLY));
+        static_cast<uint8_t>(ScaleMacCacheMode::PREFER));
   CHECK(savePersistedSettings(settings));
 
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
   CHECK(loaded.preferredScaleMac[0] == '\0');
   CHECK(loaded.runtime.scaleMacCacheMode ==
-        static_cast<uint8_t>(ScaleMacCacheMode::ONLY));
+        static_cast<uint8_t>(ScaleMacCacheMode::PREFER));
 
   loaded.runtime.scaleMacCacheMode =
       static_cast<uint8_t>(ScaleMacCacheMode::FIRST);

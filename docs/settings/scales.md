@@ -109,7 +109,7 @@ offset learning, and eligible A→M samples.
 
 | Setting | Default | Range / notes | Effect |
 | --- | --- | --- | --- |
-| **Scale preference** | Preferred only | First available / Prefer selected / Preferred only | **First available** connects whichever compatible scale appears first and never locks it. **Prefer selected** waits briefly for the preferred scale, then accepts another. **Preferred only** connects only to the saved preferred scale. If either selected mode has no saved scale yet, it uses the bootstrap flow below. |
+| **Scale preference** | Prefer selected | First available / Prefer selected / Preferred only | **First available** connects whichever compatible scale appears first and never locks it. **Prefer selected** waits briefly for the preferred scale, then accepts another. **Preferred only** connects only to the saved preferred scale. If either selected mode has no saved scale yet, it uses the bootstrap flow below. |
 | **Preferred scale** | First detected | First detected, No preferred, or a BLE-seen scale | **First detected** is shown only while no preferred MAC is saved and **Prefer selected** or **Preferred only** is active. The controller scans by compatible name and adopts the first scale that completes a successful connection; advertisements and failed connections are not enough. **First available** instead shows **No preferred** because that mode never locks a scale. **Clear preferred** pauses discovery for 30 s, keeps history, and keeps the current Scale preference. |
 | **Drip delay (s)** | 3.0 s | 0–10 s | Wait after a shot ends before capturing the final post-drip weight. `0` finalizes on the next control loop with no intentional window. |
 | **Timer stop extra delay (ms)** | 0 ms | 0–1000 ms | Pad after the scale timer catches up to circuit whole seconds, before `STOP_TIMER`. `0` stops in that same instant. Does not delay the local machine circuit beep. |
@@ -132,10 +132,10 @@ a cup at zero after such a button press is therefore not supported by the
 current integration; weight alone cannot distinguish it from cup removal.
 Firmware idle tare preserves the known cup reference. See [Tare](tare.md).
 
-On a new controller, **Preferred only** and **First detected** are selected.
+On a new controller, **Prefer selected** and **First detected** are selected.
 Turn on your Bookoo: after its first successful connection, its MAC and name
-replace **First detected** and are saved. From then on, other scales may be
-remembered in history but are not connected. After each shot, the firmware
+replace **First detected** and are saved. From then on, the controller waits
+briefly for that scale before accepting another compatible one. After each shot, the firmware
 waits 3 s of drip before storing the final weight used for offset learning.
 Bookoo volume is not rewritten on reconnections during the same controller
 session. Restarting the controller or explicitly clearing that preferred
