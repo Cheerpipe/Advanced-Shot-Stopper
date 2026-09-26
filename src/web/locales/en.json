@@ -1124,6 +1124,7 @@
     "settings.recovery_floor_must_be_below_target": "The minimum drink weight Slow guard tries to reach before stopping a very slow shot. If it is already reached at the decision time, the shot stops then; choose a value below Target.",
     "settings.reed_confirm_timeout_s": "Reed confirm timeout (s)",
     "settings.reminds_you_to_return_the_paddle_after": "When on, repeating beeps remind you to return the paddle after an automatic stop while it is still ON. Turn off to silence this reminder.",
+    "settings.rename": "(rename)",
     "settings.require_a_scale": "Require a scale",
     "settings.require_a_scale_2": "Require a scale:",
     "settings.require_cup_to_start": "Require cup to start",

@@ -443,8 +443,10 @@ if (generated.cssGzip.length > 7300) {
 // the Admin BLE master-switch checkbox save handler measures 37490 bytes.
 // The scale friendly-name rename flow (display helper, prompt, validation,
 // command) raises it to 37900 bytes.
-if (sentinelRuntimeGzip.length > 37900) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 37900-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Settings Preferred scale (rename) link follows the selected history
+// entry, raising it to 37965 bytes.
+if (sentinelRuntimeGzip.length > 37965) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 37965-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

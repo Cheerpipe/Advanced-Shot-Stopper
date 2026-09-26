@@ -85,13 +85,13 @@ machine, and per-scale friendly names. Earlier settings schemas are rejected and
 
 History V5 retains an exact bounded preset-name snapshot and transfers through
 the shared chunked flash-I/O path. The separate last-shot V4 record retains the
-same provenance. The current rendered English Web UI is capped at 73,033 bytes
-HTML, 200,978 bytes JavaScript, and 274,011 bytes combined authoring source.
-The compressed runtime JavaScript cap is 37,900 bytes, measured against a fixed
+same provenance. The current rendered English Web UI is capped at 73,161 bytes
+HTML, 201,743 bytes JavaScript, and 274,904 bytes combined authoring source.
+The compressed runtime JavaScript cap is 37,965 bytes, measured against a fixed
 sentinel build id so commit-SHA noise cannot move it; the Web contract still
 round-trips and flash-charges the real, version-baked runtime through the
-combined cap. The Web contract measures 72,733 / 197,776 authoring bytes and
-103,849 combined gzip bytes; the total embedded limit remains 108,200 bytes.
+combined cap. The Web contract measures 73,144 / 201,724 authoring bytes and
+104,515 combined gzip bytes; the total embedded limit remains 108,200 bytes.
 
 Every new setting must include concise, natural help that explains its effect on
 the barista's workflow, including what changes when an option is enabled or

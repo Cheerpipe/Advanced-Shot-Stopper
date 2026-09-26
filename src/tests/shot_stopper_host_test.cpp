@@ -6000,6 +6000,30 @@ void d13a_auto_friendly_name_for_themis_models() {
   CHECK(strcmp(history[0].friendlyName, "Left cup scale") == 0);
 }
 
+void d13b_friendly_names_are_per_scale() {
+  // Naming scale A must not change scale B: overrides are stored per MAC.
+  resetHarness(false, false);
+  scalePreferredMac[0] = '\0';
+  for (ScaleHistoryEntry &entry : scaleHistory) {
+    entry = ScaleHistoryEntry{};
+  }
+  scaleHistorySeq = 0;
+  noteScaleHistory("AA:BB:CC:DD:EE:01", "BOOKOO_SC 715097", false);
+  noteScaleHistory("AA:BB:CC:DD:EE:02", "BOOKOO_SC U 90210", false);
+  CHECK(setScaleFriendlyName("AA:BB:CC:DD:EE:01", "Scale A"));
+  CHECK(setScaleFriendlyName("AA:BB:CC:DD:EE:02", "Scale B"));
+  ScaleHistoryEntry history[SCALE_HISTORY_CAPACITY] = {};
+  copyScaleHistory(history);
+  CHECK(strcmp(history[0].friendlyName, "Scale A") == 0);
+  CHECK(strcmp(history[1].friendlyName, "Scale B") == 0);
+  CHECK(strcmp(history[0].friendlyName, history[1].friendlyName) != 0);
+  // Re-advertising or reconnecting B keeps A's name untouched.
+  noteScaleHistory("AA:BB:CC:DD:EE:02", "BOOKOO_SC U 90210", false);
+  copyScaleHistory(history);
+  CHECK(strcmp(history[0].friendlyName, "Scale A") == 0);
+  CHECK(strcmp(history[1].friendlyName, "Scale B") == 0);
+}
+
 void w62_local_buzzer_drive_matches_compile_flag() {
   resetHarness(false, false);
   CHECK(localBuzzer.ready);
@@ -16807,6 +16831,7 @@ const TestCase testCases[] = {
     {"D11", d11_select_preferred_is_noop_when_unchanged},
     {"D13", d13_scale_friendly_name_set_clear_and_preserve},
     {"D13a", d13a_auto_friendly_name_for_themis_models},
+    {"D13b", d13b_friendly_names_are_per_scale},
     {"S01", s01_shot_log_filters_short_and_rinse},
     {"S01c", s01c_mixed_shots_share_stats_and_home_authority},
     {"S01d", s01d_manual_timer_and_limit_share_settled_finalize},

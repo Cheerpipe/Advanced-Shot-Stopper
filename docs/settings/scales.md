@@ -23,11 +23,13 @@ a physical start, and implausible or stale readings suspend weight control.
 
 Scales are listed by the name they broadcast, such as `BOOKOO_SC 715097`,
 which does not say which model it is — or which of two identical scales. Next
-to the scale name on **Home** and on **Diagnostic → Scale name**, choose
-**(rename)** to give that scale your own name, for example
-`Espresso corner scale`. Your name replaces the broadcast name everywhere the
-scale is listed — Home, Diagnostic, and the preferred-scale list in Settings —
-and stays with that scale across restarts.
+to the scale name on **Home**, on **Diagnostic → Scale name**, and beside
+**Preferred scale** in **Settings → Scales** — where the link follows the
+scale chosen in the dropdown, so you can rename any remembered scale, not
+just the one that is connected — choose **(rename)** to give that scale your
+own name, for example `Espresso corner scale`. Your name replaces the
+broadcast name everywhere the scale is listed — Home, Diagnostic, and the
+preferred-scale list in Settings — and stays with that scale across restarts.
 
 Bookoo Themis models identify themselves in that broadcast name, so the
 controller fills in a readable model name for you: a scale broadcasting
