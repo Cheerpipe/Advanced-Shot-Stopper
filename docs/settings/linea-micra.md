@@ -94,6 +94,13 @@ quality. The next automatic cycle then follows the normal 30-second cadence.
 Select **(Refresh)** beside the displayed state to add a read to the same bounded
 queue. It cannot bypass STA, AP, clock, shot, busy, or post-wake timing rules.
 
+With full debug logging enabled, each Micra cloud request prints a start line
+with its method and route, followed by a completion line with the same request
+ID, elapsed time, HTTP status, and result. Routes replace the machine serial
+with `{serial}` and never show account credentials or tokens. The transient
+`HTTP_CLIENT` header-wait warning is hidden from serial output. Use
+the matching request ID and final result to tell whether a read failed.
+
 UNKNOWN is treated like ON for paddle behavior. It never qualifies a wake
 gesture, so brewing and rinse behavior remain unchanged when no confirmed ON
 or OFF observation is available.
