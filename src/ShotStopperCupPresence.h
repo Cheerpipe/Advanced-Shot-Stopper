@@ -351,14 +351,19 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
     cupPresence.holeWeightG = weight;
   }
   if (cupPresence.placementId == 0 && cupPresence.inNegativeHole &&
-      std::isfinite(cupPresence.emptyAnchorG) &&
-      cupPresence.emptyAnchorG <= FIRST_DROP_BASELINE_SETTLE_G - minCupG &&
-      fabsf(weight) <= FIRST_DROP_BASELINE_SETTLE_G) {
+      fabsf(weight) <= FIRST_DROP_BASELINE_SETTLE_G &&
+      ((std::isfinite(cupPresence.emptyAnchorG) &&
+        cupPresence.emptyAnchorG <= FIRST_DROP_BASELINE_SETTLE_G - minCupG) ||
+       (allowFastReplacement && mass.pendingId == 0 && !cupPresence.referenceUncertain &&
+        !std::isfinite(cupPresence.emptyAnchorG) && mass.absent.valid &&
+        fabsf(mass.absent.absoluteG) <= FIRST_DROP_BASELINE_SETTLE_G))) {
     // Returning to the original zero is indistinguishable from pan movement.
     cupPresence.emptyAnchorG = 0.0f;
     mass.emptyValid = false;
     mass.emptySamples = 0;
-    cupPresence.inNegativeHole = false;
+    // Idle placement must wait for this zero to qualify again.
+    cupPresence.inNegativeHole = allowFastReplacement;
+    if (allowFastReplacement) cupPresence.holeWeightG = 0.0f;
   }
   // A brief confirmed unload can reuse the anchor; never use a lift minimum.
   const bool qualifiedReference = mass.emptyValid ||

@@ -489,6 +489,13 @@ the anchor; upward intermediate placement readings do not redefine it. Without
 an anchor or observed removal, acquisition is restricted to the existing ±0.5 g
 zero-settle band. Initial positive absolute presence remains available without
 mass or idle tare; negative boot offsets cannot authorize relative placement.
+Before the first placement, a transient negative departure from a qualified zero
+may discard the current anchor while a stable negative reference qualifies.
+A return near that original zero restores it through the normal absent stability
+window, without PLACED or tare. Unknown initial negative offsets and unqualified
+rebounds away from that zero remain ambiguous and require diagnostic empty tare.
+For an unqualified rebound, readiness reports that recovery action instead of
+waiting indefinitely for settling.
 `PLACED` publishes
 present minus absent, including when tare is disabled. Firmware tare and coffee
 do not overwrite these placement records or the calculated mass. Pending tare

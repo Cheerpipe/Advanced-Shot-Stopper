@@ -422,6 +422,7 @@ struct CupTareDiagnostics {
   bool removedArmed = false;
   bool tared = false;
   bool referenceKnown = true;
+  bool emptyReferenceBlocked = false;
   bool absentObserved = false;
   uint8_t removedConfirmations = 0;
   uint8_t stabilitySamples = 0;

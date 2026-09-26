@@ -26,7 +26,9 @@ cup, a small negative shift can become the new empty reference after stable
 readings; it must be no more than 5 g or half **Minimum cup weight**, whichever
 is smaller. Larger movement cannot redefine zero: 0 → −20 → 0.1 g does not
 place a cup. After a larger downward disturbance, let the empty pan settle back
-near zero before placing the cup. If the empty reference is unknown and a
+near its previously stable zero before placing the cup. Once the normal
+stability window completes, **Automatic tare** returns to **Ready for a cup**
+without taring or detecting a placement. If the empty reference is unknown and a
 removal reading rebounds by a full minimum cup weight, the controller cannot
 tell empty-pan movement from a new cup; tare the empty pan from **Diagnostic**,
 wait for stable zero, then place the cup.
@@ -39,10 +41,11 @@ Bookoo zeroed an initial load at power-on, removing
 it can reveal a negative empty reading. After a qualified zero, a continuous
 downward change of at least **Minimum cup weight** followed by stable negative
 readings can establish that new reference. A larger negative offset first seen at
-connection, a reading gap or a return near the original zero cannot establish
-it; tare the empty pan from **Diagnostic** and let zero settle before placing
-a cup. Weight alone cannot distinguish every sustained external force from a
-real cup.
+connection or a reading gap cannot establish it. A return near the original
+zero restores readiness after settling, but cannot identify an equal-weight
+replacement; tare the empty pan from **Diagnostic** and let zero settle before
+placing a cup. Weight alone cannot distinguish every sustained external force
+from a real cup.
 
 ## Fast replacement outside a shot
 

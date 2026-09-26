@@ -101,7 +101,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char cupWeight[32] = "null";
   const auto &tare = control.cupTare;
   const char *idleTare = tare.eligibilityReason != 0 ? idleTareReasonName(tare.eligibilityReason)
-      : tare.requestId != 0 ? "pending" : !tare.referenceKnown ? "uncertain"
+      : tare.requestId != 0 ? "pending"
+      : !tare.referenceKnown || tare.emptyReferenceBlocked ? "uncertain"
       : control.cupPresent ? (tare.tared ? "tared"
           : tare.requestPlacementId == tare.placementId && tare.lastTerminalRequestId != 0
               ? "retry" : "remove")

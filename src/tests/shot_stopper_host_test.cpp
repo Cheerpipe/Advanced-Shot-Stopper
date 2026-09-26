@@ -9331,6 +9331,7 @@ void it36_bookoo_startup_zero_unload_rearms_relative_tare() {
     }
     idleWeight(-initial - 5.0f); // A small undershoot still permits the stable pan.
     CHECK(!cupPresence.weight.emptyValid);
+    CHECK(!captureCupTareDiagnostics().emptyReferenceBlocked);
     idleCup(-initial);
     CHECK(cupPresenceState() == CupPresenceState::ABSENT);
     CHECK(cupPresence.weight.emptyValid);
@@ -9439,6 +9440,8 @@ void it54_unknown_empty_recovers_only_with_qualified_pan() {
   idleWeight(-115.0f); // 15 g rebound is ambiguous with a new cup.
   idleCup(-100.0f);
   CHECK(std::isnan(cupPresence.emptyAnchorG));
+  CHECK(captureCupTareDiagnostics().emptyReferenceBlocked);
+  CHECK(cupPresenceIsKnown()); // Presentation must not change cup-start policy.
   idleCup(100.0f);
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
   idleCup(-100.0f); // Remove the replacement before taring the empty pan.
@@ -9499,6 +9502,94 @@ void it55_unknown_empty_rebound_obeys_minimum_cup_boundary() {
       }
     }
   }
+}
+
+void it56_transient_negative_movement_recovers_idle_readiness() {
+  prepareIdleTare();
+  CHECK(idleTare.absentObserved);
+  for (float weight : {-200.0f, -60.0f, -150.0f, -1.0f, 0.0f})
+    idleWeight(weight);
+  for (unsigned i = 0; i < 200; ++i) idleWeight(0.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(cupPresencePlacementId() == 0);
+  CHECK(cupPresence.weight.emptyValid);
+  CHECK(idleTare.absentObserved);
+  CHECK(!captureCupTareDiagnostics().emptyReferenceBlocked);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleCup(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  CHECK(idleTare.lastReason == IdleTareReason::EFFECT_CONFIRMED);
+  CHECK(scale.tareCalls == 1);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  CHECK(commandCount(ScaleCommandType::START_TIMER_AND_TARE) == 0);
+  CHECK(!session.active);
+  CHECK(!getRelaySafetySnapshot().closed);
+}
+
+void it57_repeated_zero_recovery_requires_configured_stability() {
+  for (float minimum : {1.0f, 10.0f, 100.0f}) {
+    prepareIdleTare();
+    runtimeConfig.minimumCupWeightG = minimum;
+    runtimeConfig.retareStabilitySamples = 5;
+    runtimeConfig.retareStabilityMinDurationMs = 900;
+    runtimeConfig.retareStabilityToleranceG = 0.2f;
+    for (unsigned repeat = 0; repeat < 3; ++repeat) {
+      idleWeight(-200.0f);
+      idleWeight(-60.0f);
+      idleWeight(-150.0f);
+      idleWeight(0.0f);
+      for (unsigned i = 1; i < runtimeConfig.retareStabilitySamples; ++i)
+        idleWeight(0.0f);
+      CHECK(!cupPresence.weight.emptyValid); // Samples alone do not meet 900 ms.
+      idleWeight(-0.2f);
+      idleWeight(0.2f); // Spread restarts the window despite elapsed time.
+      CHECK(!idleTare.absentObserved);
+      for (unsigned i = 0; i < 6; ++i) {
+        idleWeight(i % 2 == 0 ? -0.05f : 0.05f);
+        CHECK(!cupPresence.weight.emptyValid);
+      }
+      idleWeight(0.0f);
+      CHECK(cupPresence.weight.emptyValid);
+      CHECK(idleTare.absentObserved);
+      CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+      CHECK(cupPresencePlacementId() == 0);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    }
+    for (unsigned i = 0; i < 7; ++i) idleWeight(-120.0f);
+    CHECK(cupPresence.weight.emptyValid);
+    CHECK(cupPresence.emptyAnchorG == -120.0f); // Earlier -200 g cannot taint a new unload.
+    for (unsigned i = 0; i < 7; ++i) idleWeight(minimum - 120.0f);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  }
+}
+
+void it58_cup_before_zero_recovery_completes_cannot_place_or_tare() {
+  for (unsigned emptySamples = 1; emptySamples < DEFAULT_RETARE_STABILITY_SAMPLES;
+       ++emptySamples) {
+    prepareIdleTare();
+    idleWeight(-200.0f);
+    idleWeight(-60.0f);
+    idleWeight(-150.0f);
+    for (unsigned i = 0; i < emptySamples; ++i) idleWeight(0.0f);
+    CHECK(!cupPresence.weight.emptyValid);
+    CHECK(!idleTare.absentObserved);
+    idleCup(80.0f);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    CHECK(cupPresencePlacementId() == 0);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  }
+}
+
+void it59_ambiguous_empty_guidance_is_idle_only() {
+  prepareIdleTare();
+  idleWeight(-115.0f);
+  idleCup(-100.0f);
+  CHECK(captureCupTareDiagnostics().emptyReferenceBlocked);
+  session.active = true;
+  CHECK(!captureCupTareDiagnostics().emptyReferenceBlocked);
+  CHECK(cupPresenceIsKnown());
 }
 
 void it37_accessory_retare_is_opt_in_and_once_before_shot() {
@@ -16609,6 +16700,10 @@ const TestCase testCases[] = {
     {"IT53", it53_unknown_empty_rejects_replacement_and_ingredient},
     {"IT54", it54_unknown_empty_recovers_only_with_qualified_pan},
     {"IT55", it55_unknown_empty_rebound_obeys_minimum_cup_boundary},
+    {"IT56", it56_transient_negative_movement_recovers_idle_readiness},
+    {"IT57", it57_repeated_zero_recovery_requires_configured_stability},
+    {"IT58", it58_cup_before_zero_recovery_completes_cannot_place_or_tare},
+    {"IT59", it59_ambiguous_empty_guidance_is_idle_only},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},

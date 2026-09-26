@@ -26,9 +26,10 @@ replacement reads near the original zero, or the scale started substantially
 negative, use **Diagnostic** to tare the empty scale, wait for stable zero, then place the cup.
 Weight readings alone cannot distinguish an equal-weight replacement from the
 scale being moved and returned.
-If the scale briefly dips well below its eventual empty reading, the controller
-may likewise need that empty-pan diagnostic tare: the rebound could also be a
-new cup. Let the empty pan settle before replacing the cup.
+If you move the empty scale after it was ready, leave it still near its original
+zero. Once the normal stability window completes, **Automatic tare** returns to
+**Ready for a cup** without sending a tare. A rebound away from that known zero
+can remain ambiguous; use the empty-pan diagnostic tare in that case.
 
 Once an empty reference is known, two consecutive fresh readings showing
 near-total unloading can authorize a stable replacement without another stable
@@ -55,11 +56,9 @@ coffee is indistinguishable from an accessory, so leave the option OFF if that
 could happen during preparation. See [Tare settings](../settings/tare.md#outside-a-brew)
 for prerequisites and limits.
 
-The empty reference remains fixed across larger disturbances and after the
-first cup placement. A stable negative excursion followed by a return near zero
-does not represent an added cup. Let the empty reference stabilize before the
-next placement. Small, stable negative shifts before the first cup can qualify
-as an empty pan.
+After the first cup placement, the empty reference remains fixed across larger
+disturbances. Let the empty pan settle before the next placement. Small, stable
+negative shifts before the first cup can qualify as an empty pan.
 Larger initial negative offsets without a preceding qualified zero cannot
 authorize relative placement; recovery is described in [Cup settings](../settings/cup.md).
 

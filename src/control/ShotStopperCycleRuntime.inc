@@ -294,6 +294,11 @@ CupTareDiagnostics captureCupTareDiagnostics() {
   out.removedArmed = cupPresence.removedArmed;
   out.tared = cupPresenceIsTared();
   out.referenceKnown = cupPresenceIsKnown();
+  out.emptyReferenceBlocked = !session.active &&
+      cupPresenceState() == CupPresenceState::ABSENT && cupPresence.inNegativeHole &&
+      !std::isfinite(cupPresence.emptyAnchorG) && !cupPresence.holdTransitions &&
+      cupPresence.weight.pendingId == 0 &&
+      idleTare.lastWeightG >= cupPresence.holeWeightG + runtimeConfig.minimumCupWeightG;
   out.absentObserved = idleTare.absentObserved;
   out.removedConfirmations = cupPresence.removedConfirmations;
   out.stabilitySamples = cupPresence.placeStabilitySamples;

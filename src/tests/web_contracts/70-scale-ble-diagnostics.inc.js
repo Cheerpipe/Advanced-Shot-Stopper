@@ -59,6 +59,18 @@
   }
   // Parse the actual adjacent C++ format literals for both status paths.
   const status = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperStatus.inc'), 'utf8');
+  const projectIdleTare = new Function('tare', 'control', 'idleTareReasonName',
+    'return ' + status.match(/const char \*idleTare = ([\s\S]*?);/)[1] + ';');
+  const empty = {eligibilityReason: 0, requestId: 0, referenceKnown: true,
+    emptyReferenceBlocked: false, absentObserved: false};
+  for (const [changes, expected] of [[{}, 'empty'], [{absentObserved: true}, 'ready'],
+    [{emptyReferenceBlocked: true}, 'uncertain'], [{referenceKnown: false}, 'uncertain'],
+    [{emptyReferenceBlocked: true, requestId: 1}, 'pending'],
+    [{emptyReferenceBlocked: true, eligibilityReason: 1}, 'machine_not_off']]) {
+    const actual = projectIdleTare({...empty, ...changes}, {cupPresent: false},
+      () => 'machine_not_off');
+    if (actual !== expected) throw new Error('Idle tare projection: ' + expected);
+  }
   const blocks = [...status.matchAll(/"\\"cupPresence[^\n]*\n\s*("(?:\\.|[^"\\])*")/g)];
   if (blocks.length !== 2) throw new Error('Both cup JSON projections required');
   for (const block of blocks) {
