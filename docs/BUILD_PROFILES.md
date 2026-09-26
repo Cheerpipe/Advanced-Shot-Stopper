@@ -95,15 +95,15 @@ matches the two contracts:
 
 This keeps electrical facts in hardware and behavioral facts in the machine.
 The machine profile never owns a reed GPIO, and the hardware profile never
-selects momentary or paddle behavior. Automated validation and CI build all five
-compatible built-in pairs with `-O2`:
+selects momentary or paddle behavior. Each machine profile declares its
+compatible hardware profiles in its `hardware` list, and the resolver rejects
+any other pairing. Automated validation and CI build the supported built-in
+pairs with `-O2`:
 
 ```text
 esp32-s3-relay-x1-speaker       + rancilio-silvia-pro-x
-esp32-s3-relay-x1-speaker-reed  + rancilio-silvia-pro-x
 esp32-s3-relay-x1-speaker-reed  + rancilio-silvia-pro-x-reed
 esp32-s3-relay-x1-speaker       + la-marzocco-linea-micra
-esp32-s3-relay-x1-speaker-reed  + la-marzocco-linea-micra
 ```
 
 ## Common profile identity
@@ -318,7 +318,8 @@ and adds the historical 1000 ms confirmation timeout:
 }
 ```
 
-It can only resolve with hardware whose reed role is present. For example:
+It only resolves with the hardware profiles the machine profile declares; the
+reed machine requires hardware whose reed role is present. For example:
 
 ```sh
 ./scripts/dev build \

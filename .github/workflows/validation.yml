@@ -129,10 +129,8 @@ jobs:
       matrix:
         include:
           - {name: linea-micra, hardware: esp32-s3-relay-x1-speaker, machine: la-marzocco-linea-micra}
-          - {name: linea-micra-reed-hardware, hardware: esp32-s3-relay-x1-speaker-reed, machine: la-marzocco-linea-micra}
           - {name: silvia-pro-x, hardware: esp32-s3-relay-x1-speaker, machine: rancilio-silvia-pro-x}
-          - {name: silvia-pro-x-reed, hardware: esp32-s3-relay-x1-speaker-reed, machine: rancilio-silvia-pro-x}
-          - {name: silvia-pro-x-reed-feedback, hardware: esp32-s3-relay-x1-speaker-reed, machine: rancilio-silvia-pro-x-reed}
+          - {name: silvia-pro-x-reed, hardware: esp32-s3-relay-x1-speaker-reed, machine: rancilio-silvia-pro-x-reed}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - run: mkdir -p ci-results/idf

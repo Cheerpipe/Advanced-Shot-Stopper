@@ -3,6 +3,7 @@
   "id": "la-marzocco-linea-micra",
   "display_name": "La Marzocco Linea Micra",
   "compatibility_revision": 1,
+  "hardware": ["esp32-s3-relay-x1-speaker"],
   "brand": "La Marzocco",
   "model": "Linea Micra",
   "integration_revision": "paddle-v1-unqualified",

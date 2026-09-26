@@ -3,6 +3,7 @@
   "id": "rancilio-silvia-pro-x-reed",
   "display_name": "Rancilio Silvia Pro X with reed",
   "compatibility_revision": 1,
+  "hardware": ["esp32-s3-relay-x1-speaker-reed"],
   "brand": "Rancilio",
   "model": "Silvia Pro X",
   "integration_revision": "momentary-reed-v1-unqualified",

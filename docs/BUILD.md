@@ -355,7 +355,7 @@ The n16r8 layout reserves 640 KiB for a temporary ESP-IDF core dump and
 partition but does not enable persistent crash capture. On n16r8, the mDNS
 task stack is internal so that stack remains available to a core dump.
 
-GitHub Actions publishes all five compatible built-in pairs listed in
+GitHub Actions publishes the supported built-in pairs listed in
 [Build profiles](BUILD_PROFILES.md#capability-matching). Names follow
 `shotstopper-ota-<profile>-jtag-off-remote-off.bin`; those two features are
 explicitly disabled at compile time. GitHub downloads each artifact as a ZIP

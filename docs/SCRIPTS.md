@@ -74,8 +74,9 @@ troubleshooting: [OTA](features/ota.md).
 
 Every project build requires an exact hardware and machine profile. Use
 `./scripts/dev profiles` to inspect built-in profiles and physically compatible
-pairs. All five compatible built-in pairs are listed in
-[Build profiles](BUILD_PROFILES.md#capability-matching). The optional `--development`
+pairs. The compatible built-in pairs are listed in
+[Build profiles](BUILD_PROFILES.md#capability-matching); each machine profile
+declares its compatible hardware profiles. The optional `--development`
 profile enables the development admin/JTAG settings; `--release` is the
 default. These options are compile-time only and are never persisted.
 

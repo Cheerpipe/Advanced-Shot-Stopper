@@ -46,7 +46,7 @@ release-ready while required HIL/manual evidence is pending.
 Every firmware budget measurement must build with the `--development` profile
 (admin unlock plus the JTAG console), as defined by
 `docs/P2_RESOURCE_BUDGETS.md`; this profile usually produces the largest image.
-R2/R3 validation applies it to all five compatible built-in profile pairs in
+R2/R3 validation applies it to all supported built-in profile pairs in
 `docs/BUILD_PROFILES.md` and leaves those
 conservative images in their profile build directories. Image
 and memory regions are compared by

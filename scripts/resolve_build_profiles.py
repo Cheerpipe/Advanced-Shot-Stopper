@@ -136,8 +136,9 @@ def list_profiles() -> None:
     print("Machine profiles:")
     for profile in machine_profiles:
         compatible = [hardware["id"] for hardware in hardware_profiles
-                      if profile["interface"]["feedback"] != "reed" or
-                      hardware["reed"]["present"]]
+                      if hardware["id"] in profile.get("hardware", [hardware["id"]]) and
+                      (profile["interface"]["feedback"] != "reed" or
+                       hardware["reed"]["present"])]
         interface = profile["interface"]
         print(f"  {profile['id']}  {profile['brand']} {profile['model']} "
               f"control={interface['control']} feedback={interface['feedback']}")
@@ -253,8 +254,8 @@ def validate_hardware(obj: dict[str, Any]) -> dict[str, Any]:
 def validate_machine(obj: dict[str, Any]) -> dict[str, Any]:
     where = "machine"
     exact(obj, {"schema_version", "id", "display_name", "compatibility_revision",
-                "brand", "model", "integration_revision", "integration", "interface",
-                "factory_defaults"}, where)
+                "hardware", "brand", "model", "integration_revision", "integration",
+                "interface", "factory_defaults"}, where)
     common_profile(obj, where)
     profile_text(obj["brand"], "machine.brand")
     profile_text(obj["model"], "machine.model")
@@ -271,6 +272,12 @@ def validate_machine(obj: dict[str, Any]) -> dict[str, Any]:
         fail("paddle control does not support reed feedback")
     if integration == "linea_micra_cloud" and (control, feedback) != ("paddle", "none"):
         fail("linea_micra_cloud requires paddle control without feedback")
+    if not isinstance(obj["hardware"], list) or not obj["hardware"] or \
+            any(not isinstance(entry, str) for entry in obj["hardware"]):
+        fail("machine.hardware must be a non-empty list of hardware profile ids")
+    for entry in obj["hardware"]:
+        profile_text(entry, "machine.hardware entry", identifier=True)
+
     defaults = obj["factory_defaults"]
     specific = "paddle" if control == "paddle" else "momentary"
     exact(defaults, {"operational_wall_ms", specific, "quick_rinse"},
@@ -498,6 +505,9 @@ def resolve(hardware: dict[str, Any], machine: dict[str, Any], flags: str) -> di
     apply_overrides(hardware, machine, definitions)
     validate_hardware(hardware)
     validate_machine(machine)
+    if hardware["id"] not in machine.get("hardware", [hardware["id"]]):
+        fail(f"hardware profile {hardware['id']!r} is not compatible with machine profile "
+             f"{machine['id']!r}; declare it in the machine profile hardware list")
     if machine["interface"]["feedback"] == "reed" and not hardware["reed"]["present"]:
         fail("machine requires reed feedback but the hardware profile declares reed absent")
     if definitions.get("SHOT_STOPPER_DEVELOPMENT") not in (None, "0", "1"):

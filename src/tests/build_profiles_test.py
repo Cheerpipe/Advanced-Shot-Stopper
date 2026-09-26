@@ -197,7 +197,13 @@ bad.unlink()
 expect_failure(flags="-DSHOT_STOPPER_MACHINE_TYPE=2",
                text="conflicts with the machine profile")
 expect_failure(machine=PRO_X_REED,
+               text="not compatible with machine profile")
+bare = changed(HARDWARE, lambda value: value.update(id="bare-controller"))
+reed_on_bare = changed(PRO_X_REED, lambda value: value.update(hardware=["bare-controller"]))
+expect_failure(hardware=bare, machine=reed_on_bare,
                text="machine requires reed feedback")
+bare.unlink()
+reed_on_bare.unlink()
 expect_failure(flags="-DSHOT_STOPPER_REED_GPIO=13",
                text="cannot configure absent reed hardware")
 expect_failure(flags="-DSHOT_STOPPER_SPEAKER_PRESENT=0",

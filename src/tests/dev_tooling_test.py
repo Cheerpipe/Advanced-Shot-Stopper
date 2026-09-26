@@ -952,7 +952,7 @@ for validate_args, environment, expected in (
     validate_steps = validate_language_steps(validate_args, environment)
     build_steps = [argv for name, argv in validate_steps
                    if name.startswith(("idf-", "warnings-"))]
-    assert len(build_steps) == 10
+    assert len(build_steps) == 6
     assert all(argv.count("--webui-language") == 1 and
                argv[argv.index("--webui-language") + 1] == expected
                for argv in build_steps), build_steps
