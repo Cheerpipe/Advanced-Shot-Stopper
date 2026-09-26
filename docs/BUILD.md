@@ -293,17 +293,21 @@ The final verifier also rejects drift from the qualified production profile:
 n8r4 uses 8 MB flash, `partitions-n8r4.csv`, and QUAD PSRAM; n16r8 uses 16 MB
 flash, `partitions-n16r8.csv`, and OCT PSRAM. Both require DIO/80 MHz flash,
 80 MHz PSRAM, a 32 KiB internal reserve, 64 KiB MMU pages, rollback support,
-the mDNS task stack and dynamic responder allocations in PSRAM, the pinned
-boot/task/interrupt watchdog and panic settings, and the GPTimer ISR handler in
-IRAM. Other application, NimBLE/VHCI, HTTP, persistence, control, and
-flash-writing stacks remain internal. These checks verify current hardware
-settings; they do not retune clocks, partitions, or watchdog durations.
+mDNS dynamic responder allocations in PSRAM — the mDNS task stack follows the
+variant: PSRAM on n8r4, internal RAM on n16r8 because flash core dumps cannot
+read a stack in cache-backed PSRAM — the pinned boot/task/interrupt watchdog
+and panic settings, and the GPTimer ISR handler in IRAM. Other application,
+NimBLE/VHCI, HTTP, persistence, control, and flash-writing stacks remain
+internal. These checks verify current hardware settings; they do not retune
+clocks, partitions, or watchdog durations.
 
-N16R8 builds enable execution of flash code and read-only data from PSRAM as a
-timing experiment during flash writes. N8R4 builds keep this option disabled.
-An existing N16R8 build tree is regenerated when its selected defaults change. A
-successful build verifies configuration and memory limits; only an on-device
-comparison can establish whether loop gaps improve.
+N16R8 builds map flash code and read-only data into PSRAM at startup and
+execute from there, reserving roughly 1.9 MiB of PSRAM ahead of the heap.
+N8R4 builds keep this option disabled. Flash operations still disable both
+caches while they run, so this mapping does not change which code may run
+during a write. An existing N16R8 build tree is regenerated when its selected
+defaults change. A successful build verifies configuration and memory limits;
+only an on-device comparison can establish whether loop gaps improve.
 
 Each build compares its selected repository defaults and build profile with the
 last verified build of that variant. If an input changed, was added, or was

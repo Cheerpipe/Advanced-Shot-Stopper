@@ -52,11 +52,13 @@ CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
 # Prefer PSRAM for Wi-Fi/lwIP buffers when the driver allows it (soak-tested
 # SoftAP+STA+BLE on n16r8). Leaves more internal DRAM for BLE controller.
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
-# IDF may set CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY=y as a permission.
-# xTaskCreate still allocates internal stacks. Do not enable
-# CONFIG_FREERTOS_PLACE_TASK_STACKS_IN_EXT_RAM and do not call
-# xTaskCreateWithCaps(..., MALLOC_CAP_SPIRAM): flash-writing tasks (loop,
-# network, httpd, persist) and VHCI would fault while the cache is off.
+# Task stacks stay internal: plain xTaskCreate still allocates internal stacks.
+# CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y (legacy alias
+# CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY) exists only so the n8r4 mDNS task
+# stack may live in PSRAM. Do not create other tasks with PSRAM stacks
+# (xTaskCreateWithCaps(..., MALLOC_CAP_SPIRAM)): flash writes disable both
+# caches while IDF asserts the writing task's stack is internal, so
+# flash-writing tasks (loop, network, httpd, persist) and VHCI paths fault.
 
 # Trim Wi-Fi / lwIP DRAM for a single Web UI client + SoftAP.
 CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=8
