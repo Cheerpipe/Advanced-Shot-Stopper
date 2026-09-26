@@ -321,6 +321,59 @@ inline HeapCapSnapshot &hostHeapCapsSnapshot() {
 }
 #endif
 
+// Free-block layout of the internal DRAM heap, used by the HEAP serial
+// command to show which gaps bound the largest allocatable block.
+struct HeapFreeBlockInfo {
+  uint32_t sizeBytes = 0;
+  uintptr_t startAddress = 0;
+};
+
+constexpr size_t HEAP_FREE_BLOCK_SAMPLE_CAPACITY = 12;
+
+struct HeapFreeBlockList {
+  uint32_t walkedFreeBlocks = 0;
+  uint32_t listedCount = 0;
+  HeapFreeBlockInfo blocks[HEAP_FREE_BLOCK_SAMPLE_CAPACITY] = {};
+};
+
+#if defined(SHOT_STOPPER_HOST_TEST) ||                                         \
+    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+inline HeapFreeBlockList sampleInternalFreeBlocks() {
+  static const uint32_t sizes[3] = {100000, 60000, 40000};
+  static const uintptr_t starts[3] = {0x3FC88000u, 0x3FCB0000u, 0x3FCE0000u};
+  HeapFreeBlockList list;
+  for (size_t i = 0; i < 3; ++i) {
+    list.blocks[i] = HeapFreeBlockInfo{sizes[i], starts[i]};
+  }
+  list.walkedFreeBlocks = 3;
+  list.listedCount = 3;
+  return list;
+}
+#else
+inline bool recordInternalFreeBlock(walker_heap_into_t,
+                                    walker_block_info_t block, void *user) {
+  HeapFreeBlockList *list = static_cast<HeapFreeBlockList *>(user);
+  if (block.used) {
+    return true;
+  }
+  ++list->walkedFreeBlocks;
+  if (list->listedCount < HEAP_FREE_BLOCK_SAMPLE_CAPACITY) {
+    list->blocks[list->listedCount] = HeapFreeBlockInfo{
+        static_cast<uint32_t>(block.size),
+        reinterpret_cast<uintptr_t>(block.ptr)};
+    ++list->listedCount;
+  }
+  return true;
+}
+
+inline HeapFreeBlockList sampleInternalFreeBlocks() {
+  HeapFreeBlockList list;
+  heap_caps_walk(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT,
+                 recordInternalFreeBlock, &list);
+  return list;
+}
+#endif
+
 inline HeapCapSnapshot sampleHeapCaps() {
   HeapCapSnapshot snap;
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)

@@ -11936,6 +11936,21 @@ void sc01_hello_replies_how_are_you() {
   CHECK(serialTxContains("how are you"));
 }
 
+void sc01b_heap_dumps_internal_free_blocks() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  feedSerial("heap\n");
+  CHECK(serialTxContains("HEAP"));
+  CHECK(serialTxContains("freeBlockUnit=bytes"));
+  CHECK(serialTxContains("internalFree=200000"));
+  CHECK(serialTxContains("internalLargest=100000"));
+  CHECK(serialTxContains("freeBlocksWalked=3"));
+  CHECK(serialTxContains("freeBlock0Size=100000"));
+  CHECK(serialTxContains("freeBlock0Start=0x3fc88000"));
+  CHECK(serialTxContains("freeBlock2Size=40000"));
+  CHECK(!serialTxContains("freeBlocksTruncated="));
+}
+
 void sc02_factory_reset_rejected_while_active() {
   resetHarness(false, false);
   reachReadyFromBoot();
@@ -12045,6 +12060,8 @@ void sc05_serial_cli_parser_covers_supported_commands() {
   CHECK(request.verb == SerialCliVerb::SCALE_STATUS);
   CHECK(serialCliParseLine("NTP_STATUS", request));
   CHECK(request.verb == SerialCliVerb::NTP_STATUS);
+  CHECK(serialCliParseLine("HEAP", request));
+  CHECK(request.verb == SerialCliVerb::HEAP);
   CHECK(!serialCliParseLine("HELP extra", request));
   CHECK(request.verb == SerialCliVerb::INVALID_ARGS);
   CHECK(!serialCliParseLine("REBOOT extra", request));
@@ -12394,6 +12411,7 @@ void sc10_help_prints_one_line_per_command() {
   CHECK(serialTxContains("HEALTH  heap, loop gap, cpu load"));
   CHECK(serialTxContains("SCALE_STATUS  BLE scale link"));
   CHECK(serialTxContains("NTP_STATUS  wall clock"));
+  CHECK(serialTxContains("HEAP  internal heap free-block layout"));
   CHECK(serialTxContains("e.g. SET_WIFI CafeLAN CafePass1"));
   CHECK(Serial.tx.size() <= SERIAL_CLI_OUTPUT_CAPACITY);
   CHECK(session.active);
@@ -12554,6 +12572,28 @@ void sc15_status_printers_use_dump_views() {
   CHECK(serialTxContains("tempValid=true"));
   CHECK(serialTxContains("tempC=42.5"));
   CHECK(serialTxContains("tempPeakC=47.0"));
+  CHECK(Serial.tx.size() <= SERIAL_CLI_OUTPUT_CAPACITY);
+
+  Serial.tx.clear();
+  serialCliPrintHeap(sampleHeapCaps(), sampleInternalFreeBlocks());
+  CHECK(serialTxContains("internalTotal=327680"));
+  CHECK(serialTxContains("internalFree=200000"));
+  CHECK(serialTxContains("internalMinimum=180000"));
+  CHECK(serialTxContains("internalLargest=100000"));
+  CHECK(serialTxContains("internalFragmentationPermille=500"));
+  CHECK(serialTxContains("freeBlocksWalked=3"));
+  CHECK(serialTxContains("freeBlock0Size=100000"));
+  CHECK(serialTxContains("freeBlock2Size=40000"));
+  CHECK(serialTxContains("freeBlock2Start=0x3fce0000"));
+  HeapFreeBlockList truncated;
+  truncated.walkedFreeBlocks = HEAP_FREE_BLOCK_SAMPLE_CAPACITY + 5;
+  truncated.listedCount = HEAP_FREE_BLOCK_SAMPLE_CAPACITY;
+  for (size_t i = 0; i < HEAP_FREE_BLOCK_SAMPLE_CAPACITY; ++i) {
+    truncated.blocks[i] = HeapFreeBlockInfo{4096, 0x3FC88000u + i * 4096u};
+  }
+  Serial.tx.clear();
+  serialCliPrintHeap(sampleHeapCaps(), truncated);
+  CHECK(serialTxContains("freeBlocksTruncated=5"));
   CHECK(Serial.tx.size() <= SERIAL_CLI_OUTPUT_CAPACITY);
 
   SerialCliScaleDump scale;
@@ -16795,6 +16835,7 @@ const TestCase testCases[] = {
     {"N07", n07_syncing_clock_skips_activity_ntp_request},
     {"N08", n08_web_rinse_requests_ntp_when_unsynced},
     {"SC01", sc01_hello_replies_how_are_you},
+    {"SC01B", sc01b_heap_dumps_internal_free_blocks},
     {"SC02", sc02_factory_reset_rejected_while_active},
     {"SC03", sc03_set_wifi_queues_save_network},
     {"SC04", sc04_clear_shots_empties_log},

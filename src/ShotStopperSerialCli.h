@@ -2,6 +2,7 @@
 
 #include "ShotStopperDomain.h"
 #include "ShotStopperPersistedNetwork.h"
+#include "ShotStopperPsram.h"
 #include "ShotStopperTime.h"
 #include "ShotStopperUsbConsole.h"
 
@@ -45,6 +46,7 @@ enum class SerialCliVerb : uint8_t {
   HEALTH,
   SCALE_STATUS,
   NTP_STATUS,
+  HEAP,
   UNKNOWN,
   LINE_TOO_LONG,
   INVALID_ARGS
@@ -98,6 +100,7 @@ inline const char *serialCliVerbName(SerialCliVerb verb) {
     case SerialCliVerb::HEALTH: return "HEALTH";
     case SerialCliVerb::SCALE_STATUS: return "SCALE_STATUS";
     case SerialCliVerb::NTP_STATUS: return "NTP_STATUS";
+    case SerialCliVerb::HEAP: return "HEAP";
     case SerialCliVerb::UNKNOWN: return "UNKNOWN";
     case SerialCliVerb::LINE_TOO_LONG: return "LINE_TOO_LONG";
     case SerialCliVerb::INVALID_ARGS: return "INVALID_ARGS";
@@ -340,6 +343,9 @@ inline bool serialCliParseLine(const char *line, SerialCliRequest &request) {
   if (serialCliEqualsIgnoreCase(verb, "ntp_status")) {
     return requireNoArgs(SerialCliVerb::NTP_STATUS);
   }
+  if (serialCliEqualsIgnoreCase(verb, "heap")) {
+    return requireNoArgs(SerialCliVerb::HEAP);
+  }
 
   if (serialCliEqualsIgnoreCase(verb, "set_device_password")) {
     if (argCount != 1) {
@@ -455,6 +461,8 @@ inline void serialCliPrintHelp() {
   Serial.println("HEALTH  heap, loop gap, cpu load, task stacks  e.g. HEALTH");
   Serial.println("SCALE_STATUS  BLE scale link dump  e.g. SCALE_STATUS");
   Serial.println("NTP_STATUS  wall clock and NTP dump  e.g. NTP_STATUS");
+  Serial.println(
+      "HEAP  internal heap free-block layout  e.g. HEAP");
 }
 
 inline const char *serialCliWifiModeName(uint8_t mode) {
@@ -858,6 +866,46 @@ inline void serialCliPrintHealth(const SerialCliHealthDump &dump) {
   Serial.println(dump.tempC, 1);
   Serial.print("tempPeakC=");
   Serial.println(dump.tempPeakC, 1);
+}
+
+inline void serialCliPrintHeap(const HeapCapSnapshot &snapshot,
+                               const HeapFreeBlockList &blocks) {
+  Serial.println("HEAP");
+  Serial.println("freeBlockUnit=bytes addressUnit=hex");
+  Serial.print("internalTotal=");
+  Serial.println(static_cast<unsigned long>(snapshot.internalTotal));
+  Serial.print("internalFree=");
+  Serial.println(static_cast<unsigned long>(snapshot.internalFree));
+  Serial.print("internalMinimum=");
+  Serial.println(static_cast<unsigned long>(snapshot.internalMinimum));
+  Serial.print("internalLargest=");
+  Serial.println(static_cast<unsigned long>(snapshot.internalLargest));
+  Serial.print("internalFreeBlocks=");
+  Serial.println(static_cast<unsigned long>(snapshot.internalFreeBlocks));
+  Serial.print("internalFragmentationPermille=");
+  Serial.println(
+      static_cast<unsigned>(snapshot.internalFragmentationPermille));
+  Serial.print("freeBlocksWalked=");
+  Serial.println(static_cast<unsigned long>(blocks.walkedFreeBlocks));
+  for (uint32_t i = 0; i < blocks.listedCount &&
+                       i < HEAP_FREE_BLOCK_SAMPLE_CAPACITY; ++i) {
+    char start[11] = {};
+    snprintf(start, sizeof(start), "0x%lx",
+             static_cast<unsigned long>(blocks.blocks[i].startAddress));
+    Serial.print("freeBlock");
+    Serial.print(static_cast<unsigned long>(i));
+    Serial.print("Size=");
+    Serial.print(static_cast<unsigned long>(blocks.blocks[i].sizeBytes));
+    Serial.print(" freeBlock");
+    Serial.print(static_cast<unsigned long>(i));
+    Serial.print("Start=");
+    Serial.println(start);
+  }
+  if (blocks.walkedFreeBlocks > blocks.listedCount) {
+    Serial.print("freeBlocksTruncated=");
+    Serial.println(static_cast<unsigned long>(blocks.walkedFreeBlocks -
+                                              blocks.listedCount));
+  }
 }
 
 inline void serialCliPrintScaleStatus(const SerialCliScaleDump &dump) {

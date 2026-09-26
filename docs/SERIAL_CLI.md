@@ -61,7 +61,7 @@ Wi-Fi and BLE startup and keeps machine circuit open throughout the operation.
 Always allowed (including during a cycle):
 
 - `HELP`, `HELLO`
-- dumps (`*_STATUS`, `NET_STATUS`, `LOG_DUMP`, `HEALTH`)
+- dumps (`*_STATUS`, `NET_STATUS`, `LOG_DUMP`, `HEALTH`, `HEAP`)
 - `SERIAL_DEBUG_ON` / `SERIAL_DEBUG_OFF`, `DEBUG_FULL` / `DEBUG_OFF`
 - link mutations (`WIFI_CONNECT` / `DISCONNECT` / `RESTART`, `AP_START` /
   `AP_STOP`, `WEBUI_START` / `STOP` / `RESTART`)
@@ -163,6 +163,7 @@ persist.
 | `HEALTH` | none | Heap, PSRAM, BLE host alloc counters, loop gap (interval + max), task stacks, CPU load, temperature, alert latches |
 | `SCALE_STATUS` | none | BLE scale link, preferred MAC/name, weight freshness, recovered stale count/time, live `scanIntensity` (`aggressive` / `balanced` / `relaxed`), the saved idle scan backoff in minutes (`scanBackoffMin`, `0` = off), and the saved machine-use scan boost in minutes (`scanBoostMin`, `0` = off) |
 | `NTP_STATUS` | none | Wall clock / NTP state. Notes if STA is down |
+| `HEAP` | none | Internal memory heap summary plus the list of free blocks (size and start address, up to 12) so you can see which gaps bound the largest allocation. Reports `freeBlocksTruncated` when more free blocks exist |
 
 `HEALTH` stack watermarks are bytes (`stackUnit=bytes`). Legacy `Words` suffixes
 are retained without rescaling their values. `4294967295` means unavailable;
@@ -177,7 +178,9 @@ zero is a valid exhausted margin and must never be filtered out.
 ## Short workflows
 
 - **Inspect a problem:** `HELLO` → `NET_STATUS` → `SCALE_STATUS` → `HEALTH`.
-  Save a redacted transcript with firmware and scale versions.
+  Save a redacted transcript with firmware and scale versions. If `HEALTH`
+  shows a small largest heap block, follow with `HEAP` to see the free-block
+  layout.
 - **Restore AP without erasing Wi-Fi:** `AP_START`; use `WEBUI_START` too if
   HTTP was explicitly stopped.
 - **Forgot Admin password, keep Wi-Fi:** while idle, `RESET_DEVICE_PASSWORD`.

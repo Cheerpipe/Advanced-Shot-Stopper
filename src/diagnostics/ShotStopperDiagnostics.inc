@@ -566,6 +566,10 @@ void serialCliPrintLiveHealth() {
   serialCliPrintHealth(dump);
 }
 
+void serialCliPrintLiveHeap() {
+  serialCliPrintHeap(sampleHeapCaps(), sampleInternalFreeBlocks());
+}
+
 void serialCliPrintLiveScaleStatus() {
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   SerialCliScaleDump dump;
@@ -832,6 +836,9 @@ void dispatchSerialCliRequest(SerialCliRequest &request) {
       return;
     case SerialCliVerb::NTP_STATUS:
       serialCliPrintLiveNtpStatus();
+      return;
+    case SerialCliVerb::HEAP:
+      serialCliPrintLiveHeap();
       return;
   }
 }
