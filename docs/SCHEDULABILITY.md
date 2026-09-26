@@ -20,8 +20,8 @@ subscribed nor part of control. Stack values are configured bytes in ESP-IDF.
 | health | periodic / 100 ms | diagnostic | n/a | idle | none | 4096 | 0 | no |
 | network_manager | periodic / 50 ms | 250 ms | 200000 us | idle+1 | 2500 ms lifecycle/cancel | 10240 | 0 | 5 s |
 | mdns | event-driven (action queue) | n/a | n/a | 1 | freed once in network stop | 4096 | 0 | no |
-| httpd | framework event | n/a | n/a | idle+1 | 30000 ms OTA receive budget | 10240 | 0 | no |
-| webhook | event-driven | n/a | n/a | idle | 1800 ms HTTP | 4096 | 0 | no |
+| httpd | framework event | n/a | n/a | idle+1 | 30000 ms OTA receive budget | 11264 | 0 | no |
+| webhook | event-driven | n/a | n/a | idle | 1800 ms HTTP | 4608 | 0 | no |
 | micra_cloud | event-driven | n/a | n/a | idle | 10000 ms per HTTPS request | 8192 | 0 | no |
 | serial_log | event-driven | n/a | n/a | idle | unbounded USB sink | 3072 | 0 | no |
 
@@ -135,9 +135,16 @@ byte-valued numbers for compatibility. Zero is a measured exhausted margin,
 not a missing sample. The low-stack alert enters below 1024 bytes and clears
 at 1536 bytes. Reducing a configured stack needs target measurements under the
 combined workload.
-The HTTP server task is configured with 10240 bytes after an 8192-byte target
-run left only 452 bytes free under Diagnostic traffic; repeat that workload on
-target and retain the new watermark as manual acceptance evidence.
+The HTTP server task is configured with 11264 bytes after the 2026-09-26
+target capture (300-sample task profiler under sustained status polling)
+left only 1540 bytes free on 10240 — 4 bytes above the 1536-byte gate —
+matching the earlier 8192-byte run that left 452 bytes. The webhook worker
+stack is 4608 bytes after the same capture measured 1400 bytes free on 4096
+during a cold TLS send (client create plus handshake), below the gate; the
+network_manager stack stays at 10240 because the documented FACTORY_RESET
+path canaried 7168 and the capture did not exercise it. Repeat each workload
+on target after any change and retain the new watermark as manual acceptance
+evidence.
 
 ## Release test
 

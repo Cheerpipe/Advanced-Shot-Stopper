@@ -19,6 +19,9 @@ namespace {
 
 constexpr size_t kWebhookQueueDepth = 4;
 constexpr size_t kWebhookPayloadCapacity = 2048;
+// A cold TLS send (client create + handshake) left 1 400 B free on 4 096
+// (2026-09-26 target capture), below the 1 536 B release gate.
+constexpr uint32_t kWebhookWorkerStackBytes = 4608;
 constexpr int kWebhookTimeoutMs = 1800;
 constexpr uint32_t kWebhookStopTimeoutMs = 2500;
 
@@ -168,7 +171,8 @@ bool WebhookDispatcher::startWorker() {
   queueStorage_ = queueStorage;
   payload_ = payload;
   mux_.unlock();
-  if (xTaskCreatePinnedToCore(taskEntry, "webhook", 4096, this,
+  if (xTaskCreatePinnedToCore(taskEntry, "webhook", kWebhookWorkerStackBytes,
+                              this,
                              tskIDLE_PRIORITY, &task_, 0) != pdPASS) {
     vQueueDelete(queue);
     heapCapsFree(queueStorage);

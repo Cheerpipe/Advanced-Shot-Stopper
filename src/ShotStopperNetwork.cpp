@@ -274,13 +274,15 @@ constexpr const char *STATUS_UNAVAILABLE = "503 Service Unavailable";
 // processPersistedCommand() keeps one copy on the stack via settingsCopy();
 // NVS dual-slot scratch is shared off-stack. 7 168 was too small (canary on
 // FACTORY_RESET). 10 240 keeps headroom without the old 12 KiB margin.
-// Keep this stack internal: XIP preserves cache for most writes, but flash
-// mapping and driver paths can still disable it.
+// Keep this stack internal: flash writes disable both caches (flash and
+// PSRAM mappings) while they run, so a PSRAM stack could not perform them.
 constexpr uint32_t NETWORK_MANAGER_TASK_STACK_SIZE = 10240;
 // POST JSON bodies live in NetworkWorkBuf (PSRAM), so the httpd worker no
 // longer needs a 2 KiB request-body frame on top of headers and send buffers.
+// 11 264 after status polling left only 1 540 B free on 10 240 (2026-09-26
+// target capture), 4 B above the 1 536 B release gate.
 // Stack stays internal: OTA flash writes run on this task.
-constexpr uint32_t HTTP_SERVER_TASK_STACK_SIZE = 10240;
+constexpr uint32_t HTTP_SERVER_TASK_STACK_SIZE = 11264;
 
 bool jsonFieldPresent(cJSON *object, const char *name) {
   return object != nullptr && name != nullptr &&
