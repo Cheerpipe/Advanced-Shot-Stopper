@@ -149,7 +149,11 @@ are owned by one RAM data layer (`ActivationStores`) whose every access runs
 under the single `shotStoreMutex`. Control and HTTP mutate only RAM and advance
 a generation. The core-0 persistence worker copies an immutable image under
 that mutex, releases it before flash I/O, and clears live dirtiness only when
-the completion generation still matches. Each inactive partition slot is
+the completion generation still matches. Acknowledgement carries the image's
+flash generation and active slot back to each live store even when newer RAM
+edits remain dirty, so the next snapshot advances from that flash generation.
+Clearing a store preserves its generation; an older slot must never outrank
+the saved empty store. Each inactive partition slot is
 erased one 4 KiB sector at a time, programmed one 1 KiB staged chunk at a time,
 and receives its validity-bearing header last; the worker rechecks the current
 machine and scale gates between steps. The shot log's whole 7,228-byte store and the

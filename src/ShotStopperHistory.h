@@ -106,11 +106,6 @@ class HistoryLog
     }
     page.count = pageCount;
   }
-
-  void acknowledgePersisted(const HistoryLog &image, bool clearDirty) {
-    activeSlot_ = image.activeSlot_;
-    if (clearDirty) dirty_ = false;
-  }
 };
 
 }  // namespace shotstopper

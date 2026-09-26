@@ -78,7 +78,9 @@ class ShotCurveLog
   }
 
   bool clear(bool persistNow = true) {
+    const uint32_t generation = store_.header.generation;
     resetShotCurveStore(store_);
+    store_.header.generation = generation;
     if (!persistNow) {
       dirty_ = true;
       return true;
@@ -91,11 +93,6 @@ class ShotCurveLog
   }
 
   size_t count() const { return store_.header.count; }
-
-  void acknowledgePersisted(const ShotCurveLog &image, bool clearDirty) {
-    activeSlot_ = image.activeSlot_;
-    if (clearDirty) dirty_ = false;
-  }
 };
 
 }  // namespace shotstopper

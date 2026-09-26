@@ -623,6 +623,79 @@ void p66_shot_log_dual_slot_generation_flip() {
   CHECK(out[1].durationDs == 250);
 }
 
+template <typename Log, typename Record>
+void check_snapshot_persistence(Record record) {
+  Log::resetHostStorage();
+  Log live;
+  CHECK(live.load());
+  Log reloaded;
+  for (size_t count = 1; count <= 4; ++count) {
+    CHECK(live.append(record, false));
+    Log image = live;
+    CHECK(image.flushStep() == FlashStoreStepResult::COMPLETE);
+    live.acknowledgePersisted(image, true);
+    CHECK(!live.dirty());
+    CHECK(reloaded.load());
+    CHECK(reloaded.count() == count);
+  }
+
+  // A newer RAM edit must survive acknowledgement of an older snapshot.
+  CHECK(live.append(record, false));
+  Log image = live;
+  CHECK(live.append(record, false));
+  CHECK(image.flushStep() == FlashStoreStepResult::COMPLETE);
+  live.acknowledgePersisted(image, false);
+  CHECK(live.dirty());
+  CHECK(live.count() == 6);
+  CHECK(reloaded.load());
+  CHECK(reloaded.count() == 5);
+  image = live;
+  CHECK(image.flushStep() == FlashStoreStepResult::COMPLETE);
+  live.acknowledgePersisted(image, true);
+  CHECK(reloaded.load());
+  CHECK(reloaded.count() == 6);
+
+  CHECK(live.append(record, false));
+  image = live;
+  Log::setHostSaveSucceeds(false);
+  CHECK(image.flushStep() == FlashStoreStepResult::FAILED);
+  live.acknowledgePersisted(image, false);
+  CHECK(live.dirty());
+  CHECK(reloaded.load());
+  CHECK(reloaded.count() == 6);
+  Log::setHostSaveSucceeds(true);
+  image = live;
+  CHECK(image.flushStep() == FlashStoreStepResult::COMPLETE);
+  live.acknowledgePersisted(image, true);
+  CHECK(reloaded.load());
+  CHECK(reloaded.count() == 7);
+
+  CHECK(live.clear(false));
+  image = live;
+  CHECK(image.flushStep() == FlashStoreStepResult::COMPLETE);
+  live.acknowledgePersisted(image, true);
+  CHECK(reloaded.load());
+  CHECK(reloaded.count() == 0);
+  CHECK(live.append(record));
+  CHECK(live.clear());
+  CHECK(reloaded.load());
+  CHECK(reloaded.count() == 0);
+}
+
+void p66b_snapshot_acknowledgement_preserves_newest_generation() {
+  resetHostPersistence();
+  ShotLogRecord shot = {};
+  shot.durationDs = 280;
+  shot.actualWeightCg = 3690;
+  check_snapshot_persistence<ShotLog>(shot);
+  check_snapshot_persistence<HistoryLog>(HistoryRecord{});
+  ShotCurveRecord curve = emptyShotCurveRecord();
+  curve.shotId = 1;
+  curve.count = 1;
+  curve.weightCg[0] = 3690;
+  check_snapshot_persistence<ShotCurveLog>(curve);
+}
+
 void p09_fast_extraction_guard_validation() {
   RuntimeConfig config = {};
   config.goalWeightG = 36;
@@ -1802,6 +1875,9 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   CHECK(newest[0].shotId == 8);
   CHECK(reloaded.clear());
   CHECK(reloaded.count() == 0);
+  ShotCurveLog afterClear;
+  CHECK(afterClear.load());
+  CHECK(afterClear.count() == 0);
   for (uint32_t id = 1; id <= SHOT_CURVE_CAPACITY + 1; ++id) {
     first.shotId = id;
     CHECK(reloaded.append(first, false));
@@ -2220,6 +2296,7 @@ const TestCase tests[] = {
     {"P64", p64_factory_settings_overwrite_does_not_clear_ble_namespace},
     {"P65", p65_factory_settings_survives_second_slot_write_fail},
     {"P66", p66_shot_log_dual_slot_generation_flip},
+    {"P66B", p66b_snapshot_acknowledgement_preserves_newest_generation},
     {"P09", p09_fast_extraction_guard_validation},
     {"P10", p10_auto_to_manual_guard_trend_and_validation},
     {"P12", p12_shot_log_persists_compact_blob},

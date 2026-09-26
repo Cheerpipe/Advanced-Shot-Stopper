@@ -143,11 +143,6 @@ class ShotLog
   }
 
   size_t count() const { return store_.header.count; }
-
-  void acknowledgePersisted(const ShotLog &image, bool clearDirty) {
-    activeSlot_ = image.activeSlot_;
-    if (clearDirty) dirty_ = false;
-  }
 };
 
 }  // namespace shotstopper

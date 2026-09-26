@@ -198,6 +198,13 @@ class DualSlotFlashLog {
 
   bool dirty() const { return dirty_; }
 
+  void acknowledgePersisted(const DualSlotFlashLog &image, bool clearDirty) {
+    // Carry flash progress forward without replacing newer live RAM records.
+    activeSlot_ = image.activeSlot_;
+    store_.header.generation = image.store_.header.generation;
+    if (clearDirty) dirty_ = false;
+  }
+
   // Record-level ring API shared by the stores. The per-store traits supply
   // the record type, ring capacity, and the record field that carries the
   // record id (ShotLog/History use `id`, ShotCurve uses `shotId`).

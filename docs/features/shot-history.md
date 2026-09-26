@@ -73,6 +73,8 @@ records every confirmed activation, including rinses and cycles that do not
 qualify as shots. Deleting or clearing shot history never changes that diary.
 New rows appear after the configured drip delay. If flash saving is still
 pending, the API reports `savePending`; a failed write remains pending for retry.
+Once saving completes, the newest shot and its curve survive a restart.
+Power loss before saving completes can still lose pending changes.
 
 Sort the list by **Date** or **Rating**, ascending or descending. Date
 defaults to newest first. Rating puts unrated shots (0 stars) at the end
@@ -94,7 +96,11 @@ flow, daily count, and the duration chart, regardless of how the table is
 sorted. **Avg BBW error** uses only normal BBW target cuts among those ten and
 averages the absolute percentage miss, so overshoots and undershoots cannot
 cancel each other. It is unavailable when none of those shots has a valid
-target. An erase-all firmware installation starts with empty shot history.
+target. For example, a single 28.0 s Fast-guard shot yielding 36.9 g with
+1.42 g/s average flow shows those same three averages; **Avg BBW error** stays
+unavailable because a guard stop is not a normal target cut. **Daily shots**
+averages the dated shots over the calendar days they span, including both ends.
+An erase-all firmware installation starts with empty shot history.
 If a low-weight older row is imported later, it remains in the table and CSV
 but does not enter Home or these summaries.
 

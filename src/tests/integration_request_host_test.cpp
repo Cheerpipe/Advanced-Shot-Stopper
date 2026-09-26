@@ -1,8 +1,14 @@
 #include "../ShotStopperIntegrationRequest.h"
+#include "../ShotStopperShotLogTypes.h"
 
 #include <cJSON.h>
 #include <cstdlib>
+#include <cstdio>
 #include <iostream>
+
+namespace shotstopper {
+#include "../network/ShotStopperStatsJson.inc"
+}
 
 using namespace shotstopper;
 
@@ -98,6 +104,61 @@ void queue_rejection_rolls_back_only_its_staging_slot() {
   CHECK(staged == 0);
 }
 
+void stats_json_preserves_independent_metrics() {
+  ShotLogRecord rows[3] = {};
+  for (unsigned i = 0; i < 3; ++i) {
+    rows[i].durationDs = 280 + i * 20;
+    rows[i].actualWeightCg = 3690 + i * 100;
+    rows[i].goalWeightG = 36;
+    rows[i].avgFlowCgS = 142 + i * 10;
+    rows[i].hasWallTime = true;
+    rows[i].endedAtLocalSec = 86400;
+    rows[i].shotType = static_cast<uint8_t>(ShotLogType::AUTO);
+    rows[i].stopDetail = static_cast<uint8_t>(ShotLogStopDetail::EXTENDED_MAX_WEIGHT);
+  }
+  char output[384];
+  for (unsigned count = 1; count <= 3; ++count) {
+    const ShotStatsView stats = shotLogStatsView(rows, count);
+    CHECK(buildIntegrationStats(stats, output, sizeof(output)));
+    cJSON *root = cJSON_Parse(output);
+    CHECK(root != nullptr);
+    const auto number = [root](const char *key) {
+      return cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(root, key));
+    };
+    CHECK(number("shotCount") == count);
+    CHECK(number("avgDurationS") == 27.0 + count);
+    CHECK(std::fabs(number("avgYieldG") - (36.4 + count * 0.5)) < 0.001);
+    CHECK(std::fabs(number("avgFlowGps") - (1.37 + count * 0.05)) < 0.001);
+    CHECK(number("shotsPerDay") == count);
+    CHECK(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(root, "avgErrorPct")));
+    CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(root, "durationsS")) ==
+          static_cast<int>(count));
+    cJSON_Delete(root);
+  }
+  rows[0].stopDetail = static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET);
+  CHECK(buildIntegrationStats(shotLogStatsView(rows, 1), output, sizeof(output)));
+  CHECK(strstr(output, "\"avgErrorPct\":2.5") != nullptr);
+  rows[0].avgFlowCgS = SHOT_LOG_METRIC_MISSING;
+  rows[0].hasWallTime = false;
+  CHECK(buildIntegrationStats(shotLogStatsView(rows, 1), output, sizeof(output)));
+  CHECK(strstr(output, "\"avgFlowGps\":null") != nullptr);
+  CHECK(strstr(output, "\"shotsPerDay\":null") != nullptr);
+  CHECK(strstr(output, "\"avgDurationS\":28.0") != nullptr);
+  CHECK(buildIntegrationStats({}, output, sizeof(output)));
+  for (const char *field : {"avgDurationS", "avgYieldG", "avgFlowGps",
+                            "avgErrorPct", "shotsPerDay"}) {
+    cJSON *root = cJSON_Parse(output);
+    CHECK(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(root, field)));
+    cJSON_Delete(root);
+  }
+  const ShotStatsView stats = shotLogStatsView(rows, 3);
+  CHECK(buildIntegrationStats(stats, output, sizeof(output)));
+  const size_t length = strlen(output);
+  for (size_t capacity = 0; capacity <= length; ++capacity)
+    CHECK(!buildIntegrationStats(stats, output, capacity));
+  CHECK(buildIntegrationStats(stats, output, length + 1));
+}
+
 }  // namespace
 
 int main() {
@@ -105,6 +166,7 @@ int main() {
   malformed_quick_settings_fail_closed();
   restart_requires_exact_empty_object();
   queue_rejection_rolls_back_only_its_staging_slot();
+  stats_json_preserves_independent_metrics();
   std::cout << "integration request parser: " << failures << " failures\n";
   return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
