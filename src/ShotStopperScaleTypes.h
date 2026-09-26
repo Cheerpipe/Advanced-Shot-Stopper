@@ -1046,15 +1046,54 @@ inline ScaleMacNvsAction decideScaleMacNvsAction(bool identityUnchanged,
   return ScaleMacNvsAction::QUEUE;
 }
 
+// BooKoo ships the Themis family under advertised names that also identify the
+// model: Mini = "BOOKOO_SC xxxx", Ultra = "BOOKOO_SC U XXXX" (BooKoo Help
+// Center). Map an advertised name to the model's display name; empty when the
+// name is not a recognizable Themis advertisement.
+inline bool autoScaleFriendlyName(const char *advertisedName, char *nameOut,
+                                  size_t nameOutCapacity) {
+  if (nameOut == nullptr || nameOutCapacity == 0) {
+    return false;
+  }
+  nameOut[0] = '\0';
+  if (advertisedName == nullptr) {
+    return false;
+  }
+  constexpr char kThemisPrefix[] = "BOOKOO_SC";
+  const size_t prefixLength = sizeof(kThemisPrefix) - 1;
+  size_t i = 0;
+  while (i < prefixLength && advertisedName[i] == kThemisPrefix[i]) {
+    ++i;
+  }
+  if (i != prefixLength ||
+      (advertisedName[prefixLength] != ' ' && advertisedName[prefixLength] != '\0')) {
+    return false;
+  }
+  const char *suffix = advertisedName + prefixLength;
+  bool isUltra = false;
+  if (suffix[0] == ' ') {
+    size_t j = 1;
+    while (suffix[j] == ' ') ++j;
+    isUltra = suffix[j] == 'U' || suffix[j] == 'u';
+  }
+  copyCString(nameOut, nameOutCapacity, isUltra ? "Bookoo Themis Ultra"
+                                                : "Bookoo Themis Mini");
+  return true;
+}
+
 // Upsert by MAC (case-insensitive). Stores canonical uppercase MAC.
 // Returns true if MAC/name membership changed. lastSeenSeq always advances
 // for in-session LRU and is not by itself a persist reason.
+// A first-time entry also adopts the auto friendly name derived from the
+// advertised name (e.g. Themis Mini/Ultra); the user override always wins.
 inline bool upsertScaleHistory(ScaleHistoryEntry *entries, uint32_t &seqCounter,
                                const char *mac, const char *name) {
   if (entries == nullptr || mac == nullptr || !validPreferredScaleMac(mac) ||
       mac[0] == '\0') {
     return false;
   }
+  char autoName[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  const bool hasAutoName = autoScaleFriendlyName(name, autoName, sizeof(autoName));
   char canonicalMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
   copyCString(canonicalMac, sizeof(canonicalMac), mac);
   canonicalizePreferredScaleMac(canonicalMac, sizeof(canonicalMac));
@@ -1088,6 +1127,10 @@ inline bool upsertScaleHistory(ScaleHistoryEntry *entries, uint32_t &seqCounter,
   for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
     if (entries[i].mac[0] == '\0') {
       entries[i].friendlyName[0] = '\0';
+      if (hasAutoName) {
+        copyCString(entries[i].friendlyName, sizeof(entries[i].friendlyName),
+                    autoName);
+      }
       memcpy(entries[i].mac, canonicalMac, sizeof(entries[i].mac));
       memcpy(entries[i].name, safeName, sizeof(entries[i].name));
       entries[i].lastSeenSeq = seqCounter;
@@ -1138,6 +1181,8 @@ inline bool consumeScaleHistorySessionConnection(
   (void)upsertScaleHistory(entries, seqCounter, mac, name);
   for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
     if (preferredScaleMacEqual(entries[i].mac, mac)) {
+      // A first entry created here also adopts the auto friendly name.
+      entries[i].lastSeenSeq &= SCALE_HISTORY_SEQUENCE_MASK;
       entries[i].lastSeenSeq |= SCALE_HISTORY_SESSION_CONSUMED;
       return true;
     }

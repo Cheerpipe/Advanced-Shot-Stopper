@@ -25,9 +25,17 @@ Scales are listed by the name they broadcast, such as `BOOKOO_SC 715097`,
 which does not say which model it is — or which of two identical scales. Next
 to the scale name on **Home** and on **Diagnostic → Scale name**, choose
 **(rename)** to give that scale your own name, for example
-`Bookoo Themis mini`. Your name replaces the broadcast name everywhere the
+`Espresso corner scale`. Your name replaces the broadcast name everywhere the
 scale is listed — Home, Diagnostic, and the preferred-scale list in Settings —
 and stays with that scale across restarts.
+
+Bookoo Themis models identify themselves in that broadcast name, so the
+controller fills in a readable model name for you: a scale broadcasting
+`BOOKOO_SC` with digits appears as **Bookoo Themis Mini**, and one
+broadcasting `BOOKOO_SC U` with digits appears as **Bookoo Themis Ultra**.
+This happens once, when the scale is first detected and added to the
+preferred-scale list; the names keep working after a restart, and a name you
+choose yourself always takes precedence.
 
 Use up to 30 letters, numbers, spaces, or hyphens. Saving with an empty text
 field returns to the broadcast name. Renaming is unavailable while a shot is

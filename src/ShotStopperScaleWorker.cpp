@@ -417,6 +417,14 @@ void scaleWorkerLoadPreferred(const char *mac, const char *name,
       canonicalizePreferredScaleMac(i.mac,
                                     sizeof(i.mac));
     }
+    // Backfill the auto friendly name for scales remembered before it
+    // existed; user overrides already present are preserved.
+    if (i.mac[0] != '\0' && i.friendlyName[0] == '\0') {
+      char autoName[PREFERRED_SCALE_NAME_CAPACITY] = {};
+      if (autoScaleFriendlyName(i.name, autoName, sizeof(autoName))) {
+        copyCString(i.friendlyName, sizeof(i.friendlyName), autoName);
+      }
+    }
     if (i.lastSeenSeq > scaleHistorySeq) {
       scaleHistorySeq = i.lastSeenSeq;
     }
