@@ -21,18 +21,21 @@ undershoot followed by an empty-pan rebound does not count as another placement.
 Without an absent baseline at boot, a stable absolute reading above the minimum
 can establish presence, but cannot establish cup mass.
 
-The empty reference stays fixed while the pan remains absent. Moving the scale
-to a stable negative reading cannot redefine its zero: 0 → −20 → 0.1 g does
-not place a cup. After a downward disturbance, let the empty pan settle back
-within the placement tolerance of its reference before placing the cup.
+The empty reference stays fixed once a cup has been placed. Before the first
+cup, a small negative shift can become the new empty reference after stable
+readings; it must be no more than 5 g or half **Minimum cup weight**, whichever
+is smaller. Larger movement cannot redefine zero: 0 → −20 → 0.1 g does not
+place a cup. After a larger downward disturbance, let the empty pan settle back
+near zero before placing the cup.
 Stability tolerance bounds sample spread; it is neither a minimum placement mass
 nor a threshold that identifies a different cup.
 
-At boot/reconnect, initial empty-reference acquisition requires a stable reading
-within ±0.5 g of zero. If a Bookoo zeroed an initial load at power-on, removing
+At boot/reconnect, initial empty-reference acquisition accepts a stable reading
+near zero, within 5 g or half **Minimum cup weight**, whichever is smaller. If a
+Bookoo zeroed an initial load at power-on, removing
 it can reveal a negative empty reading. After a qualified zero, a continuous
 downward change of at least **Minimum cup weight** followed by stable negative
-readings can establish that new reference. A negative offset first seen at
+readings can establish that new reference. A larger negative offset first seen at
 connection, a reading gap or a return near the original zero cannot establish
 it; tare the empty pan from **Diagnostic** and let zero settle before placing
 a cup. Weight alone cannot distinguish every sustained external force from a

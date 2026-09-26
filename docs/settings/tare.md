@@ -83,9 +83,10 @@ may require a diagnostic tare with the pan empty before automatic placement
 can resume.
 
 Moving an empty scale and returning it near its original zero does not authorize
-an idle tare. A negative reading first seen at boot/reconnect, without a
-preceding qualified zero and continuous unload, requires an empty-pan firmware
-diagnostic tare and stable zero; see [Cup](cup.md).
+an idle tare. Before the first cup, a small stable negative offset can become
+the empty reference. A larger negative reading first seen at boot/reconnect,
+without a preceding qualified zero and continuous unload, requires an empty-pan
+firmware diagnostic tare and stable zero; see [Cup](cup.md).
 
 The machine must be confirmed off. A new placement can tare after a normal
 shot stop while the paddle is still ON; the paddle still must be released before

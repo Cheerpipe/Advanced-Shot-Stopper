@@ -126,8 +126,10 @@ void observeEmptyCupWeight(float weight, uint32_t atMs) {
   auto &mass = cupPresence.weight;
   const bool anchored = std::isfinite(cupPresence.emptyAnchorG);
   const float referenceG = anchored ? cupPresence.emptyAnchorG : 0.0f;
-  const float toleranceG = anchored ? runtimeConfig.retareStabilityToleranceG
-                                   : FIRST_DROP_BASELINE_SETTLE_G;
+  const float movementG = cupPresence.placementId == 0
+      ? fminf(5.0f, runtimeConfig.minimumCupWeightG / 2.0f) : 0.0f;
+  const float toleranceG = fmaxf(anchored ? runtimeConfig.retareStabilityToleranceG
+                                        : FIRST_DROP_BASELINE_SETTLE_G, movementG);
   if (mass.pendingId != 0 || cupPresence.holdTransitions ||
       ((!cupPresence.inNegativeHole || anchored) &&
        fabsf(weight - referenceG) > toleranceG)) {
@@ -139,8 +141,10 @@ void observeEmptyCupWeight(float weight, uint32_t atMs) {
     return;
   }
   if (mass.emptyValid) {
-    // A stable new plateau does not authorize moving the empty-pan zero.
-    return;
+    // Requalify a small downward shift before the first cup placement.
+    if (!anchored || weight >= referenceG - runtimeConfig.retareStabilityToleranceG)
+      return;
+    mass.emptyValid = false;
   }
   if (mass.emptySamples == 0 ||
       static_cast<uint32_t>(atMs - mass.emptyLastAtMs) > runtimeConfig.retareStabilityMaxGapMs ||
@@ -158,7 +162,9 @@ void observeEmptyCupWeight(float weight, uint32_t atMs) {
   if (mass.emptySamples >= runtimeConfig.retareStabilitySamples &&
       static_cast<uint32_t>(atMs - mass.emptyStartedAtMs) >=
           runtimeConfig.retareStabilityMinDurationMs) {
-    if (!anchored) cupPresence.emptyAnchorG = weight;
+    if (!anchored || (cupPresence.placementId == 0 &&
+                      weight < referenceG - runtimeConfig.retareStabilityToleranceG))
+      cupPresence.emptyAnchorG = weight;
     mass.absent = CupStableWeight{cupPresence.emptyAnchorG, atMs, true};
     mass.emptyValid = true;
   }

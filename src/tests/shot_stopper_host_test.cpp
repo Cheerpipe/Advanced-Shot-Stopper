@@ -9287,6 +9287,35 @@ void it36_bookoo_startup_zero_unload_rearms_relative_tare() {
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
 }
 
+void it52_small_empty_offset_after_moving_bookoo_rearms_idle_tare() {
+  for (float cupG : {50.0f, 100.0f, 200.0f, 400.0f}) {
+    for (unsigned phase = 0; phase < 3; ++phase) {
+      resetHarness(false, true);
+      reachReadyFromBoot();
+      runtimeConfig.autoTareOutsideBrew = true;
+      if (phase != 0) idleCup(0.0f);
+      if (phase == 2) {
+        setScaleConnected(false);
+        setScaleConnected(true);
+      }
+      idleCup(-3.0f);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+      CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+      idleCup(cupG - 3.0f);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+      CHECK(executeNextScaleCommand());
+      idleCup(0.0f);
+      CHECK(idleTare.lastReason == IdleTareReason::EFFECT_CONFIRMED);
+    }
+  }
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  runtimeConfig.autoTareOutsideBrew = true;
+  idleCup(-6.0f);
+  idleCup(50.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+}
+
 void it37_accessory_retare_is_opt_in_and_once_before_shot() {
   for (bool enabled : {false, true}) {
     prepareIdleTare();
@@ -16350,6 +16379,7 @@ const TestCase testCases[] = {
     {"IT49", it49_cancelled_accessory_removal_rearms_after_return_to_zero},
     {"IT50", it50_cancelled_accessory_addition_rearms_after_return_to_zero},
     {"IT51", it51_failed_accessory_write_does_not_rearm_from_zero},
+    {"IT52", it52_small_empty_offset_after_moving_bookoo_rearms_idle_tare},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},

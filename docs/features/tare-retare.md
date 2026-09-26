@@ -22,8 +22,8 @@ it, let the empty scale settle near zero, then replace it. If the cup was alread
 tared to zero before connecting, let the controller see its steady zero, then
 remove it. A continuous stable negative reading can become the empty reference;
 placing a **different-weight** cup then triggers tare. If readings were lost, the
-replacement reads near the original zero, or the scale started negative, use
-**Diagnostic** to tare the empty scale, wait for stable zero, then place the cup.
+replacement reads near the original zero, or the scale started substantially
+negative, use **Diagnostic** to tare the empty scale, wait for stable zero, then place the cup.
 Weight readings alone cannot distinguish an equal-weight replacement from the
 scale being moved and returned.
 
@@ -52,11 +52,13 @@ coffee is indistinguishable from an accessory, so leave the option OFF if that
 could happen during preparation. See [Tare settings](../settings/tare.md#outside-a-brew)
 for prerequisites and limits.
 
-The empty reference remains fixed across disturbances while absent. A stable
-negative excursion followed by a return near zero does not represent an added
-cup. Let the original empty reference stabilize before the next placement.
-Initial negative offsets without a preceding qualified zero cannot authorize
-relative placement; recovery is described in [Cup settings](../settings/cup.md).
+The empty reference remains fixed across larger disturbances and after the
+first cup placement. A stable negative excursion followed by a return near zero
+does not represent an added cup. Let the empty reference stabilize before the
+next placement. Small, stable negative shifts before the first cup can qualify
+as an empty pan.
+Larger initial negative offsets without a preceding qualified zero cannot
+authorize relative placement; recovery is described in [Cup settings](../settings/cup.md).
 
 A known tared cup remains present at 0 g, so **Require cup to start** accepts
 it. If shot-start tare is enabled, starting the next shot still performs its
