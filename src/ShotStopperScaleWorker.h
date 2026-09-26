@@ -140,6 +140,7 @@ uint32_t scaleMacCachePauseRemainingMs(uint32_t nowMs);
 bool scaleDiscoveryPaused(uint32_t nowMs = millis());
 void noteScaleHistory(const char *mac, const char *name, bool persist);
 void selectPreferredScale(const char *mac, const char *name);
+bool setScaleFriendlyName(const char *mac, const char *name);
 void clearPreferredScaleCache();
 void clearPreferredScaleSelectionOnly();
 void requestScalePreferenceModeReset();

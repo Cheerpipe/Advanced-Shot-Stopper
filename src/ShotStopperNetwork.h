@@ -547,6 +547,7 @@ class ShotStopperNetwork {
   static esp_err_t bullseyeTestHandler(httpd_req_t *request);
   static esp_err_t preferredScaleClearHandler(httpd_req_t *request);
   static esp_err_t preferredScaleSelectHandler(httpd_req_t *request);
+  static esp_err_t scaleFriendlyNameHandler(httpd_req_t *request);
   static esp_err_t presetsHandler(httpd_req_t *request);
   static esp_err_t resetCalibrationHandler(httpd_req_t *request);
   static esp_err_t resetGuardSamplesHandler(httpd_req_t *request);

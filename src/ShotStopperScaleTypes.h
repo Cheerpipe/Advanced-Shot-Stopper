@@ -130,6 +130,8 @@ inline void copyCString(char *destination, size_t capacity, const char *source) 
 constexpr size_t PREFERRED_SCALE_MAC_CAPACITY = 18;
 constexpr size_t PREFERRED_SCALE_NAME_CAPACITY = 32;
 constexpr size_t SCALE_HISTORY_CAPACITY = 8;
+// User-facing rename budget for the Web UI friendly-name override.
+constexpr size_t SCALE_FRIENDLY_NAME_MAX_LEN = 30;
 constexpr uint32_t SCALE_PAIRING_DISCOVERY_PAUSE_MS = 30000;
 // PREFER: wait this long for the preferred MAC before connecting any other.
 constexpr uint32_t SCALE_PREFER_FALLBACK_MS = 5000;
@@ -259,6 +261,8 @@ inline bool parseBleScanIntensityId(const char *id, BleScanIntensity &out) {
 struct ScaleHistoryEntry {
   char mac[PREFERRED_SCALE_MAC_CAPACITY] = {};
   char name[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  // User-assigned UI override; empty = show the advertised name.
+  char friendlyName[PREFERRED_SCALE_NAME_CAPACITY] = {};
   uint32_t lastSeenSeq = 0;
 };
 
@@ -915,13 +919,38 @@ inline bool validPreferredScaleName(const char *name) {
   return true;
 }
 
+// Empty = no friendly override. Otherwise up to SCALE_FRIENDLY_NAME_MAX_LEN
+// letters, digits, spaces, or hyphens; no leading/trailing space or hyphen.
+inline bool validScaleFriendlyName(const char *name) {
+  if (name == nullptr) {
+    return false;
+  }
+  const size_t length = strnlen(name, PREFERRED_SCALE_NAME_CAPACITY);
+  if (length == 0) {
+    return true;
+  }
+  if (length > SCALE_FRIENDLY_NAME_MAX_LEN) {
+    return false;
+  }
+  for (size_t index = 0; index < length; ++index) {
+    const char c = name[index];
+    if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+          (c >= '0' && c <= '9') || c == ' ' || c == '-')) {
+      return false;
+    }
+  }
+  return name[0] != ' ' && name[0] != '-' &&
+         name[length - 1] != ' ' && name[length - 1] != '-';
+}
+
 inline bool validScaleHistoryEntries(const ScaleHistoryEntry *entries) {
   if (entries == nullptr) {
     return false;
   }
   for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
     if (!validPreferredScaleMac(entries[i].mac) ||
-        !validPreferredScaleName(entries[i].name)) {
+        !validPreferredScaleName(entries[i].name) ||
+        !validScaleFriendlyName(entries[i].friendlyName)) {
       return false;
     }
   }
@@ -990,6 +1019,10 @@ inline bool scaleHistoryIdentityEqual(const ScaleHistoryEntry *left,
         0) {
       return false;
     }
+    if (strncmp(left[i].friendlyName, right[i].friendlyName,
+                PREFERRED_SCALE_NAME_CAPACITY) != 0) {
+      return false;
+    }
   }
   return true;
 }
@@ -1054,6 +1087,7 @@ inline bool upsertScaleHistory(ScaleHistoryEntry *entries, uint32_t &seqCounter,
   }
   for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
     if (entries[i].mac[0] == '\0') {
+      entries[i].friendlyName[0] = '\0';
       memcpy(entries[i].mac, canonicalMac, sizeof(entries[i].mac));
       memcpy(entries[i].name, safeName, sizeof(entries[i].name));
       entries[i].lastSeenSeq = seqCounter;
@@ -1076,6 +1110,9 @@ inline bool upsertScaleHistory(ScaleHistoryEntry *entries, uint32_t &seqCounter,
   if (victim == SCALE_HISTORY_CAPACITY) {
     return false;
   }
+  // A replaced slot belongs to a different scale: its friendly override must
+  // not leak onto the new occupant.
+  entries[victim].friendlyName[0] = '\0';
   memcpy(entries[victim].mac, canonicalMac, sizeof(entries[victim].mac));
   memcpy(entries[victim].name, safeName, sizeof(entries[victim].name));
   entries[victim].lastSeenSeq = seqCounter;
@@ -1144,6 +1181,23 @@ inline bool findScaleHistoryName(const ScaleHistoryEntry *entries,
   for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
     if (preferredScaleMacEqual(entries[i].mac, mac)) {
       copyCString(nameOut, nameOutCapacity, entries[i].name);
+      return true;
+    }
+  }
+  return false;
+}
+
+inline bool findScaleHistoryFriendlyName(const ScaleHistoryEntry *entries,
+                                         const char *mac, char *nameOut,
+                                         size_t nameOutCapacity) {
+  if (entries == nullptr || mac == nullptr || nameOut == nullptr ||
+      nameOutCapacity == 0) {
+    return false;
+  }
+  nameOut[0] = '\0';
+  for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
+    if (preferredScaleMacEqual(entries[i].mac, mac)) {
+      copyCString(nameOut, nameOutCapacity, entries[i].friendlyName);
       return true;
     }
   }

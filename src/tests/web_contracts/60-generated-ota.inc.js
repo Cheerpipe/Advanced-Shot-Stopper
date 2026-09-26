@@ -441,15 +441,18 @@ if (generated.cssGzip.length > 7300) {
 // runtime (loads, save payload, validation, hydration) raising it to 37400.
 // Measured with a fixed sentinel build id so commit-SHA noise cannot move it:
 // the Admin BLE master-switch checkbox save handler measures 37490 bytes.
-if (sentinelRuntimeGzip.length > 37500) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 37500-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The scale friendly-name rename flow (display helper, prompt, validation,
+// command) raises it to 37900 bytes.
+if (sentinelRuntimeGzip.length > 37900) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 37900-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
 }
 // Continuous loop timing and the delay/dispatch breakdown live in Diagnostics.
-if (generated.secondaryGzip.length > 6950) {
-  throw new Error(`Compressed secondary view JS exceeds the 6950-byte gzip budget (${generated.secondaryGzip.length})`);
+// The Diagnostic scale-name rename link binding raises it to 7020 bytes.
+if (generated.secondaryGzip.length > 7020) {
+  throw new Error(`Compressed secondary view JS exceeds the 7020-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');

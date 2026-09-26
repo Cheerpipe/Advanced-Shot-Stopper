@@ -46,7 +46,7 @@ PSRAM before mapping overhead. Linker figures do not measure runtime heap;
 matched target memory, settings latency and loop-gap measurements remain
 required before qualification. PSRAM access may slow NVS integer operations.
 
-Both linker maps must also keep external BSS at or below 105 KiB and retain
+Both linker maps must also keep external BSS at or below 107,776 bytes and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
 objects to PSRAM would move synchronization state accessed under spinlocks.
 The extra 1 KiB ceiling covers the versioned Micra cloud account record; the
@@ -62,15 +62,15 @@ raise covers the V3 half-second shot-curve store.
 | HTTP response send | assets and PSRAM work buffers pass directly to HTTPD's default socket send, which copies into lwIP; the former 512-byte internal-BSS bounce and application copy are removed, without implying a 512-byte runtime-heap gain |
 | NVS metadata cache | PSRAM preferred with internal fallback on n16r8; n8r4 retains its existing placement; flash I/O still uses the internal scratch below |
 | Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 68 KiB total bound |
-| Shared flash-I/O scratch | internal heap, 2,960 bytes (one PersistedSettings record); slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |
+| Shared flash-I/O scratch | internal heap, 3,216 bytes (one PersistedSettings record); slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |
 | USB serial output | internal heap, 2,064 bytes for the eight-record ESP log queue; one external 2,560-byte CLI reply buffer; startup failures free both allocations, and successful startup retains one boot-lifetime owner |
 | Micra cloud workspace | external and lazy; a 6,344-byte work buffer on ESP32-S3 holds identity, tokens, authorization header, and client state while cloud observation is active, plus one request-scoped 16 KiB buffer whose mutually exclusive request-body and response phases share storage (22,728 bytes combined, excluding HTTP/TLS library allocations); Disconnect, disabled observation, STA loss, and AP entry destroy the client and free both blocks |
 | Micra/Webhook TLS allocations | external through the Micra profile's mbedTLS allocator (`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` from `sdkconfig.defaults.micra`); dynamic record, certificate, handshake, and session objects never fragment internal DRAM on Micra-profile builds and are freed through the matching capability allocator. Other machine profiles keep mbedTLS internal, so webhook HTTPS there still draws handshake memory from internal DRAM |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
-| Settings handoff | one 2,964-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
+| Settings handoff | one 3,220-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
 | Web command | trivially copyable, at most 328 bytes; configuration and network payloads share a discriminated union |
-| Radio settings snapshot | at most 224 bytes; full 2,960-byte settings remain for durable mutations |
+| Radio settings snapshot | at most 224 bytes; full 3,216-byte settings remain for durable mutations |
 | Wi-Fi static TX pool | eight internal buffers reserved while Wi-Fi is initialized; sized for the bounded Web UI, OTA, webhook, STA, and SoftAP workload, with reliability taking priority over peak Web UI throughput |
 | mDNS responder | NetworkService-owned; mDNS 1.13.1 places its 4096-byte priority-1 task stack on core 0 in internal RAM on n16r8 for core dumps, and in PSRAM on n8r4; dynamic responder allocations remain in PSRAM; one persistent UDP socket; freed once in `OpenBrewByWeightNetwork::stop()` |
 | Fixed buzzer melodies | at most 8 notes each; custom tune capacity remains 250 notes |
@@ -80,14 +80,14 @@ raise covers the V3 half-second shot-curve store.
 Network command builders must activate their union member with
 `setNetworkType()` before writing credentials. Preset metadata remains outside
 the union because a preset operation also carries configuration. Settings
-schema 1 uses a 2,960-byte blob for the bounded Micra cloud account and selected
-machine. Earlier settings schemas are rejected and require `--erase-all`.
+schema 2 uses a 3,216-byte blob for the bounded Micra cloud account, selected
+machine, and per-scale friendly names. Earlier settings schemas are rejected and require `--erase-all`.
 
 History V5 retains an exact bounded preset-name snapshot and transfers through
 the shared chunked flash-I/O path. The separate last-shot V4 record retains the
-same provenance. The current rendered English Web UI is capped at 72,733 bytes
-HTML, 197,776 bytes JavaScript, and 271,865 bytes combined authoring source.
-The compressed runtime JavaScript cap is 37,500 bytes, measured against a fixed
+same provenance. The current rendered English Web UI is capped at 73,033 bytes
+HTML, 200,978 bytes JavaScript, and 274,011 bytes combined authoring source.
+The compressed runtime JavaScript cap is 37,900 bytes, measured against a fixed
 sentinel build id so commit-SHA noise cannot move it; the Web contract still
 round-trips and flash-charges the real, version-baked runtime through the
 combined cap. The Web contract measures 72,733 / 197,776 authoring bytes and
@@ -139,7 +139,7 @@ OTA chunk/cache-off work; only the fixed result is copied under the existing
 owner mutex.
 
 The n16r8 Micra development+JTAG candidate measured 177,438 linked DIRAM bytes.
-The one-record scratch removes 2,960 bytes from its lazy runtime allocation,
+The one-record scratch removes 3,216 bytes from its lazy runtime allocation,
 while the disabled-USB path avoids the 2,064-byte serial payload. Their actual
 free/largest-block effects remain target measurements, not linked-memory claims.
 

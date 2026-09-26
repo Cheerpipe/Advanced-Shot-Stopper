@@ -19,6 +19,20 @@ weight-controlled brewing where nearby Bluetooth devices are trusted: a compatib
 transmitter could send misleading weight readings. The machine still requires
 a physical start, and implausible or stale readings suspend weight control.
 
+## Rename a scale
+
+Scales are listed by the name they broadcast, such as `BOOKOO_SC 715097`,
+which does not say which model it is — or which of two identical scales. Next
+to the scale name on **Home** and on **Diagnostic → Scale name**, choose
+**(rename)** to give that scale your own name, for example
+`Bookoo Themis mini`. Your name replaces the broadcast name everywhere the
+scale is listed — Home, Diagnostic, and the preferred-scale list in Settings —
+and stays with that scale across restarts.
+
+Use up to 30 letters, numbers, spaces, or hyphens. Saving with an empty text
+field returns to the broadcast name. Renaming is unavailable while a shot is
+running.
+
 ## Bluetooth on/off
 
 **Admin → BLE → Enable Bluetooth** is the master switch for Bluetooth scales.

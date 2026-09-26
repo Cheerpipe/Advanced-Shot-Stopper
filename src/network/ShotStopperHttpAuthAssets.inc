@@ -368,6 +368,7 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
       {"/api/v1/bullseye/test", HTTP_POST, bullseyeTestHandler},
       {"/api/v1/scale/preferred/clear", HTTP_POST, preferredScaleClearHandler},
       {"/api/v1/scale/preferred/select", HTTP_POST, preferredScaleSelectHandler},
+      {"/api/v1/scale/friendly-name", HTTP_POST, scaleFriendlyNameHandler},
       {"/api/v1/presets", HTTP_POST, presetsHandler},
       {"/api/v1/calibration/reset", HTTP_POST, resetCalibrationHandler},
       {"/api/v1/calibration/reset-guard-samples", HTTP_POST,

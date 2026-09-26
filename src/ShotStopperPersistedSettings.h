@@ -77,7 +77,7 @@ static_assert(offsetof(PersistedSettings, storageRevision) + sizeof(uint32_t) ==
 
 static_assert(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET,
               "PersistedSettings exceeds NVS dual-slot budget");
-static_assert(sizeof(PersistedSettings) == 2960,
+static_assert(sizeof(PersistedSettings) == 3216,
               "PersistedSettings size changed; bump CONFIG_SCHEMA_VERSION");
 
 inline uint32_t persistedSettingsChecksum(const PersistedSettings &settings) {

@@ -1687,6 +1687,37 @@ void selectPreferredScale(const char *mac, const char *name) {
                canonicalMac);
 }
 
+// Assign or clear (empty name) the user-facing override of a known scale.
+bool setScaleFriendlyName(const char *mac, const char *name) {
+  if (mac == nullptr || mac[0] == '\0' || !validPreferredScaleMac(mac) ||
+      name == nullptr || !validScaleFriendlyName(name)) {
+    return false;
+  }
+  char canonicalMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
+  copyCString(canonicalMac, sizeof(canonicalMac), mac);
+  canonicalizePreferredScaleMac(canonicalMac, sizeof(canonicalMac));
+  bool applied = false;
+  scalePreferredMacMux.lock();
+  for (auto &entry : scaleHistory) {
+    if (!preferredScaleMacEqual(entry.mac, canonicalMac)) {
+      continue;
+    }
+    memset(entry.friendlyName, 0, sizeof(entry.friendlyName));
+    copyCString(entry.friendlyName, sizeof(entry.friendlyName), name);
+    applied = true;
+    break;
+  }
+  if (applied) {
+    scalePreferredMacDirty = true;
+  }
+  scalePreferredMacMux.unlock();
+  if (applied) {
+    serialTracef(LogLevel::INFO, "Scale friendly name set: %s — %s",
+                 name[0] != '\0' ? name : "(cleared)", canonicalMac);
+  }
+  return applied;
+}
+
 void clearPreferredScaleCache() {
   scalePreferredMacMux.lock();
   reopenScaleHistorySessionConnection(scaleHistory, scalePreferredMac);

@@ -710,6 +710,74 @@ esp_err_t ShotStopperNetwork::preferredScaleSelectHandler(httpd_req_t *request) 
   return self.sendAccepted(request, command.requestId);
 }
 
+esp_err_t ShotStopperNetwork::scaleFriendlyNameHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  ControlGateSnapshot status = self.controlGate();
+  if (!self.webUiConfigurationAllowed(request, status)) {
+    return sendError(request, STATUS_CONFLICT,
+                     "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
+                     "The scale name cannot be changed while a cycle "
+                     "is active.");
+  }
+
+  const esp_err_t bodyStatus = self.lockJsonBody(
+      request, "A bounded JSON request is required.");
+  if (bodyStatus != ESP_OK) {
+    return bodyStatus;
+  }
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
+  char mac[PREFERRED_SCALE_MAC_CAPACITY] = {};
+  char name[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  const char *parseError = nullptr;
+  if (root == nullptr) {
+    parseError = jsonParseFailureMessage("JSON body is required.");
+  } else if (!jsonString(root, "mac", mac, sizeof(mac), true)) {
+    parseError = "mac must be a string with the scale's BLE address.";
+  } else if (!validPreferredScaleMac(mac) || mac[0] == '\0') {
+    parseError = "mac must be a BLE address AA:BB:CC:DD:EE:FF.";
+  } else {
+    cJSON *nameItem = cJSON_GetObjectItemCaseSensitive(root, "name");
+    if (nameItem != nullptr &&
+        (!jsonString(root, "name", name, sizeof(name), true) ||
+         !validScaleFriendlyName(name))) {
+      parseError =
+          "name must be 1-30 letters, digits, spaces, or hyphens "
+          "(empty clears the friendly name).";
+    }
+  }
+  if (root != nullptr) {
+    cJSON_Delete(root);
+  }
+  if (parseError != nullptr) {
+    self.unlockJsonBody();
+    return sendError(request, STATUS_BAD_REQUEST, "INVALID_REQUEST", parseError);
+  }
+
+  if (self.callbacks_.copyScaleHistory != nullptr) {
+    self.callbacks_.copyScaleHistory(self.workBuf_->scaleHistory);
+    char known[PREFERRED_SCALE_NAME_CAPACITY] = {};
+    if (!findScaleHistoryName(self.workBuf_->scaleHistory, mac, known,
+                              sizeof(known))) {
+      self.unlockJsonBody();
+      return sendError(request, STATUS_UNPROCESSABLE, "UNKNOWN_SCALE",
+                       "mac is not a known scale.");
+    }
+  }
+  self.unlockJsonBody();
+
+  WebCommand command;
+  command.setNetworkType(WebCommandType::SET_SCALE_FRIENDLY_NAME);
+  command.requestId = self.allocateRequestId();
+  command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
+  copyCString(command.network.scaleSelectMac, sizeof(command.network.scaleSelectMac), mac);
+  copyCString(command.network.scaleSelectName, sizeof(command.network.scaleSelectName), name);
+  if (!self.callbacks_.enqueueWebCommand(command)) {
+    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
+                     "Control is busy; the name was not saved.");
+  }
+  return self.sendAccepted(request, command.requestId);
+}
+
 esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   ControlGateSnapshot status = self.controlGate();

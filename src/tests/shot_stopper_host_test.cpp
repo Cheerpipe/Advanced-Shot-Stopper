@@ -5934,6 +5934,34 @@ void d11_select_preferred_is_noop_when_unchanged() {
   CHECK(scale.startScanCalls == calls);
 }
 
+void d13_scale_friendly_name_set_clear_and_preserve() {
+  resetHarness(false, false);
+  scalePreferredMac[0] = '\0';
+  for (ScaleHistoryEntry &entry : scaleHistory) {
+    entry = ScaleHistoryEntry{};
+  }
+  scaleHistorySeq = 0;
+  noteScaleHistory("AA:BB:CC:DD:EE:01", "BOOKOO_SC 715097", false);
+  CHECK(!setScaleFriendlyName("AA:BB:CC:DD:EE:01", "bad name!"));
+  CHECK(!setScaleFriendlyName("AA:BB:CC:DD:EE:01", " leading"));
+  CHECK(!setScaleFriendlyName("AA:BB:CC:DD:EE:99", "Mini"));
+  CHECK(setScaleFriendlyName("AA:BB:CC:DD:EE:01", "Bookoo Themis mini"));
+  // Re-advertisement must refresh the advertised name without clobbering the
+  // stored override.
+  noteScaleHistory("aa:bb:cc:dd:ee:01", "BOOKOO_SC 715098", false);
+  ScaleHistoryEntry history[SCALE_HISTORY_CAPACITY] = {};
+  copyScaleHistory(history);
+  CHECK(strcmp(history[0].name, "BOOKOO_SC 715098") == 0);
+  CHECK(strcmp(history[0].friendlyName, "Bookoo Themis mini") == 0);
+  char friendly[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  CHECK(findScaleHistoryFriendlyName(history, "AA:BB:CC:DD:EE:01", friendly,
+                                     sizeof(friendly)));
+  CHECK(strcmp(friendly, "Bookoo Themis mini") == 0);
+  CHECK(setScaleFriendlyName("AA:BB:CC:DD:EE:01", ""));
+  copyScaleHistory(history);
+  CHECK(history[0].friendlyName[0] == '\0');
+}
+
 void w62_local_buzzer_drive_matches_compile_flag() {
   resetHarness(false, false);
   CHECK(localBuzzer.ready);
@@ -16739,6 +16767,7 @@ const TestCase testCases[] = {
     {"D12", d12_advertisement_history_does_not_dirty_persist},
     {"D10c", d10c_softap_yields_discovery},
     {"D11", d11_select_preferred_is_noop_when_unchanged},
+    {"D13", d13_scale_friendly_name_set_clear_and_preserve},
     {"S01", s01_shot_log_filters_short_and_rinse},
     {"S01c", s01c_mixed_shots_share_stats_and_home_authority},
     {"S01d", s01d_manual_timer_and_limit_share_settled_finalize},

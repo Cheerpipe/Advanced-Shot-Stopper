@@ -205,6 +205,10 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   const bool needPresets =
       page == StatusPage::Home || page == StatusPage::Settings;
   const bool needHistory = page == StatusPage::Settings;
+  // Friendly-name resolution needs the entries on every page that names the
+  // preferred scale; the history array itself stays Settings-only.
+  const bool needScaleHistory = needHistory ||
+      page == StatusPage::Home || page == StatusPage::Diagnostic;
   if (needPresets) {
     if (self.callbacks_.copyPresetBank != nullptr) {
       self.callbacks_.copyPresetBank(&g_work->presetBank);
@@ -217,18 +221,27 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     g_work->presetsJson[1] = '}';
     g_work->presetsJson[2] = 0;
   }
-  if (needHistory) {
+  if (needScaleHistory) {
     if (self.callbacks_.copyScaleHistory != nullptr) {
       self.callbacks_.copyScaleHistory(g_work->scaleHistory);
     } else {
-      memset(g_work->scaleHistory, 0, sizeof(g_work->scaleHistory));
+      memset(&g_work->scaleHistory, 0, sizeof(g_work->scaleHistory));
     }
+  }
+  if (needHistory) {
     buildScaleHistoryJson(g_work->scaleHistory);
   } else {
     g_work->historyJson[0] = '[';
     g_work->historyJson[1] = ']';
     g_work->historyJson[2] = 0;
   }
+  char preferredScaleFriendly[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  findScaleHistoryFriendlyName(g_work->scaleHistory, control.preferredScaleMac,
+                               preferredScaleFriendly,
+                               sizeof(preferredScaleFriendly));
+  char safePreferredScaleFriendly[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
+  sanitizeJsonEmbed(preferredScaleFriendly, safePreferredScaleFriendly,
+                    sizeof(safePreferredScaleFriendly));
 
   const uint32_t cycleFirstDropElapsedMs =
       control.cycleFirstDropMs != 0 && control.cycleStartedAtMs != 0 &&
@@ -604,6 +617,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"controlAccepted\":%s,\"currentWeightG\":%s,"
         "\"observedWeightG\":%s,\"timerMs\":%s,"
         "\"preferredMac\":\"%s\",\"preferredName\":\"%s\","
+        "\"preferredFriendlyName\":\"%s\","
         "\"macCachePauseRemainingMs\":%lu,"
         "\"lastDisconnectReasonName\":\"%s\"},"
         "\"presets\":%s,"
@@ -657,7 +671,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         weightControlStateName(control.weightControlState),
         control.currentWeightValid ? "true" : "false", currentWeight,
         observedWeight, scaleTimer, safePreferredScaleMac,
-        safePreferredScaleName,
+        safePreferredScaleName, safePreferredScaleFriendly,
         static_cast<unsigned long>(control.scaleMacCachePauseRemainingMs),
         scaleDisconnectReasonName(control.scaleLastDisconnectReason),
         g_work->presetsJson, control.activeCycle ? "true" : "false",
@@ -739,11 +753,13 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     ok = statusJsonAppend(
         &used,
         ",\"scale\":{\"preferredMac\":\"%s\",\"preferredName\":\"%s\","
+        "\"preferredFriendlyName\":\"%s\","
         "\"macCachePauseRemainingMs\":%lu,\"history\":%s},"
         "\"presets\":%s,\"stopPulseMs\":%lu,\"maxSinglePressMs\":%lu,"
         "\"momentaryStartEdge\":\"%s\",\"reedConfirmTimeoutMs\":%lu,"
         "\"assumeIdleWhenScaleConnects\":%s,\"shotReactTimeoutS\":%u",
         safePreferredScaleMac, safePreferredScaleName,
+        safePreferredScaleFriendly,
         static_cast<unsigned long>(control.scaleMacCachePauseRemainingMs),
         g_work->historyJson, g_work->presetsJson,
         static_cast<unsigned long>(runtimeStopPulseMs(control.config)),
@@ -954,7 +970,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"safety\":{\"state\":\"%s\",\"fault\":\"%s\","
         "\"taskWatchdogReady\":%s,\"externalHardware\":%s,"
         "\"recoveryRequired\":%s,\"resetReasonCode\":%lu},"
-        "\"scale\":{\"streamState\":\"%s\",\"controlState\":\"%s\","
+        "\"scale\":{\"preferredMac\":\"%s\",\"preferredName\":\"%s\","
+        "\"preferredFriendlyName\":\"%s\","
+        "\"streamState\":\"%s\",\"controlState\":\"%s\","
         "\"packetGaps\":%lu,\"rejectedPackets\":%lu,"
         "\"reconnects\":%lu,\"lastDisconnectReasonName\":\"%s\","
         "\"lastDisconnect\":{\"summary\":\"%s\",\"sequence\":%lu,\"atMs\":%lu,\"ageMs\":%lu,"
@@ -1084,6 +1102,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         control.externalSafetyPresent ? "true" : "false",
         control.resetRecoveryRequired ? "true" : "false",
         static_cast<unsigned long>(control.resetReasonCode),
+        safePreferredScaleMac, safePreferredScaleName,
+        safePreferredScaleFriendly,
         weightStreamStateName(control.weightStreamState),
         weightControlStateName(control.weightControlState),
         static_cast<unsigned long>(control.scalePacketGaps),

@@ -21,7 +21,7 @@ inline bool verifyFactorySettings(const PersistedSettings &settings) {
   }
   for (const ScaleHistoryEntry &entry : settings.scaleHistory) {
     if (entry.mac[0] != '\0' || entry.name[0] != '\0' ||
-        entry.lastSeenSeq != 0) {
+        entry.friendlyName[0] != '\0' || entry.lastSeenSeq != 0) {
       return false;
     }
   }

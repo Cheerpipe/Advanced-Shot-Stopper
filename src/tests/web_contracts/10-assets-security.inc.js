@@ -226,8 +226,8 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // its original allowance; retain the complete wording.
 // Continuous loop timing adds a phase table and a Reset control to Diagnostics.
 // Last NTP sync adds one timestamp cell to the Diagnostics grid.
-if (htmlBytes > 72733) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 72733)`);
+if (htmlBytes > 73033) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 73033)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -276,14 +276,14 @@ if (htmlBytes > 72733) {
 // The Admin BLE master switch checkbox adds its save handler, status sync,
 // and revert-on-error path to the runtime module.
 // Matching recent/lifetime gap columns replace the peak-gap label breakdown.
-if (jsBytes > 199066) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 199066)`);
+if (jsBytes > 200978) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 200978)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
 // The loop timing view adds only source allowance; compressed limits stay fixed.
-if (htmlBytes + jsBytes > 271799) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 271799)`);
+if (htmlBytes + jsBytes > 274011) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 274011)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

@@ -64,7 +64,7 @@ namespace shotstopper {
 constexpr uint32_t SERIAL_BAUD = 115200;
 // Fresh persistence baseline. Earlier firmware schemas are intentionally not
 // accepted; install this contract with a full flash erase over USB.
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 1;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 2;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;
@@ -1065,7 +1065,7 @@ inline void repairSlowExtractionGuard(RuntimeConfig &runtime) {
 }
 
 // NVS dual-slot budget headroom for PersistedSettings including the preset bank.
-constexpr size_t PERSISTED_SETTINGS_NVS_BUDGET = 3072;
+constexpr size_t PERSISTED_SETTINGS_NVS_BUDGET = 3328;
 
 enum class PresetAction : uint8_t {
   APPLY = 0,
@@ -1720,7 +1720,8 @@ enum class WebCommandType : uint8_t {
   STATE_OVERRIDE_OFF,
   STATE_OVERRIDE_ON,
   FORCE_SWITCH_PULSE,
-  MAINTENANCE_COMPLETE
+  MAINTENANCE_COMPLETE,
+  SET_SCALE_FRIENDLY_NAME
 };
 inline const char *webCommandTypeName(WebCommandType type) {
   switch (type) {
@@ -1776,6 +1777,8 @@ inline const char *webCommandTypeName(WebCommandType type) {
       return "override inferred brewing";
     case WebCommandType::MAINTENANCE_COMPLETE:
       return "maintenance result";
+    case WebCommandType::SET_SCALE_FRIENDLY_NAME:
+      return "rename scale";
   }
   return "unknown web command";
 }
@@ -1832,7 +1835,8 @@ struct WebCommandNetworkPayload {
   uint8_t staGateway[4] = {};
   uint8_t staDns1[4] = {};
   uint8_t staDns2[4] = {};
-  // SELECT_PREFERRED_SCALE payload (also safe unused for other commands).
+  // SELECT_PREFERRED_SCALE and SET_SCALE_FRIENDLY_NAME payload (also safe
+  // unused for other commands).
   char scaleSelectMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
   char scaleSelectName[PREFERRED_SCALE_NAME_CAPACITY] = {};
 };

@@ -360,6 +360,32 @@ if (!statusSection || !statusSection[1].includes('class="statusColumn"') ||
     !network.includes('\\"timerMs\\"')) {
   throw new Error('Home Status must show Machine/Brew/Cup and a Scale panel with one value per label');
 }
+if (!ui.includes('id="renameScaleLink"') ||
+    !ui.includes('id="preferredScaleRenameWrap"') ||
+    !ui.includes('id="dScaleName"') ||
+    !ui.includes('id="dScaleNameRename"') ||
+    !ui.includes('id="dScaleNameRenameWrap"') ||
+    !ui.includes('(rename)') ||
+    !ui.includes('function renameScale(') ||
+    !ui.includes('function updateScaleRenameUi(') ||
+    !ui.includes('function scaleDisplayName(') ||
+    !ui.includes('function validScaleFriendlyNameClient(') ||
+    !ui.includes('/api/v1/scale/friendly-name') ||
+    !ui.includes('preferredFriendlyName') ||
+    !ui.includes('Name this scale') ||
+    !ui.includes('e.friendlyName&&String(e.friendlyName).trim()') ||
+    !ui.includes("o.dataset.name=(e.name&&String(e.name).trim())||''") ||
+    !ui.includes("opt.dataset?String(opt.dataset.name||'')") ||
+    !network.includes('scaleFriendlyNameHandler') ||
+    !network.includes('/api/v1/scale/friendly-name') ||
+    !network.includes('UNKNOWN_SCALE') ||
+    !network.includes('The scale name cannot be changed while a cycle') ||
+    !network.includes('\\"preferredFriendlyName\\"') ||
+    !scaleWorker.includes('bool setScaleFriendlyName(') ||
+    ui.includes("label.split(' — ')")) {
+  throw new Error(
+      'Scale names must support a friendly-name override with rename links in Home and Diagnostic');
+}
 if (!ui.includes('id="shotPanel"') ||
     !ui.includes('id="shotBar"') ||
     !ui.includes('id="shotBarFast"') ||

@@ -270,7 +270,7 @@ constexpr const char *STATUS_CONFLICT = "409 Conflict";
 constexpr const char *STATUS_NOT_FOUND = "404 Not Found";
 constexpr const char *STATUS_UNPROCESSABLE = "422 Unprocessable Entity";
 constexpr const char *STATUS_UNAVAILABLE = "503 Service Unavailable";
-// PersistedSettings is ≤ PERSISTED_SETTINGS_NVS_BUDGET (3072 B).
+// PersistedSettings is ≤ PERSISTED_SETTINGS_NVS_BUDGET (3328 B).
 // processPersistedCommand() keeps one copy on the stack via settingsCopy();
 // NVS dual-slot scratch is shared off-stack. 7 168 was too small (canary on
 // FACTORY_RESET). 10 240 keeps headroom without the old 12 KiB margin.
@@ -1060,10 +1060,13 @@ void buildScaleHistoryJson(const ScaleHistoryEntry *entries) {
     }
     char safeMac[PREFERRED_SCALE_MAC_CAPACITY * 2] = {};
     char safeName[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
+    char safeFriendly[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
     sanitizeJsonEmbed(entry.mac, safeMac, sizeof(safeMac));
     sanitizeJsonEmbed(entry.name, safeName, sizeof(safeName));
-    n = snprintf(buf + used, cap - used, "%s{\"mac\":\"%s\",\"name\":\"%s\"}",
-                 first ? "" : ",", safeMac, safeName);
+    sanitizeJsonEmbed(entry.friendlyName, safeFriendly, sizeof(safeFriendly));
+    n = snprintf(buf + used, cap - used,
+                 "%s{\"mac\":\"%s\",\"name\":\"%s\",\"friendlyName\":\"%s\"}",
+                 first ? "" : ",", safeMac, safeName, safeFriendly);
     if (n <= 0 || static_cast<size_t>(n) >= cap - used) {
       break;
     }

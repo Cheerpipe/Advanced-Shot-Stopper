@@ -523,6 +523,20 @@ void processWebCommand(const WebCommand &command) {
       reportControlCommandResult(command, CommandResultState::APPLIED);
       return;
 
+    case WebCommandType::SET_SCALE_FRIENDLY_NAME:
+      if (!persistentConfigurationMutationAllowed(command)) {
+        rejectWebCommand(command);
+        return;
+      }
+      if (!setScaleFriendlyName(command.network.scaleSelectMac,
+                                command.network.scaleSelectName)) {
+        rejectWebCommand(command);
+        return;
+      }
+      servicePreferredScaleMacPersistence();
+      reportControlCommandResult(command, CommandResultState::APPLIED);
+      return;
+
     case WebCommandType::START_WIFI_SCAN:
       if (!beginMaintenanceLease(command, false)) {
         rejectWebCommand(command);

@@ -856,6 +856,69 @@ void p43_scale_history_upsert_and_lru() {
   CHECK(!foundTwo);
 }
 
+void p73_scale_friendly_name_validates_and_survives_upsert() {
+  CHECK(validScaleFriendlyName(""));
+  CHECK(validScaleFriendlyName("Bookoo Themis mini"));
+  CHECK(validScaleFriendlyName("A9"));
+  CHECK(!validScaleFriendlyName(nullptr));
+  CHECK(!validScaleFriendlyName("bad name!"));
+  CHECK(!validScaleFriendlyName(" leading"));
+  CHECK(!validScaleFriendlyName("trailing "));
+  CHECK(!validScaleFriendlyName("trailing-"));
+  CHECK(validScaleFriendlyName("spaces ok"));
+  char maxName[SCALE_FRIENDLY_NAME_MAX_LEN + 2] = {};
+  memset(maxName, 'A', SCALE_FRIENDLY_NAME_MAX_LEN);
+  CHECK(validScaleFriendlyName(maxName));
+  maxName[SCALE_FRIENDLY_NAME_MAX_LEN] = 'A';
+  maxName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = '\0';
+  CHECK(!validScaleFriendlyName(maxName));
+
+  ScaleHistoryEntry entries[SCALE_HISTORY_CAPACITY] = {};
+  ScaleHistoryEntry reference[SCALE_HISTORY_CAPACITY] = {};
+  uint32_t seq = 0;
+  CHECK(upsertScaleHistory(entries, seq, "AA:BB:CC:DD:EE:01", "One"));
+  CHECK(upsertScaleHistory(entries, seq, "AA:BB:CC:DD:EE:02", "Two"));
+  copyCString(entries[0].friendlyName,
+              sizeof(entries[0].friendlyName), "Bookoo mini");
+  memcpy(reference, entries, sizeof(entries));
+  // A re-advertised name keeps the stored friendly override.
+  CHECK(upsertScaleHistory(entries, seq, "AA:BB:CC:DD:EE:01", "One-Renamed"));
+  CHECK(strcmp(entries[0].name, "One-Renamed") == 0);
+  CHECK(strcmp(entries[0].friendlyName, "Bookoo mini") == 0);
+  // Friendly-name changes are identity changes (they must persist).
+  CHECK(!scaleHistoryIdentityEqual(entries, reference));
+  reference[0] = entries[0];
+  CHECK(scaleHistoryIdentityEqual(entries, reference));
+  // Refreshing :01 made it newest; :02 is the LRU victim when the table fills,
+  // and a new occupant never inherits the previous friendly name.
+  for (uint8_t i = 3; i <= 9; ++i) {
+    char mac[PREFERRED_SCALE_MAC_CAPACITY];
+    snprintf(mac, sizeof(mac), "AA:BB:CC:DD:EE:%02X", i);
+    CHECK(upsertScaleHistory(entries, seq, mac, "X"));
+  }
+  CHECK(scaleHistoryOccupiedCount(entries) == SCALE_HISTORY_CAPACITY);
+  for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
+    if (strcmp(entries[i].mac, "AA:BB:CC:DD:EE:01") == 0) {
+      CHECK(strcmp(entries[i].friendlyName, "Bookoo mini") == 0);
+      CHECK(strcmp(entries[i].name, "One-Renamed") == 0);
+    } else {
+      CHECK(entries[i].friendlyName[0] == '\0');
+    }
+  }
+  char friendly[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  CHECK(findScaleHistoryFriendlyName(entries, "aa:bb:cc:dd:ee:01", friendly,
+                                     sizeof(friendly)));
+  CHECK(strcmp(friendly, "Bookoo mini") == 0);
+
+  PersistedSettings settings;
+  CHECK(initializeDefaultSettings(settings));
+  memcpy(settings.scaleHistory, entries, sizeof(settings.scaleHistory));
+  finalizePersistedSettings(settings);
+  CHECK(validPersistedSettings(settings));
+  settings.scaleHistory[0].friendlyName[0] = '"';
+  CHECK(!validPersistedSettings(settings));
+}
+
 void p70_scale_history_session_consumption_is_bounded_and_reopenable() {
   ScaleHistoryEntry entries[SCALE_HISTORY_CAPACITY] = {};
   uint32_t seq = 0;
@@ -927,7 +990,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(ShotPreset) <= 136);
   CHECK(sizeof(ShotPresetBank) <= 1100);
   CHECK(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET);
-  CHECK(sizeof(PersistedSettings) == 2960);
+  CHECK(sizeof(PersistedSettings) == 3216);
   CHECK(FLASH_IO_SCRATCH_BYTES == sizeof(PersistedSettings));
   CHECK(sizeof(RuntimeConfig) == 252);
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
@@ -1919,12 +1982,12 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
   constexpr size_t remainingRecords = lastShotEntries + 6U + 3U + 24U + 32U;
   constexpr size_t applicationEntries = settingsEntries + remainingRecords;
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
-  CHECK(sizeof(PersistedSettings) == 2960U);
-  CHECK(settingsEntries == 190U);
+  CHECK(sizeof(PersistedSettings) == 3216U);
+  CHECK(settingsEntries == 206U);
   CHECK(lastShotEntries == 11U);
-  CHECK(applicationEntries == 266U);
+  CHECK(applicationEntries == 282U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 2128U);
+  CHECK(conservativeEntries - applicationEntries == 2112U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {
@@ -2167,6 +2230,7 @@ const TestCase tests[] = {
     {"P47D", p47d_durable_flash_write_gate},
     {"P46", p46_ring_retain_log_level_persists_round_trip},
     {"P43", p43_scale_history_upsert_and_lru},
+    {"P73", p73_scale_friendly_name_validates_and_survives_upsert},
     {"P70", p70_scale_history_session_consumption_is_bounded_and_reopenable},
     {"P45", p45_scale_mac_nvs_ignores_seq_and_defers_while_linked},
     {"P44", p44_scale_history_canonicalizes_mac_case},
