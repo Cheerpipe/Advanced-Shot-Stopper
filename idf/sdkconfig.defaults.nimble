@@ -34,7 +34,9 @@ CONFIG_BT_NIMBLE_MAX_CONN_REATTEMPT=3
 # CONFIG_BT_NIMBLE_GATT_CACHING is not set
 # CONFIG_BT_NIMBLE_SECURITY_ENABLE is not set
 # CONFIG_BT_NIMBLE_HS_PVCY is not set
-# CONFIG_BT_NIMBLE_50_FEATURE_SUPPORT is not set
+# Bluetooth 5 host features for BLE 5.0 peripherals such as the Bookoo Ultra;
+# legacy peripherals keep working unchanged under backward compatibility.
+CONFIG_BT_NIMBLE_50_FEATURE_SUPPORT=y
 # CONFIG_BT_NIMBLE_MESH is not set
 
 # Shot Stopper registers only the standard GAP/GATT services. ESP-IDF enables
