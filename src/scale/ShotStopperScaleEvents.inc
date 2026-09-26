@@ -381,6 +381,7 @@ void processScaleLinkTransitions() {
 void processScaleWorkerEvents() {
   processScaleLinkTransitions();
   if (scaleEventQueue == nullptr && !scaleCriticalEventPending &&
+      !scaleReferenceChangedEventPending &&
       !scaleTimerStartEventPending && !scaleWeightEventPending) {
     return;
   }
@@ -391,7 +392,11 @@ void processScaleWorkerEvents() {
     bool receivedCritical = false;
     bool receivedWeight = false;
     scaleCriticalEventMux.lock();
-    if (scaleCriticalEventPending) {
+    if (scaleReferenceChangedEventPending) {
+      event = scaleReferenceChangedEvent;
+      scaleReferenceChangedEventPending = false;
+      receivedCritical = true;
+    } else if (scaleCriticalEventPending) {
       event = scaleCriticalEvent;
       scaleCriticalEventPending = false;
       receivedCritical = true;

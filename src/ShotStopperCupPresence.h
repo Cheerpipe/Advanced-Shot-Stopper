@@ -131,11 +131,13 @@ void observeEmptyCupWeight(float weight, uint32_t atMs) {
   const float toleranceG = fmaxf(anchored ? runtimeConfig.retareStabilityToleranceG
                                         : FIRST_DROP_BASELINE_SETTLE_G, movementG);
   if (mass.pendingId != 0 || cupPresence.holdTransitions ||
+      (cupPresence.inNegativeHole && !anchored &&
+       weight >= cupPresence.holeWeightG + runtimeConfig.minimumCupWeightG) ||
       ((!cupPresence.inNegativeHole || anchored) &&
        fabsf(weight - referenceG) > toleranceG)) {
     // Intermediate upward loads can be a placement ramp. A downward
     // disturbance must settle back at the anchor before rearming placement.
-    if (weight < referenceG || mass.pendingId != 0 || cupPresence.holdTransitions)
+    if (!anchored || weight < referenceG || mass.pendingId != 0 || cupPresence.holdTransitions)
       mass.emptyValid = false;
     mass.emptySamples = 0;
     return;

@@ -101,8 +101,9 @@ pan at power-on, let that zero settle first, then remove the cup. A continuous,
 stable negative reading can establish the empty reference; placing a cup with a
 different weight can then trigger tare. A return near the original zero is
 treated as possible empty-scale movement. For an equal-weight replacement, a
-reading gap, or a negative reading first seen at connection, tare the empty pan
-from **Diagnostic**, wait for stable zero, then place the cup.
+large removal rebound, a reading gap, or a negative reading first seen at
+connection, tare the empty pan from **Diagnostic**, wait for stable zero, then
+place the cup.
 The integrated protocols currently do not report a verifiable physical-button
 tare event; a zero reading alone cannot distinguish that action from returning
 to the previous displayed weight. **Tared** on Home describes the controller's
@@ -143,6 +144,10 @@ reference is retained; otherwise the reference becomes uncertain and cannot
 satisfy **Require cup to start**. A later unambiguous lift/replacement or a new
 connection can establish fresh evidence; a zero alone cannot reconstruct
 physical motion hidden by simultaneous tare.
+If the pan was not observed empty long enough after an unconfirmed tare, a
+quickly replaced cup cannot establish that empty reference. Remove the cup and
+let the empty pan settle; if its reading remains ambiguous, tare the empty pan
+from **Diagnostic** and wait for stable zero before replacing the cup.
 
 Tracked tares translate the known empty reference from the latest control-approved
 reading captured immediately before the write, rather than the enqueue weight.

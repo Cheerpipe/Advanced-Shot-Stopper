@@ -307,6 +307,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   healthLoopGapAlertLatched = false;
   scaleCriticalEvent = ScaleEvent{};
   scaleCriticalEventPending = false;
+  scaleReferenceChangedEvent = ScaleEvent{};
+  scaleReferenceChangedEventPending = false;
   scaleTimerStartEvent = ScaleEvent{};
   scaleTimerStartEventPending = false;
   scaleWeightEventHead = 0;
@@ -9237,7 +9239,7 @@ void it36_bookoo_startup_zero_unload_rearms_relative_tare() {
       idleWeight(-5.0f);
       idleWeight(-20.0f); // A continuous unload may cross the minimum gradually.
     }
-    idleWeight(-initial - 15.0f); // One removal undershoot is not the baseline.
+    idleWeight(-initial - 5.0f); // A small undershoot still permits the stable pan.
     CHECK(!cupPresence.weight.emptyValid);
     idleCup(-initial);
     CHECK(cupPresenceState() == CupPresenceState::ABSENT);
@@ -9314,6 +9316,99 @@ void it52_small_empty_offset_after_moving_bookoo_rearms_idle_tare() {
   idleCup(-6.0f);
   idleCup(50.0f);
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+}
+
+void it53_unknown_empty_rejects_replacement_and_ingredient() {
+  prepareIdleTare(); // Bookoo booted with an 80 g cup already zeroed.
+  idleWeight(-80.0f);
+  idleCup(20.0f); // A different 100 g cup arrived before empty settled.
+  CHECK(std::isnan(cupPresence.emptyAnchorG));
+  idleCup(40.0f); // Coffee added to the same replacement cup.
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  CHECK(scale.tareCalls == 0);
+
+  for (unsigned emptySamples = 1; emptySamples <= 4; ++emptySamples) {
+    prepareIdleTare();
+    idleCup(80.0f);
+    CHECK(executeNextScaleCommand());
+    hostMillis += SCALE_ATT_TIMEOUT_MS + runtimeConfig.postTareBaselineGraceMs;
+    markScaleWorkerProgress();
+    serviceIdleTare();
+    CHECK(!cupPresenceIsKnown());
+    for (unsigned i = 0; i < emptySamples; ++i) idleWeight(-80.0f);
+    idleCup(20.0f);
+    idleCup(40.0f);
+    CHECK(std::isnan(cupPresence.emptyAnchorG));
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    CHECK(scale.tareCalls == 1);
+  }
+}
+
+void it54_unknown_empty_recovers_only_with_qualified_pan() {
+  prepareIdleTare();
+  idleWeight(-115.0f); // 15 g rebound is ambiguous with a new cup.
+  idleCup(-100.0f);
+  CHECK(std::isnan(cupPresence.emptyAnchorG));
+  idleCup(100.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleCup(-100.0f); // Remove the replacement before taring the empty pan.
+  executeScaleDebugCommand(BookooDebugAction::TARE, 0);
+  processScaleWorkerEvents();
+  idleCup(0.0f);
+  idleCup(100.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+
+  prepareIdleTare();
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  hostMillis += SCALE_ATT_TIMEOUT_MS + runtimeConfig.postTareBaselineGraceMs;
+  markScaleWorkerProgress();
+  serviceIdleTare();
+  for (unsigned i = 0; i < 5; ++i) idleWeight(-80.0f);
+  CHECK(cupPresence.emptyAnchorG == -80.0f);
+  idleCup(20.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+}
+
+void r25d_reference_change_survives_full_critical_queue() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  idleCup(-80.0f);
+  CHECK(cupPresence.emptyAnchorG == -80.0f);
+  ScaleEvent filler;
+  filler.type = ScaleEventType::TIMER_STOP_RESULT;
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  filler.connectionGeneration = link.connectionGeneration;
+  filler.disconnectSequence = link.disconnectSequence;
+  for (size_t index = 0; index < SCALE_EVENT_QUEUE_LENGTH; ++index)
+    CHECK(xQueueSend(scaleEventQueue, &filler, 0) == pdTRUE);
+  executeScaleDebugCommand(BookooDebugAction::TARE, 0);
+  CHECK(scaleReferenceChangedEventPending);
+  CHECK(publishScaleEvent(filler, true));
+  processScaleWorkerEvents();
+  CHECK(!scaleReferenceChangedEventPending);
+  CHECK(std::isnan(cupPresence.emptyAnchorG));
+  idleCup(0.0f);
+  idleCup(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+}
+
+void it55_unknown_empty_rebound_obeys_minimum_cup_boundary() {
+  for (float minimum : {1.0f, 10.0f, 100.0f}) {
+    for (float tolerance : {0.1f, 20.0f}) {
+      for (bool cupSizedRebound : {false, true}) {
+        prepareIdleTare();
+        runtimeConfig.minimumCupWeightG = minimum;
+        runtimeConfig.retareStabilityToleranceG = tolerance;
+        idleWeight(-100.0f - minimum + (cupSizedRebound ? 0.0f : 0.1f));
+        idleCup(-100.0f);
+        CHECK(std::isfinite(cupPresence.emptyAnchorG) == !cupSizedRebound);
+        CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+      }
+    }
+  }
 }
 
 void it37_accessory_retare_is_opt_in_and_once_before_shot() {
@@ -16204,6 +16299,7 @@ const TestCase testCases[] = {
     {"R25", r25_critical_scale_mailbox_never_blocks_and_keeps_latest},
     {"R25b", r25b_empty_mailboxes_take_one_critical_lock},
     {"R25c", r25c_refilled_critical_mailboxes_remain_live_and_bounded},
+    {"R25d", r25d_reference_change_survives_full_critical_queue},
     {"R26", r26_remote_timer_stop_retries_after_full_queue},
     {"R27", r27_platform_clock_failure_prevents_circuit_close},
     {"R28", r28_terminal_control_result_is_retained_until_forwarded},
@@ -16380,6 +16476,9 @@ const TestCase testCases[] = {
     {"IT50", it50_cancelled_accessory_addition_rearms_after_return_to_zero},
     {"IT51", it51_failed_accessory_write_does_not_rearm_from_zero},
     {"IT52", it52_small_empty_offset_after_moving_bookoo_rearms_idle_tare},
+    {"IT53", it53_unknown_empty_rejects_replacement_and_ingredient},
+    {"IT54", it54_unknown_empty_recovers_only_with_qualified_pan},
+    {"IT55", it55_unknown_empty_rebound_obeys_minimum_cup_boundary},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},

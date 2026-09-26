@@ -175,6 +175,8 @@ extern bool scalePreferredMacDirty;
 extern uint32_t scaleDiscoveryPausedUntilMs;
 extern ScaleEvent scaleCriticalEvent;
 extern bool scaleCriticalEventPending;
+extern ScaleEvent scaleReferenceChangedEvent;
+extern bool scaleReferenceChangedEventPending;
 extern ScaleEvent scaleTimerStartEvent;
 extern bool scaleTimerStartEventPending;
 constexpr size_t SCALE_WEIGHT_EVENT_CAPACITY = 16;

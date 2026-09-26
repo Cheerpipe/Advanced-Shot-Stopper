@@ -210,6 +210,8 @@ static std::atomic<uint32_t> scaleWorkerDeadlineMisses{0};
 static std::atomic<uint32_t> scaleWorkerMaxExecutionUs{0};
 ScaleEvent scaleCriticalEvent;
 bool scaleCriticalEventPending = false;
+ScaleEvent scaleReferenceChangedEvent;
+bool scaleReferenceChangedEventPending = false;
 ScaleEvent scaleTimerStartEvent;
 bool scaleTimerStartEventPending = false;
 ScaleEvent scaleWeightEvents[SCALE_WEIGHT_EVENT_CAPACITY];
@@ -782,8 +784,8 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
 
   if (critical) {
     // Weight events use their own bounded FIFO. Command results normally
-    // use this FIFO; distinct START and STOP fallback slots ensure those two
-    // acknowledgements cannot overwrite each other when the FIFO is full.
+    // use this FIFO; dedicated fallbacks preserve reference changes and
+    // distinct START/STOP results when the FIFO is full.
     if (scaleEventQueue != nullptr &&
         xQueueSend(scaleEventQueue, &stamped, 0) == pdTRUE) {
       return true;
@@ -791,7 +793,10 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
     scaleCriticalEventMux.lock();
     ScaleEvent *fallback = &scaleCriticalEvent;
     bool *fallbackPending = &scaleCriticalEventPending;
-    if (stamped.type == ScaleEventType::TIMER_START_RESULT) {
+    if (stamped.type == ScaleEventType::REFERENCE_CHANGED) {
+      fallback = &scaleReferenceChangedEvent;
+      fallbackPending = &scaleReferenceChangedEventPending;
+    } else if (stamped.type == ScaleEventType::TIMER_START_RESULT) {
       fallback = &scaleTimerStartEvent;
       fallbackPending = &scaleTimerStartEventPending;
     }

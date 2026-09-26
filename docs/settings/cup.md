@@ -26,7 +26,10 @@ cup, a small negative shift can become the new empty reference after stable
 readings; it must be no more than 5 g or half **Minimum cup weight**, whichever
 is smaller. Larger movement cannot redefine zero: 0 → −20 → 0.1 g does not
 place a cup. After a larger downward disturbance, let the empty pan settle back
-near zero before placing the cup.
+near zero before placing the cup. If the empty reference is unknown and a
+removal reading rebounds by a full minimum cup weight, the controller cannot
+tell empty-pan movement from a new cup; tare the empty pan from **Diagnostic**,
+wait for stable zero, then place the cup.
 Stability tolerance bounds sample spread; it is neither a minimum placement mass
 nor a threshold that identifies a different cup.
 
@@ -138,6 +141,9 @@ scale readings; they are not a configurable physical cup-weight range. Raw
 reference acquisition uses the parsed sensing range: an empty reading of −522 g
 after taring and removing a 522 g cup remains usable to measure the next cup.
 This does not widen the net-weight bounds for placement automation or shot control.
+Those bounds are −500 to +1000 g. If a previously tared heavy cup leaves a
+lighter replacement below −500 g, remove it, tare the empty pan from
+**Diagnostic**, wait for stable zero, then place it again.
 
 You set a cup down during the retare window. After three samples within 2 g
 of each other, lasting at least 0.3 s, the firmware treats it as placed and
