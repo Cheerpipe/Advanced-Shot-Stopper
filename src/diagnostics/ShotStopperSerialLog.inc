@@ -32,6 +32,11 @@ int shotStopperEspLogVprintf(const char *format, va_list args) {
   if (formatted <= 0) {
     return formatted;
   }
+  if (strstr(line.text,
+             "HTTP_CLIENT: Connection timed out before data was ready!") !=
+      nullptr) {
+    return 0;
+  }
   size_t length = static_cast<size_t>(formatted);
   if (length >= sizeof(line.text)) {
     length = sizeof(line.text) - 1;
