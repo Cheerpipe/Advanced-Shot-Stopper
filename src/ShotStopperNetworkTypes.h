@@ -50,7 +50,7 @@ inline size_t deviceNameToInstanceLabel(char *out, size_t capacity,
   }
   size_t length = 0;
   bool atWordStart = true;
-  for (size_t index = 0; name[index] != '\0' && index < DEVICE_NAME_CAPACITY;
+  for (size_t index = 0; index < DEVICE_NAME_CAPACITY && name[index] != '\0';
        ++index) {
     char c = name[index];
     if (c == ' ' || c == '-') {
@@ -91,7 +91,7 @@ inline size_t deviceNameToMdnsHost(char *out, size_t capacity,
   }
   size_t length = 0;
   bool previousHyphen = true;  // Trims a leading hyphen for free.
-  for (size_t index = 0; name[index] != '\0' && index < DEVICE_NAME_CAPACITY;
+  for (size_t index = 0; index < DEVICE_NAME_CAPACITY && name[index] != '\0';
        ++index) {
     char c = name[index];
     if (c >= 'A' && c <= 'Z') {
