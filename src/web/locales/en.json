@@ -108,7 +108,7 @@
     "admin.save_superseded": "Save superseded",
     "admin.save_wi_fi_and_restart": "Save Wi-Fi and restart?",
     "admin.saving_webhooks": "Saving webhooks…",
-    "admin.scan_boost_hint": "With Relaxed or Balanced selected, when the machine is switched on without a connected scale the search runs at Aggressive for this many minutes, overriding the idle slowdowns. With Aggressive selected it only cancels those slowdowns. OFF never boosts.",
+    "admin.scan_boost_hint": "With Relaxed or Balanced selected, switching the machine on without a scale searches at Aggressive for this many minutes, overriding the idle slowdowns. OFF never boosts.",
     "admin.scan_boost_on_machine_use": "Scan boost on machine use",
     "admin.scan_networks": "Scan networks",
     "admin.scan_while_ready_after_saving_wi_fi": "Scan while Ready. After saving Wi-Fi, reopen within 3 min or previous settings return.",

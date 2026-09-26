@@ -180,7 +180,7 @@ rejects readings older than 1 s, before that link timeout. Check
    Balanced the first sign of a scale restores the saved mode on its own. **Scan boost on machine use**
    is the inverse safety net for people who leave the backoff on: switching
    on the machine with no scale connected searches at Aggressive for the
-   chosen minutes (factory default **OFF**), overriding both slowdowns.
+   chosen minutes (factory default **15 minutes**), overriding both slowdowns.
 
 Related: [Brew by weight](../features/brew-by-weight.md), [Tare](tare.md),
 [Alerts](../alerts.md).

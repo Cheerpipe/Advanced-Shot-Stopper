@@ -12613,7 +12613,7 @@ void sc15_status_printers_use_dump_views() {
   CHECK(serialTxContains("rssi=-"));
   CHECK(serialTxContains("weightG=18.50"));
   CHECK(serialTxContains("scanBackoffMin=0"));
-  CHECK(serialTxContains("scanBoostMin=0"));
+  CHECK(serialTxContains("scanBoostMin=15"));
 
   scale.rssiValid = true;
   scale.rssi = -62;
@@ -13390,7 +13390,7 @@ void f13_schedule_contract_and_snapshot_evidence_are_explicit() {
   CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[3].name, "health") == 0);
   CHECK(TASK_SCHEDULE_CONTRACTS[3].core == 0);
   CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[5].name, "httpd") == 0);
-  CHECK(TASK_SCHEDULE_CONTRACTS[5].configuredStackBytes == 10240);
+  CHECK(TASK_SCHEDULE_CONTRACTS[5].configuredStackBytes == 11264);
   CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[7].name, "micra_cloud") == 0);
   CHECK(TASK_SCHEDULE_CONTRACTS[7].maxBlockingMs == 10000);
   CHECK(TASK_SCHEDULE_CONTRACTS[8].maxBlockingMs ==

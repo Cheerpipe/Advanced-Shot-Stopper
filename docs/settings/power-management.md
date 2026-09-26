@@ -28,7 +28,7 @@ how much energy the controller uses, in this order:
   search runs at Aggressive for this many minutes so a scale that was put to
   sleep is found quickly. Switching the machine on again restarts the window,
   and the boost takes priority over the Relaxed slowdowns on this page for as
-  long as it lasts. **OFF** (factory default) never boosts.
+  long as it lasts. Factory default is **15 minutes**; **OFF** never boosts.
 
 The **Power policy** enables a global, persistent energy
 policy. It defaults **on** on a clean install and after factory reset, and

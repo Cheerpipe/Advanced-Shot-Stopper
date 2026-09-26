@@ -195,8 +195,9 @@ inline uint8_t clampBleScanBackoffMin(uint8_t minutes) {
 
 // Machine-use scan boost: minutes of Aggressive discovery duty armed by a
 // machine activation (paddle/momentary ON edge) while no scale is connected.
-// Zero disables the boost (saved intensity always decides) and is the default.
-constexpr uint8_t SCALE_SCAN_BOOST_DEFAULT_MIN = 0;
+// Zero disables the boost (saved intensity always decides); the factory
+// default of 15 minutes keeps a sleeping scale findable quickly.
+constexpr uint8_t SCALE_SCAN_BOOST_DEFAULT_MIN = 15;
 constexpr uint8_t SCALE_SCAN_BOOST_MAX_MIN = 240;
 
 inline bool validBleScanBoostMin(uint8_t minutes) {
