@@ -52,10 +52,26 @@ for older trees.
 
 ## 2. macOS prerequisites
 
+Install Cppcheck 2.13.0 before running `./scripts/dev analyze`. Homebrew has no
+direct `cppcheck@2.13.0` formula; its historical `brew extract` route requires
+the full `homebrew/core` tap history and may take time to download:
+
 ```sh
-brew install cppcheck
+brew tap-new local/cppcheck-legacy
+brew tap homebrew/core --force
+brew extract --version=2.13.0 cppcheck local/cppcheck-legacy
+brew install local/cppcheck-legacy/cppcheck@2.13.0
+brew unlink cppcheck
+brew link --force cppcheck@2.13.0
+brew pin cppcheck@2.13.0
+cppcheck --version   # must report Cppcheck 2.13.0
 brew install include-what-you-use   # optional; IWYU only
 ```
+
+`brew pin` only protects an installed version from upgrades; it does not
+downgrade 2.21.0. The analysis script rejects other versions before checking
+the compilation database. The macOS and CI compiler environments can still
+produce different findings even with the same Cppcheck version.
 
 `include-what-you-use` from Homebrew is built against the Homebrew `llvm`
 formula, so the clang version always matches — do not mix it with another
@@ -70,17 +86,10 @@ sudo apt-get install git python3 python3-pip python3-venv cmake ninja-build \
   build-essential cppcheck
 ```
 
-CI pins the Ubuntu `cppcheck` package version (see
-`.github/workflows/validation.yml`) so the analyzed diagnostics stay
-reproducible between runs; the macOS development checkout pins its Homebrew
-cppcheck (`brew pin cppcheck`, currently 2.21.0) for the same reason.
-
-Diagnostics can still differ across that version gap because cppcheck moves
-checks between enable sets: for example, `arrayIndexThenCheck` belongs to CI's
-enabled 2.13 set but to `style` in 2.21, which `static-idf` does not enable.
-When CI reports a check the local version misses, reproduce it explicitly
-(`cppcheck --enable=style <file>`) and triage the finding on its merits; never
-treat a missing local warning as proof the code is correct.
+CI pins Ubuntu package `cppcheck=2.13.0-2ubuntu3` and `static-idf` requires the
+same upstream version locally. The former 2.21.0 local version missed CI's
+`arrayIndexThenCheck` finding because that diagnostic moved into `style` in
+2.21. The check now fails clearly when the local version differs.
 
 IWYU is version-locked to the clang it was compiled against, and the Ubuntu
 `iwyu` package is built against the distro clang, which may not be the clang

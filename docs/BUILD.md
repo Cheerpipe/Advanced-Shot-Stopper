@@ -51,7 +51,8 @@ sudo apt-get install git python3 python3-pip python3-venv cmake ninja-build \
   nodejs npm g++ libcjson-dev
 ```
 
-Check `node --version`, `python3 --version`, `cmake --version`,
+Use Node.js 22.23.2 to match both GitHub firmware and host jobs. Check
+`node --version`, `python3 --version`, `cmake --version`,
 `ninja --version`, and `c++ --version`. CMake must understand the repository's
 version-6 presets. If your distribution's packages are too old, update the
 toolchain before continuing.
@@ -489,4 +490,7 @@ validation gate. It lists prerequisites, tool behavior and failure meanings.
 ## Firmware version
 
 `VERSION` supplies the release number; the build adds the git revision and a
-dirty marker when applicable. The Web UI footer and boot output identify it.
+dirty marker when applicable. GitHub Actions uses its checkout commit ID if
+Git cannot inspect the container checkout, and rejects an absent or invalid
+commit ID instead of producing `unknown`. The Web UI footer and boot output
+identify the resulting version.

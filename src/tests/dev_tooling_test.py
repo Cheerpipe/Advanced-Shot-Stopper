@@ -649,7 +649,9 @@ def static_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path,
     """Run static-idf end to end over a sandboxed fake compile database."""
     root, tools, sandbox = fake_database_sandbox()
     stub = tools / "cppcheck"
-    stub.write_text("#!/bin/sh\nprintf 'cppcheck-stub\\n'\n")
+    stub.write_text("#!/bin/sh\nif [ \"$1\" = --version ]; then\n"
+                    "  printf 'Cppcheck 2.13.0\\n'\nelse\n"
+                    "  printf 'cppcheck-stub\\n'\nfi\n")
     stub.chmod(0o755)
     env = os.environ.copy()
     env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
@@ -677,6 +679,21 @@ try:
     assert "Build database: " in static_idf_readme
 finally:
     static_idf_sandbox.cleanup()
+
+with tempfile.TemporaryDirectory(prefix="shotstopper-version-") as temporary:
+    fake_git = Path(temporary) / "git"
+    fake_git.write_text("#!/bin/sh\nexit 1\n")
+    fake_git.chmod(0o755)
+    output = Path(temporary) / "version.h"
+    env = dict(os.environ, PATH=f"{temporary}:{os.environ['PATH']}",
+               GITHUB_ACTIONS="true", GITHUB_SHA="a" * 40)
+    command = ["sh", str(ROOT / "scripts/gen_version.sh"), "n16r8", "hw",
+               "machine", str(output)]
+    assert subprocess.run(command, env=env, capture_output=True).returncode == 0
+    release = (ROOT / "VERSION").read_text().strip()
+    assert f'{release}+aaaaaaa' in output.read_text()
+    env["GITHUB_SHA"] = "invalid"
+    assert subprocess.run(command, env=env, capture_output=True).returncode != 0
 
 
 def iwyu_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path,
@@ -1510,8 +1527,14 @@ assert "actions/download-artifact" not in workflow, \
 host_job = workflow.split("  host:\n", 1)[1].split("\n  idf:\n", 1)[0]
 assert "libcjson-dev" in host_job, \
     "host CI must install the cJSON development files"
+assert "scripts/check_architecture.py" in host_job, \
+    "CI must run the local architecture check"
 idf_job = workflow.split("  idf:\n", 1)[1].split("\n  gate:\n", 1)[0]
-assert "cppcheck" in idf_job, "IDF CI must install Cppcheck"
+assert "cppcheck=2.13.0-2ubuntu3" in idf_job, \
+    "IDF CI must install the locally required Cppcheck version"
+assert 'node-version: "22.23.2"' in host_job and \
+       'node-version: "22.23.2"' in idf_job, \
+    "IDF CI must match the pinned host Node version"
 cppcheck_help = subprocess.run([str(ROOT / "scripts/static-idf"), "--help"],
                               cwd=ROOT, text=True, capture_output=True)
 assert cppcheck_help.returncode == 0 and "`unusedFunction`" in cppcheck_help.stdout

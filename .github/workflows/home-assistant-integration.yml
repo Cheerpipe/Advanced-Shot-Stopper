@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: integrations/OpenBrewByWeight
@@ -40,14 +40,10 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: cp -R integrations/OpenBrewByWeight/. .
       - uses: home-assistant/actions/hassfest@342664e951e2fd5f00bc990fc968342388252475
-      - uses: hacs/action@885037da508419fd08c13515967aec868dfdee2d
-        with:
-          category: integration
-
   publish:
     if: startsWith(github.ref, 'refs/tags/ha-v')
     needs: validate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -70,3 +66,7 @@ jobs:
           printf '#!/bin/sh\nprintf "%%s\\n" "$TOKEN"\n' >"$RUNNER_TEMP/ha-askpass"
           chmod 700 "$RUNNER_TEMP/ha-askpass"
           GIT_ASKPASS="$RUNNER_TEMP/ha-askpass" GIT_TERMINAL_PROMPT=0 git -C "$publish_dir" push "https://x-access-token@github.com/${DESTINATION}.git" "HEAD:refs/heads/main"
+      - uses: hacs/action@885037da508419fd08c13515967aec868dfdee2d
+        with:
+          category: integration
+          repository: ${{ vars.HA_INTEGRATION_REPOSITORY }}

@@ -103,6 +103,8 @@ Use `./scripts/dev doctor` to inspect local tooling and
 `./scripts/dev classify` before a change and `./scripts/dev validate` for the
 required validation gate. Missing dependencies are reported as failures;
 scripts never install them automatically.
+`./scripts/dev analyze` requires Cppcheck 2.13.0; see
+[Static analysis](STATIC_ANALYSIS.md) for local setup.
 
 For a failed boot or a changed partition layout, reinstall the complete image
 over USB with `--erase-all` and follow [Emergency recovery](EMERGENCY_RECOVERY.md).
