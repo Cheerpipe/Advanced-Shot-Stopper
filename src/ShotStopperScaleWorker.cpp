@@ -189,6 +189,7 @@ bool scaleTimerValid = false;
 uint32_t scaleTimerMs = 0;
 uint32_t scaleTimerAgeMs = 0;
 static char scaleProtocolName[20] = "none";
+char scaleConnectedMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
 ScaleModel scaleLinkModel = ScaleModel::Unknown;
 ScaleFeatureSet scaleLinkFeatures = {};
 bool scaleLinkRssiValid = false;
@@ -501,6 +502,7 @@ ScaleLinkSnapshot getScaleLinkSnapshot() {
   snapshot.timerMs = scaleTimerMs;
   snapshot.timerAgeMs = scaleTimerAgeMs;
   memcpy(snapshot.protocolName, scaleProtocolName, sizeof(snapshot.protocolName));
+  memcpy(snapshot.connectedMac, scaleConnectedMac, sizeof(snapshot.connectedMac));
   snapshot.model = scaleLinkModel;
   snapshot.features = scaleLinkFeatures;
   snapshot.rssiValid = scaleLinkRssiValid;
@@ -827,6 +829,7 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
 }
 
 void updateWorkerLinkState() {
+  const bool linkUp = scale.isLinkUp();
   const bool timerValid = scale.hasTimer();
   const uint32_t timerMs = timerValid ? scale.getTimerMs() : 0;
   const uint32_t timerAgeMs = timerValid ? scale.lastTimerAgeMs() : 0;
@@ -840,14 +843,16 @@ void updateWorkerLinkState() {
   scaleBleDiagnostics = scale.diagnostics();
   copyCString(scaleProtocolName, sizeof(scaleProtocolName),
               scale.connectedProtocolName());
-  scaleLinkFeatures = scale.isLinkUp() ? scale.features()
+  copyCString(scaleConnectedMac, sizeof(scaleConnectedMac),
+              linkUp ? scale.address() : "");
+  scaleLinkFeatures = linkUp ? scale.features()
                                        : scaleFeatureSetNone();
-  scaleLinkModel = scale.isLinkUp() ? scale.model() : ScaleModel::Unknown;
+  scaleLinkModel = linkUp ? scale.model() : ScaleModel::Unknown;
   scaleTimerValid = timerValid;
   scaleTimerMs = timerMs;
   scaleTimerAgeMs = timerAgeMs;
   portEXIT_CRITICAL(&scaleLinkMux);
-  setScaleLinkState(scale.isLinkUp() ? ScaleLinkState::CONNECTED
+  setScaleLinkState(linkUp ? ScaleLinkState::CONNECTED
                                         : ScaleLinkState::DISCONNECTED);
 }
 

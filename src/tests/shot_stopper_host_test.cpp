@@ -5657,6 +5657,19 @@ void d02f_only_mode_disconnects_a_nonpreferred_live_scale() {
   setHostPreferredScaleMac("AA:BB:CC:DD:EE:FF");
   scale.connected = true;
   CHECK(!preferredScaleMacEqual(scale.address(), scalePreferredMac));
+  noteScaleHistory(scale.address(), scale.localName(), false);
+  CHECK(setScaleFriendlyName(scale.address(), "Fallback scale"));
+  updateWorkerLinkState();
+  setScaleLinkState(ScaleLinkState::CONNECTED);
+  markScaleWorkerProgress();
+  publishControlStatus();
+  CHECK(strcmp(publishedControlStatus.connectedScaleMac,
+               scale.connectedAddress) == 0);
+  char friendly[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  CHECK(findScaleHistoryFriendlyName(scaleHistory,
+                                     publishedControlStatus.connectedScaleMac,
+                                     friendly, sizeof(friendly)));
+  CHECK(strcmp(friendly, "Fallback scale") == 0);
 
   RuntimeConfig candidate = runtimeConfig;
   candidate.scaleMacCacheMode =
@@ -5665,6 +5678,8 @@ void d02f_only_mode_disconnects_a_nonpreferred_live_scale() {
   serviceScaleWorkerLink();
   CHECK(!scale.connected);
   CHECK(getScaleLinkSnapshot().state == ScaleLinkState::DISCONNECTED);
+  publishControlStatus();
+  CHECK(publishedControlStatus.connectedScaleMac[0] == '\0');
 }
 
 void d02g_clear_preferred_disconnects_on_the_ble_worker() {

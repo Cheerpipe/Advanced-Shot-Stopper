@@ -23,15 +23,16 @@ a physical start, and implausible or stale readings suspend weight control.
 
 Scales broadcast names such as `BOOKOO_SC 715097`; you may still want to
 distinguish two scales of the same model. Next
-to the scale name on **Home**, on **Diagnostic → Preferred scale**, and beside
+to the preferred scale on **Home**, on **Diagnostic → Connected scale**, and beside
 **Preferred scale** in **Settings → Scales** — where the link follows the
 scale chosen in the dropdown, so you can rename any remembered scale, not
 just the one that is connected — choose **(rename)** to give that scale your
 own name, for example `Espresso corner scale`. Your name replaces the
 broadcast name everywhere the scale is listed — Home, Diagnostic, and the
 preferred-scale list in Settings — and stays with that scale across restarts.
-The preferred name can remain visible in Diagnostic while the scale is
-disconnected; check the scale status on Home to see whether it is connected.
+Any remembered scale can have its own name, whether or not it is preferred.
+Diagnostic shows the name of the scale connected now, or **Not connected** when
+there is no connection. Home continues to show the saved preferred scale.
 
 Bookoo Themis models identify themselves in that broadcast name, so the
 scale library proposes a readable model name for you: a scale broadcasting

@@ -366,6 +366,7 @@ if (!ui.includes('id="renameScaleLink"') ||
     !ui.includes('id="dScaleName"') ||
     !ui.includes('id="dScaleNameRename"') ||
     !ui.includes('id="dScaleNameRenameWrap"') ||
+    !ui.includes('Connected scale') ||
     !ui.includes('(rename)') ||
     !ui.includes('function renameScale(') ||
     !ui.includes('function updateScaleRenameUi(') ||
@@ -381,11 +382,28 @@ if (!ui.includes('id="renameScaleLink"') ||
     !network.includes('/api/v1/scale/friendly-name') ||
     !network.includes('UNKNOWN_SCALE') ||
     !network.includes('The scale name cannot be changed while a cycle') ||
+    !network.includes('connectedFriendlyName') ||
+    !network.includes('connectedMac') ||
+    !runtimeJs.includes("updateScaleRenameUi('dScaleNameRenameWrap',sc.connectedMac||'',sc.connectedFriendlyName||'')") ||
     !network.includes('\\"preferredFriendlyName\\"') ||
     !scaleWorker.includes('bool setScaleFriendlyName(') ||
     ui.includes("label.split(' — ')")) {
   throw new Error(
       'Scale names must support a friendly-name override with rename links in Home and Diagnostic');
+}
+{
+  const wrap = {hidden:false, classList:{toggle(_, hidden){wrap.hidden=hidden}},
+    querySelector(){return {classList:{toggle(){}},setAttribute(){}}}};
+  const helpers = runtimeJs.slice(runtimeJs.indexOf('function scaleDisplayName('),
+      runtimeJs.indexOf('function validScaleFriendlyNameClient('));
+  const {update, selected} = new Function('$', 'controlsMutable', helpers +
+      ';return {update:updateScaleRenameUi,selected:()=>scaleRename}')(id => wrap, true);
+  update('dScaleNameRenameWrap', 'AA:BB:CC:DD:EE:02', 'Connected');
+  if (selected().mac !== 'AA:BB:CC:DD:EE:02' || selected().current !== 'Connected' || wrap.hidden)
+    throw new Error('Diagnostic rename must target the connected scale');
+  update('dScaleNameRenameWrap', '', '');
+  if (selected().mac || !wrap.hidden)
+    throw new Error('Diagnostic rename must disappear when no scale is connected');
 }
 if (!ui.includes('id="shotPanel"') ||
     !ui.includes('id="shotBar"') ||

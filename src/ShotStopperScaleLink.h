@@ -147,6 +147,7 @@ struct ScaleLinkSnapshot {
   uint32_t timerMs = 0;
   uint32_t timerAgeMs = 0;
   char protocolName[20] = {};
+  char connectedMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
   ScaleModel model = ScaleModel::Unknown;
   ScaleFeatureSet features = {};
   bool rssiValid = false;

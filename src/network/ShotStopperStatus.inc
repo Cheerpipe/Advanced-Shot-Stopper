@@ -243,6 +243,16 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char safePreferredScaleFriendly[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
   sanitizeJsonEmbed(preferredScaleFriendly, safePreferredScaleFriendly,
                     sizeof(safePreferredScaleFriendly));
+  char connectedScaleFriendly[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  findScaleHistoryFriendlyName(g_work->scaleHistory, control.connectedScaleMac,
+                               connectedScaleFriendly,
+                               sizeof(connectedScaleFriendly));
+  char safeConnectedScaleMac[PREFERRED_SCALE_MAC_CAPACITY * 2] = {};
+  char safeConnectedScaleFriendly[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
+  sanitizeJsonEmbed(control.connectedScaleMac, safeConnectedScaleMac,
+                    sizeof(safeConnectedScaleMac));
+  sanitizeJsonEmbed(connectedScaleFriendly, safeConnectedScaleFriendly,
+                    sizeof(safeConnectedScaleFriendly));
 
   const uint32_t cycleFirstDropElapsedMs =
       control.cycleFirstDropMs != 0 && control.cycleStartedAtMs != 0 &&
@@ -992,6 +1002,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"recoveryRequired\":%s,\"resetReasonCode\":%lu},"
         "\"scale\":{\"preferredMac\":\"%s\",\"preferredName\":\"%s\","
         "\"preferredFriendlyName\":\"%s\","
+        "\"connectedMac\":\"%s\",\"connectedFriendlyName\":\"%s\","
         "\"streamState\":\"%s\",\"controlState\":\"%s\","
         "\"packetGaps\":%lu,\"rejectedPackets\":%lu,"
         "\"reconnects\":%lu,\"lastDisconnectReasonName\":\"%s\","
@@ -1124,7 +1135,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         control.resetRecoveryRequired ? "true" : "false",
         static_cast<unsigned long>(control.resetReasonCode),
         safePreferredScaleMac, safePreferredScaleName,
-        safePreferredScaleFriendly,
+        safePreferredScaleFriendly, safeConnectedScaleMac,
+        safeConnectedScaleFriendly,
         weightStreamStateName(control.weightStreamState),
         weightControlStateName(control.weightControlState),
         static_cast<unsigned long>(control.scalePacketGaps),
