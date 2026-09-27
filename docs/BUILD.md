@@ -284,10 +284,11 @@ build recreates the configuration so the requested level takes effect, which
 discards local `menuconfig` choices stored in that file. A later
 build without a level option restores `-O2` the same way.
 The current n16r8 image and memory baselines were measured with `-O2` and
-apply only to `-O2` builds. The historical n8r4 baselines retain their `-Os`
-scope. Other optimization levels still check the OTA partition limit,
-external BSS ceiling, and required internal-memory placement; their image
-sizes do not establish a versioned resource baseline.
+apply to `--development -O2` builds. The historical n8r4 baselines retain
+their `--development -Os` scope. Normal release builds and other optimization
+levels still check the OTA partition limit, external BSS ceiling, and required
+internal-memory placement; their image sizes do not establish a versioned
+resource baseline.
 
 The final verifier also rejects drift from the qualified production profile:
 n8r4 uses 8 MB flash, `partitions-n8r4.csv`, and QUAD PSRAM; n16r8 uses 16 MB

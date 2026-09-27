@@ -202,8 +202,10 @@ ss_idf_verify_firmware
 
 python -m esp_idf_size --format json2 -o "$IDF_BUILD_DIR/size.json" \
   "$IDF_BUILD_DIR/shotstopper.map"
+size_check_profile=--release
+[[ "${SS_CLI_DEVELOPMENT:-0}" == "1" ]] && size_check_profile=--development
 node "$root/src/tests/check_firmware_size.js" "$IDF_BUILD_DIR/shotstopper.bin" \
-  --arch "$SHOTSTOPPER_ARCH"
+  --arch "$SHOTSTOPPER_ARCH" "$size_check_profile"
 printf '%s\n' "$config_fingerprint" > "$fingerprint_file"
 
 identity="$(node ./scripts/image_tag.js "$IDF_IMAGE" --json)"

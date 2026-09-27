@@ -29,7 +29,8 @@ if (optimization.length !== 1) {
   process.exit(2);
 }
 const baselineLevel = arch === 'n16r8' ? 'PERF' : 'SIZE';
-const qualifiedSizeProfile = optimization[0] === `CONFIG_COMPILER_OPTIMIZATION_${baselineLevel}=y`;
+const qualifiedSizeProfile = process.argv.includes('--development') &&
+  optimization[0] === `CONFIG_COMPILER_OPTIMIZATION_${baselineLevel}=y`;
 
 const config = JSON.parse(fs.readFileSync(
   path.join(root, 'config', 'resource-baselines.json'), 'utf8'));
@@ -69,9 +70,9 @@ for (const [metric, baseline] of Object.entries(config.targets[arch])) {
   else if (qualifiedSizeProfile && value > limit) failures.push(`${metric} ${value} > baseline budget ${limit}`);
   else console.log(qualifiedSizeProfile
     ? `${metric}: ${value} (baseline ${baseline}, delta ${value - baseline})`
-    : `${metric}: ${value} (experimental; no versioned baseline)`);
+    : `${metric}: ${value} (no versioned baseline for this build profile)`);
 }
 if (failures.length) throw new Error(failures.join('; '));
 console.log(qualifiedSizeProfile
   ? `${arch}: image and memory regions are within versioned budgets`
-  : `${arch}: experimental optimization; -${baselineLevel === 'PERF' ? 'O2' : 'Os'} baseline comparisons do not apply`);
+  : `${arch}: no versioned baseline for this build profile; OTA slot and memory checks passed`);

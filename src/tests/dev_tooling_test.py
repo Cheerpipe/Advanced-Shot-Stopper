@@ -245,9 +245,11 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp"
     size.write_text(json.dumps(metrics))
     sdkconfig = build / "sdkconfig"
 
-    def check_size(arch="n16r8"):
-        return subprocess.run(["node", str(ROOT / "src/tests/check_firmware_size.js"),
-                               str(image), "--arch", arch], cwd=ROOT,
+    def check_size(arch="n16r8", development=False):
+        args = ["node", str(ROOT / "src/tests/check_firmware_size.js"),
+                str(image), "--arch", arch,
+                "--development" if development else "--release"]
+        return subprocess.run(args, cwd=ROOT,
                               text=True, capture_output=True)
 
     sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_PERF=y\n")
@@ -260,10 +262,13 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp"
     assert "must select one supported level" in check_size().stderr
     sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_PERF=y\n")
     size.write_text(json.dumps({**metrics, "total_size": 3_000_000}))
-    assert "total_size 3000000 > baseline budget" in check_size().stderr
+    assert check_size().returncode == 0
+    assert "total_size 3000000 > baseline budget" in check_size(development=True).stderr
     sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_SIZE=y\n")
     assert check_size().returncode == 0
-    assert "total_size 3000000 > baseline budget" in check_size("n8r4").stderr
+    assert "total_size 3000000 > baseline budget" in check_size("n8r4", development=True).stderr
+    image.write_bytes(b"x" * 3_145_729)
+    assert "image 3145729 > OTA slot 3145728" in check_size().stderr
 
 for level in ("--o0", "--og", "--o2", "--os"):
     rejected = run("flash", level)

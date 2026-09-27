@@ -10,15 +10,17 @@ an implementation contract, not a substitute for target/HIL evidence.
 the historical n8r4 `-Os` baseline. Every test or review that measures these
 budgets must compile with the
 `--development` profile; it enables the admin unlock and the USB Serial/JTAG
-console and therefore usually produces a larger firmware image, giving the
-conservative measurement. Comparisons must use the same hardware and machine
-profiles and the same profile on both sides. Every supported build emits `size.json` from the linker map and
+console and gives a reproducible comparison profile. Comparisons must use the
+same hardware and machine profiles and the same profile on both sides. Every
+supported build emits `size.json` from the linker map and
 records image bytes, total linked bytes, DIRAM, flash code, and flash rodata.
 The verifier requires valid measurements for all five metrics at every
 optimization level.
-The versioned n16r8 baseline comparisons apply to `-O2` builds; the n8r4
-comparisons retain their historical `-Os` scope. Other optimization levels
-retain the OTA-slot, external-BSS, and internal-placement checks.
+The versioned n16r8 baseline comparisons apply to `--development -O2` builds;
+the n8r4 comparisons retain their historical `--development -Os` scope. Normal
+release builds and other optimization levels retain the OTA-slot, external-BSS,
+and internal-placement checks. The development and release Web UIs differ, so
+the development image is not always the larger one.
 Small reviewed growth allowances catch regressions without coupling unrelated
 toolchain padding to an exact byte count; raising a baseline or allowance
 requires explicit architecture and resource review.
@@ -32,7 +34,7 @@ profile with USB Serial/JTAG measures 2,121,040 image bytes and 2,120,923 total
 bytes. The versioned allowances retain 38,640 and 38,628 bytes of reviewed
 growth headroom respectively. Flash rodata is 516,060 bytes, flash code is
 1,443,820 bytes, and linked DIRAM is 176,286 bytes; each retains its versioned
-allowance. The 3 MiB OTA slot still has more than 1 MiB free.
+allowance. The 3 MiB OTA slot remains the hard image limit.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
