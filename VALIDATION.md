@@ -84,6 +84,9 @@ versions before tests or builds; the Home Assistant job verifies Python and uv
 and refuses to update its lockfile during dependency sync. Subsequent integration
 checks run without syncing. Local firmware builds require ESP-IDF 6.1.0 and
 reject any change to the IDF component lock during a build.
+The firmware job activates the container's ESP-IDF environment before checking
+its tools and records the container path so prerequisite failures still produce
+a diagnostic artifact.
 
 Classify concrete files, not a directory name such as `docs`. Safety-related
 documents and BLE/OTA references can select R3/R2 even though they are Markdown.
