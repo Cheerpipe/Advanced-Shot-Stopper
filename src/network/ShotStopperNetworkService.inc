@@ -362,18 +362,23 @@ void ShotStopperNetwork::syncPreferredScale(const char *mac, const char *name) {
 }
 
 void ShotStopperNetwork::syncLiveRuntime(const RuntimeConfig &runtime,
-                                         const ShotPresetBank *presets) {
+                                         const ShotPresetBank *presets,
+                                         bool ntpSettingsChanged) {
   dataMux_.lock();
-  if (settings_.runtime.ntpServerPreset != runtime.ntpServerPreset ||
-      strncmp(settings_.runtime.ntpServerCustom, runtime.ntpServerCustom,
-              sizeof(runtime.ntpServerCustom)) != 0) {
-    if (++ntpSettingsGeneration_ == 0) ++ntpSettingsGeneration_;
-  }
   settings_.runtime = runtime;
   if (presets != nullptr) {
     settings_.presets = *presets;
   }
+  if (ntpSettingsChanged && ++ntpSettingsGeneration_ == 0)
+    ++ntpSettingsGeneration_;
   dataMux_.unlock();
+}
+
+bool ShotStopperNetwork::ntpSettingsChanged(const RuntimeConfig &before,
+                                            const RuntimeConfig &after) {
+  return before.ntpServerPreset != after.ntpServerPreset ||
+         strncmp(before.ntpServerCustom, after.ntpServerCustom,
+                 sizeof(before.ntpServerCustom)) != 0;
 }
 
 void ShotStopperNetwork::syncLiveBullseye(

@@ -4886,10 +4886,35 @@ void w74c_unrelated_config_save_does_not_repeat_live_effects() {
 
   update.config = runtimeConfig;
   update.config.minimumCupWeightG += 1.0f;
+  update.config.autoTareOutsideBrew = !update.config.autoTareOutsideBrew;
   processWebCommand(update);
   CHECK(cupSettingsGeneration == cupGeneration + 1);
   CHECK(idleTareSettingsGeneration == idleGeneration + 1);
   CHECK(!scaleDebugPending);
+}
+
+void w74d_settings_dispatches_each_matching_subscriber_once() {
+  static unsigned logCalls = 0;
+  static unsigned volumeCalls = 0;
+  logCalls = volumeCalls = 0;
+  const RuntimeSettingsSubscription subscribers[] = {
+      {[](const RuntimeConfig &a, const RuntimeConfig &b) {
+         return a.serialLogLevel != b.serialLogLevel;
+       }, [](const RuntimeConfig &, const RuntimeConfig &) { ++logCalls; }},
+      {[](const RuntimeConfig &a, const RuntimeConfig &b) {
+         return a.bookooConnectBeepLevel != b.bookooConnectBeepLevel;
+       }, [](const RuntimeConfig &, const RuntimeConfig &) { ++volumeCalls; }},
+  };
+  const RuntimeConfig before;
+  RuntimeConfig after = before;
+  dispatchRuntimeSettingsChanges(before, after, subscribers);
+  CHECK(logCalls == 0 && volumeCalls == 0);
+  after.serialLogLevel = static_cast<uint8_t>(LogLevel::DEBUG);
+  after.bookooConnectBeepLevel = 3;
+  dispatchRuntimeSettingsChanges(before, after, subscribers);
+  CHECK(logCalls == 1 && volumeCalls == 1);
+  dispatchRuntimeSettingsChanges(after, after, subscribers);
+  CHECK(logCalls == 1 && volumeCalls == 1);
 }
 
 void w75_bookoo_discovery_connect_applies_beep_policy() {
@@ -16959,6 +16984,7 @@ const TestCase testCases[] = {
     {"W74", w74_apply_config_enabling_mute_sends_silence_only_in_buzzer_only},
     {"W74b", w74b_sound_alert_master_mutes_and_cancels_all_routes},
     {"W74c", w74c_unrelated_config_save_does_not_repeat_live_effects},
+    {"W74d", w74d_settings_dispatches_each_matching_subscriber_once},
     {"W75", w75_bookoo_discovery_connect_applies_beep_policy},
     {"W75b", w75b_old_debug_volume_and_beeps_do_not_cross_connections},
     {"W76", w76_buzzer_only_start_beeps_at_circuit_not_ble_result},

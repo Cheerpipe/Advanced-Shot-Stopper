@@ -253,7 +253,9 @@ class ShotStopperNetwork {
   void syncControlCriticalRf(bool active);
   void syncScaleHuntRf(bool huntActive);
   void syncLiveRuntime(const RuntimeConfig &runtime,
-                       const ShotPresetBank *presets);
+                       const ShotPresetBank *presets, bool ntpSettingsChanged);
+  static bool ntpSettingsChanged(const RuntimeConfig &before,
+                                 const RuntimeConfig &after);
   void syncLiveBullseye(const BullseyeMelodyConfig &config);
   void syncDurableStorageRevision(uint32_t storageRevision);
   PersistedSettings settingsCopy();

@@ -233,81 +233,13 @@ void queueRuntimePersist(int32_t reasonBits) {
 }
 
 void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits) {
-  const RuntimeConfig &previous = runtimeConfig;
-  const int8_t oldVolume = bookooDesiredVolume(
-      !previous.soundAlertsMuted,
-      effectiveAlertOutputChannel(previous.alertOutputChannel),
-      previous.bookooMuteOnBuzzerOnly, previous.bookooConnectBeepLevel);
-  const int8_t newVolume = bookooDesiredVolume(
-      !composed.soundAlertsMuted,
-      effectiveAlertOutputChannel(composed.alertOutputChannel),
-      composed.bookooMuteOnBuzzerOnly, composed.bookooConnectBeepLevel);
-  const bool scalePolicyChanged =
-      previous.soundAlertsMuted != composed.soundAlertsMuted ||
-      previous.alertOutputChannel != composed.alertOutputChannel ||
-      previous.bookooMuteOnBuzzerOnly != composed.bookooMuteOnBuzzerOnly ||
-      previous.bookooConnectBeepLevel != composed.bookooConnectBeepLevel ||
-      previous.scaleMacCacheMode != composed.scaleMacCacheMode;
-  const bool cupSettingsChanged =
-      previous.minimumCupWeightG != composed.minimumCupWeightG ||
-      previous.cupRemovedWeightG != composed.cupRemovedWeightG ||
-      previous.retareStabilitySamples != composed.retareStabilitySamples ||
-      previous.retareStabilityToleranceG != composed.retareStabilityToleranceG ||
-      previous.retareStabilityMaxGapMs != composed.retareStabilityMaxGapMs ||
-      previous.retareStabilityMinDurationMs != composed.retareStabilityMinDurationMs ||
-      previous.postTareBaselineGraceMs != composed.postTareBaselineGraceMs ||
-      previous.autoRetare != composed.autoRetare ||
-      previous.retareWindowMs != composed.retareWindowMs;
-  const bool idleTareSettingsChanged = cupSettingsChanged ||
-      previous.autoTareOutsideBrew != composed.autoTareOutsideBrew ||
-      previous.noScaleBbwMode != composed.noScaleBbwMode;
-  const bool logSettingsChanged =
-      previous.serialLogLevel != composed.serialLogLevel ||
-      previous.ringRetainLogLevel != composed.ringRetainLogLevel;
-  const bool muteAlerts = !previous.soundAlertsMuted && composed.soundAlertsMuted;
-  const bool scaleModeChanged =
-      previous.scaleMacCacheMode != composed.scaleMacCacheMode;
-  const bool noScaleModeChanged =
-      noScaleBbwModeValue(previous.noScaleBbwMode) !=
-      noScaleBbwModeValue(composed.noScaleBbwMode);
+  const RuntimeConfig previous = runtimeConfig;
   runtimeConfig = composed;
-  if (scalePolicyChanged)
-    publishScaleWorkerPolicy(runtimeConfig, firmwareInitializationComplete);
-  if (scaleModeChanged) {
-    requestScalePreferenceModeReset();
-  }
-  if (noScaleModeChanged) {
-    noScaleShotGuardActivityAtMs = 0;
-    noScaleShotGuardArmed = noScaleBbwEnabled(runtimeConfig.noScaleBbwMode);
-    resetNoScaleRequireBypassGesture();
-    if (!noScaleBbwEnabled(runtimeConfig.noScaleBbwMode)) {
-      // Changing settings must not turn an already-held activator into a new
-      // relay close. The hold clears on release in serviceNoScaleShotGuard().
-      noScaleShotGuardHold = machineLastIntention().holdActive;
-    }
-  }
-  if (cupSettingsChanged && ++cupSettingsGeneration == 0)
-    ++cupSettingsGeneration;
-  if (idleTareSettingsChanged && ++idleTareSettingsGeneration == 0)
-    ++idleTareSettingsGeneration;
-  if (muteAlerts) {
-    cancelOperationalAlerts();
-  }
-  if (logSettingsChanged) {
-    publishLogLevels(serialLogLevelFromRuntime(runtimeConfig),
-                     static_cast<LogLevel>(runtimeConfig.ringRetainLogLevel));
-    configureEspLogRuntime();
-  }
+  dispatchRuntimeSettingsChanges(previous, runtimeConfig,
+                                 runtimeSettingsSubscribers);
   addDebugEvent(DebugCategory::CONFIG, DebugCode::CONFIG_ACCEPTED,
                 static_cast<int32_t>(runtimeConfig.revision));
-  if (newVolume != oldVolume && newVolume == 0)
-    requestBookooSilenceIfConfigured();
-  else if (newVolume != oldVolume && newVolume > 0)
-    requestBookooAlertVolumeRestore();
   queueRuntimePersist(reasonBits);
-#ifndef SHOT_STOPPER_HOST_TEST
-  networkManager.syncLiveRuntime(runtimeConfig, &presetBank);
-#endif
   publishRecipeState();
 }
 

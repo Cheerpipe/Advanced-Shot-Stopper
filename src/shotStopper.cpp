@@ -72,6 +72,7 @@
 #endif
 #include "ShotStopperBuzzer.h"
 #include "ShotStopperAlert.h"
+#include "ShotStopperSettings.h"
 #include "ShotStopperAlertChannel.h"
 #include "ShotStopperAlertTone.h"
 #include "ShotStopperPresets.h"
@@ -1736,6 +1737,7 @@ void appendHistoryRecord(HistoryType type, uint32_t durationMs,
 #include "control/ShotStopperCycleRuntime.inc"
 #include "scale/ShotStopperScaleEvents.inc"
 #include "control/ShotStopperControlStateMachine.inc"
+#include "control/ShotStopperSettingsCallbacks.inc"
 #include "persistence/ShotStopperCommandPersistence.inc"
 #include "control/ShotStopperCommands.inc"
 #include "diagnostics/ShotStopperDiagnostics.inc"

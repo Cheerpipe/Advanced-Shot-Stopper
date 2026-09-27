@@ -197,17 +197,23 @@ requires versioned compatibility, not relabeling historical data. Numeric and
 user contracts are in [BBW](features/brew-by-weight.md#cutoff-algorithms-and-learning)
 and [shot history](features/shot-history.md).
 
-## Residual qualification
+## Live settings notifications
 
-Live configuration effects are dispatched from the owning boundary by comparing
-the previous and proposed values, not by the global runtime revision or by the
-presence of a field in a Web payload. The control owner compares effective
-Bookoo volume, alert mute, log levels, and scale policy before issuing commands;
-cup-placement and idle-tare evidence use separate RAM generations advanced only
-by their relevant settings. The network owner likewise rearms NTP only when its
-server settings change. Persistence and status publication remain independent of
-these operational triggers, and initial scale connection retains its own speaker
-policy event. The persisted settings layout and OTA update path are unchanged.
+Live settings commit publishes the new runtime snapshot, then dispatches a
+fixed, allocation-free table of subscriptions on the control task. Each owner
+provides its own old/new value predicate and callback; the settings dispatcher
+knows neither the effect nor its destination. One callback runs at most once per
+commit even when several of its input fields change. The NTP subscription
+publishes the new network snapshot and its change generation under the same
+data lock; the network task performs the rearm. Other settings commits still
+publish the network snapshot without rearming NTP. Cup-placement and idle-tare
+evidence likewise use separate RAM generations. Boot initialization and a
+scale's initial connection retain their
+own policy application paths. Persistence and status publication are independent
+of these operational triggers. No callbacks run from an ISR or across a flash
+write, and the persisted settings layout and OTA update path are unchanged.
+
+## Residual qualification
 
 `RuntimeConfig` retains a 252-byte fixed layout inside the current schema-1
 settings blob. `autoTareOutsideBrew` remains a global machine setting rather
