@@ -320,7 +320,7 @@
     "diagnostic.scale": "Scale",
     "diagnostic.scale_2": "scale",
     "diagnostic.scale_gaps": "Scale gaps",
-    "diagnostic.scale_name": "Scale name",
+    "diagnostic.scale_name": "Preferred scale",
     "diagnostic.security": "security",
     "diagnostic.serial": "Serial",
     "diagnostic.serial_log_level": "Serial log level",
