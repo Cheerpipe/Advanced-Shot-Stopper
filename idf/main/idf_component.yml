@@ -5,7 +5,7 @@
 ## Keep dependencies.lock in version control for reproducible resolution.
 dependencies:
   espressif/arduino-esp32:
-    version: "==3.3.11"
+    version: "==3.3.12"
   espressif/cjson:
     version: "^1.7.19"
   espressif/mdns:

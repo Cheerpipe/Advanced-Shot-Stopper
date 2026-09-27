@@ -10,7 +10,7 @@ dependencies:
       type: service
     version: 1.0.3
   espressif/arduino-esp32:
-    component_hash: 1aeba74639b4728ff708d6177edfb3a0011c23b4b585c829c9d5f9840f13f0ca
+    component_hash: ed2a18885dee9ad34123003b627a191d98908e8155c1899ad71c0321908737bb
     dependencies:
     - name: chmorgan/esp-libhelix-mp3
       registry_url: https://components.espressif.com
@@ -83,7 +83,7 @@ dependencies:
       require: private
       rules:
       - if: target == esp32p4
-      version: ^2.9.2
+      version: ^2.12.13
     - name: espressif/esp_insights
       registry_url: https://components.espressif.com
       require: private
@@ -182,7 +182,7 @@ dependencies:
     - esp32p4
     - esp32s2
     - esp32s3
-    version: 3.3.11
+    version: 3.3.12
   espressif/cjson:
     component_hash: e788323270d90738662d66fffa910bfe1fba019bba087f01557e70c40485b469
     dependencies:
@@ -317,6 +317,6 @@ direct_dependencies:
 - espressif/arduino-esp32
 - espressif/cjson
 - espressif/mdns
-manifest_hash: 4ab748d6b9c923777788f9e38ed4558317b0fd3505aad9349459f8d0f5547185
+manifest_hash: 6bf8df98c85635f1f24a7d952ba7b2bfd9f933fac7b2b969ff175cee499dda81
 target: esp32s3
 version: 3.0.0
