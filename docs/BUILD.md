@@ -37,8 +37,7 @@ macOS, with Homebrew installed:
 
 ```sh
 xcode-select --install   # only if Command Line Tools are missing
-brew install git python cmake ninja cjson fnm
-eval "$(fnm env --shell zsh)"
+brew install git python cmake ninja cjson
 ```
 
 <a id="linux"></a>
@@ -49,27 +48,25 @@ Ubuntu 24.04 (the CI host version):
 sudo apt-get update
 sudo apt-get install git python3 python3-pip python3-venv cmake ninja-build \
   wget flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 \
-  g++ libcjson-dev curl unzip
-curl -fsSL https://fnm.vercel.app/install | bash
+  g++ libcjson-dev curl libdigest-sha-perl
 ```
 
-The [fnm installer](https://github.com/Schniz/fnm#installation) adds its shell
-setup to your profile. On Ubuntu, open a new terminal after installation, then
-run `eval "$(fnm env --shell bash)"` in Bash. The macOS `eval` above activates it
-in the current shell; add that line to `~/.zshrc` for future shells. If you use
-another shell, select it in `fnm env --shell` instead.
-Install and select the **exact** Node version used by both GitHub firmware and
-host jobs:
+Install the **exact** Node and Cppcheck releases used by CI into this project's
+Git-ignored `temp/` directory, then activate them in the current shell:
 
 ```sh
-fnm install 22.23.2
-fnm use 22.23.2
-node --version   # v22.23.2
+./scripts/setup-local-tools
+source temp/ai_temp_local_toolchain/activate.sh
+node --version       # v22.23.2
+cppcheck --version   # Cppcheck 2.13.0
 ```
 
-Run `fnm use 22.23.2` in each new shell before `npm ci` or validation. The
-version manager keeps this Node release available without replacing the system
-Node used by other projects. Check `python3 --version`, `cmake --version`,
+The installer explicitly downloads checksum-verified archives and builds
+Cppcheck; tests and validation never invoke it automatically. Source the same
+activation file in each new terminal before `npm ci` or validation. It only
+changes that shell's `PATH`; Homebrew, system tools, and shell profiles stay as
+they were. A fresh clone needs its own setup run because `temp/` is not in Git.
+Check `python3 --version`, `cmake --version`,
 `ninja --version`, and `c++ --version`; CMake must be **3.25 or newer** to read
 the repository's version-6 presets. If a distribution package is older, upgrade
 that tool before continuing. Debian and other Ubuntu releases can work, but
@@ -77,11 +74,11 @@ their package versions must pass these checks; Ubuntu 24.04 matches CI.
 
 | Dependency | Local version contract | Source of truth |
 | --- | --- | --- |
-| Node.js | Exactly 22.23.2 | [Validation workflow](../.github/workflows/validation.yml) |
+| Node.js | Exactly 22.23.2 | [`setup-local-tools`](../scripts/setup-local-tools), [validation workflow](../.github/workflows/validation.yml) |
 | Web UI packages | Exact resolved versions via `npm ci` | [`package-lock.json`](../package-lock.json) |
 | ESP-IDF | 6.1.x; install the 6.1 reference release | This guide and the build scripts |
 | IDF components | Locked graph, including mDNS 1.13.1 | [`idf/dependencies.lock`](../idf/dependencies.lock) |
-| Cppcheck | Exactly 2.13.0 for static analysis | [Static analysis setup](STATIC_ANALYSIS.md#2-macos-prerequisites) and the validation workflow |
+| Cppcheck | Exactly 2.13.0 for static analysis | [`setup-local-tools`](../scripts/setup-local-tools), [validation workflow](../.github/workflows/validation.yml) |
 | Host CMake | 3.25 or newer | [`CMakePresets.json`](../CMakePresets.json) schema 6 |
 | Home Assistant tests (optional) | Python 3.14, at least 3.14.2; dependencies locked | [`pyproject.toml`](../integrations/OpenBrewByWeight/pyproject.toml), [`uv.lock`](../integrations/OpenBrewByWeight/uv.lock) |
 | Home Assistant service (optional) | No running service for tests; integration test dependency is 2026.9.x | [Integration project](../integrations/OpenBrewByWeight/pyproject.toml) |

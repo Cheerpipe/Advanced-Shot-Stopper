@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# Explicitly install the CI-matched host tools under this repository's ignored temp/.
+set -euo pipefail
+
+root=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+tools="$root/temp/ai_temp_local_toolchain"
+node_version=22.23.2
+cppcheck_version=2.13.0
+cppcheck_commit=da29903ffcbde465b6c2b47e8dc38277743f47ec
+cppcheck_sha=5989c62289435eb1940a6f6aeb2f07b7d2a347eb654bdf4657cbaf9cfc657e9f
+workflow="$root/.github/workflows/validation.yml"
+if [[ $(grep -Fc "node-version: \"$node_version\"" "$workflow") -ne 2 ]] ||
+  ! grep -Fq "cppcheck=$cppcheck_version-" "$workflow"; then
+  echo "Local tool pins differ from the validation workflow; update this script." >&2
+  exit 1
+fi
+
+case "$(uname -s)/$(uname -m)" in
+Darwin/arm64)
+  platform=darwin-arm64
+  node_sha=61130f394c1630d211dd50aecc4353d379480f36d3ac913cd85dbba1aed585c6
+  ;;
+Darwin/x86_64)
+  platform=darwin-x64
+  node_sha=58e99022c2ff89395576cc7fd4d98cea24bb68081475d5f88b801ee8729fb026e1
+  ;;
+Linux/aarch64)
+  platform=linux-arm64
+  node_sha=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30
+  ;;
+Linux/x86_64)
+  platform=linux-x64
+  node_sha=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a
+  ;;
+*)
+  echo "Unsupported host: $(uname -s)/$(uname -m)" >&2
+  exit 2
+  ;;
+esac
+
+for tool in curl shasum tar cmake ninja c++; do
+  command -v "$tool" >/dev/null || {
+    echo "$tool is required." >&2
+    exit 127
+  }
+done
+
+download_verified() {
+  local url=$1 expected=$2 archive=$3 actual
+  if [[ ! -f "$archive" ]]; then
+    curl --fail --location --retry 3 --silent --show-error --output "$archive.part" "$url"
+    mv "$archive.part" "$archive"
+  fi
+  actual=$(shasum -a 256 "$archive")
+  [[ "${actual%% *}" == "$expected" ]] || {
+    echo "SHA-256 mismatch: $archive" >&2
+    return 1
+  }
+}
+
+mkdir -p "$tools/downloads"
+node_name="node-v$node_version-$platform"
+node_archive="$tools/downloads/$node_name.tar.gz"
+node_dir="$tools/$node_name"
+if [[ ! -x "$node_dir/bin/node" ]]; then
+  download_verified "https://nodejs.org/dist/v$node_version/$node_name.tar.gz" "$node_sha" "$node_archive"
+  tar -xzf "$node_archive" -C "$tools"
+fi
+[[ "$("$node_dir/bin/node" --version)" == "v$node_version" ]] || {
+  echo "Node version mismatch." >&2
+  exit 1
+}
+
+cppcheck_dir="$tools/cppcheck-$cppcheck_version"
+if [[ ! -x "$cppcheck_dir/bin/cppcheck" ]]; then
+  source_archive="$tools/downloads/cppcheck-$cppcheck_commit.tar.gz"
+  source_dir="$tools/cppcheck-$cppcheck_commit"
+  download_verified "https://codeload.github.com/cppcheck-opensource/cppcheck/tar.gz/$cppcheck_commit" "$cppcheck_sha" "$source_archive"
+  tar -xzf "$source_archive" -C "$tools"
+  cmake -S "$source_dir" -B "$tools/build-cppcheck-$cppcheck_version" -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$cppcheck_dir" \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+    -DBUILD_GUI=OFF -DBUILD_TESTING=OFF -DUSE_MATCHCOMPILER=ON
+  cmake --build "$tools/build-cppcheck-$cppcheck_version" --parallel 4
+  cmake --install "$tools/build-cppcheck-$cppcheck_version"
+fi
+[[ "$("$cppcheck_dir/bin/cppcheck" --version)" == "Cppcheck $cppcheck_version" ]] || {
+  echo "Cppcheck version mismatch." >&2
+  exit 1
+}
+
+printf 'export PATH="%s/bin:%s/bin:%sPATH"\n' "$node_dir" "$cppcheck_dir" '$' >"$tools/activate.sh"
+printf 'Node %s and Cppcheck %s are ready in %s\n' "$node_version" "$cppcheck_version" "$tools"
+printf 'Activate only this shell: source "%s/activate.sh"\n' "$tools"

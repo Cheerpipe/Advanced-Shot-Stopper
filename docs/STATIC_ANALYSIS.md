@@ -52,27 +52,22 @@ for older trees.
 
 ## 2. macOS prerequisites
 
-Install Cppcheck 2.13.0 before running `./scripts/dev analyze`. Homebrew's
-[`version-install`](https://docs.brew.sh/Versions) extracts the historical
-formula into your personal tap and installs it; retrieving the formula history
-can take time. If a newer Homebrew Cppcheck is installed, unpin and unlink it
-first (`brew unpin cppcheck` if pinned, then `brew unlink cppcheck`):
+After the [host prerequisites](BUILD.md#2-install-host-prerequisites), prepare
+the project's pinned Node and Cppcheck without changing Homebrew or your shell
+profile:
 
 ```sh
-brew version-install cppcheck@2.13.0
-brew link --force cppcheck@2.13.0
-brew pin cppcheck@2.13.0
+./scripts/setup-local-tools
+source temp/ai_temp_local_toolchain/activate.sh
 cppcheck --version   # must report Cppcheck 2.13.0
-brew install include-what-you-use   # optional; IWYU only
 ```
 
-`brew pin` protects the installed historical formula from upgrades; verify
-`cppcheck --version` after opening a new shell as well, since another Cppcheck
-on `PATH` can take precedence. The analysis script rejects other versions
-before checking the compilation database. The macOS and CI compiler
-environments can still produce different findings even with the same Cppcheck
-version.
+Source `activate.sh` again in each new terminal. The analysis script rejects
+other Cppcheck versions before checking the compilation database. The macOS
+and CI compiler environments can still produce different findings even with
+the same Cppcheck version.
 
+For optional IWYU checks, run `brew install include-what-you-use` separately.
 `include-what-you-use` from Homebrew is built against the Homebrew `llvm`
 formula, so the clang version always matches — do not mix it with another
 clang. Xcode Command Line Tools (`xcode-select --install`) provide the host
@@ -80,18 +75,18 @@ compiler used by the host tests; IWYU does not need it.
 
 ## 3. Linux (Ubuntu) prerequisites
 
-On Ubuntu 24.04, install the same package release as CI:
+After the [Ubuntu 24.04 prerequisites](BUILD.md#2-install-host-prerequisites),
+use the same project-local tool installation and activation:
 
 ```sh
-sudo apt-get update
-sudo apt-get install git python3 python3-pip python3-venv cmake ninja-build \
-  build-essential cppcheck=2.13.0-2ubuntu3
+./scripts/setup-local-tools
+source temp/ai_temp_local_toolchain/activate.sh
 cppcheck --version   # must report Cppcheck 2.13.0
 ```
 
-Other distributions may have a different package revision; install upstream
-Cppcheck 2.13.0 and verify the printed version. `static-idf` requires that
-upstream version locally. The former 2.21.0 local version missed CI's
+CI obtains upstream Cppcheck 2.13.0 from Ubuntu package
+`cppcheck=2.13.0-2ubuntu3`; the local script builds the same upstream release
+from pinned source. The former 2.21.0 local version missed CI's
 `arrayIndexThenCheck` finding because that diagnostic moved into `style` in
 2.21. The check now fails clearly when the local version differs.
 
