@@ -48,13 +48,13 @@ PSRAM before mapping overhead. Linker figures do not measure runtime heap;
 matched target memory, settings latency and loop-gap measurements remain
 required before qualification. PSRAM access may slow NVS integer operations.
 
-Both linker maps must also keep external BSS at or below 107,776 bytes and retain
+Both linker maps must also keep external BSS at or below 112 KiB (114,688 bytes) and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
 objects to PSRAM would move synchronization state accessed under spinlocks.
-The extra 1 KiB ceiling covers the versioned Micra cloud account record; the
-measured O2 development builds use up to 106,992 bytes, 528 bytes below the 105 KiB
-budget. This is static PSRAM, not internal heap. The earlier 96→104 KiB
-raise covers the V3 half-second shot-curve store.
+The current official profile builds use 107,760 bytes, leaving 6,928 bytes of
+reviewed growth headroom. This ceiling detects static-placement regressions;
+it is not the physical PSRAM limit or a runtime-heap measurement. The earlier
+96→104 KiB increase covered the V3 half-second shot-curve store.
 
 ## Runtime placement and allocation
 
