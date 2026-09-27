@@ -81,7 +81,9 @@ entries absent.
 The fast job checks that the local Node/Cppcheck pins still match the workflow
 without downloading tools. Host and firmware jobs verify the installed tool
 versions before tests or builds; the Home Assistant job verifies Python and uv
-and refuses to update its lockfile during dependency sync.
+and refuses to update its lockfile during dependency sync. Subsequent integration
+checks run without syncing. Local firmware builds require ESP-IDF 6.1.0 and
+reject any change to the IDF component lock during a build.
 
 Classify concrete files, not a directory name such as `docs`. Safety-related
 documents and BLE/OTA references can select R3/R2 even though they are Markdown.

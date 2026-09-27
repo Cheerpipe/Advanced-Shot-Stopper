@@ -99,7 +99,7 @@ ss_idf_source() {
   fi
   idf_root="$(ss_idf_find)" || {
     echo "ESP-IDF not found (idf.py / export.sh)." >&2
-    echo "Install 6.1.x and run again:" >&2
+    echo "Install ESP-IDF v6.1 and run again:" >&2
     echo "  mkdir -p \"\$HOME/esp\" && cd \"\$HOME/esp\"" >&2
     echo "  git clone -b v6.1 --recursive https://github.com/espressif/esp-idf.git esp-idf-v6.1" >&2
     echo "  cd esp-idf-v6.1 && ./install.sh esp32s3 && . ./export.sh" >&2
@@ -145,8 +145,7 @@ ss_idf_filter_output() {
   '
 }
 
-# Shot Stopper is validated against ESP-IDF 6.1.x (tracks 6.1 with
-# Arduino-ESP32 3.3.11). Refuse other majors/minors to avoid silent drift.
+# Match the v6.1 release used by CI and the component lock.
 ss_idf_require_version() {
   local ver_line ver
   ver_line="$(idf.py --version 2>/dev/null | head -n1 || true)"
@@ -155,13 +154,13 @@ ss_idf_require_version() {
     ver="$(printf '%s' "$ver_line" | sed -n 's/.*v\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p')"
   fi
   case "$ver" in
-    6.1|6.1.*)
+    6.1|6.1.0)
       if [[ "${SS_IDF_QUIET:-}" != "1" ]]; then
-        echo "ESP-IDF version: v${ver} (required: 6.1.x)"
+        echo "ESP-IDF version: v${ver} (required: 6.1.0)"
       fi
       ;;
     *)
-      echo "ESP-IDF 6.1.x is required (project validated with v6.1)." >&2
+      echo "ESP-IDF 6.1.0 is required (CI uses v6.1)." >&2
       echo "Found: ${ver_line:-unknown} (parsed: ${ver:-none})" >&2
       echo "Install or point IDF_PATH at v6.1:" >&2
       echo "  git clone -b v6.1 --recursive https://github.com/espressif/esp-idf.git esp-idf-v6.1" >&2

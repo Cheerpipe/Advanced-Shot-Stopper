@@ -2,7 +2,7 @@
 
 <a id="build-environment"></a>
 
-Supported firmware uses ESP-IDF 6.1.x (pinned reference: **6.1**),
+Supported firmware uses ESP-IDF **6.1.0** (release tag **v6.1**),
 Arduino-ESP32 **3.3.11** as an IDF component, and native NimBLE.
 The bundled EspressoScaleBLE library is not installed through Library Manager.
 
@@ -75,8 +75,8 @@ their package versions must pass these checks; Ubuntu 24.04 matches CI.
 | Dependency | Local version contract | Source of truth |
 | --- | --- | --- |
 | Node.js | Exactly 22.23.2 | [`setup-local-tools`](../scripts/setup-local-tools), [validation workflow](../.github/workflows/validation.yml) |
-| Web UI packages | Exact resolved versions via `npm ci` | [`package-lock.json`](../package-lock.json) |
-| ESP-IDF | 6.1.x; install the 6.1 reference release | This guide and the build scripts |
+| Web UI packages | Exact direct and resolved versions via `npm ci` | [`package.json`](../package.json), [`package-lock.json`](../package-lock.json) |
+| ESP-IDF | Exactly 6.1.0 (tag v6.1) | This guide and the build scripts |
 | IDF components | Locked graph, including mDNS 1.13.1 | [`idf/dependencies.lock`](../idf/dependencies.lock) |
 | Cppcheck | Exactly 2.13.0 for static analysis | [`setup-local-tools`](../scripts/setup-local-tools), [validation workflow](../.github/workflows/validation.yml) |
 | Host CMake | 3.25 or newer | [`CMakePresets.json`](../CMakePresets.json) schema 6 |
@@ -86,7 +86,7 @@ their package versions must pass these checks; Ubuntu 24.04 matches CI.
 Git, the host compiler, Ninja, cJSON and the system Python have no separate
 project pin; use versions compatible with the requirements above and verify
 them with the tests below. CI uses a digest-pinned ESP-IDF 6.1 container;
-the local 6.1.x environment is supported but can differ in compiler and host
+the local 6.1.0 environment is supported but can differ in compiler and host
 packages. ESP-IDF manages its own Python environment. The
 [Home Assistant integration](../integrations/OpenBrewByWeight/README.md) has a
 separate Python and `uv.lock` contract; it is not needed for firmware builds.
@@ -106,7 +106,7 @@ This is an explicit setup step. Test commands never install dependencies.
 <a id="3-install-esp-idf-required"></a>
 
 Prefer the [ESP-IDF Installation Manager (EIM)](https://docs.espressif.com/projects/idf-im-ui/en/latest/):
-install an exact ESP-IDF **6.1.x** environment, open a fresh shell, and source
+install ESP-IDF **6.1.0** (tag **v6.1**), open a fresh shell, and source
 the activation script printed by EIM (or use **Open IDF Terminal** in its GUI).
 For example, use the actual filename EIM created:
 
@@ -116,7 +116,7 @@ idf.py --version
 ```
 
 The project scripts reuse an active environment only when `IDF_PATH`, its
-`IDF_PYTHON_ENV_PATH/bin/python`, `idf.py`, and the reported 6.1.x version all
+`IDF_PYTHON_ENV_PATH/bin/python`, `idf.py`, and the reported 6.1.0 version all
 agree. A stale or mismatched active environment is discarded before fallback.
 
 When the legacy SDK's own activation script points at a Python environment
@@ -144,13 +144,26 @@ idf.py --version
 If that SDK directory already exists, verify its version instead of cloning
 over it. For an inactive legacy SDK elsewhere, export `IDF_PATH`; the scripts
 source its `export.sh`. Otherwise they discover `$HOME/esp/esp-idf-v6.1`.
-Every path rejects versions outside 6.1.x.
+Every path rejects versions other than 6.1.0.
 
-`idf/main/idf_component.yml` and `idf/dependencies.lock` pin the component
-graph, including mDNS 1.13.1. First firmware builds may need network access to
-resolve SDK components; prepare these dependencies before attempting an offline
-validation run. Host tests and firmware compilation need no running Home
-Assistant service, connected controller, Docker daemon, or GitHub account.
+`idf/main/idf_component.yml` and `idf/dependencies.lock` define the component
+graph, including mDNS 1.13.1. The build fails if dependency resolution changes
+the lockfile; review and commit such updates separately. First firmware builds
+may need network access to resolve SDK components; prepare these dependencies
+before attempting an offline validation run. Host tests and firmware compilation
+need no running Home Assistant service, connected controller, Docker daemon, or
+GitHub account.
+
+### Upgrade dependencies deliberately
+
+Run `npm ci` and `uv sync --locked` for ordinary setup; neither updates its
+lockfile. To upgrade a Web UI package, choose its version with
+`npm install --save-dev --save-exact <package>@<version>` and review both npm
+files. To upgrade a Home Assistant test dependency, update `uv.lock` explicitly
+with `uv lock --upgrade-package <package>` and review the resolved graph.
+An ESP-IDF upgrade must change the local version guard, the CI image digest,
+and the generated component lock together; regenerate the lock with the intended
+SDK version, then run the full build gate. Do not hand-edit lockfiles.
 
 ## 4. Validate before installation
 
@@ -185,15 +198,16 @@ cd integrations/OpenBrewByWeight
 uv --version               # uv 0.11.2
 uv python install 3.14.7
 uv sync --python 3.14.7 --locked --group test
-uv run python --version    # Python 3.14.7
-uv run pytest
-uv run ruff check .
-uv run mypy
+uv run --no-sync python --version    # Python 3.14.7
+uv run --no-sync pytest
+uv run --no-sync ruff check .
+uv run --no-sync mypy
 cd ../..
 ```
 
-The integration's `uv.lock` fixes package resolution, and `--locked` rejects a
-stale lockfile. Its GitHub job pins the same Python and uv versions. These
+The integration's `uv.lock` fixes package resolution, `--locked` rejects a
+stale lockfile, and `--no-sync` prevents test commands from changing the
+environment. Its GitHub job pins the same Python and uv versions. These
 checks do not require a running Home Assistant instance or controller.
 
 <a id="8-host-tests-before-you-flash"></a>

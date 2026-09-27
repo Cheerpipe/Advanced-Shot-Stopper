@@ -116,6 +116,8 @@ its versions no longer match the validation workflow. See
 downloading or installing anything; GitHub's fast validation job runs it.
 `./scripts/dev analyze` requires Cppcheck 2.13.0; see
 [Static analysis](STATIC_ANALYSIS.md) for local setup.
+Firmware builds require ESP-IDF 6.1.0 and fail if the IDF component lock
+changes during resolution. Review upgrades through [Build](BUILD.md#upgrade-dependencies-deliberately).
 
 For a failed boot or a changed partition layout, reinstall the complete image
 over USB with `--erase-all` and follow [Emergency recovery](EMERGENCY_RECOVERY.md).

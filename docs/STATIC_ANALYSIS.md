@@ -120,8 +120,8 @@ claiming Windows validation.
 
 1. **Git for Windows** — the repo scripts are bash; run them from **Git Bash**
    (`winget install Git.Git`).
-2. **ESP-IDF 6.1.x** — use [EIM](https://docs.espressif.com/projects/idf-im-ui/en/latest/)
-   (or the VS Code extension backend) and select an exact 6.1.x installation.
+2. **ESP-IDF 6.1.0** — use [EIM](https://docs.espressif.com/projects/idf-im-ui/en/latest/)
+   (or the VS Code extension backend) and select release v6.1.
    In Git Bash, point `IDF_PATH` at that SDK, or use the supported legacy clone
    at `%USERPROFILE%\esp\esp-idf-v6.1`. EIM also provides CMake, Ninja and the
    Xtensa GCC toolchain that produce the compilation database.
@@ -145,9 +145,9 @@ Windows notes:
 
 ## 5. ESP-IDF and esp-clang
 
-The firmware needs ESP-IDF **v6.1.x** (project validated with v6.1):
+The firmware needs ESP-IDF **6.1.0** (tag v6.1):
 
-Prefer an exact 6.1.x installation from EIM. From a fresh shell, use **Open IDF
+Select v6.1 in EIM. From a fresh shell, use **Open IDF
 Terminal** or source the activation script EIM printed, then confirm the
 version before building the compilation database:
 

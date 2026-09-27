@@ -38,7 +38,7 @@ Firmware optimization level (build-only, exclusive, not persisted):
 Recommended development compile flags (Enter at the prompt):
   $SS_CLI_DEFAULT_FLAGS
 
-Requires ESP-IDF 6.1.x. If IDF_PATH is unset, ${IDF_DEFAULT_HOME} is used when
+Requires ESP-IDF 6.1.0. If IDF_PATH is unset, ${IDF_DEFAULT_HOME} is used when
 it exists.
 
 BLE backend:
@@ -96,6 +96,9 @@ effective_flags="$(ss_cli_effective_flags)" || exit $?
 
 shotstopper_resolve_board "$(ss_get arch)"
 ss_idf_source
+lock_file="$root/idf/dependencies.lock"
+[[ -f "$lock_file" ]] || { echo "Missing IDF component lock: $lock_file" >&2; exit 1; }
+lock_sha="$(git hash-object "$lock_file")"
 
 # Map the exclusive CLI level flags to their ESP-IDF Kconfig choices. Empty
 # keeps the repository default (-O2 / PERF). ss_idf_py_args registers the
@@ -197,6 +200,10 @@ node ./scripts/gen_web_ui.js --webui-language "$(ss_get webui_language)" $webui_
 ss_idf_commit_extra_flags_stamp
 
 idf.py "${IDF_PY_ARGS[@]}" build 2>&1 | ss_idf_filter_output
+if [[ "$(git hash-object "$lock_file")" != "$lock_sha" ]]; then
+  echo "IDF component lock changed during build; update it explicitly and review the diff." >&2
+  exit 1
+fi
 
 ss_idf_verify_firmware
 
