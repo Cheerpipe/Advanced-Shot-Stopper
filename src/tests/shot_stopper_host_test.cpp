@@ -124,6 +124,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   stagedBullseyeRequestId = 0;
   pendingScaleTimerStop = PendingScaleTimerStop{};
   runtimeConfig = RuntimeConfig{};
+  cupSettingsGeneration = 1;
+  idleTareSettingsGeneration = 1;
   runtimeConfig.bbwAlgorithm = hostBbwAlgorithm;
   bbwLearningBank = BbwLearningBank{};
   // Legacy scenarios opt out; dedicated idle-tare cases exercise the ON default.
@@ -4741,7 +4743,7 @@ void w71_bookoo_connect_sets_volume_in_scale_priority() {
   CHECK(scale.commandLog[0] == "setBeepLevel:4");
 }
 
-void w72_bookoo_connect_skips_disabled_volume_and_non_bookoo() {
+void w72_bookoo_connect_mutes_disabled_volume_and_skips_non_bookoo() {
   resetHarness(false, true);
   reachReadyFromBoot();
   runtimeConfig.bookooConnectBeepLevel = 0;
@@ -4750,8 +4752,10 @@ void w72_bookoo_connect_skips_disabled_volume_and_non_bookoo() {
   publishTestScaleWorkerPolicy();
   scale.commandLog.clear();
   applyBookooConnectBeepPolicy();
-  CHECK(scale.commandLog.empty());
+  CHECK(scale.commandLog.size() == 1);
+  CHECK(scale.commandLog[0] == "setBeepLevel:0");
 
+  scale.commandLog.clear();
   runtimeConfig.bookooConnectBeepLevel = 4;
   std::strncpy(scale.connectedProtocol, "acaia",
                sizeof(scale.connectedProtocol) - 1);
@@ -4851,6 +4855,41 @@ void w74b_sound_alert_master_mutes_and_cancels_all_routes() {
   update.config.soundAlertsMuted = true;
   processWebCommand(update);
   CHECK(!localBuzzer.busy());
+}
+
+void w74c_unrelated_config_save_does_not_repeat_live_effects() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  const uint32_t cupGeneration = cupSettingsGeneration;
+  const uint32_t idleGeneration = idleTareSettingsGeneration;
+  WebCommand update;
+  update.type = WebCommandType::APPLY_CONFIG;
+  update.config = runtimeConfig;
+  update.config.serialLogLevel = static_cast<uint8_t>(LogLevel::DEBUG);
+  processWebCommand(update);
+  CHECK(!scaleDebugPending);
+  CHECK(cupSettingsGeneration == cupGeneration);
+  CHECK(idleTareSettingsGeneration == idleGeneration);
+
+  update.config = runtimeConfig;
+  update.config.bookooConnectBeepLevel = 3;
+  processWebCommand(update);
+  CHECK(scaleDebugPending);
+  CHECK(executePendingScaleDebugCommand());
+  CHECK(scale.commandLog.back() == "setBeepLevel:3");
+  const size_t commandCountBefore = scale.commandLog.size();
+
+  update.config = runtimeConfig;
+  processWebCommand(update);
+  CHECK(!scaleDebugPending);
+  CHECK(scale.commandLog.size() == commandCountBefore);
+
+  update.config = runtimeConfig;
+  update.config.minimumCupWeightG += 1.0f;
+  processWebCommand(update);
+  CHECK(cupSettingsGeneration == cupGeneration + 1);
+  CHECK(idleTareSettingsGeneration == idleGeneration + 1);
+  CHECK(!scaleDebugPending);
 }
 
 void w75_bookoo_discovery_connect_applies_beep_policy() {
@@ -8419,7 +8458,12 @@ void cw30_fast_unload_requires_unbroken_evidence() {
         idleWeight(-300.0f, mode == 3 ? runtimeConfig.retareStabilityMaxGapMs + 1 : 50);
       }
       if (mode == 4) idleWeight(NAN);
-      if (mode == 5) ++runtimeConfig.revision;
+      if (mode == 5) {
+        RuntimeConfig changed = runtimeConfig;
+        changed.minimumCupWeightG += 1.0f;
+        ++changed.revision;
+        commitLiveRuntimeConfig(changed, RUNTIME_PERSIST_REASON_USER);
+      }
       if (mode == 6) ++scaleEventsDropped;
       if (mode == 7) resetCupSampleEvidence();
       idleCup(50.0f);
@@ -9671,7 +9715,10 @@ void it38_accessory_retare_requires_continuous_confirmed_placement() {
       setScaleConnected(false);
       setScaleConnected(true);
     } else if (mode == 2) {
-      ++runtimeConfig.revision;
+      RuntimeConfig changed = runtimeConfig;
+      changed.retareStabilityToleranceG += 1.0f;
+      ++changed.revision;
+      commitLiveRuntimeConfig(changed, RUNTIME_PERSIST_REASON_USER);
     } else if (mode == 3) {
       idleWeight(0.0f, runtimeConfig.retareStabilityMaxGapMs + 1);
     }
@@ -16907,10 +16954,11 @@ const TestCase testCases[] = {
     {"W69", w69_web_bookoo_debug_rejected_when_not_generic},
     {"W70", w70_bookoo_connect_mutes_in_buzzer_only},
     {"W71", w71_bookoo_connect_sets_volume_in_scale_priority},
-    {"W72", w72_bookoo_connect_skips_disabled_volume_and_non_bookoo},
+    {"W72", w72_bookoo_connect_mutes_disabled_volume_and_skips_non_bookoo},
     {"W73", w73_apply_config_buzzer_only_sends_bookoo_silence},
     {"W74", w74_apply_config_enabling_mute_sends_silence_only_in_buzzer_only},
     {"W74b", w74b_sound_alert_master_mutes_and_cancels_all_routes},
+    {"W74c", w74c_unrelated_config_save_does_not_repeat_live_effects},
     {"W75", w75_bookoo_discovery_connect_applies_beep_policy},
     {"W75b", w75b_old_debug_volume_and_beeps_do_not_cross_connections},
     {"W76", w76_buzzer_only_start_beeps_at_circuit_not_ble_result},

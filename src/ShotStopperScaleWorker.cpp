@@ -1177,23 +1177,11 @@ void applyBookooConnectBeepPolicy() {
     return;
   }
   const ScaleWorkerPolicySnapshot policy = currentScaleWorkerPolicy();
-  if (!policy.soundAlertsEnabled) {
-    (void)scale.setBeepLevel(0);
-    yieldBetweenScaleAttOps();
-    return;
-  }
-  const AlertOutputChannel channel = policy.alertOutputChannel;
-  if (policy.bookooMuteOnBuzzerOnly &&
-      channel == AlertOutputChannel::BUZZER_ONLY) {
-    (void)scale.setBeepLevel(0);
-    yieldBetweenScaleAttOps();
-    return;
-  }
-  if (policy.bookooConnectBeepLevel >= 1 &&
-      policy.bookooConnectBeepLevel <= BOOKOO_BEEP_LEVEL_MAX &&
-      (channel == AlertOutputChannel::SCALE_ONLY ||
-       channel == AlertOutputChannel::SCALE_PRIORITY)) {
-    (void)scale.setBeepLevel(policy.bookooConnectBeepLevel);
+  const int8_t volume = bookooDesiredVolume(
+      policy.soundAlertsEnabled, policy.alertOutputChannel,
+      policy.bookooMuteOnBuzzerOnly, policy.bookooConnectBeepLevel);
+  if (volume >= 0) {
+    (void)scale.setBeepLevel(static_cast<uint8_t>(volume));
     yieldBetweenScaleAttOps();
   }
 }

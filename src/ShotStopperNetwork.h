@@ -407,7 +407,8 @@ class ShotStopperNetwork {
   uint8_t ntpFailoverIndex_ = 0;
   uint32_t ntpSyncStartedAtMs_ = 0;
   uint32_t staNtpEligibleAtMs_ = 0;
-  uint32_t ntpConfigRevision_ = 0;
+  uint32_t ntpSettingsGeneration_ = 1;
+  uint32_t ntpAppliedSettingsGeneration_ = 0;
   char ntpServerBuffer_[NTP_SERVER_HOST_CAPACITY] = {};
   std::atomic<bool> ntpCallbackAccepting_{false};
   std::atomic<bool> ntpAbortRequested_{false};

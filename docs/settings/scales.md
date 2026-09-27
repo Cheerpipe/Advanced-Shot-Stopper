@@ -127,7 +127,7 @@ offset learning, and eligible A→M samples.
 | **Timer stop extra delay (ms)** | 0 ms | 0–1000 ms | Pad after the scale timer catches up to circuit whole seconds, before `STOP_TIMER`. `0` stops in that same instant. Does not delay the local machine circuit beep. |
 | **Bookoo combined command** | ON | ON / OFF | Combined tare + start-timer. Requires automatic tare at shot start. Also listed under [Tare](tare.md). |
 | **Mute scale in Buzzer only** | ON | ON / OFF | Bookoo/generic: send silence (volume 0) after the first valid weight on the first connection of that scale in this Open Brew by Weight session. Reconnecting does not resend it. Applies only in **Buzzer only**. |
-| **Scale volume** | 4 | 1–5 or Disabled | Bookoo/generic: set after the first valid weight on the first connection of that scale in this Open Brew by Weight session. Reconnecting does not resend it. Explicit setting changes still apply to a stable link. Applies only in **Scale only** and **Scale priority**. |
+| **Scale volume** | 4 | 1–5 or Disabled | Bookoo/generic: set after the first valid weight on the first connection of that scale in this Open Brew by Weight session. **Disabled** sends volume 0. Reconnecting does not resend it. Changes that alter the effective speaker volume also apply to a stable link; saving unrelated settings does not resend the command. Applies only in **Scale only** and **Scale priority**. |
 | **AtomHeart Eclair** | informational | — | Uses normal tare/timer commands. No configurable volume, beep, mode, combined command, or documented command sound. In Buzzer only and Scale priority, alerts use the local buzzer; Scale only omits unsupported sounds. |
 
 If the scale disconnects or **notifications go silent** during an automatic

@@ -4,6 +4,7 @@ struct IdleTareRuntime {
   uint32_t cupWeightRequestId = 0;
   uint32_t connectionGeneration = 0;
   uint32_t configRevision = 0;
+  uint32_t settingsGeneration = 0;
   uint32_t lastSampleAtMs = 0;
   uint32_t lastPacketSequence = 0;
   uint32_t requestId = 0;
@@ -152,7 +153,7 @@ void serviceIdleTare() {
   const bool eligible = idleTare.eligibilityReason == IdleTareReason::NONE;
   if (eligible != idleTare.eligible ||
       generation != idleTare.connectionGeneration ||
-      runtimeConfig.revision != idleTare.configRevision) {
+      idleTareSettingsGeneration != idleTare.settingsGeneration) {
     idleTare.absentObserved = false;
     idleTare.accessoryPlacementId = 0;
     idleTare.accessorySamples = 0;
@@ -163,7 +164,8 @@ void serviceIdleTare() {
     cupPresence.weight.unloadQualified = false;
     cupPresence.weight.unloadSamples = 0;
     const bool changedConnection = generation != idleTare.connectionGeneration;
-    const bool changedConfig = runtimeConfig.revision != idleTare.configRevision;
+    const bool changedConfig =
+        idleTareSettingsGeneration != idleTare.settingsGeneration;
     if (changedConnection) {
       idleTare.lastSampleAtMs = 0;
       idleTare.lastPacketSequence = 0;
@@ -173,6 +175,7 @@ void serviceIdleTare() {
     idleTare.eligible = eligible;
     idleTare.connectionGeneration = generation;
     idleTare.configRevision = runtimeConfig.revision;
+    idleTare.settingsGeneration = idleTareSettingsGeneration;
     if (idleTare.requestId != 0 &&
         (changedConnection || idleScaleTareStatus().phase == IdleTarePhase::QUEUED)) {
       releaseIdleTareRequest(changedConnection ? IdleTareReason::CONNECTION_CHANGED

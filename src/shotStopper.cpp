@@ -366,6 +366,8 @@ ShotTrajectory shot;
 CycleSession session;
 PendingShotFinalize pendingFinalize;
 RuntimeConfig runtimeConfig;
+uint32_t cupSettingsGeneration = 1;
+uint32_t idleTareSettingsGeneration = 1;
 PowerPolicy powerPolicy;
 SHOT_STOPPER_PSRAM_BSS BullseyeMelodyConfig bullseyeMelodyConfig;
 SHOT_STOPPER_PSRAM_BSS BullseyeMelodyConfig stagedBullseyeMelodyConfig;
@@ -1305,8 +1307,12 @@ bool takeStagedBullseyeConfig(uint32_t requestId,
 
 void commitLiveBullseyeConfig(const BullseyeMelodyConfig &config) {
   bullseyeConfigMux.lock();
-  bullseyeMelodyConfig = config;
+  const bool changed = bullseyeMelodyConfig.enabled != config.enabled ||
+      strncmp(bullseyeMelodyConfig.rtttl, config.rtttl,
+              sizeof(config.rtttl)) != 0;
+  if (changed) bullseyeMelodyConfig = config;
   bullseyeConfigMux.unlock();
+  if (!changed) return;
   (void)localBuzzer.configureBullseyeRtttl(bullseyeMelodyConfig.rtttl);
   if (!bullseyeMelodyConfig.enabled) {
     bullseyeTracker.clear();
@@ -1693,19 +1699,17 @@ bool soundAlertsEnabled() { return !runtimeConfig.soundAlertsMuted; }
 // These policy decisions execute only on the control task. The worker receives
 // a concrete volume command and never reads runtimeConfig.
 void requestBookooSilenceIfConfigured() {
-  if (!soundAlertsEnabled() ||
-      (runtimeConfig.bookooMuteOnBuzzerOnly &&
-       currentAlertOutputChannel() == AlertOutputChannel::BUZZER_ONLY)) {
+  if (bookooDesiredVolume(soundAlertsEnabled(), currentAlertOutputChannel(),
+                          runtimeConfig.bookooMuteOnBuzzerOnly,
+                          runtimeConfig.bookooConnectBeepLevel) == 0) {
     (void)enqueueScaleDebugCommand(BookooDebugAction::VOLUME, 0);
   }
 }
 
 void requestBookooAlertVolumeRestore() {
-  const AlertOutputChannel channel = currentAlertOutputChannel();
-  if (soundAlertsEnabled() && runtimeConfig.bookooConnectBeepLevel >= 1 &&
-      runtimeConfig.bookooConnectBeepLevel <= BOOKOO_BEEP_LEVEL_MAX &&
-      (channel == AlertOutputChannel::SCALE_ONLY ||
-       channel == AlertOutputChannel::SCALE_PRIORITY)) {
+  if (bookooDesiredVolume(soundAlertsEnabled(), currentAlertOutputChannel(),
+                          runtimeConfig.bookooMuteOnBuzzerOnly,
+                          runtimeConfig.bookooConnectBeepLevel) > 0) {
     (void)enqueueScaleDebugCommand(BookooDebugAction::VOLUME,
                                    runtimeConfig.bookooConnectBeepLevel);
   }

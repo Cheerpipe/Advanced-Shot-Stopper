@@ -38,7 +38,7 @@ struct CupWeightRuntime {
   uint32_t sampleAtMs = 0;
   uint32_t sampleSequence = 0;
   uint32_t connectionGeneration = 0;
-  uint32_t configRevision = 0;
+  uint32_t settingsGeneration = 0;
   uint32_t pendingId = 0;
   uint32_t pendingPlacementId = 0;
   uint32_t pendingAtMs = 0;

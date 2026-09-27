@@ -137,12 +137,12 @@ bool observeCupWeight(float weight, uint32_t atMs, uint32_t sequence,
   serviceCupWeight();
   auto &mass = cupPresence.weight;
   const uint32_t currentGeneration = getScaleLinkSnapshot().connectionGeneration;
-  if (mass.configRevision != runtimeConfig.revision) {
+  if (mass.settingsGeneration != cupSettingsGeneration) {
     if (cupPresence.placementId == 0) invalidateCupWeight();
     mass.unloadSamples = 0;
     mass.unloadQualified = false;
     resetCupPlaceStabilityStreak();
-    mass.configRevision = runtimeConfig.revision;
+    mass.settingsGeneration = cupSettingsGeneration;
   }
   if (generation == 0) generation = currentGeneration;
   if (!std::isfinite(weight) || fabsf(weight) > MAX_PARSED_WEIGHT_G || generation != currentGeneration ||

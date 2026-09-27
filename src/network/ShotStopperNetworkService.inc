@@ -54,7 +54,7 @@ bool ShotStopperNetwork::begin(const PersistedSettings &settings,
   g_work = workBuf_;
   instance_ = this;
   initJsonParser();
-  ntpConfigRevision_ = settings_.runtime.revision;
+  ntpAppliedSettingsGeneration_ = ntpSettingsGeneration_;
   g_wallClock.reset();
   if (!ensureRfCoexBt()) {
     log(DebugCategory::NETWORK, DebugCode::INITIALIZATION_FAILED,
@@ -364,6 +364,11 @@ void ShotStopperNetwork::syncPreferredScale(const char *mac, const char *name) {
 void ShotStopperNetwork::syncLiveRuntime(const RuntimeConfig &runtime,
                                          const ShotPresetBank *presets) {
   dataMux_.lock();
+  if (settings_.runtime.ntpServerPreset != runtime.ntpServerPreset ||
+      strncmp(settings_.runtime.ntpServerCustom, runtime.ntpServerCustom,
+              sizeof(runtime.ntpServerCustom)) != 0) {
+    if (++ntpSettingsGeneration_ == 0) ++ntpSettingsGeneration_;
+  }
   settings_.runtime = runtime;
   if (presets != nullptr) {
     settings_.presets = *presets;

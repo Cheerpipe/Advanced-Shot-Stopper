@@ -207,6 +207,8 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
     return callbacks_.clearResetHistory(command.resetHistoryUnsafeCount);
   }
   PersistedSettings next = settingsCopy();
+  char previousDeviceName[DEVICE_NAME_CAPACITY] = {};
+  memcpy(previousDeviceName, next.deviceName, sizeof(previousDeviceName));
   bool persist = false;
   bool factoryReset = false;
   bool applyWifiPsAfterPersist = false;
@@ -456,7 +458,8 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
     }
     publishMachineIntegrationConfig(next, next.storageRevision);
     publishConfiguredAddressStatus();
-    applyMdnsName();
+    if (strcmp(previousDeviceName, next.deviceName) != 0)
+      applyMdnsName();
     log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
         static_cast<int32_t>(next.runtime.revision));
   } else if (factoryReset) {
@@ -467,7 +470,8 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
         static_cast<uint8_t>(StaConfigState::CONFIRMED);
     dataMux_.unlock();
     publishConfiguredAddressStatus();
-    applyMdnsName();
+    if (strcmp(previousDeviceName, next.deviceName) != 0)
+      applyMdnsName();
     publishMachineIntegrationConfig(next, next.storageRevision);
     log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
         static_cast<int32_t>(next.runtime.revision));
@@ -958,10 +962,10 @@ void ShotStopperNetwork::handleNtpFailure(uint32_t now) {
 
 void ShotStopperNetwork::serviceNtp(uint32_t now, bool staConnected) {
   dataMux_.lock();
-  const uint32_t runtimeRevision = settings_.runtime.revision;
+  const uint32_t settingsGeneration = ntpSettingsGeneration_;
   dataMux_.unlock();
-  if (runtimeRevision != ntpConfigRevision_) {
-    ntpConfigRevision_ = runtimeRevision;
+  if (settingsGeneration != ntpAppliedSettingsGeneration_) {
+    ntpAppliedSettingsGeneration_ = settingsGeneration;
     ntpRearmPending_ = true;
   }
 

@@ -439,6 +439,8 @@ void processWebCommand(const WebCommand &command) {
       }
       ensureShotPresetBank(presetBank, runtimeConfig.retareWindowMs,
                            runtimeConfig.autoRetare);
+      const bool presetChanged =
+          memcmp(&quickBefore.presets, &presetBank, sizeof(presetBank)) != 0;
       RuntimeConfig candidate = runtimeConfig;
       applyShotPresetToConfig(activeShotPreset(presetBank), candidate, true);
       ++candidate.revision;
@@ -457,7 +459,8 @@ void processWebCommand(const WebCommand &command) {
       quickAfter.runtime = runtimeConfig;
       quickSettingsPersistPending |= !quickSettingsEqual(
           quickSettingsSnapshot(quickBefore), quickSettingsSnapshot(quickAfter));
-      pendingPresetPersistence = {command.requestId, candidate.revision, true,
+      pendingPresetPersistence = {command.requestId, candidate.revision,
+                                  presetChanged,
                                   applyMachineTemperature};
       reportControlCommandResult(command, CommandResultState::APPLIED);
       return;
@@ -720,7 +723,8 @@ void persistBleScanBoost(uint8_t boostMin) {
 }
 
 void persistBleScanEnabled(bool enabled) {
-  applyLiveBleEnabled(enabled);
+  if (liveBleEnabled() != enabled)
+    applyLiveBleEnabled(enabled);
   // Stage only: the settings_persist worker owns the durable NVS write, so
   // the Arduino control loop never performs flash I/O for this command.
   bleScanPersistMux.lock();

@@ -199,6 +199,16 @@ and [shot history](features/shot-history.md).
 
 ## Residual qualification
 
+Live configuration effects are dispatched from the owning boundary by comparing
+the previous and proposed values, not by the global runtime revision or by the
+presence of a field in a Web payload. The control owner compares effective
+Bookoo volume, alert mute, log levels, and scale policy before issuing commands;
+cup-placement and idle-tare evidence use separate RAM generations advanced only
+by their relevant settings. The network owner likewise rearms NTP only when its
+server settings change. Persistence and status publication remain independent of
+these operational triggers, and initial scale connection retains its own speaker
+policy event. The persisted settings layout and OTA update path are unchanged.
+
 `RuntimeConfig` retains a 252-byte fixed layout inside the current schema-1
 settings blob. `autoTareOutsideBrew` remains a global machine setting rather
 than part of the per-shot/preset recipe snapshot. No historical settings layout
