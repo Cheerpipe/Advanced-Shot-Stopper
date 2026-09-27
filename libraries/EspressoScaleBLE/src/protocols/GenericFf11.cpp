@@ -2,26 +2,8 @@
 
 namespace {
 
-static const uint8_t TARE_GENERIC[6] =
-    {0x03, 0x0a, 0x01, 0x00, 0x00, 0x08};
-static const uint8_t START_TIMER_GENERIC[6] =
-    {0x03, 0x0a, 0x04, 0x00, 0x00, 0x0d};
-static const uint8_t STOP_TIMER_GENERIC[6] =
-    {0x03, 0x0a, 0x05, 0x00, 0x00, 0x0c};
-static const uint8_t RESET_TIMER_GENERIC[6] =
-    {0x03, 0x0a, 0x06, 0x00, 0x00, 0x0f};
-static const uint8_t TARE_START_TIMER_BOOKOO[6] =
-    {0x03, 0x0a, 0x07, 0x00, 0x00, 0x0e};
-// BooKoo's public contract: shutdown command 0x15, Ultra firmware V4.0.0 and
-// later (invalid while charging). The Themis Mini contract has no shutdown
-// command; both models advertise as "BOOKOO", so the family protocol carries
-// the feature and the scale ignores the command when its firmware predates it.
-static const uint8_t POWER_OFF_BOOKOO[6] =
-    {0x03, 0x0a, 0x15, 0x00, 0x00, 0x1c};
-
 static const uint8_t GENERIC_PRODUCT = 0x03;
 static const uint8_t GENERIC_TYPE = 0x0a;
-static const uint8_t GENERIC_BEEP_LEVEL_CMD = 0x02;
 
 static const char *const kGenericPrefixes[] = {"BOOKO"};
 
@@ -80,33 +62,12 @@ bool parseGenericTimer(const uint8_t *data, int length, uint32_t *timerMs) {
 }
 
 bool encodeGenericCommand(ScaleOp op, uint8_t arg, uint8_t *out, int *length) {
-    switch (op) {
-        case ScaleOp::Tare:
-            return scaleCopyPayload(TARE_GENERIC, sizeof(TARE_GENERIC), out, length);
-        case ScaleOp::StartTimer:
-            return scaleCopyPayload(START_TIMER_GENERIC, sizeof(START_TIMER_GENERIC),
-                               out, length);
-        case ScaleOp::StopTimer:
-            return scaleCopyPayload(STOP_TIMER_GENERIC, sizeof(STOP_TIMER_GENERIC),
-                               out, length);
-        case ScaleOp::ResetTimer:
-            return scaleCopyPayload(RESET_TIMER_GENERIC, sizeof(RESET_TIMER_GENERIC),
-                               out, length);
-        case ScaleOp::CombinedTareStart:
-            return scaleCopyPayload(TARE_START_TIMER_BOOKOO,
-                               sizeof(TARE_START_TIMER_BOOKOO), out, length);
-        case ScaleOp::SetVolume: {
-            uint8_t command[6];
-            fillGenericCommand(command, GENERIC_BEEP_LEVEL_CMD, 0x00, arg);
-            return scaleCopyPayload(command, sizeof(command), out, length);
-        }
-        case ScaleOp::PowerOff:
-            return scaleCopyPayload(POWER_OFF_BOOKOO,
-                                    sizeof(POWER_OFF_BOOKOO), out, length);
-        default:
-            break;
-    }
-    return false;
+    const uint8_t code = scaleBookooOpcode(op);
+    if (code == 0) return false;
+    uint8_t command[6];
+    fillGenericCommand(command, code, 0x00,
+                       op == ScaleOp::SetVolume ? arg : 0);
+    return scaleCopyPayload(command, sizeof(command), out, length);
 }
 
 } // namespace

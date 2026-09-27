@@ -541,6 +541,17 @@ class NimbleScaleClient {
     if (protocol_ == nullptr || protocol_->encodeCommand == nullptr) {
       return ScaleCommandResult::Unsupported;
     }
+    if (protocol_ == &kScaleProtocolGenericFf11 &&
+        model() != ScaleModel::Unknown) {
+      const ScaleFeatureSet available = features();
+      if (op == ScaleOp::PowerOff && !available.has(ScaleFeaturePowerOff)) {
+        return ScaleCommandResult::Unsupported;
+      }
+      if (op == ScaleOp::SetVolume &&
+          (arg < available.volumeMin || arg > available.volumeMax)) {
+        return ScaleCommandResult::InvalidArgument;
+      }
+    }
     uint8_t command[SCALE_MAX_COMMAND_LENGTH] = {};
     int length = 0;
     if (!protocol_->encodeCommand(op, arg, command, &length) || length <= 0 ||
@@ -566,8 +577,14 @@ class NimbleScaleClient {
 
   ScaleFeatureSet features() const {
     return state_ == State::Ready && protocol_ != nullptr
-               ? protocol_->features
+               ? scaleFeaturesForModel(protocol_, model())
                : scaleFeatureSetNone();
+  }
+
+  ScaleModel model() const {
+    return state_ == State::Ready && identityPresent_ &&
+                   protocol_ == &kScaleProtocolGenericFf11
+               ? scaleModelForAdvertisement(name_) : ScaleModel::Unknown;
   }
 
   bool heartbeatRequired() const {
@@ -2907,6 +2924,20 @@ bool EspressoScaleBLE::newWeightAvailable() {
 
 ScaleFeatureSet EspressoScaleBLE::features() const {
   return clientFromStorage(_nimbleClientStorage).features();
+}
+
+ScaleModel EspressoScaleBLE::model() const {
+  return clientFromStorage(_nimbleClientStorage).model();
+}
+
+const char *EspressoScaleBLE::defaultFriendlyName() const {
+  const NimbleScaleClient &client = clientFromStorage(_nimbleClientStorage);
+  return client.isLinkUp() ? scaleDefaultFriendlyName(client.name()) : "";
+}
+
+bool EspressoScaleBLE::supportedCommandAt(size_t index,
+                                          ScaleCommandInfo *out) const {
+  return scaleBookooCommandAt(model(), index, out);
 }
 
 const char *EspressoScaleBLE::connectedProtocolName() const {

@@ -1008,6 +1008,64 @@ static void run() {
     CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
     CHECK(!c.newWeightAvailable()); // Transport success creates no weight evidence.
   }
+  {
+    NimbleScaleClient c(false); ready(c);
+    strcpy(c.name_, "BOOKOO_SC 715097"); c.identityPresent_=true;
+    c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    CHECK(c.model()==ScaleModel::BookooMini);
+    CHECK(!c.features().has(ScaleFeaturePowerOff));
+    CHECK(c.features().volumeMax==5);
+    CHECK(c.writeOp(ScaleOp::PowerOff)==ScaleCommandResult::Unsupported);
+    CHECK(testWrites==0 && c.closedCommandGeneration_!=c.generation_);
+    CHECK(c.writeOp(ScaleOp::Tare)==ScaleCommandResult::Ok);
+    CHECK(testWrites==1);
+    c.enterState(NimbleScaleClient::State::Scanning);
+    CHECK(c.model()==ScaleModel::Unknown);
+    ready(c);
+    strcpy(c.name_, "BOOKOO_SC U 90210"); c.identityPresent_=true;
+    CHECK(c.model()==ScaleModel::BookooUltra);
+    CHECK(c.features().volumeMax==3);
+    c.protocol_=&kScaleProtocolAcaia;
+    CHECK(c.model()==ScaleModel::Unknown);
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    strcpy(c.name_, "BOOKOO_SC U 90210"); c.identityPresent_=true;
+    c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    CHECK(c.model()==ScaleModel::BookooUltra);
+    CHECK(c.features().volumeMax==3);
+    CHECK(c.writeOp(ScaleOp::SetVolume,4)==ScaleCommandResult::InvalidArgument);
+    CHECK(testWrites==0 && c.closedCommandGeneration_!=c.generation_);
+    CHECK(c.writeOp(ScaleOp::SetVolume,3)==ScaleCommandResult::Ok);
+    CHECK(c.writeOp(ScaleOp::PowerOff)==ScaleCommandResult::Ok);
+    CHECK(testWrites==2);
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    strcpy(c.name_, "BOOKOO_SC U"); c.identityPresent_=true;
+    c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+    CHECK(c.model()==ScaleModel::Unknown);
+    CHECK(c.features().volumeMax==5);
+    CHECK(c.writeOp(ScaleOp::SetVolume,5)==ScaleCommandResult::Ok);
+    c.identityPresent_=false;
+    CHECK(c.model()==ScaleModel::Unknown);
+  }
+  {
+    const uint8_t miniCodes[]={1,2,4,5,6,7};
+    ScaleCommandInfo command={};
+    for(size_t i=0;i<6;++i){
+      CHECK(scaleBookooCommandAt(ScaleModel::BookooMini,i,&command));
+      CHECK(command.code==miniCodes[i]);
+    }
+    CHECK(!scaleBookooCommandAt(ScaleModel::BookooMini,6,&command));
+    CHECK(scaleBookooCommandAt(ScaleModel::BookooUltra,6,&command));
+    CHECK(command.code==0x15);
+    CHECK(!scaleBookooCommandAt(ScaleModel::Unknown,0,&command));
+    CHECK(scaleBookooOpcode(ScaleOp::SetVolume)==0x02);
+    CHECK(scaleModelForAdvertisement("BOOKOO_SC U nope")==ScaleModel::Unknown);
+    CHECK(scaleModelForAdvertisement("BOOKOO_SC 123X")==ScaleModel::Unknown);
+    CHECK(strcmp(scaleDefaultFriendlyName("LUNAR"),"LUNAR")==0);
+  }
   printf("NimBLE production client: %u checks passed\n",checks);
 }
 };

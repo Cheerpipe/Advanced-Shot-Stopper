@@ -151,6 +151,10 @@ class EspressoScaleBLE {
         uint32_t communicationSilenceRemainingMs() const;
         bool newWeightAvailable();
         ScaleFeatureSet features() const;
+        ScaleModel model() const;
+        // Borrowed until the connection changes; copy if retained.
+        const char* defaultFriendlyName() const;
+        bool supportedCommandAt(size_t index, ScaleCommandInfo *out) const;
         const char* connectedProtocolName() const;
         const char* address() const;
         const char* localName() const;

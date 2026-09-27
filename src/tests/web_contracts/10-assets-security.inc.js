@@ -229,8 +229,9 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // The Settings Preferred scale row gains its own (rename) link, matching
 // Home and Diagnostic: +128 bytes of HTML allowance; compressed asset and
 // firmware budgets remain unchanged.
-if (htmlBytes > 73161) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 73033)`);
+// The scale command inventory adds a small two-column Diagnostic table.
+if (htmlBytes > 73500) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 73500)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -279,14 +280,15 @@ if (htmlBytes > 73161) {
 // The Admin BLE master switch checkbox adds its save handler, status sync,
 // and revert-on-error path to the runtime module.
 // Matching recent/lifetime gap columns replace the peak-gap label breakdown.
-if (jsBytes > 201743) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 201743)`);
+// Rendering the current scale command inventory adds a bounded status update.
+if (jsBytes > 202300) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 202300)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
 // The loop timing view adds only source allowance; compressed limits stay fixed.
-if (htmlBytes + jsBytes > 274904) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 274011)`);
+if (htmlBytes + jsBytes > 275750) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 275750)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

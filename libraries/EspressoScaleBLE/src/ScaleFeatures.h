@@ -57,4 +57,6 @@ enum class ScaleOp : uint8_t {
     PowerOff
 };
 
+enum class ScaleModel : uint8_t { Unknown, BookooMini, BookooUltra };
+
 #endif

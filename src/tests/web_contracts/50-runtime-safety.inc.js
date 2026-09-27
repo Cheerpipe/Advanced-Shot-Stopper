@@ -300,7 +300,8 @@ if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
     }
   }
   if (!diagBody.includes('\\"recoveredStaleMs\\":%lu,\\"rssi\\":%s,') ||
-      !diagBody.includes('\\"weightUpdateIntervalMs\\":%s}') ||
+      !diagBody.includes('\\"weightUpdateIntervalMs\\":%s,\\"model\\":\\"%s\\",') ||
+      !diagBody.includes('\\"supportedCommandsKnown\\":%s,\\"supportedCommands\\":%s}') ||
       !network.includes('scaleRssiJson') ||
       !network.includes('scaleWeightUpdateIntervalJson') ||
       !network.includes('control.weightStreamState == WeightStreamState::FRESH') ||
@@ -316,6 +317,14 @@ if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
       !network.includes('usbSerialStateId')) {
     throw new Error(
         'status/diagnostic must report live IO4 and latched USB serial enable source');
+  }
+  if (!diagBody.includes('scaleBookooCommandAt(control.scaleModel') ||
+      !diagBody.includes('supportedCommandsJson') ||
+      !html.includes('id="scaleCommandTable"') ||
+      !html.includes('id="scaleCommandRows"') ||
+      !ui.includes('applyScaleCommands(sc)') ||
+      !bleLibrary.includes('case ScaleOp::PowerOff: return 0x15;')) {
+    throw new Error('Diagnostic scale command table must use current library model and wire codes');
   }
   // Transversal fields used by Diagnostic (footer + log controls + mutability)
   if (!statusFormat.includes('\\"bootId\\":%lu') ||
@@ -706,7 +715,7 @@ if (safeBeepStart < 0 || safeBeepEnd < 0) {
 }
 const safeBeep = bleLibrary.slice(safeBeepStart, safeBeepEnd);
 if (!safeBeep.includes('return setBeepLevel(1)') ||
-    !bleLibrary.includes('GENERIC_BEEP_LEVEL_CMD') ||
+    !bleLibrary.includes('case ScaleOp::SetVolume: return 0x02;') ||
     !bleLibrary.includes('fillGenericCommand') ||
     safeBeep.includes('BEEP_LEVEL_1_BOOKOO') ||
     safeBeep.includes('TARE_ACAIA') || safeBeep.includes('TARE_GENERIC') ||

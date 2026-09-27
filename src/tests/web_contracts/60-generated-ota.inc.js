@@ -453,8 +453,9 @@ if (generated.otaImageGzip.length > 3072) {
 }
 // Continuous loop timing and the delay/dispatch breakdown live in Diagnostics.
 // The Diagnostic scale-name rename link binding raises it to 7020 bytes.
-if (generated.secondaryGzip.length > 7020) {
-  throw new Error(`Compressed secondary view JS exceeds the 7020-byte gzip budget (${generated.secondaryGzip.length})`);
+// The connected scale command table adds bounded Diagnostic rendering.
+if (generated.secondaryGzip.length > 7140) {
+  throw new Error(`Compressed secondary view JS exceeds the 7140-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');

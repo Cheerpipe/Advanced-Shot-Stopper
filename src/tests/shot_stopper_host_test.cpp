@@ -4740,7 +4740,7 @@ void w71_bookoo_connect_sets_volume_in_scale_priority() {
   scale.commandLog.clear();
   applyBookooConnectBeepPolicy();
   CHECK(scale.commandLog.size() == 1);
-  CHECK(scale.commandLog[0] == "setBeepLevel:4");
+  CHECK(scale.commandLog[0] == "setBeepLevel:3");
 }
 
 void w72_bookoo_connect_mutes_disabled_volume_and_skips_non_bookoo() {
@@ -4872,11 +4872,11 @@ void w74c_unrelated_config_save_does_not_repeat_live_effects() {
   CHECK(idleTareSettingsGeneration == idleGeneration);
 
   update.config = runtimeConfig;
-  update.config.bookooConnectBeepLevel = 3;
+  update.config.bookooConnectBeepLevel = 2;
   processWebCommand(update);
   CHECK(scaleDebugPending);
   CHECK(executePendingScaleDebugCommand());
-  CHECK(scale.commandLog.back() == "setBeepLevel:3");
+  CHECK(scale.commandLog.back() == "setBeepLevel:2");
   const size_t commandCountBefore = scale.commandLog.size();
 
   update.config = runtimeConfig;
@@ -4910,7 +4910,7 @@ void w74d_settings_dispatches_each_matching_subscriber_once() {
   dispatchRuntimeSettingsChanges(before, after, subscribers);
   CHECK(logCalls == 0 && volumeCalls == 0);
   after.serialLogLevel = static_cast<uint8_t>(LogLevel::DEBUG);
-  after.bookooConnectBeepLevel = 3;
+  after.bookooConnectBeepLevel = 2;
   dispatchRuntimeSettingsChanges(before, after, subscribers);
   CHECK(logCalls == 1 && volumeCalls == 1);
   dispatchRuntimeSettingsChanges(after, after, subscribers);
@@ -5397,6 +5397,66 @@ void d13b_scale_power_off_is_terminal_for_connection_generation() {
   serviceScaleWorkerDiscovery(lastScanCycleMs,lastConnectLogMs,
       connectAttemptSeriesActive,scanSessionAtMs,scanLastAdvertAtMs);
   CHECK(!scaleDiscoveryPaused()); CHECK(scale.startScanCalls==1);
+}
+
+bool scaleWarningContains(const char *fragment) {
+  DebugEvent events[DEBUG_EVENT_CAPACITY] = {};
+  const size_t count = copyDebugEvents(0, events, DEBUG_EVENT_CAPACITY);
+  for (size_t i = 0; i < count; ++i) {
+    if (events[i].level == LogLevel::WARNING &&
+        strstr(events[i].text, fragment) != nullptr) return true;
+  }
+  return false;
+}
+
+void d13d_known_mini_rejects_shutdown_before_terminal_barrier() {
+  resetHarness(false, false);
+  copyCString(scale.connectedLocalName, sizeof(scale.connectedLocalName),
+              "BOOKOO_SC 715097");
+  scale.connectedFeatures.flags |= ScaleFeaturePowerOff;
+  setScaleConnected(true);
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  CHECK(link.model == ScaleModel::BookooMini);
+  CHECK(!link.features.has(ScaleFeaturePowerOff));
+  requestScaleBrewBeep(1);
+  CHECK(scaleBeepPending);
+  CHECK(enqueueScaleDebugCommand(BookooDebugAction::VOLUME, 3));
+  CHECK(scaleDebugPending);
+  requestScalePowerOff();
+  CHECK(!scalePowerOffBlocksGeneration(link.connectionGeneration));
+  CHECK(!takeScalePowerOff());
+  CHECK(scaleBeepPending);
+  CHECK(scaleDebugPending);
+  CHECK(scale.commandLog.empty());
+  CHECK(scaleWarningContains("Power off not sent: Bookoo Themis Mini"));
+  setScaleConnected(false);
+  CHECK(getScaleLinkSnapshot().model == ScaleModel::Unknown);
+}
+
+void d13e_ultra_volume_rejection_preserves_saved_level() {
+  resetHarness(false, false);
+  copyCString(scale.connectedLocalName, sizeof(scale.connectedLocalName),
+              "BOOKOO_SC U 90210");
+  setScaleConnected(true);
+  CHECK(getScaleLinkSnapshot().model == ScaleModel::BookooUltra);
+  CHECK(scale.features().volumeMax == 3);
+  runtimeConfig.bookooConnectBeepLevel = 5;
+  publishTestScaleWorkerPolicy();
+  applyBookooConnectBeepPolicy();
+  CHECK(runtimeConfig.bookooConnectBeepLevel == 5);
+  CHECK(scale.commandLog.empty());
+  CHECK(scaleWarningContains("Connection volume 5 not sent"));
+  executeScaleDebugCommand(BookooDebugAction::VOLUME, 4);
+  CHECK(scale.commandLog.empty());
+  CHECK(scaleWarningContains("volume level 4 is unsupported"));
+  executeScaleDebugCommand(BookooDebugAction::VOLUME, 3);
+  CHECK(scale.commandLog.size() == 1);
+  CHECK(scale.commandLog[0] == "setBeepLevel:3");
+  copyCString(scale.connectedLocalName, sizeof(scale.connectedLocalName),
+              "BOOKOO_SC U");
+  updateWorkerLinkState();
+  CHECK(getScaleLinkSnapshot().model == ScaleModel::Unknown);
+  CHECK(scale.features().volumeMax == 5);
 }
 
 void d13c_disconnect_silence_clears_connecting_snapshot() {
@@ -6063,19 +6123,20 @@ void d13_scale_friendly_name_set_clear_and_preserve() {
   CHECK(setScaleFriendlyName("AA:BB:CC:DD:EE:01", ""));
   copyScaleHistory(history);
   CHECK(history[0].friendlyName[0] == '\0');
+  CHECK(findScaleHistoryFriendlyName(history, "AA:BB:CC:DD:EE:01", friendly,
+                                     sizeof(friendly)));
+  CHECK(strcmp(friendly, "Bookoo Themis Mini") == 0);
 }
 
 void d13a_auto_friendly_name_for_themis_models() {
-  // Advertised names map to model display names on first detection.
-  char nameOut[PREFERRED_SCALE_NAME_CAPACITY] = {};
-  CHECK(autoScaleFriendlyName("BOOKOO_SC 715097", nameOut, sizeof(nameOut)));
-  CHECK(strcmp(nameOut, "Bookoo Themis Mini") == 0);
-  CHECK(autoScaleFriendlyName("BOOKOO_SC U 90210", nameOut, sizeof(nameOut)));
-  CHECK(strcmp(nameOut, "Bookoo Themis Ultra") == 0);
-  CHECK(!autoScaleFriendlyName("LUNAR", nameOut, sizeof(nameOut)));
-  CHECK(!autoScaleFriendlyName("BOOKOO_SCTE 1", nameOut, sizeof(nameOut)));
-  CHECK(!autoScaleFriendlyName("", nameOut, sizeof(nameOut)));
-  CHECK(!autoScaleFriendlyName(nullptr, nameOut, sizeof(nameOut)));
+  CHECK(strcmp(scaleDefaultFriendlyName("BOOKOO_SC 715097"),
+               "Bookoo Themis Mini") == 0);
+  CHECK(strcmp(scaleDefaultFriendlyName("BOOKOO_SC U 90210"),
+               "Bookoo Themis Ultra") == 0);
+  CHECK(strcmp(scaleDefaultFriendlyName("LUNAR"), "LUNAR") == 0);
+  CHECK(scaleModelForAdvertisement("BOOKOO_SCTE 1") == ScaleModel::Unknown);
+  CHECK(scaleModelForAdvertisement("BOOKOO_SC U ") == ScaleModel::Unknown);
+  CHECK(scaleModelForAdvertisement(nullptr) == ScaleModel::Unknown);
 
   resetHarness(false, false);
   scalePreferredMac[0] = '\0';
@@ -6087,8 +6148,20 @@ void d13a_auto_friendly_name_for_themis_models() {
   noteScaleHistory("AA:BB:CC:DD:EE:02", "BOOKOO_SC U 90210", false);
   ScaleHistoryEntry history[SCALE_HISTORY_CAPACITY] = {};
   copyScaleHistory(history);
-  CHECK(strcmp(history[0].friendlyName, "Bookoo Themis Mini") == 0);
-  CHECK(strcmp(history[1].friendlyName, "Bookoo Themis Ultra") == 0);
+  CHECK(history[0].friendlyName[0] == '\0');
+  CHECK(history[1].friendlyName[0] == '\0');
+  char friendly[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  CHECK(findScaleHistoryFriendlyName(history, "AA:BB:CC:DD:EE:01", friendly,
+                                     sizeof(friendly)));
+  CHECK(strcmp(friendly, "Bookoo Themis Mini") == 0);
+  CHECK(findScaleHistoryFriendlyName(history, "AA:BB:CC:DD:EE:02", friendly,
+                                     sizeof(friendly)));
+  CHECK(strcmp(friendly, "Bookoo Themis Ultra") == 0);
+  noteScaleHistory("AA:BB:CC:DD:EE:03", "LUNAR", false);
+  copyScaleHistory(history);
+  CHECK(findScaleHistoryFriendlyName(history, "AA:BB:CC:DD:EE:03", friendly,
+                                     sizeof(friendly)));
+  CHECK(strcmp(friendly, "LUNAR") == 0);
   // Repeat advertisements do not overwrite a user-assigned friendly name.
   CHECK(setScaleFriendlyName("AA:BB:CC:DD:EE:01", "Left cup scale"));
   noteScaleHistory("AA:BB:CC:DD:EE:01", "BOOKOO_SC 715098", false);
@@ -17022,6 +17095,8 @@ const TestCase testCases[] = {
     {"D01", d01_idle_scan_stays_enabled_between_ticks},
     {"D13", d13_idle_delays_relax_without_scale},
     {"D13B", d13b_scale_power_off_is_terminal_for_connection_generation},
+    {"D13D", d13d_known_mini_rejects_shutdown_before_terminal_barrier},
+    {"D13E", d13e_ultra_volume_rejection_preserves_saved_level},
     {"D13C", d13c_disconnect_silence_clears_connecting_snapshot},
     {"D15", d15_control_housekeeping_has_wrap_safe_10ms_cadence},
     {"D14", d14_control_status_publishes_on_cycle_edge},

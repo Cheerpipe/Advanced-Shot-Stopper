@@ -41,15 +41,24 @@ tare if present, local buzzer for alerts, no combined tare+start.
 
 ## Scale power-off command
 
-`EspressoScaleBLE::powerOff()` switches a connected scale off when its
-protocol implements a power-off command (`ScaleFeaturePowerOff`). Only the
-Bookoo protocol family carries the feature today: BooKoo's published
-contract defines shutdown command `0x15` (`03 0A 15 00 00 1C`) for the
-Themis Ultra with firmware V4.0.0 and later (ignored while charging and by
-V3.1.2 and earlier). The Themis Mini contract has no shutdown command, and
-both models advertise as `BOOKOO`, so the command is sent to the family and
-ignored by units that do not implement it. Every other protocol reports
-`ScaleCommandResult::Unsupported`. Once shutdown is requested, that BLE
+`EspressoScaleBLE::model()` identifies a Bookoo Themis Mini or Ultra from its
+advertised name only on a ready Bookoo connection; ambiguous or nameless
+connections remain `ScaleModel::Unknown`. `defaultFriendlyName()` provides the
+model's display name, and `supportedCommandAt()` enumerates implemented
+commands and their wire codes for identified models. The pure advertisement
+helper also lets an owner display the proposed name before connection.
+
+`EspressoScaleBLE::powerOff()` sends command `0x15`
+(`03 0A 15 00 00 1C`) to a recognized Ultra. The Mini has no shutdown
+command, so the call returns `ScaleCommandResult::Unsupported` before a BLE
+write or terminal barrier. A recognized Ultra accepts volume 0–3, while a
+recognized Mini accepts 0–5; invalid Ultra levels return
+`ScaleCommandResult::InvalidArgument` without a write. Unknown Bookoo models
+retain the generic family behavior, and other protocols retain their existing
+feature sets. The library assumes the current manufacturer firmware. The
+published Ultra protocol notes that shutdown is ignored while charging.
+
+Once an admitted shutdown is requested, that BLE
 connection generation is closed to every later application command, even if
 the scale takes time to disconnect. The three-second communication barrier is
 armed immediately before this terminal write. A later GAP disconnect callback
@@ -120,7 +129,7 @@ first 19 bytes. Command packets use `03 0A` and XOR of the first five bytes,
 including start/stop/reset and combined tare-start. Host fixtures check this
 against the [manufacturer's protocol](https://github.com/BooKooCode/OpenSource/blob/main/bookoo_mini_scale/protocols.md).
 These checks establish protocol conformance; the tightened parser and corrected
-commands still require qualification on the actual scale model and firmware.
+commands still require qualification on the actual scale hardware.
 
 Command responses use a dedicated, statically allocated semaphore; general
 worker wakeups cannot complete an ATT write. Submission resource errors and

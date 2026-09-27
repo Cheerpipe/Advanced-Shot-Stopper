@@ -189,6 +189,7 @@ bool scaleTimerValid = false;
 uint32_t scaleTimerMs = 0;
 uint32_t scaleTimerAgeMs = 0;
 static char scaleProtocolName[20] = "none";
+ScaleModel scaleLinkModel = ScaleModel::Unknown;
 ScaleFeatureSet scaleLinkFeatures = {};
 bool scaleLinkRssiValid = false;
 int8_t scaleLinkRssi = 0;
@@ -417,14 +418,6 @@ void scaleWorkerLoadPreferred(const char *mac, const char *name,
       canonicalizePreferredScaleMac(i.mac,
                                     sizeof(i.mac));
     }
-    // Backfill the auto friendly name for scales remembered before it
-    // existed; user overrides already present are preserved.
-    if (i.mac[0] != '\0' && i.friendlyName[0] == '\0') {
-      char autoName[PREFERRED_SCALE_NAME_CAPACITY] = {};
-      if (autoScaleFriendlyName(i.name, autoName, sizeof(autoName))) {
-        copyCString(i.friendlyName, sizeof(i.friendlyName), autoName);
-      }
-    }
     if (i.lastSeenSeq > scaleHistorySeq) {
       scaleHistorySeq = i.lastSeenSeq;
     }
@@ -508,6 +501,7 @@ ScaleLinkSnapshot getScaleLinkSnapshot() {
   snapshot.timerMs = scaleTimerMs;
   snapshot.timerAgeMs = scaleTimerAgeMs;
   memcpy(snapshot.protocolName, scaleProtocolName, sizeof(snapshot.protocolName));
+  snapshot.model = scaleLinkModel;
   snapshot.features = scaleLinkFeatures;
   snapshot.rssiValid = scaleLinkRssiValid;
   snapshot.rssi = scaleLinkRssi;
@@ -551,6 +545,7 @@ void setScaleLinkState(ScaleLinkState state) {
     scaleTimerMs = 0;
     scaleTimerAgeMs = 0;
     scaleLinkFeatures = scaleFeatureSetNone();
+    scaleLinkModel = ScaleModel::Unknown;
     scaleLinkRssiValid = false;
     scaleLinkRssi = 0;
     lastScaleLinkRssiSampleMs = 0;
@@ -847,6 +842,7 @@ void updateWorkerLinkState() {
               scale.connectedProtocolName());
   scaleLinkFeatures = scale.isLinkUp() ? scale.features()
                                        : scaleFeatureSetNone();
+  scaleLinkModel = scale.isLinkUp() ? scale.model() : ScaleModel::Unknown;
   scaleTimerValid = timerValid;
   scaleTimerMs = timerMs;
   scaleTimerAgeMs = timerAgeMs;
@@ -1119,39 +1115,51 @@ void executeScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
     addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
     return;
   }
-  bool succeeded = false;
+  ScaleCommandResult result = ScaleCommandResult::Unsupported;
   switch (action) {
     case BookooDebugAction::START:
-      succeeded = scaleCommandOk(scale.startTimer());
+      result = scale.startTimer();
       break;
     case BookooDebugAction::STOP:
-      succeeded = scaleCommandOk(scale.stopTimer());
+      result = scale.stopTimer();
       break;
     case BookooDebugAction::TARE:
-      succeeded = scaleCommandOk(scale.tare());
+      result = scale.tare();
       break;
     case BookooDebugAction::COMBINED:
       if (!scale.features().has(ScaleFeatureCombinedTareStart)) {
         addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
         return;
       }
-      succeeded = scaleCommandOk(scale.tareStartTimer());
+      result = scale.tareStartTimer();
       break;
     case BookooDebugAction::BEEP:
       if (!scale.features().has(ScaleFeatureIndependentBeep)) {
         addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
         return;
       }
-      succeeded = scaleCommandOk(scale.beepWithoutStateChange());
+      result = scale.beepWithoutStateChange();
       break;
     case BookooDebugAction::VOLUME:
       if (!scale.features().has(ScaleFeatureVolume)) {
         addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
         return;
       }
-      succeeded = scaleCommandOk(scale.setBeepLevel(beepLevel));
+      result = scale.setBeepLevel(beepLevel);
       break;
   }
+  if (result == ScaleCommandResult::Unsupported ||
+      result == ScaleCommandResult::InvalidArgument) {
+    serialTracef(LogLevel::WARNING,
+                 "Scale command not sent: %s%u is unsupported by this model",
+                 action == BookooDebugAction::VOLUME ? "volume level " : "action ",
+                 action == BookooDebugAction::VOLUME
+                         ? static_cast<unsigned>(beepLevel)
+                         : static_cast<unsigned>(action));
+    addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
+    return;
+  }
+  const bool succeeded = scaleCommandOk(result);
   yieldBetweenScaleAttOps();
   if (action == BookooDebugAction::TARE || action == BookooDebugAction::COMBINED) {
     // Debug commands bypass the normal pre-tare capture contract.
@@ -1181,8 +1189,18 @@ void applyBookooConnectBeepPolicy() {
       policy.soundAlertsEnabled, policy.alertOutputChannel,
       policy.bookooMuteOnBuzzerOnly, policy.bookooConnectBeepLevel);
   if (volume >= 0) {
-    (void)scale.setBeepLevel(static_cast<uint8_t>(volume));
-    yieldBetweenScaleAttOps();
+    const ScaleCommandResult result =
+        scale.setBeepLevel(static_cast<uint8_t>(volume));
+    if (result == ScaleCommandResult::InvalidArgument ||
+        result == ScaleCommandResult::Unsupported) {
+      serialTracef(LogLevel::WARNING,
+                   "Connection volume %d not sent: connected scale supports levels %u-%u",
+                   static_cast<int>(volume),
+                   static_cast<unsigned>(scale.features().volumeMin),
+                   static_cast<unsigned>(scale.features().volumeMax));
+    } else {
+      yieldBetweenScaleAttOps();
+    }
   }
 }
 
@@ -1335,6 +1353,14 @@ void requestScalePowerOff() {
       link.connectionGeneration == 0) {
     return;
   }
+  if (!link.features.has(ScaleFeaturePowerOff)) {
+    serialTracef(LogLevel::WARNING,
+                 "Power off not sent: %s does not support it",
+                 link.model == ScaleModel::BookooMini
+                     ? "Bookoo Themis Mini" : "connected scale");
+    addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
+    return;
+  }
   bool accepted = false;
   portENTER_CRITICAL(&scaleBeepMux);
   if (scalePowerOffBlockedGeneration != link.connectionGeneration) {
@@ -1381,6 +1407,8 @@ void executeScalePowerOffCommand() {
   }
   if (!scale.supportsPowerOff()) {
     clearScalePowerOffLifecycle();
+    serialTracef(LogLevel::WARNING,
+                 "Power off not sent: connected scale does not support it");
     addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
     return;
   }
@@ -1388,7 +1416,15 @@ void executeScalePowerOffCommand() {
   scalePowerOffSentAtMs = millis();
   scalePowerOffSent = true;
   portEXIT_CRITICAL(&scaleBeepMux);
-  const bool succeeded = scaleCommandOk(scale.powerOff());
+  const ScaleCommandResult result = scale.powerOff();
+  if (result == ScaleCommandResult::Unsupported) {
+    clearScalePowerOffLifecycle();
+    serialTracef(LogLevel::WARNING,
+                 "Power off not sent: connected scale does not support it");
+    addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
+    return;
+  }
+  const bool succeeded = scaleCommandOk(result);
   yieldBetweenScaleAttOps();
   addDebugEvent(DebugCategory::SCALE,
                 succeeded ? DebugCode::SCALE_DEBUG_OK

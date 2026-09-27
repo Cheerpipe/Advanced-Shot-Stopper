@@ -228,6 +228,8 @@ void publishControlStatus() {
   }
   copyCString(next.scaleProtocol, sizeof(next.scaleProtocol),
               scaleLink.protocolName);
+  next.scaleModel = scaleLink.state == ScaleLinkState::CONNECTED
+                        ? scaleLink.model : ScaleModel::Unknown;
   copyCString(next.preferredScaleMac, sizeof(next.preferredScaleMac), preferredMac);
   copyCString(next.preferredScaleName, sizeof(next.preferredScaleName), preferredName);
   next.scaleMacCachePauseRemainingMs = macPauseRemainingMs;

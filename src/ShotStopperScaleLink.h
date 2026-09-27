@@ -147,6 +147,7 @@ struct ScaleLinkSnapshot {
   uint32_t timerMs = 0;
   uint32_t timerAgeMs = 0;
   char protocolName[20] = {};
+  ScaleModel model = ScaleModel::Unknown;
   ScaleFeatureSet features = {};
   bool rssiValid = false;
   int8_t rssi = 0;

@@ -13,6 +13,7 @@
 #include <type_traits>
 #include <vector>
 #include "../../libraries/EspressoScaleBLE/src/ScaleBleTypes.h"
+#include "../../libraries/EspressoScaleBLE/src/ScaleProtocol.h"
 
 constexpr uint8_t LOW = 0;
 constexpr uint8_t HIGH = 1;
@@ -521,9 +522,6 @@ class EspressoScaleBLE {
     return runCommand(beepSucceeds);
   }
   ScaleCommandResult setBeepLevel(uint8_t level) {
-    commandLog.push_back(std::string("setBeepLevel:") + std::to_string(level));
-    lastBeepLevel = level;
-    ++setBeepLevelCalls;
     if (!features().has(ScaleFeatureVolume) &&
         !features().has(ScaleFeatureIndependentBeep)) {
       return ScaleCommandResult::Unsupported;
@@ -531,6 +529,9 @@ class EspressoScaleBLE {
     if (level > features().volumeMax) {
       return ScaleCommandResult::InvalidArgument;
     }
+    commandLog.push_back(std::string("setBeepLevel:") + std::to_string(level));
+    lastBeepLevel = level;
+    ++setBeepLevelCalls;
     return runCommand(beepSucceeds);
   }
   ScaleCommandResult heartbeat() {
@@ -603,6 +604,11 @@ class EspressoScaleBLE {
       return scaleFeatureSetNone();
     }
     ScaleFeatureSet next = connectedFeatures;
+    if (model() == ScaleModel::BookooMini) {
+      next.flags &= ~static_cast<uint32_t>(ScaleFeaturePowerOff);
+    } else if (model() == ScaleModel::BookooUltra) {
+      next.volumeMax = 3;
+    }
     if (!tareStartTimerSupported) {
       next.flags &= ~static_cast<uint32_t>(ScaleFeatureCombinedTareStart);
     }
@@ -617,6 +623,11 @@ class EspressoScaleBLE {
   }
   const char* connectedProtocolName() const {
     return connected ? connectedProtocol : "none";
+  }
+  ScaleModel model() const {
+    return connected && strcmp(connectedProtocol, "bookoo_generic") == 0
+               ? scaleModelForAdvertisement(connectedLocalName)
+               : ScaleModel::Unknown;
   }
   ScaleDisconnectReason lastDisconnectReason() const {
     return disconnectReason;

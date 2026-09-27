@@ -4,6 +4,7 @@
 #include "ScaleFeatures.h"
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #define SCALE_MAX_PACKET_LENGTH 20
 #define SCALE_MAX_COMMAND_LENGTH 20
@@ -35,6 +36,73 @@ struct ScaleProtocol {
     bool requireAdvertisedName;
 };
 
+// Advertisement identity is a hint for display; command filtering also
+// requires the selected Bookoo protocol on the current connection.
+inline ScaleModel scaleModelForAdvertisement(const char *name) {
+    if (name == nullptr || strncmp(name, "BOOKOO_SC ", 10) != 0) {
+        return ScaleModel::Unknown;
+    }
+    const char *serial = name + 10;
+    const bool ultra = serial[0] == 'U' && serial[1] == ' ';
+    if (ultra) serial += 2;
+    if (*serial == '\0') return ScaleModel::Unknown;
+    for (const char *p = serial; *p != '\0'; ++p) {
+        if (*p < '0' || *p > '9') return ScaleModel::Unknown;
+    }
+    return ultra ? ScaleModel::BookooUltra : ScaleModel::BookooMini;
+}
+
+// The raw-name fallback is borrowed from the caller; copy it if retained.
+inline const char *scaleDefaultFriendlyName(const char *name) {
+    switch (scaleModelForAdvertisement(name)) {
+        case ScaleModel::BookooMini: return "Bookoo Themis Mini";
+        case ScaleModel::BookooUltra: return "Bookoo Themis Ultra";
+        default: return name == nullptr ? "" : name;
+    }
+}
+
+inline const char *scaleModelName(ScaleModel model) {
+    switch (model) {
+        case ScaleModel::BookooMini: return "bookoo_mini";
+        case ScaleModel::BookooUltra: return "bookoo_ultra";
+        default: return "unknown";
+    }
+}
+
+inline uint8_t scaleBookooOpcode(ScaleOp op) {
+    switch (op) {
+        case ScaleOp::Tare: return 0x01;
+        case ScaleOp::SetVolume: return 0x02;
+        case ScaleOp::StartTimer: return 0x04;
+        case ScaleOp::StopTimer: return 0x05;
+        case ScaleOp::ResetTimer: return 0x06;
+        case ScaleOp::CombinedTareStart: return 0x07;
+        case ScaleOp::PowerOff: return 0x15;
+        default: return 0;
+    }
+}
+
+struct ScaleCommandInfo {
+    const char *name;
+    uint8_t code;
+};
+
+inline bool scaleBookooCommandAt(ScaleModel model, size_t index,
+                                 ScaleCommandInfo *out) {
+    static const ScaleOp ops[] = {ScaleOp::Tare, ScaleOp::SetVolume,
+                                  ScaleOp::StartTimer, ScaleOp::StopTimer,
+                                  ScaleOp::ResetTimer, ScaleOp::CombinedTareStart,
+                                  ScaleOp::PowerOff};
+    static const char *const names[] = {"Tare", "Volume", "Start timer",
+                                         "Stop timer", "Reset timer",
+                                         "Tare and start timer", "Power off"};
+    const size_t count = model == ScaleModel::BookooUltra ? 7 :
+                         model == ScaleModel::BookooMini ? 6 : 0;
+    if (out == nullptr || index >= count) return false;
+    *out = {names[index], scaleBookooOpcode(ops[index])};
+    return true;
+}
+
 const ScaleProtocol *scaleProtocolAt(size_t index);
 size_t scaleProtocolCount();
 bool scaleNameIsCompatible(const char *name);
@@ -64,5 +132,19 @@ extern const ScaleProtocol kScaleProtocolMyscale;
 extern const ScaleProtocol kScaleProtocolWeighMyBru;
 extern const ScaleProtocol kScaleProtocolVaria;
 extern const ScaleProtocol kScaleProtocolEureka;
+
+inline ScaleFeatureSet scaleFeaturesForModel(const ScaleProtocol *protocol,
+                                             ScaleModel model) {
+    ScaleFeatureSet result = protocol == nullptr ? scaleFeatureSetNone()
+                                                : protocol->features;
+    if (protocol == &kScaleProtocolGenericFf11) {
+        if (model == ScaleModel::BookooMini) {
+            result.flags &= ~static_cast<uint32_t>(ScaleFeaturePowerOff);
+        } else if (model == ScaleModel::BookooUltra) {
+            result.volumeMax = 3;
+        }
+    }
+    return result;
+}
 
 #endif

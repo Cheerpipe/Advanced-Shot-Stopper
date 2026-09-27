@@ -913,6 +913,25 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                scaleBleCommandName(ble.command), static_cast<long>(ble.commandStatus),
                static_cast<unsigned long>(ble.commandElapsedMs));
     }
+    char supportedCommandsJson[320] = "[";
+    size_t commandBytes = 1;
+    ScaleCommandInfo commandInfo;
+    for (size_t i = 0;
+         scaleBookooCommandAt(control.scaleModel, i, &commandInfo); ++i) {
+      const int n = snprintf(supportedCommandsJson + commandBytes,
+                             sizeof(supportedCommandsJson) - commandBytes,
+                             "%s{\"name\":\"%s\",\"code\":\"0x%02X\"}",
+                             i == 0 ? "" : ",", commandInfo.name,
+                             static_cast<unsigned>(commandInfo.code));
+      if (n < 0 || static_cast<size_t>(n) >=
+                       sizeof(supportedCommandsJson) - commandBytes) {
+        commandBytes = 1;
+        break;
+      }
+      commandBytes += static_cast<size_t>(n);
+    }
+    supportedCommandsJson[commandBytes++] = ']';
+    supportedCommandsJson[commandBytes] = '\0';
     ok = statusJsonAppend(
         &used,
         ",\"state\":\"%s\",\"machineState\":\"%s\","
@@ -984,7 +1003,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"command\":\"%s\",\"status\":%ld,\"elapsedMs\":%lu},"
         "\"eventsDropped\":%lu,\"recoveredStaleCount\":%lu,"
         "\"recoveredStaleMs\":%lu,\"rssi\":%s,"
-        "\"weightUpdateIntervalMs\":%s},"
+        "\"weightUpdateIntervalMs\":%s,\"model\":\"%s\","
+        "\"supportedCommandsKnown\":%s,\"supportedCommands\":%s},"
         "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"},"
         "\"compileFlags\":{\"buzzer\":\"%s\",\"remoteMachineControl\":%s,"
         "\"arch\":\"%s\",\"hardwareProfile\":\"%s\","
@@ -1134,6 +1154,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(control.scaleRecoveredStaleMs),
         scaleRssiJson,
         scaleWeightUpdateIntervalJson,
+        scaleModelName(control.scaleModel),
+        control.scaleModel == ScaleModel::Unknown ? "false" : "true",
+        supportedCommandsJson,
         static_cast<unsigned long>(network.lastCommandRequestId),
         commandResultStateName(network.lastCommandState),
         compiledBuzzerModeId(),

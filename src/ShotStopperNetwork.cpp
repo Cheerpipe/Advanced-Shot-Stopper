@@ -1063,7 +1063,10 @@ void buildScaleHistoryJson(const ScaleHistoryEntry *entries) {
     char safeFriendly[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
     sanitizeJsonEmbed(entry.mac, safeMac, sizeof(safeMac));
     sanitizeJsonEmbed(entry.name, safeName, sizeof(safeName));
-    sanitizeJsonEmbed(entry.friendlyName, safeFriendly, sizeof(safeFriendly));
+    sanitizeJsonEmbed(entry.friendlyName[0] != '\0'
+                          ? entry.friendlyName
+                          : scaleDefaultFriendlyName(entry.name),
+                      safeFriendly, sizeof(safeFriendly));
     n = snprintf(buf + used, cap - used,
                  "%s{\"mac\":\"%s\",\"name\":\"%s\",\"friendlyName\":\"%s\"}",
                  first ? "" : ",", safeMac, safeName, safeFriendly);

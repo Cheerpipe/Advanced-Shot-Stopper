@@ -21,8 +21,8 @@ a physical start, and implausible or stale readings suspend weight control.
 
 ## Rename a scale
 
-Scales are listed by the name they broadcast, such as `BOOKOO_SC 715097`,
-which does not say which model it is — or which of two identical scales. Next
+Scales broadcast names such as `BOOKOO_SC 715097`; you may still want to
+distinguish two scales of the same model. Next
 to the scale name on **Home**, on **Diagnostic → Scale name**, and beside
 **Preferred scale** in **Settings → Scales** — where the link follows the
 scale chosen in the dropdown, so you can rename any remembered scale, not
@@ -32,15 +32,16 @@ broadcast name everywhere the scale is listed — Home, Diagnostic, and the
 preferred-scale list in Settings — and stays with that scale across restarts.
 
 Bookoo Themis models identify themselves in that broadcast name, so the
-controller fills in a readable model name for you: a scale broadcasting
+scale library proposes a readable model name for you: a scale broadcasting
 `BOOKOO_SC` with digits appears as **Bookoo Themis Mini**, and one
 broadcasting `BOOKOO_SC U` with digits appears as **Bookoo Themis Ultra**.
-This happens once, when the scale is first detected and added to the
-preferred-scale list; the names keep working after a restart, and a name you
-choose yourself always takes precedence.
+The proposed name appears when the scale is first detected and added to the
+list, and keeps working after a restart. A name you choose always takes
+precedence.
 
 Use up to 30 letters, numbers, spaces, or hyphens. Saving with an empty text
-field returns to the broadcast name. Renaming is unavailable while a shot is
+field returns to the proposed model name, or to the broadcast name when the
+model is unknown. Renaming is unavailable while a shot is
 running.
 
 ## Bluetooth on/off
@@ -69,8 +70,7 @@ itself accepts a power-off command. The explicit support list:
 
 | Scale | Power-off over Bluetooth |
 | --- | --- |
-| Bookoo Themis Ultra (firmware V4.0.0 and later) | Yes — BooKoo's published protocol, command `0x15`; ignored while charging |
-| Bookoo Themis Ultra (firmware V3.1.2 and earlier) | No — the shutdown command is not in BooKoo's published contract for those versions; the scale ignores it |
+| Bookoo Themis Ultra | Yes — BooKoo's published protocol, command `0x15`; may be ignored while charging |
 | Bookoo Themis Mini | No — BooKoo's published protocol for the Mini has no shutdown command |
 | Acaia (Lunar, Pearl S, Pyxis, Cinco, Proch) | No — no power-off command is documented for the Acaia protocol |
 | Felicita (Arc) | No |
@@ -82,11 +82,12 @@ itself accepts a power-off command. The explicit support list:
 | Eureka Precisa | No |
 | WeighMyBru | No |
 
-Both Bookoo models advertise under the same `BOOKOO` name, so the controller
-cannot tell a Themis Mini from a Themis Ultra; a shutdown sent to a Mini or
-an older Ultra is simply ignored by the scale. With any unsupported scale
-connected, enabling the option logs a warning and writes nothing to the
-scale.
+When the broadcast name identifies a Themis Mini, the controller skips the
+shutdown command and records a warning. It sends shutdown to a recognized
+Ultra. If a Bookoo broadcast does not reveal the model, the controller keeps
+the existing generic Bookoo behavior, so shutdown may be attempted. Other
+scales without power-off support receive no shutdown command. Scale support
+assumes the current manufacturer firmware.
 
 For Bookoo, the controller leaves at least 100 ms between Bluetooth commands.
 Once it asks the scale to shut down, it sends no more commands on that
@@ -108,6 +109,12 @@ automatic tare outside a brew and late-cup retare beforehand; this button does
 not change those settings. **Tare requested** confirms the request was queued;
 check the scale's reading and diagnostic log for its result.
 
+**Diagnostic → Scale → Supported commands** lists the commands implemented for
+the connected, identified Bookoo model, with each command's hexadecimal code.
+When the model is unknown or another brand is connected, the page says that
+command support is unknown. The Ultra's power-off command can be ignored while
+the scale is charging.
+
 ## When it applies
 
 A usable scale is required for automatic brew-by-weight. If the scale is
@@ -127,7 +134,7 @@ offset learning, and eligible A→M samples.
 | **Timer stop extra delay (ms)** | 0 ms | 0–1000 ms | Pad after the scale timer catches up to circuit whole seconds, before `STOP_TIMER`. `0` stops in that same instant. Does not delay the local machine circuit beep. |
 | **Bookoo combined command** | ON | ON / OFF | Combined tare + start-timer. Requires automatic tare at shot start. Also listed under [Tare](tare.md). |
 | **Mute scale in Buzzer only** | ON | ON / OFF | Bookoo/generic: send silence (volume 0) after the first valid weight on the first connection of that scale in this Open Brew by Weight session. Reconnecting does not resend it. Applies only in **Buzzer only**. |
-| **Scale volume** | 4 | 1–5 or Disabled | Bookoo/generic: set after the first valid weight on the first connection of that scale in this Open Brew by Weight session. **Disabled** sends volume 0. Reconnecting does not resend it. Changes that alter the effective speaker volume also apply to a stable link; saving unrelated settings does not resend the command. Applies only in **Scale only** and **Scale priority**. |
+| **Scale volume** | 3 | 1–5 or Disabled | Bookoo/generic: set after the first valid weight on the first connection of that scale in this Open Brew by Weight session. Mini accepts levels 1–5; Ultra accepts 1–3. **Disabled** sends volume 0. A previously saved 4 or 5 remains saved but is skipped with a warning on a recognized Ultra. Reconnecting does not resend it. Changes that alter the effective speaker volume also apply to a stable link; saving unrelated settings does not resend the command. Applies only in **Scale only** and **Scale priority**. |
 | **AtomHeart Eclair** | informational | — | Uses normal tare/timer commands. No configurable volume, beep, mode, combined command, or documented command sound. In Buzzer only and Scale priority, alerts use the local buzzer; Scale only omits unsupported sounds. |
 
 If the scale disconnects or **notifications go silent** during an automatic

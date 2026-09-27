@@ -439,7 +439,7 @@ inline bool parseBuzzerPatternId(const char *id, BuzzerPattern &out) {
 }
 
 constexpr uint8_t BOOKOO_BEEP_LEVEL_MAX = 5;
-constexpr uint8_t DEFAULT_BOOKOO_CONNECT_BEEP_LEVEL = 4;
+constexpr uint8_t DEFAULT_BOOKOO_CONNECT_BEEP_LEVEL = 3;
 
 enum class BookooDebugAction : uint8_t {
   START = 0,
@@ -2223,6 +2223,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   char scaleProtocol[20] = "none";
   char preferredScaleMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
   char preferredScaleName[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  ScaleModel scaleModel = ScaleModel::Unknown;
   uint32_t scaleMacCachePauseRemainingMs = 0;
   bool noScaleShotGuardEnabled = true;
   bool noScaleShotGuardArmed = true;
