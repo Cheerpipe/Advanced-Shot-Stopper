@@ -112,6 +112,8 @@ Cppcheck there, and writes `activate.sh`. Run
 checks; activation changes only that shell's `PATH`. The installer stops if
 its versions no longer match the validation workflow. See
 [Build](BUILD.md#2-install-host-prerequisites).
+`./scripts/setup-local-tools --check-pins` checks that agreement without
+downloading or installing anything; GitHub's fast validation job runs it.
 `./scripts/dev analyze` requires Cppcheck 2.13.0; see
 [Static analysis](STATIC_ANALYSIS.md) for local setup.
 

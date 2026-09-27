@@ -14,6 +14,14 @@ if [[ $(grep -Fc "node-version: \"$node_version\"" "$workflow") -ne 2 ]] ||
   echo "Local tool pins differ from the validation workflow; update this script." >&2
   exit 1
 fi
+if [[ ${1:-} == --check-pins ]]; then
+  echo "Local Node and Cppcheck pins match the validation workflow."
+  exit 0
+fi
+[[ $# -eq 0 ]] || {
+  echo "Usage: ./scripts/setup-local-tools [--check-pins]" >&2
+  exit 2
+}
 
 case "$(uname -s)/$(uname -m)" in
 Darwin/arm64)

@@ -78,6 +78,11 @@ available IDF command logs, static-analysis reports, and run records. Only steps
 that started can produce diagnostics; a failed prerequisite may leave later
 entries absent.
 
+The fast job checks that the local Node/Cppcheck pins still match the workflow
+without downloading tools. Host and firmware jobs verify the installed tool
+versions before tests or builds; the Home Assistant job verifies Python and uv
+and refuses to update its lockfile during dependency sync.
+
 Classify concrete files, not a directory name such as `docs`. Safety-related
 documents and BLE/OTA references can select R3/R2 even though they are Markdown.
 Do not lower risk to avoid an unavailable tool or missing physical evidence.

@@ -80,7 +80,7 @@ their package versions must pass these checks; Ubuntu 24.04 matches CI.
 | IDF components | Locked graph, including mDNS 1.13.1 | [`idf/dependencies.lock`](../idf/dependencies.lock) |
 | Cppcheck | Exactly 2.13.0 for static analysis | [`setup-local-tools`](../scripts/setup-local-tools), [validation workflow](../.github/workflows/validation.yml) |
 | Host CMake | 3.25 or newer | [`CMakePresets.json`](../CMakePresets.json) schema 6 |
-| Home Assistant tests (optional) | Python 3.14, at least 3.14.2; dependencies locked | [`pyproject.toml`](../integrations/OpenBrewByWeight/pyproject.toml), [`uv.lock`](../integrations/OpenBrewByWeight/uv.lock) |
+| Home Assistant tests (optional) | Python 3.14.7 and uv 0.11.2; dependencies locked | [Integration workflow](../.github/workflows/home-assistant-integration.yml), [`uv.lock`](../integrations/OpenBrewByWeight/uv.lock) |
 | Home Assistant service (optional) | No running service for tests; integration test dependency is 2026.9.x | [Integration project](../integrations/OpenBrewByWeight/pyproject.toml) |
 
 Git, the host compiler, Ninja, cJSON and the system Python have no separate
@@ -176,25 +176,25 @@ directory.
 ### Optional: Home Assistant integration tests
 
 This is a separate Python environment; it is not required for firmware or Web
-UI checks. Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
-(`brew install uv` on macOS, or the official standalone installer on Linux),
-then run from the integration directory:
+UI checks. Install uv **0.11.2** with its
+[versioned installer](https://docs.astral.sh/uv/getting-started/installation/)
+or a version manager, then run from the integration directory:
 
 ```sh
 cd integrations/OpenBrewByWeight
-uv python install 3.14
-uv sync --python 3.14 --group test
-uv run python --version   # must be Python 3.14.2 or newer within the 3.14 series
+uv --version               # uv 0.11.2
+uv python install 3.14.7
+uv sync --python 3.14.7 --locked --group test
+uv run python --version    # Python 3.14.7
 uv run pytest
 uv run ruff check .
 uv run mypy
 cd ../..
 ```
 
-The integration's `uv.lock` fixes package resolution. Its GitHub job uses the
-same 3.14 series and test group; the `uv` executable itself is not currently
-version-pinned there. These checks do not require a running Home Assistant
-instance or controller.
+The integration's `uv.lock` fixes package resolution, and `--locked` rejects a
+stale lockfile. Its GitHub job pins the same Python and uv versions. These
+checks do not require a running Home Assistant instance or controller.
 
 <a id="8-host-tests-before-you-flash"></a>
 <a id="4-ble-backend"></a>
