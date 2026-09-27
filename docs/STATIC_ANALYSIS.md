@@ -52,26 +52,26 @@ for older trees.
 
 ## 2. macOS prerequisites
 
-Install Cppcheck 2.13.0 before running `./scripts/dev analyze`. Homebrew has no
-direct `cppcheck@2.13.0` formula; its historical `brew extract` route requires
-the full `homebrew/core` tap history and may take time to download:
+Install Cppcheck 2.13.0 before running `./scripts/dev analyze`. Homebrew's
+[`version-install`](https://docs.brew.sh/Versions) extracts the historical
+formula into your personal tap and installs it; retrieving the formula history
+can take time. If a newer Homebrew Cppcheck is installed, unpin and unlink it
+first (`brew unpin cppcheck` if pinned, then `brew unlink cppcheck`):
 
 ```sh
-brew tap-new local/cppcheck-legacy
-brew tap homebrew/core --force
-brew extract --version=2.13.0 cppcheck local/cppcheck-legacy
-brew install local/cppcheck-legacy/cppcheck@2.13.0
-brew unlink cppcheck
+brew version-install cppcheck@2.13.0
 brew link --force cppcheck@2.13.0
 brew pin cppcheck@2.13.0
 cppcheck --version   # must report Cppcheck 2.13.0
 brew install include-what-you-use   # optional; IWYU only
 ```
 
-`brew pin` only protects an installed version from upgrades; it does not
-downgrade 2.21.0. The analysis script rejects other versions before checking
-the compilation database. The macOS and CI compiler environments can still
-produce different findings even with the same Cppcheck version.
+`brew pin` protects the installed historical formula from upgrades; verify
+`cppcheck --version` after opening a new shell as well, since another Cppcheck
+on `PATH` can take precedence. The analysis script rejects other versions
+before checking the compilation database. The macOS and CI compiler
+environments can still produce different findings even with the same Cppcheck
+version.
 
 `include-what-you-use` from Homebrew is built against the Homebrew `llvm`
 formula, so the clang version always matches — do not mix it with another
@@ -80,14 +80,18 @@ compiler used by the host tests; IWYU does not need it.
 
 ## 3. Linux (Ubuntu) prerequisites
 
+On Ubuntu 24.04, install the same package release as CI:
+
 ```sh
 sudo apt-get update
 sudo apt-get install git python3 python3-pip python3-venv cmake ninja-build \
-  build-essential cppcheck
+  build-essential cppcheck=2.13.0-2ubuntu3
+cppcheck --version   # must report Cppcheck 2.13.0
 ```
 
-CI pins Ubuntu package `cppcheck=2.13.0-2ubuntu3` and `static-idf` requires the
-same upstream version locally. The former 2.21.0 local version missed CI's
+Other distributions may have a different package revision; install upstream
+Cppcheck 2.13.0 and verify the printed version. `static-idf` requires that
+upstream version locally. The former 2.21.0 local version missed CI's
 `arrayIndexThenCheck` finding because that diagnostic moved into `style` in
 2.21. The check now fails clearly when the local version differs.
 
@@ -126,10 +130,11 @@ claiming Windows validation.
    In Git Bash, point `IDF_PATH` at that SDK, or use the supported legacy clone
    at `%USERPROFILE%\esp\esp-idf-v6.1`. EIM also provides CMake, Ninja and the
    Xtensa GCC toolchain that produce the compilation database.
-3. **cppcheck** — `winget install Cppcheck.Cppcheck` or the installer from
-   [cppcheck.sourceforge.io](https://cppcheck.sourceforge.io/). Make sure its
-   install directory is on `PATH` (visible from Git Bash too).
-4. **Node.js** — needed by the firmware image checks: `winget install OpenJS.NodeJS.LTS`.
+3. **Cppcheck 2.13.0** — install that exact release from the
+   [official releases](https://github.com/cppcheck-opensource/cppcheck/releases),
+   put its directory on `PATH` in Git Bash, and verify `cppcheck --version`.
+4. **Node.js 22.23.2** — needed by firmware image checks. Select that exact
+   release and verify `node --version`; see [Build](BUILD.md#2-install-host-prerequisites).
 
 Windows notes:
 
@@ -270,7 +275,7 @@ double visibility).
 ## 8. Running Cppcheck and the GCC analyzer
 
 ```sh
-brew install cppcheck        # macOS
+cppcheck --version          # must report Cppcheck 2.13.0; see sections 2 or 3
 ./scripts/static-idf --arch n16r8 \
   --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
 ./scripts/gcc_analyzer --hardware esp32-s3-relay-x1-speaker \

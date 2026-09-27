@@ -22,7 +22,7 @@ do not need a connected controller. Flash/OTA sections explicitly affect it.
 ## 1. Clone the repository
 
 ```sh
-git clone https://github.com/Cheerpipe/AcaiaArduinoBLE.git
+git clone https://github.com/Cheerpipe/Advanced-Shot-Stopper.git AcaiaArduinoBLE
 cd AcaiaArduinoBLE
 ```
 
@@ -37,25 +37,62 @@ macOS, with Homebrew installed:
 
 ```sh
 xcode-select --install   # only if Command Line Tools are missing
-brew install git node python cmake ninja cjson
+brew install git python cmake ninja cjson fnm
+eval "$(fnm env --shell zsh)"
 ```
 
 <a id="linux"></a>
 
-Debian/Ubuntu:
+Ubuntu 24.04 (the CI host version):
 
 ```sh
 sudo apt-get update
 sudo apt-get install git python3 python3-pip python3-venv cmake ninja-build \
   wget flex bison gperf ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 \
-  nodejs npm g++ libcjson-dev
+  g++ libcjson-dev curl unzip
+curl -fsSL https://fnm.vercel.app/install | bash
 ```
 
-Use Node.js 22.23.2 to match both GitHub firmware and host jobs. Check
-`node --version`, `python3 --version`, `cmake --version`,
-`ninja --version`, and `c++ --version`. CMake must understand the repository's
-version-6 presets. If your distribution's packages are too old, update the
-toolchain before continuing.
+The [fnm installer](https://github.com/Schniz/fnm#installation) adds its shell
+setup to your profile. On Ubuntu, open a new terminal after installation, then
+run `eval "$(fnm env --shell bash)"` in Bash. The macOS `eval` above activates it
+in the current shell; add that line to `~/.zshrc` for future shells. If you use
+another shell, select it in `fnm env --shell` instead.
+Install and select the **exact** Node version used by both GitHub firmware and
+host jobs:
+
+```sh
+fnm install 22.23.2
+fnm use 22.23.2
+node --version   # v22.23.2
+```
+
+Run `fnm use 22.23.2` in each new shell before `npm ci` or validation. The
+version manager keeps this Node release available without replacing the system
+Node used by other projects. Check `python3 --version`, `cmake --version`,
+`ninja --version`, and `c++ --version`; CMake must be **3.25 or newer** to read
+the repository's version-6 presets. If a distribution package is older, upgrade
+that tool before continuing. Debian and other Ubuntu releases can work, but
+their package versions must pass these checks; Ubuntu 24.04 matches CI.
+
+| Dependency | Local version contract | Source of truth |
+| --- | --- | --- |
+| Node.js | Exactly 22.23.2 | [Validation workflow](../.github/workflows/validation.yml) |
+| Web UI packages | Exact resolved versions via `npm ci` | [`package-lock.json`](../package-lock.json) |
+| ESP-IDF | 6.1.x; install the 6.1 reference release | This guide and the build scripts |
+| IDF components | Locked graph, including mDNS 1.13.1 | [`idf/dependencies.lock`](../idf/dependencies.lock) |
+| Cppcheck | Exactly 2.13.0 for static analysis | [Static analysis setup](STATIC_ANALYSIS.md#2-macos-prerequisites) and the validation workflow |
+| Host CMake | 3.25 or newer | [`CMakePresets.json`](../CMakePresets.json) schema 6 |
+| Home Assistant tests (optional) | Python 3.14, at least 3.14.2; dependencies locked | [`pyproject.toml`](../integrations/OpenBrewByWeight/pyproject.toml), [`uv.lock`](../integrations/OpenBrewByWeight/uv.lock) |
+| Home Assistant service (optional) | No running service for tests; integration test dependency is 2026.9.x | [Integration project](../integrations/OpenBrewByWeight/pyproject.toml) |
+
+Git, the host compiler, Ninja, cJSON and the system Python have no separate
+project pin; use versions compatible with the requirements above and verify
+them with the tests below. CI uses a digest-pinned ESP-IDF 6.1 container;
+the local 6.1.x environment is supported but can differ in compiler and host
+packages. ESP-IDF manages its own Python environment. The
+[Home Assistant integration](../integrations/OpenBrewByWeight/README.md) has a
+separate Python and `uv.lock` contract; it is not needed for firmware builds.
 
 <a id="2-nodejs-dependencies"></a>
 
@@ -115,7 +152,8 @@ Every path rejects versions outside 6.1.x.
 `idf/main/idf_component.yml` and `idf/dependencies.lock` pin the component
 graph, including mDNS 1.13.1. First firmware builds may need network access to
 resolve SDK components; prepare these dependencies before attempting an offline
-validation run.
+validation run. Host tests and firmware compilation need no running Home
+Assistant service, connected controller, Docker daemon, or GitHub account.
 
 ## 4. Validate before installation
 
@@ -137,6 +175,29 @@ R2/R3 validation compiles every supported profile with the `--development`
 profile, including the Linea Micra pair, so a passing gate leaves the
 conservative local image ready in its normal `build-idf/<hardware>--<machine>/`
 directory.
+
+### Optional: Home Assistant integration tests
+
+This is a separate Python environment; it is not required for firmware or Web
+UI checks. Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
+(`brew install uv` on macOS, or the official standalone installer on Linux),
+then run from the integration directory:
+
+```sh
+cd integrations/OpenBrewByWeight
+uv python install 3.14
+uv sync --python 3.14 --group test
+uv run python --version   # must be Python 3.14.2 or newer within the 3.14 series
+uv run pytest
+uv run ruff check .
+uv run mypy
+cd ../..
+```
+
+The integration's `uv.lock` fixes package resolution. Its GitHub job uses the
+same 3.14 series and test group; the `uv` executable itself is not currently
+version-pinned there. These checks do not require a running Home Assistant
+instance or controller.
 
 <a id="8-host-tests-before-you-flash"></a>
 <a id="4-ble-backend"></a>
