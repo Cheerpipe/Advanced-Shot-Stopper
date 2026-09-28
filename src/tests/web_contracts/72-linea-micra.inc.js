@@ -163,7 +163,9 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     const nodes = new Map();
     const get = id => {
       if (!nodes.has(id)) nodes.set(id, {disabled: false, checked: false, dataset: {},
-        classList: {toggle() {}}, parentElement: {nextSibling: null}});
+        busy: false,
+        classList: {toggle(_, on) { if (id === 'lineaMicraConnectButton') nodes.get(id).busy = on; }},
+        parentElement: {nextSibling: null}});
       return nodes.get(id);
     };
     const select = get('lineaMicraMachine');
@@ -195,6 +197,11 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     assert.strictEqual(get('lineaMicraUsername').parentElement.hidden, false);
     vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
       ...connected, accountConfigured: false, email: '', selectedName: '',
+      selectedSerial: '', phase: 'authenticating'}})})`, context);
+    assert.strictEqual(get('lineaMicraConnectButton').busy, true,
+        'Connect must spin while the cloud sign-in is in flight');
+    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
+      ...connected, accountConfigured: false, email: '', selectedName: '',
       selectedSerial: '', machines: [{serial: 'ABC', name: 'Micra'}],
       phase: 'confirmed'}})})`, context);
     assert.strictEqual(get('lineaMicraIdentity').innerText,
@@ -204,6 +211,13 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
         'The status hint must show the session phase after Connect');
     assert.strictEqual(get('lineaMicraUsername').parentElement.hidden, false,
         'Credentials must stay visible until a machine is saved');
+    assert.strictEqual(get('lineaMicraConnectButton').busy, false,
+        'Connect must stop spinning once machines are listed');
+    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
+      ...connected, accountConfigured: false, email: '', selectedName: '',
+      selectedSerial: '', phase: 'failed', error: 'invalid_auth'}})})`, context);
+    assert.strictEqual(get('lineaMicraConnectButton').busy, false,
+        'Connect must stop spinning when authentication fails');
   }
 }
 if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
@@ -221,6 +235,9 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes("$('lineaMicraIdentity').innerText=connected?") ||
     !rawRuntimeJs.includes("for(let e=$('lineaMicraUsername').parentElement,n=5;n--;e=e.nextSibling)e.hidden=connected") ||
     !rawRuntimeJs.includes("$('lineaMicraConnectButton').disabled=!canEdit||!m.staConnected||m.apActive") ||
+    !micraSettingsHtml.includes('<button id="lineaMicraConnectButton" class="btnGlyph mutable btnInvert" type="button"><span class="g">{{webui:settings.symbol_3}}</span><span class="t">{{webui:settings.connect_account}}</span></button>') ||
+    !rawRuntimeJs.includes("$('lineaMicraConnectButton').classList.add('busy');const ok=await command('/api/v1/machine/linea-micra',{action:'connect'") ||
+    !rawRuntimeJs.includes("$('lineaMicraConnectButton').classList.toggle('busy',!connected&&['queued','authenticating','listing'].includes(m.phase))") ||
     !rawRuntimeJs.includes('select.disabled=!canEdit||!machines.length') ||
     !rawRuntimeJs.includes("$('lineaMicraApplyTemperature').disabled=!canEdit||!connected") ||
     !rawRuntimeJs.includes("$('lineaMicraObserveState').disabled=!canEdit||!connected") ||

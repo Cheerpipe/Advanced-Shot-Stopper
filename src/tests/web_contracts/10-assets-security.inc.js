@@ -296,8 +296,10 @@ if (jsBytes > 216100) {
 // The loop timing view adds only source allowance; compressed limits stay fixed.
 // The per-section revert buttons and their wiring add ~6.7 KB of combined
 // source allowance.
-if (htmlBytes + jsBytes > 291200) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 291200)`);
+// The Linea Micra connect spinner (glyph spans plus the phase-gated busy
+// toggle) adds ~0.25 KB of combined source allowance.
+if (htmlBytes + jsBytes > 291300) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 291300)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
