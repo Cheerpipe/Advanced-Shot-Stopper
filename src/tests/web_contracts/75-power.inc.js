@@ -41,7 +41,7 @@
   const assert = require('assert').strict;
   const admin = viewJs.admin;
   const source = admin.slice(admin.indexOf('async function waitSaved('),
-      admin.indexOf('function saveToggle('));
+      admin.indexOf('function controlChanged('));
   const run = async () => {
     let now = 0, snapshots = [];
     const waiter = new Function('R', 'wait', 'Date', source + ';return waitSaved')({
@@ -77,54 +77,39 @@
   run().catch(error => { console.error(error); process.exitCode = 1; });
 }
 
-// Shared Admin toggle: revisioned request, durable acknowledgement, rollback.
+// Shared durable config save: revisioned request, durable acknowledgement;
+// failures reject so section Save keeps its dirty draft for retry or revert.
 {
   const assert = require('assert').strict;
   const admin = viewJs.admin;
-  const source = admin.slice(admin.indexOf('function saveToggle('),
-      admin.indexOf('export function init()'));
+  const source = admin.slice(admin.indexOf('async function saveDurableConfigKey('),
+      admin.indexOf('async function saveBleSettings('));
   const run = async () => {
-    const el = {checked: true, disabled: false};
-    let reject = false, posted, saved = 0, refreshed = 0, defer = false, dispatch;
-    const handler = new Function('$', 'R', 'waitSaved',
-        "let pendingToggle='';" + source + ';return saveToggle')(
-        () => el, {
-          withCommandGate: fn => defer ? new Promise(resolve => {
-            dispatch = () => resolve(fn());
-          }) : fn(), body: JSON.stringify,
+    const el = {checked: true};
+    let reject = false, posted, waited = 0;
+    const handler = new Function('R', 'waitSaved', '$', source + ';return saveDurableConfigKey')(
+        {
+          withCommandGate: fn => fn(),
           withBaseRev: fields => ({...fields, baseRevision: 12}),
+          body: JSON.stringify,
           api: async (_, options) => {
             posted = JSON.parse(options.body);
             if (reject) throw new Error('Revision conflict');
             return {requestId: 5};
-          }, message: () => {},
-          refreshStatus: async () => { ++refreshed; el.disabled = false; }
-        }, async (id, key, config) => {
+          }, message: () => {}
+        },
+        async (id, key, config) => {
           assert.equal(id, 5);
           assert.equal(key, 'powerManagementEnabled');
           assert.deepEqual(config, posted);
-          ++saved;
-        });
+          ++waited;
+        }, () => el);
     await handler('powerManagementEnabled');
     assert.deepEqual(posted, {powerManagementEnabled: true, baseRevision: 12});
-    assert.equal(saved, 1);
+    assert.equal(waited, 1);
     assert.equal(el.checked, true);
     reject = true;
-    el.checked = false;
-    await handler('powerManagementEnabled');
-    assert.equal(el.checked, true);
-    assert.equal(saved, 1);
-    assert.equal(refreshed, 2);
-    assert.equal(el.disabled, false);
-    defer = true;
-    reject = false;
-    el.checked = false;
-    const pending = handler('powerManagementEnabled');
-    // A status refresh while an earlier command owns the queue.
-    el.checked = true;
-    dispatch();
-    await pending;
-    assert.equal(posted.powerManagementEnabled, false);
+    await assert.rejects(handler('powerManagementEnabled'), /Revision conflict/);
   };
   run().catch(error => { console.error(error); process.exitCode = 1; });
 }

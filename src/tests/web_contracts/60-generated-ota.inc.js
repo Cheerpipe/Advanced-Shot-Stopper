@@ -453,7 +453,10 @@ if (generated.cssGzip.length > 7400) {
 // Per-section revert (discard unsaved changes) snapshot helpers, handlers,
 // and hydration-time baseline capture beside the save flows raise it to
 // 40750 bytes.
-if (sentinelRuntimeGzip.length > 40750) {
+// Deferred Admin BLE/Power/Frontend saving (dirty flags and markers, guarded
+// hydration with panel baselines, relocated theme helpers) raises it to
+// 41300 bytes.
+if (sentinelRuntimeGzip.length > 41300) {
   throw new Error(`Compressed Web UI runtime JS exceeds the 40000-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
@@ -466,7 +469,9 @@ if (generated.otaImageGzip.length > 3072) {
 // saves raise it to 7200 bytes.
 // The Admin network, webhook, and device-password revert wiring and the
 // date-time revert handler raise it to 7420 bytes.
-if (generated.secondaryGzip.length > 7420) {
+// Deferred Admin BLE/Power/Frontend save and revert handlers raise it to
+// 7650 bytes.
+if (generated.secondaryGzip.length > 7650) {
   throw new Error(`Compressed secondary view JS exceeds the 7140-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {
@@ -499,7 +504,9 @@ if (generated.icon48Gzip.length > 3500) {
 // The Home boot splash (markup, styles, and the hide helper) raises it to
 // 108200 bytes; the firmware image carries the same assets once, so the
 // versioned image and rodata growth budgets stay untouched.
-if (generated.combined > 108200) {
+// Deferred Admin BLE/Power/Frontend saving (save/revert bars, dirty-state
+// handling, and relocated theme helpers) raises it to 108800 bytes.
+if (generated.combined > 108800) {
   throw new Error(`Combined Web UI gzip exceeds the 108200-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
@@ -1235,9 +1242,9 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   if (!html.includes('id="diagnosticControls"') ||
       !js.includes('showDiagnosticPage') ||
       !js.includes('diagnosticPublic') ||
-      !viewJs.admin.includes("saveToggle('showDiagnosticPage')") ||
-      !viewJs.admin.includes('await waitSaved(a.requestId,id,p)') ||
-      !viewJs.admin.includes('R.withBaseRev({[id]:wanted})') ||
+      !viewJs.admin.includes("saveDurableConfigKey('showDiagnosticPage')") ||
+      !viewJs.admin.includes('await waitSaved(a.requestId,key,p)') ||
+      !viewJs.admin.includes('R.withBaseRev({[key]:wanted})') ||
       viewJs.admin.includes('waitDiagnosticPagePersisted') ||
       (viewJs.admin.match(/\bapplyStatus\b/g) || []).length !== 2 ||
       js.includes("$('diagnosticUnlockButton').onclick") ||

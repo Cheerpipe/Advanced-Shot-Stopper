@@ -38,11 +38,13 @@
 
   const adminUi = viewJs.admin, normalizedUi = ui.replace(/\\"/g, '"');
   for (const id of ['saveConfigButton', 'saveBrewPresetButton', 'saveWebhookButton',
-    'saveNetworkButton', 'saveDateTimeButton', 'changeDevicePasswordButton'])
+    'saveNetworkButton', 'saveDateTimeButton', 'changeDevicePasswordButton',
+    'saveBleButton', 'savePowerButton', 'saveFrontendButton'])
     assert(new RegExp(`id="${id}"[^>]*data-dirty="0"[^>]*disabled`).test(normalizedUi),
         `${id} must start visibly disabled`);
   for (const id of ['revertConfigButton', 'revertBrewPresetButton', 'revertLineaMicraButton',
-    'revertWebhookButton', 'revertNetworkButton', 'revertDateTimeButton', 'revertDevicePasswordButton'])
+    'revertWebhookButton', 'revertNetworkButton', 'revertDateTimeButton', 'revertDevicePasswordButton',
+    'revertBleButton', 'revertPowerButton', 'revertFrontendButton'])
     assert(new RegExp(`id="${id}"[^>]*data-dirty="0"[^>]*disabled`).test(normalizedUi),
         `${id} must start visibly disabled next to its save button`);
   assert(runtimeJs.includes('e.dataset.dirty!=null') &&
@@ -54,12 +56,19 @@
          adminUi.includes("R.setSaveDirty('changeDevicePasswordButton','',false)") &&
          adminUi.includes("R.command('/api/v1/network',payload,undefined,undefined,undefined,'saveNetworkButton').then(ok=>{if(!ok)return") &&
          adminUi.includes("R.command('/api/v1/device/password',{newPassword:") &&
+         adminUi.includes("sectionChanged('#blePanel',R.markBleDirty)") &&
+         adminUi.includes("sectionChanged('#powerPanel',R.markPowerDirty)") &&
+         adminUi.includes("sectionChanged('#frontendPanel',R.markFrontendDirty)") &&
+         adminUi.includes("const b=$('savePowerButton');b.classList.add('busy')") &&
          css.includes('.btnGlyph:disabled{opacity:.4;cursor:not-allowed}'),
   'Save actions must enable on edits, disable only after success, and look disabled');
   assert(runtimeJs.includes('function snapshotControls(') &&
          runtimeJs.includes('function restoreSnapshot(') &&
          runtimeJs.includes("if(!configDirty)configBaseline=snapshotControls(settingsSectionEls('config'))") &&
          runtimeJs.includes('if(!dateTimeDirty)dateTimeBaseline=snapshotControls(') &&
+         runtimeJs.includes('if(!bleDirty)bleBaseline=snapshotControls(') &&
+         runtimeJs.includes('if(!powerDirty)powerBaseline=snapshotControls(') &&
+         runtimeJs.includes('if(!frontendDirty)frontendBaseline=snapshotControls(') &&
          runtimeJs.includes('networkBaseline=snapshotControls(networkControls())') &&
          adminUi.includes('webhookBaseline=R.snapshotControls(WEBHOOK_IDS.map(id=>$(id)))') &&
          runtimeJs.includes('confirm("Discard unsaved changes?")') &&

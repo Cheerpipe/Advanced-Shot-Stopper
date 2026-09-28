@@ -1,15 +1,18 @@
 # Power management
 
 The **Admin → Power management** group holds the five settings that control
-how much energy the controller uses, in this order:
+how much energy the controller uses, in this order. Like every other Admin
+group, changes are kept in the page only until you press the group's
+**Save settings** button; the arrow button beside it discards them and puts
+the saved values back. Only the fields you changed are saved.
 
 - **Power policy** — hardware-level energy management described on this page.
   Scales the CPU clock and bus/radio sleep to demand: on saves energy when
   idle and boosts to 160 MHz from the start of a scale connection until
   30 seconds after disconnection; off holds a fixed 80 MHz.
 - **Wi-Fi sleep** — puts the Wi-Fi radio into modem sleep between the
-  router's beacons while connected. Saves immediately without restarting or
-  waiting for a reconnect, and stays disabled until a network is configured.
+  router's beacons while connected. Saves without restarting or waiting for
+  a reconnect, and stays disabled until a network is configured.
   [Discovery by name](wifi.md#discovery-by-name) keeps working while sleep is
   on: the radio wakes for every beacon window, so name lookups stay slightly
   delayed but are not lost. Details in [Wi-Fi](wifi.md).
@@ -34,7 +37,8 @@ The **Power policy** enables a global, persistent energy
 policy. It defaults **on** on a clean install and after factory reset, and
 does not belong to a shot preset. Save it while the machine is stopped; the
 existing Admin unlock and configuration revision checks apply.
-Admin confirms the applied revision and selected value, then waits for the
+When you press the group's Save button, Admin confirms the applied revision
+and selected value, then waits for the
 asynchronous configuration save to finish. An `APPLIED` command result alone
 does not confirm durable storage. Admin status exposes `config.persistPending`
 and `config.persistFailed`; a failed write is reported without undoing the live

@@ -50,7 +50,9 @@ running.
 ## Bluetooth on/off
 
 **Admin → BLE → Enable Bluetooth** is the master switch for Bluetooth scales.
-It is the first group on the Admin page and defaults to **on**.
+It is the first group on the Admin page and defaults to **on**. The switch
+only takes effect when you press the group's **Save settings** button; the
+arrow button beside it discards the change and restores the saved position.
 
 - **On** (default): scales are searched for and connected exactly as always.
 - **Off**: searching stops and any connected scale is disconnected within a

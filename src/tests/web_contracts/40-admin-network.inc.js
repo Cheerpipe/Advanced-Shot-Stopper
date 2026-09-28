@@ -156,16 +156,17 @@ if (!network.includes('restoreLkgToActive(next)') ||
   if (      !powerPanel.includes('id="staWifiSleep" type="checkbox" checked') ||
       !powerPanel.includes('Wi-Fi sleep<small') ||
       !powerPanel.includes('Puts the Wi-Fi radio into modem sleep') ||
-      !ui.includes("wifiSleep:$('staWifiSleep').checked") ||
+      !ui.includes('wifiSleep:savedStaWifiSleep') ||
       !ui.includes("savedStaWifiSleep=!!n.wifiSleep") ||
-      !ui.includes("if($('staWifiSleep'))$('staWifiSleep').checked=savedStaWifiSleep") ||
+      !ui.includes("if($('staWifiSleep')&&!powerDirty)$('staWifiSleep').checked=savedStaWifiSleep") ||
       !ui.includes("if(n.wifiSleep)t+=' — sleep on'") ||
       !ui.includes('function setWifiSleep(') ||
       !ui.includes('_noReconnectWait') ||
       !ui.includes('delete payload._noReconnectWait') ||
       !ui.includes('function updateWifiSleepState(') ||
-      !ui.includes('!webUiOwner||!savedStaSsid') ||
-      !ui.includes("$('staWifiSleep').onchange=R.setWifiSleep") ||
+      !ui.includes('!controlsMutable||!savedStaSsid') ||
+      !ui.includes("R.setWifiSleep()") ||
+      !ui.includes("markPowerDirty") ||
       !ui.includes('if(noReconnect)savedStaWifiSleep=') ||
       !ui.includes('R.resetNetworkAddressLoaded()') ||
       !ui.includes('Wi-Fi sleep saved.') ||
@@ -310,12 +311,15 @@ if (shellHtml.includes('class="themeSel"') ||
     css.includes('.themeOpt') ||
     !css.includes('html.theme-light{') ||
     !css.includes('html.theme-dark{') ||
-    !appJsSource.includes("THEME_KEY='ssTh'") ||
-    !appJsSource.includes("THEME_MODES=['auto','light','dark']") ||
-    !appJsSource.includes("getElementById('uiTheme')") ||
-    !appJsSource.includes('localStorage.getItem(THEME_KEY)') ||
-    !appJsSource.includes("classList.toggle('theme-dark'") ||
-    !appJsSource.includes("classList.toggle('theme-light'") ||
+    !runtimeJs.includes("THEME_KEY='ssTh'") ||
+    !runtimeJs.includes("THEME_MODES=['auto','light','dark']") ||
+    !runtimeJs.includes("getElementById('uiTheme')") ||
+    !runtimeJs.includes('localStorage.getItem(THEME_KEY)') ||
+    !runtimeJs.includes('localStorage.setItem(THEME_KEY,m)') ||
+    !runtimeJs.includes("classList.toggle('theme-dark'") ||
+    !runtimeJs.includes("classList.toggle('theme-light'") ||
+    !appJsSource.includes('R.paintTheme(R.themeMode())') ||
+    !appJsSource.includes('R.paintTheme(e.target.value)') ||
     !html.includes('id="frontendPanel"') ||
     !html.includes('<legend>Frontend</legend>') ||
     !html.includes('id="uiTheme"') ||
@@ -558,7 +562,7 @@ if (!ui.includes('setMutable(!!s.configMutable||!!s.webUiOverrideActive)') ||
     !ui.includes("uiOverridePanel") ||
     !ui.includes("uiOverrideButton") ||
     !ui.includes('UI Override') ||
-    !ui.includes("closest('#adminLockPanel,#diagnosticLockPanel,#uiOverridePanel,#powerPanel')") ||
+    !ui.includes("closest('#adminLockPanel,#diagnosticLockPanel,#uiOverridePanel')") ||
     !ui.includes('function ensureUiOverridePanel(') ||
     !ui.includes('if(developmentMode||$(\'uiOverridePanel\'))return;') ||
     !ui.includes('/api/v1/ui/unlock') ||
