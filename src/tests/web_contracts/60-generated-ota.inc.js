@@ -419,9 +419,9 @@ if (generated.jsGzip.length > 5044) {
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
 // The Home boot splash surface, ring animation, and reduced-motion override
-// raise the cap to 7300.
-if (generated.cssGzip.length > 7300) {
-  throw new Error('Compressed Web CSS exceeds the 7300-byte gzip budget');
+// raise the cap to 7300. The busy save-button spinner raises it to 7400.
+if (generated.cssGzip.length > 7400) {
+  throw new Error('Compressed Web CSS exceeds the 7400-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -449,7 +449,8 @@ if (generated.cssGzip.length > 7300) {
 // humanized render under the duration) raises it to 38000 bytes.
 // The time-zone catalog, selected-zone preview, and first-use detection
 // raise the measured source to 38780 bytes.
-if (sentinelRuntimeGzip.length > 40000) {
+// The busy save-button spinner wiring raises it to 40100 bytes.
+if (sentinelRuntimeGzip.length > 40100) {
   throw new Error(`Compressed Web UI runtime JS exceeds the 40000-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
@@ -458,7 +459,9 @@ if (generated.otaImageGzip.length > 3072) {
 // Continuous loop timing and the delay/dispatch breakdown live in Diagnostics.
 // The Diagnostic scale-name rename link binding raises it to 7020 bytes.
 // The connected scale command table adds bounded Diagnostic rendering.
-if (generated.secondaryGzip.length > 7140) {
+// The busy save-button ids on the Admin network, password, and webhook
+// saves raise it to 7200 bytes.
+if (generated.secondaryGzip.length > 7200) {
   throw new Error(`Compressed secondary view JS exceeds the 7140-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {

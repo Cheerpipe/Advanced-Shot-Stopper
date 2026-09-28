@@ -193,6 +193,10 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .btnGlyph.btnDanger{background:var(--bg);color:var(--ac);border-color:var(--ac)}
 .btnGlyph.btnWarn{color:var(--ac);background:var(--mw);border-color:var(--ac)}
 .btnGlyph:disabled{opacity:.4;cursor:not-allowed}
+@keyframes busySpin{to{transform:rotate(1turn)}}
+.btnGlyph.busy{pointer-events:none}
+.btnGlyph.busy .g{position:relative;font-size:0}
+.btnGlyph.busy .g:after{content:'';position:absolute;inset:0;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:busySpin .8s linear infinite}
 .bbwLearning .btnBar{max-width:22rem}
 .bbwLearning button{white-space:normal}
 
@@ -348,5 +352,5 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 .switch input:focus-visible+.slider{outline:3px solid var(--ac);outline-offset:2px}
 .btnGlyph:not(:disabled):hover{filter:brightness(.95)}
 @media(max-width:340px){body{padding-inline:.75rem}.topBar{margin-inline:-.75rem;padding-inline:.75rem}.brand span{font-size:1.25rem}.brandMark{width:2.1rem}.statusColumn{grid-template-columns:1fr}}
-@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition-duration:.01ms!important}.bootWave i{animation:none}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition-duration:.01ms!important}.bootWave i{animation:none}.btnGlyph.busy .g:after{animation:none}}
 @media(forced-colors:active){input[type=checkbox]{appearance:auto}.slider{forced-color-adjust:auto}.btnGlyph,.presetCard,input,select,textarea{border-color:ButtonText}}

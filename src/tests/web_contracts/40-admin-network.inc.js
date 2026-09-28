@@ -696,7 +696,7 @@ if (!ui.includes('function withPollGate(') ||
     !ui.includes('formRev') ||
     !ui.includes('formRev===c.revision') ||
     !ui.includes('baseRevision') ||
-    !ui.includes('command(path,value={},soft,okMsg,failMsg)') ||
+    !ui.includes('command(path,value={},soft,okMsg,failMsg,busyId)') ||
     !ui.includes('/api/v1/status/') ||
     !ui.includes('function statusPageOk(') ||
     !ui.includes("throw new Error('Invalid response')") ||

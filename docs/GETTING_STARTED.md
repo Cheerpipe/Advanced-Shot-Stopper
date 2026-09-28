@@ -84,9 +84,10 @@ check the preview, and save your settings. See
 [Time zone and NTP](settings/wifi.md#parameters-and-behavior).
 
 Save buttons in **Settings** and **Admin** stay dimmed until you change one of
-their values. A successful save dims the button again; if saving fails, the
-button remains available so you can retry and the red message bar explains the
-error.
+their values. When you save, the small icon on the button turns into a spinning
+ring while the controller applies the change. A successful save dims the button
+again; if saving fails, the button remains available so you can retry and the
+red message bar explains the error.
 
 Remote start/rinse are disabled in default firmware. Admin unlock does not
 enable them. Remote Stop is privileged; physical controls remain available

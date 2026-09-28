@@ -689,7 +689,7 @@ if (!js.includes('function commandOkMessage(') ||
     !js.includes('function commandFailMessage(') ||
     !js.includes('function formatCommandError(') ||
     !js.includes('function homePendingPairs(') ||
-    !js.includes('command(path,value={},soft,okMsg,failMsg)') ||
+    !js.includes('command(path,value={},soft,okMsg,failMsg,busyId)') ||
     js.includes("message(e&&e.message?e.message:'Request failed.','error')") ||
     !js.includes('Machine settings saved.') ||
     !js.includes("cn('save machine settings')") ||
