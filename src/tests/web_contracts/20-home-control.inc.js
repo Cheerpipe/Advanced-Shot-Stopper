@@ -5,18 +5,21 @@
       runtimeJs.indexOf('function renderStatsDurChart('));
   const ticks = [[], []], markers = [], charts = [];
   let markup = '';
-  const document = {createElement(){return {style:{}}}};
+  const axisStub = {setAttribute() {}, dataset: {}};
+  const document = {createElement(){return {style:{},dataset:{}}}};
   const host = {
     get innerHTML(){return markup},
-    set innerHTML(value){markup=value;markers.length=0;charts.length=0;for(const part of value.split('<div class="shotCurve">').slice(1)){const y=(part.match(/class="shotYTick"/g)||[]).map(()=>({style:{}})),style={setProperty(k,v){this[k]=v}};charts.push({style,querySelectorAll(){return y}})}},
+    set innerHTML(value){markup=value;markers.length=0;charts.length=0;for(const part of value.split('<div class="shotCurve">').slice(1)){const y=(part.match(/class="shotYTick"/g)||[]).map(()=>({style:{},dataset:{},textContent:'0'})),style={setProperty(k,v){this[k]=v}};charts.push({style,querySelectorAll(){return y},querySelector(){return axisStub}})}},
     hidden:true, replaceChildren(){this.innerHTML=''},
-    querySelector(){return {appendChild(item){markers.push(item)}}},
+    querySelector(){return {appendChild(item){markers.push(item)},dataset:{}}},
     querySelectorAll(selector){if(selector==='.shotSparkHost')return charts;return ticks.map((items) => ({
-      replaceChildren(){items.length=0}, appendChild(item){items.push(item)}
+      replaceChildren(){items.length=0}, appendChild(item){items.push(item)},
+      setAttribute() {}, removeAttribute() {}, dataset: {}
     }))},
   };
-  const render = new Function('document', helpers + renderer +
-      ';return renderShotSpark;')(document);
+  const render = new Function('document', 'ResizeObserver', '$', 'requestAnimationFrame',
+      helpers + renderer + ';return renderShotSpark;')(
+      document, class{observe(){}}, ()=>({}), ()=>{});
   const basic = render(host, {wCg:[0, 0, 50, 150, 150], wDtS:1, durationS:4,
     firstDropS:2.5, dropCg:50});
   const [weight, flow] = host.innerHTML.split('<div class="shotCurve">').slice(1);
@@ -53,7 +56,7 @@
     throw new Error('Live zero weight and flow must stay visible before the first drop');
   }
   render(host, {wCg:[0, 0, 100], durationS:2, firstDropS:1.9, dropCg:50});
-  if (markers.length !== 1 || !markers[0].innerHTML.endsWith('1.9 s') ||
+  if (markers.length !== 1 || !markers[0].innerHTML.includes('>1.9 s</span>') ||
       markers[0].style.transform !== 'translateX(-6px)') {
     throw new Error('First-drop placement must use the rounded shared time domain');
   }

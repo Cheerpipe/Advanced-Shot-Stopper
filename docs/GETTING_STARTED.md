@@ -87,7 +87,11 @@ Save buttons in **Settings** and **Admin** stay dimmed until you change one of
 their values. When you save, the small icon on the button turns into a spinning
 ring while the controller applies the change. A successful save dims the button
 again; if saving fails, the button remains available so you can retry and the
-red message bar explains the error.
+red message bar explains the error. Every save button has a smaller revert
+button beside it with a circular arrow. It lights up together with the save
+button, and tapping it asks for confirmation and then puts the section's fields
+back to their last saved values, so you can walk away from edits you did not
+mean to keep.
 
 Remote start/rinse are disabled in default firmware. Admin unlock does not
 enable them. Remote Stop is privileged; physical controls remain available

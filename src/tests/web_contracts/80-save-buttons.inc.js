@@ -13,35 +13,56 @@
   };
   const button = element('save'), hint = element('hint');
   button.dataset.dirty = '0';
+  const revert = element('revertConfigButton');
+  revert.dataset.dirty = '0';
   const context = vm.createContext({$: id => elements.get(id), controlsMutable: true});
-  const helper = runtimeJs.split('\n').find(line => line.startsWith('function setSaveDirty('));
-  assert(helper, 'Missing shared dirty-save helper');
-  vm.runInContext(helper, context);
+  const helper = runtimeJs.split('\n').filter(line =>
+    line.startsWith('function setSaveDirty(') || line.startsWith('const REVERT_BUTTONS='));
+  assert(helper.length === 2, 'Missing shared dirty-save helper and revert pairing map');
+  vm.runInContext(helper.join('\n'), context);
   vm.runInContext("setSaveDirty('save','hint',true)", context);
   assert(!button.disabled && button.dataset.dirty == 1 &&
          !hint.classList.contains('hidden'));
   vm.runInContext("setSaveDirty('save','hint',false)", context);
   assert(button.disabled && hint.classList.contains('hidden'));
+  vm.runInContext("setSaveDirty('saveConfigButton','hint',true)", context);
+  assert(!revert.disabled && revert.dataset.dirty == 1,
+      'The paired revert button must mirror its save button dirty state');
+  vm.runInContext("setSaveDirty('saveConfigButton','hint',false)", context);
+  assert(revert.disabled && revert.dataset.dirty == 0);
   context.controlsMutable = false;
   vm.runInContext("setSaveDirty('save','hint',true)", context);
   assert(button.disabled, 'Locked configuration must keep dirty save buttons disabled');
+  vm.runInContext("setSaveDirty('saveConfigButton','hint',true)", context);
+  assert(revert.disabled, 'Locked configuration must keep revert buttons disabled');
 
   const adminUi = viewJs.admin, normalizedUi = ui.replace(/\\"/g, '"');
   for (const id of ['saveConfigButton', 'saveBrewPresetButton', 'saveWebhookButton',
     'saveNetworkButton', 'saveDateTimeButton', 'changeDevicePasswordButton'])
     assert(new RegExp(`id="${id}"[^>]*data-dirty="0"[^>]*disabled`).test(normalizedUi),
         `${id} must start visibly disabled`);
+  for (const id of ['revertConfigButton', 'revertBrewPresetButton', 'revertLineaMicraButton',
+    'revertWebhookButton', 'revertNetworkButton', 'revertDateTimeButton', 'revertDevicePasswordButton'])
+    assert(new RegExp(`id="${id}"[^>]*data-dirty="0"[^>]*disabled`).test(normalizedUi),
+        `${id} must start visibly disabled next to its save button`);
   assert(runtimeJs.includes('e.dataset.dirty!=null') &&
          runtimeJs.includes("setSaveDirty('saveConfigButton','configDirtyHint',false)") &&
          runtimeJs.includes("setSaveDirty('saveDateTimeButton','dateTimeDirtyHint',false)") &&
          runtimeJs.includes('await refreshStatus();return false') &&
-         adminUi.includes("const networkChanged=()=>R.setSaveDirty('saveNetworkButton','',true)") &&
+         adminUi.includes("const networkChanged=()=>{if($('saveNetworkButton').dataset.dirty!=='1')networkBaseline=R.snapshotControls(") &&
          adminUi.includes("R.setSaveDirty('saveWebhookButton','webhookDirtyHint',true)") &&
          adminUi.includes("R.setSaveDirty('changeDevicePasswordButton','',false)") &&
          adminUi.includes("R.command('/api/v1/network',payload,undefined,undefined,undefined,'saveNetworkButton').then(ok=>{if(!ok)return") &&
          adminUi.includes("R.command('/api/v1/device/password',{newPassword:") &&
          css.includes('.btnGlyph:disabled{opacity:.4;cursor:not-allowed}'),
   'Save actions must enable on edits, disable only after success, and look disabled');
+  assert(runtimeJs.includes('function snapshotControls(') &&
+         runtimeJs.includes('function restoreSnapshot(') &&
+         runtimeJs.includes('confirm("Discard unsaved changes?")') &&
+         adminUi.includes('confirm("Discard unsaved changes?")') &&
+         runtimeJs.includes('revertLineaMicra') &&
+         css.includes('.btnGlyph.btnRevert{'),
+    'Revert buttons must confirm, then restore the pre-edit snapshot beside every save bar');
 
   assert(runtimeJs.includes('command(path,value={},soft,okMsg,failMsg,busyId)') &&
          runtimeJs.includes('busyId?$(busyId):null') &&

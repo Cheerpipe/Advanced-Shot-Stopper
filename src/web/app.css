@@ -189,6 +189,8 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .presetActions>.btnGlyph{min-height:var(--tap);min-width:5.25rem;padding:.55rem .65rem;flex:1 1 5.25rem}
 .presetActions>.btnGlyph .g{width:1rem;height:1rem;font-size:1rem}
 .presetActions>.btnGlyph .t{font-size:.8125rem}
+.btnGlyph.btnRevert{flex:0 0 auto;min-height:var(--tap);min-width:var(--tap);padding:.35rem .5rem}
+.btnGlyph.btnRevert .g{width:1rem;height:1rem;font-size:1rem}
 .btnGlyph.btnInvert{background:var(--pri);color:var(--on);border-color:var(--pri)}
 .btnGlyph.btnDanger{background:var(--bg);color:var(--ac);border-color:var(--ac)}
 .btnGlyph.btnWarn{color:var(--ac);background:var(--mw);border-color:var(--ac)}

@@ -230,8 +230,11 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // Home and Diagnostic: +128 bytes of HTML allowance; compressed asset and
 // firmware budgets remain unchanged.
 // The scale command inventory adds a small two-column Diagnostic table.
-if (htmlBytes > 74000) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 74000)`);
+// Per-section revert buttons beside every dirty-tracked save bar (Settings
+// brew/machine/Micra, Admin network/date-time/webhooks/device password) add
+// ~1.6 KB of HTML source allowance; compressed asset budgets stay fixed.
+if (htmlBytes > 75600) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 75600)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -282,14 +285,19 @@ if (htmlBytes > 74000) {
 // Matching recent/lifetime gap columns replace the peak-gap label breakdown.
 // Rendering the current scale command inventory adds a bounded status update.
 // IANA zone loading, selected-zone preview, and first-use detection add ~3 KiB.
-if (jsBytes > 211000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 211000)`);
+// Per-section revert (discard unsaved changes) baselines, snapshot helpers,
+// handlers, and button wiring across Settings and Admin add ~5 KB of JS
+// source allowance.
+if (jsBytes > 216100) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 216100)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
 // The loop timing view adds only source allowance; compressed limits stay fixed.
-if (htmlBytes + jsBytes > 285000) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 285000)`);
+// The per-section revert buttons and their wiring add ~6.7 KB of combined
+// source allowance.
+if (htmlBytes + jsBytes > 291200) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 291200)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

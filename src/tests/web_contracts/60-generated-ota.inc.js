@@ -450,7 +450,9 @@ if (generated.cssGzip.length > 7400) {
 // The time-zone catalog, selected-zone preview, and first-use detection
 // raise the measured source to 38780 bytes.
 // The busy save-button spinner wiring raises it to 40100 bytes.
-if (sentinelRuntimeGzip.length > 40100) {
+// Per-section revert (discard unsaved changes) baselines, snapshot helpers,
+// and handlers beside the save flows raise it to 40650 bytes.
+if (sentinelRuntimeGzip.length > 40650) {
   throw new Error(`Compressed Web UI runtime JS exceeds the 40000-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
@@ -461,7 +463,9 @@ if (generated.otaImageGzip.length > 3072) {
 // The connected scale command table adds bounded Diagnostic rendering.
 // The busy save-button ids on the Admin network, password, and webhook
 // saves raise it to 7200 bytes.
-if (generated.secondaryGzip.length > 7200) {
+// The Admin network, webhook, and device-password revert wiring and the
+// date-time revert handler raise it to 7420 bytes.
+if (generated.secondaryGzip.length > 7420) {
   throw new Error(`Compressed secondary view JS exceeds the 7140-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {

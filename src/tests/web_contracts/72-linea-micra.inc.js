@@ -162,7 +162,7 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
   for (const theme of ['theme-light', 'theme-dark']) {
     const nodes = new Map();
     const get = id => {
-      if (!nodes.has(id)) nodes.set(id, {disabled: false, checked: false,
+      if (!nodes.has(id)) nodes.set(id, {disabled: false, checked: false, dataset: {},
         classList: {toggle() {}}, parentElement: {nextSibling: null}});
       return nodes.get(id);
     };
