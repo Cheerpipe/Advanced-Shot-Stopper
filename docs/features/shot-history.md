@@ -118,8 +118,11 @@ would not fit at its normal compact height.
 On a narrow screen, a few numbers beside these charts may be hidden when they
 would overlap. The lines and measurements stay in place, and more numbers
 appear again when there is room. Home applies the same rule to the time and
-weight references above the shot and to the Current / Last Shot weight bar:
-the target takes precedence when its label is close to the measured weight.
+weight references above the shot and to the Current / Last Shot weight bar.
+That bar always pairs the measured weight with the target, shown as
+`35.4 g / 36 g` where the shot actually landed, while the target alone still
+marks its own position; when the two labels are too close, the paired
+measured/target label is the one that stays visible.
 The shot card continues to show the exact measured weight.
 
 The Flow rate chart draws the measured rates as one continuous line per color
