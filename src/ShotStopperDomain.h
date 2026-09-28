@@ -196,7 +196,7 @@ constexpr size_t TIMEZONE_ID_CAPACITY = 64;
 constexpr size_t WIFI_SSID_CAPACITY = 33;
 constexpr size_t WIFI_PASSWORD_CAPACITY = 64;
 constexpr size_t WEB_COMMAND_QUEUE_LENGTH = 4;
-constexpr size_t DEBUG_EVENT_CAPACITY = 96;
+constexpr size_t DEBUG_EVENT_CAPACITY = 512;
 // Text logs are formatted into 128-byte views throughout the firmware. Keep
 // the retained record at the same bound instead of paying for unreachable
 // bytes in both the PSRAM ring and the HTTP copy batch.
@@ -2661,7 +2661,7 @@ class DebugRingBuffer {
   uint32_t overwritten_ = 0;
 };
 
-static_assert(sizeof(DebugRingBuffer) <= 16 * 1024,
+static_assert(sizeof(DebugRingBuffer) <= 80 * 1024,
               "Debug ring exceeded its PSRAM budget");
 
 inline const char *logLevelName(LogLevel level) {
