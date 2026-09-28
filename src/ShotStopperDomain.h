@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <cmath>
 #include <new>
 #include <type_traits>
@@ -622,14 +623,13 @@ enum class LogLevel : uint8_t {
   NONE = 5
 };
 
-// NVS/UI compose of Machine + Scale + Brew settings. Current schema is V1;
-// do not change this blob layout without bumping CONFIG_SCHEMA_VERSION.
-// New fields: consider debug export (ShotStopperDebugExport.h).
+// Fixed NVS/UI layout; changing offsets or size requires a settings migration.
 struct RuntimeConfig {
   uint32_t revision = 1;
   uint8_t goalWeightG = DEFAULT_GOAL_WEIGHT_G;
   // Global setting, never copied into a preset.
   bool powerManagementEnabled = true;
+  uint8_t timezoneAutomatic = 1;  // Former padding, identified by settings tag.
   float weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   // Seed for Reset learned stop offset; factory default remains 1.5 g.
   float weightOffsetBaselineG = DEFAULT_WEIGHT_OFFSET_G;
@@ -677,12 +677,12 @@ struct RuntimeConfig {
   uint32_t retareStabilityMinDurationMs = DEFAULT_RETARE_STABILITY_MIN_DURATION_MS;
   uint32_t bbwProtectionMs = DEFAULT_BBW_PROTECTION_MS;
   uint32_t operationalWallMs = DEFAULT_OPERATIONAL_WALL_MS;
-  // Empty until the first authorized browser detection or manual selection.
+  // Empty until browser detection or manual selection.
   char timezoneId[TIMEZONE_ID_CAPACITY] = {};
   uint64_t firstTimezoneAutoUptimeUs = 0;
   uint32_t firstTimezoneAutoUtcSec = 0;
   uint32_t firstTimezoneAutoBootId = 0;
-  uint8_t timezoneSource = 0;  // 0 pending, 1 detected, 2 manually selected
+  uint8_t timezoneSource = 0;  // 0 pending, 1 detected, 2 manual; 3/4 commands.
   uint8_t firstTimezoneAutoClockQuality = 0;  // 0 absent, 1 unknown, 2 device UTC
   uint8_t ntpServerPreset = static_cast<uint8_t>(NtpServerPreset::POOL);
   char ntpServerCustom[NTP_SERVER_HOST_CAPACITY] = {};

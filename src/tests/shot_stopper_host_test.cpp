@@ -6652,6 +6652,7 @@ void w86_config_applies_to_ram_immediately_and_coalesces() {
 
 void tz01_first_auto_zone_is_once_and_estimated_after_sync() {
   resetHarness(false, false);
+  durableTimezoneSaved().store(false);
   reachReadyFromBoot();
   WebCommand first;
   first.type = WebCommandType::APPLY_CONFIG;
@@ -6668,8 +6669,13 @@ void tz01_first_auto_zone_is_once_and_estimated_after_sync() {
   first.config = runtimeConfig;
   first.config.timezoneSource = 3;
   processWebCommand(first);
-  CHECK(runtimeConfig.revision == appliedRevision);
+  CHECK(runtimeConfig.revision == appliedRevision + 1);
   CHECK(runtimeConfig.firstTimezoneAutoUptimeUs == firstUptime);
+  durableTimezoneSaved().store(true);
+  first.config = runtimeConfig;
+  first.config.timezoneSource = 3;
+  processWebCommand(first);
+  CHECK(runtimeConfig.revision == appliedRevision + 1);
 
   runtimeConfig.revision = UINT32_MAX;
   hostMillis += 10000;
@@ -6687,10 +6693,27 @@ void tz01_first_auto_zone_is_once_and_estimated_after_sync() {
   manual.config = runtimeConfig;
   strcpy(manual.config.timezoneId, "America/New_York");
   manual.config.timezoneSource = 2;
+  manual.config.timezoneAutomatic = 0;
   processWebCommand(manual);
   CHECK(strcmp(runtimeConfig.timezoneId, "America/New_York") == 0);
   CHECK(runtimeConfig.timezoneSource == 2);
   CHECK(runtimeConfig.firstTimezoneAutoUtcSec != 0);
+  const uint32_t manualRevision = runtimeConfig.revision;
+  first.config = runtimeConfig;
+  first.config.timezoneSource = 4;
+  strcpy(first.config.timezoneId, "Asia/Tokyo");
+  processWebCommand(first);
+  CHECK(runtimeConfig.revision == manualRevision);
+  CHECK(runtimeConfig.timezoneAutomatic == 0);
+  manual.config = runtimeConfig;
+  manual.config.timezoneAutomatic = 1;
+  processWebCommand(manual);
+  first.config.revision = runtimeConfig.revision;
+  first.config.timezoneAutomatic = 1;
+  processWebCommand(first);
+  CHECK(strcmp(runtimeConfig.timezoneId, "Asia/Tokyo") == 0);
+  CHECK(runtimeConfig.timezoneSource == 1);
+  durableTimezoneSaved().store(false);
 }
 
 void tz02_unknown_zone_preserves_utc_with_zero_offset() {

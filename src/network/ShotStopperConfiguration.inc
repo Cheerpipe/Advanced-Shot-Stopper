@@ -102,6 +102,7 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       jsonFieldPresent(root, "timezoneId") ||
       jsonFieldPresent(root, "timezoneAutoInit") ||
       jsonFieldPresent(root, "timezoneDetected") ||
+      jsonFieldPresent(root, "timezoneAutomatic") ||
       jsonFieldPresent(root, "ntpServerPreset") ||
       jsonFieldPresent(root, "ntpServerCustom");
   // Log/debug fields are public while the diagnostic page is enabled; the
@@ -124,6 +125,8 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   const bool timezoneIdPresent = jsonFieldPresent(root, "timezoneId");
   bool timezoneAutoInit = false;
   bool timezoneDetected = false;
+  bool timezoneAutomatic = candidate.timezoneAutomatic != 0;
+  bool browserTimezonePatch = false;
   bool soundAlertsEnabled = !candidate.soundAlertsMuted;
   BullseyeMelodyConfig candidateBullseye = {};
   if (self.callbacks_.copyBullseyeConfig != nullptr) {
@@ -173,7 +176,7 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       "maxBbwBrewTimeMs", "autoToManualGuardEnabled", "autoToManualGuardLimitMode",
       "autoToManualGuardManualLimitMs", "autoToManualGuardBaselineMs",
       "weightOffsetBaselineG", "timezoneId", "timezoneAutoInit",
-      "timezoneDetected", "ntpServerPreset",
+      "timezoneDetected", "timezoneAutomatic", "ntpServerPreset",
       "ntpServerCustom", "scaleMacCacheMode", "bookooMuteOnBuzzerOnly",
       "bookooConnectBeepLevel", "noScaleBbwMode", "avoidBbwShotWithoutScale",
       "noScaleAllowRinseWhileArmed", "lastShotCooldownMs",
@@ -432,6 +435,9 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   } else if (jsonFieldPresent(root, "timezoneDetected") &&
              !jsonBoolean(root, "timezoneDetected", timezoneDetected)) {
     parseError = "timezoneDetected must be a boolean.";
+  } else if (jsonFieldPresent(root, "timezoneAutomatic") &&
+             !jsonBoolean(root, "timezoneAutomatic", timezoneAutomatic)) {
+    parseError = "timezoneAutomatic must be a boolean.";
   } else if (jsonFieldPresent(root, "ntpServerPreset") &&
              !jsonNtpPreset(root, "ntpServerPreset",
                             candidate.ntpServerPreset)) {
@@ -507,6 +513,12 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
     parseError = "Zone detection requires timezoneId.";
   }
   if (root != nullptr) {
+    static const char *const browserFields[] = {
+        "baseRevision", "timezoneId", "timezoneAutoInit", "timezoneDetected"};
+    browserTimezonePatch = timezoneIdPresent &&
+        ((timezoneAutoInit && !durableTimezoneSaved().load()) ||
+         (timezoneDetected && candidate.timezoneAutomatic)) &&
+        jsonHasOnlyUniqueFields(root, browserFields, 4);
     brewByWeightPresent = jsonFieldPresent(root, "brewByWeight");
     baseRevisionPresent = jsonFieldPresent(root, "baseRevision");
     legacyNoScalePresent =
@@ -519,7 +531,7 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_FIELD",
                      parseError);
   }
-  if (dateTimePatch && !self.requireAdminUnlock(request)) {
+  if (dateTimePatch && !browserTimezonePatch && !self.requireAdminUnlock(request)) {
     memset(customNtp, 0, sizeof(customNtp));
     return ESP_OK;
   }
@@ -537,17 +549,14 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
     return sendError(request, STATUS_CONFLICT, "CONFIG_REVISION_STALE",
                      "Config changed; refresh and retry.");
   }
-  if (timezoneAutoInit && candidate.timezoneId[0] != '\0' &&
-      self.callbacks_.copyRuntimeConfig != nullptr) {
-    RuntimeConfig live = {};
-    self.callbacks_.copyRuntimeConfig(&live);
-    if (live.timezoneId[0] != '\0') {
-      return sendError(request, STATUS_CONFLICT, "TIMEZONE_ALREADY_SET",
-                       "The time zone was already set.");
-    }
+  if (timezoneAutoInit && durableTimezoneSaved().load()) {
+    return sendError(request, STATUS_CONFLICT, "TIMEZONE_ALREADY_SET",
+                     "The time zone was already saved.");
   }
+  candidate.timezoneAutomatic = timezoneAutomatic;
   if (timezoneIdPresent) {
-    candidate.timezoneSource = timezoneAutoInit ? 3 : timezoneDetected ? 1 : 2;
+    candidate.timezoneSource = timezoneAutoInit ? 3 :
+        timezoneDetected ? (browserTimezonePatch ? 4 : 1) : 2;
   }
   if (brewByWeightPresent) {
     candidate.timerOnly = !brewByWeight;

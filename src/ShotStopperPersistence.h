@@ -29,7 +29,9 @@ inline bool validPersistedSettings(const PersistedSettings &settings) {
       settings.structureSize != sizeof(PersistedSettings) ||
       settings.checksum != persistedSettingsChecksum(settings) ||
       validateRuntimeConfig(settings.runtime) != ConfigValidationError::NONE ||
-      settings.runtime.timezoneSource == 3 ||
+      settings.runtime.timezoneSource >= 3 ||
+      (settings.reserved == TIMEZONE_PREFERENCE_TAG &&
+       settings.runtime.timezoneAutomatic > 1) ||
       !validBullseyeMelodyConfig(settings.bullseyeMelody) ||
       !validateShotPresetBank(settings.presets, settings.runtime.retareWindowMs,
                               settings.runtime.autoRetare) ||
@@ -60,6 +62,7 @@ inline void finalizePersistedSettings(PersistedSettings &settings) {
   settings.magic = PERSISTED_SETTINGS_MAGIC;
   settings.schemaVersion = CONFIG_SCHEMA_VERSION;
   settings.structureSize = sizeof(PersistedSettings);
+  settings.reserved = TIMEZONE_PREFERENCE_TAG;
   settings.checksum = 0;
   settings.checksum = persistedSettingsChecksum(settings);
 }
@@ -83,7 +86,12 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
       sizeof(settings)) {
     return false;
   }
-  return validPersistedSettings(settings);
+  if (!validPersistedSettings(settings)) return false;
+  if (settings.reserved != TIMEZONE_PREFERENCE_TAG) {
+    settings.runtime.timezoneAutomatic = settings.runtime.timezoneId[0] == '\0';
+    finalizePersistedSettings(settings);
+  }
+  return true;
 }
 
 inline bool lockSettingsNvs() { return lockFlashIo(); }
@@ -117,6 +125,7 @@ inline bool loadPersistedSettings(PersistedSettings &settings) {
     loaded = true;
   }
   preferences.end();
+  if (loaded) durableTimezoneSaved().store(settings.runtime.timezoneId[0] != '\0');
   unlockSettingsNvs();
   return loaded;
 }
@@ -153,6 +162,7 @@ inline void resetDurableStorageRevision() {
   }
   durableStorageRevision() = 0;
   durableStorageRevisionValid() = false;
+  durableTimezoneSaved().store(false);
   unlockSettingsNvs();
 }
 
@@ -216,6 +226,7 @@ inline bool savePersistedSettings(PersistedSettings &settings) {
   if (saved) {
     durableStorageRevision() = candidateRevision;
     durableStorageRevisionValid() = true;
+    durableTimezoneSaved().store(settings.runtime.timezoneId[0] != '\0');
   } else {
     settings.storageRevision = originalRevision;
     settings.checksum = originalChecksum;
@@ -313,6 +324,7 @@ inline bool resetPersistedSettingsToFactory(PersistedSettings &settings) {
     finalizePersistedSettings(settings);
   }
   noteDurableStorageRevision(settings.storageRevision);
+  durableTimezoneSaved().store(false);
   return true;
 }
 

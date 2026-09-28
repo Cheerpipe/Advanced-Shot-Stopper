@@ -203,6 +203,18 @@ The global `timezoneId` is an IANA region/city string in the schema-3 settings
 blob. Network validates it against the firmware's generated tzdata2026d
 catalog; control owns the effective setting and first-auto provenance; the
 existing persistence worker saves both in the same settings generation.
+The `timezoneAutomatic` preference occupies former runtime padding at byte 6,
+preserving the schema-3 layout and sizes. The existing reserved settings word
+tags this byte as initialized. Valid older records initialize it to manual
+when a zone exists, or automatic when empty, without reading legacy padding as
+a preference. OTA upgrades retain their saved zones and other settings.
+Flash persistence publishes `timezoneInitialized` only after loading a valid
+saved zone or verifying a settings write containing one; factory reset clears
+it. Until then, a zone-only browser initialization is permitted without Admin.
+Once initialized, zone-only browser updates require saved automatic mode.
+Other date/time patches, including mode changes, still require Admin. Control
+rechecks the revision and automatic-update eligibility before applying commands;
+the existing worker retries persistence failures without repeated UI writes.
 `src/ShotStopperTimeZoneData.h` is an immutable flash table of 597 supported
 IDs and 4,341 transitions, deduplicated into 67 schedules for UTC instants in
 2025–2099. `scripts/generate_timezones.py` regenerates it from the pinned

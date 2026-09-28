@@ -346,6 +346,12 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         lastSyncOffsetKnown ? "true" : "false", tzdb::kVersion,
         timeZoneResolution(control.config.timezoneId, timeStatus.utcSec));
   }
+  if (ok) {
+    ok = statusJsonAppend(&used,
+        ",\"timezoneAutomatic\":%s,\"timezoneInitialized\":%s",
+        control.config.timezoneAutomatic ? "true" : "false",
+        durableTimezoneSaved().load() ? "true" : "false");
+  }
   if (ok && page == StatusPage::Admin && adminUnlocked) {
     ok = statusJsonAppend(
         &used,

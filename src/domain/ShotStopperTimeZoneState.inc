@@ -1,3 +1,12 @@
+// Flash persistence owns this flag; HTTP/control only observe verified saves.
+static_assert(offsetof(RuntimeConfig, timezoneAutomatic) == 6,
+              "Timezone preference must occupy existing padding");
+
+inline std::atomic<bool> &durableTimezoneSaved() {
+  static std::atomic<bool> saved{false};
+  return saved;
+}
+
 inline bool validTimeZoneState(const RuntimeConfig &config) {
   const size_t length = strnlen(config.timezoneId, TIMEZONE_ID_CAPACITY);
   if (length >= TIMEZONE_ID_CAPACITY ||
@@ -5,7 +14,7 @@ inline bool validTimeZoneState(const RuntimeConfig &config) {
              "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_/-+") !=
           length)
     return false;
-  if (config.timezoneSource > 3 ||
+  if (config.timezoneSource > 4 ||
       (length == 0) != (config.timezoneSource == 0) ||
       config.firstTimezoneAutoClockQuality > 3)
     return false;

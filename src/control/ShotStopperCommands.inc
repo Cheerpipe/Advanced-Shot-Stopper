@@ -116,8 +116,11 @@ void processWebCommand(const WebCommand &command) {
         return;
       }
       if (command.config.revision != runtimeConfig.revision ||
+          command.config.timezoneAutomatic > 1 ||
           (command.config.timezoneSource == 3 &&
-           runtimeConfig.timezoneId[0] != '\0') ||
+           durableTimezoneSaved().load()) ||
+          (command.config.timezoneSource == 4 &&
+           !runtimeConfig.timezoneAutomatic) ||
           strnlen(command.config.timezoneId, TIMEZONE_ID_CAPACITY) >=
               TIMEZONE_ID_CAPACITY ||
           (strncmp(command.config.timezoneId, runtimeConfig.timezoneId,
@@ -176,9 +179,10 @@ void processWebCommand(const WebCommand &command) {
           command.config.retareStabilityMinDurationMs;
       memcpy(candidate.timezoneId, command.config.timezoneId,
              sizeof(candidate.timezoneId));
+      candidate.timezoneAutomatic = command.config.timezoneAutomatic;
       candidate.timezoneSource = command.config.timezoneSource;
-      if (candidate.timezoneSource == 3) {
-        candidate.timezoneSource = 1;
+      if (candidate.timezoneSource == 3 &&
+          candidate.firstTimezoneAutoClockQuality == 0) {
         candidate.firstTimezoneAutoClockQuality = 1;
 #if !defined(SHOT_STOPPER_HOST_TEST)
         candidate.firstTimezoneAutoUptimeUs =
@@ -193,6 +197,7 @@ void processWebCommand(const WebCommand &command) {
           candidate.firstTimezoneAutoClockQuality = 2;
         }
       }
+      if (candidate.timezoneSource >= 3) candidate.timezoneSource = 1;
       candidate.ntpServerPreset = command.config.ntpServerPreset;
       memcpy(candidate.ntpServerCustom, command.config.ntpServerCustom,
              sizeof(candidate.ntpServerCustom));

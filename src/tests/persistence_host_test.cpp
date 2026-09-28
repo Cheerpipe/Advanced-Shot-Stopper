@@ -2278,7 +2278,52 @@ struct TestCase {
   void (*function)();
 };
 
+void p86_timezone_preference_and_durable_initialization() {
+  resetHostPersistence();
+  PersistedSettings settings;
+  CHECK(initializeDefaultSettings(settings));
+  CHECK(settings.runtime.timezoneAutomatic == 1);
+  CHECK(!durableTimezoneSaved().load());
+  strcpy(settings.runtime.timezoneId, "America/Santiago");
+  settings.runtime.timezoneSource = 1;
+  settings.runtime.timezoneAutomatic = 0;
+  persistence_host::failNextWrite = true;
+  CHECK(!savePersistedSettings(settings));
+  CHECK(!durableTimezoneSaved().load());
+  persistence_host::corruptNextWrite = true;
+  CHECK(!savePersistedSettings(settings));
+  CHECK(!durableTimezoneSaved().load());
+  CHECK(savePersistedSettings(settings));
+  CHECK(durableTimezoneSaved().load());
+  resetDurableStorageRevision();
+  PersistedSettings loaded;
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(durableTimezoneSaved().load());
+  CHECK(loaded.runtime.timezoneAutomatic == 0);
+  settings.runtime.timezoneAutomatic = 1;
+  CHECK(savePersistedSettings(settings));
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.runtime.timezoneAutomatic == 1);
+
+  // OTA from the existing schema: do not interpret old padding as a preference.
+  resetHostPersistence();
+  settings.reserved = 0;
+  settings.runtime.timezoneAutomatic = 0xA5;
+  settings.checksum = persistedSettingsChecksum(settings);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings, sizeof(settings));
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.runtime.timezoneAutomatic == 0);
+  CHECK(strcmp(loaded.runtime.timezoneId, "America/Santiago") == 0);
+  CHECK(validPersistedSettings(loaded));
+  CHECK(resetPersistedSettingsToFactory(loaded));
+  CHECK(!durableTimezoneSaved().load());
+  CHECK(loaded.runtime.timezoneAutomatic == 1);
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(!durableTimezoneSaved().load());
+}
+
 const TestCase tests[] = {
+    {"P86", p86_timezone_preference_and_durable_initialization},
     {"P85", p85_schema1_is_strict_and_micra_defaults_round_trip},
     {"P82", p82_ble_scan_strict_versions_and_roundtrip},
     {"P80", p80_boot_id_remains_dirty_until_durable},

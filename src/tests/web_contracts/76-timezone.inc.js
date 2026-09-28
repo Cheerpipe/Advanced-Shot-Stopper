@@ -1,6 +1,16 @@
 // This standalone chunk follows the complete power contracts, not a split expression.
 // Run real timezone UI functions with controlled async responses and clocks.
 {
+  const config = network.slice(network.indexOf('ShotStopperNetwork::configHandler('));
+  if (!config.includes('dateTimePatch && !browserTimezonePatch && !self.requireAdminUnlock(request)') ||
+      !config.includes('"baseRevision", "timezoneId", "timezoneAutoInit", "timezoneDetected"') ||
+      !config.includes('jsonHasOnlyUniqueFields(root, browserFields, 4)') ||
+      !config.includes('timezoneAutoInit && !durableTimezoneSaved().load()') ||
+      !config.includes('timezoneDetected && candidate.timezoneAutomatic')) {
+    throw new Error('Browser detection must only bypass Admin for a restricted, eligible zone patch');
+  }
+}
+{
   const assert = require('assert').strict, vm = require('vm');
   const slice = (a, b) => rawRuntimeJs.slice(rawRuntimeJs.indexOf(a), rawRuntimeJs.indexOf(b));
   const source = slice('async function populateTimezoneOptions(', 'function renderShotSpark(') +
@@ -11,20 +21,20 @@
   function harness() {
     const select = {value: '', isConnected: true, options: [{}],
       replaceChildren(f) { this.options = f.children; this.value = ''; }};
-    const els = {timezoneId: select, timezonePreview: {}, timezoneSaveState: {},
+    const els = {timezoneId: select, timezoneAutomatic: {checked: true}, timezonePreview: {}, timezoneSaveState: {},
       ntpServerPreset: {value: 'pool'}, ntpServerCustom: {value: ''}};
-    const calls = [], state = {zone: 'America/Santiago', commands: 0};
+    const calls = [], state = {zone: 'America/Santiago', commands: 0, detections: 0, payloads: []};
     const c = vm.createContext({$: id => els[id], Date, performance: {now: () => 1000},
       document: {hidden: false, createDocumentFragment: () => ({children: [], appendChild(o) { this.children.push(o); }})},
       Option: function(label, value) { this.value = value; },
-      Intl: {DateTimeFormat: () => ({resolvedOptions: () => ({timeZone: state.zone})})},
+      Intl: {DateTimeFormat: () => { ++state.detections; return {resolvedOptions: () => ({timeZone: state.zone})}; }},
       __WEBUI_TEXT__: key => key, formatWallTimeLocal: String, formatTzLabel: String,
       formatCommandError: (_, error) => error.message, body: JSON.stringify,
       setSaveDirty() {}, message() {}, clearFieldErrors() {}, showFieldError() {},
       validateDateTimeClient: () => null, withBaseRev: p => p,
       dateTimePayload: () => ({timezoneId: select.value, ntpServerPreset: 'pool', ntpServerCustom: ''}),
       markDateTimeDirty() { c.dateTimeDirty = true; }, refreshStatus: async () => {},
-      dateTimeDirty: false, controlsMutable: true, diagnosticUnlocked: true, activeView: 'admin',
+      dateTimeDirty: false, controlsMutable: true, commandBusy: false, diagnosticUnlocked: true, activeView: 'admin',
       api: async (url, options) => {
         if (url.endsWith('/zones')) return ['Etc/UTC', 'America/Santiago', 'Asia/Tokyo'];
         if (!c.diagnosticUnlocked) throw new Error('Admin locked');
@@ -32,16 +42,20 @@
         return {timezoneId, clockAvailable: true, clockSource: 'device', utcSec: 1800000000,
           localSec: 1800000000, offsetMinutes: 0, nextTransitionUtcSec: 0};
       },
-      command: async () => { ++state.commands; }
+      command: async (_, payload) => { ++state.commands; state.payloads.push(payload); }
     });
     vm.runInContext(source, c);
     return {c, select, els, calls, state};
   }
   const cases = [
-    ['manual redetection reads the current browser zone', async () => {
+    ['enabling automatic reads the current browser zone and locks the selector', async () => {
       const h = harness(); await h.c.populateTimezoneOptions();
-      h.state.zone = 'Asia/Tokyo'; await h.c.detectTimezone();
+      h.state.zone = 'Asia/Tokyo'; await h.c.changeTimezoneMode();
       assert.equal(h.select.value, 'Asia/Tokyo');
+      assert.equal(h.select.disabled, true);
+      h.els.timezoneAutomatic.checked = false; await h.c.changeTimezoneMode();
+      assert.equal(h.select.disabled, false);
+      assert.equal(h.state.detections, 1);
     }],
     ['status changes refresh the selected-zone preview', async () => {
       const h = harness(); await h.c.populateTimezoneOptions(); await flush();
@@ -71,15 +85,68 @@
     ['initial detection serializes catalog waiters', async () => {
       const h = harness(), gate = deferred(), api = h.c.api;
       h.c.api = async (url, options) => { if (url.endsWith('/zones')) await gate.promise; return api(url, options); };
-      const a = h.c.maybeInitializeTimezone({timezoneId: ''});
-      const b = h.c.maybeInitializeTimezone({timezoneId: ''});
+      const status = {timezoneId: '', timezoneInitialized: false};
+      const a = h.c.syncTimezone(status);
+      const b = h.c.syncTimezone(status);
       gate.resolve(); await Promise.all([a, b]); assert.equal(h.state.commands, 1);
     }],
     ['a lost initial save can be retried in the same browser', async () => {
-      const h = harness(); await h.c.maybeInitializeTimezone({timezoneId: ''});
+      const h = harness(); await h.c.syncTimezone({timezoneId: '', timezoneInitialized: false});
       // The device rebooted before the flash write and again reports no zone.
-      await h.c.maybeInitializeTimezone({timezoneId: ''});
+      await h.c.syncTimezone({timezoneId: '', timezoneInitialized: false});
       assert.equal(h.state.commands, 2);
+    }],
+    ['initialization works on Home without Admin or its DOM, even in manual mode', async () => {
+      const h = harness(); delete h.els.timezoneId; delete h.els.timezoneAutomatic;
+      h.c.activeView = 'home'; h.c.diagnosticUnlocked = false;
+      await h.c.syncTimezone({timezoneId: '', timezoneInitialized: false, timezoneAutomatic: false});
+      assert.equal(h.state.payloads[0].timezoneAutoInit, true);
+    }],
+    ['manual mode performs no browser detection after a durable save', async () => {
+      const h = harness();
+      await h.c.syncTimezone({timezoneId: 'Asia/Tokyo', timezoneInitialized: true, timezoneAutomatic: false});
+      assert.equal(h.state.detections, 0); assert.equal(h.state.commands, 0);
+    }],
+    ['automatic mode follows zone changes and avoids unchanged writes', async () => {
+      const h = harness(), status = {timezoneId: 'America/Santiago', timezoneInitialized: true, timezoneAutomatic: true};
+      await h.c.syncTimezone(status); assert.equal(h.state.commands, 0);
+      h.state.zone = 'Asia/Tokyo'; await h.c.syncTimezone(status);
+      assert.equal(h.state.payloads[0].timezoneDetected, true);
+      assert.equal(h.state.payloads[0].timezoneId, 'Asia/Tokyo');
+    }],
+    ['initialization retries after a busy controller or a rejected command', async () => {
+      const h = harness(), status = {timezoneId: '', timezoneInitialized: false};
+      h.c.controlsMutable = false; await h.c.syncTimezone(status);
+      assert.equal(h.state.detections, 0);
+      h.c.controlsMutable = true;
+      const command = h.c.command;
+      h.c.command = async () => { throw Error('Busy'); };
+      await h.c.syncTimezone(status);
+      h.c.command = command; await h.c.syncTimezone(status);
+      assert.equal(h.state.commands, 1);
+    }],
+    ['an applied but unsaved zone leaves initialization active', async () => {
+      const h = harness(); h.state.zone = 'Asia/Tokyo';
+      await h.c.syncTimezone({timezoneId: 'America/Santiago', timezoneInitialized: false, timezoneAutomatic: false});
+      assert.equal(h.state.payloads[0].timezoneAutoInit, true);
+      await h.c.syncTimezone({timezoneId: 'Asia/Tokyo', timezoneInitialized: false, timezoneAutomatic: false});
+      assert.equal(h.state.commands, 1); // The persistence worker retries this same zone.
+    }],
+    ['disabling automatic while the catalog loads cancels detection', async () => {
+      const h = harness(), gate = deferred(), api = h.c.api;
+      h.c.api = async (url, options) => { if (url.endsWith('/zones')) await gate.promise; return api(url, options); };
+      const detection = h.c.changeTimezoneMode();
+      h.els.timezoneAutomatic.checked = false; await h.c.changeTimezoneMode();
+      gate.resolve(); await detection;
+      assert.equal(h.state.detections, 0); assert.equal(h.select.disabled, false);
+    }],
+    ['a failed pending detection cannot erase a later manual selection', async () => {
+      const h = harness(), gate = deferred();
+      h.c.api = async () => { await gate.promise; throw Error('Unavailable'); };
+      const detection = h.c.changeTimezoneMode();
+      h.els.timezoneAutomatic.checked = false; await h.c.changeTimezoneMode();
+      h.select.value = 'Asia/Tokyo'; gate.resolve(); await detection;
+      assert.equal(h.select.value, 'Asia/Tokyo'); assert.equal(h.state.detections, 0);
     }],
     ['saving a prior draft retains edits made while it was pending', async () => {
       const h = harness(), gate = deferred(); h.c.command = () => gate.promise;

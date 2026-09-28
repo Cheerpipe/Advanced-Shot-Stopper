@@ -76,10 +76,11 @@ It stays renewed while Admin is open, or expires 15 minutes after the last
 privileged action. **Lock** closes it immediately without releasing the browser
 claim. Most configuration changes require an idle machine.
 
-The first time you open the Web UI, it detects this phone or computer's time
-zone. Once you unlock Admin, the controller saves that zone when it is idle.
-Check **Admin → Date and time** to see the saved zone or choose another one;
-the preview shows the time in your selection before you save it. See
+Open any Web UI page to set up the time zone from this phone or computer when
+the controller is idle; unlocking Admin is not required. Setup continues until
+the zone has been saved successfully. In **Admin → Date and time**, automatic
+mode follows the device using the UI. Turn it off to choose a zone manually,
+check the preview, and save your settings. See
 [Time zone and NTP](settings/wifi.md#parameters-and-behavior).
 
 Save buttons in **Settings** and **Admin** stay dimmed until you change one of

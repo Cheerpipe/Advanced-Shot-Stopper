@@ -31,24 +31,32 @@ stays available.
 | **Boot with no credentials** | SoftAP up | SoftAP at boot with a **3 min** idle shutdown when no SoftAP stations are associated. See [AP](ap.md). |
 | **Boot with credentials** | STA first | SoftAP only if STA does not associate in about **25 s** (and STA never joined this boot). Then AP+STA until STA connects or SoftAP idle-stops; SoftAP is then stopped. |
 | **STA drops after a successful join** | retry STA only | SoftAP is **not** raised automatically. Use USB `AP_START` or reboot. |
-| **Time zone** (Admin → Date and time) | Detected from the first authorized browser | Saves a region/city such as `America/Santiago`. The controller applies that zone's daylight saving rules to new local times. Until a zone is saved, it uses UTC. |
+| **Automatic time zone** (Admin → Date and time) | On for a fresh installation | Follows the phone or computer using the Web UI. Turn off to choose a zone manually, then **Save settings**. Existing saved zones remain in manual mode after updating from firmware without this option. |
+| **Time zone** (Admin → Date and time) | Detected from the browser | Saves a region/city such as `America/Santiago`. Read-only while automatic mode is on. The controller applies that zone's daylight saving rules to new local times. Until a zone is configured, it uses UTC. |
 | **NTP server** | pool | Preset or custom hostname for time sync. |
 
-On a fresh installation, the Web UI reads the time zone of the phone or
-computer that opens it. After you unlock **Admin**, it saves that zone when
-the controller is ready for configuration. This happens once per factory
-setup; later visits from other devices do not change it. If detection is
-unavailable, choose a zone yourself. In **Admin → Date and time**, choose any
-supported zone or use **Detect from this device**, check the preview for the
-selected zone, then save. The detection button changes only the selection
-until you save it. The preview uses your browser's clock until NTP has set the
+On a fresh installation or after a factory reset, opening any Web UI page
+starts time-zone setup when the controller is ready for configuration. You do
+not need to enter or unlock **Admin**. This initial setup remains active until
+a zone has actually been saved to the controller, even if automatic mode is
+off. Detecting or applying a zone alone does not complete setup: failed writes
+are retried, and setup resumes if the controller restarts before saving.
+
+In **Admin → Date and time**, turn on **Automatic time zone** to select this
+phone or computer's detected zone and lock the selector. Turn it off to enable
+manual selection and stop automatic detection after initial setup. Check the
+preview, then **Save settings** to keep the mode and zone across restarts.
+If detection is unavailable, turn automatic mode off and choose a supported
+zone manually. The preview uses your browser's clock until NTP has set the
 controller's clock and labels that estimate clearly.
 
-**Detect from this device** reads the device's current zone each time you
-press it. The save confirmation means the change is applied; the status below
-the selector shows when it is saved to the controller. If writing fails, that
-status shows the failure while the controller retries. Edits made during a
-previous save remain available for your next save.
+While automatic mode is saved and the Web UI is active, its regular updates
+check the browser's current zone on any page: normally every four seconds,
+or every twenty seconds in Stats and History. Changes wait until configuration
+is allowed. Opening the UI from another device can therefore change the zone.
+Manual mode keeps your saved selection. The status below the selector shows
+when the zone is saved or whether the controller is retrying a failed write.
+Edits made during a previous save remain available for your next save.
 
 NTP supplies the current UTC time; the saved zone determines how that instant
 appears locally. Changing the zone does not change NTP, past history entries,
