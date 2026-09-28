@@ -10,6 +10,7 @@
 #include "nimble_client_platform.h"
 #else
 #include "ShotStopperBleRuntime.h"
+#include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -2739,26 +2740,32 @@ NimbleScaleClient &clientFromStorage(void *storage) {
   return *reinterpret_cast<NimbleScaleClient *>(storage);
 }
 
-const NimbleScaleClient &clientFromStorage(const void *storage) {
-  return *reinterpret_cast<const NimbleScaleClient *>(storage);
-}
+// Placement storage keeps the facade free of NimBLE types, fixed-size, and
+// allocation-free. EXT_RAM_BSS_ATTR parks it in PSRAM on IDF builds that
+// allow external BSS, reclaiming the DRAM block; arduino-cli and host-test
+// builds compile the attribute away and keep the storage in DRAM.
+#if !defined(ESPRESSO_SCALE_BLE_HOST_TEST)
+EXT_RAM_BSS_ATTR alignas(8) uint8_t g_clientStorage[3328];
+#else
+alignas(8) uint8_t g_clientStorage[3328];
+#endif
 
 }  // namespace
 
 EspressoScaleBLE::EspressoScaleBLE(bool debug) {
-  static_assert(sizeof(NimbleScaleClient) <= NIMBLE_CLIENT_STORAGE_SIZE,
+  static_assert(sizeof(NimbleScaleClient) <= sizeof(g_clientStorage),
                 "increase fixed NimBLE client storage");
   static_assert(alignof(NimbleScaleClient) <= 8,
                 "NimBLE client storage alignment is insufficient");
-  new (_nimbleClientStorage) NimbleScaleClient(debug);
+  new (g_clientStorage) NimbleScaleClient(debug);
 }
 
 EspressoScaleBLE::~EspressoScaleBLE() {
-  clientFromStorage(_nimbleClientStorage).~NimbleScaleClient();
+  clientFromStorage(g_clientStorage).~NimbleScaleClient();
 }
 
 bool EspressoScaleBLE::init(const char *mac) {
-  NimbleScaleClient &client = clientFromStorage(_nimbleClientStorage);
+  NimbleScaleClient &client = clientFromStorage(g_clientStorage);
   client.disconnect();
   if (!client.startScan(mac, false, BLE_SCAN_BALANCED_INTERVAL,
                         BLE_SCAN_BALANCED_WINDOW, false)) {
@@ -2779,47 +2786,47 @@ bool EspressoScaleBLE::init(const char *mac) {
 bool EspressoScaleBLE::startScan(const char *mac, bool forceRestart,
                                  uint16_t interval, uint16_t window,
                                  bool addressScan) {
-  return clientFromStorage(_nimbleClientStorage)
+  return clientFromStorage(g_clientStorage)
       .startScan(mac, forceRestart, interval, window, addressScan);
 }
 
 bool EspressoScaleBLE::pollScan() {
-  return clientFromStorage(_nimbleClientStorage).poll();
+  return clientFromStorage(g_clientStorage).poll();
 }
 
 bool EspressoScaleBLE::isScanning() const {
-  return clientFromStorage(_nimbleClientStorage).isScanning();
+  return clientFromStorage(g_clientStorage).isScanning();
 }
 
 bool EspressoScaleBLE::isConnecting() const {
-  return clientFromStorage(_nimbleClientStorage).isConnecting();
+  return clientFromStorage(g_clientStorage).isConnecting();
 }
 
 void EspressoScaleBLE::disconnect() {
-  clientFromStorage(_nimbleClientStorage).disconnect();
+  clientFromStorage(g_clientStorage).disconnect();
 }
 
 ScaleCommandResult EspressoScaleBLE::tare() {
-  return clientFromStorage(_nimbleClientStorage).writeOp(ScaleOp::Tare);
+  return clientFromStorage(g_clientStorage).writeOp(ScaleOp::Tare);
 }
 
 ScaleCommandResult EspressoScaleBLE::startTimer() {
-  return clientFromStorage(_nimbleClientStorage).writeOp(ScaleOp::StartTimer);
+  return clientFromStorage(g_clientStorage).writeOp(ScaleOp::StartTimer);
 }
 
 ScaleCommandResult EspressoScaleBLE::stopTimer() {
-  return clientFromStorage(_nimbleClientStorage).writeOp(ScaleOp::StopTimer);
+  return clientFromStorage(g_clientStorage).writeOp(ScaleOp::StopTimer);
 }
 
 ScaleCommandResult EspressoScaleBLE::resetTimer() {
-  return clientFromStorage(_nimbleClientStorage).writeOp(ScaleOp::ResetTimer);
+  return clientFromStorage(g_clientStorage).writeOp(ScaleOp::ResetTimer);
 }
 
 ScaleCommandResult EspressoScaleBLE::tareStartTimer() {
   if (!supportsTareStartTimer()) {
     return ScaleCommandResult::Unsupported;
   }
-  return clientFromStorage(_nimbleClientStorage)
+  return clientFromStorage(g_clientStorage)
       .writeOp(ScaleOp::CombinedTareStart);
 }
 
@@ -2850,12 +2857,12 @@ ScaleCommandResult EspressoScaleBLE::setBeepLevel(uint8_t level) {
   if (level > available.volumeMax) {
     return ScaleCommandResult::InvalidArgument;
   }
-  return clientFromStorage(_nimbleClientStorage)
+  return clientFromStorage(g_clientStorage)
       .writeOp(ScaleOp::SetVolume, level);
 }
 
 ScaleCommandResult EspressoScaleBLE::heartbeat() {
-  NimbleScaleClient &client = clientFromStorage(_nimbleClientStorage);
+  NimbleScaleClient &client = clientFromStorage(g_clientStorage);
   if (!client.features().has(ScaleFeatureHeartbeat)) {
     return ScaleCommandResult::Unsupported;
   }
@@ -2866,7 +2873,7 @@ ScaleCommandResult EspressoScaleBLE::powerOff() {
   if (!supportsPowerOff()) {
     return ScaleCommandResult::Unsupported;
   }
-  return clientFromStorage(_nimbleClientStorage).writeOp(ScaleOp::PowerOff);
+  return clientFromStorage(g_clientStorage).writeOp(ScaleOp::PowerOff);
 }
 
 bool EspressoScaleBLE::supportsPowerOff() {
@@ -2874,64 +2881,64 @@ bool EspressoScaleBLE::supportsPowerOff() {
 }
 
 float EspressoScaleBLE::getWeight() const {
-  return clientFromStorage(_nimbleClientStorage).weight();
+  return clientFromStorage(g_clientStorage).weight();
 }
 
 ScaleWeightSample EspressoScaleBLE::getWeightSample() const {
-  return clientFromStorage(_nimbleClientStorage).weightSample();
+  return clientFromStorage(g_clientStorage).weightSample();
 }
 
 uint32_t EspressoScaleBLE::notificationSequence() const {
-  return clientFromStorage(_nimbleClientStorage).notificationSequence();
+  return clientFromStorage(g_clientStorage).notificationSequence();
 }
 
 bool EspressoScaleBLE::hasTimer() const {
-  return clientFromStorage(_nimbleClientStorage).hasTimer();
+  return clientFromStorage(g_clientStorage).hasTimer();
 }
 
 uint32_t EspressoScaleBLE::getTimerMs() const {
-  return clientFromStorage(_nimbleClientStorage).timerMs();
+  return clientFromStorage(g_clientStorage).timerMs();
 }
 
 uint32_t EspressoScaleBLE::lastTimerAgeMs() const {
-  return clientFromStorage(_nimbleClientStorage).timerAgeMs();
+  return clientFromStorage(g_clientStorage).timerAgeMs();
 }
 
 bool EspressoScaleBLE::heartbeatRequired() const {
-  return clientFromStorage(_nimbleClientStorage).heartbeatRequired();
+  return clientFromStorage(g_clientStorage).heartbeatRequired();
 }
 
 bool EspressoScaleBLE::isConnected() {
-  return clientFromStorage(_nimbleClientStorage).isConnected();
+  return clientFromStorage(g_clientStorage).isConnected();
 }
 
 bool EspressoScaleBLE::isLinkUp() const {
-  return clientFromStorage(_nimbleClientStorage).isLinkUp();
+  return clientFromStorage(g_clientStorage).isLinkUp();
 }
 
 bool EspressoScaleBLE::communicationSilenced() const {
-  return clientFromStorage(_nimbleClientStorage).communicationSilenced();
+  return clientFromStorage(g_clientStorage).communicationSilenced();
 }
 
 uint32_t EspressoScaleBLE::communicationSilenceRemainingMs() const {
-  return clientFromStorage(_nimbleClientStorage)
+  return clientFromStorage(g_clientStorage)
       .communicationSilenceRemainingMs();
 }
 
 bool EspressoScaleBLE::newWeightAvailable() {
-  return clientFromStorage(_nimbleClientStorage).newWeightAvailable();
+  return clientFromStorage(g_clientStorage).newWeightAvailable();
 }
 
 ScaleFeatureSet EspressoScaleBLE::features() const {
-  return clientFromStorage(_nimbleClientStorage).features();
+  return clientFromStorage(g_clientStorage).features();
 }
 
 ScaleModel EspressoScaleBLE::model() const {
-  return clientFromStorage(_nimbleClientStorage).model();
+  return clientFromStorage(g_clientStorage).model();
 }
 
 const char *EspressoScaleBLE::defaultFriendlyName() const {
-  const NimbleScaleClient &client = clientFromStorage(_nimbleClientStorage);
+  const NimbleScaleClient &client = clientFromStorage(g_clientStorage);
   return client.isLinkUp() ? scaleDefaultFriendlyName(client.name()) : "";
 }
 
@@ -2941,30 +2948,30 @@ bool EspressoScaleBLE::supportedCommandAt(size_t index,
 }
 
 const char *EspressoScaleBLE::connectedProtocolName() const {
-  return clientFromStorage(_nimbleClientStorage).protocolName();
+  return clientFromStorage(g_clientStorage).protocolName();
 }
 
 const char *EspressoScaleBLE::address() const {
-  return clientFromStorage(_nimbleClientStorage).address();
+  return clientFromStorage(g_clientStorage).address();
 }
 
 const char *EspressoScaleBLE::localName() const {
-  return clientFromStorage(_nimbleClientStorage).name();
+  return clientFromStorage(g_clientStorage).name();
 }
 
 bool EspressoScaleBLE::isDirectedScan() const {
-  return clientFromStorage(_nimbleClientStorage).directedScan();
+  return clientFromStorage(g_clientStorage).directedScan();
 }
 
 bool EspressoScaleBLE::takeSeenAdvertisement(char *macOut, size_t macCapacity,
                                              char *nameOut,
                                              size_t nameCapacity) {
-  return clientFromStorage(_nimbleClientStorage)
+  return clientFromStorage(g_clientStorage)
       .takeSeenAdvertisement(macOut, macCapacity, nameOut, nameCapacity);
 }
 
 ScaleDisconnectReason EspressoScaleBLE::lastDisconnectReason() const {
-  return clientFromStorage(_nimbleClientStorage).lastReason();
+  return clientFromStorage(g_clientStorage).lastReason();
 }
 
 const char *EspressoScaleBLE::lastDisconnectReasonName() const {
@@ -2972,41 +2979,41 @@ const char *EspressoScaleBLE::lastDisconnectReasonName() const {
 }
 
 uint8_t EspressoScaleBLE::connectAttemptCount() const {
-  return clientFromStorage(_nimbleClientStorage).connectAttempts();
+  return clientFromStorage(g_clientStorage).connectAttempts();
 }
 
 uint8_t EspressoScaleBLE::connectStepId() const {
-  return clientFromStorage(_nimbleClientStorage).stateId();
+  return clientFromStorage(g_clientStorage).stateId();
 }
 
 uint32_t EspressoScaleBLE::lastValidPacketAgeMs() const {
-  return clientFromStorage(_nimbleClientStorage).lastPacketAgeMs();
+  return clientFromStorage(g_clientStorage).lastPacketAgeMs();
 }
 
 uint32_t EspressoScaleBLE::rejectedPacketCount() const {
-  return clientFromStorage(_nimbleClientStorage).rejectedPackets();
+  return clientFromStorage(g_clientStorage).rejectedPackets();
 }
 
 uint32_t EspressoScaleBLE::reconnectCount() const {
-  return clientFromStorage(_nimbleClientStorage).reconnects();
+  return clientFromStorage(g_clientStorage).reconnects();
 }
 
 ScaleBleTimingSnapshot EspressoScaleBLE::timingSnapshot() const {
-  return clientFromStorage(_nimbleClientStorage).timing();
+  return clientFromStorage(g_clientStorage).timing();
 }
 
 int32_t EspressoScaleBLE::lastBackendStatus() const {
-  return clientFromStorage(_nimbleClientStorage).lastRawStatus();
+  return clientFromStorage(g_clientStorage).lastRawStatus();
 }
 
 ScaleBleDiagnostics EspressoScaleBLE::diagnostics() const {
-  return clientFromStorage(_nimbleClientStorage).diagnostics();
+  return clientFromStorage(g_clientStorage).diagnostics();
 }
 
 ScaleBleBackendHealth EspressoScaleBLE::backendHealth() const {
-  return clientFromStorage(_nimbleClientStorage).health();
+  return clientFromStorage(g_clientStorage).health();
 }
 
 int EspressoScaleBLE::linkRssi() {
-  return clientFromStorage(_nimbleClientStorage).rssi();
+  return clientFromStorage(g_clientStorage).rssi();
 }

@@ -64,6 +64,14 @@ CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=8
 CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16
 CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8
+# Cache TX buffers back up AMPDU frames awaiting the block-ack window; each
+# costs ~1.6 KB of internal DMA RAM (the IDF default of 32 pools ~51 KB).
+# 16 stays above the 2x AMPDU_TX_BA_WIN floor (window is 6) while halving the
+# internal pool, protecting the largest contiguous DRAM block.
+CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM=16
+# Management short buffers serve SoftAP beacons/association only; 16 covers
+# STA + SoftAP with idle association traffic.
+CONFIG_ESP_WIFI_MGMT_SBUF_NUM=16
 # CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT is not set
 # IPv6 must stay enabled: arduino-esp32 publicly requires espressif/esp-modbus,
 # whose TCP port fails to compile when CONFIG_LWIP_IPV6 is unset

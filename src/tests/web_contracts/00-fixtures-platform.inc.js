@@ -643,9 +643,9 @@ if (/#define\s+BLE_CONNECT_TIMEOUT_MS\s+4000UL/.test(bleLibrary)) {
       'GAP connect timeout must stay under the 5 s task watchdog (not 4 s)');
 }
 if (!bleLibrary.includes(
-        'return clientFromStorage(_nimbleClientStorage).isLinkUp()') ||
+        'return clientFromStorage(g_clientStorage).isLinkUp()') ||
     !bleLibrary.includes(
-        'return clientFromStorage(_nimbleClientStorage).newWeightAvailable()')) {
+        'return clientFromStorage(g_clientStorage).newWeightAvailable()')) {
   throw new Error(
       'EspressoScaleBLE facade must delegate link and packet state to native NimBLE storage');
 }

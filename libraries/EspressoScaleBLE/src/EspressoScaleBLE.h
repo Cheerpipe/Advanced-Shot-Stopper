@@ -176,13 +176,6 @@ class EspressoScaleBLE {
         ScaleBleDiagnostics diagnostics() const;
         ScaleBleBackendHealth backendHealth() const;
         int linkRssi();
-
-    private:
-        // Placement storage keeps the implementation private, fixed-size and
-        // allocation-free while preventing NimBLE types from leaking through
-        // the public facade into ShotStopperScaleWorker.
-        static constexpr size_t NIMBLE_CLIENT_STORAGE_SIZE = 3328;
-        alignas(8) uint8_t _nimbleClientStorage[NIMBLE_CLIENT_STORAGE_SIZE];
 };
 
 #endif
