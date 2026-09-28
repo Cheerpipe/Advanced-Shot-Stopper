@@ -198,6 +198,7 @@ void processWebCommand(const WebCommand &command) {
         }
       }
       if (candidate.timezoneSource >= 3) candidate.timezoneSource = 1;
+      candidate.ntpSyncEnabled = command.config.ntpSyncEnabled;
       candidate.ntpServerPreset = command.config.ntpServerPreset;
       memcpy(candidate.ntpServerCustom, command.config.ntpServerCustom,
              sizeof(candidate.ntpServerCustom));

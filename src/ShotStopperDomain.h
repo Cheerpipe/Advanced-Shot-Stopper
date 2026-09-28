@@ -66,7 +66,7 @@ namespace shotstopper {
 constexpr uint32_t SERIAL_BAUD = 115200;
 // Fresh persistence baseline. Earlier firmware schemas are intentionally not
 // accepted; install this contract with a full flash erase over USB.
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 3;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 4;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;
@@ -613,7 +613,6 @@ inline BuzzerPattern buzzerPatternForExtendedPulseRate(uint8_t rate) {
   return BuzzerPattern::NONE;
 }
 
-
 enum class LogLevel : uint8_t {
   CRITICAL = 0,
   ERROR = 1,
@@ -623,7 +622,7 @@ enum class LogLevel : uint8_t {
   NONE = 5
 };
 
-// Fixed NVS/UI layout; changing offsets or size requires a settings migration.
+// Fixed NVS/UI layout; size or offset changes bump CONFIG_SCHEMA_VERSION.
 struct RuntimeConfig {
   uint32_t revision = 1;
   uint8_t goalWeightG = DEFAULT_GOAL_WEIGHT_G;
@@ -743,17 +742,17 @@ struct RuntimeConfig {
   uint8_t shotReactTimeoutS = SHOT_STOPPER_DEFAULT_SHOT_REACTION_TIMEOUT_S;
   // Firmware rinse on/off. Default off for every machine type.
   bool rinseEnabled = SHOT_STOPPER_DEFAULT_RINSE_ENABLED;
-  // Makes the read-only Diagnostic view available without an Admin unlock.
-  // This occupies a former trailing padding byte, preserving the blob size.
-  bool showDiagnosticPage = true;
+  // Read-only Diagnostic view without Admin unlock; occupies former padding.
+  bool showDiagnosticPage = false;
   // Retare even when no brew is active.
   bool autoTareOutsideBrew = true;
   uint8_t bbwAlgorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
+  bool ntpSyncEnabled = true;  // NTP sync master switch; Sync now still works.
 };
 
 #include "domain/ShotStopperTimeZoneState.inc"
 
-static_assert(sizeof(RuntimeConfig) == 336,
+static_assert(sizeof(RuntimeConfig) == 344,
               "RuntimeConfig NVS size changed; bump CONFIG_SCHEMA_VERSION");
 static_assert(offsetof(RuntimeConfig, stopPulseTenMs) == 322,
               "RuntimeConfig stopPulseTenMs offset changed");
@@ -1896,7 +1895,7 @@ struct WebCommand {
   CommandResultState resultState = CommandResultState::NONE;
 };
 
-static_assert(sizeof(WebCommand) <= 416, "WebCommand too large for queue");
+static_assert(sizeof(WebCommand) <= 424, "WebCommand too large for queue");
 static_assert(std::is_trivially_copyable<WebCommand>::value,
               "FreeRTOS queues copy WebCommand as bytes");
 

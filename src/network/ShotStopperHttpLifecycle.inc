@@ -964,6 +964,7 @@ void ShotStopperNetwork::handleNtpFailure(uint32_t now) {
 void ShotStopperNetwork::serviceNtp(uint32_t now, bool staConnected) {
   dataMux_.lock();
   const uint32_t settingsGeneration = ntpSettingsGeneration_;
+  const bool ntpSyncEnabled = settings_.runtime.ntpSyncEnabled;
   dataMux_.unlock();
   if (settingsGeneration != ntpAppliedSettingsGeneration_) {
     ntpAppliedSettingsGeneration_ = settingsGeneration;
@@ -974,6 +975,18 @@ void ShotStopperNetwork::serviceNtp(uint32_t now, bool staConnected) {
     stopNtp();
     staNtpEligibleAtMs_ = 0;
     g_wallClock.markDisabled();
+    return;
+  }
+
+  // Automatic sync disabled: never arm, retry, or resync. A pending explicit
+  // Sync now is still honored; cancelSyncing keeps an existing anchor valid.
+  if (!ntpSyncEnabled && !ntpManualSyncPending_) {
+    if (ntpStarted_) {
+      stopNtp();
+    }
+    g_wallClock.cancelSyncing();
+    ntpRearmPending_ = false;
+    ntpActivitySyncPending_ = false;
     return;
   }
 

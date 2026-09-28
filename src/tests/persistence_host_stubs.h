@@ -115,9 +115,11 @@ class Preferences {
     persistence_host::putRaw(nameSpace_.c_str(), key, input, length);
     if (persistence_host::corruptNextWrite && length > 0) {
       persistence_host::corruptNextWrite = false;
+      // Flip the leading magic byte: the trailing bytes may be layout padding,
+      // which does not participate in record validation.
       auto &stored = persistence_host::records[
           persistence_host::storageKey(nameSpace_.c_str(), key)];
-      stored[length - 1] ^= 0x5AU;
+      stored[0] ^= 0x5AU;
     }
     persistence_host::lastOperationError = 0;
     return length;

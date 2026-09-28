@@ -378,7 +378,8 @@ void ShotStopperNetwork::syncLiveRuntime(const RuntimeConfig &runtime,
 
 bool ShotStopperNetwork::ntpSettingsChanged(const RuntimeConfig &before,
                                             const RuntimeConfig &after) {
-  return before.ntpServerPreset != after.ntpServerPreset ||
+  return before.ntpSyncEnabled != after.ntpSyncEnabled ||
+         before.ntpServerPreset != after.ntpServerPreset ||
          strncmp(before.ntpServerCustom, after.ntpServerCustom,
                  sizeof(before.ntpServerCustom)) != 0;
 }

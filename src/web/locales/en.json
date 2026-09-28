@@ -17,6 +17,8 @@
     "admin.allows_all_web_ui_visitors_to_use": "Allows all Web UI visitors to use Diagnostic. Off hides and blocks the page.",
     "admin.apply_error": " · apply error ",
     "admin.auto": "Auto",
+    "admin.automatic_date_time": "Automatic date & time",
+    "admin.automatic_date_time_hint": "Keeps the controller clock accurate automatically using the NTP server below. Turn off to sync the clock only with Sync now.",
     "admin.automatic_or_fixed_address_avoid_192_168": "Automatic or fixed address. Avoid 192.168.4.x.",
     "admin.ble": "BLE",
     "admin.ble_scan_mode": "BLE scan mode",

@@ -31,8 +31,9 @@ stays available.
 | **Boot with no credentials** | SoftAP up | SoftAP at boot with a **3 min** idle shutdown when no SoftAP stations are associated. See [AP](ap.md). |
 | **Boot with credentials** | STA first | SoftAP only if STA does not associate in about **25 s** (and STA never joined this boot). Then AP+STA until STA connects or SoftAP idle-stops; SoftAP is then stopped. |
 | **STA drops after a successful join** | retry STA only | SoftAP is **not** raised automatically. Use USB `AP_START` or reboot. |
-| **Automatic time zone** (Admin → Date and time) | On for a fresh installation | Follows the phone or computer using the Web UI. Turn off to choose a zone manually, then **Save settings**. Existing saved zones remain in manual mode after updating from firmware without this option. |
+| **Automatic time zone** (Admin → Date and time) | On for a fresh installation | Follows the phone or computer using the Web UI. Turn off to choose a zone manually, then **Save settings**. |
 | **Time zone** (Admin → Date and time) | Detected from the browser | Saves a region/city such as `America/Santiago`. Read-only while automatic mode is on. The controller applies that zone's daylight saving rules to new local times. Until a zone is configured, it uses UTC. |
+| **Automatic date & time** (Admin → Date and time) | On | Keeps the controller clock accurate by syncing with the NTP server below. Turn off to stop automatic syncing; **Sync now** still sets the clock once on demand. |
 | **NTP server** | pool | Preset or custom hostname for time sync. |
 
 On a fresh installation or after a factory reset, opening any Web UI page

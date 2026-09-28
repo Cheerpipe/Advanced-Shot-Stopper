@@ -235,8 +235,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // ~1.6 KB of HTML source allowance; compressed asset budgets stay fixed.
 // Save+revert bars for the Admin BLE, Power, and Frontend groups add ~1 KB
 // of HTML source allowance; compressed asset budgets stay fixed.
-if (htmlBytes > 76700) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 76700)`);
+// The Admin Automatic date & time toggle (NTP sync master switch) adds
+// ~0.2 KB of HTML source allowance; compressed asset budgets stay fixed.
+if (htmlBytes > 76900) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 76900)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -305,8 +307,10 @@ if (jsBytes > 220200) {
 // toggle) adds ~0.25 KB of combined source allowance.
 // Deferred Admin BLE/Power/Frontend saving adds ~5 KB of combined source
 // allowance (bars in HTML, dirty/save/revert logic in JS).
-if (htmlBytes + jsBytes > 296800) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 296800)`);
+// The Admin Automatic date & time toggle adds ~0.4 KB of combined source
+// allowance (checkbox row in HTML, payload/load/dirty hooks in JS).
+if (htmlBytes + jsBytes > 297200) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 297200)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

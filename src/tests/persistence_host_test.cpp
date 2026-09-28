@@ -53,7 +53,9 @@ void p01_defaults_are_valid() {
         static_cast<uint8_t>(StaConfigState::CONFIRMED));
   CHECK(!settings.lkgValid);
   CHECK(settings.staWifiSleep);
-  CHECK(settings.runtime.showDiagnosticPage);
+  CHECK(!settings.runtime.showDiagnosticPage);
+  CHECK(settings.runtime.ntpSyncEnabled);
+  CHECK(settings.runtime.timezoneAutomatic == 1);
   CHECK(settings.runtime.autoTareOutsideBrew);
   CHECK(idleAccessoryRetareEnabled(settings.runtime.noScaleBbwMode));
   CHECK(settings.runtime.powerManagementEnabled);
@@ -1063,13 +1065,13 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(ShotPreset) <= 136);
   CHECK(sizeof(ShotPresetBank) <= 1100);
   CHECK(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET);
-  CHECK(sizeof(PersistedSettings) == 3304);
+  CHECK(sizeof(PersistedSettings) == 3312);
   CHECK(FLASH_IO_SCRATCH_BYTES == sizeof(PersistedSettings));
-  CHECK(sizeof(RuntimeConfig) == 336);
+  CHECK(sizeof(RuntimeConfig) == 344);
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
   CHECK(sizeof(ControlStatusSnapshot) <= 4096);
   CHECK(sizeof(ControlGateSnapshot) <= 32);
-  CHECK(sizeof(WebCommand) <= 416);
+  CHECK(sizeof(WebCommand) <= 424);
   WebCommand command;
   command.type = WebCommandType::PRESET_OP;
   command.config.goalWeightG = 42;
@@ -2115,7 +2117,7 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
   constexpr size_t remainingRecords = lastShotEntries + 6U + 3U + 24U + 32U;
   constexpr size_t applicationEntries = settingsEntries + remainingRecords;
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
-  CHECK(sizeof(PersistedSettings) == 3304U);
+  CHECK(sizeof(PersistedSettings) == 3312U);
   CHECK(settingsEntries == 212U);
   CHECK(lastShotEntries == 11U);
   CHECK(applicationEntries == 288U);
@@ -2362,20 +2364,21 @@ void p86_timezone_preference_and_durable_initialization() {
   CHECK(loadPersistedSettings(loaded));
   CHECK(loaded.runtime.timezoneAutomatic == 1);
 
-  // OTA from the existing schema: do not interpret old padding as a preference.
+  settings.runtime.ntpSyncEnabled = false;
+  CHECK(savePersistedSettings(settings));
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(!loaded.runtime.ntpSyncEnabled);
+  settings.runtime.ntpSyncEnabled = true;
+  CHECK(savePersistedSettings(settings));
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.runtime.ntpSyncEnabled);
+
+  // No migration path: an out-of-range preference byte rejects the record.
   resetHostPersistence();
-  settings.reserved = 0;
   settings.runtime.timezoneAutomatic = 0xA5;
   settings.checksum = persistedSettingsChecksum(settings);
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings, sizeof(settings));
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.runtime.timezoneAutomatic == 0);
-  CHECK(strcmp(loaded.runtime.timezoneId, "America/Santiago") == 0);
-  CHECK(validPersistedSettings(loaded));
-  CHECK(resetPersistedSettingsToFactory(loaded));
-  CHECK(!durableTimezoneSaved().load());
-  CHECK(loaded.runtime.timezoneAutomatic == 1);
-  CHECK(loadPersistedSettings(loaded));
+  CHECK(!loadPersistedSettings(loaded));
   CHECK(!durableTimezoneSaved().load());
 }
 

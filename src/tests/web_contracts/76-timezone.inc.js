@@ -22,7 +22,7 @@
     const select = {value: '', isConnected: true, options: [{}],
       replaceChildren(f) { this.options = f.children; this.value = ''; }};
     const els = {timezoneId: select, timezoneAutomatic: {checked: true}, timezonePreview: {}, timezoneSaveState: {},
-      ntpServerPreset: {value: 'pool'}, ntpServerCustom: {value: ''}};
+      ntpSyncEnabled: {checked: true}, ntpServerPreset: {value: 'pool'}, ntpServerCustom: {value: ''}};
     const calls = [], state = {zone: 'America/Santiago', commands: 0, detections: 0, payloads: []};
     const c = vm.createContext({$: id => els[id], Date, performance: {now: () => 1000},
       document: {hidden: false, createDocumentFragment: () => ({children: [], appendChild(o) { this.children.push(o); }})},

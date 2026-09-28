@@ -13,7 +13,6 @@ constexpr const char *SETTINGS_NAMESPACE = "shotstopper";
 constexpr const char *SETTINGS_SLOT_A = "settingsA";
 constexpr const char *SETTINGS_SLOT_B = "settingsB";
 constexpr const char *DEFAULT_DEVICE_PASSWORD = "ineedacoffee";
-constexpr uint32_t TIMEZONE_PREFERENCE_TAG = 0x545A4131U;  // "TZA1"
 struct PersistedSettings {
   uint32_t magic = PERSISTED_SETTINGS_MAGIC;
   uint32_t schemaVersion = CONFIG_SCHEMA_VERSION;
@@ -53,8 +52,6 @@ struct PersistedSettings {
   char deviceName[DEVICE_NAME_CAPACITY] = {};
   // Optional Micra cloud account, selected machine and independent options.
   LineaMicraPersistedSettings lineaMicra = {};
-  // Marks timezoneAutomatic as initialized; older records used zero here.
-  uint32_t reserved = 0;
   uint32_t checksum = 0;
 };
 
@@ -80,7 +77,7 @@ static_assert(offsetof(PersistedSettings, storageRevision) + sizeof(uint32_t) ==
 
 static_assert(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET,
               "PersistedSettings exceeds NVS dual-slot budget");
-static_assert(sizeof(PersistedSettings) == 3304,
+static_assert(sizeof(PersistedSettings) == 3312,
               "PersistedSettings size changed; bump CONFIG_SCHEMA_VERSION");
 
 inline uint32_t persistedSettingsChecksum(const PersistedSettings &settings) {

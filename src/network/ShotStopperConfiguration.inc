@@ -103,6 +103,7 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       jsonFieldPresent(root, "timezoneAutoInit") ||
       jsonFieldPresent(root, "timezoneDetected") ||
       jsonFieldPresent(root, "timezoneAutomatic") ||
+      jsonFieldPresent(root, "ntpSyncEnabled") ||
       jsonFieldPresent(root, "ntpServerPreset") ||
       jsonFieldPresent(root, "ntpServerCustom");
   // Log/debug fields are public while the diagnostic page is enabled; the
@@ -176,7 +177,8 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       "maxBbwBrewTimeMs", "autoToManualGuardEnabled", "autoToManualGuardLimitMode",
       "autoToManualGuardManualLimitMs", "autoToManualGuardBaselineMs",
       "weightOffsetBaselineG", "timezoneId", "timezoneAutoInit",
-      "timezoneDetected", "timezoneAutomatic", "ntpServerPreset",
+      "timezoneDetected", "timezoneAutomatic", "ntpSyncEnabled",
+      "ntpServerPreset",
       "ntpServerCustom", "scaleMacCacheMode", "bookooMuteOnBuzzerOnly",
       "bookooConnectBeepLevel", "noScaleBbwMode", "avoidBbwShotWithoutScale",
       "noScaleAllowRinseWhileArmed", "lastShotCooldownMs",
@@ -438,6 +440,9 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   } else if (jsonFieldPresent(root, "timezoneAutomatic") &&
              !jsonBoolean(root, "timezoneAutomatic", timezoneAutomatic)) {
     parseError = "timezoneAutomatic must be a boolean.";
+  } else if (jsonFieldPresent(root, "ntpSyncEnabled") &&
+             !jsonBoolean(root, "ntpSyncEnabled", candidate.ntpSyncEnabled)) {
+    parseError = "ntpSyncEnabled must be a boolean.";
   } else if (jsonFieldPresent(root, "ntpServerPreset") &&
              !jsonNtpPreset(root, "ntpServerPreset",
                             candidate.ntpServerPreset)) {

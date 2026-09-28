@@ -358,7 +358,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         ",\"timezoneSource\":%u,"
         "\"firstTimezoneAutoUtcSec\":%lu,\"firstTimezoneAutoUptimeUs\":%llu,"
         "\"firstTimezoneAutoBootId\":%lu,\"firstTimezoneAutoClockQuality\":%u,"
-        "\"ntpServerPreset\":\"%s\","
+        "\"ntpServerPreset\":\"%s\",\"ntpSyncEnabled\":%s,"
         "\"ntpServerCustom\":\"%s\",\"showDiagnosticPage\":%s,\"powerManagementEnabled\":%s,"
         "\"persistPending\":%s,\"persistFailed\":%s",
         static_cast<unsigned>(control.config.timezoneSource),
@@ -366,7 +366,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long long>(control.config.firstTimezoneAutoUptimeUs),
         static_cast<unsigned long>(control.config.firstTimezoneAutoBootId),
         static_cast<unsigned>(control.config.firstTimezoneAutoClockQuality),
-        ntpPresetId(control.config.ntpServerPreset), safeNtpCustom,
+        ntpPresetId(control.config.ntpServerPreset),
+        control.config.ntpSyncEnabled ? "true" : "false", safeNtpCustom,
         control.config.showDiagnosticPage ? "true" : "false",
         control.config.powerManagementEnabled ? "true" : "false",
         control.configPersistPending ? "true" : "false",

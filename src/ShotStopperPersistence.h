@@ -30,8 +30,7 @@ inline bool validPersistedSettings(const PersistedSettings &settings) {
       settings.checksum != persistedSettingsChecksum(settings) ||
       validateRuntimeConfig(settings.runtime) != ConfigValidationError::NONE ||
       settings.runtime.timezoneSource >= 3 ||
-      (settings.reserved == TIMEZONE_PREFERENCE_TAG &&
-       settings.runtime.timezoneAutomatic > 1) ||
+      settings.runtime.timezoneAutomatic > 1 ||
       !validBullseyeMelodyConfig(settings.bullseyeMelody) ||
       !validateShotPresetBank(settings.presets, settings.runtime.retareWindowMs,
                               settings.runtime.autoRetare) ||
@@ -62,7 +61,6 @@ inline void finalizePersistedSettings(PersistedSettings &settings) {
   settings.magic = PERSISTED_SETTINGS_MAGIC;
   settings.schemaVersion = CONFIG_SCHEMA_VERSION;
   settings.structureSize = sizeof(PersistedSettings);
-  settings.reserved = TIMEZONE_PREFERENCE_TAG;
   settings.checksum = 0;
   settings.checksum = persistedSettingsChecksum(settings);
 }
@@ -87,10 +85,6 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
     return false;
   }
   if (!validPersistedSettings(settings)) return false;
-  if (settings.reserved != TIMEZONE_PREFERENCE_TAG) {
-    settings.runtime.timezoneAutomatic = settings.runtime.timezoneId[0] == '\0';
-    finalizePersistedSettings(settings);
-  }
   return true;
 }
 
@@ -218,7 +212,9 @@ inline bool savePersistedSettings(PersistedSettings &settings) {
   const bool written =
       preferences.putBytes(target, &scratch, sizeof(scratch)) == sizeof(scratch);
   if (written) {
-    settings = scratch;
+    // Bitwise copy: the read-back verification below compares every stored
+    // byte, including tail padding that struct assignment need not preserve.
+    memcpy(&settings, &scratch, sizeof(settings));
   }
   const bool saved = written && readSettingsSlot(preferences, target, scratch) &&
                      memcmp(&settings, &scratch, sizeof(scratch)) == 0;
@@ -306,7 +302,7 @@ inline bool resetPersistedSettingsToFactory(PersistedSettings &settings) {
       preferences.putBytes(SETTINGS_SLOT_B, &scratch, sizeof(scratch)) ==
       sizeof(scratch);
   if (secondSaved) {
-    settings = scratch;
+    memcpy(&settings, &scratch, sizeof(settings));
   }
   const bool secondVerified = secondSaved &&
       readSettingsSlot(preferences, SETTINGS_SLOT_B, scratch) &&

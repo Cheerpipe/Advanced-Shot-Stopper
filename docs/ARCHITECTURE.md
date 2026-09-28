@@ -75,7 +75,7 @@ Its adapter exposes only `NORMAL` or `WAKE_PASSTHROUGH`; Open Brew by Weight own
 passthrough and consumes wake gestures before brew, rinse, guards, scale,
 alerts, webhooks, and history. Those subsystems never depend on Micra types.
 
-The schema-3 settings blob retains the exact 310-byte
+The schema-4 settings blob retains the exact 310-byte
 `LineaMicraPersistedSettings` cloud account record and the two-byte per-preset
 Micra target in every profile so switching a build profile cannot reinterpret
 the persistence layout. Their names, validation and helpers remain Micra-owned;
@@ -106,8 +106,8 @@ Editing reset bases alone preserves current learning and evidence.
 Settings status publishes active-preset identity, both offsets, alpha baseline, gain/provenance
 and evidence count together in the existing coherent control snapshot.
 
-Settings schema 3 uses the current 336-byte `RuntimeConfig`, 104-byte
-`ShotPreset`, and 3,304-byte settings blob. Candidate
+Settings schema 4 uses the current 344-byte `RuntimeConfig`, 104-byte
+`ShotPreset`, and 3,312-byte settings blob. Candidate
 anchors/observations/generations are RAM only; deferred persistence retains
 offsets, gain/provenance, and profile through the existing dual-slot owner.
 `powerManagementEnabled`, webhook preset delivery, and Allow rinse while Armed
@@ -199,15 +199,15 @@ and [shot history](features/shot-history.md).
 
 ## Live settings notifications
 
-The global `timezoneId` is an IANA region/city string in the schema-3 settings
+The global `timezoneId` is an IANA region/city string in the schema-4 settings
 blob. Network validates it against the firmware's generated tzdata2026d
 catalog; control owns the effective setting and first-auto provenance; the
 existing persistence worker saves both in the same settings generation.
 The `timezoneAutomatic` preference occupies former runtime padding at byte 6,
-preserving the schema-3 layout and sizes. The existing reserved settings word
-tags this byte as initialized. Valid older records initialize it to manual
-when a zone exists, or automatic when empty, without reading legacy padding as
-a preference. OTA upgrades retain their saved zones and other settings.
+preserving the remaining layout. There is no record-generation tag or legacy
+derivation: records that do not match the current schema are rejected at load,
+so saved zones and other settings carry across OTA updates only when the
+schema is unchanged. Automatic time zone defaults to on for new records.
 Flash persistence publishes `timezoneInitialized` only after loading a valid
 saved zone or verifying a settings write containing one; factory reset clears
 it. Until then, a zone-only browser initialization is permitted without Admin.
@@ -253,11 +253,11 @@ scale's initial connection retain their
 own policy application paths. Persistence and status publication are independent
 of these operational triggers. No callbacks run from an ISR or across a flash
 write, and the OTA update path remains available. The settings layout is
-schema 3 for this clean-install release.
+schema 4 for this clean-install release.
 
 ## Residual qualification
 
-`RuntimeConfig` uses a 336-byte fixed layout inside the current schema-3
+`RuntimeConfig` uses a 344-byte fixed layout inside the current schema-4
 settings blob. `autoTareOutsideBrew` remains a global machine setting rather
 than part of the per-shot/preset recipe snapshot. No historical settings layout
 is interpreted at boot. The optional idle accessory retare uses spare bit 6 of
