@@ -445,8 +445,10 @@ if (generated.cssGzip.length > 7300) {
 // command) raises it to 37900 bytes.
 // The Settings Preferred scale (rename) link follows the selected history
 // entry, raising it to 37965 bytes.
-if (sentinelRuntimeGzip.length > 37965) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 37965-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Home last-shot moment label (status wall-time passthrough plus the
+// humanized render under the duration) raises it to 38000 bytes.
+if (sentinelRuntimeGzip.length > 38000) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 38000-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

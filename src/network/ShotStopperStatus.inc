@@ -657,7 +657,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"noScaleShotGuardEnabled\":%s,"
         "\"noScaleShotGuardArmed\":%s,\"noScaleBbwMode\":\"%s\","
         "\"endReason\":\"%s\","
-        "\"rating\":%u,\"shotLogId\":%lu,\"savePending\":%s},"
+        "\"rating\":%u,\"shotLogId\":%lu,\"savePending\":%s,"
+        "\"hasWallTime\":%s,\"endedAtUnixSec\":%lu,"
+        "\"endedAtLocalSec\":%lu},"
         "\"noScaleShotGuard\":{\"enabled\":%s,\"armed\":%s,"
         "\"mode\":\"%s\",\"cooldownRemainingMs\":%lu,"
         "\"scaleUsable\":%s},"
@@ -731,6 +733,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             ? static_cast<unsigned long>(homeLastShot.shotLogId)
             : 0UL,
         homeSavePending ? "true" : "false",
+        homeLastShot.hasWallTime ? "true" : "false",
+        static_cast<unsigned long>(homeLastShot.endedAtUnixSec),
+        static_cast<unsigned long>(homeLastShot.endedAtLocalSec),
         control.noScaleShotGuardEnabled ? "true" : "false",
         control.noScaleShotGuardArmed ? "true" : "false",
         noScaleBbwModeId(control.config.noScaleBbwMode),

@@ -242,6 +242,21 @@
   if (end.lastPanelShot().presetName !== 'Historical Double') {
     throw new Error('Last Good Shot must show its exact preset-name snapshot');
   }
+  if (end.lastPanelShot().momentSec !== null) {
+    throw new Error('A last shot without wall time must not produce a moment');
+  }
+  const timed = harness();
+  timed.clock.update({cycle: {active: false}, lastShot: {valid: true, durationMs: 4320,
+    currentWeightG: 36, goalWeightG: 36, shotType: 'auto', shotLogId: 8,
+    hasWallTime: true, endedAtLocalSec: 1770000000},
+    config: {}, scale: {}, shotCurve: {}});
+  if (timed.lastPanelShot().momentSec !== 1770000000) {
+    throw new Error('The last shot moment must reach the Home card render');
+  }
+  timed.clock.update(live(500));
+  if (timed.lastPanelShot().momentSec !== null) {
+    throw new Error('A live shot must not show the previous shot moment');
+  }
   end.clock.update({cycle: {active: false}, lastShot: {valid: false},
     config: {}, scale: {}, shotCurve: {}});
   if (end.elapsed.textContent !== '—' || end.pending.size || end.panelClears() !== 1) {
@@ -477,6 +492,8 @@ if (!ui.includes('id="shotPanel"') ||
     !css.includes('.shotCard .shotDur > div,.shotCard .shotActual > div') ||
     !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal avgflow avgflow maxflow maxflow" "err err drop drop ended ended" "shot shot preset preset rate rate"') ||
     !ui.includes('id="shotElapsed"') ||
+    !ui.includes('id="shotMoment"') ||
+    !ui.includes("formatHumanTime(d.momentSec)") ||
     !ui.includes('id="shotFirstDrop"') ||
     !ui.includes('id="shotCurrentWeight"') ||
     !partialHtml.home.includes('<strong>Yield</strong>') ||
@@ -501,6 +518,7 @@ if (!ui.includes('id="shotPanel"') ||
     ui.includes('class="shotHero"') ||
     !ui.includes('function updateShot(') ||
     !network.includes('firstDropElapsedMs') ||
+    !network.includes('\\"hasWallTime\\":%s,\\"endedAtUnixSec\\":%lu') ||
     !network.includes('retarePerformed') ||
     !network.includes('shotType') ||
     !network.includes('scaleProtocol') ||

@@ -23,6 +23,9 @@ guards ran or extended the shot, `shot_type`, `cut_type`
 (unrated) to 5. Rate a stored shot from its history card. The same stars are
 available on Home's **Current / Last Shot** card while the shot is the newest
 eligible history row; tapping the current star again clears the score.
+Under the duration, that Home card also shows when the shot ended, such as
+“Today at 19:06”, using the same friendly time wording as the Stats history
+cards. The time appears only when the clock was set when the shot finished.
 The preset snapshot is also shown on that Home card and on every Stats history
 card. Renaming or deleting a preset later does not rewrite a shot's displayed
 name.
