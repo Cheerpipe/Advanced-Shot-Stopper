@@ -36,7 +36,8 @@ growth headroom respectively. Flash rodata is 563,900 bytes, flash code is
 1,469,344 bytes, and linked DIRAM is 182,518 bytes; each retains its versioned
 allowance. The IANA 2026d catalog/rules and zone-aware Web UI account for the
 reviewed increase over the prior image. Immutable rules stay in flash; external
-BSS is 108,112 bytes, below its 114,688-byte ceiling. The 3 MiB OTA slot
+BSS is 237,904 bytes in the JTAG development profile, below its 240 KiB
+(245,760-byte) ceiling. The 3 MiB OTA slot
 remains the hard image limit, with about 30% free in this measured build.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
@@ -51,13 +52,16 @@ PSRAM before mapping overhead. Linker figures do not measure runtime heap;
 matched target memory, settings latency and loop-gap measurements remain
 required before qualification. PSRAM access may slow NVS integer operations.
 
-Both linker maps must also keep external BSS at or below 112 KiB (114,688 bytes) and retain
+Both linker maps must also keep external BSS at or below 240 KiB (245,760 bytes) and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
 objects to PSRAM would move synchronization state accessed under spinlocks.
-The current official profile builds use 108,112 bytes, leaving 6,576 bytes of
-reviewed growth headroom. This ceiling detects static-placement regressions;
-it is not the physical PSRAM limit or a runtime-heap measurement. The earlier
-96→104 KiB increase covered the V3 half-second shot-curve store.
+The current official JTAG development profile uses 237,904 bytes, leaving
+7,856 bytes of reviewed growth headroom. This ceiling detects
+static-placement regressions; it is not the physical PSRAM limit or a
+runtime-heap measurement. The earlier 96→104 KiB increase covered the V3
+half-second shot-curve store, and the 112→240 KiB increase covers the
+96→512-event diagnostic log ring, whose static PSRAM ring and serial dump
+snapshot grew by about 123 KiB.
 
 ## Runtime placement and allocation
 
