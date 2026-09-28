@@ -69,25 +69,17 @@ qualified. Use the printed `artifacts/runs/<run-id>/summary.json` and full log
 to inspect which steps ran. Exit 127 means a required dependency is missing;
 record the gate as failed and prepare the dependency explicitly.
 
-GitHub Actions publishes bounded-retention artifacts even when a validation
-command fails. The `validation-classify`, `validation-fast`, and
-`validation-host` archives contain the available console logs and `scripts/dev`
-run records. Each `open-brew-by-weight-ota-<profile>-jtag-off-remote-off` archive
-contains its firmware binary when the build succeeds, plus the
-available IDF command logs, static-analysis reports, and run records. Only steps
-that started can produce diagnostics; a failed prerequisite may leave later
-entries absent.
+Failed runs keep their evidence: only steps that started can produce
+diagnostics, and a failed prerequisite may leave later entries absent in the
+run record.
 
-Host and firmware jobs verify the required tools are present and runnable
+Every environment verifies the required tools are present and runnable
 before tests or builds — Node and Cppcheck carry no project version pin, so
-each environment uses its own current release. The Home Assistant job verifies
-Python and uv
-and refuses to update its lockfile during dependency sync. Subsequent integration
-checks run without syncing. Local firmware builds require ESP-IDF 6.1.0 and
-reject any change to the IDF component lock during a build.
-The firmware job activates the container's ESP-IDF environment before checking
-its tools and records the container path so prerequisite failures still produce
-a diagnostic artifact.
+the machine's current release is what runs. The Home Assistant checks verify
+Python and uv and refuse to update the lockfile during dependency sync;
+subsequent integration checks run without syncing. Firmware builds require
+ESP-IDF 6.1.0 and reject any change to the IDF component lock during a
+build.
 
 Classify concrete files, not a directory name such as `docs`. Safety-related
 documents and BLE/OTA references can select R3/R2 even though they are Markdown.

@@ -139,8 +139,7 @@ graph, including mDNS 1.13.1. The build fails if dependency resolution changes
 the lockfile; review and commit such updates separately. First firmware builds
 may need network access to resolve SDK components; prepare these dependencies
 before attempting an offline validation run. Host tests and firmware compilation
-need no running Home Assistant service, connected controller, Docker daemon, or
-GitHub account.
+need no running Home Assistant service or connected controller.
 
 ### Upgrade dependencies deliberately
 

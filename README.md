@@ -274,7 +274,7 @@ flash a board, operate the relay, or replace required HIL and manual evidence.
 | GPIO | General-Purpose Input/Output, a configurable electrical pin used to sense a switch or control a signal. Its assignment and polarity are safety-critical here. |
 | Guard | A protective rule that stops or limits a shot when measured behavior is outside the recipe's expected conditions. |
 | HIL | Hardware in the loop: testing with the real controller or representative electrical hardware so physical timing and I/O behavior can be observed. |
-| Host test | A test compiled and run on a computer or CI runner, without operating the ESP32, relay, or espresso machine. |
+| Host test | A test compiled and run on a computer, without operating the ESP32, relay, or espresso machine. |
 | HTTP | Hypertext Transfer Protocol, used by the local Web UI, webhooks, and update-related interfaces. |
 | ISR | Interrupt Service Routine, code that responds immediately to a hardware event and must obey stricter timing and concurrency rules. |
 | K2 | The README's example name for an optional external safety relay or barrier; its actual design depends on the machine and jurisdiction. |

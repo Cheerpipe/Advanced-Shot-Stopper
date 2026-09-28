@@ -2,8 +2,9 @@
 
 Start with `AGENTS.md`, the [documentation index](docs/README.md), and the
 nearest scoped `AGENTS.md`. Set up dependencies using [Build](docs/BUILD.md);
-tests never install packages or contact hardware implicitly. GitHub checks the
-installed tool versions before its jobs run tests or compile firmware.
+tests never install packages or contact hardware implicitly, and
+`./scripts/dev doctor` reports the local tool versions before tests or
+firmware compilation.
 Routine setup uses the committed npm, IDF, and uv locks; follow the
 [explicit upgrade steps](docs/BUILD.md#upgrade-dependencies-deliberately) when
 changing a dependency.
