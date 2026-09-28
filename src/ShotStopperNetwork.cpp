@@ -285,7 +285,10 @@ constexpr uint32_t NETWORK_MANAGER_TASK_STACK_SIZE = 10240;
 // exceeds the 32 KB side blocks (so the hold can only land centrally) and
 // stays below the observed 65 988 B central run at network start.
 constexpr uint32_t HEAP_SHAPER_BYTES = 60000;
-constexpr uint32_t HEAP_SHAPER_SETTLE_MS = 20000;
+// Post-IP bring-up allocations are tiny (~320 B total: first SNTP sync,
+// mDNS re-announce, initial session churn, per the 2026-09-28 capture), so a
+// short settle keeps them in the side blocks before the central run returns.
+constexpr uint32_t HEAP_SHAPER_SETTLE_MS = 5000;
 constexpr uint32_t HEAP_SHAPER_MAX_HOLD_MS = 60000;
 // POST JSON bodies live in NetworkWorkBuf (PSRAM), so the httpd worker no
 // longer needs a 2 KiB request-body frame on top of headers and send buffers.
