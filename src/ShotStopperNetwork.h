@@ -392,6 +392,9 @@ class ShotStopperNetwork {
   uint32_t heapShaperAllocAtMs_ = 0;
   uint32_t heapShaperConnectedAtMs_ = 0;
   bool heapShaperReleased_ = false;
+  // Latched when the first SNTP attempt reaches a terminal outcome (synced
+  // or failed); consumed by the heap shaper release gate.
+  bool ntpFirstAttemptSettled_ = false;
   uint32_t httpRetryAtMs_ = 0;
   std::atomic<uint32_t> lastTaskProgressAtMs_{0};
   std::atomic<uint32_t> taskStackMinBytes_{UINT32_MAX};

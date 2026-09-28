@@ -34,6 +34,9 @@ class ShotStopperMicraService {
   HeapLifecycleAggregate heapTelemetry() const;
   LineaMicraDiscoverySnapshot discovery() const;
   MachinePhysicalStartDisposition physicalStart();
+  bool cloudFirstQuerySettled() const {
+    return cloudFirstQuerySettled_.load(std::memory_order_acquire);
+  }
 
  private:
   struct IoBuffer;
@@ -146,6 +149,9 @@ class ShotStopperMicraService {
   std::atomic<bool> powerActive_{false};
   std::atomic<bool> abortRequested_{false};
   std::atomic<bool> clearSessionRequested_{false};
+  // Latched after the first cloud request reaches any terminal outcome;
+  // consumed by the network boot heap shaper release gate.
+  std::atomic<bool> cloudFirstQuerySettled_{false};
   bool wasNetworkReady_ = false;
   esp_http_client_handle_t activeClient_ = nullptr;
 };

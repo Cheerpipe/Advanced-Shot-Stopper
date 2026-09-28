@@ -32,6 +32,7 @@ inline void requestMachineIntegrationPresetTemperature(
   hostMachineTemperatureTargetDeciC = targetDeciC;
 }
 inline void serviceMachineIntegrationAbort() {}
+inline bool machineIntegrationCloudFirstQuerySettled() { return true; }
 inline constexpr uint8_t machineIntegrationTaskCount() { return 0; }
 inline MachinePhysicalStartDisposition
     hostMachinePhysicalStartDisposition =
@@ -64,6 +65,12 @@ void serviceMachineIntegrationMachinePower(bool scaleLinkUp,
 void requestMachineIntegrationPresetTemperature(
     uint8_t presetId, uint32_t configGeneration, uint16_t targetDeciC);
 void serviceMachineIntegrationAbort();
+// True when no first cloud query will ever be scheduled (no account
+// configured, or a non-cloud machine build), or once the first cloud request
+// reached a terminal outcome (success, failure, or cancellation). The boot
+// heap shaper holds the central DRAM run until then so late bring-up
+// allocations land in the spare side blocks.
+bool machineIntegrationCloudFirstQuerySettled();
 uint8_t machineIntegrationTaskCount();
 MachinePhysicalStartDisposition machineIntegrationPhysicalStart();
 #endif

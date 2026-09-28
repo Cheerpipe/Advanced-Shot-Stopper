@@ -40,6 +40,15 @@ bool machineEffectivelyOff() {
 
 bool initializeMachineIntegration() { return service.begin(); }
 
+bool machineIntegrationCloudFirstQuerySettled() {
+  // Without stored credentials no first cloud query will be scheduled, so
+  // the heap shaper must not wait for one.
+  if (!micraAccountConfigured.load(std::memory_order_relaxed)) {
+    return true;
+  }
+  return service.cloudFirstQuerySettled();
+}
+
 void publishMachineIntegrationConfig(const PersistedSettings &settings,
                                      uint32_t configGeneration) {
   micraOptions.store(settings.lineaMicra.options,

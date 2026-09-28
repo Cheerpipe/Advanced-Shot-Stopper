@@ -957,6 +957,7 @@ void ShotStopperNetwork::handleNtpFailure(uint32_t now) {
     ++ntpFailoverIndex_;
   }
   g_wallClock.markFailed(now, NTP_MAX_CONSECUTIVE_FAILURES);
+  ntpFirstAttemptSettled_ = true;
   log(DebugCategory::NETWORK, DebugCode::TIME_SYNC_FAIL, ntpFailoverIndex_, 0);
 }
 
@@ -1000,6 +1001,7 @@ void ShotStopperNetwork::serviceNtp(uint32_t now, bool staConnected) {
     // lwIP resync periodically without consulting the shot/BLE gate.
     stopNtp();
     ntpFailoverIndex_ = 0;
+    ntpFirstAttemptSettled_ = true;
     log(DebugCategory::NETWORK, DebugCode::TIME_SYNC_OK);
     return;
   }

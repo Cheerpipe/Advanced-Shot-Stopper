@@ -590,14 +590,22 @@ void ShotStopperNetwork::serviceHeapShaper(uint32_t now) {
   } else {
     heapShaperConnectedAtMs_ = 0;
   }
-  const bool settled =
+  // Release only after the station settle floor passes AND every applicable
+  // late bring-up allocation (first cloud query, first NTP attempt) reached a
+  // terminal outcome, so those allocations land in the spare side blocks
+  // instead of carving the central run after it returns. RF-gate NTP aborts
+  // deliberately do not settle the NTP milestone; the hard cap below bounds
+  // the wait regardless.
+  const bool floorSettled =
       heapShaperConnectedAtMs_ != 0 &&
       static_cast<uint32_t>(now - heapShaperConnectedAtMs_) >=
           HEAP_SHAPER_SETTLE_MS;
+  const bool milestonesSettled =
+      machineIntegrationCloudFirstQuerySettled() && ntpFirstAttemptSettled_;
   const bool expired =
       static_cast<uint32_t>(now - heapShaperAllocAtMs_) >=
-      HEAP_SHAPER_MAX_HOLD_MS;
-  if (settled || expired) {
+          HEAP_SHAPER_MAX_HOLD_MS;
+  if ((floorSettled && milestonesSettled) || expired) {
     releaseHeapShaper();
   }
 }

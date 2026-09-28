@@ -2036,6 +2036,7 @@ bool ShotStopperMicraService::request(
                              : HeapLifecycleResult::FAILURE),
         heapAfter);
   }
+  cloudFirstQuerySettled_.store(true, std::memory_order_release);
   {
     TaskLockGuard lock(clientMux_);
     activeClient_ = nullptr;

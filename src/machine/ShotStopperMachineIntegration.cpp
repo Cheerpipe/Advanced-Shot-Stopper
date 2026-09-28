@@ -10,6 +10,7 @@ void serviceMachineIntegrationScaleLink(uint32_t, bool, uint32_t, uint8_t,
 void serviceMachineIntegrationMachinePower(bool, bool, bool) {}
 void requestMachineIntegrationPresetTemperature(uint8_t, uint32_t, uint16_t) {}
 void serviceMachineIntegrationAbort() {}
+bool machineIntegrationCloudFirstQuerySettled() { return true; }
 uint8_t machineIntegrationTaskCount() { return 0; }
 MachinePhysicalStartDisposition machineIntegrationPhysicalStart() {
   return MachinePhysicalStartDisposition::NORMAL;
