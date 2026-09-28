@@ -649,7 +649,7 @@ def static_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path,
     root, tools, sandbox = fake_database_sandbox()
     stub = tools / "cppcheck"
     stub.write_text("#!/bin/sh\nif [ \"$1\" = --version ]; then\n"
-                    "  printf 'Cppcheck 2.13.0\\n'\nelse\n"
+                    "  printf 'Cppcheck 9.9.9-stub\\n'\nelse\n"
                     "  printf 'cppcheck-stub\\n'\nfi\n")
     stub.chmod(0o755)
     env = os.environ.copy()

@@ -78,9 +78,10 @@ available IDF command logs, static-analysis reports, and run records. Only steps
 that started can produce diagnostics; a failed prerequisite may leave later
 entries absent.
 
-The fast job checks that the local Node/Cppcheck pins still match the workflow
-without downloading tools. Host and firmware jobs verify the installed tool
-versions before tests or builds; the Home Assistant job verifies Python and uv
+Host and firmware jobs verify the required tools are present and runnable
+before tests or builds — Node and Cppcheck carry no project version pin, so
+each environment uses its own current release. The Home Assistant job verifies
+Python and uv
 and refuses to update its lockfile during dependency sync. Subsequent integration
 checks run without syncing. Local firmware builds require ESP-IDF 6.1.0 and
 reject any change to the IDF component lock during a build.

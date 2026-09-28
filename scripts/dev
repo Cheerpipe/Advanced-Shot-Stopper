@@ -495,9 +495,26 @@ def main() -> int:
         if verb == "doctor":
             if args:
                 raise ValueError("doctor takes no arguments")
-            tools = ["git", "python3", "cmake", "ctest", "c++", "node", "npm", "cppcheck"]
-            lines = [f"{tool}: {shutil.which(tool) or 'MISSING'}" for tool in tools]
+            tools = ["git", "python3", "cmake", "ctest", "c++", "node", "npm",
+                     "cppcheck", "uv"]
+            lines = []
+            for tool in tools:
+                path = shutil.which(tool)
+                if path is None:
+                    lines.append(f"{tool}: MISSING")
+                    continue
+                version = subprocess.run([tool, "--version"], text=True,
+                                         capture_output=True)
+                banner = (version.stdout or version.stderr).strip().splitlines()
+                detail = f" ({banner[0]})" if banner else ""
+                lines.append(f"{tool}: {path}{detail}")
             missing = require(tools[:5])
+            if shutil.which("brew") is not None:
+                stale = subprocess.run(
+                    ["brew", "outdated", "--formula", "node", "cppcheck",
+                     "python@3.14"], text=True, capture_output=True)
+                lines += [f"warning: {row}; run: brew upgrade {row.split()[0]}"
+                          for row in stale.stdout.splitlines() if row]
             probe = subprocess.run(
                 ["bash", "-c",
                  'source scripts/shotstopper_board.sh; '

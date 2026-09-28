@@ -52,20 +52,15 @@ for older trees.
 
 ## 2. macOS prerequisites
 
-After the [host prerequisites](BUILD.md#2-install-host-prerequisites), prepare
-the project's pinned Node and Cppcheck without changing Homebrew or your shell
-profile:
+After the [host prerequisites](BUILD.md#2-install-host-prerequisites), nothing
+else is required: the analysis scripts resolve Cppcheck and Node from `PATH`.
 
 ```sh
-./scripts/setup-local-tools
-source temp/ai_temp_local_toolchain/activate.sh
-cppcheck --version   # must report Cppcheck 2.13.0
+cppcheck --version   # any current release, e.g. Cppcheck 2.22.0
 ```
 
-Source `activate.sh` again in each new terminal. The analysis script rejects
-other Cppcheck versions before checking the compilation database. Different
-compiler environments can still produce different findings even with
-the same Cppcheck version.
+Different compiler and Cppcheck versions can produce different findings;
+`./scripts/dev doctor` shows the exact versions each run will use.
 
 For optional IWYU checks, run `brew install include-what-you-use` separately.
 `include-what-you-use` from Homebrew is built against the Homebrew `llvm`
@@ -76,20 +71,16 @@ compiler used by the host tests; IWYU does not need it.
 ## 3. Linux (Ubuntu) prerequisites
 
 After the [Ubuntu 24.04 prerequisites](BUILD.md#2-install-host-prerequisites),
-use the same project-local tool installation and activation:
+install the distribution's Cppcheck and verify it resolves on `PATH`:
 
 ```sh
-./scripts/setup-local-tools
-source temp/ai_temp_local_toolchain/activate.sh
-cppcheck --version   # must report Cppcheck 2.13.0
+sudo apt-get install cppcheck
+cppcheck --version   # any current release
 ```
 
-The local script builds upstream Cppcheck 2.13.0 from pinned source; the same
-upstream release ships as Ubuntu package `cppcheck=2.13.0-2ubuntu3` for
-installations that prefer the distribution package. The former 2.21.0 local
-version missed an `arrayIndexThenCheck` finding because that diagnostic moved
-into `style` in 2.21. The check now fails clearly when the local version
-differs.
+Newer Cppcheck releases can surface findings that older ones miss — for
+example, `arrayIndexThenCheck` moved into `style` in 2.21 — so keep the
+installed version current to avoid drift between machines.
 
 IWYU is version-locked to the clang it was compiled against, and the Ubuntu
 `iwyu` package is built against the distro clang, which may not be the clang
@@ -126,11 +117,12 @@ claiming Windows validation.
    In Git Bash, point `IDF_PATH` at that SDK, or use the supported legacy clone
    at `%USERPROFILE%\esp\esp-idf-v6.1`. EIM also provides CMake, Ninja and the
    Xtensa GCC toolchain that produce the compilation database.
-3. **Cppcheck 2.13.0** — install that exact release from the
-   [official releases](https://github.com/cppcheck-opensource/cppcheck/releases),
-   put its directory on `PATH` in Git Bash, and verify `cppcheck --version`.
-4. **Node.js 22.23.2** — needed by firmware image checks. Select that exact
-   release and verify `node --version`; see [Build](BUILD.md#2-install-host-prerequisites).
+3. **Cppcheck** — install a current release from the
+   [official releases](https://github.com/cppcheck-opensource/cppcheck/releases)
+   or your package manager, put its directory on `PATH` in Git Bash, and
+   verify `cppcheck --version`.
+4. **Node.js** — needed by firmware image checks. Install a current release
+   and verify `node --version`; see [Build](BUILD.md#2-install-host-prerequisites).
 
 Windows notes:
 
@@ -271,7 +263,7 @@ double visibility).
 ## 8. Running Cppcheck and the GCC analyzer
 
 ```sh
-cppcheck --version          # must report Cppcheck 2.13.0; see sections 2 or 3
+cppcheck --version          # current release from PATH; see sections 2 or 3
 ./scripts/static-idf --arch n16r8 \
   --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
 ./scripts/gcc_analyzer --hardware esp32-s3-relay-x1-speaker \

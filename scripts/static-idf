@@ -53,10 +53,6 @@ for tool in cppcheck python3; do
     exit 127
   }
 done
-if [[ "$(cppcheck --version)" != "Cppcheck 2.13.0" ]]; then
-  echo "Cppcheck 2.13.0 is required; install that version before analysis." >&2
-  exit 127
-fi
 
 ss_idf_static_paths reports/static-analysis || exit $?
 

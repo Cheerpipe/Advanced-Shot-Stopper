@@ -37,7 +37,7 @@ macOS, with Homebrew installed:
 
 ```sh
 xcode-select --install   # only if Command Line Tools are missing
-brew install git python cmake ninja cjson
+brew install git python cmake ninja cjson node cppcheck
 ```
 
 <a id="linux"></a>
@@ -51,23 +51,10 @@ sudo apt-get install git python3 python3-pip python3-venv cmake ninja-build \
   g++ libcjson-dev curl libdigest-sha-perl
 ```
 
-Install the **exact** Node and Cppcheck releases pinned by
-`setup-local-tools` into this project's
-Git-ignored `temp/` directory, then activate them in the current shell:
-
-```sh
-./scripts/setup-local-tools
-source temp/ai_temp_local_toolchain/activate.sh
-node --version       # v22.23.2
-cppcheck --version   # Cppcheck 2.13.0
-```
-
-The installer explicitly downloads checksum-verified archives and builds
-Cppcheck; tests and validation never invoke it automatically. Source the same
-activation file in each new terminal before `npm ci` or validation. It only
-changes that shell's `PATH`; Homebrew, system tools, and shell profiles stay as
-they were. A fresh clone needs its own setup run because `temp/` is not in Git.
-Check `python3 --version`, `cmake --version`,
+Node.js and Cppcheck come from the same package managers as the rest of the
+host tools; the project deliberately keeps no version pin for either, so a
+current release installed on the machine is what every script uses. Check
+`python3 --version`, `cmake --version`,
 `ninja --version`, and `c++ --version`; CMake must be **3.25 or newer** to read
 the repository's version-6 presets. If a distribution package is older, upgrade
 that tool before continuing. Debian and other Ubuntu releases can work, but
@@ -76,16 +63,17 @@ reference host.
 
 | Dependency | Local version contract | Source of truth |
 | --- | --- | --- |
-| Node.js | Exactly 22.23.2 | [`setup-local-tools`](../scripts/setup-local-tools) |
+| Node.js | No pin; any current release resolved from `PATH` | [`./scripts/dev doctor`](../scripts/dev) |
 | Web UI packages | Exact direct and resolved versions via `npm ci` | [`package.json`](../package.json), [`package-lock.json`](../package-lock.json) |
 | ESP-IDF | Exactly 6.1.0 (tag v6.1) | This guide and the build scripts |
 | IDF components | Locked graph, including mDNS 1.13.1 | [`idf/dependencies.lock`](../idf/dependencies.lock) |
-| Cppcheck | Exactly 2.13.0 for static analysis | [`setup-local-tools`](../scripts/setup-local-tools) |
+| Cppcheck | No pin; any current release resolved from `PATH` | [`./scripts/dev doctor`](../scripts/dev) |
 | Host CMake | 3.25 or newer | [`CMakePresets.json`](../CMakePresets.json) schema 6 |
 | Home Assistant tests (optional) | Python 3.14.2 or newer; dependencies locked with uv | [`pyproject.toml`](../integrations/OpenBrewByWeight/pyproject.toml), [`uv.lock`](../integrations/OpenBrewByWeight/uv.lock) |
 | Home Assistant service (optional) | No running service for tests; integration test dependency is 2026.9.x | [Integration project](../integrations/OpenBrewByWeight/pyproject.toml) |
 
-Git, the host compiler, Ninja, cJSON and the system Python have no separate
+Git, Node.js, Cppcheck, the host compiler, Ninja, cJSON and the system Python
+have no separate
 project pin; use versions compatible with the requirements above and verify
 them with the tests below. ESP-IDF manages its own Python environment. The
 [Home Assistant integration](../integrations/OpenBrewByWeight/README.md) has a
@@ -189,16 +177,16 @@ directory.
 ### Optional: Home Assistant integration tests
 
 This is a separate Python environment; it is not required for firmware or Web
-UI checks. Install uv **0.11.2** with its
-[versioned installer](https://docs.astral.sh/uv/getting-started/installation/)
+UI checks. Install a current uv with its
+[installer](https://docs.astral.sh/uv/getting-started/installation/)
 or a version manager, then run from the integration directory:
 
 ```sh
 cd integrations/OpenBrewByWeight
-uv --version               # uv 0.11.2
-uv python install 3.14.7
-uv sync --python 3.14.7 --locked --group test
-uv run --no-sync python --version    # Python 3.14.7
+uv --version               # any current uv
+uv python install 3.14
+uv sync --locked --group test
+uv run --no-sync python --version    # Python 3.14.x
 uv run --no-sync pytest
 uv run --no-sync ruff check .
 uv run --no-sync mypy
@@ -207,7 +195,7 @@ cd ../..
 
 The integration's `uv.lock` fixes package resolution, `--locked` rejects a
 stale lockfile, and `--no-sync` prevents test commands from changing the
-environment. Its GitHub job pins the same Python and uv versions. These
+environment. These
 checks do not require a running Home Assistant instance or controller.
 
 <a id="8-host-tests-before-you-flash"></a>

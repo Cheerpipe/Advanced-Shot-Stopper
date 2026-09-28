@@ -102,20 +102,14 @@ Use `./scripts/dev doctor` to inspect local tooling and
 `./scripts/dev context <area>` for focused repository paths. Use
 `./scripts/dev classify` before a change and `./scripts/dev validate` for the
 required validation gate. Missing dependencies are reported as failures;
-scripts never install them automatically.
+scripts never install them automatically. `doctor` also reports each tool's
+resolved path and version and warns when a Homebrew-managed tool is outdated,
+so checks always run against the machine's current releases.
 
-`./scripts/setup-local-tools` is a separate, explicit preparation command for
-macOS/Linux arm64 or x64. It downloads checksum-pinned Node 22.23.2 and
-Cppcheck 2.13.0 into Git-ignored `temp/ai_temp_local_toolchain/`, builds
-Cppcheck there, and writes `activate.sh`. Run
-`source temp/ai_temp_local_toolchain/activate.sh` in each shell before local
-checks; activation changes only that shell's `PATH`. The installer stops if
-its versions no longer match the validation workflow. See
-[Build](BUILD.md#2-install-host-prerequisites).
-`./scripts/setup-local-tools --check-pins` checks that agreement without
-downloading or installing anything; GitHub's fast validation job runs it.
-`./scripts/dev analyze` requires Cppcheck 2.13.0; see
-[Static analysis](STATIC_ANALYSIS.md) for local setup.
+Node.js and Cppcheck carry no project version pin: every script resolves them
+from `PATH`, so install current releases with your package manager (see
+[Build](BUILD.md#2-install-host-prerequisites)). `./scripts/dev analyze` needs
+Cppcheck on `PATH`; see [Static analysis](STATIC_ANALYSIS.md) for local setup.
 Firmware builds require ESP-IDF 6.1.0 and fail if the IDF component lock
 changes during resolution. Review upgrades through [Build](BUILD.md#upgrade-dependencies-deliberately).
 
