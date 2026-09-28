@@ -893,6 +893,7 @@
     "runtime.type_shot": "Shot",
     "runtime.ui_override": "UI Override",
     "runtime.unable_to_reload": "Unable to reload",
+    "runtime.unauthenticated": "Unauthenticated",
     "runtime.unavailable": "Unavailable",
     "runtime.unknown": "—",
     "runtime.unknown_2": "unknown",

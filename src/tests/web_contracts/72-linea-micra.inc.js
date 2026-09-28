@@ -140,6 +140,61 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     throw new Error(`Linea Micra diagnostic control is missing: ${id}`);
   }
 }
+{
+  const assert = require('assert');
+  const vm = require('vm');
+  const binding = viewJs.settings.match(/\$\('lineaMicraDisconnectButton'\)\.onclick=(.*?);if\(\$\('lineaMicraShutdownWithScale'\)/);
+  assert(binding, 'Micra Disconnect click binding is missing');
+  let calls = 0, confirmed = false;
+  const click = vm.runInNewContext(`(${binding[1]})`, {
+    confirm: () => confirmed,
+    __WEBUI_TEXT__: key => key,
+    R: {disconnectLineaMicra: () => { calls++; }},
+  });
+  click();
+  assert.strictEqual(calls, 0, 'Cancel must leave the account connected');
+  confirmed = true;
+  click();
+  assert.strictEqual(calls, 1, 'Confirmed Disconnect must invoke the action');
+
+  const statusUi = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function applyLineaMicraStatus('),
+      rawRuntimeJs.indexOf('function renderLineaMicraDiagnostic('));
+  for (const theme of ['theme-light', 'theme-dark']) {
+    const nodes = new Map();
+    const get = id => {
+      if (!nodes.has(id)) nodes.set(id, {disabled: false, checked: false,
+        classList: {toggle() {}}, parentElement: {nextSibling: null}});
+      return nodes.get(id);
+    };
+    const select = get('lineaMicraMachine');
+    select.add = option => { select.options.push(option); select.value = option.value; };
+    Object.defineProperty(select, 'textContent', {set() { select.options = []; select.value = ''; }});
+    let label = get('lineaMicraUsername').parentElement;
+    for (let i = 0; i < 5; i++) { label.nextSibling = {}; label = label.nextSibling; }
+    const classes = new Set([theme]);
+    const context = vm.createContext({$: get, controlsMutable: true, micraDirty: false,
+      document: {documentElement: {classList: {toggle(name, on) {
+        if (on) classes.add(name); else classes.delete(name);
+      }}}},
+      Option: function(text, value) { this.text = text; this.value = value; },
+      __WEBUI_TEXT__: key => key});
+    vm.runInContext(statusUi, context);
+    const connected = {accountConfigured: true, email: 'user@example.test',
+      selectedName: 'Micra', selectedSerial: 'ABC', observeState: true,
+      machines: [], phase: 'idle', error: 'none', staConnected: true};
+    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: connected})})`, context);
+    assert.strictEqual(get('lineaMicraSaveButton').disabled, false,
+        `${theme}: Save must be available after selection`);
+    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
+      ...connected, accountConfigured: false, email: '', selectedName: '', selectedSerial: '',
+      phase: 'disabled'}})})`, context);
+    assert.strictEqual(get('lineaMicraSaveButton').disabled, true);
+    assert.strictEqual(get('lineaMicraApplyTemperature').disabled, true);
+    assert.strictEqual(get('lineaMicraIdentity').innerText, 'runtime.not_connected');
+    assert.strictEqual(get('lineaMicraStatus').textContent, 'runtime.unauthenticated');
+    assert.strictEqual(get('lineaMicraUsername').parentElement.hidden, false);
+  }
+}
 if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawCss.includes('[type=email]') ||
     !micraDiagnosticHtml.includes('<span id="dMicraPowerValue">{{webui:diagnostic.unknown}}</span> - <a id="lineaMicraRefreshLink" href="#" aria-disabled="true" tabindex="-1">({{webui:diagnostic.refresh_state}})</a>') ||

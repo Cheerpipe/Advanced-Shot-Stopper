@@ -31,7 +31,9 @@ After a machine is selected, Settings hides the account email, password,
 **Connect**, machine list, and **Use selected machine** controls. **Selected
 machine** shows the saved cloud account email, followed by the machine name and
 serial number. Choose **Disconnect** to remove the saved credentials and
-selected machine and make the connection controls available again.
+selected machine, stop cloud checks, and make the connection controls available
+again. The account status then reads **Unauthenticated**, and the Micra options
+become unavailable until you connect and select a machine again.
 
 With a machine selected, **Save Micra settings** saves **Allow brew boiler
 temperature in presets**, **Monitor machine power state**, **Recognize
@@ -39,7 +41,8 @@ paddle wake gestures**, **Turn machine on when the scale powers on**,
 **Turn machine off when the scale powers off**, its **Shutdown delay**, and
 **Turn scale off when the machine powers off**.
 It does not sign in again, validate the cloud account, or reload the machine
-list.
+list. The button is available whenever a machine is selected and settings are
+editable, even when no option has changed.
 
 If the account returns no Linea Micra machines, the account is not enabled and
 the machine-specific options remain unavailable. Accounts with several Micras
