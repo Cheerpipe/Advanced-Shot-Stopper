@@ -248,11 +248,11 @@ relay profile, or a different `--arch`. Development mode remains CLI-only and
 must never be added to a profile.
 
 Machine defaults seed a new installation and factory reset. Valid persisted
-settings survive ordinary boot and OTA. Every persistent store is schema 1;
-older settings, logs, and curves are rejected and replaced with factory
-defaults. Firmware identity is checked before writing the device, so a
-schema-1 controller receives only schema-1 images; a pre-schema-1 device
-needs a one-time clean USB installation.
+settings survive ordinary boot and OTA. The current settings blob is schema 3;
+shot and curve stores retain schema 1. Incompatible old settings are rejected
+and replaced with factory defaults. Firmware identity is checked before
+writing the device. This release assumes a clean USB installation with
+`--erase-all`; subsequent compatible OTA updates retain its saved data.
 
 List available IDs and compatibility before building:
 
@@ -489,7 +489,7 @@ app0 only on a readable installed layout.
 
 ### Clean-install cutovers
 
-The current settings contract restarts at schema 1 and deliberately does not
+The current settings contract is schema 3 and deliberately does not
 migrate any earlier settings blob. Install this firmware with `--erase-all`
 even when the partition table already matches. An installed 20 KiB NVS layout,
 or a current layout without the dedicated

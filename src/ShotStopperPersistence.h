@@ -29,6 +29,7 @@ inline bool validPersistedSettings(const PersistedSettings &settings) {
       settings.structureSize != sizeof(PersistedSettings) ||
       settings.checksum != persistedSettingsChecksum(settings) ||
       validateRuntimeConfig(settings.runtime) != ConfigValidationError::NONE ||
+      settings.runtime.timezoneSource == 3 ||
       !validBullseyeMelodyConfig(settings.bullseyeMelody) ||
       !validateShotPresetBank(settings.presets, settings.runtime.retareWindowMs,
                               settings.runtime.autoRetare) ||

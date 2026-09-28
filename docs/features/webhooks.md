@@ -42,7 +42,8 @@ curl -X POST -H 'Content-Type: application/json' --data-binary @event.json \
 
 Every request is a bounded JSON `POST`. Common fields identify the schema,
 event, controller, boot, cycle, event uptime, wall-clock time, and send time.
-`timestamp` is `0` when the controller clock is not synchronized.
+`timestamp` is UTC Unix seconds, independent of the saved time zone, and is
+`0` when the controller clock is not synchronized.
 
 | Event | Purpose | Event-specific fields |
 | --- | --- | --- |

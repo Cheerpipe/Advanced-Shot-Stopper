@@ -230,8 +230,8 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // Home and Diagnostic: +128 bytes of HTML allowance; compressed asset and
 // firmware budgets remain unchanged.
 // The scale command inventory adds a small two-column Diagnostic table.
-if (htmlBytes > 73500) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 73500)`);
+if (htmlBytes > 74000) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 74000)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -281,14 +281,15 @@ if (htmlBytes > 73500) {
 // and revert-on-error path to the runtime module.
 // Matching recent/lifetime gap columns replace the peak-gap label breakdown.
 // Rendering the current scale command inventory adds a bounded status update.
-if (jsBytes > 202300) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 202300)`);
+// IANA zone loading, selected-zone preview, and first-use detection add ~3 KiB.
+if (jsBytes > 211000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 211000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
 // The loop timing view adds only source allowance; compressed limits stay fixed.
-if (htmlBytes + jsBytes > 275750) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 275750)`);
+if (htmlBytes + jsBytes > 285000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 285000)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
@@ -410,7 +411,7 @@ if (!network.includes('"firstDropBeep"') ||
     !network.includes('\\"stopDetail\\"') ||
     !network.includes('"paddleReturnReminderIntervalMs"') ||
     !network.includes('"paddleReturnReminderMaxDurationMs"') ||
-    !network.includes('"timezoneOffsetMinutes"') ||
+    !network.includes('"timezoneId"') ||
     !network.includes('"ntpServerPreset"') ||
     !network.includes('"ntpServerCustom"') ||
     !network.includes('\\"time\\":{') ||

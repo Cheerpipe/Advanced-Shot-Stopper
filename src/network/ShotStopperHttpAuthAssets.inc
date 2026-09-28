@@ -362,6 +362,8 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
       {"/api/v1/history/delete", HTTP_POST, historyDeleteHandler},
       {"/api/v1/last-shot/clear", HTTP_POST, lastShotClearHandler},
       {"/api/v1/time/sync", HTTP_POST, timeSyncHandler},
+      {"/api/v1/time/zones", HTTP_GET, timeZoneCatalogHandler},
+      {"/api/v1/time/preview", HTTP_POST, timeZonePreviewHandler},
       {"/api/v1/config", HTTP_POST, configHandler},
       {"/api/v1/webhooks", HTTP_POST, webhookHandler},
       {"/api/v1/machine/linea-micra", HTTP_POST, lineaMicraHandler},

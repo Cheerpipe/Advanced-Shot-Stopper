@@ -638,6 +638,7 @@ struct SerialCliNtpDump {
   char activeServer[NTP_SERVER_HOST_CAPACITY] = {};
   uint8_t ntpServerPreset = 0;
   char ntpServerCustom[NTP_SERVER_HOST_CAPACITY] = {};
+  char timezoneId[TIMEZONE_ID_CAPACITY] = {};
   int16_t timezoneOffsetMinutes = 0;
   bool staUp = false;
 };
@@ -987,6 +988,8 @@ inline void serialCliPrintNtpStatus(const SerialCliNtpDump &dump) {
   Serial.println(dump.ntpServerCustom[0] != '\0' ? dump.ntpServerCustom : "-");
   Serial.print("timezoneOffsetMinutes=");
   Serial.println(static_cast<int>(dump.timezoneOffsetMinutes));
+  Serial.print("timezoneId=");
+  Serial.println(dump.timezoneId[0] != '\0' ? dump.timezoneId : "-");
   Serial.print("staUp=");
   Serial.println(dump.staUp ? "true" : "false");
   if (!dump.staUp) {

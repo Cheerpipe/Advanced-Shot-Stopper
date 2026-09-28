@@ -1,6 +1,6 @@
 {
   const helpers = runtimeJs.slice(runtimeJs.indexOf('function lastCurveWeightG('),
-      runtimeJs.indexOf('function populateTimezoneOptions('));
+      runtimeJs.indexOf('async function populateTimezoneOptions('));
   const renderer = runtimeJs.slice(runtimeJs.indexOf('function renderShotSpark('),
       runtimeJs.indexOf('function renderStatsDurChart('));
   const ticks = [[], []], markers = [], charts = [];

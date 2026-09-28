@@ -12,7 +12,7 @@
       machineFn.includes('ringRetainLogLevel') ||
       machineFn.includes('goalWeightG') ||
       machineFn.includes('brewByWeight') ||
-      !dateTimeFn.includes('timezoneOffsetMinutes') ||
+      !dateTimeFn.includes('timezoneId') ||
       !dateTimeFn.includes('ntpServerPreset') ||
       !dateTimeFn.includes('ntpServerCustom') ||
       dateTimeFn.includes('scaleConnectedLed') ||

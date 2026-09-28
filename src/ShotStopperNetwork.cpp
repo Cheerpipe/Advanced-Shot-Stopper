@@ -329,6 +329,7 @@ bool jsonFloat(cJSON *object, const char *name, float &output) {
   return true;
 }
 
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
 bool jsonInt16(cJSON *object, const char *name, int16_t &output) {
   if (object == nullptr || name == nullptr) {
     return false;
@@ -344,6 +345,7 @@ bool jsonInt16(cJSON *object, const char *name, int16_t &output) {
   output = static_cast<int16_t>(value);
   return true;
 }
+#endif
 
 // Compared in constant time so a wrong secret cannot be recovered one byte at a
 // time by measuring how long the rejection takes.
@@ -456,8 +458,8 @@ const char *configValidationMessage(ConfigValidationError error) {
       return "Post-tare grace must be from 0.5 to 10 s.";
     case ConfigValidationError::SCALE_TIMER_STOP_EXTRA_DELAY:
       return "Scale timer stop extra delay must be from 0 to 1000 ms.";
-    case ConfigValidationError::TIMEZONE_OFFSET:
-      return "Timezone offset must be from -720 to +840 minutes.";
+    case ConfigValidationError::TIMEZONE_ID:
+      return "Choose a supported IANA time zone.";
     case ConfigValidationError::NTP_SERVER_PRESET:
       return "NTP server preset must be pool, google, cloudflare, or nist.";
     case ConfigValidationError::NTP_SERVER_CUSTOM:

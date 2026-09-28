@@ -12,6 +12,78 @@ esp_err_t ShotStopperNetwork::timeSyncHandler(httpd_req_t *request) {
   self.ntpManualSyncPending_ = true;
   return self.sendAccepted(request, self.allocateRequestId());
 }
+esp_err_t ShotStopperNetwork::timeZoneCatalogHandler(httpd_req_t *request) {
+  httpd_resp_set_type(request, JSON_CONTENT_TYPE);
+  httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+  if (sendChunk(request, "[", 1) != ESP_OK) return ESP_FAIL;
+  char chunk[512] = {};
+  size_t used = 0;
+  for (uint16_t i = 0; i < tzdb::kZoneCount; ++i) {
+    const int added = snprintf(chunk + used, sizeof(chunk) - used,
+                               "%s\"%s\"", i == 0 ? "" : ",",
+                               tzdb::kZones[i].id);
+    if (added < 0) return ESP_FAIL;
+    if (static_cast<size_t>(added) >= sizeof(chunk) - used) {
+      if (sendChunk(request, chunk, used) != ESP_OK) return ESP_FAIL;
+      used = 0;
+      const int retry = snprintf(chunk, sizeof(chunk), ",\"%s\"",
+                                 tzdb::kZones[i].id);
+      if (retry < 0 || static_cast<size_t>(retry) >= sizeof(chunk))
+        return ESP_FAIL;
+      used = static_cast<size_t>(retry);
+    } else {
+      used += static_cast<size_t>(added);
+    }
+  }
+  if ((used != 0 && sendChunk(request, chunk, used) != ESP_OK) ||
+      sendChunk(request, "]", 1) != ESP_OK)
+    return ESP_FAIL;
+  return sendChunk(request, nullptr, 0);
+}
+
+esp_err_t ShotStopperNetwork::timeZonePreviewHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  if (!self.requireAdminUnlock(request)) return ESP_OK;
+  const esp_err_t bodyStatus = self.lockJsonBody(
+      request, "A bounded JSON request is required.");
+  if (bodyStatus != ESP_OK) return bodyStatus;
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
+  char zoneId[TIMEZONE_ID_CAPACITY] = {};
+  uint32_t browserUtcSec = 0;
+  const char *error = nullptr;
+  static const char *const fields[] = {"timezoneId", "browserUtcSec"};
+  if (root == nullptr ||
+      !jsonHasOnlyUniqueFields(root, fields, 2) ||
+      !jsonString(root, "timezoneId", zoneId, sizeof(zoneId), false) ||
+      (jsonFieldPresent(root, "browserUtcSec") &&
+       !jsonUint32(root, "browserUtcSec", browserUtcSec)) ||
+      findTimeZone(zoneId) == nullptr)
+    error = "Choose a supported IANA time zone.";
+  cJSON_Delete(root);
+  self.unlockJsonBody();
+  if (error != nullptr)
+    return sendError(request, STATUS_UNPROCESSABLE, "INVALID_TIMEZONE", error);
+  const TimeStatusSnapshot clock = g_wallClock.snapshot(millis());
+  const uint32_t utcSec = clock.utcSec != 0 ? clock.utcSec : browserUtcSec;
+  int16_t offset = 0;
+  uint32_t nextUtc = 0;
+  const bool known = utcSec != 0 &&
+      timeZoneOffsetAt(zoneId, utcSec, offset, &nextUtc);
+  char body[256] = {};
+  snprintf(body, sizeof(body),
+           "{\"timezoneId\":\"%s\",\"clockAvailable\":%s,"
+           "\"clockSource\":\"%s\","
+           "\"utcSec\":%lu,\"localSec\":%lu,\"offsetMinutes\":%d,"
+           "\"nextTransitionUtcSec\":%lu,\"tzdbVersion\":\"%s\"}",
+           zoneId, known ? "true" : "false",
+           known ? (clock.utcSec != 0 ? "device" : "browser") : "unavailable",
+           static_cast<unsigned long>(known ? utcSec : 0),
+           static_cast<unsigned long>(known ? utcSec + offset * 60 : 0),
+           static_cast<int>(known ? offset : 0),
+           static_cast<unsigned long>(known ? nextUtc : 0), tzdb::kVersion);
+  return sendJson(request, STATUS_OK, body);
+}
+
 esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   ControlGateSnapshot status = self.controlGate();
@@ -27,7 +99,9 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   }
   cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
   const bool dateTimePatch =
-      jsonFieldPresent(root, "timezoneOffsetMinutes") ||
+      jsonFieldPresent(root, "timezoneId") ||
+      jsonFieldPresent(root, "timezoneAutoInit") ||
+      jsonFieldPresent(root, "timezoneDetected") ||
       jsonFieldPresent(root, "ntpServerPreset") ||
       jsonFieldPresent(root, "ntpServerCustom");
   // Log/debug fields are public while the diagnostic page is enabled; the
@@ -47,6 +121,9 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   bool brewByWeight = !candidate.timerOnly;
   bool baseRevisionPresent = false;
   uint32_t baseRevision = 0;
+  const bool timezoneIdPresent = jsonFieldPresent(root, "timezoneId");
+  bool timezoneAutoInit = false;
+  bool timezoneDetected = false;
   bool soundAlertsEnabled = !candidate.soundAlertsMuted;
   BullseyeMelodyConfig candidateBullseye = {};
   if (self.callbacks_.copyBullseyeConfig != nullptr) {
@@ -95,7 +172,8 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       "minBbwBrewTimeMs", "slowExtractionGuardEnabled", "minRecoveryWeightG",
       "maxBbwBrewTimeMs", "autoToManualGuardEnabled", "autoToManualGuardLimitMode",
       "autoToManualGuardManualLimitMs", "autoToManualGuardBaselineMs",
-      "weightOffsetBaselineG", "timezoneOffsetMinutes", "ntpServerPreset",
+      "weightOffsetBaselineG", "timezoneId", "timezoneAutoInit",
+      "timezoneDetected", "ntpServerPreset",
       "ntpServerCustom", "scaleMacCacheMode", "bookooMuteOnBuzzerOnly",
       "bookooConnectBeepLevel", "noScaleBbwMode", "avoidBbwShotWithoutScale",
       "noScaleAllowRinseWhileArmed", "lastShotCooldownMs",
@@ -343,10 +421,17 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
              !jsonFloat(root, "weightOffsetBaselineG",
                         candidate.weightOffsetBaselineG)) {
     parseError = "weightOffsetBaselineG must be a number.";
-  } else if (jsonFieldPresent(root, "timezoneOffsetMinutes") &&
-             !jsonInt16(root, "timezoneOffsetMinutes",
-                        candidate.timezoneOffsetMinutes)) {
-    parseError = "timezoneOffsetMinutes must be an integer.";
+  } else if (timezoneIdPresent &&
+             (!jsonString(root, "timezoneId", candidate.timezoneId,
+                          sizeof(candidate.timezoneId), false) ||
+              findTimeZone(candidate.timezoneId) == nullptr)) {
+    parseError = "timezoneId must be a supported IANA zone name.";
+  } else if (jsonFieldPresent(root, "timezoneAutoInit") &&
+             !jsonBoolean(root, "timezoneAutoInit", timezoneAutoInit)) {
+    parseError = "timezoneAutoInit must be a boolean.";
+  } else if (jsonFieldPresent(root, "timezoneDetected") &&
+             !jsonBoolean(root, "timezoneDetected", timezoneDetected)) {
+    parseError = "timezoneDetected must be a boolean.";
   } else if (jsonFieldPresent(root, "ntpServerPreset") &&
              !jsonNtpPreset(root, "ntpServerPreset",
                             candidate.ntpServerPreset)) {
@@ -417,6 +502,10 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       !jsonBoolean(root, "powerManagementEnabled", candidate.powerManagementEnabled)) {
     parseError = "powerManagementEnabled must be a boolean.";
   }
+  if (parseError == nullptr &&
+      ((timezoneAutoInit || timezoneDetected) && !timezoneIdPresent)) {
+    parseError = "Zone detection requires timezoneId.";
+  }
   if (root != nullptr) {
     brewByWeightPresent = jsonFieldPresent(root, "brewByWeight");
     baseRevisionPresent = jsonFieldPresent(root, "baseRevision");
@@ -447,6 +536,18 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
     memset(customNtp, 0, sizeof(customNtp));
     return sendError(request, STATUS_CONFLICT, "CONFIG_REVISION_STALE",
                      "Config changed; refresh and retry.");
+  }
+  if (timezoneAutoInit && candidate.timezoneId[0] != '\0' &&
+      self.callbacks_.copyRuntimeConfig != nullptr) {
+    RuntimeConfig live = {};
+    self.callbacks_.copyRuntimeConfig(&live);
+    if (live.timezoneId[0] != '\0') {
+      return sendError(request, STATUS_CONFLICT, "TIMEZONE_ALREADY_SET",
+                       "The time zone was already set.");
+    }
+  }
+  if (timezoneIdPresent) {
+    candidate.timezoneSource = timezoneAutoInit ? 3 : timezoneDetected ? 1 : 2;
   }
   if (brewByWeightPresent) {
     candidate.timerOnly = !brewByWeight;

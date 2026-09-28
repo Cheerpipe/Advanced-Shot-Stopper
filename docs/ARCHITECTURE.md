@@ -75,7 +75,7 @@ Its adapter exposes only `NORMAL` or `WAKE_PASSTHROUGH`; Open Brew by Weight own
 passthrough and consumes wake gestures before brew, rinse, guards, scale,
 alerts, webhooks, and history. Those subsystems never depend on Micra types.
 
-The schema-1 settings blob retains the exact 310-byte
+The schema-3 settings blob retains the exact 310-byte
 `LineaMicraPersistedSettings` cloud account record and the two-byte per-preset
 Micra target in every profile so switching a build profile cannot reinterpret
 the persistence layout. Their names, validation and helpers remain Micra-owned;
@@ -106,8 +106,8 @@ Editing reset bases alone preserves current learning and evidence.
 Settings status publishes active-preset identity, both offsets, alpha baseline, gain/provenance
 and evidence count together in the existing coherent control snapshot.
 
-Settings schema 1 uses the current 252-byte `RuntimeConfig`, 104-byte
-`ShotPreset`, and 2,960-byte settings blob. Candidate
+Settings schema 3 uses the current 336-byte `RuntimeConfig`, 104-byte
+`ShotPreset`, and 3,304-byte settings blob. Candidate
 anchors/observations/generations are RAM only; deferred persistence retains
 offsets, gain/provenance, and profile through the existing dual-slot owner.
 `powerManagementEnabled`, webhook preset delivery, and Allow rinse while Armed
@@ -199,6 +199,26 @@ and [shot history](features/shot-history.md).
 
 ## Live settings notifications
 
+The global `timezoneId` is an IANA region/city string in the schema-3 settings
+blob. Network validates it against the firmware's generated tzdata2026d
+catalog; control owns the effective setting and first-auto provenance; the
+existing persistence worker saves both in the same settings generation.
+`src/ShotStopperTimeZoneData.h` is an immutable flash table of 597 supported
+IDs and 4,341 transitions, deduplicated into 67 schedules for UTC instants in
+2025–2099. `scripts/generate_timezones.py` regenerates it from the pinned
+upstream archive without runtime allocation or a global C library `TZ` state.
+No catalog copy occupies internal RAM or PSRAM. The API exposes the current
+zone and the offset resolved at the current UTC instant separately. Without a
+configured/resolvable zone, UTC offset zero is the explicit fallback.
+
+The control task captures UTC and its resolved offset when a cycle ends.
+Pending shot finalization keeps that pair in RAM through drip delay; the shot
+and activation stores retain their existing UTC/local/offset representation
+without a storage migration. NTP continues to own UTC synchronization and
+does not change the monotonic control timers. The Web preview resolves a draft
+zone without saving it; a browser UTC estimate is used only for preview when
+the controller clock is unavailable.
+
 Live settings commit publishes the new runtime snapshot, then dispatches a
 fixed, allocation-free table of subscriptions on the control task. Each owner
 provides its own old/new value predicate and callback; the settings dispatcher
@@ -211,17 +231,18 @@ evidence likewise use separate RAM generations. Boot initialization and a
 scale's initial connection retain their
 own policy application paths. Persistence and status publication are independent
 of these operational triggers. No callbacks run from an ISR or across a flash
-write, and the persisted settings layout and OTA update path are unchanged.
+write, and the OTA update path remains available. The settings layout is
+schema 3 for this clean-install release.
 
 ## Residual qualification
 
-`RuntimeConfig` retains a 252-byte fixed layout inside the current schema-1
+`RuntimeConfig` uses a 336-byte fixed layout inside the current schema-3
 settings blob. `autoTareOutsideBrew` remains a global machine setting rather
 than part of the per-shot/preset recipe snapshot. No historical settings layout
 is interpreted at boot. The optional idle accessory retare uses spare bit 6 of
 the already-packed `noScaleBbwMode` byte. New and factory-reset records default
 on; existing saved records retain their stored bit, including OFF. The bit is
-preserved when the no-scale mode changes; blob size and schema stay unchanged.
+preserved when the no-scale mode changes; this bit itself does not alter the blob.
 
 Idle tare arbitration lives in `control/OpenBrewByWeightCycleRuntime.inc`, reusing
 the cup FSM's PLACED event and ScaleService's TARE_ONLY transport. Worker

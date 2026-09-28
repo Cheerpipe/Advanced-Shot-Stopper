@@ -304,6 +304,9 @@ struct PendingShotFinalize {
   bool offsetAnalysis = false;
   bool logEligible = false;
   uint32_t endedAtMs = 0;
+  uint32_t endedAtUtcSec = 0;
+  int16_t endedAtOffsetMinutes = 0;
+  bool endedAtHasWallTime = false;
   uint32_t dripDelayMs = DEFAULT_DRIP_DELAY_MS;
   uint32_t endedWeightSequence = 0;
   uint32_t cycleStartedAtMs = 0;
@@ -345,6 +348,13 @@ struct PendingShotFinalize {
   ShotCurveRecord curve = {};
 };
 
+struct CycleWallTime {
+  uint32_t endedAtMs = 0;
+  uint32_t utcSec = 0;
+  int16_t offsetMinutes = 0;
+  bool available = false;
+};
+
 struct MaintenanceLease {
   bool active = false;
   bool forwarded = false;
@@ -367,6 +377,19 @@ ShotTrajectory shot;
 CycleSession session;
 PendingShotFinalize pendingFinalize;
 RuntimeConfig runtimeConfig;
+
+CycleWallTime captureCycleWallTime() {
+  CycleWallTime result;
+  result.endedAtMs = millis();
+  const TimeStatusSnapshot clock = g_wallClock.snapshot(result.endedAtMs);
+  if (clock.utcSec != 0) {
+    result.utcSec = clock.utcSec;
+    (void)timeZoneOffsetAtOrUtc(runtimeConfig.timezoneId, clock.utcSec,
+                                  result.offsetMinutes);
+    result.available = true;
+  }
+  return result;
+}
 uint32_t cupSettingsGeneration = 1;
 uint32_t idleTareSettingsGeneration = 1;
 PowerPolicy powerPolicy;
@@ -1077,11 +1100,11 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
   copyCString(last.presetName, sizeof(last.presetName), snapshot.activePresetName);
   last.durationMs = static_cast<uint32_t>(snapshot.durationDs) * 100U;
   last.endReason = snapshot.endReason;
-  if (g_wallClock.synced()) {
-    const uint32_t utcSec = g_wallClock.nowUtcSec(millis());
-    last.endedAtUnixSec = utcSec;
+  if (snapshot.endedAtHasWallTime) {
+    last.endedAtUnixSec = snapshot.endedAtUtcSec;
     last.endedAtLocalSec =
-        shotLogLocalSecFromUtc(utcSec, runtimeConfig.timezoneOffsetMinutes);
+        shotLogLocalSecFromUtc(snapshot.endedAtUtcSec,
+                               snapshot.endedAtOffsetMinutes);
     last.hasWallTime = 1;
   }
   last.weightValid = finalWeightValid;
@@ -1147,20 +1170,21 @@ bool endedCycleWeightValid() {
              0;
 }
 
-void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs) {
+void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
+                                   const CycleWallTime *end = nullptr) {
+  const CycleWallTime wall = end != nullptr ? *end : captureCycleWallTime();
   PersistedLastShot last = {};
   last.valid = true;
   last.cycleId = session.id;
-  last.endedAtUptimeMs = millis();
+  last.endedAtUptimeMs = wall.endedAtMs;
   last.presetId = session.activePresetId;
   copyCString(last.presetName, sizeof(last.presetName), session.activePresetName);
   last.durationMs = durationMs;
   last.endReason = reason;
-  if (g_wallClock.synced()) {
-    const uint32_t utcSec = g_wallClock.nowUtcSec(millis());
-    last.endedAtUnixSec = utcSec;
+  if (wall.available) {
+    last.endedAtUnixSec = wall.utcSec;
     last.endedAtLocalSec =
-        shotLogLocalSecFromUtc(utcSec, runtimeConfig.timezoneOffsetMinutes);
+        shotLogLocalSecFromUtc(wall.utcSec, wall.offsetMinutes);
     last.hasWallTime = 1;
   }
   last.weightValid = endedCycleWeightValid();
@@ -1730,7 +1754,7 @@ StopperState nextStateForUserHold(const MachineIntention &intent) {
 
 // Behavior-preserving service fragments; kept in this translation unit.
 void appendHistoryRecord(HistoryType type, uint32_t durationMs,
-                         bool noWeight);
+                         bool noWeight, const CycleWallTime *end = nullptr);
 
 #include "platform/ShotStopperPowerRuntime.inc"
 #include "control/ShotStopperWakeGesture.inc"

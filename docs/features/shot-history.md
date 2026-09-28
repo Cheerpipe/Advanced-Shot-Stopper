@@ -13,7 +13,7 @@ use this same rule. A cycle without a valid measured yield cannot qualify.
 The 12-second recording rule is fixed; changing BBW's start-of-shot protection
 time changes weight stopping, not which completed cycles are recorded.
 
-Typical fields include local time (from the configured timezone offset),
+Typical fields include local time (from the saved time zone at shot end),
 duration, the exact preset name captured at shot start, goal and yield (the
 shot's actual output), error, average flow, first-drop time, whether Fast/Slow
 guards ran or extended the shot, `shot_type`, `cut_type`
@@ -44,6 +44,8 @@ keep their own eligibility rules.
 Curve samples and the history record are written **once** when the cycle
 closes (after the configured drip delay), not during an active brew. Shot
 duration and the curve time axis end when the machine circuit opens. The
+UTC instant and local offset are captured when the circuit opens, so a clock
+or daylight saving change during the drip delay cannot relabel the shot.
 settled post-drip weight replaces the curve's endpoint at that same end time;
 the drip-delay interval is not appended to the graph. Before the first drop,
 the weight chart shows a dark green outline along the zero-weight axis, and
@@ -113,6 +115,12 @@ reference lines every 10 seconds. The Weight chart adds lines every 10 g, and
 Flow rate adds them every 0.5 g/s. Each displayed range rounds up to the next
 reference interval and each chart grows vertically when all required labels
 would not fit at its normal compact height.
+On a narrow screen, a few numbers beside these charts may be hidden when they
+would overlap. The lines and measurements stay in place, and more numbers
+appear again when there is room. Home applies the same rule to the time and
+weight references above the shot and to the Current / Last Shot weight bar:
+the target takes precedence when its label is close to the measured weight.
+The shot card continues to show the exact measured weight.
 
 The Flow rate chart draws the measured rates as one continuous line per color
 instead of separate blocks. Samples are saved every half-second, so each
@@ -144,6 +152,14 @@ are derived locally, so viewing or reloading them does not create another
 history record or flash write.
 
 ## Read a result
+
+The CSV exports `local_time` as the local date and time saved for that shot,
+`ended_at_unix` as UTC Unix seconds, and `tz_off` as the signed offset in
+minutes applied when it ended. For example, two shots in `America/Santiago`
+may have different `tz_off` values in winter and summer. Changing the saved
+zone later does not recalculate either row. If the clock was unavailable,
+`has_wall_time` is `0` and all three time cells are empty. A zone name is not
+recorded per shot.
 
 CSV keeps its column order, with the shot output columns named like the cards:
 `yield_g` for the final yield (earlier `actual_g`), `yield_source` for where
@@ -203,10 +219,8 @@ Learning applied is `1`/`0` in CSV and true/false in JSON; a skipped shot still
 retains its assigned gain. For example, appended CSV values can be
 `linear_ewma,2,0.37,1` and later `linear_ewma,2,0.50,1` for the same preset.
 
-History and curve stores use schema 1. Any older or incompatible store is
-discarded and starts empty; export the CSV before a clean USB installation if
-you want to keep older shots. Records written by older schemas are simply
-absent rather than relabeled. Select Linear
+History and curve stores use schema 1. A clean USB installation with
+`--erase-all` starts them empty. Select Linear
 regression + offset correction in current firmware for like-for-like
 algorithm comparison. Renaming the visible method does not rename API/CSV
 identifiers.

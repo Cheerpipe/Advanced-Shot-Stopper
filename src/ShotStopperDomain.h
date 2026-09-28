@@ -58,13 +58,14 @@
 #include "ShotStopperScaleTypes.h"
 #include "ShotStopperBrewTypes.h"
 #include "ShotStopperNetworkTypes.h"
+#include "ShotStopperTimeZone.h"
 
 namespace shotstopper {
 
 constexpr uint32_t SERIAL_BAUD = 115200;
 // Fresh persistence baseline. Earlier firmware schemas are intentionally not
 // accepted; install this contract with a full flash erase over USB.
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 2;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 3;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;
@@ -190,9 +191,7 @@ inline bool validNtpHostname(const char *host) {
   return true;
 }
 
-constexpr int16_t MIN_TIMEZONE_OFFSET_MINUTES = -720;
-constexpr int16_t MAX_TIMEZONE_OFFSET_MINUTES = 840;
-constexpr int16_t DEFAULT_TIMEZONE_OFFSET_MINUTES = 0;
+constexpr size_t TIMEZONE_ID_CAPACITY = 64;
 constexpr size_t WIFI_SSID_CAPACITY = 33;
 constexpr size_t WIFI_PASSWORD_CAPACITY = 64;
 constexpr size_t WEB_COMMAND_QUEUE_LENGTH = 4;
@@ -678,7 +677,13 @@ struct RuntimeConfig {
   uint32_t retareStabilityMinDurationMs = DEFAULT_RETARE_STABILITY_MIN_DURATION_MS;
   uint32_t bbwProtectionMs = DEFAULT_BBW_PROTECTION_MS;
   uint32_t operationalWallMs = DEFAULT_OPERATIONAL_WALL_MS;
-  int16_t timezoneOffsetMinutes = DEFAULT_TIMEZONE_OFFSET_MINUTES;
+  // Empty until the first authorized browser detection or manual selection.
+  char timezoneId[TIMEZONE_ID_CAPACITY] = {};
+  uint64_t firstTimezoneAutoUptimeUs = 0;
+  uint32_t firstTimezoneAutoUtcSec = 0;
+  uint32_t firstTimezoneAutoBootId = 0;
+  uint8_t timezoneSource = 0;  // 0 pending, 1 detected, 2 manually selected
+  uint8_t firstTimezoneAutoClockQuality = 0;  // 0 absent, 1 unknown, 2 device UTC
   uint8_t ntpServerPreset = static_cast<uint8_t>(NtpServerPreset::POOL);
   char ntpServerCustom[NTP_SERVER_HOST_CAPACITY] = {};
   bool fastExtractionGuardEnabled = true;
@@ -746,23 +751,25 @@ struct RuntimeConfig {
   uint8_t bbwAlgorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
 };
 
-static_assert(sizeof(RuntimeConfig) == 252,
+#include "domain/ShotStopperTimeZoneState.inc"
+
+static_assert(sizeof(RuntimeConfig) == 336,
               "RuntimeConfig NVS size changed; bump CONFIG_SCHEMA_VERSION");
-static_assert(offsetof(RuntimeConfig, stopPulseTenMs) == 238,
+static_assert(offsetof(RuntimeConfig, stopPulseTenMs) == 322,
               "RuntimeConfig stopPulseTenMs offset changed");
-static_assert(offsetof(RuntimeConfig, dripDelayMs) == 240,
+static_assert(offsetof(RuntimeConfig, dripDelayMs) == 324,
               "RuntimeConfig dripDelayMs offset changed");
-static_assert(offsetof(RuntimeConfig, momentaryStartOnPress) == 244,
+static_assert(offsetof(RuntimeConfig, momentaryStartOnPress) == 328,
               "RuntimeConfig momentaryStartOnPress offset changed");
-static_assert(offsetof(RuntimeConfig, reedConfirmTimeoutHundredMs) == 245,
+static_assert(offsetof(RuntimeConfig, reedConfirmTimeoutHundredMs) == 329,
               "RuntimeConfig reedConfirmTimeoutHundredMs offset changed");
-static_assert(offsetof(RuntimeConfig, assumeIdleWhenScaleConnects) == 246,
+static_assert(offsetof(RuntimeConfig, assumeIdleWhenScaleConnects) == 330,
               "RuntimeConfig assumeIdleWhenScaleConnects offset changed");
-static_assert(offsetof(RuntimeConfig, shotReactTimeoutS) == 247,
+static_assert(offsetof(RuntimeConfig, shotReactTimeoutS) == 331,
               "RuntimeConfig shotReactTimeoutS offset changed");
-static_assert(offsetof(RuntimeConfig, rinseEnabled) == 248,
+static_assert(offsetof(RuntimeConfig, rinseEnabled) == 332,
               "RuntimeConfig rinseEnabled offset changed");
-static_assert(offsetof(RuntimeConfig, autoTareOutsideBrew) == 250,
+static_assert(offsetof(RuntimeConfig, autoTareOutsideBrew) == 334,
               "RuntimeConfig autoTareOutsideBrew offset changed");
 
 // Shared shape of the runtime timeout accessors/setters: the stored raw field
@@ -970,7 +977,7 @@ enum class ConfigValidationError : uint8_t {
   COMBINED_TARE_REQUIRES_AUTOTARE,
   POST_TARE_BASELINE_GRACE,
   SCALE_TIMER_STOP_EXTRA_DELAY,
-  TIMEZONE_OFFSET,
+  TIMEZONE_ID,
   NTP_SERVER_PRESET,
   NTP_SERVER_CUSTOM,
   MAX_RECOVERY_WEIGHT,
@@ -1200,9 +1207,8 @@ inline ConfigValidationError validateRuntimeConfig(
       config.scaleTimerStopExtraDelayMs > MAX_SCALE_TIMER_STOP_EXTRA_DELAY_MS) {
     return ConfigValidationError::SCALE_TIMER_STOP_EXTRA_DELAY;
   }
-  if (config.timezoneOffsetMinutes < MIN_TIMEZONE_OFFSET_MINUTES ||
-      config.timezoneOffsetMinutes > MAX_TIMEZONE_OFFSET_MINUTES) {
-    return ConfigValidationError::TIMEZONE_OFFSET;
+  if (!validTimeZoneState(config)) {
+    return ConfigValidationError::TIMEZONE_ID;
   }
   if (config.ntpServerPreset >
       static_cast<uint8_t>(NtpServerPreset::NIST)) {
@@ -1363,8 +1369,8 @@ inline const char *configValidationErrorName(ConfigValidationError error) {
       return "postTareBaselineGraceMs";
     case ConfigValidationError::SCALE_TIMER_STOP_EXTRA_DELAY:
       return "scaleTimerStopExtraDelayMs";
-    case ConfigValidationError::TIMEZONE_OFFSET:
-      return "timezoneOffsetMinutes";
+    case ConfigValidationError::TIMEZONE_ID:
+      return "timezoneId";
     case ConfigValidationError::NTP_SERVER_PRESET:
       return "ntpServerPreset";
     case ConfigValidationError::NTP_SERVER_CUSTOM:
@@ -1890,7 +1896,7 @@ struct WebCommand {
   CommandResultState resultState = CommandResultState::NONE;
 };
 
-static_assert(sizeof(WebCommand) <= 328, "WebCommand too large for queue");
+static_assert(sizeof(WebCommand) <= 416, "WebCommand too large for queue");
 static_assert(std::is_trivially_copyable<WebCommand>::value,
               "FreeRTOS queues copy WebCommand as bytes");
 

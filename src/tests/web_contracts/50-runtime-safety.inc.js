@@ -190,7 +190,7 @@ if (!statusFormat.includes('page == StatusPage::Settings') ||
   throw new Error('buzzerSupported must be gated to status settings only');
 }
 if (!statusFormat.includes('page == StatusPage::Admin') ||
-    !statusFormat.includes('\\"timezoneOffsetMinutes\\":%d') ||
+    !statusFormat.includes('\\"timezoneId\\":\\"%s\\"') ||
     !statusFormat.includes('\\"ntpServerPreset\\":\\"%s\\"') ||
     !statusFormat.includes('\\"ntpServerCustom\\":\\"%s\\"')) {
   throw new Error('NTP/timezone config must be gated to status admin');
@@ -241,7 +241,7 @@ if (!statusFormat.includes('page == StatusPage::Admin') ||
     }
   }
   if (!ui.includes(
-          "v==='admin'?!!(typeof s.adminUnlocked==='boolean'&&s.network&&(s.adminUnlocked?(s.bleScan&&typeof s.bleScan.scanIntensity==='string'&&typeof s.bleScan.backoffMin==='number'&&typeof s.bleScan.boostMin==='number'&&typeof c.timezoneOffsetMinutes==='number'&&c.ntpServerPreset!=null&&s.ota&&typeof s.ota.available==='boolean'&&s.webhooks&&typeof s.webhooks.enabled==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'):typeof s.network.configState==='string'))")) {
+          "v==='admin'?!!(typeof s.adminUnlocked==='boolean'&&s.network&&(s.adminUnlocked?(s.bleScan&&typeof s.bleScan.scanIntensity==='string'&&typeof s.bleScan.backoffMin==='number'&&typeof s.bleScan.boostMin==='number'&&typeof c.timezoneId==='string'&&c.ntpServerPreset!=null&&s.ota&&typeof s.ota.available==='boolean'&&s.webhooks&&typeof s.webhooks.enabled==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'):typeof s.network.configState==='string'))")) {
     throw new Error(
         'statusPageOk(admin) must accept a locked payload and validate unlocked network/BLE scan/NTP/OTA/webhooks/lastCommand');
   }
@@ -332,7 +332,7 @@ if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
       !statusFormat.includes('\\"configMutable\\"') ||
       !statusFormat.includes('\\"liveShot\\"') ||
       !statusFormat.includes('\\"ringRetainLogLevel\\"') ||
-      !statusFormat.includes('\\"timezoneOffsetMinutes\\":%d') ||
+      !statusFormat.includes('\\"appliedTimezoneOffsetMinutes\\":%d') ||
       !ui.includes("typeof s.bootId==='number'") ||
       !ui.includes('function applyDiagnosticStatus(') ||
       !ui.includes('dBz') ||

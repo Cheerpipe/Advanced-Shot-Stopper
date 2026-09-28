@@ -90,6 +90,9 @@ When present, `lastShot` contains
 `averageFlowGps`, and `rating` fields defined by the webhook contract. When the
 controller has a valid clock at shot completion, it also includes
 `endedAtUnixSec` (UTC) and `endedAtLocalSec`; otherwise both are absent.
+The local value uses the saved time zone's offset at shot completion and stays
+fixed if the zone changes later. Consumers should use `endedAtUnixSec` for an
+unambiguous instant.
 `savePending` is true while the deferred flash write still needs confirmation;
 if saving fails, the record remains in RAM for a retry. Firmware with the
 earlier v1 snapshot instead had distinct `lastShot` and `lastGoodShot` fields.

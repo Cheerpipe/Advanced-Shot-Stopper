@@ -1063,13 +1063,13 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(ShotPreset) <= 136);
   CHECK(sizeof(ShotPresetBank) <= 1100);
   CHECK(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET);
-  CHECK(sizeof(PersistedSettings) == 3216);
+  CHECK(sizeof(PersistedSettings) == 3304);
   CHECK(FLASH_IO_SCRATCH_BYTES == sizeof(PersistedSettings));
-  CHECK(sizeof(RuntimeConfig) == 252);
+  CHECK(sizeof(RuntimeConfig) == 336);
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
   CHECK(sizeof(ControlStatusSnapshot) <= 4096);
   CHECK(sizeof(ControlGateSnapshot) <= 32);
-  CHECK(sizeof(WebCommand) <= 328);
+  CHECK(sizeof(WebCommand) <= 416);
   WebCommand command;
   command.type = WebCommandType::PRESET_OP;
   command.config.goalWeightG = 42;
@@ -2058,12 +2058,12 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
   constexpr size_t remainingRecords = lastShotEntries + 6U + 3U + 24U + 32U;
   constexpr size_t applicationEntries = settingsEntries + remainingRecords;
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
-  CHECK(sizeof(PersistedSettings) == 3216U);
-  CHECK(settingsEntries == 206U);
+  CHECK(sizeof(PersistedSettings) == 3304U);
+  CHECK(settingsEntries == 212U);
   CHECK(lastShotEntries == 11U);
-  CHECK(applicationEntries == 282U);
+  CHECK(applicationEntries == 288U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 2112U);
+  CHECK(conservativeEntries - applicationEntries == 2106U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {

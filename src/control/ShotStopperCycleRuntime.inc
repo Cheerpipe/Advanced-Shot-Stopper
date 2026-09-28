@@ -730,7 +730,8 @@ bool pendingFinalizeIsRinse(const PendingShotFinalize &snapshot) {
          snapshot.finalState == StopperState::RINSE;
 }
 
-void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs) {
+void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
+                                 const CycleWallTime &end = captureCycleWallTime()) {
   if (brewEndIsAbandonedStart(reason) || endingRinseCycle(reason)) {
     return;
   }
@@ -752,7 +753,10 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs) {
   pendingFinalize.pending = true;
   pendingFinalize.offsetAnalysis = offsetAnalysis;
   pendingFinalize.logEligible = logEligible;
-  pendingFinalize.endedAtMs = millis();
+  pendingFinalize.endedAtMs = end.endedAtMs;
+  pendingFinalize.endedAtUtcSec = end.utcSec;
+  pendingFinalize.endedAtOffsetMinutes = end.offsetMinutes;
+  pendingFinalize.endedAtHasWallTime = end.available;
   pendingFinalize.dripDelayMs = session.config.dripDelayMs;
   pendingFinalize.endedWeightSequence = currentWeightSequence;
   pendingFinalize.cycleStartedAtMs =
@@ -849,12 +853,11 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
   record.avgFlowCgS = SHOT_LOG_METRIC_MISSING;
   record.bootId = snapshot.bootId;
   record.endedAtMs = snapshot.endedAtMs;
-  if (g_wallClock.synced()) {
-    const uint32_t utcSec = g_wallClock.nowUtcSec(millis());
-    const int16_t offset = runtimeConfig.timezoneOffsetMinutes;
-    record.endedAtUnixSec = utcSec;
-    record.endedAtLocalSec = shotLogLocalSecFromUtc(utcSec, offset);
-    record.timezoneOffsetMinutesAtCommit = offset;
+  if (snapshot.endedAtHasWallTime) {
+    record.endedAtUnixSec = snapshot.endedAtUtcSec;
+    record.endedAtLocalSec = shotLogLocalSecFromUtc(
+        snapshot.endedAtUtcSec, snapshot.endedAtOffsetMinutes);
+    record.timezoneOffsetMinutesAtCommit = snapshot.endedAtOffsetMinutes;
     record.hasWallTime = 1;
   } else {
     record.endedAtUnixSec = 0;
@@ -962,6 +965,7 @@ void queueWebhookEnd(const PendingShotFinalize &snapshot, float finalWeightG,
   }
   WebhookEvent event = baseWebhookEvent(WebhookEventType::END, snapshot.cycleId,
                                         snapshot.endedAtMs);
+  event.unixSec = snapshot.endedAtHasWallTime ? snapshot.endedAtUtcSec : 0;
   event.durationMs = static_cast<uint32_t>(snapshot.durationDs) * 100U;
   event.firstDropValid = snapshot.firstDropDs != SHOT_LOG_METRIC_MISSING;
   event.firstDropMs = event.firstDropValid

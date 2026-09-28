@@ -447,8 +447,10 @@ if (generated.cssGzip.length > 7300) {
 // entry, raising it to 37965 bytes.
 // The Home last-shot moment label (status wall-time passthrough plus the
 // humanized render under the duration) raises it to 38000 bytes.
-if (sentinelRuntimeGzip.length > 38000) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 38000-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The time-zone catalog, selected-zone preview, and first-use detection
+// raise the measured source to 38780 bytes.
+if (sentinelRuntimeGzip.length > 40000) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 40000-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -738,7 +740,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
 
 {
   const start = js.indexOf('function lastCurveWeightG(');
-  const end = js.indexOf('function populateTimezoneOptions(');
+  const end = js.indexOf('async function populateTimezoneOptions(');
   if (start < 0 || end < 0 || end <= start) {
     throw new Error('Shot spark helpers not found for matrix checks');
   }

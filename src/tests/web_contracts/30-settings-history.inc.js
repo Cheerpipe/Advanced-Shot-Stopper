@@ -639,8 +639,8 @@ if (!ui.includes('id="shotTable"') ||
     !partialHtml.stats.includes('colspan="13"') ||
     partialHtml.stats.includes('<th>Actual</th>') ||
     !ui.includes('no time') ||
-    !ui.includes('id="timezoneOffsetMinutes"') ||
-    !js.includes('m+=15') ||
+    !ui.includes('id="timezoneId"') ||
+    !js.includes('/api/v1/time/zones') ||
     js.includes('Request accepted.') ||
     js.includes("message('Request queued.','ok')") ||
     js.includes('Request queued successfully.') ||

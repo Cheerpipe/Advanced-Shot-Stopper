@@ -29,6 +29,7 @@ endfunction()
 
 host_test(power_policy_host_test DEFINITIONS SHOT_STOPPER_HOST_TEST
   LABEL "host;control;concurrency")
+host_test(timezone_host_test LABEL "host;time")
 
 if(SHOTSTOPPER_SANITIZER STREQUAL "thread")
   foreach(case M09 R25c F03 F04 F17 IT10 IT28 SH01)

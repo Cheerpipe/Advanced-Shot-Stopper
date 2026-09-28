@@ -54,7 +54,7 @@ struct ShotPresetBank {
 
 static_assert(sizeof(ShotPreset) <= 136, "ShotPreset too large");
 static_assert(sizeof(ShotPresetBank) <= 1100, "ShotPresetBank too large");
-static_assert(offsetof(RuntimeConfig, bbwAlgorithm) == 251, "V9 runtime layout");
+static_assert(offsetof(RuntimeConfig, bbwAlgorithm) == 335, "V10 runtime layout");
 static_assert(offsetof(ShotPreset, bbwAlgorithm) == 45, "V9 preset selector");
 static_assert(offsetof(ShotPreset, bbwEwmaOffsetG) == 84, "V9 preset offset");
 static_assert(offsetof(ShotPreset, bbwEwmaAlpha) == 88, "V9 preset alpha");

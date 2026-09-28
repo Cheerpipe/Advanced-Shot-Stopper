@@ -67,6 +67,14 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   }
   const NetworkStatusSnapshot network = self.snapshot();
   const TimeStatusSnapshot timeStatus = g_wallClock.snapshot(millis());
+  int16_t appliedTimezoneOffset = 0;
+  const bool timezoneOffsetKnown = timeStatus.utcSec != 0 &&
+      timeZoneOffsetAtOrUtc(control.config.timezoneId, timeStatus.utcSec,
+                              appliedTimezoneOffset);
+  int16_t lastSyncTimezoneOffset = 0;
+  const bool lastSyncOffsetKnown = timeStatus.lastSyncUtcSec != 0 &&
+      timeZoneOffsetAtOrUtc(control.config.timezoneId, timeStatus.lastSyncUtcSec,
+                              lastSyncTimezoneOffset);
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   LineaMicraStatus micraStatus = {};
   LineaMicraDiscoverySnapshot micraDiscovery = {};
@@ -314,18 +322,38 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   }
   if (ok) {
     ok = statusJsonAppend(
-        &used, ",\"config\":{\"revision\":%lu,\"ringRetainLogLevel\":\"%s\",\"serialLogLevel\":\"%s\"",
+        &used, ",\"timeUtcSec\":%lu,\"config\":{\"revision\":%lu,\"ringRetainLogLevel\":\"%s\",\"serialLogLevel\":\"%s\"",
+        static_cast<unsigned long>(timeStatus.utcSec),
         static_cast<unsigned long>(control.config.revision),
         logLevelName(static_cast<LogLevel>(control.config.ringRetainLogLevel)),
         logLevelName(serialLogLevelFromRuntime(control.config)));
   }
+  if (ok) {
+    ok = statusJsonAppend(
+        &used, ",\"timezoneId\":\"%s\",\"appliedTimezoneOffsetMinutes\":%d,"
+        "\"timezoneOffsetKnown\":%s,\"lastSyncAppliedTimezoneOffsetMinutes\":%d,"
+        "\"lastSyncOffsetKnown\":%s,\"tzdbVersion\":\"%s\","
+        "\"timezoneResolution\":\"%s\"",
+        control.config.timezoneId, static_cast<int>(appliedTimezoneOffset),
+        timezoneOffsetKnown ? "true" : "false",
+        static_cast<int>(lastSyncTimezoneOffset),
+        lastSyncOffsetKnown ? "true" : "false", tzdb::kVersion,
+        timeZoneResolution(control.config.timezoneId, timeStatus.utcSec));
+  }
   if (ok && page == StatusPage::Admin && adminUnlocked) {
     ok = statusJsonAppend(
         &used,
-        ",\"timezoneOffsetMinutes\":%d,\"ntpServerPreset\":\"%s\","
+        ",\"timezoneSource\":%u,"
+        "\"firstTimezoneAutoUtcSec\":%lu,\"firstTimezoneAutoUptimeUs\":%llu,"
+        "\"firstTimezoneAutoBootId\":%lu,\"firstTimezoneAutoClockQuality\":%u,"
+        "\"ntpServerPreset\":\"%s\","
         "\"ntpServerCustom\":\"%s\",\"showDiagnosticPage\":%s,\"powerManagementEnabled\":%s,"
         "\"persistPending\":%s,\"persistFailed\":%s",
-        static_cast<int>(control.config.timezoneOffsetMinutes),
+        static_cast<unsigned>(control.config.timezoneSource),
+        static_cast<unsigned long>(control.config.firstTimezoneAutoUtcSec),
+        static_cast<unsigned long long>(control.config.firstTimezoneAutoUptimeUs),
+        static_cast<unsigned long>(control.config.firstTimezoneAutoBootId),
+        static_cast<unsigned>(control.config.firstTimezoneAutoClockQuality),
         ntpPresetId(control.config.ntpServerPreset), safeNtpCustom,
         control.config.showDiagnosticPage ? "true" : "false",
         control.config.powerManagementEnabled ? "true" : "false",
@@ -335,8 +363,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   if (ok && page == StatusPage::Diagnostic) {
     ok = statusJsonAppend(
         &used,
-        ",\"timezoneOffsetMinutes\":%d,\"serialDebugOutput\":%s",
-        static_cast<int>(control.config.timezoneOffsetMinutes),
+        ",\"serialDebugOutput\":%s",
         serialLogLevelFromRuntime(control.config) != LogLevel::NONE ? "true"
                                                                      : "false");
   }

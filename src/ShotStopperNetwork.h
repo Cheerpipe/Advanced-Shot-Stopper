@@ -543,6 +543,8 @@ class ShotStopperNetwork {
   static esp_err_t historyDeleteHandler(httpd_req_t *request);
   static esp_err_t lastShotClearHandler(httpd_req_t *request);
   static esp_err_t timeSyncHandler(httpd_req_t *request);
+  static esp_err_t timeZoneCatalogHandler(httpd_req_t *request);
+  static esp_err_t timeZonePreviewHandler(httpd_req_t *request);
   static esp_err_t configHandler(httpd_req_t *request);
   static esp_err_t webhookHandler(httpd_req_t *request);
   static esp_err_t lineaMicraHandler(httpd_req_t *request);

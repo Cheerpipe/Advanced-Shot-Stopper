@@ -43,6 +43,8 @@ phases. The figures may differ slightly from the rounded gap above. Select
 **Reset** beside Loop max to begin a new maximum
 measurement. In Date and time, **Last sync** shows the local date and time of
 the most recent successful NTP sync, including while the device is retrying.
+The current interface also shows the saved time zone and its applied UTC offset
+on separate rows. This historical screenshot predates those rows.
 
 ![Historical dark Diagnostics screen](images/screenshot-diagnostic-dark.jpeg)
 

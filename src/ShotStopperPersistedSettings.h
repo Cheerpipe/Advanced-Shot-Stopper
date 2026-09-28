@@ -52,6 +52,8 @@ struct PersistedSettings {
   char deviceName[DEVICE_NAME_CAPACITY] = {};
   // Optional Micra cloud account, selected machine and independent options.
   LineaMicraPersistedSettings lineaMicra = {};
+  // Consume the 64-bit-alignment tail so bytewise NVS verification is stable.
+  uint32_t reserved = 0;
   uint32_t checksum = 0;
 };
 
@@ -77,7 +79,7 @@ static_assert(offsetof(PersistedSettings, storageRevision) + sizeof(uint32_t) ==
 
 static_assert(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET,
               "PersistedSettings exceeds NVS dual-slot budget");
-static_assert(sizeof(PersistedSettings) == 3216,
+static_assert(sizeof(PersistedSettings) == 3304,
               "PersistedSettings size changed; bump CONFIG_SCHEMA_VERSION");
 
 inline uint32_t persistedSettingsChecksum(const PersistedSettings &settings) {

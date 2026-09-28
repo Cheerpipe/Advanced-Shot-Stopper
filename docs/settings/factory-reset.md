@@ -8,6 +8,8 @@ credentials. Firmware on the flash is not erased.
 Wi-Fi (STA and last-known-good network), workflow settings, presets,
 calibration (including learned offset and A→M samples), preferred scale,
 shot history, activation history, and saved crash records on 16 MB controllers.
+The saved time zone and its first-detection record are also erased; the next
+authorized Web UI setup can detect a zone again.
 On Linea Micra firmware it also erases
 the cloud account credentials, installation key, selected machine, and session.
 Its three integration options return to ON, and factory preset boiler targets return to

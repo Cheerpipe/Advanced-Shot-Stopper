@@ -31,8 +31,25 @@ stays available.
 | **Boot with no credentials** | SoftAP up | SoftAP at boot with a **3 min** idle shutdown when no SoftAP stations are associated. See [AP](ap.md). |
 | **Boot with credentials** | STA first | SoftAP only if STA does not associate in about **25 s** (and STA never joined this boot). Then AP+STA until STA connects or SoftAP idle-stops; SoftAP is then stopped. |
 | **STA drops after a successful join** | retry STA only | SoftAP is **not** raised automatically. Use USB `AP_START` or reboot. |
-| **Timezone offset (min)** | UTC+0 | Wall-clock labels in shot history. |
+| **Time zone** (Admin → Date and time) | Detected from the first authorized browser | Saves a region/city such as `America/Santiago`. The controller applies that zone's daylight saving rules to new local times. Until a zone is saved, it uses UTC. |
 | **NTP server** | pool | Preset or custom hostname for time sync. |
+
+On a fresh installation, the Web UI reads the time zone of the phone or
+computer that opens it. After you unlock **Admin**, it saves that zone when
+the controller is ready for configuration. This happens once per factory
+setup; later visits from other devices do not change it. If detection is
+unavailable, choose a zone yourself. In **Admin → Date and time**, choose any
+supported zone or use **Detect from this device**, check the preview for the
+selected zone, then save. The detection button changes only the selection
+until you save it. The preview uses your browser's clock until NTP has set the
+controller's clock and labels that estimate clearly.
+
+NTP supplies the current UTC time; the saved zone determines how that instant
+appears locally. Changing the zone does not change NTP, past history entries,
+or the controller's brew timers. **Diagnostic → Date and time** shows the saved
+zone and the offset currently applied to it as separate values. Daylight
+saving changes update that offset automatically. The controller includes
+IANA rules for 2025–2099; future legal changes require a firmware update.
 
 Factory credentials and the first-connection walkthrough are in the
 [README](../../README.md#first-connection) and [AP](ap.md).

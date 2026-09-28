@@ -115,6 +115,17 @@ void processWebCommand(const WebCommand &command) {
         rejectWebCommand(command);
         return;
       }
+      if (command.config.revision != runtimeConfig.revision ||
+          (command.config.timezoneSource == 3 &&
+           runtimeConfig.timezoneId[0] != '\0') ||
+          strnlen(command.config.timezoneId, TIMEZONE_ID_CAPACITY) >=
+              TIMEZONE_ID_CAPACITY ||
+          (strncmp(command.config.timezoneId, runtimeConfig.timezoneId,
+                   TIMEZONE_ID_CAPACITY) != 0 &&
+           findTimeZone(command.config.timezoneId) == nullptr)) {
+        rejectWebCommand(command);
+        return;
+      }
       RecipeSnapshot quickBefore;
       quickBefore.presets = presetBank;
       quickBefore.runtime = runtimeConfig;
@@ -163,7 +174,25 @@ void processWebCommand(const WebCommand &command) {
       candidate.retareStabilityMaxGapMs = command.config.retareStabilityMaxGapMs;
       candidate.retareStabilityMinDurationMs =
           command.config.retareStabilityMinDurationMs;
-      candidate.timezoneOffsetMinutes = command.config.timezoneOffsetMinutes;
+      memcpy(candidate.timezoneId, command.config.timezoneId,
+             sizeof(candidate.timezoneId));
+      candidate.timezoneSource = command.config.timezoneSource;
+      if (candidate.timezoneSource == 3) {
+        candidate.timezoneSource = 1;
+        candidate.firstTimezoneAutoClockQuality = 1;
+#if !defined(SHOT_STOPPER_HOST_TEST)
+        candidate.firstTimezoneAutoUptimeUs =
+            static_cast<uint64_t>(esp_timer_get_time());
+#else
+        candidate.firstTimezoneAutoUptimeUs =
+            static_cast<uint64_t>(millis()) * 1000U;
+#endif
+        candidate.firstTimezoneAutoBootId = copyShotLogBootId();
+        if (g_wallClock.synced()) {
+          candidate.firstTimezoneAutoUtcSec = g_wallClock.nowUtcSec(millis());
+          candidate.firstTimezoneAutoClockQuality = 2;
+        }
+      }
       candidate.ntpServerPreset = command.config.ntpServerPreset;
       memcpy(candidate.ntpServerCustom, command.config.ntpServerCustom,
              sizeof(candidate.ntpServerCustom));

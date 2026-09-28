@@ -11,7 +11,8 @@ happened and what you tried, without the measurement detail of the
 Every activation the machine confirmed is recorded when its circuit opens,
 including manual brews and rinses that the shot history skips. A paddle attempt
 stopped by No-scale BBW protection is recorded when you release the paddle.
-Each entry keeps the local time, duration, and activation type:
+Each entry keeps the UTC instant and local time calculated with the zone's
+offset when the activation ends, as well as its duration and type:
 
 - **Shot** — an activation that outlasted the brew-by-weight protection
   window (12 seconds by default). The label records the intention to brew,
@@ -54,6 +55,8 @@ activations carry a lightning bolt, Power ON entries use the power symbol,
 and No scale guard aborted entries show a crossed-out scale. When the clock
 was not synced when the entry was recorded, the card shows "no time"
 instead of a date.
+
+Changing the saved time zone later does not rewrite earlier entry times.
 
 Delete a single entry with the ✕ on its card, or clear the whole diary with
 the Clear button. Clearing asks for an explicit confirmation and cannot be

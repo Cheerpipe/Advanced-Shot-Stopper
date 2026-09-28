@@ -192,16 +192,16 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
 void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record);
 
 void appendHistoryRecord(HistoryType type, uint32_t durationMs,
-                         bool noWeight) {
+                         bool noWeight, const CycleWallTime *end) {
   HistoryRecord record = {};
   record.durationDs = static_cast<uint16_t>(
       durationMs / 100U > UINT16_MAX ? UINT16_MAX : durationMs / 100U);
   record.type = static_cast<uint8_t>(type);
-  if (g_wallClock.synced()) {
-    const uint32_t utcSec = g_wallClock.nowUtcSec(millis());
-    record.endedAtUnixSec = utcSec;
+  const CycleWallTime wall = end != nullptr ? *end : captureCycleWallTime();
+  if (wall.available) {
+    record.endedAtUnixSec = wall.utcSec;
     record.endedAtLocalSec =
-        shotLogLocalSecFromUtc(utcSec, runtimeConfig.timezoneOffsetMinutes);
+        shotLogLocalSecFromUtc(wall.utcSec, wall.offsetMinutes);
     record.flags = HISTORY_FLAG_WALL_TIME;
   }
   if (noWeight) {
@@ -228,14 +228,15 @@ void appendHistoryRecord(HistoryType type, uint32_t durationMs,
 // its `shot` label describes intent from the protection window, regardless
 // of whether a settled weight qualifies for the separate shot log.
 void appendActivationHistory(EndReason reason, bool rinseEnd,
-                             uint32_t durationMs) {
+                             uint32_t durationMs,
+                             const CycleWallTime &end = captureCycleWallTime()) {
   if (brewEndIsAbandonedStart(reason)) {
     return;
   }
   appendHistoryRecord(historyTypeFromCycle(
                           rinseEnd, durationMs,
                           session.config.bbwProtectionMs),
-                      durationMs, !endedCycleWeightValid());
+                      durationMs, !endedCycleWeightValid(), &end);
 }
 
 bool finalizeCycle(EndReason reason, StopperState nextState,
@@ -269,6 +270,7 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
   } else {
     machineStopAccepted = machineRequestStop();
   }
+  const CycleWallTime cycleEndTime = captureCycleWallTime();
   rinseClear();
   session.rinseStartedAtMs = 0;
   session.endReason = reason;
@@ -297,14 +299,16 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
     bullseyeTracker.clear();
   }
 
-  schedulePendingShotFinalize(reason, durationMs);
-  appendActivationHistory(reason, rinseEnd, durationMs);
+  schedulePendingShotFinalize(reason, durationMs, cycleEndTime);
+  appendActivationHistory(reason, rinseEnd, durationMs, cycleEndTime);
 #ifndef SHOT_STOPPER_HOST_TEST
   {
     const WebhookConfig webhook = networkManager.webhookConfig();
     if (webhook.enabled && webhook.brewState &&
         !endingRinseCycle(reason) && !brewEndIsAbandonedStart(reason)) {
-      WebhookEvent event = baseWebhookEvent(WebhookEventType::IDLE, session.id);
+      WebhookEvent event = baseWebhookEvent(WebhookEventType::IDLE, session.id,
+                                           cycleEndTime.endedAtMs);
+      event.unixSec = cycleEndTime.available ? cycleEndTime.utcSec : 0;
       event.durationMs = durationMs;
       event.targetWeightG = static_cast<float>(session.config.goalWeightG);
       event.presetId = session.activePresetId;
@@ -320,13 +324,13 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
   // including empty / sub-1 g results. Rinses (including early abort) and
   // abandoned starts do not overwrite last shot.
   if (!rinseEnd && !brewEndIsAbandonedStart(reason)) {
-    persistLastShotFromEndedCycle(reason, durationMs);
+    persistLastShotFromEndedCycle(reason, durationMs, &cycleEndTime);
   }
 
   lastCycle.valid = true;
   lastCycle.cycleId = session.id;
   lastCycle.durationMs = durationMs;
-  lastCycle.endedAtMs = millis();
+  lastCycle.endedAtMs = cycleEndTime.endedAtMs;
   lastCycle.endReason = reason;
   lastCycle.source = session.source;
   lastCycle.weightValid = endedCycleWeightValid();

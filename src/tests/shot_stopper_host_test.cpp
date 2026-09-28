@@ -791,7 +791,7 @@ void t02b_off_wake_bypasses_brew_guards_and_records_power_on() {
     hostMachinePhysicalStartDisposition =
         MachinePhysicalStartDisposition::WAKE_PASSTHROUGH;
     g_wallClock.setSyncing("pool.ntp.org", hostMillis);
-    g_wallClock.queueSyncFromCallback(1'700'000'000U);
+    g_wallClock.queueSyncFromCallback(1'800'000'000U);
     CHECK(g_wallClock.applyPendingSync(hostMillis));
     const uint32_t buzzerRequests = localBuzzer.acceptedRequests;
 
@@ -827,7 +827,7 @@ void t02b_off_wake_bypasses_brew_guards_and_records_power_on() {
           static_cast<uint8_t>(HistoryType::POWER_ON));
     CHECK(page.records[0].durationDs >= runtimeConfig.rinseGestureMs / 100U);
     CHECK((page.records[0].flags & HISTORY_FLAG_WALL_TIME) != 0);
-    CHECK(page.records[0].endedAtUnixSec >= 1'700'000'000U);
+    CHECK(page.records[0].endedAtUnixSec >= 1'800'000'000U);
     CHECK(scaleCommandQueue->items.empty());
   }
 }
@@ -6648,6 +6648,74 @@ void w86_config_applies_to_ram_immediately_and_coalesces() {
   setRawPaddle(true);
   CHECK(runtimeConfig.noScaleBbwMode == originalMode);
   CHECK(runtimeConfig.revision == firstRevision + 2);
+}
+
+void tz01_first_auto_zone_is_once_and_estimated_after_sync() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  WebCommand first;
+  first.type = WebCommandType::APPLY_CONFIG;
+  first.config = runtimeConfig;
+  strcpy(first.config.timezoneId, "America/Santiago");
+  first.config.timezoneSource = 3;
+  processWebCommand(first);
+  CHECK(strcmp(runtimeConfig.timezoneId, "America/Santiago") == 0);
+  CHECK(runtimeConfig.timezoneSource == 1);
+  CHECK(runtimeConfig.firstTimezoneAutoClockQuality == 1);
+  CHECK(runtimeConfig.firstTimezoneAutoBootId == copyShotLogBootId());
+  const uint64_t firstUptime = runtimeConfig.firstTimezoneAutoUptimeUs;
+  const uint32_t appliedRevision = runtimeConfig.revision;
+  first.config = runtimeConfig;
+  first.config.timezoneSource = 3;
+  processWebCommand(first);
+  CHECK(runtimeConfig.revision == appliedRevision);
+  CHECK(runtimeConfig.firstTimezoneAutoUptimeUs == firstUptime);
+
+  hostMillis += 10000;
+  g_wallClock.setSyncing("pool.ntp.org", hostMillis);
+  g_wallClock.queueSyncFromCallback(1'800'000'000U);
+  CHECK(g_wallClock.applyPendingSync(hostMillis));
+  serviceRuntimePersistence();
+  CHECK(runtimeConfig.firstTimezoneAutoClockQuality == 3);
+  CHECK(runtimeConfig.firstTimezoneAutoUtcSec ==
+        1'800'000'000U - (hostMillis * 1000ULL - firstUptime) / 1000000ULL);
+  CHECK(runtimePersistPending);
+  WebCommand manual;
+  manual.type = WebCommandType::APPLY_CONFIG;
+  manual.config = runtimeConfig;
+  strcpy(manual.config.timezoneId, "America/New_York");
+  manual.config.timezoneSource = 2;
+  processWebCommand(manual);
+  CHECK(strcmp(runtimeConfig.timezoneId, "America/New_York") == 0);
+  CHECK(runtimeConfig.timezoneSource == 2);
+  CHECK(runtimeConfig.firstTimezoneAutoUtcSec != 0);
+}
+
+void tz02_unknown_zone_preserves_utc_with_zero_offset() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  strcpy(runtimeConfig.timezoneId, "Future/Retired_Zone");
+  runtimeConfig.timezoneSource = 2;
+  CHECK(validateRuntimeConfig(runtimeConfig) == ConfigValidationError::NONE);
+  CHECK(strcmp(timeZoneResolution(runtimeConfig.timezoneId, 1'800'000'000U),
+               "unknown_zone") == 0);
+  hostMillis = 1000;
+  g_wallClock.setSyncing("pool.ntp.org", hostMillis);
+  g_wallClock.queueSyncFromCallback(1'800'000'000U);
+  CHECK(g_wallClock.applyPendingSync(hostMillis));
+  const CycleWallTime wall = captureCycleWallTime();
+  CHECK(wall.available);
+  CHECK(wall.utcSec == 1'800'000'000U);
+  CHECK(wall.offsetMinutes == 0);
+  WebCommand bad;
+  bad.type = WebCommandType::APPLY_CONFIG;
+  bad.config = runtimeConfig;
+  strcpy(bad.config.timezoneId, "Invalid/Zone");
+  processWebCommand(bad);
+  CHECK(strcmp(runtimeConfig.timezoneId, "Future/Retired_Zone") == 0);
+  strcpy(runtimeConfig.timezoneId, "America/Santiago");
+  CHECK(strcmp(timeZoneResolution(runtimeConfig.timezoneId, 1'700'000'000U),
+               "rules_out_of_range") == 0);
 }
 
 void w87_nvs_fail_keeps_ram_and_requeues() {
@@ -17093,6 +17161,8 @@ const TestCase testCases[] = {
     {"W84b", w84b_echo_inverted_upgrades_weak_pending},
     {"W85", w85_debug_pulse_rates_use_same_on_ms_and_3s},
     {"W86", w86_config_applies_to_ram_immediately_and_coalesces},
+    {"TZ01", tz01_first_auto_zone_is_once_and_estimated_after_sync},
+    {"TZ02", tz02_unknown_zone_preserves_utc_with_zero_offset},
     {"W87", w87_nvs_fail_keeps_ram_and_requeues},
     {"W87B", w87b_runtime_persist_failure_is_logged_once_per_episode},
     {"W88", w88_save_network_flush_includes_live_runtime},

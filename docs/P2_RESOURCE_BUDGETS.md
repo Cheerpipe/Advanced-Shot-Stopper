@@ -30,11 +30,14 @@ and the qualified `CONFIG_FREERTOS_IN_IRAM=y` build profile.
 The n16r8 baseline represents the largest reviewed supported profile, currently
 the Linea Micra cloud build. HTTPS server verification adds the ESP certificate
 bundle in flash; it is retained rather than weakening TLS. The development
-profile with USB Serial/JTAG measures 2,121,040 image bytes and 2,120,923 total
+profile with USB Serial/JTAG measures 2,199,952 image bytes and 2,199,831 total
 bytes. The versioned allowances retain 38,640 and 38,628 bytes of reviewed
-growth headroom respectively. Flash rodata is 516,060 bytes, flash code is
-1,443,820 bytes, and linked DIRAM is 176,286 bytes; each retains its versioned
-allowance. The 3 MiB OTA slot remains the hard image limit.
+growth headroom respectively. Flash rodata is 563,900 bytes, flash code is
+1,469,344 bytes, and linked DIRAM is 182,518 bytes; each retains its versioned
+allowance. The IANA 2026d catalog/rules and zone-aware Web UI account for the
+reviewed increase over the prior image. Immutable rules stay in flash; external
+BSS is 108,112 bytes, below its 114,688-byte ceiling. The 3 MiB OTA slot
+remains the hard image limit, with about 30% free in this measured build.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
@@ -51,7 +54,7 @@ required before qualification. PSRAM access may slow NVS integer operations.
 Both linker maps must also keep external BSS at or below 112 KiB (114,688 bytes) and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
 objects to PSRAM would move synchronization state accessed under spinlocks.
-The current official profile builds use 107,760 bytes, leaving 6,928 bytes of
+The current official profile builds use 108,112 bytes, leaving 6,576 bytes of
 reviewed growth headroom. This ceiling detects static-placement regressions;
 it is not the physical PSRAM limit or a runtime-heap measurement. The earlier
 96→104 KiB increase covered the V3 half-second shot-curve store.
@@ -64,15 +67,15 @@ it is not the physical PSRAM limit or a runtime-heap measurement. The earlier
 | HTTP response send | assets and PSRAM work buffers pass directly to HTTPD's default socket send, which copies into lwIP; the former 512-byte internal-BSS bounce and application copy are removed, without implying a 512-byte runtime-heap gain |
 | NVS metadata cache | PSRAM preferred with internal fallback on n16r8; n8r4 retains its existing placement; flash I/O still uses the internal scratch below |
 | Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 68 KiB total bound |
-| Shared flash-I/O scratch | internal heap, 3,216 bytes (one PersistedSettings record); slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |
+| Shared flash-I/O scratch | internal heap, 3,328-byte capacity for one 3,304-byte PersistedSettings record; slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |
 | USB serial output | internal heap, 2,064 bytes for the eight-record ESP log queue; one external 2,560-byte CLI reply buffer; startup failures free both allocations, and successful startup retains one boot-lifetime owner |
 | Micra cloud workspace | external and lazy; a 6,344-byte work buffer on ESP32-S3 holds identity, tokens, authorization header, and client state while cloud observation is active, plus one request-scoped 16 KiB buffer whose mutually exclusive request-body and response phases share storage (22,728 bytes combined, excluding HTTP/TLS library allocations); Disconnect, disabled observation, STA loss, and AP entry destroy the client and free both blocks |
 | Micra/Webhook TLS allocations | external through the Micra profile's mbedTLS allocator (`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` from `sdkconfig.defaults.micra`); dynamic record, certificate, handshake, and session objects never fragment internal DRAM on Micra-profile builds and are freed through the matching capability allocator. Other machine profiles keep mbedTLS internal, so webhook HTTPS there still draws handshake memory from internal DRAM |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
-| Settings handoff | one 3,220-byte external mailbox and one internal byte queued; no full settings copy in the queue or receiver |
-| Web command | trivially copyable, at most 328 bytes; configuration and network payloads share a discriminated union |
-| Radio settings snapshot | at most 224 bytes; full 3,216-byte settings remain for durable mutations |
+| Settings handoff | one external mailbox for the 3,304-byte settings blob and revision, and one internal byte queued; no full settings copy in the queue or receiver |
+| Web command | trivially copyable, at most 416 bytes; configuration and network payloads share a discriminated union |
+| Radio settings snapshot | at most 224 bytes; full 3,304-byte settings remain for durable mutations |
 | Wi-Fi static TX pool | eight internal buffers reserved while Wi-Fi is initialized; sized for the bounded Web UI, OTA, webhook, STA, and SoftAP workload, with reliability taking priority over peak Web UI throughput |
 | mDNS responder | NetworkService-owned; mDNS 1.13.1 places its 4096-byte priority-1 task stack on core 0 in internal RAM on n16r8 for core dumps, and in PSRAM on n8r4; dynamic responder allocations remain in PSRAM; one persistent UDP socket; freed once in `OpenBrewByWeightNetwork::stop()` |
 | Fixed buzzer melodies | at most 8 notes each; custom tune capacity remains 250 notes |
@@ -82,18 +85,18 @@ it is not the physical PSRAM limit or a runtime-heap measurement. The earlier
 Network command builders must activate their union member with
 `setNetworkType()` before writing credentials. Preset metadata remains outside
 the union because a preset operation also carries configuration. Settings
-schema 2 uses a 3,216-byte blob for the bounded Micra cloud account, selected
+schema 3 uses a 3,304-byte blob for the bounded Micra cloud account, selected
 machine, and per-scale friendly names. Earlier settings schemas are rejected and require `--erase-all`.
 
 History V5 retains an exact bounded preset-name snapshot and transfers through
 the shared chunked flash-I/O path. The separate last-shot V4 record retains the
-same provenance. The current rendered English Web UI is capped at 73,161 bytes
-HTML, 201,743 bytes JavaScript, and 274,904 bytes combined authoring source.
-The compressed runtime JavaScript cap is 37,965 bytes, measured against a fixed
+same provenance. The current rendered English Web UI is capped at 74,000 bytes
+HTML, 211,000 bytes JavaScript, and 285,000 bytes combined authoring source.
+The compressed runtime JavaScript cap is 40,000 bytes, measured against a fixed
 sentinel build id so commit-SHA noise cannot move it; the Web contract still
 round-trips and flash-charges the real, version-baked runtime through the
-combined cap. The Web contract measures 73,144 / 201,724 authoring bytes and
-104,515 combined gzip bytes; the total embedded limit remains 108,200 bytes.
+combined cap. The Web contract measures 73,727 / 207,643 authoring bytes and
+105,986 combined gzip bytes; the total embedded limit remains 108,200 bytes.
 
 Every new setting must include concise, natural help that explains its effect on
 the barista's workflow, including what changes when an option is enabled or
@@ -140,8 +143,8 @@ maximum free-block increase. Sampling occurs outside owner locks and outside
 OTA chunk/cache-off work; only the fixed result is copied under the existing
 owner mutex.
 
-The n16r8 Micra development+JTAG candidate measured 177,438 linked DIRAM bytes.
-The one-record scratch removes 3,216 bytes from its lazy runtime allocation,
+The current n16r8 Micra development+JTAG build measures 182,518 linked DIRAM bytes.
+The one-record scratch reserves 3,328 bytes in its lazy runtime allocation,
 while the disabled-USB path avoids the 2,064-byte serial payload. Their actual
 free/largest-block effects remain target measurements, not linked-memory claims.
 

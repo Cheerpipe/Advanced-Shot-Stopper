@@ -29,7 +29,7 @@ path ready for installation.
 
 Review the selected profiles and physical safety before adding `--confirm`.
 The flag authorizes hardware access; it does not skip image, profile, or
-partition checks. Use `--erase-all` for a clean schema-1 installation:
+partition checks. Use `--erase-all` for a clean schema-3 installation:
 
 ```sh
 ./scripts/dev build flash --confirm \
@@ -118,6 +118,22 @@ downloading or installing anything; GitHub's fast validation job runs it.
 [Static analysis](STATIC_ANALYSIS.md) for local setup.
 Firmware builds require ESP-IDF 6.1.0 and fail if the IDF component lock
 changes during resolution. Review upgrades through [Build](BUILD.md#upgrade-dependencies-deliberately).
+
+To regenerate the immutable time-zone table after reviewing a new IANA
+release, place the official `tzdata2026d.tar.gz` archive in
+`temp/ai_temp_timezone_impl/` and run:
+
+```sh
+python3 scripts/generate_timezones.py \
+  temp/ai_temp_timezone_impl/tzdata2026d.tar.gz \
+  src/ShotStopperTimeZoneData.h
+```
+
+The script checks the pinned archive SHA-256 and release version, uses the
+local `zic` compiler, and writes the bounded 2025–2099 table. It never
+downloads data. Review the generated diff and run the normal validation gate.
+For a future release, update the pinned version and hash deliberately along
+with boundary fixtures and resource measurements.
 
 For a failed boot or a changed partition layout, reinstall the complete image
 over USB with `--erase-all` and follow [Emergency recovery](EMERGENCY_RECOVERY.md).

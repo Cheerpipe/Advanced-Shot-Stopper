@@ -47,6 +47,10 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   const DebugExportExtras &x = work.debugExport;
   const NetworkStatusSnapshot network = self.snapshot();
   const TimeStatusSnapshot timeStatus = g_wallClock.snapshot(millis());
+  int16_t appliedTimezoneOffset = 0;
+  const bool timezoneOffsetKnown = timeStatus.utcSec != 0 &&
+      timeZoneOffsetAtOrUtc(c.config.timezoneId, timeStatus.utcSec,
+                              appliedTimezoneOffset);
   const bool configMutable = controlAllowsConfiguration(c);
   char *buf = work.statusJson;
   constexpr size_t cap = NetworkWorkBuf::kStatusJson;
@@ -123,7 +127,9 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"avoidBbwShotWithoutScale\":%s,\"noScaleBbwMode\":\"%s\","
            "\"noScaleAllowRinseWhileArmed\":%s,\"autoRetare\":%s,"
            "\"retareWindowMs\":%lu,\"minimumCupWeightG\":%.1f,"
-           "\"lastShotCooldownMs\":%lu,\"timezoneOffsetMinutes\":%d,"
+           "\"lastShotCooldownMs\":%lu,\"timezoneId\":\"%s\","
+           "\"appliedTimezoneOffsetMinutes\":%d,\"timezoneOffsetKnown\":%s,"
+           "\"tzdbVersion\":\"%s\",\"timezoneResolution\":\"%s\","
            "\"serialLogLevel\":\"%s\",\"serialDebugOutput\":%s,"
            "\"powerManagementEnabled\":%s},",
            static_cast<unsigned long>(c.config.revision),
@@ -169,7 +175,9 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<unsigned long>(c.config.retareWindowMs),
            static_cast<double>(c.config.minimumCupWeightG),
            static_cast<unsigned long>(c.config.lastShotCooldownMs),
-           static_cast<int>(c.config.timezoneOffsetMinutes),
+           c.config.timezoneId, static_cast<int>(appliedTimezoneOffset),
+           timezoneOffsetKnown ? "true" : "false", tzdb::kVersion,
+           timeZoneResolution(c.config.timezoneId, timeStatus.utcSec),
            logLevelName(serialLogLevelFromRuntime(c.config)),
            serialLogLevelFromRuntime(c.config) != LogLevel::NONE ? "true"
                                                                   : "false",
@@ -901,6 +909,12 @@ esp_err_t ShotStopperNetwork::logHandler(httpd_req_t *request) {
   }
   for (size_t index = 0; index < count; ++index) {
     const DebugEvent &event = work.logBatch[index];
+    int16_t eventOffset = 0;
+    if (event.wallSec != 0)
+      (void)timeZoneOffsetAtOrUtc(work.control.config.timezoneId, event.wallSec,
+                                    eventOffset);
+    const uint32_t eventLocalSec =
+        event.wallSec + static_cast<int32_t>(eventOffset) * 60;
     char message[128] = {};
     if (event.text[0] != '\0') {
       copyCString(message, sizeof(message), event.text);
@@ -937,13 +951,14 @@ esp_err_t ShotStopperNetwork::logHandler(httpd_req_t *request) {
       copyCString(message, sizeof(message), debugCodeName(event.code));
     }
     snprintf(work.jsonItem, NetworkWorkBuf::kJsonItem,
-             "%s{\"sequence\":%lu,\"atMs\":%lu,\"wallSec\":%lu,"
+             "%s{\"sequence\":%lu,\"atMs\":%lu,\"wallSec\":%lu,\"localSec\":%lu,"
              "\"level\":\"%s\",\"category\":\"%s\",\"code\":%u,"
              "\"message\":",
              index == 0 ? "" : ",",
              static_cast<unsigned long>(event.sequence),
              static_cast<unsigned long>(event.atMs),
              static_cast<unsigned long>(event.wallSec),
+             static_cast<unsigned long>(eventLocalSec),
              logLevelName(event.level), debugCategoryName(event.category),
              static_cast<unsigned>(event.code));
     if (sendChunk(request, work.jsonItem, strlen(work.jsonItem)) !=

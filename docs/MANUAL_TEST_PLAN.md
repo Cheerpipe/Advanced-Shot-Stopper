@@ -205,6 +205,16 @@ Additional Bookoo idle-tare checks (not hardware-qualified by host tests):
 | M67 | Open the Web UI, then leave it without using a control for 15 min while watching DevTools Network. Scroll and switch browser tabs during the wait. | At 15 min the page stays open, all controls lock, polling stops, and a full-screen overlay with the brand mark and **Reload** fades in. Scrolling and changing browser tabs do not reset the timer. Select **Reload** and confirm the overlay fades out and polling resumes for the visible view. |
 | M68 | With a scale connected, scan from a phone BLE app for `openBrewByWeight` / service `0xFFE`. Confirm Admin still offers the BLE scan mode setting and `SCALE_STATUS` prints live `scanIntensity`. | The phone must **not** discover `openBrewByWeight` or service `0xFFE`. Scale weight stays `FRESH`. The scan mode still applies live. |
 
+## Date and time
+
+| ID | Procedure | Expected result |
+| --- | --- | --- |
+| TZ-01 | After a clean `--erase-all` installation, open the Web UI on a phone set to `America/Santiago`. Unlock Admin while the controller is Ready; reboot and then open the UI on a device in a different zone. | The first browser's zone is saved once without a success prompt; Diagnostic lists its name and current UTC offset separately. The second device does not replace it. |
+| TZ-02 | In Admin, choose `Asia/Kathmandu`, inspect the preview, then leave without saving. Return and use **Detect from this device**, inspect the preview, and save. | The preview follows the selected draft before saving, including the 45-minute offset. Diagnostic continues to show the saved zone until Save; redetection selects the browser's zone and changes it only after Save. |
+| TZ-03 | Before NTP is available, open Admin and select a zone; then connect Wi-Fi and sync time. Change the browser clock to an incorrect value after NTP succeeds. | The first preview is clearly labeled as using the browser clock and does not set the controller clock. After NTP, preview and Diagnostic use device UTC; an incorrect browser clock cannot change them. |
+| TZ-04 | Compare saved shots and activations before and after a daylight saving transition and a later manual zone change. Export shot CSV. | Past local times stay unchanged. Each shot CSV row has its own `ended_at_unix`, `local_time`, and `tz_off`; a shot without a synced clock has empty time and offset cells. |
+| TZ-05 | Repeat first initialization while configuration is busy, with an expired Admin unlock, and with a forced settings-save failure. | Busy or unauthorized writes do not apply; the UI reports a failed durable save distinctly from the live zone and retries through the existing persistence path. No relay action or periodic flash write occurs. |
+
 ## Recovery
 
 | ID | Procedure | Expected result |

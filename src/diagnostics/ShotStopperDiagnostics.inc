@@ -619,7 +619,11 @@ void serialCliPrintLiveNtpStatus() {
   dump.ntpServerPreset = runtimeConfig.ntpServerPreset;
   copyCString(dump.ntpServerCustom, sizeof(dump.ntpServerCustom),
               runtimeConfig.ntpServerCustom);
-  dump.timezoneOffsetMinutes = runtimeConfig.timezoneOffsetMinutes;
+  copyCString(dump.timezoneId, sizeof(dump.timezoneId),
+              runtimeConfig.timezoneId);
+  dump.timezoneOffsetMinutes = 0;
+  (void)timeZoneOffsetAtOrUtc(runtimeConfig.timezoneId, time.utcSec,
+                                dump.timezoneOffsetMinutes);
 #ifndef SHOT_STOPPER_HOST_TEST
   dump.staUp = networkManager.snapshot().staState == StaState::CONNECTED;
 #else
