@@ -1142,7 +1142,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
     }
   }
   if (!html.includes('Paddle during upload cancels it') ||
-      !html.includes('Restarts after any shot')) {
+      !html.includes('A running shot finishes first')) {
     throw new Error(
         'Web UI must say the paddle aborts OTA and that restart waits for the shot');
   }
