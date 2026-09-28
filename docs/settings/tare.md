@@ -79,8 +79,8 @@ not retare that partial drop. Remove everything, let the empty pan settle, and
 place the cup again to resume automatic tare. If the separately measured cup
 and accessory have nearly equal weights, their individual removal is also
 ambiguous and does not trigger accessory retare. A failed or unconfirmed tare
-may require a diagnostic tare with the pan empty before automatic placement
-can resume.
+may require taring the empty pan on the scale and reconnecting it before
+automatic placement can resume.
 
 Moving an empty scale and returning it near its previously stable zero does not
 authorize an idle tare. Let it settle through the normal stability window;
@@ -88,7 +88,7 @@ authorize an idle tare. Let it settle through the normal stability window;
 negative fluctuation before the first cup. Before the first cup, a small stable
 negative offset can become the empty reference. A larger negative reading first
 seen at boot/reconnect, without a preceding qualified zero and continuous unload,
-requires an empty-pan firmware diagnostic tare and stable zero; see [Cup](cup.md).
+requires an empty-pan tare on the scale, a reconnect, and stable zero; see [Cup](cup.md).
 
 The machine must be confirmed off. A new placement can tare after a normal
 shot stop while the paddle is still ON; the paddle still must be released before
@@ -104,14 +104,14 @@ stable negative reading can establish the empty reference; placing a cup with a
 different weight can then trigger tare. A return near the original zero is
 treated as possible empty-scale movement. For an equal-weight replacement, a
 large removal rebound, a reading gap, or a negative reading first seen at
-connection, tare the empty pan from **Diagnostic**, wait for stable zero, then
-place the cup.
+connection, tare the empty pan on the scale, reconnect it, wait for stable zero,
+then place the cup.
 The integrated protocols currently do not report a verifiable physical-button
 tare event; a zero reading alone cannot distinguish that action from returning
 to the previous displayed weight. **Tared** on Home describes the controller's
 last known cup state, not proof that the physical button was or was not pressed.
-If you press the scale's button after removing the cup, tare the empty pan from
-**Diagnostic**, let zero settle, and place the cup again. Accessory retare does
+If you press the scale's button after removing the cup, reconnect the scale,
+let zero settle, and place the cup again. Accessory retare does
 not resolve this ambiguity.
 
 An accepted physical shot or Quick rinse start takes priority over a pending
@@ -149,7 +149,7 @@ physical motion hidden by simultaneous tare.
 If the pan was not observed empty long enough after an unconfirmed tare, a
 quickly replaced cup cannot establish that empty reference. Remove the cup and
 let the empty pan settle; if its reading remains ambiguous, tare the empty pan
-from **Diagnostic** and wait for stable zero before replacing the cup.
+using the scale's button, reconnect it, and wait for stable zero before replacing the cup.
 
 Tracked tares translate the known empty reference from the latest control-approved
 reading captured immediately before the write, rather than the enqueue weight.
@@ -160,8 +160,8 @@ missing; they do not fabricate a new empty zero.
 
 **Home → Cup → Automatic tare** shows whether the empty pan must settle, the
 controller is ready for a cup, the machine must turn off, tare is pending, or the
-cup needs removal and replacement. An uncertain reference asks for a diagnostic
-tare with the pan empty. **Stale**, **No sample**, and **Disconnected** take
+cup needs removal and replacement. An uncertain reference asks you to tare the
+empty scale and reconnect it. **Stale**, **No sample**, and **Disconnected** take
 precedence when scale data is unavailable. A smoothly displayed weight does not
 prove a qualifying placement: a gap longer than **Max sample gap** also requires
 fresh removal/placement evidence. After a successful tare, the message stays

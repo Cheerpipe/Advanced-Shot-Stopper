@@ -23,13 +23,13 @@ tared to zero before connecting, let the controller see its steady zero, then
 remove it. A continuous stable negative reading can become the empty reference;
 placing a **different-weight** cup then triggers tare. If readings were lost, the
 replacement reads near the original zero, or the scale started substantially
-negative, use **Diagnostic** to tare the empty scale, wait for stable zero, then place the cup.
+negative, tare the empty scale using its button, reconnect it, wait for stable zero, then place the cup.
 Weight readings alone cannot distinguish an equal-weight replacement from the
 scale being moved and returned.
 If you move the empty scale after it was ready, leave it still near its original
 zero. Once the normal stability window completes, **Automatic tare** returns to
 **Ready for a cup** without sending a tare. A rebound away from that known zero
-can remain ambiguous; use the empty-pan diagnostic tare in that case.
+can remain ambiguous; tare the empty pan on the scale and reconnect it in that case.
 
 Once an empty reference is known, two consecutive fresh readings showing
 near-total unloading can authorize a stable replacement without another stable
@@ -78,7 +78,7 @@ occupied reference stays valid until an actual further lift or tare changes it.
 Valid negative removal readings from a previously accepted heavy load still
 reach the cup detector; this does not expand the placement or brew weight limits.
 If a much lighter replacement remains below the supported −500 g net-reading
-limit, tare the empty pan from **Diagnostic**, wait for stable zero, then place it.
+limit, tare the empty pan on the scale, reconnect it, wait for stable zero, then place it.
 
 Observed removal during drip analysis preserves the previous shot's captured
 last-known weight and skips post-drip learning, even with idle tare disabled.

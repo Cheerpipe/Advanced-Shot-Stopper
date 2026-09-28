@@ -28,7 +28,7 @@
     ['pending', 'Taring — waiting for zero'],
     ['machine_not_off', 'Waiting for machine off'],
     ['disabled', 'Off'],
-    ['uncertain', 'Tare empty scale in Diagnostic'],
+    ['uncertain', 'Tare the empty scale, then reconnect it'],
   ]) {
     const s = {...good, cupPresence: {present: false, idleTare: state}};
     if (helpers.formatIdleTare(s) !== expected) throw new Error('Idle tare readiness: ' + expected);
@@ -50,7 +50,7 @@
   if (!cup || !cup[1].includes('id="cupState"') || !cup[1].includes('id="cupWeight"') || !cup[1].includes('id="idleTareStatus"') ||
       !/<fieldset id="scalePanel">[\s\S]*?<\/fieldset><fieldset id="cupPanel">/.test(home) ||
       !/<legend>Scale<\/legend>[\s\S]*?id="dCupWeight"/.test(diagnostic) ||
-      !diagnostic.includes('id="dCup"') ||
+      !diagnostic.includes('id="dCup"') || diagnostic.includes('id="scaleTareButton"') ||
       !source.includes("$('cupWeight').textContent=formatCupWeight(s)") ||
       !source.includes("t('dCupWeight',formatCupWeight(s))") ||
       !source.includes('function noteReachFail(err,force){clearCupWeights();') ||

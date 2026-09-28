@@ -30,8 +30,8 @@ near its previously stable zero before placing the cup. Once the normal
 stability window completes, **Automatic tare** returns to **Ready for a cup**
 without taring or detecting a placement. If the empty reference is unknown and a
 removal reading rebounds by a full minimum cup weight, the controller cannot
-tell empty-pan movement from a new cup; tare the empty pan from **Diagnostic**,
-wait for stable zero, then place the cup.
+tell empty-pan movement from a new cup; tare the empty pan on the scale,
+reconnect it, wait for stable zero, then place the cup.
 Stability tolerance bounds sample spread; it is neither a minimum placement mass
 nor a threshold that identifies a different cup.
 
@@ -43,7 +43,7 @@ downward change of at least **Minimum cup weight** followed by stable negative
 readings can establish that new reference. A larger negative offset first seen at
 connection or a reading gap cannot establish it. A return near the original
 zero restores readiness after settling, but cannot identify an equal-weight
-replacement; tare the empty pan from **Diagnostic** and let zero settle before
+replacement; tare the empty pan on the scale, reconnect it, and let zero settle before
 placing a cup. Weight alone cannot distinguish every sustained external force
 from a real cup.
 
@@ -105,14 +105,14 @@ mass. A cup already tared to zero when the controller connected can appear
 absent. If the controller first sees stable zero, then its continuous removal
 produces a stable negative reading, a different-weight replacement can be
 detected. An equal-weight replacement returns near the original zero and cannot
-be distinguished from moving an empty scale; use **Diagnostic** to tare the
-empty pan, wait for stable zero, and replace it. A positive-weight cup at
+be distinguished from moving an empty scale; tare the empty pan on the scale,
+reconnect it, wait for stable zero, and replace it. A positive-weight cup at
 startup still needs stable empty-pan removal and replacement. Physical-button
 tare does not restore tracked reference history.
 
-All tares must be firmware-issued: physical-button/external tare is outside the
-supported contract. Older firmware payloads and unavailable readings show **—**.
-Diagnostic test tare/combined commands invalidate this value. A successful
+The controller cannot verify a physical-button tare until the scale reconnects
+and establishes a new empty reference. Older firmware payloads and unavailable
+readings show **—**. Diagnostic API tare/combined commands invalidate this value. A successful
 command rebases a detected cup to zero so its next lift remains detectable;
 a failed command leaves presence uncertain and cannot satisfy **Require cup to
 start**. Remove the cup, wait for stable absence, and replace it to acquire the
@@ -146,7 +146,7 @@ after taring and removing a 522 g cup remains usable to measure the next cup.
 This does not widen the net-weight bounds for placement automation or shot control.
 Those bounds are −500 to +1000 g. If a previously tared heavy cup leaves a
 lighter replacement below −500 g, remove it, tare the empty pan from
-**Diagnostic**, wait for stable zero, then place it again.
+the scale's button, reconnect it, wait for stable zero, then place it again.
 
 You set a cup down during the retare window. After three samples within 2 g
 of each other, lasting at least 0.3 s, the firmware treats it as placed and

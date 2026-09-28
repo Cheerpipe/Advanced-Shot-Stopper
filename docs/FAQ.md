@@ -130,7 +130,7 @@ and replace it. If the Bookoo zeroed a load already on its pan, wait for the
 initial zero to settle, remove it, let the negative empty reading settle, then
 place a different-weight load. If it returns near zero, readings were lost, or
 the negative reading was present from the first connection, tare the empty pan
-from **Diagnostic**, wait for stable zero and replace the load. Stable-looking
+using the scale's button, reconnect the scale, wait for stable zero and replace the load. Stable-looking
 weight alone is insufficient after lost readings or a failed tare; an unchanged
 cup is not automatically retried. See
 [outside-brew tare](settings/tare.md#outside-a-brew).
@@ -140,8 +140,8 @@ cup is not automatically retried. See
 The controller cannot verify a press of the scale's physical tare button from
 the documented weight notifications. A return to 0 g can also mean a previously
 removed load was put back. Home may still say **Cup present** and **Tared**
-because those are its last known states. Tare the empty pan from **Diagnostic**,
-wait for stable zero, then place the cup again. The optional accessory retare
+because those are its last known states. Tare the empty pan using the scale's
+button, reconnect it, wait for stable zero, then place the cup again. The optional accessory retare
 handles one stable addition to a controller-tared cup before a shot; it cannot
 identify physical button presses. See [Tare](settings/tare.md#outside-a-brew).
 
