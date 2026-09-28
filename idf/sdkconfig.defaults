@@ -60,17 +60,24 @@ CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 # caches while IDF asserts the writing task's stack is internal, so
 # flash-writing tasks (loop, network, httpd, persist) and VHCI paths fault.
 
-# Trim Wi-Fi / lwIP DRAM for a single Web UI client + SoftAP.
-CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=8
+# Trim Wi-Fi / lwIP DRAM for a single Web UI client + SoftAP. The static RX
+# and TX pools are the real preallocated internal DMA consumers (~1.6 KB per
+# buffer, allocated at esp_wifi_init and held until deinit): 6/6 keeps STA +
+# SoftAP with a single Web UI client while reclaiming ~6.4 KB versus 8/8.
+# esp_wifi enforces RX_BA_WIN <= 2*STATIC_RX_BUFFER_NUM at compile time, so
+# the RX block-ack window drops 16 -> 12 with the pool (AMPDU RX aggregation
+# shrinks a quarter; OTA throughput is PHY-bound well above it).
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=6
 CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16
-CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8
-# Cache TX buffers back up AMPDU frames awaiting the block-ack window; each
-# costs ~1.6 KB of internal DMA RAM (the IDF default of 32 pools ~51 KB).
-# 16 stays above the 2x AMPDU_TX_BA_WIN floor (window is 6) while halving the
-# internal pool, protecting the largest contiguous DRAM block.
+CONFIG_ESP_WIFI_RX_BA_WIN=12
+CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=6
+# Cache TX is only an overflow queue for frames that arrive while every static
+# TX buffer is busy (IDF 6.x semantics); its entries are lwIP packets and land
+# in PSRAM under SPIRAM_TRY_ALLOCATE_WIFI_LWIP. 16 caps worst-case queueing
+# while staying above the AMPDU_TX_BA_WIN of 6; it does not preallocate DRAM.
 CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM=16
-# Management short buffers serve SoftAP beacons/association only; 16 covers
-# STA + SoftAP with idle association traffic.
+# Management short buffers are small (<64 B each) and allocated on demand;
+# 16 covers STA + SoftAP association and beacon traffic.
 CONFIG_ESP_WIFI_MGMT_SBUF_NUM=16
 # CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT is not set
 # IPv6 must stay enabled: arduino-esp32 publicly requires espressif/esp-modbus,
