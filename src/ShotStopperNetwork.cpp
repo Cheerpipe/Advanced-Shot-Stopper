@@ -277,6 +277,16 @@ constexpr const char *STATUS_UNAVAILABLE = "503 Service Unavailable";
 // Keep this stack internal: flash writes disable both caches (flash and
 // PSRAM mappings) while they run, so a PSRAM stack could not perform them.
 constexpr uint32_t NETWORK_MANAGER_TASK_STACK_SIZE = 10240;
+// Wi-Fi bring-up fragments the central DRAM free run with ~33 KB of small
+// internal allocations (2026-09-28 target capture: largest 64 -> 32 KB while
+// the two spare 32 KB side blocks stay untouched). Holding most of the
+// central run during bring-up forces that wave into the side blocks;
+// releasing it afterwards restores one large contiguous block. 60 000 B
+// exceeds the 32 KB side blocks (so the hold can only land centrally) and
+// stays below the observed 65 988 B central run at network start.
+constexpr uint32_t HEAP_SHAPER_BYTES = 60000;
+constexpr uint32_t HEAP_SHAPER_SETTLE_MS = 20000;
+constexpr uint32_t HEAP_SHAPER_MAX_HOLD_MS = 60000;
 // POST JSON bodies live in NetworkWorkBuf (PSRAM), so the httpd worker no
 // longer needs a 2 KiB request-body frame on top of headers and send buffers.
 // 11 264 after status polling left only 1 540 B free on 10 240 (2026-09-26

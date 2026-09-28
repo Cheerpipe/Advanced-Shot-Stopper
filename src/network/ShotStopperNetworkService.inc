@@ -100,6 +100,8 @@ bool ShotStopperNetwork::stop() {
   // Network task is joined: no mDNS caller remains, release its task/socket.
   stopMdns();
 
+  releaseHeapShaper();
+
   if (!webhooks_.stop()) return false;
 
   instance_ = nullptr;
@@ -555,6 +557,51 @@ void ShotStopperNetwork::taskLoop() {
   vTaskDelete(nullptr);
 }
 
+void ShotStopperNetwork::beginHeapShaper(uint32_t now) {
+  if (heapShaperBlock_ != nullptr || heapShaperReleased_) {
+    return;
+  }
+  heapShaperBlock_ = allocInternal(HEAP_SHAPER_BYTES, AllocationOwner::NETWORK);
+  heapShaperAllocAtMs_ = now;
+}
+
+void ShotStopperNetwork::releaseHeapShaper() {
+  if (heapShaperBlock_ == nullptr) {
+    heapShaperReleased_ = true;
+    return;
+  }
+  heapCapsFree(heapShaperBlock_);
+  heapShaperBlock_ = nullptr;
+  heapShaperReleased_ = true;
+}
+
+void ShotStopperNetwork::serviceHeapShaper(uint32_t now) {
+  if (heapShaperBlock_ == nullptr) {
+    return;
+  }
+  bool connected = false;
+  dataMux_.lock();
+  connected = status_.staState == StaState::CONNECTED;
+  dataMux_.unlock();
+  if (connected) {
+    if (heapShaperConnectedAtMs_ == 0) {
+      heapShaperConnectedAtMs_ = now;
+    }
+  } else {
+    heapShaperConnectedAtMs_ = 0;
+  }
+  const bool settled =
+      heapShaperConnectedAtMs_ != 0 &&
+      static_cast<uint32_t>(now - heapShaperConnectedAtMs_) >=
+          HEAP_SHAPER_SETTLE_MS;
+  const bool expired =
+      static_cast<uint32_t>(now - heapShaperAllocAtMs_) >=
+      HEAP_SHAPER_MAX_HOLD_MS;
+  if (settled || expired) {
+    releaseHeapShaper();
+  }
+}
+
 void ShotStopperNetwork::service() {
   const uint32_t now = millis();
 
@@ -630,6 +677,7 @@ void ShotStopperNetwork::service() {
     confirmPendingNetwork("public WebUI request");
   }
   serviceStaState(now);
+  serviceHeapShaper(now);
   applyWifiPowerSave();
   serviceWifiScan(now);
 

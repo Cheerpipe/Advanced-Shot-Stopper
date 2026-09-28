@@ -72,6 +72,10 @@ bool ShotStopperNetwork::startNetwork() {
   copyCString(status_.apIp, sizeof(status_.apIp), AP_IP);
   dataMux_.unlock();
   publishConfiguredAddressStatus();
+  // Take the central DRAM run out of circulation before Wi-Fi, mDNS, and the
+  // HTTP server raise; serviceHeapShaper() releases it once the bring-up
+  // allocations have settled into the spare side blocks.
+  beginHeapShaper(now);
   if (settings.staConfigured) {
     startStation(settings, now);
     startupComplete_ = true;
