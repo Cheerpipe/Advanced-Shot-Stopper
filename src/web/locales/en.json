@@ -1206,7 +1206,7 @@
     "settings.timer_stop_extra_delay_ms": "Timer stop extra delay (ms)",
     "settings.trend_s": "Trend (s)",
     "settings.turn_scale_off_with_machine": "Turn scale off when the machine powers off",
-    "settings.turn_scale_off_with_machine_hint": "When the Micra is confirmed off after being on, the connected scale is switched off. Only scales that accept the power-off command are switched off; others log a warning instead.",
+    "settings.turn_scale_off_with_machine_hint": "When the Micra is confirmed off after being on, the connected scale is switched off. Only works on scales with remote power-off support.",
     "settings.turns_all_brew_alert_sounds_on_or": "When off, all brew alert sounds are silent on both the scale and built-in buzzer; your individual alert choices are kept. The blue connection light is unaffected.",
     "settings.unknown": "—",
     "settings.unsaved_changes": "Unsaved changes",
