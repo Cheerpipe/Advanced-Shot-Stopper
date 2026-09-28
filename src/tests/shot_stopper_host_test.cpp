@@ -6671,12 +6671,14 @@ void tz01_first_auto_zone_is_once_and_estimated_after_sync() {
   CHECK(runtimeConfig.revision == appliedRevision);
   CHECK(runtimeConfig.firstTimezoneAutoUptimeUs == firstUptime);
 
+  runtimeConfig.revision = UINT32_MAX;
   hostMillis += 10000;
   g_wallClock.setSyncing("pool.ntp.org", hostMillis);
   g_wallClock.queueSyncFromCallback(1'800'000'000U);
   CHECK(g_wallClock.applyPendingSync(hostMillis));
   serviceRuntimePersistence();
   CHECK(runtimeConfig.firstTimezoneAutoClockQuality == 3);
+  CHECK(runtimeConfig.revision == 1);
   CHECK(runtimeConfig.firstTimezoneAutoUtcSec ==
         1'800'000'000U - (hostMillis * 1000ULL - firstUptime) / 1000000ULL);
   CHECK(runtimePersistPending);
@@ -14102,6 +14104,13 @@ void s12c_finalize_links_exact_history_row() {
   snapshot.logEligible = true;
   snapshot.firstDropDs = 50;
 
+  snapshot.endedAtHasWallTime = true;
+  snapshot.endedAtUtcSec = 1775357999U;
+  snapshot.endedAtOffsetMinutes = -180;
+  // Finalization occurs after the DST boundary, an NTP correction and a zone edit.
+  strcpy(runtimeConfig.timezoneId, "Asia/Tokyo");
+  g_wallClock.queueSyncFromCallback(1775358100U);
+  CHECK(g_wallClock.applyPendingSync(hostMillis));
   persistLastShotFromFinalize(snapshot, 36.1f, true);
   commitPendingShotLog(snapshot, 36.1f, true, ActualWeightSource::POST_DRIP);
   ShotLogRecord stored[1] = {};
@@ -14109,6 +14118,10 @@ void s12c_finalize_links_exact_history_row() {
   CHECK(shotLogRating(stored[0].extractionGuardEnabled) == 0);
   CHECK(persistedLastShot.shotLogId == stored[0].id);
   CHECK(persistedLastGoodShot.shotLogId == stored[0].id);
+  CHECK(stored[0].endedAtUnixSec == snapshot.endedAtUtcSec);
+  CHECK(stored[0].timezoneOffsetMinutesAtCommit == -180);
+  CHECK(persistedLastShot.endedAtLocalSec == snapshot.endedAtUtcSec - 10800U);
+  CHECK(stored[0].endedAtLocalSec == persistedLastShot.endedAtLocalSec);
 }
 
 void s12d_rate_last_shot_and_history() {

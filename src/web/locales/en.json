@@ -538,7 +538,7 @@
     "runtime.current_profile": "Current profile: ",
     "runtime.custom": "custom",
     "runtime.custom_ntp_must_be_empty_or_a": "Custom NTP must be empty or a hostname (letters, digits, hyphen, dot; max 63).",
-    "runtime.date_and_time_settings_saved": "Date and time settings saved.",
+    "runtime.date_and_time_settings_saved": "Date and time settings applied.",
     "runtime.dbm": " dBm",
     "runtime.dbm_channel": " dBm, channel ",
     "runtime.delete": "Delete",

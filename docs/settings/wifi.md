@@ -44,6 +44,12 @@ selected zone, then save. The detection button changes only the selection
 until you save it. The preview uses your browser's clock until NTP has set the
 controller's clock and labels that estimate clearly.
 
+**Detect from this device** reads the device's current zone each time you
+press it. The save confirmation means the change is applied; the status below
+the selector shows when it is saved to the controller. If writing fails, that
+status shows the failure while the controller retries. Edits made during a
+previous save remain available for your next save.
+
 NTP supplies the current UTC time; the saved zone determines how that instant
 appears locally. Changing the zone does not change NTP, past history entries,
 or the controller's brew timers. **Diagnostic → Date and time** shows the saved

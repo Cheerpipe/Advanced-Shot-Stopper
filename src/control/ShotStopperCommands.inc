@@ -188,8 +188,8 @@ void processWebCommand(const WebCommand &command) {
             static_cast<uint64_t>(millis()) * 1000U;
 #endif
         candidate.firstTimezoneAutoBootId = copyShotLogBootId();
-        if (g_wallClock.synced()) {
-          candidate.firstTimezoneAutoUtcSec = g_wallClock.nowUtcSec(millis());
+        candidate.firstTimezoneAutoUtcSec = g_wallClock.nowUtcSec(millis());
+        if (candidate.firstTimezoneAutoUtcSec != 0) {
           candidate.firstTimezoneAutoClockQuality = 2;
         }
       }

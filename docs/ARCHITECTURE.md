@@ -207,7 +207,9 @@ existing persistence worker saves both in the same settings generation.
 IDs and 4,341 transitions, deduplicated into 67 schedules for UTC instants in
 2025–2099. `scripts/generate_timezones.py` regenerates it from the pinned
 upstream archive without runtime allocation or a global C library `TZ` state.
-No catalog copy occupies internal RAM or PSRAM. The API exposes the current
+There is no mutable catalog copy or per-request allocation. On n16r8, the
+existing PSRAM XIP profile places this read-only data in PSRAM at startup;
+other profiles keep their configured read-only mapping. The API exposes the current
 zone and the offset resolved at the current UTC instant separately. Without a
 configured/resolvable zone, UTC offset zero is the explicit fallback.
 
@@ -218,6 +220,13 @@ without a storage migration. NTP continues to own UTC synchronization and
 does not change the monotonic control timers. The Web preview resolves a draft
 zone without saving it; a browser UTC estimate is used only for preview when
 the controller clock is unavailable.
+
+First-auto provenance reads UTC once under the wall-clock owner's lock so
+its timestamp and quality cannot disagree during an NTP state transition.
+Configuration and preset saves are acknowledged by their request ID and
+result, together with the resulting revision; unrelated revision changes do
+not acknowledge a pending command. Applied settings may still await the
+existing asynchronous persistence worker.
 
 Live settings commit publishes the new runtime snapshot, then dispatches a
 fixed, allocation-free table of subscriptions on the control task. Each owner

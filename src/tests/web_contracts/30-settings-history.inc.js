@@ -721,9 +721,10 @@ if (!js.includes('function commandOkMessage(') ||
   const commandFn = runtimeJs.slice(runtimeJs.indexOf('async function command('),
       runtimeJs.indexOf('async function setBleScanIntensity('));
   if (!commandFn.includes("path.endsWith('/config')||path.endsWith('/presets')") ||
-      !commandFn.includes('configRevision===previousRevision') ||
+      !commandFn.includes('configRevision!==previousRevision') ||
+      !commandFn.includes('result?.requestId!==accepted.requestId') ||
       commandFn.indexOf("message(okMsg||") < commandFn.indexOf("throw new Error('Device did not apply the change.')")) {
-    throw new Error('Config and preset saves must confirm a new revision before showing success');
+    throw new Error('Config and preset saves must confirm their request and revision before showing success');
   }
 }
 if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||

@@ -320,6 +320,12 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     ok = statusJsonAppend(&used, ",\"buzzerSupported\":%s",
                           BUZZER_SUPPORT_ENABLED ? "true" : "false");
   }
+  if (ok && (page == StatusPage::Home || page == StatusPage::Settings)) {
+    ok = statusJsonAppend(
+        &used, ",\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"}",
+        static_cast<unsigned long>(network.lastCommandRequestId),
+        commandResultStateName(network.lastCommandState));
+  }
   if (ok) {
     ok = statusJsonAppend(
         &used, ",\"timeUtcSec\":%lu,\"config\":{\"revision\":%lu,\"ringRetainLogLevel\":\"%s\",\"serialLogLevel\":\"%s\"",

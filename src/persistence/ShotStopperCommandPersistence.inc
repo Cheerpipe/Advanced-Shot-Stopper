@@ -778,7 +778,6 @@ void serviceShotStorePersistence() {
 void serviceRuntimePersistence(
     const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
   if (runtimeConfig.firstTimezoneAutoClockQuality == 1 &&
-      g_wallClock.synced() &&
       runtimeConfig.firstTimezoneAutoBootId == copyShotLogBootId()) {
 #ifndef SHOT_STOPPER_HOST_TEST
     const uint64_t nowUs = static_cast<uint64_t>(esp_timer_get_time());
@@ -789,11 +788,12 @@ void serviceRuntimePersistence(
     const uint32_t nowUtc = g_wallClock.nowUtcSec(millis());
     const uint64_t elapsedSec = nowUs >= thenUs ? (nowUs - thenUs) / 1000000U
                                               : UINT64_MAX;
-    if (elapsedSec <= nowUtc) {
+    if (nowUtc != 0 && elapsedSec < nowUtc) {
       runtimeConfig.firstTimezoneAutoUtcSec =
           nowUtc - static_cast<uint32_t>(elapsedSec);
       runtimeConfig.firstTimezoneAutoClockQuality = 3;
       ++runtimeConfig.revision;
+      if (runtimeConfig.revision == 0) runtimeConfig.revision = 1;
       queueRuntimePersist(RUNTIME_PERSIST_REASON_USER);
       publishRecipeState();
     }
