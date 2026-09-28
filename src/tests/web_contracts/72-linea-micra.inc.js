@@ -186,13 +186,24 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     assert.strictEqual(get('lineaMicraSaveButton').disabled, false,
         `${theme}: Save must be available after selection`);
     vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
-      ...connected, accountConfigured: false, email: '', selectedName: '', selectedSerial: '',
-      phase: 'disabled'}})})`, context);
+      ...connected, accountConfigured: false, email: '', selectedName: '',
+      selectedSerial: '', phase: 'disabled'}})})`, context);
     assert.strictEqual(get('lineaMicraSaveButton').disabled, true);
     assert.strictEqual(get('lineaMicraApplyTemperature').disabled, true);
     assert.strictEqual(get('lineaMicraIdentity').innerText, 'runtime.not_connected');
     assert.strictEqual(get('lineaMicraStatus').textContent, 'runtime.unauthenticated');
     assert.strictEqual(get('lineaMicraUsername').parentElement.hidden, false);
+    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
+      ...connected, accountConfigured: false, email: '', selectedName: '',
+      selectedSerial: '', machines: [{serial: 'ABC', name: 'Micra'}],
+      phase: 'confirmed'}})})`, context);
+    assert.strictEqual(get('lineaMicraIdentity').innerText,
+        'runtime.signed_in_select_machine',
+        'A loaded machine list must read as signed in');
+    assert.strictEqual(get('lineaMicraStatus').textContent, 'confirmed',
+        'The status hint must show the session phase after Connect');
+    assert.strictEqual(get('lineaMicraUsername').parentElement.hidden, false,
+        'Credentials must stay visible until a machine is saved');
   }
 }
 if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||

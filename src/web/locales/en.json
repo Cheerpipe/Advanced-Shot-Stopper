@@ -816,6 +816,7 @@
     "runtime.shot_reaction_timeout": "Shot reaction timeout",
     "runtime.shot_started": "Shot started.",
     "runtime.shot_stopped": "Shot stopped.",
+    "runtime.signed_in_select_machine": "Signed in — select a machine",
     "runtime.single_press_limit": "Single-press limit",
     "runtime.sleep_on": " — sleep on",
     "runtime.slow": "Slow",

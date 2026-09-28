@@ -21,6 +21,11 @@ internet connection is unavailable.
 4. Choose **Use selected machine**. Only then can the Micra options be
    edited and saved.
 
+While the account is signed in but no machine is saved yet, **Selected
+machine** reads **Signed in — select a machine** and the status line shows the
+connection state, so you can tell a successful sign-in from one that has not
+happened yet.
+
 The first three options start on; the scale power-on, scale shutdown, and
 scale-off-with-machine options start off.
 Before a machine is selected they remain visibly checked (or unchecked) but
