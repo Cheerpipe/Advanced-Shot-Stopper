@@ -4,9 +4,9 @@ Restore access using the physical activator when Web UI, Wi-Fi, BLE, and USB
 are unavailable. This also works on momentary builds: hold the button at
 power-on, then release/press for each OFF→ON cycle. The scale is not needed.
 
-The controller keeps its relay open during recovery. On momentary machines,
-an open relay is not proof that a machine already running has stopped.
-Perform recovery with the machine idle.
+The controller keeps its relay open during the 30-second wait and during
+recovery. On momentary machines, an open relay is not proof that a machine
+already running has stopped. Perform recovery with the machine idle.
 
 ## Choosing the Procedure
 
@@ -21,16 +21,22 @@ Factory reset cannot be undone.
 ## Before You Begin
 
 - Start from a **power-on**, with the paddle ON or momentary button held.
-  This initial ON does not count as a cycle.
-- Recovery listens for 60 s. Complete the movements within 5 s, then hold ON
-  without movement for 3 s to confirm.
+  Keep it ON and still: the controller waits **30 seconds** before recovery
+  begins, sounding the same double beep used to ask for the paddle back
+  after a shot, once every 5 seconds. This hold does not count as a cycle.
+- Releasing the activator during those 30 seconds cancels recovery for this
+  boot. Power the controller off and on to try again.
+- Once announced, recovery listens for 60 s. Complete the movements within
+  5 s, then hold ON without movement for 3 s to confirm.
 - Beeps require a compiled and connected buzzer. A silent build uses the same
   counts and timing; absence of sound is not evidence that nothing happened.
 
 ## Recover Wi-Fi, AP, and Password
 
 1. Power off the controller; move the paddle ON or hold the button.
-2. Power on. A 1.5 s continuous beep announces recovery on buzzer builds.
+2. Power on. Keep the activator ON and still through the 30-second wait —
+   six double beeps, one every 5 s. A 1.5 s continuous beep then announces
+   recovery on buzzer builds.
 3. Within the recovery window, perform three cycles in less than 5 s:
    `OFF → ON → OFF → ON → OFF → ON`.
 4. Hold the final ON for 3 s. Three short beeps indicate successful recovery.
@@ -71,6 +77,7 @@ open until the normal start conditions are met.
 | Symptom | Check |
 | --- | --- |
 | Normal boot instead of recovery | Power-on must begin with the activator ON; pressing later does not enter recovery. |
+| Recovery never started | The activator must stay ON and still for the whole 30-second wait; any release or paddle movement cancels it for this boot. Power off and on again. |
 | Gesture not accepted | Four cycles do nothing; movements slower than 5 s invalidate the attempt. Retry within the 60 s window. |
 | Access reset instead of factory reset | A 3 s pause after the third cycle confirms the shorter operation. |
 | No beeps | The buzzer may be absent; use the counts and timings above. |

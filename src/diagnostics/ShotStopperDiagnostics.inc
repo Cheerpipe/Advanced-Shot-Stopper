@@ -975,6 +975,30 @@ void maybeRunBootRecoveryGesture() {
     return;
   }
 
+  // The activator held at power-on is not by itself a recovery intent: it
+  // must stay held through a 30 s grace, announced by the paddle-return
+  // double beep, before the irreversible gesture window opens. Releasing it
+  // cancels the entry and normal startup continues.
+  RecoveryGraceWindow grace;
+  grace.begin(millis());
+  for (;;) {
+    machineSampleInput();
+    const MachineIntention graceIntent = machinePollIntention();
+    const RecoveryGraceResult graceResult =
+        grace.update(millis(), graceIntent.holdActive);
+    if (graceResult == RecoveryGraceResult::ABORTED) {
+      return;
+    }
+    if (graceResult == RecoveryGraceResult::BEEP_DUE) {
+      (void)playRecoveryCue(BuzzerCue::PADDLE_REMINDER);
+    }
+    if (graceResult == RecoveryGraceResult::ELAPSED) {
+      break;
+    }
+    serviceBootRecoverySafety();
+    vTaskDelay(pdMS_TO_TICKS(1));
+  }
+
   RecoveryGestureRecognizer recognizer;
   recognizer.begin(millis());
   (void)playRecoveryCue(BuzzerCue::RECOVERY_START);

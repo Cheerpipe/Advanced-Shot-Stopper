@@ -737,8 +737,24 @@ still exposes the Armed/cooldown latch.
 **Purpose.** Restore network or factory-reset when Wi-Fi, Web UI, BLE,
 and USB are all unusable. **machine circuit stays open** for the whole window.
 
-Source: `OpenBrewByWeightRecoveryGesture.h`. Entry: power-on reset **and**
-paddle already stably ON.
+Source: `ShotStopperRecoveryGesture.h`. Entry: power-on reset **and**
+paddle already stably ON **and** still held 30 s later (entry grace below).
+
+### Entry grace (`RecoveryGraceWindow`)
+
+A power-on hold is not by itself a recovery intent, and the gesture is
+irreversible, so entry passes a 30 s grace first. The grace runs inside the
+blocking boot-recovery region — persistence, BLE, Wi-Fi, scale worker, and
+machine integration stay unloaded — with the stopper in `REQUIRES_OFF` and
+the machine circuit open. Every tick services relay safety, the buzzer, the
+task watchdog, and the safety heartbeat.
+
+| Result | Meaning |
+| --- | --- |
+| `HOLDING` | Grace running; nothing due this tick. |
+| `BEEP_DUE` | One `PADDLE_REMINDER` double beep at seconds 0, 5, 10, 15, 20, 25. A late caller gets one cue, never a replay burst. |
+| `ABORTED` | Activator released: recovery entry cancelled for this boot; normal startup continues. Release wins over expiry on a coincident tick. |
+| `ELAPSED` | Held the full 30 s: `RECOVERY_START` announces the 60 s gesture window. Second 30 itself does not beep. |
 
 ### Internal flags (not published)
 

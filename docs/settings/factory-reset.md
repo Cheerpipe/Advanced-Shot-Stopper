@@ -29,7 +29,7 @@ Wi-Fi and keeps the relay open. Check actual idle state on momentary machines.
 | --- | --- | --- |
 | **Web UI** | Admin → unlock with the device password → Factory reset, confirm `ERASE_ALL_SETTINGS` | Device password required. Device restarts. |
 | **USB serial** | `FACTORY_RESET` | Same erase. See [USB serial CLI](../SERIAL_CLI.md). |
-| **Paddle gesture** | Power on with paddle ON, then five `OFF→ON` cycles | Last-resort. See [Emergency recovery](../EMERGENCY_RECOVERY.md). |
+| **Paddle gesture** | Power on with paddle ON, hold it still through the 30 s wait, then five `OFF→ON` cycles | Last-resort. See [Emergency recovery](../EMERGENCY_RECOVERY.md). |
 
 A shorter paddle gesture (three cycles) restores the device password / forgets STA
 **without** erasing recipes, calibration, or history.

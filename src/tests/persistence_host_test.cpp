@@ -1575,6 +1575,63 @@ void p53_recovery_boundaries_and_millis_wraparound() {
         RecoveryGestureResult::NETWORK_ACCESS_RESET);
 }
 
+void p87_recovery_grace_beeps_six_times_then_elapses() {
+  RecoveryGraceWindow grace;
+  grace.begin(0);
+  CHECK(grace.update(0, true) == RecoveryGraceResult::BEEP_DUE);
+  CHECK(grace.update(1, true) == RecoveryGraceResult::HOLDING);
+  CHECK(grace.update(4999, true) == RecoveryGraceResult::HOLDING);
+  uint8_t beeps = 1;
+  for (uint32_t atMs = RECOVERY_GRACE_BEEP_INTERVAL_MS;
+       atMs < RECOVERY_ENTRY_GRACE_MS; atMs += RECOVERY_GRACE_BEEP_INTERVAL_MS) {
+    CHECK(grace.update(atMs - 1, true) == RecoveryGraceResult::HOLDING);
+    CHECK(grace.update(atMs, true) == RecoveryGraceResult::BEEP_DUE);
+    ++beeps;
+  }
+  CHECK(beeps == 6);
+  CHECK(grace.update(RECOVERY_ENTRY_GRACE_MS - 1, true) ==
+        RecoveryGraceResult::HOLDING);
+  CHECK(grace.update(RECOVERY_ENTRY_GRACE_MS, true) ==
+        RecoveryGraceResult::ELAPSED);
+  CHECK(grace.update(RECOVERY_ENTRY_GRACE_MS + 1, true) ==
+        RecoveryGraceResult::HOLDING);
+}
+
+void p88_recovery_grace_release_aborts_and_wins_over_expiry() {
+  RecoveryGraceWindow grace;
+  grace.begin(0);
+  CHECK(grace.update(0, true) == RecoveryGraceResult::BEEP_DUE);
+  CHECK(grace.update(12000, false) == RecoveryGraceResult::ABORTED);
+  CHECK(grace.update(30000, true) == RecoveryGraceResult::HOLDING);
+  CHECK(!grace.active);
+
+  grace.begin(500);
+  CHECK(grace.update(500, true) == RecoveryGraceResult::BEEP_DUE);
+  CHECK(grace.update(30500, false) == RecoveryGraceResult::ABORTED);
+
+  grace.begin(0);
+  CHECK(grace.update(29999, true) == RecoveryGraceResult::BEEP_DUE);
+  CHECK(grace.update(30000, false) == RecoveryGraceResult::ABORTED);
+}
+
+void p89_recovery_grace_late_updates_and_wraparound() {
+  RecoveryGraceWindow grace;
+  grace.begin(0);
+  CHECK(grace.update(7000, true) == RecoveryGraceResult::BEEP_DUE);
+  CHECK(grace.update(7100, true) == RecoveryGraceResult::HOLDING);
+  CHECK(grace.update(10000, true) == RecoveryGraceResult::BEEP_DUE);
+  CHECK(grace.update(26000, true) == RecoveryGraceResult::BEEP_DUE);
+  CHECK(grace.update(30000, true) == RecoveryGraceResult::ELAPSED);
+
+  constexpr uint32_t base = UINT32_MAX - 1000U;
+  grace.begin(base);
+  CHECK(grace.update(base, true) == RecoveryGraceResult::BEEP_DUE);
+  CHECK(grace.update(base + 4999U, true) == RecoveryGraceResult::HOLDING);
+  CHECK(grace.update(base + 5000U, true) == RecoveryGraceResult::BEEP_DUE);
+  CHECK(grace.update(base + RECOVERY_ENTRY_GRACE_MS, true) ==
+        RecoveryGraceResult::ELAPSED);
+}
+
 void p54_recovery_intent_round_trip_corruption_and_clear() {
   resetHostPersistence();
   CHECK(saveRecoveryIntent(RecoveryOperation::FACTORY_RESET));
@@ -2372,6 +2429,9 @@ const TestCase tests[] = {
     {"P51", p51_recovery_five_cycles_upgrade_factory_candidate},
     {"P52", p52_recovery_rejects_four_slow_and_late_confirmation},
     {"P53", p53_recovery_boundaries_and_millis_wraparound},
+    {"P87", p87_recovery_grace_beeps_six_times_then_elapses},
+    {"P88", p88_recovery_grace_release_aborts_and_wins_over_expiry},
+    {"P89", p89_recovery_grace_late_updates_and_wraparound},
     {"P54", p54_recovery_intent_round_trip_corruption_and_clear},
     {"P55", p55_network_access_reset_preserves_non_network_settings},
     {"P56", p56_shot_log_stale_slot_and_foreign_schema_rejected},
