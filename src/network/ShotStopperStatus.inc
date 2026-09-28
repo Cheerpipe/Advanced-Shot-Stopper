@@ -1022,7 +1022,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"internalHeapFragmentationPermille\":%u,"
         "\"heap\":\"blocks allocated/free %lu/%lu frag %u/1000; "
         "HTTP %ld/%ld "
-        "WiFi %ld/%ld OTA %ld/%ld webhook TLS %ld/%ld "
+        "WiFi %ld/%ld OTA %ld/%ld webhooks %ld/%ld "
         "Micra TLS %ld/%ld\","
         "\"psramSizeBytes\":%lu,\"psramFreeBytes\":%lu,"
         "\"psramMinimumFreeBytes\":%lu,"

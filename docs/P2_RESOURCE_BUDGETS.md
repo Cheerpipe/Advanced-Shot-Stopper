@@ -70,7 +70,7 @@ it is not the physical PSRAM limit or a runtime-heap measurement. The earlier
 | Shared flash-I/O scratch | internal heap, 3,328-byte capacity for one 3,304-byte PersistedSettings record; slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |
 | USB serial output | internal heap, 2,064 bytes for the eight-record ESP log queue; one external 2,560-byte CLI reply buffer; startup failures free both allocations, and successful startup retains one boot-lifetime owner |
 | Micra cloud workspace | external and lazy; a 6,344-byte work buffer on ESP32-S3 holds identity, tokens, authorization header, and client state while cloud observation is active, plus one request-scoped 16 KiB buffer whose mutually exclusive request-body and response phases share storage (22,728 bytes combined, excluding HTTP/TLS library allocations); Disconnect, disabled observation, STA loss, and AP entry destroy the client and free both blocks |
-| Micra/Webhook TLS allocations | external through the Micra profile's mbedTLS allocator (`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` from `sdkconfig.defaults.micra`); dynamic record, certificate, handshake, and session objects never fragment internal DRAM on Micra-profile builds and are freed through the matching capability allocator. Other machine profiles keep mbedTLS internal, so webhook HTTPS there still draws handshake memory from internal DRAM |
+| Micra/Webhook TLS allocations | external through the Micra profile's mbedTLS allocator (`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` from `sdkconfig.defaults.micra`); dynamic record, certificate, handshake, and session objects never fragment internal DRAM on Micra-profile builds and are freed through the matching capability allocator. Other machine profiles keep mbedTLS internal, so webhookS there still draws handshake memory from internal DRAM |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
 | Settings handoff | one external mailbox for the 3,304-byte settings blob and revision, and one internal byte queued; no full settings copy in the queue or receiver |
@@ -137,7 +137,7 @@ Internal-heap diagnostics also publish allocated, free, and total block counts.
 total free is zero or the reported largest block covers it. ESP32-S3 internal
 memory contains multiple allocator regions, so this ratio is a trend indicator,
 not a claim that all free bytes can form one allocation. HTTP, Wi-Fi, OTA,
-Micra TLS, and webhook TLS owners retain only a bounded last before/after sample,
+Micra TLS, and webhook owners retain only a bounded last before/after sample,
 signed deltas, cycle count, stale-start count, worst free/largest loss, and
 maximum free-block increase. Sampling occurs outside owner locks and outside
 OTA chunk/cache-off work; only the fixed result is copied under the existing
@@ -245,7 +245,7 @@ use explicit byte names and add block topology plus per-lifecycle recovery
 metrics. Review allocation-failure counter deltas for every exercised owner.
 
 The diagnostic snapshot also carries webhook worker/client lifecycle and
-bounded before/after heap samples for HTTP, Wi-Fi, OTA, webhook TLS, and Micra
+bounded before/after heap samples for HTTP, Wi-Fi, OTA, webhook, and Micra
 TLS. Repeated `--require-lifecycle FAMILY` options require the selected family
 to advance its cycle count and recover its largest block within the configured
 limit; the summary reports final/worst deltas, block-count trends, and the
