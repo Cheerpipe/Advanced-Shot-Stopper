@@ -68,17 +68,6 @@ if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   if ! git -C "$root" diff --quiet || ! git -C "$root" diff --cached --quiet; then
     dirty="-dirty"
   fi
-elif [ "${GITHUB_ACTIONS:-}" = true ]; then
-  case "${GITHUB_SHA:-}" in
-    ''|*[!0-9a-fA-F]*) echo "Git unavailable and GITHUB_SHA is invalid" >&2; exit 1 ;;
-  esac
-  if [ "${#GITHUB_SHA}" -ne 40 ]; then
-    echo "Git unavailable and GITHUB_SHA is not a full commit ID" >&2
-    exit 1
-  fi
-  sha=$(printf '%.7s' "$GITHUB_SHA")
-  dirty=""
-  echo "Git unavailable; using GITHUB_SHA for firmware identity" >&2
 else
   sha="unknown"
   dirty=""

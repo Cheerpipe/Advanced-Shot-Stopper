@@ -684,15 +684,12 @@ with tempfile.TemporaryDirectory(prefix="shotstopper-version-") as temporary:
     fake_git.write_text("#!/bin/sh\nexit 1\n")
     fake_git.chmod(0o755)
     output = Path(temporary) / "version.h"
-    env = dict(os.environ, PATH=f"{temporary}:{os.environ['PATH']}",
-               GITHUB_ACTIONS="true", GITHUB_SHA="a" * 40)
+    env = dict(os.environ, PATH=f"{temporary}:{os.environ['PATH']}")
     command = ["sh", str(ROOT / "scripts/gen_version.sh"), "n16r8", "hw",
                "machine", str(output)]
     assert subprocess.run(command, env=env, capture_output=True).returncode == 0
     release = (ROOT / "VERSION").read_text().strip()
-    assert f'{release}+aaaaaaa' in output.read_text()
-    env["GITHUB_SHA"] = "invalid"
-    assert subprocess.run(command, env=env, capture_output=True).returncode != 0
+    assert f'{release}+unknown' in output.read_text()
 
 
 def iwyu_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path,
