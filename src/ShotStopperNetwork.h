@@ -413,6 +413,9 @@ class ShotStopperNetwork {
   bool ntpStarted_ = false;
   bool ntpRearmPending_ = false;
   bool ntpManualSyncPending_ = false;
+  // Network-task marker: the in-flight attempt was armed by Sync now, so it
+  // must survive the ntpSyncEnabled=false gate and RF-gate aborts.
+  bool ntpManualAttempt_ = false;
   bool ntpActivitySyncPending_ = false;
   uint8_t ntpFailoverIndex_ = 0;
   uint32_t ntpSyncStartedAtMs_ = 0;
@@ -438,6 +441,9 @@ class ShotStopperNetwork {
   void serviceNtp(uint32_t now, bool staConnected);
   bool ntpMayArm(uint32_t now, bool staConnected) const;
   void abortNtpForRfGate();
+  // Abort an in-flight attempt without counting a failure; an explicit Sync
+  // now is requeued, auto attempts rearm when the gate clears.
+  void abortInFlightNtp();
   void stopNtp();
   bool armNtp(uint32_t now, bool staConnected,
               uint32_t expectedGateGeneration);

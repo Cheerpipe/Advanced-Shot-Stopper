@@ -11,6 +11,35 @@
   }
 }
 {
+  // Automatic sync off must still let one explicit Sync now complete: the
+  // disabled gate may not abort an in-flight manual attempt, and any RF-gate
+  // abort path must requeue the request instead of dropping it.
+  const service = network.slice(network.indexOf('void ShotStopperNetwork::serviceNtp('));
+  const failure = network.slice(
+      network.indexOf('void ShotStopperNetwork::handleNtpFailure('),
+      network.indexOf('void ShotStopperNetwork::serviceNtp('));
+  const abortHelper = network.slice(
+      network.indexOf('void ShotStopperNetwork::abortInFlightNtp()'),
+      network.indexOf('void ShotStopperNetwork::abortNtpForRfGate('));
+  const rfGate = service.slice(
+      service.indexOf('if (!ntpMayArm(now, staConnected))'),
+      service.indexOf('if (g_wallClock.applyPendingSync'));
+  if (!networkHeader.includes('bool ntpManualAttempt_ = false;') ||
+      !service.includes('!ntpSyncEnabled && !ntpManualSyncPending_ && !ntpManualAttempt_') ||
+      !service.includes('ntpManualAttempt_ = manualRequest;') ||
+      !service.includes('ntpManualAttempt_ = false;') ||
+      !failure.includes('ntpManualAttempt_ = false;') ||
+      !abortHelper.includes('ntpManualSyncPending_ = true;') ||
+      !abortHelper.includes('ntpManualAttempt_ = false;') ||
+      !rfGate.includes('abortInFlightNtp();') ||
+      !network.slice(
+          network.indexOf('void ShotStopperNetwork::abortNtpForRfGate('),
+          network.indexOf('bool ShotStopperNetwork::armNtp('))
+          .includes('abortInFlightNtp();')) {
+    throw new Error('Disabled automatic sync must keep an explicit Sync now working end to end');
+  }
+}
+{
   const assert = require('assert').strict, vm = require('vm');
   const slice = (a, b) => rawRuntimeJs.slice(rawRuntimeJs.indexOf(a), rawRuntimeJs.indexOf(b));
   const source = slice('async function populateTimezoneOptions(', 'function renderShotSpark(') +

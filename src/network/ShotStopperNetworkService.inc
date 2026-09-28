@@ -187,11 +187,13 @@ bool ShotStopperNetwork::enqueueAcceptedCommand(const WebCommand &command) {
 }
 
 void ShotStopperNetwork::requestNtpSyncIfNeeded() {
-  if (!wallClockNeedsActivityNtpSync(g_wallClock, millis())) {
-    return;
-  }
   dataMux_.lock();
-  ntpActivitySyncPending_ = true;
+  // Activity-triggered sync is an automatic path: skip it entirely while the
+  // NTP toggle is off so the pending flag does not churn on every activity.
+  if (settings_.runtime.ntpSyncEnabled &&
+      wallClockNeedsActivityNtpSync(g_wallClock, millis())) {
+    ntpActivitySyncPending_ = true;
+  }
   dataMux_.unlock();
 }
 

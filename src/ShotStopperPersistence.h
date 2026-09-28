@@ -302,6 +302,8 @@ inline bool resetPersistedSettingsToFactory(PersistedSettings &settings) {
       preferences.putBytes(SETTINGS_SLOT_B, &scratch, sizeof(scratch)) ==
       sizeof(scratch);
   if (secondSaved) {
+    // Same invariant as savePersistedSettings: bitwise copy into the caller
+    // record before the byte-exact verification memcmp below.
     memcpy(&settings, &scratch, sizeof(settings));
   }
   const bool secondVerified = secondSaved &&

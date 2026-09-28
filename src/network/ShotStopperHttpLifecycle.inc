@@ -880,6 +880,17 @@ bool ShotStopperNetwork::ntpMayArm(uint32_t now, bool staConnected) const {
   return true;
 }
 
+void ShotStopperNetwork::abortInFlightNtp() {
+  stopNtp();
+  g_wallClock.cancelSyncing();
+  if (ntpManualAttempt_) {
+    ntpManualAttempt_ = false;
+    ntpManualSyncPending_ = true;
+  } else {
+    ntpRearmPending_ = true;
+  }
+}
+
 void ShotStopperNetwork::abortNtpForRfGate() {
   const bool gateActive =
       brewRfActive() || scaleConnecting_.load(std::memory_order_acquire);
@@ -890,9 +901,7 @@ void ShotStopperNetwork::abortNtpForRfGate() {
   }
   const TimeStatusSnapshot timeStatus = g_wallClock.snapshot(millis());
   if (ntpStarted_ || timeStatus.state == TimeSyncState::SYNCING) {
-    stopNtp();
-    g_wallClock.cancelSyncing();
-    ntpRearmPending_ = true;
+    abortInFlightNtp();
   } else {
     g_wallClock.cancelPendingSync();
   }
@@ -953,6 +962,7 @@ bool ShotStopperNetwork::armNtp(uint32_t now, bool staConnected,
 
 void ShotStopperNetwork::handleNtpFailure(uint32_t now) {
   stopNtp();
+  ntpManualAttempt_ = false;
   if (ntpFailoverIndex_ < 3) {
     ++ntpFailoverIndex_;
   }
@@ -978,9 +988,11 @@ void ShotStopperNetwork::serviceNtp(uint32_t now, bool staConnected) {
     return;
   }
 
-  // Automatic sync disabled: never arm, retry, or resync. A pending explicit
-  // Sync now is still honored; cancelSyncing keeps an existing anchor valid.
-  if (!ntpSyncEnabled && !ntpManualSyncPending_) {
+  // Automatic sync disabled: never arm, retry, or resync. An explicit Sync
+  // now still completes: its pending request or in-flight attempt (marked by
+  // ntpManualAttempt_) keeps this gate open until it settles. cancelSyncing
+  // preserves an existing anchor; it also clears auto retry state.
+  if (!ntpSyncEnabled && !ntpManualSyncPending_ && !ntpManualAttempt_) {
     if (ntpStarted_) {
       stopNtp();
     }
@@ -999,9 +1011,7 @@ void ShotStopperNetwork::serviceNtp(uint32_t now, bool staConnected) {
       rfGateGeneration_.load(std::memory_order_acquire);
   if (!ntpMayArm(now, staConnected)) {
     if (ntpStarted_ || timeStatus.state == TimeSyncState::SYNCING) {
-      stopNtp();
-      g_wallClock.cancelSyncing();
-      ntpRearmPending_ = true;
+      abortInFlightNtp();
     } else {
       // Clears a callback that arrived just after a prior stop/cancel pass.
       g_wallClock.cancelPendingSync();
@@ -1013,6 +1023,7 @@ void ShotStopperNetwork::serviceNtp(uint32_t now, bool staConnected) {
     // SNTP is one-shot at the application level. Leaving it enabled would let
     // lwIP resync periodically without consulting the shot/BLE gate.
     stopNtp();
+    ntpManualAttempt_ = false;
     ntpFailoverIndex_ = 0;
     ntpFirstAttemptSettled_ = true;
     log(DebugCategory::NETWORK, DebugCode::TIME_SYNC_OK);
@@ -1030,11 +1041,19 @@ void ShotStopperNetwork::serviceNtp(uint32_t now, bool staConnected) {
   }
 
   if (ntpRearmPending_ || ntpManualSyncPending_ || ntpActivitySyncPending_) {
+    const bool manualRequest = ntpManualSyncPending_;
     ntpRearmPending_ = false;
     ntpManualSyncPending_ = false;
     ntpActivitySyncPending_ = false;
     ntpFailoverIndex_ = 0;
-    if (!armNtp(now, staConnected, gateGeneration)) {
+    if (armNtp(now, staConnected, gateGeneration)) {
+      ntpManualAttempt_ = manualRequest;
+    } else if (manualRequest) {
+      // Arming is momentarily blocked (RF gate or post-connect settle):
+      // keep the explicit request queued instead of converting it into an
+      // auto rearm the disabled gate could drop.
+      ntpManualSyncPending_ = true;
+    } else {
       ntpRearmPending_ = true;
     }
     return;
