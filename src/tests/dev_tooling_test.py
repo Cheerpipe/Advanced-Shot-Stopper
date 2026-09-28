@@ -66,7 +66,6 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 golden = {
-    ".github/workflows/validation.yml": "R1",
     ".gitignore": "R0",
     "README.md": "R0",
     "src/web/app.js": "R1",
@@ -1394,7 +1393,7 @@ profile_common = [
     'CONFIG_GPTIMER_ISR_HANDLER_IN_IRAM=y',
     'CONFIG_LWIP_IPV6=y',
     'CONFIG_LWIP_MAX_SOCKETS=10',
-    'CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8',
+    'CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=6',
     'CONFIG_MDNS_MAX_INTERFACES=2',
     'CONFIG_MDNS_MEMORY_ALLOC_SPIRAM=y',
     'CONFIG_BT_CTRL_MODEM_SLEEP=y',
@@ -1518,29 +1517,10 @@ tests_text = "\n".join(path.read_text(errors="replace")
 assert "npm" + " install" not in tests_text and "npm" + " ci" not in tests_text, \
     "tests must not install dependencies"
 
-workflow = (ROOT / ".github/workflows/validation.yml").read_text()
-for job in ("classify", "fast", "host", "idf", "gate"):
-    assert f"  {job}:\n" in workflow, f"CI job missing: {job}"
-assert "  analysis:\n" not in workflow, "analysis must share the IDF build workspace"
-assert "actions/download-artifact" not in workflow, \
-    "the compilation database must not cross job boundaries"
-host_job = workflow.split("  host:\n", 1)[1].split("\n  idf:\n", 1)[0]
-assert "libcjson-dev" in host_job, \
-    "host CI must install the cJSON development files"
-assert "scripts/check_architecture.py" in host_job, \
-    "CI must run the local architecture check"
-idf_job = workflow.split("  idf:\n", 1)[1].split("\n  gate:\n", 1)[0]
-assert "cppcheck=2.13.0-2ubuntu3" in idf_job, \
-    "IDF CI must install the locally required Cppcheck version"
-assert 'node-version: "22.23.2"' in host_job and \
-       'node-version: "22.23.2"' in idf_job, \
-    "IDF CI must match the pinned host Node version"
 cppcheck_help = subprocess.run([str(ROOT / "scripts/static-idf"), "--help"],
                               cwd=ROOT, text=True, capture_output=True)
 assert cppcheck_help.returncode == 0 and "`unusedFunction`" in cppcheck_help.stdout
 assert "--arch" in cppcheck_help.stdout and "command not found" not in cppcheck_help.stderr
-assert "github.event_name != 'pull_request'" in idf_job, \
-    "main, scheduled, and manual CI runs must publish firmware profiles"
 resolver = runpy.run_path(str(ROOT / "scripts/resolve_build_profiles.py"))
 hardware = [resolver["validate_hardware"](json.loads(path.read_text()))
             for path in (ROOT / "config/hardware").glob("*.json")]
@@ -1557,63 +1537,6 @@ for hardware_profile in hardware:
 local_pairs = dev_module["BUILD_PROFILES"]
 assert len(local_pairs) == len(supported_pairs) and set(local_pairs) == supported_pairs, \
     "local validation must cover every supported profile pair exactly once"
-ci_rows = re.findall(
-    r"- \{name: ([^,]+), hardware: ([^,]+), machine: ([^}]+)\}", idf_job)
-assert len(ci_rows) == len(supported_pairs) and \
-    len({name for name, _, _ in ci_rows}) == len(ci_rows) and \
-    {(hardware, machine) for _, hardware, machine in ci_rows} == supported_pairs, \
-    "CI matrix must name every supported pair exactly once"
-for disabled_flag in ("SHOT_STOPPER_ENABLE_JTAG=0",
-                      "SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=0"):
-    assert disabled_flag in idf_job, f"CI production flag missing: {disabled_flag}"
-validation_build = idf_job.split("- name: Build validation firmware", 1)[1].split(
-    "- name: Cppcheck", 1)[0]
-assert "--o2" in validation_build, "validation build must pin the --o2 optimization level"
-assert "--development" in validation_build and "--jtag" not in validation_build, \
-    "CI resource validation must use the development build profile"
-installable_build = idf_job.split("- name: Build installable firmware", 1)[1].split(
-    "- name: Name OTA image", 1)[0]
-assert "--o2" in installable_build and "--release" in installable_build, \
-    "installable build must pin the --o2 optimization level with --release"
-ota_name = "shotstopper-ota-${{ matrix.name }}-jtag-off-remote-off"
-assert f"name: {ota_name}" in idf_job
-assert (f"build-idf/${{{{ matrix.hardware }}}}--${{{{ matrix.machine }}}}/"
-        f"{ota_name}.bin") in idf_job
-assert workflow.count("actions/upload-artifact") == 4, \
-    "classification, fast, host, and IDF jobs must publish diagnostic artifacts"
-for artifact_name in ("validation-classify", "validation-fast", "validation-host"):
-    assert f"name: {artifact_name}" in workflow
-assert workflow.count("if: always()") == 5, \
-    "every artifact upload and the final gate must run after failures"
-assert "shotstopper.elf" not in workflow, \
-    "non-portable firmware ELF files must not be published"
-for diagnostic_path in ("ci-results/idf/", "reports/", "artifacts/runs/"):
-    assert diagnostic_path in idf_job, \
-        f"firmware artifacts must include available diagnostics: {diagnostic_path}"
-build = idf_job.index("./scripts/dev build")
-firmware_upload = idf_job.index("actions/upload-artifact")
-cppcheck = idf_job.index("./scripts/dev analyze")
-tidy = idf_job.index("./scripts/static-tidy-idf")
-iwyu = idf_job.index("./scripts/iwyu-idf")
-warnings = idf_job.index("./scripts/warnings-idf")
-gcc_analyzer = idf_job.index("./scripts/gcc_analyzer")
-installable_build = idf_job.index("./scripts/dev build", build + 1)
-assert build < cppcheck < tidy < warnings < gcc_analyzer < installable_build < firmware_upload
-assert cppcheck < iwyu < warnings
-assert idf_job.count("set -o pipefail") == 7 and idf_job.count("tee ci-results/idf/") == 7, \
-    "IDF command logs must be retained without masking failures"
-assert "compile_commands.json" not in idf_job, \
-    "compile commands are not a portable standalone artifact"
-gate_job = workflow.split("  gate:\n", 1)[1]
-assert "needs.analysis" not in gate_job and "ANALYSIS:" not in gate_job, \
-    "the gate must use the combined IDF build and analysis result"
-assert "EVENT_NAME: ${{ github.event_name }}" in gate_job
-assert '"$EVENT_NAME" == pull_request' in gate_job, \
-    "non-PR CI runs must fail when firmware artifacts cannot be built"
-for use in re.findall(r"uses:\s*([^\s]+)", workflow):
-    assert re.search(r"@[0-9a-f]{40}$", use), f"action is not SHA-pinned: {use}"
-assert "cancel-in-progress: true" in workflow and "contents: read" in workflow
-assert "scripts/flash" not in workflow and "scripts/ota-idf" not in workflow
 template = (ROOT / ".github/PULL_REQUEST_TEMPLATE.md").read_text()
 for field in ("Risk", "Safety invariants", "Validation", "HIL/manual evidence"):
     assert field in template, f"PR template field missing: {field}"

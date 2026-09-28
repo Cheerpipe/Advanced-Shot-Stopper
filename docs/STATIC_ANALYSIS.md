@@ -63,8 +63,8 @@ cppcheck --version   # must report Cppcheck 2.13.0
 ```
 
 Source `activate.sh` again in each new terminal. The analysis script rejects
-other Cppcheck versions before checking the compilation database. The macOS
-and CI compiler environments can still produce different findings even with
+other Cppcheck versions before checking the compilation database. Different
+compiler environments can still produce different findings even with
 the same Cppcheck version.
 
 For optional IWYU checks, run `brew install include-what-you-use` separately.
@@ -84,11 +84,12 @@ source temp/ai_temp_local_toolchain/activate.sh
 cppcheck --version   # must report Cppcheck 2.13.0
 ```
 
-CI obtains upstream Cppcheck 2.13.0 from Ubuntu package
-`cppcheck=2.13.0-2ubuntu3`; the local script builds the same upstream release
-from pinned source. The former 2.21.0 local version missed CI's
-`arrayIndexThenCheck` finding because that diagnostic moved into `style` in
-2.21. The check now fails clearly when the local version differs.
+The local script builds upstream Cppcheck 2.13.0 from pinned source; the same
+upstream release ships as Ubuntu package `cppcheck=2.13.0-2ubuntu3` for
+installations that prefer the distribution package. The former 2.21.0 local
+version missed an `arrayIndexThenCheck` finding because that diagnostic moved
+into `style` in 2.21. The check now fails clearly when the local version
+differs.
 
 IWYU is version-locked to the clang it was compiled against, and the Ubuntu
 `iwyu` package is built against the distro clang, which may not be the clang
@@ -280,7 +281,8 @@ cppcheck --version          # must report Cppcheck 2.13.0; see sections 2 or 3
 `static-idf` never builds and fails on any finding; project suppressions live
 in `scripts/cppcheck-suppressions.txt` with a documented reason per entry.
 Dependency suppressions identify the vendor header instead of a local ESP-IDF
-installation root, so `/opt/esp/idf` in CI and a developer checkout behave the
+installation root, so an ESP-IDF checkout at `/opt/esp/idf` and a developer
+checkout behave the
 same without suppressing diagnostics in versioned project code.
 `gcc_analyzer` **builds** the firmware with `-fanalyzer` enabled and keeps
 only diagnostics whose primary location is versioned code.

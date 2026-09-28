@@ -42,7 +42,7 @@ brew install git python cmake ninja cjson
 
 <a id="linux"></a>
 
-Ubuntu 24.04 (the CI host version):
+Ubuntu 24.04 (the reference host version):
 
 ```sh
 sudo apt-get update
@@ -51,7 +51,8 @@ sudo apt-get install git python3 python3-pip python3-venv cmake ninja-build \
   g++ libcjson-dev curl libdigest-sha-perl
 ```
 
-Install the **exact** Node and Cppcheck releases used by CI into this project's
+Install the **exact** Node and Cppcheck releases pinned by
+`setup-local-tools` into this project's
 Git-ignored `temp/` directory, then activate them in the current shell:
 
 ```sh
@@ -70,24 +71,23 @@ Check `python3 --version`, `cmake --version`,
 `ninja --version`, and `c++ --version`; CMake must be **3.25 or newer** to read
 the repository's version-6 presets. If a distribution package is older, upgrade
 that tool before continuing. Debian and other Ubuntu releases can work, but
-their package versions must pass these checks; Ubuntu 24.04 matches CI.
+their package versions must pass these checks; Ubuntu 24.04 matches the
+reference host.
 
 | Dependency | Local version contract | Source of truth |
 | --- | --- | --- |
-| Node.js | Exactly 22.23.2 | [`setup-local-tools`](../scripts/setup-local-tools), [validation workflow](../.github/workflows/validation.yml) |
+| Node.js | Exactly 22.23.2 | [`setup-local-tools`](../scripts/setup-local-tools) |
 | Web UI packages | Exact direct and resolved versions via `npm ci` | [`package.json`](../package.json), [`package-lock.json`](../package-lock.json) |
 | ESP-IDF | Exactly 6.1.0 (tag v6.1) | This guide and the build scripts |
 | IDF components | Locked graph, including mDNS 1.13.1 | [`idf/dependencies.lock`](../idf/dependencies.lock) |
-| Cppcheck | Exactly 2.13.0 for static analysis | [`setup-local-tools`](../scripts/setup-local-tools), [validation workflow](../.github/workflows/validation.yml) |
+| Cppcheck | Exactly 2.13.0 for static analysis | [`setup-local-tools`](../scripts/setup-local-tools) |
 | Host CMake | 3.25 or newer | [`CMakePresets.json`](../CMakePresets.json) schema 6 |
-| Home Assistant tests (optional) | Python 3.14.7 and uv 0.11.2; dependencies locked | [Integration workflow](../.github/workflows/home-assistant-integration.yml), [`uv.lock`](../integrations/OpenBrewByWeight/uv.lock) |
+| Home Assistant tests (optional) | Python 3.14.2 or newer; dependencies locked with uv | [`pyproject.toml`](../integrations/OpenBrewByWeight/pyproject.toml), [`uv.lock`](../integrations/OpenBrewByWeight/uv.lock) |
 | Home Assistant service (optional) | No running service for tests; integration test dependency is 2026.9.x | [Integration project](../integrations/OpenBrewByWeight/pyproject.toml) |
 
 Git, the host compiler, Ninja, cJSON and the system Python have no separate
 project pin; use versions compatible with the requirements above and verify
-them with the tests below. CI uses a digest-pinned ESP-IDF 6.1 container;
-the local 6.1.0 environment is supported but can differ in compiler and host
-packages. ESP-IDF manages its own Python environment. The
+them with the tests below. ESP-IDF manages its own Python environment. The
 [Home Assistant integration](../integrations/OpenBrewByWeight/README.md) has a
 separate Python and `uv.lock` contract; it is not needed for firmware builds.
 
@@ -161,8 +161,8 @@ lockfile. To upgrade a Web UI package, choose its version with
 `npm install --save-dev --save-exact <package>@<version>` and review both npm
 files. To upgrade a Home Assistant test dependency, update `uv.lock` explicitly
 with `uv lock --upgrade-package <package>` and review the resolved graph.
-An ESP-IDF upgrade must change the local version guard, the CI image digest,
-and the generated component lock together; regenerate the lock with the intended
+An ESP-IDF upgrade must change the local version guard and the generated
+component lock together; regenerate the lock with the intended
 SDK version, then run the full build gate. Do not hand-edit lockfiles.
 
 ## 4. Validate before installation
@@ -434,11 +434,11 @@ The n16r8 layout reserves 640 KiB for a temporary ESP-IDF core dump and
 partition but does not enable persistent crash capture. On n16r8, the mDNS
 task stack is internal so that stack remains available to a core dump.
 
-GitHub Actions publishes the supported built-in pairs listed in
-[Build profiles](BUILD_PROFILES.md#capability-matching). Names follow
-`shotstopper-ota-<profile>-jtag-off-remote-off.bin`; those two features are
-explicitly disabled at compile time. GitHub downloads each artifact as a ZIP
-container, but that container holds only the named `.bin` file.
+Build the supported built-in pairs listed in
+[Build profiles](BUILD_PROFILES.md#capability-matching) with
+`./scripts/dev build`. Release images disable the JTAG console and remote
+machine control at compile time; each build leaves its named `.bin` and
+archive under `build-idf/` and `artifacts/firmware/`.
 
 ## 6. Flash (USB)
 
@@ -562,7 +562,6 @@ validation gate. It lists prerequisites, tool behavior and failure meanings.
 ## Firmware version
 
 `VERSION` supplies the release number; the build adds the git revision and a
-dirty marker when applicable. GitHub Actions uses its checkout commit ID if
-Git cannot inspect the container checkout, and rejects an absent or invalid
-commit ID instead of producing `unknown`. The Web UI footer and boot output
+dirty marker when applicable, and rejects an absent or invalid commit ID
+instead of producing `unknown`. The Web UI footer and boot output
 identify the resulting version.

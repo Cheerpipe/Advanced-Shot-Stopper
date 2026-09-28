@@ -97,7 +97,7 @@ This keeps electrical facts in hardware and behavioral facts in the machine.
 The machine profile never owns a reed GPIO, and the hardware profile never
 selects momentary or paddle behavior. Each machine profile declares its
 compatible hardware profiles in its `hardware` list, and the resolver rejects
-any other pairing. Automated validation and CI build the supported built-in
+any other pairing. Automated validation builds the supported built-in
 pairs with `-O2`:
 
 ```text

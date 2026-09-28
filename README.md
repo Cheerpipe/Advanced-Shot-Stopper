@@ -221,7 +221,7 @@ and exact commands are in [Validation gates](VALIDATION.md).
 | R3 | Relay and machine control, ISR, watchdog, boot, GPIO, partitions, remote control, or an unknown path | R2 plus stricter compiler warnings, cppcheck, build variants, and the applicable HIL/manual evidence | Before accepting any safety-critical or not-yet-classified change |
 | Release | A firmware image intended for distribution or installation | The complete automated analysis plus resource budgets, applicable soak tests, HIL, and the manual test plan | For a release candidate; a passing automated R3 run alone is not release approval |
 
-**Host tests** run on the developer computer or a CI runner, without an ESP32 or
+**Host tests** run on the developer computer, without an ESP32 or
 espresso machine. They are quick feedback for software behavior, but cannot prove
 that real wiring, timing, radio conditions, or machine stopping are safe. The
 focused profiles are:
@@ -234,15 +234,12 @@ focused profiles are:
 | `web` | Verifies generated Web UI assets and browser-facing contracts | After changing the Web UI, its source assets, or asset generation |
 | `ble` | Focuses the normal host suite on scale protocols and BLE radio behavior | After changing scale communication or BLE protocols |
 | `ota` | Exercises OTA host logic plus command-line and Web resilience cases | After changing firmware-update behavior or its interfaces |
-| `tooling` | Checks the developer command facade, risk classification, and validation contracts | After changing scripts, CI, or repository workflow rules |
+| `tooling` | Checks the developer command facade, risk classification, and validation contracts | After changing scripts or repository workflow rules |
 
-In GitHub Actions, **classification** runs first. The **fast** job always performs
-the R0 documentation checks. The **host** job then runs `normal`, `asan`, `tsan`,
-`tooling`, and `web` for R1-R3 changes. Firmware builds run for R2/R3 pull
-requests and on pushes to `main`, weekly scheduled runs, and manual workflow
-runs. A final job checks that every job required by the classified risk passed.
-These automated jobs do not flash a board, operate the relay, or replace required
-HIL and manual evidence.
+Run these profiles locally with `./scripts/dev test <profile>` and the risk
+gates with `./scripts/dev validate --risk R0..R3`; `./scripts/dev classify`
+determines the gate required for the changed paths. These commands do not
+flash a board, operate the relay, or replace required HIL and manual evidence.
 
 ### Technical glossary
 
@@ -260,7 +257,7 @@ HIL and manual evidence.
 | Baseline | A saved starting value to which learned settings can be reset. It is not an extra correction added to the current value. |
 | Boot / boot verification | Boot is the controller's startup process. After OTA, verification confirms that the new image started safely before it is kept. |
 | Browser claim | The controller's way of assigning ordinary Home and Settings access to a browser session; it does not grant Admin privileges. |
-| CI | Continuous Integration, the automated GitHub Actions checks run for pull requests, pushes to `main`, scheduled validation, and manual workflow runs. |
+| CI | Continuous Integration, the practice of running automated checks on every change. This repository runs its checks locally through `./scripts/dev` instead of a hosted pipeline. |
 | Clamp | To restrict a calculated value to a minimum and maximum; the README's formula keeps the learned offset between 0 g and 5 g. |
 | Compile-time setting | A choice fixed while firmware is built. Changing it requires a new build; it cannot be changed later in the Web UI. |
 | CSV | Comma-Separated Values, a plain-text tabular format used when exporting or exchanging shot data. |
