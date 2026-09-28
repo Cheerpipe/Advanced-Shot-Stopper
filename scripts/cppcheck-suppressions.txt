@@ -6,25 +6,18 @@
 *:*/esp-idf*/components/*
 *:*/idf/managed_components/*
 *:*/idf/third_party/*
-# Cppcheck cannot parse NimBLE's valid empty-name STAILQ_HEAD macro argument.
-syntaxError:*/idf/components/bt/host/nimble/nimble/porting/nimble/include/os/os_mbuf.h
-# FreeRTOS returns its integer allocation-failure sentinel through a task-handle
-# return type; the diagnostic is inside the vendor implementation, not a caller.
-CastIntegerToAddressAtReturn:*/freertos/FreeRTOS-Kernel/include/freertos/task.h
 # Owner: firmware-platform. Review/expiry: 2027-03-01.
-# FreeRTOS semaphore macros expand to C casts; not actionable at call sites.
-dangerousTypeCast:*/src/ShotStopperNetwork.cpp
-dangerousTypeCast:*/src/network/ShotStopperNetworkService.inc
+# FreeRTOS semaphore macros (xSemaphoreGive, vSemaphoreDelete, ...) expand to
+# C handle casts inside the macro; the cast is not written at these call
+# sites, so it cannot be clarified there. Verified still firing on 2.22.0;
+# ShotStopperNetwork.cpp no longer triggers it and is no longer listed.
 dangerousTypeCast:*/src/ShotStopperNetwork.h
+dangerousTypeCast:*/src/network/ShotStopperNetworkService.inc
 dangerousTypeCast:*/src/ShotStopperWebhook.cpp
 dangerousTypeCast:*/src/ShotStopperTaskMutex.h
 # The scanner is aggregate-initialized with both required fields at its only
 # construction site; Cppcheck does not follow that aggregate initialization.
 uninitMemberVarNoCtor:*/src/ShotStopperJsonArena.h
-# The store is a raw flash-image struct: every instance is memset by
-# resetShotLogStore or CRC-validated on load before any member is read, so
-# zero-initializing members would only bloat every dual-slot copy.
-uninitMemberVarNoCtor:*/src/ShotStopperShotLogTypes.h
 # Owner: safety-kernel. Review/expiry: 2027-03-01.
 # This deliberately uninitialized RTC record preserves reset evidence across a
 # reboot. It is always validated by magic, inverse fields, and checksum before
@@ -32,5 +25,5 @@ uninitMemberVarNoCtor:*/src/ShotStopperShotLogTypes.h
 uninitMemberVarNoCtor:*/src/ShotStopperResetGuard.h
 # `unusedFunction` is intentionally not enabled by static-idf: analysis through
 # the filtered, variant-specific ESP-IDF database misclassifies cross-TU public
-# APIs. Dead-code review is tracked separately; setup/loop retain their narrow
-# inline suppressions for tools that enable the check manually.
+# APIs, and setup/loop are called by idf/main, so they no longer need inline
+# suppressions. Dead-code review is tracked separately.

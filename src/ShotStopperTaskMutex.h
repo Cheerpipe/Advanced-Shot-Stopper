@@ -49,7 +49,6 @@ class TaskMutex {
 #else
     // FreeRTOS implements xSemaphoreGive as a C macro with an internal handle
     // cast; the public handle type is the one created above.
-    // cppcheck-suppress dangerousTypeCast
     const BaseType_t given = xSemaphoreGive(handle_);
     configASSERT(given == pdTRUE);
     (void)given;

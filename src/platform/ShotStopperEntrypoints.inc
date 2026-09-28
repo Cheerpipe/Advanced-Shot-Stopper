@@ -132,7 +132,6 @@ void serviceHealthWorkerSample() {
   if (!healthSnapshotValid) hwmonSnapshot.cpuLoadValid = false;
 }
 
-// cppcheck-suppress unusedFunction ; Arduino framework entry point
 void setup() {
   bootStartedAtMs = millis();
   bootCapabilities = BootCapabilities{};
@@ -563,7 +562,6 @@ bool controlHousekeepingDue(uint32_t now) {
   return true;
 }
 
-// cppcheck-suppress unusedFunction ; Arduino framework entry point
 void loop() {
   static uint32_t delayStartedAtUs = 0, delayReturnedAtUs = 0;
   static uint32_t lastLoopStartedAtUs = 0;
