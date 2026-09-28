@@ -28,7 +28,8 @@
   const root = width => {
     const e = {
       width, dataset: {}, children: [],
-      setAttribute() {},
+      setAttribute(name, value) { this[name] = value; },
+      removeAttribute(name) { delete this[name]; },
       replaceChildren() { this.children = []; },
       appendChild(child) { child.parent = this; this.children.push(child); },
       querySelectorAll() { return this.children; },
@@ -64,6 +65,12 @@
         (weight !== 42 && shown.includes('36.1 g')))
       throw new Error('Goal, zero, and actual-weight label priorities changed at ' + weight + ' g: ' + shown);
   }
+  fillChartTicks(bar, [], 0);
+  if (bar.children.length || bar.role || bar['aria-label'] || 'chartAxis' in bar.dataset || bar._shown)
+    throw new Error('Cleared shot retains chart ticks or accessible weight labels');
+  fillChartTicks(bar, [[0, '0 g', 80, 'zero'], [36, '36 g', 100, 'goal']], 36, true);
+  flush(); verify(bar);
+  if (visible(bar).length !== 2) throw new Error('Chart labels did not recover after clearing');
   const time = root(288);
   fillChartTicks(time, [[0, '0 s', 80, 'zero'], [27.9, '27.9 s', 20, 'fast'],
     [28, '28 s', 20, 'bbw'], [28.1, '28.1 s', 20, 'slow'], [60, '60 s', 70, 'end']], 60, true);
