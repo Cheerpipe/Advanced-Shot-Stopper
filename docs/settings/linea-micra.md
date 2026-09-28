@@ -18,8 +18,9 @@ internet connection is unavailable.
 1. Enter the email address and password used by the La Marzocco app.
 2. Choose **Connect** and wait for the account's Linea Micra machines to appear.
    While the sign-in is checked with the La Marzocco cloud, the **Connect**
-   button shows a small spinner; it stops as soon as the machines are listed
-   or the sign-in fails.
+   button shows a small spinner and the status line follows each step of the
+   sign-in; both settle as soon as the machines are listed or the sign-in
+   fails, and a failed sign-in also names the reason.
 3. Select the machine used with this controller.
 4. Choose **Use selected machine**. Only then can the Micra options be
    edited and saved.

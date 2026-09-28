@@ -200,6 +200,11 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
       selectedSerial: '', phase: 'authenticating'}})})`, context);
     assert.strictEqual(get('lineaMicraConnectButton').busy, true,
         'Connect must spin while the cloud sign-in is in flight');
+    assert.strictEqual(get('lineaMicraIdentity').innerText,
+        'runtime.not_connected',
+        'No signed-in claim before the machine list lands');
+    assert.strictEqual(get('lineaMicraStatus').textContent, 'authenticating',
+        'The status hint must narrate the in-flight sign-in phase');
     vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
       ...connected, accountConfigured: false, email: '', selectedName: '',
       selectedSerial: '', machines: [{serial: 'ABC', name: 'Micra'}],
@@ -218,6 +223,16 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
       selectedSerial: '', phase: 'failed', error: 'invalid_auth'}})})`, context);
     assert.strictEqual(get('lineaMicraConnectButton').busy, false,
         'Connect must stop spinning when authentication fails');
+    assert.strictEqual(get('lineaMicraStatus').textContent,
+        'failed · invalid_auth',
+        'A failed sign-in must surface the phase and error');
+    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
+      ...connected, accountConfigured: false, email: '', selectedName: '',
+      selectedSerial: '', machines: [{serial: 'ABC', name: 'Micra'}],
+      phase: 'failed', error: 'invalid_auth'}})})`, context);
+    assert.strictEqual(get('lineaMicraIdentity').innerText,
+        'runtime.signed_in_select_machine',
+        'A listed machine stays selectable while a re-auth attempt fails');
   }
 }
 if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
