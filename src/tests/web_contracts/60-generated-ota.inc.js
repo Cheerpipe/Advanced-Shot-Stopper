@@ -450,9 +450,10 @@ if (generated.cssGzip.length > 7400) {
 // The time-zone catalog, selected-zone preview, and first-use detection
 // raise the measured source to 38780 bytes.
 // The busy save-button spinner wiring raises it to 40100 bytes.
-// Per-section revert (discard unsaved changes) baselines, snapshot helpers,
-// and handlers beside the save flows raise it to 40650 bytes.
-if (sentinelRuntimeGzip.length > 40650) {
+// Per-section revert (discard unsaved changes) snapshot helpers, handlers,
+// and hydration-time baseline capture beside the save flows raise it to
+// 40750 bytes.
+if (sentinelRuntimeGzip.length > 40750) {
   throw new Error(`Compressed Web UI runtime JS exceeds the 40000-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {

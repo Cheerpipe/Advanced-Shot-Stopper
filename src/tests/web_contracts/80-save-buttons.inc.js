@@ -49,7 +49,7 @@
          runtimeJs.includes("setSaveDirty('saveConfigButton','configDirtyHint',false)") &&
          runtimeJs.includes("setSaveDirty('saveDateTimeButton','dateTimeDirtyHint',false)") &&
          runtimeJs.includes('await refreshStatus();return false') &&
-         adminUi.includes("const networkChanged=()=>{if($('saveNetworkButton').dataset.dirty!=='1')networkBaseline=R.snapshotControls(") &&
+         adminUi.includes("const networkChanged=()=>R.setSaveDirty('saveNetworkButton','',true)") &&
          adminUi.includes("R.setSaveDirty('saveWebhookButton','webhookDirtyHint',true)") &&
          adminUi.includes("R.setSaveDirty('changeDevicePasswordButton','',false)") &&
          adminUi.includes("R.command('/api/v1/network',payload,undefined,undefined,undefined,'saveNetworkButton').then(ok=>{if(!ok)return") &&
@@ -58,11 +58,15 @@
   'Save actions must enable on edits, disable only after success, and look disabled');
   assert(runtimeJs.includes('function snapshotControls(') &&
          runtimeJs.includes('function restoreSnapshot(') &&
+         runtimeJs.includes("if(!configDirty)configBaseline=snapshotControls(settingsSectionEls('config'))") &&
+         runtimeJs.includes('if(!dateTimeDirty)dateTimeBaseline=snapshotControls(') &&
+         runtimeJs.includes('networkBaseline=snapshotControls(networkControls())') &&
+         adminUi.includes('webhookBaseline=R.snapshotControls(WEBHOOK_IDS.map(id=>$(id)))') &&
          runtimeJs.includes('confirm("Discard unsaved changes?")') &&
          adminUi.includes('confirm("Discard unsaved changes?")') &&
          runtimeJs.includes('revertLineaMicra') &&
          css.includes('.btnGlyph.btnRevert{'),
-    'Revert buttons must confirm, then restore the pre-edit snapshot beside every save bar');
+    'Revert buttons must confirm, then restore the snapshot taken when the section was last hydrated clean');
 
   assert(runtimeJs.includes('command(path,value={},soft,okMsg,failMsg,busyId)') &&
          runtimeJs.includes('busyId?$(busyId):null') &&
