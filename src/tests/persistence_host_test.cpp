@@ -326,7 +326,7 @@ void p18_shot_log_keeps_history_when_inactive_slot_write_fails() {
 void p19_shot_log_weight_sentinel_allows_int16_max() {
   CHECK(shotLogWeightToCentigrams(327.67f) == INT16_MAX);
   CHECK(shotLogWeightIsMissing(SHOT_LOG_WEIGHT_MISSING));
-  CHECK(shotLogWeightIsMissing(SHOT_LOG_WEIGHT_MISSING_LEGACY));
+  CHECK(!shotLogWeightIsMissing(INT16_MAX));
   CHECK(!shotLogWeightIsMissing(3600));
   CHECK(shotLogWeightToCentigrams(400.0f) == SHOT_LOG_WEIGHT_MISSING);
 }
@@ -1398,51 +1398,55 @@ void p48_ble_scan_defaults_and_dual_slot_round_trip() {
   CHECK(readLatestBleScanSettings(onDisk));
   CHECK(!verifyFactoryBleScanSettings(onDisk));
 
-  // Version 1 blobs predate the master switch: their reserved byte must be 0
-  // and the loader upgrades them to enabled BLE without dropping tuning.
-  BleScanPersistedSettings v1 = {};
-  v1.magic = BLE_SCAN_SETTINGS_MAGIC;
-  v1.version = BLE_SCAN_SETTINGS_VERSION - 1;
-  v1.structureSize = sizeof(BleScanPersistedSettings);
-  v1.revision = 3;
-  v1.enabled = 1;
-  v1.scanIntensity = static_cast<uint8_t>(BleScanIntensity::RELAXED);
-  v1.checksum = bleScanSettingsChecksum(v1);
-  CHECK(!validBleScanSettingsBlob(v1));
-  CHECK(!verifyFactoryBleScanSettings(v1));
-  v1.enabled = 0;
-  v1.scanIntensity = static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE);
-  v1.checksum = bleScanSettingsChecksum(v1);
-  CHECK(validBleScanSettingsBlob(v1));
-  CHECK(!verifyFactoryBleScanSettings(v1));
+  // Foreign schema versions are rejected outright: the store never upgrades
+  // an older blob, in memory or from NVS.
+  BleScanPersistedSettings stale = {};
+  stale.magic = BLE_SCAN_SETTINGS_MAGIC;
+  stale.version = BLE_SCAN_SETTINGS_VERSION - 1;
+  stale.structureSize = sizeof(BleScanPersistedSettings);
+  stale.revision = 3;
+  stale.enabled = 0;
+  stale.scanIntensity = static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE);
+  stale.checksum = bleScanSettingsChecksum(stale);
+  CHECK(!validBleScanSettingsBlob(stale));
+  CHECK(!verifyFactoryBleScanSettings(stale));
+  BleScanPersistedSettings newer = stale;
+  newer.version = BLE_SCAN_SETTINGS_VERSION + 1;
+  newer.checksum = bleScanSettingsChecksum(newer);
+  CHECK(!validBleScanSettingsBlob(newer));
   // Current-version blobs carry the switch: only 0/1 is a legal value.
-  BleScanPersistedSettings v2 = v1;
-  v2.version = BLE_SCAN_SETTINGS_VERSION;
-  v2.enabled = 2;
-  v2.checksum = bleScanSettingsChecksum(v2);
-  CHECK(!validBleScanSettingsBlob(v2));
-  v2.enabled = 0;
-  v2.checksum = bleScanSettingsChecksum(v2);
-  CHECK(validBleScanSettingsBlob(v2));
+  BleScanPersistedSettings current = stale;
+  current.version = BLE_SCAN_SETTINGS_VERSION;
+  current.checksum = bleScanSettingsChecksum(current);
+  CHECK(validBleScanSettingsBlob(current));
+  CHECK(!verifyFactoryBleScanSettings(current));
+  current.enabled = 2;
+  current.checksum = bleScanSettingsChecksum(current);
+  CHECK(!validBleScanSettingsBlob(current));
+  current.enabled = 0;
+  current.checksum = bleScanSettingsChecksum(current);
+  CHECK(validBleScanSettingsBlob(current));
 
   resetHostPersistence();
   CHECK(lockSettingsNvs());
   ShotStopperPreferences preferences(NvsSubsystem::BLE_SCAN);
   CHECK(preferences.begin(SETTINGS_NAMESPACE, false));
-  CHECK(preferences.putBytes(BLE_SCAN_SLOT_A, &v1, sizeof(v1)) == sizeof(v1));
+  current.enabled = 1;
+  current.checksum = bleScanSettingsChecksum(current);
+  CHECK(preferences.putBytes(BLE_SCAN_SLOT_A, &current, sizeof(current)) ==
+        sizeof(current));
   preferences.end();
   unlockSettingsNvs();
-  BleScanPersistedSettings upgraded;
-  CHECK(loadBleScanSettings(upgraded));
-  CHECK(upgraded.version == BLE_SCAN_SETTINGS_VERSION);
-  CHECK(upgraded.enabled == 1);
-  CHECK(upgraded.scanIntensity ==
+  CHECK(loadBleScanSettings(loaded));
+  CHECK(loaded.version == BLE_SCAN_SETTINGS_VERSION);
+  CHECK(loaded.enabled == 1);
+  CHECK(loaded.scanIntensity ==
         static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE));
-  CHECK(validBleScanSettingsBlob(upgraded));
+  CHECK(validBleScanSettingsBlob(loaded));
   // The master switch shares the combined save; disabled is durable.
-  CHECK(persistBleScanSettings(upgraded,
+  CHECK(persistBleScanSettings(loaded,
                                static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE),
-                               upgraded.scanBackoffMin, upgraded.scanBoostMin,
+                               loaded.scanBackoffMin, loaded.scanBoostMin,
                                0));
   CHECK(readLatestBleScanSettings(onDisk));
   CHECK(onDisk.version == BLE_SCAN_SETTINGS_VERSION);

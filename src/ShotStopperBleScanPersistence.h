@@ -5,11 +5,10 @@
 
 namespace shotstopper {
 
-// The BLE scan store has one fixed layout. Version 2 gave the reserved byte
-// the master-switch meaning (enabled); valid version 1 blobs are upgraded to
-// enabled BLE in memory so an update never switches a user's scales off.
+// The BLE scan store has one fixed layout with an explicit master switch.
+// Blobs carrying any other schema version are invalid and never upgraded.
 constexpr uint32_t BLE_SCAN_SETTINGS_MAGIC = 0x424C4543U;  // "BLEC"
-constexpr uint16_t BLE_SCAN_SETTINGS_VERSION = 2;
+constexpr uint16_t BLE_SCAN_SETTINGS_VERSION = 1;
 constexpr const char *BLE_SCAN_SLOT_A = "bleCfgA";
 constexpr const char *BLE_SCAN_SLOT_B = "bleCfgB";
 
@@ -60,11 +59,6 @@ inline bool validBleScanSettingsBlob(const BleScanPersistedSettings &settings) {
       settings.checksum != bleScanSettingsChecksum(settings)) {
     return false;
   }
-  // Version 1 blobs predate the master switch: their reserved byte is 0,
-  // which upgrades to enabled rather than meaning "disabled".
-  if (settings.version == BLE_SCAN_SETTINGS_VERSION - 1) {
-    return settings.enabled == 0;
-  }
   return settings.version == BLE_SCAN_SETTINGS_VERSION &&
          settings.enabled <= 1;
 }
@@ -77,14 +71,7 @@ inline bool readBleScanSlot(ShotStopperPreferences &preferences, const char *key
           sizeof(settings)) {
     return false;
   }
-  if (!validBleScanSettingsBlob(settings)) {
-    return false;
-  }
-  if (settings.version != BLE_SCAN_SETTINGS_VERSION) {
-    settings.version = BLE_SCAN_SETTINGS_VERSION;
-    settings.enabled = 1;
-  }
-  return true;
+  return validBleScanSettingsBlob(settings);
 }
 
 inline bool readLatestBleScanSettings(BleScanPersistedSettings &settings) {

@@ -63,17 +63,10 @@ constexpr float MIN_SHOT_LOG_WEIGHT_G = 2.0f;
 constexpr uint32_t MIN_SHOT_LOG_DURATION_MS = 12000U;
 // INT16_MIN leaves the full positive int16 centigram range usable.
 constexpr int16_t SHOT_LOG_WEIGHT_MISSING = INT16_MIN;
-constexpr int16_t SHOT_LOG_WEIGHT_MISSING_LEGACY = INT16_MAX;
 constexpr uint16_t SHOT_LOG_METRIC_MISSING = UINT16_MAX;
 
 inline bool shotLogWeightIsMissing(int16_t centigrams) {
-  return centigrams == SHOT_LOG_WEIGHT_MISSING ||
-         centigrams == SHOT_LOG_WEIGHT_MISSING_LEGACY;
-}
-
-inline int16_t normalizeLegacyShotLogWeight(int16_t centigrams) {
-  return centigrams == SHOT_LOG_WEIGHT_MISSING_LEGACY ? SHOT_LOG_WEIGHT_MISSING
-                                                     : centigrams;
+  return centigrams == SHOT_LOG_WEIGHT_MISSING;
 }
 
 enum class ShotLogType : uint8_t {
