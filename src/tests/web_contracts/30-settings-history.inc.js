@@ -822,6 +822,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !css.includes('#historyTable{') ||
     !css.includes('#historySentinel{min-height:1px') ||
     !css.includes('.panelState{display:flex;align-items:center;justify-content:center;') ||
+    !css.includes('.panelState.isOver{position:absolute;') ||
     !css.includes('.histBadge{') ||
     !runtimeJs.includes('HISTORY_PAGE_SIZE=20') ||
     !runtimeJs.includes("const historyUrl=(offset,limit,dir)=>'/api/v1/history?offset='") ||
