@@ -458,7 +458,10 @@ if (generated.cssGzip.length > 7400) {
 // 41300 bytes.
 // Compatibility-mode gating (status flag, nav chrome, firmware-mode save
 // flow in command()) raises it to 41450 bytes.
-if (sentinelRuntimeGzip.length > 41450) {
+// The rule-chart merged range labels (collision runs collapsing into one
+// centered label such as "34–36 g" on the home preset axes) raise it to
+// 41700 bytes.
+if (sentinelRuntimeGzip.length > 41700) {
   throw new Error(`Compressed Web UI runtime JS exceeds the 40000-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {

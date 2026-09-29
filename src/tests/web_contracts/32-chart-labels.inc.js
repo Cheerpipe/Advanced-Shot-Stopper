@@ -7,6 +7,7 @@
       return {
         dataset: {}, style: {}, textContent: '', className: '',
         setAttribute() {},
+        remove() { const p = this.parent; if (p) p.children = p.children.filter(c => c !== this); },
         get classList() { return {contains: name => this.className === name}; },
         getBoundingClientRect() {
           const root = this.parent, width = this.textContent.length * 7;
@@ -78,4 +79,77 @@
   if (visible(time).length >= time.children.length) throw new Error('Close guard labels were not filtered');
   time.width = 144;
   layoutChartLabels(); flush(); verify(time);
+
+  const chart = root(343);
+  fillChartTicks(chart, [[0, '0 g', 80, 'zero'], [34, '34 g', 20, 'slow'],
+    [36, '36 g', 100, 'goal'], [42.5, '42.5 g', 70, 'max']], 42.5, true, true);
+  flush(); verify(chart);
+  {
+    const shown = visible(chart).map(n => n.textContent);
+    const range = chart.children.find(n => n.dataset.m);
+    if (!shown.includes('0 g') || !shown.includes('34–36–42.5 g') ||
+        shown.includes('34 g') || shown.includes('36 g') ||
+        shown.includes('42.5 g') || !range ||
+        Math.abs(parseFloat(range.style.left) - 90) > 0.01)
+      throw new Error('Crammed labels must merge into one centered range: ' + shown);
+  }
+  fillChartTicks(chart, [[0, '0 g', 80, 'zero'], [36, '36 g', 100, 'goal'],
+    [40, '40 g', 70, 'max']], 40, true, true);
+  flush(); verify(chart);
+  {
+    const shown = visible(chart).map(n => n.textContent);
+    const range = chart.children.find(n => n.dataset.m);
+    if (!shown.includes('0 g') || !shown.includes('36–40 g') ||
+        shown.includes('36 g') || shown.includes('40 g') || !range ||
+        Math.abs(parseFloat(range.style.left) - 95) > 0.01)
+      throw new Error('Goal near axis max must merge into one range: ' + shown);
+  }
+  fillChartTicks(chart, [[0, '0 s', 80, 'zero'], [26, '26 s', 20, 'fast'],
+    [50, '50 s', 70, 'end']], 50, true, true);
+  flush(); verify(chart);
+  if (visible(chart).length !== 3 || chart.children.some(n => n.dataset.m))
+    throw new Error('Spaced labels must not merge');
+  const flex = root(500);
+  fillChartTicks(flex, [[0, '0 g', 80, 'zero'], [36, '36 g', 100, 'goal'],
+    [40, '40 g', 70, 'max']], 40, true, true);
+  flush(); verify(flex);
+  if (visible(flex).length !== 3 || flex.children.some(n => n.dataset.m))
+    throw new Error('Wide layouts must not merge');
+  flex.width = 343;
+  layoutChartLabels(); flush(); verify(flex);
+  {
+    const shown = visible(flex).map(n => n.textContent);
+    if (!shown.includes('36–40 g') || !shown.includes('0 g') ||
+        shown.includes('36 g') || shown.includes('40 g'))
+      throw new Error('Re-layout after shrinking must merge newly colliding labels: ' + shown);
+  }
+  flex.width = 500;
+  layoutChartLabels(); flush(); verify(flex);
+  if (visible(flex).length !== 3 || flex.children.some(n => n.dataset.m))
+    throw new Error('Re-layout after widening must drop stale merged labels');
+  fillChartTicks(chart, [], 0, true, true);
+  if (chart.children.length || 'chartMerge' in chart.dataset)
+    throw new Error('Cleared chart must drop ticks and the merge opt-in');
+  const solo = root(343);
+  fillChartTicks(solo, [[0, '0 g', 80, 'zero'], [34, '34 g', 20, 'slow'],
+    [36, '36 g', 100, 'goal']], 36, true);
+  flush(); verify(solo);
+  {
+    const shown = visible(solo).map(n => n.textContent);
+    if (shown.includes('34–36 g') || shown.includes('34 g') ||
+        !shown.includes('36 g') || solo.children.some(n => n.dataset.m))
+      throw new Error('Axes without the merge opt-in must keep priority hiding: ' + shown);
+  }
+  const tiny = root(40);
+  fillChartTicks(tiny, [[0, '0 g', 80, 'zero'], [34, '34 g', 20, 'slow'],
+    [36, '36 g', 100, 'goal']], 36, true, true);
+  flush(); verify(tiny);
+  {
+    const shown = visible(tiny).map(n => n.textContent);
+    if (shown.length !== 1 || shown[0] !== '36 g')
+      throw new Error('A merged range that cannot fit must fall back: ' + shown);
+  }
+  if (!runtimeJs.includes('m.tMax,true,true') ||
+      !runtimeJs.includes('m.wMax,true,true'))
+    throw new Error('Rule chart axes must opt into merged range labels');
 }
