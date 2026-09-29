@@ -15,7 +15,9 @@ time changes weight stopping, not which completed cycles are recorded.
 
 Typical fields include local time (from the saved time zone at shot end),
 duration, the exact preset name captured at shot start, goal and yield (the
-shot's actual output), error, average flow, first-drop time, whether Fast/Slow
+shot's actual output), error, average flow, first-drop time, the scale used
+(its friendly name, or the advertised Bluetooth name when no friendly name is
+set), the late-tare time when the cup was tared mid-shot, whether Fast/Slow
 guards ran or extended the shot, `shot_type`, `cut_type`
 (`auto`, `manual`, `limit`), `stop_detail` (for example
 `normal_target`, `activator`, `web_stop`, `wall_limit`, `hard_limit`,
@@ -51,7 +53,9 @@ the drip-delay interval is not appended to the graph. Before the first drop,
 the weight chart shows a dark green outline along the zero-weight axis, and
 the flow chart shows an aqua outline along its zero-flow axis, with no shaded
 area. An aqua drop with only the first-drop time beside it marks that moment on
-the weight chart only. The time axis shows only its fixed 10-second labels;
+the weight chart only. When a late tare happened, a scale icon in the text
+color with the tare time marks that moment on the weight chart too. The time
+axis shows only its fixed 10-second labels;
 Fast, Slow, and A-to-M changes remain visible through the curve colors without
 adding competing time labels. Curves without a first-drop event keep their full
 available grid. The current-shot curve exposed to Home is an in-memory view;

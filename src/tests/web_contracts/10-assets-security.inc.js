@@ -239,8 +239,11 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // ~0.2 KB of HTML source allowance; compressed asset budgets stay fixed.
 // The Admin Firmware master-switch section adds ~1 KB of HTML source
 // allowance; compressed asset and firmware budgets stay unchanged.
-if (htmlBytes > 78800) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 78800)`);
+// Shot stats gain a Tare time and a Scale field: two Home card fields plus
+// two Stats table headers add ~0.1 KB of HTML source allowance; the
+// compressed asset and firmware budgets stay effectively unchanged.
+if (htmlBytes > 78900) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 78900)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -302,8 +305,11 @@ if (htmlBytes > 78800) {
 // Mid-upload image guarding records per-4 KiB-block digests during the OTA
 // identity scan and re-verifies every range before it is sent, adding
 // ~1.1 KB of JS source allowance.
-if (jsBytes > 226000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 226000)`);
+// Shot stats gain Tare time and Scale: the tare chart marker, two table
+// columns, CSV columns, and last-shot wiring add ~1.1 KB of JS source
+// allowance.
+if (jsBytes > 227500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 227500)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -322,8 +328,10 @@ if (jsBytes > 226000) {
 // (Firmware section in HTML; section wiring and compatibility-mode gating
 // in JS).
 // Mid-upload OTA image guarding adds ~1.1 KB of combined JS source allowance.
-if (htmlBytes + jsBytes > 304900) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 304900)`);
+// Shot stats Tare time and Scale add ~1.2 KB of combined source allowance
+// (card fields and table headers in HTML; marker, columns, and wiring in JS).
+if (htmlBytes + jsBytes > 306500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 306500)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

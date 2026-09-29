@@ -100,7 +100,7 @@ struct NetworkWorkBuf {
   char requestBody[2048]{};
   WifiScanSnapshot wifiScan{};
 };
-static_assert(sizeof(NetworkWorkBuf) <= 73728,
+static_assert(sizeof(NetworkWorkBuf) <= 77824,
               "Network workspace exceeds its external-memory budget");
 
 // Wi-Fi scan snapshots. Network task / httpd only; not BLE.

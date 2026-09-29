@@ -467,8 +467,10 @@ if (generated.cssGzip.length > 7400) {
 // it to 41950 bytes.
 // Mid-upload OTA image guarding (the per-range re-verification call and the
 // changed-file error mapping in the runtime module) raises it to 42100 bytes.
-if (sentinelRuntimeGzip.length > 42100) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 42100-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Shot stats Tare time and Scale (the tare chart marker, two table columns,
+// CSV columns, and last-shot wiring) raise it to 42400 bytes.
+if (sentinelRuntimeGzip.length > 42400) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 42400-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -530,8 +532,11 @@ if (generated.icon48Gzip.length > 3500) {
 // Mid-upload OTA image guarding (per-range re-verification in the runtime
 // and image modules plus its changed-file error string) raises it to
 // 110500 bytes.
-if (generated.combined > 110500) {
-  throw new Error(`Combined Web UI gzip exceeds the 110500-byte flash budget (${generated.combined})`);
+// Shot stats Tare time and Scale (tare marker, table columns, and wiring)
+// raise it to 110700 bytes; the firmware image carries the same assets
+// once, so the versioned image and rodata growth budgets stay untouched.
+if (generated.combined > 110700) {
+  throw new Error(`Combined Web UI gzip exceeds the 110700-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

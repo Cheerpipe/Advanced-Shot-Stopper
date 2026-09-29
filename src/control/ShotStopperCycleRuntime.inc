@@ -773,6 +773,11 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
     pendingFinalize.firstDropDs = static_cast<uint16_t>(
         (session.firstDropMs - shotAnchorMs) / 100U);
   }
+  if (session.retareAtMs != 0 &&
+      static_cast<int32_t>(session.retareAtMs - shotAnchorMs) >= 0) {
+    pendingFinalize.tareAtDs = static_cast<uint16_t>(
+        (session.retareAtMs - shotAnchorMs) / 100U);
+  }
   pendingFinalize.goalWeightG = session.config.goalWeightG;
   pendingFinalize.weightOffsetG = session.config.weightOffsetG;
   pendingFinalize.bbwAlgorithm = session.config.bbwAlgorithm;
@@ -835,6 +840,9 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
               sizeof(pendingFinalize.scaleProtocol), link.protocolName);
   pendingFinalize.scaleProtocol[sizeof(pendingFinalize.scaleProtocol) - 1] =
       '\0';
+  findScaleHistoryFriendlyName(scaleHistory, link.connectedMac,
+                               pendingFinalize.scaleName,
+                               sizeof(pendingFinalize.scaleName));
   if (session.hasWeightAnchor) {
     shotCurveSampler.accept(session.lastAcceptedWeightG, millis());
     shotCurveSampler.captureEnd(millis(), session.lastAcceptedWeightG);
@@ -853,6 +861,7 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
   record.actualWeightCg = SHOT_LOG_WEIGHT_MISSING;
   record.errorCg = SHOT_LOG_WEIGHT_MISSING;
   record.firstDropDs = snapshot.firstDropDs;
+  record.tareAtDs = snapshot.tareAtDs;
   record.avgFlowCgS = SHOT_LOG_METRIC_MISSING;
   record.bootId = snapshot.bootId;
   record.endedAtMs = snapshot.endedAtMs;
@@ -881,6 +890,7 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
   shotLogSetPresetId(record, snapshot.activePresetId);
   copyCString(record.presetName, sizeof(record.presetName),
               snapshot.activePresetName);
+  copyCString(record.scaleName, sizeof(record.scaleName), snapshot.scaleName);
   record.extractionGuardEnabled = shotLogPackGuardFlags(
       snapshot.extractionGuardEnabled, snapshot.slowExtractionGuardEnabled);
   record.extractionExtended = shotLogPackExtendedFlags(

@@ -269,6 +269,7 @@ struct CycleSession {
   bool flowDuringRetare = false;
   uint32_t retareFlowFirstDetectedAtMs = 0;
   bool retarePerformed = false;
+  uint32_t retareAtMs = 0;
   bool retareDisabled = false;
   bool firstDropsBeepSent = false;
   FirstFlowState firstFlow = {};
@@ -313,6 +314,7 @@ struct PendingShotFinalize {
   uint32_t bootId = 0;
   uint16_t durationDs = 0;
   uint16_t firstDropDs = SHOT_LOG_METRIC_MISSING;
+  uint16_t tareAtDs = SHOT_LOG_METRIC_MISSING;
   uint8_t goalWeightG = DEFAULT_GOAL_WEIGHT_G;
   float weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   float scaleBaselineG = 0.0f;
@@ -334,6 +336,7 @@ struct PendingShotFinalize {
   float lastKnownWeightG = 0.0f;
   uint8_t activePresetId = 0;
   char activePresetName[SHOT_PRESET_NAME_CAPACITY] = {};
+  char scaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};
   uint32_t cycleId = 0;
   bool retarePerformed = false;
   float minRecoveryWeightG = DEFAULT_MIN_RECOVERY_WEIGHT_G;
@@ -1128,6 +1131,10 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
     last.firstDropElapsedMs =
         static_cast<uint32_t>(snapshot.firstDropDs) * 100U;
   }
+  if (snapshot.tareAtDs != SHOT_LOG_METRIC_MISSING) {
+    last.tareElapsedMs = static_cast<uint32_t>(snapshot.tareAtDs) * 100U;
+  }
+  copyCString(last.scaleName, sizeof(last.scaleName), snapshot.scaleName);
   if (last.weightValid && last.firstDropElapsedMs != 0 &&
       last.durationMs > last.firstDropElapsedMs + 500U &&
       snapshot.scaleBaselineReady) {
@@ -1220,6 +1227,10 @@ void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
       static_cast<int32_t>(session.firstDropMs - startMs) >= 0) {
     last.firstDropElapsedMs = session.firstDropMs - startMs;
   }
+  if (session.retareAtMs != 0 &&
+      static_cast<int32_t>(session.retareAtMs - startMs) >= 0) {
+    last.tareElapsedMs = session.retareAtMs - startMs;
+  }
   last.retarePerformed = session.retarePerformed;
   last.shotType = static_cast<uint8_t>(lastShotTypeFromCycle(
       stopperState, session.startedWithScale, session.config.timerOnly,
@@ -1251,6 +1262,8 @@ void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
   copyCString(last.scaleProtocol, sizeof(last.scaleProtocol),
               link.protocolName);
   last.scaleProtocol[sizeof(last.scaleProtocol) - 1] = '\0';
+  findScaleHistoryFriendlyName(scaleHistory, link.connectedMac, last.scaleName,
+                               sizeof(last.scaleName));
   persistLastShotSnapshot(last);
 }
 

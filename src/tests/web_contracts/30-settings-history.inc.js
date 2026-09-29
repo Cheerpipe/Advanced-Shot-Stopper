@@ -603,8 +603,8 @@ if (!ui.includes('id="shotTable"') ||
     !js.includes("'shotDur'") ||
     !js.includes("'shotActual'") ||
     !css.includes('#shotTable .shotDur,#shotTable .shotActual') ||
-    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err drop drop ended ended" "shot shot preset preset rate rate" "spark spark spark spark spark spark"') ||
-    !css.includes('#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err drop drop ended ended" "shot shot preset preset rate rate"}') ||
+    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale scale rate rate rate" "spark spark spark spark spark spark"') ||
+    !css.includes('#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale scale rate rate rate"}') ||
     css.includes('grid-area:guard') ||
     css.includes('grid-area:ext') ||
     css.includes('grid-area:stop') ||
@@ -622,13 +622,13 @@ if (!ui.includes('id="shotTable"') ||
     !runtimeJs.includes('shotDisplayFlowGS(r)') ||
     !runtimeJs.includes('shotMaxFlowGS(r)') ||
     !runtimeJs.includes('shotPresetName(r)') ||
-    !runtimeJs.includes("'preset_id','max_flow_g_s'") ||
+    !runtimeJs.includes("'preset_id','scale_name','max_flow_g_s'") ||
     !runtimeJs.includes('const live=!!s.cycle?.active') ||
     runtimeJs.includes('const live=!!((s.cycle&&s.cycle.active)||s.liveShot)') ||
     runtimeJs.includes('const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
     !runtimeJs.includes('dropMs=src?.firstDropElapsedMs||0') ||
     !runtimeJs.includes('formatShotEnded(r.stopDetail)') ||
-    !js.includes("labels=['Time','Dur','Goal','Yield','Err%','Avg flow','Max flow','1st drop','Ended','Shot','Preset']") ||
+    !js.includes("labels=['Time','Dur','Goal','Yield','Err%','Avg flow','Max flow','Tare time','1st drop','Ended','Shot','Preset','Scale']") ||
     js.includes("labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Ended','Shot']") ||
     js.includes("labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Guard','Ext','Stop','Shot','Cut']") ||
     partialHtml.stats.includes('<th>Guard</th>') ||

@@ -108,7 +108,9 @@ the cup is a light cardboard cup just above the configured minimum or a
 heavier ceramic cup. A finger tap is also not first drop. After the late
 tare, post-tare grace runs again so the empty-cup weight cannot cut the
 shot; [Cup protection](cup-protection.md) still blocks weight stop for the
-full BBW protection window.
+full BBW protection window. The tare moment is stored with the recorded shot
+and shown as **Tare time** on the shot cards, with a scale marker at that
+instant on the shot chart.
 
 ## When it applies
 

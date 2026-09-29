@@ -124,8 +124,8 @@
   assert.equal(lines.length, 101);
   assert.equal(lines[0][11], 'offset_g');
   assert.equal(lines[1][11], '0');
-  assert.deepEqual(lines[0].slice(-15), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id', 'max_flow_g_s', 'yield_dt_s', 'yield_0.5s', 'yield_1s', 'yield_1.5s', 'yield_2s', 'flow_0.5s', 'flow_1s', 'flow_1.5s', 'flow_2s']);
-  assert.deepEqual(lines[1].slice(-15), ['linear_ewma', '2', '0.37', '', '', '', '', '', '', '', '', '', '', '', '']);
-  assert.deepEqual(lines[2].slice(-15), ['legacy', '1', '1.00', '1', '255', '2.5', '0.5', '0', '15.2', '31.05', '36.2', '', '7.85', '', '']);
-  assert.deepEqual(lines[3].slice(-15), ['linear_ewma', '2', '0.37', '1', '255', '2.5', '0.5', '0', '8', '', '', '', '', '', '']);
+  assert.deepEqual(lines[0].slice(-16), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id', 'scale_name', 'max_flow_g_s', 'yield_dt_s', 'yield_0.5s', 'yield_1s', 'yield_1.5s', 'yield_2s', 'flow_0.5s', 'flow_1s', 'flow_1.5s', 'flow_2s']);
+  assert.deepEqual(lines[1].slice(-16), ['linear_ewma', '2', '0.37', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+  assert.deepEqual(lines[2].slice(-16), ['legacy', '1', '1.00', '1', '255', '', '2.5', '0.5', '0', '15.2', '31.05', '36.2', '', '7.85', '', '']);
+  assert.deepEqual(lines[3].slice(-16), ['linear_ewma', '2', '0.37', '1', '255', '', '2.5', '0.5', '0', '8', '', '', '', '', '', '']);
 })().catch(error => {console.error(error); process.exitCode = 1;});

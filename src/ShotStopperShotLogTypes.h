@@ -324,11 +324,15 @@ struct ShotLogRecord {
   int16_t maxRecoveryWeightCg;
   uint16_t minBbwBrewTimeDs;
   uint16_t targetReachedEarlyDs;
+  // Deciseconds from the shot anchor to the late tare; MISSING = no tare.
+  uint16_t tareAtDs;
   char presetName[SHOT_PRESET_NAME_CAPACITY];
+  // Friendly name if set, else the BLE name, truncated; by value, empty = none.
+  char scaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1];
 };
 
-static_assert(sizeof(ShotLogRecord) == 72,
-              "ShotLogRecord v5 must include the preset-name snapshot");
+static_assert(sizeof(ShotLogRecord) == 108,
+              "ShotLogRecord v1 must include the preset-name and scale-name snapshots");
 
 inline bool shotLogRecordEligible(const ShotLogRecord &record) {
   return record.durationDs > MIN_SHOT_LOG_DURATION_MS / 100U &&
@@ -358,6 +362,9 @@ inline PersistedLastShot shotLogProjectLastShot(
   shot.shotType = static_cast<uint8_t>(shotLogType(record));
   shot.firstDropElapsedMs = record.firstDropDs == SHOT_LOG_METRIC_MISSING
       ? 0U : static_cast<uint32_t>(record.firstDropDs) * 100U;
+  shot.tareElapsedMs = record.tareAtDs == SHOT_LOG_METRIC_MISSING
+      ? 0U : static_cast<uint32_t>(record.tareAtDs) * 100U;
+  copyCString(shot.scaleName, sizeof(shot.scaleName), record.scaleName);
   shot.averageFlowValid = record.avgFlowCgS != SHOT_LOG_METRIC_MISSING;
   shot.averageFlowGps = shot.averageFlowValid
       ? record.avgFlowCgS / 100.0f : 0.0f;

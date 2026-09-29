@@ -590,7 +590,7 @@ void p65_factory_settings_survives_second_slot_write_fail() {
 
 void p66_shot_log_dual_slot_generation_flip() {
   resetHostPersistence();
-  CHECK(sizeof(ShotLogStore) == 7256);
+  CHECK(sizeof(ShotLogStore) == 10856);
   CHECK(sizeof(ShotLogStore) % 4 == 0);
   CHECK(sizeof(ShotLogStore) <= SHOT_LOG_FLASH_SLOT_BYTES);
   CHECK(SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES <= 0x8000);
@@ -786,6 +786,8 @@ void p12_shot_log_persists_compact_blob() {
   record.actualWeightSource =
       static_cast<uint8_t>(ActualWeightSource::POST_DRIP);
   strcpy(record.presetName, "Double");
+  record.tareAtDs = 34;
+  strcpy(record.scaleName, "Lunar");
   CHECK(log.append(record));
   CHECK(log.count() == 1);
 
@@ -798,6 +800,8 @@ void p12_shot_log_persists_compact_blob() {
   CHECK(out[0].actualWeightSource ==
         static_cast<uint8_t>(ActualWeightSource::POST_DRIP));
   CHECK(strcmp(out[0].presetName, "Double") == 0);
+  CHECK(out[0].tareAtDs == 34);
+  CHECK(strcmp(out[0].scaleName, "Lunar") == 0);
   CHECK(shotLogPackGuardFlags(true, true) ==
         (SHOT_LOG_FAST_GUARD_BIT | SHOT_LOG_SLOW_GUARD_BIT));
   CHECK(shotLogSlowGuardEnabled(shotLogPackGuardFlags(false, true)));
@@ -2124,10 +2128,10 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
   CHECK(sizeof(PersistedSettings) == 3312U);
   CHECK(settingsEntries == 212U);
-  CHECK(lastShotEntries == 11U);
-  CHECK(applicationEntries == 288U);
+  CHECK(lastShotEntries == 13U);
+  CHECK(applicationEntries == 290U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 2106U);
+  CHECK(conservativeEntries - applicationEntries == 2104U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {

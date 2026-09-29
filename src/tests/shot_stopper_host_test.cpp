@@ -10561,6 +10561,11 @@ void rt01_late_cup_triggers_single_retare() {
   runLoopAfter(runtimeConfig.rinseGestureMs + 1);
   publishStableCupWeight(150.0f, 10);
   CHECK(session.retarePerformed);
+  CHECK(session.retareAtMs != 0);
+  const uint32_t shotAnchorMs = session.circuitClosedAtMs != 0U
+                                    ? session.circuitClosedAtMs
+                                    : session.startedAtMs;
+  CHECK(static_cast<int32_t>(session.retareAtMs - shotAnchorMs) > 0);
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
   CHECK(executeNextScaleCommand());
   CHECK(session.retareEnded);
@@ -11197,6 +11202,9 @@ void s02e_shot_log_appends_auto_bbw_after_drip_delay() {
   copyCString(pendingFinalize.activePresetName,
               sizeof(pendingFinalize.activePresetName),
               activeShotPreset(presetBank).name);
+  pendingFinalize.tareAtDs = 34;
+  copyCString(pendingFinalize.scaleName, sizeof(pendingFinalize.scaleName),
+              "Lunar");
   runLoopAfter(pendingFinalize.dripDelayMs);
   CHECK(!pendingFinalize.pending);
   CHECK(shotLog.count() == 1);
@@ -11208,6 +11216,8 @@ void s02e_shot_log_appends_auto_bbw_after_drip_delay() {
         static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET));
   CHECK(shotLogCut(records[0]) == ShotLogCut::AUTO);
   CHECK(strcmp(records[0].presetName, pendingFinalize.activePresetName) == 0);
+  CHECK(records[0].tareAtDs == 34);
+  CHECK(strcmp(records[0].scaleName, "Lunar") == 0);
 }
 
 void s02f_shot_log_skips_sub_one_gram_weight() {
@@ -14080,7 +14090,7 @@ void s08_shot_log_without_sync_has_no_wall_time() {
 }
 
 void s11_shot_log_record_includes_preset_snapshot() {
-  CHECK(sizeof(ShotLogRecord) == 72);
+  CHECK(sizeof(ShotLogRecord) == 108);
   CHECK(sizeof(ShotLogStore) % 4 == 0);
 }
 

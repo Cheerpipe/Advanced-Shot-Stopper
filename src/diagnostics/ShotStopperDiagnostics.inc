@@ -240,6 +240,7 @@ void publishControlStatus() {
   if (session.active) {
     next.cycleFlowDuringRetare = session.flowDuringRetare;
     next.cycleRetarePerformed = session.retarePerformed;
+    next.cycleRetareAtMs = session.retareAtMs;
     next.cycleStartedWithScale = session.startedWithScale;
     next.cycleAutomaticBrew = shot.automaticBrew;
     next.cycleTimerOnly = session.config.timerOnly;

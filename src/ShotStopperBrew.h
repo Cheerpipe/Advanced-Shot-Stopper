@@ -261,6 +261,7 @@ void performAutomaticRetare() {
     return;
   }
   session.retarePerformed = true;
+  session.retareAtMs = millis();
   emitImmediateCommandAlertIfBuzzer(AlertEvent::TARE);
   markRetareEnded(millis());
 }
@@ -271,6 +272,7 @@ void initializeBbwProtection() {
   session.flowDuringRetare = false;
   session.retareFlowFirstDetectedAtMs = 0;
   session.retarePerformed = false;
+  session.retareAtMs = 0;
   session.retareDisabled = false;
   session.firstDropsBeepSent = false;
   resetFirstFlowDetector();

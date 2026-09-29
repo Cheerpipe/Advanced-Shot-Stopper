@@ -390,7 +390,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--min-psram-free", type=int, default=128 * 1024)
     # Must stay at or above sizeof(NetworkWorkBuf), the largest single PSRAM
     # allocation, so the largest free block always covers it.
-    result.add_argument("--min-psram-largest", type=int, default=68 * 1024)
+    result.add_argument("--min-psram-largest", type=int, default=76 * 1024)
     result.add_argument("--require-task", action="append", default=[],
                         help="Require this task in every running profiler snapshot (repeatable)")
     result.add_argument("--require-lifecycle", action="append", default=[],

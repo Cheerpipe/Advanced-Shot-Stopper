@@ -1047,11 +1047,14 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
     char errorPct[16] = "null";
     char flow[16] = "null";
     char firstDrop[16] = "null";
+    char tareAt[16] = "null";
     char maxRecovery[16] = "null";
     char minBbwBrewTime[16] = "null";
     char targetEarly[16] = "null";
     char presetName[SHOT_PRESET_NAME_CAPACITY * 6] = {};
+    char scaleNameJson[SCALE_FRIENDLY_NAME_MAX_LEN * 2 + 4] = {};
     escapeJsonString(record.presetName, presetName, sizeof(presetName));
+    escapeJsonString(record.scaleName, scaleNameJson, sizeof(scaleNameJson));
     if (!shotLogWeightIsMissing(record.actualWeightCg)) {
       snprintf(actual, sizeof(actual), "%.2f",
                static_cast<double>(record.actualWeightCg) / 100.0);
@@ -1070,6 +1073,10 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
     if (record.firstDropDs != SHOT_LOG_METRIC_MISSING) {
       snprintf(firstDrop, sizeof(firstDrop), "%.1f",
                static_cast<double>(record.firstDropDs) / 10.0);
+    }
+    if (record.tareAtDs != SHOT_LOG_METRIC_MISSING) {
+      snprintf(tareAt, sizeof(tareAt), "%.1f",
+               static_cast<double>(record.tareAtDs) / 10.0);
     }
     if (!shotLogWeightIsMissing(record.maxRecoveryWeightCg)) {
       snprintf(maxRecovery, sizeof(maxRecovery), "%.2f",
@@ -1104,9 +1111,11 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
              "\"hasWallTime\":%s,\"endedAtLocalSec\":%lu,"
              "\"endedAtUnixSec\":%lu,\"timezoneOffsetMinutesAtCommit\":%d,"
              "\"durationS\":%.1f,\"presetId\":%u,\"presetName\":\"%s\","
+             "\"scaleName\":\"%s\","
              "\"goalG\":%u,\"actualG\":%s,\"errorG\":%s,\"errorPct\":%s,"
              "\"offsetG\":%.2f,\"bbwAlgorithm\":\"%s\",\"bbwAlgorithmVersion\":%s,"
              "\"bbwAlpha\":%s,\"bbwLearningApplied\":%s,\"avgFlowGS\":%s,\"firstDropS\":%s,"
+             "\"tareS\":%s,"
              "\"shotType\":\"%s\",\"cutType\":\"%s\","
              "\"extractionGuardEnabled\":%s,\"extractionExtended\":%s,"
              "\"slowExtractionGuardEnabled\":%s,\"slowExtractionExtended\":%s,"
@@ -1123,12 +1132,14 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
              static_cast<int>(record.timezoneOffsetMinutesAtCommit),
              static_cast<double>(record.durationDs) / 10.0,
              static_cast<unsigned>(shotLogPresetId(record)),
-             presetName, static_cast<unsigned>(record.goalWeightG), actual, errorG,
+             presetName, scaleNameJson,
+             static_cast<unsigned>(record.goalWeightG), actual, errorG,
              errorPct,
              static_cast<double>(record.offsetUsedCg) / 100.0,
              shotLogBbwAlgorithm(record), shotLogBbwVersion(record),
              alphaJson, shotLogBbwLearningApplied(record), flow,
              firstDrop,
+             tareAt,
              shotLogTypeName(shotLogType(record)),
              shotLogCutName(shotLogCut(record)),
              shotLogFastGuardEnabled(record.extractionGuardEnabled) ? "true"

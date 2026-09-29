@@ -165,6 +165,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char safeScaleProtocol[24] = {};
   char safeHomeShotProtocol[24] = {};
   char safeHomeShotPreset[SHOT_PRESET_NAME_CAPACITY * 6] = {};
+  char safeHomeShotScale[SCALE_FRIENDLY_NAME_MAX_LEN * 2 + 4] = {};
   char safePreferredScaleMac[PREFERRED_SCALE_MAC_CAPACITY * 2] = {};
   char safePreferredScaleName[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
   char safeFirmwareVersion[32] = {};
@@ -183,6 +184,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                     sizeof(safeHomeShotProtocol));
   escapeJsonString(homeLastShot.presetName, safeHomeShotPreset,
                    sizeof(safeHomeShotPreset));
+  escapeJsonString(homeLastShot.scaleName, safeHomeShotScale,
+                   sizeof(safeHomeShotScale));
   sanitizeJsonEmbed(control.preferredScaleMac, safePreferredScaleMac,
                     sizeof(safePreferredScaleMac));
   sanitizeJsonEmbed(control.preferredScaleName, safePreferredScaleName,
@@ -261,6 +264,12 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
               static_cast<int32_t>(control.cycleFirstDropMs -
                                    control.cycleStartedAtMs) >= 0
           ? control.cycleFirstDropMs - control.cycleStartedAtMs
+          : 0U;
+  const uint32_t cycleTareElapsedMs =
+      control.cycleRetareAtMs != 0 && control.cycleStartedAtMs != 0 &&
+              static_cast<int32_t>(control.cycleRetareAtMs -
+                                   control.cycleStartedAtMs) >= 0
+          ? control.cycleRetareAtMs - control.cycleStartedAtMs
           : 0U;
 
   size_t used = 0;
@@ -672,6 +681,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"presets\":%s,"
         "\"cycle\":{\"active\":%s,\"shotType\":\"%s\","
         "\"retarePerformed\":%s,\"firstDropElapsedMs\":%lu,"
+        "\"tareElapsedMs\":%lu,\"scaleName\":\"%s\","
         "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,"
         "\"activeStopWeightG\":%.1f,\"minBbwBrewTimeRemainingMs\":%lu,"
         "\"autoToManualGuardArmed\":%s,"
@@ -683,7 +693,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"goalWeightG\":%u,\"averageFlowGps\":%.2f,"
         "\"averageFlowValid\":%s,\"extractionExtended\":%s,"
         "\"activeStopWeightG\":%.1f,\"durationMs\":%lu,"
-        "\"firstDropElapsedMs\":%lu,\"retarePerformed\":%s,"
+        "\"firstDropElapsedMs\":%lu,\"tareElapsedMs\":%lu,"
+        "\"scaleName\":\"%s\",\"retarePerformed\":%s,"
         "\"shotType\":\"%s\",\"scaleProtocol\":\"%s\","
         "\"scaleAvailable\":%s,\"fastExtractionGuardEnabled\":%s,"
         "\"slowExtractionGuardEnabled\":%s,\"slowExtractionExtended\":%s,"
@@ -729,6 +740,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         activeCycleShotTypeLabel(control),
         control.cycleRetarePerformed ? "true" : "false",
         static_cast<unsigned long>(cycleFirstDropElapsedMs),
+        static_cast<unsigned long>(cycleTareElapsedMs),
+        safeConnectedScaleFriendly,
         control.cycleExtractionExtended ? "true" : "false",
         control.cycleSlowExtractionExtended ? "true" : "false",
         static_cast<double>(control.cycleActiveStopWeightG),
@@ -747,6 +760,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<double>(homeLastShot.activeStopWeightG),
         static_cast<unsigned long>(homeLastShot.durationMs),
         static_cast<unsigned long>(homeLastShot.firstDropElapsedMs),
+        static_cast<unsigned long>(homeLastShot.tareElapsedMs),
+        safeHomeShotScale,
         homeLastShot.retarePerformed ? "true" : "false",
         homeLastShotValid
             ? lastShotTypeName(static_cast<LastShotType>(homeLastShot.shotType))

@@ -60,6 +60,18 @@
       markers[0].style.transform !== 'translateX(-6px)') {
     throw new Error('First-drop placement must use the rounded shared time domain');
   }
+  const tared = render(host, {wCg:[0, 0, 100], wDtS:1, durationS:10,
+    firstDropS:2, dropCg:50, tareS:3.4});
+  if (tared.tareS !== 3.4 || markers.length !== 2 ||
+      !markers[1].innerHTML.includes('fill="var(--fg)"') ||
+      !markers[1].innerHTML.includes('>3.4 s</span>') ||
+      Math.abs(parseFloat(markers[1].style.left) - 34.2) > .001) {
+    throw new Error('Tare marker must sit at its recorded time in the theme text color');
+  }
+  render(host, {wCg:[0, 0, 100], wDtS:1, durationS:10, firstDropS:2, dropCg:50});
+  if (markers.length !== 1) {
+    throw new Error('Charts without a late tare must not show a tare marker');
+  }
   const rounded = render(host, {wCg:[0, 1200, 2500, 3900], wDtS:3.775,
     durationS:15.1, goalG:36});
   if (rounded.timeMax !== 20 || rounded.maxW !== 40 || rounded.flowMax !== 4 ||
@@ -493,11 +505,13 @@ if (!ui.includes('id="shotPanel"') ||
     css.includes('#statusPanel .metric::before,#scalePanel .metric::before,.shotCard > *::before{') ||
     css.includes('font-size:1rem;font-weight:700;color:var(--mu)') ||
     !css.includes('.shotCard .shotDur > div,.shotCard .shotActual > div') ||
-    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal avgflow avgflow maxflow maxflow" "err err drop drop ended ended" "shot shot preset preset rate rate"') ||
+    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale scale rate rate rate"') ||
     !ui.includes('id="shotElapsed"') ||
     !ui.includes('id="shotMoment"') ||
     !ui.includes("formatHumanTime(d.momentSec)") ||
     !ui.includes('id="shotFirstDrop"') ||
+    !ui.includes('id="shotTareTime"') ||
+    !ui.includes('id="shotScale"') ||
     !ui.includes('id="shotCurrentWeight"') ||
     !partialHtml.home.includes('<strong>Yield</strong>') ||
     !partialHtml.home.includes('<strong>Avg flow</strong>') ||
@@ -515,7 +529,6 @@ if (!ui.includes('id="shotPanel"') ||
     !ui.includes('activePresetName(s)') ||
     !ui.includes('shotPresetName(ls)') ||
     ui.includes('id="shotRetare"') ||
-    ui.includes('id="shotScale"') ||
     ui.includes('id="shotGuard"') ||
     ui.includes('id="shotPct"') ||
     ui.includes('class="shotHero"') ||
