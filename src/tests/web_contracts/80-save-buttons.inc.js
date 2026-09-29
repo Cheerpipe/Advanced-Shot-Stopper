@@ -15,6 +15,8 @@
   button.dataset.dirty = '0';
   const revert = element('revertConfigButton');
   revert.dataset.dirty = '0';
+  const fwRevert = element('revertFirmwareModeButton');
+  fwRevert.dataset.dirty = '0';
   const context = vm.createContext({$: id => elements.get(id), controlsMutable: true});
   const helper = runtimeJs.split('\n').filter(line =>
     line.startsWith('function setSaveDirty(') || line.startsWith('const REVERT_BUTTONS='));
@@ -30,6 +32,11 @@
       'The paired revert button must mirror its save button dirty state');
   vm.runInContext("setSaveDirty('saveConfigButton','hint',false)", context);
   assert(revert.disabled && revert.dataset.dirty == 0);
+  vm.runInContext("setSaveDirty('saveFirmwareModeButton','hint',true)", context);
+  assert(!fwRevert.disabled && fwRevert.dataset.dirty == 1,
+      'Dirtying the firmware-mode toggle must enable its paired revert button');
+  vm.runInContext("setSaveDirty('saveFirmwareModeButton','hint',false)", context);
+  assert(fwRevert.disabled && fwRevert.dataset.dirty == 0);
   context.controlsMutable = false;
   vm.runInContext("setSaveDirty('save','hint',true)", context);
   assert(button.disabled, 'Locked configuration must keep dirty save buttons disabled');
@@ -39,12 +46,12 @@
   const adminUi = viewJs.admin, normalizedUi = ui.replace(/\\"/g, '"');
   for (const id of ['saveConfigButton', 'saveBrewPresetButton', 'saveWebhookButton',
     'saveNetworkButton', 'saveDateTimeButton', 'changeDevicePasswordButton',
-    'saveBleButton', 'savePowerButton', 'saveFrontendButton'])
+    'saveFirmwareModeButton', 'saveBleButton', 'savePowerButton', 'saveFrontendButton'])
     assert(new RegExp(`id="${id}"[^>]*data-dirty="0"[^>]*disabled`).test(normalizedUi),
         `${id} must start visibly disabled`);
   for (const id of ['revertConfigButton', 'revertBrewPresetButton', 'revertLineaMicraButton',
     'revertWebhookButton', 'revertNetworkButton', 'revertDateTimeButton', 'revertDevicePasswordButton',
-    'revertBleButton', 'revertPowerButton', 'revertFrontendButton'])
+    'revertFirmwareModeButton', 'revertBleButton', 'revertPowerButton', 'revertFrontendButton'])
     assert(new RegExp(`id="${id}"[^>]*data-dirty="0"[^>]*disabled`).test(normalizedUi),
         `${id} must start visibly disabled next to its save button`);
   assert(runtimeJs.includes('e.dataset.dirty!=null') &&
