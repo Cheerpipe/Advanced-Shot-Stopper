@@ -51,7 +51,7 @@
     "admin.e_g_ntp_example_com": "e.g. ntp.example.com",
     "admin.enable_bluetooth": "Enable Bluetooth",
     "admin.enable_bluetooth_hint": "Master switch that enables or disables Bluetooth connections to scales. When disabled, scale discovery stops and any connected scale disconnects. The firmware continues to operate normally as it would with no scale connected. It only affects Bluetooth communication.",
-    "admin.enable_shot_stopper": "Enable Shot Stopper",
+    "admin.enable_shot_stopper": "Enable Open Brew by Weight",
     "admin.enable_shot_stopper_hint": "Turn off to make the controller transparent: the relay mirrors the paddle and all brewing features, Bluetooth, and time sync stop. Saved settings are kept and everything returns when you turn it back on.",
     "admin.end": "End",
     "admin.enter_a_lowercase_http_url_https_is": "Enter a lowercase http:// URL. HTTPS is not supported.",

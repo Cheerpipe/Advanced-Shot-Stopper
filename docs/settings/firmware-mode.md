@@ -40,12 +40,12 @@ A [factory reset](factory-reset.md) also turns the firmware back on.
 
 ## Where to find it
 
-**Admin** (unlock with the device password) **→ Firmware → Enable Shot
-Stopper**. The change takes effect after **Save firmware settings** and the
+**Admin** (unlock with the device password) **→ Firmware → Enable Open Brew
+by Weight**. The change takes effect after **Save firmware settings** and the
 restart that follows. Unplug-level safety behavior does not change: the relay
 still opens on power loss, and a hardware safety fault still stops the
 machine in both modes.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| **Enable Shot Stopper** | On | Off = transparent compatibility mode. Saved settings are kept. |
+| **Enable Open Brew by Weight** | On | Off = transparent compatibility mode. Saved settings are kept. |
