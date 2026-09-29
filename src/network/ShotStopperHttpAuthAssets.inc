@@ -60,7 +60,10 @@ esp_err_t ShotStopperNetwork::claimHandler(httpd_req_t *request) {
   self.dataMux_.unlock();
   self.clearAdminUnlock();
   memset(clientId, 0, sizeof(clientId));
-  return sendJson(request, STATUS_OK, "{\"active\":true}");
+  return sendJson(request, STATUS_OK,
+         firmwareCompatibilityMode()
+             ? "{\"active\":true,\"compatibilityMode\":true}"
+             : "{\"active\":true,\"compatibilityMode\":false}");
 }
 
 #if SHOT_STOPPER_DEVELOPMENT == 1

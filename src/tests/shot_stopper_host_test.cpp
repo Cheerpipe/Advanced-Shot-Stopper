@@ -16836,6 +16836,25 @@ void cm05_compatibility_mutes_alerts_except_recovery() {
                         ctx) == AlertSink::Buzzer);
 }
 
+void cm07_compatibility_boots_parked_with_activator_held() {
+  resetHarness(true, false);
+  enterCompatibilityMode();
+  // Boot state is REQUIRES_OFF with the activator held: the mirror must
+  // never close a circuit the boot found already held.
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 500);
+  CHECK(stopperState == StopperState::REQUIRES_OFF);
+  CHECK(!getRelaySafetySnapshot().closed);
+  runLoopAfter(2000);
+  CHECK(!getRelaySafetySnapshot().closed);
+  // The mirror arms only after the activator returns stably idle.
+  setRawPaddle(false);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 50);
+  CHECK(stopperState == StopperState::READY);
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
+  CHECK(getRelaySafetySnapshot().closed);
+}
+
 void cm06_compatibility_command_gate_scope() {
   resetHarness(false, false);
   // Full mode by default: the mode flag itself is what gates the denylist.
@@ -17502,6 +17521,7 @@ const TestCase testCases[] = {
     {"CM04", cm04_compatibility_blocks_ble_enable_command},
     {"CM05", cm05_compatibility_mutes_alerts_except_recovery},
     {"CM06", cm06_compatibility_command_gate_scope},
+    {"CM07", cm07_compatibility_boots_parked_with_activator_held},
 };
 
 }  // namespace
