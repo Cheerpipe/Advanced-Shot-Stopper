@@ -80,3 +80,4 @@ docs/BACKLOG.md
 ai_temp_*
 *.ai_temp
 .freebuff
+.zcodeignore
