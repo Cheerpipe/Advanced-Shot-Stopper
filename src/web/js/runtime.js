@@ -529,6 +529,7 @@ export {
   refreshStatus, loadStatus, armStatusTimer,
   loadLog, refreshLog, renderLog, clearLogView,
   loadShots, loadMoreShots, refreshShots, exportShotsCsv, clearShotHistory,
+  renderStatsDurChart,
   loadHistory, loadMoreHistory, refreshHistory, clearActivationHistory,
   toggleHistoryDir, syncHistoryDirButton,
   setShotSort, toggleShotSortDir, syncShotSortButtons,

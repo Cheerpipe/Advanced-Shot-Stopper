@@ -885,6 +885,7 @@ if (!statsSection ||
     !statsSection[1].includes('Last 10 shots.') ||
     !statsSection[1].includes('id="statsDurChart"') ||
     !runtimeJs.includes('function renderStatsDurChart(') ||
+    !viewJs.stats.includes('R.renderStatsDurChart()') ||
     !runtimeJs.includes('statsDurChartPlot') ||
     !runtimeJs.includes('shotSparkHost') ||
     !runtimeJs.includes('fill-opacity') ||
@@ -948,6 +949,13 @@ if (!statsSection ||
   }
   if (!histPlot.innerHTML.includes('statsDurSparkY">2<')) {
     throw new Error('Duration histogram Y axis must scale to the max bin count');
+  }
+  global.shotStats = {};
+  helpers.renderStatsDurChart();
+  if ((histPlot.innerHTML.match(/fill-opacity=".22"/g) || []).length !== 0 ||
+      !histPlot.innerHTML.includes('statsDurSparkY">0<')) {
+    throw new Error(
+        'Duration histogram must paint an empty shell before shots load');
   }
   delete global.$;
   delete global.shotStats;
