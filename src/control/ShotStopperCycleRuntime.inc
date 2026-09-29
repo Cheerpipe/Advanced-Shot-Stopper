@@ -840,9 +840,13 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
               sizeof(pendingFinalize.scaleProtocol), link.protocolName);
   pendingFinalize.scaleProtocol[sizeof(pendingFinalize.scaleProtocol) - 1] =
       '\0';
-  findScaleHistoryFriendlyName(scaleHistory, link.connectedMac,
-                               pendingFinalize.scaleName,
-                               sizeof(pendingFinalize.scaleName));
+  copyCString(pendingFinalize.scaleName, sizeof(pendingFinalize.scaleName),
+              session.scaleName);
+  if (pendingFinalize.scaleName[0] == '\0') {
+    copyScaleHistoryFriendlyName(link.connectedMac,
+                                 pendingFinalize.scaleName,
+                                 sizeof(pendingFinalize.scaleName));
+  }
   if (session.hasWeightAnchor) {
     shotCurveSampler.accept(session.lastAcceptedWeightG, millis());
     shotCurveSampler.captureEnd(millis(), session.lastAcceptedWeightG);

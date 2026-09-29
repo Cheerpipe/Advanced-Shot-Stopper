@@ -558,6 +558,11 @@ void processScaleWorkerEvents() {
         if (event.cycleId == session.id && event.writeSucceeded &&
             session.startedWithScale && session.active &&
             stopperState == StopperState::BREW) {
+          // Stamp the late-tare moment when the scale confirms execution, not
+          // when the command was queued; a failed write records no tare time.
+          if (session.retarePerformed && session.retareAtMs == 0) {
+            session.retareAtMs = event.receivedAtMs;
+          }
           orchestratePostTareBaselineArm();
           markTareZeroReady();
           resetDirectStopConfirmation();

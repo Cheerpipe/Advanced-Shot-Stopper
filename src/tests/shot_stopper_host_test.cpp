@@ -10552,7 +10552,18 @@ void rt01_late_cup_triggers_single_retare() {
   runtimeConfig.autoRetare = true;
   runtimeConfig.bbwProtectionMs =
       minimumBbwProtectionMs(runtimeConfig);
+  noteScaleHistory(scale.address(), scale.localName(), false);
+  CHECK(setScaleFriendlyName(scale.address(), "Lunar"));
+  updateWorkerLinkState();
+  char resolvedScaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};
+  copyScaleHistoryFriendlyName(scale.address(), resolvedScaleName,
+                               sizeof(resolvedScaleName));
+  CHECK(strcmp(resolvedScaleName, "Lunar") == 0);
+  copyScaleHistoryFriendlyName("", resolvedScaleName,
+                               sizeof(resolvedScaleName));
+  CHECK(resolvedScaleName[0] == '\0');
   startCycle();
+  CHECK(strcmp(session.scaleName, "Lunar") == 0);
   CHECK(executeNextScaleCommand());
   establishPostTareBaseline();
   CHECK(!session.awaitingPostTareBaseline);
@@ -10561,13 +10572,14 @@ void rt01_late_cup_triggers_single_retare() {
   runLoopAfter(runtimeConfig.rinseGestureMs + 1);
   publishStableCupWeight(150.0f, 10);
   CHECK(session.retarePerformed);
+  CHECK(session.retareAtMs == 0);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  CHECK(executeNextScaleCommand());
   CHECK(session.retareAtMs != 0);
   const uint32_t shotAnchorMs = session.circuitClosedAtMs != 0U
                                     ? session.circuitClosedAtMs
                                     : session.startedAtMs;
   CHECK(static_cast<int32_t>(session.retareAtMs - shotAnchorMs) > 0);
-  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
-  CHECK(executeNextScaleCommand());
   CHECK(session.retareEnded);
   CHECK(!session.bbwProtectionEnded);
   CHECK(scale.tareCalls == 1);

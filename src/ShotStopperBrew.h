@@ -261,7 +261,6 @@ void performAutomaticRetare() {
     return;
   }
   session.retarePerformed = true;
-  session.retareAtMs = millis();
   emitImmediateCommandAlertIfBuzzer(AlertEvent::TARE);
   markRetareEnded(millis());
 }

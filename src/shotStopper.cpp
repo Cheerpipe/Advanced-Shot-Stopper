@@ -285,6 +285,7 @@ struct CycleSession {
   uint32_t autoToManualGuardDeadlineAtMs = 0;
   uint8_t activePresetId = 0;
   char activePresetName[SHOT_PRESET_NAME_CAPACITY] = {};
+  char scaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};
   bool cupRemovedPending = false;
   AccidentalTouchPhase accidentalTouchPhase = AccidentalTouchPhase::STARTUP;
   AccidentalTouchClass accidentalTouchClass = AccidentalTouchClass::OK;
@@ -1262,8 +1263,11 @@ void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
   copyCString(last.scaleProtocol, sizeof(last.scaleProtocol),
               link.protocolName);
   last.scaleProtocol[sizeof(last.scaleProtocol) - 1] = '\0';
-  findScaleHistoryFriendlyName(scaleHistory, link.connectedMac, last.scaleName,
-                               sizeof(last.scaleName));
+  copyCString(last.scaleName, sizeof(last.scaleName), session.scaleName);
+  if (last.scaleName[0] == '\0') {
+    copyScaleHistoryFriendlyName(link.connectedMac, last.scaleName,
+                                 sizeof(last.scaleName));
+  }
   persistLastShotSnapshot(last);
 }
 

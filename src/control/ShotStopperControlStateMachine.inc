@@ -115,6 +115,11 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
       scaleLinkAtStart.connectionGeneration;
   session.ownedConnectionGeneration =
       scaleLinkAtStart.connectionGeneration;
+  // The scale name is captured while the scale is connected; a mid-shot
+  // disconnect must not blank the stored snapshot.
+  copyScaleHistoryFriendlyName(scaleLinkAtStart.connectedMac,
+                               session.scaleName,
+                               sizeof(session.scaleName));
   session.weightControlState =
       session.startedWithScale && !session.config.timerOnly
           ? WeightControlState::ACTIVE

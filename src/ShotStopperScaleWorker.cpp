@@ -1009,6 +1009,7 @@ void executeScaleTareCommand(const ScaleCommand &command) {
     }
     event.commandAttempted = true;
     event.writeSucceeded = scaleCommandOk(scale.tare());
+    event.receivedAtMs = millis();
     yieldBetweenScaleAttOps();
   }
 
@@ -1545,6 +1546,20 @@ void copyScaleHistory(ScaleHistoryEntry *out) {
   for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
     clearScaleHistorySessionMarker(out[i]);
   }
+  scalePreferredMacMux.unlock();
+}
+
+void copyScaleHistoryFriendlyName(const char *mac, char *out,
+                                  size_t capacity) {
+  if (out == nullptr || capacity == 0) {
+    return;
+  }
+  out[0] = '\0';
+  if (mac == nullptr || mac[0] == '\0') {
+    return;
+  }
+  scalePreferredMacMux.lock();
+  findScaleHistoryFriendlyName(scaleHistory, mac, out, capacity);
   scalePreferredMacMux.unlock();
 }
 
