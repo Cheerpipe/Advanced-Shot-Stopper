@@ -13,7 +13,6 @@
 
 #include <WiFi.h>
 #include <esp_http_server.h>
-#include <mdns.h>
 #include "ShotStopperRfCoex.h"
 
 #include "ShotStopperTaskProfiler.h"

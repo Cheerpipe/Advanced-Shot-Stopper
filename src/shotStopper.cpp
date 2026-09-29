@@ -51,7 +51,6 @@
 #include <EspressoScaleBLE.h>
 #include "ShotStopperBleRuntime.h"
 #include <EEPROM.h>
-#include <esp_heap_caps.h>
 #include <esp_timer.h>
 #include <soc/gpio_reg.h>
 #include <soc/soc.h>

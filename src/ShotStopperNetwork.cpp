@@ -29,7 +29,7 @@
 #include <esp_mac.h>
 #include <esp_sntp.h>
 #include <esp_wifi.h>
-#include <esp_system.h>
+#include <mdns.h>
 #include "ShotStopperRfCoex.h"
 #include <cmath>
 #include <float.h>
