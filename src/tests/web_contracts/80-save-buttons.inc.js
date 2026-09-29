@@ -54,6 +54,9 @@
     'revertFirmwareModeButton', 'revertBleButton', 'revertPowerButton', 'revertFrontendButton'])
     assert(new RegExp(`id="${id}"[^>]*data-dirty="0"[^>]*disabled`).test(normalizedUi),
         `${id} must start visibly disabled next to its save button`);
+  assert(viewJs.settings.includes(
+      "if(el.id==='preferredScaleSelect'||el.id==='presetRenameInput')return"),
+      'The preset rename dialog input must not dirty the machine-config section');
   assert(runtimeJs.includes('e.dataset.dirty!=null') &&
          runtimeJs.includes("setSaveDirty('saveConfigButton','configDirtyHint',false)") &&
          runtimeJs.includes("setSaveDirty('saveDateTimeButton','dateTimeDirtyHint',false)") &&
