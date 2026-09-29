@@ -307,7 +307,6 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .presetManage{margin:.35rem 0 .55rem}
 .presetCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(9.5rem,1fr));gap:.5rem}
 #presetCardsWrap{position:relative}
-#presetCardsState{min-height:6rem}
 .presetCard{padding:.75rem;border:1px solid var(--bd);border-radius:.5rem;cursor:pointer;background:var(--in)}
 .presetCard.selected{border-color:var(--ac);box-shadow:inset 0 0 0 1px var(--ac)}
 .presetCard.active{background:var(--pa)}

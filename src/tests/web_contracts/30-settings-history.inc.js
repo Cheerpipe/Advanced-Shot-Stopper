@@ -47,7 +47,8 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !ui.includes('<legend>Device password</legend>') ||
     !ui.includes('<legend>Frontend</legend>') ||
     !ui.includes('id="presetCards"') ||
-    !partialHtml.settings.includes('id="presetCardsState" class="panelState" role="status"') ||
+    !partialHtml.settings.includes('id="presetCardsState" class="panelState isOver" role="status"') ||
+    !partialHtml.settings.includes('<article class="presetCard skeleton"') ||
     !runtimeJs.includes("settlePanel('presetCardsState'") ||
     !css.includes('#presetCardsWrap{position:relative}') ||
     !ui.includes('id="presetNewBtn"') ||
