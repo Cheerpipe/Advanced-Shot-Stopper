@@ -23,7 +23,9 @@ finishes first. After the restart the controller becomes transparent:
 - The web interface shows only the **Admin** page. Every other tab is hidden
   and any address takes you there. Inside Admin you keep Network, Power
   management, Frontend, Device password, Restart, Firmware update, and
-  Factory reset; the sections of disabled features are hidden.
+  Factory reset. The controls of disabled features are hidden with them:
+  the Bluetooth section and its scan-mode options inside Power management,
+  Date & time (clock sync and time zone), and Webhooks.
 - Recovery mode, firmware updates over Wi-Fi (OTA), and the USB serial CLI
   keep working, so you can always reach the controller.
 
