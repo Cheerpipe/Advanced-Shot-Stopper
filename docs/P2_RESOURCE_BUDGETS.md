@@ -228,7 +228,7 @@ reconnection, Web UI polling, webhook delivery/failure, settings and shot-log
 writes, and interrupted/resumed OTA at every checkpoint. The runner fails on
 fetch errors, reboot/uptime regression, stale snapshots, deadline misses,
 increased BLE allocation fallback/HCI drops, heap below the versioned limits,
-stack below 1536 bytes, PSRAM free below 128 KiB or largest block below 68 KiB,
+stack below 1536 bytes, PSRAM free below 128 KiB or largest block below 76 KiB,
 or sustained internal free/largest-block loss over 16 KiB, free-block growth
 over 8, or fragmentation growth over 50 permille. Zero values are retained
 and fail the limits; missing, invalid or unavailable required samples fail.

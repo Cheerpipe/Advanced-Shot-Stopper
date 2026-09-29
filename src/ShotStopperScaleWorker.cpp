@@ -167,6 +167,12 @@ TaskMutex scalePreferredMacMux;
 portMUX_TYPE scaleBeepMux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE scaleDebugMux = portMUX_INITIALIZER_UNLOCKED;
 TaskMutex scaleCriticalEventMux;
+static ScaleEvent shotTareResult;
+
+ScaleEvent copyScaleShotTareResult() {
+  const TaskLockGuard lock(scaleCriticalEventMux);
+  return shotTareResult;
+}
 TaskMutex scaleWeightEventMux;
 
 ScaleLinkState scaleLinkState = ScaleLinkState::DISCONNECTED;
@@ -190,6 +196,7 @@ uint32_t scaleTimerMs = 0;
 uint32_t scaleTimerAgeMs = 0;
 static char scaleProtocolName[20] = "none";
 char scaleConnectedMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
+static char scaleShotName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};
 ScaleModel scaleLinkModel = ScaleModel::Unknown;
 ScaleFeatureSet scaleLinkFeatures = {};
 bool scaleLinkRssiValid = false;
@@ -386,6 +393,7 @@ void setScaleWorkerStackMinBytesForHost(uint32_t bytes) {
 }
 
 void resetScaleWorkerMetricsForHost() {
+  shotTareResult = ScaleEvent{};
   scaleWorkerTaskHandle.store(nullptr, std::memory_order_release);
   bleStackReady.store(false, std::memory_order_relaxed);
   scaleWorkerStartupFinished.store(false, std::memory_order_relaxed);
@@ -503,6 +511,7 @@ ScaleLinkSnapshot getScaleLinkSnapshot() {
   snapshot.timerAgeMs = scaleTimerAgeMs;
   memcpy(snapshot.protocolName, scaleProtocolName, sizeof(snapshot.protocolName));
   memcpy(snapshot.connectedMac, scaleConnectedMac, sizeof(snapshot.connectedMac));
+  memcpy(snapshot.shotScaleName, scaleShotName, sizeof(snapshot.shotScaleName));
   snapshot.model = scaleLinkModel;
   snapshot.features = scaleLinkFeatures;
   snapshot.rssiValid = scaleLinkRssiValid;
@@ -830,6 +839,22 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
 
 void updateWorkerLinkState() {
   const bool linkUp = scale.isLinkUp();
+  char shotName[sizeof(scaleShotName)] = {};
+  if (linkUp) {
+    const TaskLockGuard lock(scalePreferredMacMux);
+    const char *name = scale.localName();
+    for (const auto &entry : scaleHistory) {
+      if (preferredScaleMacEqual(entry.mac, scale.address()) && entry.friendlyName[0]) {
+        name = entry.friendlyName;
+        break;
+      }
+    }
+    copyCString(shotName, sizeof(shotName), name);
+    // Truncate at a UTF-8 boundary, never in the middle of a BLE name character.
+    size_t length = strlen(shotName);
+    while (length && (static_cast<unsigned char>(name[length]) & 0xc0U) == 0x80U)
+      shotName[--length] = '\0';
+  }
   const bool timerValid = scale.hasTimer();
   const uint32_t timerMs = timerValid ? scale.getTimerMs() : 0;
   const uint32_t timerAgeMs = timerValid ? scale.lastTimerAgeMs() : 0;
@@ -845,6 +870,7 @@ void updateWorkerLinkState() {
               scale.connectedProtocolName());
   copyCString(scaleConnectedMac, sizeof(scaleConnectedMac),
               linkUp ? scale.address() : "");
+  memcpy(scaleShotName, shotName, sizeof(scaleShotName));
   scaleLinkFeatures = linkUp ? scale.features()
                                        : scaleFeatureSetNone();
   scaleLinkModel = linkUp ? scale.model() : ScaleModel::Unknown;
@@ -1010,6 +1036,10 @@ void executeScaleTareCommand(const ScaleCommand &command) {
     event.commandAttempted = true;
     event.writeSucceeded = scaleCommandOk(scale.tare());
     event.receivedAtMs = millis();
+    if (event.writeSucceeded && command.cycleId != 0 && command.idleTareRequestId == 0) {
+      const TaskLockGuard lock(scaleCriticalEventMux);
+      shotTareResult = event;
+    }
     yieldBetweenScaleAttOps();
   }
 
@@ -1546,20 +1576,6 @@ void copyScaleHistory(ScaleHistoryEntry *out) {
   for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
     clearScaleHistorySessionMarker(out[i]);
   }
-  scalePreferredMacMux.unlock();
-}
-
-void copyScaleHistoryFriendlyName(const char *mac, char *out,
-                                  size_t capacity) {
-  if (out == nullptr || capacity == 0) {
-    return;
-  }
-  out[0] = '\0';
-  if (mac == nullptr || mac[0] == '\0') {
-    return;
-  }
-  scalePreferredMacMux.lock();
-  findScaleHistoryFriendlyName(scaleHistory, mac, out, capacity);
   scalePreferredMacMux.unlock();
 }
 

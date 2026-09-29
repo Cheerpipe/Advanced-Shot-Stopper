@@ -72,6 +72,10 @@
   if (markers.length !== 1) {
     throw new Error('Charts without a late tare must not show a tare marker');
   }
+  render(host, {wCg:[0, 100, 200], durationS:3, tareS:1});
+  if (markers.length !== 1 || !markers[0].innerHTML.includes('>1.0 s</span>')) {
+    throw new Error('Whole-second tare labels must retain one decimal');
+  }
   const rounded = render(host, {wCg:[0, 1200, 2500, 3900], wDtS:3.775,
     durationS:15.1, goalG:36});
   if (rounded.timeMax !== 20 || rounded.maxW !== 40 || rounded.flowMax !== 4 ||
@@ -119,6 +123,18 @@
 }
 
 {
+  const clearSource = runtimeJs.slice(runtimeJs.indexOf('function clearShotPanel('),
+      runtimeJs.indexOf('function updateStatusGuards('));
+  const elements = new Map();
+  const find = id => {
+    if (!elements.has(id)) elements.set(id, {textContent:'stale', style:{}, classList:{remove(){}}});
+    return elements.get(id);
+  };
+  new Function('$','runShot','fillChartTicks','renderShotSpark','fillStarRate',
+      clearSource + ';clearShotPanel();')(find,()=>{},()=>{},()=>{},()=>{});
+  if (find('shotTareTime').textContent !== 'None' || find('shotScale').textContent !== 'None') {
+    throw new Error('Clearing Home must reset the tare and scale snapshots');
+  }
   const clockStart = runtimeJs.indexOf('let shotTick=');
   const clockEnd = runtimeJs.indexOf('function formatExtractionGuard(');
   const updateStart = runtimeJs.indexOf('function updateShot(s)');
@@ -489,7 +505,7 @@ if (!ui.includes('id="shotPanel"') ||
     !runtimeJs.includes('Flow rate (g/s)') ||
     !runtimeJs.includes("querySelectorAll('.ruleChartTicks')") ||
     runtimeJs.includes("['.ruleChartTicks',xt]") || runtimeJs.includes("'.shotEventTicks'") ||
-    runtimeJs.includes("'1st '+L(") || !runtimeJs.includes("label=L(m.firstDropS,'s')") ||
+    runtimeJs.includes("'1st '+L(") || !runtimeJs.includes("label=time.toFixed(1)+' s'") ||
     !runtimeJs.includes('fillChartTicks($(\'shotBarTicks\')') ||
     !runtimeJs.includes('raw.sort(') ||
     runtimeJs.includes('shotIdle') ||

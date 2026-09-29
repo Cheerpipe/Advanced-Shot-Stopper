@@ -270,6 +270,7 @@ struct CycleSession {
   uint32_t retareFlowFirstDetectedAtMs = 0;
   bool retarePerformed = false;
   uint32_t retareAtMs = 0;
+  uint32_t retareRequestId = 0;
   bool retareDisabled = false;
   bool firstDropsBeepSent = false;
   FirstFlowState firstFlow = {};
@@ -1264,10 +1265,6 @@ void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
               link.protocolName);
   last.scaleProtocol[sizeof(last.scaleProtocol) - 1] = '\0';
   copyCString(last.scaleName, sizeof(last.scaleName), session.scaleName);
-  if (last.scaleName[0] == '\0') {
-    copyScaleHistoryFriendlyName(link.connectedMac, last.scaleName,
-                                 sizeof(last.scaleName));
-  }
   persistLastShotSnapshot(last);
 }
 

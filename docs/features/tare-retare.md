@@ -110,7 +110,10 @@ tare, post-tare grace runs again so the empty-cup weight cannot cut the
 shot; [Cup protection](cup-protection.md) still blocks weight stop for the
 full BBW protection window. The tare moment is stored with the recorded shot
 and shown as **Tare time** on the shot cards, with a scale marker at that
-instant on the shot chart.
+instant on the shot chart. The time is measured from the machine circuit
+closing, when the tare command completes successfully. Failed commands and
+tares completed after the shot ends do not add a tare time. A later Bluetooth
+disconnect does not erase a successful tare already recorded for the shot.
 
 ## When it applies
 

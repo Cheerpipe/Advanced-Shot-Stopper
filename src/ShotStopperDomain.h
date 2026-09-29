@@ -1997,8 +1997,7 @@ struct PersistedLastShot {
   char scaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};
   float averageFlowGps = 0.0f;
   bool averageFlowValid = false;
-  // Wall-clock end of the shot (0/hasWallTime=false when the clock was not
-  // synced at the end); older blobs decode as empty and the blob only grows.
+  // Wall-clock shot end; zero/hasWallTime=false if the clock was not synced.
   uint32_t endedAtUnixSec = 0;
   uint32_t endedAtLocalSec = 0;
   uint8_t hasWallTime = 0;
@@ -2206,6 +2205,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   bool cycleTimerOnly = false;
   uint32_t cycleFirstDropMs = 0;
   uint32_t cycleRetareAtMs = 0;
+  char cycleScaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};
   uint32_t cycleRetareFlowFirstDetectedAtMs = 0;
   uint32_t cycleStartedAtMs = 0;
   uint32_t cycleElapsedMs = 0;

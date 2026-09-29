@@ -165,7 +165,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char safeScaleProtocol[24] = {};
   char safeHomeShotProtocol[24] = {};
   char safeHomeShotPreset[SHOT_PRESET_NAME_CAPACITY * 6] = {};
-  char safeHomeShotScale[SCALE_FRIENDLY_NAME_MAX_LEN * 2 + 4] = {};
+  char safeHomeShotScale[SCALE_FRIENDLY_NAME_MAX_LEN * 6 + 1] = {};
+  char safeCycleScale[SCALE_FRIENDLY_NAME_MAX_LEN * 6 + 1] = {};
   char safePreferredScaleMac[PREFERRED_SCALE_MAC_CAPACITY * 2] = {};
   char safePreferredScaleName[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
   char safeFirmwareVersion[32] = {};
@@ -186,6 +187,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                    sizeof(safeHomeShotPreset));
   escapeJsonString(homeLastShot.scaleName, safeHomeShotScale,
                    sizeof(safeHomeShotScale));
+  escapeJsonString(control.cycleScaleName, safeCycleScale, sizeof(safeCycleScale));
   sanitizeJsonEmbed(control.preferredScaleMac, safePreferredScaleMac,
                     sizeof(safePreferredScaleMac));
   sanitizeJsonEmbed(control.preferredScaleName, safePreferredScaleName,
@@ -741,7 +743,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         control.cycleRetarePerformed ? "true" : "false",
         static_cast<unsigned long>(cycleFirstDropElapsedMs),
         static_cast<unsigned long>(cycleTareElapsedMs),
-        safeConnectedScaleFriendly,
+        safeCycleScale,
         control.cycleExtractionExtended ? "true" : "false",
         control.cycleSlowExtractionExtended ? "true" : "false",
         static_cast<double>(control.cycleActiveStopWeightG),

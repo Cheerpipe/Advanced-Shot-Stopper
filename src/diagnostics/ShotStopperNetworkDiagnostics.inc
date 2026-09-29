@@ -1052,7 +1052,7 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
     char minBbwBrewTime[16] = "null";
     char targetEarly[16] = "null";
     char presetName[SHOT_PRESET_NAME_CAPACITY * 6] = {};
-    char scaleNameJson[SCALE_FRIENDLY_NAME_MAX_LEN * 2 + 4] = {};
+    char scaleNameJson[SCALE_FRIENDLY_NAME_MAX_LEN * 6 + 1] = {};
     escapeJsonString(record.presetName, presetName, sizeof(presetName));
     escapeJsonString(record.scaleName, scaleNameJson, sizeof(scaleNameJson));
     if (!shotLogWeightIsMissing(record.actualWeightCg)) {

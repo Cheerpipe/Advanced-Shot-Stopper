@@ -13,6 +13,12 @@ releasing the mutex and acknowledges it only when its generation is still
 current; control never acquires the flash lock. See
 [BBW policy and storage](ARCHITECTURE.md#bbw-policy-and-storage).
 
+ScaleService publishes the bounded friendly/raw BLE name in its link
+snapshot and retains the latest successful shot-tare result under the critical
+event mutex. Control copies the name into the shot and correlates tare completion
+by cycle and request before capture/finalization; event loss or a new link epoch
+cannot erase that diagnostic fact or rearm control on a stale connection.
+
 Every fallible resource acquisition needs one owner and a defined rollback
 path. Read this before adding queues, tasks, clients, or persistent handles. `UniqueResource<Handle, Deleter>` is a one-handle-wide,
 non-allocating owner with move, `release()` and `reset()`. It is used only for

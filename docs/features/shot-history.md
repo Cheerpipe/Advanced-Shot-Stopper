@@ -32,6 +32,13 @@ The preset snapshot is also shown on that Home card and on every Stats history
 card. Renaming or deleting a preset later does not rewrite a shot's displayed
 name.
 
+**Scale** appears after **Preset** and keeps the name captured for that shot,
+even if the scale disconnects or is renamed later. A Bluetooth name longer
+than the friendly-name limit is shortened to fit. **Tare time**, before
+**1st drop**, shows the successful late tare's elapsed shot time, or **None**
+when no late tare succeeded. Its chart label always uses one decimal, such
+as **3.0 s**. The initial shot-start tare is not a late tare.
+
 The log holds up to **100** shots. The following are never stored:
 
 - Rinses and starts that were not confirmed

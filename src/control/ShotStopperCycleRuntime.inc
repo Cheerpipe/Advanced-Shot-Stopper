@@ -40,6 +40,7 @@ bool requestRemoteRetare() {
   command.commandFeedbackExpected =
       getScaleLinkSnapshot().features.has(ScaleFeatureCommandAudibleFeedback);
   if (!enqueueScaleCommand(command)) return false;
+  session.retareRequestId = command.cupWeightRequestId;
   trackCupWeightTare(command.cupWeightRequestId);
   return true;
 }
@@ -733,8 +734,36 @@ bool pendingFinalizeIsRinse(const PendingShotFinalize &snapshot) {
          snapshot.finalState == StopperState::RINSE;
 }
 
+void captureLateTareCompletion(uint32_t throughMs = millis()) {
+  if (!session.retarePerformed || session.retareAtMs != 0) return;
+  const ScaleEvent result = copyScaleShotTareResult();
+  if (!result.writeSucceeded || result.cycleId != session.id ||
+      result.cupWeightRequestId != session.retareRequestId) return;
+  const uint32_t anchor = session.circuitClosedAtMs != 0U
+                              ? session.circuitClosedAtMs : session.startedAtMs;
+  if (static_cast<int32_t>(result.receivedAtMs - anchor) < 0 ||
+      static_cast<int32_t>(result.receivedAtMs - throughMs) > 0) return;
+  if (!session.active &&
+      (!pendingFinalize.pending || pendingFinalize.cycleId != session.id ||
+       static_cast<int32_t>(result.receivedAtMs - pendingFinalize.endedAtMs) > 0)) return;
+  session.retareAtMs = result.receivedAtMs;
+  if (pendingFinalize.pending && pendingFinalize.cycleId == session.id) {
+    pendingFinalize.tareAtDs = static_cast<uint16_t>((result.receivedAtMs - anchor) / 100U);
+    PersistedLastShot last;
+    {
+      const TaskLockGuard lock(shotStoreMutex);
+      last = persistedLastShot;
+    }
+    if (last.valid && last.cycleId == session.id) {
+      last.tareElapsedMs = result.receivedAtMs - anchor;
+      persistLastShotSnapshot(last);
+    }
+  }
+}
+
 void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
                                  const CycleWallTime &end = captureCycleWallTime()) {
+  captureLateTareCompletion(end.endedAtMs);
   if (brewEndIsAbandonedStart(reason) || endingRinseCycle(reason)) {
     return;
   }
@@ -842,11 +871,6 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
       '\0';
   copyCString(pendingFinalize.scaleName, sizeof(pendingFinalize.scaleName),
               session.scaleName);
-  if (pendingFinalize.scaleName[0] == '\0') {
-    copyScaleHistoryFriendlyName(link.connectedMac,
-                                 pendingFinalize.scaleName,
-                                 sizeof(pendingFinalize.scaleName));
-  }
   if (session.hasWeightAnchor) {
     shotCurveSampler.accept(session.lastAcceptedWeightG, millis());
     shotCurveSampler.captureEnd(millis(), session.lastAcceptedWeightG);
@@ -1060,6 +1084,7 @@ void cancelPendingFinalize(const char *reason) {
   if (!pendingFinalize.pending) {
     return;
   }
+  captureLateTareCompletion();
   const PendingShotFinalize snapshot = pendingFinalize;
   pendingFinalize.pending = false;
   serialTrace(LogLevel::INFO, reason != nullptr
@@ -1136,6 +1161,7 @@ void pendingShotFinalizeTask() {
     return;
   }
 
+  captureLateTareCompletion();
   PendingShotFinalize snapshot = pendingFinalize;
   pendingFinalize.pending = false;
 

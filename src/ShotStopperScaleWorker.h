@@ -135,10 +135,8 @@ void resetScaleWorkerMetricsForHost();
 void copyPreferredScaleMac(char *out, size_t capacity);
 void copyPreferredScaleName(char *out, size_t capacity);
 void copyScaleHistory(ScaleHistoryEntry *out);
-// Resolves the friendly name (or BLE name) for a MAC under the history lock;
-// writes an empty string when the MAC is unknown. Orchestrator-safe.
-void copyScaleHistoryFriendlyName(const char *mac, char *out,
-                                  size_t capacity);
+// Successful shot tare survives link changes and a full event queue.
+ScaleEvent copyScaleShotTareResult();
 bool hasPreferredScaleMac();
 uint32_t scaleMacCachePauseRemainingMs(uint32_t nowMs);
 bool scaleDiscoveryPaused(uint32_t nowMs = millis());

@@ -10555,13 +10555,7 @@ void rt01_late_cup_triggers_single_retare() {
   noteScaleHistory(scale.address(), scale.localName(), false);
   CHECK(setScaleFriendlyName(scale.address(), "Lunar"));
   updateWorkerLinkState();
-  char resolvedScaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};
-  copyScaleHistoryFriendlyName(scale.address(), resolvedScaleName,
-                               sizeof(resolvedScaleName));
-  CHECK(strcmp(resolvedScaleName, "Lunar") == 0);
-  copyScaleHistoryFriendlyName("", resolvedScaleName,
-                               sizeof(resolvedScaleName));
-  CHECK(resolvedScaleName[0] == '\0');
+  CHECK(strcmp(getScaleLinkSnapshot().shotScaleName, "Lunar") == 0);
   startCycle();
   CHECK(strcmp(session.scaleName, "Lunar") == 0);
   CHECK(executeNextScaleCommand());
@@ -10587,6 +10581,115 @@ void rt01_late_cup_triggers_single_retare() {
   const uint32_t timerAnchor = session.startedAtMs;
   reachBrewState();
   CHECK(session.startedAtMs == timerAnchor);
+}
+
+void shot_scale_name_snapshot_survives_link_changes() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  copyCString(scale.connectedLocalName, sizeof(scale.connectedLocalName), "BOOKOO_SC 715097");
+  noteScaleHistory(scale.address(), scale.localName(), false);
+  CHECK(setScaleFriendlyName(scale.address(), ""));
+  updateWorkerLinkState();
+  CHECK(strcmp(getScaleLinkSnapshot().shotScaleName, "BOOKOO_SC 715097") == 0);
+  const char *longName = "1234567890123456789012345678901";
+  copyCString(scale.connectedLocalName, sizeof(scale.connectedLocalName), longName);
+  updateWorkerLinkState();
+  CHECK(strlen(getScaleLinkSnapshot().shotScaleName) == SCALE_FRIENDLY_NAME_MAX_LEN);
+  CHECK(strncmp(getScaleLinkSnapshot().shotScaleName, longName, SCALE_FRIENDLY_NAME_MAX_LEN) == 0);
+  copyCString(scale.connectedLocalName, sizeof(scale.connectedLocalName),
+              "12345678901234567890123456789\xc3\xa9");
+  updateWorkerLinkState();
+  CHECK(strcmp(getScaleLinkSnapshot().shotScaleName, "12345678901234567890123456789") == 0);
+  memset(scale.connectedLocalName, '\1', SCALE_FRIENDLY_NAME_MAX_LEN);
+  scale.connectedLocalName[SCALE_FRIENDLY_NAME_MAX_LEN] = '\0';
+  updateWorkerLinkState();
+  char escaped[SCALE_FRIENDLY_NAME_MAX_LEN * 6 + 1] = {};
+  CHECK(escapeJsonString(getScaleLinkSnapshot().shotScaleName, escaped, sizeof(escaped)));
+  CHECK(strlen(escaped) == SCALE_FRIENDLY_NAME_MAX_LEN * 6);
+  CHECK(setScaleFriendlyName(scale.address(), "Kitchen scale"));
+  updateWorkerLinkState();
+  startCycle();
+  CHECK(strcmp(session.scaleName, "Kitchen scale") == 0);
+  CHECK(setScaleFriendlyName(scale.address(), "Renamed"));
+  updateWorkerLinkState();
+  setScaleConnected(false);
+  publishControlStatus();
+  CHECK(strcmp(publishedControlStatus.cycleScaleName, "Kitchen scale") == 0);
+  schedulePendingShotFinalize(EndReason::ACTIVATOR, 14000);
+  CHECK(strcmp(pendingFinalize.scaleName, "Kitchen scale") == 0);
+
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);
+  startCycle();
+  CHECK(session.active && !session.startedWithScale);
+  CHECK(session.scaleName[0] == '\0');
+  copyCString(scale.connectedLocalName, sizeof(scale.connectedLocalName), "Late scale");
+  setScaleConnected(true);
+  CHECK(setScaleFriendlyName(scale.address(), ""));
+  updateWorkerLinkState();
+  publishWeight(12.0f, hostMillis + 1);
+  CHECK(strcmp(session.scaleName, "Late scale") == 0);
+  setScaleConnected(false);
+  schedulePendingShotFinalize(EndReason::ACTIVATOR, 14000);
+  CHECK(strcmp(pendingFinalize.scaleName, "Late scale") == 0);
+}
+
+void shot_tare_time_uses_successful_write_and_circuit_clock() {
+  // Success, failed write, lost connection, saturated event queue, delayed
+  // publication, completion after shot end, another request, and clock wrap.
+  for (unsigned mode = 0; mode < 8; ++mode) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.autoRetare = true;
+    startCycle();
+    CHECK(executeNextScaleCommand());
+    CHECK(session.retareAtMs == 0); // Start tare never becomes late tare.
+    const uint32_t anchor = mode == 7 ? UINT32_MAX - 999U : 1000U;
+    session.startedAtMs = anchor - 900U;
+    session.circuitClosedAtMs = anchor;
+    hostMillis = anchor + 3200U;
+    CHECK(requestRemoteRetare());
+    session.retarePerformed = true;
+    CHECK(session.retareAtMs == 0);
+    ScaleCommand command;
+    CHECK(xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE);
+    scale.tareSucceeds = mode != 1;
+    if (mode == 6) ++command.cupWeightRequestId;
+    if (mode == 3) {
+      ScaleEvent filler;
+      filler.type = ScaleEventType::TIMER_STOP_RESULT;
+      while (xQueueSend(scaleEventQueue, &filler, 0) == pdTRUE) {}
+    }
+    hostMillis = anchor + 3400U; // BLE completion, 3.4 s from circuit closure.
+    executeScaleCommand(command);
+    if (mode == 2) setScaleConnected(false);
+    if (mode == 3) {
+      ScaleEvent stop;
+      stop.type = ScaleEventType::TIMER_STOP_RESULT;
+      publishScaleEvent(stop, true); // Replaces the generic fallback.
+    }
+    const ScaleEvent completed = shotTareResult;
+    if (mode == 4 || mode == 5) shotTareResult = ScaleEvent{};
+    hostMillis = anchor + 14000U;
+    schedulePendingShotFinalize(EndReason::ACTIVATOR, 14000);
+    persistLastShotFromEndedCycle(EndReason::ACTIVATOR, 14000);
+    session.active = false;
+    if (mode == 4 || mode == 5) {
+      shotTareResult = completed; // Worker result becomes visible after close.
+      if (mode == 5) shotTareResult.receivedAtMs = 15001;
+      hostMillis = 15100;
+    }
+    processScaleWorkerEvents();
+    const bool expected = mode != 1 && mode != 5 && mode != 6;
+    CHECK(pendingFinalize.tareAtDs == (expected ? 34 : SHOT_LOG_METRIC_MISSING));
+    CHECK(persistedLastShot.tareElapsedMs == (expected ? 3400U : 0U));
+    commitPendingShotLog(pendingFinalize, 36.0f, true, ActualWeightSource::LAST_KNOWN);
+    ShotLogRecord record{};
+    CHECK(shotLog.copyNewestFirst(&record, 1) == 1);
+    CHECK(record.tareAtDs == (expected ? 34 : SHOT_LOG_METRIC_MISSING));
+    CHECK(shotLogProjectLastShot(record, {}).tareElapsedMs == (expected ? 3400U : 0U));
+  }
 }
 
 void rt02_sub_minimum_stable_cup_is_ignored() {
@@ -17236,6 +17339,8 @@ const TestCase testCases[] = {
     {"ST07", st07_scale_timer_stop_waits_for_start_before_queueing_stop},
     {"ST08", st08_scale_timer_stop_extra_delay_applies_without_valid_timer},
     {"RT01", rt01_late_cup_triggers_single_retare},
+    {"SHOT_SCALE", shot_scale_name_snapshot_survives_link_changes},
+    {"SHOT_TARE", shot_tare_time_uses_successful_write_and_circuit_clock},
     {"RT02", rt02_sub_minimum_stable_cup_is_ignored},
     {"RT03", rt03_spike_without_stable_cup_does_not_retare},
     {"RT04", rt04_heavy_cup_does_not_stop_during_retare},
