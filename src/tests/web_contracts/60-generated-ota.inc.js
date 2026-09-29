@@ -461,10 +461,11 @@ if (generated.cssGzip.length > 7400) {
 // The rule-chart merged range labels (collision runs collapsing into one
 // centered label such as "34–36 g" on the home preset axes) raise it to
 // 41700 bytes.
-// The in-panel loading wave for shot history and activation history
-// (settlePanel fades plus load guards replacing the flashing Loading/empty
-// table rows) raises it to 41900 bytes.
-if (sentinelRuntimeGzip.length > 41900) {
+// The in-panel loading wave (settlePanel fades plus load guards replacing
+// the flashing Loading/empty table rows) raises it to 41900 bytes; the
+// wrap-height settle animation that removes the final layout jump raises
+// it to 41950 bytes.
+if (sentinelRuntimeGzip.length > 41950) {
   throw new Error(`Compressed Web UI runtime JS exceeds the 40000-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
