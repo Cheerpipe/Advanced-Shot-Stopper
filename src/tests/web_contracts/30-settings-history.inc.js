@@ -594,6 +594,7 @@ if (!ui.includes('id="shotTable"') ||
     html.includes('id="clearShotsButton" class="btnGlyph btnDanger"') ||
     !css.includes('#shotLogPanel .btnGlyph:not(.btnInvert)') ||
     !ui.includes("confirm:'CLEAR_SHOT_LOG'") ||
+    !runtimeJs.includes('function settlePanel(') ||
     !ui.includes('refreshShots()') ||
     !js.includes("'shotDur'") ||
     !js.includes("'shotActual'") ||
@@ -636,7 +637,7 @@ if (!ui.includes('id="shotTable"') ||
     !partialHtml.stats.includes('<th>Max flow</th>') ||
     !partialHtml.stats.includes('<th>Preset</th>') ||
     !partialHtml.stats.includes('<strong>Avg yield</strong>') ||
-    !partialHtml.stats.includes('colspan="13"') ||
+    !partialHtml.stats.includes('id="shotTableState" class="panelState" role="status"') ||
     partialHtml.stats.includes('<th>Actual</th>') ||
     !ui.includes('no time') ||
     !ui.includes('id="timezoneId"') ||
@@ -812,6 +813,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !partialHtml.history.includes('id="historyPanel"') ||
     !partialHtml.history.includes('id="historyTable"') ||
     !partialHtml.history.includes('id="historyRows"') ||
+    !partialHtml.history.includes('id="historyTableState" class="panelState" role="status"') ||
     !partialHtml.history.includes('id="historySentinel"') ||
     !partialHtml.history.includes('id="historyDirButton"') ||
     !partialHtml.history.includes('class="shotSort"') ||
@@ -819,7 +821,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !partialHtml.history.includes('btnGlyph btnInvert') ||
     !css.includes('#historyTable{') ||
     !css.includes('#historySentinel{min-height:1px') ||
-    !css.includes('#historyTable td[colspan]') ||
+    !css.includes('.panelState{display:flex;align-items:center;justify-content:center;') ||
     !css.includes('.histBadge{') ||
     !runtimeJs.includes('HISTORY_PAGE_SIZE=20') ||
     !runtimeJs.includes("const historyUrl=(offset,limit,dir)=>'/api/v1/history?offset='") ||
