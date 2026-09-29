@@ -556,6 +556,27 @@ void handleOperationalLimitTrip() {
                 StopperState::REQUIRES_OFF);
 }
 
+// Compatibility mode: the stopper degrades to a transparent activator mirror
+// with no brew intelligence. Safety stays authoritative — the hard/operational
+// limit blocks at the top of stateMachineTask already ran, maintenance leases
+// were serviced above, and every close still passes relay supervision. A
+// REQUIRES_OFF park (hard-limit trip or failed close) holds until the
+// activator returns idle: the mirror must not re-close on its own.
+void serviceCompatibilityMirror(const MachineIntention &intent) {
+  machineSetActivatorDriveAllowed(true);
+  machineAllowCurrentActivatorHold();
+  if (stopperState == StopperState::REQUIRES_OFF) {
+    if (intent.intent == UserIntent::STABLE_IDLE || intent.stablyOff) {
+      transitionTo(StopperState::READY);
+    }
+    return;
+  }
+  if (!servicePowerManagement() ||
+      !machineServiceCompatibilityDrive(intent)) {
+    transitionTo(StopperState::REQUIRES_OFF);
+  }
+}
+
 void stateMachineTask() {
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
   if (relay.tripped ||
@@ -633,6 +654,11 @@ void stateMachineTask() {
       }
       transitionTo(StopperState::REQUIRES_OFF);
     }
+    return;
+  }
+
+  if (firmwareCompatibilityMode()) {
+    serviceCompatibilityMirror(intent);
     return;
   }
 

@@ -32,6 +32,7 @@ enum class NvsSubsystem : uint8_t {
   RESET_HISTORY,
   RECOVERY_INTENT,
   OTA_JOURNAL,
+  FIRMWARE_MODE,
 };
 
 enum class NvsOperation : uint8_t {
@@ -74,6 +75,7 @@ inline const char *nvsSubsystemName(NvsSubsystem subsystem) {
     case NvsSubsystem::RESET_HISTORY: return "resetHistory";
     case NvsSubsystem::RECOVERY_INTENT: return "recoveryIntent";
     case NvsSubsystem::OTA_JOURNAL: return "otaJournal";
+    case NvsSubsystem::FIRMWARE_MODE: return "firmwareMode";
     default: return "unknown";
   }
 }

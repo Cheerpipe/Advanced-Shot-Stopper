@@ -1,4 +1,5 @@
 #include "ShotStopperMicraService.h"
+#include "ShotStopperFirmwareMode.h"
 
 #include "ShotStopperJsonArena.h"
 #include "ShotStopperDomain.h"
@@ -359,6 +360,13 @@ bool ShotStopperMicraService::begin() {
 
 void ShotStopperMicraService::publishConfig(
     const LineaMicraPersistedSettings &settings, uint32_t configGeneration) {
+  // Compatibility mode parks the cloud client through the existing
+  // unconfigured-account machinery: no session, no scheduling, in-flight HTTP
+  // aborted. The persisted settings themselves stay untouched.
+  LineaMicraPersistedSettings effective = settings;
+  if (firmwareCompatibilityMode()) {
+    effective = LineaMicraPersistedSettings{};
+  }
   bool cancelTemperature = false;
   bool cancelPowerOff = false;
   bool cancelObservation = false;
@@ -369,9 +377,9 @@ void ShotStopperMicraService::publishConfig(
         config_.accountConfigured &&
         (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0;
     const bool configChanged =
-        memcmp(&config_, &settings, sizeof(settings)) != 0;
-    identityChanged = !sameSessionIdentity(config_, settings);
-    config_ = settings;
+        memcmp(&config_, &effective, sizeof(effective)) != 0;
+    identityChanged = !sameSessionIdentity(config_, effective);
+    config_ = effective;
     configGeneration_ = configGeneration;
     if (identityChanged) {
       ++identityGeneration_;
@@ -389,21 +397,21 @@ void ShotStopperMicraService::publishConfig(
         desiredTemperature_.machineConfigGeneration = configGeneration;
       }
       if (desiredPower_.present &&
-          (settings.options &
+          (effective.options &
            powerOptionBit(desiredPower_.request.type)) != 0) {
         desiredPower_.machineConfigGeneration = configGeneration;
       }
     }
     published_.configGeneration = configGeneration;
     published_.identityGeneration = identityGeneration_;
-    published_.accountConfigured = settings.accountConfigured;
+    published_.accountConfigured = effective.accountConfigured;
     const bool observing =
-        settings.accountConfigured &&
-        (settings.options & LINEA_MICRA_OBSERVE_STATE) != 0;
+        effective.accountConfigured &&
+        (effective.options & LINEA_MICRA_OBSERVE_STATE) != 0;
     if (!configChanged) return;
     wipeLineaMicraSettings(candidate_);
     discovery_ = {};
-    if (!settings.accountConfigured) {
+    if (!effective.accountConfigured) {
       powerState_.reset();
       wipeLineaMicraSettings(pending_.credentials);
       pending_.present = false;
@@ -422,7 +430,7 @@ void ShotStopperMicraService::publishConfig(
     if (!observing) {
       powerState_.reset();
       observationSchedule_ = {};
-      if (wasObserving && settings.accountConfigured) {
+      if (wasObserving && effective.accountConfigured) {
         published_.phase = LineaMicraPhase::IDLE;
         published_.error = LineaMicraError::NONE;
       }
@@ -435,7 +443,7 @@ void ShotStopperMicraService::publishConfig(
     } else if (!wasObserving) {
       observationSchedule_.dueNow(millis());
     }
-    if ((settings.options & LINEA_MICRA_APPLY_TEMPERATURE) == 0) {
+    if ((effective.options & LINEA_MICRA_APPLY_TEMPERATURE) == 0) {
       desiredTemperature_ = {};
       published_.temperatureState = LineaMicraTemperatureState::Disabled;
       published_.temperatureError = LineaMicraError::NONE;
@@ -444,20 +452,20 @@ void ShotStopperMicraService::publishConfig(
       published_.temperatureCommandAccepted = false;
       published_.temperatureRetryable = false;
       cancelTemperature = true;
-    } else if (settings.accountConfigured &&
+    } else if (effective.accountConfigured &&
                published_.temperatureState ==
                    LineaMicraTemperatureState::Disabled) {
       published_.temperatureState = LineaMicraTemperatureState::IDLE;
     }
     if (desiredPower_.present &&
-        (settings.options & powerOptionBit(desiredPower_.request.type)) == 0) {
+        (effective.options & powerOptionBit(desiredPower_.request.type)) == 0) {
       desiredPower_ = {};
       cancelPowerOff = true;
     }
   }
   const bool cloudDisabled =
-      !settings.accountConfigured ||
-      (settings.options & (LINEA_MICRA_APPLY_TEMPERATURE |
+      !effective.accountConfigured ||
+      (effective.options & (LINEA_MICRA_APPLY_TEMPERATURE |
                            LINEA_MICRA_OBSERVE_STATE |
                            LINEA_MICRA_SHUTDOWN_WITH_SCALE |
                            LINEA_MICRA_POWER_ON_WITH_SCALE)) == 0;

@@ -113,6 +113,21 @@ inline void machineSampleInput() {
   updateActivatorInput();
   applyPaddleRelayDrive();
 }
+// Compatibility-mode transparent mirror: close while the activator is held,
+// open when it is released. The close uses HARD_MAX so hardware supervision
+// keeps its full window while BBW feature walls are bypassed by design.
+inline bool machineServiceCompatibilityDrive(
+    const MachineIntention &intent) {
+  const bool held = intent.holdActive;
+  const bool closed = getRelaySafetySnapshot().closed;
+  if (held && !closed) {
+    return machineRequestStart(HARD_MAX_CIRCUIT_CLOSED_MS, false);
+  }
+  if (!held && closed) {
+    return machineRequestStop();
+  }
+  return true;
+}
 inline void serviceMachine() {
   machineServiceReminders();
 }
@@ -182,6 +197,12 @@ inline MachineIntention machinePollIntention() {
     out.intent = UserIntent::STABLE_IDLE;
   }
   return machineCaptureIntention(out);
+}
+// Compatibility mode is already transparent here: applyMomentaryRelayDrive
+// mirrors the switch 1:1, and every synthetic pulse source (orchestrator,
+// web commands) is gated upstream of the machine layer.
+inline bool machineServiceCompatibilityDrive(const MachineIntention &) {
+  return true;
 }
 #endif
 

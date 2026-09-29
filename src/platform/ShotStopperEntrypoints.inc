@@ -216,6 +216,9 @@ void setup() {
   // RTC captures the prior uptime immediately across warm resets; NVS keeps
   // the history when RTC memory is lost (for example after power loss).
   persistResetHistoryAfterBoot(safetyResetStatus);
+  // Master switch: read before any subsystem init so BLE, Micra, NTP, and the
+  // control machine all see the final boot-scoped mode.
+  firmwareModeRaw = static_cast<uint8_t>(loadFirmwareMode());
   settingsLoaded = false;
   settingsDurable = false;
   if (persistenceReady && loadPersistedSettings(persistedSettings)) {
@@ -245,7 +248,10 @@ void setup() {
       clampBleScanBackoffMin(bleScanPersistedSettings.scanBackoffMin));
   applyLiveBleScanBoost(
       clampBleScanBoostMin(bleScanPersistedSettings.scanBoostMin));
-  applyLiveBleEnabled(bleScanPersistedSettings.enabled != 0);
+  // Compatibility mode keeps the BLE stack parked regardless of the persisted
+  // Bluetooth setting; re-enabling the firmware restores it untouched.
+  applyLiveBleEnabled(!firmwareCompatibilityMode() &&
+                      bleScanPersistedSettings.enabled != 0);
   if (settingsLoaded) {
     runtimeConfig = persistedSettings.runtime;
     bullseyeMelodyConfig = persistedSettings.bullseyeMelody;

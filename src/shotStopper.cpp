@@ -64,6 +64,7 @@
 #endif
 
 #include "ShotStopperDomain.h"
+#include "ShotStopperFirmwareMode.h"
 #include "machine/ShotStopperMachineIntegration.h"
 #include "ShotStopperIntegrationState.h"
 #include "ShotStopperDebugExport.h"
@@ -453,6 +454,10 @@ uint32_t cupStartGuardHoldAtMs = 0;
 bool machineWakePassthroughActive = false;
 uint32_t machineWakeStartedAtMs = 0;
 bool machineWakeGestureConsumedThisLoop = false;
+// Boot-scoped master switch: FULL by default, COMPATIBILITY only when the
+// persisted fwmode record says so. setup() assigns it once; nothing else
+// writes it (toggling persists the record and restarts instead).
+uint8_t firmwareModeRaw = static_cast<uint8_t>(shotstopper::FirmwareMode::FULL);
 
 float currentWeight = 0.0f;
 uint32_t currentWeightReceivedAtMs = 0;
@@ -1719,7 +1724,12 @@ AlertOutputChannel currentAlertOutputChannel() {
   return effectiveAlertOutputChannel(runtimeConfig.alertOutputChannel);
 }
 
-bool soundAlertsEnabled() { return !runtimeConfig.soundAlertsMuted; }
+bool soundAlertsEnabled() {
+  // Compatibility mode silences every brew/scale alert. Recovery cues bypass
+  // this gate downstream (selectAlertSink serves Recovery before the mute
+  // check), so the emergency gesture stays audible in both modes.
+  return !runtimeConfig.soundAlertsMuted && !firmwareCompatibilityMode();
+}
 
 // These policy decisions execute only on the control task. The worker receives
 // a concrete volume command and never reads runtimeConfig.

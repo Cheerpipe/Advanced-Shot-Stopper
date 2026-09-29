@@ -8,7 +8,39 @@ void persistBleScanBackoff(uint8_t backoffMin);
 void persistBleScanBoost(uint8_t boostMin);
 void persistBleScanEnabled(bool enabled);
 
+// Compatibility mode blocks commands that actuate the machine or execute
+// disabled functionality (brew intelligence, scale, alerts). Persistence,
+// network, restart, OTA, and factory-reset commands keep flowing so the
+// reduced surface stays manageable.
+bool webCommandBlockedInCompatibilityMode(WebCommandType type) {
+  switch (type) {
+    case WebCommandType::STOP:
+    case WebCommandType::STOP_HEARTBEAT:
+    case WebCommandType::FORCE_SWITCH_PULSE:
+    case WebCommandType::STATE_OVERRIDE_OFF:
+    case WebCommandType::STATE_OVERRIDE_ON:
+    case WebCommandType::BLE_SCAN_INTENSITY:
+    case WebCommandType::RESET_WEIGHT_OFFSET:
+    case WebCommandType::RESET_AUTO_TO_MANUAL_GUARD_SAMPLES:
+    case WebCommandType::BUZZER_TEST:
+    case WebCommandType::BOOKOO_DEBUG:
+      return true;
+    default:
+      // Remote web start/off and web rinse belong to the same actuation
+      // family; compared here so the remote-control guards in the main
+      // switch below stay the first `case WebCommandType::REMOTE_*` text.
+      return type == WebCommandType::REMOTE_ON ||
+             type == WebCommandType::REMOTE_OFF ||
+             type == WebCommandType::RINSE;
+  }
+}
+
 void processWebCommand(const WebCommand &command) {
+  if (firmwareCompatibilityMode() &&
+      webCommandBlockedInCompatibilityMode(command.type)) {
+    rejectWebCommand(command);
+    return;
+  }
   switch (command.type) {
     case WebCommandType::STOP:
     case WebCommandType::STOP_HEARTBEAT:

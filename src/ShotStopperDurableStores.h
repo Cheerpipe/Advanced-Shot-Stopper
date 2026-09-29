@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ShotStopperBleScanPersistence.h"
+#include "ShotStopperFirmwareMode.h"
 #include "ShotStopperHistory.h"
 #include "ShotStopperLastShot.h"
 #include "ShotStopperPersistence.h"
@@ -96,6 +97,14 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
   if (!resetBleScanSettings(ble)) {
     return false;
   }
+  // Factory reset also restores full firmware mode: the master switch must
+  // never survive the one recovery path that is always reachable.
+#if !defined(SHOT_STOPPER_HOST_TEST) ||                                      \
+    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+  if (!clearFirmwareMode()) {
+    return false;
+  }
+#endif
 
   yieldFlashIo();
   feedFlashIoWatchdog();
