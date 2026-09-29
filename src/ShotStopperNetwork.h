@@ -579,6 +579,7 @@ class ShotStopperNetwork {
   static esp_err_t forcePulseHandler(httpd_req_t *request);
   static esp_err_t stateOverrideHandler(httpd_req_t *request);
   static esp_err_t restartHandler(httpd_req_t *request);
+  static esp_err_t firmwareModeHandler(httpd_req_t *request);
   static esp_err_t clearResetHistoryHandler(httpd_req_t *request);
   static esp_err_t factoryResetHandler(httpd_req_t *request);
   static esp_err_t networkHandler(httpd_req_t *request);

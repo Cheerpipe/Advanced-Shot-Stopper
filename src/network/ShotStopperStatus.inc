@@ -316,6 +316,10 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     ok = statusJsonAppend(&used, ",\"diagnosticPageVisible\":%s",
                           self.diagnosticPageEnabled() ? "true" : "false");
   }
+  if (ok) {
+    ok = statusJsonAppend(&used, ",\"compatibilityMode\":%s",
+                          firmwareCompatibilityMode() ? "true" : "false");
+  }
   if (ok && page == StatusPage::Settings) {
     ok = statusJsonAppend(&used, ",\"buzzerSupported\":%s",
                           BUZZER_SUPPORT_ENABLED ? "true" : "false");

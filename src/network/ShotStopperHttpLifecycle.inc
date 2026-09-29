@@ -992,7 +992,8 @@ void ShotStopperNetwork::serviceNtp(uint32_t now, bool staConnected) {
   // now still completes: its pending request or in-flight attempt (marked by
   // ntpManualAttempt_) keeps this gate open until it settles. cancelSyncing
   // preserves an existing anchor; it also clears auto retry state.
-  if (!ntpSyncEnabled && !ntpManualSyncPending_ && !ntpManualAttempt_) {
+  if (firmwareCompatibilityMode() ||
+      (!ntpSyncEnabled && !ntpManualSyncPending_ && !ntpManualAttempt_)) {
     if (ntpStarted_) {
       stopNtp();
     }
@@ -1102,7 +1103,7 @@ bool ShotStopperNetwork::startHttpServer() {
   // Exact special routes precede wildcard dispatchers so claim, integration,
   // and OTA retain their distinct authentication boundaries. Keep ten spare
   // slots; exhausting this tears down the whole Web UI at startup.
-  config.max_uri_handlers = 48;
+  config.max_uri_handlers = 49;
   config.uri_match_fn = httpd_uri_match_wildcard;
   // Safari sends a long UA + Accept-Language + optional Cookie/Sec-Fetch-*;
   // the IDF default (1024) is enough most of the time but intermittent

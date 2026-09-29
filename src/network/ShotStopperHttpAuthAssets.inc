@@ -381,6 +381,7 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
       {"/api/v1/control/force-pulse", HTTP_POST, forcePulseHandler},
       {"/api/v1/control/state-override", HTTP_POST, stateOverrideHandler},
       {"/api/v1/control/restart", HTTP_POST, restartHandler},
+      {"/api/v1/firmware-mode", HTTP_POST, firmwareModeHandler},
       {"/api/v1/diagnostic/reset-history", HTTP_POST,
        clearResetHistoryHandler},
       {"/api/v1/factory-reset", HTTP_POST, factoryResetHandler},

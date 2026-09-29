@@ -286,6 +286,9 @@ StaJoinHints ShotStopperNetwork::staJoinHints() {
 }
 
 bool ShotStopperNetwork::enqueueWebhook(const WebhookEvent &event) {
+  if (firmwareCompatibilityMode()) {
+    return false;
+  }
   return webhooks_.enqueue(event);
 }
 

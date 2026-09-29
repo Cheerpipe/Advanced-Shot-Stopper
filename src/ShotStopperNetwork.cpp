@@ -1,5 +1,6 @@
 #include "ShotStopperNetwork.h"
 #include "ShotStopperDebugExport.h"
+#include "ShotStopperFirmwareMode.h"
 #include "ShotStopperMachineMomentaryConfig.h"
 #include "ShotStopperMachinePaddleConfig.h"
 #include "ShotStopperBuildProfile.h"

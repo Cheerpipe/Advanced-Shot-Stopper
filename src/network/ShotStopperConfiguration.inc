@@ -3,6 +3,10 @@ esp_err_t ShotStopperNetwork::timeSyncHandler(httpd_req_t *request) {
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
+  if (firmwareCompatibilityMode()) {
+    return sendError(request, STATUS_UNAVAILABLE, "TIME_SYNC_DISABLED",
+                     "Time sync is unavailable while the firmware is disabled.");
+  }
   ControlGateSnapshot status = self.controlGate();
   if (!self.webUiConfigurationAllowed(request, status)) {
     return sendError(request, STATUS_CONFLICT,
@@ -1296,6 +1300,42 @@ esp_err_t ShotStopperNetwork::restartHandler(httpd_req_t *request) {
   // Shot always wins. Queue the restart even mid-cycle; the control task
   // holds it until idle instead of opening K1 to make way for the reset.
   // Override must not cut a pour.
+  return self.enqueueAcceptedCommand(request, WebCommandType::RESTART, false,
+                                "Control queue is full.");
+}
+
+esp_err_t ShotStopperNetwork::firmwareModeHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  if (!self.requireAdminUnlock(request)) {
+    return ESP_OK;
+  }
+  const esp_err_t bodyStatus =
+      self.lockJsonBody(request, "A JSON request is required.");
+  if (bodyStatus != ESP_OK) {
+    return bodyStatus;
+  }
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
+  static const char *const fields[] = {"enabled"};
+  bool enabled = false;
+  const bool parsed = root != nullptr &&
+                      jsonHasOnlyUniqueFields(root, fields, 1) &&
+                      jsonBoolean(root, "enabled", enabled);
+  if (root != nullptr) {
+    cJSON_Delete(root);
+  }
+  self.unlockJsonBody();
+  if (!parsed) {
+    return sendError(request, STATUS_UNPROCESSABLE, "INVALID_FIRMWARE_MODE",
+                     "enabled must be a boolean.");
+  }
+  // The mode is boot-scoped: persist first, then queue the same idle-safe
+  // restart the Restart button uses so an active pour finishes first.
+  if (!shotstopper::saveFirmwareMode(
+          enabled ? shotstopper::FirmwareMode::FULL
+                  : shotstopper::FirmwareMode::COMPATIBILITY)) {
+    return sendError(request, STATUS_UNAVAILABLE, "FIRMWARE_MODE_SAVE_FAILED",
+                     "Could not persist the firmware mode.");
+  }
   return self.enqueueAcceptedCommand(request, WebCommandType::RESTART, false,
                                 "Control queue is full.");
 }
