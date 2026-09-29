@@ -480,7 +480,7 @@ for required in ("read-flash 0x8000 0x1000", "installed_nvs_bytes != 0x15000",
                  "installed_layout=blank", "installed_shotcurve_row",
                  "required_shotcurve_offset=0x680000", "0x620000", "erase-flash",
                  '"$installed_app0_offset" "$image"'):
-    assert required in flash_idf, f"flash-idf migration contract missing: {required}"
+    assert required in flash_idf, f"flash-idf erase-all contract missing: {required}"
 assert '0x10000 "$image"' not in flash_idf, \
     "external app offset must be dynamic"
 parsed_erase = subprocess.run(

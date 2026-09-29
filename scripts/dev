@@ -53,7 +53,7 @@ AREAS = {
     "ble": ("scale protocols and BLE radio", ["libraries/EspressoScaleBLE/src", "libraries/EspressoScaleBLE/tests", "src/ShotStopperScaleWorker.cpp", "src/ShotStopperBleScanPersistence.h"]),
     "network": ("HTTP transport and outbound webhooks", ["src/ShotStopperNetwork.cpp", "src/ShotStopperWebhook.cpp", "src/tests/check_http_route_capacity.js", "src/tests/webhook_error_host_test.cpp", "docs/RESOURCE_OWNERSHIP.md"]),
     "ota": ("verified and resumable firmware update", ["src/ShotStopperOta.cpp", "src/ShotStopperOtaImage.h", "src/tests/run_ota_tests.sh", "docs/features/ota.md"]),
-    "persistence": ("settings, logs, recovery, and migrations", ["src/ShotStopperPersistence.h", "src/ShotStopperDurableStores.h", "src/tests/persistence_host_test.cpp", "docs/ARCHITECTURE.md"]),
+    "persistence": ("settings, logs, and recovery", ["src/ShotStopperPersistence.h", "src/ShotStopperDurableStores.h", "src/tests/persistence_host_test.cpp", "docs/ARCHITECTURE.md"]),
     "web": ("embedded browser UI and asset generation", ["src/web", "scripts/gen_web_ui.js", "src/tests/check_web_assets.js", "docs/SCREENSHOTS.md"]),
     "build": ("ESP-IDF integration, variants, and analysis", ["idf", "scripts/internal/build-idf", "scripts/check_architecture.py", "docs/BUILD.md"]),
     "tests": ("host, Web, OTA, and architecture tests", ["src/tests", "libraries/EspressoScaleBLE/tests", "CMakePresets.json", "VALIDATION.md"]),
@@ -104,7 +104,7 @@ def path_risk(path: str) -> str:
             r"(?i)(machine|relay|safety|watchdog|hardware|resetguard|recovery|resourceowner)", p):
         return "R3"
     if p.startswith(("libraries/EspressoScaleBLE/", "idf/")) or re.search(
-            r"(?i)(ble|network|webhook|ota|persist|nvs|settingsmigrate|shotlog)", p):
+            r"(?i)(ble|network|webhook|ota|persist|nvs|shotlog)", p):
         return "R2"
     if p.startswith(("src/web/", "src/tests/", "scripts/", ".github/")) or p in {
             "CMakeLists.txt", "CMakePresets.json", "package.json", "package-lock.json"}:

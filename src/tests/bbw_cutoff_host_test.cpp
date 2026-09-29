@@ -119,14 +119,14 @@ int main() {
     assert(preset.bbwEwmaAlpha == 30);
     assert(preset.weightOffsetG == preset.bbwEwmaOffsetG);
   }
-  PersistedSettings migrated = settings;
-  migrated.presets.presets[0].bbwAlgorithm = 0;
-  migrated.presets.presets[0].bbwEwmaAlpha = 50;
-  migrated.presets.presets[0].bbwAlphaLearned = 1;
-  migrated.presets.presets[0].bbwEwmaOffsetG = 0.80f;
-  migrated.presets.presets[1].bbwEwmaOffsetG = 3.10f;
-  migrated.presets.presets[1].bbwEwmaAlpha = 10;
-  assert(savePersistedSettings(migrated));
+  PersistedSettings updated = settings;
+  updated.presets.presets[0].bbwAlgorithm = 0;
+  updated.presets.presets[0].bbwEwmaAlpha = 50;
+  updated.presets.presets[0].bbwAlphaLearned = 1;
+  updated.presets.presets[0].bbwEwmaOffsetG = 0.80f;
+  updated.presets.presets[1].bbwEwmaOffsetG = 3.10f;
+  updated.presets.presets[1].bbwEwmaAlpha = 10;
+  assert(savePersistedSettings(updated));
   PersistedSettings reloaded;
   assert(loadPersistedSettings(reloaded));
   assert(reloaded.presets.presets[0].bbwAlgorithm == 0);
@@ -135,9 +135,9 @@ int main() {
   assert(reloaded.presets.presets[0].bbwEwmaOffsetG == 0.80f);
   assert(reloaded.presets.presets[1].bbwEwmaOffsetG == 3.10f);
   assert(reloaded.presets.presets[1].bbwEwmaAlpha == 10);
-  migrated.presets.presets[0].bbwAlgorithm = 255;
-  migrated.checksum = persistedSettingsChecksum(migrated);
-  assert(!validPersistedSettings(migrated));
+  updated.presets.presets[0].bbwAlgorithm = 255;
+  updated.checksum = persistedSettingsChecksum(updated);
+  assert(!validPersistedSettings(updated));
 
   ShotPresetBank bank = reloaded.presets;
   BbwLearningBank learning;

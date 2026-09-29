@@ -200,8 +200,8 @@ ss_cli_die() {
   printf '%s\n' "$1" >&2
 }
 
-# Parses named flags. Positional arguments are rejected with a migration hint
-# because these scripts used to take them.
+# Parses named flags. Positional arguments are rejected because these
+# scripts used to take them.
 ss_cli_parse() {
   local key value
   while [[ $# -gt 0 ]]; do

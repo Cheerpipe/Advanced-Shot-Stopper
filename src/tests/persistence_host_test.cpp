@@ -2378,7 +2378,7 @@ void p86_timezone_preference_and_durable_initialization() {
   CHECK(loadPersistedSettings(loaded));
   CHECK(loaded.runtime.ntpSyncEnabled);
 
-  // No migration path: an out-of-range preference byte rejects the record.
+  // An out-of-range preference byte rejects the record.
   resetHostPersistence();
   settings.runtime.timezoneAutomatic = 0xA5;
   settings.checksum = persistedSettingsChecksum(settings);

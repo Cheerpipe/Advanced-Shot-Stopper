@@ -14,7 +14,7 @@
 namespace shotstopper {
 
 constexpr uint32_t SHOT_CURVE_MAGIC = 0x53435256U;  // "SCRV"
-// Older stores are intentionally discarded; curve history has no migration path.
+// Older stores are intentionally discarded.
 constexpr uint16_t SHOT_CURVE_SCHEMA_VERSION = 1;
 constexpr uint32_t SHOT_CURVE_INTERVAL_MS = 500;
 constexpr uint8_t SHOT_CURVE_INTERVAL_DS = 5;

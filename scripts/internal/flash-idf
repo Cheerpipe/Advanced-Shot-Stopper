@@ -143,7 +143,7 @@ if [[ "$SS_CLI_ERASE_ALL" != "1" && "$installed_layout" == "present" ]]; then
   if (( installed_nvs_bytes != 0x15000 )); then
     printf 'Installed NVS is %s bytes; this firmware requires 86016 bytes.\n' \
       "$installed_nvs_bytes" >&2
-    echo 'Re-run with --erase-all to migrate the partition layout. This destroys all saved data.' >&2
+    echo 'Re-run with --erase-all: the partition layout changed, so an in-place flash is not possible. This destroys all saved data.' >&2
     exit 1
   fi
   IFS=, read -r installed_shotcurve_type installed_shotcurve_subtype \
@@ -159,7 +159,7 @@ if [[ "$SS_CLI_ERASE_ALL" != "1" && "$installed_layout" == "present" ]]; then
          installed_shotcurve_size_bytes != 0xE000 )); then
     printf 'Installed layout lacks the required %s shotcurve partition (data/0x40 at 0x%X, size 57344).\n' \
       "$SHOTSTOPPER_ARCH" "$required_shotcurve_offset" >&2
-    echo 'Re-run with --erase-all to migrate the partition layout. This destroys all saved data.' >&2
+    echo 'Re-run with --erase-all: the partition layout changed, so an in-place flash is not possible. This destroys all saved data.' >&2
     exit 1
   fi
 fi

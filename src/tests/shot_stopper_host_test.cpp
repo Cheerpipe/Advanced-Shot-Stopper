@@ -11059,7 +11059,7 @@ void s01c_mixed_shots_share_stats_and_home_authority() {
   oldManual.durationMs = 20000;
   oldManual.weightValid = true;
   oldManual.currentWeightG = 35.0f;
-  persistLastShotSnapshot(oldManual);  // No safe record identity to migrate.
+  persistLastShotSnapshot(oldManual);  // No safe record identity to reuse.
   CHECK(copyHomeShot(eligible, curve));
   CHECK(eligible.id == newestId);
   CHECK(shotLog.save());
