@@ -12,8 +12,10 @@ const char *ShotStopperNetwork::wifiScanStateName(WifiScanState state) {
 
 esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  // Home/settings stay claim-gated only. Admin and Diagnostic mutations and
-  // the full privileged status body require a temporary device-password unlock.
+  // Home/settings stay claim-gated only. Admin mutations and the full
+  // privileged status body require a temporary device-password unlock;
+  // Diagnostic is intentionally public: /diagnostic stays reachable and the
+  // visibility toggle only hides the menu entry.
   self.requestPendingNetworkConfirm();
 
   const StatusPage page = parseStatusPage(request->uri);
@@ -21,10 +23,6 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     return sendError(request, "404 Not Found", "STATUS_PAGE_UNKNOWN",
                      "Unknown status page; use /api/v1/status/{home|settings|admin|diagnostic}.");
   }
-
-  // Diagnostic is intentionally public: the page stays reachable at
-  // /diagnostic and the visibility toggle only hides the menu entry, so the
-  // status body has no Admin authentication requirement either.
 
   // JSON / snapshot work lives in one PSRAM-only blob.
   if (!self.lockWorkBufForStatus()) {

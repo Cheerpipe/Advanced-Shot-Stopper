@@ -20,7 +20,7 @@ function stopViewPolls(){clearCupWeights();clearInterval(statusTimer);statusTime
 function startView(name){startViewHook(name)}
 function renderRoute(pathname){routeRendererHook(pathname)}
 function setRouteRenderer(fn){routeRendererHook=fn||(()=>{})}
-function applyCompatibilityChrome(){document.body.classList.toggle('compatMode',compatMode);document.querySelectorAll('.pageNav a[data-route]').forEach(a=>{const r=a.getAttribute('data-route');if(r&&r!=='/admin')a.classList.toggle('hidden',compatMode)});if(compatMode&&activeView&&activeView!=='admin')renderRoute('/admin')}
+function applyCompatibilityChrome(){document.body.classList.toggle('compatMode',compatMode);document.querySelectorAll('.pageNav a[data-route]').forEach(a=>{const r=a.getAttribute('data-route');if(r&&r!=='/admin')a.classList.toggle('hidden',compatMode)});if(compatMode&&activeView&&activeView!=='admin'&&activeView!=='diagnostic')renderRoute('/admin')}
 export function compatibilityModeOn(){return compatMode}
 
 const DEVICE_MAX_INFLIGHT = 1;
