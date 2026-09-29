@@ -80,11 +80,12 @@ CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM=16
 # 16 covers STA + SoftAP association and beacon traffic.
 CONFIG_ESP_WIFI_MGMT_SBUF_NUM=16
 # CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT is not set
-# IPv6 must stay enabled: arduino-esp32 publicly requires espressif/esp-modbus,
-# whose TCP port fails to compile when CONFIG_LWIP_IPV6 is unset
-# (CONFIG_LWIP_IPV6_NUM_ADDRESSES / mdns_query_aaaa). Keep the address table small.
-CONFIG_LWIP_IPV6=y
-CONFIG_LWIP_IPV6_NUM_ADDRESSES=3
+# IPv6 is compiled out: the firmware is IPv4-only, which removes the lwIP ND6
+# and MLD6 state, link-local/SLAAC addressing, and AAAA answers from mDNS.
+# The esp-modbus dependency that forced CONFIG_LWIP_IPV6=y (its TCP port
+# compiles unguarded IPv6 types) is replaced by a local empty stub via
+# override_path in main/idf_component.yml.
+# CONFIG_LWIP_IPV6 is not set
 CONFIG_LWIP_TCP_SND_BUF_DEFAULT=2880
 CONFIG_LWIP_TCP_WND_DEFAULT=2880
 # httpd alone can hold (max_open_sockets + 3) = 7 sockets at peak; the mDNS

@@ -1,0 +1,5 @@
+## Local stand-in for espressif/esp-modbus (see CMakeLists.txt and the
+## override_path entry in main/idf_component.yml). Version satisfies the
+## ^2.1.3 constraint declared by arduino-esp32.
+description: Empty local replacement for espressif/esp-modbus
+version: "2.1.3"

@@ -4,4 +4,8 @@ build/
 managed_components/
 sdkconfig
 sdkconfig.old
-third_party/
+# Vendored trees stay local, except components the build requires: the
+# esp-modbus stub is part of Component Manager resolution and must be
+# committed like sdkconfig.defaults* and dependencies.lock.
+third_party/*
+!third_party/esp-modbus/
