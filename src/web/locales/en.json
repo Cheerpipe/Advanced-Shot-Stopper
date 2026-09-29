@@ -1088,6 +1088,7 @@
     "settings.linear_prediction_adaptive_ewma_2": "Linear prediction + adaptive EWMA:",
     "settings.linear_regression_offset_correction": "Linear regression + offset correction",
     "settings.linear_regression_offset_correction_2": "Linear regression + offset correction:",
+    "settings.loading": "Loading…",
     "settings.longest_hold_that_still_counts_as_a": "Holds up to this duration count as a normal start or stop tap. Longer holds remain manual, or start Quick rinse when that option is on.",
     "settings.machine_and_scale": "Machine and scale",
     "settings.manual": "Manual",
