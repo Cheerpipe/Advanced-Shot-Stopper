@@ -465,8 +465,10 @@ if (generated.cssGzip.length > 7400) {
 // the flashing Loading/empty table rows) raises it to 41900 bytes; the
 // wrap-height settle animation that removes the final layout jump raises
 // it to 41950 bytes.
-if (sentinelRuntimeGzip.length > 41950) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 40000-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Mid-upload OTA image guarding (the per-range re-verification call and the
+// changed-file error mapping in the runtime module) raises it to 42100 bytes.
+if (sentinelRuntimeGzip.length > 42100) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 42100-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -525,8 +527,11 @@ if (generated.icon48Gzip.length > 3500) {
 // raises it to 109900 bytes.
 // The Settings preset-card wave (same panelState slot wrapped around the
 // preset cards grid, settled by ingestPresets) raises it to 110000 bytes.
-if (generated.combined > 110000) {
-  throw new Error(`Combined Web UI gzip exceeds the 108200-byte flash budget (${generated.combined})`);
+// Mid-upload OTA image guarding (per-range re-verification in the runtime
+// and image modules plus its changed-file error string) raises it to
+// 110500 bytes.
+if (generated.combined > 110500) {
+  throw new Error(`Combined Web UI gzip exceeds the 110500-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

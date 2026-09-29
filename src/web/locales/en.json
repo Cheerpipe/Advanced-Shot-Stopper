@@ -881,6 +881,7 @@
     "runtime.the_controller_reported_an_invalid_firmware_offset": "The controller reported an invalid firmware offset.",
     "runtime.the_controller_restarted_into_another_image_the": "The controller restarted into another image; the requested update is not confirmed.",
     "runtime.the_controller_returned_a_different_or_incomplete": "The controller returned a different or incomplete firmware session identity.",
+    "runtime.the_firmware_file_changed_while_it_was": "The firmware file changed while it was being uploaded, so the upload stopped and nothing was flashed. Another build probably rewrote the same file; wait for it to finish and start the update again.",
     "runtime.the_firmware_is_verified_refresh_its_status": "The firmware is verified; refresh its status before flashing.",
     "runtime.the_firmware_upload_failed": "The firmware upload failed.",
     "runtime.the_firmware_upload_paused_choose_the_same": "The firmware upload paused. Choose the same file to resume.",

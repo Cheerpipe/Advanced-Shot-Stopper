@@ -106,7 +106,11 @@ identity boundary.
 The Web UI reads and hashes the image incrementally. It scans the whole file
 for the identity (the linker may place it at any offset), validates the ESP32-S3
 header and appended image checksum, and then resumes only a matching remote
-session. Selecting a different file never discards the existing session.
+session. Each range is checked against the hashes captured during that scan
+before it is sent: if the file changes on disk while the upload runs —
+typically because another build rewrote it — the upload stops with an error
+instead of sending a mix of two builds. Selecting a different file never
+discards the existing session.
 
 From the repository root, build and upload one exact profile pair:
 

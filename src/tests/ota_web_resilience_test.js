@@ -27,6 +27,11 @@ function fixture() {
 
 async function harness(mode) {
   const file = fixture(), identity = await parser(file), items = new Map(), nodes = new Map();
+  // 'changed' mutates the backing bytes mid-upload, like a parallel build
+  // rewriting the image while the browser re-reads each range from disk.
+  const source = mode === 'changed' ? Buffer.from(await file.arrayBuffer()) : null;
+  const uploadFile = source ?
+      {size: source.length, slice: (a, b) => new Blob([source.subarray(a, b)])} : file;
   const messages = [], patches = [], payloads = [];
   let offset = 0, posts = 0, commits = 0;
   const session = {...identity, transferId: 'test-transfer'};
@@ -47,7 +52,7 @@ async function harness(mode) {
     getItem: key => items.get(key) || null,
     setItem: (key, value) => items.set(key, value), removeItem: key => items.delete(key)},
   $: key => {
-    if (!nodes.has(key)) nodes.set(key, {files: [file], value: 0, classList: {add() {}, remove() {}}});
+    if (!nodes.has(key)) nodes.set(key, {files: [uploadFile], value: 0, classList: {add() {}, remove() {}}});
     return nodes.get(key);
   }, message: text => messages.push(text), clearFieldErrors() {}, showFieldError() {},
   formatCommandError: (text, error) => text + ' ' + error.message,
@@ -66,6 +71,7 @@ async function harness(mode) {
     }
     if (method === 'PATCH') {
       const at = Number(headers['X-OTA-Offset']); patches.push(at);
+      if (mode === 'changed' && patches.length === 1) source[70000] ^= 0xff;
       assert.deepEqual(Buffer.from(await body.arrayBuffer()),
           Buffer.from(await file.slice(at, at + body.size).arrayBuffer()));
       if (mode === 'rewind' && patches.length === 2) {offset = 4096; throw new Error('Device unreachable');}
@@ -115,6 +121,13 @@ async function harness(mode) {
       assert.doesNotMatch(h.messages.at(-1), /upload paused/);
       assert.equal(h.patches.length, mode === 'refused' ? 0 : 1);
     }
+  }
+  {
+    const h = await harness('changed');
+    await vm.runInContext('otaUpload()', h.context);
+    assert.equal(h.patches.length, 1);
+    assert.match(h.messages.at(-1), /changed while it was being uploaded/);
+    assert.doesNotMatch(h.messages.at(-1), /upload paused|rejected/);
   }
   for (const mode of ['lost-commit', 'wrong-commit', 'booted-commit']) {
     const h = await harness(mode);

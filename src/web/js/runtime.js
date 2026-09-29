@@ -421,6 +421,7 @@ function otaSessionBody(session){const{size,sha256,arch,hardware,machine,version
 function otaValidOffset(offset,size){return Number.isInteger(offset)&&offset>=0&&offset<=size&&(offset===size||offset%4096===0)}
 function otaRecoverable(session,status){return otaRemoteMatches(session,status)&&status.sessionActive===true&&status.state==='receiving'&&otaValidOffset(status.nextOffset,session.size)}
 function otaUploadErrorText(session,status,error){
+  if(error.otaFileChanged)return error.message;
   if(error.code==='OTA_SESSION_EXPIRED'||status&&status.lastResult==='OTA_SESSION_EXPIRED')return __WEBUI_TEXT__("runtime.the_firmware_upload_session_expired_choose_the");
   if(error.message==='The upload was cancelled.')return __WEBUI_TEXT__("runtime.the_firmware_upload_was_cancelled");
   if(error.status>=400&&error.status<500&&error.code!=='RECEIVE_FAILED')return __WEBUI_TEXT__("runtime.the_firmware_upload_was_rejected");
@@ -447,7 +448,9 @@ async function otaUpload(){
     if(!otaValidOffset(offset,file.size))throw new Error(__WEBUI_TEXT__("runtime.the_controller_reported_an_invalid_firmware_offset"));
     otaStore(session);otaCommitStore(null);
     while(offset<file.size){
-      const end=Math.min(file.size,offset+65536),chunk=file.slice(offset,end),headers={'X-OTA-Transfer':session.transferId,'X-OTA-Offset':String(offset),'X-OTA-Length':String(file.size),'Content-Range':'bytes '+offset+'-'+(end-1)+'/'+file.size};
+      const end=Math.min(file.size,offset+65536);
+      if(!await session.verifyRange(offset,end)){const changed=new Error(__WEBUI_TEXT__("runtime.the_firmware_file_changed_while_it_was"));changed.otaFileChanged=true;throw changed}
+      const chunk=file.slice(offset,end),headers={'X-OTA-Transfer':session.transferId,'X-OTA-Offset':String(offset),'X-OTA-Length':String(file.size),'Content-Range':'bytes '+offset+'-'+(end-1)+'/'+file.size};
       let reconciled=false;
       try{status=await otaSend('/api/v1/ota',chunk,null,OTA_UPLOAD_TIMEOUT_MS,'PATCH',headers)}
       catch(e){

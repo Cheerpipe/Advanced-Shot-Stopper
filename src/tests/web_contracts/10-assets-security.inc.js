@@ -299,8 +299,11 @@ if (htmlBytes > 78800) {
 // ~4 KB of JS source allowance.
 // The firmware master switch adds the Admin Firmware section wiring plus
 // compatibility-mode tab/section gating for ~2.5 KB of JS source allowance.
-if (jsBytes > 224800) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 224800)`);
+// Mid-upload image guarding records per-4 KiB-block digests during the OTA
+// identity scan and re-verifies every range before it is sent, adding
+// ~1.1 KB of JS source allowance.
+if (jsBytes > 226000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 226000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -318,8 +321,9 @@ if (jsBytes > 224800) {
 // The firmware master switch adds ~6.5 KB of combined source allowance
 // (Firmware section in HTML; section wiring and compatibility-mode gating
 // in JS).
-if (htmlBytes + jsBytes > 303700) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 303700)`);
+// Mid-upload OTA image guarding adds ~1.1 KB of combined JS source allowance.
+if (htmlBytes + jsBytes > 304900) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 304900)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
