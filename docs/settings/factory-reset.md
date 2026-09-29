@@ -17,7 +17,8 @@ Its three integration options return to ON, and factory preset boiler targets re
 factory values: power policy on, Wi-Fi sleep on, Balanced scan mode, idle scan
 backoff off, and a 15-minute scan boost on machine use. The device
 password returns to **`ineedacoffee`** and the device name to
-**`openbrewbyweight`**. The device then restarts.
+**`openbrewbyweight`**. A disabled [firmware mode](firmware-mode.md) is
+turned back on. The device then restarts.
 
 ## Ways to run it
 

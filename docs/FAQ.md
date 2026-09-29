@@ -162,6 +162,13 @@ They are disabled in default firmware. An explicit development build can
 enable them, but Admin unlock alone cannot. Remote Stop remains privileged.
 See [build options](BUILD.md#5-build).
 
+### The web interface only shows the Admin page
+
+The [firmware mode](settings/firmware-mode.md) switch is off: the controller
+is running as a transparent pass-through and every other tab is hidden. Unlock
+Admin with the device password, open **Firmware**, and turn **Enable Shot
+Stopper** back on.
+
 ## Hardware and compatibility
 
 ### Can I use this firmware with a machine other than Rancilio Silvia Pro X or La Marzocco Linea Micra?

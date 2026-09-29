@@ -15,6 +15,10 @@ your network.
   and machine-profile compatibility ID, and must not be older than the running
   version (downgrades are refused).
 
+Compatibility mode does not restrict updates: with the [firmware mode
+switch](../settings/firmware-mode.md) off, the Admin **Firmware update**
+section and the whole OTA pipeline keep working.
+
 ## Safety behavior
 
 The shot always has priority. The paddle is never blocked by an update.

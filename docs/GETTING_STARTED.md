@@ -72,6 +72,9 @@ press **Reload**. If the browser has no saved copy of the page yet, it shows
 its own cannot-connect page instead.
 
 **Admin unlock** is an additional password check for privileged actions.
+The **Firmware** section in Admin holds a master switch that can turn every
+brewing feature off and leave the controller as a transparent pass-through;
+see [firmware mode](settings/firmware-mode.md).
 It stays renewed while Admin is open, or expires 15 minutes after the last
 privileged action. **Lock** closes it immediately without releasing the browser
 claim. Most configuration changes require an idle machine.

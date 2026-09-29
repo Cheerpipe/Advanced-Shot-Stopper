@@ -1,0 +1,49 @@
+# Firmware mode
+
+Master switch that turns every Shot Stopper brewing feature on or off while
+leaving the controller in place.
+
+## When you would use it
+
+- You want the machine to behave exactly as it did before the controller was
+  installed, but you are not ready to disconnect the hardware.
+- You are troubleshooting and want to rule the controller in or out quickly.
+- You are lending the machine to someone who only wants the plain switch.
+
+## What happens when you turn it off
+
+Saving the switch restarts the controller once, safely: a running pour always
+finishes first. After the restart the controller becomes transparent:
+
+- The relay follows the physical paddle or switch one-to-one, the same way the
+  machine's own wiring would. Nothing else touches the machine.
+- Brew by weight, guards, presets, rinse, automatic tare, alerts, webhooks,
+  the scale Bluetooth connection, time sync, and the Linea Micra cloud
+  connection all stop working.
+- The web interface shows only the **Admin** page. Every other tab is hidden
+  and any address takes you there. Inside Admin you keep Network, Power
+  management, Frontend, Device password, Restart, Firmware update, and
+  Factory reset; the sections of disabled features are hidden.
+- Recovery mode, firmware updates over Wi-Fi (OTA), and the USB serial CLI
+  keep working, so you can always reach the controller.
+
+## Nothing is lost
+
+The switch does not erase anything. Presets, guards, scale preferences,
+machine integration, alerts, and every other setting stay saved exactly as
+they were. When you turn the switch back on and the controller restarts, the
+firmware works the way it did before you turned it off.
+
+A [factory reset](factory-reset.md) also turns the firmware back on.
+
+## Where to find it
+
+**Admin** (unlock with the device password) **→ Firmware → Enable Shot
+Stopper**. The change takes effect after **Save firmware settings** and the
+restart that follows. Unplug-level safety behavior does not change: the relay
+still opens on power loss, and a hardware safety fault still stops the
+machine in both modes.
+
+| Setting | Default | Notes |
+| --- | --- | --- |
+| **Enable Shot Stopper** | On | Off = transparent compatibility mode. Saved settings are kept. |

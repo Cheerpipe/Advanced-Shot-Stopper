@@ -941,6 +941,57 @@ alerts, webhooks, or history. No guard or scale component knows Micra state.
 
 ---
 
+## Compatibility mode (firmware master switch)
+
+Compatibility mode is **not** a state machine: it is a boot-scoped mode flag
+(`fwmode` NVS record, namespace `fwmode`, fail-safe to full firmware) read once
+in `setup()` before any subsystem initializes. Saving the switch persists the
+record and queues the same idle-safe `RESTART` command the Admin Restart
+button uses, so a running pour always finishes before the mode flips. There
+are no live transitions; every gate reads one immutable-per-boot value.
+
+While active, `stateMachineTask` services the hard/operational limit block and
+the maintenance-lease block exactly as in full mode, then `serviceCompatibilityMirror`
+replaces the rest of the orchestrator:
+
+- Activator→K1 drive permission is forced allowed every pass (the same lever
+  the wake passthrough uses), so no guard state can suppress forwarding.
+- Paddle builds close on the held activator and open on release through
+  `machineRequestStart(HARD_MAX_CIRCUIT_CLOSED_MS)` / `machineRequestStop()`;
+  momentary builds keep the stock 1:1 switch mirror and simply never receive
+  synthetic pulses.
+- A hard-limit trip or failed close parks the mirror in `REQUIRES_OFF` until
+  the activator returns stably idle — the ON-only mirror never re-closes.
+
+Timer authority in compatibility mode:
+
+| Timer | Authority | In compatibility mode |
+| --- | --- | --- |
+| BBW operational wall (5–60 s, per preset/policy `machineCloseLimitMs`) | brew feature | suspended (close uses `HARD_MAX_CIRCUIT_CLOSED_MS`) |
+| Momentary logical-run walls | brew feature | suspended (no logical run is armed) |
+| Hardware cap `HARD_MAX_CIRCUIT_CLOSED_MS` (pre-return check + independent ISR) | relay safety | enforced |
+| Watchdog, stuck feedback, reset guard, boot-open, LOCKOUT refusal | relay safety | enforced (unchanged) |
+
+Subsystem gates (all boot-scoped, all reusing existing choke points): BLE
+scale worker held idle by `applyLiveBleEnabled(false)`; NTP held stopped by the
+`serviceNtp` gate (manual sync rejected at the handler); the Micra cloud client
+parked through the unconfigured-account path with a cleared session; alerts
+muted in `soundAlertsEnabled()` with recovery cues deliberately exempt; webhook
+dispatch rejected at `enqueueWebhook`. Presets and every other persisted
+setting are untouched; only a factory reset erases them, and it also clears
+`fwmode` back to full mode.
+
+Web commands: `processWebCommand` rejects actuation and disabled-feature
+commands (`REMOTE_ON`, `REMOTE_OFF`, `RINSE`, `STOP`, `STOP_HEARTBEAT`,
+`FORCE_SWITCH_PULSE`, `STATE_OVERRIDE_ON/OFF`, `BLE_SCAN_INTENSITY`,
+`RESET_WEIGHT_OFFSET`, `RESET_AUTO_TO_MANUAL_GUARD_SAMPLES`, `BUZZER_TEST`,
+`BOOKOO_DEBUG`) with `FAILED` results. Configuration, persistence, network,
+restart, OTA, and factory-reset commands keep flowing. The HTTP surface adds
+`POST /api/v1/firmware-mode` (`{enabled: bool}`, admin unlock required) and
+the status envelope carries `compatibilityMode` on every page.
+
+---
+
 ## End reasons (brew outcomes)
 
 These are not a machine. They are **why** the last `finalizeCycle`
