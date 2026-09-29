@@ -541,6 +541,13 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
     memset(customNtp, 0, sizeof(customNtp));
     return ESP_OK;
   }
+  // Compatibility mode keeps date/time settings frozen: the browser-driven
+  // zone patch must not persist while every clock feature is stopped.
+  if (dateTimePatch && firmwareCompatibilityMode()) {
+    memset(customNtp, 0, sizeof(customNtp));
+    return sendError(request, STATUS_UNAVAILABLE, "DATE_TIME_DISABLED",
+                     "Date and time settings are unavailable while the firmware is disabled.");
+  }
   if (diagnosticPagePatch && !self.requireAdminUnlock(request)) {
     memset(customNtp, 0, sizeof(customNtp));
     return ESP_OK;

@@ -11,6 +11,15 @@
   }
 }
 {
+  // Compatibility mode freezes Date & time: the whole patch is rejected even
+  // though the browser zone patch normally bypasses the Admin session.
+  const config = network.slice(network.indexOf('ShotStopperNetwork::configHandler('));
+  if (!config.includes('dateTimePatch && firmwareCompatibilityMode()') ||
+      !config.includes('"DATE_TIME_DISABLED"')) {
+    throw new Error('Compatibility mode must reject Date & time config patches');
+  }
+}
+{
   // Automatic sync off must still let one explicit Sync now complete: the
   // disabled gate may not abort an in-flight manual attempt, and any RF-gate
   // abort path must requeue the request instead of dropping it.
@@ -63,7 +72,7 @@
       validateDateTimeClient: () => null, withBaseRev: p => p,
       dateTimePayload: () => ({timezoneId: select.value, ntpServerPreset: 'pool', ntpServerCustom: ''}),
       markDateTimeDirty() { c.dateTimeDirty = true; }, refreshStatus: async () => {},
-      dateTimeDirty: false, controlsMutable: true, commandBusy: false, diagnosticUnlocked: true, activeView: 'admin',
+      compatMode: false, dateTimeDirty: false, controlsMutable: true, commandBusy: false, diagnosticUnlocked: true, activeView: 'admin',
       api: async (url, options) => {
         if (url.endsWith('/zones')) return ['Etc/UTC', 'America/Santiago', 'Asia/Tokyo'];
         if (!c.diagnosticUnlocked) throw new Error('Admin locked');
@@ -134,6 +143,12 @@
     ['manual mode performs no browser detection after a durable save', async () => {
       const h = harness();
       await h.c.syncTimezone({timezoneId: 'Asia/Tokyo', timezoneInitialized: true, timezoneAutomatic: false});
+      assert.equal(h.state.detections, 0); assert.equal(h.state.commands, 0);
+    }],
+    ['compatibility mode performs no detection and sends no zone patch', async () => {
+      const h = harness(), status = {timezoneId: '', timezoneInitialized: false, timezoneAutomatic: true};
+      h.c.compatMode = true;
+      await h.c.syncTimezone(status);
       assert.equal(h.state.detections, 0); assert.equal(h.state.commands, 0);
     }],
     ['automatic mode follows zone changes and avoids unchanged writes', async () => {

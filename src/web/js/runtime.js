@@ -151,7 +151,7 @@ refreshTimezonePreview();
 }
 
 async function syncTimezone(c){
-if(!c||c.timezoneInitialized==null||autoInitPending||!controlsMutable||commandBusy||
+if(compatMode||!c||c.timezoneInitialized==null||autoInitPending||!controlsMutable||commandBusy||
 (c.timezoneInitialized&&(!c.timezoneAutomatic||dateTimeDirty)))return;
 const id=browserTimezone();if(!id||c.timezoneId===id)return;
 autoInitPending=true;
