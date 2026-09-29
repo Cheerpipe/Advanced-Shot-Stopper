@@ -753,6 +753,12 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       none.fs || none.goal !== 36) {
     throw new Error('Rule chart: both guards off must be BBW-only with goal');
   }
+  const goalTick = (m) => (m.wTick || []).some((t) => t[0] === base.goalWeightG);
+  if (!goalTick(both) || !goalTick(fastOnly) ||
+      goalTick(slowOnly) || goalTick(none)) {
+    throw new Error(
+        'Rule chart: goal weight tick must appear only with Fast guard on');
+  }
   const ignoredGuards = helpers.buildRuleChartModel({
     ...base, brewByWeight: false, fastExtractionGuardEnabled: true,
     slowExtractionGuardEnabled: true
