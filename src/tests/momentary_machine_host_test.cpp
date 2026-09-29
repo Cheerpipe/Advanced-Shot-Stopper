@@ -45,6 +45,7 @@ void deleteHostResources() {
 
 void resetMomentaryHarness() {
   deleteHostResources();
+  firmwareModeRaw = static_cast<uint8_t>(shotstopper::FirmwareMode::FULL);
   Serial.reset();
   resetSerialCliState();
   hostMillis = 0;
@@ -2323,6 +2324,31 @@ void t_logical_wall_trips_existing_flags() {
         operationalLimitTripped || !momentaryLogicalRunActive);
 }
 
+void t_compatibility_mode_mirrors_without_session() {
+  resetMomentaryHarness();
+  firmwareModeRaw =
+      static_cast<uint8_t>(shotstopper::FirmwareMode::COMPATIBILITY);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  CHECK(stopperState == StopperState::READY);
+  pressDown();
+  CHECK(getRelaySafetySnapshot().closed);
+  CHECK(!session.active);
+  releaseUp();
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(!session.active);
+  // Web actuation is rejected while the firmware is disabled.
+  hostForwardAcceptedNetworkCommandSucceeds = false;
+  controlResultPending = false;
+  controlResultCommand = WebCommand{};
+  WebCommand remoteOn;
+  remoteOn.type = WebCommandType::REMOTE_ON;
+  remoteOn.requestId = 7;
+  processWebCommand(remoteOn);
+  CHECK(controlResultPending);
+  CHECK(controlResultCommand.resultState == CommandResultState::FAILED);
+  hostForwardAcceptedNetworkCommandSucceeds = true;
+}
+
 struct TestCase {
   const char *id;
   void (*function)();
@@ -2408,6 +2434,7 @@ const TestCase kTests[] = {
     {"P53", t_timer_only_confirmed_skips_operational_wall_pulses_at_hard_cap},
     {"P54", t_timer_only_unconfirmed_idles_at_hard_cap_without_pulse},
 #endif
+    {"CM10", t_compatibility_mode_mirrors_without_session},
     {"P25T", t_forced_pulse_has_no_logical_side_effects},
     {"P25U", t_forced_pulse_queues_once_behind_active_pulse},
     {"P25V", t_physical_press_cancels_pending_forced_pulse},

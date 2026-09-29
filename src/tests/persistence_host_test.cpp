@@ -2,6 +2,7 @@
 #include "../ShotStopperPersistence.h"
 #include "../ShotStopperBleScanPersistence.h"
 #include "../ShotStopperDurableStores.h"
+#include "../ShotStopperFirmwareMode.h"
 #include "../ShotStopperRecovery.h"
 #include "../ShotStopperRecoveryGesture.h"
 #include "../ShotStopperShotLog.h"
@@ -2382,7 +2383,38 @@ void p86_timezone_preference_and_durable_initialization() {
   CHECK(!durableTimezoneSaved().load());
 }
 
+void p90_firmware_mode_store_round_trip_and_factory_reset() {
+  resetHostPersistence();
+  // Absent or invalid records fail safe to full firmware mode.
+  CHECK(loadFirmwareMode() == FirmwareMode::FULL);
+  CHECK(saveFirmwareMode(FirmwareMode::COMPATIBILITY));
+  CHECK(loadFirmwareMode() == FirmwareMode::COMPATIBILITY);
+  CHECK(saveFirmwareMode(FirmwareMode::FULL));
+  CHECK(loadFirmwareMode() == FirmwareMode::FULL);
+  CHECK(!saveFirmwareMode(static_cast<FirmwareMode>(0)));
+  CHECK(loadFirmwareMode() == FirmwareMode::FULL);
+  // Factory reset restores full mode: the master switch must never survive
+  // the one recovery path that is always reachable.
+  CHECK(saveFirmwareMode(FirmwareMode::COMPATIBILITY));
+  PersistedSettings settings;
+  CHECK(initializeDefaultSettings(settings));
+  CHECK(savePersistedSettings(settings));
+  ShotLog log;
+  CHECK(log.load());
+  HistoryLog history;
+  CHECK(history.load());
+  LastShotStore lastShot;
+  CHECK(lastShot.load());
+  BleScanPersistedSettings ble;
+  ShotCurveLog curves;
+  CHECK(curves.load());
+  CHECK(resetAllDurableStores(settings, ble, log, history, lastShot,
+                              curves));
+  CHECK(loadFirmwareMode() == FirmwareMode::FULL);
+}
+
 const TestCase tests[] = {
+    {"P90", p90_firmware_mode_store_round_trip_and_factory_reset},
     {"P86", p86_timezone_preference_and_durable_initialization},
     {"P85", p85_schema1_is_strict_and_micra_defaults_round_trip},
     {"P82", p82_ble_scan_strict_versions_and_roundtrip},

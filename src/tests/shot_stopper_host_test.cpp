@@ -64,6 +64,7 @@ void deleteHostResources() {
 void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   deleteHostResources();
 
+  firmwareModeRaw = static_cast<uint8_t>(shotstopper::FirmwareMode::FULL);
   Serial.reset();
   resetSerialCliState();
 
@@ -441,20 +442,22 @@ void preparePendingBbwForTest() {
 
 void verifySafetyInvariants() {
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
+  const bool compatibilityMirror = firmwareCompatibilityMode();
   const bool stateMayCloseRelay =
       stopperState == StopperState::BREW ||
       stopperState == StopperState::RINSE ||
       stopperState == StopperState::MANUAL_NO_SCALE ||
-      machineWakePassthroughActive;
+      machineWakePassthroughActive || compatibilityMirror;
 
   if (relay.closed &&
       (!stateMayCloseRelay ||
-       (!session.active && !machineWakePassthroughActive))) {
+       (!session.active && !machineWakePassthroughActive &&
+        !compatibilityMirror))) {
     std::cerr << "Safety invariant failed: machine circuit closed in "
               << stopperStateName(stopperState) << "\n";
     ++failures;
   }
-  if (!machineWakePassthroughActive &&
+  if (!machineWakePassthroughActive && !compatibilityMirror &&
       (stopperState == StopperState::READY ||
        stopperState == StopperState::REQUIRES_OFF) &&
       relay.closed) {
@@ -16718,6 +16721,136 @@ struct TestCase {
   TestFunction function;
 };
 
+void enterCompatibilityMode() {
+  firmwareModeRaw =
+      static_cast<uint8_t>(shotstopper::FirmwareMode::COMPATIBILITY);
+}
+
+void cm01_compatibility_mirror_follows_activator() {
+  resetHarness(false, false);
+  enterCompatibilityMode();
+  reachReadyFromBoot();
+  CHECK(stopperState == StopperState::READY);
+  for (int cycle = 0; cycle < 2; ++cycle) {
+    setRawPaddle(true);
+    runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
+    CHECK(getRelaySafetySnapshot().closed);
+    CHECK(stopperState == StopperState::READY);
+    CHECK(!session.active);
+    // A held brew stays closed with no BBW feature wall cutting it.
+    runLoopAfter(2000);
+    CHECK(getRelaySafetySnapshot().closed);
+    setRawPaddle(false);
+    runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
+    CHECK(!getRelaySafetySnapshot().closed);
+    CHECK(!session.active);
+  }
+}
+
+void cm02_compatibility_parks_after_hard_limit() {
+  resetHarness(false, false);
+  enterCompatibilityMode();
+  reachReadyFromBoot();
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
+  CHECK(getRelaySafetySnapshot().closed);
+  // The hardware cap still opens the circuit in compatibility mode.
+  runLoopAfter(HARD_MAX_CIRCUIT_CLOSED_MS + 100);
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(stopperState == StopperState::REQUIRES_OFF);
+  // A held activator must not re-close after the hard-limit park.
+  runLoopAfter(2000);
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(stopperState == StopperState::REQUIRES_OFF);
+  // Returning the activator to idle re-arms the transparent mirror.
+  setRawPaddle(false);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 50);
+  CHECK(stopperState == StopperState::READY);
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
+  CHECK(getRelaySafetySnapshot().closed);
+}
+
+void cm03_compatibility_rejects_actuation_commands() {
+  resetHarness(false, false);
+  enterCompatibilityMode();
+  reachReadyFromBoot();
+  hostForwardAcceptedNetworkCommandSucceeds = false;
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
+  CHECK(getRelaySafetySnapshot().closed);
+  const WebCommandType blocked[] = {
+      WebCommandType::REMOTE_ON,   WebCommandType::REMOTE_OFF,
+      WebCommandType::RINSE,       WebCommandType::STOP,
+      WebCommandType::STOP_HEARTBEAT, WebCommandType::FORCE_SWITCH_PULSE,
+      WebCommandType::STATE_OVERRIDE_ON, WebCommandType::STATE_OVERRIDE_OFF,
+  };
+  for (WebCommandType type : blocked) {
+    controlResultPending = false;
+    controlResultCommand = WebCommand{};
+    processWebCommand(webControlCommand(type));
+    CHECK(controlResultPending);
+    CHECK(controlResultCommand.resultState == CommandResultState::FAILED);
+    CHECK(!controlResultCommand.succeeded);
+    CHECK(!session.active);
+    // A rejected web stop must never open the mirrored circuit.
+    CHECK(getRelaySafetySnapshot().closed);
+  }
+  setRawPaddle(false);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
+  // Non-actuation commands keep answering.
+  controlResultPending = false;
+  controlResultCommand = WebCommand{};
+  processWebCommand(webControlCommand(WebCommandType::TASK_PROFILER_STOP));
+  CHECK(controlResultCommand.resultState == CommandResultState::APPLIED);
+  hostForwardAcceptedNetworkCommandSucceeds = true;
+}
+
+void cm04_compatibility_blocks_ble_enable_command() {
+  resetHarness(false, false);
+  enterCompatibilityMode();
+  reachReadyFromBoot();
+  hostForwardAcceptedNetworkCommandSucceeds = false;
+  WebCommand command = webControlCommand(WebCommandType::BLE_SCAN_INTENSITY);
+  command.bleScan.specified = BleScanCommandPayload::ENABLED;
+  command.bleScan.enabled = 1;
+  controlResultPending = false;
+  controlResultCommand = WebCommand{};
+  processWebCommand(command);
+  CHECK(controlResultPending);
+  CHECK(controlResultCommand.resultState == CommandResultState::FAILED);
+  hostForwardAcceptedNetworkCommandSucceeds = true;
+}
+
+void cm05_compatibility_mutes_alerts_except_recovery() {
+  resetHarness(false, false);
+  CHECK(soundAlertsEnabled());
+  enterCompatibilityMode();
+  CHECK(!soundAlertsEnabled());
+  const AlertChannelContext ctx = currentAlertChannelContext();
+  CHECK(!ctx.soundAlertsEnabled);
+  CHECK(ctx.buzzerSupportEnabled);
+  CHECK(selectAlertSink(AlertKind::Independent, AlertEvent::FIRST_DROP,
+                        ctx) == AlertSink::None);
+  CHECK(selectAlertSink(AlertKind::Recovery, AlertEvent::FIRST_DROP,
+                        ctx) == AlertSink::Buzzer);
+}
+
+void cm06_compatibility_command_gate_scope() {
+  resetHarness(false, false);
+  // Full mode by default: the mode flag itself is what gates the denylist.
+  CHECK(!firmwareCompatibilityMode());
+  enterCompatibilityMode();
+  CHECK(firmwareCompatibilityMode());
+  CHECK(webCommandBlockedInCompatibilityMode(WebCommandType::REMOTE_ON));
+  CHECK(webCommandBlockedInCompatibilityMode(WebCommandType::RINSE));
+  CHECK(webCommandBlockedInCompatibilityMode(WebCommandType::BLE_SCAN_INTENSITY));
+  CHECK(!webCommandBlockedInCompatibilityMode(WebCommandType::RESTART));
+  CHECK(!webCommandBlockedInCompatibilityMode(WebCommandType::FACTORY_RESET));
+  CHECK(!webCommandBlockedInCompatibilityMode(WebCommandType::APPLY_CONFIG));
+  CHECK(!webCommandBlockedInCompatibilityMode(WebCommandType::SAVE_NETWORK));
+}
+
 const TestCase testCases[] = {
     {"POW01", pow01_scale_disconnect_grace_and_rinse_clock},
     {"POW02", pow02_idle_scan_preserves_saved_preference},
@@ -17363,6 +17496,12 @@ const TestCase testCases[] = {
     {"BC09", bc09_ble_scan_legacy_intensity_ids_parse_as_aliases},
     {"BC10", bc10_ble_master_switch_quiesces_scale_link},
     {"BC11", bc11_ble_master_switch_command_persists_live_without_restart},
+    {"CM01", cm01_compatibility_mirror_follows_activator},
+    {"CM02", cm02_compatibility_parks_after_hard_limit},
+    {"CM03", cm03_compatibility_rejects_actuation_commands},
+    {"CM04", cm04_compatibility_blocks_ble_enable_command},
+    {"CM05", cm05_compatibility_mutes_alerts_except_recovery},
+    {"CM06", cm06_compatibility_command_gate_scope},
 };
 
 }  // namespace
