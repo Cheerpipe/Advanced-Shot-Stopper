@@ -237,8 +237,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // of HTML source allowance; compressed asset budgets stay fixed.
 // The Admin Automatic date & time toggle (NTP sync master switch) adds
 // ~0.2 KB of HTML source allowance; compressed asset budgets stay fixed.
-if (htmlBytes > 76900) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 76900)`);
+// The Admin Firmware master-switch section adds ~1 KB of HTML source
+// allowance; compressed asset and firmware budgets stay unchanged.
+if (htmlBytes > 78800) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 78800)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -295,8 +297,10 @@ if (htmlBytes > 76900) {
 // Deferred Admin BLE/Power/Frontend saving moves theme persistence behind
 // Save and adds dirty flags, guarded hydration, and save/revert handlers for
 // ~4 KB of JS source allowance.
-if (jsBytes > 220200) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 220200)`);
+// The firmware master switch adds the Admin Firmware section wiring plus
+// compatibility-mode tab/section gating for ~2.5 KB of JS source allowance.
+if (jsBytes > 224800) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 224800)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -309,8 +313,13 @@ if (jsBytes > 220200) {
 // allowance (bars in HTML, dirty/save/revert logic in JS).
 // The Admin Automatic date & time toggle adds ~0.4 KB of combined source
 // allowance (checkbox row in HTML, payload/load/dirty hooks in JS).
-if (htmlBytes + jsBytes > 297200) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 297200)`);
+// The Admin Automatic date & time toggle adds ~0.4 KB of combined source
+// allowance (checkbox row in HTML, payload/load/dirty hooks in JS).
+// The firmware master switch adds ~6.5 KB of combined source allowance
+// (Firmware section in HTML; section wiring and compatibility-mode gating
+// in JS).
+if (htmlBytes + jsBytes > 303700) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 303700)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

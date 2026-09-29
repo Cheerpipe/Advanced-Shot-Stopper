@@ -456,7 +456,9 @@ if (generated.cssGzip.length > 7400) {
 // Deferred Admin BLE/Power/Frontend saving (dirty flags and markers, guarded
 // hydration with panel baselines, relocated theme helpers) raises it to
 // 41300 bytes.
-if (sentinelRuntimeGzip.length > 41300) {
+// Compatibility-mode gating (status flag, nav chrome, firmware-mode save
+// flow in command()) raises it to 41450 bytes.
+if (sentinelRuntimeGzip.length > 41450) {
   throw new Error(`Compressed Web UI runtime JS exceeds the 40000-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
@@ -471,7 +473,9 @@ if (generated.otaImageGzip.length > 3072) {
 // date-time revert handler raise it to 7420 bytes.
 // Deferred Admin BLE/Power/Frontend save and revert handlers raise it to
 // 7650 bytes.
-if (generated.secondaryGzip.length > 7650) {
+// The Admin Firmware master-switch section (checkbox hydration, save/revert
+// wiring, compatibility-mode section hiding) raises it to 7950 bytes.
+if (generated.secondaryGzip.length > 7950) {
   throw new Error(`Compressed secondary view JS exceeds the 7140-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {
@@ -506,7 +510,10 @@ if (generated.icon48Gzip.length > 3500) {
 // versioned image and rodata growth budgets stay untouched.
 // Deferred Admin BLE/Power/Frontend saving (save/revert bars, dirty-state
 // handling, and relocated theme helpers) raises it to 108800 bytes.
-if (generated.combined > 108800) {
+// The Admin Firmware master-switch section and compatibility-mode gating
+// raise it to 109800 bytes; the firmware image carries the same assets
+// once, so the versioned image and rodata growth budgets stay untouched.
+if (generated.combined > 109800) {
   throw new Error(`Combined Web UI gzip exceeds the 108200-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
