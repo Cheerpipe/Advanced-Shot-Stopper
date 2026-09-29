@@ -13,8 +13,11 @@ or custom, and its target weight; the graph and settings show the other limits.
 3. Rename the card, edit its brew settings, and select **Save preset**.
 4. Switch to another preset and back to check the saved recipe.
 
-Duplicate names receive a suffix, such as "Double copy 2". Factory cards cannot be deleted. You can delete custom
-presets, but not the last remaining preset. The active preset survives reboot.
+Duplicate names receive a suffix, such as "Double copy 2". You can keep up to
+eight presets in total, Single and Double included. Once you have eight, New
+and Duplicate stop creating cards — delete a custom preset to make room for a
+new one. Factory cards cannot be deleted. You can delete custom presets, but
+not the last remaining preset. The active preset survives reboot.
 
 ## What is saved where
 
