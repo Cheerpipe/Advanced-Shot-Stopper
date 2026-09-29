@@ -257,6 +257,58 @@ if ss_ota_protocol_supported; then
   failures=$((failures + 1))
 fi
 
+# Conflict decision matrix for a different image owning the update slot.
+ss_can_prompt() { return "${mock_can_prompt:-1}"; }
+ss_ota_confirm_discard() { return "${mock_discard_answer:-0}"; }
+printf '{"otaProtocolVersion":3,"state":"receiving","sessionActive":true,"transferId":"existing-transfer","sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","expectedBytes":8192,"nextOffset":4096,"sessionArch":"n16r8","sessionHardware":"legacy","sessionMachine":"legacy","sessionVersion":"1.0.0"}' > "$SS_OTA_BODY_FILE"
+ss_ota_explain_conflict 2> "$output_file"
+explain_output="$(<"$output_file")"
+case "$explain_output" in
+  *'interrupted upload at 50%'*) ;;
+  *) echo 'FAIL: conflict explanation lost the upload progress' >&2
+     failures=$((failures + 1)) ;;
+esac
+case "$explain_output" in
+  *$'\033'*)
+    echo 'FAIL: conflict explanation emitted color without a terminal' >&2
+    failures=$((failures + 1)) ;;
+esac
+printf '{"otaProtocolVersion":3,"state":"staged","transferId":"existing-transfer","sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","expectedBytes":8192,"nextOffset":8192,"sessionArch":"n16r8","sessionHardware":"legacy","sessionMachine":"legacy","sessionVersion":"1.0.0"}' > "$SS_OTA_BODY_FILE"
+ss_ota_explain_conflict 2> "$output_file"
+case "$(<"$output_file")" in
+  *'waiting for its commit'*) ;;
+  *) echo 'FAIL: staged conflict was not described as pending commit' >&2
+     failures=$((failures + 1)) ;;
+esac
+printf '{"otaProtocolVersion":3,"state":"receiving","sessionActive":true,"transferId":"existing-transfer","sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","expectedBytes":8192,"nextOffset":4096,"sessionArch":"n16r8","sessionHardware":"legacy","sessionMachine":"legacy","sessionVersion":"1.0.0"}' > "$SS_OTA_BODY_FILE"
+ss_ota_conflict_decision 0 1 > /dev/null 2>&1
+check test "$SS_OTA_DISCARD_REASON" = 'requested with --discard-ota-session'
+ss_ota_conflict_decision 1 0 > /dev/null 2>&1
+check test "$SS_OTA_DISCARD_REASON" = 'assumed through --yes'
+if ss_ota_conflict_decision 0 0 > "$output_file" 2>&1; then
+  echo 'FAIL: conflict was discarded without --yes or a terminal' >&2
+  failures=$((failures + 1))
+fi
+case "$(<"$output_file")" in
+  *'was kept. To replace it, re-run with --discard-ota-session'*) ;;
+  *) echo 'FAIL: keeping the remote image lost its guidance' >&2
+     failures=$((failures + 1)) ;;
+esac
+mock_can_prompt=0 mock_discard_answer=1
+if ss_ota_conflict_decision 0 0 > "$output_file" 2>&1; then
+  echo 'FAIL: a declined discard still continued' >&2
+  failures=$((failures + 1))
+fi
+case "$(<"$output_file")" in
+  *'was kept'*) ;;
+  *) echo 'FAIL: a declined discard lost its keep notice' >&2
+     failures=$((failures + 1)) ;;
+esac
+mock_can_prompt=0 mock_discard_answer=0
+ss_ota_conflict_decision 0 0 > /dev/null 2>&1
+check test "$SS_OTA_DISCARD_REASON" = 'confirmed interactively'
+unset mock_can_prompt mock_discard_answer
+
 # The real POST body must contain only the seven public session fields.
 ss_ota_write_session_body
 check node -e 'const x=JSON.parse(require("fs").readFileSync(process.argv[1]));if(Object.keys(x).sort().join()!=="arch,hardware,machine,sha256,size,transferId,version")process.exit(1)' "$SS_OTA_SESSION_BODY"

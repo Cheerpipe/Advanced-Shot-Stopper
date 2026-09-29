@@ -75,15 +75,8 @@ ss_ota_status_quiet() {
 }
 
 ss_ota_report_failure() {
-  local operation="$1" error message
-  error="$(ss_ota_field error | tr '\r\n\t' '   ')"
-  message="$(ss_ota_field message | tr '\r\n\t' '   ')"
-  error="${error:0:96}"
-  message="${message:0:300}"
-  printf '%s failed: curl=%s HTTP=%s%s%s.\n' \
-      "$operation" "${SS_OTA_CURL_EXIT:-unknown}" \
-      "${SS_OTA_HTTP_STATUS:-no-response}" \
-      "${error:+ code=$error}" "${message:+ message=$message}" >&2
+  ss_ota_report_values "$1" "${SS_OTA_CURL_EXIT:-}" "${SS_OTA_HTTP_STATUS:-}" \
+      "$(ss_ota_field error)" "$(ss_ota_field message)"
 }
 
 ss_ota_report_values() {
@@ -141,6 +134,71 @@ ss_ota_staged_matches_image() {
       [[ "$(ss_ota_field staged.machine)" == "$SS_OTA_IMAGE_MACHINE" ]] &&
       [[ "$(ss_ota_field staged.version)" == "$SS_OTA_IMAGE_VERSION" ]] &&
       [[ "$(ss_ota_field staged.packed)" == "$SS_OTA_IMAGE_PACKED" ]]
+}
+
+ss_ota_explain_conflict() {
+  # Plain-language report for a different image owning the update slot. The
+  # warning color is conditional so redirected logs and CI stay escape-free.
+  local warn='' reset='' detail
+  if [[ -t 2 ]]; then warn=$'\033[33m'; reset=$'\033[0m'; fi
+  if [[ "$(ss_ota_field state)" == "staged" ]]; then
+    detail='fully uploaded and verified, waiting for its commit'
+  else
+    local received total percent=0
+    received="$(ss_ota_field nextOffset)"
+    total="$(ss_ota_field expectedBytes)"
+    if [[ "$received" =~ ^[0-9]+$ ]] && [[ "$total" =~ ^[0-9]+$ ]] &&
+        (( total > 0 )); then
+      percent=$((received * 100 / total))
+    fi
+    detail="an interrupted upload at ${percent}%"
+  fi
+  printf '%sA different firmware image owns the update slot:%s %s.\n' \
+      "$warn" "$reset" "$detail" >&2
+  echo 'Resumable OTA never replaces another build on its own; discarding drops that progress and restarts from byte zero.' >&2
+  printf 'Remote: sha256=%s size=%s arch=%s hardware=%s machine=%s version=%s\n' \
+      "$(ss_ota_field sha256)" "$(ss_ota_field expectedBytes)" \
+      "$(ss_ota_field sessionArch)" "$(ss_ota_field sessionHardware)" \
+      "$(ss_ota_field sessionMachine)" "$(ss_ota_field sessionVersion)" >&2
+  printf 'Local:  sha256=%s size=%s arch=%s hardware=%s machine=%s version=%s\n' \
+      "$SS_OTA_IMAGE_SHA256" "$SS_OTA_IMAGE_SIZE" \
+      "$SS_OTA_IMAGE_ARCH" "$SS_OTA_IMAGE_HARDWARE" \
+      "$SS_OTA_IMAGE_MACHINE" "$SS_OTA_IMAGE_VERSION" >&2
+}
+
+ss_ota_confirm_discard() {
+  # Unlike the commit prompt's [y/N] (a commit reboots the machine), the cost
+  # of wrongly discarding is only re-uploading the remote partial, so Y is
+  # the default. stdin may already be consumed by --password-stdin: read the
+  # terminal directly.
+  local answer
+  printf 'Discard it and upload this image instead? [Y/n]: ' > /dev/tty
+  IFS= read -r answer < /dev/tty || answer=""
+  case "$answer" in
+    n|N|no|NO) return 1 ;;
+  esac
+  return 0
+}
+
+ss_ota_conflict_decision() {
+  # yes flag, explicit discard flag. Returns 0 to discard and records the
+  # announcement reason in SS_OTA_DISCARD_REASON; returns 1 to keep and stop.
+  local yes="$1" explicit="$2"
+  ss_ota_explain_conflict
+  if [[ "$explicit" == "1" ]]; then
+    SS_OTA_DISCARD_REASON='requested with --discard-ota-session'
+    return 0
+  fi
+  if [[ "$yes" == "1" ]]; then
+    SS_OTA_DISCARD_REASON='assumed through --yes'
+    return 0
+  fi
+  if ss_can_prompt && ss_ota_confirm_discard; then
+    SS_OTA_DISCARD_REASON='confirmed interactively'
+    return 0
+  fi
+  echo 'The remote image was kept. To replace it, re-run with --discard-ota-session or use Discard in the Web UI (Admin).' >&2
+  return 1
 }
 
 ss_ota_backoff() {
@@ -387,25 +445,17 @@ ss_ota_run() {
       SS_OTA_TRANSFER_ID="$(ss_ota_field transferId)"
       printf 'Resuming matching OTA session %s at byte %s.\n' \
           "$SS_OTA_TRANSFER_ID" "$(ss_ota_field nextOffset)"
-    elif [[ "$discard_existing" == "1" ]]; then
-      echo 'Discarding the different OTA session as explicitly requested.'
+    else
+      if ! ss_ota_conflict_decision "$yes" "$discard_existing"; then
+        return 1
+      fi
+      printf 'Discarding the different OTA session (%s).\n' \
+          "$SS_OTA_DISCARD_REASON"
       if ! ss_ota_request POST /api/v1/ota/abort "" 20 ||
           [[ "$SS_OTA_HTTP_STATUS" != "200" ]]; then
         ss_ota_report_failure 'Discarding the existing OTA session'
         return 1
       fi
-    else
-      echo 'A different firmware image owns the update slot.' >&2
-      printf 'Remote: sha256=%s size=%s arch=%s hardware=%s machine=%s version=%s\n' \
-          "$(ss_ota_field sha256)" "$(ss_ota_field expectedBytes)" \
-          "$(ss_ota_field sessionArch)" "$(ss_ota_field sessionHardware)" \
-          "$(ss_ota_field sessionMachine)" "$(ss_ota_field sessionVersion)" >&2
-      printf 'Local:  sha256=%s size=%s arch=%s hardware=%s machine=%s version=%s\n' \
-          "$SS_OTA_IMAGE_SHA256" "$SS_OTA_IMAGE_SIZE" \
-          "$SS_OTA_IMAGE_ARCH" "$SS_OTA_IMAGE_HARDWARE" \
-          "$SS_OTA_IMAGE_MACHINE" "$SS_OTA_IMAGE_VERSION" >&2
-      echo 'Re-run with --discard-ota-session only if the remote partial should be discarded.' >&2
-      return 1
     fi
   fi
   if [[ -z "${SS_OTA_TRANSFER_ID:-}" ]]; then

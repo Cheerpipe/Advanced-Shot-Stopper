@@ -79,9 +79,10 @@ keeps a checksummed, double-record journal every 512 KiB so the same transfer
 can continue after a client or controller restart. A TCP cut keeps complete
 4 KiB sectors; reboot can retreat to the last durable checkpoint and resend
 its tail. Staged state is RAM-only: reboot after staging requires a new upload.
-A different build is left untouched and
-must be discarded explicitly with `--discard-ota-session` before a new session
-can begin.
+A different build is never overwritten silently: the CLI explains what the
+slot holds and asks whether to discard it — Y is the default, so pressing
+Enter replaces it and continues. `--discard-ota-session` answers that question
+in advance, and `--yes` assumes yes for unattended runs.
 
 Success after reboot requires a changed `bootId`, the expected running image
 digest and `confirmed: true`. Matching version strings alone are insufficient,
@@ -128,7 +129,7 @@ OTA commit consent and post-boot verification are independent:
 | Options | Commit behavior | Completion behavior |
 | --- | --- | --- |
 | neither | Ask in the terminal. | Return after commit is accepted. |
-| `--yes` | Commit without asking. | Return after commit is accepted. |
+| `--yes` | Assume yes for every prompt: commit without asking, and discard a different remote image automatically. | Return after commit is accepted. |
 | `--wait-for-confirmation` | Ask in the terminal. | Verify the expected new boot and confirmed image. |
 | both | Commit without asking. | Verify the expected new boot and confirmed image. |
 
@@ -179,8 +180,10 @@ Related: [Wi-Fi](../settings/wifi.md), [AP](../settings/ap.md),
 3. For `CONFIG_LOCKED_DURING_ACTIVE_CYCLE`, stop the cycle and wait for Ready.
 4. For a matching partial image, select the same file or run the same CLI
    command; it resumes automatically from `nextOffset`.
-5. For a different partial image, preserve it unless it is intentionally being
-   replaced. Use **Discard** in Admin or `--discard-ota-session` explicitly.
+5. For a different partial image, the CLI asks before replacing it (Y is the
+   default). To keep it, answer no and re-upload the matching build later, or
+   discard it on purpose with **Discard** in Admin or `--discard-ota-session`.
+   Unattended `--yes` runs discard it automatically.
 6. For `NO_IDENTITY` or a controller without the resumable session schema,
    install one current image over USB. Do not use `--no-check` or a legacy OTA
    fallback to bypass the incompatibility.

@@ -36,15 +36,18 @@ Example through the public facade:
 Without --image, the image comes from the selected profile pair's build folder.
 Use ./scripts/dev build ota to build and upload in one command.
 
-Use --yes to commit without asking. Use --wait-for-confirmation independently
-to wait until the rebooted firmware confirms itself through its HTTP API.
+Use --yes to assume yes for every prompt: it commits without asking and, when
+a different image owns the update slot, discards it automatically. Use
+--wait-for-confirmation independently to wait until the rebooted firmware
+confirms itself through its HTTP API.
 
 Resumable OTA rejects --no-check because SHA-256, architecture, hardware
 profile, machine profile, and version are required to safely resume one image.
 
-Use --discard-ota-session to explicitly discard a partial or staged different
-image before creating the requested session. Matching images resume
-automatically and do not need this flag.
+When a different image owns the update slot, an interactive run explains the
+situation and asks whether to discard it (Y is the default). --discard-ota-session
+answers that question in advance; matching images resume automatically and
+never need the flag.
 EOF
 }
 

@@ -159,7 +159,8 @@ Named parameters (long and short):
       --force-sdkconfig-regenerate
                            Recreate build configuration from repository defaults
                            (build only; discards local menuconfig choices)
-      --yes                Commit OTA without an interactive question
+      --yes                Assume yes for every OTA prompt (commit, and
+                           discarding a different remote image)
       --wait-for-confirmation
                            Wait for verified boot after OTA commit
       --no-check           Skip local image verification before USB flashing;
@@ -167,7 +168,8 @@ Named parameters (long and short):
       --erase-all          Erase the complete chip before a full USB flash
                            (destroys firmware, settings, Wi-Fi and history)
       --discard-ota-session
-                           Explicitly discard a different partial OTA image
+                           Discard a different partial OTA image without
+                           asking
   -h, --help               Show this help
 
 Each parameter comes from the flag, its environment variable, the .shotstopper
