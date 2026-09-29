@@ -34,6 +34,10 @@ The initial profiles are:
 | `config/machines/rancilio-silvia-pro-x-reed.json` | Rancilio Silvia Pro X, momentary button with required reed feedback |
 | `config/machines/la-marzocco-linea-micra.json` | La Marzocco Linea Micra, maintained paddle input plus cloud power observation and optional wake-gesture recognition |
 
+The Linea Micra is this project's reference machine: the command examples
+throughout the documentation select the `esp32-s3-relay-x1-speaker` hardware
+with the `la-marzocco-linea-micra` machine.
+
 Every initial integration is marked `unqualified`. The JSON is a supported
 build definition, not evidence that its wiring has passed the manual electrical
 and machine tests.
@@ -51,7 +55,7 @@ Then select exactly one hardware profile and one machine profile:
 ```sh
 ./scripts/dev build \
   --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x
+  --machine la-marzocco-linea-micra
 ```
 
 Each selector accepts either an exact built-in ID or an explicit JSON path.

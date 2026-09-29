@@ -34,7 +34,7 @@ partition checks. Use `--erase-all` for a clean schema-3 installation:
 ```sh
 ./scripts/dev build flash --confirm \
   --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x \
+  --machine la-marzocco-linea-micra \
   --port /dev/cu.usbmodem2101 \
   --erase-all
 ```
@@ -56,7 +56,7 @@ Upload a built image to a controller on the same network without a USB cable:
 ```sh
 ./scripts/dev build ota --confirm \
   --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x \
+  --machine la-marzocco-linea-micra \
   --host 192.168.1.50 \
   --yes --wait-for-confirmation
 ```

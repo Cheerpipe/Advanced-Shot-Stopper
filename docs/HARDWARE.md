@@ -121,7 +121,7 @@ on the physical activator:
 
 ```sh
 ./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x \
+  --machine la-marzocco-linea-micra \
   --flags "-DOPEN_BREW_BY_WEIGHT_SAFETY_HEARTBEAT_GPIO=16 -DOPEN_BREW_BY_WEIGHT_CIRCUIT_FEEDBACK_GPIO=17"
 ```
 

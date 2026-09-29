@@ -38,9 +38,9 @@ Prepare the database once, then run any tool:
 
 ```sh
 ./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x
+  --machine la-marzocco-linea-micra
 ./scripts/static-idf --arch n16r8 \
-  --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
+  --build-dir build-idf/esp32-s3-relay-x1-speaker--la-marzocco-linea-micra
 ```
 
 `--arch` is `n8r4` or `n16r8`; see [Build scripts](SCRIPTS.md) for how
@@ -178,9 +178,9 @@ export ESP_CLANG_TIDY=/path/to/esp-clang/bin/clang-tidy
 
 ```sh
 ./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x
+  --machine la-marzocco-linea-micra
 ./scripts/static-tidy-idf --arch n16r8 \
-  --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
+  --build-dir build-idf/esp32-s3-relay-x1-speaker--la-marzocco-linea-micra
 ```
 
 What the script does:
@@ -229,9 +229,9 @@ under `esp-idf/`.
 
 ```sh
 ./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x
+  --machine la-marzocco-linea-micra
 ./scripts/iwyu-idf --arch n16r8 \
-  --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
+  --build-dir build-idf/esp32-s3-relay-x1-speaker--la-marzocco-linea-micra
 ```
 
 IWYU is **advisory**: the script sanitizes the database for the host compiler
@@ -265,9 +265,9 @@ double visibility).
 ```sh
 cppcheck --version          # current release from PATH; see sections 2 or 3
 ./scripts/static-idf --arch n16r8 \
-  --build-dir build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x
+  --build-dir build-idf/esp32-s3-relay-x1-speaker--la-marzocco-linea-micra
 ./scripts/gcc_analyzer --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x
+  --machine la-marzocco-linea-micra
 ```
 
 `static-idf` never builds and fails on any finding; project suppressions live

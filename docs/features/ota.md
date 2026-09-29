@@ -113,7 +113,7 @@ From the repository root, build and upload one exact profile pair:
 ```sh
 ./scripts/dev build ota --confirm \
   --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x --host 192.168.1.50
+  --machine la-marzocco-linea-micra --host 192.168.1.50
 ```
 
 Enter the password when prompted, verify the reported image, then confirm
@@ -141,7 +141,7 @@ confirmed boot is required:
 SHOTSTOPPER_DEVICE_PASSWORD="$DEVICE_SECRET" \
   ./scripts/dev ota --confirm \
     --hardware esp32-s3-relay-x1-speaker \
-    --machine rancilio-silvia-pro-x \
+    --machine la-marzocco-linea-micra \
     --host 192.168.1.50 \
     --yes --wait-for-confirmation
 ```
@@ -156,7 +156,7 @@ network host and serial endpoint are separate:
 ```sh
 ./scripts/dev build ota monitor --confirm \
   --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x \
+  --machine la-marzocco-linea-micra \
   --host 192.168.1.50 \
   --port /dev/cu.usbmodem2101 --speed 115200 \
   --yes --wait-for-confirmation

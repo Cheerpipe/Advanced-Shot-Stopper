@@ -206,12 +206,13 @@ Prefer named hardware and machine profiles. A hardware profile selects the
 assembled board, memory layout, GPIO wiring, relay polarity, and installed
 peripherals; a machine profile selects its control topology and factory
 defaults. See [Hardware and machine build profiles](BUILD_PROFILES.md) for the
-complete contracts and compatibility rules. One supported combination is:
+complete contracts and compatibility rules. The reference combination, used in
+the examples throughout this guide, is:
 
 ```sh
 ./scripts/dev build \
   --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x
+  --machine la-marzocco-linea-micra
 ```
 
 Both options are required together. The X1 profile always resolves to
@@ -257,7 +258,7 @@ The Web UI is compiled in English by default. To select it explicitly:
 ```sh
 ./scripts/dev build \
   --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x \
+  --machine la-marzocco-linea-micra \
   --webui-language EN
 ```
 
@@ -290,8 +291,8 @@ For local development, use the development build profile
 
 ```sh
 ./scripts/dev build \
-  --hardware esp32-s3-relay-x1-speaker-reed \
-  --machine rancilio-silvia-pro-x-reed \
+  --hardware esp32-s3-relay-x1-speaker \
+  --machine la-marzocco-linea-micra \
   --development
 ```
 
@@ -327,7 +328,7 @@ the default `-O2` build:
 
 ```sh
 ./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x
+  --machine la-marzocco-linea-micra
 ```
 
 | Option | GCC level | Kconfig choice |
@@ -390,7 +391,7 @@ local `menuconfig` choices without cleaning the whole build tree:
 
 ```sh
 ./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x --force-sdkconfig-regenerate
+  --machine la-marzocco-linea-micra --force-sdkconfig-regenerate
 ```
 
 Use the directory produced by the exact selected pair. The regeneration flag
@@ -441,7 +442,7 @@ Replace the port below with the detected controller port:
 
 ```sh
 ./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \
-  --hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x
+  --hardware esp32-s3-relay-x1-speaker --machine la-marzocco-linea-micra
 ```
 
 To build and install the exact result in one command, put the stages before
@@ -450,7 +451,7 @@ their options:
 ```sh
 ./scripts/dev build flash --confirm \
   --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x \
+  --machine la-marzocco-linea-micra \
   --port /dev/cu.usbmodem2101
 ```
 
@@ -459,7 +460,7 @@ Add `monitor` to open the serial console only after both earlier stages pass:
 ```sh
 ./scripts/dev build flash monitor --confirm \
   --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x \
+  --machine la-marzocco-linea-micra \
   --port /dev/cu.usbmodem2101 --speed 115200
 ```
 
@@ -491,7 +492,7 @@ curves start from factory defaults without migration.
 
 ```sh
 ./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \
-  --hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x \
+  --hardware esp32-s3-relay-x1-speaker --machine la-marzocco-linea-micra \
   --erase-all
 ```
 
@@ -526,7 +527,7 @@ Build and update the same profile in one command:
 ```sh
 ./scripts/dev build ota --confirm \
   --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x \
+  --machine la-marzocco-linea-micra \
   --host 192.168.1.50 \
   --yes --wait-for-confirmation
 ```

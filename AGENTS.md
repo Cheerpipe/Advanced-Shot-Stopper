@@ -72,6 +72,11 @@ failures, not silent skips. Tests must not install packages, use the network, or
 touch hardware implicitly. Static analysis is run only when explicitly requested
 or required by the requested validation gate.
 
+Firmware compile checks and examples use the canonical development pair
+`--hardware esp32-s3-relay-x1-speaker --machine la-marzocco-linea-micra`, the
+project's reference machine; select another supported pair only when the
+change or example is specific to that topology.
+
 Keep unrelated user changes. Use `apply_patch` for edits. Store temporary working
 files in task-specific `temp/ai_temp_<task>/` directories and clean up only files
 no longer needed for evidence or recovery. Every request that results in a code

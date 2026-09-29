@@ -30,7 +30,7 @@ To install and open the monitor in one ordered command:
 ```sh
 ./scripts/dev build flash monitor --confirm \
   --hardware esp32-s3-relay-x1-speaker \
-  --machine rancilio-silvia-pro-x \
+  --machine la-marzocco-linea-micra \
   --port /dev/cu.usbmodem2101 --speed 115200
 ```
 
