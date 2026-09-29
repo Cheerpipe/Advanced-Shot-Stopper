@@ -115,10 +115,11 @@ inline void machineSampleInput() {
 }
 // Compatibility-mode transparent mirror: close while the activator is held,
 // open when it is released. The close uses HARD_MAX so hardware supervision
-// keeps its full window while BBW feature walls are bypassed by design.
+// keeps its full window while BBW feature walls are bypassed by design. The
+// debounced hold drives the mirror — a raw input glitch must never toggle K1.
 inline bool machineServiceCompatibilityDrive(
     const MachineIntention &intent) {
-  const bool held = intent.holdActive;
+  const bool held = intent.physicalOn;
   const bool closed = getRelaySafetySnapshot().closed;
   if (held && !closed) {
     return machineRequestStart(HARD_MAX_CIRCUIT_CLOSED_MS, false);

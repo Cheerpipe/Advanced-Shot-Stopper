@@ -455,9 +455,12 @@ void refreshLoopGuardsFromLastIntention(
 void pushActivatorDrivePermission(const ScaleLinkSnapshot &link) {
   serviceIdleTare();
   refreshLoopGuardsFromLastIntention(link);
+  // Compatibility mode has no brew intelligence, so its transparent mirror
+  // bypasses the brew guards. Denying drive here would make the paddle drive
+  // open K1 and the mirror re-close it every loop (relay chatter).
   machineSetActivatorDriveAllowed(
-      machineWakePassthroughActive || session.active ||
-      !guardsWouldBlockActivatorDrive(loopGuardInputs));
+      firmwareCompatibilityMode() || machineWakePassthroughActive ||
+      session.active || !guardsWouldBlockActivatorDrive(loopGuardInputs));
 }
 
 void orchestratePostTareBaselineArm() {

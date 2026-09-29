@@ -16870,6 +16870,32 @@ void cm06_compatibility_command_gate_scope() {
   CHECK(!webCommandBlockedInCompatibilityMode(WebCommandType::SAVE_NETWORK));
 }
 
+void cm08_compatibility_mirror_holds_against_guard_drive_deny() {
+  resetHarness(false, false);
+  enterCompatibilityMode();
+  // A brew guard that would deny the activator drive in full mode (no-scale
+  // BBW armed, scale never usable while BLE is parked) must not fight the
+  // transparent mirror into an open/close pair per control loop.
+  enableNoScaleShotGuardForTest();
+  reachReadyFromBoot();
+  CHECK(stopperState == StopperState::READY);
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
+  CHECK(getRelaySafetySnapshot().closed);
+  CHECK(stopperState == StopperState::READY);
+  CHECK(!session.active);
+  const size_t closedWrites = hostRelayClosedWrites;
+  const size_t openWrites = hostRelayOpenWrites;
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS * 4);
+  CHECK(getRelaySafetySnapshot().closed);
+  CHECK(hostRelayClosedWrites == closedWrites);
+  CHECK(hostRelayOpenWrites == openWrites);
+  setRawPaddle(false);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(hostRelayOpenWrites == openWrites + 1);
+}
+
 const TestCase testCases[] = {
     {"POW01", pow01_scale_disconnect_grace_and_rinse_clock},
     {"POW02", pow02_idle_scan_preserves_saved_preference},
@@ -17522,6 +17548,7 @@ const TestCase testCases[] = {
     {"CM05", cm05_compatibility_mutes_alerts_except_recovery},
     {"CM06", cm06_compatibility_command_gate_scope},
     {"CM07", cm07_compatibility_boots_parked_with_activator_held},
+    {"CM08", cm08_compatibility_mirror_holds_against_guard_drive_deny},
 };
 
 }  // namespace
