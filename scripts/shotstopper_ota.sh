@@ -230,6 +230,10 @@ ss_ota_upload() {
   local high_water="$offset" attempt=1
   ss_ota_upload_progress "$offset" "$SS_OTA_IMAGE_SIZE"
   while (( offset < SS_OTA_IMAGE_SIZE )); do
+    if ! ss_ota_image_matches_declaration; then
+      ss_ota_report_image_changed
+      return 1
+    fi
     local end=$((offset + SS_OTA_CHUNK_BYTES))
     (( end > SS_OTA_IMAGE_SIZE )) && end=$SS_OTA_IMAGE_SIZE
     local length=$((end - offset))
@@ -294,11 +298,29 @@ ss_ota_upload() {
       if (( reconciled )); then break; fi
     done
   done
+  if ! ss_ota_image_matches_declaration; then
+    ss_ota_report_image_changed
+    return 1
+  fi
   printf '\n'
   if ! ss_ota_staged_matches_image; then
     echo 'The controller did not report the expected verified image identity.' >&2
     return 1
   fi
+}
+
+ss_ota_image_matches_declaration() {
+  # Re-checked before every range and before commit: parallel build gates
+  # compile into the same build tree and can rewrite the image mid-transfer.
+  [[ "$(shasum -a 256 "$SS_OTA_IMAGE" | awk '{print $1}')" == "$SS_OTA_IMAGE_SHA256" ]]
+}
+
+ss_ota_report_image_changed() {
+  local red='' reset=''
+  if [[ -t 2 ]]; then red=$'\033[31m'; reset=$'\033[0m'; fi
+  printf '%sThe firmware image changed while the upload was running%s: %s.\n' \
+      "$red" "$reset" "$SS_OTA_IMAGE" >&2
+  printf 'The file no longer matches the SHA-256 that the transfer declared, so a concurrent build probably rewrote it. The upload stopped before anything could be flashed from the changed file. Re-run the update once no other build is writing to this image.\n' >&2
 }
 
 ss_ota_commit() {

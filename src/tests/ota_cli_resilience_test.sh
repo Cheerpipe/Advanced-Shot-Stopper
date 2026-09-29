@@ -23,7 +23,7 @@ SS_OTA_IMAGE_VERSION=1.2.3
 SS_OTA_IMAGE_PACKED=16908291
 SS_OTA_IMAGE="$image_file"
 SS_OTA_IMAGE_SIZE=8192
-SS_OTA_IMAGE_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+SS_OTA_IMAGE_SHA256="$(shasum -a 256 "$image_file" | awk '{print $1}')"
 SS_OTA_TRANSFER_ID=0123456789abcdef0123456789abcdef0123
 SS_OTA_CHUNK_BYTES=4096
 SS_OTA_RANGE_ATTEMPTS=3
@@ -67,6 +67,9 @@ ss_ota_request() {
     if [[ "$mock_mode" == "stalled" || "$mock_mode" == "changed" ]]; then
       printf '{}' > "$SS_OTA_BODY_FILE"
       SS_OTA_CURL_EXIT=56; SS_OTA_HTTP_STATUS=000; return 1
+    fi
+    if [[ "$mock_mode" == "image-rewritten" ]]; then
+      printf 'corrupted' > "$SS_OTA_IMAGE"
     fi
     if [[ "$mock_mode" == "retry" && "$mock_patches" == "1" ]]; then
       mock_offset=4096
@@ -150,6 +153,21 @@ for mock_mode in stalled changed; do
   else check test "$mock_patches" -eq 1
   fi
 done
+
+mock_mode=image-rewritten
+mock_patches=0
+mock_offset=0
+if ss_ota_upload > "$output_file" 2>&1; then
+  echo 'FAIL: a rewritten image was uploaded' >&2
+  failures=$((failures + 1))
+fi
+check test "$mock_patches" -eq 1
+case "$(<"$output_file")" in
+  *'The firmware image changed while the upload was running'*) ;;
+  *) echo 'FAIL: a rewritten image was not diagnosed' >&2; failures=$((failures + 1)) ;;
+esac
+# The rewritten image above must not leak into the remaining cases.
+node -e 'require("fs").writeFileSync(process.argv[1],Buffer.alloc(8192,90))' "$SS_OTA_IMAGE"
 
 mock_mode=safety
 mock_patches=0
