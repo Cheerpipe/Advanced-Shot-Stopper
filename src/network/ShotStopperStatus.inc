@@ -22,13 +22,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                      "Unknown status page; use /api/v1/status/{home|settings|admin|diagnostic}.");
   }
 
-  // Diagnostic is opt-in and, once enabled, intentionally has no Admin
-  // authentication requirement: the page is fully functional for every
-  // visitor while visible. Only the Admin-only toggle itself stays locked.
-  if (page == StatusPage::Diagnostic && !self.diagnosticPageEnabled()) {
-    return sendError(request, STATUS_FORBIDDEN, "DIAGNOSTIC_DISABLED",
-                     "Diagnostic page is disabled by the administrator.");
-  }
+  // Diagnostic is intentionally public: the page stays reachable at
+  // /diagnostic and the visibility toggle only hides the menu entry, so the
+  // status body has no Admin authentication requirement either.
 
   // JSON / snapshot work lives in one PSRAM-only blob.
   if (!self.lockWorkBufForStatus()) {

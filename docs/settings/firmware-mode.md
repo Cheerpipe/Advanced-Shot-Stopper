@@ -21,7 +21,9 @@ finishes first. After the restart the controller becomes transparent:
   the scale Bluetooth connection, time sync, and the Linea Micra cloud
   connection all stop working.
 - The web interface shows only the **Admin** page. Every other tab is hidden
-  and any address takes you there. Inside Admin you keep Network, Power
+  and any address other than Admin's takes you there; the **Diagnostic**
+  address is the one exception, because support may need its measurements.
+  Inside Admin you keep Network, Power
   management, Frontend, Device password, Restart, Firmware update, and
   Factory reset. The controls of disabled features are hidden with them:
   the Bluetooth section and its scan-mode options inside Power management,

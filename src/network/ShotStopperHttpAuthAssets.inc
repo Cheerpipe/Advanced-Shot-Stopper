@@ -570,13 +570,8 @@ esp_err_t ShotStopperNetwork::partialHistoryHandler(httpd_req_t *request) {
 }
 
 esp_err_t ShotStopperNetwork::partialDiagnosticHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
-  // With the page disabled the partial must not exist for any visitor; the
-  // SPA shell keeps serving so /diagnostic can bounce to Home.
-  if (!self.diagnosticPageEnabled()) {
-    return sendError(request, "404 Not Found", "DIAGNOSTIC_DISABLED",
-                     "Diagnostic page is disabled by the administrator.");
-  }
+  // The Diagnostic page stays reachable at /diagnostic; the visibility toggle
+  // only hides the menu entry.
   return serveImmutableGzip(request, "text/html; charset=utf-8",
                             SHOT_STOPPER_WEB_PARTIAL_DIAGNOSTIC_GZIP,
                             SHOT_STOPPER_WEB_PARTIAL_DIAGNOSTIC_GZIP_LEN);

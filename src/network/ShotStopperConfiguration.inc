@@ -110,11 +110,8 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       jsonFieldPresent(root, "ntpSyncEnabled") ||
       jsonFieldPresent(root, "ntpServerPreset") ||
       jsonFieldPresent(root, "ntpServerCustom");
-  // Log/debug fields are public while the diagnostic page is enabled; the
-  // page visibility toggle itself always requires the Admin session.
-  const bool diagnosticLogPatch = jsonFieldPresent(root, "serialLogLevel") ||
-                                  jsonFieldPresent(root, "serialDebugOutput") ||
-                                  jsonFieldPresent(root, "ringRetainLogLevel");
+  // Log/debug fields stay public with the Diagnostic page; the visibility
+  // toggle itself always requires the Admin session.
   const bool diagnosticPagePatch =
       jsonFieldPresent(root, "showDiagnosticPage") ||
       jsonFieldPresent(root, "powerManagementEnabled");
@@ -541,11 +538,6 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
                      parseError);
   }
   if (dateTimePatch && !browserTimezonePatch && !self.requireAdminUnlock(request)) {
-    memset(customNtp, 0, sizeof(customNtp));
-    return ESP_OK;
-  }
-  if (diagnosticLogPatch && !self.diagnosticPageEnabled() &&
-      !self.requireAdminUnlock(request)) {
     memset(customNtp, 0, sizeof(customNtp));
     return ESP_OK;
   }
@@ -1342,9 +1334,6 @@ esp_err_t ShotStopperNetwork::firmwareModeHandler(httpd_req_t *request) {
 
 esp_err_t ShotStopperNetwork::scaleTareHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  if (!self.diagnosticPageEnabled() && !self.requireAdminUnlock(request)) {
-    return ESP_OK;
-  }
   if (!controlAllowsConfiguration(self.controlGate())) {
     return sendError(request, STATUS_CONFLICT, "CONTROL_STATE_CONFLICT",
                      "Stop the cycle and wait for Ready before taring.");
@@ -1375,10 +1364,6 @@ esp_err_t ShotStopperNetwork::scaleTareHandler(httpd_req_t *request) {
 
 esp_err_t ShotStopperNetwork::clearResetHistoryHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  // Public while the diagnostic page is enabled; Admin unlock otherwise.
-  if (!self.diagnosticPageEnabled() && !self.requireAdminUnlock(request)) {
-    return ESP_OK;
-  }
   if (!self.lockConfirmedBody(
           request, "An explicit reset-history confirmation is required.",
           "CLEAR_RESET_HISTORY")) {

@@ -420,10 +420,6 @@ esp_err_t ShotStopperNetwork::bleScanHandler(httpd_req_t *request) {
 
 esp_err_t ShotStopperNetwork::taskProfilerHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  // Public while the diagnostic page is enabled; Admin unlock otherwise.
-  if (!self.diagnosticPageEnabled() && !self.requireAdminUnlock(request)) {
-    return ESP_OK;
-  }
   const esp_err_t bodyStatus =
       self.lockJsonBody(request, "A JSON request is required.");
   if (bodyStatus != ESP_OK) {
@@ -456,9 +452,6 @@ esp_err_t ShotStopperNetwork::taskProfilerHandler(httpd_req_t *request) {
 
 esp_err_t ShotStopperNetwork::loopMaxResetHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  if (!self.diagnosticPageEnabled() && !self.requireAdminUnlock(request)) {
-    return ESP_OK;
-  }
   if (self.callbacks_.requestLoopMaxReset == nullptr) {
     return sendError(request, STATUS_UNAVAILABLE, "LOOP_TIMING_UNAVAILABLE",
                      "Loop timing could not be reset.");

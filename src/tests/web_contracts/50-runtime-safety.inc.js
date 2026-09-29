@@ -413,13 +413,13 @@ if (!network.includes('ShotStopperDebugExport.h') ||
     !ui.includes('/api/v1/debug/export') ||
     !ui.includes('exportDebugDataButton') ||
     !html.includes('id="exportDebugDataButton"') ||
-    !network.slice(
+    network.slice(
         network.indexOf('esp_err_t ShotStopperNetwork::debugExportHandler'),
         network.indexOf('esp_err_t ShotStopperNetwork::debugExportHandler') +
             450)
         .includes('requireAdminUnlock(request)')) {
   throw new Error(
-      'Diagnostic must expose guards status and GET /api/v1/debug/export with schema version');
+      'Diagnostic must expose guards status and an always-public GET /api/v1/debug/export with schema version');
 }
 const sharedRingOpen = statusFormat.indexOf(
     ',\\"config\\":{\\"revision\\":%lu,\\"ringRetainLogLevel\\":\\"%s\\"');
@@ -448,9 +448,9 @@ if (logHandlerStart < 0 || logHandlerEnd < 0) {
   throw new Error('Log handler not found');
 }
 const logHandler = network.slice(logHandlerStart, logHandlerEnd);
-if (!logHandler.includes('requireAdminUnlock(request)') ||
+if (logHandler.includes('requireAdminUnlock(request)') ||
     logHandler.includes('authenticate(request')) {
-  throw new Error('Diagnostic log must require admin unlock, not HTTP authenticate()');
+  throw new Error('Diagnostic log must stay public, not HTTP authenticate()');
 }
 if (logHandler.includes('"message":"%s"') ||
     !logHandler.includes('sendJsonStringChunk(request, message)')) {

@@ -1255,12 +1255,15 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       viewJs.admin.includes('waitDiagnosticPagePersisted') ||
       (viewJs.admin.match(/\bapplyStatus\b/g) || []).length !== 2 ||
       js.includes("$('diagnosticUnlockButton').onclick") ||
-      !network.includes('DIAGNOSTIC_DISABLED') ||
+      network.includes('DIAGNOSTIC_DISABLED') ||
+      network.includes('!self.diagnosticPageEnabled()') ||
+      !network.includes(
+          'self.diagnosticPageEnabled() ? "true" : "false"') ||
       !network.includes('showDiagnosticPage') ||
       !firmwareCore.includes(
           'candidate.showDiagnosticPage = command.config.showDiagnosticPage')) {
     throw new Error(
-        'Diagnostic must be an Admin-controlled public opt-in, disabled by default');
+        'Diagnostic must stay reachable at /diagnostic; the Admin-controlled toggle only hides the menu entry');
   }
   if (runtimeJs.includes('row.innerHTML') ||
       runtimeJs.includes("shotType[0]!=='a'|y<1") ||
@@ -1295,7 +1298,6 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       ['device-password', passwordFnStart],
       ['restart', restartFnStart],
       ['ble-scan', bleFnStart],
-      ['task-profiler', network.indexOf('ShotStopperNetwork::taskProfilerHandler')],
       ['time-sync', timeFnStart],
       ['wifi-scan-start', network.indexOf('ShotStopperNetwork::wifiScanStartHandler')],
       ['wifi-scan-status', network.indexOf('ShotStopperNetwork::wifiScanStatusHandler')],

@@ -25,11 +25,7 @@ debugExportChunkf(httpd_req_t *request, char *buf, size_t cap,
 
 esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  // Public while the diagnostic page is enabled (it carries no secrets);
-  // Admin unlock keeps it available with the page disabled.
-  if (!self.diagnosticPageEnabled() && !self.requireAdminUnlock(request)) {
-    return ESP_OK;
-  }
+  // Public with the Diagnostic page (it carries no secrets).
   // DEBUG EXPORT MAINTENANCE: extend sections below when adding diagnostically
   // relevant settings / state. Bump DEBUG_EXPORT_SCHEMA_VERSION on material
   // schema changes. Never include secrets.
@@ -859,9 +855,6 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
 
 esp_err_t ShotStopperNetwork::logHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  if (!self.diagnosticPageEnabled() && !self.requireAdminUnlock(request)) {
-    return ESP_OK;
-  }
   // Bounded diagnostic log: fixed enum-derived messages and numeric
   // arguments; credentials and request payloads are never included.
   uint32_t after = 0;

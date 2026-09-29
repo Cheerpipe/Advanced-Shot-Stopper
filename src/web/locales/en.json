@@ -14,7 +14,7 @@
     "admin.administration_unlocked": "Administration unlocked.",
     "admin.advancedshotstopperap_192_168_4_1": "OpenBrewByWeightAP-xxxxxxxx — 192.168.4.1",
     "admin.after_configuration_changes": " after configuration changes)",
-    "admin.allows_all_web_ui_visitors_to_use": "Allows all Web UI visitors to use Diagnostic. Off hides and blocks the page.",
+    "admin.allows_all_web_ui_visitors_to_use": "Shows the Diagnostic tab in the menu. The page itself stays available at /diagnostic even when hidden.",
     "admin.apply_error": " · apply error ",
     "admin.auto": "Auto",
     "admin.automatic_date_time": "Automatic date & time",

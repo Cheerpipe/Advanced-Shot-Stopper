@@ -199,6 +199,11 @@ After a watchdog/panic reset, the relay is forced open and the interrupted shot
 does not resume. Persistent hardware/feedback faults may still block starting.
 An open K1 cannot stop a welded contact; see [isolation](HARDWARE.md#isolation-must).
 
+The **Diagnostic** page is always available at the address `/diagnostic`, even
+when its tab is hidden from the menu (Admin → Frontend → **Show diagnostic
+page** only shows or hides that tab) and in compatibility mode. Its
+measurements keep recording either way.
+
 On a 16 MB controller, **Diagnostic → Misc → Coredump** shows how many complete
 crash records are saved, up to two. Unlock Admin to download them. The browser
 saves a `.tar.gz` file when gzip is supported, or a `.tar` file otherwise.
