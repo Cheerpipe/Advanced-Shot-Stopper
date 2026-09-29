@@ -1275,8 +1275,6 @@
     "shell.history": "History",
     "shell.home": "Home",
     "shell.loading": "Loading…",
-    "shell.lock": "Lock",
-    "shell.lock_administration": "Lock administration",
     "shell.menu": "Menu",
     "shell.menu_2": "☰",
     "shell.missing_secondary_view": "Missing secondary view: ",

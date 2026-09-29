@@ -1226,8 +1226,8 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       !html.includes('id="adminControls"') ||
       !html.includes('15 minutes after the last privileged action') ||
       !html.includes('Lock closes it now') ||
-      !html.includes('id="navAdminLock"') ||
       !html.includes('id="adminLockButton"') ||
+      html.includes('id="navAdminLock"') ||
       html.includes('id="homeAdminLock"') ||
       !html.includes('this window will confirm automatically') ||
       html.includes('unlock to confirm') ||
