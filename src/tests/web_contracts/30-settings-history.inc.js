@@ -34,6 +34,37 @@
   }
 }
 
+{
+  const ids = ['presetNewBtn', 'presetDupBtn', 'presetResetBtn', 'presetDeleteBtn'];
+  for (const id of ids) {
+    if (!partialHtml.settings.includes(`id="${id}" disabled`)) {
+      throw new Error(`${id} must start disabled before settings load`);
+    }
+  }
+  const source = runtimeJs.slice(runtimeJs.indexOf('function updatePresetActionButtons(){'),
+    runtimeJs.indexOf('async function applyPreset('));
+  const update = new Function('$', 'document', 'selectedPreset', 'controlsMutable',
+    source + ';updatePresetActionButtons();');
+  for (const settled of [undefined, 'msg', 'data']) for (const mutable of [false, true]) {
+    for (const preset of [null, {isFactory: true}, {isFactory: false}]) {
+      const nodes = Object.fromEntries(ids.map(id => [id,
+        {id, disabled: false, classList: {toggle() {}}}]));
+      nodes.presetCardsState = {dataset: {settled}};
+      update(id => nodes[id], {querySelectorAll: () => ids.map(id => nodes[id])},
+        () => preset, mutable);
+      const ready = settled === 'data' && mutable;
+      const expected = [!ready, !ready, !ready || !preset?.isFactory,
+        !ready || !preset || !!preset.isFactory];
+      if (ids.some((id, i) => nodes[id].disabled !== expected[i])) {
+        throw new Error('Preset actions must wait for data and preserve editing restrictions');
+      }
+    }
+  }
+  if (!runtimeJs.includes("settlePanel('presetCardsState',null);renderAllPresetUi();")) {
+    throw new Error('Preset actions must refresh after loading settles');
+  }
+}
+
 if (/R\.(homeFlushConfig|homeFlushPreset|configLoaded|formRev|brewDirty)\s*=/.test(js) ||
     !js.includes('function persistHomeBrewByWeight(') ||
     !js.includes('function invalidateSettingsHydration(') ||
