@@ -119,6 +119,16 @@ including its evidence and the next action. These rules apply equally to plans
 and audits. Keep completed files locally for traceability; do not automatically
 delete them or add/force-add them to Git.
 
+## User-facing text
+
+When designing text that end users will read, in documentation or in the UI, do
+not take the user's words literally or force them into the final copy. Analyze
+the context first: who will read the text, its goal, why it exists, and what it
+really needs to explain; then write the best possible text for that audience
+and purpose. Follow the user's wording verbatim only when explicitly asked to
+incorporate a specific idea or a partial or complete text. Be critical:
+documentation and UI are for human beings and must be written as such.
+
 ## Documentation
 
 Canonical documentation belongs in `docs/`. Write every user-facing guide
