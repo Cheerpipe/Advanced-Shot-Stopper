@@ -55,8 +55,8 @@ inline ScaleModel scaleModelForAdvertisement(const char *name) {
 // The raw-name fallback is borrowed from the caller; copy it if retained.
 inline const char *scaleDefaultFriendlyName(const char *name) {
     switch (scaleModelForAdvertisement(name)) {
-        case ScaleModel::BookooMini: return "Bookoo Themis Mini";
-        case ScaleModel::BookooUltra: return "Bookoo Themis Ultra";
+        case ScaleModel::BookooMini: return "BOOKOO Themis Mini";
+        case ScaleModel::BookooUltra: return "BOOKOO Themis Ultra";
         default: return name == nullptr ? "" : name;
     }
 }

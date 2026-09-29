@@ -6143,14 +6143,14 @@ void d13_scale_friendly_name_set_clear_and_preserve() {
   CHECK(history[0].friendlyName[0] == '\0');
   CHECK(findScaleHistoryFriendlyName(history, "AA:BB:CC:DD:EE:01", friendly,
                                      sizeof(friendly)));
-  CHECK(strcmp(friendly, "Bookoo Themis Mini") == 0);
+  CHECK(strcmp(friendly, "BOOKOO Themis Mini") == 0);
 }
 
 void d13a_auto_friendly_name_for_themis_models() {
   CHECK(strcmp(scaleDefaultFriendlyName("BOOKOO_SC 715097"),
-               "Bookoo Themis Mini") == 0);
+               "BOOKOO Themis Mini") == 0);
   CHECK(strcmp(scaleDefaultFriendlyName("BOOKOO_SC U 90210"),
-               "Bookoo Themis Ultra") == 0);
+               "BOOKOO Themis Ultra") == 0);
   CHECK(strcmp(scaleDefaultFriendlyName("LUNAR"), "LUNAR") == 0);
   CHECK(scaleModelForAdvertisement("BOOKOO_SCTE 1") == ScaleModel::Unknown);
   CHECK(scaleModelForAdvertisement("BOOKOO_SC U ") == ScaleModel::Unknown);
@@ -6171,10 +6171,10 @@ void d13a_auto_friendly_name_for_themis_models() {
   char friendly[PREFERRED_SCALE_NAME_CAPACITY] = {};
   CHECK(findScaleHistoryFriendlyName(history, "AA:BB:CC:DD:EE:01", friendly,
                                      sizeof(friendly)));
-  CHECK(strcmp(friendly, "Bookoo Themis Mini") == 0);
+  CHECK(strcmp(friendly, "BOOKOO Themis Mini") == 0);
   CHECK(findScaleHistoryFriendlyName(history, "AA:BB:CC:DD:EE:02", friendly,
                                      sizeof(friendly)));
-  CHECK(strcmp(friendly, "Bookoo Themis Ultra") == 0);
+  CHECK(strcmp(friendly, "BOOKOO Themis Ultra") == 0);
   noteScaleHistory("AA:BB:CC:DD:EE:03", "LUNAR", false);
   copyScaleHistory(history);
   CHECK(findScaleHistoryFriendlyName(history, "AA:BB:CC:DD:EE:03", friendly,

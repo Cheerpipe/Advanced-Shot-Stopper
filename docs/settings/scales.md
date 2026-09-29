@@ -36,8 +36,8 @@ there is no connection. Home continues to show the saved preferred scale.
 
 Bookoo Themis models identify themselves in that broadcast name, so the
 scale library proposes a readable model name for you: a scale broadcasting
-`BOOKOO_SC` with digits appears as **Bookoo Themis Mini**, and one
-broadcasting `BOOKOO_SC U` with digits appears as **Bookoo Themis Ultra**.
+`BOOKOO_SC` with digits appears as **BOOKOO Themis Mini**, and one
+broadcasting `BOOKOO_SC U` with digits appears as **BOOKOO Themis Ultra**.
 The proposed name appears when the scale is first detected and added to the
 list, and keeps working after a restart. A name you choose always takes
 precedence.
