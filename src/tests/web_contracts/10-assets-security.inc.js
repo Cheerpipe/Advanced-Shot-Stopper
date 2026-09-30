@@ -175,22 +175,22 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !css.includes('.bootOverlay .brandMark{width:2.85rem;height:3.8rem}') ||
     !css.includes('.brand span{display:flex;flex-direction:column;') ||
     !css.includes('.bootOverlay.isDone{opacity:0;pointer-events:none}') ||
-    !css.includes('transition:opacity .25s .2s') ||
+    !css.includes('transition:opacity .25s}') ||
     !shellHtml.includes('class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i>') ||
     !css.includes('.bootWave i{width:.55rem;height:100%;border-radius:.3rem;background:var(--ac);animation:bootWave 1.1s ease-in-out infinite}') ||
     !css.includes('@keyframes bootWave{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}') ||
     !css.includes('.bootWave i{animation:none}') ||
     !runtimeJs.includes('let homeBootDone=false,fwReloading=false') ||
-    !runtimeJs.includes('async function hideHomeBoot(seq=bootSeq,view){') ||
+    !runtimeJs.includes('function hideHomeBoot(seq=bootSeq){') ||
     !runtimeJs.includes("bootTimer=setTimeout(()=>{if(seq===bootSeq)") ||
     !runtimeJs.includes("function message(text,kind=''){if(kind==='error')hideHomeBoot();") ||
     runtimeJs.includes('function applyHomeStatus(s){hideHomeBoot();') ||
     !runtimeJs.includes("function showInactiveOverlay(){const el=$('webUiInactive');if(!el)return;hideHomeBoot();") ||
     !runtimeJs.includes('if(!reloaded){fwReloading=true;location.reload()}') ||
     !appJsSource.includes('boot=R.showPageBoot();R.stopViewPolls();') ||
-    !appJsSource.includes('if(ok)await R.hideHomeBoot(boot,view)')) {
+    !appJsSource.includes('if(ok)R.hideHomeBoot(boot)')) {
   throw new Error(
-      'Every view must reuse the Home splash and fade after its data and finite control animations settle, preserving firmware reload and inactive overlay handoff');
+      'Every view must reuse the Home splash and fade immediately after data loads, preserving firmware reload and inactive overlay handoff');
 }
 
 {
@@ -206,31 +206,36 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
   const routeSource = appJsSource.slice(appJsSource.indexOf('function startView('),
     appJsSource.indexOf('function setNav('));
   (async () => {
-    const classes = new Set(['hidden', 'isDone']), frames = [], timers = [];
-    const toggle = deferred(), endless = deferred();
-    const animation = (endTime, finished) => ({effect: {getComputedTiming: () => ({endTime})}, finished});
-    const overlay = {classList: {add: (...names) => names.forEach(n => classes.add(n)),
-      remove: (...names) => names.forEach(n => classes.delete(n))}, setAttribute() {}};
+    const classes = new Set(['hidden', 'isDone']), bodyClasses = new Set(), timers = [];
+    const classList = set => ({add: (...names) => names.forEach(n => set.add(n)),
+      remove: (...names) => names.forEach(n => set.delete(n))});
+    let layouts = 0;
+    const overlay = {classList: classList(classes), setAttribute() {},
+      get offsetWidth() {assert.equal(bodyClasses.has('pageLoading'), true); layouts++; return 1;}};
     const context = vm.createContext({bootSeq: 0, homeBootDone: false,
       bootTimer: 0, fwReloading: false,
-      $: id => id === 'homeBoot' ? overlay : {getAnimations: () => [
-        animation(200, toggle.promise), animation(Infinity, endless.promise)]},
-      requestAnimationFrame: fn => frames.push(fn),
-      setTimeout: (fn, ms) => {assert.equal(ms, 450); timers.push(fn); return timers.length;},
+      document: {body: {classList: classList(bodyClasses)}},
+      $: id => {assert.equal(id, 'homeBoot', 'Do not query or await control animations'); return overlay;},
+      requestAnimationFrame: () => {throw Error('Fade must not wait for render frames');},
+      setTimeout: (fn, ms) => {assert.equal(ms, 250); timers.push(fn); return timers.length;},
       clearTimeout() {}});
     vm.runInContext(overlaySource, context);
     const token = context.showPageBoot();
     assert.deepEqual([...classes], [], 'Page loading must appear immediately');
-    const hiding = context.hideHomeBoot(token, 'settings');
-    frames.shift()(); frames.shift()(); await flush();
-    assert.equal(classes.has('isDone'), false, 'Wait for the initial toggle transition');
-    toggle.resolve(); await hiding;
-    assert.equal(classes.has('isDone'), true, 'Infinite animations must not block the fade');
+    assert.equal(bodyClasses.has('pageLoading'), true, 'Suppress control animations before loading');
+    context.hideHomeBoot(token);
+    assert.equal(classes.has('isDone'), true, 'Start fading synchronously when data is ready');
+    assert.equal(layouts, 1, 'Apply static control positions before fading');
+    assert.equal(bodyClasses.has('pageLoading'), true, 'Keep controls static throughout the fade');
     context.showPageBoot(); timers.shift()();
     assert.deepEqual([...classes], [], 'An old fade timer must not hide the next route');
-    const stale = context.hideHomeBoot(context.bootSeq, 'home');
-    context.showPageBoot(); frames.shift()(); frames.shift()(); await stale;
-    assert.deepEqual([...classes], [], 'An old animation wait must not fade the next route');
+    assert.equal(bodyClasses.has('pageLoading'), true, 'An old timer must not restore animations');
+    context.hideHomeBoot(token);
+    assert.deepEqual([...classes], [], 'An old route must not fade the current loading view');
+    context.hideHomeBoot(context.bootSeq); timers.shift()();
+    assert.equal(classes.has('hidden'), true);
+    assert.equal(bodyClasses.has('pageLoading'), false, 'Restore normal animations after the fade');
+    context.showPageBoot();
     context.fwReloading = true;
     await context.hideHomeBoot();
     assert.deepEqual([...classes], [], 'Keep loading visible while firmware reloads');
@@ -318,17 +323,27 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
   })().catch(error => {console.error(error); process.exitCode = 1;});
 }
 {
-  const delay = Number(css.match(/\.bootOverlay\{[^}]*transition:opacity [\d.]+s ([\d.]+)s/)[1]);
-  const fade = Number(css.match(/\.bootOverlay\{[^}]*transition:opacity ([\d.]+)s/)[1]);
-  for (const selector of ['.slider', '.slider:before']) {
-    const rule = css.slice(css.indexOf(selector + '{')).split('}')[0];
-    if (delay < Number(rule.match(/transition:([\d.]+)s/)[1])) {
-      throw new Error('Home fade must wait for both the toggle track and thumb');
+  const fade = Number(css.match(/\.bootOverlay\{[^}]*transition:opacity ([\d.]+)s\}/)[1]);
+  const suppression = css.match(/body\.pageLoading \.view[^}]*\}/)?.[0] || '';
+  for (const suffix of ['', ' *', '::before', '::after', ' *::before', ' *::after']) {
+    if (!suppression.includes('body.pageLoading .view' + suffix)) {
+      throw new Error('Loading must suppress view and control pseudo-element animations');
     }
   }
-  if (!runtimeJs.includes("el.setAttribute('aria-hidden','true')}}," + Math.round((delay + fade) * 1000) + ')') ||
+  if (!suppression.includes('transition:none!important;animation:none!important') ||
+      suppression.includes('bootWave')) {
+    throw new Error('Loading must suppress control motion while preserving the loading wave');
+  }
+  for (const selector of ['.slider', '.slider:before']) {
+    const rule = css.slice(css.indexOf(selector + '{')).split('}')[0];
+    if (Number(rule.match(/transition:([\d.]+)s/)[1]) !== .2) {
+      throw new Error('Normal toggle track and thumb animations must remain available after loading');
+    }
+  }
+  if (fade !== .25 ||
+      !runtimeJs.includes("document.body.classList.remove('pageLoading')}}," + Math.round(fade * 1000) + ')') ||
       !css.includes('transition:.01ms!important')) {
-    throw new Error('Splash removal must include its delay and fade; reduced motion must reset delays');
+    throw new Error('Splash removal must follow the immediate 250 ms fade and restore control motion');
   }
 }
 if (!shellHtml.includes('type="module"') ||
