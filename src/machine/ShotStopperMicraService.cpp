@@ -697,14 +697,6 @@ LineaMicraDiscoverySnapshot ShotStopperMicraService::discovery() const {
   return discovery_;
 }
 
-void ShotStopperMicraService::serviceAbort() {
-  if (!abortRequested_.load(std::memory_order_acquire)) return;
-  TaskLockGuard lock(clientMux_);
-  if (activeClient_ != nullptr) {
-    (void)esp_http_client_cancel_request(activeClient_);
-  }
-}
-
 void ShotStopperMicraService::taskEntry(void *context) {
   static_cast<ShotStopperMicraService *>(context)->taskLoop();
 }
@@ -1995,10 +1987,6 @@ bool ShotStopperMicraService::request(
            ESP_OK)) {
     return false;
   }
-  {
-    TaskLockGuard lock(clientMux_);
-    activeClient_ = work_->client;
-  }
   LineaMicraError gateError = LineaMicraError::NONE;
   const auto requestAllowed = [&]() {
     return networkEligible(gateError) &&
@@ -2008,8 +1996,6 @@ bool ShotStopperMicraService::request(
   };
   if (!requestAllowed()) {
     pendingCloudCall_.result = "canceled";
-    TaskLockGuard lock(clientMux_);
-    activeClient_ = nullptr;
     if (installationInit) secureWipe(io_->body, sizeof(io_->body));
     return false;
   }
@@ -2061,10 +2047,6 @@ bool ShotStopperMicraService::request(
         heapAfter);
   }
   cloudFirstQuerySettled_.store(true, std::memory_order_release);
-  {
-    TaskLockGuard lock(clientMux_);
-    activeClient_ = nullptr;
-  }
   work_->transportStatus = performed;
   work_->httpStatus = static_cast<uint16_t>(
       esp_http_client_get_status_code(work_->client));
@@ -2138,7 +2120,6 @@ void ShotStopperMicraService::clearSession() {
   work_->transportStatus = 0;
   work_->responseOverflow = false;
   if (work_->client != nullptr) {
-    TaskLockGuard lock(clientMux_);
     esp_http_client_cleanup(work_->client);
     work_->client = nullptr;
   }

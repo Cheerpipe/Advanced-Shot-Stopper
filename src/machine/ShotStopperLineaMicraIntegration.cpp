@@ -77,8 +77,6 @@ void requestMachineIntegrationPresetTemperature(
   service.queue(request);
 }
 
-void serviceMachineIntegrationAbort() { service.serviceAbort(); }
-
 void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
                                         uint32_t scaleDisconnectSequence,
                                         uint8_t scaleDisconnectReason,

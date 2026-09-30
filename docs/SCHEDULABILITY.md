@@ -42,9 +42,12 @@ The optional Micra cloud service owns a low-priority core-0 worker so HTTPS and
 signature work never enters the scale or control task bodies. HTTPS uses the
 ESP-IDF asynchronous client contract: incomplete progress yields for one tick,
 rechecks the network/scale/shot gates, and retains one absolute 10-second
-operation deadline. The network manager publishes the current gate before
-servicing client cancellation in the same activation. The state observer is
-due nominally every 30 seconds, and its four-attempt cycle waits 3, 6, then 9
+operation deadline. The network manager publishes the current gate and wakes
+the cloud worker in the same activation. Only the cloud worker accesses or
+destroys its HTTP/TLS client; cancellation is checked before and after each
+asynchronous progress call, so teardown cannot race an in-flight TLS read.
+The state observer is due nominally every 30 seconds, and its four-attempt cycle
+waits 3, 6, then 9
 seconds. After exhaustion the next cycle follows the normal 30-second cadence.
 AP, STA-loss, unsynchronized clock, and shot activity gate observations without
 consuming attempts. These are admission intervals, not a guaranteed cloud

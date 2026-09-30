@@ -705,9 +705,6 @@ void ShotStopperNetwork::service() {
       staConnected, networkSnapshot.apActive,
       controlCriticalRfActive_.load(std::memory_order_acquire),
       scaleConnecting_.load(std::memory_order_acquire));
-  // Consume the state published above in this same activation. Running this
-  // before publication deferred Micra cancellation to the next 50 ms pass.
-  serviceMachineIntegrationAbort();
   serviceNtp(now, staConnected);
 
   const uint8_t apClients = networkSnapshot.apActive

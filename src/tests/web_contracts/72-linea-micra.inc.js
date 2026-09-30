@@ -147,15 +147,22 @@ if (!micraService.includes('config.save_client_session = true')) {
 }
 const micraPublishAt = networkService.indexOf(
     'publishMachineIntegrationNetworkState(');
-const micraAbortAt = networkService.indexOf(
-    'serviceMachineIntegrationAbort();');
+const micraNetworkState = micraService.slice(
+    micraService.indexOf('void ShotStopperMicraService::publishNetworkState('),
+    micraService.indexOf('bool ShotStopperMicraService::queueConnect('));
 if (!micraService.includes('config.is_async = true;') ||
     !micraService.includes('while (performed == ESP_ERR_HTTP_EAGAIN)') ||
     !micraService.includes('(void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1));') ||
     !micraService.includes('millis() - requestStartedAtMs') ||
-    micraPublishAt < 0 || micraAbortAt < micraPublishAt) {
+    micraPublishAt < 0 ||
+    !micraNetworkState.includes('abortRequested_.store(true,') ||
+    !micraNetworkState.includes('xTaskNotifyGive(task_)') ||
+    micraNetworkState.includes('esp_http_client_') ||
+    networkService.includes('serviceMachineIntegrationAbort') ||
+    micraService.includes('esp_http_client_cancel_request') ||
+    micraService.includes('activeClient_') || micraService.includes('clientMux_')) {
   throw new Error(
-      'Linea Micra HTTPS must advance cooperatively and cancel from freshly published network state');
+      'Linea Micra HTTPS cancellation must wake its sole owner without mutating live TLS from another task');
 }
 if (!micraTiming.includes('kStatePollMs = 30000') ||
     !micraTiming.includes('kStateFreshnessMs = kStatePollMs') ||

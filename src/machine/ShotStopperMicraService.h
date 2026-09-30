@@ -29,7 +29,6 @@ class ShotStopperMicraService {
   bool selectDiscoveredMachine(const char *serial,
                                LineaMicraPersistedSettings &settings);
   void clearDiscovery();
-  void serviceAbort();
   LineaMicraStatus status() const;
   LineaMicraCloudCall cloudCall() const;
   HeapLifecycleAggregate heapTelemetry() const;
@@ -123,7 +122,6 @@ class ShotStopperMicraService {
                   bool retryable = true);
 
   mutable TaskMutex mux_;
-  TaskMutex clientMux_;
   LineaMicraPersistedSettings config_ = {};
   LineaMicraPersistedSettings candidate_ = {};
   PendingRequest pending_ = {};
@@ -156,7 +154,6 @@ class ShotStopperMicraService {
   // consumed by the network boot heap shaper release gate.
   std::atomic<bool> cloudFirstQuerySettled_{false};
   bool wasNetworkReady_ = false;
-  esp_http_client_handle_t activeClient_ = nullptr;
 };
 
 }  // namespace shotstopper
