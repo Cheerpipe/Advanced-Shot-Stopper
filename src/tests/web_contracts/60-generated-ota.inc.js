@@ -541,8 +541,9 @@ if (generated.icon48Gzip.length > 3500) {
 // reviewed allowance. Firmware image and OTA partition limits stay fixed.
 // The Stats loading wave reuses the panel helper and adds 50 bytes of reviewed
 // allowance. Firmware image and OTA partition limits stay fixed.
-if (generated.combined > 111250) {
-  throw new Error(`Combined Web UI gzip exceeds the 111250-byte flash budget (${generated.combined})`);
+// The Micra-only Home power summary raises the compressed budget by 150 bytes.
+if (generated.combined > 111400) {
+  throw new Error(`Combined Web UI gzip exceeds the 111400-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

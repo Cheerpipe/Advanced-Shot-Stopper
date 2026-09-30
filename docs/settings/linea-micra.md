@@ -89,6 +89,12 @@ is open, or before the clock is synchronized. After startup, the first worker
 opportunity following those conditions starts the initial dashboard read. A shot
 or rinse keeps automatic and requested reads pending until local activity ends.
 
+Home also shows **Machine power state** for the Micra: **ON** or **OFF** for
+the confirmed reading, including when it becomes stale. During an active
+optimistic estimate, it shows **ON - Optimistic** or **OFF - Optimistic** until
+that estimate is confirmed or expires. If no power state is known, it shows
+**—**.
+
 Diagnostics → Machine shows:
 
 | Micra response | Displayed state |

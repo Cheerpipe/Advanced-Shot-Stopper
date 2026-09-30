@@ -21,6 +21,30 @@ const networkService = fs.readFileSync(
 const micraSettingsHtml = rawPartialHtml.settings;
 const micraDiagnosticHtml = rawPartialHtml.diagnostic;
 {
+  const assert = require('assert'), vm = require('vm');
+  assert(rawPartialHtml.home.includes('<div class="metric micraOnly"><strong>{{webui:home.machine_power_state}}</strong><div id="homeMicraPower">'));
+  const power = {textContent: ''};
+  const context = {R: {applyHomeStatus() {}, $: id => id === 'homeMicraPower' ? power : null},
+    document: {querySelector: () => null},
+    __WEBUI_TEXT__: key => key === 'home.optimistic' ? 'Optimistic' : 'Unknown'};
+  vm.runInNewContext(viewJs.home.replace(/import\*as R from'[^']+';/, '').replace(/export /g, ''), context);
+  for (const [lineaMicra, expected] of [
+    [{powerState: 'ON', quality: 'current'}, 'ON'],
+    [{powerState: 'OFF', quality: 'current'}, 'OFF'],
+    [{powerState: 'ON', quality: 'stale', optimisticOff: true}, 'ON'],
+    [{powerState: 'OFF', quality: 'stale', optimisticOn: true}, 'OFF'],
+    [{powerState: 'OFF', quality: 'optimistic', optimisticOn: true}, 'ON - Optimistic'],
+    [{powerState: 'ON', quality: 'optimistic', optimisticOff: true}, 'OFF - Optimistic'],
+    [{powerState: 'ON', quality: 'current', optimisticOff: true}, 'ON'],
+    [{powerState: 'OFF', quality: 'current', optimisticOn: true}, 'OFF'],
+    [{powerState: 'UNKNOWN'}, '—'],
+    [undefined, '—'],
+  ]) {
+    context.applyStatus({lineaMicra});
+    assert.strictEqual(power.textContent, expected);
+  }
+}
+{
   const assert = require('assert');
   const vm = require('vm');
   const panelAt = micraDiagnosticHtml.indexOf('id="micraCloudDiagnostics"');
