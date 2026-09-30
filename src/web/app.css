@@ -291,8 +291,8 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .shotTareIcon{width:34.125px;height:14px}
 .shotSparkHost .ruleChartTicks,#shotTable td.shotSparkCell .ruleChartTicks{grid-area:x}
 .shotSparkCell::before{content:none}
-.starRate{display:inline-flex;align-items:center;margin-top:-.6rem}
-.starRate button{padding:0;border:0;background:transparent;color:var(--bd);width:1.35rem;height:var(--tap);display:inline-flex;align-items:center;justify-content:center}
+.starRate{display:inline-flex;align-items:center;margin:-.6rem 0 0 -.15rem}
+.starRate button{padding:0;border:0;background:transparent;color:var(--bd);width:1.35rem;height:var(--tap);display:grid;place-items:center}
 .starRate button+button{margin-left:-.18rem}
 .starRate button.on{color:var(--ac)}
 .starRate button:disabled{cursor:not-allowed;opacity:.45}

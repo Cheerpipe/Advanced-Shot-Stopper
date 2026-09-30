@@ -720,7 +720,7 @@ if (!ui.includes('id="shotRating"') ||
     !runtimeJs.includes('function postShotRating(') ||
     !runtimeJs.includes('{id,rating:n}') ||
     !runtimeJs.includes("'rating','ended_at_ms'") ||
-    !css.includes('.starRate{display:inline-flex;align-items:center;margin-top:-.6rem}') ||
+    !css.includes('.starRate{display:inline-flex;align-items:center;margin:-.6rem 0 0 -.15rem}') ||
     !css.includes('.starRate button+button{margin-left:-.18rem}') ||
     !css.includes('.starRate button.on{color:var(--ac)}') ||
     !css.includes('.shotCard .shotRate{grid-area:rate;display:grid;justify-items:start}') ||
