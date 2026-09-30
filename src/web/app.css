@@ -288,7 +288,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .shotDropOverlay{grid-area:plot;position:relative}
 .shotFirstDrop{position:absolute;bottom:10%;white-space:nowrap;font-size:.68rem;color:var(--mu)}
 .shotFirstDrop svg{vertical-align:middle}
-.shotTareIcon{width:34.125px;height:19.5px}
+.shotTareIcon{width:34.125px;height:14px}
 .shotSparkHost .ruleChartTicks,#shotTable td.shotSparkCell .ruleChartTicks{grid-area:x}
 .shotSparkCell::before{content:none}
 .starRate{display:inline-flex;align-items:center;margin-top:-.6rem}
