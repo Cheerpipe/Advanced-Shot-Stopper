@@ -1261,7 +1261,7 @@
     "settings.time_before_the_slow_guard_takes_over": "The point when Slow guard decides that a shot is too slow. It stops now if Minimum recovery has been reached; otherwise it keeps brewing toward that weight, up to Max BBW time.",
     "settings.timer_stop_extra_delay_ms": "Timer stop extra delay (ms)",
     "settings.touch_stop_fallback": "Stop after sustained weight",
-    "settings.touch_stop_fallback_hint": "Stop after 1 s above the limit. Requires touch protection.",
+    "settings.touch_stop_fallback_hint": "If touch protection blocks a weight stop, stop the shot after 1 s above the limit—even if the extra weight comes from a touch or another unexpected load.",
     "settings.trend_s": "Trend (s)",
     "settings.turn_scale_off_with_machine": "Turn scale off when the machine powers off",
     "settings.turn_scale_off_with_machine_hint": "When the Micra is confirmed off after being on, the connected scale is switched off. Only works on scales with remote power-off support.",
