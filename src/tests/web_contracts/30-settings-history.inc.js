@@ -159,7 +159,8 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !partialHtml.settings.includes('id="presetCardsState" class="panelState isOver" role="status"') ||
     !partialHtml.settings.includes('<article class="presetCard skeleton"><div class="presetCardTitleRow"><div class="presetCardTitle">&nbsp;</div></div><div class="presetCardMeta">&nbsp;</div></article>') ||
     !runtimeJs.includes("settlePanel('presetCardsState'") ||
-    !css.includes('#presetCardsWrap{position:relative}') ||
+    !partialHtml.settings.includes('id="presetCardsWrap" class="panelWrap"') ||
+    !css.includes('.panelWrap{position:relative}') ||
     !ui.includes('id="presetNewBtn"') ||
     !ui.includes('id="presetDupBtn"') ||
     ui.includes('id="presetLoadBtn"') ||
@@ -1052,6 +1053,43 @@ if (!statsSection ||
       'Stats view must be a 2+3 shotCard, duration histogram, and firmware-computed stats aggregate (no client recompute or second fetch)');
 }
 
+{
+  if (!statsSection[1].includes('class="panelWrap"') ||
+      !statsSection[1].includes('id="shotStatsState" class="panelState isOver" aria-hidden="true"') ||
+      !css.includes('.panelWrap{position:relative}') ||
+      !css.includes('.panelState.isOver{position:absolute;') ||
+      !runtimeJs.includes("renderShots();settlePanel('shotStatsState');")) {
+    throw new Error('Stats must reuse a non-sizing wave overlay and settle after history renders');
+  }
+  const assert = require('assert').strict, vm = require('vm');
+  const render = rawRuntimeJs.split('\n').find(line => line.startsWith('function renderShots('));
+  const fetchPage = rawRuntimeJs.split('\n').find(line => line.startsWith('async function fetchShotPage('));
+  (async () => {
+    for (const fail of [false, true]) {
+      const events = [];
+      let resolve, reject;
+      const response = new Promise((yes, no) => {resolve = yes; reject = no;});
+      const context = vm.createContext({shotsBusy: false, shotsLoaded: false,
+        shotHistory: {shots: []}, webUiPollingActive: () => true,
+        api: () => response, shotsUrl: () => '/api/v1/shots',
+        applyShotPage: () => {context.shotsLoaded = true;},
+        renderShotStats: () => events.push('stats'),
+        $: () => ({replaceChildren: () => events.push('history')}),
+        __WEBUI_TEXT__: text => text,
+        settlePanel: id => events.push(id), updateShotLogSentinel() {},
+        updateFirmwareFooter() {}, noteReachOk() {}, maybeLoadMoreShots() {},
+        noteReachFail: () => events.push('error')});
+      vm.runInContext(render + '\n' + fetchPage, context);
+      const loading = context.fetchShotPage(0, 10, 'replace');
+      assert.deepEqual(events, [], 'Neither loader may settle while data is pending');
+      if (fail) reject(new Error('Unavailable')); else resolve({shots: [], stats: {}});
+      await loading;
+      assert.deepEqual(events, fail ? ['error'] :
+        ['stats', 'history', 'shotTableState', 'shotStatsState']);
+      assert.equal(context.shotsBusy, false);
+    }
+  })().catch(error => {console.error(error); process.exitCode = 1;});
+}
 {
   const start = runtimeJs.indexOf('function axisLabel(');
   const end = runtimeJs.indexOf('function renderShotStats(');

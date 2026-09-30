@@ -539,8 +539,10 @@ if (generated.icon48Gzip.length > 3500) {
 // once, so the versioned image and rodata growth budgets stay untouched.
 // Six Cloud diagnostic fields and their lazy renderer add 500 bytes of
 // reviewed allowance. Firmware image and OTA partition limits stay fixed.
-if (generated.combined > 111200) {
-  throw new Error(`Combined Web UI gzip exceeds the 111200-byte flash budget (${generated.combined})`);
+// The Stats loading wave reuses the panel helper and adds 50 bytes of reviewed
+// allowance. Firmware image and OTA partition limits stay fixed.
+if (generated.combined > 111250) {
+  throw new Error(`Combined Web UI gzip exceeds the 111250-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

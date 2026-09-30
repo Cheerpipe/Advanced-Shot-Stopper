@@ -257,8 +257,9 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // two Stats table headers add ~0.1 KB of HTML source allowance; the
 // compressed asset and firmware budgets stay effectively unchanged.
 // Six La Marzocco Cloud diagnostic fields add 0.8 KB of HTML allowance.
-if (htmlBytes > 79700) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 79700)`);
+// The Stats loading overlay reuses the panel wave and adds ~0.2 KB of HTML source.
+if (htmlBytes > 79950) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 79950)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.

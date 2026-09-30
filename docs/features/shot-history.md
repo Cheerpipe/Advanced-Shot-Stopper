@@ -98,6 +98,10 @@ pending, the API reports `savePending`; a failed write remains pending for retry
 Once saving completes, the newest shot and its curve survive a restart.
 Power loss before saving completes can still lose pending changes.
 
+When you first open **Stats**, both **Stats** and **Shot history** show a loading
+wave. They fade away together once the summaries and history are ready. The
+wave over Stats does not add space to the panel or resize it when it disappears.
+
 Sort the list by **Date** or **Rating**, ascending or descending. Date
 defaults to newest first. Rating puts unrated shots (0 stars) at the end
 in both directions; equal scores keep newer shots first. The table loads
