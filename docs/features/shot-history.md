@@ -63,8 +63,11 @@ the drip-delay interval is not appended to the graph. Before the first drop,
 the weight chart shows a dark green outline along the zero-weight axis, and
 the flow chart shows an aqua outline along its zero-flow axis, with no shaded
 area. An aqua drop with only the first-drop time beside it marks that moment on
-the weight chart only. When a late tare happened, a scale icon in the text
-color with the tare time marks that moment on the weight chart too. The time
+the weight chart only. When a late tare happened, a cup icon with a T inside
+and the tare time marks that moment on the weight chart too. If the cup or
+its time label overlaps the first-drop marker, the cup and its label move
+up one lane with a small gap above the drop. Both times stay aligned with
+their events; when there is enough room, they share the lower lane. The time
 axis shows only its fixed 10-second labels;
 Fast, Slow, and A-to-M changes remain visible through the curve colors without
 adding competing time labels. Curves without a first-drop event keep their full
