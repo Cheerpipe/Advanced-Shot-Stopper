@@ -977,8 +977,6 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
     return;
   }
   shotStoreDirtyGeneration.fetch_add(1, std::memory_order_relaxed);
-  // Same locked critical section as the append: stats can never diverge.
-  shotLog.recomputeStats();
   if (persistedLastShot.valid && persistedLastShot.cycleId == snapshot.cycleId) {
     PersistedLastShot linked = persistedLastShot;
     linked.shotLogId = newId;

@@ -16,7 +16,7 @@ namespace shotstopper {
 constexpr size_t SHOT_LOG_FLASH_SLOT_BYTES = 12288;
 constexpr size_t SHOT_LOG_FLASH_SLOT_COUNT = 2;
 
-// Only the fixed v1 layout is accepted; any older slot is discarded.
+// Only the fixed v2 layout is accepted; any older slot is discarded.
 inline bool validShotLogStoreCurrent(const ShotLogStore &store) {
   return validShotLogStore(store);
 }
@@ -48,9 +48,6 @@ class ShotLog
     } else if (store_.header.bootId < UINT32_MAX) {
       ++store_.header.bootId;
     }
-    if (shotLogStatsTotalCount(store_.stats) == 0) {
-      recomputeStats();
-    }
     store_.header.schemaVersion = SHOT_LOG_SCHEMA_VERSION;
     dirty_ = true;
   }
@@ -59,28 +56,29 @@ class ShotLog
 
   uint32_t nextRecordId() const { return store_.header.nextRecordId; }
 
-  // Refresh the persisted legacy trailer and mark the store dirty; the
-  // public Stats view is computed from eligible RAM records on read.
-  void recomputeStats() {
-    ShotLogRecord window[SHOT_LOG_STATS_WINDOW];
-    const size_t available = copyNewestFirst(window, SHOT_LOG_STATS_WINDOW);
-    updateShotLogStats(store_, window, available);
-    dirty_ = true;
-  }
-
-  const ShotLogStats &stats() const { return store_.stats; }
-
   ShotStatsView statsView() const {
     ShotLogRecord eligible[SHOT_LOG_STATS_WINDOW];
     size_t found = 0;
+    uint32_t bbwCount = 0;
+    uint32_t bbwErrorTenthsSum = 0;
     size_t index = store_.header.writeIndex;
-    for (size_t n = 0; n < store_.header.count && found < SHOT_LOG_STATS_WINDOW;
-         ++n) {
+    for (size_t n = 0; n < store_.header.count &&
+                       (found < SHOT_LOG_STATS_WINDOW ||
+                        bbwCount < SHOT_LOG_STATS_WINDOW); ++n) {
       if (index == 0) index = SHOT_LOG_CAPACITY;
       const ShotLogRecord &record = store_.records[--index];
-      if (shotLogRecordEligible(record)) eligible[found++] = record;
+      if (!shotLogRecordEligible(record)) continue;
+      if (found < SHOT_LOG_STATS_WINDOW) eligible[found++] = record;
+      if (bbwCount < SHOT_LOG_STATS_WINDOW &&
+          shotLogBbwErrorEligible(record)) {
+        ++bbwCount;
+        bbwErrorTenthsSum += shotLogBbwErrorTenths(record);
+      }
     }
-    return shotLogStatsView(eligible, found);
+    ShotStatsView stats = shotLogStatsView(eligible, found);
+    stats.bbwCount = bbwCount;
+    stats.errorPctTenthsSum = bbwErrorTenthsSum;
+    return stats;
   }
 
   bool copyNewestEligible(ShotLogRecord &output) const {

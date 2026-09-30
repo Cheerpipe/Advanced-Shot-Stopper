@@ -1017,14 +1017,6 @@ bool clearShotLog() {
     return false;
   }
   if (!shotLog.clear(false)) return false;
-  shotLog.recomputeStats();
-  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
-  return true;
-}
-
-bool clearShotLogStats() {
-  TaskLockGuard lock(shotStoreMutex);
-  shotLog.recomputeStats();
   shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
   return true;
 }
@@ -1036,7 +1028,6 @@ bool clearLastShot() {
   if (shotCurves.containsShotId(latest.id) &&
       !shotCurves.removeById(latest.id, false)) return false;
   if (!shotLog.removeById(latest.id, false)) return false;
-  shotLog.recomputeStats();
   shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
   return true;
 }

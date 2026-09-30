@@ -138,11 +138,11 @@ mask the low two bits. Preset/BBW writers preserve each other's bit fields.
 Any non-v1 history store is discarded instead of decoded. The ID follows
 existing preset allocation, while the stored name is historical data rather
 than a lookup through the current preset bank.
-The fixed persisted stats trailer remains part of the store checksum, but
-public Stats values are derived under the store mutex from the newest ten
-eligible records in RAM. The read visits at most 100 ring entries and copies
-at most ten records. It counts available flow separately and computes absolute
-percentage error only for normal BBW target or legacy prediction cuts.
+Stats values are derived under the store mutex from shot records in RAM;
+no aggregate is persisted. The read visits at most 100 ring entries and copies
+at most ten records for general metrics. BBW error has its own ten-cut window
+across the same ring, counting normal target or legacy prediction cuts only.
+Available flow is counted separately within the general window.
 
 The stats shot log, its curve sidecar, and the independent activation history
 are owned by one RAM data layer (`ActivationStores`) whose every access runs
@@ -156,15 +156,15 @@ Clearing a store preserves its generation; an older slot must never outrank
 the saved empty store. Each inactive partition slot is
 erased one 4 KiB sector at a time, programmed one 1 KiB staged chunk at a time,
 and receives its validity-bearing header last; the worker rechecks the current
-machine and scale gates between steps. The shot log's whole 7,228-byte store and the
+machine and scale gates between steps. The shot log's whole 10,828-byte store and the
 16,024-byte activation-history store live in PSRAM and move to and from their
 slots in 1 KiB chunks staged through the small internal flash-I/O scratch only
 while that owner holds the flash lock. Each keeps two slots in its own data
 partition — 2×12 KiB for `shotlog`, 2×16 KiB for `history` — with generation
 and checksum selection preserving the atomic whole-store update; a failed
 write never erases the last-good slot. Writes remain deferred until the shot
-has ended. The shot log uses schema 1 in its dedicated partition; any other
-schema is discarded and the stats log starts empty.
+has ended. The shot log uses schema 2 in its dedicated partition; any other
+schema is discarded and the shot history starts empty.
 
 On n16r8, ESP-IDF writes one ELF core dump to a 640 KiB capture partition
 after a panic. Once the relay is open and the durable boot ID has been saved,

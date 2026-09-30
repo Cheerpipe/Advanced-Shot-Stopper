@@ -11198,8 +11198,8 @@ void s01c_mixed_shots_share_stats_and_home_authority() {
   CHECK(eligible.id == newestId);
   const ShotStatsView stats = copyShotStats();
   CHECK(stats.shotCount == 10);
-  CHECK(stats.bbwCount == 2);
-  CHECK(stats.errorPctTenthsSum == 200);
+  CHECK(stats.bbwCount == 3);
+  CHECK(stats.errorPctTenthsSum == 700);
   CHECK(stats.flowCount == 2);
   CHECK(stats.flowCgSx100Sum == 25000);
   CHECK(deleteShotRecord(newestId));
@@ -11207,6 +11207,28 @@ void s01c_mixed_shots_share_stats_and_home_authority() {
   CHECK(eligible.actualWeightCg == 2200);
   CHECK(clearShotLog());
   CHECK(!copyHomeShot(eligible, curve));
+}
+
+void s01e_bbw_error_uses_its_own_ten_shots() {
+  resetHarness(false, true);
+  shotLog.clear(false);
+  ShotLogRecord record = {};
+  record.durationDs = 300;
+  record.actualWeightCg = 3300;
+  record.goalWeightG = 30;
+  record.shotType = static_cast<uint8_t>(ShotLogType::AUTO);
+  record.stopDetail = static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET);
+  for (int i = 0; i < 12; ++i) CHECK(shotLog.append(record, false));
+  for (int i = 0; i < 10; ++i) {
+    record.stopDetail = static_cast<uint8_t>(
+        i % 2 ? ShotLogStopDetail::EXTENDED_MAX_WEIGHT
+              : ShotLogStopDetail::SLOW_MAX_TIME);
+    CHECK(shotLog.append(record, false));
+  }
+  const ShotStatsView stats = copyShotStats();
+  CHECK(stats.shotCount == 10);
+  CHECK(stats.bbwCount == 10);
+  CHECK(stats.errorPctTenthsSum == 1000);
 }
 
 void s01d_manual_timer_and_limit_share_settled_finalize() {
@@ -17561,6 +17583,7 @@ const TestCase testCases[] = {
     {"D13b", d13b_friendly_names_are_per_scale},
     {"S01", s01_shot_log_filters_short_and_rinse},
     {"S01c", s01c_mixed_shots_share_stats_and_home_authority},
+    {"S01e", s01e_bbw_error_uses_its_own_ten_shots},
     {"S01d", s01d_manual_timer_and_limit_share_settled_finalize},
     {"S01b", s01b_shot_log_stop_detail_names_end_reasons},
     {"S02", s02_shot_log_appends_after_drip_delay},

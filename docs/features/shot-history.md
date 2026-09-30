@@ -110,14 +110,15 @@ when it is not the current one). Hovering a time shows its exact date and
 time to the second, and the CSV export always keeps that full detail no
 matter how the table displays it.
 
-Stats uses the newest **10 qualifying shots** for duration, yield, available
+Stats uses up to the newest **10 qualifying shots** for duration, yield, available
 flow, daily count, and the duration chart, regardless of how the table is
-sorted. **Avg BBW error** uses only normal BBW target cuts among those ten and
-averages the absolute percentage miss, so overshoots and undershoots cannot
-cancel each other. It is unavailable when none of those shots has a valid
-target. For example, a single 28.0 s Fast-guard shot yielding 36.9 g with
+sorted. **Avg BBW error** independently uses up to the newest **10 normal BBW
+target cuts** in the full history, skipping manual shots and Fast/Slow guard
+stops. It averages the absolute percentage miss, so overshoots and undershoots
+cannot cancel each other. It is unavailable when there is no qualifying BBW
+target cut. For example, a single 28.0 s Fast-guard shot yielding 36.9 g with
 1.42 g/s average flow shows those same three averages; **Avg BBW error** stays
-unavailable because a guard stop is not a normal target cut. **Daily shots**
+unavailable until a normal BBW target cut is recorded. **Daily shots**
 averages the dated shots over the calendar days they span, including both ends.
 An erase-all firmware installation starts with empty shot history.
 If a low-weight older row is imported later, it remains in the table and CSV
@@ -236,8 +237,9 @@ Learning applied is `1`/`0` in CSV and true/false in JSON; a skipped shot still
 retains its assigned gain. For example, appended CSV values can be
 `linear_ewma,2,0.37,1` and later `linear_ewma,2,0.50,1` for the same preset.
 
-History and curve stores use schema 1. A clean USB installation with
-`--erase-all` starts them empty. Select Linear
+Shot history uses schema 2 and curves use schema 1. The shot-history format
+does not migrate older records; install with `--erase-all` to start with an
+empty history. Select Linear
 regression + offset correction in current firmware for like-for-like
 algorithm comparison. Renaming the visible method does not rename API/CSV
 identifiers.

@@ -13,10 +13,10 @@
 namespace shotstopper {
 
 constexpr uint32_t SHOT_LOG_MAGIC = 0x534C4F47U;  // "SLOG"
-constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 1;
+constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 2;
 constexpr size_t SHOT_LOG_CAPACITY = 100;
 constexpr size_t SHOT_LOG_PAGE_DEFAULT = 10;
-// The pre-computed stats aggregate mirrors the WebUI Stats card window.
+// Maximum number of records in each independent read-time Stats window.
 constexpr size_t SHOT_LOG_STATS_WINDOW = 10;
 
 enum class ShotLogSort : uint8_t { Date = 0, Rating = 1 };
@@ -334,13 +334,29 @@ struct ShotLogRecord {
 static_assert(sizeof(ShotLogRecord) == 108,
               "ShotLogRecord v1 must include the preset-name and scale-name snapshots");
 
+inline ShotLogType shotLogType(const ShotLogRecord &record);
+
 inline bool shotLogRecordEligible(const ShotLogRecord &record) {
   return record.durationDs > MIN_SHOT_LOG_DURATION_MS / 100U &&
          !shotLogWeightIsMissing(record.actualWeightCg) &&
          record.actualWeightCg > 200;
 }
 
-inline ShotLogType shotLogType(const ShotLogRecord &record);
+inline bool shotLogBbwErrorEligible(const ShotLogRecord &record) {
+  const ShotLogStopDetail detail =
+      static_cast<ShotLogStopDetail>(record.stopDetail);
+  return shotLogType(record) == ShotLogType::AUTO && record.goalWeightG > 0 &&
+         (detail == ShotLogStopDetail::NORMAL_TARGET ||
+          detail == ShotLogStopDetail::PREDICTION);
+}
+
+inline uint32_t shotLogBbwErrorTenths(const ShotLogRecord &record) {
+  const int32_t error = static_cast<int32_t>(record.actualWeightCg) -
+                        static_cast<int32_t>(record.goalWeightG) * 100;
+  return static_cast<uint32_t>(error < 0 ? -error : error) * 10U /
+         record.goalWeightG;
+}
+
 inline uint8_t shotLogPresetId(const ShotLogRecord &record);
 
 inline PersistedLastShot shotLogProjectLastShot(
@@ -486,9 +502,6 @@ inline void shotLogSortRecords(ShotLogRecord *records, size_t count,
   }
 }
 
-// Pre-computed WebUI/HA stats aggregate over the newest shots of the log,
-// mirroring the WebUI Stats card. Maintained by updateShotLogStats when a
-// shot is committed; 0 counts mean "unknown" (no qualifying shots yet).
 struct ShotLogHeader {
   uint32_t magic;
   uint16_t schemaVersion;
@@ -501,20 +514,7 @@ struct ShotLogHeader {
   uint32_t checksum;
 };
 
-// Header fields are frozen: the v7 stats aggregate is a store trailer placed
-// AFTER the records, so v6 blobs load byte-identically and only need a stats
-// rebuild on boot (records keep their offsets; the header CRC stays valid).
-struct ShotLogStats {
-  uint32_t shotCount;         // qualifying auto shots included
-  uint32_t missCount;         // qualifying shots without a weight/flow
-  uint32_t durationDsSum;     // centi-precision sums avoid drift
-  uint32_t actualCgSum;
-  uint32_t errorPctTenthsSum; // (actual-goal)/goal*1000 sum
-  uint32_t flowCgSx100Sum;    // avg flow g/s * 10000 sum
-  uint32_t daysSpan;          // newest-oldest day index, 0 when <2 days
-};
-
-// Read-time view; the persisted trailer above keeps its original binary layout.
+// Read-time view; stats are derived from shot records and never persisted.
 struct ShotStatsView {
   uint32_t shotCount = 0;
   uint32_t flowCount = 0;
@@ -536,25 +536,12 @@ inline ShotStatsView shotLogStatsView(const ShotLogRecord *newestFirst,
   for (size_t i = 0; i < available && stats.shotCount < SHOT_LOG_STATS_WINDOW;
        ++i) {
     const ShotLogRecord &record = newestFirst[i];
-    if (!shotLogRecordEligible(record)) continue;
     stats.durationsDs[stats.shotCount++] = record.durationDs;
     stats.durationDsSum += record.durationDs;
     stats.actualCgSum += static_cast<uint32_t>(record.actualWeightCg);
     if (record.avgFlowCgS != SHOT_LOG_METRIC_MISSING) {
       ++stats.flowCount;
       stats.flowCgSx100Sum += static_cast<uint32_t>(record.avgFlowCgS) * 100U;
-    }
-    const ShotLogStopDetail detail =
-        static_cast<ShotLogStopDetail>(record.stopDetail);
-    if (shotLogType(record) == ShotLogType::AUTO && record.goalWeightG > 0 &&
-        (detail == ShotLogStopDetail::NORMAL_TARGET ||
-         detail == ShotLogStopDetail::PREDICTION)) {
-      ++stats.bbwCount;
-      const int32_t error = static_cast<int32_t>(record.actualWeightCg) -
-                            static_cast<int32_t>(record.goalWeightG) * 100;
-      stats.errorPctTenthsSum +=
-          static_cast<uint32_t>(error < 0 ? -error : error) * 10U /
-          record.goalWeightG;
     }
     if (record.hasWallTime && record.endedAtLocalSec != 0) {
       ++stats.timedCount;
@@ -568,14 +555,9 @@ inline ShotStatsView shotLogStatsView(const ShotLogRecord *newestFirst,
   return stats;
 }
 
-inline uint32_t shotLogStatsTotalCount(const ShotLogStats &stats) {
-  return stats.shotCount + stats.missCount;
-}
-
 struct ShotLogStore {
   ShotLogHeader header;
   ShotLogRecord records[SHOT_LOG_CAPACITY];
-  ShotLogStats stats;
 };
 
 inline uint32_t shotLogLocalSecFromUtc(uint32_t utcSec, int16_t offsetMinutes) {
@@ -591,8 +573,6 @@ inline uint32_t shotLogChecksum(const ShotLogStore &store) {
                       static_cast<size_t>(store.header.count) *
                           sizeof(ShotLogRecord));
   }
-  crc = crc32Update(crc, reinterpret_cast<const uint8_t *>(&store.stats),
-                    sizeof(store.stats));
   return ~crc;
 }
 
@@ -616,10 +596,6 @@ inline bool validShotLogStore(const ShotLogStore &store) {
   return true;
 }
 
-inline void updateShotLogStats(ShotLogStore &store,
-                               const ShotLogRecord *newestFirst,
-                               size_t available);
-
 inline void resetShotLogStore(ShotLogStore &store, uint32_t bootId) {
   memset(&store, 0, sizeof(store));
   store.header.generation = 1;
@@ -631,61 +607,6 @@ inline void resetShotLogStore(ShotLogStore &store, uint32_t bootId) {
 // Fixed boot-id variant matching the DualSlotFlashLogTraits reset signature.
 inline void resetShotLogStoreWithBootId(ShotLogStore &store) {
   resetShotLogStore(store, 1);
-}
-
-// Maintain the legacy persisted stats trailer without changing the flash
-// layout. The public Stats view above uses eligible records instead.
-inline void updateShotLogStatsImpl(ShotLogStats &stats,
-                                   const ShotLogRecord *newestFirst,
-                                   size_t available);
-
-inline void updateShotLogStats(ShotLogStore &store,
-                               const ShotLogRecord *newestFirst,
-                               size_t available) {
-  const size_t window = available < SHOT_LOG_STATS_WINDOW
-                            ? available
-                            : SHOT_LOG_STATS_WINDOW;
-  ShotLogStats stats = {};
-  int32_t oldestDay = -1;
-  int32_t newestDay = -1;
-  for (size_t i = 0; i < window; ++i) {
-    const ShotLogRecord &record = newestFirst[i];
-    if (shotLogType(record) != ShotLogType::AUTO) {
-      continue;
-    }
-    const bool weighted = !shotLogWeightIsMissing(record.actualWeightCg);
-    if (weighted) {
-      stats.durationDsSum += record.durationDs;
-      stats.actualCgSum += static_cast<uint32_t>(record.actualWeightCg);
-    }
-    if (record.goalWeightG == 0 || !weighted) {
-      // Flow-only rows still count toward the flow average.
-      if (record.avgFlowCgS != SHOT_LOG_METRIC_MISSING) {
-        stats.missCount++;
-        stats.flowCgSx100Sum +=
-            static_cast<uint32_t>(record.avgFlowCgS) * 100U;
-      }
-      continue;
-    }
-    stats.shotCount++;
-    const int32_t errorTenths = static_cast<int32_t>(
-        (static_cast<int32_t>(record.actualWeightCg) * 1000) /
-        (static_cast<int32_t>(record.goalWeightG) * 100)) - 1000;
-    stats.errorPctTenthsSum += static_cast<uint32_t>(errorTenths);
-    if (record.avgFlowCgS != SHOT_LOG_METRIC_MISSING) {
-      stats.flowCgSx100Sum += static_cast<uint32_t>(record.avgFlowCgS) * 100U;
-    }
-    if (record.hasWallTime && record.endedAtLocalSec != 0) {
-      const int32_t day = static_cast<int32_t>(record.endedAtLocalSec / 86400U);
-      newestDay = newestDay < 0 ? day : newestDay;
-      oldestDay = day;
-    }
-  }
-  stats.daysSpan =
-      newestDay >= 0 && oldestDay >= 0
-          ? static_cast<uint32_t>(newestDay - oldestDay)
-          : 0;
-  store.stats = stats;
 }
 
 // Rotate a record ring in place so the `count` live records (oldest first,

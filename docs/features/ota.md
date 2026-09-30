@@ -47,8 +47,10 @@ If HTTP never comes up, the controller waits up to 180 s, then:
 Watchdog and panic still open the circuit and reset immediately: a hung
 firmware cannot wait for the shot to finish.
 
-Wi-Fi credentials, presets, calibration, and shot history are left
-unchanged on a successful flash.
+Flashing leaves Wi-Fi credentials, presets, and calibration untouched. A firmware
+version that changes the shot-history format may start with empty shot history
+after reboot. This version uses a new shot-history format and does not migrate
+older records; use a clean `--erase-all` installation for this cutover.
 
 ## How to run
 

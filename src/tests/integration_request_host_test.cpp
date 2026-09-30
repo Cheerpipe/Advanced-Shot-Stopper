@@ -136,7 +136,11 @@ void stats_json_preserves_independent_metrics() {
     cJSON_Delete(root);
   }
   rows[0].stopDetail = static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET);
-  CHECK(buildIntegrationStats(shotLogStatsView(rows, 1), output, sizeof(output)));
+  ShotStatsView bbwStats = shotLogStatsView(rows, 1);
+  CHECK(shotLogBbwErrorEligible(rows[0]));
+  bbwStats.bbwCount = 1;
+  bbwStats.errorPctTenthsSum = shotLogBbwErrorTenths(rows[0]);
+  CHECK(buildIntegrationStats(bbwStats, output, sizeof(output)));
   CHECK(strstr(output, "\"avgErrorPct\":2.5") != nullptr);
   rows[0].avgFlowCgS = SHOT_LOG_METRIC_MISSING;
   rows[0].hasWallTime = false;

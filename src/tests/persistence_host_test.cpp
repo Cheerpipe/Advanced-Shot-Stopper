@@ -590,7 +590,7 @@ void p65_factory_settings_survives_second_slot_write_fail() {
 
 void p66_shot_log_dual_slot_generation_flip() {
   resetHostPersistence();
-  CHECK(sizeof(ShotLogStore) == 10856);
+  CHECK(sizeof(ShotLogStore) == 10828);
   CHECK(sizeof(ShotLogStore) % 4 == 0);
   CHECK(sizeof(ShotLogStore) <= SHOT_LOG_FLASH_SLOT_BYTES);
   CHECK(SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES <= 0x8000);
@@ -1738,6 +1738,9 @@ void p56_shot_log_stale_slot_and_foreign_schema_rejected() {
   ShotLogStore foreign = current;
   foreign.header.schemaVersion = 31;
   foreign.header.checksum = 0;
+  foreign.header.checksum = shotLogChecksum(foreign);
+  CHECK(!validShotLogStore(foreign));
+  foreign.header.schemaVersion = 1;
   foreign.header.checksum = shotLogChecksum(foreign);
   CHECK(!validShotLogStore(foreign));
 

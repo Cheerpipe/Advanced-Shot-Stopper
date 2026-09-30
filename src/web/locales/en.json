@@ -1314,7 +1314,7 @@
     "stats.avg_flow": "Avg flow",
     "stats.avg_time": "Avg time",
     "stats.avg_yield": "Avg yield",
-    "stats.based_on_the_last_10_shots": "Last 10 shots.",
+    "stats.based_on_the_last_10_shots": "Last 10 shots. BBW: 10 target cuts.",
     "stats.clear": "Clear",
     "stats.close": "×",
     "stats.daily_shots": "Daily shots",

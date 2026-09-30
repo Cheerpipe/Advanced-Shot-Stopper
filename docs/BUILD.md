@@ -237,7 +237,8 @@ must never be added to a profile.
 
 Machine defaults seed a new installation and factory reset. Valid persisted
 settings survive ordinary boot and OTA. The current settings blob is schema 3;
-shot and curve stores retain schema 1. Incompatible old settings are rejected
+the shot store uses schema 2 and the curve store uses schema 1. Incompatible
+old settings are rejected
 and replaced with factory defaults. Firmware identity is checked before
 writing the device. This release assumes a clean USB installation with
 `--erase-all`; subsequent compatible OTA updates retain its saved data.

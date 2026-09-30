@@ -940,7 +940,7 @@ if (!statsSection ||
     !statsSection[1].includes('id="statsAvgErr"') ||
     !statsSection[1].includes('id="statsAvgFlow"') ||
     !statsSection[1].includes('class="fieldHint"') ||
-    !statsSection[1].includes('Last 10 shots.') ||
+    !statsSection[1].includes('Last 10 shots. BBW: 10 target cuts.') ||
     !statsSection[1].includes('id="statsDurChart"') ||
     !runtimeJs.includes('function renderStatsDurChart(') ||
     !viewJs.stats.includes('R.renderStatsDurChart()') ||
@@ -968,7 +968,8 @@ if (!statsSection ||
     network.includes('/api/v1/shots/stats') ||
     shotLogTypes.includes('shotLogComputeAverages') ||
     !shotLogTypes.includes('SHOT_LOG_STATS_WINDOW') ||
-    !shotLogTypes.includes('updateShotLogStats')) {
+    shotLogTypes.includes('updateShotLogStats') ||
+    !shotLogTypes.includes('shotLogBbwErrorEligible')) {
   throw new Error(
       'Stats view must be a 2+3 shotCard, duration histogram, and firmware-computed stats aggregate (no client recompute or second fetch)');
 }
