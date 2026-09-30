@@ -42,7 +42,9 @@ a brew.
 
 ## In the Web UI
 
-Open the **History** page (next to Stats) to browse the diary. The list loads
+Open the **History** page (next to Stats) to browse the diary. The entries and
+the sort and Clear controls stay hidden behind a loading animation until the
+initial data is ready. The list loads
 **20 entries at a time** as you scroll and refreshes every 20 s. Sort by date,
 newest or oldest first, from the sort control at the top. Each card leads with
 the duration large on the left and the friendly time label small on the right:
