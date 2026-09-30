@@ -842,7 +842,7 @@ void updateWorkerLinkState() {
   char shotName[sizeof(scaleShotName)] = {};
   if (linkUp) {
     const TaskLockGuard lock(scalePreferredMacMux);
-    const char *name = scale.localName();
+    const char *name = scaleDefaultFriendlyName(scale.localName());
     for (const auto &entry : scaleHistory) {
       if (preferredScaleMacEqual(entry.mac, scale.address()) && entry.friendlyName[0]) {
         name = entry.friendlyName;

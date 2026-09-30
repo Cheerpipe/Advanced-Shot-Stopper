@@ -10590,7 +10590,17 @@ void shot_scale_name_snapshot_survives_link_changes() {
   noteScaleHistory(scale.address(), scale.localName(), false);
   CHECK(setScaleFriendlyName(scale.address(), ""));
   updateWorkerLinkState();
-  CHECK(strcmp(getScaleLinkSnapshot().shotScaleName, "BOOKOO_SC 715097") == 0);
+  CHECK(strcmp(getScaleLinkSnapshot().shotScaleName, "BOOKOO Themis Mini") == 0);
+  startCycle();
+  CHECK(strcmp(session.scaleName, "BOOKOO Themis Mini") == 0);
+  schedulePendingShotFinalize(EndReason::ACTIVATOR, 14000);
+  CHECK(strcmp(pendingFinalize.scaleName, "BOOKOO Themis Mini") == 0);
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  copyCString(scale.connectedLocalName, sizeof(scale.connectedLocalName), "BOOKOO_SC U 90210");
+  noteScaleHistory(scale.address(), scale.localName(), false);
+  updateWorkerLinkState();
+  CHECK(strcmp(getScaleLinkSnapshot().shotScaleName, "BOOKOO Themis Ultra") == 0);
   const char *longName = "1234567890123456789012345678901";
   copyCString(scale.connectedLocalName, sizeof(scale.connectedLocalName), longName);
   updateWorkerLinkState();

@@ -521,7 +521,7 @@ if (!ui.includes('id="shotPanel"') ||
     css.includes('#statusPanel .metric::before,#scalePanel .metric::before,.shotCard > *::before{') ||
     css.includes('font-size:1rem;font-weight:700;color:var(--mu)') ||
     !css.includes('.shotCard .shotDur > div,.shotCard .shotActual > div') ||
-    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale scale rate rate rate"') ||
+    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate rate rate"') ||
     !ui.includes('id="shotElapsed"') ||
     !ui.includes('id="shotMoment"') ||
     !ui.includes("formatHumanTime(d.momentSec)") ||

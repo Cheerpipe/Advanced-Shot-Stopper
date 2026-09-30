@@ -16,8 +16,9 @@ time changes weight stopping, not which completed cycles are recorded.
 Typical fields include local time (from the saved time zone at shot end),
 duration, the exact preset name captured at shot start, goal and yield (the
 shot's actual output), error, average flow, first-drop time, the scale used
-(its friendly name, or the advertised Bluetooth name when no friendly name is
-set), the late-tare time when the cup was tared mid-shot, whether Fast/Slow
+(your chosen name, otherwise the suggested model name, or the advertised
+Bluetooth name when neither is available), the late-tare time when the cup was
+tared mid-shot, whether Fast/Slow
 guards ran or extended the shot, `shot_type`, `cut_type`
 (`auto`, `manual`, `limit`), `stop_detail` (for example
 `normal_target`, `activator`, `web_stop`, `wall_limit`, `hard_limit`,
@@ -33,7 +34,9 @@ card. Renaming or deleting a preset later does not rewrite a shot's displayed
 name.
 
 **Scale** appears after **Preset** and keeps the name captured for that shot,
-even if the scale disconnects or is renamed later. A Bluetooth name longer
+even if the scale disconnects or is renamed later. **Rate** aligns with the
+middle column; long scale names wrap within the first column. Existing shots
+keep their original names. A Bluetooth name longer
 than the friendly-name limit is shortened to fit. **Tare time**, before
 **1st drop**, shows the successful late tare's elapsed shot time, or **None**
 when no late tare succeeded. Its chart label always uses one decimal, such
