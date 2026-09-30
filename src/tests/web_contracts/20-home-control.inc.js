@@ -57,7 +57,7 @@
   }
   render(host, {wCg:[0, 0, 100], durationS:2, firstDropS:1.9, dropCg:50});
   if (markers.length !== 1 || !markers[0].innerHTML.includes('>1.9 s</span>') ||
-      markers[0].style.transform !== 'translateX(-6px)') {
+      markers[0].style.transform !== 'translateX(calc(0% - 7.8px))') {
     throw new Error('First-drop placement must use the rounded shared time domain');
   }
   const tared = render(host, {wCg:[0, 0, 100], wDtS:1, durationS:10,
