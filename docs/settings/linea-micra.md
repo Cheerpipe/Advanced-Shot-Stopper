@@ -59,8 +59,8 @@ show each returned name and serial number so the intended machine can be
 selected explicitly.
 
 The email, password, selected machine, and device installation key are stored
-in the controller so it can sign in again after a restart. Settings returns the
-saved email so it can display the read-only value; the password, installation
+in the controller so it can sign in again after a restart. Settings and
+Diagnostics show the saved email as a read-only value; the password, installation
 key, and short-lived access and refresh tokens are never returned by the Web UI
 or diagnostics. The access token is reused for state reads and renewed after 50
 minutes. Renewal normally replaces one scheduled state read, and the next read
@@ -106,12 +106,27 @@ quality. The next automatic cycle then follows the normal 30-second cadence.
 Select **(Refresh)** beside the displayed state to add a read to the same bounded
 queue. It cannot bypass STA, AP, clock, shot, busy, or post-wake timing rules.
 
-With full debug logging enabled, each Micra cloud request prints a start line
-with its method and route, followed by a completion line with the same request
-ID, elapsed time, HTTP status, and result. Routes replace the machine serial
-with `{serial}` and never show account credentials or tokens. The transient
-`HTTP_CLIENT` header-wait warning is hidden from serial output. Use
-the matching request ID and final result to tell whether a read failed.
+### Cloud diagnostics and logs
+
+**Diagnostic → La Marzocco Cloud**, immediately above **MISC**, shows the saved
+account email and the active selected machine. The email is visible to anyone
+who can view diagnostics. The panel also shows the most recently completed
+cloud call: its start date and time in UTC, API name and HTTP method, result,
+HTTP status when available, and duration in milliseconds. Duration helps spot
+slow cloud connections. Before the first call, the panel reads **No calls yet**.
+The last completed call stays visible during the next request; this history is
+kept until the controller restarts, including after Disconnect.
+
+Each request logs its method and route when it starts, then its API name,
+matching request ID, duration, HTTP status, and result when it finishes. These
+entries use the existing serial and Web logs and respect their configured log
+levels. Successful calls use **Info**; cancellations and temporary connection,
+session, rate-limit, or server failures use **Warning**. Permanent rejections,
+invalid or oversized responses, and request setup failures use **Error**.
+Routes replace the machine serial with `{serial}`; logs never contain account
+credentials, tokens, or response bodies. The transient `HTTP_CLIENT` header-wait
+warning is hidden from serial output. Use the final result to tell whether the
+call failed, even if the server returned HTTP 200.
 
 UNKNOWN is treated like ON for paddle behavior. It never qualifies a wake
 gesture, so brewing and rinse behavior remain unchanged when no confirmed ON

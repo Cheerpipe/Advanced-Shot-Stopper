@@ -20,6 +20,75 @@ const networkService = fs.readFileSync(
     path.join(sketchDir, 'network/ShotStopperNetworkService.inc'), 'utf8');
 const micraSettingsHtml = rawPartialHtml.settings;
 const micraDiagnosticHtml = rawPartialHtml.diagnostic;
+{
+  const assert = require('assert');
+  const vm = require('vm');
+  const panelAt = micraDiagnosticHtml.indexOf('id="micraCloudDiagnostics"');
+  assert(panelAt >= 0 && panelAt < micraDiagnosticHtml.indexOf('{{webui:diagnostic.misc}}'));
+  assert(micraDiagnosticHtml.includes('id="micraCloudDiagnostics" class="statusColumn micraOnly"'));
+  const ids = ['dMicraCloudEmail', 'dMicraCloudMachine', 'dMicraCloudTime',
+    'dMicraCloudApi', 'dMicraCloudResult', 'dMicraCloudDuration'];
+  const nodes = Object.fromEntries(ids.map(id => [id, {textContent: ''}]));
+  for (const id of ids) assert(micraDiagnosticHtml.includes(`id="${id}"`));
+  const context = vm.createContext({$: id => nodes[id],
+    __WEBUI_TEXT__: key => key,
+    R: {formatWallTime: (sec, offset) => {assert.strictEqual(offset, 0); return String(sec);}}});
+  const cloudUi = fs.readFileSync(path.join(sketchDir, 'web/js/diagnostic.js'), 'utf8');
+  vm.runInContext(cloudUi.slice(cloudUi.indexOf('function renderMicraCloudDiagnostic('),
+      cloudUi.indexOf('function formatScaleDisconnect(')), context);
+  const render = data => {
+    context.lm = data;
+    vm.runInContext('renderMicraCloudDiagnostic(lm)', context);
+  };
+  render({});
+  assert.strictEqual(nodes.dMicraCloudEmail.textContent, 'diagnostic.cloud_no_account');
+  assert.strictEqual(nodes.dMicraCloudMachine.textContent, 'diagnostic.cloud_no_machine');
+  assert.strictEqual(nodes.dMicraCloudTime.textContent, 'diagnostic.cloud_no_call');
+  const selected = {accountConfigured: true, email: 'barista@example.test',
+    selectedName: '<b>Kitchen Micra</b>', selectedSerial: 'ABC'};
+  const call = {api: 'read_dashboard', method: 'GET', startedAtUtcSec: 1790726400,
+    result: 'success', durationMs: 0, httpStatus: 200, transportStatus: 0};
+  render({...selected, cloudCall: call});
+  assert.strictEqual(nodes.dMicraCloudEmail.textContent, selected.email);
+  assert.strictEqual(nodes.dMicraCloudMachine.textContent, selected.selectedName,
+      'Account and machine text must never be interpreted as HTML');
+  assert.strictEqual(nodes.dMicraCloudTime.textContent, '1790726400 UTC');
+  assert.strictEqual(nodes.dMicraCloudApi.textContent, 'GET read_dashboard');
+  assert.strictEqual(nodes.dMicraCloudResult.textContent, 'diagnostic.cloud_success · HTTP 200');
+  assert.strictEqual(nodes.dMicraCloudDuration.textContent, '0 ms');
+  for (const result of ['canceled', 'http_error', 'transport_error', 'invalid_response',
+    'response_too_large', 'setup_error']) {
+    render({...selected, cloudCall: {...call, result, httpStatus: 0, transportStatus: -1}});
+    assert.strictEqual(nodes.dMicraCloudResult.textContent, `diagnostic.cloud_${result} · -1`);
+  }
+  for (const status of [401, 403, 429, 503]) {
+    render({...selected, cloudCall: {...call, result: 'http_error', httpStatus: status}});
+    assert(nodes.dMicraCloudResult.textContent.endsWith(`HTTP ${status}`));
+  }
+  render({cloudCall: call});
+  assert.strictEqual(nodes.dMicraCloudMachine.textContent, 'diagnostic.cloud_no_machine',
+      'Disconnect must clear the selected identity while retaining the last call');
+  render({cloudCall: null});
+  assert.strictEqual(nodes.dMicraCloudApi.textContent, 'diagnostic.cloud_no_call');
+  assert.strictEqual(nodes.dMicraCloudDuration.textContent, 'diagnostic.cloud_no_call');
+  assert(!micraStatus.includes('page == StatusPage::Settings ? safeMicraUsername : ""'));
+  assert(micraStatus.includes('machineIntegrationCloudCall()'));
+  assert(cloudUi.includes('renderMicraCloudDiagnostic(s.lineaMicra)'));
+  const complete = micraService.slice(micraService.indexOf('void ShotStopperMicraService::releaseIoBuffer('),
+      micraService.indexOf('void ShotStopperMicraService::releaseWorkBuffer('));
+  assert(complete.includes('serialTraceCategoryf(success ? LogLevel::INFO'));
+  assert(complete.includes('transient ? LogLevel::WARNING : LogLevel::ERROR'));
+  assert(complete.includes('lineaMicraHttpRetryable(call.httpStatus)'));
+  assert(complete.includes('publishedCloudCall_ = call;'));
+  assert(complete.includes('call.result = "invalid_response"'));
+  assert.strictEqual((micraService.match(/releaseIoBuffer\(ok\)/g) || []).length, 2,
+      'Both token responses must be validated before reporting success');
+  assert.strictEqual((micraService.match(/releaseIoBuffer\(false\)/g) || []).length, 2,
+      'Invalid machine lists and dashboards must be reported as errors');
+  assert(micraService.includes('releaseIoBuffer(mode != LineaMicraObservedMode::NONE)'));
+  assert(micraService.includes('work_->responseOverflow ? "response_too_large"'));
+  assert(micraService.includes('work_->transportFailure ? "transport_error"'));
+}
 const deferObservation = micraService.slice(
   micraService.indexOf('void ShotStopperMicraService::deferObservation('),
   micraService.indexOf('void ShotStopperMicraService::fail('));

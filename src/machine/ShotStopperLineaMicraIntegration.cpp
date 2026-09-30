@@ -158,6 +158,8 @@ void clearMachineIntegrationDiscovery() { service.clearDiscovery(); }
 
 LineaMicraStatus machineIntegrationStatus() { return service.status(); }
 
+LineaMicraCloudCall machineIntegrationCloudCall() { return service.cloudCall(); }
+
 HeapLifecycleAggregate machineIntegrationHeapTelemetry() {
   return service.heapTelemetry();
 }

@@ -596,7 +596,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"scalePaused\":%s,"
         "\"httpStatus\":%u,\"transportStatus\":%ld,\"machines\":[",
         micraAccountConfigured ? "true" : "false",
-        page == StatusPage::Settings ? safeMicraUsername : "",
+        safeMicraUsername,
         safeMicraSerial, safeMicraName,
         (micraOptions & LINEA_MICRA_APPLY_TEMPERATURE) != 0
             ? "true" : "false",
@@ -652,7 +652,22 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                             "%s{\"serial\":\"%s\",\"name\":\"%s\"}",
                             index == 0 ? "" : ",", safeSerial, safeName);
     }
-    if (ok) ok = statusJsonAppend(&used, "]}");
+    if (ok) ok = statusJsonAppend(&used, "]");
+    if (ok && page == StatusPage::Diagnostic) {
+      const LineaMicraCloudCall call = machineIntegrationCloudCall();
+      ok = call.api == nullptr
+          ? statusJsonAppend(&used, ",\"cloudCall\":null")
+          : statusJsonAppend(
+                &used, ",\"cloudCall\":{\"api\":\"%s\",\"method\":\"%s\","
+                "\"result\":\"%s\",\"startedAtUtcSec\":%lu,"
+                "\"durationMs\":%lu,\"httpStatus\":%u,\"transportStatus\":%ld}",
+                call.api, call.method, call.result,
+                static_cast<unsigned long>(call.startedAtUtcSec),
+                static_cast<unsigned long>(call.durationMs),
+                static_cast<unsigned>(call.httpStatus),
+                static_cast<long>(call.transportStatus));
+    }
+    if (ok) ok = statusJsonAppend(&used, "}");
   }
 #endif
 

@@ -673,6 +673,11 @@ HeapLifecycleAggregate ShotStopperMicraService::heapTelemetry() const {
   return tlsHeap_.aggregate;
 }
 
+LineaMicraCloudCall ShotStopperMicraService::cloudCall() const {
+  TaskLockGuard lock(mux_);
+  return publishedCloudCall_;
+}
+
 MachinePhysicalStartDisposition ShotStopperMicraService::physicalStart() {
   TaskLockGuard lock(mux_);
   const uint32_t now = millis();
@@ -1595,7 +1600,7 @@ bool ShotStopperMicraService::signIn(
                              refresh);
   if (root != nullptr) cJSON_Delete(root);
   work_->responseUsed = 0;
-  releaseIoBuffer();
+  releaseIoBuffer(ok);
   if (!ok) {
     secureWipe(work_->accessToken, sizeof(work_->accessToken));
     secureWipe(work_->refreshToken, sizeof(work_->refreshToken));
@@ -1635,7 +1640,7 @@ bool ShotStopperMicraService::refreshToken(
                              newRefresh);
   if (root != nullptr) cJSON_Delete(root);
   work_->responseUsed = 0;
-  releaseIoBuffer();
+  releaseIoBuffer(ok);
   if (ok) work_->accessTokenIssuedAtMs = millis();
   return ok;
 }
@@ -1653,7 +1658,7 @@ bool ShotStopperMicraService::listMachines(
   if (!cJSON_IsArray(root)) {
     if (root != nullptr) cJSON_Delete(root);
     work_->responseUsed = 0;
-    releaseIoBuffer();
+    releaseIoBuffer(false);
     return false;
   }
   const cJSON *thing = nullptr;
@@ -1703,7 +1708,7 @@ bool ShotStopperMicraService::readDashboard(
   if (!cJSON_IsArray(widgets)) {
     if (root != nullptr) cJSON_Delete(root);
     work_->responseUsed = 0;
-    releaseIoBuffer();
+    releaseIoBuffer(false);
     return false;
   }
   LineaMicraObservedMode mode = LineaMicraObservedMode::NONE;
@@ -1730,7 +1735,7 @@ bool ShotStopperMicraService::readDashboard(
   }
   cJSON_Delete(root);
   work_->responseUsed = 0;
-  releaseIoBuffer();
+  releaseIoBuffer(mode != LineaMicraObservedMode::NONE);
   if (mode == LineaMicraObservedMode::NONE) return false;
   result.observedMode = mode;
   result.powerState = lineaMicraPowerStateForMode(mode);
@@ -1881,6 +1886,13 @@ bool ShotStopperMicraService::request(
     const LineaMicraPersistedSettings &settings, const char *url,
     esp_http_client_method_t method, const char *body, bool authenticated,
     const char *purpose, const char *endpoint, bool installationInit) {
+  pendingCloudCall_ = {};
+  pendingCloudCall_.api = purpose;
+  pendingCloudCall_.method = method == HTTP_METHOD_POST ? "POST" : "GET";
+  pendingCloudCall_.startedAtMs = millis();
+  const time_t now = time(nullptr);
+  pendingCloudCall_.startedAtUtcSec =
+      now >= 1700000000 ? static_cast<uint32_t>(now) : 0;
   if (work_ == nullptr || io_ == nullptr || url == nullptr) return false;
   if (work_->client == nullptr) {
     esp_http_client_config_t config{};
@@ -1995,6 +2007,7 @@ bool ShotStopperMicraService::request(
            !abortRequested_.load(std::memory_order_acquire);
   };
   if (!requestAllowed()) {
+    pendingCloudCall_.result = "canceled";
     TaskLockGuard lock(clientMux_);
     activeClient_ = nullptr;
     if (installationInit) secureWipe(io_->body, sizeof(io_->body));
@@ -2006,13 +2019,15 @@ bool ShotStopperMicraService::request(
     beginHeapLifecycle(tlsHeap_, HeapLifecycleEvent::TLS_REQUEST, heapBefore);
   }
   const uint32_t requestStartedAtMs = millis();
-  serialTraceCategoryf(LogLevel::DEBUG, DebugCategory::NETWORK,
+  serialTraceCategoryf(LogLevel::INFO, DebugCategory::NETWORK,
                        "Micra HTTP start id=%lu %s %s",
-                       static_cast<unsigned long>(requestStartedAtMs),
+                       static_cast<unsigned long>(pendingCloudCall_.startedAtMs),
                        method == HTTP_METHOD_POST ? "POST" : "GET", endpoint);
   esp_err_t performed = ESP_ERR_HTTP_EAGAIN;
+  bool canceled = false;
   while (performed == ESP_ERR_HTTP_EAGAIN) {
     if (!requestAllowed()) {
+      canceled = true;
       performed = ESP_FAIL;
       break;
     }
@@ -2022,8 +2037,9 @@ bool ShotStopperMicraService::request(
       break;
     }
     performed = esp_http_client_perform(work_->client);
-    if (!requestAllowed() && performed == ESP_OK) {
-      performed = ESP_FAIL;
+    if (!requestAllowed()) {
+      canceled = true;
+      if (performed == ESP_OK) performed = ESP_FAIL;
     } else if (performed == ESP_OK &&
                static_cast<uint32_t>(millis() - requestStartedAtMs) >=
                    micra_timing::kHttpTimeoutMs) {
@@ -2054,12 +2070,6 @@ bool ShotStopperMicraService::request(
       esp_http_client_get_status_code(work_->client));
   work_->transportFailure = performed != ESP_OK;
   if (work_->transportFailure) {
-    serialTraceCategoryf(
-        LogLevel::ERROR, DebugCategory::NETWORK,
-        "Micra HTTP failed id=%lu err=0x%x %s %s",
-        static_cast<unsigned long>(requestStartedAtMs),
-        static_cast<unsigned>(performed),
-        method == HTTP_METHOD_POST ? "POST" : "GET", endpoint);
     // A failed perform typically leaves a dead cached socket; rebuild the
     // session on the next attempt instead of reusing it for all retries.
     esp_http_client_cleanup(work_->client);
@@ -2070,13 +2080,12 @@ bool ShotStopperMicraService::request(
   }
   const bool ok = performed == ESP_OK && !work_->responseOverflow &&
                   work_->httpStatus >= 200 && work_->httpStatus < 300;
-  serialTraceCategoryf(LogLevel::DEBUG, DebugCategory::NETWORK,
-                       "Micra HTTP done id=%lu purpose=%s ok=%u http=%u err=0x%x ms=%lu",
-                       static_cast<unsigned long>(requestStartedAtMs), purpose,
-                       static_cast<unsigned>(ok),
-                       static_cast<unsigned>(work_->httpStatus),
-                       static_cast<unsigned>(performed),
-                       static_cast<unsigned long>(millis() - requestStartedAtMs));
+  pendingCloudCall_.httpStatus = work_->httpStatus;
+  pendingCloudCall_.transportStatus = performed;
+  pendingCloudCall_.result = canceled ? "canceled"
+      : work_->responseOverflow ? "response_too_large"
+      : work_->transportFailure ? "transport_error"
+      : ok ? "success" : "http_error";
   if (installationInit) {
     secureWipe(io_->response, sizeof(io_->response));
     work_->responseUsed = 0;
@@ -2135,7 +2144,31 @@ void ShotStopperMicraService::clearSession() {
   }
 }
 
-void ShotStopperMicraService::releaseIoBuffer() {
+void ShotStopperMicraService::releaseIoBuffer(bool responseValid) {
+  if (pendingCloudCall_.api != nullptr) {
+    LineaMicraCloudCall call = pendingCloudCall_;
+    pendingCloudCall_ = {};
+    call.durationMs = millis() - call.startedAtMs;
+    if (!responseValid) call.result = "invalid_response";
+    {
+      TaskLockGuard lock(mux_);
+      publishedCloudCall_ = call;
+    }
+    const bool success = strcmp(call.result, "success") == 0;
+    const bool transient = strcmp(call.result, "canceled") == 0 ||
+        strcmp(call.result, "transport_error") == 0 ||
+        (strcmp(call.result, "http_error") == 0 &&
+         lineaMicraHttpRetryable(call.httpStatus));
+    serialTraceCategoryf(success ? LogLevel::INFO
+                                : transient ? LogLevel::WARNING : LogLevel::ERROR,
+                         DebugCategory::NETWORK,
+                         "Micra id=%lu %s %s %s http=%u raw=%ld ms=%lu",
+                         static_cast<unsigned long>(call.startedAtMs),
+                         call.method, call.api, call.result,
+                         static_cast<unsigned>(call.httpStatus),
+                         static_cast<long>(call.transportStatus),
+                         static_cast<unsigned long>(call.durationMs));
+  }
   if (io_ == nullptr) return;
   secureWipe(io_->response, sizeof(io_->response));
   io_->~IoBuffer();

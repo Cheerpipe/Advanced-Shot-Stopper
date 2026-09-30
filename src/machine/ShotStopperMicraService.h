@@ -31,6 +31,7 @@ class ShotStopperMicraService {
   void clearDiscovery();
   void serviceAbort();
   LineaMicraStatus status() const;
+  LineaMicraCloudCall cloudCall() const;
   HeapLifecycleAggregate heapTelemetry() const;
   LineaMicraDiscoverySnapshot discovery() const;
   MachinePhysicalStartDisposition physicalStart();
@@ -98,7 +99,7 @@ class ShotStopperMicraService {
   bool ensureIoBuffer();
   bool ensureWorkBuffer();
   void clearSession();
-  void releaseIoBuffer();
+  void releaseIoBuffer(bool responseValid = true);
   void releaseWorkBuffer();
   void publish(const LineaMicraStatus &status);
   void publishObservation(const LineaMicraStatus &status,
@@ -129,6 +130,8 @@ class ShotStopperMicraService {
   DesiredTemperature desiredTemperature_ = {};
   DesiredPower desiredPower_ = {};
   LineaMicraStatus published_ = {};
+  LineaMicraCloudCall pendingCloudCall_ = {};  // Cloud worker only.
+  LineaMicraCloudCall publishedCloudCall_ = {};  // Protected by mux_.
   HeapLifecycleTracker tlsHeap_ = {};
   LineaMicraDiscoverySnapshot discovery_ = {};
   uint32_t configGeneration_ = 0;

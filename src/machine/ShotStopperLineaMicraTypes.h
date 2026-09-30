@@ -190,6 +190,18 @@ struct LineaMicraDiscoverySnapshot {
   LineaMicraMachineSummary machines[LINEA_MICRA_MAX_ACCOUNT_MACHINES] = {};
 };
 
+// Only immutable, firmware-owned labels belong here, never cloud response data.
+struct LineaMicraCloudCall {
+  const char *api = nullptr;
+  const char *method = "";
+  const char *result = "setup_error";
+  uint32_t startedAtMs = 0;
+  uint32_t startedAtUtcSec = 0;
+  uint32_t durationMs = 0;
+  int32_t transportStatus = 0;
+  uint16_t httpStatus = 0;
+};
+
 struct LineaMicraStatus {
   uint32_t requestId = 0;
   uint32_t sampleAtMs = 0;

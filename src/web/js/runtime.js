@@ -538,7 +538,7 @@ export {
   toggleHistoryDir, syncHistoryDirButton,
   setShotSort, toggleShotSortDir, syncShotSortButtons,
   resetNetworkAddressLoaded,
-  applyHomeStatus, applySettingsStatus, applyAdminStatus, applyDiagnosticStatus,
+  formatWallTime, applyHomeStatus, applySettingsStatus, applyAdminStatus, applyDiagnosticStatus,
   updateBbwControls, updateConfigGroups, updateScalePreferenceOptions, setSaveDirty, markConfigDirty, markDateTimeDirty, markBleDirty, markPowerDirty, markFrontendDirty, clearBleDirty, clearPowerDirty, clearFrontendDirty, markBrewDirty, saveMachineConfig, saveDateTimeConfig, saveBrewPreset,
   settingsSectionOf, snapshotControls, restoreSnapshot, revertBrewPreset, revertMachineConfig, revertDateTimeConfig, revertNetworkConfig,
   markLineaMicraDirty, revertLineaMicra, updateMicraShutdownControls, connectLineaMicra, selectLineaMicra, saveLineaMicraSettings, disconnectLineaMicra, lineaMicraAction,

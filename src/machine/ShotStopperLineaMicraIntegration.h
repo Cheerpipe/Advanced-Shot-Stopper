@@ -12,6 +12,7 @@ bool selectMachineIntegrationDevice(const char *serial,
                                     LineaMicraPersistedSettings &settings);
 void clearMachineIntegrationDiscovery();
 LineaMicraStatus machineIntegrationStatus();
+LineaMicraCloudCall machineIntegrationCloudCall();
 HeapLifecycleAggregate machineIntegrationHeapTelemetry();
 LineaMicraDiscoverySnapshot machineIntegrationDiscovery();
 

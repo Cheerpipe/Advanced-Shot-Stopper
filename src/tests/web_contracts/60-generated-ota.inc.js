@@ -413,8 +413,9 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 }
 // Reallocate another 500 bytes of shell allowance to BBW readback/CSV.
 // Complete, human-readable Settings help raises the reviewed combined budget.
-if (generated.jsGzip.length > 5044) {
-  throw new Error('Compressed Web UI shell JS exceeds the 5044-byte gzip budget');
+// Reallocate 300 bytes from shell headroom to lazy Cloud diagnostics.
+if (generated.jsGzip.length > 4744) {
+  throw new Error('Compressed Web UI shell JS exceeds the 4744-byte gzip budget');
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
@@ -486,8 +487,9 @@ if (generated.otaImageGzip.length > 3072) {
 // 7650 bytes.
 // The Admin Firmware master-switch section (checkbox hydration, save/revert
 // wiring, compatibility-mode section hiding) raises it to 7950 bytes.
-if (generated.secondaryGzip.length > 7950) {
-  throw new Error(`Compressed secondary view JS exceeds the 7140-byte gzip budget (${generated.secondaryGzip.length})`);
+// Cloud diagnostics use 300 bytes of the shell allowance; total cap is fixed.
+if (generated.secondaryGzip.length > 8250) {
+  throw new Error(`Compressed secondary view JS exceeds the 8250-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');
@@ -535,8 +537,10 @@ if (generated.icon48Gzip.length > 3500) {
 // Shot stats Tare time and Scale (tare marker, table columns, and wiring)
 // raise it to 110700 bytes; the firmware image carries the same assets
 // once, so the versioned image and rodata growth budgets stay untouched.
-if (generated.combined > 110700) {
-  throw new Error(`Combined Web UI gzip exceeds the 110700-byte flash budget (${generated.combined})`);
+// Six Cloud diagnostic fields and their lazy renderer add 500 bytes of
+// reviewed allowance. Firmware image and OTA partition limits stay fixed.
+if (generated.combined > 111200) {
+  throw new Error(`Combined Web UI gzip exceeds the 111200-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
