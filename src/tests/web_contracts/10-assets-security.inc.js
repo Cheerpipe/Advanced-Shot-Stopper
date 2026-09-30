@@ -249,7 +249,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     const statusContext = vm.createContext({activeView: 'admin', statusBusy: false,
       viewSeq: 1, viewReady: statusMarkup.promise,
       document: {hidden: false}, webUiPollingActive: () => true,
-      statusUrl: () => '/api/v1/status/admin', statusPageOk: () => true,
+      statusPageOk: () => true,
       api: async () => ({adminUnlocked: true}), applyCommonStatus() {},
       viewStatusHandlers: {admin: () => applied.push('status')},
       timezoneCatalogPromise: catalog.promise, timezonePreviewLoad: preview.promise,
@@ -285,25 +285,24 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     assert.equal(rendered, true); assert.equal(logContext.logBusy, false);
 
     const slotSource = rawRuntimeJs.split('\n').filter(line =>
-      /^(let readInFlight|function drainDeviceSlots|function acquireDeviceSlot|function releaseDeviceSlot|async function api\()/.test(line)).join('\n');
+      /^(function drainDeviceSlots|function acquireDeviceSlot|function releaseDeviceSlot|async function api\()/.test(line)).join('\n');
     for (const view of ['stats', 'history', 'home', 'settings', 'admin', 'diagnostic']) {
       const requests = [], responses = [];
       const slots = vm.createContext({activeView: view, deviceInFlight: 0, deviceWaiters: [],
-        DEVICE_MAX_INFLIGHT: 1, DEVICE_READ_MAX_INFLIGHT: 2, webUiPollingActive: () => true,
+        DEVICE_MAX_INFLIGHT: 1, webUiPollingActive: () => true,
         WEB_UI_CLIENT_HEADER: 'X-WebUI-Client', webUiClientId: 'test', webUiPowerSeconds: () => 0,
         AbortController, setTimeout: () => 1, clearTimeout() {}, __WEBUI_TEXT__: key => key,
         fetch: path => {const response = deferred(); requests.push(path); responses.push(response); return response.promise;}});
       vm.runInContext(slotSource, slots);
-      const records = view === 'history' ? '/api/v1/history?offset=0' : '/api/v1/shots?offset=0';
-      const one = slots.api('/api/v1/status/home'), two = slots.api(records),
-        three = slots.api('/api/v1/status/home');
+      const records = view === 'history' ? '/api/v1/history?offset=0' : '/api/v1/stats?offset=0';
+      const one = slots.api(records), two = slots.api(records),
+        three = slots.api(records);
       const finish = () => responses.shift().resolve({ok: true, text: async () => '{}'});
       await flush();
-      const paired = ['stats', 'history'].includes(view);
-      assert.equal(requests.length, paired ? 2 : 1, view + ': bounded read concurrency');
+      assert.equal(requests.length, 1, view + ': one request at a time');
       const command = slots.api('/api/v1/config', {method: 'POST', body: '{}'});
       finish(); await flush();
-      assert.equal(requests.length, paired ? 3 : 2, 'Release a read slot without exceeding its limit');
+      assert.equal(requests.length, 2, 'Release the request slot without exceeding its limit');
       assert.equal(requests.includes('/api/v1/config'), false, 'Commands wait for all reads');
       finish(); await flush(); finish(); await flush();
       assert.equal(requests.at(-1), '/api/v1/config');
@@ -321,32 +320,31 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     }
 
     for (const view of ['stats', 'history']) {
-      const response = deferred(), markup = deferred(),
-        status = deferred(), events = [];
+      const response = deferred(), markup = deferred(), events = [];
       const dataContext = vm.createContext({recordBusy: {stats: false, history: false},
         viewSeq: 1, viewReady: markup.promise, webUiPollingActive: () => true,
         shotsUrl: () => '/shots', historyUrl: () => '/history',
         api: () => {events.push('fetch'); return response.promise;},
+        statusPageOk: (_, state) => !!state,
+        applyCommonStatus: () => events.push('state'),
         applyShotPage: () => events.push('apply'), applyHistoryPage: () => events.push('apply'),
         renderShots: () => events.push('render'), renderHistory: () => events.push('render'),
         updateFirmwareFooter() {}, noteReachOk() {}, noteReachFail: () => events.push('error'),
         maybeLoadMoreShots() {}, maybeLoadMoreHistory() {}});
       vm.runInContext(rawRuntimeJs.split('\n').find(line => line.startsWith('async function fetchRecordPage(')), dataContext);
-      const loading = dataContext.fetchRecordPage(view, 0, 10, 'replace', status.promise);
-      assert.deepEqual(events, ['fetch'], 'Start records before status and markup are ready');
-      response.resolve({}); await flush();
+      const loading = dataContext.fetchRecordPage(view, 0, 10, 'replace');
+      assert.deepEqual(events, ['fetch'], 'Start the single record request while markup loads');
+      response.resolve({ui: {}}); await flush();
+      assert.deepEqual(events, ['fetch'], 'A fast response must wait for its markup');
       markup.resolve(); await flush();
-      assert.deepEqual(events, ['fetch'], 'Even a fast records response must wait for applied status');
-      status.resolve(true); assert.equal(await loading, true);
-      assert.deepEqual(events, ['fetch', 'apply', 'render']);
-      for (const failedStatus of [false, true]) {
-        const late = deferred(); dataContext.api = () => late.promise;
-        const old = dataContext.fetchRecordPage(view, 0, 10, 'replace', Promise.resolve(!failedStatus));
-        if (!failedStatus) dataContext.viewSeq++;
-        const before = events.length; late.resolve({});
-        assert.equal(await old, false);
-        assert.equal(events.length, before, 'Failed status or superseded navigation cannot apply records');
-      }
+      assert.equal(await loading, true);
+      assert.deepEqual(events, ['fetch', 'state', 'apply', 'render']);
+      const late = deferred(); dataContext.api = () => late.promise;
+      const old = dataContext.fetchRecordPage(view, 0, 10, 'replace');
+      dataContext.viewSeq++;
+      const before = events.length; late.resolve({ui: {}});
+      assert.equal(await old, false);
+      assert.equal(events.length, before, 'Superseded navigation cannot apply state or records');
     }
 
     const assets = {stats: deferred(), history: deferred()}, secondary = deferred(),
@@ -400,13 +398,13 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       const loading = r.renderRoute(path); await flush();
       assert.equal(accessAfterMarkup, true, 'Diagnostic visibility must fetch while markup loads');
       const paired = ['stats', 'history'].includes(view);
-      assert.deepEqual(events, paired ? ['show', 'markup', 'status', 'data'] :
+      assert.deepEqual(events, paired ? ['show', 'markup', 'data'] :
         ['show', 'markup', 'status'], view + ': fetch data while lazy markup loads');
       markup.resolve(); await flush();
-      assert.equal(events.includes('fade'), false, view + ': wait for status');
+      assert.equal(events.includes('fade'), false, view + ': wait for initial data');
       status.resolve(true); await flush();
       if (['stats', 'history', 'diagnostic'].includes(view)) {
-        assert.deepEqual(events, ['show', 'markup', 'status', 'data']);
+        assert.deepEqual(events, paired ? ['show', 'markup', 'data'] : ['show', 'markup', 'status', 'data']);
         data.resolve(true);
       }
       await loading;
@@ -418,14 +416,15 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       assert.equal(events.slice(beforeFailure).includes('error'), true, view + ': expose lazy-load failure');
       assert.equal(events.slice(beforeFailure).includes('fade'), false, view + ': failed markup cannot reveal the page');
       r.ensureView = async () => {};
-      r.R.loadStatus = async () => false;
+      const loadName = view === 'stats' ? 'loadShots' : view === 'history' ? 'loadHistory' : 'loadStatus';
+      r.R[loadName] = async () => false;
       await r.renderRoute(path);
       assert.equal(events.at(-1), 'error', view + ': expose initial data failure');
-      const old = deferred(); r.R.loadStatus = () => old.promise;
+      const old = deferred(); r.R[loadName] = () => old.promise;
       const superseded = r.renderRoute(path); await flush();
       r.routeSeq++; old.resolve(true); await superseded;
       assert.notEqual(events.at(-1), 'fade', view + ': ignore superseded route readiness');
-      r.R.loadStatus = async () => true;
+      r.R[loadName] = async () => true;
       r.ensureView = async () => {events.push('markup');};
       r.R.setViewPollHooks = hooks => {r.viewHooks = hooks;};
       vm.runInContext(hooksSource, r);
@@ -599,7 +598,7 @@ if (htmlBytes > 79950) {
 // columns, CSV columns, and last-shot wiring add ~1.1 KB of JS source
 // allowance.
 // Cloud call rendering uses 0.5 KB beyond the previous JS allowance.
-// Bounded paired reads and deferred hydration share one record-page loader.
+// Serialized requests and deferred hydration share one record-page loader.
 // Allow 1 KiB of source wiring; compressed assets and firmware limits stay fixed.
 if (jsBytes > 229000) {
   throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 229000)`);

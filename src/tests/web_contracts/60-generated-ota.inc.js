@@ -721,9 +721,9 @@ if (logHandlerStart < 0 || shotsHandlerStart < 0 || wifiScanStatusStart < 0 ||
   throw new Error('Chunked log and Wi-Fi scan status responses must send Connection: close');
 }
 if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())return;scanBusy=true') ||
-    !js.includes("withCommandGate(async()=>{try{await api('/api/v1/shots/clear'") ||
-    !js.includes("withCommandGate(async()=>{try{await api('/api/v1/shots/delete'") ||
-    !js.includes("await api('/api/v1/shots/rate'") ||
+    !js.includes("withCommandGate(async()=>{try{await api('/api/v1/stats/clear'") ||
+    !js.includes("withCommandGate(async()=>{try{await api('/api/v1/stats/delete'") ||
+    !js.includes("await api('/api/v1/stats/rate'") ||
     js.includes("withCommandGate(async()=>{try{await api('/api/v1/logout'")) {
   throw new Error('Wi-Fi scan and shot clear/delete must use poll/command gates without login');
 }

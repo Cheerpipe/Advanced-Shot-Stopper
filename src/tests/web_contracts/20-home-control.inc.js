@@ -138,7 +138,7 @@
   const clockStart = runtimeJs.indexOf('let shotTick=');
   const clockEnd = runtimeJs.indexOf('function formatExtractionGuard(');
   const updateStart = runtimeJs.indexOf('function updateShot(s)');
-  const updateEnd = runtimeJs.indexOf('function statusUrl()');
+  const updateEnd = runtimeJs.indexOf('function checkFirmwareReload(');
   if (clockStart < 0 || clockEnd < clockStart || updateStart < 0 || updateEnd < updateStart) {
     throw new Error('Live shot clock helpers must remain independently testable');
   }

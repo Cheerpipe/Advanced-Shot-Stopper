@@ -646,6 +646,8 @@ class ShotStopperNetwork {
   void noteNetworkRetryBackoff(bool logRetry);
   void clearNetworkFailureStatus(bool staDisconnected);
   esp_err_t workBufBusy(httpd_req_t *request);
+  esp_err_t sendRecordPageState(httpd_req_t *request,
+                               const ControlStatusSnapshot &control);
   bool requireActiveWebUiClient(httpd_req_t *request);
   void clearAdminUnlock();
   void grantAdminUnlock(const char *clientId, uint32_t now);

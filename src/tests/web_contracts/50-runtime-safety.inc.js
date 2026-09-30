@@ -23,11 +23,11 @@ if (!runtimeJs.includes("const SOFTAP_HOST='192.168.4.1'") ||
       'Home live-shot STA poll must be 1s; AP and other views stay 2.5s; idle 4s; hidden 12s');
 }
 if (!ui.includes('async function loadStatus(){') ||
-    !ui.includes('async function loadShots(after){') ||
+    !ui.includes('async function loadShots(){') ||
     !ui.includes('async function loadLog(){') ||
     !ui.includes('LOG_EVENTS_CAPACITY') ||
     !ui.includes('logEvents.splice(0,logEvents.length-LOG_EVENTS_CAPACITY)') ||
-    !ui.includes('function refreshStatus(){return withPollGate(loadStatus)}') ||
+    !ui.includes("function refreshStatus(){return withPollGate(activeView==='stats'?pollShots:activeView==='history'?pollHistory:loadStatus)}") ||
     !ui.includes('function refreshShots(){return withPollGate(pollShots)}') ||
     !ui.includes('function refreshLog(){return withPollGate(loadLog)}') ||
     !(ui.includes("name==='home'||name==='settings'||name==='admin'||name==='diagnostic'") ||
@@ -48,11 +48,11 @@ if (!ui.includes('async function loadStatus(){') ||
     const j = appJsSource.indexOf('}', i);
     return j > i ? appJsSource.slice(i, j) : '';
   })();
-  if (!statsStart.includes('R.loadStatus()') || !statsStart.includes('R.loadShots(status)') ||
+  if (statsStart.includes('R.loadStatus()') || !statsStart.includes('R.loadShots()') ||
       !runtimeJs.includes("was!==canEdit&&activeView==='stats'") ||
       !runtimeJs.includes("fillStarRate(rateHost,r.rating||0,!controlsMutable,")) {
     throw new Error(
-        'Stats must loadStatus for controlsMutable, and re-render rating stars when mutable flips');
+        'Stats must load its own state with records, and re-render rating stars when mutable flips');
   }
 }
 if (!ui.includes('id="view-home"') ||
@@ -131,7 +131,7 @@ for (const [route, handler] of expected) {
     const browserIcon = uri === '/favicon.ico' ||
         uri.startsWith('/apple-touch-icon');
     const rawLastShotApi = uri === '/api/v1/last-shot/clear';
-    if (!(statusPage && ui.includes('function statusUrl(') && ui.includes('/api/v1/status/')) &&
+    if (!(statusPage && ui.includes('async function loadStatus(') && ui.includes('/api/v1/status/')) &&
         !(lazyAsset && (ui.includes('/partials/') || ui.includes('/js/'))) &&
         !browserIcon && !rawLastShotApi) {
       throw new Error(`Registered API is not referenced by the UI: ${uri}`);

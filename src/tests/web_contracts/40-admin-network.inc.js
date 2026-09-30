@@ -376,10 +376,10 @@ const expected = new Map([
   ['POST /api/v1/control/restart', 'ownedApiHandler'],
   ['POST /api/v1/diagnostic/reset-history', 'ownedApiHandler'],
   ['POST /api/v1/factory-reset', 'ownedApiHandler'],
-  ['GET /api/v1/shots', 'ownedApiHandler'],
-  ['POST /api/v1/shots/clear', 'ownedApiHandler'],
-  ['POST /api/v1/shots/delete', 'ownedApiHandler'],
-  ['POST /api/v1/shots/rate', 'ownedApiHandler'],
+  ['GET /api/v1/stats', 'ownedApiHandler'],
+  ['POST /api/v1/stats/clear', 'ownedApiHandler'],
+  ['POST /api/v1/stats/delete', 'ownedApiHandler'],
+  ['POST /api/v1/stats/rate', 'ownedApiHandler'],
   ['POST /api/v1/last-shot/clear', 'ownedApiHandler'],
   ['POST /api/v1/time/sync', 'ownedApiHandler'],
   ['POST /api/v1/webhooks', 'ownedApiHandler'],
@@ -692,7 +692,7 @@ if (!ui.includes('function withPollGate(') ||
     !ui.includes('Device timeout') ||
     !ui.includes("throw new Error('Invalid response')") ||
     !ui.includes("throw new Error('Invalid status')") ||
-    !ui.includes('function statusUrl(') ||
+    !ui.includes("const v=activeView,s=await api('/api/v1/status/'+v)") ||
     !ui.includes('function ensureSettingsHydrated(') ||
     !ui.includes('function homeConfigPatch(') ||
     !ui.includes('function withBaseRev(') ||

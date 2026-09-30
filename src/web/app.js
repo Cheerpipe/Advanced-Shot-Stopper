@@ -8,7 +8,7 @@ if(name==='diagnostic'){try{const access=await R.api('/api/v1/status/home');if(s
 if(name==='home'||name==='settings'||name==='admin'||name==='diagnostic'){ok=await R.loadStatus();R.armStatusTimer()}
 if(name!==activeView||seq!==routeSeq)return false;
 if(name==='diagnostic'){if(ok)ok=await R.loadLog();logTimer=setInterval(()=>{if(!document.hidden)R.refreshLog()},4e3)}
-if(name==='stats'||name==='history'){const stats=name==='stats',status=R.loadStatus();ok=(await Promise.all([status,stats?R.loadShots(status):R.loadHistory(status)])).every(Boolean);if(name===activeView&&seq===routeSeq){const timer=setInterval(()=>{if(!document.hidden)(stats?R.refreshShots:R.refreshHistory)()},2e4);if(stats)shotsTimer=timer;else historyTimer=timer}}
+if(name==='stats'||name==='history'){const stats=name==='stats';ok=await(stats?R.loadShots():R.loadHistory());if(name===activeView&&seq===routeSeq){const timer=setInterval(()=>{if(!document.hidden)(stats?R.refreshShots:R.refreshHistory)()},2e4);if(stats)shotsTimer=timer;else historyTimer=timer}}
 return ok;
 })}async function renderRoute(pathname){const seq=++routeSeq,boot=R.showPageBoot();R.stopViewPolls();const known=knownPath(pathname);let view='home';let target='/';if(known){view=ROUTES[known];target=known}
 if(R.compatibilityModeOn()&&view!=='admin'&&view!=='diagnostic'){view='admin';target='/admin'}if(location.pathname!==target)history.replaceState({},'',target);activeView=view;const ready=ensureView(view).then(()=>{if(seq!==routeSeq)return;document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hidden',el.dataset.view!==view));document.querySelectorAll('.pageNav a').forEach(a=>a.classList.toggle('active',a.getAttribute('data-route')===viewToPath(view)))});R.setActiveView(view,ready)

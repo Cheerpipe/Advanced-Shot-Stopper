@@ -980,6 +980,51 @@ esp_err_t ShotStopperNetwork::logHandler(httpd_req_t *request) {
   return ok ? ESP_OK : ESP_FAIL;
 }
 
+esp_err_t ShotStopperNetwork::sendRecordPageState(
+    httpd_req_t *request, const ControlStatusSnapshot &control) {
+  requestPendingNetworkConfirm();
+  const TimeStatusSnapshot time = g_wallClock.snapshot(millis());
+  const NetworkStatusSnapshot network = snapshot();
+  int16_t offset = 0;
+  if (time.utcSec != 0) {
+    timeZoneOffsetAtOrUtc(control.config.timezoneId, time.utcSec, offset);
+  }
+  char version[32] = {};
+  sanitizeJsonEmbed(FW_VERSION, version, sizeof(version));
+  size_t used = 0;
+  if (!statusJsonAppend(
+          &used,
+          "{\"ui\":{\"firmwareVersion\":\"%s\",\"configMutable\":%s,"
+          "\"webUiOverrideActive\":%s,\"compatibilityMode\":%s,"
+          "\"development\":%s,\"machineType\":\"%s\","
+          "\"machineIntegration\":\"%s\",\"timeUtcSec\":%lu,"
+          "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"},"
+          "\"config\":{\"revision\":%lu,\"timezoneId\":\"%s\","
+          "\"appliedTimezoneOffsetMinutes\":%d,\"timezoneAutomatic\":%s,"
+          "\"timezoneInitialized\":%s}},",
+          version, controlAllowsConfiguration(control) ? "true" : "false",
+          webUiOverrideAllowed(request) ? "true" : "false",
+          firmwareCompatibilityMode() ? "true" : "false",
+          DEVELOPMENT_BUILD ? "true" : "false", compiledMachineTypeId(),
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+          "linea_micra_cloud",
+#else
+          "none",
+#endif
+          static_cast<unsigned long>(time.utcSec),
+          static_cast<unsigned long>(network.lastCommandRequestId),
+          commandResultStateName(network.lastCommandState),
+          static_cast<unsigned long>(control.config.revision),
+          control.config.timezoneId, static_cast<int>(offset),
+          control.config.timezoneAutomatic ? "true" : "false",
+          durableTimezoneSaved().load() ? "true" : "false")) {
+    sendError(request, STATUS_UNAVAILABLE, "STATUS_TOO_LARGE",
+              "Record page state exceeds its response buffer.");
+    return ESP_FAIL;
+  }
+  return sendChunk(request, g_work->statusJson, used);
+}
+
 esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   size_t offset = 0;
@@ -1019,8 +1064,12 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
                                              sizeof(statsHeader));
   const bool savePending = self.callbacks_.shotLogSavePending != nullptr &&
       self.callbacks_.shotLogSavePending();
+  if (self.sendRecordPageState(request, work.control) != ESP_OK) {
+    self.unlockWorkBuf();
+    return ESP_FAIL;
+  }
   snprintf(header, sizeof(header),
-           "{\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
+           "\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
            "\"hasMore\":%s,\"savePending\":%s,%s",
            static_cast<unsigned long>(work.control.bootId),
            static_cast<unsigned>(count), static_cast<unsigned>(start),
@@ -1284,8 +1333,12 @@ esp_err_t ShotStopperNetwork::historyHandler(httpd_req_t *request) {
   httpd_resp_set_hdr(request, "Connection", "close");
   httpd_resp_set_hdr(request, "Access-Control-Allow-Origin", "*");
   char header[160] = {};
+  if (self.sendRecordPageState(request, work.control) != ESP_OK) {
+    self.unlockWorkBuf();
+    return ESP_FAIL;
+  }
   snprintf(header, sizeof(header),
-           "{\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
+           "\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
            "\"hasMore\":%s,\"history\":[",
            static_cast<unsigned long>(work.control.bootId),
            static_cast<unsigned>(work.historyPage.total),

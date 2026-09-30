@@ -864,15 +864,15 @@ if (!js.includes('function commandOkMessage(') ||
 if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !runtimeJs.includes('SHOTS_EXPORT_LIMIT=100') ||
     !runtimeJs.includes("(stats?shotsUrl:historyUrl)(offset,limit)") ||
-    !runtimeJs.includes("'/api/v1/shots?offset='") ||
-    !runtimeJs.includes("fetchRecordPage('stats',0,SHOTS_PAGE_SIZE,'replace',after)") ||
+    !runtimeJs.includes("'/api/v1/stats?offset='") ||
+    !runtimeJs.includes("fetchRecordPage('stats',0,SHOTS_PAGE_SIZE,'replace')") ||
     !runtimeJs.includes("fetchRecordPage('stats',shotHistory.shots.length,SHOTS_PAGE_SIZE,'append')") ||
-    !runtimeJs.includes("fetchRecordPage('stats',0,SHOTS_PAGE_SIZE,'poll',status)") ||
+    !runtimeJs.includes("fetchRecordPage('stats',0,SHOTS_PAGE_SIZE,'poll')") ||
     !runtimeJs.includes('async function loadMoreShots(){') ||
     !runtimeJs.includes('function shotStatsViewActive(){') ||
     !runtimeJs.includes('if(ok)(stats?maybeLoadMoreShots:maybeLoadMoreHistory)()') ||
     !runtimeJs.includes("shotsUrl(0,SHOTS_EXPORT_LIMIT") ||
-    runtimeJs.includes("api('/api/v1/shots')") ||
+    runtimeJs.includes("api('/api/v1/stats')") ||
     !viewJs.stats.includes('IntersectionObserver') ||
     !viewJs.stats.includes("R.loadMoreShots()") ||
     !partialHtml.stats.includes('id="shotLogSentinel"') ||
@@ -884,7 +884,7 @@ if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !network.includes('\\"hasMore\\":%s') ||
     !network.includes('\\"total\\":%u') ||
     !network.includes('index == start ? "" : ","') ||
-    !appJsSource.includes('R.loadShots(status)')) {
+    !appJsSource.includes('R.loadShots()')) {
   throw new Error('Shot history must page 10 shots with infinite scroll and poll only the first page');
 }
 const shotLogTypes = fs.readFileSync(
@@ -937,7 +937,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !shellHtml.includes('<section id="view-history" class="view" data-view="history"></section>') ||
     !appJsSource.includes("'/history':'history'") ||
     !appJsSource.includes("SECONDARY=new Set(['stats','history','diagnostic','admin'])") ||
-    !appJsSource.includes('R.loadHistory(status)') ||
+    !appJsSource.includes('R.loadHistory()') ||
     !appJsSource.includes('R.refreshHistory') ||
     !viewJs.history.includes("R.loadMoreHistory()") ||
     !viewJs.history.includes('R.clearActivationHistory') ||
@@ -1043,7 +1043,7 @@ if (!statsSection ||
     css.includes('statsAvgDaily') ||
     network.includes('shotLogComputeAverages') ||
     network.includes('\\"avgDailyShots\\"') ||
-    network.includes('/api/v1/shots/stats') ||
+    network.includes('/api/v1/stats/stats') ||
     shotLogTypes.includes('shotLogComputeAverages') ||
     !shotLogTypes.includes('SHOT_LOG_STATS_WINDOW') ||
     shotLogTypes.includes('updateShotLogStats') ||
@@ -1071,7 +1071,8 @@ if (!statsSection ||
       const context = vm.createContext({recordBusy: {stats: false}, shotsLoaded: false,
         viewSeq: 1, viewReady: Promise.resolve(),
         shotHistory: {shots: []}, webUiPollingActive: () => true,
-        api: () => response, shotsUrl: () => '/api/v1/shots',
+        api: () => response, shotsUrl: () => '/api/v1/stats',
+        statusPageOk: () => true, applyCommonStatus: () => events.push('state'),
         applyShotPage: () => {context.shotsLoaded = true;},
         renderShotStats: () => events.push('stats'),
         $: () => ({replaceChildren: () => events.push('history')}),
@@ -1085,8 +1086,75 @@ if (!statsSection ||
       if (fail) reject(new Error('Unavailable')); else resolve({shots: [], stats: {}});
       await loading;
       assert.deepEqual(events, fail ? ['error'] :
-        ['stats', 'history', 'shotTableState']);
+        ['state', 'stats', 'history', 'shotTableState']);
       assert.equal(context.recordBusy.stats, false);
+    }
+    const validate = rawRuntimeJs.split('\n').find(line => line.startsWith('function statusPageOk('));
+    const apply = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function applyCommonStatus('),
+        rawRuntimeJs.indexOf('function applyMachineTypeUi('));
+    const refresh = rawRuntimeJs.split('\n').filter(line =>
+      /^(async function loadStatus|async function pollShots|const pollHistory|function refreshStatus)/.test(line)).join('\n');
+    for (const view of ['stats', 'history']) {
+      const events = [], calls = [], versions = [];
+      const ui = {firmwareVersion: '2.0', configMutable: true, webUiOverrideActive: false,
+        compatibilityMode: false, timeUtcSec: 1790809185, lastCommand: {requestId: 7, state: 'PERSISTED'},
+        config: {revision: 8, timezoneId: 'America/Santiago', appliedTimezoneOffsetMinutes: -180,
+          timezoneAutomatic: true, timezoneInitialized: true}};
+      let response = {ui, bootId: 20, shots: [], history: []};
+      const context = vm.createContext({activeView: view, recordBusy: {stats: false, history: false},
+        viewSeq: 1, viewReady: Promise.resolve(), webUiPollingActive: () => true,
+        api: async url => {calls.push(url); return response;},
+        shotsUrl: () => '/api/v1/stats?offset=0', historyUrl: () => '/api/v1/history?offset=0',
+        shotStatsViewActive: () => true, historyViewActive: () => true, withPollGate: fn => fn(),
+        applyShotPage: () => events.push('records'), applyHistoryPage: () => events.push('records'),
+        renderShots: () => events.push('render:' + context.controlsMutable),
+        renderHistory: () => events.push('render:' + context.controlsMutable),
+        updateFirmwareFooter() {}, noteReachOk() {}, noteReachFail: () => events.push('error'),
+        maybeLoadMoreShots() {}, maybeLoadMoreHistory() {}, SHOTS_PAGE_SIZE: 10, HISTORY_PAGE_SIZE: 20,
+        developmentMode: false, compatMode: false, controlsMutable: false, firmwareVersion: '', bootId: 0,
+        lastCommandStatus: null, configRevision: 0, dateTimeDirty: false, statusUtcAnchorSec: 0,
+        statusUtcAnchorAt: 0, statusTimezoneOffsetMinutes: 0, performance: {now: () => 123},
+        setMutable: value => {context.controlsMutable = value;}, $: () => null,
+        syncTimezone: config => events.push('timezone:' + config.timezoneId),
+        checkFirmwareReload: version => versions.push(version), applyMachineTypeUi() {},
+        applyCompatibilityChrome: () => {context.viewSeq++;}, __WEBUI_TEXT__: key => key});
+      vm.runInContext(validate + '\n' + apply + '\n' + fetchPage + '\n' + refresh, context);
+      assert.equal(await context.refreshStatus(), true);
+      assert.deepEqual(calls, ['/api/v1/' + view + '?offset=0'], 'A record refresh must make one GET to its own endpoint');
+      assert.deepEqual(events, ['timezone:America/Santiago', 'records', 'render:true']);
+      assert.deepEqual(versions, ['2.0']);
+      assert.equal(context.statusUtcAnchorSec, ui.timeUtcSec);
+      assert.equal(context.statusTimezoneOffsetMinutes, -180);
+      assert.equal(context.configRevision, 8);
+      assert.equal(context.lastCommandStatus.requestId, 7);
+      ui.configMutable = false; events.length = 0;
+      await context.refreshStatus();
+      assert.equal(events.at(-1), 'render:false', 'Refreshed state must precede rows and rating controls');
+      ui.webUiOverrideActive = true;
+      await context.fetchRecordPage(view, 10, 10, 'append');
+      assert.equal(events.at(-1), 'render:true', 'Later pages also carry fresh UI state');
+      ui.webUiOverrideActive = false;
+      await context.refreshStatus();
+      assert.equal(events.at(-1), 'render:false', 'Override expiry must update record controls');
+      events.length = 0; response = {shots: [], history: []};
+      assert.equal(await context.refreshStatus(), false);
+      assert.deepEqual(events, ['error'], 'Missing UI state must fail without rendering records');
+      response = {ui, shots: [], history: []}; events.length = 0;
+      const old = context.refreshStatus(); context.viewSeq++;
+      assert.equal(await old, false);
+      assert.deepEqual(events, [], 'A superseded response cannot apply state or render');
+      ui.compatibilityMode = true;
+      assert.equal(await context.refreshStatus(), false);
+      assert.equal(events.includes('records'), false, 'A compatibility redirect cannot render the old view');
+    }
+    const state = network.slice(network.indexOf('esp_err_t ShotStopperNetwork::sendRecordPageState'),
+        network.indexOf('esp_err_t ShotStopperNetwork::shotsHandler'));
+    assert.ok(state.includes('requestPendingNetworkConfirm()'), 'Record pages must confirm pending station settings');
+    assert.equal((network.match(/self\.sendRecordPageState\(request, work\.control\)/g) || []).length, 2);
+    assert.ok(state.includes('webUiOverrideAllowed(request)'));
+    assert.ok(state.includes('controlAllowsConfiguration(control)'));
+    for (const unused of ['copyPresetBank', 'copyHomeShot', 'shotCurve', 'cupPresence', 'preferredMac']) {
+      assert.equal(state.includes(unused), false, 'Record UI state must omit Home data: ' + unused);
     }
   })().catch(error => {console.error(error); process.exitCode = 1;});
 }

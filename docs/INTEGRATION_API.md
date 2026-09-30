@@ -112,7 +112,7 @@ chart. The window is the newest ten eligible shot records, including manual and
 timer-only endings. `avgErrorPct` is the mean absolute percentage miss of only
 normal BBW target cuts in that window. Unavailable averages are `null`.
 The controller derives these values from RAM; the same object appears in every
-`GET /api/v1/shots` response header under `stats`, alongside `savePending`.
+`GET /api/v1/stats` response header under `stats`, alongside `savePending`.
 
 `shotState` is `idle` or `brewing`. `wifiMac` and `bluetoothMac` repeat the
 station interface addresses as upper-case `AA:BB:CC:DD:EE:FF` strings; the
@@ -184,6 +184,36 @@ Requires the exact empty object `{}`. A `202` response means the existing safe
 restart path accepted the request. During an extraction it waits for the cycle
 to end; it never closes the relay or resumes a cycle after boot. This trusted-
 LAN route exposes no machine actuation counterpart.
+
+## Web UI record API
+
+The Stats page uses `GET /api/v1/stats`; History uses
+`GET /api/v1/history`. These Web UI routes require the active
+`X-WebUI-Client` obtained from `POST /api/v1/ui/claim`. They are separate from
+the public integration routes described above.
+
+Both responses include `bootId`, `total`, `offset`, `limit`, `hasMore`, and a
+small `ui` object. Stats also returns `shots`, `stats`, and `savePending`;
+History returns `history`. Paging and sorting parameters are unchanged:
+`offset`, `limit`, and `dir` (`asc` or `desc`), plus `sort` (`date` or `rating`)
+for Stats. The page sizes used by the browser are ten shots and twenty
+activations.
+
+`ui` contains `firmwareVersion`, `configMutable`, `webUiOverrideActive`,
+`compatibilityMode`, `development`, `machineType`, `machineIntegration`,
+`timeUtcSec`, and `lastCommand` (`requestId`, `state`). Its `config` contains
+`revision`, `timezoneId`, `appliedTimezoneOffsetMinutes`,
+`timezoneAutomatic`, and `timezoneInitialized`. These fields update shared
+UI behavior, relative dates, and automatic timezone synchronization without
+fetching Home's scale, cup, preset, or extraction state. The browser validates
+and applies this state before displaying the records. Record requests also
+retain the confirmation of pending Wi-Fi settings on a station connection.
+
+The former `/api/v1/shots` route family has been renamed to `/api/v1/stats`:
+external Web UI API callers must update the read URL and the POST URLs
+`/api/v1/stats/clear`, `/api/v1/stats/delete`, and `/api/v1/stats/rate`.
+Request bodies, mutation safety checks, and shot record fields are unchanged.
+The public `/api/v1/integration` endpoints are unchanged.
 
 ## Linea Micra Web API
 
