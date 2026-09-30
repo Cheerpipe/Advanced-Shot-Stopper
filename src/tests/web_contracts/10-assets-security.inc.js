@@ -1,4 +1,16 @@
 const VIEW_NAMES = webUi.VIEW_NAMES;
+
+(async () => {
+  const assert = require('assert').strict, generated = await webUi.generate();
+  const runtime = 'data:text/javascript,' + encodeURIComponent('export const $=()=>null;');
+  const code = generated.secondaryJs.replace(/(['"])\/js\/runtime\.js\?[^'"]*\1/, JSON.stringify(runtime));
+  const {views} = await import('data:text/javascript,' + encodeURIComponent(code));
+  assert.deepEqual(Object.keys(views).sort(), [...webUi.SECONDARY_VIEWS].sort());
+  for (const name of webUi.SECONDARY_VIEWS) {
+    assert.equal(typeof views[name].init, 'function', name + ': lazy view must initialize');
+    assert.equal(typeof views[name].applyStatus, 'function', name + ': status handler must exist');
+  }
+})().catch(error => {console.error(error); process.exitCode = 1;});
 const rawPartialHtml = {};
 for (const name of VIEW_NAMES) {
   rawPartialHtml[name] = fs.readFileSync(

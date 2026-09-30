@@ -242,7 +242,7 @@ function buildSecondaryJs(viewJsRaw, assetTag) {
   parts.push('export const views={');
   for (const name of SECONDARY_VIEWS) {
     parts.push(
-        `  ${name}:{init:${name}Init,applyStatus:${name}ApplyStatus,activate:${name}Activate},`);
+        `  ${name}:{init:${name}Init,applyStatus:${name}ApplyStatus},`);
   }
   parts.push('};');
   return parts.join('\n');
