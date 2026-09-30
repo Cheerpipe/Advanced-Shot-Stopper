@@ -84,6 +84,17 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
       sizeof(settings)) {
     return false;
   }
+  // V1 has the same layout; authenticate its bytes before naming old padding.
+  if (settings.schemaVersion == 1 &&
+      settings.magic == PERSISTED_SETTINGS_MAGIC &&
+      settings.structureSize == sizeof(settings) &&
+      settings.checksum == persistedSettingsChecksum(settings)) {
+    settings.runtime.touchStopFallbackEnabled = true;
+    for (auto &preset : settings.presets.presets)
+      preset.touchStopFallbackEnabled = true;
+    settings.schemaVersion = CONFIG_SCHEMA_VERSION;
+    settings.checksum = persistedSettingsChecksum(settings);
+  }
   if (!validPersistedSettings(settings)) return false;
   return true;
 }

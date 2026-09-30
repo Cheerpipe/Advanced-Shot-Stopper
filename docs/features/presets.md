@@ -32,6 +32,10 @@ not the last remaining preset. The active preset survives reboot.
 | Home / Home Assistant active preset | Quick guard switches persist Fast, Slow, A→M, cup protection, and accidental-touch values only in the active preset. |
 
 To make an intentional recipe change permanent, edit and save it in Settings.
+**Stop after sustained weight** is also saved per preset. New and factory-reset
+recipes enable it; Duplicate copies the source recipe's choice. Turning
+**Avoid accidental touch** off preserves that choice but disables the backup
+and its editor. See [touch-stop backup](brew-by-weight.md#when-touch-protection-delays-a-stop).
 Home and Settings can therefore display different BBW values.
 Home Assistant follows the same scopes: BBW is session-only, No-scale BBW is a
 shared machine policy, and the five guard switches persist only the active

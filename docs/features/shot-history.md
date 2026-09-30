@@ -263,6 +263,7 @@ not reconstruct post-stop drip decay. See [BBW learning](brew-by-weight.md#cutof
 | Stop detail | Meaning |
 | --- | --- |
 | `normal_target` | Normal weight endpoint, including offset/prediction |
+| `touch_weight_fallback` | Touch protection blocked the weight stop and the sustained-weight backup ended the shot; shown as Touch fallback |
 | `extended_max_weight` / `extended_min_time` | Fast guard extended the shot |
 | `slow_max_time` / `slow_min_weight` | Slow guard reached its recovery boundary |
 | `auto_to_manual` | Scale-loss time guard |

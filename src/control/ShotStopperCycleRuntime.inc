@@ -474,6 +474,9 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                                       uint32_t packetSequence,
                                       uint32_t connectionGeneration,
                                       uint32_t captureSequence = 0) {
+  const bool touchProvenanceValid = packetSequence != 0 && connectionGeneration != 0;
+  const TouchStopEvidence previousTouchStop = session.touchStop;
+  session.touchStop = {};  // Only a qualifying touch sample may retain evidence.
   if (!std::isfinite(weight) || fabsf(weight) > MAX_PARSED_WEIGHT_G) {
     resetCupSampleEvidence();
     approveScaleTareSample(ScaleTareSample{});
@@ -692,6 +695,8 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
         evaluateAccidentalTouchSample(weight, receivedAtMs);
     if (classified == AccidentalTouchClass::TOUCH) {
       resetDirectStopConfirmation();
+      if (touchProvenanceValid) considerTouchStopSample(weight, receivedAtMs, packetSequence,
+                              connectionGeneration, previousTouchStop);
       weightStreamState = WeightStreamState::FRESH;
       return true;
     }
@@ -1023,7 +1028,7 @@ void queueWebhookEnd(const PendingShotFinalize &snapshot, float finalWeightG,
   snprintf(event.stopDetail, sizeof(event.stopDetail), "%s",
            shotLogStopDetailName(shotLogStopDetailFromEndReason(
                snapshot.endReason, snapshot.extractionGuardEnabled,
-               snapshot.extractionExtended)));
+               snapshot.extractionExtended), /*integrationV1=*/true));
   if (event.weightValid && event.firstDropValid &&
       event.durationMs > event.firstDropMs + 500U) {
     const float brewSeconds =
@@ -1117,6 +1122,7 @@ void maybeQueueAutoToManualGuardSample(const PendingShotFinalize &snapshot,
       !std::isfinite(finalWeightG) || finalWeightG < 1.0f ||
       snapshot.extractionExtended || snapshot.slowExtractionExtended ||
       snapshot.endReason == EndReason::AUTO_TO_MANUAL_GUARD ||
+      snapshot.endReason == EndReason::TOUCH_WEIGHT_FALLBACK ||
       pendingFinalizeIsRinse(snapshot) ||
       brewEndIsAbandonedStart(snapshot.endReason) ||
       snapshot.endReason == EndReason::SHORT_SHOT ||

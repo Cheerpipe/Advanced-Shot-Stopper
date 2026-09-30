@@ -156,7 +156,20 @@ enum class EndReason : uint8_t {
   SLOW_EXTRACTION_MIN_WEIGHT = 16,
   AUTO_TO_MANUAL_GUARD = 17,
   CUP_REMOVED = 18,
-  UNCONFIRMED_START = 19
+  UNCONFIRMED_START = 19,
+  TOUCH_WEIGHT_FALLBACK = 20
+};
+
+constexpr uint32_t TOUCH_STOP_FALLBACK_MS = 1000;
+struct TouchStopEvidence {
+  uint32_t firstAtMs = 0;
+  uint32_t lastAtMs = 0;
+  uint32_t packetSequence = 0;
+  uint32_t connectionGeneration = 0;
+  float thresholdG = 0.0f;
+  float weightG = 0.0f;
+  EndReason policy = EndReason::NONE;
+  uint8_t samples = 0;
 };
 
 // Single source for EndReason renderings: API UPPER_SNAKE and debug labels in
@@ -195,6 +208,8 @@ inline constexpr EndReasonLabel kEndReasonLabels[] = {
      "auto-to-manual time guard"},
     {EndReason::CUP_REMOVED, "CUP_REMOVED", "cup removed"},
     {EndReason::UNCONFIRMED_START, "UNCONFIRMED_START", "unconfirmed start"},
+    {EndReason::TOUCH_WEIGHT_FALLBACK, "TOUCH_WEIGHT_FALLBACK",
+     "touch weight fallback"},
 };
 
 inline const EndReasonLabel *findEndReasonLabel(EndReason reason) {
@@ -209,9 +224,9 @@ inline const EndReasonLabel *findEndReasonLabel(EndReason reason) {
 constexpr size_t kEndReasonLabelCount =
     sizeof(kEndReasonLabels) / sizeof(kEndReasonLabels[0]);
 
-// Compile-time completeness guard: one row per enumerator (19; ordinal 2 was
+// Compile-time completeness guard: one row per enumerator (20; ordinal 2 was
 // retired). Adding an enumerator without a row breaks this assert.
-static_assert(kEndReasonLabelCount == 19,
+static_assert(kEndReasonLabelCount == 20,
               "kEndReasonLabels must cover every EndReason enumerator");
 
 inline bool brewWeightCutSettlesMachineOff(EndReason reason) {

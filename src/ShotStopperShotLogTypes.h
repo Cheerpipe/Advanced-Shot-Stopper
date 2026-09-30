@@ -98,6 +98,7 @@ enum class ShotLogStopDetail : uint8_t {
   WALL_LIMIT = 13,
   RELAY_SAFETY = 14,
   WEIGHT_ANOMALY = 15,
+  TOUCH_WEIGHT_FALLBACK = 16,
   OTHER = 255
 };
 
@@ -150,7 +151,10 @@ inline uint8_t shotLogPackRating(uint8_t flags, uint8_t rating) {
                               (rating << SHOT_LOG_RATING_SHIFT));
 }
 
-inline const char *shotLogStopDetailName(ShotLogStopDetail detail) {
+inline const char *shotLogStopDetailName(ShotLogStopDetail detail,
+                                        bool integrationV1 = false) {
+  if (integrationV1 && detail == ShotLogStopDetail::TOUCH_WEIGHT_FALLBACK)
+    return "other";  // V1 receivers reject unknown stop-detail enumerators.
   switch (detail) {
     case ShotLogStopDetail::NORMAL_TARGET: return "normal_target";
     case ShotLogStopDetail::PREDICTION: return "prediction";
@@ -168,6 +172,7 @@ inline const char *shotLogStopDetailName(ShotLogStopDetail detail) {
     case ShotLogStopDetail::WALL_LIMIT: return "wall_limit";
     case ShotLogStopDetail::RELAY_SAFETY: return "relay_safety";
     case ShotLogStopDetail::WEIGHT_ANOMALY: return "weight_anomaly";
+    case ShotLogStopDetail::TOUCH_WEIGHT_FALLBACK: return "touch_weight_fallback";
     case ShotLogStopDetail::OTHER: return "other";
   }
   return "unknown";
@@ -203,6 +208,8 @@ inline ShotLogStopDetail shotLogStopDetailFromEndReason(
       return ShotLogStopDetail::NORMAL_TARGET;
     case EndReason::WEIGHT_ANOMALY:
       return ShotLogStopDetail::WEIGHT_ANOMALY;
+    case EndReason::TOUCH_WEIGHT_FALLBACK:
+      return ShotLogStopDetail::TOUCH_WEIGHT_FALLBACK;
     case EndReason::ACTIVATOR:
       return ShotLogStopDetail::ACTIVATOR;
     case EndReason::WEB_STOP:
@@ -248,6 +255,7 @@ inline ShotLogCut shotLogCutFromEndReason(EndReason reason) {
   switch (reason) {
     case EndReason::SCALE_THRESHOLD:
     case EndReason::WEIGHT_ANOMALY:
+    case EndReason::TOUCH_WEIGHT_FALLBACK:
     case EndReason::FAST_EXTRACTION_MAX_WEIGHT:
     case EndReason::FAST_EXTRACTION_MIN_TIME:
     case EndReason::SLOW_EXTRACTION_MAX_TIME:

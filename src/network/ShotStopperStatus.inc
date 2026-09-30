@@ -401,6 +401,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"autoToManualGuardEnabled\":%s,\"cupProtectionEnabled\":%s,"
         "\"stopIfCupRemoved\":%s,\"requireCupToStart\":%s,"
         "\"avoidAccidentalTouchEnabled\":%s,"
+        "\"touchStopFallbackEnabled\":%s,"
         "\"cupPresentWeightG\":%.1f,\"cupRemovedWeightG\":%.1f,"
         "\"avoidBbwShotWithoutScale\":%s,\"noScaleBbwMode\":\"%s\","
         "\"scaleMacCacheMode\":\"%s\"",
@@ -420,6 +421,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         control.config.stopIfCupRemoved ? "true" : "false",
         control.config.requireCupToStart ? "true" : "false",
         control.config.avoidAccidentalTouchEnabled ? "true" : "false",
+        control.config.touchStopFallbackEnabled ? "true" : "false",
         static_cast<double>(control.config.cupPresentWeightG),
         static_cast<double>(control.config.cupRemovedWeightG),
         noScaleBbwEnabled(control.config.noScaleBbwMode) ? "true" : "false",
@@ -461,6 +463,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"autoToManualGuardTrendMs\":%lu,\"cupProtectionEnabled\":%s,"
         "\"stopIfCupRemoved\":%s,\"requireCupToStart\":%s,"
         "\"avoidAccidentalTouchEnabled\":%s,"
+        "\"touchStopFallbackEnabled\":%s,"
         "\"cupPresentWeightG\":%.1f,\"cupRemovedWeightG\":%.1f,"
         "\"scaleMacCacheMode\":\"%s\","
         "\"bookooMuteOnBuzzerOnly\":%s,\"bookooConnectBeepLevel\":%u,"
@@ -527,6 +530,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         control.config.stopIfCupRemoved ? "true" : "false",
         control.config.requireCupToStart ? "true" : "false",
         control.config.avoidAccidentalTouchEnabled ? "true" : "false",
+        control.config.touchStopFallbackEnabled ? "true" : "false",
         static_cast<double>(control.config.cupPresentWeightG),
         static_cast<double>(control.config.cupRemovedWeightG),
         scaleMacCacheModeId(control.config.scaleMacCacheMode),

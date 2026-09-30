@@ -446,6 +446,8 @@ void processWebCommand(const WebCommand &command) {
           }
           ShotPreset candidateRecipe = *preset;
           copyUserRecipeFromConfig(command.config, candidateRecipe);
+          if (!command.touchStopFallbackSpecified)
+            candidateRecipe.touchStopFallbackEnabled = preset->touchStopFallbackEnabled;
           if (command.lineaMicraBrewTargetSpecified)
             candidateRecipe.lineaMicraBrewTargetDeciC =
                 command.lineaMicraBrewTargetDeciC;

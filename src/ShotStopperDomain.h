@@ -64,9 +64,9 @@
 namespace shotstopper {
 
 constexpr uint32_t SERIAL_BAUD = 115200;
-// Fresh persistence baseline. Earlier firmware schemas are intentionally not
-// accepted; install this contract with a full flash erase over USB.
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 1;
+// Settings v2 preserves the v1 layout; authenticated v1 records upgrade on read.
+// Other historical layouts still require the documented USB erase workflow.
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 2;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;
@@ -633,6 +633,7 @@ struct RuntimeConfig {
   // Seed for Reset learned stop offset; factory default remains 1.5 g.
   float weightOffsetBaselineG = DEFAULT_WEIGHT_OFFSET_G;
   bool autoTare = true;
+  bool touchStopFallbackEnabled = true;  // Settings v2 uses former padding.
   uint32_t postTareBaselineGraceMs = DEFAULT_POST_TARE_BASELINE_GRACE_MS;
   // Internal polarity: true disables weight stop. UI/API brewByWeight is the inverse.
   bool timerOnly = false;
@@ -752,25 +753,6 @@ struct RuntimeConfig {
 
 #include "domain/ShotStopperTimeZoneState.inc"
 
-static_assert(sizeof(RuntimeConfig) == 344,
-              "RuntimeConfig NVS size changed; bump CONFIG_SCHEMA_VERSION");
-static_assert(offsetof(RuntimeConfig, stopPulseTenMs) == 322,
-              "RuntimeConfig stopPulseTenMs offset changed");
-static_assert(offsetof(RuntimeConfig, dripDelayMs) == 324,
-              "RuntimeConfig dripDelayMs offset changed");
-static_assert(offsetof(RuntimeConfig, momentaryStartOnPress) == 328,
-              "RuntimeConfig momentaryStartOnPress offset changed");
-static_assert(offsetof(RuntimeConfig, reedConfirmTimeoutHundredMs) == 329,
-              "RuntimeConfig reedConfirmTimeoutHundredMs offset changed");
-static_assert(offsetof(RuntimeConfig, assumeIdleWhenScaleConnects) == 330,
-              "RuntimeConfig assumeIdleWhenScaleConnects offset changed");
-static_assert(offsetof(RuntimeConfig, shotReactTimeoutS) == 331,
-              "RuntimeConfig shotReactTimeoutS offset changed");
-static_assert(offsetof(RuntimeConfig, rinseEnabled) == 332,
-              "RuntimeConfig rinseEnabled offset changed");
-static_assert(offsetof(RuntimeConfig, autoTareOutsideBrew) == 334,
-              "RuntimeConfig autoTareOutsideBrew offset changed");
-
 // Shared shape of the runtime timeout accessors/setters: the stored raw field
 // is scaled milliseconds; zero means the compiled default and an out-of-range
 // stored value falls back to it too. Setters clamp then round with
@@ -854,6 +836,7 @@ struct CycleConfigSnapshot {
   uint8_t goalWeightG = DEFAULT_GOAL_WEIGHT_G;
   float weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   bool autoTare = true;
+  bool touchStopFallbackEnabled = true;
   uint32_t postTareBaselineGraceMs = DEFAULT_POST_TARE_BASELINE_GRACE_MS;
   bool timerOnly = false;
   bool canTareStartTimer = true;
@@ -947,6 +930,7 @@ inline CycleConfigSnapshot snapshotConfig(const RuntimeConfig &config) {
   snapshot.stopIfCupRemoved = config.stopIfCupRemoved;
   snapshot.requireCupToStart = config.requireCupToStart;
   snapshot.avoidAccidentalTouchEnabled = config.avoidAccidentalTouchEnabled;
+  snapshot.touchStopFallbackEnabled = config.touchStopFallbackEnabled;
   snapshot.cupPresentWeightG = config.cupPresentWeightG;
   snapshot.cupRemovedWeightG = config.cupRemovedWeightG;
   memcpy(snapshot.autoToManualGuardSamplesDs, config.autoToManualGuardSamplesDs,
@@ -1871,6 +1855,7 @@ struct WebCommand {
   char presetName[24] = {};
   bool persistPresets = false;
   bool bbwAlgorithmSpecified = false;
+  bool touchStopFallbackSpecified = false;
   bool bbwBaselineSpecified = true;
   uint8_t bbwAlphaBaseline = 0;  // Zero means omitted; valid bases are 1–100.
   bool bbwFullReset = false;

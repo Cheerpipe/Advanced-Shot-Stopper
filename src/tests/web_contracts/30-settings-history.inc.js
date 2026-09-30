@@ -1,4 +1,53 @@
 {
+  const childId = 'touchStopFallbackEnabled';
+  if (html.indexOf(`id="${childId}"`) < html.indexOf('id="avoidAccidentalTouchEnabled"') ||
+      !html.includes(`id="${childId}" type="checkbox" checked`) ||
+      !network.includes('touchStopFallbackEnabled must be a boolean.')) {
+    throw new Error('Touch fallback must be a default-ON subordinate setting');
+  }
+  const groups = runtimeJs.slice(runtimeJs.indexOf('function updateConfigGroups(){'),
+    runtimeJs.indexOf('function extRate('));
+  const payload = js.split('\n').find(line => line.startsWith('function brewPayload(){'));
+  for (const parent of [false, true]) for (const saved of [false, true]) {
+    for (const bbw of [false, true]) for (const mutable of [false, true]) {
+      const nodes = {};
+      const get = id => nodes[id] ||= {
+        checked: false, value: 'off', disabled: !mutable, closest: () => null
+      };
+      get('avoidAccidentalTouchEnabled').checked = parent;
+      get(childId).checked = saved;
+      get('brewByWeight').checked = bbw;
+      for (const key of ['cupProtectionEnabled', 'stopIfCupRemoved', 'requireCupToStart'])
+        get(key).checked = saved;
+      const document = {
+        querySelector: () => null,
+        querySelectorAll: selector => selector === '.touchStopOpt' ? [{
+          classList: {toggle() {}}, querySelectorAll: () => [get(childId)]
+        }] : [],
+        documentElement: {classList: {contains: () => false}}
+      };
+      new Function('$', 'document', 'controlsMutable', 'updateScalePreferenceOptions',
+        'soundAlertsAreOn', 'updateScaleIncapableAlertControls', 'number',
+        'updateBullseyeControls', 'updateBbwControls', groups + ';updateConfigGroups();')(
+        get, document, mutable, () => {}, () => true, () => {}, () => 50,
+        () => {}, () => {});
+      if (get(childId).checked !== saved ||
+          get(childId).disabled !== (!mutable || !parent || !bbw)) {
+        throw new Error('Inactive touch fallback must retain its saved checkbox value');
+      }
+      const result = new Function('$', 'number', 'sToMs', 'bbwFormPresetId', 'document',
+        payload + ';return brewPayload();')(get, () => 36, () => 1000, 1, document);
+      if (result.touchStopFallbackEnabled !== saved || result.brewByWeight !== bbw ||
+          ['cupProtectionEnabled', 'stopIfCupRemoved', 'requireCupToStart'].some(k => result[k] !== saved) ||
+          ['operationalWallMs', 'bbwProtectionMs', 'minBbwBrewTimeMs', 'maxBbwBrewTimeMs',
+            'autoToManualGuardManualLimitMs', 'autoToManualGuardBaselineMs'].some(k => result[k] !== 1000)) {
+        throw new Error('Saving a disabled touch fallback must preserve its value');
+      }
+    }
+  }
+}
+
+{
   const labels = ['Automatic tare outside a brew',
     'Retare when adding or removing an accessory', 'Automatic tare at shot start',
     'Late-cup retare during a shot'];

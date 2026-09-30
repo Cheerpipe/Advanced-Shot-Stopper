@@ -35,6 +35,7 @@ inline void fillDoubleFirmwareDefaults(ShotPreset &preset) {
   preset.stopIfCupRemoved = true;
   preset.requireCupToStart = false;
   preset.avoidAccidentalTouchEnabled = true;
+  preset.touchStopFallbackEnabled = true;
   seedAutoToManualSamples(preset);
 }
 
@@ -369,6 +370,7 @@ inline void applyShotPresetToConfig(const ShotPreset &preset,
   config.stopIfCupRemoved = preset.stopIfCupRemoved;
   config.requireCupToStart = preset.requireCupToStart;
   config.avoidAccidentalTouchEnabled = preset.avoidAccidentalTouchEnabled;
+  config.touchStopFallbackEnabled = preset.touchStopFallbackEnabled;
   memcpy(config.autoToManualGuardSamplesDs, preset.autoToManualGuardSamplesDs,
          sizeof(config.autoToManualGuardSamplesDs));
   config.timerOnly = sessionManual ? true : !preset.brewByWeight;
@@ -404,6 +406,7 @@ inline void copyUserRecipeFromConfig(const RuntimeConfig &config,
   preset.stopIfCupRemoved = config.stopIfCupRemoved;
   preset.requireCupToStart = config.requireCupToStart;
   preset.avoidAccidentalTouchEnabled = config.avoidAccidentalTouchEnabled;
+  preset.touchStopFallbackEnabled = config.touchStopFallbackEnabled;
 }
 
 inline bool allocateShotPresetId(ShotPresetBank &bank, uint8_t &outId) {

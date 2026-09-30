@@ -15384,6 +15384,203 @@ void publishControlRamp(float startG, float endG, float stepG, uint32_t interval
   }
 }
 
+void prepareTouchFallbackTest() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  enableAccidentalTouchForTest();
+  mutableActiveShotPreset(presetBank).goalWeightG = 36;
+  runtimeConfig.goalWeightG = 36;
+  startCycle();
+  advanceToBrew();
+  endBbwProtectionForTests();
+  hostMillis += 12000;  // Keep fallback endings eligible for the real finalizer.
+  publishControlRamp(1.0f, 20.0f, 1.0f, 200, 10);
+  CHECK(session.config.touchStopFallbackEnabled);
+}
+
+void at11_touch_fallback_only_when_both_enabled() {
+  for (bool parent : {false, true}) for (bool child : {false, true}) {
+    prepareTouchFallbackTest();
+    session.config.avoidAccidentalTouchEnabled = parent;
+    session.config.touchStopFallbackEnabled = child;
+    // Live settings cannot change the captured choice during this shot.
+    runtimeConfig.touchStopFallbackEnabled = !child;
+    for (unsigned i = 0; i <= 10 && session.active; ++i) {
+      hostMillis += 100;
+      publishWeight(40.0f + 2.0f * i);
+      loop();
+      if (parent && i < 10) CHECK(session.active);
+    }
+    if (!parent) CHECK(session.endReason == EndReason::SCALE_THRESHOLD);
+    else if (!child) CHECK(session.active);
+    else {
+      CHECK(!session.active);
+      CHECK(session.endReason == EndReason::TOUCH_WEIGHT_FALLBACK);
+      CHECK(!pendingFinalize.offsetAnalysis);
+      CHECK(pendingFinalize.lastKnownWeightG == 20.0f);
+      CHECK(shotLogStopDetailFromEndReason(session.endReason, false, false) ==
+            ShotLogStopDetail::TOUCH_WEIGHT_FALLBACK);
+      CHECK(strcmp(shotLogStopDetailName(ShotLogStopDetail::TOUCH_WEIGHT_FALLBACK),
+                   "touch_weight_fallback") == 0);
+      CHECK(strcmp(shotLogStopDetailName(ShotLogStopDetail::TOUCH_WEIGHT_FALLBACK, true),
+                   "other") == 0);
+      const auto before = activeShotPreset(presetBank);
+      maybeQueueAutoToManualGuardSample(pendingFinalize, 36.0f, true);
+      CHECK(memcmp(before.autoToManualGuardSamplesDs,
+                   activeShotPreset(presetBank).autoToManualGuardSamplesDs,
+                   sizeof(before.autoToManualGuardSamplesDs)) == 0);
+      for (uint8_t algorithm : {0, 1}) {
+        pendingFinalize.bbwAlgorithm = algorithm;
+        CHECK(!learnPendingBbw(pendingFinalize, 36.0f, true));
+      }
+    }
+  }
+}
+
+void at12_touch_fallback_duration_and_evidence_resets() {
+  prepareTouchFallbackTest();
+  hostMillis += 100;
+  publishWeight(40.0f);
+  const uint32_t first = hostMillis;
+  publishWeight(46.0f, first + 500);
+  publishWeight(52.0f, first + 999);
+  CHECK(!automaticScaleStopDue());
+  publishWeight(54.0f, first + 1000);
+  CHECK(automaticScaleStopDue());
+
+  // Interruption of evidence must not leave an old ready stop behind.
+  for (unsigned scenario = 0; scenario < 12; ++scenario) {
+    prepareTouchFallbackTest();
+    hostMillis += 100;
+    publishWeight(40.0f);
+    publishWeight(44.0f, hostMillis + 200);
+    CHECK(session.touchStop.samples == 2);
+    const auto last = session.touchStop;
+    switch (scenario) {
+      case 0: hostMillis += MAX_AUTOMATION_WEIGHT_AGE_MS + 1; break;
+      case 1: publishWeight(NAN, hostMillis + 1); break;
+      case 2: publishWeight(25.0f, hostMillis + 100); break;
+      case 3: publishWeight(46.0f, last.lastAtMs, last.connectionGeneration,
+                            last.packetSequence); break;
+      case 4: publishWeight(46.0f, last.lastAtMs - 1, last.connectionGeneration,
+                            last.packetSequence + 1); break;
+      case 5: suspendWeightControl(); break;
+      case 6: armPostTareBaselineWindow(); break;
+      case 7: publishWeight(200.0f, hostMillis + 100); break; // Slew filter.
+      case 8: publishWeight(46.0f, hostMillis + 100, last.connectionGeneration,
+                            last.packetSequence + 2); break;
+      case 9: publishWeight(46.0f, hostMillis + 100,
+                            last.connectionGeneration + 1, last.packetSequence + 1); break;
+      case 10: publishWeight(64.0f, hostMillis + 1001); break;
+      case 11: recordWeightSampleWithProvenance(46.0f, hostMillis + 100,
+                   last.packetSequence + 1, last.connectionGeneration); break;
+    }
+    CHECK(!automaticScaleStopDue());
+    if (scenario != 0) CHECK(session.touchStop.samples <= 1);
+  }
+
+  prepareTouchFallbackTest();
+  hostMillis += 100;
+  publishWeight(40.0f);
+  publishWeight(40.1f, hostMillis + 100);
+  publishWeight(40.2f, hostMillis + 100); // Existing sustained release wins.
+  publishWeight(40.3f, hostMillis + 100);
+  loop();
+  CHECK(session.endReason == EndReason::SCALE_THRESHOLD);
+}
+
+void at13_touch_fallback_guard_thresholds() {
+  for (unsigned scenario = 0; scenario < 5; ++scenario) {
+    prepareTouchFallbackTest();
+    session.config.fastExtractionGuardEnabled = scenario < 3;
+    session.config.slowExtractionGuardEnabled = scenario >= 3;
+    session.config.minBbwBrewTimeMs = 28000;
+    session.config.maxBbwBrewTimeMs = 44000;
+    session.config.maxRecoveryWeightG = scenario == 0 ? 70.0f : 42.5f;
+    if (scenario == 2) session.config.minBbwBrewTimeMs = 5000;
+    if (scenario >= 3) {
+      session.config.maxBbwBrewTimeMs = 5000;
+      session.config.goalWeightG = 60;
+    }
+    if (scenario == 4) session.slowExtractionExtended = true;
+    for (unsigned i = 0; i <= 10; ++i) {
+      hostMillis += 100;
+      // For Fast test a ceiling crossed even without entering extension.
+      publishWeight((scenario == 1 ? 44.0f : scenario >= 3 ? 35.0f : 40.0f) +
+                    (scenario >= 3 ? 1.0f : 2.0f) * i);
+    }
+    if (scenario == 0) CHECK(!automaticScaleStopDue());
+    else {
+      CHECK(automaticScaleStopDue());
+      if (scenario == 1) CHECK(session.extractionExtended);
+      if (scenario >= 3) CHECK(session.slowExtractionExtended);
+    }
+  }
+
+  prepareTouchFallbackTest();
+  session.config.fastExtractionGuardEnabled = true;
+  session.config.minBbwBrewTimeMs = elapsedMs(session.startedAtMs) + 900;
+  publishWeight(44.0f, hostMillis + 100);
+  publishWeight(48.0f, hostMillis + 400);
+  CHECK(session.touchStop.samples == 2);
+  publishWeight(52.0f, hostMillis + 500); // Minimum time changes the policy.
+  CHECK(session.touchStop.samples == 1);
+  CHECK(!automaticScaleStopDue());
+}
+
+void at14_touch_fallback_respects_inhibitions_and_rollover() {
+  for (unsigned scenario = 0; scenario < 6; ++scenario) {
+    prepareTouchFallbackTest();
+    if (scenario == 0) session.bbwProtectionEnded = false;
+    if (scenario == 1) session.config.timerOnly = true;
+    if (scenario == 2) stopperState = StopperState::RINSE;
+    if (scenario == 3) stopperState = StopperState::MANUAL_NO_SCALE;
+    if (scenario == 4) session.awaitingPostTareBaseline = true;
+    if (scenario == 5) machineCyclePaddleMode = static_cast<uint8_t>(PaddleMode::ORIGINAL);
+    for (unsigned i = 0; i <= 10; ++i)
+      publishWeight(40.0f + 2.0f * i, hostMillis + 100);
+    CHECK(session.touchStop.samples == 0);
+    CHECK(session.endReason == EndReason::NONE);
+  }
+  prepareTouchFallbackTest();
+  hostMillis = UINT32_MAX - 600;
+  session.startedAtMs = hostMillis - 16000;
+  shot.startMs = session.startedAtMs;
+  resetWeightTrend();
+  session.lastAcceptedWeightAtMs = hostMillis;
+  for (unsigned i = 0; i <= 10; ++i) {
+    hostMillis += 100;
+    markScaleWorkerProgress();
+    publishWeight(40.0f + 2.0f * i);
+  }
+  CHECK(session.touchStop.samples >= 3);
+  CHECK(automaticScaleStopDue());
+  CHECK(session.directStopReason == EndReason::TOUCH_WEIGHT_FALLBACK);
+}
+
+void at15_touch_fallback_preset_presence() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  auto &preset = mutableActiveShotPreset(presetBank);
+  preset.touchStopFallbackEnabled = false;
+  WebCommand save;
+  save.type = WebCommandType::PRESET_OP;
+  save.presetAction = static_cast<uint8_t>(PresetAction::SAVE);
+  save.presetId = preset.id;
+  save.requestId = 950;
+  save.config = runtimeConfig; // Old clients omit the new field.
+  CHECK(save.config.touchStopFallbackEnabled);
+  processWebCommand(save);
+  CHECK(!preset.touchStopFallbackEnabled);
+  runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
+  save.requestId = 951;
+  save.touchStopFallbackSpecified = true;
+  processWebCommand(save);
+  CHECK(preset.touchStopFallbackEnabled);
+  CHECK(runtimeConfig.touchStopFallbackEnabled);
+  CHECK(!runtimeConfig.avoidAccidentalTouchEnabled);
+}
+
 void ff01_classifier_seeking_touch_and_release() {
   FirstFlowState state;
   CHECK(stepFirstFlow(state, 0.35f, 100, 1, 0.0f) == FirstFlowClass::CANDIDATE);
@@ -17054,6 +17251,11 @@ void cm08_compatibility_mirror_holds_against_guard_drive_deny() {
 }
 
 const TestCase testCases[] = {
+    {"TF01", at11_touch_fallback_only_when_both_enabled},
+    {"TF02", at12_touch_fallback_duration_and_evidence_resets},
+    {"TF03", at13_touch_fallback_guard_thresholds},
+    {"TF04", at14_touch_fallback_respects_inhibitions_and_rollover},
+    {"TF05", at15_touch_fallback_preset_presence},
     {"POW01", pow01_scale_disconnect_grace_and_rinse_clock},
     {"POW02", pow02_idle_scan_preserves_saved_preference},
     {"POW03", pow03_ble_wake_without_link_is_bounded},

@@ -12,6 +12,7 @@ struct ShotPreset {
   bool fastExtractionGuardEnabled = true;
   // V9 names former padding; old schemas initialize it explicitly.
   uint8_t bbwAlgorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
+  bool touchStopFallbackEnabled = true;  // Settings v2, former padding at 46.
   float maxRecoveryWeightG = DEFAULT_MAX_RECOVERY_WEIGHT_G;
   uint32_t minBbwBrewTimeMs = DEFAULT_MIN_BBW_BREW_TIME_MS;
   bool slowExtractionGuardEnabled = true;
@@ -52,6 +53,27 @@ struct ShotPresetBank {
   ShotPreset presets[MAX_SHOT_PRESETS] = {};
 };
 
+static_assert(sizeof(RuntimeConfig) == 344,
+              "RuntimeConfig NVS size changed; bump CONFIG_SCHEMA_VERSION");
+static_assert(offsetof(RuntimeConfig, touchStopFallbackEnabled) == 17,
+              "Settings v2 preserves runtime offsets");
+static_assert(offsetof(RuntimeConfig, stopPulseTenMs) == 322,
+              "RuntimeConfig stopPulseTenMs offset changed");
+static_assert(offsetof(RuntimeConfig, dripDelayMs) == 324,
+              "RuntimeConfig dripDelayMs offset changed");
+static_assert(offsetof(RuntimeConfig, momentaryStartOnPress) == 328,
+              "RuntimeConfig momentaryStartOnPress offset changed");
+static_assert(offsetof(RuntimeConfig, reedConfirmTimeoutHundredMs) == 329,
+              "RuntimeConfig reedConfirmTimeoutHundredMs offset changed");
+static_assert(offsetof(RuntimeConfig, assumeIdleWhenScaleConnects) == 330,
+              "RuntimeConfig assumeIdleWhenScaleConnects offset changed");
+static_assert(offsetof(RuntimeConfig, shotReactTimeoutS) == 331,
+              "RuntimeConfig shotReactTimeoutS offset changed");
+static_assert(offsetof(RuntimeConfig, rinseEnabled) == 332,
+              "RuntimeConfig rinseEnabled offset changed");
+static_assert(offsetof(RuntimeConfig, autoTareOutsideBrew) == 334,
+              "RuntimeConfig autoTareOutsideBrew offset changed");
+
 static_assert(sizeof(ShotPreset) <= 136, "ShotPreset too large");
 static_assert(sizeof(ShotPresetBank) <= 1100, "ShotPresetBank too large");
 static_assert(offsetof(RuntimeConfig, bbwAlgorithm) == 335, "V10 runtime layout");
@@ -61,4 +83,6 @@ static_assert(offsetof(ShotPreset, bbwEwmaAlpha) == 88, "V9 preset alpha");
 static_assert(offsetof(ShotPreset, bbwAlphaBaseline) == 91, "V10 preset alpha baseline");
 static_assert(offsetof(ShotPreset, lineaMicraBrewTargetDeciC) == 102,
               "V15 preset target must consume former tail padding");
+static_assert(offsetof(ShotPreset, touchStopFallbackEnabled) == 46,
+              "Settings v2 preserves preset offsets");
 static_assert(sizeof(ShotPreset) == 104, "V9 preserves preset size");

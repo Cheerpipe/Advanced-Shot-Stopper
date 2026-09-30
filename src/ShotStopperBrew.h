@@ -135,10 +135,56 @@ void resetDirectStopConfirmation() {
   session.directStopPending = false;
 }
 
+bool bbwWeightStopInhibited();
+
 bool accidentalTouchSessionActive() {
   return shouldTrackWeight() && session.config.avoidAccidentalTouchEnabled &&
          session.startedWithScale &&
          session.weightControlState == WeightControlState::ACTIVE;
+}
+
+EndReason touchStopPolicy(float weight, float &threshold) {
+  threshold = effectiveStopThreshold();
+  if (fastExtractionGuardSession() && !minBbwBrewTimeReached()) {
+    threshold = effectiveMaxStopThreshold();
+    return EndReason::FAST_EXTRACTION_MAX_WEIGHT;
+  }
+  if (session.extractionExtended && fastExtractionGuardSession())
+    return EndReason::FAST_EXTRACTION_MIN_TIME;
+  if (slowExtractionGuardSession() && !session.extractionExtended &&
+      (session.slowExtractionExtended ||
+       (maxBbwBrewTimeReached() && !targetWeightReached(weight)))) {
+    threshold = effectiveMinStopThreshold();
+    return session.slowExtractionExtended ? EndReason::SLOW_EXTRACTION_MIN_WEIGHT
+                                          : EndReason::SLOW_EXTRACTION_MAX_TIME;
+  }
+  return EndReason::SCALE_THRESHOLD;
+}
+
+void considerTouchStopSample(float weight, uint32_t atMs, uint32_t sequence,
+                            uint32_t generation,
+                            const TouchStopEvidence &previous) {
+  if (!accidentalTouchSessionActive() || !session.config.touchStopFallbackEnabled ||
+      bbwWeightStopInhibited() || session.awaitingPostTareBaseline ||
+      !machineAllowsAutomationStop() || sequence == 0 || generation == 0 ||
+      generation != session.ownedConnectionGeneration ||
+      static_cast<int32_t>(millis() - atMs) < 0 ||
+      elapsedMs(atMs) > MAX_AUTOMATION_WEIGHT_AGE_MS) return;
+  float threshold;
+  const EndReason policy = touchStopPolicy(weight, threshold);
+  if (weight < threshold) return;
+  const int32_t gap = static_cast<int32_t>(atMs - previous.lastAtMs);
+  // Duplicate/out-of-order observations cannot start a new interval either.
+  if (previous.samples && generation == previous.connectionGeneration &&
+      (gap <= 0 || static_cast<int32_t>(sequence - previous.packetSequence) <= 0))
+    return;
+  const bool continuous = previous.samples && previous.policy == policy &&
+      previous.thresholdG == threshold && generation == previous.connectionGeneration &&
+      sequence == previous.packetSequence + 1U && gap > 0 &&
+      static_cast<uint32_t>(gap) <= DIRECT_STOP_CONFIRMATION_WINDOW_MS;
+  session.touchStop = {continuous ? previous.firstAtMs : atMs, atMs, sequence,
+      generation, threshold, weight, policy,
+      static_cast<uint8_t>(continuous ? (previous.samples < 3 ? previous.samples + 1 : 3) : 1)};
 }
 
 void noteAccidentalTouchClass(AccidentalTouchClass classified, float weight) {
@@ -653,6 +699,28 @@ bool automaticScaleStopDue() {
   }
 
   const bool holding = session.accidentalTouchHolding;
+  if (holding && accidentalTouchSessionActive() &&
+      session.config.touchStopFallbackEnabled && session.touchStop.samples >= 3 &&
+      !session.awaitingPostTareBaseline && !scaleAutomationUnavailableForSession()) {
+    const TouchStopEvidence &evidence = session.touchStop;
+    float threshold;
+    const EndReason policy = touchStopPolicy(evidence.weightG, threshold);
+    if (policy == evidence.policy && threshold == evidence.thresholdG &&
+        evidence.connectionGeneration == session.ownedConnectionGeneration &&
+        static_cast<int32_t>(millis() - evidence.lastAtMs) >= 0 &&
+        elapsedMs(evidence.lastAtMs) <= MAX_AUTOMATION_WEIGHT_AGE_MS &&
+        static_cast<uint32_t>(evidence.lastAtMs - evidence.firstAtMs) >=
+            TOUCH_STOP_FALLBACK_MS) {
+      if (policy == EndReason::FAST_EXTRACTION_MAX_WEIGHT)
+        enterFastExtractionExtended(evidence.weightG, evidence.lastAtMs);
+      if (policy == EndReason::SLOW_EXTRACTION_MAX_TIME)
+        enterSlowExtractionExtended(evidence.weightG, evidence.lastAtMs);
+      session.calibrationEligible = false;
+      session.directStopPending = true;
+      session.directStopReason = EndReason::TOUCH_WEIGHT_FALLBACK;
+      return true;
+    }
+  }
   const bool directStopFresh = session.directStopPending &&
       session.thresholdConfirmations >= DIRECT_STOP_CONFIRMATION_SAMPLES &&
       static_cast<int32_t>(millis() - session.lastThresholdAtMs) >= 0 &&

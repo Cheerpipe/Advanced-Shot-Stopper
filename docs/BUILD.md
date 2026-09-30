@@ -236,12 +236,12 @@ relay profile, or a different `--arch`. Development mode remains CLI-only and
 must never be added to a profile.
 
 Machine defaults seed a new installation and factory reset. Valid persisted
-settings survive ordinary boot and OTA. The current settings blob is schema 3;
-the shot store uses schema 2 and the curve store uses schema 1. Incompatible
-old settings are rejected
-and replaced with factory defaults. Firmware identity is checked before
-writing the device. This release assumes a clean USB installation with
-`--erase-all`; subsequent compatible OTA updates retain its saved data.
+settings survive ordinary boot and OTA. The current settings blob is schema 2;
+same-layout schema-1 settings upgrade without losing saved values. The shot store
+uses schema 2 and the curve store uses schema 1. Other incompatible settings are
+rejected and replaced with factory defaults. Firmware identity is checked before
+writing the device. Older incompatible partition layouts require the clean USB
+installation described below; compatible OTA updates remain supported.
 
 List available IDs and compatibility before building:
 
@@ -478,9 +478,9 @@ app0 only on a readable installed layout.
 
 ### Clean-install cutovers
 
-The current settings contract is schema 3 and deliberately does not
-migrate any earlier settings blob. Install this firmware with `--erase-all`
-even when the partition table already matches. An installed 20 KiB NVS layout,
+The current settings contract is schema 2 and preserves same-layout schema-1
+settings on upgrade; that upgrade does not require `--erase-all`. Other
+incompatible settings contracts require a clean installation. An installed 20 KiB NVS layout,
 or a current layout without the dedicated
 56 KiB `shotcurve` partition or the 32 KiB `shotlog` and `history` partitions,
 or an n16r8 layout without the new crash-history area,

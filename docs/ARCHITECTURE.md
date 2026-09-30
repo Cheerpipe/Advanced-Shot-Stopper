@@ -75,14 +75,14 @@ Its adapter exposes only `NORMAL` or `WAKE_PASSTHROUGH`; Open Brew by Weight own
 passthrough and consumes wake gestures before brew, rinse, guards, scale,
 alerts, webhooks, and history. Those subsystems never depend on Micra types.
 
-The schema-4 settings blob retains the exact 310-byte
+The schema-2 settings blob retains the exact 310-byte
 `LineaMicraPersistedSettings` cloud account record and the two-byte per-preset
 Micra target in every profile so switching a build profile cannot reinterpret
 the persistence layout. Their names, validation and helpers remain Micra-owned;
-unrelated machine modules must not reuse them. Settings persistence accepts only
-the current magic, schema, size, checksum, and semantic contract. Every earlier
-settings schema is rejected rather than migrated; this cutover requires a clean
-`--erase-all` installation.
+unrelated machine modules must not reuse them. Settings persistence validates magic, size, checksum and semantic constraints.
+The same-layout schema-1 record is upgraded to schema 2 after checksum
+verification, enabling the new touch-stop fallback while retaining all prior
+settings. Other schemas and incompatible layouts remain rejected.
 
 ## BBW policy and storage
 
@@ -106,14 +106,16 @@ Editing reset bases alone preserves current learning and evidence.
 Settings status publishes active-preset identity, both offsets, alpha baseline, gain/provenance
 and evidence count together in the existing coherent control snapshot.
 
-Settings schema 4 uses the current 344-byte `RuntimeConfig`, 104-byte
+Settings schema 2 uses the current 344-byte `RuntimeConfig`, 104-byte
 `ShotPreset`, and 3,312-byte settings blob. Candidate
 anchors/observations/generations are RAM only; deferred persistence retains
 offsets, gain/provenance, and profile through the existing dual-slot owner.
 `powerManagementEnabled`, webhook preset delivery, and Allow rinse while Armed
 are current explicit fields. Presets never copy the global power setting.
-Earlier settings lengths or schema numbers are rejected before field access;
-there is no settings decoder or migration fallback.
+The schema-1 upgrade names former padding at runtime byte 17 and preset byte 46
+for `touchStopFallbackEnabled`; it initializes both to true before semantic
+validation. Schema-2 records preserve explicit false. Blob sizes, revisions and
+dual-slot ownership remain unchanged. Other lengths and schemas are rejected.
 The shot log is the authority for a completed shot: confirmed, non-rinse,
 strictly more than 12,000 ms of brewing and a finite settled yield strictly
 above 2 g. The fixed recording threshold does not alter the configurable BBW
@@ -199,15 +201,13 @@ and [shot history](features/shot-history.md).
 
 ## Live settings notifications
 
-The global `timezoneId` is an IANA region/city string in the schema-4 settings
+The global `timezoneId` is an IANA region/city string in the schema-2 settings
 blob. Network validates it against the firmware's generated tzdata2026d
 catalog; control owns the effective setting and first-auto provenance; the
 existing persistence worker saves both in the same settings generation.
 The `timezoneAutomatic` preference occupies former runtime padding at byte 6,
-preserving the remaining layout. There is no record-generation tag or legacy
-derivation: records that do not match the current schema are rejected at load,
-so saved zones and other settings carry across OTA updates only when the
-schema is unchanged. Automatic time zone defaults to on for new records.
+preserving the remaining layout. Saved zones and their provenance survive both
+same-schema OTA updates and the supported schema-1 to schema-2 conversion. Automatic time zone defaults to on for new records.
 Flash persistence publishes `timezoneInitialized` only after loading a valid
 saved zone or verifying a settings write containing one; factory reset clears
 it. Until then, a zone-only browser initialization is permitted without Admin.
@@ -253,14 +253,14 @@ scale's initial connection retain their
 own policy application paths. Persistence and status publication are independent
 of these operational triggers. No callbacks run from an ISR or across a flash
 write, and the OTA update path remains available. The settings layout is
-schema 4 for this clean-install release.
+schema 2, with same-layout schema-1 settings preserved on upgrade.
 
 ## Residual qualification
 
-`RuntimeConfig` uses a 344-byte fixed layout inside the current schema-4
+`RuntimeConfig` uses a 344-byte fixed layout inside the current schema-2
 settings blob. `autoTareOutsideBrew` remains a global machine setting rather
-than part of the per-shot/preset recipe snapshot. No historical settings layout
-is interpreted at boot. The optional idle accessory retare uses spare bit 6 of
+than part of the per-shot/preset recipe snapshot. Only the explicitly supported
+same-layout schema-1 record is converted at boot. The optional idle accessory retare uses spare bit 6 of
 the already-packed `noScaleBbwMode` byte. New and factory-reset records default
 on; existing saved records retain their stored bit, including OFF. The bit is
 preserved when the no-scale mode changes; this bit itself does not alter the blob.

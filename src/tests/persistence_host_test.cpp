@@ -141,6 +141,65 @@ void p01_defaults_are_valid() {
   CHECK(!validPreferredScaleMac("GG:BB:CC:DD:EE:FF"));
 }
 
+void touch_fallback_settings_upgrade_and_roundtrip() {
+  resetHostPersistence();
+  PersistedSettings settings;
+  CHECK(initializeDefaultSettings(settings));
+  CHECK(settings.runtime.touchStopFallbackEnabled);
+  CHECK(settings.presets.presets[0].touchStopFallbackEnabled);
+  CHECK(offsetof(RuntimeConfig, touchStopFallbackEnabled) == 17);
+  CHECK(sizeof(RuntimeConfig) == 344);
+  CHECK(sizeof(ShotPreset) == 104);
+  CHECK(sizeof(PersistedSettings) == 3312);
+  settings.runtime.avoidAccidentalTouchEnabled = false;
+  settings.runtime.goalWeightG = 47;
+  settings.runtime.maxRecoveryWeightG = 55.0f;
+  settings.presets.presets[0].avoidAccidentalTouchEnabled = false;
+  settings.presets.presets[0].goalWeightG = 39;
+  // Old padding is not a boolean and may contain any byte.
+  reinterpret_cast<uint8_t *>(&settings.runtime)[17] = 0xa5;
+  for (auto &preset : settings.presets.presets)
+    reinterpret_cast<uint8_t *>(&preset)[46] = 0xa5;
+  settings.schemaVersion = 1;
+  settings.storageRevision = 17;
+  settings.checksum = persistedSettingsChecksum(settings);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings, sizeof(settings));
+  PersistedSettings loaded;
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(validPersistedSettings(loaded));
+  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
+  CHECK(loaded.storageRevision == 17);
+  CHECK(loaded.runtime.goalWeightG == 47);
+  CHECK(!loaded.runtime.avoidAccidentalTouchEnabled);
+  CHECK(loaded.runtime.touchStopFallbackEnabled);
+  CHECK(!loaded.presets.presets[0].avoidAccidentalTouchEnabled);
+  CHECK(loaded.presets.presets[0].goalWeightG == 39);
+  CHECK(loaded.presets.presets[0].touchStopFallbackEnabled);
+  loaded.runtime.touchStopFallbackEnabled = false;
+  loaded.presets.presets[0].touchStopFallbackEnabled = false;
+  CHECK(savePersistedSettings(loaded));
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(!loaded.runtime.touchStopFallbackEnabled);
+  CHECK(!loaded.presets.presets[0].touchStopFallbackEnabled);
+  RuntimeConfig recipe;
+  applyShotPresetToConfig(loaded.presets.presets[0], recipe, false);
+  CHECK(!snapshotConfig(recipe).touchStopFallbackEnabled);
+  ShotPreset copy;
+  copyUserRecipeFromConfig(recipe, copy);
+  CHECK(!copy.touchStopFallbackEnabled);
+  uint8_t duplicateId = 0;
+  CHECK(duplicateShotPreset(loaded.presets, loaded.presets.presets[0].id, duplicateId));
+  CHECK(setActiveShotPreset(loaded.presets, duplicateId));
+  CHECK(!activeShotPreset(loaded.presets).touchStopFallbackEnabled);
+  CHECK(restoreFactoryShotPresetValues(loaded.presets, FACTORY_PRESET_ID_DOUBLE));
+  CHECK(loaded.presets.presets[0].touchStopFallbackEnabled);
+  // A corrupt old record must never be repaired into a valid configuration.
+  resetHostPersistence();
+  settings.checksum ^= 1;
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings, sizeof(settings));
+  CHECK(!loadPersistedSettings(loaded));
+}
+
 void p02_newest_valid_slot_is_loaded() {
   resetHostPersistence();
   PersistedSettings settings;
@@ -2425,6 +2484,7 @@ void p90_firmware_mode_store_round_trip_and_factory_reset() {
 }
 
 const TestCase tests[] = {
+    {"TFP", touch_fallback_settings_upgrade_and_roundtrip},
     {"P90", p90_firmware_mode_store_round_trip_and_factory_reset},
     {"P86", p86_timezone_preference_and_durable_initialization},
     {"P85", p85_schema1_is_strict_and_micra_defaults_round_trip},

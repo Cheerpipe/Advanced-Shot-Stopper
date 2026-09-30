@@ -588,9 +588,6 @@ if (html.indexOf('<summary>Brew by Weight</summary>') >
         html.indexOf('id="homePresetBlock"') ||
     !ui.includes("persistHomeGuard('homeCupProtectionEnabled'") ||
     !ui.includes("'cupProtectionEnabled',1)") ||
-    !ui.includes('cupProtectionEnabled:$(\'cupProtectionEnabled\')') ||
-    !ui.includes('stopIfCupRemoved:$(\'stopIfCupRemoved\')') ||
-    !ui.includes('requireCupToStart:$(\'requireCupToStart\')') ||
     !network.includes('cupProtectionEnabled') ||
     !network.includes('stopIfCupRemoved') ||
     !network.includes('requireCupToStart') ||

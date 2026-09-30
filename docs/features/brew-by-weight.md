@@ -43,6 +43,7 @@ noted. **Home → Quick Settings** can toggle brew by weight for the session
 | Setting | Default | Range | Effect on the shot |
 | --- | --- | --- | --- |
 | **Brew by weight** | ON | ON / OFF | ON: stop by weight when a scale is usable. OFF: paddle, **Stop**, and the 60 s firmware cap only. Fast, Slow, A→M, Max BBW time, and No-scale BBW become read-only. |
+| **Stop after sustained weight** | ON | ON / OFF | A backup for a weight stop blocked by **Avoid accidental touch**. Fresh readings must stay above the applicable cut threshold for 1 second. Saved per preset; takes effect on the next shot. |
 | **Cutoff algorithm** | Linear prediction + adaptive EWMA | Linear regression + offset correction / Linear prediction + adaptive EWMA | Saved per preset; applies to the next shot. |
 | **Target (g)** | 36 g | 10–200 g | Goal weight. Stop aims at `target − learned offset`. |
 | **Max BBW time (s)** | 50 s | 5–60 s | Operational time limit for an **automatic BBW** cycle. Ignored on timer-only and no-scale shots. Cannot exceed the hard 60 s cap. |
@@ -68,6 +69,37 @@ no other guard has requested an earlier end. If target arrives too early,
 Fast can deliberately extend the shot.
 
 ## Cutoff algorithms and learning
+
+### When touch protection delays a stop
+
+**Stop after sustained weight** sits directly below **Avoid accidental touch**.
+It only works when both options and BBW are on. If touch protection is off, the
+backup keeps its saved ON/OFF selection but becomes read-only and has no effect.
+Turning touch protection back on restores that choice. New and reset recipes
+start with the backup on; upgrading a supported earlier settings record also
+turns the new option on without changing your touch-protection choice.
+
+The normal weight stop does not wait an extra second. The backup starts counting
+only when touch protection rejects weight that would otherwise allow a stop.
+Fresh readings must remain above the applicable threshold for at least one second;
+the weight may keep increasing. A brief spike, silence after one reading, a drop
+below the threshold, a new tare or a connection interruption cannot complete that
+interval. If touch protection releases sooner, normal stopping resumes immediately.
+
+Fast still permits intentional extension: before its minimum time, the backup
+uses the maximum recovery threshold. After that time it can use the normal
+threshold. Slow uses its recovery threshold when recovery is applicable. The
+learned offset applies as usual, and a change of threshold restarts the interval.
+
+A finger held on the scale can also trigger this backup. It favors ending an
+uncertain shot over continuing to wait; it does not prove that the reading is
+coffee. Sampling, machine response and dripping mean the final yield can still
+overshoot. Under-reported weight or vibration repeatedly crossing below the
+threshold may prevent this backup from firing, so the existing time limits remain.
+Backup endings appear as **Touch fallback** and do not train the learned offset
+or the A→M duration trend.
+
+### Algorithm selection
 
 In **Settings → Brew → BBW**, choose **Cutoff algorithm**, then save the
 preset. New controllers, new presets and factory recipe resets use **Linear

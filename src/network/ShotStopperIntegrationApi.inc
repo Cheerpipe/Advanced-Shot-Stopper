@@ -163,7 +163,8 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
         : PersistedLastShot{};
     const bool lastShotOk = buildIntegrationLastShot(
         shot, hasLastShot ? shotLogStopDetailName(
-            static_cast<ShotLogStopDetail>(latestShot.stopDetail)) : "none",
+            static_cast<ShotLogStopDetail>(latestShot.stopDetail),
+            /*integrationV1=*/true) : "none",
         self.callbacks_.shotLogSavePending != nullptr &&
             self.callbacks_.shotLogSavePending(),
         lastShotJson, sizeof(lastShotJson));

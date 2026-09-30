@@ -611,6 +611,19 @@ Source: `OpenBrewByWeightScaleTypes.h`. Only runs while weight control is
 | `TOUCH` | Anomalous spike; **hold** cuts (`accidentalTouchHolding`). |
 | `SUSTAINED` | Several similar anomalous samples — treated as a held finger, not a one-sample glitch. |
 
+The default-on, per-preset `touchStopFallbackEnabled` option is effective only
+with `avoidAccidentalTouchEnabled`. It does not modify this classifier. A
+`TOUCH` that blocks an otherwise eligible measured-weight stop starts bounded
+session evidence: at least three consecutive packet IDs in one connection
+generation, strictly increasing receive times, gaps no greater than 1000 ms,
+and at least 1000 ms above the offset-adjusted policy threshold. Normal release
+can stop sooner. Rejected non-touch data, reference/link discontinuity, expired
+freshness, lost eligibility and changed threshold/policy cannot carry evidence
+forward. Fast/Slow eligibility and machine automation permission still apply.
+The fallback requests `TOUCH_WEIGHT_FALLBACK` through normal control arbitration,
+does not accept the rejected sample into the trajectory, and disables offset
+and A→M duration learning. Saved ON with parent OFF is dormant, not effective ON.
+
 ---
 
 ## 10. Scale link (`ScaleLinkState`)
@@ -1002,6 +1015,7 @@ ran, stored on the session, last-shot blob, and shot log.
 | `ACTIVATOR` | Physical stop intention (Natural paddle OFF after any enabled rinse window, or a valid button stop). |
 | `SCALE_THRESHOLD` | Weight control `ACTIVE`, target (minus drip offset) confirmed. |
 | `WEIGHT_ANOMALY` | Direct-stop path on a pathological sample. |
+| `TOUCH_WEIGHT_FALLBACK` | Touch protection still blocks an eligible stop after one second of fresh above-threshold evidence; no offset or duration learning. |
 | `GLOBAL_LIMIT` | 60 s hard cap. |
 | `CONFIGURED_WALL_LIMIT` | Max BBW time / operational wall on automatic BBW cycles. Not used for timer-only or no-scale shots. |
 | `SHORT_SHOT` | Reserved/legacy short-shot path. |

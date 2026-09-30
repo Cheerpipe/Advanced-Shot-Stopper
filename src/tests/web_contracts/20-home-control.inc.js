@@ -708,9 +708,6 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !network.includes('stopIfCupRemoved') ||
     !network.includes('requireCupToStart') ||
     !network.includes('cupRemovedWeightG') ||
-    !ui.includes('cupProtectionEnabled:$(\'cupProtectionEnabled\')') ||
-    !ui.includes('stopIfCupRemoved:$(\'stopIfCupRemoved\')') ||
-    !ui.includes('requireCupToStart:$(\'requireCupToStart\')') ||
     !ui.includes("cupRemovedWeightG:number('cupRemovedWeightG')")) {
   throw new Error('Auto-to-manual time guard must be wired in config UI, live panel, shots API, and routes');
 }

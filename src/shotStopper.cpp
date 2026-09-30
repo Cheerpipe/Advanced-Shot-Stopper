@@ -291,6 +291,7 @@ struct CycleSession {
   AccidentalTouchPhase accidentalTouchPhase = AccidentalTouchPhase::STARTUP;
   AccidentalTouchClass accidentalTouchClass = AccidentalTouchClass::OK;
   bool accidentalTouchHolding = false;
+  TouchStopEvidence touchStop = {};
   uint8_t accidentalTouchPendingCount = 0;
   float accidentalTouchPendingG[ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES] = {};
 };
@@ -1455,6 +1456,7 @@ void setWeightControlState(WeightControlState state) {
   }
   const WeightControlState previous = session.weightControlState;
   session.weightControlState = state;
+  session.touchStop = {};
   session.automaticEnabled = state == WeightControlState::ACTIVE;
   if (state == WeightControlState::SUSPENDED) {
     session.scaleWasLost = true;
@@ -1488,6 +1490,7 @@ void setWeightControlState(WeightControlState state) {
 }
 
 void resetAccidentalTouchState() {
+  session.touchStop = {};
   session.accidentalTouchPhase = AccidentalTouchPhase::STARTUP;
   session.accidentalTouchClass = AccidentalTouchClass::OK;
   session.accidentalTouchHolding = false;

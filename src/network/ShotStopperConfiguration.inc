@@ -173,6 +173,7 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       "retareStabilitySamples", "retareStabilityToleranceG",
       "retareStabilityMaxGapMs", "retareStabilityMinDurationMs",
       "bbwProtectionMs", "fastExtractionGuardEnabled", "avoidAccidentalTouchEnabled",
+      "touchStopFallbackEnabled",
       "maxRecoveryWeightG",
       "minBbwBrewTimeMs", "slowExtractionGuardEnabled", "minRecoveryWeightG",
       "maxBbwBrewTimeMs", "autoToManualGuardEnabled", "autoToManualGuardLimitMode",
@@ -386,6 +387,10 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
              !jsonBoolean(root, "avoidAccidentalTouchEnabled",
                           candidate.avoidAccidentalTouchEnabled)) {
     parseError = "avoidAccidentalTouchEnabled must be a boolean.";
+  } else if (jsonFieldPresent(root, "touchStopFallbackEnabled") &&
+             !jsonBoolean(root, "touchStopFallbackEnabled",
+                          candidate.touchStopFallbackEnabled)) {
+    parseError = "touchStopFallbackEnabled must be a boolean.";
   } else if (jsonFieldPresent(root, "maxRecoveryWeightG") &&
              !jsonFloat(root, "maxRecoveryWeightG",
                         candidate.maxRecoveryWeightG)) {
@@ -998,11 +1003,15 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
           !jsonBoolean(root, "requireCupToStart",
                        command.config.requireCupToStart) ||
           !jsonBoolean(root, "avoidAccidentalTouchEnabled",
-                       command.config.avoidAccidentalTouchEnabled)) {
+                       command.config.avoidAccidentalTouchEnabled) ||
+          (jsonFieldPresent(root, "touchStopFallbackEnabled") &&
+           !jsonBoolean(root, "touchStopFallbackEnabled",
+                        command.config.touchStopFallbackEnabled))) {
         parseError = "save requires the full Brew recipe field set.";
       } else {
         command.config.timerOnly = !brewByWeight;
         command.bbwAlgorithmSpecified = jsonFieldPresent(root, "bbwAlgorithm");
+        command.touchStopFallbackSpecified = jsonFieldPresent(root, "touchStopFallbackEnabled");
         command.bbwBaselineSpecified = jsonFieldPresent(root, "weightOffsetBaselineG");
         const cJSON *alphaBase = cJSON_GetObjectItemCaseSensitive(root, "bbwAlphaBaseline");
         if (alphaBase && (!cJSON_IsNumber(alphaBase) ||

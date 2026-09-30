@@ -428,6 +428,7 @@ void processScaleWorkerEvents() {
     const ScaleLinkSnapshot eventLink = getScaleLinkSnapshot();
     if (event.connectionGeneration != eventLink.connectionGeneration ||
         event.disconnectSequence != eventLink.disconnectSequence) {
+      session.touchStop = {};
       char detail[DEBUG_EVENT_TEXT_CAPACITY];
       snprintf(detail, sizeof(detail),
                "stale scale event rejected: %s reason=link_epoch "
@@ -445,6 +446,7 @@ void processScaleWorkerEvents() {
     }
     switch (event.type) {
       case ScaleEventType::REFERENCE_CHANGED:
+        session.touchStop = {};
         if (idleTare.requestId != 0) {
           idleTare.cupStillPresent = false;
           releaseIdleTareRequest(IdleTareReason::SAMPLE_GAP);
@@ -459,6 +461,7 @@ void processScaleWorkerEvents() {
       case ScaleEventType::WEIGHT:
         if (!std::isfinite(event.weightG) ||
             fabsf(event.weightG) > MAX_PARSED_WEIGHT_G) {
+          session.touchStop = {};
           resetCupSampleEvidence();
           serialTrace(LogLevel::WARNING,
                       "Invalid scale weight event ignored");
@@ -470,6 +473,7 @@ void processScaleWorkerEvents() {
           if (session.active &&
               static_cast<int32_t>(event.receivedAtMs -
                                    session.startedAtMs) < 0) {
+            session.touchStop = {};
             char detail[DEBUG_EVENT_TEXT_CAPACITY];
             snprintf(detail, sizeof(detail),
                      "stale scale event rejected: weight reason=before cycle "
@@ -486,6 +490,7 @@ void processScaleWorkerEvents() {
           }
         }
         if (event.sampleDiscontinuity) {
+          session.touchStop = {};
           resetCupSampleEvidence();
           idleTare.absentObserved = false;
           if (idleTare.requestId != 0 &&
