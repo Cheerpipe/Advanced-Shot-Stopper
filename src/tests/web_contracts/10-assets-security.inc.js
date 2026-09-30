@@ -169,15 +169,141 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !css.includes('@keyframes bootWave{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}') ||
     !css.includes('.bootWave i{animation:none}') ||
     !runtimeJs.includes('let homeBootDone=false,fwReloading=false') ||
-    !runtimeJs.includes('function hideHomeBoot(){if(homeBootDone||fwReloading)return;homeBootDone=true;const el=$(\'homeBoot\');if(!el)return;requestAnimationFrame(') ||
-    !runtimeJs.includes('setTimeout(()=>el.classList.add(\'hidden\'),450)') ||
-    !runtimeJs.includes('function message(text,kind=\'\'){hideHomeBoot();') ||
-    !runtimeJs.includes('function applyHomeStatus(s){hideHomeBoot();') ||
-    !runtimeJs.includes('function showInactiveOverlay(){const el=$(\'webUiInactive\');if(!el)return;hideHomeBoot();') ||
+    !runtimeJs.includes('async function hideHomeBoot(seq=bootSeq,view){') ||
+    !runtimeJs.includes("bootTimer=setTimeout(()=>{if(seq===bootSeq)") ||
+    !runtimeJs.includes("function message(text,kind=''){if(kind==='error')hideHomeBoot();") ||
+    runtimeJs.includes('function applyHomeStatus(s){hideHomeBoot();') ||
+    !runtimeJs.includes("function showInactiveOverlay(){const el=$('webUiInactive');if(!el)return;hideHomeBoot();") ||
     !runtimeJs.includes('if(!reloaded){fwReloading=true;location.reload()}') ||
-    !appJsSource.includes("if(view!=='home')R.hideHomeBoot();")) {
+    !appJsSource.includes('boot=R.showPageBoot();R.stopViewPolls();') ||
+    !appJsSource.includes('if(ok)await R.hideHomeBoot(boot,view)')) {
   throw new Error(
-      'Home must boot behind a full-screen splash that paints before fading out in 250 ms after the first home status and toggle transitions settle, never dismisses itself while a firmware reload is pending, hands the screen to the inactive overlay before it shows, stays below the inactive overlay, and never covers another view');
+      'Every view must reuse the Home splash and fade after its data and finite control animations settle, preserving firmware reload and inactive overlay handoff');
+}
+
+{
+  const assert = require('assert').strict, vm = require('vm');
+  const deferred = () => {
+    let resolve, reject;
+    const promise = new Promise((yes, no) => {resolve = yes; reject = no;});
+    return {promise, resolve, reject};
+  };
+  const flush = async () => {for (let i = 0; i < 12; i++) await Promise.resolve();};
+  const overlaySource = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function showPageBoot('),
+    rawRuntimeJs.indexOf('function setOverlayOutOfReach('));
+  const routeSource = appJsSource.slice(appJsSource.indexOf('function startView('),
+    appJsSource.indexOf('function setNav('));
+  (async () => {
+    const classes = new Set(['hidden', 'isDone']), frames = [], timers = [];
+    const toggle = deferred(), endless = deferred();
+    const animation = (endTime, finished) => ({effect: {getComputedTiming: () => ({endTime})}, finished});
+    const overlay = {classList: {add: (...names) => names.forEach(n => classes.add(n)),
+      remove: (...names) => names.forEach(n => classes.delete(n))}, setAttribute() {}};
+    const context = vm.createContext({bootSeq: 0, homeBootDone: false,
+      bootTimer: 0, fwReloading: false,
+      $: id => id === 'homeBoot' ? overlay : {getAnimations: () => [
+        animation(200, toggle.promise), animation(Infinity, endless.promise)]},
+      requestAnimationFrame: fn => frames.push(fn),
+      setTimeout: (fn, ms) => {assert.equal(ms, 450); timers.push(fn); return timers.length;},
+      clearTimeout() {}});
+    vm.runInContext(overlaySource, context);
+    const token = context.showPageBoot();
+    assert.deepEqual([...classes], [], 'Page loading must appear immediately');
+    const hiding = context.hideHomeBoot(token, 'settings');
+    frames.shift()(); frames.shift()(); await flush();
+    assert.equal(classes.has('isDone'), false, 'Wait for the initial toggle transition');
+    toggle.resolve(); await hiding;
+    assert.equal(classes.has('isDone'), true, 'Infinite animations must not block the fade');
+    context.showPageBoot(); timers.shift()();
+    assert.deepEqual([...classes], [], 'An old fade timer must not hide the next route');
+    const stale = context.hideHomeBoot(context.bootSeq, 'home');
+    context.showPageBoot(); frames.shift()(); frames.shift()(); await stale;
+    assert.deepEqual([...classes], [], 'An old animation wait must not fade the next route');
+    context.fwReloading = true;
+    await context.hideHomeBoot();
+    assert.deepEqual([...classes], [], 'Keep loading visible while firmware reloads');
+
+    const catalog = deferred(), preview = deferred(), applied = [];
+    const statusContext = vm.createContext({activeView: 'admin', statusBusy: false,
+      document: {hidden: false}, webUiPollingActive: () => true,
+      statusUrl: () => '/api/v1/status/admin', statusPageOk: () => true,
+      api: async () => ({adminUnlocked: true}), applyCommonStatus() {},
+      viewStatusHandlers: {admin: () => applied.push('status')},
+      timezoneCatalogPromise: catalog.promise, timezonePreviewLoad: preview.promise,
+      noteReachOk: () => applied.push('ready'), noteReachFail() {}, armStatusTimer() {}});
+    vm.runInContext(rawRuntimeJs.split('\n').find(line => line.startsWith('async function loadStatus(')), statusContext);
+    const adminLoading = statusContext.loadStatus(); await flush();
+    assert.deepEqual(applied, ['status']);
+    catalog.resolve(); await flush();
+    assert.deepEqual(applied, ['status'], 'Admin must still wait for its timezone preview');
+    preview.resolve(); assert.equal(await adminLoading, true);
+    assert.deepEqual(applied, ['status', 'ready']);
+    const outdated = deferred(); statusContext.api = () => outdated.promise;
+    const oldStatus = statusContext.loadStatus(); statusContext.activeView = 'settings';
+    outdated.resolve({adminUnlocked: true});
+    assert.equal(await oldStatus, false, 'Discard a status response from the previous view');
+
+    const log = deferred(); let calls = 0, rendered = false;
+    const logContext = vm.createContext({logBusy: false, diagnosticUnlocked: true,
+      diagnosticPublicView: false, document: {hidden: false},
+      webUiPollingActive: () => true, logBootId: 0, bootId: 0, logEvents: [],
+      lastLog: 0, logMissed: 0, LOG_EVENTS_CAPACITY: 500,
+      api: () => {calls++; return log.promise;}, updateLogHealth() {},
+      renderLog: () => {rendered = true;}, updateFirmwareFooter() {},
+      noteReachOk() {}, noteReachFail() {}});
+    vm.runInContext(rawRuntimeJs.split('\n').find(line => line.startsWith('async function loadLog(')), logContext);
+    const firstLog = logContext.loadLog(), pageLog = logContext.loadLog();
+    assert.equal(calls, 1, 'Diagnostics must await the log already started by status');
+    assert.equal(rendered, false);
+    log.resolve({bootId: 1, events: []});
+    assert.equal(await firstLog, true); assert.equal(await pageLog, true);
+    assert.equal(rendered, true); assert.equal(logContext.logBusy, false);
+
+    for (const view of ['home', 'settings', 'stats', 'history', 'diagnostic', 'admin']) {
+      const events = [], markup = deferred(), status = deferred(), data = deferred();
+      const path = view === 'home' ? '/' : '/' + view;
+      const r = vm.createContext({activeView: '', routeSeq: 0, logTimer: 0,
+        shotsTimer: 0, historyTimer: 0, jsMods: new Map(), diagnosticNav: null,
+        ROUTES: {[path]: view}, knownPath: () => path, viewToPath: () => path,
+        location: {pathname: path}, history: {}, stopExtraPolls() {},
+        ensureView: () => {events.push('markup'); return markup.promise;},
+        document: {hidden: false, querySelectorAll: () => []}, setInterval: () => 1,
+        __WEBUI_TEXT__: key => key,
+        R: {showPageBoot: () => {events.push('show'); return 1;}, stopViewPolls() {},
+          api: async () => ({}), compatibilityModeOn: () => false,
+          withPollGate: fn => fn(), webUiPollingActive: () => true,
+          setActiveView() {}, armStatusTimer() {},
+          loadStatus: () => {events.push('status'); return status.promise;},
+          loadShots: () => {events.push('data'); return data.promise;},
+          loadHistory: () => {events.push('data'); return data.promise;},
+          loadLog: () => {events.push('data'); return data.promise;},
+          hideHomeBoot: () => events.push('fade'), message: () => events.push('error')}});
+      vm.runInContext(routeSource, r);
+      const loading = r.renderRoute(path); await flush();
+      assert.deepEqual(events, ['show', 'markup'], view + ': show before lazy markup');
+      markup.resolve(); await flush();
+      assert.deepEqual(events, ['show', 'markup', 'status'], view + ': wait for status');
+      status.resolve(true); await flush();
+      if (['stats', 'history', 'diagnostic'].includes(view)) {
+        assert.deepEqual(events, ['show', 'markup', 'status', 'data']);
+        data.resolve(true);
+      }
+      await loading;
+      assert.equal(events.at(-1), 'fade', view + ': fade only after all initial data');
+
+      r.ensureView = async () => {throw new Error('Markup unavailable');};
+      await r.renderRoute(path);
+      assert.equal(events.at(-1), 'error', view + ': expose lazy-load failure');
+      r.ensureView = async () => {};
+      r.R.loadStatus = async () => false;
+      await r.renderRoute(path);
+      assert.equal(events.at(-1), 'error', view + ': expose initial data failure');
+      const old = deferred(); r.R.loadStatus = () => old.promise;
+      const superseded = r.renderRoute(path); await flush();
+      r.routeSeq++; old.resolve(true); await superseded;
+      assert.notEqual(events.at(-1), 'fade', view + ': ignore superseded route readiness');
+    }
+  })().catch(error => {console.error(error); process.exitCode = 1;});
 }
 {
   const delay = Number(css.match(/\.bootOverlay\{[^}]*transition:opacity [\d.]+s ([\d.]+)s/)[1]);
@@ -188,7 +314,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       throw new Error('Home fade must wait for both the toggle track and thumb');
     }
   }
-  if (!runtimeJs.includes("setTimeout(()=>el.classList.add('hidden')," + Math.round((delay + fade) * 1000) + ')') ||
+  if (!runtimeJs.includes("el.setAttribute('aria-hidden','true')}}," + Math.round((delay + fade) * 1000) + ')') ||
       !css.includes('transition:.01ms!important')) {
     throw new Error('Splash removal must include its delay and fade; reduced motion must reset delays');
   }

@@ -38,16 +38,15 @@ The [AP guide](settings/ap.md) explains its idle shutdown and recovery.
 can take the claim, and 15 minutes without using a control locks the page and
 stops polling. Scrolling does not keep it active; use Reload to resume.
 
-**While Home loads**: the first time the page opens, it shows a full-screen
-loading view with the Open Brew by Weight mark, a moving wave, and **Loading…**,
-while it connects to the controller and collects what **Home** needs. It stays there until that data is
-ready and the switches have settled into their current positions, so the home
-screen never appears half-filled. It then fades away in a quarter of a second.
-This view belongs to that first load: if the controller
-needs to be reclaimed, or the page reloads itself after an update, the loading
-view keeps or hands over the screen instead of flashing the previous screen, and
-opening **Settings** directly, or coming back to **Home** later, shows the page
-straight away.
+**While a page loads**: Home, Settings, Stats, History, Diagnostics, and Admin
+show the same full-screen loading view with the Open Brew by Weight mark, a
+moving wave, and **Loading…**. It appears as soon as you open a page, including
+when you return to one you have already visited. It stays until the page's data
+is ready and its switches have settled into their current positions, then fades
+away in a quarter of a second. Stats, History, and Settings use this single
+loading view rather than separate loading animations inside their sections.
+If loading fails, the page shows an error. If this browser loses its claim, the
+loading view hands over to **Reload**.
 
 **Add to home screen** installs the page like an app. On iPhone or iPad, open
 the controller page in Safari, tap **Share**, then **Add to Home Screen**; from

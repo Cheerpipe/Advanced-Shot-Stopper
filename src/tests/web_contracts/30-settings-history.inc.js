@@ -121,16 +121,15 @@
   }
   const source = runtimeJs.slice(runtimeJs.indexOf('function updatePresetActionButtons(){'),
     runtimeJs.indexOf('async function applyPreset('));
-  const update = new Function('$', 'document', 'selectedPreset', 'controlsMutable',
+  const update = new Function('$', 'document', 'selectedPreset', 'controlsMutable', 'presetsLoaded',
     source + ';updatePresetActionButtons();');
-  for (const settled of [undefined, 'msg', 'data']) for (const mutable of [false, true]) {
+  for (const loaded of [false, true]) for (const mutable of [false, true]) {
     for (const preset of [null, {isFactory: true}, {isFactory: false}]) {
       const nodes = Object.fromEntries(ids.map(id => [id,
         {id, disabled: false, classList: {toggle() {}}}]));
-      nodes.presetCardsState = {dataset: {settled}};
       update(id => nodes[id], {querySelectorAll: () => ids.map(id => nodes[id])},
-        () => preset, mutable);
-      const ready = settled === 'data' && mutable;
+        () => preset, mutable, loaded);
+      const ready = loaded && mutable;
       const expected = [!ready, !ready, !ready || !preset?.isFactory,
         !ready || !preset || !!preset.isFactory];
       if (ids.some((id, i) => nodes[id].disabled !== expected[i])) {
@@ -138,7 +137,7 @@
       }
     }
   }
-  if (!runtimeJs.includes("settlePanel('presetCardsState',null);renderAllPresetUi();")) {
+  if (!runtimeJs.includes('function ingestPresets(s){if(!s.presets)return;presetsLoaded=true;')) {
     throw new Error('Preset actions must refresh after loading settles');
   }
 }
@@ -156,9 +155,9 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !ui.includes('<legend>Device password</legend>') ||
     !ui.includes('<legend>Frontend</legend>') ||
     !ui.includes('id="presetCards"') ||
-    !partialHtml.settings.includes('id="presetCardsState" class="panelState isOver" role="status"') ||
-    !partialHtml.settings.includes('<article class="presetCard skeleton"><div class="presetCardTitleRow"><div class="presetCardTitle">&nbsp;</div></div><div class="presetCardMeta">&nbsp;</div></article>') ||
-    !runtimeJs.includes("settlePanel('presetCardsState'") ||
+    partialHtml.settings.includes('id="presetCardsState"') ||
+    partialHtml.settings.includes('class="presetCard skeleton"') ||
+    runtimeJs.includes('settlePanel(') ||
     !partialHtml.settings.includes('id="presetCardsWrap" class="panelWrap"') ||
     !css.includes('.panelWrap{position:relative}') ||
     !ui.includes('id="presetNewBtn"') ||
@@ -728,7 +727,7 @@ if (!ui.includes('id="shotTable"') ||
     html.includes('id="clearShotsButton" class="btnGlyph btnDanger"') ||
     !css.includes('#shotLogPanel .btnGlyph:not(.btnInvert)') ||
     !ui.includes("confirm:'CLEAR_SHOT_LOG'") ||
-    !runtimeJs.includes('function settlePanel(') ||
+    !runtimeJs.includes('function setEmptyState(') ||
     !ui.includes('refreshShots()') ||
     !js.includes("'shotDur'") ||
     !js.includes("'shotActual'") ||
@@ -771,7 +770,7 @@ if (!ui.includes('id="shotTable"') ||
     !partialHtml.stats.includes('<th>Max flow</th>') ||
     !partialHtml.stats.includes('<th>Preset</th>') ||
     !partialHtml.stats.includes('<strong>Avg yield</strong>') ||
-    !partialHtml.stats.includes('id="shotTableState" class="panelState" role="status"') ||
+    !partialHtml.stats.includes('id="shotTableState" class="emptyState" role="status" hidden') ||
     partialHtml.stats.includes('<th>Actual</th>') ||
     !ui.includes('no time') ||
     !ui.includes('id="timezoneId"') ||
@@ -885,7 +884,7 @@ if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !network.includes('\\"hasMore\\":%s') ||
     !network.includes('\\"total\\":%u') ||
     !network.includes('index == start ? "" : ","') ||
-    !appJsSource.includes('mod.activate()')) {
+    !appJsSource.includes('ok=await R.loadShots()')) {
   throw new Error('Shot history must page 10 shots with infinite scroll and poll only the first page');
 }
 const shotLogTypes = fs.readFileSync(
@@ -947,7 +946,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !partialHtml.history.includes('id="historyPanel"') ||
     !partialHtml.history.includes('id="historyTable"') ||
     !partialHtml.history.includes('id="historyRows"') ||
-    !partialHtml.history.includes('id="historyTableState" class="panelState" role="status"') ||
+    !partialHtml.history.includes('id="historyTableState" class="emptyState" role="status" hidden') ||
     !partialHtml.history.includes('id="historySentinel"') ||
     !partialHtml.history.includes('id="historyDirButton"') ||
     !partialHtml.history.includes('class="shotSort"') ||
@@ -955,8 +954,8 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !partialHtml.history.includes('btnGlyph btnInvert') ||
     !css.includes('#historyTable{') ||
     !css.includes('#historySentinel{min-height:1px') ||
-    !css.includes('.panelState{display:flex;align-items:center;justify-content:center;') ||
-    !css.includes('.panelState.isOver{position:absolute;') ||
+    css.includes('.panelState{') ||
+    css.includes('.panelState.isOver{') ||
     !css.includes('.histBadge{') ||
     !runtimeJs.includes('HISTORY_PAGE_SIZE=20') ||
     !runtimeJs.includes("const historyUrl=(offset,limit,dir)=>'/api/v1/history?offset='") ||
@@ -1055,11 +1054,11 @@ if (!statsSection ||
 
 {
   if (!statsSection[1].includes('class="panelWrap"') ||
-      !statsSection[1].includes('id="shotStatsState" class="panelState isOver" aria-hidden="true"') ||
+      statsSection[1].includes('id="shotStatsState"') ||
       !css.includes('.panelWrap{position:relative}') ||
-      !css.includes('.panelState.isOver{position:absolute;') ||
-      !runtimeJs.includes("renderShots();settlePanel('shotStatsState');")) {
-    throw new Error('Stats must reuse a non-sizing wave overlay and settle after history renders');
+      css.includes('.panelState.isOver{') ||
+      runtimeJs.includes('settlePanel(')) {
+    throw new Error('Stats must use page loading without section waves');
   }
   const assert = require('assert').strict, vm = require('vm');
   const render = rawRuntimeJs.split('\n').find(line => line.startsWith('function renderShots('));
@@ -1076,16 +1075,16 @@ if (!statsSection ||
         renderShotStats: () => events.push('stats'),
         $: () => ({replaceChildren: () => events.push('history')}),
         __WEBUI_TEXT__: text => text,
-        settlePanel: id => events.push(id), updateShotLogSentinel() {},
+        setEmptyState: id => events.push(id), updateShotLogSentinel() {},
         updateFirmwareFooter() {}, noteReachOk() {}, maybeLoadMoreShots() {},
         noteReachFail: () => events.push('error')});
       vm.runInContext(render + '\n' + fetchPage, context);
       const loading = context.fetchShotPage(0, 10, 'replace');
-      assert.deepEqual(events, [], 'Neither loader may settle while data is pending');
+      assert.deepEqual(events, [], 'Page content must wait for data');
       if (fail) reject(new Error('Unavailable')); else resolve({shots: [], stats: {}});
       await loading;
       assert.deepEqual(events, fail ? ['error'] :
-        ['stats', 'history', 'shotTableState', 'shotStatsState']);
+        ['stats', 'history', 'shotTableState']);
       assert.equal(context.shotsBusy, false);
     }
   })().catch(error => {console.error(error); process.exitCode = 1;});
