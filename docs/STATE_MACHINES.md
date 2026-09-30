@@ -620,6 +620,8 @@ and at least 1000 ms above the offset-adjusted policy threshold. Normal release
 can stop sooner. Rejected non-touch data, reference/link discontinuity, expired
 freshness, lost eligibility and changed threshold/policy cannot carry evidence
 forward. Fast/Slow eligibility and machine automation permission still apply.
+Threshold timing uses each sample's receive time, so a delayed sample cannot
+count under a guard threshold that became eligible only after its arrival.
 The fallback requests `TOUCH_WEIGHT_FALLBACK` through normal control arbitration,
 does not accept the rejected sample into the trajectory, and disables offset
 and A→M duration learning. Saved ON with parent OFF is dormant, not effective ON.

@@ -172,6 +172,7 @@ bool shotCompletionGetsLongBeep(EndReason reason) {
     case EndReason::ACTIVATOR:
     case EndReason::SCALE_THRESHOLD:
     case EndReason::WEIGHT_ANOMALY:
+    case EndReason::TOUCH_WEIGHT_FALLBACK:
     case EndReason::GLOBAL_LIMIT:
     case EndReason::CONFIGURED_WALL_LIMIT:
     case EndReason::WEB_STOP:

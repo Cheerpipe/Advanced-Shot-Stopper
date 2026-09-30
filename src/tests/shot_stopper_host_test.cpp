@@ -15416,6 +15416,8 @@ void at11_touch_fallback_only_when_both_enabled() {
     else {
       CHECK(!session.active);
       CHECK(session.endReason == EndReason::TOUCH_WEIGHT_FALLBACK);
+      CHECK(shotCompletionGetsLongBeep(session.endReason));
+      checkLocalCompletionTone();
       CHECK(!pendingFinalize.offsetAnalysis);
       CHECK(pendingFinalize.lastKnownWeightG == 20.0f);
       CHECK(shotLogStopDetailFromEndReason(session.endReason, false, false) ==
@@ -15560,6 +15562,29 @@ void at14_touch_fallback_respects_inhibitions_and_rollover() {
   CHECK(session.touchStop.samples >= 3);
   CHECK(automaticScaleStopDue());
   CHECK(session.directStopReason == EndReason::TOUCH_WEIGHT_FALLBACK);
+}
+
+void at16_touch_fallback_uses_receive_time_for_guard_boundaries() {
+  for (unsigned scenario = 0; scenario < 3; ++scenario) {
+    const bool fast = scenario == 0;
+    prepareTouchFallbackTest();
+    session.config.fastExtractionGuardEnabled = fast;
+    session.config.slowExtractionGuardEnabled = !fast;
+    session.config.maxRecoveryWeightG = 70;
+    if (!fast) session.config.goalWeightG = 60;
+    session.slowExtractionExtended = scenario == 2;
+    hostMillis += 700;
+    const uint32_t boundary = elapsedMs(session.startedAtMs) - 300;
+    session.config.minBbwBrewTimeMs = boundary;
+    session.config.maxBbwBrewTimeMs = boundary;
+    // Fresh but delayed delivery must not backdate the newly eligible policy.
+    publishWeight(fast ? 40.0f : 35.0f, hostMillis - 500);
+    CHECK(session.accidentalTouchHolding);
+    CHECK(session.touchStop.samples == 0);
+    publishWeight(fast ? 46.0f : 41.0f, hostMillis - 100);
+    CHECK(session.touchStop.samples == 1);
+    CHECK(session.touchStop.firstAtMs == hostMillis - 100);
+  }
 }
 
 void at15_touch_fallback_preset_presence() {
@@ -17260,6 +17285,7 @@ const TestCase testCases[] = {
     {"TF03", at13_touch_fallback_guard_thresholds},
     {"TF04", at14_touch_fallback_respects_inhibitions_and_rollover},
     {"TF05", at15_touch_fallback_preset_presence},
+    {"TF06", at16_touch_fallback_uses_receive_time_for_guard_boundaries},
     {"POW01", pow01_scale_disconnect_grace_and_rinse_clock},
     {"POW02", pow02_idle_scan_preserves_saved_preference},
     {"POW03", pow03_ble_wake_without_link_is_bounded},

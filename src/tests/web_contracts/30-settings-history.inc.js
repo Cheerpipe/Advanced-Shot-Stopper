@@ -18,6 +18,9 @@
   const groups = runtimeJs.slice(runtimeJs.indexOf('function updateConfigGroups(){'),
     runtimeJs.indexOf('function extRate('));
   const payload = js.split('\n').find(line => line.startsWith('function brewPayload(){'));
+  const bindings = viewJs.settings.slice(
+    viewJs.settings.indexOf("document.querySelectorAll('#workflowPanel input"),
+    viewJs.settings.indexOf('const resetBbw='));
   for (const parent of [false, true]) for (const saved of [false, true]) {
     for (const bbw of [false, true]) for (const mutable of [false, true]) {
       const nodes = {};
@@ -36,11 +39,12 @@
         }] : [],
         documentElement: {classList: {contains: () => false}}
       };
-      new Function('$', 'document', 'controlsMutable', 'updateScalePreferenceOptions',
+      const refresh = new Function('$', 'document', 'controlsMutable', 'updateScalePreferenceOptions',
         'soundAlertsAreOn', 'updateScaleIncapableAlertControls', 'number',
-        'updateBullseyeControls', 'updateBbwControls', groups + ';updateConfigGroups();')(
+        'updateBullseyeControls', 'updateBbwControls', groups + ';return updateConfigGroups;')(
         get, document, mutable, () => {}, () => true, () => {}, () => 50,
         () => {}, () => {});
+      refresh();
       if (get(childId).checked !== saved ||
           get(childId).disabled !== (!mutable || !parent || !bbw)) {
         throw new Error('Inactive touch fallback must retain its saved checkbox value');
@@ -52,6 +56,21 @@
           ['operationalWallMs', 'bbwProtectionMs', 'minBbwBrewTimeMs', 'maxBbwBrewTimeMs',
             'autoToManualGuardManualLimitMs', 'autoToManualGuardBaselineMs'].some(k => result[k] !== 1000)) {
         throw new Error('Saving a disabled touch fallback must preserve its value');
+      }
+      if (mutable && parent) {
+        const field = get('brewByWeight'), events = {};
+        field.id = 'brewByWeight';
+        field.addEventListener = (type, fn) => events[type] = fn;
+        new Function('document', 'R', bindings)({querySelectorAll: () => [field]}, {
+          settingsSectionOf: () => 'brew', markBrewDirty() {},
+          updateBbwControls() {}, updateConfigGroups: refresh
+        });
+        for (const type of ['input', 'change']) {
+          field.checked = !field.checked;
+          events[type]();
+          if (get(childId).checked !== saved || get(childId).disabled === field.checked)
+            throw new Error('BBW edits must update the fallback immediately without polling');
+        }
       }
     }
   }

@@ -143,17 +143,22 @@ bool accidentalTouchSessionActive() {
          session.weightControlState == WeightControlState::ACTIVE;
 }
 
-EndReason touchStopPolicy(float weight, float &threshold) {
+EndReason touchStopPolicy(float weight, float &threshold, uint32_t atMs) {
+  uint32_t runningMs = 0;
+  const uint32_t ageMs = millis() - atMs;
+  const bool timed = machineRunningElapsed(runningMs) && ageMs <= runningMs;
+  if (timed) runningMs -= ageMs;
+  const bool minReached = timed && runningMs >= session.config.minBbwBrewTimeMs;
+  const bool maxReached = timed && runningMs >= session.config.maxBbwBrewTimeMs;
   threshold = effectiveStopThreshold();
-  if (fastExtractionGuardSession() && !minBbwBrewTimeReached()) {
+  if (fastExtractionGuardSession() && !minReached) {
     threshold = effectiveMaxStopThreshold();
     return EndReason::FAST_EXTRACTION_MAX_WEIGHT;
   }
   if (session.extractionExtended && fastExtractionGuardSession())
     return EndReason::FAST_EXTRACTION_MIN_TIME;
-  if (slowExtractionGuardSession() && !session.extractionExtended &&
-      (session.slowExtractionExtended ||
-       (maxBbwBrewTimeReached() && !targetWeightReached(weight)))) {
+  if (slowExtractionGuardSession() && !session.extractionExtended && maxReached &&
+      (session.slowExtractionExtended || !targetWeightReached(weight))) {
     threshold = effectiveMinStopThreshold();
     return session.slowExtractionExtended ? EndReason::SLOW_EXTRACTION_MIN_WEIGHT
                                           : EndReason::SLOW_EXTRACTION_MAX_TIME;
@@ -171,7 +176,7 @@ void considerTouchStopSample(float weight, uint32_t atMs, uint32_t sequence,
       static_cast<int32_t>(millis() - atMs) < 0 ||
       elapsedMs(atMs) > MAX_AUTOMATION_WEIGHT_AGE_MS) return;
   float threshold;
-  const EndReason policy = touchStopPolicy(weight, threshold);
+  const EndReason policy = touchStopPolicy(weight, threshold, atMs);
   if (weight < threshold) return;
   const int32_t gap = static_cast<int32_t>(atMs - previous.lastAtMs);
   // Duplicate/out-of-order observations cannot start a new interval either.
@@ -704,7 +709,7 @@ bool automaticScaleStopDue() {
       !session.awaitingPostTareBaseline && !scaleAutomationUnavailableForSession()) {
     const TouchStopEvidence &evidence = session.touchStop;
     float threshold;
-    const EndReason policy = touchStopPolicy(evidence.weightG, threshold);
+    const EndReason policy = touchStopPolicy(evidence.weightG, threshold, millis());
     if (policy == evidence.policy && threshold == evidence.thresholdG &&
         evidence.connectionGeneration == session.ownedConnectionGeneration &&
         static_cast<int32_t>(millis() - evidence.lastAtMs) >= 0 &&

@@ -75,6 +75,7 @@ Fast can deliberately extend the shot.
 **Stop after sustained weight** sits directly below **Avoid accidental touch**.
 It only works when both options and BBW are on. If touch protection is off, the
 backup keeps its saved ON/OFF selection but becomes read-only and has no effect.
+Turning BBW off also makes it read-only immediately, without clearing its selection.
 Turning touch protection back on restores that choice. New and reset recipes
 start with the backup on; upgrading a supported earlier settings record also
 turns the new option on without changing your touch-protection choice.
@@ -90,6 +91,7 @@ Fast still permits intentional extension: before its minimum time, the backup
 uses the maximum recovery threshold. After that time it can use the normal
 threshold. Slow uses its recovery threshold when recovery is applicable. The
 learned offset applies as usual, and a change of threshold restarts the interval.
+Delayed scale readings count only toward the threshold that applied when they arrived.
 
 A finger held on the scale can also trigger this backup. It favors ending an
 uncertain shot over continuing to wait; it does not prove that the reading is
