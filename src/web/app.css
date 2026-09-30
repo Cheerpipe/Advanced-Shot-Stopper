@@ -324,7 +324,8 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #presetRenameDialog{border:1px solid var(--ln);border-radius:var(--r);padding:1rem;max-width:min(22rem,calc(100vw - 2rem));background:var(--sf);color:var(--fg);box-shadow:0 1rem 3rem rgba(0,0,0,.25)}
 #presetRenameDialog::backdrop{background:rgba(23,21,19,.65)}
 
-.ruleChart{margin:1rem 0 .15rem}
+.ruleChart{margin:.35rem 0 .15rem}
+#quickSettingsPanel .ruleChart{margin-top:1rem}
 .ruleChartHead strong,.ruleChartMode{display:none}
 .ruleChartLegend{display:flex;flex-wrap:wrap;gap:.55rem;margin:0 0 .55rem;font-size:.75rem;font-weight:600}
 .ruleLeg{display:inline-flex;align-items:center;gap:.3rem}
@@ -341,7 +342,6 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .ruleTick{position:absolute;transform:translateX(-50%);white-space:nowrap;top:0}
 .ruleTick:first-child{transform:translateX(0)}
 .ruleTick:last-child{transform:translateX(-100%)}
-.ruleChartIdle .ruleChartLegend{opacity:.45}
 .ruleChartIdle .ruleSeg-idle{background:#b0b0b0}
 @media(max-width:420px){.ruleSeg{font-size:.6rem}.ruleChartTicks{font-size:.62rem}}
 
