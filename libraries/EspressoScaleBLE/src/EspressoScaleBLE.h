@@ -121,10 +121,14 @@ class EspressoScaleBLE {
         void disconnect();
 
         ScaleCommandResult tare();
+        ScaleCommandResult tare(const ScaleCommandAdmission *admission);
         ScaleCommandResult startTimer();
+        ScaleCommandResult startTimer(const ScaleCommandAdmission *admission);
         ScaleCommandResult stopTimer();
         ScaleCommandResult resetTimer();
+        ScaleCommandResult resetTimer(const ScaleCommandAdmission *admission);
         ScaleCommandResult tareStartTimer();
+        ScaleCommandResult tareStartTimer(const ScaleCommandAdmission *admission);
         bool supportsTareStartTimer() const;
 
         ScaleCommandResult beep();

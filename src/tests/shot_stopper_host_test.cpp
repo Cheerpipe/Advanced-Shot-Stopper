@@ -118,6 +118,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   resetCupPresence();
   idleTare = IdleTareRuntime{};
   workerIdleTare = IdleTareStatus{};
+  setScaleCommandCycle(0);
   pendingFinalize = PendingShotFinalize{};
   bullseyeTracker.clear();
   bullseyeMelodyConfig = BullseyeMelodyConfig{};
@@ -6911,6 +6912,114 @@ void r24_web_control_is_available_without_session_owner() {
   CHECK(!getRelaySafetySnapshot().closed);
 }
 
+void prepareIdleTare();
+void idleCup(float weight);
+
+void race01_idle_tare_validates_after_command_spacing() {
+  for (bool expire : {false, true}) {
+    prepareIdleTare();
+    idleCup(80.0f);
+    const ScaleCommand command = queuedCommandAt(0);
+    scale.weight = 80.0f;
+    scale.weightCaptureSequence = 40;
+    scale.beforeCommandAdmission = [&, expire] {
+      if (expire) hostMillis = command.expiresAtMs;
+      else {
+        scale.weight = 0.0f;
+        ++hostMillis;
+        scale.weightCaptureSequence = 41;
+        scale.newWeightAvailableValue = true;
+      }
+    };
+    CHECK(executeNextScaleCommand());
+    scale.beforeCommandAdmission = {};
+    serviceIdleTare();
+    CHECK(scale.tareCalls == 0);
+    CHECK(!cupPresenceIsTared());
+    CHECK(idleTare.lastReason != IdleTareReason::EFFECT_CONFIRMED);
+    if (expire) CHECK(idleTare.lastReason == IdleTareReason::EXPIRED);
+    else {
+      CHECK(idleTare.requestId == 0);
+      CHECK(executeNextScaleCommand()); // Cancelled queue entry cannot write.
+      CHECK(scale.tareCalls == 0);
+    }
+  }
+}
+
+void race02_retare_result_preserves_post_reference_weights() {
+  for (bool together : {false, true}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    startCycle();
+    CHECK(executeNextScaleCommand());
+    establishPostTareBaseline();
+    CHECK(requestRemoteRetare());
+    ScaleCommand command;
+    CHECK(xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE);
+    scale.weightCaptureSequence = 40;
+    executeScaleCommand(command);
+    const ScaleEvent result = shotTareResult;
+    CHECK(result.writeSucceeded);
+    if (!together) processScaleWorkerEvents();
+    ScaleEvent sample;
+    sample.type = ScaleEventType::WEIGHT;
+    sample.receivedAtMs = ++hostMillis;
+    sample.captureSequence = 40;
+    sample.weightG = 80.0f;
+    CHECK(publishScaleEvent(sample, false));
+    sample.captureSequence = 41;
+    sample.weightG = 0.0f;
+    CHECK(publishScaleEvent(sample, false));
+    processScaleWorkerEvents();
+    CHECK(!session.awaitingPostTareBaseline);
+    CHECK(shot.datapoints == 1);
+    CHECK(shot.weight[0] == 0.0f);
+    CHECK(publishScaleEvent(result, true)); // Duplicate result is idempotent.
+    ScaleEvent older = result;
+    --older.cupWeightRequestId;
+    CHECK(publishScaleEvent(older, true));
+    processScaleWorkerEvents();
+    CHECK(!session.awaitingPostTareBaseline);
+    CHECK(shot.datapoints == 1);
+  }
+}
+
+void race03_ended_cycle_cancels_queued_and_paced_retare() {
+  for (bool duringSpacing : {false, true}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    startCycle();
+    CHECK(executeNextScaleCommand());
+    establishPostTareBaseline();
+    CHECK(requestRemoteRetare());
+    const auto before = scale.tareCalls;
+    if (duringSpacing) scale.beforeCommandAdmission = [] {
+      scale.beforeCommandAdmission = {};
+      (void)finalizeCycle(EndReason::ACTIVATOR, StopperState::READY);
+    };
+    else CHECK(finalizeCycle(EndReason::ACTIVATOR, StopperState::READY));
+    while (executeNextScaleCommand()) {}
+    scale.beforeCommandAdmission = {};
+    CHECK(!session.active);
+    CHECK(scale.tareCalls == before);
+    CHECK(scale.stopTimerCalls == 1);
+  }
+}
+
+void race04_preferred_ack_preserves_newer_history() {
+  resetHarness(false, true);
+  notePreferredScale("AA:BB:CC:DD:EE:01", "Scale A");
+  char mac[PREFERRED_SCALE_MAC_CAPACITY] = {};
+  char name[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  ScaleHistoryEntry history[SCALE_HISTORY_CAPACITY] = {};
+  CHECK(scaleWorkerCopyPreferredIfDirty(mac, name, history));
+  notePreferredScale("AA:BB:CC:DD:EE:02", "Scale B");
+  CHECK(!scaleWorkerClearPreferredDirty(mac, name, history));
+  CHECK(scaleWorkerCopyPreferredIfDirty(mac, name, history));
+  CHECK(scaleWorkerClearPreferredDirty(mac, name, history));
+  CHECK(!scaleWorkerCopyPreferredIfDirty(mac, name, history));
+}
+
 void r25_critical_scale_mailbox_never_blocks_and_keeps_latest() {
   resetHarness(false, true);
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
@@ -10515,8 +10624,8 @@ void st07_scale_timer_stop_waits_for_start_before_queueing_stop() {
 
   CHECK(executeNextScaleCommand());
   CHECK(session.remoteTimerStartSettled);
-  CHECK(session.remoteTimerStarted);
-  CHECK(scale.tareStartTimerCalls == 1);
+  CHECK(!session.remoteTimerStarted);
+  CHECK(scale.tareStartTimerCalls == 0);
   CHECK(scale.stopTimerCalls == 0);
 
   runLoopAfter(0);
@@ -16130,8 +16239,9 @@ void ff08_coffee_during_post_tare_grace_fires() {
   startCycle();
   CHECK(session.awaitingPostTareBaseline || session.scaleBaselineReady);
   CHECK(executeNextScaleCommand());
-  // Empty-pan 0 g already accepted the baseline. A late combined start must
-  // not re-arm post-tare hold, or a following cup/coffee sample is swallowed.
+  // The pre-command empty-pan zero cannot settle the new tare reference.
+  CHECK(session.awaitingPostTareBaseline);
+  establishPostTareBaseline();
   CHECK(!session.awaitingPostTareBaseline);
   CHECK(session.scaleBaselineReady);
   publishWeight(0.4f, hostMillis + 50, 1, 20);
@@ -17395,6 +17505,10 @@ const TestCase testCases[] = {
     {"R23", r23_maintenance_is_canceled_fail_open_by_physical_paddle},
     {"R24", r24_web_control_is_available_without_session_owner},
     {"R25", r25_critical_scale_mailbox_never_blocks_and_keeps_latest},
+    {"RACE01", race01_idle_tare_validates_after_command_spacing},
+    {"RACE02", race02_retare_result_preserves_post_reference_weights},
+    {"RACE03", race03_ended_cycle_cancels_queued_and_paced_retare},
+    {"RACE04", race04_preferred_ack_preserves_newer_history},
     {"R25b", r25b_empty_mailboxes_take_one_critical_lock},
     {"R25c", r25c_refilled_critical_mailboxes_remain_live_and_bounded},
     {"R25d", r25d_reference_change_survives_full_critical_queue},

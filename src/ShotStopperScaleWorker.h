@@ -91,7 +91,9 @@ void scaleWorkerLoadPreferred(const char *mac, const char *name,
                               const ScaleHistoryEntry *history);
 bool scaleWorkerCopyPreferredIfDirty(char *mac, char *name,
                                      ScaleHistoryEntry *history);
-void scaleWorkerClearPreferredDirty();
+bool scaleWorkerClearPreferredDirty(const char *mac, const char *name,
+                                   const ScaleHistoryEntry *history);
+void setScaleCommandCycle(uint32_t cycleId);
 bool scaleWorkerTakeConnectedEdge();
 
 // Control publishes only the worker-owned subset of RuntimeConfig. The worker

@@ -489,20 +489,9 @@ void serviceSettingsPersistResult() {
       if (applyMachineTemperature) requestActivePresetMachineTemperature();
       if (notifyPresets) queueWebhookPresetsChanged();
     }
-    char liveMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
-    char liveName[PREFERRED_SCALE_NAME_CAPACITY] = {};
-    ScaleHistoryEntry liveHistory[SCALE_HISTORY_CAPACITY] = {};
-    copyPreferredScaleMac(liveMac, sizeof(liveMac));
-    copyPreferredScaleName(liveName, sizeof(liveName));
-    copyScaleHistory(liveHistory);
-    if (strncmp(persistedSettings.preferredScaleMac, liveMac,
-                PREFERRED_SCALE_MAC_CAPACITY) == 0 &&
-        strncmp(persistedSettings.preferredScaleName, liveName,
-                PREFERRED_SCALE_NAME_CAPACITY) == 0 &&
-        scaleHistoryIdentityEqual(persistedSettings.scaleHistory,
-                                  liveHistory)) {
-      scaleWorkerClearPreferredDirty();
-    } else {
+    if (!scaleWorkerClearPreferredDirty(persistedSettings.preferredScaleMac,
+                                       persistedSettings.preferredScaleName,
+                                       persistedSettings.scaleHistory)) {
       const ScaleLinkSnapshot link = getScaleLinkSnapshot();
       if (scaleMacNvsWriteAllowed(link.connecting,
                                   link.state == ScaleLinkState::CONNECTED)) {

@@ -5,6 +5,7 @@ void resetSessionForNewCycle(ControlSource source) {
   bullseyeTracker.clear();
   session = CycleSession{};
   session.id = nextCycleId++;
+  setScaleCommandCycle(session.id);
   if (nextCycleId == 0) {
     nextCycleId = 1;
   }
@@ -153,6 +154,7 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
                    : HARD_MAX_CIRCUIT_CLOSED_MS;
   if (!servicePowerManagement() ||
       !machineRequestStart(closeLimitMs, source == ControlSource::WEB)) {
+    setScaleCommandCycle(0);
     session.active = false;
     session.endReason = EndReason::RELAY_SAFETY_FAILURE;
     machineSetPreferBleAirtime(false);
@@ -246,6 +248,7 @@ void appendActivationHistory(EndReason reason, bool rinseEnd,
 
 bool finalizeCycle(EndReason reason, StopperState nextState,
                    bool webStopActuation = false) {
+  setScaleCommandCycle(0);
   const uint32_t durationMs = endedCycleDurationMs();
 
 #ifndef SHOT_STOPPER_HOST_TEST
@@ -428,6 +431,7 @@ bool beginRinseCycle(ControlSource source) {
   // Fresh rinse: never inherit a run that predates this new session.
   if (!servicePowerManagement() ||
       !machineBeginRinse(session.config.operationalWallMs, false)) {
+    setScaleCommandCycle(0);
     session.active = false;
     session.endReason = EndReason::RELAY_SAFETY_FAILURE;
     machineEndCycle();
@@ -480,6 +484,7 @@ bool enterRinse() {
       finalizeCycle(EndReason::RELAY_SAFETY_FAILURE,
                     StopperState::REQUIRES_OFF);
     } else {
+      setScaleCommandCycle(0);
       session.active = false;
       session.endReason = EndReason::RELAY_SAFETY_FAILURE;
       machineEndCycle();

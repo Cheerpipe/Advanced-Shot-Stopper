@@ -39,7 +39,16 @@ enum class ScaleCommandResult : uint8_t {
     Unsupported,
     NotConnected,
     InvalidArgument,
-    WriteFailed
+    WriteFailed,
+    Deferred
+};
+
+// Owner-only preflight after command spacing, outside all BLE locks. Returning
+// false defers without writing. Tares also validate the returned RX boundary
+// under the final radio-admission lock, so newer buffered data cannot pass it.
+struct ScaleCommandAdmission {
+    bool (*approve)(void *context, uint32_t &captureBoundary) = nullptr;
+    void *context = nullptr;
 };
 
 inline bool scaleCommandOk(ScaleCommandResult result) {

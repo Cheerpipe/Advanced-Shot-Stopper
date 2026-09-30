@@ -162,6 +162,7 @@ QueueHandle_t scaleEventQueue = nullptr;
 portMUX_TYPE scaleLinkMux = portMUX_INITIALIZER_UNLOCKED;
 TaskMutex idleScaleTareMux;
 IdleTareStatus workerIdleTare;
+uint32_t activeScaleCommandCycle = 0; // Protected by idleScaleTareMux.
 ScaleTareSample approvedTareSample; // Protected by idleScaleTareMux.
 TaskMutex scalePreferredMacMux;
 portMUX_TYPE scaleBeepMux = portMUX_INITIALIZER_UNLOCKED;
@@ -459,10 +460,14 @@ bool scaleWorkerCopyPreferredIfDirty(char *mac, char *name,
   return dirty;
 }
 
-void scaleWorkerClearPreferredDirty() {
-  scalePreferredMacMux.lock();
-  scalePreferredMacDirty = false;
-  scalePreferredMacMux.unlock();
+bool scaleWorkerClearPreferredDirty(const char *mac, const char *name,
+                                   const ScaleHistoryEntry *history) {
+  const TaskLockGuard lock(scalePreferredMacMux);
+  const bool matches = strncmp(mac, scalePreferredMac, PREFERRED_SCALE_MAC_CAPACITY) == 0 &&
+      strncmp(name, scalePreferredName, PREFERRED_SCALE_NAME_CAPACITY) == 0 &&
+      scaleHistoryIdentityEqual(history, scaleHistory);
+  if (matches) scalePreferredMacDirty = false;
+  return matches;
 }
 
 bool scaleWorkerTakeConnectedEdge() {
@@ -934,6 +939,47 @@ float capturePreTareWeight(const ScaleCommand &command) {
       ? approvedTareSample.weightG : NAN;
 }
 
+void setScaleCommandCycle(uint32_t cycleId) {
+  const TaskLockGuard lock(idleScaleTareMux);
+  activeScaleCommandCycle = cycleId;
+}
+
+struct ScaleWriteAdmission {
+  const ScaleCommand &command;
+  ScaleEvent &event;
+  bool tare = false;
+};
+
+bool approveScaleWrite(void *context, uint32_t &captureBoundary) {
+  auto &write = *static_cast<ScaleWriteAdmission *>(context);
+  if (scalePowerOffBlocksGeneration(write.command.connectionGeneration)) {
+    write.event.discardedStaleConnection = true;
+    return false;
+  }
+  if (write.tare) {
+    write.event.preTareWeightG = capturePreTareWeight(write.command);
+    captureBoundary = scale.notificationSequence();
+    write.event.captureSequence = captureBoundary;
+    if (write.command.idleTareRequestId != 0) {
+      if (static_cast<int32_t>(millis() - write.command.expiresAtMs) >= 0) {
+        finishIdleScaleTare(write.command.idleTareRequestId, false, IdleTareReason::EXPIRED);
+        return false;
+      }
+      if (!std::isfinite(write.event.preTareWeightG) ||
+          scale.getWeightSample().captureSequence != captureBoundary ||
+          !claimIdleScaleTare(write.command.idleTareRequestId,
+                             getScaleLinkSnapshot().packetSequence, captureBoundary)) return false;
+    }
+  }
+  const TaskLockGuard lock(idleScaleTareMux);
+  if (write.command.cycleId != 0 && write.command.cycleId != activeScaleCommandCycle) {
+    write.event.discardedStaleConnection = true;
+    return false;
+  }
+  write.event.commandAttempted = true;
+  return true;
+}
+
 void executeScaleStartCommand(const ScaleCommand &command) {
   ScaleEvent event;
   event.type = ScaleEventType::TIMER_START_RESULT;
@@ -941,16 +987,18 @@ void executeScaleStartCommand(const ScaleCommand &command) {
   event.cycleId = command.cycleId;
   event.connectionGeneration = command.connectionGeneration;
   event.commandFeedbackExpected = command.commandFeedbackExpected;
+  ScaleWriteAdmission write{command, event};
+  const ScaleCommandAdmission admission{approveScaleWrite, &write};
 
   if (scale.isConnected()) {
     bool allowSeparateStart = true;
     if (command.canTareStartTimer && command.autoTare &&
         scale.features().has(ScaleFeatureCombinedTareStart)) {
-      event.commandAttempted = true;
       event.usedCombinedTareStart = true;
-      event.preTareWeightG = capturePreTareWeight(command);
-      const ScaleCommandResult result = scale.tareStartTimer();
-      event.tareAttempted = result != ScaleCommandResult::Unsupported;
+      write.tare = true;
+      const ScaleCommandResult result = scale.tareStartTimer(&admission);
+      if (result == ScaleCommandResult::Deferred) event.commandAttempted = false;
+      event.tareAttempted = event.commandAttempted;
       event.tareSucceeded = scaleCommandOk(result);
       event.writeSucceeded = scaleCommandOk(result);
       // A failed ATT response does not prove the scale ignored the command.
@@ -960,21 +1008,22 @@ void executeScaleStartCommand(const ScaleCommand &command) {
     }
     if (!event.writeSucceeded && allowSeparateStart) {
       event.usedCombinedTareStart = false;
+      write.tare = false;
       bool resetSucceeded = true;
       if (scale.features().has(ScaleFeatureResetTimer)) {
-        resetSucceeded = scaleCommandOk(scale.resetTimer());
+        resetSucceeded = scaleCommandOk(scale.resetTimer(&admission));
         yieldBetweenScaleAttOps();
       }
       if (resetSucceeded && scale.features().has(ScaleFeatureStartTimer)) {
-        event.commandAttempted = true;
-        event.writeSucceeded = scaleCommandOk(scale.startTimer());
+        event.writeSucceeded = scaleCommandOk(scale.startTimer(&admission));
         yieldBetweenScaleAttOps();
       }
       if (event.writeSucceeded && command.autoTare &&
           scale.features().has(ScaleFeatureTare)) {
-        event.preTareWeightG = capturePreTareWeight(command);
-        const ScaleCommandResult result = scale.tare();
-        event.tareAttempted = result != ScaleCommandResult::Unsupported;
+        write.tare = true;
+        const ScaleCommandResult result = scale.tare(&admission);
+        event.tareAttempted = result != ScaleCommandResult::Unsupported &&
+                              result != ScaleCommandResult::Deferred;
         event.tareSucceeded = scaleCommandOk(result);
         yieldBetweenScaleAttOps();
       }
@@ -1012,29 +1061,29 @@ void executeScaleTareCommand(const ScaleCommand &command) {
   event.idleTareRequestId = command.idleTareRequestId;
   event.connectionGeneration = command.connectionGeneration;
   event.commandFeedbackExpected = command.commandFeedbackExpected;
+  ScaleWriteAdmission write{command, event, true};
+  const ScaleCommandAdmission admission{approveScaleWrite, &write};
 
   if (scale.isConnected()) {
-    event.preTareWeightG = capturePreTareWeight(command);
-    if (command.idleTareRequestId != 0) {
-      const uint32_t boundary = scale.notificationSequence();
-      if (static_cast<int32_t>(millis() - command.expiresAtMs) >= 0) {
-        finishIdleScaleTare(command.idleTareRequestId, false, IdleTareReason::EXPIRED);
-        return;
-      }
-      if (!std::isfinite(event.preTareWeightG) ||
-          scale.getWeightSample().captureSequence != boundary ||
-          !claimIdleScaleTare(command.idleTareRequestId,
-                              getScaleLinkSnapshot().packetSequence, boundary)) {
+    const ScaleCommandResult result = scale.tare(&admission);
+    if (result == ScaleCommandResult::Deferred) {
+      event.commandAttempted = false;
+      if (command.idleTareRequestId != 0) {
+        {
+          const TaskLockGuard lock(idleScaleTareMux);
+          if (workerIdleTare.requestId == command.idleTareRequestId &&
+              workerIdleTare.phase == IdleTarePhase::WRITING)
+            workerIdleTare.phase = IdleTarePhase::QUEUED;
+        }
         const IdleTareStatus status = idleScaleTareStatus();
         if (status.requestId == command.idleTareRequestId &&
             status.phase == IdleTarePhase::QUEUED &&
             xQueueSend(scaleCommandQueue, &command, 0) != pdTRUE)
           finishIdleScaleTare(command.idleTareRequestId, false, IdleTareReason::QUEUE_FULL);
-        return; // Control validates the final harvest before the next worker turn.
+        return;
       }
     }
-    event.commandAttempted = true;
-    event.writeSucceeded = scaleCommandOk(scale.tare());
+    event.writeSucceeded = scaleCommandOk(result);
     event.receivedAtMs = millis();
     if (event.writeSucceeded && command.cycleId != 0 && command.idleTareRequestId == 0) {
       const TaskLockGuard lock(scaleCriticalEventMux);

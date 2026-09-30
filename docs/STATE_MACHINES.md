@@ -679,10 +679,18 @@ routes terminal/effect cleanup away from the new `CycleSession`, whose own
 continues to obey start guards but does not wait for idle tare. STOP queue
 priority remains unchanged.
 
+Control revokes a cycle's start/reset/tare admission before finalizing it or
+cleaning up a failed start. The worker checks that permission after BLE command
+spacing, before each operation. Commands already admitted may finish; STOP is
+still allowed for an ended cycle and retains its queue priority.
+
 The control owner validates new samples while QUEUED and publishes their last
 approved sequence under the request mutex. A worker seeing newer published
 samples requeues once per existing tick until control validates or cancels;
-the original expiry remains. Claim records notification capture sequence/time.
+the original expiry remains. The final harvest, expiry check, and claim occur
+after BLE command spacing. The library rechecks the claimed notification boundary
+at radio admission; if it changed, no write is sent and the idle request returns
+to QUEUED. Claim records notification capture sequence/time.
 Control separates transport completion from post-boundary zero evidence,
 rolls back a provisional reference after failure, and preserves or invalidates
 the prior reference at the existing settling deadline. A new placement cannot
@@ -694,6 +702,10 @@ Overflow clears the lost window and marks discontinuity on the retained newest
 sample; cup confirmation/stability cannot span that gap. Negative removal
 evidence is distinct from the narrower placement/automation weight range.
 Both existing drain checkpoints and the 33-event per-call cap remain unchanged.
+Command results precede buffered weights. Successful shot tares install their
+capture boundary once per request ID; duplicate or older results do not reset
+post-tare evidence. Samples at or before that boundary belong to the old
+reference and are excluded from cup, first-flow, and shot-trajectory processing.
 
 Idle tare uses the existing cup reference notification without freezing the
 cup FSM. Negative removal evidence remains active during writing. A physical

@@ -35,7 +35,11 @@ commit, and refresh acknowledgment follows it.
 
 The scale consumer selects the critical result or, otherwise, the timer-start
 result under one acquisition of their shared mutex. It processes the copied
-event after unlocking and retains both control-loop drain checkpoints.
+event after unlocking and retains both control-loop drain checkpoints. Command
+results are drained before the weight FIFO. A successful shot tare installs its
+capture boundary once per request ID; older or duplicate results cannot re-arm
+the baseline, and buffered samples at or before that boundary cannot enter cup,
+flow, or trajectory evidence.
 Weight delivery uses a fixed 16-event FIFO under its existing task mutex;
 overflow explicitly invalidates sample evidence instead of silently joining
 nonconsecutive readings. No parsing or cup-state transition runs under that
@@ -43,16 +47,18 @@ mutex. Native NimBLE notification callbacks only copy bounded frames into the
 client RX ring. The scale owner parses and publishes queued weight frames on a
 10 ms cadence; command, policy, and beep wakeups cannot accelerate that normal
 polling, and ATT-yield paths do not drain it. The safety-critical final
-pre-tare harvest remains immediately before tare. The worker keeps its 1 ms
+pre-tare harvest runs after the library's command-spacing wait. The worker keeps its 1 ms
 service cadence only while establishing a connection. Idle-tare
 claim/cancel/approved-sequence updates use the separate request
 mutex; neither mutex nests with the other or spans ATT. Unvalidated publication
 defers claim using the existing worker tick and unchanged command expiry.
-The final pre-write harvest precedes the idle claim. Its weight sample must
+The post-spacing pre-write harvest precedes the idle claim. Its weight sample must
 match the latest notification sequence and the control-approved published
 packet; otherwise the still-queued command yields to control. The claim freezes
-the capture boundary immediately before command issuance, so a buffered
-pre-write zero cannot acknowledge the tare. No new mutex spans ATT.
+the capture boundary, which the library rechecks under its existing final radio
+admission lock. A notification arriving before that admission defers the write;
+the worker returns an idle claim to QUEUED for control to validate. Thus a zero
+captured during command spacing cannot acknowledge a tare. No new mutex spans ATT.
 The same request mutex protects a control-approved pre-tare sample copy. Control
 publishes that copy before approving the corresponding idle claim. Immediately
 before each tare, the worker copies it only if its packet/generation matches the
@@ -60,6 +66,13 @@ published stream and its capture time is fresh; no mutex spans the BLE write.
 The frozen pre-write weight returns through the existing command event or durable
 idle status. Control translates the anchor, or invalidates it when evidence is
 unavailable; enqueue-time load changes cannot accumulate as reference error.
+Control publishes the active scale-command cycle under the same request mutex
+and revokes it before finalization or failed-start cleanup. Post-spacing admission
+rejects queued start/reset/tare operations from another or ended cycle. An
+already-admitted operation may finish; timer STOP remains exempt and prioritized.
+Preferred-scale persistence acknowledges the copied MAC, name, and history in
+one compare-and-clear critical section under its existing task mutex. A newer
+identity remains dirty for the next persistence attempt.
 Cup/idle-tare diagnostic scalars and worker outcome/drop snapshots are gathered
 by control before taking its status publication mutex. Debug export reads the
 committed copy, including uncertainty and the last terminal reason.

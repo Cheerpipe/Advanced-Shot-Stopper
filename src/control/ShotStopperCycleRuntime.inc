@@ -470,6 +470,19 @@ void orchestratePostTareBaselineArm() {
   holdCupPresenceTransitions(true);
 }
 
+void applyShotTareResult(const ScaleEvent &event) {
+  if (event.cycleId != session.id || !session.active || !session.startedWithScale ||
+      stopperState != StopperState::BREW ||
+      (event.cupWeightRequestId != 0 && session.appliedTareRequestId != 0 &&
+       static_cast<int32_t>(event.cupWeightRequestId - session.appliedTareRequestId) <= 0)) return;
+  session.appliedTareRequestId = event.cupWeightRequestId;
+  session.tareCaptureBoundary = event.captureSequence;
+  session.tareConnectionGeneration = event.connectionGeneration;
+  orchestratePostTareBaselineArm();
+  markTareZeroReady();
+  resetDirectStopConfirmation();
+}
+
 bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                                       uint32_t packetSequence,
                                       uint32_t connectionGeneration,

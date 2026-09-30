@@ -146,6 +146,14 @@ Each protocol may define a minimum application-command interval. Bookoo uses
 disconnect evidence while waiting and revalidates the connection generation
 at the common NimBLE admission point immediately before submission. Other
 protocols keep their existing timing.
+The guarded overloads of `tare()`, `tareStartTimer()`, `resetTimer()`, and
+`startTimer()` accept `ScaleCommandAdmission`. Its owner-only callback runs after
+spacing, outside BLE locks, and can reject a command before transmission. For
+tare operations it supplies a notification capture boundary, rechecked under
+the existing final radio-admission lock. A rejected callback or changed boundary
+returns `ScaleCommandResult::Deferred` without sending the command. Existing
+no-argument calls retain their API and behavior. The owner decides whether to
+retry a command known not to have been sent; uncertain writes are never replayed.
 The optional log bridge emits one INFO `ble tx` line for each command accepted
 by NimBLE and each subscription or initialization write attempt, with its label,
 response mode, and full hexadecimal payload. A separate `command done` line
@@ -205,7 +213,8 @@ buffered earlier frames retain their original identity/time. Sequence zero is
 reserved and skipped on wrap. Native notification callbacks only copy bounded
 frames into the RX ring; the bundled owner processes that ring on a 10 ms
 cadence and never from an ATT command-yield path. Its final pre-tare safety
-harvest remains immediately before tare. `getWeight()` remains available.
+harvest runs in that post-spacing admission callback, before tare submission.
+`getWeight()` remains available.
 Neither write
 completion nor these metadata certify unobservable physical cup motion.
 

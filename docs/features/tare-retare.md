@@ -72,7 +72,9 @@ and retry. Other start protections remain authoritative. See
 pending-command behavior, and reconnect/physical-tare limitations.
 
 Placement stability limits the total spread across the observed window, and
-fresh contradictory readings cancel an idle tare that has not started writing.
+fresh contradictory readings cancel an idle tare before it is sent, including
+while the scale is waiting between commands. A zero seen during that wait does
+not confirm that the cup was tared.
 Replacing a cup with a lighter one can leave a negative net reading; that
 occupied reference stays valid until an actual further lift or tare changes it.
 Valid negative removal readings from a previously accepted heavy load still
@@ -114,6 +116,7 @@ instant on the shot chart. The time is measured from the machine circuit
 closing, when the tare command completes successfully. Failed commands and
 tares completed after the shot ends do not add a tare time. A later Bluetooth
 disconnect does not erase a successful tare already recorded for the shot.
+Stopping the shot cancels a queued late tare that has not yet been sent.
 
 ## When it applies
 

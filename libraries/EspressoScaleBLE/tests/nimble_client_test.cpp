@@ -34,7 +34,7 @@ static unsigned checks=0;
 namespace {
 struct NimbleScaleClientTest {
 static void ready(NimbleScaleClient &c) {
-  testOnWait={}; testOnSubmit={}; testSubmitStatus=0;
+  testOnWait={}; testOnDelay={}; testOnSubmit={}; testSubmitStatus=0;
   testOnConnectCancel={}; testOnTerminate={}; testConnectCancelStatus=0;
   testTerminateStatus=0; testRssiStatus=0; testRadioProcedures=0; testTerminations=0;
   testWrites=0; testWakeCount=0;
@@ -802,6 +802,40 @@ static void run() {
         ? "ble tx command/stop_timer response=1 bytes=03 0A 05 00 00 0C"
         : "ble tx command/stop_timer response=0 bytes=03 0A 05 00 00 0C")!=std::string::npos);
     CHECK(capturedScaleLogs[3].second.find("gap_ms=100")!=std::string::npos);
+  }
+  for (bool response : {false, true}) {
+    for (unsigned mode = 0; mode < 3; ++mode) {
+      NimbleScaleClient c(false); ready(c);
+      if (response) testOnSubmit=[] { complete(); };
+      else c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+      CHECK(c.writeOp(ScaleOp::StopTimer)==ScaleCommandResult::Ok);
+      const uint64_t previousWriteAt = testNowMs;
+      const uint32_t beforeSpacing = c.notificationSequence();
+      bool notified = false;
+      testOnDelay = [&] {
+        if (!notified) { notify(c,20); notified=true; }
+      };
+      struct Context { NimbleScaleClient *client; unsigned mode; uint64_t dueAt; uint32_t oldBoundary; };
+      Context context{&c, mode, previousWriteAt + 100, beforeSpacing};
+      const ScaleCommandAdmission admission{
+        [](void *opaque, uint32_t &boundary) {
+          auto &ctx = *static_cast<Context *>(opaque);
+          CHECK(testCriticalDepth==0);
+          CHECK(testNowMs >= ctx.dueAt);
+          CHECK(ctx.client->newWeightAvailable());
+          boundary = ctx.client->notificationSequence();
+          CHECK(boundary > ctx.oldBoundary); // Spacing-window zero is preflight data.
+          if (ctx.mode==1) notify(*ctx.client,20); // Final admission must recheck it.
+          return ctx.mode!=0;
+        }, &context};
+      const ScaleCommandResult result = c.writeOp(ScaleOp::Tare,0,&admission);
+      CHECK(result==(mode==2 ? ScaleCommandResult::Ok : ScaleCommandResult::Deferred));
+      CHECK(testWrites==(mode==2 ? 2U : 1U));
+      CHECK(c.isConnected());
+      CHECK(c.gattOperationId_==0);
+      CHECK(c.diagnostics_.commandFailureSequence==0);
+      testOnDelay={};
+    }
   }
   {
     testNowMs=UINT32_MAX-50ULL;

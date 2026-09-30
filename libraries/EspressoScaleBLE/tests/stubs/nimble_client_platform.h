@@ -42,8 +42,12 @@ inline void testExitCritical(portMUX_TYPE *mux) {
 inline std::atomic<uint64_t> testNowMs{100};
 inline uint32_t testWakeCount = 0;
 inline std::function<void()> testOnWait;
+inline std::function<void()> testOnDelay;
 inline int64_t esp_timer_get_time() { return testNowMs * 1000; }
-inline void vTaskDelay(uint32_t ms) { testNowMs += ms; }
+inline void vTaskDelay(uint32_t ms) {
+  testNowMs += ms;
+  if (testOnDelay) testOnDelay();
+}
 inline TaskHandle_t xTaskGetCurrentTaskHandle() { return &testWakeCount; }
 inline void xTaskNotifyGive(TaskHandle_t) { ++testWakeCount; }
 inline uint32_t ulTaskNotifyTake(int, uint32_t ms) {

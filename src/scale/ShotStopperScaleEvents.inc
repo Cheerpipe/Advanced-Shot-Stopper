@@ -291,7 +291,7 @@ void servicePreferredScaleMacPersistence() {
       identityUnchanged, link.connecting,
       link.state == ScaleLinkState::CONNECTED);
   if (action == ScaleMacNvsAction::CLEAR_DIRTY) {
-    scaleWorkerClearPreferredDirty();
+    scaleWorkerClearPreferredDirty(mac, name, history);
     return;
   }
   if (action == ScaleMacNvsAction::DEFER) {
@@ -408,6 +408,8 @@ void processScaleWorkerEvents() {
       receivedCritical = true;
     }
     scaleCriticalEventMux.unlock();
+    if (!receivedCritical && scaleEventQueue != nullptr)
+      receivedCritical = xQueueReceive(scaleEventQueue, &event, 0) == pdTRUE;
     if (!receivedCritical) {
       scaleWeightEventMux.lock();
       if (scaleWeightEventCount != 0) {
@@ -420,9 +422,7 @@ void processScaleWorkerEvents() {
       }
       scaleWeightEventMux.unlock();
     }
-    if (!receivedCritical && !receivedWeight &&
-        (scaleEventQueue == nullptr ||
-         xQueueReceive(scaleEventQueue, &event, 0) != pdTRUE)) {
+    if (!receivedCritical && !receivedWeight) {
       break;
     }
     ++processed;
@@ -460,6 +460,11 @@ void processScaleWorkerEvents() {
         else markCupTareReferenceUncertain();
         break;
       case ScaleEventType::WEIGHT:
+        if (session.active && event.captureSequence != 0 &&
+            session.tareCaptureBoundary != 0 &&
+            event.connectionGeneration == session.tareConnectionGeneration &&
+            static_cast<int32_t>(event.captureSequence - session.tareCaptureBoundary) <= 0)
+          break; // Buffered weights still belong to the pre-tare reference.
         if (!std::isfinite(event.weightG) ||
             fabsf(event.weightG) > MAX_PARSED_WEIGHT_G) {
           session.touchStop = {};
@@ -527,20 +532,7 @@ void processScaleWorkerEvents() {
           session.remoteTimerMayBeRunning = event.commandAttempted;
           session.remoteTimerStarted = event.writeSucceeded;
           session.remoteTimerStartSettled = true;
-          if (event.writeSucceeded && session.config.autoTare &&
-              session.startedWithScale && session.active &&
-              stopperState == StopperState::BREW &&
-              (event.usedCombinedTareStart ||
-               session.awaitingPostTareBaseline)) {
-            const bool skipCombinedRearm =
-                event.usedCombinedTareStart &&
-                (session.retarePerformed ||
-                 !session.awaitingPostTareBaseline);
-            if (!skipCombinedRearm) {
-              orchestratePostTareBaselineArm();
-              markTareZeroReady();
-            }
-          }
+          if (event.tareSucceeded) applyShotTareResult(event);
         }
         if (!event.discardedStaleConnection) {
           emitCommandAlert(event.usedCombinedTareStart ? AlertEvent::TARE_START
@@ -565,13 +557,7 @@ void processScaleWorkerEvents() {
         finishCupWeight(event.cupWeightRequestId, event.writeSucceeded,
                         event.commandAttempted || event.discardedStaleConnection,
                         event.preTareWeightG);
-        if (event.cycleId == session.id && event.writeSucceeded &&
-            session.startedWithScale && session.active &&
-            stopperState == StopperState::BREW) {
-          orchestratePostTareBaselineArm();
-          markTareZeroReady();
-          resetDirectStopConfirmation();
-        }
+        if (event.writeSucceeded) applyShotTareResult(event);
         if (!event.discardedStaleConnection) {
           emitCommandAlert(AlertEvent::TARE, event.commandAttempted,
                            event.writeSucceeded, event.commandFeedbackExpected);

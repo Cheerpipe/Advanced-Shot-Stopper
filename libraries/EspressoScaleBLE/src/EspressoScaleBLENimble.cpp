@@ -535,7 +535,8 @@ class NimbleScaleClient {
     return false;
   }
 
-  ScaleCommandResult writeOp(ScaleOp op, uint8_t arg = 0) {
+  ScaleCommandResult writeOp(ScaleOp op, uint8_t arg = 0,
+                            const ScaleCommandAdmission *admission = nullptr) {
     if (!isConnected()) {
       return ScaleCommandResult::NotConnected;
     }
@@ -571,7 +572,7 @@ class NimbleScaleClient {
     if (op == ScaleOp::Heartbeat) lastHeartbeat_ = commandStartedAt_;
     activeCommand_ = static_cast<uint8_t>(op);
     const ScaleCommandResult result =
-        writeCommand(command, static_cast<uint16_t>(length));
+        writeCommand(command, static_cast<uint16_t>(length), admission);
     activeCommand_ = 0xff;
     return result;
   }
@@ -899,12 +900,17 @@ class NimbleScaleClient {
   }
 
   template <typename Submit>
-  int submitRadioProcedure(bool allowPowerOff, Submit submit) {
+  int submitRadioProcedure(bool allowPowerOff, Submit submit,
+                           const uint32_t *captureBoundary = nullptr) {
     bool admitted = false;
     portENTER_CRITICAL(&mux_);
     const bool terminalPowerOff =
         allowPowerOff && activeCommand_ == static_cast<uint8_t>(ScaleOp::PowerOff) &&
         powerOffSilenceGeneration_ == generation_ && !pendingDisconnect_;
+    if (captureBoundary != nullptr && notificationSequence_ != *captureBoundary) {
+      portEXIT_CRITICAL(&mux_);
+      return BLE_HS_EAGAIN;
+    }
     admitted = !radioSubmitActive_ && !pendingDisconnect_ &&
                (!silenceActiveLocked(nowMs()) || terminalPowerOff);
     if (!admitted) {
@@ -2117,7 +2123,8 @@ class NimbleScaleClient {
   }
 
   bool submitWrite(uint16_t handle, const uint8_t *data, uint16_t length,
-                   WritePurpose purpose, const char *label, bool withResponse) {
+                   WritePurpose purpose, const char *label, bool withResponse,
+                   const uint32_t *captureBoundary = nullptr) {
     if (connectionHandle_ == kInvalidHandle || handle == 0 || data == nullptr ||
         length == 0 || length > SCALE_MAX_COMMAND_LENGTH) {
       return false;
@@ -2132,7 +2139,7 @@ class NimbleScaleClient {
       const int rc = submitRadioProcedure(terminalPowerOff, [&] {
         return ble_gattc_write_no_rsp_flat(connectionHandle_, handle, data,
                                            length);
-      });
+      }, captureBoundary);
       lastRawStatus_ = rc;
       if (rc == BLE_HS_ENOMEM) {
         portENTER_CRITICAL(&mux_);
@@ -2154,11 +2161,12 @@ class NimbleScaleClient {
     const int rc = submitRadioProcedure(terminalPowerOff, [&] {
       return ble_gattc_write_flat(connectionHandle_, handle, data, length,
                                   writeCallback, callbackArg(gattOperationId));
-    });
+    }, captureBoundary);
     if (rc != 0) {
       portENTER_CRITICAL(&mux_);
       writePurpose_ = WritePurpose::None;
       writeWaiter_ = nullptr;
+      gattOperationId_ = 0;
       portEXIT_CRITICAL(&mux_);
       lastRawStatus_ = rc;
       if (rc == BLE_HS_ENOMEM) {
@@ -2196,7 +2204,8 @@ class NimbleScaleClient {
     return commandSubmissionAllowed(commandGeneration);
   }
 
-  ScaleCommandResult writeCommand(const uint8_t *data, uint16_t length) {
+  ScaleCommandResult writeCommand(const uint8_t *data, uint16_t length,
+                                 const ScaleCommandAdmission *admission) {
     const uint32_t commandGeneration = generation_;
     const char *operation =
         scaleOpName(static_cast<ScaleOp>(activeCommand_));
@@ -2204,6 +2213,12 @@ class NimbleScaleClient {
         (writeProperties_ & BLE_GATT_CHR_PROP_WRITE) != 0;
     (void)xSemaphoreTake(writeSignal_, 0);
     const bool admitted = waitForCommandInterval(commandGeneration);
+    uint32_t captureBoundary = 0;
+    if (admitted && admission != nullptr && admission->approve != nullptr &&
+        !admission->approve(admission->context, captureBoundary))
+      return ScaleCommandResult::Deferred;
+    const bool referenceWrite = activeCommand_ == static_cast<uint8_t>(ScaleOp::Tare) ||
+        activeCommand_ == static_cast<uint8_t>(ScaleOp::CombinedTareStart);
     const bool terminalPowerOff =
         activeCommand_ == static_cast<uint8_t>(ScaleOp::PowerOff);
     if (admitted && terminalPowerOff) {
@@ -2212,7 +2227,10 @@ class NimbleScaleClient {
     const uint32_t previousSubmittedAtMs = lastCommandSubmittedAtMs_;
     const bool submitted = admitted &&
         submitWrite(writeHandle_, data, length, WritePurpose::Command,
-                    operation, withResponse);
+                    operation, withResponse,
+                    admission != nullptr && referenceWrite ? &captureBoundary : nullptr);
+    if (admitted && !submitted && admission != nullptr && lastRawStatus_ == BLE_HS_EAGAIN)
+      return ScaleCommandResult::Deferred;
     uint32_t gapMs = 0;
     if (submitted) {
       lastCommandSubmittedAtMs_ = nowMs();
@@ -2806,28 +2824,36 @@ void EspressoScaleBLE::disconnect() {
   clientFromStorage(g_clientStorage).disconnect();
 }
 
-ScaleCommandResult EspressoScaleBLE::tare() {
-  return clientFromStorage(g_clientStorage).writeOp(ScaleOp::Tare);
+ScaleCommandResult EspressoScaleBLE::tare() { return tare(nullptr); }
+
+ScaleCommandResult EspressoScaleBLE::tare(const ScaleCommandAdmission *admission) {
+  return clientFromStorage(g_clientStorage).writeOp(ScaleOp::Tare, 0, admission);
 }
 
-ScaleCommandResult EspressoScaleBLE::startTimer() {
-  return clientFromStorage(g_clientStorage).writeOp(ScaleOp::StartTimer);
+ScaleCommandResult EspressoScaleBLE::startTimer() { return startTimer(nullptr); }
+
+ScaleCommandResult EspressoScaleBLE::startTimer(const ScaleCommandAdmission *admission) {
+  return clientFromStorage(g_clientStorage).writeOp(ScaleOp::StartTimer, 0, admission);
 }
 
 ScaleCommandResult EspressoScaleBLE::stopTimer() {
   return clientFromStorage(g_clientStorage).writeOp(ScaleOp::StopTimer);
 }
 
-ScaleCommandResult EspressoScaleBLE::resetTimer() {
-  return clientFromStorage(g_clientStorage).writeOp(ScaleOp::ResetTimer);
+ScaleCommandResult EspressoScaleBLE::resetTimer() { return resetTimer(nullptr); }
+
+ScaleCommandResult EspressoScaleBLE::resetTimer(const ScaleCommandAdmission *admission) {
+  return clientFromStorage(g_clientStorage).writeOp(ScaleOp::ResetTimer, 0, admission);
 }
 
-ScaleCommandResult EspressoScaleBLE::tareStartTimer() {
+ScaleCommandResult EspressoScaleBLE::tareStartTimer() { return tareStartTimer(nullptr); }
+
+ScaleCommandResult EspressoScaleBLE::tareStartTimer(const ScaleCommandAdmission *admission) {
   if (!supportsTareStartTimer()) {
     return ScaleCommandResult::Unsupported;
   }
   return clientFromStorage(g_clientStorage)
-      .writeOp(ScaleOp::CombinedTareStart);
+      .writeOp(ScaleOp::CombinedTareStart, 0, admission);
 }
 
 bool EspressoScaleBLE::supportsTareStartTimer() const {

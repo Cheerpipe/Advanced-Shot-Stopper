@@ -470,12 +470,14 @@ class EspressoScaleBLE {
   const char *localName() const {
     return connected ? connectedLocalName : "";
   }
-  ScaleCommandResult tare() {
+  ScaleCommandResult tare(const ScaleCommandAdmission *admission = nullptr) {
+    if (!approveCommand(admission)) return ScaleCommandResult::Deferred;
     commandLog.push_back("tare");
     ++tareCalls;
     return runCommand(tareSucceeds);
   }
-  ScaleCommandResult startTimer() {
+  ScaleCommandResult startTimer(const ScaleCommandAdmission *admission = nullptr) {
+    if (!approveCommand(admission)) return ScaleCommandResult::Deferred;
     commandLog.push_back("startTimer");
     ++startTimerCalls;
     return runCommand(startTimerSucceeds);
@@ -485,12 +487,15 @@ class EspressoScaleBLE {
     ++stopTimerCalls;
     return runCommand(stopTimerSucceeds);
   }
-  ScaleCommandResult resetTimer() {
+  ScaleCommandResult resetTimer(const ScaleCommandAdmission *admission = nullptr) {
+    if (!approveCommand(admission)) return ScaleCommandResult::Deferred;
     commandLog.push_back("resetTimer");
     ++resetTimerCalls;
     return runCommand(resetTimerSucceeds);
   }
-  ScaleCommandResult tareStartTimer() {
+  ScaleCommandResult tareStartTimer(const ScaleCommandAdmission *admission = nullptr) {
+    if (features().has(ScaleFeatureCombinedTareStart) && !approveCommand(admission))
+      return ScaleCommandResult::Deferred;
     commandLog.push_back("tareStartTimer");
     ++tareStartTimerCalls;
     if (!connected) {
@@ -726,6 +731,7 @@ class EspressoScaleBLE {
   float weight = 0.0f;
   uint32_t weightCapturedAtMs = UINT32_MAX;
   uint32_t weightCaptureSequence = 0;
+  std::function<void()> beforeCommandAdmission;
   bool timerValid = false;
   uint32_t timerMs = 0;
   uint32_t timerAgeMs = 0;
@@ -749,6 +755,12 @@ class EspressoScaleBLE {
   std::vector<std::string> commandLog;
 
  private:
+  bool approveCommand(const ScaleCommandAdmission *admission) {
+    if (beforeCommandAdmission) beforeCommandAdmission();
+    uint32_t boundary = 0;
+    return admission == nullptr || admission->approve == nullptr ||
+           admission->approve(admission->context, boundary);
+  }
   ScaleCommandResult runCommand(bool succeeds) {
     if (!connected || !succeeds) {
       connected = false;

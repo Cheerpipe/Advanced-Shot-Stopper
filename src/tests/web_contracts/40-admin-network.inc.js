@@ -288,8 +288,8 @@ if (!firmwareCore.includes('command.network.commitConfirmed = true') ||
   const startCmd = firmware.slice(
       firmware.indexOf('void executeScaleStartCommand'),
       firmware.indexOf('void executeScaleStopCommand'));
-  if (!startCmd.includes('tareStartTimer()') ||
-      !startCmd.includes('resetTimer()') ||
+  if (!startCmd.includes('tareStartTimer(&admission)') ||
+      !startCmd.includes('resetTimer(&admission)') ||
       !startCmd.includes('if (!event.writeSucceeded && allowSeparateStart)') ||
       !startCmd.includes('allowSeparateStart = result == ScaleCommandResult::Unsupported')) {
     throw new Error('Combined tare/start may fall back only when unsupported, never after uncertain writes');

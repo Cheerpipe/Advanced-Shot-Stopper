@@ -271,6 +271,9 @@ struct CycleSession {
   bool retarePerformed = false;
   uint32_t retareAtMs = 0;
   uint32_t retareRequestId = 0;
+  uint32_t appliedTareRequestId = 0;
+  uint32_t tareCaptureBoundary = 0;
+  uint32_t tareConnectionGeneration = 0;
   bool retareDisabled = false;
   bool firstDropsBeepSent = false;
   FirstFlowState firstFlow = {};
