@@ -163,21 +163,35 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !css.includes('.bootOverlay .brandMark{width:2.85rem;height:3.8rem}') ||
     !css.includes('.brand span{display:flex;flex-direction:column;') ||
     !css.includes('.bootOverlay.isDone{opacity:0;pointer-events:none}') ||
-    !css.includes('transition:opacity .25s ease') ||
+    !css.includes('transition:opacity .25s .2s') ||
     !shellHtml.includes('class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i>') ||
     !css.includes('.bootWave i{width:.55rem;height:100%;border-radius:.3rem;background:var(--ac);animation:bootWave 1.1s ease-in-out infinite}') ||
     !css.includes('@keyframes bootWave{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}') ||
     !css.includes('.bootWave i{animation:none}') ||
     !runtimeJs.includes('let homeBootDone=false,fwReloading=false') ||
     !runtimeJs.includes('function hideHomeBoot(){if(homeBootDone||fwReloading)return;homeBootDone=true;const el=$(\'homeBoot\');if(!el)return;requestAnimationFrame(') ||
-    !runtimeJs.includes('setTimeout(()=>el.classList.add(\'hidden\'),250)') ||
+    !runtimeJs.includes('setTimeout(()=>el.classList.add(\'hidden\'),450)') ||
     !runtimeJs.includes('function message(text,kind=\'\'){hideHomeBoot();') ||
     !runtimeJs.includes('function applyHomeStatus(s){hideHomeBoot();') ||
     !runtimeJs.includes('function showInactiveOverlay(){const el=$(\'webUiInactive\');if(!el)return;hideHomeBoot();') ||
     !runtimeJs.includes('if(!reloaded){fwReloading=true;location.reload()}') ||
     !appJsSource.includes("if(view!=='home')R.hideHomeBoot();")) {
   throw new Error(
-      'Home must boot behind a full-screen splash that paints before fading out in 250 ms once the first home status lands, never dismisses itself while a firmware reload is pending, hands the screen to the inactive overlay before it shows, stays below the inactive overlay, and never covers another view');
+      'Home must boot behind a full-screen splash that paints before fading out in 250 ms after the first home status and toggle transitions settle, never dismisses itself while a firmware reload is pending, hands the screen to the inactive overlay before it shows, stays below the inactive overlay, and never covers another view');
+}
+{
+  const delay = Number(css.match(/\.bootOverlay\{[^}]*transition:opacity [\d.]+s ([\d.]+)s/)[1]);
+  const fade = Number(css.match(/\.bootOverlay\{[^}]*transition:opacity ([\d.]+)s/)[1]);
+  for (const selector of ['.slider', '.slider:before']) {
+    const rule = css.slice(css.indexOf(selector + '{')).split('}')[0];
+    if (delay < Number(rule.match(/transition:([\d.]+)s/)[1])) {
+      throw new Error('Home fade must wait for both the toggle track and thumb');
+    }
+  }
+  if (!runtimeJs.includes("setTimeout(()=>el.classList.add('hidden')," + Math.round((delay + fade) * 1000) + ')') ||
+      !css.includes('transition:.01ms!important')) {
+    throw new Error('Splash removal must include its delay and fade; reduced motion must reset delays');
+  }
 }
 if (!shellHtml.includes('type="module"') ||
     !shellHtml.includes('src="/app.js?v=__FW_VERSION__"') ||

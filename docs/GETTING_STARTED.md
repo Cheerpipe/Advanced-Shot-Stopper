@@ -41,8 +41,9 @@ stops polling. Scrolling does not keep it active; use Reload to resume.
 **While Home loads**: the first time the page opens, it shows a full-screen
 loading view with the Open Brew by Weight mark, a moving wave, and **Loading…**,
 while it connects to the controller and collects what **Home** needs. It stays there until that data is
-ready, so the home screen never appears half-filled, and it then fades away in a
-quarter of a second. This view belongs to that first load: if the controller
+ready and the switches have settled into their current positions, so the home
+screen never appears half-filled. It then fades away in a quarter of a second.
+This view belongs to that first load: if the controller
 needs to be reclaimed, or the page reloads itself after an update, the loading
 view keeps or hands over the screen instead of flashing the previous screen, and
 opening **Settings** directly, or coming back to **Home** later, shows the page
