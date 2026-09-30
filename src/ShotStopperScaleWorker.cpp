@@ -174,7 +174,6 @@ ScaleEvent copyScaleShotTareResult() {
   const TaskLockGuard lock(scaleCriticalEventMux);
   return shotTareResult;
 }
-TaskMutex scaleWeightEventMux;
 
 ScaleLinkState scaleLinkState = ScaleLinkState::DISCONNECTED;
 bool scaleConnecting = false;
@@ -246,7 +245,7 @@ uint32_t scalePowerOffBlockedGeneration = 0;
 uint32_t scalePowerOffSentAtMs = 0;
 bool scalePowerOffSent = false;
 bool scalePowerOffBlocksGeneration(uint32_t generation);
-void clearScalePowerOffLifecycle();
+void clearScalePowerOffLifecycle(uint32_t preserveGeneration = 0);
 uint16_t scaleScanAppliedInterval = 0;
 uint16_t scaleScanAppliedWindow = 0;
 // Last evidence of a compatible scale (advert seen, live link, preference
@@ -534,6 +533,7 @@ void setScaleLinkState(ScaleLinkState state) {
   const uint32_t progressAtMs = millis();
   ScaleLinkState previous;
   uint32_t disconnectedGeneration = 0;
+  uint32_t connectedGeneration = 0;
   portENTER_CRITICAL(&scaleLinkMux);
   previous = scaleLinkState;
   if (scaleLinkState == ScaleLinkState::CONNECTED &&
@@ -550,6 +550,7 @@ void setScaleLinkState(ScaleLinkState state) {
       scaleConnectionGeneration = 1;
     }
     pendingScaleConnectIdleSync = true;
+    connectedGeneration = scaleConnectionGeneration;
   }
   scaleLinkState = state;
   if (state == ScaleLinkState::CONNECTED) {
@@ -575,7 +576,7 @@ void setScaleLinkState(ScaleLinkState state) {
     clearScalePowerOffLifecycle();
   } else if (previous != ScaleLinkState::CONNECTED &&
              state == ScaleLinkState::CONNECTED) {
-    clearScalePowerOffLifecycle();
+    clearScalePowerOffLifecycle(connectedGeneration);
   }
   if (previous != state) {
     addDebugEvent(DebugCategory::SCALE,
@@ -603,13 +604,16 @@ bool scalePowerOffBlocksGeneration(uint32_t generation) {
   return blocked;
 }
 
-void clearScalePowerOffLifecycle() {
+void clearScalePowerOffLifecycle(uint32_t preserveGeneration) {
   portENTER_CRITICAL(&scaleBeepMux);
-  scalePowerOffPending = false;
-  scalePowerOffConnectionGeneration = 0;
-  scalePowerOffBlockedGeneration = 0;
-  scalePowerOffSentAtMs = 0;
-  scalePowerOffSent = false;
+  if (preserveGeneration == 0 ||
+      scalePowerOffBlockedGeneration != preserveGeneration) {
+    scalePowerOffPending = false;
+    scalePowerOffConnectionGeneration = 0;
+    scalePowerOffBlockedGeneration = 0;
+    scalePowerOffSentAtMs = 0;
+    scalePowerOffSent = false;
+  }
   portEXIT_CRITICAL(&scaleBeepMux);
 }
 
@@ -765,7 +769,7 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
     lastScaleWeightAtMs = stamped.receivedAtMs;
     portEXIT_CRITICAL(&scaleLinkMux);
 
-    scaleWeightEventMux.lock();
+    scaleCriticalEventMux.lock();
     if (scaleWeightEventCount == SCALE_WEIGHT_EVENT_CAPACITY) {
       // Lost samples may contain a sign reversal. Never join evidence across
       // overflow; retain the newest reading with an explicit discontinuity.
@@ -779,7 +783,7 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
     scaleWeightEvents[tail] = stamped;
     ++scaleWeightEventCount;
     scaleWeightEventPending = true;
-    scaleWeightEventMux.unlock();
+    scaleCriticalEventMux.unlock();
     if (streamGapMs != 0) {
       const uint32_t nowMs = millis();
       if (lastScalePacketGapLogMs == 0 ||
@@ -801,6 +805,7 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
   stamped.disconnectSequence = scaleDisconnectSequence;
   portEXIT_CRITICAL(&scaleLinkMux);
 
+  TaskLockGuard eventLock(scaleCriticalEventMux);
   if (critical) {
     // Weight events use their own bounded FIFO. Command results normally
     // use this FIFO; dedicated fallbacks preserve reference changes and
@@ -809,7 +814,6 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
         xQueueSend(scaleEventQueue, &stamped, 0) == pdTRUE) {
       return true;
     }
-    scaleCriticalEventMux.lock();
     ScaleEvent *fallback = &scaleCriticalEvent;
     bool *fallbackPending = &scaleCriticalEventPending;
     if (stamped.type == ScaleEventType::REFERENCE_CHANGED) {
@@ -824,17 +828,18 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
     }
     *fallback = stamped;
     *fallbackPending = true;
-    scaleCriticalEventMux.unlock();
     return true;
   }
   if (scaleEventQueue == nullptr) {
     ++scaleEventsDropped;
+    eventLock.unlock();
     addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_EVENT_DROPPED,
                   static_cast<int32_t>(stamped.type));
     return false;
   }
   if (xQueueSend(scaleEventQueue, &stamped, 0) != pdTRUE) {
     ++scaleEventsDropped;
+    eventLock.unlock();
     addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_EVENT_DROPPED,
                   static_cast<int32_t>(stamped.type));
     return false;
@@ -864,13 +869,14 @@ void updateWorkerLinkState() {
   const uint32_t timerMs = timerValid ? scale.getTimerMs() : 0;
   const uint32_t timerAgeMs = timerValid ? scale.lastTimerAgeMs() : 0;
   const bool connecting = scale.isConnecting() && !scale.isLinkUp();
+  const ScaleBleDiagnostics diagnostics = scale.diagnostics();
   portENTER_CRITICAL(&scaleLinkMux);
   scaleConnecting = connecting;
   scaleRejectedPackets = scale.rejectedPacketCount();
   scaleReconnects = scale.reconnectCount();
   scaleLastDisconnectReason =
       static_cast<uint8_t>(scale.lastDisconnectReason());
-  scaleBleDiagnostics = scale.diagnostics();
+  scaleBleDiagnostics = diagnostics;
   copyCString(scaleProtocolName, sizeof(scaleProtocolName),
               scale.connectedProtocolName());
   copyCString(scaleConnectedMac, sizeof(scaleConnectedMac),
@@ -950,12 +956,13 @@ struct ScaleWriteAdmission {
   bool tare = false;
 };
 
+bool approveScaleGeneration(void *context, uint32_t &captureBoundary) {
+  captureBoundary = scale.notificationSequence();
+  return !scalePowerOffBlocksGeneration(*static_cast<uint32_t *>(context));
+}
+
 bool approveScaleWrite(void *context, uint32_t &captureBoundary) {
   auto &write = *static_cast<ScaleWriteAdmission *>(context);
-  if (scalePowerOffBlocksGeneration(write.command.connectionGeneration)) {
-    write.event.discardedStaleConnection = true;
-    return false;
-  }
   if (write.tare) {
     write.event.preTareWeightG = capturePreTareWeight(write.command);
     captureBoundary = scale.notificationSequence();
@@ -971,8 +978,13 @@ bool approveScaleWrite(void *context, uint32_t &captureBoundary) {
                              getScaleLinkSnapshot().packetSequence, captureBoundary)) return false;
     }
   }
-  const TaskLockGuard lock(idleScaleTareMux);
+  TaskLockGuard lock(idleScaleTareMux);
   if (write.command.cycleId != 0 && write.command.cycleId != activeScaleCommandCycle) {
+    write.event.discardedStaleConnection = true;
+    return false;
+  }
+  lock.unlock();
+  if (scalePowerOffBlocksGeneration(write.command.connectionGeneration)) {
     write.event.discardedStaleConnection = true;
     return false;
   }
@@ -1044,8 +1056,11 @@ void executeScaleStopCommand(const ScaleCommand &command) {
   if (scale.isConnected()) {
     // A failed start write may only mean its ATT response was lost. Attempting
     // STOP on the existing connection is harmless and covers that case.
-    event.commandAttempted = true;
-    event.writeSucceeded = scaleCommandOk(scale.stopTimer());
+    uint32_t generation = command.connectionGeneration;
+    const ScaleCommandAdmission admission{approveScaleGeneration, &generation};
+    const ScaleCommandResult result = scale.stopTimer(&admission);
+    event.commandAttempted = result != ScaleCommandResult::Deferred;
+    event.writeSucceeded = scaleCommandOk(result);
     yieldBetweenScaleAttOps();
   }
 
@@ -1112,7 +1127,9 @@ void executeScaleBeepCommand(DebugCode successCode, DebugCode failureCode,
     addDebugEvent(DebugCategory::SCALE, unsupportedCode);
     return;
   }
-  const bool succeeded = scaleCommandOk(scale.beepWithoutStateChange());
+  uint32_t generation = getScaleLinkSnapshot().connectionGeneration;
+  const ScaleCommandAdmission admission{approveScaleGeneration, &generation};
+  const bool succeeded = scaleCommandOk(scale.beepWithoutStateChange(&admission));
   yieldBetweenScaleAttOps();
   addDebugEvent(DebugCategory::SCALE, succeeded ? successCode : failureCode);
   updateWorkerLinkState();
@@ -1201,36 +1218,38 @@ void executeScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
     return;
   }
   ScaleCommandResult result = ScaleCommandResult::Unsupported;
+  uint32_t generation = getScaleLinkSnapshot().connectionGeneration;
+  const ScaleCommandAdmission admission{approveScaleGeneration, &generation};
   switch (action) {
     case BookooDebugAction::START:
-      result = scale.startTimer();
+      result = scale.startTimer(&admission);
       break;
     case BookooDebugAction::STOP:
-      result = scale.stopTimer();
+      result = scale.stopTimer(&admission);
       break;
     case BookooDebugAction::TARE:
-      result = scale.tare();
+      result = scale.tare(&admission);
       break;
     case BookooDebugAction::COMBINED:
       if (!scale.features().has(ScaleFeatureCombinedTareStart)) {
         addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
         return;
       }
-      result = scale.tareStartTimer();
+      result = scale.tareStartTimer(&admission);
       break;
     case BookooDebugAction::BEEP:
       if (!scale.features().has(ScaleFeatureIndependentBeep)) {
         addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
         return;
       }
-      result = scale.beepWithoutStateChange();
+      result = scale.beepWithoutStateChange(&admission);
       break;
     case BookooDebugAction::VOLUME:
       if (!scale.features().has(ScaleFeatureVolume)) {
         addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
         return;
       }
-      result = scale.setBeepLevel(beepLevel);
+      result = scale.setBeepLevel(beepLevel, &admission);
       break;
   }
   if (result == ScaleCommandResult::Unsupported ||
@@ -1246,7 +1265,8 @@ void executeScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
   }
   const bool succeeded = scaleCommandOk(result);
   yieldBetweenScaleAttOps();
-  if (action == BookooDebugAction::TARE || action == BookooDebugAction::COMBINED) {
+  if (result != ScaleCommandResult::Deferred &&
+      (action == BookooDebugAction::TARE || action == BookooDebugAction::COMBINED)) {
     // Debug commands bypass the normal pre-tare capture contract.
     ScaleEvent event;
     event.type = ScaleEventType::REFERENCE_CHANGED;
@@ -1274,8 +1294,10 @@ void applyBookooConnectBeepPolicy() {
       policy.soundAlertsEnabled, policy.alertOutputChannel,
       policy.bookooMuteOnBuzzerOnly, policy.bookooConnectBeepLevel);
   if (volume >= 0) {
+    uint32_t generation = getScaleLinkSnapshot().connectionGeneration;
+    const ScaleCommandAdmission admission{approveScaleGeneration, &generation};
     const ScaleCommandResult result =
-        scale.setBeepLevel(static_cast<uint8_t>(volume));
+        scale.setBeepLevel(static_cast<uint8_t>(volume), &admission);
     if (result == ScaleCommandResult::InvalidArgument ||
         result == ScaleCommandResult::Unsupported) {
       serialTracef(LogLevel::WARNING,

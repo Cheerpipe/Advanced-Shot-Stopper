@@ -125,6 +125,7 @@ class EspressoScaleBLE {
         ScaleCommandResult startTimer();
         ScaleCommandResult startTimer(const ScaleCommandAdmission *admission);
         ScaleCommandResult stopTimer();
+        ScaleCommandResult stopTimer(const ScaleCommandAdmission *admission);
         ScaleCommandResult resetTimer();
         ScaleCommandResult resetTimer(const ScaleCommandAdmission *admission);
         ScaleCommandResult tareStartTimer();
@@ -135,7 +136,9 @@ class EspressoScaleBLE {
         bool supportsIndependentBeep() const;
         bool supportsCommandFeedback() const;
         ScaleCommandResult beepWithoutStateChange();
+        ScaleCommandResult beepWithoutStateChange(const ScaleCommandAdmission *admission);
         ScaleCommandResult setBeepLevel(uint8_t level);
+        ScaleCommandResult setBeepLevel(uint8_t level, const ScaleCommandAdmission *admission);
 
         ScaleCommandResult heartbeat();
         // Powers the scale down when the protocol supports it; the link then

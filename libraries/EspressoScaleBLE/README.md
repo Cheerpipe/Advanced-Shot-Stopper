@@ -137,7 +137,8 @@ completed ATT rejections preserve a usable link. Unknown errors, stale GATT
 handles and unresolved one-second command timeouts still terminate it. Commands
 with uncertain outcomes are never automatically replayed. GAP/reset causes and
 teardown errors are recorded separately from command failures and survive
-reconnection in `diagnostics()`. A later disconnect completing local teardown
+reconnection in `diagnostics()`. Its snapshot uses the same lock as callback
+publication, so silence metadata remains coherent during disconnect. A later disconnect completing local teardown
 also logs `ble teardown complete raw=... at_ms=...`, preserving its reason and
 arrival time without replacing the original command failure.
 
@@ -146,8 +147,9 @@ Each protocol may define a minimum application-command interval. Bookoo uses
 disconnect evidence while waiting and revalidates the connection generation
 at the common NimBLE admission point immediately before submission. Other
 protocols keep their existing timing.
-The guarded overloads of `tare()`, `tareStartTimer()`, `resetTimer()`, and
-`startTimer()` accept `ScaleCommandAdmission`. Its owner-only callback runs after
+The guarded overloads of `tare()`, `tareStartTimer()`, `resetTimer()`,
+`startTimer()`, `stopTimer()`, `beepWithoutStateChange()`, and `setBeepLevel()`
+accept `ScaleCommandAdmission`. Its owner-only callback runs after
 spacing, outside BLE locks, and can reject a command before transmission. For
 tare operations it supplies a notification capture boundary, rechecked under
 the existing final radio-admission lock. A rejected callback or changed boundary

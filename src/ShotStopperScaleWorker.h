@@ -170,7 +170,6 @@ extern QueueHandle_t scaleEventQueue;
 extern portMUX_TYPE scaleLinkMux;
 extern TaskMutex scalePreferredMacMux;
 extern TaskMutex scaleCriticalEventMux;
-extern TaskMutex scaleWeightEventMux;
 extern uint32_t scalePacketSequence;
 extern char scalePreferredMac[PREFERRED_SCALE_MAC_CAPACITY];
 extern char scalePreferredName[PREFERRED_SCALE_NAME_CAPACITY];

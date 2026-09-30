@@ -483,7 +483,8 @@ class EspressoScaleBLE {
     ++startTimerCalls;
     return runCommand(startTimerSucceeds);
   }
-  ScaleCommandResult stopTimer() {
+  ScaleCommandResult stopTimer(const ScaleCommandAdmission *admission = nullptr) {
+    if (!approveCommand(admission)) return ScaleCommandResult::Deferred;
     commandLog.push_back("stopTimer");
     ++stopTimerCalls;
     return runCommand(stopTimerSucceeds);
@@ -519,7 +520,8 @@ class EspressoScaleBLE {
   bool supportsCommandFeedback() const {
     return features().has(ScaleFeatureCommandAudibleFeedback);
   }
-  ScaleCommandResult beepWithoutStateChange() {
+  ScaleCommandResult beepWithoutStateChange(const ScaleCommandAdmission *admission = nullptr) {
+    if (!approveCommand(admission)) return ScaleCommandResult::Deferred;
     commandLog.push_back("beepWithoutStateChange");
     ++beepCalls;
     if (!features().has(ScaleFeatureIndependentBeep)) {
@@ -527,7 +529,7 @@ class EspressoScaleBLE {
     }
     return runCommand(beepSucceeds);
   }
-  ScaleCommandResult setBeepLevel(uint8_t level) {
+  ScaleCommandResult setBeepLevel(uint8_t level, const ScaleCommandAdmission *admission = nullptr) {
     if (!features().has(ScaleFeatureVolume) &&
         !features().has(ScaleFeatureIndependentBeep)) {
       return ScaleCommandResult::Unsupported;
@@ -535,6 +537,7 @@ class EspressoScaleBLE {
     if (level > features().volumeMax) {
       return ScaleCommandResult::InvalidArgument;
     }
+    if (!approveCommand(admission)) return ScaleCommandResult::Deferred;
     commandLog.push_back(std::string("setBeepLevel:") + std::to_string(level));
     lastBeepLevel = level;
     ++setBeepLevelCalls;
@@ -786,6 +789,7 @@ struct HostQueue {
 };
 
 using QueueHandle_t = HostQueue *;
+inline thread_local void (*hostAfterEmptyQueueReceive)(QueueHandle_t) = nullptr;
 
 inline QueueHandle_t xQueueCreate(size_t capacity, size_t itemSize) {
   return new HostQueue(capacity, itemSize);
@@ -817,6 +821,7 @@ inline int xQueueSendToFront(QueueHandle_t queue, const void *item,
 inline int xQueueReceive(QueueHandle_t queue, void *item, TickType_t wait) {
   (void)wait;
   if (queue == nullptr || queue->items.empty()) {
+    if (hostAfterEmptyQueueReceive != nullptr) hostAfterEmptyQueueReceive(queue);
     return pdFALSE;
   }
   std::memcpy(item, queue->items.front().data(), queue->itemSize);

@@ -30,6 +30,10 @@ endfunction()
 host_test(power_policy_host_test DEFINITIONS SHOT_STOPPER_HOST_TEST
   LABEL "host;control;concurrency")
 host_test(timezone_host_test LABEL "host;time")
+host_test(ble_runtime_host_test DEFINITIONS SHOT_STOPPER_BLE_RUNTIME_HOST_TEST
+  LABEL "host;ble;concurrency")
+target_include_directories(ble_runtime_host_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+set_tests_properties(ble_runtime_host_test PROPERTIES LABELS "host;ble;concurrency")
 
 # Exercise actual Micra method bodies with deterministic task/HTTP shims.
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
@@ -46,7 +50,7 @@ target_include_directories(micra_cancellation_host_test PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/micra_stubs" "${CMAKE_CURRENT_BINARY_DIR}")
 
 if(SHOTSTOPPER_SANITIZER STREQUAL "thread")
-  foreach(case M09 R25c F03 F04 F17 IT10 IT28 SH01)
+  foreach(case M09 R25c F03 F04 F17 IT10 IT28 SH01 RACE06)
     host_test(shot_stopper_tsan_${case}
       SOURCE shot_stopper_host_test.cpp ARGS ${case} LABEL "host;concurrency")
     set_target_properties(shot_stopper_tsan_${case} PROPERTIES

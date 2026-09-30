@@ -7009,6 +7009,66 @@ void race03_ended_cycle_cancels_queued_and_paced_retare() {
   }
 }
 
+void race05_shutdown_during_spacing_blocks_all_operational_writes() {
+  for (unsigned operation = 0; operation < 9; ++operation) {
+    resetHarness(false, false);
+    scale.connectedFeatures.flags |= ScaleFeaturePowerOff;
+    setScaleConnected(true);
+    scale.beforeCommandAdmission = [] { requestScalePowerOff(); };
+    if (operation < 6) {
+      const auto action = static_cast<BookooDebugAction>(operation);
+      CHECK(enqueueScaleDebugCommand(action, 1));
+      BookooDebugAction taken;
+      uint8_t level;
+      CHECK(takeScaleDebugCommand(taken, level));
+      executeScaleDebugCommand(taken, level);
+    } else if (operation == 6) {
+      ScaleCommand stop;
+      stop.type = ScaleCommandType::STOP_TIMER;
+      stop.connectionGeneration = getScaleLinkSnapshot().connectionGeneration;
+      executeScaleStopCommand(stop);
+    } else if (operation == 7) {
+      executeScaleBeepCommand(DebugCode::SCALE_DEBUG_OK, DebugCode::SCALE_DEBUG_FAILED,
+                              DebugCode::SCALE_DEBUG_UNSUPPORTED);
+    } else {
+      applyBookooConnectBeepPolicy();
+    }
+    scale.beforeCommandAdmission = {};
+    CHECK(scalePowerOffPending);
+    CHECK(scale.commandLog.empty());
+    CHECK(takeScalePowerOff());
+    executeScalePowerOffCommand();
+    CHECK(scale.commandLog.size() == 1 && scale.commandLog[0] == "powerOff");
+  }
+  resetHarness(false, false);
+  scale.connectedFeatures.flags |= ScaleFeaturePowerOff;
+  setScaleConnected(true);
+  scale.duringTareWrite = [] { requestScalePowerOff(); };
+  executeScaleDebugCommand(BookooDebugAction::TARE, 0);
+  scale.duringTareWrite = {};
+  CHECK(scalePowerOffPending && scale.tareCalls == 1); // Already admitted.
+}
+
+void race06_connection_cleanup_preserves_new_shutdown() {
+  resetHarness(false, false);
+  scale.connectedFeatures.flags |= ScaleFeaturePowerOff;
+  scale.connected = true;
+  portENTER_CRITICAL(&scaleBeepMux);
+  std::thread worker([] { updateWorkerLinkState(); });
+  while (getScaleLinkSnapshot().state != ScaleLinkState::CONNECTED)
+    std::this_thread::yield();
+  requestScalePowerOff();
+  const bool accepted = scalePowerOffPending;
+  portEXIT_CRITICAL(&scaleBeepMux);
+  worker.join();
+  CHECK(accepted);
+  CHECK(scalePowerOffBlocksGeneration(getScaleLinkSnapshot().connectionGeneration));
+  CHECK(takeScalePowerOff());
+  CHECK(!takeScalePowerOff());
+  executeScalePowerOffCommand();
+  CHECK(scale.powerOffCalls == 1);
+}
+
 void race04_preferred_ack_preserves_newer_history() {
   resetHarness(false, true);
   notePreferredScale("AA:BB:CC:DD:EE:01", "Scale A");
@@ -7021,6 +7081,89 @@ void race04_preferred_ack_preserves_newer_history() {
   CHECK(scaleWorkerCopyPreferredIfDirty(mac, name, history));
   CHECK(scaleWorkerClearPreferredDirty(mac, name, history));
   CHECK(!scaleWorkerCopyPreferredIfDirty(mac, name, history));
+}
+
+void race07_result_and_weight_selection_is_atomic() {
+  for (unsigned delivery = 0; delivery < 4; ++delivery) {
+    resetHarness(false, true);
+    hostMillis = 1000;
+    markScaleWorkerProgress();
+    session.active = true;
+    session.id = 7;
+    session.startedAtMs = 500;
+    session.startedWithScale = true;
+    session.retarePerformed = delivery != 0;
+    session.retareRequestId = 901;
+    session.appliedTareRequestId = 900;
+    session.tareConnectionGeneration = getScaleLinkSnapshot().connectionGeneration;
+    session.tareCaptureBoundary = 10;
+    stopperState = StopperState::BREW;
+    ScaleEvent weight;
+    weight.type = ScaleEventType::WEIGHT;
+    weight.receivedAtMs = hostMillis;
+    weight.captureSequence = 11;
+    weight.weightG = 37;
+    CHECK(publishScaleEvent(weight, false));
+    ScaleEvent result;
+    result.type = delivery == 0 ? ScaleEventType::TIMER_START_RESULT : ScaleEventType::TARE_RESULT;
+    result.cycleId = session.id;
+    result.cupWeightRequestId = session.retareRequestId;
+    result.captureSequence = 11;
+    result.receivedAtMs = hostMillis;
+    result.writeSucceeded = result.tareSucceeded = true;
+    if (delivery == 2) { // Full result FIFO uses the critical fallback.
+      ScaleEvent filler;
+      filler.type = ScaleEventType::TIMER_STOP_RESULT;
+      for (size_t i = 0; i < SCALE_EVENT_QUEUE_LENGTH; ++i)
+        CHECK(publishScaleEvent(filler, true));
+    }
+    if (delivery == 3) {
+      // Publish only the retained completion after control's entry snapshot
+      // has already been copied. Its queue event was lost/overwritten.
+      static thread_local ScaleEvent retained;
+      retained = result;
+      retained.connectionGeneration = session.tareConnectionGeneration;
+      TaskMutex::hostObserver = [](const TaskMutex *mutex, bool acquired) {
+        if (mutex == &scaleCriticalEventMux && !acquired) {
+          shotTareResult = retained;
+          TaskMutex::hostObserver = nullptr;
+        }
+      };
+    } else {
+      CHECK(publishScaleEvent(result, true));
+    }
+    processScaleWorkerEvents();
+    TaskMutex::hostObserver = nullptr;
+    processScaleWorkerEvents();
+    CHECK(observedWeight != 37);
+    CHECK(session.tareCaptureBoundary == 11);
+
+    // Observe the exact former race window: an empty result queue must remain
+    // protected until the weight has been selected from the same handoff.
+    static thread_local bool held, atomicSelection, emptySeen, selectedBeforeUnlock;
+    held = emptySeen = selectedBeforeUnlock = false;
+    atomicSelection = true;
+    weight.captureSequence = 12;
+    weight.weightG = 0;
+    CHECK(publishScaleEvent(weight, false));
+    TaskMutex::hostObserver = [](const TaskMutex *mutex, bool acquired) {
+      if (mutex != &scaleCriticalEventMux) return;
+      if (!acquired && emptySeen && scaleWeightEventCount == 0)
+        selectedBeforeUnlock = true;
+      held = acquired;
+    };
+    hostAfterEmptyQueueReceive = [](QueueHandle_t queue) {
+      if (queue == scaleEventQueue && scaleWeightEventCount != 0) {
+        emptySeen = true;
+        atomicSelection = atomicSelection && held;
+      }
+    };
+    processScaleWorkerEvents();
+    hostAfterEmptyQueueReceive = nullptr;
+    TaskMutex::hostObserver = nullptr;
+    CHECK(emptySeen && atomicSelection && selectedBeforeUnlock);
+    CHECK(observedWeight == 0 && observedWeightSequence != 0);
+  }
 }
 
 void r25_critical_scale_mailbox_never_blocks_and_keeps_latest() {
@@ -17798,6 +17941,9 @@ const TestCase testCases[] = {
     {"RACE02", race02_retare_result_preserves_post_reference_weights},
     {"RACE03", race03_ended_cycle_cancels_queued_and_paced_retare},
     {"RACE04", race04_preferred_ack_preserves_newer_history},
+    {"RACE05", race05_shutdown_during_spacing_blocks_all_operational_writes},
+    {"RACE06", race06_connection_cleanup_preserves_new_shutdown},
+    {"RACE07", race07_result_and_weight_selection_is_atomic},
     {"R25b", r25b_empty_mailboxes_take_one_critical_lock},
     {"R25c", r25c_refilled_critical_mailboxes_remain_live_and_bounded},
     {"R25d", r25d_reference_change_survives_full_critical_queue},

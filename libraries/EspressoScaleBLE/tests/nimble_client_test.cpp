@@ -68,6 +68,43 @@ static void advertise(NimbleScaleClient &c, uint8_t eventType,
   c.onAdvertisement(advertisement, c.scanOperationId_);
 }
 static void run() {
+  {
+    EspressoScaleBLE facade(false);
+    auto &c = clientFromStorage(g_clientStorage);
+    for (unsigned operation = 0; operation < 3; ++operation) {
+      ready(c);
+      c.writeProperties_ = BLE_GATT_CHR_PROP_WRITE_NO_RSP;
+      CHECK(facade.stopTimer() == ScaleCommandResult::Ok);
+      bool shutdown = false;
+      testOnDelay = [&] { shutdown = true; };
+      const ScaleCommandAdmission admission{
+          [](void *context, uint32_t &) { return !*static_cast<bool *>(context); }, &shutdown};
+      const auto result = operation == 0 ? facade.stopTimer(&admission) :
+          operation == 1 ? facade.beepWithoutStateChange(&admission) :
+                           facade.setBeepLevel(1, &admission);
+      CHECK(shutdown && result == ScaleCommandResult::Deferred && testWrites == 1);
+      testOnDelay = {};
+    }
+  }
+  {
+    NimbleScaleClient c(false); ready(c);
+    std::atomic<bool> start{false};
+    std::thread host([&] {
+      while (!start.load(std::memory_order_acquire)) std::this_thread::yield();
+      ble_gap_event gone{};
+      gone.type = BLE_GAP_EVENT_DISCONNECT;
+      gone.disconnect.conn.conn_handle = 1;
+      c.onGapEvent(&gone, c.linkOperationId_);
+    });
+    start.store(true, std::memory_order_release);
+    for (unsigned i = 0; i < 10000; ++i) {
+      const auto snapshot = c.diagnostics();
+      CHECK(snapshot.silenceSequence == 0 ||
+            (snapshot.silenceStartedAtMs == testNowMs && snapshot.silenceTrigger != 0));
+    }
+    host.join();
+    CHECK(c.diagnostics().silenceSequence == 1);
+  }
   for (bool synchronous : {false,true}) {
     NimbleScaleClient c(false); ready(c);
     c.connectionHandle_=kInvalidHandle;

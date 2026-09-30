@@ -1,11 +1,15 @@
 #include "ShotStopperBleRuntime.h"
 
+#if defined(SHOT_STOPPER_BLE_RUNTIME_HOST_TEST)
+#include "ble_runtime_host_stubs.h"
+#else
 #include "sdkconfig.h"
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "host/ble_hs.h"
 #include "host/util/util.h"
@@ -13,6 +17,7 @@
 #include "nimble/nimble_port_freertos.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
+#endif
 
 namespace {
 
@@ -28,6 +33,8 @@ ShotStopperBleHealth gHealth = {
 uint8_t gOwnAddressType = 0xff;
 bool gPortInitialized = false;
 TaskHandle_t gHostTask = nullptr;
+StaticSemaphore_t gHostTaskMutexStorage;
+SemaphoreHandle_t gHostTaskMutex = xSemaphoreCreateMutexStatic(&gHostTaskMutexStorage);
 ShotStopperBleGattRegistration gGattRegistration = nullptr;
 void *gGattRegistrationContext = nullptr;
 
@@ -239,8 +246,10 @@ uint32_t shotStopperBleRuntimeSyncGeneration() {
 
 ShotStopperBleHealth shotStopperBleRuntimeHealth() {
   const MemorySnapshot memory = captureMemory();
+  // Telemetry never waits for teardown; a live sample retains task lifetime.
+  const bool sampleLive = xSemaphoreTake(gHostTaskMutex, 0) == pdTRUE;
   portENTER_CRITICAL(&gMux);
-  TaskHandle_t hostTaskHandle = gHostTask;
+  TaskHandle_t hostTaskHandle = sampleLive ? gHostTask : nullptr;
   portEXIT_CRITICAL(&gMux);
   const uint32_t liveHighWater = hostTaskHandle == nullptr
                                      ? 0
@@ -249,11 +258,13 @@ ShotStopperBleHealth shotStopperBleRuntimeHealth() {
                                                hostTaskHandle));
   portENTER_CRITICAL(&gMux);
   storeMemoryLocked(memory);
-  if (hostTaskHandle != nullptr) {
+  if (hostTaskHandle != nullptr &&
+      liveHighWater < gHealth.hostTaskStackHighWaterBytes) {
     gHealth.hostTaskStackHighWaterBytes = liveHighWater;
   }
   const ShotStopperBleHealth health = gHealth;
   portEXIT_CRITICAL(&gMux);
+  if (sampleLive) xSemaphoreGive(gHostTaskMutex);
   return health;
 }
 
@@ -261,6 +272,9 @@ bool shotStopperBleRuntimeStop(uint32_t timeoutMs) {
   if (!gPortInitialized || gEvents == nullptr) {
     return true;
   }
+  const TickType_t startedAt = xTaskGetTickCount();
+  const TickType_t budget = timeoutTicks(timeoutMs);
+  if (xSemaphoreTake(gHostTaskMutex, budget) != pdTRUE) return false;
   portENTER_CRITICAL(&gMux);
   gHealth.state = ShotStopperBleRuntimeState::Stopping;
   portEXIT_CRITICAL(&gMux);
@@ -271,11 +285,15 @@ bool shotStopperBleRuntimeStop(uint32_t timeoutMs) {
     gHealth.state = ShotStopperBleRuntimeState::Failed;
     gHealth.lastError = rc;
     portEXIT_CRITICAL(&gMux);
+    xSemaphoreGive(gHostTaskMutex);
     return false;
   }
+  const TickType_t elapsed = xTaskGetTickCount() - startedAt;
   const EventBits_t bits = xEventGroupWaitBits(
-      gEvents, kHostStoppedBit, pdFALSE, pdTRUE, timeoutTicks(timeoutMs));
+      gEvents, kHostStoppedBit, pdFALSE, pdTRUE,
+      elapsed < budget ? budget - elapsed : 0);
   if ((bits & kHostStoppedBit) == 0) {
+    xSemaphoreGive(gHostTaskMutex);
     return false;
   }
   nimble_port_freertos_deinit();
@@ -295,5 +313,6 @@ bool shotStopperBleRuntimeStop(uint32_t timeoutMs) {
   }
   storeMemoryLocked(stoppedMemory);
   portEXIT_CRITICAL(&gMux);
+  xSemaphoreGive(gHostTaskMutex);
   return deinitError == ESP_OK;
 }

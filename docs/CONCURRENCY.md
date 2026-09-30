@@ -20,8 +20,9 @@ Locks are normally acquired one at a time. The only permitted nesting is:
 
 1. lifecycle mutex → webhook state mutex;
 2. network work-buffer mutex → JSON document lifetime;
-3. OTA task mutex → flash-I/O recursive mutex; and
-4. NimBLE advertisement mutex → NimBLE client-state mutex.
+3. OTA task mutex → flash-I/O recursive mutex;
+4. NimBLE advertisement mutex → NimBLE client-state mutex; and
+5. native BLE host-task lifetime mutex → native BLE runtime state spinlock.
 
 No reverse edge is permitted. A callback that would require one must publish a
 queue item or atomic latch for the owner instead.
@@ -33,15 +34,18 @@ second full status snapshot. Readers can use the previous committed version
 while an input owner is busy. The status version is published with the completed
 commit, and refresh acknowledgment follows it.
 
-The scale consumer selects the critical result or, otherwise, the timer-start
-result under one acquisition of their shared mutex. It processes the copied
-event after unlocking and retains both control-loop drain checkpoints. Command
-results are drained before the weight FIFO. A successful shot tare installs its
+Scale results, fallback mailboxes and the weight FIFO share one task mutex.
+The consumer checks results and selects a weight only if none is pending,
+without releasing that mutex between the two decisions. Producers use the same
+mutex, so a newly published result cannot slip between them. The consumer processes
+the copied event after unlocking and retains both control-loop drain checkpoints.
+A successful shot tare installs its
 capture boundary once per request ID; older or duplicate results cannot re-arm
 the baseline, and buffered samples at or before that boundary cannot enter cup,
 flow, or trajectory evidence.
 The existing retained successful late-tare result also installs that boundary
-when its queue event is lost. Control keeps one near-zero sample while its
+when its queue event is lost; control rechecks it before processing each selected
+weight as well as at drain entry. Control keeps one near-zero sample while its
 completion is pending so result/sample processing order does not lose valid
 effect evidence. Confirmation requires the same request, cycle and connection,
 a capture sequence after the boundary, and a fresh timestamp within the
@@ -116,8 +120,11 @@ callbacks while waiting before rechecking ready state, disconnect evidence,
 handle, and connection generation. A power-off request publishes a terminal
 generation barrier under the existing scale mailbox spinlock before it can
 compete with queued work. Producers then reject new commands, queued commands
-complete through their stale-result path, and heartbeat/beep/debug mailboxes
-cannot bypass the barrier. No scale lock spans ATT or GAP. The GAP callback
+complete through their stale-result path. Debug, STOP, beep and volume writes
+also check that barrier after command spacing; STOP remains exempt from cycle
+cancellation. A write already admitted before shutdown publication may finish.
+Connection-transition cleanup preserves an accepted shutdown for the newly
+published generation. No scale lock spans ATT or GAP. The GAP callback
 immediately marks link loss and rejects new admissions. If one radio submission
 was already admitted, it finishes before the full 3,000 ms quiet interval
 starts; otherwise the interval starts in the callback. Every NimBLE procedure
@@ -127,6 +134,14 @@ carry the disconnect sequence and are rejected after the epoch changes. Every
 actual application-command submission and terminal outcome is emitted at INFO with
 its operation, generation, response mode, spacing, raw status, and elapsed
 time; payload bytes and peer addresses are excluded.
+
+The owner copies native BLE diagnostics under the callback's client-state mux
+before taking the firmware link-publication spinlock. Native host stack sampling
+retains the task through a static task mutex until the stack read finishes.
+Health sampling never waits for that mutex and returns cached stack telemetry
+during teardown or another sample. Shutdown acquires it within its existing
+timeout budget before stopping/joining/deleting the host. Stack walks and host
+teardown remain outside spinlocks; the final watermark survives deletion.
 
 The relay and independent safety-timer `portMUX` sections are independent and
 may never nest with another lock. The timer captures callback state under its
@@ -146,7 +161,7 @@ This is the retained-lock inventory for the resource/concurrency qualification
 work; the filename/section label is preserved for existing references.
 
 The task-only bullseye configuration,
-settings-persistence handoff, and scale critical/weight handoffs use static
+settings-persistence handoff, and the shared scale result/weight handoff use static
 FreeRTOS mutexes. These paths can be reached from lower-priority HTTP,
 network, persistence, BLE or control tasks and therefore require priority
 inheritance; disabling interrupts was not justified.

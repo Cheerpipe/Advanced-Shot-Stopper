@@ -330,9 +330,9 @@ CupTareDiagnostics captureCupTareDiagnostics() {
   out.lastTerminalRequestId = idleTare.lastTerminalRequestId;
   out.lastTerminalAtMs = idleTare.lastTerminalAtMs;
   out.rejectedSamples = idleTare.rejectedSamples;
-  scaleWeightEventMux.lock();
+  scaleCriticalEventMux.lock();
   out.droppedSamples = scaleWeightEventDrops;
-  scaleWeightEventMux.unlock();
+  scaleCriticalEventMux.unlock();
   return out;
 }
 

@@ -648,7 +648,12 @@ class NimbleScaleClient {
 
   ScaleDisconnectReason lastReason() const { return lastReason_; }
   int32_t lastRawStatus() const { return lastRawStatus_; }
-  ScaleBleDiagnostics diagnostics() const { return diagnostics_; }
+  ScaleBleDiagnostics diagnostics() const {
+    portENTER_CRITICAL(&mux_);
+    const ScaleBleDiagnostics snapshot = diagnostics_;
+    portEXIT_CRITICAL(&mux_);
+    return snapshot;
+  }
   uint8_t connectAttempts() const { return connectAttempts_; }
   uint8_t stateId() const { return static_cast<uint8_t>(state_); }
   uint32_t lastPacketAgeMs() const {
@@ -2836,8 +2841,10 @@ ScaleCommandResult EspressoScaleBLE::startTimer(const ScaleCommandAdmission *adm
   return clientFromStorage(g_clientStorage).writeOp(ScaleOp::StartTimer, 0, admission);
 }
 
-ScaleCommandResult EspressoScaleBLE::stopTimer() {
-  return clientFromStorage(g_clientStorage).writeOp(ScaleOp::StopTimer);
+ScaleCommandResult EspressoScaleBLE::stopTimer() { return stopTimer(nullptr); }
+
+ScaleCommandResult EspressoScaleBLE::stopTimer(const ScaleCommandAdmission *admission) {
+  return clientFromStorage(g_clientStorage).writeOp(ScaleOp::StopTimer, 0, admission);
 }
 
 ScaleCommandResult EspressoScaleBLE::resetTimer() { return resetTimer(nullptr); }
@@ -2871,10 +2878,18 @@ bool EspressoScaleBLE::supportsCommandFeedback() const {
 }
 
 ScaleCommandResult EspressoScaleBLE::beepWithoutStateChange() {
-  return setBeepLevel(1);
+  return beepWithoutStateChange(nullptr);
+}
+
+ScaleCommandResult EspressoScaleBLE::beepWithoutStateChange(const ScaleCommandAdmission *admission) {
+  return setBeepLevel(1, admission);
 }
 
 ScaleCommandResult EspressoScaleBLE::setBeepLevel(uint8_t level) {
+  return setBeepLevel(level, nullptr);
+}
+
+ScaleCommandResult EspressoScaleBLE::setBeepLevel(uint8_t level, const ScaleCommandAdmission *admission) {
   const ScaleFeatureSet available = features();
   if (!available.has(ScaleFeatureVolume) &&
       !available.has(ScaleFeatureIndependentBeep)) {
@@ -2884,7 +2899,7 @@ ScaleCommandResult EspressoScaleBLE::setBeepLevel(uint8_t level) {
     return ScaleCommandResult::InvalidArgument;
   }
   return clientFromStorage(g_clientStorage)
-      .writeOp(ScaleOp::SetVolume, level);
+      .writeOp(ScaleOp::SetVolume, level, admission);
 }
 
 ScaleCommandResult EspressoScaleBLE::heartbeat() {

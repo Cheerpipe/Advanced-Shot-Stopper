@@ -382,12 +382,6 @@ void processScaleLinkTransitions() {
 void processScaleWorkerEvents() {
   captureLateTareCompletion();
   processScaleLinkTransitions();
-  if (scaleEventQueue == nullptr && !scaleCriticalEventPending &&
-      !scaleReferenceChangedEventPending &&
-      !scaleTimerStartEventPending && !scaleWeightEventPending) {
-    return;
-  }
-
   ScaleEvent event;
   size_t processed = 0;
   while (processed < SCALE_EVENT_QUEUE_LENGTH + 1) {
@@ -407,11 +401,9 @@ void processScaleWorkerEvents() {
       scaleTimerStartEventPending = false;
       receivedCritical = true;
     }
-    scaleCriticalEventMux.unlock();
     if (!receivedCritical && scaleEventQueue != nullptr)
       receivedCritical = xQueueReceive(scaleEventQueue, &event, 0) == pdTRUE;
     if (!receivedCritical) {
-      scaleWeightEventMux.lock();
       if (scaleWeightEventCount != 0) {
         event = scaleWeightEvents[scaleWeightEventHead];
         scaleWeightEventHead = (scaleWeightEventHead + 1U) %
@@ -420,12 +412,14 @@ void processScaleWorkerEvents() {
         scaleWeightEventPending = scaleWeightEventCount != 0;
         receivedWeight = true;
       }
-      scaleWeightEventMux.unlock();
     }
+    scaleCriticalEventMux.unlock();
     if (!receivedCritical && !receivedWeight) {
       break;
     }
     ++processed;
+    // A retained retare completion can outlive its queue/fallback event.
+    if (receivedWeight) captureLateTareCompletion();
     const ScaleLinkSnapshot eventLink = getScaleLinkSnapshot();
     if (event.connectionGeneration != eventLink.connectionGeneration ||
         event.disconnectSequence != eventLink.disconnectSequence) {
