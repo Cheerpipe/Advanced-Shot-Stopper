@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from custom_components.open_brew_by_weight.const import STOP_DETAILS
 from custom_components.open_brew_by_weight.models import (
     DEFAULT_ARCH,
     DEFAULT_HARDWARE_PROFILE,
@@ -100,6 +101,30 @@ def test_shot_and_webhook_contract() -> None:
         (FIXTURES / "webhook_controller_started_v1.json").read_bytes()
     )
     assert started.event == "controller_started"
+
+
+def test_touch_fallback_rest_webhook_and_storage() -> None:
+    """Preserve the fallback cause across both transports and local storage."""
+    payload = load("webhook_end_v1.json")
+    payload["stopDetail"] = "touch_weight_fallback"
+    event = WebhookEvent.from_bytes(json.dumps(payload).encode())
+    shot = Shot.from_dict(event.data)
+    assert shot.stop_detail == "touch_weight_fallback"
+    assert Shot.from_dict(shot.to_dict()) == shot
+    snapshot = load("integration_snapshot.json")
+    snapshot.pop("lastGoodShot")
+    snapshot["lastShot"] = shot.to_dict()
+    assert DeviceSnapshot.from_dict(snapshot).last_shot == shot
+
+
+@pytest.mark.parametrize("catalog", ["strings.json", "translations/en.json"])
+def test_stop_details_have_sensor_labels(catalog: str) -> None:
+    source = Path(__file__).parents[1] / "custom_components/open_brew_by_weight"
+    labels = json.loads((source / catalog).read_text())["entity"]["sensor"][
+        "last_shot_stop_detail"
+    ]["state"]
+    assert set(STOP_DETAILS) == set(labels)
+    assert labels["touch_weight_fallback"] == "Touch fallback"
 
 
 def test_shot_timestamp_round_trip_and_optional_clock() -> None:

@@ -151,10 +151,7 @@ inline uint8_t shotLogPackRating(uint8_t flags, uint8_t rating) {
                               (rating << SHOT_LOG_RATING_SHIFT));
 }
 
-inline const char *shotLogStopDetailName(ShotLogStopDetail detail,
-                                        bool integrationV1 = false) {
-  if (integrationV1 && detail == ShotLogStopDetail::TOUCH_WEIGHT_FALLBACK)
-    return "other";  // V1 receivers reject unknown stop-detail enumerators.
+inline const char *shotLogStopDetailName(ShotLogStopDetail detail) {
   switch (detail) {
     case ShotLogStopDetail::NORMAL_TARGET: return "normal_target";
     case ShotLogStopDetail::PREDICTION: return "prediction";

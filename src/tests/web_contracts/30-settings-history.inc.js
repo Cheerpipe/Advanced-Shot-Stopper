@@ -1,5 +1,15 @@
 {
   const childId = 'touchStopFallbackEnabled';
+  const formatter = runtimeJs.split('\n').find(line => line.startsWith('function formatShotEnded('));
+  const ended = new Function(formatter + ';return formatShotEnded;')();
+  for (const reason of ['touch_weight_fallback', 'TOUCH_WEIGHT_FALLBACK']) {
+    if (ended(reason) !== 'Touch fallback')
+      throw new Error('Ended must identify sustained-weight touch protection');
+  }
+  if (!runtimeJs.includes('formatShotEnded(r.stopDetail)') ||
+      !runtimeJs.includes("t('shotEnded',formatShotEnded(d.endReason))")) {
+    throw new Error('Stats and Home must share the Ended cause formatter');
+  }
   if (html.indexOf(`id="${childId}"`) < html.indexOf('id="avoidAccidentalTouchEnabled"') ||
       !html.includes(`id="${childId}" type="checkbox" checked`) ||
       !network.includes('touchStopFallbackEnabled must be a boolean.')) {

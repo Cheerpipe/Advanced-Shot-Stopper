@@ -15422,8 +15422,12 @@ void at11_touch_fallback_only_when_both_enabled() {
             ShotLogStopDetail::TOUCH_WEIGHT_FALLBACK);
       CHECK(strcmp(shotLogStopDetailName(ShotLogStopDetail::TOUCH_WEIGHT_FALLBACK),
                    "touch_weight_fallback") == 0);
-      CHECK(strcmp(shotLogStopDetailName(ShotLogStopDetail::TOUCH_WEIGHT_FALLBACK, true),
-                   "other") == 0);
+      ShotLogRecord fallbackRecord = {};
+      fallbackRecord.shotType = static_cast<uint8_t>(ShotLogType::AUTO);
+      fallbackRecord.goalWeightG = 36;
+      fallbackRecord.stopDetail = static_cast<uint8_t>(
+          ShotLogStopDetail::TOUCH_WEIGHT_FALLBACK);
+      CHECK(!shotLogBbwErrorEligible(fallbackRecord));
       const auto before = activeShotPreset(presetBank);
       maybeQueueAutoToManualGuardSample(pendingFinalize, 36.0f, true);
       CHECK(memcmp(before.autoToManualGuardSamplesDs,

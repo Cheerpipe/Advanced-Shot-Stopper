@@ -42,5 +42,6 @@ STOP_DETAILS = (
     "wall_limit",
     "relay_safety",
     "weight_anomaly",
+    "touch_weight_fallback",
     "other",
 )

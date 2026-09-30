@@ -115,6 +115,13 @@ close the machine circuit and the controller never resumes a cycle after boot.
 
 ## Updates and availability
 
+**Last shot stop detail** shows **Touch fallback** when sustained weight ends a
+shot that touch protection was holding. This matches **Ended** on the controller's
+Home and Stats pages. Automations can use the state `touch_weight_fallback`.
+Update the Home Assistant integration before updating firmware that reports this
+new cause; older integration versions cannot read it. Earlier shots recorded as
+**Other** in Home Assistant are not relabeled automatically.
+
 Home Assistant reads a complete REST snapshot before it adds any entities.
 The controller's `lastShot` is authoritative: it is the newest recorded shot,
 or null after the log is cleared or an erase-all installation. The Web UI's idle

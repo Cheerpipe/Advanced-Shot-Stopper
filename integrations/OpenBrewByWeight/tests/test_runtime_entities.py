@@ -550,6 +550,14 @@ async def test_entities_and_select(hass) -> None:
         for entity in entities
         if entity.entity_description.key.endswith("_stop_detail")
     ).options == list(STOP_DETAILS)
+    fallback = replace(shot, stop_detail="touch_weight_fallback")
+    coordinator.async_set_updated_data(replace(coordinator_data(), last_shot=fallback))
+    stop_sensor = next(
+        entity for entity in entities
+        if entity.entity_description.key == "last_shot_stop_detail"
+    )
+    assert stop_sensor.native_value == "touch_weight_fallback"
+    assert "touch_weight_fallback" in stop_sensor.options
     assert values["last_activation_type"] == "shot"
     assert values["stats_shot_count"] == 7
     coordinator.async_set_updated_data(coordinator_data())

@@ -275,11 +275,13 @@ shot types are `auto`, `timer_only`, and `manual`; supported stop details are
 `normal_target`, `extended_max_weight`, `extended_min_time`, `auto_to_manual`,
 `slow_max_time`, `slow_min_weight`, `cup_removed`, `activator`, `web_stop`,
 `web_heartbeat`, `physical_override`, `hard_limit`, `wall_limit`,
-`relay_safety`, `weight_anomaly`, and `other`. `prediction` is accepted as a
+`relay_safety`, `weight_anomaly`, `touch_weight_fallback`, and `other`. `prediction` is accepted as a
 legacy alias for `other`.
-Touch-stop fallback endings use `other` in this v1 REST/webhook contract so
-existing receivers retain their fixed enumeration. The controller's local shot
-history identifies them separately as `touch_weight_fallback`.
+`touch_weight_fallback` identifies a stop after sustained above-threshold
+readings while accidental-touch protection blocks the normal cut. REST `lastShot`,
+end webhooks and local history preserve this same value. Update strict receivers,
+including the Home Assistant integration, before installing firmware that emits
+it; older integration versions reject unknown stop details.
 
 The webhook ID protects only the Home Assistant receiving endpoint; it does not
 authenticate controller API calls. Do not log or include it in diagnostics.

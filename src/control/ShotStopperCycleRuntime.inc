@@ -1028,7 +1028,7 @@ void queueWebhookEnd(const PendingShotFinalize &snapshot, float finalWeightG,
   snprintf(event.stopDetail, sizeof(event.stopDetail), "%s",
            shotLogStopDetailName(shotLogStopDetailFromEndReason(
                snapshot.endReason, snapshot.extractionGuardEnabled,
-               snapshot.extractionExtended), /*integrationV1=*/true));
+               snapshot.extractionExtended)));
   if (event.weightValid && event.firstDropValid &&
       event.durationMs > event.firstDropMs + 500U) {
     const float brewSeconds =
