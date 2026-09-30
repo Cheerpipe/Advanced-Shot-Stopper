@@ -47,6 +47,10 @@ as the page's data is ready, the loading view fades away in a quarter of a secon
 Control animations work normally once the page is visible. Stats, History, and
 Settings use this single loading view rather than separate loading animations
 inside their sections.
+On first opening a page, its content and fresh data load together. Returning to
+a page reuses its content and controls while fetching fresh data. Stats and
+History request their current status and records together, and the loading view
+waits for both before fading.
 If loading fails, the page shows an error. If this browser loses its claim, the
 loading view hands over to **Reload**.
 

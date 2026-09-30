@@ -863,14 +863,14 @@ if (!js.includes('function commandOkMessage(') ||
 }
 if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !runtimeJs.includes('SHOTS_EXPORT_LIMIT=100') ||
-    !runtimeJs.includes("shotsUrl(offset,limit)") ||
+    !runtimeJs.includes("(stats?shotsUrl:historyUrl)(offset,limit)") ||
     !runtimeJs.includes("'/api/v1/shots?offset='") ||
-    !runtimeJs.includes("fetchShotPage(0,SHOTS_PAGE_SIZE,'replace')") ||
-    !runtimeJs.includes("fetchShotPage(shotHistory.shots.length,SHOTS_PAGE_SIZE,'append')") ||
-    !runtimeJs.includes("fetchShotPage(0,SHOTS_PAGE_SIZE,'poll')") ||
+    !runtimeJs.includes("fetchRecordPage('stats',0,SHOTS_PAGE_SIZE,'replace',after)") ||
+    !runtimeJs.includes("fetchRecordPage('stats',shotHistory.shots.length,SHOTS_PAGE_SIZE,'append')") ||
+    !runtimeJs.includes("fetchRecordPage('stats',0,SHOTS_PAGE_SIZE,'poll',status)") ||
     !runtimeJs.includes('async function loadMoreShots(){') ||
     !runtimeJs.includes('function shotStatsViewActive(){') ||
-    !runtimeJs.includes('if(ok)maybeLoadMoreShots()') ||
+    !runtimeJs.includes('if(ok)(stats?maybeLoadMoreShots:maybeLoadMoreHistory)()') ||
     !runtimeJs.includes("shotsUrl(0,SHOTS_EXPORT_LIMIT") ||
     runtimeJs.includes("api('/api/v1/shots')") ||
     !viewJs.stats.includes('IntersectionObserver') ||
@@ -884,7 +884,7 @@ if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !network.includes('\\"hasMore\\":%s') ||
     !network.includes('\\"total\\":%u') ||
     !network.includes('index == start ? "" : ","') ||
-    !appJsSource.includes('ok=await R.loadShots()')) {
+    !appJsSource.includes('R.loadShots(status)')) {
   throw new Error('Shot history must page 10 shots with infinite scroll and poll only the first page');
 }
 const shotLogTypes = fs.readFileSync(
@@ -937,8 +937,8 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !shellHtml.includes('<section id="view-history" class="view" data-view="history"></section>') ||
     !appJsSource.includes("'/history':'history'") ||
     !appJsSource.includes("SECONDARY=new Set(['stats','history','diagnostic','admin'])") ||
-    !appJsSource.includes('R.loadHistory()') ||
-    !appJsSource.includes('R.refreshHistory()') ||
+    !appJsSource.includes('R.loadHistory(status)') ||
+    !appJsSource.includes('R.refreshHistory') ||
     !viewJs.history.includes("R.loadMoreHistory()") ||
     !viewJs.history.includes('R.clearActivationHistory') ||
     !viewJs.history.includes('R.toggleHistoryDir') ||
@@ -1062,13 +1062,14 @@ if (!statsSection ||
   }
   const assert = require('assert').strict, vm = require('vm');
   const render = rawRuntimeJs.split('\n').find(line => line.startsWith('function renderShots('));
-  const fetchPage = rawRuntimeJs.split('\n').find(line => line.startsWith('async function fetchShotPage('));
+  const fetchPage = rawRuntimeJs.split('\n').find(line => line.startsWith('async function fetchRecordPage('));
   (async () => {
     for (const fail of [false, true]) {
       const events = [];
       let resolve, reject;
       const response = new Promise((yes, no) => {resolve = yes; reject = no;});
-      const context = vm.createContext({shotsBusy: false, shotsLoaded: false,
+      const context = vm.createContext({recordBusy: {stats: false}, shotsLoaded: false,
+        viewSeq: 1, viewReady: Promise.resolve(),
         shotHistory: {shots: []}, webUiPollingActive: () => true,
         api: () => response, shotsUrl: () => '/api/v1/shots',
         applyShotPage: () => {context.shotsLoaded = true;},
@@ -1079,13 +1080,13 @@ if (!statsSection ||
         updateFirmwareFooter() {}, noteReachOk() {}, maybeLoadMoreShots() {},
         noteReachFail: () => events.push('error')});
       vm.runInContext(render + '\n' + fetchPage, context);
-      const loading = context.fetchShotPage(0, 10, 'replace');
+      const loading = context.fetchRecordPage('stats', 0, 10, 'replace');
       assert.deepEqual(events, [], 'Page content must wait for data');
       if (fail) reject(new Error('Unavailable')); else resolve({shots: [], stats: {}});
       await loading;
       assert.deepEqual(events, fail ? ['error'] :
         ['stats', 'history', 'shotTableState']);
-      assert.equal(context.shotsBusy, false);
+      assert.equal(context.recordBusy.stats, false);
     }
   })().catch(error => {console.error(error); process.exitCode = 1;});
 }

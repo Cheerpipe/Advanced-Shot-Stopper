@@ -23,7 +23,7 @@ if (!runtimeJs.includes("const SOFTAP_HOST='192.168.4.1'") ||
       'Home live-shot STA poll must be 1s; AP and other views stay 2.5s; idle 4s; hidden 12s');
 }
 if (!ui.includes('async function loadStatus(){') ||
-    !ui.includes('async function loadShots(){') ||
+    !ui.includes('async function loadShots(after){') ||
     !ui.includes('async function loadLog(){') ||
     !ui.includes('LOG_EVENTS_CAPACITY') ||
     !ui.includes('logEvents.splice(0,logEvents.length-LOG_EVENTS_CAPACITY)') ||
@@ -48,7 +48,7 @@ if (!ui.includes('async function loadStatus(){') ||
     const j = appJsSource.indexOf('}', i);
     return j > i ? appJsSource.slice(i, j) : '';
   })();
-  if (!statsStart.includes('R.loadStatus()') || !statsStart.includes('R.loadShots()') ||
+  if (!statsStart.includes('R.loadStatus()') || !statsStart.includes('R.loadShots(status)') ||
       !runtimeJs.includes("was!==canEdit&&activeView==='stats'") ||
       !runtimeJs.includes("fillStarRate(rateHost,r.rating||0,!controlsMutable,")) {
     throw new Error(

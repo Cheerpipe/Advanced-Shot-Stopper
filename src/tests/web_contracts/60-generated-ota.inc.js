@@ -414,8 +414,9 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // Reallocate another 500 bytes of shell allowance to BBW readback/CSV.
 // Complete, human-readable Settings help raises the reviewed combined budget.
 // Reallocate 300 bytes from shell headroom to lazy Cloud diagnostics.
-if (generated.jsGzip.length > 4744) {
-  throw new Error('Compressed Web UI shell JS exceeds the 4744-byte gzip budget');
+// Transfer 160 bytes to runtime request admission/hydration; total cap stays fixed.
+if (generated.jsGzip.length > 4584) {
+  throw new Error('Compressed Web UI shell JS exceeds the 4584-byte gzip budget');
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
@@ -470,8 +471,9 @@ if (generated.cssGzip.length > 7400) {
 // changed-file error mapping in the runtime module) raises it to 42100 bytes.
 // Shot stats Tare time and Scale (the tare chart marker, two table columns,
 // CSV columns, and last-shot wiring) raise it to 42400 bytes.
-if (sentinelRuntimeGzip.length > 42400) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 42400-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Paired read admission/hydration uses 160 bytes transferred from shell JS.
+if (sentinelRuntimeGzip.length > 42560) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 42560-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

@@ -404,8 +404,8 @@ const maxSocketsMatch = network.match(/max_open_sockets\s*=\s*(\d+)/);
 if (!maxSocketsMatch || Number(maxSocketsMatch[1]) !== 4) {
   throw new Error('HTTP server must reserve exactly 4 open sockets for the single-owner WebUI');
 }
-if (!network.includes('backlog_conn = 3')) {
-  throw new Error('HTTP server backlog must be limited to 3 for the single-owner WebUI');
+if (!network.includes('backlog_conn = 4')) {
+  throw new Error('HTTP server must queue the four-request asset/read burst without increasing its socket budget');
 }
 if (!network.includes('/api/v1/ui/claim') ||
     !network.includes('X-WebUI-Client') ||

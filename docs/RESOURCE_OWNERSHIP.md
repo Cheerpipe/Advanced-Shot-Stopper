@@ -67,6 +67,14 @@ unowned allocations. Converting a task handle to a destructor that invokes
 executing. The HTTP server similarly owns internal LwIP callbacks and must be
 stopped on the manager task before its token is cleared.
 
+The claimed Web UI allows two concurrent read requests only for Stats or
+History (Home status plus that page's records). Other API requests remain
+exclusive, including commands and OTA. Four HTTP sockets and a four-connection
+backlog accommodate the two reads plus lazy HTML and JavaScript downloads.
+Handlers execute serially on the existing HTTP task, retaining one owner of
+the shared response workspace; overlapping requests do not add worker tasks
+or concurrent workspace access.
+
 Host evidence consists of allocation/task fault injection already in the main
 harness, OTA concurrent TSAN, ASan/UBSan tests and
 `resource_owner_host_test.cpp`, which checks move, release, replacement,

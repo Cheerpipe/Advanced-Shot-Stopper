@@ -1094,11 +1094,11 @@ bool ShotStopperNetwork::startHttpServer() {
   // Keep the httpd task stack in internal RAM (default task_caps). OTA upload
   // erases/writes flash on this task. XIP usually keeps cache available, but
   // flash mapping and driver paths can still disable it.
-  // Web UI serializes API traffic (DEVICE_MAX_INFLIGHT, default 1). Reserve
-  // headroom for the HTML/JS/CSS boot burst plus LRU/TCP close. ESP-IDF uses
-  // (max_open_sockets + 3) LWIP sockets total.
-  // One active WebUI client plus a brief parallel asset fetch; 6 was oversized
-  // for steady-state DRAM (each open socket carries TCP wnd/snd buffers).
+  // One claimed WebUI may overlap two Stats/History reads with HTML and JS.
+  // Keep four sockets and queue the same bounded burst. Handlers still run on
+  // the single httpd task: shared response scratch must never run concurrently.
+  // ESP-IDF uses (max_open_sockets + 3) LWIP sockets total; each open socket
+  // carries TCP wnd/snd buffers, so this does not increase the DRAM budget.
   config.max_open_sockets = 4;
   // Exact special routes precede wildcard dispatchers so claim, integration,
   // and OTA retain their distinct authentication boundaries. Keep ten spare
@@ -1110,7 +1110,7 @@ bool ShotStopperNetwork::startHttpServer() {
   // long browser headers have returned 431 Request Header Fields Too Large.
   config.max_req_hdr_len = 2048;
   config.max_resp_headers = 12;
-  config.backlog_conn = 3;
+  config.backlog_conn = 4;
   config.lru_purge_enable = true;
   // Keep stuck clients from occupying sockets under BLE/Wi-Fi coex stalls.
   config.recv_wait_timeout = 5;
