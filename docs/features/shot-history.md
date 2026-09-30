@@ -46,6 +46,13 @@ than the friendly-name limit is shortened to fit. **Tare time**, before
 when no late tare succeeded. Its chart label always uses one decimal, such
 as **3.0 s**. The initial shot-start tare is not a late tare.
 
+If a late retare succeeds and a fresh reading confirms its new zero, an earlier
+first-drop time and marker are discarded. Later coffee can supply a new time
+and marker; without that replacement, first-drop time and **Avg flow** are
+unavailable. The rest of the shot curve is retained. **Tare time** records
+successful command completion, so it can also appear when zero was not
+confirmed and the earlier first-drop record was kept.
+
 The log holds up to **100** shots. The following are never stored:
 
 - Rinses and starts that were not confirmed

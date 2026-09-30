@@ -21,8 +21,9 @@ is off.
 
 First-drop / first-flow detection still runs against the tare zero even while
 the grace window is open. A small stream of coffee does not wait for the
-scale to settle. Placing the cup (including overshoot around 150–200 g) or a
-finger tap is not first drop and does not block retare.
+scale to settle. The detector rejects typical cup jumps and finger taps, but
+weight alone cannot identify every disturbance. An earlier first-drop detection
+does not block a qualified late cup within the retare window.
 
 For a cup placed after the retare window, stop and restart correctly; the
 controller does not promise another automatic tare outside that window.
@@ -35,7 +36,7 @@ controller does not promise another automatic tare outside that window.
 | **Retare when adding or removing an accessory** | ON | ON / OFF | Before brewing, tare a stable added load on a cup already tared outside a brew, then retare its known removal while the cup remains. Requires **Automatic tare outside a brew**. |
 | **Automatic tare at shot start** | ON | ON / OFF | Tare at shot start when a usable scale supports it, including timer-only shots. |
 | **Post-tare grace (s)** | 2 s | 0.5–10 s | After a tare (start or late-cup retare), wait this long for ~0 g before using weight for **stop/control**. |
-| **Late-cup retare during a shot** | ON | ON / OFF | Allow one late-cup retare during the retare window. Requires shot-start tare and fires on the cup-presence **placed** event. |
+| **Late-cup retare during a shot** | ON | ON / OFF | Allow one qualified late-cup retare within the original window, even after first drop was detected. Requires automatic BBW and shot-start tare. |
 | **Retare window (s)** | 4 s | 0.5–10 s | Time after shot start to detect and retare a late-placed cup. |
 | **Bookoo combined command** | ON | ON / OFF | Use the scale’s combined tare + start-timer command at shot start. Requires shot-start tare. Idle tare never starts the timer. Bookoo only. |
 
@@ -184,6 +185,16 @@ same control snapshot; it neither authorizes commands nor changes the separate
 integration API. Clients must also check scale availability and stream state.
 
 ## Example
+
+An earlier first-drop detection does not prevent a qualified cup placement
+from triggering retare. The earlier time and chart marker are replaced only
+after successful retare and a fresh reading near zero within **Post-tare grace**.
+If no new first drop follows, its time and average flow remain unavailable.
+Failure or an unconfirmed zero preserves the earlier record. **Tare time**
+still reports successful command completion, so it can appear without a
+confirmed zero. The retare deadline, shot timer, and stop protections stay
+the same. See [Tare and retare](../features/tare-retare.md#automatic-late-cup-retare)
+for detection limits and announcement behavior.
 
 Shot-start tare is on, grace 2 s, retare window 4 s. The shot starts, the
 scale tares, then you place the cup at 2 s. A second tare fires. Weight stop

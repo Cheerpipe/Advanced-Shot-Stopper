@@ -56,6 +56,12 @@ event, controller, boot, cycle, event uptime, wall-clock time, and send time.
 | `integration_history_end` | New History entry, including a No-scale BBW attempt stopped before brewing | ID, type, duration, and time |
 | `test` | Receiver connectivity check | optional correlation ID used by API clients |
 
+`first_drop` is announced at most once per shot. A later confirmed late-cup
+retare can invalidate that earlier observation in the shot record; the sent
+event cannot be recalled. A replacement first drop updates the final data
+without another `first_drop` event. The `end` event contains the corrected
+time, or omits first-drop time and average flow when no replacement was detected.
+
 Preset names on shot events are captured when the cycle starts. Renaming a
 preset later does not rewrite the name attached to that shot. The
 `presetChanges` is the shared subscription for `presets_changed`,

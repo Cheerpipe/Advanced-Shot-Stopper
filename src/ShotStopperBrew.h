@@ -292,7 +292,8 @@ bool bbwWeightStopInhibited() {
 }
 
 void onFirstDropsDetected(const FirstFlowObservation &observation) {
-  const bool first = session.firstDropMs == 0;
+  const bool first = !session.firstDropObserved;
+  session.firstDropObserved = true;
   recordFirstDropTimestamp(observation.atMs);
   if (std::isfinite(observation.weightG)) {
     shotCurveSampler.latchFirstDrop(observation.atMs, observation.weightG);
@@ -325,6 +326,8 @@ void initializeBbwProtection() {
   session.retareAtMs = 0;
   session.retareDisabled = false;
   session.firstDropsBeepSent = false;
+  session.firstDropObserved = false;
+  session.retareEffectPending = false;
   resetFirstFlowDetector();
 
   if (!session.startedWithScale || session.config.timerOnly ||

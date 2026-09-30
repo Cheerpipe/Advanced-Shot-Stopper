@@ -461,10 +461,9 @@ void processScaleWorkerEvents() {
         break;
       case ScaleEventType::WEIGHT:
         if (session.active && event.captureSequence != 0 &&
-            session.tareCaptureBoundary != 0 &&
             event.connectionGeneration == session.tareConnectionGeneration &&
             static_cast<int32_t>(event.captureSequence - session.tareCaptureBoundary) <= 0)
-          break; // Buffered weights still belong to the pre-tare reference.
+          break; // Exclude buffered evidence before publishing machine sense.
         if (!std::isfinite(event.weightG) ||
             fabsf(event.weightG) > MAX_PARSED_WEIGHT_G) {
           session.touchStop = {};

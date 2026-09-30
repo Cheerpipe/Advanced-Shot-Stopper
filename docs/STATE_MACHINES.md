@@ -559,9 +559,9 @@ unobservable from final weight alone.
 
 ## 8. First flow (`FirstFlowPhase` / `FirstFlowClass`)
 
-**Purpose.** Tell first coffee from a finger or a cup put-down, so the
-first-drop beep and shot clock are not fooled. It does **not** stop
-the shot.
+**Purpose.** Distinguish likely first coffee from a finger or cup put-down
+using weight evidence; sustained pressure can still resemble coffee. It does
+**not** stop the shot.
 
 Source: `OpenBrewByWeightScaleTypes.h` (`stepFirstFlow`).
 
@@ -584,6 +584,21 @@ Source: `OpenBrewByWeightScaleTypes.h` (`stepFirstFlow`).
 `FIRE` is emitted when the qualifying sequence is confirmed, but the recorded
 first-drop time and weight come from the first sample in that uninterrupted
 sequence. A packet or timing gap starts a new sequence.
+
+A qualified late PLACED event remains eligible after FIRE within the original
+retare window. The old timestamp/curve marker survives admission and write
+failure. Matching successful completion plus a fresh near-zero sample captured
+after the write boundary, within the completion-anchored baseline grace,
+invalidates that record and resets the same detector. Control retains one
+near-zero sample while completion is pending, including one observed during
+the write. Pre-write, wrong-link, expired, or post-end samples cannot confirm.
+Pre-end evidence processed during pending finalization corrects its snapshot
+and matching last shot; persisted history is written once with corrected data.
+Without replacement FIRE, first drop and its dependent metrics remain missing.
+The historical first-flow observation remains latched for machine sensing and
+once-per-cycle webhook publication; correcting the statistic does not revoke
+that observation or replay the beep. Tare time remains a separate successful
+command-completion diagnostic.
 
 ---
 

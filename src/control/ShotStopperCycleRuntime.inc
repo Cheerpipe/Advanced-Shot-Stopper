@@ -272,6 +272,7 @@ void notifyWebhookFirstDrop(const FirstFlowObservation &observation) {
 #else
 void notifyWebhookFirstDrop(const FirstFlowObservation &observation) {
   (void)observation;
+  ++hostFirstDropWebhookCount;
 }
 void serviceWebhookBrewStart() {}
 #endif
@@ -425,7 +426,7 @@ void observeMachineSenseFromSession(const ScaleLinkSnapshot &link) {
   sense.weightFresh = observedWeightIsFresh(millis(), link);
   sense.accidentalHold = session.accidentalTouchHolding;
   sense.brewCycleActive = session.active;
-  sense.firstDropSeen = session.firstDropMs != 0;
+  sense.firstDropSeen = session.firstDropObserved || session.firstDropMs != 0;
   sense.scaleConnectedEdge = scaleWorkerTakeConnectedEdge();
   sense.cupRemovedEdge = pendingCupRemovedSettle;
   pendingCupRemovedSettle = false;
@@ -470,17 +471,78 @@ void orchestratePostTareBaselineArm() {
   holdCupPresenceTransitions(true);
 }
 
+void confirmLateRetareBaseline();
+
 void applyShotTareResult(const ScaleEvent &event) {
-  if (event.cycleId != session.id || !session.active || !session.startedWithScale ||
-      stopperState != StopperState::BREW ||
+  const bool lateRetare = session.retarePerformed &&
+      event.cupWeightRequestId == session.retareRequestId;
+  const bool ended = !session.active && lateRetare && pendingFinalize.pending &&
+      pendingFinalize.cycleId == session.id &&
+      static_cast<int32_t>(event.receivedAtMs - pendingFinalize.endedAtMs) <= 0;
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  if (event.cycleId != session.id || !session.startedWithScale ||
+      (!ended && (!session.active || stopperState != StopperState::BREW)) ||
+      event.discardedStaleConnection ||
+      link.state != ScaleLinkState::CONNECTED ||
+      event.connectionGeneration != link.connectionGeneration ||
       (event.cupWeightRequestId != 0 && session.appliedTareRequestId != 0 &&
        static_cast<int32_t>(event.cupWeightRequestId - session.appliedTareRequestId) <= 0)) return;
   session.appliedTareRequestId = event.cupWeightRequestId;
   session.tareCaptureBoundary = event.captureSequence;
   session.tareConnectionGeneration = event.connectionGeneration;
-  orchestratePostTareBaselineArm();
+  session.retareEffectPending = lateRetare;
+  if (!ended) {
+    orchestratePostTareBaselineArm();
+    markTareZeroReady();
+    resetDirectStopConfirmation();
+  }
+  session.postTareBaselineDeadlineMs =
+      event.receivedAtMs + session.config.postTareBaselineGraceMs;
+  confirmLateRetareBaseline();
+}
+
+void confirmLateRetareBaseline() {
+  const ScaleTareSample &zero = session.retareZeroSample;
+  const uint32_t atMs = zero.atMs;
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  if (!session.retareEffectPending ||
+      session.appliedTareRequestId != session.retareRequestId ||
+      zero.connectionGeneration != session.tareConnectionGeneration ||
+      zero.connectionGeneration != link.connectionGeneration ||
+      link.state != ScaleLinkState::CONNECTED ||
+      zero.packetSequence == 0 || session.retareZeroCaptureSequence == 0 ||
+      static_cast<int32_t>(atMs - session.startedAtMs) < 0 ||
+      static_cast<int32_t>(session.retareZeroCaptureSequence - session.tareCaptureBoundary) <= 0 ||
+      static_cast<int32_t>(atMs - session.postTareBaselineDeadlineMs) >= 0 ||
+      static_cast<int32_t>(millis() - atMs) < 0 ||
+      elapsedMs(atMs) > MAX_AUTOMATION_WEIGHT_AGE_MS ||
+      !std::isfinite(zero.weightG) ||
+      fabsf(zero.weightG) > POST_TARE_BASELINE_MAX_ABS_G ||
+      (!session.active && (!pendingFinalize.pending ||
+       pendingFinalize.cycleId != session.id ||
+       static_cast<int32_t>(atMs - pendingFinalize.endedAtMs) > 0))) return;
+  session.retareEffectPending = false;
+  session.tareCaptureBoundary = session.retareZeroCaptureSequence;
+  session.firstDropMs = 0;
+  shotCurveSampler.firstDrop = missingShotCurveEvent();
   markTareZeroReady();
-  resetDirectStopConfirmation();
+  if (session.active) {
+    session.awaitingPostTareBaseline = false;
+    holdCupPresenceTransitions(false);
+  }
+  if (pendingFinalize.pending && pendingFinalize.cycleId == session.id) {
+    pendingFinalize.firstDropDs = SHOT_LOG_METRIC_MISSING;
+    pendingFinalize.curve.firstDrop = missingShotCurveEvent();
+    PersistedLastShot last;
+    {
+      const TaskLockGuard lock(shotStoreMutex);
+      last = persistedLastShot;
+    }
+    if (last.valid && last.cycleId == session.id) {
+      last.firstDropElapsedMs = 0;
+      persistLastShotSnapshot(last);
+    }
+  }
 }
 
 bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
@@ -506,6 +568,17 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
     if (packetSequence == 0) {
       packetSequence = 1;
     }
+  }
+  if (session.retarePerformed &&
+      (session.retareEffectPending || session.appliedTareRequestId != session.retareRequestId) &&
+      fabsf(weight) <= POST_TARE_BASELINE_MAX_ABS_G &&
+      connectionGeneration == getScaleLinkSnapshot().connectionGeneration &&
+      (!session.hasWeightAnchor ||
+       (static_cast<int32_t>(receivedAtMs - session.lastAcceptedWeightAtMs) > 0 &&
+        static_cast<int32_t>(packetSequence - session.lastAcceptedPacketSequence) > 0))) {
+    session.retareZeroSample = {weight, receivedAtMs, packetSequence, connectionGeneration};
+    session.retareZeroCaptureSequence = captureSequence;
+    confirmLateRetareBaseline();
   }
 
   if ((runtimeConfig.autoTareOutsideBrew || idleTare.requestId != 0) &&
@@ -554,8 +627,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   }
   if (cupEvent == CupPresenceEvent::PLACED && session.active &&
       session.startedWithScale && retareWindowOpen() &&
-      !session.awaitingPostTareBaseline && !session.flowDuringRetare &&
-      session.firstDropMs == 0 && weight >= MIN_AUTOMATION_WEIGHT_G &&
+      !session.awaitingPostTareBaseline && weight >= MIN_AUTOMATION_WEIGHT_G &&
       weight <= MAX_AUTOMATION_WEIGHT_G) {
     performAutomaticRetare();
   }
@@ -605,7 +677,12 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
     return false;
   }
 
+  if (session.awaitingPostTareBaseline && session.retareEffectPending) {
+    if (static_cast<int32_t>(receivedAtMs - session.postTareBaselineDeadlineMs) >= 0)
+      expirePostTareBaselineIfNeeded();
+  }
   if (session.awaitingPostTareBaseline) {
+    if (session.retareEffectPending) return false;
     if (fabsf(weight) <= POST_TARE_BASELINE_MAX_ABS_G) {
       session.awaitingPostTareBaseline = false;
       holdCupPresenceTransitions(false);
@@ -753,7 +830,7 @@ bool pendingFinalizeIsRinse(const PendingShotFinalize &snapshot) {
 }
 
 void captureLateTareCompletion(uint32_t throughMs = millis()) {
-  if (!session.retarePerformed || session.retareAtMs != 0) return;
+  if (!session.retarePerformed) return;
   const ScaleEvent result = copyScaleShotTareResult();
   if (!result.writeSucceeded || result.cycleId != session.id ||
       result.cupWeightRequestId != session.retareRequestId) return;
@@ -764,6 +841,8 @@ void captureLateTareCompletion(uint32_t throughMs = millis()) {
   if (!session.active &&
       (!pendingFinalize.pending || pendingFinalize.cycleId != session.id ||
        static_cast<int32_t>(result.receivedAtMs - pendingFinalize.endedAtMs) > 0)) return;
+  applyShotTareResult(result);
+  if (session.retareAtMs != 0) return;
   session.retareAtMs = result.receivedAtMs;
   if (pendingFinalize.pending && pendingFinalize.cycleId == session.id) {
     pendingFinalize.tareAtDs = static_cast<uint16_t>((result.receivedAtMs - anchor) / 100U);
@@ -1020,6 +1099,7 @@ void queueWebhookEnd(const PendingShotFinalize &snapshot, float finalWeightG,
       brewEndIsAbandonedStart(snapshot.endReason)) {
     return;
   }
+#endif
   WebhookEvent event = baseWebhookEvent(WebhookEventType::END, snapshot.cycleId,
                                         snapshot.endedAtMs);
   event.unixSec = snapshot.endedAtHasWallTime ? snapshot.endedAtUtcSec : 0;
@@ -1052,11 +1132,10 @@ void queueWebhookEnd(const PendingShotFinalize &snapshot, float finalWeightG,
       event.averageFlowValid = std::isfinite(event.averageFlowGps);
     }
   }
+#ifndef SHOT_STOPPER_HOST_TEST
   (void)networkManager.enqueueWebhook(event);
 #else
-  (void)snapshot;
-  (void)finalWeightG;
-  (void)finalWeightValid;
+  hostWebhookEndEvent = event;
 #endif
 }
 

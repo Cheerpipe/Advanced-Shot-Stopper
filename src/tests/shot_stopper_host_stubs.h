@@ -472,6 +472,7 @@ class EspressoScaleBLE {
   }
   ScaleCommandResult tare(const ScaleCommandAdmission *admission = nullptr) {
     if (!approveCommand(admission)) return ScaleCommandResult::Deferred;
+    if (duringTareWrite) duringTareWrite();
     commandLog.push_back("tare");
     ++tareCalls;
     return runCommand(tareSucceeds);
@@ -732,6 +733,7 @@ class EspressoScaleBLE {
   uint32_t weightCapturedAtMs = UINT32_MAX;
   uint32_t weightCaptureSequence = 0;
   std::function<void()> beforeCommandAdmission;
+  std::function<void()> duringTareWrite;
   bool timerValid = false;
   uint32_t timerMs = 0;
   uint32_t timerAgeMs = 0;

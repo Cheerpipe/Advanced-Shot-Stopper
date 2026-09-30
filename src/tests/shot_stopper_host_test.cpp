@@ -231,6 +231,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   hostSettingsPersistRollbackDeletes = 0;
   hostPresetWebhookCount = 0;
   hostQuickSettingsWebhookCount = 0;
+  hostFirstDropWebhookCount = 0;
+  hostWebhookEndEvent = WebhookEvent{};
   hostControllerStartedWebhookCount = 0;
   hostControllerStartedWebhookSucceeds = true;
   hostControllerStartedWebhookBuildGuard = nullptr;
@@ -537,6 +539,7 @@ void publishWeight(float weight, uint32_t receivedAtMs = UINT32_MAX,
   event.connectionGeneration = generation;
   event.packetSequence = sequence;
   event.weightG = weight;
+  if (session.active) event.captureSequence = ++scale.weightCaptureSequence;
   CHECK(publishScaleEvent(event, false));
   processScaleWorkerEvents();
 }
@@ -8210,10 +8213,10 @@ void cw07_late_retare_and_disabled_automation() {
     idleCup(0.0f);
     session.flowDuringRetare = flow;
     idleCup(80.0f);
-    CHECK(session.retarePerformed == !flow);
-    if (!flow) CHECK(executeNextScaleCommand());
+    CHECK(session.retarePerformed);
+    CHECK(executeNextScaleCommand());
     CHECK(captureCupTareDiagnostics().weightValid);
-    if (!flow) CHECK(captureCupTareDiagnostics().weightG == 80.0f);
+    CHECK(captureCupTareDiagnostics().weightG == 80.0f);
   }
   for (bool bbw : {false, true}) {
     resetHarness(false, true);
@@ -11044,7 +11047,7 @@ void rs04_zero_min_duration_retares_on_sample_count_only() {
   CHECK(session.retarePerformed);
 }
 
-void rs05_coffee_during_min_duration_wait_skips_retare() {
+void rs05_coffee_during_min_duration_wait_allows_retare() {
   resetHarness(false, true);
   reachReadyFromBoot();
   runtimeConfig.autoRetare = true;
@@ -11057,7 +11060,7 @@ void rs05_coffee_during_min_duration_wait_skips_retare() {
   CHECK(session.firstDropMs != 0);
   CHECK(session.flowDuringRetare);
   publishStableCupWeight(150.0f, 30);
-  CHECK(!session.retarePerformed);
+  CHECK(session.retarePerformed);
   CHECK(session.retareFlowFirstDetectedAtMs != 0);
 }
 
@@ -11102,6 +11105,292 @@ void rt11_late_retare_records_first_drops_and_keeps_weight_control() {
   CHECK(scaleBeepPending);
   CHECK(session.weightControlState == WeightControlState::ACTIVE);
   CHECK(!session.flowDuringRetare);
+}
+
+void rs06_late_retare_corrects_only_confirmed_first_drop() {
+  // Replacement, no replacement, failure, timeout, buffered zero, zero during
+  // write, queue overflow, wrong request/cycle, reconnect, zero after end,
+  // delayed pre-end evidence, completion after end, missing result, expired
+  // effect, stale/future evidence, and wraparound.
+  for (unsigned mode = 0; mode < 20; ++mode) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.autoRetare = true;
+    runtimeConfig.firstDropBeep = mode != 18;
+    runtimeConfig.retareWindowMs = 4000;
+    runtimeConfig.bbwProtectionMs = minimumBbwProtectionMs(runtimeConfig);
+    if (mode == 17) hostMillis = UINT32_MAX - 3100U;
+    startCycle();
+    CHECK(executeNextScaleCommand());
+    establishPostTareBaseline();
+    const uint32_t start = session.startedAtMs;
+    hostMillis = start + 2650U;
+    simulateFirstDrops();
+    CHECK(session.firstDropMs == start + 2700U);
+    const uint32_t original = session.firstDropMs;
+    const ShotCurveEvent marker = shotCurveSampler.firstDrop;
+    CHECK(shotCurveEventPresent(marker));
+    CHECK(hostFirstDropWebhookCount == 1);
+    CHECK(session.firstDropsBeepSent == (mode != 18));
+    publishStableCupWeight(80.0f, 30);
+    CHECK(session.retarePerformed);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+    CHECK(session.firstDropMs == original);
+    ScaleCommand command;
+    CHECK(xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE);
+    if (mode == 2) scale.tareSucceeds = false;
+    if (mode == 7) ++command.cupWeightRequestId;
+    if (mode == 8) ++command.cycleId;
+    if (mode == 5) scale.duringTareWrite = [] {
+      publishWeight(0.0f, hostMillis + 1, 1, 40);
+      CHECK(session.firstDropMs != 0); // Effect without result is insufficient.
+    };
+    if (mode == 6) {
+      ScaleEvent filler;
+      filler.type = ScaleEventType::TIMER_STOP_RESULT;
+      while (xQueueSend(scaleEventQueue, &filler, 0) == pdTRUE) {}
+    }
+    if (mode == 10 || mode == 11 || mode == 12) hostMillis = start + 13800U;
+    if (mode == 12) hostMillis = start + 14100U;
+    executeScaleCommand(command);
+    scale.duringTareWrite = nullptr;
+    const ScaleEvent result = copyScaleShotTareResult();
+    if (mode == 13) {
+      shotTareResult = ScaleEvent{};
+      ScaleEvent ignored;
+      while (xQueueReceive(scaleEventQueue, &ignored, 0) == pdTRUE) {}
+      scaleCriticalEventPending = false;
+    }
+    if (mode == 9) {
+      setScaleConnected(false);
+      setScaleConnected(true);
+    }
+    if (mode == 10 || mode == 11 || mode == 12) {
+      if (mode == 11) {
+        ScaleEvent zero;
+        zero.type = ScaleEventType::WEIGHT;
+        zero.weightG = 0.0f;
+        zero.receivedAtMs = start + 13900U;
+        zero.captureSequence = result.captureSequence + 1U;
+        zero.packetSequence = 40;
+        CHECK(publishScaleEvent(zero, false));
+      }
+      hostMillis = start + 14000U;
+      schedulePendingShotFinalize(EndReason::ACTIVATOR, 14000);
+      persistLastShotFromEndedCycle(EndReason::ACTIVATOR, 14000);
+      session.active = false;
+      session.awaitingPostTareBaseline = false;
+      hostMillis = start + 14200U;
+    }
+    processScaleWorkerEvents();
+    if (mode == 19) {
+      hostMillis = start + 14000U;
+      CHECK(finalizeCycle(EndReason::ACTIVATOR, StopperState::READY));
+      setRawPaddle(false);
+      runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+      startCycle();
+      while (executeNextScaleCommand()) {}
+      establishPostTareBaseline();
+      simulateFirstDrops();
+      const uint32_t newer = session.firstDropMs;
+      CHECK(newer != 0 && session.id != result.cycleId);
+      CHECK(publishScaleEvent(result, true));
+      processScaleWorkerEvents();
+      publishWeight(0.0f, hostMillis + 1);
+      CHECK(session.firstDropMs == newer);
+      CHECK(shotCurveEventPresent(shotCurveSampler.firstDrop));
+      continue;
+    }
+    if (mode != 5 && mode != 11) CHECK(session.firstDropMs == original);
+    if (mode == 3 || mode == 14) {
+      hostMillis = result.receivedAtMs + session.config.postTareBaselineGraceMs;
+      CHECK(expirePostTareBaselineIfNeeded());
+    }
+    if (mode != 3 && mode != 5 && mode != 11) {
+      ScaleEvent zero;
+      zero.type = ScaleEventType::WEIGHT;
+      zero.weightG = 0.0f;
+      zero.receivedAtMs = hostMillis + 10U;
+      zero.packetSequence = 40;
+      zero.captureSequence = result.captureSequence + 1U;
+      if (mode == 4) zero.captureSequence = result.captureSequence;
+      if (mode == 15) zero.receivedAtMs = hostMillis - MAX_AUTOMATION_WEIGHT_AGE_MS - 1U;
+      if (mode == 16) zero.receivedAtMs = hostMillis + 100U;
+      if (mode != 16) hostMillis += 10U;
+      CHECK(publishScaleEvent(zero, false));
+      processScaleWorkerEvents();
+    }
+    const bool corrected = mode == 0 || mode == 1 || mode == 5 ||
+                           mode == 6 || mode == 11 || mode == 17 || mode == 18;
+    CHECK(session.firstDropMs == (corrected ? 0U : original));
+    CHECK(shotCurveEventPresent(shotCurveSampler.firstDrop) == !corrected);
+    CHECK(session.startedAtMs == start);
+    CHECK(session.firstDropObserved);
+    observeMachineSenseFromSession(getScaleLinkSnapshot());
+    CHECK(machineSense.firstDropSeen);
+    publishControlStatus();
+    if (session.active)
+      CHECK(publishedControlStatus.cycleFirstDropMs == session.firstDropMs);
+    CHECK(hostFirstDropWebhookCount == 1);
+    CHECK(session.firstDropsBeepSent == (mode != 18));
+    if (mode == 0 || mode == 17 || mode == 18) {
+      simulateFirstDrops(0.0f, 50);
+      CHECK(session.firstDropMs != 0 && session.firstDropMs != original);
+      CHECK(shotCurveSampler.firstDrop.atDs > marker.atDs);
+      CHECK(hostFirstDropWebhookCount == 1);
+      applyShotTareResult(result); // Duplicate cannot erase the replacement.
+      CHECK(session.firstDropMs != 0);
+      CHECK(!session.awaitingPostTareBaseline);
+    }
+    if (mode == 0 || mode == 1 || mode == 11) {
+      if (session.active) {
+        hostMillis = start + 14000U;
+        schedulePendingShotFinalize(EndReason::ACTIVATOR, 14000);
+        persistLastShotFromEndedCycle(EndReason::ACTIVATOR, 14000);
+        session.active = false;
+      }
+      CHECK(pendingFinalize.tareAtDs != SHOT_LOG_METRIC_MISSING);
+      CHECK((pendingFinalize.firstDropDs == SHOT_LOG_METRIC_MISSING) == (mode != 0));
+      CHECK((persistedLastShot.firstDropElapsedMs == 0) == (mode != 0));
+      CHECK(persistedLastShot.tareElapsedMs != 0);
+      commitPendingShotLog(pendingFinalize, 36.0f, true, ActualWeightSource::LAST_KNOWN);
+      ShotLogRecord saved{};
+      CHECK(shotLog.copyNewestFirst(&saved, 1) == 1);
+      CHECK(saved.firstDropDs == pendingFinalize.firstDropDs);
+      CHECK((saved.avgFlowCgS == SHOT_LOG_METRIC_MISSING) == (mode != 0));
+      CHECK(shotCurveEventPresent(pendingFinalize.curve.firstDrop) == (mode == 0));
+      queueWebhookEnd(pendingFinalize, 36.0f, true);
+      CHECK(hostWebhookEndEvent.firstDropValid == (mode == 0));
+      CHECK(hostWebhookEndEvent.averageFlowValid == (mode == 0));
+    }
+  }
+}
+
+void rs07_late_retare_preserves_prerequisites_and_deadline() {
+  for (unsigned mode = 0; mode < 10; ++mode) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.autoRetare = mode != 0;
+    runtimeConfig.autoTare = mode != 1;
+    runtimeConfig.timerOnly = mode == 2;
+    runtimeConfig.retareWindowMs = 4000;
+    runtimeConfig.retareStabilitySamples = 3;
+    runtimeConfig.retareStabilityMinDurationMs = 300;
+    if (mode == 9) seedCupPresence(80.0f);
+    startCycle();
+    CHECK(executeNextScaleCommand());
+    establishPostTareBaseline();
+    const uint32_t start = session.startedAtMs;
+    hostMillis = start + 2650U;
+    simulateFirstDrops();
+    const uint32_t original = session.firstDropMs;
+    CHECK(original != 0);
+    if (mode == 8) {
+      ScaleCommand filler;
+      filler.type = ScaleCommandType::STOP_TIMER;
+      while (xQueueSend(scaleCommandQueue, &filler, 0) == pdTRUE) {}
+    }
+    if (mode == 4) hostMillis = start + 3700U; // Qualifies exactly at deadline.
+    if (mode == 5) hostMillis = start + 3701U;
+    if (mode == 6) hostMillis = start + 3900U; // Stability crosses deadline.
+    if (mode == 7) hostMillis = start + 3699U;
+    if (mode != 3) publishStableCupWeight(80.0f, 30);
+    CHECK(session.retarePerformed == (mode == 7));
+    CHECK(session.firstDropMs == original);
+    CHECK(session.startedAtMs == start);
+    CHECK(hostFirstDropWebhookCount == 1);
+    if (mode != 7) {
+      hostMillis = start + 14000U;
+      serviceBbwProtectionPhases();
+      schedulePendingShotFinalize(EndReason::ACTIVATOR, 14000);
+      CHECK(pendingFinalize.firstDropDs != SHOT_LOG_METRIC_MISSING);
+      CHECK(shotCurveEventPresent(pendingFinalize.curve.firstDrop));
+    }
+  }
+}
+
+void rs08_first_drop_while_retare_pending_keeps_stop_protections() {
+  for (unsigned mode = 0; mode < 3; ++mode) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.autoRetare = true;
+    runtimeConfig.firstDropBeep = mode != 0;
+    runtimeConfig.cupProtectionEnabled = true;
+    runtimeConfig.stopIfCupRemoved = true;
+    runtimeConfig.bbwProtectionMs = minimumBbwProtectionMs(runtimeConfig);
+    startCycle();
+    CHECK(executeNextScaleCommand());
+    establishPostTareBaseline();
+    runLoopAfter(1000);
+    publishStableCupWeight(80.0f, 10);
+    CHECK(session.retarePerformed && session.firstDropMs == 0);
+    publishWeight(0.0f, hostMillis + 50, 1, 20);
+    simulateFirstDrops(0.0f, 21); // First event arrives after command admission.
+    const uint32_t original = session.firstDropMs;
+    CHECK(original != 0);
+    CHECK(executeNextScaleCommand());
+    CHECK(session.firstDropMs == original);
+    establishPostTareBaseline();
+    CHECK(session.firstDropMs == 0);
+    CHECK(shouldTrackWeight());
+    CHECK(bbwWeightStopInhibited());
+    CHECK(!automaticScaleStopDue());
+    if (mode == 0) {
+      reachSessionElapsed(HARD_MAX_CIRCUIT_CLOSED_MS);
+      CHECK(!getRelaySafetySnapshot().closed);
+      CHECK(session.endReason == EndReason::GLOBAL_LIMIT);
+    } else if (mode == 1) {
+      hostMillis = session.startedAtMs + session.config.bbwProtectionMs + 1U;
+      serviceBbwProtectionPhases();
+      publishStableCupWeight(36.0f, 40);
+      CHECK(session.firstDropMs == 0);
+      CHECK(automaticScaleStopDue());
+    } else {
+      publishWeight(-80.0f, hostMillis + 50, 1, 40);
+      publishWeight(-80.0f, hostMillis + 100, 1, 41);
+      CHECK(session.cupRemovedPending);
+      loop();
+      CHECK(session.endReason == EndReason::CUP_REMOVED);
+      CHECK(!getRelaySafetySnapshot().closed);
+    }
+  }
+}
+
+void rs09_retained_completion_after_reconnect_confirms_zero() {
+  for (bool duringWrite : {false, true}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    setScaleConnected(false);
+    setScaleConnected(true);
+    runtimeConfig.autoRetare = true;
+    publishWeight(0.0f, hostMillis + 50);
+    startCycle();
+    CHECK(executeNextScaleCommand());
+    establishPostTareBaseline();
+    for (float weight : {0.35f, 0.40f, 0.45f})
+      publishWeight(weight, hostMillis + 100);
+    CHECK(session.firstDropMs != 0);
+    idleCup(80.0f);
+    CHECK(session.retarePerformed);
+    if (duringWrite) scale.duringTareWrite = [] {
+      publishWeight(0.0f, hostMillis + 1);
+    };
+    ScaleCommand command;
+    CHECK(xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE);
+    executeScaleCommand(command);
+    scale.duringTareWrite = nullptr;
+    CHECK(copyScaleShotTareResult().connectionGeneration > 1);
+    CHECK(getScaleLinkSnapshot().disconnectSequence != 0);
+    ScaleEvent discarded;
+    while (xQueueReceive(scaleEventQueue, &discarded, 0) == pdTRUE) {}
+    scaleCriticalEventPending = false;
+    processScaleWorkerEvents(); // Only the retained worker completion survives.
+    if (!duringWrite) publishWeight(0.0f, hostMillis + 1);
+    CHECK(session.retareAtMs != 0);
+    CHECK(session.firstDropMs == 0);
+    CHECK(!session.awaitingPostTareBaseline);
+    CHECK(!shotCurveEventPresent(shotCurveSampler.firstDrop));
+  }
 }
 
 void rt12_early_retare_then_first_drops_are_recorded() {
@@ -17742,7 +18031,11 @@ const TestCase testCases[] = {
     {"RS02", rs02_slow_samples_meet_min_duration_at_third_sample},
     {"RS03", rs03_broken_streak_before_min_duration_does_not_retare},
     {"RS04", rs04_zero_min_duration_retares_on_sample_count_only},
-    {"RS05", rs05_coffee_during_min_duration_wait_skips_retare},
+    {"RS05", rs05_coffee_during_min_duration_wait_allows_retare},
+    {"RS06", rs06_late_retare_corrects_only_confirmed_first_drop},
+    {"RS07", rs07_late_retare_preserves_prerequisites_and_deadline},
+    {"RS08", rs08_first_drop_while_retare_pending_keeps_stop_protections},
+    {"RS09", rs09_retained_completion_after_reconnect_confirms_zero},
     {"R46", r46_range_rejection_emits_specific_debug_code},
     {"R47", r47_reset_reason_name_maps_known_codes},
     {"W01", w01_default_runtime_configuration_is_valid},

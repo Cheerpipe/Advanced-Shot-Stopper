@@ -40,6 +40,15 @@ results are drained before the weight FIFO. A successful shot tare installs its
 capture boundary once per request ID; older or duplicate results cannot re-arm
 the baseline, and buffered samples at or before that boundary cannot enter cup,
 flow, or trajectory evidence.
+The existing retained successful late-tare result also installs that boundary
+when its queue event is lost. Control keeps one near-zero sample while its
+completion is pending so result/sample processing order does not lose valid
+effect evidence. Confirmation requires the same request, cycle and connection,
+a capture sequence after the boundary, and a fresh timestamp within the
+completion-anchored grace and shot end. Clearing first-drop data and pending
+finalization projections remains exclusively control-owned.
+Confirmation advances the sample boundary through the observed zero, so older
+buffered samples cannot seed a replacement first-flow candidate or machine sense.
 Weight delivery uses a fixed 16-event FIFO under its existing task mutex;
 overflow explicitly invalidates sample evidence instead of silently joining
 nonconsecutive readings. No parsing or cup-state transition runs under that

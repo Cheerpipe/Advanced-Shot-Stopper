@@ -57,6 +57,7 @@ bool expirePostTareBaselineIfNeeded() {
     return false;
   }
   session.awaitingPostTareBaseline = false;
+  session.retareEffectPending = false;
   addDebugEvent(DebugCategory::SCALE,
                 DebugCode::SCALE_POST_TARE_BASELINE_TIMEOUT,
                 static_cast<int32_t>(session.id),

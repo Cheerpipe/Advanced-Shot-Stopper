@@ -105,17 +105,30 @@ cups around 12–20 g use this same setting). When a cup is **placed** inside
 the **retare window** (default **4 s**), the firmware tares again
 once—automatically—without restarting the shot timer.
 
-Putting the cup down is not first drop and does not block retare, whether
-the cup is a light cardboard cup just above the configured minimum or a
-heavier ceramic cup. A finger tap is also not first drop. After the late
-tare, post-tare grace runs again so the empty-cup weight cannot cut the
-shot; [Cup protection](cup-protection.md) still blocks weight stop for the
+An earlier first-drop detection does not block a qualified late cup, whether
+it is a light cardboard cup or a heavier ceramic cup. Weight readings alone
+cannot always distinguish coffee from pressure or handling. A stable load
+that meets the cup-placement rules can trigger retare within the original
+window; detecting first drop does not extend that window.
+
+The earlier first-drop time stays recorded until the retare succeeds and a
+fresh reading confirms the new zero within post-tare grace. Then its time and
+chart marker are cleared, and later coffee can establish a replacement. If
+no new first drop is detected, first-drop time and average flow remain
+unavailable. A failed or unconfirmed retare keeps the earlier first drop.
+An already played first-drop sound or sent webhook cannot be recalled, and
+a replacement does not repeat either announcement.
+
+After the late tare, post-tare grace runs again so the empty-cup weight cannot
+cut the shot; [Cup protection](cup-protection.md) still blocks weight stop for the
 full BBW protection window. The tare moment is stored with the recorded shot
 and shown as **Tare time** on the shot cards, with a scale marker at that
 instant on the shot chart. The time is measured from the machine circuit
 closing, when the tare command completes successfully. Failed commands and
 tares completed after the shot ends do not add a tare time. A later Bluetooth
 disconnect does not erase a successful tare already recorded for the shot.
+Tare time reports command completion; it can be present even when the new
+zero was not confirmed and the earlier first-drop time was retained.
 Stopping the shot cancels a queued late tare that has not yet been sent.
 
 ## When it applies
