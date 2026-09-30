@@ -324,7 +324,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #presetRenameDialog{border:1px solid var(--ln);border-radius:var(--r);padding:1rem;max-width:min(22rem,calc(100vw - 2rem));background:var(--sf);color:var(--fg);box-shadow:0 1rem 3rem rgba(0,0,0,.25)}
 #presetRenameDialog::backdrop{background:rgba(23,21,19,.65)}
 
-.ruleChart{margin:.35rem 0 .15rem}
+.ruleChart{margin:1rem 0 .15rem}
 .ruleChartHead strong,.ruleChartMode{display:none}
 .ruleChartLegend{display:flex;flex-wrap:wrap;gap:.55rem;margin:0 0 .55rem;font-size:.75rem;font-weight:600}
 .ruleLeg{display:inline-flex;align-items:center;gap:.3rem}
