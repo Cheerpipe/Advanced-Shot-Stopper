@@ -503,20 +503,17 @@ void ShotStopperMicraService::publishNetworkState(bool staConnected,
     if (!staConnected || apActive) {
       clearSessionRequested_.store(true, std::memory_order_release);
     }
-  } else if (eligible) {
-    abortRequested_.store(false, std::memory_order_release);
-    if (!wasEligible) {
-      TaskLockGuard lock(mux_);
-      if (config_.accountConfigured &&
-          (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0) {
-        observationSchedule_.dueNow(millis());
-      }
-      if (desiredTemperature_.present) {
-        desiredTemperature_.retryAtMs = millis();
-      }
-      if (desiredPower_.present) {
-        desiredPower_.retryAtMs = millis();
-      }
+  } else if (eligible && !wasEligible) {
+    TaskLockGuard lock(mux_);
+    if (config_.accountConfigured &&
+        (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0) {
+      observationSchedule_.dueNow(millis());
+    }
+    if (desiredTemperature_.present) {
+      desiredTemperature_.retryAtMs = millis();
+    }
+    if (desiredPower_.present) {
+      desiredPower_.retryAtMs = millis();
     }
   }
   if (task_ != nullptr) xTaskNotifyGive(task_);
@@ -703,6 +700,8 @@ void ShotStopperMicraService::taskEntry(void *context) {
 
 void ShotStopperMicraService::taskLoop() {
   for (;;) {
+    // Only the idle owner consumes cancellation, before selecting new work.
+    abortRequested_.store(false, std::memory_order_release);
     if (clearSessionRequested_.exchange(false, std::memory_order_acq_rel)) {
       releaseWorkBuffer();
     }
@@ -786,7 +785,6 @@ void ShotStopperMicraService::taskLoop() {
       }
     }
     if (haveRequest) {
-      abortRequested_.store(false, std::memory_order_release);
       if (haveTemperature) {
         executeTemperatureApplication(pending.request,
                                       temperatureMachineConfigGeneration);
@@ -2025,7 +2023,8 @@ bool ShotStopperMicraService::request(
     performed = esp_http_client_perform(work_->client);
     if (!requestAllowed()) {
       canceled = true;
-      if (performed == ESP_OK) performed = ESP_FAIL;
+      performed = ESP_FAIL;
+      break;
     } else if (performed == ESP_OK &&
                static_cast<uint32_t>(millis() - requestStartedAtMs) >=
                    micra_timing::kHttpTimeoutMs) {
@@ -2041,7 +2040,7 @@ bool ShotStopperMicraService::request(
     (void)finishHeapLifecycle(
         tlsHeap_, performed == ESP_OK
                       ? HeapLifecycleResult::SUCCESS
-                      : (abortRequested_.load(std::memory_order_acquire)
+                      : (canceled
                              ? HeapLifecycleResult::CANCELLED
                              : HeapLifecycleResult::FAILURE),
         heapAfter);
@@ -2110,7 +2109,6 @@ bool ShotStopperMicraService::ensureIoBuffer() {
 void ShotStopperMicraService::clearSession() {
   releaseIoBuffer();
   if (work_ == nullptr) return;
-  abortRequested_.store(false, std::memory_order_release);
   secureWipe(work_->accessToken, sizeof(work_->accessToken));
   secureWipe(work_->refreshToken, sizeof(work_->refreshToken));
   work_->publicIdentity.clear();

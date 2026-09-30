@@ -55,6 +55,12 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | USB application output | core-0 `serial_log` task | the eight-record ESP-log queue stays internal for cache-off logging; the bounded 2.5 KiB CLI reply lives in PSRAM and transfers without copying or waiting |
 | cJSON document | parsing caller | PSRAM allocations through process-wide hooks installed once before BLE workers and HTTP start; `cJSON_Delete` releases each independent document |
 
+Micra cancellation stays latched throughout the active cloud operation, including
+session renewal. Network recovery and session cleanup cannot clear it. Only the
+idle cloud worker consumes it before selecting the next operation; once observed,
+cancellation ends HTTP progress immediately, including an `EAGAIN` result. Client
+cleanup remains on that worker after HTTP progress returns.
+
 `initJsonParser()` installs the cJSON allocator once, before concurrent users
 start. No caller may replace the process-wide hooks afterward. This is not a
 resettable arena: simultaneous documents never share storage, and allocation

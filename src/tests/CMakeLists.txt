@@ -31,6 +31,20 @@ host_test(power_policy_host_test DEFINITIONS SHOT_STOPPER_HOST_TEST
   LABEL "host;control;concurrency")
 host_test(timezone_host_test LABEL "host;time")
 
+# Exercise actual Micra method bodies with deterministic task/HTTP shims.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(micra_source "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMicraService.cpp")
+set(micra_extract "${CMAKE_CURRENT_SOURCE_DIR}/extract_micra_cancellation.py")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  "${micra_source}" "${micra_extract}")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${micra_extract}"
+  "${micra_source}" "${CMAKE_CURRENT_BINARY_DIR}"
+  COMMAND_ERROR_IS_FATAL ANY)
+host_test(micra_cancellation_host_test DEFINITIONS SHOT_STOPPER_HOST_TEST
+  LABEL "host;network;control;concurrency")
+target_include_directories(micra_cancellation_host_test PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/micra_stubs" "${CMAKE_CURRENT_BINARY_DIR}")
+
 if(SHOTSTOPPER_SANITIZER STREQUAL "thread")
   foreach(case M09 R25c F03 F04 F17 IT10 IT28 SH01)
     host_test(shot_stopper_tsan_${case}

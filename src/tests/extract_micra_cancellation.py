@@ -1,0 +1,37 @@
+"""Compile unchanged Micra cancellation paths without the ESP-IDF TLS stack."""
+from pathlib import Path
+import re
+import sys
+
+source, output = map(Path, sys.argv[1:])
+text = source.read_text()
+
+
+def definition(name):
+    # Top-level definitions end at column zero; keep their bodies verbatim.
+    match = re.search(r"^(?:bool|void|uint8_t|struct) " + re.escape(name)
+                      + r"(?:\(| \{)", text, re.M)
+    if match is None:
+        raise ValueError(f"Missing production definition: {name}")
+    end = text.index("\n}", match.start()) + 2
+    if text[end:end + 1] == ";":
+        end += 1
+    line = text.count("\n", 0, match.start()) + 1
+    return f'#line {line} "{source.as_posix()}"\n' + text[match.start():end]
+
+
+names = ["secureWipe", "powerOptionBit", "sameSessionIdentity"]
+names += ["ShotStopperMicraService::" + name for name in
+          ["WorkBuffer", "publishConfig", "publishNetworkState", "queue",
+           "taskLoop", "clearSession"]]
+output.mkdir(parents=True, exist_ok=True)
+(output / "micra_cancellation_methods.inc").write_text(
+    "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"
+    + "\n".join(map(definition, names)) + "\n}\n")
+request = text.index("bool ShotStopperMicraService::request(")
+gate = text.index("  const auto requestAllowed =", request)
+gate_end = text.index("\n  };", gate) + len("\n  };")
+loop = text.index("  esp_err_t performed =", request)
+loop_end = text.index("  const HeapCapSnapshot heapAfter", loop)
+(output / "micra_cancellation_progress.inc").write_text(
+    text[gate:gate_end] + "\n" + text[loop:loop_end])

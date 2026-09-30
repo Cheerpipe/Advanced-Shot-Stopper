@@ -39,6 +39,9 @@ class ShotStopperMicraService {
   }
 
  private:
+#if defined(SHOT_STOPPER_HOST_TEST)
+  friend struct MicraCancellationTest;
+#endif
   struct IoBuffer;
   struct WorkBuffer;
   struct RequestStateGuard;
