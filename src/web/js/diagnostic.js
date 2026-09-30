@@ -29,20 +29,20 @@ const data=await R.api('/api/v1/debug/export',{timeoutMs:3e4});if(!data||typeof 
 
 let crashBusy=false;
 function applyLoopTiming(s){
-  const rows=(s.tasks?.rows||[]).filter(r=>r.name?.startsWith('loopTask/'));
+  const tasks=s.tasks||{},rows=(tasks.rows||[]).filter(r=>r.name?.startsWith('loopTask/'));
   const body=$('loopTimingBody');body.replaceChildren();
   const ms=us=>(Math.max(0,us)/1000).toFixed(2)+' ms';
   const add=values=>{const tr=body.insertRow();for(const value of values)tr.insertCell().textContent=value};
-  const recent=s.health.loopIntervalGapMs||0,peak=s.health.loopMaxGapMs||0;
-  const recentReady=s.tasks?.recentGapMs===recent;
-  const peakReady=s.tasks?.peakGapMs===peak;
+  const recentReady=rows.length&&Number.isFinite(tasks.recentGapMs);
+  const peakReady=tasks.peakGapMs===(s.health.loopMaxGapMs||0);
+  $('hLoopGap').textContent=recentReady?tasks.recentGapMs+' ms':'—';
   let recentTotal=0,peakTotal=0;
   for(const r of rows){
     const a=r.recentGapExecutionUs,b=r.peakGapExecutionUs;
     recentTotal+=a;peakTotal+=b;
     add([r.name.slice(9),recentReady?ms(a):'—',peakReady?ms(b):'—']);
   }
-  const tail=(k,total)=>{const d=s.tasks[k+'DelayUs'],q=s.tasks[k+'DispatchUs'];return[d,q,s.tasks[k+'GapUs']-total-d-q]};
+  const tail=(k,total)=>{const d=tasks[k+'DelayUs'],q=tasks[k+'DispatchUs'];return[d,q,tasks[k+'GapUs']-total-d-q]};
   const a=tail('recent',recentTotal),b=tail('peak',peakTotal);
   [__WEBUI_TEXT__("diagnostic.delay_call"),__WEBUI_TEXT__("diagnostic.loop_dispatch"),__WEBUI_TEXT__("diagnostic.other_timing")].forEach((label,i)=>
     add([label,recentReady?ms(a[i]):'—',peakReady?ms(b[i]):'—']));

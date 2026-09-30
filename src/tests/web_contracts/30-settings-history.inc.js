@@ -387,8 +387,6 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !ui.includes('function updH(') ||
       !ui.includes('updH(s.health,s.safety)') ||
       !ui.includes('function applyDiagnosticStatus(') ||
-      !ui.includes('loopIntervalGapMs') ||
-      !ui.includes("s.health.loopIntervalGapMs+' ms'") ||
       !ui.includes("t('hLoopMax',s.health.loopMaxGapMs+") ||
       !ui.includes('h.uptimeMs') ||
       !ui.includes('h.minimumFreeHeapBytes') ||
@@ -592,8 +590,9 @@ if (!ui.includes('<legend>Brew</legend>') ||
     return {insertCell() { const cell = {textContent: ''}; cells.push(cell); return cell; }};
   }};
   const maximum = {textContent: '12 ms'};
+  const recent = {textContent: '5 ms'};
   const render = new Function('$', '__WEBUI_TEXT__', source.slice(first, last) +
-    ';return applyLoopTiming;')(id => id === 'loopTimingBody' ? table : maximum,
+    ';return applyLoopTiming;')(id => ({loopTimingBody: table, hLoopMax: maximum, hLoopGap: recent})[id],
     key => key);
   const status = {health: {loopIntervalGapMs: 5, loopMaxGapMs: 12}, tasks: {
     recentGapMs: 5, peakGapMs: 12, recentGapUs: 5000, peakGapUs: 12000,
@@ -603,7 +602,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
       recentGapExecutionUs: 180, peakGapExecutionUs: 2630,
       maxExecutionUs: 9999, lastExecutionUs: 9999}]}};
   render(status);
-  if (maximum.textContent !== '12 ms' ||
+  if (maximum.textContent !== '12 ms' || recent.textContent !== '5 ms' ||
       table.rows[0][1].textContent !== '0.18 ms' ||
       table.rows[0][2].textContent !== '2.63 ms' ||
       table.rows[1][0].textContent !== 'delay call' ||
@@ -615,11 +614,32 @@ if (!ui.includes('<legend>Brew</legend>') ||
       table.rows[3][2].textContent !== '0.47 ms') {
     throw new Error('Loop table must break down the two displayed gap events');
   }
-  status.tasks.recentGapMs = 4;
+  status.health.loopIntervalGapMs = 8;
   render(status);
-  if (table.rows[0][1].textContent !== '—' ||
-      table.rows[0][2].textContent !== '2.63 ms') {
-    throw new Error('Loop table must hide an unmatched recent gap snapshot');
+  if (recent.textContent !== '5 ms' ||
+      table.rows.map(row => row[1].textContent).join(',') !== '0.18 ms,3.60 ms,0.80 ms,0.42 ms') {
+    throw new Error('A newer health gap must not hide or relabel the published recent breakdown');
+  }
+  status.tasks.recentGapMs = 8;
+  status.tasks.recentGapUs = 8000;
+  render(status);
+  if (recent.textContent !== '8 ms' || table.rows[3][1].textContent !== '3.42 ms') {
+    throw new Error('The recent total and breakdown must advance together');
+  }
+  status.health.loopMaxGapMs = 0;
+  render(status);
+  if (table.rows.some(row => row[2].textContent !== '—')) {
+    throw new Error('Loop max reset must still hide the old peak breakdown');
+  }
+  delete status.tasks.recentGapMs;
+  render(status);
+  if (recent.textContent !== '—' || table.rows.some(row => row[1].textContent !== '—')) {
+    throw new Error('A missing recent sample must remain unavailable');
+  }
+  delete status.tasks;
+  render(status);
+  if (recent.textContent !== '—' || table.rows.some(row => row[1].textContent !== '—')) {
+    throw new Error('Missing task diagnostics must not throw or invent timing values');
   }
 }
 if (!ui.includes('id="shotTable"') ||

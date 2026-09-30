@@ -33,9 +33,10 @@ ratings and export behavior.
 ### Diagnostics
 
 Technical status for problem reports. A single indicator does not establish
-safe actuation. Loop gap is the largest gap between loop starts in the recent
-five-second window; Loop max is the largest since its last **Reset**. The table
-breaks down the phases from each of those two events, even when the CPU
+safe actuation. Loop gap is the largest gap between loop starts in the last
+completed five-second window; its value and table breakdown update together
+when the next measurement is available. Loop max is the largest since its last
+**Reset**. The table breaks down the phases from each of those two events, even when the CPU
 profiler is stopped. Delay call measures the pause until the task resumes,
 including scheduling; loop dispatch measures the time from that return to the
 next loop start. Other timing covers the remaining work outside the listed
