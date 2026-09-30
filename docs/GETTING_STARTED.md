@@ -39,11 +39,14 @@ can take the claim, and 15 minutes without using a control locks the page and
 stops polling. Scrolling does not keep it active; use Reload to resume.
 
 **While a page loads**: Home, Settings, Stats, History, Diagnostics, and Admin
-show the same full-screen loading view with the Open Brew by Weight mark, a
-moving wave, and **Loading…**. It appears as soon as you open a page, including
-when you return to one you have already visited. Controls appear directly in
-their current positions, without animating during loading or the fade. As soon
-as the page's data is ready, the loading view fades away in a quarter of a second.
+show a loading view with the Open Brew by Weight mark, a moving wave, and
+**Loading…**. Opening or refreshing the URL covers the whole screen. When you
+switch pages using the menu or the browser's Back and Forward buttons, it covers
+the content below the header, leaving the menu and its dividing line visible.
+It also appears when you return to a page you have already visited. Controls
+appear directly in their current positions, without animating during loading or
+the fade. As soon as the page's data is ready, the loading view fades away in a
+quarter of a second.
 Control animations work normally once the page is visible. Stats, History, and
 Settings use this single loading view rather than separate loading animations
 inside their sections.

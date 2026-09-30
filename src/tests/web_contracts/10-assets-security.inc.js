@@ -212,7 +212,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     const classList = set => ({add: (...names) => names.forEach(n => set.add(n)),
       remove: (...names) => names.forEach(n => set.delete(n))});
     let layouts = 0;
-    const overlay = {classList: classList(classes), setAttribute() {},
+    const overlay = {style: {}, classList: classList(classes), setAttribute() {},
       get offsetWidth() {assert.equal(bodyClasses.has('pageLoading'), true); layouts++; return 1;}};
     const context = vm.createContext({bootSeq: 0, homeBootDone: false,
       bootTimer: 0, fwReloading: false,
@@ -223,6 +223,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       clearTimeout() {}});
     vm.runInContext(overlaySource, context);
     const token = context.showPageBoot();
+    assert.equal(overlay.style.zIndex, '39', 'URL entry covers the header and content');
     assert.deepEqual([...classes], [], 'Page loading must appear immediately');
     assert.equal(bodyClasses.has('pageLoading'), true, 'Suppress control animations before loading');
     context.hideHomeBoot(token);
@@ -231,6 +232,8 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     assert.equal(bodyClasses.has('pageLoading'), true, 'Keep controls static throughout the fade');
     context.showPageBoot(); timers.shift()();
     assert.deepEqual([...classes], [], 'An old fade timer must not hide the next route');
+    const headerZ = Number(css.match(/\.topBar\{[^}]*z-index:(\d+)/)[1]);
+    assert.ok(Number(overlay.style.zIndex) < headerZ, 'Navigation leaves the complete responsive header and menu above loading');
     assert.equal(bodyClasses.has('pageLoading'), true, 'An old timer must not restore animations');
     context.hideHomeBoot(token);
     assert.deepEqual([...classes], [], 'An old route must not fade the current loading view');
