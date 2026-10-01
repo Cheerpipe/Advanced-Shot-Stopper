@@ -908,6 +908,16 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   assert.deepEqual(final.flowCurve,[null,null,2,2,null]);
   assert.equal(final.maxFlow,2);
   assert.equal(final.flowSegs[0].pts.at(-1).t,1);
+  const preciseEnd=model(trace([0,500,1000,1550,1570,1571],{endS:1.57,endCg:9999,durationS:1.5}));
+  assert.deepEqual(preciseEnd.flowCurve,[null,null,2,2,2,null],'exact cutoff preserves in-shot readings and excludes postdrip');
+  assert.equal(preciseEnd.pts.some(p=>p.t===1.55),true);
+  assert.deepEqual(model(trace([0,500,1001],{endS:1.001})).flowCurve,[null,null,2],
+    'decimal seconds must round back to exact integer milliseconds');
+  const preciseDrop=model(trace([0,1000,1050,2000,2050],{dropS:1.05,firstDropS:1}));
+  assert.deepEqual(preciseDrop.flowCurve,[null,null,null,null,2],
+    'exact curve drop takes priority over coarse scalar time and excludes earlier support');
+  const decimalDrop=model(trace([2007,2507,3007],{dropS:2.007}));
+  assert.deepEqual(decimalDrop.flowCurve,[null,null,2],'decimal rounding cannot reject support exactly at first drop');
   const falling=model({wAtMs:[0,500,1000,1500],wCg:[200,100,0,0],durationS:1.5});
   assert.deepEqual(falling.flowCurve,[null,null,0,0]);assert.equal(falling.maxFlow,0);
   const slope=model({wAtMs:[0,500,1000,1500,2000],wCg:[0,50,100,250,400],durationS:2});

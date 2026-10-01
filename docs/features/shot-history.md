@@ -169,6 +169,9 @@ scale from an interruption that the controller could not detect. Repeated weight
 are retained. When several readings share an arrival time, the last one supplies
 the endpoint; earlier readings at that time have no separate flow value.
 Event annotations and settled yield never enter the measured flow series.
+Flow calculations preserve first-drop and cutoff timing to the millisecond,
+so readings just before the cutoff remain available and a window cannot start
+before first drop.
 
 The cards call shot output **Yield** while chart, goal, scale, and cup labels
 continue to use Weight where they describe weight itself. **Avg flow** remains

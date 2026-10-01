@@ -92,7 +92,7 @@ if(!shot)return null;
 const w=Array.isArray(shot.wCg)?shot.wCg:[],at=shot.wAtMs,markers=shot.wBreakBefore??[];
 if(!Array.isArray(at)||at.length!==w.length||w.length>1201||!Array.isArray(markers)||markers.some((v,i)=>!Number.isInteger(v)||v<0||v>=w.length||(i&&v<=markers[i-1]))||at.some((t,i)=>!Number.isInteger(t)||t<0||t>60000||(i&&t<at[i-1])))return null;
 const breaks=new Set(markers),colors={bbw:'var(--ok)',fast:'#d97706',slow:'#2563eb',atm:'var(--mu)'},num=v=>v==null||!Number.isFinite(+v)?null:+v;
-const end=num(shot.endS),duration=num(shot.durationS),drop=num(shot.dropS)??num(shot.firstDropS),tare=num(shot.tareS),ext=num(shot.extendedS),atm=num(shot.atmS),clear=num(shot.atmClearedS),limit=(end??duration??Infinity)*1000;
+const end=num(shot.endS),duration=num(shot.durationS),drop=num(shot.dropS)??num(shot.firstDropS),tare=num(shot.tareS),ext=num(shot.extendedS),atm=num(shot.atmS),clear=num(shot.atmClearedS),limit=Math.round((end??duration??Infinity)*1000);
 const kind=t=>atm!=null&&t>=atm&&(clear==null||t<clear)?'atm':ext!=null&&t>=ext&&(shot.extractionExtended||shot.slowExtractionExtended)?shot.extractionExtended?'fast':'slow':'bbw';
 const transitions=[ext,atm,clear].filter(t=>t!=null).sort((a,b)=>a-b),segs=[],pts=[],flowSegs=[],flowCurve=Array(w.length).fill(null),observations=[];
 let maxFlow=null,segment=0,weightPrevious=null;
@@ -111,8 +111,8 @@ for(let i=0;i<w.length;i++){
  append(segs,p,weightPrevious,false);weightPrevious=p;pts.push(p);
  const last=observations.at(-1),gray=atm!=null&&p.t>=atm&&(clear==null||p.t<clear);
  if(gray){segment++;continue;}
- if(last&&atm!=null&&last.t<atm*1000&&at[i]>=atm*1000)segment++;
- if(last&&clear!=null&&last.t<clear*1000&&at[i]>=clear*1000)segment++;
+ if(last&&atm!=null&&last.t<Math.round(atm*1000)&&at[i]>=Math.round(atm*1000))segment++;
+ if(last&&clear!=null&&last.t<Math.round(clear*1000)&&at[i]>=Math.round(clear*1000))segment++;
  const observation={t:at[i],cg:w[i],index:i,segment};
  if(last&&last.segment===segment&&last.t===at[i])observations[observations.length-1]=observation;else observations.push(observation);
 }
@@ -123,7 +123,7 @@ for(let i=0;i<observations.length;i++){
  const span=Math.max(1000,p.t-previous.t),start=p.t-span;
  while(boundary+1<i&&observations[boundary+1].t<=start)boundary++;
  const a=observations[boundary],b=observations[boundary+1];
- if(a.segment!==p.segment||a.t>start||(drop!=null&&a.t<drop*1000)){previousFlow=null;continue;}
+ if(a.segment!==p.segment||a.t>start||(drop!=null&&a.t<Math.round(drop*1000))){previousFlow=null;continue;}
  const startCg=a.t===start?a.cg:a.cg+(b.cg-a.cg)*(start-a.t)/(b.t-a.t);
  const rate=Math.max(0,(p.cg-startCg)*10/span),point={t:(p.t-span/2)/1000,cg:rate*100};
  flowCurve[p.index]=rate;maxFlow=Math.max(maxFlow??0,rate);
@@ -131,7 +131,7 @@ for(let i=0;i<observations.length;i++){
 }
 // Exact event/final-yield annotations cannot supply estimator support.
 for(const [t,cg] of [[drop,num(shot.dropCg)],[ext,num(shot.extCg)],[atm,num(shot.atmCg)],[end,num(shot.endCg)]]){
- if(t==null||t<0||t*1000>limit||cg==null)continue;
+ if(t==null||t<0||Math.round(t*1000)>limit||cg==null)continue;
  const p={t,cg},k=kind(t);pts.push(p);segs.push({kind:k,color:colors[k],pts:[p]});
 }
 const dur=Math.max(duration||0,end||0,...pts.map(p=>p.t),0);

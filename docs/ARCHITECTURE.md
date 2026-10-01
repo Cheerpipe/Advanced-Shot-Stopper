@@ -190,6 +190,13 @@ segment. Overflow preserves the prefix, marks it incomplete and leaves control
 and scalar history running.
 
 The 4984-byte RAM record and 498420-byte 100-record cache live in PSRAM.
+Curve events also preserve elapsed milliseconds in 16-bit fields, with
+`UINT16_MAX` reserved for unavailable values. Sidecar schema 3 distinguishes
+these fields from previous decisecond events; older curve records are discarded
+without changing scalar history, settings, partition addresses or OTA slots.
+Curve JSON keeps the seconds-based `dropS`, `extendedS`, `atmS`, `atmClearedS`
+and `endS` fields with three decimal places; scalar shot metrics retain their
+existing precision and meaning.
 An 816 KiB dedicated partition holds 101 reserved 8 KiB data blocks and two
 4 KiB clear-epoch sectors. A maximum-size record occupies 5012 bytes. Writes
 erase only its one or two used physical sectors, transfer only the used record

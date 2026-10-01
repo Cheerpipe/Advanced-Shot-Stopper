@@ -11379,7 +11379,7 @@ void rs06_late_retare_corrects_only_confirmed_first_drop() {
     if (mode == 0 || mode == 17 || mode == 18) {
       simulateFirstDrops(0.0f, 50);
       CHECK(session.firstDropMs != 0 && session.firstDropMs != original);
-      CHECK(shotCurveSampler.firstDrop.atDs > marker.atDs);
+      CHECK(shotCurveSampler.firstDrop.atMs > marker.atMs);
       CHECK(hostFirstDropWebhookCount == 1);
       applyShotTareResult(result); // Duplicate cannot erase the replacement.
       CHECK(session.firstDropMs != 0);
@@ -12056,7 +12056,7 @@ void s02c_shot_curve_samples_on_half_second_grid_and_latches_slow() {
   CHECK(shotCurveSampler.weightCg[1] == 850);
   CHECK(shotCurveSampler.atMs[1] == 2100);
   enterSlowExtractionExtended(12.0f, hostMillis);
-  CHECK(shotCurveSampler.extended.atDs == 21);
+  CHECK(shotCurveSampler.extended.atMs == 2100);
   CHECK(shotCurveSampler.extended.weightCg == 1200);
   hostMillis += 4000;
   acceptWeightIntoTrajectory(18.0f, hostMillis, 3);
@@ -12065,7 +12065,7 @@ void s02c_shot_curve_samples_on_half_second_grid_and_latches_slow() {
   session.config.timerOnly = false;
   schedulePendingShotFinalize(EndReason::SLOW_EXTRACTION_MAX_TIME, 12500);
   CHECK(pendingFinalize.curve.count == 3);
-  CHECK(pendingFinalize.curve.extended.atDs == 21);
+  CHECK(pendingFinalize.curve.extended.atMs == 2100);
   CHECK(pendingFinalize.curve.extended.weightCg == 1200);
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.dripDelayMs = 0;
@@ -12160,35 +12160,42 @@ void s02d_shot_curve_latches_first_drop_fast_and_atm() {
   resetShotTrajectory(hostMillis);
   const uint32_t t0 = hostMillis;
   acceptWeightIntoTrajectory(0.5f, hostMillis, 1);
-  hostMillis = t0 + 4500;
+  hostMillis = t0 + 4557;
   session.lastAcceptedWeightG = 4.0f;
   onFirstDropsDetected({hostMillis, 4.0f});
-  CHECK(shotCurveSampler.firstDrop.atDs == 45);
+  CHECK(shotCurveSampler.firstDrop.atMs == 4557);
   CHECK(shotCurveSampler.firstDrop.weightCg == 400);
-  hostMillis = t0 + 13300;
+  hostMillis = t0 + 13313;
   session.lastAcceptedWeightG = 36.0f;
   acceptWeightIntoTrajectory(36.0f, hostMillis, 2);
   enterFastExtractionExtended(36.0f, hostMillis);
-  CHECK(shotCurveSampler.extended.atDs == 133);
+  CHECK(shotCurveSampler.extended.atMs == 13313);
   CHECK(shotCurveSampler.extended.weightCg == 3600);
-  hostMillis = t0 + 14000;
+  hostMillis = t0 + 14027;
   setWeightControlState(WeightControlState::SUSPENDED);
   CHECK(shotCurveEventPresent(shotCurveSampler.atm));
-  CHECK(shotCurveSampler.atm.atDs == 140);
+  CHECK(shotCurveSampler.atm.atMs == 14027);
   CHECK(shotCurveSampler.atm.weightCg == 3600);
-  hostMillis = t0 + 14500;
+  hostMillis = t0 + 14543;
   setWeightControlState(WeightControlState::ACTIVE);
-  CHECK(shotCurveSampler.atmClearedDs == 145);
-  hostMillis = t0 + 15100;
+  CHECK(shotCurveSampler.atmClearedMs == 14543);
+  publishControlStatus();
+  ControlStatusSnapshot preciseStatus;
+  copyControlStatus(preciseStatus);
+  CHECK(preciseStatus.shotCurveFirstDropMs == 4557);
+  CHECK(preciseStatus.shotCurveExtendedMs == 13313);
+  CHECK(preciseStatus.shotCurveAtmMs == 14027);
+  CHECK(preciseStatus.shotCurveAtmClearedMs == 14543);
+  hostMillis = t0 + 15157;
   session.lastAcceptedWeightG = 43.7f;
   shot.automaticBrew = true;
   session.config.timerOnly = false;
-  schedulePendingShotFinalize(EndReason::FAST_EXTRACTION_MAX_WEIGHT, 15100);
-  CHECK(pendingFinalize.curve.firstDrop.atDs == 45);
-  CHECK(pendingFinalize.curve.extended.atDs == 133);
-  CHECK(pendingFinalize.curve.atm.atDs == 140);
-  CHECK(pendingFinalize.curve.atmClearedDs == 145);
-  CHECK(pendingFinalize.curve.ended.atDs == 151);
+  schedulePendingShotFinalize(EndReason::FAST_EXTRACTION_MAX_WEIGHT, 15157);
+  CHECK(pendingFinalize.curve.firstDrop.atMs == 4557);
+  CHECK(pendingFinalize.curve.extended.atMs == 13313);
+  CHECK(pendingFinalize.curve.atm.atMs == 14027);
+  CHECK(pendingFinalize.curve.atmClearedMs == 14543);
+  CHECK(pendingFinalize.curve.ended.atMs == 15157);
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.dripDelayMs = 0;
   runLoopAfter(0);
@@ -12196,11 +12203,11 @@ void s02d_shot_curve_latches_first_drop_fast_and_atm() {
   CHECK(shotCurves.count() == 1);
   ShotCurveRecord curves[1] = {};
   CHECK(shotCurves.copyNewestFirst(curves, 1) == 1);
-  CHECK(curves[0].firstDrop.atDs == 45);
-  CHECK(curves[0].extended.atDs == 133);
-  CHECK(curves[0].atm.atDs == 140);
-  CHECK(curves[0].atmClearedDs == 145);
-  CHECK(curves[0].ended.atDs == 151);
+  CHECK(curves[0].firstDrop.atMs == 4557);
+  CHECK(curves[0].extended.atMs == 13313);
+  CHECK(curves[0].atm.atMs == 14027);
+  CHECK(curves[0].atmClearedMs == 14543);
+  CHECK(curves[0].ended.atMs == 15157);
 
   session.extractionExtended = false;
   session.autoToManualGuardEnforced = false;
@@ -12213,15 +12220,15 @@ void s02d_shot_curve_latches_first_drop_fast_and_atm() {
   acceptWeightIntoTrajectory(28.0f, hostMillis, 10);
   hostMillis = t1 + 12000;
   setWeightControlState(WeightControlState::SUSPENDED);
-  CHECK(shotCurveSampler.atm.atDs == 120);
-  CHECK(shotCurveSampler.atmClearedDs == SHOT_LOG_METRIC_MISSING);
+  CHECK(shotCurveSampler.atm.atMs == 12000);
+  CHECK(shotCurveSampler.atmClearedMs == SHOT_LOG_METRIC_MISSING);
   hostMillis = t1 + 18000;
   shot.automaticBrew = true;
   session.config.timerOnly = false;
   schedulePendingShotFinalize(EndReason::AUTO_TO_MANUAL_GUARD, 18000);
-  CHECK(pendingFinalize.curve.atm.atDs == 120);
-  CHECK(pendingFinalize.curve.atmClearedDs == SHOT_LOG_METRIC_MISSING);
-  CHECK(pendingFinalize.curve.ended.atDs == 180);
+  CHECK(pendingFinalize.curve.atm.atMs == 12000);
+  CHECK(pendingFinalize.curve.atmClearedMs == SHOT_LOG_METRIC_MISSING);
+  CHECK(pendingFinalize.curve.ended.atMs == 18000);
 }
 
 void s02h_fast_guard_keeps_sampling_and_settled_weight_replaces_endpoint() {
@@ -12249,7 +12256,7 @@ void s02h_fast_guard_keeps_sampling_and_settled_weight_replaces_endpoint() {
   CHECK(recordWeightSampleWithProvenance(34.0f, t0, 1, 1));
   hostMillis = t0 + 25800;
   enterFastExtractionExtended(36.0f, hostMillis);
-  CHECK(shotCurveSampler.extended.atDs == 258);
+  CHECK(shotCurveSampler.extended.atMs == 25800);
   const size_t beforeFastSample = shot.datapoints;
   CHECK(recordWeightSampleWithProvenance(38.0f, t0 + 26000, 2, 1));
   CHECK(shot.datapoints == beforeFastSample + 1U);
@@ -12262,7 +12269,7 @@ void s02h_fast_guard_keeps_sampling_and_settled_weight_replaces_endpoint() {
   currentWeightReceivedAtMs = hostMillis;
   shot.automaticBrew = true;
   schedulePendingShotFinalize(EndReason::FAST_EXTRACTION_MAX_WEIGHT, 28000);
-  CHECK(pendingFinalize.curve.ended.atDs == 280);
+  CHECK(pendingFinalize.curve.ended.atMs == 28000);
   CHECK(pendingFinalize.curve.ended.weightCg == 4000);
   CHECK(pendingFinalize.curve.weightCg[pendingFinalize.curve.count - 1U] == 4000);
 
@@ -12277,7 +12284,7 @@ void s02h_fast_guard_keeps_sampling_and_settled_weight_replaces_endpoint() {
   CHECK(shotCurves.count() == 1);
   ShotCurveRecord curves[1] = {};
   CHECK(shotCurves.copyNewestFirst(curves, 1) == 1);
-  CHECK(curves[0].ended.atDs == 280);
+  CHECK(curves[0].ended.atMs == 28000);
   CHECK(curves[0].ended.weightCg == 4210);
   CHECK(curves[0].weightCg[curves[0].count - 1U] == 4000);
 }
@@ -12317,7 +12324,7 @@ void verifySettledCurveEndpointForCut(EndReason reason, bool slowExtended,
   shot.automaticBrew = true;
   schedulePendingShotFinalize(reason, durationMs);
   CHECK(pendingFinalize.pending);
-  CHECK(pendingFinalize.curve.ended.atDs == durationMs / 100U);
+  CHECK(pendingFinalize.curve.ended.atMs == durationMs);
   CHECK(pendingFinalize.curve.ended.weightCg == 3600);
 
   session.active = false;
@@ -12331,13 +12338,13 @@ void verifySettledCurveEndpointForCut(EndReason reason, bool slowExtended,
   CHECK(shotCurves.count() == 1);
   ShotCurveRecord curves[1] = {};
   CHECK(shotCurves.copyNewestFirst(curves, 1) == 1);
-  CHECK(curves[0].ended.atDs == durationMs / 100U);
+  CHECK(curves[0].ended.atMs == durationMs);
   CHECK(curves[0].ended.weightCg == 3840);
 }
 
 void s02i_normal_and_slow_cuts_use_settled_curve_endpoint() {
   // Non-grid normal end verifies that only the event vertex is revised.
-  verifySettledCurveEndpointForCut(EndReason::SCALE_THRESHOLD, false, 27900);
+  verifySettledCurveEndpointForCut(EndReason::SCALE_THRESHOLD, false, 27957);
   // Both slow-guard exits use the same settled endpoint path.
   verifySettledCurveEndpointForCut(EndReason::SLOW_EXTRACTION_MAX_TIME, true,
                                    28000);
@@ -16758,8 +16765,8 @@ void ff02_chorrito_fires_on_second_sample() {
   CHECK(session.firstDropMs == 0);
   publishWeight(0.9f, hostMillis + 150, 1, 21);
   CHECK(session.firstDropMs == firstAtMs);
-  CHECK(shotCurveSampler.firstDrop.atDs ==
-        static_cast<uint16_t>((firstAtMs - shot.startMs) / 100U));
+  CHECK(shotCurveSampler.firstDrop.atMs ==
+        static_cast<uint16_t>(firstAtMs - shot.startMs));
   CHECK(shotCurveSampler.firstDrop.weightCg == 40);
   publishWeight(1.5f, hostMillis + 250, 1, 22);
   publishWeight(2.4f, hostMillis + 350, 1, 23);

@@ -828,10 +828,10 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
       ShotCurveRecord &curve = g_work->serializedCurve;
       if (control.activeCycle) shotCurveRecordFromStatusFields(
           curve, control.shotCurveCount, control.shotCurveTruncated,
-          control.shotCurveFirstDropDs, control.shotCurveFirstDropCg,
-          control.shotCurveExtendedDs, control.shotCurveExtendedCg,
-          control.shotCurveAtmDs, control.shotCurveAtmCg,
-          control.shotCurveAtmClearedDs, control.shotCurveEndedDs,
+          control.shotCurveFirstDropMs, control.shotCurveFirstDropCg,
+          control.shotCurveExtendedMs, control.shotCurveExtendedCg,
+          control.shotCurveAtmMs, control.shotCurveAtmCg,
+          control.shotCurveAtmClearedMs, control.shotCurveEndedMs,
           control.shotCurveEndedCg, control.shotCurveWeightCg,
           sizeof(control.shotCurveWeightCg) /
               sizeof(control.shotCurveWeightCg[0]), control.shotCurveAtMs,

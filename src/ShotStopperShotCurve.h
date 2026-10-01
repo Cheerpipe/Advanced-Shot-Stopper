@@ -326,7 +326,7 @@ class ShotCurveLog {
     memset(disk_, 0, sizeof(disk_));
     auto *h = reinterpret_cast<ShotCurveBlockHeader *>(disk_);
     uint8_t *p = disk_ + sizeof(*h);
-    memcpy(p, &r.atmClearedDs, 18); p += 18;
+    memcpy(p, &r.atmClearedMs, 18); p += 18;
     for (size_t i = 0; i < r.count; ++i) {
       memcpy(p, &r.atMs[i], 2); p += 2;
       memcpy(p, &r.weightCg[i], 2); p += 2;
@@ -355,7 +355,7 @@ class ShotCurveLog {
     const size_t expected = (sizeof(*h) + 18U + r.count * 4U +
                              (r.count + 7U) / 8U + 3U) & ~size_t(3U);
     if (h->bytes != expected) return false;
-    memcpy(&r.atmClearedDs, p, 18); p += 18;
+    memcpy(&r.atmClearedMs, p, 18); p += 18;
     for (size_t i = 0; i < r.count; ++i) {
       memcpy(&r.atMs[i], p, 2); p += 2;
       memcpy(&r.weightCg[i], p, 2); p += 2;

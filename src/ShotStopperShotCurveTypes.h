@@ -15,7 +15,7 @@ namespace shotstopper {
 
 constexpr uint32_t SHOT_CURVE_MAGIC = 0x53435256U;  // "SCRV"
 // Older stores are intentionally discarded.
-constexpr uint16_t SHOT_CURVE_SCHEMA_VERSION = 2;
+constexpr uint16_t SHOT_CURVE_SCHEMA_VERSION = 3;
 constexpr uint32_t SHOT_CURVE_MAX_TIME_MS = 60000;
 // Capacity assumption only, never a sampling grid or rate limiter.
 constexpr size_t SHOT_CURVE_MAX_POINTS = SHOT_CURVE_MAX_TIME_MS / 50U + 1U;
@@ -25,7 +25,7 @@ constexpr size_t SHOT_CURVE_CAPACITY = SHOT_LOG_CAPACITY;
 constexpr size_t SHOT_CURVE_JSON_CAPACITY = 22016;
 
 struct ShotCurveEvent {
-  uint16_t atDs;
+  uint16_t atMs;
   int16_t weightCg;
 };
 
@@ -34,13 +34,13 @@ static_assert(sizeof(ShotCurveEvent) == 4,
 
 inline ShotCurveEvent missingShotCurveEvent() {
   ShotCurveEvent event = {};
-  event.atDs = SHOT_LOG_METRIC_MISSING;
+  event.atMs = SHOT_LOG_METRIC_MISSING;
   event.weightCg = SHOT_LOG_WEIGHT_MISSING;
   return event;
 }
 
 inline bool shotCurveEventPresent(const ShotCurveEvent &event) {
-  return event.atDs != SHOT_LOG_METRIC_MISSING &&
+  return event.atMs != SHOT_LOG_METRIC_MISSING &&
          !shotLogWeightIsMissing(event.weightCg);
 }
 
@@ -49,7 +49,7 @@ struct ShotCurveRecord {
   uint16_t count;
   bool truncated;
   uint8_t reserved;
-  uint16_t atmClearedDs;
+  uint16_t atmClearedMs;
   ShotCurveEvent firstDrop;
   ShotCurveEvent extended;
   ShotCurveEvent atm;
@@ -61,7 +61,7 @@ struct ShotCurveRecord {
 
 inline void resetShotCurveRecord(ShotCurveRecord &curve) {
   memset(&curve, 0, sizeof(curve));
-  curve.atmClearedDs = SHOT_LOG_METRIC_MISSING;
+  curve.atmClearedMs = SHOT_LOG_METRIC_MISSING;
   curve.firstDrop = missingShotCurveEvent();
   curve.extended = missingShotCurveEvent();
   curve.atm = missingShotCurveEvent();
@@ -151,7 +151,7 @@ struct ShotCurveSampler {
   bool truncated = false;
   bool pendingBreak = false;
   bool active = false;
-  uint16_t atmClearedDs = SHOT_LOG_METRIC_MISSING;
+  uint16_t atmClearedMs = SHOT_LOG_METRIC_MISSING;
   ShotCurveEvent firstDrop = missingShotCurveEvent();
   ShotCurveEvent extended = missingShotCurveEvent();
   ShotCurveEvent atm = missingShotCurveEvent();
@@ -166,7 +166,7 @@ struct ShotCurveSampler {
     truncated = false;
     pendingBreak = false;
     active = true;
-    atmClearedDs = SHOT_LOG_METRIC_MISSING;
+    atmClearedMs = SHOT_LOG_METRIC_MISSING;
     firstDrop = missingShotCurveEvent();
     extended = missingShotCurveEvent();
     atm = missingShotCurveEvent();
@@ -176,18 +176,18 @@ struct ShotCurveSampler {
     memset(breakBefore, 0, sizeof(breakBefore));
   }
 
-  bool elapsedDsFrom(uint32_t atMs, uint16_t &outDs) const {
+  bool elapsedMsFrom(uint32_t atMs, uint16_t &outMs) const {
     if (!active) {
       return false;
     }
     if (static_cast<int32_t>(atMs - startMs) < 0) {
       return false;
     }
-    const uint32_t elapsedDs = (atMs - startMs) / 100U;
-    if (elapsedDs > 0xFFFFU) {
+    const uint32_t elapsedMs = atMs - startMs;
+    if (elapsedMs >= UINT16_MAX) {
       return false;
     }
-    outDs = static_cast<uint16_t>(elapsedDs);
+    outMs = static_cast<uint16_t>(elapsedMs);
     return true;
   }
 
@@ -195,15 +195,15 @@ struct ShotCurveSampler {
     if (shotCurveEventPresent(event) || !active) {
       return;
     }
-    uint16_t ds = 0;
-    if (!elapsedDsFrom(atMs, ds)) {
+    uint16_t ms = 0;
+    if (!elapsedMsFrom(atMs, ms)) {
       return;
     }
     const int16_t cg = shotLogWeightToCentigrams(weight);
     if (shotLogWeightIsMissing(cg)) {
       return;
     }
-    event.atDs = ds;
+    event.atMs = ms;
     event.weightCg = cg;
   }
 
@@ -217,24 +217,24 @@ struct ShotCurveSampler {
 
   void latchAtm(uint32_t atMs, float weight) {
     if (shotCurveEventPresent(atm) &&
-        atmClearedDs == SHOT_LOG_METRIC_MISSING) {
+        atmClearedMs == SHOT_LOG_METRIC_MISSING) {
       return;
     }
     atm = missingShotCurveEvent();
-    atmClearedDs = SHOT_LOG_METRIC_MISSING;
+    atmClearedMs = SHOT_LOG_METRIC_MISSING;
     latchEvent(atm, atMs, weight);
   }
 
   void latchAtmCleared(uint32_t atMs) {
     if (!shotCurveEventPresent(atm) ||
-        atmClearedDs != SHOT_LOG_METRIC_MISSING) {
+        atmClearedMs != SHOT_LOG_METRIC_MISSING) {
       return;
     }
-    uint16_t ds = 0;
-    if (!elapsedDsFrom(atMs, ds)) {
+    uint16_t ms = 0;
+    if (!elapsedMsFrom(atMs, ms)) {
       return;
     }
-    atmClearedDs = ds;
+    atmClearedMs = ms;
   }
 
   void markBreak() { if (active) pendingBreak = true; }
@@ -273,7 +273,7 @@ struct ShotCurveSampler {
     record.shotId = shotId;
     record.count = count;
     record.truncated = truncated;
-    record.atmClearedDs = atmClearedDs;
+    record.atmClearedMs = atmClearedMs;
     record.firstDrop = firstDrop;
     record.extended = extended;
     record.atm = atm;
@@ -308,15 +308,15 @@ inline bool validShotCurveRecord(const ShotCurveRecord &curve) {
 }
 
 inline bool formatShotCurveMetricS(char *out, size_t capacity, const char *key,
-                                   uint16_t ds) {
+                                   uint16_t ms) {
   if (out == nullptr || capacity < 8 || key == nullptr) {
     return false;
   }
-  if (ds == SHOT_LOG_METRIC_MISSING) {
+  if (ms == SHOT_LOG_METRIC_MISSING) {
     return snprintf(out, capacity, ",\"%s\":null", key) > 0;
   }
-  return snprintf(out, capacity, ",\"%s\":%.1f", key,
-                  static_cast<double>(ds) / 10.0) > 0;
+  return snprintf(out, capacity, ",\"%s\":%.3f", key,
+                  static_cast<double>(ms) / 1000.0) > 0;
 }
 
 inline bool formatShotCurveMetricCg(char *out, size_t capacity, const char *key,
@@ -378,22 +378,22 @@ inline bool formatShotCurveJsonBody(char *out, size_t capacity,
   snprintf(piece, sizeof(piece), "],\"wTruncated\":%s",
            curve.truncated ? "true" : "false");
   if (!append(piece)) return false;
-  auto appendMetricS = [&](const char *key, uint16_t ds) -> bool {
-    return formatShotCurveMetricS(piece, sizeof(piece), key, ds) &&
+  auto appendMetricS = [&](const char *key, uint16_t ms) -> bool {
+    return formatShotCurveMetricS(piece, sizeof(piece), key, ms) &&
            append(piece);
   };
   auto appendMetricCg = [&](const char *key, int16_t cg) -> bool {
     return formatShotCurveMetricCg(piece, sizeof(piece), key, cg) &&
            append(piece);
   };
-  return appendMetricS("dropS", curve.firstDrop.atDs) &&
+  return appendMetricS("dropS", curve.firstDrop.atMs) &&
          appendMetricCg("dropCg", curve.firstDrop.weightCg) &&
-         appendMetricS("extendedS", curve.extended.atDs) &&
+         appendMetricS("extendedS", curve.extended.atMs) &&
          appendMetricCg("extCg", curve.extended.weightCg) &&
-         appendMetricS("atmS", curve.atm.atDs) &&
+         appendMetricS("atmS", curve.atm.atMs) &&
          appendMetricCg("atmCg", curve.atm.weightCg) &&
-         appendMetricS("atmClearedS", curve.atmClearedDs) &&
-         appendMetricS("endS", curve.ended.atDs) &&
+         appendMetricS("atmClearedS", curve.atmClearedMs) &&
+         appendMetricS("endS", curve.ended.atMs) &&
          appendMetricCg("endCg", curve.ended.weightCg);
 }
 
@@ -412,21 +412,21 @@ inline const ShotCurveRecord *findShotCurveById(const ShotCurveRecord *curves,
 
 inline void copyShotCurveRecordToStatusFields(
     const ShotCurveRecord &curve, uint16_t &count, bool &truncated,
-    uint16_t &firstDropDs, int16_t &firstDropCg, uint16_t &extendedDs,
-    int16_t &extendedCg, uint16_t &atmDs, int16_t &atmCg,
-    uint16_t &atmClearedDs, uint16_t &endedDs, int16_t &endedCg,
+    uint16_t &firstDropMs, int16_t &firstDropCg, uint16_t &extendedMs,
+    int16_t &extendedCg, uint16_t &atmMs, int16_t &atmCg,
+    uint16_t &atmClearedMs, uint16_t &endedMs, int16_t &endedCg,
     int16_t *weightCg, size_t weightCapacity,
     uint16_t *atMs, uint8_t *breakBefore) {
   count = curve.count;
   truncated = curve.truncated;
-  firstDropDs = curve.firstDrop.atDs;
+  firstDropMs = curve.firstDrop.atMs;
   firstDropCg = curve.firstDrop.weightCg;
-  extendedDs = curve.extended.atDs;
+  extendedMs = curve.extended.atMs;
   extendedCg = curve.extended.weightCg;
-  atmDs = curve.atm.atDs;
+  atmMs = curve.atm.atMs;
   atmCg = curve.atm.weightCg;
-  atmClearedDs = curve.atmClearedDs;
-  endedDs = curve.ended.atDs;
+  atmClearedMs = curve.atmClearedMs;
+  endedMs = curve.ended.atMs;
   endedCg = curve.ended.weightCg;
   if (weightCg == nullptr || weightCapacity == 0) {
     return;
@@ -440,9 +440,9 @@ inline void copyShotCurveRecordToStatusFields(
 }
 
 inline void shotCurveRecordFromStatusFields(
-    ShotCurveRecord &curve, uint16_t count, bool truncated, uint16_t firstDropDs, int16_t firstDropCg,
-    uint16_t extendedDs, int16_t extendedCg, uint16_t atmDs, int16_t atmCg,
-    uint16_t atmClearedDs, uint16_t endedDs, int16_t endedCg,
+    ShotCurveRecord &curve, uint16_t count, bool truncated, uint16_t firstDropMs, int16_t firstDropCg,
+    uint16_t extendedMs, int16_t extendedCg, uint16_t atmMs, int16_t atmCg,
+    uint16_t atmClearedMs, uint16_t endedMs, int16_t endedCg,
     const int16_t *weightCg, size_t weightCount,
     const uint16_t *atMs, const uint8_t *breakBefore) {
   resetShotCurveRecord(curve);
@@ -450,14 +450,14 @@ inline void shotCurveRecordFromStatusFields(
   // and count arrives from Web-UI status input.
   curve.count = count > SHOT_CURVE_MAX_POINTS ? SHOT_CURVE_MAX_POINTS : count;
   curve.truncated = truncated;
-  curve.atmClearedDs = atmClearedDs;
-  curve.firstDrop.atDs = firstDropDs;
+  curve.atmClearedMs = atmClearedMs;
+  curve.firstDrop.atMs = firstDropMs;
   curve.firstDrop.weightCg = firstDropCg;
-  curve.extended.atDs = extendedDs;
+  curve.extended.atMs = extendedMs;
   curve.extended.weightCg = extendedCg;
-  curve.atm.atDs = atmDs;
+  curve.atm.atMs = atmMs;
   curve.atm.weightCg = atmCg;
-  curve.ended.atDs = endedDs;
+  curve.ended.atMs = endedMs;
   curve.ended.weightCg = endedCg;
   if (weightCg != nullptr && weightCount > 0) {
     const size_t copy =

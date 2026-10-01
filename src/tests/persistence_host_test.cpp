@@ -1960,13 +1960,13 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   ShotCurveRecord first = emptyShotCurveRecord();
   first.shotId = 7;
   first.count = 3;
-  first.firstDrop.atDs = 45;
+  first.firstDrop.atMs = 4557;
   first.firstDrop.weightCg = 50;
-  first.extended.atDs = 180;
+  first.extended.atMs = 18013;
   first.extended.weightCg = 1800;
-  first.atm.atDs = 200;
+  first.atm.atMs = 20027;
   first.atm.weightCg = 1900;
-  first.ended.atDs = 220;
+  first.ended.atMs = 22057;
   first.ended.weightCg = 1900;
   first.weightCg[0] = 0;
   first.weightCg[1] = 900;
@@ -1985,10 +1985,15 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   CHECK(reloaded.copyNewestFirst(newest, 2) == 2);
   CHECK(newest[0].shotId == 8);
   CHECK(newest[1].shotId == 7);
-  CHECK(newest[1].firstDrop.atDs == 45);
-  CHECK(newest[1].extended.atDs == 180);
-  CHECK(newest[1].atm.atDs == 200);
-  CHECK(newest[1].ended.atDs == 220);
+  CHECK(newest[1].firstDrop.atMs == 4557);
+  CHECK(newest[1].extended.atMs == 18013);
+  CHECK(newest[1].atm.atMs == 20027);
+  CHECK(newest[1].ended.atMs == 22057);
+  CHECK(formatShotCurveJsonBody(curveJson, sizeof(curveJson), newest[1]));
+  CHECK(strstr(curveJson, "\"dropS\":4.557") != nullptr);
+  CHECK(strstr(curveJson, "\"extendedS\":18.013") != nullptr);
+  CHECK(strstr(curveJson, "\"atmS\":20.027") != nullptr);
+  CHECK(strstr(curveJson, "\"endS\":22.057") != nullptr);
   CHECK(newest[1].weightCg[2] == 1800);
   ShotCurveRecord exact = {};
   CHECK(reloaded.copyByShotId(7, exact));
@@ -2483,6 +2488,8 @@ void p90_firmware_mode_store_round_trip_and_factory_reset() {
 void p61c_timestamped_capacity_and_interrupted_blocks() {
   ShotCurveSampler sampler;
   sampler.reset(UINT32_MAX - 1000U);
+  sampler.latchFirstDrop(sampler.startMs + 1057U, 0.5f);
+  CHECK(sampler.firstDrop.atMs == 1057);
   for (uint32_t t = 0; t <= 60000; t += 50)
     sampler.accept(12.34f, sampler.startMs + t);
   CHECK(sampler.count == 1201);
@@ -2499,6 +2506,7 @@ void p61c_timestamped_capacity_and_interrupted_blocks() {
   ShotCurveRecord restored;
   CHECK(maximum.copyByShotId(101, restored));
   CHECK(restored.count == 1201 && !restored.truncated && restored.atMs[1200] == 60000);
+  CHECK(restored.firstDrop.atMs == 1057);
   ShotCurveRecord full;
   sampler.snapshot(full, 101);
   CHECK(validShotCurveRecord(full));

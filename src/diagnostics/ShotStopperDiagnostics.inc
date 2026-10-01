@@ -221,10 +221,10 @@ void publishControlStatus() {
     if (session.active) shotCurveSampler.snapshot(statusLastGoodCurve);
     copyShotCurveRecordToStatusFields(
         curve, next.shotCurveCount, next.shotCurveTruncated,
-        next.shotCurveFirstDropDs, next.shotCurveFirstDropCg,
-        next.shotCurveExtendedDs, next.shotCurveExtendedCg,
-        next.shotCurveAtmDs, next.shotCurveAtmCg,
-        next.shotCurveAtmClearedDs, next.shotCurveEndedDs,
+        next.shotCurveFirstDropMs, next.shotCurveFirstDropCg,
+        next.shotCurveExtendedMs, next.shotCurveExtendedCg,
+        next.shotCurveAtmMs, next.shotCurveAtmCg,
+        next.shotCurveAtmClearedMs, next.shotCurveEndedMs,
         next.shotCurveEndedCg, next.shotCurveWeightCg,
         sizeof(next.shotCurveWeightCg) / sizeof(next.shotCurveWeightCg[0]),
         next.shotCurveAtMs, next.shotCurveBreakBefore);
