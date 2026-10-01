@@ -188,7 +188,7 @@ constexpr size_t OFFSET_ADDR = 1;
 constexpr size_t TREND_POINT_COUNT = WEIGHT_TREND_POINT_COUNT;
 static_assert(MAX_SHOT_DATAPOINTS >= WEIGHT_TREND_POINT_COUNT,
               "Shot trajectory must hold the prediction window");
-static_assert(SHOT_CURVE_MAX_POINTS == 121,
+static_assert(SHOT_CURVE_MAX_POINTS == 1201,
               "ControlStatusSnapshot shotCurveWeightCg must match sampler");
 
 bool startExtendedPulseTrain(uint32_t durationMs);
@@ -388,7 +388,7 @@ BleScanPersistedSettings bleScanPersistedSettings;
 StopperState stopperState = StopperState::REQUIRES_OFF;
 ShotTrajectory shot;
 CycleSession session;
-PendingShotFinalize pendingFinalize;
+SHOT_STOPPER_PSRAM_BSS PendingShotFinalize pendingFinalize;
 RuntimeConfig runtimeConfig;
 
 CycleWallTime captureCycleWallTime() {
@@ -435,7 +435,7 @@ HistoryLog &historyLog = activationStores.historyLog;
 // Serializes complete RAM-store operations across control and NetworkService;
 // every durable write remains owned by the existing store/flash path.
 TaskMutex shotStoreMutex;
-ShotCurveSampler shotCurveSampler;
+SHOT_STOPPER_PSRAM_BSS ShotCurveSampler shotCurveSampler;
 // Same PSRAM-safe working-copy contract as ActivationStores above: NVS I/O
 // goes through the internal flash scratch and mutations hold shotStoreMutex.
 SHOT_STOPPER_PSRAM_BSS LastShotStore lastShotStore;
@@ -939,7 +939,7 @@ size_t copyShotCurves(ShotCurveRecord *output, size_t capacity) {
 
 bool copyHomeShot(ShotLogRecord &record, ShotCurveRecord &curve) {
   TaskLockGuard lock(shotStoreMutex);
-  curve = emptyShotCurveRecord();
+  resetShotCurveRecord(curve);
   if (!shotLog.copyNewestEligible(record)) return false;
   (void)shotCurves.copyByShotId(record.id, curve);
   return true;
@@ -993,7 +993,7 @@ bool copyShotStoreStatus(uint32_t &bootId, PersistedLastShot &last,
   }
   good = persistedLastGoodShot;
   good.rating = 0;
-  goodCurve = emptyShotCurveRecord();
+  resetShotCurveRecord(goodCurve);
   uint8_t rating = 0;
   if (!includeGoodHistory || !publishableLastShot(good) ||
       good.shotLogId == 0 ||
@@ -1507,6 +1507,7 @@ void resetAccidentalTouchState() {
 }
 
 void resetWeightTrend() {
+  if (session.active) shotCurveSampler.markBreak();
   shot.expectedEndS = session.config.operationalWallMs / 1000.0f;
   shot.datapoints = 0;
   resetAccidentalTouchState();

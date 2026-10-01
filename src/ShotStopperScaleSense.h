@@ -30,11 +30,13 @@ void calculateExpectedEndTime(float cutTargetG) {
 }
 
 void rejectScaleSample(DebugCode code, float weightG, float referenceG = 0.0f) {
+  if (session.active) shotCurveSampler.markBreak();
   addDebugEvent(DebugCategory::SCALE, code, weightToCentigrams(weightG),
                 weightToCentigrams(referenceG));
 }
 
 void armPostTareBaselineWindow() {
+  if (session.active) shotCurveSampler.markBreak();
   session.awaitingPostTareBaseline = true;
   session.postTareBaselineDeadlineMs =
       millis() + session.config.postTareBaselineGraceMs;

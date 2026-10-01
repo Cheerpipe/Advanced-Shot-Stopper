@@ -11772,6 +11772,65 @@ void s01e_bbw_error_uses_its_own_ten_shots() {
   CHECK(stats.errorPctTenthsSum == 1000);
 }
 
+void s01f_curve_rollover_keeps_stats_windows_and_sorted_joins() {
+  resetHarness(false, true);
+  ShotLogRecord record = {};
+  record.durationDs = 300;
+  record.goalWeightG = 30;
+  ShotCurveRecord curve = emptyShotCurveRecord();
+  curve.count = 2;
+  curve.atMs[1] = 500;
+  for (uint32_t id = 1; id <= 110; ++id) {
+    record.actualWeightCg = id % 2 ? 3300 : 2700;
+    record.avgFlowCgS = id % 2 ? SHOT_LOG_METRIC_MISSING : 100;
+    record.shotType = static_cast<uint8_t>(id % 3 ? ShotLogType::MANUAL : ShotLogType::AUTO);
+    record.stopDetail = static_cast<uint8_t>(id % 3 ? ShotLogStopDetail::ACTIVATOR : ShotLogStopDetail::NORMAL_TARGET);
+    record.extractionGuardEnabled = shotLogPackRating(0, id % 6);
+    curve.shotId = shotLog.nextRecordId();
+    curve.weightCg[1] = static_cast<int16_t>(curve.shotId);
+    CHECK(shotLog.append(record, false));
+    CHECK(shotCurves.append(curve));
+  }
+  CHECK(shotLog.save() && shotLog.load() && shotCurves.load());
+  CHECK(!shotCurves.containsShotId(10) && shotCurves.containsShotId(11));
+  const auto before = copyShotStats();
+  CHECK(before.shotCount == 10 && before.bbwCount == 10);
+  CHECK(before.errorPctTenthsSum == 1000 && before.flowCount == 5);
+  const size_t writes = ShotCurveLog::hostWriteBytes();
+  for (const auto sort : {ShotLogSort::Date, ShotLogSort::Rating})
+    for (const auto dir : {ShotLogSortDir::Asc, ShotLogSortDir::Desc}) {
+      ShotLogRecord rows[SHOT_LOG_CAPACITY];
+      const size_t count = copyShotRecords(rows, SHOT_LOG_CAPACITY);
+      shotLogSortRecords(rows, count, sort, dir);
+      for (size_t page = 0; page < count; page += 10)
+        for (size_t n = page; n < page + 10 && n < count; ++n) {
+          CHECK(shotCurves.copyByShotId(rows[n].id, curve));
+          CHECK(curve.weightCg[1] == static_cast<int16_t>(rows[n].id));
+        }
+      const auto stats = copyShotStats();
+      CHECK(stats.shotCount == before.shotCount && stats.bbwCount == before.bbwCount);
+      CHECK(stats.errorPctTenthsSum == before.errorPctTenthsSum &&
+            stats.flowCount == before.flowCount);
+    }
+  CHECK(ShotCurveLog::hostWriteBytes() == writes);
+  CHECK(shotCurves.removeById(110));
+  CHECK(copyShotStats().shotCount == 10); // Missing curve does not remove its summary.
+  ShotLogRecord rows[SHOT_LOG_CAPACITY];
+  const size_t count = copyShotRecords(rows, SHOT_LOG_CAPACITY);
+  size_t bbwKept = 0;
+  for (size_t n = 0; n < count; ++n)
+    if (shotLogBbwErrorEligible(rows[n]) && ++bbwKept > 7)
+      CHECK(deleteShotRecord(rows[n].id));
+  const auto fewer = copyShotStats();
+  CHECK(fewer.bbwCount == 7 && fewer.errorPctTenthsSum == 700);
+  CHECK(shotLog.save() && shotCurves.flush());
+  CHECK(shotLog.load() && shotCurves.load());
+  CHECK(copyShotStats().bbwCount == 7);
+  CHECK(clearShotLog());
+  CHECK(copyShotStats().shotCount == 0 && copyShotStats().bbwCount == 0);
+}
+
+
 void s01d_manual_timer_and_limit_share_settled_finalize() {
   struct Case {
     bool timerOnly;
@@ -11977,7 +12036,7 @@ void s02c_shot_curve_samples_on_half_second_grid_and_latches_slow() {
   resetHarness(false, true);
   reachReadyFromBoot();
   ControlStatusSnapshot defaultStatus;
-  CHECK(defaultStatus.shotCurveIntervalDs == SHOT_CURVE_INTERVAL_DS);
+  CHECK(defaultStatus.shotCurveCount == 0);
   shotLog.clear();
   ShotCurveLog::resetHostStorage();
   shotCurves.load();
@@ -11993,9 +12052,9 @@ void s02c_shot_curve_samples_on_half_second_grid_and_latches_slow() {
   CHECK(shotCurveSampler.weightCg[0] == 20);
   hostMillis += 2100;
   acceptWeightIntoTrajectory(8.5f, hostMillis, 2);
-  CHECK(shotCurveSampler.count == 5);
+  CHECK(shotCurveSampler.count == 2);
   CHECK(shotCurveSampler.weightCg[1] == 850);
-  CHECK(shotCurveSampler.weightCg[4] == 850);
+  CHECK(shotCurveSampler.atMs[1] == 2100);
   enterSlowExtractionExtended(12.0f, hostMillis);
   CHECK(shotCurveSampler.extended.atDs == 21);
   CHECK(shotCurveSampler.extended.weightCg == 1200);
@@ -12005,7 +12064,7 @@ void s02c_shot_curve_samples_on_half_second_grid_and_latches_slow() {
   shot.automaticBrew = true;
   session.config.timerOnly = false;
   schedulePendingShotFinalize(EndReason::SLOW_EXTRACTION_MAX_TIME, 12500);
-  CHECK(pendingFinalize.curve.count >= 13);
+  CHECK(pendingFinalize.curve.count == 3);
   CHECK(pendingFinalize.curve.extended.atDs == 21);
   CHECK(pendingFinalize.curve.extended.weightCg == 1200);
   pendingFinalize.endedAtMs = hostMillis;
@@ -12016,13 +12075,13 @@ void s02c_shot_curve_samples_on_half_second_grid_and_latches_slow() {
   ShotCurveRecord curves[1] = {};
   CHECK(shotCurves.copyNewestFirst(curves, 1) == 1);
   CHECK(curves[0].shotId != 0);
-  CHECK(curves[0].count >= 13);
-  CHECK(curves[0].intervalDs == SHOT_CURVE_INTERVAL_DS);
+  CHECK(curves[0].count == 3);
+  CHECK(curves[0].atMs[1] == 2100);
 
   ShotCurveSampler fullLimit;
   fullLimit.reset(hostMillis);
-  fullLimit.accept(0.0f, hostMillis);
-  fullLimit.accept(42.0f, hostMillis + HARD_MAX_CIRCUIT_CLOSED_MS);
+  for (uint32_t elapsed = 0; elapsed <= HARD_MAX_CIRCUIT_CLOSED_MS; elapsed += 50)
+    fullLimit.accept(42.0f, hostMillis + elapsed);
   CHECK(fullLimit.count == SHOT_CURVE_MAX_POINTS);
   CHECK(fullLimit.weightCg[SHOT_CURVE_MAX_POINTS - 1U] == 4200);
 }
@@ -12149,7 +12208,7 @@ void s02h_fast_guard_keeps_sampling_and_settled_weight_replaces_endpoint() {
   schedulePendingShotFinalize(EndReason::FAST_EXTRACTION_MAX_WEIGHT, 28000);
   CHECK(pendingFinalize.curve.ended.atDs == 280);
   CHECK(pendingFinalize.curve.ended.weightCg == 4000);
-  CHECK(pendingFinalize.curve.weightCg[56] == 4000);
+  CHECK(pendingFinalize.curve.weightCg[pendingFinalize.curve.count - 1U] == 4000);
 
   session.active = false;
   stopperState = StopperState::READY;
@@ -12164,7 +12223,7 @@ void s02h_fast_guard_keeps_sampling_and_settled_weight_replaces_endpoint() {
   CHECK(shotCurves.copyNewestFirst(curves, 1) == 1);
   CHECK(curves[0].ended.atDs == 280);
   CHECK(curves[0].ended.weightCg == 4210);
-  CHECK(curves[0].weightCg[56] == 4210);
+  CHECK(curves[0].weightCg[curves[0].count - 1U] == 4000);
 }
 
 void verifySettledCurveEndpointForCut(EndReason reason, bool slowExtended,
@@ -13882,7 +13941,6 @@ void s04c_delete_shot_record_removes_log_and_curve() {
   CHECK(id != 0);
   ShotCurveRecord curve = emptyShotCurveRecord();
   curve.shotId = id;
-  curve.intervalDs = SHOT_CURVE_INTERVAL_DS;
   CHECK(shotCurves.append(curve));
   PersistedLastShot good = {};
   good.valid = true;
@@ -13946,7 +14004,6 @@ void s04e_delete_shot_record_is_ram_only_when_flash_is_busy() {
   const uint32_t id = stored[0].id;
   ShotCurveRecord curve = emptyShotCurveRecord();
   curve.shotId = id;
-  curve.intervalDs = SHOT_CURVE_INTERVAL_DS;
   CHECK(shotCurves.append(curve));
   g_hostFlashIoMutexAvailable = false;
   const bool deleted = deleteShotRecord(id);
@@ -18369,6 +18426,7 @@ const TestCase testCases[] = {
     {"S01", s01_shot_log_filters_short_and_rinse},
     {"S01c", s01c_mixed_shots_share_stats_and_home_authority},
     {"S01e", s01e_bbw_error_uses_its_own_ten_shots},
+    {"S01f", s01f_curve_rollover_keeps_stats_windows_and_sorted_joins},
     {"S01d", s01d_manual_timer_and_limit_share_settled_finalize},
     {"S01b", s01b_shot_log_stop_detail_names_end_reasons},
     {"S02", s02_shot_log_appends_after_drip_delay},

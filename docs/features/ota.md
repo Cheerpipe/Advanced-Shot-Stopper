@@ -48,9 +48,12 @@ Watchdog and panic still open the circuit and reset immediately: a hung
 firmware cannot wait for the shot to finish.
 
 Flashing leaves Wi-Fi credentials, presets, and calibration untouched. A firmware
-version that changes the shot-history format may start with empty shot history
-after reboot. This version uses a new shot-history format and does not migrate
-older records; use a clean `--erase-all` installation for this cutover.
+version that changes history formats may start incompatible records empty.
+The timestamped curves require the one-time preserving
+[USB curve-layout transition](../BUILD.md#curve-layout-transition), because
+app-only OTA cannot change a partition table. Old curves start empty; settings,
+shot summaries and activation history remain. Subsequent updates support OTA
+normally alongside USB installation.
 
 ## How to run
 

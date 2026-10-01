@@ -33,7 +33,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   self.loadControlStatus(control);
   PersistedLastShot homeLastShot = {};
   ShotLogRecord homeRecord = {};
-  ShotCurveRecord homeCurve = emptyShotCurveRecord();
+  ShotCurveRecord &homeCurve = g_work->homeCurve;
+  resetShotCurveRecord(homeCurve);
   const bool homeHistoryLinked = page == StatusPage::Home &&
       self.callbacks_.copyHomeShot != nullptr &&
       self.callbacks_.copyHomeShot(homeRecord, homeCurve);
@@ -824,15 +825,18 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         cupWeightValid ? "true" : "false",
         static_cast<unsigned long>(control.cupTare.placementId), idleTare);
     if (ok) {
-      const ShotCurveRecord curve = control.activeCycle ? shotCurveRecordFromStatusFields(
-          control.shotCurveCount, control.shotCurveIntervalDs,
+      ShotCurveRecord &curve = g_work->serializedCurve;
+      if (control.activeCycle) shotCurveRecordFromStatusFields(
+          curve, control.shotCurveCount, control.shotCurveTruncated,
           control.shotCurveFirstDropDs, control.shotCurveFirstDropCg,
           control.shotCurveExtendedDs, control.shotCurveExtendedCg,
           control.shotCurveAtmDs, control.shotCurveAtmCg,
           control.shotCurveAtmClearedDs, control.shotCurveEndedDs,
           control.shotCurveEndedCg, control.shotCurveWeightCg,
           sizeof(control.shotCurveWeightCg) /
-              sizeof(control.shotCurveWeightCg[0])) : homeCurve;
+              sizeof(control.shotCurveWeightCg[0]), control.shotCurveAtMs,
+          control.shotCurveBreakBefore);
+      else curve = homeCurve;
       char *const curveJson = g_work->curveJson;
       if (formatShotCurveJsonBody(curveJson, SHOT_CURVE_JSON_CAPACITY,
                                   curve)) {

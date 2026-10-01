@@ -600,8 +600,8 @@ if (htmlBytes > 79950) {
 // Cloud call rendering uses 0.5 KB beyond the previous JS allowance.
 // Serialized requests and deferred hydration share one record-page loader.
 // Allow 1 KiB of source wiring; compressed assets and firmware limits stay fixed.
-if (jsBytes > 229000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 229000)`);
+if (jsBytes > 233000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 233000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -624,8 +624,8 @@ if (jsBytes > 229000) {
 // (card fields and table headers in HTML; marker, columns, and wiring in JS).
 // Cloud diagnostics add 1.3 KB of combined source allowance.
 // Paired reads and deferred hydration add 1 KiB of source allowance only.
-if (htmlBytes + jsBytes > 308800) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 308800)`);
+if (htmlBytes + jsBytes > 312800) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 312800)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

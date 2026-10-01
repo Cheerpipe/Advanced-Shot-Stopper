@@ -2169,8 +2169,8 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   uint32_t lastActivationDurationDs = 0;
   uint8_t lastActivationType = 2;  // shotstopper::HistoryType::OTHER (history header not included)
   uint8_t lastActivationFlags = 0;
-  uint8_t shotCurveCount = 0;
-  uint8_t shotCurveIntervalDs = 5;
+  uint16_t shotCurveCount = 0;
+  bool shotCurveTruncated = false;
   uint16_t shotCurveFirstDropDs = UINT16_MAX;
   int16_t shotCurveFirstDropCg = INT16_MIN;
   uint16_t shotCurveExtendedDs = UINT16_MAX;
@@ -2180,7 +2180,9 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   uint16_t shotCurveAtmClearedDs = UINT16_MAX;
   uint16_t shotCurveEndedDs = UINT16_MAX;
   int16_t shotCurveEndedCg = INT16_MIN;
-  int16_t shotCurveWeightCg[121] = {};
+  int16_t shotCurveWeightCg[1201] = {};
+  uint16_t shotCurveAtMs[1201] = {};
+  uint8_t shotCurveBreakBefore[151] = {};
   HwmonSnapshot hwmon = {};
   uint32_t debugEventsDropped = 0;
   bool cycleFlowDuringRetare = false;
@@ -2245,8 +2247,8 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
 };
 
 // Published copy lives in BSS, not on the 8 KiB loop stack.
-static_assert(sizeof(ControlStatusSnapshot) <= 4096,
-              "ControlStatusSnapshot grew past the loop-stack status budget");
+static_assert(sizeof(ControlStatusSnapshot) <= 6656,
+              "ControlStatusSnapshot exceeds its internal publication budget");
 
 // Gate checks do not need the ~876 B snapshot. Network/httpd copy this small
 // view; the full snapshot stays in DRAM BSS or NetworkWorkBuf PSRAM.

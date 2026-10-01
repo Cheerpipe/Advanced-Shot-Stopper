@@ -69,7 +69,8 @@ void publishControlStatus() {
   uint32_t shotBootId = 0;
   PersistedLastShot statusLastShot = {};
   PersistedLastShot statusLastGoodShot = {};
-  ShotCurveRecord statusLastGoodCurve = emptyShotCurveRecord();
+  static SHOT_STOPPER_PSRAM_BSS ShotCurveRecord statusLastGoodCurve;
+  resetShotCurveRecord(statusLastGoodCurve);
   const bool lastGoodHistoryLinked = copyShotStoreStatus(
       shotBootId, statusLastShot, statusLastGoodShot, statusLastGoodCurve,
       !session.active);
@@ -77,7 +78,8 @@ void publishControlStatus() {
   copyHistoryPage(statusHistoryPage, 0, 1, ShotLogSortDir::Desc);
   TaskLockGuard lock(controlStatusMutex);
   ControlStatusSnapshot &next = publishedControlStatus;
-  next = ControlStatusSnapshot{};
+  // Value-initialize in place: a returned aggregate would use 6 KiB of stack.
+  new (&next) ControlStatusSnapshot{};
   next.cupTare = cupTare;
   next.snapshotVersion = ++controlStatusVersion;
   if (controlStatusVersion == 0) {
@@ -215,16 +217,17 @@ void publishControlStatus() {
     next.lastActivationFlags = newest.flags;
   }
   {
-    const ShotCurveRecord curve =
-        session.active ? shotCurveSampler.snapshot() : statusLastGoodCurve;
+    const ShotCurveRecord &curve = statusLastGoodCurve;
+    if (session.active) shotCurveSampler.snapshot(statusLastGoodCurve);
     copyShotCurveRecordToStatusFields(
-        curve, next.shotCurveCount, next.shotCurveIntervalDs,
+        curve, next.shotCurveCount, next.shotCurveTruncated,
         next.shotCurveFirstDropDs, next.shotCurveFirstDropCg,
         next.shotCurveExtendedDs, next.shotCurveExtendedCg,
         next.shotCurveAtmDs, next.shotCurveAtmCg,
         next.shotCurveAtmClearedDs, next.shotCurveEndedDs,
         next.shotCurveEndedCg, next.shotCurveWeightCg,
-        sizeof(next.shotCurveWeightCg) / sizeof(next.shotCurveWeightCg[0]));
+        sizeof(next.shotCurveWeightCg) / sizeof(next.shotCurveWeightCg[0]),
+        next.shotCurveAtMs, next.shotCurveBreakBefore);
   }
   copyCString(next.scaleProtocol, sizeof(next.scaleProtocol),
               scaleLink.protocolName);

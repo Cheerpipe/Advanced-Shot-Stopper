@@ -152,10 +152,10 @@ under the single `shotStoreMutex`. Control and HTTP mutate only RAM and advance
 a generation. The core-0 persistence worker copies an immutable image under
 that mutex, releases it before flash I/O, and clears live dirtiness only when
 the completion generation still matches. Acknowledgement carries the image's
-flash generation and active slot back to each live store even when newer RAM
-edits remain dirty, so the next snapshot advances from that flash generation.
-Clearing a store preserves its generation; an older slot must never outrank
-the saved empty store. Each inactive partition slot is
+flash progress back to each live store even when newer RAM edits remain dirty,
+so the next snapshot advances from the committed physical state. ShotLog and
+History keep their two-slot generations; curves use block sequences, retention
+floors and clear epochs. Each inactive slot or used curve sector is
 erased one 4 KiB sector at a time, programmed one 1 KiB staged chunk at a time,
 and receives its validity-bearing header last; the worker rechecks the current
 machine and scale gates between steps. The shot log's whole 10,828-byte store and the
@@ -180,17 +180,36 @@ by the boot ID and dump digest. HTTP download reads bounded chunks under the
 shared flash lock and releases the lock before sending each chunk. The raw
 archive requires Admin unlock because task stacks may contain secrets.
 
-The separate shot-curve sidecar uses schema 1:
-up to 121 centigram weights on a fixed half-second grid plus exact event/end
-vertices for each of the same 100 eligible history records. Its 26,820-byte
-whole store lives in PSRAM and moves to and from its slots in 1 KiB chunks
-staged through the small internal flash-I/O scratch only while that owner
-holds the flash lock. Two
-28 KiB slots fill the dedicated 56 KiB `shotcurve` data partition; generation
-and checksum selection preserve the existing atomic whole-store update.
-Writes remain deferred until the shot has ended and do not add a transaction
-for derived flow. Any other curve store is discarded. The
-shot-log record's existing metric prefix and average-flow field are unchanged.
+The shot-curve sidecar uses schema 2. Each accepted in-shot weight is paired
+with its relative reception time in milliseconds; repeated weights and equal
+timestamps remain observations. The 1201-observation capacity covers a 60 s
+shot with observations at least 50 ms apart. That spacing is a capacity
+assumption, not a grid or rate limiter. Known rejected observations, reference
+changes and link discontinuities mark the next accepted observation as a new
+segment. Overflow preserves the prefix, marks it incomplete and leaves control
+and scalar history running.
+
+The 4984-byte RAM record and 498420-byte 100-record cache live in PSRAM.
+An 816 KiB dedicated partition holds 101 reserved 8 KiB data blocks and two
+4 KiB clear-epoch sectors. A maximum-size record occupies 5012 bytes. Writes
+erase only its one or two used physical sectors, transfer only the used record
+through the existing internal 1 KiB scratch, and commit the checksum-bearing
+header last. A replacement uses the spare block, retaining the previous 100
+records until commit. Startup scans only block starts, checks schema, lengths,
+counts, times and checksums, and reconstructs the newest retained records.
+Deletion clears a validity bit; the committed retention floor prevents old
+evicted curves from returning after deletion. Alternating clear epochs prevent
+curves from returning when shot IDs are reused. Immutable worker acknowledgement
+carries physical progress forward while newer RAM mutations stay dirty.
+
+Capture performs no flash I/O. Finalization retains the accepted samples;
+accepted post-drip yield changes only the separate endpoint annotation. Curve
+JSON exposes aligned `wCg`/`wAtMs`, segment-start indices in
+`wBreakBefore`, and `wTruncated`. Weight and flow consumers use actual
+times; event annotations never become observed samples. Scalar shot metrics,
+independent Stats eligibility windows, sorting and exact-ID joins remain owned
+by ShotLog. Other curve schemas start empty. OTA remains supported after the
+one-time preserving USB layout transition.
 
 Decoding checks the supplied length before reading record CRCs and copies only
 that validated length; compact inputs do not require a full-store allocation.

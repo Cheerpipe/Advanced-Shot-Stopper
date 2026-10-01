@@ -106,8 +106,8 @@
     goalG: 36, actualG: 36.2, offsetG: i ? 1.5 : 0, durationS: 30,
     bbwAlgorithm: i % 2 ? 'legacy' : 'linear_ewma', bbwAlgorithmVersion: i % 2 ? 1 : 2,
     bbwAlpha: i % 2 ? 1 : .37, bbwLearningApplied: i ? true : null, presetId: i ? 255 : 0}));
-  records[1].wCg = [0, 1520, 3105, 3620]; records[1].wDtS = 0.5;
-  records[2].wCg = [0, 800]; records[2].wDtS = 0.5;
+  records[1].wCg = [0, 1520, 3105, 3620]; records[1].wAtMs = [0, 450, 900, 1600];
+  records[2].wCg = [0, 800]; records[2].wAtMs = [0, 500];
   const context = vm.createContext({
     api: async url => {assert.equal(url, '0/100/date/desc'); return {shots: records};},
     shotsUrl: (...args) => args.join('/'), SHOTS_EXPORT_LIMIT: 100,
@@ -124,8 +124,26 @@
   assert.equal(lines.length, 101);
   assert.equal(lines[0][11], 'offset_g');
   assert.equal(lines[1][11], '0');
-  assert.deepEqual(lines[0].slice(-16), ['bbw_algorithm', 'bbw_algorithm_version', 'bbw_alpha', 'bbw_learning_applied', 'preset_id', 'scale_name', 'max_flow_g_s', 'yield_dt_s', 'yield_0.5s', 'yield_1s', 'yield_1.5s', 'yield_2s', 'flow_0.5s', 'flow_1s', 'flow_1.5s', 'flow_2s']);
-  assert.deepEqual(lines[1].slice(-16), ['linear_ewma', '2', '0.37', '', '', '', '', '', '', '', '', '', '', '', '', '']);
-  assert.deepEqual(lines[2].slice(-16), ['legacy', '1', '1.00', '1', '255', '', '2.5', '0.5', '0', '15.2', '31.05', '36.2', '', '7.85', '', '']);
-  assert.deepEqual(lines[3].slice(-16), ['linear_ewma', '2', '0.37', '1', '255', '', '2.5', '0.5', '0', '8', '', '', '', '', '', '']);
+  assert.deepEqual(lines[0].slice(-14), ['curve_truncated', 'curve_break_before', ...Array.from({length:4}, (_,i)=>['sample_'+(i+1)+'_time_s','sample_'+(i+1)+'_weight_g','sample_'+(i+1)+'_flow_g_s']).flat()]);
+  assert.deepEqual(lines[1].slice(-14), ['0', '', ...Array(12).fill('')]);
+  assert.deepEqual(lines[2].slice(-14), ['0', '', '0', '0', '', '0.45', '15.2', '7.85', '0.9', '31.05', '', '1.6', '36.2', '']);
+  assert.deepEqual(lines[3].slice(-14), ['0', '', '0', '0', '', '0.5', '8', '', ...Array(6).fill('')]);
+  for (const record of records) {
+    record.wCg = Array(1201).fill(1234);
+    record.wAtMs = Array.from({length:1201}, (_,i)=>i*50);
+    record.wBreakBefore = Array.from({length:1200}, (_,i)=>i+1);
+    record.wTruncated = true;
+  }
+  await vm.runInContext('exportShotsCsv()', context);
+  const maximum = (await blob.text()).split('\n').map(line=>line.split(','));
+  assert.equal(maximum.length, 101);
+  assert.equal(maximum[0].length, 3640);
+  assert.equal(maximum[0].at(-3), 'sample_1201_time_s');
+  for (const row of maximum.slice(1)) {
+    assert.equal(row.length, maximum[0].length);
+    assert.equal(row[35], '1');
+    assert.equal(row[36].split(';').length, 1200);
+    assert.equal(row.at(-3), '60');
+    assert.equal(row.at(-2), '12.34');
+  }
 })().catch(error => {console.error(error); process.exitCode = 1;});

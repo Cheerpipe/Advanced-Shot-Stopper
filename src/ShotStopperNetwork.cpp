@@ -58,15 +58,13 @@ WallClock g_wallClock;
 
 struct NetworkWorkBuf {
   // Diagnostic status with the task profiler running needs ~14 KB (base view
-  // ~10.6 KB + up to 20 task rows and 9 loop-phase rows ~3.6 KB); 16 KB keeps
-  // headroom so profiling never fails the status view with STATUS_TOO_LARGE.
-  static constexpr size_t kStatusJson = 16384;
+  // ~10.6 KB + up to 20 task rows and 9 loop-phase rows ~3.6 KB). Home also
+  // needs the worst-case 22 KiB timestamped curve; the pages share this buffer.
+  static constexpr size_t kStatusJson = 40960;
   static constexpr size_t kPresetsJson = 2800;
   static constexpr size_t kHistoryJson = 1400;
-  // 2432 keeps the -Os format-truncation bound of the shots-row builder
-  // (curveJson up to 1280 + fields) under capacity; HistoryPage (1940) and
-  // kOtaJson (1664) stay below it, so the union member sizes are unchanged.
-  static constexpr size_t kJsonItem = 2432;
+  // One full-capacity curve plus bounded scalar fields; chunks are sent per row.
+  static constexpr size_t kJsonItem = SHOT_CURVE_JSON_CAPACITY + 1536;
   // Includes resumable-session identity (transfer id + SHA-256) as well as
   // two image tags. This buffer is in the shared external work area, never
   // used by the flash-writing path.
@@ -89,6 +87,8 @@ struct NetworkWorkBuf {
   DebugLogReadMetadata logMetadata{};
   ShotLogRecord shotRecords[SHOT_LOG_CAPACITY]{};
   ShotCurveRecord shotCurves[SHOT_CURVE_CAPACITY]{};
+  ShotCurveRecord homeCurve{};
+  ShotCurveRecord serializedCurve{};
   ControlStatusSnapshot control{};
   TaskProfilerSnapshot taskProfiler{};
   DebugExportExtras debugExport{};
@@ -100,7 +100,7 @@ struct NetworkWorkBuf {
   char requestBody[2048]{};
   WifiScanSnapshot wifiScan{};
 };
-static_assert(sizeof(NetworkWorkBuf) <= 77824,
+static_assert(sizeof(NetworkWorkBuf) <= 655360,
               "Network workspace exceeds its external-memory budget");
 
 // Wi-Fi scan snapshots. Network task / httpd only; not BLE.

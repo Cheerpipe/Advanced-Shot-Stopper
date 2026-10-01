@@ -36,8 +36,8 @@ growth headroom respectively. Flash rodata is 563,900 bytes, flash code is
 1,469,344 bytes, and linked DIRAM is 182,518 bytes; each retains its versioned
 allowance. The IANA 2026d catalog/rules and zone-aware Web UI account for the
 reviewed increase over the prior image. Immutable rules stay in flash; external
-BSS is 237,904 bytes in the JTAG development profile, below its 240 KiB
-(245,760-byte) ceiling. The 3 MiB OTA slot
+BSS was 237,904 bytes in that baseline profile. The accepted-observation curve
+change has a separately reviewed 800 KiB external-BSS ceiling. The 3 MiB OTA slot
 remains the hard image limit, with about 30% free in this measured build.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
@@ -52,25 +52,30 @@ PSRAM before mapping overhead. Linker figures do not measure runtime heap;
 matched target memory, settings latency and loop-gap measurements remain
 required before qualification. PSRAM access may slow NVS integer operations.
 
-Both linker maps must also keep external BSS at or below 240 KiB (245,760 bytes) and retain
+Both linker maps must also keep external BSS at or below 800 KiB (819,200 bytes) and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
 objects to PSRAM would move synchronization state accessed under spinlocks.
-The current official JTAG development profile uses 237,904 bytes, leaving
-7,856 bytes of reviewed growth headroom. This ceiling detects
+The timestamped-curve Micra development profile measured 756,272 external-BSS bytes,
+183,510 DIRAM bytes and a 2,188,640-byte image with the task-only pending finalizer
+in PSRAM. This ceiling detects
 static-placement regressions; it is not the physical PSRAM limit or a
 runtime-heap measurement. The earlier 96→104 KiB increase covered the V3
 half-second shot-curve store, and the 112→240 KiB increase covers the
 96→512-event diagnostic log ring, whose static PSRAM ring and serial dump
-snapshot grew by about 123 KiB.
+snapshot grew by about 123 KiB. The current 240→800 KiB increase covers the
+498,420-byte accepted-observation cache, its bounded disk workspaces, the
+1201-observation sampler and task-owned finalization/serialization staging.
+The immutable persistence image is separately allocated in external heap.
 
 ## Runtime placement and allocation
 
 | Resource | Placement and bound |
 |---|---|
-| Network work buffer | external, at most 68 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex, and a one-curve JSON scratch serves the status and shots-list rows |
+| Network work buffer | external, measured 628,104 bytes on ESP32-S3, bounded at 640 KiB; includes the 498,400-byte curve read copy, 22,016-byte curve JSON, 23,552-byte row JSON, 40,960-byte status JSON and dedicated curve staging; handlers share the work-buffer mutex |
 | HTTP response send | complete assets and JSON use HTTPD Content-Length responses; streamed bodies retain chunked transfer. Source buffers pass directly to HTTPD's default socket send, which copies into lwIP; no application bounce buffer or extra copy |
 | NVS metadata cache | PSRAM preferred with internal fallback on n16r8; n8r4 retains its existing placement; flash I/O still uses the internal scratch below |
-| Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 68 KiB total bound |
+| Shot-curve store | external, 498,420-byte cache for 100 records of 4,984 bytes; bounded block-header index and two 5,088-byte disk/verification workspaces belong to the same owner; immutable worker image is separately external |
+| Curve capture/finalization | external task-owned 1201-observation sampler and pending/finalization snapshots; no large curve local on control or HTTP stacks; the established mutex-protected published status remains internal, bounded at 6,656 bytes (6,552 on host) |
 | Shared flash-I/O scratch | internal heap, 3,328-byte capacity for one 3,304-byte PersistedSettings record; slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |
 | USB serial output | internal heap, 2,064 bytes for the eight-record ESP log queue; one external 2,560-byte CLI reply buffer; startup failures free both allocations, and successful startup retains one boot-lifetime owner |
 | Micra cloud workspace | external and lazy; a 6,344-byte work buffer on ESP32-S3 holds identity, tokens, authorization header, and client state while cloud observation is active, plus one request-scoped 16 KiB buffer whose mutually exclusive request-body and response phases share storage (22,728 bytes combined, excluding HTTP/TLS library allocations); Disconnect, disabled observation, STA loss, and AP entry destroy the client and free both blocks |
@@ -88,6 +93,15 @@ snapshot grew by about 123 KiB.
 | JSON parser | PSRAM only; Web input remains at most 2047 bytes / 128 values; the Micra worker explicitly admits at most 16 KiB / 1024 values for bounded cloud responses; nesting remains 32 |
 | BBW adaptive candidates | control-owned fixed RAM, at most 3,000 bytes for eight presets; 20 observations and five trajectory anchors each |
 
+The timestamped-curve Micra development image has compiled entry frames of
+3,216 bytes for control-status publication, 480 bytes for finalization scheduling,
+6,944 bytes for the status handler and 4,720 bytes for integration. The control
+loop has an 8,192-byte stack and HTTPD has 11,264 bytes. These frames exclude
+nested calls and interrupt overhead; target stack-watermark qualification is
+still required. Curve helpers fill their owned destinations directly, and
+control-status publication initializes its existing object in place, avoiding
+large return-value and default-aggregate temporaries.
+
 Network command builders must activate their union member with
 `setNetworkType()` before writing credentials. Preset metadata remains outside
 the union because a preset operation also carries configuration. Settings
@@ -96,13 +110,15 @@ machine, and per-scale friendly names. Earlier settings schemas are rejected and
 
 History V5 retains an exact bounded preset-name snapshot and transfers through
 the shared chunked flash-I/O path. The separate last-shot V4 record retains the
-same provenance. The current rendered English Web UI is capped at 74,000 bytes
-HTML, 211,000 bytes JavaScript, and 285,000 bytes combined authoring source.
-The compressed runtime JavaScript cap is 40,000 bytes, measured against a fixed
+same provenance. The current rendered English Web UI is capped at 79,950 bytes
+HTML, 233,000 bytes JavaScript, and 312,800 bytes combined authoring source.
+The compressed runtime JavaScript cap is 43,600 bytes, measured against a fixed
 sentinel build id so commit-SHA noise cannot move it; the Web contract still
 round-trips and flash-charges the real, version-baked runtime through the
-combined cap. The Web contract measures 73,727 / 207,643 authoring bytes and
-105,986 combined gzip bytes; the total embedded limit remains 108,200 bytes.
+combined cap. The timestamped-curve Web contract measured 78,840 / 230,897
+authoring bytes and 111,957 combined gzip bytes; the embedded limit is 113,000
+bytes. The reviewed growth covers actual-time plotting, continuity/completeness
+and ordinal sample CSV; firmware image and OTA-slot ceilings remain unchanged.
 
 Every new setting must include concise, natural help that explains its effect on
 the barista's workflow, including what changes when an option is enabled or
@@ -114,12 +130,16 @@ friendly, well-constructed UI takes priority over preserving the previous Web UI
 byte allowance. Per-asset caps remain independently enforced by Web contract
 tests, so one asset cannot consume all combined headroom.
 
-Both supported partition tables reserve a dedicated `shotcurve` data partition
-at custom subtype `0x40`, exactly `0xE000` (56 KiB). It contains two
-erase-aligned `0x7000` (28 KiB) slots, so the 26,820-byte store retains 1,852
-bytes of per-slot headroom. On n8r4 it occupies `0x680000`–`0x68DFFF`; on n16r8
-it occupies `0x620000`–`0x62DFFF`. The following filesystem region is reduced
-without moving either OTA application or the coredump endpoint.
+Both supported partition tables reserve `shotcurve` at custom subtype
+`0x40`, exactly `0xCC000` (816 KiB): 101 × 8192-byte record blocks
+plus two separate 4096-byte epoch sectors. The maximum used record is 5012
+bytes, leaving 3180 reserved bytes per block. A shorter curve erases/programs
+only its used length and ignores stale bytes beyond it. On n8r4 the partition
+occupies `0x69E000`–`0x769FFF`; on n16r8 it occupies
+`0x63E000`–`0x709FFF`. The unmounted filesystem reservation shrinks;
+NVS, both OTA slots, shot summaries, activation history and crash storage
+retain their addresses. The installer permits the exact previous project
+layout to transition over USB without erasing unrelated saved data.
 
 Capability samples use `INTERNAL|8BIT` and `SPIRAM|8BIT`, including the PSRAM
 minimum-free watermark. Diagnostic `memoryAllocations` reports cumulative

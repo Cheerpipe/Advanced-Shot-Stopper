@@ -64,28 +64,24 @@ appear in the separate [activation history](activation-history.md). During a
 live cycle, Home shows the current cycle. BBW offset learning and A→M samples
 keep their own eligibility rules.
 
-Curve samples and the history record are written **once** when the cycle
-closes (after the configured drip delay), not during an active brew. Shot
-duration and the curve time axis end when the machine circuit opens. The
-UTC instant and local offset are captured when the circuit opens, so a clock
-or daylight saving change during the drip delay cannot relabel the shot.
-settled post-drip weight replaces the curve's endpoint at that same end time;
-the drip-delay interval is not appended to the graph. Before the first drop,
-the weight chart shows a dark green outline along the zero-weight axis, and
-the flow chart shows an aqua outline along its zero-flow axis, with no shaded
-area. An aqua drop with only the first-drop time beside it marks that moment on
-the weight chart only. When a late tare happened, a cup icon with a T inside
-and the tare time marks that moment on the weight chart too. If the cup or
-its time label overlaps the first-drop marker, the cup and its label move
-up one lane with a small gap above the drop. Both times stay aligned with
-their events; when there is enough room, they share the lower lane. The time
-axis shows only its fixed 10-second labels;
-Fast, Slow, and A-to-M changes remain visible through the curve colors without
-adding competing time labels. Curves without a first-drop event keep their full
-available grid. The current-shot curve exposed to Home is an in-memory view;
-when idle, Home loads the newest eligible shot and its exact curve by history
-ID. Neither is a persistent
-live-telemetry service.
+The controller collects accepted scale readings in memory while the shot runs
+and saves the completed curve after the configured drip delay. Each reading
+keeps its actual arrival time, including repeated weights and changing scale
+cadence. Duration ends when the machine circuit opens; later drip readings
+are not added to this series. Settled post-drip yield remains a separate
+endpoint annotation, so it cannot change an earlier scale reading or its flow.
+
+A curve can hold 1201 readings: enough for a 60-second shot with readings
+50 ms apart. If a faster burst exceeds that capacity, the captured prefix
+remains available and the chart says **Incomplete curve**. Brew stopping and
+the shot's summary still work. Known rejected readings, a new tare reference
+and scale loss leave breaks in the curve. A healthy slow scale does not
+create a break merely because its readings are farther apart.
+
+The first-drop marker and late-tare cup marker keep their event times. Fast,
+Slow and A-to-M colors identify changes without adding competing time labels;
+the time axis uses 10-second references. Home shows the live memory curve
+during a shot and the newest eligible history row's exact curve while idle.
 
 Observed removal or a new placement during the drip delay preserves the weight
 captured at shot end and discards post-drip learning, regardless of the idle
@@ -158,30 +154,18 @@ marks its own position; when the two labels are too close, the paired
 measured/target label is the one that stays visible.
 The shot card continues to show the exact measured weight.
 
-The Flow rate chart draws the measured rates as one continuous line per color
-instead of separate blocks. Samples are saved every half-second, so each
-measured rate sits at the middle of the half-second it describes, and
-neighboring rates are joined with a light three-point average, so the curve
-reads as a smooth flow profile while the first and last measured rates stay
-exact. Color segments (aqua flow, orange Fast guard, blue Slow guard, gray
-A→M) break only where the extraction actually changes or where a gap leaves
-nothing to draw.
+The Flow rate chart uses the elapsed time between accepted readings. Known
+continuity breaks, duplicate arrival times and A→M scale-loss periods leave
+gaps where a rate cannot be calculated. Event annotations and settled yield
+never enter the measured flow series.
 
 The cards call shot output **Yield** while chart, goal, scale, and cup labels
 continue to use Weight where they describe weight itself. **Avg flow** remains
 the final yield divided by the time after first drop. **Max flow** is the highest
-non-negative local change between usable consecutive curve samples; Home shows
-the peak observed so far during a live shot, and saved cards reproduce it from
-the stored curve. Max flow always reports the exact measured rates, not the
-softened line. Falling weight contributes 0 g/s, while missing samples and
-an A→M scale-loss period leave gaps instead of inventing flow. Exact partial
-guard intervals remain usable. To avoid noisy boundary spikes without leaving
-holes, the short interval after the exact first-drop marker rises halfway toward
-the next contiguous measured flow, while the final boundary interval continues
-the preceding contiguous flow. An interval ending at an exact Fast/Slow guard
-or A→M marker continues the preceding contiguous flow the same way. When no
-neighboring interval is available, the only measured boundary rate remains
-visible. Max flow is unavailable when the curve has no usable interval.
+non-negative local change between usable consecutive accepted readings; Home
+shows the peak so far during a live shot, and saved cards reproduce it from
+the stored observations. Falling weight contributes 0 g/s. Max flow is
+unavailable when the curve has no usable interval.
 
 The controller stores only the weight curve. The Flow rate chart and Max flow
 are derived locally, so viewing or reloading them does not create another
@@ -197,44 +181,26 @@ zone later does not recalculate either row. If the clock was unavailable,
 `has_wall_time` is `0` and all three time cells are empty. A zone name is not
 recorded per shot.
 
-CSV keeps its column order, with the shot output columns named like the cards:
-`yield_g` for the final yield (earlier `actual_g`), `yield_source` for where
-that number came from (earlier `actual_weight_source`), and the curve columns
-`yield_dt_s` and `yield_<n>s` (earlier `w_dt_s` and `w_<n>s`). Everything else
-keeps its earlier name, followed by `bbw_algorithm`, `bbw_algorithm_version`,
-`bbw_alpha`, `bbw_learning_applied`, `preset_id`, the derived column
-`max_flow_g_s`, and the yield curve columns. The derived column
-is empty when a record has no usable curve interval. The JSON names
-are `bbwAlgorithm`, `bbwAlgorithmVersion`, `bbwAlpha`, and `bbwLearningApplied`;
-the JSON field names do not change with the CSV rename. These fields are
-exported data; the visible table/cards and averages do not
-add algorithm or offset fields. Spreadsheets and scripts that match earlier
-exports by column name need the renames above.
+CSV retains the scalar shot columns, including `yield_g`,
+`yield_source`, `max_flow_g_s`, the BBW fields and `preset_id`.
+After those columns, `curve_truncated` reports `1` for an incomplete
+capture and `0` otherwise. `curve_break_before` lists the zero-based
+indices of readings starting a new segment, separated by semicolons.
 
-The yield curve columns follow `max_flow_g_s` so every exported row also
-carries the weights captured during that shot. `yield_dt_s` (JSON `wDtS`) is the
-seconds between saved samples — 0.5 with current firmware — then one
-`yield_<n>s` column holds each sample in grams — the same series as the JSON
-`wCg` array, which counts in centigrams. Each column is named for the moment
-its sample closes, so with half-second sampling the columns run `yield_0.5s`,
-`yield_1s`, `yield_1.5s`, and so on up to the longest curve in the export —
-the same dating the Weight and Flow rate charts use.
-Plot a row's yield cells against their column times in a spreadsheet to
-redraw its curve aligned with the shot's events. Shots without a saved
-curve, and samples beyond a shot's own curve length, leave those cells empty.
+Each reading has an ordinal group: `sample_1_time_s`,
+`sample_1_weight_g`, `sample_1_flow_g_s`, then the same three columns
+for sample 2 and so on. Times are the original elapsed arrival times in
+seconds, weights are grams, and flow is grams per second. A flow cell stays
+empty when that reading has no usable preceding interval. Missing curves
+and groups beyond a shot's captured length leave empty cells. The export
+does not resample to a grid, so different scale cadences remain visible without
+creating a column for every distinct arrival time.
 
-The flow rate columns follow the yield curve columns and hold the same
-measured rates the Flow rate chart and Max flow derive from that curve: one
-`flow_<n>s` column per curve sample, in grams per second with two decimals.
-`flow_1s` is the rate measured over the half-second that closes with the
-sample in `yield_1s`, `flow_1.5s` the next, and so on. `flow_0.5s` stays
-empty unless the exact first-drop marker falls within the first half-second,
-in which case it carries the chart's rate for that interval. A falling weight
-reports 0, and cells stay empty where the chart draws no flow: before the
-first drop, across a missing sample, and during an A→M scale-loss period.
-When no event marker falls on or inside a sample interval, a flow cell is
-simply the rise between its two neighboring yield cells divided by the sample
-interval.
+The underlying curve JSON pairs centigram weights in `wCg` with integer
+elapsed milliseconds in `wAtMs`. `wBreakBefore` supplies the same
+segment-start indices and `wTruncated` reports completeness.
+Spreadsheets using the former `yield_dt_s`, `yield_<time>s` or
+`flow_<time>s` columns must switch to these ordinal sample groups.
 
 `preset_id` (JSON `presetId`) and JSON `presetName` are captured from the preset
 used for that shot, not the currently selected recipe. The name is a snapshot,
@@ -255,9 +221,10 @@ Learning applied is `1`/`0` in CSV and true/false in JSON; a skipped shot still
 retains its assigned gain. For example, appended CSV values can be
 `linear_ewma,2,0.37,1` and later `linear_ewma,2,0.50,1` for the same preset.
 
-Shot history uses schema 2 and curves use schema 1. The shot-history format
-does not migrate older records; install with `--erase-all` to start with an
-empty history. Select Linear
+The one-time USB curve-layout update starts the old weight curves empty while
+preserving settings, shot summaries and activation history. Subsequent firmware
+updates can use OTA. See [Build](../BUILD.md#curve-layout-transition).
+Select Linear
 regression + offset correction in current firmware for like-for-like
 algorithm comparison. Renaming the visible method does not rename API/CSV
 identifiers.

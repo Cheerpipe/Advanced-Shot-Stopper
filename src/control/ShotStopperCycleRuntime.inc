@@ -682,7 +682,10 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
       expirePostTareBaselineIfNeeded();
   }
   if (session.awaitingPostTareBaseline) {
-    if (session.retareEffectPending) return false;
+    if (session.retareEffectPending) {
+      shotCurveSampler.markBreak();
+      return false;
+    }
     if (fabsf(weight) <= POST_TARE_BASELINE_MAX_ABS_G) {
       session.awaitingPostTareBaseline = false;
       holdCupPresenceTransitions(false);
@@ -765,6 +768,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
     session.recoveryLastWeightG = weight;
     if (session.recoveryConfirmations <
         WEIGHT_RECOVERY_CONFIRMATION_SAMPLES) {
+      shotCurveSampler.markBreak();
       return false;
     }
 
@@ -784,6 +788,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
     const AccidentalTouchClass classified =
         evaluateAccidentalTouchSample(weight, receivedAtMs);
     if (classified == AccidentalTouchClass::TOUCH) {
+      shotCurveSampler.markBreak();
       resetDirectStopConfirmation();
       if (touchProvenanceValid) considerTouchStopSample(weight, receivedAtMs, packetSequence,
                               connectionGeneration, previousTouchStop);
@@ -969,12 +974,11 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
   copyCString(pendingFinalize.scaleName, sizeof(pendingFinalize.scaleName),
               session.scaleName);
   if (session.hasWeightAnchor) {
-    shotCurveSampler.accept(session.lastAcceptedWeightG, millis());
     shotCurveSampler.captureEnd(millis(), session.lastAcceptedWeightG);
   } else {
     shotCurveSampler.captureEnd(millis());
   }
-  pendingFinalize.curve = shotCurveSampler.snapshot();
+  shotCurveSampler.snapshot(pendingFinalize.curve);
 }
 
 void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeightG,
@@ -1081,7 +1085,8 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
     lastShotNvsDirty = true;
   }
   if (snapshot.curve.count > 0) {
-    ShotCurveRecord curve = snapshot.curve;
+    static SHOT_STOPPER_PSRAM_BSS ShotCurveRecord curve;
+    curve = snapshot.curve;
     curve.shotId = newId;
     if (!shotCurves.append(curve, false)) {
       addDebugEvent(DebugCategory::CONFIG, DebugCode::SHOT_LOG_PERSIST_FAILED,
@@ -1180,7 +1185,8 @@ void cancelPendingFinalize(const char *reason) {
     return;
   }
   captureLateTareCompletion();
-  const PendingShotFinalize snapshot = pendingFinalize;
+  static SHOT_STOPPER_PSRAM_BSS PendingShotFinalize snapshot;
+  snapshot = pendingFinalize;
   pendingFinalize.pending = false;
   serialTrace(LogLevel::INFO, reason != nullptr
                                   ? reason
@@ -1258,7 +1264,8 @@ void pendingShotFinalizeTask() {
   }
 
   captureLateTareCompletion();
-  PendingShotFinalize snapshot = pendingFinalize;
+  static SHOT_STOPPER_PSRAM_BSS PendingShotFinalize snapshot;
+  snapshot = pendingFinalize;
   pendingFinalize.pending = false;
 
   const float finalWeightG = currentWeight;

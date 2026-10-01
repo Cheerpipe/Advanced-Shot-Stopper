@@ -1139,7 +1139,8 @@ esp_err_t ShotStopperNetwork::shotsHandler(httpd_req_t *request) {
       snprintf(targetEarly, sizeof(targetEarly), "%.1f",
                static_cast<double>(record.targetReachedEarlyDs) / 10.0);
     }
-    const ShotCurveRecord emptyCurve = emptyShotCurveRecord();
+    ShotCurveRecord &emptyCurve = work.serializedCurve;
+    resetShotCurveRecord(emptyCurve);
     const ShotCurveRecord *curve = findShotCurveById(
         work.shotCurves, curveCount, record.id);
     if (curve == nullptr) {

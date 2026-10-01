@@ -20,6 +20,16 @@
   const render = new Function('document', 'ResizeObserver', '$', 'requestAnimationFrame',
       helpers + renderer + ';return renderShotSpark;')(
       document, class{observe(){}}, ()=>({}), ()=>{});
+  const observed = render(host, {wCg:[0,100,100,200], wAtMs:[0,100,600,600],
+    wBreakBefore:[2], wTruncated:true, durationS:1});
+  if (!observed || observed.flowCurve[1] !== 10 ||
+      observed.flowCurve[2] !== null || observed.flowCurve[3] !== null ||
+      observed.segs.length !== 2 || !host.innerHTML.includes('Incomplete curve'))
+    throw new Error('Actual observation times, continuity and completeness must reach charts');
+  const maximum = render(host, {wCg:Array(1201).fill(100),
+    wAtMs:Array.from({length:1201},(_,i)=>i*50),durationS:60});
+  if (maximum?.flowCurve.length !== 1201 || maximum.maxFlow !== 0)
+    throw new Error('Full-capacity actual-time curves must remain usable');
   const basic = render(host, {wCg:[0, 0, 50, 150, 150], wDtS:1, durationS:4,
     firstDropS:2.5, dropCg:50});
   const [weight, flow] = host.innerHTML.split('<div class="shotCurve">').slice(1);

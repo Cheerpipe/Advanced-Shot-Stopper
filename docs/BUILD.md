@@ -238,7 +238,7 @@ must never be added to a profile.
 Machine defaults seed a new installation and factory reset. Valid persisted
 settings survive ordinary boot and OTA. The current settings blob is schema 2;
 same-layout schema-1 settings upgrade without losing saved values. The shot store
-uses schema 2 and the curve store uses schema 1. Other incompatible settings are
+uses schema 2 and the curve store uses schema 2. Other incompatible settings are
 rejected and replaced with factory defaults. Firmware identity is checked before
 writing the device. Older incompatible partition layouts require the clean USB
 installation described below; compatible OTA updates remain supported.
@@ -418,8 +418,9 @@ memory budgets. Use only the image for the intended profile pair. The supported 
 two app slots; arbitrary 4 MB layouts cannot hold this firmware.
 
 The n16r8 layout reserves 640 KiB for a temporary ESP-IDF core dump and
-1,408 KiB for two saved crash records. Its unused FFAT area is 7,944 KiB
-(`0x7C2000` bytes). The n8r4 layout keeps its existing 64 KiB core-dump
+1,408 KiB for two saved crash records. Its unused FFAT area is 7,128 KiB
+(`0x6F6000` bytes). Both layouts reserve 816 KiB for shot curves. The n8r4
+layout keeps its existing 64 KiB core-dump
 partition but does not enable persistent crash capture. On n16r8, the mDNS
 task stack is internal so that stack remains available to a core dump.
 
@@ -476,13 +477,35 @@ initial OTA metadata and application without invoking a build. `--no-check`
 only skips local identity verification. An external `--image` still replaces
 app0 only on a readable installed layout.
 
-### Clean-install cutovers
+### Partition-layout updates
+
+### Curve-layout transition
+
+The timestamped curve format requires a one-time USB installation of the full
+project build. Build for your hardware and machine, then use the ordinary USB
+flash command without `--erase-all`:
+
+```sh
+./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \
+  --hardware esp32-s3-relay-x1-speaker --machine la-marzocco-linea-micra
+```
+
+For the exact preceding project layout, the installer reports that old curves
+will start empty and erases only the new curve region. It preserves settings,
+Wi-Fi credentials, presets, calibration, shot summaries, activation history,
+both application slots and crash storage. This consumes previously unused,
+unmounted filesystem space. After this installation, ordinary OTA updates
+remain available. App-only `--image` and OTA cannot change the partition table.
+Any other incompatible layout is rejected; review its data-loss consequences
+before explicitly choosing a clean installation.
+
+### Other clean-install cutovers
 
 The current settings contract is schema 2 and preserves same-layout schema-1
 settings on upgrade; that upgrade does not require `--erase-all`. Other
 incompatible settings contracts require a clean installation. An installed 20 KiB NVS layout,
 or a current layout without the dedicated
-56 KiB `shotcurve` partition or the 32 KiB `shotlog` and `history` partitions,
+816 KiB `shotcurve` partition or the 32 KiB `shotlog` and `history` partitions,
 or an n16r8 layout without the new crash-history area,
 needs a one-time clean USB installation. A normal flash refuses an incompatible
 layout. **The following erases both firmware

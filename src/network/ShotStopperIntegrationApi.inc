@@ -155,7 +155,8 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     char statsJson[384] = {};
     char lastActivationJson[192] = {};
     ShotLogRecord latestShot = {};
-    ShotCurveRecord latestCurve = emptyShotCurveRecord();
+    ShotCurveRecord &latestCurve = self.workBuf_->homeCurve;
+    resetShotCurveRecord(latestCurve);
     const bool hasLastShot = self.callbacks_.copyHomeShot != nullptr &&
         self.callbacks_.copyHomeShot(latestShot, latestCurve);
     const PersistedLastShot shot = hasLastShot
@@ -286,6 +287,11 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
         jsonString(root, "correlationId", correlation, sizeof(correlation), false) &&
         validCorrelationId(correlation);
     if (root != nullptr) cJSON_Delete(root);
+    uint32_t bootId = 0;
+    if (parsed) {
+      self.loadControlStatus(self.workBuf_->control);
+      bootId = self.workBuf_->control.bootId;
+    }
     self.unlockJsonBody();
     if (!parsed)
       return sendError(request, STATUS_BAD_REQUEST, "INVALID_REQUEST",
@@ -293,9 +299,7 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     WebhookEvent event;
     event.type = WebhookEventType::TEST;
     event.uptimeMs = millis();
-    ControlStatusSnapshot control = {};
-    self.loadControlStatus(control);
-    event.bootId = control.bootId;
+    event.bootId = bootId;
     copyCString(event.correlationId, sizeof(event.correlationId), correlation);
     if (!self.webhooks_.enqueue(event))
       return sendError(request, STATUS_UNAVAILABLE, "WEBHOOK_UNAVAILABLE",

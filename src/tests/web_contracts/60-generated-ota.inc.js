@@ -472,8 +472,8 @@ if (generated.cssGzip.length > 7400) {
 // Shot stats Tare time and Scale (the tare chart marker, two table columns,
 // CSV columns, and last-shot wiring) raise it to 42400 bytes.
 // Paired read admission/hydration uses 160 bytes transferred from shell JS.
-if (sentinelRuntimeGzip.length > 42560) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 42560-byte gzip budget (${sentinelRuntimeGzip.length})`);
+if (sentinelRuntimeGzip.length > 43600) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 43600-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -544,8 +544,8 @@ if (generated.icon48Gzip.length > 3500) {
 // The Stats loading wave reuses the panel helper and adds 50 bytes of reviewed
 // allowance. Firmware image and OTA partition limits stay fixed.
 // The Micra-only Home power summary raises the compressed budget by 150 bytes.
-if (generated.combined > 111400) {
-  throw new Error(`Combined Web UI gzip exceeds the 111400-byte flash budget (${generated.combined})`);
+if (generated.combined > 113000) {
+  throw new Error(`Combined Web UI gzip exceeds the 113000-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

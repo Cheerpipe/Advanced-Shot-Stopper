@@ -351,6 +351,7 @@ void processScaleLinkTransitions() {
     }
   };
   auto handleDisconnected = [&]() {
+    if (session.active) shotCurveSampler.markBreak();
     if (runtimeConfig.buzzerScaleLostBeep) {
       emitAlert(AlertEvent::SCALE_LOST);
     }
@@ -423,6 +424,7 @@ void processScaleWorkerEvents() {
     const ScaleLinkSnapshot eventLink = getScaleLinkSnapshot();
     if (event.connectionGeneration != eventLink.connectionGeneration ||
         event.disconnectSequence != eventLink.disconnectSequence) {
+      if (session.active && receivedWeight) shotCurveSampler.markBreak();
       session.touchStop = {};
       char detail[DEBUG_EVENT_TEXT_CAPACITY];
       snprintf(detail, sizeof(detail),
@@ -441,6 +443,7 @@ void processScaleWorkerEvents() {
     }
     switch (event.type) {
       case ScaleEventType::REFERENCE_CHANGED:
+        if (session.active) shotCurveSampler.markBreak();
         session.touchStop = {};
         if (idleTare.requestId != 0) {
           idleTare.cupStillPresent = false;
@@ -489,6 +492,7 @@ void processScaleWorkerEvents() {
           }
         }
         if (event.sampleDiscontinuity) {
+          if (session.active) shotCurveSampler.markBreak();
           session.touchStop = {};
           resetCupSampleEvidence();
           idleTare.absentObserved = false;

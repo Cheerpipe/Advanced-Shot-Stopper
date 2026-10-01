@@ -443,10 +443,10 @@ partition_contracts = {
         "flash": 0x1000000,
         "rows": {"nvs": (0x9000, 0x15000), "otadata": (0x1E000, 0x2000),
                  "app0": (0x20000, 0x300000), "app1": (0x320000, 0x300000),
-                 "shotcurve": (0x620000, 0xE000),
+                 "shotcurve": (0x63E000, 0xCC000),
                  "shotlog": (0x62E000, 0x8000),
                  "history": (0x636000, 0x8000),
-                 "ffat": (0x63E000, 0x7C2000),
+                 "ffat": (0x70A000, 0x6F6000),
                  "coredump": (0xE00000, 0xA0000),
                  "crashhist": (0xEA0000, 0x160000)},
     },
@@ -454,10 +454,10 @@ partition_contracts = {
         "flash": 0x800000,
         "rows": {"nvs": (0x9000, 0x15000), "otadata": (0x1E000, 0x2000),
                  "app0": (0x20000, 0x330000), "app1": (0x350000, 0x330000),
-                 "shotcurve": (0x680000, 0xE000),
+                 "shotcurve": (0x69E000, 0xCC000),
                  "shotlog": (0x68E000, 0x8000),
                  "history": (0x696000, 0x8000),
-                 "spiffs": (0x69E000, 0x152000),
+                 "spiffs": (0x76A000, 0x86000),
                  "coredump": (0x7F0000, 0x10000)},
     },
 }
@@ -471,14 +471,14 @@ for filename, contract in partition_contracts.items():
         assert offset + size <= next_offset, f"partition overlap in {filename}"
     last_offset, last_size = ordered[-1][1]
     assert last_offset + last_size == contract["flash"]
-    assert rows["shotcurve"][1] == 56 * 1024, "shot-curve partition changed"
+    assert rows["shotcurve"][1] == 816 * 1024, "shot-curve partition changed"
     assert rows["shotlog"][1] == 32 * 1024, "shot-log partition changed"
     assert rows["history"][1] == 32 * 1024, "activation-history partition changed"
 
 flash_idf = (INTERNAL / "flash-idf").read_text()
 for required in ("read-flash 0x8000 0x1000", "installed_nvs_bytes != 0x15000",
                  "installed_layout=blank", "installed_shotcurve_row",
-                 "required_shotcurve_offset=0x680000", "0x620000", "erase-flash",
+                 "required_shotcurve_offset=0x69E000", "0x63E000", "erase-flash",
                  '"$installed_app0_offset" "$image"'):
     assert required in flash_idf, f"flash-idf erase-all contract missing: {required}"
 assert '0x10000 "$image"' not in flash_idf, \
@@ -1258,17 +1258,22 @@ def flash_command(layout: str, *extra: str, arch: str = "n8r4"):
         (python_env / "python").chmod(0o755)
         partition_tool.write_text(
             "from pathlib import Path\nimport os,sys\n"
-            "offset = '0x680000' if os.environ['EXPECTED_ARCH'] == 'n8r4' "
-            "else '0x620000'\n"
+            "offset = '0x69E000' if os.environ['EXPECTED_ARCH'] == 'n8r4' "
+            "else '0x63E000'\n"
             "if os.environ['FLASH_LAYOUT'] == 'wrong': "
-            "offset = '0x620000' if offset == '0x680000' else '0x680000'\n"
+            "offset = '0x63E000' if offset == '0x69E000' else '0x69E000'\n"
             "part_type = 'app' if os.environ['FLASH_LAYOUT'] == 'type' else 'data'\n"
             "subtype = '65' if os.environ['FLASH_LAYOUT'] == 'subtype' else '64'\n"
-            "size = '36K' if os.environ['FLASH_LAYOUT'] == 'size' else '56K'\n"
+            "size = '36K' if os.environ['FLASH_LAYOUT'] == 'size' else '816K'\n"
             "curve = '' if os.environ['FLASH_LAYOUT'] == 'missing' else "
             "f'shotcurve,{part_type},{subtype},{offset},{size}\\n'\n"
             "Path(sys.argv[-1]).write_text('nvs,data,nvs,0x9000,0x15000\\n'"
-            "+'app0,app,ota_0,0x20000,0x330000\\n'+curve)\n")
+            "+'app0,app,ota_0,0x20000,0x330000\\n'+curve)\n"
+            "if os.environ['FLASH_LAYOUT'] == 'legacy':\n"
+            f"    text = Path({str(ROOT / 'idf')!r}, 'partitions-' + os.environ['EXPECTED_ARCH'] + '.csv').read_text()\n"
+            "    text = text.replace('0x69E000,0xCC000', '0x680000,0xE000').replace('0x76A000,0x86000', '0x69E000,0x152000')\n"
+            "    text = text.replace('0x63E000,0xCC000', '0x620000,0xE000').replace('0x70A000,0x6F6000', '0x63E000,0x7C2000')\n"
+            "    Path(sys.argv[-1]).write_text(text)\n")
         (tools / "idf.py").write_text(
             "#!/bin/sh\n"
             f'printf "idf:%s\\n" "$*" >>"{log}"\n'
@@ -1321,6 +1326,13 @@ assert external_result.returncode == 0 and \
     any("write-flash 0x20000" in line for line in external_flash) and \
     not any(" flash" in line for line in external_flash if line.startswith("idf:")), \
     external_flash
+for architecture in ('n8r4', 'n16r8'):
+    result, commands = flash_command('legacy', arch=architecture)
+    assert result.returncode == 0 and 'settings, Wi-Fi' in result.stdout, result.stderr
+    assert any('erase-region' in line and '0xCC000' in line for line in commands)
+    assert not any('erase-flash' in line for line in commands)
+    result, commands = flash_command('legacy', '--image', 'placeholder', arch=architecture)
+    assert result.returncode == 1 and not any('write-flash' in line for line in commands)
 for incompatible_layout in ("missing", "wrong", "type", "subtype", "size"):
     for extra in ((), ("--image", "placeholder")):
         rejected, commands = flash_command(incompatible_layout, *extra)
@@ -1471,7 +1483,7 @@ nimble_client = (ROOT / "libraries/EspressoScaleBLE/src/EspressoScaleBLENimble.c
 for capacity in ("kRxFrameCount", "kCriticalEventCount", "kEventCount"):
     assert f"drained < {capacity}" in nimble_client
 shot_curve = (ROOT / "src/ShotStopperShotCurve.h").read_text()
-assert "flashIoLockTimeouts() == lockTimeoutsBefore" in shot_curve
+assert "flashIoLockTimeouts() == lastLockTimeouts_" in shot_curve
 assert "(void)load();" in shot_curve
 persistence_runtime = (ROOT / "src/persistence/ShotStopperCommandPersistence.inc").read_text()
 checkpoint = persistence_runtime.split("SETTINGS_PERSIST_IDLE_WAIT_MS", 1)[1].split(

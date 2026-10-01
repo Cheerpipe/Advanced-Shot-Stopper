@@ -29,7 +29,11 @@ path ready for installation.
 
 Review the selected profiles and physical safety before adding `--confirm`.
 The flag authorizes hardware access; it does not skip image, profile, or
-partition checks. Use `--erase-all` for a clean schema-3 installation:
+partition checks. The exact previous project layout supports a preserving
+[USB curve-layout transition](BUILD.md#curve-layout-transition) with the normal
+flash command. It starts old curves empty while retaining settings and other
+history; subsequent updates can use OTA. Use `--erase-all` only for an explicitly
+chosen clean installation:
 
 ```sh
 ./scripts/dev build flash --confirm \

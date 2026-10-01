@@ -755,7 +755,7 @@ void p66b_snapshot_acknowledgement_preserves_newest_generation() {
   curve.shotId = 1;
   curve.count = 1;
   curve.weightCg[0] = 3690;
-  check_snapshot_persistence<ShotCurveLog>(curve);
+  CHECK(validShotCurveRecord(curve));
 }
 
 void p09_fast_extraction_guard_validation() {
@@ -1133,7 +1133,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(FLASH_IO_SCRATCH_BYTES == sizeof(PersistedSettings));
   CHECK(sizeof(RuntimeConfig) == 344);
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
-  CHECK(sizeof(ControlStatusSnapshot) <= 4096);
+  CHECK(sizeof(ControlStatusSnapshot) <= 6656);
   CHECK(sizeof(ControlGateSnapshot) <= 32);
   CHECK(sizeof(WebCommand) <= 424);
   WebCommand command;
@@ -1842,7 +1842,6 @@ void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
   ShotCurveRecord curve = {};
   curve.shotId = 1;
   curve.count = 2;
-  curve.intervalDs = SHOT_CURVE_INTERVAL_DS;
   curve.weightCg[0] = 0;
   curve.weightCg[1] = 1800;
   CHECK(curves.append(curve));
@@ -1939,29 +1938,28 @@ void p60_factory_intent_survives_failed_store_reset() {
 
 void p61_shot_curve_dual_slot_round_trip_and_delete() {
   resetHostPersistence();
-  CHECK(SHOT_CURVE_INTERVAL_MS == 500);
-  CHECK(SHOT_CURVE_MAX_POINTS == 121);
-  CHECK(sizeof(ShotCurveRecord) == 268);
-  CHECK(sizeof(ShotCurveStore) == 26820);
+  CHECK(SHOT_CURVE_MAX_POINTS == 1201);
+  CHECK(sizeof(ShotCurveRecord) == 4984);
+  CHECK(sizeof(ShotCurveStore) == 498420);
   CHECK(sizeof(ShotCurveStore) % 4 == 0);
-  CHECK(sizeof(ShotCurveStore) <= SHOT_CURVE_FLASH_SLOT_BYTES);
-  CHECK(SHOT_CURVE_FLASH_SLOT_BYTES == 28 * 1024);
+  CHECK(SHOT_CURVE_PARTITION_BYTES == 816 * 1024);
   ShotCurveRecord full = emptyShotCurveRecord();
   full.count = SHOT_CURVE_MAX_POINTS;
   for (size_t i = 0; i < SHOT_CURVE_MAX_POINTS; ++i) {
-    full.weightCg[i] = static_cast<int16_t>(i * 50);
+    full.weightCg[i] = -32767;
+    full.atMs[i] = static_cast<uint16_t>(i * 50);
+    full.breakBefore[i / 8U] |= static_cast<uint8_t>(1U << (i % 8U));
   }
   char curveJson[SHOT_CURVE_JSON_CAPACITY] = {};
   CHECK(formatShotCurveJsonBody(curveJson, sizeof(curveJson), full));
-  CHECK(strstr(curveJson, "\"wDtS\":0.5") != nullptr);
-  CHECK(strstr(curveJson, "6000]") != nullptr);
+  CHECK(strstr(curveJson, "\"wAtMs\":[0,50,100") != nullptr);
+  CHECK(strstr(curveJson, "60000]") != nullptr);
   ShotCurveLog curves;
   CHECK(curves.load());
   CHECK(curves.count() == 0);
   ShotCurveRecord first = emptyShotCurveRecord();
   first.shotId = 7;
   first.count = 3;
-  first.intervalDs = SHOT_CURVE_INTERVAL_DS;
   first.firstDrop.atDs = 45;
   first.firstDrop.weightCg = 50;
   first.extended.atDs = 180;
@@ -1977,7 +1975,6 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   ShotCurveRecord second = emptyShotCurveRecord();
   second.shotId = 8;
   second.count = 2;
-  second.intervalDs = SHOT_CURVE_INTERVAL_DS;
   second.weightCg[0] = 10;
   second.weightCg[1] = 400;
   CHECK(curves.append(second));
@@ -2483,7 +2480,197 @@ void p90_firmware_mode_store_round_trip_and_factory_reset() {
   CHECK(loadFirmwareMode() == FirmwareMode::FULL);
 }
 
+void p61c_timestamped_capacity_and_interrupted_blocks() {
+  ShotCurveSampler sampler;
+  sampler.reset(UINT32_MAX - 1000U);
+  for (uint32_t t = 0; t <= 60000; t += 50)
+    sampler.accept(12.34f, sampler.startMs + t);
+  CHECK(sampler.count == 1201);
+  CHECK(!sampler.truncated);
+  CHECK(sampler.atMs[0] == 0 && sampler.atMs[1200] == 60000);
+  sampler.accept(12.34f, sampler.startMs + 60000);
+  CHECK(sampler.truncated && sampler.count == 1201);
+  ShotCurveRecord complete;
+  sampler.snapshot(complete, 101);
+  complete.truncated = false;
+  ShotCurveLog::resetHostStorage();
+  ShotCurveLog maximum;
+  CHECK(maximum.load() && maximum.append(complete) && maximum.load());
+  ShotCurveRecord restored;
+  CHECK(maximum.copyByShotId(101, restored));
+  CHECK(restored.count == 1201 && !restored.truncated && restored.atMs[1200] == 60000);
+  ShotCurveRecord full;
+  sampler.snapshot(full, 101);
+  CHECK(validShotCurveRecord(full));
+  char json[SHOT_CURVE_JSON_CAPACITY] = {};
+  CHECK(formatShotCurveJsonBody(json, sizeof(json), full));
+  CHECK(strstr(json, "\"wTruncated\":true") != nullptr);
+
+  // Interrupt every erase/body/header operation across both physical sectors.
+  for (int stop = 0; stop <= 8; ++stop) {
+    ShotCurveLog::resetHostStorage();
+    ShotCurveLog live;
+    CHECK(live.load());
+    ShotCurveRecord small = emptyShotCurveRecord();
+    small.count = 1;
+    small.weightCg[0] = 100;
+    for (uint32_t id = 1; id <= 100; ++id) {
+      small.shotId = id;
+      CHECK(live.append(small));
+    }
+    const size_t erased = ShotCurveLog::hostEraseBytes();
+    const size_t written = ShotCurveLog::hostWriteBytes();
+    CHECK(live.append(full, false));
+    CHECK(ShotCurveLog::hostEraseBytes() == erased);
+    ShotCurveLog::setHostFailAfter(stop);
+    while (live.flushStep() == FlashStoreStepResult::MORE) {}
+    ShotCurveLog::setHostFailAfter(-1);
+    ShotCurveLog reloaded;
+    CHECK(reloaded.load());
+    CHECK(reloaded.count() == 100);
+    const bool committed = reloaded.containsShotId(101);
+    CHECK(reloaded.containsShotId(1) != committed);
+    CHECK(ShotCurveLog::hostEraseBytes() - erased <= 8192);
+    CHECK(ShotCurveLog::hostWriteBytes() - written <= 5012);
+    if (committed) {
+      ShotCurveRecord out;
+      CHECK(reloaded.copyByShotId(101, out));
+      CHECK(out.count == 1201 && out.atMs[1200] == 60000);
+      CHECK(out.weightCg[1200] == 1234 && out.truncated);
+      CHECK(reloaded.removeById(101));
+      CHECK(live.load());
+      CHECK(!live.containsShotId(1)); // Retention floor survives newest deletion.
+      CHECK(live.count() == 99);
+    }
+  }
+
+  // Genuine repeated weights, duplicate timestamps and healthy slow cadence.
+  sampler.reset(0);
+  sampler.accept(1, 0);
+  sampler.accept(1, 500);
+  sampler.accept(1, 500);
+  sampler.markBreak();
+  sampler.accept(2, 1250);
+  CHECK(sampler.count == 4 && sampler.atMs[2] == 500);
+  ShotCurveRecord sparse;
+  sampler.snapshot(sparse, 1);
+  CHECK(!shotCurveBreakBefore(sparse, 1));
+  CHECK(shotCurveBreakBefore(sparse, 3));
+  sampler.captureEnd(1400, 2);
+  sampler.accept(3, 1600);
+  CHECK(sampler.count == 4);
+  sampler.snapshot(sparse, 1);
+  CHECK(settleShotCurveEndWeight(sparse, 3));
+  CHECK(sparse.weightCg[3] == 200 && sparse.ended.weightCg == 300);
+
+  // Reuse a former long block for a short record; its untouched second sector
+  // is padding, never another curve or part of the short-record checksum.
+  ShotCurveLog::resetHostStorage();
+  ShotCurveLog reuse;
+  CHECK(reuse.load());
+  complete.shotId = 1;
+  CHECK(reuse.append(complete));
+  sparse.count = 1;
+  sparse.weightCg[0] = 100;
+  for (uint32_t id = 2; id <= 101; ++id) {
+    sparse.shotId = id;
+    CHECK(reuse.append(sparse));
+  }
+  const size_t erased = ShotCurveLog::hostEraseBytes();
+  const size_t programmed = ShotCurveLog::hostWriteBytes();
+  sparse.shotId = 102;
+  CHECK(reuse.append(sparse));
+  CHECK(ShotCurveLog::hostEraseBytes() - erased == 4096);
+  CHECK(ShotCurveLog::hostWriteBytes() - programmed == 60);
+  ShotCurveLog::corruptHostByte(8192 + 4096);
+  CHECK(reuse.load() && reuse.count() == 100);
+  CHECK(reuse.copyByShotId(102, sparse) && sparse.count == 1);
+}
+
+void p61d_clear_epochs_and_stale_worker_images() {
+  for (int stop = 0; stop <= 1; ++stop) {
+    ShotCurveLog::resetHostStorage();
+    ShotCurveLog live;
+    CHECK(live.load());
+    ShotCurveRecord r = emptyShotCurveRecord();
+    r.shotId = 1;
+    r.count = 1;
+    CHECK(live.append(r));
+    CHECK(live.removeById(1, false));
+    ShotCurveLog::setHostFailAfter(stop);
+    while (live.flushStep() == FlashStoreStepResult::MORE) {}
+    ShotCurveLog::setHostFailAfter(-1);
+    ShotCurveLog reboot;
+    CHECK(reboot.load());
+    CHECK(reboot.count() == (stop == 0 ? 1 : 0));
+  }
+  for (int stop = 0; stop <= 3; ++stop) {
+    ShotCurveLog::resetHostStorage();
+    ShotCurveLog live;
+    CHECK(live.load());
+    ShotCurveRecord r = emptyShotCurveRecord();
+    r.shotId = 1;
+    r.count = 1;
+    r.weightCg[0] = 100;
+    CHECK(live.append(r));
+    CHECK(live.clear(false));
+    ShotCurveLog::setHostFailAfter(stop);
+    while (live.flushStep() == FlashStoreStepResult::MORE) {}
+    ShotCurveLog::setHostFailAfter(-1);
+    ShotCurveLog reboot;
+    CHECK(reboot.load());
+    CHECK(reboot.count() == (stop == 3 ? 0 : 1));
+    if (stop == 3) {
+      r.weightCg[0] = 200;
+      CHECK(reboot.append(r));
+      CHECK(live.load());
+      CHECK(live.copyByShotId(1, r));
+      CHECK(r.weightCg[0] == 200);
+    }
+  }
+  ShotCurveLog::resetHostStorage();
+  ShotCurveLog live;
+  CHECK(live.load());
+  ShotCurveRecord r = emptyShotCurveRecord();
+  r.shotId = 1;
+  r.count = 1;
+  r.weightCg[0] = 100;
+  CHECK(live.append(r, false));
+  ShotCurveLog image = live;
+  CHECK(live.clear(false));
+  while (image.flushStep() == FlashStoreStepResult::MORE) {}
+  live.acknowledgePersisted(image, false);
+  CHECK(live.dirty() && live.count() == 0);
+  CHECK(live.flush());
+  ShotCurveLog reboot;
+  CHECK(reboot.load() && reboot.count() == 0);
+  r.weightCg[0] = 200;
+  CHECK(live.append(r, false));
+  image = live;
+  CHECK(live.removeById(1, false));
+  while (image.flushStep() == FlashStoreStepResult::MORE) {}
+  live.acknowledgePersisted(image, false);
+  CHECK(live.flush());
+  CHECK(reboot.load() && reboot.count() == 0);
+  r.shotId = 2;
+  CHECK(live.append(r, false));
+  image = live;
+  r.shotId = 3;
+  CHECK(live.append(r, false));
+  while (image.flushStep() == FlashStoreStepResult::MORE) {}
+  live.acknowledgePersisted(image, false);
+  CHECK(live.dirty() && live.count() == 2);
+  CHECK(live.flush());
+  CHECK(reboot.load() && reboot.containsId(2) && reboot.containsId(3));
+  const size_t writes = ShotCurveLog::hostWriteBytes();
+  CHECK(live.append(r));
+  CHECK(ShotCurveLog::hostWriteBytes() == writes && live.count() == 2);
+}
+
+
 const TestCase tests[] = {
+    {"P61C", p61c_timestamped_capacity_and_interrupted_blocks},
+    {"P61D", p61d_clear_epochs_and_stale_worker_images},
     {"TFP", touch_fallback_settings_upgrade_and_roundtrip},
     {"P90", p90_firmware_mode_store_round_trip_and_factory_reset},
     {"P86", p86_timezone_preference_and_durable_initialization},

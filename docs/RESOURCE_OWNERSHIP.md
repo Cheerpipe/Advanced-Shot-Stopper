@@ -6,8 +6,13 @@ owns deferred durable writes. Network consumes the published Home snapshot;
 bounded history reads and explicit user mutations share the one static
 `shotStoreMutex` with control finalization and persistence-image capture. The
 `ActivationStores` component is the single explicit owner of the three
-activation ring stores (stats shot log, curve sidecar, activation history):
-every read, append, page query, mutation, and immutable image capture runs under
+activation ring stores (stats shot log, curve sidecar, activation history).
+the curve sampler, retained records and task-owned finalization/JSON workspaces
+use PSRAM; flash transfers use the shared internal scratch. The curve worker
+commits one reserved 8 KiB record block at a time and acknowledges physical
+progress without clearing newer RAM changes. Clear epochs and delete markers
+belong to this same owner; no sampling-time writer or central append index exists.
+Every read, append, page query, mutation, and immutable image capture runs under
 that mutex. The generalized persistence worker writes the captured image after
 releasing the mutex and acknowledges it only when its generation is still
 current; control never acquires the flash lock. See

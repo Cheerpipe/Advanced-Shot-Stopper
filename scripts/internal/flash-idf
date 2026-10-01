@@ -90,7 +90,7 @@ else
   identity_args=(--expect-arch "$SHOTSTOPPER_ARCH")
   if [[ -n "${SHOTSTOPPER_HARDWARE_COMPAT:-}" ]]; then
     identity_args+=(--expect-hardware "$SHOTSTOPPER_HARDWARE_COMPAT"
-                    --expect-machine "$SHOTSTOPPER_MACHINE_COMPAT")
+      --expect-machine "$SHOTSTOPPER_MACHINE_COMPAT")
   fi
   node ./scripts/image_tag.js "$image" "${identity_args[@]}"
 fi
@@ -110,6 +110,7 @@ cleanup_partition_probe() {
 }
 trap cleanup_partition_probe EXIT HUP INT TERM
 
+curve_layout_transition=0
 installed_layout=unknown
 installed_nvs_size=""
 installed_app0_offset=""
@@ -118,20 +119,20 @@ if esptool --chip esp32s3 --port "$port" read-flash 0x8000 0x1000 "$partition_bi
   if python -c 'import pathlib,sys; b=pathlib.Path(sys.argv[1]).read_bytes(); sys.exit(0 if b and all(x == 255 for x in b) else 1)' "$partition_bin"; then
     installed_layout=blank
   elif python "$IDF_PATH/components/partition_table/gen_esp32part.py" --quiet \
-      "$partition_bin" "$partition_csv" >/dev/null 2>&1; then
+    "$partition_bin" "$partition_csv" >/dev/null 2>&1; then
     installed_layout=present
-    installed_nvs_size="$(awk -F, '$1 == "nvs" {print $5; exit}' "$partition_csv")"
-    installed_app0_offset="$(awk -F, '$1 == "app0" {print $4; exit}' "$partition_csv")"
+    installed_nvs_size="$(awk -F, '$1 ~ /^[[:space:]]*nvs[[:space:]]*$/ {gsub(/[[:space:]]/, ""); print $5; exit}' "$partition_csv")"
+    installed_app0_offset="$(awk -F, '$1 ~ /^[[:space:]]*app0[[:space:]]*$/ {gsub(/[[:space:]]/, ""); print $4; exit}' "$partition_csv")"
     installed_shotcurve_row="$(awk -F, '$1 ~ /^[[:space:]]*shotcurve[[:space:]]*$/ {gsub(/[[:space:]]/, ""); print $2 "," $3 "," $4 "," $5; exit}' "$partition_csv")"
   fi
 fi
 
 size_bytes() {
   case "$1" in
-    *K) printf '%s' "$(( ${1%K} * 1024 ))" ;;
-    *M) printf '%s' "$(( ${1%M} * 1024 * 1024 ))" ;;
-    0x*|[0-9]*) printf '%s' "$(( $1 ))" ;;
-    *) return 1 ;;
+  *K) printf '%s' "$((${1%K} * 1024))" ;;
+  *M) printf '%s' "$((${1%M} * 1024 * 1024))" ;;
+  0x* | [0-9]*) printf '%s' "$(($1))" ;;
+  *) return 1 ;;
   esac
 }
 
@@ -140,7 +141,7 @@ if [[ "$SS_CLI_ERASE_ALL" != "1" && "$installed_layout" == "present" ]]; then
     echo 'Could not read the installed NVS partition size.' >&2
     exit 1
   }
-  if (( installed_nvs_bytes != 0x15000 )); then
+  if ((installed_nvs_bytes != 0x15000)); then
     printf 'Installed NVS is %s bytes; this firmware requires 86016 bytes.\n' \
       "$installed_nvs_bytes" >&2
     echo 'Re-run with --erase-all: the partition layout changed, so an in-place flash is not possible. This destroys all saved data.' >&2
@@ -148,19 +149,58 @@ if [[ "$SS_CLI_ERASE_ALL" != "1" && "$installed_layout" == "present" ]]; then
   fi
   IFS=, read -r installed_shotcurve_type installed_shotcurve_subtype \
     installed_shotcurve_offset installed_shotcurve_size <<<"$installed_shotcurve_row"
-  required_shotcurve_offset=0x680000
-  [[ "$SHOTSTOPPER_ARCH" == "n16r8" ]] && required_shotcurve_offset=0x620000
+  required_shotcurve_offset=0x69E000
+  [[ "$SHOTSTOPPER_ARCH" == "n16r8" ]] && required_shotcurve_offset=0x63E000
   if [[ "$installed_shotcurve_type" != "data" ]] ||
-      ! installed_shotcurve_subtype_bytes="$(size_bytes "$installed_shotcurve_subtype")" ||
-      ! installed_shotcurve_offset_bytes="$(size_bytes "$installed_shotcurve_offset")" ||
-      ! installed_shotcurve_size_bytes="$(size_bytes "$installed_shotcurve_size")" ||
-      (( installed_shotcurve_subtype_bytes != 0x40 ||
-         installed_shotcurve_offset_bytes != required_shotcurve_offset ||
-         installed_shotcurve_size_bytes != 0xE000 )); then
-    printf 'Installed layout lacks the required %s shotcurve partition (data/0x40 at 0x%X, size 57344).\n' \
-      "$SHOTSTOPPER_ARCH" "$required_shotcurve_offset" >&2
-    echo 'Re-run with --erase-all: the partition layout changed, so an in-place flash is not possible. This destroys all saved data.' >&2
-    exit 1
+    ! installed_shotcurve_subtype_bytes="$(size_bytes "$installed_shotcurve_subtype")" ||
+    ! installed_shotcurve_offset_bytes="$(size_bytes "$installed_shotcurve_offset")" ||
+    ! installed_shotcurve_size_bytes="$(size_bytes "$installed_shotcurve_size")" ||
+    ((installed_shotcurve_subtype_bytes != 0x40 || \
+    installed_shotcurve_offset_bytes != required_shotcurve_offset || \
+    installed_shotcurve_size_bytes != 0xCC000)); then
+    # Only the project's exact previous layout has an in-place transition.
+    # All durable unrelated partitions and both app slots keep their addresses.
+    if ! ss_is_set image && python - "$partition_csv" "$SHOTSTOPPER_ARCH" <<'PY'
+import csv, sys
+def number(value):
+    value = value.strip()
+    return int(value[:-1], 0) * {'K': 1024, 'M': 1048576}[value[-1]] if value[-1:] in ('K', 'M') else int(value, 0)
+rows = {}
+with open(sys.argv[1]) as source:
+    for row in csv.reader(line for line in source if not line.startswith('#')):
+        if row:
+            rows[row[0].strip()] = (row[1].strip(), row[2].strip(), number(row[3]), number(row[4]))
+large = sys.argv[2] == 'n16r8'
+start = 0x620000 if large else 0x680000
+expected = {
+    'nvs': ('data', 'nvs', 0x9000, 0x15000),
+    'otadata': ('data', 'ota', 0x1e000, 0x2000),
+    'app0': ('app', 'ota_0', 0x20000, 0x300000 if large else 0x330000),
+    'app1': ('app', 'ota_1', 0x320000 if large else 0x350000, 0x300000 if large else 0x330000),
+    'shotcurve': ('data', '64', start, 0xe000),
+    'shotlog': ('data', '64', start + 0xe000, 0x8000),
+    'history': ('data', '64', start + 0x16000, 0x8000),
+}
+expected['ffat' if large else 'spiffs'] = ('data', 'fat' if large else 'spiffs', start + 0x1e000, 0x7c2000 if large else 0x152000)
+expected['coredump'] = ('data', 'coredump', 0xe00000 if large else 0x7f0000, 0xa0000 if large else 0x10000)
+if large:
+    expected['crashhist'] = ('data', '64', 0xea0000, 0x160000)
+for name in ('shotcurve', 'shotlog', 'history', 'crashhist'):
+    if name in rows and rows[name][1] == '0x40':
+        rows[name] = (rows[name][0], '64', *rows[name][2:])
+sys.exit(0 if rows == expected else 1)
+PY
+    then
+      curve_layout_transition=1
+      echo 'USB curve-layout transition: previous shot curves start empty; settings, Wi-Fi, calibration, presets, shot summaries and activation history are preserved.'
+      echo 'Both OTA slots and crash storage are preserved; OTA updates continue after this one-time USB installation.'
+    else
+      printf 'Installed layout lacks the required %s shotcurve partition (data/0x40 at 0x%X, size 835584).\n' \
+        "$SHOTSTOPPER_ARCH" "$required_shotcurve_offset" >&2
+      echo 'Only the exact previous project layout supports the preserving USB transition. An external app image cannot change partitions.' >&2
+      echo 'Use --erase-all only if you explicitly intend to destroy all saved data.' >&2
+      exit 1
+    fi
   fi
 fi
 
@@ -192,8 +232,11 @@ else
   # flash_args lists bootloader, partition table, otadata and app at their
   # offsets with relative paths, so esptool must run from the build directory.
   (
-    cd "$IDF_BUILD_DIR" &&
-      esptool --chip esp32s3 --port "$port" write-flash @flash_args
+    cd "$IDF_BUILD_DIR" || exit 1
+    if [[ "$curve_layout_transition" == "1" ]]; then
+      esptool --chip esp32s3 --port "$port" erase-region "$required_shotcurve_offset" 0xCC000
+    fi
+    esptool --chip esp32s3 --port "$port" write-flash @flash_args
   )
 fi
 
