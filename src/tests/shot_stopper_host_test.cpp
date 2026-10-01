@@ -12142,6 +12142,60 @@ void s02k_curve_continuity_uses_control_rejections_and_fifo_provenance() {
   }
 }
 
+void s02l_post_drip_curve_keeps_observations_and_rejection_gaps() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  shotLog.clear();
+  ShotCurveLog::resetHostStorage();
+  shotCurves.load();
+  session.active = session.startedWithScale = true;
+  session.config = snapshotConfig(runtimeConfig);
+  session.connectionGenerationAtStart = getScaleLinkSnapshot().connectionGeneration;
+  const uint32_t generation = session.connectionGenerationAtStart;
+  session.startedAtMs = session.circuitClosedAtMs = hostMillis;
+  resetShotTrajectory(hostMillis);
+  const uint32_t start = hostMillis;
+  acceptWeightIntoTrajectory(0, start, 1);
+  hostMillis = start + 28000;
+  acceptWeightIntoTrajectory(36, hostMillis, 2);
+  currentWeight = 36;
+  currentWeightSequence = 2;
+  currentWeightReceivedAtMs = hostMillis;
+  schedulePendingShotFinalize(EndReason::ACTIVATOR, 28000);
+  session.active = false;
+  stopperState = StopperState::READY;
+  const auto sample = [&](float weight, uint32_t elapsed, uint32_t sequence) {
+    hostMillis = start + elapsed;
+    return recordWeightSampleWithProvenance(weight, hostMillis, sequence, generation);
+  };
+  CHECK(sample(36.5f, 28100, 3));
+  CHECK(sample(37, 28500, 4));
+  CHECK(!sample(NAN, 28600, 5));
+  CHECK(sample(37.2f, 28800, 6));
+  CHECK(pendingFinalize.curve.count == 5);
+  CHECK(shotCurveBreakBefore(pendingFinalize.curve, 4));
+  CHECK(sample(37.2f, 28800, 6)); // Duplicate must not add an observation.
+  CHECK(pendingFinalize.curve.count == 5);
+  CHECK(recordWeightSampleWithProvenance(38, start + 28900, 7, generation + 1));
+  CHECK(pendingFinalize.curve.count == 5); // Another connection cannot extend this cup's tail.
+  CHECK(sample(37.5f, 29000, 7));
+  CHECK(pendingFinalize.curve.count == 6);
+  CHECK(shotCurveSampler.count == 2 && shot.datapoints == 2);
+  currentWeight = 37.5f;
+  currentWeightSequence = 7;
+  currentWeightReceivedAtMs = hostMillis;
+  runLoopAfter(pendingFinalize.dripDelayMs);
+  ShotCurveRecord curve;
+  CHECK(shotCurves.copyNewestFirst(&curve, 1) == 1);
+  CHECK(curve.ended.atMs == 28000 && curve.ended.weightCg == 3750);
+  CHECK(curve.count == 6 && curve.atMs[5] == 29000);
+  CHECK(curve.weightCg[1] == 3600 && curve.weightCg[5] == 3750);
+  CHECK(shotCurveBreakBefore(curve, 4));
+  CHECK(!pendingFinalize.pending);
+  CHECK(sample(38, 33000, 8));
+  CHECK(pendingFinalize.curve.count == 6);
+}
+
 void s02d_shot_curve_latches_first_drop_fast_and_atm() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -18548,6 +18602,7 @@ const TestCase testCases[] = {
     {"S02F", s02f_shot_log_skips_sub_one_gram_weight},
     {"S02G", s02g_full_cycle_sub_one_gram_updates_last_shot_not_history},
     {"S02C", s02c_shot_curve_samples_on_half_second_grid_and_latches_slow},
+    {"S02L", s02l_post_drip_curve_keeps_observations_and_rejection_gaps},
     {"S02D", s02d_shot_curve_latches_first_drop_fast_and_atm},
     {"S02H", s02h_fast_guard_keeps_sampling_and_settled_weight_replaces_endpoint},
     {"S02I", s02i_normal_and_slow_cuts_use_settled_curve_endpoint},

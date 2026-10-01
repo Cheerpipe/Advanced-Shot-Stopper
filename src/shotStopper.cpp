@@ -312,6 +312,8 @@ struct PendingShotFinalize {
   bool scaleBaselineReady = false;
   bool bbwLearningApplied = false;
   bool pending = false;
+  bool curveBreakPending = false;
+  uint32_t curveLastSequence = 0;
   bool offsetAnalysis = false;
   bool logEligible = false;
   uint32_t endedAtMs = 0;
@@ -436,6 +438,11 @@ HistoryLog &historyLog = activationStores.historyLog;
 // every durable write remains owned by the existing store/flash path.
 TaskMutex shotStoreMutex;
 SHOT_STOPPER_PSRAM_BSS ShotCurveSampler shotCurveSampler;
+
+void markShotCurveBreak() {
+  if (session.active) shotCurveSampler.markBreak();
+  else if (pendingFinalize.pending) pendingFinalize.curveBreakPending = true;
+}
 // Same PSRAM-safe working-copy contract as ActivationStores above: NVS I/O
 // goes through the internal flash scratch and mutations hold shotStoreMutex.
 SHOT_STOPPER_PSRAM_BSS LastShotStore lastShotStore;

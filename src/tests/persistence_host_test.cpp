@@ -1971,6 +1971,8 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   first.weightCg[0] = 0;
   first.weightCg[1] = 900;
   first.weightCg[2] = 1800;
+  first.atMs[2] = 22000;
+  CHECK(appendShotCurveObservation(first, 19.0f, 23057, true));
   CHECK(curves.append(first));
   ShotCurveRecord second = emptyShotCurveRecord();
   second.shotId = 8;
@@ -1989,6 +1991,8 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   CHECK(newest[1].extended.atMs == 18013);
   CHECK(newest[1].atm.atMs == 20027);
   CHECK(newest[1].ended.atMs == 22057);
+  CHECK(newest[1].count == 4 && newest[1].atMs[3] == 23057);
+  CHECK(newest[1].weightCg[3] == 1900 && shotCurveBreakBefore(newest[1], 3));
   CHECK(formatShotCurveJsonBody(curveJson, sizeof(curveJson), newest[1]));
   CHECK(strstr(curveJson, "\"dropS\":4.557") != nullptr);
   CHECK(strstr(curveJson, "\"extendedS\":18.013") != nullptr);
@@ -1999,6 +2003,10 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   CHECK(reloaded.copyByShotId(7, exact));
   CHECK(exact.shotId == 7);
   CHECK(exact.weightCg[2] == 1800);
+  CHECK(!appendShotCurveObservation(exact, 20, 21000, false));
+  CHECK(exact.count == 4);
+  CHECK(!appendShotCurveObservation(exact, 20, 60001, false));
+  CHECK(exact.truncated && exact.count == 4);
   CHECK(!reloaded.copyByShotId(99, exact));
   CHECK(reloaded.removeById(7));
   CHECK(!reloaded.copyByShotId(7, exact));

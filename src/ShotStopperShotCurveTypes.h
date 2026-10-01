@@ -1,6 +1,6 @@
 #pragma once
 
-// Accepted in-shot observations with reception times and event annotations.
+// Accepted extraction/drip observations with reception times and event annotations.
 // Flash sidecar, separate from the scalar ShotLogRecord.
 
 #include "ShotStopperShotLogTypes.h"
@@ -145,6 +145,25 @@ inline void compactShotCurveStore(ShotCurveStore &store) {
       store.header.count, store.header.writeIndex);
 }
 
+template <typename Curve>
+inline bool appendShotCurveObservation(Curve &curve, float weight,
+                                       uint32_t elapsed, bool split) {
+  if (curve.truncated) return false;
+  const int16_t cg = shotLogWeightToCentigrams(weight);
+  if (shotLogWeightIsMissing(cg) ||
+      (curve.count != 0 && elapsed < curve.atMs[curve.count - 1U])) return false;
+  if (elapsed > SHOT_CURVE_MAX_TIME_MS || curve.count == SHOT_CURVE_MAX_POINTS) {
+    curve.truncated = true;
+    return false;
+  }
+  curve.weightCg[curve.count] = cg;
+  curve.atMs[curve.count] = static_cast<uint16_t>(elapsed);
+  if (split && curve.count != 0)
+    curve.breakBefore[curve.count / 8U] |= static_cast<uint8_t>(1U << (curve.count % 8U));
+  ++curve.count;
+  return true;
+}
+
 struct ShotCurveSampler {
   uint32_t startMs = 0;
   uint16_t count = 0;
@@ -241,23 +260,8 @@ struct ShotCurveSampler {
 
   void accept(float weight, uint32_t receivedAtMs) {
     if (!active || truncated) return;
-    const uint32_t elapsed = receivedAtMs - startMs;
-    const int16_t cg = shotLogWeightToCentigrams(weight);
-    if (elapsed > SHOT_CURVE_MAX_TIME_MS || shotLogWeightIsMissing(cg) ||
-        (count != 0 && elapsed < atMs[count - 1U])) {
-      markBreak();
-      return;
-    }
-    if (count == SHOT_CURVE_MAX_POINTS) {
-      truncated = true;
-      return;
-    }
-    weightCg[count] = cg;
-    atMs[count] = static_cast<uint16_t>(elapsed);
-    if (pendingBreak && count != 0)
-      breakBefore[count / 8U] |= static_cast<uint8_t>(1U << (count % 8U));
-    pendingBreak = false;
-    ++count;
+    pendingBreak = !appendShotCurveObservation(*this, weight,
+                                               receivedAtMs - startMs, pendingBreak);
   }
 
   void captureEnd(uint32_t at, float weight = NAN) {

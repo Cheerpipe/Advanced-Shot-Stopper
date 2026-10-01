@@ -180,7 +180,7 @@ by the boot ID and dump digest. HTTP download reads bounded chunks under the
 shared flash lock and releases the lock before sending each chunk. The raw
 archive requires Admin unlock because task stacks may contain secrets.
 
-The shot-curve sidecar uses schema 2. Each accepted in-shot weight is paired
+The shot-curve sidecar uses schema 3. Each accepted extraction or drip weight is paired
 with its relative reception time in milliseconds; repeated weights and equal
 timestamps remain observations. The 1201-observation capacity covers a 60 s
 shot with observations at least 50 ms apart. That spacing is a capacity
@@ -209,11 +209,20 @@ evicted curves from returning after deletion. Alternating clear epochs prevent
 curves from returning when shot IDs are reused. Immutable worker acknowledgement
 carries physical progress forward while newer RAM mutations stay dirty.
 
-Capture performs no flash I/O. Finalization retains the accepted samples;
-accepted post-drip yield changes only the separate endpoint annotation. Curve
+Capture performs no flash I/O. After cutoff, control appends valid same-connection
+drip observations to the pending curve until finalization or cup discontinuity.
+The existing 1201-reading/60-second bounds include this tail; overflow retains
+the captured prefix and sets `wTruncated`. Rejected readings, reference changes
+and link discontinuities retain segment breaks. The cutoff event keeps its
+original time; accepted post-drip yield updates its separate weight annotation.
+No schema, record-size or partition change is required, and existing schema-3
+records remain readable after OTA. Curve
 JSON exposes aligned `wCg`/`wAtMs`, segment-start indices in
 `wBreakBefore`, and `wTruncated`. Weight and flow consumers use actual
-times; event annotations never become observed samples. Scalar shot metrics,
+times; event annotations never become observed samples. The Web weight chart
+draws post-cutoff observations dashed without fill and uses a fixed-size hollow
+marker only when the complete tail's last observation matches settled yield.
+Flow and CSV flow cells exclude every post-cutoff observation. Scalar shot metrics,
 independent Stats eligibility windows, sorting and exact-ID joins remain owned
 by ShotLog. Other curve schemas start empty. OTA remains supported after the
 one-time preserving USB layout transition.

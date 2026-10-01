@@ -67,19 +67,22 @@ keep their own eligibility rules.
 The controller collects accepted scale readings in memory while the shot runs
 and saves the completed curve after the configured drip delay. Each reading
 keeps its actual arrival time, including repeated weights and changing scale
-cadence. Duration ends when the machine circuit opens; later drip readings
-are not added to this series. The weight curve ends at its last captured reading.
-Settled post-drip weight appears as **Yield** in the shot card, without adding
-a separate point to the curve or changing an earlier reading or its flow.
+cadence. Duration ends when the machine circuit opens. During the drip delay,
+accepted readings continue as a faint dashed line without fill. A small hollow
+circle marks the last reading when it matches the settled **Yield**.
+The drip readings keep their actual times and never change the earlier curve
+or its flow. Older shots without recorded drip readings keep their original
+curve; no drip tail is reconstructed from the final weight alone.
 Isolated readings and event weights appear as small dots at the curve's line
 thickness, including when the chart is stretched across a wide screen.
 
-A curve can hold 1201 readings: enough for a 60-second shot with readings
-50 ms apart. If a faster burst exceeds that capacity, the captured prefix
+A curve can hold 1201 readings within 60 seconds of shot start, including
+the drip tail. If the readings exceed either limit, the captured prefix
 remains available and the chart says **Incomplete curve**. Brew stopping and
 the shot's summary still work. Known rejected readings, a new tare reference
 and scale loss leave breaks in the curve. A healthy slow scale does not
-create a break merely because its readings are farther apart.
+create a break merely because its readings are farther apart. An incomplete
+tail has no final-yield circle. Removing or replacing the cup ends drip capture.
 
 The first-drop marker and late-tare cup marker keep their event times. Fast,
 Slow and A-to-M colors identify changes without adding competing time labels;
@@ -142,7 +145,8 @@ If a low-weight older row is imported later, it remains in the table and CSV
 but does not enter Home or these summaries.
 
 Every available weight curve has a **Flow rate (g/s)** chart directly below it
-on Home and in its Stats history card. Both charts share a time axis with
+on Home and in its Stats history card. Both charts share a time axis, including
+any recorded drip tail, with
 reference lines every 10 seconds. The Weight chart adds lines every 10 g, and
 Flow rate adds them every 0.5 g/s. Each displayed range rounds up to the next
 reference interval and each chart grows vertically when all required labels
@@ -187,8 +191,9 @@ shows the peak so far during a live shot, and saved cards reproduce it from
 the stored observations. Falling weight contributes 0 g/s. Max flow is
 unavailable when the curve has no supported window. For an **Incomplete curve**,
 Max flow is marked **(recorded)** and describes only the captured portion of the
-shot. The flow line ends at the last supported window without extending to the
-settled yield. No extra smoothing changes the plotted values.
+shot. The flow line ends at the last supported window before the machine stops;
+post-stop drip readings have no flow estimates. No extra smoothing changes
+the plotted values.
 
 The controller stores only the weight curve. The Flow rate chart and Max flow
 are derived locally, so viewing or reloading them does not create another
@@ -214,7 +219,8 @@ Each reading has an ordinal group: `sample_1_time_s`,
 `sample_1_weight_g`, `sample_1_flow_g_s`, then the same three columns
 for sample 2 and so on. Times are the original elapsed arrival times in
 seconds, weights are grams, and flow is grams per second. A flow cell stays
-empty when that reading has no supported flow window. The time is the window's
+empty when that reading has no supported flow window, including every post-stop
+drip reading. The time is the window's
 ending observation time, while the chart uses its midpoint; arrival times retain
 millisecond precision (up to three decimal places in seconds). The chart,
 Max flow and CSV use the same estimates. Missing curves
@@ -268,8 +274,9 @@ divided by duration after first drop. It is not terminal flow at cutoff.
 The Flow rate chart is different: it shows the non-negative weight change over
 supported measurement windows and can rise or fall throughout the shot.
 Error and average flow share final weight algebraically, so their correlation
-does not prove a residual-flow mechanism. The curve ends before post-stop drips
-and does not show their decay. See [BBW learning](brew-by-weight.md#cutoff-algorithms-and-learning).
+does not prove a residual-flow mechanism. The dashed weight tail shows captured
+post-stop drips, while the flow curve covers extraction only. See
+[BBW learning](brew-by-weight.md#cutoff-algorithms-and-learning).
 
 | Stop detail | Meaning |
 | --- | --- |

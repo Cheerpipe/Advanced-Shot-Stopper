@@ -641,8 +641,20 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   }
 
   if (!shouldTrackWeight()) {
-    return weight >= MIN_AUTOMATION_WEIGHT_G &&
-           weight <= MAX_AUTOMATION_WEIGHT_G;
+    const bool valid = weight >= MIN_AUTOMATION_WEIGHT_G && weight <= MAX_AUTOMATION_WEIGHT_G;
+    if (!session.active && pendingFinalize.pending && pendingFinalize.startedWithScale &&
+        static_cast<int32_t>(receivedAtMs - pendingFinalize.endedAtMs) > 0) {
+      const bool continuous = valid &&
+          connectionGeneration == pendingFinalize.scaleConnectionGeneration &&
+          static_cast<int32_t>(packetSequence - pendingFinalize.curveLastSequence) > 0 &&
+          plausibleSettledBrewWeight(weight, pendingFinalize.lastKnownWeightG,
+                                     pendingFinalize.lastKnownWeightValid);
+      pendingFinalize.curveBreakPending = !continuous ||
+          !appendShotCurveObservation(pendingFinalize.curve, weight,
+              receivedAtMs - pendingFinalize.cycleStartedAtMs, pendingFinalize.curveBreakPending);
+      if (continuous) pendingFinalize.curveLastSequence = packetSequence;
+    }
+    return valid;
   }
 
   if ((session.weightControlState == WeightControlState::ACTIVE ||
@@ -893,6 +905,7 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
   pendingFinalize.endedAtHasWallTime = end.available;
   pendingFinalize.dripDelayMs = session.config.dripDelayMs;
   pendingFinalize.endedWeightSequence = currentWeightSequence;
+  pendingFinalize.curveLastSequence = currentWeightSequence;
   pendingFinalize.cycleStartedAtMs =
       session.circuitClosedAtMs != 0U ? session.circuitClosedAtMs : session.startedAtMs;
   pendingFinalize.bootId = copyShotLogBootId();
@@ -1300,9 +1313,7 @@ void pendingShotFinalizeTask() {
     logWeightG = snapshot.lastKnownWeightG;
   }
 
-  // Drip delay determines the settled final weight, not extra shot time. The
-  // curve was snapshotted when the relay opened, so revise that same endpoint
-  // instead of leaving a false flat tail or appending drip-delay samples.
+  // Keep the cutoff time and settled-yield annotation separate from observations.
   if (logWeightValid) {
     (void)settleShotCurveEndWeight(snapshot.curve, logWeightG);
   }

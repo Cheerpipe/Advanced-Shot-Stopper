@@ -113,6 +113,12 @@ and [target traces](P2_TARGET_TRACE.md), not by a historical pass.
 | M66 | In **Settings → Machine and scale → Scales**, set **Drip delay** to 0 s, run a shot, then repeat with 3.0 s and 10.0 s while watching Last Shot/history and the scale weight after machine circuit opens. Reboot after saving and verify the selected value remains. | `status/settings.config.dripDelayMs` reports 0, 3000, and 10000 respectively. Final weight/history update on the next control loop at 0 s and only after the configured window at 3/10 s. The saved value survives reboot; starting another shot during a pending window commits the previous shot with its last-known weight. |
 | M66B | With a local buzzer build, select **Buzzer only**, enable **Bullseye melody**, paste a valid RTTTL tune (≤500 characters), and save. Finish automatic, timer-only, and manual shots at the exact target; also try a brief target touch, a stable non-target weight, Scale priority, Sound alerts OFF, and disabling/re-enabling Bullseye. | The custom tune plays once after 1 continuous second of fresh exact-target samples, including before drip delay expires. It stays silent for brief/non-target runs and outside Buzzer only. Disabling makes the textarea gray/read-only without erasing it; re-enabling and rebooting restore the saved tune. Rinses never trigger it. |
 
+## Post-drip chart acceptance
+
+| ID | Procedure | Expected result |
+| --- | --- | --- |
+| M66a | With a 3 s drip delay, finish a shot and compare Home, Stats and CSV on narrow/wide screens and both themes. Reload after saving. Repeat with a scale interruption or cup removal during the delay. | Extraction remains solid and filled; recorded post-stop weights form a faint dashed, unfilled tail at their actual times, ending in a small hollow circle only when the complete last sample matches Yield. The circle stays 6 px at every chart width. Duration and Max flow exclude drip time; CSV drip flow cells are empty. Gaps remain gaps; cup removal is not plotted as coffee. Existing saved shots without drip samples gain no invented tail. No extra labels appear. |
+
 ## BBW algorithm acceptance
 
 These checks require explicit hardware authorization and remain required even

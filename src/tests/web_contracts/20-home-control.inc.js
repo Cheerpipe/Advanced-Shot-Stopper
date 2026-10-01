@@ -6,7 +6,7 @@
   const ticks = [[], []], markers = [], charts = [];
   let markup = '';
   const axisStub = {setAttribute() {}, dataset: {}};
-  const document = {createElement(){return {style:{},dataset:{}}}};
+  const document = {createElement(){return {style:{},dataset:{},setAttribute(){}}}};
   const host = {
     get innerHTML(){return markup},
     set innerHTML(value){markup=value;markers.length=0;charts.length=0;for(const part of value.split('<div class="shotCurve">').slice(1)){const y=(part.match(/class="shotYTick"/g)||[]).map(()=>({style:{},dataset:{},textContent:'0'})),style={setProperty(k,v){this[k]=v}};charts.push({style,querySelectorAll(){return y},querySelector(){return axisStub}})}},
@@ -69,6 +69,26 @@
   if(single.flowSegs[0].pts.length!==1 || host.innerHTML.includes('<circle') ||
       !host.innerHTML.includes('d="M13.4 1.5h0"'))
     throw new Error('A single supported flow estimate must render as a point without invented endpoints');
+  const dripShot={wCg:[0,100,200,240,250],wAtMs:[0,500,1000,1500,2000],
+    durationS:1,endS:1,endCg:250};
+  const drip=render(host,dripShot),[dripWeight,dripFlow]=host.innerHTML.split('<div class="shotCurve">').slice(1);
+  if(drip.flowCurve.join('|')!=='||2||' || drip.maxFlow!==2 || drip.segs[0].pts.length!==3 ||
+      drip.dripSegs[0].pts.length!==3 || drip.finalPoint.t!==2 || drip.finalPoint.cg!==250 ||
+      !dripWeight.includes('class="shotTrace shotDripTrace"') || !dripWeight.includes('stroke-dasharray="3 3" opacity=".55"') ||
+      markers.length!==1 || markers[0].className!=='shotFinalPoint' ||
+      (dripWeight.match(/fill-opacity/g)||[]).length!==1 || dripFlow.includes('shotDripTrace') ||
+      dripFlow.includes('shotDropOverlay') || markers[0].style.width!=='6px' || markers[0].style.height!=='6px')
+    throw new Error('Real drip readings must form an unfilled dashed tail and fixed-size final ring, never flow');
+  const interrupted=render(host,{...dripShot,wBreakBefore:[3]});
+  if(interrupted.dripSegs[0].pts[0].t!==1.5)
+    throw new Error('Drip tail must not connect across a recorded interruption');
+  for(const extra of [{wTruncated:true},{endCg:300}]) {
+    if(render(host,{...dripShot,...extra}).finalPoint || markers.length)
+      throw new Error('An incomplete or unsettled tail cannot claim a final-yield marker');
+  }
+  const longDrip=render(host,{...dripShot,wAtMs:[0,500,1000,10000,11000]});
+  if(longDrip.timeMax!==20 || longDrip.maxFlow!==2)
+    throw new Error('Both chart time axes must include drip times without extending the flow window');
   render(host, {wCg:[0,0,0],wAtMs:[0,1000,2000],durationS:2});
   if(host.hidden || markers.length || host.innerHTML.includes('fill-opacity') ||
       !host.innerHTML.includes('d="M13.4 34.5 L37.0 34.5"'))
