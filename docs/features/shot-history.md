@@ -70,6 +70,8 @@ keeps its actual arrival time, including repeated weights and changing scale
 cadence. Duration ends when the machine circuit opens; later drip readings
 are not added to this series. Settled post-drip yield remains a separate
 endpoint annotation, so it cannot change an earlier scale reading or its flow.
+Isolated readings and event weights appear as small dots at the curve's line
+thickness, including when the chart is stretched across a wide screen.
 
 A curve can hold 1201 readings: enough for a 60-second shot with readings
 50 ms apart. If a faster burst exceeds that capacity, the captured prefix
@@ -159,7 +161,10 @@ the readings' actual arrival times. If a second starts between two readings,
 their weights supply an interpolated starting value. The whole window needs
 continuous readings on or after first drop. Before enough readings arrive,
 or after a known rejection, tare or scale-loss break, measured flow is unavailable.
-The flat line before first drop is only a visual reference.
+The flat line before first drop is only a visual reference. With uninterrupted
+readings, a short visual connection joins it to the first available flow point.
+That connection is not a measured rate and does not contribute to Max flow or
+the CSV export. Known interruptions remain gaps.
 
 Each estimate is drawn at the middle of its measurement window, usually half a
 second before the latest reading. With a healthy scale reporting less often

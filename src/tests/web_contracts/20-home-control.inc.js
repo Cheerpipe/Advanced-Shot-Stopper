@@ -35,7 +35,7 @@
   if (host.hidden || !basic || basic.timeMax !== 10 || basic.maxW !== 10 || basic.flowMax !== 1 ||
       !weight.includes('Weight (g)') || !flow.includes('Flow rate (g/s)') ||
       !weight.includes('class="shotSparkY"') || !flow.includes('class="shotSparkY shotSparkFlowY"') ||
-      !flow.includes('d="M1.5 34.5 L48.9 34.5"') ||
+      !flow.includes('d="M1.5 34.5 L48.9 34.5 L60.8 1.5"') ||
       !flow.includes('d="M60.8 1.5 L84.4 1.5"') ||
       !weight.includes('shotDropOverlay') || flow.includes('shotDropOverlay') ||
       markers.length !== 1 || !markers[0].innerHTML.includes('fill="#38bdf8"') ||
@@ -47,9 +47,25 @@
       ticks.some(items=>items.map(item=>item.textContent).join('|')!=='0 s|10 s')) {
     throw new Error('Shot charts must retain axes/drop annotation and plot measured rates at window midpoints');
   }
+  if (weight.includes('<circle') || !weight.includes('d="M48.9 32.9h0"') ||
+      !weight.includes('stroke-linecap="round"'))
+    throw new Error('Event annotations must use line-width non-scaling strokes, not stretched filled circles');
+  for (const interruption of [
+    {wBreakBefore:[3]}, {wCg:[0,0,50,NaN,250,350,450]},
+    {atmS:2.5,atmClearedS:3.5},
+  ]) {
+    const broken=render(host,{wCg:[0,0,50,150,250,350,450],
+      wAtMs:[0,1000,2000,3000,4000,5000,6000],durationS:6,firstDropS:2,...interruption});
+    if(broken.flowStart!==null || !host.innerHTML.includes('d="M1.5 34.5 L48.9 34.5"'))
+      throw new Error('Startup reference must not bridge rejection, tare or scale-loss gaps');
+  }
+  const annotations=render(host,{wCg:[0,100,200],wAtMs:[0,500,1000],durationS:1,endS:1,endCg:500});
+  if(host.innerHTML.includes('<circle') || !host.innerHTML.includes('d="M25.2 18.0h0"') ||
+      annotations.maxFlow!==2 || annotations.flowCurve[2]!==2)
+    throw new Error('Settled yield must stay visible without an oversized marker or changing flow');
   const single = render(host, {wCg:[0,100,200],wAtMs:[0,500,1000],durationS:1});
-  if(single.flowSegs[0].pts.length!==1 || !host.innerHTML.includes('<circle class="shotTrace"') ||
-      !host.innerHTML.includes('cx="13.4"'))
+  if(single.flowSegs[0].pts.length!==1 || host.innerHTML.includes('<circle') ||
+      !host.innerHTML.includes('d="M13.4 1.5h0"'))
     throw new Error('A single supported flow estimate must render as a point without invented endpoints');
   render(host, {wCg:[0,0,0],wAtMs:[0,1000,2000],durationS:2});
   if(host.hidden || markers.length || host.innerHTML.includes('fill-opacity') ||
