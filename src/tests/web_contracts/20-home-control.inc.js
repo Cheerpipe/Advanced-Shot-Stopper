@@ -60,9 +60,11 @@
       throw new Error('Startup reference must not bridge rejection, tare or scale-loss gaps');
   }
   const annotations=render(host,{wCg:[0,100,200],wAtMs:[0,500,1000],durationS:1,endS:1,endCg:500});
-  if(host.innerHTML.includes('<circle') || !host.innerHTML.includes('d="M25.2 18.0h0"') ||
-      annotations.maxFlow!==2 || annotations.flowCurve[2]!==2)
-    throw new Error('Settled yield must stay visible without an oversized marker or changing flow');
+  if(host.innerHTML.includes('<circle') || host.innerHTML.includes('d="M25.2 18.0h0"') ||
+      annotations.segs.length!==1 || annotations.pts.at(-1).cg!==200 ||
+      annotations.maxFlow!==2 || annotations.flowCurve[2]!==2 ||
+      new Function(helpers+';return shotDisplayActualG(5,[0,100,200]);')()!==5)
+    throw new Error('Weight trace must end at its last sample while summary yield and flow stay unchanged');
   const single = render(host, {wCg:[0,100,200],wAtMs:[0,500,1000],durationS:1});
   if(single.flowSegs[0].pts.length!==1 || host.innerHTML.includes('<circle') ||
       !host.innerHTML.includes('d="M13.4 1.5h0"'))

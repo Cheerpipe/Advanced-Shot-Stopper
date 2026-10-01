@@ -68,8 +68,9 @@ The controller collects accepted scale readings in memory while the shot runs
 and saves the completed curve after the configured drip delay. Each reading
 keeps its actual arrival time, including repeated weights and changing scale
 cadence. Duration ends when the machine circuit opens; later drip readings
-are not added to this series. Settled post-drip yield remains a separate
-endpoint annotation, so it cannot change an earlier scale reading or its flow.
+are not added to this series. The weight curve ends at its last captured reading.
+Settled post-drip weight appears as **Yield** in the shot card, without adding
+a separate point to the curve or changing an earlier reading or its flow.
 Isolated readings and event weights appear as small dots at the curve's line
 thickness, including when the chart is stretched across a wide screen.
 
@@ -267,8 +268,8 @@ divided by duration after first drop. It is not terminal flow at cutoff.
 The Flow rate chart is different: it shows the non-negative weight change over
 supported measurement windows and can rise or fall throughout the shot.
 Error and average flow share final weight algebraically, so their correlation
-does not prove a residual-flow mechanism. The curve's revised endpoint does
-not reconstruct post-stop drip decay. See [BBW learning](brew-by-weight.md#cutoff-algorithms-and-learning).
+does not prove a residual-flow mechanism. The curve ends before post-stop drips
+and does not show their decay. See [BBW learning](brew-by-weight.md#cutoff-algorithms-and-learning).
 
 | Stop detail | Meaning |
 | --- | --- |

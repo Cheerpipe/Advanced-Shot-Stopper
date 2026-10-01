@@ -131,8 +131,8 @@ for(let i=0;i<observations.length;i++){
  if(!flowSegs.length&&drop>0&&p.segment===dropSegment)flowStart=point;
  append(flowSegs,point,previousFlow,true);previousFlow=point;
 }
-// Exact event/final-yield annotations cannot supply estimator support.
-for(const [t,cg] of [[drop,num(shot.dropCg)],[ext,num(shot.extCg)],[atm,num(shot.atmCg)],[end,num(shot.endCg)]]){
+// Exact event annotations cannot supply estimator support.
+for(const [t,cg] of [[drop,num(shot.dropCg)],[ext,num(shot.extCg)],[atm,num(shot.atmCg)]]){
  if(t==null||t<0||Math.round(t*1000)>limit||cg==null)continue;
  const p={t,cg},k=kind(t);pts.push(p);segs.push({kind:k,color:colors[k],pts:[p]});
 }
