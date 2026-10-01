@@ -60,22 +60,17 @@ CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 # caches while IDF asserts the writing task's stack is internal, so
 # flash-writing tasks (loop, network, httpd, persist) and VHCI paths fault.
 
-# Trim Wi-Fi / lwIP DRAM for a single Web UI client + SoftAP. The static RX
-# and TX pools are the real preallocated internal DMA consumers (~1.6 KB per
-# buffer, allocated at esp_wifi_init and held until deinit): 6/6 keeps STA +
-# SoftAP with a single Web UI client while reclaiming ~6.4 KB versus 8/8.
-# esp_wifi enforces RX_BA_WIN <= 2*STATIC_RX_BUFFER_NUM at compile time, so
-# the RX block-ack window drops 16 -> 12 with the pool (AMPDU RX aggregation
-# shrinks a quarter; OTA throughput is PHY-bound well above it).
-CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=6
-CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16
-CONFIG_ESP_WIFI_RX_BA_WIN=12
-CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=6
+# Bounded Wi-Fi pools for Web UI transfers, STA + SoftAP, and OTA. Static
+# RX/TX buffers reserve ~1.6 KB each until deinit; 8/16 costs ~19.2 KB more
+# internal DMA RAM than 6/6. RX_BA_WIN must stay <= min(2*STATIC_RX, DYNAMIC_RX).
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=8
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32
+CONFIG_ESP_WIFI_RX_BA_WIN=16
+CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=16
 # Cache TX is only an overflow queue for frames that arrive while every static
-# TX buffer is busy (IDF 6.x semantics); its entries are lwIP packets and land
-# in PSRAM under SPIRAM_TRY_ALLOCATE_WIFI_LWIP. 16 caps worst-case queueing
-# while staying above the AMPDU_TX_BA_WIN of 6; it does not preallocate DRAM.
-CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM=16
+# TX buffer is busy; queued lwIP packets are PSRAM-capable under
+# SPIRAM_TRY_ALLOCATE_WIFI_LWIP. This bounds queueing, not preallocated DRAM.
+CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM=32
 # Management short buffers are small (<64 B each) and allocated on demand;
 # 16 covers STA + SoftAP association and beacon traffic.
 CONFIG_ESP_WIFI_MGMT_SBUF_NUM=16
@@ -86,8 +81,11 @@ CONFIG_ESP_WIFI_MGMT_SBUF_NUM=16
 # compiles unguarded IPv6 types) is replaced by a local empty stub via
 # override_path in main/idf_component.yml.
 # CONFIG_LWIP_IPV6 is not set
-CONFIG_LWIP_TCP_SND_BUF_DEFAULT=2880
-CONFIG_LWIP_TCP_WND_DEFAULT=2880
+# TCP payload buffers grow per active connection; keep the receive mailbox
+# above WND/MSS + 2 (MSS=1440) so it can accommodate the larger window.
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=16384
+CONFIG_LWIP_TCP_WND_DEFAULT=16384
+CONFIG_LWIP_TCP_RECVMBOX_SIZE=16
 # httpd alone can hold (max_open_sockets + 3) = 7 sockets at peak; the mDNS
 # responder keeps one more open permanently, leaving SNTP/webhooks no room.
 CONFIG_LWIP_MAX_SOCKETS=10

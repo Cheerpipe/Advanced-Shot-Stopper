@@ -583,6 +583,8 @@ if (!network.includes('sendBody(request, SHOT_STOPPER_WEB_UI_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_CSS_GZIP') ||
     !network.includes('return sendBody(request, json, length)') ||
     !network.includes(
+        'return httpd_resp_send(request, static_cast<const char *>(data), length)') ||
+    !network.includes(
         'return httpd_resp_send_chunk(request, static_cast<const char *>(data), length)') ||
     network.includes('HTTP_DRAM_BOUNCE_BYTES') ||
     network.includes('g_httpSendBounce') ||
@@ -594,7 +596,7 @@ if (!network.includes('sendBody(request, SHOT_STOPPER_WEB_UI_GZIP') ||
     !network.includes(
         'sendChunk(request, work.jsonItem, strlen(work.jsonItem))')) {
   throw new Error(
-      'HTTP bodies must send directly through HTTPD; large work buffers live in PSRAM heap');
+      'Complete HTTP bodies must use HTTPD Content-Length responses; streamed bodies retain chunks and large work buffers live in PSRAM heap');
 }
 if (!network.includes('If-None-Match')) {
   throw new Error('GET / must honor If-None-Match for cached Web UI revalidation');

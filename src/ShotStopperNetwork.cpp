@@ -742,10 +742,7 @@ esp_err_t sendBody(httpd_req_t *request, const void *data, size_t length) {
   if (length == 0) {
     return httpd_resp_send(request, nullptr, 0);
   }
-  if (sendChunk(request, data, length) != ESP_OK) {
-    return ESP_FAIL;
-  }
-  return httpd_resp_send_chunk(request, nullptr, 0);
+  return httpd_resp_send(request, static_cast<const char *>(data), length);
 }
 
 esp_err_t sendJsonStringChunk(httpd_req_t *request, const char *value) {

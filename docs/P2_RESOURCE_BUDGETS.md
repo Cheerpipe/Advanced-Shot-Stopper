@@ -68,7 +68,7 @@ snapshot grew by about 123 KiB.
 | Resource | Placement and bound |
 |---|---|
 | Network work buffer | external, at most 68 KiB; mutually exclusive JSON-item and OTA-response scratch share storage under the work-buffer mutex, and a one-curve JSON scratch serves the status and shots-list rows |
-| HTTP response send | assets and PSRAM work buffers pass directly to HTTPD's default socket send, which copies into lwIP; the former 512-byte internal-BSS bounce and application copy are removed, without implying a 512-byte runtime-heap gain |
+| HTTP response send | complete assets and JSON use HTTPD Content-Length responses; streamed bodies retain chunked transfer. Source buffers pass directly to HTTPD's default socket send, which copies into lwIP; no application bounce buffer or extra copy |
 | NVS metadata cache | PSRAM preferred with internal fallback on n16r8; n8r4 retains its existing placement; flash I/O still uses the internal scratch below |
 | Shot-curve store | external, 26,820 bytes for 100 V3 records; the Network work buffer may hold one separate 26,800-byte read copy within its 68 KiB total bound |
 | Shared flash-I/O scratch | internal heap, 3,328-byte capacity for one 3,304-byte PersistedSettings record; slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |
@@ -80,7 +80,9 @@ snapshot grew by about 123 KiB.
 | Settings handoff | one external mailbox for the 3,304-byte settings blob and revision, and one internal byte queued; no full settings copy in the queue or receiver |
 | Web command | trivially copyable, at most 416 bytes; configuration and network payloads share a discriminated union |
 | Radio settings snapshot | at most 224 bytes; full 3,304-byte settings remain for durable mutations |
-| Wi-Fi static TX pool | eight internal buffers reserved while Wi-Fi is initialized; sized for the bounded Web UI, OTA, webhook, STA, and SoftAP workload, with reliability taking priority over peak Web UI throughput |
+| Wi-Fi static pools | eight RX and sixteen TX internal DMA buffers reserved while Wi-Fi is initialized, approximately 1.6 KB each; about 19.2 KB more internal RAM than the former six RX/six TX pools |
+| Wi-Fi packet queues | dynamic RX and cache TX each bounded at 32 packets; RX block-ack window 16. Cache TX holds overflow packets when static TX buffers are busy; it is not an equivalent preallocated DMA pool |
+| TCP capacity | 16 KiB send/receive limits and a 16-entry receive mailbox per connection; payload memory grows under load, with PSRAM preferred where supported. Fully loaded bidirectional payload capacity is 27,008 bytes higher per connection than the former 2,880-byte limits, before metadata |
 | mDNS responder | NetworkService-owned; mDNS 1.13.1 places its 4096-byte priority-1 task stack on core 0 in internal RAM on n16r8 for core dumps, and in PSRAM on n8r4; dynamic responder allocations remain in PSRAM; one persistent UDP socket; freed once in `OpenBrewByWeightNetwork::stop()` |
 | Fixed buzzer melodies | at most 8 notes each; custom tune capacity remains 250 notes |
 | JSON parser | PSRAM only; Web input remains at most 2047 bytes / 128 values; the Micra worker explicitly admits at most 16 KiB / 1024 values for bounded cloud responses; nesting remains 32 |

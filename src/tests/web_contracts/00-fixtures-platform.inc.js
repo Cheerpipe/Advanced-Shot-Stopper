@@ -183,10 +183,19 @@ if (!sdkconfigDefaults.includes('CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y') ||
   throw new Error(
       'sdkconfig.defaults must enable run-time stats and vTaskList core IDs');
 }
-if (!sdkconfigDefaults.includes('CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=6') ||
-    !idfHelpers.includes('CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=6')) {
+if ([
+  'CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=8',
+  'CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32',
+  'CONFIG_ESP_WIFI_RX_BA_WIN=16',
+  'CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=16',
+  'CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM=32',
+  'CONFIG_LWIP_TCP_SND_BUF_DEFAULT=16384',
+  'CONFIG_LWIP_TCP_WND_DEFAULT=16384',
+  'CONFIG_LWIP_TCP_RECVMBOX_SIZE=16',
+].some(setting => !sdkconfigDefaults.split('\n').includes(setting) ||
+    !idfHelpers.includes(`"${setting}"`))) {
   throw new Error(
-      'IDF defaults and effective-configuration verification must agree on six static Wi-Fi TX buffers');
+      'IDF defaults and effective-configuration verification must agree on bounded Wi-Fi pools and 16 KiB TCP capacity');
 }
 if (!sdkconfigNimble.includes('CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y') ||
     !sdkconfigNimble.includes('CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE=4096') ||
