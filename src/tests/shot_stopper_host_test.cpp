@@ -12086,6 +12086,62 @@ void s02c_shot_curve_samples_on_half_second_grid_and_latches_slow() {
   CHECK(fullLimit.weightCg[SHOT_CURVE_MAX_POINTS - 1U] == 4200);
 }
 
+void s02k_curve_continuity_uses_control_rejections_and_fifo_provenance() {
+  for (unsigned boundary = 0; boundary < 9; ++boundary) {
+    resetHarness(false, true);
+    session.active = session.startedWithScale = true;
+    session.config = snapshotConfig(runtimeConfig);
+    session.config.avoidAccidentalTouchEnabled = false;
+    session.config.autoRetare = false;
+    session.weightControlState = WeightControlState::ACTIVE;
+    session.ownedConnectionGeneration = getScaleLinkSnapshot().connectionGeneration;
+    session.startedAtMs = hostMillis;
+    stopperState = StopperState::BREW;
+    resetShotTrajectory(hostMillis);
+    const uint32_t start = hostMillis;
+    CHECK(recordWeightSampleWithProvenance(1, start, 1,
+                                           session.ownedConnectionGeneration));
+    hostMillis += 100;
+    switch (boundary) {
+      case 0: CHECK(!recordWeightSample(NAN, hostMillis)); break;
+      case 1: CHECK(!recordWeightSample(MAX_AUTOMATION_WEIGHT_G + 1, hostMillis)); break;
+      case 2: CHECK(!recordWeightSample(200, hostMillis)); break;
+      case 3: armPostTareBaselineWindow(); break;
+      case 4: resetWeightTrend(); break;
+      case 5: suspendWeightControl(); break;
+      default: {
+        ScaleEvent event;
+        event.receivedAtMs = hostMillis;
+        event.weightG = 1;
+        if (boundary == 6) event.type = ScaleEventType::REFERENCE_CHANGED;
+        if (boundary == 7)
+          event.connectionGeneration = session.ownedConnectionGeneration + 1U;
+        const size_t publications = boundary == 8 ? SCALE_WEIGHT_EVENT_CAPACITY + 1U : 1U;
+        for (size_t n = 0; n < publications; ++n) CHECK(publishScaleEvent(event, false));
+        processScaleWorkerEvents();
+      }
+    }
+    if (boundary != 8) {
+      CHECK(shotCurveSampler.count == 1);
+      for (unsigned n = 0; n < WEIGHT_RECOVERY_CONFIRMATION_SAMPLES; ++n) {
+        hostMillis += 50;
+        (void)recordWeightSample(boundary == 3 ? 0 : 1, hostMillis);
+        if (shotCurveSampler.count > 1) break;
+      }
+    }
+    CHECK(shotCurveSampler.count == 2);
+    ShotCurveRecord curve;
+    shotCurveSampler.snapshot(curve, 1);
+    CHECK(shotCurveBreakBefore(curve, 1));
+    CHECK(curve.weightCg[0] == 100 && curve.atMs[0] == 0);
+    hostMillis += 500; // Healthy slow cadence does not add a boundary.
+    CHECK(recordWeightSample(1, hostMillis));
+    shotCurveSampler.snapshot(curve, 1);
+    CHECK(curve.count == 3 && !shotCurveBreakBefore(curve, 2));
+    CHECK(curve.atMs[2] == hostMillis - start);
+  }
+}
+
 void s02d_shot_curve_latches_first_drop_fast_and_atm() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -15043,6 +15099,55 @@ void s12f_shot_store_snapshot_serializes_rating_and_finalize() {
   done.store(true, std::memory_order_release);
   reader.join();
   CHECK(violations.load(std::memory_order_relaxed) == 0);
+}
+
+void s12g_worker_acknowledgement_rechecks_generation_under_lock() {
+  for (unsigned mutation = 0; mutation < 3; ++mutation) {
+    resetHarness(false, true);
+    CHECK(initializeSettingsPersistenceWorker());
+    ShotLogRecord record = {};
+    record.durationDs = 130;
+    record.actualWeightCg = 3600;
+    CHECK(shotLog.append(record, false));
+    ShotCurveRecord curve = emptyShotCurveRecord();
+    curve.shotId = 1;
+    curve.count = 1;
+    CHECK(shotCurves.append(curve, false));
+    *shotStorePersistImage = activationStores;
+    shotStorePersistImageGeneration = shotStoreDirtyGeneration.load();
+    persistShotStoreImage();
+    CHECK(shotStorePersistResultReady && shotStorePersistResultOk);
+    session.active = true; // Hold the next flush while checking acknowledgement.
+    static thread_local unsigned selected;
+    selected = mutation;
+    TaskMutex::hostObserver = [](const TaskMutex *mutex, bool acquired) {
+      if (mutex != &shotStoreMutex || !acquired) return;
+      TaskMutex::hostObserver = nullptr;
+      // Emulate a Web mutation that completed just before control got the lock.
+      if (selected == 0) {
+        CHECK(shotCurves.clear(false) && shotLog.clear(false));
+      } else if (selected == 1) {
+        CHECK(shotCurves.removeById(1, false) && shotLog.removeById(1, false));
+      } else {
+        CHECK(shotLog.updateRating(1, 5, false));
+      }
+      shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+    };
+    serviceShotStorePersistence();
+    TaskMutex::hostObserver = nullptr;
+    CHECK(shotLog.dirty());
+    CHECK(mutation == 2 || shotCurves.dirty());
+    session.active = false;
+    serviceShotStorePersistence();
+    CHECK(!shotLog.dirty() && !shotCurves.dirty());
+    CHECK(shotLog.load() && shotCurves.load());
+    CHECK(shotLog.count() == (mutation == 2 ? 1U : 0U));
+    CHECK(shotCurves.count() == (mutation == 2 ? 1U : 0U));
+    if (mutation == 2) {
+      CHECK(shotLog.copyNewestFirst(&record, 1) == 1);
+      CHECK(shotLogRating(record.extractionGuardEnabled) == 5);
+    }
+  }
 }
 
 void s13_persist_debug_messages_identify_origin() {
@@ -18427,6 +18532,8 @@ const TestCase testCases[] = {
     {"S01c", s01c_mixed_shots_share_stats_and_home_authority},
     {"S01e", s01e_bbw_error_uses_its_own_ten_shots},
     {"S01f", s01f_curve_rollover_keeps_stats_windows_and_sorted_joins},
+    {"S12g", s12g_worker_acknowledgement_rechecks_generation_under_lock},
+    {"S02k", s02k_curve_continuity_uses_control_rejections_and_fifo_provenance},
     {"S01d", s01d_manual_timer_and_limit_share_settled_finalize},
     {"S01b", s01b_shot_log_stop_detail_names_end_reasons},
     {"S02", s02_shot_log_appends_after_drip_delay},

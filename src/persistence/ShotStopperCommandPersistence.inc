@@ -688,11 +688,10 @@ void serviceShotStorePersistence() {
   const bool inFlight = shotStorePersistInFlight;
   shotStorePersistMux.unlock();
   if (resultReady) {
-    const uint32_t liveGeneration =
-        shotStoreDirtyGeneration.load(std::memory_order_acquire);
-    const bool current = liveGeneration == resultGeneration;
     {
       TaskLockGuard lock(shotStoreMutex);
+      const bool current = shotStoreDirtyGeneration.load(std::memory_order_acquire) ==
+                           resultGeneration;
       activationStores.acknowledgePersisted(*shotStorePersistImage,
                                             resultOk && current);
       if (resultOk && current && shotStorePersistImageLastShotDirty) {
