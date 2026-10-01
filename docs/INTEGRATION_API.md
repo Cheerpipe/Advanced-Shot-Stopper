@@ -212,8 +212,18 @@ retain the confirmation of pending Wi-Fi settings on a station connection.
 The former `/api/v1/shots` route family has been renamed to `/api/v1/stats`:
 external Web UI API callers must update the read URL and the POST URLs
 `/api/v1/stats/clear`, `/api/v1/stats/delete`, and `/api/v1/stats/rate`.
-Request bodies, mutation safety checks, and shot record fields are unchanged.
+The route rename preserves request bodies and mutation safety checks.
 The public `/api/v1/integration` endpoints are unchanged.
+
+Stats shot records and Home's `shotCurve` now carry paired `wCg` and `wAtMs`
+arrays: accepted centigram weights and their elapsed reception times in integer
+milliseconds, with up to 1201 observations. Use those times instead of the
+removed shared `wDtS` interval. `wBreakBefore` lists zero-based indices that
+start new continuous segments; `wTruncated` identifies an incomplete capture.
+Curve event fields such as `dropS` and `endS` remain seconds and retain three
+decimal places. Events are annotations, not extra received observations.
+The [shot-history export contract](features/shot-history.md#read-a-result)
+describes the corresponding ordinal CSV sample groups.
 
 ## Linea Micra Web API
 
