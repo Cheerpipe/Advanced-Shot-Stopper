@@ -905,11 +905,13 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
     {wCg:[0,100],wDtS:1},
   ]) assert.equal(model({...malformed,durationS:2}),null,'no implicit legacy grid or reordered input');
   const final=model(trace([0,500,1000,1500,2000],{endS:1.5,endCg:10000,durationS:2}));
-  assert.deepEqual(final.flowCurve,[null,null,2,2,null]);
+  assert.deepEqual(final.flowCurve,[null,null,2,2,2]);
   assert.equal(final.maxFlow,2);
-  assert.equal(final.flowSegs[0].pts.at(-1).t,1);
+  assert.equal(final.flowSegs[0].pts.at(-1).t,1.5);
+  assert.equal(final.dripFlowSegs[0].pts[0].t,1.5);
   const preciseEnd=model(trace([0,500,1000,1550,1570,1571],{endS:1.57,endCg:9999,durationS:1.5}));
-  assert.deepEqual(preciseEnd.flowCurve,[null,null,2,2,2,null],'exact cutoff preserves in-shot readings and excludes postdrip');
+  assert.deepEqual(preciseEnd.flowCurve,[null,null,2,2,2,2],'exact cutoff keeps extraction and drip estimates in CSV');
+  assert.equal(preciseEnd.dripFlowSegs.length,0,'no midpoint after cutoff means no invented drip line');
   assert.equal(preciseEnd.pts.some(p=>p.t===1.55),true);
   assert.deepEqual(model(trace([0,500,1001],{endS:1.001})).flowCurve,[null,null,2],
     'decimal seconds must round back to exact integer milliseconds');

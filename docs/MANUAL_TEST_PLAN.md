@@ -117,7 +117,7 @@ and [target traces](P2_TARGET_TRACE.md), not by a historical pass.
 
 | ID | Procedure | Expected result |
 | --- | --- | --- |
-| M66a | With a 3 s drip delay, finish a shot and compare Home, Stats and CSV on narrow/wide screens and both themes. Reload after saving. Repeat with a scale interruption or cup removal during the delay. | Extraction remains solid and filled; recorded post-stop weights form a faint dashed, unfilled tail at their actual times, ending in a small hollow circle only when the complete last sample matches Yield. The circle stays 6 px at every chart width. Duration and Max flow exclude drip time; CSV drip flow cells are empty. Gaps remain gaps; cup removal is not plotted as coffee. Existing saved shots without drip samples gain no invented tail. No extra labels appear. |
+| M66a | With a 3 s drip delay, finish a shot and compare Home, Stats and CSV on narrow/wide screens and both themes. Reload after saving. Repeat with a scale interruption or cup removal during the delay. | Extraction remains solid and filled; recorded post-stop weights form a faint dashed, unfilled tail at their actual times, ending in a small hollow circle only when the complete last sample matches Yield. The circle stays 6 px at every chart width. Flow also continues faint, dashed and unfilled from cutoff using supported measured windows, without a final ring or invented zero. Duration and Max flow exclude drip time; CSV includes supported drip flow values. Unsupported windows remain empty, and the plot range fits drip rates. Gaps remain gaps; cup removal is not plotted as coffee. Existing saved shots without drip samples gain no invented tail. No extra labels appear. |
 
 ## BBW algorithm acceptance
 

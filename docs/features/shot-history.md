@@ -146,8 +146,7 @@ but does not enter Home or these summaries.
 
 Every available weight curve has a **Flow rate (g/s)** chart directly below it
 on Home and in its Stats history card. Both charts share a time axis, including
-any recorded drip tail, with
-reference lines every 10 seconds. The Weight chart adds lines every 10 g, and
+any recorded drip tail, with reference lines every 10 seconds. The Weight chart adds lines every 10 g, and
 Flow rate adds them every 0.5 g/s. Each displayed range rounds up to the next
 reference interval and each chart grows vertically when all required labels
 would not fit at its normal compact height.
@@ -186,14 +185,17 @@ before first drop.
 The cards call shot output **Yield** while chart, goal, scale, and cup labels
 continue to use Weight where they describe weight itself. **Avg flow** remains
 the final yield divided by the time after first drop. **Max flow** is the highest
-non-negative estimate from these supported windows; Home
+non-negative estimate from supported windows ending before or at machine cutoff; Home
 shows the peak so far during a live shot, and saved cards reproduce it from
 the stored observations. Falling weight contributes 0 g/s. Max flow is
 unavailable when the curve has no supported window. For an **Incomplete curve**,
 Max flow is marked **(recorded)** and describes only the captured portion of the
-shot. The flow line ends at the last supported window before the machine stops;
-post-stop drip readings have no flow estimates. No extra smoothing changes
-the plotted values.
+shot. Recorded post-stop readings also support flow estimates using the same
+calculation. Their chart continuation is faint, dashed and unfilled from the
+machine's cutoff time onward. Drip flow does not change **Max flow** or shot
+duration. Each estimate stays at its window midpoint, so the flow line can end
+before the last weight reading; it is not extended with an assumed zero.
+No extra smoothing changes the plotted values.
 
 The controller stores only the weight curve. The Flow rate chart and Max flow
 are derived locally, so viewing or reloading them does not create another
@@ -219,8 +221,8 @@ Each reading has an ordinal group: `sample_1_time_s`,
 `sample_1_weight_g`, `sample_1_flow_g_s`, then the same three columns
 for sample 2 and so on. Times are the original elapsed arrival times in
 seconds, weights are grams, and flow is grams per second. A flow cell stays
-empty when that reading has no supported flow window, including every post-stop
-drip reading. The time is the window's
+empty when that reading has no supported flow window. Recorded drip readings
+include their supported flow estimates too. The time is the window's
 ending observation time, while the chart uses its midpoint; arrival times retain
 millisecond precision (up to three decimal places in seconds). The chart,
 Max flow and CSV use the same estimates. Missing curves
@@ -275,7 +277,8 @@ The Flow rate chart is different: it shows the non-negative weight change over
 supported measurement windows and can rise or fall throughout the shot.
 Error and average flow share final weight algebraically, so their correlation
 does not prove a residual-flow mechanism. The dashed weight tail shows captured
-post-stop drips, while the flow curve covers extraction only. See
+post-stop drips; the flow chart also shows their supported rates as a dashed
+continuation. See
 [BBW learning](brew-by-weight.md#cutoff-algorithms-and-learning).
 
 | Stop detail | Meaning |

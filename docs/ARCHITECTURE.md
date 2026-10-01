@@ -222,7 +222,12 @@ JSON exposes aligned `wCg`/`wAtMs`, segment-start indices in
 times; event annotations never become observed samples. The Web weight chart
 draws post-cutoff observations dashed without fill and uses a fixed-size hollow
 marker only when the complete tail's last observation matches settled yield.
-Flow and CSV flow cells exclude every post-cutoff observation. Scalar shot metrics,
+Flow applies the same supported-window estimator to extraction and drip readings;
+CSV includes both. Its faint, unfilled dashed continuation starts at cutoff,
+with a visual-only interpolated boundary when continuous support exists.
+Post-cutoff endpoint estimates with midpoints before cutoff do not alter the
+earlier solid trace. Extraction Max flow excludes post-cutoff endpoints, while
+the plot range includes drip rates. Scalar shot metrics,
 independent Stats eligibility windows, sorting and exact-ID joins remain owned
 by ShotLog. Other curve schemas start empty. OTA remains supported after the
 one-time preserving USB layout transition.

@@ -72,15 +72,17 @@
   const dripShot={wCg:[0,100,200,240,250],wAtMs:[0,500,1000,1500,2000],
     durationS:1,endS:1,endCg:250};
   const drip=render(host,dripShot),[dripWeight,dripFlow]=host.innerHTML.split('<div class="shotCurve">').slice(1);
-  if(drip.flowCurve.join('|')!=='||2||' || drip.maxFlow!==2 || drip.segs[0].pts.length!==3 ||
+  if(drip.flowCurve.join('|')!=='||2|1.4|0.5' || drip.maxFlow!==2 || drip.segs[0].pts.length!==3 ||
       drip.dripSegs[0].pts.length!==3 || drip.finalPoint.t!==2 || drip.finalPoint.cg!==250 ||
       !dripWeight.includes('class="shotTrace shotDripTrace"') || !dripWeight.includes('stroke-dasharray="3 3" opacity=".55"') ||
       markers.length!==1 || markers[0].className!=='shotFinalPoint' ||
-      (dripWeight.match(/fill-opacity/g)||[]).length!==1 || dripFlow.includes('shotDripTrace') ||
+      (dripWeight.match(/fill-opacity/g)||[]).length!==1 || !dripFlow.includes('shotDripTrace') ||
+      (dripFlow.match(/fill-opacity/g)||[]).length!==1 || drip.dripFlowSegs[0].pts[0].t!==1 ||
       dripFlow.includes('shotDropOverlay') || markers[0].style.width!=='6px' || markers[0].style.height!=='6px')
-    throw new Error('Real drip readings must form an unfilled dashed tail and fixed-size final ring, never flow');
+    throw new Error('Real drip readings must form unfilled dashed weight/flow tails and a fixed-size weight ring');
   const interrupted=render(host,{...dripShot,wBreakBefore:[3]});
-  if(interrupted.dripSegs[0].pts[0].t!==1.5)
+  if(interrupted.dripSegs[0].pts[0].t!==1.5 || interrupted.dripFlowSegs.length ||
+      interrupted.flowCurve.slice(3).some(v=>v!==null))
     throw new Error('Drip tail must not connect across a recorded interruption');
   for(const extra of [{wTruncated:true},{endCg:300}]) {
     if(render(host,{...dripShot,...extra}).finalPoint || markers.length)
@@ -88,7 +90,16 @@
   }
   const longDrip=render(host,{...dripShot,wAtMs:[0,500,1000,10000,11000]});
   if(longDrip.timeMax!==20 || longDrip.maxFlow!==2)
-    throw new Error('Both chart time axes must include drip times without extending the flow window');
+    throw new Error('Both chart time axes must include drip times without changing extraction Max flow');
+  const spikeDrip=render(host,{...dripShot,wCg:[0,100,200,1000,2000]});
+  if(spikeDrip.maxFlow!==2 || spikeDrip.flowMax!==18 || spikeDrip.flowCurve[4]!==18)
+    throw new Error('Drip rates must fit the axis and CSV without becoming extraction Max flow');
+  const crossCut=render(host,{wCg:[0,100,200,220,260],wAtMs:[0,500,1000,1100,1600],endS:1,durationS:1});
+  if(crossCut.dripFlowSegs[0].pts[0].t!==1 || crossCut.dripFlowSegs.some(s=>s.pts.some(p=>p.t<1)))
+    throw new Error('Midpoint estimates from crossing windows must never draw dashed flow before cutoff');
+  const recovered=render(host,{wCg:[0,100,200,300,400,500],wAtMs:[0,500,1000,1500,2000,2500],endS:1,durationS:1,wBreakBefore:[3]});
+  if(recovered.dripFlowSegs[0].pts[0].t!==2 || recovered.flowCurve[3]!==null || recovered.flowCurve[4]!==null)
+    throw new Error('Drip flow must regain a full supported window after an interruption without bridging cutoff');
   render(host, {wCg:[0,0,0],wAtMs:[0,1000,2000],durationS:2});
   if(host.hidden || markers.length || host.innerHTML.includes('fill-opacity') ||
       !host.innerHTML.includes('d="M13.4 34.5 L37.0 34.5"'))
