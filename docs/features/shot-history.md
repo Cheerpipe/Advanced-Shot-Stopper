@@ -154,18 +154,32 @@ marks its own position; when the two labels are too close, the paired
 measured/target label is the one that stays visible.
 The shot card continues to show the exact measured weight.
 
-The Flow rate chart uses the elapsed time between accepted readings. Known
-continuity breaks, duplicate arrival times and A→M scale-loss periods leave
-gaps where a rate cannot be calculated. Event annotations and settled yield
-never enter the measured flow series.
+The Flow rate chart measures the weight change over the preceding second using
+the readings' actual arrival times. If a second starts between two readings,
+their weights supply an interpolated starting value. The whole window needs
+continuous readings on or after first drop. Before enough readings arrive,
+or after a known rejection, tare or scale-loss break, measured flow is unavailable.
+The flat line before first drop is only a visual reference.
+
+Each estimate is drawn at the middle of its measurement window, usually half a
+second before the latest reading. With a healthy scale reporting less often
+than once per second, flow describes the actual longer span between readings
+and is drawn at its midpoint. A long interval alone cannot distinguish a slow
+scale from an interruption that the controller could not detect. Repeated weights
+are retained. When several readings share an arrival time, the last one supplies
+the endpoint; earlier readings at that time have no separate flow value.
+Event annotations and settled yield never enter the measured flow series.
 
 The cards call shot output **Yield** while chart, goal, scale, and cup labels
 continue to use Weight where they describe weight itself. **Avg flow** remains
 the final yield divided by the time after first drop. **Max flow** is the highest
-non-negative local change between usable consecutive accepted readings; Home
+non-negative estimate from these supported windows; Home
 shows the peak so far during a live shot, and saved cards reproduce it from
 the stored observations. Falling weight contributes 0 g/s. Max flow is
-unavailable when the curve has no usable interval.
+unavailable when the curve has no supported window. For an **Incomplete curve**,
+Max flow is marked **(recorded)** and describes only the captured portion of the
+shot. The flow line ends at the last supported window without extending to the
+settled yield. No extra smoothing changes the plotted values.
 
 The controller stores only the weight curve. The Flow rate chart and Max flow
 are derived locally, so viewing or reloading them does not create another
@@ -191,7 +205,10 @@ Each reading has an ordinal group: `sample_1_time_s`,
 `sample_1_weight_g`, `sample_1_flow_g_s`, then the same three columns
 for sample 2 and so on. Times are the original elapsed arrival times in
 seconds, weights are grams, and flow is grams per second. A flow cell stays
-empty when that reading has no usable preceding interval. Missing curves
+empty when that reading has no supported flow window. The time is the window's
+ending observation time, while the chart uses its midpoint; arrival times retain
+millisecond precision (up to three decimal places in seconds). The chart,
+Max flow and CSV use the same estimates. Missing curves
 and groups beyond a shot's captured length leave empty cells. The export
 does not resample to a grid, so different scale cadences remain visible without
 creating a column for every distinct arrival time.
@@ -239,8 +256,8 @@ Export before the ring overwrites older shots.
 
 Average flow uses final weight (including accepted post-drip) minus baseline,
 divided by duration after first drop. It is not terminal flow at cutoff.
-The Flow rate chart is different: it shows the non-negative local change between
-adjacent curve samples and can rise or fall throughout the shot.
+The Flow rate chart is different: it shows the non-negative weight change over
+supported measurement windows and can rise or fall throughout the shot.
 Error and average flow share final weight algebraically, so their correlation
 does not prove a residual-flow mechanism. The curve's revised endpoint does
 not reconstruct post-stop drip decay. See [BBW learning](brew-by-weight.md#cutoff-algorithms-and-learning).

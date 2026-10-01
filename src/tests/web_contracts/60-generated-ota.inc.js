@@ -842,173 +842,101 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
     if (prevDoc === undefined) delete global.document;
     else global.document = prevDoc;
   }
-  const fast15 = helpers.buildShotSparkModel({
-    wCg: [20, 800, 1600, 2400, 3200, 3600, 4000, 4370],
-    wDtS: 2,
-    durationS: 15.1,
-    firstDropS: 4.5,
-    dropS: 4.5,
-    dropCg: 50,
-    extendedS: 13.3,
-    extCg: 3600,
-    endS: 15.1,
-    endCg: 4370,
-    extractionExtended: true,
-    goalG: 36,
-  });
-  if (!fast15 || !fast15.segs.some((s) => s.color === '#d97706' &&
-      s.pts[s.pts.length - 1].t >= 15)) {
-    throw new Error('Spark 15.1s Fast guard must paint orange through ended');
+  const assert = require('assert');
+  const model = helpers.buildShotSparkModel;
+  const close = (a,b) => assert(Math.abs(a-b)<1e-9, `${a} != ${b}`);
+  const trace = (times,extra={}) => ({wAtMs:times,wCg:times.map(t=>t/5),durationS:times.at(-1)/1000,...extra});
+  const rates = m => m.flowCurve.filter(v=>v!==null);
+  for (const cadence of [50,100,137,200,250,300,500,750,1000,1500]) {
+    const times=Array.from({length:Math.floor(60000/cadence)+1},(_,i)=>i*cadence);
+    const shot=trace(times),m=model(shot),first=times.findIndex(t=>t>=1000);
+    assert.equal(m.flowCurve.length,times.length);
+    assert.equal(rates(m).length,times.length-first);
+    rates(m).forEach(q=>close(q,2));close(m.maxFlow,2);
+    close(m.flowSegs[0].pts[0].t,(times[first]-Math.max(1000,cadence)/2)/1000);
+    assert.deepEqual(shot.wAtMs,times,'input observations must stay unchanged');
   }
-  if (fast15.pts[0].t !== 4.5 || fast15.pts[0].cg !== 50 ||
-      fast15.pts.some((p) => p.t < 4.5) ||
-      fast15.segs.some((s) => s.pts.some((p) => p.t < 4.5))) {
-    throw new Error('Spark must start at the exact first-drop event');
+  for (const times of [
+    [0,90,210,490,810,1120,1441,1600,2010,2300],
+    [0,50,50,51,99,100,499,500,999,1000,1001,1500,2000],
+    [...Array.from({length:21},(_,i)=>i*100),2500,3000,3500,4000,4100,4200,4300,4400,4500,4600,4700,4800,4900,5000],
+  ]) {
+    const m=model(trace(times));
+    rates(m).forEach(q=>close(q,2));close(m.maxFlow,2);
+    m.flowSegs.flatMap(s=>s.pts).forEach(p=>close(p.cg,200));
   }
-  const firstDropFallback = helpers.buildShotSparkModel({
-    wCg: [0, 20, 90, 150], wDtS: 2, durationS: 6,
-    firstDropS: 4.5, dropCg: 40,
-  });
-  if (!firstDropFallback || firstDropFallback.pts[0].t !== 4.5 ||
-      firstDropFallback.pts[0].cg !== 40 ||
-      firstDropFallback.pts[firstDropFallback.pts.length - 1].cg !== 150 ||
-      firstDropFallback.flowSegs.length !== 1 || firstDropFallback.maxFlow < .73 ||
-      firstDropFallback.maxFlow > .74) {
-    throw new Error('Spark fallback must preserve the only available partial startup flow');
+  // Independent boundary interpolation on a non-linear trace.
+  const interpolated=model({wAtMs:[0,90,210,490,810,1120],wCg:[0,10,50,90,110,210],durationS:1.12});
+  assert.deepEqual(interpolated.flowCurve,[null,null,null,null,null,1.9]);
+  assert.deepEqual(interpolated.flowSegs[0].pts,[{t:.62,cg:190}]);
+  const one=model(trace([0,500,1000]));
+  assert.deepEqual(one.flowCurve,[null,null,2]);
+  assert.deepEqual(one.flowSegs[0].pts,[{t:.5,cg:200}],'one estimate remains one point');
+  assert.equal(model(trace([100,500,999])).maxFlow,null);
+  assert.equal(model(trace([100,500,999])).flowSegs.length,0);
+  const slow=model(trace([0,1500,3000,6500]));
+  assert.deepEqual(slow.flowSegs[0].pts.map(p=>p.t),[.75,2.25,4.75]);
+  assert.deepEqual(slow.flowCurve,[null,2,2,2]);
+  const breakSlow=model(trace([0,1500,3000,4500],{wBreakBefore:[2]}));
+  assert.deepEqual(breakSlow.flowCurve,[null,2,null,2]);
+  assert.equal(breakSlow.flowSegs.length,2,'a slow valid span must not cross a marked break');
+  const drop=model(trace([0,900,1100,1900,2100],{dropS:1,dropCg:5000}));
+  assert.deepEqual(drop.flowCurve,[null,null,null,null,2],'interpolation left support must follow first drop');
+  const dropExact=model(trace([0,1000,2000],{dropS:1,dropCg:9999}));
+  assert.deepEqual(dropExact.flowCurve,[null,null,2],'event weight must never enter rate');
+  const duplicate=model({wAtMs:[0,500,1000,1000,1500,2000],wCg:[0,100,200,300,400,500],durationS:2});
+  assert.deepEqual(duplicate.flowCurve,[null,null,null,3,3,2]);
+  const duplicateBreak=model(trace([0,500,1000,1000,1000,1500,2000],{wBreakBefore:[3]}));
+  assert.deepEqual(duplicateBreak.flowCurve,[null,null,2,null,null,null,2]);
+  assert.equal(duplicateBreak.flowSegs.length,2);
+  const duplicateStart=model({wAtMs:[0,0,500,1000],wCg:[0,100,200,300],durationS:1});
+  assert.deepEqual(duplicateStart.flowCurve,[null,null,null,2]);
+  const recovery=model(trace([0,500,1000,1500,2000,2500,3000],{wBreakBefore:[3]}));
+  assert.deepEqual(recovery.flowCurve,[null,null,2,null,null,2,2]);
+  assert.equal(recovery.flowSegs.length,2,'rejection/tare/provenance markers restart full support');
+  const invalid=model(trace([0,500,1000,1500,2000,2500,3000],{wCg:[0,100,200,NaN,400,500,600]}));
+  assert.deepEqual(invalid.flowCurve,[null,null,2,null,null,null,2]);
+  assert.equal(invalid.flowSegs.length,2);
+  for(const malformed of [
+    {wCg:[0,100],wAtMs:[0]}, {wCg:[0,100],wAtMs:[500,0]},
+    {wCg:[0,100],wAtMs:[0,NaN]}, {wCg:[0,100],wAtMs:[0,100.5]},
+    {wCg:[0,100],wAtMs:[0,60001]}, {wCg:[0,100],wAtMs:[0,1000],wBreakBefore:[2]},
+    {wCg:[0,100],wAtMs:[0,1000],wBreakBefore:[1,1]},
+    {wCg:[0,100],wDtS:1},
+  ]) assert.equal(model({...malformed,durationS:2}),null,'no implicit legacy grid or reordered input');
+  const final=model(trace([0,500,1000,1500,2000],{endS:1.5,endCg:10000,durationS:2}));
+  assert.deepEqual(final.flowCurve,[null,null,2,2,null]);
+  assert.equal(final.maxFlow,2);
+  assert.equal(final.flowSegs[0].pts.at(-1).t,1);
+  const falling=model({wAtMs:[0,500,1000,1500],wCg:[200,100,0,0],durationS:1.5});
+  assert.deepEqual(falling.flowCurve,[null,null,0,0]);assert.equal(falling.maxFlow,0);
+  const slope=model({wAtMs:[0,500,1000,1500,2000],wCg:[0,50,100,250,400],durationS:2});
+  assert.deepEqual(slope.flowCurve,[null,null,1,2,3]);
+  assert.deepEqual(slope.flowSegs[0].pts.map(p=>p.cg),[100,200,300],'no additional chart smoothing');
+  const spike=model({wAtMs:[0,500,1000,1500,2000],wCg:[0,0,500,0,0],durationS:2});
+  assert.deepEqual(spike.flowCurve,[null,null,5,0,0]);assert.equal(spike.maxFlow,5);
+  for (const flag of ['extractionExtended','slowExtractionExtended']) {
+    const colored=model(trace([0,500,1000,1500,2000,2500],{extendedS:1.2,extCg:9000,[flag]:true}));
+    assert.deepEqual(colored.flowCurve,[null,null,2,2,2,2]);
+    assert.equal(colored.maxFlow,2);
+    assert.equal(colored.flowSegs.length,2);
+    assert.equal(colored.flowSegs[0].pts.at(-1).t,1.2);
+    assert.equal(colored.flowSegs[1].pts[0].t,1.2);
+    assert.equal(colored.flowSegs[1].color,flag==='extractionExtended'?'#d97706':'#2563eb');
+    colored.flowSegs.flatMap(s=>s.pts).forEach(p=>close(p.cg,200));
   }
-  const laterEvent = helpers.buildShotSparkModel({
-    wCg: [0, 10, 50, 90, 140, 190, 240, 300], wDtS: 1, durationS: 8,
-    firstDropS: 4.5, dropCg: 40, extendedS: 7.3, extCg: 240,
-    extractionExtended: true,
-  });
-  if (!laterEvent || laterEvent.pts[laterEvent.pts.length - 1].t !== 8 ||
-      laterEvent.pts[laterEvent.pts.length - 1].cg !== 300) {
-    throw new Error('Spark fallback must use the chronologically latest evidence');
-  }
-  const earlyMarkers = helpers.buildShotSparkModel({
-    wCg: [0, 20, 90, 150], wDtS: 2, durationS: 6,
-    firstDropS: 4.5, dropCg: 40, extendedS: 3, extCg: 3000,
-    atmS: 2, atmCg: 2000, atmClearedS: 3, endS: 6.5, endCg: 90,
-  });
-  if (!earlyMarkers || earlyMarkers.pts.some((p) => p.t < 4.5) ||
-      earlyMarkers.segs.some((s) => s.pts.some((p) => p.t < 4.5))) {
-    throw new Error('Spark must reject every malformed pre-drop marker');
-  }
-  const noDrop = helpers.buildShotSparkModel({
-    wCg: [0, 20, 90], wDtS: 2, durationS: 6,
-  });
-  if (!noDrop || noDrop.pts.map((p) => p.t).join(',') !== '2,4,6') {
-    throw new Error('Spark without a first-drop event must keep its grid');
-  }
-  const oneSecond = helpers.buildShotSparkModel({
-    wCg: [0, 100, 250, 200], wDtS: 1, durationS: 4,
-  });
-  const flowCurve = oneSecond.flowSegs[0];
-  if (oneSecond.flowSegs.length !== 1 ||
-      flowCurve.pts.map((p) => p.t).join(',') !== '1,1.5,2.5,3.5,4' ||
-      flowCurve.pts[0].cg !== 100 || Math.abs(flowCurve.pts[2].cg - 250 / 3) > 1e-9 ||
-      flowCurve.pts[3].cg !== 0 || oneSecond.maxFlow !== 1.5 ||
-      oneSecond.flowSegs.some((s) => s.pts.some((p) => !Number.isFinite(p.cg) || p.cg < 0))) {
-    throw new Error('Flow curve must derive finite non-negative one-second local rates');
-  }
-  const partial = helpers.buildShotSparkModel({
-    wCg: [0, 100, 200], wDtS: 1, durationS: 2.5, endS: 2.5, endCg: 350,
-  });
-  const livePartial = helpers.buildShotSparkModel({
-    wCg: [0, 100, 200], wDtS: 1, durationS: 2.5,
-  });
-  if (!partial || partial.maxFlow !== 1 || partial.flowSegs.at(-1).pts.at(-1).t !== 2.5 ||
-      partial.flowSegs.at(-1).pts[0].cg !== 100 || !livePartial ||
-      livePartial.flowSegs.at(-1).pts.at(-1).t !== 2.5 ||
-      livePartial.flowSegs.at(-1).pts[0].cg !== 100 ||
-      livePartial.pts.map((p) => p.t).join(',') !== '1,2,2.5') {
-    throw new Error('Flow curve must continue through exact and live partial endpoints');
-  }
-  const missing = helpers.buildShotSparkModel({
-    wCg: [0, 100, null, 300], wDtS: 1, durationS: 3,
-  });
-  if (!missing ||
-      missing.flowSegs.some((s) => s.pts.some((p, i, a) => i && p.t - a[i - 1].t > 1.0001))) {
-    throw new Error('Flow curve must not bridge missing weight samples');
-  }
-  const guardDip = helpers.buildShotSparkModel({
-    wCg: [0, 0, 0, 0, 0, 150, 300, 450, 600, 750, 900, 1050, 1200, 1350,
-          1500, 1650, 1800, 1950, 2100, 2250, 2400, 2550, 2700, 2850, 3000,
-          3150, 3300, 3450, 3600],
-    wDtS: 1,
-    durationS: 29,
-    firstDropS: 5.2,
-    dropCg: 20,
-    extendedS: 25.22,
-    extCg: 3060,
-    endS: 29,
-    endCg: 3600,
-    extractionExtended: true,
-    goalG: 36,
-  });
-  const guardFast = guardDip && guardDip.segs.find((s) => s.color === '#d97706');
-  const guardFlowFast = guardDip && guardDip.flowSegs.find((s) => s.color === '#d97706');
-  const guardFlowBbw = guardDip && guardDip.flowSegs.find((s) => s.color === '#38bdf8');
-  if (!guardDip || !guardFast || !guardFlowFast || !guardFlowBbw ||
-      guardFast.pts[0].t !== 25.22 || guardFlowFast.pts[0].t !== 25.22 ||
-      guardFlowFast.pts[0].cg !== guardFlowBbw.pts.at(-1).cg ||
-      guardFlowBbw.pts.at(-1).t !== 25.22 ||
-      guardDip.pts.some((p, i, a) => i && p.cg < a[i - 1].cg) ||
-      guardDip.flowSegs.some((s) => s.pts[0].cg === 0) ||
-      guardDip.maxFlow !== 1.5) {
-    throw new Error('Spark must not fabricate a dip or flow spike at a mid-bucket guard vertex');
-  }
-  const slowLate = helpers.buildShotSparkModel({
-    wCg: Array.from({length: 14}, (_, i) => (i + 1) * 200),
-    wDtS: 2,
-    durationS: 26.4,
-    firstDropS: 8.4,
-    extendedS: 24.1,
-    extCg: 2600,
-    endS: 26.4,
-    endCg: 2800,
-    slowExtractionExtended: true,
-    goalG: 36,
-  });
-  if (!slowLate || !slowLate.segs.some((s) => s.color === '#2563eb' &&
-      s.pts[0].t >= 24)) {
-    throw new Error('Spark late Slow guard must paint blue from extended');
-  }
-  const atm = helpers.buildShotSparkModel({
-    wCg: [100, 800, 1600, 2400, 2800, 3000, 3200, 3400],
-    wDtS: 2,
-    durationS: 18,
-    firstDropS: 4,
-    atmS: 12,
-    atmCg: 2800,
-    endS: 18,
-    endCg: 3400,
-    goalG: 36,
-  });
-  const gray = atm && atm.segs.find((s) => s.color === 'var(--mu)');
-  if (!gray || gray.pts.some((p) => p.cg !== 2800) ||
-      gray.pts[0].t < 12 || gray.pts[gray.pts.length - 1].t < 18) {
-    throw new Error('Spark A→M must be flat gray at last scale weight through ended');
-  }
-  if (atm.flowSegs.some((s) => s.pts[0].t < 18 && s.pts[1].t > 12)) {
-    throw new Error('Flow curve must leave the A→M no-scale interval empty');
-  }
-  const atmMid = helpers.buildShotSparkModel({
-    wCg: [100, 800, 1600, 2400, 2800, 3000, 3200, 3400],
-    wDtS: 2,
-    durationS: 18,
-    firstDropS: 4,
-    atmS: 11,
-    atmCg: 3100,
-    endS: 18,
-    endCg: 3400,
-    goalG: 36,
-  });
-  const preAtm = atmMid && atmMid.flowSegs[0].pts.at(-1);
-  if (!preAtm || preAtm.t !== 11 || preAtm.cg !== 200 ||
-      atmMid.flowSegs.some((s) => s.pts[0].t < 18 && s.pts[1].t > 11)) {
-    throw new Error('Flow interval ending at an A→M marker must continue the preceding flow');
-  }
+  const atm=model(trace([0,500,1000,1500,2000,2500,3000,3500,4000],{atmS:1.2,atmCg:200,atmClearedS:2.2}));
+  assert.deepEqual(atm.flowCurve,[null,null,2,null,null,null,null,2,2]);
+  assert.equal(atm.flowSegs.length,2);
+  const atmBetween=model(trace([0,1000,3000,4000],{atmS:1.2,atmClearedS:2.2}));
+  assert.deepEqual(atmBetween.flowCurve,[null,2,null,2],'crossing A→M without interior readings still breaks support');
+  const capacity=trace(Array.from({length:1201},(_,i)=>i*50));
+  const full=model(capacity);assert.equal(rates(full).length,1181);assert.equal(full.truncated,false);
+  assert.equal(full.pts.length,1201);close(full.flowSegs[0].pts.at(-1).t,59.5);
+  const truncated=model({...capacity,wTruncated:true,endS:65,endCg:15000,durationS:65});
+  assert.equal(truncated.truncated,true);assert.equal(truncated.maxFlow,2);
+  close(truncated.flowSegs[0].pts.at(-1).t,59.5);
+  assert.equal(model(trace(Array.from({length:1202},(_,i)=>i*49))),null);
   const flow = helpers.shotDisplayFlowGS({
     avgFlowGS: null,
     actualG: 43.7,

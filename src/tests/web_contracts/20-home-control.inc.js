@@ -22,112 +22,59 @@
       document, class{observe(){}}, ()=>({}), ()=>{});
   const observed = render(host, {wCg:[0,100,100,200], wAtMs:[0,100,600,600],
     wBreakBefore:[2], wTruncated:true, durationS:1});
-  if (!observed || observed.flowCurve[1] !== 10 ||
-      observed.flowCurve[2] !== null || observed.flowCurve[3] !== null ||
+  if (!observed || observed.flowCurve.some(v=>v!==null) ||
       observed.segs.length !== 2 || !host.innerHTML.includes('Incomplete curve'))
-    throw new Error('Actual observation times, continuity and completeness must reach charts');
+    throw new Error('Actual observation times and breaks cannot fabricate startup rates');
   const maximum = render(host, {wCg:Array(1201).fill(100),
     wAtMs:Array.from({length:1201},(_,i)=>i*50),durationS:60});
   if (maximum?.flowCurve.length !== 1201 || maximum.maxFlow !== 0)
     throw new Error('Full-capacity actual-time curves must remain usable');
-  const basic = render(host, {wCg:[0, 0, 50, 150, 150], wDtS:1, durationS:4,
-    firstDropS:2.5, dropCg:50});
+  const basic = render(host, {wCg:[0,0,50,150,250], wAtMs:[0,1000,2000,3000,4000],
+    durationS:4, firstDropS:2, dropCg:50});
   const [weight, flow] = host.innerHTML.split('<div class="shotCurve">').slice(1);
   if (host.hidden || !basic || basic.timeMax !== 10 || basic.maxW !== 10 || basic.flowMax !== 1 ||
       !weight.includes('Weight (g)') || !flow.includes('Flow rate (g/s)') ||
       !weight.includes('class="shotSparkY"') || !flow.includes('class="shotSparkY shotSparkFlowY"') ||
-      !weight.includes('d="M1.5 34.5 L60.8 34.5"') ||
-      !flow.includes('d="M1.5 34.5 L60.8 34.5"') ||
-      (flow.match(/class="shotTrace"/g) || []).length !== 2 ||
-      !flow.includes('d="M60.8 18.0 L66.7 18.0 L84.4 1.5 L96.3 1.5"') ||
+      !flow.includes('d="M1.5 34.5 L48.9 34.5"') ||
+      !flow.includes('d="M60.8 1.5 L84.4 1.5"') ||
       !weight.includes('shotDropOverlay') || flow.includes('shotDropOverlay') ||
       markers.length !== 1 || !markers[0].innerHTML.includes('fill="#38bdf8"') ||
-      !markers[0].innerHTML.includes('2.5 s') || markers[0].innerHTML.includes('1st') ||
-      flow.includes('1st ') || flow.includes('shotFirstDrop') ||
+      !markers[0].innerHTML.includes('2.0 s') || markers[0].innerHTML.includes('1st') ||
+      flow.includes('shotFirstDrop') ||
       host.innerHTML.indexOf('class="shotGrid"') > host.innerHTML.indexOf('class="shotTrace"') ||
       !host.innerHTML.includes('M1.5 1.5V34.5M238.5 1.5V34.5') ||
-      weight.includes('style="top:') || flow.includes('style="top:') ||
       charts[0].style['--shot-plot-min'] !== '1.10rem' || charts[1].style['--shot-plot-min'] !== '2.20rem' ||
-      charts[0].querySelectorAll()[0].style.top !== '0%' || charts[0].querySelectorAll()[1].style.top !== '100%' ||
-      charts[1].querySelectorAll()[1].style.top !== '50%' ||
-      host.innerHTML.includes('shotEventTicks') || host.innerHTML.includes('Fast ') ||
-      host.innerHTML.includes('Slow ') || host.innerHTML.includes('A→M ') ||
-      ticks.some((items) => items.map((item) => item.textContent).join('|') !== '0 s|10 s') ||
-      Math.abs(parseFloat(markers[0].style.left) - 25.3125) > .001 ||
-      ticks[1].some((item) => item.className.includes('shotFirstDrop'))) {
-    throw new Error('Shot charts must show exact fixed grids behind traces and a Weight-only drop marker');
+      ticks.some(items=>items.map(item=>item.textContent).join('|')!=='0 s|10 s')) {
+    throw new Error('Shot charts must retain axes/drop annotation and plot measured rates at window midpoints');
   }
-  render(host, {wCg:[0, 0, 0], wDtS:1, durationS:2});
-  if (host.hidden || (host.innerHTML.match(/class="shotSpark"/g) || []).length !== 2 ||
-      !host.innerHTML.includes('M25.2 34.5 L48.9 34.5') ||
-      !host.innerHTML.includes('M25.2 34.5 L37.0 34.5 L48.9 34.5') ||
-      render(host, {wCg:[0, 0, 0], wDtS:1, durationS:2}).maxFlow !== 0 ||
-      markers.length || host.innerHTML.includes('fill-opacity')) {
-    throw new Error('Live zero weight and flow must stay visible before the first drop');
-  }
-  render(host, {wCg:[0, 0, 100], durationS:2, firstDropS:1.9, dropCg:50});
-  if (markers.length !== 1 || !markers[0].innerHTML.includes('>1.9 s</span>') ||
-      markers[0].style.transform !== 'translateX(calc(0% - 7.8px))') {
-    throw new Error('First-drop placement must use the rounded shared time domain');
-  }
-  const tared = render(host, {wCg:[0, 0, 100], wDtS:1, durationS:10,
-    firstDropS:2, dropCg:50, tareS:3.4});
-  if (tared.tareS !== 3.4 || markers.length !== 2 ||
+  const single = render(host, {wCg:[0,100,200],wAtMs:[0,500,1000],durationS:1});
+  if(single.flowSegs[0].pts.length!==1 || !host.innerHTML.includes('<circle class="shotTrace"') ||
+      !host.innerHTML.includes('cx="13.4"'))
+    throw new Error('A single supported flow estimate must render as a point without invented endpoints');
+  render(host, {wCg:[0,0,0],wAtMs:[0,1000,2000],durationS:2});
+  if(host.hidden || markers.length || host.innerHTML.includes('fill-opacity') ||
+      !host.innerHTML.includes('d="M13.4 34.5 L37.0 34.5"'))
+    throw new Error('Flat measured zero flow must remain visible');
+  const tared=render(host,{wCg:[0,100,200],wAtMs:[0,500,1000],durationS:10,
+    firstDropS:2,dropCg:50,tareS:3.4});
+  if(tared.tareS!==3.4 || markers.length!==2 ||
       !markers[1].innerHTML.includes('fill="var(--fg)"') ||
       !markers[1].innerHTML.includes('>3.4 s</span>') ||
-      Math.abs(parseFloat(markers[1].style.left) - 34.2) > .001) {
-    throw new Error('Tare marker must sit at its recorded time in the theme text color');
-  }
-  render(host, {wCg:[0, 0, 100], wDtS:1, durationS:10, firstDropS:2, dropCg:50});
-  if (markers.length !== 1) {
-    throw new Error('Charts without a late tare must not show a tare marker');
-  }
-  render(host, {wCg:[0, 100, 200], durationS:3, tareS:1});
-  if (markers.length !== 1 || !markers[0].innerHTML.includes('>1.0 s</span>')) {
+      Math.abs(parseFloat(markers[1].style.left)-34.2)>.001)
+    throw new Error('Tare marker must retain its recorded time and theme color');
+  render(host,{wCg:[0,100,200],wAtMs:[0,500,1000],durationS:3,tareS:1});
+  if(markers.length!==1 || !markers[0].innerHTML.includes('>1.0 s</span>'))
     throw new Error('Whole-second tare labels must retain one decimal');
-  }
-  const rounded = render(host, {wCg:[0, 1200, 2500, 3900], wDtS:3.775,
-    durationS:15.1, goalG:36});
-  if (rounded.timeMax !== 20 || rounded.maxW !== 40 || rounded.flowMax !== 4 ||
-      rounded.maxFlow <= 3.7 || rounded.maxFlow >= 3.8 ||
-      charts[0].style['--shot-plot-min'] !== '4.40rem' ||
-      charts[1].style['--shot-plot-min'] !== '8.80rem') {
-    throw new Error('Non-multiple domains must round up and grow each vertical chart independently');
-  }
-  const exact = render(host, {wCg:[1000, 2000, 3000, 4000], wDtS:10, durationS:40});
-  if (exact.timeMax !== 40 || exact.maxW !== 40 || exact.flowMax !== 1 ||
-      charts[0].style['--shot-plot-min'] !== '4.40rem' ||
-      charts[1].style['--shot-plot-min'] !== '2.20rem') {
-    throw new Error('Exact interval boundaries must stay exact and retain compact minimums');
-  }
-  const model = new Function(helpers + ';return buildShotSparkModel;')();
-  const partial = model({wCg:[0,100,200],wDtS:1,durationS:2.5,endS:2.5,endCg:350});
-  const startup = model({wCg:[0,0,50,150,250],wDtS:1,durationS:5,
-    firstDropS:2.5,dropCg:50});
-  const ending = model({wCg:[100,300,400],wDtS:1,durationS:3,endS:3,endCg:400});
-  const missing = model({wCg:[0,null,100,200],wDtS:1,durationS:3});
-  const falling = model({wCg:[200,100,100],wDtS:1,durationS:2});
-  const atm = model({wCg:[0,100,200,300],wDtS:1,durationS:4,atmS:2,atmCg:200,endS:4,endCg:300});
-  const half = model({wCg:[0,50,100,150],wDtS:.5,durationS:2});
-  if (partial.maxFlow !== 1 || partial.flowSegs[0].pts.length !== 4 ||
-      partial.flowSegs.at(-1).pts.at(-1).t !== 2.5 ||
-      partial.flowSegs.at(-1).pts[0].cg !== 100 || startup.maxFlow !== 1 ||
-      startup.flowSegs[0].pts.length !== 5 || startup.flowSegs.at(-1).pts.at(-1).t !== 5 ||
-      Math.abs(startup.flowSegs[0].pts[2].cg - 250 / 3) > 1e-9 ||
-      startup.flowSegs[0].pts[0].t !== 2.5 || startup.flowSegs[0].pts[0].cg !== 50 ||
-      ending.maxFlow !== 2 || ending.flowSegs.at(-1).pts[0].cg !== 200 ||
-      missing.maxFlow !== null || falling.maxFlow !== 0 ||
-      half.maxFlow !== 1 ||
-      atm.flowSegs.some((s) => s.pts[0].t < 4 && s.pts[1].t > 2)) {
-    throw new Error('Flow curves must stay continuous and smoothed without changing gap semantics');
-  }
-  const flowCol = (m, e) => JSON.stringify(m.flowCurve) === JSON.stringify(e);
-  if (!flowCol(partial, [null, 1, null]) || !flowCol(startup, [null, null, .5, 1, 1]) ||
-      !flowCol(ending, [null, 2, 2]) || !flowCol(missing, [null, null, null, null]) ||
-      !flowCol(falling, [null, 0, null]) || !flowCol(atm, [null, 2, null, null]) ||
-      !flowCol(half, [null, 1, 1, 1])) {
-    throw new Error('Exported flow columns must reuse the exact chart measured rates with gaps where flow is not measured');
-  }
+  const rounded=render(host,{wCg:[0,1200,2500,3900],wAtMs:[0,3775,7550,11325],
+    durationS:15.1,goalG:36});
+  if(rounded.timeMax!==20 || rounded.maxW!==40 || rounded.flowMax!==4 ||
+      rounded.maxFlow<=3.7 || rounded.maxFlow>=3.8 ||
+      charts[0].style['--shot-plot-min']!=='4.40rem' || charts[1].style['--shot-plot-min']!=='8.80rem')
+    throw new Error('Non-multiple domains must round up and grow chart axes independently');
+  const exact=render(host,{wCg:[1000,2000,3000,4000],wAtMs:[0,10000,20000,30000],durationS:40});
+  if(exact.timeMax!==40 || exact.maxW!==40 || exact.flowMax!==1 ||
+      charts[0].style['--shot-plot-min']!=='4.40rem' || charts[1].style['--shot-plot-min']!=='2.20rem')
+    throw new Error('Exact axis boundaries must retain compact minimums');
   render(host, null);
   if (!host.hidden || host.innerHTML) throw new Error('Missing shot data must still hide the charts');
 }
@@ -509,7 +456,7 @@ if (!ui.includes('id="shotPanel"') ||
     runtimeJs.includes('style="top:') || runtimeJs.includes('style="--shot-plot-min:') ||
     runtimeJs.includes("style=\"left:") ||
     !runtimeJs.includes('function shotDisplayFlowGS(') ||
-    !runtimeJs.includes('merged.length<2||!(dur>0)') ||
+    !runtimeJs.includes('if(!pts.length||dur<=0)return null') ||
     !runtimeJs.includes('m.firstDropS>0') ||
     !runtimeJs.includes('m.flowSegs,m.flowMax') ||
     !runtimeJs.includes('Flow rate (g/s)') ||

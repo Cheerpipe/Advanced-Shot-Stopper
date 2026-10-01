@@ -108,16 +108,19 @@
     bbwAlpha: i % 2 ? 1 : .37, bbwLearningApplied: i ? true : null, presetId: i ? 255 : 0}));
   records[1].wCg = [0, 1520, 3105, 3620]; records[1].wAtMs = [0, 450, 900, 1600];
   records[2].wCg = [0, 800]; records[2].wAtMs = [0, 500];
+  records[3].wAtMs = [0,137,1001,1138];
+  records[3].wCg = records[3].wAtMs.slice();
   const context = vm.createContext({
     api: async url => {assert.equal(url, '0/100/date/desc'); return {shots: records};},
     shotsUrl: (...args) => args.join('/'), SHOTS_EXPORT_LIMIT: 100,
     formatShotTimeCsv: () => '', shotDisplayActualG: weight => weight,
-    shotDisplayFlowGS: () => 1.2, shotMaxFlowGS: r => r.id === 1 ? null : 2.5,
-    shotFlowCurveGS: r => r.id === 2 ? [null, 7.85] : [], Blob,
+    Blob,
     URL: {createObjectURL: value => {blob = value; return 'blob:test';}, revokeObjectURL() {}},
     document: {createElement: () => ({click() {}})},
     message: message => {throw new Error(message);}, formatCommandError: (_, e) => e.message
   });
+  vm.runInContext(runtimeJs.slice(runtimeJs.indexOf('function lastCurveWeightG('),
+    runtimeJs.indexOf('async function populateTimezoneOptions(')), context);
   vm.runInContext(runtimeJs.split('\n').find(line => line.startsWith('async function exportShotsCsv(')), context);
   await vm.runInContext('exportShotsCsv()', context);
   const lines = (await blob.text()).split('\n').map(line => line.split(','));
@@ -126,8 +129,20 @@
   assert.equal(lines[1][11], '0');
   assert.deepEqual(lines[0].slice(-14), ['curve_truncated', 'curve_break_before', ...Array.from({length:4}, (_,i)=>['sample_'+(i+1)+'_time_s','sample_'+(i+1)+'_weight_g','sample_'+(i+1)+'_flow_g_s']).flat()]);
   assert.deepEqual(lines[1].slice(-14), ['0', '', ...Array(12).fill('')]);
-  assert.deepEqual(lines[2].slice(-14), ['0', '', '0', '0', '', '0.45', '15.2', '7.85', '0.9', '31.05', '', '1.6', '36.2', '']);
+  assert.deepEqual(lines[2].slice(-14), ['0', '', '0', '0', '', '0.45', '15.2', '', '0.9', '31.05', '', '1.6', '36.2', '15.72']);
+  assert.equal(+lines[2][34], 15.716666666666665);
   assert.deepEqual(lines[3].slice(-14), ['0', '', '0', '0', '', '0.5', '8', '', ...Array(6).fill('')]);
+  assert.deepEqual(lines[4].slice(-12), ['0','0','','0.137','1.37','','1.001','10.01','10.00','1.138','11.38','10.00']);
+  records[1].wAtMs=Array.from({length:1201},(_,i)=>i*50);
+  records[1].wCg=records[1].wAtMs.map(t=>t/5);
+  records[1].durationS=60;
+  await vm.runInContext('exportShotsCsv()',context);
+  const complete=(await blob.text()).split('\n')[2].split(',');
+  assert.equal(complete[35],'0');
+  assert.equal(complete[34],'2');
+  assert.equal(complete.at(-3),'60');
+  assert.equal(complete.at(-1),'2.00');
+  assert.equal(complete.slice(37).filter((v,i)=>i%3===2&&v==='2.00').length,1181);
   for (const record of records) {
     record.wCg = Array(1201).fill(1234);
     record.wAtMs = Array.from({length:1201}, (_,i)=>i*50);
