@@ -61,11 +61,9 @@ function updateCrashRow(s){
   let row=$('crashArchiveRow');
   if(!row){row=document.createElement('div');row.id='crashArchiveRow';row.className='metric';const label=document.createElement('strong');label.textContent=__WEBUI_TEXT__("diagnostic.coredump");row.append(label);const value=document.createElement('div');value.id='crashArchiveValue';value.setAttribute('aria-live','polite');row.append(value);misc.append(row)}
   const value=$('crashArchiveValue');value.replaceChildren();
-  const count=s.crashCount||0,supported=s.crashState!==1;
-  value.append(document.createTextNode((supported?count:__WEBUI_TEXT__("diagnostic.unavailable"))+' - '));
-  for(const [label,action] of [[__WEBUI_TEXT__("diagnostic.download"),downloadCrashes],[__WEBUI_TEXT__("diagnostic.empty"),emptyCrashes]]){
-    const l=document.createElement('a'),d=crashBusy||!supported||!count||!R.webUiOwner||!(s.adminUnlocked||s.development);l.href='#';l.textContent=label;l.setAttribute('aria-disabled',d);l.tabIndex=-d;l.onclick=()=>d||(!action(),false);value.append(l);if(action===downloadCrashes)value.append(' - ');
-  }
+  const count=s.crashCount||0,supported=s.crashState!==1,usable=!!R.webUiOwner&&(!!s.adminUnlocked||!!s.development)&&supported&&count>0&&!crashBusy;
+  const n=document.createElement('span');n.textContent=supported?count:__WEBUI_TEXT__("diagnostic.unavailable");if(supported&&count>0)n.className='stateFault';value.append(n);
+  if(usable)for(const [label,action] of [[__WEBUI_TEXT__("diagnostic.download"),downloadCrashes],[__WEBUI_TEXT__("diagnostic.empty"),emptyCrashes]]){value.append(' - ');const l=document.createElement('a');l.href='#';l.textContent=label;l.onclick=()=>{if(!crashBusy)action();return false};value.append(l)}
   if(s.crashState>1)value.append(document.createTextNode(' ('+__WEBUI_TEXT__("diagnostic.crash_capture_error")+')'));
 }
 async function downloadCrashes(){crashBusy=true;await R.refreshStatus();R.message(__WEBUI_TEXT__("diagnostic.downloading"));try{let last=0;const tar=await R.apiBinary('/api/v1/diagnostic/crashes',bytes=>{if(bytes-last>=65536){last=bytes;R.message(__WEBUI_TEXT__("diagnostic.downloading")+' '+Math.floor(bytes/1024)+' KiB')}}),gzip=typeof CompressionStream==='function';if(gzip)R.message(__WEBUI_TEXT__("diagnostic.compressing"));const blob=gzip?await new Response(tar.stream().pipeThrough(new CompressionStream('gzip'))).blob():tar,url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='shotstopper-crashes.tar'+(gzip?'.gz':'');document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),6e4);R.message(__WEBUI_TEXT__("diagnostic.ok"),'ok')}catch(e){R.message(R.formatCommandError(__WEBUI_TEXT__("diagnostic.crash_download_failed"),e),'error')}finally{crashBusy=false;await R.refreshStatus()}}

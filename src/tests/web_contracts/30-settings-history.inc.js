@@ -730,6 +730,67 @@ if (!ui.includes('<legend>Brew</legend>') ||
     throw new Error('Missing task diagnostics must not throw or invent timing values');
   }
 }
+{
+  const source = viewJs.diagnostic;
+  const first = source.indexOf('function updateCrashRow(');
+  const last = source.indexOf('async function downloadCrashes(', first);
+  if (first < 0 || last < first) throw new Error('Missing coredump row renderer');
+  const value = {children: [], replaceChildren() { this.children = []; },
+    append(...nodes) { this.children.push(...nodes); }};
+  const misc = {append() {}};
+  let downloads = 0, empties = 0;
+  const build = (busy) => new Function('$', '__WEBUI_TEXT__', 'R', 'crashBusy',
+      'downloadCrashes', 'emptyCrashes', 'document',
+      source.slice(first, last) + ';return updateCrashRow;')(
+    id => id === 'crashArchiveValue' ? value
+        : id === 'crashArchiveRow' ? {} : {closest: () => misc},
+    key => key,
+    {webUiOwner: true}, busy,
+    () => { downloads++; }, () => { empties++; },
+    {createElement: tag => ({tag, className: '', _text: '',
+        get textContent() { return this._text; },
+        set textContent(v) { this._text = String(v); }}),
+      createTextNode: text => ({text})});
+  const render = (status, busy) => { value.replaceChildren(); build(!!busy)(status); return value.children; };
+  const links = children => children.filter(n => n.tag === 'a').map(n => n.textContent);
+  const admin = {crashCount: 2, crashState: 0, adminUnlocked: true};
+  let children = render(admin);
+  if (children[0].textContent !== '2' || children[0].className !== 'stateFault' ||
+      children.filter(n => n === ' - ').length !== 2 ||
+      links(children).join('|') !== 'download|empty') {
+    throw new Error('An admin session with crashes must show the red count plus both actions');
+  }
+  children = render({...admin, adminUnlocked: undefined});
+  if (children[0].textContent !== '2' || children[0].className !== 'stateFault' ||
+      links(children).length) {
+    throw new Error('Without an admin session only the coredump counter may show');
+  }
+  children = render({crashCount: 2, crashState: 0, development: true});
+  if (links(children).join('|') !== 'download|empty') {
+    throw new Error('Development builds must keep the coredump actions available');
+  }
+  children = render({...admin, crashCount: 0});
+  if (children[0].textContent !== '0' || children[0].className || links(children).length) {
+    throw new Error('An empty archive must show a plain zero without actions');
+  }
+  children = render({...admin, crashState: 1});
+  if (children[0].textContent !== 'unavailable' || children[0].className || links(children).length) {
+    throw new Error('Unsupported coredump storage must show neither count tone nor actions');
+  }
+  children = render(admin, true);
+  if (links(children).length) {
+    throw new Error('Coredump actions must hide while a download or empty run is busy');
+  }
+  children = render({...admin, crashState: 2});
+  if (children.at(-1).text !== ' (capture needs attention)' ||
+      links(children).join('|') !== 'download|empty') {
+    throw new Error('A capture error must be reported next to the still-usable actions');
+  }
+  const [download] = render(admin).filter(n => n.tag === 'a');
+  if (download.onclick() !== false || downloads !== 1 || empties !== 0) {
+    throw new Error('The Download link must trigger only its own action');
+  }
+}
 if (!ui.includes('id="shotTable"') ||
     !ui.includes('id="exportShotsButton"') ||
     !ui.includes('id="clearShotsButton"') ||
