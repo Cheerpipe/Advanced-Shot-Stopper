@@ -317,7 +317,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .presetRenameInline{width:100%;font:inherit;font-weight:700;font-size:.9375rem;padding:.35rem .5rem;margin:0}
 #homePresetCards .presetCardTitle{cursor:pointer}
 #presetRenameDialog{border:1px solid var(--ln);border-radius:var(--r);padding:1rem;max-width:min(22rem,calc(100vw - 2rem));background:var(--sf);color:var(--fg);box-shadow:0 1rem 3rem rgba(0,0,0,.25)}
-#presetRenameDialog::backdrop{background:rgba(23,21,19,.65)}
+#presetRenameDialog::backdrop{background:rgba(21,21,21,.65)}
 
 .ruleChart{margin:.35rem 0 .15rem}
 #quickSettingsPanel .ruleChart{margin-top:1rem}
