@@ -446,7 +446,8 @@ partition_contracts = {
                  "shotcurve": (0x63E000, 0xCC000),
                  "shotlog": (0x62E000, 0x8000),
                  "history": (0x636000, 0x8000),
-                 "ffat": (0x70A000, 0x6F6000),
+                 "scaleprof": (0x70A000, 0x41000),
+                 "ffat": (0x74B000, 0x6B5000),
                  "coredump": (0xE00000, 0xA0000),
                  "crashhist": (0xEA0000, 0x160000)},
     },
@@ -457,7 +458,8 @@ partition_contracts = {
                  "shotcurve": (0x69E000, 0xCC000),
                  "shotlog": (0x68E000, 0x8000),
                  "history": (0x696000, 0x8000),
-                 "spiffs": (0x76A000, 0x86000),
+                 "scaleprof": (0x76A000, 0x41000),
+                 "spiffs": (0x7AB000, 0x45000),
                  "coredump": (0x7F0000, 0x10000)},
     },
 }
@@ -466,6 +468,7 @@ for filename, contract in partition_contracts.items():
     text = (ROOT / "idf" / filename).read_text()
     assert rows == contract["rows"], (filename, rows)
     assert "shotcurve,data, 0x40" in text, "dedicated curve subtype changed"
+    assert "scaleprof,data, 0x40" in text, "dedicated scale-profile subtype changed"
     ordered = sorted(rows.items(), key=lambda item: item[1][0])
     for (_, (offset, size)), (_, (next_offset, _)) in zip(ordered, ordered[1:]):
         assert offset + size <= next_offset, f"partition overlap in {filename}"
@@ -474,11 +477,17 @@ for filename, contract in partition_contracts.items():
     assert rows["shotcurve"][1] == 816 * 1024, "shot-curve partition changed"
     assert rows["shotlog"][1] == 32 * 1024, "shot-log partition changed"
     assert rows["history"][1] == 32 * 1024, "activation-history partition changed"
+    assert rows["scaleprof"][1] == 0x41000, "scale-profile partition changed"
 
 flash_idf = (INTERNAL / "flash-idf").read_text()
 for required in ("read-flash 0x8000 0x1000", "installed_nvs_bytes != 0x15000",
                  "installed_layout=blank", "installed_shotcurve_row",
-                 "required_shotcurve_offset=0x69E000", "0x63E000", "erase-flash",
+                 "installed_scaleprof_row",
+                 "required_shotcurve_offset=0x69E000", "0x63E000",
+                 "required_scaleprof_offset=0x76A000", "0x70A000",
+                 "profiler_layout_transition",
+                 "erase-region \"$required_scaleprof_offset\" 0x41000",
+                 "erase-flash",
                  '"$installed_app0_offset" "$image"'):
     assert required in flash_idf, f"flash-idf erase-all contract missing: {required}"
 assert '0x10000 "$image"' not in flash_idf, \
@@ -1271,8 +1280,14 @@ def flash_command(layout: str, *extra: str, arch: str = "n8r4"):
             "+'app0,app,ota_0,0x20000,0x330000\\n'+curve)\n"
             "if os.environ['FLASH_LAYOUT'] == 'legacy':\n"
             f"    text = Path({str(ROOT / 'idf')!r}, 'partitions-' + os.environ['EXPECTED_ARCH'] + '.csv').read_text()\n"
-            "    text = text.replace('0x69E000,0xCC000', '0x680000,0xE000').replace('0x76A000,0x86000', '0x69E000,0x152000')\n"
-            "    text = text.replace('0x63E000,0xCC000', '0x620000,0xE000').replace('0x70A000,0x6F6000', '0x63E000,0x7C2000')\n"
+            "    text = text.replace('0x69E000,0xCC000', '0x680000,0xE000').replace('0x7AB000,0x45000', '0x69E000,0x152000')\n"
+            "    text = text.replace('0x63E000,0xCC000', '0x620000,0xE000').replace('0x74B000,0x6B5000', '0x63E000,0x7C2000')\n"
+            "    text = ''.join(l for l in text.splitlines(True) if not l.startswith('scaleprof'))\n"
+            "    Path(sys.argv[-1]).write_text(text)\n"
+            "if os.environ['FLASH_LAYOUT'] == 'predecessor':\n"
+            f"    text = Path({str(ROOT / 'idf')!r}, 'partitions-' + os.environ['EXPECTED_ARCH'] + '.csv').read_text()\n"
+            "    text = text.replace('0x7AB000,0x45000', '0x76A000,0x86000').replace('0x74B000,0x6B5000', '0x70A000,0x6F6000')\n"
+            "    text = ''.join(l for l in text.splitlines(True) if not l.startswith('scaleprof'))\n"
             "    Path(sys.argv[-1]).write_text(text)\n")
         (tools / "idf.py").write_text(
             "#!/bin/sh\n"
@@ -1330,9 +1345,15 @@ for architecture in ('n8r4', 'n16r8'):
     result, commands = flash_command('legacy', arch=architecture)
     assert result.returncode == 0 and 'settings, Wi-Fi' in result.stdout, result.stderr
     assert any('erase-region' in line and '0xCC000' in line for line in commands)
+    assert any('erase-region' in line and '0x41000' in line for line in commands)
     assert not any('erase-flash' in line for line in commands)
     result, commands = flash_command('legacy', '--image', 'placeholder', arch=architecture)
     assert result.returncode == 1 and not any('write-flash' in line for line in commands)
+    result, commands = flash_command('predecessor', arch=architecture)
+    assert result.returncode == 0 and 'scale profile store starts empty' in result.stdout, result.stderr
+    assert any('erase-region' in line and '0x41000' in line for line in commands)
+    assert not any('erase-region' in line and '0xCC000' in line for line in commands)
+    assert not any('erase-flash' in line for line in commands)
 for incompatible_layout in ("missing", "wrong", "type", "subtype", "size"):
     for extra in ((), ("--image", "placeholder")):
         rejected, commands = flash_command(incompatible_layout, *extra)

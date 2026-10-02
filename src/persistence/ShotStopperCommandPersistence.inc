@@ -239,6 +239,8 @@ void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits) 
                                  runtimeSettingsSubscribers);
   addDebugEvent(DebugCategory::CONFIG, DebugCode::CONFIG_ACCEPTED,
                 static_cast<int32_t>(runtimeConfig.revision));
+  scaleProfileNoteEvent(ScaleProfileEvent::SETTINGS_CHANGED, millis(), 0, 0,
+                        NAN, runtimeConfig.revision, 0);
   queueRuntimePersist(reasonBits);
   publishRecipeState();
 }
@@ -294,6 +296,32 @@ void persistShotStoreImage() {
   shotStorePersistMux.unlock();
 }
 
+// Scale-profile save/invalidate on this worker: one cache-off operation per
+// step, re-checked against the safe-write gate between steps. The frozen
+// PSRAM generation stays immutable while this runs.
+void persistScaleProfileImage() {
+  FlashStoreStepResult result = FlashStoreStepResult::MORE;
+  do {
+#ifndef SHOT_STOPPER_HOST_TEST
+    waitForShotStoreWriteGate();
+#endif
+    result = scaleProfiler().serviceFlashStep();
+    if (result == FlashStoreStepResult::MORE) yieldFlashIo();
+  } while (result == FlashStoreStepResult::MORE);
+  scaleProfiler().publishFlashResult(result == FlashStoreStepResult::COMPLETE);
+}
+
+// Health-worker side: hand the profiler's pending flash work to this worker.
+bool dispatchScaleProfileWork() {
+#ifndef SHOT_STOPPER_HOST_TEST
+  if (!settingsPersistenceAvailable()) return false;
+  const PersistenceWork work = PersistenceWork::SCALE_PROFILE;
+  return xQueueSend(settingsPersistQueue, &work, 0) == pdTRUE;
+#else
+  return true;
+#endif
+}
+
 #ifdef SHOT_STOPPER_HOST_TEST
 void settingsPersistTask(void *) {}
 #else
@@ -326,6 +354,11 @@ void settingsPersistTask(void *parameter) {
     feedOrTripCurrentTaskWatchdog();
     if (work == PersistenceWork::SHOT_STORES) {
       persistShotStoreImage();
+      feedOrTripCurrentTaskWatchdog();
+      continue;
+    }
+    if (work == PersistenceWork::SCALE_PROFILE) {
+      persistScaleProfileImage();
       feedOrTripCurrentTaskWatchdog();
       continue;
     }

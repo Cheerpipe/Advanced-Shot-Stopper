@@ -100,6 +100,33 @@ struct ScaleWeightSample {
     uint32_t captureSequence = 0;
 };
 
+// A notification frame the receiving path dropped before it could become a
+// weight sample. Reported for diagnostics only: the frame stays ineligible
+// for control and never changes protocol state.
+enum class ScaleFrameDropReason : uint8_t {
+    Stale,
+    UnsupportedLength,
+    Undecodable
+};
+
+struct ScaleDroppedFrame {
+    const uint8_t *data = nullptr;  // Borrowed; valid only during the callback.
+    uint32_t generation = 0;
+    uint32_t captureSequence = 0;
+    uint32_t receivedAtMs = 0;
+    uint16_t length = 0;
+    ScaleFrameDropReason reason = ScaleFrameDropReason::Undecodable;
+    bool weightDecoded = false;
+    float weightG = 0.0f;
+};
+
+// Task-context observer invoked from newWeightAvailable() when a queued
+// frame is dropped as stale, unsupported, or undecodable. For stale frames
+// the library attempts one pure protocol decode so a decodable-but-rejected
+// reading stays observable. Implementations must not block, allocate, or
+// touch flash.
+typedef void (*ScaleDroppedFrameObserver)(const ScaleDroppedFrame &frame);
+
 class EspressoScaleBLE {
     public:
         explicit EspressoScaleBLE(bool debug);
@@ -157,6 +184,7 @@ class EspressoScaleBLE {
         bool communicationSilenced() const;
         uint32_t communicationSilenceRemainingMs() const;
         bool newWeightAvailable();
+        void setDroppedFrameObserver(ScaleDroppedFrameObserver observer);
         ScaleFeatureSet features() const;
         ScaleModel model() const;
         // Borrowed until the connection changes; copy if retained.

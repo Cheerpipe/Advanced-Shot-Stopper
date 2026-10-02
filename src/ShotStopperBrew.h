@@ -211,6 +211,8 @@ void noteAccidentalTouchClass(AccidentalTouchClass classified, float weight) {
     if (!wasHolding) {
       addDebugEvent(DebugCategory::SCALE, DebugCode::ACCIDENTAL_TOUCH_HOLD,
                     weightToCentigrams(weight));
+      scaleProfileNoteEvent(ScaleProfileEvent::TOUCH_HOLD, millis(), 0, 0,
+                            weight, static_cast<uint32_t>(classified), 0);
     }
     return;
   }
@@ -220,9 +222,13 @@ void noteAccidentalTouchClass(AccidentalTouchClass classified, float weight) {
   if (classified == AccidentalTouchClass::SUSTAINED) {
     addDebugEvent(DebugCategory::SCALE, DebugCode::ACCIDENTAL_TOUCH_SUSTAINED,
                   weightToCentigrams(weight));
+    scaleProfileNoteEvent(ScaleProfileEvent::TOUCH_SUSTAINED, millis(), 0, 0,
+                          weight, static_cast<uint32_t>(classified), 0);
   } else if (wasHolding) {
     addDebugEvent(DebugCategory::SCALE, DebugCode::ACCIDENTAL_TOUCH_RELEASE,
                   weightToCentigrams(weight));
+    scaleProfileNoteEvent(ScaleProfileEvent::TOUCH_RELEASE, millis(), 0, 0,
+                          weight, static_cast<uint32_t>(classified), 0);
   }
 }
 
@@ -295,6 +301,12 @@ void onFirstDropsDetected(const FirstFlowObservation &observation) {
   const bool first = !session.firstDropObserved;
   session.firstDropObserved = true;
   recordFirstDropTimestamp(observation.atMs);
+  const uint32_t firstDropAnchorMs = session.circuitClosedAtMs != 0U
+                                         ? session.circuitClosedAtMs
+                                         : session.startedAtMs;
+  scaleProfileNoteEvent(
+      ScaleProfileEvent::FIRST_DROP, millis(), 0, 0, observation.weightG,
+      static_cast<uint32_t>(observation.atMs - firstDropAnchorMs), 0);
   if (std::isfinite(observation.weightG)) {
     shotCurveSampler.latchFirstDrop(observation.atMs, observation.weightG);
   }

@@ -155,7 +155,11 @@ the completion generation still matches. Acknowledgement carries the image's
 flash progress back to each live store even when newer RAM edits remain dirty,
 so the next snapshot advances from the committed physical state. ShotLog and
 History keep their two-slot generations; curves use block sequences, retention
-floors and clear epochs. Each inactive slot or used curve sector is
+floors and clear epochs. The manual scale
+profiler follows the same deferred pattern: the health worker owns one
+bounded PSRAM capture of raw decoded weights plus correlated firmware
+decisions, and the persistence worker commits the completed trace to a
+dedicated flash partition with the validity-bearing header written last. Each inactive slot or used curve sector is
 erased one 4 KiB sector at a time, programmed one 1 KiB staged chunk at a time,
 and receives its validity-bearing header last; the worker rechecks the current
 machine and scale gates between steps. The shot log's whole 10,828-byte store and the

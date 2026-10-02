@@ -38,6 +38,9 @@ extern "C" void shotStopperScaleLog(uint8_t severity, const char *message)
 namespace {
 
 constexpr char kTag[] = "scale.nimble";
+
+// Set through the facade; read on the task that calls newWeightAvailable().
+ScaleDroppedFrameObserver g_droppedFrameObserver = nullptr;
 constexpr uint16_t kInvalidHandle = 0xffff;
 constexpr size_t kCandidateCount = 8;
 constexpr size_t kServiceCount = 24;
@@ -474,9 +477,12 @@ class NimbleScaleClient {
       const uint32_t limit = hasValidPacket_ ? maxPacketPeriodMs() : FIRST_PACKET_TIMEOUT_MS;
       const uint32_t anchor = hasValidPacket_ ? lastPacket_ : connectedAt_;
       if (elapsedMs(frame.receivedAtMs) >= limit ||
-          static_cast<int32_t>(frame.receivedAtMs - anchor) >= static_cast<int32_t>(limit))
+          static_cast<int32_t>(frame.receivedAtMs - anchor) >= static_cast<int32_t>(limit)) {
+        notifyDroppedFrame(frame, ScaleFrameDropReason::Stale);
         continue; // Queued stale/late data cannot revive an expired stream.
+      }
       if (!supportedPacketLength(frame.length)) {
+        notifyDroppedFrame(frame, ScaleFrameDropReason::UnsupportedLength);
         rejectPacket();
         continue;
       }
@@ -489,6 +495,7 @@ class NimbleScaleClient {
                             protocol_->parseTimer(frame.data, frame.length,
                                                   &timerMs);
       if (!hasWeight && !hasTimer) {
+        notifyDroppedFrame(frame, ScaleFrameDropReason::Undecodable);
         rejectPacket();
         continue;
       }
@@ -852,6 +859,30 @@ class NimbleScaleClient {
     uint8_t length;
     uint8_t data[MAX_BLE_PACKET_LENGTH];
   };
+
+  // Diagnostics-only report for frames dropped before becoming weights.
+  // Pure decode for stale frames so a decodable-but-rejected reading stays
+  // observable; the frame never becomes eligible for control.
+  void notifyDroppedFrame(const RxFrame &frame, ScaleFrameDropReason reason) {
+    if (g_droppedFrameObserver == nullptr) {
+      return;
+    }
+    ScaleDroppedFrame dropped;
+    dropped.data = frame.data;
+    dropped.generation = frame.generation;
+    dropped.captureSequence = frame.captureSequence;
+    dropped.receivedAtMs = frame.receivedAtMs;
+    dropped.length = frame.length;
+    dropped.reason = reason;
+    if (reason == ScaleFrameDropReason::Stale && protocol_ != nullptr &&
+        protocol_->parseWeight != nullptr) {
+      float weight = 0.0f;
+      dropped.weightDecoded =
+          protocol_->parseWeight(frame.data, frame.length, &weight);
+      dropped.weightG = weight;
+    }
+    g_droppedFrameObserver(dropped);
+  }
 
   static void *callbackArg(uint32_t operationId) {
     return reinterpret_cast<void *>(static_cast<uintptr_t>(operationId));
@@ -2968,6 +2999,10 @@ uint32_t EspressoScaleBLE::communicationSilenceRemainingMs() const {
 
 bool EspressoScaleBLE::newWeightAvailable() {
   return clientFromStorage(g_clientStorage).newWeightAvailable();
+}
+
+void EspressoScaleBLE::setDroppedFrameObserver(ScaleDroppedFrameObserver observer) {
+  g_droppedFrameObserver = observer;
 }
 
 ScaleFeatureSet EspressoScaleBLE::features() const {

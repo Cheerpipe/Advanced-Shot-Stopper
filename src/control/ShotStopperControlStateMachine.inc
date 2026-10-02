@@ -193,6 +193,12 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
                 weightToCentigrams(
                     static_cast<float>(session.config.goalWeightG)),
                 weightToCentigrams(session.config.weightOffsetG));
+  scaleProfileNoteEvent(
+      ScaleProfileEvent::SHOT_START, millis(),
+      getScaleLinkSnapshot().connectionGeneration, 0, NAN, session.id,
+      static_cast<uint32_t>(
+          static_cast<int32_t>(weightToCentigrams(
+              static_cast<float>(session.config.goalWeightG)))));
   maybeRequestNtpSyncOnActivity();
 }
 
@@ -358,6 +364,9 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
   machineEndCycle();
   addDebugEvent(DebugCategory::STATE, DebugCode::CYCLE_ENDED,
                 static_cast<int32_t>(reason));
+  scaleProfileNoteEvent(ScaleProfileEvent::SHOT_END, millis(),
+                        getScaleLinkSnapshot().connectionGeneration, 0, NAN,
+                        session.id, static_cast<uint32_t>(reason));
   transitionTo(nextState);
   serviceIdleTare();
   return machineStopAccepted;

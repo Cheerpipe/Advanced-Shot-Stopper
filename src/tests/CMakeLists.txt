@@ -75,6 +75,7 @@ else()
     DEFINITIONS SHOT_STOPPER_HOST_TEST LABEL "host;network")
   host_test(webhook_worker_host_test LABEL "host;network")
   host_test(heap_telemetry_host_test LABEL "host;resources")
+  host_test(scale_profiler_host_test LABEL "host;scale;persistence")
   host_test(resource_owner_host_test LABEL "host;resources")
   host_test(machine_integration_host_test
     SOURCES "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMachineIntegration.cpp"

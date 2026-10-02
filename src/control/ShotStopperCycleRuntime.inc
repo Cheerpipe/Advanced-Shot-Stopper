@@ -22,8 +22,14 @@ bool requestRemoteTimerStart() {
   command.commandFeedbackExpected =
       getScaleLinkSnapshot().features.has(ScaleFeatureCommandAudibleFeedback);
   session.timerStartCommandQueued = enqueueScaleCommand(command);
-  if (session.timerStartCommandQueued && command.autoTare)
+  if (session.timerStartCommandQueued && command.autoTare) {
+    scaleProfileNoteEvent(ScaleProfileEvent::TARE_REQUEST, millis(),
+                          getScaleLinkSnapshot().connectionGeneration, 0, NAN,
+                          command.cupWeightRequestId,
+                          static_cast<uint32_t>(
+                              ScaleProfileTareOrigin::SHOT_START));
     trackCupWeightTare(command.cupWeightRequestId);
+  }
   session.remoteTimerMayBeRunning = session.timerStartCommandQueued;
   return session.timerStartCommandQueued;
 }
@@ -40,6 +46,10 @@ bool requestRemoteRetare() {
   command.commandFeedbackExpected =
       getScaleLinkSnapshot().features.has(ScaleFeatureCommandAudibleFeedback);
   if (!enqueueScaleCommand(command)) return false;
+  scaleProfileNoteEvent(ScaleProfileEvent::TARE_REQUEST, millis(),
+                        getScaleLinkSnapshot().connectionGeneration, 0, NAN,
+                        command.cupWeightRequestId,
+                        static_cast<uint32_t>(ScaleProfileTareOrigin::RETARE));
   session.retareRequestId = command.cupWeightRequestId;
   trackCupWeightTare(command.cupWeightRequestId);
   return true;
@@ -196,6 +206,12 @@ void finishCupWeight(uint32_t requestId, bool succeeded, bool uncertain,
     mass.valid = mass.pendingValid && std::isfinite(preTareWeightG) &&
         cupPresenceState() == CupPresenceState::PRESENT &&
         mass.pendingPlacementId == cupPresencePlacementId();
+    if (std::isfinite(cupPresence.emptyAnchorG)) {
+      scaleProfileNoteEvent(
+          ScaleProfileEvent::CUP_ANCHOR_CHANGED, millis(), 0, 0, NAN,
+          mass.pendingPlacementId,
+          static_cast<uint32_t>(weightToCentigrams(cupPresence.emptyAnchorG)));
+    }
   } else if (uncertain) {
     invalidateCupWeight();
     cupPresence.emptyAnchorG = NAN;
@@ -545,6 +561,21 @@ void confirmLateRetareBaseline() {
   }
 }
 
+// Observes the control decision about one weight sample. Accepted rows carry
+// the packet sequence; rejected rows carry the DebugCode and reference.
+void profileScaleWeightDecision(bool accepted, DebugCode reason, float weight,
+                                uint32_t receivedAtMs, uint32_t packetSequence,
+                                uint32_t connectionGeneration,
+                                uint32_t captureSequence, float referenceG) {
+  (void)receivedAtMs;
+  scaleProfileNoteEvent(
+      accepted ? ScaleProfileEvent::WEIGHT_ACCEPTED
+               : ScaleProfileEvent::WEIGHT_REJECTED,
+      millis(), connectionGeneration, captureSequence, weight,
+      accepted ? packetSequence : static_cast<uint32_t>(reason),
+      accepted ? 0 : static_cast<uint32_t>(weightToCentigrams(referenceG)));
+}
+
 bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                                       uint32_t packetSequence,
                                       uint32_t connectionGeneration,
@@ -557,6 +588,9 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
     approveScaleTareSample(ScaleTareSample{});
     serialTrace(LogLevel::WARNING, "Invalid or out-of-range weight ignored");
     rejectScaleSample(DebugCode::SCALE_SAMPLE_REJECTED_INVALID, weight);
+    profileScaleWeightDecision(false, DebugCode::SCALE_SAMPLE_REJECTED_INVALID,
+                               weight, receivedAtMs, packetSequence,
+                               connectionGeneration, captureSequence, 0);
     return false;
   }
 
@@ -602,6 +636,15 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                           (idleKnownAccessoryRemoval(weight) ||
                            idleAccessoryUnloadUnsettled(weight, receivedAtMs)))
       : CupPresenceEvent::NONE;
+  if (cupEvent == CupPresenceEvent::PLACED) {
+    scaleProfileNoteEvent(ScaleProfileEvent::CUP_PLACED, millis(),
+                          connectionGeneration, packetSequence, weight,
+                          cupPresencePlacementId(), 0);
+  } else if (cupEvent == CupPresenceEvent::REMOVED) {
+    scaleProfileNoteEvent(ScaleProfileEvent::CUP_REMOVED, millis(),
+                          connectionGeneration, packetSequence, weight,
+                          cupPresencePlacementId(), 0);
+  }
   if (!session.active && pendingFinalize.pending &&
       (observedUnload || cupEvent != CupPresenceEvent::NONE)) {
     machineCancelSettledWeightCutOff();
@@ -681,11 +724,18 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                                     : MAX_AUTOMATION_WEIGHT_G;
     rejectScaleSample(DebugCode::SCALE_SAMPLE_REJECTED_RANGE, weight,
                       violatedLimit);
+    profileScaleWeightDecision(false, DebugCode::SCALE_SAMPLE_REJECTED_RANGE,
+                               weight, receivedAtMs, packetSequence,
+                               connectionGeneration, captureSequence,
+                               violatedLimit);
     return false;
   }
 
   if (static_cast<int32_t>(receivedAtMs - shot.startMs) < 0) {
     rejectScaleSample(DebugCode::SCALE_SAMPLE_REJECTED_PRE_CYCLE, weight);
+    profileScaleWeightDecision(false, DebugCode::SCALE_SAMPLE_REJECTED_PRE_CYCLE,
+                               weight, receivedAtMs, packetSequence,
+                               connectionGeneration, captureSequence, 0);
     return false;
   }
 
@@ -702,11 +752,18 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
       session.awaitingPostTareBaseline = false;
       holdCupPresenceTransitions(false);
       weightStreamState = WeightStreamState::FRESH;
+      scaleProfileNoteEvent(ScaleProfileEvent::TARE_BASELINE_CONFIRMED,
+                            millis(), connectionGeneration, captureSequence,
+                            weight, session.appliedTareRequestId, 0);
       return acceptWeightIntoTrajectory(weight, receivedAtMs, packetSequence,
                                         activeWeightCutTargetG());
     }
     rejectScaleSample(DebugCode::SCALE_SAMPLE_REJECTED_SLEW, weight,
                       POST_TARE_BASELINE_MAX_ABS_G);
+    profileScaleWeightDecision(false, DebugCode::SCALE_SAMPLE_REJECTED_SLEW,
+                               weight, receivedAtMs, packetSequence,
+                               connectionGeneration, captureSequence,
+                               POST_TARE_BASELINE_MAX_ABS_G);
     return false;
   }
 
@@ -735,6 +792,10 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
     session.recoveryLastPacketSequence = 0;
     rejectScaleSample(DebugCode::SCALE_SAMPLE_REJECTED_SLEW, weight,
                       session.lastAcceptedWeightG);
+    profileScaleWeightDecision(false, DebugCode::SCALE_SAMPLE_REJECTED_SLEW,
+                               weight, receivedAtMs, packetSequence,
+                               connectionGeneration, captureSequence,
+                               session.lastAcceptedWeightG);
     return false;
   }
 
@@ -771,6 +832,10 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
       session.recoveryLastPacketSequence = 0;
       rejectScaleSample(DebugCode::SCALE_SAMPLE_REJECTED_RECOVERY, weight,
                         referenceG);
+      profileScaleWeightDecision(false, DebugCode::SCALE_SAMPLE_REJECTED_RECOVERY,
+                                 weight, receivedAtMs, packetSequence,
+                                 connectionGeneration, captureSequence,
+                                 referenceG);
       return false;
     }
 
@@ -812,6 +877,9 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   considerDirectStopSample(weight, receivedAtMs, packetSequence,
                            connectionGeneration);
   weightStreamState = WeightStreamState::FRESH;
+  profileScaleWeightDecision(true, static_cast<DebugCode>(0), weight,
+                             receivedAtMs, packetSequence, connectionGeneration,
+                             captureSequence, 0);
   return acceptWeightIntoTrajectory(weight, receivedAtMs, packetSequence,
                                     activeWeightCutTargetG());
 }

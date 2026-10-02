@@ -111,10 +111,12 @@ cleanup_partition_probe() {
 trap cleanup_partition_probe EXIT HUP INT TERM
 
 curve_layout_transition=0
+profiler_layout_transition=0
 installed_layout=unknown
 installed_nvs_size=""
 installed_app0_offset=""
 installed_shotcurve_row=""
+installed_scaleprof_row=""
 if esptool --chip esp32s3 --port "$port" read-flash 0x8000 0x1000 "$partition_bin" >/dev/null; then
   if python -c 'import pathlib,sys; b=pathlib.Path(sys.argv[1]).read_bytes(); sys.exit(0 if b and all(x == 255 for x in b) else 1)' "$partition_bin"; then
     installed_layout=blank
@@ -124,6 +126,7 @@ if esptool --chip esp32s3 --port "$port" read-flash 0x8000 0x1000 "$partition_bi
     installed_nvs_size="$(awk -F, '$1 ~ /^[[:space:]]*nvs[[:space:]]*$/ {gsub(/[[:space:]]/, ""); print $5; exit}' "$partition_csv")"
     installed_app0_offset="$(awk -F, '$1 ~ /^[[:space:]]*app0[[:space:]]*$/ {gsub(/[[:space:]]/, ""); print $4; exit}' "$partition_csv")"
     installed_shotcurve_row="$(awk -F, '$1 ~ /^[[:space:]]*shotcurve[[:space:]]*$/ {gsub(/[[:space:]]/, ""); print $2 "," $3 "," $4 "," $5; exit}' "$partition_csv")"
+    installed_scaleprof_row="$(awk -F, '$1 ~ /^[[:space:]]*scaleprof[[:space:]]*$/ {gsub(/[[:space:]]/, ""); print $2 "," $3 "," $4 "," $5; exit}' "$partition_csv")"
   fi
 fi
 
@@ -149,15 +152,47 @@ if [[ "$SS_CLI_ERASE_ALL" != "1" && "$installed_layout" == "present" ]]; then
   fi
   IFS=, read -r installed_shotcurve_type installed_shotcurve_subtype \
     installed_shotcurve_offset installed_shotcurve_size <<<"$installed_shotcurve_row"
+  IFS=, read -r installed_scaleprof_type installed_scaleprof_subtype \
+    installed_scaleprof_offset installed_scaleprof_size <<<"$installed_scaleprof_row"
   required_shotcurve_offset=0x69E000
+  required_scaleprof_offset=0x76A000
   [[ "$SHOTSTOPPER_ARCH" == "n16r8" ]] && required_shotcurve_offset=0x63E000
-  if [[ "$installed_shotcurve_type" != "data" ]] ||
-    ! installed_shotcurve_subtype_bytes="$(size_bytes "$installed_shotcurve_subtype")" ||
-    ! installed_shotcurve_offset_bytes="$(size_bytes "$installed_shotcurve_offset")" ||
-    ! installed_shotcurve_size_bytes="$(size_bytes "$installed_shotcurve_size")" ||
-    ((installed_shotcurve_subtype_bytes != 0x40 || \
-    installed_shotcurve_offset_bytes != required_shotcurve_offset || \
-    installed_shotcurve_size_bytes != 0xCC000)); then
+  [[ "$SHOTSTOPPER_ARCH" == "n16r8" ]] && required_scaleprof_offset=0x70A000
+  shotcurve_matches=0
+  if [[ "$installed_shotcurve_type" == "data" ]] &&
+    installed_shotcurve_subtype_bytes="$(size_bytes "$installed_shotcurve_subtype")" &&
+    installed_shotcurve_offset_bytes="$(size_bytes "$installed_shotcurve_offset")" &&
+    installed_shotcurve_size_bytes="$(size_bytes "$installed_shotcurve_size")" &&
+    ((installed_shotcurve_subtype_bytes == 0x40 && \
+    installed_shotcurve_offset_bytes == required_shotcurve_offset && \
+    installed_shotcurve_size_bytes == 0xCC000)); then
+    shotcurve_matches=1
+  fi
+  scaleprof_matches=0
+  if [[ "$installed_scaleprof_type" == "data" ]] &&
+    installed_scaleprof_subtype_bytes="$(size_bytes "$installed_scaleprof_subtype")" &&
+    installed_scaleprof_offset_bytes="$(size_bytes "$installed_scaleprof_offset")" &&
+    installed_scaleprof_size_bytes="$(size_bytes "$installed_scaleprof_size")" &&
+    ((installed_scaleprof_subtype_bytes == 0x40 && \
+    installed_scaleprof_offset_bytes == required_scaleprof_offset && \
+    installed_scaleprof_size_bytes == 0x41000)); then
+    scaleprof_matches=1
+  fi
+  if ((shotcurve_matches && !scaleprof_matches)); then
+    if ss_is_set image; then
+      # An external image cannot add partitions; the flashed firmware runs
+      # with scale profiling unavailable until a full USB installation.
+      echo 'Note: the installed layout has no scale profile partition; the external image will run without scale profiling.'
+    else
+      # Exact known predecessor: the current curve layout without the profiler
+      # partition. The scaleprof region was reserved, unmounted filesystem
+      # space, so erasing it destroys no data.
+      profiler_layout_transition=1
+      echo 'USB profiler-layout transition: the scale profile store starts empty; settings, Wi-Fi, calibration, presets, shot summaries, activation history and shot curves are preserved.'
+      echo 'Both OTA slots and crash storage are preserved; OTA updates continue after this one-time USB installation.'
+    fi
+  fi
+  if ((shotcurve_matches == 0)); then
     # Only the project's exact previous layout has an in-place transition.
     # All durable unrelated partitions and both app slots keep their addresses.
     if ! ss_is_set image && python - "$partition_csv" "$SHOTSTOPPER_ARCH" <<'PY'
@@ -235,6 +270,10 @@ else
     cd "$IDF_BUILD_DIR" || exit 1
     if [[ "$curve_layout_transition" == "1" ]]; then
       esptool --chip esp32s3 --port "$port" erase-region "$required_shotcurve_offset" 0xCC000
+    fi
+    if [[ "$curve_layout_transition" == "1" || "$profiler_layout_transition" == "1" ]]; then
+      # Reserved, unmounted filesystem space in every predecessor layout.
+      esptool --chip esp32s3 --port "$port" erase-region "$required_scaleprof_offset" 0x41000
     fi
     esptool --chip esp32s3 --port "$port" write-flash @flash_args
   )

@@ -345,6 +345,21 @@ struct ScaleWeightSample {
   uint32_t captureSequence = 0;
 };
 
+enum class ScaleFrameDropReason : uint8_t { Stale, UnsupportedLength, Undecodable };
+
+struct ScaleDroppedFrame {
+  const uint8_t *data = nullptr;
+  uint32_t generation = 0;
+  uint32_t captureSequence = 0;
+  uint32_t receivedAtMs = 0;
+  uint16_t length = 0;
+  ScaleFrameDropReason reason = ScaleFrameDropReason::Undecodable;
+  bool weightDecoded = false;
+  float weightG = 0.0f;
+};
+
+using ScaleDroppedFrameObserver = void (*)(const ScaleDroppedFrame &);
+
 class EspressoScaleBLE {
  public:
   explicit EspressoScaleBLE(bool debug) { (void)debug; }
@@ -608,6 +623,12 @@ class EspressoScaleBLE {
     }
     return available;
   }
+  void setDroppedFrameObserver(ScaleDroppedFrameObserver observer) {
+    droppedFrameObserver = observer;
+  }
+  void hostNotifyDroppedFrame(const ScaleDroppedFrame &frame) {
+    if (droppedFrameObserver != nullptr) droppedFrameObserver(frame);
+  }
   ScaleFeatureSet features() const {
     if (!connected) {
       return scaleFeatureSetNone();
@@ -730,6 +751,7 @@ class EspressoScaleBLE {
   uint32_t silenceStartedAtMs = 0;
   bool silenceArmed = false;
   bool newWeightAvailableValue = false;
+  ScaleDroppedFrameObserver droppedFrameObserver = nullptr;
   void (*beforeWeightCheck)() = nullptr;
   bool disconnectWhenCheckingWeight = false;
   float weight = 0.0f;

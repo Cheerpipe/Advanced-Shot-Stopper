@@ -150,7 +150,12 @@ while that callback is in flight. Relay sections contain only GPIO and bounded
 DRAM scalar state. The local buzzer, debug ring, and other task-only compound
 state use `TaskMutex`. Heap/CPU sampling and task-profiler capture belong to the
 core-0 health worker; control consumes its one-slot mailbox without waiting and
-ages stale samples explicitly. USB application logs are emitted by the bounded
+ages stale samples explicitly. The same health worker owns the manual scale
+profiler: producers (scale worker and control loop) append 32-byte records
+through one leaf capture mutex they only take after releasing their own locks,
+flash invalidate/save run as single cache-off steps on the settings_persist
+worker between safe-write gates, and a download lease pins the frozen
+generation so Start/Delete cannot replace a trace while it streams. USB application logs are emitted by the bounded
 `serial_log` queue on core 0. Eight short log records remain internal while a
 bounded 2.5 KiB PSRAM buffer carries the CLI reply published to that owner;
 saturation increments dropped/truncated counters instead of waiting in control.

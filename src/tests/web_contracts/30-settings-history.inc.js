@@ -443,6 +443,16 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !ui.includes('id="hTaskElapsed"') ||
       !ui.includes('id="taskProfilerStartButton"') ||
       !ui.includes('id="taskProfilerStopButton"') ||
+      !ui.includes('id="hProfileState"') ||
+      !ui.includes('id="hProfileElapsed"') ||
+      !ui.includes('id="hProfileRecords"') ||
+      !ui.includes('id="scaleProfileStartButton"') ||
+      !ui.includes('id="scaleProfileStopButton"') ||
+      !ui.includes('id="scaleProfileDeleteButton"') ||
+      !ui.includes('id="scaleProfileDownloadButton"') ||
+      !ui.includes('btnGlyph btnInvert scaleProfileCtl"') ||
+      !ui.includes('function applyScaleProfile(') ||
+      !ui.includes('/api/v1/diagnostic/scale-profile') ||
       !ui.includes('id="taskTable"') ||
       !ui.includes('id="taskTableBody"') ||
       !ui.includes('id="taskTableHint"') ||

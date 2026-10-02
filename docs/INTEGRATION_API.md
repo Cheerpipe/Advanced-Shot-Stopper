@@ -185,6 +185,24 @@ restart path accepted the request. During an extraction it waits for the cycle
 to end; it never closes the relay or resumes a cycle after boot. This trusted-
 LAN route exposes no machine actuation counterpart.
 
+### `POST /api/v1/diagnostic/scale-profile`
+
+Starts, stops, or deletes the manual scale profile capture. Requires the
+exclusive Web UI claim like every owned API route. The body is
+`{"action":"start"}` or `{"action":"stop"}` or `{"action":"delete"}`; replies
+`202 Accepted` with a request id that follows the common acknowledgement
+rules. Bounded state (including `state`, `persistence`, counts, `stopReason`,
+`lostCount`, and `canStart`/`canStop`/`canDelete`/`canDownload`) is reported
+as `scaleProfile` in the diagnostic status document.
+
+### `GET /api/v1/diagnostic/scale-profile/download`
+
+Streams the most recent completed capture as a chunked `text/plain`
+attachment (`Content-Disposition: attachment`,
+`Cache-Control: no-store`). Disabled while a capture is recording; a trace
+that stopped but has not finished saving downloads from memory and is labeled
+accordingly. Concurrent Start/Delete are refused while the download streams.
+
 ## Web UI record API
 
 The Stats page uses `GET /api/v1/stats`; History uses

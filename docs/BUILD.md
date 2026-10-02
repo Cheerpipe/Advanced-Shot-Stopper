@@ -499,6 +499,11 @@ remain available. App-only `--image` and OTA cannot change the partition table.
 Any other incompatible layout is rejected; review its data-loss consequences
 before explicitly choosing a clean installation.
 
+The scale-profile partition uses the same one-time mechanism: coming from the
+current curve layout, the installer erases only the new 260 KiB profile region
+(previously reserved, unmounted filesystem space) and reports that saved scale
+profiles start empty. Nothing else on the flash changes.
+
 ### Other clean-install cutovers
 
 The current settings contract is schema 2 and preserves same-layout schema-1

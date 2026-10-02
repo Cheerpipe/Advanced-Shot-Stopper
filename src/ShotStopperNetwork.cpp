@@ -1009,6 +1009,62 @@ bool statusJsonAppendTaskProfiler(size_t *used,
                                   used, tasks);
 }
 
+bool statusJsonAppendScaleProfiler(size_t *used,
+                                   const ScaleProfilerStatus &profile) {
+  // The can* flags mirror the profiler's own guards so the browser and the
+  // server can never disagree about availability.
+  const bool busy = profile.downloading ||
+                    profile.persistence == ScaleProfilerPersistence::SAVING ||
+                    profile.persistence == ScaleProfilerPersistence::INVALIDATING;
+  const bool canStart =
+      profile.partitionAvailable && !busy &&
+      (profile.state == ScaleProfilerState::EMPTY ||
+       profile.state == ScaleProfilerState::STOPPED ||
+       profile.state == ScaleProfilerState::SAVED);
+  const bool canStop = profile.state == ScaleProfilerState::RECORDING;
+  // Stopped traces stay deletable once saving is neither pending nor active;
+  // a failed save keeps the RAM evidence downloadable and deletable.
+  const bool canDelete =
+      !busy && (profile.state == ScaleProfilerState::SAVED ||
+                (profile.state == ScaleProfilerState::STOPPED &&
+                 (profile.persistence == ScaleProfilerPersistence::FAILED ||
+                  profile.persistence == ScaleProfilerPersistence::NONE)));
+  const bool canDownload =
+      !profile.downloading && profile.state != ScaleProfilerState::RECORDING &&
+      profile.state != ScaleProfilerState::PREPARING &&
+      (profile.state == ScaleProfilerState::SAVED ||
+       profile.state == ScaleProfilerState::STOPPED);
+  return statusJsonAppend(
+      used,
+      ",\"scaleProfile\":{\"state\":\"%s\",\"persistence\":\"%s\","
+      "\"generation\":%lu,\"sessionId\":%lu,\"elapsedMs\":%lu,"
+      "\"durationLimitMs\":%lu,\"recordCount\":%lu,\"recordCapacity\":%lu,"
+      "\"weightCount\":%lu,\"eventCount\":%lu,\"lostCount\":%lu,"
+      "\"stopReason\":\"%s\",\"complete\":%s,\"downloading\":%s,"
+      "\"partitionAvailable\":%s,\"lastError\":\"%s\","
+      "\"canStart\":%s,\"canStop\":%s,\"canDelete\":%s,\"canDownload\":%s}",
+      scaleProfilerStateName(profile.state),
+      scaleProfilerPersistenceName(profile.persistence),
+      static_cast<unsigned long>(profile.generation),
+      static_cast<unsigned long>(profile.sessionId),
+      static_cast<unsigned long>(profile.elapsedMs),
+      static_cast<unsigned long>(SCALE_PROFILE_DURATION_LIMIT_MS),
+      static_cast<unsigned long>(profile.state == ScaleProfilerState::SAVED
+                                     ? profile.savedRecordCount
+                                     : profile.recordCount),
+      static_cast<unsigned long>(SCALE_PROFILE_RECORD_CAPACITY),
+      static_cast<unsigned long>(profile.weightCount),
+      static_cast<unsigned long>(profile.eventCount),
+      static_cast<unsigned long>(profile.lostCount),
+      scaleProfilerStopReasonName(profile.stopReason),
+      profile.lostCount == 0 ? "true" : "false",
+      profile.downloading ? "true" : "false",
+      profile.partitionAvailable ? "true" : "false",
+      scaleProfilerErrorName(profile.lastError),
+      canStart ? "true" : "false", canStop ? "true" : "false",
+      canDelete ? "true" : "false", canDownload ? "true" : "false");
+}
+
 void buildSlimPresetsJson(const ShotPresetBank &presets) {
   if (g_work == nullptr) {
     return;

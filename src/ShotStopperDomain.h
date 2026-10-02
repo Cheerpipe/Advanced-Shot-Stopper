@@ -1706,6 +1706,9 @@ enum class WebCommandType : uint8_t {
   BLE_SCAN_INTENSITY,
   TASK_PROFILER_START,
   TASK_PROFILER_STOP,
+  SCALE_PROFILE_START,
+  SCALE_PROFILE_STOP,
+  SCALE_PROFILE_DELETE,
   STATE_OVERRIDE_OFF,
   STATE_OVERRIDE_ON,
   FORCE_SWITCH_PULSE,
@@ -1760,6 +1763,9 @@ inline const char *webCommandTypeName(WebCommandType type) {
     case WebCommandType::BLE_SCAN_INTENSITY: return "set BLE scan settings";
     case WebCommandType::TASK_PROFILER_START: return "start task profiler";
     case WebCommandType::TASK_PROFILER_STOP: return "stop task profiler";
+    case WebCommandType::SCALE_PROFILE_START: return "start scale profile";
+    case WebCommandType::SCALE_PROFILE_STOP: return "stop scale profile";
+    case WebCommandType::SCALE_PROFILE_DELETE: return "delete scale profile";
     case WebCommandType::STATE_OVERRIDE_OFF:
       return "override inferred idle";
     case WebCommandType::STATE_OVERRIDE_ON:

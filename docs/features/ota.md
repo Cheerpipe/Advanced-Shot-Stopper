@@ -50,8 +50,9 @@ firmware cannot wait for the shot to finish.
 Flashing leaves Wi-Fi credentials, presets, and calibration untouched. A firmware
 version that changes history formats may start incompatible records empty.
 The timestamped curves require the one-time preserving
-[USB curve-layout transition](../BUILD.md#curve-layout-transition), because
-app-only OTA cannot change a partition table. Old curves start empty; settings,
+[USB curve-layout transition](../BUILD.md#curve-layout-transition), and the
+scale-profile partition repeats that same one-time USB step when coming from
+the current layout, because app-only OTA cannot change a partition table. Old curves start empty; settings,
 shot summaries and activation history remain. Subsequent updates support OTA
 normally alongside USB installation.
 

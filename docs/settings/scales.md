@@ -222,3 +222,11 @@ rejects readings older than 1 s, before that link timeout. Check
 
 Related: [Brew by weight](../features/brew-by-weight.md), [Tare](tare.md),
 [Alerts](../alerts.md).
+
+## Recording what the scale reports
+
+When a scale misbehaves in a way settings cannot explain, the diagnostic page
+can record a short trace of everything the scale sends and every tare, cup,
+touch, and first-drop decision that follows. See
+[the diagnostic guide](../FAQ.md)
+for how to start, stop, and download the recording.

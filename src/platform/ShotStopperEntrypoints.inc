@@ -21,6 +21,57 @@ void serviceHealthProfiler(uint32_t now) {
   taskProfiler.service(now);
 }
 
+// Bounded capture-context snapshot taken when a recording starts. Only
+// lock-protected snapshots are read; control characters are stripped so user
+// text can never inject extra TXT lines.
+uint32_t composeScaleProfileContext(char *text, size_t capacity) {
+  if (text == nullptr || capacity == 0) return 0;
+  ControlStatusSnapshot control;
+  copyControlStatus(control);
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  int used = snprintf(text, capacity,
+                      "firmware=%s\nboard=%s\nmachine=%s / %s\n", FW_VERSION,
+                      SHOT_STOPPER_HARDWARE_PROFILE_ID,
+                      SHOT_STOPPER_MACHINE_BRAND, SHOT_STOPPER_MACHINE_MODEL);
+  if (used > 0 && static_cast<size_t>(used) < capacity) {
+    used += snprintf(text + used, capacity - used, "scale=%s name=%s\n",
+                     link.protocolName, link.shotScaleName);
+  }
+  if (used > 0 && static_cast<size_t>(used) < capacity) {
+    used += snprintf(
+        text + used, capacity - used,
+        "settings=goalG:%d offsetG:%d autoTare:%d autoRetare:%d cupProt:%d "
+        "stopIfRemoved:%d requireCup:%d touch:%d graceMs:%lu\n",
+        static_cast<int>(control.config.goalWeightG),
+        static_cast<int>(control.config.weightOffsetG),
+        control.config.autoTare ? 1 : 0, control.config.autoRetare ? 1 : 0,
+        control.config.cupProtectionEnabled ? 1 : 0,
+        control.config.stopIfCupRemoved ? 1 : 0,
+        control.config.requireCupToStart ? 1 : 0,
+        control.config.avoidAccidentalTouchEnabled ? 1 : 0,
+        static_cast<unsigned long>(control.config.postTareBaselineGraceMs));
+  }
+  if (used > 0 && static_cast<size_t>(used) < capacity) {
+    snprintf(text + used, capacity - used,
+             "state=cupPresent:%d weightControl:%d\n",
+             control.cupPresent ? 1 : 0,
+             static_cast<int>(control.weightControlState));
+  }
+  for (char *c = text; *c != '\0'; ++c) {
+    if (static_cast<unsigned char>(*c) < 0x20 || *c == 0x7f) *c = ' ';
+  }
+  return g_wallClock.synced() ? g_wallClock.nowUtcSec(millis()) : 0;
+}
+
+void serviceScaleProfiler(uint32_t now) {
+  const ScaleProfilerRequest request = scaleProfileRequest.exchange(
+      ScaleProfilerRequest::NONE, std::memory_order_acq_rel);
+  const ScaleProfilerWork work = scaleProfiler().service(request, now);
+  if (work != ScaleProfilerWork::NONE && !dispatchScaleProfileWork()) {
+    scaleProfiler().noteWorkDispatchFailed();
+  }
+}
+
 void healthWorkerTask(void *) {
   hwmon.begin();
   uint32_t version = 0;
@@ -29,6 +80,7 @@ void healthWorkerTask(void *) {
   for (;;) {
     const uint32_t now = millis();
     serviceHealthProfiler(now);
+    serviceScaleProfiler(now);
     if (sampledAtMs == 0 || elapsedMs(sampledAtMs) >= HEALTH_TELEMETRY_INTERVAL_MS) {
       HealthWorkerSample sample;
       sample.version = ++version;
@@ -320,7 +372,11 @@ void setup() {
   crashArchiveSetBootId(bootIdentityDurable ? shotLog.bootId() : 0);
   crashArchivePromote(bootIdentityDurable ? shotLog.bootId() : 0,
                       safetyResetStatus.reasonCode);
+  // Read only the profiler's durable header at boot; records stay in flash
+  // until a download streams them.
+  scaleProfiler().bootInit();
 #endif
+  scaleProfiler().setContextProvider(&composeScaleProfileContext);
 
   if (!persistenceReady) {
     addDebugEvent(DebugCategory::CONFIG, DebugCode::INITIALIZATION_FAILED,
@@ -428,6 +484,7 @@ void setup() {
     callbacks.stageBullseyeConfig = stageBullseyeConfig;
     callbacks.copyDebugExportExtras = copyDebugExportExtras;
     callbacks.copyTaskProfiler = copyTaskProfiler;
+    callbacks.copyScaleProfilerStatus = copyScaleProfilerStatus;
     callbacks.requestLoopMaxReset = requestLoopMaxReset;
     callbacks.reportStationIpChange = reportStationIpChange;
     if (!networkManager.begin(persistedSettings, callbacks)) {

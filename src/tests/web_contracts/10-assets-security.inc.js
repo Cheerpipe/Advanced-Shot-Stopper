@@ -531,8 +531,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // compressed asset and firmware budgets stay effectively unchanged.
 // Six La Marzocco Cloud diagnostic fields add 0.8 KB of HTML allowance.
 // The Stats loading overlay reuses the panel wave and adds ~0.2 KB of HTML source.
-if (htmlBytes > 79950) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 79950)`);
+// The Scale profiling section adds ~1 KB of HTML allowance (state rows, four
+// controls, and the replacement hint); compressed asset budgets stay fixed.
+if (htmlBytes > 81000) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 81000)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -600,8 +602,11 @@ if (htmlBytes > 79950) {
 // Cloud call rendering uses 0.5 KB beyond the previous JS allowance.
 // Serialized requests and deferred hydration share one record-page loader.
 // Allow 1 KiB of source wiring; compressed assets and firmware limits stay fixed.
-if (jsBytes > 233000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 233000)`);
+// Scale profiling adds ~3.4 KB of JS source allowance (state-matrix
+// rendering plus the streamed TXT download); compressed assets and firmware
+// limits stay fixed.
+if (jsBytes > 237000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 237000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -624,8 +629,10 @@ if (jsBytes > 233000) {
 // (card fields and table headers in HTML; marker, columns, and wiring in JS).
 // Cloud diagnostics add 1.3 KB of combined source allowance.
 // Paired reads and deferred hydration add 1 KiB of source allowance only.
-if (htmlBytes + jsBytes > 312800) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 312800)`);
+// Scale profiling adds ~4.4 KB of combined source allowance (diagnostic
+// section in HTML; matrix rendering and download in JS).
+if (htmlBytes + jsBytes > 317500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 317500)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

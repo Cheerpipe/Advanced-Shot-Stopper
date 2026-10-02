@@ -743,6 +743,28 @@ void processWebCommand(const WebCommand &command) {
                                   std::memory_order_release);
       reportControlCommandResult(command, CommandResultState::APPLIED);
       return;
+
+    case WebCommandType::SCALE_PROFILE_START:
+    case WebCommandType::SCALE_PROFILE_STOP:
+    case WebCommandType::SCALE_PROFILE_DELETE: {
+      // Refuse while a download pins the frozen generation; the profiler
+      // repeats this guard when the health worker services the request.
+      const bool mutating =
+          command.type != WebCommandType::SCALE_PROFILE_STOP;
+      if (mutating && scaleProfiler().downloadLeaseGeneration() != 0) {
+        reportControlCommandResult(command, CommandResultState::FAILED);
+        return;
+      }
+      scaleProfileRequest.store(
+          command.type == WebCommandType::SCALE_PROFILE_START
+              ? ScaleProfilerRequest::START
+              : command.type == WebCommandType::SCALE_PROFILE_STOP
+                    ? ScaleProfilerRequest::STOP
+                    : ScaleProfilerRequest::DELETE,
+          std::memory_order_release);
+      reportControlCommandResult(command, CommandResultState::APPLIED);
+      return;
+    }
   }
 }
 

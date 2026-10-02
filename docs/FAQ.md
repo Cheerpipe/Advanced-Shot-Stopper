@@ -204,6 +204,20 @@ when its tab is hidden from the menu (Admin → Frontend → **Show diagnostic
 page** only shows or hides that tab) and in compatibility mode. Its
 measurements keep recording either way.
 
+**Diagnostic → Scale → Profiling** records what the scale actually sent and
+what the firmware decided about it. Press **Start** before reproducing a
+problem — for example a wrong tare or an unexpected cup event — and **Stop**
+when done; **Download** then saves a plain-text trace and **Delete** removes
+it. Recording runs for at most three minutes or until its buffer fills, keeps
+running while you leave the page, and works with or without a shot in
+progress. Every decoded weight is kept exactly as received — including
+identical, negative, and rejected readings — together with the tare, cup,
+touch, and first-drop decisions taken around it, so a support conversation
+can point at one line instead of guessing. Starting a new recording replaces
+the previous one, which is stated next to the buttons; a finished recording
+survives a restart once it reports as saved. Losing power during recording or
+saving can lose that session.
+
 On a 16 MB controller, **Diagnostic → Misc → Coredump** shows how many complete
 crash records are saved, up to two. Unlock Admin to download them. The browser
 saves a `.tar.gz` file when gzip is supported, or a `.tar` file otherwise.

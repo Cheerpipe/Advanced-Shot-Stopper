@@ -1468,6 +1468,13 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
       }
       ok = statusJsonAppendTaskProfiler(&used, self.workBuf_->taskProfiler);
     }
+    if (ok) {
+      ScaleProfilerStatus scaleProfile{};
+      if (self.callbacks_.copyScaleProfilerStatus != nullptr) {
+        self.callbacks_.copyScaleProfilerStatus(scaleProfile);
+      }
+      ok = statusJsonAppendScaleProfiler(&used, scaleProfile);
+    }
     }
   }
 

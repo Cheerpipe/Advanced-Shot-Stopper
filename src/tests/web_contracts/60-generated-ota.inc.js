@@ -490,8 +490,11 @@ if (generated.otaImageGzip.length > 3072) {
 // The Admin Firmware master-switch section (checkbox hydration, save/revert
 // wiring, compatibility-mode section hiding) raises it to 7950 bytes.
 // Cloud diagnostics use 300 bytes of the shell allowance; total cap is fixed.
-if (generated.secondaryGzip.length > 8250) {
-  throw new Error(`Compressed secondary view JS exceeds the 8250-byte gzip budget (${generated.secondaryGzip.length})`);
+// Scale profiling adds the Diagnostic state matrix, four controls, and the
+// streamed TXT download (~540 gzip bytes); the lazy partial keeps it out of
+// the always-loaded runtime and shell budgets.
+if (generated.secondaryGzip.length > 8800) {
+  throw new Error(`Compressed secondary view JS exceeds the 8800-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');

@@ -460,6 +460,246 @@ esp_err_t ShotStopperNetwork::loopMaxResetHandler(httpd_req_t *request) {
   return sendJson(request, STATUS_OK, "{\"reset\":true}");
 }
 
+esp_err_t ShotStopperNetwork::scaleProfileHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  const esp_err_t bodyStatus =
+      self.lockJsonBody(request, "A JSON request is required.");
+  if (bodyStatus != ESP_OK) {
+    return bodyStatus;
+  }
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
+  char action[16] = {};
+  static const char *const fields[] = {"action"};
+  const bool parsed =
+      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
+      jsonString(root, "action", action, sizeof(action), false);
+  if (root != nullptr) {
+    cJSON_Delete(root);
+  }
+  self.unlockJsonBody();
+  WebCommandType type;
+  if (parsed && strcmp(action, "start") == 0) {
+    type = WebCommandType::SCALE_PROFILE_START;
+  } else if (parsed && strcmp(action, "stop") == 0) {
+    type = WebCommandType::SCALE_PROFILE_STOP;
+  } else if (parsed && strcmp(action, "delete") == 0) {
+    type = WebCommandType::SCALE_PROFILE_DELETE;
+  } else {
+    return sendError(request, STATUS_UNPROCESSABLE, "INVALID_PROFILE_ACTION",
+                     "action must be start, stop, or delete.");
+  }
+  WebCommand command;
+  command.type = type;
+  command.requestId = self.allocateRequestId();
+  if (!self.callbacks_.enqueueWebCommand(command)) {
+    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
+                     "Scale profile state was not changed.");
+  }
+  return self.sendAccepted(request, command.requestId);
+}
+
+namespace {
+
+// Bounded line accumulator for the streamed TXT download; flushes in
+// HTTP-sized chunks so no full text buffer is ever allocated.
+class ScaleProfileTextSink {
+ public:
+  explicit ScaleProfileTextSink(httpd_req_t *request) : request_(request) {}
+
+  bool line(const char *text, size_t length) {
+    if (length + 1 > sizeof(buffer_)) return false;
+    if (used_ + length + 1 > sizeof(buffer_)) {
+      if (!flush()) return false;
+    }
+    memcpy(buffer_ + used_, text, length);
+    used_ += length;
+    buffer_[used_++] = '\n';
+    return true;
+  }
+
+  bool flush() {
+    if (used_ == 0) return true;
+    const bool ok = sendChunk(request_, buffer_, used_) == ESP_OK;
+    used_ = 0;
+    return ok;
+  }
+
+ private:
+  httpd_req_t *request_;
+  char buffer_[1024] = {};
+  size_t used_ = 0;
+};
+
+constexpr size_t SCALE_PROFILE_DOWNLOAD_BATCH =
+    FLASH_IO_CHUNK_BYTES / SCALE_PROFILE_RECORD_BYTES;
+// Internal staging for one batch of flash-sourced records; lives for the
+// whole handler call so httpd only ever sees stable bytes.
+uint8_t scaleProfileDownloadBatch[FLASH_IO_CHUNK_BYTES];
+
+void copyScaleProfileContextText(char *destination, size_t capacity,
+                                 const char *source) {
+  size_t used = 0;
+  if (destination != nullptr && capacity > 0) {
+    while (source != nullptr && source[used] != '\0' &&
+           used + 1 < capacity) {
+      destination[used] = source[used];
+      ++used;
+    }
+    destination[used] = '\0';
+  }
+}
+
+}  // namespace
+
+esp_err_t ShotStopperNetwork::scaleProfileDownloadHandler(
+    httpd_req_t *request) {
+  if (!scaleProfiler().acquireDownloadLease()) {
+    return sendError(request, STATUS_CONFLICT, "SCALE_PROFILE_BUSY",
+                     "The scale profile is changing or already downloading.");
+  }
+  const bool fromRam = scaleProfiler().downloadFromRam();
+  const ScaleProfilerStatus status = scaleProfiler().status(millis());
+  uint32_t recordCount = 0;
+  uint32_t sessionId = status.sessionId;
+  uint32_t durationMs = status.elapsedMs;
+  uint32_t stopReason = static_cast<uint32_t>(status.stopReason);
+  uint32_t lostCount = status.lostCount;
+  uint32_t weightCount = 0;
+  uint32_t eventCount = 0;
+  uint32_t utcStartSec = 0;
+  char context[SCALE_PROFILE_CONTEXT_BYTES + 1];
+  bool valid = false;
+  if (fromRam) {
+    recordCount = scaleProfiler().downloadRecordCount();
+    const ScaleProfileHeader header = scaleProfiler().downloadHeader();
+    weightCount = header.weightCount;
+    eventCount = header.eventCount;
+    utcStartSec = header.startWallUtcSec;
+    scaleProfiler().copyDownloadContext(context, sizeof(context));
+    valid = recordCount != 0;
+  } else {
+#if !defined(SHOT_STOPPER_HOST_TEST)
+    ScaleProfileHeader header;
+    if (scaleProfiler().storeReadHeader(header)) {
+      recordCount = header.recordCount;
+      sessionId = header.sessionId;
+      durationMs = header.durationMs;
+      stopReason = header.stopReason;
+      lostCount = header.lostCount;
+      weightCount = header.weightCount;
+      eventCount = header.eventCount;
+      utcStartSec = header.startWallUtcSec;
+      copyScaleProfileContextText(context, sizeof(context), header.context);
+      valid = recordCount != 0;
+      if (valid && !scaleProfiler().storeVerifyChecksum(header)) {
+        scaleProfiler().releaseDownloadLease();
+        return sendError(request, STATUS_SERVER_ERROR, "SCALE_PROFILE_CORRUPT",
+                         "The saved scale profile failed its checksum.");
+      }
+    }
+#endif
+  }
+  if (!valid) {
+    scaleProfiler().releaseDownloadLease();
+    return sendError(request, STATUS_NOT_FOUND, "NO_SCALE_PROFILE",
+                     "No scale profile is available to download.");
+  }
+  httpd_resp_set_type(request, "text/plain; charset=utf-8");
+  httpd_resp_set_hdr(
+      request, "Content-Disposition",
+      "attachment; filename=\"shotstopper-scale-profile.txt\"");
+  httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+  httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
+  ScaleProfileTextSink sink(request);
+  char line[192];
+  int written = snprintf(line, sizeof(line), "# ShotStopper scale profile");
+  bool ok = written > 0 && sink.line(line, static_cast<size_t>(written));
+  if (ok) {
+    written = snprintf(line, sizeof(line), "sessionId=%lu",
+                       static_cast<unsigned long>(sessionId));
+    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
+  }
+  if (ok) {
+    written = snprintf(line, sizeof(line), "utcStart=%lu",
+                       static_cast<unsigned long>(utcStartSec));
+    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
+  }
+  if (ok) {
+    written = snprintf(line, sizeof(line), "durationMs=%lu stopReason=%s",
+                       static_cast<unsigned long>(durationMs),
+                       scaleProfilerStopReasonName(
+                           static_cast<ScaleProfilerStopReason>(stopReason)));
+    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
+  }
+  if (ok) {
+    written = snprintf(line, sizeof(line),
+                       "records=%lu weights=%lu events=%lu losses=%lu",
+                       static_cast<unsigned long>(recordCount),
+                       static_cast<unsigned long>(weightCount),
+                       static_cast<unsigned long>(eventCount),
+                       static_cast<unsigned long>(lostCount));
+    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
+  }
+  if (ok) {
+    const char *savedLabel =
+        fromRam ? (status.persistence == ScaleProfilerPersistence::FAILED
+                       ? "no (save failed)"
+                       : "no (not yet saved)")
+                : "yes";
+    written = snprintf(line, sizeof(line), "saved=%s", savedLabel);
+    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
+  }
+  if (ok) {
+    written = snprintf(line, sizeof(line),
+                       "units=grams precision=float32 time=sessionMs");
+    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
+  }
+  for (const char *c = context; ok && c != nullptr && *c != '\0';) {
+    const char *end = strchr(c, '\n');
+    const size_t length =
+        end != nullptr ? static_cast<size_t>(end - c) : strlen(c);
+    if (length > 0) ok = sink.line(c, length);
+    if (end == nullptr) break;
+    c = end + 1;
+  }
+  ScaleProfileRecord record;
+  for (uint32_t index = 0; ok && index < recordCount; ++index) {
+    if (fromRam) {
+      record = scaleProfiler().downloadRecordAt(index);
+    } else {
+#if !defined(SHOT_STOPPER_HOST_TEST)
+      if (index % SCALE_PROFILE_DOWNLOAD_BATCH == 0) {
+        const size_t count =
+            index + SCALE_PROFILE_DOWNLOAD_BATCH < recordCount
+                ? SCALE_PROFILE_DOWNLOAD_BATCH
+                : static_cast<size_t>(recordCount - index);
+        if (!scaleProfiler().storeReadRecords(index, scaleProfileDownloadBatch,
+                                              count)) {
+          ok = false;
+          break;
+        }
+      }
+      memcpy(&record,
+             scaleProfileDownloadBatch +
+                 (index % SCALE_PROFILE_DOWNLOAD_BATCH) *
+                     SCALE_PROFILE_RECORD_BYTES,
+             sizeof(record));
+#endif
+    }
+    const size_t length = formatScaleProfileRow(line, sizeof(line), record);
+    if (length == 0) {
+      ok = false;
+    } else {
+      ok = sink.line(line, length);
+    }
+  }
+  const bool flushed = sink.flush();
+  const esp_err_t finished =
+      flushed ? httpd_resp_send_chunk(request, nullptr, 0) : ESP_FAIL;
+  scaleProfiler().releaseDownloadLease();
+  return ok && flushed ? finished : ESP_FAIL;
+}
+
 namespace {
 
 struct OtaTransfer {

@@ -116,6 +116,7 @@ HWCDC shotStopperUsbConsole;
 #include "ShotStopperWatchdog.h"
 #include "ShotStopperHwmon.h"
 #include "ShotStopperTaskProfiler.h"
+#include "ShotStopperScaleProfiler.h"
 #include "ShotStopperTaskMutex.h"
 #include "ShotStopperScheduling.h"
 #include "ShotStopperPsram.h"
@@ -579,7 +580,7 @@ uint32_t runtimePersistRetryAtMs = 0;
 uint32_t runtimePersistIoRetryMs = 0;
 int32_t runtimePersistReasonBits = 0;
 uint32_t nextInternalRequestId = 0x80000000UL;
-enum class PersistenceWork : uint8_t { SETTINGS = 1, SHOT_STORES = 2 };
+enum class PersistenceWork : uint8_t { SETTINGS = 1, SHOT_STORES = 2, SCALE_PROFILE = 3 };
 #ifndef SHOT_STOPPER_HOST_TEST
 SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistRequest;
 TaskMutex settingsPersistMux;
@@ -651,6 +652,10 @@ QueueHandle_t healthSampleQueue = nullptr;
 TaskHandle_t healthTaskHandle = nullptr;
 std::atomic<HealthProfilerRequest> healthProfilerRequest{
     HealthProfilerRequest::NONE};
+// Single-slot request consumed by the health worker's 100 ms tick; the
+// profiler state machine makes repeated requests idempotent.
+std::atomic<ScaleProfilerRequest> scaleProfileRequest{
+    ScaleProfilerRequest::NONE};
 uint32_t healthSnapshotVersion = 0;
 uint32_t healthSnapshotAtMs = 0;
 bool healthSnapshotValid = false;
@@ -883,6 +888,10 @@ void copyTaskProfiler(TaskProfilerSnapshot &output) {
   loopPhaseProfiler.copySnapshot(output.loopPhases);
 }
 
+void copyScaleProfilerStatus(ScaleProfilerStatus &output) {
+  output = scaleProfiler().status(millis());
+}
+
 void requestLoopMaxReset() { loopPhaseProfiler.requestReset(); }
 
 void copyControlStatus(ControlStatusSnapshot &output) {
@@ -1060,6 +1069,13 @@ bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
                              historyLog, lastShotStore, shotCurves)) {
     return false;
   }
+  // Factory reset includes the saved scale profile: drop its durable header
+  // and any frozen RAM copy left by an unsaved session.
+  if (!scaleProfiler().clearForFactoryReset()) {
+    return false;
+  }
+  scaleProfileRequest.store(ScaleProfilerRequest::NONE,
+                            std::memory_order_release);
   // Drop transient dirty state only after the durable factory reset succeeds.
   // A staged scan setting must not survive the reset's default write.
   clearLastShotRuntimeState();
@@ -1479,6 +1495,9 @@ void setWeightControlState(WeightControlState state) {
     addDebugEvent(DebugCategory::SCALE,
                   DebugCode::SCALE_CONTROL_SUSPENDED,
                   static_cast<int32_t>(previous));
+    scaleProfileNoteEvent(ScaleProfileEvent::CONTROL_SUSPENDED, millis(),
+                          getScaleLinkSnapshot().connectionGeneration, 0, NAN,
+                          static_cast<uint32_t>(state), 0);
     if (session.autoToManualGuardArmed &&
         !session.autoToManualGuardEnforced) {
       session.autoToManualGuardEnforced = true;
@@ -1496,6 +1515,9 @@ void setWeightControlState(WeightControlState state) {
               previous == WeightControlState::VALIDATING)) {
     addDebugEvent(DebugCategory::SCALE,
                   DebugCode::SCALE_CONTROL_RECOVERED);
+    scaleProfileNoteEvent(ScaleProfileEvent::CONTROL_RECOVERED, millis(),
+                          getScaleLinkSnapshot().connectionGeneration, 0, NAN,
+                          static_cast<uint32_t>(state), 0);
     if (session.autoToManualGuardEnforced) {
       session.autoToManualGuardEnforced = false;
       shotCurveSampler.latchAtmCleared(millis());

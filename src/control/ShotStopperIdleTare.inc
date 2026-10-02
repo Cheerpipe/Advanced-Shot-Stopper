@@ -136,6 +136,10 @@ void releaseIdleTareRequest(IdleTareReason reason = IdleTareReason::NONE) {
   if (idleTare.deferredReason != IdleTareReason::NONE)
     reason = idleTare.deferredReason;
   idleTare.lastReason = reason;
+  scaleProfileNoteEvent(ScaleProfileEvent::TARE_RELEASED, millis(),
+                        idleTare.connectionGeneration,
+                        idleTare.lastCaptureSequence, NAN,
+                        idleTare.requestId, static_cast<uint32_t>(reason));
   idleTare.requestId = 0;
   idleTare.tareNotified = false;
   idleTare.cupStillPresent = false;
@@ -297,6 +301,9 @@ bool observeIdleTareSample(float weight, uint32_t atMs, uint32_t sequence,
           notifyCupPresenceTare();
           idleTare.tareNotified = true;
           idleTare.effectAtMs = atMs;
+          scaleProfileNoteEvent(ScaleProfileEvent::TARE_BASELINE_CONFIRMED,
+                                millis(), generation, captureSequence, weight,
+                                idleTare.requestId, 0);
         }
         if (status.phase == IdleTarePhase::SUCCEEDED && idleTare.tareNotified) {
           releaseIdleTareRequest(IdleTareReason::EFFECT_CONFIRMED);
@@ -352,6 +359,13 @@ void handleIdleCupEvent(CupPresenceEvent event, bool accessory = false) {
   idleTare.cupStillPresent = true;
   idleTare.previouslyTared = cupPresenceIsTared();
   idleTare.previousReferenceG = cupPresenceReferenceG();
+  scaleProfileNoteEvent(ScaleProfileEvent::TARE_REQUEST, millis(),
+                        command.connectionGeneration,
+                        command.qualifiedPacketSequence, NAN,
+                        command.idleTareRequestId,
+                        static_cast<uint32_t>(accessory
+                                                  ? ScaleProfileTareOrigin::ACCESSORY
+                                                  : ScaleProfileTareOrigin::IDLE_CUP));
   idleTare.requestMinimumG = accessory ? idleTare.accessoryMinimumG : cupPresenceMinimumG();
   idleTare.requestMaximumG = accessory ? idleTare.accessoryMaximumG : cupPresenceMaximumG();
   idleTare.requestPlacementThresholdG = accessory ? runtimeConfig.minimumCupWeightG

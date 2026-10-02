@@ -23,6 +23,7 @@
 #endif  // !SHOT_STOPPER_SCALE_WORKER_IN_ORCHESTRATOR
 
 #include "ShotStopperPowerManagement.h"
+#include "ShotStopperScaleProfiler.h"
 #if !defined(SHOT_STOPPER_HOST_TEST)
 #include <esp_bt.h>
 #endif
@@ -227,6 +228,7 @@ ScaleEvent scaleWeightEvents[SCALE_WEIGHT_EVENT_CAPACITY];
 uint8_t scaleWeightEventHead = 0;
 uint8_t scaleWeightEventCount = 0;
 uint32_t scaleWeightEventDrops = 0;
+uint32_t profileLastWeightFifoDrops = 0;
 std::atomic<bool> scaleWeightEventPending{false};
 bool scaleBeepPending = false;
 uint32_t scaleBeepCycleId = 0;
@@ -579,6 +581,15 @@ void setScaleLinkState(ScaleLinkState state) {
     clearScalePowerOffLifecycle(connectedGeneration);
   }
   if (previous != state) {
+    scaleProfileNoteEvent(
+        state == ScaleLinkState::CONNECTED
+            ? ScaleProfileEvent::SCALE_CONNECTED
+            : ScaleProfileEvent::SCALE_DISCONNECTED,
+        progressAtMs,
+        state == ScaleLinkState::CONNECTED ? connectedGeneration
+                                           : disconnectedGeneration,
+        0, NAN,
+        state == ScaleLinkState::CONNECTED ? 0 : scaleLastDisconnectReason, 0);
     addDebugEvent(DebugCategory::SCALE,
                   state == ScaleLinkState::CONNECTED
                       ? DebugCode::SCALE_CONNECTED
@@ -784,8 +795,19 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
     ++scaleWeightEventCount;
     scaleWeightEventPending = true;
     scaleCriticalEventMux.unlock();
+    if (scaleWeightEventDrops != profileLastWeightFifoDrops) {
+      const uint32_t droppedWindow =
+          scaleWeightEventDrops - profileLastWeightFifoDrops;
+      profileLastWeightFifoDrops = scaleWeightEventDrops;
+      scaleProfileNoteEvent(ScaleProfileEvent::CONTROL_FIFO_LOSS, millis(),
+                            stamped.connectionGeneration,
+                            stamped.packetSequence, NAN, droppedWindow, 0);
+    }
     if (streamGapMs != 0) {
       const uint32_t nowMs = millis();
+      scaleProfileNoteEvent(ScaleProfileEvent::PACKET_GAP, nowMs,
+                            stamped.connectionGeneration,
+                            stamped.packetSequence, NAN, streamGapMs, 0);
       if (lastScalePacketGapLogMs == 0 ||
           static_cast<uint32_t>(nowMs - lastScalePacketGapLogMs) >=
               SCALE_PACKET_GAP_LOG_MIN_MS) {
@@ -835,6 +857,9 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
     eventLock.unlock();
     addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_EVENT_DROPPED,
                   static_cast<int32_t>(stamped.type));
+    scaleProfileNoteEvent(ScaleProfileEvent::EVENT_DROPPED, millis(),
+                          stamped.connectionGeneration, 0, NAN,
+                          scaleEventsDropped.load(std::memory_order_relaxed), 0);
     return false;
   }
   if (xQueueSend(scaleEventQueue, &stamped, 0) != pdTRUE) {
@@ -842,6 +867,9 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
     eventLock.unlock();
     addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_EVENT_DROPPED,
                   static_cast<int32_t>(stamped.type));
+    scaleProfileNoteEvent(ScaleProfileEvent::EVENT_DROPPED, millis(),
+                          stamped.connectionGeneration, 0, NAN,
+                          scaleEventsDropped.load(std::memory_order_relaxed), 0);
     return false;
   }
   return true;
@@ -909,6 +937,11 @@ bool publishPendingScaleWeightEvent() {
   ScaleEvent event;
   event.type = ScaleEventType::WEIGHT;
   const ScaleWeightSample sample = scale.getWeightSample();
+  // Raw observation at the decode boundary: before acceptance, tare grace,
+  // range/slew/recovery rejection, or control FIFO publication.
+  scaleProfileNoteWeight(sample.weightG, sample.receivedAtMs,
+                         getScaleLinkSnapshot().connectionGeneration,
+                         sample.captureSequence, false, millis());
   event.receivedAtMs = sample.receivedAtMs;
   event.captureSequence = sample.captureSequence;
   event.weightG = sample.weightG;
@@ -1043,6 +1076,13 @@ void executeScaleStartCommand(const ScaleCommand &command) {
   }
 
   updateWorkerLinkState();
+  if (event.tareAttempted) {
+    scaleProfileNoteEvent(
+        event.tareSucceeded ? ScaleProfileEvent::TARE_WRITE_OK
+                            : ScaleProfileEvent::TARE_WRITE_FAILED,
+        millis(), event.connectionGeneration, event.captureSequence, NAN,
+        event.cupWeightRequestId, 0);
+  }
   publishScaleEvent(event, true);
 }
 
@@ -1100,6 +1140,16 @@ void executeScaleTareCommand(const ScaleCommand &command) {
     }
     event.writeSucceeded = scaleCommandOk(result);
     event.receivedAtMs = millis();
+    if (event.commandAttempted) {
+      scaleProfileNoteEvent(
+          event.writeSucceeded ? ScaleProfileEvent::TARE_WRITE_OK
+                               : ScaleProfileEvent::TARE_WRITE_FAILED,
+          event.receivedAtMs, event.connectionGeneration,
+          event.captureSequence, NAN,
+          command.idleTareRequestId != 0 ? command.idleTareRequestId
+                                         : command.cupWeightRequestId,
+          0);
+    }
     if (event.writeSucceeded && command.cycleId != 0 && command.idleTareRequestId == 0) {
       const TaskLockGuard lock(scaleCriticalEventMux);
       shotTareResult = event;
@@ -2745,10 +2795,23 @@ void scaleWorkerTask(void *) {
   }
 }
 
+// Task-context observer for frames the library drops before decoding into
+// weights. Pure observation: the frame stays ineligible for control.
+void handleScaleDroppedFrameForProfile(const ScaleDroppedFrame &frame) {
+  const uint32_t nowMs = millis();
+  const bool stale = frame.reason == ScaleFrameDropReason::Stale;
+  scaleProfileNoteEvent(
+      stale ? ScaleProfileEvent::STALE_FRAME : ScaleProfileEvent::FRAME_UNDECODABLE,
+      nowMs, frame.generation, frame.captureSequence,
+      frame.weightDecoded ? frame.weightG : NAN, frame.length, 0,
+      frame.weightDecoded ? SCALE_PROFILE_FLAG_DECODED : 0);
+}
+
 bool initializeScaleWorker() {
 #if !defined(SHOT_STOPPER_HOST_TEST)
   if (scaleWorkerBridge.syncNetworkRf == nullptr) return false;
 #endif
+  scale.setDroppedFrameObserver(&handleScaleDroppedFrameForProfile);
   scaleWorkerStartupFinished.store(false, std::memory_order_relaxed);
 #if !defined(SHOT_STOPPER_HOST_TEST)
   bleStackReady.store(false, std::memory_order_relaxed);
