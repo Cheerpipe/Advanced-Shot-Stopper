@@ -57,11 +57,10 @@ settings, or ship in firmware assets.
 ### No-scale guard icon preview
 
 Open `http://127.0.0.1:4173/compare#no-scale` on the same running server
-to compare the current solid scale icon with five outlined alternatives.
-Each option keeps the icon canvas and the circle/X proportions, fills the
-display and buttons, and slightly shortens the body. Enlarged views and
-24, 32 and 48 pixel samples show the icon on light and dark backgrounds.
-These designs are preview-only and do not change the firmware icon.
+to review the simplified X-only icon. The X keeps its original size, stroke
+and rounded ends, centered in the existing icon canvas. Enlarged views and
+24, 32 and 48 pixel samples show it on light and dark backgrounds.
+This design is preview-only and does not change the firmware icon.
 
 ## USB installation
 
