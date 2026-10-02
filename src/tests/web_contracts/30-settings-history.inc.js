@@ -532,7 +532,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !diagHtml.includes('<legend>WiFi</legend>') ||
       !diagHtml.includes('<legend>AP</legend>') ||
       !diagHtml.includes('<legend>CPU') ||
-      !diagHtml.includes('<legend>Tasks') ||
+      !diagHtml.includes('<legend>CPU Profiling') ||
       !diagHtml.includes('<legend>RAM</legend>') ||
       !diagHtml.includes('<legend>HEAP</legend>') ||
       !diagHtml.includes('<legend>Scale</legend>') ||
@@ -614,8 +614,8 @@ if (!ui.includes('<legend>Brew</legend>') ||
       diagHtml.indexOf('<legend>WiFi</legend>') > diagHtml.indexOf('<legend>AP</legend>') ||
       diagHtml.indexOf('<legend>AP</legend>') > diagHtml.indexOf('<legend>Serial</legend>') ||
       diagHtml.indexOf('<legend>Serial</legend>') > diagHtml.indexOf('<legend>CPU') ||
-      diagHtml.indexOf('<legend>CPU') > diagHtml.indexOf('<legend>Tasks') ||
-      diagHtml.indexOf('<legend>Tasks') > diagHtml.indexOf('<legend>RAM</legend>') ||
+      diagHtml.indexOf('<legend>CPU') > diagHtml.indexOf('<legend>CPU Profiling') ||
+      diagHtml.indexOf('<legend>CPU Profiling') > diagHtml.indexOf('<legend>RAM</legend>') ||
       diagHtml.indexOf('<legend>RAM</legend>') > diagHtml.indexOf('<legend>HEAP</legend>') ||
       diagHtml.indexOf('<legend>HEAP</legend>') > diagHtml.indexOf('<legend>Date and time</legend>') ||
       diagHtml.indexOf('<legend>Date and time</legend>') > diagHtml.indexOf('<legend>MISC</legend>') ||
@@ -646,7 +646,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
       css.includes('#diagnosticsPanel .metric,#statusPanel .metric,#scalePanel .metric,.shotCard > *{') ||
       css.includes('diagGroup')) {
     throw new Error(
-        'Diagnostics must be a non-collapsible fieldset at the top of Diagnostic, above Log, with States/Machine I/O/Scale/Guards/WiFi/AP/Serial/CPU/Tasks/RAM/HEAP/Date and time/MISC sections and one value per label');
+        'Diagnostics must be a non-collapsible fieldset at the top of Diagnostic, above Log, with States/Machine I/O/Scale/Guards/WiFi/AP/Serial/CPU/CPU Profiling/RAM/HEAP/Date and time/MISC sections and one value per label');
   }
 }
 {
