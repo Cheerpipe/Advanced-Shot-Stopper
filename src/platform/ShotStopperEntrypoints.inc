@@ -58,7 +58,12 @@ uint32_t composeScaleProfileContext(char *text, size_t capacity) {
              static_cast<int>(control.weightControlState));
   }
   for (char *c = text; *c != '\0'; ++c) {
-    if (static_cast<unsigned char>(*c) < 0x20 || *c == 0x7f) *c = ' ';
+    // Keep newlines: the TXT emitter controls line boundaries and splits on
+    // them. Strip every other control character.
+    if (*c != '\n' &&
+        (static_cast<unsigned char>(*c) < 0x20 || *c == 0x7f)) {
+      *c = ' ';
+    }
   }
   return g_wallClock.synced() ? g_wallClock.nowUtcSec(millis()) : 0;
 }

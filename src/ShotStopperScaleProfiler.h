@@ -93,6 +93,7 @@ enum class ScaleProfileEvent : uint16_t {
   CONTROL_SUSPENDED,
   CONTROL_RECOVERED,
   SETTINGS_CHANGED,
+  REFERENCE_CHANGED,
 };
 
 enum class ScaleProfileTareOrigin : uint8_t {
@@ -210,6 +211,7 @@ inline const char *scaleProfileEventName(ScaleProfileEvent kind) {
     case ScaleProfileEvent::CONTROL_SUSPENDED: return "CONTROL_SUSPENDED";
     case ScaleProfileEvent::CONTROL_RECOVERED: return "CONTROL_RECOVERED";
     case ScaleProfileEvent::SETTINGS_CHANGED: return "SETTINGS_CHANGED";
+    case ScaleProfileEvent::REFERENCE_CHANGED: return "REFERENCE_CHANGED";
   }
   return "UNKNOWN";
 }
@@ -378,6 +380,34 @@ class ScaleProfiler {
     captureMux_.unlock();
   }
 
+  // Dropped-frame observation that keeps the frame's own reception time
+  // (the library stamps it when the notification arrived), not the later
+  // dequeue time.
+  void noteDroppedFrame(bool stale, bool decoded, float weightG,
+                        uint32_t receivedAtMs, uint32_t connectionGeneration,
+                        uint32_t captureSequence, uint16_t length,
+                        uint32_t nowMs) {
+    if (!recording()) return;
+    captureMux_.lock();
+    if (state_ != ScaleProfilerState::RECORDING ||
+        static_cast<int32_t>(receivedAtMs - epochMs_) < 0) {
+      captureMux_.unlock();
+      return;
+    }
+    ScaleProfileRecord record;
+    record.relativeMs = receivedAtMs - epochMs_;
+    record.connectionGeneration = connectionGeneration;
+    record.sequence = captureSequence;
+    record.weightG = decoded ? weightG : NAN;
+    record.arg1 = length;
+    record.flags = decoded ? SCALE_PROFILE_FLAG_DECODED : 0;
+    record.kind =
+        static_cast<uint16_t>(stale ? ScaleProfileEvent::STALE_FRAME
+                                    : ScaleProfileEvent::FRAME_UNDECODABLE);
+    appendLocked_(record, nowMs);
+    captureMux_.unlock();
+  }
+
   void noteEvent(ScaleProfileEvent kind, uint32_t nowMs,
                  uint32_t connectionGeneration, uint32_t sequence, float weightG,
                  uint32_t arg1, uint32_t arg2, uint16_t flags = 0) {
@@ -405,11 +435,12 @@ class ScaleProfiler {
 
   void bootInit() {
 #if !defined(SHOT_STOPPER_HOST_TEST)
-    ScaleProfileHeader header;
     const bool available = storePartition() != nullptr;
+    ScaleProfileHeader header;
+    const bool loaded = available && storeReadHeader(header);
     captureMux_.lock();
     partitionAvailable_ = available;
-    if (available && storeReadHeaderLocked(header)) adoptSavedHeaderLocked_(header);
+    if (loaded) adoptSavedHeaderLocked_(header);
     captureMux_.unlock();
     stateAtomic_.store(state_, std::memory_order_release);
 #endif
@@ -422,27 +453,29 @@ class ScaleProfiler {
     consumeFlashResult_(nowMs);
     ScaleProfilerWork work = ScaleProfilerWork::NONE;
     captureMux_.lock();
-    if (pendingWork_ != ScaleProfilerWork::NONE && !workDispatched_) {
-      work = pendingWork_;  // Re-dispatch after a failed enqueue.
-    } else {
-      switch (request) {
-        case ScaleProfilerRequest::START:
-          work = beginStartLocked_(nowMs);
-          break;
-        case ScaleProfilerRequest::STOP:
-          if (state_ == ScaleProfilerState::RECORDING) {
-            stopLocked_(ScaleProfilerStopReason::USER, nowMs);
-          }
-          break;
-        case ScaleProfilerRequest::DELETE:
-          work = beginDeleteLocked_();
-          break;
-        case ScaleProfilerRequest::NONE:
-          break;
-      }
+    // Requests are serviced first so a Start/Stop/Delete is never silently
+    // consumed by a retry window; the guards make them safe mid-dispatch.
+    switch (request) {
+      case ScaleProfilerRequest::START:
+        work = beginStartLocked_(nowMs);
+        break;
+      case ScaleProfilerRequest::STOP:
+        if (state_ == ScaleProfilerState::RECORDING) {
+          stopLocked_(ScaleProfilerStopReason::USER, nowMs);
+        }
+        break;
+      case ScaleProfilerRequest::DELETE:
+        work = beginDeleteLocked_();
+        break;
+      case ScaleProfilerRequest::NONE:
+        break;
     }
     serviceRecordingLocked_(nowMs);
     work = servicePersistenceLocked_(nowMs, work);
+    if (work == ScaleProfilerWork::NONE &&
+        pendingWork_ != ScaleProfilerWork::NONE && !workDispatched_) {
+      work = pendingWork_;  // Re-dispatch after a failed enqueue.
+    }
     const ScaleProfilerState published = state_;
     captureMux_.unlock();
     stateAtomic_.store(published, std::memory_order_release);
@@ -475,7 +508,6 @@ class ScaleProfiler {
     if (!tryLockFlashIo()) return FlashStoreStepResult::FAILED;
     bool ok = false;
     bool complete = false;
-    uint8_t chunk[FLASH_IO_CHUNK_BYTES];
     const esp_partition_t *part = storePartition();
     switch (phase) {
       case FlashPhase::INVALIDATE:
@@ -498,6 +530,7 @@ class ScaleProfiler {
         break;
       }
       case FlashPhase::SAVE_BODY: {
+        uint8_t chunk[FLASH_IO_CHUNK_BYTES];
         const size_t count = gatherChunk_(chunk, flashSave_.bodyIndex);
         if (count == 0) {
           // bodyIndex already past the end; the transition below advances
@@ -519,6 +552,7 @@ class ScaleProfiler {
         break;
       }
       case FlashPhase::SAVE_VERIFY: {
+        uint8_t chunk[FLASH_IO_CHUNK_BYTES];
         const size_t count = gatherChunk_(chunk, flashSave_.bodyIndex);
         if (count == 0) {
           ok = true;
@@ -540,6 +574,7 @@ class ScaleProfiler {
         const void *staged = copyToFlashIoScratch(&header, sizeof(header));
         ok = staged != nullptr &&
              esp_partition_write(part, 0, staged, sizeof(header)) == ESP_OK;
+        complete = ok;
         break;
       }
       case FlashPhase::IDLE:
@@ -588,16 +623,27 @@ class ScaleProfiler {
   }
 
   // Factory reset (network task, blocking like the other durable clears).
+  // Refuses while the persistence worker owns a flash step or a download
+  // pins the trace: reset must never free memory that worker still reads,
+  // and a late commit must never resurrect the erased trace.
   bool clearForFactoryReset() {
+    captureMux_.lock();
+    if (flashInFlight_ || pendingWork_ != ScaleProfilerWork::NONE ||
+        downloadLease_.load(std::memory_order_relaxed) != 0) {
+      captureMux_.unlock();
+      return false;
+    }
+    captureMux_.unlock();
 #if !defined(SHOT_STOPPER_HOST_TEST)
     if (partitionAvailable()) {
       const esp_partition_t *part = storePartition();
-      if (part == nullptr || !tryLockFlashIo() ||
-          esp_partition_erase_range(part, 0, FLASH_IO_SECTOR_BYTES) != ESP_OK) {
+      bool erased = part != nullptr && tryLockFlashIo();
+      if (erased) {
+        erased = esp_partition_erase_range(part, 0, FLASH_IO_SECTOR_BYTES) ==
+                 ESP_OK;
         unlockFlashIo();
-        return false;
       }
-      unlockFlashIo();
+      if (!erased) return false;
     }
 #endif
     captureMux_.lock();
@@ -623,7 +669,22 @@ class ScaleProfiler {
   bool acquireDownloadLease() {
     uint32_t expected = 0;
     captureMux_.lock();
-    const bool usable = downloadTargetLocked();
+    bool usable = (state_ == ScaleProfilerState::STOPPED &&
+                   workspace_ != nullptr) ||
+                  (state_ == ScaleProfilerState::SAVED && savedRecordCount_ != 0);
+    if (usable && state_ == ScaleProfilerState::STOPPED && !indexReady_ &&
+        workspace_ != nullptr) {
+      if (index_ == nullptr) {
+        index_ = static_cast<uint32_t *>(
+            allocExternal(SCALE_PROFILE_INDEX_BYTES, AllocationOwner::PROFILER));
+      }
+      if (index_ != nullptr) {
+        buildIndexLocked_();
+        indexReady_ = true;
+      } else {
+        usable = false;  // Without the ordering index nothing is exportable.
+      }
+    }
     const uint32_t generation = generation_;
     captureMux_.unlock();
     if (!usable) return false;
@@ -646,12 +707,14 @@ class ScaleProfiler {
 
   void releaseDownloadLease() { downloadLease_.store(0, std::memory_order_release); }
 
-  // True when the frozen RAM trace is the download source (not yet saved).
+  // True when the frozen RAM trace is the download source. Gated on the
+  // lease, not the state: a save may complete mid-download and flip the
+  // state to SAVED while this export still streams from memory.
   bool downloadFromRam() const {
     captureMux_.lock();
-    const bool fromRam = state_ == ScaleProfilerState::STOPPED &&
-                         workspace_ != nullptr &&
-                         downloadLease_.load(std::memory_order_relaxed) == generation_;
+    const bool fromRam = workspace_ != nullptr && indexReady_ &&
+                         downloadLease_.load(std::memory_order_relaxed) ==
+                             generation_;
     captureMux_.unlock();
     return fromRam;
   }
@@ -667,8 +730,9 @@ class ScaleProfiler {
   ScaleProfileRecord downloadRecordAt(uint32_t index) const {
     ScaleProfileRecord record = {};
     captureMux_.lock();
-    if (state_ != ScaleProfilerState::SAVED && records_ != nullptr &&
-        index_ != nullptr && index < recordCount_) {
+    if (records_ != nullptr && index_ != nullptr && indexReady_ &&
+        index < recordCount_ &&
+        downloadLease_.load(std::memory_order_relaxed) == generation_) {
       record = records_[index_[index]];
     }
     captureMux_.unlock();
@@ -685,12 +749,18 @@ class ScaleProfiler {
   }
 
 #if !defined(SHOT_STOPPER_HOST_TEST)
-  // Flash-source download: validated header plus sequential record reads.
+  // Flash-source download: validated header read. Flash-only, so it never
+  // holds the capture mutex across the flash lock (producers must not wait
+  // behind flash I/O).
   bool storeReadHeader(ScaleProfileHeader &header) const {
-    captureMux_.lock();
-    const bool ok = storeReadHeaderLocked(header);
-    captureMux_.unlock();
-    return ok;
+    const esp_partition_t *part = storePartition();
+    if (part == nullptr || !tryLockFlashIo()) return false;
+    const bool ok = esp_partition_read(part, 0, flashIoScratchBytes(),
+                                       sizeof(header)) == ESP_OK;
+    unlockFlashIo();
+    if (!ok) return false;
+    memcpy(&header, flashIoScratchBytes(), sizeof(header));
+    return scaleProfileHeaderValid(header);
   }
 
   bool storeReadRecords(uint32_t startIndex, uint8_t *out, size_t recordCount) const {
@@ -890,20 +960,11 @@ class ScaleProfiler {
                : nullptr;
   }
 
-  bool storeReadHeaderLocked(ScaleProfileHeader &header) const {
-    const esp_partition_t *part = storePartition();
-    if (part == nullptr || !tryLockFlashIo()) return false;
-    const bool ok = esp_partition_read(part, 0, flashIoScratchBytes(),
-                                       sizeof(header)) == ESP_OK;
-    unlockFlashIo();
-    if (!ok) return false;
-    memcpy(&header, flashIoScratchBytes(), sizeof(header));
-    return scaleProfileHeaderValid(header);
-  }
 #endif
 
   bool downloadTargetLocked() const {
-    return (state_ == ScaleProfilerState::STOPPED && workspace_ != nullptr) ||
+    return (state_ == ScaleProfilerState::STOPPED && workspace_ != nullptr &&
+            indexReady_) ||
            (state_ == ScaleProfilerState::SAVED && savedRecordCount_ != 0);
   }
 
@@ -1032,8 +1093,11 @@ class ScaleProfiler {
     if (state_ != ScaleProfilerState::STOPPED && state_ != ScaleProfilerState::SAVED) {
       return ScaleProfilerWork::NONE;
     }
+    // Mirrors the UI matrix: never delete while a save is pending, active,
+    // invalidating, or while a download pins the frozen trace.
     if (downloadLease_.load(std::memory_order_relaxed) != 0 || flashInFlight_ ||
         persistence_ == ScaleProfilerPersistence::SAVING ||
+        persistence_ == ScaleProfilerPersistence::PENDING_SAVE ||
         persistence_ == ScaleProfilerPersistence::INVALIDATING) {
       lastError_ = ScaleProfilerError::BUSY;
       return ScaleProfilerWork::NONE;
@@ -1112,12 +1176,22 @@ class ScaleProfiler {
     // no longer be admitted.
     if (recordCount_ < SCALE_PROFILE_RECORD_CAPACITY) {
       records_[recordCount_++] = terminal;
+      ++eventCount_;
     }
     durationMs_ = terminal.relativeMs;
     stopReason_ = reason;
     persistence_ = ScaleProfilerPersistence::PENDING_SAVE;
     indexReady_ = false;
     state_ = ScaleProfilerState::STOPPED;
+    // Keep the RAM header download-ready with the final counters.
+    workspace_->header.recordCount = recordCount_;
+    workspace_->header.payloadBytes =
+        recordCount_ * SCALE_PROFILE_RECORD_BYTES;
+    workspace_->header.durationMs = durationMs_;
+    workspace_->header.stopReason = static_cast<uint32_t>(reason);
+    workspace_->header.lostCount = lostCount_;
+    workspace_->header.weightCount = weightCount_;
+    workspace_->header.eventCount = eventCount_;
   }
 
   void serviceRecordingLocked_(uint32_t nowMs) {
@@ -1133,6 +1207,12 @@ class ScaleProfiler {
 
   ScaleProfilerWork servicePersistenceLocked_(uint32_t nowMs,
                                               ScaleProfilerWork work) {
+    if (state_ == ScaleProfilerState::SAVED &&
+        persistence_ == ScaleProfilerPersistence::SAVED &&
+        downloadLease_.load(std::memory_order_relaxed) == 0 &&
+        workspace_ != nullptr) {
+      releaseWorkspaceLocked_();  // Saved and not streaming: reclaim PSRAM.
+    }
     if (state_ == ScaleProfilerState::STOPPED && !indexReady_ &&
         records_ != nullptr) {
       if (index_ == nullptr) {
@@ -1320,6 +1400,16 @@ inline void scaleProfileNoteEvent(ScaleProfileEvent kind, uint32_t nowMs,
                             arg1, arg2, flags);
 }
 
+inline void scaleProfileNoteDroppedFrame(bool stale, bool decoded,
+                                         float weightG, uint32_t receivedAtMs,
+                                         uint32_t connectionGeneration,
+                                         uint32_t captureSequence,
+                                         uint16_t length, uint32_t nowMs) {
+  scaleProfiler().noteDroppedFrame(stale, decoded, weightG, receivedAtMs,
+                                   connectionGeneration, captureSequence,
+                                   length, nowMs);
+}
+
 // Formats one TXT data row in the requested shape:
 //   +SSSSSS.mmm – weight|NAME key=value...
 // The weight round-trips the captured float32 (9 significant digits); events
@@ -1464,6 +1554,11 @@ inline size_t formatScaleProfileRow(char *out, size_t capacity,
       break;
     case ScaleProfileEvent::SETTINGS_CHANGED:
       snprintf(suffix, sizeof(suffix), " revision=%lu",
+               static_cast<unsigned long>(record.arg1));
+      break;
+    case ScaleProfileEvent::REFERENCE_CHANGED:
+      snprintf(suffix, sizeof(suffix), " connection=%lu write=%lu",
+               static_cast<unsigned long>(record.connectionGeneration),
                static_cast<unsigned long>(record.arg1));
       break;
   }

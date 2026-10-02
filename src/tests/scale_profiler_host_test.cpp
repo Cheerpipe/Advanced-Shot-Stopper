@@ -202,6 +202,36 @@ void testDownloadLeasePinsGeneration() {
   CHECK(profiler.hostState() == ScaleProfilerState::EMPTY);
 }
 
+void testSaveCompletingMidDownloadKeepsRamStream() {
+  ScaleProfiler profiler;
+  CHECK(profiler.hostStartNoFlash(T0));
+  noteWeightAt(profiler, T0 + 10, 1.0f, 1);
+  noteWeightAt(profiler, T0 + 20, 2.0f, 2);
+  profiler.hostStop(ScaleProfilerStopReason::USER, T0 + 100);
+  profiler.hostServiceIdle(T0 + 200);  // Dispatches the save.
+  CHECK(profiler.acquireDownloadLease());
+  // The save finishes while the export is mid-stream: the lease keeps the
+  // RAM generation readable instead of fabricating zero rows.
+  profiler.hostPublishFlashResult(true);
+  profiler.hostServiceIdle(T0 + 300);
+  CHECK(profiler.hostState() == ScaleProfilerState::SAVED);
+  CHECK(profiler.downloadFromRam());
+  CHECK(profiler.downloadRecordCount() == 4);
+  CHECK(profiler.downloadRecordAt(0).kind ==
+        static_cast<uint16_t>(ScaleProfileEvent::PROFILE_START));
+  CHECK(profiler.downloadRecordAt(1).sequence == 1);
+  CHECK(profiler.downloadRecordAt(2).sequence == 2);
+  CHECK(profiler.downloadRecordAt(3).kind ==
+        static_cast<uint16_t>(ScaleProfileEvent::PROFILE_STOP));
+  const ScaleProfileHeader header = profiler.downloadHeader();
+  CHECK(header.weightCount == 2);
+  CHECK(header.eventCount == 2);  // start + terminal
+  CHECK(header.recordCount == 4);
+  profiler.releaseDownloadLease();
+  profiler.hostServiceIdle(T0 + 400);  // Reclaims the saved workspace.
+  CHECK(!profiler.downloadFromRam());
+}
+
 void testSaveResultTransitionsAndFailureRetry() {
   ScaleProfiler profiler;
   CHECK(profiler.hostStartNoFlash(T0));
@@ -283,6 +313,7 @@ void runAll() {
   testIndexOrdersByTimeThenOrdinal();
   testTxtRowShapeAndPrecision();
   testDownloadLeasePinsGeneration();
+  testSaveCompletingMidDownloadKeepsRamStream();
   testSaveResultTransitionsAndFailureRetry();
   testStartRetryNeverRestartsActiveSession();
   testHeaderContextProviderRunsAtStart();

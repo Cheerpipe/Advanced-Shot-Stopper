@@ -1278,14 +1278,22 @@ void executeScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
       result = scale.stopTimer(&admission);
       break;
     case BookooDebugAction::TARE:
-      result = scale.tare(&admission);
-      break;
     case BookooDebugAction::COMBINED:
-      if (!scale.features().has(ScaleFeatureCombinedTareStart)) {
+      if (action == BookooDebugAction::COMBINED &&
+          !scale.features().has(ScaleFeatureCombinedTareStart)) {
         addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_DEBUG_UNSUPPORTED);
         return;
       }
-      result = scale.tareStartTimer(&admission);
+      scaleProfileNoteEvent(
+          ScaleProfileEvent::TARE_REQUEST, millis(), generation, 0, NAN, 0,
+          static_cast<uint32_t>(ScaleProfileTareOrigin::MANUAL));
+      result = action == BookooDebugAction::TARE
+                   ? scale.tare(&admission)
+                   : scale.tareStartTimer(&admission);
+      scaleProfileNoteEvent(
+          scaleCommandOk(result) ? ScaleProfileEvent::TARE_WRITE_OK
+                                 : ScaleProfileEvent::TARE_WRITE_FAILED,
+          millis(), generation, 0, NAN, 0, 0);
       break;
     case BookooDebugAction::BEEP:
       if (!scale.features().has(ScaleFeatureIndependentBeep)) {
@@ -2796,15 +2804,13 @@ void scaleWorkerTask(void *) {
 }
 
 // Task-context observer for frames the library drops before decoding into
-// weights. Pure observation: the frame stays ineligible for control.
+// weights. Pure observation: the frame stays ineligible for control. The
+// note keeps the frame's own reception time.
 void handleScaleDroppedFrameForProfile(const ScaleDroppedFrame &frame) {
-  const uint32_t nowMs = millis();
   const bool stale = frame.reason == ScaleFrameDropReason::Stale;
-  scaleProfileNoteEvent(
-      stale ? ScaleProfileEvent::STALE_FRAME : ScaleProfileEvent::FRAME_UNDECODABLE,
-      nowMs, frame.generation, frame.captureSequence,
-      frame.weightDecoded ? frame.weightG : NAN, frame.length, 0,
-      frame.weightDecoded ? SCALE_PROFILE_FLAG_DECODED : 0);
+  scaleProfileNoteDroppedFrame(
+      stale, frame.weightDecoded, frame.weightG, frame.receivedAtMs,
+      frame.generation, frame.captureSequence, frame.length, millis());
 }
 
 bool initializeScaleWorker() {

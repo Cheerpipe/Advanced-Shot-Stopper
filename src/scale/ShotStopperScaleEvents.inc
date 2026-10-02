@@ -443,6 +443,10 @@ void processScaleWorkerEvents() {
     }
     switch (event.type) {
       case ScaleEventType::REFERENCE_CHANGED:
+        scaleProfileNoteEvent(
+            ScaleProfileEvent::REFERENCE_CHANGED, millis(),
+            eventLink.connectionGeneration, 0, NAN,
+            event.writeSucceeded ? 1 : 0, 0);
         markShotCurveBreak();
         session.touchStop = {};
         if (idleTare.requestId != 0) {

@@ -620,8 +620,10 @@ esp_err_t ShotStopperNetwork::scaleProfileDownloadHandler(
     ok = written > 0 && sink.line(line, static_cast<size_t>(written));
   }
   if (ok) {
-    written = snprintf(line, sizeof(line), "utcStart=%lu",
-                       static_cast<unsigned long>(utcStartSec));
+    written = utcStartSec != 0
+                  ? snprintf(line, sizeof(line), "utcStart=%lu",
+                             static_cast<unsigned long>(utcStartSec))
+                  : snprintf(line, sizeof(line), "utcStart=unknown");
     ok = written > 0 && sink.line(line, static_cast<size_t>(written));
   }
   if (ok) {
