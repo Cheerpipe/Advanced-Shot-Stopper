@@ -54,6 +54,15 @@ Home values and signal readings are illustrative; navigation and switches are
 presentation-only. This preview does not connect to a device, change saved
 settings, or ship in firmware assets.
 
+### No-scale guard icon preview
+
+Open `http://127.0.0.1:4173/compare#no-scale` on the same running server
+to compare the current solid scale icon with five outlined alternatives.
+Each option keeps the icon canvas and the circle/X proportions, fills the
+display and buttons, and slightly shortens the body. Enlarged views and
+24, 32 and 48 pixel samples show the icon on light and dark backgrounds.
+These designs are preview-only and do not change the firmware icon.
+
 ## USB installation
 
 Review the selected profiles and physical safety before adding `--confirm`.
