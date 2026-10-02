@@ -52,7 +52,7 @@ struct IdleTareRuntime {
 IdleTareRuntime idleTare;
 uint32_t nextIdleTareRequestId = 1;
 
-void cancelPendingFinalize(const char *reason);
+void cancelPendingFinalize(const char *reason, uint32_t profileReason);
 
 IdleTareReason idleTareEligibilityReason() {
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
@@ -80,6 +80,7 @@ IdleTareReason idleTareEligibilityReason() {
 }
 
 void releaseIdleTareRequest(IdleTareReason reason = IdleTareReason::NONE) {
+  const ProfileControlObservation profile;
   IdleTareStatus released;
   if (!cancelIdleScaleTare(idleTare.requestId, &released)) {
     if (idleTare.deferredReason == IdleTareReason::NONE)
@@ -147,6 +148,7 @@ void releaseIdleTareRequest(IdleTareReason reason = IdleTareReason::NONE) {
 }
 
 void serviceIdleTare() {
+  const ProfileControlObservation profile;
   if (!runtimeConfig.autoTareOutsideBrew && idleTare.requestId == 0 &&
       !idleTare.eligible) {
     idleTare.eligibilityReason = IdleTareReason::FEATURE_DISABLED;
@@ -209,6 +211,10 @@ void serviceIdleTare() {
   } else if (
       elapsedMs(idleTare.requestedAtMs) >=
           SCALE_ATT_TIMEOUT_MS + runtimeConfig.postTareBaselineGraceMs) {
+    scaleProfileNoteEvent(ScaleProfileEvent::TARE_BASELINE_TIMEOUT, millis(),
+                          idleTare.connectionGeneration, idleTare.lastCaptureSequence,
+                          NAN, idleTare.requestId,
+                          static_cast<uint32_t>(IdleTareReason::EFFECT_UNCONFIRMED));
     releaseIdleTareRequest(IdleTareReason::EFFECT_UNCONFIRMED);
   }
 }
@@ -315,6 +321,7 @@ bool observeIdleTareSample(float weight, uint32_t atMs, uint32_t sequence,
 }
 
 void handleIdleCupEvent(CupPresenceEvent event, bool accessory = false) {
+  const ProfileControlObservation profile;
   if (event == CupPresenceEvent::REMOVED) {
     idleTare.cupStillPresent = false;
     idleTare.accessoryPlacementId = 0;
@@ -335,6 +342,10 @@ void handleIdleCupEvent(CupPresenceEvent event, bool accessory = false) {
       !getScaleLinkSnapshot().features.has(ScaleFeatureTare)) {
     idleTare.lastReason = !placedInIdle ? IdleTareReason::NO_ABSENCE
         : idleTare.requestId != 0 ? IdleTareReason::SLOT_BUSY : IdleTareReason::UNSUPPORTED;
+    scaleProfileNoteEvent(ScaleProfileEvent::TARE_REJECTED, millis(),
+                          idleTare.connectionGeneration, idleTare.lastPacketSequence,
+                          idleTare.lastWeightG, cupPresencePlacementId(),
+                          static_cast<uint32_t>(idleTare.lastReason));
     return;
   }
   ScaleCommand command;
@@ -350,6 +361,10 @@ void handleIdleCupEvent(CupPresenceEvent event, bool accessory = false) {
       getScaleLinkSnapshot().features.has(ScaleFeatureCommandAudibleFeedback);
   if (!enqueueScaleCommand(command)) {
     idleTare.lastReason = IdleTareReason::QUEUE_FULL;
+    scaleProfileNoteEvent(ScaleProfileEvent::TARE_REJECTED, millis(),
+                          idleTare.connectionGeneration, idleTare.lastPacketSequence,
+                          idleTare.lastWeightG, cupPresencePlacementId(),
+                          static_cast<uint32_t>(idleTare.lastReason));
     return;
   }
   idleTare.requestId = command.idleTareRequestId;
@@ -435,6 +450,12 @@ void observeIdleAccessory(float weight, uint32_t atMs) {
       fmaxf(weight, idleTare.accessoryMaximumG) -
           fminf(weight, idleTare.accessoryMinimumG) >
           runtimeConfig.retareStabilityToleranceG) {
+    if (idleTare.accessorySamples != 0)
+      scaleProfileNoteEvent(ScaleProfileEvent::CUP_QUALIFICATION_RESET, millis(),
+                            idleTare.connectionGeneration, idleTare.lastPacketSequence, weight, 2,
+                            static_cast<uint32_t>(atMs - idleTare.accessoryLastAtMs >
+                                runtimeConfig.retareStabilityMaxGapMs
+                                ? IdleTareReason::SAMPLE_GAP : IdleTareReason::UNSTABLE));
     idleTare.accessorySamples = 0;
     idleTare.accessoryStartedAtMs = atMs;
     idleTare.accessoryMinimumG = idleTare.accessoryMaximumG = weight;

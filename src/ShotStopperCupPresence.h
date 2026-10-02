@@ -158,6 +158,11 @@ void observeEmptyCupWeight(float weight, uint32_t atMs, bool initialRecovery) {
       fmaxf(weight, mass.emptyMaximumG) - fminf(weight, mass.emptyMinimumG) >
           runtimeConfig.retareStabilityToleranceG) {
     // Restart qualification without discarding the last stable plateau.
+    if (mass.emptySamples != 0)
+      scaleProfileNoteEvent(ScaleProfileEvent::CUP_QUALIFICATION_RESET, millis(),
+                            mass.connectionGeneration, mass.sampleSequence, weight, 0,
+                            static_cast<uint32_t>(atMs - mass.emptyLastAtMs > runtimeConfig.retareStabilityMaxGapMs
+                                ? IdleTareReason::SAMPLE_GAP : IdleTareReason::UNSTABLE));
     mass.emptySamples = 0;
     mass.emptyStartedAtMs = atMs;
     mass.emptyMinimumG = mass.emptyMaximumG = weight;
@@ -186,6 +191,7 @@ void restoreCupTareReference(bool previouslyTared, float previousReferenceG) {
 }
 
 void markCupTareReferenceUncertain() {
+  const ProfileControlObservation profile;
   invalidateCupWeight();
   cupPresence.emptyAnchorG = NAN;
   cupPresence.initialZeroRecoveryAllowed = false;
@@ -204,6 +210,10 @@ void resetCupSampleEvidence() {
 }
 
 void resetCupPresence() {
+  const ProfileControlObservation profile;
+  scaleProfileNoteEvent(ScaleProfileEvent::CUP_RESET, millis(),
+                        cupPresence.weight.connectionGeneration, 0, NAN,
+                        cupPresence.placementId, 0);
   cupPresence = CupPresenceRuntime{};
 }
 
@@ -229,6 +239,7 @@ void resyncCupPresenceIfPanEmpty(float weight) {
 }
 
 void holdCupPresenceTransitions(bool hold) {
+  const ProfileControlObservation profile;
   cupPresence.holdTransitions = hold;
   cupPresence.weight.unloadSamples = 0;
   cupPresence.weight.unloadQualified = false;
@@ -422,6 +433,11 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
       fmaxf(weight, cupPresence.placeMaximumG) -
               fminf(weight, cupPresence.placeMinimumG) >
           runtimeConfig.retareStabilityToleranceG) {
+    scaleProfileNoteEvent(ScaleProfileEvent::CUP_QUALIFICATION_RESET, millis(),
+                          mass.connectionGeneration, packetSequence, weight, 1,
+                          static_cast<uint32_t>(receivedAtMs - cupPresence.placeLastSampleAtMs >
+                              runtimeConfig.retareStabilityMaxGapMs
+                              ? IdleTareReason::SAMPLE_GAP : IdleTareReason::UNSTABLE));
     cupPresence.placeCandidateWeightG = weight;
     cupPresence.placeMinimumG = weight;
     cupPresence.placeMaximumG = weight;

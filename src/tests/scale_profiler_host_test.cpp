@@ -7,6 +7,7 @@
 #include <cstring>
 #include <iostream>
 #include <string>
+#include <thread>
 
 namespace {
 
@@ -304,7 +305,97 @@ void testBudgetMatchesPlan() {
   CHECK(sizeof(ScaleProfileHeader) <= 4096);
 }
 
+void testIdleTarePresentation() {
+  CupTareDiagnostics tare;
+  CHECK(idleTarePresentationCode(tare, false) == IDLE_WAITING_FOR_SETTLE);
+  tare.absentObserved = true;
+  CHECK(idleTarePresentationCode(tare, false) == IDLE_READY_FOR_CUP);
+  tare.emptyReferenceBlocked = true;
+  CHECK(idleTarePresentationCode(tare, false) == IDLE_UNCERTAIN);
+  tare.emptyReferenceBlocked = false;
+  tare.referenceKnown = false;
+  CHECK(idleTarePresentationCode(tare, false) == IDLE_UNCERTAIN);
+  tare.requestId = 1;
+  CHECK(idleTarePresentationCode(tare, false) == IDLE_PENDING);
+  tare.eligibilityReason = static_cast<uint8_t>(IdleTareReason::MACHINE_NOT_OFF);
+  CHECK(std::string(idleTarePresentationName(idleTarePresentationCode(tare, false))) == "machine_not_off");
+  tare = CupTareDiagnostics{};
+  CHECK(idleTarePresentationCode(tare, true) == IDLE_REMOVE);
+  tare.lastTerminalRequestId = 1;
+  tare.placementId = tare.requestPlacementId = 2;
+  CHECK(idleTarePresentationCode(tare, true) == IDLE_RETRY);
+  tare.tared = true;
+  CHECK(idleTarePresentationCode(tare, true) == IDLE_TARED);
+}
+
+void testStateObservations() {
+  ScaleProfiler profiler;
+  using S = ScaleProfileSignal;
+  ScaleProfileValue values[] = {{S::CUP_PRESENT, 1}, {S::IDLE_REQUEST_ID, 42}};
+  CHECK(profiler.hostStartNoFlash(T0));
+  profiler.noteValues(values, 2, T0 + 1, 7, 23);
+  CHECK(profiler.hostRecordCount() == 3);
+  CHECK(profiler.hostRecord(1).flags & SCALE_PROFILE_INITIAL);
+  profiler.noteValues(values, 2, T0 + 2, 7, 24);
+  CHECK(profiler.hostRecordCount() == 3); // New sample alone is not a state change.
+  values[0].value = 0;
+  profiler.noteValues(values, 2, T0 + 3, 7, 25);
+  const auto removed = profiler.hostRecord(3);
+  CHECK(removed.arg1 == 1 && removed.arg2 == 0 && removed.sequence == 25);
+  CHECK(!(removed.flags & SCALE_PROFILE_INITIAL));
+  char line[192];
+  CHECK(formatScaleProfileRow(line, sizeof(line), removed) != 0);
+  CHECK(std::string(line).find("CUP_PRESENT from=1 to=0 capture=25 connection=7") != std::string::npos);
+  profiler.noteValues(values, 2, T0 + 4, 8, 1);
+  CHECK(profiler.hostRecordCount() == 6); // Reconnection renews unchanged evidence.
+  profiler.hostStop(ScaleProfilerStopReason::USER, T0 + 5);
+  profiler.noteValues(values, 2, T0 + 6, 8, 2);
+  CHECK(profiler.hostRecordCount() == 7);
+  CHECK(profiler.hostStartNoFlash(T0 + 10));
+  profiler.noteValues(values, 2, T0 + 11, 8, 3);
+  CHECK(profiler.hostRecordCount() == 3);
+  CHECK(profiler.hostRecord(1).flags & SCALE_PROFILE_INITIAL);
+  ScaleProfileRecord unknown;
+  unknown.kind = 0xffff;
+  CHECK(formatScaleProfileRow(line, sizeof(line), unknown) != 0);
+  CHECK(std::string(line).find("UNKNOWN kind=65535") != std::string::npos);
+  auto header = profiler.hostHeader();
+  CHECK(header.schemaVersion == 1 && scaleProfileHeaderValid(header));
+  for (uint32_t key = 0; key < static_cast<uint32_t>(S::COUNT); ++key) {
+    ScaleProfileRecord state;
+    state.kind = static_cast<uint16_t>(ScaleProfileEvent::STATE_CHANGED);
+    state.flags = static_cast<uint16_t>(key);
+    state.arg1 = state.arg2 = state.sequence = state.connectionGeneration = UINT32_MAX;
+    CHECK(formatScaleProfileRow(line, sizeof(line), state) != 0);
+  }
+}
+
+void testConcurrentStateAndWeightCapture() {
+  ScaleProfiler profiler;
+  CHECK(profiler.hostStartNoFlash(T0));
+  std::thread weights([&]() {
+    for (uint32_t i = 1; i <= 100; ++i) noteWeightAt(profiler, T0 + i, 1.0f, i);
+  });
+  std::thread states([&]() {
+    for (uint32_t i = 1; i <= 100; ++i) {
+      const ScaleProfileValue value{ScaleProfileSignal::IDLE_REQUEST_ID, i};
+      profiler.noteValues(&value, 1, T0 + i, 2, i);
+    }
+  });
+  weights.join();
+  states.join();
+  CHECK(profiler.hostRecordCount() == 201 && profiler.hostLostCount() == 0);
+  for (uint32_t i = 0; i < profiler.hostRecordCount(); ++i)
+    CHECK(profiler.hostRecord(i).ordinal == i + 1);
+  profiler.hostStop(ScaleProfilerStopReason::USER, T0 + 101);
+  profiler.hostServiceIdle(T0 + 102);
+  CHECK(profiler.hostHeader().recordCount == 202);
+}
+
 void runAll() {
+  testIdleTarePresentation();
+  testStateObservations();
+  testConcurrentStateAndWeightCapture();
   testLifecycleCapturesWeightsAndEvents();
   testStopReasonUserIsLastRecord();
   testPreEpochAndWrapAroundTimestamps();

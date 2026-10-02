@@ -49,6 +49,7 @@ bool beginRinseCycle(ControlSource source);
 bool enterRinse();
 
 void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
+  const ProfileControlObservation profile;
   refreshLoopGuardsFromLastIntention();
   if (source == ControlSource::PHYSICAL &&
       noScaleShotGuardNeedsFreshActivator) {
@@ -97,7 +98,7 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
   if (idleTareBlocksStart(source == ControlSource::PHYSICAL)) return;
 
   flushPendingScaleTimerStopNow();
-  cancelPendingFinalize("Previous drip analysis cancelled by a new cycle");
+  cancelPendingFinalize("Previous drip analysis cancelled by a new cycle", 2);
 
   resetSessionForNewCycle(source);
   session.startedAtMs = millis();
@@ -254,6 +255,7 @@ void appendActivationHistory(EndReason reason, bool rinseEnd,
 
 bool finalizeCycle(EndReason reason, StopperState nextState,
                    bool webStopActuation = false) {
+  const ProfileControlObservation profile;
   setScaleCommandCycle(0);
   const uint32_t durationMs = endedCycleDurationMs();
 
@@ -386,6 +388,7 @@ bool noScaleArmedRinseIsBlocked(ControlSource source) {
 }
 
 bool beginRinseCycle(ControlSource source) {
+  const ProfileControlObservation profile;
   if (idleTareBlocksStart(source == ControlSource::PHYSICAL)) return false;
   refreshLoopGuardsFromLastIntention();
   if (source == ControlSource::PHYSICAL && !noScaleGuardHistoryPending &&
@@ -422,7 +425,7 @@ bool beginRinseCycle(ControlSource source) {
   flushPendingScaleTimerStopNow();
   cancelPendingFinalize(source == ControlSource::WEB
                             ? "Previous drip analysis cancelled by a web rinse"
-                            : "Previous drip analysis cancelled by a rinse");
+                            : "Previous drip analysis cancelled by a rinse", 3);
   resetSessionForNewCycle(source);
   session.startedAtMs = millis();
   session.circuitClosedAtMs = 0;
@@ -597,6 +600,7 @@ void serviceCompatibilityMirror(const MachineIntention &intent) {
 }
 
 void stateMachineTask() {
+  const ProfileControlObservation profile;
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
   if (relay.tripped ||
       (relay.closed &&

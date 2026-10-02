@@ -59,17 +59,13 @@
   }
   // Parse the actual adjacent C++ format literals for both status paths.
   const status = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperStatus.inc'), 'utf8');
-  const projectIdleTare = new Function('tare', 'control', 'idleTareReasonName',
-    'return ' + status.match(/const char \*idleTare = ([\s\S]*?);/)[1] + ';');
-  const empty = {eligibilityReason: 0, requestId: 0, referenceKnown: true,
-    emptyReferenceBlocked: false, absentObserved: false};
-  for (const [changes, expected] of [[{}, 'empty'], [{absentObserved: true}, 'ready'],
-    [{emptyReferenceBlocked: true}, 'uncertain'], [{referenceKnown: false}, 'uncertain'],
-    [{emptyReferenceBlocked: true, requestId: 1}, 'pending'],
-    [{emptyReferenceBlocked: true, eligibilityReason: 1}, 'machine_not_off']]) {
-    const actual = projectIdleTare({...empty, ...changes}, {cupPresent: false},
-      () => 'machine_not_off');
-    if (actual !== expected) throw new Error('Idle tare projection: ' + expected);
+  // The shared C++ projection is exercised natively by scale_profiler_host_test.
+  // Keep the Web-specific legacy labels and shared projection binding explicit.
+  if (!status.includes('idleTarePresentationCode(tare, control.cupPresent)') ||
+      !status.includes('idleCode == IDLE_WAITING_FOR_SETTLE ? "empty"') ||
+      !status.includes('idleCode == IDLE_READY_FOR_CUP ? "ready"') ||
+      !status.includes('idleTarePresentationName(idleCode)')) {
+    throw new Error('Idle tare Web projection must preserve its public labels');
   }
   const blocks = [...status.matchAll(/"\\"cupPresence[^\n]*\n\s*("(?:\\.|[^"\\])*")/g)];
   if (blocks.length !== 2) throw new Error('Both cup JSON projections required');

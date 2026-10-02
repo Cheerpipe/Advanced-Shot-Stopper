@@ -103,13 +103,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char currentWeight[32] = "null";
   char cupWeight[32] = "null";
   const auto &tare = control.cupTare;
-  const char *idleTare = tare.eligibilityReason != 0 ? idleTareReasonName(tare.eligibilityReason)
-      : tare.requestId != 0 ? "pending"
-      : !tare.referenceKnown || tare.emptyReferenceBlocked ? "uncertain"
-      : control.cupPresent ? (tare.tared ? "tared"
-          : tare.requestPlacementId == tare.placementId && tare.lastTerminalRequestId != 0
-              ? "retry" : "remove")
-      : tare.absentObserved ? "ready" : "empty";
+  const uint8_t idleCode = idleTarePresentationCode(tare, control.cupPresent);
+  const char *idleTare = idleCode == IDLE_WAITING_FOR_SETTLE ? "empty" : idleCode == IDLE_READY_FOR_CUP ? "ready"
+      : idleTarePresentationName(idleCode);
   const bool cupWeightValid = control.cupPresent && control.cupTare.weightValid &&
                              std::isfinite(control.cupTare.weightG);
   if (cupWeightValid)

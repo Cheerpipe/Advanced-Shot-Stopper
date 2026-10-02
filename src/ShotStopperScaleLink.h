@@ -86,6 +86,7 @@ struct ScaleTareSample {
 };
 struct IdleTareStatus {
   uint32_t requestId = 0;
+  uint32_t connectionGeneration = 0;
   uint32_t approvedPacketSequence = 0;
   uint32_t startedAtMs = 0;
   uint32_t captureBoundary = 0;
@@ -94,6 +95,26 @@ struct IdleTareStatus {
   IdleTarePhase phase = IdleTarePhase::NONE;
   IdleTareReason reason = IdleTareReason::NONE;
 };
+
+// Shared Web/profiler presentation; these codes do not authorize a tare.
+enum IdleTarePresentation : uint8_t {
+  IDLE_WAITING_FOR_SETTLE = 32, IDLE_READY_FOR_CUP, IDLE_PENDING, IDLE_TARED,
+  IDLE_REMOVE, IDLE_RETRY, IDLE_UNCERTAIN
+};
+inline uint8_t idleTarePresentationCode(const CupTareDiagnostics &tare, bool present) {
+  if (tare.eligibilityReason != 0) return tare.eligibilityReason;
+  return tare.requestId != 0 ? IDLE_PENDING
+      : !tare.referenceKnown || tare.emptyReferenceBlocked ? IDLE_UNCERTAIN
+      : present ? (tare.tared ? IDLE_TARED
+          : tare.requestPlacementId == tare.placementId && tare.lastTerminalRequestId != 0 ? IDLE_RETRY : IDLE_REMOVE)
+      : tare.absentObserved ? IDLE_READY_FOR_CUP : IDLE_WAITING_FOR_SETTLE;
+}
+inline const char *idleTarePresentationName(uint8_t code) {
+  static const char *const names[] = {"waiting_for_settle", "ready_for_cup", "pending", "tared",
+                                     "remove", "retry", "uncertain"};
+  return code < IDLE_WAITING_FOR_SETTLE ? idleTareReasonName(code)
+      : code <= IDLE_UNCERTAIN ? names[code - IDLE_WAITING_FOR_SETTLE] : "unknown";
+}
 
 struct ScaleCommand {
   uint32_t cupWeightRequestId = 0;

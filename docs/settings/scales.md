@@ -230,3 +230,26 @@ can record a short trace of everything the scale sends and every tare, cup,
 touch, and first-drop decision that follows. See
 [the diagnostic guide](../FAQ.md)
 for how to start, stop, and download the recording.
+
+Use **Diagnostic → Scale profiling** to investigate unexpected cup detection,
+tare, or weight-controlled brewing. Start a capture, reproduce the behavior,
+stop the capture, and download the text file. For example, start with an empty
+pan, place a cup, wait for automatic tare, then lift the cup again.
+
+The recording includes received weights and the controller's interpretation:
+cup placement/removal, waiting for the pan or cup to settle, readiness for a
+cup, tare requests and results, uncertain references, and related brewing
+states. A successful tare command and a confirmed zero are separate events.
+Waiting or blocked states include reasons where the controller knows them.
+
+You can start while an operation is already underway. The first observation
+establishes its current state; later entries record changes without repeating
+unchanged states. The recording cannot recover events that happened before
+you started it. Cup events describe what the controller detected from the
+weight, rather than an independent measurement of the physical cup.
+
+A capture can also stop when its buffer fills. A busy session fills it sooner
+because weights and state changes share that space. Check the stop reason and
+lost-record count before treating a trace as complete. Completed captures are
+saved when safe and survive a restart; the download indicates whether saving
+has completed. Starting another capture replaces the previous one.

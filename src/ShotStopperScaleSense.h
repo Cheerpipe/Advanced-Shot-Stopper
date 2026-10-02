@@ -60,6 +60,10 @@ bool expirePostTareBaselineIfNeeded() {
   }
   session.awaitingPostTareBaseline = false;
   session.retareEffectPending = false;
+  scaleProfileNoteEvent(ScaleProfileEvent::TARE_BASELINE_TIMEOUT, millis(),
+                        session.ownedConnectionGeneration, 0, NAN,
+                        session.appliedTareRequestId,
+                        static_cast<uint32_t>(IdleTareReason::EFFECT_UNCONFIRMED));
   addDebugEvent(DebugCategory::SCALE,
                 DebugCode::SCALE_POST_TARE_BASELINE_TIMEOUT,
                 static_cast<int32_t>(session.id),

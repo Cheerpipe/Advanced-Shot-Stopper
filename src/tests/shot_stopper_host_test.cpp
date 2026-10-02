@@ -8175,6 +8175,107 @@ void prepareIdleTare() {
   idleCup(0.0f);
 }
 
+bool profileHasState(ScaleProfileSignal signal, uint32_t value) {
+  for (uint32_t i = 0; i < scaleProfiler().hostRecordCount(); ++i) {
+    const auto row = scaleProfiler().hostRecord(i);
+    if (row.kind == static_cast<uint16_t>(ScaleProfileEvent::STATE_CHANGED) &&
+        (row.flags & ~SCALE_PROFILE_INITIAL) == static_cast<uint16_t>(signal) &&
+        row.arg2 == value) return true;
+  }
+  return false;
+}
+
+void sp01_profile_explains_idle_cup_tare_and_removal() {
+  prepareIdleTare();
+  CHECK(scaleProfiler().hostStartNoFlash(millis()));
+  idleCup(80.0f);
+  CHECK(profileHasState(ScaleProfileSignal::IDLE_READY_FOR_CUP, 1));
+  CHECK(profileHasState(ScaleProfileSignal::IDLE_STATUS, IDLE_READY_FOR_CUP));
+  CHECK(profileHasState(ScaleProfileSignal::CUP_SETTLING, 1));
+  CHECK(profileHasState(ScaleProfileSignal::CUP_PRESENT, 1));
+  const auto request = idleTare.requestId;
+  CHECK(request != 0 && profileHasState(ScaleProfileSignal::IDLE_REQUEST_ID, request));
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  CHECK(profileHasState(ScaleProfileSignal::CUP_TARED, 1));
+  CHECK(profileHasState(ScaleProfileSignal::IDLE_STATUS, IDLE_TARED));
+  CHECK(profileHasState(ScaleProfileSignal::IDLE_LAST_REASON,
+                        static_cast<uint32_t>(IdleTareReason::EFFECT_CONFIRMED)));
+  unsigned phases = 0;
+  for (uint32_t i = 0; i < scaleProfiler().hostRecordCount(); ++i) {
+    const auto row = scaleProfiler().hostRecord(i);
+    if (row.kind == static_cast<uint16_t>(ScaleProfileEvent::TARE_PHASE) && row.arg1 == request)
+      phases |= 1U << (row.arg2 & 0xff);
+  }
+  CHECK((phases & 14U) == 14U); // queued, writing and success survive one worker drain.
+  idleWeight(-80.0f);
+  idleWeight(-80.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(profileHasState(ScaleProfileSignal::CUP_PRESENT, 0));
+  CHECK(scale.tareCalls == 1 && !session.active && !getRelaySafetySnapshot().closed);
+  scaleProfiler().hostStop(ScaleProfilerStopReason::USER, millis());
+}
+
+void sp02_profile_captures_timer_only_timeout_and_mid_request_start() {
+  prepareIdleTare();
+  idleCup(80.0f);
+  CHECK(executeNextScaleCommand());
+  const auto request = idleTare.requestId;
+  CHECK(scaleProfiler().hostStartNoFlash(millis()));
+  serviceIdleTare();
+  CHECK(profileHasState(ScaleProfileSignal::IDLE_REQUEST_ID, request));
+  CHECK(profileHasState(ScaleProfileSignal::IDLE_COMMAND_PHASE,
+                        static_cast<uint32_t>(IdleTarePhase::SUCCEEDED)));
+  hostMillis += SCALE_ATT_TIMEOUT_MS + runtimeConfig.postTareBaselineGraceMs + 1;
+  serviceIdleTare();
+  CHECK(idleTare.requestId == 0);
+  CHECK(profileHasState(ScaleProfileSignal::IDLE_LAST_REASON,
+                        static_cast<uint32_t>(IdleTareReason::EFFECT_UNCONFIRMED)));
+  bool timeout = false;
+  for (uint32_t i = 0; i < scaleProfiler().hostRecordCount(); ++i) {
+    const auto row = scaleProfiler().hostRecord(i);
+    if (row.kind == static_cast<uint16_t>(ScaleProfileEvent::TARE_BASELINE_TIMEOUT))
+      timeout = row.arg1 == request;
+  }
+  CHECK(timeout && scale.tareCalls == 1 && !getRelaySafetySnapshot().closed);
+  scaleProfiler().hostStop(ScaleProfilerStopReason::USER, millis());
+}
+
+void sp03_profile_explains_settling_failure_and_config_changes() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  runtimeConfig.autoTareOutsideBrew = true;
+  CHECK(scaleProfiler().hostStartNoFlash(millis()));
+  idleCup(0.0f);
+  CHECK(profileHasState(ScaleProfileSignal::IDLE_STATUS, IDLE_WAITING_FOR_SETTLE));
+  CHECK(profileHasState(ScaleProfileSignal::EMPTY_SETTLING, 1));
+  idleWeight(80.0f);
+  idleWeight(100.0f); // A moving cup restarts the placement qualification.
+  idleCup(100.0f);
+  scale.tareSucceeds = false;
+  CHECK(executeNextScaleCommand());
+  serviceIdleTare();
+  CHECK(profileHasState(ScaleProfileSignal::IDLE_LAST_REASON,
+                        static_cast<uint32_t>(IdleTareReason::WRITE_FAILED)));
+  bool unstable = false, failed = false;
+  for (uint32_t i = 0; i < scaleProfiler().hostRecordCount(); ++i) {
+    const auto row = scaleProfiler().hostRecord(i);
+    unstable |= row.kind == static_cast<uint16_t>(ScaleProfileEvent::CUP_QUALIFICATION_RESET) &&
+        row.arg2 == static_cast<uint32_t>(IdleTareReason::UNSTABLE);
+    failed |= row.kind == static_cast<uint16_t>(ScaleProfileEvent::TARE_PHASE) &&
+        (row.arg2 & 0xff) == static_cast<uint32_t>(IdleTarePhase::FAILED);
+  }
+  CHECK(unstable && failed);
+  runtimeConfig.autoTareOutsideBrew = false;
+  ++runtimeConfig.revision;
+  serviceIdleTare();
+  CHECK(profileHasState(ScaleProfileSignal::AUTO_IDLE_TARE, 0));
+  CHECK(profileHasState(ScaleProfileSignal::IDLE_STATUS,
+                        static_cast<uint32_t>(IdleTareReason::FEATURE_DISABLED)));
+  CHECK(!session.active && !getRelaySafetySnapshot().closed);
+  scaleProfiler().hostStop(ScaleProfilerStopReason::USER, millis());
+}
+
 void it01_placement_tares_once_independently() {
   for (unsigned flags = 0; flags < 8; ++flags) {
     prepareIdleTare();
@@ -18475,6 +18576,9 @@ const TestCase testCases[] = {
     {"IT43", it43_queued_accessory_removal_survives_fresh_negative_samples},
     {"IT44", it44_interrupted_removal_recovers_after_empty_pan},
     {"IT45", it45_failed_accessory_removal_does_not_retry_on_unknown_zero},
+    {"SP01", sp01_profile_explains_idle_cup_tare_and_removal},
+    {"SP02", sp02_profile_captures_timer_only_timeout_and_mid_request_start},
+    {"SP03", sp03_profile_explains_settling_failure_and_config_changes},
     {"IT46", it46_accessory_removal_never_uses_idle_tare_during_shot},
     {"IT47", it47_stale_or_disabled_accessory_evidence_never_tares_removal},
     {"IT48", it48_gradual_accessory_or_cup_unload_waits_for_settled_mass},

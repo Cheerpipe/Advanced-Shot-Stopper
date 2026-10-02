@@ -1,3 +1,85 @@
+void profileControlState(uint32_t captureSequence, uint32_t evidenceConnection) {
+  if (!scaleProfiler().recording()) return;
+  const auto link = getScaleLinkSnapshot();
+  const auto &cup = cupPresence;
+  const IdleTareStatus command = idleScaleTareStatus();
+  CupTareDiagnostics presentation;
+  presentation.eligibilityReason = static_cast<uint8_t>(idleTare.eligibilityReason);
+  presentation.requestId = idleTare.requestId;
+  presentation.referenceKnown = cupPresenceIsKnown();
+  presentation.emptyReferenceBlocked = !session.active && cup.state == CupPresenceState::ABSENT &&
+      cup.inNegativeHole && !std::isfinite(cup.emptyAnchorG) && !cup.holdTransitions &&
+      cup.weight.pendingId == 0 && idleTare.lastWeightG >= cup.holeWeightG + runtimeConfig.minimumCupWeightG;
+  presentation.tared = cupPresenceIsTared();
+  presentation.requestPlacementId = idleTare.placementId;
+  presentation.placementId = cup.placementId;
+  presentation.lastTerminalRequestId = idleTare.lastTerminalRequestId;
+  presentation.absentObserved = idleTare.absentObserved;
+  using S = ScaleProfileSignal;
+  const auto cg = [](float value) -> uint32_t {
+    return std::isfinite(value) ? static_cast<uint32_t>(weightToCentigrams(value))
+                              : static_cast<uint32_t>(INT32_MIN);
+  };
+  const ScaleProfileValue values[] = {
+      {S::CUP_PRESENT, cup.state == CupPresenceState::PRESENT},
+      {S::CUP_HOLD, cup.holdTransitions}, {S::CUP_REFERENCE_KNOWN, cupPresenceIsKnown()},
+      {S::CUP_TARED, cupPresenceIsTared()}, {S::EMPTY_READY, cup.weight.emptyValid},
+      {S::EMPTY_SETTLING, cup.weight.emptySamples != 0 && !cup.weight.emptyValid},
+      {S::EMPTY_REFERENCE_BLOCKED, presentation.emptyReferenceBlocked},
+      {S::CUP_NEGATIVE_HOLE, cup.inNegativeHole}, {S::CUP_REMOVAL_ARMED, cup.removedArmed},
+      {S::UNLOAD_QUALIFIED, cup.weight.unloadQualified},
+      {S::CUP_SETTLING, cup.placeStabilitySamples != 0},
+      {S::CUP_REMOVAL_PENDING, cup.removedConfirmations != 0},
+      {S::CUP_MASS_VALID, cup.weight.valid}, {S::EMPTY_ANCHOR_CG, cg(cup.emptyAnchorG)},
+      {S::OCCUPIED_REFERENCE_CG, cg(cup.occupiedReferenceG)}, {S::PLACEMENT_ID, cup.placementId},
+      {S::IDLE_ELIGIBILITY, static_cast<uint32_t>(idleTare.eligibilityReason)},
+      {S::IDLE_STATUS, idleTarePresentationCode(presentation, cup.state == CupPresenceState::PRESENT)},
+      {S::IDLE_DEFERRED_REASON, static_cast<uint32_t>(idleTare.deferredReason)},
+      {S::IDLE_READY_FOR_CUP, idleTare.absentObserved}, {S::IDLE_REQUEST_ID, idleTare.requestId},
+      {S::IDLE_LAST_REASON, static_cast<uint32_t>(idleTare.lastReason)},
+      {S::IDLE_COMMAND_PHASE, static_cast<uint32_t>(command.phase)},
+      {S::ACCESSORY_SETTLING, idleTare.accessorySamples != 0},
+      {S::CYCLE_ID, session.id}, {S::CYCLE_ACTIVE, session.active},
+      {S::WEIGHT_CONTROL, static_cast<uint32_t>(session.weightControlState)},
+      {S::STREAM, static_cast<uint32_t>(observedWeightStreamStateAt(millis(), link))},
+      {S::FIRST_FLOW_PHASE, static_cast<uint32_t>(session.firstFlow.phase)},
+      {S::TOUCH_PHASE, static_cast<uint32_t>(session.accidentalTouchPhase)},
+      {S::TOUCH_CLASS, static_cast<uint32_t>(session.accidentalTouchClass)},
+      {S::BASELINE_WAITING, session.awaitingPostTareBaseline},
+      {S::RETARE_OPEN, retareWindowOpen()}, {S::RETARE_PERFORMED, session.retarePerformed},
+      {S::RETARE_EFFECT_PENDING, session.retareEffectPending},
+      {S::BBW_PROTECTION, bbwProtectionActive()}, {S::SCALE_LOSS_GUARD, session.autoToManualGuardEnforced},
+      {S::FINALIZE_CYCLE_ID, pendingFinalize.pending ? pendingFinalize.cycleId : 0},
+      {S::CONFIG_REVISION, runtimeConfig.revision}, {S::AUTO_IDLE_TARE, runtimeConfig.autoTareOutsideBrew},
+      {S::AUTO_TARE, session.active ? session.config.autoTare : runtimeConfig.autoTare},
+      {S::AUTO_RETARE, session.active ? session.config.autoRetare : runtimeConfig.autoRetare},
+      {S::CUP_PROTECTION_ENABLED, session.active ? session.config.cupProtectionEnabled : runtimeConfig.cupProtectionEnabled},
+      {S::STOP_IF_REMOVED, session.active ? session.config.stopIfCupRemoved : runtimeConfig.stopIfCupRemoved},
+      {S::REQUIRE_CUP, session.active ? session.config.requireCupToStart : runtimeConfig.requireCupToStart},
+      {S::TOUCH_ENABLED, session.active ? session.config.avoidAccidentalTouchEnabled : runtimeConfig.avoidAccidentalTouchEnabled},
+      {S::GOAL_CG, cg(session.active ? session.config.goalWeightG : runtimeConfig.goalWeightG)},
+      {S::OFFSET_CG, cg(session.active ? session.config.weightOffsetG : runtimeConfig.weightOffsetG)},
+      {S::NO_SCALE_BBW_MODE, runtimeConfig.noScaleBbwMode},
+      {S::MIN_CUP_CG, cg(runtimeConfig.minimumCupWeightG)},
+      {S::REMOVED_CG, cg(runtimeConfig.cupRemovedWeightG)},
+      {S::STABILITY_TOLERANCE_CG, cg(runtimeConfig.retareStabilityToleranceG)},
+      {S::STABILITY_SAMPLES, runtimeConfig.retareStabilitySamples},
+      {S::STABILITY_DURATION_MS, runtimeConfig.retareStabilityMinDurationMs},
+      {S::STABILITY_GAP_MS, runtimeConfig.retareStabilityMaxGapMs},
+      {S::BASELINE_GRACE_MS, session.active ? session.config.postTareBaselineGraceMs
+                                           : runtimeConfig.postTareBaselineGraceMs},
+      {S::RETARE_WINDOW_MS, session.active ? session.config.retareWindowMs : runtimeConfig.retareWindowMs},
+      {S::IDLE_PLACEMENT_ID, idleTare.placementId},
+      {S::IDLE_ORIGIN, static_cast<uint32_t>(idleTare.accessoryRequest
+          ? ScaleProfileTareOrigin::ACCESSORY : ScaleProfileTareOrigin::IDLE_CUP)},
+      {S::SHOT_TARE_REQUEST_ID, session.appliedTareRequestId},
+      {S::RETARE_REQUEST_ID, session.retareRequestId},
+  };
+  scaleProfiler().noteValues(values, sizeof(values) / sizeof(values[0]), millis(),
+                             link.connectionGeneration,
+                             evidenceConnection == link.connectionGeneration ? captureSequence : 0);
+}
+
 bool liveConfigPersistPending() {
 #ifndef SHOT_STOPPER_HOST_TEST
   settingsPersistMux.lock();

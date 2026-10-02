@@ -32,6 +32,7 @@
 
 #include "ShotStopperFlashIoScratch.h"
 #include "ShotStopperPsram.h"
+#include "ShotStopperScaleLink.h"
 #include "ShotStopperTaskMutex.h"
 
 #if !defined(SHOT_STOPPER_HOST_TEST)
@@ -94,6 +95,54 @@ enum class ScaleProfileEvent : uint16_t {
   CONTROL_RECOVERED,
   SETTINGS_CHANGED,
   REFERENCE_CHANGED,
+  STATE_CHANGED,
+  TARE_PHASE,
+  TARE_REJECTED,
+  CUP_QUALIFICATION_RESET,
+  CUP_RESET,
+  FINALIZE_CANCELLED,
+};
+
+// Append-only signal IDs. Values are scalars, not another control state machine.
+#define SCALE_PROFILE_SIGNALS(X) \
+  X(CUP_PRESENT) X(CUP_HOLD) X(CUP_REFERENCE_KNOWN) X(CUP_TARED) \
+  X(EMPTY_READY) X(UNLOAD_QUALIFIED) X(CUP_SETTLING) X(CUP_REMOVAL_PENDING) \
+  X(CUP_MASS_VALID) X(EMPTY_ANCHOR_CG) X(OCCUPIED_REFERENCE_CG) X(PLACEMENT_ID) \
+  X(IDLE_ELIGIBILITY) X(IDLE_READY_FOR_CUP) X(IDLE_REQUEST_ID) X(IDLE_LAST_REASON) \
+  X(ACCESSORY_SETTLING) X(CYCLE_ID) X(CYCLE_ACTIVE) X(WEIGHT_CONTROL) X(STREAM) \
+  X(FIRST_FLOW_PHASE) X(TOUCH_PHASE) X(TOUCH_CLASS) X(BASELINE_WAITING) \
+  X(RETARE_OPEN) X(RETARE_PERFORMED) X(RETARE_EFFECT_PENDING) X(BBW_PROTECTION) \
+  X(SCALE_LOSS_GUARD) X(FINALIZE_CYCLE_ID) X(CONFIG_REVISION) X(AUTO_IDLE_TARE) \
+  X(AUTO_TARE) X(AUTO_RETARE) X(MIN_CUP_CG) X(REMOVED_CG) X(STABILITY_TOLERANCE_CG) \
+  X(STABILITY_SAMPLES) X(STABILITY_DURATION_MS) X(STABILITY_GAP_MS) \
+  X(BASELINE_GRACE_MS) X(RETARE_WINDOW_MS) X(IDLE_PLACEMENT_ID) X(IDLE_ORIGIN) \
+  X(SHOT_TARE_REQUEST_ID) X(RETARE_REQUEST_ID) X(IDLE_COMMAND_PHASE) \
+  X(EMPTY_SETTLING) X(EMPTY_REFERENCE_BLOCKED) X(CUP_NEGATIVE_HOLE) X(CUP_REMOVAL_ARMED) \
+  X(IDLE_STATUS) X(IDLE_DEFERRED_REASON) X(CUP_PROTECTION_ENABLED) X(STOP_IF_REMOVED) \
+  X(REQUIRE_CUP) X(TOUCH_ENABLED) X(GOAL_CG) X(OFFSET_CG) X(NO_SCALE_BBW_MODE)
+
+enum class ScaleProfileSignal : uint16_t {
+#define SCALE_PROFILE_SIGNAL_ENUM(name) name,
+  SCALE_PROFILE_SIGNALS(SCALE_PROFILE_SIGNAL_ENUM)
+#undef SCALE_PROFILE_SIGNAL_ENUM
+  COUNT
+};
+inline const char *scaleProfileSignalName(uint16_t signal) {
+  static const char *const names[] = {
+#define SCALE_PROFILE_SIGNAL_NAME(name) #name,
+    SCALE_PROFILE_SIGNALS(SCALE_PROFILE_SIGNAL_NAME)
+#undef SCALE_PROFILE_SIGNAL_NAME
+  };
+  return signal < static_cast<uint16_t>(ScaleProfileSignal::COUNT)
+      ? names[signal] : "UNKNOWN";
+}
+#undef SCALE_PROFILE_SIGNALS
+
+constexpr uint16_t SCALE_PROFILE_INITIAL = 0x8000;
+constexpr uint32_t SCALE_PROFILE_UNKNOWN_VALUE = UINT32_MAX;
+struct ScaleProfileValue {
+  ScaleProfileSignal signal;
+  uint32_t value;
 };
 
 enum class ScaleProfileTareOrigin : uint8_t {
@@ -212,6 +261,12 @@ inline const char *scaleProfileEventName(ScaleProfileEvent kind) {
     case ScaleProfileEvent::CONTROL_RECOVERED: return "CONTROL_RECOVERED";
     case ScaleProfileEvent::SETTINGS_CHANGED: return "SETTINGS_CHANGED";
     case ScaleProfileEvent::REFERENCE_CHANGED: return "REFERENCE_CHANGED";
+    case ScaleProfileEvent::STATE_CHANGED: return "STATE_CHANGED";
+    case ScaleProfileEvent::TARE_PHASE: return "TARE_PHASE";
+    case ScaleProfileEvent::TARE_REJECTED: return "TARE_REJECTED";
+    case ScaleProfileEvent::CUP_QUALIFICATION_RESET: return "CUP_QUALIFICATION_RESET";
+    case ScaleProfileEvent::CUP_RESET: return "CUP_RESET";
+    case ScaleProfileEvent::FINALIZE_CANCELLED: return "FINALIZE_CANCELLED";
   }
   return "UNKNOWN";
 }
@@ -427,6 +482,33 @@ class ScaleProfiler {
     }
     appendLocked_(record, nowMs);
     captureMux_.unlock();
+  }
+
+  // One control-owner observation, atomically ordered within the capture.
+  // Cache lives in PSRAM and resets with each capture, including mid-cycle starts.
+  void noteValues(const ScaleProfileValue *values, size_t count, uint32_t nowMs,
+                  uint32_t connection, uint32_t captureSequence) {
+    if (!recording()) return;
+    const TaskLockGuard lock(captureMux_);
+    if (state_ != ScaleProfilerState::RECORDING) return;
+    for (size_t i = 0; i < count; ++i) {
+      const auto key = static_cast<uint16_t>(values[i].signal);
+      if (key >= static_cast<uint16_t>(ScaleProfileSignal::COUNT)) continue;
+      auto &previous = workspace_->observations[key];
+      const bool initial = previous.ordinal == 0;
+      if (!initial && previous.arg2 == values[i].value &&
+          previous.connectionGeneration == connection) continue;
+      ScaleProfileRecord record;
+      record.kind = static_cast<uint16_t>(ScaleProfileEvent::STATE_CHANGED);
+      record.flags = key | (initial ? SCALE_PROFILE_INITIAL : 0);
+      record.arg1 = initial ? SCALE_PROFILE_UNKNOWN_VALUE : previous.arg2;
+      record.arg2 = values[i].value;
+      record.connectionGeneration = connection;
+      record.sequence = captureSequence;
+      appendLocked_(record, nowMs);
+      previous = record;
+      previous.ordinal = 1;
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -938,8 +1020,9 @@ class ScaleProfiler {
   struct Workspace {
     ScaleProfileRecord records[SCALE_PROFILE_RECORD_CAPACITY];
     ScaleProfileHeader header;
+    ScaleProfileRecord observations[static_cast<size_t>(ScaleProfileSignal::COUNT)];
   };
-  static_assert(sizeof(Workspace) <= 320 * 1024,
+  static_assert(sizeof(Workspace) + SCALE_PROFILE_INDEX_BYTES <= 320 * 1024,
                 "Scale profiler external workspace exceeds its budget");
 
   struct FlashSaveState {
@@ -1414,6 +1497,54 @@ inline void scaleProfileNoteDroppedFrame(bool stale, bool decoded,
 //   +SSSSSS.mmm – weight|NAME key=value...
 // The weight round-trips the captured float32 (9 significant digits); events
 // without a measured weight print an em dash instead of a stale reading.
+inline void formatScaleProfileValue(char *out, size_t capacity,
+                                   ScaleProfileSignal signal, uint32_t value) {
+  const char *name = nullptr;
+  switch (signal) {
+    case ScaleProfileSignal::IDLE_STATUS:
+      name = value < 256 ? idleTarePresentationName(static_cast<uint8_t>(value)) : "unknown";
+      break;
+    case ScaleProfileSignal::IDLE_COMMAND_PHASE: {
+      static const char *const phases[] = {"none", "queued", "writing", "succeeded", "failed"};
+      name = value < 5 ? phases[value] : "unknown";
+      break;
+    }
+    case ScaleProfileSignal::FIRST_FLOW_PHASE:
+      name = value == 0 ? "seeking" : value == 1 ? "touch" : "unknown";
+      break;
+    case ScaleProfileSignal::IDLE_ELIGIBILITY:
+    case ScaleProfileSignal::IDLE_LAST_REASON:
+    case ScaleProfileSignal::IDLE_DEFERRED_REASON:
+      name = value <= static_cast<uint32_t>(IdleTareReason::SLOT_BUSY)
+          ? idleTareReasonName(static_cast<uint8_t>(value)) : "unknown";
+      break;
+    case ScaleProfileSignal::WEIGHT_CONTROL:
+      name = weightControlStateName(static_cast<WeightControlState>(value));
+      break;
+    case ScaleProfileSignal::STREAM:
+      name = weightStreamStateName(static_cast<WeightStreamState>(value));
+      break;
+    case ScaleProfileSignal::TOUCH_PHASE:
+      name = accidentalTouchPhaseName(static_cast<AccidentalTouchPhase>(value));
+      break;
+    case ScaleProfileSignal::TOUCH_CLASS:
+      name = accidentalTouchClassName(static_cast<AccidentalTouchClass>(value));
+      break;
+    case ScaleProfileSignal::EMPTY_ANCHOR_CG:
+    case ScaleProfileSignal::OCCUPIED_REFERENCE_CG:
+    case ScaleProfileSignal::REMOVED_CG:
+      if (value == static_cast<uint32_t>(INT32_MIN)) name = "unknown";
+      else {
+        snprintf(out, capacity, "%ld", static_cast<long>(static_cast<int32_t>(value)));
+        return;
+      }
+      break;
+    default: break;
+  }
+  if (name != nullptr) snprintf(out, capacity, "%s", name);
+  else snprintf(out, capacity, "%lu", static_cast<unsigned long>(value));
+}
+
 inline size_t formatScaleProfileRow(char *out, size_t capacity,
                                     const ScaleProfileRecord &record) {
   if (out == nullptr || capacity == 0) return 0;
@@ -1436,8 +1567,48 @@ inline size_t formatScaleProfileRow(char *out, size_t capacity,
       snprintf(out + used, capacity - used, "|%s",
                scaleProfileEventName(static_cast<ScaleProfileEvent>(record.kind))));
   if (used >= capacity) return 0;
-  char suffix[96];
+  char suffix[160] = {};
   switch (static_cast<ScaleProfileEvent>(record.kind)) {
+    case ScaleProfileEvent::STATE_CHANGED: {
+      const auto signal = static_cast<ScaleProfileSignal>(record.flags & ~SCALE_PROFILE_INITIAL);
+      char before[24], after[24];
+      formatScaleProfileValue(before, sizeof(before), signal, record.arg1);
+      formatScaleProfileValue(after, sizeof(after), signal, record.arg2);
+      snprintf(suffix, sizeof(suffix), " %s from=%s to=%s capture=%lu connection=%lu",
+               scaleProfileSignalName(static_cast<uint16_t>(signal)),
+               (record.flags & SCALE_PROFILE_INITIAL) ? "initial" : before, after,
+               static_cast<unsigned long>(record.sequence),
+               static_cast<unsigned long>(record.connectionGeneration));
+      break;
+    }
+    case ScaleProfileEvent::TARE_PHASE: {
+      static const char *const phases[] = {"none", "queued", "writing", "succeeded", "failed"};
+      const uint32_t phase = record.arg2 & 0xff;
+      snprintf(suffix, sizeof(suffix), " idleRequest=%lu phase=%s reason=%s boundary=%lu connection=%lu",
+               static_cast<unsigned long>(record.arg1),
+               phase < 5 ? phases[phase] : "unknown",
+               idleTareReasonName(static_cast<uint8_t>(record.arg2 >> 8)),
+               static_cast<unsigned long>(record.sequence),
+               static_cast<unsigned long>(record.connectionGeneration));
+      break;
+    }
+    case ScaleProfileEvent::TARE_REJECTED:
+    case ScaleProfileEvent::CUP_QUALIFICATION_RESET:
+      snprintf(suffix, sizeof(suffix), " context=%lu reason=%s pkt=%lu",
+               static_cast<unsigned long>(record.arg1),
+               idleTareReasonName(static_cast<uint8_t>(record.arg2)),
+               static_cast<unsigned long>(record.sequence));
+      break;
+    case ScaleProfileEvent::CUP_RESET:
+      snprintf(suffix, sizeof(suffix), " placement=%lu reason=logical_reset",
+               static_cast<unsigned long>(record.arg1));
+      break;
+    case ScaleProfileEvent::FINALIZE_CANCELLED:
+      snprintf(suffix, sizeof(suffix), " cycle=%lu reason=%s",
+               static_cast<unsigned long>(record.arg1),
+               record.arg2 == 1 ? "cup_continuity" : record.arg2 == 2 ? "new_cycle"
+                   : record.arg2 == 3 ? "rinse" : "unknown");
+      break;
     case ScaleProfileEvent::WEIGHT:
       snprintf(suffix, sizeof(suffix), " seq=%lu connection=%lu%s",
                static_cast<unsigned long>(record.sequence),
@@ -1499,9 +1670,9 @@ inline size_t formatScaleProfileRow(char *out, size_t capacity,
       break;
     case ScaleProfileEvent::TARE_BASELINE_TIMEOUT:
     case ScaleProfileEvent::TARE_RELEASED:
-      snprintf(suffix, sizeof(suffix), " request=%lu reason=%lu",
+      snprintf(suffix, sizeof(suffix), " request=%lu reason=%s",
                static_cast<unsigned long>(record.arg1),
-               static_cast<unsigned long>(record.arg2));
+               idleTareReasonName(static_cast<uint8_t>(record.arg2)));
       break;
     case ScaleProfileEvent::CUP_PLACED:
     case ScaleProfileEvent::CUP_REMOVED:
@@ -1560,6 +1731,11 @@ inline size_t formatScaleProfileRow(char *out, size_t capacity,
       snprintf(suffix, sizeof(suffix), " connection=%lu write=%lu",
                static_cast<unsigned long>(record.connectionGeneration),
                static_cast<unsigned long>(record.arg1));
+      break;
+    default:
+      snprintf(suffix, sizeof(suffix), " kind=%u arg1=%lu arg2=%lu", record.kind,
+               static_cast<unsigned long>(record.arg1),
+               static_cast<unsigned long>(record.arg2));
       break;
   }
   const size_t suffixLength = strlen(suffix);

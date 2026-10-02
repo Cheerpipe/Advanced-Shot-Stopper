@@ -683,7 +683,14 @@ bool claimIdleScaleTare(uint32_t requestId, uint32_t expectedPacketSequence,
     workerIdleTare.startedAtMs = millis();
     workerIdleTare.captureBoundary = captureBoundary;
   }
+  const uint32_t startedAtMs = workerIdleTare.startedAtMs;
+  const uint32_t generation = workerIdleTare.connectionGeneration;
   idleScaleTareMux.unlock();
+  if (claimed) {
+    scaleProfileNoteEvent(ScaleProfileEvent::TARE_PHASE, startedAtMs,
+                          generation, captureBoundary,
+                          NAN, requestId, static_cast<uint32_t>(IdleTarePhase::WRITING));
+  }
   return claimed;
 }
 
@@ -691,14 +698,25 @@ void finishIdleScaleTare(uint32_t requestId, bool succeeded,
                          IdleTareReason failureReason = IdleTareReason::WRITE_FAILED,
                          float preTareWeightG = NAN) {
   idleScaleTareMux.lock();
-  if (workerIdleTare.requestId == requestId) {
+  const bool matched = workerIdleTare.requestId == requestId;
+  if (matched) {
     workerIdleTare.phase = succeeded ? IdleTarePhase::SUCCEEDED
                                     : IdleTarePhase::FAILED;
     workerIdleTare.writtenAtMs = millis();
     workerIdleTare.preTareWeightG = preTareWeightG;
     workerIdleTare.reason = succeeded ? IdleTareReason::NONE : failureReason;
   }
+  const uint32_t writtenAtMs = workerIdleTare.writtenAtMs;
+  const uint32_t generation = workerIdleTare.connectionGeneration;
+  const uint32_t boundary = workerIdleTare.captureBoundary;
   idleScaleTareMux.unlock();
+  if (matched) {
+    scaleProfileNoteEvent(ScaleProfileEvent::TARE_PHASE, writtenAtMs,
+                          generation, boundary,
+                          preTareWeightG, requestId,
+                          static_cast<uint32_t>(succeeded ? IdleTarePhase::SUCCEEDED : IdleTarePhase::FAILED) |
+                              (static_cast<uint32_t>(succeeded ? IdleTareReason::NONE : failureReason) << 8));
+  }
 }
 
 bool enqueueScaleCommand(const ScaleCommand &command, bool toFront) {
@@ -719,11 +737,15 @@ bool enqueueScaleCommand(const ScaleCommand &command, bool toFront) {
     if (available) {
       workerIdleTare = IdleTareStatus{};
       workerIdleTare.requestId = stamped.idleTareRequestId;
+      workerIdleTare.connectionGeneration = stamped.connectionGeneration;
       workerIdleTare.approvedPacketSequence = stamped.qualifiedPacketSequence;
       workerIdleTare.phase = IdleTarePhase::QUEUED;
     }
     idleScaleTareMux.unlock();
     if (!available) return false;
+    scaleProfileNoteEvent(ScaleProfileEvent::TARE_PHASE, millis(),
+                          stamped.connectionGeneration, 0, NAN, stamped.idleTareRequestId,
+                          static_cast<uint32_t>(IdleTarePhase::QUEUED));
   }
   BaseType_t queued = pdFALSE;
   if (toFront) {
@@ -1132,9 +1154,13 @@ void executeScaleTareCommand(const ScaleCommand &command) {
         }
         const IdleTareStatus status = idleScaleTareStatus();
         if (status.requestId == command.idleTareRequestId &&
-            status.phase == IdleTarePhase::QUEUED &&
-            xQueueSend(scaleCommandQueue, &command, 0) != pdTRUE)
-          finishIdleScaleTare(command.idleTareRequestId, false, IdleTareReason::QUEUE_FULL);
+            status.phase == IdleTarePhase::QUEUED) {
+          scaleProfileNoteEvent(ScaleProfileEvent::TARE_PHASE, millis(),
+                                status.connectionGeneration, status.captureBoundary, NAN,
+                                status.requestId, static_cast<uint32_t>(IdleTarePhase::QUEUED));
+          if (xQueueSend(scaleCommandQueue, &command, 0) != pdTRUE)
+            finishIdleScaleTare(command.idleTareRequestId, false, IdleTareReason::QUEUE_FULL);
+        }
         return;
       }
     }

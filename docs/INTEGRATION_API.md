@@ -203,6 +203,53 @@ attachment (`Content-Disposition: attachment`,
 that stopped but has not finished saving downloads from memory and is labeled
 accordingly. Concurrent Start/Delete are refused while the download streams.
 
+The trace retains the 32-byte record layout and schema version 1; new event IDs
+are appended, preserving the meaning of saved records. `STATE_CHANGED` rows
+contain a named scalar signal, `from`, `to`, originating `capture` sequence,
+and connection generation. `from=initial` means the first control-owner
+observation in this capture, not a transition from an assumed default.
+Control observations are contiguous batches; their timestamps are observation
+times, independently of the initial header snapshot. No initial observations
+means control was not observed before capture stopped. Unchanged signals are
+omitted; a new connection generation renews the observations.
+
+Signals cover cup presence, settling and removal qualification, reference/mass
+validity, tare eligibility/presentation/reasons, request and placement IDs,
+accessory settling, stream and weight control, retare/baseline waiting, first
+flow/touch phases, brew protection, scale-loss guard, and pending finalization.
+`IDLE_STATUS` uses the same decision rule as Web status, with readable
+`waiting_for_settle` and `ready_for_cup` names for Web `empty` and `ready`.
+Other booleans use 0/1. `*_CG` values are signed centigrams (unknown references
+are rendered `unknown`); `*_MS` values are milliseconds. Effective tare/cup
+thresholds and timing settings are emitted initially and when they change.
+Raw `WEIGHT` rows retain the received floating-point weight precision.
+
+`TARE_PHASE` preserves queued/writing/succeeded/failed command transitions even
+when they occur between control observations. Its ID belongs to the idle-tare
+request namespace; `boundary` is a capture sequence. `TARE_REJECTED` identifies
+the placement in `context`; `CUP_QUALIFICATION_RESET` uses context 0 for empty
+pan, 1 for cup placement, and 2 for accessory settling. Their `pkt` is the
+control packet sequence. `CUP_RESET` is a logical reset, not proof of physical
+removal. `FINALIZE_CANCELLED` distinguishes cup continuity, a new cycle, and
+rinse. Existing shot-end reasons continue to describe guard stop outcomes.
+
+For correlation, follow `IDLE_REQUEST_ID`/`IDLE_PLACEMENT_ID`/`IDLE_ORIGIN` for
+idle tare, and `SHOT_TARE_REQUEST_ID`/`RETARE_REQUEST_ID`/`CYCLE_ID` for shot
+tare. Do not equate idle request IDs with shot request IDs, or packet sequences
+with capture sequences. A zero sequence means no specific sample is identified
+(for example, a timer-only observation). Transport success does not establish
+physical zero; baseline confirmation and timeout remain separate events.
+For existing `TARE_REQUEST` rows, `seq` is the qualifying control packet for
+idle/accessory tare and zero for shot/manual requests. A return from writing
+to queued in `TARE_PHASE` means the worker deferred the write; it is not success.
+Internal per-sample counters, UI rendering, unrelated network state, and
+unreported physical scale-button actions are outside this trace's scope.
+
+The capture still reserves a terminal record and reports overflow/loss. Its
+per-signal deduplication cache is bounded PSRAM, reset for every capture;
+no new partition, endpoint, or control owner is introduced. Older captures
+remain readable; unknown event IDs render their numeric payload safely.
+
 ## Web UI record API
 
 The Stats page uses `GET /api/v1/stats`; History uses

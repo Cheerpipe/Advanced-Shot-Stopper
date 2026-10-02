@@ -118,6 +118,19 @@ void serviceRemoteTimerStopRetry() {
 
 void notifyWebhookFirstDrop(const FirstFlowObservation &observation);
 
+void profileControlState(uint32_t captureSequence = 0, uint32_t evidenceConnection = 0);
+// Observe all exits of sample/timer handlers, including early rejection. The
+// callback only reads control-owned scalars; it never services control logic.
+struct ProfileControlObservation {
+  uint32_t captureSequence;
+  uint32_t connection;
+  explicit ProfileControlObservation(uint32_t sequence = 0, uint32_t generation = 0)
+      : captureSequence(sequence), connection(generation) {
+    profileControlState();
+  }
+  ~ProfileControlObservation() { profileControlState(captureSequence, connection); }
+};
+
 #include "ShotStopperCupPresence.h"
 #include "ShotStopperBrew.h"
 #include "ShotStopperRinse.h"
@@ -538,6 +551,9 @@ void confirmLateRetareBaseline() {
        pendingFinalize.cycleId != session.id ||
        static_cast<int32_t>(atMs - pendingFinalize.endedAtMs) > 0))) return;
   session.retareEffectPending = false;
+  scaleProfileNoteEvent(ScaleProfileEvent::TARE_BASELINE_CONFIRMED, millis(),
+                        zero.connectionGeneration, session.retareZeroCaptureSequence,
+                        zero.weightG, session.retareRequestId, 0);
   session.tareCaptureBoundary = session.retareZeroCaptureSequence;
   session.firstDropMs = 0;
   shotCurveSampler.firstDrop = missingShotCurveEvent();
@@ -580,6 +596,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                                       uint32_t packetSequence,
                                       uint32_t connectionGeneration,
                                       uint32_t captureSequence = 0) {
+  const ProfileControlObservation profile(captureSequence, connectionGeneration);
   const bool touchProvenanceValid = packetSequence != 0 && connectionGeneration != 0;
   const TouchStopEvidence previousTouchStop = session.touchStop;
   session.touchStop = {};  // Only a qualifying touch sample may retain evidence.
@@ -648,7 +665,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   if (!session.active && pendingFinalize.pending &&
       (observedUnload || cupEvent != CupPresenceEvent::NONE)) {
     machineCancelSettledWeightCutOff();
-    cancelPendingFinalize("Cup continuity lost during drip analysis");
+    cancelPendingFinalize("Cup continuity lost during drip analysis", 1);
   }
   if ((runtimeConfig.autoTareOutsideBrew || idleTare.requestId != 0) &&
       !session.active) {
@@ -1261,11 +1278,15 @@ void queueWebhookQuickSettingsChanged() {
 #endif
 }
 
-void cancelPendingFinalize(const char *reason) {
+void cancelPendingFinalize(const char *reason, uint32_t profileReason) {
+  const ProfileControlObservation profile;
   if (!pendingFinalize.pending) {
     return;
   }
   captureLateTareCompletion();
+  scaleProfileNoteEvent(ScaleProfileEvent::FINALIZE_CANCELLED, millis(),
+                        getScaleLinkSnapshot().connectionGeneration, 0, NAN,
+                        pendingFinalize.cycleId, profileReason);
   static SHOT_STOPPER_PSRAM_BSS PendingShotFinalize snapshot;
   snapshot = pendingFinalize;
   pendingFinalize.pending = false;
@@ -1345,6 +1366,7 @@ void pendingShotFinalizeTask() {
   }
 
   captureLateTareCompletion();
+  const ProfileControlObservation profile;
   static SHOT_STOPPER_PSRAM_BSS PendingShotFinalize snapshot;
   snapshot = pendingFinalize;
   pendingFinalize.pending = false;
