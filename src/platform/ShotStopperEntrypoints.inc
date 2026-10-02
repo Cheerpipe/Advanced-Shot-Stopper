@@ -26,8 +26,15 @@ void serviceHealthProfiler(uint32_t now) {
 // text can never inject extra TXT lines.
 uint32_t composeScaleProfileContext(char *text, size_t capacity) {
   if (text == nullptr || capacity == 0) return 0;
-  ControlStatusSnapshot control;
-  copyControlStatus(control);
+  // The ~6.4 KiB snapshot fits neither the 4 KiB health stack (it overflowed
+  // into adjacent heap TCBs; see
+  // docs/audits/2026-10-02-scale-profile-start-panic.md) nor the internal-DRAM
+  // budget as a static, so stage it in PSRAM for this once-per-Start call.
+  // An empty context is the accepted degradation when PSRAM is exhausted.
+  auto *control = static_cast<ControlStatusSnapshot *>(allocExternal(
+      sizeof(ControlStatusSnapshot), AllocationOwner::PROFILER));
+  if (control == nullptr) return 0;
+  copyControlStatus(*control);
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   int used = snprintf(text, capacity,
                       "firmware=%s\nboard=%s\nmachine=%s / %s\n", FW_VERSION,
@@ -42,21 +49,22 @@ uint32_t composeScaleProfileContext(char *text, size_t capacity) {
         text + used, capacity - used,
         "settings=goalG:%d offsetG:%d autoTare:%d autoRetare:%d cupProt:%d "
         "stopIfRemoved:%d requireCup:%d touch:%d graceMs:%lu\n",
-        static_cast<int>(control.config.goalWeightG),
-        static_cast<int>(control.config.weightOffsetG),
-        control.config.autoTare ? 1 : 0, control.config.autoRetare ? 1 : 0,
-        control.config.cupProtectionEnabled ? 1 : 0,
-        control.config.stopIfCupRemoved ? 1 : 0,
-        control.config.requireCupToStart ? 1 : 0,
-        control.config.avoidAccidentalTouchEnabled ? 1 : 0,
-        static_cast<unsigned long>(control.config.postTareBaselineGraceMs));
+        static_cast<int>(control->config.goalWeightG),
+        static_cast<int>(control->config.weightOffsetG),
+        control->config.autoTare ? 1 : 0, control->config.autoRetare ? 1 : 0,
+        control->config.cupProtectionEnabled ? 1 : 0,
+        control->config.stopIfCupRemoved ? 1 : 0,
+        control->config.requireCupToStart ? 1 : 0,
+        control->config.avoidAccidentalTouchEnabled ? 1 : 0,
+        static_cast<unsigned long>(control->config.postTareBaselineGraceMs));
   }
   if (used > 0 && static_cast<size_t>(used) < capacity) {
     snprintf(text + used, capacity - used,
              "state=cupPresent:%d weightControl:%d\n",
-             control.cupPresent ? 1 : 0,
-             static_cast<int>(control.weightControlState));
+             control->cupPresent ? 1 : 0,
+             static_cast<int>(control->weightControlState));
   }
+  heapCapsFree(control);
   for (char *c = text; *c != '\0'; ++c) {
     // Keep newlines: the TXT emitter controls line boundaries and splits on
     // them. Strip every other control character.
