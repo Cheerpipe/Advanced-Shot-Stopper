@@ -10,7 +10,7 @@
 //       partition by the settings_persist worker and survives reboot.
 //
 // OWNERSHIP: the core-0 health worker owns the lifecycle (start/stop/delete,
-//       expiry, index build, persistence dispatch). Producers (scale worker
+//       capacity stop, ETA, index build, persistence dispatch). Producers (scale worker
 //       task and the Arduino control loop) append fixed-size records through
 //       the scaleProfileNote* functions after releasing their own locks; the
 //       capture mutex is a leaf lock and is never nested under scale, debug
@@ -41,9 +41,12 @@
 
 namespace shotstopper {
 
-constexpr uint32_t SCALE_PROFILE_DURATION_LIMIT_MS = 180000;
 constexpr size_t SCALE_PROFILE_RECORD_CAPACITY = 8192;
 constexpr size_t SCALE_PROFILE_RECORD_BYTES = 32;
+// The append ordinal needs only 14 bits; upper bits extend relativeMs.
+constexpr uint32_t SCALE_PROFILE_ORDINAL_BITS = 14;
+static_assert(SCALE_PROFILE_RECORD_CAPACITY < (1U << SCALE_PROFILE_ORDINAL_BITS),
+              "Record ordinals must fit below the timestamp extension");
 // One record slot is reserved so the terminal marker always fits.
 constexpr size_t SCALE_PROFILE_ORDINARY_CAPACITY =
     SCALE_PROFILE_RECORD_CAPACITY - 1;
@@ -55,6 +58,9 @@ constexpr uint16_t SCALE_PROFILE_SCHEMA_VERSION = 1;
 // 4096-byte header/context sector + 256 KiB maximum record payload.
 constexpr size_t SCALE_PROFILE_PARTITION_BYTES = 0x41000;
 constexpr size_t SCALE_PROFILE_PAYLOAD_OFFSET = 4096;
+static_assert(SCALE_PROFILE_RECORD_CAPACITY * SCALE_PROFILE_RECORD_BYTES ==
+                  SCALE_PROFILE_PARTITION_BYTES - SCALE_PROFILE_PAYLOAD_OFFSET,
+              "RAM capture and flash payload capacity must agree");
 constexpr uint32_t SCALE_PROFILE_SAVE_RETRY_MS = 5000;
 constexpr uint8_t SCALE_PROFILE_SAVE_MAX_RETRIES = 3;
 
@@ -305,7 +311,7 @@ struct ScaleProfileHeader {
   uint32_t eventCount = 0;
   uint32_t startWallUtcSec = 0;
   uint32_t checksum = 0;
-  uint32_t reserved[4] = {};
+  uint32_t reserved[4] = {};  // [0]: durationMs high word; legacy captures use 0.
   char context[SCALE_PROFILE_CONTEXT_BYTES] = {};
 };
 static_assert(sizeof(ScaleProfileHeader) <= 4096,
@@ -318,7 +324,8 @@ struct ScaleProfilerStatus {
   ScaleProfilerError lastError = ScaleProfilerError::NONE;
   uint32_t generation = 0;
   uint32_t sessionId = 0;
-  uint32_t elapsedMs = 0;
+  uint64_t elapsedMs = 0;
+  uint32_t estimatedRemainingMs = UINT32_MAX;  // Unknown; JSON emits null.
   uint32_t recordCount = 0;
   uint32_t savedRecordCount = 0;
   uint32_t weightCount = 0;
@@ -328,6 +335,15 @@ struct ScaleProfilerStatus {
   bool partitionAvailable = false;
   bool downloading = false;
 };
+
+inline uint64_t scaleProfileRecordTimeMs(const ScaleProfileRecord &record) {
+  return (static_cast<uint64_t>(record.ordinal >> SCALE_PROFILE_ORDINAL_BITS)
+          << 32) | record.relativeMs;
+}
+
+inline uint64_t scaleProfileDurationMs(const ScaleProfileHeader &header) {
+  return (static_cast<uint64_t>(header.reserved[0]) << 32) | header.durationMs;
+}
 
 // Composes the bounded initial context (firmware/build identity, scale,
 // settings, starting detector state) on the health worker. Returns the UTC
@@ -392,17 +408,32 @@ class ScaleProfiler {
     out.lastError = lastError_;
     out.generation = generation_;
     out.sessionId = sessionId_;
-    out.recordCount = recordCount_;
+    out.recordCount = state_ == ScaleProfilerState::EMPTY ||
+                              state_ == ScaleProfilerState::PREPARING
+                          ? 0 : recordCount_;
     out.savedRecordCount = savedRecordCount_;
     out.weightCount = weightCount_;
     out.eventCount = eventCount_;
     out.lostCount = lostCount_;
+    if (state_ == ScaleProfilerState::EMPTY || state_ == ScaleProfilerState::PREPARING) {
+      out.weightCount = out.eventCount = out.lostCount = 0;
+    }
     out.saveRetries = saveRetries_;
     out.partitionAvailable = partitionAvailable_;
     out.downloading = downloadLease_.load(std::memory_order_acquire) != 0;
     out.elapsedMs = state_ == ScaleProfilerState::RECORDING
-                        ? static_cast<uint32_t>(nowMs - epochMs_)
-                        : durationMs_;
+                        ? static_cast<uint64_t>(std::max<int64_t>(0, elapsedAt_(nowMs)))
+                        : (state_ == ScaleProfilerState::EMPTY ||
+                                   state_ == ScaleProfilerState::PREPARING
+                               ? 0 : durationMs_);
+    if (state_ == ScaleProfilerState::RECORDING) {
+      out.estimatedRemainingMs = recordCount_ >= SCALE_PROFILE_ORDINARY_CAPACITY
+                                    ? 0 : estimatedRemainingMs_;
+    } else if ((state_ == ScaleProfilerState::STOPPED ||
+                state_ == ScaleProfilerState::SAVED) &&
+               stopReason_ == ScaleProfilerStopReason::BUFFER_FULL) {
+      out.estimatedRemainingMs = 0;
+    }
     captureMux_.unlock();
     return out;
   }
@@ -419,19 +450,19 @@ class ScaleProfiler {
     if (!recording()) return;
     captureMux_.lock();
     if (state_ != ScaleProfilerState::RECORDING ||
-        static_cast<int32_t>(receivedAtMs - epochMs_) < 0) {
+        static_cast<int64_t>(static_cast<uint32_t>(nowMs - receivedAtMs)) >
+            elapsedAt_(nowMs)) {
       // Buffered pre-epoch evidence is not part of this session.
       captureMux_.unlock();
       return;
     }
     ScaleProfileRecord record;
-    record.relativeMs = receivedAtMs - epochMs_;
     record.connectionGeneration = connectionGeneration;
     record.sequence = captureSequence;
     record.weightG = weightG;
     record.flags = discontinuity ? SCALE_PROFILE_FLAG_DISCONTINUITY : 0;
     record.kind = static_cast<uint16_t>(ScaleProfileEvent::WEIGHT);
-    appendLocked_(record, nowMs);
+    appendLocked_(record, nowMs, nowMs - receivedAtMs);
     captureMux_.unlock();
   }
 
@@ -445,12 +476,12 @@ class ScaleProfiler {
     if (!recording()) return;
     captureMux_.lock();
     if (state_ != ScaleProfilerState::RECORDING ||
-        static_cast<int32_t>(receivedAtMs - epochMs_) < 0) {
+        static_cast<int64_t>(static_cast<uint32_t>(nowMs - receivedAtMs)) >
+            elapsedAt_(nowMs)) {
       captureMux_.unlock();
       return;
     }
     ScaleProfileRecord record;
-    record.relativeMs = receivedAtMs - epochMs_;
     record.connectionGeneration = connectionGeneration;
     record.sequence = captureSequence;
     record.weightG = decoded ? weightG : NAN;
@@ -459,7 +490,7 @@ class ScaleProfiler {
     record.kind =
         static_cast<uint16_t>(stale ? ScaleProfileEvent::STALE_FRAME
                                     : ScaleProfileEvent::FRAME_UNDECODABLE);
-    appendLocked_(record, nowMs);
+    appendLocked_(record, nowMs, nowMs - receivedAtMs);
     captureMux_.unlock();
   }
 
@@ -535,6 +566,10 @@ class ScaleProfiler {
     consumeFlashResult_(nowMs);
     ScaleProfilerWork work = ScaleProfilerWork::NONE;
     captureMux_.lock();
+    if (state_ == ScaleProfilerState::RECORDING) {
+      elapsedMs_ += static_cast<uint32_t>(nowMs - clockAtMs_);
+      clockAtMs_ = nowMs;
+    }
     // Requests are serviced first so a Start/Stop/Delete is never silently
     // consumed by a retry window; the guards make them safe mid-dispatch.
     switch (request) {
@@ -1052,19 +1087,20 @@ class ScaleProfiler {
   }
 
   // Caller holds captureMux_ and has already verified state/preamble fields.
-  void appendLocked_(const ScaleProfileRecord &record, uint32_t nowMs) {
+  void appendLocked_(const ScaleProfileRecord &record, uint32_t nowMs,
+                     uint32_t ageMs = 0) {
     if (recordCount_ >= SCALE_PROFILE_ORDINARY_CAPACITY) {
       ++lostCount_;
       capacityStopRequested_ = true;
       return;
     }
     ScaleProfileRecord stamped = record;
-    stamped.ordinal = ++ordinal_;
-    if (stamped.ordinal == 0) stamped.ordinal = ++ordinal_;
-    if (stamped.kind != static_cast<uint16_t>(ScaleProfileEvent::WEIGHT)) {
-      stamped.relativeMs = static_cast<uint32_t>(nowMs - epochMs_);
-    }
+    const uint64_t atMs = elapsedAt_(nowMs) - ageMs;
+    stamped.ordinal = ++ordinal_ |
+        (static_cast<uint32_t>(atMs >> 32) << SCALE_PROFILE_ORDINAL_BITS);
+    stamped.relativeMs = static_cast<uint32_t>(atMs);
     records_[recordCount_++] = stamped;
+    capacityStopRequested_ = recordCount_ == SCALE_PROFILE_ORDINARY_CAPACITY;
     if (stamped.kind == static_cast<uint16_t>(ScaleProfileEvent::WEIGHT)) {
       ++weightCount_;
     } else {
@@ -1226,12 +1262,19 @@ class ScaleProfiler {
     stopReason_ = ScaleProfilerStopReason::NONE;
     lastError_ = ScaleProfilerError::NONE;
     saveRetries_ = 0;
-    epochMs_ = nowMs;
+    elapsedMs_ = 0;
+    clockAtMs_ = nowMs;
+    estimateAtMs_ = nowMs;
+    estimateStartMs_ = nowMs;
+    estimateCount_ = estimateStartCount_ = 0;
+    lastProgressMs_ = nowMs;
+    smoothedRecordsPerSecond_ = 0;
+    estimatedRemainingMs_ = UINT32_MAX;
+    estimateBaselineReady_ = false;
     capacityStopRequested_ = false;
     state_ = ScaleProfilerState::RECORDING;
     ScaleProfileRecord start;
     start.kind = static_cast<uint16_t>(ScaleProfileEvent::PROFILE_START);
-    start.arg1 = SCALE_PROFILE_DURATION_LIMIT_MS;
     appendLocked_(start, nowMs);
     ScaleProfileHeader &header = workspace_->header;
     header.magic = SCALE_PROFILE_MAGIC;
@@ -1244,24 +1287,19 @@ class ScaleProfiler {
 
   void stopLocked_(ScaleProfilerStopReason reason, uint32_t nowMs) {
     if (state_ != ScaleProfilerState::RECORDING) return;
-    const uint32_t overrunMs =
-        reason == ScaleProfilerStopReason::TIMEOUT
-            ? static_cast<uint32_t>(
-                  nowMs - (epochMs_ + SCALE_PROFILE_DURATION_LIMIT_MS))
-            : 0;
     ScaleProfileRecord terminal;
     terminal.kind = static_cast<uint16_t>(ScaleProfileEvent::PROFILE_STOP);
     terminal.arg1 = static_cast<uint32_t>(reason);
-    terminal.arg2 = overrunMs;
-    terminal.ordinal = ++ordinal_;
-    terminal.relativeMs = static_cast<uint32_t>(nowMs - epochMs_);
+    durationMs_ = elapsedAt_(nowMs);
+    terminal.ordinal = ++ordinal_ |
+        (static_cast<uint32_t>(durationMs_ >> 32) << SCALE_PROFILE_ORDINAL_BITS);
+    terminal.relativeMs = static_cast<uint32_t>(durationMs_);
     // The reserved terminal slot is only writable here, after producers can
     // no longer be admitted.
     if (recordCount_ < SCALE_PROFILE_RECORD_CAPACITY) {
       records_[recordCount_++] = terminal;
       ++eventCount_;
     }
-    durationMs_ = terminal.relativeMs;
     stopReason_ = reason;
     persistence_ = ScaleProfilerPersistence::PENDING_SAVE;
     indexReady_ = false;
@@ -1270,7 +1308,8 @@ class ScaleProfiler {
     workspace_->header.recordCount = recordCount_;
     workspace_->header.payloadBytes =
         recordCount_ * SCALE_PROFILE_RECORD_BYTES;
-    workspace_->header.durationMs = durationMs_;
+    workspace_->header.durationMs = static_cast<uint32_t>(durationMs_);
+    workspace_->header.reserved[0] = static_cast<uint32_t>(durationMs_ >> 32);
     workspace_->header.stopReason = static_cast<uint32_t>(reason);
     workspace_->header.lostCount = lostCount_;
     workspace_->header.weightCount = weightCount_;
@@ -1283,9 +1322,47 @@ class ScaleProfiler {
       stopLocked_(ScaleProfilerStopReason::BUFFER_FULL, nowMs);
       return;
     }
-    if (static_cast<uint32_t>(nowMs - epochMs_) >= SCALE_PROFILE_DURATION_LIMIT_MS) {
-      stopLocked_(ScaleProfilerStopReason::TIMEOUT, nowMs);
+    // The first service tick excludes the initial context/state burst.
+    if (!estimateBaselineReady_) {
+      estimateBaselineReady_ = true;
+      estimateAtMs_ = estimateStartMs_ = lastProgressMs_ = nowMs;
+      estimateCount_ = estimateStartCount_ = recordCount_;
+      return;
     }
+    const uint32_t dtMs = nowMs - estimateAtMs_;
+    if (dtMs < 1000) return;
+    const uint32_t added = recordCount_ - estimateCount_;
+    estimateAtMs_ = nowMs;
+    estimateCount_ = recordCount_;
+    if (added != 0) lastProgressMs_ = nowMs;
+    if (static_cast<uint32_t>(nowMs - lastProgressMs_) >= 5000) {
+      smoothedRecordsPerSecond_ = 0;
+      estimatedRemainingMs_ = UINT32_MAX;
+      estimateStartMs_ = nowMs;
+      estimateStartCount_ = recordCount_;
+      return;
+    }
+    if (smoothedRecordsPerSecond_ == 0) {
+      const uint32_t warmupMs = nowMs - estimateStartMs_;
+      const uint32_t warmupCount = recordCount_ - estimateStartCount_;
+      if (warmupMs < 5000 || warmupCount < 10) return;
+      smoothedRecordsPerSecond_ = 1000.0 * warmupCount / warmupMs;
+    } else {
+      const double alpha = -std::expm1(-static_cast<double>(dtMs) / 5000.0);
+      smoothedRecordsPerSecond_ += alpha *
+          (1000.0 * added / dtMs - smoothedRecordsPerSecond_);
+    }
+    const double remainingMs = 1000.0 *
+        (SCALE_PROFILE_ORDINARY_CAPACITY - recordCount_) / smoothedRecordsPerSecond_;
+    estimatedRemainingMs_ = std::isfinite(remainingMs) && remainingMs < UINT32_MAX
+                                ? static_cast<uint32_t>(std::ceil(remainingMs))
+                                : UINT32_MAX;
+  }
+
+  int64_t elapsedAt_(uint32_t nowMs) const {
+    // Readers/producers may have sampled millis just before the owner tick.
+    return static_cast<int64_t>(elapsedMs_) +
+           static_cast<int32_t>(nowMs - clockAtMs_);
   }
 
   ScaleProfilerWork servicePersistenceLocked_(uint32_t nowMs,
@@ -1341,8 +1418,10 @@ class ScaleProfiler {
     const ScaleProfileRecord *records = records_;
     std::sort(index_, index_ + recordCount_,
               [records](uint32_t a, uint32_t b) {
-                if (records[a].relativeMs != records[b].relativeMs) {
-                  return records[a].relativeMs < records[b].relativeMs;
+                const uint64_t at = scaleProfileRecordTimeMs(records[a]);
+                const uint64_t bt = scaleProfileRecordTimeMs(records[b]);
+                if (at != bt) {
+                  return at < bt;
                 }
                 return records[a].ordinal < records[b].ordinal;
               });
@@ -1367,7 +1446,8 @@ class ScaleProfiler {
     header = workspace_->header;
     header.recordCount = flashSave_.recordCount;
     header.payloadBytes = flashSave_.payloadBytes;
-    header.durationMs = durationMs_;
+    header.durationMs = static_cast<uint32_t>(durationMs_);
+    header.reserved[0] = static_cast<uint32_t>(durationMs_ >> 32);
     header.stopReason = static_cast<uint32_t>(stopReason_);
     header.lostCount = lostCount_;
     header.weightCount = weightCount_;
@@ -1380,7 +1460,7 @@ class ScaleProfiler {
     persistence_ = ScaleProfilerPersistence::SAVED;
     savedRecordCount_ = header.recordCount;
     sessionId_ = header.sessionId;
-    durationMs_ = header.durationMs;
+    durationMs_ = scaleProfileDurationMs(header);
     stopReason_ = static_cast<ScaleProfilerStopReason>(header.stopReason);
     lostCount_ = header.lostCount;
     weightCount_ = header.weightCount;
@@ -1449,8 +1529,17 @@ class ScaleProfiler {
   uint32_t eventCount_ = 0;
   uint32_t lostCount_ = 0;
   uint32_t ordinal_ = 0;
-  uint32_t durationMs_ = 0;
-  uint32_t epochMs_ = 0;
+  uint64_t durationMs_ = 0;
+  uint64_t elapsedMs_ = 0;
+  uint32_t clockAtMs_ = 0;
+  uint32_t estimateAtMs_ = 0;
+  uint32_t estimateStartMs_ = 0;
+  uint32_t estimateCount_ = 0;
+  uint32_t estimateStartCount_ = 0;
+  uint32_t lastProgressMs_ = 0;
+  uint32_t estimatedRemainingMs_ = UINT32_MAX;
+  double smoothedRecordsPerSecond_ = 0;
+  bool estimateBaselineReady_ = false;
   uint32_t saveRetryAtMs_ = 0;
   uint8_t saveRetries_ = 0;
   bool resultReady_ = false;
@@ -1548,11 +1637,12 @@ inline void formatScaleProfileValue(char *out, size_t capacity,
 inline size_t formatScaleProfileRow(char *out, size_t capacity,
                                     const ScaleProfileRecord &record) {
   if (out == nullptr || capacity == 0) return 0;
-  const uint32_t seconds = record.relativeMs / 1000U;
-  const uint32_t millis = record.relativeMs % 1000U;
+  const uint64_t atMs = scaleProfileRecordTimeMs(record);
+  const uint64_t seconds = atMs / 1000U;
+  const uint32_t millis = static_cast<uint32_t>(atMs % 1000U);
   size_t used = static_cast<size_t>(
-      snprintf(out, capacity, "+%06lu.%03lu \xE2\x80\x93 ",
-               static_cast<unsigned long>(seconds),
+      snprintf(out, capacity, "+%06llu.%03lu \xE2\x80\x93 ",
+               static_cast<unsigned long long>(seconds),
                static_cast<unsigned long>(millis)));
   if (used >= capacity) return 0;
   if (std::isfinite(record.weightG)) {
@@ -1616,14 +1706,19 @@ inline size_t formatScaleProfileRow(char *out, size_t capacity,
                (record.flags & SCALE_PROFILE_FLAG_DISCONTINUITY) ? " disc=1" : "");
       break;
     case ScaleProfileEvent::PROFILE_START:
-      snprintf(suffix, sizeof(suffix), " maxMs=%lu",
-               static_cast<unsigned long>(record.arg1));
+      if (record.arg1 == 0) snprintf(suffix, sizeof(suffix), " limit=capacity");
+      else snprintf(suffix, sizeof(suffix), " maxMs=%lu",
+                    static_cast<unsigned long>(record.arg1));
       break;
     case ScaleProfileEvent::PROFILE_STOP:
-      snprintf(suffix, sizeof(suffix), " reason=%s overrunMs=%lu",
-               scaleProfilerStopReasonName(
-                   static_cast<ScaleProfilerStopReason>(record.arg1)),
-               static_cast<unsigned long>(record.arg2));
+      if (record.arg1 == static_cast<uint32_t>(ScaleProfilerStopReason::TIMEOUT)) {
+        snprintf(suffix, sizeof(suffix), " reason=timeout overrunMs=%lu",
+                 static_cast<unsigned long>(record.arg2));
+      } else {
+        snprintf(suffix, sizeof(suffix), " reason=%s",
+                 scaleProfilerStopReasonName(
+                     static_cast<ScaleProfilerStopReason>(record.arg1)));
+      }
       break;
     case ScaleProfileEvent::SCALE_CONNECTED:
     case ScaleProfileEvent::SCALE_DISCONNECTED:

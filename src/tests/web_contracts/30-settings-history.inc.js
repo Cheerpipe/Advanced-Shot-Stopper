@@ -446,6 +446,8 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !ui.includes('id="hProfileState"') ||
       !ui.includes('id="hProfileElapsed"') ||
       !ui.includes('id="hProfileRecords"') ||
+      !ui.includes('id="hProfileCapacity"') ||
+      !ui.includes('id="hProfileRemaining"') ||
       !ui.includes('id="scaleProfileStartButton"') ||
       !ui.includes('id="scaleProfileStopButton"') ||
       !ui.includes('id="scaleProfileDeleteButton"') ||
@@ -666,6 +668,55 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !ui.includes("t('ld',local&&local.slice(0,10))")) {
     throw new Error('Diagnostic UTC and local date/time fields must use the configured offset');
   }
+}
+{
+  const assert = require('assert').strict;
+  const source = viewJs.diagnostic;
+  const nodes = Object.fromEntries(['hProfileState', 'hProfileElapsed', 'hProfileRecords',
+    'hProfileCapacity', 'hProfileRemaining', 'scaleProfileStartButton', 'scaleProfileStopButton',
+    'scaleProfileDeleteButton', 'scaleProfileDownloadButton'].map(id => [id, {}]));
+  const runtime = {webUiOwner: true, formatUptime: ms => `${ms / 1000}s`};
+  const render = new Function('$', 'R', '__WEBUI_TEXT__',
+    source.slice(source.indexOf('function applyScaleProfile('),
+      source.indexOf('async function downloadScaleProfile(')) + ';return applyScaleProfile;')(
+      id => nodes[id], runtime, key => key);
+  const profile = {state: 'recording', partitionAvailable: true, persistence: 'none',
+    recordCount: 4095, recordCapacity: 8192, recordBytes: 32, reservedRecords: 1,
+    elapsedMs: 181000, estimatedRemainingMs: 61100, canStop: true,
+    weightCount: 4000, eventCount: 95, lostCount: 0};
+  render(profile);
+  assert.equal(nodes.hProfileElapsed.textContent, '181s');
+  assert.equal(nodes.hProfileCapacity.textContent, '50%');
+  assert.equal(nodes.hProfileRemaining.textContent, '≈ 65s');
+  assert.equal(nodes.scaleProfileStopButton.disabled, false);
+  render({...profile, elapsedMs: 3600000, estimatedRemainingMs: 59300});
+  assert.equal(nodes.hProfileCapacity.textContent, '50%');
+  assert.equal(nodes.hProfileRemaining.textContent, '≈ 60s');
+  for (const estimatedRemainingMs of [null, undefined]) {
+    render({...profile, estimatedRemainingMs});
+    assert.equal(nodes.hProfileRemaining.textContent, 'Estimating…');
+  }
+  render({...profile, recordCount: 8189});
+  assert.match(nodes.hProfileCapacity.textContent, /^99%/);
+  render({...profile, recordCount: 8191, estimatedRemainingMs: 0});
+  assert.match(nodes.hProfileCapacity.textContent, /^100%/);
+  assert.equal(nodes.hProfileRemaining.textContent, '≈ 0s');
+  render({...profile, state: 'stopped', reservedRecords: 0});
+  assert.match(nodes.hProfileCapacity.textContent, /^49%/);
+  assert.equal(nodes.hProfileRemaining.textContent, '—');
+  render({...profile, state: 'saved', recordCount: 4096, reservedRecords: 0});
+  assert.match(nodes.hProfileCapacity.textContent, /^50%/);
+  runtime.webUiOwner = false;
+  render(profile);
+  assert.equal(nodes.scaleProfileStopButton.disabled, true);
+  render({...profile, state: 'saved', canDownload: true});
+  assert.equal(nodes.scaleProfileDownloadButton.disabled, true);
+  render(null);
+  assert.equal(nodes.hProfileCapacity.textContent, '—');
+  assert.equal(nodes.hProfileRemaining.textContent, '—');
+  for (const name of ['recordBytes', 'reservedRecords', 'estimatedRemainingMs'])
+    assert.ok(network.includes(`\\"${name}\\"`), `Missing profiler status field ${name}`);
+  assert.ok(!source.includes('p.durationLimitMs'), 'Profiler UI must not display a fixed deadline');
 }
 {
   const source = viewJs.diagnostic;

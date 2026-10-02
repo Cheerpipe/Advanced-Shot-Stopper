@@ -1011,6 +1011,11 @@ bool statusJsonAppendTaskProfiler(size_t *used,
 
 bool statusJsonAppendScaleProfiler(size_t *used,
                                    const ScaleProfilerStatus &profile) {
+  char remaining[16] = "null";
+  if (profile.estimatedRemainingMs != UINT32_MAX) {
+    snprintf(remaining, sizeof(remaining), "%lu",
+             static_cast<unsigned long>(profile.estimatedRemainingMs));
+  }
   // The can* flags mirror the profiler's own guards so the browser and the
   // server can never disagree about availability.
   const bool busy = profile.downloading ||
@@ -1037,8 +1042,9 @@ bool statusJsonAppendScaleProfiler(size_t *used,
   return statusJsonAppend(
       used,
       ",\"scaleProfile\":{\"state\":\"%s\",\"persistence\":\"%s\","
-      "\"generation\":%lu,\"sessionId\":%lu,\"elapsedMs\":%lu,"
-      "\"durationLimitMs\":%lu,\"recordCount\":%lu,\"recordCapacity\":%lu,"
+      "\"generation\":%lu,\"sessionId\":%lu,\"elapsedMs\":%llu,"
+      "\"durationLimitMs\":0,\"recordCount\":%lu,\"recordCapacity\":%lu,"
+      "\"recordBytes\":%lu,\"reservedRecords\":%u,\"estimatedRemainingMs\":%s,"
       "\"weightCount\":%lu,\"eventCount\":%lu,\"lostCount\":%lu,"
       "\"stopReason\":\"%s\",\"complete\":%s,\"downloading\":%s,"
       "\"partitionAvailable\":%s,\"lastError\":\"%s\","
@@ -1047,12 +1053,14 @@ bool statusJsonAppendScaleProfiler(size_t *used,
       scaleProfilerPersistenceName(profile.persistence),
       static_cast<unsigned long>(profile.generation),
       static_cast<unsigned long>(profile.sessionId),
-      static_cast<unsigned long>(profile.elapsedMs),
-      static_cast<unsigned long>(SCALE_PROFILE_DURATION_LIMIT_MS),
+      static_cast<unsigned long long>(profile.elapsedMs),
       static_cast<unsigned long>(profile.state == ScaleProfilerState::SAVED
                                      ? profile.savedRecordCount
                                      : profile.recordCount),
       static_cast<unsigned long>(SCALE_PROFILE_RECORD_CAPACITY),
+      static_cast<unsigned long>(SCALE_PROFILE_RECORD_BYTES),
+      profile.state == ScaleProfilerState::RECORDING ? 1U : 0U,
+      remaining,
       static_cast<unsigned long>(profile.weightCount),
       static_cast<unsigned long>(profile.eventCount),
       static_cast<unsigned long>(profile.lostCount),

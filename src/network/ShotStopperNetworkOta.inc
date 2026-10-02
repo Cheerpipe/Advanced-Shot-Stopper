@@ -561,7 +561,7 @@ esp_err_t ShotStopperNetwork::scaleProfileDownloadHandler(
   const ScaleProfilerStatus status = scaleProfiler().status(millis());
   uint32_t recordCount = 0;
   uint32_t sessionId = status.sessionId;
-  uint32_t durationMs = status.elapsedMs;
+  uint64_t durationMs = status.elapsedMs;
   uint32_t stopReason = static_cast<uint32_t>(status.stopReason);
   uint32_t lostCount = status.lostCount;
   uint32_t weightCount = 0;
@@ -583,7 +583,7 @@ esp_err_t ShotStopperNetwork::scaleProfileDownloadHandler(
     if (scaleProfiler().storeReadHeader(header)) {
       recordCount = header.recordCount;
       sessionId = header.sessionId;
-      durationMs = header.durationMs;
+      durationMs = scaleProfileDurationMs(header);
       stopReason = header.stopReason;
       lostCount = header.lostCount;
       weightCount = header.weightCount;
@@ -627,8 +627,8 @@ esp_err_t ShotStopperNetwork::scaleProfileDownloadHandler(
     ok = written > 0 && sink.line(line, static_cast<size_t>(written));
   }
   if (ok) {
-    written = snprintf(line, sizeof(line), "durationMs=%lu stopReason=%s",
-                       static_cast<unsigned long>(durationMs),
+    written = snprintf(line, sizeof(line), "durationMs=%llu stopReason=%s",
+                       static_cast<unsigned long long>(durationMs),
                        scaleProfilerStopReasonName(
                            static_cast<ScaleProfilerStopReason>(stopReason)));
     ok = written > 0 && sink.line(line, static_cast<size_t>(written));

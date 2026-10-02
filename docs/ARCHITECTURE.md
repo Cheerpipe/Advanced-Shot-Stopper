@@ -159,7 +159,16 @@ floors and clear epochs. The manual scale
 profiler follows the same deferred pattern: the health worker owns one
 bounded PSRAM capture of raw decoded weights plus correlated firmware
 decisions, and the persistence worker commits the completed trace to a
-dedicated flash partition with the validity-bearing header written last. Each inactive slot or used curve sector is
+dedicated flash partition with the validity-bearing header written last.
+Capture ends at record capacity or on request, with a reserved terminal slot;
+there is no elapsed-time cutoff. Its 256 KiB PSRAM payload and 256 KiB flash
+payload hold the same trace, so they are not additive capacity. The health
+worker maintains a constant-memory, time-based EWMA of record growth for the
+advisory remaining-time estimate. Persistence state remains separate from
+capture occupancy. Existing record/header fields extend timestamps without
+changing the 32-byte record size or partition layout; see the
+[diagnostic API](INTEGRATION_API.md#post-apiv1diagnosticscale-profile).
+Each inactive slot or used curve sector is
 erased one 4 KiB sector at a time, programmed one 1 KiB staged chunk at a time,
 and receives its validity-bearing header last; the worker rechecks the current
 machine and scale gates between steps. The shot log's whole 10,828-byte store and the

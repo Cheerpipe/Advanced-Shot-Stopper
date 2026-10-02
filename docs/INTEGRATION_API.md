@@ -195,6 +195,26 @@ rules. Bounded state (including `state`, `persistence`, counts, `stopReason`,
 `lostCount`, and `canStart`/`canStop`/`canDelete`/`canDownload`) is reported
 as `scaleProfile` in the diagnostic status document.
 
+Capture has no duration cutoff: it stops on explicit request or when all
+ordinary record slots are occupied, preserving one slot for the closing event.
+The existing numeric `durationLimitMs` field is deprecated and is always `0`
+(no limit). `elapsedMs` reports elapsed capture time independently of capacity.
+
+| Status field | Meaning |
+| --- | --- |
+| `recordCount` / `recordCapacity` | Accepted records in the current or saved capture / total payload slots (8,192). Empty/preparing states expose zero current records. |
+| `recordBytes` | Fixed stored record size, 32 bytes; downloaded text size is unrelated. |
+| `reservedRecords` | One terminal slot while recording, zero otherwise. Capacity used is `(recordCount + reservedRecords) / recordCapacity`. |
+| `estimatedRemainingMs` | Smoothed estimate until capture capacity fills, or JSON `null` until enough data arrives, after a sustained stall, or outside recording. Full captures report zero. It never acts as a deadline. |
+
+The estimate is maintained by the firmware independently of status polling. It
+uses all accepted records, samples growth about once per second, and smooths
+the rate with a five-second exponential time constant. Initialization requires
+at least five seconds and ten records after the initial state snapshot; five
+seconds without progress invalidates it. A new session resets the estimate.
+`persistence` remains the authority for pending/saving/saved/failed state:
+recorded bytes are not claimed as durable before the save completes.
+
 ### `GET /api/v1/diagnostic/scale-profile/download`
 
 Streams the most recent completed capture as a chunked `text/plain`
@@ -212,6 +232,15 @@ Control observations are contiguous batches; their timestamps are observation
 times, independently of the initial header snapshot. No initial observations
 means control was not observed before capture stopped. Unchanged signals are
 omitted; a new connection generation renews the observations.
+
+New `PROFILE_START` rows state `limit=capacity`; historical `maxMs` and timeout
+overrun rows remain readable. Durations and exported relative times can exceed
+the 32-bit millisecond rollover: ordinal bits 0–13 retain append order and bits
+14–31 contain the high word of the record time. Header `reserved[0]` contains
+the high word of `durationMs`. Legacy records and headers have zero extension
+bits; their interpretation is unchanged. Readers that decode binary records
+must combine these words before sorting or displaying long captures. Old
+firmware retains its original 32-bit time display for such long captures.
 
 Signals cover cup presence, settling and removal qualification, reference/mass
 validity, tare eligibility/presentation/reasons, request and placement IDs,

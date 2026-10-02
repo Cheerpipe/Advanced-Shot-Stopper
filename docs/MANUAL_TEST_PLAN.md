@@ -113,6 +113,17 @@ and [target traces](P2_TARGET_TRACE.md), not by a historical pass.
 | M66 | In **Settings → Machine and scale → Scales**, set **Drip delay** to 0 s, run a shot, then repeat with 3.0 s and 10.0 s while watching Last Shot/history and the scale weight after machine circuit opens. Reboot after saving and verify the selected value remains. | `status/settings.config.dripDelayMs` reports 0, 3000, and 10000 respectively. Final weight/history update on the next control loop at 0 s and only after the configured window at 3/10 s. The saved value survives reboot; starting another shot during a pending window commits the previous shot with its last-known weight. |
 | M66B | With a local buzzer build, select **Buzzer only**, enable **Bullseye melody**, paste a valid RTTTL tune (≤500 characters), and save. Finish automatic, timer-only, and manual shots at the exact target; also try a brief target touch, a stable non-target weight, Scale priority, Sound alerts OFF, and disabling/re-enabling Bullseye. | The custom tune plays once after 1 continuous second of fresh exact-target samples, including before drip delay expires. It stays silent for brief/non-target runs and outside Buzzer only. Disabling makes the textarea gray/read-only without erasing it; re-enabling and rebooting restore the saved tune. Rinses never trigger it. |
 
+## Scale profiling capacity and time estimate
+
+Run these cases only on an explicitly authorized isolated bench; this table
+does not authorize flashing, OTA, relay operation, or HIL execution.
+
+| ID | Procedure | Expected result |
+| --- | --- | --- |
+| M-SP-01 | Start profiling with a connected scale. Observe elapsed time, capacity and ETA beyond three minutes while capacity remains; leave/reopen the page. | Recording continues beyond 180 s. Capacity reflects recorded data and the closing reservation. ETA appears after calibration, varies smoothly, and survives reopening the page. |
+| M-SP-02 | Repeat with scales of different update rates; vary the rate of tare/cup events, then interrupt and resume scale data. | All event traffic affects capacity and ETA. The estimate may increase when traffic slows; a sustained lack of records makes it unavailable without stopping capture. Resumption recalibrates it. |
+| M-SP-03 | Allow a capture to fill, then download and save/restart. Repeat with a manual stop before full. | Full capture stops automatically with one terminal record and no overwrite. A partial stop retains its actual percentage. Saving state is distinct from occupancy; once Saved, the trace and final occupancy survive restart. Machine safety behavior remains unchanged. |
+
 ## Post-drip chart acceptance
 
 | ID | Procedure | Expected result |

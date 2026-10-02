@@ -226,10 +226,12 @@ Related: [Brew by weight](../features/brew-by-weight.md), [Tare](tare.md),
 ## Recording what the scale reports
 
 When a scale misbehaves in a way settings cannot explain, the diagnostic page
-can record a short trace of everything the scale sends and every tare, cup,
+can record a trace of everything the scale sends and every tare, cup,
 touch, and first-drop decision that follows. See
 [the diagnostic guide](../FAQ.md)
-for how to start, stop, and download the recording.
+for how to start, stop, and download the recording. Capture lasts until its
+recording space fills or you stop it; the page shows capacity used, elapsed
+time, and a smoothed estimate of time remaining based on the arriving data.
 
 Use **Diagnostic → Scale profiling** to investigate unexpected cup detection,
 tare, or weight-controlled brewing. Start a capture, reproduce the behavior,

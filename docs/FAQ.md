@@ -208,7 +208,7 @@ measurements keep recording either way.
 what the firmware decided about it. Press **Start** before reproducing a
 problem — for example a wrong tare or an unexpected cup event — and **Stop**
 when done; **Download** then saves a plain-text trace and **Delete** removes
-it. Recording runs for at most three minutes or until its buffer fills, keeps
+it. Recording continues until its capacity fills or you press **Stop**, keeps
 running while you leave the page, and works with or without a shot in
 progress. Every decoded weight is kept exactly as received — including
 identical, negative, and rejected readings — together with the tare, cup,
@@ -217,6 +217,17 @@ can point at one line instead of guessing. Starting a new recording replaces
 the previous one, which is stated next to the buttons; a finished recording
 survives a restart once it reports as saved. Losing power during recording or
 saving can lose that session.
+
+**Capture capacity used** shows how much recording space has been consumed,
+including the space kept for the closing event. **Elapsed** is the time already
+recorded. **Estimated time remaining** adapts to how quickly readings and events
+arrive, so different scales can record for different lengths of time. It takes
+a few seconds to appear, smooths brief changes in activity, and may increase
+when fewer events arrive. If no records arrive for several seconds, the estimate
+returns to **Estimating…**; recording stays active.
+The percentage describes the capture, while **Saving…** and **Saved** tell you
+whether it has been stored for a restart. Stopping early keeps the actual
+percentage used rather than changing it to 100%.
 
 On a 16 MB controller, **Diagnostic → Misc → Coredump** shows how many complete
 crash records are saved, up to two. Unlock Admin to download them. The browser

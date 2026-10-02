@@ -48,13 +48,17 @@ function applyLoopTiming(s){
     add([label,recentReady?ms(a[i]):'—',peakReady?ms(b[i]):'—']));
 }
 let profileBusy=false;
-function applyScaleProfile(p){const T=$('hProfileState'),E=$('hProfileElapsed'),N=$('hProfileRecords'),A=$('scaleProfileStartButton'),P=$('scaleProfileStopButton'),D=$('scaleProfileDeleteButton'),L=$('scaleProfileDownloadButton'),o=!!R.webUiOwner;
-if(!p||typeof p.state!='string'||!p.partitionAvailable){if(T)T.textContent=__WEBUI_TEXT__("diagnostic.profile_unavailable");[E,N].forEach(e=>{if(e)e.textContent='—'});[A,P,D,L].forEach(e=>{if(e)e.disabled=true});return}
+function applyScaleProfile(p){
+const set=(key,value)=>{$('hProfile'+key).textContent=value},valid=p&&p.partitionAvailable;
+['Start','Stop','Delete','Download'].forEach(key=>{$('scaleProfile'+key+'Button').disabled=!valid||!p['can'+key]||!R.webUiOwner});
+if(!valid){set('State',__WEBUI_TEXT__("diagnostic.profile_unavailable"));['Elapsed','Records','Capacity','Remaining'].forEach(key=>set(key,'—'));return}
 const SN=__WEBUI_TEXT__("diagnostic.profile_state_names").split('|'),VN=__WEBUI_TEXT__("diagnostic.profile_saved_names").split('|'),si=['empty','preparing','recording','stopped','saved'].indexOf(p.state),vi=['none','pending','saving','saved','invalidating','failed'].indexOf(p.persistence);
-if(T)T.textContent=(SN[si]||p.state)+(p.stopReason&&p.stopReason!=='none'?' ('+p.stopReason+')':'')+(vi>0&&VN[vi]?' · '+VN[vi]:'');
-if(E)E.textContent=Math.floor((p.elapsedMs||0)/1e3)+' / '+Math.floor((p.durationLimitMs||0)/1e3)+__WEBUI_TEXT__("diagnostic.s");
-if(N)N.textContent=(p.recordCount||0)+' / '+(p.recordCapacity||0)+(p.recordCapacity?' ('+Math.floor(100*(p.recordCount||0)/p.recordCapacity)+'%)':'')+' · '+(p.weightCount||0)+'w '+(p.eventCount||0)+'e'+(p.lostCount>0?' · '+__WEBUI_TEXT__("diagnostic.profile_incomplete").replace('{n}',p.lostCount):'');
-if(A)A.disabled=!p.canStart||!o;if(P)P.disabled=!p.canStop||!o;if(D)D.disabled=!p.canDelete||!o;if(L)L.disabled=!p.canDownload||!o}
+set('State',(SN[si]||p.state)+(p.stopReason&&p.stopReason!=='none'?' ('+p.stopReason+')':'')+(VN[vi]?' · '+VN[vi]:''));
+set('Elapsed',R.formatUptime(p.elapsedMs));
+set('Capacity',p.recordCapacity?Math.floor(100*(p.recordCount+(p.reservedRecords||0))/p.recordCapacity)+'%':'—');
+const eta=p.estimatedRemainingMs;
+set('Remaining',p.state==='recording'?(eta==null?__WEBUI_TEXT__("diagnostic.profile_estimating"):'≈ '+R.formatUptime(Math.ceil(eta/5e3)*5e3)):'—');
+set('Records',p.recordCount+' · '+p.weightCount+'w '+p.eventCount+'e'+(p.lostCount>0?' · '+__WEBUI_TEXT__("diagnostic.profile_incomplete").replace('{n}',p.lostCount):''))}
 async function downloadScaleProfile(){if(profileBusy)return;profileBusy=true;R.message(__WEBUI_TEXT__("diagnostic.downloading"));try{const b=await R.apiBinary('/api/v1/diagnostic/scale-profile/download'),u=URL.createObjectURL(new Blob([b],{type:'text/plain'})),a=Object.assign(document.createElement('a'),{href:u,download:'shotstopper-scale-profile.txt'});document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),6e4);R.message(__WEBUI_TEXT__("diagnostic.ok"),'ok')}catch(e){R.message(R.formatCommandError(__WEBUI_TEXT__("diagnostic.profile_download_failed"),e),'error')}finally{profileBusy=false}}
 function updateCrashRow(s){
   const misc=$('hResetHistory')?.closest('fieldset.statusColumn');if(!misc)return;
