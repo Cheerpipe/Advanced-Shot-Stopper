@@ -650,7 +650,7 @@ if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !html.includes('class="buzzerOpt scaleIncapableOpt">Slow extended pulse<select id="buzzerSlowExtendedPulseRate"') ||
     !css.includes('color-scheme:light dark') ||
     !css.includes('html,input,select,textarea{color-scheme:dark}') ||
-    !css.includes('--in:#fbfaf8') ||
+    !css.includes('--in:#fafafa') ||
     !css.includes('input:not([type=file],[type=checkbox]),select,textarea{') ||
     !css.includes('input[type=text],input[type=email],input[type=password],input[type=url]{-webkit-appearance:none;appearance:none}') ||
     !css.includes('min-height:3rem') ||
