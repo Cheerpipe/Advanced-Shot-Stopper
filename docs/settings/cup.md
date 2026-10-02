@@ -21,15 +21,17 @@ undershoot followed by an empty-pan rebound does not count as another placement.
 Without an absent baseline at boot, a stable absolute reading above the minimum
 can establish presence, but cannot establish cup mass.
 
-The empty reference stays fixed once a cup has been placed. Before the first
-cup, a small negative shift can become the new empty reference after stable
-readings; it must be no more than 5 g or half **Minimum cup weight**, whichever
-is smaller. Larger movement cannot redefine zero: 0 → −20 → 0.1 g does not
-place a cup. After a larger downward disturbance, let the empty pan settle back
-near its previously stable zero before placing the cup. Once the normal
-stability window completes, **Automatic tare** returns to **Ready for a cup**
-without taring or detecting a placement. If the empty reference is unknown and a
-removal reading rebounds by a full minimum cup weight, the controller cannot
+The empty reference stays fixed once a cup has been weighed. Before that, a
+small empty-pan offset can be accepted after stable readings; it must stay
+within 5 g of zero or half **Minimum cup weight**, whichever is smaller.
+Several small shifts cannot add up to move this band farther from zero.
+Larger movement cannot redefine zero: 0 → −20 → 0.1 g does not place a cup.
+After moving the scale, an empty reading inside that same band restores
+**Ready for a cup** through the normal stability window, without sending a
+tare. This also works if handling briefly looked like a cup before the empty
+pan was first recognized. There is no extra settling delay, and placing the
+cup afterward uses the usual placement timing. If the empty reference is unknown
+and a removal reading rebounds away from this band by a full minimum cup weight, the controller cannot
 tell empty-pan movement from a new cup; tare the empty pan on the scale,
 reconnect it, wait for stable zero, then place the cup.
 Stability tolerance bounds sample spread; it is neither a minimum placement mass

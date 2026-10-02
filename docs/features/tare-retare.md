@@ -30,6 +30,9 @@ If you move the empty scale after it was ready, leave it still near its original
 zero. Once the normal stability window completes, **Automatic tare** returns to
 **Ready for a cup** without sending a tare. A rebound away from that known zero
 can remain ambiguous; tare the empty pan on the scale and reconnect it in that case.
+Before the first cup has been weighed, recovery accepts the same small empty-pan
+offsets as at connection, even if handling briefly looked like a cup. It uses
+the normal stability window and adds no delay to the next cup's tare.
 
 Once an empty reference is known, two consecutive fresh readings showing
 near-total unloading can authorize a stable replacement without another stable

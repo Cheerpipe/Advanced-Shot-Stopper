@@ -59,6 +59,8 @@ struct CupPresenceRuntime {
   // treats a stable empty pan (~0 g) as REMOVED.
   bool taredWhilePresent = false;
   bool referenceUncertain = false;
+  // A trusted placement or uncertain tare closes initial-zero recovery.
+  bool initialZeroRecoveryAllowed = true;
   uint8_t removedConfirmations = 0;
   uint8_t placeStabilitySamples = 0;
   uint32_t lastRemovedAtMs = 0;
@@ -117,24 +119,27 @@ void invalidateCupWeight() {
 bool cupWeightNearKnownEmpty(float weight) {
   const float band = fminf(runtimeConfig.retareStabilityToleranceG,
       fminf(FIRST_DROP_BASELINE_SETTLE_G, runtimeConfig.minimumCupWeightG / 2.0f));
-  return cupPresence.placementId != 0 && std::isfinite(cupPresence.emptyAnchorG) &&
+  return cupPresence.placementId != 0 && !cupPresence.initialZeroRecoveryAllowed &&
+      std::isfinite(cupPresence.emptyAnchorG) &&
       !cupPresence.referenceUncertain && !cupPresence.holdTransitions &&
       cupPresence.weight.pendingId == 0 && weight <= cupPresence.emptyAnchorG + band;
 }
 
-void observeEmptyCupWeight(float weight, uint32_t atMs) {
+void observeEmptyCupWeight(float weight, uint32_t atMs, bool initialRecovery) {
   auto &mass = cupPresence.weight;
   const bool anchored = std::isfinite(cupPresence.emptyAnchorG);
   const float referenceG = anchored ? cupPresence.emptyAnchorG : 0.0f;
-  const float movementG = cupPresence.placementId == 0
+  const float movementG = initialRecovery || cupPresence.placementId == 0
       ? fminf(5.0f, runtimeConfig.minimumCupWeightG / 2.0f) : 0.0f;
-  const float toleranceG = fmaxf(anchored ? runtimeConfig.retareStabilityToleranceG
-                                        : FIRST_DROP_BASELINE_SETTLE_G, movementG);
+  const bool initialZero = initialRecovery && fabsf(referenceG) <= movementG;
+  const float toleranceG = initialZero ? movementG
+      : fmaxf(anchored ? runtimeConfig.retareStabilityToleranceG
+                       : FIRST_DROP_BASELINE_SETTLE_G, movementG);
   if (mass.pendingId != 0 || cupPresence.holdTransitions ||
       (cupPresence.inNegativeHole && !anchored &&
        weight >= cupPresence.holeWeightG + runtimeConfig.minimumCupWeightG) ||
       ((!cupPresence.inNegativeHole || anchored) &&
-       fabsf(weight - referenceG) > toleranceG)) {
+       fabsf(weight - (initialZero ? 0.0f : referenceG)) > toleranceG)) {
     // Intermediate upward loads can be a placement ramp. A downward
     // disturbance must settle back at the anchor before rearming placement.
     if (!anchored || weight < referenceG || mass.pendingId != 0 || cupPresence.holdTransitions)
@@ -164,7 +169,7 @@ void observeEmptyCupWeight(float weight, uint32_t atMs) {
   if (mass.emptySamples >= runtimeConfig.retareStabilitySamples &&
       static_cast<uint32_t>(atMs - mass.emptyStartedAtMs) >=
           runtimeConfig.retareStabilityMinDurationMs) {
-    if (!anchored || (cupPresence.placementId == 0 &&
+    if (!anchored || (movementG > 0.0f &&
                       weight < referenceG - runtimeConfig.retareStabilityToleranceG))
       cupPresence.emptyAnchorG = weight;
     mass.absent = CupStableWeight{cupPresence.emptyAnchorG, atMs, true};
@@ -183,6 +188,7 @@ void restoreCupTareReference(bool previouslyTared, float previousReferenceG) {
 void markCupTareReferenceUncertain() {
   invalidateCupWeight();
   cupPresence.emptyAnchorG = NAN;
+  cupPresence.initialZeroRecoveryAllowed = false;
   if (cupPresence.state == CupPresenceState::PRESENT) {
     cupPresence.referenceUncertain = true;
   }
@@ -237,6 +243,7 @@ void notifyCupPresenceTare() {
   cupPresence.weight.unloadQualified = false;
   cupPresence.removedConfirmations = 0;
   if (cupPresence.state == CupPresenceState::PRESENT) {
+    cupPresence.initialZeroRecoveryAllowed = false;
     cupPresence.taredWhilePresent = true;
     cupPresence.occupiedReferenceG = 0.0f;
     cupPresence.referenceUncertain = false;
@@ -258,6 +265,10 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
 
   const float minCupG = runtimeConfig.minimumCupWeightG;
   const float removedG = runtimeConfig.cupRemovedWeightG;
+  const bool initialPlacement = allowFastReplacement
+      ? cupPresence.initialZeroRecoveryAllowed : cupPresence.placementId == 0;
+  const float zeroBandG = allowFastReplacement
+      ? fminf(5.0f, minCupG / 2.0f) : FIRST_DROP_BASELINE_SETTLE_G;
   auto &mass = cupPresence.weight;
   const bool nearEmpty = allowFastReplacement && cupWeightNearKnownEmpty(weight);
   if (nearEmpty) {
@@ -335,10 +346,10 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
     return CupPresenceEvent::REMOVED;
   }
 
-  if (allowFastReplacement && cupPresence.placementId == 0 &&
+  if (allowFastReplacement && initialPlacement &&
       !cupPresence.referenceUncertain && !cupPresence.holdTransitions &&
       std::isfinite(cupPresence.emptyAnchorG) &&
-      fabsf(cupPresence.emptyAnchorG) <= FIRST_DROP_BASELINE_SETTLE_G &&
+      fabsf(cupPresence.emptyAnchorG) <= zeroBandG &&
       (mass.emptyValid || cupPresence.inNegativeHole) &&
       weight < cupPresence.emptyAnchorG - FIRST_DROP_BASELINE_SETTLE_G) {
     cupPresence.inNegativeHole = true;
@@ -350,15 +361,15 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   if (cupPresence.inNegativeHole && weight < cupPresence.holeWeightG) {
     cupPresence.holeWeightG = weight;
   }
-  if (cupPresence.placementId == 0 && cupPresence.inNegativeHole &&
-      fabsf(weight) <= FIRST_DROP_BASELINE_SETTLE_G &&
+  if (initialPlacement && cupPresence.inNegativeHole &&
+      fabsf(weight) <= zeroBandG &&
       ((std::isfinite(cupPresence.emptyAnchorG) &&
-        cupPresence.emptyAnchorG <= FIRST_DROP_BASELINE_SETTLE_G - minCupG) ||
+        (allowFastReplacement ? fabsf(cupPresence.emptyAnchorG) > zeroBandG
+            : cupPresence.emptyAnchorG <= zeroBandG - minCupG)) ||
        (allowFastReplacement && mass.pendingId == 0 && !cupPresence.referenceUncertain &&
-        !std::isfinite(cupPresence.emptyAnchorG) && mass.absent.valid &&
-        fabsf(mass.absent.absoluteG) <= FIRST_DROP_BASELINE_SETTLE_G))) {
+        !cupPresence.holdTransitions && !std::isfinite(cupPresence.emptyAnchorG)))) {
     // Returning to the original zero is indistinguishable from pan movement.
-    cupPresence.emptyAnchorG = 0.0f;
+    cupPresence.emptyAnchorG = allowFastReplacement ? weight : 0.0f;
     mass.emptyValid = false;
     mass.emptySamples = 0;
     // Idle placement must wait for this zero to qualify again.
@@ -376,7 +387,7 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   if (!placeCandidate) {
     if (cupPresence.weight.sampleSequence == packetSequence &&
         cupPresence.weight.sampleAtMs == receivedAtMs && packetSequence != 0)
-      observeEmptyCupWeight(weight, receivedAtMs);
+      observeEmptyCupWeight(weight, receivedAtMs, allowFastReplacement && initialPlacement);
     resetCupPlaceStabilityStreak();
     return CupPresenceEvent::NONE;
   }
@@ -444,6 +455,7 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   cupPresence.weight.pendingValid = false;
   cupPresence.weight.weightG = placementWeightValid ? placementWeightG : 0.0f;
   cupPresence.weight.valid = placementWeightValid;
+  if (placementWeightValid) cupPresence.initialZeroRecoveryAllowed = false;
   ++cupPresence.placementId;
   if (cupPresence.placementId == 0) ++cupPresence.placementId;
   cupPresence.referenceUncertain = false;

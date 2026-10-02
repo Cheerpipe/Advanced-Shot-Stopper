@@ -482,17 +482,22 @@ anchor is required before replacement can qualify; the negative-hole minimum
 is diagnostic only. Placement and queued tare
 validation use absent plus minimum cup weight. An established absent record
 survives transient intermediate weights while the next plateau qualifies.
-An independent empty anchor preserves the coordinate through freshness loss and
-does not move to another stable plateau while ABSENT. A downward departure beyond
+An independent empty anchor preserves the coordinate through freshness loss and,
+after a qualified placement, does not move to another stable plateau while ABSENT. A downward departure beyond
 placement tolerance revokes absence qualification until samples settle back at
 the anchor; upward intermediate placement readings do not redefine it. Without
-an anchor or observed removal, acquisition is restricted to the existing ±0.5 g
-zero-settle band. Initial positive absolute presence remains available without
+an anchor or observed removal, initial acquisition is restricted to
+±min(5 g, minimum cup weight / 2). Initial positive absolute presence remains available without
 mass or idle tare; negative boot offsets cannot authorize relative placement.
-Before the first placement, a transient negative departure from a qualified zero
+Before a qualified placement, a transient negative departure from a qualified zero
 may discard the current anchor while a stable negative reference qualifies.
-A return near that original zero restores it through the normal absent stability
-window, without PLACED or tare. Unknown initial negative offsets and unqualified
+A return inside the initial zero band restores the observed empty offset through
+the unchanged absent stability window, without PLACED or tare. An unqualified
+absolute startup placement does not close this idle recovery path; a qualified
+placement, known occupied tare or uncertain tare does. Initial small shifts are
+bounded against zero, not accumulated against each successive anchor. The fast
+unload path cannot bypass initial recovery stability. In-shot recovery retains
+its existing zero band and placement rules. Unknown initial negative offsets and unqualified
 rebounds away from that zero remain ambiguous and require diagnostic empty tare.
 For an unqualified rebound, readiness reports that recovery action instead of
 waiting indefinitely for settling.

@@ -85,9 +85,10 @@ automatic placement can resume.
 
 Moving an empty scale and returning it near its previously stable zero does not
 authorize an idle tare. Let it settle through the normal stability window;
-**Automatic tare** returns to **Ready for a cup**, including after a brief large
-negative fluctuation before the first cup. Before the first cup, a small stable
-negative offset can become the empty reference. A larger negative reading first
+**Automatic tare** returns to **Ready for a cup**, including after positive and
+negative fluctuations before the first cup has been weighed. Small stable
+empty-pan offsets use the same near-zero range as at connection; recovery adds
+no delay to the usual stability or cup-placement timing. A larger negative reading first
 seen at boot/reconnect, without a preceding qualified zero and continuous unload,
 requires an empty-pan tare on the scale, a reconnect, and stable zero; see [Cup](cup.md).
 

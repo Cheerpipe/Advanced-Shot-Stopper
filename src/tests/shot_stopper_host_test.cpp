@@ -8645,7 +8645,9 @@ void cw22_empty_movement_cannot_place_or_retare() {
       idleCup(80.0f);
       CHECK(cupPresenceState() == CupPresenceState::PRESENT);
       CHECK(captureCupTareDiagnostics().weightValid);
-      CHECK(fabsf(captureCupTareDiagnostics().weightG - 80.0f) < 0.01f);
+      // Idle recovery retains the observed empty offset; in-shot zero is unchanged.
+      const float expectedMass = mode == 2 ? 80.0f : 79.9f;
+      CHECK(fabsf(captureCupTareDiagnostics().weightG - expectedMass) < 0.01f);
       CHECK(commandCount(ScaleCommandType::TARE_ONLY) == (mode != 0 ? 1U : 0U));
     }
   }
@@ -10131,6 +10133,96 @@ void it59_ambiguous_empty_guidance_is_idle_only() {
   session.active = true;
   CHECK(!captureCupTareDiagnostics().emptyReferenceBlocked);
   CHECK(cupPresenceIsKnown());
+}
+
+void it60_mixed_movement_recovers_small_zero_offsets_without_delay() {
+  for (uint32_t interval : {100U, 110U}) {
+    for (float empty : {-5.0f, -3.0f, -0.6f, -0.4f, 0.0f, 0.4f, 0.6f, 3.0f, 5.0f}) {
+      for (float cup : {10.0f, 20.0f, 100.0f, 200.0f}) {
+        prepareIdleTare();
+        for (float weight : {-200.0f, 70.0f, -60.0f, 35.0f, -150.0f})
+          idleWeight(weight, interval);
+        for (unsigned sample = 0; sample < 3; ++sample) {
+          idleWeight(empty, interval);
+          CHECK(!idleTare.absentObserved);
+        }
+        idleWeight(empty, interval); // Original 300 ms window, no added delay.
+        CHECK(idleTare.absentObserved);
+        CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+        CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+        for (unsigned sample = 0; sample < 3; ++sample) {
+          idleWeight(empty + cup, interval);
+          CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+        }
+        idleWeight(empty + cup, interval);
+        CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+        CHECK(executeNextScaleCommand());
+        idleWeight(0.0f, interval);
+        CHECK(idleTare.lastReason == IdleTareReason::EFFECT_CONFIRMED);
+        CHECK(!session.active);
+        CHECK(!getRelaySafetySnapshot().closed);
+      }
+    }
+  }
+}
+
+void it61_unqualified_startup_placement_cannot_lock_zero_recovery() {
+  for (float empty : {-0.6f, 0.0f, 0.6f}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.autoTareOutsideBrew = true;
+    for (float weight : {-200.0f, 200.0f, 201.0f, 200.0f, -100.0f, -150.0f})
+      idleWeight(weight);
+    CHECK(cupPresencePlacementId() == 1);
+    CHECK(idleTare.lastReason == IdleTareReason::NO_ABSENCE);
+    idleCup(empty);
+    CHECK(idleTare.absentObserved);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    idleCup(empty + 80.0f);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  }
+}
+
+void it62_small_empty_shifts_cannot_accumulate_away_from_zero() {
+  prepareIdleTare();
+  idleCup(-3.0f);
+  CHECK(cupPresence.emptyAnchorG == -3.0f);
+  idleCup(-6.0f);
+  idleCup(-9.0f);
+  CHECK(cupPresence.emptyAnchorG == -3.0f);
+  CHECK(!idleTare.absentObserved);
+  for (float weight : {-200.0f, 70.0f, -100.0f}) idleWeight(weight);
+  idleCup(0.0f);
+  CHECK(idleTare.absentObserved);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleCup(80.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+}
+
+void it63_initial_recovery_respects_stability_and_zero_boundaries() {
+  for (float minimum : {1.0f, 2.0f, 10.0f, 100.0f}) {
+    for (bool outside : {false, true}) {
+      resetHarness(false, true);
+      reachReadyFromBoot();
+      runtimeConfig.autoTareOutsideBrew = true;
+      runtimeConfig.minimumCupWeightG = minimum;
+      idleCup(200.0f); // Absolute startup presence has no qualified empty reference.
+      idleWeight(-100.0f);
+      idleWeight(-150.0f);
+      runtimeConfig.retareStabilitySamples = 5;
+      runtimeConfig.retareStabilityMinDurationMs = 900;
+      const float empty = -fminf(5.0f, minimum / 2.0f) - (outside ? 0.1f : 0.0f);
+      for (unsigned sample = 0; sample < 6; ++sample) {
+        idleWeight(empty);
+        CHECK(!idleTare.absentObserved);
+      }
+      idleWeight(empty);
+      CHECK(idleTare.absentObserved == !outside);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+      for (unsigned sample = 0; sample < 7; ++sample) idleWeight(empty + minimum);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == (outside ? 0U : 1U));
+    }
+  }
 }
 
 void it37_accessory_retare_is_opt_in_and_once_before_shot() {
@@ -18353,6 +18445,10 @@ const TestCase testCases[] = {
     {"IT57", it57_repeated_zero_recovery_requires_configured_stability},
     {"IT58", it58_cup_before_zero_recovery_completes_cannot_place_or_tare},
     {"IT59", it59_ambiguous_empty_guidance_is_idle_only},
+    {"IT60", it60_mixed_movement_recovers_small_zero_offsets_without_delay},
+    {"IT61", it61_unqualified_startup_placement_cannot_lock_zero_recovery},
+    {"IT62", it62_small_empty_shifts_cannot_accumulate_away_from_zero},
+    {"IT63", it63_initial_recovery_respects_stability_and_zero_boundaries},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},
