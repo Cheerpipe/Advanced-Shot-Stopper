@@ -1336,8 +1336,9 @@ if (!/<fieldset[^>]*><legend>Log<\/legend>/.test(html) ||
     html.indexOf('id="serialLogLevel"') >
         html.indexOf('</section>', html.indexOf('id="view-diagnostic"')) ||
     html.indexOf('id="ringRetainLogLevel"') > html.indexOf('id="serialLogLevel"') ||
-    !html.includes('id="serialLogLevel" class="mutable"') ||
-    !html.includes('id="ringRetainLogLevel" class="mutable"') ||
+    !html.includes('id="serialLogLevel" class="diagCtl"') ||
+    !html.includes('id="ringRetainLogLevel" class="diagCtl"') ||
+    !runtimeJs.includes("e.classList.contains('diagCtl')") ||
     html.includes('id="navLogWrap"') ||
     ui.includes('function ringLogEnabled(') ||
     ui.includes('function updateLogNavVisibility(') ||
