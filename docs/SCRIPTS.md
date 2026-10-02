@@ -25,6 +25,35 @@ At the end of every successful command that includes `build`, the terminal
 highlights the absolute build-output folder and the absolute `shotstopper.bin`
 path ready for installation.
 
+## Signal header design preview
+
+To review the Wi-Fi and Bluetooth icon proposal on the existing Home layout,
+run this command from the repository root with Node.js installed:
+
+```sh
+node scripts/preview_web_ui.js
+```
+
+Open `http://127.0.0.1:4173/` in a browser, or use
+`http://127.0.0.1:4173/compare` for six proposals in separate rows, each with
+desktop and mobile views side by side. Option 1 retains the original design;
+open `http://127.0.0.1:4173/?option=2` to review any option individually (1–6).
+Each proposal also includes the scale disconnected while Wi-Fi stays connected.
+Add `&scale=disconnected` to an individual option URL to inspect that state;
+the current scale weight and timer become unavailable, while the last shot remains visible.
+The server listens only on this
+computer and reads the current Home markup and styles on each page load;
+refresh after editing the proposal files in `scripts/web-preview/`.
+Keep the process running while iterating, and stop it with Ctrl-C when finished.
+If the port is already occupied, use `PORT=4174 node scripts/preview_web_ui.js`.
+
+The two header icons open a connection summary. Expand **Proposal 01 · simulated
+signals** (numbered for the selected option) to compare strong, medium, weak and disconnected states, or change
+the theme. Resize the browser below 700 pixels to inspect the mobile header.
+Home values and signal readings are illustrative; navigation and switches are
+presentation-only. This preview does not connect to a device, change saved
+settings, or ship in firmware assets.
+
 ## USB installation
 
 Review the selected profiles and physical safety before adding `--confirm`.
