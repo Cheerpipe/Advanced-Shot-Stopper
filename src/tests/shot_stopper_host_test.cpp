@@ -10108,7 +10108,7 @@ void it57_repeated_zero_recovery_requires_configured_stability() {
   }
 }
 
-void it58_cup_before_zero_recovery_completes_cannot_place_or_tare() {
+void it58_cup_before_zero_recovery_reuses_previous_qualified_zero() {
   for (unsigned emptySamples = 1; emptySamples < DEFAULT_RETARE_STABILITY_SAMPLES;
        ++emptySamples) {
     prepareIdleTare();
@@ -10119,9 +10119,53 @@ void it58_cup_before_zero_recovery_completes_cannot_place_or_tare() {
     CHECK(!cupPresence.weight.emptyValid);
     CHECK(!idleTare.absentObserved);
     idleCup(80.0f);
-    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
-    CHECK(cupPresencePlacementId() == 0);
+    CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+    CHECK(cupPresencePlacementId() == 1);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  }
+}
+
+void it64_bookoo_handling_profile_tares_first_stable_cup() {
+  // Profile 3: continuous handling after a qualified zero, then cup placement.
+  const struct { uint32_t atMs; float weight; } samples[] = {
+      {10259, 1.0f}, {10359, 18.7f}, {10469, 24.9f}, {10589, -14.6f},
+      {10679, -101.1f}, {10769, -149.6f}, {10919, -158.2f}, {10979, -157.2f},
+      {11069, -156.3f}, {11189, -153.5f}, {11279, -146.5f}, {11369, -145.0f},
+      {11489, -148.8f}, {11579, -152.1f}, {11669, -153.6f}, {11789, -153.2f},
+      {11879, -151.3f}, {11969, -151.2f}, {12089, -155.5f}, {12179, -149.5f},
+      {12299, -152.7f}, {12389, -147.6f}, {12479, -101.3f}, {12599, -8.8f},
+      {12689, 0.5f}, {12809, 0.6f}, {12899, 2.7f}, {12989, 1.6f},
+      {13109, -23.3f}, {13199, -52.3f}, {13290, -64.69f}, {13380, -37.0f},
+      {13499, -28.2f}, {13589, -10.3f}, {13739, -4.3f}, {13799, -3.7f},
+      {13889, -0.8f}, {14009, 0.0f}, {14099, 19.2f}, {14219, 78.6f},
+      {14339, 162.2f}, {14429, 303.5f}, {14520, 347.5f}, {14609, 364.2f},
+      {14729, 374.8f}, {14789, 377.8f}, {14909, 377.8f}, {15029, 377.8f},
+      {15119, 377.8f}};
+  for (unsigned mode = 0; mode < 3; ++mode) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.autoTareOutsideBrew = true;
+    if (mode != 2) idleCup(0.0f);
+    uint32_t previousMs = 10159;
+    for (const auto &sample : samples) {
+      const uint32_t interval = mode == 1 && sample.atMs == 14099
+          ? runtimeConfig.retareStabilityMaxGapMs + 1 : sample.atMs - previousMs;
+      idleWeight(sample.weight, interval);
+      if (sample.atMs < 15119) CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+      previousMs = sample.atMs;
+    }
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == (mode == 0 ? 1 : 0));
+    if (mode != 0) continue; // A missing initial zero or sample gap cannot recover.
+    CHECK(cupPresence.emptyAnchorG == 0.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(idleTare.lastReason == IdleTareReason::EFFECT_CONFIRMED);
+    for (unsigned sample = 0; sample < 60; ++sample) idleWeight(0.0f);
+    CHECK(scale.tareCalls == 1);
     CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+    CHECK(commandCount(ScaleCommandType::START_TIMER_AND_TARE) == 0);
+    CHECK(!session.active);
+    CHECK(!getRelaySafetySnapshot().closed);
   }
 }
 
@@ -18443,12 +18487,13 @@ const TestCase testCases[] = {
     {"IT55", it55_unknown_empty_rebound_obeys_minimum_cup_boundary},
     {"IT56", it56_transient_negative_movement_recovers_idle_readiness},
     {"IT57", it57_repeated_zero_recovery_requires_configured_stability},
-    {"IT58", it58_cup_before_zero_recovery_completes_cannot_place_or_tare},
+    {"IT58", it58_cup_before_zero_recovery_reuses_previous_qualified_zero},
     {"IT59", it59_ambiguous_empty_guidance_is_idle_only},
     {"IT60", it60_mixed_movement_recovers_small_zero_offsets_without_delay},
     {"IT61", it61_unqualified_startup_placement_cannot_lock_zero_recovery},
     {"IT62", it62_small_empty_shifts_cannot_accumulate_away_from_zero},
     {"IT63", it63_initial_recovery_respects_stability_and_zero_boundaries},
+    {"IT64", it64_bookoo_handling_profile_tares_first_stable_cup},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},

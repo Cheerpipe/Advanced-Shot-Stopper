@@ -376,6 +376,16 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
     cupPresence.inNegativeHole = allowFastReplacement;
     if (allowFastReplacement) cupPresence.holeWeightG = 0.0f;
   }
+  // A continuous return near the initial zero can reuse its qualified empty
+  // reference when a cup arrives before the empty pan settles again.
+  if (allowFastReplacement && initialPlacement && mass.absent.valid &&
+      fabsf(mass.absent.absoluteG) <= zeroBandG &&
+      std::isfinite(cupPresence.emptyAnchorG) &&
+      fabsf(cupPresence.emptyAnchorG) <= zeroBandG &&
+      weight >= fmaxf(cupPresence.emptyAnchorG, mass.absent.absoluteG) + minCupG) {
+    cupPresence.emptyAnchorG = mass.absent.absoluteG;
+    mass.emptyValid = true;
+  }
   // A brief confirmed unload can reuse the anchor; never use a lift minimum.
   const bool qualifiedReference = mass.emptyValid ||
       (allowFastReplacement && mass.unloadQualified && std::isfinite(cupPresence.emptyAnchorG));

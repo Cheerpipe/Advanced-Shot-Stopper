@@ -33,6 +33,9 @@ can remain ambiguous; tare the empty pan on the scale and reconnect it in that c
 Before the first cup has been weighed, recovery accepts the same small empty-pan
 offsets as at connection, even if handling briefly looked like a cup. It uses
 the normal stability window and adds no delay to the next cup's tare.
+If zero was already confirmed and readings remain uninterrupted, returning the
+empty scale near zero lets the next stable cup tare without another empty-pan
+pause. The cup must still complete its normal stability window.
 
 Once an empty reference is known, two consecutive fresh readings showing
 near-total unloading can authorize a stable replacement without another stable

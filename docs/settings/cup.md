@@ -37,6 +37,11 @@ reconnect it, wait for stable zero, then place the cup.
 Stability tolerance bounds sample spread; it is neither a minimum placement mass
 nor a threshold that identifies a different cup.
 
+Before the first cup, a previously confirmed zero can also be reused after
+handling: if readings remain continuous and the scale returns near zero, the
+next stable cup can tare without another empty-pan pause. A missing initial zero
+or interrupted readings still require the empty pan to settle first.
+
 At boot/reconnect, initial empty-reference acquisition accepts a stable reading
 near zero, within 5 g or half **Minimum cup weight**, whichever is smaller. If a
 Bookoo zeroed an initial load at power-on, removing

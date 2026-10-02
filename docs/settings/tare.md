@@ -88,7 +88,11 @@ authorize an idle tare. Let it settle through the normal stability window;
 **Automatic tare** returns to **Ready for a cup**, including after positive and
 negative fluctuations before the first cup has been weighed. Small stable
 empty-pan offsets use the same near-zero range as at connection; recovery adds
-no delay to the usual stability or cup-placement timing. A larger negative reading first
+no delay to the usual stability or cup-placement timing. If zero was already
+confirmed before handling and readings remain continuous, a return near zero
+allows the next stable cup to tare without waiting for the empty pan to settle
+again. Without that earlier zero or after a reading gap, let the empty pan
+complete the stability window before placing the cup. A larger negative reading first
 seen at boot/reconnect, without a preceding qualified zero and continuous unload,
 requires an empty-pan tare on the scale, a reconnect, and stable zero; see [Cup](cup.md).
 
