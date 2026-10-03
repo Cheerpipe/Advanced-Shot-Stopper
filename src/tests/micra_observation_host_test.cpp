@@ -88,8 +88,36 @@ static void initialStateContinuity() {
   }
 }
 
+static void connectionOnlyOrdering() {
+  LineaMicraStatus state;
+  LineaMicraPowerStateTracker power;
+  MicraObservationFence fence;
+  MicraObservation initial;
+  initial.source = MicraObservationSource::HTTP_INITIAL;
+  initial.stamp = fence.stamp(0, power.generation());
+  initial.connectedPresent = true;
+  initial.receivedAtMs = 100;
+  MicraObservation online = initial;
+  online.source = MicraObservationSource::WEBSOCKET;
+  online.connected = true;
+  assert(fence.merge(state, power, online, true));
+  assert(fence.merge(state, power, initial, true));
+  assert(!fence.offline && !power.retained());  // Older API offline cannot win.
+  // Online-only push must not prevent independent power initialization.
+  initial.connected = initial.powerPresent = true;
+  initial.mode = LineaMicraObservedMode::STANDBY;
+  assert(fence.merge(state, power, initial, true));
+  assert(state.powerState == LineaMicraPowerState::OFF && fence.synchronized);
+  assert(state.powerSource == MicraObservationSource::HTTP_INITIAL);
+  initial.stamp = fence.stamp(0, power.generation());
+  initial.connected = false;
+  assert(fence.merge(state, power, initial, true));
+  assert(fence.offline && !fence.synchronized && power.retained());
+}
+
 int main() {
   initialStateContinuity();
+  connectionOnlyOrdering();
   // Synthetic dashboard fixtures; no cloud or hardware is contacted.
   MicraObservation update;
   assert(decode(R"({"widgets":[{"code":"CMMachineStatus","output":{"mode":"StandBy","status":"Brewing"}},{"code":"CMCoffeeBoiler","output":{"targetTemperature":93.5}}]})", update));

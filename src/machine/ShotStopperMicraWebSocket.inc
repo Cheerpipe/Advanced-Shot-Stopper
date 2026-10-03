@@ -482,10 +482,10 @@ void ShotStopperMicraService::serviceWebSocket() {
   buffer.failed.store(false);
   buffer.authFailed.store(false);
   buffer.setupAtMs = millis();
-  buffer.acquisitionGeneration = outboundAcquisitionGeneration.load(std::memory_order_acquire);
-  buffer.disconnectGeneration = disconnectGeneration_.load(std::memory_order_acquire);
   {
     TaskLockGuard lock(mux_);
+    buffer.acquisitionGeneration = outboundAcquisitionGeneration.load(std::memory_order_acquire);
+    buffer.disconnectGeneration = disconnectGeneration_.load(std::memory_order_acquire);
     buffer.stamp = observationFence_.stamp(identityGeneration_, powerState_.generation());
     websocketStatus_.epoch = buffer.stamp.epoch;
     websocketStatus_.pauseAtMs = 0;

@@ -9,6 +9,7 @@
 #include "ShotStopperMicraTiming.h"
 #include "ShotStopperPsram.h"
 #include "ShotStopperTaskMutex.h"
+#include "ShotStopperOutboundAdmission.h"
 
 #include <atomic>
 #include <Arduino.h>
@@ -22,6 +23,8 @@ class ShotStopperMicraService {
  public:
   bool begin();
   void inhibitCloud() {
+    if (outboundShotActive.load(std::memory_order_acquire))
+      shotGeneration_.fetch_add(1, std::memory_order_acq_rel);
     disconnectGeneration_.fetch_add(1, std::memory_order_acq_rel);
     abortRequested_.store(true, std::memory_order_release);
     if (task_ != nullptr) xTaskNotifyGive(task_);
@@ -73,6 +76,7 @@ class ShotStopperMicraService {
   struct DesiredPower {
     LineaMicraRequest request = {};
     uint32_t machineConfigGeneration = 0;
+    uint32_t shotGeneration = 0;
     uint32_t retryAtMs = 0;
     bool present = false;
     bool commandAccepted = false;
@@ -179,6 +183,7 @@ class ShotStopperMicraService {
   std::atomic<bool> powerActive_{false};
   std::atomic<bool> abortRequested_{false};
   std::atomic<uint32_t> disconnectGeneration_{0};
+  std::atomic<uint32_t> shotGeneration_{0};
   std::atomic<bool> clearSessionRequested_{false};
   // Latched after the first cloud request reaches any terminal outcome;
   // consumed by the network boot heap shaper release gate.

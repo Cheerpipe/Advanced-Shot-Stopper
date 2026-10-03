@@ -218,8 +218,11 @@ callback can hold its own recursive lock: the permitted edge is SDK lock →
 facade snapshot mutex. No application-mutex → SDK-call edge is permitted.
 The bounded callback parser publishes complete field updates directly, so an
 HTTP operation cannot delay push publication. Identity/epoch/intent and
-independent power/temperature revisions prevent older results overwriting
-newer evidence. Diagnostic readers only copy under the facade mutex.
+independent power, temperature and online-evidence revisions prevent older
+results overwriting newer evidence. A repeated online report advances its own
+revision without blocking initial power from the API. Diagnostic readers only
+copy under the facade mutex; socket generations are initialized under that same
+mutex before startup.
 WS transport operations use the SDK's 10-second timeout, including initial TLS
 and Upgrade. The connected SDK task normally polls input every second; a TLS
 handshake or stalled frame already in progress can delay owner stop until its
@@ -229,6 +232,10 @@ HTTP/TLS/socket error codes; signed headers and event payloads are never logged.
 A lock-free disconnect generation also invalidates in-flight HTTP/WS evidence
 when a pause starts and ends before the cloud owner runs. The next owner turn
 still stops the obsolete socket; deferred HTTP observations retain held state.
+A separate shot generation cancels queued power commands even when a complete
+cycle occurs between worker turns. Queue admission captures it before checking
+the shot gate; commands from earlier cycles cannot resume afterward. Scale-only
+inhibition still defers those commands.
 
 A discovery-owned atomic acquisition latch is published under the existing
 NimBLE discovery critical section before Candidate becomes consumable. Its

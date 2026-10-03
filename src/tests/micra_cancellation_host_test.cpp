@@ -1,6 +1,7 @@
 #include <atomic>
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <functional>
 #include <mutex>
@@ -78,6 +79,7 @@ struct MicraCancellationTest {
                        bool blockedBefore = false);
   static void initializationAndGates();
   static void initializationRetries();
+  static void queuedObservationAndPowerOrdering();
   static void run();
 };
 }
@@ -374,10 +376,82 @@ void MicraCancellationTest::initializationRetries() {
   assert(reads == 1 && authentications == 2);  // API renewal optimization is unchanged.
 }
 
+void MicraCancellationTest::queuedObservationAndPowerOrdering() {
+  ShotStopperMicraService service;
+  service.task_ = &service;
+  service.config_.accountConfigured = true;
+  service.config_.options |= LINEA_MICRA_SHUTDOWN_WITH_SCALE;
+  service.staConnected_.store(true);
+  unsigned calls = 0;
+  executeHook = [&] { ++calls; };
+  auto run = [&] { try { service.taskLoop(); } catch (const WorkerStopped &) {} };
+  ShotStopperMicraService::PendingRequest deferred;
+  deferred.present = deferred.initialSnapshot = true;
+  deferred.request.type = LineaMicraRequestType::OBSERVE_STATE;
+  service.deferObservation(deferred, service.published_, LineaMicraError::CANCELED);
+  run();
+  LineaMicraRequest refresh;
+  refresh.type = LineaMicraRequestType::OBSERVE_STATE;
+  assert(service.queue(refresh));
+  run();
+  const bool freshManualRead = !initialSnapshot;
+
+  // Wake before subscription; contrary push then advances the power revision.
+  service.powerState_.reset();
+  service.published_.sampleAtMs = 1;
+  service.published_.powerState = LineaMicraPowerState::OFF;
+  service.published_.quality = LineaMicraObservationQuality::CURRENT;
+  const auto wakeAt = millis() - micra_timing::kPostWakeObservationDelayMs;
+  assert(service.powerState_.notePhysicalStart(service.published_, true, true, wakeAt));
+  service.observationSchedule_.armPostEvent(wakeAt);
+  service.snapshotStamp_ = service.observationFence_.stamp(0, service.powerState_.generation());
+  service.snapshotPending_ = true;
+  MicraObservation contrary;
+  contrary.source = MicraObservationSource::WEBSOCKET;
+  contrary.stamp = service.snapshotStamp_;
+  contrary.receivedAtMs = millis() - 1;
+  contrary.powerPresent = true;
+  contrary.mode = LineaMicraObservedMode::STANDBY;
+  assert(service.observationFence_.merge(service.published_, service.powerState_, contrary, true));
+  run();
+  const bool currentReconciliation = !initialSnapshot;
+
+  LineaMicraRequest power;
+  power.type = LineaMicraRequestType::SET_STANDBY;
+  assert(service.queue(power));
+  const auto beforeShot = calls;
+  service.publishNetworkState(true, false, true, false);
+  service.publishNetworkState(true, false, false, false);
+  run();
+  const bool noPowerReplay = calls == beforeShot;
+  if (!freshManualRead || !currentReconciliation || !noPowerReplay)
+    std::fprintf(stderr, "review: fresh manual=%d, reconciliation=%d, no power replay=%d\n",
+                 freshManualRead, currentReconciliation, noPowerReplay);
+  assert(freshManualRead && currentReconciliation && noPowerReplay);
+  // A complete short shot between network/worker turns still cancels power.
+  assert(service.queue(power));
+  const auto oldRequest = service.desiredPower_.request;
+  outboundShotActive.store(true);
+  service.inhibitCloud();
+  assert(!service.queue(power));
+  outboundShotActive.store(false);
+  assert(!service.powerRequestCurrent(oldRequest, service.configGeneration_));
+  run();
+  assert(calls == beforeShot && !service.desiredPower_.present);
+  // A new trigger after the shot survives; acquisition alone only defers it.
+  assert(service.queue(power));
+  service.inhibitCloud();
+  assert(service.powerRequestCurrent(service.desiredPower_.request, service.configGeneration_));
+  run();
+  assert(calls == beforeShot + 1);
+  executeHook = {};
+}
+
 int main() {
   MicraCancellationTest::run();
   MicraCancellationTest::initializationAndGates();
   MicraCancellationTest::initializationRetries();
+  MicraCancellationTest::queuedObservationAndPowerOrdering();
   // Opening admission must publish the new fence before another core sees it.
   outboundAcquisitionHeld.store(false);
   outboundAcquisitionGeneration.store(0);

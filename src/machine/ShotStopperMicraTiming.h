@@ -49,10 +49,12 @@ class ObservationSchedule {
     postWakePending_ = true;
   }
 
-  void observationStarted(uint32_t now) {
+  bool observationStarted(uint32_t now) {
     if (postWakePending_ && deadlineReached(now, postWakeAtMs_)) {
       postWakePending_ = false;
+      return true;
     }
+    return false;
   }
 
   void scheduleNext(uint32_t now) {

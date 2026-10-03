@@ -97,8 +97,9 @@ point. Both pause during a shot or rinse and as soon as a compatible scale is
 found, before its connection starts. The WebSocket is disconnected during that
 pause. Monitoring resumes after scale setup and the Bluetooth quiet interval
 end. Wi-Fi and the local Web UI remain available.
-All Micra API requests, including sign-in, Refresh and machine commands, wait
-through scale connection and shots. Requests already in progress are canceled
+Micra API requests, including sign-in, Refresh and machine commands, wait
+through scale connection. During a shot, reads wait and pending power commands
+are canceled. Requests already in progress are canceled
 by the cloud worker as soon as it observes the pause; local control never waits
 for that cancellation.
 Paddle wake gestures and starts blocked by a guard keep observation connected;
@@ -231,7 +232,8 @@ a lost signal, and the first connection after the controller starts, never
 wake the machine, so an ordinary reconnect never sends a cloud command.
 
 The machine is never woken while a shot or rinse is running; that power-on
-is ignored completely and nothing is queued for later. Because the command
+is ignored completely and nothing is queued for later. Starting a shot or rinse
+also cancels a wake that was still waiting to run. Because the command
 travels through the La Marzocco cloud, a saved, connected account is
 required: without one the option stays disabled and has no effect even if it
 was on before the account was removed.
@@ -262,6 +264,7 @@ of range never turns the machine off.
 The machine is never turned off while a shot or rinse is running. If the
 scale is switched off during one, that power-off is ignored completely and
 the shot finishes with its normal protections; nothing is queued for later.
+Starting a shot or rinse also cancels a shutdown command still waiting to run.
 
 The option only works with scales that report their power-off to the
 controller. Because the command travels through the La Marzocco cloud, a

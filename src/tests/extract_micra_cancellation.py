@@ -20,11 +20,11 @@ def definition(name):
     return f'#line {line} "{source.as_posix()}"\n' + text[match.start():end]
 
 
-names = ["secureWipe", "powerOptionBit", "sameSessionIdentity"]
+names = ["secureWipe", "powerOptionBit", "sameSessionIdentity", "sameCommandRequest"]
 names += ["ShotStopperMicraService::" + name for name in
           ["WorkBuffer", "publishConfig", "publishNetworkState", "queue", "networkEligible",
            "taskLoop", "clearSession", "deferObservation", "executeObservation",
-           "observationCurrent", "publish", "scheduleAutomatic"]]
+           "observationCurrent", "powerRequestCurrent", "publish", "scheduleAutomatic"]]
 output.mkdir(parents=True, exist_ok=True)
 (output / "micra_websocket_work.inc").write_text(
     "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"

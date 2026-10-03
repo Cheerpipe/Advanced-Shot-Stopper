@@ -15,6 +15,7 @@ struct MicraObservationStamp {
   uint32_t powerRevision = 0;
   uint32_t temperatureRevision = 0;
   uint32_t connectionRevision = 0;
+  uint32_t onlineRevision = 0;
 };
 
 struct MicraObservation {
@@ -43,6 +44,7 @@ struct MicraObservationFence {
   uint32_t powerRevision = 0;
   uint32_t temperatureRevision = 0;
   uint32_t connectionRevision = 0;
+  uint32_t onlineRevision = 0;
   bool offline = false;
   bool synchronized = false;
 
@@ -52,7 +54,7 @@ struct MicraObservationFence {
   }
 
   MicraObservationStamp stamp(uint32_t identity, uint32_t intent) const {
-    return {identity, epoch, intent, powerRevision, temperatureRevision, connectionRevision};
+    return {identity, epoch, intent, powerRevision, temperatureRevision, connectionRevision, onlineRevision};
   }
 
   bool merge(LineaMicraStatus &status, LineaMicraPowerStateTracker &power,
@@ -63,10 +65,14 @@ struct MicraObservationFence {
     const bool push = update.source == MicraObservationSource::WEBSOCKET;
     if (!push && (update.stamp.connectionRevision != connectionRevision ||
         (update.connectedPresent && !update.connected &&
-         update.stamp.powerRevision != powerRevision))) return true;
-    if (update.connectedPresent && offline != !update.connected) {
-      offline = !update.connected;
-      invalidate();
+         (update.stamp.powerRevision != powerRevision ||
+          update.stamp.onlineRevision != onlineRevision)))) return true;
+    if (update.connectedPresent && (push || update.stamp.onlineRevision == onlineRevision)) {
+      ++onlineRevision;
+      if (offline != !update.connected) {
+        offline = !update.connected;
+        invalidate();
+      }
     }
     if (offline) {
       power.hold(status, observing, update.receivedAtMs);

@@ -423,7 +423,10 @@ void ShotStopperMicraService::publishConfig(
     const bool observing =
         effective.accountConfigured &&
         (effective.options & LINEA_MICRA_OBSERVE_STATE) != 0;
-    if (!configChanged) return;
+    if (!configChanged) {
+      wipeLineaMicraSettings(effective);
+      return;
+    }
     wipeLineaMicraSettings(candidate_);
     discovery_ = {};
     if (!effective.accountConfigured) {
@@ -484,6 +487,7 @@ void ShotStopperMicraService::publishConfig(
                            LINEA_MICRA_OBSERVE_STATE |
                            LINEA_MICRA_SHUTDOWN_WITH_SCALE |
                            LINEA_MICRA_POWER_ON_WITH_SCALE)) == 0;
+  wipeLineaMicraSettings(effective);
   if (identityChanged || transportChanged || cloudDisabled) {
     if (identityChanged || transportChanged)
       websocketRetryRequested_.store(true, std::memory_order_release);
@@ -526,6 +530,7 @@ void ShotStopperMicraService::publishNetworkState(bool staConnected,
         websocketUnexpectedReconnect_ = true;
       powerState_.hold(published_, config_.accountConfigured &&
           (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0, millis());
+      if (shotActive && !wasActive) desiredPower_ = {};
       ++observationFence_.epoch;
       if (!websocketStatus_.pauseAtMs) websocketStatus_.pauseAtMs = millis();
       observationFence_.invalidate();
@@ -570,6 +575,7 @@ bool ShotStopperMicraService::queueConnect(uint32_t requestId,
     wipeLineaMicraSettings(credentials);
     return false;
   }
+  pending_ = {};
   pending_.request.requestId = requestId;
   pending_.request.configGeneration = configGeneration_;
   pending_.request.type = LineaMicraRequestType::CONNECT;
@@ -622,13 +628,16 @@ bool ShotStopperMicraService::queue(const LineaMicraRequest &request) {
   }
   if (request.type == LineaMicraRequestType::SET_STANDBY ||
       request.type == LineaMicraRequestType::SET_POWER_ON) {
+    const uint32_t shotGeneration = shotGeneration_.load(std::memory_order_acquire);
     if (task_ == nullptr || !config_.accountConfigured ||
+        shotActive_.load(std::memory_order_acquire) || outboundShotActive.load(std::memory_order_acquire) ||
         (config_.options & powerOptionBit(request.type)) == 0) {
       return false;
     }
     desiredPower_.request = request;
     desiredPower_.request.requestId = nextAutomaticRequestId_++;
     desiredPower_.machineConfigGeneration = configGeneration_;
+    desiredPower_.shotGeneration = shotGeneration;
     desiredPower_.retryAtMs = millis();
     desiredPower_.present = true;
     desiredPower_.commandAccepted = false;
@@ -644,6 +653,7 @@ bool ShotStopperMicraService::queue(const LineaMicraRequest &request) {
       request.type != LineaMicraRequestType::OBSERVE_STATE) {
     return false;
   }
+  pending_ = {};
   pending_.request = request;
   pending_.identityGeneration = identityGeneration_;
   pending_.present = true;
@@ -791,6 +801,8 @@ void ShotStopperMicraService::taskLoop() {
       TaskLockGuard lock(mux_);
       if (config_.connectionType == static_cast<uint8_t>(MicraConnectionType::WEBSOCKET))
         observationSchedule_.suspendPeriodic();
+      if (desiredPower_.present && desiredPower_.shotGeneration != shotGeneration_.load(std::memory_order_acquire))
+        desiredPower_ = {};
       const bool pendingObservation =
           pending_.present &&
           pending_.request.type == LineaMicraRequestType::OBSERVE_STATE;
@@ -803,7 +815,6 @@ void ShotStopperMicraService::taskLoop() {
         pending = pending_;
         wipeLineaMicraSettings(pending_.credentials);
         pending_.present = false;
-        if (pendingObservation) observationSchedule_.observationStarted(now);
         observationActive_.store(pendingObservation,
                                  std::memory_order_release);
         active_ = true;
@@ -837,17 +848,18 @@ void ShotStopperMicraService::taskLoop() {
         pending.request.configGeneration = configGeneration_;
         pending.request.type = LineaMicraRequestType::OBSERVE_STATE;
         pending.identityGeneration = identityGeneration_;
-        observationSchedule_.observationStarted(now);
         observationActive_.store(true, std::memory_order_release);
         active_ = true;
         haveRequest = true;
       }
-      if (haveRequest && pending.request.type == LineaMicraRequestType::OBSERVE_STATE &&
-          snapshotPending_) {
-        // Post-command reconciliation needs a request-time field baseline.
-        pending.initialSnapshot = snapshotStamp_.intent == powerState_.generation();
-        pending.snapshotStamp = snapshotStamp_;
-        snapshotPending_ = false;
+      if (haveRequest && pending.request.type == LineaMicraRequestType::OBSERVE_STATE) {
+        const bool reconcile = observationSchedule_.observationStarted(now);
+        if (snapshotPending_) {
+          // Reconciliation needs a request-time baseline, even if wake preceded subscription.
+          pending.initialSnapshot = !reconcile && snapshotStamp_.intent == powerState_.generation();
+          pending.snapshotStamp = snapshotStamp_;
+          snapshotPending_ = false;
+        } else if (reconcile) pending.initialSnapshot = false;
       }
     }
     if (haveRequest) {
@@ -974,6 +986,7 @@ bool ShotStopperMicraService::powerRequestCurrent(
     uint32_t machineConfigGeneration) const {
   TaskLockGuard lock(mux_);
   return desiredPower_.present &&
+         desiredPower_.shotGeneration == shotGeneration_.load(std::memory_order_acquire) &&
          desiredPower_.machineConfigGeneration == machineConfigGeneration &&
          sameCommandRequest(desiredPower_.request, request) &&
          configGeneration_ == machineConfigGeneration &&
@@ -1270,6 +1283,7 @@ bool ShotStopperMicraService::executePowerApplication(
         if (commandAccepted) {
           TaskLockGuard lock(mux_);
           if (desiredPower_.present &&
+              desiredPower_.shotGeneration == shotGeneration_.load(std::memory_order_acquire) &&
               sameCommandRequest(desiredPower_.request, request)) {
             desiredPower_.commandAccepted = true;
             // The cloud accepted the mode change: assert the optimistic
@@ -1405,6 +1419,7 @@ bool ShotStopperMicraService::executeConnect(PendingRequest &pending) {
 }
 
 bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
+  if (!observationCurrent(pending.identityGeneration)) return true;
   LineaMicraPersistedSettings settings;
   LineaMicraStatus status;
   {
@@ -1414,7 +1429,6 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
   }
   status.requestId = pending.request.requestId;
   status.identityGeneration = pending.identityGeneration;
-  if (!observationCurrent(pending.identityGeneration)) return true;
   status.phase = LineaMicraPhase::RUNNING;
   status.error = LineaMicraError::NONE;
   publish(status);

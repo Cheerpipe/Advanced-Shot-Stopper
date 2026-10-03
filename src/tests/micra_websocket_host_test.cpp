@@ -12,7 +12,7 @@
 #include "ShotStopperJsonArena.h"
 #include "ShotStopperDomain.h"
 
-static uint64_t now = 1000;
+static std::atomic<uint64_t> now{1000};
 uint32_t millis() { return static_cast<uint32_t>(now); }
 int64_t esp_timer_get_time() { return static_cast<int64_t>(now * 1000); }
 void xTaskNotifyGive(TaskHandle_t) {}
@@ -177,7 +177,7 @@ struct MicraWebSocketTest {
       outboundMaintenance.store(false);
       initFails = startFails = false;
       service.staConnected_.store(true);
-      now = std::max(now, uint64_t(service.websocketStatus().retryAtMs));
+      now = std::max(now.load(), uint64_t(service.websocketStatus().retryAtMs));
       service.serviceWebSocket();
       subscribe(service);
       assert(service.websocketStatus().plannedConnections == planned);
@@ -458,6 +458,34 @@ struct MicraWebSocketTest {
     service.stopWebSocket(true);
     delete service.work_;
   }
+  static void concurrentStatusLifecycle() {
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    service.published_.connectionFreshness = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    std::atomic<bool> done{false};
+    std::atomic<unsigned> samples{0};
+    std::thread reader([&] {
+      while (!done.load()) {
+        const auto state = service.status();
+        assert(state.powerState != LineaMicraPowerState::OFF);
+        (void)service.websocketStatus();
+        ++samples;
+      }
+    });
+    while (!samples.load()) std::this_thread::yield();
+    for (unsigned cycle = 0; cycle < 100; ++cycle) {
+      service.serviceWebSocket();
+      subscribe(service);
+      deliver(service, observation(service, R"({"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}}]})"));
+      service.stopWebSocket(true);
+    }
+    done.store(true);
+    reader.join();
+    delete service.work_;
+  }
 };
 }
 int main() {
@@ -466,4 +494,5 @@ int main() {
   shotstopper::MicraWebSocketTest::lifecycleRegressions();
   shotstopper::MicraWebSocketTest::connectionClassification();
   shotstopper::MicraWebSocketTest::initialSynchronization();
+  shotstopper::MicraWebSocketTest::concurrentStatusLifecycle();
 }

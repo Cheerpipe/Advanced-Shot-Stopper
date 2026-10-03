@@ -959,6 +959,10 @@ initial dashboard cycle while push reception continues. Explicit refresh and
 post-command reconciliation retain their HTTP paths and coalesce when compatible.
 All API purposes, including sign-in and manual requests, remain deferred during
 scale acquisition/setup/quiet and shots; active requests cancel through the owner.
+Power commands are canceled when a shot starts, including previously queued
+commands; they require a new trigger after the shot. When initialization coalesces
+with post-wake reconciliation, reconciliation uses the request-time field
+baseline even if wake preceded the subscription.
 A current
 `StandBy` response maps to OFF, `BrewingMode` to ON, and ECO or an unknown value
 to UNKNOWN. API-mode evidence older than 30 seconds remains the last cloud
@@ -981,7 +985,9 @@ Machine `connected:false` is offline evidence, never power OFF. Cleaning is a
 separate WS-only diagnostic state and cannot create a control transition.
 Offline-to-online without power queues one new initialization cycle. Connection
 revision fencing rejects HTTP results that predate offline, teardown or a new
-subscription, including late offline dashboard responses. Initialization field
+subscription, including late offline dashboard responses. Online-evidence
+revisions also prevent an older API offline result from overriding a repeated
+online report. Initialization field
 revisions are captured at subscription, so even push received before HTTP
 dispatch wins for that field. No repeated reads are scheduled after exhausted
 initialization; valid push remains usable even if that API cycle fails.
