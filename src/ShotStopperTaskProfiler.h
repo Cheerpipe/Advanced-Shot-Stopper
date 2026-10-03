@@ -23,7 +23,6 @@ constexpr size_t TASK_PROFILER_MAX_ROWS = 20;
 constexpr size_t TASK_PROFILER_NAME_CAPACITY = 24;
 constexpr uint32_t TASK_PROFILER_SAMPLE_INTERVAL_MS = 1000;
 constexpr uint32_t TASK_PROFILER_MAX_DURATION_MS = 5UL * 60UL * 1000UL;
-constexpr uint8_t LOOP_PHASE_COUNT = 9;
 
 enum class LoopPhase : uint8_t {
   SAFETY_HEALTH,
@@ -32,10 +31,20 @@ enum class LoopPhase : uint8_t {
   CONTROL,
   ALERTS_TIMERS,
   COMMANDS,
-  HOUSEKEEPING,
+  HOUSEKEEPING_SERIAL_LOG,
+  HOUSEKEEPING_SERIAL_CLI,
+  HOUSEKEEPING_RUNTIME_PERSISTENCE,
+  HOUSEKEEPING_SHOT_PERSISTENCE,
+  HOUSEKEEPING_SCALE_PERSISTENCE,
+  HOUSEKEEPING_WEIGHT_TELEMETRY,
+  HOUSEKEEPING_STATUS,
+  HOUSEKEEPING_LED,
   DIAGNOSTICS,
-  FINAL_SCALE_DRAIN
+  FINAL_SCALE_DRAIN,
+  COUNT
 };
+
+constexpr uint8_t LOOP_PHASE_COUNT = static_cast<uint8_t>(LoopPhase::COUNT);
 
 inline const char *loopPhaseName(LoopPhase phase) {
   switch (phase) {
@@ -45,9 +54,17 @@ inline const char *loopPhaseName(LoopPhase phase) {
     case LoopPhase::CONTROL: return "control";
     case LoopPhase::ALERTS_TIMERS: return "alerts/timers";
     case LoopPhase::COMMANDS: return "commands";
-    case LoopPhase::HOUSEKEEPING: return "housekeeping";
+    case LoopPhase::HOUSEKEEPING_SERIAL_LOG: return "housekeeping/serial log";
+    case LoopPhase::HOUSEKEEPING_SERIAL_CLI: return "housekeeping/serial CLI";
+    case LoopPhase::HOUSEKEEPING_RUNTIME_PERSISTENCE: return "housekeeping/settings";
+    case LoopPhase::HOUSEKEEPING_SHOT_PERSISTENCE: return "housekeeping/history";
+    case LoopPhase::HOUSEKEEPING_SCALE_PERSISTENCE: return "housekeeping/scale save";
+    case LoopPhase::HOUSEKEEPING_WEIGHT_TELEMETRY: return "housekeeping/weight";
+    case LoopPhase::HOUSEKEEPING_STATUS: return "housekeeping/status";
+    case LoopPhase::HOUSEKEEPING_LED: return "housekeeping/LED";
     case LoopPhase::DIAGNOSTICS: return "diagnostics";
     case LoopPhase::FINAL_SCALE_DRAIN: return "final scale drain";
+    case LoopPhase::COUNT: break;
   }
   return "unknown";
 }

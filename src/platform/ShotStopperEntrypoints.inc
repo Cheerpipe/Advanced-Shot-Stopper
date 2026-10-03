@@ -761,14 +761,21 @@ void loop() {
   finishLoopPhase(LoopPhase::COMMANDS);
   if (controlHousekeepingDue(loopStartedAtMs)) {
     serviceSerialLogDump();
+    finishLoopPhase(LoopPhase::HOUSEKEEPING_SERIAL_LOG);
     serviceSerialCli();
+    finishLoopPhase(LoopPhase::HOUSEKEEPING_SERIAL_CLI);
     serviceRuntimePersistence(loopScaleLink);
+    finishLoopPhase(LoopPhase::HOUSEKEEPING_RUNTIME_PERSISTENCE);
     serviceShotStorePersistence();
+    finishLoopPhase(LoopPhase::HOUSEKEEPING_SHOT_PERSISTENCE);
     servicePreferredScaleMacPersistence();
+    finishLoopPhase(LoopPhase::HOUSEKEEPING_SCALE_PERSISTENCE);
     serviceWeightStreamTelemetry(loopScaleLink);
+    finishLoopPhase(LoopPhase::HOUSEKEEPING_WEIGHT_TELEMETRY);
     serviceControlStatusPublish();
+    finishLoopPhase(LoopPhase::HOUSEKEEPING_STATUS);
     serviceScaleConnectedLed(loopScaleLink);
-    finishLoopPhase(LoopPhase::HOUSEKEEPING);
+    finishLoopPhase(LoopPhase::HOUSEKEEPING_LED);
   }
   static uint32_t watchdogFedAtMs = 0;
   if (watchdogFedAtMs == 0 ||

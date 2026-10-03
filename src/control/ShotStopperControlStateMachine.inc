@@ -12,6 +12,8 @@ void resetSessionForNewCycle(ControlSource source) {
   session.active = true;
   session.source = source;
   noScaleGuardHistoryPending = false;
+  outboundShotActive.store(true, std::memory_order_release);
+  inhibitMachineIntegrationCloud();
   serviceIdleTare();
 #if !defined(SHOT_STOPPER_HOST_TEST)
   // Publish the RF gate before any deferred NTP request or webhook can wake a

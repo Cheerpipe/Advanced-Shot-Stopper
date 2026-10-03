@@ -95,6 +95,8 @@ point. Both pause during a shot or rinse and as soon as a compatible scale is
 found, before its connection starts. The WebSocket is disconnected during that
 pause. Monitoring resumes after scale setup and the Bluetooth quiet interval
 end. Wi-Fi and the local Web UI remain available.
+Paddle wake gestures and starts blocked by a guard keep observation connected;
+they do not count as shots or rinses.
 
 Home shows **Machine power state** as **ON**, **OFF**, or **—** when unknown.
 An active local estimate appears as **ON - Optimistic** or **OFF - Optimistic**.

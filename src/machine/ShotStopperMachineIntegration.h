@@ -5,7 +5,8 @@
 namespace shotstopper {
 // Callback-safe wakeup; admission itself is published by discovery.
 #if defined(SHOT_STOPPER_HOST_TEST)
-inline void inhibitMachineIntegrationCloud() {}
+inline uint32_t hostMachineCloudInhibitCount = 0;
+inline void inhibitMachineIntegrationCloud() { ++hostMachineCloudInhibitCount; }
 #else
 void inhibitMachineIntegrationCloud();
 #endif

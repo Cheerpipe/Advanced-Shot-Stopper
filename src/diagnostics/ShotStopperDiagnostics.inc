@@ -126,6 +126,8 @@ void publishControlGate() {
     TaskLockGuard lock(controlGateMutex);
     publishedControlGate = next;
   }
+  outboundShotActive.store(next.activeCycle, std::memory_order_release);
+  if (next.activeCycle) inhibitMachineIntegrationCloud();
 #if !defined(SHOT_STOPPER_HOST_TEST)
   networkManager.syncControlCriticalRf(next.activeCycle || next.relayClosed);
 #endif

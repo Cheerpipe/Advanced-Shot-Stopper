@@ -73,6 +73,9 @@ scratch and session tokens. API selection, observation disablement, account
 removal/change, STA loss/AP entry and maintenance release WS scratch after
 callback quiescence. Maintenance also releases the HTTP workspace. Each
 client records actual pause completion; residual SDK DNS resolution is excluded.
+Control owns the shot/rinse admission signal independently of relay-critical
+webhook/NTP admission, so wake passthrough and rejected starts do not cancel
+Micra observation.
 
 `initJsonParser()` installs the cJSON allocator once, before concurrent users
 start. No caller may replace the process-wide hooks afterward. This is not a

@@ -93,6 +93,9 @@ A 60-second optimistic overlay and a separate stale suspension hold preserve
 the effective power without changing the last cloud evidence timestamp.
 The SDK callback publishes decoded updates under the facade mutex, independently
 of the HTTP worker. Only the worker stops/destroys the WebSocket.
+Observation pauses follow actual shot/rinse cycles, not relay-only paddle wake
+passthrough or rejected starts. Relay-critical webhook/NTP admission remains
+separate from the cycle signal used by Micra observation.
 
 Scale discovery publishes a generic atomic inhibit before exposing an eligible
 Candidate mailbox. Micra HTTP/WSS, webhooks and NTP consume it, regardless of
@@ -166,9 +169,11 @@ Available flow is counted separately within the general window.
 The stats shot log, its curve sidecar, and the independent activation history
 are owned by one RAM data layer (`ActivationStores`) whose every access runs
 under the single `shotStoreMutex`. Control and HTTP mutate only RAM and advance
-a generation. The core-0 persistence worker copies an immutable image under
-that mutex, releases it before flash I/O, and clears live dirtiness only when
-the completion generation still matches. Acknowledgement carries the image's
+a generation. Control housekeeping copies an immutable image under
+that mutex and dispatches it to the core-0 persistence worker. The worker performs
+flash I/O without the store mutex. Control acknowledges completion and clears
+live dirtiness only when the completion generation still matches.
+Acknowledgement carries the image's
 flash progress back to each live store even when newer RAM edits remain dirty,
 so the next snapshot advances from the committed physical state. ShotLog and
 History keep their two-slot generations; curves use block sequences, retention

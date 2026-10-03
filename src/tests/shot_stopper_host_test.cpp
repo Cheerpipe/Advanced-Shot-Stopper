@@ -69,6 +69,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   resetSerialCliState();
 
   hostMillis = 0;
+  outboundShotActive.store(false);
+  hostMachineCloudInhibitCount = 0;
   powerPolicy = PowerPolicy{};
   powerWebUntilMs.store(0);
   powerNetworkBusy.store(false);
@@ -810,6 +812,8 @@ void t02b_off_wake_bypasses_brew_guards_and_records_power_on() {
     CHECK(stopperState == StopperState::READY);
     CHECK(!session.active);
     CHECK(noScaleShotGuardArmed);
+    CHECK(!outboundShotActive.load());
+    CHECK(hostMachineCloudInhibitCount == 0);
     CHECK(!noScaleShotGuardHold);
     CHECK(!cupStartGuardHold);
     CHECK(scaleCommandQueue->items.empty());
@@ -822,12 +826,15 @@ void t02b_off_wake_bypasses_brew_guards_and_records_power_on() {
     CHECK(stopperState == StopperState::READY);
     CHECK(!session.active);
     setRawPaddle(false);
+    CHECK(!outboundShotActive.load());
     runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
     CHECK(!machineWakePassthroughActive);
     CHECK(!getRelaySafetySnapshot().closed);
     CHECK(stopperState == StopperState::READY);
     CHECK(!session.active);
     CHECK(historyLog.count() == 1);
+    CHECK(!outboundShotActive.load());
+    CHECK(hostMachineCloudInhibitCount == 0);
     HistoryPage page;
     historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
     CHECK(page.records[0].type ==
@@ -5502,6 +5509,37 @@ void d15_control_housekeeping_has_wrap_safe_10ms_cadence() {
   lastControlHousekeepingAtMs = UINT32_MAX - 4;
   CHECK(!controlHousekeepingDue(3));
   CHECK(controlHousekeepingDue(5));
+}
+
+void d16_cloud_pause_requires_a_real_cycle() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE);
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(noScaleShotGuardHold);
+  CHECK(!session.active);
+  CHECK(!outboundShotActive.load());
+  CHECK(hostMachineCloudInhibitCount == 0);
+  setRawPaddle(false);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(!outboundShotActive.load());
+
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  beginCycle(ControlSource::WEB);
+  CHECK(session.active);
+  CHECK(outboundShotActive.load());
+  CHECK(hostMachineCloudInhibitCount > 0);
+  setRawPaddle(false);
+  machineRequestStop();
+  session.active = false;
+  publishControlGate();
+  CHECK(!outboundShotActive.load());
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  CHECK(beginRinseCycle(ControlSource::WEB));
+  CHECK(outboundShotActive.load());
 }
 
 void d14_control_status_publishes_on_cycle_edge() {
@@ -15853,7 +15891,8 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   profiler.record(LoopPhase::SAFETY_HEALTH, 100U, 1100U);
   profiler.record(LoopPhase::CONTROL, 200U, 1300U);
   // Housekeeping only records on iterations that run the gated block.
-  profiler.record(LoopPhase::HOUSEKEEPING, 70U, 1400U);
+  profiler.record(LoopPhase::HOUSEKEEPING_SHOT_PERSISTENCE, 70U, 1400U);
+  profiler.record(LoopPhase::HOUSEKEEPING_STATUS, 30U, 1430U);
   profiler.record(LoopPhase::DIAGNOSTICS, 50U, 1001000U);
   profiler.copySnapshot(snap);
   CHECK(snap.rowCount == LOOP_PHASE_COUNT);
@@ -15866,16 +15905,34 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   CHECK(strcmp(snap.rows[1].name, "scale/machine input") == 0);
   CHECK(strcmp(snap.rows[2].name, "machine guards") == 0);
   CHECK(strcmp(snap.rows[5].name, "commands") == 0);
-  CHECK(snap.rows[6].sampleCount == 1U);
-  CHECK(snap.rows[6].maxExecutionUs == 70U);
-  CHECK(snap.rows[7].averageExecutionUs == 50U);
-  CHECK(snap.rows[8].averageExecutionUs == 0U);
+  const auto &history = snap.rows[static_cast<uint8_t>(
+      LoopPhase::HOUSEKEEPING_SHOT_PERSISTENCE)];
+  CHECK(strcmp(history.name, "housekeeping/history") == 0);
+  CHECK(history.sampleCount == 1U);
+  CHECK(history.maxExecutionUs == 70U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS)]
+            .averageExecutionUs == 30U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::DIAGNOSTICS)]
+            .averageExecutionUs == 50U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::FINAL_SCALE_DRAIN)]
+            .averageExecutionUs == 0U);
+  profiler.captureIntervalGap(1500U, 900U, 150U);
+  profiler.publishIntervalGap(2U);
+  profiler.beginIteration(true, 1002000U);
+  profiler.record(LoopPhase::DIAGNOSTICS, 10U, 2002000U);
+  profiler.capturePeakGap(1U, 1000U, 900U, 80U);
+  profiler.record(LoopPhase::DIAGNOSTICS, 10U, 3002000U);
+  profiler.copySnapshot(snap);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS)]
+            .recentGapExecutionUs == 30U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS)]
+            .peakGapExecutionUs == 0U);
   CHECK(snap.rows[3].averageExecutionUs == 200U);
 
-  profiler.beginIteration(false, 1501000U);
+  profiler.beginIteration(false, 3501000U);
   profiler.copySnapshot(snap);
-  CHECK(snap.rows[0].averageCpuPct > 0.006f);
-  CHECK(snap.rows[0].averageCpuPct < 0.007f);
+  CHECK(snap.rows[0].averageCpuPct > 0.002f);
+  CHECK(snap.rows[0].averageCpuPct < 0.003f);
 }
 
 void r51_auto_to_manual_guard_fires_while_scale_lost() {
@@ -18810,6 +18867,7 @@ const TestCase testCases[] = {
     {"D13E", d13e_ultra_volume_rejection_preserves_saved_level},
     {"D13C", d13c_disconnect_silence_clears_connecting_snapshot},
     {"D15", d15_control_housekeeping_has_wrap_safe_10ms_cadence},
+    {"D16", d16_cloud_pause_requires_a_real_cycle},
     {"D14", d14_control_status_publishes_on_cycle_edge},
     {"D02", d02_first_mode_uses_name_scan},
     {"D02b", d02b_only_without_preferred_bootstraps_and_adopts_on_connect},

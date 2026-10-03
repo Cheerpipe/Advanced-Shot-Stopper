@@ -104,7 +104,7 @@ worker alone updates its maximum gap and execution metrics.
 
 The control loop continuously records the last and maximum execution time for
 coarse safety/health, scale/machine-input,
-machine-guards, control, alerts/timers, commands, housekeeping, diagnostics
+machine-guards, control, alerts/timers, commands, diagnostics
 and final-scale-drain phases. It also retains the phases from the iterations
 preceding the largest start-to-start loop gaps since reset and within the
 current health window. The latter snapshot is frozen and published with the
@@ -112,8 +112,13 @@ recent Loop gap value. Both gaps include scheduling and waiting beyond phase
 execution. The breakdown captures the delay call, the dispatch time from its
 return to the next loop start, and the remaining unphased work. The delay call
 includes scheduler time until the task runs again; it does not identify which
-task ran during that interval. The housekeeping phase records only on
-iterations that run its 10 ms-gated block. The loop owns the counters; ordinary
+task ran during that interval. Housekeeping has eight separate, non-overlapping
+rows: serial log, serial CLI, settings persistence, history persistence, scale
+identity persistence, weight telemetry, status publication, and LED service.
+History persistence includes the immutable store-image copy before dispatch to
+the flash worker. These rows record only on iterations that run the 10 ms-gated
+block; skipped iterations contribute zero to their loop-gap breakdown.
+The loop owns the counters; ordinary
 phase records avoid locking, while one-second and health-window publication
 briefly lock the diagnostic snapshot. The optional task profiler uses the same timing
 calls for session CPU percentages and averages. Reset requests are consumed by

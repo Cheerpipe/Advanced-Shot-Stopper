@@ -216,6 +216,14 @@ struct MicraWebSocketTest {
     deliver(service, observation(service, off));
     assert(service.published_.powerState == LineaMicraPowerState::OFF);
     assert(service.websocketStatus().cleaning == MicraCleaningState::REQUESTED);
+    // A relay-only wake keeps the socket and accepts confirming push evidence.
+    const auto connectionsBeforeWake = service.websocketStatus().reconnects;
+    assert(service.powerState_.notePhysicalStart(service.published_, true, true, ++now));
+    service.serviceWebSocket();
+    assert(stops == 0 && destroys == 0);
+    assert(service.websocketStatus().reconnects == connectionsBeforeWake);
+    deliver(service, observation(service, R"({"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}}]})"));
+    assert(!service.powerState_.effectiveStatus(service.published_, true, now).optimisticOn);
     // Callback publication does not depend on the HTTP owner's progress.
     service.active_ = true;
     const char *on = R"({"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}}]})";

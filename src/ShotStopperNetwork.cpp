@@ -58,9 +58,8 @@ namespace shotstopper {
 WallClock g_wallClock;
 
 struct NetworkWorkBuf {
-  // Diagnostic status with the task profiler running needs ~14 KB (base view
-  // ~10.6 KB + up to 20 task rows and 9 loop-phase rows ~3.6 KB). Home also
-  // needs the worst-case 22 KiB timestamped curve; the pages share this buffer.
+  // Fits diagnostic status with up to 20 task rows and 16 loop-phase rows,
+  // plus Home's worst-case 22 KiB timestamped curve in the shared buffer.
   static constexpr size_t kStatusJson = 40960;
   static constexpr size_t kPresetsJson = 2800;
   static constexpr size_t kHistoryJson = 1400;
