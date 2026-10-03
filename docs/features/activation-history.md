@@ -54,7 +54,7 @@ the rest of the week, "2 weeks ago" for older weeks, and a short date like
 The activation type sits below as a small label. Shots carry a coffee-cup
 icon on the left of the card. Rinses carry a droplet, and other
 activations carry a lightning bolt, Power ON entries use the power symbol,
-and No scale guard aborted entries show a crossed-out scale. When the clock
+and No scale guard aborted entries show an X. When the clock
 was not synced when the entry was recorded, the card shows "no time"
 instead of a date.
 

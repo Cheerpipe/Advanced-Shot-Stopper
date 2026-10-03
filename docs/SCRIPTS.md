@@ -57,10 +57,10 @@ settings, or ship in firmware assets.
 ### No-scale guard icon preview
 
 Open `http://127.0.0.1:4173/compare#no-scale` on the same running server
-to review the simplified X-only icon. The X keeps its original size, stroke
-and rounded ends, centered in the existing icon canvas. Enlarged views and
+to review the simplified X-only icon used for aborted no-scale guard attempts.
+Its visible size matches the other history icons, with rounded ends. Enlarged views and
 24, 32 and 48 pixel samples show it on light and dark backgrounds.
-This design is preview-only and does not change the firmware icon.
+The preview does not connect to a device or change its settings.
 
 ## USB installation
 
