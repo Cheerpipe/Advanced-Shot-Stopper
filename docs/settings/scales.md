@@ -122,7 +122,8 @@ not change those settings. **Tare requested** confirms the request was queued;
 check the scale's reading and diagnostic log for its result.
 
 **Diagnostic → Scale → Supported commands** lists the commands implemented for
-the connected, identified Bookoo model, with each command's hexadecimal code.
+the connected, identified Bookoo model in a two-column table, with command names
+on the left and their hexadecimal codes on the right.
 When the model is unknown or another brand is connected, the page says that
 command support is unknown. The Ultra's power-off command can be ignored while
 the scale is charging.
