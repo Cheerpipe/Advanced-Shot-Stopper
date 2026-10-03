@@ -23,8 +23,11 @@ def definition(name):
 names = ["secureWipe", "powerOptionBit", "sameSessionIdentity"]
 names += ["ShotStopperMicraService::" + name for name in
           ["WorkBuffer", "publishConfig", "publishNetworkState", "queue",
-           "taskLoop", "clearSession"]]
+           "taskLoop", "clearSession", "deferObservation"]]
 output.mkdir(parents=True, exist_ok=True)
+(output / "micra_websocket_work.inc").write_text(
+    "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"
+    + definition("ShotStopperMicraService::WorkBuffer") + "\n}\n")
 (output / "micra_cancellation_methods.inc").write_text(
     "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"
     + "\n".join(map(definition, names)) + "\n}\n")

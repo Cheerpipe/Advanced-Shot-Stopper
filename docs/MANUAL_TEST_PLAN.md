@@ -286,13 +286,14 @@ Additional Bookoo idle-tare checks (not hardware-qualified by host tests):
 
 ## Linea Micra cloud integration
 
-Run these only with an authorized La Marzocco account. Cloud requests never
+Run these only with an authorized La Marzocco account. Select API for the
+existing polling-regression cases; execute the WS cases below separately. Cloud requests never
 actuate the relay; M107–M110 and M114 deliberately exercise the physical paddle
 or local brew path and its relay mirror.
 
 | ID | Procedure | Expected result |
 | --- | --- | --- |
-| M102 | Build the Micra profile, claim the Web UI, and open Settings and Diagnostics. Repeat with each Rancilio profile. | Micra account controls, machine selector, preset temperature, power state, mode, quality, age and Refresh appear only in the Micra build. Status never returns email, password, installation key, or tokens. Rancilio behavior and pages are unchanged. |
+| M102 | Build the Micra profile, claim the Web UI, and open Settings and Diagnostics. Repeat with each Rancilio profile. | Micra account controls, machine selector, preset temperature, power state, mode, quality, age and Refresh appear only in the Micra build. Saved email is visible; password, installation key and tokens are never returned. Rancilio behavior and pages are unchanged. |
 | M103 | In STA mode with setup AP closed, enter a valid account containing two machines and choose **Connect**. Select the intended Micra, turn all three options off, choose **Use selected machine**, then reboot. | The bounded list contains only Linea Micra machines with names/serials; nothing is persisted before selection. After selection, the chosen identity and all three option choices survive reboot, the relay stays open, and no machine command is sent. An account with no Micras leaves the integration unconfigured. |
 | M104 | Enable **Monitor machine power state**. Boot with STA available but hold time synchronization; select Refresh before sync completes, disable monitoring, then release synchronization. Re-enable monitoring and continue with the selected Micra in StandBy, BrewingMode and ECO; let confirmed OFF and ON samples age beyond 30 seconds, then remove internet access through four failed attempts and repeat while setup AP is open. | No state request or communication failure occurs before clock readiness, and the queued Refresh is canceled when monitoring is disabled. Re-enabling makes one read promptly due behind the normal readiness gates. Diagnostics reports OFF, ON and UNKNOWN respectively. Aging changes confirmed OFF/ON quality to stale without changing their displayed state; only the exhausted cycle replaces it with UNKNOWN and the treated-as-ON hint. Attempts use 3/6/9-second backoff, and the next exhausted cycle follows the normal 30-second cadence. AP mode sends no cloud request, and Refresh bypasses none of these gates. |
 | M105 | With a connected scale and state monitoring active and Diagnostics showing ON, start and finish representative weighted shots and rinses while forcing a cloud read in flight. Repeat scale power-cycle, tare, timer, and weight streaming. | The cloud request cancels/defers during local activity and one read is due afterward. Scale discovery, link, commands, and weight stream continue unchanged because Micra owns no BLE resource. ON retains the normal paddle, guard, shot, rinse, and relay behavior. |
@@ -328,3 +329,22 @@ of later changes.
 | M98 | On an isolated instrumented bench, exercise 40/80/160 MHz transitions with the independent safety timer armed and buzzer sounding; include OTA maintenance, AP provisioning and USB debug. | Timer deadlines, ISR safety cutoff, relay-open startup/fault behavior and tone timing remain correct. Light sleep never starts; no missed physical input or watchdog gap. Record maximum PM apply latency before approving deployment. |
 | M99 | On the isolated bench, inject rejected BLE sleep enable/disable and delayed or missing controller wake, both connected and scanning. | Enable rejection restores awake BLE and disables optional savings. Disable failure or wake timeout at 100 ms enters the existing safety trip/restart path; K1 opens, no automatic cycle resumes, and a stalled worker never advertises healthy progress. |
 | M100 | With both touch options ON, test brief contact and sustained rising readings above normal/Fast/Slow cut thresholds; repeat with parent OFF, child OFF, vibration, tare and scale loss. Verify saved ON remains checked but read-only with parent OFF; save/reboot and switch presets. | Ordinary stops gain no delay. Only touch-blocked eligible stops can use one second of fresh continuous evidence; gaps, changed policy and reference changes reset it. Touch fallback is reported and does not train offset or A→M duration. Time limits and machine stop permissions remain intact. Record measured actuation/yield; do not claim a one-second physical overshoot bound. |
+
+## Micra selectable observation qualification
+
+These cases require explicit hardware authorization. Use
+`esp32-s3-relay-x1-speaker` / `la-marzocco-linea-micra`; preserve safe bench
+isolation and existing relay/watchdog limits. Synthetic host fixtures do not
+qualify the provider or radio behavior.
+
+| ID | Procedure | Pass condition |
+| --- | --- | --- |
+| M-WS-01 | Capture sanitized real dashboard frames and cleaning transitions. | Routing, mode/offline/removal mappings match the gateway; Requested/Cleaning/Off are diagnostic only. Record firmware/provider versions and unavailable transitions. |
+| M-WS-02 | Compare idle push reception with concurrent/stalled HTTP. | Fresh messages publish independently; measure arrival and publication separately, p50/p95/p99/max and task stack watermarks. |
+| M-WS-03 | Exercise wake/accepted power commands with matching, contrary, delayed and fragmented evidence. | Original 60s optimism and 15s reconciliation hold; old intent/identity/epoch data cannot overwrite new state. |
+| M-WS-04 | Start acquisition and shots with established WSS; overlap setup, quiet and shot gates. Repeat under weak reception and during DNS/connect. | Owner stop completes, then no WS data/pings/reconnects; BLE never waits; held effective power survives expiry/reconnect until known evidence. Report residual resolver/setup time separately. |
+| M-WS-05 | Save/revert transport edits during status refresh; reconnect accounts and factory-reset. | Dirty edits survive, save/select validates exact values, missing fields preserve choice, Disconnect retains it and reset defaults WS. API has no WS task/socket. |
+| M-WS-06 | Run combined BLE/Wi-Fi/cloud/webhook load for 8h qualification and 72h endurance. | No reset/watchdog/deadline miss, control regression, leaked handle or unbounded reconnect/heap trend. Retain raw traces. |
+| M-WS-07 | Perform supported old→new Wi-Fi OTA, trial rollback and a later OTA; interrupt trial settings saves/resets. | Prior durable schema survives unconfirmed trial; confirmation releases queued writes without a readiness cycle; later OTA remains usable. |
+| M-WS-08 | Compare API/WS/HTTP overlap heaps and 1000 pause/reconnect/disable cycles. | PSRAM/internal placement and stack margins hold; connect/stop deltas recover to stable comparable baselines; OTA maintenance frees WS/session reservations. |
+| M-WS-09 | Repeat early detection without Micra; interrupt plain HTTP POST and NTP during each phase. | Inhibit precedes Candidate consumption; unsent webhooks resume, ambiguous POSTs never replay; NTP publication is closed before stop; local UI remains usable and Wi-Fi work honors acquisition. |

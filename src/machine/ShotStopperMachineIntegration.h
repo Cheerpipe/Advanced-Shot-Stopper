@@ -3,6 +3,12 @@
 #include <cstdint>
 
 namespace shotstopper {
+// Callback-safe wakeup; admission itself is published by discovery.
+#if defined(SHOT_STOPPER_HOST_TEST)
+inline void inhibitMachineIntegrationCloud() {}
+#else
+void inhibitMachineIntegrationCloud();
+#endif
 
 struct PersistedSettings;
 

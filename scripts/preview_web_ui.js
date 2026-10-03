@@ -55,6 +55,22 @@ function renderMobileMenu() {
       .replace('</body>', '<script src="/mobile-menu.js" defer></script></body>');
 }
 
+function renderMicra() {
+  return renderMobileMenu()
+      .replace('<link rel="stylesheet" href="/preview.css">', '')
+      .replace('<link rel="stylesheet" href="/mobile-menu.css">', '')
+      .replace('<script src="/preview.js" defer></script>', '')
+      .replace('<script src="/mobile-menu.js" defer></script>', '<script src="/micra-preview.js" defer></script>');
+}
+
+function renderMicraScript() {
+  const runtime = read('src/web/js/runtime.js'), diagnostic = read('src/web/js/diagnostic.js');
+  const content = runtime.slice(runtime.indexOf('const MICRA_SWITCHES='), runtime.indexOf('function renderLineaMicraDiagnostic(')) +
+      diagnostic.slice(0, diagnostic.indexOf('function formatScaleDisconnect('));
+  return renderSources([{file: 'src/web/js/runtime.js', type: 'js', content}],
+      {language: 'en', allowUnused: true}).sources[0].content + '\n' + read('scripts/web-preview/micra.js');
+}
+
 function createServer() {
   return http.createServer((req, res) => {
     const pathname = new URL(req.url, 'http://localhost').pathname;
@@ -65,12 +81,13 @@ function createServer() {
     try {
       const asset = routes[pathname];
       const mobileMenu = /^\/mobile-menu(?:\/(?:stats|history|settings|diagnostic|admin))?\/?$/.test(pathname);
-      if (pathname !== '/' && !mobileMenu && !asset) {
+      const micra = pathname === '/micra' || pathname === '/micra-preview.js';
+      if (pathname !== '/' && !mobileMenu && !micra && !asset) {
         res.writeHead(404).end('Preview resource not found');
         return;
       }
-      const body = mobileMenu ? renderMobileMenu() : pathname === '/preview.js' ? renderSignals() + '\n' + read(asset[1]) : asset ? read(asset[1]) : renderHome();
-      res.writeHead(200, {'Content-Type': asset ? asset[0] : 'text/html; charset=utf-8',
+      const body = pathname === '/micra' ? renderMicra() : pathname === '/micra-preview.js' ? renderMicraScript() : mobileMenu ? renderMobileMenu() : pathname === '/preview.js' ? renderSignals() + '\n' + read(asset[1]) : asset ? read(asset[1]) : renderHome();
+      res.writeHead(200, {'Content-Type': pathname === '/micra-preview.js' ? 'text/javascript' : asset ? asset[0] : 'text/html; charset=utf-8',
         'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
         'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; frame-ancestors 'self'; form-action 'none'"});
       res.end(req.method === 'HEAD' ? undefined : body);

@@ -96,7 +96,13 @@ int main() {
   wipeLineaMicraSettings(settings);
   for (uint8_t byte : settings.installationPrivateKey) assert(byte == 0);
   assert(sizeof(LineaMicraRequest) <= 16);
-  assert(sizeof(LineaMicraPersistedSettings) == 311);
+  assert(sizeof(LineaMicraPersistedSettings) == 312);
+  assert(settings.connectionType == static_cast<uint8_t>(MicraConnectionType::WEBSOCKET));
+  settings.connectionType = static_cast<uint8_t>(MicraConnectionType::API);
+  disconnectLineaMicra(settings);
+  assert(settings.connectionType == static_cast<uint8_t>(MicraConnectionType::API));
+  settings.connectionType = 2;
+  assert(!validLineaMicraSettings(settings));
   LineaMicraRequest temperatureRequest;
   temperatureRequest.type = LineaMicraRequestType::APPLY_TEMPERATURE;
   temperatureRequest.configGeneration = 7;

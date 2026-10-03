@@ -1,6 +1,7 @@
 #include "ShotStopperMachineIntegration.h"
 
 namespace shotstopper {
+void inhibitMachineIntegrationCloud() {}
 
 bool initializeMachineIntegration() { return true; }
 void publishMachineIntegrationConfig(const PersistedSettings &, uint32_t) {}

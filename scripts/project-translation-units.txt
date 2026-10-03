@@ -28,4 +28,5 @@ src/ShotStopperWebhook.cpp
 src/machine/ShotStopperMachineIntegration.cpp | integration=none
 src/machine/ShotStopperLineaMicraIntegration.cpp | integration=linea_micra_cloud
 src/machine/ShotStopperMicraService.cpp | integration=linea_micra_cloud
+src/machine/ShotStopperMicraObservation.cpp | integration=linea_micra_cloud
 src/shotStopper.cpp

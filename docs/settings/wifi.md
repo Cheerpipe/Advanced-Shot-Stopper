@@ -1,5 +1,11 @@
 # Wi-Fi
 
+Outbound cloud communication, webhook delivery and time synchronization pause
+while a detected compatible scale is being acquired. Wi-Fi scan/reconnect work
+follows the same acquisition gate. The local Web UI remains available; the
+controller does not deliberately disconnect station Wi-Fi. Already-started
+network setup can take a moment to finish before its owner closes the connection.
+
 How the controller joins your home network (STA) and when it falls back to
 its own access point. Details for the fallback AP itself are in [AP](ap.md).
 

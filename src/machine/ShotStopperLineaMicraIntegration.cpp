@@ -67,6 +67,8 @@ void publishMachineIntegrationNetworkState(bool staConnected, bool apActive,
                               scaleConnecting);
 }
 
+void inhibitMachineIntegrationCloud() { service.inhibitCloud(); }
+
 void requestMachineIntegrationPresetTemperature(
     uint8_t presetId, uint32_t configGeneration, uint16_t targetDeciC) {
   LineaMicraRequest request;
@@ -157,6 +159,7 @@ void clearMachineIntegrationDiscovery() { service.clearDiscovery(); }
 LineaMicraStatus machineIntegrationStatus() { return service.status(); }
 
 LineaMicraCloudCall machineIntegrationCloudCall() { return service.cloudCall(); }
+MicraWebSocketStatus machineIntegrationWebSocketStatus() { return service.websocketStatus(); }
 
 HeapLifecycleAggregate machineIntegrationHeapTelemetry() {
   return service.heapTelemetry();

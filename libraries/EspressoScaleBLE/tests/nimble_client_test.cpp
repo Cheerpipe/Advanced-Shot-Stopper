@@ -69,6 +69,44 @@ static void advertise(NimbleScaleClient &c, uint8_t eventType,
 }
 static void run() {
   {
+    NimbleScaleClient c(false);
+    static NimbleScaleClient *observed = nullptr;
+    static bool inhibited = false;
+    observed = &c;
+    EspressoScaleBLE facade(false);
+    facade.setAcquisitionObserver([](bool held, uint32_t) {
+      CHECK(testCriticalDepth > 0);
+      if (held && !inhibited) CHECK(!observed->candidatePending_);
+      inhibited = held;
+    });
+    testRuntimeReady = true;
+    CHECK(c.beginConfiguredScan(false));
+    advertise(c, BLE_HCI_ADV_RPT_EVTYPE_ADV_NONCONN_IND);
+    CHECK(!inhibited);
+    advertise(c, BLE_HCI_ADV_RPT_EVTYPE_ADV_IND);
+    CHECK(inhibited && c.candidatePending_);
+    c.candidatePending_ = c.candidateQueued_ = false;
+    testDiscoveryActive = false;
+    c.service();
+    testNowMs += 10000;
+    c.service();
+    CHECK(inhibited); // No scanning opportunity: absence cannot release it.
+    testDiscoveryActive = true;
+    c.service();
+    testNowMs += 4999;
+    c.service();
+    CHECK(inhibited);
+    ++testNowMs;
+    c.service();
+    CHECK(!inhibited);
+    advertise(c, BLE_HCI_ADV_RPT_EVTYPE_ADV_IND);
+    CHECK(inhibited);
+    c.enterState(NimbleScaleClient::State::Ready);
+    CHECK(!inhibited);
+    facade.setAcquisitionObserver(nullptr);
+    observed = nullptr;
+  }
+  {
     EspressoScaleBLE facade(false);
     auto &c = clientFromStorage(g_clientStorage);
     for (unsigned operation = 0; operation < 3; ++operation) {

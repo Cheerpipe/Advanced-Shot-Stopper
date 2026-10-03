@@ -2351,7 +2351,7 @@ void syncScaleRadioCoex() {
   if (scaleWorkerBridge.syncNetworkRf != nullptr) {
     scaleWorkerBridge.syncNetworkRf(scale.isConnecting() || scale.isLinkUp(),
                                     scale.isConnecting(),
-                                    scaleHuntRfClearActive());
+                                    scaleHuntRfClearActive(), scale.communicationSilenced());
   }
 #endif
 }
@@ -2362,6 +2362,7 @@ bool configureScaleWorkerBridge(const ScaleWorkerBridgeCallbacks &callbacks) {
     return false;
   }
   scaleWorkerBridge = callbacks;
+  scale.setAcquisitionObserver(callbacks.notifyAcquisition);
   return true;
 }
 

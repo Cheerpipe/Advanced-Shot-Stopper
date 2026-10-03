@@ -34,3 +34,18 @@ from measurement.
 Suppressions require an owner, a reason and a review/expiry date. A target race
 or warning may be suppressed only with a linked artifact and written argument
 showing why it cannot affect control or diagnostic integrity.
+
+## Micra observation and early acquisition silence
+
+Capture eligible advertisement→atomic inhibit→each owner stopped separately
+from BLE Candidate→connect→Ready. Include both an established WSS connection
+and residual DNS/connect setup; transport completion is not RF silence.
+Correlate generic `outboundPause` generation/reason and per-client completion
+with WS lifecycle, power/message/pong ages, receive/transmit payload rates,
+publication latency, cleaning availability and `heapLifecycle.micraWebsocket`.
+Measure machine action→cloud arrival separately from complete-message→facade
+publication, including a stalled HTTP operation. Record p50/p95/p99/max and
+stack watermarks for cloud/WS/BLE/control tasks. Run API versus WS comparisons,
+weak reception, overlapping pause reasons, 1000 lifecycle cycles, combined soak
+and OTA trial rollback only with explicit hardware/OTA authorization. No target
+result is implied by host fixtures or successful compilation.

@@ -54,7 +54,7 @@ The machine profile declares an allow-listed `integration` value explicitly;
 brand, model, ID and display text never select executable code. Profiles with
 `integration: none` compile the no-op adapter and do not link a concrete machine
 protocol component. Linea Micra builds compile its adapter, service, bounded
-feature types and HTTPS cloud client. Future machines may expose entirely
+feature types, HTTPS cloud client and the pinned WSS/STOMP observer. Future machines may expose entirely
 different feature APIs while retaining only the small lifecycle boundary needed
 by boot, network-state publication, and generic physical-start disposition.
 
@@ -75,14 +75,31 @@ Its adapter exposes only `NORMAL` or `WAKE_PASSTHROUGH`; Open Brew by Weight own
 passthrough and consumes wake gestures before brew, rinse, guards, scale,
 alerts, webhooks, and history. Those subsystems never depend on Micra types.
 
-The schema-2 settings blob retains the exact 310-byte
-`LineaMicraPersistedSettings` cloud account record and the two-byte per-preset
-Micra target in every profile so switching a build profile cannot reinterpret
-the persistence layout. Their names, validation and helpers remain Micra-owned;
-unrelated machine modules must not reuse them. Settings persistence validates magic, size, checksum and semantic constraints.
-The same-layout schema-1 record is upgraded to schema 2 after checksum
-verification, enabling the new touch-stop fallback while retaining all prior
-settings. Other schemas and incompatible layouts remain rejected.
+The schema-3 settings blob retains the 312-byte
+`LineaMicraPersistedSettings` record in every profile. The connection byte at
+record offset 311 occupies prior enclosing-blob padding: Micra offset 2991,
+checksum offset 3304 and total size 3312 remain unchanged. Values are explicitly
+WebSocket=0 and API=1. Schema 1/2 blobs are authenticated against their original
+CRC before an in-memory migration defaults the new byte; v1 also enables the
+existing touch-stop fallback. Load never writes back. Settings saves and resets
+wait for successful OTA trial confirmation, preserving the old durable records
+for rollback. This admission does not gate boot readiness or other stores.
+
+One facade reduces HTTP and WebSocket field updates. HTTP requests capture
+identity, epoch, intent and independent field revisions; callbacks capture the
+intent when a fragmented message starts. Old results cannot overwrite newer
+push evidence. Accepted commands do not fabricate power/temperature samples.
+A 60-second optimistic overlay and a separate stale suspension hold preserve
+the effective power without changing the last cloud evidence timestamp.
+The SDK callback publishes decoded updates under the facade mutex, independently
+of the HTTP worker. Only the worker stops/destroys the WebSocket.
+
+Scale discovery publishes a generic atomic inhibit before exposing an eligible
+Candidate mailbox. Micra HTTP/WSS, webhooks and NTP consume it, regardless of
+machine profile. Discovery releases acquisition at Ready, or after five seconds
+of actual scan opportunity without a candidate. Setup, shot and the library's
+three-second quiet interval remain separate gates. Local access remains active;
+this is transport quiescence, not a physical RF-silence guarantee.
 
 ## BBW policy and storage
 
@@ -106,7 +123,7 @@ Editing reset bases alone preserves current learning and evidence.
 Settings status publishes active-preset identity, both offsets, alpha baseline, gain/provenance
 and evidence count together in the existing coherent control snapshot.
 
-Settings schema 2 uses the current 344-byte `RuntimeConfig`, 104-byte
+Settings schema 3 uses the current 344-byte `RuntimeConfig`, 104-byte
 `ShotPreset`, and 3,312-byte settings blob. Candidate
 anchors/observations/generations are RAM only; deferred persistence retains
 offsets, gain/provenance, and profile through the existing dual-slot owner.
@@ -114,7 +131,7 @@ offsets, gain/provenance, and profile through the existing dual-slot owner.
 are current explicit fields. Presets never copy the global power setting.
 The schema-1 upgrade names former padding at runtime byte 17 and preset byte 46
 for `touchStopFallbackEnabled`; it initializes both to true before semantic
-validation. Schema-2 records preserve explicit false. Blob sizes, revisions and
+validation. Schema-2/3 records preserve explicit false. Blob sizes, revisions and
 dual-slot ownership remain unchanged. Other lengths and schemas are rejected.
 The shot log is the authority for a completed shot: confirmed, non-rinse,
 strictly more than 12,000 ms of brewing and a finite settled yield strictly

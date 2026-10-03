@@ -7,6 +7,7 @@
 #include <thread>
 #include "machine/ShotStopperMicraPublicIdentityCache.h"
 #include "machine/ShotStopperMicraService.h"
+#include "ShotStopperOutboundAdmission.h"
 
 // Only scheduling and transport are simulated; extracted service code is unchanged.
 uint32_t millis() { return 1000; }
@@ -32,6 +33,8 @@ bool ShotStopperMicraService::networkEligible(LineaMicraError &) const {
 }
 void ShotStopperMicraService::releaseIoBuffer(bool) {}
 void ShotStopperMicraService::releaseWorkBuffer() { clearSession(); }
+void ShotStopperMicraService::serviceWebSocket() {}
+void ShotStopperMicraService::stopWebSocket(bool) {}
 void ShotStopperMicraService::execute(PendingRequest &) { executeHook(); }
 bool ShotStopperMicraService::executeTemperatureApplication(
     const LineaMicraRequest &, uint32_t) {
@@ -65,6 +68,7 @@ void MicraCancellationTest::progress(ShotStopperMicraService &service, int outco
   auto networkEligible = [&](LineaMicraError &error) {
     return service.networkEligible(error);
   };
+  auto stopWebSocket = [&] { service.stopWebSocket(); };
   LineaMicraError gateError = LineaMicraError::NONE;
   ShotStopperMicraService::WorkBuffer work;
   auto *work_ = &work;
@@ -167,6 +171,23 @@ void MicraCancellationTest::run() {
   service.publishNetworkState(true, false, false, false);
   service.abortRequested_.store(false);
   progress(service, ESP_ERR_HTTP_EAGAIN, false, false);
+
+  // A canceled API observation retains evidence even after a short pause ends.
+  service.pending_ = {};
+  service.powerState_.reset();
+  service.config_.accountConfigured = true;
+  service.config_.options |= LINEA_MICRA_OBSERVE_STATE;
+  service.published_.sampleAtMs = 900;
+  service.published_.powerState = LineaMicraPowerState::OFF;
+  service.published_.effectiveOn = false;
+  service.published_.quality = LineaMicraObservationQuality::CURRENT;
+  ShotStopperMicraService::PendingRequest paused;
+  paused.identityGeneration = service.identityGeneration_;
+  service.deferObservation(paused, service.published_, LineaMicraError::CANCELED);
+  assert(service.pending_.present && service.powerState_.retained());
+  const auto held = service.powerState_.effectiveStatus(service.published_, true, 100000);
+  assert(!held.effectiveOn && held.quality == LineaMicraObservationQuality::STALE);
+  assert(service.published_.sampleAtMs == 900);
 
   // Network publication cannot erase cancellation from a concurrent producer.
   service.abortRequested_.store(false);

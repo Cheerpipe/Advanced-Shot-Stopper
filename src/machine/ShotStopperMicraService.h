@@ -4,6 +4,8 @@
 #include "ShotStopperLineaMicraTypes.h"
 #include "ShotStopperMachineIntegration.h"
 #include "ShotStopperMicraPowerState.h"
+#include "ShotStopperMicraObservation.h"
+#include "ShotStopperMicraWebSocket.h"
 #include "ShotStopperMicraTiming.h"
 #include "ShotStopperPsram.h"
 #include "ShotStopperTaskMutex.h"
@@ -19,6 +21,11 @@ namespace shotstopper {
 class ShotStopperMicraService {
  public:
   bool begin();
+  void inhibitCloud() {
+    disconnectGeneration_.fetch_add(1, std::memory_order_acq_rel);
+    abortRequested_.store(true, std::memory_order_release);
+    if (task_ != nullptr) xTaskNotifyGive(task_);
+  }
   void publishConfig(const LineaMicraPersistedSettings &settings,
                      uint32_t configGeneration);
   void publishNetworkState(bool staConnected, bool apActive, bool shotActive,
@@ -32,6 +39,7 @@ class ShotStopperMicraService {
   LineaMicraStatus status() const;
   LineaMicraCloudCall cloudCall() const;
   HeapLifecycleAggregate heapTelemetry() const;
+  MicraWebSocketStatus websocketStatus() const;
   LineaMicraDiscoverySnapshot discovery() const;
   MachinePhysicalStartDisposition physicalStart();
   bool cloudFirstQuerySettled() const {
@@ -41,9 +49,11 @@ class ShotStopperMicraService {
  private:
 #if defined(SHOT_STOPPER_HOST_TEST)
   friend struct MicraCancellationTest;
+  friend struct MicraWebSocketTest;
 #endif
   struct IoBuffer;
   struct WorkBuffer;
+  struct WebSocketBuffer;
   struct RequestStateGuard;
   struct PendingRequest {
     LineaMicraRequest request = {};
@@ -69,6 +79,12 @@ class ShotStopperMicraService {
   static void taskEntry(void *context);
   static esp_err_t httpEvent(esp_http_client_event_t *event);
   void taskLoop();
+  static void websocketEvent(void *context, const char *, int32_t event, void *data);
+  static bool stompFrame(void *context, const struct MicraStompFrame &frame);
+  bool websocketAdmitted() const;
+  void serviceWebSocket();
+  void stopWebSocket(bool release = false);
+  void waitRetry(uint32_t delayMs);
   void execute(PendingRequest &pending);
   bool executeConnect(PendingRequest &pending);
   bool executeObservation(PendingRequest &pending);
@@ -95,7 +111,8 @@ class ShotStopperMicraService {
                bool authenticated, const char *purpose, const char *endpoint,
                bool installationInit = false);
   LineaMicraError classifyFailure() const;
-  bool applySignedHeaders(const LineaMicraPersistedSettings &settings);
+  bool applySignedHeaders(const LineaMicraPersistedSettings &settings,
+                          char *headers = nullptr, size_t capacity = 0);
   void clearRequestState();
   bool networkEligible(LineaMicraError &error) const;
   bool ensureIoBuffer();
@@ -104,8 +121,6 @@ class ShotStopperMicraService {
   void releaseIoBuffer(bool responseValid = true);
   void releaseWorkBuffer();
   void publish(const LineaMicraStatus &status);
-  void publishObservation(const LineaMicraStatus &status,
-                          uint32_t powerGeneration);
   void deferObservation(const PendingRequest &pending,
                         LineaMicraStatus status, LineaMicraError reason);
   void fail(LineaMicraStatus &status, LineaMicraError error);
@@ -140,10 +155,14 @@ class ShotStopperMicraService {
   uint32_t nextAutomaticRequestId_ = 0x80000000UL;
   micra_timing::ObservationSchedule observationSchedule_;
   LineaMicraPowerStateTracker powerState_;
+  MicraObservationFence observationFence_;
   bool active_ = false;
   TaskHandle_t task_ = nullptr;
   IoBuffer *io_ = nullptr;
   WorkBuffer *work_ = nullptr;
+  WebSocketBuffer *websocket_ = nullptr;
+  MicraWebSocketStatus websocketStatus_;
+  std::atomic<bool> websocketRetryRequested_{false};
   std::atomic<bool> staConnected_{false};
   std::atomic<bool> apActive_{false};
   std::atomic<bool> shotActive_{false};
@@ -152,6 +171,7 @@ class ShotStopperMicraService {
   std::atomic<bool> temperatureActive_{false};
   std::atomic<bool> powerActive_{false};
   std::atomic<bool> abortRequested_{false};
+  std::atomic<uint32_t> disconnectGeneration_{0};
   std::atomic<bool> clearSessionRequested_{false};
   // Latched after the first cloud request reaches any terminal outcome;
   // consumed by the network boot heap shaper release gate.

@@ -185,6 +185,9 @@ class EspressoScaleBLE {
         uint32_t communicationSilenceRemainingMs() const;
         bool newWeightAvailable();
         void setDroppedFrameObserver(ScaleDroppedFrameObserver observer);
+        // Registered before scanning. May run under the discovery critical
+        // section: only publish atomics/notifications, never block or allocate.
+        void setAcquisitionObserver(void (*observer)(bool, uint32_t));
         ScaleFeatureSet features() const;
         ScaleModel model() const;
         // Borrowed until the connection changes; copy if retained.

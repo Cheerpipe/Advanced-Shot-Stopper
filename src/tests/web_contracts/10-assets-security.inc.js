@@ -636,8 +636,10 @@ if (jsBytes > 237000) {
 // Paired reads and deferred hydration add 1 KiB of source allowance only.
 // Scale profiling adds ~4.4 KB of combined source allowance (diagnostic
 // section in HTML; matrix rendering and download in JS).
-if (htmlBytes + jsBytes > 317500) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 317500)`);
+// Selectable Micra transport and bounded WS diagnostics add 1.5 KB after
+// sharing option payloads and diagnostic row creation. Flash limits stay fixed.
+if (htmlBytes + jsBytes > 319000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 319000)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

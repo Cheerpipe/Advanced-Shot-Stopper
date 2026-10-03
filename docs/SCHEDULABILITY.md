@@ -48,7 +48,16 @@ destroys its HTTP/TLS client; cancellation is checked before and after each
 asynchronous progress call, so teardown cannot race an in-flight TLS read.
 The state observer is due nominally every 30 seconds, and its four-attempt cycle
 waits 3, 6, then 9
-seconds. After exhaustion the next cycle follows the normal 30-second cadence.
+seconds. After exhaustion the next cycle waits 60 seconds.
+WebSocket selection suppresses regular polling. Its SDK receiver runs on core 0,
+priority 1, with an 8192-byte internal stack and fixed 1024-byte I/O buffers.
+CONNECT/SUBSCRIBE and incomplete-frame progress each have a 10-second deadline.
+Payload processing admits at most 32 complete frames per feed and yields after
+publication. The facade records complete-message→publication and pause→actual
+stop latency; target qualification must establish those bounds under HTTP load.
+An established socket follows owner stop; DNS/connect already in flight may
+finish before SDK stop completes. BLE never waits for that completion.
+
 AP, STA-loss, unsynchronized clock, and shot activity gate observations without
 consuming attempts. These are admission intervals, not a guaranteed cloud
 detection latency; an individual TLS/crypto progress call still requires target

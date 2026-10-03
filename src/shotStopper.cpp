@@ -63,6 +63,7 @@
 #endif
 
 #include "ShotStopperDomain.h"
+#include "ShotStopperOutboundAdmission.h"
 #include "ShotStopperFirmwareMode.h"
 #include "machine/ShotStopperMachineIntegration.h"
 #include "ShotStopperIntegrationState.h"
@@ -774,10 +775,18 @@ void reportStationIpChange(const char *ip) {
 
 void syncScaleWorkerNetworkRf(bool scaleLinkOrConnecting,
                               bool scaleConnectingNow,
-                              bool huntWindowActive) {
+                              bool huntWindowActive, bool communicationSilenced) {
+  outboundScaleSetup.store(scaleConnectingNow, std::memory_order_release);
+  outboundBleQuiet.store(communicationSilenced, std::memory_order_release);
   networkManager.syncScaleLinkRf(scaleLinkOrConnecting);
   networkManager.syncScaleConnectingRf(scaleConnectingNow);
   networkManager.syncScaleHuntRf(huntWindowActive);
+}
+
+void notifyScaleAcquisition(bool held, uint32_t atMs) {
+  publishOutboundAcquisition(held, atMs);
+  networkManager.syncScaleConnectingRf(held);
+  inhibitMachineIntegrationCloud();
 }
 #endif
 

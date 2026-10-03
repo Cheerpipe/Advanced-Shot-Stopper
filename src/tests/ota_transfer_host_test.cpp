@@ -196,6 +196,7 @@ void testConfirmationGatesAndDiagnostics() {
   reset(ESP_OTA_IMG_PENDING_VERIFY);
   auto ota = OtaHostTestAccess::fresh();
   CHECK(ota->snapshot().pendingVerify && !ota->snapshot().confirmed);
+  CHECK(!settingsSchemaWritesAdmitted.load());
   Image image;
   CHECK(ota->createSession(image.identity, hostMillis) == OtaResult::PENDING_VERIFY);
   std::strcpy(image.identity.transferId, "different-transfer-012345");
@@ -211,6 +212,7 @@ void testConfirmationGatesAndDiagnostics() {
   CHECK(service(*ota, 180000, true, false, false, true).state == ESP_OTA_IMG_VALID);
   const auto status = ota->snapshot();
   CHECK(status.confirmed && !status.pendingVerify && status.confirmAttempts == 1);
+  CHECK(settingsSchemaWritesAdmitted.load());
   CHECK(status.confirmLastError == ESP_OK && std::string(status.confirmBlockReason) == "CONFIRMED");
   CHECK(std::strlen(status.runningImageSha256) == 64);
   CHECK(service(*ota, 200000).attempts == 1 && ota_host::confirms == 1);

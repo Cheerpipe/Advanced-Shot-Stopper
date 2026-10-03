@@ -136,8 +136,8 @@ Every path rejects versions other than 6.1.0.
 
 `idf/main/idf_component.yml` and `idf/dependencies.lock` define the component
 graph, including mDNS 1.13.1 and ESP WebSocket client 1.8.0. The WebSocket
-dependency is prepared for Micra observation; the current firmware still uses
-HTTP observation. The build fails if dependency resolution changes
+component supplies selectable Micra WebSocket observation; authentication and
+commands remain HTTP. The build fails if dependency resolution changes
 the lockfile; review and commit such updates separately. First firmware builds
 may need network access to resolve SDK components; prepare these dependencies
 before attempting an offline validation run. Host tests and firmware compilation

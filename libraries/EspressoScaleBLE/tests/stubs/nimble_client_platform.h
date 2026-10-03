@@ -145,6 +145,8 @@ template<class... T> int ble_gattc_disc_all_dscs(T...) { ++testRadioProcedures; 
 template<class... T> int ble_gap_connect(T...) { ++testRadioProcedures; return BLE_HS_EINVAL; }
 template<class... T> int ble_gap_disc(T...) { ++testRadioProcedures; return 0; }
 inline int ble_gap_disc_cancel() { ++testRadioProcedures; return 0; }
+inline bool testDiscoveryActive = true;
+inline int ble_gap_disc_active() { return testDiscoveryActive; }
 inline int ble_gap_conn_cancel() {
   ++testRadioProcedures;
   if (testOnConnectCancel) testOnConnectCancel();

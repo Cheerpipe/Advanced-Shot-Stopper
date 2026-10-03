@@ -80,11 +80,13 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char safeMicraName[LINEA_MICRA_NAME_CAPACITY] = {};
   uint8_t micraOptions = 0;
   uint8_t micraScaleOptions = 0;
+  uint8_t micraConnectionType = 0;
   bool micraAccountConfigured = false;
   self.dataMux_.lock();
   micraAccountConfigured = self.settings_.lineaMicra.accountConfigured;
   micraOptions = self.settings_.lineaMicra.options;
   micraScaleOptions = self.settings_.lineaMicra.scaleOptions;
+  micraConnectionType = self.settings_.lineaMicra.connectionType;
   memcpy(safeMicraUsername, self.settings_.lineaMicra.username,
          sizeof(safeMicraUsername));
   memcpy(micraSerial, self.settings_.lineaMicra.selectedSerial,
@@ -567,116 +569,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     ok = statusJsonAppend(&used, "}");
   }
 
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
-  if (ok && (page == StatusPage::Home || page == StatusPage::Settings ||
-             page == StatusPage::Diagnostic)) {
-    const uint32_t sampleAgeMs = micraStatus.sampleAtMs == 0
-                                     ? 0
-                                     : static_cast<uint32_t>(millis() -
-                                                              micraStatus.sampleAtMs);
-    const bool sampleValid = micraStatus.sampleAtMs != 0 &&
-        (micraStatus.quality == LineaMicraObservationQuality::CURRENT ||
-         micraStatus.quality == LineaMicraObservationQuality::STALE ||
-         micraStatus.quality == LineaMicraObservationQuality::UNSUPPORTED);
-    ok = statusJsonAppend(
-        &used,
-        ",\"lineaMicra\":{\"accountConfigured\":%s,"
-        "\"email\":\"%s\","
-        "\"selectedSerial\":\"%s\",\"selectedName\":\"%s\","
-        "\"applyTemperature\":%s,\"observeState\":%s,"
-        "\"recognizeWakeGesture\":%s,"
-        "\"powerOnWithScale\":%s,"
-        "\"shutdownWithScale\":%s,\"shutdownGraceSeconds\":%u,"
-        "\"scaleOffWithMachine\":%s,"
-        "\"requestId\":%lu,\"phase\":\"%s\",\"error\":\"%s\","
-        "\"powerState\":\"%s\","
-        "\"observedMode\":\"%s\",\"quality\":\"%s\",\"effectiveOn\":%s,"
-        "\"optimisticOn\":%s,\"optimisticOff\":%s,"
-        "\"sampleValid\":%s,\"sampleAgeMs\":%lu,\"freshnessMs\":%lu,"
-        "\"pollIntervalMs\":%lu,\"targetValid\":%s,\"targetDeciC\":%u,"
-        "\"temperatureState\":\"%s\",\"temperatureError\":\"%s\","
-        "\"temperatureCommandAccepted\":%s,\"temperatureRetryable\":%s,"
-        "\"requestedTargetDeciC\":%u,\"appliedTargetDeciC\":%u,"
-        "\"temperatureHttpStatus\":%u,"
-        "\"temperatureTransportStatus\":%ld,"
-        "\"staConnected\":%s,\"apActive\":%s,\"shotPaused\":%s,"
-        "\"scalePaused\":%s,"
-        "\"httpStatus\":%u,\"transportStatus\":%ld,\"machines\":[",
-        micraAccountConfigured ? "true" : "false",
-        safeMicraUsername,
-        safeMicraSerial, safeMicraName,
-        (micraOptions & LINEA_MICRA_APPLY_TEMPERATURE) != 0
-            ? "true" : "false",
-        (micraOptions & LINEA_MICRA_OBSERVE_STATE) != 0
-            ? "true" : "false",
-        (micraOptions & LINEA_MICRA_RECOGNIZE_WAKE) != 0
-            ? "true" : "false",
-        (micraOptions & LINEA_MICRA_POWER_ON_WITH_SCALE) != 0
-            ? "true" : "false",
-        (micraOptions & LINEA_MICRA_SHUTDOWN_WITH_SCALE) != 0
-            ? "true" : "false",
-        static_cast<unsigned>(
-            lineaMicraShutdownGraceSeconds(micraOptions)),
-        (micraScaleOptions & LINEA_MICRA_SCALE_OFF_WITH_MACHINE) != 0
-            ? "true" : "false",
-        static_cast<unsigned long>(micraStatus.requestId),
-        lineaMicraPhaseName(micraStatus.phase),
-        lineaMicraErrorName(micraStatus.error),
-        lineaMicraPowerStateName(micraStatus.powerState),
-        lineaMicraObservedModeName(micraStatus.observedMode),
-        lineaMicraObservationQualityName(micraStatus.quality),
-        micraStatus.effectiveOn ? "true" : "false",
-        micraStatus.optimisticOn ? "true" : "false",
-        micraStatus.optimisticOff ? "true" : "false",
-        sampleValid ? "true" : "false",
-        static_cast<unsigned long>(sampleAgeMs),
-        static_cast<unsigned long>(micra_timing::kStateFreshnessMs),
-        static_cast<unsigned long>(micra_timing::kStatePollMs),
-        micraStatus.targetValid ? "true" : "false",
-        static_cast<unsigned>(micraStatus.targetDeciC),
-        lineaMicraTemperatureStateName(micraStatus.temperatureState),
-        lineaMicraErrorName(micraStatus.temperatureError),
-        micraStatus.temperatureCommandAccepted ? "true" : "false",
-        micraStatus.temperatureRetryable ? "true" : "false",
-        static_cast<unsigned>(micraStatus.requestedTargetDeciC),
-        static_cast<unsigned>(micraStatus.appliedTargetDeciC),
-        static_cast<unsigned>(micraStatus.temperatureHttpStatus),
-        static_cast<long>(micraStatus.temperatureTransportStatus),
-        micraStatus.staConnected ? "true" : "false",
-        micraStatus.apActive ? "true" : "false",
-        micraStatus.shotPaused ? "true" : "false",
-        micraStatus.scalePaused ? "true" : "false",
-        static_cast<unsigned>(micraStatus.httpStatus),
-        static_cast<long>(micraStatus.transportStatus));
-    for (uint8_t index = 0; ok && index < micraDiscovery.count; ++index) {
-      char safeSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
-      char safeName[LINEA_MICRA_NAME_CAPACITY] = {};
-      sanitizeJsonEmbed(micraDiscovery.machines[index].serial, safeSerial,
-                        sizeof(safeSerial));
-      sanitizeJsonEmbed(micraDiscovery.machines[index].name, safeName,
-                        sizeof(safeName));
-      ok = statusJsonAppend(&used,
-                            "%s{\"serial\":\"%s\",\"name\":\"%s\"}",
-                            index == 0 ? "" : ",", safeSerial, safeName);
-    }
-    if (ok) ok = statusJsonAppend(&used, "]");
-    if (ok && page == StatusPage::Diagnostic) {
-      const LineaMicraCloudCall call = machineIntegrationCloudCall();
-      ok = call.api == nullptr
-          ? statusJsonAppend(&used, ",\"cloudCall\":null")
-          : statusJsonAppend(
-                &used, ",\"cloudCall\":{\"api\":\"%s\",\"method\":\"%s\","
-                "\"result\":\"%s\",\"startedAtUtcSec\":%lu,"
-                "\"durationMs\":%lu,\"httpStatus\":%u,\"transportStatus\":%ld}",
-                call.api, call.method, call.result,
-                static_cast<unsigned long>(call.startedAtUtcSec),
-                static_cast<unsigned long>(call.durationMs),
-                static_cast<unsigned>(call.httpStatus),
-                static_cast<long>(call.transportStatus));
-    }
-    if (ok) ok = statusJsonAppend(&used, "}");
-  }
-#endif
+#include "ShotStopperLineaMicraStatus.inc"
 
   if (ok && page == StatusPage::Home) {
     ok = statusJsonAppend(&used, ",\"adminUnlocked\":%s,\"development\":%s",
@@ -918,6 +811,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             "\"lastHttpStatus\":%u,\"lastError\":%ld,"
             "\"lastEvent\":\"%s\",\"lastEndpoint\":\"%s\","
             "\"lastPhase\":\"%s\",\"lastCancellation\":\"%s\","
+            "\"lastDispatched\":%s,\"lastDeliveryUnknown\":%s,"
             "\"lastAttemptAtMs\":%lu,\"sent\":%lu,\"dropped\":%lu,"
             "\"staleConfigDropped\":%lu,\"workerStarts\":%lu,"
             "\"workerStops\":%lu,\"workerStartFailures\":%lu,"
@@ -941,6 +835,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
             webhookStatus.lastEvent, webhookStatus.lastEndpoint,
             webhookRequestPhaseName(webhookStatus.lastPhase),
             webhookCancellationReasonName(webhookStatus.lastCancellation),
+            webhookStatus.lastDispatched ? "true" : "false",
+            webhookStatus.lastDeliveryUnknown ? "true" : "false",
             static_cast<unsigned long>(webhookStatus.lastAttemptAtMs),
             static_cast<unsigned long>(webhookStatus.sent),
             static_cast<unsigned long>(webhookStatus.dropped),
@@ -971,13 +867,32 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
       }
     }
   } else if (ok && page == StatusPage::Diagnostic) {
+    const uint32_t acquisitionGeneration = outboundAcquisitionGeneration.load(std::memory_order_acquire);
+    const bool acquisitionHeld = outboundAcquisitionHeld.load(std::memory_order_acquire);
+    ok = statusJsonAppend(&used, ",\"outboundPause\":{\"generation\":%u,\"requested\":%s,\"atMs\":%u,\"scaleSetup\":%s,\"bleQuiet\":%s,\"shot\":%s,\"maintenance\":%s,\"reason\":\"%s\",\"clients\":[",
+        unsigned(acquisitionGeneration), acquisitionHeld ? "true" : "false", unsigned(outboundAcquisitionAtMs.load()),
+        outboundScaleSetup.load() ? "true" : "false", outboundBleQuiet.load() ? "true" : "false",
+        outboundShotActive.load() ? "true" : "false", outboundMaintenance.load() || outboundOtaBusy.load() ? "true" : "false",
+        acquisitionHeld ? "scale_acquisition" : outboundBleQuiet.load() ? "ble_quiet" : outboundScaleSetup.load() ? "scale_setup" : outboundShotActive.load() ? "shot" : outboundMaintenance.load() || outboundOtaBusy.load() ? "maintenance" : "none");
+    static constexpr const char *clients[] = {"micra_http", "micra_ws", "webhook", "ntp"};
+    for (unsigned i = 0; ok && i < static_cast<unsigned>(OutboundClient::COUNT); ++i) {
+      const auto &completion = outboundPauseCompletions[i];
+      constexpr bool micraClients = SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD;
+      ok = statusJsonAppend(&used, "%s{\"client\":\"%s\",\"applicable\":%s,\"completed\":%s,\"latencyMs\":%u}", i ? "," : "", clients[i],
+          i >= 2 || micraClients ? "true" : "false",
+          acquisitionHeld && acquisitionGeneration == completion.generation.load(std::memory_order_acquire) ? "true" : "false",
+          unsigned(completion.latencyMs.load()));
+    }
+    ok = ok && statusJsonAppend(&used, "]}");
     const NetworkHeapTelemetrySnapshot networkHeap =
         self.heapTelemetrySnapshot();
     const HeapLifecycleAggregate webhookHeap =
         self.webhooks_.heapTelemetry();
     HeapLifecycleAggregate micraHeap = {};
+    HeapLifecycleAggregate micraWsHeap = {};
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
     micraHeap = machineIntegrationHeapTelemetry();
+    micraWsHeap = machineIntegrationWebSocketStatus().heap;
 #endif
     // Reading the diagnostic page is public while it is enabled; adminUnlocked
     // reflects the caller's real Admin session (controls chrome on the UI).
@@ -1320,6 +1235,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
            appendHeapLifecycleJson(&used, "ota", networkHeap.ota, ",") &&
            appendHeapLifecycleJson(&used, "webhookTls", webhookHeap, ",") &&
            appendHeapLifecycleJson(&used, "micraTls", micraHeap, ",") &&
+           appendHeapLifecycleJson(&used, "micraWebsocket", micraWsHeap, ",") &&
            statusJsonAppend(&used, "}");
     }
     if (ok) {

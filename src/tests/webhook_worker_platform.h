@@ -78,6 +78,7 @@ struct TestWifi { int status() const { return wifiStatus; } };
 inline TestWifi WiFi;
 using esp_err_t = int;
 constexpr int ESP_OK = 0, ESP_FAIL = -1, ESP_ERR_INVALID_STATE = -2;
+constexpr int ESP_ERR_HTTP_EAGAIN = -3, ESP_ERR_TIMEOUT = -4;
 constexpr int ESP_MAC_WIFI_STA = 0, HTTP_METHOD_POST = 1;
 constexpr int HTTP_EVENT_ERROR = 0, HTTP_EVENT_DISCONNECTED = 1;
 struct TestHttpClient {};
@@ -91,6 +92,7 @@ struct esp_http_client_config_t {
   const char *url = nullptr;
   int timeout_ms = 0;
   bool disable_auto_redirect = false;
+  bool is_async = false;
   void *user_data = nullptr;
   esp_err_t (*event_handler)(esp_http_client_event_t *) = nullptr;
 };
@@ -105,7 +107,7 @@ inline int esp_http_client_close(esp_http_client_handle_t) { return ESP_OK; }
 inline int esp_http_client_cancel_request(esp_http_client_handle_t) { return ESP_OK; }
 inline int esp_http_client_set_method(esp_http_client_handle_t, int) { return ESP_OK; }
 inline int esp_http_client_set_header(esp_http_client_handle_t, const char *, const char *) { return ESP_OK; }
-inline int esp_http_client_set_post_field(esp_http_client_handle_t, const char *, int) { return ESP_OK; }
+inline int esp_http_client_set_post_field(esp_http_client_handle_t, const char *, int) { workerTrace.push_back("post"); return ESP_OK; }
 inline int esp_http_client_perform(esp_http_client_handle_t) {
   workerTrace.push_back("perform");
   if (duringPerform) duringPerform();

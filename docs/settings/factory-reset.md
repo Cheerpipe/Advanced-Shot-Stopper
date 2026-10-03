@@ -1,5 +1,10 @@
 # Factory reset
 
+A factory reset also restores the Micra connection type to WebSocket.
+Disconnecting only the Micra account preserves that preference. During an
+unconfirmed firmware trial, settings saves and resets wait for confirmation
+so a rollback can recover the prior settings.
+
 Erases saved configuration and returns the controller to first-boot
 credentials. Firmware on the flash is not erased.
 

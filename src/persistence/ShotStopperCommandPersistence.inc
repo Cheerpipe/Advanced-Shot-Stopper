@@ -92,6 +92,8 @@ bool beginMaintenanceLease(const WebCommand &networkCommand,
   machineRequestStop();
   maintenanceLease = MaintenanceLease{};
   maintenanceLease.active = true;
+  outboundMaintenance.store(true, std::memory_order_release);
+  inhibitMachineIntegrationCloud();
   maintenanceLease.applyRuntimeOnSuccess = applyRuntimeOnSuccess;
   maintenanceLease.id = networkCommand.requestId;
   if (maintenanceLease.id == 0) {
@@ -564,6 +566,7 @@ void serviceSettingsPersistResult() {
 }
 
 bool dispatchSettingsPersist() {
+  if (!settingsSchemaWritesAdmitted.load(std::memory_order_acquire)) return false;
   if (!settingsPersistenceAvailable() || settingsPersistInFlight) {
     if (!settingsPersistenceAvailable()) {
       runtimePersistFailed = true;
@@ -935,6 +938,7 @@ void completeMaintenanceLease(const WebCommand &result) {
                                  : DebugCode::COMMAND_FAILED,
                 static_cast<int32_t>(maintenanceLease.id));
   maintenanceLease = MaintenanceLease{};
+  outboundMaintenance.store(false, std::memory_order_release);
   if (machineLastIntention().holdActive) {
     transitionTo(StopperState::REQUIRES_OFF);
   }

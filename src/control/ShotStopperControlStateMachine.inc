@@ -659,6 +659,7 @@ void stateMachineTask() {
           pendingPlannedRestart = maintenanceLease.command;
           plannedRestartHeld = true;
           maintenanceLease = MaintenanceLease{};
+          outboundMaintenance.store(false, std::memory_order_release);
         } else {
           addDebugEvent(DebugCategory::SECURITY,
                         DebugCode::MAINTENANCE_CANCELED,
@@ -673,6 +674,7 @@ void stateMachineTask() {
               CommandResultState::CANCELED;
           maintenanceCancellationPending = true;
           maintenanceLease = MaintenanceLease{};
+          outboundMaintenance.store(false, std::memory_order_release);
         }
       }
       transitionTo(StopperState::REQUIRES_OFF);

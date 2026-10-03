@@ -949,8 +949,9 @@ gate. It never changes relay safety.
 ## Linea Micra power observer and wake qualification
 
 Micra builds run a separate cloud worker when **Monitor machine power state**
-is enabled and an account machine is selected. It queues a dashboard read on a
-nominal 30-second cadence over HTTPS. At startup it waits for an eligible STA
+is enabled and an account machine is selected. WebSocket is the persisted default;
+API selection queues HTTPS dashboard reads on a nominal 30-second cadence.
+Commands and authentication always use HTTP. At startup it waits for an eligible STA
 connection, a closed setup AP, no local shot or rinse, and a synchronized wall
 clock, then starts the initial read on the next worker opportunity. A current
 `StandBy` response maps to OFF, `BrewingMode` to ON, and ECO or an unknown value
@@ -958,6 +959,20 @@ to UNKNOWN. A confirmed ON or OFF older than 30 seconds remains the last cloud
 classification but its quality becomes stale. Only an unsupported response or
 an exhausted communication cycle replaces it with UNKNOWN; the separate
 `effectiveOn` policy treats UNKNOWN as ON without claiming that ON was measured.
+
+WebSocket transitions through waiting for network/time, authentication, socket
+connect, STOMP connect, waiting for data and streaming. Failure uses backoff;
+invalid authentication requires manual retry/account correction. Scale detection,
+setup/quiet, shot or maintenance move it through STOPPING to PAUSED after actual
+stop/destroy. No live paused socket or automatic SDK reconnect is retained.
+On resume, connection/subscription/pong or temperature-only updates do not clear
+the separate stale assumed-power hold; only current-epoch known power does.
+Machine `connected:false` is offline evidence, never power OFF. Cleaning is a
+separate WS-only diagnostic state and cannot create a control transition.
+Matching fresh push evidence clears local optimism early; contrary push evidence
+keeps it until the gated 15-second HTTP reconciliation or its original expiry.
+During pause/resynchronization the separate hold retains the effective value
+past expiry without modifying the last cloud sample timestamp.
 
 On every physical paddle ON edge, the Micra state owner first evaluates the
 pre-edge effective state. A confirmed OFF, current or stale, starts a
@@ -974,11 +989,10 @@ overlay, or unsupported samples do not change the tracked state, and repeated
 events while an overlay is live never re-arm or extend it.
 
 The observer uses four total attempts with 3/6/9-second waits and bounded
-jitter. After exhaustion, the next observation follows the normal 30-second
-cadence. Missing STA, an open setup AP, an unsynchronized clock, and local shots
+jitter. After exhaustion, the next observation waits 60 seconds. Missing STA, an open setup AP, an unsynchronized clock, and local shots
 or rinses are readiness gates rather than failed cloud attempts: requested work
 remains pending and starts when the gate clears. Scale BLE runs independently
-and has no shared radio arbiter with the cloud worker.
+and never waits for network-owner teardown.
 
 When wake recognition is enabled, the adapter reduces that pre-edge decision
 to a generic normal/wake disposition. Open Brew by Weight owns the wake passthrough:

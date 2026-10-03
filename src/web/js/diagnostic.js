@@ -1,13 +1,42 @@
 function renderMicraCloudDiagnostic(lm){
-  const set=(id,value)=>{const el=$(id);if(el)el.textContent=value};
+  ensureMicraRows();
+const set=(id,value)=>{const el=$(id);if(el)el.textContent=value};
   const none=__WEBUI_TEXT__("diagnostic.cloud_no_call"),call=lm.cloudCall;
   set('dMicraCloudEmail',lm.email||__WEBUI_TEXT__("diagnostic.cloud_no_account"));
   set('dMicraCloudMachine',lm.accountConfigured?(lm.selectedName||lm.selectedSerial):__WEBUI_TEXT__("diagnostic.cloud_no_machine"));
   set('dMicraCloudTime',call?(call.startedAtUtcSec?R.formatWallTime(call.startedAtUtcSec,0)+' UTC':__WEBUI_TEXT__("runtime.unknown")):none);
   set('dMicraCloudApi',call?call.method+' '+call.api:none);
-  const labels={success:__WEBUI_TEXT__("diagnostic.cloud_success"),canceled:__WEBUI_TEXT__("diagnostic.cloud_canceled"),http_error:__WEBUI_TEXT__("diagnostic.cloud_http_error"),transport_error:__WEBUI_TEXT__("diagnostic.cloud_transport_error"),invalid_response:__WEBUI_TEXT__("diagnostic.cloud_invalid_response"),response_too_large:__WEBUI_TEXT__("diagnostic.cloud_response_too_large"),setup_error:__WEBUI_TEXT__("diagnostic.cloud_setup_error")};
-  set('dMicraCloudResult',call?(labels[call.result]||call.result)+(call.httpStatus?' · HTTP '+call.httpStatus:'')+(call.transportStatus?' · '+call.transportStatus:''):none);
+const label=__WEBUI_TEXT__("diagnostic.cloud_results").split('|')[['success','canceled','http_error','transport_error','invalid_response','response_too_large','setup_error'].indexOf(call?.result)];
+  set('dMicraCloudResult',call?(label||call.result)+(call.httpStatus?' · HTTP '+call.httpStatus:'')+(call.transportStatus?' · '+call.transportStatus:''):none);
   set('dMicraCloudDuration',call?call.durationMs+' ms':none);
+  renderMicraWebSocket(lm,set);
+}
+
+function renderMicraWebSocket(lm,set){
+const ws=lm.websocket||{},unknown=__WEBUI_TEXT__("runtime.unknown");
+const age=value=>value&&ws.nowMs!=null?(((ws.nowMs-value)>>>0)/1000).toFixed(1)+' s':unknown;
+set('dMicraWsState',(lm.connectionType==='api'?'API':(ws.state||unknown).replace(/_/g,' '))+(ws.reason&&ws.reason!=='none'?' · '+ws.reason.replace(/_/g,' '):''));
+set('dMicraWsTiming',['message','power','pong'].map(k=>k+' '+age(ws[k+'AtMs'])).join(' · ')+' · retry '+(ws.retryRemainingMs||0)+' ms · stop '+(ws.stoppedLatencyMs??'—')+' / '+(ws.maxStoppedLatencyMs??'—')+' ms');
+set('dMicraWsTraffic',['rx','tx'].map(k=>k.toUpperCase()+' '+(ws[k+'BytesPerSecond']||0)+' B/s · '+(ws[k+'BytesPerMinute']||0)+' B/60s · '+(ws[k+'Bytes']||0)+' B').join('; ')+' · '+(ws.messages||0)+' messages · '+(ws.reconnects||0)+' connections · '+(ws.errors||0)+' errors');
+const label=__WEBUI_TEXT__("diagnostic.cleaning_states").split('|')[['inactive','waiting_for_paddle','cleaning'].indexOf(ws.cleaning)];
+const cleaning=!lm.accountConfigured?__WEBUI_TEXT__("runtime.not_connected"):!lm.observeState?__WEBUI_TEXT__("runtime.disabled"):lm.connectionType==='api'?__WEBUI_TEXT__("diagnostic.cleaning_api"):!ws.cleaningAvailable?__WEBUI_TEXT__("diagnostic.cleaning_no_update"):label||__WEBUI_TEXT__("runtime.unknown_4")+(ws.cleaningLabel?' · '+ws.cleaningLabel:'');
+set('dMicraCleaning',cleaning);
+set('dMicraCleaningHint',ws.cleaningAvailable?__WEBUI_TEXT__("diagnostic.last_reported")+' '+age(ws.cleaningAtMs)+' · WebSocket'+(ws.state!=='streaming'||ws.machineConnectedKnown&&!ws.machineConnected?' · '+__WEBUI_TEXT__("diagnostic.stale"):''):'');
+set('dMicraWsHeap','WS '+(ws.retainedBytes||0)+' B PSRAM · Δ free/largest connect '+ws.connectFreeDelta+'/'+ws.connectLargestDelta+' B, stop '+ws.stopFreeDelta+'/'+ws.stopLargestDelta+' B · failures '+(ws.allocationFailures||0));
+}
+function ensureMicraRows(){
+const cloud=$('micraCloudDiagnostics');
+const row=(id,title,parent=cloud)=>{
+if($(id)||!parent)return;
+const row=document.createElement('div'),label=document.createElement('strong'),v=document.createElement('div');
+row.className='metric micraOnly';label.textContent=title;v.id=id;row.append(label,v);parent.insertBefore(row,id==='dMicraCleaning'?$('dMicraMode').parentElement:null);
+};
+const titles=__WEBUI_TEXT__("diagnostic.cloud_titles").split('|');
+['Email','Machine','Time','Api','Result','Duration','WsState','WsTraffic','Cleaning'].forEach((id,i)=>row('dMicra'+(i<6?'Cloud':'')+id,titles[i],i===8?$('dMicraMode')?.parentElement?.parentElement:cloud));
+for(const [id,anchor] of [['dMicraCleaningHint','dMicraCleaning'],['dMicraWsTiming','dMicraWsState'],['dMicraWsHeap','hHeapLargest']]){
+if($(id)||!$(anchor))continue;
+const hint=document.createElement('small');hint.id=id;hint.className='fieldHint micraOnly';$(anchor).parentElement.append(hint);
+}
 }
 function formatScaleDisconnect(sc){return sc.lastDisconnect?.summary||sc.lastDisconnectReasonName||__WEBUI_TEXT__("diagnostic.none_2")}
 function formatScaleCommandFailure(c){return c?.summary||__WEBUI_TEXT__("diagnostic.none_3")}

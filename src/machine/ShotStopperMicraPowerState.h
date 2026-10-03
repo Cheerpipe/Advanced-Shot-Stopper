@@ -36,6 +36,14 @@ class LineaMicraPowerStateTracker {
                    micra_timing::kStateFreshnessMs) {
       result.quality = LineaMicraObservationQuality::STALE;
     }
+    if (observing && held_) {
+      result.powerState = heldKnown_
+          ? (heldOn_ ? LineaMicraPowerState::ON : LineaMicraPowerState::OFF)
+          : LineaMicraPowerState::UNKNOWN;
+      result.effectiveOn = heldOn_;
+      result.quality = LineaMicraObservationQuality::STALE;
+      result.optimisticOn = result.optimisticOff = false;
+    }
     return result;
   }
 
@@ -64,14 +72,41 @@ class LineaMicraPowerStateTracker {
 
   uint32_t generation() const { return generation_; }
 
+  bool retained() const { return held_; }
+
+  void hold(const LineaMicraStatus &authoritative, bool observing, uint32_t now) {
+    if (!observing || held_) return;
+    const auto effective = effectiveStatus(authoritative, observing, now);
+    heldOn_ = effective.effectiveOn;
+    heldKnown_ = effective.powerState != LineaMicraPowerState::UNKNOWN;
+    held_ = true;
+  }
+
+  bool noteEvidence(uint32_t intent, LineaMicraPowerState state,
+                    uint32_t now, bool reconcile) {
+    if (intent != generation_) return false;
+    const bool live = direction_ != OptimisticDirection::NONE &&
+        static_cast<uint32_t>(now - optimisticAtMs_) < micra_timing::kOptimisticOverlayMs;
+    const bool matches = state != LineaMicraPowerState::UNKNOWN &&
+        (state == LineaMicraPowerState::ON) == (direction_ == OptimisticDirection::ON);
+    if (!live || matches || (reconcile &&
+        static_cast<uint32_t>(now - optimisticAtMs_) >= micra_timing::kPostWakeObservationDelayMs)) {
+      direction_ = OptimisticDirection::NONE;
+      if (state != LineaMicraPowerState::UNKNOWN) held_ = false;
+    }
+    return true;
+  }
+
   bool acceptAuthoritative(uint32_t observationGeneration) {
     if (observationGeneration != generation_) return false;
     direction_ = OptimisticDirection::NONE;
+    held_ = false;
     return true;
   }
 
   void reset() {
     direction_ = OptimisticDirection::NONE;
+    held_ = false;
     ++generation_;
   }
 
@@ -90,6 +125,10 @@ class LineaMicraPowerStateTracker {
       return false;
     direction_ = direction;
     optimisticAtMs_ = now;
+    if (held_) {
+      heldOn_ = direction == OptimisticDirection::ON;
+      heldKnown_ = true;
+    }
     ++generation_;
     return true;
   }
@@ -97,6 +136,9 @@ class LineaMicraPowerStateTracker {
   uint32_t generation_ = 0;
   uint32_t optimisticAtMs_ = 0;
   OptimisticDirection direction_ = OptimisticDirection::NONE;
+  bool held_ = false;
+  bool heldOn_ = true;
+  bool heldKnown_ = false;
 };
 
 }  // namespace shotstopper

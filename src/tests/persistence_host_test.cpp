@@ -2340,6 +2340,34 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   CHECK(settings.schemaVersion == CONFIG_SCHEMA_VERSION);
   CHECK(settings.lineaMicra.options == LINEA_MICRA_DEFAULT_OPTIONS);
   CHECK(settings.lineaMicra.scaleOptions == 0);
+  CHECK(settings.lineaMicra.connectionType == 0);
+
+  // Schema 2 used this byte as padding: authenticate before replacing it.
+  settings.schemaVersion = 2;
+  settings.lineaMicra.connectionType = 0xa5;
+  settings.checksum = persistedSettingsChecksum(settings);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings,
+                           sizeof(settings));
+  PersistedSettings migrated;
+  const auto originalRecords = persistence_host::records;
+  CHECK(loadPersistedSettings(migrated));
+  CHECK(migrated.schemaVersion == CONFIG_SCHEMA_VERSION);
+  CHECK(migrated.lineaMicra.connectionType == 0);
+  CHECK(settings.lineaMicra.connectionType == 0xa5);
+  CHECK(persistence_host::records == originalRecords); // Trial migration is read-only.
+  settings.checksum ^= 1;
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings,
+                           sizeof(settings));
+  CHECK(!loadPersistedSettings(migrated));
+  settings.schemaVersion = CONFIG_SCHEMA_VERSION;
+  settings.lineaMicra.connectionType = 0;
+  settings.checksum = persistedSettingsChecksum(settings);
+  settingsSchemaWritesAdmitted.store(false);
+  const auto trialRecords = persistence_host::records;
+  CHECK(!savePersistedSettings(settings));
+  CHECK(!resetPersistedSettingsToFactory(settings));
+  CHECK(persistence_host::records == trialRecords);
+  settingsSchemaWritesAdmitted.store(true);
 
   uint8_t oldBlob[sizeof(PersistedSettings) - 1] = {};
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, oldBlob,
@@ -2372,6 +2400,7 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   strcpy(settings.lineaMicra.selectedSerial, "MR123456");
   strcpy(settings.lineaMicra.selectedName, "Kitchen Micra");
   settings.lineaMicra.accountConfigured = true;
+  settings.lineaMicra.connectionType = static_cast<uint8_t>(MicraConnectionType::API);
   setLineaMicraOptions(settings.lineaMicra, true, true, true, false, false, 0, false);
   strcpy(settings.deviceName, "Cafe Bar 2");
   settings.presets.presets[0].lineaMicraBrewTargetDeciC = 935;
@@ -2379,6 +2408,7 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   CHECK(loadPersistedSettings(settings));
   CHECK(settings.lineaMicra.options == LINEA_MICRA_DEFAULT_OPTIONS);
   CHECK(settings.lineaMicra.accountConfigured);
+  CHECK(settings.lineaMicra.connectionType == static_cast<uint8_t>(MicraConnectionType::API));
   CHECK(strcmp(settings.lineaMicra.username, "barista@example.com") == 0);
   CHECK(strcmp(settings.lineaMicra.selectedSerial, "MR123456") == 0);
   CHECK(settings.presets.presets[0].lineaMicraBrewTargetDeciC == 935);

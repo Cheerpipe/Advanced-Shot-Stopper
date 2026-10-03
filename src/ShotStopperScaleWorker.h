@@ -78,8 +78,9 @@ constexpr uint32_t HEALTH_TELEMETRY_INTERVAL_MS = 5000;
 // boundary instead of reaching into the NetworkService singleton. All fields
 // are immutable after initializeScaleWorker() creates the task.
 struct ScaleWorkerBridgeCallbacks {
+  void (*notifyAcquisition)(bool held, uint32_t atMs) = nullptr;
   void (*syncNetworkRf)(bool scaleLinkOrConnecting, bool scaleConnecting,
-                        bool huntWindowActive) = nullptr;
+                        bool huntWindowActive, bool communicationSilenced) = nullptr;
 };
 
 static_assert(std::is_trivially_copyable<ScaleWorkerBridgeCallbacks>::value,

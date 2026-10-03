@@ -30,7 +30,7 @@ machine** reads **Signed in — select a machine** and the status line shows the
 connection state, so you can tell a successful sign-in from one that has not
 happened yet.
 
-The first three options start on; the scale power-on, scale shutdown, and
+The connection type starts as **WebSocket**. The first three switches start on; the scale power-on, scale shutdown, and
 scale-off-with-machine options start off.
 Before a machine is selected they remain visibly checked (or unchecked) but
 disabled, so the defaults are clear without implying that the integration is
@@ -42,9 +42,10 @@ machine** shows the saved cloud account email, followed by the machine name and
 serial number. Choose **Disconnect** to remove the saved credentials and
 selected machine, stop cloud checks, and make the connection controls available
 again. The account status then reads **Unauthenticated**, and the Micra options
-become unavailable until you connect and select a machine again.
+become unavailable until you connect and select a machine again. The connection
+type preference is retained; a factory reset restores WebSocket.
 
-With a machine selected, **Save Micra settings** saves **Allow brew boiler
+With a machine selected, **Save Micra settings** saves **Connection type**, **Allow brew boiler
 temperature in presets**, **Monitor machine power state**, **Recognize
 paddle wake gestures**, **Turn machine on when the scale powers on**,
 **Turn machine off when the scale powers off**, its **Shutdown delay**, and
@@ -62,12 +63,10 @@ The email, password, selected machine, and device installation key are stored
 in the controller so it can sign in again after a restart. Settings and
 Diagnostics show the saved email as a read-only value; the password, installation
 key, and short-lived access and refresh tokens are never returned by the Web UI
-or diagnostics. The access token is reused for state reads and renewed after 50
-minutes. Renewal normally replaces one scheduled state read, and the next read
-occurs at the normal interval. After a restart, the first successful STA session
-continues directly to a dashboard read so the displayed state is initialized.
-It also reuses the secure HTTP connection while the cloud service allows it,
-avoiding a new connection handshake for every read. **Disconnect**
+or diagnostics. The access token is reused and renewed after 50
+minutes. Authentication and machine commands use the cloud API with either
+connection type. API observation reuses its secure HTTP connection when possible;
+WebSocket observation renews its connection with the current token. **Disconnect**
 removes the saved account credentials, installation key, selected machine,
 cached list, in-memory session tokens, and cloud connection.
 
@@ -82,35 +81,49 @@ safety, or local shot control.
 
 ## Monitor machine power state
 
-Enable **Monitor machine power state** and save. Open Brew by Weight then queues a
-dashboard read approximately every 30 seconds while STA is connected. It never
-starts an automatic or requested read before STA connects, while setup AP mode
-is open, or before the clock is synchronized. After startup, the first worker
-opportunity following those conditions starts the initial dashboard read. A shot
-or rinse keeps automatic and requested reads pending until local activity ends.
+Enable **Monitor machine power state** and choose **Connection type**:
 
-Home also shows **Machine power state** for the Micra: **ON** or **OFF** for
-the confirmed reading, including when it becomes stale. During an active
-optimistic estimate, it shows **ON - Optimistic** or **OFF - Optimistic** until
-that estimate is confirmed or expires. If no power state is known, it shows
-**—**.
+- **WebSocket** receives cloud updates as they arrive. It is the default and
+  avoids regular dashboard polling.
+- **API** checks the dashboard approximately every 30 seconds. Try it if a weak
+  connection or the cloud service makes WebSocket unreliable.
 
-Diagnostics → Machine shows:
+Both wait for station Wi-Fi, a synchronized clock and a closed setup access
+point. Both pause during a shot or rinse and as soon as a compatible scale is
+found, before its connection starts. The WebSocket is disconnected during that
+pause. Monitoring resumes after scale setup and the Bluetooth quiet interval
+end. Wi-Fi and the local Web UI remain available.
+
+Home shows **Machine power state** as **ON**, **OFF**, or **—** when unknown.
+An active local estimate appears as **ON - Optimistic** or **OFF - Optimistic**.
+If observation pauses during that estimate, its effective value stays on screen
+with stale quality until a fresh power update arrives after reconnection.
+Connection or temperature updates alone cannot confirm power.
+
+Diagnostics → Machine distinguishes the last observed mode from its quality:
 
 | Micra response | Displayed state |
 | --- | --- |
 | `StandBy` | OFF |
 | `BrewingMode` | ON |
-| Other valid mode or communication failure | UNKNOWN |
+| `EcoMode`, missing or unsupported mode | UNKNOWN |
 
-A confirmed sample is current for 30 seconds. After that, diagnostics retain its
-last completed ON or OFF classification and mark the observation quality as
-stale. A queued, running, paused, or retrying read also leaves that classification
-unchanged. Failures use bounded 3, 6, and 9 second retry delays; only after all
-four attempts fail does the state become UNKNOWN with communication-error
-quality. The next automatic cycle then follows the normal 30-second cadence.
-Select **(Refresh)** beside the displayed state to add a read to the same bounded
-queue. It cannot bypass STA, AP, clock, shot, busy, or post-wake timing rules.
+Power evidence becomes stale after 30 seconds; unrelated messages do not renew
+it. API failures use four attempts with 3, 6 and 9 second delays, then a
+60-second cooldown. Exhausted API reads report communication-error quality and
+UNKNOWN unless a paused value is being retained. WebSocket losses retain the
+last effective value and retry with the same delays and cooldown. Invalid
+credentials require reconnecting the account or a manual refresh.
+**(Refresh)** adds a gated dashboard read. It follows the same shot, scale,
+clock and post-wake rules; it does not enable continuous API polling in
+WebSocket mode.
+
+**Machine cleaning** is available through WebSocket only. It shows **Inactive**,
+**Waiting for paddle**, **Cleaning in progress**, or an unknown reported value.
+The row identifies its last update and marks retained values stale when the
+stream is paused or the machine is offline. API mode shows that cleaning is
+unavailable. Cleaning is informational and never starts or stops a brew.
+Transitions that occur during a pause may be missed.
 
 ### Cloud diagnostics and logs
 
@@ -120,7 +133,10 @@ who can view diagnostics. The panel also shows the most recently completed
 cloud call: its start date and time in UTC, API name and HTTP method, result,
 HTTP status when available, and duration in milliseconds. Duration helps spot
 slow cloud connections. Before the first call, the panel reads **No calls yet**.
-The last completed call stays visible during the next request; this history is
+WebSocket connection state, retry time, message/power/pong ages, payload receive
+and transmit rates, totals, reconnects, errors and stop latency appear separately.
+Payload byte counts exclude TLS and network overhead.
+The last completed HTTP call stays visible during the next request; this history is
 kept until the controller restarts, including after Disconnect.
 
 Each request logs its method and route when it starts, then its API name,
@@ -154,11 +170,13 @@ The OFF→ON edge immediately adds an optimistic ON overlay for at most 60
 seconds—twice the normal read interval—and delays the next dashboard read for 15
 seconds so the cloud can converge. The overlay makes the operational state ON
 without rewriting the last cloud-confirmed OFF classification. **(Refresh)**
-waits for the same deadline. The first successful read started after that delay
-removes optimism and supplies the next confirmed classification. A request
+waits for the same deadline. A fresh matching WebSocket power update can confirm the estimate earlier.
+A contrary update retains it until the delayed API reconciliation or expiry.
+The first successful reconciliation read after that delay supplies the next
+confirmed classification. A request
 started before the edge cannot publish stale OFF or change the deadline. A
-failed read does not clear or extend optimism; after all retries, the confirmed
-state becomes UNKNOWN. Paddle movement while the confirmed state is ON,
+failed read does not extend optimism. A pause retains the effective value until
+a fresh power observation arrives, even after the estimate expires. Paddle movement while the confirmed state is ON,
 UNKNOWN, or an optimistic overlay is already live does not create or extend
 optimism and follows the normal brew/rinse
 flow.
@@ -187,7 +205,8 @@ temporarily cannot reach the La Marzocco cloud when the scale powers on, the
 command stays pending and is retried, so the machine wakes once the
 connection returns. The moment the cloud accepts it, the controller treats
 the machine as already on, exactly like the paddle wake gesture, and the
-next dashboard read replaces that optimistic view with the confirmed state.
+next fresh matching power update confirms that view; a delayed dashboard read
+can reconcile a contrary update.
 Turning this option off or disconnecting the account cancels a pending
 wake.
 

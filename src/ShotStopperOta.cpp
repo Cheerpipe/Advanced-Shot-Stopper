@@ -12,6 +12,8 @@
 #include "ShotStopperFlashIoScratch.h"
 #include "ShotStopperPsram.h"
 #include "ShotStopperPreferences.h"
+#include "ShotStopperSettingsWriteAdmission.h"
+#include "ShotStopperOutboundAdmission.h"
 #include <ShotStopperVersion.h>
 
 #include <string.h>
@@ -275,6 +277,7 @@ OtaPublishedState ShotStopperOta::publishedState() const {
 }
 
 void ShotStopperOta::publishState() {
+  outboundOtaBusy.store(busy_ || sessionActive_, std::memory_order_release);
   uint32_t flags = 0;
   if (available_) flags |= OTA_PUBLISHED_AVAILABLE;
   if (busy_ || sessionActive_) flags |= OTA_PUBLISHED_BUSY;
@@ -1031,11 +1034,13 @@ bool ShotStopperOta::readBootState() {
     bootStatus_.reason = flash.ok() ? "STATE_ERROR" : "FLASH_BUSY";
     pendingVerify_ = true;
     confirmed_ = false;
+    settingsSchemaWritesAdmitted.store(false, std::memory_order_release);
     return false;
   }
   bootStatus_.state = static_cast<int32_t>(state);
   pendingVerify_ = state == ESP_OTA_IMG_PENDING_VERIFY || state == ESP_OTA_IMG_NEW;
   confirmed_ = state == ESP_OTA_IMG_VALID || state == ESP_OTA_IMG_UNDEFINED;
+  settingsSchemaWritesAdmitted.store(confirmed_, std::memory_order_release);
   rejected_ = state == ESP_OTA_IMG_INVALID || state == ESP_OTA_IMG_ABORTED;
   bootStatus_.reason = confirmed_ ? "CONFIRMED" : rejected_ ? "REJECTED" : "WAIT_UPTIME";
   bootStatus_.lastError = ESP_OK;
@@ -1064,6 +1069,7 @@ bool ShotStopperOta::confirmRunningImageLocked() {
   bootStatus_.reason = "CONFIRMED";
   confirmed_ = true;
   pendingVerify_ = false;
+  settingsSchemaWritesAdmitted.store(true, std::memory_order_release);
   publishState();
   return true;
 }

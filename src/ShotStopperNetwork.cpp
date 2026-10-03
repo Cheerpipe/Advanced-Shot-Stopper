@@ -1,4 +1,5 @@
 #include "ShotStopperNetwork.h"
+#include "ShotStopperOutboundAdmission.h"
 #include "ShotStopperDebugExport.h"
 #include "ShotStopperFirmwareMode.h"
 #include "ShotStopperMachineMomentaryConfig.h"

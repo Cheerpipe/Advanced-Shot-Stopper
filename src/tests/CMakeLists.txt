@@ -48,6 +48,7 @@ host_test(micra_cancellation_host_test DEFINITIONS SHOT_STOPPER_HOST_TEST
   LABEL "host;network;control;concurrency")
 target_include_directories(micra_cancellation_host_test PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/micra_stubs" "${CMAKE_CURRENT_BINARY_DIR}")
+host_test(micra_stomp_host_test LABEL "host;network;concurrency")
 
 if(SHOTSTOPPER_SANITIZER STREQUAL "thread")
   foreach(case M09 R25c F03 F04 F17 IT10 IT28 SH01 RACE06)
@@ -140,6 +141,17 @@ if(NOT CJSON_INCLUDE_DIR OR NOT CJSON_LIBRARY)
   message(FATAL_ERROR "libcjson is required for host tests")
 endif()
 host_test(json_arena_host_test LABEL "host;concurrency")
+host_test(micra_observation_host_test
+  SOURCES "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMicraObservation.cpp"
+  LABEL "host;network;control;concurrency")
+target_include_directories(micra_observation_host_test PRIVATE "${CJSON_INCLUDE_DIR}")
+target_link_libraries(micra_observation_host_test PRIVATE "${CJSON_LIBRARY}")
+host_test(micra_websocket_host_test DEFINITIONS SHOT_STOPPER_HOST_TEST
+  SOURCES "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMicraObservation.cpp"
+  LABEL "host;network;control;concurrency")
+target_include_directories(micra_websocket_host_test PRIVATE "${CJSON_INCLUDE_DIR}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/micra_stubs" "${CMAKE_CURRENT_BINARY_DIR}")
+target_link_libraries(micra_websocket_host_test PRIVATE "${CJSON_LIBRARY}")
 target_include_directories(json_arena_host_test PRIVATE "${CJSON_INCLUDE_DIR}")
 target_link_libraries(json_arena_host_test PRIVATE "${CJSON_LIBRARY}")
 host_test(integration_request_host_test LABEL "host;network;safety")

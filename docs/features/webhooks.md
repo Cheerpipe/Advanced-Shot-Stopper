@@ -19,9 +19,12 @@ delivery result and drop count.
 The controller supports one callback. Changing it replaces the previous
 receiver. Enable **Queue webhooks during shots** only when the receiver's
 network traffic disrupts a sensitive scale connection; queued delivery may be
-delayed until the extraction ends. A delivery that has already started is
-allowed to finish; webhook requests are never cancelled when a shot or scale
-connection begins.
+delayed until the extraction ends. When that option is enabled, shot entry also interrupts an active delivery.
+Scale acquisition always pauses delivery, independently of this option, from
+the first eligible advertisement through setup and the Bluetooth quiet interval.
+Unsent events remain queued. An interrupted request may already have reached
+the receiver: diagnostics report an unknown delivery result, and the controller
+does not replay it automatically.
 
 After a failed attempt, diagnostic status identifies the event, request phase,
 transport result, and HTTP status.

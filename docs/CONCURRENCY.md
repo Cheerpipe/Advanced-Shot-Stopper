@@ -208,3 +208,36 @@ monotonic observational metric. Reset-history checkpoint and clear operations
 hold the shared flash-I/O lock across the durable write and publication of the
 live mirror/checkpoint timestamp, so failed writes cannot publish or resurrect
 state.
+
+## Micra push observation and outbound admission
+
+The cloud worker is the sole owner of the HTTP session and WebSocket init,
+start, stop, unregister and destroy. SDK stop joins actual transport shutdown
+and is never called from an event or while holding the facade mutex. The SDK
+callback can hold its own recursive lock: the permitted edge is SDK lock →
+facade snapshot mutex. No application-mutex → SDK-call edge is permitted.
+The bounded callback parser publishes complete field updates directly, so an
+HTTP operation cannot delay push publication. Identity/epoch/intent and
+independent power/temperature revisions prevent older results overwriting
+newer evidence. Diagnostic readers only copy under the facade mutex.
+A lock-free disconnect generation also invalidates in-flight HTTP/WS evidence
+when a pause starts and ends before the cloud owner runs. The next owner turn
+still stops the obsolete socket; deferred HTTP observations retain held state.
+
+A discovery-owned atomic acquisition latch is published under the existing
+NimBLE discovery critical section before Candidate becomes consumable. Its
+callback performs atomic stores and notifications only: no task mutex, heap,
+network API or wait. Network owners close their transports independently. Ready
+clears acquisition; disappearance requires five seconds of actual active scan
+opportunity. Setup, communication quiet, shot and maintenance reasons remain
+independent; stale periodic connecting snapshots cannot release acquisition.
+
+Owner completion telemetry certifies transport teardown, not RF or DNS
+silence. An SDK resolution already submitted can finish. No DNS-specific gate,
+resolver replacement or global DNS-cache mutation is introduced. Webhooks
+progress plain HTTP asynchronously on the pinned IDF 6.1 transport, keep one
+absolute 1800-ms deadline and do not replay an ambiguously dispatched POST.
+NTP closes callback acceptance before owner stop. OTA publishes its own atomic
+busy gate; maintenance parks and frees the Micra workspaces without delaying
+control or BLE. Settings writes resume only after image confirmation, with
+the original queued dirty generations intact.

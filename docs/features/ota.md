@@ -1,5 +1,11 @@
 # OTA
 
+Settings migration during a trial boot is read-only. Settings saves and resets
+wait until the image is confirmed, retaining the previous durable record for
+rollback. Pending edits remain queued; confirmation does not depend on saving
+those edits. The existing Wi-Fi update, rollback and USB recovery paths remain
+available. Downgrade restrictions above still apply.
+
 Firmware can be updated over Wi-Fi without opening the case or using USB.
 Upload a built image with the project scripts while the controller is on
 your network.

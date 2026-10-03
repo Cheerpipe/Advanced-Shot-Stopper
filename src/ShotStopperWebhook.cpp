@@ -1,4 +1,5 @@
 #include "ShotStopperWebhook.h"
+#include "ShotStopperOutboundAdmission.h"
 #include "ShotStopperPsram.h"
 #include "ShotStopperHttpDiagnostics.h"
 
@@ -240,7 +241,10 @@ esp_http_client_handle_t WebhookDispatcher::ensureHttpClient(const char *url) {
   cleanupHttpClient();
   esp_http_client_config_t config = {};
   config.url = url;
-  config.timeout_ms = kWebhookTimeoutMs;
+  config.timeout_ms = 25;
+  // IDF 6.1 TCP transport registers async connect with non-blocking sockets;
+  // perform preserves header/body offsets across EAGAIN, including plain HTTP.
+  config.is_async = true;
   config.disable_auto_redirect = true;
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (client == nullptr) return nullptr;
@@ -328,8 +332,9 @@ void WebhookDispatcher::setControlCritical(bool active) {
 }
 
 bool WebhookDispatcher::dispatchAllowed() const {
-  return !deferDuringShot_.load(std::memory_order_acquire) ||
-         !controlCritical_.load(std::memory_order_acquire);
+  return !outboundScaleInhibited() &&
+      (!deferDuringShot_.load(std::memory_order_acquire) ||
+       !controlCritical_.load(std::memory_order_acquire));
 }
 
 bool WebhookDispatcher::enqueue(const WebhookEvent &event) {
@@ -397,6 +402,10 @@ void WebhookDispatcher::task() {
       xSemaphoreGive(lifecycleMutex_);
     }
     if (state == WorkerState::STOPPING || queue == nullptr) break;
+    if (!dispatchAllowed()) {
+      if (httpClient_) (void)esp_http_client_close(httpClient_.get());
+      completeOutboundAcquisitionPause(OutboundClient::WEBHOOK, millis());
+    }
     // Leave events queued while a shot/rinse or scale connection attempt owns
     // radio time. Queue operations and HTTP remain entirely off control/BLE.
     bool waitedForQueue = false;
@@ -411,8 +420,10 @@ void WebhookDispatcher::task() {
         WiFi.status() != WL_CONNECTED) {
       vTaskDelay(pdMS_TO_TICKS(25));
     } else if (haveQueued && dispatchAllowed()) {
-      (void)send(queued);
-      haveQueued = false;
+      const bool delivered = send(queued);
+      const auto outcome = status();
+      haveQueued = !delivered && !outcome.lastDispatched &&
+          outcome.lastCancellation != WebhookCancellationReason::NONE;
     } else if (haveQueued || !waitedForQueue) {
       vTaskDelay(pdMS_TO_TICKS(25));
     }
@@ -600,6 +611,13 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   mux_.unlock();
 
   bool ok = false;
+  bool dispatched = false;
+  WebhookCancellationReason cancellation = WebhookCancellationReason::NONE;
+  const uint32_t acquisitionGeneration = outboundAcquisitionGeneration.load(std::memory_order_acquire);
+  const auto admitted = [&] {
+    return dispatchAllowed() && acquisitionGeneration ==
+        outboundAcquisitionGeneration.load(std::memory_order_acquire);
+  };
   WebhookRequestPhase phase = WebhookRequestPhase::PREPARE;
   int statusCode = 0;
   esp_err_t error = ESP_FAIL;
@@ -621,7 +639,21 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
       if (error == ESP_OK) {
         phase = WebhookRequestPhase::DISPATCH;
         phase = WebhookRequestPhase::PERFORM;
-        error = esp_http_client_perform(client);
+        const uint32_t started = millis();
+        error = ESP_ERR_HTTP_EAGAIN;
+        while (error == ESP_ERR_HTTP_EAGAIN && admitted() &&
+               millis() - started < kWebhookTimeoutMs) {
+          dispatched = true;
+          error = esp_http_client_perform(client);
+          if (error == ESP_ERR_HTTP_EAGAIN) vTaskDelay(pdMS_TO_TICKS(1));
+        }
+        if (!admitted()) {
+          cancellation = acquisitionGeneration != outboundAcquisitionGeneration.load() ||
+              outboundScaleInhibited() ? WebhookCancellationReason::SCALE_CONNECTING
+                                           : WebhookCancellationReason::CONTROL_CRITICAL;
+          error = ESP_ERR_INVALID_STATE;
+        }
+        else if (error == ESP_ERR_HTTP_EAGAIN) error = ESP_ERR_TIMEOUT;
         statusCode = esp_http_client_get_status_code(client);
         if (error == ESP_OK) {
           phase = WebhookRequestPhase::RESPONSE;
@@ -633,6 +665,8 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
         // session left by a timeout or protocol failure. A
         // later event can reconnect without repeating handle allocation.
         const esp_err_t closeError = esp_http_client_close(client);
+        if (closeError == ESP_OK || closeError == ESP_ERR_INVALID_STATE)
+          completeOutboundAcquisitionPause(OutboundClient::WEBHOOK, millis());
         if (closeError != ESP_OK && closeError != ESP_ERR_INVALID_STATE &&
             error == ESP_OK) {
           error = closeError;
@@ -650,7 +684,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
     ESP_LOGE("WebhookHTTP",
              "delivery failed owner=WebhookDispatcher caller=WebhookDispatcher::send purpose=webhook_delivery event=%s endpoint=%s method=POST phase=%s cancellation=%s error=0x%x",
              eventName(event.type), endpoint, webhookRequestPhaseName(phase),
-             webhookCancellationReasonName(WebhookCancellationReason::NONE),
+             webhookCancellationReasonName(cancellation),
              static_cast<unsigned>(error));
   }
 #endif
@@ -660,9 +694,11 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   status_.lastHttpStatus = statusCode > 0 ? static_cast<uint16_t>(statusCode) : 0;
   status_.lastError = static_cast<int32_t>(error);
   status_.lastPhase = phase;
-  status_.lastCancellation = WebhookCancellationReason::NONE;
+  status_.lastCancellation = cancellation;
+  status_.lastDispatched = dispatched;
+  status_.lastDeliveryUnknown = !ok && dispatched;
   if (ok) ++status_.sent;
-  else ++status_.dropped;
+  else if (dispatched || cancellation == WebhookCancellationReason::NONE) ++status_.dropped;
   ++status_.heapSamples;
   status_.internalFreeBefore = heapBefore.internalFree;
   status_.internalFreeAfter = heapAfter.internalFree;

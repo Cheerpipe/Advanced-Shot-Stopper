@@ -31,7 +31,8 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
   static const char *const fields[] = {
       "action", "username", "password", "serial", "applyTemperature",
       "observeState", "recognizeWakeGesture", "shutdownWithScale",
-      "shutdownGraceSeconds", "powerOnWithScale", "scaleOffWithMachine"};
+      "shutdownGraceSeconds", "powerOnWithScale", "scaleOffWithMachine",
+      "connectionType"};
   char action[16] = {};
   char username[LINEA_MICRA_USERNAME_CAPACITY] = {};
   char password[LINEA_MICRA_PASSWORD_CAPACITY] = {};
@@ -71,6 +72,19 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
   currentRevision = self.settings_.storageRevision;
   self.dataMux_.unlock();
 
+  uint8_t connectionType = candidate.connectionType;
+  if (parseError == nullptr && jsonFieldPresent(root, "connectionType")) {
+    char value[16] = {};
+    if ((strcmp(action, "select") != 0 && strcmp(action, "save") != 0) ||
+        !jsonString(root, "connectionType", value, sizeof(value), false) ||
+        (strcmp(value, "websocket") != 0 && strcmp(value, "api") != 0)) {
+      parseError = "connectionType must be websocket or api on select or save.";
+    } else {
+      connectionType = static_cast<uint8_t>(strcmp(value, "api") == 0
+          ? MicraConnectionType::API : MicraConnectionType::WEBSOCKET);
+    }
+  }
+
   if (parseError == nullptr && strcmp(action, "connect") == 0) {
     if (!jsonString(root, "username", username, sizeof(username), false) ||
         !jsonString(root, "password", password, sizeof(password), false) ||
@@ -103,6 +117,7 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
       if (!selectMachineIntegrationDevice(serial, candidate)) {
         parseError = "Select a machine returned by the latest account connection.";
       } else {
+        candidate.connectionType = connectionType;
         setLineaMicraOptions(candidate, applyTemperature, observeState,
                              recognizeWakeGesture, shutdownWithScale,
                              powerOnWithScale, shutdownGraceCode,
@@ -125,6 +140,7 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
         jsonFieldPresent(root, "serial")) {
       parseError = "save requires a selected machine and all machine options.";
     } else {
+      candidate.connectionType = connectionType;
       setLineaMicraOptions(candidate, applyTemperature, observeState,
                            recognizeWakeGesture, shutdownWithScale,
                            powerOnWithScale, shutdownGraceCode,

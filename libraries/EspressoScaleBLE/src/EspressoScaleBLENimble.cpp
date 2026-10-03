@@ -43,6 +43,7 @@ constexpr char kTag[] = "scale.nimble";
 ScaleDroppedFrameObserver g_droppedFrameObserver = nullptr;
 constexpr uint16_t kInvalidHandle = 0xffff;
 constexpr size_t kCandidateCount = 8;
+void (*g_acquisitionObserver)(bool, uint32_t) = nullptr;
 constexpr size_t kServiceCount = 24;
 constexpr size_t kEventCount = 12;
 constexpr size_t kCriticalEventCount = 6;
@@ -437,6 +438,10 @@ class NimbleScaleClient {
   }
 
   void disconnect() {
+    portENTER_CRITICAL(&mux_);
+    acquisitionHeld_ = false;
+    if (g_acquisitionObserver) g_acquisitionObserver(false, nowMs());
+    portEXIT_CRITICAL(&mux_);
     finishLink(true, ScaleDisconnectReason::USER_REQUEST, 0);
   }
 
@@ -1247,6 +1252,13 @@ class NimbleScaleClient {
       bool shouldQueue = false;
       portENTER_CRITICAL(&mux_);
       if (state_ == State::Scanning &&
+          operationId == scanOperationId_) {
+        acquisitionAbsenceMs_ = 0;
+        acquisitionPollAtMs_ = nowMs();
+        acquisitionHeld_ = true;
+        if (g_acquisitionObserver) g_acquisitionObserver(true, nowMs());
+      }
+      if (state_ == State::Scanning &&
           operationId == scanOperationId_ && !candidateQueued_) {
         candidateQueued_ = true;
         selected.generation = generation_;
@@ -1640,6 +1652,10 @@ class NimbleScaleClient {
     stateEnteredAtMs_ = nowMs();
     stateTimeoutMs_ = timeoutMs;
     stateDeadlineArmed_ = timeoutMs != 0;
+    if (state == State::Ready && acquisitionHeld_) {
+      acquisitionHeld_ = false;
+      if (g_acquisitionObserver) g_acquisitionObserver(false, nowMs());
+    }
     portEXIT_CRITICAL(&mux_);
   }
 
@@ -1720,6 +1736,19 @@ class NimbleScaleClient {
                  pendingDisconnectStatus);
       return;
     }
+    const uint32_t acquisitionNow = nowMs();
+    const bool scanningNow = state_ == State::Scanning && ble_gap_disc_active();
+    portENTER_CRITICAL(&mux_);
+    if (scanningNow && acquisitionScanning_ && acquisitionHeld_) {
+      acquisitionAbsenceMs_ += acquisitionNow - acquisitionPollAtMs_;
+      if (acquisitionAbsenceMs_ >= 5000 && !candidatePending_ && !candidateQueued_) {
+        acquisitionHeld_ = false;
+        if (g_acquisitionObserver) g_acquisitionObserver(false, acquisitionNow);
+      }
+    }
+    acquisitionScanning_ = scanningNow;
+    acquisitionPollAtMs_ = acquisitionNow;
+    portEXIT_CRITICAL(&mux_);
     if (communicationSilenced()) return;
     bool criticalOverflowed = false;
     bool controlOverflowed = false;
@@ -2650,6 +2679,8 @@ class NimbleScaleClient {
   mutable portMUX_TYPE mux_ = portMUX_INITIALIZER_UNLOCKED;
   mutable portMUX_TYPE advertMux_ = portMUX_INITIALIZER_UNLOCKED;
   State state_ = State::Idle;
+  bool acquisitionHeld_ = false, acquisitionScanning_ = false;
+  uint32_t acquisitionAbsenceMs_ = 0, acquisitionPollAtMs_ = 0;
   bool debug_ = false;
   bool callbackOwner_ = false;
   bool lifecycleActive_ = false;
@@ -3003,6 +3034,10 @@ bool EspressoScaleBLE::newWeightAvailable() {
 
 void EspressoScaleBLE::setDroppedFrameObserver(ScaleDroppedFrameObserver observer) {
   g_droppedFrameObserver = observer;
+}
+
+void EspressoScaleBLE::setAcquisitionObserver(void (*observer)(bool, uint32_t)) {
+  g_acquisitionObserver = observer;
 }
 
 ScaleFeatureSet EspressoScaleBLE::features() const {

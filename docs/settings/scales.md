@@ -1,5 +1,12 @@
 # Scales
 
+Finding a compatible, connectable scale pauses outbound cloud calls, webhooks
+and time synchronization before Bluetooth setup begins. They resume after the
+scale is ready and its quiet interval has ended. If it disappears, the controller
+waits for five seconds of actual scanning without another candidate. This also
+applies to machine profiles without Micra integration. Wi-Fi stays connected
+and local settings remain accessible.
+
 Which Bluetooth scale to use, how long to wait after a shot for drip, and
 Bookoo-specific volume / combined tare. Machine-level, under
 **Settings → Machine and scale → Scales**.

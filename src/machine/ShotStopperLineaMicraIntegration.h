@@ -2,6 +2,7 @@
 
 #include "ShotStopperLineaMicraTypes.h"
 #include "ShotStopperPsram.h"
+#include "ShotStopperMicraWebSocket.h"
 
 namespace shotstopper {
 
@@ -13,6 +14,7 @@ bool selectMachineIntegrationDevice(const char *serial,
 void clearMachineIntegrationDiscovery();
 LineaMicraStatus machineIntegrationStatus();
 LineaMicraCloudCall machineIntegrationCloudCall();
+MicraWebSocketStatus machineIntegrationWebSocketStatus();
 HeapLifecycleAggregate machineIntegrationHeapTelemetry();
 LineaMicraDiscoverySnapshot machineIntegrationDiscovery();
 

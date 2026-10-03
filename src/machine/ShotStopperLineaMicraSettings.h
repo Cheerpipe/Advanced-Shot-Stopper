@@ -37,6 +37,10 @@ constexpr uint16_t LINEA_MICRA_SHUTDOWN_GRACE_SECONDS[] = {0, 5, 15, 30, 60};
 constexpr uint16_t LINEA_MICRA_BREW_TARGET_MIN_DECI_C = 800;
 constexpr uint16_t LINEA_MICRA_BREW_TARGET_MAX_DECI_C = 1000;
 constexpr uint16_t LINEA_MICRA_BREW_TARGET_DEFAULT_DECI_C = 930;
+enum class MicraConnectionType : uint8_t { WEBSOCKET = 0, API = 1 };
+inline const char *micraConnectionTypeName(uint8_t value) {
+  return value == static_cast<uint8_t>(MicraConnectionType::API) ? "api" : "websocket";
+}
 
 // Cloud account record. Access and refresh tokens are deliberately absent:
 // they are short-lived worker state and are never written to flash.
@@ -49,6 +53,7 @@ struct LineaMicraPersistedSettings {
   uint8_t options = LINEA_MICRA_DEFAULT_OPTIONS;
   uint8_t scaleOptions = 0;
   bool accountConfigured = false;
+  uint8_t connectionType = static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
 };
 
 inline bool lineaMicraBoundedText(const char *value, size_t capacity,
@@ -106,6 +111,7 @@ inline bool validLineaMicraSettings(
     const LineaMicraPersistedSettings &settings) {
   if ((settings.options & ~LINEA_MICRA_KNOWN_OPTIONS) != 0 ||
       (settings.scaleOptions & ~LINEA_MICRA_KNOWN_SCALE_OPTIONS) != 0 ||
+      settings.connectionType > static_cast<uint8_t>(MicraConnectionType::API) ||
       !validLineaMicraShutdownGrace(settings.options)) {
     return false;
   }
@@ -135,9 +141,11 @@ inline void wipeLineaMicraSettings(LineaMicraPersistedSettings &settings) {
 inline void disconnectLineaMicra(LineaMicraPersistedSettings &settings) {
   const uint8_t options = settings.options;
   const uint8_t scaleOptions = settings.scaleOptions;
+  const uint8_t connectionType = settings.connectionType;
   wipeLineaMicraSettings(settings);
   settings.options = options;
   settings.scaleOptions = scaleOptions;
+  settings.connectionType = connectionType;
 }
 
 inline void setLineaMicraOptions(LineaMicraPersistedSettings &settings,
@@ -161,7 +169,11 @@ inline void setLineaMicraOptions(LineaMicraPersistedSettings &settings,
       scaleOffWithMachine ? LINEA_MICRA_SCALE_OFF_WITH_MACHINE : 0U;
 }
 
-static_assert(sizeof(LineaMicraPersistedSettings) == 311,
+static_assert(offsetof(LineaMicraPersistedSettings, options) == 308);
+static_assert(offsetof(LineaMicraPersistedSettings, scaleOptions) == 309);
+static_assert(offsetof(LineaMicraPersistedSettings, accountConfigured) == 310);
+static_assert(offsetof(LineaMicraPersistedSettings, connectionType) == 311);
+static_assert(sizeof(LineaMicraPersistedSettings) == 312,
               "Linea Micra cloud settings ABI changed");
 
 }  // namespace shotstopper

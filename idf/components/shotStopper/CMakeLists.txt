@@ -20,7 +20,8 @@ set(SHOT_STOPPER_REQUIRES
 if(SHOT_STOPPER_MACHINE_INTEGRATION STREQUAL "linea_micra_cloud")
   list(APPEND SHOT_STOPPER_SRCS
     "${SHOT_STOPPER_DIR}/machine/ShotStopperLineaMicraIntegration.cpp"
-    "${SHOT_STOPPER_DIR}/machine/ShotStopperMicraService.cpp")
+    "${SHOT_STOPPER_DIR}/machine/ShotStopperMicraService.cpp"
+    "${SHOT_STOPPER_DIR}/machine/ShotStopperMicraObservation.cpp")
 else()
   list(APPEND SHOT_STOPPER_SRCS
     "${SHOT_STOPPER_DIR}/machine/ShotStopperMachineIntegration.cpp")
@@ -34,6 +35,7 @@ idf_component_register(
   REQUIRES
     ${SHOT_STOPPER_REQUIRES}
   PRIV_REQUIRES
+    espressif__esp_websocket_client
     espressif__cjson
     mbedtls
     nvs_flash

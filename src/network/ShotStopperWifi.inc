@@ -316,6 +316,7 @@ void ShotStopperNetwork::syncScaleLinkRf(bool connectingOrUp) {
 }
 
 void ShotStopperNetwork::syncScaleConnectingRf(bool connecting) {
+  connecting = connecting || outboundScaleInhibited();
   const bool changed =
       scaleConnecting_.exchange(connecting, std::memory_order_acq_rel) !=
       connecting;
@@ -334,6 +335,8 @@ void ShotStopperNetwork::syncScaleConnectingRf(bool connecting) {
 }
 
 void ShotStopperNetwork::syncControlCriticalRf(bool active) {
+  outboundShotActive.store(active, std::memory_order_release);
+  if (active) inhibitMachineIntegrationCloud();
   const bool changed =
       controlCriticalRfActive_.exchange(active, std::memory_order_acq_rel) !=
       active;

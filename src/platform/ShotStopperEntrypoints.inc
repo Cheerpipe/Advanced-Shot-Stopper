@@ -249,6 +249,7 @@ void setup() {
 #ifndef SHOT_STOPPER_HOST_TEST
   // A pending destructive operation always resumes before normal storage,
   // BLE, Wi-Fi or HTTP startup. A new gesture is accepted only on cold power.
+  initializeSettingsSchemaWriteAdmission();
   resumePendingBootRecovery();
   maybeRunBootRecoveryGesture();
   machineOnActivatorReady();
@@ -408,6 +409,7 @@ void setup() {
 
 #ifndef SHOT_STOPPER_HOST_TEST
   ScaleWorkerBridgeCallbacks scaleBridge;
+  scaleBridge.notifyAcquisition = notifyScaleAcquisition;
   scaleBridge.syncNetworkRf = syncScaleWorkerNetworkRf;
   const bool scaleBridgeOk = configureScaleWorkerBridge(scaleBridge);
 #else

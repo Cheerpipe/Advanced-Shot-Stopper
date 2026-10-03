@@ -79,6 +79,8 @@ static_assert(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET,
               "PersistedSettings exceeds NVS dual-slot budget");
 static_assert(sizeof(PersistedSettings) == 3312,
               "PersistedSettings size changed; bump CONFIG_SCHEMA_VERSION");
+static_assert(offsetof(PersistedSettings, lineaMicra) == 2991);
+static_assert(offsetof(PersistedSettings, checksum) == 3304);
 
 inline uint32_t persistedSettingsChecksum(const PersistedSettings &settings) {
   return crc32(reinterpret_cast<const uint8_t *>(&settings),

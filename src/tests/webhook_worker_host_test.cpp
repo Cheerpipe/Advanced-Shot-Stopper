@@ -72,7 +72,7 @@ static void testSamplingAndAccounting() {
       heapFree = 700;
       if (scenario == 4) d.setControlCritical(true);
     };
-    const bool expectedSuccess = scenario == 0 || scenario == 4;
+    const bool expectedSuccess = scenario == 0;
     assert(WebhookDispatcherTest::send(d) == expectedSuccess);
     const auto status = d.status();
     assert(samples == 2 && status.heapSamples == 1);
@@ -95,7 +95,9 @@ static void testSamplingAndAccounting() {
         : scenario == 3 ? WebhookRequestPhase::PREPARE
                         : WebhookRequestPhase::PERFORM;
     assert(status.lastPhase == expectedPhase);
-    assert(status.lastCancellation == WebhookCancellationReason::NONE);
+    assert(status.lastCancellation == (scenario == 4
+        ? WebhookCancellationReason::CONTROL_CRITICAL : WebhookCancellationReason::NONE));
+    assert(status.lastDeliveryUnknown == (scenario == 1 || scenario == 4));
     assert(workerTrace.front() == "sample" && workerTrace.back() == "sample");
     workerTrace.clear();
     assert(!WebhookDispatcherTest::send(d, true));
@@ -124,6 +126,38 @@ static void testTimeoutHasNoSecondSleep() {
   assert(std::count(workerTrace.begin(), workerTrace.end(), "delay") == 0);
   assert(d.status().sent == 1 && d.status().workerStops == 1);
   assert(d.stop());
+}
+static void testAcquisitionInterruptsPartialPostWithoutReplay() {
+  resetPlatform();
+  WebhookDispatcher d;
+  assert(d.begin(config(true)));
+  httpResult = ESP_ERR_HTTP_EAGAIN;
+  duringPerform = [&] { publishOutboundAcquisition(true, workerNow); };
+  assert(!WebhookDispatcherTest::send(d));
+  const auto result = d.status();
+  assert(result.lastCancellation == WebhookCancellationReason::SCALE_CONNECTING);
+  assert(result.lastDeliveryUnknown && result.lastDispatched);
+  assert(std::count(workerTrace.begin(), workerTrace.end(), "perform") == 1);
+  const auto &completion = outboundPauseCompletions[static_cast<unsigned>(OutboundClient::WEBHOOK)];
+  assert(completion.generation.load() == outboundAcquisitionGeneration.load());
+  publishOutboundAcquisition(false, workerNow);
+  WebhookDispatcherTest::finish(d);
+}
+static void testPartialPostProgressUsesOneDeadline() {
+  for (bool timeout : {false, true}) {
+    resetPlatform();
+    WebhookDispatcher d;
+    assert(d.begin(config(true)));
+    unsigned progress = 0;
+    httpResult = ESP_ERR_HTTP_EAGAIN;
+    duringPerform = [&] { if (++progress == 3 && !timeout) httpResult = ESP_OK; };
+    assert(WebhookDispatcherTest::send(d) == !timeout);
+    assert(progress == (timeout ? 1800U : 3U));
+    assert(workerNow == (timeout ? 1800U : 2U));
+    assert(d.status().lastDeliveryUnknown == timeout);
+    assert(std::count(workerTrace.begin(), workerTrace.end(), "post") == 1);
+    WebhookDispatcherTest::finish(d);
+  }
 }
 static void testHeldItemSurvivesDrainAndGate() {
   for (bool changeConfig : {false, true}) {
@@ -288,6 +322,8 @@ static void testIntegrationPayloads() {
 int main() {
   testSamplingAndAccounting();
   testTimeoutHasNoSecondSleep();
+  testAcquisitionInterruptsPartialPostWithoutReplay();
+  testPartialPostProgressUsesOneDeadline();
   testHeldItemSurvivesDrainAndGate();
   testQueueCapacity();
   testActivationHistorySubscription();

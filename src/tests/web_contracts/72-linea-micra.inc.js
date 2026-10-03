@@ -1,7 +1,8 @@
 const micraWeb = fs.readFileSync(
     path.join(sketchDir, 'network/ShotStopperLineaMicraWeb.inc'), 'utf8');
 const micraStatus = fs.readFileSync(
-    path.join(sketchDir, 'network/ShotStopperStatus.inc'), 'utf8');
+    path.join(sketchDir, 'network/ShotStopperStatus.inc'), 'utf8') + fs.readFileSync(
+    path.join(sketchDir, 'network/ShotStopperLineaMicraStatus.inc'), 'utf8');
 const micraService = fs.readFileSync(
     path.join(sketchDir, 'machine/ShotStopperMicraService.cpp'), 'utf8');
 const micraTiming = fs.readFileSync(
@@ -56,11 +57,47 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const ids = ['dMicraCloudEmail', 'dMicraCloudMachine', 'dMicraCloudTime',
     'dMicraCloudApi', 'dMicraCloudResult', 'dMicraCloudDuration'];
   const nodes = Object.fromEntries(ids.map(id => [id, {textContent: ''}]));
-  for (const id of ids) assert(micraDiagnosticHtml.includes(`id="${id}"`));
-  const context = vm.createContext({$: id => nodes[id],
-    __WEBUI_TEXT__: key => key,
-    R: {formatWallTime: (sec, offset) => {assert.strictEqual(offset, 0); return String(sec);}}});
   const cloudUi = fs.readFileSync(path.join(sketchDir, 'web/js/diagnostic.js'), 'utf8');
+  assert(cloudUi.includes('function ensureMicraRows()'));
+  // Exercise row creation with a minimal DOM, including repeated status updates.
+  const dom = {};
+  const element = () => ({children: [], textContent: '',
+    set id(value) { this._id = value; dom[value] = this; }, get id() { return this._id; },
+    append(...children) { for (const child of children) { child.parentElement = this; this.children.push(child); } },
+    insertBefore(child, anchor) { child.parentElement = this; const at = this.children.indexOf(anchor); this.children.splice(at < 0 ? this.children.length : at, 0, child); }});
+  const state = element(), modeRow = element(), mode = element(), cloud = element(), heapRow = element(), heap = element();
+  mode.id = 'dMicraMode'; cloud.id = 'micraCloudDiagnostics'; heap.id = 'hHeapLargest';
+  state.append(modeRow); modeRow.append(mode); heapRow.append(heap);
+  const labels = {'diagnostic.cloud_titles': 'Email|Machine|Time|API|Result|Duration|Connection|Traffic|Cleaning',
+    'diagnostic.cleaning_states': 'Inactive|Waiting for paddle|Cleaning'};
+  const domContext = vm.createContext({$: id => dom[id], document: {createElement: element},
+    __WEBUI_TEXT__: key => labels[key] || key, R: {formatWallTime: String}});
+  vm.runInContext(cloudUi.slice(0, cloudUi.indexOf('function formatScaleDisconnect(')), domContext);
+  const show = lm => { domContext.lm = lm; vm.runInContext('renderMicraCloudDiagnostic(lm)', domContext); };
+  const socket = {state: 'streaming', nowMs: 5000, cleaningAvailable: true, cleaning: 'waiting_for_paddle', cleaningAtMs: 3000,
+    rxBytes: 120, rxBytesPerSecond: 20, rxBytesPerMinute: 100, messages: 2};
+  const linked = {accountConfigured: true, observeState: true, connectionType: 'websocket', websocket: socket};
+  show(linked); show(linked);
+  assert.strictEqual(cloud.children.length, 8, 'Status refresh must not duplicate dynamic rows');
+  assert.strictEqual(state.children[0], dom.dMicraCleaning.parentElement, 'Cleaning appears before observed mode');
+  assert.strictEqual(dom.dMicraCleaning.textContent, 'Waiting for paddle');
+  assert(dom.dMicraCleaningHint.textContent.includes('2.0 s'));
+  assert(!dom.dMicraCleaningHint.textContent.includes('diagnostic.stale'));
+  assert(dom.dMicraWsTraffic.textContent.includes('RX 20 B/s · 100 B/60s · 120 B'));
+  show({...linked, websocket: {...socket, state: 'paused', cleaning: 'unknown', cleaningLabel: '<b>Future</b>'}});
+  assert.strictEqual(dom.dMicraCleaning.textContent, 'runtime.unknown_4 · <b>Future</b>');
+  assert(dom.dMicraCleaningHint.textContent.includes('diagnostic.stale'));
+  show({...linked, connectionType: 'api'});
+  assert.strictEqual(dom.dMicraCleaning.textContent, 'diagnostic.cleaning_api');
+  show({...linked, observeState: false});
+  assert.strictEqual(dom.dMicraCleaning.textContent, 'runtime.disabled');
+  show({...linked, accountConfigured: false});
+  assert.strictEqual(dom.dMicraCleaning.textContent, 'runtime.not_connected');
+  show({...linked, websocket: {}});
+  assert.strictEqual(dom.dMicraCleaning.textContent, 'diagnostic.cleaning_no_update');
+  const context = vm.createContext({$: id => nodes[id],
+    __WEBUI_TEXT__: key => key === 'diagnostic.cloud_results' ? ['success','canceled','http_error','transport_error','invalid_response','response_too_large','setup_error'].map(k=>'diagnostic.cloud_'+k).join('|') : key,
+    R: {formatWallTime: (sec, offset) => {assert.strictEqual(offset, 0); return String(sec);}}});
   vm.runInContext(cloudUi.slice(cloudUi.indexOf('function renderMicraCloudDiagnostic('),
       cloudUi.indexOf('function formatScaleDisconnect(')), context);
   const render = data => {
@@ -110,9 +147,9 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   assert(complete.includes('call.result = "invalid_response"'));
   assert.strictEqual((micraService.match(/releaseIoBuffer\(ok\)/g) || []).length, 2,
       'Both token responses must be validated before reporting success');
-  assert.strictEqual((micraService.match(/releaseIoBuffer\(false\)/g) || []).length, 2,
+  assert.strictEqual((micraService.match(/releaseIoBuffer\(false\)/g) || []).length, 1,
       'Invalid machine lists and dashboards must be reported as errors');
-  assert(micraService.includes('releaseIoBuffer(mode != LineaMicraObservedMode::NONE)'));
+  assert(micraService.includes('releaseIoBuffer(decoded)'));
   assert(micraService.includes('work_->responseOverflow ? "response_too_large"'));
   assert(micraService.includes('work_->transportFailure ? "transport_error"'));
 }
@@ -183,12 +220,12 @@ if (!micraTiming.includes('kStatePollMs = 30000') ||
     !micraService.includes('bool ShotStopperMicraService::observationCurrent(') ||
     !micraService.includes('pending_.request.type == LineaMicraRequestType::OBSERVE_STATE) {') ||
     !micraService.includes('!config_.accountConfigured ||\n      (config_.options & LINEA_MICRA_OBSERVE_STATE) == 0 ||') ||
-    (micraService.match(/\(config_\.options & LINEA_MICRA_OBSERVE_STATE\) == 0/g) || []).length < 3 ||
     !micraService.includes('scheduleAutomatic(millis(), connecting)')) {
   throw new Error('Linea Micra observations must wait for readiness and the post-wake convergence deadline');
 }
 if (!micraStatus.includes('\\\"optimisticOn\\\":%s,\\\"optimisticOff\\\":%s') ||
-    deferObservation.includes('powerState') ||
+    !deferObservation.includes('powerState_.hold(published_, true, millis());') ||
+    deferObservation.includes('published_.powerState =') ||
     !micraService.includes('status.phase = LineaMicraPhase::BACKOFF;\n    publish(status);') ||
     !terminalFailure.includes('status.powerState = LineaMicraPowerState::UNKNOWN;') ||
     !terminalFailure.includes('status.effectiveOn = true;') ||
@@ -208,7 +245,7 @@ if (!micraTypes.includes('APPLY_TEMPERATURE') ||
     !micraService.includes('desiredTemperature_.commandAccepted = true;') ||
     !micraService.includes('lineaMicraHttpRetryable') ||
     !micraService.includes('lineaMicraTemperatureCycleRetryable') ||
-    !micraService.includes('preserveTemperatureStatus(published_, next)') ||
+    !micraService.includes('observationFence_.merge(published_, powerState_, update') ||
     !micraService.includes('desiredTemperature_.machineConfigGeneration = configGeneration;') ||
     !micraService.includes('abortRequested_.load(std::memory_order_acquire)') ||
     !micraService.includes('refreshToken(settings) || signIn(settings)') ||
@@ -228,7 +265,7 @@ if (!micraTypes.includes('APPLY_TEMPERATURE') ||
 }
 for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
   'lineaMicraConnectButton', 'lineaMicraMachine', 'lineaMicraSelectButton',
-  'lineaMicraApplyTemperature', 'lineaMicraObserveState',
+  'lineaMicraConnectionType', 'lineaMicraApplyTemperature', 'lineaMicraObserveState',
   'lineaMicraRecognizeWake', 'lineaMicraShutdownWithScale',
   'lineaMicraShutdownGraceWrap', 'lineaMicraShutdownGrace',
   'lineaMicraSaveButton', 'lineaMicraDisconnectButton',
@@ -260,7 +297,7 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
   click();
   assert.strictEqual(calls, 1, 'Confirmed Disconnect must invoke the action');
 
-  const statusUi = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function applyLineaMicraStatus('),
+  const statusUi = rawRuntimeJs.slice(rawRuntimeJs.indexOf('const MICRA_SWITCHES='),
       rawRuntimeJs.indexOf('function renderLineaMicraDiagnostic('));
   for (const theme of ['theme-light', 'theme-dark']) {
     const nodes = new Map();
@@ -284,10 +321,36 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
       Option: function(text, value) { this.text = text; this.value = value; },
       __WEBUI_TEXT__: key => key});
     vm.runInContext(statusUi, context);
+    const commands = [];
+    context.command = (url, body) => { commands.push({url, body: JSON.parse(JSON.stringify(body))}); return true; };
+    get('lineaMicraConnectionType').value = 'api';
+    get('lineaMicraObserveState').checked = true;
+    get('lineaMicraShutdownGrace').value = '12';
+    vm.runInContext("saveLineaMicraSettings('select','SYNTHETIC')", context);
+    assert.deepStrictEqual(commands[0], {url: '/api/v1/machine/linea-micra', body: {
+      action: 'select', serial: 'SYNTHETIC', applyTemperature: false, observeState: true,
+      recognizeWakeGesture: false, powerOnWithScale: false, shutdownWithScale: false,
+      scaleOffWithMachine: false, connectionType: 'api', shutdownGraceSeconds: 12}});
+    get('lineaMicraConnectionType').value = 'websocket';
+    vm.runInContext('saveLineaMicraSettings()', context);
+    assert.strictEqual(commands[1].body.connectionType, 'websocket');
+    assert.strictEqual(commands[1].body.action, 'save');
+    assert(!('serial' in commands[1].body));
     const connected = {accountConfigured: true, email: 'user@example.test',
       selectedName: 'Micra', selectedSerial: 'ABC', observeState: true,
       machines: [], phase: 'idle', error: 'none', staConnected: true};
     vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: connected})})`, context);
+    assert.strictEqual(get('lineaMicraConnectionType').value,'websocket');
+    context.micraDirty=true;
+    get('lineaMicraConnectionType').value='api';
+    get('lineaMicraApplyTemperature').checked=false;
+    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: connected})})`,context);
+    assert.strictEqual(get('lineaMicraConnectionType').value,'api');
+    assert.strictEqual(get('lineaMicraApplyTemperature').checked,false);
+    context.micraDirty=false;
+    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {...connected,connectionType:'api',applyTemperature:true}})})`,context);
+    assert.strictEqual(get('lineaMicraConnectionType').value,'api');
+    assert.strictEqual(get('lineaMicraApplyTemperature').checked,true);
     assert.strictEqual(get('lineaMicraSaveButton').disabled, false,
         `${theme}: Save must be available after selection`);
     vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
@@ -345,8 +408,6 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !viewJs.diagnostic.includes("e.preventDefault();R.lineaMicraAction('refresh')") ||
     !rawRuntimeJs.includes("s.machineIntegration==='linea_micra_cloud'") ||
     !rawRuntimeJs.includes("{action:'connect',username,password}") ||
-    !rawRuntimeJs.includes("{action:'select',serial") ||
-    !rawRuntimeJs.includes("recognizeWakeGesture:$('lineaMicraRecognizeWake').checked,powerOnWithScale:$('lineaMicraPowerOnWithScale').checked,shutdownWithScale:$('lineaMicraShutdownWithScale').checked,shutdownGraceSeconds:Number($('lineaMicraShutdownGrace').value)||0,scaleOffWithMachine:$('lineaMicraScaleOffWithMachine').checked}") ||
     !rawRuntimeJs.includes("lineaMicraAction('disconnect')") ||
     rawRuntimeJs.includes("['queued','authenticating','listing','running','backoff'].includes(m.phase)") ||
     !rawRuntimeJs.includes("m.email+'\\n'+m.selectedName+' - '+m.selectedSerial") ||
@@ -357,15 +418,9 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes("$('lineaMicraConnectButton').classList.add('busy');const ok=await command('/api/v1/machine/linea-micra',{action:'connect'") ||
     !rawRuntimeJs.includes("$('lineaMicraConnectButton').classList.toggle('busy',!connected&&['queued','authenticating','listing'].includes(m.phase))") ||
     !rawRuntimeJs.includes('select.disabled=!canEdit||!machines.length') ||
-    !rawRuntimeJs.includes("$('lineaMicraApplyTemperature').disabled=!canEdit||!connected") ||
-    !rawRuntimeJs.includes("$('lineaMicraObserveState').disabled=!canEdit||!connected") ||
-    !rawRuntimeJs.includes("$('lineaMicraRecognizeWake').disabled=!canEdit||!connected") ||
     !rawRuntimeJs.includes("updateMicraShutdownControls(canEdit,connected)") ||
     !rawRuntimeJs.includes("$('lineaMicraShutdownGrace').disabled=!canEdit||!connected||!on") ||
     !rawRuntimeJs.includes("$('lineaMicraShutdownGraceWrap').classList.toggle('hidden',!on)") ||
-    !rawRuntimeJs.includes("$('lineaMicraShutdownWithScale').checked=!!m.shutdownWithScale") ||
-    !rawRuntimeJs.includes("$('lineaMicraPowerOnWithScale').checked=!!m.powerOnWithScale") ||
-    !rawRuntimeJs.includes("$('lineaMicraScaleOffWithMachine').checked=!!m.scaleOffWithMachine") ||
     !rawRuntimeJs.includes("$('lineaMicraShutdownGrace').value=String(m.shutdownGraceSeconds||0)") ||
     !viewJs.settings.includes("$('lineaMicraShutdownWithScale').onchange=()=>R.updateMicraShutdownControls()") ||
     !micraSettingsHtml.includes('id="lineaMicraShutdownWithScale" type="checkbox">') ||

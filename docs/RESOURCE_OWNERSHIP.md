@@ -56,7 +56,8 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | reset-history durable state | existing maintenance lease and NetworkService persistence owner | control holds clear requests until the machine is configuration-safe; NetworkService writes through the shared flash lock, and control publishes completion only after success |
 | shot history, curves, activation history and last-shot aggregate | `ActivationStores` RAM data layer plus the core-0 persistence worker; Network borrows only through mutex-guarded callbacks | `shotStoreMutex` covers RAM operations and immutable image capture only; no flash/network I/O spans it, and Home receives one control-published exact-ID rating/curve snapshot |
 | webhook queue / payload | `WebhookDispatcher` | internal queue storage and external HTTP payload; release after worker join, or startup rollback |
-| Micra-profile TLS state | mbedTLS / owning HTTPS client | certificate, handshake, record, and session allocations use PSRAM only and are released by mbedTLS; no internal fallback |
+| Micra WebSocket/STOMP | cloud worker owns lifecycle; SDK receive task owns framing between callbacks | one reusable PSRAM workspace capped at 24 KiB (header 1024 B, body 16384 B, header scratch and 60 fixed rate bins); 1024 B RX and 1024 B TX library buffers use ordinary heap, separate 8192 B internal SDK stack on core 0 priority 1; no SDK auto-reconnect; stop joins callbacks before destroy/free |
+| Micra-profile TLS state | mbedTLS / owning HTTPS/WSS client | certificate, handshake, record, and session allocations use PSRAM only and are released by mbedTLS; no internal fallback |
 | profiler workspace / capture | core-0 health worker via `TaskProfiler` | control/HTTP publish requests only; external processing workspace and separate internal kernel capture are freed on stop or failed start |
 | scale profile capture/store | core-0 health worker via `ScaleProfiler` | owns the extended capture clock, constant-memory capacity ETA and full-buffer completion; status readers only copy estimates; scale worker and control loop append fixed-size records through one leaf capture mutex after releasing their own locks; the settings_persist worker performs invalidate/save steps against the frozen immutable generation; a download lease pins it against Start/Delete |
 | USB application output | core-0 `serial_log` task | the eight-record ESP-log queue stays internal for cache-off logging; the bounded 2.5 KiB CLI reply lives in PSRAM and transfers without copying or waiting |
@@ -66,7 +67,12 @@ Micra cancellation stays latched throughout the active cloud operation, includin
 session renewal. Network recovery and session cleanup cannot clear it. Only the
 idle cloud worker consumes it before selecting the next operation; once observed,
 cancellation ends HTTP progress immediately, including an `EAGAIN` result. Client
-cleanup remains on that worker after HTTP progress returns.
+cleanup remains on that worker after HTTP progress returns. Acquisition/shot
+pauses destroy the WS client and TLS state but may retain bounded application
+scratch and session tokens. API selection, observation disablement, account
+removal/change, STA loss/AP entry and maintenance release WS scratch after
+callback quiescence. Maintenance also releases the HTTP workspace. Each
+client records actual pause completion; residual SDK DNS resolution is excluded.
 
 `initJsonParser()` installs the cJSON allocator once, before concurrent users
 start. No caller may replace the process-wide hooks afterward. This is not a

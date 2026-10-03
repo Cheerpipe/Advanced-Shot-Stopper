@@ -844,7 +844,8 @@ void ShotStopperNetwork::refreshExtendedStatus(uint32_t now) {
 void ShotStopperNetwork::ntpSyncNotificationCallback(struct timeval *tv) {
   ShotStopperNetwork *self = instance_;
   if (tv == nullptr || self == nullptr ||
-      !self->ntpCallbackAccepting_.load(std::memory_order_acquire)) {
+      !self->ntpCallbackAccepting_.load(std::memory_order_acquire) ||
+      outboundScaleInhibited()) {
     return;
   }
   g_wallClock.queueSyncFromCallback(static_cast<uint32_t>(tv->tv_sec));
@@ -861,6 +862,7 @@ void ShotStopperNetwork::stopNtp() {
     esp_sntp_stop();
     ntpStarted_ = false;
   }
+  completeOutboundAcquisitionPause(OutboundClient::NTP, millis());
 }
 
 bool ShotStopperNetwork::ntpMayArm(uint32_t now, bool staConnected) const {
@@ -870,7 +872,7 @@ bool ShotStopperNetwork::ntpMayArm(uint32_t now, bool staConnected) const {
   if (brewRfActive()) {
     return false;
   }
-  if (scaleConnecting_.load(std::memory_order_relaxed)) {
+  if (outboundScaleInhibited() || scaleConnecting_.load(std::memory_order_relaxed)) {
     return false;
   }
   if (staNtpEligibleAtMs_ != 0 &&
@@ -893,7 +895,7 @@ void ShotStopperNetwork::abortInFlightNtp() {
 
 void ShotStopperNetwork::abortNtpForRfGate() {
   const bool gateActive =
-      brewRfActive() || scaleConnecting_.load(std::memory_order_acquire);
+      brewRfActive() || outboundScaleInhibited() || scaleConnecting_.load(std::memory_order_acquire);
   const bool abortRequested =
       ntpAbortRequested_.exchange(false, std::memory_order_acq_rel);
   if (!gateActive && !abortRequested) {
@@ -905,6 +907,7 @@ void ShotStopperNetwork::abortNtpForRfGate() {
   } else {
     g_wallClock.cancelPendingSync();
   }
+  completeOutboundAcquisitionPause(OutboundClient::NTP, millis());
 }
 
 bool ShotStopperNetwork::armNtp(uint32_t now, bool staConnected,

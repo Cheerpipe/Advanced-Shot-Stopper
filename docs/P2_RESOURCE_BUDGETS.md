@@ -79,13 +79,15 @@ The immutable persistence image is separately allocated in external heap.
 | Shared flash-I/O scratch | internal heap, 3,328-byte capacity for one 3,304-byte PersistedSettings record; slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |
 | USB serial output | internal heap, 2,064 bytes for the eight-record ESP log queue; one external 2,560-byte CLI reply buffer; startup failures free both allocations, and successful startup retains one boot-lifetime owner |
 | Micra cloud workspace | external and lazy; a 6,344-byte work buffer on ESP32-S3 holds identity, tokens, authorization header, and client state while cloud observation is active, plus one request-scoped 16 KiB buffer whose mutually exclusive request-body and response phases share storage (22,728 bytes combined, excluding HTTP/TLS library allocations); Disconnect, disabled observation, STA loss, and AP entry destroy the client and free both blocks |
+| Micra WS/STOMP scratch | PSRAM-only reusable block, capped at 24 KiB; includes 17410 B accumulator, two 1025 B header scratch arrays, signed-header/CONNECT storage, and 60 × 12 B rate bins; retained across shot/acquisition pauses, freed after callback quiescence for API/disable/identity/network/maintenance changes |
+| Micra WS SDK allocations | separate 8192 B internal task stack, core 0 priority 1; fixed RX/TX 1024 B ordinary-heap buffers, event/transport objects and WSS TLS are separate; dynamic SDK buffers and auto-reconnect disabled |
 | Micra/Webhook TLS allocations | external through the Micra profile's mbedTLS allocator (`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` from `sdkconfig.defaults.micra`); dynamic record, certificate, handshake, and session objects never fragment internal DRAM on Micra-profile builds and are freed through the matching capability allocator. Other machine profiles keep mbedTLS internal, so webhookS there still draws handshake memory from internal DRAM |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Scale profiler workspace | external, only while a manual capture exists: 256 KiB record buffer, header/context and a bounded per-signal observation cache (32 bytes per signal), and a 32 KiB ordering index after stop (combined ceiling 320 KiB, enforced including the index); freed after the trace is saved and no download is streaming it; capture storage is a dedicated 260 KiB flash partition with a header-last commit |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
-| Settings handoff | one external mailbox for the 3,304-byte settings blob and revision, and one internal byte queued; no full settings copy in the queue or receiver |
+| Settings handoff | one external mailbox for the 3,312-byte settings blob and revision, and one internal byte queued; no full settings copy in the queue or receiver |
 | Web command | trivially copyable, at most 416 bytes; configuration and network payloads share a discriminated union |
-| Radio settings snapshot | at most 224 bytes; full 3,304-byte settings remain for durable mutations |
+| Radio settings snapshot | at most 224 bytes; full 3,312-byte settings remain for durable mutations |
 | Wi-Fi static pools | eight RX and sixteen TX internal DMA buffers reserved while Wi-Fi is initialized, approximately 1.6 KB each; about 19.2 KB more internal RAM than the former six RX/six TX pools |
 | Wi-Fi packet queues | dynamic RX and cache TX each bounded at 32 packets; RX block-ack window 16. Cache TX holds overflow packets when static TX buffers are busy; it is not an equivalent preallocated DMA pool |
 | TCP capacity | 16 KiB send/receive limits and a 16-entry receive mailbox per connection; payload memory grows under load, with PSRAM preferred where supported. Fully loaded bidirectional payload capacity is 27,008 bytes higher per connection than the former 2,880-byte limits, before metadata |
@@ -106,20 +108,27 @@ large return-value and default-aggregate temporaries.
 Network command builders must activate their union member with
 `setNetworkType()` before writing credentials. Preset metadata remains outside
 the union because a preset operation also carries configuration. Settings
-schema 3 uses a 3,304-byte blob for the bounded Micra cloud account, selected
-machine, and per-scale friendly names. Earlier settings schemas are rejected and require `--erase-all`.
+schema 3 uses a 3,312-byte blob for the bounded Micra cloud account, selected
+machine, and per-scale friendly names. Compatible schema 1/2 blobs are CRC-checked before read-only migration to
+schema 3. The connection byte uses prior padding; the checksum stays at offset
+3304. Trial-boot writes wait for OTA confirmation to retain rollback settings.
 
 History V5 retains an exact bounded preset-name snapshot and transfers through
 the shared chunked flash-I/O path. The separate last-shot V4 record retains the
-same provenance. The current rendered English Web UI is capped at 79,950 bytes
-HTML, 233,000 bytes JavaScript, and 312,800 bytes combined authoring source.
-The compressed runtime JavaScript cap is 43,600 bytes, measured against a fixed
-sentinel build id so commit-SHA noise cannot move it; the Web contract still
-round-trips and flash-charges the real, version-baked runtime through the
-combined cap. The timestamped-curve Web contract measured 78,840 / 230,897
-authoring bytes and 111,957 combined gzip bytes; the embedded limit is 113,000
-bytes. The reviewed growth covers actual-time plotting, continuity/completeness
-and ordinal sample CSV; firmware image and OTA-slot ceilings remain unchanged.
+same provenance. The English authoring caps are 82,000 HTML bytes, 237,000 JavaScript bytes and
+319,000 combined source bytes. Compressed runtime remains capped at 44,000,
+secondary modules at 8,800 and combined assets at 114,500 bytes. The selectable
+WS implementation currently exceeds secondary/combined asset and versioned
+Micra firmware budgets; those failed checks require a measured resource review.
+They must not be reported as passing, and no OTA-slot or heap limit is relaxed.
+The reference development build with WS measures 2,273,408 image bytes,
+2,273,291 linked bytes, 1,514,760 flash-code bytes and 587,336 rodata bytes.
+Its matched HTTP-only dependency-preparation image was 2,228,768 bytes, so the
+feature adds 44,640 image bytes. Linked DIRAM rises by 448 bytes to 185,382;
+external BSS stays at 756,272. The image retains 872,320 bytes in its OTA slot.
+These are linked measurements; handshake/streaming peaks still require target
+qualification. Fixed-version English assets measure 115,185 combined gzip
+bytes and 9,659 secondary-module gzip bytes. Existing limits remain unchanged.
 
 Every new setting must include concise, natural help that explains its effect on
 the barista's workflow, including what changes when an option is enabled or
@@ -289,3 +298,16 @@ long-term memory gate. A passing host self-test only validates the analyzer:
 ```sh
 python3 scripts/p2_soak.py --self-test
 ```
+
+## WebSocket memory qualification
+
+Diagnostic `lineaMicra.websocket` reports retained application bytes/placement,
+allocation failures, internal free/largest-block deltas for connect and stop,
+and internal/PSRAM minima plus PSRAM free/largest values sampled at lifecycle
+boundaries. `heapLifecycle.micraTls` remains HTTP-only; `micraWebsocket` records
+WS connection history. Counts exclude TLS, SDK stack and allocator overhead.
+These are bounded samples, not continuously observed peaks or proof of placement.
+The internal stack and SDK buffers remain independent reservations even when TLS
+uses PSRAM. Target comparison must include simultaneous HTTP/WSS handshakes,
+1000 pause/reconnect cycles, full disable and OTA maintenance. Firmware/linker
+sizes and XIP/static PSRAM reservations do not measure runtime heap pressure.

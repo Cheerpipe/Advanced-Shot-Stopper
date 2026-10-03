@@ -30,6 +30,7 @@ inline bool verifyFactorySettings(const PersistedSettings &settings) {
 }
 
 inline bool resetPersistedNetworkAccess(PersistedSettings &settings) {
+  if (!settingsSchemaWritesAdmitted.load(std::memory_order_acquire)) return false;
   PersistedSettings candidate;
   if (!loadPersistedSettings(candidate) &&
       !initializeDefaultSettings(candidate)) {
@@ -70,6 +71,7 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
                                   HistoryLog &historyLog,
                                   LastShotStore &lastShot,
                                   ShotCurveLog &shotCurves) {
+  if (!settingsSchemaWritesAdmitted.load(std::memory_order_acquire)) return false;
   yieldFlashIo();
   feedFlashIoWatchdog();
   // Drop the last-shot NVS record first so the NVS partition has room for

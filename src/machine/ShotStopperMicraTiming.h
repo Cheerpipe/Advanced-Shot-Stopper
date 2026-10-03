@@ -32,16 +32,19 @@ inline constexpr bool deadlineReached(uint32_t now, uint32_t deadline) {
 class ObservationSchedule {
  public:
   bool automaticDue(uint32_t now) const {
-    return deadlineReached(now, automaticAtMs_) && observationAllowed(now);
+    return (periodic_ || postWakePending_) &&
+        deadlineReached(now, automaticAtMs_) && observationAllowed(now);
   }
 
   bool observationAllowed(uint32_t now) const {
     return !postWakePending_ || deadlineReached(now, postWakeAtMs_);
   }
 
-  void dueNow(uint32_t now) { automaticAtMs_ = now; }
+  void dueNow(uint32_t now) { automaticAtMs_ = now; periodic_ = true; }
+  void suspendPeriodic() { periodic_ = false; }
 
   void armPostEvent(uint32_t now) {
+    automaticAtMs_ = now;
     postWakeAtMs_ = now + kPostWakeObservationDelayMs;
     postWakePending_ = true;
   }
@@ -60,6 +63,7 @@ class ObservationSchedule {
   uint32_t automaticAtMs_ = 0;
   uint32_t postWakeAtMs_ = 0;
   bool postWakePending_ = false;
+  bool periodic_ = true;
 };
 
 static_assert(kRetryDelaysMs[0] < kRetryDelaysMs[1] &&

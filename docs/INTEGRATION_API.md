@@ -347,8 +347,10 @@ the independent `applyTemperature`, `observeState`, and
 account credentials, installation key, and chosen machine through the normal
 single-writer command path. `select` and `save` also carry the `powerOnWithScale`
 and `shutdownWithScale` machine-link booleans with `shutdownGraceSeconds`,
-and the `scaleOffWithMachine` scale-link boolean. `save` updates those options
-for an already selected machine. `refresh` and `disconnect` accept no additional fields;
+and the `scaleOffWithMachine` scale-link boolean. `select` and `save` optionally accept `connectionType` as exactly `websocket`
+or `api`; missing retains the saved preference. Null, wrong types, unknown
+values and use with any other action are rejected. WebSocket is the default.
+`save` updates those options for an already selected machine. `refresh` and `disconnect` accept no additional fields;
 disconnect erases durable credentials/selection and the RAM session. Unknown,
 duplicate, or action-inappropriate fields are rejected. Accepted commands
 return `202`.
@@ -360,9 +362,23 @@ quality, optimistic-ON and optimistic-OFF provenance, sample age/freshness,
 selected target
 temperature, STA/AP/shot gates,
 last HTTP/transport status, and the bounded machine list returned while
-connecting. Email, password, installation private key, access token, and refresh
-token are never returned. `refresh` is read-only and requires a selected
+connecting. The saved account email is visible in Settings and Diagnostics; password,
+installation private key, access token and refresh token are never returned. `refresh` is read-only and requires a selected
 machine; none of these fields authorizes machine actuation.
+
+The subtree also reports `connectionType`. Diagnostic status alone includes
+`lineaMicra.websocket`: socket lifecycle/reason/epoch, subscription and machine
+connectivity, genuine evidence timestamps, payload byte counters, fixed 1s/60s
+rates, retry/stop/publication latency, cleaning availability and memory metrics.
+`cloudCall` remains the last HTTP call. Cleaning never changes control state.
+Payload byte totals use 64-bit counters and include positive partial sends.
+Rate windows use the 64-bit monotonic clock, independently of millisecond
+timestamp rollover; these counters exclude TCP/TLS framing and radio traffic.
+Generic diagnostic `outboundPause` exposes acquisition generation/reason,
+concurrent `scaleSetup`, `bleQuiet`, `shot` and `maintenance` gates, and per-client
+applicability and owner completion/latency. `requested` and `completed` refer to
+the acquisition generation; completion excludes residual DNS work.
+Webhook status distinguishes `lastDispatched` and `lastDeliveryUnknown`.
 
 ## Webhook version 1
 

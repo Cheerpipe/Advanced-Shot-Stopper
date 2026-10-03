@@ -5,18 +5,32 @@
 #include "ShotStopperPersistedNetwork.h"
 #include "ShotStopperPersistedSettings.h"
 #include "ShotStopperPreferences.h"
+#include "ShotStopperSettingsWriteAdmission.h"
 
 #include <stdint.h>
 
 #if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
 #include <esp_task_wdt.h>
+#include <esp_ota_ops.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 #endif
 
 namespace shotstopper {
+
+inline void initializeSettingsSchemaWriteAdmission() {
+#if !defined(SHOT_STOPPER_HOST_TEST) && !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+  esp_ota_img_states_t state = ESP_OTA_IMG_UNDEFINED;
+  if (!ensureFlashIoMutex() || !lockFlashIo()) return;
+  const esp_err_t error = esp_ota_get_state_partition(esp_ota_get_running_partition(), &state);
+  unlockFlashIo();
+  settingsSchemaWritesAdmitted.store(error == ESP_ERR_NOT_FOUND ||
+      (error == ESP_OK && (state == ESP_OTA_IMG_VALID || state == ESP_OTA_IMG_UNDEFINED)),
+      std::memory_order_release);
+#endif
+}
 
 inline void ensurePersistedPresetBank(PersistedSettings &settings) {
   ensureShotPresetBank(settings.presets, settings.runtime.retareWindowMs,
@@ -84,14 +98,17 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
       sizeof(settings)) {
     return false;
   }
-  // V1 has the same layout; authenticate its bytes before naming old padding.
-  if (settings.schemaVersion == 1 &&
+  // Both old schemas have the same layout; authenticate before naming padding.
+  if ((settings.schemaVersion == 1 || settings.schemaVersion == 2) &&
       settings.magic == PERSISTED_SETTINGS_MAGIC &&
       settings.structureSize == sizeof(settings) &&
       settings.checksum == persistedSettingsChecksum(settings)) {
-    settings.runtime.touchStopFallbackEnabled = true;
-    for (auto &preset : settings.presets.presets)
-      preset.touchStopFallbackEnabled = true;
+    if (settings.schemaVersion == 1) {
+      settings.runtime.touchStopFallbackEnabled = true;
+      for (auto &preset : settings.presets.presets)
+        preset.touchStopFallbackEnabled = true;
+    }
+    settings.lineaMicra.connectionType = static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
     settings.schemaVersion = CONFIG_SCHEMA_VERSION;
     settings.checksum = persistedSettingsChecksum(settings);
   }
@@ -172,6 +189,7 @@ inline void resetDurableStorageRevision() {
 }
 
 inline bool savePersistedSettings(PersistedSettings &settings) {
+  if (!settingsSchemaWritesAdmitted.load(std::memory_order_acquire)) return false;
   // One internal record is reused for revision probes, candidate write, and
   // read-back verification. Never call loadPersistedSettings while locked.
   yieldSettingsNvs();
@@ -255,6 +273,7 @@ inline bool initializeDefaultSettings(PersistedSettings &settings) {
 }
 
 inline bool resetPersistedSettingsToFactory(PersistedSettings &settings) {
+  if (!settingsSchemaWritesAdmitted.load(std::memory_order_acquire)) return false;
   if (!lockSettingsNvs()) {
     return false;
   }

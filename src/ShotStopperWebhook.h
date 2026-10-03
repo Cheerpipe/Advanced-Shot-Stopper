@@ -270,6 +270,8 @@ struct WebhookStatus {
   bool workerReady = false;
   bool sending = false;
   bool lastSuccess = false;
+  bool lastDispatched = false;
+  bool lastDeliveryUnknown = false;
   uint16_t lastHttpStatus = 0;
   int32_t lastError = 0;
   uint32_t lastAttemptAtMs = 0;
