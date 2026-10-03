@@ -22,7 +22,7 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem 1.5rem;c
 .signalIndicator[data-level="0"] [data-step],.signalIndicator[data-level="unknown"] [data-step]{opacity:.12}
 .signalIndicator:hover{background:var(--sf)}
 .signalIndicator:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
-.navToggle{flex-shrink:0;width:var(--tap);height:var(--tap);margin:0;border:1px solid transparent;border-radius:2rem;background:transparent;color:var(--ac);font:inherit;font-size:1.75rem;line-height:1;cursor:pointer;position:relative;z-index:22}
+.navToggle{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:var(--tap);height:var(--tap);margin:0;padding:0;border:1px solid transparent;border-radius:2rem;background:transparent;color:var(--ac);font:inherit;font-size:2rem;line-height:1;cursor:pointer;position:relative;z-index:22}
 .pageNav{display:none;position:fixed;inset:0;z-index:20;flex-direction:column;gap:.15rem;padding:calc(var(--hdr) + .85rem) 1.25rem 1.5rem;background:var(--bg)}
 .navOpen{overflow:hidden}
 .navOpen .pageNav{display:flex}
