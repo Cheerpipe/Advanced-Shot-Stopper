@@ -50,7 +50,10 @@ refresh after editing the proposal files in `scripts/web-preview/`.
 Keep the process running while iterating, and stop it with Ctrl-C when finished.
 If the port is already occupied, use `PORT=4174 node scripts/preview_web_ui.js`.
 
-The two header icons open a connection summary. Expand **Proposal 01 · simulated
+Each header icon opens its own popup: Wi-Fi shows the network name and signal;
+Bluetooth shows the scale name and signal. The preview uses the firmware's
+popup markup and interaction logic with simulated values.
+Expand **Proposal 01 · simulated
 signals** (numbered for the selected option) to compare strong, medium, weak and disconnected states, or change
 the theme. Resize the browser below 700 pixels to inspect the mobile header.
 Home values and signal readings are illustrative; navigation and switches are

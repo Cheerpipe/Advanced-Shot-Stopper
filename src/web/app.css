@@ -20,8 +20,11 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem 1.5rem;c
 .signalSlash{display:none}
 .signalIndicator[data-level="0"] .signalSlash{display:block}
 .signalIndicator[data-level="0"] [data-step],.signalIndicator[data-level="unknown"] [data-step]{opacity:.12}
-.signalIndicator:hover{background:var(--sf)}
+.signalIndicator:hover,.signalIndicator[aria-expanded="true"]{background:var(--sf)}
 .signalIndicator:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.signalDetails{position:absolute;right:0;top:calc(100% + .5rem);width:17rem;max-width:calc(100vw - 6rem);padding:1rem;background:var(--sf);color:var(--fg);border:1px solid var(--ln);border-radius:var(--r);box-shadow:0 8px 28px #0002;font-size:.85rem}
+.signalDetails p{display:flex;justify-content:space-between;gap:.75rem;margin:.65rem 0 0}
+.signalDetails span{color:var(--mu);flex-shrink:0}.signalDetails b{font-weight:550;text-align:right;overflow-wrap:anywhere;min-width:0}
 .navToggle{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:var(--tap);height:var(--tap);margin:0;padding:0;border:1px solid transparent;border-radius:2rem;background:transparent;color:var(--ac);font:inherit;font-size:2rem;line-height:1;cursor:pointer;position:relative;z-index:22}
 .pageNav{display:none;position:fixed;inset:0;z-index:20;flex-direction:column;gap:.15rem;padding:calc(var(--hdr) + .85rem) 1.25rem 1.5rem;background:var(--bg)}
 .navOpen{overflow:hidden}

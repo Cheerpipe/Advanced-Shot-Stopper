@@ -47,7 +47,18 @@ const connected=c[kind+'Connected'],rssi=c[kind+'Rssi'],valid=Number.isFinite(rs
 const level=connected===false?0:connected===true&&valid?(rssi>=-60?3:rssi>=-80?2:1):'unknown';
 const label=level==='unknown'?unavailable:level===0?(kind==='bluetooth'?__WEBUI_TEXT__("runtime.scale_disconnected"):levels[0]):levels[level]+__WEBUI_TEXT__("runtime.symbol_8")+rssi+__WEBUI_TEXT__("runtime.dbm");
 button.dataset.level=String(level);button.title=name+': '+label;button.setAttribute('aria-label',button.title);
+const identity=$(kind+'Name'),detail=$(kind+'Detail');
+if(identity)identity.textContent=connected===true?(c[kind+'Name']||__WEBUI_TEXT__("runtime.unknown")):connected===false?__WEBUI_TEXT__("runtime.none"):__WEBUI_TEXT__("runtime.unknown");
+if(detail)detail.textContent=label;
 }}
+export function initHeaderSignals(){
+const buttons=[...document.querySelectorAll('.signalIndicator')];
+function close(){for(const button of buttons){$(button.getAttribute('aria-controls')).hidden=true;button.setAttribute('aria-expanded','false')}}
+for(const button of buttons)button.addEventListener('click',()=>{const panel=$(button.getAttribute('aria-controls')),open=panel.hidden;close();panel.hidden=!open;button.setAttribute('aria-expanded',String(open))});
+document.addEventListener('click',e=>{if(!e.target.closest('.headerSignals'))close()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){const button=buttons.find(b=>b.getAttribute('aria-expanded')==='true');close();if(button)button.focus()}});
+window.addEventListener('popstate',close);
+}
 let homeBootDone=false,fwReloading=false,bootSeq=0,bootTimer=0;
 const THEME_KEY='ssTh',THEME_MODES=['auto','light','dark'];
 function themeMode(){try{const v=localStorage.getItem(THEME_KEY);return THEME_MODES.includes(v)?v:'auto'}catch(_){return'auto'}}

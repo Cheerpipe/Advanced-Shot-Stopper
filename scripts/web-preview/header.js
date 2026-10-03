@@ -2,7 +2,6 @@
 
 const $ = id => document.getElementById(id);
 const levels = ['Disconnected', 'Weak', 'Medium', 'Strong'];
-const readings = ['Not connected', '−84 dBm', '−71 dBm', '−52 dBm'];
 const option = Math.min(6, Math.max(1, Number(new URLSearchParams(location.search).get('option')) || 1));
 document.body.dataset.signalOption = option;
 const controls = document.createElement('details');
@@ -37,28 +36,21 @@ if (glyphs[option]) ['wifi', 'bluetooth'].forEach((kind, index) => {
   $(kind + 'Signal').querySelector('svg').innerHTML = glyphs[option][index];
 });
 
-function updateSignal(index) {
-  const kind = index ? 'bluetooth' : 'wifi', name = index ? 'Bluetooth' : 'Wi-Fi';
-  const level = Number($(`preview${index}`).value), button = $(kind + 'Signal');
-  button.dataset.level = level;
-  button.setAttribute('aria-label', `${name}: ${level ? levels[level].toLowerCase() + ' signal' : index ? 'scale disconnected' : 'disconnected'}`);
-  $(kind + 'Detail').textContent = level ? `${levels[level]} · ${readings[level]}` : index ? 'Scale disconnected' : readings[0];
+function updateSignal() {
+  const connections = {};
+  for (const [i, kind] of ['wifi', 'bluetooth'].entries()) {
+    const level = Number($(`preview${i}`).value);
+    connections[kind + 'Connected'] = level > 0;
+    connections[kind + 'Rssi'] = [null, -84, -71, -52][level];
+    connections[kind + 'Name'] = i ? 'Acaia Lunar' : 'Coffee Studio';
+  }
+  updateHeaderSignals({connections});
 }
+initHeaderSignals();
 for (const index of [0, 1]) {
   updateSignal(index);
   $(`preview${index}`).onchange = () => { updateSignal(index); if (index) applyScalePreview(); };
-  $(index ? 'bluetoothSignal' : 'wifiSignal').onclick = () => {
-    const open = $('signalDetails').hidden;
-    $('signalDetails').hidden = !open;
-    document.querySelectorAll('.signalIndicator').forEach(button => button.setAttribute('aria-expanded', String(open)));
-  };
 }
-function closeDetails() {
-  $('signalDetails').hidden = true;
-  document.querySelectorAll('.signalIndicator').forEach(button => button.setAttribute('aria-expanded', 'false'));
-}
-document.addEventListener('click', event => { if (!event.target.closest('.headerSignals')) closeDetails(); });
-document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDetails(); });
 $('previewTheme').onchange = event => {
   document.documentElement.classList.toggle('theme-light', event.target.value === 'light');
   document.documentElement.style.colorScheme = event.target.value === 'system' ? 'light dark' : event.target.value;

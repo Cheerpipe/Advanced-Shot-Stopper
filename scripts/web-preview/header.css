@@ -11,9 +11,6 @@
 .signalIndicator[data-level="0"] [data-step]{opacity:.12}
 .signalIndicator:hover,.signalIndicator[aria-expanded="true"]{background:var(--sf)}
 .signalIndicator:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
-.signalDetails{position:absolute;right:0;top:calc(100% + .5rem);width:17rem;padding:1rem;background:var(--sf);color:var(--fg);border:1px solid var(--ln);border-radius:var(--r);box-shadow:0 8px 28px #0002;font-size:.85rem}
-.signalDetails p{display:flex;justify-content:space-between;gap:.5rem;margin:.65rem 0}
-.signalDetails b{font-weight:550}.signalDetails small{color:var(--mu)}
 .previewControls{margin:.8rem 0 1.2rem;padding:.75rem 1rem;border:1px dashed var(--bd);border-radius:var(--r);color:var(--mu);font-size:.8rem}
 .previewControls summary{cursor:pointer;font-weight:600;min-height:1.5rem}
 .previewControlGrid{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:.75rem}

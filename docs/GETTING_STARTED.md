@@ -40,8 +40,11 @@ stops polling. Scrolling does not keep it active; use Reload to resume.
 
 The header shows the controller's home-network Wi-Fi signal and its Bluetooth
 link to the scale. More lit arcs or bars mean a stronger signal; amber means
-weak reception. Tap either icon to show both signal readings in the page's
-status message. A crossed-out Bluetooth symbol means the scale is disconnected.
+weak reception. Tap Wi-Fi to see the connected network name and signal level;
+tap Bluetooth to see the connected scale and its signal level. The scale uses
+your friendly name when set, or the name reported over Bluetooth. Tap the same
+icon again, tap outside the popup, or press Escape to close it. A crossed-out
+Bluetooth symbol means the scale is disconnected.
 Dim icons without a cross
 mean a reading is not available yet, or the page cannot refresh it. The Wi-Fi
 icon describes the home-network connection, even when you open the page through

@@ -6,7 +6,6 @@ const path = require('node:path');
 const {renderSources} = require('./localize_web_ui.js');
 
 const root = path.resolve(__dirname, '..');
-const preview = path.join(__dirname, 'web-preview');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const routes = {
   '/compare': ['text/html; charset=utf-8', 'scripts/web-preview/compare.html'],
@@ -23,16 +22,21 @@ function renderHome() {
     content: read(`src/web/html/${name}.html`),
   })), {language: 'en', allowUnused: true, machineType: 'paddle'}).sources;
   return shell.content
-      .replace(/<div id="headerSignals"[\s\S]*?<\/div>/, '')
       .replace('<section id="view-home" class="view" data-view="home"></section>',
           `<section id="view-home" class="view" data-view="home">${home.content}</section>`)
-      .replace('<button class="navToggle"',
-          `${fs.readFileSync(path.join(preview, 'header.html'), 'utf8')}<button class="navToggle"`)
       .replace('</head>', '<link rel="stylesheet" href="/preview.css"></head>')
       .replace('<script type="module" src="/app.js?v=__FW_VERSION__"></script>',
           '<script src="/preview.js" defer></script>')
       .replace(/<link rel="(?:manifest|icon|apple-touch-icon)"[^>]*>/g, '')
       .replace(/__FW_VERSION__/g, 'design-preview');
+}
+
+function renderSignals() {
+  const runtime = read('src/web/js/runtime.js');
+  const content = runtime.slice(runtime.indexOf('function updateHeaderSignals('),
+      runtime.indexOf('\nlet homeBootDone=')).replace(/^export /gm, '');
+  return renderSources([{file: 'src/web/js/runtime.js', type: 'js', content}],
+      {language: 'en', allowUnused: true}).sources[0].content;
 }
 
 function renderMobileMenu() {
@@ -65,7 +69,7 @@ function createServer() {
         res.writeHead(404).end('Preview resource not found');
         return;
       }
-      const body = mobileMenu ? renderMobileMenu() : asset ? read(asset[1]) : renderHome();
+      const body = mobileMenu ? renderMobileMenu() : pathname === '/preview.js' ? renderSignals() + '\n' + read(asset[1]) : asset ? read(asset[1]) : renderHome();
       res.writeHead(200, {'Content-Type': asset ? asset[0] : 'text/html; charset=utf-8',
         'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
         'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; frame-ancestors 'self'; form-action 'none'"});

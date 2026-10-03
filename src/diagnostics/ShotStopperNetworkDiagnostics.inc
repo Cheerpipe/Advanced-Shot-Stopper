@@ -996,6 +996,16 @@ esp_err_t ShotStopperNetwork::sendRecordPageState(
     snprintf(wifiRssi, sizeof(wifiRssi), "%d", static_cast<int>(network.staRssi));
   if (control.scaleRssiValid)
     snprintf(bluetoothRssi, sizeof(bluetoothRssi), "%d", static_cast<int>(control.scaleRssi));
+  char wifiName[WIFI_SSID_CAPACITY * 6] = {};
+  char bluetoothName[PREFERRED_SCALE_NAME_CAPACITY * 6] = {};
+  escapeJsonString(network.staState == StaState::CONNECTED ? network.staSsid : "",
+                   wifiName, sizeof(wifiName));
+  if (control.scaleAvailable && callbacks_.copyScaleHistory)
+    callbacks_.copyScaleHistory(g_work->scaleHistory);
+  else
+    memset(g_work->scaleHistory, 0, sizeof(g_work->scaleHistory));
+  escapeConnectedScaleName(control, g_work->scaleHistory,
+                           bluetoothName, sizeof(bluetoothName));
   size_t used = 0;
   if (!statusJsonAppend(
           &used,
@@ -1004,7 +1014,8 @@ esp_err_t ShotStopperNetwork::sendRecordPageState(
           "\"development\":%s,\"machineType\":\"%s\","
           "\"machineIntegration\":\"%s\",\"timeUtcSec\":%lu,"
           "\"snapshotStale\":%s,\"connections\":{\"wifiConnected\":%s,\"wifiRssi\":%s,"
-          "\"bluetoothConnected\":%s,\"bluetoothRssi\":%s},"
+          "\"bluetoothConnected\":%s,\"bluetoothRssi\":%s,"
+          "\"wifiName\":\"%s\",\"bluetoothName\":\"%s\"},"
           "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"},"
           "\"config\":{\"revision\":%lu,\"timezoneId\":\"%s\","
           "\"appliedTimezoneOffsetMinutes\":%d,\"timezoneAutomatic\":%s,"
@@ -1022,6 +1033,7 @@ esp_err_t ShotStopperNetwork::sendRecordPageState(
           control.snapshotStale ? "true" : "false",
           network.staState == StaState::CONNECTED ? "true" : "false", wifiRssi,
           control.scaleAvailable ? "true" : "false", bluetoothRssi,
+          wifiName, bluetoothName,
           static_cast<unsigned long>(network.lastCommandRequestId),
           commandResultStateName(network.lastCommandState),
           static_cast<unsigned long>(control.config.revision),

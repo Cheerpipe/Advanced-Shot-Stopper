@@ -425,8 +425,9 @@ if (generated.jsGzip.length > 4484) {
 // raise the cap to 7300. The busy save-button spinner raises it to 7400.
 // The approved wireless header adds 200 bytes of compressed CSS allowance.
 // The desktop Home header uses 100 bytes transferred from the shell JS cap.
-if (generated.cssGzip.length > 7700) {
-  throw new Error('Compressed Web CSS exceeds the 7700-byte gzip budget');
+// Independent wireless detail panels add 100 bytes of approved allowance.
+if (generated.cssGzip.length > 7800) {
+  throw new Error('Compressed Web CSS exceeds the 7800-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -475,8 +476,9 @@ if (generated.cssGzip.length > 7700) {
 // Shot stats Tare time and Scale (the tare chart marker, two table columns,
 // CSV columns, and last-shot wiring) raise it to 42400 bytes.
 // Paired read admission/hydration uses 160 bytes transferred from shell JS.
-if (sentinelRuntimeGzip.length > 43600) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 43600-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Independent popup interactions and identity rendering add 400 approved bytes.
+if (sentinelRuntimeGzip.length > 44000) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 44000-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -552,8 +554,9 @@ if (generated.icon48Gzip.length > 3500) {
 // The Micra-only Home power summary raises the compressed budget by 150 bytes.
 // The approved wireless header adds 1 KB of reviewed Web asset allowance;
 // firmware image, memory-region and OTA partition limits remain unchanged.
-if (generated.combined > 114000) {
-  throw new Error(`Combined Web UI gzip exceeds the 114000-byte flash budget (${generated.combined})`);
+// The approved independent wireless popups raise the combined cap by 500 bytes.
+if (generated.combined > 114500) {
+  throw new Error(`Combined Web UI gzip exceeds the 114500-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

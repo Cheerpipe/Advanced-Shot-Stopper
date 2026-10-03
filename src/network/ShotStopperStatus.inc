@@ -210,10 +210,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   const bool needPresets =
       page == StatusPage::Home || page == StatusPage::Settings;
   const bool needHistory = page == StatusPage::Settings;
-  // Friendly-name resolution needs the entries on every page that names the
-  // preferred scale; the history array itself stays Settings-only.
-  const bool needScaleHistory = needHistory ||
-      page == StatusPage::Home || page == StatusPage::Diagnostic;
+  // Every header names the connected scale; the history array stays Settings-only.
   if (needPresets) {
     if (self.callbacks_.copyPresetBank != nullptr) {
       self.callbacks_.copyPresetBank(&g_work->presetBank);
@@ -226,12 +223,10 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     g_work->presetsJson[1] = '}';
     g_work->presetsJson[2] = 0;
   }
-  if (needScaleHistory) {
-    if (self.callbacks_.copyScaleHistory != nullptr) {
-      self.callbacks_.copyScaleHistory(g_work->scaleHistory);
-    } else {
-      memset(&g_work->scaleHistory, 0, sizeof(g_work->scaleHistory));
-    }
+  if (self.callbacks_.copyScaleHistory != nullptr) {
+    self.callbacks_.copyScaleHistory(g_work->scaleHistory);
+  } else {
+    memset(&g_work->scaleHistory, 0, sizeof(g_work->scaleHistory));
   }
   if (needHistory) {
     buildScaleHistoryJson(g_work->scaleHistory);
@@ -257,7 +252,12 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                     sizeof(safeConnectedScaleMac));
   sanitizeJsonEmbed(connectedScaleFriendly, safeConnectedScaleFriendly,
                     sizeof(safeConnectedScaleFriendly));
-
+  char wifiName[WIFI_SSID_CAPACITY * 6] = {};
+  char bluetoothName[PREFERRED_SCALE_NAME_CAPACITY * 6] = {};
+  escapeJsonString(network.staState == StaState::CONNECTED ? network.staSsid : "",
+                   wifiName, sizeof(wifiName));
+  escapeConnectedScaleName(control, g_work->scaleHistory,
+                           bluetoothName, sizeof(bluetoothName));
   const uint32_t cycleFirstDropElapsedMs =
       control.cycleFirstDropMs != 0 && control.cycleStartedAtMs != 0 &&
               static_cast<int32_t>(control.cycleFirstDropMs -
@@ -293,7 +293,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     ok = statusJsonAppend(
         &used, ",\"machineType\":\"%s\",\"machineIntegration\":\"%s\","
         "\"connections\":{\"wifiConnected\":%s,\"wifiRssi\":%s,"
-        "\"bluetoothConnected\":%s,\"bluetoothRssi\":%s}",
+        "\"bluetoothConnected\":%s,\"bluetoothRssi\":%s,"
+        "\"wifiName\":\"%s\",\"bluetoothName\":\"%s\"}",
         compiledMachineTypeId(),
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
         "linea_micra_cloud",
@@ -301,7 +302,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "none",
 #endif
         network.staState == StaState::CONNECTED ? "true" : "false",
-        staRssiJson, control.scaleAvailable ? "true" : "false", scaleRssiJson);
+        staRssiJson, control.scaleAvailable ? "true" : "false", scaleRssiJson,
+        wifiName, bluetoothName);
   }
   if (ok && (page == StatusPage::Admin || page == StatusPage::Diagnostic)) {
     const PowerProfile applied = powerAppliedProfile.load(std::memory_order_acquire);
