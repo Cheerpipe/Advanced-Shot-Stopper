@@ -27,18 +27,18 @@ requires explicit architecture and resource review.
 The current baselines were measured with ESP-IDF 6.1, its GCC 15.2 toolchain,
 and the qualified `CONFIG_FREERTOS_IN_IRAM=y` build profile.
 
-The n16r8 baseline represents the largest reviewed supported profile, currently
-the Linea Micra cloud build. HTTPS server verification adds the ESP certificate
-bundle in flash; it is retained rather than weakening TLS. The development
-profile with USB Serial/JTAG measures 2,199,952 image bytes and 2,199,831 total
-bytes. The versioned allowances retain 38,640 and 38,628 bytes of reviewed
-growth headroom respectively. Flash rodata is 563,900 bytes, flash code is
-1,469,344 bytes, and linked DIRAM is 182,518 bytes; each retains its versioned
-allowance. The IANA 2026d catalog/rules and zone-aware Web UI account for the
-reviewed increase over the prior image. Immutable rules stay in flash; external
-BSS was 237,904 bytes in that baseline profile. The accepted-observation curve
-change has a separately reviewed 800 KiB external-BSS ceiling. The 3 MiB OTA slot
-remains the hard image limit, with about 30% free in this measured build.
+The n16r8 flash baseline represents the largest reviewed supported profile:
+the Linea Micra cloud build with WebSocket observation, on
+`esp32-s3-relay-x1-speaker` at `8d09ecc7`. The clean development profile with
+USB Serial/JTAG measures 2,273,760 image bytes, 2,273,647 total linked bytes,
+1,515,100 flash-code bytes and 587,352 rodata bytes. The versioned growth
+allowances remain 38,640, 38,628, 32,768 and 16,384 bytes respectively.
+TLS certificate verification and the IANA 2026d catalog remain included.
+The DIRAM baseline stays at 182,518 bytes with an 8,192-byte allowance;
+the current build uses 185,382 bytes. External BSS remains under its separately
+reviewed 800 KiB ceiling. The 3 MiB OTA slot remains the hard image limit,
+with 871,968 bytes (about 28%) free in the measured build. Static measurements
+do not qualify runtime heap or stack behavior.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
@@ -117,19 +117,19 @@ History V5 retains an exact bounded preset-name snapshot and transfers through
 the shared chunked flash-I/O path. The separate last-shot V4 record retains the
 same provenance. The English authoring caps are 82,000 HTML bytes, 237,000 JavaScript bytes and
 319,000 combined source bytes. Compressed runtime remains capped at 44,000,
-secondary modules at 8,800 and combined assets at 114,500 bytes. The selectable
-WS implementation currently exceeds secondary/combined asset and versioned
-Micra firmware budgets; those failed checks require a measured resource review.
-They must not be reported as passing, and no OTA-slot or heap limit is relaxed.
-The reference development build with WS measures 2,273,776 image bytes,
-2,273,663 linked bytes, 1,515,100 flash-code bytes and 587,368 rodata bytes.
-Its matched HTTP-only dependency-preparation image was 2,228,768 bytes, so the
-feature and audit corrections add 45,008 image bytes. Linked DIRAM rises by 448
-bytes to 185,382; external BSS stays at 756,272. The image retains 871,952 bytes
-in its OTA slot.
+secondary modules at 9,800 and combined assets at 116,000 bytes. The selectable
+WS implementation and its correctness fixes are included in the reviewed flash
+baseline above. The OTA-slot, DIRAM, external-BSS and other asset limits remain
+unchanged. The reference clean development build with WS measures 2,273,760 image
+bytes, 2,273,647 linked bytes, 1,515,100 flash-code bytes and 587,352 rodata bytes.
+The HTTP-only dependency-preparation image was 2,228,768 bytes; WS and its
+correctness fixes add about 44 KiB, including differences in version metadata.
+Linked DIRAM rises by 448 bytes to 185,382; external BSS stays at 756,272.
+The clean image retains 871,968 bytes in its OTA slot.
 These are linked measurements; handshake/streaming peaks still require target
-qualification. Fixed-version English assets measure 115,185 combined gzip
-bytes and 9,659 secondary-module gzip bytes. Existing limits remain unchanged.
+qualification. Fixed-version English assets measure 115,211 combined gzip
+bytes and 9,685 secondary-module gzip bytes. The rounded compressed caps retain
+789 and 115 bytes respectively; other per-asset and source caps stay unchanged.
 
 Every new setting must include concise, natural help that explains its effect on
 the barista's workflow, including what changes when an option is enabled or

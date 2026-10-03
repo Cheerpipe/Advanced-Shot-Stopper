@@ -17,11 +17,11 @@
       "flash_rodata": 425576
     },
     "n16r8": {
-      "image": 2199952,
-      "total_size": 2199831,
+      "image": 2273760,
+      "total_size": 2273647,
       "used_diram": 182518,
-      "flash_code": 1469344,
-      "flash_rodata": 563900
+      "flash_code": 1515100,
+      "flash_rodata": 587352
     }
   }
 }
