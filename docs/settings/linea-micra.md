@@ -138,6 +138,9 @@ slow cloud connections. Before the first call, the panel reads **No calls yet**.
 WebSocket connection state, retry time, message/power/pong ages, payload receive
 and transmit rates, totals, reconnects, errors and stop latency appear separately.
 Payload byte counts exclude TLS and network overhead.
+Connection setup allows up to ten seconds for each transport operation, so a
+slow secure connection has time to complete. A connection error adds a warning
+to the log with HTTP, TLS and socket error codes, without credentials or payloads.
 The last completed HTTP call stays visible during the next request; this history is
 kept until the controller restarts, including after Disconnect.
 

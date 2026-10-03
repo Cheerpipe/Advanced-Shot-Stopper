@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
+#include <cstdarg>
+#include <cstdio>
 #include <string>
 #include <thread>
 #include "machine/ShotStopperMicraPublicIdentityCache.h"
@@ -8,6 +10,7 @@
 #include "machine/ShotStopperMicraStomp.h"
 #include "ShotStopperOutboundAdmission.h"
 #include "ShotStopperJsonArena.h"
+#include "ShotStopperDomain.h"
 
 static uint64_t now = 1000;
 uint32_t millis() { return static_cast<uint32_t>(now); }
@@ -16,6 +19,18 @@ void xTaskNotifyGive(TaskHandle_t) {}
 static bool callback = false, locked = false;
 static unsigned stops = 0, destroys = 0;
 static std::string transmitted;
+static std::string disconnectLog;
+void serialTraceCategoryf(shotstopper::LogLevel level, shotstopper::DebugCategory category,
+                          const char *format, ...) {
+  assert(!locked && level == shotstopper::LogLevel::WARNING &&
+         category == shotstopper::DebugCategory::NETWORK);
+  char line[160];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(line, sizeof(line), format, args);
+  va_end(args);
+  disconnectLog = line;
+}
 static int sendLimit = -1;
 constexpr int ESP_OK = 0;
 constexpr int WEBSOCKET_EVENT_ANY = 0, WEBSOCKET_EVENT_CONNECTED = 1;
@@ -24,7 +39,10 @@ constexpr int WEBSOCKET_EVENT_CLOSED = 5;
 using esp_websocket_client_handle_t = void *;
 struct esp_websocket_event_data_t {
   void *client = nullptr;
-  struct { int esp_ws_handshake_status_code = 0; } error_handle;
+  struct {
+    int esp_ws_handshake_status_code = 0, esp_tls_last_esp_err = 0;
+    int esp_tls_stack_err = 0, esp_tls_cert_verify_flags = 0, esp_transport_sock_errno = 0;
+  } error_handle;
   int data_len = 0, payload_len = 0, payload_offset = 0, op_code = 1;
   bool fin = true;
   const char *data_ptr = nullptr;
@@ -43,6 +61,7 @@ void taskYIELD() {}
 void *esp_websocket_client_init(const esp_websocket_client_config_t *config) {
   assert(!locked && !callback && config->disable_auto_reconnect);
   assert(config->task_core_id == 0 && config->task_prio == 1 && config->buffer_size == 1024);
+  assert(config->network_timeout_ms == 10000);
   return reinterpret_cast<void *>(1);
 }
 int esp_websocket_register_events(void *, int, Handler, void *) { assert(!locked); return ESP_OK; }
@@ -113,6 +132,15 @@ struct MicraWebSocketTest {
       event.error_handle.esp_ws_handshake_status_code = 401;
       callback = true;
       service.websocketEvent(&service, nullptr, WEBSOCKET_EVENT_ERROR, &event);
+      if (attempt == 0) {
+        event.error_handle.esp_tls_last_esp_err = 32774;
+        event.error_handle.esp_tls_stack_err = -29312;
+        event.error_handle.esp_tls_cert_verify_flags = 8;
+        event.error_handle.esp_transport_sock_errno = 110;
+        event.data_ptr = "synthetic-token-and-signed-header";
+        service.websocketEvent(&service, nullptr, WEBSOCKET_EVENT_DISCONNECTED, &event);
+        assert(disconnectLog == "Micra WS disconnected http=401 tls=32774 stack=-29312 verify=8 errno=110");
+      }
       callback = false;
       service.serviceWebSocket();
       if (attempt == 0) {

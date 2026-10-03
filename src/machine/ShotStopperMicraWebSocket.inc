@@ -224,12 +224,18 @@ void ShotStopperMicraService::websocketEvent(void *context, const char *,
   }
   if (event == WEBSOCKET_EVENT_DISCONNECTED || event == WEBSOCKET_EVENT_CLOSED ||
       event == WEBSOCKET_EVENT_ERROR) {
-    buffer.failed.store(true, std::memory_order_release);
+    if (event == WEBSOCKET_EVENT_DISCONNECTED)
+      serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,
+          "Micra WS disconnected http=%d tls=%d stack=%d verify=%u errno=%d",
+          message.error_handle.esp_ws_handshake_status_code,
+          int(message.error_handle.esp_tls_last_esp_err), message.error_handle.esp_tls_stack_err,
+          unsigned(message.error_handle.esp_tls_cert_verify_flags), message.error_handle.esp_transport_sock_errno);
     if (event == WEBSOCKET_EVENT_ERROR &&
         (message.error_handle.esp_ws_handshake_status_code == 401 ||
          message.error_handle.esp_ws_handshake_status_code == 403)) {
       buffer.authFailed.store(true, std::memory_order_release);
     }
+    buffer.failed.store(true, std::memory_order_release);
   } else if (event == WEBSOCKET_EVENT_CONNECTED && self.websocketAdmitted()) {
     const size_t length = strlen(buffer.connect) + 1;
     const int sent = esp_websocket_client_send_text(message.client, buffer.connect, length,
@@ -477,7 +483,7 @@ void ShotStopperMicraService::serviceWebSocket() {
   config.task_stack = 8192;
   config.task_core_id_set = true;
   config.task_core_id = 0;
-  config.network_timeout_ms = 1000;
+  config.network_timeout_ms = 10000;  // SDK default; includes the initial TLS handshake.
   config.ping_interval_sec = 15;
   config.pingpong_timeout_sec = 30;
   const auto before = sampleHeapCaps();

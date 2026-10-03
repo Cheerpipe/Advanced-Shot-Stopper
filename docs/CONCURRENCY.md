@@ -220,6 +220,12 @@ The bounded callback parser publishes complete field updates directly, so an
 HTTP operation cannot delay push publication. Identity/epoch/intent and
 independent power/temperature revisions prevent older results overwriting
 newer evidence. Diagnostic readers only copy under the facade mutex.
+WS transport operations use the SDK's 10-second timeout, including initial TLS
+and Upgrade. The connected SDK task normally polls input every second; a TLS
+handshake or stalled frame already in progress can delay owner stop until its
+transport operation returns. Failure callbacks publish authentication metadata
+before signaling failure to the owner. Safe disconnect logs contain only numeric
+HTTP/TLS/socket error codes; signed headers and event payloads are never logged.
 A lock-free disconnect generation also invalidates in-flight HTTP/WS evidence
 when a pause starts and ends before the cloud owner runs. The next owner turn
 still stops the obsolete socket; deferred HTTP observations retain held state.
