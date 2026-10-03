@@ -123,6 +123,9 @@ for (const remoteControl of [false, true]) {
   const uiText =
       [variant.html, ...Object.values(variant.partials), variant.css].join('\n');
   const forbidden = ['id="actionsPanel"', '#actionsPanel', 'homeAdminActions'];
+  if (!/\.configSaveBar\{[^}]*bottom:calc\(4.25rem/.test(variant.css)) {
+    throw new Error('Every build must keep mobile save controls above navigation');
+  }
   const leaked = forbidden.filter((n) => uiText.includes(n));
   if (remoteControl === false && leaked.length) {
     throw new Error(`no-remote-control UI must not ship ${leaked.join(',')}`);
@@ -426,8 +429,10 @@ if (generated.jsGzip.length > 4484) {
 // The approved wireless header adds 200 bytes of compressed CSS allowance.
 // The desktop Home header uses 100 bytes transferred from the shell JS cap.
 // Independent wireless detail panels add 100 bytes of approved allowance.
-if (generated.cssGzip.length > 7800) {
-  throw new Error('Compressed Web CSS exceeds the 7800-byte gzip budget');
+// The compact mobile navigation and continuous header resizing add CSS only;
+// keep the combined asset and firmware image limits unchanged.
+if (generated.cssGzip.length > 8200) {
+  throw new Error('Compressed Web CSS exceeds the 8200-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -1216,7 +1221,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       js.includes('unlock to confirm') ||
       !js.includes('function lockAdminUi()') ||
       !js.includes('function lockAdmin()') ||
-      !js.includes("aria-expanded','false');clearTimeout(scanTimer);scanTimer=0;api('/api/v1/admin/lock'") ||
+      !js.includes("clearTimeout(scanTimer);scanTimer=0;api('/api/v1/admin/lock'") ||
       !js.includes('function syncAdminSessionUi(unlocked,remoteEnabled=false)') ||
       !js.includes('stopViewPolls();lockAdminUi();setMutable(false)') ||
       !js.includes('/api/v1/admin/unlock') ||

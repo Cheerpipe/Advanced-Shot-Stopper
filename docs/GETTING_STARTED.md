@@ -52,14 +52,19 @@ the controller's own access point.
 
 On desktop, scrolling down Home moves the logo out of view and brings the menu
 up beside the Wi-Fi and Bluetooth icons. This compact header stays visible as
-you scroll. Return to the top to see the logo again. Phone layouts and other
-pages keep their usual header.
+you scroll. Return to the top to see the logo again. Other desktop pages keep
+their usual header. On phones, use the floating icon bar at the bottom
+to open Home, Stats, History, Settings, Diagnostics or Admin. The current page
+is highlighted. Diagnostics appears only when **Show diagnostic page** is enabled
+in **Admin → Frontend**; hiding it gives the other buttons more room.
+The phone header shrinks gradually as you scroll, keeping the logo and connection
+icons visible. Return to the top to restore its full size.
 
 **While a page loads**: Home, Settings, Stats, History, Diagnostics, and Admin
 show a loading view with the Open Brew by Weight mark, a moving wave, and
 **Loading…**. Opening or refreshing the URL covers the whole screen. When you
 switch pages using the menu or the browser's Back and Forward buttons, it covers
-the content below the header, leaving the menu and its dividing line visible.
+the content below the header, leaving navigation available.
 It also appears when you return to a page you have already visited. Controls
 appear directly in their current positions, without animating during loading or
 the fade. As soon as the page's data is ready, the loading view fades away in a

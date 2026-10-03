@@ -3,7 +3,7 @@
 html{background:var(--bg);color-scheme:light dark}
 *,*:before,*:after{box-sizing:border-box}
 body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem 1.5rem;color:var(--fg);background:var(--bg);font-size:1rem;line-height:1.45}
-.topBar{position:sticky;top:0;z-index:21;display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:0 -1rem;padding:.5rem 1rem;padding-top:max(.5rem,env(safe-area-inset-top));min-height:var(--hdr);background:var(--bg);color:var(--ac);border-bottom:1px solid transparent}
+.topBar{position:sticky;top:0;z-index:21;display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin:0 -1rem;padding:.5rem 1rem;padding-top:max(.5rem,env(safe-area-inset-top));min-height:var(--hdr);background:var(--bg);color:var(--ac)}
 .brand{margin:0;min-width:0;position:relative;z-index:22;--brandGap:.55rem}
 .brand a{color:var(--ac);text-decoration:none;display:flex;align-items:center;gap:var(--brandGap)}
 .brandMark{width:2.35rem;height:3.1rem;flex:0 0 auto;display:block;overflow:visible;fill:currentColor}
@@ -25,13 +25,12 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem 1.5rem;c
 .signalDetails{position:absolute;right:0;top:calc(100% + .5rem);width:17rem;max-width:calc(100vw - 6rem);padding:1rem;background:var(--sf);color:var(--fg);border:1px solid var(--ln);border-radius:var(--r);box-shadow:0 8px 28px #0002;font-size:.85rem}
 .signalDetails p{display:flex;justify-content:space-between;gap:.75rem;margin:.65rem 0 0}
 .signalDetails span{color:var(--mu);flex-shrink:0}.signalDetails b{font-weight:550;text-align:right;overflow-wrap:anywhere;min-width:0}
-.navToggle{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:var(--tap);height:var(--tap);margin:0;padding:0;border:1px solid transparent;border-radius:2rem;background:transparent;color:var(--ac);font:inherit;font-size:2rem;line-height:1;cursor:pointer;position:relative;z-index:22}
-.pageNav{display:none;position:fixed;inset:0;z-index:20;flex-direction:column;gap:.15rem;padding:calc(var(--hdr) + .85rem) 1.25rem 1.5rem;background:var(--bg)}
-.navOpen{overflow:hidden}
-.navOpen .pageNav{display:flex}
-.pageNav a{display:flex;align-items:center;min-height:var(--tap);padding:.35rem .75rem;border-radius:.5rem;color:var(--fg);text-decoration:none;font-weight:600;white-space:nowrap}
-.pageNav a.active{background:var(--sf);color:var(--ac);box-shadow:inset 3px 0 0 var(--ac);font-weight:700}
+.pageNav{display:flex}
+.pageNav a{display:flex;align-items:center;min-height:var(--tap);color:var(--fg);text-decoration:none;font-weight:600;white-space:nowrap}
+.pageNav a.active{color:var(--ac);font-weight:700}
 .pageNav a:hover{background:var(--sf)}
+.pageNav a:focus-visible{outline:2px solid var(--ac);outline-offset:-3px}
+.pageNav svg{display:none;width:1.5rem;height:1.5rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .textLock{min-width:var(--tap);min-height:var(--tap);margin:0;border:0;background:transparent;color:var(--mu);font:inherit;font-size:.78rem;font-weight:600;padding:.2rem .35rem;cursor:pointer;line-height:1.2}
 .textLock:hover{color:var(--ac);text-decoration:underline}
 .adminSession{display:flex;align-items:baseline;flex-wrap:wrap;gap:.15rem;margin:0 0 .55rem;color:var(--mu);font-size:.82rem;line-height:1.35}
@@ -41,24 +40,19 @@ body.devBuild #adminLockPanel,body.devBuild #diagnosticLockPanel{display:none}
 :root{--hdr:4.45rem}
 .topBar{flex-wrap:wrap;gap:.25rem .75rem}
 .brand{order:0}.headerSignals{order:1}
-.navToggle{display:none}
-.brand,.navToggle{z-index:auto}
+.brand{z-index:auto}
 .brand{flex-shrink:0;--brandGap:.65rem}
 .brandMark{width:2.55rem;height:3.35rem}
 .brand span{font-size:1.5rem;gap:.1rem}
 .brand small{font-size:.9rem}
-.pageNav{display:flex;position:static;inset:auto;flex-direction:row;flex-wrap:wrap;justify-content:flex-start;align-items:center;gap:.1rem;padding:0;background:transparent;z-index:auto;order:2;width:100%;margin-top:.15rem}
+.pageNav{flex-wrap:wrap;align-items:center;gap:.1rem;order:2;width:100%;margin-top:.15rem}
 .pageNav a{padding:.3rem .5rem;font-size:.88rem;border-radius:.4rem}
 .pageNav a.active{background:transparent;box-shadow:inset 0 -3px 0 var(--ac)}
-.navOpen{overflow:visible}
-.navMeta{display:none}
 .homeView .topBar{row-gap:.35rem;top:-3.85rem}
 .homeView .headerSignals{align-self:flex-start;position:sticky;top:.5rem}
 }
 .pageFooter{margin:.85rem 0 .4rem;color:var(--mu);font-size:.85rem;text-align:center}
 .pageFooter a{color:var(--ac);text-decoration:none}
-.navMeta{margin-top:auto;padding-top:1.25rem;color:var(--mu);font-size:.85rem;line-height:1.45}
-.navMeta a{display:inline;min-height:0;padding:0;font-weight:600;color:var(--ac);text-decoration:none}
 body.homeAdminActions #view-home:not(.hidden)~.pageFooter{margin-bottom:calc(7rem + env(safe-area-inset-bottom))}
 body.webUiInactive{overflow:hidden}
 .bootOverlay{position:fixed;inset:0;z-index:39;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.15rem;padding:1.25rem;background:var(--bg);transition:opacity .25s}
@@ -376,7 +370,21 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 :where(a,button,input,select,textarea,summary):focus-visible{outline:3px solid var(--ac);outline-offset:2px}
 .switch input:focus-visible+.slider{outline:3px solid var(--ac);outline-offset:2px}
 .btnGlyph:not(:disabled):hover{filter:brightness(.95)}
-@media(max-width:340px){body{padding-inline:.75rem}.topBar{margin-inline:-.75rem;padding-inline:.75rem}.brand span{font-size:1.25rem}.brandMark{width:2.1rem}.statusColumn{grid-template-columns:1fr}}
-@media(max-width:380px){.topBar{gap:.15rem}.brand span{font-size:1.15rem}.brand small{font-size:.73rem}.brandMark{width:1.85rem;height:2.5rem}.headerSignals{padding-left:.25rem}}
+@media(max-width:699px){
+body{padding-bottom:calc(5.75rem + env(safe-area-inset-bottom))}
+html{scroll-padding-bottom:calc(5.75rem + env(safe-area-inset-bottom))}
+.topBar{--logo-w:2.35rem;--logo-h:3.1rem;--brand-font:1.4rem;--brand-small:.84rem;--compact:var(--header-progress,0);min-height:calc(5rem - 1.25rem * var(--compact));transition:min-height .12s linear}
+.topBar .brandMark{width:calc(var(--logo-w) - (var(--logo-w) - 1.65rem) * var(--compact));height:calc(var(--logo-h) - (var(--logo-h) - 2.2rem) * var(--compact));transition:width .12s linear,height .12s linear}
+.topBar .brand span{font-size:calc(var(--brand-font) - (var(--brand-font) - 1.05rem) * var(--compact));transition:font-size .12s linear}
+.topBar .brand small{font-size:calc(var(--brand-small) - (var(--brand-small) - .65rem) * var(--compact));transition:font-size .12s linear}
+.pageNav{position:fixed;left:50%;bottom:max(.75rem,calc(env(safe-area-inset-bottom) + .5rem));transform:translateX(-50%);width:calc(100% - max(1.5rem,env(safe-area-inset-left) + env(safe-area-inset-right)));max-width:30rem;padding:.125rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);box-shadow:0 .3rem 1.5rem #0003}
+.pageNav a{flex:1;justify-content:center;min-width:0;border-radius:1.5rem;color:var(--mu)}
+.pageNav svg{display:block}.pageNav a>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.pageNav a.active,.pageNav a:hover{color:var(--ac);background:var(--pa)}
+.configSaveBar{bottom:calc(4.25rem + env(safe-area-inset-bottom));padding-bottom:.65rem}
+#actionsPanel{bottom:calc(4.25rem + env(safe-area-inset-bottom))}
+}
+@media(max-width:340px){body{padding-inline:.75rem}.topBar{margin-inline:-.75rem;padding-inline:.75rem}.statusColumn{grid-template-columns:1fr}}
+@media(max-width:380px){.topBar{gap:.15rem;--logo-w:1.85rem;--logo-h:2.5rem;--brand-font:1.15rem;--brand-small:.73rem}.headerSignals{padding-left:.25rem}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:.01ms!important}.bootWave i{animation:none}.btnGlyph.busy .g:after{animation:none}}
 @media(forced-colors:active){input[type=checkbox]{appearance:auto}.slider{forced-color-adjust:auto}.btnGlyph,.presetCard,input,select,textarea{border-color:ButtonText}}

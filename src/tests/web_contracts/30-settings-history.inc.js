@@ -1238,7 +1238,7 @@ if (!statsSection ||
         statusUtcAnchorAt: 0, statusTimezoneOffsetMinutes: 0, performance: {now: () => 123},
         setMutable: value => {context.controlsMutable = value;}, $: () => null,
         syncTimezone: config => events.push('timezone:' + config.timezoneId),
-        checkFirmwareReload: version => versions.push(version), applyMachineTypeUi() {},
+        checkFirmwareReload: version => versions.push(version), applyMachineTypeUi() {}, applyDiagnosticNavigation() {},
         applyCompatibilityChrome: () => {context.viewSeq++;}, __WEBUI_TEXT__: key => key});
       vm.runInContext(validate + '\n' + apply + '\n' + fetchPage + '\n' + refresh, context);
       assert.equal(await context.refreshStatus(), true);
@@ -1331,10 +1331,7 @@ if (!ui.includes('id="firmwareFooter"') ||
     !ui.includes('id="inactiveFirmware"') ||
     !ui.includes('firmwareVersion') ||
     !ui.includes('updateFirmwareFooter()') ||
-    !ui.includes("const nav=$('navFirmware')") ||
     !ui.includes("const inactive=$('inactiveFirmware')") ||
-    !shellHtml.includes('id="navFirmware"') ||
-    !shellHtml.includes('class="navMeta"') ||
     !css.includes('body.homeAdminActions #view-home:not(.hidden)~.pageFooter{margin-bottom:calc(7rem + env(safe-area-inset-bottom))}') ||
     css.includes('body.homeAdminActions #view-home:not(.hidden)~.pageFooter{display:none}') ||
     !css.includes('#actionsPanel{position:fixed;left:0;right:0') ||
@@ -1342,15 +1339,15 @@ if (!ui.includes('id="firmwareFooter"') ||
     !network.includes('\\"firmwareVersion\\"') ||
     !network.includes('\\"bootId\\":%lu') ||
     !network.includes('FW_VERSION')) {
-  throw new Error('Firmware version must be exposed in status API, nav menu, and Diagnostic');
+  throw new Error('Firmware version must remain exposed in status API, page footers, and Diagnostic');
 }
 if (!shellHtml.includes('https://github.com/Cheerpipe/AcaiaArduinoBLE') ||
     !shellHtml.includes('https://github.com/Cheerpipe') ||
     !shellHtml.includes('Hecho por') ||
     !shellHtml.includes('>Cheerpipe</a>') ||
-    shellHtml.indexOf('class="navMeta"') > shellHtml.indexOf('id="app"') ||
-    !css.includes('.navMeta{margin-top:auto')) {
-  throw new Error('Web UI footer must credit the GitHub repo and Cheerpipe in the nav menu');
+    !shellHtml.includes('class="pageFooter"') ||
+    shellHtml.indexOf('class="pageFooter"') < shellHtml.indexOf('id="app"')) {
+  throw new Error('Web UI page footer must credit the GitHub repo and Cheerpipe');
 }
 if (!shellHtml.includes('id="message"') ||
     !shellHtml.includes('id="messageText"') ||
@@ -1376,7 +1373,7 @@ if (!/<fieldset[^>]*><legend>Log<\/legend>/.test(html) ||
     !(ui.includes("name==='diagnostic'") || ui.includes("name === 'diagnostic'")) ||
     !ui.includes('id="view-diagnostic"') ||
     !ui.includes('data-route="/diagnostic"') ||
-    !html.includes('>Diagnostic</a>') ||
+    !html.includes('<span>Diagnostic</span></a>') ||
     !ui.includes('id="logLevelFilter"') ||
     !ui.includes('e.level') ||
     !ui.includes('value="boot"') ||

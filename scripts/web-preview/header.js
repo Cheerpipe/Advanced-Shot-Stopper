@@ -1,6 +1,11 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
+document.querySelectorAll('.pageNav a').forEach(link => { link.textContent = link.textContent; link.classList.remove('hidden'); });
+const previewNavToggle = document.createElement('button');
+previewNavToggle.id = 'navToggle'; previewNavToggle.className = 'navToggle';
+previewNavToggle.setAttribute('aria-label', 'Menu'); previewNavToggle.textContent = '☰';
+document.querySelector('.topBar').append(previewNavToggle);
 const levels = ['Disconnected', 'Weak', 'Medium', 'Strong'];
 const option = Math.min(6, Math.max(1, Number(new URLSearchParams(location.search).get('option')) || 1));
 document.body.dataset.signalOption = option;

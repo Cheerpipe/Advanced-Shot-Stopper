@@ -85,3 +85,42 @@
     assert.equal(svg(rawShellHtml), svg(preview), 'Firmware must ship the accepted option 1 drawing');
   }
 }
+{
+  const assert = require('assert').strict, vm = require('vm'), hidden = new Set(['hidden']);
+  const link = {classList: {toggle: (name, on) => on ? hidden.add(name) : hidden.delete(name)}};
+  const context = vm.createContext({compatMode: false,
+    document: {querySelector: selector => {assert.equal(selector, '[data-route="/diagnostic"]'); return link;}}});
+  const start = rawRuntimeJs.indexOf('let diagnosticVisible=false;');
+  vm.runInContext(rawRuntimeJs.slice(start, rawRuntimeJs.indexOf('function applyCompatibilityChrome(', start))
+    .replace(/^export /gm, ''), context);
+  context.applyDiagnosticNavigation();
+  assert(hidden.has('hidden'), 'Diagnostic stays hidden before configuration arrives');
+  context.applyDiagnosticNavigation({diagnosticPageVisible: true});
+  assert(!hidden.has('hidden'), 'Admin enables the shared mobile/desktop Diagnostic link');
+  context.applyDiagnosticNavigation({});
+  assert(!hidden.has('hidden'), 'Unrelated status envelopes preserve visibility');
+  context.compatMode = true; context.applyDiagnosticNavigation();
+  assert(hidden.has('hidden'), 'Compatibility mode hides Diagnostic even when enabled');
+  context.compatMode = false; context.applyDiagnosticNavigation();
+  assert(!hidden.has('hidden'), 'Returning from compatibility mode restores saved visibility');
+  context.applyDiagnosticNavigation({diagnosticPageVisible: false});
+  assert(hidden.has('hidden'), 'Admin disables the same link without leaving a second copy');
+  assert.equal((rawShellHtml.match(/data-route="\/diagnostic"/g) || []).length, 1);
+  const nav = rawShellHtml.match(/<nav class="pageNav"[\s\S]*?<\/nav>/)[0];
+  assert.equal((nav.match(/aria-hidden="true"/g) || []).length, 6, 'Every icon retains a translated text label');
+  assert(nav.includes('data-route="/diagnostic" class="hidden"'), 'Hidden until device configuration is known');
+
+  const values = {}, events = {}, mobile = {matches: true, addEventListener: (name, fn) => {events.resize = fn;}};
+  const header = vm.createContext({document: {body: {style: {setProperty: (name, value) => {values[name] = value;}}}},
+    window: {scrollY: 0, matchMedia: () => mobile, addEventListener: (name, fn) => {events[name] = fn;}}});
+  const headerStart = appJsSource.indexOf('const mobileHeader=');
+  vm.runInContext(appJsSource.slice(headerStart, appJsSource.indexOf("window.addEventListener('popstate'", headerStart)), header);
+  for (const [scroll, progress] of [[0, 0], [30, .25], [60, .5], [120, 1], [300, 1], [-20, 0]]) {
+    header.window.scrollY = scroll; events.scroll();
+    assert.equal(values['--header-progress'], progress, 'Header shrinks continuously within scroll bounds');
+  }
+  mobile.matches = false; header.window.scrollY = 60; events.scroll();
+  assert.equal(values['--header-progress'], 0, 'Desktop scrolling does not drive the mobile header');
+  mobile.matches = true; events.resize();
+  assert.equal(values['--header-progress'], .5, 'Switching to mobile applies the current scroll position');
+}

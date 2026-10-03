@@ -155,13 +155,13 @@ if (shellHtml.split('M10 3h16v16H10z').length !== 2 ||
       'Brand mark must be defined once as an inline symbol sprite and referenced from the header, the loading view, and the inactive overlay');
 }
 if (!shellHtml.includes('class="pageNav"') ||
-    !shellHtml.includes('id="navToggle"') ||
+    shellHtml.includes('id="navToggle"') ||
     shellHtml.indexOf('class="pageNav"') > shellHtml.indexOf('id="app"') ||
     shellHtml.indexOf('class="topBar"') > shellHtml.indexOf('class="pageNav"') ||
     !css.includes('@media(min-width:700px)') ||
-    !css.includes('.navToggle{display:none}') ||
-    !appJsSource.includes("matchMedia('(min-width: 700px)')")) {
-  throw new Error('Desktop Web UI must show a top nav instead of the hamburger');
+    !css.includes('.pageNav svg{display:none;') ||
+    !appJsSource.includes("matchMedia('(max-width: 699px)')")) {
+  throw new Error('Web UI must share a floating mobile icon bar and desktop top navigation');
 }
 if (!css.includes('.inactiveMain{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;max-width:24rem;width:100%;text-align:center}')) {
   throw new Error('Inactive Web UI must use a full-screen surface with centered content');
@@ -204,7 +204,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
   const overlaySource = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function showPageBoot('),
     rawRuntimeJs.indexOf('function setOverlayOutOfReach('));
   const routeSource = appJsSource.slice(appJsSource.indexOf('function startView('),
-    appJsSource.indexOf('function setNav('));
+    appJsSource.indexOf('function navigate('));
   const hooksSource = appJsSource.slice(appJsSource.indexOf('R.setViewPollHooks('),
     appJsSource.indexOf("document.querySelectorAll('a[data-route]')"));
   (async () => {
@@ -377,10 +377,10 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
 
     for (const view of ['home', 'settings', 'stats', 'history', 'diagnostic', 'admin']) {
       const events = [], markup = deferred(), status = deferred(), data = deferred(), bodyClasses = new Set();
-      let accessAfterMarkup = true;
+      let accessAfterMarkup = true, visibilityApplied = 0;
       const path = view === 'home' ? '/' : '/' + view;
       const r = vm.createContext({activeView: '', routeSeq: 0, logTimer: 0,
-        shotsTimer: 0, historyTimer: 0, jsMods: new Map(), diagnosticNav: null,
+        shotsTimer: 0, historyTimer: 0, jsMods: new Map(),
         ROUTES: {[path]: view}, knownPath: () => path, viewToPath: () => path,
         location: {pathname: path}, history: {}, stopExtraPolls() {},
         ensureView: () => {events.push('markup'); return markup.promise;},
@@ -389,7 +389,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
         R: {showPageBoot: () => {events.push('show'); return 1;}, stopViewPolls() {},
           api: async () => {accessAfterMarkup &&= events.includes('markup'); return {};}, compatibilityModeOn: () => false,
           withPollGate: fn => fn(), webUiPollingActive: () => true,
-          setActiveView() {}, armStatusTimer() {},
+          setActiveView() {}, armStatusTimer() {}, applyDiagnosticNavigation: () => {visibilityApplied++;},
           loadStatus: () => {events.push('status'); return status.promise;},
           loadShots: () => {events.push('data'); return data.promise;},
           loadHistory: () => {events.push('data'); return data.promise;},
@@ -398,6 +398,8 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       vm.runInContext(routeSource, r);
       const loading = r.renderRoute(path); await flush();
       assert.equal(accessAfterMarkup, true, 'Diagnostic visibility must fetch while markup loads');
+      assert.equal(visibilityApplied, ['stats', 'history', 'diagnostic'].includes(view) ? 1 : 0,
+        view + ': direct URL entry refreshes Diagnostic visibility before presenting navigation');
       const paired = ['stats', 'history'].includes(view);
       assert.deepEqual(events, paired ? ['show', 'markup', 'data'] :
         ['show', 'markup', 'status'], view + ': fetch data while lazy markup loads');
