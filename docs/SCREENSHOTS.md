@@ -2,6 +2,9 @@
 
 These captures illustrate the layout in dark and light modes. They are historical examples,
 not a specification of current labels, defaults, build options or permissions.
+The current navigation uses a rounded header bar with icons and names, switches
+to names alone when space is limited, and moves to a bottom icon bar on narrower
+screens; the captures below predate this layout.
 Home's old No-scale toggle has been replaced by the
 [mode-based policy](settings/no-scale-bbw.md). Use [first setup](GETTING_STARTED.md)
 and the settings guides for current actions.

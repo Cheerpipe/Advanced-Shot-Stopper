@@ -124,3 +124,48 @@
   mobile.matches = true; events.resize();
   assert.equal(values['--header-progress'], .5, 'Switching to mobile applies the current scroll position');
 }
+{
+  const assert = require('assert').strict, vm = require('vm');
+  const root = {dataset: {}}, app = {clientWidth: 760}, callbacks = {};
+  const links = [42, 34, 48, 60, 78, 46].map(width => ({
+    hidden: false, suppressed: false, width, textContent: 'Section',
+  }));
+  const nav = {setAttribute() {}, querySelectorAll: () => links,
+    get clientWidth() {return app.clientWidth - 2;},
+    get scrollWidth() {
+      const required = 4 + links.filter(link => !link.hidden && !link.suppressed)
+        .reduce((width, link) => width + link.width + 16 + (root.dataset.navLayout === 'icons' ? 32 : 0), 0);
+      return Math.max(this.clientWidth, required);
+    },
+  };
+  const context = vm.createContext({pageNav: nav, __WEBUI_TEXT__: key => key,
+    document: {documentElement: root, getElementById: id => {assert.equal(id, 'app'); return app;},
+      fonts: {ready: {then: fn => {callbacks.fonts = fn;}}}},
+    ResizeObserver: class {constructor(fn) {callbacks.resize = fn;} observe(target) {assert.equal(target, app);}},
+    MutationObserver: class {constructor(fn) {callbacks.visibility = fn;} observe(target, options) {
+      assert.equal(target, nav); assert.equal(options.subtree, true);
+      assert.deepEqual(Array.from(options.attributeFilter), ['class', 'hidden']);
+    }},
+  });
+  const start = appJsSource.indexOf('function updateNavigationLayout()');
+  vm.runInContext(appJsSource.slice(start, appJsSource.indexOf('const msgEl=', start)), context);
+  assert.equal(root.dataset.navLayout, 'icons', 'Wide header retains section icons and names');
+  for (const [width, expected] of [[602, 'icons'], [601, 'text'], [410, 'text'], [409, 'bottom'], [760, 'icons']]) {
+    app.clientWidth = width; callbacks.resize();
+    assert.equal(root.dataset.navLayout, expected, 'No wrapping at width ' + width);
+  }
+  app.clientWidth = 390; callbacks.resize();
+  assert.equal(root.dataset.navLayout, 'bottom');
+  links[4].suppressed = true; callbacks.visibility();
+  assert.equal(root.dataset.navLayout, 'text', 'Hidden Diagnostics frees room without a second navigation');
+  links.forEach((link, index) => {link.suppressed = index !== 5;}); callbacks.visibility();
+  assert.equal(root.dataset.navLayout, 'icons', 'Compatibility visibility measures only the Admin link');
+  links.forEach(link => {link.suppressed = false;}); callbacks.visibility();
+  assert.equal(root.dataset.navLayout, 'bottom', 'Restoring permissions restores the width requirement');
+  links[4].hidden = true; callbacks.visibility();
+  assert.equal(root.dataset.navLayout, 'text', 'The hidden attribute also removes a destination from measurement');
+  links[0].width += 100; callbacks.fonts();
+  assert.equal(root.dataset.navLayout, 'bottom', 'Changed font metrics are measured again');
+  assert(css.includes('bottom:var(--nav-offset)'), 'Save and action bars follow the navigation clearance');
+  assert(!css.includes('top:-3.85rem'), 'Desktop header remains visible as in the accepted mockup');
+}

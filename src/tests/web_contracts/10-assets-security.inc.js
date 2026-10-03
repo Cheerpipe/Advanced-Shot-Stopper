@@ -159,9 +159,10 @@ if (!shellHtml.includes('class="pageNav"') ||
     shellHtml.indexOf('class="pageNav"') > shellHtml.indexOf('id="app"') ||
     shellHtml.indexOf('class="topBar"') > shellHtml.indexOf('class="pageNav"') ||
     !css.includes('@media(min-width:700px)') ||
-    !css.includes('.pageNav svg{display:none;') ||
+    !css.includes('[data-nav-layout="text"] .pageNav svg{display:none}') ||
+    !appJsSource.includes('function updateNavigationLayout()') ||
     !appJsSource.includes("matchMedia('(max-width: 699px)')")) {
-  throw new Error('Web UI must share a floating mobile icon bar and desktop top navigation');
+  throw new Error('Web UI must adapt a single navigation bar between header icons, header text and bottom icons');
 }
 if (!css.includes('.inactiveMain{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;max-width:24rem;width:100%;text-align:center}')) {
   throw new Error('Inactive Web UI must use a full-screen surface with centered content');

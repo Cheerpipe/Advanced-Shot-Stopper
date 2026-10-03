@@ -123,8 +123,10 @@ for (const remoteControl of [false, true]) {
   const uiText =
       [variant.html, ...Object.values(variant.partials), variant.css].join('\n');
   const forbidden = ['id="actionsPanel"', '#actionsPanel', 'homeAdminActions'];
-  if (!/\.configSaveBar\{[^}]*bottom:calc\(4.25rem/.test(variant.css)) {
-    throw new Error('Every build must keep mobile save controls above navigation');
+  if (!/\.configSaveBar\{[^}]*bottom:var\(--nav-offset\)/.test(variant.css) ||
+      !variant.css.includes('--nav-offset:calc(4.25rem + env(safe-area-inset-bottom))') ||
+      !variant.css.includes('--nav-offset:0px')) {
+    throw new Error('Every build must move save controls above bottom navigation and reset their offset for header navigation');
   }
   const leaked = forbidden.filter((n) => uiText.includes(n));
   if (remoteControl === false && leaked.length) {

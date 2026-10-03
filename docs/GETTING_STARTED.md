@@ -50,13 +50,14 @@ mean a reading is not available yet, or the page cannot refresh it. The Wi-Fi
 icon describes the home-network connection, even when you open the page through
 the controller's own access point.
 
-On desktop, scrolling down Home moves the logo out of view and brings the menu
-up beside the Wi-Fi and Bluetooth icons. This compact header stays visible as
-you scroll. Return to the top to see the logo again. Other desktop pages keep
-their usual header. On phones, use the floating icon bar at the bottom
-to open Home, Stats, History, Settings, Diagnostics or Admin. The current page
-is highlighted. Diagnostics appears only when **Show diagnostic page** is enabled
-in **Admin → Frontend**; hiding it gives the other buttons more room.
+Use the rounded navigation bar to open Home, Stats, History, Settings,
+Diagnostics or Admin. When there is enough room, it sits beneath the logo,
+matches the content width and shows an icon beside each section name. As the
+window narrows, the icons disappear first. When the names no longer fit, the
+bar moves to the bottom and shows icons only. The header and navigation stay
+visible as you scroll, and the current page is highlighted.
+Diagnostics appears only when **Show diagnostic page** is enabled in
+**Admin → Frontend**; hiding it gives the other buttons more room.
 The phone header shrinks gradually as you scroll, keeping the logo and connection
 icons visible. Return to the top to restore its full size.
 
