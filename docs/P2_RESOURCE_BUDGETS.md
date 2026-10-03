@@ -155,6 +155,10 @@ layout to transition over USB without erasing unrelated saved data.
 Capability samples use `INTERNAL|8BIT` and `SPIRAM|8BIT`, including the PSRAM
 minimum-free watermark. The retained boot capture uses at most 768 bytes of
 static PSRAM plus one internal static task mutex and an atomic sampling flag.
+The startup heap hold is currently disabled for the zero-reservation comparison
+(`HEAP_SHAPER_BYTES=0`); the same mechanism supports 49,152 bytes (48 KiB) and
+the original 60,000-byte baseline. Zero skips allocation and records `disabled`,
+then starts the 60-second post-release window immediately.
 It also samples `INTERNAL|DMA`; the overlapping capability pools are not additive.
 First-stage samples and approximately 100 ms health-task samples maintain separate
 hold/post-release minima, without resetting lifetime watermarks. Sampling stops

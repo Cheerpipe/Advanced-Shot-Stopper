@@ -568,13 +568,15 @@ void ShotStopperNetwork::beginHeapShaper(uint32_t now) {
     return;
   }
   recordBootHeap(BootHeapStage::RESERVE_BEFORE, BootHeapResult::OK, now, sampleHeapCaps());
-  heapShaperBlock_ = allocInternal(HEAP_SHAPER_BYTES, AllocationOwner::NETWORK);
+  heapShaperBlock_ = HEAP_SHAPER_BYTES != 0
+      ? allocInternal(HEAP_SHAPER_BYTES, AllocationOwner::NETWORK) : nullptr;
   heapShaperAllocAtMs_ = now;
-  recordBootHeap(BootHeapStage::RESERVE_AFTER,
-                 heapShaperBlock_ ? BootHeapResult::OK : BootHeapResult::FAILED,
+  const BootHeapResult result = HEAP_SHAPER_BYTES == 0 ? BootHeapResult::DISABLED
+      : heapShaperBlock_ ? BootHeapResult::OK : BootHeapResult::FAILED;
+  recordBootHeap(BootHeapStage::RESERVE_AFTER, result,
                  millis(), sampleHeapCaps(), reinterpret_cast<uintptr_t>(heapShaperBlock_),
                  HEAP_SHAPER_BYTES);
-  if (heapShaperBlock_ == nullptr) releaseHeapShaper(BootHeapResult::FAILED);
+  if (heapShaperBlock_ == nullptr) releaseHeapShaper(result);
 }
 
 void ShotStopperNetwork::releaseHeapShaper(BootHeapResult reason) {

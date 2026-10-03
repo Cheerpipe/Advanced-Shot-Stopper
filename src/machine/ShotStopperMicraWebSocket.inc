@@ -400,20 +400,24 @@ void ShotStopperMicraService::serviceWebSocket() {
   if (websocket_ && websocket_->client) {
     const bool partialPending = websocket_->partialPending.load(std::memory_order_acquire);
     const uint32_t partial = websocket_->partialAtMs.load(std::memory_order_acquire);
-    const auto status = websocketStatus();
-    now = millis();  // Callback timestamps in the snapshot can postdate the first sample.
-    const bool timeout = (!status.subscribed && now - websocket_->setupAtMs >= 10000) ||
-        (partialPending && now - partial >= 10000) ||
-        (status.subscribed && now - (status.pongAtMs ? status.pongAtMs : status.connectedAtMs) >= 30000);
-    const bool renew = work_ && micra_timing::accessTokenRefreshDue(now - work_->accessTokenIssuedAtMs);
-    bool obsolete = false;
+    bool subscribed, streaming, obsolete;
+    uint32_t pongAtMs, connectedAtMs;
     {
       TaskLockGuard lock(mux_);
+      subscribed = websocketStatus_.subscribed;
+      streaming = websocketStatus_.state == MicraSocketState::STREAMING;
+      pongAtMs = websocketStatus_.pongAtMs;
+      connectedAtMs = websocketStatus_.connectedAtMs;
       obsolete = websocket_->stamp.epoch != observationFence_.epoch ||
           websocket_->disconnectGeneration != disconnectGeneration_.load();
     }
+    now = millis();  // Callback timestamps in the snapshot can postdate the first sample.
+    const bool timeout = (!subscribed && now - websocket_->setupAtMs >= 10000) ||
+        (partialPending && now - partial >= 10000) ||
+        (subscribed && now - (pongAtMs ? pongAtMs : connectedAtMs) >= 30000);
+    const bool renew = work_ && micra_timing::accessTokenRefreshDue(now - work_->accessTokenIssuedAtMs);
     if (!websocket_->failed.load(std::memory_order_acquire) && !timeout && !renew && !obsolete) {
-      if (status.state == MicraSocketState::STREAMING && now - status.connectedAtMs >= 30000) {
+      if (streaming && now - connectedAtMs >= 30000) {
         websocket_->attempts = 0;
         websocketAuthRecoveries_ = 0;
       }
@@ -446,7 +450,11 @@ void ShotStopperMicraService::serviceWebSocket() {
       websocketStatus_.state = MicraSocketState::BACKOFF;
     }
   }
-  auto status = websocketStatus();
+  uint32_t retryAtMs;
+  {
+    TaskLockGuard lock(mux_);
+    retryAtMs = websocketStatus_.retryAtMs;
+  }
   if (websocketAuthRecoveries_ > 1) {
     TaskLockGuard lock(mux_);
     websocketStatus_.state = MicraSocketState::AUTH_ERROR;
@@ -454,7 +462,7 @@ void ShotStopperMicraService::serviceWebSocket() {
     wipeLineaMicraSettings(settings);
     return;
   }
-  if (status.retryAtMs && !micra_timing::deadlineReached(now, status.retryAtMs)) {
+  if (retryAtMs && !micra_timing::deadlineReached(now, retryAtMs)) {
     wipeLineaMicraSettings(settings);
     return;
   }

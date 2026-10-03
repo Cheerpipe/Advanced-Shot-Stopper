@@ -181,7 +181,9 @@ must be enabled by the boot jumper or a development build as described above.
 2. Open the [USB monitor](#open-the-port) at 115200 baud and enter `BOOT_HEAP`.
 3. If the report says `status=recording`, wait and request it again. Capture
    ends 60 seconds after the startup reservation is released. On a failed
-   connection this normally means about two minutes from network startup.
+   connection with the reservation enabled this normally means about two
+   minutes from network startup. With the reservation disabled, the window
+   starts immediately and lasts 60 seconds from network startup.
 4. When it says `status=complete`, copy the entire response into a local text
    file. Save the firmware version, board profile and whether cloud observation
    used HTTP or WebSocket beside it. Keep the same settings for comparisons.
@@ -193,12 +195,15 @@ order. `held` is the startup reservation still active at that stage. `free` and
 `largest` describe internal byte-accessible memory; `dmaFree` and `dmaLargest`
 describe internal DMA-capable memory. These overlapping pools must not be added
 together. `requested` and `address` identify the reservation attempt; an address
-of zero with `reserve_after,failed` means it could not be obtained.
+of zero with `reserve_after,failed` means it could not be obtained. This
+comparison build disables the reservation: expect `requested=0`, `address=0x0`
+and `reserve_after,disabled`, with `held=0` throughout.
 
 Compare `release_before` and `release_after` to see how much contiguous memory
 the reservation returns, then compare `ws_start` and `ws_done` for the first
-WebSocket attempt. Release results are `settled`, `timeout`, `stop`, or `failed`
-when the reservation allocation failed. Missing stages were not reached during
+WebSocket attempt. Release results are `settled`, `timeout`, `stop`, `disabled`
+when no reservation was requested, or `failed` when allocation failed.
+Missing stages were not reached during
 the capture window, for example cloud/WebSocket when they are disabled. Each
 stage retains its first outcome, including failures; later retries do not
 overwrite it. `cloud_done` reports transport completion, not account validity.
@@ -208,7 +213,17 @@ was held and after release. They combine stage samples and sampling by the
 health task at approximately 100 ms intervals. Brief dips between samples can
 be missed. `samples=0` means the phase has no measurements, not zero available
 memory. The lifetime minimum shown by `HEAP` and `HEALTH` is preserved and may
-combine region minima reached at different times.
+combine region minima reached at different times. Without a reservation,
+`held_min` has no samples and `post_min` includes initialization, so compare
+matching stage rows as well as the minima.
+
+For the three-way comparison, use `HEAP_SHAPER_BYTES` in
+`src/ShotStopperNetwork.cpp`: `60000` is the original baseline, `49152` is
+48 KiB, and `0` disables the hold. Use the same board, account and connection
+settings for each build. Save separate captures for successful startup and a
+failed connection. Reconnection activity after the capture window requires
+fresh `HEAP` and `NET_STATUS` reports before and after; boot-stage rows retain
+only their first outcome.
 
 `status=not_started` means network startup has not yet reached the reservation
 attempt. `BOOT_HEAP` is read-only and does not start a new capture or change
