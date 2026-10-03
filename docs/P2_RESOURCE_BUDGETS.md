@@ -155,9 +155,10 @@ layout to transition over USB without erasing unrelated saved data.
 Capability samples use `INTERNAL|8BIT` and `SPIRAM|8BIT`, including the PSRAM
 minimum-free watermark. The retained boot capture uses at most 768 bytes of
 static PSRAM plus one internal static task mutex and an atomic sampling flag.
-The startup heap hold currently requests 45,056 bytes (44 KiB) as a comparison
-candidate; the same mechanism supports the previous 57,344-byte (56 KiB) trial,
-49,152 bytes (48 KiB), the original 60,000-byte baseline and zero.
+The startup heap hold currently requests 53,248 bytes (52 KiB) as a comparison
+candidate; the same mechanism supports the previous 45,056-byte (44 KiB) and
+57,344-byte (56 KiB) trials, 49,152 bytes (48 KiB), the original 60,000-byte
+baseline and zero.
 Zero skips allocation and records `disabled`,
 then starts the 60-second post-release window immediately. This candidate and
 the reduced WS task stack require target qualification; they are not an optimum
