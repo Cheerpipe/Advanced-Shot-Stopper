@@ -210,7 +210,8 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
   (async () => {
     const classes = new Set(['hidden', 'isDone']), bodyClasses = new Set(), timers = [];
     const classList = set => ({add: (...names) => names.forEach(n => set.add(n)),
-      remove: (...names) => names.forEach(n => set.delete(n))});
+      remove: (...names) => names.forEach(n => set.delete(n)),
+      toggle: (name, enabled) => enabled ? set.add(name) : set.delete(name)});
     let layouts = 0;
     const overlay = {style: {}, classList: classList(classes), setAttribute() {},
       get offsetWidth() {assert.equal(bodyClasses.has('pageLoading'), true); layouts++; return 1;}};
@@ -375,7 +376,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     assert.equal(assetEvents.filter(event => event === 'js').length, 1);
 
     for (const view of ['home', 'settings', 'stats', 'history', 'diagnostic', 'admin']) {
-      const events = [], markup = deferred(), status = deferred(), data = deferred();
+      const events = [], markup = deferred(), status = deferred(), data = deferred(), bodyClasses = new Set();
       let accessAfterMarkup = true;
       const path = view === 'home' ? '/' : '/' + view;
       const r = vm.createContext({activeView: '', routeSeq: 0, logTimer: 0,
@@ -383,7 +384,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
         ROUTES: {[path]: view}, knownPath: () => path, viewToPath: () => path,
         location: {pathname: path}, history: {}, stopExtraPolls() {},
         ensureView: () => {events.push('markup'); return markup.promise;},
-        document: {hidden: false, querySelectorAll: () => []}, setInterval: () => 1,
+        document: {hidden: false, querySelectorAll: () => [], body: {classList: classList(bodyClasses)}}, setInterval: () => 1,
         __WEBUI_TEXT__: key => key,
         R: {showPageBoot: () => {events.push('show'); return 1;}, stopViewPolls() {},
           api: async () => {accessAfterMarkup &&= events.includes('markup'); return {};}, compatibilityModeOn: () => false,
@@ -401,6 +402,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       assert.deepEqual(events, paired ? ['show', 'markup', 'data'] :
         ['show', 'markup', 'status'], view + ': fetch data while lazy markup loads');
       markup.resolve(); await flush();
+      assert.equal(bodyClasses.has('homeView'), view === 'home', 'Only Home uses the scrolling desktop header');
       assert.equal(events.includes('fade'), false, view + ': wait for initial data');
       status.resolve(true); await flush();
       if (['stats', 'history', 'diagnostic'].includes(view)) {

@@ -47,6 +47,11 @@ mean a reading is not available yet, or the page cannot refresh it. The Wi-Fi
 icon describes the home-network connection, even when you open the page through
 the controller's own access point.
 
+On desktop, scrolling down Home moves the logo out of view and brings the menu
+up beside the Wi-Fi and Bluetooth icons. This compact header stays visible as
+you scroll. Return to the top to see the logo again. Phone layouts and other
+pages keep their usual header.
+
 **While a page loads**: Home, Settings, Stats, History, Diagnostics, and Admin
 show a loading view with the Open Brew by Weight mark, a moving wave, and
 **Loading…**. Opening or refreshing the URL covers the whole screen. When you

@@ -415,16 +415,18 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // Complete, human-readable Settings help raises the reviewed combined budget.
 // Reallocate 300 bytes from shell headroom to lazy Cloud diagnostics.
 // Transfer 160 bytes to runtime request admission/hydration; total cap stays fixed.
-if (generated.jsGzip.length > 4584) {
-  throw new Error('Compressed Web UI shell JS exceeds the 4584-byte gzip budget');
+// Transfer 100 bytes of shell headroom to the desktop Home scrolling header.
+if (generated.jsGzip.length > 4484) {
+  throw new Error('Compressed Web UI shell JS exceeds the 4484-byte gzip budget');
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
 // The Home boot splash surface, ring animation, and reduced-motion override
 // raise the cap to 7300. The busy save-button spinner raises it to 7400.
 // The approved wireless header adds 200 bytes of compressed CSS allowance.
-if (generated.cssGzip.length > 7600) {
-  throw new Error('Compressed Web CSS exceeds the 7600-byte gzip budget');
+// The desktop Home header uses 100 bytes transferred from the shell JS cap.
+if (generated.cssGzip.length > 7700) {
+  throw new Error('Compressed Web CSS exceeds the 7700-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.

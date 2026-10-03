@@ -49,6 +49,8 @@ body.devBuild #adminLockPanel,body.devBuild #diagnosticLockPanel{display:none}
 .pageNav a.active{background:transparent;box-shadow:inset 0 -3px 0 var(--ac)}
 .navOpen{overflow:visible}
 .navMeta{display:none}
+.homeView .topBar{row-gap:.35rem;top:-3.85rem}
+.homeView .headerSignals{align-self:flex-start;position:sticky;top:.5rem}
 }
 .pageFooter{margin:.85rem 0 .4rem;color:var(--mu);font-size:.85rem;text-align:center}
 .pageFooter a{color:var(--ac);text-decoration:none}
