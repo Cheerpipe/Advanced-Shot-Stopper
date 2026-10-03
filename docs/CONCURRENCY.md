@@ -230,13 +230,17 @@ handshake or stalled frame already in progress can delay owner stop until its
 transport operation returns. Failure callbacks publish authentication metadata
 before signaling failure to the owner. Safe disconnect logs contain only numeric
 HTTP/TLS/socket error codes; signed headers and event payloads are never logged.
+A scale-worker-owned atomic connection flag qualifies the admitted-shot
+transport gate. Unscaled shots do not abort API reads or fence WS ingress;
+scale loss releases that gate independently of the shot's starting scale.
 A lock-free disconnect generation also invalidates in-flight HTTP/WS evidence
-when a pause starts and ends before the cloud owner runs. The next owner turn
-still stops the obsolete socket; deferred HTTP observations retain held state.
+when a scaled-shot pause starts and ends before the cloud owner runs. The next
+owner turn still stops the obsolete socket; deferred HTTP observations retain held state.
 A separate shot generation cancels queued power commands even when a complete
 cycle occurs between worker turns. Queue admission captures it before checking
 the shot gate; commands from earlier cycles cannot resume afterward. Scale-only
-inhibition still defers those commands.
+inhibition still defers those commands. Backflush admission cancels active
+machine commands without canceling parallel API observation or WSS.
 
 A discovery-owned atomic acquisition latch is published under the existing
 NimBLE discovery critical section before Candidate becomes consumable. Its

@@ -228,7 +228,7 @@ struct MicraWebSocketTest {
     // Every intentional pause, renewal and obsolete observation stays planned.
     for (int cause = 0; cause < 11; ++cause) {
       switch (cause) {
-        case 0: service.shotActive_.store(true); break;
+        case 0: service.shotActive_.store(true); outboundScaleConnected.store(true); break;
         case 1: publishOutboundAcquisition(true, ++now); break;
         case 2: outboundBleQuiet.store(true); break;
         case 3: outboundMaintenance.store(true); break;
@@ -246,6 +246,7 @@ struct MicraWebSocketTest {
       }
       service.serviceWebSocket();
       service.shotActive_.store(false);
+      outboundScaleConnected.store(false);
       publishOutboundAcquisition(false, now);
       outboundBleQuiet.store(false);
       outboundMaintenance.store(false);
@@ -467,9 +468,34 @@ struct MicraWebSocketTest {
     service.serviceWebSocket();
     deliver(service, observation(service, off));
     assert(!service.powerState_.retained());
+    // Unscaled paddle shots retain both the subscription and fresh push evidence.
+    const auto stopsBeforeShot = stops;
+    const auto epoch = service.observationFence_.epoch;
+    outboundShotActive.store(true);
+    service.shotActive_.store(true);
+    service.inhibitCloud();
+    service.serviceWebSocket();
+    deliver(service, observation(service, on));
+    assert(stops == stopsBeforeShot && service.websocketStatus().subscribed);
+    assert(service.observationFence_.epoch == epoch);
+    assert(service.status().quality == LineaMicraObservationQuality::CURRENT);
+    assert(!service.status().shotPaused && !service.abortRequested_.load());
+    // A live scale pauses the shot; losing it releases the pause mid-shot.
+    outboundScaleConnected.store(true);
+    service.serviceWebSocket();
+    assert(stops == stopsBeforeShot + 1 && !service.websocket_->client);
+    outboundScaleConnected.store(false);
+    service.serviceWebSocket();
+    assert(service.websocket_->client && service.websocket_->connect[0]);
+    subscribe(service);
+    deliver(service, observation(service, off));
+    assert(service.status().quality == LineaMicraObservationQuality::CURRENT);
+    service.shotActive_.store(false);
+    outboundShotActive.store(false);
     // A whole shot can elapse while the owner is busy: old ingress stays fenced.
     deliver(service, observation(service, on));
     const auto beforeShortShot = service.published_.sampleAtMs;
+    outboundScaleConnected.store(true);
     outboundShotActive.store(true);
     service.inhibitCloud();
     outboundShotActive.store(false);
@@ -477,7 +503,9 @@ struct MicraWebSocketTest {
     assert(service.published_.sampleAtMs == beforeShortShot);
     assert(service.published_.powerState == LineaMicraPowerState::ON);
     service.serviceWebSocket();
+    assert(service.websocket_->client && service.websocket_->connect[0]);
     subscribe(service);
+    outboundScaleConnected.store(false);
     assert(service.powerState_.retained());
     deliver(service, observation(service, off));
     assert(!service.powerState_.retained());
@@ -574,7 +602,8 @@ struct MicraWebSocketTest {
     const char *inactive = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Off"}}]})";
     const char *awaiting = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
     const char *active = R"({"widgets":[{"code":"CMBackFlush","output":{"status":"Cleaning"}}]})";
-    for (int scenario = 0; scenario < 5; ++scenario) {
+    for (bool scalePresent : {false, true}) for (int scenario = 0; scenario < 5; ++scenario) {
+      outboundScaleConnected.store(scalePresent);
       now = 1000;
       ShotStopperMicraService service;
       service.config_.accountConfigured = true;
@@ -597,7 +626,13 @@ struct MicraWebSocketTest {
       assert(!service.backflush().ready);
       service.tokenIssuedAtMs_.store(now);
       MachineBackflushPermit permit;
+      service.active_ = true;  // A parallel API read must survive the gesture.
+      const auto stopsBeforeGesture = stops;
       assert(service.physicalStart(&permit) == MachinePhysicalStartDisposition::BACKFLUSH_CANDIDATE);
+      service.serviceWebSocket();
+      assert(stops == stopsBeforeGesture && service.websocketStatus().subscribed);
+      assert(!service.abortRequested_.load() && service.websocketAdmitted());
+      service.active_ = false;
       assert(permit.attempt && permit.extendable == (scenario != 1));
       if (scenario == 2) deliver(service, fragmented.substr(15), true, 0);
       else deliver(service, fragmented);
@@ -625,6 +660,7 @@ struct MicraWebSocketTest {
       service.stopWebSocket(true);
       delete service.work_;
     }
+    outboundScaleConnected.store(false);
   }
   static void concurrentStatusLifecycle() {
     now = 1000;

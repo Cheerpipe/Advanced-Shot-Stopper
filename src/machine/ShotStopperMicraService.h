@@ -24,11 +24,14 @@ class ShotStopperMicraService {
  public:
   bool begin();
   void inhibitCloud() {
-    if (outboundShotActive.load(std::memory_order_acquire)) {
+    const bool shot = outboundShotActive.load(std::memory_order_acquire);
+    const bool pause = !shot || outboundScaleConnected.load(std::memory_order_acquire);
+    if (shot) {
       shotGeneration_.fetch_add(1, std::memory_order_acq_rel);
-      disconnectGeneration_.fetch_add(1, std::memory_order_acq_rel);
+      if (pause) disconnectGeneration_.fetch_add(1, std::memory_order_acq_rel);
     }
-    abortRequested_.store(true, std::memory_order_release);
+    if (pause || powerActive_.load() || temperatureActive_.load())
+      abortRequested_.store(true, std::memory_order_release);
     if (task_ != nullptr) xTaskNotifyGive(task_);
   }
   void publishConfig(const LineaMicraPersistedSettings &settings,
@@ -92,6 +95,11 @@ class ShotStopperMicraService {
   static void websocketEvent(void *context, const char *, int32_t event, void *data);
   static bool stompFrame(void *context, const struct MicraStompFrame &frame);
   bool websocketAdmitted(bool starting = false) const;
+  bool shotTransportPaused() const {
+    return outboundScaleConnected.load(std::memory_order_acquire) &&
+        (outboundShotActive.load(std::memory_order_acquire) ||
+         shotActive_.load(std::memory_order_acquire));
+  }
   void serviceWebSocket();
   void stopWebSocket(bool release = false);
   void waitRetry(uint32_t delayMs);

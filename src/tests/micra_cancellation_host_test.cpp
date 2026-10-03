@@ -83,6 +83,7 @@ struct MicraCancellationTest {
   static void initializationAndGates();
   static void initializationRetries();
   static void queuedObservationAndPowerOrdering();
+  static void unscaledShotAdmission();
   static void run();
 };
 }
@@ -93,6 +94,9 @@ void MicraCancellationTest::progress(ShotStopperMicraService &service, int outco
   auto &shotActive_ = service.shotActive_;
   auto &scaleConnecting_ = service.scaleConnecting_;
   auto &abortRequested_ = service.abortRequested_;
+  auto &powerActive_ = service.powerActive_;
+  auto &temperatureActive_ = service.temperatureActive_;
+  auto shotTransportPaused = [&] { return service.shotTransportPaused(); };
   auto networkEligible = [&](LineaMicraError &error) {
     return service.networkEligible(error);
   };
@@ -160,6 +164,7 @@ void MicraCancellationTest::retireBackflushConfiguration() {
 }
 
 void MicraCancellationTest::run() {
+  outboundScaleConnected.store(true);
   ShotStopperMicraService service;
   service.task_ = &service;
   LineaMicraPersistedSettings settings;
@@ -371,6 +376,46 @@ void MicraCancellationTest::initializationAndGates() {
     retryCancellation(service);
     assert(websocketStops == before + (shot ? 1U : 0U));
   }
+  outboundScaleConnected.store(false);
+}
+
+void MicraCancellationTest::unscaledShotAdmission() {
+  assert(!outboundScaleConnected.load() && !outboundScaleInhibited());
+  ShotStopperMicraService service;
+  service.task_ = &service;
+  service.config_.accountConfigured = true;
+  service.config_.connectionType = static_cast<uint8_t>(MicraConnectionType::API);
+  service.publishNetworkState(true, false, false, false);
+  assert(!service.abortRequested_.load());
+  service.pending_.present = true;
+  service.pending_.request.type = LineaMicraRequestType::OBSERVE_STATE;
+  const auto epoch = service.observationFence_.epoch;
+  const auto generation = service.disconnectGeneration_.load();
+  outboundShotActive.store(true);
+  service.inhibitCloud();
+  assert(!service.abortRequested_.load());
+  service.publishNetworkState(true, false, true, false);
+  assert(!service.abortRequested_.load() && !service.shotTransportPaused());
+  assert(service.observationFence_.epoch == epoch);
+  assert(service.disconnectGeneration_.load() == generation);
+  progress(service, ESP_ERR_HTTP_EAGAIN, false, false);
+  unsigned calls = 0;
+  executeHook = [&] { ++calls; throw WorkerStopped{}; };
+  try { service.taskLoop(); } catch (const WorkerStopped &) {}
+  assert(calls == 1 && !service.pending_.present);
+  for (bool temperature : {false, true}) {
+    service.powerActive_.store(!temperature);
+    service.temperatureActive_.store(temperature);
+    service.inhibitCloud();
+    assert(service.abortRequested_.load());
+    assert(service.disconnectGeneration_.load() == generation);
+    service.abortRequested_.store(false);
+  }
+  service.powerActive_.store(false);
+  service.temperatureActive_.store(false);
+  outboundShotActive.store(false);
+  service.publishNetworkState(true, false, false, false);
+  executeHook = {};
 }
 
 void MicraCancellationTest::initializationRetries() {
@@ -502,6 +547,7 @@ int main() {
   MicraCancellationTest::retireBackflushConfiguration();
   MicraCancellationTest::run();
   MicraCancellationTest::initializationAndGates();
+  MicraCancellationTest::unscaledShotAdmission();
   MicraCancellationTest::initializationRetries();
   MicraCancellationTest::queuedObservationAndPowerOrdering();
   // Opening admission must publish the new fence before another core sees it.

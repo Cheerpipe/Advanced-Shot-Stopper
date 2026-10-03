@@ -518,13 +518,22 @@ void ShotStopperMicraService::publishNetworkState(bool staConnected,
                                                std::memory_order_acq_rel);
   const bool wasScale = scaleConnecting_.exchange(
       scaleConnecting, std::memory_order_acq_rel);
+  const bool scaleConnected = outboundScaleConnected.load(std::memory_order_acquire);
+  const bool wasPaused = wasActive && scaleConnected;
+  const bool paused = shotActive && scaleConnected;
+  if (shotActive && !wasActive) {
+    TaskLockGuard lock(mux_);
+    desiredPower_ = {};
+    if (powerActive_.load() || temperatureActive_.load())
+      abortRequested_.store(true, std::memory_order_release);
+  }
   if (scaleConnecting && !wasScale)
     abortRequested_.store(true, std::memory_order_release);
-  const bool wasEligible = wasSta && !wasAp && !wasActive && !wasScale;
+  const bool wasEligible = wasSta && !wasAp && !wasPaused && !wasScale;
   const bool eligible =
-      staConnected && !apActive && !shotActive && !scaleConnecting;
+      staConnected && !apActive && !paused && !scaleConnecting;
   if ((!staConnected && wasSta) || (apActive && !wasAp) ||
-      (shotActive && !wasActive)) {
+      (paused && !wasPaused)) {
     {
       TaskLockGuard lock(mux_);
       if (!staConnected && wasSta && !apActive && wasEligible &&
@@ -533,7 +542,6 @@ void ShotStopperMicraService::publishNetworkState(bool staConnected,
         websocketUnexpectedReconnect_ = true;
       powerState_.hold(published_, config_.accountConfigured &&
           (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0, millis());
-      if (shotActive && !wasActive) desiredPower_ = {};
       ++observationFence_.epoch;
       if (!websocketStatus_.pauseAtMs) websocketStatus_.pauseAtMs = millis();
       observationFence_.invalidate();
@@ -709,12 +717,12 @@ LineaMicraStatus ShotStopperMicraService::status() const {
       (!observationFence_.synchronized || !websocketStatus_.subscribed || !websocket_ ||
        websocket_->failed.load() || websocket_->stamp.epoch != observationFence_.epoch ||
        websocket_->disconnectGeneration != disconnectGeneration_.load() ||
-       !staConnected_.load() || apActive_.load() || shotActive_.load() ||
-       outboundShotActive.load() || outboundMaintenance.load() || outboundOtaBusy.load()))
+       !staConnected_.load() || apActive_.load() || shotTransportPaused() ||
+       outboundMaintenance.load() || outboundOtaBusy.load()))
     result.quality = LineaMicraObservationQuality::STALE;
   result.staConnected = staConnected_.load(std::memory_order_acquire);
   result.apActive = apActive_.load(std::memory_order_acquire);
-  result.shotPaused = shotActive_.load(std::memory_order_acquire);
+  result.shotPaused = shotTransportPaused();
   result.scalePaused = !result.connectionFreshness && scaleConnecting_.load(std::memory_order_acquire);
   return result;
 }
@@ -781,7 +789,8 @@ MachinePhysicalStartDisposition ShotStopperMicraService::physicalStart(MachineBa
     // Commands and power optimism cannot race cleaning admission. Session
     // renewal is refused near the boundary, never deferred past token expiry.
     desiredPower_ = {};
-    abortRequested_.store(true, std::memory_order_release);
+    if (powerActive_.load() || temperatureActive_.load())
+      abortRequested_.store(true, std::memory_order_release);
     if (admitted.attempt && ready)
       return MachinePhysicalStartDisposition::BACKFLUSH_CANDIDATE;
     backflush_.finish(admitted.attempt);
@@ -855,7 +864,7 @@ void ShotStopperMicraService::taskLoop() {
         }
       }
     }
-    const bool localActivity = shotActive_.load(std::memory_order_acquire);
+    const bool localActivity = shotTransportPaused();
     {
       TaskLockGuard lock(mux_);
       if (config_.connectionType == static_cast<uint8_t>(MicraConnectionType::WEBSOCKET))
@@ -881,6 +890,7 @@ void ShotStopperMicraService::taskLoop() {
         active_ = true;
         haveRequest = true;
       } else if (networkReady && !shotActive_.load(std::memory_order_acquire) &&
+                 !outboundShotActive.load(std::memory_order_acquire) &&
                  !scaleConnecting_.load(std::memory_order_acquire) &&
                  !cleaningBusy && desiredTemperature_.present &&
                  static_cast<int32_t>(now - desiredTemperature_.retryAtMs) >= 0) {
@@ -892,6 +902,7 @@ void ShotStopperMicraService::taskLoop() {
         haveTemperature = true;
         temperatureActive_.store(true, std::memory_order_release);
       } else if (networkReady && !shotActive_.load(std::memory_order_acquire) &&
+                 !outboundShotActive.load(std::memory_order_acquire) &&
                  !scaleConnecting_.load(std::memory_order_acquire) &&
                  desiredPower_.present &&
                  static_cast<int32_t>(now - desiredPower_.retryAtMs) >= 0) {
@@ -954,7 +965,7 @@ bool ShotStopperMicraService::networkEligible(LineaMicraError &error, bool obser
     error = LineaMicraError::CANCELED;
     return false;
   }
-  if (outboundShotActive.load(std::memory_order_acquire)) {
+  if (shotTransportPaused()) {
     error = LineaMicraError::CANCELED;
     return false;
   }
@@ -987,6 +998,7 @@ bool ShotStopperMicraService::temperatureEligible(
     }
   }
   if (shotActive_.load(std::memory_order_acquire) ||
+      outboundShotActive.load(std::memory_order_acquire) ||
       scaleConnecting_.load(std::memory_order_acquire)) {
     error = LineaMicraError::CANCELED;
     return false;
@@ -1017,7 +1029,7 @@ void ShotStopperMicraService::execute(PendingRequest &pending) {
     return;
   }
   if (pending.request.type == LineaMicraRequestType::OBSERVE_STATE &&
-      shotActive_.load(std::memory_order_acquire)) {
+      shotTransportPaused()) {
     deferObservation(pending, status, LineaMicraError::CANCELED);
     return;
   }
@@ -1315,7 +1327,7 @@ bool ShotStopperMicraService::executePowerApplication(
     }
     // A shot or rinse (closed relay) cancels the command outright; the
     // machine power state is never changed around an active cycle.
-    if (shotActive_.load(std::memory_order_acquire)) {
+    if (shotActive_.load(std::memory_order_acquire) || outboundShotActive.load(std::memory_order_acquire)) {
       wipeLineaMicraSettings(settings);
       deferPower(request, LineaMicraError::CANCELED, 0, false);
       return false;
@@ -1523,7 +1535,7 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
       wipeLineaMicraSettings(settings);
       return true;
     }
-    if (shotActive_.load(std::memory_order_acquire)) {
+    if (shotTransportPaused()) {
       wipeLineaMicraSettings(settings);
       deferObservation(pending, status, LineaMicraError::CANCELED);
       return true;
@@ -1548,7 +1560,7 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
       deferObservation(pending, status, LineaMicraError::CANCELED);
       return true;
     }
-    if (shotActive_.load(std::memory_order_acquire)) continue;
+    if (shotTransportPaused()) continue;
     if (!networkEligible(gateError)) {
       wipeLineaMicraSettings(settings);
       deferObservation(pending, status, gateError);
@@ -1903,8 +1915,7 @@ bool ShotStopperMicraService::readDashboard(
   update.receivedAtMs = millis();
   TaskLockGuard lock(mux_);
   if (abortRequested_.load(std::memory_order_acquire) || outboundScaleInhibited() ||
-      shotActive_.load(std::memory_order_acquire) || scaleConnecting_.load(std::memory_order_acquire) ||
-      outboundShotActive.load(std::memory_order_acquire) ||
+      shotTransportPaused() || scaleConnecting_.load(std::memory_order_acquire) ||
       acquisitionGeneration != outboundAcquisitionGeneration.load(std::memory_order_acquire) ||
       disconnectGeneration != disconnectGeneration_.load(std::memory_order_acquire)) return false;
   const bool observing = config_.accountConfigured &&
@@ -2178,7 +2189,9 @@ bool ShotStopperMicraService::request(
   LineaMicraError gateError = LineaMicraError::NONE;
   const auto requestAllowed = [&]() {
     return networkEligible(gateError) &&
-           !shotActive_.load(std::memory_order_acquire) &&
+           !shotTransportPaused() &&
+           (!(shotActive_.load() || outboundShotActive.load()) ||
+            (!powerActive_.load() && !temperatureActive_.load())) &&
            !scaleConnecting_.load(std::memory_order_acquire) &&
            !abortRequested_.load(std::memory_order_acquire);
   };

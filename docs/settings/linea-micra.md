@@ -93,16 +93,20 @@ Enable **Monitor machine power state** and choose **Connection type**:
   connection or the cloud service makes WebSocket unreliable.
 
 Both wait for station Wi-Fi, a synchronized clock and a closed setup access
-point. An admitted shot pauses monitoring. If that gesture is classified as a
-quick rinse, the pause ends immediately: reconnection and API requests can
-resume while the rinse is still running. WebSocket monitoring stays connected
+point. A shot pauses monitoring only while a scale is connected. Without a
+connected scale, using the paddle keeps both WebSocket monitoring and API reads
+available, whether you brew a shot, rinse or turn the machine on. If a shot with
+a scale is classified as a quick rinse, the pause ends immediately; losing the
+scale also allows monitoring to resume. Backflush gestures keep monitoring
+available with or without a scale. WebSocket monitoring stays connected
 during scale discovery, connection and reconnection. If monitoring needs a new
 connection during scale setup or connection, it waits until that activity and
 the scale's communication pause have ended. Wi-Fi and the local Web UI remain
 available.
 Micra API requests, including sign-in, Refresh and machine commands, wait
-through scale connection. During a shot, reads wait and pending power commands
-are canceled. Requests already in progress are canceled
+through scale connection. During a shot with a connected scale, reads wait.
+Starting any shot cancels pending power commands, including shots without a
+scale. Requests already in progress are canceled
 by the cloud worker as soon as it observes the pause; local control never waits
 for that cancellation.
 Paddle wake gestures and starts blocked by a guard keep observation connected;

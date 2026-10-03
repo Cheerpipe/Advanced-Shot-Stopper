@@ -71,6 +71,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
 
   hostMillis = 0;
   outboundShotActive.store(false);
+  outboundScaleConnected.store(false);
   hostMachineCloudInhibitCount = 0;
   powerPolicy = PowerPolicy{};
   powerWebUntilMs.store(0);
@@ -811,6 +812,7 @@ void startBackflushFixture(bool qualified = true, bool scalePresent = false) {
   CHECK(stopperState == StopperState::BACKFLUSH_CANDIDATE);
   CHECK(getRelaySafetySnapshot().closed && !session.active);
   CHECK(!outboundShotActive.load() && hostMachineCloudInhibitCount == 0);
+  CHECK(outboundScaleConnected.load() == scalePresent);
   CHECK(scaleCommandQueue->items.empty() && scaleScanBoostUntilMs == 0);
   publishControlGate();
   publishControlStatus();
@@ -5814,6 +5816,15 @@ void d15_control_housekeeping_has_wrap_safe_10ms_cadence() {
 }
 
 void d16_cloud_pause_requires_a_real_cycle() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);
+  startCycle();
+  CHECK(session.active && outboundShotActive.load());
+  CHECK(!outboundScaleConnected.load());
+  CHECK(enterRinse());
+  CHECK(!outboundShotActive.load() && !outboundScaleConnected.load());
+
   resetHarness(false, false);
   reachReadyFromBoot();
   runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE);

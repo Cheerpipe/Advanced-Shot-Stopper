@@ -44,11 +44,10 @@ MicraWebSocketStatus ShotStopperMicraService::websocketStatus() const {
 
 bool ShotStopperMicraService::websocketAdmitted(bool starting) const {
   if (starting && (outboundScaleInhibited() || scaleConnecting_.load(std::memory_order_acquire))) return false;
-  if (outboundShotActive.load(std::memory_order_acquire) ||
+  if (shotTransportPaused() ||
       outboundMaintenance.load(std::memory_order_acquire) || outboundOtaBusy.load(std::memory_order_acquire)) return false;
   if (!staConnected_.load(std::memory_order_acquire) ||
       apActive_.load(std::memory_order_acquire) ||
-      shotActive_.load(std::memory_order_acquire) ||
       clearSessionRequested_.load(std::memory_order_acquire)) return false;
   TaskLockGuard lock(mux_);
   return config_.accountConfigured &&
@@ -375,7 +374,7 @@ void ShotStopperMicraService::serviceWebSocket() {
   if (!admitted) {
     {
       TaskLockGuard lock(mux_);
-      if (maintenance || shotActive_.load() || outboundShotActive.load()) {
+      if (maintenance || shotTransportPaused()) {
         powerState_.hold(published_, settings.accountConfigured &&
             (settings.options & LINEA_MICRA_OBSERVE_STATE) != 0, millis());
         if (websocket_ && websocket_->client && websocket_->stamp.epoch == observationFence_.epoch)
@@ -387,10 +386,10 @@ void ShotStopperMicraService::serviceWebSocket() {
     stopWebSocket(!selected || maintenance || clearSessionRequested_.load(std::memory_order_acquire));
     TaskLockGuard lock(mux_);
     websocketStatus_.state = !selected ? MicraSocketState::Disabled
-        : maintenance || shotActive_.load() || outboundShotActive.load() ? MicraSocketState::PAUSED
+        : maintenance || shotTransportPaused() ? MicraSocketState::PAUSED
         : gate == LineaMicraError::CLOCK_UNSYNCED ? MicraSocketState::WAITING_FOR_TIME
         : MicraSocketState::WAITING_FOR_NETWORK;
-    websocketStatus_.reason = !selected ? "disabled" : maintenance ? "maintenance" : shotActive_.load() || outboundShotActive.load() ? "shot"
+    websocketStatus_.reason = !selected ? "disabled" : maintenance ? "maintenance" : shotTransportPaused() ? "shot"
         : lineaMicraErrorName(gate);
     wipeLineaMicraSettings(settings);
     return;

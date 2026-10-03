@@ -37,7 +37,7 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | Energy activity mailbox | HTTP publishes bounded presence; control expires it and publishes applied profile/cooldown; ScaleService and NetworkService publish busy/error state | static atomics, no new tasks or flash writes; requests never authorize actuation |
 | BLE modem sleep / scan and Wi-Fi sleep | ScaleService / NetworkService respectively | owner-local application, live link/connecting gates, saved preferences restored when PM is off; see [Power management](settings/power-management.md) |
 | scale NimBLE peer procedure | EspressoScaleBLE client, called only by ScaleService | owns final admission and retains pending link cleanup until closure is confirmed; scanning/reconnection wait for cleanup and the full 3,000 ms quiet interval from GAP completion (or completion of an already-admitted submission); callbacks publish evidence, while only the owner submits deferred termination |
-| Micra cloud HTTPS client | build-selected `OpenBrewByWeightMicraService` worker | boot-lifetime 8 KiB task; a lazy 6,344-byte external work buffer holds identity, tokens, authorization header, and client state, while request E/S uses one transient 16 KiB external union; HTTP/TLS library allocations are separate; shot transitions cancel active I/O, while Disconnect, disabled observation, STA loss, and AP entry wipe/free both workspaces and destroy the client handle |
+| Micra cloud HTTPS client | build-selected `OpenBrewByWeightMicraService` worker | boot-lifetime 8 KiB task; a lazy 6,344-byte external work buffer holds identity, tokens, authorization header, and client state, while request E/S uses one transient 16 KiB external union; HTTP/TLS library allocations are separate; connected-scale shot transitions cancel active I/O, while Disconnect, disabled observation, STA loss, and AP entry wipe/free both workspaces and destroy the client handle |
 | webhook `esp_http_client` | `WebhookDispatcher::httpClient_` (`UniqueResource`) | normal cleanup after worker join; destructor is final rollback |
 | OTA write handle | `OpenBrewByWeightOta::otaHandle_` (`UniqueResource`) | abort under `FlashIoGuard`; `release()` transfers it exactly once to `esp_ota_end` |
 | OTA SHA context | `OpenBrewByWeightOta::sessionSha256_` (`UniqueResource`) | `psa_hash_abort` then capability-aware heap free |
@@ -69,15 +69,17 @@ Micra cancellation stays latched throughout the active cloud operation, includin
 session renewal. Network recovery and session cleanup cannot clear it. Only the
 idle cloud worker consumes it before selecting the next operation; once observed,
 cancellation ends HTTP progress immediately, including an `EAGAIN` result. Client
-cleanup remains on that worker after HTTP progress returns. Shot pauses
-destroy the WS client and TLS state but may retain bounded application
+cleanup remains on that worker after HTTP progress returns. Connected-scale
+shot pauses destroy the WS client and TLS state but may retain bounded application
 scratch and session tokens. API selection, observation disablement, account
 removal/change, STA loss/AP entry and maintenance release WS scratch after
 callback quiescence. Maintenance also releases the HTTP workspace. Each
 client records actual pause completion; residual SDK DNS resolution is excluded.
 Control owns the admitted-shot signal and clears it immediately on rinse
-classification, independently of relay-critical webhook/NTP admission. Wake,
-backflush, rejected starts and scale acquisition do not cancel Micra WSS.
+classification. The scale worker owns live connection publication; Micra
+transport pauses require both signals, independently of relay-critical
+webhook/NTP admission. Unscaled shots, wake, backflush and rejected starts do
+not cancel Micra observation. Scale acquisition does not cancel existing WSS.
 The integration owns the fixed eight-transition backflush handoff under its
 mutex; control is its only consumer. Diagnostics copies without draining it.
 The relay owner retains both deadlines and the original close timestamp;

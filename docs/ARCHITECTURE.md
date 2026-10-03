@@ -111,10 +111,11 @@ A 60-second optimistic overlay and a separate stale suspension hold preserve
 the effective power without changing the last cloud evidence timestamp.
 The SDK callback publishes decoded updates under the facade mutex, independently
 of the HTTP worker. Only the worker stops/destroys the WebSocket.
-Observation pauses follow admitted shots and end immediately on rinse
-classification, even while the rinse continues. Wake, backflush and rejected
-starts do not assert that signal. Relay-critical webhook/NTP admission remains
-separate from the shot signal used by Micra observation.
+Observation pauses require both an admitted shot and a currently connected
+scale. Scale loss or rinse classification releases the pause. Unscaled shots,
+wake, backflush and rejected starts keep observation available. Actual-shot
+command safety and relay-critical webhook/NTP admission remain independent
+of the scale-qualified transport pause.
 
 Scale discovery publishes a generic atomic inhibit before exposing an eligible
 Candidate mailbox. Micra HTTP, webhooks and NTP consume it, regardless of

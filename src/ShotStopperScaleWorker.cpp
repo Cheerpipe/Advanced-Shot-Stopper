@@ -24,6 +24,7 @@
 
 #include "ShotStopperPowerManagement.h"
 #include "ShotStopperScaleProfiler.h"
+#include "ShotStopperOutboundAdmission.h"
 #if !defined(SHOT_STOPPER_HOST_TEST)
 #include <esp_bt.h>
 #endif
@@ -558,6 +559,8 @@ void setScaleLinkState(ScaleLinkState state) {
     connectedGeneration = scaleConnectionGeneration;
   }
   scaleLinkState = state;
+  outboundScaleConnected.store(state == ScaleLinkState::CONNECTED,
+                               std::memory_order_release);
   if (state == ScaleLinkState::CONNECTED) {
     scaleConnecting = false;
   }

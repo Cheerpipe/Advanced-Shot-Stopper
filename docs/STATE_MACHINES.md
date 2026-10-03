@@ -970,15 +970,18 @@ Micra builds run a separate cloud worker when **Monitor machine power state**
 is enabled and an account machine is selected. WebSocket is the persisted default;
 API selection queues HTTPS dashboard reads on a nominal 30-second cadence.
 Commands and authentication always use HTTP. At startup it waits for an eligible STA
-connection, a closed setup AP, no admitted shot, and a synchronized wall
-clock, then opens a WebSocket subscription or starts the initial API read on
+connection, a closed setup AP, no admitted shot with a connected scale, and a
+synchronized wall clock, then opens a WebSocket subscription or starts the initial API read on
 the next worker opportunity. Each admitted WebSocket subscription queues one
 initial dashboard cycle while push reception continues. Explicit refresh and
 post-command reconciliation retain their HTTP paths and coalesce when compatible.
 All API purposes, including sign-in and manual requests, remain deferred during
-scale acquisition/setup/quiet and shots; active requests cancel through the owner.
-Rinse classification immediately clears the shot pause. WSS is exempt from
-scale acquisition/setup/quiet so cleaning supervision can continue.
+scale acquisition/setup/quiet and shots with a connected scale; active requests
+cancel through the owner. Unscaled shots keep API observation and WSS active.
+Rinse classification or scale loss clears the shot transport pause. Wake and
+backflush gestures keep both transports available regardless of scale presence.
+Established WSS is exempt from scale acquisition/setup/quiet so cleaning
+supervision can continue; new setup and reconnection wait for those gates.
 Power commands are canceled when a shot starts, including previously queued
 commands; they require a new trigger after the shot. When initialization coalesces
 with post-wake reconciliation, reconciliation uses the request-time field
@@ -996,9 +999,10 @@ API-mode communication cycle can replace power with UNKNOWN; the separate
 WebSocket transitions through waiting for network/time, authentication, socket
 connect, STOMP connect, waiting for data and streaming. Failure uses backoff;
 invalid authentication requires manual retry/account correction. Network pauses
-and maintenance do not clear the authentication failure latch. Scale detection,
-setup/quiet, shot or maintenance move it through STOPPING to PAUSED after actual
-stop/destroy. No live paused socket or automatic SDK reconnect is retained.
+and maintenance do not clear the authentication failure latch. A shot with a
+connected scale or maintenance moves it through STOPPING to PAUSED after actual
+stop/destroy. Scale detection/setup/quiet only defers new setup and reconnection.
+No live paused socket or automatic SDK reconnect is retained.
 On resume, connection/subscription/pong or temperature-only updates do not clear
 the separate stale assumed-power hold; only current-epoch known power does.
 Machine `connected:false` is offline evidence, never power OFF. Cleaning is a
@@ -1031,7 +1035,8 @@ overlay, or unsupported samples do not change the tracked state, and repeated
 events while an overlay is live never re-arm or extend it.
 
 The observer uses four total attempts with 3/6/9-second waits and bounded
-jitter. After exhaustion, the next observation waits 60 seconds. Missing STA, an open setup AP, an unsynchronized clock, and local shots
+jitter. After exhaustion, the next observation waits 60 seconds. Missing STA,
+an open setup AP, an unsynchronized clock, and local shots with a connected scale
 are readiness gates rather than failed cloud attempts: requested work
 remains pending and starts when the gate clears. Scale BLE runs independently
 and never waits for network-owner teardown.
