@@ -57,6 +57,24 @@ Home values and signal readings are illustrative; navigation and switches are
 presentation-only. This preview does not connect to a device, change saved
 settings, or ship in firmware assets.
 
+### Mobile navigation preview
+
+Open `http://127.0.0.1:4173/mobile-menu` on the same preview server to review
+the bottom navigation proposal. Below 700 pixels, Home, Stats, History and
+Settings appear in a fixed bottom bar with icons and a highlighted current tab.
+Diagnostics and Admin stay in the hamburger menu. On wider screens, the
+existing top navigation remains visible.
+
+On mobile, scrolling gradually compacts the header while keeping the smaller logo,
+connection indicators and hamburger visible. Return to the top to restore
+the full-size logo.
+
+The tabs open sample views; browser Back and Forward also work. Expand
+**Mobile navigation proposal · sample data** to change the theme or show and
+hide Diagnostics. The bar reserves room for the phone's safe area and the
+page content. Settings and device actions are disabled in this proposal;
+it does not connect to hardware or change firmware.
+
 ### No-scale guard icon preview
 
 Open `http://127.0.0.1:4173/compare#no-scale` on the same running server

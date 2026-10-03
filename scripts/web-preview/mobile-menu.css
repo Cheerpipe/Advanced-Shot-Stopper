@@ -1,0 +1,23 @@
+.mobileMenu{display:none}
+.view[hidden]{display:none!important}
+.mobileMenu svg{width:1.4rem;height:1.4rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mobileMenu a:focus-visible{outline:2px solid var(--ac);outline-offset:-3px}
+.pageNav>a[hidden]{display:none!important}
+@media(max-width:699px){
+  body{padding-bottom:calc(5.75rem + env(safe-area-inset-bottom))}
+  html{scroll-padding-bottom:calc(5.75rem + env(safe-area-inset-bottom))}
+  .topBar{--logo-w:2.35rem;--logo-h:3.1rem;--brand-font:1.4rem;--brand-small:.84rem;--compact:var(--header-progress,0);top:0;min-height:calc(5rem - 1.25rem * var(--compact));transition:min-height .12s linear}
+  .topBar .brandMark{width:calc(var(--logo-w) - (var(--logo-w) - 1.65rem) * var(--compact));height:calc(var(--logo-h) - (var(--logo-h) - 2.2rem) * var(--compact));transition:width .12s linear,height .12s linear}
+  .topBar .brand span{font-size:calc(var(--brand-font) - (var(--brand-font) - 1.05rem) * var(--compact));transition:font-size .12s linear}
+  .topBar .brand small{font-size:calc(var(--brand-small) - (var(--brand-small) - .65rem) * var(--compact));transition:font-size .12s linear}
+  .mobileMenu{position:fixed;bottom:0;left:0;right:0;z-index:19;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:.4rem max(.5rem,env(safe-area-inset-right)) calc(.4rem + env(safe-area-inset-bottom)) max(.5rem,env(safe-area-inset-left));background:var(--sf);border-top:1px solid var(--ln);box-shadow:var(--ah)}
+  .mobileMenu a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.25rem;min-height:3.5rem;border-radius:.65rem;color:var(--mu);text-decoration:none;font-size:.73rem;font-weight:600;line-height:1.2;-webkit-tap-highlight-color:transparent}
+  .mobileMenu a[aria-current="page"]{color:var(--ac);background:var(--pa);font-weight:750}
+  .mobileMenu a:hover{color:var(--ac);background:var(--pa)}
+  .pageNav>a[data-route="/"],.pageNav>a[data-route="/stats"],.pageNav>a[data-route="/history"],.pageNav>a[data-route="/settings"]{display:none}
+  .pageNav{padding-bottom:calc(1.5rem + env(safe-area-inset-bottom))}
+  .navOpen .mobileMenu{display:none}
+  .configSaveBar{bottom:calc(4.3rem + env(safe-area-inset-bottom));padding-bottom:.65rem}
+}
+@media(max-width:380px){.topBar{--logo-w:1.85rem;--logo-h:2.5rem;--brand-font:1.15rem;--brand-small:.73rem}}
+@media(prefers-reduced-motion:reduce){.topBar,.topBar .brandMark,.topBar .brand span,.topBar .brand small{transition:none}}

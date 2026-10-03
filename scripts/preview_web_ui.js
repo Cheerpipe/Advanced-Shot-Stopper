@@ -13,6 +13,8 @@ const routes = {
   '/app.css': ['text/css', 'src/web/app.css'],
   '/preview.css': ['text/css', 'scripts/web-preview/header.css'],
   '/preview.js': ['text/javascript', 'scripts/web-preview/header.js'],
+  '/mobile-menu.css': ['text/css', 'scripts/web-preview/mobile-menu.css'],
+  '/mobile-menu.js': ['text/javascript', 'scripts/web-preview/mobile-menu.js'],
 };
 
 function renderHome() {
@@ -33,6 +35,22 @@ function renderHome() {
       .replace(/__FW_VERSION__/g, 'design-preview');
 }
 
+function renderMobileMenu() {
+  const views = ['stats', 'history', 'settings', 'diagnostic', 'admin'];
+  const {sources} = renderSources(views.map(name => ({
+    file: `src/web/html/${name}.html`, type: 'html',
+    content: read(`src/web/html/${name}.html`),
+  })), {language: 'en', allowUnused: true, machineType: 'paddle'});
+  let html = renderHome();
+  views.forEach((name, index) => {
+    html = html.replace(`<section id="view-${name}" class="view" data-view="${name}"></section>`,
+        `<section id="view-${name}" class="view" data-view="${name}" hidden>${sources[index].content}</section>`);
+  });
+  return html.replace('width=device-width,initial-scale=1', 'width=device-width,initial-scale=1,viewport-fit=cover')
+      .replace('</head>', '<link rel="stylesheet" href="/mobile-menu.css"></head>')
+      .replace('</body>', '<script src="/mobile-menu.js" defer></script></body>');
+}
+
 function createServer() {
   return http.createServer((req, res) => {
     const pathname = new URL(req.url, 'http://localhost').pathname;
@@ -42,11 +60,12 @@ function createServer() {
     }
     try {
       const asset = routes[pathname];
-      if (pathname !== '/' && !asset) {
+      const mobileMenu = /^\/mobile-menu(?:\/(?:stats|history|settings|diagnostic|admin))?\/?$/.test(pathname);
+      if (pathname !== '/' && !mobileMenu && !asset) {
         res.writeHead(404).end('Preview resource not found');
         return;
       }
-      const body = asset ? read(asset[1]) : renderHome();
+      const body = mobileMenu ? renderMobileMenu() : asset ? read(asset[1]) : renderHome();
       res.writeHead(200, {'Content-Type': asset ? asset[0] : 'text/html; charset=utf-8',
         'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
         'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; frame-ancestors 'self'; form-action 'none'"});
