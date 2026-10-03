@@ -169,8 +169,11 @@ Available flow is counted separately within the general window.
 The stats shot log, its curve sidecar, and the independent activation history
 are owned by one RAM data layer (`ActivationStores`) whose every access runs
 under the single `shotStoreMutex`. Control and HTTP mutate only RAM and advance
-a generation. Control housekeeping copies an immutable image under
-that mutex and dispatches it to the core-0 persistence worker. The worker performs
+a generation. Control housekeeping captures an immutable image under that
+mutex: clean shot/activation stores skip their record payloads, and the curve
+image carries only the uncommitted suffix plus block, deletion and epoch metadata.
+Oldest-first curve commits preserve this suffix across retries and ring eviction.
+The image is dispatched to the core-0 persistence worker. The worker performs
 flash I/O without the store mutex. Control acknowledges completion and clears
 live dirtiness only when the completion generation still matches.
 Acknowledgement carries the image's

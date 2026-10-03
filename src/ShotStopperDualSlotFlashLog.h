@@ -198,6 +198,14 @@ class DualSlotFlashLog {
 
   bool dirty() const { return dirty_; }
 
+  void capturePersistenceImage(DualSlotFlashLog &image) const {
+    if (dirty_) image = *this;
+    image.activeSlot_ = activeSlot_;
+    image.store_.header.generation = store_.header.generation;
+    image.dirty_ = dirty_;
+    image.persistProgress_ = {};
+  }
+
   void acknowledgePersisted(const DualSlotFlashLog &image, bool clearDirty) {
     // Carry flash progress forward without replacing newer live RAM records.
     activeSlot_ = image.activeSlot_;

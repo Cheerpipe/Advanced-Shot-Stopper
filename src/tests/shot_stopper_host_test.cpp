@@ -15449,7 +15449,7 @@ void s12g_worker_acknowledgement_rechecks_generation_under_lock() {
     curve.shotId = 1;
     curve.count = 1;
     CHECK(shotCurves.append(curve, false));
-    *shotStorePersistImage = activationStores;
+    activationStores.capturePersistenceImage(*shotStorePersistImage);
     shotStorePersistImageGeneration = shotStoreDirtyGeneration.load();
     persistShotStoreImage();
     CHECK(shotStorePersistResultReady && shotStorePersistResultOk);

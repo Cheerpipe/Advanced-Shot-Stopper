@@ -214,10 +214,7 @@ class ShotCurveLog {
       size_t index = (store_.header.writeIndex + SHOT_CURVE_CAPACITY -
                       store_.header.count + n) % SHOT_CURVE_CAPACITY;
       const auto &record = store_.records[index];
-      bool persisted = false;
-      for (const auto &h : blocks_)
-        if (retained(h) && h.shotId == record.shotId) persisted = true;
-      if (persisted) continue;
+      if (persisted(record.shotId)) continue;
       if (sequence_ == UINT32_MAX) return FlashStoreStepResult::FAILED;
       targetBlock_ = SHOT_CURVE_BLOCK_COUNT;
       uint32_t oldest = UINT32_MAX;
@@ -245,6 +242,32 @@ class ShotCurveLog {
     dirty_ = false;
     deletionCount_ = 0;
     return FlashStoreStepResult::COMPLETE;
+  }
+
+  void capturePersistenceImage(ShotCurveLog &image) const {
+    memcpy(image.blocks_, blocks_, sizeof(blocks_));
+    image.epoch_ = epoch_;
+    image.durableEpoch_ = durableEpoch_;
+    image.sequence_ = sequence_;
+    image.floor_ = floor_;
+    image.epochSlot_ = epochSlot_;
+    image.deletionCount_ = deletionCount_;
+    memcpy(image.deletions_, deletions_, deletionCount_ * sizeof(deletions_[0]));
+    image.tx_ = {};
+    image.dirty_ = dirty_;
+    image.store_.header = store_.header;
+    image.store_.header.count = 0;
+    if (!dirty_) return;
+    // Oldest-first commits leave only an uncommitted suffix. Stop at the
+    // newest committed record instead of walking/copying the retained bank.
+    for (size_t n = 0; n < store_.header.count; ++n) {
+      const size_t index = (store_.header.writeIndex + SHOT_CURVE_CAPACITY -
+                            1U - n) % SHOT_CURVE_CAPACITY;
+      const auto &record = store_.records[index];
+      if (persisted(record.shotId)) break;
+      image.store_.records[index] = record;
+      ++image.store_.header.count;
+    }
   }
 
   void acknowledgePersisted(const ShotCurveLog &image, bool clearDirty) {
@@ -316,6 +339,11 @@ class ShotCurveLog {
   bool retained(const ShotCurveBlockHeader &h) const {
     return h.magic == SHOT_CURVE_MAGIC && h.epoch == epoch_ &&
            h.validity == kCommitted && h.sequence >= floor_;
+  }
+  bool persisted(uint32_t id) const {
+    for (const auto &h : blocks_)
+      if (retained(h) && h.shotId == id) return true;
+    return false;
   }
   uint32_t blockChecksum(size_t bytes) const {
     uint32_t crc = crc32Update(0xffffffffU, disk_, offsetof(ShotCurveBlockHeader, checksum));

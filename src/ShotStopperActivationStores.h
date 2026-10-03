@@ -9,8 +9,8 @@
 //    control loop, HTTP queries and mutations, deferred flush, delete/clear)
 //    runs under the caller's TaskLockGuard(shotStoreMutex). This component
 //    takes no hidden internal locks, so it can never recurse into that mutex.
-// 2. The persistence worker copies an immutable image under that mutex, then
-//    owns its stepped flash transaction after releasing the mutex.
+// 2. Control captures a selective immutable image under that mutex; the worker
+//    owns its stepped flash transaction after the mutex is released.
 // 3. No FreeRTOS task or ISR is created here. Live stores are touched only
 //    from control and network through the mutex; the worker touches its image.
 // 4. Flash reads/writes copy through the internal-SRAM FlashIoScratch while
@@ -142,6 +142,16 @@ class ActivationStores {
   bool anyPersistFailLatched() const {
     return shotLogPersistFailLatched_ || shotCurvePersistFailLatched_ ||
            historyPersistFailLatched_;
+  }
+
+  void capturePersistenceImage(ActivationStores &image) const {
+    shotLog.capturePersistenceImage(image.shotLog);
+    shotCurves.capturePersistenceImage(image.shotCurves);
+    historyLog.capturePersistenceImage(image.historyLog);
+    image.shotLogPersistFailLatched_ = shotLogPersistFailLatched_;
+    image.shotCurvePersistFailLatched_ = shotCurvePersistFailLatched_;
+    image.historyPersistFailLatched_ = historyPersistFailLatched_;
+    image.persistCursor_ = 0;
   }
 
   void acknowledgePersisted(const ActivationStores &image, bool clearDirty) {

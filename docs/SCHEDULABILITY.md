@@ -115,8 +115,10 @@ includes scheduler time until the task runs again; it does not identify which
 task ran during that interval. Housekeeping has eight separate, non-overlapping
 rows: serial log, serial CLI, settings persistence, history persistence, scale
 identity persistence, weight telemetry, status publication, and LED service.
-History persistence includes the immutable store-image copy before dispatch to
-the flash worker. These rows record only on iterations that run the 10 ms-gated
+History persistence includes selective immutable image capture before dispatch
+to the flash worker: clean ring payloads are skipped, and curves copy only the
+uncommitted suffix rather than the retained bank. These rows record only on
+iterations that run the 10 ms-gated
 block; skipped iterations contribute zero to their loop-gap breakdown.
 The loop owns the counters; ordinary
 phase records avoid locking, while one-second and health-window publication

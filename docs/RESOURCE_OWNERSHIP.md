@@ -13,9 +13,10 @@ commits one reserved 8 KiB record block at a time and acknowledges physical
 progress without clearing newer RAM changes. Clear epochs and delete markers
 belong to this same owner; no sampling-time writer or central append index exists.
 Every read, append, page query, mutation, and immutable image capture runs under
-that mutex. The generalized persistence worker writes the captured image after
-releasing the mutex and acknowledges it only when its generation is still
-current; control never acquires the flash lock. See
+that mutex. Control skips clean record payloads and captures only uncommitted
+curves with their flash progress metadata. The generalized persistence worker
+writes the captured image without the mutex; control clears dirtiness only when
+the completed generation is still current. Control never acquires the flash lock. See
 [BBW policy and storage](ARCHITECTURE.md#bbw-policy-and-storage).
 
 ScaleService publishes the bounded friendly/raw BLE name in its link

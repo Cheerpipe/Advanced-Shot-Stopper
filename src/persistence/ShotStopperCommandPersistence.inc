@@ -774,8 +774,8 @@ void serviceShotStorePersistence() {
         !lastShotNvsDirty) {
       return;
     }
-    *shotStorePersistImage = activationStores;
-    *lastShotPersistImage = lastShotStore;
+    activationStores.capturePersistenceImage(*shotStorePersistImage);
+    if (lastShotNvsDirty) *lastShotPersistImage = lastShotStore;
     shotStorePersistImageLastShotDirty = lastShotNvsDirty;
     shotStorePersistImageGeneration = dirtyGeneration;
   }

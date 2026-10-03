@@ -8,6 +8,7 @@
 #include "../ShotStopperShotLog.h"
 #include "../ShotStopperShotCurve.h"
 #include "../ShotStopperHistory.h"
+#include "../ShotStopperActivationStores.h"
 #include "../ShotStopperLastShot.h"
 #include "../machine/ShotStopperLineaMicraSettings.h"
 
@@ -693,7 +694,8 @@ void check_snapshot_persistence(Record record) {
   Log reloaded;
   for (size_t count = 1; count <= 4; ++count) {
     CHECK(live.append(record, false));
-    Log image = live;
+    Log image;
+    live.capturePersistenceImage(image);
     CHECK(image.flushStep() == FlashStoreStepResult::COMPLETE);
     live.acknowledgePersisted(image, true);
     CHECK(!live.dirty());
@@ -703,7 +705,8 @@ void check_snapshot_persistence(Record record) {
 
   // A newer RAM edit must survive acknowledgement of an older snapshot.
   CHECK(live.append(record, false));
-  Log image = live;
+  Log image;
+  live.capturePersistenceImage(image);
   CHECK(live.append(record, false));
   CHECK(image.flushStep() == FlashStoreStepResult::COMPLETE);
   live.acknowledgePersisted(image, false);
@@ -711,14 +714,14 @@ void check_snapshot_persistence(Record record) {
   CHECK(live.count() == 6);
   CHECK(reloaded.load());
   CHECK(reloaded.count() == 5);
-  image = live;
+  live.capturePersistenceImage(image);
   CHECK(image.flushStep() == FlashStoreStepResult::COMPLETE);
   live.acknowledgePersisted(image, true);
   CHECK(reloaded.load());
   CHECK(reloaded.count() == 6);
 
   CHECK(live.append(record, false));
-  image = live;
+  live.capturePersistenceImage(image);
   Log::setHostSaveSucceeds(false);
   CHECK(image.flushStep() == FlashStoreStepResult::FAILED);
   live.acknowledgePersisted(image, false);
@@ -726,19 +729,22 @@ void check_snapshot_persistence(Record record) {
   CHECK(reloaded.load());
   CHECK(reloaded.count() == 6);
   Log::setHostSaveSucceeds(true);
-  image = live;
+  live.capturePersistenceImage(image);
   CHECK(image.flushStep() == FlashStoreStepResult::COMPLETE);
   live.acknowledgePersisted(image, true);
   CHECK(reloaded.load());
   CHECK(reloaded.count() == 7);
 
   CHECK(live.clear(false));
-  image = live;
+  live.capturePersistenceImage(image);
   CHECK(image.flushStep() == FlashStoreStepResult::COMPLETE);
   live.acknowledgePersisted(image, true);
   CHECK(reloaded.load());
   CHECK(reloaded.count() == 0);
+  Log cleanImage = image;
   CHECK(live.append(record));
+  live.capturePersistenceImage(cleanImage);
+  CHECK(!cleanImage.dirty() && cleanImage.count() == 0);
   CHECK(live.clear());
   CHECK(reloaded.load());
   CHECK(reloaded.count() == 0);
@@ -2682,7 +2688,8 @@ void p61d_clear_epochs_and_stale_worker_images() {
   r.count = 1;
   r.weightCg[0] = 100;
   CHECK(live.append(r, false));
-  ShotCurveLog image = live;
+  ShotCurveLog image;
+  live.capturePersistenceImage(image);
   CHECK(live.clear(false));
   while (image.flushStep() == FlashStoreStepResult::MORE) {}
   live.acknowledgePersisted(image, false);
@@ -2692,7 +2699,7 @@ void p61d_clear_epochs_and_stale_worker_images() {
   CHECK(reboot.load() && reboot.count() == 0);
   r.weightCg[0] = 200;
   CHECK(live.append(r, false));
-  image = live;
+  live.capturePersistenceImage(image);
   CHECK(live.removeById(1, false));
   while (image.flushStep() == FlashStoreStepResult::MORE) {}
   live.acknowledgePersisted(image, false);
@@ -2700,7 +2707,7 @@ void p61d_clear_epochs_and_stale_worker_images() {
   CHECK(reboot.load() && reboot.count() == 0);
   r.shotId = 2;
   CHECK(live.append(r, false));
-  image = live;
+  live.capturePersistenceImage(image);
   r.shotId = 3;
   CHECK(live.append(r, false));
   while (image.flushStep() == FlashStoreStepResult::MORE) {}
@@ -2714,7 +2721,95 @@ void p61d_clear_epochs_and_stale_worker_images() {
 }
 
 
+void p66c_activation_capture_skips_clean_payloads() {
+  resetHostPersistence();
+  ActivationStores live, image;
+  CHECK(live.begin() && live.shotLog.flush());
+  ShotCurveRecord curve = emptyShotCurveRecord();
+  curve.shotId = 1;
+  curve.count = 1;
+  CHECK(live.shotCurves.append(curve));
+  // Stale clean payloads in the reused image must neither copy nor flush.
+  CHECK(image.shotLog.append(ShotLogRecord{}, false));
+  HistoryRecord activation = {};
+  activation.type = static_cast<uint8_t>(HistoryType::POWER_ON);
+  CHECK(live.historyLog.append(activation, false));
+  const size_t writesBefore = ShotCurveLog::hostWriteBytes();
+  live.capturePersistenceImage(image);
+  CHECK(!image.shotLog.dirty() && image.shotLog.count() == 1);
+  CHECK(!image.shotCurves.dirty() && image.shotCurves.count() == 0);
+  CHECK(image.historyLog.dirty());
+  ActivationStoresFlushReport report;
+  do { report = image.serviceStep(0, nullptr); } while (!report.complete && !report.anyFail);
+  CHECK(!report.anyFail);
+  live.acknowledgePersisted(image, true);
+  CHECK(!live.historyLog.dirty());
+  CHECK(ShotCurveLog::hostWriteBytes() == writesBefore);
+  HistoryLog reboot;
+  CHECK(reboot.load() && reboot.count() == 1);
+  HistoryRecord stored;
+  CHECK(reboot.copyNewestFirst(&stored, 1) == 1);
+  CHECK(stored.type == static_cast<uint8_t>(HistoryType::POWER_ON));
+}
+
+void p61e_selective_curve_capture_preserves_retention_and_retry() {
+  for (int failureAfter : {-1, 0, 1, 2, 3, 4, 5, 6}) {
+    resetHostPersistence();
+    ShotCurveLog live, image, reboot;
+    CHECK(live.load());
+    ShotCurveRecord record = emptyShotCurveRecord();
+    record.count = 1;
+    for (uint32_t id = 1; id <= SHOT_CURVE_CAPACITY; ++id) {
+      record.shotId = id;
+      record.weightCg[0] = static_cast<int16_t>(id);
+      CHECK(live.append(record));
+    }
+    live.capturePersistenceImage(image);
+    CHECK(!image.dirty() && image.count() == 0);
+    record.shotId = SHOT_CURVE_CAPACITY + 1U;
+    record.weightCg[0] = 1001;
+    CHECK(live.append(record, false));
+    live.capturePersistenceImage(image);
+    CHECK(image.dirty() && image.count() == 1);
+    CHECK(image.containsId(record.shotId));
+    CHECK(!image.containsId(SHOT_CURVE_CAPACITY));
+    // A newer live record cannot be cleared by this captured generation.
+    record.shotId = SHOT_CURVE_CAPACITY + 2U;
+    record.weightCg[0] = 1002;
+    CHECK(live.append(record, false));
+    ShotCurveLog::setHostFailAfter(failureAfter);
+    FlashStoreStepResult result;
+    do { result = image.flushStep(); } while (result == FlashStoreStepResult::MORE);
+    if (failureAfter < 0) CHECK(result == FlashStoreStepResult::COMPLETE);
+    live.acknowledgePersisted(image, false);
+    CHECK(live.dirty() && live.count() == SHOT_CURVE_CAPACITY);
+    ShotCurveLog::setHostFailAfter(-1);
+    live.capturePersistenceImage(image);
+    CHECK(image.count() >= 1 && image.count() <= 2);
+    do { result = image.flushStep(); } while (result == FlashStoreStepResult::MORE);
+    CHECK(result == FlashStoreStepResult::COMPLETE);
+    live.acknowledgePersisted(image, true);
+    CHECK(!live.dirty());
+    CHECK(reboot.load() && reboot.count() == SHOT_CURVE_CAPACITY);
+    CHECK(!reboot.containsId(1) && !reboot.containsId(2));
+    CHECK(reboot.copyByShotId(SHOT_CURVE_CAPACITY + 1U, record));
+    CHECK(record.weightCg[0] == 1001);
+    CHECK(reboot.copyByShotId(SHOT_CURVE_CAPACITY + 2U, record));
+    CHECK(record.weightCg[0] == 1002);
+    CHECK(live.removeById(SHOT_CURVE_CAPACITY + 1U, false));
+    live.capturePersistenceImage(image);
+    CHECK(image.dirty() && image.count() == 0);
+    do { result = image.flushStep(); } while (result == FlashStoreStepResult::MORE);
+    CHECK(result == FlashStoreStepResult::COMPLETE);
+    live.acknowledgePersisted(image, true);
+    CHECK(reboot.load() && reboot.count() == SHOT_CURVE_CAPACITY - 1U);
+    CHECK(!reboot.containsId(SHOT_CURVE_CAPACITY + 1U));
+  }
+}
+
 const TestCase tests[] = {
+    {"P66C", p66c_activation_capture_skips_clean_payloads},
+    {"P61E", p61e_selective_curve_capture_preserves_retention_and_retry},
     {"P61C", p61c_timestamped_capacity_and_interrupted_blocks},
     {"P61D", p61d_clear_epochs_and_stale_worker_images},
     {"TFP", touch_fallback_settings_upgrade_and_roundtrip},
