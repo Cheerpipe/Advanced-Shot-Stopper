@@ -393,6 +393,7 @@ const expected = new Map([
   ['POST /api/v1/diagnostic/scale-profile', 'ownedApiHandler'],
   ['GET /api/v1/diagnostic/scale-profile/download', 'ownedApiHandler'],
   ['POST /api/v1/diagnostic/loop-max/reset', 'ownedApiHandler'],
+  ['POST /api/v1/diagnostic/scale-gap-max/reset', 'ownedApiHandler'],
   // OTA authenticates with the device password instead of the exclusive
   // WebUI claim, so a command line client can update firmware without stealing
   // control from an open browser window.

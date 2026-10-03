@@ -54,6 +54,23 @@ field returns to the proposed model name, or to the broadcast name when the
 model is unknown. Renaming is unavailable while a shot is
 running.
 
+## Reading scale diagnostics
+
+In **Diagnostic → Scale**, **Weight updates** shows the recent, smoothed
+interval between weight readings and the corresponding rate. **Scale gaps**
+counts pauses longer than 250 ms between consecutive readings while the scale
+is connected and ready for weight control. The count lasts until the controller
+restarts; it does not count individual missing packets or time disconnected.
+
+**Max scale gap** shows the longest of those pauses in milliseconds since
+startup or its last reset. Select **(Reset)** beside it to begin a new maximum
+measurement; this leaves the Scale gaps count unchanged. A value of **0 ms**
+means no qualifying pause has been recorded in that measurement period.
+The maximum remains visible after readings recover or the scale reconnects.
+It is recorded when the next reading arrives, so it does not measure an ongoing
+silence. Use it alongside Stream, Control and Reconnects when investigating
+delayed readings; the duration alone does not establish the effect on a shot.
+
 ## Bluetooth on/off
 
 **Admin → BLE → Enable Bluetooth** is the master switch for Bluetooth scales.

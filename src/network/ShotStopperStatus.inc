@@ -1004,7 +1004,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"preferredFriendlyName\":\"%s\","
         "\"connectedMac\":\"%s\",\"connectedFriendlyName\":\"%s\","
         "\"streamState\":\"%s\",\"controlState\":\"%s\","
-        "\"packetGaps\":%lu,\"rejectedPackets\":%lu,"
+        "\"packetGaps\":%lu,\"maxPacketGapMs\":%lu,\"rejectedPackets\":%lu,"
         "\"reconnects\":%lu,\"lastDisconnectReasonName\":\"%s\","
         "\"lastDisconnect\":{\"summary\":\"%s\",\"sequence\":%lu,\"atMs\":%lu,\"ageMs\":%lu,"
         "\"generation\":%lu,\"reason\":\"%s\",\"origin\":\"%s\","
@@ -1140,6 +1140,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         weightStreamStateName(control.weightStreamState),
         weightControlStateName(control.weightControlState),
         static_cast<unsigned long>(control.scalePacketGaps),
+        static_cast<unsigned long>(control.scaleMaxPacketGapMs),
         static_cast<unsigned long>(control.scaleRejectedPackets),
         static_cast<unsigned long>(control.scaleReconnects),
         scaleDisconnectReasonName(control.scaleLastDisconnectReason),

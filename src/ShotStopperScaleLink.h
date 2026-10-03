@@ -158,6 +158,7 @@ struct ScaleLinkSnapshot {
   uint32_t connectionGeneration = 0;
   uint32_t packetSequence = 0;
   uint32_t packetGaps = 0;
+  uint32_t maxPacketGapMs = 0;
   uint32_t weightUpdateIntervalMs = 0;
   uint32_t rejectedPackets = 0;
   uint32_t reconnects = 0;

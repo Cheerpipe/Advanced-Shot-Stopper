@@ -223,6 +223,7 @@ void publishControlStatus() {
   next.scaleConnectionGeneration = scaleLink.connectionGeneration;
   next.scalePacketSequence = scaleLink.packetSequence;
   next.scalePacketGaps = scaleLink.packetGaps;
+  next.scaleMaxPacketGapMs = scaleLink.maxPacketGapMs;
   next.scaleWeightUpdateIntervalMs = scaleLink.weightUpdateIntervalMs;
   next.scaleRejectedPackets = scaleLink.rejectedPackets;
   next.scaleReconnects = scaleLink.reconnects;

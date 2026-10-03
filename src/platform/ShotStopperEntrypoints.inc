@@ -501,6 +501,7 @@ void setup() {
     callbacks.copyTaskProfiler = copyTaskProfiler;
     callbacks.copyScaleProfilerStatus = copyScaleProfilerStatus;
     callbacks.requestLoopMaxReset = requestLoopMaxReset;
+    callbacks.requestScaleGapMaxReset = requestScaleGapMaxReset;
     callbacks.reportStationIpChange = reportStationIpChange;
     if (!networkManager.begin(persistedSettings, callbacks)) {
       networkOk = false;

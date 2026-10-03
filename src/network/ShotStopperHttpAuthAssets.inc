@@ -405,6 +405,7 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
       {"/api/v1/diagnostic/scale-profile/download", HTTP_GET,
        scaleProfileDownloadHandler},
       {"/api/v1/diagnostic/loop-max/reset", HTTP_POST, loopMaxResetHandler},
+      {"/api/v1/diagnostic/scale-gap-max/reset", HTTP_POST, scaleGapMaxResetHandler},
       {"/api/v1/diagnostic/tare", HTTP_POST, scaleTareHandler},
   };
   const Route *matched = nullptr;

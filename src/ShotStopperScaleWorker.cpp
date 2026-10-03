@@ -183,6 +183,8 @@ uint32_t scaleDisconnectSequence = 0;
 uint32_t scaleConnectionGeneration = 0;
 uint32_t scalePacketSequence = 0;
 uint32_t scalePacketGaps = 0;
+static uint32_t scaleMaxPacketGapMs = 0;
+static std::atomic<bool> scaleGapMaxResetRequested{false};
 uint32_t lastScalePacketGapLogMs = 0;
 uint32_t lastScaleWeightAtMs = 0;
 uint32_t scaleWeightUpdateIntervalMs = 0;
@@ -506,6 +508,7 @@ ScaleLinkSnapshot getScaleLinkSnapshot() {
   snapshot.connectionGeneration = scaleConnectionGeneration;
   snapshot.packetSequence = scalePacketSequence;
   snapshot.packetGaps = scalePacketGaps;
+  snapshot.maxPacketGapMs = scaleMaxPacketGapMs;
   snapshot.weightUpdateIntervalMs = scaleWeightUpdateIntervalMs;
   snapshot.rejectedPackets = scaleRejectedPackets;
   snapshot.reconnects = scaleReconnects;
@@ -600,9 +603,17 @@ void setScaleLinkState(ScaleLinkState state) {
   }
 }
 
+void requestScaleGapMaxReset() {
+  scaleGapMaxResetRequested.store(true, std::memory_order_release);
+  wakeScaleWorker();
+}
+
 void markScaleWorkerProgress() {
   const uint32_t progressAtMs = millis();
   portENTER_CRITICAL(&scaleLinkMux);
+  if (scaleGapMaxResetRequested.exchange(false, std::memory_order_acquire)) {
+    scaleMaxPacketGapMs = 0;
+  }
   scaleWorkerProgressAtMs = progressAtMs;
   portEXIT_CRITICAL(&scaleLinkMux);
 }
@@ -788,6 +799,7 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
       const uint32_t dt = stamped.receivedAtMs - lastScaleWeightAtMs;
       if (dt > SCALE_STREAM_GAP_MS) {
         ++scalePacketGaps;
+        if (dt > scaleMaxPacketGapMs) scaleMaxPacketGapMs = dt;
         streamGapMs = dt;
         scaleWeightUpdateIntervalMs = 0;
       } else if (scaleWeightUpdateIntervalMs == 0) {

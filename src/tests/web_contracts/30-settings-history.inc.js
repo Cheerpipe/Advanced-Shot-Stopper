@@ -459,7 +459,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !ui.includes('id="taskTableBody"') ||
       !ui.includes('id="taskTableHint"') ||
       !ui.includes('function applyTaskProfiler(') ||
-      !ui.includes('/api/v1/diagnostic/profiler') ||
+      !ui.includes("[['taskProfiler','profiler','enabled'],['scaleProfile','scale-profile','action']]") ||
       !ui.includes('100% = 1 core busy (sum can exceed 100)') ||
       !ui.includes('id="hHeapMin"') ||
       !ui.includes('id="hHeapLargest"') ||
@@ -469,10 +469,14 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !ui.includes('id="hLoopGap"') ||
       !ui.includes('id="hLoopMax"') ||
       !ui.includes('id="loopMaxResetButton"') ||
+      !diagHtml.includes('Max scale gap (<button id="scaleGapMaxResetButton" class="inlineAction diagCtl" type="button">Reset</button>)') ||
+      !ui.includes('id="hScaleGapMax"') ||
       !ui.includes('id="loopTimingTable"') ||
       !ui.includes('id="loopTimingBody"') ||
       !diagHtml.includes('<th>Loop gap</th><th>Loop max</th>') ||
-      !ui.includes('/api/v1/diagnostic/loop-max/reset') ||
+      !ui.includes("[['loopMax','loop-max'],['scaleGapMax','scale-gap-max']]") ||
+      !ui.includes("$(id+'ResetButton').onclick=()=>R.command('/api/v1/diagnostic/'+path+'/reset',{})") ||
+      !ui.includes("t('hScaleGapMax',sc.maxPacketGapMs+") ||
       !ui.includes('id="lastCommandState"') ||
       !ui.includes('function updH(') ||
       !ui.includes('updH(s.health,s.safety)') ||

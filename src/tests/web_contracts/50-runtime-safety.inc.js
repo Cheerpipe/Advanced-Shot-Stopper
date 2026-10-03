@@ -108,6 +108,34 @@ for (const method of ['GET', 'POST', 'PUT']) {
   }
 }
 
+const diagnosticButtons = new Map();
+const diagnosticProfilerBindings = ui.slice(
+    ui.indexOf('for(const[id,path,field]'), ui.indexOf("$('scaleProfileDeleteButton').onclick"));
+const diagnosticResetStart = ui.indexOf("for(const[id,path]of[['loopMax'");
+const diagnosticResetBindings = ui.slice(
+    diagnosticResetStart, ui.indexOf('}export function activate()', diagnosticResetStart));
+new Function('$', 'R', diagnosticProfilerBindings + diagnosticResetBindings)(
+    id => {
+      const button = {};
+      diagnosticButtons.set(id, button);
+      return button;
+    }, {command: (uri, payload) => [uri, payload]});
+const diagnosticBoundRoutes = new Set();
+for (const [id, uri, payload] of [
+  ['taskProfilerStartButton', '/api/v1/diagnostic/profiler', {enabled: true}],
+  ['taskProfilerStopButton', '/api/v1/diagnostic/profiler', {enabled: false}],
+  ['scaleProfileStartButton', '/api/v1/diagnostic/scale-profile', {action: 'start'}],
+  ['scaleProfileStopButton', '/api/v1/diagnostic/scale-profile', {action: 'stop'}],
+  ['loopMaxResetButton', '/api/v1/diagnostic/loop-max/reset', {}],
+  ['scaleGapMaxResetButton', '/api/v1/diagnostic/scale-gap-max/reset', {}],
+]) {
+  const result = diagnosticButtons.get(id)?.onclick();
+  if (JSON.stringify(result) !== JSON.stringify([uri, payload])) {
+    throw new Error(`Diagnostic button sends the wrong command: ${id}`);
+  }
+  diagnosticBoundRoutes.add(result[0]);
+}
+
 for (const [route, handler] of expected) {
   const [method, uri] = route.split(' ');
   const escapedUri = uri.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -125,7 +153,7 @@ for (const [route, handler] of expected) {
       throw new Error(`Missing HTTP registration: ${route} -> ${handler}`);
     }
   }
-  if (uri !== '/' && !ui.includes(uri.split('?')[0])) {
+  if (uri !== '/' && !ui.includes(uri.split('?')[0]) && !diagnosticBoundRoutes.has(uri)) {
     const statusPage = uri.match(/^\/api\/v1\/status\/(home|settings|admin|diagnostic)$/);
     const lazyAsset = uri.match(/^\/(partials|js)\//);
     const browserIcon = uri === '/favicon.ico' ||
@@ -277,7 +305,7 @@ if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
     'workBufExternal', 'jsonArenaExternal', 'allocExternalFallback',
     'resetReasonCode', 'packetGaps', 'rejectedPackets', 'reconnects',
     'eventsDropped', 'recoveredStaleCount', 'recoveredStaleMs',
-    'weightUpdateIntervalMs',
+    'weightUpdateIntervalMs', 'maxPacketGapMs',
     'lastCommand', 'loopIntervalGapMs', 'loopMaxGapMs',
     'machineState', 'physicalActivatorOn', 'reedOn', 'controlSource', 'cupPresence',
     'streamState', 'controlState', 'taskWatchdogReady', 'recoveryRequired',

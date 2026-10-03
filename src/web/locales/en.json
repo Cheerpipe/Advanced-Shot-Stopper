@@ -303,6 +303,7 @@
     "diagnostic.machine_power_state": "Machine power state",
     "diagnostic.maintenance": "Maintenance",
     "diagnostic.marzocco_cloud": "La Marzocco Cloud",
+    "diagnostic.max_scale_gap": "Max scale gap",
     "diagnostic.min_level_stored_on_the_log_ring": "Min level stored on the log ring. None disables. Off by default.",
     "diagnostic.minbbwbrewtimeremainingms": " minBbwBrewTimeRemainingMs=",
     "diagnostic.misc": "MISC",

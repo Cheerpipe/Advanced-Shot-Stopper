@@ -460,6 +460,16 @@ esp_err_t ShotStopperNetwork::loopMaxResetHandler(httpd_req_t *request) {
   return sendJson(request, STATUS_OK, "{\"reset\":true}");
 }
 
+esp_err_t ShotStopperNetwork::scaleGapMaxResetHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  if (self.callbacks_.requestScaleGapMaxReset == nullptr) {
+    return sendError(request, STATUS_UNAVAILABLE, "SCALE_TIMING_UNAVAILABLE",
+                     "Scale gap maximum could not be reset.");
+  }
+  self.callbacks_.requestScaleGapMaxReset();
+  return sendJson(request, STATUS_OK, "{\"reset\":true}");
+}
+
 esp_err_t ShotStopperNetwork::scaleProfileHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   const esp_err_t bodyStatus =

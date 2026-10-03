@@ -220,6 +220,7 @@ struct NetworkBridgeCallbacks {
   void (*copyTaskProfiler)(TaskProfilerSnapshot &out) = nullptr;
   void (*copyScaleProfilerStatus)(ScaleProfilerStatus &out) = nullptr;
   void (*requestLoopMaxReset)() = nullptr;
+  void (*requestScaleGapMaxReset)() = nullptr;
   // Notify the controller that the STA address was assigned or changed.
   // Called from the network task with the dotted IP; implementations must be
   // non-blocking and enqueue-only.
@@ -590,6 +591,7 @@ class ShotStopperNetwork {
   static esp_err_t bleScanHandler(httpd_req_t *request);
   static esp_err_t taskProfilerHandler(httpd_req_t *request);
   static esp_err_t loopMaxResetHandler(httpd_req_t *request);
+  static esp_err_t scaleGapMaxResetHandler(httpd_req_t *request);
   static esp_err_t scaleProfileHandler(httpd_req_t *request);
   static esp_err_t scaleProfileDownloadHandler(httpd_req_t *request);
   static esp_err_t scaleTareHandler(httpd_req_t *request);

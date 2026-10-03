@@ -281,6 +281,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   scaleConnectionGeneration = 0;
   scalePacketSequence = 0;
   scalePacketGaps = 0;
+  scaleMaxPacketGapMs = 0;
+  scaleGapMaxResetRequested.store(false, std::memory_order_relaxed);
   lastScalePacketGapLogMs = 0;
   lastScaleWeightAtMs = 0;
   scaleWeightUpdateIntervalMs = 0;
@@ -7456,6 +7458,7 @@ void r33b_stream_gap_counts_connected_inter_packet_silence() {
   sample.weightG = 1.0f;
   CHECK(publishScaleEvent(sample, false));
   CHECK(scalePacketGaps == 0);
+  CHECK(getScaleLinkSnapshot().maxPacketGapMs == 0);
 
   hostMillis += SCALE_STREAM_GAP_MS;
   sample.receivedAtMs = hostMillis;
@@ -7463,12 +7466,14 @@ void r33b_stream_gap_counts_connected_inter_packet_silence() {
   debugLog.clear();
   CHECK(publishScaleEvent(sample, false));
   CHECK(scalePacketGaps == 0);
+  CHECK(getScaleLinkSnapshot().maxPacketGapMs == 0);
 
   hostMillis += SCALE_STREAM_GAP_MS + 1;
   sample.receivedAtMs = hostMillis;
   sample.weightG = 1.2f;
   CHECK(publishScaleEvent(sample, false));
   CHECK(scalePacketGaps == 1);
+  CHECK(getScaleLinkSnapshot().maxPacketGapMs == SCALE_STREAM_GAP_MS + 1);
   CHECK(debugEventExists(DebugCode::SCALE_PACKET_GAP));
 
   debugLog.clear();
@@ -7485,6 +7490,8 @@ void r33b_stream_gap_counts_connected_inter_packet_silence() {
   CHECK(debugEventExists(DebugCode::SCALE_PACKET_GAP));
 
   setScaleConnected(false);
+  const uint32_t maxBeforeReconnect = getScaleLinkSnapshot().maxPacketGapMs;
+  CHECK(maxBeforeReconnect == SCALE_PACKET_GAP_LOG_MIN_MS);
   hostMillis += 5000;
   setScaleConnected(true);
   sample.receivedAtMs = hostMillis;
@@ -7492,6 +7499,28 @@ void r33b_stream_gap_counts_connected_inter_packet_silence() {
   const uint32_t gapsBeforeReconnect = scalePacketGaps;
   CHECK(publishScaleEvent(sample, false));
   CHECK(scalePacketGaps == gapsBeforeReconnect);
+  CHECK(getScaleLinkSnapshot().maxPacketGapMs == maxBeforeReconnect);
+
+  sample.receivedAtMs += SCALE_STREAM_GAP_MS + 1;
+  CHECK(publishScaleEvent(sample, false));
+  CHECK(getScaleLinkSnapshot().maxPacketGapMs == maxBeforeReconnect);
+  const uint32_t gapsBeforeReset = scalePacketGaps;
+  const uint32_t lastWeightBeforeReset = lastScaleWeightAtMs;
+  const uint32_t intervalBeforeReset = scaleWeightUpdateIntervalMs;
+  requestScaleGapMaxReset();
+  markScaleWorkerProgress();
+  markScaleWorkerProgress();
+  CHECK(getScaleLinkSnapshot().maxPacketGapMs == 0);
+  CHECK(scalePacketGaps == gapsBeforeReset);
+  CHECK(lastScaleWeightAtMs == lastWeightBeforeReset);
+  CHECK(scaleWeightUpdateIntervalMs == intervalBeforeReset);
+  sample.receivedAtMs += SCALE_STREAM_GAP_MS + 5;
+  CHECK(publishScaleEvent(sample, false));
+  CHECK(getScaleLinkSnapshot().maxPacketGapMs == SCALE_STREAM_GAP_MS + 5);
+  publishControlStatus();
+  ControlStatusSnapshot status;
+  copyControlStatus(status);
+  CHECK(status.scaleMaxPacketGapMs == SCALE_STREAM_GAP_MS + 5);
 
   processScaleWorkerEvents();
   CHECK(observedWeight == 2.0f);
