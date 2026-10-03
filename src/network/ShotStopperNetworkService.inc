@@ -571,7 +571,7 @@ void ShotStopperNetwork::beginHeapShaper(uint32_t now) {
   heapShaperBlock_ = HEAP_SHAPER_BYTES != 0
       ? allocInternal(HEAP_SHAPER_BYTES, AllocationOwner::NETWORK) : nullptr;
   heapShaperAllocAtMs_ = now;
-  const BootHeapResult result = HEAP_SHAPER_BYTES == 0 ? BootHeapResult::DISABLED
+  const BootHeapResult result = HEAP_SHAPER_BYTES == 0 ? BootHeapResult::NO_RESERVATION
       : heapShaperBlock_ ? BootHeapResult::OK : BootHeapResult::FAILED;
   recordBootHeap(BootHeapStage::RESERVE_AFTER, result,
                  millis(), sampleHeapCaps(), reinterpret_cast<uintptr_t>(heapShaperBlock_),

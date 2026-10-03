@@ -10,7 +10,7 @@ enum class BootHeapStage : uint8_t {
   NTP_DONE, CLOUD_DONE, RELEASE_BEFORE, RELEASE_AFTER, WS_START, WS_DONE,
   COUNT
 };
-enum class BootHeapResult : uint8_t { OK, FAILED, SETTLED, TIMEOUT, STOP, DISABLED };
+enum class BootHeapResult : uint8_t { OK, FAILED, SETTLED, TIMEOUT, STOP, NO_RESERVATION };
 constexpr uint32_t BOOT_HEAP_POST_RELEASE_MS = 60000;
 
 inline const char *bootHeapStageName(BootHeapStage stage) {
