@@ -113,7 +113,8 @@
   const values = {}, events = {}, mobile = {matches: true, addEventListener: (name, fn) => {events.resize = fn;}};
   const header = vm.createContext({document: {body: {style: {setProperty: (name, value) => {values[name] = value;}}}},
     window: {scrollY: 0, matchMedia: () => mobile, addEventListener: (name, fn) => {events[name] = fn;}}});
-  const headerStart = appJsSource.indexOf('const mobileHeader=');
+  const headerStart = appJsSource.indexOf('function updateHeaderSize()');
+  header.mobileHeader = mobile;
   vm.runInContext(appJsSource.slice(headerStart, appJsSource.indexOf("window.addEventListener('popstate'", headerStart)), header);
   for (const [scroll, progress] of [[0, 0], [30, .25], [60, .5], [120, 1], [300, 1], [-20, 0]]) {
     header.window.scrollY = scroll; events.scroll();
@@ -138,7 +139,10 @@
       return Math.max(this.clientWidth, required);
     },
   };
-  const context = vm.createContext({pageNav: nav, __WEBUI_TEXT__: key => key,
+  const mobile = {matches: false, addEventListener: (name, fn) => {
+    assert.equal(name, 'change'); callbacks.breakpoint = fn;
+  }};
+  const context = vm.createContext({pageNav: nav, mobileHeader: mobile, __WEBUI_TEXT__: key => key,
     document: {documentElement: root, getElementById: id => {assert.equal(id, 'app'); return app;},
       fonts: {ready: {then: fn => {callbacks.fonts = fn;}}}},
     ResizeObserver: class {constructor(fn) {callbacks.resize = fn;} observe(target) {assert.equal(target, app);}},
@@ -166,6 +170,20 @@
   assert.equal(root.dataset.navLayout, 'text', 'The hidden attribute also removes a destination from measurement');
   links[0].width += 100; callbacks.fonts();
   assert.equal(root.dataset.navLayout, 'bottom', 'Changed font metrics are measured again');
+  links[0].width -= 100;
+  for (const width of [320, 390, 440, 699]) {
+    app.clientWidth = width; mobile.matches = true; callbacks.breakpoint();
+    assert.equal(root.dataset.navLayout, 'bottom', 'Phone width ' + width + ' always uses bottom icons');
+    links.forEach((link, index) => {link.suppressed = index !== 5;}); callbacks.visibility();
+    assert.equal(root.dataset.navLayout, 'bottom', 'Only Admin visible still uses bottom icons');
+    callbacks.fonts(); callbacks.resize();
+    assert.equal(root.dataset.navLayout, 'bottom', 'Font and resize events preserve phone navigation');
+    links.forEach(link => {link.suppressed = false;});
+  }
+  app.clientWidth = 760; mobile.matches = false; callbacks.breakpoint();
+  assert.equal(root.dataset.navLayout, 'icons', 'Leaving the mobile breakpoint restores header navigation');
+  app.clientWidth = 440; callbacks.resize();
+  assert.equal(root.dataset.navLayout, 'text', 'A narrow desktop content area still measures header text');
   assert(css.includes('bottom:var(--nav-offset)'), 'Save and action bars follow the navigation clearance');
   assert(!css.includes('top:-3.85rem'), 'Desktop header remains visible as in the accepted mockup');
 }

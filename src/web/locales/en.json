@@ -1258,7 +1258,7 @@
     "settings.shutdown_grace_5s": "5 s",
     "settings.shutdown_grace_60s": "60 s",
     "settings.shutdown_grace_off": "OFF",
-    "settings.shutdown_grace_period": "Shutdown delay",
+    "settings.shutdown_grace_period": "Machine shutdown delay",
     "settings.shutdown_grace_period_hint": "Waits the selected time after the scale powers off. Turning the scale back on within the window cancels the shutdown; OFF turns the machine off immediately.",
     "settings.shutdown_machine_with_scale": "Turn machine off when the scale powers off",
     "settings.shutdown_machine_with_scale_hint": "When the scale is switched off while no shot or rinse is running, the Micra goes to standby through the La Marzocco cloud. Scale signal loss and timeouts never trigger it.",

@@ -48,7 +48,7 @@ type preference is retained; a factory reset restores WebSocket.
 With a machine selected, **Save Micra settings** saves **Connection type**, **Allow brew boiler
 temperature in presets**, **Monitor machine power state**, **Recognize
 paddle wake gestures**, **Turn machine on when the scale powers on**,
-**Turn machine off when the scale powers off**, its **Shutdown delay**, and
+**Turn machine off when the scale powers off**, its **Machine shutdown delay**, and
 **Turn scale off when the machine powers off**.
 To switch between WebSocket and API, choose the connection type and save;
 your connected account and selected machine are kept. Saving does not sign in
@@ -323,7 +323,7 @@ controller. Because the command travels through the La Marzocco cloud, a
 saved, connected account is required: without one the option stays disabled
 and has no effect even if it was on before the account was removed.
 
-When you enable the option, a **Shutdown delay** choice appears below it:
+When you enable the option, a **Machine shutdown delay** choice appears below it:
 **OFF**, **5 s**, **15 s**, **30 s**, or **60 s**. With **OFF** the machine
 goes to standby as soon as the scale powers off. With a delay, the controller
 waits that long first, so switching the scale back on inside the window

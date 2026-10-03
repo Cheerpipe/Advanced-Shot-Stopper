@@ -13,18 +13,21 @@ return ok;
 if(R.compatibilityModeOn()&&view!=='admin'&&view!=='diagnostic'){view='admin';target='/admin'}if(location.pathname!==target)history.replaceState({},'',target);activeView=view;const ready=ensureView(view).then(()=>{if(seq!==routeSeq)return;document.body.classList.toggle('homeView',view==='home');document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hidden',el.dataset.view!==view));document.querySelectorAll('.pageNav a').forEach(a=>{const current=a.getAttribute('data-route')===viewToPath(view);a.classList.toggle('active',current);if(current)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')})});R.setActiveView(view,ready)
 ;try{const[,ok]=await Promise.all([ready,startView(view)]);if(seq!==routeSeq)return;if(ok)R.hideHomeBoot(boot);else if(R.webUiPollingActive())R.message(__WEBUI_TEXT__("shell.unable_to_load_view"),'error')}catch(e){if(seq===routeSeq)R.message(e&&e.message?e.message:__WEBUI_TEXT__("shell.unable_to_load_view"),'error')}}function navigate(path){const known=knownPath(path)
 ;const target=known?known:'/';if(location.pathname!==target)history.pushState({},'',target);renderRoute(target)}R.setViewPollHooks({stop:stopExtraPolls,start:()=>renderRoute(location.pathname),route:pathname=>renderRoute(pathname||location.pathname)});document.querySelectorAll('a[data-route]').forEach(a=>{a.addEventListener('click',e=>{e.preventDefault();navigate(a.getAttribute('data-route')||'/')})})
-;const pageNav=document.querySelector('.pageNav');
+;const pageNav=document.querySelector('.pageNav'),mobileHeader=window.matchMedia('(max-width: 699px)');
 function updateNavigationLayout(){
-const root=document.documentElement;root.dataset.navLayout='icons';
-if(pageNav.scrollWidth>pageNav.clientWidth){root.dataset.navLayout='text';if(pageNav.scrollWidth>pageNav.clientWidth)root.dataset.navLayout='bottom'}
+const data=document.documentElement.dataset;
+for(const mode of mobileHeader.matches?['bottom']:['icons','text','bottom']){
+data.navLayout=mode;if(pageNav.scrollWidth<=pageNav.clientWidth)break;
+}
 }
 if(pageNav){
 pageNav.setAttribute('aria-label',__WEBUI_TEXT__("shell.primary"));pageNav.querySelectorAll('a').forEach(a=>{a.title=a.textContent});
 new ResizeObserver(updateNavigationLayout).observe(document.getElementById('app'));
 new MutationObserver(updateNavigationLayout).observe(pageNav,{subtree:true,attributes:true,attributeFilter:['class','hidden']});
 document.fonts?.ready.then(updateNavigationLayout);updateNavigationLayout();
+mobileHeader.addEventListener('change',updateNavigationLayout);
 }
 const msgEl=document.getElementById('message');if(msgEl){msgEl.setAttribute('role','status');msgEl.setAttribute('aria-live','polite')}
 R.initHeaderSignals();
-const mobileHeader=window.matchMedia('(max-width: 699px)');function updateHeaderSize(){if(mobileHeader.matches)document.body.style.setProperty('--header-progress',Math.min(1,Math.max(0,window.scrollY/120)))}window.addEventListener('scroll',updateHeaderSize,{passive:true});mobileHeader.addEventListener('change',updateHeaderSize);updateHeaderSize();window.addEventListener('popstate',()=>{renderRoute(location.pathname)})
+function updateHeaderSize(){if(mobileHeader.matches)document.body.style.setProperty('--header-progress',Math.min(1,Math.max(0,window.scrollY/120)))}window.addEventListener('scroll',updateHeaderSize,{passive:true});mobileHeader.addEventListener('change',updateHeaderSize);updateHeaderSize();window.addEventListener('popstate',()=>{renderRoute(location.pathname)})
 ;document.addEventListener('visibilitychange',()=>{R.noteWebUiPowerActivity();document.hidden?R.stopViewPolls():startView(activeView)});document.addEventListener('wheel',R.noteWebUiInteraction,{capture:true,passive:true});document.addEventListener('touchmove',R.noteWebUiInteraction,{capture:true,passive:true});document.addEventListener('pointerdown',R.noteWebUiInteraction,true);document.addEventListener('click',R.noteWebUiInteraction,true);document.addEventListener('input',R.noteWebUiInteraction,true);document.addEventListener('change',R.noteWebUiInteraction,true);document.addEventListener('keydown',R.noteWebUiInteraction,true);R.setMutable(false);R.claimWebUiOwnership();
