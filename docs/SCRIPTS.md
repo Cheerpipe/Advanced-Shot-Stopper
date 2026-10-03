@@ -75,7 +75,14 @@ Open `http://127.0.0.1:4173/mobile-menu?navigation=2` to compare option 2:
 a rounded, floating bottom bar with **More** as its fifth item. Its menu opens
 upward with Diagnostics and Admin. The bar stays clear of the phone's safe area
 and leaves room to scroll the page's final content into view. Both navigation
-options remain available; the URL without `navigation=2` keeps option 1.
+options remain available; the URL without a `navigation` option keeps option 1.
+
+Open `http://127.0.0.1:4173/mobile-menu?navigation=3` for option 3:
+a compact floating bar with icons only. Home, Stats, History, Settings,
+Diagnostic and Admin are directly available, without a More menu. Each icon
+has an accessible name and a hover title; the current destination is highlighted.
+Hiding Diagnostics in the preview controls removes its icon and redistributes
+the remaining five buttons. Options 1 and 2 remain available for comparison.
 
 On mobile, scrolling gradually compacts the header while keeping the smaller logo
 and connection indicators visible. Return to the top to restore

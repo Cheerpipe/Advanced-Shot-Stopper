@@ -1,24 +1,30 @@
 'use strict';
 
-const floatingNavigation = new URLSearchParams(location.search).get('navigation') === '2';
-document.body.dataset.navigation = floatingNavigation ? '2' : '1';
+const navigationOption = new URLSearchParams(location.search).get('navigation');
+const floatingNavigation = navigationOption === '2';
+const compactNavigation = navigationOption === '3';
+document.body.dataset.navigation = floatingNavigation || compactNavigation ? navigationOption : '1';
 const menuIcons = {
   '/': '<path d="m3 10 9-7 9 7v10H3zM9 20v-7h6v7"/>',
   '/stats': '<path d="M3 4v16h18M6 16l5-5 4 2 6-8"/>',
   '/history': '<path d="M3 11a9 9 0 1 1 2.6 7.4M3 4v7h7M12 7v5l3 2"/>',
   '/settings': '<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="var(--sf)"/><circle cx="15" cy="17" r="3" fill="var(--sf)"/>',
+  '/diagnostic': '<path d="M3 12h4l3-7 4 14 3-7h4"/>',
+  '/admin': '<path d="m12 3 8 3v6c0 4-4 7-8 9-4-2-8-5-8-9V6z"/><rect x="9" y="10" width="6" height="5" rx="1"/><path d="M10 10V8a2 2 0 0 1 4 0v2"/>',
 };
 const mobileMenu = document.createElement('nav');
 mobileMenu.className = 'mobileMenu';
 mobileMenu.setAttribute('aria-label', 'Main navigation');
-for (const [route, icon] of Object.entries(menuIcons)) {
+for (const [route, icon] of Object.entries(menuIcons).slice(0, compactNavigation ? 6 : 4)) {
   const link = document.querySelector(`.pageNav [data-route="${route}"]`).cloneNode(true);
-  link.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg><span>${link.textContent}</span>`;
+  const label = link.textContent;
+  link.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>` + (compactNavigation ? '' : `<span>${label}</span>`);
+  if (compactNavigation) { link.setAttribute('aria-label', label); link.title = label; }
   mobileMenu.append(link);
 }
 document.body.append(mobileMenu);
 const previewControls = document.querySelector('.previewControls');
-previewControls.querySelector('summary').textContent = floatingNavigation ? 'Proposal 02 · floating navigation · sample data' : 'Mobile navigation proposal · sample data';
+previewControls.querySelector('summary').textContent = floatingNavigation || compactNavigation ? `Proposal 0${navigationOption} · ${compactNavigation ? 'compact' : 'floating'} navigation · sample data` : 'Mobile navigation proposal · sample data';
 $('app').prepend(previewControls);
 previewControls.querySelector('.previewControlGrid').insertAdjacentHTML('beforeend',
     '<label>Diagnostics<select id="previewDiagnostics"><option value="visible">Visible</option><option value="hidden">Hidden</option></select></label>');
@@ -45,10 +51,7 @@ if (floatingNavigation) {
   });
   placeMoreMenu();
 }
-for (const [route, icon] of Object.entries({
-  '/diagnostic': '<path d="M3 12h4l3-7 4 14 3-7h4"/>',
-  '/admin': '<path d="m12 3 8 3v6c0 4-4 7-8 9-4-2-8-5-8-9V6z"/><rect x="9" y="10" width="6" height="5" rx="1"/><path d="M10 10V8a2 2 0 0 1 4 0v2"/>',
-})) moreNav.querySelector(`[data-route="${route}"]`).insertAdjacentHTML('afterbegin',
+for (const [route, icon] of Object.entries(menuIcons).slice(4)) moreNav.querySelector(`[data-route="${route}"]`).insertAdjacentHTML('afterbegin',
     `<svg class="moreIcon" viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>`);
 
 function closePreviewMenu() {
@@ -111,7 +114,8 @@ window.addEventListener('scroll', () => {
 }, {passive: true});
 $('previewDiagnostics').onchange = event => {
   const hidden = event.target.value === 'hidden';
-  document.querySelector('.pageNav [data-route="/diagnostic"]').hidden = hidden;
+  document.querySelectorAll('[data-route="/diagnostic"]').forEach(link => { link.hidden = hidden; });
+  if (compactNavigation) mobileMenu.style.setProperty('--nav-count', hidden ? 5 : 6);
   if (hidden && location.pathname.endsWith('/diagnostic')) {
     history.replaceState(null, '', '/mobile-menu' + location.search);
     showPreviewRoute(true);
