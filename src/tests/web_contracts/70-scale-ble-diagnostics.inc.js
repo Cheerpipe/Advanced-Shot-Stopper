@@ -1,5 +1,29 @@
 // Execute the UI formatters against historical disconnect and command records.
 {
+  const assert = require('assert').strict;
+  const rows = {values: [], replaceChildren() {this.values = [];}, insertRow() {
+    const cells = []; this.values.push(cells);
+    return {insertCell: () => {const cell = {}; cells.push(cell); return cell;}};
+  }};
+  const elements = {scaleCommandRows: rows, scaleCommandTable: {}, scaleCommandHint: {}};
+  const first = viewJs.diagnostic.indexOf('function applyScaleCommands(');
+  const last = viewJs.diagnostic.indexOf('\n', first);
+  const apply = new Function('$', viewJs.diagnostic.slice(first, last) +
+    ';return applyScaleCommands;')(id => elements[id]);
+  const commands = ['Tare', 'Volume', 'Start timer', 'Stop timer', 'Reset timer',
+    'Tare and start timer', 'Power off'].map((name, i) => ({name,
+      code: ['0x01', '0x02', '0x04', '0x05', '0x06', '0x07', '0x15'][i]}));
+  apply({model: 'bookoo_ultra', supportedCommandsKnown: true, supportedCommands: commands});
+  assert.equal(rows.values.length, 7); assert(!elements.scaleCommandTable.hidden);
+  assert.equal(rows.values[6][1].textContent, '0x15');
+  assert(elements.scaleCommandHint.textContent.includes('charging'));
+  apply({model: 'bookoo_mini', supportedCommandsKnown: true, supportedCommands: commands.slice(0, 6)});
+  assert.equal(rows.values.length, 6); assert.equal(elements.scaleCommandHint.textContent, '');
+  apply({model: 'unknown', supportedCommandsKnown: false, supportedCommands: []});
+  assert(elements.scaleCommandTable.hidden); assert.equal(rows.values.length, 0);
+  assert(elements.scaleCommandHint.textContent.includes('unknown'));
+}
+{
   const source = runtimeJs;
   const first = source.indexOf('function formatScaleStatus(');
   const last = source.indexOf('function formatScaleTimer(', first);

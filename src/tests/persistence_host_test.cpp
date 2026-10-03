@@ -1141,7 +1141,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
   CHECK(sizeof(ControlStatusSnapshot) <= 6656);
   CHECK(sizeof(ControlGateSnapshot) <= 32);
-  CHECK(sizeof(WebCommand) <= 424);
+  CHECK(sizeof(WebCommand) <= 440);
   WebCommand command;
   command.type = WebCommandType::PRESET_OP;
   command.config.goalWeightG = 42;

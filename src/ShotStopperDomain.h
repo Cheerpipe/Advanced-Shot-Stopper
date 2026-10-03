@@ -1870,6 +1870,9 @@ struct WebCommand {
   BookooDebugAction bookooDebugAction = BookooDebugAction::START;
   uint8_t bookooBeepLevel = 0;
   BleScanCommandPayload bleScan = {};
+  // APPLY_CONFIG carries identity separately from the persisted runtime schema.
+  bool preferredScaleSpecified = false;
+  char preferredScaleMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
   // Only these builders activate the network member. Queue/copy operations
   // remain trivial; presets retain config plus their separate preset fields.
   void setNetworkType(WebCommandType next) {
@@ -1886,7 +1889,7 @@ struct WebCommand {
   CommandResultState resultState = CommandResultState::NONE;
 };
 
-static_assert(sizeof(WebCommand) <= 424, "WebCommand too large for queue");
+static_assert(sizeof(WebCommand) <= 440, "WebCommand too large for queue");
 static_assert(std::is_trivially_copyable<WebCommand>::value,
               "FreeRTOS queues copy WebCommand as bytes");
 

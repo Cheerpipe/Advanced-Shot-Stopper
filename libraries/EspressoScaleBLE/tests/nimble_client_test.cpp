@@ -1135,16 +1135,20 @@ static void run() {
     strcpy(c.name_, "BOOKOO_SC U 90210"); c.identityPresent_=true;
     CHECK(c.model()==ScaleModel::BookooUltra);
     CHECK(c.features().volumeMax==3);
+    strcpy(c.name_, "BOOKOO_SC_U 369041");
+    CHECK(c.model()==ScaleModel::BookooUltra);
+    CHECK(strcmp(scaleDefaultFriendlyName(c.name_),"BOOKOO Themis Ultra")==0);
     c.protocol_=&kScaleProtocolAcaia;
     CHECK(c.model()==ScaleModel::Unknown);
   }
   {
     NimbleScaleClient c(false); ready(c);
-    strcpy(c.name_, "BOOKOO_SC U 90210"); c.identityPresent_=true;
+    strcpy(c.name_, "BOOKOO_SC_U 369041"); c.identityPresent_=true;
     c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;
     CHECK(c.model()==ScaleModel::BookooUltra);
     CHECK(c.features().volumeMax==3);
     CHECK(c.writeOp(ScaleOp::SetVolume,4)==ScaleCommandResult::InvalidArgument);
+    CHECK(c.writeOp(ScaleOp::SetVolume,5)==ScaleCommandResult::InvalidArgument);
     CHECK(testWrites==0 && c.closedCommandGeneration_!=c.generation_);
     CHECK(c.writeOp(ScaleOp::SetVolume,3)==ScaleCommandResult::Ok);
     CHECK(c.writeOp(ScaleOp::PowerOff)==ScaleCommandResult::Ok);
@@ -1174,6 +1178,18 @@ static void run() {
     CHECK(scaleBookooOpcode(ScaleOp::SetVolume)==0x02);
     CHECK(scaleModelForAdvertisement("BOOKOO_SC U nope")==ScaleModel::Unknown);
     CHECK(scaleModelForAdvertisement("BOOKOO_SC 123X")==ScaleModel::Unknown);
+    for (const char *name : {"BOOKOO_SC_U", "BOOKOO_SC_U ",
+                            "BOOKOO_SC_U nope", "BOOKOO_SC_U U 123",
+                            "BOOKOO_SC_U 123X", "BOOKOO_SC_U 123 -"}) {
+      CHECK(scaleModelForAdvertisement(name)==ScaleModel::Unknown);
+    }
+    const uint8_t ultraCodes[]={1,2,4,5,6,7,0x15};
+    const ScaleModel ultra=scaleModelForAdvertisement("BOOKOO_SC_U 369041");
+    for(size_t i=0;i<7;++i){
+      CHECK(scaleBookooCommandAt(ultra,i,&command));
+      CHECK(command.code==ultraCodes[i]);
+    }
+    CHECK(!scaleBookooCommandAt(ultra,7,&command));
     CHECK(strcmp(scaleDefaultFriendlyName("LUNAR"),"LUNAR")==0);
   }
   printf("NimBLE production client: %u checks passed\n",checks);

@@ -149,6 +149,8 @@ void processWebCommand(const WebCommand &command) {
       }
       if (command.config.revision != runtimeConfig.revision ||
           command.config.timezoneAutomatic > 1 ||
+          (command.preferredScaleSpecified &&
+           !validPreferredScaleMac(command.preferredScaleMac)) ||
           (command.config.timezoneSource == 3 &&
            durableTimezoneSaved().load()) ||
           (command.config.timezoneSource == 4 &&
@@ -277,6 +279,10 @@ void processWebCommand(const WebCommand &command) {
           bbwLearningBank.invalidate(presetBank.presets[i].id, presetBank, 1);
       }
       commitLiveRuntimeConfig(composed, RUNTIME_PERSIST_REASON_USER);
+      if (command.preferredScaleSpecified) {
+        selectPreferredScale(command.preferredScaleMac, nullptr);
+        servicePreferredScaleMacPersistence();
+      }
       RecipeSnapshot quickAfter;
       quickAfter.presets = presetBank;
       quickAfter.runtime = runtimeConfig;

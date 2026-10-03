@@ -124,6 +124,8 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   bool brewByWeight = !candidate.timerOnly;
   bool baseRevisionPresent = false;
   uint32_t baseRevision = 0;
+  char preferredScaleMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
+  const bool preferredScaleSpecified = jsonFieldPresent(root, "preferredScaleMac");
   const bool timezoneIdPresent = jsonFieldPresent(root, "timezoneId");
   bool timezoneAutoInit = false;
   bool timezoneDetected = false;
@@ -181,7 +183,7 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       "weightOffsetBaselineG", "timezoneId", "timezoneAutoInit",
       "timezoneDetected", "timezoneAutomatic", "ntpSyncEnabled",
       "ntpServerPreset",
-      "ntpServerCustom", "scaleMacCacheMode", "bookooMuteOnBuzzerOnly",
+      "ntpServerCustom", "scaleMacCacheMode", "preferredScaleMac", "bookooMuteOnBuzzerOnly",
       "bookooConnectBeepLevel", "noScaleBbwMode", "avoidBbwShotWithoutScale",
       "noScaleAllowRinseWhileArmed", "lastShotCooldownMs",
       "serialLogLevel", "serialDebugOutput", "ringRetainLogLevel", "showDiagnosticPage",
@@ -461,6 +463,12 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
              !jsonScaleMacCacheMode(root, "scaleMacCacheMode",
                                     candidate.scaleMacCacheMode)) {
     parseError = "scaleMacCacheMode must be first, prefer, or only.";
+  } else if (preferredScaleSpecified &&
+             (!jsonString(root, "preferredScaleMac", preferredScaleMac,
+                          sizeof(preferredScaleMac), true) ||
+              (preferredScaleMac[0] != '\0' &&
+               !validPreferredScaleMac(preferredScaleMac)))) {
+    parseError = "preferredScaleMac must be empty or a BLE address AA:BB:CC:DD:EE:FF.";
   } else if (jsonFieldPresent(root, "bookooMuteOnBuzzerOnly") &&
              !jsonBoolean(root, "bookooMuteOnBuzzerOnly",
                           candidate.bookooMuteOnBuzzerOnly)) {
@@ -612,6 +620,9 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   command.requestId = self.allocateRequestId();
   command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
   command.config = candidate;
+  command.preferredScaleSpecified = preferredScaleSpecified;
+  copyCString(command.preferredScaleMac, sizeof(command.preferredScaleMac),
+              preferredScaleMac);
   command.bullseyeConfigSpecified = bullseyeConfigSpecified;
   if (bullseyeConfigSpecified) {
     if (self.callbacks_.stageBullseyeConfig == nullptr ||

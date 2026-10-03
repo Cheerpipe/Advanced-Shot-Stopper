@@ -614,8 +614,9 @@ if (htmlBytes > 84000) {
 // rendering plus the streamed TXT download); compressed assets and firmware
 // limits stay fixed.
 // Backflush state/history labels and live safety diagnostics add 1.5 KiB source.
-if (jsBytes > 238500) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 238500)`);
+// Preferred-scale draft/readback joins Machine Save/Revert (+300 measured bytes).
+if (jsBytes > 239000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 239000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.

@@ -39,17 +39,19 @@ struct ScaleProtocol {
 // Advertisement identity is a hint for display; command filtering also
 // requires the selected Bookoo protocol on the current connection.
 inline ScaleModel scaleModelForAdvertisement(const char *name) {
-    if (name == nullptr || strncmp(name, "BOOKOO_SC ", 10) != 0) {
+    if (name == nullptr) return ScaleModel::Unknown;
+    const bool ultraPrefix = strncmp(name, "BOOKOO_SC_U ", 12) == 0;
+    if (!ultraPrefix && strncmp(name, "BOOKOO_SC ", 10) != 0) {
         return ScaleModel::Unknown;
     }
-    const char *serial = name + 10;
-    const bool ultra = serial[0] == 'U' && serial[1] == ' ';
-    if (ultra) serial += 2;
+    const char *serial = name + (ultraPrefix ? 12 : 10);
+    const bool spacedUltra = !ultraPrefix && serial[0] == 'U' && serial[1] == ' ';
+    if (spacedUltra) serial += 2;
     if (*serial == '\0') return ScaleModel::Unknown;
     for (const char *p = serial; *p != '\0'; ++p) {
         if (*p < '0' || *p > '9') return ScaleModel::Unknown;
     }
-    return ultra ? ScaleModel::BookooUltra : ScaleModel::BookooMini;
+    return ultraPrefix || spacedUltra ? ScaleModel::BookooUltra : ScaleModel::BookooMini;
 }
 
 // The raw-name fallback is borrowed from the caller; copy it if retained.

@@ -11,6 +11,12 @@ Which Bluetooth scale to use, how long to wait after a shot for drip, and
 Bookoo-specific volume / combined tare. Machine-level, under
 **Settings → Machine and scale → Scales**.
 
+Choose a **Preferred scale**, then press **Save machine settings** to apply it
+together with the other machine and scale settings. Until you save, the
+controller keeps using the saved preference. The arrow beside Save discards
+unsaved changes. **Clear preferred** and **(rename)** are separate actions
+that take effect when confirmed.
+
 Daily defaults assume a **Bookoo** Themis Mini or Ultra. **Acaia**,
 **Felicita**, **AtomHeart Eclair**, **Decent**, **DiFluid Microbalance**,
 **MyScale**, **Varia AKU**, **Eureka Precisa** (named GAP), and **WeighMyBru**
@@ -44,7 +50,7 @@ there is no connection. Home continues to show the saved preferred scale.
 Bookoo Themis models identify themselves in that broadcast name, so the
 scale library proposes a readable model name for you: a scale broadcasting
 `BOOKOO_SC` with digits appears as **BOOKOO Themis Mini**, and one
-broadcasting `BOOKOO_SC U` with digits appears as **BOOKOO Themis Ultra**.
+broadcasting `BOOKOO_SC_U` with digits appears as **BOOKOO Themis Ultra**.
 The proposed name appears when the scale is first detected and added to the
 list, and keeps working after a restart. A name you choose always takes
 precedence.
@@ -55,6 +61,12 @@ model is unknown. Renaming is unavailable while a shot is
 running.
 
 ## Reading scale diagnostics
+
+**Supported commands** lists the commands available for the connected,
+identified Bookoo model. Themis Ultra lists tare, volume, start/stop/reset
+timer, tare and start timer, and power off. Themis Mini lists the same commands
+except power off. Ultra may ignore power off while charging. An unidentified
+model shows that command support is unknown.
 
 When no scale is connected, the Bluetooth symbol and its signal bars in the
 header share the same faded appearance in both light and dark modes.
@@ -197,8 +209,8 @@ If no compatible scale is available, the controller stays in the bootstrap
 name scan indefinitely and does not silently change the saved preference.
 Choosing **Prefer selected** before a scale has been adopted uses the same
 bootstrap; after adoption, its normal preferred-first fallback applies.
-Changing the preference mode or selected scale restarts an in-progress search
-immediately with the new filter. If **Preferred only** is enabled while a
+Saving a changed preference mode or selected scale restarts an in-progress
+search with the new filter. If **Preferred only** is enabled while a
 different scale is connected, that connection is closed before directed
 discovery begins.
 
@@ -230,7 +242,8 @@ rejects readings older than 1 s, before that link timeout. Check
 
 1. Turn off other compatible scales and close phone apps connected to the one
    you want.
-2. Select the intended remembered scale, or **Clear preferred** for a new one.
+2. Select the intended remembered scale and press **Save machine settings**,
+   or choose **Clear preferred** for a new one.
    Clearing pauses discovery for 30 s; it does not erase scale history.
 3. With **Preferred only** and no saved preference, let the intended scale
    complete its first connection. Check Home for fresh weight, not just a name.

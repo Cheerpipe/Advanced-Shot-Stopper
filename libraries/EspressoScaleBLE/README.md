@@ -43,7 +43,9 @@ tare if present, local buzzer for alerts, no combined tare+start.
 
 `EspressoScaleBLE::model()` identifies a Bookoo Themis Mini or Ultra from its
 advertised name only on a ready Bookoo connection; ambiguous or nameless
-connections remain `ScaleModel::Unknown`. `defaultFriendlyName()` provides the
+connections remain `ScaleModel::Unknown`. Mini names use `BOOKOO_SC <digits>`;
+Ultra names use `BOOKOO_SC_U <digits>` (the spaced `BOOKOO_SC U <digits>` form
+is also recognized). `defaultFriendlyName()` provides the
 model's display name, and `supportedCommandAt()` enumerates implemented
 commands and their wire codes for identified models. The pure advertisement
 helper also lets an owner display the proposed name before connection.

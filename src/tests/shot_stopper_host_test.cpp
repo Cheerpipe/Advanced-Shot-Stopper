@@ -2929,13 +2929,18 @@ void w04b_select_best_sta_ap_prefers_strongest_matching_bssid() {
 
 void attemptActiveConfigUpdate() {
   const RuntimeConfig before = runtimeConfig;
+  char preferredBefore[PREFERRED_SCALE_MAC_CAPACITY] = {};
+  copyPreferredScaleMac(preferredBefore, sizeof(preferredBefore));
   WebCommand update;
   update.type = WebCommandType::APPLY_CONFIG;
   update.config = before;
   update.config.goalWeightG = before.goalWeightG + 1;
+  update.preferredScaleSpecified = true;
+  strcpy(update.preferredScaleMac, "AA:BB:CC:DD:EE:99");
   processWebCommand(update);
   CHECK(runtimeConfig.goalWeightG == before.goalWeightG);
   CHECK(runtimeConfig.revision == before.revision);
+  CHECK(preferredScaleMacEqual(scalePreferredMac, preferredBefore));
 }
 
 void w05_config_is_blocked_while_brewing_early() {
@@ -2983,12 +2988,46 @@ void w09_valid_config_applies_only_from_ready() {
   update.config = runtimeConfig;
   update.config.goalWeightG = 42;
   update.config.weightOffsetG = 4.5f;  // Not a Web-editable field.
+  noteScaleHistory("AA:BB:CC:DD:EE:99", "BOOKOO_SC_U 369041", false);
+  CHECK(setScaleFriendlyName("AA:BB:CC:DD:EE:99", "Coffee scale"));
+  update.preferredScaleSpecified = true;
+  strcpy(update.preferredScaleMac, "aa:bb:cc:dd:ee:99");
+  update.config.scaleMacCacheMode = static_cast<uint8_t>(ScaleMacCacheMode::ONLY);
   const uint32_t oldRevision = runtimeConfig.revision;
   processWebCommand(update);
   CHECK(runtimeConfig.goalWeightG == 42);
   CHECK(fabsf(runtimeConfig.weightOffsetG - 2.25f) < 0.001f);
   CHECK(runtimeConfig.revision == oldRevision + 1);
   CHECK(!maintenanceLease.active);
+  CHECK(strcmp(scalePreferredMac, "AA:BB:CC:DD:EE:99") == 0);
+  CHECK(strcmp(scalePreferredName, "BOOKOO_SC_U 369041") == 0);
+  const uint32_t appliedRevision = runtimeConfig.revision;
+  // Invalid identity, stale revision, and invalid settings reject both changes.
+  for (int failure = 0; failure < 3; ++failure) {
+    update.config = runtimeConfig;
+    update.config.firstDropBeep = !runtimeConfig.firstDropBeep;
+    strcpy(update.preferredScaleMac, "AA:BB:CC:DD:EE:98");
+    if (failure == 0) strcpy(update.preferredScaleMac, "invalid");
+    if (failure == 1) --update.config.revision;
+    if (failure == 2) update.config.minimumCupWeightG = -1;
+    processWebCommand(update);
+    CHECK(runtimeConfig.revision == appliedRevision);
+    CHECK(strcmp(scalePreferredMac, "AA:BB:CC:DD:EE:99") == 0);
+  }
+  update.config = runtimeConfig;
+  update.preferredScaleSpecified = false;
+  processWebCommand(update);
+  CHECK(strcmp(scalePreferredMac, "AA:BB:CC:DD:EE:99") == 0);
+  update.config = runtimeConfig;
+  update.preferredScaleSpecified = true;
+  update.preferredScaleMac[0] = '\0';
+  processWebCommand(update);
+  CHECK(scalePreferredMac[0] == '\0');
+  CHECK(scaleDiscoveryPausedUntilMs == 0);
+  char friendly[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  CHECK(findScaleHistoryFriendlyName(scaleHistory, "AA:BB:CC:DD:EE:99",
+                                     friendly, sizeof(friendly)));
+  CHECK(strcmp(friendly, "Coffee scale") == 0);
 }
 
 void w10_cycle_configuration_snapshot_is_immutable() {
@@ -5638,7 +5677,7 @@ void d13d_known_mini_rejects_shutdown_before_terminal_barrier() {
 void d13e_ultra_volume_rejection_preserves_saved_level() {
   resetHarness(false, false);
   copyCString(scale.connectedLocalName, sizeof(scale.connectedLocalName),
-              "BOOKOO_SC U 90210");
+              "BOOKOO_SC_U 369041");
   setScaleConnected(true);
   CHECK(getScaleLinkSnapshot().model == ScaleModel::BookooUltra);
   CHECK(scale.features().volumeMax == 3);
@@ -6390,6 +6429,8 @@ void d13a_auto_friendly_name_for_themis_models() {
                "BOOKOO Themis Mini") == 0);
   CHECK(strcmp(scaleDefaultFriendlyName("BOOKOO_SC U 90210"),
                "BOOKOO Themis Ultra") == 0);
+  CHECK(strcmp(scaleDefaultFriendlyName("BOOKOO_SC_U 369041"),
+               "BOOKOO Themis Ultra") == 0);
   CHECK(strcmp(scaleDefaultFriendlyName("LUNAR"), "LUNAR") == 0);
   CHECK(scaleModelForAdvertisement("BOOKOO_SCTE 1") == ScaleModel::Unknown);
   CHECK(scaleModelForAdvertisement("BOOKOO_SC U ") == ScaleModel::Unknown);
@@ -6402,7 +6443,7 @@ void d13a_auto_friendly_name_for_themis_models() {
   }
   scaleHistorySeq = 0;
   noteScaleHistory("AA:BB:CC:DD:EE:01", "BOOKOO_SC 715097", false);
-  noteScaleHistory("AA:BB:CC:DD:EE:02", "BOOKOO_SC U 90210", false);
+  noteScaleHistory("AA:BB:CC:DD:EE:02", "BOOKOO_SC_U 369041", false);
   ScaleHistoryEntry history[SCALE_HISTORY_CAPACITY] = {};
   copyScaleHistory(history);
   CHECK(history[0].friendlyName[0] == '\0');

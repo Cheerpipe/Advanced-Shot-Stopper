@@ -360,11 +360,11 @@ if (!statusSection || !statusSection[1].includes('class="statusColumn"') ||
     !ui.includes('Clear preferred') ||
     !ui.includes('scaleMacCacheMode') ||
     !ui.includes('/api/v1/scale/preferred/clear') ||
-    !ui.includes('/api/v1/scale/preferred/select') ||
+    ui.includes("command('/api/v1/scale/preferred/select'") ||
     !ui.includes('function formatPreferredScale(') ||
     !ui.includes('function updatePreferredScaleSelect(') ||
     !ui.includes('function updateScalePreferenceOptions(') ||
-    !ui.includes("if(!preferred){const first=document.createElement('option')") ||
+    !ui.includes("if(!preferred||(keep&&!prev)){const first=document.createElement('option')") ||
     !ui.includes("first.textContent=mode==='only'||mode==='prefer'?") ||
     !ui.includes('empty.textContent=bootstrap?') ||
     !ui.includes('First detected') || !ui.includes('No preferred') ||
@@ -377,11 +377,11 @@ if (!statusSection || !statusSection[1].includes('class="statusColumn"') ||
     // Regression: missing ';' after `prev` concatenated into
     // `prevupdateScalePreferenceOptions` and broke Settings status refresh.
     ui.includes(':prevupdateScalePreferenceOptions') ||
-    !ui.includes(':prev;updateScalePreferenceOptions()') ||
+    !ui.includes("sel.value=keep?prev:(preferred||'');updateScalePreferenceOptions()") ||
     !ui.includes('preferredScaleSelectSyncing') ||
-    !ui.includes("mac===(sel.dataset.applied||'')") ||
+    !ui.includes("sel.dataset.pending='1'") ||
     !ui.includes("scaleMacCacheMode:['first','prefer','only'].includes($('scalePreference')?.value)?$('scalePreference').value:'only'") ||
-    !ui.includes("el.id==='preferredScaleSelect'") ||
+    !ui.includes('payload.preferredScaleMac=sel.value') ||
     ui.includes('id="alwaysUseThisScale"') ||
     ui.includes('Always use this scale') ||
     !ui.includes('function selectPreferredScale(') ||

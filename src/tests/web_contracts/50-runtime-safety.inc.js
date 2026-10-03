@@ -159,9 +159,10 @@ for (const [route, handler] of expected) {
     const browserIcon = uri === '/favicon.ico' ||
         uri.startsWith('/apple-touch-icon');
     const rawLastShotApi = uri === '/api/v1/last-shot/clear';
+    const directScaleSelectionApi = uri === '/api/v1/scale/preferred/select';
     if (!(statusPage && ui.includes('async function loadStatus(') && ui.includes('/api/v1/status/')) &&
         !(lazyAsset && (ui.includes('/partials/') || ui.includes('/js/'))) &&
-        !browserIcon && !rawLastShotApi) {
+        !browserIcon && !rawLastShotApi && !directScaleSelectionApi) {
       throw new Error(`Registered API is not referenced by the UI: ${uri}`);
     }
   }

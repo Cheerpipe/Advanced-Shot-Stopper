@@ -55,7 +55,7 @@
     assert(new RegExp(`id="${id}"[^>]*data-dirty="0"[^>]*disabled`).test(normalizedUi),
         `${id} must start visibly disabled next to its save button`);
   assert(viewJs.settings.includes(
-      "if(el.id==='preferredScaleSelect'||el.id==='presetRenameInput')return"),
+      "if(el.id==='presetRenameInput')return"),
       'The preset rename dialog input must not dirty the machine-config section');
   assert(runtimeJs.includes('e.dataset.dirty!=null') &&
          runtimeJs.includes("setSaveDirty('saveConfigButton','configDirtyHint',false)") &&
@@ -109,4 +109,92 @@
   assert(adminUi.includes("$('saveWebhookButton').classList.add('busy')") &&
          adminUi.includes("finally{$('saveWebhookButton').classList.remove('busy')}"),
     'Webhook saving must keep its dedicated busy feedback');
+}
+
+// Execute the preferred-scale draft, polling, Save, and Revert lifecycle.
+{
+  const assert = require('assert').strict, vm = require('vm');
+  const run = async () => {
+    const a = 'AA:BB:CC:DD:EE:01', b = 'AA:BB:CC:DD:EE:02';
+    const sel = {id: 'preferredScaleSelect', dataset: {}, options: [], selected: '',
+      appendChild(o) {this.options.push(o);},
+      set innerHTML(_) {this.options = []; this.selected = '';},
+      set value(v) {this.selected = this.options.some(o => o.value === v) ? v : '';},
+      get value() {return this.selected;},
+      get selectedOptions() {return this.options.filter(o => o.value === this.value);}};
+    const errors = [], requests = [];
+    let applied = a, fail = false, editDuringSave = false;
+    const context = vm.createContext({$: id => id === sel.id ? sel : null,
+      document: {activeElement: null, createElement: () => ({dataset: {}}),
+        querySelectorAll: () => [sel]},
+      preferredScaleSelectSyncing: false, controlsMutable: true,
+      configDirty: false, configBaseline: null,
+      settingsSectionOf: () => 'config', updateScalePreferenceOptions() {},
+      updateScaleRenameUi: (_, mac) => {context.renameMac = mac;},
+      setSaveDirty() {}, confirm: () => true, clearFieldErrors() {},
+      updateConfigGroups() {}, syncHomeGuardSwitchesFromSettings() {},
+      ensureSettingsHydrated: async () => {}, validateMachineClient: () => null,
+      validateBullseyeClient: () => null, machinePayload: () => ({scaleMacCacheMode: 'only'}),
+      addBullseyePayload: p => p, withBaseRev: p => ({...p, baseRevision: 7}),
+      formatCommandError: (_, e) => e.message, message: e => errors.push(e),
+      refreshStatus: async () => context.updatePreferredScaleSelect(status()),
+      command: async (path, payload) => {
+        requests.push({path, payload});
+        if (fail) throw new Error('rejected');
+        if ('preferredScaleMac' in payload) applied = payload.preferredScaleMac;
+        if (editDuringSave) {sel.value = a; context.selectPreferredScale();}
+        await context.refreshStatus();
+        return true;
+      }});
+    const status = (history = [a, b]) => ({config: {scaleMacCacheMode: 'only'},
+      scale: {preferredMac: applied, history: history.map(mac => ({mac, name: mac}))}});
+    const take = (start, end) => runtimeJs.slice(runtimeJs.indexOf(start), runtimeJs.indexOf(end));
+    vm.runInContext([
+      take('function scaleHistoryLabel(', 'function formatScaleWeight('),
+      take('function settingsSectionEls(', 'function setSaveDirty('),
+      take('function markConfigDirty(', 'function markDateTimeDirty('),
+      runtimeJs.split('\n').find(line => line.startsWith('function revertMachineConfig(')),
+      take('function selectPreferredScale(', 'async function command('),
+      take('async function saveMachineConfig(', 'async function saveDateTimeConfig(')
+    ].join('\n'), context);
+    context.updatePreferredScaleSelect(status());
+    context.configBaseline = context.snapshotControls(context.settingsSectionEls('config'));
+    sel.value = b; context.selectPreferredScale();
+    assert.equal(requests.length, 0, 'Editing sends no mutation request');
+    assert(context.configDirty); assert.equal(context.renameMac, b);
+    context.updatePreferredScaleSelect(status([a]));
+    assert.equal(sel.value, b, 'Blur and disappearing history preserve the draft');
+    context.revertMachineConfig();
+    assert.equal(sel.value, a); assert(!context.configDirty);
+    sel.value = b; context.selectPreferredScale();
+    fail = true; await context.saveMachineConfig();
+    assert.equal(sel.value, b); assert(context.configDirty);
+    assert.equal(errors.at(-1), 'rejected');
+    fail = false; await context.saveMachineConfig();
+    assert.equal(requests.at(-1).path, '/api/v1/config');
+    assert.equal(requests.at(-1).payload.preferredScaleMac, b);
+    assert.equal(requests.at(-1).payload.scaleMacCacheMode, 'only');
+    assert.equal(requests.at(-1).payload.baseRevision, 7);
+    assert(!context.configDirty); assert.equal(sel.dataset.pending, '0');
+    context.markConfigDirty(); await context.saveMachineConfig();
+    assert(!('preferredScaleMac' in requests.at(-1).payload), 'Unedited preference is omitted');
+    sel.value = a; context.selectPreferredScale();
+    applied = b; context.updatePreferredScaleSelect(status());
+    assert.equal(sel.value, a, 'Polling cannot replace a pending draft');
+    await context.saveMachineConfig();
+    sel.value = b; context.selectPreferredScale();
+    editDuringSave = true; await context.saveMachineConfig();
+    assert.equal(sel.value, a); assert(context.configDirty, 'New edits survive Save acknowledgement');
+    editDuringSave = false;
+    context.revertMachineConfig(); applied = ''; context.updatePreferredScaleSelect(status());
+    context.configBaseline = context.snapshotControls(context.settingsSectionEls('config'));
+    context.markConfigDirty(); applied = a; context.updatePreferredScaleSelect(status());
+    await context.saveMachineConfig();
+    assert(!('preferredScaleMac' in requests.at(-1).payload), 'Unrelated edits preserve bootstrap adoption');
+    applied = ''; context.updatePreferredScaleSelect(status()); sel.value = '';
+    context.selectPreferredScale(); applied = a; context.updatePreferredScaleSelect(status());
+    sel.value = ''; context.selectPreferredScale(); await context.saveMachineConfig();
+    assert.equal(requests.at(-1).payload.preferredScaleMac, '', 'Explicit empty selection clears preference');
+  };
+  run().catch(error => {console.error(error); process.exitCode = 1;});
 }
