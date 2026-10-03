@@ -282,11 +282,11 @@ constexpr uint32_t NETWORK_MANAGER_TASK_STACK_SIZE = 10240;
 // internal allocations (2026-09-28 target capture: largest 64 -> 32 KB while
 // the two spare 32 KB side blocks stay untouched). Holding most of the
 // central run during bring-up forces that wave into the side blocks;
-// releasing it afterwards restores one large contiguous block. 60 000 B
+// releasing it afterwards restores one large contiguous block. 44 KiB
 // exceeds the 32 KB side blocks (so the hold can only land centrally) and
 // stays below the observed 65 988 B central run at network start. Use 0 for
 // the no-reservation comparison, 49152 for 48 KiB, or 60000 for the baseline.
-constexpr uint32_t HEAP_SHAPER_BYTES = 56 * 1024;
+constexpr uint32_t HEAP_SHAPER_BYTES = 44 * 1024;
 // Floor after station connect before the central run can return. The late
 // bring-up allocations extend the hold until each reaches a terminal
 // outcome: first cloud query (when credentials are configured) and first

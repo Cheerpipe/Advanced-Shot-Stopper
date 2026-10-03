@@ -196,7 +196,7 @@ order. `held` is the startup reservation still active at that stage. `free` and
 describe internal DMA-capable memory. These overlapping pools must not be added
 together. `requested` and `address` identify the reservation attempt; an address
 of zero with `reserve_after,failed` means it could not be obtained. The current
-comparison build requests 56 KiB: expect `requested=57344`. A zero-size build
+comparison build requests 44 KiB: expect `requested=45056`. A zero-size build
 instead reports `requested=0`, `address=0x0`, `reserve_after,disabled` and `held=0`.
 
 Compare `release_before` and `release_after` to see how much contiguous memory
@@ -226,9 +226,10 @@ combine region minima reached at different times. Without a reservation,
 matching stage rows as well as the minima.
 
 For the comparison, use `HEAP_SHAPER_BYTES` in `src/ShotStopperNetwork.cpp`:
-`57344` is the current 56 KiB candidate, `60000` is the original baseline,
-`49152` is 48 KiB, and `0` disables the hold. Use the same firmware revision,
-board, account, connection settings and task stack sizes for each build.
+`45056` is the current 44 KiB candidate, `57344` is the previous 56 KiB trial,
+`60000` is the original baseline, `49152` is 48 KiB, and `0` disables the hold.
+Use the same firmware revision, board, account, connection settings and task
+stack sizes for each build.
 This trial also reduces the WS SDK task stack from 8 to 6 KiB; capture the
 `websocket_task` and `micra_cloud` stack watermarks after cold connection,
 renewal and reconnection before accepting it. Save separate boot captures for
