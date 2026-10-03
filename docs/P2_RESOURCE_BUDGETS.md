@@ -153,7 +153,15 @@ retain their addresses. The installer permits the exact previous project
 layout to transition over USB without erasing unrelated saved data.
 
 Capability samples use `INTERNAL|8BIT` and `SPIRAM|8BIT`, including the PSRAM
-minimum-free watermark. Diagnostic `memoryAllocations` reports cumulative
+minimum-free watermark. The retained boot capture uses at most 768 bytes of
+static PSRAM plus one internal static task mutex and an atomic sampling flag.
+It also samples `INTERNAL|DMA`; the overlapping capability pools are not additive.
+First-stage samples and approximately 100 ms health-task samples maintain separate
+hold/post-release minima, without resetting lifetime watermarks. Sampling stops
+60 seconds after release, while records remain available through
+[`BOOT_HEAP`](SERIAL_CLI.md#capture-startup-memory) until reset. These sampled
+minima can miss shorter dips; missing phases/stages are explicit in the report.
+Diagnostic `memoryAllocations` reports cumulative
 successes, failures, largest requested size, and last failed size by owner for
 the application's capability-allocation wrappers. These counters are not live
 allocation counts and do not include allocations made directly by SDK code.

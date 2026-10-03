@@ -92,6 +92,7 @@ void healthWorkerTask(void *) {
   uint32_t heapLowSinceMs = 0;
   for (;;) {
     const uint32_t now = millis();
+    serviceBootHeap(now);
     serviceHealthProfiler(now);
     serviceScaleProfiler(now);
     if (sampledAtMs == 0 || elapsedMs(sampledAtMs) >= HEALTH_TELEMETRY_INTERVAL_MS) {

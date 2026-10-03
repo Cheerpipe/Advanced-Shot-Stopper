@@ -61,7 +61,7 @@ Wi-Fi and BLE startup and keeps machine circuit open throughout the operation.
 Always allowed (including during a cycle):
 
 - `HELP`, `HELLO`
-- dumps (`*_STATUS`, `NET_STATUS`, `LOG_DUMP`, `HEALTH`, `HEAP`)
+- dumps (`*_STATUS`, `NET_STATUS`, `LOG_DUMP`, `HEALTH`, `HEAP`, `BOOT_HEAP`)
 - `SERIAL_DEBUG_ON` / `SERIAL_DEBUG_OFF`, `DEBUG_FULL` / `DEBUG_OFF`
 - link mutations (`WIFI_CONNECT` / `DISCONNECT` / `RESTART`, `AP_START` /
   `AP_STOP`, `WEBUI_START` / `STOP` / `RESTART`)
@@ -164,10 +164,55 @@ persist.
 | `SCALE_STATUS` | none | BLE scale link, preferred MAC/name, weight freshness, recovered stale count/time, live `scanIntensity` (`aggressive` / `balanced` / `relaxed`), the saved idle scan backoff in minutes (`scanBackoffMin`, `0` = off), and the saved machine-use scan boost in minutes (`scanBoostMin`, `0` = off) |
 | `NTP_STATUS` | none | Wall clock / NTP state, saved IANA `timezoneId`, and the offset applied at the current UTC instant. Notes if STA is down |
 | `HEAP` | none | Internal memory heap summary plus the list of free blocks (size and start address, up to 12) so you can see which gaps bound the largest allocation. Reports `freeBlocksTruncated` when more free blocks exist |
+| `BOOT_HEAP` | none | Retained memory samples from the current boot, including the startup reservation and first network/cloud/WebSocket stages. Works with debug traces off |
 
 `HEALTH` stack watermarks are bytes (`stackUnit=bytes`). Legacy `Words` suffixes
 are retained without rescaling their values. `4294967295` means unavailable;
 zero is a valid exhausted margin and must never be filtered out.
+
+### Capture startup memory
+
+The controller captures startup memory automatically. You can connect the USB
+monitor after startup; you do not need to enable debug logs beforehand. USB
+must be enabled by the boot jumper or a development build as described above.
+
+1. Start the controller with the firmware you want to measure. Each reboot
+   replaces the previous capture; the report is retained in RAM, not flash.
+2. Open the [USB monitor](#open-the-port) at 115200 baud and enter `BOOT_HEAP`.
+3. If the report says `status=recording`, wait and request it again. Capture
+   ends 60 seconds after the startup reservation is released. On a failed
+   connection this normally means about two minutes from network startup.
+4. When it says `status=complete`, copy the entire response into a local text
+   file. Save the firmware version, board profile and whether cloud observation
+   used HTTP or WebSocket beside it. Keep the same settings for comparisons.
+
+The comma-separated rows contain `stage,result,ms,held,free,largest,allocated,
+blocks,dmaFree,dmaLargest,psramFree,psramLargest`. Memory values are bytes;
+`ms` is time since boot. Rows are grouped by stage; timestamps show their actual
+order. `held` is the startup reservation still active at that stage. `free` and
+`largest` describe internal byte-accessible memory; `dmaFree` and `dmaLargest`
+describe internal DMA-capable memory. These overlapping pools must not be added
+together. `requested` and `address` identify the reservation attempt; an address
+of zero with `reserve_after,failed` means it could not be obtained.
+
+Compare `release_before` and `release_after` to see how much contiguous memory
+the reservation returns, then compare `ws_start` and `ws_done` for the first
+WebSocket attempt. Release results are `settled`, `timeout`, `stop`, or `failed`
+when the reservation allocation failed. Missing stages were not reached during
+the capture window, for example cloud/WebSocket when they are disabled. Each
+stage retains its first outcome, including failures; later retries do not
+overwrite it. `cloud_done` reports transport completion, not account validity.
+
+`held_min` and `post_min` show separate minima observed while the reservation
+was held and after release. They combine stage samples and sampling by the
+health task at approximately 100 ms intervals. Brief dips between samples can
+be missed. `samples=0` means the phase has no measurements, not zero available
+memory. The lifetime minimum shown by `HEAP` and `HEALTH` is preserved and may
+combine region minima reached at different times.
+
+`status=not_started` means network startup has not yet reached the reservation
+attempt. `BOOT_HEAP` is read-only and does not start a new capture or change
+network settings. To inspect current memory after the capture ends, use `HEAP`.
 
 ## Shot history
 

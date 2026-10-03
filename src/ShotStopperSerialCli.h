@@ -3,6 +3,7 @@
 #include "ShotStopperDomain.h"
 #include "ShotStopperPersistedNetwork.h"
 #include "ShotStopperPsram.h"
+#include "ShotStopperBootHeap.h"
 #include "ShotStopperTime.h"
 #include "ShotStopperUsbConsole.h"
 
@@ -47,6 +48,7 @@ enum class SerialCliVerb : uint8_t {
   SCALE_STATUS,
   NTP_STATUS,
   HEAP,
+  BOOT_HEAP,
   UNKNOWN,
   LINE_TOO_LONG,
   INVALID_ARGS
@@ -101,6 +103,7 @@ inline const char *serialCliVerbName(SerialCliVerb verb) {
     case SerialCliVerb::SCALE_STATUS: return "SCALE_STATUS";
     case SerialCliVerb::NTP_STATUS: return "NTP_STATUS";
     case SerialCliVerb::HEAP: return "HEAP";
+    case SerialCliVerb::BOOT_HEAP: return "BOOT_HEAP";
     case SerialCliVerb::UNKNOWN: return "UNKNOWN";
     case SerialCliVerb::LINE_TOO_LONG: return "LINE_TOO_LONG";
     case SerialCliVerb::INVALID_ARGS: return "INVALID_ARGS";
@@ -346,6 +349,9 @@ inline bool serialCliParseLine(const char *line, SerialCliRequest &request) {
   if (serialCliEqualsIgnoreCase(verb, "heap")) {
     return requireNoArgs(SerialCliVerb::HEAP);
   }
+  if (serialCliEqualsIgnoreCase(verb, "boot_heap")) {
+    return requireNoArgs(SerialCliVerb::BOOT_HEAP);
+  }
 
   if (serialCliEqualsIgnoreCase(verb, "set_device_password")) {
     if (argCount != 1) {
@@ -463,6 +469,7 @@ inline void serialCliPrintHelp() {
   Serial.println("NTP_STATUS  wall clock and NTP dump  e.g. NTP_STATUS");
   Serial.println(
       "HEAP  internal heap free-block layout  e.g. HEAP");
+  Serial.println("BOOT_HEAP  retained startup memory capture  e.g. BOOT_HEAP");
 }
 
 inline const char *serialCliWifiModeName(uint8_t mode) {
@@ -906,6 +913,55 @@ inline void serialCliPrintHeap(const HeapCapSnapshot &snapshot,
     Serial.print("freeBlocksTruncated=");
     Serial.println(static_cast<unsigned long>(blocks.walkedFreeBlocks -
                                               blocks.listedCount));
+  }
+}
+
+inline void serialCliPrintBootHeap() {
+  BootHeapMinimum minima[2];
+  uint32_t stages, requested;
+  uintptr_t address;
+  bool complete;
+  {
+    TaskLockGuard lock(bootHeapMutex);
+    stages = bootHeapCapture.stages;
+    requested = bootHeapCapture.requestedBytes;
+    address = bootHeapCapture.address;
+    complete = bootHeapCapture.complete;
+    minima[0] = bootHeapCapture.held;
+    minima[1] = bootHeapCapture.post;
+  }
+  Serial.println("BOOT_HEAP bytes=1 time=ms_since_boot");
+  char line[192];
+  snprintf(line, sizeof(line), "status=%s requested=%lu address=0x%lx postWindowMs=%lu",
+           stages == 0 ? "not_started" : complete ? "complete" : "recording",
+           static_cast<unsigned long>(requested), static_cast<unsigned long>(address),
+           static_cast<unsigned long>(BOOT_HEAP_POST_RELEASE_MS));
+  Serial.println(line);
+  Serial.println("stage,result,ms,held,free,largest,allocated,blocks,dmaFree,dmaLargest,psramFree,psramLargest");
+  for (size_t i = 0; i < static_cast<size_t>(BootHeapStage::COUNT); ++i) {
+    if (!(stages & (1U << i))) continue;
+    BootHeapRecord record;
+    {
+      TaskLockGuard lock(bootHeapMutex);
+      record = bootHeapCapture.records[i];
+    }
+    snprintf(line, sizeof(line), "%s,%s,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu",
+             bootHeapStageName(static_cast<BootHeapStage>(i)), bootHeapResultName(record.result),
+             static_cast<unsigned long>(record.atMs), static_cast<unsigned long>(record.heldBytes),
+             static_cast<unsigned long>(record.internal.freeBytes),
+             static_cast<unsigned long>(record.internal.largestBlock),
+             static_cast<unsigned long>(record.internal.allocatedBlocks),
+             static_cast<unsigned long>(record.internal.freeBlocks),
+             static_cast<unsigned long>(record.dmaFree), static_cast<unsigned long>(record.dmaLargest),
+             static_cast<unsigned long>(record.psramFree), static_cast<unsigned long>(record.psramLargest));
+    Serial.println(line);
+  }
+  for (size_t i = 0; i < 2; ++i) {
+    snprintf(line, sizeof(line), "%s samples=%lu free=%lu largest=%lu dmaFree=%lu dmaLargest=%lu",
+             i == 0 ? "held_min" : "post_min", static_cast<unsigned long>(minima[i].samples),
+             static_cast<unsigned long>(minima[i].free), static_cast<unsigned long>(minima[i].largest),
+             static_cast<unsigned long>(minima[i].dmaFree), static_cast<unsigned long>(minima[i].dmaLargest));
+    Serial.println(line);
   }
 }
 

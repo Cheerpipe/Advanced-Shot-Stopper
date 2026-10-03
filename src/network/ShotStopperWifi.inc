@@ -423,6 +423,7 @@ bool ShotStopperNetwork::ensureMdns() {
   }
   const esp_err_t err = mdns_init();
   if (err != ESP_OK) {
+    recordBootHeap(BootHeapStage::MDNS_READY, BootHeapResult::FAILED, millis());
     lifecycleLogf("mDNS init failed (0x%x)", static_cast<unsigned>(err));
     return false;
   }
@@ -430,6 +431,7 @@ bool ShotStopperNetwork::ensureMdns() {
   mdnsServiceActive_ = false;
   activeMdnsHost_[0] = '\0';
   applyMdnsName();
+  recordBootHeap(BootHeapStage::MDNS_READY, BootHeapResult::OK, millis());
   return true;
 }
 
@@ -569,6 +571,9 @@ void ShotStopperNetwork::startStation(const NetworkSettingsSnapshot &settings,
     WiFi.softAPdisconnect(true);
   }
   WiFi.mode(WIFI_STA);
+  recordBootHeap(BootHeapStage::WIFI_INIT,
+                 WiFi.getMode() != WIFI_OFF ? BootHeapResult::OK : BootHeapResult::FAILED,
+                 millis());
   // Do not clear staEverConnected_: once STA has joined this boot, SoftAP must
   // not auto-raise again (serial AP_START or reboot only).
   clearPendingConfirmWindow();
@@ -762,6 +767,9 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
     WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_AP_STA);
   }
+  recordBootHeap(BootHeapStage::WIFI_INIT,
+                 WiFi.getMode() != WIFI_OFF ? BootHeapResult::OK : BootHeapResult::FAILED,
+                 millis());
   applyWifiPowerSave(true);
   syncScaleSoftApRadio(true);
   const IPAddress ip(192, 168, 4, 1);

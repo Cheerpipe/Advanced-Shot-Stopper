@@ -62,6 +62,7 @@ void ShotStopperMicraService::stopWebSocket(bool release) {
   }
   if (buffer->client) {
     const auto before = sampleHeapCaps();
+    recordBootHeap(BootHeapStage::WS_DONE, BootHeapResult::FAILED, millis(), before);
     {
       TaskLockGuard lock(mux_);
       if (buffer->stamp.identity == identityGeneration_ && config_.accountConfigured &&
@@ -282,6 +283,7 @@ void ShotStopperMicraService::websocketEvent(void *context, const char *,
       buffer.failed.store(true, std::memory_order_release);
     } else if (admitted) {
       const auto heap = sampleHeapCaps();
+      recordBootHeap(BootHeapStage::WS_DONE, BootHeapResult::OK, millis(), heap);
       TaskLockGuard lock(self.mux_);
       if (buffer.stamp.epoch == self.observationFence_.epoch &&
           buffer.stamp.identity == self.identityGeneration_ &&
@@ -526,6 +528,7 @@ void ShotStopperMicraService::serviceWebSocket() {
   config.ping_interval_sec = 15;
   config.pingpong_timeout_sec = 30;
   const auto before = sampleHeapCaps();
+  recordBootHeap(BootHeapStage::WS_START, BootHeapResult::OK, millis(), before);
   if (ok && websocketAdmitted()) buffer.client = esp_websocket_client_init(&config);
   ok = buffer.client && esp_websocket_register_events(buffer.client, WEBSOCKET_EVENT_ANY,
                                                      websocketEvent, this) == ESP_OK;
@@ -537,6 +540,7 @@ void ShotStopperMicraService::serviceWebSocket() {
   }
   ok = ok && websocketAdmitted() && esp_websocket_client_start(buffer.client) == ESP_OK;
   if (!ok) {
+    recordBootHeap(BootHeapStage::WS_DONE, BootHeapResult::FAILED, millis());
     const bool unexpected = websocketAdmitted();
     stopWebSocket();
     buffer.failed.store(true);

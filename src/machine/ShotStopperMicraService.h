@@ -8,6 +8,7 @@
 #include "ShotStopperMicraWebSocket.h"
 #include "ShotStopperMicraTiming.h"
 #include "ShotStopperPsram.h"
+#include "ShotStopperBootHeap.h"
 #include "ShotStopperTaskMutex.h"
 #include "ShotStopperOutboundAdmission.h"
 

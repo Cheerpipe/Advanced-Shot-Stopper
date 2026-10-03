@@ -2238,6 +2238,9 @@ bool ShotStopperMicraService::request(
         heapAfter);
   }
   cloudFirstQuerySettled_.store(true, std::memory_order_release);
+  recordBootHeap(BootHeapStage::CLOUD_DONE,
+                 performed == ESP_OK ? BootHeapResult::OK : BootHeapResult::FAILED,
+                 millis(), heapAfter);
   work_->transportStatus = performed;
   work_->httpStatus = static_cast<uint16_t>(
       esp_http_client_get_status_code(work_->client));

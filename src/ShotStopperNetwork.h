@@ -9,6 +9,7 @@
 #include "ShotStopperShotLogTypes.h"
 #include "ShotStopperTime.h"
 #include "ShotStopperTaskMutex.h"
+#include "ShotStopperBootHeap.h"
 #include "ShotStopperResourceOwner.h"
 
 #include <WiFi.h>
@@ -439,7 +440,7 @@ class ShotStopperNetwork {
   void service();
   void beginHeapShaper(uint32_t now);
   void serviceHeapShaper(uint32_t now);
-  void releaseHeapShaper();
+  void releaseHeapShaper(BootHeapResult reason = BootHeapResult::STOP);
   void serviceNtp(uint32_t now, bool staConnected);
   bool ntpMayArm(uint32_t now, bool staConnected) const;
   void abortNtpForRfGate();

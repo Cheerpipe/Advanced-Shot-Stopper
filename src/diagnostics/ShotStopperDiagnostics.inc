@@ -953,6 +953,9 @@ void dispatchSerialCliRequest(SerialCliRequest &request) {
     case SerialCliVerb::HEAP:
       serialCliPrintLiveHeap();
       return;
+    case SerialCliVerb::BOOT_HEAP:
+      serialCliPrintBootHeap();
+      return;
   }
 }
 

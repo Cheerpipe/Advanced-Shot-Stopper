@@ -971,6 +971,7 @@ void ShotStopperNetwork::handleNtpFailure(uint32_t now) {
   }
   g_wallClock.markFailed(now, NTP_MAX_CONSECUTIVE_FAILURES);
   ntpFirstAttemptSettled_ = true;
+  recordBootHeap(BootHeapStage::NTP_DONE, BootHeapResult::FAILED, millis());
   log(DebugCategory::NETWORK, DebugCode::TIME_SYNC_FAIL, ntpFailoverIndex_, 0);
 }
 
@@ -1030,6 +1031,7 @@ void ShotStopperNetwork::serviceNtp(uint32_t now, bool staConnected) {
     ntpManualAttempt_ = false;
     ntpFailoverIndex_ = 0;
     ntpFirstAttemptSettled_ = true;
+    recordBootHeap(BootHeapStage::NTP_DONE, BootHeapResult::OK, millis());
     log(DebugCategory::NETWORK, DebugCode::TIME_SYNC_OK);
     return;
   }
@@ -1121,6 +1123,7 @@ bool ShotStopperNetwork::startHttpServer() {
   if (httpd_start(&server_, &config) != ESP_OK) {
     server_ = nullptr;
     finishOwnedHeapLifecycle(httpHeap_, HeapLifecycleResult::FAILURE);
+    recordBootHeap(BootHeapStage::HTTP_READY, BootHeapResult::FAILED, millis());
     lifecycleLog("httpd_start failed");
     return false;
   }
@@ -1191,9 +1194,11 @@ bool ShotStopperNetwork::startHttpServer() {
     (void)httpd_stop(server_);
     server_ = nullptr;
     finishOwnedHeapLifecycle(httpHeap_, HeapLifecycleResult::FAILURE);
+    recordBootHeap(BootHeapStage::HTTP_READY, BootHeapResult::FAILED, millis());
     return false;
   }
   finishOwnedHeapLifecycle(httpHeap_, HeapLifecycleResult::SUCCESS);
+  recordBootHeap(BootHeapStage::HTTP_READY, BootHeapResult::OK, millis());
   return true;
 }
 

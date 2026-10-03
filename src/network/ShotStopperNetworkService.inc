@@ -567,18 +567,23 @@ void ShotStopperNetwork::beginHeapShaper(uint32_t now) {
   if (heapShaperBlock_ != nullptr || heapShaperReleased_) {
     return;
   }
+  recordBootHeap(BootHeapStage::RESERVE_BEFORE, BootHeapResult::OK, now, sampleHeapCaps());
   heapShaperBlock_ = allocInternal(HEAP_SHAPER_BYTES, AllocationOwner::NETWORK);
   heapShaperAllocAtMs_ = now;
+  recordBootHeap(BootHeapStage::RESERVE_AFTER,
+                 heapShaperBlock_ ? BootHeapResult::OK : BootHeapResult::FAILED,
+                 millis(), sampleHeapCaps(), reinterpret_cast<uintptr_t>(heapShaperBlock_),
+                 HEAP_SHAPER_BYTES);
+  if (heapShaperBlock_ == nullptr) releaseHeapShaper(BootHeapResult::FAILED);
 }
 
-void ShotStopperNetwork::releaseHeapShaper() {
-  if (heapShaperBlock_ == nullptr) {
-    heapShaperReleased_ = true;
-    return;
-  }
+void ShotStopperNetwork::releaseHeapShaper(BootHeapResult reason) {
+  if (heapShaperReleased_) return;
+  recordBootHeap(BootHeapStage::RELEASE_BEFORE, reason, millis());
   heapCapsFree(heapShaperBlock_);
   heapShaperBlock_ = nullptr;
   heapShaperReleased_ = true;
+  recordBootHeap(BootHeapStage::RELEASE_AFTER, reason, millis());
 }
 
 void ShotStopperNetwork::serviceHeapShaper(uint32_t now) {
@@ -612,12 +617,14 @@ void ShotStopperNetwork::serviceHeapShaper(uint32_t now) {
       static_cast<uint32_t>(now - heapShaperAllocAtMs_) >=
           HEAP_SHAPER_MAX_HOLD_MS;
   if ((floorSettled && milestonesSettled) || expired) {
-    releaseHeapShaper();
+    releaseHeapShaper(expired ? BootHeapResult::TIMEOUT : BootHeapResult::SETTLED);
   }
 }
 
 void ShotStopperNetwork::service() {
   const uint32_t now = millis();
+  // Expiry must run even when startup/backoff or a restart returns early.
+  serviceHeapShaper(now);
 
   // NTP and machine-API cancellation can wait inside ESP-IDF, so only this
   // low-priority task services them. Gate setters merely publish atomics.
@@ -691,7 +698,6 @@ void ShotStopperNetwork::service() {
     confirmPendingNetwork("public WebUI request");
   }
   serviceStaState(now);
-  serviceHeapShaper(now);
   applyWifiPowerSave();
   serviceWifiScan(now);
 
