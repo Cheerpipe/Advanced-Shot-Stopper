@@ -85,6 +85,14 @@ The bar is 50 px tall, with 24 px icons and touch targets at least 44 px high.
 Hiding Diagnostics in the preview controls removes its icon and redistributes
 the remaining five buttons. Options 1 and 2 remain available for comparison.
 
+Open `http://127.0.0.1:4173/mobile-menu?navigation=4` for the header mockup.
+The same rounded bar spans the content width beneath the logo, with each icon
+followed by its section name. As space decreases, the icons disappear first.
+When the names no longer fit, navigation moves to the floating bottom bar with
+icons only. The transitions follow the space needed by the visible sections;
+hiding Diagnostics leaves more room for the others. Resize the browser to
+compare all three layouts. This option changes only the development preview.
+
 On mobile, scrolling gradually compacts the header while keeping the smaller logo
 and connection indicators visible. Return to the top to restore
 the full-size logo.
