@@ -1,5 +1,7 @@
 'use strict';
 
+const floatingNavigation = new URLSearchParams(location.search).get('navigation') === '2';
+document.body.dataset.navigation = floatingNavigation ? '2' : '1';
 const menuIcons = {
   '/': '<path d="m3 10 9-7 9 7v10H3zM9 20v-7h6v7"/>',
   '/stats': '<path d="M3 4v16h18M6 16l5-5 4 2 6-8"/>',
@@ -16,7 +18,7 @@ for (const [route, icon] of Object.entries(menuIcons)) {
 }
 document.body.append(mobileMenu);
 const previewControls = document.querySelector('.previewControls');
-previewControls.querySelector('summary').textContent = 'Mobile navigation proposal · sample data';
+previewControls.querySelector('summary').textContent = floatingNavigation ? 'Proposal 02 · floating navigation · sample data' : 'Mobile navigation proposal · sample data';
 $('app').prepend(previewControls);
 previewControls.querySelector('.previewControlGrid').insertAdjacentHTML('beforeend',
     '<label>Diagnostics<select id="previewDiagnostics"><option value="visible">Visible</option><option value="hidden">Hidden</option></select></label>');
@@ -26,6 +28,23 @@ moreToggle.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="
 moreToggle.setAttribute('aria-label', 'More options');
 moreToggle.title = 'More options';
 moreNav.setAttribute('aria-label', 'More navigation');
+if (floatingNavigation) {
+  moreToggle.insertAdjacentHTML('beforeend', '<span>More</span>');
+  const moreDock = document.createElement('div');
+  moreDock.className = 'moreDock';
+  mobileMenu.append(moreDock);
+  const mobileViewport = matchMedia('(max-width:699px)');
+  const placeMoreMenu = () => {
+    closePreviewMenu();
+    (mobileViewport.matches ? moreDock : document.querySelector('.topBar')).append(moreToggle, moreNav);
+    moreNav.setAttribute('aria-label', mobileViewport.matches ? 'More navigation' : 'Page navigation');
+  };
+  mobileViewport.addEventListener('change', placeMoreMenu);
+  moreDock.addEventListener('focusout', event => {
+    if (!moreDock.contains(event.relatedTarget)) closePreviewMenu();
+  });
+  placeMoreMenu();
+}
 for (const [route, icon] of Object.entries({
   '/diagnostic': '<path d="M3 12h4l3-7 4 14 3-7h4"/>',
   '/admin': '<path d="m12 3 8 3v6c0 4-4 7-8 9-4-2-8-5-8-9V6z"/><rect x="9" y="10" width="6" height="5" rx="1"/><path d="M10 10V8a2 2 0 0 1 4 0v2"/>',
@@ -57,11 +76,11 @@ function showPreviewRoute(focus = false) {
   }
 }
 document.querySelectorAll('[data-route]').forEach(link => {
-  link.href = '/mobile-menu' + (link.dataset.route === '/' ? '' : link.dataset.route);
+  link.href = '/mobile-menu' + (link.dataset.route === '/' ? '' : link.dataset.route) + location.search;
   link.onclick = event => {
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    history.pushState(null, '', link.href + location.search);
+    history.pushState(null, '', link.href);
     showPreviewRoute(true);
   };
 });
@@ -75,7 +94,7 @@ document.addEventListener('keydown', event => {
   }
 });
 moreToggle.onkeydown = event => {
-  if (event.key === 'ArrowDown' && matchMedia('(max-width:699px)').matches) {
+  if ((event.key === 'ArrowDown' || floatingNavigation && event.key === 'ArrowUp') && matchMedia('(max-width:699px)').matches) {
     event.preventDefault();
     document.body.classList.add('navOpen');
     moreToggle.setAttribute('aria-expanded', 'true');
