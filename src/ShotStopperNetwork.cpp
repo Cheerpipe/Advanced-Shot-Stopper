@@ -1171,7 +1171,8 @@ void escapeConnectedScaleName(const ControlStatusSnapshot &control,
   for (size_t i = 0; i < SCALE_HISTORY_CAPACITY; ++i) {
     const auto &entry = entries[i];
     if (preferredScaleMacEqual(entry.mac, control.connectedScaleMac)) {
-      escapeJsonString(entry.friendlyName[0] ? entry.friendlyName : entry.name,
+      escapeJsonString(entry.friendlyName[0] ? entry.friendlyName
+                                             : scaleDefaultFriendlyName(entry.name),
                        output, capacity);
       return;
     }

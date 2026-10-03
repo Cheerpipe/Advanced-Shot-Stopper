@@ -313,7 +313,8 @@ Every Web UI page status response and the record-page `ui` envelope include
 `connections`: `wifiConnected` and `bluetoothConnected` are booleans;
 `wifiRssi` and `bluetoothRssi` are cached dBm readings, or `null` when unavailable.
 `wifiName` is the connected station SSID; `bluetoothName` is the connected
-scale's saved friendly name, falling back to its advertised BLE name. Names
+scale's saved friendly name, falling back to its recognized model name, or to
+its advertised BLE name when the model is unknown. Names
 are empty when the link is disconnected or no matching scale identity is
 available. The browser hides these identities when the snapshot is stale.
 Wi-Fi refers to the controller's station link, and Bluetooth refers to its scale

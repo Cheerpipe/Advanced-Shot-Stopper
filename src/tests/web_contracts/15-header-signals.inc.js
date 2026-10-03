@@ -76,7 +76,7 @@
     assert(source.includes('escapeJsonString(network.staState == StaState::CONNECTED ? network.staSsid : ""'), 'Preserve escaped SSID only while connected');
   }
   const network = fs.readFileSync(path.join(sketchDir, 'ShotStopperNetwork.cpp'), 'utf8');
-  assert(network.includes('entry.friendlyName[0] ? entry.friendlyName : entry.name'), 'Friendly name precedes advertised BLE name');
+  assert(network.replace(/\s+/g, ' ').includes('entry.friendlyName[0] ? entry.friendlyName : scaleDefaultFriendlyName(entry.name)'), 'Friendly name precedes the advertised BLE name and its derived default');
   assert(network.includes('preferredScaleMacEqual(entry.mac, control.connectedScaleMac)'), 'Name must match the connected scale');
   const preview = require('../../scripts/preview_web_ui.js').renderHome();
   for (const kind of ['wifi', 'bluetooth']) {
