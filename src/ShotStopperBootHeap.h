@@ -8,7 +8,7 @@ namespace shotstopper {
 enum class BootHeapStage : uint8_t {
   RESERVE_BEFORE, RESERVE_AFTER, WIFI_INIT, MDNS_READY, HTTP_READY,
   NTP_DONE, CLOUD_DONE, RELEASE_BEFORE, RELEASE_AFTER, WS_START, WS_DONE,
-  COUNT
+  WS_INIT, WS_TASK, COUNT
 };
 enum class BootHeapResult : uint8_t { OK, FAILED, SETTLED, TIMEOUT, STOP, NO_RESERVATION };
 constexpr uint32_t BOOT_HEAP_POST_RELEASE_MS = 60000;
@@ -17,7 +17,7 @@ inline const char *bootHeapStageName(BootHeapStage stage) {
   constexpr const char *names[] = {
       "reserve_before", "reserve_after", "wifi_init", "mdns_ready",
       "http_ready", "ntp_done", "cloud_done", "release_before",
-      "release_after", "ws_start", "ws_done"};
+      "release_after", "ws_start", "ws_done", "ws_init", "ws_task"};
   return names[static_cast<size_t>(stage)];
 }
 inline const char *bootHeapResultName(BootHeapResult result) {
@@ -44,7 +44,7 @@ struct BootHeapMinimum {
 };
 struct BootHeapCapture {
   BootHeapRecord records[static_cast<size_t>(BootHeapStage::COUNT)]{};
-  BootHeapMinimum held{}, post{};
+  BootHeapMinimum held{}, post{}, ws{};
   uint32_t stages = 0;
   uint32_t heldBytes = 0;
   uint32_t requestedBytes = 0;
@@ -114,8 +114,14 @@ inline void recordBootHeap(BootHeapStage stage, BootHeapResult result, uint32_t 
   capture.stages |= bit;
   bootHeapSampling.store(true, std::memory_order_release);
   if (record.heldBytes) updateBootHeapMinimum(capture.held, record);
-  else if (capture.stages & (1U << static_cast<unsigned>(BootHeapStage::RELEASE_AFTER)))
+  else if ((capture.stages & (1U << static_cast<unsigned>(BootHeapStage::RELEASE_AFTER))) &&
+           static_cast<uint32_t>(now - capture.records[static_cast<size_t>(BootHeapStage::RELEASE_AFTER)].atMs) <
+               BOOT_HEAP_POST_RELEASE_MS)
     updateBootHeapMinimum(capture.post, record);
+  if ((capture.stages & (1U << static_cast<unsigned>(BootHeapStage::WS_DONE))) &&
+      static_cast<uint32_t>(now - capture.records[static_cast<size_t>(BootHeapStage::WS_DONE)].atMs) <
+          BOOT_HEAP_POST_RELEASE_MS)
+    updateBootHeapMinimum(capture.ws, record);
 }
 
 inline void recordBootHeap(BootHeapStage stage, BootHeapResult result, uint32_t now) {
@@ -131,13 +137,20 @@ inline void recordBootHeap(BootHeapStage stage, BootHeapResult result, uint32_t 
 inline void serviceBootHeap(uint32_t now) {
   if (!bootHeapSampling.load(std::memory_order_acquire)) return;
   uint32_t heldBytes;
+  bool wsSample;
   {
     TaskLockGuard lock(bootHeapMutex);
     auto &capture = bootHeapCapture;
     if (capture.complete || capture.stages == 0) return;
     const auto &released = capture.records[static_cast<size_t>(BootHeapStage::RELEASE_AFTER)];
+    const bool wsDone = capture.stages & (1U << static_cast<unsigned>(BootHeapStage::WS_DONE));
+    const bool wsStarted = wsDone || (capture.stages & (1U << static_cast<unsigned>(BootHeapStage::WS_START)));
+    const uint32_t wsAtMs = capture.records[static_cast<size_t>(
+        wsDone ? BootHeapStage::WS_DONE : BootHeapStage::WS_START)].atMs;
+    wsSample = wsDone && static_cast<uint32_t>(now - wsAtMs) < BOOT_HEAP_POST_RELEASE_MS;
     if ((capture.stages & (1U << static_cast<unsigned>(BootHeapStage::RELEASE_AFTER))) &&
-        static_cast<uint32_t>(now - released.atMs) >= BOOT_HEAP_POST_RELEASE_MS) {
+        static_cast<int32_t>(now - released.atMs) >= static_cast<int32_t>(BOOT_HEAP_POST_RELEASE_MS) &&
+        (!wsStarted || static_cast<int32_t>(now - wsAtMs) >= static_cast<int32_t>(BOOT_HEAP_POST_RELEASE_MS))) {
       capture.complete = true;
       bootHeapSampling.store(false, std::memory_order_release);
       return;
@@ -150,8 +163,11 @@ inline void serviceBootHeap(uint32_t now) {
   // A sample overlapping release cannot be attributed to either phase.
   if (capture.complete || heldBytes != capture.heldBytes) return;
   if (heldBytes) updateBootHeapMinimum(capture.held, record);
-  else if (capture.stages & (1U << static_cast<unsigned>(BootHeapStage::RELEASE_AFTER)))
+  else if ((capture.stages & (1U << static_cast<unsigned>(BootHeapStage::RELEASE_AFTER))) &&
+           static_cast<uint32_t>(now - capture.records[static_cast<size_t>(BootHeapStage::RELEASE_AFTER)].atMs) <
+               BOOT_HEAP_POST_RELEASE_MS)
     updateBootHeapMinimum(capture.post, record);
+  if (wsSample) updateBootHeapMinimum(capture.ws, record);
 }
 
 }  // namespace shotstopper

@@ -80,7 +80,7 @@ The immutable persistence image is separately allocated in external heap.
 | USB serial output | internal heap, 2,064 bytes for the eight-record ESP log queue; one external 2,560-byte CLI reply buffer; startup failures free both allocations, and successful startup retains one boot-lifetime owner |
 | Micra cloud workspace | external and lazy; a 6,344-byte work buffer on ESP32-S3 holds identity, tokens, authorization header, and client state while cloud observation is active, plus one request-scoped 16 KiB buffer whose mutually exclusive request-body and response phases share storage (22,728 bytes combined, excluding HTTP/TLS library allocations); Disconnect, disabled observation, STA loss, and AP entry destroy the client and free both blocks |
 | Micra WS/STOMP scratch | PSRAM-only reusable block, capped at 24 KiB; includes 17410 B accumulator, two 1025 B header scratch arrays, signed-header/CONNECT storage, and 60 × 12 B rate bins; retained across shot/acquisition pauses, freed after callback quiescence for API/disable/identity/network/maintenance changes |
-| Micra WS SDK allocations | separate 8192 B internal task stack, core 0 priority 1; fixed RX/TX 1024 B ordinary-heap buffers, event/transport objects and WSS TLS are separate; dynamic SDK buffers and auto-reconnect disabled |
+| Micra WS SDK allocations | separate 6144 B internal task stack in the current memory trial, core 0 priority 1; target stack qualification is pending; fixed RX/TX 1024 B ordinary-heap buffers, event/transport objects and WSS TLS are separate; dynamic SDK buffers and auto-reconnect disabled |
 | Micra/Webhook TLS allocations | external through the Micra profile's mbedTLS allocator (`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` from `sdkconfig.defaults.micra`); dynamic record, certificate, handshake, and session objects never fragment internal DRAM on Micra-profile builds and are freed through the matching capability allocator. Other machine profiles keep mbedTLS internal, so webhookS there still draws handshake memory from internal DRAM |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Scale profiler workspace | external, only while a manual capture exists: 256 KiB record buffer, header/context and a bounded per-signal observation cache (32 bytes per signal), and a 32 KiB ordering index after stop (combined ceiling 320 KiB, enforced including the index); freed after the trace is saved and no download is streaming it; capture storage is a dedicated 260 KiB flash partition with a header-last commit |
@@ -155,14 +155,19 @@ layout to transition over USB without erasing unrelated saved data.
 Capability samples use `INTERNAL|8BIT` and `SPIRAM|8BIT`, including the PSRAM
 minimum-free watermark. The retained boot capture uses at most 768 bytes of
 static PSRAM plus one internal static task mutex and an atomic sampling flag.
-The startup heap hold is currently disabled for the zero-reservation comparison
-(`HEAP_SHAPER_BYTES=0`); the same mechanism supports 49,152 bytes (48 KiB) and
-the original 60,000-byte baseline. Zero skips allocation and records `disabled`,
-then starts the 60-second post-release window immediately.
+The startup heap hold currently requests 57,344 bytes (56 KiB) as a comparison
+candidate; the same mechanism supports 49,152 bytes (48 KiB), the original
+60,000-byte baseline and zero. Zero skips allocation and records `disabled`,
+then starts the 60-second post-release window immediately. This candidate and
+the reduced WS task stack require target qualification; they are not an optimum
+established by the earlier captures.
 It also samples `INTERNAL|DMA`; the overlapping capability pools are not additive.
 First-stage samples and approximately 100 ms health-task samples maintain separate
-hold/post-release minima, without resetting lifetime watermarks. Sampling stops
-60 seconds after release, while records remain available through
+hold/post-release minima plus an independent 60-second minimum from the first
+WS outcome, without resetting lifetime watermarks. Client-init and task-start
+stages expose the setup allocation phases. Sampling stops when the release
+and WS windows finish; a WS start without an outcome is bounded to 60 seconds
+from that first start. Records remain available through
 [`BOOT_HEAP`](SERIAL_CLI.md#capture-startup-memory) until reset. These sampled
 minima can miss shorter dips; missing phases/stages are explicit in the report.
 Diagnostic `memoryAllocations` reports cumulative

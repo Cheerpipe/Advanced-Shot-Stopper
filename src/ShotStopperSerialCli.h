@@ -917,7 +917,7 @@ inline void serialCliPrintHeap(const HeapCapSnapshot &snapshot,
 }
 
 inline void serialCliPrintBootHeap() {
-  BootHeapMinimum minima[2];
+  BootHeapMinimum minima[3];
   uint32_t stages, requested;
   uintptr_t address;
   bool complete;
@@ -929,12 +929,14 @@ inline void serialCliPrintBootHeap() {
     complete = bootHeapCapture.complete;
     minima[0] = bootHeapCapture.held;
     minima[1] = bootHeapCapture.post;
+    minima[2] = bootHeapCapture.ws;
   }
   Serial.println("BOOT_HEAP bytes=1 time=ms_since_boot");
   char line[192];
-  snprintf(line, sizeof(line), "status=%s requested=%lu address=0x%lx postWindowMs=%lu",
+  snprintf(line, sizeof(line), "status=%s requested=%lu address=0x%lx postWindowMs=%lu wsWindowMs=%lu",
            stages == 0 ? "not_started" : complete ? "complete" : "recording",
            static_cast<unsigned long>(requested), static_cast<unsigned long>(address),
+           static_cast<unsigned long>(BOOT_HEAP_POST_RELEASE_MS),
            static_cast<unsigned long>(BOOT_HEAP_POST_RELEASE_MS));
   Serial.println(line);
   Serial.println("stage,result,ms,held,free,largest,allocated,blocks,dmaFree,dmaLargest,psramFree,psramLargest");
@@ -956,9 +958,10 @@ inline void serialCliPrintBootHeap() {
              static_cast<unsigned long>(record.psramFree), static_cast<unsigned long>(record.psramLargest));
     Serial.println(line);
   }
-  for (size_t i = 0; i < 2; ++i) {
+  constexpr const char *minimumNames[] = {"held_min", "post_min", "ws_min"};
+  for (size_t i = 0; i < 3; ++i) {
     snprintf(line, sizeof(line), "%s samples=%lu free=%lu largest=%lu dmaFree=%lu dmaLargest=%lu",
-             i == 0 ? "held_min" : "post_min", static_cast<unsigned long>(minima[i].samples),
+             minimumNames[i], static_cast<unsigned long>(minima[i].samples),
              static_cast<unsigned long>(minima[i].free), static_cast<unsigned long>(minima[i].largest),
              static_cast<unsigned long>(minima[i].dmaFree), static_cast<unsigned long>(minima[i].dmaLargest));
     Serial.println(line);

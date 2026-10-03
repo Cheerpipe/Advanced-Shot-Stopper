@@ -55,16 +55,22 @@ int main() {
   recordBootHeap(BootHeapStage::WS_DONE, BootHeapResult::OK, 60400, heap(72000, 48000));
   const auto &ws = bootHeapCapture.records[static_cast<size_t>(BootHeapStage::WS_DONE)];
   assert(ws.result == BootHeapResult::FAILED && ws.atMs == 60300);
+  assert(bootHeapCapture.ws.free == 71000);  // Earlier post-release samples are excluded.
   serviceBootHeap(120101);
+  assert(!bootHeapCapture.complete && bootHeapCapture.ws.free == 70000);
+  const auto postWindowSamples = bootHeapCapture.post.samples;
+  serviceBootHeap(120300);
   assert(bootHeapCapture.complete && !bootHeapSampling.load());
+  assert(bootHeapCapture.post.samples == postWindowSamples);
   const auto postSamples = bootHeapCapture.post.samples;
   hostHeapCapsSnapshot() = heap(0, 0);
-  serviceBootHeap(120201);
+  serviceBootHeap(120400);
   assert(bootHeapCapture.post.samples == postSamples);
   serialCliPrintBootHeap();
   assert(Serial.tx.find("status=complete requested=60000 address=0x3fcd8000") != std::string::npos);
   assert(Serial.tx.find("release_after,timeout,60101,0,76000,60000") != std::string::npos);
   assert(Serial.tx.find("held_min samples=3 free=8000") != std::string::npos);
+  assert(Serial.tx.find("ws_min samples=2 free=70000") != std::string::npos);
 
   // Failed shaping still has a bounded post-start capture; elapsed time wraps safely.
   resetCapture();
@@ -78,6 +84,27 @@ int main() {
   assert(bootHeapCapture.post.free == 0);  // Zero is a real exhausted sample.
   serviceBootHeap(start + BOOT_HEAP_POST_RELEASE_MS);
   assert(bootHeapCapture.complete);
+
+  // A late WS attempt gets a bounded window even if it never reports an outcome.
+  resetCapture();
+  recordBootHeap(BootHeapStage::RESERVE_BEFORE, BootHeapResult::OK, 100, heap(80000, 32000));
+  recordBootHeap(BootHeapStage::RESERVE_AFTER, BootHeapResult::NO_RESERVATION, 100,
+                 heap(80000, 32000));
+  recordBootHeap(BootHeapStage::RELEASE_AFTER, BootHeapResult::NO_RESERVATION, 100,
+                 heap(80000, 32000));
+  recordBootHeap(BootHeapStage::WS_START, BootHeapResult::OK, 60102, heap(80000, 32000));
+  recordBootHeap(BootHeapStage::WS_INIT, BootHeapResult::OK, 60103, heap(78000, 30000));
+  recordBootHeap(BootHeapStage::WS_TASK, BootHeapResult::OK, 60104, heap(72000, 24000));
+  serviceBootHeap(60101);  // The callback timestamp can postdate the health clock sample.
+  assert(!bootHeapCapture.complete && bootHeapCapture.ws.samples == 0);
+  serviceBootHeap(121101);
+  assert(!bootHeapCapture.complete);
+  serviceBootHeap(121102);
+  assert(bootHeapCapture.complete && bootHeapCapture.ws.samples == 0);
+  serialCliPrintBootHeap();
+  assert(Serial.tx.find("reserve_after,disabled") != std::string::npos);
+  assert(Serial.tx.find("ws_init,ok,60103") != std::string::npos);
+  assert(Serial.tx.find("ws_task,ok,60104") != std::string::npos);
 
   // Concurrent producers retain one immutable record per stage.
   resetCapture();

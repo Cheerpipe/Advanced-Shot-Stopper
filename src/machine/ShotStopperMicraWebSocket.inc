@@ -529,7 +529,7 @@ void ShotStopperMicraService::serviceWebSocket() {
   config.disable_auto_reconnect = true;
   config.buffer_size = 1024;
   config.task_prio = 1;  // Zero selects SDK default 5, rather than idle priority.
-  config.task_stack = 8192;
+  config.task_stack = 6144;
   config.task_core_id_set = true;
   config.task_core_id = 0;
   config.network_timeout_ms = 10000;  // SDK default; includes the initial TLS handshake.
@@ -538,6 +538,8 @@ void ShotStopperMicraService::serviceWebSocket() {
   const auto before = sampleHeapCaps();
   recordBootHeap(BootHeapStage::WS_START, BootHeapResult::OK, millis(), before);
   if (ok && websocketAdmitted()) buffer.client = esp_websocket_client_init(&config);
+  recordBootHeap(BootHeapStage::WS_INIT,
+                 buffer.client ? BootHeapResult::OK : BootHeapResult::FAILED, millis());
   ok = buffer.client && esp_websocket_register_events(buffer.client, WEBSOCKET_EVENT_ANY,
                                                      websocketEvent, this) == ESP_OK;
   {
@@ -547,6 +549,7 @@ void ShotStopperMicraService::serviceWebSocket() {
     ++websocketStatus_.reconnects;
   }
   ok = ok && websocketAdmitted() && esp_websocket_client_start(buffer.client) == ESP_OK;
+  recordBootHeap(BootHeapStage::WS_TASK, ok ? BootHeapResult::OK : BootHeapResult::FAILED, millis());
   if (!ok) {
     recordBootHeap(BootHeapStage::WS_DONE, BootHeapResult::FAILED, millis());
     const bool unexpected = websocketAdmitted();

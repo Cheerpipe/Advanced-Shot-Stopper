@@ -180,10 +180,10 @@ must be enabled by the boot jumper or a development build as described above.
    replaces the previous capture; the report is retained in RAM, not flash.
 2. Open the [USB monitor](#open-the-port) at 115200 baud and enter `BOOT_HEAP`.
 3. If the report says `status=recording`, wait and request it again. Capture
-   ends 60 seconds after the startup reservation is released. On a failed
-   connection with the reservation enabled this normally means about two
-   minutes from network startup. With the reservation disabled, the window
-   starts immediately and lasts 60 seconds from network startup.
+   finishes after both the 60-second post-release window and any first
+   WebSocket outcome window have ended. Without a WebSocket attempt, it ends
+   60 seconds after release. An attempt without an outcome finishes once both
+   `release_after` and `ws_start` are at least 60 seconds old.
 4. When it says `status=complete`, copy the entire response into a local text
    file. Save the firmware version, board profile and whether cloud observation
    used HTTP or WebSocket beside it. Keep the same settings for comparisons.
@@ -195,21 +195,29 @@ order. `held` is the startup reservation still active at that stage. `free` and
 `largest` describe internal byte-accessible memory; `dmaFree` and `dmaLargest`
 describe internal DMA-capable memory. These overlapping pools must not be added
 together. `requested` and `address` identify the reservation attempt; an address
-of zero with `reserve_after,failed` means it could not be obtained. This
-comparison build disables the reservation: expect `requested=0`, `address=0x0`
-and `reserve_after,disabled`, with `held=0` throughout.
+of zero with `reserve_after,failed` means it could not be obtained. The current
+comparison build requests 56 KiB: expect `requested=57344`. A zero-size build
+instead reports `requested=0`, `address=0x0`, `reserve_after,disabled` and `held=0`.
 
 Compare `release_before` and `release_after` to see how much contiguous memory
 the reservation returns, then compare `ws_start` and `ws_done` for the first
-WebSocket attempt. Release results are `settled`, `timeout`, `stop`, `disabled`
+WebSocket attempt. `ws_init` samples completion of the client setup step;
+`ws_task` samples completion of the task-start step. Their results distinguish
+successful setup from failure or a step prevented by an earlier error or gate.
+Callbacks may run before the task-start call returns; use timestamps to compare
+the rows. Release results are `settled`, `timeout`, `stop`, `disabled`
 when no reservation was requested, or `failed` when allocation failed.
 Missing stages were not reached during
 the capture window, for example cloud/WebSocket when they are disabled. Each
 stage retains its first outcome, including failures; later retries do not
 overwrite it. `cloud_done` reports transport completion, not account validity.
 
-`held_min` and `post_min` show separate minima observed while the reservation
-was held and after release. They combine stage samples and sampling by the
+`held_min` covers the time the reservation was held; `post_min` covers the first
+60 seconds after release. `ws_min` independently covers the first 60 seconds
+from `ws_done`, whether that first outcome was successful or failed. Compare
+`ws_min` across reservation sizes with the same WS outcome and workload.
+The report includes `postWindowMs` and `wsWindowMs`. These minima combine
+stage samples and sampling by the
 health task at approximately 100 ms intervals. Brief dips between samples can
 be missed. `samples=0` means the phase has no measurements, not zero available
 memory. The lifetime minimum shown by `HEAP` and `HEALTH` is preserved and may
@@ -217,11 +225,15 @@ combine region minima reached at different times. Without a reservation,
 `held_min` has no samples and `post_min` includes initialization, so compare
 matching stage rows as well as the minima.
 
-For the three-way comparison, use `HEAP_SHAPER_BYTES` in
-`src/ShotStopperNetwork.cpp`: `60000` is the original baseline, `49152` is
-48 KiB, and `0` disables the hold. Use the same board, account and connection
-settings for each build. Save separate captures for successful startup and a
-failed connection. Reconnection activity after the capture window requires
+For the comparison, use `HEAP_SHAPER_BYTES` in `src/ShotStopperNetwork.cpp`:
+`57344` is the current 56 KiB candidate, `60000` is the original baseline,
+`49152` is 48 KiB, and `0` disables the hold. Use the same firmware revision,
+board, account, connection settings and task stack sizes for each build.
+This trial also reduces the WS SDK task stack from 8 to 6 KiB; capture the
+`websocket_task` and `micra_cloud` stack watermarks after cold connection,
+renewal and reconnection before accepting it. Save separate boot captures for
+successful startup and a failed connection. Reconnection activity after the
+capture window requires
 fresh `HEAP` and `NET_STATUS` reports before and after; boot-stage rows retain
 only their first outcome.
 

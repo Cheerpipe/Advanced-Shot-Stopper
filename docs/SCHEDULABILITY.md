@@ -23,6 +23,7 @@ subscribed nor part of control. Stack values are configured bytes in ESP-IDF.
 | httpd | framework event | n/a | n/a | idle+1 | 30000 ms OTA receive budget | 11264 | 0 | no |
 | webhook | event-driven | n/a | n/a | idle | 1800 ms HTTP | 4608 | 0 | no |
 | micra_cloud | event-driven | n/a | n/a | idle | 10000 ms per HTTPS request | 8192 | 0 | no |
+| websocket_task | SDK transport events | n/a | n/a | 1 | 10000 ms network timeout | 6144 | 0 | no |
 | serial_log | event-driven | n/a | n/a | idle | unbounded USB sink | 3072 | 0 | no |
 
 The control task keeps safety, machine sampling and actuation, brew guards,
@@ -170,6 +171,10 @@ byte-valued numbers for compatibility. Zero is a measured exhausted margin,
 not a missing sample. The low-stack alert enters below 1024 bytes and clears
 at 1536 bytes. Reducing a configured stack needs target measurements under the
 combined workload.
+The current memory trial sets the separate WS SDK task to 6144 bytes. Its
+previous 8192-byte configuration had 4180 bytes free in one supplied capture;
+the reduced stack remains unqualified until cold TLS, large/invalid frames,
+renewal, reconnection and cancellation paths are measured on target.
 The HTTP server task is configured with 11264 bytes after the 2026-09-26
 target capture (300-sample task profiler under sustained status polling)
 left only 1540 bytes free on 10240 — 4 bytes above the 1536-byte gate —
