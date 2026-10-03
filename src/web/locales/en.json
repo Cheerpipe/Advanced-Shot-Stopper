@@ -210,7 +210,7 @@
     "diagnostic.cloud_no_call": "No calls yet",
     "diagnostic.cloud_no_machine": "No active machine selected",
     "diagnostic.cloud_results": "Success|Canceled|HTTP request failed|Connection failed|Invalid cloud response|Cloud response too large|Request setup failed",
-    "diagnostic.cloud_titles": "Account email|Selected machine|Last completed call (UTC)|API / method|Result|Call duration|WebSocket connection|WebSocket payload traffic|Machine cleaning (backflush)",
+    "diagnostic.cloud_titles": "Account email|Selected machine|Last completed call (UTC)|API / method|Result|Call duration|WebSocket connection|WebSocket payload traffic|Planned connections|Unexpected reconnections|Machine cleaning (backflush)",
     "diagnostic.coex": "Coex",
     "diagnostic.command_code": "Command code",
     "diagnostic.command_name": "Command name",

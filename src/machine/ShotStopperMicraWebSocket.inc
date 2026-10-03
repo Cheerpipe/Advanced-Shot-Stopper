@@ -67,6 +67,11 @@ void ShotStopperMicraService::stopWebSocket(bool release) {
     const auto before = sampleHeapCaps();
     {
       TaskLockGuard lock(mux_);
+      if (buffer->stamp.identity == identityGeneration_ && config_.accountConfigured &&
+          (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0 &&
+          config_.connectionType == static_cast<uint8_t>(MicraConnectionType::WEBSOCKET))
+        websocketUnexpectedReconnect_ = websocketUnexpectedReconnect_ || buffer->failed.load() ||
+            (!staConnected_.load() && !apActive_.load());
       if (buffer->stamp.identity == identityGeneration_)
         powerState_.hold(published_, config_.accountConfigured &&
             (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0, millis());
@@ -144,6 +149,9 @@ bool ShotStopperMicraService::stompFrame(void *context, const MicraStompFrame &f
         buffer.acquisitionGeneration != outboundAcquisitionGeneration.load() ||
         buffer.disconnectGeneration != self.disconnectGeneration_.load()) return true;
     self.websocketStatus_.subscribed = true;
+    ++(self.websocketUnexpectedReconnect_ ? self.websocketStatus_.unexpectedConnections
+                                         : self.websocketStatus_.plannedConnections);
+    self.websocketUnexpectedReconnect_ = false;
     self.websocketStatus_.state = MicraSocketState::WAITING_FOR_DATA;
     return true;
   }
@@ -383,6 +391,10 @@ void ShotStopperMicraService::serviceWebSocket() {
       return;
     }
     const bool auth = websocket_->authFailed.load(std::memory_order_acquire);
+    if (timeout && !renew && !obsolete) {
+      TaskLockGuard lock(mux_);
+      websocketUnexpectedReconnect_ = true;
+    }
     stopWebSocket();
     if (auth) clearSession();
     TaskLockGuard lock(mux_);
@@ -498,9 +510,12 @@ void ShotStopperMicraService::serviceWebSocket() {
   }
   ok = ok && websocketAdmitted() && esp_websocket_client_start(buffer.client) == ESP_OK;
   if (!ok) {
-    buffer.failed.store(true);
+    const bool unexpected = websocketAdmitted();
     stopWebSocket();
+    buffer.failed.store(true);
     TaskLockGuard lock(mux_);
+    websocketUnexpectedReconnect_ = websocketUnexpectedReconnect_ ||
+        (unexpected && buffer.stamp.epoch == observationFence_.epoch);
     websocketStatus_.state = MicraSocketState::BACKOFF;
     websocketStatus_.reason = "start_failed";
     const uint8_t attempt = ++buffer.attempts;

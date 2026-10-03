@@ -32,6 +32,7 @@ void serialTraceCategoryf(shotstopper::LogLevel level, shotstopper::DebugCategor
   disconnectLog = line;
 }
 static int sendLimit = -1;
+static bool initFails = false, startFails = false;
 constexpr int ESP_OK = 0;
 constexpr int WEBSOCKET_EVENT_ANY = 0, WEBSOCKET_EVENT_CONNECTED = 1;
 constexpr int WEBSOCKET_EVENT_DATA = 2, WEBSOCKET_EVENT_ERROR = 3, WEBSOCKET_EVENT_DISCONNECTED = 4;
@@ -62,11 +63,11 @@ void *esp_websocket_client_init(const esp_websocket_client_config_t *config) {
   assert(!locked && !callback && config->disable_auto_reconnect);
   assert(config->task_core_id == 0 && config->task_prio == 1 && config->buffer_size == 1024);
   assert(config->network_timeout_ms == 10000);
-  return reinterpret_cast<void *>(1);
+  return initFails ? nullptr : reinterpret_cast<void *>(1);
 }
 int esp_websocket_register_events(void *, int, Handler, void *) { assert(!locked); return ESP_OK; }
 int esp_websocket_unregister_events(void *, int, Handler) { assert(!locked && !callback); return ESP_OK; }
-int esp_websocket_client_start(void *) { assert(!locked && !callback); return ESP_OK; }
+int esp_websocket_client_start(void *) { assert(!locked && !callback); return startFails ? -1 : ESP_OK; }
 int esp_websocket_client_stop(void *) { assert(!locked && !callback); ++stops; now += 2; return ESP_OK; }
 int esp_websocket_client_destroy(void *) { assert(!locked && !callback); ++destroys; return ESP_OK; }
 int esp_websocket_client_send_text(void *, const char *bytes, int count, int) {
@@ -98,6 +99,93 @@ bool ShotStopperMicraService::applySignedHeaders(const LineaMicraPersistedSettin
 }
 #include "machine/ShotStopperMicraWebSocket.inc"
 struct MicraWebSocketTest {
+  static void connectionClassification() {
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    service.serviceWebSocket();
+    assert(service.websocketStatus().plannedConnections == 0);
+    subscribe(service);
+    uint32_t planned = 1, unexpected = 0;
+    // Every intentional pause, renewal and obsolete observation stays planned.
+    for (int cause = 0; cause < 11; ++cause) {
+      switch (cause) {
+        case 0: service.shotActive_.store(true); break;
+        case 1: publishOutboundAcquisition(true, ++now); break;
+        case 2: outboundBleQuiet.store(true); break;
+        case 3: outboundMaintenance.store(true); break;
+        case 4: outboundOtaBusy.store(true); break;
+        case 5: now += micra_timing::kAccessTokenRefreshAgeMs; break;
+        case 6:
+          deliver(service, "MESS", false);
+          now += 10000;
+          ++service.observationFence_.epoch;
+          break;
+        case 7: service.apActive_.store(true); break;
+        case 8: service.config_.options &= ~LINEA_MICRA_OBSERVE_STATE; break;
+        case 9: service.config_.connectionType = static_cast<uint8_t>(MicraConnectionType::API); break;
+        case 10: service.clearSessionRequested_.store(true); break;
+      }
+      service.serviceWebSocket();
+      service.shotActive_.store(false);
+      publishOutboundAcquisition(false, now);
+      outboundBleQuiet.store(false);
+      outboundMaintenance.store(false);
+      outboundOtaBusy.store(false);
+      service.apActive_.store(false);
+      service.config_.options |= LINEA_MICRA_OBSERVE_STATE;
+      service.config_.connectionType = static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
+      service.clearSessionRequested_.store(false);
+      service.serviceWebSocket();
+      subscribe(service);
+      assert(service.websocketStatus().plannedConnections == ++planned);
+      assert(service.websocketStatus().unexpectedConnections == unexpected);
+    }
+    // Failures remain unexpected through a maintenance release or radio pause.
+    for (int cause = 0; cause < 8; ++cause) {
+      switch (cause) {
+        case 0: {
+          esp_websocket_event_data_t event;
+          service.websocketEvent(&service, nullptr, WEBSOCKET_EVENT_CLOSED, &event);
+          break;
+        }
+        case 1: deliver(service, std::string("ERROR\n\n") + '\0'); break;
+        case 2: service.websocketStatus_.subscribed = false; now += 10000; break;
+        case 3: deliver(service, "MESS", false); now += 10000; break;
+        case 4: service.staConnected_.store(false); break;
+        case 5: case 6:
+          service.stopWebSocket();
+          initFails = cause == 5;
+          startFails = cause == 6;
+          break;
+        case 7: {
+          esp_websocket_event_data_t event;
+          event.error_handle.esp_ws_handshake_status_code = 401;
+          service.websocketEvent(&service, nullptr, WEBSOCKET_EVENT_ERROR, &event);
+          break;
+        }
+      }
+      service.serviceWebSocket();
+      assert(service.websocketStatus().plannedConnections == planned);
+      assert(service.websocketStatus().unexpectedConnections == unexpected);
+      outboundMaintenance.store(true);
+      service.serviceWebSocket();
+      assert(!service.websocket_);
+      outboundMaintenance.store(false);
+      initFails = startFails = false;
+      service.staConnected_.store(true);
+      now = std::max(now, uint64_t(service.websocketStatus().retryAtMs));
+      service.serviceWebSocket();
+      subscribe(service);
+      assert(service.websocketStatus().plannedConnections == planned);
+      assert(service.websocketStatus().unexpectedConnections == ++unexpected);
+    }
+    service.stopWebSocket(true);
+    delete service.work_;
+    service.work_ = nullptr;
+  }
   static void lifecycleRegressions() {
     TaskMutex::hostObserver = [](const TaskMutex *, bool acquired) { locked = acquired; };
     now = 1000;
@@ -322,4 +410,5 @@ int main() {
   shotstopper::initJsonParser();
   shotstopper::MicraWebSocketTest::run();
   shotstopper::MicraWebSocketTest::lifecycleRegressions();
+  shotstopper::MicraWebSocketTest::connectionClassification();
 }

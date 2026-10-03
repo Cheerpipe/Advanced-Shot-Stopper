@@ -17,7 +17,9 @@ const ws=lm.websocket||{},unknown=__WEBUI_TEXT__("runtime.unknown");
 const age=value=>value&&ws.nowMs!=null?(((ws.nowMs-value)>>>0)/1000).toFixed(1)+' s':unknown;
 set('dMicraWsState',(lm.connectionType==='api'?'API':(ws.state||unknown).replace(/_/g,' '))+(ws.reason&&ws.reason!=='none'?' · '+ws.reason.replace(/_/g,' '):''));
 set('dMicraWsTiming',['message','power','pong'].map(k=>k+' '+age(ws[k+'AtMs'])).join(' · ')+' · retry '+(ws.retryRemainingMs||0)+' ms · stop '+(ws.stoppedLatencyMs??'—')+' / '+(ws.maxStoppedLatencyMs??'—')+' ms');
-set('dMicraWsTraffic',['rx','tx'].map(k=>k.toUpperCase()+' '+(ws[k+'BytesPerSecond']||0)+' B/s · '+(ws[k+'BytesPerMinute']||0)+' B/60s · '+(ws[k+'Bytes']||0)+' B').join('; ')+' · '+(ws.messages||0)+' messages · '+(ws.reconnects||0)+' connections · '+(ws.errors||0)+' errors');
+set('dMicraWsTraffic',['rx','tx'].map(k=>k.toUpperCase()+' '+(ws[k+'BytesPerSecond']||0)+' B/s · '+(ws[k+'BytesPerMinute']||0)+' B/60s · '+(ws[k+'Bytes']||0)+' B').join('; ')+' · '+(ws.messages||0)+' messages · '+(ws.errors||0)+' errors');
+set('dMicraWsPlanned',String(ws.plannedConnections||0));
+set('dMicraWsUnexpected',String(ws.unexpectedConnections||0));
 const label=__WEBUI_TEXT__("diagnostic.cleaning_states").split('|')[['inactive','waiting_for_paddle','cleaning'].indexOf(ws.cleaning)];
 const cleaning=!lm.accountConfigured?__WEBUI_TEXT__("runtime.not_connected"):!lm.observeState?__WEBUI_TEXT__("runtime.disabled"):lm.connectionType==='api'?__WEBUI_TEXT__("diagnostic.cleaning_api"):!ws.cleaningAvailable?__WEBUI_TEXT__("diagnostic.cleaning_no_update"):label||__WEBUI_TEXT__("runtime.unknown_4")+(ws.cleaningLabel?' · '+ws.cleaningLabel:'');
 set('dMicraCleaning',cleaning);
@@ -32,7 +34,7 @@ const row=document.createElement('div'),label=document.createElement('strong'),v
 row.className='metric micraOnly';label.textContent=title;v.id=id;row.append(label,v);parent.insertBefore(row,id==='dMicraCleaning'?$('dMicraMode').parentElement:null);
 };
 const titles=__WEBUI_TEXT__("diagnostic.cloud_titles").split('|');
-['Email','Machine','Time','Api','Result','Duration','WsState','WsTraffic','Cleaning'].forEach((id,i)=>row('dMicra'+(i<6?'Cloud':'')+id,titles[i],i===8?$('dMicraMode')?.parentElement?.parentElement:cloud));
+['Email','Machine','Time','Api','Result','Duration','WsState','WsTraffic','WsPlanned','WsUnexpected','Cleaning'].forEach((id,i)=>row('dMicra'+(i<6?'Cloud':'')+id,titles[i],i===10?$('dMicraMode')?.parentElement?.parentElement:cloud));
 for(const [id,anchor] of [['dMicraCleaningHint','dMicraCleaning'],['dMicraWsTiming','dMicraWsState'],['dMicraWsHeap','hHeapLargest']]){
 if($(id)||!$(anchor))continue;
 const hint=document.createElement('small');hint.id=id;hint.className='fieldHint micraOnly';$(anchor).parentElement.append(hint);

@@ -140,7 +140,17 @@ cloud call: its start date and time in UTC, API name and HTTP method, result,
 HTTP status when available, and duration in milliseconds. Duration helps spot
 slow cloud connections. Before the first call, the panel reads **No calls yet**.
 WebSocket connection state, retry time, message/power/pong ages, payload receive
-and transmit rates, totals, reconnects, errors and stop latency appear separately.
+and transmit rates, totals, errors and stop latency appear separately.
+Two counters distinguish **Planned connections** from **Unexpected
+reconnections**. Planned connections include the normal initial
+connection and resumes after shots or rinses, scale connection and radio pauses,
+maintenance or firmware updates, account or monitoring changes, and routine
+session renewal. Unexpected recoveries follow Wi-Fi loss, cloud or protocol
+errors, or connection and message timeouts, even when the controller closes the
+socket to recover. A recovery remains unexpected if a planned pause occurs
+before reconnection. Only connections that reach the cloud subscription count;
+failed attempts do not. Both counters reset when the controller restarts and
+describe WebSocket monitoring, rather than individual HTTP API calls.
 Payload byte counts exclude TLS and network overhead.
 Connection setup allows up to ten seconds for each transport operation, so a
 slow secure connection has time to complete. A connection error adds a warning

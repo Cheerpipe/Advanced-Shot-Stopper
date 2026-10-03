@@ -68,17 +68,20 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const state = element(), modeRow = element(), mode = element(), cloud = element(), heapRow = element(), heap = element();
   mode.id = 'dMicraMode'; cloud.id = 'micraCloudDiagnostics'; heap.id = 'hHeapLargest';
   state.append(modeRow); modeRow.append(mode); heapRow.append(heap);
-  const labels = {'diagnostic.cloud_titles': 'Email|Machine|Time|API|Result|Duration|Connection|Traffic|Cleaning',
+  const labels = {'diagnostic.cloud_titles': 'Email|Machine|Time|API|Result|Duration|Connection|Traffic|Planned|Unexpected|Cleaning',
     'diagnostic.cleaning_states': 'Inactive|Waiting for paddle|Cleaning'};
   const domContext = vm.createContext({$: id => dom[id], document: {createElement: element},
     __WEBUI_TEXT__: key => labels[key] || key, R: {formatWallTime: String}});
   vm.runInContext(cloudUi.slice(0, cloudUi.indexOf('function formatScaleDisconnect(')), domContext);
   const show = lm => { domContext.lm = lm; vm.runInContext('renderMicraCloudDiagnostic(lm)', domContext); };
   const socket = {state: 'streaming', nowMs: 5000, cleaningAvailable: true, cleaning: 'waiting_for_paddle', cleaningAtMs: 3000,
-    rxBytes: 120, rxBytesPerSecond: 20, rxBytesPerMinute: 100, messages: 2};
+    rxBytes: 120, rxBytesPerSecond: 20, rxBytesPerMinute: 100, messages: 2,
+    plannedConnections: 7, unexpectedConnections: 3};
   const linked = {accountConfigured: true, observeState: true, connectionType: 'websocket', websocket: socket};
   show(linked); show(linked);
-  assert.strictEqual(cloud.children.length, 8, 'Status refresh must not duplicate dynamic rows');
+  assert.strictEqual(cloud.children.length, 10, 'Status refresh must not duplicate dynamic rows');
+  assert.strictEqual(dom.dMicraWsPlanned.textContent, '7');
+  assert.strictEqual(dom.dMicraWsUnexpected.textContent, '3');
   assert.strictEqual(state.children[0], dom.dMicraCleaning.parentElement, 'Cleaning appears before observed mode');
   assert.strictEqual(dom.dMicraCleaning.textContent, 'Waiting for paddle');
   assert(dom.dMicraCleaningHint.textContent.includes('2.0 s'));
@@ -97,6 +100,8 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   assert.strictEqual(dom.dMicraCleaning.textContent, 'runtime.not_connected');
   assert.strictEqual(dom.dMicraCleaningHint.textContent, '');
   show({...linked, websocket: {}});
+  assert.strictEqual(dom.dMicraWsPlanned.textContent, '0');
+  assert.strictEqual(dom.dMicraWsUnexpected.textContent, '0');
   assert.strictEqual(dom.dMicraCleaning.textContent, 'diagnostic.cleaning_no_update');
   assert(!dom.dMicraWsHeap.textContent.includes('undefined'));
   assert(dom.dMicraWsHeap.textContent.includes('internal Δ'));

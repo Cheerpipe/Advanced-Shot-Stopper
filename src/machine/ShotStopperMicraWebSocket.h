@@ -24,6 +24,7 @@ struct MicraWebSocketStatus {
   uint64_t receiveBytes = 0, transmitBytes = 0;
   uint32_t messages = 0;
   uint32_t reconnects = 0, errors = 0, allocationFailures = 0;
+  uint32_t plannedConnections = 0, unexpectedConnections = 0;
   uint32_t receivePerSecond = 0, transmitPerSecond = 0;
   uint32_t receivePerMinute = 0, transmitPerMinute = 0;
   uint32_t publishLatencyMs = 0, maxPublishLatencyMs = 0;

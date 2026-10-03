@@ -109,6 +109,7 @@
           "\"rxBytes\":%llu,\"txBytes\":%llu,\"rxBytesPerSecond\":%u,\"txBytesPerSecond\":%u,"
           "\"rxBytesPerMinute\":%u,\"txBytesPerMinute\":%u,\"messages\":%u,"
           "\"reconnects\":%u,\"errors\":%u,\"publishLatencyMs\":%u,\"maxPublishLatencyMs\":%u,"
+          "\"plannedConnections\":%u,\"unexpectedConnections\":%u,"
           "\"stoppedLatencyMs\":%u,\"maxStoppedLatencyMs\":%u,\"retainedBytes\":%u,"
           "\"workspaceExternal\":%s,\"allocationFailures\":%u,"
           "\"connectFreeDelta\":%ld,\"connectLargestDelta\":%ld,\"stopFreeDelta\":%ld,\"stopLargestDelta\":%ld,"
@@ -124,6 +125,7 @@
           unsigned(ws.transmitPerSecond), unsigned(ws.receivePerMinute), unsigned(ws.transmitPerMinute),
           unsigned(ws.messages), unsigned(ws.reconnects), unsigned(ws.errors),
           unsigned(ws.publishLatencyMs), unsigned(ws.maxPublishLatencyMs),
+          unsigned(ws.plannedConnections), unsigned(ws.unexpectedConnections),
           unsigned(ws.stoppedLatencyMs), unsigned(ws.maxStoppedLatencyMs), unsigned(ws.retainedBytes),
           ws.workspaceExternal ? "true" : "false", unsigned(ws.allocationFailures),
           long(ws.heap.lastDelta.freeBytes), long(ws.heap.lastDelta.largestBlock),

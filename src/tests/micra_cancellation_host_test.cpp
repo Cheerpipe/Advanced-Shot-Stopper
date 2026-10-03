@@ -144,7 +144,9 @@ void MicraCancellationTest::run() {
   }
   service.abortRequested_.store(false);
   settings.options = 0;
+  service.websocketUnexpectedReconnect_ = true;
   service.publishConfig(settings, 2);
+  assert(!service.websocketUnexpectedReconnect_);
   service.publishNetworkState(true, false, false, false);
   assert(service.abortRequested_.load());
 
@@ -157,9 +159,12 @@ void MicraCancellationTest::run() {
 
   for (int event = 0; event < 4; ++event) {
     service.abortRequested_.store(false);
+    service.websocketStatus_.state = MicraSocketState::STREAMING;
+    service.websocketUnexpectedReconnect_ = false;
     service.publishNetworkState(event != 0, event == 1, event == 2, event == 3);
     service.publishNetworkState(true, false, false, false);
     assert(service.abortRequested_.load());
+    assert(service.websocketUnexpectedReconnect_ == (event == 0));
   }
   for (bool recover : {false, true}) {
     for (int outcome : {ESP_ERR_HTTP_EAGAIN, ESP_OK, ESP_FAIL}) {

@@ -371,6 +371,9 @@ void ShotStopperMicraService::publishConfig(
         memcmp(&config_, &effective, sizeof(effective)) != 0;
     identityChanged = !sameSessionIdentity(config_, effective);
     transportChanged = config_.connectionType != effective.connectionType;
+    if (identityChanged || transportChanged ||
+        (effective.options & LINEA_MICRA_OBSERVE_STATE) == 0)
+      websocketUnexpectedReconnect_ = false;
     if (!identityChanged && (transportChanged ||
         (wasObserving && (effective.options & LINEA_MICRA_OBSERVE_STATE) == 0))) {
       powerState_.hold(published_, wasObserving, millis());
@@ -509,6 +512,10 @@ void ShotStopperMicraService::publishNetworkState(bool staConnected,
       (shotActive && !wasActive) || (scaleConnecting && !wasScale)) {
     {
       TaskLockGuard lock(mux_);
+      if (!staConnected && wasSta && !apActive && wasEligible &&
+          websocketStatus_.state >= MicraSocketState::CONNECTING &&
+          websocketStatus_.state <= MicraSocketState::STREAMING)
+        websocketUnexpectedReconnect_ = true;
       powerState_.hold(published_, config_.accountConfigured &&
           (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0, millis());
       ++observationFence_.epoch;
