@@ -56,6 +56,9 @@ running.
 
 ## Reading scale diagnostics
 
+When no scale is connected, the Bluetooth symbol and its signal bars in the
+header share the same faded appearance in both light and dark modes.
+
 In **Diagnostic → Scale**, **Weight updates** shows the recent, smoothed
 interval between weight readings and the corresponding rate. **Scale gaps**
 counts pauses longer than 250 ms between consecutive readings while the scale
