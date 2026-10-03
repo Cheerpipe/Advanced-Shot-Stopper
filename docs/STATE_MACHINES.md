@@ -954,13 +954,19 @@ API selection queues HTTPS dashboard reads on a nominal 30-second cadence.
 Commands and authentication always use HTTP. At startup it waits for an eligible STA
 connection, a closed setup AP, no local shot or rinse, and a synchronized wall
 clock, then opens a WebSocket subscription or starts the initial API read on
-the next worker opportunity. WebSocket resumes through subscription without an
-automatic dashboard GET; explicit refresh and post-command reconciliation retain
-their HTTP paths. A current
+the next worker opportunity. Each admitted WebSocket subscription queues one
+initial dashboard cycle while push reception continues. Explicit refresh and
+post-command reconciliation retain their HTTP paths and coalesce when compatible.
+All API purposes, including sign-in and manual requests, remain deferred during
+scale acquisition/setup/quiet and shots; active requests cancel through the owner.
+A current
 `StandBy` response maps to OFF, `BrewingMode` to ON, and ECO or an unknown value
-to UNKNOWN. A confirmed ON or OFF older than 30 seconds remains the last cloud
-classification but its quality becomes stale. Only an unsupported response or
-an exhausted communication cycle replaces it with UNKNOWN; the separate
+to UNKNOWN. API-mode evidence older than 30 seconds remains the last cloud
+classification but its quality becomes stale. WebSocket-mode evidence stays
+current without an age deadline while its subscription remains synchronized.
+Power source distinguishes the initial API read, ordinary API reads and push;
+it changes only when power is accepted. An unsupported response or an exhausted
+API-mode communication cycle can replace power with UNKNOWN; the separate
 `effectiveOn` policy treats UNKNOWN as ON without claiming that ON was measured.
 
 WebSocket transitions through waiting for network/time, authentication, socket
@@ -973,6 +979,12 @@ On resume, connection/subscription/pong or temperature-only updates do not clear
 the separate stale assumed-power hold; only current-epoch known power does.
 Machine `connected:false` is offline evidence, never power OFF. Cleaning is a
 separate WS-only diagnostic state and cannot create a control transition.
+Offline-to-online without power queues one new initialization cycle. Connection
+revision fencing rejects HTTP results that predate offline, teardown or a new
+subscription, including late offline dashboard responses. Initialization field
+revisions are captured at subscription, so even push received before HTTP
+dispatch wins for that field. No repeated reads are scheduled after exhausted
+initialization; valid push remains usable even if that API cycle fails.
 Matching fresh push evidence clears local optimism early; contrary push evidence
 keeps it until the gated 15-second HTTP reconciliation or its original expiry.
 During pause/resynchronization the separate hold retains the effective value

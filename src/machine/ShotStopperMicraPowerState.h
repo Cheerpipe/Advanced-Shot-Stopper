@@ -31,7 +31,8 @@ class LineaMicraPowerStateTracker {
       result.effectiveOn = direction_ == OptimisticDirection::ON;
       result.optimisticOn = direction_ == OptimisticDirection::ON;
       result.optimisticOff = direction_ == OptimisticDirection::OFF;
-    } else if (result.powerState != LineaMicraPowerState::UNKNOWN &&
+    } else if (!result.connectionFreshness &&
+               result.powerState != LineaMicraPowerState::UNKNOWN &&
                static_cast<uint32_t>(now - result.sampleAtMs) >=
                    micra_timing::kStateFreshnessMs) {
       result.quality = LineaMicraObservationQuality::STALE;

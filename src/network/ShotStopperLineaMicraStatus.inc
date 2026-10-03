@@ -23,6 +23,7 @@
         "\"requestId\":%lu,\"phase\":\"%s\",\"error\":\"%s\","
         "\"powerState\":\"%s\","
         "\"observedMode\":\"%s\",\"quality\":\"%s\",\"effectiveOn\":%s,"
+        "\"powerSource\":\"%s\",\"freshnessPolicy\":\"%s\","
         "\"optimisticOn\":%s,\"optimisticOff\":%s,"
         "\"sampleValid\":%s,\"sampleAgeMs\":%lu,\"freshnessMs\":%lu,"
         "\"pollIntervalMs\":%lu,\"targetValid\":%s,\"targetDeciC\":%u,"
@@ -59,6 +60,8 @@
         lineaMicraObservedModeName(micraStatus.observedMode),
         lineaMicraObservationQualityName(micraStatus.quality),
         micraStatus.effectiveOn ? "true" : "false",
+        micraPowerSourceName(micraStatus.powerSource),
+        micraStatus.connectionFreshness ? "connection" : "time",
         micraStatus.optimisticOn ? "true" : "false",
         micraStatus.optimisticOff ? "true" : "false",
         sampleValid ? "true" : "false",

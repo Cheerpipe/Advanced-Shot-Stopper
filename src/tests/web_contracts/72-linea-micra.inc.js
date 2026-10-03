@@ -68,7 +68,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const state = element(), modeRow = element(), mode = element(), cloud = element(), heapRow = element(), heap = element();
   mode.id = 'dMicraMode'; cloud.id = 'micraCloudDiagnostics'; heap.id = 'hHeapLargest';
   state.append(modeRow); modeRow.append(mode); heapRow.append(heap);
-  const labels = {'diagnostic.cloud_titles': 'Email|Machine|Time|API|Result|Duration|Connection|Traffic|Planned|Unexpected|Cleaning',
+  const labels = {'diagnostic.cloud_titles': 'Email|Machine|Time|API|Result|Duration|Connection|Traffic|Planned|Unexpected|Cleaning|Power state source',
     'diagnostic.cleaning_states': 'Inactive|Waiting for paddle|Cleaning'};
   const domContext = vm.createContext({$: id => dom[id], document: {createElement: element},
     __WEBUI_TEXT__: key => labels[key] || key, R: {formatWallTime: String}});
@@ -79,6 +79,11 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
     plannedConnections: 7, unexpectedConnections: 3};
   const linked = {accountConfigured: true, observeState: true, connectionType: 'websocket', websocket: socket};
   show(linked); show(linked);
+  for (const [powerSource, label] of [['api_initial', 'diagnostic.initial_api_read'],
+                                    ['api', 'API'], ['websocket', 'WebSocket'], ['none', 'runtime.unknown']]) {
+    show({...linked, powerSource});
+    assert.strictEqual(dom.dMicraPowerSource.textContent, label);
+  }
   assert.strictEqual(cloud.children.length, 10, 'Status refresh must not duplicate dynamic rows');
   assert.strictEqual(dom.dMicraWsPlanned.textContent, '7');
   assert.strictEqual(dom.dMicraWsUnexpected.textContent, '3');
@@ -223,7 +228,8 @@ if (!micraTiming.includes('kStatePollMs = 30000') ||
     !micraTiming.includes('kExhaustedCooldownMs = kOptimisticOverlayMs') ||
     !micraTiming.includes('kPostWakeObservationDelayMs = 15000') ||
     !micraService.includes('const bool networkReady = networkEligible(observationGate)') ||
-    !micraService.includes('pending_.present && (!pendingObservation || observationReady)') ||
+    !micraService.includes('pending_.present && networkReady && !localActivity &&') ||
+    !micraService.includes('(!pendingObservation || observationReady)') ||
     !micraService.includes('observationSchedule_.armPostEvent(now)') ||
     !micraService.includes('? powerState_.noteStandbyCommandAccepted(published_,') ||
     !micraService.includes(': powerState_.notePowerOnCommandAccepted(published_,') ||
@@ -286,6 +292,31 @@ for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
   if (!micraSettingsHtml.includes(`id="${id}"`)) {
     throw new Error(`Linea Micra settings control is missing: ${id}`);
   }
+}
+{
+  const assert = require('assert'), vm = require('vm');
+  const nodes = new Map();
+  const context = {Date: {now: () => 3600100}, controlsMutable: true,
+    $: id => {
+      if (id === 'lineaMicraRefreshLink') return null;
+      if (!nodes.has(id)) nodes.set(id, {textContent: ''});
+      return nodes.get(id);
+    }, __WEBUI_TEXT__: key => key};
+  vm.createContext(context);
+  vm.runInContext(rawRuntimeJs.slice(rawRuntimeJs.indexOf('function renderLineaMicraDiagnostic('),
+      rawRuntimeJs.indexOf('function applyDiagnosticStatus(')), context);
+  for (const policy of ['connection', 'time', undefined]) {
+    for (const quality of ['current', 'stale', 'optimistic', 'unsupported']) {
+      context.micraDiagnosticStatus = {sampleValid: true, sampleAgeMs: 0, receivedAtMs: 100,
+        freshnessMs: 30000, freshnessPolicy: policy, powerState: 'OFF', quality};
+      vm.runInContext('renderLineaMicraDiagnostic()', context);
+      assert.strictEqual(nodes.get('dMicraPowerValue').textContent, 'OFF');
+      assert.strictEqual(nodes.get('dMicraQuality').textContent,
+          quality === 'current' && policy !== 'connection' ? 'stale' : quality);
+    }
+  }
+  assert(micraStatus.includes('micraPowerSourceName(micraStatus.powerSource)'));
+  assert(micraStatus.includes('micraStatus.connectionFreshness ? "connection" : "time"'));
 }
 for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
   'dMicraQuality', 'dMicraAge', 'lineaMicraRefreshLink']) {
@@ -458,7 +489,7 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawRuntimeJs.includes("refresh.setAttribute('aria-disabled',String(disabled))") ||
     rawRuntimeJs.includes("expired?'UNKNOWN':lm.powerState") ||
     !rawRuntimeJs.includes('power=lm.powerState') ||
-    !rawRuntimeJs.includes("stale=lm.quality==='current'&&age>=lm.freshnessMs") ||
+    !rawRuntimeJs.includes("stale=lm.freshnessPolicy!=='connection'&&lm.quality==='current'&&age>=lm.freshnessMs") ||
     !micraSettingsHtml.includes('id="lineaMicraApplyTemperature" type="checkbox" checked') ||
     !micraSettingsHtml.includes('id="lineaMicraObserveState" type="checkbox" checked') ||
     !micraSettingsHtml.includes('id="lineaMicraRecognizeWake" type="checkbox" checked')) {
@@ -483,10 +514,10 @@ if (micraService.includes('keep_alive_enable = true') ||
     !micraService.includes('if (connecting) releaseWorkBuffer();') ||
     !micraService.includes('if (!staConnected || apActive) {') ||
     !micraService.includes('releaseIoBuffer();') ||
-    !micraService.includes('const bool staEligible =') ||
+    !micraService.includes('const bool networkReady = networkEligible(observationGate)') ||
     !micraService.includes('} else if (observationReady && config_.accountConfigured &&') ||
-    !micraService.includes('const bool initialSample = status.sampleAtMs == 0;') ||
-    !micraService.includes('(sessionRenewed && !initialSample) ||')) {
+    !micraService.includes('const bool dashboardRequired = status.sampleAtMs == 0 ||') ||
+    !micraService.includes('(sessionRenewed && !dashboardRequired) ||')) {
   throw new Error('Linea Micra polling must bound transient PSRAM/stack use, release idle sessions, wait for STA, reuse active HTTP sessions, and avoid continuous probes');
 }
 for (const file of ['ShotStopperMachinePaddleControl.h',

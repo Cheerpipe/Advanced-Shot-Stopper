@@ -14,7 +14,82 @@ static bool decode(const char *json, MicraObservation &update) {
   return valid;
 }
 
+static void initialStateContinuity() {
+  for (bool pushFirst : {false, true}) {
+    LineaMicraStatus state;
+    state.identityGeneration = 1;
+    state.connectionFreshness = true;
+    LineaMicraPowerStateTracker power;
+    MicraObservationFence fence;
+    MicraObservation initial;
+    initial.stamp = fence.stamp(1, power.generation());
+    initial.source = MicraObservationSource::HTTP_INITIAL;
+    initial.powerPresent = initial.temperaturePresent = initial.temperatureValid = true;
+    initial.mode = LineaMicraObservedMode::STANDBY;
+    initial.targetDeciC = 930;
+    initial.receivedAtMs = 100;
+    MicraObservation push = initial;
+    push.source = MicraObservationSource::WEBSOCKET;
+    push.temperaturePresent = false;
+    push.mode = LineaMicraObservedMode::BREWING;
+    push.receivedAtMs = 101;
+    if (pushFirst) assert(fence.merge(state, power, push, true));
+    assert(fence.merge(state, power, initial, true, true));
+    assert(state.targetDeciC == 930);
+    assert(state.powerSource == (pushFirst ? MicraObservationSource::WEBSOCKET :
+                                            MicraObservationSource::HTTP_INITIAL));
+    assert(state.powerState == (pushFirst ? LineaMicraPowerState::ON : LineaMicraPowerState::OFF));
+    assert(fence.synchronized);
+    for (uint32_t now : {30100U, 60100U, 600100U, 3600100U})
+      assert(power.effectiveStatus(state, true, now).quality == LineaMicraObservationQuality::CURRENT);
+    assert(fence.merge(state, power, push, true));
+    assert(state.powerSource == MicraObservationSource::WEBSOCKET);
+    auto staleOffline = initial;
+    staleOffline.connectedPresent = true;
+    staleOffline.connected = false;
+    assert(fence.merge(state, power, staleOffline, true, true));
+    assert(fence.synchronized && !fence.offline && !power.retained());
+    initial.stamp = fence.stamp(1, power.generation());
+    initial.source = MicraObservationSource::HTTP;
+    initial.receivedAtMs = 200;
+    assert(fence.merge(state, power, initial, true, true));  // Later explicit refresh.
+    assert(state.powerSource == MicraObservationSource::HTTP && state.sampleAtMs == 200);
+
+    MicraObservation offline;
+    offline.source = MicraObservationSource::WEBSOCKET;
+    offline.stamp = fence.stamp(1, power.generation());
+    offline.connectedPresent = true;
+    offline.receivedAtMs = 300;
+    auto late = initial;
+    late.stamp = offline.stamp;
+    assert(fence.merge(state, power, offline, true));
+    assert(fence.offline && !fence.synchronized && power.retained());
+    late.connectedPresent = late.connected = true;
+    assert(fence.merge(state, power, late, true, true));
+    assert(fence.offline && power.retained() && state.sampleAtMs == 200);
+    offline.connected = true;
+    assert(fence.merge(state, power, offline, true));
+    assert(!fence.offline && !fence.synchronized && power.retained());
+    push.powerPresent = false;
+    assert(fence.merge(state, power, push, true));
+    assert(power.effectiveStatus(state, true, 400).quality == LineaMicraObservationQuality::STALE);
+    push.powerPresent = true;
+    push.receivedAtMs = 500;
+    assert(fence.merge(state, power, push, true));
+    assert(fence.synchronized && !power.retained());
+    late.connected = false;  // An older HTTP offline result cannot undo recovery.
+    assert(fence.merge(state, power, late, true, true));
+    assert(fence.synchronized && !fence.offline && state.sampleAtMs == 500);
+    ++fence.epoch;
+    assert(!fence.merge(state, power, late, true, true));
+
+    state.connectionFreshness = false;
+    assert(power.effectiveStatus(state, true, 30500).quality == LineaMicraObservationQuality::STALE);
+  }
+}
+
 int main() {
+  initialStateContinuity();
   // Synthetic dashboard fixtures; no cloud or hardware is contacted.
   MicraObservation update;
   assert(decode(R"({"widgets":[{"code":"CMMachineStatus","output":{"mode":"StandBy","status":"Brewing"}},{"code":"CMCoffeeBoiler","output":{"targetTemperature":93.5}}]})", update));

@@ -85,8 +85,10 @@ safety, or local shot control.
 
 Enable **Monitor machine power state** and choose **Connection type**:
 
-- **WebSocket** receives cloud updates as they arrive. It is the default and
-  avoids regular dashboard polling, including when the connection resumes.
+- **WebSocket** reads the current state through the API after each subscription
+  starts, while receiving cloud updates in parallel. It is the default and
+  avoids regular dashboard polling. A reconnect starts a new initial read;
+  newer power updates take priority over that read.
 - **API** checks the dashboard approximately every 30 seconds. Try it if a weak
   connection or the cloud service makes WebSocket unreliable.
 
@@ -95,6 +97,10 @@ point. Both pause during a shot or rinse and as soon as a compatible scale is
 found, before its connection starts. The WebSocket is disconnected during that
 pause. Monitoring resumes after scale setup and the Bluetooth quiet interval
 end. Wi-Fi and the local Web UI remain available.
+All Micra API requests, including sign-in, Refresh and machine commands, wait
+through scale connection and shots. Requests already in progress are canceled
+by the cloud worker as soon as it observes the pause; local control never waits
+for that cancellation.
 Paddle wake gestures and starts blocked by a guard keep observation connected;
 they do not count as shots or rinses.
 
@@ -112,11 +118,22 @@ Diagnostics → Machine distinguishes the last observed mode from its quality:
 | `BrewingMode` | ON |
 | `EcoMode`, missing or unsupported mode | UNKNOWN |
 
-Power evidence becomes stale after 30 seconds; unrelated messages do not renew
-it. API failures use four attempts with 3, 6 and 9 second delays, then a
-60-second cooldown. Exhausted API reads report communication-error quality and
-UNKNOWN unless a paused value is being retained. WebSocket losses retain the
-last effective value and retry with the same delays and cooldown. Invalid
+In WebSocket mode, the initial API reading stays current while the subscription
+remains healthy, even if the machine sends no power update for several minutes
+or hours. The next power update replaces it. Diagnostics shows **Power state
+source** as **Initial API read**, **WebSocket**, or **API** for a later manual
+read. The sample age keeps increasing; unrelated messages do not reset it.
+An explicit machine-offline report makes the retained value stale. If the
+machine reports that it is back online without a power value, one new API read
+resynchronizes it.
+
+In API mode, power evidence becomes stale after 30 seconds. API failures use
+four attempts with 3, 6 and 9 second delays. Regular API polling resumes its
+30-second cadence after exhaustion and reports communication-error quality and
+UNKNOWN unless a paused value is being retained. A failed WebSocket initialization does not
+start recurring API polls or discard valid power updates already received.
+WebSocket losses retain the last effective value as stale and retry with the
+same delays, followed by a 60-second cooldown after exhaustion. Invalid
 credentials require reconnecting the account or a manual refresh.
 Pauses and network recovery preserve this authentication stop; they do not
 restart automatic sign-in attempts.

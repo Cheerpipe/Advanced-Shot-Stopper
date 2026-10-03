@@ -46,10 +46,14 @@ operation deadline. The network manager publishes the current gate and wakes
 the cloud worker in the same activation. Only the cloud worker accesses or
 destroys its HTTP/TLS client; cancellation is checked before and after each
 asynchronous progress call, so teardown cannot race an in-flight TLS read.
-The state observer is due nominally every 30 seconds, and its four-attempt cycle
+The API-mode observer is due nominally every 30 seconds, and its four-attempt cycle
 waits 3, 6, then 9
-seconds. After exhaustion the next cycle waits 60 seconds.
-WebSocket selection suppresses regular polling. Its SDK receiver runs on core 0,
+seconds. After exhaustion API observation resumes its 30-second cadence;
+WebSocket reconnection and command retries use a 60-second cooldown.
+WebSocket selection suppresses regular polling. Each admitted subscription
+queues one initial dashboard cycle with the same bounded retries, coalescing
+compatible queued observations. Explicit offline-to-online recovery can queue
+one resynchronization read. The SDK receiver runs independently on core 0,
 priority 1, with an 8192-byte internal stack and fixed 1024-byte I/O buffers.
 CONNECT/SUBSCRIBE and incomplete-frame progress each have a 10-second deadline.
 Payload processing admits at most 32 complete frames per feed and yields after
@@ -58,8 +62,10 @@ stop latency; target qualification must establish those bounds under HTTP load.
 An established socket follows owner stop; DNS/connect already in flight may
 finish before SDK stop completes. BLE never waits for that completion.
 
-AP, STA-loss, unsynchronized clock, and shot activity gate observations without
-consuming attempts. These are admission intervals, not a guaranteed cloud
+AP, STA-loss, unsynchronized clock, scale acquisition/setup/quiet, and shot
+activity gate every API purpose, including authentication and retries, without
+consuming attempts while awaiting admission. Every gate must clear before work
+resumes. These are admission intervals, not a guaranteed cloud
 detection latency; an individual TLS/crypto progress call still requires target
 deadline qualification.
 

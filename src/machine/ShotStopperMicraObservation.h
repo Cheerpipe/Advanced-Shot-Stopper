@@ -6,7 +6,6 @@ struct cJSON;
 
 namespace shotstopper {
 
-enum class MicraObservationSource : uint8_t { HTTP, WEBSOCKET };
 enum class MicraCleaningState : uint8_t { UNKNOWN, OFF, REQUESTED, CLEANING };
 
 struct MicraObservationStamp {
@@ -15,6 +14,7 @@ struct MicraObservationStamp {
   uint32_t intent = 0;
   uint32_t powerRevision = 0;
   uint32_t temperatureRevision = 0;
+  uint32_t connectionRevision = 0;
 };
 
 struct MicraObservation {
@@ -42,9 +42,17 @@ struct MicraObservationFence {
   uint32_t epoch = 0;
   uint32_t powerRevision = 0;
   uint32_t temperatureRevision = 0;
+  uint32_t connectionRevision = 0;
+  bool offline = false;
+  bool synchronized = false;
+
+  void invalidate() {
+    ++connectionRevision;
+    synchronized = false;
+  }
 
   MicraObservationStamp stamp(uint32_t identity, uint32_t intent) const {
-    return {identity, epoch, intent, powerRevision, temperatureRevision};
+    return {identity, epoch, intent, powerRevision, temperatureRevision, connectionRevision};
   }
 
   bool merge(LineaMicraStatus &status, LineaMicraPowerStateTracker &power,
@@ -53,6 +61,18 @@ struct MicraObservationFence {
     if (update.stamp.identity != status.identityGeneration ||
         update.stamp.epoch != epoch) return false;
     const bool push = update.source == MicraObservationSource::WEBSOCKET;
+    if (!push && (update.stamp.connectionRevision != connectionRevision ||
+        (update.connectedPresent && !update.connected &&
+         update.stamp.powerRevision != powerRevision))) return true;
+    if (update.connectedPresent && offline != !update.connected) {
+      offline = !update.connected;
+      invalidate();
+    }
+    if (offline) {
+      power.hold(status, observing, update.receivedAtMs);
+      status.quality = LineaMicraObservationQuality::STALE;
+      return true;
+    }
     if (update.powerPresent && observing &&
         (push || update.stamp.powerRevision == powerRevision) &&
         power.noteEvidence(update.stamp.intent,
@@ -62,6 +82,8 @@ struct MicraObservationFence {
       status.powerState = lineaMicraPowerStateForMode(update.mode);
       status.effectiveOn = status.powerState != LineaMicraPowerState::OFF;
       status.sampleAtMs = update.receivedAtMs;
+      status.powerSource = update.source;
+      synchronized = status.powerState != LineaMicraPowerState::UNKNOWN;
       status.quality = update.mode == LineaMicraObservedMode::UNSUPPORTED
                            ? LineaMicraObservationQuality::UNSUPPORTED
                            : update.mode == LineaMicraObservedMode::NONE

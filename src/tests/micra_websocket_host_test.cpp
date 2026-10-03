@@ -98,6 +98,7 @@ bool ShotStopperMicraService::applySignedHeaders(const LineaMicraPersistedSettin
   return true;
 }
 #include "machine/ShotStopperMicraWebSocket.inc"
+#include "micra_websocket_status.inc"
 struct MicraWebSocketTest {
   static void connectionClassification() {
     now = 1000;
@@ -287,6 +288,9 @@ struct MicraWebSocketTest {
     assert(service.websocket_->connect[0] == '\0');
     deliver(service, std::string("CONNECTED\nversion:1.2\n\n") + std::string(1, '\0'));
     assert(service.websocketStatus().subscribed);
+    assert(service.snapshotPending_);
+    assert(service.snapshotStamp_.epoch == service.observationFence_.epoch);
+    assert(service.snapshotStamp_.connectionRevision == service.observationFence_.connectionRevision);
     assert(transmitted.find(service.websocket_->destination) != std::string::npos);
   }
   static void run() {
@@ -404,6 +408,56 @@ struct MicraWebSocketTest {
     service.work_ = nullptr;
     TaskMutex::hostObserver = nullptr;
   }
+  static void initialSynchronization() {
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.published_.connectionFreshness = true;
+    service.staConnected_.store(true);
+    service.serviceWebSocket();
+    subscribe(service);
+    const auto firstStamp = service.snapshotStamp_;
+    MicraObservation initial;
+    initial.stamp = firstStamp;
+    initial.source = MicraObservationSource::HTTP_INITIAL;
+    initial.powerPresent = true;
+    initial.mode = LineaMicraObservedMode::BREWING;
+    initial.receivedAtMs = now;
+    assert(service.observationFence_.merge(service.published_, service.powerState_, initial, true));
+    now += 600000;
+    assert(service.status().quality == LineaMicraObservationQuality::CURRENT);
+    assert(service.status().powerSource == MicraObservationSource::HTTP_INITIAL);
+    outboundAcquisitionHeld.store(true);
+    assert(service.status().quality == LineaMicraObservationQuality::STALE);
+    outboundAcquisitionHeld.store(false);
+    deliver(service, observation(service, R"({"widgets":[{"code":"CMMachineStatus","output":{"mode":"StandBy"}}]})"));
+    assert(service.published_.powerSource == MicraObservationSource::WEBSOCKET);
+    assert(service.snapshotStamp_.powerRevision == firstStamp.powerRevision);
+    service.snapshotPending_ = false;  // Owner has dispatched initialization.
+    deliver(service, observation(service, R"({"connected":false})"));
+    assert(service.observationFence_.offline && service.powerState_.retained());
+    deliver(service, observation(service, R"({"connected":true})"));
+    assert(service.snapshotPending_ && !service.observationFence_.synchronized);
+    assert(service.snapshotStamp_.connectionRevision != firstStamp.connectionRevision);
+    deliver(service, observation(service, R"({"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}}]})"));
+    assert(service.observationFence_.synchronized);
+    ++outboundAcquisitionGeneration;
+    assert(service.status().quality == LineaMicraObservationQuality::STALE);
+    esp_websocket_event_data_t event;
+    service.websocketEvent(&service, nullptr, WEBSOCKET_EVENT_CLOSED, &event);
+    assert(!service.observationFence_.synchronized && !service.snapshotPending_);
+    assert(service.powerState_.retained());  // Invalidated before owner teardown.
+    assert(service.status().quality == LineaMicraObservationQuality::STALE);
+    service.stopWebSocket();
+    assert(!service.snapshotPending_);
+    service.serviceWebSocket();
+    subscribe(service);
+    assert(service.snapshotStamp_.connectionRevision != firstStamp.connectionRevision);
+    assert(service.status().quality == LineaMicraObservationQuality::STALE);
+    service.stopWebSocket(true);
+    delete service.work_;
+  }
 };
 }
 int main() {
@@ -411,4 +465,5 @@ int main() {
   shotstopper::MicraWebSocketTest::run();
   shotstopper::MicraWebSocketTest::lifecycleRegressions();
   shotstopper::MicraWebSocketTest::connectionClassification();
+  shotstopper::MicraWebSocketTest::initialSynchronization();
 }

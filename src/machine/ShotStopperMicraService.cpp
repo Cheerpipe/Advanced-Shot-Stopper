@@ -410,6 +410,14 @@ void ShotStopperMicraService::publishConfig(
       }
     }
     published_.configGeneration = configGeneration;
+    published_.connectionFreshness = effective.connectionType ==
+        static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
+    if (identityChanged || transportChanged || !effective.accountConfigured ||
+        (effective.options & LINEA_MICRA_OBSERVE_STATE) == 0) {
+      snapshotPending_ = false;
+      observationFence_.invalidate();
+      observationFence_.offline = false;
+    }
     published_.identityGeneration = identityGeneration_;
     published_.accountConfigured = effective.accountConfigured;
     const bool observing =
@@ -520,6 +528,8 @@ void ShotStopperMicraService::publishNetworkState(bool staConnected,
           (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0, millis());
       ++observationFence_.epoch;
       if (!websocketStatus_.pauseAtMs) websocketStatus_.pauseAtMs = millis();
+      observationFence_.invalidate();
+      snapshotPending_ = false;
     }
     abortRequested_.store(true, std::memory_order_release);
     if (!staConnected || apActive) {
@@ -681,6 +691,14 @@ LineaMicraStatus ShotStopperMicraService::status() const {
   const bool observing = config_.accountConfigured &&
                          (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0;
   result = powerState_.effectiveStatus(result, observing, now);
+  if (result.connectionFreshness && result.quality == LineaMicraObservationQuality::CURRENT &&
+      (!observationFence_.synchronized || !websocketStatus_.subscribed || !websocket_ ||
+       websocket_->failed.load() || websocket_->stamp.epoch != observationFence_.epoch ||
+       websocket_->acquisitionGeneration != outboundAcquisitionGeneration.load() ||
+       websocket_->disconnectGeneration != disconnectGeneration_.load() ||
+       !staConnected_.load() || apActive_.load() || shotActive_.load() || scaleConnecting_.load() ||
+       outboundShotActive.load() || outboundScaleInhibited() || outboundMaintenance.load() || outboundOtaBusy.load()))
+    result.quality = LineaMicraObservationQuality::STALE;
   result.staConnected = staConnected_.load(std::memory_order_acquire);
   result.apActive = apActive_.load(std::memory_order_acquire);
   result.shotPaused = shotActive_.load(std::memory_order_acquire);
@@ -769,8 +787,6 @@ void ShotStopperMicraService::taskLoop() {
       }
     }
     const bool localActivity = shotActive_.load(std::memory_order_acquire);
-    const bool staEligible = staConnected_.load(std::memory_order_acquire) &&
-                             !apActive_.load(std::memory_order_acquire);
     {
       TaskLockGuard lock(mux_);
       if (config_.connectionType == static_cast<uint8_t>(MicraConnectionType::WEBSOCKET))
@@ -781,7 +797,9 @@ void ShotStopperMicraService::taskLoop() {
       const bool observationReady =
           networkReady && !localActivity && !scaleConnecting_.load(std::memory_order_acquire) &&
           observationSchedule_.observationAllowed(now);
-      if (pending_.present && (!pendingObservation || observationReady)) {
+      if (pending_.present && networkReady && !localActivity &&
+          !scaleConnecting_.load(std::memory_order_acquire) &&
+          (!pendingObservation || observationReady)) {
         pending = pending_;
         wipeLineaMicraSettings(pending_.credentials);
         pending_.present = false;
@@ -790,7 +808,7 @@ void ShotStopperMicraService::taskLoop() {
                                  std::memory_order_release);
         active_ = true;
         haveRequest = true;
-      } else if (staEligible && !shotActive_.load(std::memory_order_acquire) &&
+      } else if (networkReady && !shotActive_.load(std::memory_order_acquire) &&
                  !scaleConnecting_.load(std::memory_order_acquire) &&
                  desiredTemperature_.present &&
                  static_cast<int32_t>(now - desiredTemperature_.retryAtMs) >= 0) {
@@ -801,7 +819,7 @@ void ShotStopperMicraService::taskLoop() {
         haveRequest = true;
         haveTemperature = true;
         temperatureActive_.store(true, std::memory_order_release);
-      } else if (staEligible &&
+      } else if (networkReady && !shotActive_.load(std::memory_order_acquire) &&
                  !scaleConnecting_.load(std::memory_order_acquire) &&
                  desiredPower_.present &&
                  static_cast<int32_t>(now - desiredPower_.retryAtMs) >= 0) {
@@ -814,7 +832,7 @@ void ShotStopperMicraService::taskLoop() {
         powerActive_.store(true, std::memory_order_release);
       } else if (observationReady && config_.accountConfigured &&
                  (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0 &&
-                 observationSchedule_.automaticDue(now)) {
+                 (snapshotPending_ || observationSchedule_.automaticDue(now))) {
         pending.request.requestId = nextAutomaticRequestId_++;
         pending.request.configGeneration = configGeneration_;
         pending.request.type = LineaMicraRequestType::OBSERVE_STATE;
@@ -823,6 +841,13 @@ void ShotStopperMicraService::taskLoop() {
         observationActive_.store(true, std::memory_order_release);
         active_ = true;
         haveRequest = true;
+      }
+      if (haveRequest && pending.request.type == LineaMicraRequestType::OBSERVE_STATE &&
+          snapshotPending_) {
+        // Post-command reconciliation needs a request-time field baseline.
+        pending.initialSnapshot = snapshotStamp_.intent == powerState_.generation();
+        pending.snapshotStamp = snapshotStamp_;
+        snapshotPending_ = false;
       }
     }
     if (haveRequest) {
@@ -1395,8 +1420,21 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
   publish(status);
   bool success = false;
   bool sessionRenewed = false;
-  const bool initialSample = status.sampleAtMs == 0;
+  // Session renewal must not consume a WS initialization or explicit read.
+  const bool dashboardRequired = status.sampleAtMs == 0 ||
+      settings.connectionType == static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
   for (size_t attempt = 0; attempt < micra_timing::kMaxAttempts; ++attempt) {
+    if (pending.initialSnapshot) {
+      TaskLockGuard lock(mux_);
+      if (pending.snapshotStamp.epoch != observationFence_.epoch ||
+          pending.snapshotStamp.connectionRevision != observationFence_.connectionRevision ||
+          !websocketStatus_.subscribed || observationFence_.offline) {
+        if (published_.requestId == pending.request.requestId)
+          published_.phase = LineaMicraPhase::IDLE;
+        wipeLineaMicraSettings(settings);
+        return true;
+      }
+    }
     if (!observationCurrent(pending.identityGeneration)) {
       wipeLineaMicraSettings(settings);
       return true;
@@ -1413,8 +1451,9 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
       return true;
     }
     success = ensureSession(settings, false, &sessionRenewed) &&
-              ((sessionRenewed && !initialSample) ||
-               readDashboard(settings, status));
+              ((sessionRenewed && !dashboardRequired) ||
+               readDashboard(settings, status,
+                   pending.initialSnapshot ? &pending.snapshotStamp : nullptr));
     if (success) break;
     if (!observationCurrent(pending.identityGeneration)) {
       wipeLineaMicraSettings(settings);
@@ -1452,7 +1491,7 @@ bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {
     fail(status, error);
     return false;
   }
-  if (sessionRenewed && !initialSample) {
+  if (sessionRenewed && !dashboardRequired) {
     status.phase = LineaMicraPhase::IDLE;
     status.error = LineaMicraError::NONE;
     publish(status);
@@ -1740,14 +1779,18 @@ bool ShotStopperMicraService::listMachines(
 }
 
 bool ShotStopperMicraService::readDashboard(
-    const LineaMicraPersistedSettings &settings, LineaMicraStatus &result) {
+    const LineaMicraPersistedSettings &settings, LineaMicraStatus &result,
+    const MicraObservationStamp *snapshot) {
   if (!ensureIoBuffer()) return false;
   MicraObservation update;
   const uint32_t disconnectGeneration = disconnectGeneration_.load(std::memory_order_acquire);
   const uint32_t acquisitionGeneration = outboundAcquisitionGeneration.load(std::memory_order_acquire);
   {
     TaskLockGuard lock(mux_);
-    update.stamp = observationFence_.stamp(identityGeneration_, powerState_.generation());
+    update.stamp = snapshot ? *snapshot :
+        observationFence_.stamp(identityGeneration_, powerState_.generation());
+    update.stamp.intent = powerState_.generation();
+    if (snapshot) update.source = MicraObservationSource::HTTP_INITIAL;
   }
   char url[sizeof(kApiRoot) + LINEA_MICRA_SERIAL_CAPACITY + 24];
   const int length = snprintf(url, sizeof(url), "%s/things/%s/dashboard",
@@ -1759,32 +1802,24 @@ bool ShotStopperMicraService::readDashboard(
     return false;
   }
   cJSON *root = parseResponse(io_->response);
-  bool decoded = decodeMicraDashboard(root, update) && update.powerPresent;
+  const bool decoded = decodeMicraDashboard(root, update) &&
+      (update.powerPresent || (update.connectedPresent && !update.connected));
   cJSON_Delete(root);
   work_->responseUsed = 0;
-  if (decoded && update.connectedPresent && !update.connected) {
-    TaskLockGuard lock(mux_);
-    if (update.stamp.identity == identityGeneration_ && update.stamp.epoch == observationFence_.epoch &&
-        !abortRequested_.load(std::memory_order_acquire) && !outboundScaleInhibited() &&
-        acquisitionGeneration == outboundAcquisitionGeneration.load(std::memory_order_acquire) &&
-        disconnectGeneration == disconnectGeneration_.load(std::memory_order_acquire)) {
-      powerState_.hold(published_, true, millis());
-      published_.quality = LineaMicraObservationQuality::STALE;
-    }
-    decoded = false;
-  }
   releaseIoBuffer(decoded);
   if (!decoded) return false;
   update.receivedAtMs = millis();
   TaskLockGuard lock(mux_);
   if (abortRequested_.load(std::memory_order_acquire) || outboundScaleInhibited() ||
+      shotActive_.load(std::memory_order_acquire) || scaleConnecting_.load(std::memory_order_acquire) ||
+      outboundShotActive.load(std::memory_order_acquire) ||
       acquisitionGeneration != outboundAcquisitionGeneration.load(std::memory_order_acquire) ||
       disconnectGeneration != disconnectGeneration_.load(std::memory_order_acquire)) return false;
   const bool observing = config_.accountConfigured &&
       (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0;
   if (!observationFence_.merge(published_, powerState_, update, observing, true)) return false;
   result = published_;
-  return true;
+  return snapshot != nullptr || !observationFence_.offline;
 }
 
 bool ShotStopperMicraService::writeTemperature(

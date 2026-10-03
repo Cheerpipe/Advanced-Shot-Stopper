@@ -503,9 +503,10 @@ if (generated.otaImageGzip.length > 3072) {
 // Scale profiling adds the Diagnostic state matrix, four controls, and the
 // streamed TXT download (~540 gzip bytes); the lazy partial keeps it out of
 // the always-loaded runtime and shell budgets.
-// Reviewed WS diagnostics measure 9685 bytes; retain a rounded 9800-byte cap.
-if (generated.secondaryGzip.length > 9800) {
-  throw new Error(`Compressed secondary view JS exceeds the 9800-byte gzip budget (${generated.secondaryGzip.length})`);
+// Initial power-source diagnostics measure 9840 bytes after reusing row/render
+// logic; allow 9900 bytes. Firmware image and combined asset budgets stay fixed.
+if (generated.secondaryGzip.length > 9900) {
+  throw new Error(`Compressed secondary view JS exceeds the 9900-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');

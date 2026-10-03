@@ -17,6 +17,17 @@ enum class LineaMicraRequestType : uint8_t {
   SET_POWER_ON
 };
 enum class LineaMicraPowerState : uint8_t { UNKNOWN, ON, OFF };
+enum class MicraObservationSource : uint8_t { NONE, HTTP, HTTP_INITIAL, WEBSOCKET };
+
+inline const char *micraPowerSourceName(MicraObservationSource source) {
+  switch (source) {
+    case MicraObservationSource::HTTP: return "api";
+    case MicraObservationSource::HTTP_INITIAL: return "api_initial";
+    case MicraObservationSource::WEBSOCKET: return "websocket";
+    case MicraObservationSource::NONE: return "none";
+  }
+  return "none";
+}
 enum class LineaMicraObservedMode : uint8_t {
   NONE,
   STANDBY,
@@ -218,12 +229,14 @@ struct LineaMicraStatus {
   LineaMicraPhase phase = LineaMicraPhase::Disabled;
   LineaMicraError error = LineaMicraError::NONE;
   LineaMicraPowerState powerState = LineaMicraPowerState::UNKNOWN;
+  MicraObservationSource powerSource = MicraObservationSource::NONE;
   LineaMicraObservedMode observedMode = LineaMicraObservedMode::NONE;
   LineaMicraObservationQuality quality = LineaMicraObservationQuality::Disabled;
   LineaMicraTemperatureState temperatureState =
       LineaMicraTemperatureState::Disabled;
   LineaMicraError temperatureError = LineaMicraError::NONE;
   bool transportFailure = false;
+  bool connectionFreshness = false;
   bool effectiveOn = true;
   bool targetValid = false;
   bool accountConfigured = false;

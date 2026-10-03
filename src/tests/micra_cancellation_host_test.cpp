@@ -5,6 +5,7 @@
 #include <functional>
 #include <mutex>
 #include <thread>
+#include <sys/time.h>
 #include "machine/ShotStopperMicraPublicIdentityCache.h"
 #include "machine/ShotStopperMicraService.h"
 #include "ShotStopperOutboundAdmission.h"
@@ -18,6 +19,10 @@ uint32_t pdMS_TO_TICKS(uint32_t ms) { return ms; }
 struct WorkerStopped {};
 static std::function<int()> performHook;
 static std::function<void()> executeHook;
+static bool initialSnapshot = false;
+static shotstopper::MicraObservationStamp dispatchedStamp;
+static std::function<bool(const shotstopper::MicraObservationStamp *)> dashboardHook;
+static unsigned authentications = 0, retries = 0, failures = 0;
 static unsigned waits = 0;
 int esp_http_client_perform(void *) { return performHook(); }
 void esp_http_client_cleanup(void *) {}
@@ -28,14 +33,26 @@ unsigned ulTaskNotifyTake(int, uint32_t ticks) {
 }
 namespace shotstopper {
 bool firmwareCompatibilityMode() { return false; }
-bool ShotStopperMicraService::networkEligible(LineaMicraError &) const {
-  return staConnected_.load() && !apActive_.load();
-}
+int testGettimeofday(timeval *now, void *) { now->tv_sec = 1700000010L; return 0; }
 void ShotStopperMicraService::releaseIoBuffer(bool) {}
 void ShotStopperMicraService::releaseWorkBuffer() { clearSession(); }
 void ShotStopperMicraService::serviceWebSocket() {}
 void ShotStopperMicraService::stopWebSocket(bool) {}
-void ShotStopperMicraService::execute(PendingRequest &) { executeHook(); }
+bool ShotStopperMicraService::ensureSession(LineaMicraPersistedSettings &, bool, bool *renewed) {
+  ++authentications;
+  *renewed = true;
+  return true;
+}
+bool ShotStopperMicraService::readDashboard(const LineaMicraPersistedSettings &,
+    LineaMicraStatus &, const MicraObservationStamp *snapshot) { return dashboardHook(snapshot); }
+void ShotStopperMicraService::waitRetry(uint32_t) { ++retries; }
+LineaMicraError ShotStopperMicraService::classifyFailure() const { return LineaMicraError::HTTP_ERROR; }
+void ShotStopperMicraService::fail(LineaMicraStatus &, LineaMicraError) { ++failures; }
+void ShotStopperMicraService::execute(PendingRequest &pending) {
+  initialSnapshot = pending.initialSnapshot;
+  dispatchedStamp = pending.snapshotStamp;
+  executeHook();
+}
 bool ShotStopperMicraService::executeTemperatureApplication(
     const LineaMicraRequest &, uint32_t) {
   executeHook();
@@ -49,19 +66,25 @@ bool ShotStopperMicraService::executePowerApplication(
   return true;
 }
 }
+#define gettimeofday testGettimeofday
 #include "micra_cancellation_methods.inc"
+#undef gettimeofday
 
 using namespace shotstopper;
 namespace shotstopper {
 struct MicraCancellationTest {
   static void progress(ShotStopperMicraService &service, int outcome,
-                       bool cancel, bool recoverDuringPerform);
+                       bool cancel, bool recoverDuringPerform, bool scale = false,
+                       bool blockedBefore = false);
+  static void initializationAndGates();
+  static void initializationRetries();
   static void run();
 };
 }
 
 void MicraCancellationTest::progress(ShotStopperMicraService &service, int outcome,
-                                     bool cancel, bool recoverDuringPerform) {
+                                     bool cancel, bool recoverDuringPerform, bool scale,
+                                     bool blockedBefore) {
   auto &shotActive_ = service.shotActive_;
   auto &scaleConnecting_ = service.scaleConnecting_;
   auto &abortRequested_ = service.abortRequested_;
@@ -78,16 +101,17 @@ void MicraCancellationTest::progress(ShotStopperMicraService &service, int outco
   performHook = [&] {
     ++calls;
     if (cancel) {
-      service.publishNetworkState(true, false, true, false);
+      service.publishNetworkState(true, false, !scale, scale);
       if (recoverDuringPerform)
         service.publishNetworkState(true, false, false, false);
     }
     return calls == 1 ? outcome : ESP_OK;
   };
+  if (blockedBefore) service.publishNetworkState(true, false, !scale, scale);
 #include "micra_cancellation_progress.inc"
   assert(canceled == cancel);
   assert(performed == (cancel ? ESP_FAIL : ESP_OK));
-  assert(calls == (cancel || outcome != ESP_ERR_HTTP_EAGAIN ? 1U : 2U));
+  assert(calls == (blockedBefore ? 0U : cancel || outcome != ESP_ERR_HTTP_EAGAIN ? 1U : 2U));
   assert(waits == (cancel || outcome != ESP_ERR_HTTP_EAGAIN ? 0U : 1U));
   performHook = {};
 }
@@ -194,7 +218,7 @@ void MicraCancellationTest::run() {
   assert(!held.effectiveOn && held.quality == LineaMicraObservationQuality::STALE);
   assert(service.published_.sampleAtMs == 900);
 
-  // WS resumes through subscription; only explicit/post-command reads use HTTP.
+  // Until a subscription is admitted, WS mode does not poll the dashboard.
   service.desiredTemperature_ = {};
   service.desiredPower_ = {};
   service.pending_ = {};
@@ -228,8 +252,132 @@ void MicraCancellationTest::run() {
   assert(service.abortRequested_.load());
 }
 
+void MicraCancellationTest::initializationAndGates() {
+  ShotStopperMicraService service;
+  service.config_.accountConfigured = true;
+  service.config_.options |= LINEA_MICRA_OBSERVE_STATE;
+  service.staConnected_.store(true);
+  service.snapshotStamp_ = service.observationFence_.stamp(0, service.powerState_.generation());
+  service.snapshotPending_ = true;
+  unsigned calls = 0;
+  executeHook = [&] { ++calls; };
+  auto run = [&] { try { service.taskLoop(); } catch (const WorkerStopped &) {} };
+  // A manual read and the initial read share one dispatch.
+  service.pending_.present = true;
+  service.pending_.request.type = LineaMicraRequestType::OBSERVE_STATE;
+  run();
+  assert(calls == 1 && initialSnapshot && !service.snapshotPending_);
+  assert(dispatchedStamp.connectionRevision == service.snapshotStamp_.connectionRevision);
+  run();
+  assert(calls == 1);
+  // Post-wake reconciliation must not inherit the subscription's old intent.
+  service.powerState_.reset();
+  service.snapshotPending_ = true;
+  service.observationSchedule_.armPostEvent(millis());
+  run();
+  assert(calls == 1 && service.snapshotPending_);
+  service.observationSchedule_.armPostEvent(millis() - micra_timing::kPostWakeObservationDelayMs);
+  run();
+  assert(calls == 2 && !initialSnapshot);
+
+  for (auto type : {LineaMicraRequestType::CONNECT, LineaMicraRequestType::OBSERVE_STATE,
+                    LineaMicraRequestType::APPLY_TEMPERATURE, LineaMicraRequestType::SET_STANDBY,
+                    LineaMicraRequestType::SET_POWER_ON}) {
+    const auto before = calls;
+    service.pending_.present = true;
+    service.pending_.request.type = type;
+    outboundShotActive.store(true);
+    outboundAcquisitionHeld.store(true);
+    run();
+    assert(calls == before && service.pending_.present);
+    outboundShotActive.store(false);
+    run();
+    assert(calls == before);
+    outboundScaleSetup.store(true);
+    outboundAcquisitionHeld.store(false);
+    run();
+    assert(calls == before);
+    outboundBleQuiet.store(true);
+    outboundScaleSetup.store(false);
+    run();
+    assert(calls == before);
+    outboundShotActive.store(true);
+    outboundBleQuiet.store(false);
+    run();
+    assert(calls == before);
+    outboundShotActive.store(false);
+    run();
+    assert(calls == before + 1 && !service.pending_.present);
+  }
+  for (bool scale : {false, true}) {
+    for (bool before : {false, true}) {
+      for (int outcome : {ESP_ERR_HTTP_EAGAIN, ESP_OK, ESP_FAIL}) {
+        service.publishNetworkState(true, false, false, false);
+        service.abortRequested_.store(false);
+        progress(service, outcome, true, true, scale, before);
+      }
+    }
+  }
+}
+
+void MicraCancellationTest::initializationRetries() {
+  ShotStopperMicraService service;
+  service.config_.accountConfigured = true;
+  service.config_.options |= LINEA_MICRA_OBSERVE_STATE;
+  service.staConnected_.store(true);
+  service.websocketStatus_.subscribed = true;
+  service.published_.sampleAtMs = 100;
+  ShotStopperMicraService::PendingRequest pending;
+  pending.request.type = LineaMicraRequestType::OBSERVE_STATE;
+  pending.initialSnapshot = true;
+  pending.snapshotStamp = service.observationFence_.stamp(0, service.powerState_.generation());
+  unsigned reads = 0;
+  dashboardHook = [&](const MicraObservationStamp *stamp) {
+    assert(stamp && stamp->powerRevision == pending.snapshotStamp.powerRevision);
+    ++reads;
+    return reads == 2;
+  };
+  assert(service.executeObservation(pending));
+  assert(reads == 2 && authentications == 2 && retries == 1);  // Renewed session still reads.
+  reads = authentications = retries = failures = 0;
+  dashboardHook = [&](const MicraObservationStamp *) { ++reads; return false; };
+  assert(!service.executeObservation(pending));
+  assert(reads == 4 && retries == 3 && failures == 1);
+  assert(!service.observationSchedule_.automaticDue(millis() + 60000));
+  reads = authentications = retries = 0;
+  service.observationFence_.invalidate();
+  assert(service.executeObservation(pending));
+  assert(reads == 0 && authentications == 0);  // Old deferred session is terminal.
+  pending.snapshotStamp = service.observationFence_.stamp(0, service.powerState_.generation());
+  service.observationFence_.offline = true;
+  assert(service.executeObservation(pending));
+  assert(reads == 0);
+  service.observationFence_.offline = false;
+  dashboardHook = [&](const MicraObservationStamp *) {
+    ++reads;
+    service.observationFence_.invalidate();  // Socket failed during HTTP.
+    return false;
+  };
+  assert(service.executeObservation(pending));
+  assert(reads == 1 && authentications == 1);
+  pending.initialSnapshot = false;
+  reads = authentications = 0;
+  dashboardHook = [&](const MicraObservationStamp *stamp) {
+    assert(!stamp);  // A coalesced post-command read uses the current baseline.
+    ++reads;
+    return true;
+  };
+  assert(service.executeObservation(pending));
+  assert(reads == 1 && authentications == 1);
+  service.config_.connectionType = static_cast<uint8_t>(MicraConnectionType::API);
+  assert(service.executeObservation(pending));
+  assert(reads == 1 && authentications == 2);  // API renewal optimization is unchanged.
+}
+
 int main() {
   MicraCancellationTest::run();
+  MicraCancellationTest::initializationAndGates();
+  MicraCancellationTest::initializationRetries();
   // Opening admission must publish the new fence before another core sees it.
   outboundAcquisitionHeld.store(false);
   outboundAcquisitionGeneration.store(0);

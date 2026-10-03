@@ -88,6 +88,8 @@ void ShotStopperMicraService::stopWebSocket(bool release) {
     buffer->client = nullptr;
     const auto after = sampleHeapCaps();
     TaskLockGuard lock(mux_);
+    snapshotPending_ = false;
+    observationFence_.invalidate();
     finishHeapLifecycle(buffer->stopHeap, HeapLifecycleResult::SUCCESS, after);
     websocketStatus_.heap = buffer->heap.aggregate;
     websocketStatus_.stopHeap = buffer->stopHeap.aggregate;
@@ -149,6 +151,10 @@ bool ShotStopperMicraService::stompFrame(void *context, const MicraStompFrame &f
         buffer.acquisitionGeneration != outboundAcquisitionGeneration.load() ||
         buffer.disconnectGeneration != self.disconnectGeneration_.load()) return true;
     self.websocketStatus_.subscribed = true;
+    self.observationFence_.invalidate();
+    self.observationFence_.offline = false;
+    self.snapshotStamp_ = self.observationFence_.stamp(self.identityGeneration_, self.powerState_.generation());
+    self.snapshotPending_ = true;
     ++(self.websocketUnexpectedReconnect_ ? self.websocketStatus_.unexpectedConnections
                                          : self.websocketStatus_.plannedConnections);
     self.websocketUnexpectedReconnect_ = false;
@@ -186,20 +192,20 @@ bool ShotStopperMicraService::stompFrame(void *context, const MicraStompFrame &f
       buffer.stamp.identity != self.identityGeneration_ ||
       buffer.acquisitionGeneration != outboundAcquisitionGeneration.load(std::memory_order_acquire) ||
       buffer.disconnectGeneration != self.disconnectGeneration_.load(std::memory_order_acquire)) return true;
-  if (update.connectedPresent && !update.connected) {
-    self.powerState_.hold(self.published_, true, receivedAt);
-    self.published_.quality = LineaMicraObservationQuality::STALE;
-    update.powerPresent = false;
-    update.temperaturePresent = false;
-  }
+  const bool wasOffline = self.observationFence_.offline;
   if (!self.observationFence_.merge(self.published_, self.powerState_, update,
                                     true)) return true;
+  if (self.observationFence_.offline) self.snapshotPending_ = false;
+  else if (wasOffline && !self.observationFence_.synchronized) {
+    self.snapshotStamp_ = self.observationFence_.stamp(self.identityGeneration_, self.powerState_.generation());
+    self.snapshotPending_ = true;
+  }
   auto &status = self.websocketStatus_;
   status.state = MicraSocketState::STREAMING;
   status.reason = "none";
   status.messageAtMs = receivedAt;
   ++status.messages;
-  if (update.powerPresent) status.powerAtMs = receivedAt;
+  if (update.powerPresent && !self.observationFence_.offline) status.powerAtMs = receivedAt;
   if (update.connectedPresent) {
     status.machineConnectedKnown = true;
     status.machineConnected = update.connected;
@@ -316,6 +322,15 @@ void ShotStopperMicraService::websocketEvent(void *context, const char *,
       if (!valid) buffer.failed.store(true, std::memory_order_release);
       // Yield only after parsing/publication and outside all application locks.
       taskYIELD();
+    }
+  }
+  if (buffer.failed.load(std::memory_order_acquire)) {
+    TaskLockGuard lock(self.mux_);
+    if (buffer.stamp.identity == self.identityGeneration_ &&
+        buffer.stamp.epoch == self.observationFence_.epoch) {
+      self.observationFence_.invalidate();
+      self.snapshotPending_ = false;
+      self.powerState_.hold(self.published_, true, millis());
     }
   }
   if (self.task_) xTaskNotifyGive(self.task_);

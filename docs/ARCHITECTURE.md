@@ -85,10 +85,17 @@ existing touch-stop fallback. Load never writes back. Settings saves and resets
 wait for successful OTA trial confirmation, preserving the old durable records
 for rollback. This admission does not gate boot readiness or other stores.
 
-One facade reduces HTTP and WebSocket field updates. HTTP requests capture
-identity, epoch, intent and independent field revisions; callbacks capture the
-intent when a fragmented message starts. Old results cannot overwrite newer
-push evidence. Accepted commands do not fabricate power/temperature samples.
+One facade reduces HTTP and WebSocket field updates. Each admitted subscription
+queues one initial dashboard cycle in the existing HTTP worker, concurrent with
+push reception. Its identity, epoch, connection revision and independent field
+revisions are captured at subscription; ordinary reads capture them at request
+start. Both capture intent at request start; callbacks capture intent when a
+fragmented message starts. Old results cannot overwrite newer push evidence or
+offline/reconnect transitions. Compatible queued reads coalesce; post-command
+reconciliation retains its request-time field baseline. Accepted power alone
+changes its source (`api_initial`, `api`, `websocket`) and synchronization.
+WebSocket power stays current during healthy silence; API mode retains its
+30-second age limit. Accepted commands do not fabricate power/temperature samples.
 A 60-second optimistic overlay and a separate stale suspension hold preserve
 the effective power without changing the last cloud evidence timestamp.
 The SDK callback publishes decoded updates under the facade mutex, independently

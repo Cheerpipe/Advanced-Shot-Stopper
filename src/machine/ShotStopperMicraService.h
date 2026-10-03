@@ -59,6 +59,8 @@ class ShotStopperMicraService {
     LineaMicraRequest request = {};
     LineaMicraPersistedSettings credentials = {};
     uint32_t identityGeneration = 0;
+    MicraObservationStamp snapshotStamp;
+    bool initialSnapshot = false;
     bool present = false;
   };
   struct DesiredTemperature {
@@ -101,7 +103,8 @@ class ShotStopperMicraService {
   bool listMachines(const LineaMicraPersistedSettings &settings,
                     LineaMicraDiscoverySnapshot &result);
   bool readDashboard(const LineaMicraPersistedSettings &settings,
-                     LineaMicraStatus &result);
+                     LineaMicraStatus &result,
+                     const MicraObservationStamp *snapshot = nullptr);
   bool writeTemperature(const LineaMicraPersistedSettings &settings,
                         uint16_t targetDeciC);
   bool writeStandby(const LineaMicraPersistedSettings &settings);
@@ -156,6 +159,8 @@ class ShotStopperMicraService {
   micra_timing::ObservationSchedule observationSchedule_;
   LineaMicraPowerStateTracker powerState_;
   MicraObservationFence observationFence_;
+  MicraObservationStamp snapshotStamp_;  // Protected by mux_, captured at subscription.
+  bool snapshotPending_ = false;
   bool active_ = false;
   TaskHandle_t task_ = nullptr;
   IoBuffer *io_ = nullptr;
