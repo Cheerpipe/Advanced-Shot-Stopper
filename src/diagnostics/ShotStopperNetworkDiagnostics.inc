@@ -991,6 +991,11 @@ esp_err_t ShotStopperNetwork::sendRecordPageState(
   }
   char version[32] = {};
   sanitizeJsonEmbed(FW_VERSION, version, sizeof(version));
+  char wifiRssi[8] = "null", bluetoothRssi[8] = "null";
+  if (network.staLinkMetricsValid)
+    snprintf(wifiRssi, sizeof(wifiRssi), "%d", static_cast<int>(network.staRssi));
+  if (control.scaleRssiValid)
+    snprintf(bluetoothRssi, sizeof(bluetoothRssi), "%d", static_cast<int>(control.scaleRssi));
   size_t used = 0;
   if (!statusJsonAppend(
           &used,
@@ -998,6 +1003,8 @@ esp_err_t ShotStopperNetwork::sendRecordPageState(
           "\"webUiOverrideActive\":%s,\"compatibilityMode\":%s,"
           "\"development\":%s,\"machineType\":\"%s\","
           "\"machineIntegration\":\"%s\",\"timeUtcSec\":%lu,"
+          "\"snapshotStale\":%s,\"connections\":{\"wifiConnected\":%s,\"wifiRssi\":%s,"
+          "\"bluetoothConnected\":%s,\"bluetoothRssi\":%s},"
           "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"},"
           "\"config\":{\"revision\":%lu,\"timezoneId\":\"%s\","
           "\"appliedTimezoneOffsetMinutes\":%d,\"timezoneAutomatic\":%s,"
@@ -1012,6 +1019,9 @@ esp_err_t ShotStopperNetwork::sendRecordPageState(
           "none",
 #endif
           static_cast<unsigned long>(time.utcSec),
+          control.snapshotStale ? "true" : "false",
+          network.staState == StaState::CONNECTED ? "true" : "false", wifiRssi,
+          control.scaleAvailable ? "true" : "false", bluetoothRssi,
           static_cast<unsigned long>(network.lastCommandRequestId),
           commandResultStateName(network.lastCommandState),
           static_cast<unsigned long>(control.config.revision),

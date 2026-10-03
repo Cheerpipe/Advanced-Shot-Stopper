@@ -291,14 +291,17 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
       configLockReason(control), liveShot ? "true" : "false");
   if (ok) {
     ok = statusJsonAppend(
-        &used, ",\"machineType\":\"%s\",\"machineIntegration\":\"%s\"",
+        &used, ",\"machineType\":\"%s\",\"machineIntegration\":\"%s\","
+        "\"connections\":{\"wifiConnected\":%s,\"wifiRssi\":%s,"
+        "\"bluetoothConnected\":%s,\"bluetoothRssi\":%s}",
         compiledMachineTypeId(),
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
-        "linea_micra_cloud"
+        "linea_micra_cloud",
 #else
-        "none"
+        "none",
 #endif
-    );
+        network.staState == StaState::CONNECTED ? "true" : "false",
+        staRssiJson, control.scaleAvailable ? "true" : "false", scaleRssiJson);
   }
   if (ok && (page == StatusPage::Admin || page == StatusPage::Diagnostic)) {
     const PowerProfile applied = powerAppliedProfile.load(std::memory_order_acquire);

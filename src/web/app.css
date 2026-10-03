@@ -9,6 +9,19 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem 1.5rem;c
 .brandMark{width:2.35rem;height:3.1rem;flex:0 0 auto;display:block;overflow:visible;fill:currentColor}
 .brand span{display:flex;flex-direction:column;justify-content:center;gap:.08rem;min-width:0;line-height:1.05;font-size:1.4rem;font-weight:800;letter-spacing:-.02em;white-space:nowrap}
 .brand small{font-size:.84rem;font-weight:600;letter-spacing:.02em}
+.headerSignals{position:relative;display:flex;align-items:center;gap:0;padding-left:.5rem;flex-shrink:0;z-index:22;margin-left:auto}
+.signalIndicator{display:flex;align-items:center;justify-content:center;width:2.25rem;height:var(--tap);padding:0;border:0;background:transparent;color:var(--fg);border-radius:.5rem;cursor:pointer}
+.signalIndicator svg{width:1.45rem;height:1.45rem;overflow:visible}
+#bluetoothSignal svg{width:1.95rem}
+.signalIndicator [data-step]{opacity:.18}
+.signalIndicator[data-level="1"] [data-step="1"],.signalIndicator[data-level="2"] [data-step="1"],.signalIndicator[data-level="2"] [data-step="2"],.signalIndicator[data-level="3"] [data-step]{opacity:1}
+.signalIndicator[data-level="1"]{color:var(--wn)}
+.signalIndicator[data-level="0"],.signalIndicator[data-level="unknown"]{color:var(--mu)}
+.signalSlash{display:none}
+.signalIndicator[data-level="0"] .signalSlash{display:block}
+.signalIndicator[data-level="0"] [data-step],.signalIndicator[data-level="unknown"] [data-step]{opacity:.12}
+.signalIndicator:hover{background:var(--sf)}
+.signalIndicator:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 .navToggle{flex-shrink:0;width:var(--tap);height:var(--tap);margin:0;border:1px solid transparent;border-radius:2rem;background:transparent;color:var(--ac);font:inherit;font-size:1.75rem;line-height:1;cursor:pointer;position:relative;z-index:22}
 .pageNav{display:none;position:fixed;inset:0;z-index:20;flex-direction:column;gap:.15rem;padding:calc(var(--hdr) + .85rem) 1.25rem 1.5rem;background:var(--bg)}
 .navOpen{overflow:hidden}
@@ -23,13 +36,15 @@ body.devBuild .adminSession{display:none}
 body.devBuild #adminLockPanel,body.devBuild #diagnosticLockPanel{display:none}
 @media(min-width:700px){
 :root{--hdr:4.45rem}
+.topBar{flex-wrap:wrap;gap:.25rem .75rem}
+.brand{order:0}.headerSignals{order:1}
 .navToggle{display:none}
 .brand,.navToggle{z-index:auto}
 .brand{flex-shrink:0;--brandGap:.65rem}
 .brandMark{width:2.55rem;height:3.35rem}
 .brand span{font-size:1.5rem;gap:.1rem}
 .brand small{font-size:.9rem}
-.pageNav{display:flex;position:static;inset:auto;flex-direction:row;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:.1rem;padding:0;background:transparent;z-index:auto}
+.pageNav{display:flex;position:static;inset:auto;flex-direction:row;flex-wrap:wrap;justify-content:flex-start;align-items:center;gap:.1rem;padding:0;background:transparent;z-index:auto;order:2;width:100%;margin-top:.15rem}
 .pageNav a{padding:.3rem .5rem;font-size:.88rem;border-radius:.4rem}
 .pageNav a.active{background:transparent;box-shadow:inset 0 -3px 0 var(--ac)}
 .navOpen{overflow:visible}
@@ -356,5 +371,6 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 .switch input:focus-visible+.slider{outline:3px solid var(--ac);outline-offset:2px}
 .btnGlyph:not(:disabled):hover{filter:brightness(.95)}
 @media(max-width:340px){body{padding-inline:.75rem}.topBar{margin-inline:-.75rem;padding-inline:.75rem}.brand span{font-size:1.25rem}.brandMark{width:2.1rem}.statusColumn{grid-template-columns:1fr}}
+@media(max-width:380px){.topBar{gap:.15rem}.brand span{font-size:1.15rem}.brand small{font-size:.73rem}.brandMark{width:1.85rem;height:2.5rem}.headerSignals{padding-left:.25rem}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:.01ms!important}.bootWave i{animation:none}.btnGlyph.busy .g:after{animation:none}}
 @media(forced-colors:active){input[type=checkbox]{appearance:auto}.slider{forced-color-adjust:auto}.btnGlyph,.presetCard,input,select,textarea{border-color:ButtonText}}

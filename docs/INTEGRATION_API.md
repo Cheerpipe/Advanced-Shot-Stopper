@@ -295,13 +295,24 @@ activations.
 
 `ui` contains `firmwareVersion`, `configMutable`, `webUiOverrideActive`,
 `compatibilityMode`, `development`, `machineType`, `machineIntegration`,
-`timeUtcSec`, and `lastCommand` (`requestId`, `state`). Its `config` contains
+`timeUtcSec`, `snapshotStale`, `connections`, and `lastCommand` (`requestId`,
+`state`). Its `config` contains
 `revision`, `timezoneId`, `appliedTimezoneOffsetMinutes`,
 `timezoneAutomatic`, and `timezoneInitialized`. These fields update shared
 UI behavior, relative dates, and automatic timezone synchronization without
 fetching Home's scale, cup, preset, or extraction state. The browser validates
 and applies this state before displaying the records. Record requests also
 retain the confirmation of pending Wi-Fi settings on a station connection.
+
+Every Web UI page status response and the record-page `ui` envelope include
+`connections`: `wifiConnected` and `bluetoothConnected` are booleans;
+`wifiRssi` and `bluetoothRssi` are cached dBm readings, or `null` when unavailable.
+Wi-Fi refers to the controller's station link, and Bluetooth refers to its scale
+link. The header uses three display levels: weak below −80 dBm, medium from
+−80 to below −60 dBm, and strong at −60 dBm or above. A disconnected link takes
+precedence over any reading. Stale control snapshots or missing measurements
+show unavailable signal quality. These display fields add no radio queries or
+extra polling requests and do not change the public integration endpoints.
 
 The former `/api/v1/shots` route family has been renamed to `/api/v1/stats`:
 external Web UI API callers must update the read URL and the POST URLs

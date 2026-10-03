@@ -422,8 +422,9 @@ if (generated.jsGzip.length > 4584) {
 // The activation-history table cards and type badges raise the cap to 7050.
 // The Home boot splash surface, ring animation, and reduced-motion override
 // raise the cap to 7300. The busy save-button spinner raises it to 7400.
-if (generated.cssGzip.length > 7400) {
-  throw new Error('Compressed Web CSS exceeds the 7400-byte gzip budget');
+// The approved wireless header adds 200 bytes of compressed CSS allowance.
+if (generated.cssGzip.length > 7600) {
+  throw new Error('Compressed Web CSS exceeds the 7600-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -547,8 +548,10 @@ if (generated.icon48Gzip.length > 3500) {
 // The Stats loading wave reuses the panel helper and adds 50 bytes of reviewed
 // allowance. Firmware image and OTA partition limits stay fixed.
 // The Micra-only Home power summary raises the compressed budget by 150 bytes.
-if (generated.combined > 113000) {
-  throw new Error(`Combined Web UI gzip exceeds the 113000-byte flash budget (${generated.combined})`);
+// The approved wireless header adds 1 KB of reviewed Web asset allowance;
+// firmware image, memory-region and OTA partition limits remain unchanged.
+if (generated.combined > 114000) {
+  throw new Error(`Combined Web UI gzip exceeds the 114000-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

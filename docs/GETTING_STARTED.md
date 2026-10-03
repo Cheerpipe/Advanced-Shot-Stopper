@@ -38,6 +38,15 @@ The [AP guide](settings/ap.md) explains its idle shutdown and recovery.
 can take the claim, and 15 minutes without using a control locks the page and
 stops polling. Scrolling does not keep it active; use Reload to resume.
 
+The header shows the controller's home-network Wi-Fi signal and its Bluetooth
+link to the scale. More lit arcs or bars mean a stronger signal; amber means
+weak reception. Tap either icon to show both signal readings in the page's
+status message. A crossed-out Bluetooth symbol means the scale is disconnected.
+Dim icons without a cross
+mean a reading is not available yet, or the page cannot refresh it. The Wi-Fi
+icon describes the home-network connection, even when you open the page through
+the controller's own access point.
+
 **While a page loads**: Home, Settings, Stats, History, Diagnostics, and Admin
 show a loading view with the Open Brew by Weight mark, a moving wave, and
 **Loading…**. Opening or refreshing the URL covers the whole screen. When you

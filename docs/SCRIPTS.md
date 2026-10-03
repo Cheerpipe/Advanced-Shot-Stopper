@@ -35,8 +35,11 @@ node scripts/preview_web_ui.js
 ```
 
 Open `http://127.0.0.1:4173/` in a browser, or use
-`http://127.0.0.1:4173/compare` for six proposals in separate rows, each with
-desktop and mobile views side by side. Option 1 retains the original design;
+`http://127.0.0.1:4173/compare` for the original icon pair and five alternatives
+in separate rows, each with desktop and mobile views side by side. Option 1
+shows the current refinement: unchanged Wi-Fi arcs, a smaller Bluetooth symbol,
+more prominent signal bars and tighter spacing. The five earlier icon
+alternatives remain available for reference;
 open `http://127.0.0.1:4173/?option=2` to review any option individually (1–6).
 Each proposal also includes the scale disconnected while Wi-Fi stays connected.
 Add `&scale=disconnected` to an individual option URL to inspect that state;

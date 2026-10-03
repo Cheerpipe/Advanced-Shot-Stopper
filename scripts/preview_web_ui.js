@@ -21,6 +21,7 @@ function renderHome() {
     content: read(`src/web/html/${name}.html`),
   })), {language: 'en', allowUnused: true, machineType: 'paddle'}).sources;
   return shell.content
+      .replace(/<div id="headerSignals"[\s\S]*?<\/div>/, '')
       .replace('<section id="view-home" class="view" data-view="home"></section>',
           `<section id="view-home" class="view" data-view="home">${home.content}</section>`)
       .replace('<button class="navToggle"',

@@ -1231,7 +1231,7 @@ if (!statsSection ||
         applyShotPage: () => events.push('records'), applyHistoryPage: () => events.push('records'),
         renderShots: () => events.push('render:' + context.controlsMutable),
         renderHistory: () => events.push('render:' + context.controlsMutable),
-        updateFirmwareFooter() {}, noteReachOk() {}, noteReachFail: () => events.push('error'),
+        updateFirmwareFooter() {}, updateHeaderSignals() {}, noteReachOk() {}, noteReachFail: () => events.push('error'),
         maybeLoadMoreShots() {}, maybeLoadMoreHistory() {}, SHOTS_PAGE_SIZE: 10, HISTORY_PAGE_SIZE: 20,
         developmentMode: false, compatMode: false, controlsMutable: false, firmwareVersion: '', bootId: 0,
         lastCommandStatus: null, configRevision: 0, dateTimeDirty: false, statusUtcAnchorSec: 0,
