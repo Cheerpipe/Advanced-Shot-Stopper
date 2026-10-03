@@ -566,7 +566,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   }
 
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
-  if (ok && (page == StatusPage::Settings || page == StatusPage::Diagnostic)) {
+  if (ok && (page == StatusPage::Home || page == StatusPage::Settings ||
+             page == StatusPage::Diagnostic)) {
     const uint32_t sampleAgeMs = micraStatus.sampleAtMs == 0
                                      ? 0
                                      : static_cast<uint32_t>(millis() -

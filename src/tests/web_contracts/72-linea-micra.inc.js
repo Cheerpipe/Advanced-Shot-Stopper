@@ -43,6 +43,9 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
     context.applyStatus({lineaMicra});
     assert.strictEqual(power.textContent, expected);
   }
+  assert(micraStatus.replace(/\s+/g, ' ').includes(
+      'page == StatusPage::Home || page == StatusPage::Settings || page == StatusPage::Diagnostic'),
+      'Home status must project the lineaMicra block for the power summary');
 }
 {
   const assert = require('assert');
