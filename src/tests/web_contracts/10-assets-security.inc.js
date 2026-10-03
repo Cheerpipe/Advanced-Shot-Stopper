@@ -538,8 +538,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // The Scale profiling section adds ~1 KB of HTML allowance (state rows, four
 // controls, and the replacement hint); compressed asset budgets stay fixed.
 // Independent wireless popups add their two identity and signal rows.
-if (htmlBytes > 82000) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 82000)`);
+// The supplied four-path Backflush symbol adds 2 KiB of HTML source allowance.
+// Firmware image, memory-region and OTA partition limits remain unchanged.
+if (htmlBytes > 84000) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 84000)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -610,8 +612,9 @@ if (htmlBytes > 82000) {
 // Scale profiling adds ~3.4 KB of JS source allowance (state-matrix
 // rendering plus the streamed TXT download); compressed assets and firmware
 // limits stay fixed.
-if (jsBytes > 237000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 237000)`);
+// Backflush state/history labels and live safety diagnostics add 1.5 KiB source.
+if (jsBytes > 238500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 238500)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -638,8 +641,9 @@ if (jsBytes > 237000) {
 // section in HTML; matrix rendering and download in JS).
 // Selectable Micra transport and bounded WS diagnostics add 1.5 KB after
 // sharing option payloads and diagnostic row creation. Flash limits stay fixed.
-if (htmlBytes + jsBytes > 319000) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 319000)`);
+// Backflush contributes the 3.5 KiB source allowances described above.
+if (htmlBytes + jsBytes > 322500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 322500)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

@@ -2,6 +2,7 @@
 // ---------------------------------------------------------------------------
 
 void resetSessionForNewCycle(ControlSource source) {
+  backflushStopReason = "none";
   bullseyeTracker.clear();
   session = CycleSession{};
   session.id = nextCycleId++;
@@ -12,8 +13,6 @@ void resetSessionForNewCycle(ControlSource source) {
   session.active = true;
   session.source = source;
   noScaleGuardHistoryPending = false;
-  outboundShotActive.store(true, std::memory_order_release);
-  inhibitMachineIntegrationCloud();
   serviceIdleTare();
 #if !defined(SHOT_STOPPER_HOST_TEST)
   // Publish the RF gate before any deferred NTP request or webhook can wake a
@@ -51,6 +50,7 @@ bool beginRinseCycle(ControlSource source);
 bool enterRinse();
 
 void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
+  if (backflushObservation.busy() || backflushActive(stopperState)) return;
   const ProfileControlObservation profile;
   refreshLoopGuardsFromLastIntention();
   if (source == ControlSource::PHYSICAL &&
@@ -155,10 +155,13 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
   const uint32_t closeLimitMs =
       automaticBbw ? machineCloseLimitMs(session.config.operationalWallMs)
                    : HARD_MAX_CIRCUIT_CLOSED_MS;
+  outboundShotActive.store(true, std::memory_order_release);
+  inhibitMachineIntegrationCloud();
   if (!servicePowerManagement() ||
       !machineRequestStart(closeLimitMs, source == ControlSource::WEB)) {
     setScaleCommandCycle(0);
     session.active = false;
+    outboundShotActive.store(false, std::memory_order_release);
     session.endReason = EndReason::RELAY_SAFETY_FAILURE;
     machineSetPreferBleAirtime(false);
     machineEndCycle();
@@ -361,6 +364,7 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
     noScaleShotGuardActivityAtMs = millis();
   }
   session.active = false;
+  outboundShotActive.store(false, std::memory_order_release);
   session.awaitingPostTareBaseline = false;
   holdCupPresenceTransitions(false);
   virtualHoldOn = false;
@@ -390,6 +394,7 @@ bool noScaleArmedRinseIsBlocked(ControlSource source) {
 }
 
 bool beginRinseCycle(ControlSource source) {
+  if (backflushObservation.busy() || backflushActive(stopperState)) return false;
   const ProfileControlObservation profile;
   if (idleTareBlocksStart(source == ControlSource::PHYSICAL)) return false;
   refreshLoopGuardsFromLastIntention();
@@ -518,6 +523,7 @@ bool enterRinse() {
   holdCupPresenceTransitions(false);
   addDebugEvent(DebugCategory::STATE, DebugCode::RINSE_CLASSIFIED);
   transitionTo(StopperState::RINSE);
+  outboundShotActive.store(false, std::memory_order_release);
   maybeRequestNtpSyncOnActivity();
   return true;
 }
@@ -606,13 +612,13 @@ void stateMachineTask() {
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
   if (relay.tripped ||
       (relay.closed &&
-       elapsedMs(relay.closedAtMs) >= HARD_MAX_CIRCUIT_CLOSED_MS)) {
+       elapsedMs(relay.closedAtMs) >= relay.hardLimitMs)) {
     addDebugEvent(DebugCategory::SECURITY, DebugCode::HARD_LIMIT);
     handleGlobalLimitTrip();
     return;
   }
   if (relay.operationalTripped ||
-      (relay.closed && relay.operationalLimitMs < HARD_MAX_CIRCUIT_CLOSED_MS &&
+      (relay.closed && relay.operationalLimitMs < relay.hardLimitMs &&
        elapsedMs(relay.closedAtMs) >= relay.operationalLimitMs)) {
     handleOperationalLimitTrip();
     return;
@@ -696,6 +702,9 @@ void stateMachineTask() {
   }
 
   switch (stopperState) {
+    case StopperState::BACKFLUSH_CANDIDATE:
+    case StopperState::BACKFLUSH_RUNNING:
+      return;  // Serviced before brew guards and scale effects.
     case StopperState::REQUIRES_OFF:
       if (intent.intent == UserIntent::STABLE_IDLE || intent.stablyOff) {
         transitionTo(StopperState::READY);

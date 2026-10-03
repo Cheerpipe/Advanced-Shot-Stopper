@@ -307,6 +307,15 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         staRssiJson, control.scaleAvailable ? "true" : "false", scaleRssiJson,
         wifiName, bluetoothName);
   }
+  if (ok && (page == StatusPage::Home || page == StatusPage::Diagnostic)) {
+    ok = statusJsonAppend(&used,
+        ",\"backflush\":{\"waiting\":%s,\"ready\":%s,\"unresolved\":%s,"
+        "\"stopReason\":\"%s\",\"hardLimitMs\":%lu,\"remainingMs\":%lu}",
+        control.backflushWaiting ? "true" : "false", control.backflushReady ? "true" : "false",
+        control.backflushUnresolved ? "true" : "false", control.backflushStopReason,
+        static_cast<unsigned long>(control.safetyHardLimitMs),
+        static_cast<unsigned long>(control.safetyRemainingMs));
+  }
   if (ok && (page == StatusPage::Admin || page == StatusPage::Diagnostic)) {
     const PowerProfile applied = powerAppliedProfile.load(std::memory_order_acquire);
     ok = statusJsonAppend(&used,
@@ -879,7 +888,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
       const auto &completion = outboundPauseCompletions[i];
       constexpr bool micraClients = SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD;
       ok = statusJsonAppend(&used, "%s{\"client\":\"%s\",\"applicable\":%s,\"completed\":%s,\"latencyMs\":%u}", i ? "," : "", clients[i],
-          i >= 2 || micraClients ? "true" : "false",
+          i >= 2 || (micraClients && i == 0) ? "true" : "false",
           acquisitionHeld && acquisitionGeneration == completion.generation.load(std::memory_order_acquire) ? "true" : "false",
           unsigned(completion.latencyMs.load()));
     }

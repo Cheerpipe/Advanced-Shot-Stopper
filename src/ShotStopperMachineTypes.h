@@ -20,6 +20,8 @@ namespace shotstopper {
 // Electrical circuit-closed cap. Firmware-only; not a setting. Brew walls
 // (Max BBW time) must never exceed this.
 constexpr uint32_t HARD_MAX_CIRCUIT_CLOSED_MS = 60000;
+constexpr uint32_t BACKFLUSH_MAX_CIRCUIT_CLOSED_MS = 180000;
+enum class RelayPurpose : uint8_t { NORMAL, BACKFLUSH_CANDIDATE, BACKFLUSH_CONFIRMED };
 #ifndef SHOT_STOPPER_DEFAULT_OPERATIONAL_WALL_MS
 #define SHOT_STOPPER_DEFAULT_OPERATIONAL_WALL_MS 50000
 #endif

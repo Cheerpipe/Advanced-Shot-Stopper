@@ -23,9 +23,10 @@ class ShotStopperMicraService {
  public:
   bool begin();
   void inhibitCloud() {
-    if (outboundShotActive.load(std::memory_order_acquire))
+    if (outboundShotActive.load(std::memory_order_acquire)) {
       shotGeneration_.fetch_add(1, std::memory_order_acq_rel);
-    disconnectGeneration_.fetch_add(1, std::memory_order_acq_rel);
+      disconnectGeneration_.fetch_add(1, std::memory_order_acq_rel);
+    }
     abortRequested_.store(true, std::memory_order_release);
     if (task_ != nullptr) xTaskNotifyGive(task_);
   }
@@ -44,7 +45,9 @@ class ShotStopperMicraService {
   HeapLifecycleAggregate heapTelemetry() const;
   MicraWebSocketStatus websocketStatus() const;
   LineaMicraDiscoverySnapshot discovery() const;
-  MachinePhysicalStartDisposition physicalStart();
+  MachinePhysicalStartDisposition physicalStart(MachineBackflushPermit *permit = nullptr);
+  MachineBackflushSnapshot backflush(bool consume = false);
+  void finishBackflush(uint32_t attempt);
   bool cloudFirstQuerySettled() const {
     return cloudFirstQuerySettled_.load(std::memory_order_acquire);
   }
@@ -121,7 +124,9 @@ class ShotStopperMicraService {
   bool applySignedHeaders(const LineaMicraPersistedSettings &settings,
                           char *headers = nullptr, size_t capacity = 0);
   void clearRequestState();
-  bool networkEligible(LineaMicraError &error) const;
+  bool networkEligible(LineaMicraError &error, bool observation = false) const;
+  void qualifyBackflushLocked();
+  bool backflushReadyLocked() const;
   bool ensureIoBuffer();
   bool ensureWorkBuffer();
   void clearSession();
@@ -163,6 +168,9 @@ class ShotStopperMicraService {
   micra_timing::ObservationSchedule observationSchedule_;
   LineaMicraPowerStateTracker powerState_;
   MicraObservationFence observationFence_;
+  MachineBackflushObservations backflush_;
+  std::atomic<uint32_t> tokenIssuedAtMs_{0};
+  std::atomic<bool> tokenAvailable_{false};
   MicraObservationStamp snapshotStamp_;  // Protected by mux_, captured at subscription.
   bool snapshotPending_ = false;
   bool active_ = false;

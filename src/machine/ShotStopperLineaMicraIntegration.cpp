@@ -86,9 +86,10 @@ void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
   const uint8_t options = micraOptions.load(std::memory_order_relaxed);
   const bool accountConfigured =
       micraAccountConfigured.load(std::memory_order_relaxed);
+  const bool busy = relayClosed || service.backflush().busy();
   const MicraScaleShutdownTracker::Snapshot shutdownSnapshot{
       scaleDisconnectSequence, scaleDisconnectReason, scaleLinkUp,
-      relayClosed};
+      busy};
   if (scaleShutdown.service(now, shutdownSnapshot, options,
                             accountConfigured) &&
       !machineEffectivelyOff()) {
@@ -99,7 +100,7 @@ void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
     service.queue(request);
   }
   const MicraScalePowerOnTracker::Snapshot powerOnSnapshot{
-      scaleLinkUp, scaleDisconnectReason, relayClosed};
+      scaleLinkUp, scaleDisconnectReason, busy};
   if (scalePowerOn.service(powerOnSnapshot, options, accountConfigured)) {
     serialTraceCategoryf(LogLevel::INFO, DebugCategory::NETWORK,
                          "Micra scale power-on: scale powered on, requesting BrewingMode");
@@ -118,7 +119,7 @@ void serviceMachineIntegrationMachinePower(bool scaleLinkUp,
                                 std::memory_order_relaxed))) {
     return;
   }
-  if (!scaleLinkUp || relayClosed) {
+  if (!scaleLinkUp || relayClosed || service.backflush().busy()) {
     serialTraceCategoryf(LogLevel::INFO, DebugCategory::SCALE,
                          "Scale power-off skipped: scale %s",
                          scaleLinkUp ? "busy with an active cycle"
@@ -136,9 +137,15 @@ void serviceMachineIntegrationMachinePower(bool scaleLinkUp,
 
 uint8_t machineIntegrationTaskCount() { return 1; }
 
-MachinePhysicalStartDisposition machineIntegrationPhysicalStart() {
-  return service.physicalStart();
+MachinePhysicalStartDisposition machineIntegrationPhysicalStart(MachineBackflushPermit *permit) {
+  return service.physicalStart(permit);
 }
+
+MachineBackflushSnapshot machineIntegrationBackflush(bool consume) {
+  return service.backflush(consume);
+}
+
+void finishMachineIntegrationBackflush(uint32_t attempt) { service.finishBackflush(attempt); }
 
 bool queueMachineIntegrationConnect(uint32_t requestId, const char *username,
                                     const char *password) {

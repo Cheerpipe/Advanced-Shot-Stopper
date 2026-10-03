@@ -96,6 +96,8 @@ inline uint32_t millis() {
   return hostMillis;
 }
 
+inline int64_t esp_timer_get_time() { return static_cast<int64_t>(hostMillis) * 1000; }
+
 inline uint32_t micros() {
   return hostMillis * 1000U;
 }

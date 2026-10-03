@@ -5,7 +5,7 @@
 namespace shotstopper {
 // Discovery owns this publication. Network owners consume it; none can clear it.
 inline std::atomic<bool> outboundAcquisitionHeld{false};
-// Control owns real shot/rinse admission; relay-only wake is not a cycle.
+// Control owns shot admission; rinse demotion clears it immediately.
 inline std::atomic<bool> outboundShotActive{false};
 inline std::atomic<bool> outboundMaintenance{false}, outboundOtaBusy{false};
 inline std::atomic<bool> outboundScaleSetup{false};

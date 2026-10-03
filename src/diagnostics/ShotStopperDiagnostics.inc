@@ -101,7 +101,7 @@ void publishControlGate() {
       relay.resetRecoveryRequired || relay.state == RelaySafetyState::LOCKOUT;
   next.bootState = effectiveBoot.state();
   next.state = stopperState;
-  next.activeCycle = session.active;
+  next.activeCycle = session.active || backflushActive(stopperState);
   next.relayClosed = relay.closed;
   next.machineRunning = machineIsRunning();
   next.physicalActivatorOn = rawActivatorOn;
@@ -126,8 +126,10 @@ void publishControlGate() {
     TaskLockGuard lock(controlGateMutex);
     publishedControlGate = next;
   }
-  outboundShotActive.store(next.activeCycle, std::memory_order_release);
-  if (next.activeCycle) inhibitMachineIntegrationCloud();
+  const bool actualShot = session.active &&
+      (stopperState == StopperState::BREW || stopperState == StopperState::MANUAL_NO_SCALE);
+  const bool wasShot = outboundShotActive.exchange(actualShot, std::memory_order_acq_rel);
+  if (actualShot && !wasShot) inhibitMachineIntegrationCloud();
 #if !defined(SHOT_STOPPER_HOST_TEST)
   networkManager.syncControlCriticalRf(next.activeCycle || next.relayClosed);
 #endif
@@ -186,6 +188,17 @@ void publishControlStatus() {
   next.safetyState = relay.state;
   next.safetyFault = relay.fault;
   next.safetyGeneration = relay.generation;
+  next.safetyHardLimitMs = relay.hardLimitMs;
+  const uint32_t electricalElapsed = elapsedMs(relay.closedAtMs);
+  next.safetyRemainingMs = relay.closed && electricalElapsed < relay.hardLimitMs
+      ? relay.hardLimitMs - electricalElapsed : 0;
+  next.backflushWaiting = !session.active && !backflushActive(stopperState) &&
+      backflushObservation.valid && backflushObservation.phase == MachineBackflushPhase::AWAITING;
+  next.backflushReady = next.backflushWaiting && backflushObservation.permit.extendable &&
+      backflushObservation.ready && stopperState == StopperState::READY &&
+      firmwareInitializationComplete && !maintenanceLease.active;
+  next.backflushUnresolved = backflushObservation.unresolved;
+  copyCString(next.backflushStopReason, sizeof(next.backflushStopReason), backflushStopReason);
   next.safetyTimersReady = relay.timersReady;
   next.taskWatchdogReady = relay.watchdogReady;
   next.externalSafetyPresent = relay.externalSafetyPresent;

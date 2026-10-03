@@ -85,9 +85,12 @@ Its remaining entities are:
   reads **Unrated** until you give that shot stars. The time is unavailable if
   the controller had not set its clock when the shot ended.
 - **Last activation** sensors — when the machine last did something, what it
-  was (a shot, a rinse, power on, other, or a blocked No-scale BBW attempt),
+  was (a shot, rinse, backflush, power on, other, or a blocked No-scale BBW attempt),
   and how long it lasted. These
-  mirror the newest entry on the controller's History page.
+  mirror the newest entry on the controller's History page. **Backflush** means
+  the automatic program was confirmed; it can include an interrupted cleaning.
+  Its duration is the time the activation circuit was enabled, and it does not
+  change shot statistics.
 - **Stats** sensors — average duration, average yield, average BBW error, average
   flow, shots per day, and the shot count behind them. The controller computes
   the summaries over its ten most recent recorded shots; BBW error uses only

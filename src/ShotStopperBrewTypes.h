@@ -87,8 +87,15 @@ enum class StopperState : uint8_t {
   READY,
   BREW,
   RINSE,
-  MANUAL_NO_SCALE
+  MANUAL_NO_SCALE,
+  BACKFLUSH_CANDIDATE,
+  BACKFLUSH_RUNNING
 };
+
+inline bool backflushActive(StopperState state) {
+  return state == StopperState::BACKFLUSH_CANDIDATE ||
+         state == StopperState::BACKFLUSH_RUNNING;
+}
 
 enum class ControlSource : uint8_t {
   NONE,
@@ -122,12 +129,14 @@ inline constexpr struct {
     {"BREW", "Automatic brew"},
     {"RINSE", "Rinse in progress"},
     {"MANUAL_NO_SCALE", "Manual shot without scale"},
+    {"BACKFLUSH_CANDIDATE", "Checking backflush"},
+    {"BACKFLUSH_RUNNING", "Backflush in progress"},
 };
 
 constexpr size_t kStopperStateLabelCount =
     sizeof(kStopperStateLabels) / sizeof(kStopperStateLabels[0]);
 
-static_assert(kStopperStateLabelCount == 5,
+static_assert(kStopperStateLabelCount == 7,
               "keep kStopperStateLabels in sync with StopperState");
 
 inline const char *stopperStateName(StopperState state) {

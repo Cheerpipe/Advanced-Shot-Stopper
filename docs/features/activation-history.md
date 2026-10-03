@@ -18,8 +18,15 @@ offset when the activation ends, as well as its duration and type:
   window (12 seconds by default). The label records the intention to brew,
   even when no measured shot is saved in [Stats](shot-history.md).
 - **Rinse** — a quick rinse cycle.
+- **Backflush** — an automatic cleaning activation confirmed through the
+  [Micra integration](../settings/linea-micra.md#automatic-backflush), shown with
+  a cleaning-drop icon. Duration measures how long its activation circuit was
+  closed. An interrupted confirmed backflush keeps this label; it does not
+  certify that detergent cleaning finished, and it never counts in Stats.
 - **Other** — a confirmed activation that ended within the protection
   window or exactly at its end, such as a brief paddle blip.
+  A backflush attempt that opened the circuit before confirmation also records
+  Other, regardless of duration. Waiting requests and refused starts add no row.
 - **Power ON** — a paddle gesture recognized as a Linea Micra standby wake.
   It records how long the paddle kept the wake circuit active but never counts
   as a shot in Stats.

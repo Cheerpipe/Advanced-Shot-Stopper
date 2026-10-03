@@ -326,6 +326,9 @@ static void testIntegrationPayloads() {
   assert(WebhookDispatcherTest::payload(d, event, payload, sizeof(payload)));
   assert(strstr(payload, "\"event\":\"integration_history_end\"") != nullptr);
   assert(strstr(payload, "\"type\":\"rinse\"") != nullptr);
+  event.activationType = static_cast<uint8_t>(HistoryType::BACKFLUSH);
+  assert(WebhookDispatcherTest::payload(d, event, payload, sizeof(payload)));
+  assert(strstr(payload, "\"type\":\"backflush\"") != nullptr);
 }
 int main() {
   testSamplingAndAccounting();

@@ -9,7 +9,7 @@ text = source.read_text()
 
 def definition(name):
     # Top-level definitions end at column zero; keep their bodies verbatim.
-    match = re.search(r"^(?:bool|void|uint8_t|struct|LineaMicraStatus) " + re.escape(name)
+    match = re.search(r"^(?:bool|void|uint8_t|struct|LineaMicraStatus|MachineBackflushSnapshot|MachinePhysicalStartDisposition) " + re.escape(name)
                       + r"(?:\(| \{)", text, re.M)
     if match is None:
         raise ValueError(f"Missing production definition: {name}")
@@ -30,7 +30,8 @@ output.mkdir(parents=True, exist_ok=True)
     "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"
     + definition("ShotStopperMicraService::WorkBuffer") + "\n}\n")
 (output / "micra_websocket_status.inc").write_text(
-    definition("ShotStopperMicraService::status") + "\n")
+    "\n".join(definition("ShotStopperMicraService::" + name) for name in
+              ("status", "qualifyBackflushLocked", "backflushReadyLocked", "backflush", "finishBackflush", "physicalStart")) + "\n")
 (output / "micra_cancellation_methods.inc").write_text(
     "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"
     + "\n".join(map(definition, names)) + "\n}\n")

@@ -15,6 +15,7 @@ struct MicraStompFrame {
   char heartbeat[32] = {};
   char *body = nullptr;
   size_t bodyLength = 0;
+  uint32_t ingressAttempt = 0;
 };
 
 class MicraStompDecoder {
@@ -31,7 +32,7 @@ class MicraStompDecoder {
     return used_ != 0 && now - startedAtMs_ >= 10000;
   }
   bool feed(const char *data, size_t length, uint32_t now,
-            Consumer consume, void *context) {
+            Consumer consume, void *context, uint32_t ingressAttempt = 0) {
     if (incompleteExpired(now)) return false;
     size_t frames = 0;
     while (length != 0) {
@@ -39,6 +40,7 @@ class MicraStompDecoder {
         while (length && (*data == '\n' || *data == '\r')) { ++data; --length; }
         if (!length) return true;
         startedAtMs_ = now;
+        ingressAttempt_ = ingressAttempt;
       }
       if (used_ == kCapacity - 1) return false;
       bytes_[used_++] = *data++;
@@ -52,6 +54,7 @@ class MicraStompDecoder {
       const int result = parse(frame, total);
       if (result < 0) return false;
       if (result == 0) continue;
+      frame.ingressAttempt = ingressAttempt_;
       if (++frames > 32 || !consume(context, frame)) return false;
       reset();
     }
@@ -145,6 +148,7 @@ class MicraStompDecoder {
 
   size_t used_ = 0;
   uint32_t startedAtMs_ = 0;
+  uint32_t ingressAttempt_ = 0;
   char bytes_[kCapacity] = {};
   char key_[kHeaderLimit + 1] = {}, value_[kHeaderLimit + 1] = {};
 };

@@ -68,15 +68,19 @@ Micra cancellation stays latched throughout the active cloud operation, includin
 session renewal. Network recovery and session cleanup cannot clear it. Only the
 idle cloud worker consumes it before selecting the next operation; once observed,
 cancellation ends HTTP progress immediately, including an `EAGAIN` result. Client
-cleanup remains on that worker after HTTP progress returns. Acquisition/shot
-pauses destroy the WS client and TLS state but may retain bounded application
+cleanup remains on that worker after HTTP progress returns. Shot pauses
+destroy the WS client and TLS state but may retain bounded application
 scratch and session tokens. API selection, observation disablement, account
 removal/change, STA loss/AP entry and maintenance release WS scratch after
 callback quiescence. Maintenance also releases the HTTP workspace. Each
 client records actual pause completion; residual SDK DNS resolution is excluded.
-Control owns the shot/rinse admission signal independently of relay-critical
-webhook/NTP admission, so wake passthrough and rejected starts do not cancel
-Micra observation.
+Control owns the admitted-shot signal and clears it immediately on rinse
+classification, independently of relay-critical webhook/NTP admission. Wake,
+backflush, rejected starts and scale acquisition do not cancel Micra WSS.
+The integration owns the fixed eight-transition backflush handoff under its
+mutex; control is its only consumer. Diagnostics copies without draining it.
+The relay owner retains both deadlines and the original close timestamp;
+neither the network worker nor an SDK callback can actuate GPIO.
 
 `initJsonParser()` installs the cJSON allocator once, before concurrent users
 start. No caller may replace the process-wide hooks afterward. This is not a

@@ -482,8 +482,9 @@ if (generated.cssGzip.length > 8200) {
 // CSV columns, and last-shot wiring) raise it to 42400 bytes.
 // Paired read admission/hydration uses 160 bytes transferred from shell JS.
 // Independent popup interactions and identity rendering add 400 approved bytes.
-if (sentinelRuntimeGzip.length > 44000) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 44000-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Supervised backflush state/history labels and deadline diagnostics add 500 bytes.
+if (sentinelRuntimeGzip.length > 44500) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 44500-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -563,8 +564,10 @@ if (generated.icon48Gzip.length > 3500) {
 // firmware image, memory-region and OTA partition limits remain unchanged.
 // The approved independent wireless popups raise the combined cap by 500 bytes.
 // Reviewed WS assets measure 115211 bytes; independent per-asset caps remain.
-if (generated.combined > 116000) {
-  throw new Error(`Combined Web UI gzip exceeds the 116000-byte flash budget (${generated.combined})`);
+// The supplied backflush icon and supervision UI add 1 KB of reviewed allowance.
+// Firmware image, memory-region and OTA partition limits remain unchanged.
+if (generated.combined > 117000) {
+  throw new Error(`Combined Web UI gzip exceeds the 117000-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

@@ -222,7 +222,7 @@ Source: `OpenBrewByWeightSafety.h`, `OpenBrewByWeightMachine.h`.
 | `WATCHDOG_UNAVAILABLE` | Task WDT not subscribed. | Lockout |
 | `INVALID_LIMIT` | Close requested with a bad operational limit. | Lockout |
 | `TIMER_ARM_FAILED` | Could not start the deadline timers. | Lockout |
-| `HARD_LIMIT` | 60 s cap (`HARD_MAX_CIRCUIT_CLOSED_MS`). ISR-safe. | Trip (not lockout) |
+| `HARD_LIMIT` | 60 s normally; qualified backflush permits at most 180 s from the original close. ISR-safe. | Trip (not lockout) |
 | `OPERATIONAL_LIMIT` | Configured Max BBW time (default 50 s) on automatic BBW, or Original-mode wall after paddle release. Not armed on timer-only or no-scale shots. | Trip |
 | `FEEDBACK_STUCK_CLOSED` | Optional echo GPIO already closed before arm. | Lockout |
 | `FEEDBACK_FAILED_TO_CLOSE` | Echo never matched a commanded close. | Lockout |
@@ -946,19 +946,39 @@ gate. It never changes relay safety.
 
 ---
 
+## Supervised backflush
+
+The optional machine contract supplies normalized ordered observations, never
+actuation commands. An observed inactive→awaiting episode and a new physical
+paddle edge admit `BACKFLUSH_CANDIDATE` before brew/scale side effects. Initial
+awaiting can admit a 60-second candidate but cannot authorize promotion. A live,
+eligible post-edge active confirmation enters `BACKFLUSH_RUNNING`, with a single
+ceiling of original close +180 seconds. There is no local app-window timer.
+
+Physical OFF, supervision loss or a safety trip opens first. Inactive during
+candidate opens and records Other; any non-active state after confirmation
+opens and records Backflush. Both finish in `REQUIRES_OFF`, without a brew
+session, tare/timer commands, shot statistics or automatic restart. The
+electrical history duration and final classification are appended once.
+An unresolved/consumed request blocks a new hold until observed inactive and a
+new request; only control drains the bounded transition handoff. Loss and
+first-ingress provenance survive batching and cannot be repaired by a pong.
+
 ## Linea Micra power observer and wake qualification
 
 Micra builds run a separate cloud worker when **Monitor machine power state**
 is enabled and an account machine is selected. WebSocket is the persisted default;
 API selection queues HTTPS dashboard reads on a nominal 30-second cadence.
 Commands and authentication always use HTTP. At startup it waits for an eligible STA
-connection, a closed setup AP, no local shot or rinse, and a synchronized wall
+connection, a closed setup AP, no admitted shot, and a synchronized wall
 clock, then opens a WebSocket subscription or starts the initial API read on
 the next worker opportunity. Each admitted WebSocket subscription queues one
 initial dashboard cycle while push reception continues. Explicit refresh and
 post-command reconciliation retain their HTTP paths and coalesce when compatible.
 All API purposes, including sign-in and manual requests, remain deferred during
 scale acquisition/setup/quiet and shots; active requests cancel through the owner.
+Rinse classification immediately clears the shot pause. WSS is exempt from
+scale acquisition/setup/quiet so cleaning supervision can continue.
 Power commands are canceled when a shot starts, including previously queued
 commands; they require a new trigger after the shot. When initialization coalesces
 with post-wake reconciliation, reconciliation uses the request-time field
@@ -1012,7 +1032,7 @@ events while an overlay is live never re-arm or extend it.
 
 The observer uses four total attempts with 3/6/9-second waits and bounded
 jitter. After exhaustion, the next observation waits 60 seconds. Missing STA, an open setup AP, an unsynchronized clock, and local shots
-or rinses are readiness gates rather than failed cloud attempts: requested work
+are readiness gates rather than failed cloud attempts: requested work
 remains pending and starts when the gate clears. Scale BLE runs independently
 and never waits for network-owner teardown.
 

@@ -15,7 +15,7 @@ or explicit callback tables; each service owns its mutable state.
 | SafetyKernel | relay, safety timers, watchdog and reset history | bounded control intention | `RelaySafetySnapshot`, safety events |
 | ControlOrchestrator | active session, cup/recipe policy and command arbitration | scale/machine/network messages | fixed-size control snapshots and commands |
 | ScaleService | BLE central link, scale queues and radio policy | `ScaleCommand`, immutable worker policy | `ScaleEvent`, `ScaleLinkSnapshot`, RF state callback |
-| SelectedMachineIntegration | only the concrete machine's digital integration state; absent integrations use a no-op adapter | common lifecycle/config publication plus that machine's own feature requests | that machine's own bounded status types; no universal feature model |
+| SelectedMachineIntegration | concrete machine integration state; absent integrations use a no-op adapter | common lifecycle/config, physical-start disposition and optional backflush contract | normalized bounded backflush observations plus private feature status; no universal feature model |
 | NetworkService | Wi-Fi/httpd/mDNS, request parsing and webhook transport | `NetworkBridgeCallbacks`, control snapshots | `WebCommand`, transport diagnostics |
 | PersistenceService | NVS/EEPROM/partition serialization and write schedule | fixed-size records | success/failure result messages |
 | DiagnosticsService | logs, counters, task/heap snapshots and exports | observational snapshots | JSON/serial evidence only |
@@ -35,11 +35,11 @@ or explicit callback tables; each service owns its mutable state.
 6. C task handles are borrowed lifecycle tokens: their owner must execute
    stop/ack/join. Other ESP/FreeRTOS handles use a unique non-allocating owner
    or an explicitly documented static lifetime.
-7. Common machine-integration code exposes only boot, configuration-publication,
-   worker-service and timing hooks. Capabilities, requests, status, protocol and
-   policy types belong to the selected machine module; another machine is not
-   required to implement or understand them. CMake compiles exactly one concrete
-   adapter and only its private component dependencies.
+7. Common machine-integration code exposes lifecycle hooks, physical-start
+   disposition and an optional normalized backflush observation contract.
+   Native protocol, authentication and provider policy remain in the selected
+   module. Unsupported integrations return no permission. CMake compiles exactly
+   one concrete adapter and only its private component dependencies.
 
 `scripts/check_architecture.py` gates these rules and caps growth of the three
 legacy concentration points. The caps are not quality targets: when a feature
@@ -71,9 +71,20 @@ delivery.
 
 The Micra service also owns power-state freshness and the optimistic ON/OFF
 overlay lifetime.
-Its adapter exposes only `NORMAL` or `WAKE_PASSTHROUGH`; Open Brew by Weight owns relay
-passthrough and consumes wake gestures before brew, rinse, guards, scale,
-alerts, webhooks, and history. Those subsystems never depend on Micra types.
+Its adapter returns normal, wake, backflush-candidate or cleaning-blocked
+physical-start dispositions. Control consumes them before brew, rinse, guards
+and scale effects; those subsystems never depend on Micra types.
+
+Backflush uses an optional common bounded handoff of eight ordered transitions,
+copied under the integration mutex and drained only by control. Opaque
+continuity, episode and first-ingress attempt tokens fence discontinuities and
+pre-edge frames. Micra owns native state, transport liveness and qualification;
+control owns candidate/running activity without a brew session. The existing
+relay driver alone promotes a live 60-second candidate to the original close
+time plus 180 seconds, transactionally replacing its independent and task
+deadlines. Every non-active state after confirmation, observation loss, physical
+release or safety failure opens the relay. The end path appends one electrical
+duration record without scale commands, shot statistics or brew events.
 
 The schema-3 settings blob retains the 312-byte
 `LineaMicraPersistedSettings` record in every profile. The connection byte at
@@ -100,16 +111,18 @@ A 60-second optimistic overlay and a separate stale suspension hold preserve
 the effective power without changing the last cloud evidence timestamp.
 The SDK callback publishes decoded updates under the facade mutex, independently
 of the HTTP worker. Only the worker stops/destroys the WebSocket.
-Observation pauses follow actual shot/rinse cycles, not relay-only paddle wake
-passthrough or rejected starts. Relay-critical webhook/NTP admission remains
-separate from the cycle signal used by Micra observation.
+Observation pauses follow admitted shots and end immediately on rinse
+classification, even while the rinse continues. Wake, backflush and rejected
+starts do not assert that signal. Relay-critical webhook/NTP admission remains
+separate from the shot signal used by Micra observation.
 
 Scale discovery publishes a generic atomic inhibit before exposing an eligible
-Candidate mailbox. Micra HTTP/WSS, webhooks and NTP consume it, regardless of
+Candidate mailbox. Micra HTTP, webhooks and NTP consume it, regardless of
 machine profile. Discovery releases acquisition at Ready, or after five seconds
 of actual scan opportunity without a candidate. Setup, shot and the library's
 three-second quiet interval remain separate gates. Local access remains active;
-this is transport quiescence, not a physical RF-silence guarantee.
+this is transport quiescence, not a physical RF-silence guarantee. Micra WSS is
+excluded from the scale inhibit so backflush supervision survives BLE acquisition.
 
 ## BBW policy and storage
 

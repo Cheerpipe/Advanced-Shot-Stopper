@@ -40,6 +40,7 @@ void tripRelaySafetyLocked(RelaySafetyFault fault, bool hardLimit,
   // The electrical action is deliberately first. State publication, logging,
   // timer cleanup and recovery all happen after the relay is de-energized.
   digitalWrite(RELAY_GPIO, RELAY_OPEN_LEVEL);
+  if (circuitClosed) relayElectricalOpenedAtMs = static_cast<uint32_t>(esp_timer_get_time() / 1000);
   circuitClosed = false;
   ++relaySafetyGeneration;
   relaySafetyState = lockout ? RelaySafetyState::LOCKOUT
@@ -75,7 +76,7 @@ void relaySafetyTimerCallback(void *) {
   if ((relaySafetyState == RelaySafetyState::ARMING ||
        relaySafetyState == RelaySafetyState::CLOSED) &&
       static_cast<uint32_t>(callbackAtMs - circuitClosedAtMs) >=
-          HARD_MAX_CIRCUIT_CLOSED_MS) {
+          relayHardLimitMs) {
     tripRelaySafetyLocked(RelaySafetyFault::HARD_LIMIT, true, false, false);
     tripped = true;
   }
@@ -91,7 +92,7 @@ void operationalLimitTimerCallback(void *) {
   portENTER_CRITICAL(&relayMux);
   if ((relaySafetyState == RelaySafetyState::ARMING ||
        relaySafetyState == RelaySafetyState::CLOSED) &&
-      operationalLimitAtArmMs < HARD_MAX_CIRCUIT_CLOSED_MS &&
+      operationalLimitAtArmMs < relayHardLimitMs &&
       static_cast<uint32_t>(callbackAtMs - circuitClosedAtMs) >=
           operationalLimitAtArmMs) {
     tripRelaySafetyLocked(RelaySafetyFault::OPERATIONAL_LIMIT, false, true,
@@ -166,12 +167,13 @@ void IRAM_ATTR independentSafetyTimerCallback(void *) {
   if (relaySafetyState == RelaySafetyState::ARMING ||
       relaySafetyState == RelaySafetyState::CLOSED) {
     const bool operational =
-        operationalLimitAtArmMs < HARD_MAX_CIRCUIT_CLOSED_MS;
+        operationalLimitAtArmMs < relayHardLimitMs;
     // Keep this ISR minimal and IRAM-safe. The control task performs timer
     // cleanup, RTC OPEN publication and logging after observing the latched
     // trip flags. If reset wins that race, the retained CLOSE marker causes a
     // conservative boot lockout.
     openRelayElectricalFromIsr();
+    if (circuitClosed) relayElectricalOpenedAtMs = static_cast<uint32_t>(esp_timer_get_time() / 1000);
     circuitClosed = false;
     ++relaySafetyGeneration;
     relaySafetyState = RelaySafetyState::TRIPPED;
@@ -245,6 +247,10 @@ RelaySafetySnapshot getRelaySafetySnapshot() {
   snapshot.generation = relaySafetyGeneration;
   snapshot.closedAtMs = circuitClosedAtMs;
   snapshot.operationalLimitMs = operationalLimitAtArmMs;
+  snapshot.hardLimitMs = relayHardLimitMs;
+  snapshot.purpose = relayPurpose;
+  snapshot.electricalClosedAtMs = relayElectricalClosedAtMs;
+  snapshot.electricalOpenedAtMs = relayElectricalOpenedAtMs;
   portEXIT_CRITICAL(&relayMux);
   // Reset history is immutable after boot. Keep the bounded array copy out of
   // the ISR-shared spinlock.
@@ -268,20 +274,28 @@ void writeRelayClosedOutput() {
 }
 
 bool reassertCommandedRelayClosedPin() {
-  if (relayOutputIsClosed()) {
-    return true;
+  portENTER_CRITICAL(&relayMux);
+  const bool expired = circuitClosed && elapsedMs(circuitClosedAtMs) >= operationalLimitAtArmMs;
+  if (expired) {
+    const bool operational = operationalLimitAtArmMs < relayHardLimitMs;
+    tripRelaySafetyLocked(operational ? RelaySafetyFault::OPERATIONAL_LIMIT : RelaySafetyFault::HARD_LIMIT,
+                          !operational, operational, false);
   }
-  addDebugEvent(DebugCategory::RELAY, DebugCode::RELAY_GPIO_DESYNC);
-  writeRelayClosedOutput();
-  if (relayOutputIsClosed()) {
-    return true;
-  }
-  tripRelaySafety(RelaySafetyFault::GPIO_DESYNC, true, false, false);
-  return false;
+  const bool live = circuitClosed && relaySafetyState == RelaySafetyState::CLOSED &&
+      elapsedMs(circuitClosedAtMs) < operationalLimitAtArmMs;
+  const bool desync = live && !relayOutputIsClosed();
+  if (desync) writeRelayClosedOutput();
+  const bool closed = live && relayOutputIsClosed();
+  portEXIT_CRITICAL(&relayMux);
+  if (expired) { recordRelayCommandedClosed(false); stopRelayDeadlineTimers(); }
+  if (desync) addDebugEvent(DebugCategory::RELAY, DebugCode::RELAY_GPIO_DESYNC);
+  if (live && !closed) tripRelaySafety(RelaySafetyFault::GPIO_DESYNC, true, false, false);
+  return closed;
 }
 
 bool setMachineCircuitClosed(bool closed,
-                  uint32_t operationalLimitMs = HARD_MAX_CIRCUIT_CLOSED_MS) {
+                  uint32_t operationalLimitMs = HARD_MAX_CIRCUIT_CLOSED_MS,
+                  RelayPurpose purpose = RelayPurpose::NORMAL) {
   if (closed) {
     latchControlCriticalLogging();
     const RelaySafetySnapshot before = getRelaySafetySnapshot();
@@ -290,7 +304,10 @@ bool setMachineCircuitClosed(bool closed,
     }
 
     if (operationalLimitMs < 1 ||
-        operationalLimitMs > HARD_MAX_CIRCUIT_CLOSED_MS) {
+        operationalLimitMs > HARD_MAX_CIRCUIT_CLOSED_MS ||
+        purpose == RelayPurpose::BACKFLUSH_CONFIRMED ||
+        (purpose == RelayPurpose::BACKFLUSH_CANDIDATE &&
+         operationalLimitMs != HARD_MAX_CIRCUIT_CLOSED_MS)) {
       tripRelaySafety(RelaySafetyFault::INVALID_LIMIT);
       addDebugEvent(DebugCategory::RELAY, DebugCode::CIRCUIT_ARM_FAILED,
                     static_cast<int32_t>(CircuitArmFailReason::INVALID_LIMIT));
@@ -334,6 +351,8 @@ bool setMachineCircuitClosed(bool closed,
     portENTER_CRITICAL(&relayMux);
     generation = ++relaySafetyGeneration;
     circuitClosedAtMs = closingAtMs;
+    relayPurpose = purpose;
+    relayHardLimitMs = HARD_MAX_CIRCUIT_CLOSED_MS;
     operationalLimitAtArmMs = operationalLimitMs;
     if (!preserveTripFlags) {
       relaySafetyTripped = false;
@@ -388,6 +407,8 @@ bool setMachineCircuitClosed(bool closed,
         static_cast<uint32_t>(millis() - closingAtMs) <
             operationalLimitMs) {
       digitalWrite(RELAY_GPIO, RELAY_CLOSED_LEVEL);
+      relayElectricalClosedAtMs = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+      relayElectricalOpenedAtMs = relayElectricalClosedAtMs;
       circuitClosed = true;
       relaySafetyState = RelaySafetyState::CLOSED;
       feedbackExpectedClosed = true;
@@ -418,6 +439,7 @@ bool setMachineCircuitClosed(bool closed,
                      relaySafetyState == RelaySafetyState::LOCKOUT);
   if (!alreadyOpenedBySafety) {
     digitalWrite(RELAY_GPIO, RELAY_OPEN_LEVEL);
+    if (circuitClosed) relayElectricalOpenedAtMs = static_cast<uint32_t>(esp_timer_get_time() / 1000);
   }
   circuitClosed = false;
   ++relaySafetyGeneration;
@@ -438,6 +460,42 @@ bool setMachineCircuitClosed(bool closed,
     addDebugEvent(DebugCategory::RELAY, DebugCode::RELAY_OPENED);
   }
   return true;
+}
+
+// Control is the sole caller through the machine facade. Keep the old task
+// deadline armed until independent replacement succeeds. GPIO never closes here.
+bool promoteRelayBackflush(uint32_t generation) {
+  const auto before = getRelaySafetySnapshot();
+  if (!before.closed || before.state != RelaySafetyState::CLOSED ||
+      before.generation != generation || before.tripped || before.operationalTripped ||
+      before.purpose != RelayPurpose::BACKFLUSH_CANDIDATE ||
+      elapsedMs(before.closedAtMs) >= HARD_MAX_CIRCUIT_CLOSED_MS) return false;
+  bool armed = independentSafetyTimer.arm(
+      BACKFLUSH_MAX_CIRCUIT_CLOSED_MS - elapsedMs(before.closedAtMs));
+  if (armed) armed = esp_timer_stop(relaySafetyTimer) == ESP_OK;
+  if (armed) {
+    const uint32_t elapsed = elapsedMs(before.closedAtMs);
+    armed = elapsed < HARD_MAX_CIRCUIT_CLOSED_MS &&
+        esp_timer_start_once(relaySafetyTimer,
+            static_cast<uint64_t>(BACKFLUSH_MAX_CIRCUIT_CLOSED_MS - elapsed) * 1000) == ESP_OK;
+  }
+#ifdef SHOT_STOPPER_HOST_TEST
+  if (hostCircuitArmBeforeCommitHook) hostCircuitArmBeforeCommitHook();
+#endif
+  portENTER_CRITICAL(&relayMux);
+  const bool committed = armed && circuitClosed &&
+      relaySafetyState == RelaySafetyState::CLOSED &&
+      relaySafetyGeneration == generation &&
+      relayPurpose == RelayPurpose::BACKFLUSH_CANDIDATE &&
+      !relaySafetyTripped && !operationalLimitTripped &&
+      elapsedMs(before.closedAtMs) < HARD_MAX_CIRCUIT_CLOSED_MS;
+  if (committed) {
+    relayPurpose = RelayPurpose::BACKFLUSH_CONFIRMED;
+    relayHardLimitMs = operationalLimitAtArmMs = BACKFLUSH_MAX_CIRCUIT_CLOSED_MS;
+  }
+  portEXIT_CRITICAL(&relayMux);
+  if (!committed) tripRelaySafety(RelaySafetyFault::TIMER_ARM_FAILED);
+  return committed;
 }
 
 bool consumeRelaySafetyTrip() {
@@ -476,7 +534,7 @@ void serviceRelaySafety() {
   if ((relay.state == RelaySafetyState::ARMING || relay.closed) &&
       elapsedMs(relay.closedAtMs) >= relay.operationalLimitMs) {
     const bool operational =
-        relay.operationalLimitMs < HARD_MAX_CIRCUIT_CLOSED_MS;
+        relay.operationalLimitMs < relay.hardLimitMs;
     tripRelaySafety(operational ? RelaySafetyFault::OPERATIONAL_LIMIT
                                : RelaySafetyFault::HARD_LIMIT,
                     !operational, operational, false);

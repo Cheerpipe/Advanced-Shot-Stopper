@@ -2094,6 +2094,10 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   RelaySafetyState safetyState = RelaySafetyState::BOOT_SAFE;
   RelaySafetyFault safetyFault = RelaySafetyFault::NONE;
   uint32_t safetyGeneration = 0;
+  uint32_t safetyHardLimitMs = HARD_MAX_CIRCUIT_CLOSED_MS;
+  uint32_t safetyRemainingMs = 0;
+  bool backflushWaiting = false, backflushReady = false, backflushUnresolved = false;
+  char backflushStopReason[25] = "none";
   bool safetyTimersReady = false;
   bool taskWatchdogReady = false;
   bool externalSafetyPresent = false;

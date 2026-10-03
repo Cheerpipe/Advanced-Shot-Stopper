@@ -211,6 +211,24 @@ inline bool machineServiceCompatibilityDrive(const MachineIntention &) {
 inline bool machineTakeNoFlowIdle() { return false; }
 #endif
 
+inline bool machineStartBackflush() {
+#if SHOT_STOPPER_MACHINE_TYPE == 0
+  return !getRelaySafetySnapshot().closed &&
+      setMachineCircuitClosed(true, HARD_MAX_CIRCUIT_CLOSED_MS, RelayPurpose::BACKFLUSH_CANDIDATE);
+#else
+  return false;
+#endif
+}
+
+inline bool machineConfirmBackflush(uint32_t generation) {
+#if SHOT_STOPPER_MACHINE_TYPE == 0
+  return promoteRelayBackflush(generation);
+#else
+  (void)generation;
+  return false;
+#endif
+}
+
 inline void machineInitialize() {
   pinMode(RELAY_GPIO, OUTPUT);
   digitalWrite(RELAY_GPIO, RELAY_OPEN_LEVEL);

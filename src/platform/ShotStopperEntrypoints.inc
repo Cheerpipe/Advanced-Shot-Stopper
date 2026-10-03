@@ -705,6 +705,14 @@ void loop() {
   // One link snapshot per iteration; the two event drains below keep their
   // own fresh fetch by contract and must not take this copy.
   const ScaleLinkSnapshot loopScaleLink = getScaleLinkSnapshot();
+  backflushObservation = machineIntegrationBackflush(true);
+  if (backflushObservation.busy() && !session.active) {
+    cancelPendingFinalize("Drip analysis ended before backflush", 2);
+    setScaleCommandCycle(0);
+    pendingScaleTimerStop = {};
+    session.stopTimerRequested = false;
+    cancelScaleCompletionBeep();
+  }
   pushActivatorDrivePermission(loopScaleLink);
   machineSampleInput();
   processScaleWorkerEvents();

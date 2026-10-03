@@ -475,6 +475,10 @@ uint32_t cupStartGuardHoldAtMs = 0;
 bool machineWakePassthroughActive = false;
 uint32_t machineWakeStartedAtMs = 0;
 bool machineWakeGestureConsumedThisLoop = false;
+MachineBackflushSnapshot backflushObservation;
+MachineBackflushPermit backflushPermit;
+uint32_t backflushRelayGeneration = 0, backflushSequence = 0;
+const char *backflushStopReason = "none";
 // Boot-scoped master switch: FULL by default, COMPATIBILITY only when the
 // persisted fwmode record says so. setup() assigns it once; nothing else
 // writes it (toggling persists the record and restarts instead).
@@ -843,6 +847,9 @@ bool circuitClosed = false;
 bool relaySafetyTripped = false;
 bool operationalLimitTripped = false;
 uint32_t circuitClosedAtMs = 0;
+uint32_t relayHardLimitMs = HARD_MAX_CIRCUIT_CLOSED_MS;
+uint32_t relayElectricalClosedAtMs = 0, relayElectricalOpenedAtMs = 0;
+RelayPurpose relayPurpose = RelayPurpose::NORMAL;
 struct PendingScaleTimerStop {
   bool pending = false;
   uint32_t targetMs = 0;

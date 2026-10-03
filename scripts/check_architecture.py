@@ -62,6 +62,7 @@ def main() -> int:
     machine_common = (
         "src/machine/ShotStopperMachineIntegration.h",
         "src/machine/ShotStopperMachineIntegration.cpp",
+        "src/machine/ShotStopperMachineBackflush.h",
     )
     for relative in machine_common:
         source = text(relative)

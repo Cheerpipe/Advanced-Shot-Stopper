@@ -105,6 +105,7 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
       next.targetDeciC = 0;
     } else if (strcmp(code, "CMBackFlush") == 0 &&
                next.source == MicraObservationSource::WEBSOCKET) {
+      if (next.cleaningPresent) return false;
       next.cleaningPresent = true;
       next.cleaningAvailable = false;
       next.cleaning = MicraCleaningState::UNKNOWN;

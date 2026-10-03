@@ -12,8 +12,11 @@ void serviceMachineIntegrationMachinePower(bool, bool, bool) {}
 void requestMachineIntegrationPresetTemperature(uint8_t, uint32_t, uint16_t) {}
 bool machineIntegrationCloudFirstQuerySettled() { return true; }
 uint8_t machineIntegrationTaskCount() { return 0; }
-MachinePhysicalStartDisposition machineIntegrationPhysicalStart() {
+MachinePhysicalStartDisposition machineIntegrationPhysicalStart(MachineBackflushPermit *permit) {
+  if (permit) *permit = {};
   return MachinePhysicalStartDisposition::NORMAL;
 }
+MachineBackflushSnapshot machineIntegrationBackflush(bool) { return {}; }
+void finishMachineIntegrationBackflush(uint32_t) {}
 
 }  // namespace shotstopper

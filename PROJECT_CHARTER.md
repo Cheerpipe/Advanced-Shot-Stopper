@@ -20,6 +20,13 @@ Physical intent remains authoritative; remote activation is disabled by default.
 Hard timing limits, watchdog coverage, image verification, rollback, memory
 budgets, concurrency rules, and resource ownership are release constraints.
 
+Ordinary activations remain capped at 60 seconds. A physically admitted,
+continuously supervised automatic backflush may be promoted once to a fixed
+180-second ceiling measured from the original close transaction. Leaving the
+active cleaning state, loss of supervision, physical release or a safety fault
+opens the relay sooner. Provider semantics and physical deadlines require
+qualification before release; cloud liveness is not proof of machine state.
+
 No automated result substitutes for bench wiring inspection or required HIL and
 manual evidence. See `VALIDATION.md`, `docs/HARDWARE.md`, and
 `docs/MANUAL_TEST_PLAN.md` before connecting a machine.

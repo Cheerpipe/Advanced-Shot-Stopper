@@ -576,7 +576,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !ui.includes("t('dMachine',s.machineState)") ||
       !ui.includes("t('hFirmware',s.firmwareVersion)") ||
       !ui.includes("t('hBoot',typeof s.bootId==='number'&&s.bootId?'#'+s.bootId:'')") ||
-      !ui.includes("t('dBrew',s.state)") ||
+      !ui.includes("t('dBrew',formatBackflushState(s)||s.state)") ||
       !ui.includes("t('dCup',cp.state)") ||
       !ui.includes('function applyDiagnosticGuards(') ||
       !ui.includes('function exportDebugData(') ||
@@ -1059,6 +1059,31 @@ const historyTypesIo = fs.readFileSync(
     path.join(sketchDir, 'ShotStopperHistoryTypes.h'), 'utf8');
 const historyIo = fs.readFileSync(
     path.join(sketchDir, 'ShotStopperHistory.h'), 'utf8');
+if (!historyTypesIo.includes('BACKFLUSH = 5') ||
+    !runtimeJs.includes('HIST_TYPE_SVG.backflush=') ||
+    !partialHtml.history.includes('id="hBF" viewBox="0 0 256 256"') ||
+    !runtimeJs.includes('Backflush in progress') ||
+    !runtimeJs.includes('Backflush unavailable')) {
+  throw new Error('Backflush must preserve history ordinals, supplied icon and state-driven guidance');
+}
+{
+  const formatter = runtimeJs.split('\n').find(line => line.startsWith('function formatBackflushState('));
+  const format = new Function(formatter + ';return formatBackflushState;')();
+  for (const [state, backflush, expected] of [
+    ['BACKFLUSH_CANDIDATE', {}, 'Checking backflush'],
+    ['BACKFLUSH_RUNNING', {}, 'Backflush in progress'],
+    ['REQUIRES_OFF', {stopReason: 'unconfirmed_end'}, 'Other activation'],
+    ['REQUIRES_OFF', {stopReason: 'supervision_lost'}, 'Activation interrupted'],
+    ['READY', {waiting: true, ready: true}, 'waiting for paddle'],
+    ['READY', {waiting: true, ready: false}, 'Backflush unavailable'],
+    ['READY', {unresolved: true}, 'Backflush unavailable'],
+  ]) {
+    if (!format({state, backflush}).includes(expected))
+      throw new Error('Incorrect backflush state guidance for ' + state);
+  }
+  if (format({state: 'READY', backflush: {}}) || format({state: 'BREW'}))
+    throw new Error('Ordinary activity must retain its existing presentation');
+}
 if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !shellHtml.includes('<section id="view-history" class="view" data-view="history"></section>') ||
     !appJsSource.includes("'/history':'history'") ||

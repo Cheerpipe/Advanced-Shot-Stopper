@@ -62,12 +62,22 @@ stop latency; target qualification must establish those bounds under HTTP load.
 An established socket follows owner stop; DNS/connect already in flight may
 finish before SDK stop completes. BLE never waits for that completion.
 
+Backflush processing drains at most eight transitions per control turn. A
+published supervision loss opens on the next turn; silent transport loss is
+detected no later than the 30-second pong/connection liveness budget plus
+control scheduling latency. Pongs prove transport reachability, not machine
+state freshness. The independent relay deadline remains 60 seconds until
+qualified promotion, then 180 seconds from the original close, regardless of
+worker or cloud progress. Measure these bounds on target under concurrent load.
+
 AP, STA-loss, unsynchronized clock, scale acquisition/setup/quiet, and shot
 activity gate every API purpose, including authentication and retries, without
 consuming attempts while awaiting admission. Every gate must clear before work
 resumes. These are admission intervals, not a guaranteed cloud
 detection latency; an individual TLS/crypto progress call still requires target
 deadline qualification.
+Shot→rinse classification clears the shot gate immediately. WSS does not
+participate in scale acquisition/setup/quiet admission.
 
 The scale worker blocks on a task notification with a 1 ms timeout while
 connecting or while unlinked with queued commands, and 10 ms while linked or

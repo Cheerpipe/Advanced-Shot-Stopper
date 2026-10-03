@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "ShotStopperResetHistory.h"
+#include "ShotStopperMachineTypes.h"
 
 namespace shotstopper {
 
@@ -88,6 +89,9 @@ struct RelaySafetySnapshot {
   uint32_t generation = 0;
   uint32_t closedAtMs = 0;
   uint32_t operationalLimitMs = 0;
+  uint32_t hardLimitMs = HARD_MAX_CIRCUIT_CLOSED_MS;
+  uint32_t electricalClosedAtMs = 0, electricalOpenedAtMs = 0;
+  RelayPurpose purpose = RelayPurpose::NORMAL;
   uint32_t resetReasonCode = 0;
   uint32_t unsafeResetCount = 0;
   bool resetRecoveryRequired = false;

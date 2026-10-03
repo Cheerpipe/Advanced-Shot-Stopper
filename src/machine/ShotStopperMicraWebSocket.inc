@@ -15,7 +15,7 @@ struct ShotStopperMicraService::WebSocketBuffer {
   std::atomic<uint32_t> partialAtMs{0};
   std::atomic<bool> partialPending{false};
   uint32_t setupAtMs = 0;
-  uint32_t acquisitionGeneration = 0, disconnectGeneration = 0, frameIntent = 0;
+  uint32_t disconnectGeneration = 0, frameIntent = 0;
   int payloadOffset = 0;
   int payloadLength = 0;
   bool continuation = false;
@@ -43,13 +43,11 @@ MicraWebSocketStatus ShotStopperMicraService::websocketStatus() const {
 }
 
 bool ShotStopperMicraService::websocketAdmitted() const {
-  if (outboundScaleInhibited() ||
-      outboundShotActive.load(std::memory_order_acquire) ||
+  if (outboundShotActive.load(std::memory_order_acquire) ||
       outboundMaintenance.load(std::memory_order_acquire) || outboundOtaBusy.load(std::memory_order_acquire)) return false;
   if (!staConnected_.load(std::memory_order_acquire) ||
       apActive_.load(std::memory_order_acquire) ||
       shotActive_.load(std::memory_order_acquire) ||
-      scaleConnecting_.load(std::memory_order_acquire) ||
       clearSessionRequested_.load(std::memory_order_acquire)) return false;
   TaskLockGuard lock(mux_);
   return config_.accountConfigured &&
@@ -60,7 +58,6 @@ bool ShotStopperMicraService::websocketAdmitted() const {
 void ShotStopperMicraService::stopWebSocket(bool release) {
   WebSocketBuffer *buffer = websocket_;
   if (!buffer) {
-    completeOutboundAcquisitionPause(OutboundClient::MICRA_WS, millis());
     return;
   }
   if (buffer->client) {
@@ -77,6 +74,7 @@ void ShotStopperMicraService::stopWebSocket(bool release) {
             (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0, millis());
       websocketStatus_.state = MicraSocketState::STOPPING;
       websocketStatus_.subscribed = false;
+      backflush_.invalidate();
       if (buffer->heap.pending) finishHeapLifecycle(buffer->heap, HeapLifecycleResult::FAILURE, before);
       beginHeapLifecycle(buffer->stopHeap, HeapLifecycleEvent::HTTP_STOP, before);
     }
@@ -104,7 +102,6 @@ void ShotStopperMicraService::stopWebSocket(bool release) {
     }
   }
   buffer->decoder.reset();
-  completeOutboundAcquisitionPause(OutboundClient::MICRA_WS, millis());
   buffer->partialAtMs.store(0, std::memory_order_release);
   buffer->partialPending.store(false, std::memory_order_release);
   buffer->continuation = false;
@@ -148,9 +145,11 @@ bool ShotStopperMicraService::stompFrame(void *context, const MicraStompFrame &f
     if (sent != length + 1) return false;
     if (!admitted || buffer.stamp.epoch != self.observationFence_.epoch ||
         buffer.stamp.identity != self.identityGeneration_ ||
-        buffer.acquisitionGeneration != outboundAcquisitionGeneration.load() ||
         buffer.disconnectGeneration != self.disconnectGeneration_.load()) return true;
     self.websocketStatus_.subscribed = true;
+    self.websocketStatus_.machineConnectedKnown = false;
+    self.websocketStatus_.pongAtMs = 0;
+    self.backflush_.invalidate();
     self.observationFence_.invalidate();
     self.observationFence_.offline = false;
     self.snapshotStamp_ = self.observationFence_.stamp(self.identityGeneration_, self.powerState_.generation());
@@ -190,7 +189,6 @@ bool ShotStopperMicraService::stompFrame(void *context, const MicraStompFrame &f
   TaskLockGuard lock(self.mux_);
   if (buffer.stamp.epoch != self.observationFence_.epoch ||
       buffer.stamp.identity != self.identityGeneration_ ||
-      buffer.acquisitionGeneration != outboundAcquisitionGeneration.load(std::memory_order_acquire) ||
       buffer.disconnectGeneration != self.disconnectGeneration_.load(std::memory_order_acquire)) return true;
   const bool wasOffline = self.observationFence_.offline;
   if (!self.observationFence_.merge(self.published_, self.powerState_, update,
@@ -210,11 +208,28 @@ bool ShotStopperMicraService::stompFrame(void *context, const MicraStompFrame &f
     status.machineConnectedKnown = true;
     status.machineConnected = update.connected;
   }
+  if (self.observationFence_.offline ||
+      (update.powerPresent && update.mode != LineaMicraObservedMode::BREWING))
+    self.backflush_.invalidate();
   if (update.cleaningPresent) {
     status.cleaning = update.cleaning;
     status.cleaningAvailable = update.cleaningAvailable;
     status.cleaningAtMs = receivedAt;
     memcpy(status.cleaningLabel, update.cleaningLabel, sizeof(status.cleaningLabel));
+    const auto phase = update.cleaning == MicraCleaningState::OFF
+        ? MachineBackflushPhase::INACTIVE : update.cleaning == MicraCleaningState::REQUESTED
+        ? MachineBackflushPhase::AWAITING : update.cleaning == MicraCleaningState::CLEANING
+        ? MachineBackflushPhase::ACTIVE : MachineBackflushPhase::UNKNOWN;
+    if (!self.observationFence_.offline && status.machineConnectedKnown &&
+        status.machineConnected)
+      self.backflush_.observe(phase, frame.ingressAttempt);
+    else if (phase != MachineBackflushPhase::INACTIVE)
+      self.backflush_.observe(MachineBackflushPhase::UNKNOWN, frame.ingressAttempt);
+    if (self.backflush_.status().busy()) {
+      self.desiredPower_ = {};
+      if (self.temperatureActive_.load() || self.powerActive_.load())
+        self.abortRequested_.store(true, std::memory_order_release);
+    }
   }
   status.publishLatencyMs = millis() - receivedAt;
   status.maxPublishLatencyMs = std::max(status.maxPublishLatencyMs, status.publishLatencyMs);
@@ -224,6 +239,7 @@ bool ShotStopperMicraService::stompFrame(void *context, const MicraStompFrame &f
 void ShotStopperMicraService::websocketEvent(void *context, const char *,
                                             int32_t event, void *data) {
   auto &self = *static_cast<ShotStopperMicraService *>(context);
+  const uint32_t ingressAttempt = self.backflush_.ingressAttempt();
   auto &buffer = *self.websocket_;
   if (!data || (event != WEBSOCKET_EVENT_CONNECTED && event != WEBSOCKET_EVENT_DATA &&
                 event != WEBSOCKET_EVENT_DISCONNECTED && event != WEBSOCKET_EVENT_CLOSED &&
@@ -233,7 +249,6 @@ void ShotStopperMicraService::websocketEvent(void *context, const char *,
     TaskLockGuard lock(self.mux_);
     if (buffer.stamp.epoch != self.observationFence_.epoch ||
         buffer.stamp.identity != self.identityGeneration_ ||
-        buffer.acquisitionGeneration != outboundAcquisitionGeneration.load(std::memory_order_acquire) ||
         buffer.disconnectGeneration != self.disconnectGeneration_.load(std::memory_order_acquire)) return;
   }
   if (event == WEBSOCKET_EVENT_DISCONNECTED || event == WEBSOCKET_EVENT_CLOSED ||
@@ -270,7 +285,6 @@ void ShotStopperMicraService::websocketEvent(void *context, const char *,
       TaskLockGuard lock(self.mux_);
       if (buffer.stamp.epoch == self.observationFence_.epoch &&
           buffer.stamp.identity == self.identityGeneration_ &&
-          buffer.acquisitionGeneration == outboundAcquisitionGeneration.load() &&
           buffer.disconnectGeneration == self.disconnectGeneration_.load()) {
         finishHeapLifecycle(buffer.heap, HeapLifecycleResult::SUCCESS, heap);
         self.websocketStatus_.internalMinimum = heap.internalMinimum;
@@ -313,7 +327,7 @@ void ShotStopperMicraService::websocketEvent(void *context, const char *,
         }
         buffer.payloadOffset += message.data_len;
         if (buffer.payloadOffset == buffer.payloadLength) buffer.continuation = !message.fin;
-        valid = buffer.decoder.feed(message.data_ptr, message.data_len, millis(), stompFrame, &self);
+        valid = buffer.decoder.feed(message.data_ptr, message.data_len, millis(), stompFrame, &self, ingressAttempt);
         if (buffer.decoder.incompleteExpired(millis())) valid = false;
         if (buffer.decoder.pending())
           buffer.partialAtMs.store(buffer.decoder.pendingSince(), std::memory_order_release);
@@ -329,6 +343,7 @@ void ShotStopperMicraService::websocketEvent(void *context, const char *,
     if (buffer.stamp.identity == self.identityGeneration_ &&
         buffer.stamp.epoch == self.observationFence_.epoch) {
       self.observationFence_.invalidate();
+      self.backflush_.invalidate();
       self.snapshotPending_ = false;
       self.powerState_.hold(self.published_, true, millis());
     }
@@ -348,12 +363,11 @@ void ShotStopperMicraService::serviceWebSocket() {
       settings.connectionType == static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
   LineaMicraError gate = LineaMicraError::NONE;
   const bool maintenance = outboundMaintenance.load() || outboundOtaBusy.load();
-  const bool admitted = selected && websocketAdmitted() && networkEligible(gate);
+  const bool admitted = selected && websocketAdmitted() && networkEligible(gate, true);
   if (!admitted) {
     {
       TaskLockGuard lock(mux_);
-      if (maintenance || shotActive_.load() || outboundShotActive.load() ||
-          scaleConnecting_.load() || outboundScaleInhibited()) {
+      if (maintenance || shotActive_.load() || outboundShotActive.load()) {
         powerState_.hold(published_, settings.accountConfigured &&
             (settings.options & LINEA_MICRA_OBSERVE_STATE) != 0, millis());
         if (websocket_ && websocket_->client && websocket_->stamp.epoch == observationFence_.epoch)
@@ -365,13 +379,11 @@ void ShotStopperMicraService::serviceWebSocket() {
     stopWebSocket(!selected || maintenance || clearSessionRequested_.load(std::memory_order_acquire));
     TaskLockGuard lock(mux_);
     websocketStatus_.state = !selected ? MicraSocketState::Disabled
-        : maintenance || shotActive_.load() || outboundShotActive.load() ||
-          scaleConnecting_.load() || outboundScaleInhibited() ? MicraSocketState::PAUSED
+        : maintenance || shotActive_.load() || outboundShotActive.load() ? MicraSocketState::PAUSED
         : gate == LineaMicraError::CLOCK_UNSYNCED ? MicraSocketState::WAITING_FOR_TIME
         : MicraSocketState::WAITING_FOR_NETWORK;
     websocketStatus_.reason = !selected ? "disabled" : maintenance ? "maintenance" : shotActive_.load() || outboundShotActive.load() ? "shot"
-        : outboundBleQuiet.load() ? "ble_quiet" : scaleConnecting_.load() || outboundScaleInhibited()
-        ? "scale_acquisition" : lineaMicraErrorName(gate);
+        : lineaMicraErrorName(gate);
     wipeLineaMicraSettings(settings);
     return;
   }
@@ -388,13 +400,13 @@ void ShotStopperMicraService::serviceWebSocket() {
     const uint32_t partial = websocket_->partialAtMs.load(std::memory_order_acquire);
     const auto status = websocketStatus();
     const bool timeout = (!status.subscribed && now - websocket_->setupAtMs >= 10000) ||
-        (partialPending && now - partial >= 10000);
+        (partialPending && now - partial >= 10000) ||
+        (status.subscribed && now - (status.pongAtMs ? status.pongAtMs : status.connectedAtMs) >= 30000);
     const bool renew = work_ && micra_timing::accessTokenRefreshDue(now - work_->accessTokenIssuedAtMs);
     bool obsolete = false;
     {
       TaskLockGuard lock(mux_);
       obsolete = websocket_->stamp.epoch != observationFence_.epoch ||
-          websocket_->acquisitionGeneration != outboundAcquisitionGeneration.load() ||
           websocket_->disconnectGeneration != disconnectGeneration_.load();
     }
     if (!websocket_->failed.load(std::memory_order_acquire) && !timeout && !renew && !obsolete) {
@@ -484,7 +496,6 @@ void ShotStopperMicraService::serviceWebSocket() {
   buffer.setupAtMs = millis();
   {
     TaskLockGuard lock(mux_);
-    buffer.acquisitionGeneration = outboundAcquisitionGeneration.load(std::memory_order_acquire);
     buffer.disconnectGeneration = disconnectGeneration_.load(std::memory_order_acquire);
     buffer.stamp = observationFence_.stamp(identityGeneration_, powerState_.generation());
     websocketStatus_.epoch = buffer.stamp.epoch;

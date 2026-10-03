@@ -93,10 +93,11 @@ Enable **Monitor machine power state** and choose **Connection type**:
   connection or the cloud service makes WebSocket unreliable.
 
 Both wait for station Wi-Fi, a synchronized clock and a closed setup access
-point. Both pause during a shot or rinse and as soon as a compatible scale is
-found, before its connection starts. The WebSocket is disconnected during that
-pause. Monitoring resumes after scale setup and the Bluetooth quiet interval
-end. Wi-Fi and the local Web UI remain available.
+point. An admitted shot pauses monitoring. If that gesture is classified as a
+quick rinse, the pause ends immediately: reconnection and API requests can
+resume while the rinse is still running. WebSocket monitoring stays connected
+during scale discovery, connection and reconnection. Wi-Fi and the local Web UI
+remain available.
 Micra API requests, including sign-in, Refresh and machine commands, wait
 through scale connection. During a shot, reads wait and pending power commands
 are canceled. Requests already in progress are canceled
@@ -148,8 +149,50 @@ WebSocket mode.
 **Waiting for paddle**, **Cleaning in progress**, or an unknown reported value.
 The row identifies its last update and marks retained values stale when the
 stream is paused or the machine is offline. API mode shows that cleaning is
-unavailable. Cleaning is informational and never starts or stops a brew.
-Transitions that occur during a pause may be missed.
+unavailable. A cloud cleaning update never starts the machine or turns an
+existing shot into backflush. Transitions during a shot pause may be missed.
+
+### Automatic backflush
+
+With firmware enabled, WebSocket monitoring can supervise the automatic
+backflush selected in the La Marzocco app. Follow the machine's cleaning
+instructions and prepare the machine before requesting the program.
+
+1. Leave the paddle OFF and request automatic backflush in the app.
+2. Wait until Home reports **Backflush — waiting for paddle**, then move the
+   paddle ON within the opportunity offered by the app.
+3. Home first shows **Checking backflush**, then **Backflush in progress**
+   when the machine confirms the program. Return the paddle OFF after it ends.
+
+The controller does not reproduce the app's start countdown. Until the program
+is confirmed, the usual 60-second protection applies. A qualified confirmation
+allows at most **180 seconds from the original activation**, including the time
+spent checking. The allowance ends as soon as the controller receives a state
+outside backflush in progress. It also opens the activation circuit on loss of
+supervision, a safety stop, or paddle OFF. The circuit opens at 180 seconds even
+if the reported program is still running.
+
+If the request ends before confirmation, the circuit opens and History records
+**Other**. If the connection was just established, or a previous request was
+interrupted, Home may ask you to cancel and request backflush again in the app.
+That prevents an old request from receiving the longer allowance. An
+unconfirmed or ambiguous activation never receives 180 seconds. When the
+physical paddle remains ON after any stop, return it OFF before trying again;
+restoring the connection cannot restart the machine.
+
+Backflush works without a scale. A connected scale keeps receiving weight, and
+can reconnect during the program; backflush does not tare it, run its timer, or
+add a shot to Stats. WebSocket monitoring continues throughout. Temperature
+changes wait while cleaning is pending or active, and pending automatic machine
+power commands are canceled. A start can be refused if a machine command is
+still finishing or the cloud session needs renewal.
+
+History records a confirmed activation as **Backflush**, including an
+interrupted one. Its duration is the time the activation circuit was enabled;
+the record does not certify a successful cleaning. Cloud updates can arrive
+late, so opening follows the received state, manual stop or local safety limit,
+not a guarantee of simultaneous physical completion. Compatibility mode, API
+monitoring and other machine profiles retain their normal 60-second cap.
 
 ### Cloud diagnostics and logs
 
@@ -163,7 +206,7 @@ WebSocket connection state, retry time, message/power/pong ages, payload receive
 and transmit rates, totals, errors and stop latency appear separately.
 Two counters distinguish **Planned connections** from **Unexpected
 reconnections**. Planned connections include the normal initial
-connection and resumes after shots or rinses, scale connection and radio pauses,
+connection and resumes after shots (including early rinse classification),
 maintenance or firmware updates, account or monitoring changes, and routine
 session renewal. Unexpected recoveries follow Wi-Fi loss, cloud or protocol
 errors, or connection and message timeouts, even when the controller closes the
@@ -344,8 +387,9 @@ the current active target again, which covers sessions where the machine or
 controller was unavailable when the preset was selected. Repeated triggers are
 combined, and only the latest active target remains pending.
 
-Application waits while a shot or rinse is active and while the scale is
-connecting. Either event cancels an in-progress cloud request without affecting
+Application waits while a shot or backflush is active, while a backflush request
+is pending, and while the scale is connecting. These conditions cancel an
+in-progress cloud request without affecting
 the relay, BLE connection, or local shot control; the latest target remains
 pending and is retried after activity ends. If a change is queued while the
 clock is still synchronizing or station Wi-Fi is not ready, it is sent as soon

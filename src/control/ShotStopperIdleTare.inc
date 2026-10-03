@@ -66,7 +66,8 @@ IdleTareReason idleTareEligibilityReason() {
       lastCycle.endReason != EndReason::RELAY_SAFETY_FAILURE;
   if (!runtimeConfig.autoTareOutsideBrew) return IdleTareReason::FEATURE_DISABLED;
   if (!firmwareInitializationComplete) return IdleTareReason::NOT_READY;
-  if (session.active) return IdleTareReason::ACTIVE_CYCLE;
+  if (session.active || backflushActive(stopperState) || backflushObservation.busy())
+    return IdleTareReason::ACTIVE_CYCLE;
   if (maintenanceLease.active) return IdleTareReason::MAINTENANCE;
   if (relay.closed || relay.tripped || relay.operationalTripped)
     return IdleTareReason::RELAY_BLOCKED;

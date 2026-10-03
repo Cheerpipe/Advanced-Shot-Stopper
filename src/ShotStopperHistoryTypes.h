@@ -31,6 +31,7 @@ enum class HistoryType : uint8_t {
   OTHER = 2,
   POWER_ON = 3,
   NO_SCALE_GUARD_ABORTED = 4,
+  BACKFLUSH = 5,
 };
 
 inline const char *historyTypeName(HistoryType type) {
@@ -40,6 +41,7 @@ inline const char *historyTypeName(HistoryType type) {
     case HistoryType::OTHER: return "other";
     case HistoryType::POWER_ON: return "power_on";
     case HistoryType::NO_SCALE_GUARD_ABORTED: return "no_scale_guard_aborted";
+    case HistoryType::BACKFLUSH: return "backflush";
   }
   return "unknown";
 }

@@ -491,6 +491,7 @@ void pushActivatorDrivePermission(const ScaleLinkSnapshot &link) {
   // open K1 and the mirror re-close it every loop (relay chatter).
   machineSetActivatorDriveAllowed(
       firmwareCompatibilityMode() || machineWakePassthroughActive ||
+      backflushActive(stopperState) ||
       session.active || !guardsWouldBlockActivatorDrive(loopGuardInputs));
 }
 

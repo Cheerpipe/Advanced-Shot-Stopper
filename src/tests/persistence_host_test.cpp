@@ -2123,6 +2123,8 @@ void p69_history_log_round_trip_eviction_and_paging() {
   CHECK(strcmp(historyTypeName(HistoryType::RINSE), "rinse") == 0);
   CHECK(strcmp(historyTypeName(HistoryType::OTHER), "other") == 0);
   CHECK(strcmp(historyTypeName(HistoryType::POWER_ON), "power_on") == 0);
+  CHECK(strcmp(historyTypeName(HistoryType::BACKFLUSH), "backflush") == 0);
+  CHECK(strcmp(historyTypeName(static_cast<HistoryType>(255)), "unknown") == 0);
   CHECK(strcmp(historyTypeName(HistoryType::NO_SCALE_GUARD_ABORTED),
                "no_scale_guard_aborted") == 0);
 
@@ -2140,7 +2142,7 @@ void p69_history_log_round_trip_eviction_and_paging() {
   record.type = static_cast<uint8_t>(HistoryType::OTHER);
   CHECK(log.append(record, false));
   record.durationDs = 40;
-  record.type = static_cast<uint8_t>(HistoryType::RINSE);
+  record.type = static_cast<uint8_t>(HistoryType::BACKFLUSH);
   CHECK(log.append(record, false));
   CHECK(log.dirty());
   CHECK(log.flush());
@@ -2152,7 +2154,7 @@ void p69_history_log_round_trip_eviction_and_paging() {
   HistoryPage page;
   reloaded.copyPage(page, 0, HISTORY_PAGE_DEFAULT, ShotLogSortDir::Desc);
   CHECK(page.total == 3 && page.count == 3 && !page.hasMore);
-  CHECK(page.records[0].type == static_cast<uint8_t>(HistoryType::RINSE));
+  CHECK(page.records[0].type == static_cast<uint8_t>(HistoryType::BACKFLUSH));
   CHECK(page.records[2].durationDs == 281);
   CHECK(page.records[0].id == 3 && page.records[2].id == 1);
   reloaded.copyPage(page, 0, HISTORY_PAGE_DEFAULT, ShotLogSortDir::Asc);

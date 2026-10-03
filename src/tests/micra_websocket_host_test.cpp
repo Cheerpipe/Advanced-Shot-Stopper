@@ -78,7 +78,7 @@ int esp_websocket_client_send_text(void *, const char *bytes, int count, int) {
 #include "micra_websocket_work.inc"
 namespace shotstopper {
 void secureWipe(void *bytes, size_t count) { std::memset(bytes, 0, count); }
-bool ShotStopperMicraService::networkEligible(LineaMicraError &error) const {
+bool ShotStopperMicraService::networkEligible(LineaMicraError &error, bool) const {
   error = LineaMicraError::NONE;
   return true;
 }
@@ -140,8 +140,8 @@ struct MicraWebSocketTest {
       service.config_.connectionType = static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
       service.clearSessionRequested_.store(false);
       service.serviceWebSocket();
-      subscribe(service);
-      assert(service.websocketStatus().plannedConnections == ++planned);
+      if (cause != 1 && cause != 2) { subscribe(service); ++planned; }
+      assert(service.websocketStatus().plannedConnections == planned);
       assert(service.websocketStatus().unexpectedConnections == unexpected);
     }
     // Failures remain unexpected through a maintenance release or radio pause.
@@ -340,19 +340,16 @@ struct MicraWebSocketTest {
     const auto fresh = service.published_.sampleAtMs;
     deliver(service, observation(service, R"({"connected":false,"widgets":[{"code":"CMMachineStatus","output":{"mode":"StandBy"}}]})"));
     assert(service.published_.sampleAtMs == fresh && service.powerState_.retained());
-    // Early discovery rejects even callbacks arriving before owner stop.
+    // Discovery retains WebSocket observation and accepts fresh frames.
     publishOutboundAcquisition(true, ++now);
     deliver(service, observation(service, off));
-    assert(service.published_.sampleAtMs == fresh);
+    assert(service.published_.sampleAtMs == millis());
+    service.websocketStatus_.pongAtMs = millis();
     service.serviceWebSocket();
-    assert(stops == 1 && destroys == 1 && !service.websocket_->client);
-    assert(service.websocketStatus().state == MicraSocketState::PAUSED);
-    now += 100000;
-    assert(service.powerState_.effectiveStatus(service.published_, true, now).effectiveOn);
+    assert(stops == 0 && destroys == 0 && service.websocket_->client);
+    assert(service.websocketStatus().state == MicraSocketState::STREAMING);
     publishOutboundAcquisition(false, now);
     service.serviceWebSocket();
-    subscribe(service);
-    assert(service.powerState_.retained());
     deliver(service, observation(service, off));
     assert(!service.powerState_.retained());
     // A whole shot can elapse while the owner is busy: old ingress stays fenced.
@@ -429,7 +426,7 @@ struct MicraWebSocketTest {
     assert(service.status().quality == LineaMicraObservationQuality::CURRENT);
     assert(service.status().powerSource == MicraObservationSource::HTTP_INITIAL);
     outboundAcquisitionHeld.store(true);
-    assert(service.status().quality == LineaMicraObservationQuality::STALE);
+    assert(service.status().quality == LineaMicraObservationQuality::CURRENT);
     outboundAcquisitionHeld.store(false);
     deliver(service, observation(service, R"({"widgets":[{"code":"CMMachineStatus","output":{"mode":"StandBy"}}]})"));
     assert(service.published_.powerSource == MicraObservationSource::WEBSOCKET);
@@ -443,7 +440,7 @@ struct MicraWebSocketTest {
     deliver(service, observation(service, R"({"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}}]})"));
     assert(service.observationFence_.synchronized);
     ++outboundAcquisitionGeneration;
-    assert(service.status().quality == LineaMicraObservationQuality::STALE);
+    assert(service.status().quality == LineaMicraObservationQuality::CURRENT);
     esp_websocket_event_data_t event;
     service.websocketEvent(&service, nullptr, WEBSOCKET_EVENT_CLOSED, &event);
     assert(!service.observationFence_.synchronized && !service.snapshotPending_);
@@ -458,6 +455,62 @@ struct MicraWebSocketTest {
     service.stopWebSocket(true);
     delete service.work_;
   }
+  static void backflushContract() {
+    const char *inactive = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Off"}}]})";
+    const char *awaiting = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
+    const char *active = R"({"widgets":[{"code":"CMBackFlush","output":{"status":"Cleaning"}}]})";
+    for (int scenario = 0; scenario < 5; ++scenario) {
+      now = 1000;
+      ShotStopperMicraService service;
+      service.config_.accountConfigured = true;
+      std::strcpy(service.config_.selectedSerial, "synthetic");
+      service.staConnected_.store(true);
+      service.tokenAvailable_.store(true);
+      service.tokenIssuedAtMs_.store(millis());
+      service.serviceWebSocket();
+      subscribe(service);
+      if (scenario != 1) deliver(service, observation(service, inactive));
+      deliver(service, observation(service, awaiting));
+      const auto fragmented = observation(service, active);
+      if (scenario == 2) deliver(service, fragmented.substr(0, 15), false);
+      const auto before = service.backflush(true);
+      assert(before.valid && before.ready && before.phase == MachineBackflushPhase::AWAITING);
+      service.powerActive_.store(true);
+      assert(!service.backflush().ready);
+      service.powerActive_.store(false);
+      service.tokenIssuedAtMs_.store(now - micra_timing::kAccessTokenRefreshAgeMs + 210000);
+      assert(!service.backflush().ready);
+      service.tokenIssuedAtMs_.store(now);
+      MachineBackflushPermit permit;
+      assert(service.physicalStart(&permit) == MachinePhysicalStartDisposition::BACKFLUSH_CANDIDATE);
+      assert(permit.attempt && permit.extendable == (scenario != 1));
+      if (scenario == 2) deliver(service, fragmented.substr(15), true, 0);
+      else deliver(service, fragmented);
+      auto batch = service.backflush(true);
+      assert(batch.valid && batch.count == 1);
+      assert((batch.changes[0].permit.attempt == permit.attempt) == (scenario != 2));
+      if (scenario == 3) {
+        deliver(service, observation(service, R"({"connected":false,"widgets":[{"code":"CMBackFlush","output":{"status":"Cleaning"}}]})"));
+        deliver(service, observation(service, R"({"connected":true,"widgets":[]})"));
+        batch = service.backflush(true);
+        assert(!batch.valid && batch.permit.continuity != permit.continuity);
+      } else if (scenario == 4) {
+        now += 30000;
+        deliver(service, observation(service, R"({"widgets":[]})"));
+        assert(!service.backflush().valid);  // Traffic is not a validated pong.
+        esp_websocket_event_data_t pong;
+        pong.op_code = 0xA;
+        service.websocketEvent(&service, nullptr, WEBSOCKET_EVENT_DATA, &pong);
+        assert(!service.backflush().valid);  // No retained-data reauthorization.
+      } else {
+        deliver(service, observation(service, inactive));
+        assert(service.backflush(true).phase == MachineBackflushPhase::INACTIVE);
+      }
+      service.finishBackflush(permit.attempt);
+      service.stopWebSocket(true);
+      delete service.work_;
+    }
+  }
   static void concurrentStatusLifecycle() {
     now = 1000;
     ShotStopperMicraService service;
@@ -469,6 +522,7 @@ struct MicraWebSocketTest {
     std::atomic<unsigned> samples{0};
     std::thread reader([&] {
       while (!done.load()) {
+        (void)service.backflush_.ingressAttempt();
         const auto state = service.status();
         assert(state.powerState != LineaMicraPowerState::OFF);
         (void)service.websocketStatus();
@@ -477,6 +531,11 @@ struct MicraWebSocketTest {
     });
     while (!samples.load()) std::this_thread::yield();
     for (unsigned cycle = 0; cycle < 100; ++cycle) {
+      {
+        TaskLockGuard lock(service.mux_);
+        const auto permit = service.backflush_.start();
+        service.backflush_.finish(permit.attempt);
+      }
       service.serviceWebSocket();
       subscribe(service);
       deliver(service, observation(service, R"({"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}}]})"));
@@ -494,5 +553,6 @@ int main() {
   shotstopper::MicraWebSocketTest::lifecycleRegressions();
   shotstopper::MicraWebSocketTest::connectionClassification();
   shotstopper::MicraWebSocketTest::initialSynchronization();
+  shotstopper::MicraWebSocketTest::backflushContract();
   shotstopper::MicraWebSocketTest::concurrentStatusLifecycle();
 }

@@ -192,6 +192,12 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   hostMachinePhysicalStartDisposition =
       MachinePhysicalStartDisposition::NORMAL;
   hostMachinePhysicalStartCount = 0;
+  hostBackflushObservations = {};
+  backflushObservation = {};
+  backflushPermit = {};
+  backflushStopReason = "none";
+  relayHardLimitMs = HARD_MAX_CIRCUIT_CLOSED_MS;
+  relayPurpose = RelayPurpose::NORMAL;
   hostMachineTemperatureRequestCount = 0;
   hostMachineTemperaturePresetId = 0;
   hostMachineTemperatureGeneration = 0;
@@ -454,12 +460,13 @@ void verifySafetyInvariants() {
       stopperState == StopperState::BREW ||
       stopperState == StopperState::RINSE ||
       stopperState == StopperState::MANUAL_NO_SCALE ||
+      backflushActive(stopperState) ||
       machineWakePassthroughActive || compatibilityMirror;
 
   if (relay.closed &&
       (!stateMayCloseRelay ||
        (!session.active && !machineWakePassthroughActive &&
-        !compatibilityMirror))) {
+        !compatibilityMirror && !backflushActive(stopperState)))) {
     std::cerr << "Safety invariant failed: machine circuit closed in "
               << stopperStateName(stopperState) << "\n";
     ++failures;
@@ -788,6 +795,185 @@ void t02_boot_with_activator_on() {
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
   CHECK(stopperState == StopperState::READY);
   startCycle();
+}
+
+void startBackflushFixture(bool qualified = true, bool scalePresent = false) {
+  resetHarness(false, scalePresent);
+  reachReadyFromBoot();
+  historyLog.clear();
+  runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE);
+  runtimeConfig.requireCupToStart = runtimeConfig.cupProtectionEnabled = true;
+  if (qualified) hostBackflushObservations.observe(MachineBackflushPhase::INACTIVE, 0);
+  hostBackflushObservations.observe(MachineBackflushPhase::AWAITING, 0);
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(stopperState == StopperState::BACKFLUSH_CANDIDATE);
+  CHECK(getRelaySafetySnapshot().closed && !session.active);
+  CHECK(!outboundShotActive.load() && hostMachineCloudInhibitCount == 0);
+  CHECK(scaleCommandQueue->items.empty() && scaleScanBoostUntilMs == 0);
+  publishControlGate();
+  publishControlStatus();
+  CHECK(publishedControlGate.activeCycle && !publishedControlStatus.activeCycle);
+  CHECK(publishedControlStatus.cycleId == 0);  // Never expose a synthetic shot.
+}
+
+void bf01_confirmed_bounds_and_final_history() {
+  for (bool scalePresent : {false, true}) {
+    startBackflushFixture(true, scalePresent);
+    const uint32_t origin = getRelaySafetySnapshot().closedAtMs;
+    runLoopAfter(10000);
+    hostBackflushObservations.observe(MachineBackflushPhase::ACTIVE, backflushPermit.attempt);
+    loop();
+    CHECK(stopperState == StopperState::BACKFLUSH_RUNNING);
+    CHECK(getRelaySafetySnapshot().hardLimitMs == 180000);
+    CHECK(getRelaySafetySnapshot().closedAtMs == origin);
+    runLoopAfter(120000 - elapsedMs(origin));
+    CHECK(getRelaySafetySnapshot().closed);
+    CHECK(!session.active && scaleCommandQueue->items.empty());
+    hostBackflushObservations.observe(MachineBackflushPhase::INACTIVE, backflushPermit.attempt);
+    loop();
+    CHECK(!getRelaySafetySnapshot().closed);
+    CHECK(stopperState == StopperState::REQUIRES_OFF && historyLog.count() == 1);
+    HistoryPage page;
+    historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+    CHECK(page.records[0].type == static_cast<uint8_t>(HistoryType::BACKFLUSH));
+    CHECK(page.records[0].durationDs >= 1200 && page.records[0].durationDs <= 1201);
+    loop();
+    CHECK(historyLog.count() == 1 && !getRelaySafetySnapshot().closed);
+  }
+}
+
+void bf02_unconfirmed_loss_and_ordering() {
+  for (int scenario = 0; scenario < 9; ++scenario) {
+    startBackflushFixture(scenario != 3);
+    const auto attempt = backflushPermit.attempt;
+    runLoopAfter(10000);
+    if (scenario == 0) hostBackflushObservations.observe(MachineBackflushPhase::INACTIVE, attempt);
+    if (scenario == 1) hostBackflushObservations.invalidate();
+    if (scenario == 2) runLoopAfter(60000 - machineElapsedMs());
+    if (scenario == 3 || scenario == 4)
+      hostBackflushObservations.observe(MachineBackflushPhase::ACTIVE, scenario == 4 ? attempt - 1 : attempt);
+    if (scenario == 5 || scenario == 8) {
+      hostBackflushObservations.observe(MachineBackflushPhase::ACTIVE, attempt);
+      hostBackflushObservations.observe(MachineBackflushPhase::INACTIVE, attempt);
+      if (scenario == 8) hostBackflushObservations.observe(MachineBackflushPhase::AWAITING, attempt);
+    }
+    if (scenario == 6) {
+      hostBackflushObservations.observe(MachineBackflushPhase::INACTIVE, attempt);
+      hostBackflushObservations.observe(MachineBackflushPhase::ACTIVE, attempt);
+    }
+    if (scenario == 7) {
+      hostBackflushObservations.invalidate();
+      hostBackflushObservations.observe(MachineBackflushPhase::AWAITING, attempt);
+    }
+    loop();
+    CHECK(!getRelaySafetySnapshot().closed && historyLog.count() == 1);
+    HistoryPage page;
+    historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+    CHECK(page.records[0].type == static_cast<uint8_t>(scenario == 5 || scenario == 8 ? HistoryType::BACKFLUSH : HistoryType::OTHER));
+    hostBackflushObservations.observe(MachineBackflushPhase::ACTIVE, attempt);
+    loop();
+    CHECK(!getRelaySafetySnapshot().closed && historyLog.count() == 1);
+  }
+}
+
+void bf03_promotion_races_and_absolute_cap() {
+  for (int failure = 0; failure < 7; ++failure) {
+    startBackflushFixture();
+    if (failure == 0) hostGptimerArmSucceeds = false;
+    if (failure == 1) hostCircuitArmBeforeCommitHook = [] { independentSafetyTimerCallback(nullptr); };
+    if (failure == 2) hostCircuitArmBeforeCommitHook = [] { machineRequestStop(); };
+    if (failure == 3) hostCircuitArmBeforeCommitHook = [] { hostMillis += 60000; };
+    if (failure == 4) hostEspTimerStopSucceeds = false;
+    if (failure == 5) hostEspTimerStartSucceeds = false;
+    if (failure == 6) hostCircuitArmBeforeCommitHook = [] {
+      hostBackflushObservations.observe(MachineBackflushPhase::INACTIVE, backflushPermit.attempt);
+    };
+    hostBackflushObservations.observe(MachineBackflushPhase::ACTIVE, backflushPermit.attempt);
+    loop();
+    CHECK(!getRelaySafetySnapshot().closed && historyLog.count() == 1);
+    CHECK(hostPinLevel[RELAY_GPIO] == RELAY_OPEN_LEVEL);
+  }
+  startBackflushFixture();
+  const uint32_t origin = getRelaySafetySnapshot().closedAtMs;
+  hostBackflushObservations.observe(MachineBackflushPhase::ACTIVE, backflushPermit.attempt);
+  loop();
+  runLoopAfter(180000 - elapsedMs(origin));
+  CHECK(!getRelaySafetySnapshot().closed && historyLog.count() == 1);
+  hostBackflushObservations.observe(MachineBackflushPhase::INACTIVE, 0);
+  setRawPaddle(false);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS * 2);
+  runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);
+  runtimeConfig.requireCupToStart = false;
+  CHECK(machineRequestStart(HARD_MAX_CIRCUIT_CLOSED_MS, false));
+  CHECK(getRelaySafetySnapshot().hardLimitMs == 60000);
+  CHECK(!machineConfirmBackflush(getRelaySafetySnapshot().generation));
+}
+
+void bf04_deadline_boundaries_and_physical_release() {
+  for (uint32_t delay : {59999U, 60000U, 60001U}) {
+    startBackflushFixture();
+    hostMillis += delay;
+    const auto generation = getRelaySafetySnapshot().generation;
+    CHECK(machineConfirmBackflush(generation) == (delay < 60000));
+    if (delay < 60000) {
+      CHECK(!machineConfirmBackflush(generation));  // One promotion only.
+      hostMillis += 180000 - delay;
+    }
+    CHECK(!reassertCommandedRelayClosedPin());  // Even without timer dispatch.
+    CHECK(hostPinLevel[RELAY_GPIO] == RELAY_OPEN_LEVEL);
+  }
+  startBackflushFixture();
+  const uint32_t start = UINT32_MAX - 40000;
+  circuitClosedAtMs = hostMillis = start;
+  hostMillis += 50000;
+  CHECK(machineConfirmBackflush(getRelaySafetySnapshot().generation));
+  hostMillis += 130000;
+  independentSafetyTimerCallback(nullptr);
+  CHECK(!getRelaySafetySnapshot().closed && relaySafetyTripped);
+
+  startBackflushFixture();
+  const auto attempt = backflushPermit.attempt;
+  setRawPaddle(false);
+  hostBackflushObservations.observe(MachineBackflushPhase::ACTIVE, attempt);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(!getRelaySafetySnapshot().closed && historyLog.count() == 1);
+  HistoryPage page;
+  historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+  CHECK(page.records[0].type == static_cast<uint8_t>(HistoryType::OTHER));
+}
+
+void bf05_no_adoption_reuse_or_false_history() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  startCycle();
+  const auto original = getRelaySafetySnapshot();
+  hostBackflushObservations.observe(MachineBackflushPhase::INACTIVE, 0);
+  hostBackflushObservations.observe(MachineBackflushPhase::AWAITING, 0);
+  hostBackflushObservations.observe(MachineBackflushPhase::ACTIVE, 0);
+  loop();
+  CHECK(session.active && !backflushActive(stopperState));
+  CHECK(getRelaySafetySnapshot().hardLimitMs == 60000);
+  CHECK(getRelaySafetySnapshot().generation == original.generation);
+
+  startBackflushFixture();
+  setRawPaddle(false);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS * 2);
+  CHECK(historyLog.count() == 1 && !getRelaySafetySnapshot().closed);
+  loop();
+  setRawPaddle(true);  // The same awaiting episode is already consumed.
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS * 2);
+  CHECK(!getRelaySafetySnapshot().closed && historyLog.count() == 1);
+
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  historyLog.clear();
+  hostBackflushObservations.observe(MachineBackflushPhase::INACTIVE, 0);
+  hostBackflushObservations.observe(MachineBackflushPhase::AWAITING, 0);
+  hostGptimerArmSucceeds = false;
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(!getRelaySafetySnapshot().closed && historyLog.count() == 0);
 }
 
 void t02b_off_wake_bypasses_brew_guards_and_records_power_on() {
@@ -5541,7 +5727,16 @@ void d16_cloud_pause_requires_a_real_cycle() {
   resetHarness(false, true);
   reachReadyFromBoot();
   CHECK(beginRinseCycle(ControlSource::WEB));
+  CHECK(!outboundShotActive.load());
+  CHECK(enterRinse());
+  CHECK(!outboundShotActive.load());
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  startCycle();
   CHECK(outboundShotActive.load());
+  CHECK(enterRinse());
+  CHECK(session.active && getRelaySafetySnapshot().closed);
+  CHECK(!outboundShotActive.load());
 }
 
 void d14_control_status_publishes_on_cycle_edge() {
@@ -18896,6 +19091,11 @@ const TestCase testCases[] = {
     {"D13E", d13e_ultra_volume_rejection_preserves_saved_level},
     {"D13C", d13c_disconnect_silence_clears_connecting_snapshot},
     {"D15", d15_control_housekeeping_has_wrap_safe_10ms_cadence},
+    {"BF01", bf01_confirmed_bounds_and_final_history},
+    {"BF02", bf02_unconfirmed_loss_and_ordering},
+    {"BF03", bf03_promotion_races_and_absolute_cap},
+    {"BF04", bf04_deadline_boundaries_and_physical_release},
+    {"BF05", bf05_no_adoption_reuse_or_false_history},
     {"D16", d16_cloud_pause_requires_a_real_cycle},
     {"D14", d14_control_status_publishes_on_cycle_edge},
     {"D02", d02_first_mode_uses_name_scan},

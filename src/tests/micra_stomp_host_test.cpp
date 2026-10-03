@@ -6,12 +6,14 @@
 using namespace shotstopper;
 struct Received {
   std::vector<std::string> bodies;
+  std::vector<uint32_t> attempts;
   static bool accept(void *context, const MicraStompFrame &frame) {
     auto &received = *static_cast<Received *>(context);
     assert(std::string(frame.command) == "MESSAGE");
     assert(std::string(frame.destination) == "/ws/sn/test/dashboard");
     assert(std::string(frame.subscription) == "id:1");
     received.bodies.emplace_back(frame.body, frame.bodyLength);
+    received.attempts.push_back(frame.ingressAttempt);
     return true;
   }
 };
@@ -44,6 +46,11 @@ int main() {
   }
   MicraStompDecoder decoder;
   Received received;
+  const auto oldFrame = frame("{}", true, false);
+  assert(decoder.feed(oldFrame.data(), 5, 0, Received::accept, &received, 10));
+  const auto joined = oldFrame.substr(5) + oldFrame + oldFrame;
+  assert(decoder.feed(joined.data(), joined.size(), 1, Received::accept, &received, 11));
+  assert((received.attempts == std::vector<uint32_t>{10, 11, 11}));
   const auto binary = frame(std::string("a\0b", 3), true, false);
   assert(decoder.feed(binary.data(), binary.size(), 1, Received::accept, &received));
   assert(received.bodies.back() == std::string("a\0b", 3));

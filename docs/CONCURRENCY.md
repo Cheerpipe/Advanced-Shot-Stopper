@@ -240,12 +240,26 @@ inhibition still defers those commands.
 A discovery-owned atomic acquisition latch is published under the existing
 NimBLE discovery critical section before Candidate becomes consumable. Its
 callback performs atomic stores and notifications only: no task mutex, heap,
-network API or wait. Network owners close their transports independently. Ready
+network API or wait. HTTP/webhook/NTP owners close their transports independently;
+Micra WSS remains active through scale acquisition. Ready
 clears acquisition; disappearance requires five seconds of actual active scan
 opportunity. Setup, communication quiet, shot and maintenance reasons remain
 independent; stale periodic connecting snapshots cannot release acquisition.
 Acquisition closes admission before updating its fence; release publishes the
 new fence before opening admission, so an old callback cannot cross the release.
+
+The integration mutex also owns the eight-entry ordered backflush handoff.
+Control copies/drains it and evaluates outside the lock. The callback samples
+the atomic attempt counter before taking any mutex, so lock contention cannot
+retag a pre-edge frame. Tokens persist across fragments; continuity latches loss across
+rapid recovery. SDK callbacks publish loss immediately without waiting for
+transport destruction. Control opens on its next service, with no reconnect
+grace period. An invalidation after a promotion check is handled on the next
+turn; this is not a cross-task atomic actuation transaction.
+The relay driver keeps the old task timer while replacing the independent
+deadline, then replaces the task deadline and commits under its ISR-shared
+lock. A racing trip or failed rearm wins. No timer operation holds the network
+mutex, and promotion never writes GPIO closed.
 
 The cloud owner retains assumed power before every live socket stop, including
 HTTP interruption. Graceful SDK CLOSED events trigger the same bounded recovery

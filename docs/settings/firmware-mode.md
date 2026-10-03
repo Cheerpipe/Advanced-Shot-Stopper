@@ -31,6 +31,10 @@ finishes first. After the restart the controller becomes transparent:
 - Recovery mode, firmware updates over Wi-Fi (OTA), and the USB serial CLI
   keep working, so you can always reach the controller.
 
+The 60-second safety cap still applies in compatibility mode. The supervised
+automatic [Micra backflush](linea-micra.md#automatic-backflush) exception is
+available only with the firmware enabled and WebSocket monitoring connected.
+
 ## Nothing is lost
 
 The switch does not erase anything. Presets, guards, scale preferences,

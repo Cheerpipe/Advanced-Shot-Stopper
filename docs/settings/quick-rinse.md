@@ -5,6 +5,13 @@ it off. It is not a shot: no shot history, no last-shot overwrite, no A→M
 samples. Rinses do land in the [activation history](../features/activation-history.md)
 as `rinse` entries.
 
+On Micra, a gesture that starts as a shot pauses cloud observation and API
+work. As soon as it is recognized as a rinse, that pause ends: WebSocket can
+reconnect and API work can resume while the rinse is still running. Ordinary
+network and scale-connection restrictions on API work still apply. Quick rinse
+is separate from [automatic backflush](linea-micra.md#automatic-backflush) and
+never receives its longer safety limit.
+
 The rinse duration counts from the moment the group starts running. When a
 running shot is demoted to a rinse (a paddle flip OFF inside the gesture
 window, or a momentary press hold reaching the threshold), the time already

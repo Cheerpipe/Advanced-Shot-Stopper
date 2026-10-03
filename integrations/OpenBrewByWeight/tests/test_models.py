@@ -252,7 +252,7 @@ def test_snapshot_requires_integration_capabilities(missing: str) -> None:
 
 @pytest.mark.parametrize(
     "activation_type",
-    ("shot", "rinse", "other", "power_on", "no_scale_guard_aborted"),
+    ("shot", "rinse", "other", "power_on", "no_scale_guard_aborted", "backflush"),
 )
 def test_snapshot_accepts_embedded_last_shot(activation_type: str) -> None:
     """An older REST snapshot still seeds its recorded-shot sensors."""

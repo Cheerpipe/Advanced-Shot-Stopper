@@ -101,9 +101,14 @@ the new field.
 
 `lastActivation` mirrors the newest activation-history record (the Web UI
 History page). It is null before the first activation after a full data reset
-and otherwise carries `id`, `type` (`shot`, `rinse`, `other`, `power_on`, or
+and otherwise carries `id`, `type` (`shot`, `rinse`, `other`, `backflush`, `power_on`, or
 `no_scale_guard_aborted`), `durationS`, `hasWallTime`, `endedAtUnixSec`, and
 `endedAtLocalSec`.
+
+`backflush` identifies a confirmed automatic-cleaning activation, including an
+interrupted one. Duration measures electrical activation, not certified program
+completion. It does not update shot statistics. The additive type preserves
+the existing history record layout and schema.
 
 `stats` carries the rolling aggregate shown at the top of the Web
 UI Stats page: `shotCount`, `totalDurationS`, `avgDurationS`, `avgYieldG`,

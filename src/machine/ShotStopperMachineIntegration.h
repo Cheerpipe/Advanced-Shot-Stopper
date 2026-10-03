@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "ShotStopperMachineBackflush.h"
 
 namespace shotstopper {
 // Callback-safe wakeup; admission itself is published by discovery.
@@ -15,7 +16,9 @@ struct PersistedSettings;
 
 enum class MachinePhysicalStartDisposition : uint8_t {
   NORMAL,
-  WAKE_PASSTHROUGH
+  WAKE_PASSTHROUGH,
+  BACKFLUSH_CANDIDATE,
+  BLOCKED_CLEANING
 };
 
 #if defined(SHOT_STOPPER_HOST_TEST)
@@ -44,8 +47,21 @@ inline MachinePhysicalStartDisposition
     hostMachinePhysicalStartDisposition =
         MachinePhysicalStartDisposition::NORMAL;
 inline uint32_t hostMachinePhysicalStartCount = 0;
-inline MachinePhysicalStartDisposition machineIntegrationPhysicalStart() {
+inline MachineBackflushObservations hostBackflushObservations;
+inline MachineBackflushSnapshot machineIntegrationBackflush(bool consume = false) {
+  return consume ? hostBackflushObservations.take() : hostBackflushObservations.status();
+}
+inline void finishMachineIntegrationBackflush(uint32_t attempt) {
+  hostBackflushObservations.finish(attempt);
+}
+inline MachinePhysicalStartDisposition machineIntegrationPhysicalStart(
+    MachineBackflushPermit *permit = nullptr) {
   ++hostMachinePhysicalStartCount;
+  const auto admitted = hostBackflushObservations.start();
+  if (permit) *permit = admitted;
+  if (admitted.attempt) return MachinePhysicalStartDisposition::BACKFLUSH_CANDIDATE;
+  if (hostBackflushObservations.status().busy())
+    return MachinePhysicalStartDisposition::BLOCKED_CLEANING;
   return hostMachinePhysicalStartDisposition;
 }
 #else
@@ -77,7 +93,10 @@ void requestMachineIntegrationPresetTemperature(
 // allocations land in the spare side blocks.
 bool machineIntegrationCloudFirstQuerySettled();
 uint8_t machineIntegrationTaskCount();
-MachinePhysicalStartDisposition machineIntegrationPhysicalStart();
+MachinePhysicalStartDisposition machineIntegrationPhysicalStart(
+    MachineBackflushPermit *permit = nullptr);
+MachineBackflushSnapshot machineIntegrationBackflush(bool consume = false);
+void finishMachineIntegrationBackflush(uint32_t attempt);
 #endif
 
 }  // namespace shotstopper
