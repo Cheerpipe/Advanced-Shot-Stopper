@@ -599,7 +599,8 @@ static void run() {
     c.service();
     advertise(c, BLE_HCI_ADV_RPT_EVTYPE_ADV_IND);
     c.service();
-    CHECK(c.isConnecting());
+    CHECK(c.connectAttemptsTotal_ == 13);
+    CHECK(c.state_ == NimbleScaleClient::State::Backoff);
   }
   {
     NimbleScaleClient c(false); ready(c);

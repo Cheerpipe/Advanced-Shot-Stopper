@@ -2017,7 +2017,8 @@ class NimbleScaleClient {
 
   void beginSettle() {
     if (state_ == State::CancelPending) {
-      enterState(State::Settling, SCALE_CONNECT_SETTLE_MS);
+      if (SCALE_CONNECT_SETTLE_MS == 0) beginConnect();
+      else enterState(State::Settling, SCALE_CONNECT_SETTLE_MS);
     }
   }
 

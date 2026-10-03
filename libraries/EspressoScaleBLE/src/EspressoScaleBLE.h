@@ -32,7 +32,7 @@
 #define BLE_OPERATION_TIMEOUT_MS          1000UL
 #define BLE_CONNECT_TIMEOUT_MS            2000UL
 #define BLE_DISCOVER_TIMEOUT_MS           3000UL
-#define SCALE_CONNECT_SETTLE_MS           120UL
+#define SCALE_CONNECT_SETTLE_MS           0UL
 #define LINK_DOWN_DEBOUNCE_MS             120UL
 #define SCALE_DISCONNECT_SILENCE_MS       3000UL
 // GAP scan duty while discovering. Connecting and GATT-up paths never start

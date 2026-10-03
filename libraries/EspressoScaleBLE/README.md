@@ -88,6 +88,9 @@ connection. Cleanup is idempotent, eight consecutive invalid notifications
 force a recoverable disconnect, and the first-valid-packet and silence limits
 remain protocol-specific.
 
+After selecting an advertised candidate, setup starts the connection as soon as
+scan cancellation completes, with no additional settling delay.
+
 Cancelling setup or closing an established connection retains one cleanup
 operation until GAP confirms closure or the controller reports that the link
 no longer exists. If connection success wins a cancellation race, the owner
