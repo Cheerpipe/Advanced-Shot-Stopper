@@ -374,6 +374,9 @@ rates, retry/stop/publication latency, cleaning availability and memory metrics.
 Payload byte totals use 64-bit counters and include positive partial sends.
 Rate windows use the 64-bit monotonic clock, independently of millisecond
 timestamp rollover; these counters exclude TCP/TLS framing and radio traffic.
+Connect/stop free/largest deltas refer to internal heap; retained workspace bytes
+refer to PSRAM. Cleaning age/source hints are hidden when observation is disabled
+or API is selected.
 Generic diagnostic `outboundPause` exposes acquisition generation/reason,
 concurrent `scaleSetup`, `bleQuiet`, `shot` and `maintenance` gates, and per-client
 applicability and owner completion/latency. `requested` and `completed` refer to

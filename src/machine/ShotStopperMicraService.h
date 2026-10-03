@@ -162,6 +162,7 @@ class ShotStopperMicraService {
   WorkBuffer *work_ = nullptr;
   WebSocketBuffer *websocket_ = nullptr;
   MicraWebSocketStatus websocketStatus_;
+  uint8_t websocketAuthRecoveries_ = 0;  // Cloud owner; survives workspace parking.
   std::atomic<bool> websocketRetryRequested_{false};
   std::atomic<bool> staConnected_{false};
   std::atomic<bool> apActive_{false};

@@ -20,7 +20,6 @@ struct ShotStopperMicraService::WebSocketBuffer {
   int payloadLength = 0;
   bool continuation = false;
   uint8_t attempts = 0;
-  uint8_t authRecoveries = 0;
 };
 
 MicraWebSocketStatus ShotStopperMicraService::websocketStatus() const {
@@ -68,6 +67,9 @@ void ShotStopperMicraService::stopWebSocket(bool release) {
     const auto before = sampleHeapCaps();
     {
       TaskLockGuard lock(mux_);
+      if (buffer->stamp.identity == identityGeneration_)
+        powerState_.hold(published_, config_.accountConfigured &&
+            (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0, millis());
       websocketStatus_.state = MicraSocketState::STOPPING;
       websocketStatus_.subscribed = false;
       if (buffer->heap.pending) finishHeapLifecycle(buffer->heap, HeapLifecycleResult::FAILURE, before);
@@ -210,7 +212,8 @@ void ShotStopperMicraService::websocketEvent(void *context, const char *,
   auto &self = *static_cast<ShotStopperMicraService *>(context);
   auto &buffer = *self.websocket_;
   if (!data || (event != WEBSOCKET_EVENT_CONNECTED && event != WEBSOCKET_EVENT_DATA &&
-                event != WEBSOCKET_EVENT_DISCONNECTED && event != WEBSOCKET_EVENT_ERROR)) return;
+                event != WEBSOCKET_EVENT_DISCONNECTED && event != WEBSOCKET_EVENT_CLOSED &&
+                event != WEBSOCKET_EVENT_ERROR)) return;
   auto &message = *static_cast<esp_websocket_event_data_t *>(data);
   if (event == WEBSOCKET_EVENT_CONNECTED || event == WEBSOCKET_EVENT_DATA) {
     TaskLockGuard lock(self.mux_);
@@ -219,7 +222,8 @@ void ShotStopperMicraService::websocketEvent(void *context, const char *,
         buffer.acquisitionGeneration != outboundAcquisitionGeneration.load(std::memory_order_acquire) ||
         buffer.disconnectGeneration != self.disconnectGeneration_.load(std::memory_order_acquire)) return;
   }
-  if (event == WEBSOCKET_EVENT_DISCONNECTED || event == WEBSOCKET_EVENT_ERROR) {
+  if (event == WEBSOCKET_EVENT_DISCONNECTED || event == WEBSOCKET_EVENT_CLOSED ||
+      event == WEBSOCKET_EVENT_ERROR) {
     buffer.failed.store(true, std::memory_order_release);
     if (event == WEBSOCKET_EVENT_ERROR &&
         (message.error_handle.esp_ws_handshake_status_code == 401 ||
@@ -344,7 +348,8 @@ void ShotStopperMicraService::serviceWebSocket() {
   }
   const uint32_t now = millis();
   if (websocketRetryRequested_.exchange(false, std::memory_order_acq_rel)) {
-    if (websocket_) { websocket_->authRecoveries = 0; websocket_->attempts = 0; }
+    websocketAuthRecoveries_ = 0;
+    if (websocket_) websocket_->attempts = 0;
     TaskLockGuard lock(mux_);
     websocketStatus_.retryAtMs = 0;
     if (websocketStatus_.state == MicraSocketState::AUTH_ERROR) websocketStatus_.state = MicraSocketState::BACKOFF;
@@ -366,7 +371,7 @@ void ShotStopperMicraService::serviceWebSocket() {
     if (!websocket_->failed.load(std::memory_order_acquire) && !timeout && !renew && !obsolete) {
       if (status.state == MicraSocketState::STREAMING && now - status.connectedAtMs >= 30000) {
         websocket_->attempts = 0;
-        websocket_->authRecoveries = 0;
+        websocketAuthRecoveries_ = 0;
       }
       wipeLineaMicraSettings(settings);
       return;
@@ -380,12 +385,12 @@ void ShotStopperMicraService::serviceWebSocket() {
     if (!renew && !obsolete) ++websocketStatus_.errors;
     websocketStatus_.reason = auth ? "authentication" : timeout ? "frame_timeout" : "transport";
     if (!renew && !obsolete) {
-      if (auth) ++websocket_->authRecoveries;
+      if (auth) ++websocketAuthRecoveries_;
       ++websocket_->attempts;
       websocketStatus_.retryAtMs = now + (websocket_->attempts < micra_timing::kMaxAttempts
           ? micra_timing::kRetryDelaysMs[websocket_->attempts - 1]
           : micra_timing::kExhaustedCooldownMs);
-      websocketStatus_.state = auth && websocket_->authRecoveries > 1
+      websocketStatus_.state = websocketAuthRecoveries_ > 1
           ? MicraSocketState::AUTH_ERROR : MicraSocketState::BACKOFF;
       if (websocket_->attempts >= micra_timing::kMaxAttempts) websocket_->attempts = 0;
     } else {
@@ -394,8 +399,14 @@ void ShotStopperMicraService::serviceWebSocket() {
     }
   }
   auto status = websocketStatus();
-  if (status.state == MicraSocketState::AUTH_ERROR ||
-      (status.retryAtMs && !micra_timing::deadlineReached(now, status.retryAtMs))) {
+  if (websocketAuthRecoveries_ > 1) {
+    TaskLockGuard lock(mux_);
+    websocketStatus_.state = MicraSocketState::AUTH_ERROR;
+    websocketStatus_.reason = "authentication";
+    wipeLineaMicraSettings(settings);
+    return;
+  }
+  if (status.retryAtMs && !micra_timing::deadlineReached(now, status.retryAtMs)) {
     wipeLineaMicraSettings(settings);
     return;
   }
@@ -423,7 +434,8 @@ void ShotStopperMicraService::serviceWebSocket() {
   bool renewed = false;
   if (!ensureWorkBuffer() || !ensureSession(settings, false, &renewed) || !websocketAdmitted()) {
     TaskLockGuard lock(mux_);
-    websocketStatus_.state = classifyFailure() == LineaMicraError::INVALID_AUTH
+    if (classifyFailure() == LineaMicraError::INVALID_AUTH) websocketAuthRecoveries_ = 2;
+    websocketStatus_.state = websocketAuthRecoveries_ > 1
         ? MicraSocketState::AUTH_ERROR : MicraSocketState::BACKOFF;
     websocketStatus_.reason = "session_unavailable";
     const uint8_t attempt = ++websocket_->attempts;

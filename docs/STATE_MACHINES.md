@@ -953,7 +953,10 @@ is enabled and an account machine is selected. WebSocket is the persisted defaul
 API selection queues HTTPS dashboard reads on a nominal 30-second cadence.
 Commands and authentication always use HTTP. At startup it waits for an eligible STA
 connection, a closed setup AP, no local shot or rinse, and a synchronized wall
-clock, then starts the initial read on the next worker opportunity. A current
+clock, then opens a WebSocket subscription or starts the initial API read on
+the next worker opportunity. WebSocket resumes through subscription without an
+automatic dashboard GET; explicit refresh and post-command reconciliation retain
+their HTTP paths. A current
 `StandBy` response maps to OFF, `BrewingMode` to ON, and ECO or an unknown value
 to UNKNOWN. A confirmed ON or OFF older than 30 seconds remains the last cloud
 classification but its quality becomes stale. Only an unsupported response or
@@ -962,7 +965,8 @@ an exhausted communication cycle replaces it with UNKNOWN; the separate
 
 WebSocket transitions through waiting for network/time, authentication, socket
 connect, STOMP connect, waiting for data and streaming. Failure uses backoff;
-invalid authentication requires manual retry/account correction. Scale detection,
+invalid authentication requires manual retry/account correction. Network pauses
+and maintenance do not clear the authentication failure latch. Scale detection,
 setup/quiet, shot or maintenance move it through STOPPING to PAUSED after actual
 stop/destroy. No live paused socket or automatic SDK reconnect is retained.
 On resume, connection/subscription/pong or temperature-only updates do not clear

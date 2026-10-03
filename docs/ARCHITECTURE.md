@@ -271,13 +271,14 @@ and [shot history](features/shot-history.md).
 
 ## Live settings notifications
 
-The global `timezoneId` is an IANA region/city string in the schema-2 settings
+The global `timezoneId` is an IANA region/city string in the schema-3 settings
 blob. Network validates it against the firmware's generated tzdata2026d
 catalog; control owns the effective setting and first-auto provenance; the
 existing persistence worker saves both in the same settings generation.
 The `timezoneAutomatic` preference occupies former runtime padding at byte 6,
 preserving the remaining layout. Saved zones and their provenance survive both
-same-schema OTA updates and the supported schema-1 to schema-2 conversion. Automatic time zone defaults to on for new records.
+same-schema OTA updates and the supported schema-1/2 to schema-3 conversions.
+Automatic time zone defaults to on for new records.
 Flash persistence publishes `timezoneInitialized` only after loading a valid
 saved zone or verifying a settings write containing one; factory reset clears
 it. Until then, a zone-only browser initialization is permitted without Admin.
@@ -323,14 +324,14 @@ scale's initial connection retain their
 own policy application paths. Persistence and status publication are independent
 of these operational triggers. No callbacks run from an ISR or across a flash
 write, and the OTA update path remains available. The settings layout is
-schema 2, with same-layout schema-1 settings preserved on upgrade.
+schema 3, with same-layout schema-1/2 settings preserved on upgrade.
 
 ## Residual qualification
 
-`RuntimeConfig` uses a 344-byte fixed layout inside the current schema-2
+`RuntimeConfig` uses a 344-byte fixed layout inside the current schema-3
 settings blob. `autoTareOutsideBrew` remains a global machine setting rather
 than part of the per-shot/preset recipe snapshot. Only the explicitly supported
-same-layout schema-1 record is converted at boot. The optional idle accessory retare uses spare bit 6 of
+same-layout schema-1/2 records are converted at boot. The optional idle accessory retare uses spare bit 6 of
 the already-packed `noScaleBbwMode` byte. New and factory-reset records default
 on; existing saved records retain their stored bit, including OFF. The bit is
 preserved when the no-scale mode changes; this bit itself does not alter the blob.

@@ -89,12 +89,17 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   assert(dom.dMicraCleaningHint.textContent.includes('diagnostic.stale'));
   show({...linked, connectionType: 'api'});
   assert.strictEqual(dom.dMicraCleaning.textContent, 'diagnostic.cleaning_api');
+  assert.strictEqual(dom.dMicraCleaningHint.textContent, '');
   show({...linked, observeState: false});
   assert.strictEqual(dom.dMicraCleaning.textContent, 'runtime.disabled');
+  assert.strictEqual(dom.dMicraCleaningHint.textContent, '');
   show({...linked, accountConfigured: false});
   assert.strictEqual(dom.dMicraCleaning.textContent, 'runtime.not_connected');
+  assert.strictEqual(dom.dMicraCleaningHint.textContent, '');
   show({...linked, websocket: {}});
   assert.strictEqual(dom.dMicraCleaning.textContent, 'diagnostic.cleaning_no_update');
+  assert(!dom.dMicraWsHeap.textContent.includes('undefined'));
+  assert(dom.dMicraWsHeap.textContent.includes('internal Δ'));
   const context = vm.createContext({$: id => nodes[id],
     __WEBUI_TEXT__: key => key === 'diagnostic.cloud_results' ? ['success','canceled','http_error','transport_error','invalid_response','response_too_large','setup_error'].map(k=>'diagnostic.cloud_'+k).join('|') : key,
     R: {formatWallTime: (sec, offset) => {assert.strictEqual(offset, 0); return String(sec);}}});
@@ -184,6 +189,9 @@ if (micraStatusFailures.length) {
 }
 if (!micraService.includes('config.save_client_session = true')) {
   throw new Error('Linea Micra cloud client must save TLS sessions for reuse');
+}
+if (!micraService.includes('esp_log_level_set("transport_ws", ESP_LOG_NONE);')) {
+  throw new Error('SDK Upgrade write errors must not log signed authentication headers');
 }
 const micraPublishAt = networkService.indexOf(
     'publishMachineIntegrationNetworkState(');

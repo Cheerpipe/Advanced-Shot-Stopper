@@ -189,6 +189,29 @@ void MicraCancellationTest::run() {
   assert(!held.effectiveOn && held.quality == LineaMicraObservationQuality::STALE);
   assert(service.published_.sampleAtMs == 900);
 
+  // WS resumes through subscription; only explicit/post-command reads use HTTP.
+  service.desiredTemperature_ = {};
+  service.desiredPower_ = {};
+  service.pending_ = {};
+  service.shotActive_.store(false);
+  service.scaleConnecting_.store(false);
+  service.observationSchedule_.dueNow(millis());
+  executeHook = [&] { assert(false && "WS resume must not enqueue an automatic GET"); };
+  try { service.taskLoop(); } catch (const WorkerStopped &) {}
+  request.type = LineaMicraRequestType::OBSERVE_STATE;
+  assert(service.queue(request));
+  executeHook = [&] { ++executions; };
+  try { service.taskLoop(); } catch (const WorkerStopped &) {}
+  assert(executions == 3);
+  service.observationSchedule_.armPostEvent(millis() - micra_timing::kPostWakeObservationDelayMs);
+  try { service.taskLoop(); } catch (const WorkerStopped &) {}
+  assert(executions == 4);
+  service.config_.connectionType = static_cast<uint8_t>(MicraConnectionType::API);
+  service.observationSchedule_.dueNow(millis());
+  executeHook = [&] { ++executions; service.observationSchedule_.suspendPeriodic(); };
+  try { service.taskLoop(); } catch (const WorkerStopped &) {}
+  assert(executions == 5);
+
   // Network publication cannot erase cancellation from a concurrent producer.
   service.abortRequested_.store(false);
   std::thread publisher([&] {
@@ -200,4 +223,25 @@ void MicraCancellationTest::run() {
   assert(service.abortRequested_.load());
 }
 
-int main() { MicraCancellationTest::run(); }
+int main() {
+  MicraCancellationTest::run();
+  // Opening admission must publish the new fence before another core sees it.
+  outboundAcquisitionHeld.store(false);
+  outboundAcquisitionGeneration.store(0);
+  std::atomic<unsigned> round{0}, observed{0};
+  std::thread receiver([&] {
+    for (unsigned i = 1; i <= 100000; ++i) {
+      while (round.load(std::memory_order_acquire) != i) std::this_thread::yield();
+      while (outboundAcquisitionHeld.load(std::memory_order_acquire)) {}
+      assert(outboundAcquisitionGeneration.load(std::memory_order_acquire) == 2 * i);
+      observed.store(i, std::memory_order_release);
+    }
+  });
+  for (unsigned i = 1; i <= 100000; ++i) {
+    publishOutboundAcquisition(true, i);
+    round.store(i, std::memory_order_release);
+    publishOutboundAcquisition(false, i);
+    while (observed.load(std::memory_order_acquire) != i) std::this_thread::yield();
+  }
+  receiver.join();
+}

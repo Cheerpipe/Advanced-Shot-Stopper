@@ -104,7 +104,10 @@ The webhook worker keeps a dequeued event pending while the configured shot
 gate is closed; stop-after-drain includes that locally held event. An empty 50
 ms queue wait is followed by the lifecycle check without an additional 25 ms
 delay. The 25 ms gated wait and the gate check before starting delivery remain;
-once delivery starts, it runs to completion. `webhook_worker_host_test.cpp`
+delivery checks admission between asynchronous progress calls and after the
+final call. The absolute 1800 ms deadline also rejects a late successful return.
+Interrupted, possibly dispatched POSTs are dropped without replay; unsent
+canceled events remain pending. `webhook_worker_host_test.cpp`
 executes this worker with deterministic queue, transport and heap injection,
 including stale configuration and an active shot beginning during delivery.
 These tests establish ordering and accounting, not target CPU or RF latency.

@@ -121,11 +121,12 @@ secondary modules at 8,800 and combined assets at 114,500 bytes. The selectable
 WS implementation currently exceeds secondary/combined asset and versioned
 Micra firmware budgets; those failed checks require a measured resource review.
 They must not be reported as passing, and no OTA-slot or heap limit is relaxed.
-The reference development build with WS measures 2,273,408 image bytes,
-2,273,291 linked bytes, 1,514,760 flash-code bytes and 587,336 rodata bytes.
+The reference development build with WS measures 2,273,776 image bytes,
+2,273,663 linked bytes, 1,515,100 flash-code bytes and 587,368 rodata bytes.
 Its matched HTTP-only dependency-preparation image was 2,228,768 bytes, so the
-feature adds 44,640 image bytes. Linked DIRAM rises by 448 bytes to 185,382;
-external BSS stays at 756,272. The image retains 872,320 bytes in its OTA slot.
+feature and audit corrections add 45,008 image bytes. Linked DIRAM rises by 448
+bytes to 185,382; external BSS stays at 756,272. The image retains 871,952 bytes
+in its OTA slot.
 These are linked measurements; handshake/streaming peaks still require target
 qualification. Fixed-version English assets measure 115,185 combined gzip
 bytes and 9,659 secondary-module gzip bytes. Existing limits remain unchanged.

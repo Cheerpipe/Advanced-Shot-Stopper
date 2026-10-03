@@ -231,6 +231,16 @@ network API or wait. Network owners close their transports independently. Ready
 clears acquisition; disappearance requires five seconds of actual active scan
 opportunity. Setup, communication quiet, shot and maintenance reasons remain
 independent; stale periodic connecting snapshots cannot release acquisition.
+Acquisition closes admission before updating its fence; release publishes the
+new fence before opening admission, so an old callback cannot cross the release.
+
+The cloud owner retains assumed power before every live socket stop, including
+HTTP interruption. Graceful SDK CLOSED events trigger the same bounded recovery
+as transport errors. Authentication recovery counts survive pauses and workspace
+parking; only manual retry, account/transport changes or stable streaming reset
+them. The IDF transport_ws log tag is disabled before client startup because its
+write-error path prints signed Upgrade headers; application diagnostics retain
+safe status/reason fields.
 
 Owner completion telemetry certifies transport teardown, not RF or DNS
 silence. An SDK resolution already submitted can finish. No DNS-specific gate,

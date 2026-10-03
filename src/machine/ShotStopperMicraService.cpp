@@ -11,6 +11,7 @@
 #include <Arduino.h>
 #include <cJSON.h>
 #include <esp_crt_bundle.h>
+#include <esp_log.h>
 #include <esp_random.h>
 #include <esp_websocket_client.h>
 #include <esp_timer.h>
@@ -335,6 +336,8 @@ struct ShotStopperMicraService::RequestStateGuard {
 
 bool ShotStopperMicraService::begin() {
   initJsonParser();
+  // The IDF WS transport prints signed Upgrade headers even on write errors.
+  esp_log_level_set("transport_ws", ESP_LOG_NONE);
   if (task_ != nullptr || psa_crypto_init() != PSA_SUCCESS) {
     return false;
   }
@@ -471,6 +474,8 @@ void ShotStopperMicraService::publishConfig(
                            LINEA_MICRA_SHUTDOWN_WITH_SCALE |
                            LINEA_MICRA_POWER_ON_WITH_SCALE)) == 0;
   if (identityChanged || transportChanged || cloudDisabled) {
+    if (identityChanged || transportChanged)
+      websocketRetryRequested_.store(true, std::memory_order_release);
     clearSessionRequested_.store(true, std::memory_order_release);
     abortRequested_.store(true, std::memory_order_release);
   } else if ((cancelObservation &&
@@ -761,6 +766,8 @@ void ShotStopperMicraService::taskLoop() {
                              !apActive_.load(std::memory_order_acquire);
     {
       TaskLockGuard lock(mux_);
+      if (config_.connectionType == static_cast<uint8_t>(MicraConnectionType::WEBSOCKET))
+        observationSchedule_.suspendPeriodic();
       const bool pendingObservation =
           pending_.present &&
           pending_.request.type == LineaMicraRequestType::OBSERVE_STATE;

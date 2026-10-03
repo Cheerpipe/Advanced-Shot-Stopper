@@ -84,7 +84,7 @@ safety, or local shot control.
 Enable **Monitor machine power state** and choose **Connection type**:
 
 - **WebSocket** receives cloud updates as they arrive. It is the default and
-  avoids regular dashboard polling.
+  avoids regular dashboard polling, including when the connection resumes.
 - **API** checks the dashboard approximately every 30 seconds. Try it if a weak
   connection or the cloud service makes WebSocket unreliable.
 
@@ -114,6 +114,8 @@ it. API failures use four attempts with 3, 6 and 9 second delays, then a
 UNKNOWN unless a paused value is being retained. WebSocket losses retain the
 last effective value and retry with the same delays and cooldown. Invalid
 credentials require reconnecting the account or a manual refresh.
+Pauses and network recovery preserve this authentication stop; they do not
+restart automatic sign-in attempts.
 **(Refresh)** adds a gated dashboard read. It follows the same shot, scale,
 clock and post-wake rules; it does not enable continuous API polling in
 WebSocket mode.

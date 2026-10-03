@@ -653,7 +653,9 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
                                            : WebhookCancellationReason::CONTROL_CRITICAL;
           error = ESP_ERR_INVALID_STATE;
         }
-        else if (error == ESP_ERR_HTTP_EAGAIN) error = ESP_ERR_TIMEOUT;
+        else if (error == ESP_ERR_HTTP_EAGAIN ||
+                 (error == ESP_OK && millis() - started >= kWebhookTimeoutMs))
+          error = ESP_ERR_TIMEOUT;
         statusCode = esp_http_client_get_status_code(client);
         if (error == ESP_OK) {
           phase = WebhookRequestPhase::RESPONSE;

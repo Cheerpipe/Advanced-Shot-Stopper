@@ -12,6 +12,14 @@
 
 int main() {
   using namespace shotstopper;
+  auto *unterminated = new LineaMicraPersistedSettings;
+  std::memset(unterminated, 'x', sizeof(*unterminated));
+  unterminated->options = LINEA_MICRA_DEFAULT_OPTIONS;
+  unterminated->scaleOptions = LINEA_MICRA_SCALE_OFF_WITH_MACHINE;
+  unterminated->connectionType = static_cast<uint8_t>(MicraConnectionType::API);
+  unterminated->accountConfigured = true;
+  assert(!validLineaMicraSettings(*unterminated));
+  delete unterminated;
   MicraPublicIdentityCache identity;
   int derivations = 0;
   const char *activeId = "installation-a";

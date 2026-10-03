@@ -121,10 +121,9 @@ inline bool validLineaMicraSettings(
            settings.selectedName[0] == '\0' &&
            !lineaMicraPrivateKeyConfigured(settings);
   }
+  if (!lineaMicraBoundedText(settings.username, sizeof(settings.username), false)) return false;
   const char *at = strchr(settings.username, '@');
-  return lineaMicraBoundedText(settings.username, sizeof(settings.username),
-                               false) &&
-         at != nullptr && at != settings.username && at[1] != '\0' &&
+  return at != nullptr && at != settings.username && at[1] != '\0' &&
          lineaMicraBoundedText(settings.password, sizeof(settings.password),
                                false) &&
          lineaMicraPrivateKeyConfigured(settings) &&

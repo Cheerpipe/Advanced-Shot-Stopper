@@ -20,6 +20,7 @@ static int sendLimit = -1;
 constexpr int ESP_OK = 0;
 constexpr int WEBSOCKET_EVENT_ANY = 0, WEBSOCKET_EVENT_CONNECTED = 1;
 constexpr int WEBSOCKET_EVENT_DATA = 2, WEBSOCKET_EVENT_ERROR = 3, WEBSOCKET_EVENT_DISCONNECTED = 4;
+constexpr int WEBSOCKET_EVENT_CLOSED = 5;
 using esp_websocket_client_handle_t = void *;
 struct esp_websocket_event_data_t {
   void *client = nullptr;
@@ -78,6 +79,72 @@ bool ShotStopperMicraService::applySignedHeaders(const LineaMicraPersistedSettin
 }
 #include "machine/ShotStopperMicraWebSocket.inc"
 struct MicraWebSocketTest {
+  static void lifecycleRegressions() {
+    TaskMutex::hostObserver = [](const TaskMutex *, bool acquired) { locked = acquired; };
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    service.serviceWebSocket();
+    subscribe(service);
+    const char *off = R"({"widgets":[{"code":"CMMachineStatus","output":{"mode":"StandBy"}}]})";
+    deliver(service, observation(service, off));
+    esp_websocket_event_data_t event;
+    event.client = service.websocket_->client;
+    callback = true;
+    service.websocketEvent(&service, nullptr, WEBSOCKET_EVENT_CLOSED, &event);
+    callback = false;
+    service.serviceWebSocket();
+    assert(!service.websocket_->client && service.websocketStatus().state == MicraSocketState::BACKOFF);
+    now += 3000;
+    service.serviceWebSocket();
+    subscribe(service);
+    deliver(service, observation(service, off));
+    assert(service.powerState_.notePhysicalStart(service.published_, true, true, now));
+    service.stopWebSocket();  // Also used by the HTTP progress cancellation path.
+    assert(service.powerState_.retained());
+    now += 100000;
+    assert(service.powerState_.effectiveStatus(service.published_, true, millis()).effectiveOn);
+    service.serviceWebSocket();
+    subscribe(service);
+    for (unsigned attempt = 0; attempt < 2; ++attempt) {
+      event.client = service.websocket_->client;
+      event.error_handle.esp_ws_handshake_status_code = 401;
+      callback = true;
+      service.websocketEvent(&service, nullptr, WEBSOCKET_EVENT_ERROR, &event);
+      callback = false;
+      service.serviceWebSocket();
+      if (attempt == 0) {
+        now = service.websocketStatus().retryAtMs;
+        outboundMaintenance.store(true);
+        service.serviceWebSocket();
+        assert(!service.websocket_);
+        outboundMaintenance.store(false);
+        service.serviceWebSocket();
+      }
+    }
+    assert(service.websocketStatus().state == MicraSocketState::AUTH_ERROR);
+    publishOutboundAcquisition(true, now);
+    service.serviceWebSocket();
+    publishOutboundAcquisition(false, now);
+    now += 60000;
+    service.serviceWebSocket();
+    assert(service.websocketStatus().state == MicraSocketState::AUTH_ERROR && !service.websocket_->client);
+    outboundMaintenance.store(true);
+    service.serviceWebSocket();
+    assert(!service.websocket_);
+    outboundMaintenance.store(false);
+    service.serviceWebSocket();
+    assert(service.websocketStatus().state == MicraSocketState::AUTH_ERROR && !service.websocket_);
+    service.websocketRetryRequested_.store(true);
+    service.serviceWebSocket();
+    assert(service.websocket_ && service.websocket_->client);
+    service.stopWebSocket(true);
+    delete service.work_;
+    service.work_ = nullptr;
+    TaskMutex::hostObserver = nullptr;
+  }
   static void deliver(ShotStopperMicraService &service, const std::string &bytes,
                       bool fin = true, int opcode = 1) {
     esp_websocket_event_data_t message;
@@ -215,4 +282,8 @@ struct MicraWebSocketTest {
   }
 };
 }
-int main() { shotstopper::initJsonParser(); shotstopper::MicraWebSocketTest::run(); }
+int main() {
+  shotstopper::initJsonParser();
+  shotstopper::MicraWebSocketTest::run();
+  shotstopper::MicraWebSocketTest::lifecycleRegressions();
+}

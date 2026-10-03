@@ -64,7 +64,7 @@
 namespace shotstopper {
 
 constexpr uint32_t SERIAL_BAUD = 115200;
-// Settings v2 preserves the v1 layout; authenticated v1 records upgrade on read.
+// Settings v3 preserves the v1/v2 layout; authenticated records upgrade on read.
 // Other historical layouts still require the documented USB erase workflow.
 constexpr uint32_t CONFIG_SCHEMA_VERSION = 3;
 

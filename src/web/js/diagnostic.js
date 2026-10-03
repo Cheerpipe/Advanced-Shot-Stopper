@@ -21,8 +21,8 @@ set('dMicraWsTraffic',['rx','tx'].map(k=>k.toUpperCase()+' '+(ws[k+'BytesPerSeco
 const label=__WEBUI_TEXT__("diagnostic.cleaning_states").split('|')[['inactive','waiting_for_paddle','cleaning'].indexOf(ws.cleaning)];
 const cleaning=!lm.accountConfigured?__WEBUI_TEXT__("runtime.not_connected"):!lm.observeState?__WEBUI_TEXT__("runtime.disabled"):lm.connectionType==='api'?__WEBUI_TEXT__("diagnostic.cleaning_api"):!ws.cleaningAvailable?__WEBUI_TEXT__("diagnostic.cleaning_no_update"):label||__WEBUI_TEXT__("runtime.unknown_4")+(ws.cleaningLabel?' · '+ws.cleaningLabel:'');
 set('dMicraCleaning',cleaning);
-set('dMicraCleaningHint',ws.cleaningAvailable?__WEBUI_TEXT__("diagnostic.last_reported")+' '+age(ws.cleaningAtMs)+' · WebSocket'+(ws.state!=='streaming'||ws.machineConnectedKnown&&!ws.machineConnected?' · '+__WEBUI_TEXT__("diagnostic.stale"):''):'');
-set('dMicraWsHeap','WS '+(ws.retainedBytes||0)+' B PSRAM · Δ free/largest connect '+ws.connectFreeDelta+'/'+ws.connectLargestDelta+' B, stop '+ws.stopFreeDelta+'/'+ws.stopLargestDelta+' B · failures '+(ws.allocationFailures||0));
+set('dMicraCleaningHint',lm.accountConfigured&&lm.observeState&&lm.connectionType!=='api'&&ws.cleaningAvailable?__WEBUI_TEXT__("diagnostic.last_reported")+' '+age(ws.cleaningAtMs)+' · WebSocket'+(ws.state!=='streaming'||ws.machineConnectedKnown&&!ws.machineConnected?' · '+__WEBUI_TEXT__("diagnostic.stale"):''):'');
+set('dMicraWsHeap','WS '+(ws.retainedBytes||0)+' B PSRAM · internal Δ free/largest connect '+(ws.connectFreeDelta??unknown)+'/'+(ws.connectLargestDelta??unknown)+' B, stop '+(ws.stopFreeDelta??unknown)+'/'+(ws.stopLargestDelta??unknown)+' B · failures '+(ws.allocationFailures||0));
 }
 function ensureMicraRows(){
 const cloud=$('micraCloudDiagnostics');

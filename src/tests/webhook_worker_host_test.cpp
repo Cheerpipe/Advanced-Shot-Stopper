@@ -158,6 +158,14 @@ static void testPartialPostProgressUsesOneDeadline() {
     assert(std::count(workerTrace.begin(), workerTrace.end(), "post") == 1);
     WebhookDispatcherTest::finish(d);
   }
+  resetPlatform();
+  WebhookDispatcher late;
+  assert(late.begin(config(true)));
+  duringPerform = [&] { workerNow += 1800; };
+  assert(!WebhookDispatcherTest::send(late));
+  assert(late.status().lastError == ESP_ERR_TIMEOUT && late.status().lastDeliveryUnknown);
+  assert(std::count(workerTrace.begin(), workerTrace.end(), "perform") == 1);
+  WebhookDispatcherTest::finish(late);
 }
 static void testHeldItemSurvivesDrainAndGate() {
   for (bool changeConfig : {false, true}) {

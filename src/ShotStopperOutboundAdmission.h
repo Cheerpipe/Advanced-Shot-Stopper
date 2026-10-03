@@ -32,9 +32,12 @@ inline void completeOutboundAcquisitionPause(OutboundClient client, uint32_t now
   completion.generation.store(generation, std::memory_order_release);
 }
 inline void publishOutboundAcquisition(bool held, uint32_t now) {
-  if (outboundAcquisitionHeld.exchange(held, std::memory_order_acq_rel) != held) {
-    outboundAcquisitionAtMs.store(now, std::memory_order_release);
-    outboundAcquisitionGeneration.fetch_add(1, std::memory_order_acq_rel);
-  }
+  if (held) {
+    if (outboundAcquisitionHeld.exchange(true, std::memory_order_acq_rel)) return;
+  } else if (!outboundAcquisitionHeld.load(std::memory_order_acquire)) return;
+  outboundAcquisitionAtMs.store(now, std::memory_order_release);
+  outboundAcquisitionGeneration.fetch_add(1, std::memory_order_acq_rel);
+  // Discovery is the single writer: fence old ingress before opening admission.
+  if (!held) outboundAcquisitionHeld.store(false, std::memory_order_release);
 }
 }  // namespace shotstopper
