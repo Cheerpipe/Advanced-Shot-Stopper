@@ -305,6 +305,9 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
   click();
   assert.strictEqual(calls, 1, 'Confirmed Disconnect must invoke the action');
 
+  const saveBinding = viewJs.settings.match(/\$\('lineaMicraSaveButton'\)\.onclick=(.*?);if\(/);
+  assert(saveBinding, 'Micra Save click binding is missing');
+
   const statusUi = rawRuntimeJs.slice(rawRuntimeJs.indexOf('const MICRA_SWITCHES='),
       rawRuntimeJs.indexOf('function renderLineaMicraDiagnostic('));
   for (const theme of ['theme-light', 'theme-dark']) {
@@ -329,18 +332,20 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
       Option: function(text, value) { this.text = text; this.value = value; },
       __WEBUI_TEXT__: key => key});
     vm.runInContext(statusUi, context);
+    context.R = {saveLineaMicraSettings: context.saveLineaMicraSettings};
+    const saveClick = vm.runInContext(`(${saveBinding[1]})`, context);
     const commands = [];
     context.command = (url, body) => { commands.push({url, body: JSON.parse(JSON.stringify(body))}); return true; };
     get('lineaMicraConnectionType').value = 'api';
     get('lineaMicraObserveState').checked = true;
-    get('lineaMicraShutdownGrace').value = '12';
+    get('lineaMicraShutdownGrace').value = '15';
     vm.runInContext("saveLineaMicraSettings('select','SYNTHETIC')", context);
     assert.deepStrictEqual(commands[0], {url: '/api/v1/machine/linea-micra', body: {
       action: 'select', serial: 'SYNTHETIC', applyTemperature: false, observeState: true,
       recognizeWakeGesture: false, powerOnWithScale: false, shutdownWithScale: false,
-      scaleOffWithMachine: false, connectionType: 'api', shutdownGraceSeconds: 12}});
+      scaleOffWithMachine: false, connectionType: 'api', shutdownGraceSeconds: 15}});
     get('lineaMicraConnectionType').value = 'websocket';
-    vm.runInContext('saveLineaMicraSettings()', context);
+    saveClick({type: 'click', target: get('lineaMicraSaveButton')});
     assert.strictEqual(commands[1].body.connectionType, 'websocket');
     assert.strictEqual(commands[1].body.action, 'save');
     assert(!('serial' in commands[1].body));
@@ -355,6 +360,12 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: connected})})`,context);
     assert.strictEqual(get('lineaMicraConnectionType').value,'api');
     assert.strictEqual(get('lineaMicraApplyTemperature').checked,false);
+    saveClick({type: 'click', target: get('lineaMicraSaveButton')});
+    assert.deepStrictEqual(commands[2], {url: '/api/v1/machine/linea-micra', body: {
+      action: 'save', applyTemperature: false, observeState: true,
+      recognizeWakeGesture: false, powerOnWithScale: false, shutdownWithScale: false,
+      scaleOffWithMachine: false, connectionType: 'api', shutdownGraceSeconds: 0}},
+      `${theme}: configured Micra must save API mode through a button click without credentials`);
     context.micraDirty=false;
     vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {...connected,connectionType:'api',applyTemperature:true}})})`,context);
     assert.strictEqual(get('lineaMicraConnectionType').value,'api');

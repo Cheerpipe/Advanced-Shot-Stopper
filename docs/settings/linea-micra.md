@@ -50,8 +50,10 @@ temperature in presets**, **Monitor machine power state**, **Recognize
 paddle wake gestures**, **Turn machine on when the scale powers on**,
 **Turn machine off when the scale powers off**, its **Shutdown delay**, and
 **Turn scale off when the machine powers off**.
-It does not sign in again, validate the cloud account, or reload the machine
-list. The button is available whenever a machine is selected and settings are
+To switch between WebSocket and API, choose the connection type and save;
+your connected account and selected machine are kept. Saving does not sign in
+again, validate the cloud account, or reload the machine list.
+The button is available whenever a machine is selected and settings are
 editable, even when no option has changed.
 
 If the account returns no Linea Micra machines, the account is not enabled and
