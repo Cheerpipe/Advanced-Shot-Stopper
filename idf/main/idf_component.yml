@@ -10,6 +10,8 @@ dependencies:
     version: "^1.7.19"
   espressif/mdns:
     version: "==1.13.1"
+  espressif/esp_websocket_client:
+    version: "==1.8.0"
   ## arduino-esp32 declares esp-modbus as a public dependency, but this
   ## firmware never uses Modbus and the real component compiles unguarded
   ## IPv6 types that would force CONFIG_LWIP_IPV6=y. The override satisfies

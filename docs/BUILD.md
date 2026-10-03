@@ -66,7 +66,7 @@ reference host.
 | Node.js | No pin; any current release resolved from `PATH` | [`./scripts/dev doctor`](../scripts/dev) |
 | Web UI packages | Exact direct and resolved versions via `npm ci` | [`package.json`](../package.json), [`package-lock.json`](../package-lock.json) |
 | ESP-IDF | Exactly 6.1.0 (tag v6.1) | This guide and the build scripts |
-| IDF components | Locked graph, including mDNS 1.13.1 | [`idf/dependencies.lock`](../idf/dependencies.lock) |
+| IDF components | Locked graph, including mDNS 1.13.1 and ESP WebSocket client 1.8.0 | [`idf/dependencies.lock`](../idf/dependencies.lock) |
 | Cppcheck | No pin; any current release resolved from `PATH` | [`./scripts/dev doctor`](../scripts/dev) |
 | Host CMake | 3.25 or newer | [`CMakePresets.json`](../CMakePresets.json) schema 6 |
 | Home Assistant tests (optional) | Python 3.14.2 or newer; dependencies locked with uv | [`pyproject.toml`](../integrations/OpenBrewByWeight/pyproject.toml), [`uv.lock`](../integrations/OpenBrewByWeight/uv.lock) |
@@ -135,7 +135,9 @@ source its `export.sh`. Otherwise they discover `$HOME/esp/esp-idf-v6.1`.
 Every path rejects versions other than 6.1.0.
 
 `idf/main/idf_component.yml` and `idf/dependencies.lock` define the component
-graph, including mDNS 1.13.1. The build fails if dependency resolution changes
+graph, including mDNS 1.13.1 and ESP WebSocket client 1.8.0. The WebSocket
+dependency is prepared for Micra observation; the current firmware still uses
+HTTP observation. The build fails if dependency resolution changes
 the lockfile; review and commit such updates separately. First firmware builds
 may need network access to resolve SDK components; prepare these dependencies
 before attempting an offline validation run. Host tests and firmware compilation
