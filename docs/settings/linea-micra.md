@@ -121,9 +121,11 @@ Diagnostics → Machine distinguishes the last observed mode from its quality:
 
 In WebSocket mode, the initial API reading stays current while the subscription
 remains healthy, even if the machine sends no power update for several minutes
-or hours. The next power update replaces it. Diagnostics shows **Power state
-source** as **Initial API read**, **WebSocket**, or **API** for a later manual
-read. The sample age keeps increasing; unrelated messages do not reset it.
+or hours. The next power update replaces it. Diagnostics shows the source beside
+**Observed mode**, for example **StandBy (API)**, **StandBy (WebSocket)** or
+**StandBy (API via WebSocket)**. The last label means the initial API reading
+requested when the WebSocket subscription starts; a later manual API read shows
+**API**. The sample age keeps increasing; unrelated messages do not reset it.
 An explicit machine-offline report makes the retained value stale. If the
 machine reports that it is back online without a power value, one new API read
 resynchronizes it.

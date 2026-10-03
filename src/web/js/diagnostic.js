@@ -23,7 +23,6 @@ set('WsUnexpected',String(ws.unexpectedConnections||0));
 const label=__WEBUI_TEXT__("diagnostic.cleaning_states").split('|')[['inactive','waiting_for_paddle','cleaning'].indexOf(ws.cleaning)];
 const cleaning=!lm.accountConfigured?__WEBUI_TEXT__("runtime.not_connected"):!lm.observeState?__WEBUI_TEXT__("runtime.disabled"):api?__WEBUI_TEXT__("diagnostic.cleaning_api"):!ws.cleaningAvailable?__WEBUI_TEXT__("diagnostic.cleaning_no_update"):label||__WEBUI_TEXT__("runtime.unknown_4")+(ws.cleaningLabel?' · '+ws.cleaningLabel:'');
 set('Cleaning',cleaning);
-set('PowerSource',({api_initial:__WEBUI_TEXT__("diagnostic.initial_api_read"),api:'API',websocket:'WebSocket'})[lm.powerSource]||unknown);
 set('CleaningHint',lm.accountConfigured&&lm.observeState&&!api&&ws.cleaningAvailable?__WEBUI_TEXT__("diagnostic.last_reported")+' '+age(ws.cleaningAtMs)+' · WebSocket'+(ws.state!=='streaming'||ws.machineConnectedKnown&&!ws.machineConnected?' · '+__WEBUI_TEXT__("diagnostic.stale"):''):'');
 set('WsHeap','WS '+(ws.retainedBytes||0)+' B PSRAM · internal Δ free/largest '+['connect','stop'].map(k=>k+' '+(ws[k+'FreeDelta']??unknown)+'/'+(ws[k+'LargestDelta']??unknown)+' B').join(', ')+' · failures '+(ws.allocationFailures||0));
 }
@@ -35,7 +34,7 @@ const row=document.createElement('div'),label=document.createElement('strong'),v
 row.className='metric micraOnly';label.textContent=title;v.id=id;row.append(label,v);parent.insertBefore(row,id==='dMicraCleaning'?mode:null);
 };
 const titles=__WEBUI_TEXT__("diagnostic.cloud_titles").split('|');
-['Email','Machine','Time','Api','Result','Duration','WsState','WsTraffic','WsPlanned','WsUnexpected','Cleaning','PowerSource'].forEach((id,i)=>row('dMicra'+(i<6?'Cloud':'')+id,titles[i],i>9?mode?.parentElement:cloud));
+['Email','Machine','Time','Api','Result','Duration','WsState','WsTraffic','WsPlanned','WsUnexpected','Cleaning'].forEach((id,i)=>row('dMicra'+(i<6?'Cloud':'')+id,titles[i],i>9?mode?.parentElement:cloud));
 for(const [id,anchor] of [['dMicraCleaningHint','dMicraCleaning'],['dMicraWsTiming','dMicraWsState'],['dMicraWsHeap','hHeapLargest']]){
 if($(id)||!$(anchor))continue;
 const hint=document.createElement('small');hint.id=id;hint.className='fieldHint micraOnly';$(anchor).parentElement.append(hint);

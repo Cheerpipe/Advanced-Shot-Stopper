@@ -68,7 +68,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const state = element(), modeRow = element(), mode = element(), cloud = element(), heapRow = element(), heap = element();
   mode.id = 'dMicraMode'; cloud.id = 'micraCloudDiagnostics'; heap.id = 'hHeapLargest';
   state.append(modeRow); modeRow.append(mode); heapRow.append(heap);
-  const labels = {'diagnostic.cloud_titles': 'Email|Machine|Time|API|Result|Duration|Connection|Traffic|Planned|Unexpected|Cleaning|Power state source',
+  const labels = {'diagnostic.cloud_titles': 'Email|Machine|Time|API|Result|Duration|Connection|Traffic|Planned|Unexpected|Cleaning',
     'diagnostic.cleaning_states': 'Inactive|Waiting for paddle|Cleaning'};
   const domContext = vm.createContext({$: id => dom[id], document: {createElement: element},
     __WEBUI_TEXT__: key => labels[key] || key, R: {formatWallTime: String}});
@@ -79,11 +79,6 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
     plannedConnections: 7, unexpectedConnections: 3};
   const linked = {accountConfigured: true, observeState: true, connectionType: 'websocket', websocket: socket};
   show(linked); show(linked);
-  for (const [powerSource, label] of [['api_initial', 'diagnostic.initial_api_read'],
-                                    ['api', 'API'], ['websocket', 'WebSocket'], ['none', 'runtime.unknown']]) {
-    show({...linked, powerSource});
-    assert.strictEqual(dom.dMicraPowerSource.textContent, label);
-  }
   assert.strictEqual(cloud.children.length, 10, 'Status refresh must not duplicate dynamic rows');
   assert.strictEqual(dom.dMicraWsPlanned.textContent, '7');
   assert.strictEqual(dom.dMicraWsUnexpected.textContent, '3');
