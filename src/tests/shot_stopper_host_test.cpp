@@ -984,6 +984,7 @@ void bf06_normal_flow_matches_absent_backflush() {
     historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
     return std::make_tuple(stopperState, session.active, session.source, session.endReason,
         relay.closed, relay.hardLimitMs, relay.operationalLimitMs, relay.purpose,
+        relay.generation, hostRelayOpenWrites, hostRelayClosedWrites,
         outboundShotActive.load(), hostMachineCloudInhibitCount,
         commandCount(ScaleCommandType::START_TIMER_AND_TARE),
         commandCount(ScaleCommandType::STOP_TIMER), commandCount(ScaleCommandType::TARE_ONLY),
@@ -1009,12 +1010,15 @@ void bf06_normal_flow_matches_absent_backflush() {
         hostBackflushObservations.reset();
       }
       loop();
-      for (int phase = 0; phase < 3; ++phase) {
+      for (int phase = 0; phase < 5; ++phase) {
         if (phase == 0) setRawPaddle(true);
-        if (phase == 2) setRawPaddle(false);
-        runLoopAfter(phase == 1 ? (scenario == 2 ? 100 : 3000) : ACTIVATOR_DEBOUNCE_MS);
+        if (phase == 4 || (scenario == 2 && phase == 2)) setRawPaddle(false);
+        runLoopAfter(phase == 1 ? (scenario == 2 ? 100 : 3000) :
+            phase == 2 ? 57000 : phase == 3 ? 30000 : ACTIVATOR_DEBOUNCE_MS);
         CHECK(!backflushActive(stopperState) &&
               getRelaySafetySnapshot().hardLimitMs == (scenario == 5 ? 0U : 60000U));
+        // Ordinary flow matches the absent provider even across duration cuts;
+        // GPIO write counts also catch otherwise invisible re-close pulses.
         if (provider == 0) baseline.push_back(capture());
         else CHECK(capture() == baseline[phase]);
       }

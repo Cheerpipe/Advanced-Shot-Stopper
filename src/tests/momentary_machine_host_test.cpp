@@ -2357,6 +2357,43 @@ void t_compatibility_mode_mirrors_without_session() {
   hostForwardAcceptedNetworkCommandSucceeds = true;
 }
 
+void t_compatibility_boot_hold_waits_for_stable_off() {
+  resetMomentaryHarness();
+  firmwareModeRaw = static_cast<uint8_t>(FirmwareMode::COMPATIBILITY);
+  hostPinLevel[ACTIVATOR_GPIO] = ACTIVATOR_ACTIVE_LEVEL;
+  initializeActivatorInput();
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  CHECK(stopperState == StopperState::REQUIRES_OFF);
+  CHECK(!getRelaySafetySnapshot().closed && hostRelayClosedWrites == 0);
+  runLoopAfter(90000);
+  CHECK(!getRelaySafetySnapshot().closed && hostRelayClosedWrites == 0);
+  releaseUp();
+  CHECK(stopperState == StopperState::READY);
+  pressDown();
+  CHECK(getRelaySafetySnapshot().closed);
+  releaseUp();
+  CHECK(!getRelaySafetySnapshot().closed);
+}
+
+void t_compatibility_trip_stays_open_until_release() {
+  resetMomentaryHarness();
+  firmwareModeRaw = static_cast<uint8_t>(FirmwareMode::COMPATIBILITY);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  pressDown();
+  CHECK(getRelaySafetySnapshot().closed);
+  tripRelaySafety(RelaySafetyFault::GPIO_DESYNC, true, false, false);
+  const size_t closedWrites = hostRelayClosedWrites;
+  runLoopAfter(0);
+  CHECK(!getRelaySafetySnapshot().closed && hostRelayClosedWrites == closedWrites);
+  CHECK(stopperState == StopperState::REQUIRES_OFF);
+  runLoopAfter(90000);
+  CHECK(!getRelaySafetySnapshot().closed && hostRelayClosedWrites == closedWrites);
+  releaseUp();
+  CHECK(stopperState == StopperState::READY);
+  pressDown();
+  CHECK(getRelaySafetySnapshot().closed);
+}
+
 struct TestCase {
   const char *id;
   void (*function)();
@@ -2443,6 +2480,8 @@ const TestCase kTests[] = {
     {"P54", t_timer_only_unconfirmed_idles_at_hard_cap_without_pulse},
 #endif
     {"CM10", t_compatibility_mode_mirrors_without_session},
+    {"CM11", t_compatibility_boot_hold_waits_for_stable_off},
+    {"CM12", t_compatibility_trip_stays_open_until_release},
     {"P25T", t_forced_pulse_has_no_logical_side_effects},
     {"P25U", t_forced_pulse_queues_once_behind_active_pulse},
     {"P25V", t_physical_press_cancels_pending_forced_pulse},

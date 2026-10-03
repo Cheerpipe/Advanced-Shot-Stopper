@@ -1057,8 +1057,9 @@ While active, `stateMachineTask` retains fault handling and the maintenance-leas
 block, then `serviceCompatibilityMirror`
 replaces the rest of the orchestrator:
 
-- Activator→K1 drive permission is forced allowed every pass (the same lever
-  the wake passthrough uses), so no guard state can suppress forwarding.
+- Activator→K1 drive permission bypasses brew guards only in `READY`, with no
+  pending relay trip. `REQUIRES_OFF` keeps drive denied during input sampling,
+  including momentary mirroring, until a stable OFF input rearms the controller.
 - Paddle builds close on the held activator and open on release through
   `machineRequestStart(HARD_MAX_CIRCUIT_CLOSED_MS)` / `machineRequestStop()`;
   momentary builds keep the stock 1:1 switch mirror and simply never receive

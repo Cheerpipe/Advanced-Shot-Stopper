@@ -196,8 +196,10 @@ History records a confirmed activation as **Backflush**, including an
 interrupted one. Its duration is the time the activation circuit was enabled;
 the record does not certify a successful cleaning. Cloud updates can arrive
 late, so opening follows the received state, manual stop or local safety limit,
-not a guarantee of simultaneous physical completion. Compatibility mode, API
-monitoring and other machine profiles retain their normal 60-second cap.
+not a guarantee of simultaneous physical completion. With firmware enabled,
+API monitoring and other machine profiles retain their normal 60-second cap.
+[Compatibility mode](firmware-mode.md) mirrors the physical paddle without a
+duration cap and does not supervise automatic backflush.
 
 ### Cloud diagnostics and logs
 

@@ -592,14 +592,14 @@ void handleOperationalLimitTrip() {
 // supervision. A REQUIRES_OFF park (safety trip or failed close) holds until the
 // activator returns idle: the mirror must not re-close on its own.
 void serviceCompatibilityMirror(const MachineIntention &intent) {
-  machineSetActivatorDriveAllowed(true);
-  machineAllowCurrentActivatorHold();
   if (stopperState == StopperState::REQUIRES_OFF) {
     if (intent.intent == UserIntent::STABLE_IDLE || intent.stablyOff) {
       transitionTo(StopperState::READY);
     }
     return;
   }
+  machineSetActivatorDriveAllowed(true);
+  machineAllowCurrentActivatorHold();
   if (!servicePowerManagement() ||
       !machineServiceCompatibilityDrive(intent)) {
     transitionTo(StopperState::REQUIRES_OFF);
