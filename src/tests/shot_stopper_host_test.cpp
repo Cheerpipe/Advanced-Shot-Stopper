@@ -13,6 +13,7 @@
 #include <limits>
 #include <string>
 #include <thread>
+#include <tuple>
 
 #include "../shotStopper.cpp"
 
@@ -974,6 +975,75 @@ void bf05_no_adoption_reuse_or_false_history() {
   setRawPaddle(true);
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
   CHECK(!getRelaySafetySnapshot().closed && historyLog.count() == 0);
+}
+
+void bf06_normal_flow_matches_absent_backflush() {
+  const auto capture = [] {
+    const auto relay = getRelaySafetySnapshot();
+    HistoryPage page;
+    historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+    return std::make_tuple(stopperState, session.active, session.source, session.endReason,
+        relay.closed, relay.hardLimitMs, relay.operationalLimitMs, relay.purpose,
+        outboundShotActive.load(), hostMachineCloudInhibitCount,
+        commandCount(ScaleCommandType::START_TIMER_AND_TARE),
+        commandCount(ScaleCommandType::STOP_TIMER), commandCount(ScaleCommandType::TARE_ONLY),
+        scale.tareCalls, scale.tareStartTimerCalls, scale.stopTimerCalls,
+        historyLog.count(), historyLog.count() ? page.records[0].type : uint8_t{0},
+        noScaleShotGuardHold, machineWakePassthroughActive);
+  };
+  // Manual, scale shot, quick rinse, missing-scale guard, wake and compatibility.
+  for (int scenario = 0; scenario < 6; ++scenario) {
+    std::vector<decltype(capture())> baseline;
+    for (int provider = 0; provider < 4; ++provider) {
+      resetHarness(false, scenario == 1 || scenario == 2);
+      reachReadyFromBoot();
+      historyLog.clear();
+      runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(scenario == 3
+          ? NoScaleBbwMode::REQUIRE_SCALE : NoScaleBbwMode::OFF);
+      if (scenario == 4) hostMachinePhysicalStartDisposition = MachinePhysicalStartDisposition::WAKE_PASSTHROUGH;
+      if (scenario == 5) firmwareModeRaw = static_cast<uint8_t>(FirmwareMode::COMPATIBILITY);
+      if (provider) hostBackflushObservations.observe(MachineBackflushPhase::INACTIVE, 0);
+      if (provider == 2) hostBackflushObservations.invalidate();  // Lost idle evidence is not cleaning.
+      if (provider == 3) {
+        hostBackflushObservations.observe(MachineBackflushPhase::AWAITING, 0);
+        hostBackflushObservations.reset();
+      }
+      loop();
+      for (int phase = 0; phase < 3; ++phase) {
+        if (phase == 0) setRawPaddle(true);
+        if (phase == 2) setRawPaddle(false);
+        runLoopAfter(phase == 1 ? (scenario == 2 ? 100 : 3000) : ACTIVATOR_DEBOUNCE_MS);
+        CHECK(!backflushActive(stopperState) && getRelaySafetySnapshot().hardLimitMs == 60000);
+        if (provider == 0) baseline.push_back(capture());
+        else CHECK(capture() == baseline[phase]);
+      }
+    }
+  }
+}
+
+void bf07_configuration_retirement_opens_and_rearms_normally() {
+  for (bool confirmed : {false, true}) {
+    startBackflushFixture();
+    if (confirmed) {
+      hostBackflushObservations.observe(MachineBackflushPhase::ACTIVE, backflushPermit.attempt);
+      loop();
+    }
+    hostBackflushObservations.reset();
+    loop();
+    CHECK(!getRelaySafetySnapshot().closed && historyLog.count() == 1);
+    CHECK(!hostBackflushObservations.status().busy());
+    loop();
+    CHECK(stopperState == StopperState::REQUIRES_OFF && !getRelaySafetySnapshot().closed);
+    setRawPaddle(false);
+    runLoopAfter(ACTIVATOR_DEBOUNCE_MS * 2);
+    runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);
+    runtimeConfig.requireCupToStart = false;
+    setRawPaddle(true);
+    runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+    CHECK(session.active && !backflushActive(stopperState));
+    CHECK(getRelaySafetySnapshot().closed && getRelaySafetySnapshot().hardLimitMs == 60000);
+    CHECK(getRelaySafetySnapshot().purpose == RelayPurpose::NORMAL);
+  }
 }
 
 void t02b_off_wake_bypasses_brew_guards_and_records_power_on() {
@@ -19137,6 +19207,8 @@ const TestCase testCases[] = {
     {"BF03", bf03_promotion_races_and_absolute_cap},
     {"BF04", bf04_deadline_boundaries_and_physical_release},
     {"BF05", bf05_no_adoption_reuse_or_false_history},
+    {"BF06", bf06_normal_flow_matches_absent_backflush},
+    {"BF07", bf07_configuration_retirement_opens_and_rearms_normally},
     {"D16", d16_cloud_pause_requires_a_real_cycle},
     {"D14", d14_control_status_publishes_on_cycle_edge},
     {"D02", d02_first_mode_uses_name_scan},

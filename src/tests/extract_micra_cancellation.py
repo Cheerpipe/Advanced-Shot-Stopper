@@ -7,7 +7,7 @@ source, output = map(Path, sys.argv[1:])
 text = source.read_text()
 
 
-def definition(name):
+def definition(name, text=text, source=source):
     # Top-level definitions end at column zero; keep their bodies verbatim.
     match = re.search(r"^(?:bool|void|uint8_t|struct|LineaMicraStatus|MachineBackflushSnapshot|MachinePhysicalStartDisposition) " + re.escape(name)
                       + r"(?:\(| \{)", text, re.M)
@@ -34,7 +34,13 @@ output.mkdir(parents=True, exist_ok=True)
               ("status", "qualifyBackflushLocked", "backflushReadyLocked", "backflush", "finishBackflush", "physicalStart")) + "\n")
 (output / "micra_cancellation_methods.inc").write_text(
     "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"
-    + "\n".join(map(definition, names)) + "\n}\n")
+    + "\n".join(map(definition, names)) + "\n"
+    + definition("ShotStopperMicraService::websocketAdmitted",
+                 source.with_name("ShotStopperMicraWebSocket.inc").read_text(),
+                 source.with_name("ShotStopperMicraWebSocket.inc")) + "\n}\n")
+retry = definition("ShotStopperMicraService::waitRetry")
+(output / "micra_cancellation_retry.inc").write_text(
+    retry.split("\n", 1)[0] + "\n" + retry[retry.index("{") + 1:retry.rindex("}")])
 request = text.index("bool ShotStopperMicraService::request(")
 gate = text.index("  const auto requestAllowed =", request)
 gate_end = text.index("\n  };", gate) + len("\n  };")

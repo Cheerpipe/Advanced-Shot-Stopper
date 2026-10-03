@@ -414,7 +414,7 @@ void ShotStopperMicraService::publishConfig(
         static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
     if (identityChanged || transportChanged || !effective.accountConfigured ||
         (effective.options & LINEA_MICRA_OBSERVE_STATE) == 0) {
-      backflush_.invalidate();
+      backflush_.reset();
       snapshotPending_ = false;
       observationFence_.invalidate();
       observationFence_.offline = false;
@@ -1683,7 +1683,7 @@ void ShotStopperMicraService::waitRetry(uint32_t delayMs) {
   while (!micra_timing::deadlineReached(millis(), due)) {
     LineaMicraError error;
     if (!networkEligible(error) || abortRequested_.load(std::memory_order_acquire)) {
-      stopWebSocket();
+      if (!websocketAdmitted()) stopWebSocket();
       return;
     }
     const uint32_t now = millis();
@@ -2201,7 +2201,7 @@ bool ShotStopperMicraService::request(
   bool canceled = false;
   while (performed == ESP_ERR_HTTP_EAGAIN) {
     if (!requestAllowed()) {
-      stopWebSocket();
+      if (!websocketAdmitted()) stopWebSocket();
       canceled = true;
       performed = ESP_FAIL;
       break;
@@ -2213,7 +2213,7 @@ bool ShotStopperMicraService::request(
     }
     performed = esp_http_client_perform(work_->client);
     if (!requestAllowed()) {
-      stopWebSocket();
+      if (!websocketAdmitted()) stopWebSocket();
       canceled = true;
       performed = ESP_FAIL;
       break;

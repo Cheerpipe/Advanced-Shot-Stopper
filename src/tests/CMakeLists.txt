@@ -40,7 +40,8 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(micra_source "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMicraService.cpp")
 set(micra_extract "${CMAKE_CURRENT_SOURCE_DIR}/extract_micra_cancellation.py")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-  "${micra_source}" "${micra_extract}")
+  "${micra_source}" "${micra_extract}"
+  "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMicraWebSocket.inc")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${micra_extract}"
   "${micra_source}" "${CMAKE_CURRENT_BINARY_DIR}"
   COMMAND_ERROR_IS_FATAL ANY)

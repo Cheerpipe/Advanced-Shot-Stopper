@@ -55,6 +55,14 @@ class MachineBackflushObservations {
     inactiveSeen_ = false;
   }
 
+  // Explicit provider/configuration replacement retires unresolved cleaning.
+  // Keep a live attempt until control sees invalidation and opens the relay.
+  void reset() {
+    invalidate();
+    state_.unresolved = state_.consumed = false;
+    state_.phase = MachineBackflushPhase::UNSUPPORTED;
+  }
+
   void observe(MachineBackflushPhase phase, uint32_t ingressAttempt) {
     if (state_.phase == MachineBackflushPhase::UNSUPPORTED) {
       state_.phase = MachineBackflushPhase::UNKNOWN;

@@ -387,7 +387,7 @@ void ShotStopperMicraService::serviceWebSocket() {
     wipeLineaMicraSettings(settings);
     return;
   }
-  const uint32_t now = millis();
+  uint32_t now = millis();
   if (websocketRetryRequested_.exchange(false, std::memory_order_acq_rel)) {
     websocketAuthRecoveries_ = 0;
     if (websocket_) websocket_->attempts = 0;
@@ -399,6 +399,7 @@ void ShotStopperMicraService::serviceWebSocket() {
     const bool partialPending = websocket_->partialPending.load(std::memory_order_acquire);
     const uint32_t partial = websocket_->partialAtMs.load(std::memory_order_acquire);
     const auto status = websocketStatus();
+    now = millis();  // Callback timestamps in the snapshot can postdate the first sample.
     const bool timeout = (!status.subscribed && now - websocket_->setupAtMs >= 10000) ||
         (partialPending && now - partial >= 10000) ||
         (status.subscribed && now - (status.pongAtMs ? status.pongAtMs : status.connectedAtMs) >= 30000);

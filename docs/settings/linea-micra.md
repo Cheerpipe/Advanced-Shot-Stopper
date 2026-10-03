@@ -180,6 +180,11 @@ unconfirmed or ambiguous activation never receives 180 seconds. When the
 physical paddle remains ON after any stop, return it OFF before trying again;
 restoring the connection cannot restart the machine.
 
+Disabling observation, switching to API monitoring, or changing the connected
+account or machine ends supervised backflush. Return the paddle OFF before
+starting again. The previous cleaning request does not keep ordinary operation
+blocked after that configuration change; the normal 60-second protection applies.
+
 Backflush works without a scale. A connected scale keeps receiving weight, and
 can reconnect during the program; backflush does not tare it, run its timer, or
 add a shot to Stats. WebSocket monitoring continues throughout. Temperature

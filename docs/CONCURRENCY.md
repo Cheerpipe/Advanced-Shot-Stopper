@@ -256,14 +256,20 @@ rapid recovery. SDK callbacks publish loss immediately without waiting for
 transport destruction. Control opens on its next service, with no reconnect
 grace period. An invalidation after a promotion check is handled on the next
 turn; this is not a cross-task atomic actuation transaction.
+Explicit account, machine or transport replacement retires the old unresolved
+episode; a live attempt remains busy until control observes invalidation and
+opens. Ordinary connection loss retains unresolved cleaning for reconciliation.
+Socket liveness compares callback timestamps against a clock sampled after
+the snapshot, preventing concurrent publication from underflowing its age.
 The relay driver keeps the old task timer while replacing the independent
 deadline, then replaces the task deadline and commits under its ISR-shared
 lock. A racing trip or failed rearm wins. No timer operation holds the network
 mutex, and promotion never writes GPIO closed.
 
-The cloud owner retains assumed power before every live socket stop, including
-HTTP interruption. Graceful SDK CLOSED events trigger the same bounded recovery
-as transport errors. Authentication recovery counts survive pauses and workspace
+The cloud owner retains assumed power before every live socket stop. HTTP-only
+cancellation and retry interruption preserve an admitted WSS connection; shot,
+network and maintenance fences still stop it. Graceful SDK CLOSED events trigger
+the same bounded recovery as transport errors. Authentication recovery counts survive pauses and workspace
 parking; only manual retry, account/transport changes or stable streaming reset
 them. The IDF transport_ws log tag is disabled before client startup because its
 write-error path prints signed Upgrade headers; application diagnostics retain

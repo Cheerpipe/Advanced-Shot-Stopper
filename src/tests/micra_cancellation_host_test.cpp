@@ -25,6 +25,7 @@ static shotstopper::MicraObservationStamp dispatchedStamp;
 static std::function<bool(const shotstopper::MicraObservationStamp *)> dashboardHook;
 static unsigned authentications = 0, retries = 0, failures = 0;
 static unsigned waits = 0;
+static unsigned websocketStops = 0;
 int esp_http_client_perform(void *) { return performHook(); }
 void esp_http_client_cleanup(void *) {}
 unsigned ulTaskNotifyTake(int, uint32_t ticks) {
@@ -38,7 +39,7 @@ int testGettimeofday(timeval *now, void *) { now->tv_sec = 1700000010L; return 0
 void ShotStopperMicraService::releaseIoBuffer(bool) {}
 void ShotStopperMicraService::releaseWorkBuffer() { clearSession(); }
 void ShotStopperMicraService::serviceWebSocket() {}
-void ShotStopperMicraService::stopWebSocket(bool) {}
+void ShotStopperMicraService::stopWebSocket(bool) { ++websocketStops; }
 bool ShotStopperMicraService::ensureSession(LineaMicraPersistedSettings &, bool, bool *renewed) {
   ++authentications;
   *renewed = true;
@@ -76,7 +77,9 @@ namespace shotstopper {
 struct MicraCancellationTest {
   static void progress(ShotStopperMicraService &service, int outcome,
                        bool cancel, bool recoverDuringPerform, bool scale = false,
-                       bool blockedBefore = false);
+                       bool blockedBefore = false, bool abortOnly = false);
+  static void retryCancellation(ShotStopperMicraService &service);
+  static void retireBackflushConfiguration();
   static void initializationAndGates();
   static void initializationRetries();
   static void queuedObservationAndPowerOrdering();
@@ -86,7 +89,7 @@ struct MicraCancellationTest {
 
 void MicraCancellationTest::progress(ShotStopperMicraService &service, int outcome,
                                      bool cancel, bool recoverDuringPerform, bool scale,
-                                     bool blockedBefore) {
+                                     bool blockedBefore, bool abortOnly) {
   auto &shotActive_ = service.shotActive_;
   auto &scaleConnecting_ = service.scaleConnecting_;
   auto &abortRequested_ = service.abortRequested_;
@@ -94,6 +97,7 @@ void MicraCancellationTest::progress(ShotStopperMicraService &service, int outco
     return service.networkEligible(error);
   };
   auto stopWebSocket = [&] { service.stopWebSocket(); };
+  auto websocketAdmitted = [&] { return service.websocketAdmitted(); };
   LineaMicraError gateError = LineaMicraError::NONE;
   ShotStopperMicraService::WorkBuffer work;
   auto *work_ = &work;
@@ -103,19 +107,56 @@ void MicraCancellationTest::progress(ShotStopperMicraService &service, int outco
   performHook = [&] {
     ++calls;
     if (cancel) {
-      service.publishNetworkState(true, false, !scale, scale);
+      if (abortOnly) service.abortRequested_.store(true);
+      else service.publishNetworkState(true, false, !scale, scale);
       if (recoverDuringPerform)
         service.publishNetworkState(true, false, false, false);
     }
     return calls == 1 ? outcome : ESP_OK;
   };
   if (blockedBefore) service.publishNetworkState(true, false, !scale, scale);
+  const auto stopsBefore = websocketStops;
 #include "micra_cancellation_progress.inc"
   assert(canceled == cancel);
   assert(performed == (cancel ? ESP_FAIL : ESP_OK));
   assert(calls == (blockedBefore ? 0U : cancel || outcome != ESP_ERR_HTTP_EAGAIN ? 1U : 2U));
   assert(waits == (cancel || outcome != ESP_ERR_HTTP_EAGAIN ? 0U : 1U));
+  if ((scale || abortOnly) && websocketAdmitted())
+    assert(websocketStops == stopsBefore);  // HTTP cancellation cannot stop admitted WSS.
   performHook = {};
+}
+
+void MicraCancellationTest::retryCancellation(ShotStopperMicraService &service) {
+  auto &abortRequested_ = service.abortRequested_;
+  auto networkEligible = [&](LineaMicraError &error) { return service.networkEligible(error); };
+  auto websocketAdmitted = [&] { return service.websocketAdmitted(); };
+  auto stopWebSocket = [&] { service.stopWebSocket(); };
+  const uint32_t delayMs = 100;
+  assert(websocketAdmitted() == !service.shotActive_.load());
+#include "micra_cancellation_retry.inc"
+  assert(false);  // A pre-existing cancellation must return before waiting.
+}
+
+void MicraCancellationTest::retireBackflushConfiguration() {
+  for (int change = 0; change < 4; ++change) for (bool active : {false, true}) {
+    ShotStopperMicraService service;
+    LineaMicraPersistedSettings settings;
+    settings.accountConfigured = true;
+    std::strcpy(settings.selectedSerial, "BEFORE");
+    service.publishConfig(settings, 1);
+    service.backflush_.observe(MachineBackflushPhase::INACTIVE, 0);
+    service.backflush_.observe(MachineBackflushPhase::AWAITING, 0);
+    const auto permit = active ? service.backflush_.start() : MachineBackflushPermit{};
+    if (change == 0) settings.options &= ~LINEA_MICRA_OBSERVE_STATE;
+    if (change == 1) settings.connectionType = static_cast<uint8_t>(MicraConnectionType::API);
+    if (change == 2) settings.accountConfigured = false;
+    if (change == 3) std::strcpy(settings.selectedSerial, "AFTER");
+    service.publishConfig(settings, 2);
+    assert(!service.backflush_.status().valid);
+    assert(service.backflush_.status().busy() == active);
+    service.backflush_.finish(permit.attempt);
+    assert(!service.backflush_.status().busy());
+  }
 }
 
 void MicraCancellationTest::run() {
@@ -320,6 +361,16 @@ void MicraCancellationTest::initializationAndGates() {
       }
     }
   }
+  service.publishNetworkState(true, false, false, false);
+  service.abortRequested_.store(false);
+  progress(service, ESP_ERR_HTTP_EAGAIN, true, false, false, false, true);
+  for (bool shot : {false, true}) {
+    service.publishNetworkState(true, false, shot, false);
+    service.abortRequested_.store(true);
+    const auto before = websocketStops;
+    retryCancellation(service);
+    assert(websocketStops == before + (shot ? 1U : 0U));
+  }
 }
 
 void MicraCancellationTest::initializationRetries() {
@@ -448,6 +499,7 @@ void MicraCancellationTest::queuedObservationAndPowerOrdering() {
 }
 
 int main() {
+  MicraCancellationTest::retireBackflushConfiguration();
   MicraCancellationTest::run();
   MicraCancellationTest::initializationAndGates();
   MicraCancellationTest::initializationRetries();

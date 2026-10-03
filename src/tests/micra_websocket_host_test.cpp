@@ -100,6 +100,32 @@ bool ShotStopperMicraService::applySignedHeaders(const LineaMicraPersistedSettin
 #include "machine/ShotStopperMicraWebSocket.inc"
 #include "micra_websocket_status.inc"
 struct MicraWebSocketTest {
+  static void pongPublicationRace() {
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    service.serviceWebSocket();
+    subscribe(service);
+    static ShotStopperMicraService *subject;
+    static unsigned acquisitions;
+    subject = &service;
+    acquisitions = 0;
+    const auto before = stops;
+    TaskMutex::hostObserver = [](const TaskMutex *, bool acquired) {
+      if (acquired && ++acquisitions == 3) {
+        // Callback publishes after the worker sampled time, before its status copy.
+        subject->websocketStatus_.pongAtMs = ++now;
+        TaskMutex::hostObserver = nullptr;
+      }
+    };
+    service.serviceWebSocket();
+    TaskMutex::hostObserver = nullptr;
+    assert(acquisitions == 3 && stops == before && service.websocketStatus().subscribed);
+    service.stopWebSocket(true);
+    delete service.work_;
+  }
   static void connectionClassification() {
     now = 1000;
     ShotStopperMicraService service;
@@ -554,5 +580,6 @@ int main() {
   shotstopper::MicraWebSocketTest::connectionClassification();
   shotstopper::MicraWebSocketTest::initialSynchronization();
   shotstopper::MicraWebSocketTest::backflushContract();
+  shotstopper::MicraWebSocketTest::pongPublicationRace();
   shotstopper::MicraWebSocketTest::concurrentStatusLifecycle();
 }
