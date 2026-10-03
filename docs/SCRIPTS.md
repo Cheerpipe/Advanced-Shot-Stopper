@@ -81,6 +81,7 @@ Open `http://127.0.0.1:4173/mobile-menu?navigation=3` for option 3:
 a compact floating bar with icons only. Home, Stats, History, Settings,
 Diagnostic and Admin are directly available, without a More menu. Each icon
 has an accessible name and a hover title; the current destination is highlighted.
+The bar is 50 px tall, with 24 px icons and touch targets at least 44 px high.
 Hiding Diagnostics in the preview controls removes its icon and redistributes
 the remaining five buttons. Options 1 and 2 remain available for comparison.
 
