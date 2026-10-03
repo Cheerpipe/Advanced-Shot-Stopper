@@ -73,7 +73,8 @@ void relaySafetyTimerCallback(void *) {
   portENTER_CRITICAL(&relayMux);
   // Ignore a callback queued by a previous generation. ARMING is included so
   // a timeout that races the close transaction cancels that transaction.
-  if ((relaySafetyState == RelaySafetyState::ARMING ||
+  if (relayHardLimitMs != 0 &&
+      (relaySafetyState == RelaySafetyState::ARMING ||
        relaySafetyState == RelaySafetyState::CLOSED) &&
       static_cast<uint32_t>(callbackAtMs - circuitClosedAtMs) >=
           relayHardLimitMs) {
@@ -90,7 +91,8 @@ void operationalLimitTimerCallback(void *) {
   const uint32_t callbackAtMs = millis();
   bool tripped = false;
   portENTER_CRITICAL(&relayMux);
-  if ((relaySafetyState == RelaySafetyState::ARMING ||
+  if (operationalLimitAtArmMs != 0 &&
+      (relaySafetyState == RelaySafetyState::ARMING ||
        relaySafetyState == RelaySafetyState::CLOSED) &&
       operationalLimitAtArmMs < relayHardLimitMs &&
       static_cast<uint32_t>(callbackAtMs - circuitClosedAtMs) >=
@@ -164,8 +166,9 @@ void IRAM_ATTR shotStopperPanicHandler(arduino_panic_info_t *info, void *) {
 
 void IRAM_ATTR independentSafetyTimerCallback(void *) {
   portENTER_CRITICAL_ISR(&relayMux);
-  if (relaySafetyState == RelaySafetyState::ARMING ||
-      relaySafetyState == RelaySafetyState::CLOSED) {
+  if (relayHardLimitMs != 0 &&
+      (relaySafetyState == RelaySafetyState::ARMING ||
+       relaySafetyState == RelaySafetyState::CLOSED)) {
     const bool operational =
         operationalLimitAtArmMs < relayHardLimitMs;
     // Keep this ISR minimal and IRAM-safe. The control task performs timer
@@ -275,14 +278,15 @@ void writeRelayClosedOutput() {
 
 bool reassertCommandedRelayClosedPin() {
   portENTER_CRITICAL(&relayMux);
-  const bool expired = circuitClosed && elapsedMs(circuitClosedAtMs) >= operationalLimitAtArmMs;
+  const bool expired = circuitClosed && operationalLimitAtArmMs != 0 &&
+      elapsedMs(circuitClosedAtMs) >= operationalLimitAtArmMs;
   if (expired) {
     const bool operational = operationalLimitAtArmMs < relayHardLimitMs;
     tripRelaySafetyLocked(operational ? RelaySafetyFault::OPERATIONAL_LIMIT : RelaySafetyFault::HARD_LIMIT,
                           !operational, operational, false);
   }
   const bool live = circuitClosed && relaySafetyState == RelaySafetyState::CLOSED &&
-      elapsedMs(circuitClosedAtMs) < operationalLimitAtArmMs;
+      (operationalLimitAtArmMs == 0 || elapsedMs(circuitClosedAtMs) < operationalLimitAtArmMs);
   const bool desync = live && !relayOutputIsClosed();
   if (desync) writeRelayClosedOutput();
   const bool closed = live && relayOutputIsClosed();
@@ -342,6 +346,7 @@ bool setMachineCircuitClosed(bool closed,
     }
 
     stopRelayDeadlineTimers();
+    const bool unlimited = firmwareCompatibilityMode() && purpose == RelayPurpose::NORMAL;
     const uint32_t closingAtMs = millis();
     uint32_t generation;
     // A momentary stop pulse may re-close K1 after tripRelaySafety opened it.
@@ -352,8 +357,8 @@ bool setMachineCircuitClosed(bool closed,
     generation = ++relaySafetyGeneration;
     circuitClosedAtMs = closingAtMs;
     relayPurpose = purpose;
-    relayHardLimitMs = HARD_MAX_CIRCUIT_CLOSED_MS;
-    operationalLimitAtArmMs = operationalLimitMs;
+    relayHardLimitMs = unlimited ? 0 : HARD_MAX_CIRCUIT_CLOSED_MS;
+    operationalLimitAtArmMs = unlimited ? 0 : operationalLimitMs;
     if (!preserveTripFlags) {
       relaySafetyTripped = false;
       operationalLimitTripped = false;
@@ -363,21 +368,20 @@ bool setMachineCircuitClosed(bool closed,
     circuitClosed = false;
     portEXIT_CRITICAL(&relayMux);
 
-    bool armed = independentSafetyTimer.arm(
-        operationalLimitMs < HARD_MAX_CIRCUIT_CLOSED_MS
-            ? operationalLimitMs
-            : HARD_MAX_CIRCUIT_CLOSED_MS);
-    if (esp_timer_start_once(
-            relaySafetyTimer,
-            static_cast<uint64_t>(HARD_MAX_CIRCUIT_CLOSED_MS) * 1000ULL) !=
-        ESP_OK) {
-      armed = false;
-    }
-    if (operationalLimitMs < HARD_MAX_CIRCUIT_CLOSED_MS &&
-        esp_timer_start_once(
-            operationalLimitTimer,
-            static_cast<uint64_t>(operationalLimitMs) * 1000ULL) != ESP_OK) {
-      armed = false;
+    bool armed = true;
+    if (!unlimited) {
+      armed = independentSafetyTimer.arm(operationalLimitMs);
+      if (esp_timer_start_once(
+              relaySafetyTimer,
+              static_cast<uint64_t>(HARD_MAX_CIRCUIT_CLOSED_MS) * 1000ULL) != ESP_OK) {
+        armed = false;
+      }
+      if (operationalLimitMs < HARD_MAX_CIRCUIT_CLOSED_MS &&
+          esp_timer_start_once(
+              operationalLimitTimer,
+              static_cast<uint64_t>(operationalLimitMs) * 1000ULL) != ESP_OK) {
+        armed = false;
+      }
     }
 
     if (!armed) {
@@ -404,8 +408,8 @@ bool setMachineCircuitClosed(bool closed,
     // continuation can no longer energize the relay.
     if (relaySafetyGeneration == generation &&
         relaySafetyState == RelaySafetyState::ARMING &&
-        static_cast<uint32_t>(millis() - closingAtMs) <
-            operationalLimitMs) {
+        (unlimited || static_cast<uint32_t>(millis() - closingAtMs) <
+            operationalLimitMs)) {
       digitalWrite(RELAY_GPIO, RELAY_CLOSED_LEVEL);
       relayElectricalClosedAtMs = static_cast<uint32_t>(esp_timer_get_time() / 1000);
       relayElectricalOpenedAtMs = relayElectricalClosedAtMs;
@@ -426,7 +430,7 @@ bool setMachineCircuitClosed(bool closed,
       return false;
     }
     addDebugEvent(DebugCategory::RELAY, DebugCode::RELAY_CLOSED,
-                  static_cast<int32_t>(operationalLimitMs));
+                  static_cast<int32_t>(unlimited ? 0 : operationalLimitMs));
     return true;
   }
 
@@ -531,7 +535,8 @@ void serviceRelaySafety() {
       return;
     }
   }
-  if ((relay.state == RelaySafetyState::ARMING || relay.closed) &&
+  if (relay.operationalLimitMs != 0 &&
+      (relay.state == RelaySafetyState::ARMING || relay.closed) &&
       elapsedMs(relay.closedAtMs) >= relay.operationalLimitMs) {
     const bool operational =
         relay.operationalLimitMs < relay.hardLimitMs;

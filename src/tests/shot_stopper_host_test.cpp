@@ -1013,7 +1013,8 @@ void bf06_normal_flow_matches_absent_backflush() {
         if (phase == 0) setRawPaddle(true);
         if (phase == 2) setRawPaddle(false);
         runLoopAfter(phase == 1 ? (scenario == 2 ? 100 : 3000) : ACTIVATOR_DEBOUNCE_MS);
-        CHECK(!backflushActive(stopperState) && getRelaySafetySnapshot().hardLimitMs == 60000);
+        CHECK(!backflushActive(stopperState) &&
+              getRelaySafetySnapshot().hardLimitMs == (scenario == 5 ? 0U : 60000U));
         if (provider == 0) baseline.push_back(capture());
         else CHECK(capture() == baseline[phase]);
       }
@@ -18524,28 +18525,62 @@ void cm01_compatibility_mirror_follows_activator() {
   }
 }
 
-void cm02_compatibility_parks_after_hard_limit() {
-  resetHarness(false, false);
-  enterCompatibilityMode();
-  reachReadyFromBoot();
-  setRawPaddle(true);
-  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
-  CHECK(getRelaySafetySnapshot().closed);
-  // The hardware cap still opens the circuit in compatibility mode.
-  runLoopAfter(HARD_MAX_CIRCUIT_CLOSED_MS + 100);
-  CHECK(!getRelaySafetySnapshot().closed);
-  CHECK(stopperState == StopperState::REQUIRES_OFF);
-  // A held activator must not re-close after the hard-limit park.
-  runLoopAfter(2000);
-  CHECK(!getRelaySafetySnapshot().closed);
-  CHECK(stopperState == StopperState::REQUIRES_OFF);
-  // Returning the activator to idle re-arms the transparent mirror.
-  setRawPaddle(false);
-  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 50);
-  CHECK(stopperState == StopperState::READY);
-  setRawPaddle(true);
-  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
-  CHECK(getRelaySafetySnapshot().closed);
+void cm02_compatibility_has_no_duration_cutoff() {
+  for (uint32_t startAt : {0U, UINT32_MAX - 30000U}) {
+    resetHarness(false, false);
+    enterCompatibilityMode();
+    reachReadyFromBoot();
+    hostMillis = startAt;
+    setRawPaddle(true);
+    runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
+    const RelaySafetySnapshot started = getRelaySafetySnapshot();
+    CHECK(started.closed && started.hardLimitMs == 0 && started.operationalLimitMs == 0);
+    CHECK(!independentSafetyTimer.running() && !relaySafetyTimer->active &&
+          !operationalLimitTimer->active);
+    const size_t openWrites = hostRelayOpenWrites;
+    for (uint32_t duration : {59999U, 60000U, 60001U, 90000U, 180000U}) {
+      runLoopAfter(duration - elapsedMs(started.closedAtMs));
+      // Even an obsolete queued deadline callback must not cut the mirror.
+      relaySafetyTimerCallback(nullptr);
+      operationalLimitTimerCallback(nullptr);
+      independentSafetyTimerCallback(nullptr);
+      const RelaySafetySnapshot held = getRelaySafetySnapshot();
+      CHECK(held.closed && held.generation == started.generation);
+      CHECK(held.closedAtMs == started.closedAtMs && held.fault == RelaySafetyFault::NONE);
+      CHECK(stopperState == StopperState::READY && !session.active);
+      CHECK(hostRelayOpenWrites == openWrites);
+    }
+    setRawPaddle(false);
+    runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
+    CHECK(!getRelaySafetySnapshot().closed);
+    setRawPaddle(true);
+    runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
+    CHECK(getRelaySafetySnapshot().closed);
+  }
+}
+
+void cm09_compatibility_preserves_fault_and_readiness_interlocks() {
+  for (int failure = 0; failure < 4; ++failure) {
+    resetHarness(false, false);
+    enterCompatibilityMode();
+    reachReadyFromBoot();
+    if (failure == 0) taskWatchdogReady = false;
+    if (failure == 1) relaySafetyTimersReady = false;
+    if (failure == 2) hostCircuitArmBeforeCommitHook = [] {
+      tripRelaySafety(RelaySafetyFault::TASK_WATCHDOG_FAILURE);
+    };
+    setRawPaddle(true);
+    runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 5);
+    if (failure == 3) {
+      CHECK(getRelaySafetySnapshot().closed);
+      safetyEventFlags.set(SAFETY_EVENT_CRITICAL_TASK_WATCHDOG);
+      serviceRelaySafety();
+    }
+    CHECK(!getRelaySafetySnapshot().closed);
+    CHECK(getRelaySafetySnapshot().state == RelaySafetyState::LOCKOUT);
+    CHECK(hostPinLevel[RELAY_GPIO] == RELAY_OPEN_LEVEL);
+    if (failure != 3) CHECK(stopperState == StopperState::REQUIRES_OFF);
+  }
 }
 
 void cm03_compatibility_rejects_actuation_commands() {
@@ -19359,13 +19394,14 @@ const TestCase testCases[] = {
     {"BC10", bc10_ble_master_switch_quiesces_scale_link},
     {"BC11", bc11_ble_master_switch_command_persists_live_without_restart},
     {"CM01", cm01_compatibility_mirror_follows_activator},
-    {"CM02", cm02_compatibility_parks_after_hard_limit},
+    {"CM02", cm02_compatibility_has_no_duration_cutoff},
     {"CM03", cm03_compatibility_rejects_actuation_commands},
     {"CM04", cm04_compatibility_blocks_ble_enable_command},
     {"CM05", cm05_compatibility_mutes_alerts_except_recovery},
     {"CM06", cm06_compatibility_command_gate_scope},
     {"CM07", cm07_compatibility_boots_parked_with_activator_held},
     {"CM08", cm08_compatibility_mirror_holds_against_guard_drive_deny},
+    {"CM09", cm09_compatibility_preserves_fault_and_readiness_interlocks},
 };
 
 }  // namespace

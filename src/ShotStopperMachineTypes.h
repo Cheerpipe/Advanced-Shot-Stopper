@@ -17,8 +17,8 @@ namespace shotstopper {
 // MachineSense is a one-way push from the stopper — specializations must not
 // reach into session or live scale globals.
 
-// Electrical circuit-closed cap. Firmware-only; not a setting. Brew walls
-// (Max BBW time) must never exceed this.
+// Normal-mode electrical circuit-closed cap. Compatibility mirroring has no
+// duration cap; confirmed backflush has its own bound. Brew walls must not exceed this.
 constexpr uint32_t HARD_MAX_CIRCUIT_CLOSED_MS = 60000;
 constexpr uint32_t BACKFLUSH_MAX_CIRCUIT_CLOSED_MS = 180000;
 enum class RelayPurpose : uint8_t { NORMAL, BACKFLUSH_CANDIDATE, BACKFLUSH_CONFIRMED };

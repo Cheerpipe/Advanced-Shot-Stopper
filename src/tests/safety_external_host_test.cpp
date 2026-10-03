@@ -58,6 +58,7 @@ void resetSafety() {
   operationalLimitTripped = false;
   circuitClosedAtMs = 0;
   operationalLimitAtArmMs = HARD_MAX_CIRCUIT_CLOSED_MS;
+  firmwareModeRaw = static_cast<uint8_t>(FirmwareMode::FULL);
   relaySafetyState = RelaySafetyState::OPEN;
   relaySafetyFault = RelaySafetyFault::NONE;
   relaySafetyGeneration = 0;
@@ -115,6 +116,24 @@ void stuck_closed_feedback_blocks_every_close_attempt() {
         RelaySafetyFault::FEEDBACK_STUCK_CLOSED);
 }
 
+void compatibility_long_hold_retains_feedback_supervision() {
+  resetSafety();
+  firmwareModeRaw = static_cast<uint8_t>(FirmwareMode::COMPATIBILITY);
+  CHECK(setMachineCircuitClosed(true));
+  hostPinLevel[CIRCUIT_FEEDBACK_GPIO] = CIRCUIT_FEEDBACK_CLOSED_LEVEL;
+  hostMillis += 90000;
+  serviceRelaySafety();
+  CHECK(getRelaySafetySnapshot().closed);
+  CHECK(getRelaySafetySnapshot().hardLimitMs == 0);
+  CHECK(!independentSafetyTimer.running() && !relaySafetyTimer->active);
+  hostPinLevel[CIRCUIT_FEEDBACK_GPIO] = !CIRCUIT_FEEDBACK_CLOSED_LEVEL;
+  serviceRelaySafety();
+  CHECK(!getRelaySafetySnapshot().closed);
+  CHECK(getRelaySafetySnapshot().state == RelaySafetyState::LOCKOUT);
+  CHECK(getRelaySafetySnapshot().fault == RelaySafetyFault::FEEDBACK_CHANGED_UNEXPECTEDLY);
+  CHECK(!setMachineCircuitClosed(true));
+}
+
 void missing_close_feedback_opens_and_locks_out() {
   resetSafety();
   CHECK(setMachineCircuitClosed(true, 5000));
@@ -166,11 +185,12 @@ void gptimer_open_does_not_false_stuck_closed_before_settle() {
 int main() {
   feedback_tracks_a_healthy_close_then_detects_contact_loss();
   stuck_closed_feedback_blocks_every_close_attempt();
+  compatibility_long_hold_retains_feedback_supervision();
   missing_close_feedback_opens_and_locks_out();
   heartbeat_is_emitted_only_after_healthy_loop_epochs();
   gptimer_open_does_not_false_stuck_closed_before_settle();
   releaseResources();
-  std::cout << "External machine circuit safety: 5 tests, " << failures
+  std::cout << "External machine circuit safety: 6 tests, " << failures
             << " failures\n";
   return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

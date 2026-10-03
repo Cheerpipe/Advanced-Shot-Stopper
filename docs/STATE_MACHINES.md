@@ -62,7 +62,7 @@ contact.
 
 | Layer | Machines | Privilege |
 | --- | --- | --- |
-| Electrical | Relay safety | Can de-energize K1 from an ISR or trip path. Hard 60 s cap. |
+| Electrical | Relay safety | Can de-energize K1 from an ISR or trip path. Normal-mode 60 s cap; compatibility mirroring has no duration cap. |
 | Machine view | Machine run state, user intent | Derived. Status/UI only; they do not drive GPIO themselves. |
 | Brew orchestrator | Brew orchestrator | Orchestrates rinse vs shot vs idle from `UserIntent` (including `REQUEST_RINSE`) and *requests* circuit start/stop. Does not classify paddle ON→OFF or long-press. |
 | In-shot sensing | Weight stream, weight control, cup presence, first flow, accidental touch | Consume scale samples. Only **weight control** can ask the brew orchestrator to cut. |
@@ -144,7 +144,7 @@ back to `OPEN` unless it already tripped. If the paddle is still ON,
 the brew orchestrator lands in `REQUIRES_OFF` until a stable OFF (`STABLE_IDLE`).
 Otherwise it returns to `READY`.
 
-**Independence.** A 60 s (or operational-wall) timer ISR can trip
+**Independence.** In full firmware mode, a 60 s (or operational-wall) timer ISR can trip
 safety while the control task is in BLE or flash I/O. The next loop
 sees `TRIPPED` / `LOCKOUT` and finalizes the cycle with
 `RELAY_SAFETY_FAILURE`. Network, OTA, and NTP never close the machine circuit. A
@@ -1053,8 +1053,8 @@ record and queues the same idle-safe `RESTART` command the Admin Restart
 button uses, so a running pour always finishes before the mode flips. There
 are no live transitions; every gate reads one immutable-per-boot value.
 
-While active, `stateMachineTask` services the hard/operational limit block and
-the maintenance-lease block exactly as in full mode, then `serviceCompatibilityMirror`
+While active, `stateMachineTask` retains fault handling and the maintenance-lease
+block, then `serviceCompatibilityMirror`
 replaces the rest of the orchestrator:
 
 - Activator→K1 drive permission is forced allowed every pass (the same lever
@@ -1063,17 +1063,26 @@ replaces the rest of the orchestrator:
   `machineRequestStart(HARD_MAX_CIRCUIT_CLOSED_MS)` / `machineRequestStop()`;
   momentary builds keep the stock 1:1 switch mirror and simply never receive
   synthetic pulses.
-- A hard-limit trip or failed close parks the mirror in `REQUIRES_OFF` until
+- A safety trip or failed close parks the mirror in `REQUIRES_OFF` until
   the activator returns stably idle — the ON-only mirror never re-closes.
 
 Timer authority in compatibility mode:
 
 | Timer | Authority | In compatibility mode |
 | --- | --- | --- |
-| BBW operational wall (5–60 s, per preset/policy `machineCloseLimitMs`) | brew feature | suspended (close uses `HARD_MAX_CIRCUIT_CLOSED_MS`) |
+| BBW operational wall (5–60 s, per preset/policy `machineCloseLimitMs`) | brew feature | suspended |
 | Momentary logical-run walls | brew feature | suspended (no logical run is armed) |
-| Hardware cap `HARD_MAX_CIRCUIT_CLOSED_MS` (pre-return check + independent ISR) | relay safety | enforced |
+| Hardware cap `HARD_MAX_CIRCUIT_CLOSED_MS` (pre-return check + independent ISR) | relay safety | disabled for compatibility mirroring |
 | Watchdog, stuck feedback, reset guard, boot-open, LOCKOUT refusal | relay safety | enforced (unchanged) |
+
+For compatibility mirroring, the relay snapshot publishes both duration limits
+as zero, meaning disabled. GPTimer and both duration `esp_timer` deadlines stay
+unarmed, and software timeout checks and obsolete queued callbacks ignore these
+disabled limits. The electrical close timestamp is preserved; the relay is not
+periodically reopened or rearmed. A control stall therefore has no duration-timer
+cutoff in this mode; the existing watchdog and configured external heartbeat
+remain separate protections. Re-enabling full firmware requires restart and
+restores normal deadline arming.
 
 Subsystem gates (all boot-scoped, all reusing existing choke points): BLE
 scale worker held idle by `applyLiveBleEnabled(false)`; NTP held stopped by the

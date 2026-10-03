@@ -2333,6 +2333,14 @@ void t_compatibility_mode_mirrors_without_session() {
   pressDown();
   CHECK(getRelaySafetySnapshot().closed);
   CHECK(!session.active);
+  const size_t openWrites = hostRelayOpenWrites;
+  const RelaySafetySnapshot held = getRelaySafetySnapshot();
+  runLoopAfter(90000);
+  CHECK(getRelaySafetySnapshot().closed);
+  CHECK(getRelaySafetySnapshot().generation == held.generation);
+  CHECK(getRelaySafetySnapshot().hardLimitMs == 0);
+  CHECK(!independentSafetyTimer.running() && !relaySafetyTimer->active);
+  CHECK(hostRelayOpenWrites == openWrites && !session.active && !pulseOutputActive);
   releaseUp();
   CHECK(!getRelaySafetySnapshot().closed);
   CHECK(!session.active);

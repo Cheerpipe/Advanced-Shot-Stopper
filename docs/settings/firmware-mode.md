@@ -31,9 +31,11 @@ finishes first. After the restart the controller becomes transparent:
 - Recovery mode, firmware updates over Wi-Fi (OTA), and the USB serial CLI
   keep working, so you can always reach the controller.
 
-The 60-second safety cap still applies in compatibility mode. The supervised
-automatic [Micra backflush](linea-micra.md#automatic-backflush) exception is
-available only with the firmware enabled and WebSocket monitoring connected.
+There is no time limit in compatibility mode: the relay keeps following the
+paddle or switch even when it is held for more than 60 seconds. Releasing it
+opens the relay. Turning the firmware back on restores its normal time limits.
+Automatic [Micra backflush](linea-micra.md#automatic-backflush) is available
+only with the firmware enabled and WebSocket monitoring connected.
 
 ## Nothing is lost
 

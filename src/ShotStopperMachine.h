@@ -114,8 +114,8 @@ inline void machineSampleInput() {
   applyPaddleRelayDrive();
 }
 // Compatibility-mode transparent mirror: close while the activator is held,
-// open when it is released. The close uses HARD_MAX so hardware supervision
-// keeps its full window while BBW feature walls are bypassed by design. The
+// open when it is released. Relay safety disables duration deadlines for the
+// boot-scoped compatibility mode while retaining fault supervision. The
 // debounced hold drives the mirror — a raw input glitch must never toggle K1.
 inline bool machineServiceCompatibilityDrive(
     const MachineIntention &intent) {

@@ -58,8 +58,9 @@ requests rinse instead. The Linea Micra profile enables it by default.
 3. To stop early, move ON again, then OFF. That shot switches to Natural
    behavior; the saved mode stays Original.
 
-Leaving ON does not grant unlimited brewing: the hard electrical cap still
-applies even while weight stop and the operational wall are held off.
+With the firmware enabled, leaving ON does not grant unlimited brewing: the
+hard electrical cap still applies even while weight stop and the operational
+wall are held off. [Compatibility mode](firmware-mode.md) has no duration cap.
 
 ## Auto
 

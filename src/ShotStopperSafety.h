@@ -88,6 +88,7 @@ struct RelaySafetySnapshot {
   bool operationalTripped = false;
   uint32_t generation = 0;
   uint32_t closedAtMs = 0;
+  // Both limits are zero while compatibility mirroring has no duration cap.
   uint32_t operationalLimitMs = 0;
   uint32_t hardLimitMs = HARD_MAX_CIRCUIT_CLOSED_MS;
   uint32_t electricalClosedAtMs = 0, electricalOpenedAtMs = 0;
