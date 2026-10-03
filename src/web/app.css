@@ -36,6 +36,9 @@ html:is([data-nav-layout="icons"],[data-nav-layout="text"]){--nav-space:1.5rem;-
 :is([data-nav-layout="icons"],[data-nav-layout="text"]) .pageNav a{flex:1 0 auto;gap:.5rem;padding:0 .5rem}
 :is([data-nav-layout="icons"],[data-nav-layout="text"]) .pageNav a>span{position:static;width:auto;height:auto;overflow:visible;clip-path:none}
 [data-nav-layout="text"] .pageNav svg{display:none}
+:is([data-nav-layout="icons"],[data-nav-layout="text"]) .topBar{--compact:0;top:calc(.5rem - var(--menu-offset))}
+:is([data-nav-layout="icons"],[data-nav-layout="text"])[data-scrolled] .topBar{background:transparent;pointer-events:none}
+[data-scrolled] .pageNav{pointer-events:auto}
 .textLock{min-width:var(--tap);min-height:var(--tap);margin:0;border:0;background:transparent;color:var(--mu);font:inherit;font-size:.78rem;font-weight:600;padding:.2rem .35rem;cursor:pointer;line-height:1.2}
 .textLock:hover{color:var(--ac);text-decoration:underline}
 .adminSession{display:flex;align-items:baseline;flex-wrap:wrap;gap:.15rem;margin:0 0 .55rem;color:var(--mu);font-size:.82rem;line-height:1.35}

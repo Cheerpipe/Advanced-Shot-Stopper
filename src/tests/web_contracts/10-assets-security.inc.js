@@ -615,8 +615,9 @@ if (htmlBytes > 84000) {
 // limits stay fixed.
 // Backflush state/history labels and live safety diagnostics add 1.5 KiB source.
 // Preferred-scale draft/readback joins Machine Save/Revert (+300 measured bytes).
-if (jsBytes > 239000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 239000)`);
+// Floating header geometry adds 256 bytes of source allowance; gzip limits stay fixed.
+if (jsBytes > 239256) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 239256)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -644,8 +645,9 @@ if (jsBytes > 239000) {
 // Selectable Micra transport and bounded WS diagnostics add 1.5 KB after
 // sharing option payloads and diagnostic row creation. Flash limits stay fixed.
 // Backflush contributes the 3.5 KiB source allowances described above.
-if (htmlBytes + jsBytes > 322500) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 322500)`);
+// Include the same 256-byte floating-header source allowance.
+if (htmlBytes + jsBytes > 322756) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 322756)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

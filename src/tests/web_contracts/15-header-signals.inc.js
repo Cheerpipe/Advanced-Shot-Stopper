@@ -111,27 +111,32 @@
   assert(nav.includes('data-route="/diagnostic" class="hidden"'), 'Hidden until device configuration is known');
 
   const values = {}, events = {}, mobile = {matches: true, addEventListener: (name, fn) => {events.resize = fn;}};
-  const header = vm.createContext({document: {body: {style: {setProperty: (name, value) => {values[name] = value;}}}},
+  let scrolled = false;
+  const header = vm.createContext({root: {toggleAttribute: (name, value) => {assert.equal(name, 'data-scrolled'); scrolled = value;}}, document: {body: {style: {setProperty: (name, value) => {values[name] = value;}}}},
     window: {scrollY: 0, matchMedia: () => mobile, addEventListener: (name, fn) => {events[name] = fn;}}});
-  const headerStart = appJsSource.indexOf('function updateHeaderSize()');
-  header.mobileHeader = mobile;
+  const headerStart = appJsSource.indexOf('function scrollHeader()');
+  header.mobile = mobile;
   vm.runInContext(appJsSource.slice(headerStart, appJsSource.indexOf("window.addEventListener('popstate'", headerStart)), header);
   for (const [scroll, progress] of [[0, 0], [30, .25], [60, .5], [120, 1], [300, 1], [-20, 0]]) {
     header.window.scrollY = scroll; events.scroll();
     assert.equal(values['--header-progress'], progress, 'Header shrinks continuously within scroll bounds');
+    assert.equal(scrolled, scroll > 0, 'Gray surface returns exactly at the top, including overscroll');
   }
   mobile.matches = false; header.window.scrollY = 60; events.scroll();
   assert.equal(values['--header-progress'], 0, 'Desktop scrolling does not drive the mobile header');
+  assert.equal(scrolled, true, 'Desktop scrolling still floats header navigation');
+  header.window.scrollY = 0; events.scroll(); assert.equal(scrolled, false, 'Returning to the top restores desktop chrome');
+  header.window.scrollY = 60;
   mobile.matches = true; events.resize();
   assert.equal(values['--header-progress'], .5, 'Switching to mobile applies the current scroll position');
 }
 {
   const assert = require('assert').strict, vm = require('vm');
-  const root = {dataset: {}}, app = {clientWidth: 760}, callbacks = {};
+  const geometry = {}, header = {}, root = {dataset: {}, style: {setProperty: (name, value) => {geometry[name] = value;}}}, app = {clientWidth: 760}, callbacks = {};
   const links = [42, 34, 48, 60, 78, 46].map(width => ({
     hidden: false, suppressed: false, width, textContent: 'Section',
   }));
-  const nav = {setAttribute() {}, querySelectorAll: () => links,
+  const nav = {offsetTop: 72, setAttribute() {}, querySelectorAll: () => links,
     get clientWidth() {return app.clientWidth - 2;},
     get scrollWidth() {
       const required = 4 + links.filter(link => !link.hidden && !link.suppressed)
@@ -142,10 +147,12 @@
   const mobile = {matches: false, addEventListener: (name, fn) => {
     assert.equal(name, 'change'); callbacks.breakpoint = fn;
   }};
-  const context = vm.createContext({pageNav: nav, mobileHeader: mobile, __WEBUI_TEXT__: key => key,
-    document: {documentElement: root, getElementById: id => {assert.equal(id, 'app'); return app;},
+  const context = vm.createContext({root, nav, mobile, __WEBUI_TEXT__: key => key,
+    document: {documentElement: root, querySelector: selector => {assert.equal(selector, '.topBar'); return header;}, getElementById: id => {assert.equal(id, 'app'); return app;},
       fonts: {ready: {then: fn => {callbacks.fonts = fn;}}}},
-    ResizeObserver: class {constructor(fn) {callbacks.resize = fn;} observe(target) {assert.equal(target, app);}},
+    ResizeObserver: class {constructor(fn) {this.fn = fn;} observe(target) {
+      assert(target === app || target === header); callbacks[target === app ? 'resize' : 'geometry'] = this.fn;
+    }},
     MutationObserver: class {constructor(fn) {callbacks.visibility = fn;} observe(target, options) {
       assert.equal(target, nav); assert.equal(options.subtree, true);
       assert.deepEqual(Array.from(options.attributeFilter), ['class', 'hidden']);
@@ -154,6 +161,9 @@
   const start = appJsSource.indexOf('function updateNavigationLayout()');
   vm.runInContext(appJsSource.slice(start, appJsSource.indexOf('const msgEl=', start)), context);
   assert.equal(root.dataset.navLayout, 'icons', 'Wide header retains section icons and names');
+  assert.equal(geometry['--menu-offset'], '72px', 'Initial header measures its actual menu row');
+  nav.offsetTop = 80; callbacks.geometry();
+  assert.equal(geometry['--menu-offset'], '80px', 'Header resizing updates the floating offset');
   for (const [width, expected] of [[602, 'icons'], [601, 'text'], [410, 'text'], [409, 'bottom'], [760, 'icons']]) {
     app.clientWidth = width; callbacks.resize();
     assert.equal(root.dataset.navLayout, expected, 'No wrapping at width ' + width);
@@ -174,6 +184,8 @@
   for (const width of [320, 390, 440, 699]) {
     app.clientWidth = width; mobile.matches = true; callbacks.breakpoint();
     assert.equal(root.dataset.navLayout, 'bottom', 'Phone width ' + width + ' always uses bottom icons');
+    nav.offsetTop = 999; callbacks.geometry();
+    assert.equal(root.dataset.navLayout, 'bottom', 'Geometry observation cannot promote phone navigation');
     links.forEach((link, index) => {link.suppressed = index !== 5;}); callbacks.visibility();
     assert.equal(root.dataset.navLayout, 'bottom', 'Only Admin visible still uses bottom icons');
     callbacks.fonts(); callbacks.resize();
@@ -185,5 +197,8 @@
   app.clientWidth = 440; callbacks.resize();
   assert.equal(root.dataset.navLayout, 'text', 'A narrow desktop content area still measures header text');
   assert(css.includes('bottom:var(--nav-offset)'), 'Save and action bars follow the navigation clearance');
-  assert(!css.includes('top:-3.85rem'), 'Desktop header remains visible as in the accepted mockup');
+  assert(!css.includes('top:-3.85rem'), 'Floating header avoids a fixed branding-height assumption');
+  assert(css.includes('top:calc(.5rem - var(--menu-offset))'), 'Sticky top follows measured geometry');
+  assert(css.includes('[data-scrolled] .topBar{background:transparent;pointer-events:none}'), 'Floating surroundings expose and do not intercept content');
+  assert(css.includes('[data-scrolled] .pageNav{pointer-events:auto}'), 'Floating links remain interactive');
 }

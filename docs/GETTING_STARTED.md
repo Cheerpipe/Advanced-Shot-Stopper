@@ -54,8 +54,11 @@ Use the rounded navigation bar to open Home, Stats, History, Settings,
 Diagnostics or Admin. When there is enough room, it sits beneath the logo,
 matches the content width and shows an icon beside each section name. As the
 window narrows, the icons disappear first. When the names no longer fit, the
-bar moves to the bottom and shows icons only. The header and navigation stay
-visible as you scroll, and the current page is highlighted.
+bar moves to the bottom and shows icons only. The current page is highlighted.
+With navigation in the header, the gray area is visible at the top of the page.
+As you scroll, the logo and connection indicators move out of view while the
+menu floats over the content near the top of the screen. Return to the top to
+restore the complete header.
 Diagnostics appears only when **Show diagnostic page** is enabled in
 **Admin → Frontend**; hiding it gives the other buttons more room.
 The phone header shrinks gradually as you scroll, keeping the logo and connection
