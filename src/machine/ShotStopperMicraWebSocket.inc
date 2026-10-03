@@ -42,7 +42,8 @@ MicraWebSocketStatus ShotStopperMicraService::websocketStatus() const {
   return result;
 }
 
-bool ShotStopperMicraService::websocketAdmitted() const {
+bool ShotStopperMicraService::websocketAdmitted(bool starting) const {
+  if (starting && (outboundScaleInhibited() || scaleConnecting_.load(std::memory_order_acquire))) return false;
   if (outboundShotActive.load(std::memory_order_acquire) ||
       outboundMaintenance.load(std::memory_order_acquire) || outboundOtaBusy.load(std::memory_order_acquire)) return false;
   if (!staConnected_.load(std::memory_order_acquire) ||
@@ -125,9 +126,14 @@ bool ShotStopperMicraService::stompFrame(void *context, const MicraStompFrame &f
   auto &self = *static_cast<ShotStopperMicraService *>(context);
   WebSocketBuffer &buffer = *self.websocket_;
   if (!self.websocketAdmitted()) return true;
+  bool subscribed;
+  {
+    TaskLockGuard lock(self.mux_);
+    subscribed = self.websocketStatus_.subscribed;
+  }
   if (strcmp(frame.command, "CONNECTED") == 0) {
     if ((strcmp(frame.version, "1.2") != 0 && strcmp(frame.version, "1.1") != 0) ||
-        self.websocketStatus().subscribed) return false;
+        subscribed) return false;
     // CONNECT advertises 0,0: no STOMP heartbeat is negotiated. WS ping remains.
     char subscribe[256];
     const int length = snprintf(subscribe, sizeof(subscribe),
@@ -168,7 +174,7 @@ bool ShotStopperMicraService::stompFrame(void *context, const MicraStompFrame &f
   if (strcmp(frame.command, "MESSAGE") != 0) return false;
   if (strcmp(frame.destination, buffer.destination) != 0 ||
       strcmp(frame.subscription, buffer.subscription) != 0 ||
-      !self.websocketStatus().subscribed) return false;
+      !subscribed) return false;
   // JSON cannot contain an embedded raw NUL, even with STOMP content-length.
   if (memchr(frame.body, '\0', frame.bodyLength)) return false;
   const uint32_t receivedAt = millis();
@@ -431,6 +437,7 @@ void ShotStopperMicraService::serviceWebSocket() {
     }
     stopWebSocket();
     if (auth) clearSession();
+    now = millis();  // Backoff begins after transport/session cleanup completes.
     TaskLockGuard lock(mux_);
     ++observationFence_.epoch;
     powerState_.hold(published_, true, now);
@@ -466,6 +473,13 @@ void ShotStopperMicraService::serviceWebSocket() {
     wipeLineaMicraSettings(settings);
     return;
   }
+  if (!websocketAdmitted(true)) {
+    TaskLockGuard lock(mux_);
+    websocketStatus_.state = MicraSocketState::PAUSED;
+    websocketStatus_.reason = "scale";
+    wipeLineaMicraSettings(settings);
+    return;
+  }
   if (!websocket_) {
     auto *buffer = static_cast<WebSocketBuffer *>(allocExternal(sizeof(WebSocketBuffer), AllocationOwner::NETWORK));
     if (!buffer) {
@@ -473,7 +487,7 @@ void ShotStopperMicraService::serviceWebSocket() {
       ++websocketStatus_.allocationFailures;
       websocketStatus_.state = MicraSocketState::BACKOFF;
       websocketStatus_.reason = "allocation_failed";
-      websocketStatus_.retryAtMs = now + micra_timing::kExhaustedCooldownMs;
+      websocketStatus_.retryAtMs = millis() + micra_timing::kExhaustedCooldownMs;
       wipeLineaMicraSettings(settings);
       return;
     }
@@ -488,14 +502,14 @@ void ShotStopperMicraService::serviceWebSocket() {
     websocketStatus_.state = MicraSocketState::AUTHENTICATING;
   }
   bool renewed = false;
-  if (!ensureWorkBuffer() || !ensureSession(settings, false, &renewed) || !websocketAdmitted()) {
+  if (!ensureWorkBuffer() || !ensureSession(settings, false, &renewed) || !websocketAdmitted(true)) {
     TaskLockGuard lock(mux_);
     if (classifyFailure() == LineaMicraError::INVALID_AUTH) websocketAuthRecoveries_ = 2;
     websocketStatus_.state = websocketAuthRecoveries_ > 1
         ? MicraSocketState::AUTH_ERROR : MicraSocketState::BACKOFF;
     websocketStatus_.reason = "session_unavailable";
     const uint8_t attempt = ++websocket_->attempts;
-    websocketStatus_.retryAtMs = now + (attempt < micra_timing::kMaxAttempts
+    websocketStatus_.retryAtMs = millis() + (attempt < micra_timing::kMaxAttempts
         ? micra_timing::kRetryDelaysMs[attempt - 1] : micra_timing::kExhaustedCooldownMs);
     if (attempt >= micra_timing::kMaxAttempts) websocket_->attempts = 0;
     wipeLineaMicraSettings(settings);
@@ -537,7 +551,7 @@ void ShotStopperMicraService::serviceWebSocket() {
   config.pingpong_timeout_sec = 30;
   const auto before = sampleHeapCaps();
   recordBootHeap(BootHeapStage::WS_START, BootHeapResult::OK, millis(), before);
-  if (ok && websocketAdmitted()) buffer.client = esp_websocket_client_init(&config);
+  if (ok && websocketAdmitted(true)) buffer.client = esp_websocket_client_init(&config);
   recordBootHeap(BootHeapStage::WS_INIT,
                  buffer.client ? BootHeapResult::OK : BootHeapResult::FAILED, millis());
   ok = buffer.client && esp_websocket_register_events(buffer.client, WEBSOCKET_EVENT_ANY,
@@ -548,11 +562,11 @@ void ShotStopperMicraService::serviceWebSocket() {
     websocketStatus_.state = MicraSocketState::CONNECTING;
     ++websocketStatus_.reconnects;
   }
-  ok = ok && websocketAdmitted() && esp_websocket_client_start(buffer.client) == ESP_OK;
+  ok = ok && websocketAdmitted(true) && esp_websocket_client_start(buffer.client) == ESP_OK;
   recordBootHeap(BootHeapStage::WS_TASK, ok ? BootHeapResult::OK : BootHeapResult::FAILED, millis());
   if (!ok) {
     recordBootHeap(BootHeapStage::WS_DONE, BootHeapResult::FAILED, millis());
-    const bool unexpected = websocketAdmitted();
+    const bool unexpected = websocketAdmitted(true);
     stopWebSocket();
     buffer.failed.store(true);
     TaskLockGuard lock(mux_);
@@ -561,7 +575,7 @@ void ShotStopperMicraService::serviceWebSocket() {
     websocketStatus_.state = MicraSocketState::BACKOFF;
     websocketStatus_.reason = "start_failed";
     const uint8_t attempt = ++buffer.attempts;
-    websocketStatus_.retryAtMs = now + (attempt < micra_timing::kMaxAttempts
+    websocketStatus_.retryAtMs = millis() + (attempt < micra_timing::kMaxAttempts
         ? micra_timing::kRetryDelaysMs[attempt - 1] : micra_timing::kExhaustedCooldownMs);
     if (attempt >= micra_timing::kMaxAttempts) buffer.attempts = 0;
   }

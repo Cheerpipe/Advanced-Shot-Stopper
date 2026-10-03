@@ -43,8 +43,11 @@ and residual DNS/connect setup; transport completion is not RF silence.
 Correlate generic `outboundPause` generation/reason and per-client completion
 with WS lifecycle, power/message/pong ages, receive/transmit payload rates,
 publication latency, cleaning availability and `heapLifecycle.micraWebsocket`.
-Measure machine action→cloud arrival separately from complete-message→facade
-publication, including a stalled HTTP operation. Record p50/p95/p99/max and
+Measure machine action→cloud arrival, fragment assembly, STOMP callback duration
+and validated-frame→facade publication separately, including a stalled HTTP
+operation and large multiline frames. Confirm that an established subscription
+survives scale acquisition while new setup waits for scale inhibition to clear.
+Record p50/p95/p99/max and
 stack watermarks for cloud/WS/BLE/control tasks. Run API versus WS comparisons,
 weak reception, overlapping pause reasons, 1000 lifecycle cycles, combined soak
 and OTA trial rollback only with explicit hardware/OTA authorization. No target

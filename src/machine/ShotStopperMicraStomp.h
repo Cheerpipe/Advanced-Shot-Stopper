@@ -25,7 +25,7 @@ class MicraStompDecoder {
   static constexpr size_t kCapacity = kHeaderLimit + kBodyLimit + 2;
   using Consumer = bool (*)(void *, const MicraStompFrame &);
 
-  void reset() { used_ = 0; startedAtMs_ = 0; }
+  void reset() { used_ = bodyOffset_ = 0; startedAtMs_ = 0; hasLength_ = false; frame_ = {}; }
   uint32_t pendingSince() const { return used_ ? startedAtMs_ : 0; }
   bool pending() const { return used_ != 0; }
   bool incompleteExpired(uint32_t now) const {
@@ -40,36 +40,52 @@ class MicraStompDecoder {
         while (length && (*data == '\n' || *data == '\r')) { ++data; --length; }
         if (!length) return true;
         startedAtMs_ = now;
-        ingressAttempt_ = ingressAttempt;
+        frame_.ingressAttempt = ingressAttempt;
       }
-      if (used_ == kCapacity - 1) return false;
+      if (bodyOffset_) {
+        const size_t remaining = (hasLength_ ? frame_.bodyLength : kBodyLimit) - (used_ - bodyOffset_);
+        size_t count = length < remaining ? length : remaining;
+        if (!hasLength_) {
+          const auto *end = static_cast<const char *>(memchr(data, '\0', count));
+          if (end) count = static_cast<size_t>(end - data);
+        }
+        memcpy(bytes_ + used_, data, count);
+        used_ += count;
+        data += count;
+        length -= count;
+        if (!length) continue;
+        if (*data++ != '\0') return false;
+        bytes_[used_++] = '\0';
+        --length;
+        frame_.bodyLength = used_ - bodyOffset_ - 1;
+        if (++frames > 32 || !consume(context, frame_)) return false;
+        reset();
+        continue;
+      }
+      if (used_ == kHeaderLimit) return false;
       bytes_[used_++] = *data++;
       --length;
-      bytes_[used_] = '\0';
-      // Header parsing is performed only at a possible delimiter/terminator.
-      if (bytes_[used_ - 1] != '\n' && bytes_[used_ - 1] != '\0' &&
-          used_ != kHeaderLimit + 1) continue;
-      MicraStompFrame frame;
-      size_t total = 0;
-      const int result = parse(frame, total);
-      if (result < 0) return false;
-      if (result == 0) continue;
-      frame.ingressAttempt = ingressAttempt_;
-      if (++frames > 32 || !consume(context, frame)) return false;
-      reset();
+      if (bytes_[used_ - 1] == '\0') return false;
+      if (bytes_[used_ - 1] == '\n' &&
+          ((used_ >= 2 && bytes_[used_ - 2] == '\n') ||
+           (used_ >= 3 && bytes_[used_ - 2] == '\r' && bytes_[used_ - 3] == '\n'))) {
+        if (!parseHeaders()) return false;
+        bodyOffset_ = used_;
+        frame_.body = bytes_ + bodyOffset_;
+      }
     }
     return !incompleteExpired(now);
   }
 
  private:
-  static bool unescape(const char *begin, size_t length, char *out, size_t capacity) {
+  static bool unescape(char *text, size_t length) {
     size_t used = 0;
     for (size_t i = 0; i < length; ++i) {
-      char c = begin[i];
+      char c = text[i];
       if (c == '\0' || c == '\r') return false;
       if (c == '\\') {
         if (++i == length) return false;
-        switch (begin[i]) {
+        switch (text[i]) {
           case 'n': c = '\n'; break;
           case 'r': c = '\r'; break;
           case 'c': c = ':'; break;
@@ -77,39 +93,37 @@ class MicraStompDecoder {
           default: return false;
         }
       }
-      if (used + 1 >= capacity) return false;
-      out[used++] = c;
+      text[used++] = c;
     }
-    out[used] = '\0';
+    text[used] = '\0';
     return true;
   }
 
-  int parse(MicraStompFrame &frame, size_t &total) {
+  bool parseHeaders() {
+    auto &frame = frame_;
     size_t cursor = 0;
     const char *newline = static_cast<const char *>(memchr(bytes_, '\n', used_));
-    if (!newline) return used_ > kHeaderLimit ? -1 : 0;
+    if (!newline) return false;
     size_t size = static_cast<size_t>(newline - bytes_);
     if (size && bytes_[size - 1] == '\r') --size;
-    if (!size || size >= sizeof(frame.command)) return -1;
-    if (memchr(bytes_, '\0', size) || memchr(bytes_, '\r', size)) return -1;
+    if (!size || size >= sizeof(frame.command)) return false;
+    if (memchr(bytes_, '\0', size) || memchr(bytes_, '\r', size)) return false;
     memcpy(frame.command, bytes_, size);
     cursor = static_cast<size_t>(newline - bytes_) + 1;
-    bool hasLength = false;
-    size_t bodyLength = 0;
     for (;;) {
       newline = static_cast<const char *>(memchr(bytes_ + cursor, '\n', used_ - cursor));
-      if (!newline) return used_ > kHeaderLimit ? -1 : 0;
+      if (!newline) return false;
       size = static_cast<size_t>(newline - (bytes_ + cursor));
       if (size && bytes_[cursor + size - 1] == '\r') --size;
       const size_t next = static_cast<size_t>(newline - bytes_) + 1;
-      if (next > kHeaderLimit) return -1;
-      if (!size) { cursor = next; break; }
-      const char *colon = static_cast<const char *>(memchr(bytes_ + cursor, ':', size));
-      if (!colon) return -1;
-      char *key = key_, *value = value_;
+      if (next > kHeaderLimit) return false;
+      if (!size) return true;
+      char *colon = static_cast<char *>(memchr(bytes_ + cursor, ':', size));
+      if (!colon) return false;
+      char *key = bytes_ + cursor, *value = colon + 1;
       const size_t keySize = static_cast<size_t>(colon - (bytes_ + cursor));
-      if (!keySize || !unescape(bytes_ + cursor, keySize, key, sizeof(key_)) ||
-          !unescape(colon + 1, size - keySize - 1, value, sizeof(value_))) return -1;
+      if (!keySize || !unescape(key, keySize) ||
+          !unescape(value, size - keySize - 1)) return false;
       char *target = nullptr;
       size_t capacity = 0;
       if (strcmp(key, "destination") == 0) { target = frame.destination; capacity = sizeof(frame.destination); }
@@ -117,39 +131,25 @@ class MicraStompDecoder {
       else if (strcmp(key, "version") == 0) { target = frame.version; capacity = sizeof(frame.version); }
       else if (strcmp(key, "heart-beat") == 0) { target = frame.heartbeat; capacity = sizeof(frame.heartbeat); }
       else if (strcmp(key, "content-length") == 0) {
-        if (hasLength || !value[0]) return -1;
-        hasLength = true;
+        if (hasLength_ || !value[0]) return false;
+        hasLength_ = true;
         for (const char *p = value; *p; ++p) {
-          if (*p < '0' || *p > '9' || bodyLength > (kBodyLimit - (*p - '0')) / 10) return -1;
-          bodyLength = bodyLength * 10 + (*p - '0');
+          if (*p < '0' || *p > '9' || frame.bodyLength > (kBodyLimit - (*p - '0')) / 10) return false;
+          frame.bodyLength = frame.bodyLength * 10 + (*p - '0');
         }
       }
       if (target) {
-        if (!value[0] || target[0] || strlen(value) >= capacity) return -1;
+        if (!value[0] || target[0] || strlen(value) >= capacity) return false;
         memcpy(target, value, strlen(value) + 1);
       }
       cursor = next;
     }
-    if (hasLength) {
-      total = cursor + bodyLength + 1;
-      if (used_ < total) return 0;
-      if (used_ != total || bytes_[total - 1] != '\0') return -1;
-    } else {
-      const char *end = static_cast<const char *>(memchr(bytes_ + cursor, '\0', used_ - cursor));
-      if (!end) return used_ - cursor > kBodyLimit ? -1 : 0;
-      bodyLength = static_cast<size_t>(end - (bytes_ + cursor));
-      total = cursor + bodyLength + 1;
-      if (bodyLength > kBodyLimit) return -1;
-    }
-    frame.body = bytes_ + cursor;
-    frame.bodyLength = bodyLength;
-    return 1;
   }
 
-  size_t used_ = 0;
+  size_t used_ = 0, bodyOffset_ = 0;
   uint32_t startedAtMs_ = 0;
-  uint32_t ingressAttempt_ = 0;
+  bool hasLength_ = false;
+  MicraStompFrame frame_;
   char bytes_[kCapacity] = {};
-  char key_[kHeaderLimit + 1] = {}, value_[kHeaderLimit + 1] = {};
 };
 }  // namespace shotstopper

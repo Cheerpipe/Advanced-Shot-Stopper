@@ -1,5 +1,6 @@
 #include "machine/ShotStopperMicraStomp.h"
 #include <cassert>
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -52,8 +53,11 @@ int main() {
   assert(decoder.feed(joined.data(), joined.size(), 1, Received::accept, &received, 11));
   assert((received.attempts == std::vector<uint32_t>{10, 11, 11}));
   const auto binary = frame(std::string("a\0b", 3), true, false);
-  assert(decoder.feed(binary.data(), binary.size(), 1, Received::accept, &received));
-  assert(received.bodies.back() == std::string("a\0b", 3));
+  for (size_t split = 0; split <= binary.size(); ++split) {
+    assert(decoder.feed(binary.data(), split, 1, Received::accept, &received));
+    assert(decoder.feed(binary.data() + split, binary.size() - split, 2, Received::accept, &received));
+    assert(received.bodies.back() == std::string("a\0b", 3) && !decoder.pending());
+  }
   for (const auto &invalid : {
       std::string(1025, 'M'),
       frame(std::string(16385, 'x'), false, false),
@@ -77,4 +81,35 @@ int main() {
   const auto maximum = frame(std::string(16384, 'x'), true, false);
   assert(decoder.feed(maximum.data(), maximum.size(), 1, Received::accept, &received));
   assert(received.bodies.back().size() == 16384);
+  // Header storage is reused in place; multiline/binary bodies and subsequent
+  // frames must stay intact across callback-sized fragments and decoder resets.
+  for (bool length : {false, true}) for (bool crlf : {false, true}) {
+    const auto body = "{" + std::string(16382, '\n') + "}";
+    auto bytes = frame(body, length, crlf);
+    const std::string end = crlf ? "\r\n" : "\n";
+    bytes.insert(bytes.find(end + end) + end.size(), std::string(800, 'k') + ":a\\nb\\cc" + end);
+    bytes += frame("", length, crlf) + frame("{}", !length, !crlf);
+    decoder.reset();
+    received = {};
+    for (size_t offset = 0; offset < bytes.size(); offset += 1024)
+      assert(decoder.feed(bytes.data() + offset, std::min(size_t(1024), bytes.size() - offset),
+                          1, Received::accept, &received, 12));
+    assert((received.bodies == std::vector<std::string>{body, "", "{}"}));
+    assert((received.attempts == std::vector<uint32_t>{12, 12, 12}));
+    assert(!decoder.pending());
+  }
+  decoder.reset();
+  const std::string bodyHeader = "MESSAGE\ncontent-length:3\n\n";
+  assert(decoder.feed(bodyHeader.data(), bodyHeader.size(), 1, Received::accept, &received));
+  assert(!decoder.feed("abc\0", 4, 10001, Received::accept, &received));
+  decoder.reset();
+  auto unterminated = frame("abc", true, false);
+  unterminated.back() = 'x';
+  assert(!decoder.feed(unterminated.data(), unterminated.size(), 1, Received::accept, &received));
+  decoder.reset();
+  std::string batch;
+  for (unsigned count = 0; count < 33; ++count) batch += frame("{}", false, false);
+  received = {};
+  assert(!decoder.feed(batch.data(), batch.size(), 1, Received::accept, &received));
+  assert(received.bodies.size() == 32);
 }

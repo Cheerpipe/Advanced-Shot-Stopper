@@ -222,7 +222,8 @@ independent power, temperature and online-evidence revisions prevent older
 results overwriting newer evidence. A repeated online report advances its own
 revision without blocking initial power from the API. Diagnostic readers only
 copy under the facade mutex; socket generations are initialized under that same
-mutex before startup.
+mutex before startup. Receive-path subscription checks copy only the subscribed
+flag under that mutex; traffic-rate aggregation belongs to diagnostic reads.
 WS transport operations use the SDK's 10-second timeout, including initial TLS
 and Upgrade. The connected SDK task normally polls input every second; a TLS
 handshake or stalled frame already in progress can delay owner stop until its
@@ -241,7 +242,11 @@ A discovery-owned atomic acquisition latch is published under the existing
 NimBLE discovery critical section before Candidate becomes consumable. Its
 callback performs atomic stores and notifications only: no task mutex, heap,
 network API or wait. HTTP/webhook/NTP owners close their transports independently;
-Micra WSS remains active through scale acquisition. Ready
+An established Micra WSS subscription remains active through scale acquisition.
+New WSS setup and reconnection wait for acquisition, setup, BLE quiet and scale
+connection gates to clear; admission is rechecked after session preparation and
+before SDK init/start. A handshake already in flight can still finish.
+Ready
 clears acquisition; disappearance requires five seconds of actual active scan
 opportunity. Setup, communication quiet, shot and maintenance reasons remain
 independent; stale periodic connecting snapshots cannot release acquisition.

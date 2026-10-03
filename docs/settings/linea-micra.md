@@ -96,8 +96,10 @@ Both wait for station Wi-Fi, a synchronized clock and a closed setup access
 point. An admitted shot pauses monitoring. If that gesture is classified as a
 quick rinse, the pause ends immediately: reconnection and API requests can
 resume while the rinse is still running. WebSocket monitoring stays connected
-during scale discovery, connection and reconnection. Wi-Fi and the local Web UI
-remain available.
+during scale discovery, connection and reconnection. If monitoring needs a new
+connection during scale setup or connection, it waits until that activity and
+the scale's communication pause have ended. Wi-Fi and the local Web UI remain
+available.
 Micra API requests, including sign-in, Refresh and machine commands, wait
 through scale connection. During a shot, reads wait and pending power commands
 are canceled. Requests already in progress are canceled

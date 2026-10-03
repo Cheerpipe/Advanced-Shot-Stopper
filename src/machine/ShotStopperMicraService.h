@@ -91,7 +91,7 @@ class ShotStopperMicraService {
   void taskLoop();
   static void websocketEvent(void *context, const char *, int32_t event, void *data);
   static bool stompFrame(void *context, const struct MicraStompFrame &frame);
-  bool websocketAdmitted() const;
+  bool websocketAdmitted(bool starting = false) const;
   void serviceWebSocket();
   void stopWebSocket(bool release = false);
   void waitRetry(uint32_t delayMs);

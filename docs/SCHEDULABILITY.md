@@ -51,15 +51,20 @@ The API-mode observer is due nominally every 30 seconds, and its four-attempt cy
 waits 3, 6, then 9
 seconds. After exhaustion API observation resumes its 30-second cadence;
 WebSocket reconnection and command retries use a 60-second cooldown.
+WebSocket failure backoff starts after cleanup or the failed setup operation
+returns, so transport delays do not consume the following retry interval.
 WebSocket selection suppresses regular polling. Each admitted subscription
 queues one initial dashboard cycle with the same bounded retries, coalescing
 compatible queued observations. Explicit offline-to-online recovery can queue
 one resynchronization read. The SDK receiver runs independently on core 0,
-priority 1, with an 8192-byte internal stack and fixed 1024-byte I/O buffers.
+priority 1, with a 6144-byte internal stack and fixed 1024-byte I/O buffers.
 CONNECT/SUBSCRIBE and incomplete-frame progress each have a 10-second deadline.
-Payload processing admits at most 32 complete frames per feed and yields after
-publication. The facade records complete-message→publication and pause→actual
-stop latency; target qualification must establish those bounds under HTTP load.
+Payload processing decodes each header once, accumulates the body in linear
+time, admits at most 32 complete frames per feed and yields after publication.
+The facade records validated-frame→publication and pause→actual stop latency.
+The publication metric covers JSON decoding and facade publication; transport,
+fragment assembly and STOMP decoding require separate callback timing in target
+traces. Target qualification must establish those bounds under HTTP load.
 An established socket follows owner stop; DNS/connect already in flight may
 finish before SDK stop completes. BLE never waits for that completion.
 

@@ -97,9 +97,9 @@ int main() {
   recordBootHeap(BootHeapStage::WS_TASK, BootHeapResult::OK, 60104, heap(72000, 24000));
   serviceBootHeap(60101);  // The callback timestamp can postdate the health clock sample.
   assert(!bootHeapCapture.complete && bootHeapCapture.ws.samples == 0);
-  serviceBootHeap(121101);
+  serviceBootHeap(120101);
   assert(!bootHeapCapture.complete);
-  serviceBootHeap(121102);
+  serviceBootHeap(120102);
   assert(bootHeapCapture.complete && bootHeapCapture.ws.samples == 0);
   serialCliPrintBootHeap();
   assert(Serial.tx.find("reserve_after,disabled") != std::string::npos);

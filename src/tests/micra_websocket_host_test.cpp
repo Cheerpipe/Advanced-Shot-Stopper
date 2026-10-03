@@ -33,6 +33,9 @@ void serialTraceCategoryf(shotstopper::LogLevel level, shotstopper::DebugCategor
 }
 static int sendLimit = -1;
 static bool initFails = false, startFails = false;
+static bool sessionFails = false, inhibitAfterSession = false, inhibitAfterInit = false;
+static uint32_t stopDelayMs = 2, sessionDelayMs = 0, startDelayMs = 0;
+static unsigned initCalls = 0, startCalls = 0;
 constexpr int ESP_OK = 0;
 constexpr int WEBSOCKET_EVENT_ANY = 0, WEBSOCKET_EVENT_CONNECTED = 1;
 constexpr int WEBSOCKET_EVENT_DATA = 2, WEBSOCKET_EVENT_ERROR = 3, WEBSOCKET_EVENT_DISCONNECTED = 4;
@@ -63,12 +66,19 @@ void *esp_websocket_client_init(const esp_websocket_client_config_t *config) {
   assert(!locked && !callback && config->disable_auto_reconnect);
   assert(config->task_core_id == 0 && config->task_prio == 1 && config->buffer_size == 1024);
   assert(config->network_timeout_ms == 10000);
+  ++initCalls;
+  if (inhibitAfterInit) shotstopper::outboundBleQuiet.store(true);
   return initFails ? nullptr : reinterpret_cast<void *>(1);
 }
 int esp_websocket_register_events(void *, int, Handler, void *) { assert(!locked); return ESP_OK; }
 int esp_websocket_unregister_events(void *, int, Handler) { assert(!locked && !callback); return ESP_OK; }
-int esp_websocket_client_start(void *) { assert(!locked && !callback); return startFails ? -1 : ESP_OK; }
-int esp_websocket_client_stop(void *) { assert(!locked && !callback); ++stops; now += 2; return ESP_OK; }
+int esp_websocket_client_start(void *) {
+  assert(!locked && !callback);
+  ++startCalls;
+  now += startDelayMs;
+  return startFails ? -1 : ESP_OK;
+}
+int esp_websocket_client_stop(void *) { assert(!locked && !callback); ++stops; now += stopDelayMs; return ESP_OK; }
 int esp_websocket_client_destroy(void *) { assert(!locked && !callback); ++destroys; return ESP_OK; }
 int esp_websocket_client_send_text(void *, const char *bytes, int count, int) {
   assert(!locked);
@@ -88,9 +98,11 @@ bool ShotStopperMicraService::ensureWorkBuffer() {
   return true;
 }
 bool ShotStopperMicraService::ensureSession(LineaMicraPersistedSettings &, bool, bool *) {
+  now += sessionDelayMs;
+  if (inhibitAfterSession) outboundBleQuiet.store(true);
   std::strcpy(work_->accessToken, "synthetic-token");
   work_->accessTokenIssuedAtMs = now;
-  return true;
+  return !sessionFails;
 }
 void ShotStopperMicraService::clearSession() { work_->accessToken[0] = '\0'; }
 bool ShotStopperMicraService::applySignedHeaders(const LineaMicraPersistedSettings &, char *headers, size_t) {
@@ -100,6 +112,83 @@ bool ShotStopperMicraService::applySignedHeaders(const LineaMicraPersistedSettin
 #include "machine/ShotStopperMicraWebSocket.inc"
 #include "micra_websocket_status.inc"
 struct MicraWebSocketTest {
+  static void setupAdmissionAndBackoff() {
+    for (unsigned gate = 0; gate < 4; ++gate) {
+      now = 1000;
+      ShotStopperMicraService service;
+      service.config_.accountConfigured = true;
+      std::strcpy(service.config_.selectedSerial, "synthetic");
+      service.staConnected_.store(true);
+      auto &inhibited = gate == 0 ? outboundAcquisitionHeld : gate == 1 ? outboundScaleSetup
+          : gate == 2 ? outboundBleQuiet : service.scaleConnecting_;
+      inhibited.store(true);
+      service.serviceWebSocket();
+      assert(!service.websocket_ && !service.work_);
+      assert(service.websocketStatus().state == MicraSocketState::PAUSED);
+      inhibited.store(false);
+      service.serviceWebSocket();
+      subscribe(service);
+      inhibited.store(true);
+      service.serviceWebSocket();
+      assert(service.websocket_->client && service.websocketStatus().subscribed);
+      service.websocket_->failed.store(true);
+      service.serviceWebSocket();
+      now = service.websocketStatus().retryAtMs;
+      service.serviceWebSocket();
+      assert(!service.websocket_->client && service.websocket_->attempts == 1);
+      inhibited.store(false);
+      service.serviceWebSocket();
+      assert(service.websocket_->client);
+      service.stopWebSocket(true);
+      delete service.work_;
+    }
+    for (unsigned phase = 0; phase < 2; ++phase) {
+      ShotStopperMicraService service;
+      service.config_.accountConfigured = true;
+      service.staConnected_.store(true);
+      inhibitAfterSession = phase == 0;
+      inhibitAfterInit = phase == 1;
+      const auto inits = initCalls, starts = startCalls;
+      service.serviceWebSocket();
+      assert(initCalls == inits + phase && startCalls == starts);
+      assert(service.websocket_ && !service.websocket_->client);
+      inhibitAfterSession = inhibitAfterInit = false;
+      outboundBleQuiet.store(false);
+      service.stopWebSocket(true);
+      delete service.work_;
+    }
+    for (unsigned phase = 0; phase < 3; ++phase) {
+      now = UINT32_MAX - 2000ULL;  // Cleanup and backoff cross millis rollover.
+      ShotStopperMicraService service;
+      service.config_.accountConfigured = true;
+      service.staConnected_.store(true);
+      if (phase == 0) {
+        service.serviceWebSocket();
+        service.websocket_->failed.store(true);
+        stopDelayMs = 10000;
+      } else if (phase == 1) {
+        sessionFails = true;
+        sessionDelayMs = 10000;
+      } else {
+        startFails = true;
+        startDelayMs = 10000;
+      }
+      service.serviceWebSocket();
+      assert(service.websocket_ && !service.websocket_->client);
+      assert(service.websocketStatus().retryAtMs == millis() + 3000);
+      stopDelayMs = 2;
+      sessionDelayMs = startDelayMs = 0;
+      sessionFails = startFails = false;
+      now += 2999;
+      service.serviceWebSocket();
+      assert(!service.websocket_->client);
+      ++now;
+      service.serviceWebSocket();
+      assert(service.websocket_->client);
+      service.stopWebSocket(true);
+      delete service.work_;
+    }
+  }
   static void pongPublicationRace() {
     now = 1000;
     ShotStopperMicraService service;
@@ -582,4 +671,5 @@ int main() {
   shotstopper::MicraWebSocketTest::backflushContract();
   shotstopper::MicraWebSocketTest::pongPublicationRace();
   shotstopper::MicraWebSocketTest::concurrentStatusLifecycle();
+  shotstopper::MicraWebSocketTest::setupAdmissionAndBackoff();
 }
