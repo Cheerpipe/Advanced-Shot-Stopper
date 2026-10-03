@@ -112,6 +112,7 @@ matchMedia('(min-width:700px)').addEventListener('change', closePreviewMenu);
 window.addEventListener('scroll', () => {
   closePreviewMenu();
   document.body.style.setProperty('--header-progress', Math.min(1, Math.max(0, window.scrollY / 120)));
+  if (headerNavigation) document.body.classList.toggle('previewNavScrolled', window.scrollY > 0);
 }, {passive: true});
 $('previewDiagnostics').onchange = event => {
   const hidden = event.target.value === 'hidden';
@@ -123,6 +124,9 @@ $('previewDiagnostics').onchange = event => {
     showPreviewRoute(true);
   }
 };
+function updateHeaderOffset() {
+  if (document.body.dataset.navLayout !== 'bottom') document.body.style.setProperty('--preview-menu-offset', mobileMenu.offsetTop + 'px');
+}
 function updateHeaderNavigation() {
   document.body.dataset.navLayout = 'icons';
   const links = [...mobileMenu.querySelectorAll('a')].filter(link => !link.hidden);
@@ -139,10 +143,12 @@ function updateHeaderNavigation() {
   const layout = textWidth + iconWidth <= available ? 'icons' : textWidth <= available ? 'text' : 'bottom';
   document.body.dataset.navLayout = layout;
   (layout === 'bottom' ? document.body : document.querySelector('.topBar')).append(mobileMenu);
+  updateHeaderOffset();
 }
 if (headerNavigation) {
   mobileMenu.setAttribute('aria-label', 'Page navigation');
   new ResizeObserver(updateHeaderNavigation).observe($('app'));
+  new ResizeObserver(updateHeaderOffset).observe(document.querySelector('.topBar'));
   document.fonts.ready.then(updateHeaderNavigation);
   updateHeaderNavigation();
 }

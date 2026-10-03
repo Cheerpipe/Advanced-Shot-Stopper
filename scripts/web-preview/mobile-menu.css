@@ -59,3 +59,6 @@ body[data-nav-layout="bottom"] .mobileMenu span{display:none}
 body[data-navigation="4"]{padding-bottom:1.5rem}html:has(body[data-navigation="4"]){scroll-padding-bottom:1.5rem}
 body[data-nav-layout="bottom"]{padding-bottom:calc(5.75rem + env(safe-area-inset-bottom))}html:has(body[data-nav-layout="bottom"]){scroll-padding-bottom:calc(5.75rem + env(safe-area-inset-bottom))}
 body[data-navigation="4"]:not([data-nav-layout="bottom"]) .configSaveBar{bottom:0}
+body[data-navigation="4"]:not([data-nav-layout="bottom"]) .topBar{--compact:0;top:calc(.5rem - var(--preview-menu-offset))}
+body[data-navigation="4"].previewNavScrolled:not([data-nav-layout="bottom"]) .topBar{background:transparent;pointer-events:none}
+body[data-navigation="4"].previewNavScrolled .mobileMenu{pointer-events:auto}

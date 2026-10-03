@@ -92,8 +92,12 @@ When the names no longer fit, navigation moves to the floating bottom bar with
 icons only. The transitions follow the space needed by the visible sections;
 hiding Diagnostics leaves more room for the others. Resize the browser to
 compare all three layouts. This option changes only the development preview.
+On desktop, the gray header remains visible at the top of the page. As you
+scroll, the logo and connection indicators move out of view while the rounded
+menu stays near the top, floating over the content without a gray strip behind
+it. Return to the top to restore the complete header.
 
-On mobile, scrolling gradually compacts the header while keeping the smaller logo
+With the mobile bottom bar, scrolling gradually compacts the header while keeping the smaller logo
 and connection indicators visible. Return to the top to restore
 the full-size logo.
 
