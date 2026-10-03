@@ -3,6 +3,7 @@
 .mobileMenu svg{width:1.4rem;height:1.4rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .mobileMenu a:focus-visible{outline:2px solid var(--ac);outline-offset:-3px}
 .pageNav>a[hidden]{display:none!important}
+.pageNav .moreIcon{display:none}
 @media(max-width:699px){
   body{padding-bottom:calc(5.75rem + env(safe-area-inset-bottom))}
   html{scroll-padding-bottom:calc(5.75rem + env(safe-area-inset-bottom))}
@@ -15,8 +16,17 @@
   .mobileMenu a[aria-current="page"]{color:var(--ac);background:var(--pa);font-weight:750}
   .mobileMenu a:hover{color:var(--ac);background:var(--pa)}
   .pageNav>a[data-route="/"],.pageNav>a[data-route="/stats"],.pageNav>a[data-route="/history"],.pageNav>a[data-route="/settings"]{display:none}
-  .pageNav{padding-bottom:calc(1.5rem + env(safe-area-inset-bottom))}
-  .navOpen .mobileMenu{display:none}
+  body.navOpen{overflow:visible}
+  .topBar .pageNav{position:absolute;inset:auto;top:calc(100% + .25rem);right:1rem;z-index:23;width:13.5rem;max-width:calc(100vw - 2rem);gap:.15rem;padding:.4rem;background:var(--sf);border:1px solid var(--ln);border-radius:.85rem;box-shadow:0 .5rem 1.75rem #0003}
+  .pageNav>a{min-height:3.25rem;gap:.75rem;padding:.65rem .8rem;font-size:.9rem}
+  .pageNav>a.active{box-shadow:none;background:var(--pa)}
+  .pageNav .moreIcon{display:block;flex:none;width:1.25rem;height:1.25rem;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;color:var(--mu)}
+  .pageNav>a.active .moreIcon{color:var(--ac)}
+  .pageNav .navMeta{display:none}
+  .navToggle{color:var(--fg)}
+  .navToggle svg{width:1.5rem;height:1.5rem;fill:currentColor}
+  .navToggle[aria-expanded="true"],.navToggle.active{background:var(--pa);color:var(--ac)}
+  .navToggle:focus-visible,.pageNav>a:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
   .configSaveBar{bottom:calc(4.3rem + env(safe-area-inset-bottom));padding-bottom:.65rem}
 }
 @media(max-width:380px){.topBar{--logo-w:1.85rem;--logo-h:2.5rem;--brand-font:1.15rem;--brand-small:.73rem}}

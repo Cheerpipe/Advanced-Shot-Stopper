@@ -20,6 +20,17 @@ previewControls.querySelector('summary').textContent = 'Mobile navigation propos
 $('app').prepend(previewControls);
 previewControls.querySelector('.previewControlGrid').insertAdjacentHTML('beforeend',
     '<label>Diagnostics<select id="previewDiagnostics"><option value="visible">Visible</option><option value="hidden">Hidden</option></select></label>');
+const moreToggle = $('navToggle');
+const moreNav = document.querySelector('.pageNav');
+moreToggle.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>';
+moreToggle.setAttribute('aria-label', 'More options');
+moreToggle.title = 'More options';
+moreNav.setAttribute('aria-label', 'More navigation');
+for (const [route, icon] of Object.entries({
+  '/diagnostic': '<path d="M3 12h4l3-7 4 14 3-7h4"/>',
+  '/admin': '<path d="m12 3 8 3v6c0 4-4 7-8 9-4-2-8-5-8-9V6z"/><rect x="9" y="10" width="6" height="5" rx="1"/><path d="M10 10V8a2 2 0 0 1 4 0v2"/>',
+})) moreNav.querySelector(`[data-route="${route}"]`).insertAdjacentHTML('afterbegin',
+    `<svg class="moreIcon" viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>`);
 
 function closePreviewMenu() {
   document.body.classList.remove('navOpen');
@@ -36,6 +47,7 @@ function showPreviewRoute(focus = false) {
     else link.removeAttribute('aria-current');
   });
   closePreviewMenu();
+  moreToggle.classList.toggle('active', route === '/admin' || route === '/diagnostic');
   document.title = `${view === 'home' ? 'Home' : view[0].toUpperCase() + view.slice(1)} · Navigation preview`;
   if (focus) {
     const section = $('view-' + view);
@@ -62,8 +74,20 @@ document.addEventListener('keydown', event => {
     $('navToggle').focus();
   }
 });
+moreToggle.onkeydown = event => {
+  if (event.key === 'ArrowDown' && matchMedia('(max-width:699px)').matches) {
+    event.preventDefault();
+    document.body.classList.add('navOpen');
+    moreToggle.setAttribute('aria-expanded', 'true');
+    [...moreNav.querySelectorAll('a[data-route]')].find(link => link.getClientRects().length).focus();
+  }
+};
+for (const type of ['pointerdown', 'focusin']) document.addEventListener(type, event => {
+  if (!moreNav.contains(event.target) && !moreToggle.contains(event.target)) closePreviewMenu();
+});
 matchMedia('(min-width:700px)').addEventListener('change', closePreviewMenu);
 window.addEventListener('scroll', () => {
+  closePreviewMenu();
   document.body.style.setProperty('--header-progress', Math.min(1, Math.max(0, window.scrollY / 120)));
 }, {passive: true});
 $('previewDiagnostics').onchange = event => {

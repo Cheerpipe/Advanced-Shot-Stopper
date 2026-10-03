@@ -65,11 +65,14 @@ settings, or ship in firmware assets.
 Open `http://127.0.0.1:4173/mobile-menu` on the same preview server to review
 the bottom navigation proposal. Below 700 pixels, Home, Stats, History and
 Settings appear in a fixed bottom bar with icons and a highlighted current tab.
-Diagnostics and Admin stay in the hamburger menu. On wider screens, the
-existing top navigation remains visible.
+The header's **More options** button (three dots) opens a compact menu for
+Diagnostics and Admin. The bottom tabs stay visible while that menu is open.
+Tap outside, press Escape or select a destination to close it. With a keyboard,
+press Down Arrow on the button to focus the menu, then Tab through its links.
+On wider screens, the existing top navigation remains visible.
 
 On mobile, scrolling gradually compacts the header while keeping the smaller logo,
-connection indicators and hamburger visible. Return to the top to restore
+connection indicators and More options button visible. Return to the top to restore
 the full-size logo.
 
 The tabs open sample views; browser Back and Forward also work. Expand
