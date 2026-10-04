@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Master switch · Brew by Weight · 10 propuestas</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+body{max-width:880px}
+h1{font-size:1.5rem;margin:.2rem 0 .3rem;padding-right:7.5rem}
+.lead{color:var(--mu);font-size:.92rem;margin:0 0 .35rem}
+.note{font-size:.8rem;color:var(--mu);margin:.2rem 0}
+#themeToggle{position:fixed;top:.75rem;right:.75rem;z-index:60;height:2.25rem;padding:0 .9rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;box-shadow:var(--ah)}
+.ref{margin:1.15rem 0;padding:1rem;border:1px dashed var(--bd);border-radius:var(--r);background:var(--sf)}
+.ref h2{margin:0;font-size:1.02rem}
+.opt{margin:1.15rem 0;padding:1rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf)}
+.optHead h2{margin:0;font-size:1.02rem}
+.optHead p{margin:.15rem 0 .95rem;color:var(--mu);font-size:.85rem}
+html.theme-dark{color-scheme:dark;--bg:#151515;--sf:#1d1d1d;--in:#242424;--fg:#efefef;--mu:#b2b2b2;--ln:#3c3c3c;--bd:#7d7d7d;--ac:#c45c38;--pri:#c45c38;--on:#fff;--ok:#1a9a3c;--dn:#ffadb5;--wn:#edc17d;--me:#351f23;--mo:#193024;--mw:#33291b;--pa:#352820;--ah:0 -4px 14px rgba(0,0,0,.35)}
+html.theme-light{color-scheme:light}
+
+/* Vocabulario común de las demos: el maestro es .btItem y su estado activo
+   lleva .btOn. Tocarlo alterna el modo; las protecciones de contexto (.msCtx)
+   se atenúan cuando el maestro está apagado para recordar que dependen de él. */
+.demo{display:flex;flex-direction:column;gap:.5rem;margin:.2rem 0 0}
+.btItem{font:inherit;color:var(--fg);cursor:pointer}
+.btItem:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.msCtx{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;max-width:26rem;transition:opacity .2s}
+.demo.isOff .msCtx{opacity:.45}
+.msGuard{display:flex;align-items:center;justify-content:space-between;gap:.55rem;min-height:2.75rem;padding:.5rem .7rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);font-size:.8rem;font-weight:600}
+.msGuard .swG{min-width:0;overflow-wrap:anywhere}
+.msGuard.msOn{border-color:var(--ac);background:var(--pa)}
+.msGuard.msOn .ktrack{background:var(--ac)}
+.msGuard.msOn .kknob{transform:translateX(1rem)}
+.msState{font-size:.78rem;font-weight:600;color:var(--mu)}
+.xlsw{flex:none;position:relative;width:3.1rem;height:1.7rem;border-radius:2rem;background:var(--bd);transition:.2s}
+.xlsw i{position:absolute;top:.2rem;left:.2rem;width:1.3rem;height:1.3rem;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:.2s}
+
+/* O1 · Botón héroe de acento */
+.hero{display:flex;align-items:center;gap:.8rem;width:100%;min-height:3.8rem;padding:.8rem 1rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
+.hero .ht{display:flex;flex-direction:column;gap:.1rem;flex:1;min-width:0}
+.hero .ht b{font-size:1.05rem;line-height:1.2;overflow-wrap:anywhere}
+.hero .hic{flex:none;display:flex;align-items:center;justify-content:center;width:2.4rem;height:2.4rem;border-radius:50%;border:2px solid var(--bd);color:var(--mu);transition:.2s}
+.hero .hic svg{width:1.2rem;height:1.2rem}
+.hero:not(.btOn):hover{background:var(--in)}
+.hero.btOn{background:var(--ac);border-color:var(--ac);color:var(--on)}
+.hero.btOn .msState{color:color-mix(in srgb,var(--on) 78%,transparent)}
+.hero.btOn .hic{border-color:var(--on);color:var(--on);background:color-mix(in srgb,var(--on) 16%,transparent)}
+
+/* O2 · Interruptor XL */
+.xl{display:flex;align-items:center;justify-content:space-between;gap:.75rem;width:100%;min-height:3.6rem;padding:.75rem .9rem;border:1.5px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
+.xl .xt{display:flex;flex-direction:column;gap:.1rem;min-width:0}
+.xl .xt b{font-size:1.05rem;line-height:1.2;overflow-wrap:anywhere}
+.xl:not(.btOn):hover{background:var(--in)}
+.xl.btOn{border-color:var(--ac);background:var(--pa)}
+.xl.btOn .xlsw{background:var(--ac)}
+.xl.btOn .xlsw i{transform:translateX(1.4rem)}
+
+/* O3 · Segmentado Off/On */
+.seg{width:100%;padding:.6rem .6rem .65rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
+.seg .st{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem;padding:.1rem .35rem .55rem}
+.seg .st b{font-size:1.02rem;line-height:1.2;overflow-wrap:anywhere}
+.segTrack{display:grid;grid-template-columns:1fr 1fr;gap:.25rem;padding:.25rem;border-radius:1.6rem;background:var(--in)}
+.segTrack span{display:flex;align-items:center;justify-content:center;min-height:2.3rem;border-radius:1.4rem;font-size:.9rem;font-weight:700;color:var(--mu);transition:.2s}
+.seg:not(.btOn):hover{border-color:var(--bd)}
+.seg.btOn{border-color:var(--ac)}
+.seg:not(.btOn) .segTrack span:first-child{background:var(--sf);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg.btOn .segTrack span:last-child{background:var(--ac);color:var(--on);box-shadow:0 1px 4px color-mix(in srgb,var(--ac) 45%,transparent)}
+
+/* O4 · Estado protagonista */
+.shout{display:flex;align-items:center;justify-content:space-between;gap:.75rem;width:100%;min-height:3.8rem;padding:.7rem .95rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
+.shout .sht{display:flex;flex-direction:column;gap:0;min-width:0}
+.shout .eyebrow{font-size:.68rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mu)}
+.shout .big{font-size:1.45rem;font-weight:800;line-height:1.15;letter-spacing:-.01em;overflow-wrap:anywhere}
+.shout .xlsw{align-self:center}
+.shout:not(.btOn):hover{background:var(--in)}
+.shout:not(.btOn) .big{color:var(--mu)}
+.shout.btOn{border-color:var(--ac);background:var(--pa)}
+.shout.btOn .big{color:var(--ac)}
+.shout.btOn .xlsw{background:var(--ac)}
+.shout.btOn .xlsw i{transform:translateX(1.4rem)}
+
+/* O5 · Botón de energía */
+.power{display:flex;align-items:center;justify-content:space-between;gap:.75rem;width:100%;min-height:3.8rem;padding:.7rem .95rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
+.power .pt{display:flex;flex-direction:column;gap:.1rem;min-width:0}
+.power .pt b{font-size:1.05rem;line-height:1.2;overflow-wrap:anywhere}
+.powBtn{flex:none;display:flex;align-items:center;justify-content:center;width:2.7rem;height:2.7rem;border-radius:50%;border:2px solid var(--bd);background:var(--sf);color:var(--mu);transition:.2s}
+.powBtn svg{width:1.35rem;height:1.35rem}
+.power:not(.btOn):hover{background:var(--in)}
+.power.btOn{border-color:var(--ac);background:var(--pa)}
+.power.btOn .powBtn{background:var(--ac);border-color:var(--ac);color:var(--on);box-shadow:0 0 0 .3rem color-mix(in srgb,var(--ac) 22%,transparent)}
+
+/* O6 · Cristal con LED */
+.glassy{display:flex;align-items:center;justify-content:space-between;gap:.75rem;width:100%;min-height:3.7rem;padding:.75rem .95rem;border:1px solid var(--ln);border-radius:var(--r);background:color-mix(in srgb,var(--sf) 62%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:var(--ah);text-align:left}
+.glsDot{flex:none;width:.9rem;height:.9rem;border-radius:50%;background:var(--in);border:1px solid var(--bd);transition:.2s}
+.glassy .gt{display:flex;flex-direction:column;gap:.05rem;flex:1;min-width:0}
+.glassy .gt b{font-size:1.02rem;line-height:1.2;overflow-wrap:anywhere}
+.glassy .xlsw{align-self:center}
+.glassy:not(.btOn):hover{background:color-mix(in srgb,var(--sf) 92%,transparent)}
+.glassy.btOn{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 16%,transparent);box-shadow:0 0 0 .18rem color-mix(in srgb,var(--ac) 18%,transparent),var(--ah)}
+.glassy.btOn .glsDot{background:var(--ac);border-color:var(--ac);box-shadow:0 0 0 .2rem color-mix(in srgb,var(--ac) 25%,transparent)}
+.glassy.btOn .xlsw{background:var(--ac)}
+.glassy.btOn .xlsw i{transform:translateX(1.4rem)}
+
+/* O7 · Tile de balanza */
+.scaleTile{display:flex;align-items:center;gap:.8rem;width:100%;min-height:3.8rem;padding:.65rem .8rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
+.sclIco{flex:none;display:flex;align-items:center;justify-content:center;width:2.6rem;height:2.6rem;border-radius:.75rem;background:var(--in);color:var(--mu);transition:.2s}
+.sclIco svg{width:1.5rem;height:1.5rem}
+.scaleTile .gt{display:flex;flex-direction:column;gap:.05rem;flex:1;min-width:0}
+.scaleTile .gt b{font-size:1.02rem;line-height:1.2;overflow-wrap:anywhere}
+.sclWord{flex:none;min-width:3.3rem;padding:.4rem .7rem;border:1px solid var(--bd);border-radius:2rem;font-size:.78rem;font-weight:700;text-align:center;color:var(--mu);transition:.2s}
+.scaleTile:not(.btOn):hover{background:var(--in)}
+.scaleTile.btOn{border-color:var(--ac);background:var(--pa)}
+.scaleTile.btOn .sclIco{background:var(--ac);color:var(--on)}
+.scaleTile.btOn .sclWord{background:var(--ac);border-color:var(--ac);color:var(--on)}
+
+/* O8 · Carta igualada */
+.matched{display:flex;align-items:center;justify-content:space-between;gap:.6rem;width:100%;min-height:3.1rem;padding:.65rem .85rem;border:1.5px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
+.matched .mt{display:flex;flex-direction:column;gap:.05rem;min-width:0}
+.matched .mt b{font-size:.98rem;line-height:1.2;overflow-wrap:anywhere}
+.matched .mt .msState{font-size:.75rem}
+.matched .ktrack{width:2.6rem;height:1.45rem}
+.matched .kknob{width:1.15rem;height:1.15rem}
+.matched:not(.btOn):hover{background:var(--in)}
+.matched.btOn{border-color:var(--ac);background:var(--pa)}
+.matched.btOn .ktrack{background:var(--ac)}
+.matched.btOn .kknob{transform:translateX(1.15rem)}
+
+/* O9 · Riel completo */
+.rail{width:100%;padding:.7rem .85rem .8rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
+.rail .rt{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem;padding:0 .15rem .6rem}
+.rail .rt b{font-size:1.02rem;line-height:1.2;overflow-wrap:anywhere}
+.railTrack{display:block;position:relative;height:2.6rem;border:1px solid var(--ln);border-radius:1.6rem;background:var(--in);transition:.2s}
+.railKnob{position:absolute;top:.25rem;left:.25rem;width:2rem;height:2rem;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.3);transition:.2s}
+.railWord{position:absolute;top:0;bottom:0;right:1.1rem;display:flex;align-items:center;font-size:.82rem;font-weight:800;letter-spacing:.08em;color:var(--mu);transition:.2s}
+.rail:not(.btOn):hover .railTrack{border-color:var(--bd)}
+.rail.btOn{border-color:var(--ac)}
+.rail.btOn .railTrack{background:var(--ac);border-color:var(--ac)}
+.rail.btOn .railKnob{left:calc(100% - 2.25rem)}
+.rail.btOn .railWord{right:auto;left:1.1rem;color:var(--on)}
+
+/* O10 · Baldosa de dos filas */
+.tile2{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;align-items:center;column-gap:.75rem;row-gap:.15rem;width:100%;padding:.8rem .9rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
+.tile2 b{grid-column:1;font-size:1.02rem;line-height:1.2;overflow-wrap:anywhere}
+.tile2 .msState{grid-column:1}
+.tile2 .xlsw{grid-column:2;grid-row:1/3}
+.tile2:not(.btOn):hover{background:var(--in)}
+.tile2.btOn{border-color:var(--ac);background:var(--pa)}
+.tile2.btOn .xlsw{background:var(--ac)}
+.tile2.btOn .xlsw i{transform:translateX(1.4rem)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="ic-power" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3.5v7.5"/><path d="M6.7 6.8a7.5 7.5 0 1 0 10.6 0"/></g></symbol>
+<symbol id="ic-scale" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7a3 3 0 0 1 6 0"/><path d="M7 7h10l1.1 10.2a1.8 1.8 0 0 1-1.8 1.8H7.7a1.8 1.8 0 0 1-1.8-1.8L7 7Z"/></g></symbol>
+</defs></svg>
+<button id="themeToggle" type="button">Tema: auto</button>
+<h1>Master switch · Brew by Weight · 10 propuestas</h1>
+<p class="lead">El maestro de «Brew by Weight» es el control más importante del home: enciende y apaga el modo completo —con él viven las seis protecciones— y actúa como quick toggle, así que debe imponerse en jerarquía sobre el resto. Estas 10 propuestas lo convierten en una tarjeta protagonista que ocupa todo el ancho de la cuadrícula de dos columnas del móvil —identidad y estado a la izquierda, control a la derecha—, y en escritorio gana aire sin perder peso visual.</p>
+<p class="note">Cada tarjeta se muestra activa con el estado de reposo («Idle») y al tocarla pasa a apagada («Off»); las protecciones de contexto se atenúan para recordar que cuelgan del maestro. Durante un tiro real el estado cambia a «Active», «Manual», «Timer only» o «Rinse». Lo que la opción elegida debe seguir cumpliendo: estado pendiente visible mientras se aplica el cambio, bloqueo cuando la sesión de admin está cerrada, objetivos de toque amplios y ancho mínimo de 320 px.</p>
+<p class="note">Usa el botón de la esquina para revisar claro, oscuro y auto.</p>
+
+<section class="ref">
+  <h2>Referencia · master switch actual en el home</h2>
+  <p class="optHead" style="margin:.15rem 0 .95rem;color:var(--mu);font-size:.85rem">Hoy es una fila a ancho completo con el título grande y el interruptor iOS a la derecha, separada por una línea de las protecciones. Las propuestas le dan formato de tarjeta y más presencia sin crecer en alto.</p>
+  <div class="homeSwitchGrid">
+    <div id="brewModeRow" class="switchRow">
+      <span class="swL">Brew by Weight<span class="swS">Idle</span></span>
+      <label class="switch" for="refBbw"><input id="refBbw" type="checkbox" role="switch" checked><span class="slider"><span class="switchOff">Off</span><span class="switchOn">On</span></span></label>
+    </div>
+    <div class="homeGuardGrid">
+      <label class="switchRow kcard" for="refNoScale"><input id="refNoScale" type="checkbox" role="switch" checked><span class="swL">No-scale BBW<span class="swS">Armed</span></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></label>
+      <label class="switchRow kcard" for="refAtm"><input id="refAtm" type="checkbox" role="switch" checked><span class="swL">A→M time guard<span class="swS">Idle</span></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></label>
+      <label class="switchRow kcard" for="refSlow"><input id="refSlow" type="checkbox" role="switch" checked><span class="swL">Slow extraction guard<span class="swS">Idle</span></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></label>
+      <label class="switchRow kcard" for="refFast"><input id="refFast" type="checkbox" role="switch"><span class="swL">Fast extraction guard<span class="swS">Off</span></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></label>
+      <label class="switchRow kcard" for="refTouch"><input id="refTouch" type="checkbox" role="switch" checked><span class="swL">Avoid accidental touch<span class="swS">Idle</span></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></label>
+      <label class="switchRow kcard" for="refCup"><input id="refCup" type="checkbox" role="switch"><span class="swL">Cup protection<span class="swS">Off</span></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></label>
+    </div>
+  </div>
+</section>
+
+<section class="opt" id="o1">
+  <header class="optHead"><h2>O1 · Botón héroe de acento</h2><p>La jerarquía máxima: cuando está activo, la tarjeta entera se rellena con el acento y el botón de energía se ilumina. Se distingue de cualquier otra tarjeta del home a primera vista, encendido o apagado.</p></header>
+  <div class="demo">
+    <button type="button" class="btItem hero btOn" aria-pressed="true"><span class="ht"><b>Brew by Weight</b><span class="msState" data-on="Idle" data-off="Off">Idle</span></span><span class="hic" aria-hidden="true"><svg><use href="#ic-power"/></svg></span></button>
+    <div class="msCtx" aria-hidden="true"><div class="msGuard msOn"><span class="swG">Slow extraction guard</span><span class="ktrack"><i class="kknob"></i></span></div><div class="msGuard"><span class="swG">Cup protection</span><span class="ktrack"><i class="kknob"></i></span></div></div>
+  </div>
+</section>
+
+<section class="opt" id="o2">
+  <header class="optHead"><h2>O2 · Interruptor XL</h2><p>La anatomía actual ampliada: el interruptor iOS crece hasta ser el control más grande de la pantalla y la tarjeta gana borde de acento. Cero curva de aprendizaje para quien ya usa el home.</p></header>
+  <div class="demo">
+    <button type="button" class="btItem xl btOn" aria-pressed="true"><span class="xt"><b>Brew by Weight</b><span class="msState" data-on="Idle" data-off="Off">Idle</span></span><span class="xlsw" aria-hidden="true"><i></i></span></button>
+    <div class="msCtx" aria-hidden="true"><div class="msGuard msOn"><span class="swG">Slow extraction guard</span><span class="ktrack"><i class="kknob"></i></span></div><div class="msGuard"><span class="swG">Cup protection</span><span class="ktrack"><i class="kknob"></i></span></div></div>
+  </div>
+</section>
+
+<section class="opt" id="o3">
+  <header class="optHead"><h2>O3 · Segmentado Off/On</h2><p>Dos mitades literales: la media píldora del estado actual se rellena —con acento si está activo, neutral si no— y la otra queda en reposo. El estado se lee como palabra, sin inferir nada.</p></header>
+  <div class="demo">
+    <button type="button" class="btItem seg btOn" aria-pressed="true"><span class="st"><b>Brew by Weight</b><span class="msState" data-on="Idle" data-off="Off">Idle</span></span><span class="segTrack" aria-hidden="true"><span>Off</span><span>On</span></span></button>
+    <div class="msCtx" aria-hidden="true"><div class="msGuard msOn"><span class="swG">Slow extraction guard</span><span class="ktrack"><i class="kknob"></i></span></div><div class="msGuard"><span class="swG">Cup protection</span><span class="ktrack"><i class="kknob"></i></span></div></div>
+  </div>
+</section>
+
+<section class="opt" id="o4">
+  <header class="optHead"><h2>O4 · Estado protagonista</h2><p>El estado manda: «Active» en grande con el nombre como antetítulo. Pensado para leerse de noche o desde la máquina, con un interruptor compacto a la derecha.</p></header>
+  <div class="demo">
+    <button type="button" class="btItem shout btOn" aria-pressed="true"><span class="sht"><span class="eyebrow">Brew by weight</span><span class="big" data-on="Active" data-off="Off">Active</span></span><span class="xlsw" aria-hidden="true"><i></i></span></button>
+    <div class="msCtx" aria-hidden="true"><div class="msGuard msOn"><span class="swG">Slow extraction guard</span><span class="ktrack"><i class="kknob"></i></span></div><div class="msGuard"><span class="swG">Cup protection</span><span class="ktrack"><i class="kknob"></i></span></div></div>
+  </div>
+</section>
+
+<section class="opt" id="o5">
+  <header class="optHead"><h2>O5 · Botón de energía</h2><p>Un botón circular de energía con halo de acento cuando está activo, como un electrodoméstico premium. Táctil, evidente y coherente con la idea de «encender el modo».</p></header>
+  <div class="demo">
+    <button type="button" class="btItem power btOn" aria-pressed="true"><span class="pt"><b>Brew by Weight</b><span class="msState" data-on="Idle" data-off="Off">Idle</span></span><span class="powBtn" aria-hidden="true"><svg><use href="#ic-power"/></svg></span></button>
+    <div class="msCtx" aria-hidden="true"><div class="msGuard msOn"><span class="swG">Slow extraction guard</span><span class="ktrack"><i class="kknob"></i></span></div><div class="msGuard"><span class="swG">Cup protection</span><span class="ktrack"><i class="kknob"></i></span></div></div>
+  </div>
+</section>
+
+<section class="opt" id="o6">
+  <header class="optHead"><h2>O6 · Cristal con LED</h2><p>Hereda el cristal ya aprobado para el home y añade un LED de estado con halo. El activo gana borde y resplandor de acento; el apagado se queda sereno y translúcido.</p></header>
+  <div class="demo">
+    <button type="button" class="btItem glassy btOn" aria-pressed="true"><span class="glsDot" aria-hidden="true"></span><span class="gt"><b>Brew by Weight</b><span class="msState" data-on="Idle" data-off="Off">Idle</span></span><span class="xlsw" aria-hidden="true"><i></i></span></button>
+    <div class="msCtx" aria-hidden="true"><div class="msGuard msOn"><span class="swG">Slow extraction guard</span><span class="ktrack"><i class="kknob"></i></span></div><div class="msGuard"><span class="swG">Cup protection</span><span class="ktrack"><i class="kknob"></i></span></div></div>
+  </div>
+</section>
+
+<section class="opt" id="o7">
+  <header class="optHead"><h2>O7 · Tile de balanza</h2><p>El icono de la balanza identifica la función de un vistazo y la cápsula verbal On/Off cierra la tarjeta. El activo rellena icono y cápsula con el acento.</p></header>
+  <div class="demo">
+    <button type="button" class="btItem scaleTile btOn" aria-pressed="true"><span class="sclIco" aria-hidden="true"><svg><use href="#ic-scale"/></svg></span><span class="gt"><b>Brew by Weight</b><span class="msState" data-on="Idle" data-off="Off">Idle</span></span><span class="sclWord" data-on="On" data-off="Off">On</span></button>
+    <div class="msCtx" aria-hidden="true"><div class="msGuard msOn"><span class="swG">Slow extraction guard</span><span class="ktrack"><i class="kknob"></i></span></div><div class="msGuard"><span class="swG">Cup protection</span><span class="ktrack"><i class="kknob"></i></span></div></div>
+  </div>
+</section>
+
+<section class="opt" id="o8">
+  <header class="optHead"><h2>O8 · Carta igualada</h2><p>Usa la misma anatomía que las tarjetas de protecciones ya implementadas, a mayores dimensiones: el bloque rápido se lee como un único sistema y el maestro lidera por tamaño, borde y tinte.</p></header>
+  <div class="demo">
+    <button type="button" class="btItem matched btOn" aria-pressed="true"><span class="mt"><b>Brew by Weight</b><span class="msState" data-on="Idle" data-off="Off">Idle</span></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></button>
+    <div class="msCtx" aria-hidden="true"><div class="msGuard msOn"><span class="swG">Slow extraction guard</span><span class="ktrack"><i class="kknob"></i></span></div><div class="msGuard"><span class="swG">Cup protection</span><span class="ktrack"><i class="kknob"></i></span></div></div>
+  </div>
+</section>
+
+<section class="opt" id="o9">
+  <header class="optHead"><h2>O9 · Riel completo</h2><p>La tarjeta entera es el interruptor: una perilla grande recorre el riel y el lado libre imprime el estado en mayúsculas. La más táctil y lúdica, a cambio de algo más de alto.</p></header>
+  <div class="demo">
+    <button type="button" class="btItem rail btOn" aria-pressed="true"><span class="rt"><b>Brew by Weight</b><span class="msState" data-on="Idle" data-off="Off">Idle</span></span><span class="railTrack" aria-hidden="true"><span class="railWord" data-on="ON" data-off="OFF">ON</span><span class="railKnob"></span></span></button>
+    <div class="msCtx" aria-hidden="true"><div class="msGuard msOn"><span class="swG">Slow extraction guard</span><span class="ktrack"><i class="kknob"></i></span></div><div class="msGuard"><span class="swG">Cup protection</span><span class="ktrack"><i class="kknob"></i></span></div></div>
+  </div>
+</section>
+
+<section class="opt" id="o10">
+  <header class="optHead"><h2>O10 · Baldosa de dos filas</h2><p>Formato baldosa: nombre y estado a la izquierda en dos líneas, interruptor XL centrado verticalmente a la derecha ocupando ambas. Silueta distinta a cualquier otra tarjeta del home.</p></header>
+  <div class="demo">
+    <button type="button" class="btItem tile2 btOn" aria-pressed="true"><b>Brew by Weight</b><span class="msState" data-on="Idle" data-off="Off">Idle</span><span class="xlsw" aria-hidden="true"><i></i></span></button>
+    <div class="msCtx" aria-hidden="true"><div class="msGuard msOn"><span class="swG">Slow extraction guard</span><span class="ktrack"><i class="kknob"></i></span></div><div class="msGuard"><span class="swG">Cup protection</span><span class="ktrack"><i class="kknob"></i></span></div></div>
+  </div>
+</section>
+
+<script src="/master-switch.js" defer></script>
+</body>
+</html>

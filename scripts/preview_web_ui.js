@@ -20,6 +20,8 @@ const routes = {
   '/preset-cards.js': ['text/javascript', 'scripts/web-preview/preset-cards.js'],
   '/button-toggles': ['text/html; charset=utf-8', 'scripts/web-preview/button-toggles.html'],
   '/button-toggles.js': ['text/javascript', 'scripts/web-preview/button-toggles.js'],
+  '/master-switch': ['text/html; charset=utf-8', 'scripts/web-preview/master-switch.html'],
+  '/master-switch.js': ['text/javascript', 'scripts/web-preview/master-switch.js'],
 };
 
 function renderHome() {
