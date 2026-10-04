@@ -497,9 +497,9 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // setting must raise this allowance when needed; hints must not be cut to fit it.
 // The activation-history view (nav link, partial, runtime helpers) adds
 // ~1.4 KB of HTML source allowance.
-// The grouped Admin Power management panel (power policy, Wi-Fi sleep, BLE
-// scan mode, idle scan backoff) replaces two JS-built controls with static
-// markup and fuller hints, adding ~1.7 KB of HTML source allowance.
+// The grouped Admin Power management panel (ESP32 power management, Wi-Fi
+// sleep, BLE scan mode) replaces two JS-built controls with static markup
+// and fuller hints, adding ~1.7 KB of HTML source allowance.
 // The Admin Network device-name label and hint add ~0.1 KB of HTML source
 // allowance.
 // Profile-gated Linea Micra cloud account selection, per-preset temperature,
@@ -558,10 +558,8 @@ if (htmlBytes > 84000) {
 // ~1.1 KB of combined source allowance.
 // Activation-history paging, sorting, clear, and per-card delete add
 // ~6 KB of JS source allowance.
-// The Admin idle-scan backoff select and its save helper add 900 bytes; the
-// fallback option that keeps an API-set value visible adds 100 more.
-// The Admin machine-use scan boost select, save helper, and status fill add
-// ~700 bytes of combined source allowance.
+// The removed Admin idle-scan backoff and machine-use scan boost selects
+// once added ~1.7 KB of combined source allowance.
 // Activation-history type icons (inline coffee/rinse SVG paths, coordinates
 // rounded to one decimal) and their card wiring add ~3.2 KB of JS+combined
 // source allowance.
@@ -919,6 +917,7 @@ if (ui.includes('bleCompanionEnabled') ||
     networkHeader.includes('bleCompatHandler') ||
     firmwareCore.includes('persistBleCompanionEnabled') ||
     !ui.includes('<legend>') || !ui.includes('Power management') ||
+    !ui.includes('ESP32 power management') ||
     !ui.includes('bleScanIntensity') ||
     !ui.includes('BLE scan mode') ||
     ui.includes('Aggressive 100%') ||
@@ -926,13 +925,12 @@ if (ui.includes('bleCompanionEnabled') ||
     ui.includes('Light 25%') ||
     !ui.includes('How much radio time is spent searching for Bluetooth espresso scales') ||
     !ui.includes("scanIntensity:wanted") ||
-    !ui.includes('bleScanBackoff') ||
-    !ui.includes('Idle scan backoff') ||
-    !ui.includes("b.disabled=!controlsMutable||i.value==='relaxed'") ||
-    !ui.includes("backoffMin:wanted") ||
-    !ui.includes('bleScanBoost') ||
-    !ui.includes('Scan boost on machine use') ||
-    !ui.includes("boostMin:wanted") ||
+    ui.includes('bleScanBackoff') ||
+    ui.includes('Idle scan backoff') ||
+    ui.includes("backoffMin:wanted") ||
+    ui.includes('bleScanBoost') ||
+    ui.includes('Scan boost on machine use') ||
+    ui.includes("boostMin:wanted") ||
     !ui.includes('bleEnabled') ||
     !ui.includes('Enable Bluetooth') ||
     !ui.includes("enabled:wanted") ||
@@ -943,15 +941,15 @@ if (ui.includes('bleCompanionEnabled') ||
     !ui.includes('/api/v1/admin/ble-scan') ||
     !ui.includes("method:'PUT'") ||
     !network.includes('scanIntensity') ||
-    !network.includes('backoffMin') ||
-    !network.includes('boostMin') ||
+    network.includes('backoffMin') ||
+    network.includes('boostMin') ||
     !network.includes('WebCommandType::BLE_SCAN_INTENSITY') ||
     !network.includes('command.type = WebCommandType::BLE_SCAN_INTENSITY') ||
     !firmwareCore.includes('void persistBleScanIntensity') ||
-    !firmwareCore.includes('void persistBleScanBackoff') ||
-    !firmwareCore.includes('void persistBleScanBoost') ||
+    firmwareCore.includes('void persistBleScanBackoff') ||
+    firmwareCore.includes('void persistBleScanBoost') ||
     !networkHeader.includes('bleScanHandler')) {
-    throw new Error('Power management Admin controls must keep live scan mode, idle backoff, machine-use boost, and the BLE master switch without Companion');
+    throw new Error('Power management Admin controls must keep live scan mode and the BLE master switch with the timed backoff/boost controls removed');
 }
 {
   const persistStart = firmwareCore.indexOf(

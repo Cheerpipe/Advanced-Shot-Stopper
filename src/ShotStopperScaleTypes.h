@@ -182,36 +182,6 @@ inline const char *bleScanIntensityName(BleScanIntensity intensity) {
 constexpr BleScanIntensity BLE_SCAN_FACTORY_INTENSITY =
     BleScanIntensity::BALANCED;
 
-// Quiet-hunt backoff: minutes without any compatible advert, live link, or
-// preference reset before the idle discovery scan drops to Relaxed duty.
-// Zero disables the backoff (always saved intensity) and is the default.
-constexpr uint8_t SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN = 0;
-constexpr uint8_t SCALE_SCAN_QUIET_BACKOFF_MAX_MIN = 240;
-
-inline bool validBleScanBackoffMin(uint8_t minutes) {
-  return minutes <= SCALE_SCAN_QUIET_BACKOFF_MAX_MIN;
-}
-
-inline uint8_t clampBleScanBackoffMin(uint8_t minutes) {
-  return validBleScanBackoffMin(minutes) ? minutes
-                                         : SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
-}
-
-// Machine-use scan boost: minutes of Aggressive discovery duty armed by a
-// machine activation (paddle/momentary ON edge) while no scale is connected.
-// Zero disables the boost (saved intensity always decides); the factory
-// default of 15 minutes keeps a sleeping scale findable quickly.
-constexpr uint8_t SCALE_SCAN_BOOST_DEFAULT_MIN = 15;
-constexpr uint8_t SCALE_SCAN_BOOST_MAX_MIN = 240;
-
-inline bool validBleScanBoostMin(uint8_t minutes) {
-  return minutes <= SCALE_SCAN_BOOST_MAX_MIN;
-}
-
-inline uint8_t clampBleScanBoostMin(uint8_t minutes) {
-  return validBleScanBoostMin(minutes) ? minutes : SCALE_SCAN_BOOST_DEFAULT_MIN;
-}
-
 // Scan-settings command vocabulary owned by ScaleService: the fields, flag
 // bits, and defaults of one Admin ble-scan request. It lives here, with the
 // scan policy it configures, rather than in the Domain root so that legacy
@@ -220,13 +190,9 @@ inline uint8_t clampBleScanBoostMin(uint8_t minutes) {
 // be applied on its own.
 struct BleScanCommandPayload {
   static constexpr uint8_t INTENSITY = 0x01;
-  static constexpr uint8_t BACKOFF_MIN = 0x02;
-  static constexpr uint8_t BOOST_MIN = 0x04;
   static constexpr uint8_t ENABLED = 0x08;
   uint8_t specified = 0;
   uint8_t intensity = static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY);
-  uint8_t backoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
-  uint8_t boostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
   uint8_t enabled = 1;
 };
 

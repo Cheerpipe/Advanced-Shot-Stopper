@@ -249,17 +249,12 @@ rejects readings older than 1 s, before that link timeout. Check
    complete its first connection. Check Home for fresh weight, not just a name.
 4. If discovery is slow, check **Admin → Power management → BLE scan mode**:
    factory **Balanced**, with **Aggressive** searching harder and **Relaxed**
-   trading some speed for less radio time. Optional
-   [Power management](power-management.md) temporarily uses Relaxed in
-   idle; switching it off restores the saved mode. Below it, **Idle scan
-   backoff** chooses how long to search at full strength with no scale in
-   range before slowing down to save power — factory default **OFF** means
-   this backoff itself never slows the search (the Power policy above can
-   still use Relaxed while the machine sits idle), and with Aggressive or
-   Balanced the first sign of a scale restores the saved mode on its own. **Scan boost on machine use**
-   is the inverse safety net for people who leave the backoff on: switching
-   on the machine with no scale connected searches at Aggressive for the
-   chosen minutes (factory default **15 minutes**), overriding both slowdowns.
+   trading some speed for less radio time. The saved mode always decides how
+   hard the search runs; [ESP32 power management](power-management.md) only
+   manages CPU and radio hardware and never changes the search intensity.
+   On a La Marzocco Linea Micra, the
+   [machine-aware scan options](linea-micra.md#machine-aware-scale-search)
+   can search harder while the machine is on and ease off while it is off.
 
 Related: [Brew by weight](../features/brew-by-weight.md), [Tare](tare.md),
 [Alerts](../alerts.md).

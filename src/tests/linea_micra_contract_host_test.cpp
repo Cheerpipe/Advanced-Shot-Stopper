@@ -67,31 +67,55 @@ int main() {
   std::strcpy(settings.selectedSerial, "MR123456");
   std::strcpy(settings.selectedName, "Kitchen Micra");
   settings.accountConfigured = true;
-  setLineaMicraOptions(settings, true, true, true, false, false, 0, false);
+  setLineaMicraOptions(settings, true, true, true, false, false, 0,
+                       false, false, false);
   assert(validLineaMicraSettings(settings));
   assert((settings.options & LINEA_MICRA_SHUTDOWN_WITH_SCALE) == 0);
   assert((settings.options & LINEA_MICRA_POWER_ON_WITH_SCALE) == 0);
   assert(settings.scaleOptions == 0);
   assert(lineaMicraShutdownGraceSeconds(settings.options) == 0);
-  setLineaMicraOptions(settings, true, true, true, true, false, 4, false);
+  setLineaMicraOptions(settings, true, true, true, true, false, 4,
+                       false, false, false);
   assert((settings.options & LINEA_MICRA_SHUTDOWN_WITH_SCALE) != 0);
   assert((settings.options & LINEA_MICRA_POWER_ON_WITH_SCALE) == 0);
   assert(lineaMicraShutdownGraceSeconds(settings.options) == 60);
   assert(lineaMicraShutdownGraceCode(settings.options) == 4);
   assert(validLineaMicraSettings(settings));
-  setLineaMicraOptions(settings, true, true, true, true, true, 5, true);
+  setLineaMicraOptions(settings, true, true, true, true, true, 5, true,
+                       false, false);
   assert(lineaMicraShutdownGraceCode(settings.options) == 0);
   assert((settings.options & LINEA_MICRA_POWER_ON_WITH_SCALE) != 0);
   assert(settings.scaleOptions == LINEA_MICRA_SCALE_OFF_WITH_MACHINE);
   assert(validLineaMicraSettings(settings));
-  settings.scaleOptions |= static_cast<uint8_t>(1U << 1);
+  // Both scan options store as independent positive bits, default off.
+  setLineaMicraOptions(settings, true, true, true, true, true, 5, false,
+                       true, false);
+  assert(settings.scaleOptions == LINEA_MICRA_SCALE_SCAN_BOOST_WHEN_ON);
+  assert(validLineaMicraSettings(settings));
+  setLineaMicraOptions(settings, true, true, true, true, true, 5, false,
+                       false, true);
+  assert(settings.scaleOptions == LINEA_MICRA_SCALE_SCAN_RELAX_WHEN_OFF);
+  assert(validLineaMicraSettings(settings));
+  setLineaMicraOptions(settings, true, true, true, true, true, 5, true,
+                       true, true);
+  assert(settings.scaleOptions == LINEA_MICRA_KNOWN_SCALE_OPTIONS);
+  assert(validLineaMicraSettings(settings));
+  // Bits beyond the known scan options stay rejected; account-disconnect
+  // keeps the scan preferences like every other option.
+  settings.scaleOptions |= static_cast<uint8_t>(1U << 3);
   assert(!validLineaMicraSettings(settings));
+  settings.scaleOptions = LINEA_MICRA_KNOWN_SCALE_OPTIONS;
+  disconnectLineaMicra(settings);
+  assert(!settings.accountConfigured);
+  assert(settings.scaleOptions == LINEA_MICRA_KNOWN_SCALE_OPTIONS);
+  settings.scaleOptions = 0;
   settings.scaleOptions = LINEA_MICRA_SCALE_OFF_WITH_MACHINE;
   settings.options |= static_cast<uint8_t>(5U)
                       << LINEA_MICRA_SHUTDOWN_GRACE_SHIFT;
   assert(!validLineaMicraSettings(settings));
   settings.options &= ~LINEA_MICRA_SHUTDOWN_GRACE_MASK;
-  setLineaMicraOptions(settings, true, true, true, true, false, 2, false);
+  setLineaMicraOptions(settings, true, true, true, true, false, 2,
+                         false, false, false);
   assert(validLineaMicraSettings(settings));
   disconnectLineaMicra(settings);
   assert(validLineaMicraSettings(settings));
@@ -164,6 +188,56 @@ int main() {
   assert(micra_timing::kPostWakeObservationDelayMs == 15000);
   assert(micra_timing::kPostWakeObservationDelayMs <
          micra_timing::kOptimisticOverlayMs);
+  LineaMicraStatus scanStatus;
+  scanStatus.powerState = LineaMicraPowerState::UNKNOWN;
+  scanStatus.effectiveOn = true;  // UNKNOWN keeps effectiveOn true; never enough.
+  assert(micraScanOverride(scanStatus, LINEA_MICRA_KNOWN_SCALE_OPTIONS) ==
+         MicraScanOverride::NONE);
+  scanStatus.powerState = LineaMicraPowerState::ON;
+  assert(micraScanOverride(scanStatus, 0) == MicraScanOverride::NONE);
+  assert(micraScanOverride(
+             scanStatus, LINEA_MICRA_SCALE_SCAN_BOOST_WHEN_ON) ==
+         MicraScanOverride::AGGRESSIVE);
+  assert(micraScanOverride(
+             scanStatus, LINEA_MICRA_SCALE_SCAN_RELAX_WHEN_OFF) ==
+         MicraScanOverride::NONE);
+  assert(micraScanOverride(
+             scanStatus, LINEA_MICRA_KNOWN_SCALE_OPTIONS) ==
+         MicraScanOverride::AGGRESSIVE);
+  scanStatus.powerState = LineaMicraPowerState::OFF;
+  scanStatus.effectiveOn = false;
+  assert(micraScanOverride(
+             scanStatus, LINEA_MICRA_SCALE_SCAN_BOOST_WHEN_ON) ==
+         MicraScanOverride::NONE);
+  assert(micraScanOverride(
+             scanStatus, LINEA_MICRA_SCALE_SCAN_RELAX_WHEN_OFF) ==
+         MicraScanOverride::RELAXED);
+  assert(micraScanOverride(
+             scanStatus, LINEA_MICRA_KNOWN_SCALE_OPTIONS) ==
+         MicraScanOverride::RELAXED);
+  // Optimistic and retained states qualify through their power state;
+  // quality alone never selects a duty.
+  scanStatus.powerState = LineaMicraPowerState::ON;
+  scanStatus.quality = LineaMicraObservationQuality::OPTIMISTIC;
+  assert(micraScanOverride(
+             scanStatus, LINEA_MICRA_SCALE_SCAN_BOOST_WHEN_ON) ==
+         MicraScanOverride::AGGRESSIVE);
+  scanStatus.quality = LineaMicraObservationQuality::STALE;
+  assert(micraScanOverride(
+             scanStatus, LINEA_MICRA_SCALE_SCAN_BOOST_WHEN_ON) ==
+         MicraScanOverride::AGGRESSIVE);
+  scanStatus.powerState = LineaMicraPowerState::UNKNOWN;
+  for (LineaMicraObservationQuality quality :
+       {LineaMicraObservationQuality::CURRENT,
+        LineaMicraObservationQuality::OPTIMISTIC,
+        LineaMicraObservationQuality::STALE,
+        LineaMicraObservationQuality::COMMUNICATION_ERROR,
+        LineaMicraObservationQuality::UNSUPPORTED}) {
+    scanStatus.quality = quality;
+    assert(micraScanOverride(scanStatus, LINEA_MICRA_KNOWN_SCALE_OPTIONS) ==
+           MicraScanOverride::NONE);
+  }
+
   assert(!micra_timing::accessTokenRefreshDue(50U * 60U * 1000U - 1U));
   assert(micra_timing::accessTokenRefreshDue(50U * 60U * 1000U));
   assert(micra_timing::kAccessTokenLifetimeMs == 60U * 60U * 1000U);

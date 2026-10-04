@@ -29,10 +29,15 @@ constexpr uint8_t LINEA_MICRA_KNOWN_OPTIONS =
     LINEA_MICRA_POWER_ON_WITH_SCALE | LINEA_MICRA_SHUTDOWN_GRACE_MASK;
 // Scale-directed machine-link options live in their own byte so the option
 // layout above stays stable. Bit 0 powers the scale off when the machine is
-// confirmed off; higher bits are reserved and must stay zero.
+// confirmed off; bits 1-2 select scale-discovery duty from machine power;
+// the remaining bits are reserved and must stay zero.
 constexpr uint8_t LINEA_MICRA_SCALE_OFF_WITH_MACHINE = 1U << 0;
+constexpr uint8_t LINEA_MICRA_SCALE_SCAN_BOOST_WHEN_ON = 1U << 1;
+constexpr uint8_t LINEA_MICRA_SCALE_SCAN_RELAX_WHEN_OFF = 1U << 2;
 constexpr uint8_t LINEA_MICRA_KNOWN_SCALE_OPTIONS =
-    LINEA_MICRA_SCALE_OFF_WITH_MACHINE;
+    LINEA_MICRA_SCALE_OFF_WITH_MACHINE |
+    LINEA_MICRA_SCALE_SCAN_BOOST_WHEN_ON |
+    LINEA_MICRA_SCALE_SCAN_RELAX_WHEN_OFF;
 constexpr uint16_t LINEA_MICRA_SHUTDOWN_GRACE_SECONDS[] = {0, 5, 15, 30, 60};
 constexpr uint16_t LINEA_MICRA_BREW_TARGET_MIN_DECI_C = 800;
 constexpr uint16_t LINEA_MICRA_BREW_TARGET_MAX_DECI_C = 1000;
@@ -152,7 +157,9 @@ inline void setLineaMicraOptions(LineaMicraPersistedSettings &settings,
                                  bool recognizeWake, bool shutdownWithScale,
                                  bool powerOnWithScale,
                                  uint8_t shutdownGraceCode,
-                                 bool scaleOffWithMachine) {
+                                 bool scaleOffWithMachine,
+                                 bool boostScaleDetectionWhenOn,
+                                 bool reduceScaleScanningWhenOff) {
   if (shutdownGraceCode > LINEA_MICRA_SHUTDOWN_GRACE_CODE_MAX) {
     shutdownGraceCode = 0;
   }
@@ -165,7 +172,11 @@ inline void setLineaMicraOptions(LineaMicraPersistedSettings &settings,
       static_cast<uint8_t>(static_cast<uint8_t>(shutdownGraceCode)
                            << LINEA_MICRA_SHUTDOWN_GRACE_SHIFT);
   settings.scaleOptions =
-      scaleOffWithMachine ? LINEA_MICRA_SCALE_OFF_WITH_MACHINE : 0U;
+      (scaleOffWithMachine ? LINEA_MICRA_SCALE_OFF_WITH_MACHINE : 0U) |
+      (boostScaleDetectionWhenOn
+           ? LINEA_MICRA_SCALE_SCAN_BOOST_WHEN_ON : 0U) |
+      (reduceScaleScanningWhenOff
+           ? LINEA_MICRA_SCALE_SCAN_RELAX_WHEN_OFF : 0U);
 }
 
 static_assert(offsetof(LineaMicraPersistedSettings, options) == 308);

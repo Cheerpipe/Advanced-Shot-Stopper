@@ -20,6 +20,8 @@
         "\"powerOnWithScale\":%s,"
         "\"shutdownWithScale\":%s,\"shutdownGraceSeconds\":%u,"
         "\"scaleOffWithMachine\":%s,"
+        "\"boostScaleDetectionWhenOn\":%s,"
+        "\"reduceScaleScanningWhenOff\":%s,"
         "\"requestId\":%lu,\"phase\":\"%s\",\"error\":\"%s\","
         "\"powerState\":\"%s\","
         "\"observedMode\":\"%s\",\"quality\":\"%s\",\"effectiveOn\":%s,"
@@ -52,6 +54,10 @@
         static_cast<unsigned>(
             lineaMicraShutdownGraceSeconds(micraOptions)),
         (micraScaleOptions & LINEA_MICRA_SCALE_OFF_WITH_MACHINE) != 0
+            ? "true" : "false",
+        (micraScaleOptions & LINEA_MICRA_SCALE_SCAN_BOOST_WHEN_ON) != 0
+            ? "true" : "false",
+        (micraScaleOptions & LINEA_MICRA_SCALE_SCAN_RELAX_WHEN_OFF) != 0
             ? "true" : "false",
         static_cast<unsigned long>(micraStatus.requestId),
         lineaMicraPhaseName(micraStatus.phase),

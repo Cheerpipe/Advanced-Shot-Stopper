@@ -354,32 +354,21 @@ esp_err_t ShotStopperNetwork::bleScanHandler(httpd_req_t *request) {
     return bodyStatus;
   }
   cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  static const char *const fields[] = {"scanIntensity", "backoffMin",
-                                       "boostMin", "enabled"};
+  static const char *const fields[] = {"scanIntensity", "enabled"};
   char intensityText[12] = {};
   BleScanIntensity intensity = BleScanIntensity::BALANCED;
-  uint8_t backoffMin = 0;
-  uint8_t boostMin = 0;
   bool enabled = false;
   const bool intensityPresent =
       root != nullptr && jsonFieldPresent(root, "scanIntensity");
-  const bool backoffPresent =
-      root != nullptr && jsonFieldPresent(root, "backoffMin");
-  const bool boostPresent =
-      root != nullptr && jsonFieldPresent(root, "boostMin");
   const bool enabledPresent =
       root != nullptr && jsonFieldPresent(root, "enabled");
   const bool parsed =
-      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 4) &&
-      (intensityPresent || backoffPresent || boostPresent || enabledPresent) &&
+      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 2) &&
+      (intensityPresent || enabledPresent) &&
       (!intensityPresent ||
        (jsonString(root, "scanIntensity", intensityText,
                    sizeof(intensityText), false) &&
         parseBleScanIntensityId(intensityText, intensity))) &&
-      (!backoffPresent || (jsonUint8(root, "backoffMin", backoffMin) &&
-                           validBleScanBackoffMin(backoffMin))) &&
-      (!boostPresent || (jsonUint8(root, "boostMin", boostMin) &&
-                         validBleScanBoostMin(boostMin))) &&
       (!enabledPresent || jsonBoolean(root, "enabled", enabled));
   if (root != nullptr) {
     cJSON_Delete(root);
@@ -388,8 +377,6 @@ esp_err_t ShotStopperNetwork::bleScanHandler(httpd_req_t *request) {
   if (!parsed) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_BLE_CONFIG",
                      "scanIntensity must be balanced, aggressive, or relaxed; "
-                     "backoffMin must be 0 (off) or 1-240 minutes; "
-                     "boostMin must be 0 (off) or 1-240 minutes; "
                      "enabled must be a boolean.");
   }
   WebCommand command;
@@ -397,14 +384,6 @@ esp_err_t ShotStopperNetwork::bleScanHandler(httpd_req_t *request) {
   if (intensityPresent) {
     command.bleScan.specified |= BleScanCommandPayload::INTENSITY;
     command.bleScan.intensity = static_cast<uint8_t>(intensity);
-  }
-  if (backoffPresent) {
-    command.bleScan.specified |= BleScanCommandPayload::BACKOFF_MIN;
-    command.bleScan.backoffMin = backoffMin;
-  }
-  if (boostPresent) {
-    command.bleScan.specified |= BleScanCommandPayload::BOOST_MIN;
-    command.bleScan.boostMin = boostMin;
   }
   if (enabledPresent) {
     command.bleScan.specified |= BleScanCommandPayload::ENABLED;

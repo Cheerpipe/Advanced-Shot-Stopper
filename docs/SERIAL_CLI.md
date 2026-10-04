@@ -161,7 +161,7 @@ persist.
 | --- | --- | --- |
 | `LOG_DUMP` | none | Prints the RAM debug ring (oldest first), one event at a time. Deferred while a cycle is active or machine circuit is closed. Says so if empty or retain is none |
 | `HEALTH` | none | Heap, PSRAM, BLE host alloc counters, loop gap (interval + max), task stacks, CPU load, temperature, alert latches |
-| `SCALE_STATUS` | none | BLE scale link, preferred MAC/name, weight freshness, recovered stale count/time, live `scanIntensity` (`aggressive` / `balanced` / `relaxed`), the saved idle scan backoff in minutes (`scanBackoffMin`, `0` = off), and the saved machine-use scan boost in minutes (`scanBoostMin`, `0` = off) |
+| `SCALE_STATUS` | none | BLE scale link, preferred MAC/name, weight freshness, recovered stale count/time, and the saved `scanIntensity` (`aggressive` / `balanced` / `relaxed`) |
 | `NTP_STATUS` | none | Wall clock / NTP state, saved IANA `timezoneId`, and the offset applied at the current UTC instant. Notes if STA is down |
 | `HEAP` | none | Internal memory heap summary plus the list of free blocks (size and start address, up to 12) so you can see which gaps bound the largest allocation. Reports `freeBlocksTruncated` when more free blocks exist |
 | `BOOT_HEAP` | none | Retained memory samples from the current boot, including the startup reservation and first network/cloud/WebSocket stages. Works with debug traces off |

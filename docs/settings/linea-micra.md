@@ -30,7 +30,7 @@ machine** reads **Signed in — select a machine** and the status line shows the
 connection state, so you can tell a successful sign-in from one that has not
 happened yet.
 
-The connection type starts as **WebSocket**. The first three switches start on; the scale power-on, scale shutdown, and
+The connection type starts as **WebSocket**. The first three switches start on; the machine-aware scale search, scale power-on, scale shutdown, and
 scale-off-with-machine options start off.
 Before a machine is selected they remain visibly checked (or unchecked) but
 disabled, so the defaults are clear without implying that the integration is
@@ -46,7 +46,8 @@ become unavailable until you connect and select a machine again. The connection
 type preference is retained; a factory reset restores WebSocket.
 
 With a machine selected, **Save Micra settings** saves **Connection type**, **Allow brew boiler
-temperature in presets**, **Monitor machine power state**, **Recognize
+temperature in presets**, **Monitor machine power state**, the two
+[Machine-aware scale search](#machine-aware-scale-search) options, **Recognize
 paddle wake gestures**, **Turn machine on when the scale powers on**,
 **Turn machine off when the scale powers off**, its **Machine shutdown delay**, and
 **Turn scale off when the machine powers off**.
@@ -249,6 +250,36 @@ UNKNOWN is treated like ON for paddle behavior. It never qualifies a wake
 gesture, so brewing and rinse behavior remain unchanged when no confirmed ON
 or OFF observation is available.
 
+## Machine-aware scale search
+
+Two checkboxes directly under **Monitor machine power state** tie scale
+discovery to the machine's power state:
+
+- **Boost scale detection when machine is on** — searches more actively for a
+  scale while the machine is on, whatever the saved scan mode is.
+- **Reduce scale scanning when machine is off** — uses less Bluetooth
+  scanning time while the machine is off; finding a scale may take longer.
+
+Both start off on new installs, after a factory reset, and after updating
+from firmware that did not have them; a saved choice is kept across reboots
+and updates until you change it. Each option acts only in its own state:
+enabling the ON option changes nothing while the machine is off, and enabling
+the OFF option changes nothing while it is on. When no matching state is
+available — monitoring off, no account connected, the state unknown, or an
+unsupported reading — the saved [BLE scan mode](../settings/scales.md)
+applies unchanged.
+
+The options need **Monitor machine power state** on, because they read the
+same observed state. With monitoring off both checkboxes are disabled but
+keep their saved choices. The options follow the same resolved state Home
+shows, including optimistic ON/OFF estimates and values retained through a
+temporary connection pause. There are no timers to configure or wait for,
+and paddle or scale power events alone never change the search.
+
+The override only changes how hard the controller searches for a scale; it
+never stops discovery, powers a scale off, or changes the ESP32's CPU and
+radio hardware policy (see [Power management](power-management.md)).
+
 ## Recognize paddle wake gestures
 
 Keep **Recognize paddle wake gestures** on to use a monitored OFF state. The
@@ -256,8 +287,11 @@ last confirmed OFF counts while it is current or stale, so the next physical
 paddle ON is then treated only as the Micra's standby wake
 gesture. The controller mirrors the paddle through its normal relay safety path,
 but it does not start brew or rinse, evaluate or consume guards, command the
-scale, boost BLE discovery, play alerts, call brew webhooks, or add shot/rinse
-history. Returning the paddle to OFF opens the relay and ends the gesture,
+scale, play alerts, call brew webhooks, or add shot/rinse
+history. The gesture itself never changes scale discovery; the optimistic ON
+it produces can select Aggressive searching only when
+[Boost scale detection when machine is on](#machine-aware-scale-search) is
+enabled. Returning the paddle to OFF opens the relay and ends the gesture,
 regardless of how long it was held. History adds one **Power ON** entry with
 the gesture's date, time, and duration; Stats remains unchanged.
 
@@ -432,7 +466,7 @@ does not require **Monitor machine power state** to be enabled.
 
 Factory reset removes the Micra cloud account, selected machine, installation
 key, and RAM session. The first three Micra options return to their checked
-defaults, the scale power-on and shutdown options and the scale-off-with-
-machine option return to off, and preset temperatures
+defaults, the machine-aware scale search, scale power-on and shutdown options
+and the scale-off-with-machine option return to off, and preset temperatures
 return to 93.0 °C. See
 [Factory reset](factory-reset.md) and [Presets](../features/presets.md).

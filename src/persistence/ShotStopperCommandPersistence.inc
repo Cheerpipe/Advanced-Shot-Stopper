@@ -613,12 +613,9 @@ bool serviceBleScanPersist() {
 #if defined(SHOT_STOPPER_HOST_TEST)
   // Host harness: no NVS layer; a staged change completes immediately.
   bleScanPersistMux.lock();
-  const bool pending = bleScanPersistPending || bleScanBackoffPersistPending ||
-                       bleScanBoostPersistPending ||
+  const bool pending = bleScanPersistPending ||
                        bleScanEnabledPersistPending;
   bleScanPersistPending = false;
-  bleScanBackoffPersistPending = false;
-  bleScanBoostPersistPending = false;
   bleScanEnabledPersistPending = false;
   bleScanPersistResultOk = true;
   bleScanPersistResultReady = pending;
@@ -627,36 +624,22 @@ bool serviceBleScanPersist() {
 #else
   bleScanPersistMux.lock();
   const bool pending = bleScanPersistPending;
-  const bool backoffPending = bleScanBackoffPersistPending;
-  const bool boostPending = bleScanBoostPersistPending;
   const bool enabledPending = bleScanEnabledPersistPending;
-  // An unstaged field keeps its durable value, so all four share one save.
+  // An unstaged field keeps its durable value, so both share one save.
   const uint8_t intensity = pending ? bleScanPersistIntensity
                                     : bleScanPersistedSettings.scanIntensity;
-  const uint8_t backoffMin = backoffPending
-                                 ? bleScanPersistBackoffMin
-                                 : bleScanPersistedSettings.scanBackoffMin;
-  const uint8_t boostMin = boostPending
-                               ? bleScanPersistBoostMin
-                               : bleScanPersistedSettings.scanBoostMin;
   const uint8_t enabled = enabledPending ? bleScanPersistEnabled
                                          : bleScanPersistedSettings.enabled;
   bleScanPersistMux.unlock();
-  if (!pending && !backoffPending && !boostPending && !enabledPending) {
+  if (!pending && !enabledPending) {
     return true;
   }
-  const bool ok = persistBleScanSettings(bleScanPersistedSettings, intensity,
-                                         backoffMin, boostMin, enabled);
+  const bool ok =
+      persistBleScanSettings(bleScanPersistedSettings, intensity, enabled);
   bleScanPersistMux.lock();
   if (ok && pending && bleScanPersistIntensity == intensity) {
     // A newer staged value stays pending for the next idle pass.
     bleScanPersistPending = false;
-  }
-  if (ok && backoffPending && bleScanPersistBackoffMin == backoffMin) {
-    bleScanBackoffPersistPending = false;
-  }
-  if (ok && boostPending && bleScanPersistBoostMin == boostMin) {
-    bleScanBoostPersistPending = false;
   }
   if (ok && enabledPending && bleScanPersistEnabled == enabled) {
     bleScanEnabledPersistPending = false;

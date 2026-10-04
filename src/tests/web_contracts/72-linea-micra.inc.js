@@ -280,6 +280,7 @@ if (!micraTypes.includes('APPLY_TEMPERATURE') ||
 for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
   'lineaMicraConnectButton', 'lineaMicraMachine', 'lineaMicraSelectButton',
   'lineaMicraConnectionType', 'lineaMicraApplyTemperature', 'lineaMicraObserveState',
+  'lineaMicraBoostScaleDetectionWhenOn', 'lineaMicraReduceScaleScanningWhenOff',
   'lineaMicraRecognizeWake', 'lineaMicraShutdownWithScale',
   'lineaMicraShutdownGraceWrap', 'lineaMicraShutdownGrace',
   'lineaMicraSaveButton', 'lineaMicraDisconnectButton',
@@ -373,6 +374,7 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     vm.runInContext("saveLineaMicraSettings('select','SYNTHETIC')", context);
     assert.deepStrictEqual(commands[0], {url: '/api/v1/machine/linea-micra', body: {
       action: 'select', serial: 'SYNTHETIC', applyTemperature: false, observeState: true,
+      boostScaleDetectionWhenOn: false, reduceScaleScanningWhenOff: false,
       recognizeWakeGesture: false, powerOnWithScale: false, shutdownWithScale: false,
       scaleOffWithMachine: false, connectionType: 'api', shutdownGraceSeconds: 15}});
     get('lineaMicraConnectionType').value = 'websocket';
@@ -394,6 +396,7 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     saveClick({type: 'click', target: get('lineaMicraSaveButton')});
     assert.deepStrictEqual(commands[2], {url: '/api/v1/machine/linea-micra', body: {
       action: 'save', applyTemperature: false, observeState: true,
+      boostScaleDetectionWhenOn: false, reduceScaleScanningWhenOff: false,
       recognizeWakeGesture: false, powerOnWithScale: false, shutdownWithScale: false,
       scaleOffWithMachine: false, connectionType: 'api', shutdownGraceSeconds: 0}},
       `${theme}: configured Micra must save API mode through a button click without credentials`);
@@ -578,6 +581,10 @@ if (!micraMachinePower.includes('LINEA_MICRA_SCALE_OFF_WITH_MACHINE') ||
     !scaleWorker.includes('executeScalePowerOffCommand') ||
     !protocolGeneric.includes('ScaleFeaturePowerOff') ||
     !micraWeb.includes('"scaleOffWithMachine"') ||
-    !micraStatus.includes('\\"scaleOffWithMachine\\"')) {
+    !micraStatus.includes('\\"scaleOffWithMachine\\"') ||
+    !micraWeb.includes('"boostScaleDetectionWhenOn"') ||
+    !micraWeb.includes('"reduceScaleScanningWhenOff"') ||
+    !micraStatus.includes('\\"boostScaleDetectionWhenOn\\"') ||
+    !micraStatus.includes('\\"reduceScaleScanningWhenOff\\"')) {
   throw new Error('Scale-off-with-machine must fire once per confirmed ON→OFF edge, warn instead of writing to unsupported scales, and never re-trigger the shutdown cycle');
 }

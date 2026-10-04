@@ -4,8 +4,6 @@ void rejectWebCommand(const WebCommand &command) {
   reportControlCommandResult(command, CommandResultState::FAILED);
 }
 void persistBleScanIntensity(BleScanIntensity intensity);
-void persistBleScanBackoff(uint8_t backoffMin);
-void persistBleScanBoost(uint8_t boostMin);
 void persistBleScanEnabled(bool enabled);
 
 // Compatibility mode blocks commands that actuate the machine or execute
@@ -704,14 +702,6 @@ void processWebCommand(const WebCommand &command) {
         persistBleScanIntensity(
             clampBleScanIntensity(command.bleScan.intensity));
       }
-      if (command.bleScan.specified & BleScanCommandPayload::BACKOFF_MIN) {
-        applied = true;
-        persistBleScanBackoff(command.bleScan.backoffMin);
-      }
-      if (command.bleScan.specified & BleScanCommandPayload::BOOST_MIN) {
-        applied = true;
-        persistBleScanBoost(command.bleScan.boostMin);
-      }
       if (command.bleScan.specified & BleScanCommandPayload::ENABLED) {
         applied = true;
         persistBleScanEnabled(command.bleScan.enabled != 0);
@@ -794,28 +784,6 @@ void persistBleScanIntensity(BleScanIntensity intensity) {
   bleScanPersistMux.lock();
   bleScanPersistIntensity = static_cast<uint8_t>(clamped);
   bleScanPersistPending = true;
-  bleScanPersistMux.unlock();
-}
-
-void persistBleScanBackoff(uint8_t backoffMin) {
-  const uint8_t clamped = clampBleScanBackoffMin(backoffMin);
-  applyLiveBleScanBackoff(clamped);
-  // Stage only: the settings_persist worker owns the durable NVS write, so
-  // the Arduino control loop never performs flash I/O for this command.
-  bleScanPersistMux.lock();
-  bleScanPersistBackoffMin = clamped;
-  bleScanBackoffPersistPending = true;
-  bleScanPersistMux.unlock();
-}
-
-void persistBleScanBoost(uint8_t boostMin) {
-  const uint8_t clamped = clampBleScanBoostMin(boostMin);
-  applyLiveBleScanBoost(clamped);
-  // Stage only: the settings_persist worker owns the durable NVS write, so
-  // the Arduino control loop never performs flash I/O for this command.
-  bleScanPersistMux.lock();
-  bleScanPersistBoostMin = clamped;
-  bleScanBoostPersistPending = true;
   bleScanPersistMux.unlock();
 }
 

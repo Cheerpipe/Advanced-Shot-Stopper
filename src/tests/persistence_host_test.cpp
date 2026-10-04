@@ -596,36 +596,49 @@ void p82_ble_scan_strict_versions_and_roundtrip() {
   CHECK(!loadBleScanSettings(loaded));
   loaded = BleScanPersistedSettings{};
 
-  CHECK(persistBleScanSettings(loaded, loaded.scanIntensity, 30, 15,
-                               loaded.enabled));
-  CHECK(loaded.scanBoostMin == 15);
+  CHECK(persistBleScanSettings(
+      loaded, static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE),
+      loaded.enabled));
   BleScanPersistedSettings reloaded;
   CHECK(loadBleScanSettings(reloaded));
-  CHECK(reloaded.scanBackoffMin == 30);
-  CHECK(reloaded.scanBoostMin == 15);
   CHECK(reloaded.scanIntensity ==
-        static_cast<uint8_t>(BleScanIntensity::BALANCED));
+        static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE));
 
-  // Zero is a stored choice ("off"), never an unset marker.
-  CHECK(persistBleScanSettings(reloaded, reloaded.scanIntensity, 0, 0,
-                               reloaded.enabled));
-  CHECK(loadBleScanSettings(loaded));
-  CHECK(loaded.scanBackoffMin == 0);
-  CHECK(loaded.scanBoostMin == 0);
-
-  // All four fields in one call cost a single revision bump.
+  // Both remaining fields in one call cost a single revision bump.
   const uint32_t revisionBefore = loaded.revision;
   CHECK(persistBleScanSettings(loaded,
                                static_cast<uint8_t>(BleScanIntensity::RELAXED),
-                               60, 45, 0));
+                               0));
   CHECK(loadBleScanSettings(reloaded));
   CHECK(reloaded.revision == revisionBefore + 1);
   CHECK(reloaded.scanIntensity ==
         static_cast<uint8_t>(BleScanIntensity::RELAXED));
-  CHECK(reloaded.scanBackoffMin == 60);
-  CHECK(reloaded.scanBoostMin == 45);
   CHECK(reloaded.enabled == 0);
 
+  BleScanPersistedSettings factory;
+  finalizeBleScanSettings(factory);
+  CHECK(verifyFactoryBleScanSettings(factory));
+}
+
+void p82b_ble_scan_legacy_minute_bytes_stay_readable() {
+  // Firmware that stored the removed backoff/boost minutes wrote non-zero
+  // bytes where reserved0/reserved1 now sit. Those blobs must stay loadable,
+  // their reserved values must be ignored, and the next durable write must
+  // clear them.
+  resetHostPersistence();
+  BleScanPersistedSettings legacy;
+  CHECK(saveBleScanSettings(legacy));
+  legacy.reserved0 = 30;
+  legacy.reserved1 = 15;
+  legacy.checksum = bleScanSettingsChecksum(legacy);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, BLE_SCAN_SLOT_A,
+                           &legacy, sizeof(legacy));
+  BleScanPersistedSettings loaded;
+  CHECK(loadBleScanSettings(loaded));
+  CHECK(loaded.reserved0 == 0 && loaded.reserved1 == 0);
+  CHECK(loaded.scanIntensity == legacy.scanIntensity);
+  CHECK(loaded.enabled == 1);
+  // An unchanged settings save keeps the factory defaults verifiable.
   BleScanPersistedSettings factory;
   finalizeBleScanSettings(factory);
   CHECK(verifyFactoryBleScanSettings(factory));
@@ -1515,7 +1528,6 @@ void p48_ble_scan_defaults_and_dual_slot_round_trip() {
   // The master switch shares the combined save; disabled is durable.
   CHECK(persistBleScanSettings(loaded,
                                static_cast<uint8_t>(BleScanIntensity::AGGRESSIVE),
-                               loaded.scanBackoffMin, loaded.scanBoostMin,
                                0));
   CHECK(readLatestBleScanSettings(onDisk));
   CHECK(onDisk.version == BLE_SCAN_SETTINGS_VERSION);
@@ -2409,7 +2421,8 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   strcpy(settings.lineaMicra.selectedName, "Kitchen Micra");
   settings.lineaMicra.accountConfigured = true;
   settings.lineaMicra.connectionType = static_cast<uint8_t>(MicraConnectionType::API);
-  setLineaMicraOptions(settings.lineaMicra, true, true, true, false, false, 0, false);
+  setLineaMicraOptions(settings.lineaMicra, true, true, true,
+                              false, false, 0, false, false, false);
   strcpy(settings.deviceName, "Cafe Bar 2");
   settings.presets.presets[0].lineaMicraBrewTargetDeciC = 935;
   CHECK(savePersistedSettings(settings));
@@ -2422,7 +2435,8 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   CHECK(settings.presets.presets[0].lineaMicraBrewTargetDeciC == 935);
   CHECK(strcmp(settings.deviceName, "Cafe Bar 2") == 0);
 
-  setLineaMicraOptions(settings.lineaMicra, false, false, false, true, false, 3, false);
+  setLineaMicraOptions(settings.lineaMicra, false, false, false,
+                              true, false, 3, false, false, false);
   CHECK(savePersistedSettings(settings));
   CHECK(loadPersistedSettings(settings));
   CHECK(settings.lineaMicra.options ==
@@ -2819,6 +2833,7 @@ const TestCase tests[] = {
     {"P86", p86_timezone_preference_and_durable_initialization},
     {"P85", p85_schema1_is_strict_and_micra_defaults_round_trip},
     {"P82", p82_ble_scan_strict_versions_and_roundtrip},
+    {"P82B", p82b_ble_scan_legacy_minute_bytes_stay_readable},
     {"P80", p80_boot_id_remains_dirty_until_durable},
     {"P01", p01_defaults_are_valid},
     {"P02", p02_newest_valid_slot_is_loaded},

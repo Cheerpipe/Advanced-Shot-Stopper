@@ -311,10 +311,6 @@ void setup() {
   }
   applyLiveBleScanIntensity(clampBleScanIntensity(
       bleScanPersistedSettings.scanIntensity));
-  applyLiveBleScanBackoff(
-      clampBleScanBackoffMin(bleScanPersistedSettings.scanBackoffMin));
-  applyLiveBleScanBoost(
-      clampBleScanBoostMin(bleScanPersistedSettings.scanBoostMin));
   // Compatibility mode keeps the BLE stack parked regardless of the persisted
   // Bluetooth setting; re-enabling the firmware restores it untouched.
   applyLiveBleEnabled(!firmwareCompatibilityMode() &&
@@ -723,11 +719,6 @@ void loop() {
   finishLoopPhase(LoopPhase::SCALE_MACHINE_INPUT);
   const MachineIntention powerIntention = machineLastIntention();
   const bool wakeGestureConsumed = serviceMachineWakeGesture(powerIntention);
-  // Forward the machine-use edge only; the scale worker owns the whole scan
-  // boost rule (no-scale gate, deadline, duty override).
-  if (powerIntention.turnedOn && !wakeGestureConsumed) {
-    armBleScanBoostOnMachineUse();
-  }
   if (!wakeGestureConsumed) {
     serviceNoScaleShotGuard(loopGuardInputs);
     serviceCupStartGuard(loopGuardInputs);

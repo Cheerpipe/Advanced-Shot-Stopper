@@ -150,9 +150,9 @@ identify physical button presses. See [Tare](settings/tare.md#outside-a-brew).
 Close other scale-connected apps. Check the saved preferred scale and
 **Admin → Power management → BLE scan mode**. Factory default is **Balanced**;
 Relaxed uses less scanning radio time and Aggressive uses more. Try Relaxed
-if idle scanning hurts UI response. **Admin → Power management → Idle scan
-backoff** (factory OFF) only slows searching after a long time with no
-scale in range, so it rarely affects an active session.
+if idle scanning hurts UI response. On a Linea Micra, the
+[machine-aware scale search](settings/linea-micra.md#machine-aware-scale-search)
+can ease scanning while the machine is off.
 **Admin → Power management → Wi-Fi sleep** can also affect latency.
 See [Scales](settings/scales.md) and [Wi-Fi](settings/wifi.md).
 

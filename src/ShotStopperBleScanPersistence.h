@@ -20,8 +20,11 @@ struct BleScanPersistedSettings {
   // BLE master switch: 1 (factory default) keeps scale Bluetooth active.
   uint8_t enabled = 1;
   uint8_t scanIntensity = static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY);
-  uint8_t scanBackoffMin = SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN;
-  uint8_t scanBoostMin = SCALE_SCAN_BOOST_DEFAULT_MIN;
+  // Reserved byte positions of the removed quiet-backoff and machine-use
+  // boost minutes. Kept so blobs written by older firmware stay readable;
+  // their values are ignored and always rewritten as zero.
+  uint8_t reserved0 = 0;
+  uint8_t reserved1 = 0;
   uint32_t checksum = 0;
 };
 
@@ -44,8 +47,8 @@ inline void finalizeBleScanSettings(BleScanPersistedSettings &settings) {
   settings.enabled = settings.enabled != 0 ? 1 : 0;
   settings.scanIntensity =
       static_cast<uint8_t>(clampBleScanIntensity(settings.scanIntensity));
-  settings.scanBackoffMin = clampBleScanBackoffMin(settings.scanBackoffMin);
-  settings.scanBoostMin = clampBleScanBoostMin(settings.scanBoostMin);
+  settings.reserved0 = 0;
+  settings.reserved1 = 0;
   settings.checksum = 0;
   settings.checksum = bleScanSettingsChecksum(settings);
 }
@@ -54,8 +57,6 @@ inline bool validBleScanSettingsBlob(const BleScanPersistedSettings &settings) {
   if (settings.magic != BLE_SCAN_SETTINGS_MAGIC ||
       settings.structureSize != sizeof(BleScanPersistedSettings) ||
       !validBleScanIntensity(settings.scanIntensity) ||
-      !validBleScanBackoffMin(settings.scanBackoffMin) ||
-      !validBleScanBoostMin(settings.scanBoostMin) ||
       settings.checksum != bleScanSettingsChecksum(settings)) {
     return false;
   }
@@ -117,9 +118,7 @@ inline bool verifyFactoryBleScanSettings(
          settings.version == BLE_SCAN_SETTINGS_VERSION &&
          settings.enabled == 1 &&
          settings.scanIntensity ==
-             static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY) &&
-         settings.scanBackoffMin == SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN &&
-         settings.scanBoostMin == SCALE_SCAN_BOOST_DEFAULT_MIN;
+             static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY);
 }
 
 inline bool saveBleScanSettings(BleScanPersistedSettings &settings) {
@@ -153,27 +152,20 @@ inline bool saveBleScanSettings(BleScanPersistedSettings &settings) {
   return saved;
 }
 
-// One dual-slot save covers all four fields: a request that changes several
-// of them together must not cost several flash writes and revisions. An
-// unchanged field is passed through by the caller and writes nothing.
+// One dual-slot save covers all remaining fields: a request that changes
+// several of them together must not cost several flash writes and revisions.
+// An unchanged field is passed through by the caller and writes nothing.
 inline bool persistBleScanSettings(BleScanPersistedSettings &settings,
-                                   uint8_t intensity, uint8_t backoffMin,
-                                   uint8_t boostMin, uint8_t enabled) {
+                                   uint8_t intensity, uint8_t enabled) {
   const uint8_t storedIntensity =
       static_cast<uint8_t>(clampBleScanIntensity(intensity));
-  const uint8_t storedBackoff = clampBleScanBackoffMin(backoffMin);
-  const uint8_t storedBoost = clampBleScanBoostMin(boostMin);
   const uint8_t storedEnabled = enabled != 0 ? 1 : 0;
   if (settings.scanIntensity == storedIntensity &&
-      settings.scanBackoffMin == storedBackoff &&
-      settings.scanBoostMin == storedBoost &&
       settings.enabled == storedEnabled) {
     return true;
   }
   BleScanPersistedSettings candidate = settings;
   candidate.scanIntensity = storedIntensity;
-  candidate.scanBackoffMin = storedBackoff;
-  candidate.scanBoostMin = storedBoost;
   candidate.enabled = storedEnabled;
   if (!saveBleScanSettings(candidate)) {
     return false;

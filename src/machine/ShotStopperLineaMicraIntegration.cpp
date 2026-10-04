@@ -113,8 +113,21 @@ void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
 void serviceMachineIntegrationMachinePower(bool scaleLinkUp,
                                            bool scaleSupportsPowerOff,
                                            bool relayClosed) {
-  if (!machinePower.service(service.status(),
-                            micraScaleOptions.load(std::memory_order_relaxed),
+  const uint8_t scaleOptions =
+      micraScaleOptions.load(std::memory_order_relaxed);
+  const LineaMicraStatus status = service.status();
+  // Refresh the discovery override every loop before any scale power-off
+  // early return: eligibility changes (option, identity, observation, or
+  // state) clear it here without a separate timer or event.
+  const MicraScanOverride scanOverride = micraScanOverride(status,
+                                                           scaleOptions);
+  applyLiveBleScanOverride(
+      scanOverride == MicraScanOverride::AGGRESSIVE
+          ? BleScanIntensity::AGGRESSIVE
+      : scanOverride == MicraScanOverride::RELAXED
+          ? BleScanIntensity::RELAXED
+          : BleScanIntensity::BALANCED);
+  if (!machinePower.service(status, scaleOptions,
                             micraAccountConfigured.load(
                                 std::memory_order_relaxed))) {
     return;

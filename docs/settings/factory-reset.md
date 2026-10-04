@@ -18,9 +18,9 @@ authorized Web UI setup can detect a zone again.
 On Linea Micra firmware it also erases
 the cloud account credentials, installation key, selected machine, and session.
 Its three integration options return to ON, and factory preset boiler targets return to
-93.0 °C. Power management, Wi-Fi sleep, and the BLE scan mode return to their
-factory values: power policy on, Wi-Fi sleep on, Balanced scan mode, idle scan
-backoff off, and a 15-minute scan boost on machine use. The device
+93.0 °C. ESP32 power management, Wi-Fi sleep, and the BLE scan mode return to
+their factory values: ESP32 power management on, Wi-Fi sleep on, and Balanced
+scan mode. The machine-aware scale search options return to off. The device
 password returns to **`ineedacoffee`** and the device name to
 **`openbrewbyweight`**. A disabled [firmware mode](firmware-mode.md) is
 turned back on. The device then restarts.

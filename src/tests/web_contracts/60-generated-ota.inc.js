@@ -440,7 +440,7 @@ if (generated.cssGzip.length > 8200) {
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
 // Continuous smoothed flow-rate polylines raise the cap from 32600 to 32800 bytes.
 // Activation-history paging, sorting, clear, and per-card delete raise it to 33700.
-// The Admin idle-scan backoff select and its save helper raise it to 33900.
+// The removed Admin idle-scan backoff select once raised this to 33900.
 // Activation-history card type icons (inline coffee/rinse SVG) raise it to 35000.
 // The Admin device-name validation, preference save, and .local status raise it to 35200.
 // Humanized shot/activation time labels (relative day ladder) raise it to 35300.

@@ -5,6 +5,28 @@
 
 namespace shotstopper {
 
+// Scale-discovery duty requested from the machine power state. NONE leaves
+// the saved BLE scan mode in charge.
+enum class MicraScanOverride : uint8_t { NONE, AGGRESSIVE, RELAXED };
+
+// One compact discovery override computed from the persisted scale options
+// and the final resolved power state (optimistic and retained included).
+// Only a known ON or OFF state can override; UNKNOWN — whatever
+// effectiveOn says — no account, observation disabled, unsupported, and
+// failed observations all resolve UNKNOWN and keep NONE.
+inline MicraScanOverride micraScanOverride(const LineaMicraStatus &machine,
+                                           uint8_t micraScaleOptions) {
+  if (machine.powerState == LineaMicraPowerState::ON &&
+      (micraScaleOptions & LINEA_MICRA_SCALE_SCAN_BOOST_WHEN_ON) != 0) {
+    return MicraScanOverride::AGGRESSIVE;
+  }
+  if (machine.powerState == LineaMicraPowerState::OFF &&
+      (micraScaleOptions & LINEA_MICRA_SCALE_SCAN_RELAX_WHEN_OFF) != 0) {
+    return MicraScanOverride::RELAXED;
+  }
+  return MicraScanOverride::NONE;
+}
+
 // Machine-side policy for powering the scale off when the machine powers off.
 // Only current-quality dashboard classifications change the confirmed state;
 // stale, optimistic, unknown, or failed observations never arm or fire the

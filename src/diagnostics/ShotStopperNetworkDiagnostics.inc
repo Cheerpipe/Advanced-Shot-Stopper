@@ -703,11 +703,8 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   ok = ok &&
        debugExportChunkf(
            request, buf, cap,
-           "\"bleScan\":{\"scanIntensity\":\"%s\","
-           "\"backoffMin\":%u,\"boostMin\":%u},",
-           bleScanIntensityName(clampBleScanIntensity(c.bleScanIntensity)),
-           static_cast<unsigned>(c.bleScanBackoffMin),
-           static_cast<unsigned>(c.bleScanBoostMin));
+           "\"bleScan\":{\"scanIntensity\":\"%s\"},",
+           bleScanIntensityName(clampBleScanIntensity(c.bleScanIntensity)));
 
   self.buildOtaJson(work.otaJson, NetworkWorkBuf::kOtaJson, controlGateOf(c), c.bootId);
   ok = ok && debugExportChunk(request, "\"ota\":");

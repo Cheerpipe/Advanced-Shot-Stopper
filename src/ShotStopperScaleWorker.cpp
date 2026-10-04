@@ -253,24 +253,19 @@ bool scalePowerOffBlocksGeneration(uint32_t generation);
 void clearScalePowerOffLifecycle(uint32_t preserveGeneration = 0);
 uint16_t scaleScanAppliedInterval = 0;
 uint16_t scaleScanAppliedWindow = 0;
-// Last evidence of a compatible scale (advert seen, live link, preference
-// reset); anchors the quiet-hunt scan backoff. Zero counts from boot.
-uint32_t scaleScanCompatibleActivityAtMs = 0;
 uint32_t scaleHuntRfUntilMs = 0;
 bool scaleLoggedGattConnecting = false;
 uint8_t scaleLoggedGattConnectAttempts = 0;
 bool scaleDiscoveryDirected = false;
 std::atomic<uint8_t> liveBleScanIntensityRaw{
     static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY)};
-std::atomic<uint8_t> liveBleScanBackoffMinRaw{
-    SCALE_SCAN_QUIET_BACKOFF_DEFAULT_MIN};
-std::atomic<uint8_t> liveBleScanBoostMinRaw{SCALE_SCAN_BOOST_DEFAULT_MIN};
 // Admin BLE master switch: 0 keeps the scale client idle (no scans, no
 // links), indistinguishable from having no scale for the rest of the FW.
 std::atomic<uint8_t> liveBleEnabledRaw{1};
-// RAM-only boost deadline armed by the machine-use notification; boot
-// zero-init and natural expiry are the only clear paths.
-std::atomic<uint32_t> scaleScanBoostUntilMs{0};
+// Machine-integration override of the saved discovery duty; BALANCED means
+// no override. Boot zero-init selects the saved intensity.
+std::atomic<uint8_t> liveBleScanOverrideRaw{
+    static_cast<uint8_t>(BleScanIntensity::BALANCED)};
 bool bookooConnectVolumePending = false;
 static std::atomic<bool> bleStackReady{false};
 static std::atomic<bool> scaleWorkerStartupFinished{false};
@@ -2188,24 +2183,6 @@ void applyLiveBleScanIntensity(BleScanIntensity intensity) {
                                 std::memory_order_relaxed);
 }
 
-void applyLiveBleScanBackoff(uint8_t backoffMin) {
-  liveBleScanBackoffMinRaw.store(clampBleScanBackoffMin(backoffMin),
-                                 std::memory_order_relaxed);
-}
-
-uint8_t liveBleScanBackoffMin() {
-  return liveBleScanBackoffMinRaw.load(std::memory_order_relaxed);
-}
-
-void applyLiveBleScanBoost(uint8_t boostMin) {
-  liveBleScanBoostMinRaw.store(clampBleScanBoostMin(boostMin),
-                               std::memory_order_relaxed);
-}
-
-uint8_t liveBleScanBoostMin() {
-  return liveBleScanBoostMinRaw.load(std::memory_order_relaxed);
-}
-
 void applyLiveBleEnabled(bool enabled) {
   liveBleEnabledRaw.store(enabled ? 1 : 0, std::memory_order_relaxed);
   // Wake the worker so an enabling edge resumes discovery on the next tick
@@ -2217,27 +2194,11 @@ bool liveBleEnabled() {
   return liveBleEnabledRaw.load(std::memory_order_relaxed) != 0;
 }
 
-static void armBleScanBoost() {
-  const uint8_t boostMin = liveBleScanBoostMin();
-  if (boostMin == 0) {
-    return;
-  }
-  scaleScanBoostUntilMs.store(millis() + static_cast<uint32_t>(boostMin) * 60000U,
-                              std::memory_order_relaxed);
-}
-
-void armBleScanBoostOnMachineUse() {
-  // The worker owns the whole boost rule: machine use only matters while it
-  // has no usable scale, and this is the same link gate control consumes.
-  if (scaleLinkAvailable(getScaleLinkSnapshot())) {
-    return;
-  }
-  armBleScanBoost();
-}
-
-bool bleScanBoostActive() {
-  const uint32_t untilMs = scaleScanBoostUntilMs.load(std::memory_order_relaxed);
-  return untilMs != 0 && static_cast<int32_t>(millis() - untilMs) < 0;
+void applyLiveBleScanOverride(BleScanIntensity intensity) {
+  liveBleScanOverrideRaw.store(
+      static_cast<uint8_t>(clampBleScanIntensity(
+          static_cast<uint8_t>(intensity))),
+      std::memory_order_relaxed);
 }
 
 BleScanIntensity liveBleScanIntensity() {
@@ -2246,15 +2207,10 @@ BleScanIntensity liveBleScanIntensity() {
 }
 
 BleScanIntensity discoveryScanIntensity() {
-  if (bleScanBoostActive()) {
-    return BleScanIntensity::AGGRESSIVE;
-  }
-  const uint8_t backoffMin = liveBleScanBackoffMin();
-  if (powerIdleSavings() ||
-      (backoffMin != 0 &&
-       elapsedMs(scaleScanCompatibleActivityAtMs) >=
-           static_cast<uint32_t>(backoffMin) * 60000U)) {
-    return BleScanIntensity::RELAXED;
+  const uint8_t discoveryOverride =
+      liveBleScanOverrideRaw.load(std::memory_order_relaxed);
+  if (discoveryOverride != static_cast<uint8_t>(BleScanIntensity::BALANCED)) {
+    return clampBleScanIntensity(discoveryOverride);
   }
   return liveBleScanIntensity();
 }
@@ -2390,7 +2346,6 @@ void serviceScaleWorkerDiscovery(uint32_t &lastScanCycleMs,
   if (preferenceRestarted) {
     connectAttemptSeriesActive = false;
     scanSessionAtMs = millis();
-    scaleScanCompatibleActivityAtMs = scanSessionAtMs;
     scanLastAdvertAtMs = 0;
   }
   if (scale.communicationSilenced()) {
@@ -2446,7 +2401,6 @@ void serviceScaleWorkerDiscovery(uint32_t &lastScanCycleMs,
       noteScaleHistory(seenMac, seenName, false);
       sawCompatibleAd = true;
       scanLastAdvertAtMs = millis();
-      scaleScanCompatibleActivityAtMs = scanLastAdvertAtMs;
     }
     if (connected) {
       connectAttemptSeriesActive = false;
@@ -2751,7 +2705,6 @@ void scaleWorkerTask(void *) {
     // Live GAP check once per tick. Packet timeouts and HCI events cover the
     // rest of the hot path via isLinkUp().
     const bool linked = scale.isConnected();
-    if (linked) scaleScanCompatibleActivityAtMs = nowMs;
     static uint32_t lastLinkSnapshotMs = 0;
     const bool linkSnapshotDue =
         lastLinkSnapshotMs == 0 ||

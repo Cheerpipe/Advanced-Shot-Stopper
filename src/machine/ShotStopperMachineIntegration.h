@@ -80,7 +80,8 @@ void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
                                         bool relayClosed);
 // Forwards one machine power observation per control loop plus the scale
 // link's ability to accept a power-off command; the integration decides
-// whether the connected scale is switched off.
+// whether the connected scale is switched off and publishes its discovery
+// duty override, if any.
 void serviceMachineIntegrationMachinePower(bool scaleLinkUp,
                                            bool scaleSupportsPowerOff,
                                            bool relayClosed);

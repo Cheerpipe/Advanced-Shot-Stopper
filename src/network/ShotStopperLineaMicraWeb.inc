@@ -32,6 +32,7 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
       "action", "username", "password", "serial", "applyTemperature",
       "observeState", "recognizeWakeGesture", "shutdownWithScale",
       "shutdownGraceSeconds", "powerOnWithScale", "scaleOffWithMachine",
+      "boostScaleDetectionWhenOn", "reduceScaleScanningWhenOff",
       "connectionType"};
   char action[16] = {};
   char username[LINEA_MICRA_USERNAME_CAPACITY] = {};
@@ -49,6 +50,8 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
   bool shutdownWithScale = false;
   bool powerOnWithScale = false;
   bool scaleOffWithMachine = false;
+  bool boostScaleDetectionWhenOn = false;
+  bool reduceScaleScanningWhenOff = false;
   int16_t shutdownGraceSeconds = -1;
   uint8_t shutdownGraceCode = 0;
   LineaMicraPersistedSettings candidate = {};
@@ -95,7 +98,9 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
         jsonFieldPresent(root, "shutdownWithScale") ||
         jsonFieldPresent(root, "shutdownGraceSeconds") ||
         jsonFieldPresent(root, "powerOnWithScale") ||
-        jsonFieldPresent(root, "scaleOffWithMachine")) {
+        jsonFieldPresent(root, "scaleOffWithMachine") ||
+        jsonFieldPresent(root, "boostScaleDetectionWhenOn") ||
+        jsonFieldPresent(root, "reduceScaleScanningWhenOff")) {
       parseError = "connect requires only username and password.";
     }
   } else if (parseError == nullptr && strcmp(action, "select") == 0) {
@@ -106,6 +111,10 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
         !jsonBoolean(root, "shutdownWithScale", shutdownWithScale) ||
         !jsonBoolean(root, "powerOnWithScale", powerOnWithScale) ||
         !jsonBoolean(root, "scaleOffWithMachine", scaleOffWithMachine) ||
+        !jsonBoolean(root, "boostScaleDetectionWhenOn",
+                     boostScaleDetectionWhenOn) ||
+        !jsonBoolean(root, "reduceScaleScanningWhenOff",
+                     reduceScaleScanningWhenOff) ||
         !jsonInt16(root, "shutdownGraceSeconds", shutdownGraceSeconds) ||
         !lineaMicraGraceCodeFromSeconds(shutdownGraceSeconds,
                                         shutdownGraceCode) ||
@@ -121,7 +130,8 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
         setLineaMicraOptions(candidate, applyTemperature, observeState,
                              recognizeWakeGesture, shutdownWithScale,
                              powerOnWithScale, shutdownGraceCode,
-                             scaleOffWithMachine);
+                             scaleOffWithMachine, boostScaleDetectionWhenOn,
+                             reduceScaleScanningWhenOff);
       }
     }
   } else if (parseError == nullptr && strcmp(action, "save") == 0) {
@@ -132,6 +142,10 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
         !jsonBoolean(root, "shutdownWithScale", shutdownWithScale) ||
         !jsonBoolean(root, "powerOnWithScale", powerOnWithScale) ||
         !jsonBoolean(root, "scaleOffWithMachine", scaleOffWithMachine) ||
+        !jsonBoolean(root, "boostScaleDetectionWhenOn",
+                     boostScaleDetectionWhenOn) ||
+        !jsonBoolean(root, "reduceScaleScanningWhenOff",
+                     reduceScaleScanningWhenOff) ||
         !jsonInt16(root, "shutdownGraceSeconds", shutdownGraceSeconds) ||
         !lineaMicraGraceCodeFromSeconds(shutdownGraceSeconds,
                                         shutdownGraceCode) ||
@@ -144,7 +158,8 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
       setLineaMicraOptions(candidate, applyTemperature, observeState,
                            recognizeWakeGesture, shutdownWithScale,
                            powerOnWithScale, shutdownGraceCode,
-                           scaleOffWithMachine);
+                           scaleOffWithMachine, boostScaleDetectionWhenOn,
+                           reduceScaleScanningWhenOff);
     }
   } else if (parseError == nullptr &&
              (strcmp(action, "disconnect") == 0 ||
@@ -158,7 +173,9 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
         jsonFieldPresent(root, "shutdownWithScale") ||
         jsonFieldPresent(root, "shutdownGraceSeconds") ||
         jsonFieldPresent(root, "powerOnWithScale") ||
-        jsonFieldPresent(root, "scaleOffWithMachine")) {
+        jsonFieldPresent(root, "scaleOffWithMachine") ||
+        jsonFieldPresent(root, "boostScaleDetectionWhenOn") ||
+        jsonFieldPresent(root, "reduceScaleScanningWhenOff")) {
       parseError = "disconnect and refresh do not accept setting fields.";
     }
   } else if (parseError == nullptr) {

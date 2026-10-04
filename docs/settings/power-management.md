@@ -1,39 +1,32 @@
 # Power management
 
-The **Admin → Power management** group holds the five settings that control
+The **Admin → Power management** group holds the three settings that control
 how much energy the controller uses, in this order. Like every other Admin
 group, changes are kept in the page only until you press the group's
 **Save settings** button; the arrow button beside it discards them and puts
 the saved values back. Only the fields you changed are saved.
 
-- **Power policy** — hardware-level energy management described on this page.
-  Scales the CPU clock and bus/radio sleep to demand: on saves energy when
-  idle and boosts to 160 MHz from the start of a scale connection until
-  30 seconds after disconnection; off holds a fixed 80 MHz.
+- **ESP32 power management** — hardware-level energy management described on
+  this page. Scales the CPU clock and bus/radio sleep to demand: on saves
+  energy when idle and boosts to 160 MHz from the start of a scale connection
+  until 30 seconds after disconnection; off holds a fixed 80 MHz. It manages
+  the ESP32's hardware only — Bluetooth search intensity is controlled by the
+  BLE scan mode below and, on a La Marzocco Linea Micra, by the
+  [machine-aware scan options](linea-micra.md#machine-aware-scale-search).
 - **Wi-Fi sleep** — puts the Wi-Fi radio into modem sleep between the
-  router's beacons while connected. Saves without restarting or waiting for
-  a reconnect, and stays disabled until a network is configured.
+  router's beacons while connected. Saves without restarting or waiting for a
+  reconnect, and stays disabled until a network is configured.
   [Discovery by name](wifi.md#discovery-by-name) keeps working while sleep is
   on: the radio wakes for every beacon window, so name lookups stay slightly
   delayed but are not lost. Details in [Wi-Fi](wifi.md).
 - **BLE scan mode** — how much radio time is spent searching for Bluetooth
   espresso scales: **Aggressive**, **Balanced** (factory default), or
-  **Relaxed**. See [Scales](scales.md). The separate
+  **Relaxed**. The saved mode always decides discovery duty, whatever the CPU
+  power profile is. See [Scales](scales.md). The separate
   [Bluetooth on/off](scales.md#bluetooth-onoff) switch in the Admin **BLE**
   group can stop all scale Bluetooth regardless of this mode.
-- **Idle scan backoff** — with Aggressive or Balanced selected, after this
-  many idle minutes with no scale in range the search drops to Relaxed until
-  a scale appears. **OFF** (factory default) keeps the saved mode always.
-  The control is grayed out while Relaxed is selected because it has no
-  effect then.
-- **Scan boost on machine use** — the reverse of the backoff: when the
-  machine is switched on (paddle or momentary) with no scale connected, the
-  search runs at Aggressive for this many minutes so a scale that was put to
-  sleep is found quickly. Switching the machine on again restarts the window,
-  and the boost takes priority over the Relaxed slowdowns on this page for as
-  long as it lasts. Factory default is **15 minutes**; **OFF** never boosts.
 
-The **Power policy** enables a global, persistent energy
+**ESP32 power management** enables a global, persistent energy
 policy. It defaults **on** on a clean install and after factory reset, and
 does not belong to a shot preset. Save it while the machine is stopped; the
 existing Admin unlock and configuration revision checks apply.
@@ -46,9 +39,9 @@ setting, and the existing persistence worker retries it.
 
 | Demand with the option on | CPU policy | Radio policy |
 | --- | --- | --- |
-| Idle, no scale or machine activity | 40–80 MHz after 1 s of stable idle | Relaxed scan duty (25%); BLE controller modem sleep between radio events; saved Wi-Fi sleep preference; a Scan boost on machine use window overrides the duty to Aggressive while it lasts |
+| Idle, no scale or machine activity | 40–80 MHz after 1 s of stable idle | BLE controller modem sleep between radio events; saved Wi-Fi sleep preference; the saved BLE scan mode keeps running unchanged |
 | Scale connecting, connected, or within 30 seconds after disconnection | Fixed 160 MHz | Controller sleep disabled throughout the window; existing GATT, weight and heartbeat rates |
-| Manual operation or rinse outside the scale window | Fixed 80 MHz throughout the operation | Saved scan intensity and BLE service; switching the machine on without a connected scale also opens a Scan boost on machine use window if the setting is not OFF |
+| Manual operation or rinse outside the scale window | Fixed 80 MHz throughout the operation | Saved scan intensity and BLE service |
 | Physical-use cooldown outside the scale window | Fixed 80 MHz for 5 minutes after confirmed stop or latest debounced physical edge | Saved Wi-Fi sleep preference; saved scan intensity |
 | Recent visible WebUI activity outside the scale window | Fixed 80 MHz | Saved Wi-Fi sleep preference |
 | AP provisioning, STA reconnect, maintenance or USB console | At least 80 MHz | Existing provisioning/USB overrides |
@@ -80,6 +73,11 @@ independently in both modes. PM support is still compiled in, so its SDK overhea
 remains. Neither mode uses automatic
 light sleep or deep sleep. The independent safety timer stays enabled on XTAL;
 speaker LEDC also uses the S3 crystal clock.
+
+CPU profiles, cooldowns and grace windows manage hardware only: they never
+select or override the Bluetooth search intensity. That intensity comes from
+the saved BLE scan mode and, when it applies, from the Micra
+machine-aware scan options.
 
 Admin and Diagnostic status include a `power` object with the enabled setting,
 requested/applied profiles, instantaneous `cpuMhz`, `minMhz`, `maxMhz`, apply
