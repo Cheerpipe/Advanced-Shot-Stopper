@@ -608,7 +608,7 @@ if (!ui.includes('id="forcePulseButton"') ||
     !ui.includes("R.command('/api/v1/control/force-pulse')") ||
     !js.includes("'control/force-pulse':['Switch pulse sent.','send switch pulse']") ||
     !runtimeJs.includes("force.disabled=!(admin&&remoteReady&&relayStartReady&&webUiOwner)") ||
-    !css.includes('.presetActions>.btnGlyph{min-height:var(--tap);') ||
+    !css.includes('color:var(--ac);min-height:3rem;min-width:4.5rem;padding:.6rem .85rem') ||
     !css.includes('#actionsPanel .btnGlyph{flex:1;') ||
     !css.includes('#actionsPanel .momentaryOnly{flex:.6;min-height:var(--tap);min-width:4.5rem}') ||
     !network.includes('"/api/v1/control/force-pulse"') ||

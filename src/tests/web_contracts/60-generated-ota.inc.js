@@ -433,8 +433,10 @@ if (generated.jsGzip.length > 4484) {
 // Independent wireless detail panels add 100 bytes of approved allowance.
 // The compact mobile navigation and continuous header resizing add CSS only;
 // keep the combined asset and firmware image limits unchanged.
-if (generated.cssGzip.length > 8200) {
-  throw new Error('Compressed Web CSS exceeds the 8200-byte gzip budget');
+// The home preset radio cards and quick-settings button toggles raise the
+// cap to 8700.
+if (generated.cssGzip.length > 8700) {
+  throw new Error('Compressed Web CSS exceeds the 8700-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.

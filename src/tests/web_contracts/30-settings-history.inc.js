@@ -851,7 +851,7 @@ if (!ui.includes('id="shotTable"') ||
     !ui.includes('id="clearShotsButton"') ||
     !html.includes('id="clearShotsButton" class="btnGlyph btnInvert"') ||
     html.includes('id="clearShotsButton" class="btnGlyph btnDanger"') ||
-    !css.includes('#shotLogPanel .btnGlyph:not(.btnInvert)') ||
+    !css.includes('.glassBar>.btnGlyph.btnInvert') ||
     !ui.includes("confirm:'CLEAR_SHOT_LOG'") ||
     !runtimeJs.includes('function setEmptyState(') ||
     !ui.includes('refreshShots()') ||
@@ -1043,10 +1043,10 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !network.includes('query, "sort"') ||
     !network.includes('query, "dir"') ||
     !css.includes('button{-webkit-appearance:none;appearance:none;border-radius:2rem}') ||
-    !css.includes('#shotLogPanel .btnGlyph:not(.btnInvert){background:var(--bg);color:var(--ac);border-color:var(--ln)}') ||
-    !css.includes('.shotSort{display:flex;max-width:100%;border:1px solid var(--ln);border-radius:2rem;overflow:hidden;background:var(--bg)}') ||
+    !css.includes('.glassBar>.btnGlyph{flex:0 0 auto;min-height:2.1rem;min-width:0;padding:0 .8rem;border:0;border-radius:1.6rem;background:transparent;color:var(--ac);white-space:nowrap}') ||
+    !css.includes('.shotSort{display:flex;align-items:center;gap:.25rem;max-width:100%}') ||
     !css.includes('.shotSort button{') ||
-    !css.includes('.shotSort button{margin:0;border:0;border-right:1px solid var(--ln);border-radius:0;background:transparent;color:var(--ac);font:inherit;font-size:.8125rem;font-weight:600') ||
+    !css.includes('.shotSort button{margin:0;border:0;border-radius:1.6rem;background:transparent;color:var(--ac);font:inherit;font-size:.8rem;font-weight:600') ||
     css.includes('.shotSort button{margin:0;border:0;border-right:1px solid var(--ln);background:none') ||
     css.includes('#shotLogPanel .btnGlyph:not(.btnInvert){background:transparent') ||
     css.includes('#message,.configSaveBar,#shotLogPanel .btnBar{background:var(--bg)}') ||
@@ -1474,8 +1474,8 @@ if (!css.includes('.btnBar,.presetActions{display:flex;gap:.5rem') ||
     css.includes('#factoryResetButton,#clearShotsButton{') ||
     !css.includes('#actionsPanel .btnGlyph{flex:1;border:1.5px solid var(--ac);border-radius:2rem;background:transparent;color:var(--ac);min-height:3.25rem}') ||
     !css.includes('#actionsPanel .btnGlyph.btnDanger{background:var(--pri);color:var(--on);border-color:var(--pri)}') ||
-    !css.includes('#shotLogPanel .btnBar{') ||
-    !css.includes('#shotLogPanel .btnBar{position:sticky;top:var(--hdr);z-index:6;background:var(--sf)') ||
+    !css.includes('#shotLogPanel .glassBar,#historyPanel .glassBar{') ||
+    !css.includes('#shotLogPanel .glassBar,#historyPanel .glassBar{position:sticky;top:var(--hdr);z-index:6;margin:0 0 .75rem') ||
     css.includes('#shotLogPanel .btnBar{position:sticky;top:var(--hdr);z-index:6;background:var(--sf);margin:0 0 .65rem;border:1px solid var(--ln);border-radius:var(--r);overflow:hidden}')) {
   throw new Error('Action buttons must be separate with a gap; btnDanger must not share invert fill');
 }
