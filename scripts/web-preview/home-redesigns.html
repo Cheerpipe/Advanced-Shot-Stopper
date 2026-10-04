@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home · 10 propuestas de look &amp; feel</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+/* ---------- Página ---------- */
+body{max-width:900px}
+h1{font-size:1.55rem;margin:.2rem 0 .3rem;padding-right:7.5rem}
+.lead{color:var(--mu);font-size:.92rem;margin:0 0 .2rem}
+.note{font-size:.8rem;color:var(--mu);margin:.15rem 0 0}
+#themeToggle{position:fixed;top:.75rem;right:.75rem;z-index:60;height:2.25rem;padding:0 .9rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;box-shadow:var(--ah)}
+.propNav{position:sticky;top:0;z-index:30;display:flex;gap:.35rem;overflow-x:auto;margin:.9rem -1rem .2rem;padding:.6rem 1rem;background:var(--bg);border-bottom:1px solid var(--ln);scrollbar-width:none}
+.propNav::-webkit-scrollbar{display:none}
+.propNav a{flex:0 0 auto;display:inline-flex;align-items:center;min-height:2.1rem;padding:0 .85rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);text-decoration:none;font-size:.8rem;font-weight:600;white-space:nowrap}
+.propNav a:hover{background:var(--pa);color:var(--ac)}
+.ref,.opt{margin:1.35rem 0}
+.ref>.mock,.opt>.mock{border-style:solid}
+.ref{padding:1rem;border:1px dashed var(--bd);border-radius:calc(var(--r) + .4rem)}
+.ref h2,.optHead h2{margin:0;font-size:1.05rem}
+.ref>p{margin:.15rem 0 1rem;color:var(--mu);font-size:.85rem}
+.optHead p{margin:.15rem 0 .95rem;color:var(--mu);font-size:.85rem;max-width:52rem}
+
+/* ---------- Marco de maqueta ---------- */
+.mock{position:relative;max-width:760px;margin:0 auto;background:var(--bg);border:1px solid var(--ln);border-radius:calc(var(--r) + .4rem);overflow:hidden;box-shadow:var(--ah)}
+.mockTop{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.55rem 1rem .1rem;color:var(--ac)}
+.mockTop .brand{margin:0;color:var(--ac)}
+.mockTop .brandMark{width:2rem;height:2.65rem}
+.mockTop .brand span{font-size:1.2rem}
+.mockTop .brand small{font-size:.75rem}
+.mock .pageNav{position:absolute;left:50%;bottom:.7rem;transform:translateX(-50%);z-index:6;width:calc(100% - 1.5rem);max-width:30rem;box-shadow:0 .3rem 1.2rem #0002}
+.mockBody{position:relative;max-width:760px;margin:0 auto;padding:.5rem 1rem 5.9rem}
+.mock.hasDock .mockBody{padding-bottom:9.2rem}
+.mockDock{position:absolute;left:.65rem;right:.65rem;bottom:4.15rem;z-index:5;display:flex;gap:.55rem;padding:.6rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);box-shadow:var(--ah)}
+.mockDock .btnGlyph{flex:1;border:1.5px solid var(--ac);background:transparent;color:var(--ac);min-height:3.1rem}
+.mockDock .btnGlyph.solid{background:var(--pri);border-color:var(--pri);color:var(--on)}
+.mockDock .btnGlyph.ghost{border-color:var(--ln);color:var(--mu)}
+.mockDock .btnGlyph.narrow{flex:.62;min-width:4.2rem}
+
+/* ---------- Componentes compartidos de maqueta ---------- */
+.mock fieldset{box-shadow:none}
+.bbwHero{position:relative;display:flex;align-items:center;gap:.75rem;min-height:3.6rem;margin:0 0 .6rem;padding:.65rem .95rem;border:1.5px solid var(--ln);border-radius:var(--r);background:var(--sf);cursor:pointer;transition:.2s}
+.bbwHero input{position:absolute;opacity:0;width:0;height:0;margin:0}
+.bbwHero .swL{display:flex;flex-direction:column;gap:.1rem;flex:1;min-width:0;font-size:1.05rem;font-weight:700;line-height:1.2}
+.bbwHero .swS{font-size:.78rem;color:var(--mu);font-weight:400}
+.bbwHero .hic{flex:none;display:flex;align-items:center;justify-content:center;width:2.4rem;height:2.4rem;border-radius:50%;border:2px solid var(--bd);color:var(--mu);transition:.2s}
+.bbwHero .hic svg{width:1.2rem;height:1.2rem;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.bbwHero:has(input:checked){border-color:var(--ac);background:var(--ac);color:var(--on)}
+.bbwHero:has(input:checked) .swL{color:var(--on)}
+.bbwHero:has(input:checked) .swS{color:color-mix(in srgb,var(--on) 78%,transparent)}
+.bbwHero:has(input:checked) .hic{border-color:var(--on);color:var(--on);background:color-mix(in srgb,var(--on) 16%,transparent)}
+.bbwHero:has(input:focus-visible){outline:3px solid var(--ac);outline-offset:2px}
+.gGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}
+@media(min-width:540px){.gGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.gRow{position:relative;display:flex;align-items:center;gap:.55rem;min-height:2.75rem;padding:.5rem .7rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);cursor:pointer}
+.gRow input{position:absolute;opacity:0;width:0;height:0;margin:0}
+.gRow .swL{display:flex;flex-direction:column;gap:.08rem;flex:1;min-width:0;font-size:.8125rem;line-height:1.25;font-weight:600}
+.gRow .swS{font-size:.72rem;line-height:1.2;color:var(--mu);font-weight:400}
+.gRow:has(input:checked){border-color:var(--ac);background:var(--pa)}
+.gRow:has(input:focus-visible){outline:3px solid var(--ac);outline-offset:2px}
+.ktrack{position:relative;flex:none;width:2.3rem;height:1.3rem;border-radius:2rem;background:var(--bd);transition:.2s}
+.kknob{position:absolute;top:.15rem;left:.15rem;width:1rem;height:1rem;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:.2s}
+.gRow input:checked~.ktrack{background:var(--ac)}
+.gRow input:checked~.ktrack .kknob{transform:translateX(1rem)}
+.gRow.off{opacity:.62}
+.presetHead{margin:.8rem 0 .5rem;font-size:.875rem;font-weight:700}
+.sBar,.sBarFast{position:absolute;top:0;height:100%;width:0}
+.sBar{left:0;background:var(--ok)}
+.sBarFast{left:0;background:#d97706}
+.stars{color:var(--ac);font-size:.95rem;letter-spacing:.06em;white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:.4rem;padding:.32rem .7rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);font-size:.78rem;font-weight:600;white-space:nowrap}
+.chip.onChip{border-color:color-mix(in srgb,var(--ok) 45%,var(--ln));background:var(--mo);color:var(--ok)}
+.chip.offChip{color:var(--mu)}
+.chip.acChip{border-color:var(--ac);background:var(--pa);color:var(--ac)}
+.dot{flex:none;width:.55rem;height:.55rem;border-radius:50%;background:var(--bd)}
+.dot.on{background:var(--ok)}
+.dot.ac{background:var(--ac)}
+.dot.wn{background:#d97706}
+.mlabel{margin:0 0 .45rem;font-size:.68rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mu)}
+.mcard{padding:.85rem .95rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf)}
+.ic{width:1.15rem;height:1.15rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.icCircle{display:flex;align-items:center;justify-content:center;width:2.1rem;height:2.1rem;border-radius:50%;background:var(--pa);color:var(--ac);flex:none}
+
+/* ---------- 1 · Base pulida ---------- */
+.p1 fieldset{border-radius:.9rem;box-shadow:var(--ah);border-color:color-mix(in srgb,var(--ln) 70%,var(--bg))}
+.p1 legend{display:flex;align-items:center;gap:.45rem;font-size:.72rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mu);padding:0 .45rem}
+.p1 legend:before{content:"";width:.5rem;height:.5rem;border-radius:50%;background:var(--ac)}
+.p1 .shotCard .shotDur>div,.p1 .shotCard .shotActual>div{font-size:2.1rem}
+.p1 .metric>div{font-weight:650}
+.p1 .statePill{display:inline-flex;align-items:center;gap:.4rem;padding:.14rem .6rem;border-radius:2rem;background:var(--mo);color:var(--ok);font-weight:700;font-size:.8125rem}
+.p1 .statePill.idle{background:var(--in);color:var(--mu)}
+.p1 .statePill .dot{margin-top:.05rem}
+
+/* ---------- 2 · Tiro en protagonista ---------- */
+.p2Hero{position:relative;overflow:hidden;padding:1.1rem 1.15rem 1.15rem;border-radius:calc(var(--r) + .25rem);background:linear-gradient(150deg,color-mix(in srgb,var(--ac) 84%,#000) 0%,var(--ac) 58%,color-mix(in srgb,var(--ac) 82%,#fff) 130%);color:var(--on);box-shadow:var(--ah)}
+.p2Hero .hLabel{display:flex;align-items:center;gap:.45rem;margin:0 0 .5rem;font-size:.72rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:color-mix(in srgb,var(--on) 80%,transparent)}
+.p2Hero .hLabel .dot{background:var(--on);animation:p2pulse 1.6s ease-in-out infinite}
+@keyframes p2pulse{50%{opacity:.35}}
+.p2Hero .hNum{display:flex;align-items:baseline;gap:.45rem;font-variant-numeric:tabular-nums;line-height:1}
+.p2Hero .hNum b{font-size:3.1rem;font-weight:800;letter-spacing:-.03em}
+.p2Hero .hNum span{font-size:1.05rem;font-weight:700;color:color-mix(in srgb,var(--on) 75%,transparent)}
+.p2Hero .hGoal{margin:.55rem 0 0;font-size:.82rem;font-weight:600;color:color-mix(in srgb,var(--on) 82%,transparent)}
+.p2Track{position:relative;height:.65rem;margin:.7rem 0 .5rem;border-radius:1rem;background:color-mix(in srgb,var(--on) 25%,transparent);overflow:hidden}
+.p2Track i{position:absolute;inset:0 auto 0 0;width:61%;border-radius:1rem;background:var(--on)}
+.p2Track:after{content:"";position:absolute;left:100%;top:-.3rem;bottom:-.3rem;width:2px;background:color-mix(in srgb,var(--on) 65%,transparent)}
+.p2Hero .hChips{display:flex;flex-wrap:wrap;gap:.4rem;margin:.65rem 0 0}
+.p2Hero .hChips .chip{border-color:color-mix(in srgb,var(--on) 35%,transparent);background:color-mix(in srgb,var(--on) 14%,transparent);color:var(--on)}
+.p2Spark{display:block;width:100%;height:2.6rem;margin:.75rem 0 0;color:var(--on)}
+.p2Spark .line{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.p2Spark .fill{fill:currentColor;opacity:.18;stroke:none}
+.p2Spark .grid{stroke:currentColor;opacity:.25;stroke-width:.7}
+.p2Row{display:flex;flex-wrap:wrap;gap:.4rem;margin:.8rem 0 0}
+.p2Strip{display:flex;flex-wrap:wrap;gap:.4rem .9rem;margin:.8rem 0 0;padding:.7rem .9rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);font-size:.8rem;font-weight:600}
+.p2Strip span{display:inline-flex;align-items:center;gap:.4rem;color:var(--mu)}
+.p2Strip b{color:var(--fg);font-weight:650}
+
+/* ---------- 3 · Bento ---------- */
+.p3Grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}
+.p3Card{display:flex;flex-direction:column;gap:.45rem;padding:.85rem .95rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf)}
+.p3Head{display:flex;align-items:center;gap:.55rem}
+.p3Head .icCircle{width:1.9rem;height:1.9rem}
+.p3Head small{font-size:.68rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mu)}
+.p3Big{font-size:1.65rem;font-weight:800;line-height:1.05;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.p3Big small{font-size:.85rem;font-weight:600;color:var(--mu)}
+.p3Sub{font-size:.78rem;color:var(--mu);font-weight:500}
+.p3Shot{grid-column:1/-1}
+.p3Shot .p3Top{display:flex;align-items:flex-end;gap:1.4rem;flex-wrap:wrap}
+.p3Shot .p3Top .p3Big{font-size:2.15rem}
+.p3Dots{display:flex;flex-wrap:wrap;gap:.35rem .7rem}
+.p3Dots span{display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem;font-weight:600;color:var(--mu)}
+.p3Minis{display:flex;gap:.35rem;flex-wrap:wrap}
+
+/* ---------- 4 · Modo barista ---------- */
+.p4State{text-align:center;padding:1.15rem .9rem 1.05rem;border:1px solid var(--ln);border-radius:calc(var(--r) + .25rem);background:var(--sf)}
+.p4State .big{display:inline-flex;align-items:center;gap:.55rem;font-size:1.7rem;font-weight:800;letter-spacing:-.02em;color:var(--ok)}
+.p4State .big .dot{width:.8rem;height:.8rem;background:var(--ok)}
+.p4State p{margin:.35rem 0 0;font-size:.85rem;color:var(--mu);font-weight:500}
+.p4Start{display:block;width:100%;min-height:3.9rem;margin:.7rem 0 0;border:0;border-radius:2rem;background:var(--pri);color:var(--on);font:inherit;font-size:1.12rem;font-weight:800;cursor:pointer;box-shadow:var(--ah)}
+.p4Start small{display:block;margin:.1rem 0 0;font-size:.72rem;font-weight:600;color:color-mix(in srgb,var(--on) 75%,transparent)}
+.p4Sec{display:flex;gap:.55rem;margin:.55rem 0 0}
+.p4Sec button{flex:1;min-height:2.9rem;border:1.5px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.88rem;font-weight:700;cursor:pointer}
+.p4GuardRow{display:flex;flex-wrap:wrap;gap:.4rem;margin:.85rem 0 0}
+.p4Last{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;margin:.85rem 0 0;padding:.7rem .9rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--in);font-size:.85rem}
+.p4Last b{font-size:1.05rem;font-variant-numeric:tabular-nums}
+.p4Last .mut{color:var(--mu)}
+
+/* ---------- 5 · Perfil de extracción ---------- */
+.p5Car{display:flex;gap:.55rem;overflow-x:auto;padding:.15rem .15rem .45rem;scroll-snap-type:x mandatory;scrollbar-width:thin}
+.p5C{flex:0 0 9.6rem;display:flex;flex-direction:column;gap:.15rem;min-height:6.4rem;padding:.7rem .8rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);scroll-snap-align:start}
+.p5C small{font-size:.64rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mu)}
+.p5C b{font-size:.95rem;overflow-wrap:anywhere}
+.p5C .val{margin-top:auto;font-size:1.15rem;font-weight:800;color:var(--mu);font-variant-numeric:tabular-nums}
+.p5C.sel{border-color:var(--ac);background:var(--pa)}
+.p5C.sel .val{color:var(--ac)}
+.p5 .ruleChartTrack{height:2.5rem;border-radius:.65rem}
+.p5 .ruleSeg{font-size:.72rem}
+.p5Tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5rem;margin:.9rem 0 0}
+.p5Tile{padding:.6rem .5rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:center}
+.p5Tile small{display:block;font-size:.62rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mu)}
+.p5Tile b{display:block;margin-top:.2rem;font-size:1.12rem;font-weight:750;font-variant-numeric:tabular-nums}
+@media(max-width:520px){.p5Tiles{grid-template-columns:repeat(2,1fr)}}
+
+/* ---------- 6 · Semáforo ---------- */
+.p6Strip{display:flex;flex-wrap:wrap;gap:.4rem;padding:.8rem .9rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf)}
+.p6Pill{display:inline-flex;align-items:center;gap:.42rem;padding:.3rem .68rem;border:1px solid var(--ln);border-radius:2rem;background:var(--bg);font-size:.76rem;font-weight:600}
+.p6Pill b{font-weight:700}
+.p6Pill.ok b{color:var(--ok)}
+.p6List{border:1px solid var(--ln);border-radius:.8rem;overflow:hidden;background:var(--sf)}
+.p6ListTitle{padding:.55rem .85rem .45rem;font-size:.68rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mu);background:var(--in);border-bottom:1px solid var(--ln)}
+.p6Row{display:flex;align-items:center;gap:.7rem;width:100%;padding:.6rem .85rem;border:0;border-top:1px solid var(--ln);background:var(--sf)}
+.p6Row:first-of-type{border-top:0}
+.p6Row .tx{flex:1;display:flex;flex-direction:column;min-width:0}
+.p6Row .tx b{font-size:.875rem}
+.p6Row .tx small{font-size:.73rem;color:var(--mu)}
+.p6Row .ktrack{transform:scale(.82);transform-origin:right center;margin-right:-.25rem}
+
+/* ---------- 7 · Recetas ---------- */
+.p7List{display:flex;flex-direction:column;gap:.55rem}
+.p7C{position:relative;display:flex;align-items:center;gap:.85rem;padding:.75rem .9rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf)}
+.p7C .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:.15rem}
+.p7C .tx b{font-size:.98rem;overflow-wrap:anywhere}
+.p7C .tx small{font-size:.76rem;color:var(--mu)}
+.p7C .ratio{align-self:flex-start;padding:.1rem .5rem;border-radius:1rem;background:var(--in);font-size:.68rem;font-weight:700;color:var(--mu)}
+.p7C .spark{flex:none;width:5.2rem;height:2rem;color:var(--ok)}
+.p7C .spark .line{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.p7C.sel{border-color:var(--ac);background:var(--pa);box-shadow:inset .14rem 0 0 var(--ac)}
+.p7Badge{position:absolute;top:-.6rem;right:.8rem;padding:.08rem .55rem;border-radius:1rem;background:var(--ac);color:var(--on);font-size:.62rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.p7ShotLine{display:flex;align-items:baseline;gap:.55rem;flex-wrap:wrap;margin:.8rem 0 0;padding:.65rem .9rem;border:1px dashed var(--ln);border-radius:var(--r);font-size:.82rem;color:var(--mu)}
+.p7ShotLine b{color:var(--fg);font-size:.95rem;font-variant-numeric:tabular-nums}
+
+/* ---------- 8 · Anillo ---------- */
+.p8Wrap{display:flex;flex-direction:column;align-items:center;gap:.9rem;padding:1.05rem .8rem 1.1rem;border:1px solid var(--ln);border-radius:calc(var(--r) + .25rem);background:var(--sf)}
+.p8Head{display:flex;align-items:center;gap:.45rem;font-size:.74rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mu)}
+.p8Head .dot{background:var(--ac);animation:p2pulse 1.6s ease-in-out infinite}
+.p8Ring{--p:61;width:11.5rem;height:11.5rem;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--ac) calc(var(--p)*1%),var(--ln) 0);position:relative}
+.p8Ring:before{content:"";position:absolute;inset:.85rem;border-radius:50%;background:var(--sf);box-shadow:inset 0 0 0 1px var(--ln)}
+.p8RingTxt{position:relative;z-index:1;text-align:center;font-variant-numeric:tabular-nums}
+.p8RingTxt b{display:block;font-size:2.35rem;font-weight:800;line-height:1;letter-spacing:-.03em}
+.p8RingTxt span{font-size:.92rem;font-weight:650;color:var(--mu)}
+.p8RingTxt small{display:block;margin-top:.3rem;font-size:.78rem;font-weight:600;color:var(--ac)}
+.p8Chips{display:flex;flex-wrap:wrap;justify-content:center;gap:.4rem}
+
+/* ---------- 9 · Panel técnico ---------- */
+.p9{font-size:.82rem}
+.p9Head{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;margin:0 0 .6rem}
+.p9Head b{font-size:.95rem}
+.p9Head span{color:var(--mu);font-weight:600}
+.p9 .mlabel{margin-bottom:.3rem}
+.p9Grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--ln);border-radius:var(--r);overflow:hidden;background:var(--sf)}
+.p9Cell{padding:.6rem .7rem;border-top:1px solid var(--ln);border-left:1px solid var(--ln)}
+.p9Cell:nth-child(-n+4){border-top:0}
+.p9Cell:nth-child(4n+1){border-left:0}
+.p9Cell .v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.06rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
+.p9Cell .v small{font-size:.7rem;font-weight:600;color:var(--mu)}
+.p9Cell .v.ok{color:var(--ok)}
+.p9Cell .v.ac{color:var(--ac)}
+@media(max-width:560px){.p9Grid{grid-template-columns:repeat(2,1fr)}.p9Cell{border-left:0;border-top:1px solid var(--ln)}.p9Cell:nth-child(-n+2){border-top:0}.p9Cell:nth-child(even){border-left:1px solid var(--ln)}}
+.p9Gauges{display:flex;flex-direction:column;gap:.55rem;margin:.7rem 0 0;padding:.75rem .85rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf)}
+.p9Gauge{display:grid;grid-template-columns:6.2rem 1fr 3rem;align-items:center;gap:.6rem}
+.p9Gauge small{font-size:.7rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mu)}
+.p9Gauge .gauge{height:.55rem;border-radius:.3rem;background:var(--in);overflow:hidden}
+.p9Gauge .gauge i{display:block;height:100%;border-radius:.3rem;background:var(--ac)}
+.p9Gauge .gauge i.okbar{background:var(--ok)}
+.p9Gauge output{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.p9Matrix{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.4rem;margin:.7rem 0 0}
+.p9Mx{display:flex;align-items:center;gap:.45rem;padding:.45rem .6rem;border:1px solid var(--ln);border-radius:.6rem;background:var(--sf);font-size:.74rem;font-weight:600;cursor:pointer}
+.p9Mx input{margin:0;accent-color:var(--pri)}
+.p9Mx:has(input:checked){border-color:color-mix(in srgb,var(--ac) 40%,var(--ln))}
+.p9Foot{margin:.6rem 0 0;text-align:right}
+.p9Foot a{color:var(--ac);font-weight:650;text-decoration:none}
+
+/* ---------- 10 · Una mano ---------- */
+.p10Seg{display:grid;grid-template-columns:repeat(3,1fr);gap:.25rem;padding:.25rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf)}
+.p10Seg button{min-height:2.6rem;border:0;border-radius:1.7rem;background:transparent;font:inherit;font-size:.86rem;font-weight:700;color:var(--mu);cursor:pointer}
+.p10Seg button.on{background:var(--pri);color:var(--on)}
+.p10Hero{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:.8rem 0 0;padding:.95rem 1rem;border:1px solid var(--ln);border-radius:calc(var(--r) + .25rem);background:var(--sf)}
+.p10Hero .lab{font-size:.68rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mu)}
+.p10Hero .num{font-size:2.5rem;font-weight:800;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.p10Hero .num small{font-size:1rem;font-weight:650;color:var(--mu)}
+.p10Hero .side{text-align:right;font-size:.82rem;color:var(--mu);font-weight:600}
+.p10Hero .side b{display:block;font-size:1.05rem;color:var(--fg);font-variant-numeric:tabular-nums}
+.p10Big{display:block;width:100%;min-height:3.7rem;margin:.7rem 0 0;border:0;border-radius:2rem;background:var(--pri);color:var(--on);font:inherit;font-size:1.08rem;font-weight:800;cursor:pointer;box-shadow:var(--ah)}
+.p10Second{display:flex;gap:.55rem;margin:.55rem 0 0}
+.p10Second button{flex:1;min-height:2.9rem;border:1.5px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.88rem;font-weight:700;cursor:pointer}
+.p10Guards{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin:.85rem 0 0}
+.p10G{display:flex;align-items:center;gap:.5rem;padding:.65rem .7rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);font-size:.8rem;font-weight:650}
+</style>
+</head>
+<body>
+<button id="themeToggle" type="button">Tema: auto</button>
+<h1>Home · 10 propuestas de look &amp; feel</h1>
+<p class="lead">Diez alternativas para el Home que mantienen la paleta y el lenguaje actual (terracota, verde de acierto, tarjetas redondeadas, navegación píldora) y mejoran jerarquía, legibilidad y foco.</p>
+<p class="note">Todas las lecturas son simuladas y cada maqueta incluye cabecera, navegación y barra de acciones como en el firmware. Cambia de tema con el botón de arriba a la derecha.</p>
+
+<nav class="propNav" aria-label="Ir a propuesta">
+  <a href="#ref">Referencia</a><a href="#p1">1 · Base pulida</a><a href="#p2">2 · Tiro héroe</a><a href="#p3">3 · Bento</a><a href="#p4">4 · Modo barista</a><a href="#p5">5 · Perfil</a><a href="#p6">6 · Semáforo</a><a href="#p7">7 · Recetas</a><a href="#p8">8 · Anillo</a><a href="#p9">9 · Técnico</a><a href="#p10">10 · Una mano</a>
+</nav>
+
+<svg hidden aria-hidden="true"><symbol id="brandMark" viewBox="0 0 36 48"><g transform="rotate(-16 18 11)"><path fill-rule="evenodd" d="M10 3h16v16H10zm8 4c-2 2-3 3.4-3 5a3 3 0 106 0c0-1.6-1-3-3-5z"/><path d="M12 0h2v3h-2zm4 0h2v3h-2zm4 0h2v3h-2zm4 0h2v3h-2zM26 5h3v2h-3zm0 4h3v2h-3zm0 4h3v2h-3zm0 4h3v2h-3z"/></g><path d="M18 24a2 2 0 11-4 0c0-2 2-3.5 2-3.5s2 1.5 2 3.5z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M8 32v2a10 8.5 0 0020 0v-2M28 33c4.8 0 5 9.5-3.6 8M6 46h24"/></symbol><symbol id="iDrop" viewBox="0 0 24 24"><path d="M12 3.5c3.5 4.2 6 7.5 6 10.4a6 6 0 1 1-12 0c0-2.9 2.5-6.2 6-10.4z"/></symbol><symbol id="iClock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol><symbol id="iScale" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2.5"/><circle cx="12" cy="12" r="3.2"/></symbol><symbol id="iCup" viewBox="0 0 24 24"><path d="M6 4h9v7a4.5 4.5 0 0 1-9 0z"/><path d="M15 5.5h2.4a2.6 2.6 0 0 1 0 5.2H15M7 20h8"/></symbol><symbol id="iMachine" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="9" rx="2"/><path d="M8 13v3.5M16 13v3.5M7 20h10"/></symbol><symbol id="iShield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 4-4 7-8 9-4-2-8-5-8-9V6z"/></symbol><symbol id="iFlow" viewBox="0 0 24 24"><path d="M3 8c3-4 6 4 9 0s6 4 9 0M3 15c3-4 6 4 9 0s6 4 9 0"/></symbol><symbol id="iBolt" viewBox="0 0 24 24"><path d="M13 3 5 13h6l-1 8 8-10h-6z"/></symbol></svg>
+
+<!-- ============ REFERENCIA · HOME ACTUAL ============ -->
+<section class="ref" id="ref">
+  <h2>Referencia · Home actual</h2>
+  <p>Sin cambios: la estructura de fieldsets y tarjetas de interruptores tal como está en el firmware, para comparar.</p>
+  <div class="mock" data-chrome data-dock="">
+    <div class="mockBody">
+      <fieldset>
+        <legend>Quick Settings</legend>
+        <div class="homeSwitchGrid">
+          <label class="bbwHero"><input type="checkbox" checked><span class="swL">Brew by weight<span class="swS">Stop at 36.0 g · Double espresso</span></span><span class="hic" aria-hidden="true"><svg viewBox="0 0 24 24"><g><path d="M12 3.5v7.5"/><path d="M6.7 6.8a7.5 7.5 0 1 0 10.6 0"/></g></svg></span></label>
+          <div class="gGrid">
+            <label class="gRow off"><input type="checkbox"><span class="swL">No-scale BBW<span class="swS">Warn once</span></span><span class="ktrack"><i class="kknob"></i></span></label>
+            <label class="gRow"><input type="checkbox" checked><span class="swL">A→M time guard</span><span class="ktrack"><i class="kknob"></i></span></label>
+            <label class="gRow"><input type="checkbox" checked><span class="swL">Slow extraction guard</span><span class="ktrack"><i class="kknob"></i></span></label>
+            <label class="gRow"><input type="checkbox" checked><span class="swL">Fast extraction guard</span><span class="ktrack"><i class="kknob"></i></span></label>
+            <label class="gRow off"><input type="checkbox"><span class="swL">Avoid accidental touch</span><span class="ktrack"><i class="kknob"></i></span></label>
+            <label class="gRow"><input type="checkbox" checked><span class="swL">Cup protection</span><span class="ktrack"><i class="kknob"></i></span></label>
+          </div>
+        </div>
+        <p class="presetHead">Presets</p>
+        <div class="presetCards">
+          <div class="presetCard selected"><span class="presetCardTitleRow"><span class="presetCardTitle">Double espresso</span><span class="presetCardBadge">Factory</span></span><span class="presetCardMeta">36.0 g</span></div>
+          <div class="presetCard"><span class="presetCardTitleRow"><span class="presetCardTitle">Ristretto</span><span class="presetCardBadge">Factory</span></span><span class="presetCardMeta">18.0 g</span></div>
+          <div class="presetCard"><span class="presetCardTitleRow"><span class="presetCardTitle">Lungo</span><span class="presetCardBadge">Factory</span></span><span class="presetCardMeta">54.0 g</span></div>
+        </div>
+        <div class="ruleChart">
+          <div class="ruleChartRow"><div class="ruleChartLabel">Time (s)</div><div class="ruleChartTrack"><span class="ruleSeg ruleSeg-idle" style="left:0;width:6.667%"></span><span class="ruleSeg ruleSeg-fast" style="left:6.667%;width:20%"></span><span class="ruleSeg ruleSeg-bbw" style="left:26.667%;width:66.666%"></span><span class="ruleSeg ruleSeg-slow" style="left:93.333%;width:6.667%"></span></div><div class="ruleChartTicks"><span class="ruleTick" style="left:0">0</span><span class="ruleTick" style="left:33.333%">10</span><span class="ruleTick" style="left:66.667%">20</span><span class="ruleTick" style="left:100%">30</span></div></div>
+          <div class="ruleChartRow"><div class="ruleChartLabel">Weight (g)</div><div class="ruleChartTrack"><span class="ruleSeg ruleSeg-idle" style="left:0;width:15%"></span><span class="ruleSeg ruleSeg-bbw" style="left:15%;width:75%"></span><span class="ruleSeg ruleSeg-slow" style="left:90%;width:10%"></span></div><div class="ruleChartTicks"><span class="ruleTick" style="left:0">0</span><span class="ruleTick" style="left:25%">10</span><span class="ruleTick" style="left:50%">20</span><span class="ruleTick" style="left:75%">30</span><span class="ruleTick" style="left:100%">40</span></div></div>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Current / Last Shot</legend>
+        <div class="shotTrack"><i class="sBar" style="width:100%"></i><i class="sBarFast" style="width:20%"></i></div>
+        <div class="ruleChartTicks"><span class="ruleTick" style="left:0">0</span><span class="ruleTick" style="left:25%">10</span><span class="ruleTick" style="left:50%">20</span><span class="ruleTick" style="left:75%">30</span><span class="ruleTick" style="left:100%">40</span></div>
+        <div class="shotCard">
+          <div class="shotDur"><strong>Dur</strong><div>27.4 s</div></div>
+          <div class="shotActual"><strong>Yield</strong><div>36.2 g</div></div>
+          <div><strong>Goal</strong><div>36 g</div></div>
+          <div><strong>Err%</strong><div>+0.6%</div></div>
+          <div><strong>Avg flow</strong><div>1.3 ml/s</div></div>
+          <div><strong>Max flow</strong><div>2.4 ml/s</div></div>
+          <div><strong>Tare time</strong><div>0.4 s</div></div>
+          <div><strong>1st drop</strong><div>6.2 s</div></div>
+          <div><strong>Ended</strong><div>Auto (goal)</div></div>
+          <div><strong>Shot</strong><div>BBW</div></div>
+          <div><strong>Preset</strong><div>Double espresso</div></div>
+          <div><strong>Scale</strong><div>Lunar</div></div>
+          <div class="shotRate"><strong>Rate</strong><div class="stars">★★★★☆</div></div>
+        </div>
+      </fieldset>
+      <fieldset><legend>Status</legend><div class="statusColumn">
+        <div class="metric"><strong>Machine</strong><div class="ok">Ready</div></div>
+        <div class="metric"><strong>Machine power state</strong><div>On</div></div>
+        <div class="metric"><strong>Brew</strong><div>Idle</div></div>
+      </div></fieldset>
+      <fieldset><legend>Scale</legend><div class="statusColumn">
+        <div class="metric"><strong>Status</strong><div class="ok">Lunar · Connected</div></div>
+        <div class="metric"><strong>Preferred</strong><div>Lunar</div></div>
+        <div class="metric"><strong>Weight</strong><div>18.2 g</div></div>
+        <div class="metric"><strong>Timer</strong><div>00:00</div></div>
+      </div></fieldset>
+      <fieldset><legend>Cup</legend><div class="statusColumn">
+        <div class="metric"><strong>Status</strong><div class="ok">Detected</div></div>
+        <div class="metric"><strong>Weight</strong><div>18.2 g</div></div>
+        <div class="metric"><strong>Automatic tare</strong><div>Ready</div></div>
+      </div></fieldset>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 1 · BASE PULIDA ============ -->
+<section class="opt p1" id="p1">
+  <div class="optHead"><h2>1 · Base pulida</h2><p>La misma estructura de hoy con jerarquía más clara: leyendas en versalitas con punto de acento, tarjetas con sombra suave, cifras del tiro más grandes y estados en píldoras de color. Es la evolución de menor riesgo.</p></div>
+  <div class="mock" data-chrome data-dock="">
+    <div class="mockBody">
+      <fieldset>
+        <legend>Quick settings</legend>
+        <label class="bbwHero"><input type="checkbox" checked><span class="swL">Brew by weight<span class="swS">Stop at 36.0 g · Double espresso</span></span><span class="hic" aria-hidden="true"><svg viewBox="0 0 24 24"><g><path d="M12 3.5v7.5"/><path d="M6.7 6.8a7.5 7.5 0 1 0 10.6 0"/></g></svg></span></label>
+        <div class="gGrid">
+          <label class="gRow off"><input type="checkbox"><span class="swL">No-scale BBW<span class="swS">Warn once</span></span><span class="ktrack"><i class="kknob"></i></span></label>
+          <label class="gRow"><input type="checkbox" checked><span class="swL">A→M time guard</span><span class="ktrack"><i class="kknob"></i></span></label>
+          <label class="gRow"><input type="checkbox" checked><span class="swL">Slow guard</span><span class="ktrack"><i class="kknob"></i></span></label>
+          <label class="gRow"><input type="checkbox" checked><span class="swL">Fast guard</span><span class="ktrack"><i class="kknob"></i></span></label>
+          <label class="gRow off"><input type="checkbox"><span class="swL">Accidental touch</span><span class="ktrack"><i class="kknob"></i></span></label>
+          <label class="gRow"><input type="checkbox" checked><span class="swL">Cup protection</span><span class="ktrack"><i class="kknob"></i></span></label>
+        </div>
+        <p class="presetHead">Presets</p>
+        <div class="presetList">
+          <div class="presetRadioCard selected"><span class="presetRadioDot"></span><span class="presetRadioText"><span class="presetRadioName">Double espresso</span><span class="presetRadioSub">36.0 g · 28 s · 1:2</span></span></div>
+          <div class="presetRadioCard"><span class="presetRadioDot"></span><span class="presetRadioText"><span class="presetRadioName">Ristretto</span><span class="presetRadioSub">18.0 g · 22 s · 1:1</span></span></div>
+          <div class="presetRadioCard"><span class="presetRadioDot"></span><span class="presetRadioText"><span class="presetRadioName">Lungo</span><span class="presetRadioSub">54.0 g · 34 s · 1:3</span></span></div>
+        </div>
+        <div class="ruleChart">
+          <div class="ruleChartRow"><div class="ruleChartLabel">Time (s)</div><div class="ruleChartTrack"><span class="ruleSeg ruleSeg-idle" style="left:0;width:6.667%"></span><span class="ruleSeg ruleSeg-fast" style="left:6.667%;width:20%"></span><span class="ruleSeg ruleSeg-bbw" style="left:26.667%;width:66.666%"></span><span class="ruleSeg ruleSeg-slow" style="left:93.333%;width:6.667%"></span></div><div class="ruleChartTicks"><span class="ruleTick" style="left:0">0</span><span class="ruleTick" style="left:33.333%">10</span><span class="ruleTick" style="left:66.667%">20</span><span class="ruleTick" style="left:100%">30</span></div></div>
+          <div class="ruleChartRow"><div class="ruleChartLabel">Weight (g)</div><div class="ruleChartTrack"><span class="ruleSeg ruleSeg-idle" style="left:0;width:15%"></span><span class="ruleSeg ruleSeg-bbw" style="left:15%;width:75%"></span><span class="ruleSeg ruleSeg-slow" style="left:90%;width:10%"></span></div><div class="ruleChartTicks"><span class="ruleTick" style="left:0">0</span><span class="ruleTick" style="left:25%">10</span><span class="ruleTick" style="left:50%">20</span><span class="ruleTick" style="left:75%">30</span><span class="ruleTick" style="left:100%">40</span></div></div>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Last shot</legend>
+        <div class="shotTrack"><i class="sBar" style="width:100%"></i><i class="sBarFast" style="width:20%"></i></div>
+        <div class="ruleChartTicks"><span class="ruleTick" style="left:0">0</span><span class="ruleTick" style="left:25%">10</span><span class="ruleTick" style="left:50%">20</span><span class="ruleTick" style="left:75%">30</span><span class="ruleTick" style="left:100%">40</span></div>
+        <div class="shotCard">
+          <div class="shotDur"><strong>Dur</strong><div>27.4 s</div></div>
+          <div class="shotActual"><strong>Yield</strong><div>36.2 g</div></div>
+          <div><strong>Goal</strong><div>36 g</div></div>
+          <div><strong>Err%</strong><div class="ok">+0.6%</div></div>
+          <div><strong>Avg flow</strong><div>1.3 ml/s</div></div>
+          <div><strong>Max flow</strong><div>2.4 ml/s</div></div>
+          <div><strong>Tare time</strong><div>0.4 s</div></div>
+          <div><strong>1st drop</strong><div>6.2 s</div></div>
+          <div><strong>Ended</strong><div>Auto (goal)</div></div>
+          <div><strong>Shot</strong><div>BBW</div></div>
+          <div><strong>Preset</strong><div>Double espresso</div></div>
+          <div><strong>Scale</strong><div>Lunar</div></div>
+          <div class="shotRate"><strong>Rate</strong><div class="stars">★★★★☆</div></div>
+        </div>
+      </fieldset>
+      <fieldset><legend>System</legend><div class="statusColumn">
+        <div class="metric"><strong>Machine</strong><div><span class="statePill"><span class="dot on"></span>Ready</span></div></div>
+        <div class="metric"><strong>Power</strong><div><span class="statePill idle"><span class="dot"></span>On</span></div></div>
+        <div class="metric"><strong>Brew</strong><div><span class="statePill idle"><span class="dot"></span>Idle</span></div></div>
+        <div class="metric"><strong>Scale</strong><div><span class="statePill"><span class="dot on"></span>Lunar</span></div></div>
+        <div class="metric"><strong>Cup</strong><div><span class="statePill"><span class="dot on"></span>18.2 g</span></div></div>
+        <div class="metric"><strong>Auto tare</strong><div><span class="statePill"><span class="dot on"></span>Ready</span></div></div>
+      </div></fieldset>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2 · TIRO HÉROE ============ -->
+<section class="opt p2" id="p2">
+  <div class="optHead"><h2>2 · Tiro en protagonista</h2><p>El tiro en curso manda: tarjeta héroe en terracota con el peso en grande, progreso hacia la meta, curva en vivo y el resto comprimido en chips y una franja de estado. Pensada para mirar el teléfono mientras sirves.</p></div>
+  <div class="mock" data-chrome data-dock="stop">
+    <div class="mockBody">
+      <div class="p2Hero">
+        <p class="hLabel"><span class="dot"></span>Brewing · Double espresso</p>
+        <div class="hNum"><b>22.1</b><span>/ 36.0 g</span></div>
+        <div class="p2Track" role="img" aria-label="61% of goal"></div>
+        <div class="hChips"><span class="chip">12.4 s</span><span class="chip">1.8 ml/s avg</span><span class="chip">6.2 s to 1st drop</span></div>
+        <svg class="p2Spark" viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true"><path class="fill" d="M0 32 14 31 26 27 38 21 56 16 82 11 108 7 120 5 120 34 0 34Z"/><path class="line" d="M0 32 14 31 26 27 38 21 56 16 82 11 108 7 120 5"/><line class="grid" x1="0" y1="33.2" x2="120" y2="33.2"/></svg>
+      </div>
+      <div class="p2Row">
+        <span class="chip onChip"><span class="dot"></span>BBW on</span>
+        <span class="chip onChip"><span class="dot"></span>5 guards</span>
+        <span class="chip acChip">Double espresso</span>
+        <span class="chip">Ristretto</span>
+        <span class="chip">Lungo</span>
+      </div>
+      <div class="p2Strip">
+        <span><span class="dot on"></span>Machine <b>Ready</b></span>
+        <span><span class="dot on"></span>Lunar <b>18.2 g</b></span>
+        <span><span class="dot on"></span>Cup <b>detected</b></span>
+        <span><span class="dot on"></span>Auto tare <b>ready</b></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3 · BENTO ============ -->
+<section class="opt p3" id="p3">
+  <div class="optHead"><h2>3 · Panel tipo bento</h2><p>Cuadrícula de tarjetas resumen con cifras grandes: tiro, máquina, balanza, taza, protecciones y presets visibles de un vistazo, sin abrir fieldsets. El estado completo queda a la altura de la mirada.</p></div>
+  <div class="mock" data-chrome data-dock="">
+    <div class="mockBody">
+      <div class="p3Grid">
+        <div class="p3Card p3Shot">
+          <div class="p3Head"><span class="icCircle"><svg class="ic"><use href="#iClock"/></svg></span><small>Last shot · Double espresso</small><span class="stars" style="margin-left:auto">★★★★☆</span></div>
+          <div class="p3Top">
+            <div><span class="p3Big">27.4<small> s</small></span><div class="p3Sub">duration</div></div>
+            <div><span class="p3Big">36.2<small> g</small></span><div class="p3Sub">+0.6% vs goal</div></div>
+            <div><span class="p3Big">1.3<small> ml/s</small></span><div class="p3Sub">avg flow</div></div>
+          </div>
+          <div class="ruleChartTrack" style="height:.55rem;margin-top:.35rem"><span class="ruleSeg ruleSeg-idle" style="left:0;width:6.667%"></span><span class="ruleSeg ruleSeg-fast" style="left:6.667%;width:20%"></span><span class="ruleSeg ruleSeg-bbw" style="left:26.667%;width:66.666%"></span><span class="ruleSeg ruleSeg-slow" style="left:93.333%;width:6.667%"></span></div>
+        </div>
+        <div class="p3Card">
+          <div class="p3Head"><span class="icCircle"><svg class="ic"><use href="#iMachine"/></svg></span><small>Machine</small></div>
+          <span class="p3Big" style="color:var(--ok);font-size:1.35rem">Ready</span>
+          <span class="p3Sub">Power on · paddle idle</span>
+        </div>
+        <div class="p3Card">
+          <div class="p3Head"><span class="icCircle"><svg class="ic"><use href="#iScale"/></svg></span><small>Scale</small></div>
+          <span class="p3Big">18.2<small> g</small></span>
+          <span class="p3Sub">Lunar · connected</span>
+        </div>
+        <div class="p3Card">
+          <div class="p3Head"><span class="icCircle"><svg class="ic"><use href="#iCup"/></svg></span><small>Cup</small></div>
+          <span class="p3Big">18.2<small> g</small></span>
+          <span class="p3Sub">Detected · auto tare ready</span>
+        </div>
+        <div class="p3Card">
+          <div class="p3Head"><span class="icCircle"><svg class="ic"><use href="#iShield"/></svg></span><small>Protections</small></div>
+          <div class="p3Dots">
+            <span><span class="dot on"></span>A→M</span><span><span class="dot on"></span>Slow</span><span><span class="dot on"></span>Fast</span><span><span class="dot on"></span>Cup</span><span><span class="dot"></span>No-scale</span><span><span class="dot"></span>Touch</span>
+          </div>
+        </div>
+        <div class="p3Card">
+          <div class="p3Head"><span class="icCircle"><svg class="ic"><use href="#iDrop"/></svg></span><small>Presets</small></div>
+          <div class="p3Minis"><span class="chip acChip">Double</span><span class="chip">Ristretto</span><span class="chip">Lungo</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4 · MODO BARISTA ============ -->
+<section class="opt p4" id="p4">
+  <div class="optHead"><h2>4 · Modo barista</h2><p>Prioridad absoluta a la acción: estado grande, un botón principal de tiro imposible de perder, protecciones resumidas en chips y el último tiro en una sola línea. El resto vive en Configuración.</p></div>
+  <div class="mock" data-chrome>
+    <div class="mockBody">
+      <div class="p4State">
+        <span class="big"><span class="dot"></span>Ready to brew</span>
+        <p>Micra on · Lunar connected · cup detected</p>
+        <button class="p4Start" type="button">▶ Start shot<small>Double espresso · stop at 36.0 g</small></button>
+        <div class="p4Sec"><button type="button">≋ Start rinse</button><button type="button">! Push</button></div>
+      </div>
+      <div class="p4GuardRow">
+        <span class="chip onChip"><span class="dot"></span>BBW</span>
+        <span class="chip onChip"><span class="dot"></span>Fast</span>
+        <span class="chip onChip"><span class="dot"></span>Slow</span>
+        <span class="chip onChip"><span class="dot"></span>A→M</span>
+        <span class="chip onChip"><span class="dot"></span>Cup</span>
+        <span class="chip offChip"><span class="dot"></span>2 off</span>
+      </div>
+      <div class="p4Last">
+        <span class="mut">Last</span><b>27.4 s</b><b>36.2 g</b><span class="stars">★★★★☆</span><span class="mut">Double espresso · auto stop</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5 · PERFIL DE EXTRACCIÓN ============ -->
+<section class="opt p5" id="p5">
+  <div class="optHead"><h2>5 · Perfil de extracción</h2><p>El perfil manda: carrusel de presets arriba y una línea de tiempo alta con las fases etiquetadas (rápida, BBW, margen lento) como pieza central. Las métricas quedan en cuatro fichas bajo el gráfico.</p></div>
+  <div class="mock" data-chrome data-dock="">
+    <div class="mockBody">
+      <div class="p5Car">
+        <div class="p5C sel"><small>1:2 · factory</small><b>Double espresso</b><span class="val">36 g · 28 s</span></div>
+        <div class="p5C"><small>1:1 · factory</small><b>Ristretto</b><span class="val">18 g · 22 s</span></div>
+        <div class="p5C"><small>1:3 · factory</small><b>Lungo</b><span class="val">54 g · 34 s</span></div>
+        <div class="p5C"><small>1:2 · own</small><b>Weekend blend</b><span class="val">38 g · 30 s</span></div>
+      </div>
+      <div class="ruleChart">
+        <div class="ruleChartRow"><div class="ruleChartLabel">Time (s)</div><div class="ruleChartTrack"><span class="ruleSeg ruleSeg-idle" style="left:0;width:6.667%"></span><span class="ruleSeg ruleSeg-fast" style="left:6.667%;width:20%">Fast</span><span class="ruleSeg ruleSeg-bbw" style="left:26.667%;width:66.666%">BBW → 36 g</span><span class="ruleSeg ruleSeg-slow" style="left:93.333%;width:6.667%">Slow</span></div><div class="ruleChartTicks"><span class="ruleTick" style="left:0">0</span><span class="ruleTick" style="left:33.333%">10</span><span class="ruleTick" style="left:66.667%">20</span><span class="ruleTick" style="left:100%">30</span></div></div>
+        <div class="ruleChartRow"><div class="ruleChartLabel">Weight (g)</div><div class="ruleChartTrack"><span class="ruleSeg ruleSeg-idle" style="left:0;width:15%"></span><span class="ruleSeg ruleSeg-bbw" style="left:15%;width:75%">6 → 36 g</span><span class="ruleSeg ruleSeg-slow" style="left:90%;width:10%">+4</span></div><div class="ruleChartTicks"><span class="ruleTick" style="left:0">0</span><span class="ruleTick" style="left:25%">10</span><span class="ruleTick" style="left:50%">20</span><span class="ruleTick" style="left:75%">30</span><span class="ruleTick" style="left:100%">40</span></div></div>
+      </div>
+      <div class="p5Tiles">
+        <div class="p5Tile"><small>Dur</small><b>27.4 s</b></div>
+        <div class="p5Tile"><small>Yield</small><b>36.2 g</b></div>
+        <div class="p5Tile"><small>Err</small><b style="color:var(--ok)">+0.6%</b></div>
+        <div class="p5Tile"><small>1st drop</small><b>6.2 s</b></div>
+      </div>
+      <div class="p4GuardRow" style="margin-top:.8rem">
+        <span class="chip onChip"><span class="dot"></span>BBW</span><span class="chip onChip"><span class="dot"></span>Fast</span><span class="chip onChip"><span class="dot"></span>Slow</span><span class="chip onChip"><span class="dot"></span>A→M</span><span class="chip onChip"><span class="dot"></span>Cup</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6 · SEMÁFORO ============ -->
+<section class="opt p6" id="p6">
+  <div class="optHead"><h2>6 · Semáforo de estado</h2><p>Una franja de píldoras resume todo el sistema (Wi‑Fi, Bluetooth, máquina, balanza, taza) y los ajustes se vuelven una lista agrupada con mini‑interruptores. Máxima legibilidad con poco desplazamiento.</p></div>
+  <div class="mock" data-chrome data-dock="">
+    <div class="mockBody">
+      <div class="p6Strip">
+        <span class="p6Pill ok"><span class="dot on"></span>Wi-Fi <b>strong</b></span>
+        <span class="p6Pill ok"><span class="dot on"></span>BT <b>Lunar</b></span>
+        <span class="p6Pill ok"><span class="dot on"></span>Machine <b>ready</b></span>
+        <span class="p6Pill ok"><span class="dot on"></span>Cup <b>18.2 g</b></span>
+        <span class="p6Pill"><span class="dot"></span>Brew <b>idle</b></span>
+      </div>
+      <div class="p6List" style="margin-top:.7rem">
+        <div class="p6ListTitle">Quick settings</div>
+        <label class="p6Row"><span class="tx"><b>Brew by weight</b><small>Stop at 36.0 g · Double espresso</small></span><input type="checkbox" checked hidden><span class="ktrack"><i class="kknob"></i></span></label>
+        <label class="p6Row"><span class="tx"><b>A→M time guard</b><small>Auto → manual after 25 s</small></span><input type="checkbox" checked hidden><span class="ktrack"><i class="kknob"></i></span></label>
+        <label class="p6Row"><span class="tx"><b>Slow extraction guard</b><small>Warn after 40 s</small></span><input type="checkbox" checked hidden><span class="ktrack"><i class="kknob"></i></span></label>
+        <label class="p6Row"><span class="tx"><b>Fast extraction guard</b><small>Warn under 15 s</small></span><input type="checkbox" checked hidden><span class="ktrack"><i class="kknob"></i></span></label>
+        <label class="p6Row"><span class="tx"><b>Cup protection</b><small>No brew without a cup</small></span><input type="checkbox" checked hidden><span class="ktrack"><i class="kknob"></i></span></label>
+        <label class="p6Row"><span class="tx"><b>No-scale BBW</b><small>Warn once</small></span><input type="checkbox" hidden><span class="ktrack"><i class="kknob"></i></span></label>
+        <label class="p6Row"><span class="tx"><b>Avoid accidental touch</b><small>Ignore touches while brewing</small></span><input type="checkbox" hidden><span class="ktrack"><i class="kknob"></i></span></label>
+      </div>
+      <div class="mcard" style="margin-top:.7rem">
+        <p class="mlabel">Last shot · ★★★★☆</p>
+        <div style="display:flex;gap:1.3rem;align-items:flex-end;flex-wrap:wrap">
+          <div><span class="p3Big">27.4<small> s</small></span></div>
+          <div><span class="p3Big">36.2<small> g</small></span><div class="p3Sub">+0.6% vs goal</div></div>
+        </div>
+        <div class="ruleChartTrack" style="height:.55rem;margin-top:.55rem"><span class="ruleSeg ruleSeg-idle" style="left:0;width:6.667%"></span><span class="ruleSeg ruleSeg-fast" style="left:6.667%;width:20%"></span><span class="ruleSeg ruleSeg-bbw" style="left:26.667%;width:66.666%"></span><span class="ruleSeg ruleSeg-slow" style="left:93.333%;width:6.667%"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 7 · RECETAS ============ -->
+<section class="opt p7" id="p7">
+  <div class="optHead"><h2>7 · Tarjetas de receta</h2><p>Los presets se convierten en recetas con especificación completa (dosis, rendimiento, tiempo, ratio) y mini‑curva; la receta activa queda destacada con el acento. El último tiro queda como una línea de registro.</p></div>
+  <div class="mock" data-chrome data-dock="">
+    <div class="mockBody">
+      <p class="mlabel">Recipes</p>
+      <div class="p7List">
+        <div class="p7C sel"><span class="p7Badge">In use</span><span class="icCircle"><svg class="ic"><use href="#iDrop"/></svg></span><span class="tx"><b>Double espresso</b><small>18 g in → 36 g out · 28 s</small></span><span class="ratio">1:2</span><svg class="spark" viewBox="0 0 60 20" preserveAspectRatio="none" aria-hidden="true"><path class="line" d="M0 18 12 17 22 13 34 8 48 5 60 3"/></svg></div>
+        <div class="p7C"><span class="icCircle"><svg class="ic"><use href="#iDrop"/></svg></span><span class="tx"><b>Ristretto</b><small>18 g in → 18 g out · 22 s</small></span><span class="ratio">1:1</span><svg class="spark" viewBox="0 0 60 20" preserveAspectRatio="none" aria-hidden="true"><path class="line" d="M0 18 14 16 26 11 40 7 60 4"/></svg></div>
+        <div class="p7C"><span class="icCircle"><svg class="ic"><use href="#iDrop"/></svg></span><span class="tx"><b>Lungo</b><small>18 g in → 54 g out · 34 s</small></span><span class="ratio">1:3</span><svg class="spark" viewBox="0 0 60 20" preserveAspectRatio="none" aria-hidden="true"><path class="line" d="M0 18 10 16 20 12 36 9 50 6 60 4"/></svg></div>
+      </div>
+      <div class="ruleChart" style="margin-top:.85rem">
+        <div class="ruleChartRow"><div class="ruleChartLabel">Time (s)</div><div class="ruleChartTrack"><span class="ruleSeg ruleSeg-idle" style="left:0;width:6.667%"></span><span class="ruleSeg ruleSeg-fast" style="left:6.667%;width:20%"></span><span class="ruleSeg ruleSeg-bbw" style="left:26.667%;width:66.666%"></span><span class="ruleSeg ruleSeg-slow" style="left:93.333%;width:6.667%"></span></div><div class="ruleChartTicks"><span class="ruleTick" style="left:0">0</span><span class="ruleTick" style="left:33.333%">10</span><span class="ruleTick" style="left:66.667%">20</span><span class="ruleTick" style="left:100%">30</span></div></div>
+      </div>
+      <div class="p7ShotLine"><span>Last shot</span><b>27.4 s</b><b>36.2 g</b><span class="stars">★★★★☆</span><span>Double espresso · auto stop at goal</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 8 · ANILLO ============ -->
+<section class="opt p8" id="p8">
+  <div class="optHead"><h2>8 · Anillo de progreso</h2><p>Para el tiro en vivo, un anillo muestra el avance hacia la meta y se lee a distancia; las métricas quedan en chips alrededor y la barra de acciones pasa a Stop destacado. Complementa la lectura en la propia balanza.</p></div>
+  <div class="mock" data-chrome data-dock="stop">
+    <div class="mockBody">
+      <div class="p8Wrap">
+        <p class="p8Head"><span class="dot"></span>Brewing · Double espresso</p>
+        <div class="p8Ring" role="img" aria-label="22.1 of 36 grams, 61 percent"><div class="p8RingTxt"><b>22.1 g</b><span>of 36.0 g</span><small>61%</small></div></div>
+        <div class="p8Chips">
+          <span class="chip">12.4 s</span><span class="chip">1.8 ml/s</span><span class="chip">6.2 s to 1st drop</span><span class="chip onChip"><span class="dot"></span>BBW</span>
+        </div>
+        <div class="p2Strip" style="margin-top:.2rem">
+          <span><span class="dot on"></span>Lunar <b>live</b></span>
+          <span><span class="dot on"></span>Cup <b>detected</b></span>
+          <span><span class="dot wn"></span>Fast phase <b>ok</b></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 9 · PANEL TÉCNICO ============ -->
+<section class="opt p9" id="p9">
+  <div class="optHead"><h2>9 · Panel técnico</h2><p>Densidad de datos en modo telemetría: cifras monoespaciadas en rejilla con hairlines, medidores de caudal, matriz compacta de protecciones y acceso directo al historial. Para quien afina recetas con lupa.</p></div>
+  <div class="mock" data-chrome data-dock="">
+    <div class="mockBody p9">
+      <div class="p9Head"><b>LAST SHOT #0128</b><span>BBW · Double espresso · Lunar</span><span style="margin-left:auto"><span class="stars">★★★★☆</span></span></div>
+      <div class="p9Grid">
+        <div class="p9Cell"><p class="mlabel">Dur</p><div class="v">27.4 <small>s</small></div></div>
+        <div class="p9Cell"><p class="mlabel">Yield</p><div class="v ok">36.2 <small>g</small></div></div>
+        <div class="p9Cell"><p class="mlabel">Goal</p><div class="v">36.0 <small>g</small></div></div>
+        <div class="p9Cell"><p class="mlabel">Err</p><div class="v ok">+0.6<small>%</small></div></div>
+        <div class="p9Cell"><p class="mlabel">1st drop</p><div class="v">6.2 <small>s</small></div></div>
+        <div class="p9Cell"><p class="mlabel">Tare</p><div class="v">0.4 <small>s</small></div></div>
+        <div class="p9Cell"><p class="mlabel">Ended</p><div class="v">auto</div></div>
+        <div class="p9Cell"><p class="mlabel">Mode</p><div class="v ac">BBW</div></div>
+      </div>
+      <div class="p9Gauges">
+        <div class="p9Gauge"><small>Avg flow</small><span class="gauge"><i class="okbar" style="width:43%"></i></span><output>1.3 ml/s</output></div>
+        <div class="p9Gauge"><small>Max flow</small><span class="gauge"><i style="width:80%"></i></span><output>2.4 ml/s</output></div>
+      </div>
+      <div class="p9Matrix">
+        <label class="p9Mx"><input type="checkbox" checked>BBW</label>
+        <label class="p9Mx"><input type="checkbox" checked>Fast</label>
+        <label class="p9Mx"><input type="checkbox" checked>Slow</label>
+        <label class="p9Mx"><input type="checkbox" checked>A→M</label>
+        <label class="p9Mx"><input type="checkbox" checked>Cup</label>
+        <label class="p9Mx"><input type="checkbox">No-scale</label>
+      </div>
+      <div class="ruleChartTrack" style="height:.55rem;margin-top:.7rem"><span class="ruleSeg ruleSeg-idle" style="left:0;width:6.667%"></span><span class="ruleSeg ruleSeg-fast" style="left:6.667%;width:20%"></span><span class="ruleSeg ruleSeg-bbw" style="left:26.667%;width:66.666%"></span><span class="ruleSeg ruleSeg-slow" style="left:93.333%;width:6.667%"></span></div>
+      <p class="p9Foot"><a href="#">Open shot history →</a></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 10 · UNA MANO ============ -->
+<section class="opt p10" id="p10">
+  <div class="optHead"><h2>10 · Una mano</h2><p>Navegación por pestañas dentro del propio Home (Tiro / Protecciones / Estado), columna única con blancos generosos y botones XL al alcance del pulgar mientras sujetas la portafiltro.</p></div>
+  <div class="mock" data-chrome>
+    <div class="mockBody">
+      <div class="p10Seg" role="tablist" aria-label="Home sections">
+        <button type="button" class="on">Shot</button>
+        <button type="button">Protections</button>
+        <button type="button">Status</button>
+      </div>
+      <div class="p10Hero">
+        <div><p class="lab">Last shot</p><span class="num">36.2<small> g</small></span></div>
+        <div class="side"><b>27.4 s</b>+0.6% vs goal<br>★★★★☆</div>
+      </div>
+      <div class="ruleChart" style="margin-top:.7rem">
+        <div class="ruleChartRow"><div class="ruleChartLabel">Time (s)</div><div class="ruleChartTrack"><span class="ruleSeg ruleSeg-idle" style="left:0;width:6.667%"></span><span class="ruleSeg ruleSeg-fast" style="left:6.667%;width:20%"></span><span class="ruleSeg ruleSeg-bbw" style="left:26.667%;width:66.666%"></span><span class="ruleSeg ruleSeg-slow" style="left:93.333%;width:6.667%"></span></div><div class="ruleChartTicks"><span class="ruleTick" style="left:0">0</span><span class="ruleTick" style="left:33.333%">10</span><span class="ruleTick" style="left:66.667%">20</span><span class="ruleTick" style="left:100%">30</span></div></div>
+      </div>
+      <button class="p10Big" type="button">▶ Start shot</button>
+      <div class="p10Second"><button type="button">≋ Rinse</button><button type="button">! Push</button></div>
+      <div class="p10Guards">
+        <span class="p10G"><span class="dot on"></span>BBW · 36.0 g</span>
+        <span class="p10G"><span class="dot on"></span>Fast guard</span>
+        <span class="p10G"><span class="dot on"></span>Slow guard</span>
+        <span class="p10G"><span class="dot on"></span>Cup protection</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="/home-redesigns.js" defer></script>
+</body>
+</html>

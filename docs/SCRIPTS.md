@@ -115,6 +115,20 @@ Its visible size matches the other history icons, with rounded ends. Enlarged vi
 24, 32 and 48 pixel samples show it on light and dark backgrounds.
 The preview does not connect to a device or change its settings.
 
+### Home redesign proposals preview
+
+Open `http://127.0.0.1:4173/home-redesigns` on the same running preview server
+to compare ten alternative Home layouts with the current Home shown first as
+the reference. Every proposal keeps the existing palette, cards, and pill
+navigation, and differs in hierarchy and focus: a polished baseline, a live
+shot hero card, a bento-style summary grid, an action-first barista mode, an
+extraction profile timeline, status pills with grouped switches, recipe cards
+for presets, a progress ring for the running shot, a dense telemetry panel,
+and a one-hand tabbed layout. Use the theme button in the corner to cycle
+auto, light, and dark. Home readings are simulated; switches and buttons are
+presentation-only, and this preview does not connect to a device or ship in
+firmware assets.
+
 ## USB installation
 
 Review the selected profiles and physical safety before adding `--confirm`.

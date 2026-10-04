@@ -22,6 +22,8 @@ const routes = {
   '/button-toggles.js': ['text/javascript', 'scripts/web-preview/button-toggles.js'],
   '/master-switch': ['text/html; charset=utf-8', 'scripts/web-preview/master-switch.html'],
   '/master-switch.js': ['text/javascript', 'scripts/web-preview/master-switch.js'],
+  '/home-redesigns': ['text/html; charset=utf-8', 'scripts/web-preview/home-redesigns.html'],
+  '/home-redesigns.js': ['text/javascript', 'scripts/web-preview/home-redesigns.js'],
 };
 
 function renderHome() {
