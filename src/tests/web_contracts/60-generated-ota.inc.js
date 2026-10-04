@@ -434,9 +434,10 @@ if (generated.jsGzip.length > 4484) {
 // The compact mobile navigation and continuous header resizing add CSS only;
 // keep the combined asset and firmware image limits unchanged.
 // The home preset radio cards and quick-settings button toggles raise the
-// cap to 8700.
-if (generated.cssGzip.length > 8700) {
-  throw new Error('Compressed Web CSS exceeds the 8700-byte gzip budget');
+// cap to 8700. The Brew by Weight hero accent card and the hidden guard
+// card inputs raise the cap to 8900.
+if (generated.cssGzip.length > 8900) {
+  throw new Error('Compressed Web CSS exceeds the 8900-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -570,8 +571,10 @@ if (generated.icon48Gzip.length > 3500) {
 // Reviewed WS assets measure 115211 bytes; independent per-asset caps remain.
 // The supplied backflush icon and supervision UI add 1 KB of reviewed allowance.
 // Firmware image, memory-region and OTA partition limits remain unchanged.
-if (generated.combined > 117000) {
-  throw new Error(`Combined Web UI gzip exceeds the 117000-byte flash budget (${generated.combined})`);
+// The Brew by Weight hero accent card raises the combined cap to 117500 bytes;
+// firmware image, memory-region and OTA partition limits remain unchanged.
+if (generated.combined > 117500) {
+  throw new Error(`Combined Web UI gzip exceeds the 117500-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
