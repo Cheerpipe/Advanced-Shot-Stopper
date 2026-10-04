@@ -105,13 +105,12 @@ html.theme-light{color-scheme:light}
 .dense.btOn .dcheck{visibility:visible}
 
 /* O9 · Cristal */
-.glassWrap{padding:1.2rem .2rem;border:1px dashed var(--ln);border-radius:var(--r);background:var(--in)}
+.glassGrid{grid-auto-rows:1fr}
 .glass{display:flex;flex-direction:column;justify-content:center;gap:.1rem;min-height:3.4rem;padding:.6rem .8rem;border:1px solid var(--ln);border-radius:var(--r);background:color-mix(in srgb,var(--sf) 62%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:var(--ah);text-align:left}
 .glass b{font-size:.85rem;line-height:1.25;overflow-wrap:anywhere}
 .glass small{font-size:.72rem;color:var(--mu)}
 .glass:not(.btOn):hover{background:color-mix(in srgb,var(--sf) 92%,transparent)}
 .glass.btOn{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 16%,transparent);box-shadow:0 0 0 .18rem color-mix(in srgb,var(--ac) 18%,transparent),var(--ah)}
-.glass.btOn small{color:var(--ac)}
 
 /* O10 · Botón verbal grande */
 .verbal{display:flex;align-items:center;justify-content:space-between;gap:.6rem;min-height:3.4rem;padding:.65rem .9rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
@@ -250,16 +249,14 @@ html.theme-light{color-scheme:light}
 </section>
 
 <section class="opt" id="o9">
-  <header class="optHead"><h2>O9 · Cristal</h2><p>Hereda la barra de cristal ya aprobada para el home: tarjetas translúcidas con desenfoque, borde suave y resplandor de acento en el estado activo, con subtítulo de estado.</p></header>
-  <div class="demo glassWrap" aria-label="Protecciones">
-    <div class="btGrid">
+  <header class="optHead"><h2>O9 · Cristal</h2><p>Hereda la barra de cristal ya aprobada para el home: tarjetas translúcidas de altura uniforme, borde suave y resplandor de acento en el estado activo, con el subtítulo en el mismo gris que el resto de propuestas.</p></header>
+  <div class="demo btGrid glassGrid" aria-label="Protecciones">
       <button type="button" class="btItem glass btOn" aria-pressed="true"><b>No-scale BBW</b><small>Armed</small></button>
       <button type="button" class="btItem glass btOn" aria-pressed="true"><b>A→M time guard</b><small>Idle</small></button>
       <button type="button" class="btItem glass btOn" aria-pressed="true"><b>Slow extraction guard</b><small>Idle</small></button>
       <button type="button" class="btItem glass" aria-pressed="false"><b>Fast extraction guard</b><small>Off</small></button>
       <button type="button" class="btItem glass btOn" aria-pressed="true"><b>Avoid accidental touch</b><small>Idle</small></button>
       <button type="button" class="btItem glass" aria-pressed="false"><b>Cup protection</b><small>Off</small></button>
-    </div>
   </div>
 </section>
 
