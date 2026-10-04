@@ -266,7 +266,7 @@ and updates until you change it. Each option acts only in its own state:
 enabling the ON option changes nothing while the machine is off, and enabling
 the OFF option changes nothing while it is on. When no matching state is
 available — monitoring off, no account connected, the state unknown, or an
-unsupported reading — the saved [BLE scan mode](../settings/scales.md)
+unsupported reading — the saved [BLE scan mode](scales.md)
 applies unchanged.
 
 The options need **Monitor machine power state** on, because they read the

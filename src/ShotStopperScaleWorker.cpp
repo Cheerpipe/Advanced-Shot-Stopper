@@ -2131,6 +2131,9 @@ void resetScaleWorkerRadioStateForHost() {
       static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY),
       std::memory_order_relaxed);
   liveBleEnabledRaw.store(1, std::memory_order_relaxed);
+  liveBleScanOverrideRaw.store(
+      static_cast<uint8_t>(BleScanIntensity::BALANCED),
+      std::memory_order_relaxed);
   bookooConnectVolumePending = false;
   scaleDebugConnectionGeneration = 0;
   scaleBeepConnectionGeneration = 0;

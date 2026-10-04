@@ -278,7 +278,6 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   scalePreferredMacDirty = false;
   scaleDiscoveryPausedUntilMs = 0;
   applyLiveBleEnabled(true);
-  applyLiveBleScanOverride(BleScanIntensity::BALANCED);
   scalePreferredDirectedResetGeneration = 0;
   scaleLinkState = ScaleLinkState::DISCONNECTED;
   scaleConnecting = false;
