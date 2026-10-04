@@ -169,6 +169,22 @@ summary::marker{color:var(--ac)}
 .shotCard > :nth-child(12){grid-area:scale}
 .shotCard .shotRate{grid-area:rate;display:grid;justify-items:start}
 .shotCard:has(>:nth-child(5):last-child){grid-template-areas:"dur dur dur actual actual actual" "goal goal err err avgflow avgflow"}
+.shotHero{--w78:color-mix(in srgb,var(--on) 78%,transparent);position:relative;overflow:hidden;margin:1rem 0;padding:1.05rem 1.1rem;border-radius:calc(var(--r) + .25rem);background:linear-gradient(150deg,color-mix(in srgb,var(--ac) 82%,#000),var(--ac) 55%,color-mix(in srgb,var(--ac) 80%,#fff));color:var(--on);box-shadow:var(--ah)}
+.shotHero p{margin:0}
+.shotHero .heroLabel{display:flex;align-items:center;gap:.45rem;font-size:.72rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--w78)}
+.shotHero .heroDot{flex:none;width:.55rem;height:.55rem;border-radius:50%;background:var(--on)}
+.shotHero.live .heroDot{animation:hPulse 1.6s ease-in-out infinite}
+@keyframes hPulse{50%{opacity:.3}}
+.shotHero .heroNum{display:flex;align-items:baseline;gap:.45rem;font-variant-numeric:tabular-nums;line-height:1}
+.shotHero .heroNum b{font-size:3.1rem;font-weight:800;letter-spacing:-.03em;overflow-wrap:anywhere}
+.shotHero .heroNum span{font-size:1.05rem;font-weight:700;color:var(--w78)}
+.shotHero .heroTrack{position:relative;height:.65rem;margin:.7rem 0;border-radius:1rem;background:color-mix(in srgb,var(--on) 25%,transparent)}
+.shotHero .heroTrack i{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:1rem;background:var(--on);transition:width .6s linear}
+.shotHero .heroTrack:after{content:"";position:absolute;top:-.3rem;bottom:-.3rem;left:var(--goal-pct,100%);width:2px;background:color-mix(in srgb,var(--on) 60%,transparent)}
+.shotHero .heroChips{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.65rem}
+.shotHero .heroChip{display:inline-block;padding:.32rem .7rem;border:1px solid color-mix(in srgb,var(--on) 35%,transparent);border-radius:2rem;background:color-mix(in srgb,var(--on) 14%,transparent);font-size:.78rem;font-weight:600;line-height:1.2;white-space:nowrap}
+.shotHero .heroChip.mode{background:color-mix(in srgb,var(--on) 26%,transparent);font-weight:700}
+.shotHero .heroSpark svg{display:block;width:100%;height:2.6rem;margin-top:.7rem}
 #log{width:100%;height:14rem;white-space:pre;overflow:auto;border:1px solid var(--bd);border-radius:.5rem;background:var(--in);color:var(--fg)}
 #log,#bullseyeRtttl{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 small{display:block;color:var(--mu)}

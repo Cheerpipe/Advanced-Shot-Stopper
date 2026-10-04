@@ -158,7 +158,7 @@
     const clear = {disabled: false, dataset: {}};
     const document = {hidden: false};
     const $ = (id) => {
-      if (id === 'shotElapsed') return elapsed;
+      if (id === 'shotElapsed' || id === 'shotHeroElapsed') return elapsed;
       if (id === 'clearLastShotButton') return clear;
       if (id === 'shotRating') return {};
       throw new Error('Live timer touched non-duration DOM: ' + id);
@@ -553,7 +553,8 @@ if (!ui.includes('id="shotPanel"') ||
     ui.includes('id="shotRetare"') ||
     ui.includes('id="shotGuard"') ||
     ui.includes('id="shotPct"') ||
-    ui.includes('class="shotHero"') ||
+    !ui.includes('id="shotHero"') ||
+    !ui.includes('shotHeroState') ||
     !ui.includes('function updateShot(') ||
     !network.includes('firstDropElapsedMs') ||
     !network.includes('\\"hasWallTime\\":%s,\\"endedAtUnixSec\\":%lu') ||

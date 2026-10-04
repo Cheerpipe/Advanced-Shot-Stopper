@@ -167,7 +167,10 @@ mode, and Quick rinse off:
 5. Leave the cup on the scale through the drip delay (default 3 s). The final
    weight then updates Last Shot and, if eligible, history.
 
-While brewing, Home advances **Dur** in whole seconds. When the shot ends,
+While brewing, a card at the top of Home follows the shot live — weight
+against the goal, elapsed time, flow, and the first drop. After the stop it
+keeps the result and shows the stop mode (BBW, Fast/Slow guard, A→M, manual).
+Home also advances **Dur** in whole seconds while brewing; when the shot ends,
 Last/Current shot immediately shows the final duration with one decimal place.
 
 On a **momentary** machine, press and release to start; another valid press

@@ -435,9 +435,10 @@ if (generated.jsGzip.length > 4484) {
 // keep the combined asset and firmware image limits unchanged.
 // The home preset radio cards and quick-settings button toggles raise the
 // cap to 8700. The Brew by Weight hero accent card and the hidden guard
-// card inputs raise the cap to 8900.
-if (generated.cssGzip.length > 8900) {
-  throw new Error('Compressed Web CSS exceeds the 8900-byte gzip budget');
+// card inputs raise the cap to 8900. The approved Home shot hero card
+// (prototype 2) raises the cap to 9250.
+if (generated.cssGzip.length > 9250) {
+  throw new Error('Compressed Web CSS exceeds the 9250-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -488,8 +489,9 @@ if (generated.cssGzip.length > 8900) {
 // Paired read admission/hydration uses 160 bytes transferred from shell JS.
 // Independent popup interactions and identity rendering add 400 approved bytes.
 // Supervised backflush state/history labels and deadline diagnostics add 500 bytes.
-if (sentinelRuntimeGzip.length > 44500) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 44500-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Home shot hero card raises the sentinel runtime cap to 45500 bytes.
+if (sentinelRuntimeGzip.length > 45500) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 45500-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -572,9 +574,10 @@ if (generated.icon48Gzip.length > 3500) {
 // The supplied backflush icon and supervision UI add 1 KB of reviewed allowance.
 // Firmware image, memory-region and OTA partition limits remain unchanged.
 // The Brew by Weight hero accent card raises the combined cap to 117500 bytes;
-// firmware image, memory-region and OTA partition limits remain unchanged.
-if (generated.combined > 117500) {
-  throw new Error(`Combined Web UI gzip exceeds the 117500-byte flash budget (${generated.combined})`);
+// the Home shot hero card raises it to 118500 bytes; firmware image,
+// memory-region and OTA partition limits remain unchanged.
+if (generated.combined > 118500) {
+  throw new Error(`Combined Web UI gzip exceeds the 118500-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
