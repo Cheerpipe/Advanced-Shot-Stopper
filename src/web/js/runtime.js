@@ -54,7 +54,7 @@ if(identity)identity.textContent=connected===true?(c[kind+'Name']||__WEBUI_TEXT_
 if(detail)detail.textContent=label;
 }}
 export function initHeaderSignals(){
-const buttons=[...document.querySelectorAll('.signalIndicator')];
+const buttons=[...document.querySelectorAll('.signalIndicator[aria-controls]')];
 function close(){for(const button of buttons){$(button.getAttribute('aria-controls')).hidden=true;button.setAttribute('aria-expanded','false')}}
 for(const button of buttons)button.addEventListener('click',()=>{const panel=$(button.getAttribute('aria-controls')),open=panel.hidden;close();panel.hidden=!open;button.setAttribute('aria-expanded',String(open))});
 document.addEventListener('click',e=>{if(!e.target.closest('.headerSignals'))close()});
@@ -64,8 +64,9 @@ window.addEventListener('popstate',close);
 let homeBootDone=false,fwReloading=false,bootSeq=0,bootTimer=0;
 const THEME_KEY='ssTh',THEME_MODES=['auto','light','dark'];
 function themeMode(){try{const v=localStorage.getItem(THEME_KEY);return THEME_MODES.includes(v)?v:'auto'}catch(_){return'auto'}}
-function paintTheme(m){const h=document.documentElement,c=m==='auto'?'light dark':m;h.classList.toggle('theme-dark',m==='dark');h.classList.toggle('theme-light',m==='light');h.style.colorScheme=c;const e=document.querySelector('meta[name="color-scheme"]');if(e)e.content=c;const s=document.getElementById('uiTheme');if(s)s.value=m}
+function paintTheme(m){const h=document.documentElement,c=m==='auto'?'light dark':m;h.classList.toggle('theme-dark',m==='dark');h.classList.toggle('theme-light',m==='light');h.style.colorScheme=c;const e=document.querySelector('meta[name="color-scheme"]');if(e)e.content=c;const s=document.getElementById('uiTheme');if(s)s.value=m;const b=document.getElementById('themeSignal');if(b){b.dataset.mode=m;b.setAttribute('aria-label',{auto:__WEBUI_TEXT__("shell.theme_auto"),light:__WEBUI_TEXT__("shell.theme_light"),dark:__WEBUI_TEXT__("shell.theme_dark")}[m]||b.getAttribute('aria-label'))}}
 function setTheme(m){if(!THEME_MODES.includes(m))m='auto';try{localStorage.setItem(THEME_KEY,m)}catch(_){}paintTheme(m)}
+function cycleTheme(){setTheme(THEME_MODES[(THEME_MODES.indexOf(themeMode())+1)%3])}
 function resetWebUiInactivity(){if(!webUiOwner)return;webUiActiveUntil=Date.now()+WEB_UI_INACTIVITY_MS;clearTimeout(webUiInactivityTimer);webUiInactivityTimer=setTimeout(()=>{if(webUiOwner&&Date.now()>=webUiActiveUntil)deactivateWebUi()},WEB_UI_INACTIVITY_MS)}
 function webUiPollingActive(){if(!webUiOwner)return false;if(Date.now()<webUiActiveUntil)return true;deactivateWebUi();return false}
 function noteWebUiInteraction(event){if(!webUiOwner||!event.isTrusted)return;noteWebUiPowerActivity();const target=event.target;if(!target||!target.closest||!target.closest('button,a,input,select,textarea,label,summary,[role="button"],[role="switch"],.presetCard'))return;resetWebUiInactivity()}
@@ -644,7 +645,7 @@ export {
   validateNetworkClient, validateDevicePasswordClient, networkSavePayload, networkPreferencesOnly,
   startWifiScan, selectDetectedNetwork, updateNetworkPasswordState, updateStaticIpFieldsState,
   forgetPairedScale, selectPreferredScale, renameScale, setBleScanIntensity, setBleEnabled,
-  setWifiSleep, themeMode, paintTheme, setTheme,
+  setWifiSleep, themeMode, paintTheme, setTheme, cycleTheme,
   otaUpload, otaFlash, otaDiscard,
   populateTimezoneOptions, timeZoneSelectionChanged,
   changeTimezoneMode, syncHomeGuardSwitchesFromSettings,

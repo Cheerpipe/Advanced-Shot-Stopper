@@ -614,8 +614,11 @@ if (htmlBytes > 84000) {
 // Backflush state/history labels and live safety diagnostics add 1.5 KiB source.
 // Preferred-scale draft/readback joins Machine Save/Revert (+300 measured bytes).
 // Floating header geometry adds 256 bytes of source allowance; gzip limits stay fixed.
-if (jsBytes > 239256) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 239256)`);
+// The header theme mode button adds ~0.5 KB of JS source allowance: the cycle
+// handler, glyph mode state, and localized label wiring. Compressed asset and
+// firmware limits stay fixed.
+if (jsBytes > 239756) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 239756)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -644,8 +647,10 @@ if (jsBytes > 239256) {
 // sharing option payloads and diagnostic row creation. Flash limits stay fixed.
 // Backflush contributes the 3.5 KiB source allowances described above.
 // Include the same 256-byte floating-header source allowance.
-if (htmlBytes + jsBytes > 322756) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 322756)`);
+// The theme button adds ~1.1 KB of combined source: three glyph states in the
+// shell markup plus the JS cycle, state, and label wiring described above.
+if (htmlBytes + jsBytes > 323856) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 323856)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

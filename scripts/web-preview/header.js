@@ -56,12 +56,26 @@ for (const index of [0, 1]) {
   updateSignal(index);
   $(`preview${index}`).onchange = () => { updateSignal(index); if (index) applyScalePreview(); };
 }
-$('previewTheme').onchange = event => {
-  document.documentElement.classList.toggle('theme-light', event.target.value === 'light');
-  document.documentElement.style.colorScheme = event.target.value === 'system' ? 'light dark' : event.target.value;
-  if (event.target.value === 'dark') document.documentElement.classList.add('previewDark');
+function applyPreviewTheme(value) {
+  document.documentElement.classList.toggle('theme-light', value === 'light');
+  document.documentElement.style.colorScheme = value === 'system' ? 'light dark' : value;
+  if (value === 'dark') document.documentElement.classList.add('previewDark');
   else document.documentElement.classList.remove('previewDark');
-};
+  const mode = value === 'system' ? 'auto' : value;
+  const themeButton = $('themeSignal');
+  if (themeButton) {
+    const labels = {auto: 'Theme: automatic. Switch to light', light: 'Theme: light. Switch to dark', dark: 'Theme: dark. Switch to automatic'};
+    themeButton.dataset.mode = mode;
+    themeButton.setAttribute('aria-label', labels[mode]);
+  }
+}
+$('previewTheme').onchange = event => applyPreviewTheme(event.target.value);
+if ($('themeSignal')) $('themeSignal').addEventListener('click', () => {
+  const order = ['system', 'light', 'dark'], select = $('previewTheme');
+  const value = order[(order.indexOf(select.value) + 1) % order.length];
+  select.value = value;
+  applyPreviewTheme(value);
+});
 $('navToggle').setAttribute('aria-expanded', 'false');
 $('navToggle').onclick = () => {
   const open = document.body.classList.toggle('navOpen');

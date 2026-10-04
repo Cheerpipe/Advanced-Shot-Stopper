@@ -22,6 +22,8 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
 .signalIndicator[data-level="0"] [data-step],.signalIndicator[data-level="unknown"] [data-step],#bluetoothSignal[data-level="0"] svg>g:first-child{opacity:.12}
 .signalIndicator:hover,.signalIndicator[aria-expanded="true"]{background:var(--sf)}
 .signalIndicator:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+#themeSignal [data-glyph]{display:none}
+#themeSignal[data-mode="auto"] [data-glyph="auto"],#themeSignal[data-mode="light"] [data-glyph="light"],#themeSignal[data-mode="dark"] [data-glyph="dark"]{display:block}
 .signalDetails{position:absolute;right:0;top:calc(100% + .5rem);width:17rem;max-width:calc(100vw - 6rem);padding:1rem;background:var(--sf);color:var(--fg);border:1px solid var(--ln);border-radius:var(--r);box-shadow:0 8px 28px #0002;font-size:.85rem}
 .signalDetails p{display:flex;justify-content:space-between;gap:.75rem;margin:.65rem 0 0}
 .signalDetails span{color:var(--mu);flex-shrink:0}.signalDetails b{font-weight:550;text-align:right;overflow-wrap:anywhere;min-width:0}

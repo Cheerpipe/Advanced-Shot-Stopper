@@ -33,6 +33,7 @@ needed rather than reading the entire directory.
 | Scale and cup | [Scales](settings/scales.md) / [Bluetooth on/off](settings/scales.md#bluetooth-onoff) / [cup detection](settings/cup.md) / [tare](settings/tare.md) |
 | Network | [Wi-Fi](settings/wifi.md) / [access point](settings/ap.md) / [device name](settings/wifi.md#discovery-by-name) |
 | Energy | [Power management](settings/power-management.md) |
+| Interface | [Theme](settings/theme.md) |
 | Reset | [Factory reset](settings/factory-reset.md) / [firmware mode](settings/firmware-mode.md) |
 
 ## Developer map
