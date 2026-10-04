@@ -141,6 +141,19 @@ labeled buttons to jump to one, and watch the icon change with the active
 mode. Use the corner **Tema** button to view all options in light and dark.
 The preview does not connect to a device or change its settings.
 
+### Guard range zone proposals preview
+
+Open `http://127.0.0.1:4173/guard-ranges` on the same running preview server
+to review ten alternatives for the Home zone that shows the time and weight
+limits of the Fast and Slow extraction guards. The current zone is shown
+first as the reference; the alternatives range from text-only lines, rows,
+cards, chips, and a matrix to a single dual-reading bar, an arc gauge, and a
+time-to-weight fill profile, all sized to take less space, name every number,
+relate time and weight, and stick to the theme palette. Every option renders
+inside a quick settings panel replica at desktop and phone width, and the
+corner **Tema** button cycles auto, light, and dark. Readings are simulated;
+the preview does not connect to a device or ship in firmware assets.
+
 ## USB installation
 
 Review the selected profiles and physical safety before adding `--confirm`.

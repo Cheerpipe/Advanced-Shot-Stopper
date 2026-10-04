@@ -26,6 +26,8 @@ const routes = {
   '/home-redesigns.js': ['text/javascript', 'scripts/web-preview/home-redesigns.js'],
   '/theme-toggle': ['text/html; charset=utf-8', 'scripts/web-preview/theme-toggle.html'],
   '/theme-toggle.js': ['text/javascript', 'scripts/web-preview/theme-toggle.js'],
+  '/guard-ranges': ['text/html; charset=utf-8', 'scripts/web-preview/guard-ranges.html'],
+  '/guard-ranges.js': ['text/javascript', 'scripts/web-preview/guard-ranges.js'],
 };
 
 function renderHome() {
