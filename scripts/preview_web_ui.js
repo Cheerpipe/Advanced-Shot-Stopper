@@ -18,6 +18,8 @@ const routes = {
   '/toolbar-buttons.js': ['text/javascript', 'scripts/web-preview/toolbar-buttons.js'],
   '/preset-cards': ['text/html; charset=utf-8', 'scripts/web-preview/preset-cards.html'],
   '/preset-cards.js': ['text/javascript', 'scripts/web-preview/preset-cards.js'],
+  '/button-toggles': ['text/html; charset=utf-8', 'scripts/web-preview/button-toggles.html'],
+  '/button-toggles.js': ['text/javascript', 'scripts/web-preview/button-toggles.js'],
 };
 
 function renderHome() {

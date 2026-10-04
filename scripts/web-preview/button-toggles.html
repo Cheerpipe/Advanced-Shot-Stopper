@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Button toggles · Quick Settings · 10 propuestas</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+body{max-width:880px}
+h1{font-size:1.5rem;margin:.2rem 0 .3rem;padding-right:7.5rem}
+.lead{color:var(--mu);font-size:.92rem;margin:0 0 .35rem}
+.note{font-size:.8rem;color:var(--mu);margin:.2rem 0}
+#themeToggle{position:fixed;top:.75rem;right:.75rem;z-index:60;height:2.25rem;padding:0 .9rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;box-shadow:var(--ah)}
+.ref{margin:1.15rem 0;padding:1rem;border:1px dashed var(--bd);border-radius:var(--r);background:var(--sf)}
+.ref h2{margin:0;font-size:1.02rem}
+.ref .swL{display:flex;flex-direction:column;gap:.1rem;flex:1 1 auto;min-width:0;font-size:.875rem;line-height:1.3;font-weight:600}
+.opt{margin:1.15rem 0;padding:1rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf)}
+.optHead h2{margin:0;font-size:1.02rem}
+.optHead p{margin:.15rem 0 .95rem;color:var(--mu);font-size:.85rem}
+html.theme-dark{color-scheme:dark;--bg:#151515;--sf:#1d1d1d;--in:#242424;--fg:#efefef;--mu:#b2b2b2;--ln:#3c3c3c;--bd:#7d7d7d;--ac:#c45c38;--pri:#c45c38;--on:#fff;--ok:#1a9a3c;--dn:#ffadb5;--wn:#edc17d;--me:#351f23;--mo:#193024;--mw:#33291b;--pa:#352820;--ah:0 -4px 14px rgba(0,0,0,.35)}
+html.theme-light{color-scheme:light}
+
+/* Vocabulario común de las demos: toda pieza pulsable es .btItem y el estado
+   activo lleva .btOn. Tocar una pieza alterna su estado; los seis ajustes son
+   interruptores independientes. */
+.demo{margin:.2rem 0 0}
+.btItem{font:inherit;color:var(--fg);cursor:pointer}
+.btItem:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.btGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}
+.btGrid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.45rem}
+@media(min-width:520px){.btGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* O1 · Píldoras con check */
+.pill{display:flex;align-items:center;gap:.5rem;min-height:2.6rem;padding:.35rem .85rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);font-size:.85rem;font-weight:600;text-align:left}
+.pill .pdot{flex:none;display:flex;align-items:center;justify-content:center;width:1.05rem;height:1.05rem;border-radius:50%;border:2px solid var(--bd);font-size:.6rem;font-weight:800;line-height:1;color:transparent}
+.pill:not(.btOn):hover{background:var(--pa)}
+.pill.btOn{background:var(--ac);border-color:var(--ac);color:var(--on)}
+.pill.btOn .pdot{background:var(--on);border-color:var(--on);color:var(--ac)}
+
+/* O2 · Tarjetas con icono */
+.tcard{display:flex;align-items:center;gap:.6rem;padding:.6rem .7rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
+.ticon{flex:none;display:flex;align-items:center;justify-content:center;width:2.2rem;height:2.2rem;border-radius:.6rem;background:var(--in);color:var(--mu)}
+.ticon svg{width:1.3rem;height:1.3rem}
+.ttext{display:flex;flex-direction:column;min-width:0;gap:.05rem}
+.ttext b{font-size:.85rem;line-height:1.25;overflow-wrap:anywhere}
+.ttext small{font-size:.72rem;color:var(--mu)}
+.tcheck{flex:none;visibility:hidden;color:var(--ac);font-weight:800}
+.tcard:not(.btOn):hover{background:var(--in)}
+.tcard.btOn{border-color:var(--ac);background:var(--pa)}
+.tcard.btOn .ticon{background:var(--ac);color:var(--on)}
+.tcard.btOn .tcheck{visibility:visible}
+
+/* O3 · Botón con cápsula deslizante */
+.kcard{display:flex;align-items:center;justify-content:space-between;gap:.55rem;padding:.6rem .75rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
+.ktext{display:flex;flex-direction:column;min-width:0;gap:.05rem}
+.ktext b{font-size:.85rem;line-height:1.25;overflow-wrap:anywhere}
+.ktext small{font-size:.72rem;color:var(--mu)}
+.ktrack{flex:none;position:relative;width:2.3rem;height:1.3rem;border-radius:2rem;background:var(--bd);transition:.2s}
+.kknob{position:absolute;top:.15rem;left:.15rem;width:1rem;height:1rem;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:.2s}
+.kcard:not(.btOn):hover{background:var(--in)}
+.kcard.btOn{border-color:var(--ac);background:var(--pa)}
+.kcard.btOn .ktrack{background:var(--ac)}
+.kcard.btOn .kknob{transform:translateX(1rem)}
+
+/* O4 · Punto de estado */
+.led{display:flex;align-items:center;gap:.6rem;min-height:2.9rem;padding:.5rem .75rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
+.ldot{flex:none;width:.8rem;height:.8rem;border-radius:50%;background:var(--in);border:1px solid var(--bd)}
+.ltext{display:flex;flex-direction:column;min-width:0}
+.ltext b{font-size:.85rem;line-height:1.25;overflow-wrap:anywhere}
+.ltext small{font-size:.72rem;color:var(--mu)}
+.led:not(.btOn):hover{background:var(--in)}
+.led.btOn{border-color:var(--ac);background:var(--pa)}
+.led.btOn .ldot{background:var(--ac);border-color:var(--ac);box-shadow:0 0 0 .22rem color-mix(in srgb,var(--ac) 25%,transparent)}
+
+/* O5 · Cápsula On/Off */
+.cap{display:flex;align-items:center;justify-content:space-between;gap:.5rem;min-height:2.9rem;padding:.55rem .55rem .55rem .8rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);font-size:.85rem;font-weight:600;text-align:left}
+.cap b{min-width:0;overflow-wrap:anywhere;font-weight:600}
+.cstate{flex:none;min-width:3.1rem;padding:.28rem .6rem;border-radius:2rem;border:1px solid var(--bd);color:var(--mu);font-size:.72rem;font-weight:700;text-align:center;letter-spacing:.03em}
+.cap:not(.btOn):hover{background:var(--in)}
+.cap.btOn{border-color:var(--ac)}
+.cap.btOn .cstate{background:var(--ac);border-color:var(--ac);color:var(--on)}
+
+/* O6 · Marca silenciosa */
+.quiet{display:flex;align-items:center;gap:.55rem;min-height:2.9rem;padding:.55rem .75rem;border:1.5px solid var(--ln);border-radius:var(--r);background:var(--sf);font-size:.85rem;font-weight:600;text-align:left}
+.qmark{flex:none;width:1.05rem;height:1.05rem;border-radius:.3rem;border:2px solid var(--bd);font-size:.6rem;font-weight:800;line-height:1.1;text-align:center;color:transparent}
+.quiet:not(.btOn):hover{background:var(--in)}
+.quiet.btOn{border-color:var(--ac);background:var(--pa)}
+.quiet.btOn .qmark{background:var(--ac);border-color:var(--ac);color:var(--on)}
+
+/* O7 · Mosaico de iconos */
+.tile{display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.85rem .5rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:center}
+.tile svg{width:1.7rem;height:1.7rem;color:var(--mu)}
+.tile b{font-size:.8rem;line-height:1.25;overflow-wrap:anywhere}
+.tile small{font-size:.7rem;color:var(--mu)}
+.tile:not(.btOn):hover{background:var(--pa)}
+.tile.btOn{background:var(--ac);border-color:var(--ac);color:var(--on)}
+.tile.btOn svg,.tile.btOn small{color:var(--on)}
+
+/* O8 · Lista densa con check */
+.dense{display:flex;align-items:center;justify-content:space-between;gap:.5rem;min-height:2.75rem;padding:.45rem .7rem;border:1px solid var(--ln);border-radius:.6rem;background:var(--sf);font-size:.83rem;font-weight:600;text-align:left}
+.dense b{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dcheck{flex:none;visibility:hidden;color:var(--ac);font-weight:800}
+.dense:not(.btOn):hover{background:var(--in)}
+.dense.btOn{border-color:var(--ac);background:var(--pa)}
+.dense.btOn .dcheck{visibility:visible}
+
+/* O9 · Cristal */
+.glassWrap{padding:1.2rem .2rem;border:1px dashed var(--ln);border-radius:var(--r);background:var(--in)}
+.glass{display:flex;flex-direction:column;justify-content:center;gap:.1rem;min-height:3.4rem;padding:.6rem .8rem;border:1px solid var(--ln);border-radius:var(--r);background:color-mix(in srgb,var(--sf) 62%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:var(--ah);text-align:left}
+.glass b{font-size:.85rem;line-height:1.25;overflow-wrap:anywhere}
+.glass small{font-size:.72rem;color:var(--mu)}
+.glass:not(.btOn):hover{background:color-mix(in srgb,var(--sf) 92%,transparent)}
+.glass.btOn{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 16%,transparent);box-shadow:0 0 0 .18rem color-mix(in srgb,var(--ac) 18%,transparent),var(--ah)}
+.glass.btOn small{color:var(--ac)}
+
+/* O10 · Botón verbal grande */
+.verbal{display:flex;align-items:center;justify-content:space-between;gap:.6rem;min-height:3.4rem;padding:.65rem .9rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);text-align:left}
+.vtext{display:flex;flex-direction:column;min-width:0;gap:.05rem}
+.vtext b{font-size:.95rem;line-height:1.25;overflow-wrap:anywhere}
+.vstate{font-size:.75rem;font-weight:700;color:var(--mu)}
+.vstate::after{content:attr(data-off)}
+.verbal:not(.btOn):hover{background:var(--in)}
+.verbal.btOn{border-color:var(--ac);background:var(--pa)}
+.verbal.btOn .vstate{color:var(--ac)}
+.verbal.btOn .vstate::after{content:attr(data-on)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="ic-scale" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7a3 3 0 0 1 6 0"/><path d="M7 7h10l1.1 10.2a1.8 1.8 0 0 1-1.8 1.8H7.7a1.8 1.8 0 0 1-1.8-1.8L7 7Z"/></g></symbol>
+<symbol id="ic-clock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13.5" r="6.5"/><path d="M12 10.5v3l2 2"/><path d="M10 3.5h4"/><path d="M12 3.5V7"/></g></symbol>
+<symbol id="ic-slow" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l6 6 6-6"/><path d="M6 12l6 6 6-6"/></g></symbol>
+<symbol id="ic-fast" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12l6-6 6 6"/><path d="M6 18l6-6 6 6"/></g></symbol>
+<symbol id="ic-touch" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14.5" r="2.2"/><path d="M8.2 10a5.4 5.4 0 0 1 7.6 0"/><path d="M5.7 7.3a9 9 0 0 1 12.6 0"/></g></symbol>
+<symbol id="ic-cup" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h11v4.5A4.5 4.5 0 0 1 11.5 18h-2A4.5 4.5 0 0 1 5 13.5Z"/><path d="M16 10.5h1.4a2.3 2.3 0 0 1 0 4.6H16"/></g></symbol>
+</defs></svg>
+<button id="themeToggle" type="button">Tema: auto</button>
+<h1>Button toggles · Quick Settings · 10 propuestas</h1>
+<p class="lead">El bloque «Quick Settings» del home controla seis protecciones con interruptores iOS en filas de una o dos columnas. Estas 10 propuestas las convierten en botones de estado (button toggles): la propia pieza muestra si está activa, ganan compacidad y permiten dos columnas también en móvil, reutilizando los tokens reales de la app.</p>
+<p class="note">Los seis ajustes son interruptores independientes —no hay uno «activo» excluyente—, así que en cada propuesta se ve la mezcla real de estados: cuatro activas (No-scale BBW, A→M, Slow, Avoid accidental touch) y dos apagadas (Fast, Cup protection). Los subtítulos muestran el estado de reposo del home; durante un tiro cambian a «Active», «Armed», «30 s»… Toca cualquier pieza para alternar su estado.</p>
+<p class="note">Lo que la opción elegida debe seguir cumpliendo: estado pendiente visible mientras se aplica el cambio, bloqueo cuando la sesión de admin está cerrada, objetivos de toque cómodos y ancho mínimo de 320 px. Usa el botón de la esquina para revisar claro, oscuro y auto.</p>
+
+<section class="ref">
+  <h2>Referencia · interruptores actuales</h2>
+  <p class="optHead" style="margin:.15rem 0 .95rem;color:var(--mu);font-size:.85rem">Nombre y subtítulo a la izquierda, interruptor iOS a la derecha. Una fila por ajuste: es lo que las propuestas buscan compactar.</p>
+  <div class="homeGuardGrid">
+    <div class="switchRow"><span class="swL">No-scale BBW<span class="swS">Armed</span></span><label class="switch" for="refNoScale"><input id="refNoScale" type="checkbox" role="switch" checked><span class="slider"><span class="switchOff">Off</span><span class="switchOn">On</span></span></label></div>
+    <div class="switchRow"><span class="swL">A→M time guard<span class="swS">Idle</span></span><label class="switch" for="refAtm"><input id="refAtm" type="checkbox" role="switch" checked><span class="slider"><span class="switchOff">Off</span><span class="switchOn">On</span></span></label></div>
+    <div class="switchRow"><span class="swL">Slow extraction guard<span class="swS">Idle</span></span><label class="switch" for="refSlow"><input id="refSlow" type="checkbox" role="switch" checked><span class="slider"><span class="switchOff">Off</span><span class="switchOn">On</span></span></label></div>
+    <div class="switchRow"><span class="swL">Fast extraction guard<span class="swS">Off</span></span><label class="switch" for="refFast"><input id="refFast" type="checkbox" role="switch"><span class="slider"><span class="switchOff">Off</span><span class="switchOn">On</span></span></label></div>
+    <div class="switchRow"><span class="swL">Avoid accidental touch<span class="swS">Idle</span></span><label class="switch" for="refTouch"><input id="refTouch" type="checkbox" role="switch" checked><span class="slider"><span class="switchOff">Off</span><span class="switchOn">On</span></span></label></div>
+    <div class="switchRow"><span class="swL">Cup protection<span class="swS">Off</span></span><label class="switch" for="refCup"><input id="refCup" type="checkbox" role="switch"><span class="slider"><span class="switchOff">Off</span><span class="switchOn">On</span></span></label></div>
+  </div>
+</section>
+
+<section class="opt" id="o1">
+  <header class="optHead"><h2>O1 · Píldoras con check</h2><p>La más compacta: píldoras de una línea donde el punto de verificación y el relleno de acento comunican el estado. Sin subtítulo; nombres largos envuelven sin romper la cuadrícula.</p></header>
+  <div class="demo btGrid" aria-label="Protecciones">
+    <button type="button" class="btItem pill btOn" aria-pressed="true"><span class="pdot" aria-hidden="true">✓</span>No-scale BBW</button>
+    <button type="button" class="btItem pill btOn" aria-pressed="true"><span class="pdot" aria-hidden="true">✓</span>A→M time guard</button>
+    <button type="button" class="btItem pill btOn" aria-pressed="true"><span class="pdot" aria-hidden="true">✓</span>Slow extraction guard</button>
+    <button type="button" class="btItem pill" aria-pressed="false"><span class="pdot" aria-hidden="true">✓</span>Fast extraction guard</button>
+    <button type="button" class="btItem pill btOn" aria-pressed="true"><span class="pdot" aria-hidden="true">✓</span>Avoid accidental touch</button>
+    <button type="button" class="btItem pill" aria-pressed="false"><span class="pdot" aria-hidden="true">✓</span>Cup protection</button>
+  </div>
+</section>
+
+<section class="opt" id="o2">
+  <header class="optHead"><h2>O2 · Tarjetas con icono</h2><p>Un icono propio identifica cada protección de un vistazo y el subtítulo de estado queda debajo del nombre. La tarjeta activa gana borde de acento y el icono se rellena.</p></header>
+  <div class="demo btGrid" aria-label="Protecciones">
+    <button type="button" class="btItem tcard btOn" aria-pressed="true"><span class="ticon" aria-hidden="true"><svg><use href="#ic-scale"/></svg></span><span class="ttext"><b>No-scale BBW</b><small>Armed</small></span><span class="tcheck" aria-hidden="true">✓</span></button>
+    <button type="button" class="btItem tcard btOn" aria-pressed="true"><span class="ticon" aria-hidden="true"><svg><use href="#ic-clock"/></svg></span><span class="ttext"><b>A→M time guard</b><small>Idle</small></span><span class="tcheck" aria-hidden="true">✓</span></button>
+    <button type="button" class="btItem tcard btOn" aria-pressed="true"><span class="ticon" aria-hidden="true"><svg><use href="#ic-slow"/></svg></span><span class="ttext"><b>Slow extraction guard</b><small>Idle</small></span><span class="tcheck" aria-hidden="true">✓</span></button>
+    <button type="button" class="btItem tcard" aria-pressed="false"><span class="ticon" aria-hidden="true"><svg><use href="#ic-fast"/></svg></span><span class="ttext"><b>Fast extraction guard</b><small>Off</small></span><span class="tcheck" aria-hidden="true">✓</span></button>
+    <button type="button" class="btItem tcard btOn" aria-pressed="true"><span class="ticon" aria-hidden="true"><svg><use href="#ic-touch"/></svg></span><span class="ttext"><b>Avoid accidental touch</b><small>Idle</small></span><span class="tcheck" aria-hidden="true">✓</span></button>
+    <button type="button" class="btItem tcard" aria-pressed="false"><span class="ticon" aria-hidden="true"><svg><use href="#ic-cup"/></svg></span><span class="ttext"><b>Cup protection</b><small>Off</small></span><span class="tcheck" aria-hidden="true">✓</span></button>
+  </div>
+</section>
+
+<section class="opt" id="o3">
+  <header class="optHead"><h2>O3 · Botón con cápsula deslizante</h2><p>Toda la tarjeta es pulsable pero conserva una mini-cápsula deslizante como indicador: mantiene la affordance del interruptor actual dentro de un botón moderno y compacto.</p></header>
+  <div class="demo btGrid" aria-label="Protecciones">
+    <button type="button" class="btItem kcard btOn" aria-pressed="true"><span class="ktext"><b>No-scale BBW</b><small>Armed</small></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></button>
+    <button type="button" class="btItem kcard btOn" aria-pressed="true"><span class="ktext"><b>A→M time guard</b><small>Idle</small></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></button>
+    <button type="button" class="btItem kcard btOn" aria-pressed="true"><span class="ktext"><b>Slow extraction guard</b><small>Idle</small></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></button>
+    <button type="button" class="btItem kcard" aria-pressed="false"><span class="ktext"><b>Fast extraction guard</b><small>Off</small></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></button>
+    <button type="button" class="btItem kcard btOn" aria-pressed="true"><span class="ktext"><b>Avoid accidental touch</b><small>Idle</small></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></button>
+    <button type="button" class="btItem kcard" aria-pressed="false"><span class="ktext"><b>Cup protection</b><small>Off</small></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></button>
+  </div>
+</section>
+
+<section class="opt" id="o4">
+  <header class="optHead"><h2>O4 · Punto de estado</h2><p>Un LED de acento con halo marca lo activo y en reposo queda un botón sereno y uniforme. Lee muy bien en tema oscuro y mantiene el subtítulo de estado.</p></header>
+  <div class="demo btGrid" aria-label="Protecciones">
+    <button type="button" class="btItem led btOn" aria-pressed="true"><span class="ldot" aria-hidden="true"></span><span class="ltext"><b>No-scale BBW</b><small>Armed</small></span></button>
+    <button type="button" class="btItem led btOn" aria-pressed="true"><span class="ldot" aria-hidden="true"></span><span class="ltext"><b>A→M time guard</b><small>Idle</small></span></button>
+    <button type="button" class="btItem led btOn" aria-pressed="true"><span class="ldot" aria-hidden="true"></span><span class="ltext"><b>Slow extraction guard</b><small>Idle</small></span></button>
+    <button type="button" class="btItem led" aria-pressed="false"><span class="ldot" aria-hidden="true"></span><span class="ltext"><b>Fast extraction guard</b><small>Off</small></span></button>
+    <button type="button" class="btItem led btOn" aria-pressed="true"><span class="ldot" aria-hidden="true"></span><span class="ltext"><b>Avoid accidental touch</b><small>Idle</small></span></button>
+    <button type="button" class="btItem led" aria-pressed="false"><span class="ldot" aria-hidden="true"></span><span class="ltext"><b>Cup protection</b><small>Off</small></span></button>
+  </div>
+</section>
+
+<section class="opt" id="o5">
+  <header class="optHead"><h2>O5 · Cápsula On/Off</h2><p>El estado se lee, no se infiere: una cápsula con la palabra On u Off a la derecha del nombre. La más explícita para quien descubre la interfaz, con forma de píldora compacta.</p></header>
+  <div class="demo btGrid" aria-label="Protecciones">
+    <button type="button" class="btItem cap btOn" aria-pressed="true"><b>No-scale BBW</b><span class="cstate">On</span></button>
+    <button type="button" class="btItem cap btOn" aria-pressed="true"><b>A→M time guard</b><span class="cstate">On</span></button>
+    <button type="button" class="btItem cap btOn" aria-pressed="true"><b>Slow extraction guard</b><span class="cstate">On</span></button>
+    <button type="button" class="btItem cap" aria-pressed="false"><b>Fast extraction guard</b><span class="cstate">Off</span></button>
+    <button type="button" class="btItem cap btOn" aria-pressed="true"><b>Avoid accidental touch</b><span class="cstate">On</span></button>
+    <button type="button" class="btItem cap" aria-pressed="false"><b>Cup protection</b><span class="cstate">Off</span></button>
+  </div>
+</section>
+
+<section class="opt" id="o6">
+  <header class="optHead"><h2>O6 · Marca silenciosa</h2><p>Botones tranquilos con marca cuadrada de verificación; solo el activo gana borde y tinte de acento. El más discreto y coherente con el resto del home.</p></header>
+  <div class="demo btGrid" aria-label="Protecciones">
+    <button type="button" class="btItem quiet btOn" aria-pressed="true"><span class="qmark" aria-hidden="true">✓</span>No-scale BBW</button>
+    <button type="button" class="btItem quiet btOn" aria-pressed="true"><span class="qmark" aria-hidden="true">✓</span>A→M time guard</button>
+    <button type="button" class="btItem quiet btOn" aria-pressed="true"><span class="qmark" aria-hidden="true">✓</span>Slow extraction guard</button>
+    <button type="button" class="btItem quiet" aria-pressed="false"><span class="qmark" aria-hidden="true">✓</span>Fast extraction guard</button>
+    <button type="button" class="btItem quiet btOn" aria-pressed="true"><span class="qmark" aria-hidden="true">✓</span>Avoid accidental touch</button>
+    <button type="button" class="btItem quiet" aria-pressed="false"><span class="qmark" aria-hidden="true">✓</span>Cup protection</button>
+  </div>
+</section>
+
+<section class="opt" id="o7">
+  <header class="optHead"><h2>O7 · Mosaico de iconos</h2><p>Icono protagonista centrado con el nombre debajo; el activo se invierte a relleno de acento. Estética de panel de control: máxima presencia, algo más de alto por pieza.</p></header>
+  <div class="demo btGrid" aria-label="Protecciones">
+    <button type="button" class="btItem tile btOn" aria-pressed="true"><svg aria-hidden="true"><use href="#ic-scale"/></svg><b>No-scale BBW</b><small>Armed</small></button>
+    <button type="button" class="btItem tile btOn" aria-pressed="true"><svg aria-hidden="true"><use href="#ic-clock"/></svg><b>A→M time guard</b><small>Idle</small></button>
+    <button type="button" class="btItem tile btOn" aria-pressed="true"><svg aria-hidden="true"><use href="#ic-slow"/></svg><b>Slow extraction guard</b><small>Idle</small></button>
+    <button type="button" class="btItem tile" aria-pressed="false"><svg aria-hidden="true"><use href="#ic-fast"/></svg><b>Fast extraction guard</b><small>Off</small></button>
+    <button type="button" class="btItem tile btOn" aria-pressed="true"><svg aria-hidden="true"><use href="#ic-touch"/></svg><b>Avoid accidental touch</b><small>Idle</small></button>
+    <button type="button" class="btItem tile" aria-pressed="false"><svg aria-hidden="true"><use href="#ic-cup"/></svg><b>Cup protection</b><small>Off</small></button>
+  </div>
+</section>
+
+<section class="opt" id="o8">
+  <header class="optHead"><h2>O8 · Lista densa con check</h2><p>Chips de una línea con check a la derecha, siempre en dos columnas: la que menos alto le cuesta al home, a costa de prescindir del subtítulo de estado.</p></header>
+  <div class="demo btGrid2" aria-label="Protecciones">
+    <button type="button" class="btItem dense btOn" aria-pressed="true"><b>No-scale BBW</b><span class="dcheck" aria-hidden="true">✓</span></button>
+    <button type="button" class="btItem dense btOn" aria-pressed="true"><b>A→M time guard</b><span class="dcheck" aria-hidden="true">✓</span></button>
+    <button type="button" class="btItem dense btOn" aria-pressed="true"><b>Slow extraction guard</b><span class="dcheck" aria-hidden="true">✓</span></button>
+    <button type="button" class="btItem dense" aria-pressed="false"><b>Fast extraction guard</b><span class="dcheck" aria-hidden="true">✓</span></button>
+    <button type="button" class="btItem dense btOn" aria-pressed="true"><b>Avoid accidental touch</b><span class="dcheck" aria-hidden="true">✓</span></button>
+    <button type="button" class="btItem dense" aria-pressed="false"><b>Cup protection</b><span class="dcheck" aria-hidden="true">✓</span></button>
+  </div>
+</section>
+
+<section class="opt" id="o9">
+  <header class="optHead"><h2>O9 · Cristal</h2><p>Hereda la barra de cristal ya aprobada para el home: tarjetas translúcidas con desenfoque, borde suave y resplandor de acento en el estado activo, con subtítulo de estado.</p></header>
+  <div class="demo glassWrap" aria-label="Protecciones">
+    <div class="btGrid">
+      <button type="button" class="btItem glass btOn" aria-pressed="true"><b>No-scale BBW</b><small>Armed</small></button>
+      <button type="button" class="btItem glass btOn" aria-pressed="true"><b>A→M time guard</b><small>Idle</small></button>
+      <button type="button" class="btItem glass btOn" aria-pressed="true"><b>Slow extraction guard</b><small>Idle</small></button>
+      <button type="button" class="btItem glass" aria-pressed="false"><b>Fast extraction guard</b><small>Off</small></button>
+      <button type="button" class="btItem glass btOn" aria-pressed="true"><b>Avoid accidental touch</b><small>Idle</small></button>
+      <button type="button" class="btItem glass" aria-pressed="false"><b>Cup protection</b><small>Off</small></button>
+    </div>
+  </div>
+</section>
+
+<section class="opt" id="o10">
+  <header class="optHead"><h2>O10 · Botón verbal grande</h2><p>Objetivo táctil grande donde el estado se lee como palabra —On u Off— y cambia de color con el acento. Pensado para manos mojadas, de noche o a distancia de un vistazo.</p></header>
+  <div class="demo btGrid" aria-label="Protecciones">
+    <button type="button" class="btItem verbal btOn" aria-pressed="true"><span class="vtext"><b>No-scale BBW</b><span class="vstate" data-on="On" data-off="Off"></span></span></button>
+    <button type="button" class="btItem verbal btOn" aria-pressed="true"><span class="vtext"><b>A→M time guard</b><span class="vstate" data-on="On" data-off="Off"></span></span></button>
+    <button type="button" class="btItem verbal btOn" aria-pressed="true"><span class="vtext"><b>Slow extraction guard</b><span class="vstate" data-on="On" data-off="Off"></span></span></button>
+    <button type="button" class="btItem verbal" aria-pressed="false"><span class="vtext"><b>Fast extraction guard</b><span class="vstate" data-on="On" data-off="Off"></span></span></button>
+    <button type="button" class="btItem verbal btOn" aria-pressed="true"><span class="vtext"><b>Avoid accidental touch</b><span class="vstate" data-on="On" data-off="Off"></span></span></button>
+    <button type="button" class="btItem verbal" aria-pressed="false"><span class="vtext"><b>Cup protection</b><span class="vstate" data-on="On" data-off="Off"></span></span></button>
+  </div>
+</section>
+
+<script src="/button-toggles.js" defer></script>
+</body>
+</html>
