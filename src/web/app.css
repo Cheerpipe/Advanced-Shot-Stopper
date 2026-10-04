@@ -367,17 +367,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .presetCardBadge{font-size:.68rem;color:var(--mu);text-transform:uppercase}
 .presetCardMeta{font-size:.75rem;color:var(--mu);min-width:0;margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
 .presetRenameInline{width:100%;font:inherit;font-weight:700;font-size:.9375rem;padding:.35rem .5rem;margin:0}
-#homePresetCards{display:flex;flex-direction:column;gap:.45rem}
-#homePresetCards:empty{display:none}
-.presetRadioCard{display:flex;align-items:center;gap:.7rem;padding:.65rem .8rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);cursor:pointer}
-.presetRadioCard:not(.selected):not(.locked):hover{background:var(--in)}
-.presetRadioCard.selected{border-color:var(--ac);background:var(--pa)}
-.presetRadioCard.locked{cursor:default}
-.presetRadioDot{flex:0 0 auto;width:1.15rem;height:1.15rem;border-radius:50%;border:2px solid var(--bd)}
-.presetRadioCard.selected .presetRadioDot{border-color:var(--ac);background:radial-gradient(circle,var(--ac) 0 42%,transparent 48%)}
-.presetRadioText{display:flex;flex-direction:column;min-width:0}
-.presetRadioName{font-size:.9375rem;font-weight:700;overflow-wrap:anywhere}
-.presetRadioSub{font-size:.75rem;color:var(--mu)}
+#homePresetCards .presetCardTitle{cursor:pointer}
 #presetRenameDialog{border:1px solid var(--ln);border-radius:var(--r);padding:1rem;max-width:min(22rem,calc(100vw - 2rem));background:var(--sf);color:var(--fg);box-shadow:0 1rem 3rem rgba(0,0,0,.25)}
 #presetRenameDialog::backdrop{background:rgba(21,21,21,.65)}
 
@@ -427,4 +417,4 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 @media(max-width:340px){body{padding-inline:.75rem}.topBar{margin-inline:-.75rem;padding-inline:.75rem}.statusColumn{grid-template-columns:1fr}}
 @media(max-width:380px){.topBar{gap:.15rem;--logo-w:1.85rem;--logo-h:2.5rem;--brand-font:1.15rem;--brand-small:.73rem}.headerSignals{padding-left:.25rem}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:.01ms!important}.bootWave i{animation:none}.btnGlyph.busy .g:after{animation:none}}
-@media(forced-colors:active){input[type=checkbox]{appearance:auto}.slider,.ktrack{forced-color-adjust:auto}.btnGlyph,.presetCard,.presetRadioCard,.kcard,#brewModeRow,input,select,textarea{border-color:ButtonText}}
+@media(forced-colors:active){input[type=checkbox]{appearance:auto}.slider,.ktrack{forced-color-adjust:auto}.btnGlyph,.presetCard,.kcard,#brewModeRow,input,select,textarea{border-color:ButtonText}}
