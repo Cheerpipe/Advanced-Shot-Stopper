@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Theme toggle · 10 propuestas de ícono</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+  body{padding-bottom:2.5rem}
+  h1{font-size:1.5rem;margin:.2rem 0 .3rem;padding-right:7.5rem}
+  .lead{color:var(--mu);font-size:.92rem;margin:0 0 .35rem}
+  .note{font-size:.8rem;color:var(--mu);margin:.2rem 0}
+  #themeToggle{position:fixed;top:.75rem;right:.75rem;z-index:60;height:2.25rem;padding:0 .9rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;box-shadow:var(--ah)}
+  .opt{margin:1.15rem 0;padding:1rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf)}
+  .optHead h2{margin:0;font-size:1.02rem;display:flex;align-items:center;gap:.45rem;flex-wrap:wrap}
+  .optHead .star{flex:none;font-size:.72rem;font-weight:700;color:var(--pri);background:var(--pa);border-radius:1rem;padding:.1rem .55rem}
+  .optHead p{margin:.15rem 0 .95rem;color:var(--mu);font-size:.85rem}
+  .frames{display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start}
+  .frame{flex:1 1 480px;min-width:300px;max-width:100%}
+  .frame.phone{flex:0 0 360px}
+  .demoTopBar{position:relative;top:auto;margin:0;min-height:0;border:1px solid var(--ln);border-radius:var(--r) var(--r) 0 0}
+  .modeRow{display:flex;flex-wrap:wrap;gap:.5rem;align-items:stretch;padding:.6rem .7rem;border:1px solid var(--ln);border-top:0;border-radius:0 0 var(--r) var(--r);background:var(--in)}
+  .modeBtn{display:flex;flex-direction:column;align-items:center;gap:.3rem;flex:1;min-width:4.2rem;padding:.45rem .3rem;border:1px solid var(--ln);border-radius:.6rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.72rem;cursor:pointer}
+  .modeBtn svg{width:1.7rem;height:1.7rem}
+  .modeBtn.on{border-color:var(--ac);background:var(--pa);color:var(--pri);font-weight:700}
+  .modeBtn:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+  .stateChip{align-self:center;margin-left:auto;font-size:.78rem;font-weight:600;color:var(--mu)}
+  .phoneFrame .topBar{gap:.15rem}
+  .phoneFrame .brandMark{width:1.85rem;height:2.5rem}
+  .phoneFrame .brand span{font-size:1.15rem}
+  .phoneFrame .brand small{font-size:.73rem}
+  .phoneFrame .headerSignals{padding-left:.25rem}
+  .phoneFrame .signalIndicator{width:2.2rem}
+</style>
+</head>
+<body>
+  <h1>Theme toggle · 10 propuestas de ícono</h1>
+  <p class="lead">La web ya tiene tres modos de tema —automático, claro y oscuro—, guardados por navegador y elegibles desde Admin → Interfaz. Esta propuesta añade un botón en el encabezado que recorre los tres con un toque: automático → claro → oscuro → automático.</p>
+  <p class="lead">El botón entra en el grupo de señal, a la derecha de los indicadores de Wi-Fi y Bluetooth: mismo área táctil, mismo glifo de 23&nbsp;px y alineación idéntica. El ícono refleja el modo activo; tócalo en cualquier encabezado de abajo para probarlo, o salta directo a un modo con los botones grandes. El botón «Tema» de la esquina cambia toda la página para revisar cada opción en claro y oscuro.</p>
+  <button type="button" id="themeToggle">Tema: auto</button>
+  <main id="options"></main>
+  <p class="note">Vista de diseño sin conexión a ningún equipo; no modifica ajustes ni forma parte del firmware.</p>
+  <svg hidden><symbol id="brandMark" viewBox="0 0 36 48"><g transform="rotate(-16 18 11)"><path fill-rule="evenodd" d="M10 3h16v16H10zm8 4c-2 2-3 3.4-3 5a3 3 0 106 0c0-1.6-1-3-3-5z"/><path d="M12 0h2v3h-2zm4 0h2v3h-2zm4 0h2v3h-2zm4 0h2v3h-2zM26 5h3v2h-3zm0 4h3v2h-3zm0 4h3v2h-3zm0 4h3v2h-3z"/></g><path d="M18 24a2 2 0 11-4 0c0-2 2-3.5 2-3.5s2 1.5 2 3.5z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M8 32v2a10 8.5 0 0020 0v-2M28 33c4.8 0 5 9.5-3.6 8M6 46h24"/></symbol></svg>
+  <script src="/theme-toggle.js" defer></script>
+</body>
+</html>

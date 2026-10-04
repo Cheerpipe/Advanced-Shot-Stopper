@@ -129,6 +129,18 @@ auto, light, and dark. Home readings are simulated; switches and buttons are
 presentation-only, and this preview does not connect to a device or ship in
 firmware assets.
 
+### Theme toggle icon preview
+
+Open `http://127.0.0.1:4173/theme-toggle` on the same running preview server
+to review ten single-icon proposals for a header button that cycles the
+interface theme between automatic, light, and dark. The button would sit to
+the right of the Wi-Fi and Bluetooth indicators, reusing their exact tap size
+and glyph size so everything stays aligned. Each option shows the real header
+at desktop and phone width; tap the header icon to cycle modes or use the
+labeled buttons to jump to one, and watch the icon change with the active
+mode. Use the corner **Tema** button to view all options in light and dark.
+The preview does not connect to a device or change its settings.
+
 ## USB installation
 
 Review the selected profiles and physical safety before adding `--confirm`.
