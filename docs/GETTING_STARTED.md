@@ -170,8 +170,10 @@ mode, and Quick rinse off:
 While brewing, a card at the top of Home follows the shot live — weight
 against the goal, elapsed time, flow, and the first drop. After the stop it
 keeps the result and shows the stop mode (BBW, Fast/Slow guard, A→M, manual).
-Home also advances **Dur** in whole seconds while brewing; when the shot ends,
-Last/Current shot immediately shows the final duration with one decimal place.
+The link at the bottom-right of the card opens the shot history on the Stats
+page. Home also advances **Dur** in whole seconds while brewing; when the shot
+ends, Last/Current shot immediately shows the final duration with one decimal
+place.
 
 On a **momentary** machine, press and release to start; another valid press
 requests stop. Automatic stop uses a pulse, not a continuously open contact.

@@ -443,6 +443,7 @@
     "home.machine_power_state": "Machine power state",
     "home.max_flow": "Max flow",
     "home.no_scale_bbw": "No-scale BBW",
+    "home.open_shot_history": "Open shot history →",
     "home.optimistic": "Optimistic",
     "home.override_brewing": "Override brewing",
     "home.override_idle": "Override idle",
