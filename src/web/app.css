@@ -204,9 +204,16 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .btnGlyph{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;margin:0;border:1px solid var(--ln);border-radius:2rem;background:var(--bg);line-height:1.2;cursor:pointer;color:var(--ac);min-height:3rem;min-width:4.5rem;padding:.6rem .85rem;white-space:normal;flex:1}
 .btnGlyph .g{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:1.1rem;height:1.1rem;font-size:1.05rem;font-weight:700;line-height:1;font-variant-emoji:text}
 .btnGlyph .t{font-size:.86rem;font-weight:600;letter-spacing:0;text-transform:none;line-height:1.2}
-.presetActions>.btnGlyph{min-height:var(--tap);min-width:5.25rem;padding:.55rem .65rem;flex:1 1 5.25rem}
-.presetActions>.btnGlyph .g{width:1rem;height:1rem;font-size:1rem}
-.presetActions>.btnGlyph .t{font-size:.8125rem}
+/* Floating glass toolbars: shot/history list controls, diagnostics actions, preset actions */
+.glassBar{align-items:center;gap:.25rem;width:fit-content;max-width:100%;padding:.25rem .35rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);background:color-mix(in srgb,var(--sf) 78%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:var(--ah)}
+#shotLogPanel .glassBar,#historyPanel .glassBar{position:sticky;top:var(--hdr);z-index:6;margin:0 0 .75rem}
+.glassBar>.btnGlyph{flex:0 0 auto;min-height:2.1rem;min-width:0;padding:0 .8rem;border:0;border-radius:1.6rem;background:transparent;color:var(--ac);white-space:nowrap}
+.glassBar>.btnGlyph .t{font-size:.8rem}
+.glassBar>.btnGlyph:not(:disabled):hover{background:var(--pa)}
+.glassBar>.btnGlyph.btnDanger{background:transparent;color:var(--dn)}
+.glassBar>.btnGlyph.btnDanger:not(:disabled):hover{background:var(--me)}
+.glassBar>.btnGlyph.btnWarn{color:var(--ac);background:var(--mw)}
+.glassBar>.btnGlyph.btnInvert{background:var(--pri);color:var(--on)}
 .btnGlyph.btnRevert{flex:0 0 auto;min-height:var(--tap);min-width:var(--tap);padding:.35rem .5rem}
 .btnGlyph.btnRevert .g{width:1rem;height:1rem;font-size:1rem}
 .btnGlyph.btnInvert{background:var(--pri);color:var(--on);border-color:var(--pri)}
@@ -229,13 +236,11 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #actionsPanel .btnGlyph{flex:1;border:1.5px solid var(--ac);border-radius:2rem;background:transparent;color:var(--ac);min-height:3.25rem}
 #actionsPanel .momentaryOnly{flex:.6;min-height:var(--tap);min-width:4.5rem}
 #actionsPanel .btnGlyph.btnDanger{background:var(--pri);color:var(--on);border-color:var(--pri)}
-#shotLogPanel .btnBar{position:sticky;top:var(--hdr);z-index:6;background:var(--sf);margin:0 0 .75rem;padding:.25rem 0}
-#shotLogPanel .btnGlyph:not(.btnInvert){background:var(--bg);color:var(--ac);border-color:var(--ln)}
-#shotLogPanel .btnBar>.btnGlyph,#historyPanel .btnBar>.btnGlyph{min-height:var(--tap)}
-.shotSort{display:flex;max-width:100%;border:1px solid var(--ln);border-radius:2rem;overflow:hidden;background:var(--bg)}
-.shotSort button{margin:0;border:0;border-right:1px solid var(--ln);border-radius:0;background:transparent;color:var(--ac);font:inherit;font-size:.8125rem;font-weight:600;min-height:calc(var(--tap) - 2px);padding:.5rem .65rem;cursor:pointer}
-.shotSort button:last-child{border:0}
-.shotSort button[aria-pressed="true"]{background:var(--ac);color:var(--on)}
+.shotSort{display:flex;align-items:center;gap:.25rem;max-width:100%}
+.shotSort button{margin:0;border:0;border-radius:1.6rem;background:transparent;color:var(--ac);font:inherit;font-size:.8rem;font-weight:600;min-height:2.1rem;padding:0 .8rem;cursor:pointer}
+.shotSort button:not([aria-pressed="true"]):hover{background:var(--pa)}
+.shotSort button[aria-pressed="true"]{background:var(--pa);color:var(--ac);font-weight:700;cursor:default}
+.btnBar .shotSort:not(:last-child){margin-right:.1rem;padding-right:.4rem;border-right:1px solid var(--ln)}
 .panelWrap:has(>table){margin:.5rem 0}
 #shotLogSentinel{min-height:1px;padding:.35rem 0 .8rem;text-align:center;color:var(--mu);font-size:.8rem}
 #shotTable{width:100%;border-collapse:collapse;font-size:.82rem}
@@ -277,7 +282,6 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .statsDurSparkY{display:flex;flex-direction:column;justify-content:space-between;padding:.02rem 0}
 .statsDurSparkY:after{content:__WEBUI_CSS_TEXT__("css.0")}
 #shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate rate rate"}
-#historyPanel .btnBar{position:sticky;top:var(--hdr);z-index:6;background:var(--sf);margin:0 0 .75rem;padding:.25rem 0}
 #historySentinel{min-height:1px}
 #historyTable{width:100%;border-collapse:collapse;font-size:.82rem}
 #historyTable thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -323,15 +327,18 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #networkStatus,#scanStatus,#webhookStatus,#otaStatus,#apStatus{overflow-wrap:anywhere}
 
 .presetManage{margin:.35rem 0 .55rem}
-.presetCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(9.5rem,1fr));gap:.5rem}
+.presetCards{display:flex;flex-direction:column;border:1px solid var(--ln);border-radius:.6rem;overflow:hidden;background:var(--sf)}
+.presetCards:empty{display:none}
 .panelWrap{position:relative}
-.presetCard{padding:.75rem;border:1px solid var(--bd);border-radius:.5rem;cursor:pointer;background:var(--in)}
-.presetCard.selected{border-color:var(--ac);box-shadow:inset 0 0 0 1px var(--ac)}
-.presetCard.active{background:var(--pa)}
-.presetCardTitleRow{display:flex;align-items:center;gap:.35rem;min-width:0}
+.presetCard{display:flex;align-items:baseline;gap:1rem;padding:.5rem .7rem;border:0;border-top:1px solid var(--ln);border-radius:0;cursor:pointer;background:var(--sf)}
+.presetCard:first-child{border-top:0}
+.presetCard:not(.selected):hover{background:var(--in)}
+.presetCard.selected{background:var(--pa);box-shadow:inset .14rem 0 0 var(--ac)}
+.presetCard.active .presetCardTitle{color:var(--ac)}
+.presetCardTitleRow{display:flex;align-items:baseline;gap:.35rem;min-width:0}
 .presetCardTitle{all:unset;font:inherit;font-weight:700;font-size:.9375rem;cursor:text;overflow-wrap:anywhere;flex:1;min-width:0}
 .presetCardBadge{font-size:.68rem;color:var(--mu);text-transform:uppercase}
-.presetCardMeta{font-size:.75rem;color:var(--mu)}
+.presetCardMeta{font-size:.75rem;color:var(--mu);min-width:0;margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
 .presetRenameInline{width:100%;font:inherit;font-weight:700;font-size:.9375rem;padding:.35rem .5rem;margin:0}
 #homePresetCards .presetCardTitle{cursor:pointer}
 #presetRenameDialog{border:1px solid var(--ln);border-radius:var(--r);padding:1rem;max-width:min(22rem,calc(100vw - 2rem));background:var(--sf);color:var(--fg);box-shadow:0 1rem 3rem rgba(0,0,0,.25)}
