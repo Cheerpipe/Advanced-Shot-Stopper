@@ -105,7 +105,7 @@ html.theme-light{color-scheme:light}
 .dense.btOn .dcheck{visibility:visible}
 
 /* O9 · Cristal */
-.glassGrid{grid-auto-rows:1fr}
+.evenGrid{grid-auto-rows:1fr}
 .glass{display:flex;flex-direction:column;justify-content:center;gap:.1rem;min-height:3.4rem;padding:.6rem .8rem;border:1px solid var(--ln);border-radius:var(--r);background:color-mix(in srgb,var(--sf) 62%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:var(--ah);text-align:left}
 .glass b{font-size:.85rem;line-height:1.25;overflow-wrap:anywhere}
 .glass small{font-size:.72rem;color:var(--mu)}
@@ -177,8 +177,8 @@ html.theme-light{color-scheme:light}
 </section>
 
 <section class="opt" id="o3">
-  <header class="optHead"><h2>O3 · Botón con cápsula deslizante</h2><p>Toda la tarjeta es pulsable pero conserva una mini-cápsula deslizante como indicador: mantiene la affordance del interruptor actual dentro de un botón moderno y compacto.</p></header>
-  <div class="demo btGrid" aria-label="Protecciones">
+  <header class="optHead"><h2>O3 · Botón con cápsula deslizante</h2><p>Toda la tarjeta es pulsable pero conserva una mini-cápsula deslizante como indicador: mantiene la affordance del interruptor actual dentro de un botón moderno, compacto y de altura uniforme.</p></header>
+  <div class="demo btGrid evenGrid" aria-label="Protecciones">
     <button type="button" class="btItem kcard btOn" aria-pressed="true"><span class="ktext"><b>No-scale BBW</b><small>Armed</small></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></button>
     <button type="button" class="btItem kcard btOn" aria-pressed="true"><span class="ktext"><b>A→M time guard</b><small>Idle</small></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></button>
     <button type="button" class="btItem kcard btOn" aria-pressed="true"><span class="ktext"><b>Slow extraction guard</b><small>Idle</small></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></button>
@@ -250,7 +250,7 @@ html.theme-light{color-scheme:light}
 
 <section class="opt" id="o9">
   <header class="optHead"><h2>O9 · Cristal</h2><p>Hereda la barra de cristal ya aprobada para el home: tarjetas translúcidas de altura uniforme, borde suave y resplandor de acento en el estado activo, con el subtítulo en el mismo gris que el resto de propuestas.</p></header>
-  <div class="demo btGrid glassGrid" aria-label="Protecciones">
+  <div class="demo btGrid evenGrid" aria-label="Protecciones">
       <button type="button" class="btItem glass btOn" aria-pressed="true"><b>No-scale BBW</b><small>Armed</small></button>
       <button type="button" class="btItem glass btOn" aria-pressed="true"><b>A→M time guard</b><small>Idle</small></button>
       <button type="button" class="btItem glass btOn" aria-pressed="true"><b>Slow extraction guard</b><small>Idle</small></button>
