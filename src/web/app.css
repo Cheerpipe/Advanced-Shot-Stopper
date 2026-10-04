@@ -305,6 +305,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .shotGrid{stroke:var(--ln);stroke-width:.8;opacity:.7}.shotGrid,.shotTrace{vector-effect:non-scaling-stroke}
 .shotDropOverlay{grid-area:plot;position:relative}
 .shotFirstDrop{position:absolute;bottom:10%;white-space:nowrap;font-size:.68rem;color:var(--mu)}
+.chartMeasure{visibility:hidden}
 .shotFirstDrop svg{vertical-align:middle}
 .shotTareIcon{width:34.125px;height:14px}
 .shotSparkHost .ruleChartTicks,#shotTable td.shotSparkCell .ruleChartTicks{grid-area:x}
