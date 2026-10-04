@@ -10,17 +10,25 @@ namespace shotstopper {
 enum class MicraScanOverride : uint8_t { NONE, AGGRESSIVE, RELAXED };
 
 // One compact discovery override computed from the persisted scale options
-// and the final resolved power state (optimistic and retained included).
-// Only a known ON or OFF state can override; UNKNOWN — whatever
-// effectiveOn says — no account, observation disabled, unsupported, and
-// failed observations all resolve UNKNOWN and keep NONE.
+// and the final resolved power state. A live optimistic overlay still leaves
+// the last confirmed value in powerState, so the overlay flags replace it;
+// together they are the same resolved state Home shows. Only a known ON or
+// OFF state can override; UNKNOWN — whatever effectiveOn says — no account,
+// observation disabled, unsupported, and failed observations all resolve
+// UNKNOWN and keep NONE.
 inline MicraScanOverride micraScanOverride(const LineaMicraStatus &machine,
                                            uint8_t micraScaleOptions) {
-  if (machine.powerState == LineaMicraPowerState::ON &&
+  LineaMicraPowerState resolved = machine.powerState;
+  if (machine.optimisticOn) {
+    resolved = LineaMicraPowerState::ON;
+  } else if (machine.optimisticOff) {
+    resolved = LineaMicraPowerState::OFF;
+  }
+  if (resolved == LineaMicraPowerState::ON &&
       (micraScaleOptions & LINEA_MICRA_SCALE_SCAN_BOOST_WHEN_ON) != 0) {
     return MicraScanOverride::AGGRESSIVE;
   }
-  if (machine.powerState == LineaMicraPowerState::OFF &&
+  if (resolved == LineaMicraPowerState::OFF &&
       (micraScaleOptions & LINEA_MICRA_SCALE_SCAN_RELAX_WHEN_OFF) != 0) {
     return MicraScanOverride::RELAXED;
   }

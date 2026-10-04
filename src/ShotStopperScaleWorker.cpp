@@ -1974,8 +1974,8 @@ void logScaleConnectionFailed(bool directed) {
 
 void logScaleScanStarted(bool directed) {
   scaleDiscoveryDirected = directed;
-  // Report the duty this scan actually applies, so a quiet hunt backed off
-  // to Light stays visible even when the saved intensity is higher.
+  // Report the duty this scan actually applies, so a machine-power override
+  // stays visible even when the saved intensity differs.
   addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_SCAN_STARTED,
                 directed ? SCALE_SCAN_TARGET_PREFERRED : SCALE_SCAN_TARGET_ANY,
                 static_cast<int32_t>(discoveryScanIntensity()));

@@ -624,7 +624,7 @@ void p82b_ble_scan_legacy_minute_bytes_stay_readable() {
   // Firmware that stored the removed backoff/boost minutes wrote non-zero
   // bytes where reserved0/reserved1 now sit. Those blobs must stay loadable,
   // their reserved values must be ignored, and the next durable write must
-  // clear them.
+  // clear them on disk.
   resetHostPersistence();
   BleScanPersistedSettings legacy;
   CHECK(saveBleScanSettings(legacy));
@@ -638,10 +638,15 @@ void p82b_ble_scan_legacy_minute_bytes_stay_readable() {
   CHECK(loaded.reserved0 == 0 && loaded.reserved1 == 0);
   CHECK(loaded.scanIntensity == legacy.scanIntensity);
   CHECK(loaded.enabled == 1);
-  // An unchanged settings save keeps the factory defaults verifiable.
-  BleScanPersistedSettings factory;
-  finalizeBleScanSettings(factory);
-  CHECK(verifyFactoryBleScanSettings(factory));
+  // The next durable write also clears the obsolete bytes on disk.
+  CHECK(persistBleScanSettings(
+      loaded, static_cast<uint8_t>(BleScanIntensity::RELAXED),
+      loaded.enabled));
+  BleScanPersistedSettings onDisk;
+  CHECK(readLatestBleScanSettings(onDisk));
+  CHECK(onDisk.scanIntensity ==
+        static_cast<uint8_t>(BleScanIntensity::RELAXED));
+  CHECK(onDisk.reserved0 == 0 && onDisk.reserved1 == 0);
 }
 
 void p65_factory_settings_survives_second_slot_write_fail() {

@@ -588,3 +588,21 @@ if (!micraMachinePower.includes('LINEA_MICRA_SCALE_OFF_WITH_MACHINE') ||
     !micraStatus.includes('\\"reduceScaleScanningWhenOff\\"')) {
   throw new Error('Scale-off-with-machine must fire once per confirmed ON→OFF edge, warn instead of writing to unsupported scales, and never re-trigger the shutdown cycle');
 }
+
+{
+  // The per-loop machine-power service is the only production seam between
+  // the resolved Micra state and the scale worker's discovery duty; it must
+  // publish the override before the scale power-off early return.
+  const integration = fs.readFileSync(
+      path.join(sketchDir, 'machine', 'ShotStopperLineaMicraIntegration.cpp'), 'utf8');
+  const serviceStart = integration.indexOf('void serviceMachineIntegrationMachinePower(');
+  const seam = integration.slice(serviceStart, integration.indexOf('\n}', serviceStart));
+  const earlyReturn = seam.indexOf('machinePower.service(');
+  if (serviceStart < 0 || earlyReturn < 0 ||
+      !seam.includes('const LineaMicraStatus status = service.status();') ||
+      seam.indexOf('micraScanOverride(') < 0 ||
+      seam.indexOf('applyLiveBleScanOverride(') > earlyReturn) {
+    throw new Error(
+        'serviceMachineIntegrationMachinePower must publish micraScanOverride via applyLiveBleScanOverride before the scale power-off early return');
+  }
+}

@@ -1077,7 +1077,7 @@ void t02b_off_wake_bypasses_brew_guards_and_records_power_on() {
     CHECK(hostMachineCloudInhibitCount == 0);
     CHECK(!noScaleShotGuardHold);
     CHECK(!cupStartGuardHold);
-CHECK(scaleCommandQueue->items.empty());
+    CHECK(scaleCommandQueue->items.empty());
     CHECK(localBuzzer.acceptedRequests == buzzerRequests);
     CHECK(historyLog.count() == 0);
 
@@ -14146,7 +14146,7 @@ void bc06_micra_scan_override_selects_discovery_duty() {
   CHECK(discoveryScanIntensity() == BleScanIntensity::AGGRESSIVE);
 }
 
-void bc07_ble_scan_relaxed_with_override_is_api_valid() {
+void bc07_ble_scan_relaxed_with_disabled_switch_is_api_valid() {
   resetHarness(false, false);
   reachReadyFromBoot();
   WebCommand command = webControlCommand(WebCommandType::BLE_SCAN_INTENSITY);
@@ -19337,7 +19337,7 @@ const TestCase testCases[] = {
     {"SC16", sc16_debug_status_and_log_dump},
     {"BC05", bc05_ble_scan_intensity_applies_live_without_restart},
     {"BC06", bc06_micra_scan_override_selects_discovery_duty},
-    {"BC07", bc07_ble_scan_relaxed_with_override_is_api_valid},
+    {"BC07", bc07_ble_scan_relaxed_with_disabled_switch_is_api_valid},
     {"BC08", bc08_ble_scan_superseded_requests_all_report_persisted},
     {"BC09", bc09_ble_scan_legacy_intensity_ids_parse_as_aliases},
     {"BC10", bc10_ble_master_switch_quiesces_scale_link},
