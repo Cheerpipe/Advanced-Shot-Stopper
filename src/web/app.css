@@ -199,6 +199,7 @@ small{display:block;color:var(--mu)}
 #brewModeRow .hic{flex:none;display:flex;align-items:center;justify-content:center;width:2.4rem;height:2.4rem;border-radius:50%;border:2px solid var(--bd);color:var(--mu);transition:.2s}
 #brewModeRow .hic svg{width:1.2rem;height:1.2rem}
 #brewModeRow:not(.switchPending):has(input:checked){border-color:var(--ac);background:var(--ac);color:var(--on)}
+#brewModeRow:not(.switchPending):has(input:checked) .swL{color:var(--on)}
 #brewModeRow:not(.switchPending):has(input:checked) .swS{color:color-mix(in srgb,var(--on) 78%,transparent)}
 #brewModeRow:not(.switchPending):has(input:checked) .hic{border-color:var(--on);color:var(--on);background:color-mix(in srgb,var(--on) 16%,transparent)}
 #brewModeRow:has(input:focus-visible){outline:3px solid var(--ac);outline-offset:2px}
