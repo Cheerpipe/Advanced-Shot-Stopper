@@ -16,6 +16,8 @@ const routes = {
   '/mobile-menu.js': ['text/javascript', 'scripts/web-preview/mobile-menu.js'],
   '/toolbar-buttons': ['text/html; charset=utf-8', 'scripts/web-preview/toolbar-buttons.html'],
   '/toolbar-buttons.js': ['text/javascript', 'scripts/web-preview/toolbar-buttons.js'],
+  '/preset-cards': ['text/html; charset=utf-8', 'scripts/web-preview/preset-cards.html'],
+  '/preset-cards.js': ['text/javascript', 'scripts/web-preview/preset-cards.js'],
 };
 
 function renderHome() {
