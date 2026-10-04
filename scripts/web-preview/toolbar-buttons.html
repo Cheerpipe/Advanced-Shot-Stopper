@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Toolbar buttons · 10 alternativas</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+body{max-width:880px}
+h1{font-size:1.5rem;margin:.2rem 0 .3rem}
+.lead{color:var(--mu);font-size:.92rem;margin:0 0 .35rem}
+.note{font-size:.8rem;color:var(--mu);margin:.2rem 0}
+#themeToggle{position:fixed;top:.75rem;right:.75rem;z-index:60;height:2.25rem;padding:0 .9rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;box-shadow:var(--ah)}
+.ref{margin:1.15rem 0;padding:1rem;border:1px dashed var(--bd);border-radius:var(--r);background:var(--sf)}
+.ref h2{margin:0;font-size:1.02rem}
+.opt{margin:1.15rem 0;padding:1rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf)}
+.optHead h2{margin:0;font-size:1.02rem}
+.optHead p{margin:.15rem 0 .95rem;color:var(--mu);font-size:.85rem}
+.optBody{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:.85rem}
+.ctx{margin:0;background:var(--in)}
+.ctx legend{font-size:.92rem}
+.mockList{border:1px solid var(--ln);border-radius:.6rem;overflow:hidden;margin:.2rem 0 0;font-size:.8rem;background:var(--sf)}
+.mockRow{display:flex;justify-content:space-between;align-items:baseline;gap:.9rem;padding:.42rem .65rem;border-top:1px solid var(--ln)}
+.mockRow:first-child{border-top:0}
+.mockRow b{font-weight:600}
+.mockRow span{color:var(--mu);font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mockRow.on{background:var(--pa);box-shadow:inset .14rem 0 0 var(--ac)}
+html.theme-dark{color-scheme:dark;--bg:#151515;--sf:#1d1d1d;--in:#242424;--fg:#efefef;--mu:#b2b2b2;--ln:#3c3c3c;--bd:#7d7d7d;--ac:#c45c38;--pri:#c45c38;--on:#fff;--ok:#1a9a3c;--dn:#ffadb5;--wn:#edc17d;--me:#351f23;--mo:#193024;--mw:#33291b;--pa:#352820;--ah:0 -4px 14px rgba(0,0,0,.35)}
+html.theme-light{color-scheme:light}
+
+/* Shared toolbar base for the 10 alternatives */
+.tb{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-top:.65rem}
+.tbBtn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;height:2.4rem;padding:0 .8rem;border:0;border-radius:.6rem;background:transparent;color:var(--fg);font:inherit;font-size:.8rem;font-weight:600;line-height:1;white-space:nowrap;cursor:pointer}
+.tbBtn .g{font-size:.95rem;line-height:1}
+.tbBtn:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.tbBtn.isOn{background:var(--pa);color:var(--ac)}
+.tbDanger{color:var(--dn)}
+.tbDiv{flex:0 0 1px;align-self:stretch;margin:.45rem 0;background:var(--ln)}
+.tbLabel{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mu)}
+.o6Group{display:flex;align-items:center;gap:.1rem;flex-wrap:wrap}
+
+/* 1 · Segmented bar */
+.o1{gap:0;width:fit-content;max-width:100%;padding:.18rem;border:1px solid var(--ln);border-radius:2rem;background:var(--bg)}
+.o1 .tbBtn{height:2rem;padding:0 .8rem;border-radius:1.55rem;color:var(--ac)}
+.o1 .tbBtn:not(.isOn):hover{background:var(--pa)}
+.o1 .isOn{background:var(--ac);color:var(--on)}
+.o1 .tbDanger{color:var(--dn)}
+.o1 .tbDanger:hover{background:var(--me)}
+
+/* 2 · Ghost */
+.o2{gap:.15rem}
+.o2 .tbBtn{color:var(--mu)}
+.o2 .tbBtn:hover,.o2 .isHover{background:var(--pa);color:var(--ac)}
+.o2 .tbDanger{color:var(--dn)}
+.o2 .tbDanger:hover{background:var(--me);color:var(--dn)}
+
+/* 3 · Soft chips */
+.o3{gap:.35rem}
+.o3 .tbBtn{background:var(--in);color:var(--fg)}
+.o3 .tbBtn .g{color:var(--ac)}
+.o3 .tbBtn:hover,.o3 .isHover{background:var(--pa)}
+.o3 .tbDanger{background:var(--me);color:var(--dn)}
+.o3 .tbDanger .g{color:var(--dn)}
+.o3 .tbDanger:hover{filter:brightness(.97)}
+
+/* 4 · Icon only */
+.o4{gap:.15rem}
+.o4 .tbIco{width:2.25rem;height:2.25rem;padding:0;border-radius:.5rem;color:var(--mu);font-size:1.1rem}
+.o4 .tbIco:hover,.o4 .isHover{background:var(--in);color:var(--ac)}
+.o4 .tbIco.tbDanger{color:var(--dn)}
+.o4 .tbIco.tbDanger:hover{background:var(--me)}
+.o4 .o4Sort{display:flex;border:1px solid var(--ln);border-radius:1.4rem;overflow:hidden;margin-right:.3rem;background:var(--bg)}
+.o4 .o4Sort button{height:2.25rem;padding:0 .7rem;border:0;border-radius:0;background:transparent;color:var(--mu);font:inherit;font-size:.78rem;font-weight:600;cursor:pointer}
+.o4 .o4Sort button+button{border-left:1px solid var(--ln)}
+.o4 .o4Sort button[aria-pressed=true]{background:var(--ac);color:var(--on)}
+
+/* 5 · Text actions */
+.o5{gap:0}
+.o5 .tbBtn{height:2rem;padding:.25rem .6rem;border-radius:.4rem;color:var(--mu)}
+.o5 .tbBtn+.tbBtn{border-left:1px solid var(--ln)}
+.o5 .tbBtn:hover,.o5 .isHover{color:var(--ac);text-decoration:underline;text-underline-offset:.2em}
+.o5 .isOn{color:var(--ac);font-weight:700}
+.o5 .tbDanger{color:var(--dn)}
+
+/* 6 · List header */
+.o6{flex-wrap:nowrap;justify-content:space-between;border:1px solid var(--ln);border-bottom:0;border-radius:.6rem .6rem 0 0;background:var(--bg);padding:.25rem .4rem .25rem .65rem;margin-top:.65rem}
+.o6List{margin-top:0;border-top-left-radius:0;border-top-right-radius:0}
+.o6 .tbBtn{height:1.9rem;padding:0 .5rem;border-radius:.4rem;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:var(--mu)}
+.o6 .tbBtn .g{font-size:.85rem}
+.o6 .tbBtn:hover,.o6 .isHover{color:var(--ac);background:var(--pa)}
+.o6 .isOn{color:var(--ac)}
+.o6 .tbDanger{color:var(--dn)}
+
+/* 7 · Compact pills */
+.o7{gap:.4rem}
+.o7 .tbBtn{height:2.25rem;padding:0 .85rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg)}
+.o7 .tbBtn .g{color:var(--mu)}
+.o7 .tbBtn:hover,.o7 .isHover{color:var(--ac);border-color:var(--bd)}
+.o7 .tbDanger{color:var(--dn)}
+.o7 .tbDanger .g{color:var(--dn)}
+
+/* 8 · Tint on press */
+.o8{gap:.2rem}
+.o8 .tbBtn{border-radius:2rem;padding:0 .9rem}
+.o8 .tbBtn:hover,.o8 .isHover{background:var(--pa)}
+.o8 .isOn{background:var(--ac);color:var(--on)}
+.o8 .tbDanger:hover{background:var(--me)}
+
+/* 9 · Split emphasis */
+.o9{gap:.2rem;width:fit-content;max-width:100%;padding:.22rem;border:1px solid var(--ln);border-radius:.8rem;background:var(--bg)}
+.o9 .tbBtn{height:2.05rem;padding:0 .75rem;border-radius:.55rem;color:var(--mu)}
+.o9 .tbPrimary{background:var(--ac);color:var(--on)}
+.o9 .tbPrimary:hover{filter:brightness(1.06)}
+.o9 .tbBtn:hover:not(.tbPrimary){background:var(--pa);color:var(--ac)}
+.o9 .tbDanger{color:var(--dn)}
+.o9 .tbDanger:hover{background:var(--me)}
+
+/* 10 · Floating glass */
+.o10{width:fit-content;max-width:100%;padding:.25rem .35rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);background:color-mix(in srgb,var(--sf) 78%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:var(--ah)}
+.o10 .tbBtn{height:2.1rem;padding:0 .8rem;border-radius:1.6rem;color:var(--ac)}
+.o10 .tbBtn:hover,.o10 .isHover{background:var(--pa)}
+.o10 .isOn{background:var(--ac);color:var(--on)}
+.o10 .tbDanger{color:var(--dn)}
+.o10 .tbDanger:hover{background:var(--me)}
+</style>
+</head>
+<body>
+<button id="themeToggle" type="button">Tema: auto</button>
+<h1>Toolbar buttons · 10 alternativas</h1>
+<p class="lead">Los botones que acompañan a la lista de presets y a la lista de shots actúan como barras de herramientas contextuales, pero hoy usan el estilo global pensado para acciones principales. Estas 10 alternativas exploran tratamientos más ligeros y agrupados, manteniendo los mismos botones, iconos y textos. La maqueta es estática: no hay cambios implementados.</p>
+<p class="note">En todas las alternativas «Clear» se muestra como acción destructiva; hoy usa el estilo relleno primario. El mismo tratamiento aplicaría a la barra de Activation history. Usa el botón de la esquina para ver el tema claro u oscuro; en «auto» sigue la preferencia del sistema.</p>
+
+<section class="ref">
+  <h2>Referencia · estilo actual</h2>
+  <p class="optHead" style="margin:.15rem 0 .95rem;color:var(--mu);font-size:.85rem">Píldora global de 3&nbsp;rem con borde y relleno de acento en «Clear»: el mismo lenguaje de los botones principales de la app, aplicado a barras contextuales.</p>
+  <div class="optBody">
+    <fieldset class="ctx"><legend>Presets</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>Classic 18g</b><span>20 g in · 40 g out · 28 s</span></div>
+        <div class="mockRow on"><b>Light roast</b><span>18 g in · 36 g out · 30 s</span></div>
+        <div class="mockRow"><b>Decaf SHB</b><span>17 g in · 34 g out · 26 s</span></div>
+      </div>
+      <div class="presetActions">
+        <button type="button" class="btnGlyph"><span class="g">+</span><span class="t">New</span></button>
+        <button type="button" class="btnGlyph"><span class="g">⧉</span><span class="t">Duplicate</span></button>
+        <button type="button" class="btnGlyph"><span class="g">↻</span><span class="t">Reset</span></button>
+        <button type="button" class="btnGlyph btnDanger"><span class="g">×</span><span class="t">Delete</span></button>
+      </div>
+    </fieldset>
+    <fieldset class="ctx"><legend>Shot history</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>10:42</b><span>28 s · 36.2 g · ★ 4.5</span></div>
+        <div class="mockRow"><b>10:15</b><span>27 s · 36.0 g · ★ 4.0</span></div>
+        <div class="mockRow"><b>09:47</b><span>29 s · 35.8 g · ★ 3.5</span></div>
+      </div>
+      <div class="btnBar">
+        <div class="shotSort" aria-label="Sort history"><button type="button" aria-pressed="true">Date</button><button type="button">Rating</button><button type="button" aria-label="Newest first">↓</button></div>
+        <button type="button" class="btnGlyph"><span class="g">↓</span><span class="t">Export CSV</span></button>
+        <button type="button" class="btnGlyph btnInvert"><span class="g">×</span><span class="t">Clear</span></button>
+      </div>
+    </fieldset>
+  </div>
+</section>
+
+<section class="opt" id="o1">
+  <header class="optHead"><h2>1 · Barra segmentada</h2><p>Un único contenedor con divisores finos agrupa las acciones como un control segmentado; la opción activa se rellena con el acento. Reutiliza el lenguaje del selector de orden del historial.</p></header>
+  <div class="optBody">
+    <fieldset class="ctx"><legend>Presets</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>Classic 18g</b><span>20 g in · 40 g out · 28 s</span></div>
+        <div class="mockRow on"><b>Light roast</b><span>18 g in · 36 g out · 30 s</span></div>
+        <div class="mockRow"><b>Decaf SHB</b><span>17 g in · 34 g out · 26 s</span></div>
+      </div>
+      <div class="tb o1" aria-label="Preset actions">
+        <button type="button" class="tbBtn"><span class="g">+</span><span class="t">New</span></button>
+        <button type="button" class="tbBtn"><span class="g">⧉</span><span class="t">Duplicate</span></button>
+        <button type="button" class="tbBtn"><span class="g">↻</span><span class="t">Reset</span></button>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Delete</span></button>
+      </div>
+    </fieldset>
+    <fieldset class="ctx"><legend>Shot history</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>10:42</b><span>28 s · 36.2 g · ★ 4.5</span></div>
+        <div class="mockRow"><b>10:15</b><span>27 s · 36.0 g · ★ 4.0</span></div>
+        <div class="mockRow"><b>09:47</b><span>29 s · 35.8 g · ★ 3.5</span></div>
+      </div>
+      <div class="tb o1" aria-label="Shot history actions">
+        <button type="button" class="tbBtn isOn" aria-pressed="true">Date</button>
+        <button type="button" class="tbBtn">Rating</button>
+        <button type="button" class="tbBtn" aria-label="Newest first">↓</button>
+        <span class="tbDiv" aria-hidden="true"></span>
+        <button type="button" class="tbBtn"><span class="g">↓</span><span class="t">Export CSV</span></button>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Clear</span></button>
+      </div>
+    </fieldset>
+  </div>
+</section>
+
+<section class="opt" id="o2">
+  <header class="optHead"><h2>2 · Fantasma</h2><p>Sin bordes ni fondo en reposo: el gris neutro mantiene la barra en segundo plano y el acento solo aparece al pasar el cursor («Duplicate» simula el estado hover).</p></header>
+  <div class="optBody">
+    <fieldset class="ctx"><legend>Presets</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>Classic 18g</b><span>20 g in · 40 g out · 28 s</span></div>
+        <div class="mockRow on"><b>Light roast</b><span>18 g in · 36 g out · 30 s</span></div>
+        <div class="mockRow"><b>Decaf SHB</b><span>17 g in · 34 g out · 26 s</span></div>
+      </div>
+      <div class="tb o2" aria-label="Preset actions">
+        <button type="button" class="tbBtn"><span class="g">+</span><span class="t">New</span></button>
+        <button type="button" class="tbBtn isHover"><span class="g">⧉</span><span class="t">Duplicate</span></button>
+        <button type="button" class="tbBtn"><span class="g">↻</span><span class="t">Reset</span></button>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Delete</span></button>
+      </div>
+    </fieldset>
+    <fieldset class="ctx"><legend>Shot history</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>10:42</b><span>28 s · 36.2 g · ★ 4.5</span></div>
+        <div class="mockRow"><b>10:15</b><span>27 s · 36.0 g · ★ 4.0</span></div>
+        <div class="mockRow"><b>09:47</b><span>29 s · 35.8 g · ★ 3.5</span></div>
+      </div>
+      <div class="tb o2" aria-label="Shot history actions">
+        <button type="button" class="tbBtn isOn" aria-pressed="true">Date</button>
+        <button type="button" class="tbBtn">Rating</button>
+        <button type="button" class="tbBtn" aria-label="Newest first">↓</button>
+        <span class="tbDiv" aria-hidden="true"></span>
+        <button type="button" class="tbBtn"><span class="g">↓</span><span class="t">Export CSV</span></button>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Clear</span></button>
+      </div>
+    </fieldset>
+  </div>
+</section>
+
+<section class="opt" id="o3">
+  <header class="optHead"><h2>3 · Chips suaves</h2><p>Pastillas con fondo neutro y sin borde; el icono toma el acento y la destructiva lleva un tinte rojo propio, siempre visible sin llegar al peso de un botón primario.</p></header>
+  <div class="optBody">
+    <fieldset class="ctx"><legend>Presets</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>Classic 18g</b><span>20 g in · 40 g out · 28 s</span></div>
+        <div class="mockRow on"><b>Light roast</b><span>18 g in · 36 g out · 30 s</span></div>
+        <div class="mockRow"><b>Decaf SHB</b><span>17 g in · 34 g out · 26 s</span></div>
+      </div>
+      <div class="tb o3" aria-label="Preset actions">
+        <button type="button" class="tbBtn"><span class="g">+</span><span class="t">New</span></button>
+        <button type="button" class="tbBtn isHover"><span class="g">⧉</span><span class="t">Duplicate</span></button>
+        <button type="button" class="tbBtn"><span class="g">↻</span><span class="t">Reset</span></button>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Delete</span></button>
+      </div>
+    </fieldset>
+    <fieldset class="ctx"><legend>Shot history</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>10:42</b><span>28 s · 36.2 g · ★ 4.5</span></div>
+        <div class="mockRow"><b>10:15</b><span>27 s · 36.0 g · ★ 4.0</span></div>
+        <div class="mockRow"><b>09:47</b><span>29 s · 35.8 g · ★ 3.5</span></div>
+      </div>
+      <div class="tb o3" aria-label="Shot history actions">
+        <button type="button" class="tbBtn isOn" aria-pressed="true">Date</button>
+        <button type="button" class="tbBtn">Rating</button>
+        <button type="button" class="tbBtn" aria-label="Newest first">↓</button>
+        <span class="tbDiv" aria-hidden="true"></span>
+        <button type="button" class="tbBtn"><span class="g">↓</span><span class="t">Export CSV</span></button>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Clear</span></button>
+      </div>
+    </fieldset>
+  </div>
+</section>
+
+<section class="opt" id="o4">
+  <header class="optHead"><h2>4 · Solo iconos</h2><p>La opción más compacta: botones cuadrados de solo icono con <em>tooltip</em> y etiqueta accesible; la acción destructiva queda separada por un divisor. El orden se mantiene como control de texto.</p></header>
+  <div class="optBody">
+    <fieldset class="ctx"><legend>Presets</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>Classic 18g</b><span>20 g in · 40 g out · 28 s</span></div>
+        <div class="mockRow on"><b>Light roast</b><span>18 g in · 36 g out · 30 s</span></div>
+        <div class="mockRow"><b>Decaf SHB</b><span>17 g in · 34 g out · 26 s</span></div>
+      </div>
+      <div class="tb o4" aria-label="Preset actions">
+        <button type="button" class="tbBtn tbIco" title="New" aria-label="New">+</button>
+        <button type="button" class="tbBtn tbIco isHover" title="Duplicate" aria-label="Duplicate">⧉</button>
+        <button type="button" class="tbBtn tbIco" title="Reset" aria-label="Reset">↻</button>
+        <span class="tbDiv" aria-hidden="true"></span>
+        <button type="button" class="tbBtn tbIco tbDanger" title="Delete" aria-label="Delete">×</button>
+      </div>
+    </fieldset>
+    <fieldset class="ctx"><legend>Shot history</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>10:42</b><span>28 s · 36.2 g · ★ 4.5</span></div>
+        <div class="mockRow"><b>10:15</b><span>27 s · 36.0 g · ★ 4.0</span></div>
+        <div class="mockRow"><b>09:47</b><span>29 s · 35.8 g · ★ 3.5</span></div>
+      </div>
+      <div class="tb o4" aria-label="Shot history actions">
+        <span class="o4Sort" aria-label="Sort history"><button type="button" aria-pressed="true">Date</button><button type="button">Rating</button><button type="button" aria-label="Newest first">↓</button></span>
+        <button type="button" class="tbBtn tbIco" title="Export CSV" aria-label="Export CSV">↓</button>
+        <button type="button" class="tbBtn tbIco tbDanger" title="Clear" aria-label="Clear">×</button>
+      </div>
+    </fieldset>
+  </div>
+</section>
+
+<section class="opt" id="o5">
+  <header class="optHead"><h2>5 · Acciones de texto</h2><p>Botones de texto pequeños con divisores finos; el peso visual mínimo los acerca a los enlaces de acción de una lista, con subrayado y acento al pasar el cursor.</p></header>
+  <div class="optBody">
+    <fieldset class="ctx"><legend>Presets</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>Classic 18g</b><span>20 g in · 40 g out · 28 s</span></div>
+        <div class="mockRow on"><b>Light roast</b><span>18 g in · 36 g out · 30 s</span></div>
+        <div class="mockRow"><b>Decaf SHB</b><span>17 g in · 34 g out · 26 s</span></div>
+      </div>
+      <div class="tb o5" aria-label="Preset actions">
+        <button type="button" class="tbBtn">New</button>
+        <button type="button" class="tbBtn isHover">Duplicate</button>
+        <button type="button" class="tbBtn">Reset</button>
+        <button type="button" class="tbBtn tbDanger">Delete</button>
+      </div>
+    </fieldset>
+    <fieldset class="ctx"><legend>Shot history</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>10:42</b><span>28 s · 36.2 g · ★ 4.5</span></div>
+        <div class="mockRow"><b>10:15</b><span>27 s · 36.0 g · ★ 4.0</span></div>
+        <div class="mockRow"><b>09:47</b><span>29 s · 35.8 g · ★ 3.5</span></div>
+      </div>
+      <div class="tb o5" aria-label="Shot history actions">
+        <button type="button" class="tbBtn isOn" aria-pressed="true">Date</button>
+        <button type="button" class="tbBtn">Rating</button>
+        <button type="button" class="tbBtn" aria-label="Newest first">↓</button>
+        <span class="tbDiv" aria-hidden="true"></span>
+        <button type="button" class="tbBtn">Export CSV</button>
+        <button type="button" class="tbBtn tbDanger">Clear</button>
+      </div>
+    </fieldset>
+  </div>
+</section>
+
+<section class="opt" id="o6">
+  <header class="optHead"><h2>6 · Cabecera de lista</h2><p>La barra se funde con la cabecera de la lista: etiqueta de contexto a la izquierda y acciones en mayúsculas pequeñas a la derecha, unidas visualmente a las filas de abajo.</p></header>
+  <div class="optBody">
+    <fieldset class="ctx"><legend>Presets</legend>
+      <div class="tb o6" aria-label="Preset actions">
+        <span class="tbLabel">Presets · 3</span>
+        <span class="o6Group">
+          <button type="button" class="tbBtn"><span class="g">+</span><span class="t">New</span></button>
+          <button type="button" class="tbBtn isHover"><span class="g">⧉</span><span class="t">Duplicate</span></button>
+          <button type="button" class="tbBtn"><span class="g">↻</span><span class="t">Reset</span></button>
+          <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Delete</span></button>
+        </span>
+      </div>
+      <div class="mockList o6List">
+        <div class="mockRow"><b>Classic 18g</b><span>20 g in · 40 g out · 28 s</span></div>
+        <div class="mockRow on"><b>Light roast</b><span>18 g in · 36 g out · 30 s</span></div>
+        <div class="mockRow"><b>Decaf SHB</b><span>17 g in · 34 g out · 26 s</span></div>
+      </div>
+    </fieldset>
+    <fieldset class="ctx"><legend>Shot history</legend>
+      <div class="tb o6" aria-label="Shot history actions">
+        <span class="tbLabel">Shots · 23</span>
+        <span class="o6Group">
+          <button type="button" class="tbBtn isOn" aria-pressed="true">Date</button>
+          <button type="button" class="tbBtn">Rating</button>
+          <button type="button" class="tbBtn" aria-label="Newest first">↓</button>
+          <button type="button" class="tbBtn"><span class="g">↓</span><span class="t">Export CSV</span></button>
+          <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Clear</span></button>
+        </span>
+      </div>
+      <div class="mockList o6List">
+        <div class="mockRow"><b>10:42</b><span>28 s · 36.2 g · ★ 4.5</span></div>
+        <div class="mockRow"><b>10:15</b><span>27 s · 36.0 g · ★ 4.0</span></div>
+        <div class="mockRow"><b>09:47</b><span>29 s · 35.8 g · ★ 3.5</span></div>
+      </div>
+    </fieldset>
+  </div>
+</section>
+
+<section class="opt" id="o7">
+  <header class="optHead"><h2>7 · Píldoras compactas</h2><p>Conserva el ADN píldora del estilo actual, pero con altura reducida, ancho automático e icono neutro: la barra deja de competir con las acciones principales de la app.</p></header>
+  <div class="optBody">
+    <fieldset class="ctx"><legend>Presets</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>Classic 18g</b><span>20 g in · 40 g out · 28 s</span></div>
+        <div class="mockRow on"><b>Light roast</b><span>18 g in · 36 g out · 30 s</span></div>
+        <div class="mockRow"><b>Decaf SHB</b><span>17 g in · 34 g out · 26 s</span></div>
+      </div>
+      <div class="tb o7" aria-label="Preset actions">
+        <button type="button" class="tbBtn"><span class="g">+</span><span class="t">New</span></button>
+        <button type="button" class="tbBtn isHover"><span class="g">⧉</span><span class="t">Duplicate</span></button>
+        <button type="button" class="tbBtn"><span class="g">↻</span><span class="t">Reset</span></button>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Delete</span></button>
+      </div>
+    </fieldset>
+    <fieldset class="ctx"><legend>Shot history</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>10:42</b><span>28 s · 36.2 g · ★ 4.5</span></div>
+        <div class="mockRow"><b>10:15</b><span>27 s · 36.0 g · ★ 4.0</span></div>
+        <div class="mockRow"><b>09:47</b><span>29 s · 35.8 g · ★ 3.5</span></div>
+      </div>
+      <div class="tb o7" aria-label="Shot history actions">
+        <button type="button" class="tbBtn isOn" aria-pressed="true">Date</button>
+        <button type="button" class="tbBtn">Rating</button>
+        <button type="button" class="tbBtn" aria-label="Newest first">↓</button>
+        <span class="tbDiv" aria-hidden="true"></span>
+        <button type="button" class="tbBtn"><span class="g">↓</span><span class="t">Export CSV</span></button>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Clear</span></button>
+      </div>
+    </fieldset>
+  </div>
+</section>
+
+<section class="opt" id="o8">
+  <header class="optHead"><h2>8 · Tinte al pasar</h2><p>Sin relieve en reposo: un tinte suave al pasar el cursor y relleno de acento en el estado activo («Date») mantienen la identidad redondeada con mucho menos ruido.</p></header>
+  <div class="optBody">
+    <fieldset class="ctx"><legend>Presets</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>Classic 18g</b><span>20 g in · 40 g out · 28 s</span></div>
+        <div class="mockRow on"><b>Light roast</b><span>18 g in · 36 g out · 30 s</span></div>
+        <div class="mockRow"><b>Decaf SHB</b><span>17 g in · 34 g out · 26 s</span></div>
+      </div>
+      <div class="tb o8" aria-label="Preset actions">
+        <button type="button" class="tbBtn"><span class="g">+</span><span class="t">New</span></button>
+        <button type="button" class="tbBtn isHover"><span class="g">⧉</span><span class="t">Duplicate</span></button>
+        <button type="button" class="tbBtn"><span class="g">↻</span><span class="t">Reset</span></button>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Delete</span></button>
+      </div>
+    </fieldset>
+    <fieldset class="ctx"><legend>Shot history</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>10:42</b><span>28 s · 36.2 g · ★ 4.5</span></div>
+        <div class="mockRow"><b>10:15</b><span>27 s · 36.0 g · ★ 4.0</span></div>
+        <div class="mockRow"><b>09:47</b><span>29 s · 35.8 g · ★ 3.5</span></div>
+      </div>
+      <div class="tb o8" aria-label="Shot history actions">
+        <button type="button" class="tbBtn isOn" aria-pressed="true">Date</button>
+        <button type="button" class="tbBtn">Rating</button>
+        <button type="button" class="tbBtn" aria-label="Newest first">↓</button>
+        <span class="tbDiv" aria-hidden="true"></span>
+        <button type="button" class="tbBtn"><span class="g">↓</span><span class="t">Export CSV</span></button>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Clear</span></button>
+      </div>
+    </fieldset>
+  </div>
+</section>
+
+<section class="opt" id="o9">
+  <header class="optHead"><h2>9 · Énfasis dividido</h2><p>Un contenedor único jerarquiza la barra: acción principal rellena (New / Export CSV), secundarias en texto neutro y la destructiva separada por un divisor.</p></header>
+  <div class="optBody">
+    <fieldset class="ctx"><legend>Presets</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>Classic 18g</b><span>20 g in · 40 g out · 28 s</span></div>
+        <div class="mockRow on"><b>Light roast</b><span>18 g in · 36 g out · 30 s</span></div>
+        <div class="mockRow"><b>Decaf SHB</b><span>17 g in · 34 g out · 26 s</span></div>
+      </div>
+      <div class="tb o9" aria-label="Preset actions">
+        <button type="button" class="tbBtn tbPrimary"><span class="g">+</span><span class="t">New</span></button>
+        <button type="button" class="tbBtn"><span class="g">⧉</span><span class="t">Duplicate</span></button>
+        <button type="button" class="tbBtn"><span class="g">↻</span><span class="t">Reset</span></button>
+        <span class="tbDiv" aria-hidden="true"></span>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Delete</span></button>
+      </div>
+    </fieldset>
+    <fieldset class="ctx"><legend>Shot history</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>10:42</b><span>28 s · 36.2 g · ★ 4.5</span></div>
+        <div class="mockRow"><b>10:15</b><span>27 s · 36.0 g · ★ 4.0</span></div>
+        <div class="mockRow"><b>09:47</b><span>29 s · 35.8 g · ★ 3.5</span></div>
+      </div>
+      <div class="tb o9" aria-label="Shot history actions">
+        <button type="button" class="tbBtn isOn" aria-pressed="true">Date</button>
+        <button type="button" class="tbBtn">Rating</button>
+        <button type="button" class="tbBtn" aria-label="Newest first">↓</button>
+        <span class="tbDiv" aria-hidden="true"></span>
+        <button type="button" class="tbBtn tbPrimary"><span class="g">↓</span><span class="t">Export CSV</span></button>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Clear</span></button>
+      </div>
+    </fieldset>
+  </div>
+</section>
+
+<section class="opt" id="o10">
+  <header class="optHead"><h2>10 · Cristal flotante</h2><p>Barra translúcida con desenfoque y sombra flotante, pensada para fijarse al hacer scroll igual que hoy la barra del historial de shots; botones planos en acento con la destructiva en rojo.</p></header>
+  <div class="optBody">
+    <fieldset class="ctx"><legend>Presets</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>Classic 18g</b><span>20 g in · 40 g out · 28 s</span></div>
+        <div class="mockRow on"><b>Light roast</b><span>18 g in · 36 g out · 30 s</span></div>
+        <div class="mockRow"><b>Decaf SHB</b><span>17 g in · 34 g out · 26 s</span></div>
+      </div>
+      <div class="tb o10" aria-label="Preset actions">
+        <button type="button" class="tbBtn"><span class="g">+</span><span class="t">New</span></button>
+        <button type="button" class="tbBtn isHover"><span class="g">⧉</span><span class="t">Duplicate</span></button>
+        <button type="button" class="tbBtn"><span class="g">↻</span><span class="t">Reset</span></button>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Delete</span></button>
+      </div>
+    </fieldset>
+    <fieldset class="ctx"><legend>Shot history</legend>
+      <div class="mockList">
+        <div class="mockRow"><b>10:42</b><span>28 s · 36.2 g · ★ 4.5</span></div>
+        <div class="mockRow"><b>10:15</b><span>27 s · 36.0 g · ★ 4.0</span></div>
+        <div class="mockRow"><b>09:47</b><span>29 s · 35.8 g · ★ 3.5</span></div>
+      </div>
+      <div class="tb o10" aria-label="Shot history actions">
+        <button type="button" class="tbBtn isOn" aria-pressed="true">Date</button>
+        <button type="button" class="tbBtn">Rating</button>
+        <button type="button" class="tbBtn" aria-label="Newest first">↓</button>
+        <span class="tbDiv" aria-hidden="true"></span>
+        <button type="button" class="tbBtn"><span class="g">↓</span><span class="t">Export CSV</span></button>
+        <button type="button" class="tbBtn tbDanger"><span class="g">×</span><span class="t">Clear</span></button>
+      </div>
+    </fieldset>
+  </div>
+</section>
+
+<script src="/toolbar-buttons.js" defer></script>
+</body>
+</html>

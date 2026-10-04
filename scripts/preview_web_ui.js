@@ -14,6 +14,8 @@ const routes = {
   '/preview.js': ['text/javascript', 'scripts/web-preview/header.js'],
   '/mobile-menu.css': ['text/css', 'scripts/web-preview/mobile-menu.css'],
   '/mobile-menu.js': ['text/javascript', 'scripts/web-preview/mobile-menu.js'],
+  '/toolbar-buttons': ['text/html; charset=utf-8', 'scripts/web-preview/toolbar-buttons.html'],
+  '/toolbar-buttons.js': ['text/javascript', 'scripts/web-preview/toolbar-buttons.js'],
 };
 
 function renderHome() {
