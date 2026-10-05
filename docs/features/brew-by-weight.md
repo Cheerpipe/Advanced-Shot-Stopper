@@ -38,7 +38,9 @@ pulses depend on machine-state confirmation: see
 Defaults below describe factory Double; see [Presets](presets.md) for Single.
 These live on the **active preset** under **Settings → Brew**, except where
 noted. **Home → Quick Settings** can toggle brew by weight for the session
-(Manual).
+(Manual) and shows the active preset's guard limits as one time-to-weight
+chart: the brew window with its target, the Fast guard's recovery ceiling,
+and the Slow guard's recovery floor, each drawn from the saved settings.
 
 | Setting | Default | Range | Effect on the shot |
 | --- | --- | --- | --- |

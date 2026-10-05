@@ -764,7 +764,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
 
 {
   const start = js.indexOf('function buildRuleChartModel(');
-  const end = js.indexOf('let ruleChartSig=');
+  const end = js.indexOf('const RULE_FAST=');
   if (start < 0 || end < 0 || end <= start) {
     throw new Error('Rule chart model helpers not found for matrix checks');
   }
@@ -778,56 +778,59 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
     operationalWallMs: 50000,
     minBbwBrewTimeMs: 28000,
     maxBbwBrewTimeMs: 44000,
+    bbwProtectionMs: 12000,
     goalWeightG: 36,
     minRecoveryWeightG: 34,
     maxRecoveryWeightG: 42.5,
   };
-  const kinds = (segs) => (segs || []).map((s) => s[0]).join(',');
   const off = helpers.buildRuleChartModel({...base, brewByWeight: false});
-  if (off.mode !== 'timerOnly' || kinds(off.tSeg) !== 'idle' ||
-      kinds(off.wSeg) !== 'idle' || off.fs) {
-    throw new Error('Rule chart: BBW off must be timerOnly idle (ignore guard flags)');
+  if (off.mode !== 'timerOnly' || off.fast || off.slow) {
+    throw new Error('Rule chart: BBW off must be timerOnly (ignore guard flags)');
   }
   const both = helpers.buildRuleChartModel(base);
-  if (both.mode !== 'active' || kinds(both.tSeg) !== 'fast,bbw,slow' ||
-      kinds(both.wSeg) !== 'slow,bbw,fast' || !both.fs || both.goal !== 36) {
-    throw new Error('Rule chart: BBW+Fast+Slow matrix row failed');
+  if (both.mode !== 'active' || !both.fast || !both.slow ||
+      both.wall !== 50 || both.tMin !== 28 || both.tMax !== 44 ||
+      both.prot !== 12 || both.goal !== 36 || both.floor !== 34 ||
+      both.ceil !== 42.5) {
+    throw new Error('Rule chart: every limit must come from settings, never baked in');
   }
   const fastOnly = helpers.buildRuleChartModel({
     ...base, slowExtractionGuardEnabled: false
   });
-  if (kinds(fastOnly.tSeg) !== 'fast,bbw' ||
-      kinds(fastOnly.wSeg) !== 'bbw,fast' || !fastOnly.fs) {
-    throw new Error('Rule chart: Fast on / Slow off must extend BBW into Slow');
+  if (fastOnly.fast !== true || fastOnly.slow !== false) {
+    throw new Error('Rule chart: Fast on / Slow off flags failed');
   }
   const slowOnly = helpers.buildRuleChartModel({
     ...base, fastExtractionGuardEnabled: false
   });
-  if (kinds(slowOnly.tSeg) !== 'bbw,slow' ||
-      kinds(slowOnly.wSeg) !== 'slow,bbw' || slowOnly.fs) {
-    throw new Error('Rule chart: Fast off / Slow on must extend BBW into Fast');
+  if (slowOnly.fast !== false || slowOnly.slow !== true) {
+    throw new Error('Rule chart: Fast off / Slow on flags failed');
   }
   const none = helpers.buildRuleChartModel({
     ...base, fastExtractionGuardEnabled: false,
     slowExtractionGuardEnabled: false
   });
-  if (kinds(none.tSeg) !== 'bbw' || kinds(none.wSeg) !== 'bbw' ||
-      none.fs || none.goal !== 36) {
-    throw new Error('Rule chart: both guards off must be BBW-only with goal');
+  if (none.fast !== false || none.slow !== false || none.mode !== 'active') {
+    throw new Error('Rule chart: both guards off must stay BBW-active');
   }
-  const goalTick = (m) => (m.wTick || []).some((t) => t[0] === base.goalWeightG);
-  if (!goalTick(both) || !goalTick(fastOnly) ||
-      goalTick(slowOnly) || goalTick(none)) {
-    throw new Error(
-        'Rule chart: goal weight tick must appear only with Fast guard on');
+  const noProtection = helpers.buildRuleChartModel({...base, bbwProtectionMs: undefined});
+  if (noProtection.prot !== 0) {
+    throw new Error('Rule chart: missing protection time must fall back to 0');
+  }
+  const clamped = helpers.buildRuleChartModel({...base, bbwProtectionMs: 90000});
+  if (clamped.prot !== 28) {
+    throw new Error('Rule chart: protection time must clamp to the fast gate');
   }
   const ignoredGuards = helpers.buildRuleChartModel({
     ...base, brewByWeight: false, fastExtractionGuardEnabled: true,
     slowExtractionGuardEnabled: true
   });
-  if (ignoredGuards.mode !== 'timerOnly' ||
-      kinds(ignoredGuards.tSeg) !== 'idle') {
+  if (ignoredGuards.mode !== 'timerOnly' || ignoredGuards.fast) {
     throw new Error('Rule chart: guards must be ignored when BBW is off');
+  }
+  const empty = helpers.buildRuleChartModel(null);
+  if (empty.mode !== 'empty') {
+    throw new Error('Rule chart: no config must render nothing');
   }
 }
 

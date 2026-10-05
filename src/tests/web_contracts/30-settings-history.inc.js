@@ -329,7 +329,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !css.includes('.homeGuardGrid{') ||
     !css.includes('grid-template-columns:repeat(2,minmax(0,1fr))') ||
     !css.includes('#brewModeRow .swL{font-size:1.05rem;font-weight:700;line-height:1.2;color:var(--fg);letter-spacing:0}') ||
-    !css.includes('.ruleChartHead strong,.ruleChartMode{display:none}') ||
+    css.includes('.ruleChartHead') || css.includes('.ruleChartMode') ||
     !css.includes('.switchRow.switchPending .slider,.switchRow.switchPending input:checked+.slider{background:var(--wn);border-color:var(--wn)}') ||
     !ui.includes('function persistHomeBrewByWeight(') ||
     !ui.includes("onchange=R.persistHomeBrewByWeight") ||

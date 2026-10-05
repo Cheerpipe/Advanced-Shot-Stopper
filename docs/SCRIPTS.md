@@ -175,7 +175,11 @@ arrives at 36 g and holds flat from 28 to 44 s, closing with an X; at
 34 g floor and the 36 g target, and the blue flat 34 g cut runs to the
 50 s machine limit, closing with another X. The weight and time labels
 are the same HTML tick elements (.68 rem muted ink) the stats charts
-use, so they keep a fixed size instead of scaling with the drawing.
+use, so they keep a fixed size instead of scaling with the drawing. Because the labels keep a
+fixed size while the drawing scales, the chart computes the minimum
+separation the lines need and quantizes any pair that ends up closer -
+the lower line moves down into the free space below the guard zone - so
+every weight label always rides on its own line.
 Preset cards switch between Double and Single inside the panel at desktop
 and phone width, and the corner **Tema** button cycles auto, light, and
 dark. Readings are simulated; the preview does not connect to a device or

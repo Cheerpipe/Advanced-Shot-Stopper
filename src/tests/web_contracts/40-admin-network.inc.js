@@ -42,29 +42,32 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
     !ui.includes('baseRevision') ||
     !network.includes('ringRetainLogLevel') ||
     !html.includes('id="ruleChart"') ||
-    !html.includes('id="ruleChartTimeTrack"') ||
-    !html.includes('id="ruleChartWeightTrack"') ||
+    html.includes('id="ruleChartTimeTrack"') ||
+    html.includes('id="ruleChartWeightTrack"') ||
     html.indexOf('id="ruleChart"') < html.indexOf('id="homePresetCards"') ||
     html.indexOf('id="ruleChart"') > html.indexOf('id="equipmentPanel"') ||
     html.includes('Extraction rules') ||
     !css.includes('.ruleChart') ||
-    !css.includes('.ruleLegFast:before,.ruleSeg-fast{background:#d97706}') ||
-    !css.includes('.ruleLegBbw:before,.ruleSeg-bbw{background:var(--ok)}') ||
-    !css.includes('.ruleLegSlow:before,.ruleSeg-slow{background:#2563eb}') ||
-    !css.includes('.ruleChartIdle') ||
+    !css.includes('.ruleLegFast:before{background:#d97706}') ||
+    !css.includes('.ruleLegBbw:before{background:var(--ok)}') ||
+    !css.includes('.ruleLegSlow:before{background:#2563eb}') ||
+    css.includes('.ruleSeg') || css.includes('.ruleChartTrack') ||
+    !css.includes('.rulePlotWrap{position:relative;padding-right:1.4rem}') ||
+    !css.includes('#ruleChart .shotYTick{background:var(--sf)') ||
     !ui.includes('function buildRuleChartModel(') ||
     !ui.includes('function renderRuleChart(') ||
     !ui.includes('function updateRuleChartFromStatus(') ||
     !ui.includes('updateRuleChartFromStatus(s)') ||
     !ui.includes('bbw&&!!c.fastExtractionGuardEnabled') ||
     !ui.includes('bbw&&!!c.slowExtractionGuardEnabled') ||
-    !ui.includes("mode:'timerOnly'") ||
-    !ui.includes("['fast'") ||
-    !ui.includes("['bbw'") ||
-    !ui.includes("['slow'") ||
-    !ui.includes("['idle'") ||
-    !ui.includes("if($('ruleChartPreset'))$('ruleChartPreset').textContent=''") ||
-    !ui.includes("if($('ruleChartMode'))$('ruleChartMode').textContent=''") ||
+    !ui.includes("'timerOnly'") ||
+    !ui.includes("'active'") ||
+    !ui.includes("Number.isFinite(pv)?Math.max(0,Math.min(pv") ||
+    !ui.includes("RULE_SLOW='#5594dd'") ||
+    !ui.includes('rulePlotWrap') ||
+    !ui.includes('bbwProtectionMs') ||
+    !ui.includes('RULE_GAP_PX*RULE_W/Math.max(120,wrap.clientWidth-RULE_GUT)') ||
+    !runtimeJs.includes('vector-effect="non-scaling-stroke"') ||
     !firmware.includes('SERIAL_DEBUG_ON') ||
     !firmware.includes('SERIAL_DEBUG_OFF') ||
     !firmware.includes('DEBUG_FULL') ||

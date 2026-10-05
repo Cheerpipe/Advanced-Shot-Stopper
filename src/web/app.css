@@ -387,24 +387,21 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 
 .ruleChart{margin:.35rem 0 .15rem}
 #presetPanel .ruleChart{margin-top:1rem}
-.ruleChartHead strong,.ruleChartMode{display:none}
 .ruleChartLegend{display:flex;flex-wrap:wrap;gap:.55rem;margin:0 0 .55rem;font-size:.75rem;font-weight:600}
 .ruleLeg{display:inline-flex;align-items:center;gap:.3rem}
 .ruleLeg:before{content:"";width:.7rem;height:.7rem;border-radius:.15rem;display:inline-block}
-.ruleLegFast:before,.ruleSeg-fast{background:#d97706}
-.ruleLegBbw:before,.ruleSeg-bbw{background:var(--ok)}
-.ruleLegSlow:before,.ruleSeg-slow{background:#2563eb}
-.ruleChartRow{margin:0 0 .65rem}
+.ruleLegFast:before{background:#d97706}
+.ruleLegBbw:before{background:var(--ok)}
+.ruleLegSlow:before{background:#2563eb}
 .ruleChartLabel{font-size:.78rem;font-weight:700;margin:0 0 .75rem;color:var(--fg)}
-.ruleChartTrack{position:relative;display:block;height:1.5rem;background:var(--ln);border-radius:.5rem;overflow:hidden}
-.ruleSeg{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.68rem;font-weight:700;line-height:1;overflow:hidden;white-space:nowrap;padding:0 .2rem}
-.ruleSeg-idle{background:#9ca3af;color:transparent}
+.rulePlotWrap{position:relative;padding-right:1.4rem}
+#ruleChart .rulePlot{display:block;width:100%;height:auto}
+#ruleChart .shotYTick{background:var(--sf);padding:0 .15rem}
 .ruleChartTicks{position:relative;height:1.05rem;margin:.15rem .1rem 0;font-size:.68rem;color:var(--mu);overflow:hidden}
 .ruleTick{position:absolute;transform:translateX(-50%);white-space:nowrap;top:0}
 .ruleTick:first-child{transform:translateX(0)}
 .ruleTick:last-child{transform:translateX(-100%)}
-.ruleChartIdle .ruleSeg-idle{background:#b0b0b0}
-@media(max-width:420px){.ruleSeg{font-size:.6rem}.ruleChartTicks{font-size:.62rem}}
+@media(max-width:420px){.ruleChartTicks{font-size:.62rem}}
 
 .logSep{border:0;border-top:1px solid var(--ln);margin:1rem 0}
 

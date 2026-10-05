@@ -445,7 +445,7 @@ if (ui.includes('id="shotPanel"') ||
     ui.includes('id="shotBarTicks"') ||
     partialHtml.home.includes('id="shotBarTicks"') ||
     partialHtml.home.includes('<legend>Current / Last Shot</legend>') ||
-    !partialHtml.home.includes('class="ruleChartLabel">Weight (g)</div>') ||
+    partialHtml.home.includes('class="ruleChartLabel">Weight (g)</div>') ||
     partialHtml.home.includes('id="shotIdle"') ||
     css.includes('content:"Weight (g)"') ||
     css.includes('#shotIdle') ||
@@ -481,7 +481,7 @@ if (ui.includes('id="shotPanel"') ||
     !runtimeJs.includes('style.left=') ||
     !runtimeJs.includes("style.setProperty('--shot-plot-min'") ||
     !runtimeJs.includes('.style.top=') ||
-    runtimeJs.includes('style="top:') || runtimeJs.includes('style="--shot-plot-min:') ||
+ runtimeJs.includes('style="--shot-plot-min:') ||
     runtimeJs.includes("style=\"left:") ||
     !runtimeJs.includes('function shotDisplayFlowGS(') ||
     !runtimeJs.includes('if(!pts.length||dur<=0)return null') ||
