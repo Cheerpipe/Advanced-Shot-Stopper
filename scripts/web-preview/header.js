@@ -95,6 +95,15 @@ const sample = {homeBbwSub: 'Stop at target weight', homeNoScaleSub: 'Warn befor
   cupState: 'Present', cupWeight: '142.5 g', idleTareStatus: 'Ready',
   firmwareFooter: 'Design preview · no device connected', navFirmware: 'Design preview · no device connected'};
 for (const [id, value] of Object.entries(sample)) if ($(id)) $(id).textContent = value;
+function applyLamps() {
+  const ready = $('state') && $('state').textContent === 'Ready';
+  if ($('state')) $('state').classList.toggle('stateReady', ready);
+  const row = id => document.getElementById(id);
+  if (row('machineRow')) row('machineRow').classList.toggle('lampBad', !ready);
+  if (row('scaleRow')) row('scaleRow').classList.toggle('lampBad', $('scale').textContent === 'Disconnected');
+  if (row('cupRow')) row('cupRow').classList.toggle('lampBad', $('cupState').textContent !== 'Present');
+}
+applyLamps();
 document.documentElement.classList.add('lineaMicraIntegration');
 document.querySelectorAll('#quickSettingsPanel input').forEach(input => { input.checked = input.id !== 'homeNoScaleBbwEnabled'; });
 $('homePresetCards').innerHTML = '<div class="presetCard active selected"><strong class="presetCardTitle">Classic espresso</strong><small class="presetCardMeta">36.0 g · 25–35 s</small></div>';
@@ -106,6 +115,7 @@ function applyScalePreview() {
   const disconnected = {scale: 'Disconnected', scaleWeight: '—', scaleTimer: '—',
     cupState: 'Unknown · no scale', cupWeight: '—', idleTareStatus: 'Waiting for scale', state: 'No scale connected'};
   for (const [id, value] of Object.entries(disconnected)) $(id).textContent = connected ? sample[id] : value;
+  applyLamps();
 }
 if (new URLSearchParams(location.search).get('scale') === 'disconnected') {
   $('preview1').value = '0';
