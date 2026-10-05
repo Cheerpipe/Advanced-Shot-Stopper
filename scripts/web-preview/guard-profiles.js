@@ -26,7 +26,7 @@
       : B - (B - T) * v / p.ceil;
     const path = pts => pts.map((q, i) => (i ? 'L' : 'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' ');
     const line = (pts, color, dash) => `<path d="${path(pts)}" fill="none" stroke="${color}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
-    const xMark = (t, v, color) => { const cx = x(t), cy = y(v);
+    const xMark = (t, v, color, cyOverride) => { const cx = x(t), cy = cyOverride ?? y(v);
       return `<path d="M${(cx - 1.2).toFixed(1)} ${(cy - 1.2).toFixed(1)}L${(cx + 1.2).toFixed(1)} ${(cy + 1.2).toFixed(1)}M${(cx - 1.2).toFixed(1)} ${(cy + 1.2).toFixed(1)}L${(cx + 1.2).toFixed(1)} ${(cy - 1.2).toFixed(1)}" stroke="${color}" stroke-width=".9" stroke-linecap="round"/>`; };
     const band = (t0, t1, color, op) => `<rect x="${x(t0).toFixed(1)}" y="${T}" width="${(x(t1) - x(t0)).toFixed(1)}" height="${B - T}" fill="${color}" fill-opacity="${op}"/>`;
     const spread = (items, min) => { const list = [...items].sort((a, b) => a - b);
@@ -41,7 +41,7 @@
       [p.ceil, p.target, p.floor].map(v => `<path d="M${L} ${y(v).toFixed(1)}H${W - R}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/>`).join('') +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${T}V${B}M${x(TIME.tMaxBbw).toFixed(1)} ${T}V${B}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/>` +
       xMark(TIME.prot, p.ceil, FC) + xMark(TIME.tMin, p.ceil, FC) +
-      xMark(TIME.tMin, p.target, 'var(--ok)') + xMark(TIME.tMaxBbw, p.target, 'var(--ok)') +
+      xMark(TIME.tMin, null, 'var(--ok)', (y(p.ceil) + y(p.target)) / 2) + xMark(TIME.tMaxBbw, p.target, 'var(--ok)') +
       xMark(TIME.tMaxBbw, p.floor, SC) + xMark(TIME.wall, p.floor, SC) +
       (piecewise ? `<path d="M0 ${(y(bp) - 1.6).toFixed(1)}l6.5 -2.4M0 ${(y(bp) + 1.6).toFixed(1)}l6.5 -2.4" stroke="var(--mu)" stroke-width=".7" stroke-linecap="round"/>` : '') +
       line([[0, 0], [TIME.tMin, p.target]], 'var(--ok)', '3 2.6') +
