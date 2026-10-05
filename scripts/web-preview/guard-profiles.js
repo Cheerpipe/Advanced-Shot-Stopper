@@ -38,6 +38,7 @@
   // Iteration 3 · the final chart: one straight line per cut situation.
   function finalProfile(p) {
     const W = 260, L = 8, R = 34, T = 8, B = 76;
+    const FC = '#d97706', SC = '#2563eb'; // original rule-chart colors: orange fast, light blue slow
     const x = t => L + (W - R - L) * t / TIME.wall;
     const y = v => B - (B - T) * v / p.ceil;
     const band = (t0, t1, color, op) => `<rect x="${x(t0).toFixed(1)}" y="${T}" width="${(x(t1) - x(t0)).toFixed(1)}" height="${B - T}" fill="${color}" fill-opacity="${op}"/>`;
@@ -51,19 +52,17 @@
     const line = (pts, color, width, dash) => `<path d="${path(pts)}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
     return `<figure class="gpFig"><svg viewBox="0 0 ${W} 88" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot cuts at ${TIME.tMin} seconds with the weight anywhere between ${esc(g(p.target))} and ${esc(g(p.ceil))}; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
       band(0, TIME.tMin, 'var(--wn)', .07) + band(TIME.tMin, TIME.tMaxBbw, 'var(--ok)', .06) + band(TIME.tMaxBbw, TIME.wall, 'var(--dn)', .07) +
-      `<path d="M${x(0).toFixed(1)} ${y(0).toFixed(1)}L${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}Z" fill="var(--wn)" fill-opacity=".12"/>` +
-      `<text x="${L + 4}" y="${T + 7}" font-size="6" font-weight="600" fill="var(--wn)">Fast guard</text>` +
-      `<text x="${W - R - 4}" y="${T + 7}" font-size="6" font-weight="600" fill="var(--dn)" text-anchor="end">Slow guard</text>` +
+      `<path d="M${x(0).toFixed(1)} ${y(0).toFixed(1)}L${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}Z" fill="${FC}" fill-opacity=".12"/>` +
       lCeil.line + lTarget.line + lFloor.line + lCeil.label + lTarget.label + lFloor.label +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${T}V${B}M${x(TIME.tMaxBbw).toFixed(1)} ${T}V${B}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/>` +
-      line([[0, 0], [TIME.tMin, p.target]], 'var(--ok)', 1) +
+      line([[0, 0], [TIME.tMin, p.target]], 'var(--ok)', 1, '3 2.6') +
       line([[TIME.tMin, p.target], [TIME.tMaxBbw, p.target]], 'var(--ok)', 1) +
-      line([[0, 0], [TIME.tMaxBbw, p.floor]], 'var(--dn)', 1) +
-      line([[TIME.tMaxBbw, p.floor], [TIME.wall, p.floor]], 'var(--dn)', 1) +
-      line([[0, 0], [TIME.tMin, p.ceil]], 'var(--wn)', 1) +
-      `<path d="M${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}" stroke="var(--wn)" stroke-width="2.2" stroke-linecap="round"/>` +
+      line([[0, 0], [TIME.tMaxBbw, p.floor]], SC, 1, '3 2.6') +
+      line([[TIME.tMaxBbw, p.floor], [TIME.wall, p.floor]], SC, 1) +
+      line([[0, 0], [TIME.tMin, p.ceil]], FC, 1, '3 2.6') +
+      `<path d="M${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}" stroke="${FC}" stroke-width="1" stroke-linecap="round"/>` +
       `<g font-size="6.5" fill="var(--mu)" text-anchor="middle"><text x="${L}" y="85">0</text><text x="${x(TIME.tMin).toFixed(1)}" y="85">28 s</text><text x="${x(TIME.tMaxBbw).toFixed(1)}" y="85">44 s</text><text x="${x(TIME.wall).toFixed(1)}" y="85">50 s</text></g>` +
-      `</svg><figcaption class="gpRefLegend"><span class="wn">fast · cuts at 28 s, ${esc(g(p.target))}–${esc(g(p.ceil))}</span><span class="ok">BBW · cuts at ${esc(g(p.target))}, 28–44 s</span><span class="dn">slow · ${esc(g(p.floor))} from 44 s</span></figcaption></figure>`;
+      `</svg><figcaption class="gpRefLegend"><span class="fc">fast · cuts at 28 s, ${esc(g(p.target))}–${esc(g(p.ceil))}</span><span class="ok">BBW · cuts at ${esc(g(p.target))}, 28–44 s</span><span class="sc">slow · ${esc(g(p.floor))} from 44 s</span></figcaption></figure>`;
   }
 
   const frameHtml = (phone, render) =>
@@ -76,7 +75,7 @@
   const host = document.getElementById('options');
   const sections = [
     {name: '00 · Perfil original (referencia)', desc: 'El perfil de la propuesta 10 con sus curvas de escenario. Se conserva como referencia del punto de partida.', render: p => profile(p, false)},
-    {name: '01 · Versión final · una recta por situación', desc: 'Solo datos de los guardias, con una línea recta por situación. La zona ámbar entre la diagonal verde y la recta rápida es el abanico de los tiros veloces: todos cortan sobre el segmento vertical de 28 s entre 36 y 42.5 g (peso mínimo y máximo en ese segundo). La BBW normal corta sobre el tramo plano a 36 g entre 28 y 44 s; la lenta, sobre el plano a 34 g de 44 a 50 s. Sin círculos; trazos finos.', render: finalProfile},
+    {name: '01 · Versión final · una recta por situación', desc: 'Solo datos de los guardias, con los colores originales (naranjo Fast, celeste Slow). Cada curva va punteada hasta su activación y sólida desde ahí: la verde hasta 28 s y luego plana a 36 g (corte BBW, 28–44 s); la celeste hasta 44 s y luego plana a 34 g (corte Slow, 44–50 s); la naranja hasta 28 s. El abanico naranjo entre la diagonal verde y la recta naranja cubre el rango de corte Fast: el segmento vertical de 28 s entre 36 y 42.5 g, al mismo grosor que las demás líneas.', render: finalProfile},
   ];
   const zoneRenders = new Map();
   sections.forEach(s => {
