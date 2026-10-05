@@ -11,33 +11,9 @@
   const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const n1 = v => +v.toFixed(1);
 
-  // The original proposal-10 profile. `thin` is iteration 1: thinner colored strokes.
-  function profile(p, thin) {
-    const W = 260, L = 8, R = 34, T = 8, B = 76;
-    const sw = thin ? {ok: 1, sc: .8, grid: .5, gate: .5} : {ok: 1.7, sc: 1.2, grid: 1, gate: .7};
-    const x = t => L + (W - R - L) * t / TIME.wall;
-    const y = v => B - (B - T) * v / p.ceil;
-    const path = pts => pts.map((q, i) => (i ? 'L' : 'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' ');
-    const band = (t0, t1, color, op) => `<rect x="${x(t0).toFixed(1)}" y="${T}" width="${(x(t1) - x(t0)).toFixed(1)}" height="${B - T}" fill="${color}" fill-opacity="${op}"/>`;
-    const grid = v => { const gy = y(v).toFixed(1); return {line: `<path d="M${L} ${gy}H${W - R}" stroke="var(--ln)" stroke-width="${sw.grid}" stroke-dasharray="2 3"/>`, label: `<text x="${W - R + 4}" y="${+gy + 2.3}" font-size="6.5" fill="var(--mu)">${esc(g(v))}</text>`}; };
-    const gFloor = grid(p.floor), gTarget = grid(p.target), gCeil = grid(p.ceil);
-    const slowHold = n1(p.floor * .93), slowNear = n1(p.floor * .97), fastMid = n1(p.target + (p.ceil - p.target) / 2);
-    return `<figure class="gpFig"><svg viewBox="0 0 ${W} 88" role="img" aria-label="Weight over time from 0 to ${TIME.wall} seconds: the on-target shot reaches ${esc(g(p.target))} inside the ${TIME.tMin} to ${TIME.tMaxBbw} second window; a fast shot reaches the target before ${TIME.tMin} seconds and the guard extends it to ${esc(g(p.ceil))}; a slow shot is still short after ${TIME.tMaxBbw} seconds and the guard stops it once it reaches ${esc(g(p.floor))}">` +
-      band(0, TIME.tMin, 'var(--wn)', .07) + band(TIME.tMin, TIME.tMaxBbw, 'var(--ok)', .06) + band(TIME.tMaxBbw, TIME.wall, 'var(--dn)', .07) +
-      `<text x="${L + 4}" y="${T + 7}" font-size="6" font-weight="600" fill="var(--wn)">Fast guard</text>` +
-      `<text x="${W - R - 4}" y="${T + 7}" font-size="6" font-weight="600" fill="var(--dn)" text-anchor="end">Slow guard</text>` +
-      gCeil.line + gTarget.line + gFloor.line + gCeil.label + gTarget.label + gFloor.label +
-      `<path d="M${x(TIME.tMin).toFixed(1)} ${T}V${B}M${x(TIME.tMaxBbw).toFixed(1)} ${T}V${B}" stroke="var(--mu)" stroke-width="${sw.gate}" stroke-dasharray="1.6 2.6" opacity=".7"/>` +
-      `<path d="${path([[0, 0], [10, 2], [26, n1(.55 * p.target)], [42, p.target]])}" fill="none" stroke="var(--ok)" stroke-width="${sw.ok}" stroke-linecap="round" stroke-linejoin="round"/>` +
-      `<path d="${path([[0, 0], [5, 3], [13, n1(.5 * p.target)], [22, p.target]])}" fill="none" stroke="var(--wn)" stroke-width="${sw.sc}" stroke-linecap="round" stroke-linejoin="round"/><path d="${path([[22, p.target], [32, fastMid], [40, p.ceil]])}" fill="none" stroke="var(--wn)" stroke-width="${sw.sc}" stroke-dasharray="3 2.4" stroke-linecap="round"/>` +
-      `<path d="${path([[0, 0], [12, 1], [28, n1(.45 * p.target)], [44, slowHold]])}" fill="none" stroke="var(--dn)" stroke-width="${sw.sc}" stroke-linecap="round" stroke-linejoin="round"/><path d="${path([[44, slowHold], [47, slowNear], [50, p.floor]])}" fill="none" stroke="var(--dn)" stroke-width="${sw.sc}" stroke-dasharray="3 2.4" stroke-linecap="round"/>` +
-      `<g font-size="6.5" fill="var(--mu)" text-anchor="middle"><text x="${L}" y="85">0</text><text x="${x(TIME.tMin).toFixed(1)}" y="85">28 s</text><text x="${x(TIME.tMaxBbw).toFixed(1)}" y="85">44 s</text><text x="${x(TIME.wall).toFixed(1)}" y="85" text-anchor="end">50 s</text></g>` +
-      `</svg><figcaption class="gpRefLegend"><span class="ok">on target · ${esc(g(p.target))}</span><span class="wn">fast · extends to ${esc(g(p.ceil))}</span><span class="dn">slow · stops at ${esc(g(p.floor))}</span></figcaption></figure>`;
-  }
-
   // The final chart: one straight line per cut situation, stats-style HTML labels.
   function finalProfile(p) {
-    const W = 260, L = 8, R = 2, T = 8, B = 76;
+    const W = 260, L = 0, R = 2, T = 8, B = 76;
     const FC = '#d97706', SC = '#5594dd'; // rule colors: orange fast, blue slow
     const x = t => L + (W - R - L) * t / TIME.wall;
     const y = v => B - (B - T) * v / p.ceil;
@@ -66,7 +42,7 @@
       `<span class="shotYTick" style="top:${top(tyy)}">${esc(g(p.target))}</span>` +
       `<span class="shotYTick" style="top:${top(fyy)}">${esc(g(p.floor))}</span>` +
       `</div>` +
-      `<div class="ruleChartTicks" style="margin:.15rem 2.7rem 0 3.1%"><span class="ruleTick" style="left:0">0 s</span><span class="ruleTick" style="left:56%">28 s</span><span class="ruleTick" style="left:88%">44 s</span><span class="ruleTick" style="left:100%">50 s</span></div>` +
+      `<div class="ruleChartTicks" style="margin:.15rem 2.7rem 0 0"><span class="ruleTick" style="left:0">0 s</span><span class="ruleTick" style="left:56%">28 s</span><span class="ruleTick" style="left:88%">44 s</span><span class="ruleTick" style="left:100%">50 s</span></div>` +
       `</figure>`;
   }
 
