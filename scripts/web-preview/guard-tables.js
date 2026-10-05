@@ -13,16 +13,21 @@
 
   // The brief rules per preset (values from settings).
   const rules = p => ({
-    fast: `Cuts from ${TIME.prot} s at ${g(p.ceil)}, or at ${TIME.tMin} s`,
+    fast: `Cuts at ${TIME.tMin} s (max ${g(p.ceil)})`,
     bbw: `Cuts at ${g(p.target)} between ${TIME.tMin} and ${TIME.tMaxBbw} s`,
-    slow: `Cuts at ${g(p.floor)} from ${TIME.tMaxBbw} s, or at ${TIME.wall} s`,
+    slow: `Cuts at ${g(p.floor)} from ${TIME.tMaxBbw} s (max ${TIME.wall} s)`,
   });
 
-  // Desktop + phone frames sharing one accordion per preset.
-  function frameHtml(label) { return `
-    <div class="frame"><p class="frameLabel">${label}</p>
-    <fieldset class="qsPanel"><legend>Quick Settings</legend><p class="qsPresetLabel">Presets</p>
-    <div class="gtAcc">${PRESETS.map((p, i) =>
+  // 00 · Reference: the table as implemented today in Home.
+  function classicTable(p) {
+    const r = rules(p);
+    return `<table class="gtTable"><thead><tr><th>${dot(FC)}Fast</th><th>${dot(GC)}BBW</th><th>${dot(SC)}Slow</th></tr></thead>` +
+      `<tbody><tr><td>${r.fast}</td><td>${r.bbw}</td><td>${r.slow}</td></tr></tbody></table>`;
+  }
+
+  // 01 · Current pick: preset accordion with the rules inside.
+  function accordion() {
+    return `<div class="gtAcc">${PRESETS.map((p, i) =>
       `<div class="gtPreset${i === 0 ? ' open' : ''}">` +
       `<button type="button" class="gtAccHead" aria-expanded="${i === 0}">` +
       `<span class="gtAccName">${p.name}</span><span class="gtAccBadge">${p.badge}</span>` +
@@ -33,21 +38,92 @@
       `<div class="gtRow"><span class="gtName">${dot(FC)}Fast</span><span class="gtRule">${rules(p).fast}</span></div>` +
       `<div class="gtRow"><span class="gtName">${dot(GC)}BBW</span><span class="gtRule">${rules(p).bbw}</span></div>` +
       `<div class="gtRow"><span class="gtName">${dot(SC)}Slow</span><span class="gtRule">${rules(p).slow}</span></div>` +
-      `</div></div></div></div></div>`).join('')}</div>
-    </fieldset></div>`; }
+      `</div></div></div></div></div>`).join('')}</div>`;
+  }
+
+  // FW-style thick preset row with a guard color strip; opens the rules panel.
+  function fwRow(p, i, color, variant) {
+    const open = i === 0;
+    const cls = {bar: 'fwBar', fill: 'fwFill', duo: 'fwDuo'}[variant];
+    return `<div class="fwPreset ${cls}${open ? ' open' : ''}" style="--pc:${color}" data-fw="${i}">` +
+      `<button type="button" class="fwHead" aria-expanded="${open}">` +
+      (variant === 'fill' ? `<span class="fwDot" aria-hidden="true"></span>` : '') +
+      `<span class="fwName">${p.name}</span><span class="fwBadge">${p.badge}</span>` +
+      `<span class="fwTarget">Target ${g(p.target)}</span>` +
+      `<span class="fwChev" aria-hidden="true">▾</span></button>` +
+      `<div class="fwPanel"><div class="fwPanelIn">` +
+      `<div class="gtRows">` +
+      `<div class="gtRow"><span class="gtName">${dot(FC)}Fast</span><span class="gtRule">${rules(p).fast}</span></div>` +
+      `<div class="gtRow"><span class="gtName">${dot(GC)}BBW</span><span class="gtRule">${rules(p).bbw}</span></div>` +
+      `<div class="gtRow"><span class="gtName">${dot(SC)}Slow</span><span class="gtRule">${rules(p).slow}</span></div>` +
+      `</div></div></div></div>`;
+  }
+
+  // 02/03/04 · Hybrids: FW thick colorful rows as accordion + rules below.
+  const hybrid = variant => p => PRESETS.map((p2, i) => fwRow(p2, i, [FC, GC, SC][i % 3], variant)).join('');
+  const HYBRIDS = [
+    {key: 'bar', name: '02 · FW + barra de color',
+      desc: 'Filas gruesas estilo firmware con una barra de color de guardia en el borde izquierdo; al tocar un preset se abre su bloque de reglas debajo y el anterior se cierra.'},
+    {key: 'fill', name: '03 · FW + punto de color',
+      desc: 'Igual estructura pero con un punto sólido de color junto al nombre; el bloque de reglas se abre con la misma transición animada.'},
+    {key: 'duo', name: '04 · FW + fondo suave',
+      desc: 'La fila abierta toma un fondo suave del color de guardia además de la barra; más contraste para el preset seleccionado, mismo acordeón de reglas debajo.'},
+  ];
+
+  const frameHtml = phone => `
+    <div class="frame${phone ? ' phone' : ''}"><p class="frameLabel">${phone ? 'Teléfono · 360 px' : 'Escritorio'}</p>
+    <fieldset class="qsPanel"><legend>Quick Settings</legend><p class="qsPresetLabel">Presets</p>
+    <div class="gtZone"></div></fieldset></div>`;
 
   const host = document.getElementById('options');
-  host.innerHTML = frameHtml('Escritorio') + frameHtml('Teléfono · 360 px');
 
-  // Accordion: one block open at a time, animated by the CSS grid transition.
-  document.getElementById('options').addEventListener('click', event => {
-    const head = event.target.closest('.gtAccHead');
+  const zoneState = new Map(); // zone element -> {preset, gap}
+  const zoneRender = new Map(); // zone element -> (preset) => html
+  function addSection(title, desc, inner, star = false) {
+    const section = document.createElement('section');
+    section.className = 'opt';
+    section.innerHTML = `<div class="optHead"><h2>${title}${star ? ' <span class="star">Recomendada</span>' : ''}</h2><p>${desc}</p></div>` +
+      frameHtml(false) + frameHtml(true);
+    host.append(section);
+    section.querySelectorAll('.gtZone').forEach(zone => {
+      zone.innerHTML = inner(PRESETS[0]);
+      zoneState.set(zone, {preset: 0});
+      zoneRender.set(zone, inner);
+    });
+  }
+
+  // 00 · reference
+  addSection('00 · Tabla actual (referencia)',
+    'La tabla tal como está implementada hoy en Home: títulos con punto de color y una fila de reglas.',
+    () => classicTable(PRESETS[0]));
+  // 01 · current accordion
+  addSection('01 · Acordeón por preset (actual)',
+    'La propuesta seleccionada: cada preset abre su bloque de reglas con transición animada y el anterior se cierra.',
+    () => accordion());
+  // 02–04 · hybrids
+  HYBRIDS.forEach(h => addSection(h.name, h.desc, () => hybrid(h.key)(PRESETS[0])));
+
+  // Accordion + FW accordion behavior (one open per group, animated by CSS).
+  host.addEventListener('click', event => {
+    const card = event.target.closest('.presetCard[data-preset]');
+    if (card) {
+      document.querySelectorAll('.frame .presetCard').forEach(c => {
+        const on = c.dataset.preset === card.dataset.preset;
+        c.classList.toggle('active', on);
+        c.classList.toggle('selected', on);
+      });
+      const preset = PRESETS[+card.dataset.preset];
+      for (const zone of zoneState.keys()) zone.innerHTML = zoneRender.get(zone)(preset);
+      return;
+    }
+    const head = event.target.closest('.gtAccHead, .fwHead');
     if (!head) return;
-    const preset = head.closest('.gtPreset');
+    const preset = head.closest('.gtPreset, .fwPreset');
     if (preset.classList.contains('open')) return;
-    preset.parentElement.querySelectorAll('.gtPreset.open').forEach(o => {
+    preset.parentElement.querySelectorAll('.open').forEach(o => {
       o.classList.remove('open');
-      o.querySelector('.gtAccHead').setAttribute('aria-expanded', 'false');
+      const h = o.querySelector('.gtAccHead, .fwHead');
+      if (h) h.setAttribute('aria-expanded', 'false');
     });
     preset.classList.add('open');
     head.setAttribute('aria-expanded', 'true');

@@ -63,6 +63,22 @@
 
   .fc{color:#d97706}.gc{color:var(--ok)}.sc{color:#5594dd}
 
+  /* FW-style thick preset rows (02-04) */
+  .fwPreset{border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);overflow:hidden}
+  .fwPreset + .fwPreset{margin-top:.5rem}
+  .fwHead{display:flex;width:100%;align-items:center;gap:.55rem;padding:.85rem .8rem;background:none;border:0;font:inherit;color:var(--fg);cursor:pointer;text-align:left}
+  .fwName{font-weight:800;font-size:.95rem}
+  .fwBadge{font-size:.68rem;color:var(--mu)}
+  .fwTarget{margin-left:auto;font-size:.78rem;color:var(--mu)}
+  .fwChev{font-size:.7rem;color:var(--mu);transition:transform .3s ease}
+  .fwPanel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .32s ease}
+  .fwPreset.open .fwPanel{grid-template-rows:1fr}
+  .fwPanelIn{overflow:hidden;padding:0 .8rem .4rem}
+  .fwBar{border-left:4px solid var(--pc)}
+  .fwFill .fwDot{width:.7rem;height:.7rem;border-radius:50%;background:var(--pc)}
+  .fwDuo.open{border-color:var(--pc)}
+  .fwDuo.open .fwName{color:var(--pc)}
+
   /* 03/04 · preset accordion */
   .gtAcc{display:grid;gap:.4rem}
   .gtPreset{border:1px solid var(--ln);border-radius:.6rem;background:var(--sf);overflow:hidden}
