@@ -35,6 +35,32 @@
       `</svg><figcaption class="gpRefLegend"><span class="ok">on target · ${esc(g(p.target))}</span><span class="wn">fast · extends to ${esc(g(p.ceil))}</span><span class="dn">slow · stops at ${esc(g(p.floor))}</span></figcaption></figure>`;
   }
 
+  // Iteration 2 · the final chart: every element is a guard limit, no measured curves.
+  function finalProfile(p) {
+    const W = 260, L = 8, R = 34, T = 8, B = 76;
+    const x = t => L + (W - R - L) * t / TIME.wall;
+    const y = v => B - (B - T) * v / p.ceil;
+    const band = (t0, t1, color, op) => `<rect x="${x(t0).toFixed(1)}" y="${T}" width="${(x(t1) - x(t0)).toFixed(1)}" height="${B - T}" fill="${color}" fill-opacity="${op}"/>`;
+    const spread = (items, min) => { const list = [...items].sort((a, b) => a - b);
+      for (let i = 1; i < list.length; i++) if (list[i] - list[i - 1] < min) list[i] = list[i - 1] + min;
+      return list; };
+    const [cy, ty, fy] = spread([y(p.ceil), y(p.target), y(p.floor)], 7);
+    const limit = (v, ly) => { const gy = ly.toFixed(1); return {line: `<path d="M${L} ${y(v).toFixed(1)}H${W - R}" stroke="var(--ln)" stroke-width=".5" stroke-dasharray="2 3"/>`, label: `<text x="${W - R + 4}" y="${+gy + 2.3}" font-size="6.5" fill="var(--mu)">${esc(g(v))}</text>`}; };
+    const lFloor = limit(p.floor, fy), lTarget = limit(p.target, ty), lCeil = limit(p.ceil, cy);
+    return `<figure class="gpFig"><svg viewBox="0 0 ${W} 88" role="img" aria-label="Guard limits for ${esc(p.name)}: pour target ${esc(g(p.target))} between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a shot that reaches ${esc(g(p.target))} by ${TIME.tMin} seconds may extend to ${esc(g(p.ceil))}; a shot still short of ${esc(g(p.floor))} at ${TIME.tMaxBbw} seconds is poured down to it; machine limit ${TIME.wall} seconds">` +
+      band(0, TIME.tMin, 'var(--wn)', .07) + band(TIME.tMin, TIME.tMaxBbw, 'var(--ok)', .06) + band(TIME.tMaxBbw, TIME.wall, 'var(--dn)', .07) +
+      `<text x="${L + 4}" y="${T + 7}" font-size="6" font-weight="600" fill="var(--wn)">Fast guard</text>` +
+      `<text x="${W - R - 4}" y="${T + 7}" font-size="6" font-weight="600" fill="var(--dn)" text-anchor="end">Slow guard</text>` +
+      lCeil.line + lTarget.line + lFloor.line + lCeil.label + lTarget.label + lFloor.label +
+      `<path d="M${x(TIME.tMin).toFixed(1)} ${T}V${B}M${x(TIME.tMaxBbw).toFixed(1)} ${T}V${B}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/>` +
+      `<circle cx="${x(TIME.tMin).toFixed(1)}" cy="${y(p.target).toFixed(1)}" r="3.2" fill="var(--sf)" stroke="var(--wn)" stroke-width="1.7"/>` +
+      `<circle cx="${x(TIME.tMaxBbw).toFixed(1)}" cy="${y(p.floor).toFixed(1)}" r="3.2" fill="var(--sf)" stroke="var(--dn)" stroke-width="1.7"/>` +
+      `<text x="${(x(TIME.tMin) + 6).toFixed(1)}" y="${(y(p.floor) + 10).toFixed(1)}" font-size="6" font-weight="650" fill="var(--wn)">${esc(g(p.target))} → ${esc(g(p.ceil))}</text>` +
+      `<text x="${(x(TIME.tMaxBbw) - 7).toFixed(1)}" y="${(y(p.floor) + 20).toFixed(1)}" font-size="6" font-weight="650" fill="var(--dn)" text-anchor="end">stops at ${esc(g(p.floor))}</text>` +
+      `<g font-size="6.5" fill="var(--mu)" text-anchor="middle"><text x="${L}" y="85">0</text><text x="${x(TIME.tMin).toFixed(1)}" y="85">28 s</text><text x="${x(TIME.tMaxBbw).toFixed(1)}" y="85">44 s</text><text x="${x(TIME.wall).toFixed(1)}" y="85">50 s</text></g>` +
+      `</svg><figcaption class="gpRefLegend"><span class="ok">pour 28–44 s · ${esc(g(p.target))}</span><span class="wn">28 s × ${esc(g(p.target))} → ${esc(g(p.ceil))}</span><span class="dn">44 s short → ${esc(g(p.floor))}</span></figcaption></figure>`;
+  }
+
   const frameHtml = (phone, render) =>
     `<div class="frame${phone ? ' phone' : ''}"><p class="frameLabel">${phone ? 'Teléfono · 360 px' : 'Escritorio'}</p>` +
     `<fieldset class="qsPanel"><legend>Quick Settings</legend><p class="qsPresetLabel">Presets</p>` +
@@ -44,8 +70,8 @@
 
   const host = document.getElementById('options');
   const sections = [
-    {name: '00 · Perfil original (referencia)', desc: 'El perfil de la propuesta 10 con sus grosores actuales: curva principal 1.7 y escenarios 1.2. Se conserva como referencia del punto de partida.', render: p => profile(p, false)},
-    {name: '01 · Líneas finas (iteración 1)', desc: 'Mismo dibujo con las líneas de color adelgazadas: curva principal de 1.7 a 1.0, escenarios de 1.2 a 0.8, y rejilla y compuertas más ligeras. Las bandas de fondo y las etiquetas no cambian.', render: p => profile(p, true)},
+    {name: '00 · Perfil original (referencia)', desc: 'El perfil de la propuesta 10 con sus curvas de escenario. Se conserva como referencia del punto de partida.', render: p => profile(p, false)},
+    {name: '01 · Versión final · solo límites', desc: 'Sin curvas inventadas: solo los datos reales de los guardias. Bandas por tramo, los tres límites de peso (piso, objetivo, techo), las dos compuertas de tiempo, y un anillo en cada cruce con su consecuencia escrita al lado: 36 g a los 28 s → 42.5 g; corto de 34 g a los 44 s → parar ahí. Trazos finos de la iteración 1.', render: finalProfile},
   ];
   const zoneRenders = new Map();
   sections.forEach(s => {

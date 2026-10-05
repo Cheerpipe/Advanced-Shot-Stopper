@@ -162,16 +162,17 @@ assets.
 
 Open `http://127.0.0.1:4173/guard-profiles` on the same running preview server
 to iterate the time-to-weight profile chart one change at a time, starting
-from the proposal-10 design shown as section 00. Each numbered section applies
-one focused change on top of the original; iteration 1 thins the colored
-strokes (main curve 1.7 to 1.0, guard scenarios 1.2 to 0.8, lighter grid and
-gates) while the background bands and labels stay unchanged. The chart makes
-the rule crossing explicit: at 28 seconds with the weight at 36 g the Fast
-guard extends toward 42.5 g, and after 44 seconds short of 34 g the Slow
-guard pours down to it. Preset cards switch between Double and Single inside
-every panel, frames come at desktop and phone width, and the corner **Tema**
-button cycles auto, light, and dark. Readings are simulated; the preview does
-not connect to a device or ship in firmware assets.
+from the proposal-10 design shown as section 00. The current iteration is the
+final limits-only version: it drops the invented fill curves (there is no
+measured data to show) and draws only the guard limits from the factory
+presets — the fast/window/slow bands, the recovery floor, target, and
+recovery ceiling weight lines, the 28 s and 44 s time gates, and a ring at
+each rule crossing with its outcome beside it (36 g at 28 s extends to
+42.5 g; short of 34 g at 44 s stops there). Preset cards switch between
+Double and Single inside every panel, frames come at desktop and phone
+width, and the corner **Tema** button cycles auto, light, and dark.
+Readings are simulated; the preview does not connect to a device or ship in
+firmware assets.
 
 ## USB installation
 
