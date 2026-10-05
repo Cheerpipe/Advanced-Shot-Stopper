@@ -492,7 +492,13 @@ mass or idle tare; negative boot offsets cannot authorize relative placement.
 Before a qualified placement, a transient negative departure from a qualified zero
 may discard the current anchor while a stable negative reference qualifies.
 A return inside the initial zero band restores the observed empty offset through
-the unchanged absent stability window, without PLACED or tare. An unqualified
+the unchanged absent stability window, without PLACED or tare. A positive
+return outside that band can also restore the historical near-zero
+anchor before the first qualified idle placement if its increase from that
+still-valid anchor is strictly below minimum cup mass. It does not acquire a
+new empty offset or emit PLACED/tare; the next load still requires normal cup
+stability. Missing initial zero, lost sample evidence, and unknown negative
+references cannot use this recovery. An unqualified
 absolute startup placement does not close this idle recovery path; a qualified
 placement, known occupied tare or uncertain tare does. Initial small shifts are
 bounded against zero, not accumulated against each successive anchor. The fast

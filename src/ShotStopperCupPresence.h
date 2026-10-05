@@ -372,15 +372,20 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   if (cupPresence.inNegativeHole && weight < cupPresence.holeWeightG) {
     cupPresence.holeWeightG = weight;
   }
+  const bool knownZeroReturn = allowFastReplacement && mass.absent.valid &&
+      fabsf(mass.absent.absoluteG) <= zeroBandG && weight > zeroBandG &&
+      weight < mass.absent.absoluteG + minCupG;
   if (initialPlacement && cupPresence.inNegativeHole &&
-      fabsf(weight) <= zeroBandG &&
+      (fabsf(weight) <= zeroBandG || knownZeroReturn) &&
       ((std::isfinite(cupPresence.emptyAnchorG) &&
         (allowFastReplacement ? fabsf(cupPresence.emptyAnchorG) > zeroBandG
             : cupPresence.emptyAnchorG <= zeroBandG - minCupG)) ||
        (allowFastReplacement && mass.pendingId == 0 && !cupPresence.referenceUncertain &&
         !cupPresence.holdTransitions && !std::isfinite(cupPresence.emptyAnchorG)))) {
     // Returning to the original zero is indistinguishable from pan movement.
-    cupPresence.emptyAnchorG = allowFastReplacement ? weight : 0.0f;
+    // A positive sub-minimum return reuses known zero, never a new empty offset.
+    cupPresence.emptyAnchorG = allowFastReplacement
+        ? (knownZeroReturn ? mass.absent.absoluteG : weight) : 0.0f;
     mass.emptyValid = false;
     mass.emptySamples = 0;
     // Idle placement must wait for this zero to qualify again.

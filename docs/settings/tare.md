@@ -91,7 +91,10 @@ empty-pan offsets use the same near-zero range as at connection; recovery adds
 no delay to the usual stability or cup-placement timing. If zero was already
 confirmed before handling and readings remain continuous, a return near zero
 allows the next stable cup to tare without waiting for the empty pan to settle
-again. Without that earlier zero or after a reading gap, let the empty pan
+again. A positive return after a negative fluctuation can also qualify if its
+increase from the previously confirmed zero is below **Minimum cup weight**.
+That small reading does not send a tare; the next cup must complete its normal
+stability window. Without that earlier zero or after a reading gap, let the empty pan
 complete the stability window before placing the cup. A larger negative reading first
 seen at boot/reconnect, without a preceding qualified zero and continuous unload,
 requires an empty-pan tare on the scale, a reconnect, and stable zero; see [Cup](cup.md).

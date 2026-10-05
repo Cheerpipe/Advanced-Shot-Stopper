@@ -10654,6 +10654,72 @@ void it64_bookoo_handling_profile_tares_first_stable_cup() {
   }
 }
 
+void it65_profile5_handling_tares_first_physical_cup() {
+  // Original notification times/float32 weights, through the first stable cup.
+  const struct { uint32_t atMs; float weight; } samples[] = {
+      {9305, 0.0f}, {9405, 0.0f}, {9505, 0.0f}, {9605, 0.0f},
+      {9705, 0.0f}, {9805, 0.0f}, {9905, 0.0f}, {10005, 0.0f},
+      {10105, 0.0f}, {10205, 0.0f}, {10305, 0.0f}, {10355, 0.0f},
+      {10505, 0.0f}, {10605, 0.0f}, {10705, 0.0f}, {10805, 0.0f},
+      {10905, 0.0f}, {11005, 4.5f}, {11105, 29.3999996f}, {11205, 104.0f},
+      {11305, 237.5f}, {11355, 327.899994f}, {11455, 294.290009f}, {11555, 333.700012f},
+      {11656, 491.0f}, {11755, 355.799988f}, {11855, -82.4000015f}, {11955, -361.100006f},
+      {12125, -427.0f}, {12155, -428.100006f}, {12245, -430.0f}, {12335, -431.899994f},
+      {12455, -427.200012f}, {12545, -416.600006f}, {12665, -401.799988f}, {12755, -346.299988f},
+      {12845, -213.800003f}, {12965, -69.5f}, {13055, 21.8999996f}, {13175, 23.1000004f},
+      {13265, 5.80000019f}, {13355, 1.89999998f}, {13445, 2.5f}, {13565, -4.19000006f},
+      {13655, -38.9000015f}, {13745, -54.4000015f}, {13865, 7.19999981f}, {13955, 80.3000031f},
+      {14075, 124.699997f}, {14165, 129.600006f}, {14255, 83.8000031f}, {14375, 34.0f},
+      {14465, 32.2999992f}, {14585, 46.2999992f}, {14675, 57.2000008f}, {14795, 48.4000015f},
+      {14885, 19.7900009f}, {14975, 14.0f}, {15065, 30.1000004f}, {15155, 109.400002f},
+      {15275, 254.699997f}, {15365, 367.899994f}, {15485, 431.200012f}, {15575, 463.700012f},
+      {15695, 433.600006f}, {15815, 393.0f}, {15905, 379.100006f}, {15965, 377.399994f},
+      {16115, 377.600006f}, {16205, 377.700012f}, {16265, 377.700012f}};
+  for (unsigned mode = 0; mode < 3; ++mode) {
+    for (uint32_t delayMs : {0U, 5U, 10U}) {
+      resetHarness(false, true);
+      reachReadyFromBoot();
+      runtimeConfig.autoTareOutsideBrew = true;
+      for (const auto &sample : samples) {
+        if (mode == 1 && sample.atMs <= 10905) continue; // No initial zero.
+        const uint32_t atMs = sample.atMs + (mode == 2 && sample.atMs >= 13865
+            ? runtimeConfig.retareStabilityMaxGapMs + 1 : 0); // Interrupted return.
+        hostMillis = atMs + delayMs;
+        markScaleWorkerProgress();
+        publishWeight(sample.weight, atMs);
+        if (sample.atMs < 16205) CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+      }
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == (mode == 0 ? 1U : 0U));
+      if (mode != 0) continue;
+      CHECK(idleTare.requestedAtMs == 16205 + delayMs);
+      CHECK(cupPresence.weight.weightG == 377.700012f);
+      CHECK(executeNextScaleCommand());
+      idleCup(0.0f); // Simulated response to the newly authorized first tare.
+      CHECK(idleTare.lastReason == IdleTareReason::EFFECT_CONFIRMED);
+      CHECK(scale.tareCalls == 1);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+      CHECK(commandCount(ScaleCommandType::START_TIMER_AND_TARE) == 0);
+      CHECK(!session.active);
+      CHECK(!getRelaySafetySnapshot().closed);
+    }
+  }
+}
+
+void it66_initial_positive_return_requires_known_zero_and_subminimum_load() {
+  for (float minimum : {1.0f, 2.0f, 10.0f, 100.0f}) {
+    for (bool belowMinimum : {false, true}) {
+      prepareIdleTare();
+      runtimeConfig.minimumCupWeightG = minimum;
+      idleWeight(-200.0f);
+      idleWeight(minimum - (belowMinimum ? 0.1f : 0.0f));
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+      CHECK(!idleTare.absentObserved);
+      idleCup(minimum + 20.0f);
+      CHECK(commandCount(ScaleCommandType::TARE_ONLY) == (belowMinimum ? 1U : 0U));
+    }
+  }
+}
+
 void it59_ambiguous_empty_guidance_is_idle_only() {
   prepareIdleTare();
   idleWeight(-115.0f);
@@ -18974,6 +19040,8 @@ const TestCase testCases[] = {
     {"IT62", it62_small_empty_shifts_cannot_accumulate_away_from_zero},
     {"IT63", it63_initial_recovery_respects_stability_and_zero_boundaries},
     {"IT64", it64_bookoo_handling_profile_tares_first_stable_cup},
+    {"IT65", it65_profile5_handling_tares_first_physical_cup},
+    {"IT66", it66_initial_positive_return_requires_known_zero_and_subminimum_load},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},

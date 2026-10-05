@@ -35,7 +35,11 @@ offsets as at connection, even if handling briefly looked like a cup. It uses
 the normal stability window and adds no delay to the next cup's tare.
 If zero was already confirmed and readings remain uninterrupted, returning the
 empty scale near zero lets the next stable cup tare without another empty-pan
-pause. The cup must still complete its normal stability window.
+pause. After a negative handling fluctuation, a positive return below the
+minimum cup load also works using that same confirmed zero. For example, with
+a 10 g minimum and a previously confirmed 0 g, returning at 7.2 g before placing
+the cup does not require another empty-pan pause. The return itself does not
+send a tare. The cup must still complete its normal stability window.
 
 Once an empty reference is known, two consecutive fresh readings showing
 near-total unloading can authorize a stable replacement without another stable
