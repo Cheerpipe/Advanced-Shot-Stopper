@@ -110,9 +110,7 @@ applyLamps();
 document.documentElement.classList.add('lineaMicraIntegration');
 document.querySelectorAll('#quickSettingsPanel input').forEach(input => { input.checked = input.id !== 'homeNoScaleBbwEnabled'; });
 $('homePresetCards').innerHTML = '<div class="presetCard active selected"><strong class="presetCardTitle">Classic espresso</strong><small class="presetCardMeta">36.0 g · 25–35 s</small></div>';
-for (const [id, end] of []) {
-  $(id).innerHTML = [0, 1, 2, 3, 4].map(n => `<span style="left:${n * 25}%">${n * end / 4}</span>`).join('');
-}
+$('ruleChart').innerHTML = '<table class="ruleTable"><thead><tr><th>Fast</th><th>BBW</th><th>Slow</th></tr></thead><tbody><tr><td>Cuts at 28 s (max 42.5 g)</td><td>Cuts at 36 g, 28\u201344 s</td><td>Cuts at 34 g from 44 s (max 50 s)</td></tr></tbody></table>';
 function applyScalePreview() {
   const connected = $('preview1').value !== '0';
   const disconnected = {scale: 'Disconnected', scaleWeight: '—', scaleTimer: '—',

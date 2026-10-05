@@ -394,9 +394,9 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .ruleLegBbw:before{background:var(--ok)}
 .ruleLegSlow:before{background:#2563eb}
 .ruleChartLabel{font-size:.78rem;font-weight:700;margin:0 0 .75rem;color:var(--fg)}
-.rulePlotWrap{position:relative;padding-right:1.4rem}
-#ruleChart .rulePlot{display:block;width:100%;height:auto}
-#ruleChart .shotYTick{background:var(--sf);padding:0 .15rem}
+.ruleTable{width:100%;border-collapse:collapse;font-size:.82rem}
+.ruleTable th{padding:0 .5rem .35rem 0;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mu);text-align:left}
+.ruleTable td{padding:.45rem .5rem .45rem 0;vertical-align:top;color:var(--fg)}
 .ruleChartTicks{position:relative;height:1.05rem;margin:.15rem .1rem 0;font-size:.68rem;color:var(--mu);overflow:hidden}
 .ruleTick{position:absolute;transform:translateX(-50%);white-space:nowrap;top:0}
 .ruleTick:first-child{transform:translateX(0)}

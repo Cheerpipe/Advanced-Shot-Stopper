@@ -52,8 +52,7 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
     !css.includes('.ruleLegBbw:before{background:var(--ok)}') ||
     !css.includes('.ruleLegSlow:before{background:#2563eb}') ||
     css.includes('.ruleSeg') || css.includes('.ruleChartTrack') ||
-    !css.includes('.rulePlotWrap{position:relative;padding-right:1.4rem}') ||
-    !css.includes('#ruleChart .shotYTick{background:var(--sf)') ||
+    !css.includes('.ruleTable{width:100%;border-collapse:collapse') ||
     !ui.includes('function buildRuleChartModel(') ||
     !ui.includes('function renderRuleChart(') ||
     !ui.includes('function updateRuleChartFromStatus(') ||
@@ -63,10 +62,10 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
     !ui.includes("'timerOnly'") ||
     !ui.includes("'active'") ||
     !ui.includes("Number.isFinite(pv)?Math.max(0,Math.min(pv") ||
-    !ui.includes("RULE_SLOW='#5594dd'") ||
-    !ui.includes('rulePlotWrap') ||
+    !ui.includes('Cuts at {0} s (max {1})') ||
+    !ui.includes('Cuts at {0}, {1}\u2013{2} s') ||
+    !ui.includes('Cuts at {0} from {1} s (max {2} s)') ||
     !ui.includes('bbwProtectionMs') ||
-    !ui.includes('RULE_GAP_PX*RULE_W/Math.max(120,wrap.clientWidth-RULE_GUT)') ||
     !runtimeJs.includes('vector-effect="non-scaling-stroke"') ||
     !firmware.includes('SERIAL_DEBUG_ON') ||
     !firmware.includes('SERIAL_DEBUG_OFF') ||

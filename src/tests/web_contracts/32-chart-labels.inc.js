@@ -149,6 +149,7 @@
     if (shown.length !== 1 || shown[0] !== '36 g')
       throw new Error('A merged range that cannot fit must fall back: ' + shown);
   }
-  if (!runtimeJs.includes('m.wall,true,true'))
-    throw new Error('Rule chart axes must opt into merged range labels');
+  if (!runtimeJs.includes("fillChartTicks($('ruleChartTicks')") &&
+      !runtimeJs.includes('fillChartTicks(t,'))
+    throw new Error('Chart tick rendering must stay shared with the shot charts');
 }

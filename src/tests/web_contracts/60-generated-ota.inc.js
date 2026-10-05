@@ -764,7 +764,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
 
 {
   const start = js.indexOf('function buildRuleChartModel(');
-  const end = js.indexOf('const RULE_FAST=');
+  const end = js.indexOf('function renderRuleChart(');
   if (start < 0 || end < 0 || end <= start) {
     throw new Error('Rule chart model helpers not found for matrix checks');
   }

@@ -463,38 +463,12 @@ function startRenamePreset(p,titleEl){const isNarrow=window.matchMedia('(max-wid
 function ingestPresets(s){if(!s.presets)return;presetsLoaded=true;const prev=presetState.activeId;presetState.activeId=s.presets.activeId||0;presetState.items=s.presets.items||[];if(!presetState.activeId||!presetState.items.some(x=>x.id===presetState.selectedId)||(prev&&prev!==presetState.activeId))presetState.selectedId=presetState.activeId;if(prev&&prev!==presetState.activeId){configLoaded=false;formRev=0;clearBrewDirty()}renderAllPresetUi();if($('brewByWeight')&&!brewDirty)$('brewByWeight').checked=recipeBrewByWeight();const active=presetState.items.find(x=>x.id===presetState.activeId);if($('lineaMicraBrewTargetC')&&!brewDirty&&active&&typeof active.lineaMicraBrewTargetC==='number')$('lineaMicraBrewTargetC').value=active.lineaMicraBrewTargetC.toFixed(1)}
 
 function buildRuleChartModel(c){if(!c)return{mode:'empty'};const N=v=>{v=+v;return Number.isFinite(v)?v:NaN},bbw=!!c.brewByWeight,fast=bbw&&!!c.fastExtractionGuardEnabled,slow=bbw&&!!c.slowExtractionGuardEnabled,wall=N(c.operationalWallMs)/1e3,tMin=N(c.minBbwBrewTimeMs)/1e3,tMax=N(c.maxBbwBrewTimeMs)/1e3,pv=N(c.bbwProtectionMs)/1e3,prot=Number.isFinite(pv)?Math.max(0,Math.min(pv,tMin>0?tMin:1/0)):0;if(!(wall>0))return{mode:'empty'};return{mode:bbw?'active':'timerOnly',bbw,fast,slow,wall,tMin,tMax,prot,goal:N(c.goalWeightG),floor:N(c.minRecoveryWeightG),ceil:N(c.maxRecoveryWeightG)}}
-const RULE_FAST='#d97706',RULE_SLOW='#5594dd',RULE_W=260,RULE_H=78,RULE_T=8,RULE_B=76,RULE_GUT=22.4,RULE_GAP_PX=17,RULE_VE=' vector-effect="non-scaling-stroke"';const RULE_GUIDE=' stroke="var(--mu)" stroke-width=".8"'+RULE_VE+' stroke-dasharray="1.6 2.6" opacity=".7"/>';let ruleChartSig='',ruleChartResized=false;
-function renderRuleChart(m){const host=$('ruleChart');if(!host||!m)return;const sig=JSON.stringify([m,host.__ruleGap||0]);if(sig===ruleChartSig)return;ruleChartSig=sig;const W=RULE_W,H=RULE_H,T=RULE_T,B=RULE_B,VE=RULE_VE,FC=RULE_FAST,SC=RULE_SLOW;
-if(m.mode==='empty'){host.replaceChildren();return}
-if(m.mode==='timerOnly'){host.innerHTML='<svg viewBox="0 0 '+W+' '+(B+2)+'" class="rulePlot" role="img" aria-label="'+__WEBUI_TEXT__("home.time")+' 0\u2013'+axisLabel(m.wall,'s')+'"><path d="M0 '+B+'H'+W+'" stroke="var(--ln)" stroke-width="1"'+VE+'/></svg><div id="ruleChartTicks" class="ruleChartTicks"></div>';fillChartTicks($('ruleChartTicks'),[[0,'0 s',80,'time-0'],[m.wall,axisLabel(m.wall,'s'),70,'time-'+m.wall]],m.wall,true,true);return}
-const okv=Number.isFinite,ceil=Math.max(m.ceil||0,m.goal||0,m.floor||0,1),x=t=>((W-2)*Math.max(0,t)/m.wall).toFixed(1),yv=v=>B-(B-T)*Math.max(0,v)/ceil;
-const gap=host.__ruleGap||6.5,q=[yv(m.ceil),yv(m.goal),yv(m.floor)].filter(okv).map(v=>+v.toFixed(2)).sort((a,b)=>a-b);
-for(let i=1;i<q.length;i++)if(q[i]-q[i-1]<gap)q[i]=+(q[i-1]+gap).toFixed(2);
-const Y=v=>{const r=+yv(v).toFixed(2);return q.includes(r)?r:+yv(v)},X=t=>x(t),top=u=>(u/H*100).toFixed(2)+'%';
-const path=pts=>pts.map((p,i)=>(i?'L':'M')+X(p[0])+' '+Y(p[1])).join(' ');
-const line=(pts,c,d)=>'<path d="'+path(pts)+'" fill="none" stroke="'+c+'" stroke-width="1.35"'+VE+' stroke-linecap="round" stroke-linejoin="round"'+(d?' stroke-dasharray="3 2.6"':'')+'/>';
-const xm=(t,v,c)=>{const cx=+X(t),cy=Y(v);return '<path d="M'+(cx-1.2)+' '+(cy-1.2)+'L'+(cx+1.2)+' '+(cy+1.2)+'M'+(cx-1.2)+' '+(cy+1.2)+'L'+(cx+1.2)+' '+(cy-1.2)+'" stroke="'+c+'" stroke-width="1"'+VE+' stroke-linecap="round"/>'};
-const band=(a,b,c)=>b>a?'<rect x="'+X(a)+'" y="'+T+'" width="'+(+X(b)-+X(a)).toFixed(1)+'" height="'+(B-T)+'" fill="'+c+'" fill-opacity=".22"/>':'';
-let svg='<svg viewBox="0 0 '+W+' '+H+'" class="rulePlot" role="img" aria-label="'+__WEBUI_TEXT__("home.brew_rules_aria")+': '+axisLabel(m.goal,'g')+' '+__WEBUI_TEXT__("home.in_1")+' '+axisLabel(m.tMin,'s')+'\u2013'+axisLabel(m.tMax,'s')+'">';
-svg+=m.fast?band(0,m.tMin,FC):'';svg+=band(m.tMin,m.tMax,'var(--ok)');svg+=m.slow?band(m.tMax,m.wall,SC):'';
-for(const v of [m.ceil,m.goal,m.floor])if(okv(v))svg+='<path d="M0 '+Y(v)+'H'+W+'"'+RULE_GUIDE;
-svg+='<path d="M'+X(m.tMin)+' '+T+'V'+B+'M'+X(m.tMax)+' '+T+'V'+B+'"'+RULE_GUIDE;
-if(m.fast&&okv(m.ceil)&&okv(m.goal)){svg+=line([[0,0],[m.prot,m.ceil]],FC,1)+line([[m.prot,m.ceil],[m.tMin,m.ceil]],FC)+'<path d="M'+X(m.tMin)+' '+Y(m.ceil)+'V'+Y(m.goal)+'" stroke="'+FC+'" stroke-width="1.35"'+VE+' stroke-linecap="round"/>'+xm(m.prot,m.ceil,FC)+xm(m.tMin,m.ceil,FC)}
-if(okv(m.goal))svg+=line([[0,0],[m.tMin,m.goal]],'var(--ok)',1)+line([[m.tMin,m.goal],[m.tMax,m.goal]],'var(--ok)');
-if(m.slow&&okv(m.floor)&&okv(m.goal)){svg+=line([[0,0],[m.tMax,m.floor]],SC,1)+line([[m.tMax,m.floor],[m.wall,m.floor]],SC)+'<path d="M'+X(m.tMax)+' '+Y(m.goal)+'V'+Y(m.floor)+'" stroke="'+SC+'" stroke-width="1.35"'+VE+' stroke-linecap="round"/>'+xm(m.tMax,m.goal,'var(--ok)')+xm(m.wall,m.floor,SC)}
-if(m.fast&&okv(m.goal))svg+=xm(m.tMin,m.goal,'var(--ok)');
-svg+='</svg>';
-let lb='';for(const it of [[m.ceil,q[0]],[m.goal,q[1]],[m.floor,q[2]]])if(okv(it[0])&&okv(it[1]))lb+='<span class="shotYTick" style="top:'+top(it[1])+'">'+axisLabel(it[0],'g')+'</span>';
-host.innerHTML='<div class="rulePlotWrap">'+svg+lb+'</div><div id="ruleChartTicks" class="ruleChartTicks"></div>';
-const ticks=[[0,'0 s',80,'time-0']];
-if(m.tMin>0)ticks.push([m.tMin,axisLabel(m.tMin,'s'),50,'time-'+m.tMin]);
-if(m.tMax>0)ticks.push([m.tMax,axisLabel(m.tMax,'s'),50,'time-'+m.tMax]);
-ticks.push([m.wall,axisLabel(m.wall,'s'),70,'time-'+m.wall]);
-fillChartTicks($('ruleChartTicks'),ticks,m.wall,true,true);
-const wrap=host.querySelector('.rulePlotWrap');
-if(wrap){const need=RULE_GAP_PX*RULE_W/Math.max(120,wrap.clientWidth-RULE_GUT);
-if(need>(host.__ruleGap||6.5)+.05){host.__ruleGap=need;renderRuleChart(m)}else host.__ruleGap=need;
-if(!ruleChartResized){ruleChartResized=true;addEventListener('resize',()=>{ruleChartSig='';if(host.isConnected)renderRuleChart(m)},{passive:true})}}}
+let ruleChartSig='';
+function renderRuleChart(m){const host=$('ruleChart');if(!host||!m)return;const sig=JSON.stringify(m);if(sig===ruleChartSig)return;ruleChartSig=sig;
+if(m.mode!=='active'){host.replaceChildren();return}
+const okv=Number.isFinite,off=__WEBUI_TEXT__("runtime.off_2"),f=v=>okv(v)?axisLabel(v,'g'):'\u2014',s2=v=>okv(v)?axisLabel(v,'s'):'\u2014',sub=(t,vals)=>t.replace(/\{(\d)\}/g,(_,i)=>vals[+i]);
+const fast=m.fast?sub(__WEBUI_TEXT__("home.rule_fast"),[s2(m.tMin),f(m.ceil)]):off,bbw=sub(__WEBUI_TEXT__("home.rule_bbw"),[f(m.goal),m.tMin,m.tMax]),slow=m.slow?sub(__WEBUI_TEXT__("home.rule_slow"),[f(m.floor),m.tMax,m.wall]):off;
+host.innerHTML='<table class="ruleTable"><thead><tr><th>'+__WEBUI_TEXT__("runtime.fast")+'</th><th>'+__WEBUI_TEXT__("runtime.bbw")+'</th><th>'+__WEBUI_TEXT__("runtime.slow")+'</th></tr></thead><tbody><tr><td>'+fast+'</td><td>'+bbw+'</td><td>'+slow+'</td></tr></tbody></table>'}
 function updateRuleChartFromStatus(s){renderRuleChart(buildRuleChartModel(s&&s.config))}
 
 function ms(m,n){return m!=null?(m/1000).toFixed(n):'—'}
