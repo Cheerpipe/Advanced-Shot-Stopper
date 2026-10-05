@@ -135,9 +135,9 @@ label:has(>input[type=checkbox]) .fieldHint{margin-left:1.9rem}
 #taskTable th:nth-child(n+2),#taskTable td:nth-child(n+2),#loopTimingTable th:nth-child(n+2),#loopTimingTable td:nth-child(n+2),#scaleCommandTable th:nth-child(n+2),#scaleCommandTable td:nth-child(n+2){text-align:right}
 .inlineAction{border:0;background:none;padding:0;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}
 .inlineAction:disabled{opacity:.65;cursor:not-allowed}
-.stateReady,#machineStateValue.stateReady{color:var(--ok);font-weight:700}
-.stateActive,#machineStateValue.stateActive{color:var(--ac);font-weight:700}
-.stateFault,#machineStateValue.stateFault{color:var(--dn);font-weight:700}
+.stateReady{color:var(--ok);font-weight:700}
+.stateActive{color:var(--ac);font-weight:700}
+.stateFault{color:var(--dn);font-weight:700}
 #machineStateValue .switchOnly,#machineStateValue a{font-size:.78rem;font-weight:400}
 .metric a{color:inherit;text-decoration:underline;cursor:pointer}
 .metric a[aria-disabled=true]{pointer-events:none}
@@ -389,7 +389,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #presetRenameDialog::backdrop{background:rgba(21,21,21,.65)}
 
 .ruleChart{margin:.35rem 0 .15rem}
-#quickSettingsPanel .ruleChart{margin-top:1rem}
+#presetPanel .ruleChart{margin-top:1rem}
 .ruleChartHead strong,.ruleChartMode{display:none}
 .ruleChartLegend{display:flex;flex-wrap:wrap;gap:.55rem;margin:0 0 .55rem;font-size:.75rem;font-weight:600}
 .ruleLeg{display:inline-flex;align-items:center;gap:.3rem}

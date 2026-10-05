@@ -96,8 +96,6 @@ const sample = {homeBbwSub: 'Stop at target weight', homeNoScaleSub: 'Warn befor
   firmwareFooter: 'Design preview · no device connected', navFirmware: 'Design preview · no device connected'};
 for (const [id, value] of Object.entries(sample)) if ($(id)) $(id).textContent = value;
 function applyLamps() {
-  const ready = $('state') && $('state').textContent === 'Ready';
-  if ($('state')) $('state').classList.toggle('stateReady', ready);
   const row = id => document.getElementById(id);
   const mrs = $('machineRowState');
   if (mrs) {
