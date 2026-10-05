@@ -47,7 +47,7 @@
       line([[0, 0], [TIME.tMaxBbw, p.floor]], SC, '3 2.6') +
       line([[TIME.tMaxBbw, p.floor], [TIME.wall, p.floor]], SC) +
       line([[0, 0], [TIME.prot, p.ceil]], FC, '3 2.6') +
-      line([[TIME.prot, p.ceil], [TIME.tMin, p.ceil]], FC, '3 2.6') +
+      line([[TIME.prot, p.ceil], [TIME.tMin, p.ceil]], FC) +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}" stroke="${FC}" stroke-width=".8" stroke-linecap="round"/>` +
       `</svg>` +
       `<span class="shotYTick" style="top:${top(cyy)}">${esc(g(p.ceil))}</span>` +
