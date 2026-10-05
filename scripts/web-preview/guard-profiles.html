@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Guard profiles · 10 versiones del gráfico tiempo → peso</title>
+<title>Guard profiles · iterando el perfil tiempo → peso</title>
 <link rel="stylesheet" href="/app.css">
 <style>
   body{padding-bottom:2.5rem}
@@ -14,7 +14,6 @@
   #themeToggle{position:fixed;top:.75rem;right:.75rem;z-index:60;height:2.25rem;padding:0 .9rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;box-shadow:var(--ah)}
   .opt{margin:1.15rem 0;padding:1rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf)}
   .optHead h2{margin:0;font-size:1.02rem;display:flex;align-items:center;gap:.45rem;flex-wrap:wrap}
-  .optHead .star{flex:none;font-size:.72rem;font-weight:700;color:var(--pri);background:var(--pa);border-radius:1rem;padding:.1rem .55rem}
   .optHead p{margin:.15rem 0 .95rem;color:var(--mu);font-size:.85rem}
   .frames{display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start}
   .frame{flex:1 1 480px;min-width:300px;max-width:100%}
@@ -25,24 +24,6 @@
   .gpZone{margin-top:.9rem}
   .gpFig{margin:0}
   .gpFig svg{display:block;width:100%;height:auto}
-
-  /* HTML rule chips (several variants) */
-  .gpRuleRow{display:flex;flex-wrap:wrap;gap:.4rem;margin:.5rem 0 0}
-  .gpRule{display:inline-flex;align-items:center;gap:.35rem;padding:.32rem .65rem;border:1px solid var(--ln);border-radius:1rem;font-size:.78rem;font-weight:600}
-  .gpRule svg{width:.95rem;height:.95rem;flex:none}
-  .gpRule.wn{border-color:color-mix(in srgb,var(--wn) 35%,var(--ln));background:var(--mw);color:var(--wn)}
-  .gpRule.dn{border-color:color-mix(in srgb,var(--dn) 35%,var(--ln));background:var(--me);color:var(--dn)}
-  .gpRule.acc{border-color:color-mix(in srgb,var(--ac) 35%,var(--ln));background:var(--pa);color:var(--pri)}
-
-  /* Decision screens (variant 08) */
-  .gpSteps{display:grid;gap:.55rem}
-  .gpStep p{margin:.15rem 0 0;font-size:.85rem;line-height:1.35;color:var(--mu)}
-  .gpStep.ok p{color:var(--ok)}
-  .gpStep.wn p{color:var(--wn)}
-  .gpStep.dn p{color:var(--dn)}
-  .gpStep p b{font-weight:700}
-
-  /* Reference legend */
   .gpRefLegend{display:flex;flex-wrap:wrap;gap:.3rem .9rem;margin:.3rem 0 0;font-size:.72rem;font-weight:600}
   .gpRefLegend .ok{color:var(--ok)}
   .gpRefLegend .wn{color:var(--wn)}
@@ -50,9 +31,9 @@
 </style>
 </head>
 <body>
-  <h1>Guard profiles · 10 versiones del gráfico tiempo → peso</h1>
-  <p class="lead">Iteración sobre la propuesta 10. El dato clave es el <b>cruce</b>: al llegar el <b>28 s</b>, si el peso ya alcanzó los <b>36 g</b>, el guardia Fast extiende el tiro hasta <b>42.5 g</b>; pasado el <b>44 s</b>, si no llegó a <b>34 g</b>, el guardia Slow sigue sirviendo hasta ese piso. La versión anterior dejaba ese cruce poco legible: las etiquetas de 34 y 36 g se solapaban, las líneas iban demasiado juntas y en teléfono se leía peor.</p>
-  <p class="lead">Las diez versiones atacan eso con estrategias distintas: puntos de decisión en las intersecciones, umbrales anclados a las compuertas, consecuencias en texto HTML (nítido a cualquier tamaño), escaleras de pesos con separación mínima, y una variante que separa las etiquetas por código cuando dos quedan demasiado cerca. Mismos datos reales —<b>Double</b> (36 g, piso 34, techo 42.5) y <b>Single</b> (18/16/20) con ventana 28–44 s y límite 50 s—, mismas tarjetas de preset para alternar, y el botón «Tema» para claro y oscuro.</p>
+  <h1>Guard profiles · iterando el perfil tiempo → peso</h1>
+  <p class="lead">Iteramos <b>solo la propuesta 00</b> —el perfil de la propuesta 10— punto por punto. El dato clave que debe contar el gráfico es el <b>cruce</b>: al llegar el <b>28 s</b>, si el peso ya alcanzó los <b>36 g</b>, el guardia Fast extiende hasta <b>42.5 g</b>; pasado el <b>44 s</b> sin llegar a <b>34 g</b>, el guardia Slow sirve hasta ese piso.</p>
+  <p class="lead"><b>Iteración 1 · líneas finas:</b> las curvas de color bajan de 1.7/1.2 a 1.0/0.8, la rejilla y las compuertas se aligeran, y las bandas de fondo y etiquetas quedan igual. Compara 00 y 01 arriba y abajo, cambia entre <b>Double</b> y <b>Single</b> en las tarjetas de cada panel, y usa el botón «Tema» para claro y oscuro.</p>
   <button type="button" id="themeToggle">Tema: auto</button>
   <main id="options"></main>
   <p class="note">Vista de diseño sin conexión a ningún equipo; no modifica ajustes ni forma parte del firmware.</p>
