@@ -35,81 +35,31 @@
       `</svg><figcaption class="gpRefLegend"><span class="ok">on target · ${esc(g(p.target))}</span><span class="wn">fast · extends to ${esc(g(p.ceil))}</span><span class="dn">slow · stops at ${esc(g(p.floor))}</span></figcaption></figure>`;
   }
 
-  // Iteration 3+ · the final chart, with weight-label placement strategies.
-  function finalProfile(p, mode = 'right') {
-    const geo = {
-      right: {L: 8, Rp: 34, vbh: 88},
-      leftGutter: {L: 30, Rp: 2, vbh: 88},
-      leftHalo: {L: 8, Rp: 2, vbh: 88},
-      rightHalo: {L: 8, Rp: 2, vbh: 88},
-      interline: {L: 8, Rp: 2, vbh: 88},
-      rotated: {L: 8, Rp: 16, vbh: 88},
-      none: {L: 8, Rp: 2, vbh: 88},
-      atCuts: {L: 8, Rp: 2, vbh: 88},
-      underAxis: {L: 8, Rp: 2, vbh: 100},
-      segStarts: {L: 8, Rp: 2, vbh: 88},
-      miniLegend: {L: 8, Rp: 2, vbh: 88},
-    }[mode] || {L: 8, Rp: 2, vbh: 88};
-    const W = 260, L = geo.L, R = geo.Rp, T = 8, B = 76, VBH = geo.vbh;
+  // The final chart: one straight line per cut situation, weights on the right.
+  function finalProfile(p) {
+    const W = 260, L = 8, R = 34, T = 8, B = 76;
     const FC = '#d97706', SC = '#3762e3'; // rule colors: orange fast, blue slow
     const x = t => L + (W - R - L) * t / TIME.wall;
     const y = v => B - (B - T) * v / p.ceil;
+    const path = pts => pts.map((q, i) => (i ? 'L' : 'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' ');
     const spread = (items, min) => { const list = [...items].sort((a, b) => a - b);
       for (let i = 1; i < list.length; i++) if (list[i] - list[i - 1] < min) list[i] = list[i - 1] + min;
       return list; };
-    const [cy, ty, fy] = spread([y(p.ceil), y(p.target), y(p.floor)], 7);
+    const line = (pts, color, dash) => `<path d="${path(pts)}" fill="none" stroke="${color}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+    const [cyy, tyy, fyy] = spread([y(p.ceil), y(p.target), y(p.floor)], 7);
+    const limit = (v, ly) => `<path d="M${L} ${y(v).toFixed(1)}H${W - R}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/><text x="${W - R + 4}" y="${(ly + 2.3).toFixed(1)}" font-size="6.5" fill="var(--mu)">${esc(g(v))}</text>`;
     const band = (t0, t1, color, op) => `<rect x="${x(t0).toFixed(1)}" y="${T}" width="${(x(t1) - x(t0)).toFixed(1)}" height="${B - T}" fill="${color}" fill-opacity="${op}"/>`;
-    const limits = [p.ceil, p.target, p.floor].map(v =>
-      `<path d="M${L} ${y(v).toFixed(1)}H${W - R}" stroke="var(--mu)" stroke-width=".8" stroke-dasharray="2 3"/>`);
-    const line = (pts, color, width, dash) => `<path d="${path(pts)}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
-    function path(pts) { return pts.map((q, i) => (i ? 'L' : 'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' '); }
-    const halo = t => t.replace('<text ', '<text paint-order="stroke" stroke="var(--sf)" stroke-width="2.4" ');
-    const wText = (x0, y0, color, txt, anchor, rot) => halo(`<text x="${x0}" y="${y0.toFixed(1)}" font-size="6.5" font-weight="650" fill="${color}"${anchor === 'end' ? ' text-anchor="end"' : anchor === 'middle' ? ' text-anchor="middle"' : ''}${rot ? ` transform="rotate(-90 ${x0} ${y0.toFixed(1)})"` : ''}>${esc(txt)}</text>`);
-    let weightLabels = '';
-    if (mode === 'right') {
-      weightLabels = [[cy, g(p.ceil)], [ty, g(p.target)], [fy, g(p.floor)]]
-        .map(it => wText(W - R + 4, it[0] + 2.3, 'var(--fg)', it[1])).join('');
-    } else if (mode === 'leftGutter') {
-      weightLabels = [[cy, g(p.ceil)], [ty, g(p.target)], [fy, g(p.floor)]]
-        .map(it => wText(L - 4, it[0] + 2.3, 'var(--fg)', it[1], 'end')).join('');
-    } else if (mode === 'leftHalo' || mode === 'rightHalo') {
-      const x0 = mode === 'leftHalo' ? L + 3 : W - 3;
-      const anchor = mode === 'leftHalo' ? '' : 'end';
-      weightLabels = [[cy, g(p.ceil)], [ty, g(p.target)], [fy, g(p.floor)]]
-        .map(it => wText(x0, it[0] + 2.3, 'var(--fg)', it[1], anchor)).join('');
-    } else if (mode === 'interline') {
-      weightLabels = wText(W - 3, 6.8, 'var(--fg)', g(p.ceil), 'end') +
-        wText(W - 3, (cy + ty) / 2 + 2.3, 'var(--fg)', g(p.target), 'end') +
-        wText(W - 3, fy + 7.5, 'var(--fg)', g(p.floor), 'end');
-    } else if (mode === 'rotated') {
-      const rys = spread([Math.max(12, y(p.ceil)), Math.max(12, y(p.target)), Math.max(12, y(p.floor))], 16);
-      weightLabels = [p.ceil, p.target, p.floor]
-        .map((v, i) => wText(W - 13, rys[i], 'var(--fg)', v.toFixed(1), 'middle', true)).join('');
-    } else if (mode === 'atCuts') {
-      weightLabels = wText(x(TIME.tMin) + 5, (y(p.ceil) + y(p.target)) / 2 + 2.3, 'var(--fg)', `${g(p.target)}–${g(p.ceil)}`) +
-        wText(x(TIME.tMaxBbw) + 3, y(p.floor) + 7.5, 'var(--fg)', g(p.floor));
-    } else if (mode === 'underAxis') {
-      weightLabels = `<text x="${((L + W - R) / 2).toFixed(1)}" y="${B + 21}" text-anchor="middle" font-size="6.5" font-weight="650" fill="var(--fg)">${esc('weights (g):')} ${p.ceil.toFixed(1)} · ${p.target.toFixed(1)} · ${p.floor.toFixed(1)}</text>`;
-    } else if (mode === 'segStarts') {
-      weightLabels = halo(wText(60, cy - 1.5, 'var(--fg)', g(p.ceil))) +
-        halo(wText(x(TIME.tMin) + 4, ty - 2.5, 'var(--fg)', g(p.target))) +
-        halo(wText(x(TIME.tMaxBbw) + 4, fy + 6.5, 'var(--fg)', g(p.floor)));
-    } else if (mode === 'miniLegend') {
-      weightLabels = [[p.ceil, 'máx'], [p.target, 'objetivo'], [p.floor, 'mín']]
-        .map(it => halo(wText(W - 3, spread([11, 19, 27], 11)[[p.ceil, p.target, p.floor].indexOf(it[0])], 'var(--fg)', `${g(it[0])} ${it[1]}`, 'end'))).join('');
-    }
-    return `<figure class="gpFig"><svg viewBox="0 0 ${W} ${VBH}" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot cuts at ${TIME.tMin} seconds with the weight anywhere between ${esc(g(p.target))} and ${esc(g(p.ceil))}; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
+    return `<figure class="gpFig"><svg viewBox="0 0 ${W} 88" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot cuts at ${TIME.tMin} seconds with the weight anywhere between ${esc(g(p.target))} and ${esc(g(p.ceil))}; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
       band(0, TIME.tMin, FC, .22) + band(TIME.tMin, TIME.tMaxBbw, 'var(--ok)', .22) + band(TIME.tMaxBbw, TIME.wall, SC, .22) +
       `<path d="M${x(0).toFixed(1)} ${y(0).toFixed(1)}L${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}Z" fill="${FC}" fill-opacity=".12"/>` +
-      limits.join('') +
+      limit(p.ceil, cyy) + limit(p.target, tyy) + limit(p.floor, fyy) +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${T}V${B}M${x(TIME.tMaxBbw).toFixed(1)} ${T}V${B}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/>` +
-      line([[0, 0], [TIME.tMin, p.target]], 'var(--ok)', .8, '3 2.6') +
-      line([[TIME.tMin, p.target], [TIME.tMaxBbw, p.target]], 'var(--ok)', .8) +
-      line([[0, 0], [TIME.tMaxBbw, p.floor]], SC, .8, '3 2.6') +
-      line([[TIME.tMaxBbw, p.floor], [TIME.wall, p.floor]], SC, .8) +
-      line([[0, 0], [TIME.tMin, p.ceil]], FC, .8, '3 2.6') +
+      line([[0, 0], [TIME.tMin, p.target]], 'var(--ok)', '3 2.6') +
+      line([[TIME.tMin, p.target], [TIME.tMaxBbw, p.target]], 'var(--ok)') +
+      line([[0, 0], [TIME.tMaxBbw, p.floor]], SC, '3 2.6') +
+      line([[TIME.tMaxBbw, p.floor], [TIME.wall, p.floor]], SC) +
+      line([[0, 0], [TIME.tMin, p.ceil]], FC, '3 2.6') +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}" stroke="${FC}" stroke-width=".8" stroke-linecap="round"/>` +
-      weightLabels +
       `<g font-size="6.5" fill="var(--mu)" text-anchor="middle"><text x="${L}" y="85">0 s</text><text x="${x(TIME.tMin).toFixed(1)}" y="85">28 s</text><text x="${x(TIME.tMaxBbw).toFixed(1)}" y="85">44 s</text><text x="${x(TIME.wall).toFixed(1)}" y="85" text-anchor="end">50 s</text></g>` +
       `</svg><figcaption class="gpRefLegend"><span class="fc">fast · cuts at 28 s, ${esc(g(p.target))}–${esc(g(p.ceil))}</span><span class="ok">BBW · cuts at ${esc(g(p.target))}, 28–44 s</span><span class="sc">slow · ${esc(g(p.floor))} from 44 s</span></figcaption></figure>`;
   }
@@ -123,19 +73,9 @@
 
   const host = document.getElementById('options');
   const sections = [
-    {name: '00 · Perfil original (referencia)', desc: 'El perfil de la propuesta 10 con sus curvas de escenario. Se conserva como referencia del punto de partida.', render: p => profile(p, false)},
-    {name: '01 · Versión final · etiquetas a la derecha (actual)', desc: 'El estado actual: los pesos a la derecha cuestan 34 px de ancho al gráfico.', render: p => finalProfile(p, 'right')},
-    {name: '02 · Gutter izquierdo', desc: 'Los pesos pasan a una columna estrecha a la izquierda y el gráfico se extiende completa hasta el borde derecho.', render: p => finalProfile(p, 'leftGutter')},
-    {name: '03 · Izquierda con halo', desc: 'Etiquetas dentro del gráfico, sobre el inicio de cada línea, con un contorno del color del fondo que las mantiene legibles sin tapar nada más.', render: p => finalProfile(p, 'leftHalo')},
-    {name: '04 · Derecha con halo', desc: 'Igual que la actual pero dentro del área: el gráfico llega hasta el borde derecho y los pesos, con halo, se apoyan sobre el final de cada línea.', render: p => finalProfile(p, 'rightHalo')},
-    {name: '05 · Interlineal derecha', desc: 'Cada peso se coloca en el hueco libre más cercano a su línea, alineado a la derecha: el techo sobre el borde superior, el objetivo entre líneas y el piso bajo su línea. Sin halo.', render: p => finalProfile(p, 'interline')},
-    {name: '06 · Rotadas en el borde', desc: 'Pesos en vertical sobre el borde derecho, centrados con cada línea; el gráfico casi no cede ancho.', render: p => finalProfile(p, 'rotated')},
-    {name: '07 · Sin etiquetas', desc: 'El gráfico se extiende completa y limpia; los tres pesos viven en la leyenda inferior, junto a cada situación.', render: p => finalProfile(p, 'none')},
-    {name: '08 · En los puntos de corte', desc: 'Sin etiquetas de eje: el rango 36–42.5 g aparece junto al segmento vertical de 28 s y el piso 34 g junto al tramo lento, justo donde se usan.', render: p => finalProfile(p, 'atCuts')},
-    {name: '09 · Bajo el eje de tiempo', desc: 'Los tres pesos, coloreados, en una línea bajo el eje de tiempo; el gráfico completo llega al borde derecho.', render: p => finalProfile(p, 'underAxis')},
-    {name: '10 · Al inicio de cada tramo', desc: 'Cada peso se apoya, con halo, sobre el inicio del tramo donde aplica: el techo sobre su línea, el objetivo sobre el tramo plano BBW y el piso sobre el tramo lento.', render: p => finalProfile(p, 'segStarts')},
-    {name: '11 · Mini-leyenda superior', desc: 'Una mini-leyenda de tres filas en la esquina superior derecha (techo, objetivo, piso) con halo; el gráfico completo llega al borde derecho.', render: p => finalProfile(p, 'miniLegend')},
+    {name: '01 · Versión final · una recta por situación', desc: 'Los límites de los guardias dibujados solo con datos reales, en los colores de los gráficos de Stats: la rápida (naranjo) sube hasta su corte de 28 s × 42.5 g —su rango posible, entre 36 y 42.5 g, es el abanico sobre la compuerta—; la BBW normal (verde) llega en diagonal a 36 g y sigue plana entre 28 y 44 s, donde puede ocurrir el corte; la lenta (celeste) sube hasta el piso de 34 g y se corta en plano de 44 a 50 s. Cada línea va punteada hasta su activación y sólida desde ahí; los pesos, a la derecha, comparten estilo con los rótulos de tiempo.', render: finalProfile},
   ];
+
 
   const zoneRenders = new Map();
   sections.forEach(s => {

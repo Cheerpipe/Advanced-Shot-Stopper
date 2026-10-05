@@ -161,19 +161,17 @@ assets.
 ### Guard profile chart iterations preview
 
 Open `http://127.0.0.1:4173/guard-profiles` on the same running preview server
-to iterate the time-to-weight profile chart one change at a time, starting
-from the proposal-10 design shown as section 00. Section 01 is the current
-final chart, whose right-hand weight labels cost the plot 34 pixels of
-width; sections 02-11 are ten label-placement alternatives that let the
-chart extend fully to the right edge while keeping the weights
-non-obstructive: a left label gutter, labels with a background halo sitting
-on their lines at the left or right end, right-aligned labels in the clear
-bands between lines, rotated labels on the right edge, no labels at all
-(weights live in the legend), labels at the cut points, a colored weights
-row under the time axis, labels at the start of each flat stretch, and a
-mini legend pinned at the top right. All versions keep the stats colors and
-fills, the dashed-until-activation lines, and the fast cut range wedge.
-Preset cards switch between Double and Single inside every panel at desktop
+show the final time-to-weight guard profile chart, drawn only from the
+factory preset limits with one straight line per cut situation and the
+stats chart palette: the orange fast line rises to its cut at 28 s at the
+42.5 g recovery ceiling —the amber wedge over the 28 s gate marks the cut
+range down to the 36 g target—; the green BBW line arrives at 36 g and
+continues flat from 28 to 44 s, where its cut can happen; and the light
+blue slow line (#3762e3) rises to the 34 g recovery floor and cuts flat
+from 44 s to the 50 s machine limit. Every line is dashed until its guard
+activates and solid from there, the weight labels share the time label
+style on the right, and the background bands use the stats fill colors.
+Preset cards switch between Double and Single inside the panel at desktop
 and phone width, and the corner **Tema** button cycles auto, light, and
 dark. Readings are simulated; the preview does not connect to a device or
 ship in firmware assets.
