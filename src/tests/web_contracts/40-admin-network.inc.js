@@ -62,8 +62,8 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
     !ui.includes("'timerOnly'") ||
     !ui.includes("'active'") ||
     !ui.includes("Number.isFinite(pv)?Math.max(0,Math.min(pv") ||
-    !ui.includes('Cuts at {0} s (max {1})') ||
-    !ui.includes('Cuts at {0}, {1}\u2013{2} s') ||
+    !ui.includes('Cuts from {0} s at {1}, or at {2} s') ||
+    !ui.includes('Cuts at {0} between {1} and {2} s') ||
     !ui.includes('Cuts at {0} from {1} s (max {2} s)') ||
     !ui.includes('bbwProtectionMs') ||
     !runtimeJs.includes('vector-effect="non-scaling-stroke"') ||

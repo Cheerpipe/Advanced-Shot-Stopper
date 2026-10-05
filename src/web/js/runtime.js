@@ -467,7 +467,7 @@ let ruleChartSig='';
 function renderRuleChart(m){const host=$('ruleChart');if(!host||!m)return;const sig=JSON.stringify(m);if(sig===ruleChartSig)return;ruleChartSig=sig;
 if(m.mode!=='active'){host.replaceChildren();return}
 const okv=Number.isFinite,off=__WEBUI_TEXT__("runtime.off_2"),f=v=>okv(v)?axisLabel(v,'g'):'\u2014',s2=v=>okv(v)?axisLabel(v,'s'):'\u2014',sub=(t,vals)=>t.replace(/\{(\d)\}/g,(_,i)=>vals[+i]);
-const fast=m.fast?sub(__WEBUI_TEXT__("home.rule_fast"),[s2(m.tMin),f(m.ceil)]):off,bbw=sub(__WEBUI_TEXT__("home.rule_bbw"),[f(m.goal),m.tMin,m.tMax]),slow=m.slow?sub(__WEBUI_TEXT__("home.rule_slow"),[f(m.floor),m.tMax,m.wall]):off;
+const fast=m.fast?sub(__WEBUI_TEXT__("home.rule_fast"),[m.prot,f(m.ceil),m.tMin]):off,bbw=sub(__WEBUI_TEXT__("home.rule_bbw"),[f(m.goal),m.tMin,m.tMax]),slow=m.slow?sub(__WEBUI_TEXT__("home.rule_slow"),[f(m.floor),m.tMax,m.wall]):off;
 host.innerHTML='<table class="ruleTable"><thead><tr><th>'+__WEBUI_TEXT__("runtime.fast")+'</th><th>'+__WEBUI_TEXT__("runtime.bbw")+'</th><th>'+__WEBUI_TEXT__("runtime.slow")+'</th></tr></thead><tbody><tr><td>'+fast+'</td><td>'+bbw+'</td><td>'+slow+'</td></tr></tbody></table>'}
 function updateRuleChartFromStatus(s){renderRuleChart(buildRuleChartModel(s&&s.config))}
 
