@@ -14,7 +14,7 @@
   // The final chart: one straight line per cut situation, stats-style HTML labels.
   // `f` maps the normalized weight (0..1) to the vertical fraction, enabling
   // alternative smooth scales; `spreadMin` sets the label de-overlap gap.
-  function finalProfile(p, f = (u => u), spreadMin = 14) {
+  function finalProfile(p, f = (u => u), spreadMin = 14, floorLeft = false) {
     const W = 260, L = 0, R = 2, T = 8, B = 76;
     const FC = '#d97706', SC = '#5594dd'; // rule colors: orange fast, blue slow
     const VE = ' vector-effect="non-scaling-stroke"';
@@ -48,7 +48,7 @@
       `</svg>` +
       `<span class="shotYTick" style="top:${top(cyy)}">${esc(g(p.ceil))}</span>` +
       `<span class="shotYTick" style="top:${top(tyy)}">${esc(g(p.target))}</span>` +
-      `<span class="shotYTick" style="top:${top(fyy)}">${esc(g(p.floor))}</span>` +
+      `<span class="shotYTick" style="top:${top(fyy)}${floorLeft ? ';left:.25rem;right:auto' : ''}">${esc(g(p.floor))}</span>` +
       `</div>` +
       `<div class="ruleChartTicks" style="margin:.15rem 1.4rem 0 0"><span class="ruleTick" style="left:0">0 s</span><span class="ruleTick" style="left:56%">28 s</span><span class="ruleTick" style="left:88%">44 s</span><span class="ruleTick" style="left:100%">50 s</span></div>` +
       `</figure>`;
@@ -64,7 +64,7 @@
 
   const host = document.getElementById('options');
   const sections = [
-    {name: '01 · Versión final · escala lineal (referencia)', desc: 'Los límites de los guardias dibujados solo con datos reales, en los colores de los gráficos de Stats: la rápida (naranjo) sube hasta su corte de 28 s × 42.5 g —su rango posible, entre 36 y 42.5 g, es el abanico sobre la compuerta—; la BBW normal (verde) llega en diagonal a 36 g y sigue plana entre 28 y 44 s, donde puede ocurrir el corte; a los 44 s el segmento vertical celeste corta a todo tiro que ya esté entre 34 y 36 g, mientras la lenta sube hasta el piso de 34 g para cortar en plano de 44 a 50 s. Cada línea va punteada hasta su activación y sólida desde ahí. En escala lineal, el piso (34 g) y el objetivo (36 g) quedan muy cerca.', render: p => finalProfile(p)},
+    {name: '01 · Versión final · escala lineal (referencia)', desc: 'Los límites de los guardias dibujados solo con datos reales, en los colores de los gráficos de Stats: la rápida (naranjo) sube hasta su corte de 28 s × 42.5 g —su rango posible, entre 36 y 42.5 g, es el abanico sobre la compuerta—; la BBW normal (verde) llega en diagonal a 36 g y sigue plana entre 28 y 44 s, donde puede ocurrir el corte; a los 44 s el segmento vertical celeste corta a todo tiro que ya esté entre 34 y 36 g, mientras la lenta sube hasta el piso de 34 g para cortar en plano de 44 a 50 s. Cada línea va punteada hasta su activación y sólida desde ahí. En escala lineal el piso y el objetivo quedan muy juntos, por eso el piso se rotula al inicio izquierdo de su línea y el objetivo al final derecho.', render: p => finalProfile(p, u => u, 0, true)},
     {name: '02 · Escala potencia (k = 2)', desc: 'La altura usa (peso/techo)²: la mitad superior del eje gana espacio y el piso y el objetivo se separan ~1.65×. Monótona y suave; la parte baja se comprime de forma progresiva y los propios rótulos de peso revelan la escala.', render: p => finalProfile(p, u => u * u, 5)},
     {name: '03 · Escala exponencial suavizada (k = 2)', desc: 'Altura = (e^(2u)−1)/(e²−1): expansión progresiva parecida a la potencia pero con el crecimiento más contenido en la parte baja; el piso y el objetivo se separan ~1.6×.', render: p => finalProfile(p, u => (Math.exp(2 * u) - 1) / (Math.exp(2) - 1), 5)},
     {name: '04 · Mezcla lineal-cuadrática (m = 0.7)', desc: 'Altura = 30% lineal + 70% cuadrática: la más suave de las tres —conserva parte de la linealidad original, así la parte baja no se aplasta del todo— y separa el piso y el objetivo ~1.44×. Con m = 0 devuelve exactamente la escala lineal.', render: p => finalProfile(p, u => .3 * u + .7 * u * u, 5)},
