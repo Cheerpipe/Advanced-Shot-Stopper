@@ -571,6 +571,10 @@ void confirmLateRetareBaseline() {
   if (pendingFinalize.pending && pendingFinalize.cycleId == session.id) {
     pendingFinalize.firstDropDs = SHOT_LOG_METRIC_MISSING;
     pendingFinalize.curve.firstDrop = missingShotCurveEvent();
+    if (homeCycleResult.cycleId == session.id) {
+      homeCycleResult.firstDropElapsedMs = 0;
+      homeCycleResult.averageFlowValid = false;
+    }
     PersistedLastShot last;
     {
       const TaskLockGuard lock(shotStoreMutex);
@@ -954,6 +958,7 @@ void captureLateTareCompletion(uint32_t throughMs = millis()) {
   session.retareAtMs = result.receivedAtMs;
   if (pendingFinalize.pending && pendingFinalize.cycleId == session.id) {
     pendingFinalize.tareAtDs = static_cast<uint16_t>((result.receivedAtMs - anchor) / 100U);
+    if (homeCycleResult.cycleId == session.id) homeCycleResult.tareElapsedMs = result.receivedAtMs - anchor;
     PersistedLastShot last;
     {
       const TaskLockGuard lock(shotStoreMutex);
@@ -969,6 +974,11 @@ void captureLateTareCompletion(uint32_t throughMs = millis()) {
 void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
                                  const CycleWallTime &end = captureCycleWallTime()) {
   captureLateTareCompletion(end.endedAtMs);
+  if (session.hasWeightAnchor) {
+    shotCurveSampler.captureEnd(end.endedAtMs, session.lastAcceptedWeightG);
+  } else {
+    shotCurveSampler.captureEnd(end.endedAtMs);
+  }
   if (brewEndIsAbandonedStart(reason) || endingRinseCycle(reason)) {
     return;
   }
@@ -1077,11 +1087,6 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
       '\0';
   copyCString(pendingFinalize.scaleName, sizeof(pendingFinalize.scaleName),
               session.scaleName);
-  if (session.hasWeightAnchor) {
-    shotCurveSampler.captureEnd(millis(), session.lastAcceptedWeightG);
-  } else {
-    shotCurveSampler.captureEnd(millis());
-  }
   shotCurveSampler.snapshot(pendingFinalize.curve);
 }
 
@@ -1417,6 +1422,7 @@ void pendingShotFinalizeTask() {
   // Keep the cutoff time and settled-yield annotation separate from observations.
   if (logWeightValid) {
     (void)settleShotCurveEndWeight(snapshot.curve, logWeightG);
+    pendingFinalize.curve.ended = snapshot.curve.ended;
   }
 
   snapshot.bbwLearningApplied =

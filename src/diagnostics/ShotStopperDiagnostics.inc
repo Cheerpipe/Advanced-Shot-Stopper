@@ -306,7 +306,8 @@ void publishControlStatus() {
   next.lastGoodShot = statusLastGoodShot;
   next.homeCycle = homeCycleResult;
   next.homeResolvedAtMs = homeCycleResolvedAtMs;
-  next.homePending = pendingFinalize.pending && !session.active;
+  next.homePending = pendingFinalize.pending && !session.active &&
+                     pendingFinalize.cycleId == next.homeCycle.cycleId;
   if (next.homePending && pendingFinalize.curve.count > 0) {
     next.homeCycle.currentWeightG = pendingFinalize.curve.weightCg[pendingFinalize.curve.count - 1] / 100.0f;
     next.homeCycle.weightValid = weightFresh;
@@ -327,12 +328,7 @@ void publishControlStatus() {
     else if (next.homeCycle.valid) {
       if (pendingFinalize.cycleId == next.homeCycle.cycleId)
         statusLastGoodCurve = pendingFinalize.curve;
-      else {
-        shotCurveSampler.snapshot(statusLastGoodCurve);
-        statusLastGoodCurve.ended.atMs = static_cast<uint16_t>(
-            next.homeCycle.durationMs < UINT16_MAX
-                ? next.homeCycle.durationMs : UINT16_MAX);
-      }
+      else shotCurveSampler.snapshot(statusLastGoodCurve);
     }
     copyShotCurveRecordToStatusFields(
         curve, next.shotCurveCount, next.shotCurveTruncated,
@@ -389,6 +385,13 @@ void publishControlStatus() {
         ? session.firstDropMs - next.cycleStartedAtMs : 0;
     home.tareElapsedMs = session.retareAtMs != 0
         ? session.retareAtMs - next.cycleStartedAtMs : 0;
+    if (home.weightValid && session.scaleBaselineReady && session.firstDropMs != 0 &&
+        home.durationMs > home.firstDropElapsedMs + 500U) {
+      const float delta = home.currentWeightG - session.scaleBaselineG;
+      home.averageFlowGps = delta * 1000.0f /
+                           static_cast<float>(home.durationMs - home.firstDropElapsedMs);
+      home.averageFlowValid = delta > 0 && std::isfinite(home.averageFlowGps);
+    }
     home.extractionExtended = session.extractionExtended;
     home.slowExtractionExtended = session.slowExtractionExtended;
     next.cycleExtractionExtended =

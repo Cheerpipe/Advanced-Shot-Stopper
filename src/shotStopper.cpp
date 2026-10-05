@@ -1208,6 +1208,9 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
   }
   persistLastShotSnapshot(last);
   if (homeCycleResult.cycleId == snapshot.cycleId) {
+    last.durationMs = homeCycleResult.durationMs;
+    last.firstDropElapsedMs = homeCycleResult.firstDropElapsedMs;
+    last.tareElapsedMs = homeCycleResult.tareElapsedMs;
     homeCycleResult = last;
     homeCycleResolvedAtMs = millis();
   }

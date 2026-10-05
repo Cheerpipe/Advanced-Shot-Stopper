@@ -19,6 +19,15 @@ writes the captured image without the mutex; control clears dirtiness only when
 the completed generation is still current. Control never acquires the flash lock. See
 [BBW policy and storage](ARCHITECTURE.md#bbw-policy-and-storage).
 
+The v1 Home shot stream carries the existing card's scalar values and accepted
+curve observations. Sequence/base, boot/cycle/shot identity and curve cursors
+govern replacement and append updates; bind and resync share one coalesced
+dispatch. Unavailable weight, average flow, first drop and tare are explicit
+`null` values. Active average flow uses the control owner's fresh accepted
+weight, known scale baseline and confirmed first drop. Qualifying results use
+the exact Stats record; nonqualifying results preserve their firmware cutoff
+time. This presentation contract adds no guard decisions or actuation messages.
+
 ScaleService publishes the bounded friendly/raw BLE name in its link
 snapshot and retains the latest successful shot-tare result under the critical
 event mutex. Control copies the name into the shot and correlates tare completion

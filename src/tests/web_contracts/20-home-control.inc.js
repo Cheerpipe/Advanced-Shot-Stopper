@@ -136,10 +136,25 @@
   if (!hero.hidden) {
     throw new Error('Clearing Home must hide the shot hero');
   }
+  const heroElements=new Map(),lookup=id=>{
+    if(!heroElements.has(id))heroElements.set(id,{hidden:false,textContent:'',style:{setProperty(){}},
+      classList:{toggle(){}},setAttribute(){},replaceChildren(){}});
+    return heroElements.get(id);
+  };
+  const paint=new Function('$','buildShotSparkModel','formatShotEnded','ms',
+    runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),runtimeJs.indexOf('function shotPresetName('))+
+    ';return renderShotHero;')(lookup,()=>null,()=>'',(v,n)=>(v/1000).toFixed(n));
+  const card={live:true,weight:2,goal:36,elapsedMs:1000,firstDropMs:0,tareMs:null,averageFlowGps:null};
+  paint(card);
+  if(lookup('shotHeroDrop').hidden||!lookup('shotHeroDrop').textContent.startsWith('0.0s')||
+      !lookup('shotHeroFlow').hidden)throw new Error('A measured zero event must remain visible without inventing flow');
+  paint({...card,firstDropMs:null,averageFlowGps:1.23});
+  if(!lookup('shotHeroDrop').hidden||lookup('shotHeroFlow').hidden||
+      !lookup('shotHeroFlow').textContent.startsWith('1.23'))throw new Error('Home must render firmware event/flow validity');
   const apply = new Function(runtimeJs.slice(runtimeJs.indexOf('function shotStreamFrame('),
     runtimeJs.indexOf('function startShotStream('))+';return shotStreamFrame;')();
   const snapshot={v:1,boot:7,seq:1,base:0,revision:1,snapshot:true,cycle:19,shotId:0,
-    phase:'active',curveBase:0,cursor:2,card:{valid:true,live:true,weight:1,elapsedMs:1000,averageFlowGps:null},
+    phase:'active',curveBase:0,cursor:2,card:{valid:true,live:true,weight:1,elapsedMs:1000,averageFlowGps:null,firstDropMs:null,tareMs:null},
     curve:{wCg:[100,100],wAtMs:[100,700],wBreakBefore:[],dropS:null,endS:null}};
   const first=apply(null,snapshot);
   const update={...snapshot,seq:2,base:1,snapshot:false,curveBase:2,cursor:4,
@@ -156,7 +171,11 @@
   for(const bad of [{...update,seq:4},{...update,base:0},{...update,cycle:20},
     {...update,curveBase:1},{...snapshot,curveBase:1},
     {...snapshot,cursor:1202},{...snapshot,curve:{...snapshot.curve,wAtMs:[700,100]}},
-    {...snapshot,card:{...snapshot.card,weight:NaN}}]){
+    {...snapshot,curve:{...snapshot.curve,wCg:[true,100]}},
+    {...snapshot,curve:{...snapshot.curve,wCg:['100',100]}},
+    {...snapshot,card:{...snapshot.card,weight:NaN}},
+    ...[undefined,-1,NaN,Infinity,60001,'0'].map(firstDropMs=>({...snapshot,card:{...snapshot.card,firstDropMs}})),
+    ...[-1,NaN,'0'].map(tareMs=>({...snapshot,card:{...snapshot.card,tareMs}}))]){
     if(bad.snapshot)bad.seq=3;
     let rejected=false;try{apply(first,bad)}catch(_){rejected=true}
     if(!rejected)throw new Error('Invalid/gapped stream must request recovery');
@@ -164,6 +183,16 @@
   const maximum=apply(null,{...snapshot,cursor:1201,curve:{wCg:Array(1201).fill(100),
     wAtMs:Array.from({length:1201},(_,i)=>i*50),wBreakBefore:[],wTruncated:true}});
   if(maximum.curve.wCg.length!==1201)throw new Error('Maximum curve must stay bounded and complete');
+  const events=apply(null,{...snapshot,card:{...snapshot.card,firstDropMs:0,tareMs:60000}});
+  if(events.card.firstDropMs!==0||events.card.tareMs!==60000||first.card.firstDropMs!==null)
+    throw new Error('Scalar events must distinguish measured zero from unavailable data');
+  const streamSource=fs.readFileSync(path.join(sketchDir,'network/ShotStopperShotStream.inc'),'utf8');
+  const handler=streamSource.slice(streamSource.indexOf('esp_err_t ShotStopperNetwork::shotStreamHandler('),
+    streamSource.indexOf('void ShotStopperNetwork::serviceShotStream('));
+  if(handler.includes('sendShotStream(')||!handler.includes('session->resync = true;')||
+      !streamSource.includes('shotStreamWorkPending_.exchange(true')||
+      !streamSource.includes('now - shotStreamDispatchAtMs_ < 100'))
+    throw new Error('Bind/resync must share the coalesced publication cadence');
   const sockets=[],timers=new Map();let timerId=0,owner=true;
   class Socket{static OPEN=1;constructor(url){this.url=url;this.readyState=1;this.sent=[];sockets.push(this)}send(body){this.sent.push(JSON.parse(body))}close(){this.readyState=3;this.onclose?.()}}
   const listeners={};

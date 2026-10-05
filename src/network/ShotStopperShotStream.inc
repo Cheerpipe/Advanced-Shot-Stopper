@@ -138,7 +138,6 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
   if (!accepted) return ESP_FAIL;
   if (superseded >= 0) httpd_sess_trigger_close(request->handle, superseded);
   httpd_sess_set_send_override(request->handle, session->fd, shotStreamSend);
-  self.sendShotStream(*session);
   return ESP_OK;
 }
 
@@ -217,23 +216,29 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
   char preset[sizeof(card.presetName) * 6], scale[sizeof(card.scaleName) * 6];
   escapeJsonString(card.presetName, preset, sizeof(preset));
   escapeJsonString(card.scaleName, scale, sizeof(scale));
-  char weight[32] = "null", flow[32] = "null";
+  char weight[32] = "null", flow[32] = "null", drop[16] = "null", tare[16] = "null";
   if (card.weightValid && std::isfinite(card.currentWeightG))
     snprintf(weight, sizeof(weight), "%.2f", static_cast<double>(card.currentWeightG));
   if (card.averageFlowValid && std::isfinite(card.averageFlowGps))
     snprintf(flow, sizeof(flow), "%.2f", static_cast<double>(card.averageFlowGps));
+  const bool canonical = !live && !retained && eligible;
+  if (canonical ? latest.firstDropDs != SHOT_LOG_METRIC_MISSING
+                : card.firstDropElapsedMs != 0 || shotCurveEventPresent(curve.firstDrop))
+    snprintf(drop, sizeof(drop), "%lu", static_cast<unsigned long>(card.firstDropElapsedMs));
+  if (canonical ? latest.tareAtDs != SHOT_LOG_METRIC_MISSING
+                : card.tareElapsedMs != 0)
+    snprintf(tare, sizeof(tare), "%lu", static_cast<unsigned long>(card.tareElapsedMs));
   char *output = workBuf_->jsonItem;
   const int cardBytes = snprintf(output, NetworkWorkBuf::kJsonItem,
       "\"phase\":\"%s\",\"card\":{\"valid\":%s,\"live\":%s,\"weight\":%s,"
-      "\"weightValid\":%s,\"goal\":%u,\"elapsedMs\":%lu,\"firstDropMs\":%lu,"
-      "\"tareMs\":%lu,\"presetName\":\"%s\",\"scaleName\":\"%s\","
+      "\"weightValid\":%s,\"goal\":%u,\"elapsedMs\":%lu,\"firstDropMs\":%s,"
+      "\"tareMs\":%s,\"presetName\":\"%s\",\"scaleName\":\"%s\","
       "\"shotType\":\"%s\",\"endReason\":\"%s\",\"averageFlowGps\":%s,"
       "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,"
       "\"rating\":%u,\"savePending\":%s}",
       phase, card.valid ? "true" : "false", control.activeCycle ? "true" : "false",
       weight, card.weightValid ? "true" : "false", card.goalWeightG,
-      static_cast<unsigned long>(card.durationMs), static_cast<unsigned long>(card.firstDropElapsedMs),
-      static_cast<unsigned long>(card.tareElapsedMs), preset, scale,
+      static_cast<unsigned long>(card.durationMs), drop, tare, preset, scale,
       lastShotTypeName(static_cast<LastShotType>(card.shotType)),
       !live && !retained && eligible ? shotLogStopDetailName(static_cast<ShotLogStopDetail>(latest.stopDetail))
                                   : shotLogStopDetailName(shotLogStopDetailFromEndReason(

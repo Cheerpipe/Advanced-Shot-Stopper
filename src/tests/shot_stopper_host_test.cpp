@@ -12010,6 +12010,8 @@ void rs06_late_retare_corrects_only_confirmed_first_drop() {
       hostMillis = start + 14000U;
       schedulePendingShotFinalize(EndReason::ACTIVATOR, 14000);
       persistLastShotSnapshot(lastShotFromEndedCycle(EndReason::ACTIVATOR, 14000));
+      homeCycleResult = lastShotFromEndedCycle(EndReason::ACTIVATOR, 14000);
+      homeCycleResult.averageFlowValid = true;
       session.active = false;
       session.awaitingPostTareBaseline = false;
       hostMillis = start + 14200U;
@@ -12063,6 +12065,16 @@ void rs06_late_retare_corrects_only_confirmed_first_drop() {
     publishControlStatus();
     if (session.active)
       CHECK(publishedControlStatus.cycleFirstDropMs == session.firstDropMs);
+    if (mode == 10 || mode == 11 || mode == 12) {
+      CHECK(publishedControlStatus.homePending);
+      CHECK((publishedControlStatus.homeCycle.firstDropElapsedMs == 0) == corrected);
+      CHECK(publishedControlStatus.homeCycle.averageFlowValid == !corrected);
+      CHECK((publishedControlStatus.homeCycle.tareElapsedMs != 0) == (mode != 12));
+      persistLastShotFromFinalize(pendingFinalize, 36, true);
+      CHECK((homeCycleResult.firstDropElapsedMs == 0) == corrected);
+      CHECK((homeCycleResult.tareElapsedMs != 0) == (mode != 12));
+      CHECK(homeCycleResult.durationMs == 14000);
+    }
     CHECK(hostFirstDropWebhookCount == 1);
     CHECK(session.firstDropsBeepSent == (mode != 18));
     if (mode == 0 || mode == 17 || mode == 18) {
@@ -18804,7 +18816,122 @@ void home01_stream_lifecycle_uses_canonical_final_record() {
   CHECK(!formatShotCurveJsonBody(json, sizeof(json), curve, curve.count + 1));
 }
 
+void home02_nonqualifying_resolution_preserves_cutoff_and_endpoint() {
+  for (const bool postDrip : {false, true}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    shotLog.clear(false);
+    session.active = session.startedWithScale = true;
+    session.id = 401;
+    session.config = snapshotConfig(runtimeConfig);
+    session.config.dripDelayMs = 3000;
+    session.connectionGenerationAtStart = getScaleLinkSnapshot().connectionGeneration;
+    session.startedAtMs = session.circuitClosedAtMs = hostMillis;
+    const uint32_t start = hostMillis;
+    resetShotTrajectory(start);
+    acceptWeightIntoTrajectory(0, start, 1);
+    hostMillis = start + 10057;
+    acceptWeightIntoTrajectory(20, hostMillis, 2);
+    currentWeight = 20;
+    currentWeightSequence = 2;
+    currentWeightReceivedAtMs = hostMillis;
+    session.firstDropMs = start + 1057;
+    session.retareAtMs = start + 57;
+    shot.automaticBrew = session.calibrationEligible = true;
+    schedulePendingShotFinalize(EndReason::ACTIVATOR, 10057);
+    CHECK(pendingFinalize.pending && !pendingFinalize.logEligible);
+    homeCycleResult = lastShotFromEndedCycle(EndReason::ACTIVATOR, 10057);
+    session.active = false;
+    if (postDrip) {
+      CHECK(appendShotCurveObservation(pendingFinalize.curve, 21, 11000, false));
+      currentWeight = 21;
+      currentWeightSequence = 3;
+      currentWeightReceivedAtMs = start + 11000;
+    }
+    hostMillis = start + 13057;
+    setScaleConnected(true);
+    pendingShotFinalizeTask();
+    publishControlStatus();
+    ControlStatusSnapshot status;
+    copyControlStatus(status);
+    CHECK(!status.homePending && shotLog.count() == 0);
+    CHECK(status.homeCycle.shotLogId == 0);
+    CHECK(status.homeCycle.durationMs == 10057);
+    CHECK(status.homeCycle.firstDropElapsedMs == 1057);
+    CHECK(status.homeCycle.tareElapsedMs == 57);
+    CHECK(status.homeResolvedAtMs == hostMillis);
+    CHECK(status.homeCycle.currentWeightG == (postDrip ? 21 : 20));
+    CHECK(status.shotCurveEndedMs == 10057);
+    CHECK(status.shotCurveEndedCg == (postDrip ? 2100 : 2000));
+    CHECK(status.shotCurveAtMs[status.shotCurveCount - 1] == (postDrip ? 11000 : 10057));
+  }
+  for (const bool weighted : {false, true}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    shotLog.clear(false);
+    session.id = 402;
+    session.active = true;
+    session.config = snapshotConfig(runtimeConfig);
+    session.startedAtMs = session.circuitClosedAtMs = hostMillis;
+    const uint32_t start = hostMillis;
+    resetShotTrajectory(start);
+    hostMillis += 2057;
+    if (weighted) {
+      acceptWeightIntoTrajectory(2, hostMillis, 2);
+      currentWeight = 2;
+      currentWeightSequence = 2;
+      currentWeightReceivedAtMs = hostMillis;
+    }
+    stopperState = StopperState::RINSE;
+    schedulePendingShotFinalize(EndReason::ACTIVATOR, 2057);
+    homeCycleResult = lastShotFromEndedCycle(EndReason::ACTIVATOR, 2057);
+    session.active = false;
+    publishControlStatus();
+    ControlStatusSnapshot status;
+    copyControlStatus(status);
+    CHECK(!status.homePending && shotLog.count() == 0);
+    CHECK(status.homeCycle.durationMs == 2057);
+    CHECK(status.shotCurveEndedMs == (weighted ? 2057 : SHOT_LOG_METRIC_MISSING));
+    CHECK(status.shotCurveEndedCg == (weighted ? 200 : SHOT_LOG_WEIGHT_MISSING));
+    CHECK(!shotCurveSampler.active);
+  }
+}
+
+void home03_active_flow_requires_fresh_baseline_and_confirmed_drop() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  setScaleConnected(true);
+  startCycle();
+  const uint32_t start = session.circuitClosedAtMs != 0 ? session.circuitClosedAtMs : session.startedAtMs;
+  hostMillis = start + 12000;
+  session.scaleBaselineReady = true;
+  session.scaleBaselineG = 80;
+  session.firstDropMs = start + 2000;
+  acceptWeightIntoTrajectory(100, hostMillis, 2);
+  currentWeight = 100;
+  currentWeightSequence = 2;
+  currentWeightReceivedAtMs = hostMillis;
+  markScaleWorkerProgress();
+  publishControlStatus();
+  CHECK(publishedControlStatus.homeCycle.weightValid);
+  CHECK(publishedControlStatus.homeCycle.averageFlowValid);
+  CHECK(std::fabs(publishedControlStatus.homeCycle.averageFlowGps - 2) < 0.001f);
+  session.scaleBaselineReady = false;
+  publishControlStatus();
+  CHECK(!publishedControlStatus.homeCycle.averageFlowValid);
+  session.scaleBaselineReady = true;
+  session.firstDropMs = 0;
+  publishControlStatus();
+  CHECK(!publishedControlStatus.homeCycle.averageFlowValid);
+  session.firstDropMs = start + 2000;
+  hostMillis += MAX_AUTOMATION_WEIGHT_AGE_MS + 1;
+  publishControlStatus();
+  CHECK(!publishedControlStatus.homeCycle.averageFlowValid);
+}
+
 const TestCase testCases[] = {
+    {"HOME03", home03_active_flow_requires_fresh_baseline_and_confirmed_drop},
+    {"HOME02", home02_nonqualifying_resolution_preserves_cutoff_and_endpoint},
     {"HOME01", home01_stream_lifecycle_uses_canonical_final_record},
     {"TF01", at11_touch_fallback_only_when_both_enabled},
     {"TF02", at12_touch_fallback_duration_and_evidence_resets},
