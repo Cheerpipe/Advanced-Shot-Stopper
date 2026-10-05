@@ -622,7 +622,8 @@ if (!network.includes('sendBody(request, SHOT_STOPPER_WEB_UI_GZIP') ||
         'return httpd_resp_send_chunk(request, static_cast<const char *>(data), length)') ||
     network.includes('HTTP_DRAM_BOUNCE_BYTES') ||
     network.includes('g_httpSendBounce') ||
-    network.includes('httpd_sess_set_send_override') ||
+    // The bounded write override is exclusive to authenticated WS sessions.
+    !network.includes('httpd_sess_set_send_override(request->handle, session->fd, shotStreamSend)') ||
     !network.includes('allocExternal(sizeof(NetworkWorkBuf), AllocationOwner::NETWORK)') ||
     !psram.includes('inline void *allocExternal(size_t bytes,') ||
     !jsonArena.includes('parseJsonDocument') ||

@@ -8,6 +8,14 @@ Weight. It is written for someone who already knows the product
 Enums that are not machines (settings, log codes, buzzer patterns) are
 omitted. Source names match the firmware.
 
+Home's shot stream is a read-only presentation of these owners, not another
+brew state machine. Control publishes active, pending-drip and resolved cycle
+views at its existing snapshot boundary. Network selects the latest eligible
+Stats record when idle, or a nonqualifying result for an observing page until
+30 seconds after resolution. New cycles take precedence. Extraction duration
+freezes at cutoff while accepted drip observations retain their own timestamps;
+eligibility, guards, learning and durable storage keep their existing authority.
+
 Related product docs: [Brew by weight](features/brew-by-weight.md),
 [Cup protection](features/cup-protection.md),
 [A→M time guard](features/auto-to-manual.md),

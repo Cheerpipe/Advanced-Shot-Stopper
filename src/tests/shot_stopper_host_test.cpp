@@ -124,6 +124,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   workerIdleTare = IdleTareStatus{};
   setScaleCommandCycle(0);
   pendingFinalize = PendingShotFinalize{};
+  homeCycleResult = PersistedLastShot{};
+  homeCycleResolvedAtMs = 0;
   bullseyeTracker.clear();
   bullseyeMelodyConfig = BullseyeMelodyConfig{};
   stagedBullseyeMelodyConfig = BullseyeMelodyConfig{};
@@ -11625,7 +11627,7 @@ void shot_tare_time_uses_successful_write_and_circuit_clock() {
     if (mode == 4 || mode == 5) shotTareResult = ScaleEvent{};
     hostMillis = anchor + 14000U;
     schedulePendingShotFinalize(EndReason::ACTIVATOR, 14000);
-    persistLastShotFromEndedCycle(EndReason::ACTIVATOR, 14000);
+    persistLastShotSnapshot(lastShotFromEndedCycle(EndReason::ACTIVATOR, 14000));
     session.active = false;
     if (mode == 4 || mode == 5) {
       shotTareResult = completed; // Worker result becomes visible after close.
@@ -12007,7 +12009,7 @@ void rs06_late_retare_corrects_only_confirmed_first_drop() {
       }
       hostMillis = start + 14000U;
       schedulePendingShotFinalize(EndReason::ACTIVATOR, 14000);
-      persistLastShotFromEndedCycle(EndReason::ACTIVATOR, 14000);
+      persistLastShotSnapshot(lastShotFromEndedCycle(EndReason::ACTIVATOR, 14000));
       session.active = false;
       session.awaitingPostTareBaseline = false;
       hostMillis = start + 14200U;
@@ -12076,7 +12078,7 @@ void rs06_late_retare_corrects_only_confirmed_first_drop() {
       if (session.active) {
         hostMillis = start + 14000U;
         schedulePendingShotFinalize(EndReason::ACTIVATOR, 14000);
-        persistLastShotFromEndedCycle(EndReason::ACTIVATOR, 14000);
+        persistLastShotSnapshot(lastShotFromEndedCycle(EndReason::ACTIVATOR, 14000));
         session.active = false;
       }
       CHECK(pendingFinalize.tareAtDs != SHOT_LOG_METRIC_MISSING);
@@ -13709,7 +13711,7 @@ void s15c_last_shot_prefers_last_accepted_over_cup_off() {
   currentWeight = 0.0f;
   currentWeightSequence = 5;
   currentWeightReceivedAtMs = hostMillis;
-  persistLastShotFromEndedCycle(EndReason::FAST_EXTRACTION_MAX_WEIGHT, 25000);
+  persistLastShotSnapshot(lastShotFromEndedCycle(EndReason::FAST_EXTRACTION_MAX_WEIGHT, 25000));
   CHECK(persistedLastShot.valid);
   CHECK(persistedLastShot.weightValid);
   CHECK(fabsf(persistedLastShot.currentWeightG - 42.1f) < 0.001f);
@@ -18725,7 +18727,85 @@ void cm08_compatibility_mirror_holds_against_guard_drive_deny() {
   CHECK(hostRelayOpenWrites == openWrites + 1);
 }
 
+void home01_stream_lifecycle_uses_canonical_final_record() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  shotLog.clear(false);
+  shotCurves.clear(false);
+  session.active = session.startedWithScale = true;
+  session.id = 41;
+  session.config = snapshotConfig(runtimeConfig);
+  session.config.dripDelayMs = 3000;
+  session.connectionGenerationAtStart = getScaleLinkSnapshot().connectionGeneration;
+  session.startedAtMs = session.circuitClosedAtMs = hostMillis;
+  const uint32_t start = hostMillis;
+  resetShotTrajectory(start);
+  acceptWeightIntoTrajectory(0, start, 1);
+  hostMillis = start + 14010;
+  acceptWeightIntoTrajectory(36, hostMillis, 2);
+  currentWeight = 36;
+  currentWeightSequence = 2;
+  currentWeightReceivedAtMs = hostMillis;
+  schedulePendingShotFinalize(EndReason::ACTIVATOR, 14010);
+  homeCycleResult = lastShotFromEndedCycle(EndReason::ACTIVATOR, 14010);
+  homeCycleResolvedAtMs = hostMillis;
+  session.active = false;
+  publishControlStatus();
+  ControlStatusSnapshot status;
+  copyControlStatus(status);
+  CHECK(status.homePending);
+  CHECK(status.homeCycle.cycleId == 41);
+  CHECK(status.homeCycle.durationMs == 14010);
+  CHECK(status.shotCurveEndedMs == 14010);
+  CHECK(appendShotCurveObservation(pendingFinalize.curve, 36.5f, 15000, false));
+  hostMillis = start + 15000;
+  currentWeight = 36.5f;
+  currentWeightSequence = 3;
+  currentWeightReceivedAtMs = hostMillis;
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(status.homeCycle.durationMs == 14010);
+  CHECK(status.shotCurveCount == 3);
+  CHECK(status.shotCurveAtMs[2] == 15000);
+  hostMillis = start + 17010;
+  pendingShotFinalizeTask();
+  publishControlStatus();
+  copyControlStatus(status);
+  ShotLogRecord record;
+  ShotCurveRecord curve;
+  CHECK(copyHomeShot(record, curve));
+  CHECK(!status.homePending);
+  CHECK(status.homeResolvedAtMs == hostMillis);
+  CHECK(status.homeCycle.shotLogId == record.id);
+  CHECK(status.homeCycle.durationMs == record.durationDs * 100U);
+  CHECK(status.homeCycle.currentWeightG == record.actualWeightCg / 100.0f);
+  CHECK(status.shotCurveCount == curve.count);
+  // A newer activation's presentation survives late predecessor finalization.
+  homeCycleResult.cycleId = 42;
+  persistLastShotFromFinalize(pendingFinalize, 37, true);
+  CHECK(homeCycleResult.cycleId == 42);
+  // Immediate rinse outcomes are available without changing persistent Stats.
+  session.id = 43;
+  stopperState = StopperState::RINSE;
+  homeCycleResult = lastShotFromEndedCycle(EndReason::ACTIVATOR, 2000);
+  homeCycleResolvedAtMs = hostMillis;
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(status.homeCycle.cycleId == 43);
+  CHECK(status.homeCycle.shotType == static_cast<uint8_t>(LastShotType::RINSE));
+  CHECK(status.homeCycle.shotLogId == 0);
+  CHECK(shotLog.count() == 1);
+  // Delta serialization preserves observation time and global discontinuity indices.
+  char json[SHOT_CURVE_JSON_CAPACITY];
+  curve.breakBefore[0] |= 4;
+  CHECK(formatShotCurveJsonBody(json, sizeof(json), curve, 2));
+  CHECK(strstr(json, "\"wAtMs\":[15000]") != nullptr);
+  CHECK(strstr(json, "\"wBreakBefore\":[2]") != nullptr);
+  CHECK(!formatShotCurveJsonBody(json, sizeof(json), curve, curve.count + 1));
+}
+
 const TestCase testCases[] = {
+    {"HOME01", home01_stream_lifecycle_uses_canonical_final_record},
     {"TF01", at11_touch_fallback_only_when_both_enabled},
     {"TF02", at12_touch_fallback_duration_and_evidence_resets},
     {"TF03", at13_touch_fallback_guard_thresholds},

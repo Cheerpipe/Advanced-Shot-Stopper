@@ -345,7 +345,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !network.includes('formatShotCurveJsonBody') ||
     !network.includes('lastShotClearHandler') ||
     !network.includes('LAST_SHOT_CLEAR_NOT_CONFIRMED') ||
-    !firmware.includes('persistLastShotFromEndedCycle') ||
+    !firmware.includes('lastShotFromEndedCycle') ||
     !firmware.includes('endedCycleDurationMs') ||
     firmware.includes('elapsedMs(relayBeforeOpen.closedAtMs)') ||
     !firmware.includes('clearLastShot') ||
@@ -872,16 +872,16 @@ if (!ui.includes('id="shotTable"') ||
     !runtimeJs.includes('function formatShotEnded(') ||
     !runtimeJs.includes('function shotDisplayActualG(') ||
     !runtimeJs.includes('shotDisplayActualG(r.actualG,r.wCg)') ||
-    !runtimeJs.includes('shotDisplayActualG(ls.currentWeightG,cv.wCg)') ||
+    !runtimeJs.includes('shotFrame.card') ||
     !runtimeJs.includes('return y!=null&&y>=1') ||
     !runtimeJs.includes('shotDisplayFlowGS(r)') ||
     !runtimeJs.includes('shotMaxFlowGS(r)') ||
     !runtimeJs.includes('shotPresetName(r)') ||
     !runtimeJs.includes("'preset_id','scale_name','max_flow_g_s'") ||
-    !runtimeJs.includes('const live=!!s.cycle?.active') ||
+    !network.includes('const bool live = control.activeCycle || control.homePending') ||
     runtimeJs.includes('const live=!!((s.cycle&&s.cycle.active)||s.liveShot)') ||
     runtimeJs.includes('const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
-    !runtimeJs.includes('dropMs=src?.firstDropElapsedMs||0') ||
+    !runtimeJs.includes('drop=d.firstDropMs') ||
     !runtimeJs.includes('formatShotEnded(r.stopDetail)') ||
     !js.includes("labels=['Time','Dur','Goal','Yield','Err%','Avg flow','Max flow','Tare time','1st drop','Ended','Shot','Preset','Scale']") ||
     js.includes("labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Ended','Shot']") ||

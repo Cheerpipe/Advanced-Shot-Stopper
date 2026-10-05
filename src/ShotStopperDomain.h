@@ -2172,8 +2172,10 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
   float bbwLegacyOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   float bbwEwmaOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   LastCycleSummary lastCycle = {};
-  PersistedLastShot lastShot = {};
-  PersistedLastShot lastGoodShot = {};
+  // Read-only Home lifecycle; never persisted or used to authorize actuation.
+  PersistedLastShot lastShot = {}, lastGoodShot = {}, homeCycle = {};
+  uint32_t homeResolvedAtMs = 0;
+  bool homePending = false;
   bool lastGoodShotHistoryLinked = false;
   // Mirror of the newest activation-history record (WebUI History card).
   uint32_t lastActivationId = 0;
@@ -2258,7 +2260,7 @@ struct ControlStatusSnapshot : ScaleLinkMetrics {
 };
 
 // Published copy lives in BSS, not on the 8 KiB loop stack.
-static_assert(sizeof(ControlStatusSnapshot) <= 6656,
+static_assert(sizeof(ControlStatusSnapshot) <= 6912,
               "ControlStatusSnapshot exceeds its internal publication budget");
 
 // Gate checks do not need the ~876 B snapshot. Network/httpd copy this small

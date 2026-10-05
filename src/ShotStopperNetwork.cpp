@@ -41,6 +41,9 @@
 #include <string.h>
 #include <sys/time.h>
 #include <time.h>
+#include <errno.h>
+#include <sys/select.h>
+#include <sys/socket.h>
 
 #include "ShotStopperIntegrationRequest.h"
 
@@ -727,11 +730,15 @@ void formatIp(const IPAddress &ip, char output[16]) {
 }
 
 bool registerHandler(httpd_handle_t server, const char *uri,
-                     httpd_method_t method, esp_err_t (*handler)(httpd_req_t *)) {
+                     httpd_method_t method, esp_err_t (*handler)(httpd_req_t *),
+                     bool websocket = false,
+                     esp_err_t (*handshake)(httpd_req_t *) = nullptr) {
   httpd_uri_t descriptor = {};
   descriptor.uri = uri;
   descriptor.method = method;
   descriptor.handler = handler;
+  descriptor.is_websocket = websocket;
+  descriptor.ws_pre_handshake_cb = handshake;
   return httpd_register_uri_handler(server, &descriptor) == ESP_OK;
 }
 
@@ -1201,6 +1208,7 @@ ShotStopperNetwork *ShotStopperNetwork::instance_ = nullptr;
 #include "network/ShotStopperWifi.inc"
 #include "network/ShotStopperHttpLifecycle.inc"
 #include "network/ShotStopperHttpAuthAssets.inc"
+#include "network/ShotStopperShotStream.inc"
 #include "network/ShotStopperStatus.inc"
 #include "diagnostics/ShotStopperNetworkDiagnostics.inc"
 #include "diagnostics/ShotStopperCrashRoutes.inc"

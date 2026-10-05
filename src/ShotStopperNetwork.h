@@ -335,6 +335,18 @@ class ShotStopperNetwork {
   // protocol/timer state.
   bool beginCompleted_ = false;
   httpd_handle_t server_ = nullptr;
+  struct ShotStreamSession {
+    int fd = -1;
+    uint32_t openedAtMs = 0, boundAtMs = 0, observedCycle = 0, observedBoot = 0;
+    uint32_t sequence = 0, cycle = 0, shot = 0, boot = 0;
+    uint32_t fingerprint = 0, prefixHash = 0, markersHash = 0;
+    uint16_t cursor = 0;
+    char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
+    bool bound = false, resync = true;
+  };
+  ShotStreamSession shotStreams_[2];
+  std::atomic<bool> shotStreamWorkPending_{false};
+  uint32_t shotStreamDispatchAtMs_ = 0;
   mutable TaskMutex dataMux_;
   char activeWebUiClientId_[WEB_UI_CLIENT_ID_CAPACITY] = {};
   bool webUiOverrideActive_ = false;
@@ -542,6 +554,12 @@ class ShotStopperNetwork {
   static esp_err_t browserIconHandler(httpd_req_t *request);
   static esp_err_t notFoundHandler(httpd_req_t *request, httpd_err_code_t error);
   static esp_err_t claimHandler(httpd_req_t *request);
+  static esp_err_t shotStreamHandshake(httpd_req_t *request);
+  static esp_err_t shotStreamHandler(httpd_req_t *request);
+  static void shotStreamFree(void *context);
+  static void shotStreamDispatch(void *context);
+  void serviceShotStream(uint32_t now);
+  void sendShotStream(ShotStreamSession &session);
 #if SHOT_STOPPER_DEVELOPMENT == 1
   // Unlock handlers are release-only: development builds serve public
   // administration and never compile the unlock endpoints.

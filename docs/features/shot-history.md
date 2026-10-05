@@ -56,10 +56,18 @@ The log holds up to **100** shots. The following are never stored:
 - Cycles lasting 12 seconds or less
 - Cycles whose final yield is missing, invalid, or 2 g or less
 
-Those cycles do not replace the idle Home shot, but confirmed activations still
-appear in the separate [activation history](activation-history.md). During a
-live cycle, Home shows the current cycle. BBW offset learning and A→M samples
-keep their own eligibility rules.
+Home shows the current activation as it happens. After the machine stops, its
+duration stays fixed while accepted drip readings continue updating the curve.
+The timer comes from the controller and pauses on screen if the connection is
+lost; **Reconnecting…** indicates that the displayed result may be stale.
+
+If an activation does not qualify for Stats, the page that observed it keeps
+its result for 30 seconds after analysis finishes, then returns to the latest
+recorded shot. A temporary reconnection preserves the remaining interval;
+reloading the page opens the latest recorded shot instead. Starting another
+activation immediately replaces the temporary result. Confirmed activations
+also appear in the separate [activation history](activation-history.md).
+BBW offset learning and A→M samples keep their own eligibility rules.
 
 The controller collects accepted scale readings in memory while the shot runs
 and saves the completed curve after the configured drip delay. Each reading

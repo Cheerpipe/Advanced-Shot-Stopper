@@ -336,8 +336,9 @@ inline bool formatShotCurveMetricCg(char *out, size_t capacity, const char *key,
 
 // JSON object body: paired actual-time weights, continuity, completeness/events.
 inline bool formatShotCurveJsonBody(char *out, size_t capacity,
-                                    const ShotCurveRecord &curve) {
-  if (out == nullptr || capacity < 32 || curve.count > SHOT_CURVE_MAX_POINTS) {
+                                    const ShotCurveRecord &curve,
+                                    uint16_t start = 0) {
+  if (out == nullptr || capacity < 32 || curve.count > SHOT_CURVE_MAX_POINTS || start > curve.count) {
     return false;
   }
   size_t used = 0;
@@ -355,9 +356,9 @@ inline bool formatShotCurveJsonBody(char *out, size_t capacity,
     return false;
   }
   const uint16_t count = curve.count;
-  for (uint16_t i = 0; i < count; ++i) {
+  for (uint16_t i = start; i < count; ++i) {
     char item[12] = {};
-    snprintf(item, sizeof(item), "%s%d", i == 0 ? "" : ",",
+    snprintf(item, sizeof(item), "%s%d", i == start ? "" : ",",
              static_cast<int>(curve.weightCg[i]));
     if (!append(item)) {
       return false;
@@ -365,14 +366,14 @@ inline bool formatShotCurveJsonBody(char *out, size_t capacity,
   }
   char piece[40] = {};
   if (!append("],\"wAtMs\":[")) return false;
-  for (size_t i = 0; i < count; ++i) {
-    snprintf(piece, sizeof(piece), "%s%u", i == 0 ? "" : ",",
+  for (size_t i = start; i < count; ++i) {
+    snprintf(piece, sizeof(piece), "%s%u", i == start ? "" : ",",
              static_cast<unsigned>(curve.atMs[i]));
     if (!append(piece)) return false;
   }
   if (!append("],\"wBreakBefore\":[")) return false;
   bool first = true;
-  for (size_t i = 1; i < count; ++i) {
+  for (size_t i = start > 1 ? start : 1; i < count; ++i) {
     if (!shotCurveBreakBefore(curve, i)) continue;
     snprintf(piece, sizeof(piece), "%s%u", first ? "" : ",",
              static_cast<unsigned>(i));

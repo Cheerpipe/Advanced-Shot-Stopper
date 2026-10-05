@@ -15,6 +15,18 @@ Allocation-failure injection in host tests does not replace this target gate.
 
 ## Select and record a run
 
+For the Home shot stream, open Home during an activation and confirm that its
+curve includes earlier readings. At cutoff, duration must freeze while drip
+readings continue. Compare final yield, duration, first drop and curve with
+Stats. Observe a rinse or short activation, reconnect within 30 seconds of
+resolution, and verify the original expiry; a reload must open Stats' latest
+shot. Start another activation during drip or temporary retention and verify
+that late results cannot replace it. Repeat with two browsers, background and
+resume, inactivity, scale loss and late retare. Use disposable fixtures for
+rating, deletion and clearing. Check that Stats, History and OTA stay responsive
+with four sockets, unchanged idle streams send no card data, and reconnects
+recover internal/PSRAM free, minimum and largest-block margins.
+
 Use [VALIDATION.md](../VALIDATION.md) to select the required gate. Record
 firmware/git version, board revision and PSRAM architecture, compile flags,
 machine/switch type, scale model/firmware, settings, measured timings and

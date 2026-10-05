@@ -130,159 +130,75 @@
 
 {
   const clearSource = runtimeJs.slice(runtimeJs.indexOf('function clearShotHero('),
-      runtimeJs.indexOf('function updateStatusGuards('));
+      runtimeJs.indexOf('function shotPresetName('));
   const hero = {hidden: false};
   new Function('$','runShot', clearSource + ';clearShotHero();')(id => hero, () => {});
   if (!hero.hidden) {
     throw new Error('Clearing Home must hide the shot hero');
   }
-  const clockStart = runtimeJs.indexOf('let shotTick=');
-  const clockEnd = runtimeJs.indexOf('function formatExtractionGuard(');
-  const updateStart = runtimeJs.indexOf('function updateShot(s)');
-  const updateEnd = runtimeJs.indexOf('function checkFirmwareReload(');
-  if (clockStart < 0 || clockEnd < clockStart || updateStart < 0 || updateEnd < updateStart) {
-    throw new Error('Live shot clock helpers must remain independently testable');
+  const apply = new Function(runtimeJs.slice(runtimeJs.indexOf('function shotStreamFrame('),
+    runtimeJs.indexOf('function startShotStream('))+';return shotStreamFrame;')();
+  const snapshot={v:1,boot:7,seq:1,base:0,revision:1,snapshot:true,cycle:19,shotId:0,
+    phase:'active',curveBase:0,cursor:2,card:{valid:true,live:true,weight:1,elapsedMs:1000,averageFlowGps:null},
+    curve:{wCg:[100,100],wAtMs:[100,700],wBreakBefore:[],dropS:null,endS:null}};
+  const first=apply(null,snapshot);
+  const update={...snapshot,seq:2,base:1,snapshot:false,curveBase:2,cursor:4,
+    card:{...snapshot.card,elapsedMs:1100},curve:{wCg:[100,120],wAtMs:[800,900],wBreakBefore:[2],dropS:.8,endS:null}};
+  const next=apply(first,update);
+  if(next.curve.wCg.join()!=='100,100,100,120'||next.curve.wAtMs.join()!=='100,700,800,900'||
+      next.curve.wBreakBefore.join()!=='2'||next.curve.dropS!==.8||first.cursor!==2)
+    throw new Error('Stream must atomically append all samples, equal weights, breaks and metadata');
+  if(apply(next,update)!==next)throw new Error('Duplicates must not append');
+  const corrected=apply(next,{...snapshot,seq:3,revision:3,curve:{...snapshot.curve,dropS:null}});
+  if(corrected.cursor!==2||corrected.curve.dropS!==null)throw new Error('Corrected markers require replacement');
+  const reboot=apply(next,{...snapshot,boot:8});
+  if(reboot.boot!==8||reboot.cursor!==2)throw new Error('Boot snapshots must discard old cursors');
+  for(const bad of [{...update,seq:4},{...update,base:0},{...update,cycle:20},
+    {...update,curveBase:1},{...snapshot,curveBase:1},
+    {...snapshot,cursor:1202},{...snapshot,curve:{...snapshot.curve,wAtMs:[700,100]}},
+    {...snapshot,card:{...snapshot.card,weight:NaN}}]){
+    if(bad.snapshot)bad.seq=3;
+    let rejected=false;try{apply(first,bad)}catch(_){rejected=true}
+    if(!rejected)throw new Error('Invalid/gapped stream must request recovery');
   }
-  const source = runtimeJs.slice(clockStart, clockEnd) +
-      runtimeJs.slice(updateStart, updateEnd);
-  function harness() {
-    let now = 0, nextId = 1, heroRenders = 0, heroClears = 0, lastHeroShot;
-    let stopClock = () => {};
-    const pending = new Map();
-    const elapsed = {textContent: ''};
-    const clear = {disabled: false, dataset: {}};
-    const document = {hidden: false};
-    const $ = (id) => {
-      if (id === 'shotHeroElapsed') return elapsed;
-      if (id === 'clearLastShotButton') return clear;
-      throw new Error('Live timer touched non-hero DOM: ' + id);
-    };
-    const setTimeout = (fn, delay) => {
-      const id = nextId++;
-      pending.set(id, {fn, at: now + delay});
-      return id;
-    };
-    const clearTimeout = (id) => pending.delete(id);
-    const renderShotHero = (shot) => {
-      heroRenders++;
-      lastHeroShot = shot;
-      elapsed.textContent = (shot.elapsedMs / 1000).toFixed(1) + 's';
-    };
-    const clearShotHero = () => {
-      stopClock();
-      heroClears++;
-      elapsed.textContent = '—';
-    };
-    const clock = new Function('$', 'document', 'performance', 'setTimeout',
-        'clearTimeout', 'renderShotHero', 'clearShotHero',
-        'updateStatusGuards', 'shotDisplayActualG',
-        'controlsMutable', 'activeView', '__WEBUI_TEXT__',
-        'presetState', source +
-        ';return{sync:runShot,stop:()=>runShot(0),update:updateShot,' +
-        'view:v=>activeView=v,anchor:()=>shotAt,timer:()=>shotTick};')(
-        $, document, {now: () => now}, setTimeout, clearTimeout,
-        renderShotHero, clearShotHero, () => {}, (value) => value,
-        false, 'home', () => '—', {activeId: 0, items: []});
-    stopClock = clock.stop;
-    clock.view('home');
-    const advance = (delta) => {
-      const target = now + delta;
-      for (;;) {
-        let dueId = 0, dueAt = Infinity;
-        for (const [id, item] of pending) {
-          if (item.at < dueAt) [dueId, dueAt] = [id, item.at];
-        }
-        if (dueAt > target) break;
-        now = dueAt;
-        const item = pending.get(dueId);
-        pending.delete(dueId);
-        item.fn();
-      }
-      now = target;
-    };
-    return {clock, advance, elapsed, document, pending,
-      heroRenders: () => heroRenders, heroClears: () => heroClears,
-      lastHeroShot: () => lastHeroShot};
-  }
-  const live = (ms, stale = false) => ({cycle: {active: true, shotType: 'auto'},
-    lastShot: {valid: false}, config: {goalWeightG: 36}, scale: {}, shotCurve: {},
-    presets: {activeId: 2, items: [{id: 2, name: 'Double'}]},
-    circuitElapsedMs: ms, snapshotStale: stale});
-  const h = harness();
-  h.clock.update(live(200));
-  if (h.elapsed.textContent !== '0s' || h.pending.size !== 1) {
-    throw new Error('Live shot duration must start at zero with one aligned callback');
-  }
-  if (h.lastHeroShot().presetName !== 'Double') {
-    throw new Error('Current shot must show the active preset name');
-  }
-  h.advance(800);
-  h.advance(1000);
-  h.advance(1000);
-  if (h.elapsed.textContent !== '3s' || h.heroRenders() !== 1 || h.pending.size !== 1) {
-    throw new Error('Live shot duration must advance 0, 1, 2, 3 without polling or panel renders');
-  }
-  h.clock.sync(live(2700));
-  if (h.elapsed.textContent !== '2s' || h.pending.size !== 1) {
-    throw new Error('A fresh status must correct the live timer backwards');
-  }
-  h.advance(300);
-  h.clock.sync(live(3800));
-  if (h.elapsed.textContent !== '3s' || h.pending.size !== 1) {
-    throw new Error('A fresh status must correct the live timer forwards without extra callbacks');
-  }
-  h.advance(200);
-  const anchor = h.clock.anchor();
-  h.clock.sync(live(100, true));
-  if (h.elapsed.textContent !== '4s' || h.clock.anchor() !== anchor || h.pending.size !== 1) {
-    throw new Error('A stale status must not replace or delay a fresh live timer anchor');
-  }
-  const stale = harness();
-  stale.clock.sync(live(2200, true));
-  if (stale.elapsed.textContent !== '2s' || stale.pending.size || stale.clock.anchor()) {
-    throw new Error('An initial stale status may render but must not start projection');
-  }
-  const invalid = harness();
-  invalid.clock.update(live(undefined));
-  if (invalid.pending.size || invalid.clock.anchor()) {
-    throw new Error('A non-finite live duration must not retain an anchor or schedule a callback');
-  }
-  h.document.hidden = true;
-  h.clock.stop();
-  if (h.pending.size || h.clock.anchor()) throw new Error('Hidden Home must stop the live timer');
-  h.document.hidden = false;
-  h.clock.sync(live(5000));
-  h.clock.view('stats');
-  h.clock.sync(live(5100));
-  if (h.pending.size || h.clock.anchor()) throw new Error('Leaving Home must stop the live timer');
-  h.clock.view('home');
-  h.clock.stop();
-  if (h.pending.size || h.clock.anchor()) throw new Error('Inactive Web UI must stop the live timer');
-
-  const end = harness();
-  end.clock.update(live(1200));
-  end.advance(2000);
-  end.clock.update({cycle: {active: false}, lastShot: {valid: true, durationMs: 4320,
-    currentWeightG: 36, goalWeightG: 36, shotType: 'auto', shotLogId: 7,
-    presetName: 'Historical Double'},
-    config: {}, scale: {}, shotCurve: {}});
-  end.advance(2000);
-  if (end.elapsed.textContent !== '4.3s' || end.pending.size || end.heroRenders() !== 2) {
-    throw new Error('Current-to-Last must stop projection and keep exact decimal duration');
-  }
-  if (end.lastHeroShot().presetName !== 'Historical Double') {
-    throw new Error('Last Good Shot must show its exact preset-name snapshot');
-  }
-  end.clock.update({cycle: {active: false}, lastShot: {valid: false},
-    config: {}, scale: {}, shotCurve: {}});
-  if (end.elapsed.textContent !== '—' || end.pending.size || end.heroClears() !== 1) {
-    throw new Error('Clearing the last shot must leave no live duration callback');
-  }
-  if (!runtimeJs.includes('statusTimer=0;runShot(0);stopExtraPollsHook()') ||
-      !appJsSource.includes('document.hidden?R.stopViewPolls():startView(activeView)') ||
-      !runtimeJs.includes('runShot(live?s:0)')) {
-    throw new Error('Route, visibility, inactivity, and final-shot lifecycle must cancel the live timer');
-  }
+  const maximum=apply(null,{...snapshot,cursor:1201,curve:{wCg:Array(1201).fill(100),
+    wAtMs:Array.from({length:1201},(_,i)=>i*50),wBreakBefore:[],wTruncated:true}});
+  if(maximum.curve.wCg.length!==1201)throw new Error('Maximum curve must stay bounded and complete');
+  const sockets=[],timers=new Map();let timerId=0,owner=true;
+  class Socket{static OPEN=1;constructor(url){this.url=url;this.readyState=1;this.sent=[];sockets.push(this)}send(body){this.sent.push(JSON.parse(body))}close(){this.readyState=3;this.onclose?.()}}
+  const listeners={};
+  const controller=new Function('WebSocket','location','document','window','setTimeout','clearTimeout',
+    'requestAnimationFrame','webUiPollingActive','webUiClientId','activeView','$',
+    runtimeJs.slice(runtimeJs.indexOf('let shotWs='),runtimeJs.indexOf('function formatExtractionGuard('))+
+    ';return{start:startShotStream,stop:stopShotStream,frame:()=>shotFrame,stale:()=>shotStale};')(
+    Socket,{protocol:'http:',host:'device.local'},
+    {hidden:false,addEventListener:(name,fn)=>listeners[name]=fn},
+    {addEventListener:(name,fn)=>listeners[name]=fn},
+    (fn,delay)=>{timers.set(++timerId,{fn,delay});return timerId},id=>timers.delete(id),()=>1,
+    ()=>owner,'0123456789abcdef','stats',()=>null);
+  controller.start();controller.start();
+  if(sockets.length!==1)throw new Error('Navigation must preserve one socket');
+  const socket=sockets[0];socket.onopen();
+  if(socket.sent[0].op!=='bind'||socket.sent[0].client!=='0123456789abcdef')throw new Error('Bind requires claimed identity');
+  socket.onmessage({data:JSON.stringify(snapshot)});
+  if(controller.stale()||controller.frame().seq!==1)throw new Error('Initial snapshot must replace stale cache');
+  socket.onmessage({data:JSON.stringify({...update,seq:4})});
+  if(!controller.stale()||socket.sent.at(-1).op!=='resync')throw new Error('Gap must mark stale and request one resync');
+  socket.onmessage({data:JSON.stringify({...snapshot,seq:5})});
+  if(controller.stale())throw new Error('Replacement snapshot must recover');
+  socket.close();
+  const retry=[...timers.values()].find(t=>t.delay>=400&&t.delay<=600);
+  if(!retry||!controller.stale())throw new Error('Failure must freeze state and back off');
+  retry.fn();const rebound=sockets.at(-1);rebound.onopen();
+  if(rebound.sent[0].cycle!==19||rebound.sent[0].boot!==7)throw new Error('Reconnect must preserve observed identity');
+  rebound.onmessage({data:JSON.stringify({...snapshot,phase:'pending',card:{...snapshot.card,live:false}})});
+  owner=false;controller.stop();controller.start();
+  if(sockets.length!==2||rebound.readyState!==3)throw new Error('Inactive owner cannot retain/reopen stream');
+  if(runtimeJs.includes('let shotTick=')||runtimeJs.includes('runShot(live?s:0)')||
+      !runtimeJs.includes('stopShotStream();')||!runtimeJs.includes('startShotStream();')||
+      !runtimeJs.includes('op:"bind",client:webUiClientId')||
+      !runtimeJs.includes('"op":"resync"'))
+    throw new Error('Firmware timer and stream must follow ownership/visibility lifecycle');
 }
 
 if (!statusSection || !statusSection[1].includes('class="lamp"') ||
@@ -528,14 +444,13 @@ if (ui.includes('id="shotPanel"') ||
     ui.includes('id="shotEnded"') ||
     ui.includes('id="shotType"') ||
     ui.includes('id="shotPreset"') ||
-    !ui.includes('activePresetName(s)') ||
-    !ui.includes('shotPresetName(ls)') ||
+    !ui.includes('shotFrame.card') ||
     ui.includes('id="shotRetare"') ||
     ui.includes('id="shotGuard"') ||
     ui.includes('id="shotPct"') ||
     !ui.includes('id="shotHero"') ||
     !ui.includes('shotHeroState') ||
-    !ui.includes('function updateShot(') ||
+    !ui.includes('function shotStreamFrame(') ||
     !network.includes('firstDropElapsedMs') ||
     !network.includes('\\"hasWallTime\\":%s,\\"endedAtUnixSec\\":%lu') ||
     !network.includes('retarePerformed') ||
@@ -553,7 +468,7 @@ if (ui.includes('id="shotPanel"') ||
     !ui.includes('Saving...') ||
     !network.includes('\\"cycle\\"') ||
     !network.includes('extractionExtended') ||
-    !ui.includes('updateShot(s)')) {
+    !ui.includes('paintShotStream()')) {
   throw new Error('Web UI must enforce remote policy, maintenance, durable command state, and live shot status');
 }
 {
@@ -602,7 +517,7 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !ui.includes('function formatNoScaleGuard(') ||
     !ui.includes('function formatSlowExtractionGuard(') ||
     !ui.includes("setHomeSub('homeSlowSub',formatSlowExtractionGuard(") ||
-    !ui.includes('function updateStatusGuards(') ||
+    !ui.includes('updateHomeGuardSubs(s,!!s.cycle?.active)') ||
     ui.includes('function updateNoScaleGuard(') ||
     html.includes('id="shotAtmGuard"') ||
     html.includes('id="shotNoScaleGuard"') ||
@@ -706,7 +621,7 @@ if (!network.includes('self.callbacks_.copyHomeShot(homeRecord, homeCurve)') ||
     !network.includes('\\"presetId\\":%u') ||
     !network.includes('\\"presetName\\":\\"%s\\"') ||
     !network.includes('\\"averageFlowGps\\":%.2f') ||
-    !ui.includes("averageFlowGps:live?null:(ls.averageFlowValid?ls.averageFlowGps:null)") ||
+    !network.includes('card.averageFlowValid && std::isfinite(card.averageFlowGps)') ||
     ui.includes('rateLastShotValue') ||
     ui.includes('controlsMutable&&last&&!live&&ls.shotLogId') ||
     ui.includes('clearLastShotButton')) {

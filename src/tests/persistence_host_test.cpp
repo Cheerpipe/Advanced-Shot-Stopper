@@ -1157,7 +1157,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(FLASH_IO_SCRATCH_BYTES == sizeof(PersistedSettings));
   CHECK(sizeof(RuntimeConfig) == 344);
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
-  CHECK(sizeof(ControlStatusSnapshot) <= 6656);
+  CHECK(sizeof(ControlStatusSnapshot) <= 6912);
   CHECK(sizeof(ControlGateSnapshot) <= 32);
   CHECK(sizeof(WebCommand) <= 440);
   WebCommand command;

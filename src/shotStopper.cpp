@@ -393,6 +393,8 @@ StopperState stopperState = StopperState::REQUIRES_OFF;
 ShotTrajectory shot;
 CycleSession session;
 SHOT_STOPPER_PSRAM_BSS PendingShotFinalize pendingFinalize;
+SHOT_STOPPER_PSRAM_BSS PersistedLastShot homeCycleResult;
+uint32_t homeCycleResolvedAtMs = 0;
 RuntimeConfig runtimeConfig;
 
 CycleWallTime captureCycleWallTime() {
@@ -1205,6 +1207,10 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
             : snapshot.minBbwBrewTimeMs - last.durationMs;
   }
   persistLastShotSnapshot(last);
+  if (homeCycleResult.cycleId == snapshot.cycleId) {
+    homeCycleResult = last;
+    homeCycleResolvedAtMs = millis();
+  }
 }
 
 // Weight counts as registered for the ended cycle only when the scale
@@ -1217,7 +1223,7 @@ bool endedCycleWeightValid() {
              0;
 }
 
-void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
+PersistedLastShot lastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
                                    const CycleWallTime *end = nullptr) {
   const CycleWallTime wall = end != nullptr ? *end : captureCycleWallTime();
   PersistedLastShot last = {};
@@ -1299,7 +1305,7 @@ void persistLastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
               link.protocolName);
   last.scaleProtocol[sizeof(last.scaleProtocol) - 1] = '\0';
   copyCString(last.scaleName, sizeof(last.scaleName), session.scaleName);
-  persistLastShotSnapshot(last);
+  return last;
 }
 
 bool controlAllowsConfigurationNow();

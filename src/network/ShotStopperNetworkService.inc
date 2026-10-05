@@ -702,6 +702,7 @@ void ShotStopperNetwork::service() {
   serviceStaState(now);
   applyWifiPowerSave();
   serviceWifiScan(now);
+  serviceShotStream(now);
 
   const NetworkStatusSnapshot networkSnapshot = snapshot();
   // serviceStaState already reconciled staState against the WiFi driver

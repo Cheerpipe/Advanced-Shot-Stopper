@@ -344,9 +344,10 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
   // Home status must show the last shot immediately (during drip delay),
   // including empty / sub-1 g results. Rinses (including early abort) and
   // abandoned starts do not overwrite last shot.
-  if (!rinseEnd && !brewEndIsAbandonedStart(reason)) {
-    persistLastShotFromEndedCycle(reason, durationMs, &cycleEndTime);
-  }
+  homeCycleResult = lastShotFromEndedCycle(reason, durationMs, &cycleEndTime);
+  homeCycleResolvedAtMs = cycleEndTime.endedAtMs;
+  if (!rinseEnd && !brewEndIsAbandonedStart(reason))
+    persistLastShotSnapshot(homeCycleResult);
 
   lastCycle.valid = true;
   lastCycle.cycleId = session.id;

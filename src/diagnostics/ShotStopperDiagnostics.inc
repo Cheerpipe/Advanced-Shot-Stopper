@@ -304,6 +304,13 @@ void publishControlStatus() {
   next.lastCycle = lastCycle;
   next.lastShot = statusLastShot;
   next.lastGoodShot = statusLastGoodShot;
+  next.homeCycle = homeCycleResult;
+  next.homeResolvedAtMs = homeCycleResolvedAtMs;
+  next.homePending = pendingFinalize.pending && !session.active;
+  if (next.homePending && pendingFinalize.curve.count > 0) {
+    next.homeCycle.currentWeightG = pendingFinalize.curve.weightCg[pendingFinalize.curve.count - 1] / 100.0f;
+    next.homeCycle.weightValid = weightFresh;
+  }
   next.lastGoodShotHistoryLinked = lastGoodHistoryLinked;
   if (statusHistoryPage.count > 0) {
     const HistoryRecord &newest = statusHistoryPage.records[0];
@@ -317,6 +324,16 @@ void publishControlStatus() {
   {
     const ShotCurveRecord &curve = statusLastGoodCurve;
     if (session.active) shotCurveSampler.snapshot(statusLastGoodCurve);
+    else if (next.homeCycle.valid) {
+      if (pendingFinalize.cycleId == next.homeCycle.cycleId)
+        statusLastGoodCurve = pendingFinalize.curve;
+      else {
+        shotCurveSampler.snapshot(statusLastGoodCurve);
+        statusLastGoodCurve.ended.atMs = static_cast<uint16_t>(
+            next.homeCycle.durationMs < UINT16_MAX
+                ? next.homeCycle.durationMs : UINT16_MAX);
+      }
+    }
     copyShotCurveRecordToStatusFields(
         curve, next.shotCurveCount, next.shotCurveTruncated,
         next.shotCurveFirstDropMs, next.shotCurveFirstDropCg,
@@ -353,6 +370,27 @@ void publishControlStatus() {
                                 ? session.circuitClosedAtMs
                                 : session.startedAtMs;
     next.cycleElapsedMs = machine.circuitElapsedMs;
+    PersistedLastShot &home = next.homeCycle;
+    home = PersistedLastShot{};
+    home.valid = true;
+    home.cycleId = session.id;
+    home.durationMs = next.cycleElapsedMs;
+    home.goalWeightG = session.config.goalWeightG;
+    home.presetId = session.activePresetId;
+    copyCString(home.presetName, sizeof(home.presetName), session.activePresetName);
+    copyCString(home.scaleName, sizeof(home.scaleName), session.scaleName);
+    copyCString(home.scaleProtocol, sizeof(home.scaleProtocol), scaleLink.protocolName);
+    home.shotType = static_cast<uint8_t>(lastShotTypeFromCycle(
+        stopperState, session.startedWithScale, session.config.timerOnly, shot.automaticBrew));
+    home.weightValid = weightFresh && session.hasWeightAnchor;
+    home.currentWeightG = session.lastAcceptedWeightG;
+    home.retarePerformed = session.retarePerformed;
+    home.firstDropElapsedMs = session.firstDropMs != 0
+        ? session.firstDropMs - next.cycleStartedAtMs : 0;
+    home.tareElapsedMs = session.retareAtMs != 0
+        ? session.retareAtMs - next.cycleStartedAtMs : 0;
+    home.extractionExtended = session.extractionExtended;
+    home.slowExtractionExtended = session.slowExtractionExtended;
     next.cycleExtractionExtended =
         session.extractionExtended && fastExtractionGuardSession();
     next.cycleSlowExtractionExtended =
