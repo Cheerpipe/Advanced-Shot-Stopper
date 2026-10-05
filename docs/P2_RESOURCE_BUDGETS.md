@@ -67,11 +67,58 @@ snapshot grew by about 123 KiB. The current 240→800 KiB increase covers the
 1201-observation sampler and task-owned finalization/serialization staging.
 The immutable persistence image is separately allocated in external heap.
 
+## Home shot stream target measurements
+
+The 2026-10-05 comparison used the same ESP32-S3 N16R8, speaker/Micra
+development pair, ESP-IDF 6.1, retained settings/history, disconnected scale,
+disabled scale recording and existing cloud/webhook connections. Baseline
+`0501da90` and corrected stream firmware `93dc21a4` were USB-installed and
+sampled with the same procedure through 64 seconds after restart. These are
+measured reference workloads, not new limits or full hardware qualification.
+
+| Measurement, bytes unless stated | Baseline | Home stream | Difference |
+| --- | ---: | ---: | ---: |
+| Settled internal free heap | 80,971 | 80,063 | -908 |
+| Lifetime minimum internal heap | 31,232 | 30,240 | -992 |
+| Settled largest internal block | 40,960 | 40,960 | 0 |
+| Reported PSRAM heap capacity | 5,467,008 | 5,462,016 | -4,992 |
+| Settled PSRAM free heap | 4,187,424 | 4,182,512 | -4,912 |
+| Lifetime minimum PSRAM heap | 4,132,076 | 4,135,112 | +3,036 |
+| Settled largest PSRAM block | 4,128,768 | 4,128,768 | 0 |
+| Linked DIRAM | 187,158 | 187,494 | +336 |
+| External BSS | 756,976 | 757,144 | +168 |
+| Firmware image | 2,292,288 | 2,310,512 | +18,224 |
+
+Reported PSRAM capacity changed with the image; allocated PSRAM at the settled
+comparison point was 80 bytes lower. Free-heap differences alone therefore do
+not describe dynamic allocation growth. Separate boots measured internal minima
+of 31,232–37,088 bytes for the baseline and 30,184–36,196 bytes for the corrected
+firmware. Startup traces placed the transient dips around existing outbound
+connections and the 52 KiB startup reservation; compare matched workloads rather
+than attributing a lifetime minimum to the Home stream alone.
+
+Two 100-reconnection runs recovered their initial internal free/minimum/largest
+figures. A bound/overlapping connection temporarily reduced the largest internal
+block by 2 KiB; it recovered after cleanup. Idle stream CPU samples were
+0.35–0.46%, versus 0.25–0.30% settled without a stream. A 200-request resync burst
+produced 25 snapshots over the burst and drain interval. A stalled reader closed
+and a fresh stream recovered; concurrent Home/Stats/History/OTA-status requests
+completed, with a worst observed response of 744 ms under three HTTP workers.
+No additional external-allocation fallback or HCI drops were observed.
+
+The target's 396-point canonical snapshot was 4,730 bytes and matched Stats
+weights, timestamps and breaks exactly. An offline maximum-width 1201-point
+curve with every possible break and all event markers serialized to 20,703
+bytes inside the existing 22,016-byte curve workspace. Active scale/drip timing,
+maximum-curve target sends, HTTP-task stack margin, server-stop overlap and a
+complete OTA transfer remain manual qualification requirements; these idle and
+transport measurements do not substitute for them.
+
 ## Runtime placement and allocation
 
 | Resource | Placement and bound |
 |---|---|
-| Network work buffer | external, measured 628,104 bytes on ESP32-S3, bounded at 640 KiB; includes the 498,400-byte curve read copy, 22,016-byte curve JSON, 23,552-byte row JSON, 40,960-byte status JSON and dedicated curve staging; handlers share the work-buffer mutex |
+| Network work buffer | external, measured 629,376 bytes on ESP32-S3, bounded at 640 KiB; includes the 498,400-byte curve read copy, 22,016-byte curve JSON, 23,552-byte row JSON, 40,960-byte status JSON and dedicated curve staging; handlers share the work-buffer mutex |
 | HTTP response send | complete assets and JSON use HTTPD Content-Length responses; streamed bodies retain chunked transfer. Source buffers pass directly to HTTPD's default socket send, which copies into lwIP; no application bounce buffer or extra copy |
 | NVS metadata cache | PSRAM preferred with internal fallback on n16r8; n8r4 retains its existing placement; flash I/O still uses the internal scratch below |
 | Shot-curve store | external, 498,420-byte cache for 100 records of 4,984 bytes; bounded block-header index and two 5,088-byte disk/verification workspaces belong to the same owner; immutable worker image is separately external |
