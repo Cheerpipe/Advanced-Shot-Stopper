@@ -38,7 +38,7 @@
   // The final chart: one straight line per cut situation, weights on the right.
   function finalProfile(p) {
     const W = 260, L = 8, R = 34, T = 8, B = 76;
-    const FC = '#d97706', SC = '#3762e3'; // rule colors: orange fast, blue slow
+    const FC = '#d97706', SC = '#5594dd'; // rule colors: orange fast, blue slow (hsl 212 67% 60%)
     const x = t => L + (W - R - L) * t / TIME.wall;
     const y = v => B - (B - T) * v / p.ceil;
     const path = pts => pts.map((q, i) => (i ? 'L' : 'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' ');
