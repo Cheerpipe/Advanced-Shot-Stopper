@@ -185,6 +185,20 @@ and phone width, and the corner **Tema** button cycles auto, light, and
 dark. Readings are simulated; the preview does not connect to a device or
 ship in firmware assets.
 
+
+
+### Guard tables presentation preview
+
+Open `http://127.0.0.1:4173/guard-tables` on the same running preview server
+to review five text-table presentations for the Home guard rules summary
+that replaced the profile chart: the current plain table as the reference,
+then color-dotted headers, per-guard cards, guard-to-rule rows, rules
+organized by time window (before 28 s, the brew window, after 44 s), and a
+value-chips layout. Preset cards switch between Double and Single inside
+every panel at desktop and phone width, and the corner **Tema** button
+cycles auto, light, and dark. Readings are simulated; the preview does not
+connect to a device or ship in firmware assets.
+
 Sections 02 to 04 demonstrate three smooth mathematical scales for the
 weight axis - power (k = 2), smoothed exponential (k = 2), and a
 linear-quadratic blend (m = 0.7) - that magnify the guard zone where the

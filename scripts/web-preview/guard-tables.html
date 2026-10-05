@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guard tables · 5 propuestas de presentación</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+  body{padding-bottom:2.5rem}
+  h1{font-size:1.5rem;margin:.2rem 0 .3rem;padding-right:7.5rem}
+  .lead{color:var(--mu);font-size:.92rem;margin:0 0 .35rem}
+  .lead b{color:var(--fg);font-weight:650}
+  .note{font-size:.8rem;color:var(--mu);margin:.2rem 0}
+  #themeToggle{position:fixed;top:.75rem;right:.75rem;z-index:60;height:2.25rem;padding:0 .9rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;box-shadow:var(--ah)}
+  .opt{margin:1.15rem 0;padding:1rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf)}
+  .optHead h2{margin:0;font-size:1.02rem;display:flex;align-items:center;gap:.45rem;flex-wrap:wrap}
+  .optHead .star{flex:none;font-size:.72rem;font-weight:700;color:var(--pri);background:var(--pa);border-radius:1rem;padding:.1rem .55rem}
+  .optHead p{margin:.15rem 0 .95rem;color:var(--mu);font-size:.85rem}
+  .frames{display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start}
+  .frame{flex:1 1 480px;min-width:300px;max-width:100%}
+  .frame.phone{flex:0 0 360px}
+  .frameLabel{font-size:.72rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--mu);margin:0 0 .3rem}
+  .qsPanel{margin:0}
+  .qsPanel .qsPresetLabel{margin:0 0 .3rem;font-size:.8125rem;font-weight:600;color:var(--mu)}
+  .gtZone{margin-top:.9rem}
+
+  /* 00/01 · classic table */
+  .gtTable{width:100%;border-collapse:collapse;font-size:.82rem}
+  .gtTable th{padding:0 .5rem .35rem 0;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mu);text-align:left}
+  .gtTable th i{display:inline-block;width:.55rem;height:.55rem;margin-right:.35rem;border-radius:50%;vertical-align:.05rem}
+  .gtTable td{padding:.45rem .5rem .45rem 0;vertical-align:top;color:var(--fg);border-top:1px solid var(--ln)}
+
+  /* 02 · guard cards */
+  .gtCards{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+  .gtCard{border:1px solid var(--ln);border-radius:.6rem;padding:.5rem .65rem;background:var(--in)}
+  .gtCard header{display:flex;align-items:center;gap:.35rem;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mu)}
+  .gtCard header i{width:.55rem;height:.55rem;border-radius:50%}
+  .gtCard p{margin:.25rem 0 0;font-size:.82rem;line-height:1.35}
+
+  /* 03 · guard rows */
+  .gtRows{display:grid}
+  .gtRow{display:grid;grid-template-columns:6.5rem 1fr;gap:.6rem;align-items:baseline;padding:.5rem 0;border-top:1px solid var(--ln)}
+  .gtRow:first-child{border-top:0}
+  .gtName{font-weight:700;font-size:.82rem;display:flex;align-items:center;gap:.35rem}
+  .gtName i{width:.55rem;height:.55rem;border-radius:50%}
+  .gtRule{font-size:.82rem;color:var(--fg)}
+
+  /* 04 · time windows */
+  .gtWins{display:grid;gap:.4rem}
+  .gtWin{border-left:3px solid;padding:.4rem .6rem;border-radius:0 .45rem .45rem 0;background:var(--in)}
+  .gtWin .gtWinT{display:block;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+  .gtWin .gtWinR{display:block;margin-top:.1rem;font-size:.82rem;color:var(--fg)}
+  .gtWin.wn{border-color:#d97706}.gtWin.wn .gtWinT{color:#d97706}
+  .gtWin.ok{border-color:var(--ok)}.gtWin.ok .gtWinT{color:var(--ok)}
+  .gtWin.dn{border-color:#5594dd}.gtWin.dn .gtWinT{color:#5594dd}
+
+  /* 05 · value chips */
+  .gtChipRows{display:grid;gap:.4rem}
+  .gtChipRow{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+  .gtChipRow .gtName{flex:none;width:6.5rem;font-weight:700;font-size:.82rem;display:flex;align-items:center;gap:.35rem}
+  .gtChipRow .gtName i{width:.55rem;height:.55rem;border-radius:50%}
+  .chip{display:inline-flex;align-items:center;padding:.18rem .55rem;border:1px solid var(--ln);border-radius:1rem;background:var(--in);font-size:.78rem;font-weight:650;color:var(--fg)}
+
+  .fc{color:#d97706}.gc{color:var(--ok)}.sc{color:#5594dd}
+</style>
+</head>
+<body>
+  <h1>Guard tables · 5 propuestas de presentación</h1>
+  <p class="lead">Reemplazo de la tabla actual de Home: cómo presentar las reglas de corte de los guardias como <b>texto puro</b>, con los valores que salen del preset activo. La sección <b>00</b> es la tabla tal como está implementada hoy; las secciones <b>01–05</b> son las propuestas.</p>
+  <p class="lead">Todas expresan lo mismo con los datos de fábrica —Fast corta a los 28&nbsp;s (máx. 42.5&nbsp;g), BBW corta al llegar a 36&nbsp;g entre 28 y 44&nbsp;s, Slow corta a 34&nbsp;g desde los 44&nbsp;s (máx. 50&nbsp;s)— y cambian entre <b>Double</b> y <b>Single</b> en las tarjetas de cada panel. El botón «Tema» repinta todo en claro y oscuro.</p>
+  <button type="button" id="themeToggle">Tema: auto</button>
+  <main id="options"></main>
+  <p class="note">Vista de diseño sin conexión a ningún equipo; no modifica ajustes ni forma parte del firmware.</p>
+  <script src="/guard-tables.js" defer></script>
+</body>
+</html>

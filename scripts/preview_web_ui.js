@@ -34,6 +34,8 @@ const routes = {
   '/traffic-light.js': ['text/javascript', 'scripts/web-preview/traffic-light.js'],
   '/guard-profiles': ['text/html; charset=utf-8', 'scripts/web-preview/guard-profiles.html'],
   '/guard-profiles.js': ['text/javascript', 'scripts/web-preview/guard-profiles.js'],
+  '/guard-tables': ['text/html; charset=utf-8', 'scripts/web-preview/guard-tables.html'],
+  '/guard-tables.js': ['text/javascript', 'scripts/web-preview/guard-tables.js'],
 };
 
 function renderHome() {
