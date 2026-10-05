@@ -162,21 +162,21 @@ assets.
 
 Open `http://127.0.0.1:4173/guard-profiles` on the same running preview server
 to iterate the time-to-weight profile chart one change at a time, starting
-from the proposal-10 design shown as section 00. The current iteration draws
-one straight line per cut situation using the same colors as the firmware's
-stats charts — orange for Fast, green for BBW, light blue for Slow — with
-the three background zones filled in those colors, and represents each
-activation as a style change: every line is dashed until its guard activates
-and solid from there. The green BBW line is dashed to 28 s and continues flat at 36 g to
-44 s; the light blue Slow line is dashed to 44 s and continues flat at the
-34 g recovery floor to the 50 s machine limit; the orange Fast line is
-dashed to 28 s, where the amber wedge between it and the green diagonal and
-a vertical segment at the same line weight span the fast cut range from
-36 to 42.5 g. Right-hand labels keep an enforced minimum gap, preset cards
-switch between Double and Single inside every panel at desktop and phone
-width, and the corner **Tema** button cycles auto, light, and dark.
-Readings are simulated; the preview does not connect to a device or ship in
-firmware assets.
+from the proposal-10 design shown as section 00. Section 01 is the current
+final chart, whose right-hand weight labels cost the plot 34 pixels of
+width; sections 02-11 are ten label-placement alternatives that let the
+chart extend fully to the right edge while keeping the weights
+non-obstructive: a left label gutter, labels with a background halo sitting
+on their lines at the left or right end, right-aligned labels in the clear
+bands between lines, rotated labels on the right edge, no labels at all
+(weights live in the legend), labels at the cut points, a colored weights
+row under the time axis, labels at the start of each flat stretch, and a
+mini legend pinned at the top right. All versions keep the stats colors and
+fills, the dashed-until-activation lines, and the fast cut range wedge.
+Preset cards switch between Double and Single inside every panel at desktop
+and phone width, and the corner **Tema** button cycles auto, light, and
+dark. Readings are simulated; the preview does not connect to a device or
+ship in firmware assets.
 
 ## USB installation
 
