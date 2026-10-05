@@ -92,6 +92,25 @@
     });
   }
 
+  // Radio variant: preset accordion with radio circles and bigger names.
+  function radioAccordion() {
+    return `<div class="gtAcc gtRadio">${PRESETS.map((p, i) => {
+      const r = rules(p);
+      return `<div class="gtPreset${i === 0 ? ' open' : ''}">` +
+        `<button type="button" class="gtAccHead" aria-expanded="${i === 0}">` +
+        `<span class="gtRadioDot" aria-hidden="true"></span>` +
+        `<span class="gtAccName">${p.name}</span><span class="gtAccBadge">${p.badge}</span>` +
+        `<span class="gtAccTarget">Target ${g(p.target)}</span>` +
+        `<span class="gtAccChev" aria-hidden="true">▾</span></button>` +
+        `<div class="gtPanel"><div class="gtPanelIn"><div class="gtPanelPad">` +
+        `<div class="gtRows">` +
+        `<div class="gtRow"><span class="gtName">${dot(FC)}Fast</span><span class="gtRule">${r.fast}</span></div>` +
+        `<div class="gtRow"><span class="gtName">${dot(GC)}BBW</span><span class="gtRule">${r.bbw}</span></div>` +
+        `<div class="gtRow"><span class="gtName">${dot(SC)}Slow</span><span class="gtRule">${r.slow}</span></div>` +
+        `</div></div></div></div></div>`;
+    }).join('')}</div>`;
+  }
+
   // 00 · reference
   addSection('00 · Tabla actual (referencia)',
     'La tabla tal como está implementada hoy en Home: títulos con punto de color y una fila de reglas.',
@@ -100,7 +119,11 @@
   addSection('01 · Acordeón por preset (actual)',
     'La propuesta seleccionada: cada preset abre su bloque de reglas con transición animada y el anterior se cierra.',
     () => accordion());
-  // 02–04 · hybrids
+  // 02 · radio accordion (fusion of 01 with radio circles)
+  addSection('02 · Radio + filas guardia → regla',
+    'Acordeón por preset con círculos tipo radio en cada fila: el círculo relleno marca el preset activo y al tocarlo se abre debajo su bloque de reglas con transición animada. El nombre del preset usa el tamaño de Settings.',
+    () => radioAccordion());
+  // 03–05 · hybrids
   HYBRIDS.forEach(h => addSection(h.name, h.desc, () => hybrid(h.key)(PRESETS[0])));
 
   // Accordion + FW accordion behavior (one open per group, animated by CSS).
