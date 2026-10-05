@@ -146,11 +146,23 @@
     ';return renderShotHero;')(lookup,()=>null,()=>'',(v,n)=>(v/1000).toFixed(n));
   const card={live:true,weight:2,goal:36,elapsedMs:1000,firstDropMs:0,tareMs:null,averageFlowGps:null};
   paint(card);
-  if(lookup('shotHeroDrop').hidden||!lookup('shotHeroDrop').textContent.startsWith('0.0s')||
+  if(lookup('shotHeroDrop').hidden||lookup('shotHeroDrop').textContent!=='first drop 0.0 s'||
       !lookup('shotHeroFlow').hidden)throw new Error('A measured zero event must remain visible without inventing flow');
   paint({...card,firstDropMs:null,averageFlowGps:1.23});
   if(!lookup('shotHeroDrop').hidden||lookup('shotHeroFlow').hidden||
-      !lookup('shotHeroFlow').textContent.startsWith('1.23'))throw new Error('Home must render firmware event/flow validity');
+      lookup('shotHeroFlow').textContent!=='Avg flow 1.23 g/s')throw new Error('Home must render firmware event/flow validity');
+  paint({...card,weight:36.2,elapsedMs:36800});
+  if(lookup('shotHeroWeight').textContent!=='36.2g'||lookup('shotHeroGoal').textContent!==' / 36 g'||
+      lookup('shotHeroElapsed').textContent!=='36.8 s'||lookup('shotHeroError').hidden||
+      lookup('shotHeroError').textContent!=='Err 0.6%')throw new Error('Home must label units and signed target error');
+  paint({...card,weight:35});
+  if(lookup('shotHeroError').textContent!=='Err -2.8%')throw new Error('Home must preserve undershoot error');
+  for(const missing of [{weight:null},{goal:0}]){
+    paint({...card,...missing});
+    if(!lookup('shotHeroError').hidden)throw new Error('Home must hide unavailable target error');
+  }
+  const chips=['Elapsed','Drop','Flow','Error','Mode'].map(id=>html.indexOf('id="shotHero'+id+'"'));
+  if(chips.some((pos,i)=>pos<0||(i&&pos<=chips[i-1])))throw new Error('Home shot chips must keep their reading order');
   const apply = new Function(runtimeJs.slice(runtimeJs.indexOf('function shotStreamFrame('),
     runtimeJs.indexOf('function startShotStream('))+';return shotStreamFrame;')();
   const snapshot={v:1,boot:7,seq:1,base:0,revision:1,snapshot:true,cycle:19,shotId:0,

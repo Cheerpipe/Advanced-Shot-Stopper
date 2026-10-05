@@ -58,6 +58,11 @@ The log holds up to **100** shots. The following are never stored:
 
 Home shows the current activation as it happens. After the machine stops, its
 duration stays fixed while accepted drip readings continue updating the curve.
+The shot card shows yield and target, such as **36.2g / 36 g**. Its capsules
+appear in this order: elapsed time (**36.8 s**), **first drop**, **Avg flow**,
+**Err**, and the cutoff reason. First drop includes its time, such as
+**first drop 6.2 s**. Err shows the percentage above or below the target,
+such as **Err 0.6%**; unavailable measurements are hidden.
 The timer comes from the controller and pauses on screen if the connection is
 lost; **Reconnecting…** indicates that the displayed result may be stale.
 

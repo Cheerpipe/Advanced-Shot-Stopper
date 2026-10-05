@@ -431,6 +431,8 @@
     "home.fast_extraction_guard": "Fast extraction guard",
     "home.force_switch_press": "Force switch press",
     "home.hero_brewing": "Brewing",
+    "home.hero_error": "Err",
+    "home.hero_first_drop": "first drop",
     "home.hero_last_shot": "Last shot",
     "home.hero_loading": "Loading shot…",
     "home.hero_pending": "Collecting final drops",
