@@ -152,7 +152,7 @@
   if(!lookup('shotHeroDrop').hidden||lookup('shotHeroFlow').hidden||
       lookup('shotHeroFlow').textContent!=='Avg flow 1.23 g/s')throw new Error('Home must render firmware event/flow validity');
   paint({...card,weight:36.2,elapsedMs:36800});
-  if(lookup('shotHeroWeight').textContent!=='36.2g'||lookup('shotHeroGoal').textContent!==' / 36 g'||
+  if(lookup('shotHeroWeight').textContent!=='36.2 g'||lookup('shotHeroGoal').textContent!==' / 36 g'||
       lookup('shotHeroElapsed').textContent!=='36.8 s'||lookup('shotHeroError').hidden||
       lookup('shotHeroError').textContent!=='Err 0.6%')throw new Error('Home must label units and signed target error');
   paint({...card,weight:35});
