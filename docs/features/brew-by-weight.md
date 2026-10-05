@@ -37,8 +37,9 @@ pulses depend on machine-state confirmation: see
 
 Defaults below describe factory Double; see [Presets](presets.md) for Single.
 These live on the **active preset** under **Settings → Brew**, except where
-noted. **Home → Quick Settings** can toggle brew by weight for the session
-(Manual). The **Presets** section below it summarizes how each recipe cuts as
+noted. The standalone **Brew by weight** control at the top of **Home**, above
+the shot card, can toggle brew by weight for the session (Manual). The
+**Presets** section below Quick Settings summarizes how each recipe cuts as
 three short rules — Fast, BBW, and Slow — built from that recipe's saved
 settings; the active recipe arrives expanded.
 
