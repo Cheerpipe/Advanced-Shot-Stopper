@@ -104,15 +104,18 @@ block by 2 KiB; it recovered after cleanup. Idle stream CPU samples were
 produced 25 snapshots over the burst and drain interval. A stalled reader closed
 and a fresh stream recovered; concurrent Home/Stats/History/OTA-status requests
 completed, with a worst observed response of 744 ms under three HTTP workers.
-No additional external-allocation fallback or HCI drops were observed.
+No additional external-allocation fallback or HCI drops were observed. A full
+2,310,512-byte same-image OTA transfer also completed with the stream occupied;
+the stream recovered after socket recycling during upload and after reboot.
+The new boot's image digest matched and automatic confirmation succeeded.
 
 The target's 396-point canonical snapshot was 4,730 bytes and matched Stats
 weights, timestamps and breaks exactly. An offline maximum-width 1201-point
 curve with every possible break and all event markers serialized to 20,703
 bytes inside the existing 22,016-byte curve workspace. Active scale/drip timing,
-maximum-curve target sends, HTTP-task stack margin, server-stop overlap and a
-complete OTA transfer remain manual qualification requirements; these idle and
-transport measurements do not substitute for them.
+maximum-curve target sends, HTTP-task stack margin and server-stop overlap remain
+manual qualification requirements. OTA power-cut, safety-abort and rollback
+cases also remain pending; the successful full transfer does not qualify them.
 
 ## Runtime placement and allocation
 
