@@ -7,6 +7,13 @@ or custom, and its target weight. On Home, the **Presets** section lists the
 recipes as rows: the active one is marked with a filled circle and expands to
 its Fast, BBW, and Slow cut rules, and tapping another row applies that
 recipe when brewing by weight is on.
+
+Each rule shows the recipe's configured weight and time conditions. Fast shows
+both ways it can stop: the maximum recovery weight after BBW protection ends,
+or the minimum brew time once the target is reached. Slow shows the minimum
+recovery weight and when it becomes eligible. These are recipe values; learned
+drip compensation and time limits still apply.
+
 The preset list and New, Duplicate, Reset, and Delete buttons stay hidden
 behind a loading animation until presets are ready. The other Settings
 subsections remain available as collapsed groups.

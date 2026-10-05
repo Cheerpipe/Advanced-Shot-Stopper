@@ -61,15 +61,14 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
     !ui.includes('function renderHomePresetAccordion(') ||
     !ui.includes('function guardRuleRows(') ||
     !ui.includes('function updateRuleChartFromStatus(') ||
-    !ui.includes('liveRuleModel=buildRuleChartModel(s&&s.config)') ||
     !ui.includes('bbw&&!!c.fastExtractionGuardEnabled') ||
     !ui.includes('bbw&&!!c.slowExtractionGuardEnabled') ||
     !ui.includes("'timerOnly'") ||
     !ui.includes("'active'") ||
     !ui.includes("Number.isFinite(pv)?Math.max(0,Math.min(pv") ||
-    !ui.includes('Cuts at {0} s (max {1})') ||
+    !ui.includes('Cuts at {0} between {1} and {2} s, or at {2} s with {3} or more') ||
     !ui.includes('Cuts at {0} between {1} and {2} s') ||
-    !ui.includes('Cuts at {0} from {1} s (max {2} s)') ||
+    !ui.includes('Cuts at {0} or more from {1} s') ||
     !ui.includes('bbwProtectionMs') ||
     !runtimeJs.includes('vector-effect="non-scaling-stroke"') ||
     !firmware.includes('SERIAL_DEBUG_ON') ||
@@ -90,6 +89,36 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
     !firmware.includes('enqueueScaleDebugCommand') ||
     !firmware.includes('executeScaleDebugCommand')) {
   throw new Error('Ring/serial config, rule chart, CLI, and scale/buzzer command paths must remain');
+}
+{
+  const assert = require('assert'), vm = require('vm');
+  const strings = JSON.parse(fs.readFileSync(path.join(sketchDir, 'web/locales/en.json'), 'utf8')).strings;
+  const node = () => ({children: [], append(...children) { this.children.push(...children); }, setAttribute() {}});
+  const saved = {id: 1, brewByWeight: true, fastExtractionGuardEnabled: true,
+    slowExtractionGuardEnabled: true, operationalWallMs: 50000, bbwProtectionMs: 12000,
+    minBbwBrewTimeMs: 28000, maxBbwBrewTimeMs: 44000, goalWeightG: 36,
+    maxRecoveryWeightG: 42, minRecoveryWeightG: 34};
+  const context = vm.createContext({__WEBUI_TEXT__: key => strings[key],
+    document: {createElement: node, createTextNode: text => ({textContent: text})},
+    presetState: {activeId: 1, items: [saved]}, renderHomePresetAccordion() {}});
+  vm.runInContext(runtimeJs.split('\n').filter(line =>
+    ['axisLabel', 'guardRuleRows', 'buildRuleChartModel', 'updateRuleChartFromStatus']
+      .some(name => line.startsWith('function ' + name + '('))).join('\n'), context);
+  const rules = config => {
+    context.status = {config};
+    return Array.from(vm.runInContext('updateRuleChartFromStatus(status); guardRuleRows(liveRuleModel)', context),
+      row => row.children[1].textContent.replace(/\u00a0/g, ' '));
+  };
+  const home = {...saved}; delete home.bbwProtectionMs;
+  assert.deepStrictEqual(rules(home), ['Cuts at 42 g between 12 and 28 s, or at 28 s with 36 g or more',
+    'Cuts at 36 g between 28 and 44 s', 'Cuts at 34 g or more from 44 s']);
+  saved.bbwProtectionMs = 9000;
+  assert.deepStrictEqual(rules({...home, goalWeightG: 40, maxRecoveryWeightG: 47.5,
+    minRecoveryWeightG: 37.5, minBbwBrewTimeMs: 30000, maxBbwBrewTimeMs: 46000}),
+    ['Cuts at 47.5 g between 9 and 30 s, or at 30 s with 40 g or more',
+      'Cuts at 40 g between 30 and 46 s', 'Cuts at 37.5 g or more from 46 s']);
+  assert(rules({...home, bbwProtectionMs: 15000})[0].includes('between 15 and 28 s'));
+  assert.deepStrictEqual(rules({...home, brewByWeight: false}), ['Off', 'Off', 'Off']);
 }
 if (!ui.includes('id="staIpMode"') ||
     !ui.includes('id="staStaticIp"') ||

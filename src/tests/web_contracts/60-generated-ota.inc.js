@@ -792,7 +792,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   }
   const both = helpers.buildRuleChartModel(base);
   if (both.mode !== 'active' || !both.fast || !both.slow ||
-      both.wall !== 50 || both.tMin !== 28 || both.tMax !== 44 ||
+      both.tMin !== 28 || both.tMax !== 44 ||
       both.prot !== 12 || both.goal !== 36 || both.floor !== 34 ||
       both.ceil !== 42.5) {
     throw new Error('Rule chart: every limit must come from settings, never baked in');
