@@ -285,23 +285,24 @@
   }
 }
 
-if (!statusSection || !statusSection[1].includes('class="statusColumn"') ||
+if (!statusSection || !statusSection[1].includes('class="lamp"') ||
+    statusSection[1].includes('class="statusColumn"') ||
     statusSection[1].includes('class="row"') ||
-    (statusSection[1].match(/class="metric"/g) || []).length !== 2 ||
-    !statusSection[1].includes('<strong>Machine</strong>') ||
+    (statusSection[1].match(/class="metric[ "]/g) || []).length !== 2 ||
+    !statusSection[1].includes('id="machineStateValue"') ||
     !statusSection[1].includes('<strong>Brew</strong>') ||
     statusSection[1].includes('<strong>Cup</strong>') ||
     statusSection[1].includes('data-label="Machine"') ||
     !statusSection[1].includes('id="machineState"') ||
     !statusSection[1].includes('id="state"') ||
+    !statusSection[1].includes('id="homeMicraPower"') ||
     statusSection[1].includes('id="cupState"') ||
     statusSection[1].includes('id="paddle"') ||
     statusSection[1].includes('id="relay"') ||
     statusSection[1].includes('id="safety"') ||
     statusSection[1].includes('id="statusExtractionGuard"') ||
-    !scaleSection || !scaleSection[1].includes('class="statusColumn"') ||
-    (scaleSection[1].match(/class="metric"/g) || []).length !== 4 ||
-    !scaleSection[1].includes('<strong>Status</strong>') ||
+    !scaleSection || !scaleSection[1].includes('class="lampState"') ||
+    (scaleSection[1].match(/class="metric"/g) || []).length !== 3 ||
     !scaleSection[1].includes('<strong>Preferred</strong>') ||
     !scaleSection[1].includes('<strong>Weight</strong>') ||
     !scaleSection[1].includes('<strong>Timer</strong>') ||

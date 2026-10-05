@@ -224,7 +224,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !ui.includes('id="homeFastExtractionGuardEnabled"') ||
     !ui.includes('id="homeSlowExtractionGuardEnabled"') ||
     !ui.includes('id="homeAutoToManualGuardEnabled"') ||
-    html.indexOf('id="quickSettingsPanel"') > html.indexOf('id="statusPanel"') ||
+    html.indexOf('id="quickSettingsPanel"') > html.indexOf('id="equipmentPanel"') ||
     html.indexOf('id="homeBrewByWeight"') > html.indexOf('id="homeNoScaleBbwMode"') ||
     html.indexOf('id="homeNoScaleBbwMode"') >
         html.indexOf('id="homeAutoToManualGuardEnabled"') ||
@@ -240,7 +240,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
         html.indexOf('id="homeCupProtectionEnabled"') ||
     html.indexOf('id="homeCupProtectionEnabled"') >
         html.indexOf('id="homePresetBlock"') ||
-    html.indexOf('id="homeFastExtractionGuardEnabled"') > html.indexOf('id="statusPanel"') ||
+    html.indexOf('id="homeFastExtractionGuardEnabled"') > html.indexOf('id="equipmentPanel"') ||
     !html.includes('>No-scale BBW<span') ||
     !html.includes('>Fast extraction guard<span') ||
     !html.includes('>Avoid accidental touch<span') ||
@@ -411,7 +411,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
                               html.indexOf('</section>', html.indexOf('id="view-diagnostic"')) + 10);
   const adminHtml = html.slice(html.indexOf('id="view-admin"'),
                                html.indexOf('id="firmwareFooter"'));
-  const statusHtml = html.slice(html.indexOf('id="statusPanel"'),
+  const statusHtml = html.slice(html.indexOf('id="equipmentPanel"'),
                                 html.indexOf('id="actionsPanel"'));
   if (!ui.includes('id="hCpu5s"') ||
       !ui.includes('id="hCpu1m"') ||

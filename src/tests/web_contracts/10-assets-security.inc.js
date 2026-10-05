@@ -1180,7 +1180,5 @@ if (html.includes('id="rememberMe"') ||
   throw new Error(
       'Web UI must not use login tokens; exclusive WebUI claim owns the session');
 }
-const statusSection = html.match(/<fieldset[^>]*id="statusPanel"[^>]*><legend>Status<\/legend>([\s\S]*?)<\/fieldset>/) ||
-    html.match(/<fieldset id="statusPanel"><legend>Status<\/legend>([\s\S]*?)<\/fieldset>/);
-const scaleSection = html.match(/<fieldset[^>]*id="scalePanel"[^>]*><legend>Scale<\/legend>([\s\S]*?)<\/fieldset>/) ||
-    html.match(/<fieldset id="scalePanel"><legend>Scale<\/legend>([\s\S]*?)<\/fieldset>/);
+const statusSection = html.match(/<details id="machineRow" class="lampRow">([\s\S]*?)<\/details>/);
+const scaleSection = html.match(/<details id="scaleRow" class="lampRow">([\s\S]*?)<\/details>/);

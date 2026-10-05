@@ -109,6 +109,21 @@ label:has(>input[type=checkbox]) .fieldHint{margin-left:1.9rem}
 .metric,.shotCard > *{min-width:0;overflow-wrap:anywhere}
 .metric strong,.shotCard strong{font-size:.8125rem;font-weight:600;color:var(--mu)}
 .metric > div,.shotCard > * > div,.swS{color:var(--mu);font-weight:400}
+.equipmentPanel{min-width:0;margin:1rem 0;padding:1rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf)}
+.equipmentPanel h2{margin:0;padding:0 .35rem;font-size:1.125rem;font-weight:700}
+.lampRow{border-top:1px solid var(--ln)}
+.lampRow:first-of-type{border-top:0}
+.lampRow summary{display:flex;align-items:center;gap:.6rem;min-height:var(--tap);padding:.5rem .25rem;list-style:none;cursor:pointer;font-weight:400}
+.lampRow summary::-webkit-details-marker{display:none}
+.lampRow summary:hover{background:var(--in)}
+.lampRow summary:focus-visible{outline:3px solid var(--ac);outline-offset:-3px}
+.lamp{flex:none;width:.75rem;height:.75rem;border-radius:50%;background:var(--ok);box-shadow:0 0 0 .2rem color-mix(in srgb,var(--ok) 18%,transparent)}
+.lampRow.lampBad .lamp{background:var(--dn);box-shadow:0 0 0 .2rem color-mix(in srgb,var(--dn) 18%,transparent)}
+.lampRow .devName{flex:none;width:4.6rem;font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mu)}
+.lampState{flex:1;min-width:0;text-align:right;font-weight:700;overflow-wrap:anywhere}
+.lampRow .chev{flex:none;width:.9rem;height:.9rem;fill:none;stroke:var(--mu);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+.lampRow[open] .chev{transform:rotate(90deg)}
+.metricRows{display:grid;gap:.65rem;padding:.35rem .25rem .65rem 1.6rem}
 #diagnosticsPanel fieldset{margin:.75rem 0 0;padding:.75rem;background:var(--in)}
 #diagnosticsPanel fieldset:first-of-type{margin-top:.25rem}
 #diagnosticsPanel fieldset>legend{grid-column:1/-1}

@@ -70,9 +70,9 @@
   }
   const home = partialHtml.home;
   const diagnostic = partialHtml.diagnostic;
-  const cup = home.match(/<fieldset id="cupPanel">([\s\S]*?)<\/fieldset>/);
+  const cup = home.match(/<details id="cupRow" class="lampRow">([\s\S]*?)<\/details>/);
   if (!cup || !cup[1].includes('id="cupState"') || !cup[1].includes('id="cupWeight"') || !cup[1].includes('id="idleTareStatus"') ||
-      !/<fieldset id="scalePanel">[\s\S]*?<\/fieldset><fieldset id="cupPanel">/.test(home) ||
+      !/<details id="scaleRow" class="lampRow">[\s\S]*?<\/details><details id="cupRow" class="lampRow">/.test(home) ||
       !/<legend>Scale<\/legend>[\s\S]*?id="dCupWeight"/.test(diagnostic) ||
       !diagnostic.includes('id="dCup"') || diagnostic.includes('id="scaleTareButton"') ||
       !source.includes("$('cupWeight').textContent=formatCupWeight(s)") ||
