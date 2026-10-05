@@ -1203,7 +1203,6 @@ ShotStopperNetwork *ShotStopperNetwork::instance_ = nullptr;
 #include "network/ShotStopperHttpLifecycle.inc"
 #include "network/ShotStopperHttpAuthAssets.inc"
 #include "network/ShotStopperStatus.inc"
-#include "network/ShotStopperShotStream.inc"
 #include "diagnostics/ShotStopperNetworkDiagnostics.inc"
 #include "diagnostics/ShotStopperCrashRoutes.inc"
 #include "network/ShotStopperConfiguration.inc"
