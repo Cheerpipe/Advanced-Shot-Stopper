@@ -51,7 +51,7 @@
       miniLegend: {L: 8, Rp: 2, vbh: 88},
     }[mode] || {L: 8, Rp: 2, vbh: 88};
     const W = 260, L = geo.L, R = geo.Rp, T = 8, B = 76, VBH = geo.vbh;
-    const FC = '#d97706', SC = '#2563eb'; // original rule-chart colors: orange fast, light blue slow
+    const FC = '#d97706', SC = '#3762e3'; // rule colors: orange fast, blue slow
     const x = t => L + (W - R - L) * t / TIME.wall;
     const y = v => B - (B - T) * v / p.ceil;
     const spread = (items, min) => { const list = [...items].sort((a, b) => a - b);
@@ -60,43 +60,43 @@
     const [cy, ty, fy] = spread([y(p.ceil), y(p.target), y(p.floor)], 7);
     const band = (t0, t1, color, op) => `<rect x="${x(t0).toFixed(1)}" y="${T}" width="${(x(t1) - x(t0)).toFixed(1)}" height="${B - T}" fill="${color}" fill-opacity="${op}"/>`;
     const limits = [p.ceil, p.target, p.floor].map(v =>
-      `<path d="M${L} ${y(v).toFixed(1)}H${W - R}" stroke="var(--ln)" stroke-width=".5" stroke-dasharray="2 3"/>`);
+      `<path d="M${L} ${y(v).toFixed(1)}H${W - R}" stroke="var(--mu)" stroke-width=".8" stroke-dasharray="2 3"/>`);
     const line = (pts, color, width, dash) => `<path d="${path(pts)}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
     function path(pts) { return pts.map((q, i) => (i ? 'L' : 'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' '); }
     const halo = t => t.replace('<text ', '<text paint-order="stroke" stroke="var(--sf)" stroke-width="2.4" ');
     const wText = (x0, y0, color, txt, anchor, rot) => halo(`<text x="${x0}" y="${y0.toFixed(1)}" font-size="6.5" font-weight="650" fill="${color}"${anchor === 'end' ? ' text-anchor="end"' : anchor === 'middle' ? ' text-anchor="middle"' : ''}${rot ? ` transform="rotate(-90 ${x0} ${y0.toFixed(1)})"` : ''}>${esc(txt)}</text>`);
     let weightLabels = '';
     if (mode === 'right') {
-      weightLabels = [[cy, FC, g(p.ceil)], [ty, 'var(--ok)', g(p.target)], [fy, SC, g(p.floor)]]
-        .map(it => wText(W - R + 4, it[0] + 2.3, it[1], it[2])).join('');
+      weightLabels = [[cy, g(p.ceil)], [ty, g(p.target)], [fy, g(p.floor)]]
+        .map(it => wText(W - R + 4, it[0] + 2.3, 'var(--fg)', it[1])).join('');
     } else if (mode === 'leftGutter') {
-      weightLabels = [[cy, FC, g(p.ceil)], [ty, 'var(--ok)', g(p.target)], [fy, SC, g(p.floor)]]
-        .map(it => wText(L - 4, it[0] + 2.3, it[1], it[2], 'end')).join('');
+      weightLabels = [[cy, g(p.ceil)], [ty, g(p.target)], [fy, g(p.floor)]]
+        .map(it => wText(L - 4, it[0] + 2.3, 'var(--fg)', it[1], 'end')).join('');
     } else if (mode === 'leftHalo' || mode === 'rightHalo') {
       const x0 = mode === 'leftHalo' ? L + 3 : W - 3;
       const anchor = mode === 'leftHalo' ? '' : 'end';
-      weightLabels = [[cy, FC, g(p.ceil)], [ty, 'var(--ok)', g(p.target)], [fy, SC, g(p.floor)]]
-        .map(it => wText(x0, it[0] + 2.3, it[1], it[2], anchor)).join('');
+      weightLabels = [[cy, g(p.ceil)], [ty, g(p.target)], [fy, g(p.floor)]]
+        .map(it => wText(x0, it[0] + 2.3, 'var(--fg)', it[1], anchor)).join('');
     } else if (mode === 'interline') {
-      weightLabels = wText(W - 3, 6.8, FC, g(p.ceil), 'end') +
-        wText(W - 3, (cy + ty) / 2 + 2.3, 'var(--ok)', g(p.target), 'end') +
-        wText(W - 3, fy + 7.5, SC, g(p.floor), 'end');
+      weightLabels = wText(W - 3, 6.8, 'var(--fg)', g(p.ceil), 'end') +
+        wText(W - 3, (cy + ty) / 2 + 2.3, 'var(--fg)', g(p.target), 'end') +
+        wText(W - 3, fy + 7.5, 'var(--fg)', g(p.floor), 'end');
     } else if (mode === 'rotated') {
       const rys = spread([Math.max(12, y(p.ceil)), Math.max(12, y(p.target)), Math.max(12, y(p.floor))], 16);
-      weightLabels = [[p.ceil, FC], [p.target, 'var(--ok)'], [p.floor, SC]]
-        .map((it, i) => wText(W - 13, rys[i], it[1], it[0].toFixed(1), 'middle', true)).join('');
+      weightLabels = [p.ceil, p.target, p.floor]
+        .map((v, i) => wText(W - 13, rys[i], 'var(--fg)', v.toFixed(1), 'middle', true)).join('');
     } else if (mode === 'atCuts') {
-      weightLabels = wText(x(TIME.tMin) + 5, (y(p.ceil) + y(p.target)) / 2 + 2.3, FC, `${g(p.target)}–${g(p.ceil)}`) +
-        wText(x(TIME.tMaxBbw) + 3, y(p.floor) + 7.5, SC, g(p.floor));
+      weightLabels = wText(x(TIME.tMin) + 5, (y(p.ceil) + y(p.target)) / 2 + 2.3, 'var(--fg)', `${g(p.target)}–${g(p.ceil)}`) +
+        wText(x(TIME.tMaxBbw) + 3, y(p.floor) + 7.5, 'var(--fg)', g(p.floor));
     } else if (mode === 'underAxis') {
-      weightLabels = `<text x="${((L + W - R) / 2).toFixed(1)}" y="${B + 21}" text-anchor="middle" font-size="6.5" font-weight="650" fill="var(--mu)">${esc('weights (g):')} <tspan fill="${FC}">${p.ceil.toFixed(1)}</tspan> · <tspan fill="var(--ok)">${p.target.toFixed(1)}</tspan> · <tspan fill="${SC}">${p.floor.toFixed(1)}</tspan></text>`;
+      weightLabels = `<text x="${((L + W - R) / 2).toFixed(1)}" y="${B + 21}" text-anchor="middle" font-size="6.5" font-weight="650" fill="var(--fg)">${esc('weights (g):')} ${p.ceil.toFixed(1)} · ${p.target.toFixed(1)} · ${p.floor.toFixed(1)}</text>`;
     } else if (mode === 'segStarts') {
-      weightLabels = halo(wText(60, cy - 1.5, FC, g(p.ceil))) +
-        halo(wText(x(TIME.tMin) + 4, ty - 2.5, 'var(--ok)', g(p.target))) +
-        halo(wText(x(TIME.tMaxBbw) + 4, fy + 6.5, SC, g(p.floor)));
+      weightLabels = halo(wText(60, cy - 1.5, 'var(--fg)', g(p.ceil))) +
+        halo(wText(x(TIME.tMin) + 4, ty - 2.5, 'var(--fg)', g(p.target))) +
+        halo(wText(x(TIME.tMaxBbw) + 4, fy + 6.5, 'var(--fg)', g(p.floor)));
     } else if (mode === 'miniLegend') {
-      weightLabels = [[p.ceil, FC, 'máx'], [p.target, 'var(--ok)', 'objetivo'], [p.floor, SC, 'mín']]
-        .map(it => halo(wText(W - 3, spread([11, 19, 27], 11)[[p.ceil, p.target, p.floor].indexOf(it[0])], it[1], `${g(it[0])} ${it[2]}`, 'end'))).join('');
+      weightLabels = [[p.ceil, 'máx'], [p.target, 'objetivo'], [p.floor, 'mín']]
+        .map(it => halo(wText(W - 3, spread([11, 19, 27], 11)[[p.ceil, p.target, p.floor].indexOf(it[0])], 'var(--fg)', `${g(it[0])} ${it[1]}`, 'end'))).join('');
     }
     return `<figure class="gpFig"><svg viewBox="0 0 ${W} ${VBH}" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot cuts at ${TIME.tMin} seconds with the weight anywhere between ${esc(g(p.target))} and ${esc(g(p.ceil))}; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
       band(0, TIME.tMin, FC, .22) + band(TIME.tMin, TIME.tMaxBbw, 'var(--ok)', .22) + band(TIME.tMaxBbw, TIME.wall, SC, .22) +
@@ -110,7 +110,7 @@
       line([[0, 0], [TIME.tMin, p.ceil]], FC, .8, '3 2.6') +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}" stroke="${FC}" stroke-width=".8" stroke-linecap="round"/>` +
       weightLabels +
-      `<g font-size="6.5" fill="var(--mu)" text-anchor="middle"><text x="${L}" y="85">0</text><text x="${x(TIME.tMin).toFixed(1)}" y="85">28 s</text><text x="${x(TIME.tMaxBbw).toFixed(1)}" y="85">44 s</text><text x="${x(TIME.wall).toFixed(1)}" y="85" text-anchor="end">50 s</text></g>` +
+      `<g font-size="6.5" fill="var(--mu)" text-anchor="middle"><text x="${L}" y="85">0 s</text><text x="${x(TIME.tMin).toFixed(1)}" y="85">28 s</text><text x="${x(TIME.tMaxBbw).toFixed(1)}" y="85">44 s</text><text x="${x(TIME.wall).toFixed(1)}" y="85" text-anchor="end">50 s</text></g>` +
       `</svg><figcaption class="gpRefLegend"><span class="fc">fast · cuts at 28 s, ${esc(g(p.target))}–${esc(g(p.ceil))}</span><span class="ok">BBW · cuts at ${esc(g(p.target))}, 28–44 s</span><span class="sc">slow · ${esc(g(p.floor))} from 44 s</span></figcaption></figure>`;
   }
 
