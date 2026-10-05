@@ -129,12 +129,6 @@ auto, light, and dark. Home readings are simulated; switches and buttons are
 presentation-only, and this preview does not connect to a device or ship in
 firmware assets.
 
-The second section applies a piecewise linear scale with a fixed visual
-rule for every preset: the lowest 30% of the chart height covers 0 to 65%
-of the ceiling and the upper 70% magnifies the guard zone, where the
-closely spaced floor and target lines always live; a double break mark at
-that height on the left edge discloses the scale change.
-
 ### Theme toggle icon preview
 
 Open `http://127.0.0.1:4173/theme-toggle` on the same running preview server

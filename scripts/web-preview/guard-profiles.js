@@ -12,18 +12,11 @@
   const n1 = v => +v.toFixed(1);
 
   // The final chart: one straight line per cut situation, stats-style HTML labels.
-  // `piecewise` magnifies the guard zone with a fixed visual rule: the break
-  // always sits at 30% of the plot height - 0..65% of the ceiling takes the
-  // lower 30% and 65%..ceiling the upper 70%, for every preset.
-  function finalProfile(p, piecewise = false) {
+  function finalProfile(p) {
     const W = 260, L = 0, R = 2, T = 8, B = 76;
     const FC = '#d97706', SC = '#5594dd'; // rule colors: orange fast, blue slow
     const x = t => L + (W - R - L) * t / TIME.wall;
-    const bp = p.ceil * .65;
-    const y = v => piecewise
-      ? (v <= bp ? T + (B - T) * .3 * v / bp
-                 : T + (B - T) * (.3 + .7 * (v - bp) / (p.ceil - bp)))
-      : B - (B - T) * v / p.ceil;
+    const y = v => B - (B - T) * v / p.ceil;
     const path = pts => pts.map((q, i) => (i ? 'L' : 'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' ');
     const line = (pts, color, dash) => `<path d="${path(pts)}" fill="none" stroke="${color}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
     const xMark = (t, v, color, cyOverride) => { const cx = x(t), cy = cyOverride ?? y(v);
@@ -43,7 +36,7 @@
       xMark(TIME.prot, p.ceil, FC) + xMark(TIME.tMin, p.ceil, FC) +
       xMark(TIME.tMin, null, 'var(--ok)', (y(p.ceil) + y(p.target)) / 2) + xMark(TIME.tMaxBbw, p.target, 'var(--ok)') +
       xMark(TIME.tMaxBbw, p.floor, SC) + xMark(TIME.wall, p.floor, SC) +
-      (piecewise ? `<path d="M0 ${(y(bp) - 1.6).toFixed(1)}l6.5 -2.4M0 ${(y(bp) + 1.6).toFixed(1)}l6.5 -2.4" stroke="var(--mu)" stroke-width=".7" stroke-linecap="round"/>` : '') +
+      +
       line([[0, 0], [TIME.tMin, p.target]], 'var(--ok)', '3 2.6') +
       line([[TIME.tMin, p.target], [TIME.tMaxBbw, p.target]], 'var(--ok)') +
       line([[0, 0], [TIME.tMaxBbw, p.floor]], SC, '3 2.6') +
@@ -71,7 +64,6 @@
   const host = document.getElementById('options');
   const sections = [
     {name: '01 · Versión final · escala lineal', desc: 'Los límites de los guardias dibujados solo con datos reales, en los colores de los gráficos de Stats: la rápida (naranjo) sube hasta su corte de 28 s × 42.5 g —su rango posible, entre 36 y 42.5 g, es el abanico sobre la compuerta—; la BBW normal (verde) llega en diagonal a 36 g y sigue plana entre 28 y 44 s, donde puede ocurrir el corte; a los 44 s el segmento vertical celeste corta a todo tiro que ya esté entre 34 y 36 g, y la lenta (celeste) sube hasta el piso de 34 g para cortar en plano de 44 a 50 s. Cada línea va punteada hasta su activación y sólida desde ahí. En escala lineal, el piso (34 g) y el objetivo (36 g) quedan muy cerca.', render: finalProfile},
-    {name: '02 · Escala partida en la zona de guardias', desc: 'Mismo gráfico con una escala lineal por tramos, con regla fija para cualquier preset: el 30% inferior de la altura cubre de 0 al 65% del techo (comprimido) y el 70% superior magnifica la zona de guardias, donde los valores siempre vienen juntos. El piso y el objetivo se separan al doble sin dejar de ser monotónico; las marcas dobles del borde izquierdo, siempre a la misma altura, revelan el punto de corte de escala.', render: p => finalProfile(p, true)},
   ];
 
 
