@@ -158,6 +158,23 @@ the corner **Tema** button cycles auto, light, and dark. Readings are
 simulated; the preview does not connect to a device or ship in firmware
 assets.
 
+### Guard profile chart iterations preview
+
+Open `http://127.0.0.1:4173/guard-profiles` on the same running preview server
+to review ten iterations of the time-to-weight profile chart, each making the
+rule crossing explicit — for example, at 28 seconds with the weight at 36 g
+the Fast guard extends toward 42.5 g, and after 44 seconds short of 34 g the
+Slow guard pours down to it. The previous version is shown first as the
+reference; the iterations use decision rings at the rule intersections,
+gate-anchored threshold pills, HTML consequence chips, dashed outcome tails,
+a weight ladder with enforced label separation, a guard ribbon, three stacked
+decision strips with full-size sentences, and automatic de-overlapping of the
+34/36 g labels that previously collided. Preset cards switch between Double
+and Single inside every panel, frames come at desktop and phone width, and
+the corner **Tema** button cycles auto, light, and dark. Readings are
+simulated; the preview does not connect to a device or ship in firmware
+assets.
+
 ## USB installation
 
 Review the selected profiles and physical safety before adding `--confirm`.
