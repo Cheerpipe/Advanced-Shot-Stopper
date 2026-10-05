@@ -188,11 +188,11 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !ui.includes('id="presetResetBtn"') ||
     !ui.includes('id="presetDeleteBtn"') ||
     !ui.includes('id="presetRenameDialog"') ||
-    !ui.includes('id="homePresetCards"') ||
+    !ui.includes('id="homePresetAcc"') ||
     !html.includes('<legend>Presets</legend>') ||
     html.indexOf('id="presetPanel"') > html.indexOf('<legend>Presets</legend>') ||
-    html.indexOf('<legend>Presets</legend>') > html.indexOf('id="homePresetCards"') ||
-    html.indexOf('id="homePresetBlock"') > html.indexOf('id="homePresetCards"') ||
+    html.indexOf('<legend>Presets</legend>') > html.indexOf('id="homePresetAcc"') ||
+    html.indexOf('id="homePresetBlock"') > html.indexOf('id="homePresetAcc"') ||
     !ui.includes('id="homeBrewByWeight"') ||
     !ui.includes('id="homeNoScaleBbwEnabled"') ||
     !ui.includes('id="quickSettingsPanel"') ||
@@ -382,6 +382,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     ui.includes('data-route="/presets"') ||
     ui.includes('id="presetsPageCards"') ||
     ui.includes('id="homePresetChips"') ||
+    ui.includes('id="homePresetCards"') ||
     !ui.includes("action:'new'") ||
     !ui.includes("action:'duplicate'") ||
     !ui.includes("action:'rename'") ||
@@ -400,7 +401,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !network.includes('\\"presets\\"') ||
     network.includes('"/presets"') ||
     !css.includes('.presetCard') ||
-    !css.includes('#homePresetCards') ||
+    !css.includes('.presetAccItem') ||
     !css.includes('.btnGlyph') ||
     !css.includes('.btnGlyph .g') ||
     !css.includes('.btnGlyph .t')) {

@@ -61,7 +61,9 @@ struct NetworkWorkBuf {
   // Fits diagnostic status with up to 20 task rows and 16 loop-phase rows,
   // plus Home's worst-case 22 KiB timestamped curve in the shared buffer.
   static constexpr size_t kStatusJson = 40960;
-  static constexpr size_t kPresetsJson = 2800;
+  // Worst case: 8 presets with fully escaped 23-char names plus every
+  // per-preset rule field the Home accordion renders.
+  static constexpr size_t kPresetsJson = 3600;
   static constexpr size_t kHistoryJson = 1400;
   // One full-capacity curve plus bounded scalar fields; chunks are sent per row.
   static constexpr size_t kJsonItem = SHOT_CURVE_JSON_CAPACITY + 1536;
@@ -89,6 +91,7 @@ struct NetworkWorkBuf {
   ShotCurveRecord shotCurves[SHOT_CURVE_CAPACITY]{};
   ShotCurveRecord homeCurve{};
   ShotCurveRecord serializedCurve{};
+  PersistedLastShot homeShotProjection{};
   ControlStatusSnapshot control{};
   TaskProfilerSnapshot taskProfiler{};
   DebugExportExtras debugExport{};
@@ -1097,13 +1100,23 @@ void buildSlimPresetsJson(const ShotPresetBank &presets) {
         buf + used, cap - used,
         "%s{\"id\":%u,\"name\":\"%s\",\"isFactory\":%s,\"brewByWeight\":%s,"
         "\"goalWeightG\":%u,\"minBbwBrewTimeMs\":%lu,\"maxRecoveryWeightG\":%.1f,"
+        "\"minRecoveryWeightG\":%.1f,\"maxBbwBrewTimeMs\":%lu,"
+        "\"operationalWallMs\":%lu,\"bbwProtectionMs\":%lu,"
+        "\"fastExtractionGuardEnabled\":%s,\"slowExtractionGuardEnabled\":%s,"
         "\"bbwAlgorithm\":\"%s\",\"bbwAlphaBaseline\":%.2f,"
         "\"lineaMicraBrewTargetC\":%.1f}",
         i == 0 ? "" : ",", static_cast<unsigned>(p.id), safeName,
         p.isFactory ? "true" : "false", p.brewByWeight ? "true" : "false",
         static_cast<unsigned>(p.goalWeightG),
         static_cast<unsigned long>(p.minBbwBrewTimeMs),
-        static_cast<double>(p.maxRecoveryWeightG), bbwAlgorithmName(p.bbwAlgorithm),
+        static_cast<double>(p.maxRecoveryWeightG),
+        static_cast<double>(p.minRecoveryWeightG),
+        static_cast<unsigned long>(p.maxBbwBrewTimeMs),
+        static_cast<unsigned long>(p.operationalWallMs),
+        static_cast<unsigned long>(p.bbwProtectionMs),
+        p.fastExtractionGuardEnabled ? "true" : "false",
+        p.slowExtractionGuardEnabled ? "true" : "false",
+        bbwAlgorithmName(p.bbwAlgorithm),
         p.bbwAlphaBaseline / 100.0,
         static_cast<double>(p.lineaMicraBrewTargetDeciC) / 10.0);
     if (n < 0 || static_cast<size_t>(n) >= cap - used) {
@@ -1190,6 +1203,7 @@ ShotStopperNetwork *ShotStopperNetwork::instance_ = nullptr;
 #include "network/ShotStopperHttpLifecycle.inc"
 #include "network/ShotStopperHttpAuthAssets.inc"
 #include "network/ShotStopperStatus.inc"
+#include "network/ShotStopperShotStream.inc"
 #include "diagnostics/ShotStopperNetworkDiagnostics.inc"
 #include "diagnostics/ShotStopperCrashRoutes.inc"
 #include "network/ShotStopperConfiguration.inc"

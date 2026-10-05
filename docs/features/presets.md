@@ -2,9 +2,12 @@
 
 Presets store brew recipes. Double is active on a new controller; Single is
 also included. Open **Settings → Brew** while the machine is idle.
-Preset cards on Home and Settings show the recipe name, whether it is factory
-or custom, and its target weight; the graph and settings show the other limits.
-The preset cards and New, Duplicate, Reset, and Delete buttons stay hidden
+Settings shows each recipe as a card with its name, whether it is factory
+or custom, and its target weight. On Home, the **Presets** section lists the
+recipes as rows: the active one is marked with a filled circle and expands to
+its Fast, BBW, and Slow cut rules, and tapping another row applies that
+recipe when brewing by weight is on.
+The preset list and New, Duplicate, Reset, and Delete buttons stay hidden
 behind a loading animation until presets are ready. The other Settings
 subsections remain available as collapsed groups.
 Once loaded, the available actions depend on the selected preset and whether

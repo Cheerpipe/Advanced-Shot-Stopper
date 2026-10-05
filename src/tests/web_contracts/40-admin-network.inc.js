@@ -41,28 +41,33 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
     !ui.includes("ringRetainLogLevel').onchange") ||
     !ui.includes('baseRevision') ||
     !network.includes('ringRetainLogLevel') ||
-    !html.includes('id="ruleChart"') ||
-    html.includes('id="ruleChartTimeTrack"') ||
-    html.includes('id="ruleChartWeightTrack"') ||
-    html.indexOf('id="ruleChart"') < html.indexOf('id="homePresetCards"') ||
-    html.indexOf('id="ruleChart"') > html.indexOf('id="equipmentPanel"') ||
+    !html.includes('id="homePresetAcc"') ||
+    html.includes('id="ruleChart"') ||
+    html.indexOf('id="homePresetAcc"') < html.indexOf('id="presetPanel"') ||
+    html.indexOf('id="homePresetAcc"') > html.indexOf('id="equipmentPanel"') ||
     html.includes('Extraction rules') ||
     !css.includes('.ruleChart') ||
     !css.includes('.ruleLegFast:before{background:#d97706}') ||
     !css.includes('.ruleLegBbw:before{background:var(--ok)}') ||
     !css.includes('.ruleLegSlow:before{background:#2563eb}') ||
     css.includes('.ruleSeg') || css.includes('.ruleChartTrack') ||
-    !css.includes('.ruleTable{width:100%;border-collapse:collapse') ||
+    css.includes('.ruleTable') ||
+    !css.includes('.presetAccItem.open .presetAccDot') ||
+    !css.includes('.presetAccPanel{display:grid;grid-template-rows:0fr') ||
+    !css.includes('.guardFast i{background:#d97706}') ||
+    !css.includes('.guardBbw i{background:var(--ok)}') ||
+    !css.includes('.guardSlow i{background:#5594dd}') ||
     !ui.includes('function buildRuleChartModel(') ||
-    !ui.includes('function renderRuleChart(') ||
+    !ui.includes('function renderHomePresetAccordion(') ||
+    !ui.includes('function guardRuleRows(') ||
     !ui.includes('function updateRuleChartFromStatus(') ||
-    !ui.includes('updateRuleChartFromStatus(s)') ||
+    !ui.includes('liveRuleModel=buildRuleChartModel(s&&s.config)') ||
     !ui.includes('bbw&&!!c.fastExtractionGuardEnabled') ||
     !ui.includes('bbw&&!!c.slowExtractionGuardEnabled') ||
     !ui.includes("'timerOnly'") ||
     !ui.includes("'active'") ||
     !ui.includes("Number.isFinite(pv)?Math.max(0,Math.min(pv") ||
-    !ui.includes('Cuts from {0} s at {1}, or at {2} s') ||
+    !ui.includes('Cuts at {0} s (max {1})') ||
     !ui.includes('Cuts at {0} between {1} and {2} s') ||
     !ui.includes('Cuts at {0} from {1} s (max {2} s)') ||
     !ui.includes('bbwProtectionMs') ||

@@ -436,9 +436,11 @@ if (generated.jsGzip.length > 4484) {
 // The home preset radio cards and quick-settings button toggles raise the
 // cap to 8700. The Brew by Weight hero accent card and the hidden guard
 // card inputs raise the cap to 8900. The approved Home shot hero card
-// (prototype 2) raises the cap to 9250.
-if (generated.cssGzip.length > 9250) {
-  throw new Error('Compressed Web CSS exceeds the 9250-byte gzip budget');
+// (prototype 2) raises the cap to 9250. The Home preset accordion that
+// replaces the card chips and rule table (radio dot, animated guard rows)
+// raises the cap to 9400.
+if (generated.cssGzip.length > 9400) {
+  throw new Error('Compressed Web CSS exceeds the 9400-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -764,7 +766,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
 
 {
   const start = js.indexOf('function buildRuleChartModel(');
-  const end = js.indexOf('function renderRuleChart(');
+  const end = js.indexOf('function updateRuleChartFromStatus(');
   if (start < 0 || end < 0 || end <= start) {
     throw new Error('Rule chart model helpers not found for matrix checks');
   }

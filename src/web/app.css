@@ -381,12 +381,37 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .presetCardBadge{font-size:.68rem;color:var(--mu);text-transform:uppercase}
 .presetCardMeta{font-size:.75rem;color:var(--mu);min-width:0}
 .presetRenameInline{width:100%;font:inherit;font-weight:700;font-size:.9375rem;padding:.35rem .5rem;margin:0}
-#homePresetCards .presetCardTitle{cursor:pointer}
 #presetRenameDialog{border:1px solid var(--ln);border-radius:var(--r);padding:1rem;max-width:min(22rem,calc(100vw - 2rem));background:var(--sf);color:var(--fg);box-shadow:0 1rem 3rem rgba(0,0,0,.25)}
 #presetRenameDialog::backdrop{background:rgba(21,21,21,.65)}
 
+.presetAcc{display:grid;gap:.4rem}
+.presetAcc:empty{display:none}
+.presetAccItem{border:1px solid var(--ln);border-radius:.6rem;background:var(--sf);overflow:hidden}
+.presetAccItem.open{border-color:var(--ac)}
+.presetAccHead{display:flex;width:100%;align-items:center;gap:.55rem;padding:.5rem .6rem;background:none;border:0;font:inherit;color:var(--fg);cursor:pointer;text-align:left}
+.presetAccDot{flex:none;width:1.05rem;height:1.05rem;border-radius:50%;border:2px solid var(--mu);background:var(--sf);transition:border-color .2s,box-shadow .2s}
+.presetAccItem.open .presetAccDot{border-color:var(--pri);box-shadow:inset 0 0 0 3.5px var(--sf);background:var(--pri)}
+.presetAccHead .presetAccName{font:inherit;font-weight:700;font-size:.9375rem;overflow-wrap:anywhere;min-width:0}
+.presetAccItem.open .presetAccName{color:var(--pri)}
+.presetAccBadge{font-size:.68rem;color:var(--mu);text-transform:uppercase}
+.presetAccTarget{margin-left:auto;font-size:.75rem;color:var(--mu);flex:none}
+.presetAccItem.open .presetAccTarget{color:var(--pri);font-weight:700;font-size:.875rem}
+.presetAccChev{font-size:.7rem;color:var(--mu);transition:transform .3s ease}
+.presetAccItem.open .presetAccChev{transform:rotate(180deg)}
+.presetAccPanel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .32s ease}
+.presetAccItem.open .presetAccPanel{grid-template-rows:1fr}
+.presetAccPanelIn{overflow:hidden}
+.presetAccRows{padding:.15rem .6rem .5rem}
+.guardRow{display:grid;grid-template-columns:6.5rem 1fr;gap:.6rem;align-items:baseline;padding:.5rem 0;border-top:1px solid var(--ln)}
+.presetAccRows .guardRow:first-child{border-top:0}
+.guardName{font-weight:700;font-size:.82rem;display:flex;align-items:center;gap:.35rem}
+.guardName i{width:.55rem;height:.55rem;border-radius:50%}
+.guardRule{font-size:.82rem;color:var(--fg)}
+.guardFast i{background:#d97706}
+.guardBbw i{background:var(--ok)}
+.guardSlow i{background:#5594dd}
+
 .ruleChart{margin:.35rem 0 .15rem}
-#presetPanel .ruleChart{margin-top:1rem}
 .ruleChartLegend{display:flex;flex-wrap:wrap;gap:.55rem;margin:0 0 .55rem;font-size:.75rem;font-weight:600}
 .ruleLeg{display:inline-flex;align-items:center;gap:.3rem}
 .ruleLeg:before{content:"";width:.7rem;height:.7rem;border-radius:.15rem;display:inline-block}
@@ -394,9 +419,6 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .ruleLegBbw:before{background:var(--ok)}
 .ruleLegSlow:before{background:#2563eb}
 .ruleChartLabel{font-size:.78rem;font-weight:700;margin:0 0 .75rem;color:var(--fg)}
-.ruleTable{width:100%;border-collapse:collapse;font-size:.82rem}
-.ruleTable th{padding:0 .5rem .35rem 0;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mu);text-align:left}
-.ruleTable td{padding:.45rem .5rem .45rem 0;vertical-align:top;color:var(--fg)}
 .ruleChartTicks{position:relative;height:1.05rem;margin:.15rem .1rem 0;font-size:.68rem;color:var(--mu);overflow:hidden}
 .ruleTick{position:absolute;transform:translateX(-50%);white-space:nowrap;top:0}
 .ruleTick:first-child{transform:translateX(0)}
