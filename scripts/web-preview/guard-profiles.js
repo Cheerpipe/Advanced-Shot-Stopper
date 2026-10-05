@@ -25,7 +25,7 @@
     const spread = (items, min) => { const list = [...items].sort((a, b) => a - b);
       for (let i = 1; i < list.length; i++) if (list[i] - list[i - 1] < min) list[i] = list[i - 1] + min;
       return list; };
-    const [cyy, tyy, fyy] = spread([y(p.ceil), y(p.target), y(p.floor)], 10);
+    const [cyy, tyy, fyy] = spread([y(p.ceil), y(p.target), y(p.floor)], 14);
     const top = u => (u / 78 * 100).toFixed(2) + '%';
     return `<figure class="gpFig"><div class="gpWrap">` +
       `<svg viewBox="0 0 ${W} 78" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot reaches the ceiling by second ${TIME.prot} (the earliest the firmware can cut) and the fast guard cuts at ${TIME.tMin} seconds; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; at ${TIME.tMaxBbw} seconds a shot already between ${esc(g(p.floor))} and ${esc(g(p.target))} is cut by the slow guard, and one below ${esc(g(p.floor))} is poured down to it by ${TIME.wall} seconds; machine limit ${TIME.wall} seconds"> a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
@@ -50,7 +50,7 @@
       `<span class="shotYTick" style="top:${top(tyy)}">${esc(g(p.target))}</span>` +
       `<span class="shotYTick" style="top:${top(fyy)}">${esc(g(p.floor))}</span>` +
       `</div>` +
-      `<div class="ruleChartTicks" style="margin:.15rem 2.7rem 0 0"><span class="ruleTick" style="left:0">0 s</span><span class="ruleTick" style="left:56%">28 s</span><span class="ruleTick" style="left:88%">44 s</span><span class="ruleTick" style="left:100%">50 s</span></div>` +
+      `<div class="ruleChartTicks" style="margin:.15rem 1.4rem 0 0"><span class="ruleTick" style="left:0">0 s</span><span class="ruleTick" style="left:56%">28 s</span><span class="ruleTick" style="left:88%">44 s</span><span class="ruleTick" style="left:100%">50 s</span></div>` +
       `</figure>`;
   }
 
