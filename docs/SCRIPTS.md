@@ -164,15 +164,17 @@ Open `http://127.0.0.1:4173/guard-profiles` on the same running preview server
 to iterate the time-to-weight profile chart one change at a time, starting
 from the proposal-10 design shown as section 00. The current iteration draws
 one straight line per cut situation, built only from the factory preset
-limits: the fast scenario runs from the origin to its cut at 28 s at the
-42.5 g recovery ceiling, above the normal BBW scenario, which arrives at
-36 g at the same second and continues flat from 28 to 44 s, the stretch
-where its cut can happen; the slow scenario rises to the recovery floor and
-cuts flat at 34 g from 44 s to the 50 s machine limit. Right-hand labels
-keep an enforced minimum gap, and preset cards switch between Double and
-Single inside every panel at desktop and phone width, with the corner
-**Tema** button cycling auto, light, and dark. Readings are simulated; the
-preview does not connect to a device or ship in firmware assets.
+limits, and represents the fast cut as a range: the amber wedge between the
+green diagonal (a shot arriving exactly at the gate) and the fast line (the
+fastest pour, reaching the 42.5 g ceiling at 28 s) fans out onto a vertical
+amber segment on the 28 s gate spanning 36–42.5 g — every possible fast cut
+lands on that segment. The normal BBW scenario cuts on the flat 36 g stretch
+from 28 to 44 s, and the slow scenario on the flat 34 g stretch from 44 s to
+the 50 s machine limit. Right-hand labels keep an enforced minimum gap, and
+preset cards switch between Double and Single inside every panel at desktop
+and phone width, with the corner **Tema** button cycling auto, light, and
+dark. Readings are simulated; the preview does not connect to a device or
+ship in firmware assets.
 
 ## USB installation
 
