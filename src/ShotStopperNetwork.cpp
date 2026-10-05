@@ -91,7 +91,6 @@ struct NetworkWorkBuf {
   ShotCurveRecord shotCurves[SHOT_CURVE_CAPACITY]{};
   ShotCurveRecord homeCurve{};
   ShotCurveRecord serializedCurve{};
-  PersistedLastShot homeShotProjection{};
   ControlStatusSnapshot control{};
   TaskProfilerSnapshot taskProfiler{};
   DebugExportExtras debugExport{};
