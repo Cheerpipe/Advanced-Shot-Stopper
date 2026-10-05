@@ -189,10 +189,10 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !ui.includes('id="presetDeleteBtn"') ||
     !ui.includes('id="presetRenameDialog"') ||
     !ui.includes('id="homePresetCards"') ||
-    !html.includes('id="homePresetLabel"') ||
-    !html.includes('>Presets</p>') ||
-    html.indexOf('id="homePresetLabel"') > html.indexOf('id="homePresetCards"') ||
-    html.indexOf('id="homePresetBlock"') > html.indexOf('id="homePresetLabel"') ||
+    !html.includes('<legend>Presets</legend>') ||
+    html.indexOf('id="presetPanel"') > html.indexOf('<legend>Presets</legend>') ||
+    html.indexOf('<legend>Presets</legend>') > html.indexOf('id="homePresetCards"') ||
+    html.indexOf('id="homePresetBlock"') > html.indexOf('id="homePresetCards"') ||
     !ui.includes('id="homeBrewByWeight"') ||
     !ui.includes('id="homeNoScaleBbwEnabled"') ||
     !ui.includes('id="quickSettingsPanel"') ||
