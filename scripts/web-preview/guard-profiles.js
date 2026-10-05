@@ -49,7 +49,7 @@
     const lFloor = limit(p.floor, fy), lTarget = limit(p.target, ty), lCeil = limit(p.ceil, cy);
     const path = pts => pts.map((q, i) => (i ? 'L' : 'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' ');
     const line = (pts, color, width, dash) => `<path d="${path(pts)}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
-    return `<figure class="gpFig"><svg viewBox="0 0 ${W} 88" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot cuts at ${TIME.tMin} seconds at ${esc(g(p.target))}; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
+    return `<figure class="gpFig"><svg viewBox="0 0 ${W} 88" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot cuts at ${TIME.tMin} seconds at ${esc(g(p.ceil))}; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
       band(0, TIME.tMin, 'var(--wn)', .07) + band(TIME.tMin, TIME.tMaxBbw, 'var(--ok)', .06) + band(TIME.tMaxBbw, TIME.wall, 'var(--dn)', .07) +
       `<text x="${L + 4}" y="${T + 7}" font-size="6" font-weight="600" fill="var(--wn)">Fast guard</text>` +
       `<text x="${W - R - 4}" y="${T + 7}" font-size="6" font-weight="600" fill="var(--dn)" text-anchor="end">Slow guard</text>` +
@@ -59,11 +59,9 @@
       line([[TIME.tMin, p.target], [TIME.tMaxBbw, p.target]], 'var(--ok)', 1) +
       line([[0, 0], [TIME.tMaxBbw, p.floor]], 'var(--dn)', 1) +
       line([[TIME.tMaxBbw, p.floor], [TIME.wall, p.floor]], 'var(--dn)', 1) +
-      line([[0, 0], [TIME.tMin, p.target]], 'var(--wn)', .8, '3 2.6') +
-      `<circle cx="${x(TIME.tMin).toFixed(1)}" cy="${y(p.target).toFixed(1)}" r="3.2" fill="var(--sf)" stroke="var(--wn)" stroke-width="1.7"/>` +
-      `<circle cx="${x(TIME.tMaxBbw).toFixed(1)}" cy="${y(p.floor).toFixed(1)}" r="3.2" fill="var(--sf)" stroke="var(--dn)" stroke-width="1.7"/>` +
+      line([[0, 0], [TIME.tMin, p.ceil]], 'var(--wn)', 1) +
       `<g font-size="6.5" fill="var(--mu)" text-anchor="middle"><text x="${L}" y="85">0</text><text x="${x(TIME.tMin).toFixed(1)}" y="85">28 s</text><text x="${x(TIME.tMaxBbw).toFixed(1)}" y="85">44 s</text><text x="${x(TIME.wall).toFixed(1)}" y="85">50 s</text></g>` +
-      `</svg><figcaption class="gpRefLegend"><span class="wn">fast · cuts at 28 s × ${esc(g(p.target))}</span><span class="ok">BBW · cuts at ${esc(g(p.target))}, 28–44 s</span><span class="dn">slow · ${esc(g(p.floor))} from 44 s</span></figcaption></figure>`;
+      `</svg><figcaption class="gpRefLegend"><span class="wn">fast · cuts at 28 s × ${esc(g(p.ceil))}</span><span class="ok">BBW · cuts at ${esc(g(p.target))}, 28–44 s</span><span class="dn">slow · ${esc(g(p.floor))} from 44 s</span></figcaption></figure>`;
   }
 
   const frameHtml = (phone, render) =>
@@ -76,7 +74,7 @@
   const host = document.getElementById('options');
   const sections = [
     {name: '00 · Perfil original (referencia)', desc: 'El perfil de la propuesta 10 con sus curvas de escenario. Se conserva como referencia del punto de partida.', render: p => profile(p, false)},
-    {name: '01 · Versión final · una recta por situación', desc: 'Solo datos de los guardias, con una línea recta por situación: la rápida (punteada ámbar) termina en su corte, 28 s × 36 g; la BBW normal llega en diagonal y sigue plana por 36 g entre 28 y 44 s, donde puede ocurrir el corte; la lenta sube en diagonal hasta el piso y de 44 a 50 s se corta en plano a 34 g. Anillos en los cruces; trazos finos.', render: finalProfile},
+    {name: '01 · Versión final · una recta por situación', desc: 'Solo datos de los guardias, con una línea recta por situación: la rápida (amarilla) sube hasta su corte, 28 s × 42.5 g, por encima de la verde; la BBW normal llega en diagonal a 36 g y sigue plana entre 28 y 44 s, donde puede ocurrir el corte; la lenta sube en diagonal hasta el piso y de 44 a 50 s se corta en plano a 34 g. Sin círculos; trazos finos.', render: finalProfile},
   ];
   const zoneRenders = new Map();
   sections.forEach(s => {
