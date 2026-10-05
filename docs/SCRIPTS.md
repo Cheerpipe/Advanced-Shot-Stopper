@@ -169,9 +169,10 @@ range down to the 36 g target—; the green BBW line arrives at 36 g and
 continues flat from 28 to 44 s, where its cut can happen; and the light
 blue slow line (#3762e3) rises to the 34 g recovery floor and cuts flat
 from 44 s to the 50 s machine limit. Every line is dashed until its guard
-activates and solid from there, the weight labels share the time label
-style on the right, and the background bands use the stats fill colors.
-Preset cards switch between Double and Single inside the panel at desktop
+activates and solid from there, the weight and time labels are the same
+HTML tick elements (.68 rem muted ink) the stats charts use, so they keep
+a fixed size instead of scaling with the drawing, and the background bands
+use the stats fill colors. Preset cards switch between Double and Single inside the panel at desktop
 and phone width, and the corner **Tema** button cycles auto, light, and
 dark. Readings are simulated; the preview does not connect to a device or
 ship in firmware assets.

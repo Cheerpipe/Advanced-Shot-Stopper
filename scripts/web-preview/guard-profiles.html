@@ -23,6 +23,8 @@
   .qsPanel .qsPresetLabel{margin:0 0 .3rem;font-size:.8125rem;font-weight:600;color:var(--mu)}
   .gpZone{margin-top:.9rem}
   .gpFig{margin:0}
+  .gpWrap{position:relative}
+  .gpWrap .shotYTick{font-size:.68rem;color:var(--mu);background:var(--sf);padding:0 .15rem}
   .gpFig svg{display:block;width:100%;height:auto}
   .gpRefLegend{display:flex;flex-wrap:wrap;gap:.3rem .9rem;margin:.3rem 0 0;font-size:.72rem;font-weight:600}
   .gpRefLegend .ok{color:var(--ok)}
@@ -35,7 +37,7 @@
 <body>
   <h1>Guard profiles · versión final del perfil tiempo → peso</h1>
   <p class="lead">Iteramos <b>solo la propuesta 00</b> —el perfil de la propuesta 10— punto por punto. El dato clave que debe contar el gráfico es el <b>cruce</b>: al llegar el <b>28 s</b>, si el peso ya alcanzó los <b>36 g</b>, el guardia Fast extiende hasta <b>42.5 g</b>; pasado el <b>44 s</b> sin llegar a <b>34 g</b>, el guardia Slow sirve hasta ese piso.</p>
-      <p class="lead"><b>Versión final:</b> los límites de los guardias dibujados solo con datos reales, en los colores de los gráficos de Stats. Una recta por situación: la <b>rápida</b> (naranjo) sube hasta su corte de <b>28&nbsp;s × 42.5&nbsp;g</b> —el abanico sobre la compuerta marca su rango posible, entre 36 y 42.5&nbsp;g—; la <b>BBW normal</b> (verde) llega en diagonal a 36&nbsp;g y sigue plana entre 28 y 44&nbsp;s, donde puede ocurrir el corte; la <b>lenta</b> (celeste) sube hasta el piso de 34&nbsp;g y se corta en plano de 44 a 50&nbsp;s. Cada línea va punteada hasta su activación y sólida desde ahí; los pesos comparten estilo con los rótulos de tiempo. Cambia entre <b>Double</b> y <b>Single</b> en las tarjetas y usa «Tema» para claro y oscuro.</p>
+        <p class="lead"><b>Versión final:</b> los límites de los guardias dibujados solo con datos reales, en los colores de los gráficos de Stats. Una recta por situación: la <b>rápida</b> (naranjo) sube hasta su corte de <b>28&nbsp;s × 42.5&nbsp;g</b> —el abanico sobre la compuerta marca su rango posible, entre 36 y 42.5&nbsp;g—; la <b>BBW normal</b> (verde) llega en diagonal a 36&nbsp;g y sigue plana entre 28 y 44&nbsp;s, donde puede ocurrir el corte; la <b>lenta</b> (celeste, <b>#5594dd</b>) sube hasta el piso de 34&nbsp;g y se corta en plano de 44 a 50&nbsp;s. Cada línea va punteada hasta su activación y sólida desde ahí; los pesos y los tiempos usan <b>los mismos textos HTML de los gráficos de Stats</b> (.68&nbsp;rem, tinta tenue), así no escalan con el dibujo. Cambia entre <b>Double</b> y <b>Single</b> en las tarjetas y usa «Tema» para claro y oscuro.</p>
   <button type="button" id="themeToggle">Tema: auto</button>
   <main id="options"></main>
   <p class="note">Vista de diseño sin conexión a ningún equipo; no modifica ajustes ni forma parte del firmware.</p>

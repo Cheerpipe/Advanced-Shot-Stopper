@@ -35,24 +35,25 @@
       `</svg><figcaption class="gpRefLegend"><span class="ok">on target · ${esc(g(p.target))}</span><span class="wn">fast · extends to ${esc(g(p.ceil))}</span><span class="dn">slow · stops at ${esc(g(p.floor))}</span></figcaption></figure>`;
   }
 
-  // The final chart: one straight line per cut situation, weights on the right.
+  // The final chart: one straight line per cut situation, stats-style HTML labels.
   function finalProfile(p) {
-    const W = 260, L = 8, R = 34, T = 8, B = 76;
-    const FC = '#d97706', SC = '#5594dd'; // rule colors: orange fast, blue slow (hsl 212 67% 60%)
+    const W = 260, L = 8, R = 2, T = 8, B = 76;
+    const FC = '#d97706', SC = '#5594dd'; // rule colors: orange fast, blue slow
     const x = t => L + (W - R - L) * t / TIME.wall;
     const y = v => B - (B - T) * v / p.ceil;
     const path = pts => pts.map((q, i) => (i ? 'L' : 'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' ');
+    const line = (pts, color, dash) => `<path d="${path(pts)}" fill="none" stroke="${color}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+    const band = (t0, t1, color, op) => `<rect x="${x(t0).toFixed(1)}" y="${T}" width="${(x(t1) - x(t0)).toFixed(1)}" height="${B - T}" fill="${color}" fill-opacity="${op}"/>`;
     const spread = (items, min) => { const list = [...items].sort((a, b) => a - b);
       for (let i = 1; i < list.length; i++) if (list[i] - list[i - 1] < min) list[i] = list[i - 1] + min;
       return list; };
-    const line = (pts, color, dash) => `<path d="${path(pts)}" fill="none" stroke="${color}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
-    const [cyy, tyy, fyy] = spread([y(p.ceil), y(p.target), y(p.floor)], 7);
-    const limit = (v, ly) => `<path d="M${L} ${y(v).toFixed(1)}H${W - R}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/><text x="${W - R + 4}" y="${(ly + 2.1).toFixed(1)}" font-size="6" fill="var(--mu)">${esc(g(v))}</text>`;
-    const band = (t0, t1, color, op) => `<rect x="${x(t0).toFixed(1)}" y="${T}" width="${(x(t1) - x(t0)).toFixed(1)}" height="${B - T}" fill="${color}" fill-opacity="${op}"/>`;
-    return `<figure class="gpFig"><svg viewBox="0 0 ${W} 88" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot cuts at ${TIME.tMin} seconds with the weight anywhere between ${esc(g(p.target))} and ${esc(g(p.ceil))}; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
+    const [cyy, tyy, fyy] = spread([y(p.ceil), y(p.target), y(p.floor)], 10);
+    const top = u => (u / 88 * 100).toFixed(2) + '%';
+    return `<figure class="gpFig"><div class="gpWrap">` +
+      `<svg viewBox="0 0 ${W} 88" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot cuts at ${TIME.tMin} seconds with the weight anywhere between ${esc(g(p.target))} and ${esc(g(p.ceil))}; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
       band(0, TIME.tMin, FC, .22) + band(TIME.tMin, TIME.tMaxBbw, 'var(--ok)', .22) + band(TIME.tMaxBbw, TIME.wall, SC, .22) +
       `<path d="M${x(0).toFixed(1)} ${y(0).toFixed(1)}L${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}Z" fill="${FC}" fill-opacity=".12"/>` +
-      limit(p.ceil, cyy) + limit(p.target, tyy) + limit(p.floor, fyy) +
+      [p.ceil, p.target, p.floor].map(v => `<path d="M${L} ${y(v).toFixed(1)}H${W - R}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/>`).join('') +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${T}V${B}M${x(TIME.tMaxBbw).toFixed(1)} ${T}V${B}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/>` +
       line([[0, 0], [TIME.tMin, p.target]], 'var(--ok)', '3 2.6') +
       line([[TIME.tMin, p.target], [TIME.tMaxBbw, p.target]], 'var(--ok)') +
@@ -60,8 +61,13 @@
       line([[TIME.tMaxBbw, p.floor], [TIME.wall, p.floor]], SC) +
       line([[0, 0], [TIME.tMin, p.ceil]], FC, '3 2.6') +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}" stroke="${FC}" stroke-width=".8" stroke-linecap="round"/>` +
-      `<g font-size="6" fill="var(--mu)" text-anchor="middle"><text x="${L}" y="85">0 s</text><text x="${x(TIME.tMin).toFixed(1)}" y="85">28 s</text><text x="${x(TIME.tMaxBbw).toFixed(1)}" y="85">44 s</text><text x="${x(TIME.wall).toFixed(1)}" y="85" text-anchor="end">50 s</text></g>` +
-      `</svg></figure>`;
+      `</svg>` +
+      `<span class="shotYTick" style="top:${top(cyy)}">${esc(g(p.ceil))}</span>` +
+      `<span class="shotYTick" style="top:${top(tyy)}">${esc(g(p.target))}</span>` +
+      `<span class="shotYTick" style="top:${top(fyy)}">${esc(g(p.floor))}</span>` +
+      `</div>` +
+      `<div class="ruleChartTicks" style="margin:.15rem .8% 0 3.1%"><span class="ruleTick" style="left:0">0 s</span><span class="ruleTick" style="left:56%">28 s</span><span class="ruleTick" style="left:88%">44 s</span><span class="ruleTick" style="left:100%">50 s</span></div>` +
+      `</figure>`;
   }
 
   const frameHtml = (phone, render) =>
