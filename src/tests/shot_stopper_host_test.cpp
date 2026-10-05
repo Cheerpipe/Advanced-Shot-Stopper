@@ -1860,7 +1860,7 @@ void r05_regression_uses_last_ten_valid_samples() {
     recordWeightSample(static_cast<float>(i) * 2.0f,
                        shot.startMs + static_cast<uint32_t>(i * 1000));
   }
-  CHECK(fabsf(shot.expectedEndS - 20.5f) < 0.001f);
+  CHECK(fabsf(shot.expectedEndS - 20.25f) < 0.001f);
 
   resetHarness(false, true);
   reachReadyFromBoot();

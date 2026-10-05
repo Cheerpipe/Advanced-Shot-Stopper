@@ -61,7 +61,7 @@ reported only after the Micra dashboard confirms the same temperature.
 | Target | 18 g | 36 g |
 | Baseline / initial learned offset | 0.5 g | 1.5 g |
 | Fast: minimum brew time | 28 s | 28 s |
-| Fast: maximum recovery weight | 20 g | 42.5 g |
+| Fast: maximum recovery weight | 20 g | 42 g |
 | Slow: decision time | 44 s | 44 s |
 | Slow: minimum recovery weight | 16 g | 34 g |
 

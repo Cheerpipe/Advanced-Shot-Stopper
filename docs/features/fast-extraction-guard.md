@@ -29,7 +29,7 @@ Active preset, **Settings → Brew**. Defaults below are factory Double;
 | --- | --- | --- | --- |
 | **Enable** | ON | ON / OFF | Master switch for the extended-shot recovery. |
 | **Min BBW brew time (s)** | 28 s | 5–55 s; less than Slow's decision time when both are on | Earliest normal BBW cut. |
-| **Max recovery weight (g)** | 42.5 g | 10–200 g; above target | Ceiling if the shot continues past target; learned offset applies. |
+| **Max recovery weight (g)** | 42 g | 10–200 g; above target | Ceiling if the shot continues past target; learned offset applies. |
 
 When Fast is also on with Slow, factory Double uses a normal BBW window
 between **28 s** and **44 s**.
@@ -46,12 +46,12 @@ between **28 s** and **44 s**.
 
 ## Example
 
-With a 36 g target, 1.5 g learned offset, 28 s minimum, and 42.5 g recovery
+With a 36 g target, 1.5 g learned offset, 28 s minimum, and 42 g recovery
 ceiling, the normal threshold is about 34.5 g:
 
 - Threshold reached at 30 s: normal target stop is eligible.
 - Threshold reached at 22 s: Fast extends until the recovery threshold
-  (about 41 g) or 28 s with target still satisfied, whichever occurs first.
+  (about 40.5 g) or 28 s with target still satisfied, whichever occurs first.
 - Scale lost during extension: weight decisions pause; A→M and other
   applicable limits remain responsible until the scale recovers.
 
