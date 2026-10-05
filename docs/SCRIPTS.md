@@ -181,6 +181,12 @@ and phone width, and the corner **Tema** button cycles auto, light, and
 dark. Readings are simulated; the preview does not connect to a device or
 ship in firmware assets.
 
+Sections 02 to 04 demonstrate three smooth mathematical scales for the
+weight axis - power (k = 2), smoothed exponential (k = 2), and a
+linear-quadratic blend (m = 0.7) - that magnify the guard zone where the
+floor and target lines cluster, without splitting the axis or changing
+the order of the drawing.
+
 ## USB installation
 
 Review the selected profiles and physical safety before adding `--confirm`.
