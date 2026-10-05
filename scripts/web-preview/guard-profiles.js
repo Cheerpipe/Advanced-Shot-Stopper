@@ -31,23 +31,20 @@
     const [cyy, tyy, fyy] = spread([y(p.ceil), y(p.target), y(p.floor)], spreadMin);
     const top = u => (u / 78 * 100).toFixed(2) + '%';
     return `<figure class="gpFig"><div class="gpWrap">` +
-      `<svg viewBox="0 0 ${W} 78" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot reaches the ceiling by second ${TIME.prot} (the earliest the firmware can cut) and the fast guard cuts at ${TIME.tMin} seconds; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; at ${TIME.tMaxBbw} seconds a shot already between ${esc(g(p.floor))} and ${esc(g(p.target))} is cut by the slow guard, and one below ${esc(g(p.floor))} is poured down to it by ${TIME.wall} seconds; machine limit ${TIME.wall} seconds"> a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
+      `<svg viewBox="0 0 ${W} 78" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot reaches the ceiling by second ${TIME.prot} (the earliest the firmware can cut) and the fast guard cuts at ${TIME.tMin} seconds; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; at ${TIME.tMaxBbw} seconds a shot already between ${esc(g(p.floor))} and ${esc(g(p.target))} is cut by the slow guard, and one below ${esc(g(p.floor))} is poured down to it by ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
       band(0, TIME.tMin, FC, .22) + band(TIME.tMin, TIME.tMaxBbw, 'var(--ok)', .22) + band(TIME.tMaxBbw, TIME.wall, SC, .22) +
-      `<path d="M${x(0).toFixed(1)} ${y(0).toFixed(1)}L${x(TIME.prot).toFixed(1)} ${y(p.ceil).toFixed(1)}H${x(TIME.tMin).toFixed(1)}V${y(p.target).toFixed(1)}Z" fill="${FC}" fill-opacity=".12"/>` +
       [p.ceil, p.target, p.floor].map(v => `<path d="M${L} ${y(v).toFixed(1)}H${W - R}" stroke="var(--mu)" stroke-width=".8"${VE} stroke-dasharray="1.6 2.6" opacity=".7"/>`).join('') +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${T}V${B}M${x(TIME.tMaxBbw).toFixed(1)} ${T}V${B}" stroke="var(--mu)" stroke-width=".8"${VE} stroke-dasharray="1.6 2.6" opacity=".7"/>` +
-      xMark(TIME.prot, p.ceil, FC) + xMark(TIME.tMin, p.ceil, FC) +
-      xMark(TIME.tMin, null, 'var(--ok)', (y(p.ceil) + y(p.target)) / 2) + xMark(TIME.tMaxBbw, p.target, 'var(--ok)') +
-      xMark(TIME.tMaxBbw, p.floor, SC) + xMark(TIME.wall, p.floor, SC) +
-      +
+      line([[0, 0], [TIME.prot, p.ceil]], FC, '3 2.6') +
+      line([[TIME.prot, p.ceil], [TIME.tMin, p.ceil]], FC) +
       line([[0, 0], [TIME.tMin, p.target]], 'var(--ok)', '3 2.6') +
       line([[TIME.tMin, p.target], [TIME.tMaxBbw, p.target]], 'var(--ok)') +
       line([[0, 0], [TIME.tMaxBbw, p.floor]], SC, '3 2.6') +
       line([[TIME.tMaxBbw, p.floor], [TIME.wall, p.floor]], SC) +
-      `<path d="M${x(TIME.tMaxBbw).toFixed(1)} ${y(p.target).toFixed(1)}V${y(p.floor).toFixed(1)}" stroke="${SC}" stroke-width="1.35" vector-effect="non-scaling-stroke" stroke-linecap="round"/>` +
-      line([[0, 0], [TIME.prot, p.ceil]], FC, '3 2.6') +
-      line([[TIME.prot, p.ceil], [TIME.tMin, p.ceil]], FC) +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}" stroke="${FC}" stroke-width="1.35"${VE} stroke-linecap="round"/>` +
+      `<path d="M${x(TIME.tMaxBbw).toFixed(1)} ${y(p.target).toFixed(1)}V${y(p.floor).toFixed(1)}" stroke="${SC}" stroke-width="1.35"${VE} stroke-linecap="round"/>` +
+      xMark(TIME.prot, p.ceil, FC) + xMark(TIME.tMin, p.ceil, FC) + xMark(TIME.tMin, p.target, 'var(--ok)') +
+      xMark(TIME.tMaxBbw, p.target, 'var(--ok)') + xMark(TIME.wall, p.floor, SC) +
       `</svg>` +
       `<span class="shotYTick" style="top:${top(cyy)}">${esc(g(p.ceil))}</span>` +
       `<span class="shotYTick" style="top:${top(tyy)}">${esc(g(p.target))}</span>` +
@@ -55,6 +52,7 @@
       `</div>` +
       `<div class="ruleChartTicks" style="margin:.15rem 1.4rem 0 0"><span class="ruleTick" style="left:0">0 s</span><span class="ruleTick" style="left:56%">28 s</span><span class="ruleTick" style="left:88%">44 s</span><span class="ruleTick" style="left:100%">50 s</span></div>` +
       `</figure>`;
+
   }
 
   const frameHtml = (phone, render) =>
