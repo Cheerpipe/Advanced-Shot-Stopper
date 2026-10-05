@@ -27,9 +27,9 @@
         `<div class="gtRow"><span class="gtName">${dot(GC)}BBW</span><span class="gtRule">Cuts at ${g(p.target)}, ${TIME.tMin}–${TIME.tMax} s</span></div>` +
         `<div class="gtRow"><span class="gtName">${dot(SC)}Slow</span><span class="gtRule">Cuts at ${g(p.floor)} from ${TIME.tMax} s (max ${TIME.wall} s)</span></div></div>`
       : `<div class="gtWins gtCompact">` +
-        `<div class="gtWin wn"><span class="gtWinT">0–${TIME.tMin} s · Fast guard</span><span class="gtWinR">Cuts at ${TIME.tMin} s once the weight is between ${g(p.target)} and ${g(p.ceil)}</span></div>` +
-        `<div class="gtWin ok"><span class="gtWinT">${TIME.tMin}–${TIME.tMax} s · BBW</span><span class="gtWinR">Cuts as soon as the weight reaches ${g(p.target)}</span></div>` +
-        `<div class="gtWin dn"><span class="gtWinT">${TIME.tMax}–${TIME.wall} s · Slow guard</span><span class="gtWinR">Cuts at ${g(p.floor)} if reached; otherwise pours down to it</span></div></div>`;
+        `<div class="gtWin wn"><span class="gtWinT">Fast guard</span><span class="gtWinR">Cuts at ${TIME.tMin} s once the weight is between ${g(p.target)} and ${g(p.ceil)}</span></div>` +
+        `<div class="gtWin ok"><span class="gtWinT">Brew by Weight</span><span class="gtWinR">Cuts as soon as the weight reaches ${g(p.target)}</span></div>` +
+        `<div class="gtWin dn"><span class="gtWinT">Slow guard</span><span class="gtWinR">Cuts at ${g(p.floor)} if reached; otherwise pours down to it</span></div></div>`;
     return `<div class="gtAcc">` + PRESETS.map((p, i) =>
       `<div class="gtPreset${i === 0 ? ' open' : ''}">` +
       `<button type="button" class="gtAccHead" aria-expanded="${i === 0}">` +
