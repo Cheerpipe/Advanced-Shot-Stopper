@@ -62,6 +62,27 @@
   .chip{display:inline-flex;align-items:center;padding:.18rem .55rem;border:1px solid var(--ln);border-radius:1rem;background:var(--in);font-size:.78rem;font-weight:650;color:var(--fg)}
 
   .fc{color:#d97706}.gc{color:var(--ok)}.sc{color:#5594dd}
+
+  /* 03/04 · preset accordion */
+  .gtAcc{display:grid;gap:.4rem}
+  .gtPreset{border:1px solid var(--ln);border-radius:.6rem;background:var(--sf);overflow:hidden}
+  .gtPreset.open{border-color:var(--ac)}
+  .gtAccHead{display:flex;width:100%;align-items:center;gap:.45rem;padding:.4rem .6rem;background:none;border:0;font:inherit;color:var(--fg);cursor:pointer;text-align:left}
+  .gtAccHead .gtAccName{font-weight:700;font-size:.82rem;display:inline-flex;align-items:center;gap:.35rem}
+  .gtAccHead .gtAccName i{width:.55rem;height:.55rem;border-radius:50%}
+  .gtAccBadge{font-size:.68rem;color:var(--mu)}
+  .gtAccTarget{margin-left:auto;font-size:.75rem;color:var(--mu)}
+  .gtAccChev{font-size:.7rem;color:var(--mu);transition:transform .3s ease}
+  .gtPreset.open .gtAccChev{transform:rotate(180deg)}
+  .gtPreset.open .gtAccName{color:var(--pri)}
+  .gtPanel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .32s ease}
+  .gtPreset.open .gtPanel{grid-template-rows:1fr}
+  .gtPanelIn{overflow:hidden}
+  .gtPanelPad{padding:.15rem .6rem .5rem}
+  .gtCompact .gtRow{padding:.3rem 0}
+  .gtCompact .gtName,.gtCompact .gtRule{font-size:.78rem}
+  .gtCompact .gtWin{padding:.3rem .55rem}
+  .gtCompact .gtWinR{font-size:.78rem}
 </style>
 </head>
 <body>
