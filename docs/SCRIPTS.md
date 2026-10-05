@@ -149,10 +149,14 @@ limits of the Fast and Slow extraction guards. The current zone is shown
 first as the reference; the alternatives range from text-only lines, rows,
 cards, chips, and a matrix to a single dual-reading bar, an arc gauge, and a
 time-to-weight fill profile, all sized to take less space, name every number,
-relate time and weight, and stick to the theme palette. Every option renders
-inside a quick settings panel replica at desktop and phone width, and the
-corner **Tema** button cycles auto, light, and dark. Readings are simulated;
-the preview does not connect to a device or ship in firmware assets.
+relate time and weight, and stick to the theme palette. Sample data mirrors
+the two factory presets, Double (36 g) and Single (18 g), including their
+guard recovery floors and ceilings and the shared 28–44 s brew window; tap
+the preset cards in each panel to switch presets as on the Home. Every option
+renders inside a quick settings panel replica at desktop and phone width, and
+the corner **Tema** button cycles auto, light, and dark. Readings are
+simulated; the preview does not connect to a device or ship in firmware
+assets.
 
 ## USB installation
 
