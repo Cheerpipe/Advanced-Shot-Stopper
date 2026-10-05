@@ -167,18 +167,22 @@ assets.
 ### Guard profile chart iterations preview
 
 Open `http://127.0.0.1:4173/guard-profiles` on the same running preview server
-show the final time-to-weight guard profile chart, drawn only from the
+to show the final time-to-weight guard profile chart, drawn only from the
 factory preset limits with one straight line per cut situation and the
-stats chart palette: the orange fast line rises to its cut at 28 s at the
-42.5 g recovery ceiling —the amber wedge over the 28 s gate marks the cut
-range down to the 36 g target—; the green BBW line arrives at 36 g and
-continues flat from 28 to 44 s, where its cut can happen; and the light
-blue slow line (#3762e3) rises to the 34 g recovery floor and cuts flat
-from 44 s to the 50 s machine limit. Every line is dashed until its guard
-activates and solid from there, the weight and time labels are the same
-HTML tick elements (.68 rem muted ink) the stats charts use, so they keep
-a fixed size instead of scaling with the drawing, and the background bands
-use the stats fill colors. Preset cards switch between Double and Single inside the panel at desktop
+stats chart palette (orange Fast, green BBW, light blue #5594dd Slow) in
+both the scenario lines and the background bands. Each line is dashed
+until its guard activates and solid from there: the orange Fast line
+rises to the 42.5 g recovery ceiling at the 12 s BBW cut protection time
+(the earliest the firmware can cut), holds flat to the 28 s gate, and a
+small orange X marks its cut there, with the amber wedge over the gate
+spanning the cut range down to the 36 g target; the green BBW line
+arrives at 36 g and holds flat from 28 to 44 s, closing with an X; at
+44 s a vertical light blue segment cuts every shot already between the
+34 g floor and the 36 g target, and the blue flat 34 g cut runs to the
+50 s machine limit, closing with another X. The weight and time labels
+are the same HTML tick elements (.68 rem muted ink) the stats charts
+use, so they keep a fixed size instead of scaling with the drawing.
+Preset cards switch between Double and Single inside the panel at desktop
 and phone width, and the corner **Tema** button cycles auto, light, and
 dark. Readings are simulated; the preview does not connect to a device or
 ship in firmware assets.
