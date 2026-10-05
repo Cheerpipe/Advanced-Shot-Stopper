@@ -22,7 +22,7 @@ Use the stop action for your physical switch/mode if the result is unexpected.
 
 ### The shot ended above or below target
 
-Read Last Shot's stop detail before changing calibration.
+Read the shot's stop detail on its Stats history card before changing calibration.
 
 | Result | Likely check |
 | --- | --- |

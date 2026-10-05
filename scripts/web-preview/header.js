@@ -90,10 +90,7 @@ const sample = {homeBbwSub: 'Stop at target weight', homeNoScaleSub: 'Warn befor
   homeAtmSub: '32 s limit after scale loss', homeSlowSub: 'Allow a slower extraction',
   homeFastSub: 'Minimum extraction time', homeTouchSub: 'Ignore brief paddle touches',
   homeCupSub: 'Stop if the cup is removed', ruleChartPreset: 'Classic espresso', ruleChartMode: 'Brew by weight',
-  shotElapsed: '28.4 s', shotCurrentWeight: '36.2 g', shotGoalWeight: '36.0 g', shotErr: '+0.6%',
-  shotFlow: '1.3 g/s', shotMaxFlow: '2.1 g/s', shotTareTime: '0.4 s', shotFirstDrop: '6.2 s',
-  shotEnded: 'Target reached', shotType: 'Brew by weight', shotPreset: 'Classic espresso',
-  shotScale: 'Acaia Lunar', machineState: 'Idle', homeMicraPower: 'ON', state: 'Ready',
+  machineState: 'Idle', homeMicraPower: 'ON', state: 'Ready',
   scale: 'Connected · Acaia Lunar', preferredScale: 'Acaia Lunar', scaleWeight: '0.0 g', scaleTimer: '0.0 s',
   cupState: 'Present', cupWeight: '142.5 g', idleTareStatus: 'Ready',
   firmwareFooter: 'Design preview · no device connected', navFirmware: 'Design preview · no device connected'};
@@ -101,8 +98,7 @@ for (const [id, value] of Object.entries(sample)) if ($(id)) $(id).textContent =
 document.documentElement.classList.add('lineaMicraIntegration');
 document.querySelectorAll('#quickSettingsPanel input').forEach(input => { input.checked = input.id !== 'homeNoScaleBbwEnabled'; });
 $('homePresetCards').innerHTML = '<div class="presetCard active selected"><strong class="presetCardTitle">Classic espresso</strong><small class="presetCardMeta">36.0 g · 25–35 s</small></div>';
-$('shotBar').style.width = '72%';
-for (const [id, end] of [['shotBarTicks', 50], ['ruleChartTimeTicks', 40], ['ruleChartWeightTicks', 50]]) {
+for (const [id, end] of [['ruleChartTimeTicks', 40], ['ruleChartWeightTicks', 50]]) {
   $(id).innerHTML = [0, 1, 2, 3, 4].map(n => `<span style="left:${n * 25}%">${n * end / 4}</span>`).join('');
 }
 function applyScalePreview() {

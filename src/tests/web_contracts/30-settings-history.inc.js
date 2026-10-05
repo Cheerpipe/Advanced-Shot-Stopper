@@ -7,7 +7,7 @@
       throw new Error('Ended must identify sustained-weight touch protection');
   }
   if (!runtimeJs.includes('formatShotEnded(r.stopDetail)') ||
-      !runtimeJs.includes("t('shotEnded',formatShotEnded(d.endReason))")) {
+      !runtimeJs.includes('formatShotEnded(d.endReason)')) {
     throw new Error('Stats and Home must share the Ended cause formatter');
   }
   if (html.indexOf(`id="${childId}"`) < html.indexOf('id="avoidAccidentalTouchEnabled"') ||
@@ -224,7 +224,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !ui.includes('id="homeFastExtractionGuardEnabled"') ||
     !ui.includes('id="homeSlowExtractionGuardEnabled"') ||
     !ui.includes('id="homeAutoToManualGuardEnabled"') ||
-    html.indexOf('id="quickSettingsPanel"') > html.indexOf('id="shotPanel"') ||
+    html.indexOf('id="quickSettingsPanel"') > html.indexOf('id="statusPanel"') ||
     html.indexOf('id="homeBrewByWeight"') > html.indexOf('id="homeNoScaleBbwMode"') ||
     html.indexOf('id="homeNoScaleBbwMode"') >
         html.indexOf('id="homeAutoToManualGuardEnabled"') ||
@@ -240,7 +240,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
         html.indexOf('id="homeCupProtectionEnabled"') ||
     html.indexOf('id="homeCupProtectionEnabled"') >
         html.indexOf('id="homePresetBlock"') ||
-    html.indexOf('id="homeFastExtractionGuardEnabled"') > html.indexOf('id="shotPanel"') ||
+    html.indexOf('id="homeFastExtractionGuardEnabled"') > html.indexOf('id="statusPanel"') ||
     !html.includes('>No-scale BBW<span') ||
     !html.includes('>Fast extraction guard<span') ||
     !html.includes('>Avoid accidental touch<span') ||
@@ -335,11 +335,10 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !ui.includes("onchange=R.persistHomeBrewByWeight") ||
     !ui.includes('beginHomeSwitchPending(h,on)') ||
     ui.includes('id="clearLastShotButton"') ||
-    !css.includes('#shotPanel{position:relative}') ||
-    css.includes('#shotPanel{position:relative;padding-right:3.4rem') ||
-    !css.includes('#shotTable .btnGlyph,#shotPanel .btnGlyph{border:0;border-radius:2rem;min-height:var(--tap);min-width:var(--tap);padding:0;flex:0 0 auto;background:none;box-shadow:none;filter:none') ||
+    css.includes('#shotPanel') ||
+    !css.includes('#shotTable .btnGlyph{border:0;border-radius:2rem;min-height:var(--tap);min-width:var(--tap);padding:0;flex:0 0 auto;background:none;box-shadow:none;filter:none') ||
     html.includes('id="lastCycle"') ||
-    !ui.includes('function renderShotPanel(') ||
+    !ui.includes('function renderShotHero(') ||
     !ui.includes('function renderShotSpark(') ||
     !network.includes('\\"lastShot\\"') ||
     !network.includes('\\"shotCurve\\"') ||
@@ -911,9 +910,8 @@ if (!ui.includes('id="shotTable"') ||
     !network.includes('SHOT_LOG_CLEAR_NOT_CONFIRMED')) {
   throw new Error('Shot history UI/API must expose table, CSV export, clear confirmation, and timezone setting');
 }
-if (!ui.includes('id="shotRating"') ||
-    !partialHtml.home.includes('id="shotRating"') ||
-    !partialHtml.home.includes('<strong>Rate</strong>') ||
+if (ui.includes('id="shotRating"') ||
+    partialHtml.home.includes('<strong>Rate</strong>') ||
     !partialHtml.stats.includes('<th>Rate</th>') ||
     !runtimeJs.includes('function fillStarRate(') ||
     !runtimeJs.includes('0 0 24 24') ||
@@ -927,7 +925,7 @@ if (!ui.includes('id="shotRating"') ||
     !css.includes('.starRate{display:inline-flex;align-items:center;margin:-.6rem 0 0 -.15rem}') ||
     !css.includes('.starRate button+button{margin-left:-.18rem}') ||
     !css.includes('.starRate button.on{color:var(--ac)}') ||
-    !css.includes('.shotCard .shotRate{grid-area:rate;display:grid;justify-items:start}') ||
+    css.includes('.shotCard .shotRate') ||
     !css.includes('#shotTable td.shotRateCell{grid-area:rate}') ||
     !network.includes('shotsRateHandler') ||
     !network.includes('LAST_SHOT_NOT_FOUND') ||
@@ -1188,7 +1186,8 @@ if (!statsSection ||
     !runtimeJs.includes('renderShotStats();') ||
     runtimeJs.includes('slice(0,20)') ||
     runtimeJs.includes("shotsUrl(0,SHOTS_PAGE_SIZE,'date','desc')") ||
-    !css.includes('.shotCard:has(>:nth-child(5):last-child){grid-template-areas:"dur dur dur actual actual actual" "goal goal err err avgflow avgflow"}') ||
+    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal err err avgflow avgflow"') ||
+    css.includes('.shotCard:has(') ||
     css.includes('#shotStatsPanel') ||
     css.includes('#statsAvgDur') ||
     css.includes('statsAvgDaily') ||

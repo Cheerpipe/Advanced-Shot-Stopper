@@ -128,7 +128,7 @@ new cause; older integration versions cannot read it. Earlier shots recorded as
 Home Assistant reads a complete REST snapshot before it adds any entities.
 The controller's `lastShot` is authoritative: it is the newest recorded shot,
 or null after the log is cleared or an erase-all installation. The Web UI's idle
-**Current / Last Shot** card reads that same record. A short, weightless, or
+shot hero card reads that same record. A short, weightless, or
 2 g-or-less activation leaves both views unchanged. Deleting the newest history
 row reveals the next eligible shot; clearing the log clears both views.
 Home Assistant can also read the older `lastGoodShot` field when connected to

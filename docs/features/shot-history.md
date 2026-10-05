@@ -27,15 +27,12 @@ guards ran or extended the shot, `shot_type`, `cut_type`
 (`auto`, `manual`, `limit`), `stop_detail` (for example
 `normal_target`, `activator`, `web_stop`, `wall_limit`, `hard_limit`,
 `extended_max_weight`, `cup_removed`), and a manual `rating` from 0
-(unrated) to 5. Rate a stored shot from its history card. The same stars are
-available on Home's **Current / Last Shot** card while the shot is the newest
-eligible history row; tapping the current star again clears the score.
-Under the duration, that Home card also shows when the shot ended, such as
-“Today at 19:06”, using the same friendly time wording as the Stats history
-cards. The time appears only when the clock was set when the shot finished.
-The preset snapshot is also shown on that Home card and on every Stats history
-card. Renaming or deleting a preset later does not rewrite a shot's displayed
-name.
+(unrated) to 5. Rate a stored shot from its history card; tapping the current
+star again clears the score. A friendly end time, such as “Today at 19:06”,
+appears on the Stats history cards; it is shown only when the clock was set
+when the shot finished. The preset snapshot is shown on the Home shot hero
+card and on every Stats history card. Renaming or deleting a preset later does
+not rewrite a shot's displayed name.
 
 **Scale** appears after **Preset** and keeps the name captured for that shot,
 even if the scale disconnects or is renamed later. **Rate** aligns with the
@@ -153,12 +150,11 @@ would not fit at its normal compact height.
 On a narrow screen, a few numbers beside these charts may be hidden when they
 would overlap. The lines and measurements stay in place, and more numbers
 appear again when there is room. Home applies the same rule to the time and
-weight references above the shot and to the Current / Last Shot weight bar.
-That bar always pairs the measured weight with the target, shown as
-`35.4 g / 36 g` where the shot actually landed, while the target alone still
-marks its own position; when the two labels are too close, the paired
-measured/target label is the one that stays visible.
-The shot card continues to show the exact measured weight.
+weight references above the shot on its hero card, which always pairs the
+measured weight with the target, shown as `35.4 / 36 g` where the shot
+actually landed, while the target alone still marks its own position; when the
+two labels are too close, the paired measured/target label is the one that
+stays visible. The hero keeps showing the exact measured weight.
 
 The Flow rate chart measures the weight change over the preceding second using
 the readings' actual arrival times. If a second starts between two readings,

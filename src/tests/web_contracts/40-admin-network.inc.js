@@ -45,7 +45,7 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
     !html.includes('id="ruleChartTimeTrack"') ||
     !html.includes('id="ruleChartWeightTrack"') ||
     html.indexOf('id="ruleChart"') < html.indexOf('id="homePresetCards"') ||
-    html.indexOf('id="ruleChart"') > html.indexOf('id="shotPanel"') ||
+    html.indexOf('id="ruleChart"') > html.indexOf('id="statusPanel"') ||
     html.includes('Extraction rules') ||
     !css.includes('.ruleChart') ||
     !css.includes('.ruleLegFast:before,.ruleSeg-fast{background:#d97706}') ||

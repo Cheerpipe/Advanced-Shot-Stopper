@@ -129,17 +129,12 @@
 }
 
 {
-  const clearSource = runtimeJs.slice(runtimeJs.indexOf('function clearShotPanel('),
+  const clearSource = runtimeJs.slice(runtimeJs.indexOf('function clearShotHero('),
       runtimeJs.indexOf('function updateStatusGuards('));
-  const elements = new Map();
-  const find = id => {
-    if (!elements.has(id)) elements.set(id, {textContent:'stale', style:{}, classList:{remove(){}}});
-    return elements.get(id);
-  };
-  new Function('$','runShot','fillChartTicks','renderShotSpark','fillStarRate',
-      clearSource + ';clearShotPanel();')(find,()=>{},()=>{},()=>{},()=>{});
-  if (find('shotTareTime').textContent !== 'None' || find('shotScale').textContent !== 'None') {
-    throw new Error('Clearing Home must reset the tare and scale snapshots');
+  const hero = {hidden: false};
+  new Function('$','runShot', clearSource + ';clearShotHero();')(id => hero, () => {});
+  if (!hero.hidden) {
+    throw new Error('Clearing Home must hide the shot hero');
   }
   const clockStart = runtimeJs.indexOf('let shotTick=');
   const clockEnd = runtimeJs.indexOf('function formatExtractionGuard(');
@@ -151,17 +146,16 @@
   const source = runtimeJs.slice(clockStart, clockEnd) +
       runtimeJs.slice(updateStart, updateEnd);
   function harness() {
-    let now = 0, nextId = 1, panelRenders = 0, panelClears = 0, lastPanelShot;
+    let now = 0, nextId = 1, heroRenders = 0, heroClears = 0, lastHeroShot;
     let stopClock = () => {};
     const pending = new Map();
     const elapsed = {textContent: ''};
     const clear = {disabled: false, dataset: {}};
     const document = {hidden: false};
     const $ = (id) => {
-      if (id === 'shotElapsed' || id === 'shotHeroElapsed') return elapsed;
+      if (id === 'shotHeroElapsed') return elapsed;
       if (id === 'clearLastShotButton') return clear;
-      if (id === 'shotRating') return {};
-      throw new Error('Live timer touched non-duration DOM: ' + id);
+      throw new Error('Live timer touched non-hero DOM: ' + id);
     };
     const setTimeout = (fn, delay) => {
       const id = nextId++;
@@ -169,26 +163,26 @@
       return id;
     };
     const clearTimeout = (id) => pending.delete(id);
-    const renderShotPanel = (shot) => {
-      panelRenders++;
-      lastPanelShot = shot;
+    const renderShotHero = (shot) => {
+      heroRenders++;
+      lastHeroShot = shot;
       elapsed.textContent = (shot.elapsedMs / 1000).toFixed(1) + 's';
     };
-    const clearShotPanel = () => {
+    const clearShotHero = () => {
       stopClock();
-      panelClears++;
+      heroClears++;
       elapsed.textContent = '—';
     };
     const clock = new Function('$', 'document', 'performance', 'setTimeout',
-        'clearTimeout', 'renderShotPanel', 'clearShotPanel',
-        'updateStatusGuards', 'shotDisplayActualG', 'fillStarRate',
-        'rateLastShotValue', 'controlsMutable', 'activeView', '__WEBUI_TEXT__',
+        'clearTimeout', 'renderShotHero', 'clearShotHero',
+        'updateStatusGuards', 'shotDisplayActualG',
+        'controlsMutable', 'activeView', '__WEBUI_TEXT__',
         'presetState', source +
         ';return{sync:runShot,stop:()=>runShot(0),update:updateShot,' +
         'view:v=>activeView=v,anchor:()=>shotAt,timer:()=>shotTick};')(
         $, document, {now: () => now}, setTimeout, clearTimeout,
-        renderShotPanel, clearShotPanel, () => {}, (value) => value, () => {},
-        () => {}, false, 'home', () => '—', {activeId: 0, items: []});
+        renderShotHero, clearShotHero, () => {}, (value) => value,
+        false, 'home', () => '—', {activeId: 0, items: []});
     stopClock = clock.stop;
     clock.view('home');
     const advance = (delta) => {
@@ -207,8 +201,8 @@
       now = target;
     };
     return {clock, advance, elapsed, document, pending,
-      panelRenders: () => panelRenders, panelClears: () => panelClears,
-      lastPanelShot: () => lastPanelShot};
+      heroRenders: () => heroRenders, heroClears: () => heroClears,
+      lastHeroShot: () => lastHeroShot};
   }
   const live = (ms, stale = false) => ({cycle: {active: true, shotType: 'auto'},
     lastShot: {valid: false}, config: {goalWeightG: 36}, scale: {}, shotCurve: {},
@@ -219,13 +213,13 @@
   if (h.elapsed.textContent !== '0s' || h.pending.size !== 1) {
     throw new Error('Live shot duration must start at zero with one aligned callback');
   }
-  if (h.lastPanelShot().presetName !== 'Double') {
+  if (h.lastHeroShot().presetName !== 'Double') {
     throw new Error('Current shot must show the active preset name');
   }
   h.advance(800);
   h.advance(1000);
   h.advance(1000);
-  if (h.elapsed.textContent !== '3s' || h.panelRenders() !== 1 || h.pending.size !== 1) {
+  if (h.elapsed.textContent !== '3s' || h.heroRenders() !== 1 || h.pending.size !== 1) {
     throw new Error('Live shot duration must advance 0, 1, 2, 3 without polling or panel renders');
   }
   h.clock.sync(live(2700));
@@ -273,30 +267,15 @@
     presetName: 'Historical Double'},
     config: {}, scale: {}, shotCurve: {}});
   end.advance(2000);
-  if (end.elapsed.textContent !== '4.3s' || end.pending.size || end.panelRenders() !== 2) {
+  if (end.elapsed.textContent !== '4.3s' || end.pending.size || end.heroRenders() !== 2) {
     throw new Error('Current-to-Last must stop projection and keep exact decimal duration');
   }
-  if (end.lastPanelShot().presetName !== 'Historical Double') {
+  if (end.lastHeroShot().presetName !== 'Historical Double') {
     throw new Error('Last Good Shot must show its exact preset-name snapshot');
-  }
-  if (end.lastPanelShot().momentSec !== null) {
-    throw new Error('A last shot without wall time must not produce a moment');
-  }
-  const timed = harness();
-  timed.clock.update({cycle: {active: false}, lastShot: {valid: true, durationMs: 4320,
-    currentWeightG: 36, goalWeightG: 36, shotType: 'auto', shotLogId: 8,
-    hasWallTime: true, endedAtLocalSec: 1770000000},
-    config: {}, scale: {}, shotCurve: {}});
-  if (timed.lastPanelShot().momentSec !== 1770000000) {
-    throw new Error('The last shot moment must reach the Home card render');
-  }
-  timed.clock.update(live(500));
-  if (timed.lastPanelShot().momentSec !== null) {
-    throw new Error('A live shot must not show the previous shot moment');
   }
   end.clock.update({cycle: {active: false}, lastShot: {valid: false},
     config: {}, scale: {}, shotCurve: {}});
-  if (end.elapsed.textContent !== '—' || end.pending.size || end.panelClears() !== 1) {
+  if (end.elapsed.textContent !== '—' || end.pending.size || end.heroClears() !== 1) {
     throw new Error('Clearing the last shot must leave no live duration callback');
   }
   if (!runtimeJs.includes('statusTimer=0;runShot(0);stopExtraPollsHook()') ||
@@ -457,34 +436,31 @@ if (!ui.includes('id="renameScaleLink"') ||
   if (selected().mac || !wrap.hidden)
     throw new Error('Diagnostic rename must disappear when no scale is connected');
 }
-if (!ui.includes('id="shotPanel"') ||
-    !ui.includes('id="shotBar"') ||
-    !ui.includes('id="shotBarFast"') ||
-    !ui.includes('id="shotBarTicks"') ||
-    !partialHtml.home.includes('id="shotBarTicks"') ||
-    !partialHtml.home.includes('<legend>Current / Last Shot</legend>') ||
+if (ui.includes('id="shotPanel"') ||
+    ui.includes('id="shotBar"') ||
+    ui.includes('id="shotBarFast"') ||
+    ui.includes('id="shotBarTicks"') ||
+    partialHtml.home.includes('id="shotBarTicks"') ||
+    partialHtml.home.includes('<legend>Current / Last Shot</legend>') ||
     !partialHtml.home.includes('class="ruleChartLabel">Weight (g)</div>') ||
     partialHtml.home.includes('id="shotIdle"') ||
     css.includes('content:"Weight (g)"') ||
     css.includes('#shotIdle') ||
     ui.includes('shotMark') ||
     !ui.includes('Math.max(goal,wt)') ||
-    !css.includes('.shotTrack{position:relative;height:1rem;background:var(--ln);border-radius:.5rem;overflow:hidden}') ||
-    !css.includes('.shotTrack #shotBarFast{background:#d97706}') ||
+    css.includes('.shotTrack') ||
+    css.includes('#shotBarTicks') ||
     css.includes('.shotMark') ||
     css.includes('max-width:150%') ||
-    !ui.includes('id="shotCard"') ||
-    !html.includes('id="shotSparkHost"') ||
+    ui.includes('id="shotCard"') ||
+    html.includes('id="shotSparkHost"') ||
     !css.includes('.shotSparkHost') ||
     !css.includes('.shotSpark{') ||
     !css.includes('.shotSparkY{') ||
     !css.includes('.shotSparkHost .ruleChartTicks') ||
     !css.includes('.hidden,[hidden]{display:none!important}') ||
-    !css.includes('#shotPanel .shotCurve .shotSparkHost{min-height:4.05rem;grid-template-rows:max(3rem,var(--shot-plot-min,0rem)) auto}') ||
-    !css.includes('#shotPanel>#shotSparkHost,#shotTable td.shotSparkCell{grid-area:spark;display:grid;gap:.65rem') ||
-    !css.includes('#shotPanel{position:relative}') ||
-    css.includes('#shotPanel{position:relative;padding-right:3.4rem') ||
-    !css.includes('#shotPanel .shotDel{top:-.55rem;right:.15rem') ||
+    css.includes('#shotPanel') ||
+    !css.includes('#shotTable td.shotSparkCell{grid-area:spark;display:grid;gap:.65rem') ||
     !css.includes('#shotTable tr.noSpark{') ||
     !css.includes('.shotSpark{grid-area:plot;display:block;width:100%;height:100%;color:var(--ok);overflow:visible}') ||
     !css.includes('.shotGrid{stroke:var(--ln);stroke-width:.8;opacity:.7}') ||
@@ -512,7 +488,7 @@ if (!ui.includes('id="shotPanel"') ||
     !runtimeJs.includes("querySelectorAll('.ruleChartTicks')") ||
     runtimeJs.includes("['.ruleChartTicks',xt]") || runtimeJs.includes("'.shotEventTicks'") ||
     runtimeJs.includes("'1st '+L(") || !runtimeJs.includes("label=time.toFixed(1)+' s'") ||
-    !runtimeJs.includes('fillChartTicks($(\'shotBarTicks\')') ||
+    runtimeJs.includes('fillChartTicks($(\'shotBarTicks\')') ||
     !runtimeJs.includes('raw.sort(') ||
     runtimeJs.includes('shotIdle') ||
     runtimeJs.includes("last?'Last shot.'") ||
@@ -527,27 +503,28 @@ if (!ui.includes('id="shotPanel"') ||
     css.includes('#statusPanel .metric::before,#scalePanel .metric::before,.shotCard > *::before{') ||
     css.includes('font-size:1rem;font-weight:700;color:var(--mu)') ||
     !css.includes('.shotCard .shotDur > div,.shotCard .shotActual > div') ||
-    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate rate rate"') ||
-    !ui.includes('id="shotElapsed"') ||
-    !ui.includes('id="shotMoment"') ||
-    !ui.includes("formatHumanTime(d.momentSec)") ||
-    !ui.includes('id="shotFirstDrop"') ||
-    !ui.includes('id="shotTareTime"') ||
-    !ui.includes('id="shotScale"') ||
-    !ui.includes('id="shotCurrentWeight"') ||
-    !partialHtml.home.includes('<strong>Yield</strong>') ||
-    !partialHtml.home.includes('<strong>Avg flow</strong>') ||
-    !partialHtml.home.includes('<strong>Max flow</strong>') ||
-    !partialHtml.home.includes('<strong>Dur</strong>') ||
+    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal err err avgflow avgflow"') ||
+    css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate rate rate"') ||
+    ui.includes('id="shotElapsed"') ||
+    ui.includes('id="shotMoment"') ||
+    ui.includes("formatHumanTime(d.momentSec)") ||
+    ui.includes('id="shotFirstDrop"') ||
+    ui.includes('id="shotTareTime"') ||
+    ui.includes('id="shotScale"') ||
+    ui.includes('id="shotCurrentWeight"') ||
+    partialHtml.home.includes('<strong>Yield</strong>') ||
+    partialHtml.home.includes('<strong>Avg flow</strong>') ||
+    partialHtml.home.includes('<strong>Max flow</strong>') ||
+    partialHtml.home.includes('<strong>Dur</strong>') ||
     partialHtml.home.includes('data-label=') ||
     html.includes('data-label="Actual"') ||
-    !ui.includes('id="shotGoalWeight"') ||
-    !ui.includes('id="shotErr"') ||
-    !ui.includes('id="shotFlow"') ||
-    !ui.includes('id="shotMaxFlow"') ||
-    !ui.includes('id="shotEnded"') ||
-    !ui.includes('id="shotType"') ||
-    !ui.includes('id="shotPreset"') ||
+    ui.includes('id="shotGoalWeight"') ||
+    ui.includes('id="shotErr"') ||
+    ui.includes('id="shotFlow"') ||
+    ui.includes('id="shotMaxFlow"') ||
+    ui.includes('id="shotEnded"') ||
+    ui.includes('id="shotType"') ||
+    ui.includes('id="shotPreset"') ||
     !ui.includes('activePresetName(s)') ||
     !ui.includes('shotPresetName(ls)') ||
     ui.includes('id="shotRetare"') ||
@@ -582,9 +559,8 @@ if (!ui.includes('id="shotPanel"') ||
       curveTypes.indexOf('inline ShotCurveRecord emptyShotCurveRecord'));
   if (!runtimeJs.includes("spark.className='shotSparkCell'") ||
       !runtimeJs.includes("renderShotSpark(spark,r)") ||
-      !runtimeJs.includes("renderShotSpark($('shotSparkHost')") ||
       /flow/i.test(record) || network.includes('\"flowCg\"') || network.includes('\"flowDtS\"')) {
-    throw new Error('Home and Stats must share ordered Weight/Flow charts without a persisted flow series');
+    throw new Error('Stats must share the ordered Weight/Flow chart renderer without a persisted flow series');
   }
 }
 if (!ui.includes('id="autoToManualGuardEnabled"') ||
@@ -728,8 +704,8 @@ if (!network.includes('self.callbacks_.copyHomeShot(homeRecord, homeCurve)') ||
     !network.includes('\\"presetName\\":\\"%s\\"') ||
     !network.includes('\\"averageFlowGps\\":%.2f') ||
     !ui.includes("averageFlowGps:live?null:(ls.averageFlowValid?ls.averageFlowGps:null)") ||
-    !ui.includes('rateLastShotValue(ls.shotLogId,n)') ||
-    !ui.includes('controlsMutable&&last&&!live&&ls.shotLogId') ||
+    ui.includes('rateLastShotValue') ||
+    ui.includes('controlsMutable&&last&&!live&&ls.shotLogId') ||
     ui.includes('clearLastShotButton')) {
   throw new Error('Home and integration must project the newest eligible history row');
 }
