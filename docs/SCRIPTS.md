@@ -292,4 +292,10 @@ For a future release, update the pinned version and hash deliberately along
 with boundary fixtures and resource measurements.
 
 For a failed boot or a changed partition layout, reinstall the complete image
-over USB with `--erase-all` and follow [Emergency recovery](EMERGENCY_RECOVERY.md).
+over USB with `--erase-all` and follow [Emergency recovery](EMERGENCY_RECOVERY.md).the orange Fast line
+rises to the 42.5 g recovery ceiling at the 12 s BBW cut protection time
+(the earliest the firmware can cut), rides flat to 28 s, and a small X
+marks its cut there; the green BBW line cuts anywhere on its flat 36 g
+stretch, marked with an X where the window closes, and the light blue
+Slow line is marked where its flat 34 g cut reaches the machine limit.
+

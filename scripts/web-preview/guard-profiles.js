@@ -2,7 +2,7 @@
 
 (() => {
   // Real preset data from the Home quick settings screenshots.
-  const TIME = {tMin: 28, tMaxBbw: 44, wall: 50}; // min/max BBW brew time (s) and machine operational wall (s)
+  const TIME = {prot: 12, tMin: 28, tMaxBbw: 44, wall: 50}; // BBW cut protection (s), min/max BBW brew time (s), machine operational wall (s)
   const PRESETS = [
     {name: 'Double', badge: 'Factory', target: 36, floor: 34, ceil: 42.5},
     {name: 'Single', badge: 'Factory', target: 18, floor: 16, ceil: 20},
@@ -26,6 +26,8 @@
       : B - (B - T) * v / p.ceil;
     const path = pts => pts.map((q, i) => (i ? 'L' : 'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' ');
     const line = (pts, color, dash) => `<path d="${path(pts)}" fill="none" stroke="${color}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+    const xMark = (t, v, color) => { const cx = x(t), cy = y(v);
+      return `<path d="M${(cx - 1.6).toFixed(1)} ${(cy - 1.6).toFixed(1)}L${(cx + 1.6).toFixed(1)} ${(cy + 1.6).toFixed(1)}M${(cx - 1.6).toFixed(1)} ${(cy + 1.6).toFixed(1)}L${(cx + 1.6).toFixed(1)} ${(cy - 1.6).toFixed(1)}" stroke="${color}" stroke-width=".9" stroke-linecap="round"/>`; };
     const band = (t0, t1, color, op) => `<rect x="${x(t0).toFixed(1)}" y="${T}" width="${(x(t1) - x(t0)).toFixed(1)}" height="${B - T}" fill="${color}" fill-opacity="${op}"/>`;
     const spread = (items, min) => { const list = [...items].sort((a, b) => a - b);
       for (let i = 1; i < list.length; i++) if (list[i] - list[i - 1] < min) list[i] = list[i - 1] + min;
@@ -33,17 +35,19 @@
     const [cyy, tyy, fyy] = spread([y(p.ceil), y(p.target), y(p.floor)], 10);
     const top = u => (u / 78 * 100).toFixed(2) + '%';
     return `<figure class="gpFig"><div class="gpWrap">` +
-      `<svg viewBox="0 0 ${W} 78" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot cuts at ${TIME.tMin} seconds with the weight anywhere between ${esc(g(p.target))} and ${esc(g(p.ceil))}; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
+      `<svg viewBox="0 0 ${W} 78" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot reaches the ceiling by second ${TIME.prot} (the earliest the firmware can cut) and the fast guard cuts at ${TIME.tMin} seconds; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds"> a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
       band(0, TIME.tMin, FC, .22) + band(TIME.tMin, TIME.tMaxBbw, 'var(--ok)', .22) + band(TIME.tMaxBbw, TIME.wall, SC, .22) +
-      `<path d="M${x(0).toFixed(1)} ${y(0).toFixed(1)}L${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}Z" fill="${FC}" fill-opacity=".12"/>` +
+      `<path d="M${x(0).toFixed(1)} ${y(0).toFixed(1)}L${x(TIME.prot).toFixed(1)} ${y(p.ceil).toFixed(1)}H${x(TIME.tMin).toFixed(1)}V${y(p.target).toFixed(1)}Z" fill="${FC}" fill-opacity=".12"/>` +
       [p.ceil, p.target, p.floor].map(v => `<path d="M${L} ${y(v).toFixed(1)}H${W - R}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/>`).join('') +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${T}V${B}M${x(TIME.tMaxBbw).toFixed(1)} ${T}V${B}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/>` +
+      xMark(TIME.tMin, p.ceil, FC) + xMark(TIME.tMaxBbw, p.target, 'var(--ok)') + xMark(TIME.wall, p.floor, SC) +
       (piecewise ? `<path d="M0 ${(y(bp) - 1.6).toFixed(1)}l6.5 -2.4M0 ${(y(bp) + 1.6).toFixed(1)}l6.5 -2.4" stroke="var(--mu)" stroke-width=".7" stroke-linecap="round"/>` : '') +
       line([[0, 0], [TIME.tMin, p.target]], 'var(--ok)', '3 2.6') +
       line([[TIME.tMin, p.target], [TIME.tMaxBbw, p.target]], 'var(--ok)') +
       line([[0, 0], [TIME.tMaxBbw, p.floor]], SC, '3 2.6') +
       line([[TIME.tMaxBbw, p.floor], [TIME.wall, p.floor]], SC) +
-      line([[0, 0], [TIME.tMin, p.ceil]], FC, '3 2.6') +
+      line([[0, 0], [TIME.prot, p.ceil]], FC, '3 2.6') +
+      line([[TIME.prot, p.ceil], [TIME.tMin, p.ceil]], FC, '3 2.6') +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}" stroke="${FC}" stroke-width=".8" stroke-linecap="round"/>` +
       `</svg>` +
       `<span class="shotYTick" style="top:${top(cyy)}">${esc(g(p.ceil))}</span>` +
