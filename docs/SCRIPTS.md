@@ -163,10 +163,11 @@ assets.
 Open `http://127.0.0.1:4173/guard-profiles` on the same running preview server
 to iterate the time-to-weight profile chart one change at a time, starting
 from the proposal-10 design shown as section 00. The current iteration draws
-one straight line per cut situation using the original rule-chart colors —
-orange for Fast, light blue for Slow — and represents each activation as a
-style change: every line is dashed until its guard activates and solid from
-there. The green BBW line is dashed to 28 s and continues flat at 36 g to
+one straight line per cut situation using the same colors as the firmware's
+stats charts — orange for Fast, green for BBW, light blue for Slow — with
+the three background zones filled in those colors, and represents each
+activation as a style change: every line is dashed until its guard activates
+and solid from there. The green BBW line is dashed to 28 s and continues flat at 36 g to
 44 s; the light blue Slow line is dashed to 44 s and continues flat at the
 34 g recovery floor to the 50 s machine limit; the orange Fast line is
 dashed to 28 s, where the amber wedge between it and the green diagonal and

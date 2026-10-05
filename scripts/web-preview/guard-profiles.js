@@ -51,16 +51,16 @@
     const path = pts => pts.map((q, i) => (i ? 'L' : 'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' ');
     const line = (pts, color, width, dash) => `<path d="${path(pts)}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
     return `<figure class="gpFig"><svg viewBox="0 0 ${W} 88" role="img" aria-label="Guard limits for ${esc(p.name)}: a fast shot cuts at ${TIME.tMin} seconds with the weight anywhere between ${esc(g(p.target))} and ${esc(g(p.ceil))}; a normal shot cuts at ${esc(g(p.target))} anywhere between ${TIME.tMin} and ${TIME.tMaxBbw} seconds; a slow shot is poured to ${esc(g(p.floor))} between ${TIME.tMaxBbw} and ${TIME.wall} seconds; machine limit ${TIME.wall} seconds">` +
-      band(0, TIME.tMin, 'var(--wn)', .07) + band(TIME.tMin, TIME.tMaxBbw, 'var(--ok)', .06) + band(TIME.tMaxBbw, TIME.wall, 'var(--dn)', .07) +
+      band(0, TIME.tMin, FC, .22) + band(TIME.tMin, TIME.tMaxBbw, 'var(--ok)', .22) + band(TIME.tMaxBbw, TIME.wall, SC, .22) +
       `<path d="M${x(0).toFixed(1)} ${y(0).toFixed(1)}L${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}Z" fill="${FC}" fill-opacity=".12"/>` +
       lCeil.line + lTarget.line + lFloor.line + lCeil.label + lTarget.label + lFloor.label +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${T}V${B}M${x(TIME.tMaxBbw).toFixed(1)} ${T}V${B}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/>` +
-      line([[0, 0], [TIME.tMin, p.target]], 'var(--ok)', 1, '3 2.6') +
-      line([[TIME.tMin, p.target], [TIME.tMaxBbw, p.target]], 'var(--ok)', 1) +
-      line([[0, 0], [TIME.tMaxBbw, p.floor]], SC, 1, '3 2.6') +
-      line([[TIME.tMaxBbw, p.floor], [TIME.wall, p.floor]], SC, 1) +
-      line([[0, 0], [TIME.tMin, p.ceil]], FC, 1, '3 2.6') +
-      `<path d="M${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}" stroke="${FC}" stroke-width="1" stroke-linecap="round"/>` +
+      line([[0, 0], [TIME.tMin, p.target]], 'var(--ok)', .8, '3 2.6') +
+      line([[TIME.tMin, p.target], [TIME.tMaxBbw, p.target]], 'var(--ok)', .8) +
+      line([[0, 0], [TIME.tMaxBbw, p.floor]], SC, .8, '3 2.6') +
+      line([[TIME.tMaxBbw, p.floor], [TIME.wall, p.floor]], SC, .8) +
+      line([[0, 0], [TIME.tMin, p.ceil]], FC, .8, '3 2.6') +
+      `<path d="M${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}" stroke="${FC}" stroke-width=".8" stroke-linecap="round"/>` +
       `<g font-size="6.5" fill="var(--mu)" text-anchor="middle"><text x="${L}" y="85">0</text><text x="${x(TIME.tMin).toFixed(1)}" y="85">28 s</text><text x="${x(TIME.tMaxBbw).toFixed(1)}" y="85">44 s</text><text x="${x(TIME.wall).toFixed(1)}" y="85">50 s</text></g>` +
       `</svg><figcaption class="gpRefLegend"><span class="fc">fast · cuts at 28 s, ${esc(g(p.target))}–${esc(g(p.ceil))}</span><span class="ok">BBW · cuts at ${esc(g(p.target))}, 28–44 s</span><span class="sc">slow · ${esc(g(p.floor))} from 44 s</span></figcaption></figure>`;
   }
@@ -75,7 +75,7 @@
   const host = document.getElementById('options');
   const sections = [
     {name: '00 · Perfil original (referencia)', desc: 'El perfil de la propuesta 10 con sus curvas de escenario. Se conserva como referencia del punto de partida.', render: p => profile(p, false)},
-    {name: '01 · Versión final · una recta por situación', desc: 'Solo datos de los guardias, con los colores originales (naranjo Fast, celeste Slow). Cada curva va punteada hasta su activación y sólida desde ahí: la verde hasta 28 s y luego plana a 36 g (corte BBW, 28–44 s); la celeste hasta 44 s y luego plana a 34 g (corte Slow, 44–50 s); la naranja hasta 28 s. El abanico naranjo entre la diagonal verde y la recta naranja cubre el rango de corte Fast: el segmento vertical de 28 s entre 36 y 42.5 g, al mismo grosor que las demás líneas.', render: finalProfile},
+    {name: '01 · Versión final · una recta por situación', desc: 'Solo datos de los guardias, con los mismos colores de los gráficos de Stats (naranjo Fast, verde BBW, celeste Slow) también en las bandas de fondo. Cada curva va punteada hasta su activación y sólida desde ahí: la verde hasta 28 s y luego plana a 36 g (corte BBW, 28–44 s); la celeste hasta 44 s y luego plana a 34 g (corte Slow, 44–50 s); la naranja hasta 28 s. El abanico naranjo entre la diagonal verde y la recta naranja cubre el rango de corte Fast: el segmento vertical de 28 s entre 36 y 42.5 g, al mismo grosor que las demás líneas.', render: finalProfile},
   ];
   const zoneRenders = new Map();
   sections.forEach(s => {
