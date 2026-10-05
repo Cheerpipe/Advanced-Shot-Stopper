@@ -30,6 +30,8 @@ const routes = {
   '/status-panels.js': ['text/javascript', 'scripts/web-preview/status-panels.js'],
   '/guard-ranges': ['text/html; charset=utf-8', 'scripts/web-preview/guard-ranges.html'],
   '/guard-ranges.js': ['text/javascript', 'scripts/web-preview/guard-ranges.js'],
+  '/traffic-light': ['text/html; charset=utf-8', 'scripts/web-preview/traffic-light.html'],
+  '/traffic-light.js': ['text/javascript', 'scripts/web-preview/traffic-light.js'],
 };
 
 function renderHome() {

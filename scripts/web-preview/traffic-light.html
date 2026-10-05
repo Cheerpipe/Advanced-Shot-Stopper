@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Semáforo de estado · 5 iteraciones del acordeón</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+/* ---------- Página ---------- */
+body{max-width:920px}
+h1{font-size:1.45rem;margin:.2rem 0 .3rem;padding-right:7.5rem}
+.lead{color:var(--mu);font-size:.92rem;margin:0 0 .35rem}
+.rules{margin:.6rem 0 0;padding:.85rem 1rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);font-size:.85rem;color:var(--mu)}
+.rules b{color:var(--fg)}
+.rules ul{margin:.3rem 0 0;padding-left:1.1rem;display:grid;gap:.25rem}
+.note{font-size:.8rem;color:var(--mu);margin:.4rem 0 0}
+#themeToggle{position:fixed;top:.75rem;right:.75rem;z-index:60;height:2.25rem;padding:0 .9rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;box-shadow:var(--ah)}
+.scen{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin:1rem 0 .2rem}
+.scenLabel{font-size:.78rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mu);margin-right:.1rem}
+.scenBtn{min-height:2.1rem;padding:0 .85rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer}
+.scenBtn.on{border-color:var(--ac);background:var(--pa);color:var(--pri);font-weight:700}
+.scenBtn:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
+.opt{margin:1.5rem 0}
+.optHead h2{margin:0;font-size:1.05rem}
+.optHead p{margin:.15rem 0 .95rem;color:var(--mu);font-size:.85rem;max-width:56rem}
+.frames{display:flex;flex-wrap:wrap;gap:1.1rem;align-items:flex-start}
+.frame{flex:1 1 480px;min-width:300px;max-width:100%}
+.frame.phone{flex:0 0 352px}
+.cap{margin:0 0 .4rem;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mu)}
+.mock{padding:.9rem;background:var(--bg);border:1px solid var(--ln);border-radius:calc(var(--r) + .4rem);container-type:inline-size}
+
+/* ---------- Vocabulario compartido ---------- */
+.panelCard{border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);overflow:hidden}
+.devName{font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mu)}
+.kv{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:.15rem .7rem;min-width:0}
+.kv span{flex:0 1 auto;min-width:0;color:var(--mu);font-size:.78rem;font-weight:600}
+.kv b{min-width:0;font-weight:650;font-size:.82rem;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.rows{display:grid;gap:.55rem;padding:.35rem .95rem .85rem 2.75rem}
+.chev{flex:none;width:.9rem;height:.9rem;fill:none;stroke:var(--mu);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+details[open] .chev{transform:rotate(90deg)}
+.lt-ok{color:var(--ok)}
+.lt-warn{color:#d97706}
+.lt-hot{color:color-mix(in srgb,var(--dn) 45%,var(--ac))}
+.lamp{flex:none;display:inline-block;width:.8rem;height:.8rem;border-radius:50%;background:currentColor;box-shadow:0 0 0 .22rem color-mix(in srgb,currentColor 20%,transparent)}
+.lamp.big{width:1rem;height:1rem}
+.lamp.flat{box-shadow:0 0 0 .26rem var(--sf)}
+.tState{min-width:0;font-size:.85rem;font-weight:700;overflow-wrap:anywhere}
+.tState.ok{color:var(--ok)}
+.tState.warn{color:var(--wn)}
+.tState.hot{color:color-mix(in srgb,var(--dn) 45%,var(--ac))}
+.tAct{display:block;margin-top:.1rem;font-size:.75rem;font-weight:600;color:var(--wn)}
+
+/* ---------- Filas de acordeón con luz ---------- */
+.tRow{border-top:1px solid var(--ln)}
+.tRow:first-child{border-top:0}
+.tRow summary{display:flex;align-items:center;gap:.65rem;min-height:3.1rem;padding:.55rem .95rem;list-style:none;cursor:pointer;font-weight:400}
+.tRow summary::-webkit-details-marker{display:none}
+.tRow summary:hover{background:var(--in)}
+.tRow summary:focus-visible{outline:3px solid var(--ac);outline-offset:-3px}
+.tRow .devName{flex:none;width:4.6rem}
+.tRow .tState{flex:1;text-align:right}
+
+/* ---------- 2 · Luz general ---------- */
+.tOverall{display:flex;align-items:center;gap:.6rem;min-height:3rem;padding:.6rem .95rem;font-size:.9rem;font-weight:750}
+.tOverall.ok{background:var(--mo);color:var(--ok)}
+.tOverall.warn{background:var(--mw);color:var(--wn)}
+.tOverall.hot{background:color-mix(in srgb,var(--me) 55%,var(--pa));color:color-mix(in srgb,var(--dn) 45%,var(--ac))}
+
+/* ---------- 3 · Semáforo en riel ---------- */
+.tl{position:relative}
+.tl:before{content:"";position:absolute;left:1.29rem;top:1.15rem;bottom:1.15rem;width:2px;border-radius:1px;background:var(--ln)}
+.tl .tRow{border-top:0}
+.tl .tRow summary{gap:.55rem}
+.tl .tRow .devName{width:4.2rem}
+.tl .lamp{position:relative;z-index:1}
+
+/* ---------- 4 · Con acción sugerida ---------- */
+.tCol{flex:1;min-width:0}
+.tCol .devName{display:block}
+.tCol .tState{display:block;flex:0 0 auto;text-align:left}
+
+/* ---------- 5 · Píldora plegable ---------- */
+.pillBar{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem;padding:.35rem;border-bottom:1px solid var(--ln)}
+.pillBtn{display:inline-flex;align-items:center;gap:.45rem;min-height:2.1rem;padding:.15rem .75rem;border:0;border-radius:2rem;background:transparent;color:var(--fg);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer}
+.pillBtn:focus-visible{outline:3px solid var(--ac);outline-offset:-3px}
+.pillSum{margin-left:auto;padding-right:.55rem;font-size:.8rem;font-weight:750}
+.pillBody .tRow{border-top:0}
+.pillBody details:not([open]){display:none}
+</style>
+</head>
+<body>
+  <h1>Semáforo de estado — 5 iteraciones del acordeón</h1>
+  <p class="lead">Estas cinco versiones parten de la propuesta 03 y la convierten en un indicador tipo semáforo: cada equipo tiene una luz cuyo color depende de su estado dominante, y el acordeón sigue guardando las nueve lecturas al desplegar. Cambia el escenario de arriba para ver cómo reaccionan las luces en cada situación; el botón «Tema» alterna claro y oscuro.</p>
+  <div class="rules"><b>Reglas de las luces</b>
+    <ul>
+      <li><b>Machine</b> — verde solo con Machine en Idle y Brew Ready; en cualquier otro caso, ámbar con el estado en palabras («Waiting for paddle off»).</li>
+      <li><b>Scale</b> — verde conectada; naranja intenso (nunca rojo) si está desconectada; ámbar mientras espera (tara pendiente, sin muestra).</li>
+      <li><b>Cup</b> — verde con la taza presente o con la tara lista para recibir taza; ámbar en el resto de casos.</li>
+      <li><b>General</b> — si nada aplica, la luz es ámbar; la luz de resumen hereda siempre la más crítica.</li>
+    </ul>
+  </div>
+  <button type="button" id="themeToggle">Tema: auto</button>
+  <div class="scen" role="group" aria-label="Escenario de demostración">
+    <span class="scenLabel">Escenario</span>
+    <button type="button" class="scenBtn on" data-s="ready">Todo listo</button>
+    <button type="button" class="scenBtn" data-s="paddle">Paddle por apagar</button>
+    <button type="button" class="scenBtn" data-s="noscale">Sin balanza</button>
+    <button type="button" class="scenBtn" data-s="nocup">Sin taza</button>
+  </div>
+  <main id="options"></main>
+  <p class="note">Vista de diseño sin conexión a ningún equipo; no modifica ajustes ni forma parte del firmware.</p>
+  <script src="/traffic-light.js" defer></script>
+</body>
+</html>
