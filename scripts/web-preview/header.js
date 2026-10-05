@@ -90,7 +90,7 @@ const sample = {homeBbwSub: 'Stop at target weight', homeNoScaleSub: 'Warn befor
   homeAtmSub: '32 s limit after scale loss', homeSlowSub: 'Allow a slower extraction',
   homeFastSub: 'Minimum extraction time', homeTouchSub: 'Ignore brief paddle touches',
   homeCupSub: 'Stop if the cup is removed', ruleChartPreset: 'Classic espresso', ruleChartMode: 'Brew by weight',
-  machineState: 'Idle', homeMicraPower: 'ON', state: 'Ready',
+  machineState: 'Idle', homeMicraPower: 'ON', state: 'Ready', machineRowState: 'Ready',
   scale: 'Connected · Acaia Lunar', preferredScale: 'Acaia Lunar', scaleWeight: '0.0 g', scaleTimer: '0.0 s',
   cupState: 'Present', cupWeight: '142.5 g', idleTareStatus: 'Ready',
   firmwareFooter: 'Design preview · no device connected', navFirmware: 'Design preview · no device connected'};
@@ -99,7 +99,12 @@ function applyLamps() {
   const ready = $('state') && $('state').textContent === 'Ready';
   if ($('state')) $('state').classList.toggle('stateReady', ready);
   const row = id => document.getElementById(id);
-  if (row('machineRow')) row('machineRow').classList.toggle('lampBad', !ready);
+  const mrs = $('machineRowState');
+  if (mrs) {
+    mrs.classList.toggle('stateReady', mrs.textContent === 'Ready');
+    mrs.classList.toggle('stateFault', mrs.textContent === 'Turned off');
+  }
+  if (row('machineRow')) row('machineRow').classList.toggle('lampBad', mrs.textContent !== 'Ready');
   if (row('scaleRow')) row('scaleRow').classList.toggle('lampBad', $('scale').textContent === 'Disconnected');
   if (row('cupRow')) row('cupRow').classList.toggle('lampBad', $('cupState').textContent !== 'Present');
 }
@@ -113,7 +118,8 @@ for (const [id, end] of [['ruleChartTimeTicks', 40], ['ruleChartWeightTicks', 50
 function applyScalePreview() {
   const connected = $('preview1').value !== '0';
   const disconnected = {scale: 'Disconnected', scaleWeight: '—', scaleTimer: '—',
-    cupState: 'Unknown · no scale', cupWeight: '—', idleTareStatus: 'Waiting for scale', state: 'No scale connected'};
+    cupState: 'Unknown · no scale', cupWeight: '—', idleTareStatus: 'Waiting for scale', state: 'No scale connected',
+    machineRowState: 'No scale connected'};
   for (const [id, value] of Object.entries(disconnected)) $(id).textContent = connected ? sample[id] : value;
   applyLamps();
 }

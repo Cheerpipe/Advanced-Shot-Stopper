@@ -288,9 +288,11 @@
 if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     statusSection[1].includes('class="statusColumn"') ||
     statusSection[1].includes('class="row"') ||
-    (statusSection[1].match(/class="metric[ "]/g) || []).length !== 2 ||
+    (statusSection[1].match(/class="metric[ "]/g) || []).length !== 3 ||
+    !statusSection[1].includes('id="machineRowState"') ||
     !statusSection[1].includes('id="machineStateValue"') ||
     !statusSection[1].includes('<strong>Machine</strong>') ||
+    !statusSection[1].includes('<strong>Brew</strong>') ||
     statusSection[1].includes('<strong>Cup</strong>') ||
     statusSection[1].includes('data-label="Machine"') ||
     !statusSection[1].includes('id="machineState"') ||

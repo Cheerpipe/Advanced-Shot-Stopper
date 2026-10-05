@@ -24,8 +24,12 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
 {
   const assert = require('assert'), vm = require('vm');
   assert(rawPartialHtml.home.includes('<div class="metric micraOnly"><strong>{{webui:home.machine_power_state}}</strong><div id="homeMicraPower">'));
-  const power = {textContent: ''};
-  const context = {R: {applyHomeStatus() {}, $: id => id === 'homeMicraPower' ? power : null},
+  const el = () => ({textContent: '', classList: {toggle() {}, contains: () => false}});
+  const power = el(), rowState = el(), brew = el();
+  const machineRow = {textContent: '', bad: false};
+  machineRow.classList = {toggle: (_, on) => { machineRow.bad = on; }};
+  const context = {R: {applyHomeStatus() {},
+      $: id => ({homeMicraPower: power, machineRowState: rowState, state: brew, machineRow}[id] || null)},
     document: {querySelector: () => null},
     __WEBUI_TEXT__: key => key === 'home.optimistic' ? 'Optimistic' : 'Unknown'};
   vm.runInNewContext(viewJs.home.replace(/import\*as R from'[^']+';/, '').replace(/export /g, ''), context);
@@ -44,6 +48,15 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
     context.applyStatus({lineaMicra});
     assert.strictEqual(power.textContent, expected);
   }
+  context.applyStatus({lineaMicra: {powerState: 'OFF', quality: 'current'}, state: 'READY'});
+  assert.strictEqual(rowState.textContent, 'Turned off');
+  assert.strictEqual(machineRow.bad, true);
+  context.applyStatus({lineaMicra: {powerState: 'ON', quality: 'current'}, state: 'READY'});
+  assert.strictEqual(rowState.textContent, 'Ready');
+  assert.strictEqual(machineRow.bad, false);
+  context.applyStatus({lineaMicra: {powerState: 'ON', quality: 'current'}, state: 'BREWING'});
+  assert.strictEqual(machineRow.bad, true);
+  assert.strictEqual(brew.textContent, '');
   assert(micraStatus.replace(/\s+/g, ' ').includes(
       'page == StatusPage::Home || page == StatusPage::Settings || page == StatusPage::Diagnostic'),
       'Home status must project the lineaMicra block for the power summary');
