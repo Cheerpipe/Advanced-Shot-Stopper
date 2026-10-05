@@ -368,18 +368,18 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #networkStatus,#scanStatus,#webhookStatus,#otaStatus,#apStatus{overflow-wrap:anywhere}
 
 .presetManage{margin:.35rem 0 .55rem}
-.presetCards{display:flex;flex-direction:column;border:1px solid var(--ln);border-radius:.6rem;overflow:hidden;background:var(--sf)}
+.presetCards{display:flex;flex-direction:column;gap:.45rem}
 .presetCards:empty{display:none}
 .panelWrap{position:relative}
-.presetCard{display:flex;align-items:baseline;gap:1rem;padding:.5rem .7rem;border:0;border-top:1px solid var(--ln);border-radius:0;cursor:pointer;background:var(--sf)}
-.presetCard:first-child{border-top:0}
+.presetCard{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:.1rem .7rem;padding:.65rem .8rem;border:1px solid var(--ln);border-radius:var(--r);cursor:pointer;background:var(--sf)}
 .presetCard:not(.selected):hover{background:var(--in)}
-.presetCard.selected{background:var(--pa);box-shadow:inset .14rem 0 0 var(--ac)}
-.presetCard.active .presetCardTitle{color:var(--ac)}
+.presetCard.selected{background:var(--pa);border-color:var(--ac)}
+.presetCardDot{grid-row:1/3;width:1.15rem;height:1.15rem;border-radius:50%;border:2px solid var(--bd)}
+.presetCard.selected .presetCardDot{border-color:var(--ac);background:radial-gradient(circle,var(--ac) 0 42%,transparent 48%)}
 .presetCardTitleRow{display:flex;align-items:baseline;gap:.35rem;min-width:0}
 .presetCardTitle{all:unset;font:inherit;font-weight:700;font-size:.9375rem;cursor:text;overflow-wrap:anywhere;flex:1;min-width:0}
 .presetCardBadge{font-size:.68rem;color:var(--mu);text-transform:uppercase}
-.presetCardMeta{font-size:.75rem;color:var(--mu);min-width:0;margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+.presetCardMeta{font-size:.75rem;color:var(--mu);min-width:0}
 .presetRenameInline{width:100%;font:inherit;font-weight:700;font-size:.9375rem;padding:.35rem .5rem;margin:0}
 #homePresetCards .presetCardTitle{cursor:pointer}
 #presetRenameDialog{border:1px solid var(--ln);border-radius:var(--r);padding:1rem;max-width:min(22rem,calc(100vw - 2rem));background:var(--sf);color:var(--fg);box-shadow:0 1rem 3rem rgba(0,0,0,.25)}
