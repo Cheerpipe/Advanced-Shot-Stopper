@@ -12,11 +12,18 @@
   const n1 = v => +v.toFixed(1);
 
   // The final chart: one straight line per cut situation, stats-style HTML labels.
-  function finalProfile(p) {
+  // `piecewise` magnifies the guard zone with a fixed visual rule: the break
+  // always sits at 30% of the plot height - 0..65% of the ceiling takes the
+  // lower 30% and 65%..ceiling the upper 70%, for every preset.
+  function finalProfile(p, piecewise = false) {
     const W = 260, L = 0, R = 2, T = 8, B = 76;
     const FC = '#d97706', SC = '#5594dd'; // rule colors: orange fast, blue slow
     const x = t => L + (W - R - L) * t / TIME.wall;
-    const y = v => B - (B - T) * v / p.ceil;
+    const bp = p.ceil * .65;
+    const y = v => piecewise
+      ? (v <= bp ? T + (B - T) * .3 * v / bp
+                 : T + (B - T) * (.3 + .7 * (v - bp) / (p.ceil - bp)))
+      : B - (B - T) * v / p.ceil;
     const path = pts => pts.map((q, i) => (i ? 'L' : 'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' ');
     const line = (pts, color, dash) => `<path d="${path(pts)}" fill="none" stroke="${color}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
     const band = (t0, t1, color, op) => `<rect x="${x(t0).toFixed(1)}" y="${T}" width="${(x(t1) - x(t0)).toFixed(1)}" height="${B - T}" fill="${color}" fill-opacity="${op}"/>`;
@@ -31,6 +38,7 @@
       `<path d="M${x(0).toFixed(1)} ${y(0).toFixed(1)}L${x(TIME.tMin).toFixed(1)} ${y(p.ceil).toFixed(1)}V${y(p.target).toFixed(1)}Z" fill="${FC}" fill-opacity=".12"/>` +
       [p.ceil, p.target, p.floor].map(v => `<path d="M${L} ${y(v).toFixed(1)}H${W - R}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/>`).join('') +
       `<path d="M${x(TIME.tMin).toFixed(1)} ${T}V${B}M${x(TIME.tMaxBbw).toFixed(1)} ${T}V${B}" stroke="var(--mu)" stroke-width=".5" stroke-dasharray="1.6 2.6" opacity=".7"/>` +
+      (piecewise ? `<path d="M0 ${(y(bp) - 1.6).toFixed(1)}l6.5 -2.4M0 ${(y(bp) + 1.6).toFixed(1)}l6.5 -2.4" stroke="var(--mu)" stroke-width=".7" stroke-linecap="round"/>` : '') +
       line([[0, 0], [TIME.tMin, p.target]], 'var(--ok)', '3 2.6') +
       line([[TIME.tMin, p.target], [TIME.tMaxBbw, p.target]], 'var(--ok)') +
       line([[0, 0], [TIME.tMaxBbw, p.floor]], SC, '3 2.6') +
@@ -55,7 +63,8 @@
 
   const host = document.getElementById('options');
   const sections = [
-    {name: '01 · Versión final · una recta por situación', desc: 'Los límites de los guardias dibujados solo con datos reales, en los colores de los gráficos de Stats: la rápida (naranjo) sube hasta su corte de 28 s × 42.5 g —su rango posible, entre 36 y 42.5 g, es el abanico sobre la compuerta—; la BBW normal (verde) llega en diagonal a 36 g y sigue plana entre 28 y 44 s, donde puede ocurrir el corte; la lenta (celeste) sube hasta el piso de 34 g y se corta en plano de 44 a 50 s. Cada línea va punteada hasta su activación y sólida desde ahí; los pesos, a la derecha, comparten estilo con los rótulos de tiempo.', render: finalProfile},
+    {name: '01 · Versión final · escala lineal', desc: 'Los límites de los guardias dibujados solo con datos reales, en los colores de los gráficos de Stats: la rápida (naranjo) sube hasta su corte de 28 s × 42.5 g —su rango posible, entre 36 y 42.5 g, es el abanico sobre la compuerta—; la BBW normal (verde) llega en diagonal a 36 g y sigue plana entre 28 y 44 s, donde puede ocurrir el corte; la lenta (celeste) sube hasta el piso de 34 g y se corta en plano de 44 a 50 s. Cada línea va punteada hasta su activación y sólida desde ahí. En escala lineal, el piso (34 g) y el objetivo (36 g) quedan muy cerca.', render: finalProfile},
+    {name: '02 · Escala partida en la zona de guardias', desc: 'Mismo gráfico con una escala lineal por tramos, con regla fija para cualquier preset: el 30% inferior de la altura cubre de 0 al 65% del techo (comprimido) y el 70% superior magnifica la zona de guardias, donde los valores siempre vienen juntos. El piso y el objetivo se separan al doble sin dejar de ser monotónico; las marcas dobles del borde izquierdo, siempre a la misma altura, revelan el punto de corte de escala.', render: p => finalProfile(p, true)},
   ];
 
 
