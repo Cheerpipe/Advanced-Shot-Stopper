@@ -338,7 +338,7 @@ extra polling requests and do not change the public integration endpoints.
 
 ### Home live updates
 
-The claimed browser binds the existing WebSocket at `/api/v1/ui/shot-stream`
+The claimed browser binds the existing WebSocket at `/api/v1/ui/ui-stream`
 with `{"op":"bind","client":"<claimed X-WebUI-Client>"}`. Home receives an
 initial snapshot and then field changes, without periodic REST status requests.
 The firmware compares the published state at most every 100 ms while a shot is
