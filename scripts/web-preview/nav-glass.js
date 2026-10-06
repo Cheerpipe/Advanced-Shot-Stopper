@@ -49,6 +49,10 @@
     });
     const place = (button, animate) => {
       if (!animate) pill.style.transition = 'none';
+      else {
+        const travel = Math.abs(button.offsetLeft - (parseFloat(pill.style.translate) || 0));
+        pill.style.transitionDuration = `${Math.min(480, Math.max(280, travel * 0.85))}ms`;
+      }
       pill.style.width = `${button.offsetWidth}px`;
       pill.style.translate = `${button.offsetLeft}px 0`;
       if (!animate) requestAnimationFrame(() => requestAnimationFrame(() => { pill.style.transition = ''; }));
