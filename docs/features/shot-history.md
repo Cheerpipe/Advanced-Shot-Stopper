@@ -8,6 +8,10 @@ When you open **Stats**, the Stats section, including its chart, and the
 Shot history section, including its sort, export, and clear controls, stay
 hidden behind loading animations until the shot data is ready.
 
+Stopwatch and gram-weight icons sit beside the large duration and yield values
+in each shot card and beside Avg time and Avg yield in the Stats summary.
+They follow your chosen light or dark theme.
+
 ## What is recorded
 
 A confirmed, non-rinse cycle becomes a shot when it lasts **more than 12 seconds**
