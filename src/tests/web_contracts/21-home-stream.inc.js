@@ -193,4 +193,8 @@ int main(){
   assert(!stream.includes('connections.wifiRssi') && !stream.includes('connections.bluetoothRssi'));
   for (const kind of ['wifi', 'bluetooth']) assert(stream.includes('connections.' + kind + 'Level'));
   assert(stream.includes('frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson)'));
+  const homeFieldSlots = Number(/kHomeFields\s*=\s*(\d+)/.exec(network)[1]);
+  const homeFieldCalls = (stream.match(/\bdelta\.field\(/g) || []).length;
+  assert(homeFieldCalls > 0 && homeFieldCalls <= homeFieldSlots,
+      `Home projection ${homeFieldCalls} fields exceeds ${homeFieldSlots} fingerprint slots`);
 }

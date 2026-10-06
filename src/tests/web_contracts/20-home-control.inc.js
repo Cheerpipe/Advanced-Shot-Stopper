@@ -203,7 +203,9 @@
     streamSource.indexOf('void ShotStopperNetwork::serviceShotStream('));
   if(handler.includes('sendShotStream(')||!handler.includes('session->resync = true;')||
       !streamSource.includes('shotStreamWorkPending_.exchange(true')||
-      !streamSource.includes('now - shotStreamDispatchAtMs_ < 100'))
+      !streamSource.includes('now - shotStreamDispatchAtMs_ < cadence')||
+      !streamSource.includes('kShotStreamLiveMs = 100, kShotStreamIdleMs = 250')||
+      !streamSource.includes('controlCriticalRfActive_.load'))
     throw new Error('Bind/resync must share the coalesced publication cadence');
   const sockets=[],timers=new Map();let timerId=0,owner=true;
   class Socket{static OPEN=1;constructor(url){this.url=url;this.readyState=1;this.sent=[];sockets.push(this)}send(body){this.sent.push(JSON.parse(body))}close(){this.readyState=3;this.onclose?.()}}

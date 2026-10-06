@@ -2,6 +2,8 @@
 // network task queues at most one dispatch; it never sends or borrows JSON scratch.
 namespace {
 constexpr uint32_t kShotStreamBindMs = 5000, kShotStreamRetainMs = 30000;
+// Live shots keep the scale's 10 Hz; idle Home only needs edge pickup.
+constexpr uint32_t kShotStreamLiveMs = 100, kShotStreamIdleMs = 250;
 constexpr size_t kShotStreamRequestBytes = 160;
 
 bool shotStreamOriginMatches(const char *origin, const char *host) {
@@ -164,7 +166,10 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
 }
 
 void ShotStopperNetwork::serviceShotStream(uint32_t now) {
-  if (!server_ || now - shotStreamDispatchAtMs_ < 100) return;
+  if (!server_) return;
+  const uint32_t cadence = controlCriticalRfActive_.load(std::memory_order_acquire)
+                                ? kShotStreamLiveMs : kShotStreamIdleMs;
+  if (now - shotStreamDispatchAtMs_ < cadence) return;
   bool occupied = false;
   {
     TaskLockGuard lock(dataMux_);

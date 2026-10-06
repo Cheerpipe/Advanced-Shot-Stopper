@@ -332,8 +332,9 @@ extra polling requests and do not change the public integration endpoints.
 The claimed browser binds the existing WebSocket at `/api/v1/ui/shot-stream`
 with `{"op":"bind","client":"<claimed X-WebUI-Client>"}`. Home receives an
 initial snapshot and then field changes, without periodic REST status requests.
-The firmware compares the published state at most every 100 ms while a browser
-is connected. Unchanged displayed values produce no Home data frames. Weight
+The firmware compares the published state at most every 100 ms while a shot is
+running, and at most every 250 ms otherwise, while a browser is connected.
+Unchanged displayed values produce no Home data frames. Weight
 and timer are inspected only while the scale is connected, at the displayed
 precision (0.1 g and 0.1 s); unavailable readings become `null` once.
 
