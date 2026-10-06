@@ -9,7 +9,7 @@
   ];
   const g = v => (Number.isInteger(v) ? v : v.toFixed(1)) + ' g';
   const dot = c => `<i style="background:${c}" aria-hidden="true"></i>`;
-  const FC = '#d97706', GC = 'var(--ok)', SC = '#5594dd';
+  const FC = '#d97706', GC = 'var(--ok)', SC = '#6492d7';
 
   // The brief rules per preset (values from settings).
   const rules = p => ({

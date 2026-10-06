@@ -974,7 +974,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
     assert.equal(colored.flowSegs.length,2);
     assert.equal(colored.flowSegs[0].pts.at(-1).t,1.2);
     assert.equal(colored.flowSegs[1].pts[0].t,1.2);
-    assert.equal(colored.flowSegs[1].color,flag==='extractionExtended'?'#d97706':'#2563eb');
+    assert.equal(colored.flowSegs[1].color,flag==='extractionExtended'?'#d97706':'#6492d7');
     colored.flowSegs.flatMap(s=>s.pts).forEach(p=>close(p.cg,200));
   }
   const atm=model(trace([0,500,1000,1500,2000,2500,3000,3500,4000],{atmS:1.2,atmCg:200,atmClearedS:2.2}));

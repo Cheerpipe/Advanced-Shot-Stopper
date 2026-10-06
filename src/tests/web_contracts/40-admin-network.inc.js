@@ -49,14 +49,14 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
     !css.includes('.ruleChart') ||
     !css.includes('.ruleLegFast:before{background:#d97706}') ||
     !css.includes('.ruleLegBbw:before{background:var(--ok)}') ||
-    !css.includes('.ruleLegSlow:before{background:#2563eb}') ||
+    !css.includes('.ruleLegSlow:before{background:#6492d7}') ||
     css.includes('.ruleSeg') || css.includes('.ruleChartTrack') ||
     css.includes('.ruleTable') ||
     !css.includes('.presetAccItem.open .presetAccDot') ||
     !css.includes('.presetAccPanel{display:grid;grid-template-rows:0fr') ||
     !css.includes('.guardFast i{background:#d97706}') ||
     !css.includes('.guardBbw i{background:var(--ok)}') ||
-    !css.includes('.guardSlow i{background:#5594dd}') ||
+    !css.includes('.guardSlow i{background:#6492d7}') ||
     !ui.includes('function buildRuleChartModel(') ||
     !ui.includes('function renderHomePresetAccordion(') ||
     !ui.includes('function guardRuleRows(') ||

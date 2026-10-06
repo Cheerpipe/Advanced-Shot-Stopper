@@ -163,7 +163,7 @@ assets.
 Open `http://127.0.0.1:4173/guard-profiles` on the same running preview server
 to show the final time-to-weight guard profile chart, drawn only from the
 factory preset limits with one straight line per cut situation and the
-stats chart palette (orange Fast, green BBW, light blue #5594dd Slow) in
+stats chart palette (orange Fast, green BBW, light blue #6492d7 Slow) in
 both the scenario lines and the background bands. Each line is dashed
 until its guard activates and solid from there: the orange Fast line
 rises to the 42.5 g recovery ceiling at the 12 s BBW cut protection time

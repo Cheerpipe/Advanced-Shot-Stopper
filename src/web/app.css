@@ -409,7 +409,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .guardRule{font-size:.82rem;color:var(--fg)}
 .guardFast i{background:#d97706}
 .guardBbw i{background:var(--ok)}
-.guardSlow i{background:#5594dd}
+.guardSlow i{background:#6492d7}
 
 .ruleChart{margin:.35rem 0 .15rem}
 .ruleChartLegend{display:flex;flex-wrap:wrap;gap:.55rem;margin:0 0 .55rem;font-size:.75rem;font-weight:600}
@@ -417,7 +417,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .ruleLeg:before{content:"";width:.7rem;height:.7rem;border-radius:.15rem;display:inline-block}
 .ruleLegFast:before{background:#d97706}
 .ruleLegBbw:before{background:var(--ok)}
-.ruleLegSlow:before{background:#2563eb}
+.ruleLegSlow:before{background:#6492d7}
 .ruleChartLabel{font-size:.78rem;font-weight:700;margin:0 0 .75rem;color:var(--fg)}
 .ruleChartTicks{position:relative;height:1.05rem;margin:.15rem .1rem 0;font-size:.68rem;color:var(--mu);overflow:hidden}
 .ruleTick{position:absolute;transform:translateX(-50%);white-space:nowrap;top:0}

@@ -21,7 +21,7 @@
   // between drawn limit lines, in canvas units: lines that end up closer
   // than a label height are quantized downward until they clear it.
   function finalProfile(p, f = (u => u), gap = 6.5) {
-    const FC = '#d97706', SC = '#5594dd'; // rule colors: orange fast, blue slow
+    const FC = '#d97706', SC = '#6492d7'; // rule colors: orange fast, blue slow
     const VE = ' vector-effect="non-scaling-stroke"';
     const x = t => L + (W - L - R) * t / TIME.wall;
     const y = v => B - (B - T) * f(v / p.ceil);
