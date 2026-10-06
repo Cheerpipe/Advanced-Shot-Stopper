@@ -116,10 +116,11 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
         accepted = activity = true;
       }
     } else if (cJSON_IsString(op) && session->bound &&
-        strcmp(op->valuestring, "resync") == 0 &&
-        strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
+               strcmp(op->valuestring, "resync") == 0 &&
+               strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
       session->resync = true;
       session->homeResync = true;
+      session->historyResync = true;
       accepted = true;
     } else if (cJSON_IsString(op) && session->bound &&
                strcmp(op->valuestring, "diagnostic") == 0 &&
@@ -131,6 +132,66 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
         session->diagnostic = cJSON_IsTrue(on);
         session->diagResync = session->diagnostic;
         accepted = true;
+      }
+    } else if (cJSON_IsString(op) && session->bound &&
+               strcmp(op->valuestring, "history") == 0 &&
+               strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
+      // View-scoped History page subscription: the standing window tracks the
+      // page; a one-shot fetch serves sentinel appends without disturbing it.
+      const cJSON *on = cJSON_GetObjectItemCaseSensitive(message, "on");
+      const cJSON *offset = cJSON_GetObjectItemCaseSensitive(message, "offset");
+      const cJSON *limit = cJSON_GetObjectItemCaseSensitive(message, "limit");
+      const cJSON *dir = cJSON_GetObjectItemCaseSensitive(message, "dir");
+      const cJSON *fetch = cJSON_GetObjectItemCaseSensitive(message, "fetch");
+      bool shapeOk = cJSON_IsBool(on);
+      for (const cJSON *field = message->child; shapeOk && field;
+           field = field->next) {
+        const char *name = field->string;
+        shapeOk = name && (!strcmp(name, "op") || !strcmp(name, "on") ||
+                           !strcmp(name, "offset") || !strcmp(name, "limit") ||
+                           !strcmp(name, "dir") || !strcmp(name, "fetch"));
+      }
+      const bool numbersOk =
+          (!offset || (cJSON_IsNumber(offset) && offset->valuedouble >= 0 &&
+                       offset->valuedouble <= HISTORY_CAPACITY &&
+                       offset->valuedouble == offset->valueint)) &&
+          (!limit || (cJSON_IsNumber(limit) && limit->valuedouble >= 1 &&
+                      limit->valuedouble <= HISTORY_PAGE_MAX &&
+                      limit->valuedouble == limit->valueint)) &&
+          (!fetch || cJSON_IsBool(fetch)) &&
+          (!dir || (cJSON_IsString(dir) &&
+                    (!strcmp(dir->valuestring, "asc") ||
+                     !strcmp(dir->valuestring, "desc"))));
+      if (shapeOk && numbersOk) {
+        if (!cJSON_IsTrue(on)) {
+          // Unsubscribe carries no window fields.
+          accepted = !offset && !limit && !dir && !fetch;
+          if (accepted) {
+            session->historyOn = false;
+            session->historyFetch = false;
+          }
+        } else if (fetch && cJSON_IsTrue(fetch)) {
+          accepted = offset && !limit && !dir;
+          if (accepted) {
+            session->historyFetchOffset =
+                static_cast<size_t>(offset->valueint);
+            session->historyFetch = true;
+          }
+        } else {
+          session->historyOn = true;
+          session->historyResync = true;
+          if (offset)
+            session->historyOffset = static_cast<size_t>(offset->valueint);
+          if (limit)
+            session->historyLimit = static_cast<size_t>(limit->valueint);
+          if (dir)
+            session->historyDir = !strcmp(dir->valuestring, "asc")
+                                       ? ShotLogSortDir::Asc
+                                       : ShotLogSortDir::Desc;
+          accepted = true;
+        }
+        if (accepted)
+          self.shotStreamUrgent_.store(true, std::memory_order_release);
       }
     } else if (cJSON_IsString(op) && !session->bound &&
                strcmp(op->valuestring, "bind") == 0 && cJSON_IsString(client) &&
@@ -250,6 +311,11 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
     return;
   }
   if (session.diagnostic && !sendDiagnosticStream(session, control)) {
+    unlockWorkBuf();
+    httpd_sess_trigger_close(server_, session.fd);
+    return;
+  }
+  if (session.historyOn && !sendHistoryStream(session, control)) {
     unlockWorkBuf();
     httpd_sess_trigger_close(server_, session.fd);
     return;

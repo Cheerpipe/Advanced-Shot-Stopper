@@ -321,20 +321,20 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       assert.equal(slots.deviceInFlight, 0, 'Network failure must release admission');
     }
 
-    for (const view of ['stats', 'history']) {
+    for (const view of ['stats']) {
       const response = deferred(), markup = deferred(), events = [];
-      const dataContext = vm.createContext({recordBusy: {stats: false, history: false},
+      const dataContext = vm.createContext({recordBusy: {stats: false},
         viewSeq: 1, viewReady: markup.promise, webUiPollingActive: () => true,
-        shotsUrl: () => '/shots', historyUrl: () => '/history',
+        shotsUrl: () => '/shots',
         api: () => {events.push('fetch'); return response.promise;},
         statusPageOk: (_, state) => !!state,
         applyCommonStatus: () => events.push('state'),
-        applyShotPage: () => events.push('apply'), applyHistoryPage: () => events.push('apply'),
-        renderShots: () => events.push('render'), renderHistory: () => events.push('render'),
+        applyShotPage: () => events.push('apply'),
+        renderShots: () => events.push('render'),
         updateFirmwareFooter() {}, noteReachOk() {}, noteReachFail: () => events.push('error'),
-        maybeLoadMoreShots() {}, maybeLoadMoreHistory() {}});
+        maybeLoadMoreShots() {}});
       vm.runInContext(rawRuntimeJs.split('\n').find(line => line.startsWith('async function fetchRecordPage(')), dataContext);
-      const loading = dataContext.fetchRecordPage(view, 0, 10, 'replace');
+      const loading = dataContext.fetchRecordPage(0, 10, 'replace');
       assert.deepEqual(events, ['fetch'], 'Start the single record request while markup loads');
       response.resolve({ui: {}}); await flush();
       assert.deepEqual(events, ['fetch'], 'A fast response must wait for its markup');
@@ -342,7 +342,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       assert.equal(await loading, true);
       assert.deepEqual(events, ['fetch', 'state', 'apply', 'render']);
       const late = deferred(); dataContext.api = () => late.promise;
-      const old = dataContext.fetchRecordPage(view, 0, 10, 'replace');
+      const old = dataContext.fetchRecordPage(0, 10, 'replace');
       dataContext.viewSeq++;
       const before = events.length; late.resolve({ui: {}});
       assert.equal(await old, false);
@@ -378,30 +378,27 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
 
     for (const view of ['home', 'settings', 'stats', 'history', 'diagnostic', 'admin']) {
       const events = [], markup = deferred(), status = deferred(), data = deferred(), bodyClasses = new Set();
-      let accessAfterMarkup = true, visibilityApplied = 0;
       const path = view === 'home' ? '/' : '/' + view;
       const r = vm.createContext({activeView: '', routeSeq: 0, logTimer: 0,
-        shotsTimer: 0, historyTimer: 0, jsMods: new Map(),
+        shotsTimer: 0, jsMods: new Map(),
         ROUTES: {[path]: view}, knownPath: () => path, viewToPath: () => path,
         location: {pathname: path}, history: {}, stopExtraPolls() {}, placePill() {}, markNavActive() {},
         ensureView: () => {events.push('markup'); return markup.promise;},
         document: {hidden: false, querySelectorAll: () => [], body: {classList: classList(bodyClasses)}}, setInterval: () => 1,
         __WEBUI_TEXT__: key => key,
         R: {showPageBoot: () => {events.push('show'); return 1;}, stopViewPolls() {},
-          api: async () => {accessAfterMarkup &&= events.includes('markup'); return {};}, compatibilityModeOn: () => false,
+          api: async () => {throw new Error('record views must not probe REST status');}, compatibilityModeOn: () => false,
           withPollGate: fn => fn(), webUiPollingActive: () => true,
-          setActiveView() {}, armStatusTimer() {}, applyDiagnosticNavigation: () => {visibilityApplied++;},
+          setActiveView() {}, armStatusTimer() {}, applyDiagnosticNavigation() {},
           startDiagnosticStream() {}, stopDiagnosticStream() {},
+          startHistoryStream: () => {events.push('data'); return data.promise;},
+          stopHistoryStream() {},
           loadStatus: () => {events.push('status'); return status.promise;},
           loadShots: () => {events.push('data'); return data.promise;},
-          loadHistory: () => {events.push('data'); return data.promise;},
           loadLog: () => {events.push('data'); return data.promise;},
           hideHomeBoot: () => events.push('fade'), message: () => events.push('error')}});
       vm.runInContext(routeSource, r);
       const loading = r.renderRoute(path); await flush();
-      assert.equal(accessAfterMarkup, true, 'Diagnostic visibility must fetch while markup loads');
-      assert.equal(visibilityApplied, ['stats', 'history', 'diagnostic'].includes(view) ? 1 : 0,
-        view + ': direct URL entry refreshes Diagnostic visibility before presenting navigation');
       const paired = ['stats', 'history'].includes(view);
       assert.deepEqual(events, paired ? ['show', 'markup', 'data'] :
         ['show', 'markup', 'status'], view + ': fetch data while lazy markup loads');
@@ -422,7 +419,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       assert.equal(events.slice(beforeFailure).includes('error'), true, view + ': expose lazy-load failure');
       assert.equal(events.slice(beforeFailure).includes('fade'), false, view + ': failed markup cannot reveal the page');
       r.ensureView = async () => {};
-      const loadName = view === 'stats' ? 'loadShots' : view === 'history' ? 'loadHistory' : 'loadStatus';
+      const loadName = view === 'stats' ? 'loadShots' : view === 'history' ? 'startHistoryStream' : 'loadStatus';
       r.R[loadName] = async () => false;
       await r.renderRoute(path);
       assert.equal(events.at(-1), 'error', view + ': expose initial data failure');
@@ -636,8 +633,12 @@ if (htmlBytes > 85800) {
 // The full-screen shot card state machine (enter/exit/back-consume, session
 // keep-alive during a live shot, and the router popstate hook) adds ~3.3 KB of
 // JS source allowance; compressed per-asset and firmware limits stay fixed.
-if (jsBytes > 255200) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 255200)`);
+// The view-scoped history WebSocket (op subscription and replay, one-shot
+// append fetches, strict frame validation, and the navigation visibility move
+// onto Home deltas) adds ~2.6 KB of JS source allowance while deleting the
+// REST pull plumbing; compressed asset and firmware limits stay fixed.
+if (jsBytes > 259000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 259000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -676,8 +677,10 @@ if (jsBytes > 255200) {
 // Include the same 2.1 KB finish-transition source allowance.
 // Include the same ~3.4 KB full-screen shot card allowance (buttons and hero
 // wrapper in HTML; state machine, session keep-alive, and popstate hook in JS).
-if (htmlBytes + jsBytes > 340800) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 340800)`);
+// Include the same ~2.6 KB history WebSocket allowance described above; the
+// deleted REST probe and pull plumbing return part of it.
+if (htmlBytes + jsBytes > 344000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 344000)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

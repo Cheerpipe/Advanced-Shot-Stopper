@@ -96,8 +96,10 @@
   assert(!polling.includes("activeView!=='home'"), 'Home must not arm the REST polling timer');
   assert(runtimeJs.includes("s=v==='home'?await loadHomeStatus():await api("));
   const rest = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperStatus.inc'), 'utf8');
-  const metadata = rest.slice(rest.indexOf('if (page == StatusPage::Home)'), rest.indexOf('// JSON / snapshot'));
-  assert(metadata.includes('return sendJson')); assert(!metadata.includes('loadControlStatus'));
+  assert(!rest.includes('StatusPage::Home') && !rest.includes('/api/v1/status/home'),
+      'Home state must be WebSocket-only; the REST metadata stub is deleted');
+  assert(!rest.includes('loadControlStatus') || rest.indexOf('loadControlStatus') > rest.indexOf('// JSON / snapshot'),
+      'routing must not snapshot control state');
   for (const legacy of ['homeLastShot', 'homeHistoryLinked', 'safeHomeShot', '"\\"shotCurve']) assert(!rest.includes(legacy));
   const formatCleaning = context.formatMicraCleaning;
   const lm = {accountConfigured: true, observeState: true, connectionType: 'websocket', websocket: {cleaningAvailable: true}};

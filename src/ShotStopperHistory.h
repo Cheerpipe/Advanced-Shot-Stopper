@@ -58,6 +58,21 @@ class HistoryLog
 
   uint32_t nextRecordId() const { return store_.header.nextRecordId; }
 
+  // Change epoch for stream gating: one CRC over the header words every
+  // mutation moves. On a full ring an append only advances nextRecordId, so
+  // generation+count alone would miss it. Caller holds the store mutex.
+  uint32_t epoch() const {
+    uint32_t crc = crc32Update(0xFFFFFFFFU,
+        reinterpret_cast<const uint8_t *>(&store_.header.generation),
+        sizeof(store_.header.generation));
+    crc = crc32Update(crc,
+        reinterpret_cast<const uint8_t *>(&store_.header.nextRecordId),
+        sizeof(store_.header.nextRecordId));
+    return crc32Update(crc,
+        reinterpret_cast<const uint8_t *>(&store_.header.count),
+        sizeof(store_.header.count));
+  }
+
   // Fills one bounded page (see HistoryPage). offset counts from the newest
   // record for Desc and from the oldest for Asc. Caller holds the store mutex.
   void copyPage(HistoryPage &page, size_t offset, size_t limit,

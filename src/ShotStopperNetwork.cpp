@@ -207,43 +207,6 @@ void parseShotsPageQuery(httpd_req_t *request, size_t &offset, size_t &limit,
   }
 }
 
-void parseHistoryPageQuery(httpd_req_t *request, size_t &offset, size_t &limit,
-                           ShotLogSortDir &dir) {
-  offset = 0;
-  limit = HISTORY_PAGE_DEFAULT;
-  dir = ShotLogSortDir::Desc;
-  if (request == nullptr) {
-    return;
-  }
-  const size_t queryLength = httpd_req_get_url_query_len(request);
-  if (queryLength == 0 || queryLength >= 80) {
-    return;
-  }
-  char query[80] = {};
-  if (httpd_req_get_url_query_str(request, query, sizeof(query)) != ESP_OK) {
-    return;
-  }
-  char value[16] = {};
-  if (httpd_query_key_value(query, "offset", value, sizeof(value)) == ESP_OK) {
-    char *end = nullptr;
-    const unsigned long parsed = strtoul(value, &end, 10);
-    if (end != value && *end == '\0') {
-      offset = static_cast<size_t>(parsed);
-    }
-  }
-  if (httpd_query_key_value(query, "limit", value, sizeof(value)) == ESP_OK) {
-    char *end = nullptr;
-    const unsigned long parsed = strtoul(value, &end, 10);
-    if (end != value && *end == '\0') {
-      limit = historyClampPageLimit(static_cast<size_t>(parsed));
-    }
-  }
-  memset(value, 0, sizeof(value));
-  if (httpd_query_key_value(query, "dir", value, sizeof(value)) == ESP_OK) {
-    dir = shotLogSortDirFromName(value);
-  }
-}
-
 const char *jsonParseFailureMessage(const char *fallback) {
   if (jsonArenaExhaustedRecently()) {
     return "JSON too large for device buffer";
@@ -821,7 +784,7 @@ void sanitizeJsonEmbed(const char *input, char *output, size_t capacity) {
   output[written] = '\0';
 }
 
-enum class StatusPage : uint8_t { Home, Settings, Admin, Diagnostic, Unknown };
+enum class StatusPage : uint8_t { Settings, Admin, Diagnostic, Unknown };
 
 StatusPage parseStatusPage(const char *uri) {
   if (uri == nullptr) {
@@ -838,9 +801,6 @@ StatusPage parseStatusPage(const char *uri) {
     memcpy(stack, uri, len);
     stack[len] = '\0';
     path = stack;
-  }
-  if (strcmp(path, "/api/v1/status/home") == 0) {
-    return StatusPage::Home;
   }
   if (strcmp(path, "/api/v1/status/settings") == 0) {
     return StatusPage::Settings;

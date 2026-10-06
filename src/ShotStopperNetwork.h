@@ -201,6 +201,9 @@ struct NetworkBridgeCallbacks {
   bool (*shotLogSavePending)() = nullptr;
   void (*copyHistoryPage)(HistoryPage &page, size_t offset, size_t limit,
                           ShotLogSortDir dir) = nullptr;
+  // Cheap change epoch (store header digest) so idle dispatches skip the
+  // page copy entirely.
+  uint32_t (*historyEpoch)() = nullptr;
   ShotStatsView (*copyShotStats)() = nullptr;
   bool (*deleteHistoryRecord)(uint32_t id) = nullptr;
   bool (*clearHistoryLog)() = nullptr;
@@ -356,6 +359,14 @@ class ShotStopperNetwork {
     uint32_t diagHashes[kDiagFields] = {};
     uint32_t diagBoot = 0;
     bool diagnostic = false, diagResync = true;
+    // History page subscription, same view-scoped contract: the window dies
+    // with the session, one-shot fetches append without disturbing it, and
+    // epoch/fingerprint suppress frames while the page is unchanged.
+    bool historyOn = false, historyResync = true, historyFetch = false;
+    size_t historyOffset = 0, historyLimit = HISTORY_PAGE_DEFAULT,
+           historyFetchOffset = 0;
+    ShotLogSortDir historyDir = ShotLogSortDir::Desc;
+    uint32_t historyEpoch = 0, historyFingerprint = 0, historyBoot = 0;
     char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
     bool bound = false, resync = true;
     bool homeResync = true;
@@ -581,6 +592,8 @@ class ShotStopperNetwork {
                       const ShotLogRecord *latest);
   bool sendDiagnosticStream(ShotStreamSession &session,
                             const ControlStatusSnapshot &control);
+  bool sendHistoryStream(ShotStreamSession &session,
+                         const ControlStatusSnapshot &control);
 #if SHOT_STOPPER_DEVELOPMENT == 1
   // Unlock handlers are release-only: development builds serve public
   // administration and never compile the unlock endpoints.
@@ -597,7 +610,6 @@ class ShotStopperNetwork {
   static esp_err_t shotsClearHandler(httpd_req_t *request);
   static esp_err_t shotsDeleteHandler(httpd_req_t *request);
   static esp_err_t shotsRateHandler(httpd_req_t *request);
-  static esp_err_t historyHandler(httpd_req_t *request);
   static esp_err_t historyClearHandler(httpd_req_t *request);
   static esp_err_t historyDeleteHandler(httpd_req_t *request);
   static esp_err_t lastShotClearHandler(httpd_req_t *request);
@@ -694,6 +706,12 @@ class ShotStopperNetwork {
   esp_err_t workBufBusy(httpd_req_t *request);
   esp_err_t sendRecordPageState(httpd_req_t *request,
                                const ControlStatusSnapshot &control);
+  // Shared record-page "ui" projection (the `statusPageOk('records')`
+  // contract): appends `"ui":{...}` at the statusJson cursor. The HTTP page
+  // wraps it in its response object; the history stream embeds it in snapshot
+  // frames. `override` replaces the request-derived flag on the socket path.
+  bool appendRecordPageUi(const ControlStatusSnapshot &control, size_t *used,
+                          bool override);
   bool requireActiveWebUiClient(httpd_req_t *request);
   void clearAdminUnlock();
   void grantAdminUnlock(const char *clientId, uint32_t now);

@@ -977,9 +977,8 @@ esp_err_t ShotStopperNetwork::logHandler(httpd_req_t *request) {
   return ok ? ESP_OK : ESP_FAIL;
 }
 
-esp_err_t ShotStopperNetwork::sendRecordPageState(
-    httpd_req_t *request, const ControlStatusSnapshot &control) {
-  requestPendingNetworkConfirm();
+bool ShotStopperNetwork::appendRecordPageUi(
+    const ControlStatusSnapshot &control, size_t *used, bool override) {
   const TimeStatusSnapshot time = g_wallClock.snapshot(millis());
   const NetworkStatusSnapshot network = snapshot();
   int16_t offset = 0;
@@ -998,10 +997,9 @@ esp_err_t ShotStopperNetwork::sendRecordPageState(
     memset(g_work->scaleHistory, 0, sizeof(g_work->scaleHistory));
   escapeConnectedScaleName(control, g_work->scaleHistory,
                            bluetoothName, sizeof(bluetoothName));
-  size_t used = 0;
-  if (!statusJsonAppend(
-          &used,
-          "{\"ui\":{\"firmwareVersion\":\"%s\",\"configMutable\":%s,"
+  return statusJsonAppend(
+          used,
+          "\"ui\":{\"firmwareVersion\":\"%s\",\"configMutable\":%s,"
           "\"webUiOverrideActive\":%s,\"compatibilityMode\":%s,"
           "\"development\":%s,\"machineType\":\"%s\","
           "\"machineIntegration\":\"%s\",\"timeUtcSec\":%lu,"
@@ -1011,9 +1009,9 @@ esp_err_t ShotStopperNetwork::sendRecordPageState(
           "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"},"
           "\"config\":{\"revision\":%lu,\"timezoneId\":\"%s\","
           "\"appliedTimezoneOffsetMinutes\":%d,\"timezoneAutomatic\":%s,"
-          "\"timezoneInitialized\":%s}},",
+          "\"timezoneInitialized\":%s}}",
           version, controlAllowsConfiguration(control) ? "true" : "false",
-          webUiOverrideAllowed(request) ? "true" : "false",
+          override ? "true" : "false",
           firmwareCompatibilityMode() ? "true" : "false",
           DEVELOPMENT_BUILD ? "true" : "false", compiledMachineTypeId(),
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
@@ -1033,7 +1031,16 @@ esp_err_t ShotStopperNetwork::sendRecordPageState(
           static_cast<unsigned long>(control.config.revision),
           control.config.timezoneId, static_cast<int>(offset),
           control.config.timezoneAutomatic ? "true" : "false",
-          durableTimezoneSaved().load() ? "true" : "false")) {
+          durableTimezoneSaved().load() ? "true" : "false");
+}
+
+esp_err_t ShotStopperNetwork::sendRecordPageState(
+    httpd_req_t *request, const ControlStatusSnapshot &control) {
+  requestPendingNetworkConfirm();
+  size_t used = 0;
+  if (!statusJsonAppend(&used, "{") ||
+      !appendRecordPageUi(control, &used, webUiOverrideAllowed(request)) ||
+      !statusJsonAppend(&used, ",")) {
     sendError(request, STATUS_UNAVAILABLE, "STATUS_TOO_LARGE",
               "Record page state exceeds its response buffer.");
     return ESP_FAIL;
@@ -1321,77 +1328,6 @@ esp_err_t ShotStopperNetwork::shotsRateHandler(httpd_req_t *request) {
   snprintf(json, sizeof(json), "{\"rated\":true,\"rating\":%u}",
            static_cast<unsigned>(rating));
   return sendJson(request, STATUS_OK, json);
-}
-
-esp_err_t ShotStopperNetwork::historyHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
-  size_t offset = 0;
-  size_t limit = HISTORY_PAGE_DEFAULT;
-  ShotLogSortDir dir = ShotLogSortDir::Desc;
-  parseHistoryPageQuery(request, offset, limit, dir);
-  if (!self.lockWorkBufForStatus()) {
-    return self.workBufBusy(request);
-  }
-  NetworkWorkBuf &work = *self.workBuf_;
-  self.loadControlStatus(work.control);
-  // The page is copied under the store mutex by the bridge callback, so the
-  // handler never observes a torn multi-word record.
-  if (self.callbacks_.copyHistoryPage != nullptr) {
-    self.callbacks_.copyHistoryPage(work.historyPage, offset, limit, dir);
-  } else {
-    work.historyPage.total = 0;
-    work.historyPage.start = 0;
-    work.historyPage.count = 0;
-    work.historyPage.hasMore = false;
-  }
-
-  httpd_resp_set_type(request, JSON_CONTENT_TYPE);
-  httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-  httpd_resp_set_hdr(request, "Connection", "close");
-  httpd_resp_set_hdr(request, "Access-Control-Allow-Origin", "*");
-  char header[160] = {};
-  if (self.sendRecordPageState(request, work.control) != ESP_OK) {
-    self.unlockWorkBuf();
-    return ESP_FAIL;
-  }
-  snprintf(header, sizeof(header),
-           "\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
-           "\"hasMore\":%s,\"history\":[",
-           static_cast<unsigned long>(work.control.bootId),
-           static_cast<unsigned>(work.historyPage.total),
-           static_cast<unsigned>(work.historyPage.start),
-           static_cast<unsigned>(limit),
-           work.historyPage.hasMore ? "true" : "false");
-  if (httpd_resp_send_chunk(request, header, HTTPD_RESP_USE_STRLEN) != ESP_OK) {
-    self.unlockWorkBuf();
-    return ESP_FAIL;
-  }
-
-  for (size_t index = 0; index < work.historyPage.count; ++index) {
-    const HistoryRecord &record = work.historyPage.records[index];
-    char item[192] = {};
-    snprintf(item, sizeof(item),
-             "%s{\"id\":%lu,\"type\":\"%s\",\"durationS\":%.1f,"
-             "\"hasWeight\":%s,\"hasWallTime\":%s,\"endedAtUnixSec\":%lu,"
-             "\"endedAtLocalSec\":%lu}",
-             index == 0 ? "" : ",",
-             static_cast<unsigned long>(record.id),
-             historyTypeName(static_cast<HistoryType>(record.type)),
-             static_cast<double>(record.durationDs) / 10.0,
-             (record.flags & HISTORY_FLAG_NO_WEIGHT) == 0 ? "true" : "false",
-             (record.flags & HISTORY_FLAG_WALL_TIME) != 0 ? "true" : "false",
-             static_cast<unsigned long>(record.endedAtUnixSec),
-             static_cast<unsigned long>(record.endedAtLocalSec));
-    if (sendChunk(request, item, strlen(item)) != ESP_OK) {
-      self.unlockWorkBuf();
-      return ESP_FAIL;
-    }
-  }
-  const bool ok =
-      httpd_resp_send_chunk(request, "]}", HTTPD_RESP_USE_STRLEN) == ESP_OK &&
-      httpd_resp_send_chunk(request, nullptr, 0) == ESP_OK;
-  self.unlockWorkBuf();
-  return ok ? ESP_OK : ESP_FAIL;
 }
 
 esp_err_t ShotStopperNetwork::historyClearHandler(httpd_req_t *request) {

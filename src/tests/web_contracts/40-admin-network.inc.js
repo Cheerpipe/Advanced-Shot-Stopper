@@ -393,7 +393,6 @@ const expected = new Map([
   ['GET /favicon.ico', 'browserIconHandler'],
   ['GET /apple-touch-icon*', 'browserIconHandler'],
   ['POST /api/v1/ui/claim', 'claimHandler'],
-  ['GET /api/v1/status/home', 'ownedApiHandler'],
   ['GET /api/v1/status/settings', 'ownedApiHandler'],
   ['GET /api/v1/status/admin', 'ownedApiHandler'],
   ['GET /api/v1/status/diagnostic', 'ownedApiHandler'],
@@ -655,11 +654,11 @@ if (!ui.includes('id="forcePulseButton"') ||
     !firmware.includes('machineRequestForcedPulse()') ||
     !firmwareCore.includes('machineRequestWebStop()')) {
   throw new Error('Momentary Web controls must expose an admin-gated forced pulse and a dedicated Web STOP path');
-}if (!network.includes('/api/v1/status/home') ||
+}if (network.includes('/api/v1/status/home') ||
     !network.includes('/api/v1/status/settings') ||
     !network.includes('/api/v1/status/admin') ||
     !network.includes('/api/v1/status/diagnostic')) {
-  throw new Error('Status API must expose per-page /api/v1/status/{home|settings|admin|diagnostic}');
+  throw new Error('Status API must expose only /api/v1/status/{settings|admin|diagnostic}; Home is WebSocket-only');
 }
 
 // Development builds compile out the unlock endpoints: administration is

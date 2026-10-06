@@ -509,8 +509,10 @@ if (generated.cssGzip.length > 10300) {
 // The full-screen shot card state machine (enter/exit/back-consume, lazy
 // button binding, and the shot-aware session keep-alive) raises the cap to
 // 47200 bytes.
-if (sentinelRuntimeGzip.length > 47200) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 47200-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The view-scoped history WebSocket (frame validation, subscription replay,
+// and one-shot append fetches) raises the cap to 47800 bytes.
+if (sentinelRuntimeGzip.length > 47800) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 47800-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -605,8 +607,10 @@ if (generated.icon48Gzip.length > 3500) {
 // combined allowance; per-asset caps above govern
 // the split. Firmware image, memory placement and OTA partitions retain
 // separate limits.
-if (generated.combined > 122800) {
-  throw new Error(`Combined Web UI gzip exceeds the 122800-byte flash budget (${generated.combined})`);
+// The view-scoped history WebSocket adds its reviewed runtime allowance to
+// the combined cap (123200 bytes); firmware image and OTA limits stay fixed.
+if (generated.combined > 123200) {
+  throw new Error(`Combined Web UI gzip exceeds the 123200-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
@@ -1373,7 +1377,7 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
   }
   if ((statusFormat.match(/\\"adminUnlocked\\":%s/g) || []).length < 2 ||
       !statusFormat.includes('\\"adminUnlocked\\":%s,\\"diagnosticPublic\\":true')) {
-    throw new Error('status/home and status/admin must report adminUnlocked; Diagnostic must identify public access');
+    throw new Error('status/admin must report adminUnlocked; Diagnostic must identify public access');
   }
   if ((statusFormat.match(/\\"adminUnlocked\\":%s,\\"development\\":%s/g) || []).length < 1 ||
       !statusFormat.includes('\\"diagnosticPublic\\":true,\\"development\\":%s')) {

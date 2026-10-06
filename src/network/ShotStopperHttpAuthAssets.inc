@@ -348,7 +348,6 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
     esp_err_t (*handler)(httpd_req_t *);
   };
   static const Route routes[] = {
-      {"/api/v1/status/home", HTTP_GET, statusHandler},
       {"/api/v1/status/settings", HTTP_GET, statusHandler},
       {"/api/v1/status/admin", HTTP_GET, statusHandler},
       {"/api/v1/status/diagnostic", HTTP_GET, statusHandler},
@@ -360,7 +359,6 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
       {"/api/v1/stats/clear", HTTP_POST, shotsClearHandler},
       {"/api/v1/stats/delete", HTTP_POST, shotsDeleteHandler},
       {"/api/v1/stats/rate", HTTP_POST, shotsRateHandler},
-      {"/api/v1/history", HTTP_GET, historyHandler},
       {"/api/v1/history/clear", HTTP_POST, historyClearHandler},
       {"/api/v1/history/delete", HTTP_POST, historyDeleteHandler},
       {"/api/v1/last-shot/clear", HTTP_POST, lastShotClearHandler},

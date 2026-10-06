@@ -21,18 +21,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   const StatusPage page = parseStatusPage(request->uri);
   if (page == StatusPage::Unknown) {
     return sendError(request, "404 Not Found", "STATUS_PAGE_UNKNOWN",
-                     "Unknown status page; use /api/v1/status/{home|settings|admin|diagnostic}.");
-  }
-
-  // Home state is pushed by the owned WebSocket. Keep only routing metadata
-  // for callers checking navigation/ownership; no duplicate Home projection.
-  if (page == StatusPage::Home) {
-    char metadata[160];
-    snprintf(metadata, sizeof(metadata),
-        "{\"transport\":\"websocket\",\"diagnosticPageVisible\":%s,\"compatibilityMode\":%s}",
-        self.diagnosticPageEnabled() ? "true" : "false",
-        firmwareCompatibilityMode() ? "true" : "false");
-    return sendJson(request, STATUS_OK, metadata);
+                     "Unknown status page; use /api/v1/status/{settings|admin|diagnostic}.");
   }
 
   // JSON / snapshot work lives in one PSRAM-only blob.

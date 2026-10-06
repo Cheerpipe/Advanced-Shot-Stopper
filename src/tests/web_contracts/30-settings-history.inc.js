@@ -988,14 +988,14 @@ if (!js.includes('function commandOkMessage(') ||
 }
 if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !runtimeJs.includes('SHOTS_EXPORT_LIMIT=100') ||
-    !runtimeJs.includes("(stats?shotsUrl:historyUrl)(offset,limit)") ||
+    !runtimeJs.includes('api(shotsUrl(offset,limit))') ||
     !runtimeJs.includes("'/api/v1/stats?offset='") ||
-    !runtimeJs.includes("fetchRecordPage('stats',0,SHOTS_PAGE_SIZE,'replace')") ||
-    !runtimeJs.includes("fetchRecordPage('stats',shotHistory.shots.length,SHOTS_PAGE_SIZE,'append')") ||
-    !runtimeJs.includes("fetchRecordPage('stats',0,SHOTS_PAGE_SIZE,'poll')") ||
+    !runtimeJs.includes("fetchRecordPage(0,SHOTS_PAGE_SIZE,'replace')") ||
+    !runtimeJs.includes("fetchRecordPage(shotHistory.shots.length,SHOTS_PAGE_SIZE,'append')") ||
+    !runtimeJs.includes("fetchRecordPage(0,SHOTS_PAGE_SIZE,'poll')") ||
     !runtimeJs.includes('async function loadMoreShots(){') ||
     !runtimeJs.includes('function shotStatsViewActive(){') ||
-    !runtimeJs.includes('if(ok)(stats?maybeLoadMoreShots:maybeLoadMoreHistory)()') ||
+    !runtimeJs.includes('if(ok)maybeLoadMoreShots()') ||
     !runtimeJs.includes("shotsUrl(0,SHOTS_EXPORT_LIMIT") ||
     runtimeJs.includes("api('/api/v1/stats')") ||
     !viewJs.stats.includes('IntersectionObserver') ||
@@ -1087,8 +1087,10 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !shellHtml.includes('<section id="view-history" class="view" data-view="history"></section>') ||
     !appJsSource.includes("'/history':'history'") ||
     !appJsSource.includes("SECONDARY=new Set(['stats','history','diagnostic','admin'])") ||
-    !appJsSource.includes('R.loadHistory()') ||
-    !appJsSource.includes('R.refreshHistory') ||
+    !appJsSource.includes('R.startHistoryStream()') ||
+    appJsSource.includes('historyTimer') ||
+    appJsSource.includes('/api/v1/status/home') ||
+    !appJsSource.includes('R.stopHistoryStream()') ||
     !viewJs.history.includes("R.loadMoreHistory()") ||
     !viewJs.history.includes('R.clearActivationHistory') ||
     !viewJs.history.includes('R.toggleHistoryDir') ||
@@ -1108,7 +1110,13 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     css.includes('.panelState.isOver{') ||
     !css.includes('.histBadge{') ||
     !runtimeJs.includes('HISTORY_PAGE_SIZE=20') ||
-    !runtimeJs.includes("const historyUrl=(offset,limit,dir)=>'/api/v1/history?offset='") ||
+    runtimeJs.includes("'/api/v1/history?offset='") ||
+    !runtimeJs.includes('function startHistoryStream(') ||
+    !runtimeJs.includes('function stopHistoryStream(') ||
+    !runtimeJs.includes('function historyStreamFrame(') ||
+    !runtimeJs.includes('function applyHistoryStream(') ||
+    !runtimeJs.includes('if(diagStreamWanted)socket.send(\'{"op":"diagnostic","on":true}\')') ||
+    !runtimeJs.includes('if(historyStreamWanted)historySendSubscribe()') ||
     !runtimeJs.includes('function applyHistoryPage(') ||
     !runtimeJs.includes('function renderHistory(') ||
     !runtimeJs.includes('function deleteOneHistory(') ||
@@ -1123,17 +1131,20 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !runtimeJs.includes("'/api/v1/history/delete'") ||
     !runtimeJs.includes("'/api/v1/history/clear'") ||
     !runtimeJs.includes('const toggleHistoryDir=()=>{') ||
-    !runtimeJs.includes('historyData.records.length,HISTORY_PAGE_SIZE,\'append\'') ||
+    !runtimeJs.includes("historySend({op:'history',on:true,fetch:true,offset:historyFetchOffset})") ||
     runtimeJs.includes('exportShotsCsv') && runtimeJs.includes('historyCsv') ||
-    !network.includes('parseHistoryPageQuery') ||
-    !network.includes('historyHandler') ||
+    network.includes('parseHistoryPageQuery') ||
+    network.includes('historyHandler') ||
+    !network.includes('sendHistoryStream') ||
+    !networkHeader.includes('copyHistoryPage') ||
+    !networkHeader.includes('historyEpoch') ||
+    !networkHeader.includes('sendHistoryStream') ||
     !network.includes('historyClearHandler') ||
     !network.includes('historyDeleteHandler') ||
-    !network.includes('HISTORY_PAGE_DEFAULT') ||
+    !networkHeader.includes('HISTORY_PAGE_DEFAULT') ||
     !network.includes('"CLEAR_HISTORY"') ||
     !network.includes('"HISTORY_CLEAR_NOT_CONFIRMED"') ||
     !network.includes('"HISTORY_RECORD_NOT_FOUND"') ||
-    !networkHeader.includes('copyHistoryPage') ||
     !networkHeader.includes('deleteHistoryRecord') ||
     !networkHeader.includes('clearHistoryLog') ||
     !firmwareCore.includes('historyLog.append(record, false)') ||
@@ -1146,7 +1157,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !historyIo.includes('"history"') ||
     !activationStoresIo.includes('class ActivationStores') ||
     !activationStoresIo.includes('TaskLockGuard(shotStoreMutex)')) {
-  throw new Error('Activation history must page 20 records with sort direction, clear, delete, and no CSV export');
+  throw new Error('Activation history must page 20 records over the owned WebSocket with sort direction, clear, delete, and no CSV export');
 }
 const statsSection = partialHtml.stats.match(
     /<fieldset id="shotStatsPanel"><legend>Stats<\/legend>([\s\S]*?)<\/fieldset>/);
@@ -1232,7 +1243,7 @@ if (!statsSection ||
         updateFirmwareFooter() {}, noteReachOk() {}, maybeLoadMoreShots() {},
         noteReachFail: () => events.push('error')});
       vm.runInContext(render + '\n' + fetchPage, context);
-      const loading = context.fetchRecordPage('stats', 0, 10, 'replace');
+      const loading = context.fetchRecordPage(0, 10, 'replace');
       assert.deepEqual(events, [], 'Page content must wait for data');
       if (fail) reject(new Error('Unavailable')); else resolve({shots: [], stats: {}});
       await loading;
@@ -1244,24 +1255,24 @@ if (!statsSection ||
     const apply = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function applyCommonStatus('),
         rawRuntimeJs.indexOf('function applyMachineTypeUi('));
     const refresh = rawRuntimeJs.split('\n').filter(line =>
-      /^(async function loadStatus|async function pollShots|const pollHistory|function refreshStatus)/.test(line)).join('\n');
-    for (const view of ['stats', 'history']) {
+      /^(async function loadStatus|async function pollShots|function refreshStatus)/.test(line)).join('\n');
+    {
+      const view = 'stats';
       const events = [], calls = [], versions = [];
       const ui = {firmwareVersion: '2.0', configMutable: true, webUiOverrideActive: false,
         compatibilityMode: false, timeUtcSec: 1790809185, lastCommand: {requestId: 7, state: 'PERSISTED'},
         config: {revision: 8, timezoneId: 'America/Santiago', appliedTimezoneOffsetMinutes: -180,
           timezoneAutomatic: true, timezoneInitialized: true}};
-      let response = {ui, bootId: 20, shots: [], history: []};
-      const context = vm.createContext({activeView: view, recordBusy: {stats: false, history: false},
+      let response = {ui, bootId: 20, shots: []};
+      const context = vm.createContext({activeView: view, recordBusy: {stats: false},
         viewSeq: 1, viewReady: Promise.resolve(), webUiPollingActive: () => true,
         api: async url => {calls.push(url); return response;},
-        shotsUrl: () => '/api/v1/stats?offset=0', historyUrl: () => '/api/v1/history?offset=0',
-        shotStatsViewActive: () => true, historyViewActive: () => true, withPollGate: fn => fn(),
-        applyShotPage: () => events.push('records'), applyHistoryPage: () => events.push('records'),
+        shotsUrl: () => '/api/v1/stats?offset=0',
+        shotStatsViewActive: () => true, withPollGate: fn => fn(),
+        applyShotPage: () => events.push('records'),
         renderShots: () => events.push('render:' + context.controlsMutable),
-        renderHistory: () => events.push('render:' + context.controlsMutable),
         updateFirmwareFooter() {}, updateHeaderSignals() {}, noteReachOk() {}, noteReachFail: () => events.push('error'),
-        maybeLoadMoreShots() {}, maybeLoadMoreHistory() {}, SHOTS_PAGE_SIZE: 10, HISTORY_PAGE_SIZE: 20,
+        maybeLoadMoreShots() {}, SHOTS_PAGE_SIZE: 10,
         developmentMode: false, compatMode: false, controlsMutable: false, firmwareVersion: '', bootId: 0,
         lastCommandStatus: null, configRevision: 0, dateTimeDirty: false, statusUtcAnchorSec: 0,
         statusUtcAnchorAt: 0, statusTimezoneOffsetMinutes: 0, performance: {now: () => 123},
@@ -1271,7 +1282,7 @@ if (!statsSection ||
         applyCompatibilityChrome: () => {context.viewSeq++;}, __WEBUI_TEXT__: key => key});
       vm.runInContext(validate + '\n' + apply + '\n' + fetchPage + '\n' + refresh, context);
       assert.equal(await context.refreshStatus(), true);
-      assert.deepEqual(calls, ['/api/v1/' + view + '?offset=0'], 'A record refresh must make one GET to its own endpoint');
+      assert.deepEqual(calls, ['/api/v1/stats?offset=0'], 'A record refresh must make one GET to its own endpoint');
       assert.deepEqual(events, ['timezone:America/Santiago', 'records', 'render:true']);
       assert.deepEqual(versions, ['2.0']);
       assert.equal(context.statusUtcAnchorSec, ui.timeUtcSec);
@@ -1282,15 +1293,15 @@ if (!statsSection ||
       await context.refreshStatus();
       assert.equal(events.at(-1), 'render:false', 'Refreshed state must precede rows and rating controls');
       ui.webUiOverrideActive = true;
-      await context.fetchRecordPage(view, 10, 10, 'append');
+      await context.fetchRecordPage(10, 10, 'append');
       assert.equal(events.at(-1), 'render:true', 'Later pages also carry fresh UI state');
       ui.webUiOverrideActive = false;
       await context.refreshStatus();
       assert.equal(events.at(-1), 'render:false', 'Override expiry must update record controls');
-      events.length = 0; response = {shots: [], history: []};
+      events.length = 0; response = {shots: []};
       assert.equal(await context.refreshStatus(), false);
       assert.deepEqual(events, ['error'], 'Missing UI state must fail without rendering records');
-      response = {ui, shots: [], history: []}; events.length = 0;
+      response = {ui, shots: []}; events.length = 0;
       const old = context.refreshStatus(); context.viewSeq++;
       assert.equal(await old, false);
       assert.deepEqual(events, [], 'A superseded response cannot apply state or render');
@@ -1298,10 +1309,80 @@ if (!statsSection ||
       assert.equal(await context.refreshStatus(), false);
       assert.equal(events.includes('records'), false, 'A compatibility redirect cannot render the old view');
     }
-    const state = network.slice(network.indexOf('esp_err_t ShotStopperNetwork::sendRecordPageState'),
+    // History rides the owned socket: snapshot frames hydrate UI state and
+    // replace the page, one-shot fetch frames append, epoch pushes poll, and
+    // invalid frames fail closed.
+    {
+      const events = [], resolved = [];
+      const ui = {firmwareVersion: '2.0', configMutable: true, webUiOverrideActive: false,
+        compatibilityMode: false, timeUtcSec: 1790809185, lastCommand: {requestId: 7, state: 'PERSISTED'},
+        config: {revision: 8, timezoneId: 'America/Santiago', appliedTimezoneOffsetMinutes: -180,
+          timezoneAutomatic: true, timezoneInitialized: true}};
+      const context = vm.createContext({activeView: 'history', viewSeq: 1,
+        historyLoaded: false, historyData: {bootId: 0, total: 0, hasMore: false, records: []},
+        historyFetchOffset: -1, historyReplaceNext: true, historyStreamBoot: 0,
+        historyResolve: value => resolved.push(value), historyViewActive: () => true,
+        statusPageOk: (page, state) => !!state,
+        developmentMode: false, compatMode: false, controlsMutable: false, firmwareVersion: '', bootId: 0,
+        lastCommandStatus: null, configRevision: 0, dateTimeDirty: false, statusUtcAnchorSec: 0,
+        statusUtcAnchorAt: 0, statusTimezoneOffsetMinutes: 0, performance: {now: () => 123},
+        setMutable: value => {context.controlsMutable = value;}, $: () => null,
+        syncTimezone: config => events.push('timezone:' + config.timezoneId),
+        checkFirmwareReload: () => {}, applyMachineTypeUi() {}, applyDiagnosticNavigation() {},
+        applyCommonStatus: () => events.push('state'),
+        applyHistoryPage: (data, mode) => {context.historyLoaded = true; events.push('records:' + mode);},
+        renderHistory: () => events.push('render:' + context.controlsMutable),
+        updateHeaderSignals() {}, updateFirmwareFooter() {}, noteReachOk() {},
+        __WEBUI_TEXT__: key => key});
+      const stream = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function historyStreamFrame('),
+          rawRuntimeJs.indexOf("document.addEventListener('visibilitychange'"));
+      vm.runInContext(stream, context);
+      const frame = extras => Object.assign({v: 1, type: 'history', boot: 9, snapshot: true,
+        epoch: 5, ui, bootId: 9, total: 2, offset: 0, limit: 20, hasMore: false,
+        records: [
+          {id: 2, type: 'shot', durationS: 28.5, hasWeight: true, hasWallTime: true,
+           endedAtUnixSec: 1790809185, endedAtLocalSec: 1790794385},
+          {id: 1, type: 'rinse', durationS: 4, hasWeight: false, hasWallTime: false,
+           endedAtUnixSec: 0, endedAtLocalSec: 0}]}, extras);
+      context.applyHistoryStream(context.historyStreamFrame(frame()));
+      assert.deepEqual(events, ['state', 'records:replace', 'render:false'],
+          'A snapshot must hydrate UI state before rendering rows');
+      assert.deepEqual(resolved, [true], 'The view load settles on the first replace frame');
+      events.length = 0;
+      context.applyHistoryStream(context.historyStreamFrame(frame({snapshot: false})));
+      assert.deepEqual(events, ['records:poll', 'render:false'],
+          'An epoch push without a resync merges like a poll');
+      events.length = 0;
+      context.historyFetchOffset = 2;
+      context.applyHistoryStream(context.historyStreamFrame(frame({snapshot: false,
+        offset: 2, hasMore: false, records: []})));
+      assert.equal(context.historyFetchOffset, -1, 'A served fetch clears its in-flight marker');
+      assert.deepEqual(events, ['records:append', 'render:false']);
+      events.length = 0;
+      context.historyViewActive = () => false;
+      context.applyHistoryStream(context.historyStreamFrame(frame({snapshot: false})));
+      assert.deepEqual(events, [], 'Frames on another view cannot apply state or records');
+      context.historyViewActive = () => true;
+      for (const bad of [frame({snapshot: false, boot: 10}),
+        frame({snapshot: false, hasMore: true}),
+        frame({snapshot: false, offset: 1, records: [
+          {id: 3, type: 'shot', durationS: 1, hasWeight: true, hasWallTime: false,
+           endedAtUnixSec: 1, endedAtLocalSec: 1},
+          {id: 4, type: 'shot', durationS: 1, hasWeight: true, hasWallTime: false,
+           endedAtUnixSec: 2, endedAtLocalSec: 2}]}),
+        frame({records: [{id: 0, type: 'shot', durationS: 1, hasWeight: true,
+          hasWallTime: false, endedAtUnixSec: 1, endedAtLocalSec: 1}]}),
+        frame({records: [{id: 5, type: 'shot', durationS: Infinity, hasWeight: true,
+          hasWallTime: false, endedAtUnixSec: 1, endedAtLocalSec: 1}]}),
+        frame({ui: null})]) {
+        assert.throws(() => context.historyStreamFrame(bad),
+            'invalid history frames must fail closed');
+      }
+    }
+    const state = network.slice(network.indexOf('bool ShotStopperNetwork::appendRecordPageUi'),
         network.indexOf('esp_err_t ShotStopperNetwork::shotsHandler'));
     assert.ok(state.includes('requestPendingNetworkConfirm()'), 'Record pages must confirm pending station settings');
-    assert.equal((network.match(/self\.sendRecordPageState\(request, work\.control\)/g) || []).length, 2);
+    assert.equal((network.match(/self\.sendRecordPageState\(request, work\.control\)/g) || []).length, 1);
     assert.ok(state.includes('webUiOverrideAllowed(request)'));
     assert.ok(state.includes('controlAllowsConfiguration(control)'));
     for (const unused of ['copyPresetBank', 'copyHomeShot', 'shotCurve', 'cupPresence', 'preferredMac']) {

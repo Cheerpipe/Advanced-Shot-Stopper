@@ -986,6 +986,11 @@ void copyHistoryPage(HistoryPage &page, size_t offset, size_t limit,
   historyLog.copyPage(page, offset, limit, dir);
 }
 
+uint32_t copyHistoryEpoch() {
+  TaskLockGuard lock(shotStoreMutex);
+  return historyLog.epoch();
+}
+
 bool deleteHistoryRecord(uint32_t id) {
   TaskLockGuard lock(shotStoreMutex);
   const bool changed = historyLog.removeById(id, false);

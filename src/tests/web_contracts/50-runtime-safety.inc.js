@@ -20,7 +20,7 @@ if (!ui.includes('async function loadStatus(){') ||
     !ui.includes('async function loadLog(){') ||
     !ui.includes('LOG_EVENTS_CAPACITY') ||
     !ui.includes('logEvents.splice(0,logEvents.length-LOG_EVENTS_CAPACITY)') ||
-    !ui.includes("function refreshStatus(){return withPollGate(activeView==='stats'?pollShots:activeView==='history'?pollHistory:loadStatus)}") ||
+    !ui.includes("function refreshStatus(){return withPollGate(activeView==='stats'?pollShots:activeView==='history'?refreshHistory:loadStatus)}") ||
     !ui.includes('function refreshShots(){return withPollGate(pollShots)}') ||
     !ui.includes('function refreshLog(){return withPollGate(loadLog)}') ||
     !(ui.includes("name==='home'||name==='settings'||name==='admin'||name==='diagnostic'") ||

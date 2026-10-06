@@ -20,7 +20,9 @@ function stopViewPolls(){clearCupWeights();clearInterval(statusTimer);statusTime
 function startView(name){startViewHook(name)}
 function renderRoute(pathname){routeRendererHook(pathname)}
 let diagnosticVisible=false;
-export function applyDiagnosticNavigation(s){if(s&&typeof s.diagnosticPageVisible==='boolean')diagnosticVisible=s.diagnosticPageVisible;const link=document.querySelector('[data-route="/diagnostic"]');if(link)link.classList.toggle('hidden',!diagnosticVisible||compatMode)}
+// Navigation visibility is Home-stream state now: applied from home deltas on
+// every view (see the socket handler) instead of the removed status probe.
+function applyDiagnosticNavigation(s){if(s&&typeof s.diagnosticPageVisible==='boolean')diagnosticVisible=s.diagnosticPageVisible;const link=document.querySelector('[data-route="/diagnostic"]');if(link)link.classList.toggle('hidden',!diagnosticVisible||compatMode)}
 function applyCompatibilityChrome(){document.body.classList.toggle('compatMode',compatMode);document.querySelectorAll('.pageNav a[data-route]').forEach(a=>{const r=a.getAttribute('data-route');if(r&&r!=='/admin')a.classList.toggle('hidden',compatMode)});applyDiagnosticNavigation();if(compatMode&&activeView&&activeView!=='admin'&&activeView!=='diagnostic')renderRoute('/admin')}
 export function compatibilityModeOn(){return compatMode}
 
@@ -280,15 +282,14 @@ function updateShotLogSentinel(){const el=$('shotLogSentinel');if(el){el.hidden=
 function applyShotPage(d,mode){shotsLoaded=true;const a=Array.isArray(d&&d.shots)?d.shots:[],t=typeof d.total==='number'?d.total:a.length;if(typeof d.bootId==='number')bootId=d.bootId;if(d&&d.stats)shotStats=d.stats;if(mode!=='poll'||!t){if(mode==='append'&&t){const s={};for(const x of shotHistory.shots)if(x&&x.id)s[x.id]=1;let n=0;for(const x of a)if(x&&x.id&&!s[x.id]){s[x.id]=1;shotHistory.shots.push(x);n++}shotHistory.total=t;shotHistory.hasMore=!!n&&!!d.hasMore;return}shotHistory={bootId:d.bootId||0,total:t,hasMore:!!d.hasMore&&!!t,shots:t?a:[]};return}const s={},m=[];for(const x of a)if(x&&x.id){m.push(x);s[x.id]=1}for(const x of shotHistory.shots)if(x&&x.id&&!s[x.id])m.push(x);if(m.length>t)m.length=t;shotHistory={bootId:d.bootId||shotHistory.bootId||0,total:t,hasMore:m.length<t,shots:m}}
 function shotStatsViewActive(){if(activeView!=='stats'||!webUiPollingActive())return false;const view=$('view-stats');return!!(view&&!view.classList.contains('hidden'))}
 function maybeLoadMoreShots(){if(recordBusy.stats||!shotHistory.hasMore||!shotStatsViewActive())return;const el=$('shotLogSentinel');if(!el||el.hidden)return;const r=el.getBoundingClientRect();if(r.bottom>0&&r.top<(innerHeight||0)+240)loadMoreShots()}
-const recordBusy={stats:false,history:false};
-async function fetchRecordPage(view,offset,limit,mode){if(recordBusy[view]||!webUiPollingActive())return;recordBusy[view]=true;const seq=viewSeq,stats=view==='stats';let ok=false;try{const data=await api((stats?shotsUrl:historyUrl)(offset,limit));await viewReady;if(seq!==viewSeq||!webUiPollingActive())return false;if(!statusPageOk('records',data.ui))throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));applyCommonStatus(data.ui);if(seq!==viewSeq||!webUiPollingActive())return false;(stats?applyShotPage:applyHistoryPage)(data,mode);(stats?renderShots:renderHistory)();updateFirmwareFooter();noteReachOk();ok=true}catch(e){if(seq===viewSeq)noteReachFail(e)}finally{recordBusy[view]=false;if(ok)(stats?maybeLoadMoreShots:maybeLoadMoreHistory)()}return ok}
-async function loadShots(){return fetchRecordPage('stats',0,SHOTS_PAGE_SIZE,'replace')}
-async function loadMoreShots(){if(!shotHistory.hasMore||!shotStatsViewActive())return;return withPollGate(()=>fetchRecordPage('stats',shotHistory.shots.length,SHOTS_PAGE_SIZE,'append'))}
-async function pollShots(){if(!shotStatsViewActive())return;return fetchRecordPage('stats',0,SHOTS_PAGE_SIZE,'poll')}
+const recordBusy={stats:false};
+async function fetchRecordPage(offset,limit,mode){if(recordBusy.stats||!webUiPollingActive())return;recordBusy.stats=true;const seq=viewSeq;let ok=false;try{const data=await api(shotsUrl(offset,limit));await viewReady;if(seq!==viewSeq||!webUiPollingActive())return false;if(!statusPageOk('records',data.ui))throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));applyCommonStatus(data.ui);if(seq!==viewSeq||!webUiPollingActive())return false;applyShotPage(data,mode);renderShots();updateFirmwareFooter();noteReachOk();ok=true}catch(e){if(seq===viewSeq)noteReachFail(e)}finally{recordBusy.stats=false;if(ok)maybeLoadMoreShots()}return ok}
+async function loadShots(){return fetchRecordPage(0,SHOTS_PAGE_SIZE,'replace')}
+async function loadMoreShots(){if(!shotHistory.hasMore||!shotStatsViewActive())return;return withPollGate(()=>fetchRecordPage(shotHistory.shots.length,SHOTS_PAGE_SIZE,'append'))}
+async function pollShots(){if(!shotStatsViewActive())return;return fetchRecordPage(0,SHOTS_PAGE_SIZE,'poll')}
 function refreshShots(){return withPollGate(pollShots)}
 async function exportShotsCsv(){try{const d=await api(shotsUrl(0,SHOTS_EXPORT_LIMIT,'date','desc'),{timeoutMs:15e3});const list=Array.isArray(d&&d.shots)?d.shots:[];const maxW=list.reduce((m,r)=>Math.max(m,r.wCg?.length||0),0);const rows=[['id','boot_id','local_time','has_wall_time','ended_at_unix','tz_off','duration_s','goal_g','yield_g','error_g','error_pct','offset_g','avg_flow_g_s','first_drop_s','tare_s','ext_guard','ext','slow_guard','slow_ext','stop','max_rec_g','min_bbw_brew_s','early_s','shot_type','cut_type','yield_source','rating','ended_at_ms','bbw_algorithm','bbw_algorithm_version','bbw_alpha','bbw_learning_applied','preset_id','scale_name','max_flow_g_s','curve_truncated','curve_break_before',...Array.from({length:maxW},(_,i)=>['sample_'+(i+1)+'_time_s','sample_'+(i+1)+'_weight_g','sample_'+(i+1)+'_flow_g_s']).flat()]];for(const r of list){const w=Array.isArray(r.wCg)?r.wCg:[],f=shotFlowCurveGS(r),actual=shotDisplayActualG(r.actualG,r.wCg);const errorG=actual===null||r.goalG==null?null:actual-r.goalG;const errorPct=errorG===null||!r.goalG?null:errorG/r.goalG*100;rows.push([r.id,r.bootId,formatShotTimeCsv(r),r.hasWallTime?'1':'0',r.endedAtUnixSec||'',r.hasWallTime?(r.timezoneOffsetMinutesAtCommit??''):'',r.durationS,r.goalG,actual??'',errorG??'',errorPct??'',r.offsetG,shotDisplayFlowGS(r)??'',r.firstDropS??'',r.tareS??'',r.extractionGuardEnabled?'1':'0',r.extractionExtended?'1':'0',r.slowExtractionGuardEnabled?'1':'0',r.slowExtractionExtended?'1':'0',r.stopDetail??'',r.maxRecoveryWeightG??'',r.minBbwBrewTimeS??'',r.targetReachedEarlyS??'',r.shotType,r.cutType,r.actualWeightSource??'',r.rating??0,r.endedAtMs,r.bbwAlgorithm??'',r.bbwAlgorithmVersion??'',r.bbwAlpha==null?'':Number(r.bbwAlpha).toFixed(2),r.bbwLearningApplied==null?'':r.bbwLearningApplied?'1':'0',r.presetId||'',r.scaleName||'',shotMaxFlowGS(r)??'',r.wTruncated?'1':'0',(r.wBreakBefore||[]).join(';'),...Array.from({length:maxW},(_,i)=>i<w.length?[r.wAtMs?.[i]==null?'':r.wAtMs[i]/1000,w[i]/100,f[i]==null?'':f[i].toFixed(2)]:['','','']).flat()])}const csv=rows.map(c=>c.map(v=>{const s=String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(',')).join('\n');const blob=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='shot-history.csv';a.click();URL.revokeObjectURL(a.href)}catch(e){message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_export_shot_history"),e),'error')}}
 
-const historyUrl=(offset,limit,dir)=>'/api/v1/history?offset='+(+offset||0)+'&limit='+(limit||HISTORY_PAGE_SIZE)+'&dir='+(dir||historyDir)
 const historyTypeLabel=t=>({shot:__WEBUI_TEXT__("runtime.type_shot"),rinse:__WEBUI_TEXT__("runtime.type_rinse"),other:__WEBUI_TEXT__("runtime.type_other"),backflush:__WEBUI_TEXT__("runtime.type_backflush"),power_on:'Power ON',no_scale_guard_aborted:__WEBUI_TEXT__("runtime.type_no_scale_guard_aborted")}[t])
 const HIST_TYPE_SVG={rinse:'<svg viewBox="0 0 60 60"><path d="M34.1,45.5a6.3,6.3,0,0,1-4.9,1.5,6,6,0,0,1-4.9-3.9c-.88-2.5.354-4.9,2.2-8.4a58.1,58.1,0,0,0,3.5-7.6,56.3,56.3,0,0,0,3.5,7.6c1.4,2.7,2.5,4.8,2.5,6.7A5.5,5.5,0,0,1,34.1,45.5Z"/><path d="M3.8,35.4A44.9,44.9,0,0,0,6,30.5,45,45,0,0,0,8.2,35.4C9.2,37.3,10,38.8,10,40.2a3.7,3.7,0,0,1-1.3,2.8,4.1,4.1,0,0,1-3.2.98A4,4,0,0,1,2.2,41.3C1.6,39.6,2.5,37.9,3.8,35.4Z"/><path d="M14.8,49.4A44.9,44.9,0,0,0,17,44.5a45,45,0,0,0,2.2,4.8C20.2,51.3,21,52.8,21,54.2a3.7,3.7,0,0,1-1.3,2.8,4.1,4.1,0,0,1-3.2.98,4,4,0,0,1-3.3-2.7C12.6,53.6,13.5,51.9,14.8,49.4Z"/><path d="M57.8,41.3a4,4,0,0,1-3.3,2.7,4.1,4.1,0,0,1-3.2-.98A3.7,3.7,0,0,1,50,40.2c0-1.4.778-2.9,1.8-4.8A44.9,44.9,0,0,0,54,30.5a44.9,44.9,0,0,0,2.2,4.8C57.5,37.9,58.4,39.6,57.8,41.3Z"/><path d="M46.8,55.3a4,4,0,0,1-3.3,2.7,4.1,4.1,0,0,1-3.2-.98A3.7,3.7,0,0,1,39,54.2c0-1.4.778-2.9,1.8-4.8A44.9,44.9,0,0,0,43,44.5a44.9,44.9,0,0,0,2.2,4.8C46.5,51.9,47.4,53.6,46.8,55.3Z"/><path d="M32.7,15a4.1,4.1,0,0,1-3.2.98,4,4,0,0,1-3.3-2.7c-.593-1.7.268-3.4,1.6-5.9A44.9,44.9,0,0,0,30,2.5,45,45,0,0,0,32.2,7.4C33.2,9.3,34,10.8,34,12.2A3.7,3.7,0,0,1,32.7,15Z"/><path d="M4.1,8.5A50.4,50.4,0,0,0,7,2.3,50.4,50.4,0,0,0,9.9,8.5C11.1,10.8,12,12.6,12,14.2a4.6,4.6,0,0,1-1.6,3.5,5.2,5.2,0,0,1-4.1,1.2A5,5,0,0,1,2.2,15.7C1.5,13.5,2.6,11.5,4.1,8.5Z"/><path d="M48.2,15.7c-.736-2.1.311-4.2,1.9-7.2A50.4,50.4,0,0,0,53,2.3a50.4,50.4,0,0,0,2.9,6.2C57.1,10.8,58,12.6,58,14.2a4.6,4.6,0,0,1-1.6,3.5,5.2,5.2,0,0,1-4.1,1.2A5,5,0,0,1,48.2,15.7Z"/><path d="M15.8,22.4A44.9,44.9,0,0,0,18,17.5a45,45,0,0,0,2.2,4.8C21.2,24.3,22,25.8,22,27.2a3.7,3.7,0,0,1-1.3,2.8,4.1,4.1,0,0,1-3.2.98,4,4,0,0,1-3.3-2.7C13.6,26.6,14.5,24.9,15.8,22.4Z"/><path d="M45.8,28.3a4,4,0,0,1-3.3,2.7,4.1,4.1,0,0,1-3.2-.98A3.7,3.7,0,0,1,38,27.2c0-1.4.778-2.9,1.8-4.8A44.9,44.9,0,0,0,42,17.5a44.9,44.9,0,0,0,2.2,4.8C45.5,24.9,46.4,26.6,45.8,28.3Z"/></svg>',shot:'<svg viewBox="0 0 512 512"><path d="M416.3,314.7v-79.6c0,-8.3,-6.8,-15.1,-15.1,-15.1H16.2c-8.3,0,-15.1,6.8,-15.1,15.1v79.6c0,70.3,38.9,132.2,97.4,167.1H16.3c-8.3,0,-15.1,6.8,-15.1,15.1c0,8.3,6.8,15.1,15.1,15.1h385c8.3,0,15.1,-6.8,15.1,-15.1c0,-8.3,-6.8,-15.1,-15.1,-15.1h-82.3C377.4,446.9,416.3,385,416.3,314.7z"/><path d="M446.5,247.2v30.8c19.7,5.4,34.2,23.5,34.2,44.8c0,23.8,-18,43.5,-41.1,46.2c-2.7,10.5,-6.1,20.7,-10.3,30.5h4.8c42.3,0,76.7,-34.4,76.7,-76.7C510.8,284.7,482.9,253.1,446.5,247.2z"/><path d="M313.9,98.7c19.7,-15.9,24.1,-32.9,24.4,-44.4c0.7,-27.9,-21.4,-48.3,-23.9,-50.5c-6.2,-5.5,-15.8,-5,-21.3,1.2c-5.5,6.2,-5,15.8,1.2,21.3c0.1,0.1,14.1,13.2,13.8,27.3c-0.2,7.5,-4.5,14.6,-13.2,21.6c-19.7,15.9,-24.1,32.9,-24.4,44.4c-0.7,27.9,21.4,48.3,23.9,50.5c2.9,2.6,6.5,3.8,10.1,3.8c4.2,0,8.3,-1.7,11.3,-5c5.5,-6.2,5,-15.7,-1.2,-21.3c-4,-3.6,-14.2,-15.5,-13.8,-27.4C300.9,112.7,305.3,105.7,313.9,98.7z"/><path d="M218.2,98.7c19.7,-15.9,24.1,-32.9,24.4,-44.4c0.7,-27.9,-21.4,-48.3,-23.9,-50.5c-6.2,-5.5,-15.8,-5,-21.3,1.2c-5.5,6.2,-5,15.8,1.2,21.3c0.1,0.1,14.1,13.2,13.8,27.3c-0.2,7.5,-4.5,14.6,-13.2,21.6c-19.7,15.9,-24.1,32.9,-24.4,44.4c-0.7,27.9,21.4,48.3,23.9,50.5c2.9,2.6,6.5,3.8,10.1,3.8c4.2,0,8.3,-1.7,11.3,-5c5.5,-6.2,5,-15.7,-1.2,-21.3c-4,-3.6,-14.2,-15.5,-13.8,-27.4C205.2,112.7,209.6,105.7,218.2,98.7z"/><path d="M122.5,98.7c19.7,-15.9,24.1,-32.9,24.4,-44.4c0.7,-27.9,-21.4,-48.3,-23.9,-50.5c-6.2,-5.5,-15.8,-5,-21.3,1.2c-5.5,6.2,-5,15.8,1.2,21.3c0.1,0.1,14.1,13.2,13.8,27.3c-0.2,7.5,-4.5,14.6,-13.2,21.6c-19.7,15.9,-24.1,32.9,-24.4,44.4c-0.7,27.9,21.4,48.3,23.9,50.5c2.9,2.6,6.5,3.8,10,3.8c4.2,0,8.3,-1.7,11.3,-5.1c5.5,-6.2,5,-15.8,-1.2,-21.3c-0.1,-0.1,-14.1,-13.2,-13.8,-27.3C109.5,112.8,113.8,105.7,122.5,98.7z"/></svg>',other:'<svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>'};
 HIST_TYPE_SVG.power_on='⏻'
@@ -296,16 +297,14 @@ HIST_TYPE_SVG.backflush='<svg viewBox="0 0 256 256"><use href="#hBF"/></svg>'
 HIST_TYPE_SVG.no_scale_guard_aborted='<svg><use href="#hNS"/></svg>'
 const formatHistoryTime=r=>r.hasWallTime&&r.endedAtLocalSec?formatHumanTime(r.endedAtLocalSec):__WEBUI_TEXT__("history.no_time")
 const syncHistoryDirButton=()=>{const i=$('historyDirButton');if(!i)return;const l=historyDir==='desc'?__WEBUI_TEXT__("runtime.newest_first"):__WEBUI_TEXT__("runtime.oldest_first");i.setAttribute('aria-label',l);i.title=l;i.textContent=historyDir==='desc'?__WEBUI_TEXT__("runtime.down"):__WEBUI_TEXT__("runtime.symbol_5")}
-const toggleHistoryDir=()=>{historyDir=historyDir==='desc'?'asc':'desc';syncHistoryDirButton();return withPollGate(()=>fetchRecordPage('history',0,HISTORY_PAGE_SIZE,'replace'))}
+const toggleHistoryDir=()=>{historyDir=historyDir==='desc'?'asc':'desc';syncHistoryDirButton();historyReplaceNext=true;historySendSubscribe()}
 const updateHistorySentinel=()=>{const el=$('historySentinel');if(el){el.hidden=!historyData.hasMore;el.textContent=historyData.hasMore?__WEBUI_TEXT__("runtime.more"):''}}
 function applyHistoryPage(d,mode){historyLoaded=true;const a=Array.isArray(d&&d.history)?d.history:[],t=typeof d.total==='number'?d.total:a.length;if(typeof d.bootId==='number')bootId=d.bootId;if(mode!=='poll'||!t){if(mode==='append'&&t){const s={};for(const x of historyData.records)if(x&&x.id)s[x.id]=1;let n=0;for(const x of a)if(x&&x.id&&!s[x.id]){s[x.id]=1;historyData.records.push(x);n++}historyData.total=t;historyData.hasMore=!!n&&!!d.hasMore;return}historyData={bootId:d.bootId||historyData.bootId||0,total:t,hasMore:!!d.hasMore&&!!t,records:t?a:[]};return}const s={},m=[];for(const x of a)if(x&&x.id){m.push(x);s[x.id]=1}for(const x of historyData.records)if(x&&x.id&&!s[x.id])m.push(x);if(m.length>t)m.length=t;historyData={bootId:d.bootId||historyData.bootId||0,total:t,hasMore:m.length<t,records:m}}
 const historyViewActive=()=>activeView==='history'&&webUiPollingActive()
-function maybeLoadMoreHistory(){if(recordBusy.history||!historyData.hasMore||!historyViewActive())return;const r=$('historySentinel').getBoundingClientRect();r.bottom>0&&r.top<innerHeight+240&&loadMoreHistory()}
+function maybeLoadMoreHistory(){if(historyFetchOffset>=0||!historyData.hasMore||!historyViewActive())return;const r=$('historySentinel').getBoundingClientRect();r.bottom>0&&r.top<innerHeight+240&&loadMoreHistory()}
 function renderHistory(){const body=$('historyRows');if(!body||!historyLoaded)return;body.replaceChildren();const rows=historyData.records;if(rows.length)for(const r of rows){const row=document.createElement('tr');const time=document.createElement('td');time.dataset.label=__WEBUI_TEXT__("runtime.time");time.className='histTime';time.textContent=formatHistoryTime(r);wrapTimeEl(time,r);const dur=document.createElement('td');dur.dataset.label=__WEBUI_TEXT__("runtime.dur");dur.className='shotDur';dur.textContent=(typeof r.durationS==='number'?r.durationS:0).toFixed(1)+'s';const type=document.createElement('td');type.dataset.label=__WEBUI_TEXT__("runtime.type");type.className='histType';const badge=document.createElement('span');badge.className='histBadge';badge.textContent=historyTypeLabel(r.type);type.appendChild(badge);const del=document.createElement('td');del.className='shotDel';const btn=document.createElement('button');btn.type='button';btn.className='btnGlyph btnDanger';btn.title=__WEBUI_TEXT__("runtime.delete");btn.setAttribute('aria-label',__WEBUI_TEXT__("runtime.delete"));btn.innerHTML=('<span class="g">'+__WEBUI_TEXT__("runtime.close")+'</span>');btn.onclick=()=>deleteOneHistory(r.id);del.appendChild(btn);const typeSvg=HIST_TYPE_SVG[r.type];if(typeSvg){const icon=document.createElement('td');icon.className='histIcon';icon.setAttribute('aria-hidden','true');icon.innerHTML=typeSvg;row.appendChild(icon)}row.append(time,dur,type,del);body.appendChild(row)}setEmptyState('historyTableState',rows.length?null:__WEBUI_TEXT__("runtime.no_recorded_activations_yet"));updateHistorySentinel()}
-const loadHistory=()=>fetchRecordPage('history',0,HISTORY_PAGE_SIZE,'replace')
-const loadMoreHistory=()=>historyData.hasMore&&historyViewActive()?withPollGate(()=>fetchRecordPage('history',historyData.records.length,HISTORY_PAGE_SIZE,'append')):undefined
-const pollHistory=async()=>{if(!historyViewActive())return;return fetchRecordPage('history',0,HISTORY_PAGE_SIZE,'poll')}
-const refreshHistory=()=>withPollGate(pollHistory)
+const loadMoreHistory=()=>{if(historyData.hasMore&&historyViewActive()&&historyFetchOffset<0){historyFetchOffset=historyData.records.length;historySend({op:'history',on:true,fetch:true,offset:historyFetchOffset})}}
+const refreshHistory=()=>historyViewActive()?startHistoryStream():Promise.resolve(false)
 async function clearActivationHistory(){if(!confirm(__WEBUI_TEXT__("runtime.clear_all_recorded_activation_history_this")))return;return withCommandGate(async()=>{try{await api('/api/v1/history/clear',{method:'POST',body:body({confirm:'CLEAR_HISTORY'})});historyData={bootId:historyData.bootId||0,total:0,hasMore:false,records:[]};renderHistory();message(__WEBUI_TEXT__("runtime.activation_history_cleared"),'ok')}catch(e){message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_clear_history"),e),'error')}})}
 async function deleteOneHistory(id){if(!id||!confirm(__WEBUI_TEXT__("runtime.delete_this_history_record")))return;return withCommandGate(async()=>{try{await api('/api/v1/history/delete',{method:'POST',body:body({id})});historyData.records=historyData.records.filter(r=>r.id!==id);if(typeof historyData.total==='number'&&historyData.total>0)historyData.total--;historyData.hasMore=historyData.records.length<historyData.total;renderHistory();message(__WEBUI_TEXT__("runtime.history_record_deleted"),'ok')}catch(e){message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_delete_history_record"),e),'error')}})}
 
@@ -528,6 +527,7 @@ let shotWs=null,shotRetry=0,shotTry=0,shotFrame=null,shotSeen=null,shotResync=!1
     if(shotWs!==socket||!webUiPollingActive()){socket.close();return}
     socket.send(JSON.stringify({op:'bind',client:webUiClientId,...shotSeen||{}}));
     if(diagStreamWanted)socket.send('{"op":"diagnostic","on":true}');
+    if(historyStreamWanted)historySendSubscribe();
     activity();
   };
   socket.onmessage=event=>{
@@ -542,12 +542,19 @@ let shotWs=null,shotRetry=0,shotTry=0,shotFrame=null,shotSeen=null,shotResync=!1
         if(next!==diagFrame){diagFrame=next;scheduleDiagPaint()}
         return;
       }
+      if(data.type==='history'){
+        applyHistoryStream(historyStreamFrame(data));
+        return;
+      }
       if(data.type==='home'){
         const paddleOff=homeFrame?.status.physicalActivatorOn===true&&data.changes?.physicalActivatorOn===false;
         homeFrame=homeStreamFrame(receivedHome?homeFrame:null,data);
         if('timeUtcSec' in data.changes){statusUtcAnchorSec=homeFrame.status.timeUtcSec;statusUtcAnchorAt=performance.now()}
         delete homeFrame.status.timeUtcSec;
         receivedHome=true;homeStale=false;
+        // Navigation visibility is a Home-stream field; applying it here keeps
+        // the Diagnostic menu entry live on every view without a REST probe.
+        if('diagnosticPageVisible' in data.changes)applyDiagnosticNavigation(homeFrame.status);
         if(noScaleClock&&homeFrame.boot===noScaleClock.boot&&(homeFrame.status.cycle?.active===false||
             homeFrame.status.machineType==='paddle'&&paddleOff))finishNoScaleTimer();
         if(activeView==='home')renderHomeStream();
@@ -568,7 +575,7 @@ let shotWs=null,shotRetry=0,shotTry=0,shotFrame=null,shotSeen=null,shotResync=!1
       invalidateHomeStream();shotStale=true;scheduleShotPaint();
       if(shotResync||socket.readyState!==WebSocket.OPEN)socket.close();
       else{
-        shotResync=true;receivedHome=receivedShot=false;
+        shotResync=true;receivedHome=receivedShot=false;historyFetchOffset=-1;
         homeReady=new Promise(resolve=>homeResolve=resolve);
         clearTimeout(setup);setup=setTimeout(()=>socket.close(),8e3);
         socket.send('{"op":"resync"}');
@@ -578,7 +585,7 @@ let shotWs=null,shotRetry=0,shotTry=0,shotFrame=null,shotSeen=null,shotResync=!1
   socket.onclose=event=>{
     clearTimeout(setup);clearTimeout(aliveTimer);clearTimeout(deadline);
     if(shotWs!==socket)return;
-    shotWs=null;diagFrame=null;shotStale=true;shotResync=false;invalidateHomeStream();scheduleShotPaint();
+    shotWs=null;diagFrame=null;historyFetchOffset=-1;historyResolve&&historyResolve(false);shotStale=true;shotResync=false;invalidateHomeStream();scheduleShotPaint();
     if(event?.code===4001){deactivateWebUi();return}
     if(activeView==='home'&&webUiPollingActive())noteReachFail({network:true},true);
     if(webUiPollingActive())shotRetry=setTimeout(startShotStream,Math.min(1e4,500*2**Math.min(shotTry++,5))*(.8+.4*Math.random()));
@@ -687,6 +694,35 @@ function diagStreamFrame(previous,message){
   }
   if(message.snapshot&&!diagSnapshotOk(status))throw Error();
   return{boot:message.boot,status};
+}
+// The activation-history page rides the owned socket the same way: the view
+// subscribes with its standing window, one-shot fetches append sentinel
+// pages, and store-epoch pushes (append, delete, clear) replace REST polling.
+let historyStreamWanted=false,historyReplaceNext=true,historyFetchOffset=-1,historyStreamBoot=0,historyReady=Promise.resolve(false),historyResolve=null;
+function historySend(op){if(shotWs&&shotWs.readyState===1)shotWs.send(JSON.stringify(op))}
+function historySendSubscribe(){historySend({op:'history',on:true,offset:0,limit:HISTORY_PAGE_SIZE,dir:historyDir})}
+function startHistoryStream(){if(!webUiPollingActive())return Promise.resolve(false);historyStreamWanted=true;historyReplaceNext=true;historyReady=new Promise(r=>historyResolve=r);historySendSubscribe();return historyReady}
+function stopHistoryStream(){historyStreamWanted=false;historyFetchOffset=-1;historyResolve&&historyResolve(false);historySend({op:'history',on:false})}
+function historyStreamFrame(message){
+  if(message.v!==1||!Number.isInteger(message.boot)||typeof message.snapshot!=='boolean'||!Number.isInteger(message.epoch)||
+     !Number.isInteger(message.total)||message.total<0||!Number.isInteger(message.offset)||message.offset<0||
+     !Number.isInteger(message.limit)||message.limit<1||message.limit>120||typeof message.hasMore!=='boolean'||
+     !Array.isArray(message.records))throw Error();
+  if(!message.snapshot&&message.boot!==historyStreamBoot)throw Error();
+  if(message.offset+message.records.length>message.total||message.hasMore!==(message.offset+message.records.length<message.total))throw Error();
+  for(const r of message.records){if(!r||!Number.isInteger(r.id)||r.id<=0||typeof r.type!=='string'||typeof r.durationS!=='number'||!Number.isFinite(r.durationS)||typeof r.hasWeight!=='boolean'||typeof r.hasWallTime!=='boolean'||!Number.isInteger(r.endedAtUnixSec)||!Number.isInteger(r.endedAtLocalSec))throw Error()}
+  if(message.snapshot&&!statusPageOk('records',message.ui))throw Error();
+  return message;
+}
+function applyHistoryStream(message){
+  if(!historyViewActive())return;
+  const fetch=historyFetchOffset>=0&&message.offset===historyFetchOffset;
+  const mode=fetch?'append':(historyReplaceNext||message.snapshot?'replace':'poll');
+  if(message.snapshot)applyCommonStatus(message.ui);
+  applyHistoryPage({bootId:message.bootId,total:message.total,hasMore:message.hasMore,history:message.records},mode);
+  historyStreamBoot=message.boot;historyReplaceNext=false;historyFetchOffset=-1;
+  renderHistory();updateFirmwareFooter();noteReachOk();
+  if(mode!=='append'&&historyResolve)historyResolve(true);
 }
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&webUiPollingActive()){stopShotStream();startShotStream()}});
 window.addEventListener('pagehide',stopShotStream);
@@ -840,7 +876,7 @@ async function otaFlash(){
 function otaDiscard(){otaBeginBusy();otaSend('/api/v1/ota/abort',null,null,OTA_COMMAND_TIMEOUT_MS).then(data=>{otaClearStore();otaCommitStore(null);$('otaFile').value='';otaEndBusy(data,__WEBUI_TEXT__("runtime.the_verified_image_was_discarded"),'ok')}).catch(e=>{otaEndBusy(null,formatCommandError(__WEBUI_TEXT__("runtime.the_image_could_not_be_discarded"),e),'error')})}
 function statusPageOk(v,s){const c=s&&s.config;if(!c||typeof s.configMutable!=='boolean')return!1;return v==='records'?!!(typeof s.firmwareVersion==='string'&&typeof s.webUiOverrideActive==='boolean'&&typeof s.compatibilityMode==='boolean'&&typeof s.timeUtcSec==='number'&&typeof c.revision==='number'&&typeof c.timezoneId==='string'&&typeof c.appliedTimezoneOffsetMinutes==='number'&&typeof c.timezoneAutomatic==='boolean'&&typeof c.timezoneInitialized==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'&&typeof s.lastCommand.state==='string'):v==='home'?!!(typeof s.adminUnlocked==='boolean'&&typeof c.soundAlertsEnabled==='boolean'&&s.safety&&s.scale&&s.presets&&s.cycle&&s.lastShot&&s.noScaleShotGuard&&typeof s.machineState==='string'&&s.cupPresence):v==='settings'?!!(typeof c.soundAlertsEnabled==='boolean'&&typeof c.dripDelayMs==='number'&&typeof c.postTareBaselineGraceMs==='number'&&s.scale&&s.presets&&typeof s.buzzerSupported==='boolean'):v==='admin'?!!(typeof s.adminUnlocked==='boolean'&&s.network&&(s.adminUnlocked?(s.bleScan&&typeof s.bleScan.scanIntensity==='string'&&typeof c.timezoneId==='string'&&c.ntpServerPreset!=null&&s.ota&&typeof s.ota.available==='boolean'&&s.webhooks&&typeof s.webhooks.enabled==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'):typeof s.network.configState==='string')):v==='diagnostic'?!!(typeof s.adminUnlocked==='boolean'&&(s.adminUnlocked?(s.network&&s.time&&s.maintenance&&s.health&&s.safety&&s.scale&&s.lastCommand&&typeof s.machineState==='string'&&typeof s.state==='string'&&s.cupPresence&&typeof s.physicalActivatorOn==='boolean'&&'reedOn' in s&&typeof s.relayClosed==='boolean'&&typeof s.controlSource==='string'&&typeof s.safety.state==='string'&&typeof s.scale.streamState==='string'&&typeof c.serialDebugOutput==='boolean'&&s.compileFlags&&s.serial&&typeof s.serial.io4==='string'&&typeof s.serial.state==='string'&&s.guards&&typeof s.guards.bbwEnabled==='boolean'&&s.guards.noScale&&s.guards.atm&&s.guards.slowExtraction&&s.guards.fastExtraction&&s.guards.accidentalTouch&&s.guards.cupProtection&&s.tasks&&typeof s.tasks.state==='string'):true)):!1}
 async function loadStatus(){if(statusBusy||document.hidden||!webUiPollingActive())return;statusBusy=true;const seq=viewSeq;try{pollAt=Date.now();const v=activeView,s=v==='home'?await loadHomeStatus():await api('/api/v1/status/'+v);await viewReady;if(seq!==viewSeq||!webUiPollingActive())return false;if(!statusPageOk(v,s))throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));lastStatusAt=Date.now();if(typeof s.liveShot==='boolean')statusLiveShot=s.liveShot;else if(s.cycle||typeof s.relayClosed==='boolean')statusLiveShot=!!((s.cycle&&s.cycle.active)||s.machineRunning||s.relayClosed);applyCommonStatus(s);if(s.snapshotStale)setMutable(false);const apply=viewStatusHandlers[v];if(apply)apply(s);if(v==='admin'&&s.adminUnlocked){await timezoneCatalogPromise;await timezonePreviewLoad?.catch(()=>{})}noteReachOk();armStatusTimer();return true}catch(e){if(seq===viewSeq)noteReachFail(e);return false}finally{statusBusy=false}}
-function refreshStatus(){return withPollGate(activeView==='stats'?pollShots:activeView==='history'?pollHistory:loadStatus)}
+function refreshStatus(){return withPollGate(activeView==='stats'?pollShots:activeView==='history'?refreshHistory:loadStatus)}
 async function loadLog(){if(logBusy)return logBusy;if((!diagnosticUnlocked&&!diagnosticPublicView)||document.hidden||!webUiPollingActive())return true;logBusy=(async()=>{try{const d=await api('/api/v1/log?after='+lastLog),b=+d.bootId;if((logBootId&&b&&b!==logBootId)||d.cursorInvalid){logEvents=[];lastLog=logMissed=0;bootId=logBootId=b}else{bootId=logBootId=b;logMissed+=d.missedEvents||0;for(const e of d.events){logEvents.push(e);lastLog=e.sequence}if(logEvents.length>LOG_EVENTS_CAPACITY)logEvents.splice(0,logEvents.length-LOG_EVENTS_CAPACITY);updateLogHealth(d)}renderLog();updateFirmwareFooter();noteReachOk();return true}catch(e){noteReachFail(e);return false}finally{logBusy=false}})();return logBusy}
 function refreshLog(){return withPollGate(loadLog)}
 async function clearShotHistory(){if(!confirm(__WEBUI_TEXT__("runtime.clear_all_recorded_shot_history_this_cannot")))return;return withCommandGate(async()=>{try{await api('/api/v1/stats/clear',{method:'POST',body:body({confirm:'CLEAR_SHOT_LOG'})});shotHistory={bootId:shotHistory.bootId||0,total:0,hasMore:false,shots:[]};shotStats={};renderShots();message(__WEBUI_TEXT__("runtime.shot_history_cleared"),'ok')}catch(e){message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_clear_shot_history"),e),'error')}})}
@@ -859,11 +895,11 @@ export {
   registerViewStatus, setEnsureViewHook,
   setActiveView, setViewPollHooks, stopViewPolls,
   refreshStatus, loadStatus, armStatusTimer,
-  startDiagnosticStream, stopDiagnosticStream,
+  startDiagnosticStream, stopDiagnosticStream, startHistoryStream, stopHistoryStream,
   loadLog, refreshLog, renderLog, clearLogView,
   loadShots, loadMoreShots, refreshShots, exportShotsCsv, clearShotHistory,
   renderStatsDurChart,
-  loadHistory, loadMoreHistory, refreshHistory, clearActivationHistory,
+  loadMoreHistory, clearActivationHistory,
   toggleHistoryDir, syncHistoryDirButton,
   setShotSort, toggleShotSortDir, syncShotSortButtons,
   resetNetworkAddressLoaded,

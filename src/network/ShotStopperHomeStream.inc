@@ -362,3 +362,96 @@ bool ShotStopperNetwork::sendDiagnosticStream(ShotStreamSession &session,
   session.diagResync = false;
   return true;
 }
+
+// Same bounded, view-scoped contract as the diagnostic sender: only a session
+// holding the History subscription reaches this path. A cheap store epoch
+// gates the page copy, and a CRC fingerprint over the finished frame body
+// (window, epoch, and records are all serialized in it) suppresses the send
+// while the page is unchanged — the HomeStreamDelta no-change contract. A
+// pending one-shot fetch rides the same frame but never disturbs the standing
+// window's bookkeeping.
+__attribute__((optimize("Os")))
+bool ShotStopperNetwork::sendHistoryStream(ShotStreamSession &session,
+                                           const ControlStatusSnapshot &control) {
+  const uint32_t epoch = callbacks_.historyEpoch ? callbacks_.historyEpoch() : 0;
+  const bool initial =
+      session.historyResync || session.historyBoot != control.bootId;
+  // A snapshot supersedes any pending append fetch: the client resets its
+  // in-flight marker when a replace lands.
+  if (initial) session.historyFetch = false;
+  const bool fetch = session.historyFetch;
+  if (!initial && !fetch && epoch == session.historyEpoch) return true;
+  const size_t offset =
+      fetch ? session.historyFetchOffset : session.historyOffset;
+  // The page is copied under the store mutex by the bridge callback, so a
+  // torn multi-word record is never observed. The union member is exclusive
+  // to this dispatch; the shot-card tail rebuilds jsonItem only afterwards.
+  HistoryPage &page = g_work->historyPage;
+  if (callbacks_.copyHistoryPage) {
+    callbacks_.copyHistoryPage(page, offset, session.historyLimit,
+                               session.historyDir);
+  } else {
+    page.total = page.start = page.count = 0;
+    page.hasMore = false;
+  }
+  bool override = false;
+  {
+    TaskLockGuard lock(dataMux_);
+    override = webUiOverrideActive_ &&
+        static_cast<int32_t>(millis() - webUiOverrideUntilMs_) < 0;
+  }
+  size_t used = 0;
+  if (!statusJsonAppend(&used,
+          "{\"v\":1,\"type\":\"history\",\"boot\":%lu,\"snapshot\":%s,"
+          "\"epoch\":%lu,",
+          static_cast<unsigned long>(control.bootId),
+          initial ? "true" : "false",
+          static_cast<unsigned long>(epoch)) ||
+      (initial && !appendRecordPageUi(control, &used, override)) ||
+      !statusJsonAppend(&used,
+          "\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
+          "\"hasMore\":%s,\"records\":[",
+          static_cast<unsigned long>(control.bootId),
+          static_cast<unsigned>(page.total), static_cast<unsigned>(page.start),
+          static_cast<unsigned>(session.historyLimit),
+          page.hasMore ? "true" : "false"))
+    return false;
+  for (size_t index = 0; index < page.count; ++index) {
+    const HistoryRecord &record = page.records[index];
+    if (!statusJsonAppend(&used,
+            "%s{\"id\":%lu,\"type\":\"%s\",\"durationS\":%.1f,"
+            "\"hasWeight\":%s,\"hasWallTime\":%s,\"endedAtUnixSec\":%lu,"
+            "\"endedAtLocalSec\":%lu}",
+            index == 0 ? "" : ",",
+            static_cast<unsigned long>(record.id),
+            historyTypeName(static_cast<HistoryType>(record.type)),
+            static_cast<double>(record.durationDs) / 10.0,
+            (record.flags & HISTORY_FLAG_NO_WEIGHT) == 0 ? "true" : "false",
+            (record.flags & HISTORY_FLAG_WALL_TIME) != 0 ? "true" : "false",
+            static_cast<unsigned long>(record.endedAtUnixSec),
+            static_cast<unsigned long>(record.endedAtLocalSec)))
+      return false;
+  }
+  if (!statusJsonAppend(&used, "]}")) return false;
+  const uint32_t fingerprint = crc32Update(0xFFFFFFFFU,
+      reinterpret_cast<const uint8_t *>(g_work->statusJson), used);
+  if (!initial && !fetch && fingerprint == session.historyFingerprint)
+    return true;
+  // Recheck ownership immediately before delivery; telemetry never renews it.
+  bool owner;
+  { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
+  httpd_ws_frame_t frame = {};
+  frame.type = HTTPD_WS_TYPE_TEXT;
+  frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
+  frame.len = used;
+  if (!owner || httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK)
+    return false;
+  session.historyBoot = control.bootId;
+  session.historyResync = false;
+  session.historyFetch = false;
+  if (!initial && !fetch) {
+    session.historyEpoch = epoch;
+    session.historyFingerprint = fingerprint;
+  }
+  return true;
+}
