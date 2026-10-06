@@ -36,6 +36,8 @@ const routes = {
   '/guard-profiles.js': ['text/javascript', 'scripts/web-preview/guard-profiles.js'],
   '/guard-tables': ['text/html; charset=utf-8', 'scripts/web-preview/guard-tables.html'],
   '/guard-tables.js': ['text/javascript', 'scripts/web-preview/guard-tables.js'],
+  '/nav-glass': ['text/html; charset=utf-8', 'scripts/web-preview/nav-glass.html'],
+  '/nav-glass.js': ['text/javascript', 'scripts/web-preview/nav-glass.js'],
 };
 
 function renderHome() {

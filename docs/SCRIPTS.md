@@ -107,6 +107,19 @@ hide Diagnostics. The bar reserves room for the phone's safe area and the
 page content. Settings and device actions are disabled in this proposal;
 it does not connect to hardware or change firmware.
 
+### Floating navigation glass preview
+
+Open `http://127.0.0.1:4173/nav-glass` on the same running preview server to
+review two material proposals for the floating navigation bar. Both keep the
+current pill shape and show a moving selection highlight: tapping any
+destination slides the highlight from the previous destination instead of
+jumping. Option 1 is a frosted-glass bar that blurs and saturates whatever
+scrolls behind it, with a lit top edge. Option 2 adds a light band that sweeps
+across the bar every few seconds and a glow that follows the pointer or finger
+on each destination. Use the theme button in the corner to cycle auto, light,
+and dark. Each bar floats over animated color blobs so the blur is visible.
+This preview does not connect to a device or change its settings.
+
 ### No-scale guard icon preview
 
 Open `http://127.0.0.1:4173/compare#no-scale` on the same running server
