@@ -147,6 +147,9 @@
   assert(diagRegion.includes('control.scaleAvailable && control.currentTimerValid'));
   assert(diagRegion.includes('control.currentTimerMs / 100 * 100'),
       'the timer keeps the Home projection 0.1 s quantization');
+  assert(diagRegion.includes('static_cast<uint32_t>(millis() - micra.sampleAtMs) / 1000 * 1000'),
+      'the Micra sample age must quantize to whole seconds so an idle stream'
+      + ' does not emit one frame per dispatch tick');
   assert(diagRegion.includes('session.diagBoot = control.bootId'));
   assert(runtimeJs.includes("t('dScaleTimer',formatScaleTimer(s))") &&
          runtimeJs.includes("t('dScaleWeight',formatScaleWeight(s))"),

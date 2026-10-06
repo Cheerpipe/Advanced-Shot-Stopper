@@ -332,8 +332,10 @@ bool ShotStopperNetwork::sendDiagnosticStream(ShotStreamSession &session,
     delta.field("lineaMicra.observedMode", "\"%s\"", lineaMicraObservedModeName(micra.observedMode));
     delta.field("lineaMicra.quality", "\"%s\"", lineaMicraObservationQualityName(micra.quality));
     delta.field("lineaMicra.sampleValid", bool(sampleValid));
+    // Whole seconds: the UI renders integer age and interpolates locally, so
+    // a raw millisecond age would force one frame every dispatch tick.
     delta.field("lineaMicra.sampleAgeMs", "%lu",
-                static_cast<unsigned long>(micra.sampleAtMs == 0 ? 0 : static_cast<uint32_t>(millis() - micra.sampleAtMs)));
+                static_cast<unsigned long>(micra.sampleAtMs == 0 ? 0 : static_cast<uint32_t>(millis() - micra.sampleAtMs) / 1000 * 1000));
     delta.field("lineaMicra.freshnessPolicy", "\"%s\"",
                 micra.connectionFreshness ? "connection" : "time");
     delta.field("lineaMicra.freshnessMs", "%lu",
