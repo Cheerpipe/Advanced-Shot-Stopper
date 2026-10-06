@@ -17,27 +17,27 @@
     window: {addEventListener: (name, fn) => {events[name] = fn;}},
   });
   vm.runInContext(runtimeJs.slice(start, runtimeJs.indexOf('\nlet homeBootDone=', start)).replace(/^export /gm, ''), context);
-  for (const [rssi, level] of [[-128, '1'], [-81, '1'], [-80, '2'], [-61, '2'], [-60, '3'], [0, '3'], [null, 'unknown'], [NaN, 'unknown'], [Infinity, 'unknown'], [-129, 'unknown'], [1, 'unknown'], ['-52', 'unknown']]) {
-    context.updateHeaderSignals({connections: {wifiConnected: true, wifiRssi: rssi, bluetoothConnected: true, bluetoothRssi: rssi}});
-    for (const kind of ['wifi', 'bluetooth']) assert.equal(elements[kind + 'Signal'].dataset.level, level, String(rssi));
+  for (const [signal, level] of [[1, '1'], [2, '2'], [3, '3'], [null, 'unknown'], [NaN, 'unknown'], [Infinity, 'unknown'], [-1, 'unknown'], [0, 'unknown'], [4, 'unknown'], [1.5, 'unknown'], ['3', 'unknown']]) {
+    context.updateHeaderSignals({connections: {wifiConnected: true, wifiLevel: signal, bluetoothConnected: true, bluetoothLevel: signal}});
+    for (const kind of ['wifi', 'bluetooth']) assert.equal(elements[kind + 'Signal'].dataset.level, level, String(signal));
   }
-  context.updateHeaderSignals({connections: {wifiConnected: true, wifiRssi: -52, bluetoothConnected: false, bluetoothRssi: -52}});
+  context.updateHeaderSignals({connections: {wifiConnected: true, wifiLevel: 3, bluetoothConnected: false, bluetoothLevel: 3}});
   assert.equal(elements.wifiSignal.dataset.level, '3');
   assert.equal(elements.bluetoothSignal.dataset.level, '0', 'Disconnect overrides an old reading');
   assert.equal(elements.bluetoothSignal.attributes['aria-label'], 'Bluetooth: Scale disconnected');
-  context.updateHeaderSignals({connections: {wifiConnected: false, wifiRssi: -52}});
+  context.updateHeaderSignals({connections: {wifiConnected: false, wifiLevel: 3}});
   assert.equal(elements.wifiSignal.dataset.level, '0', 'STA disconnected does not imply a strong AP signal');
-  context.updateHeaderSignals({snapshotStale: true, connections: {wifiConnected: true, wifiRssi: -52, bluetoothConnected: true, bluetoothRssi: -52}});
+  context.updateHeaderSignals({snapshotStale: true, connections: {wifiConnected: true, wifiLevel: 3, bluetoothConnected: true, bluetoothLevel: 3}});
   assert.equal(elements.wifiSignal.dataset.level, 'unknown');
   assert.equal(elements.bluetoothSignal.dataset.level, 'unknown');
   context.updateHeaderSignals();
   assert.equal(elements.wifiSignal.title, 'Wi-Fi: Signal unavailable', 'Transport failures clear the displayed measurement');
   assert.equal(elements.bluetoothSignal.title, 'Bluetooth: Signal unavailable');
-  context.updateHeaderSignals({connections: {wifiConnected: true, wifiRssi: -60, bluetoothConnected: true, bluetoothRssi: -80}});
-  assert.equal(elements.wifiSignal.title, 'Wi-Fi: Strong · -60 dBm');
-  assert.equal(elements.bluetoothSignal.title, 'Bluetooth: Medium · -80 dBm');
-  context.updateHeaderSignals({connections: {wifiConnected: true, wifiRssi: null, wifiName: 'Cafe "A"\\B', bluetoothConnected: true, bluetoothRssi: -52, bluetoothName: '<img src=x onerror=alert(1)>'}});
-  assert.equal(elements.wifiName.textContent, 'Cafe "A"\\B', 'Connected names survive missing RSSI');
+  context.updateHeaderSignals({connections: {wifiConnected: true, wifiLevel: 3, bluetoothConnected: true, bluetoothLevel: 2}});
+  assert.equal(elements.wifiSignal.title, 'Wi-Fi: Strong');
+  assert.equal(elements.bluetoothSignal.title, 'Bluetooth: Medium');
+  context.updateHeaderSignals({connections: {wifiConnected: true, wifiLevel: null, wifiName: 'Cafe "A"\\B', bluetoothConnected: true, bluetoothLevel: 3, bluetoothName: '<img src=x onerror=alert(1)>'}});
+  assert.equal(elements.wifiName.textContent, 'Cafe "A"\\B', 'Connected names survive missing signal level');
   assert.equal(elements.bluetoothName.textContent, '<img src=x onerror=alert(1)>', 'Identity is rendered as text');
   assert.equal(elements.wifiDetail.textContent, 'Signal unavailable');
   context.initHeaderSignals();
@@ -51,7 +51,7 @@
   assert.equal(elements.wifiDetails.hidden, true);
   assert.equal(buttons[0].attributes['aria-expanded'], 'false');
   assert.equal(elements.bluetoothDetails.hidden, false, 'Each icon opens its own popup');
-  context.updateHeaderSignals({connections: {bluetoothConnected: false, bluetoothName: 'Old scale', bluetoothRssi: -52}});
+  context.updateHeaderSignals({connections: {bluetoothConnected: false, bluetoothName: 'Old scale', bluetoothLevel: 3}});
   assert.equal(elements.bluetoothName.textContent, 'None');
   assert.equal(elements.bluetoothDetail.textContent, 'Scale disconnected', 'Open popup refreshes on disconnect');
   events.keydown({key: 'Escape'});
@@ -71,7 +71,7 @@
   assert(rawRuntimeJs.includes('noteReachFail(err,force){clearCupWeights();updateHeaderSignals();'));
   for (const file of ['network/ShotStopperStatus.inc', 'diagnostics/ShotStopperNetworkDiagnostics.inc']) {
     const source = fs.readFileSync(path.join(sketchDir, file), 'utf8');
-    for (const field of ['wifiConnected', 'wifiRssi', 'bluetoothConnected', 'bluetoothRssi', 'wifiName', 'bluetoothName']) assert(source.includes('\\"' + field + '\\"'), file + ': ' + field);
+    for (const field of ['wifiConnected', 'wifiLevel', 'bluetoothConnected', 'bluetoothLevel', 'wifiName', 'bluetoothName']) assert(source.includes('\\"' + field + '\\"'), file + ': ' + field);
     assert(source.includes('escapeConnectedScaleName(control, g_work->scaleHistory,'), 'Both envelopes use the connected identity resolver');
     assert(source.includes('escapeJsonString(network.staState == StaState::CONNECTED ? network.staSsid : ""'), 'Preserve escaped SSID only while connected');
   }

@@ -48,7 +48,9 @@ requires the Micra WebSocket connection and state observation to be enabled.
 The header shows the controller's home-network Wi-Fi signal and its Bluetooth
 link to the scale. More lit arcs or bars mean a stronger signal; amber means
 weak reception. Tap Wi-Fi to see the connected network name and signal level;
-tap Bluetooth to see the connected scale and its signal level. The scale uses
+tap Bluetooth to see the connected scale and its signal level. These indicators
+update when reception moves between weak, medium, and strong; the popups show
+the level rather than a fluctuating dBm reading. The scale uses
 your friendly name when set; otherwise it shows the scale's model name when
 recognized, or the name reported over Bluetooth. Tap the same
 icon again, tap outside the popup, or press Escape to close it. A crossed-out

@@ -45,7 +45,7 @@ function updateHeaderSignals(s={}){
 const c=s.snapshotStale?{}:s.connections||{},levels=[__WEBUI_TEXT__("runtime.disconnected"),__WEBUI_TEXT__("runtime.signal_weak"),__WEBUI_TEXT__("runtime.signal_medium"),__WEBUI_TEXT__("runtime.signal_strong")],unavailable=__WEBUI_TEXT__("runtime.signal_unavailable");
 for(const[kind,name]of [['wifi',__WEBUI_TEXT__("shell.wifi")],['bluetooth',__WEBUI_TEXT__("shell.bluetooth")]]){
 const button=$(kind+'Signal');if(!button)continue;
-const connected=c[kind+'Connected'],signal=c[kind+'SignalLevel'],valid=Number.isInteger(signal)&&signal>=1&&signal<=3;
+const connected=c[kind+'Connected'],signal=c[kind+'Level'],valid=Number.isInteger(signal)&&signal>=1&&signal<=3;
 const level=connected===false?0:connected===true&&valid?signal:'unknown';
 const label=level==='unknown'?unavailable:level===0?(kind==='bluetooth'?__WEBUI_TEXT__("runtime.scale_disconnected"):levels[0]):levels[level];
 button.dataset.level=String(level);button.title=name+': '+label;button.setAttribute('aria-label',button.title);

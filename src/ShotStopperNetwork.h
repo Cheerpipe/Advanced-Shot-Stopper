@@ -155,6 +155,12 @@ struct NetworkHeapTelemetrySnapshot {
   HeapLifecycleAggregate ota = {};
 };
 
+__attribute__((noinline))
+inline const char *connectionSignalLevelJson(bool valid, int8_t rssi) {
+  if (!valid || rssi > 0) return "null";
+  return rssi >= -60 ? "3" : rssi >= -80 ? "2" : "1";
+}
+
 inline uint8_t wifiRssiToSignalQualityPct(int32_t rssi) {
   if (rssi <= -100) {
     return 0;

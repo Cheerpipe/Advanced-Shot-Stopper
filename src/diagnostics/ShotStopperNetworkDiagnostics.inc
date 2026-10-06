@@ -988,11 +988,6 @@ esp_err_t ShotStopperNetwork::sendRecordPageState(
   }
   char version[32] = {};
   sanitizeJsonEmbed(FW_VERSION, version, sizeof(version));
-  char wifiRssi[8] = "null", bluetoothRssi[8] = "null";
-  if (network.staLinkMetricsValid)
-    snprintf(wifiRssi, sizeof(wifiRssi), "%d", static_cast<int>(network.staRssi));
-  if (control.scaleRssiValid)
-    snprintf(bluetoothRssi, sizeof(bluetoothRssi), "%d", static_cast<int>(control.scaleRssi));
   char wifiName[WIFI_SSID_CAPACITY * 6] = {};
   char bluetoothName[PREFERRED_SCALE_NAME_CAPACITY * 6] = {};
   escapeJsonString(network.staState == StaState::CONNECTED ? network.staSsid : "",
@@ -1010,8 +1005,8 @@ esp_err_t ShotStopperNetwork::sendRecordPageState(
           "\"webUiOverrideActive\":%s,\"compatibilityMode\":%s,"
           "\"development\":%s,\"machineType\":\"%s\","
           "\"machineIntegration\":\"%s\",\"timeUtcSec\":%lu,"
-          "\"snapshotStale\":%s,\"connections\":{\"wifiConnected\":%s,\"wifiRssi\":%s,"
-          "\"bluetoothConnected\":%s,\"bluetoothRssi\":%s,"
+          "\"snapshotStale\":%s,\"connections\":{\"wifiConnected\":%s,\"wifiLevel\":%s,"
+          "\"bluetoothConnected\":%s,\"bluetoothLevel\":%s,"
           "\"wifiName\":\"%s\",\"bluetoothName\":\"%s\"},"
           "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"},"
           "\"config\":{\"revision\":%lu,\"timezoneId\":\"%s\","
@@ -1028,8 +1023,10 @@ esp_err_t ShotStopperNetwork::sendRecordPageState(
 #endif
           static_cast<unsigned long>(time.utcSec),
           control.snapshotStale ? "true" : "false",
-          network.staState == StaState::CONNECTED ? "true" : "false", wifiRssi,
-          control.scaleAvailable ? "true" : "false", bluetoothRssi,
+          network.staState == StaState::CONNECTED ? "true" : "false",
+          connectionSignalLevelJson(network.staLinkMetricsValid, network.staRssi),
+          control.scaleAvailable ? "true" : "false",
+          connectionSignalLevelJson(control.scaleRssiValid, control.scaleRssi),
           wifiName, bluetoothName,
           static_cast<unsigned long>(network.lastCommandRequestId),
           commandResultStateName(network.lastCommandState),

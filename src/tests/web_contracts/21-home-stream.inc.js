@@ -115,6 +115,8 @@
   const assert = require('assert').strict, {spawnSync} = require('child_process');
   const stream = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperHomeStream.inc'), 'utf8');
   const writer = stream.slice(0, stream.indexOf('// This bounded presentation'));
+  const network = fs.readFileSync(path.join(sketchDir, 'ShotStopperNetwork.h'), 'utf8');
+  const signal = network.slice(network.indexOf('inline const char *connectionSignalLevelJson('), network.indexOf('inline uint8_t wifiRssiToSignalQualityPct('));
   const domainSource = fs.readFileSync(path.join(sketchDir, 'ShotStopperDomain.h'), 'utf8');
   const crc = domainSource.slice(domainSource.indexOf('inline uint32_t crc32Update('), domainSource.indexOf('inline uint32_t crc32('));
   const directory = path.resolve(sketchDir, '..', 'temp', 'ai_temp_home_websocket_contract');
@@ -126,6 +128,8 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
+#include <utility>
 struct NetworkWorkBuf { static constexpr size_t kJsonItem=3600,kStatusJson=40960; char jsonItem[kJsonItem],statusJson[kStatusJson]; } work;
 auto *g_work=&work;
 bool statusJsonAppend(size_t *used,const char *fmt,...){
@@ -134,6 +138,7 @@ bool statusJsonAppend(size_t *used,const char *fmt,...){
 }
 ${crc}
 ${writer}
+${signal}
 int main(){
   uint32_t hashes[3]={};
   auto sample=[&](bool initial,bool connected,double weight,unsigned timer){
@@ -153,6 +158,27 @@ int main(){
   HomeStreamDelta overflow{hashes,3,0,NetworkWorkBuf::kStatusJson-1,0,true};overflow.field("extra","null");assert(!overflow.ok);
   char huge[NetworkWorkBuf::kJsonItem+1];memset(huge,'x',sizeof(huge)-1);huge[sizeof(huge)-1]=0;
   HomeStreamDelta large{hashes,3,0,0,0,true};large.field("extra","%s",huge);assert(!large.ok);
+  for(const char *path:{"connections.wifiLevel","connections.bluetoothLevel"}){
+    auto link=[&](bool initial,bool connected,bool valid,int rssi){
+      HomeStreamDelta delta{hashes,3,0,0,0,initial};
+      delta.field("connected",connected);
+      delta.field(path,"%s",connectionSignalLevelJson(valid,rssi));
+      assert(delta.ok);return delta.changed;
+    };
+    assert(link(true,true,true,-44)==2);
+    for(int rssi=-45;rssi>=-60;--rssi)assert(link(false,true,true,rssi)==0);
+    assert(link(false,true,true,-61)==1);
+    for(int rssi=-62;rssi>=-80;--rssi)assert(link(false,true,true,rssi)==0);
+    assert(link(false,true,true,-81)==1);assert(link(false,true,true,-128)==0);
+    assert(link(false,true,true,127)==1);assert(link(false,true,true,1)==0);
+    assert(link(false,true,true,0)==1);assert(link(false,true,false,-52)==1);
+    assert(link(false,true,false,-80)==0);assert(link(false,false,false,-52)==1);
+    assert(link(false,false,false,-128)==0);assert(link(false,true,true,-52)==2);
+    assert(link(true,true,true,-52)==2);
+  }
+  for(const auto &test:{std::pair<int,const char *>{127,"null"},{-128,"1"},{-81,"1"},
+                       {-80,"2"},{-61,"2"},{-60,"3"},{0,"3"},{1,"null"}})
+    assert(strcmp(connectionSignalLevelJson(true,test.first),test.second)==0);
 }
 `;
   try {
@@ -164,5 +190,7 @@ int main(){
   assert(stream.includes('control.scaleAvailable && control.observedWeightValid'));
   assert(stream.includes('control.scaleAvailable && control.currentTimerValid'));
   assert(stream.includes('if (!delta.changed) return true;'));
+  assert(!stream.includes('connections.wifiRssi') && !stream.includes('connections.bluetoothRssi'));
+  for (const kind of ['wifi', 'bluetooth']) assert(stream.includes('connections.' + kind + 'Level'));
   assert(stream.includes('frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson)'));
 }

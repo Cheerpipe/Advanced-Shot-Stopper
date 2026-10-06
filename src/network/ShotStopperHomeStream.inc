@@ -139,11 +139,11 @@ bool ShotStopperNetwork::sendHomeStream(ShotStreamSession &session,
   delta.field("scale.macCachePauseRemainingMs", "%lu", static_cast<unsigned long>(control.scaleMacCachePauseRemainingMs));
   delta.field("scale.lastDisconnectReasonName", "\"%s\"", scaleDisconnectReasonName(control.scaleLastDisconnectReason));
   delta.field("connections.wifiConnected", bool(network.staState == StaState::CONNECTED));
-  if (network.staLinkMetricsValid) delta.field("connections.wifiRssi", "%d", network.staRssi);
-  else delta.field("connections.wifiRssi", "null");
+  delta.field("connections.wifiLevel", "%s", connectionSignalLevelJson(
+      network.staLinkMetricsValid, network.staRssi));
   delta.field("connections.bluetoothConnected", bool(control.scaleAvailable));
-  if (control.scaleAvailable && control.scaleRssiValid) delta.field("connections.bluetoothRssi", "%d", control.scaleRssi);
-  else delta.field("connections.bluetoothRssi", "null");
+  delta.field("connections.bluetoothLevel", "%s", connectionSignalLevelJson(
+      control.scaleRssiValid, control.scaleRssi));
   escapeJsonString(network.staState == StaState::CONNECTED ? network.staSsid : "", g_work->historyJson, NetworkWorkBuf::kHistoryJson);
   delta.field("connections.wifiName", "\"%s\"", g_work->historyJson);
   escapeConnectedScaleName(control, g_work->scaleHistory, g_work->historyJson, NetworkWorkBuf::kHistoryJson);

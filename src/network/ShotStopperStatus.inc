@@ -240,8 +240,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   if (ok) {
     ok = statusJsonAppend(
         &used, ",\"machineType\":\"%s\",\"machineIntegration\":\"%s\","
-        "\"connections\":{\"wifiConnected\":%s,\"wifiRssi\":%s,"
-        "\"bluetoothConnected\":%s,\"bluetoothRssi\":%s,"
+        "\"connections\":{\"wifiConnected\":%s,\"wifiLevel\":%s,"
+        "\"bluetoothConnected\":%s,\"bluetoothLevel\":%s,"
         "\"wifiName\":\"%s\",\"bluetoothName\":\"%s\"}",
         compiledMachineTypeId(),
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
@@ -250,7 +250,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "none",
 #endif
         network.staState == StaState::CONNECTED ? "true" : "false",
-        staRssiJson, control.scaleAvailable ? "true" : "false", scaleRssiJson,
+        connectionSignalLevelJson(network.staLinkMetricsValid, network.staRssi),
+        control.scaleAvailable ? "true" : "false",
+        connectionSignalLevelJson(control.scaleRssiValid, control.scaleRssi),
         wifiName, bluetoothName);
   }
   if (ok && page == StatusPage::Diagnostic) {

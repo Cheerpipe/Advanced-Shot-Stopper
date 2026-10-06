@@ -311,15 +311,18 @@ retain the confirmation of pending Wi-Fi settings on a station connection.
 
 Home's live stream, the other Web UI page status responses, and the record-page `ui` envelope include
 `connections`: `wifiConnected` and `bluetoothConnected` are booleans;
-`wifiRssi` and `bluetoothRssi` are cached dBm readings, or `null` when unavailable.
+`wifiLevel` and `bluetoothLevel` are firmware-calculated levels:
+`1` weak, `2` medium, `3` strong, or `null` when unavailable. The connection
+booleans determine whether to display disconnected, regardless of a cached level.
 `wifiName` is the connected station SSID; `bluetoothName` is the connected
 scale's saved friendly name, falling back to its recognized model name, or to
 its advertised BLE name when the model is unknown. Names
 are empty when the link is disconnected or no matching scale identity is
 available. The browser hides these identities when the snapshot is stale.
 Wi-Fi refers to the controller's station link, and Bluetooth refers to its scale
-link. The header uses three display levels: weak below −80 dBm, medium from
-−80 to below −60 dBm, and strong at −60 dBm or above. A disconnected link takes
+link. Valid readings range from −128 through 0 dBm. The header uses three
+display levels: weak below −80 dBm, medium from −80 to below −60 dBm, and
+strong at −60 dBm or above. A disconnected link takes
 precedence over any reading. Stale control snapshots or missing measurements
 show unavailable signal quality. These display fields add no radio queries or
 extra polling requests and do not change the public integration endpoints.
@@ -335,6 +338,9 @@ and timer are inspected only while the scale is connected, at the displayed
 precision (0.1 g and 0.1 s); unavailable readings become `null` once.
 
 Home frames have `v: 1`, `type: "home"`, `boot`, `snapshot`, and `changes`.
+The header uses the firmware-calculated signal levels described above.
+RSSI changes within a level produce no signal delta; raw RSSI remains
+available in Diagnostics. The header popups display level names without dBm.
 The initial snapshot supplies the complete Home state; subsequent `changes`
 objects contain only changed paths, such as `scale.timerMs` or
 `lineaMicra.websocket.cleaning`. Objects such as `presets` are replaced as a
