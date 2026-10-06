@@ -194,7 +194,9 @@ int main(){
   for (const kind of ['wifi', 'bluetooth']) assert(stream.includes('connections.' + kind + 'Level'));
   assert(stream.includes('frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson)'));
   const homeFieldSlots = Number(/kHomeFields\s*=\s*(\d+)/.exec(network)[1]);
-  const homeFieldCalls = (stream.match(/\bdelta\.field\(/g) || []).length;
+  // The diagnostic projection in this file carries its own slot budget.
+  const homeFieldCalls =
+      (stream.slice(0, stream.indexOf('sendDiagnosticStream')).match(/\bdelta\.field\(/g) || []).length;
   assert(homeFieldCalls > 0 && homeFieldCalls <= homeFieldSlots,
       `Home projection ${homeFieldCalls} fields exceeds ${homeFieldSlots} fingerprint slots`);
 }

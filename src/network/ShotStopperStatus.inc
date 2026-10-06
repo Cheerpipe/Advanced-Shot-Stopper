@@ -111,6 +111,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char staChannelJson[8] = "null";
   char scaleRssiJson[16] = "null";
   char scaleWeightUpdateIntervalJson[16] = "null";
+  char scaleTimerJson[16] = "null";
   if (network.staLinkMetricsValid) {
     snprintf(staRssiJson, sizeof(staRssiJson), "%d",
              static_cast<int>(network.staRssi));
@@ -131,6 +132,11 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     snprintf(scaleWeightUpdateIntervalJson,
              sizeof(scaleWeightUpdateIntervalJson), "%lu",
              static_cast<unsigned long>(control.scaleWeightUpdateIntervalMs));
+  }
+  if (page == StatusPage::Diagnostic && control.scaleAvailable &&
+      control.currentTimerValid) {
+    snprintf(scaleTimerJson, sizeof(scaleTimerJson), "%lu",
+             static_cast<unsigned long>(control.currentTimerMs / 100 * 100));
   }
 
   char safeNtpCustom[NTP_SERVER_HOST_CAPACITY] = {};
@@ -764,7 +770,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"command\":\"%s\",\"status\":%ld,\"elapsedMs\":%lu},"
         "\"eventsDropped\":%lu,\"recoveredStaleCount\":%lu,"
         "\"recoveredStaleMs\":%lu,\"rssi\":%s,"
-        "\"weightUpdateIntervalMs\":%s,\"model\":\"%s\","
+        "\"weightUpdateIntervalMs\":%s,\"timerMs\":%s,\"model\":\"%s\","
         "\"supportedCommandsKnown\":%s,\"supportedCommands\":%s},"
         "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"},"
         "\"compileFlags\":{\"buzzer\":\"%s\",\"remoteMachineControl\":%s,"
@@ -917,6 +923,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(control.scaleRecoveredStaleMs),
         scaleRssiJson,
         scaleWeightUpdateIntervalJson,
+        scaleTimerJson,
         scaleModelName(control.scaleModel),
         control.scaleModel == ScaleModel::Unknown ? "false" : "true",
         supportedCommandsJson,

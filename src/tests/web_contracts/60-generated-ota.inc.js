@@ -495,8 +495,10 @@ if (generated.cssGzip.length > 9500) {
 // Independent popup interactions and identity rendering add 400 approved bytes.
 // Supervised backflush state/history labels and deadline diagnostics add 500 bytes.
 // The Home shot hero card raises the sentinel runtime cap to 45500 bytes.
-if (sentinelRuntimeGzip.length > 45500) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 45500-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The view-scoped diagnostic stream (frame validation, subscription lifecycle,
+// and the shared live section renderer) raises the cap to 46100 bytes.
+if (sentinelRuntimeGzip.length > 46100) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 46100-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -583,8 +585,10 @@ if (generated.icon48Gzip.length > 3500) {
 // memory-region and OTA partition limits remain unchanged.
 // Full Home scalar deltas, socket recovery/liveness and shared cleaning state
 // add 1500 bytes of allowance; firmware, memory and OTA limits remain fixed.
-if (generated.combined > 120000) {
-  throw new Error(`Combined Web UI gzip exceeds the 120000-byte flash budget (${generated.combined})`);
+// The view-scoped diagnostic stream and the Stats metric icons raise the
+// combined cap to 120700 bytes; firmware, memory and OTA limits stay fixed.
+if (generated.combined > 120700) {
+  throw new Error(`Combined Web UI gzip exceeds the 120700-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

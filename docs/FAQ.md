@@ -202,7 +202,11 @@ An open K1 cannot stop a welded contact; see [isolation](HARDWARE.md#isolation-m
 The **Diagnostic** page is always available at the address `/diagnostic`, even
 when its tab is hidden from the menu (Admin → Frontend → **Show diagnostic
 page** only shows or hides that tab) and in compatibility mode. Its
-measurements keep recording either way.
+measurements keep recording either way. While the page is open, its
+**States**, **Machine I/O**, and **Scale** sections — including the scale's
+timer — update on their own several times per second, so readings such as the
+relay, the switch, the cup, and the weight stay current without reloading;
+every other section refreshes every few seconds.
 
 **Diagnostic → Scale → Profiling** records what the scale actually sent and
 what the firmware decided about it. Press **Start** before reproducing a

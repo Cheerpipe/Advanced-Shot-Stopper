@@ -391,6 +391,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
           api: async () => {accessAfterMarkup &&= events.includes('markup'); return {};}, compatibilityModeOn: () => false,
           withPollGate: fn => fn(), webUiPollingActive: () => true,
           setActiveView() {}, armStatusTimer() {}, applyDiagnosticNavigation: () => {visibilityApplied++;},
+          startDiagnosticStream() {}, stopDiagnosticStream() {},
           loadStatus: () => {events.push('status'); return status.promise;},
           loadShots: () => {events.push('data'); return data.promise;},
           loadHistory: () => {events.push('data'); return data.promise;},
@@ -540,9 +541,11 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // controls, and the replacement hint); compressed asset budgets stay fixed.
 // Independent wireless popups add their two identity and signal rows.
 // The supplied four-path Backflush symbol adds 2 KiB of HTML source allowance.
+// Stats duration/yield metric icons and the Diagnostic Scale timer metric add
+// ~1 KB of HTML source allowance; compressed asset budgets stay fixed.
 // Firmware image, memory-region and OTA partition limits remain unchanged.
-if (htmlBytes > 84000) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 84000)`);
+if (htmlBytes > 85000) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 85000)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -620,8 +623,12 @@ if (htmlBytes > 84000) {
 // The hero curve gains the prototype's solid area and baseline (+250 bytes).
 // Home field deltas, initial/reconnect recovery and socket liveness add 6 KiB
 // of authoring allowance. Firmware image and OTA limits stay fixed.
-if (jsBytes > 246000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 246000)`);
+// The view-scoped diagnostic WebSocket (frame merge validation, subscribe
+// lifecycle, and the shared States/Machine I/O/Scale live renderer) adds
+// ~1.5 KB of JS source allowance; compressed asset and firmware limits stay
+// fixed.
+if (jsBytes > 248000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 248000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -653,8 +660,11 @@ if (jsBytes > 246000) {
 // The theme button adds ~1.1 KB of combined source: three glyph states in the
 // shell markup plus the JS cycle, state, and label wiring described above.
 // The hero solid curve area and baseline add the same 250-byte JS allowance.
-if (htmlBytes + jsBytes > 330100) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 330100)`);
+// The diagnostic WebSocket (frame validation, view-scoped subscription, and
+// the shared live renderer) plus the Stats metric icons add ~1.3 KB of
+// combined source allowance; compressed budgets stay fixed.
+if (htmlBytes + jsBytes > 332000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 332000)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

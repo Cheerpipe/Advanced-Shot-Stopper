@@ -350,6 +350,12 @@ class ShotStopperNetwork {
     static constexpr size_t kHomeFields = 128;
     uint32_t homeHashes[kHomeFields] = {};
     uint32_t homeBoot = 0, homeClockSync = 0, homeClockUtc = 0;
+    // Diagnostic page subscription: state dies with the session struct reset,
+    // so an unbound or superseded socket never keeps streaming diagnostics.
+    static constexpr size_t kDiagFields = 64;
+    uint32_t diagHashes[kDiagFields] = {};
+    uint32_t diagBoot = 0;
+    bool diagnostic = false, diagResync = true;
     char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
     bool bound = false, resync = true;
     bool homeResync = true;
@@ -572,6 +578,8 @@ class ShotStopperNetwork {
   void sendShotStream(ShotStreamSession &session);
   bool sendHomeStream(ShotStreamSession &session, const ControlStatusSnapshot &control,
                       const ShotLogRecord *latest);
+  bool sendDiagnosticStream(ShotStreamSession &session,
+                            const ControlStatusSnapshot &control);
 #if SHOT_STOPPER_DEVELOPMENT == 1
   // Unlock handlers are release-only: development builds serve public
   // administration and never compile the unlock endpoints.

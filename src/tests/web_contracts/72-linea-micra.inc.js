@@ -87,7 +87,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const cleaningSource = rawRuntimeJs.slice(rawRuntimeJs.indexOf('export function formatMicraCleaning('),
       rawRuntimeJs.indexOf('let shotWs=')).replace('export ', '');
   domContext.R.formatMicraCleaning = new Function('__WEBUI_TEXT__', cleaningSource + ';return formatMicraCleaning;')(domContext.__WEBUI_TEXT__);
-  vm.runInContext(cloudUi.slice(0, cloudUi.indexOf('function formatScaleDisconnect(')), domContext);
+  vm.runInContext(cloudUi.slice(0, cloudUi.indexOf('function applyScaleCommands(')), domContext);
   const show = lm => { domContext.lm = lm; vm.runInContext('renderMicraCloudDiagnostic(lm)', domContext); };
   const socket = {state: 'streaming', nowMs: 5000, cleaningAvailable: true, cleaning: 'waiting_for_paddle', cleaningAtMs: 3000,
     rxBytes: 120, rxBytesPerSecond: 20, rxBytesPerMinute: 100, messages: 2,
@@ -125,7 +125,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
     R: {formatWallTime: (sec, offset) => {assert.strictEqual(offset, 0); return String(sec);}}});
   context.R.formatMicraCleaning = new Function('__WEBUI_TEXT__', cleaningSource + ';return formatMicraCleaning;')(context.__WEBUI_TEXT__);
   vm.runInContext(cloudUi.slice(cloudUi.indexOf('function renderMicraCloudDiagnostic('),
-      cloudUi.indexOf('function formatScaleDisconnect(')), context);
+      cloudUi.indexOf('function applyScaleCommands(')), context);
   const render = data => {
     context.lm = data;
     vm.runInContext('renderMicraCloudDiagnostic(lm)', context);

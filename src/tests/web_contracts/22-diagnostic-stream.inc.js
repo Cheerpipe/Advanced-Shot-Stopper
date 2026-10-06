@@ -1,0 +1,132 @@
+// The Diagnostic page subscribes to a live section projection on the owned
+// socket only while the view is shown; every navigation unsubscribes.
+{
+  const assert = require('assert').strict, vm = require('vm');
+  const source = runtimeJs.slice(runtimeJs.indexOf('let shotWs='),
+    runtimeJs.indexOf('function formatExtractionGuard('));
+  const sockets = [], timers = new Map(); let timer = 0, owner = true;
+  const applied = [], frames = [];
+  class Socket {
+    static OPEN = 1;
+    constructor(url) { this.url = url; this.readyState = 1; this.sent = []; sockets.push(this); }
+    send(value) { this.sent.push(JSON.parse(value)); }
+    close() { this.readyState = 3; this.onclose?.({}); }
+  }
+  const listeners = {};
+  const context = {
+    WebSocket: Socket, location: {protocol: 'http:', host: 'device.local'},
+    document: {hidden: false, addEventListener() {}}, window: {addEventListener() {}},
+    setTimeout: (fn, delay) => { timers.set(++timer, {fn, delay}); return timer; },
+    clearTimeout: id => timers.delete(id), requestAnimationFrame: fn => { fn(); return 1; },
+    webUiPollingActive: () => owner, webUiClientId: '0123456789abcdef', webUiPowerSeconds: () => 30,
+    activeView: 'diagnostic', viewSeq: 1, viewReady: Promise.resolve(), lastStatusAt: 0,
+    performance: {now: () => 1234}, invalidateHomeStream() {}, noteReachFail() {},
+    applyDiagnosticLive: status => applied.push(status),
+  };
+  vm.runInNewContext(source, context);
+  const changes = {
+    'state': 'READY', 'machineState': 'CONFIRMED_OFF', 'relayClosed': false,
+    'controlSource': 'none', 'physicalActivatorOn': false, 'reedOn': false,
+    'backflush.stopReason': 'none',
+    'cupPresence.state': 'ABSENT', 'cupPresence.present': false,
+    'cupPresence.weightG': null, 'cupPresence.weightValid': false,
+    'safety.state': 'READY', 'safety.taskWatchdogReady': true,
+    'scale.available': true, 'scale.streamState': 'FRESH',
+    'scale.controlState': 'ACTIVE', 'scale.rssi': -52,
+    'scale.weightUpdateIntervalMs': 100, 'scale.timerMs': 65430,
+    'scale.maxPacketGapMs': 240, 'scale.lastDisconnect.summary': '',
+  };
+  const snapshot = {v: 1, type: 'diagnostic', boot: 7, snapshot: true, changes: {...changes}};
+  const snapshotFrame = context.diagStreamFrame(null, snapshot);
+  assert.equal(snapshotFrame.status.scale.timerMs, 65430);
+  const patch = context.diagStreamFrame(snapshotFrame,
+      {v: 1, type: 'diagnostic', boot: 7, snapshot: false,
+       changes: {'scale.timerMs': 65900, 'relayClosed': true}});
+  assert.equal(patch.status.relayClosed, true, 'deltas patch the live cache');
+  assert.equal(patch.status.scale.rssi, -52, 'unchanged fields survive a patch');
+  for (const bad of [{...patch, boot: 8},
+      {...patch, changes: {'scale.timerMs': Infinity}},
+      {...patch, changes: {'scale.constructor.prototype': {poisoned: true}}},
+      {...patch, snapshot: true, changes: {'scale.available': true}}]) {
+    assert.throws(() => context.diagStreamFrame(patch, bad),
+        'invalid diagnostic frames must fail closed');
+  }
+
+  context.startShotStream();
+  assert.equal(sockets.length, 1);
+  sockets[0].onopen();
+  assert.equal(sockets[0].sent[0].op, 'bind');
+  assert(!sockets[0].sent.some(m => m.op === 'diagnostic'),
+      'the diagnostic subscription starts detached');
+  context.startDiagnosticStream();
+  assert.deepEqual(sockets[0].sent.at(-1), {op: 'diagnostic', on: true});
+  sockets[0].onmessage({data: JSON.stringify(snapshot)});
+  assert.equal(applied.at(-1).scale.timerMs, 65430, 'live frames render the three sections');
+  vm.runInContext("activeView='settings'", context);
+  const paints = applied.length;
+  sockets[0].onmessage({data: JSON.stringify({
+    v: 1, type: 'diagnostic', boot: 7, snapshot: false, changes: {'scale.timerMs': 66100}})});
+  assert.equal(applied.length, paints,
+      'frames on another page must not render diagnostics');
+  vm.runInContext("activeView='diagnostic'", context);
+  context.paintDiagnosticStream();
+  assert.equal(applied.length, paints + 1);
+  assert.equal(applied.at(-1).scale.timerMs, 66100,
+      'returning to the page renders the updated cache');
+  sockets[0].onmessage({data: JSON.stringify(
+      {v: 1, type: 'diagnostic', boot: 7, snapshot: false, changes: {'__proto__.x': 1}})});
+  assert.equal(sockets[0].sent.at(-1).op, 'resync', 'poisoned frames request a resync');
+  context.stopDiagnosticStream();
+  assert.deepEqual(sockets[0].sent.at(-1), {op: 'diagnostic', on: false});
+  sockets[0].close();
+  const retry = [...timers.values()].find(t => t.delay >= 400 && t.delay <= 600);
+  assert(retry, 'socket loss must schedule a reconnect');
+  retry.fn();
+  sockets[1].onopen();
+  assert(!sockets[1].sent.some(m => m.op === 'diagnostic'),
+      'a closed subscription must not resubscribe on reconnect');
+  context.startDiagnosticStream();
+  assert.deepEqual(sockets[1].sent.at(-1), {op: 'diagnostic', on: true});
+  sockets[1].close();
+  const again = [...timers.values()].find(t => t.delay >= 700 && t.delay <= 1300);
+  again.fn();
+  sockets[2].onopen();
+  assert.deepEqual(sockets[2].sent.find(m => m.op === 'diagnostic'), {op: 'diagnostic', on: true},
+      'an open subscription resubscribes after reconnect');
+}
+
+// Firmware projection: bounded field budget, view-scoped dispatch, and wiring.
+{
+  const assert = require('assert').strict;
+  const stream = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperShotStream.inc'), 'utf8');
+  const homeStream = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperHomeStream.inc'), 'utf8');
+  assert(stream.includes('strcmp(op->valuestring, "diagnostic")'));
+  assert(stream.includes('session->diagnostic = cJSON_IsTrue(on)'));
+  assert(stream.includes('session.diagnostic && !sendDiagnosticStream(session, control)'),
+      'the diagnostic delta rides the existing dispatch under the status workspace');
+  const diagRegion = homeStream.slice(homeStream.indexOf('sendDiagnosticStream'));
+  const diagSlots = Number(/kDiagFields\s*=\s*(\d+)/.exec(networkHeader)[1]);
+  const diagCalls = (diagRegion.match(/\bdelta\.field\(/g) || []).length;
+  assert(diagCalls > 0 && diagCalls <= diagSlots,
+      `Diagnostic projection ${diagCalls} fields exceeds ${diagSlots} fingerprint slots`);
+  for (const field of ['"state"', '"machineState"', '"backflush.remainingMs"',
+      '"cupPresence.weightG"', '"physicalActivatorOn"', '"relayClosed"', '"controlSource"',
+      '"safety.taskWatchdogReady"', '"scale.streamState"', '"scale.timerMs"',
+      '"scale.maxPacketGapMs"', '"scale.lastDisconnect.summary"',
+      '"scale.lastCommandFailure.summary"', '"scale.connectedMac"',
+      '"lineaMicra.powerState"']) {
+    assert(diagRegion.includes('delta.field(' + field), 'missing diagnostic field ' + field);
+  }
+  assert(diagRegion.includes('control.scaleAvailable && control.currentTimerValid'));
+  assert(diagRegion.includes('control.currentTimerMs / 100 * 100'),
+      'the timer keeps the Home projection 0.1 s quantization');
+  assert(diagRegion.includes('session.diagBoot = control.bootId'));
+  assert(runtimeJs.includes("t('dScaleTimer',formatScaleTimer(s))"),
+      'the shared live renderer paints the Scale timer');
+  assert(appJsSource.includes('R.stopDiagnosticStream()'),
+      'leaving the view must unsubscribe');
+  assert(appJsSource.indexOf('R.startDiagnosticStream()') <
+         appJsSource.indexOf("await R.loadLog()"),
+      'entering the view subscribes before the first REST poll');
+  assert(partialHtml.diagnostic.includes('id="dScaleTimer"'));
+}

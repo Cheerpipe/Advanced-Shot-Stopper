@@ -214,3 +214,134 @@ bool ShotStopperNetwork::sendHomeStream(ShotStreamSession &session,
   session.homeResync = false;
   return true;
 }
+
+// Same bounded projection contract as sendHomeStream: the diagnostic page
+// subscribes per view, so a session without the flag never reaches this path.
+__attribute__((optimize("Os")))
+bool ShotStopperNetwork::sendDiagnosticStream(ShotStreamSession &session,
+                                              const ControlStatusSnapshot &control) {
+  const bool initial = session.diagResync || session.diagBoot != control.bootId;
+  HomeStreamDelta delta{session.diagHashes, ShotStreamSession::kDiagFields, 0, 0, 0, initial};
+  delta.ok = statusJsonAppend(&delta.used,
+      "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":%s,\"changes\":{",
+      static_cast<unsigned long>(control.bootId),
+      initial ? "true" : "false");
+  delta.field("state", "\"%s\"", stopperStateName(control.state));
+  delta.field("machineState", "\"%s\"", machineRunStateName(control.machineRunState));
+  delta.field("backflush.waiting", bool(control.backflushWaiting));
+  delta.field("backflush.ready", bool(control.backflushReady));
+  delta.field("backflush.unresolved", bool(control.backflushUnresolved));
+  delta.field("backflush.stopReason", "\"%s\"", control.backflushStopReason);
+  delta.field("backflush.hardLimitMs", "%lu", static_cast<unsigned long>(control.safetyHardLimitMs));
+  delta.field("backflush.remainingMs", "%lu", static_cast<unsigned long>(control.safetyRemainingMs));
+  delta.field("cupPresence.state", "\"%s\"", cupPresenceStateName(control.cupPresenceState));
+  delta.field("cupPresence.present", bool(control.cupPresent));
+  const bool cupWeightValid = control.cupPresent && control.cupTare.weightValid &&
+      std::isfinite(control.cupTare.weightG);
+  if (cupWeightValid)
+    delta.field("cupPresence.weightG", control.cupTare.weightG);
+  else delta.field("cupPresence.weightG", "null");
+  delta.field("cupPresence.weightValid", bool(cupWeightValid));
+  delta.field("physicalActivatorOn", bool(control.physicalActivatorOn));
+  delta.field("reedOn", bool(control.reedOn));
+  delta.field("relayClosed", bool(control.relayClosed));
+  delta.field("controlSource", "\"%s\"", controlSourceName(control.source));
+  delta.field("safety.state", "\"%s\"", relaySafetyStateName(control.safetyState));
+  delta.field("safety.fault", "\"%s\"", relaySafetyFaultName(control.safetyFault));
+  delta.field("safety.taskWatchdogReady", bool(control.taskWatchdogReady));
+  delta.field("safety.externalHardware", bool(control.externalSafetyPresent));
+  delta.field("safety.recoveryRequired", bool(control.resetRecoveryRequired));
+  delta.field("scale.available", bool(control.scaleAvailable));
+  delta.field("scale.streamState", "\"%s\"", weightStreamStateName(control.weightStreamState));
+  delta.field("scale.controlState", "\"%s\"", weightControlStateName(control.weightControlState));
+  if (control.scaleRssiValid)
+    delta.field("scale.rssi", "%d", static_cast<int>(control.scaleRssi));
+  else delta.field("scale.rssi", "null");
+  if (control.weightStreamState == WeightStreamState::FRESH &&
+      control.scaleWeightUpdateIntervalMs != 0)
+    delta.field("scale.weightUpdateIntervalMs", "%lu",
+                static_cast<unsigned long>(control.scaleWeightUpdateIntervalMs));
+  else delta.field("scale.weightUpdateIntervalMs", "null");
+  if (control.scaleAvailable && control.currentTimerValid)
+    delta.field("scale.timerMs", "%lu",
+                static_cast<unsigned long>(control.currentTimerMs / 100 * 100));
+  else delta.field("scale.timerMs", "null");
+  // sendHomeStream filled g_work->scaleHistory earlier in this same dispatch.
+  char connectedFriendly[PREFERRED_SCALE_NAME_CAPACITY] = {};
+  findScaleHistoryFriendlyName(g_work->scaleHistory, control.connectedScaleMac,
+                               connectedFriendly, sizeof(connectedFriendly));
+  char safeConnectedMac[PREFERRED_SCALE_MAC_CAPACITY * 2] = {};
+  char safeConnectedFriendly[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
+  sanitizeJsonEmbed(control.connectedScaleMac, safeConnectedMac,
+                    sizeof(safeConnectedMac));
+  sanitizeJsonEmbed(connectedFriendly, safeConnectedFriendly,
+                    sizeof(safeConnectedFriendly));
+  delta.field("scale.connectedMac", "\"%s\"", safeConnectedMac);
+  delta.field("scale.connectedFriendlyName", "\"%s\"", safeConnectedFriendly);
+  delta.field("scale.packetGaps", "%lu", static_cast<unsigned long>(control.scalePacketGaps));
+  delta.field("scale.maxPacketGapMs", "%lu", static_cast<unsigned long>(control.scaleMaxPacketGapMs));
+  delta.field("scale.rejectedPackets", "%lu", static_cast<unsigned long>(control.scaleRejectedPackets));
+  delta.field("scale.reconnects", "%lu", static_cast<unsigned long>(control.scaleReconnects));
+  delta.field("scale.eventsDropped", "%lu", static_cast<unsigned long>(control.scaleEventsDropped));
+  delta.field("scale.recoveredStaleCount", "%lu", static_cast<unsigned long>(control.scaleRecoveredStaleCount));
+  delta.field("scale.recoveredStaleMs", "%lu", static_cast<unsigned long>(control.scaleRecoveredStaleMs));
+  delta.field("scale.lastDisconnectReasonName", "\"%s\"",
+              scaleDisconnectReasonName(control.scaleLastDisconnectReason));
+  const ScaleBleDiagnostics &ble = control.scaleBleDiagnostics;
+  char disconnectSummary[144] = {}, commandSummary[64] = {};
+  if (ble.disconnectSequence != 0) {
+    snprintf(disconnectSummary, sizeof(disconnectSummary), "%s · %s · %s %ld · %lus ago",
+             scaleDisconnectReasonName(ble.disconnectReason),
+             scaleBleOriginName(ble.disconnectOrigin),
+             scaleBleStatusDomain(ble.disconnectStatus, ble.disconnectOrigin),
+             static_cast<long>(ble.disconnectStatus),
+             static_cast<unsigned long>(static_cast<uint32_t>(millis() - ble.disconnectAtMs) / 1000));
+  }
+  if (ble.commandFailureSequence != 0) {
+    snprintf(commandSummary, sizeof(commandSummary), "%s · status %ld · %lums",
+             scaleBleCommandName(ble.command), static_cast<long>(ble.commandStatus),
+             static_cast<unsigned long>(ble.commandElapsedMs));
+  }
+  delta.field("scale.lastDisconnect.summary", "\"%s\"", disconnectSummary);
+  delta.field("scale.lastCommandFailure.summary", "\"%s\"", commandSummary);
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+  {
+    const auto micra = machineIntegrationStatus();
+    uint8_t options, connection;
+    { TaskLockGuard lock(dataMux_); options = settings_.lineaMicra.options; connection = settings_.lineaMicra.connectionType; }
+    const bool sampleValid = micra.sampleAtMs != 0 &&
+        (micra.quality == LineaMicraObservationQuality::CURRENT ||
+         micra.quality == LineaMicraObservationQuality::STALE ||
+         micra.quality == LineaMicraObservationQuality::UNSUPPORTED);
+    delta.field("lineaMicra.accountConfigured", bool(micra.accountConfigured));
+    delta.field("lineaMicra.observeState", bool(options & LINEA_MICRA_OBSERVE_STATE));
+    delta.field("lineaMicra.connectionType", "\"%s\"", micraConnectionTypeName(connection));
+    delta.field("lineaMicra.powerState", "\"%s\"", lineaMicraPowerStateName(micra.powerState));
+    delta.field("lineaMicra.observedMode", "\"%s\"", lineaMicraObservedModeName(micra.observedMode));
+    delta.field("lineaMicra.quality", "\"%s\"", lineaMicraObservationQualityName(micra.quality));
+    delta.field("lineaMicra.sampleValid", bool(sampleValid));
+    delta.field("lineaMicra.sampleAgeMs", "%lu",
+                static_cast<unsigned long>(micra.sampleAtMs == 0 ? 0 : static_cast<uint32_t>(millis() - micra.sampleAtMs)));
+    delta.field("lineaMicra.freshnessPolicy", "\"%s\"",
+                micra.connectionFreshness ? "connection" : "time");
+    delta.field("lineaMicra.freshnessMs", "%lu",
+                static_cast<unsigned long>(micra_timing::kStateFreshnessMs));
+    delta.field("lineaMicra.powerSource", "\"%s\"", micraPowerSourceName(micra.powerSource));
+    delta.field("lineaMicra.phase", "\"%s\"", lineaMicraPhaseName(micra.phase));
+    delta.field("lineaMicra.temperatureState", "\"%s\"", lineaMicraTemperatureStateName(micra.temperatureState));
+    delta.field("lineaMicra.temperatureError", "\"%s\"", lineaMicraErrorName(micra.temperatureError));
+  }
+#endif
+  if (!delta.ok || !statusJsonAppend(&delta.used, "}}")) return false;
+  if (!delta.changed) return true;
+  bool owner;
+  { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
+  httpd_ws_frame_t frame = {};
+  frame.type = HTTPD_WS_TYPE_TEXT;
+  frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
+  frame.len = delta.used;
+  if (!owner || httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) return false;
+  session.diagBoot = control.bootId;
+  session.diagResync = false;
+  return true;
+}

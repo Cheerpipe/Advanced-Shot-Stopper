@@ -107,24 +107,35 @@
 }
 
 {
-  const runtimeSource = viewJs.diagnostic;
-  const first = runtimeSource.indexOf('function formatScaleDisconnect(');
-  const last = runtimeSource.indexOf("'use strict'", first);
+  // Historical disconnect/command summaries render through the shared live
+  // renderer (runtime.js applyDiagnosticLive), shared with the socket stream.
+  const runtimeSource = runtimeJs;
+  const first = runtimeSource.indexOf('function applyDiagnosticLive(');
+  const last = runtimeSource.indexOf('function applyDiagnosticStatus(', first);
   if (first < 0 || last < first) throw new Error('Missing scale diagnostic formatters');
-  const formatters = new Function(runtimeSource.slice(first, last) +
-    ';return {formatScaleDisconnect,formatScaleCommandFailure};')();
-  const historical = formatters.formatScaleDisconnect({lastDisconnect: {
-    summary: 'SUPERVISION_TIMEOUT · gap · hci 520 · 5s ago',
-    sequence: 1, reason: 'SUPERVISION_TIMEOUT', origin: 'gap', domain: 'hci',
-    status: 520, ageMs: 5500, command: 'tare', commandElapsedMs: 14, teardownStatus: 7
-  }});
+  const elements = {};
+  const live = new Function('$', '__WEBUI_TEXT__', 'formatBackflushState',
+    'formatCupWeight', 'formatScaleTimer', 'updateScaleRenameUi',
+    'renderLineaMicraDiagnostic',
+    runtimeSource.slice(first, last) + ';return applyDiagnosticLive;')(
+    id => elements[id] || (elements[id] = {textContent: ''}),
+    key => ({'diagnostic.none_2': 'NONE', 'diagnostic.none_3': 'none'}[key] || key),
+    () => '', () => '', () => '', () => {}, () => {});
+  const record = lastDisconnect => live({lineaMicra: null, safety: {}, scale: {
+    lastDisconnect, lastDisconnectReasonName: lastDisconnect ? undefined : 'NONE',
+    lastCommandFailure: {sequence: 1, summary: 'volume · status 15 · 0ms'},
+    cupPresence: {}, backflush: {}}, cupPresence: {}});
+  record({summary: 'SUPERVISION_TIMEOUT · gap · hci 520 · 5s ago'});
+  const historical = elements.hLastDisconnect.textContent;
   for (const expected of ['SUPERVISION_TIMEOUT', 'gap', 'hci 520', '5s ago']) {
     if (!historical.includes(expected)) throw new Error('Missing disconnect detail: ' + expected);
   }
-  if (formatters.formatScaleDisconnect({lastDisconnectReasonName:'NONE'}) !== 'NONE') {
+  record(null);
+  if (elements.hLastDisconnect.textContent !== 'NONE') {
     throw new Error('Legacy scale status compatibility failed');
   }
-  if (formatters.formatScaleCommandFailure({sequence:1, summary:'volume · status 15 · 0ms'}) !==
-      'volume · status 15 · 0ms') throw new Error('Command failure must be separate from disconnect');
-  if (formatters.formatScaleCommandFailure({sequence:0}) !== 'none') throw new Error('Missing-event rendering');
+  if (elements.hScaleCommandFailure.textContent !== 'volume · status 15 · 0ms')
+    throw new Error('Command failure must be separate from disconnect');
+  live({lineaMicra: null, safety: {}, scale: {lastCommandFailure: {sequence: 0}, cupPresence: {}}, cupPresence: {}});
+  if (elements.hScaleCommandFailure.textContent !== 'none') throw new Error('Missing-event rendering');
 }

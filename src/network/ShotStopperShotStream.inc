@@ -121,6 +121,17 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
       session->resync = true;
       session->homeResync = true;
       accepted = true;
+    } else if (cJSON_IsString(op) && session->bound &&
+               strcmp(op->valuestring, "diagnostic") == 0 &&
+               strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
+      // View-scoped telemetry toggle: the client subscribes only while the
+      // Diagnostic page is shown and unsubscribes on every navigation.
+      const cJSON *on = cJSON_GetObjectItemCaseSensitive(message, "on");
+      if (cJSON_IsBool(on)) {
+        session->diagnostic = cJSON_IsTrue(on);
+        session->diagResync = session->diagnostic;
+        accepted = true;
+      }
     } else if (cJSON_IsString(op) && !session->bound &&
                strcmp(op->valuestring, "bind") == 0 && cJSON_IsString(client) &&
                self.activeWebUiClientId_[0] &&
@@ -223,6 +234,11 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
   const bool eligible = callbacks_.copyHomeShot &&
       callbacks_.copyHomeShot(latest, workBuf_->homeCurve);
   if (!sendHomeStream(session, control, eligible ? &latest : nullptr)) {
+    unlockWorkBuf();
+    httpd_sess_trigger_close(server_, session.fd);
+    return;
+  }
+  if (session.diagnostic && !sendDiagnosticStream(session, control)) {
     unlockWorkBuf();
     httpd_sess_trigger_close(server_, session.fd);
     return;
