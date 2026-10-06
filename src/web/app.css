@@ -37,7 +37,7 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
 .pageNav .pill{position:absolute;inset:.125rem 0;width:0;border-radius:1.5rem;background:var(--pa);transition:.45s ease-in-out;z-index:-1}
 @supports(backdrop-filter:blur(1px)){.pageNav{background:color-mix(in srgb,var(--sf) 58%,transparent);backdrop-filter:blur(18px) saturate(1.6)}}
 html:is([data-nav-layout="icons"],[data-nav-layout="text"]){--nav-space:1.5rem;--nav-offset:0px}
-:is([data-nav-layout="icons"],[data-nav-layout="text"]) .pageNav{position:relative;transform:none;order:2;width:100%;max-width:none;margin-top:.15rem}
+:is([data-nav-layout="icons"],[data-nav-layout="text"]) .pageNav{position:relative;left:auto;bottom:auto;transform:none;order:2;width:100%;max-width:none;margin-top:.15rem}
 :is([data-nav-layout="icons"],[data-nav-layout="text"]) .pageNav a{flex:1 0 auto;gap:.5rem;padding:0 .5rem}
 :is([data-nav-layout="icons"],[data-nav-layout="text"]) .pageNav a>span{position:static;width:auto;height:auto;overflow:visible;clip-path:none}
 [data-nav-layout="text"] .pageNav svg{display:none}
