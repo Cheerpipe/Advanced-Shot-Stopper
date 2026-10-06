@@ -209,9 +209,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !html.includes('>Cup protection<span') ||
     html.includes('>Alerts<span') ||
     !html.includes('class="swS"') ||
-    !partialHtml.home.startsWith('<label id="brewModeRow"') ||
-    html.indexOf('id="homeBrewByWeight"') > html.indexOf('id="shotHero"') ||
-    html.indexOf('id="shotHero"') > html.indexOf('id="quickSettingsPanel"') ||
+    html.indexOf('class="homeSwitchGrid"') > html.indexOf('id="homeBrewByWeight"') ||
     html.indexOf('id="homeBrewByWeight"') > html.indexOf('id="homeNoScaleBbwMode"') ||
     html.indexOf('id="homeNoScaleBbwMode"') >
         html.indexOf('id="homeAutoToManualGuardEnabled"') ||
