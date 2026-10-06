@@ -27,14 +27,17 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
 .signalDetails{position:absolute;right:0;top:calc(100% + .5rem);width:17rem;max-width:calc(100vw - 6rem);padding:1rem;background:var(--sf);color:var(--fg);border:1px solid var(--ln);border-radius:var(--r);box-shadow:0 8px 28px #0002;font-size:.85rem}
 .signalDetails p{display:flex;justify-content:space-between;gap:.75rem;margin:.65rem 0 0}
 .signalDetails span{color:var(--mu);flex-shrink:0}.signalDetails b{font-weight:550;text-align:right;overflow-wrap:anywhere;min-width:0}
-.pageNav{display:flex;position:fixed;left:50%;bottom:max(.75rem,calc(env(safe-area-inset-bottom) + .5rem));transform:translateX(-50%);width:calc(100% - max(1.5rem,env(safe-area-inset-left) + env(safe-area-inset-right)));max-width:30rem;padding:.125rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);box-shadow:0 .3rem 1.5rem #0003}
+.pageNav{display:flex;position:fixed;left:50%;bottom:max(.75rem,calc(env(safe-area-inset-bottom) + .5rem));transform:translateX(-50%);width:calc(100% - max(1.5rem,env(safe-area-inset-left) + env(safe-area-inset-right)));max-width:30rem;padding:.125rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);box-shadow:0 .3rem 1.5rem #0003,inset 0 1px 0 #fff7;overflow:hidden;isolation:isolate}
 .pageNav a{display:flex;flex:1;align-items:center;justify-content:center;min-width:0;min-height:var(--tap);border-radius:1.5rem;color:var(--mu);text-decoration:none;font-size:.875rem;font-weight:600;white-space:nowrap}
-.pageNav a.active{font-weight:700}.pageNav a.active,.pageNav a:hover{color:var(--ac);background:var(--pa)}
+.pageNav a.active{font-weight:700;color:var(--ac);background:var(--pa)}.pillNav a.active{background:0 0}.pageNav a:not(.active):hover{color:var(--fg)}
 .pageNav a:focus-visible{outline:2px solid var(--ac);outline-offset:-3px}
-.pageNav svg{display:block;flex:none;width:1.5rem;height:1.5rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.pageNav svg{display:block;flex:none;width:1.5rem;height:1.5rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .3s ease-in-out}
+.pageNav a:not(.active):hover svg{transform:scale(1.15)}
 .pageNav a>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.pageNav .pill{position:absolute;inset:.125rem 0;width:0;border-radius:1.5rem;background:var(--pa);transition:.45s ease-in-out;z-index:-1}
+@supports(backdrop-filter:blur(1px)){.pageNav{background:color-mix(in srgb,var(--sf) 58%,transparent);backdrop-filter:blur(18px) saturate(1.6)}}
 html:is([data-nav-layout="icons"],[data-nav-layout="text"]){--nav-space:1.5rem;--nav-offset:0px}
-:is([data-nav-layout="icons"],[data-nav-layout="text"]) .pageNav{position:static;transform:none;order:2;width:100%;max-width:none;margin-top:.15rem}
+:is([data-nav-layout="icons"],[data-nav-layout="text"]) .pageNav{position:relative;transform:none;order:2;width:100%;max-width:none;margin-top:.15rem}
 :is([data-nav-layout="icons"],[data-nav-layout="text"]) .pageNav a{flex:1 0 auto;gap:.5rem;padding:0 .5rem}
 :is([data-nav-layout="icons"],[data-nav-layout="text"]) .pageNav a>span{position:static;width:auto;height:auto;overflow:visible;clip-path:none}
 [data-nav-layout="text"] .pageNav svg{display:none}

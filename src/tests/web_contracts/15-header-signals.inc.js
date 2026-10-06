@@ -134,9 +134,12 @@
   const assert = require('assert').strict, vm = require('vm');
   const geometry = {}, header = {}, root = {dataset: {}, style: {setProperty: (name, value) => {geometry[name] = value;}}}, app = {clientWidth: 760}, callbacks = {};
   const links = [42, 34, 48, 60, 78, 46].map(width => ({
-    hidden: false, suppressed: false, width, textContent: 'Section',
+    hidden: false, suppressed: false, width, textContent: 'Section', offsetLeft: 2, offsetWidth: 130,
   }));
-  const nav = {offsetTop: 72, setAttribute() {}, querySelectorAll: () => links,
+  const nav = {offsetTop: 72, setAttribute() {}, appended: [], classes: [], append(el) {this.appended.push(el);},
+    classList: {add: name => nav.classes.push(name)},
+    querySelector: selector => {assert.equal(selector, 'a.active'); return links[0];},
+    querySelectorAll: () => links,
     get clientWidth() {return app.clientWidth - 2;},
     get scrollWidth() {
       const required = 4 + links.filter(link => !link.hidden && !link.suppressed)
@@ -148,10 +151,13 @@
     assert.equal(name, 'change'); callbacks.breakpoint = fn;
   }};
   const context = vm.createContext({root, nav, mobile, __WEBUI_TEXT__: key => key,
-    document: {documentElement: root, querySelector: selector => {assert.equal(selector, '.topBar'); return header;}, getElementById: id => {assert.equal(id, 'app'); return app;},
+    document: {documentElement: root, createElement: () => ({className: '', style: {}}),
+      querySelector: selector => {assert.equal(selector, '.topBar'); return header;}, getElementById: id => {assert.equal(id, 'app'); return app;},
       fonts: {ready: {then: fn => {callbacks.fonts = fn;}}}},
+    requestAnimationFrame() {},
     ResizeObserver: class {constructor(fn) {this.fn = fn;} observe(target) {
-      assert(target === app || target === header); callbacks[target === app ? 'resize' : 'geometry'] = this.fn;
+      assert(target === app || target === header || target === nav || links.includes(target));
+      callbacks[target === app ? 'resize' : target === header ? 'geometry' : 'pill'] = this.fn;
     }},
     MutationObserver: class {constructor(fn) {callbacks.visibility = fn;} observe(target, options) {
       assert.equal(target, nav); assert.equal(options.subtree, true);
@@ -162,6 +168,15 @@
   vm.runInContext(appJsSource.slice(start, appJsSource.indexOf('const msgEl=', start)), context);
   assert.equal(root.dataset.navLayout, 'icons', 'Wide header retains section icons and names');
   assert.equal(geometry['--menu-offset'], '72px', 'Initial header measures its actual menu row');
+  assert.deepEqual(nav.appended.map(el => el.className), ['pill'], 'Script enhancement adds the sliding selection pill');
+  assert.deepEqual(nav.classes, ['pillNav'], 'Pill navigation takes over the active background');
+  callbacks.fonts();
+  assert.equal(nav.appended[0].style.width, '130px', 'Font settling re-anchors the pill instantly');
+  assert.equal(nav.appended[0].style.translate, '2px 0', 'First placement matches the active destination');
+  assert.equal(nav.appended[0].style.transition, 'none', 'First placement skips the slide');
+  links[0].offsetLeft = 525; context.placePill(true);
+  assert.equal(nav.appended[0].style.transitionDuration, '444.55ms', 'Cross-bar slides scale with travel distance');
+  assert.equal(nav.appended[0].style.translate, '525px 0', 'Animated placement targets the active destination');
   nav.offsetTop = 80; callbacks.geometry();
   assert.equal(geometry['--menu-offset'], '80px', 'Header resizing updates the floating offset');
   for (const [width, expected] of [[602, 'icons'], [601, 'text'], [410, 'text'], [409, 'bottom'], [760, 'icons']]) {

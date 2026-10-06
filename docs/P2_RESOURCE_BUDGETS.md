@@ -32,7 +32,11 @@ the Linea Micra cloud build with WebSocket observation, on
 `esp32-s3-relay-x1-speaker` at `8d09ecc7`. The clean development profile with
 USB Serial/JTAG measures 2,273,760 image bytes, 2,273,647 total linked bytes,
 1,515,100 flash-code bytes and 587,352 rodata bytes. The versioned growth
-allowances remain 38,640, 38,628, 32,768 and 16,384 bytes respectively.
+allowances remain 32,768 and 16,384 bytes for flash code and rodata; the
+image and total linked allowances were raised from 38,640 and 38,628 bytes to
+38,768 and 38,756 bytes for the reviewed frosted-glass sliding navigation
+pill assets (about 250 compressed bytes, partly absorbed by flash
+compression).
 TLS certificate verification and the IANA 2026d catalog remain included.
 The DIRAM baseline stays at 182,518 bytes with an 8,192-byte allowance;
 the current build uses 185,382 bytes. External BSS remains under its separately

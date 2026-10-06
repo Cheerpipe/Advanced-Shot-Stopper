@@ -421,8 +421,10 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // Reallocate 300 bytes from shell headroom to lazy Cloud diagnostics.
 // Transfer 160 bytes to runtime request admission/hydration; total cap stays fixed.
 // Transfer 100 bytes of shell headroom to the desktop Home scrolling header.
-if (generated.jsGzip.length > 4484) {
-  throw new Error('Compressed Web UI shell JS exceeds the 4484-byte gzip budget');
+// Transfer 100 bytes of shell headroom to the approved frosted-glass sliding
+// navigation pill (glass material, pill, hover ink); total cap stays fixed.
+if (generated.jsGzip.length > 4384) {
+  throw new Error('Compressed Web UI shell JS exceeds the 4384-byte gzip budget');
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
@@ -438,9 +440,10 @@ if (generated.jsGzip.length > 4484) {
 // card inputs raise the cap to 8900. The approved Home shot hero card
 // (prototype 2) raises the cap to 9250. The Home preset accordion that
 // replaces the card chips and rule table (radio dot, animated guard rows)
-// raises the cap to 9400.
-if (generated.cssGzip.length > 9400) {
-  throw new Error('Compressed Web CSS exceeds the 9400-byte gzip budget');
+// raises the cap to 9400. The frosted-glass sliding navigation pill uses
+// 100 bytes transferred from the shell JS cap.
+if (generated.cssGzip.length > 9500) {
+  throw new Error('Compressed Web CSS exceeds the 9500-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.

@@ -383,7 +383,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       const r = vm.createContext({activeView: '', routeSeq: 0, logTimer: 0,
         shotsTimer: 0, historyTimer: 0, jsMods: new Map(),
         ROUTES: {[path]: view}, knownPath: () => path, viewToPath: () => path,
-        location: {pathname: path}, history: {}, stopExtraPolls() {},
+        location: {pathname: path}, history: {}, stopExtraPolls() {}, placePill() {},
         ensureView: () => {events.push('markup'); return markup.promise;},
         document: {hidden: false, querySelectorAll: () => [], body: {classList: classList(bodyClasses)}}, setInterval: () => 1,
         __WEBUI_TEXT__: key => key,
