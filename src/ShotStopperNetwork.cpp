@@ -68,8 +68,10 @@ struct NetworkWorkBuf {
   // per-preset rule field the Home accordion renders.
   static constexpr size_t kPresetsJson = 3600;
   static constexpr size_t kHistoryJson = 1400;
-  // One full-capacity curve plus bounded scalar fields; chunks are sent per row.
-  static constexpr size_t kJsonItem = SHOT_CURVE_JSON_CAPACITY + 1536;
+  // One full-capacity curve plus scalar fields per row; the 4 KiB headroom
+  // (external memory) keeps a maximal row well under the client's frame
+  // guard with room for future row fields and worst-case escaping.
+  static constexpr size_t kJsonItem = SHOT_CURVE_JSON_CAPACITY + 4096;
   // Includes resumable-session identity (transfer id + SHA-256) as well as
   // two image tags. This buffer is in the shared external work area, never
   // used by the flash-writing path.

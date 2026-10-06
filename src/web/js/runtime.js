@@ -505,33 +505,27 @@ export function formatMicraCleaning(lm){
     lm.connectionType==='api'?__WEBUI_TEXT__("diagnostic.cleaning_api"):!ws.cleaningAvailable?__WEBUI_TEXT__("diagnostic.cleaning_no_update"):
     label||__WEBUI_TEXT__("runtime.unknown_4")+(ws.cleaningLabel?' · '+ws.cleaningLabel:'');
 }
-let shotWs=null,shotRetry=0,shotTry=0,shotFrame=null,shotSeen=null,shotResync=!1,shotStale=!0,shotPaint=0;function stopShotStream(){clearTimeout(shotRetry),shotRetry=0;const e=shotWs;shotWs=null,e&&e.close(),shotStale=!0,invalidateHomeStream(),paintShotStream()}function paintShotStream(){if(shotStale)cancelNoScaleFinish();scheduleNoScaleTimer();if("home"!==activeView)return;const e=$("shotHero");if(e){if(e.setAttribute("aria-busy",String(shotStale)),!shotFrame)return e.hidden=!1,setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_loading")),setHomeSub("shotHeroWeight","—"),void setHomeSub("shotHeroElapsed","—");if(!shotFrame.card.valid)return clearShotHero(),void(shotFsActive?exitShotFullScreen():shotStale&&(e.hidden=!1,setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_stale"))));renderShotHero({...shotFrame.card,...shotFrame.curve,elapsedMs:noScaleClock||noScaleFinish?noScaleTimerElapsed():shotFrame.card.elapsedMs}),shotStale?setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_stale")):"pending"===shotFrame.phase&&setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_pending"))}}function scheduleShotPaint(){shotPaint||(shotPaint=requestAnimationFrame(()=>{shotPaint=0,paintShotStream()}))}function shotStreamFrame(e,t){const o=(e,t=4294967295,s=0)=>Number.isInteger(e)&&e>=s&&e<=t,n=t?.card;if(!(t&&1===t.v&&o(t.boot)&&o(t.seq)&&o(t.revision)&&o(t.cycle)&&o(t.shotId)&&o(t.cursor,1201)&&o(t.curveBase,1201)&&"boolean"==typeof t.snapshot&&["idle","active","pending","transient"].includes(t.phase)&&n&&"boolean"==typeof n.valid&&"boolean"==typeof n.live&&o(n.elapsedMs)&&(null===n.weight||Number.isFinite(n.weight))&&(null===n.averageFlowGps||Number.isFinite(n.averageFlowGps))&&(void 0===n.scaleAvailable||"boolean"==typeof n.scaleAvailable)&&[n.firstDropMs,n.tareMs].every(e=>null===e||o(e,6e4))))throw Error();if(e&&t.boot===e.boot&&t.seq<=e.seq)return e;const s=t.curve;if(!s||!Array.isArray(s.wCg)||!Array.isArray(s.wAtMs)||!Array.isArray(s.wBreakBefore)||s.wCg.length!==s.wAtMs.length||s.wCg.length!==t.cursor-t.curveBase||s.wCg.some(e=>!o(e,32767,-32767))||s.wAtMs.some((e,t)=>!o(e,6e4)||t&&e<s.wAtMs[t-1])||s.wBreakBefore.some(e=>!o(e,1200)||0===e||e<t.curveBase||e>=t.cursor))throw Error();if(t.snapshot){if(0!==t.curveBase)throw Error();return t}if(!e||t.boot!==e.boot||t.cycle!==e.cycle||t.shotId!==e.shotId||t.base!==e.seq||t.seq!==e.seq+1||t.curveBase!==e.cursor||s.wAtMs.length&&e.cursor&&s.wAtMs[0]<e.curve.wAtMs.at(-1))throw Error();return{...t,curve:{...s,wCg:[...e.curve.wCg,...s.wCg],wAtMs:[...e.curve.wAtMs,...s.wAtMs],wBreakBefore:[...e.curve.wBreakBefore,...s.wBreakBefore]}}}function startShotStream(){
+let shotWs=null,shotRetry=0,shotTry=0,shotFrame=null,shotSeen=null,shotResync=!1,shotStale=!0,shotPaint=0,shotSetup=0,shotAlive=0,shotDeadline=0,shotGotHome=!1,shotGotShot=!1;function stopShotStream(){clearTimeout(shotRetry),shotRetry=0,clearTimeout(shotSetup),clearTimeout(shotAlive),clearTimeout(shotDeadline);const e=shotWs;shotWs=null,e&&e.close(),shotStale=!0,invalidateHomeStream(),paintShotStream()}function paintShotStream(){if(shotStale)cancelNoScaleFinish();scheduleNoScaleTimer();if("home"!==activeView)return;const e=$("shotHero");if(e){if(e.setAttribute("aria-busy",String(shotStale)),!shotFrame)return e.hidden=!1,setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_loading")),setHomeSub("shotHeroWeight","—"),void setHomeSub("shotHeroElapsed","—");if(!shotFrame.card.valid)return clearShotHero(),void(shotFsActive?exitShotFullScreen():shotStale&&(e.hidden=!1,setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_stale"))));renderShotHero({...shotFrame.card,...shotFrame.curve,elapsedMs:noScaleClock||noScaleFinish?noScaleTimerElapsed():shotFrame.card.elapsedMs}),shotStale?setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_stale")):"pending"===shotFrame.phase&&setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_pending"))}}function scheduleShotPaint(){shotPaint||(shotPaint=requestAnimationFrame(()=>{shotPaint=0,paintShotStream()}))}function shotStreamFrame(e,t){const o=(e,t=4294967295,s=0)=>Number.isInteger(e)&&e>=s&&e<=t,n=t?.card;if(!(t&&1===t.v&&o(t.boot)&&o(t.seq)&&o(t.revision)&&o(t.cycle)&&o(t.shotId)&&o(t.cursor,1201)&&o(t.curveBase,1201)&&"boolean"==typeof t.snapshot&&["idle","active","pending","transient"].includes(t.phase)&&n&&"boolean"==typeof n.valid&&"boolean"==typeof n.live&&o(n.elapsedMs)&&(null===n.weight||Number.isFinite(n.weight))&&(null===n.averageFlowGps||Number.isFinite(n.averageFlowGps))&&(void 0===n.scaleAvailable||"boolean"==typeof n.scaleAvailable)&&[n.firstDropMs,n.tareMs].every(e=>null===e||o(e,6e4))))throw Error();if(e&&t.boot===e.boot&&t.seq<=e.seq)return e;const s=t.curve;if(!s||!Array.isArray(s.wCg)||!Array.isArray(s.wAtMs)||!Array.isArray(s.wBreakBefore)||s.wCg.length!==s.wAtMs.length||s.wCg.length!==t.cursor-t.curveBase||s.wCg.some(e=>!o(e,32767,-32767))||s.wAtMs.some((e,t)=>!o(e,6e4)||t&&e<s.wAtMs[t-1])||s.wBreakBefore.some(e=>!o(e,1200)||0===e||e<t.curveBase||e>=t.cursor))throw Error();if(t.snapshot){if(0!==t.curveBase)throw Error();return t}if(!e||t.boot!==e.boot||t.cycle!==e.cycle||t.shotId!==e.shotId||t.base!==e.seq||t.seq!==e.seq+1||t.curveBase!==e.cursor||s.wAtMs.length&&e.cursor&&s.wAtMs[0]<e.curve.wAtMs.at(-1))throw Error();return{...t,curve:{...s,wCg:[...e.curve.wCg,...s.wCg],wAtMs:[...e.curve.wAtMs,...s.wAtMs],wBreakBefore:[...e.curve.wBreakBefore,...s.wBreakBefore]}}}function startShotStream(){
   if(!webUiPollingActive()||shotWs)return;
   clearTimeout(shotRetry);shotRetry=0;shotStale=true;paintShotStream();
   const socket=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/api/v1/ui/shot-stream');
-  shotWs=socket;let receivedShot=false,receivedHome=false,aliveTimer=0,deadline=0;
+  shotWs=socket;shotGotShot=false;shotGotHome=false;
   homeReady=new Promise(resolve=>homeResolve=resolve);
-  let setup=setTimeout(()=>{if(shotWs===socket&&(!receivedShot||!receivedHome))socket.close()},8e3);
-  const activity=()=>{
-    if(shotWs!==socket||!webUiPollingActive())return;
-    socket.send(JSON.stringify({op:'activity',seconds:webUiPowerSeconds()}));
-    deadline=setTimeout(()=>socket.close(),1e4);
-    aliveTimer=setTimeout(activity,2e4);
-  };
+  shotSetup=setTimeout(()=>{if(shotWs&&(!shotGotShot||!shotGotHome))shotWs.close()},8e3);
   socket.onopen=()=>{
     if(shotWs!==socket||!webUiPollingActive()){socket.close();return}
     socket.send(JSON.stringify({op:'bind',client:webUiClientId,...shotSeen||{}}));
     if(diagStreamWanted)socket.send('{"op":"diagnostic","on":true}');
     if(historyStreamWanted)historySendSubscribe();
     if(statsStreamWanted)statsSendSubscribe();
-    activity();
+    shotActivity();
   };
   socket.onmessage=event=>{
     if(shotWs!==socket||!webUiPollingActive())return;
     try{
-      if(typeof event.data!=='string'||event.data.length>24064)throw Error();
+      if(typeof event.data!=='string'||event.data.length>28672)throw Error();
       const data=JSON.parse(event.data);
-      if(data.type==='alive'){clearTimeout(deadline);return}
+      if(data.type==='alive'){clearTimeout(shotDeadline);return}
       if(shotResync&&!data.snapshot)return;
       if(data.type==='diagnostic'){
         const next=diagStreamFrame(diagFrame,data);
@@ -548,10 +542,10 @@ let shotWs=null,shotRetry=0,shotTry=0,shotFrame=null,shotSeen=null,shotResync=!1
       }
       if(data.type==='home'){
         const paddleOff=homeFrame?.status.physicalActivatorOn===true&&data.changes?.physicalActivatorOn===false;
-        homeFrame=homeStreamFrame(receivedHome?homeFrame:null,data);
+        homeFrame=homeStreamFrame(shotGotHome?homeFrame:null,data);
         if('timeUtcSec' in data.changes){statusUtcAnchorSec=homeFrame.status.timeUtcSec;statusUtcAnchorAt=performance.now()}
         delete homeFrame.status.timeUtcSec;
-        receivedHome=true;homeStale=false;
+        shotGotHome=true;homeStale=false;
         // Navigation visibility is a Home-stream field; applying it here keeps
         // the Diagnostic menu entry live on every view without a REST probe.
         if('diagnosticPageVisible' in data.changes)applyDiagnosticNavigation(homeFrame.status);
@@ -564,30 +558,25 @@ let shotWs=null,shotRetry=0,shotTry=0,shotFrame=null,shotSeen=null,shotResync=!1
         if(activeView==='home')renderHomeStream();
         homeResolve(true);
       }else{
-        if(!receivedShot&&!data.snapshot)throw Error();
-        const next=shotStreamFrame(receivedShot?shotFrame:null,data);
+        if(!shotGotShot&&!data.snapshot)throw Error();
+        const next=shotStreamFrame(shotGotShot?shotFrame:null,data);
         if(next===shotFrame)return;
         syncNoScaleTimer(next);
-        shotFrame=next;receivedShot=true;shotResync=false;shotTry=0;shotStale=!!data.stale;
+        shotFrame=next;shotGotShot=true;shotResync=false;shotTry=0;shotStale=!!data.stale;
         revealNoScaleFinish();
         if(['active','pending'].includes(data.phase))shotSeen={cycle:data.cycle,boot:data.boot};
         else if(shotSeen&&shotSeen.boot!==data.boot)shotSeen=null;
         scheduleShotPaint();
       }
-      if(receivedHome&&receivedShot)clearTimeout(setup);
+      if(shotGotHome&&shotGotShot)clearTimeout(shotSetup);
     }catch(_){
       invalidateHomeStream();shotStale=true;scheduleShotPaint();
       if(shotResync||socket.readyState!==WebSocket.OPEN)socket.close();
-      else{
-        shotResync=true;receivedHome=receivedShot=false;historyFetchOffset=-1;statsFetchMark=null;statsPage=null;
-        homeReady=new Promise(resolve=>homeResolve=resolve);
-        clearTimeout(setup);setup=setTimeout(()=>socket.close(),8e3);
-        socket.send('{"op":"resync"}');
-      }
+      else requestShotResync();
     }
   };
   socket.onclose=event=>{
-    clearTimeout(setup);clearTimeout(aliveTimer);clearTimeout(deadline);
+    clearTimeout(shotSetup);clearTimeout(shotAlive);clearTimeout(shotDeadline);
     if(shotWs!==socket)return;
     shotWs=null;diagFrame=null;historyFetchOffset=-1;historyResolve&&historyResolve(false);statsFetchMark=null;statsPage=null;statsLastSeq=0;statsResolve&&statsResolve(false);if(statsExportResolve)statsExportResolve(null);shotStale=true;shotResync=false;invalidateHomeStream();scheduleShotPaint();
     if(event?.code===4001){deactivateWebUi();return}
@@ -595,6 +584,9 @@ let shotWs=null,shotRetry=0,shotTry=0,shotFrame=null,shotSeen=null,shotResync=!1
     if(webUiPollingActive())shotRetry=setTimeout(startShotStream,Math.min(1e4,500*2**Math.min(shotTry++,5))*(.8+.4*Math.random()));
   };
 }
+// Module-scoped keepalive and resync: a tab back from the background re-arms them after frozen page timers.
+function shotActivity(){if(!shotWs||shotWs.readyState!==1||!webUiPollingActive())return;clearTimeout(shotAlive);clearTimeout(shotDeadline);shotWs.send(JSON.stringify({op:'activity',seconds:webUiPowerSeconds()}));shotDeadline=setTimeout(()=>shotWs&&shotWs.close(),1e4);shotAlive=setTimeout(shotActivity,2e4)}
+function requestShotResync(){if(!shotWs||shotWs.readyState!==1)return;shotResync=true;shotGotHome=shotGotShot=false;historyFetchOffset=-1;statsFetchMark=null;statsPage=null;homeReady=new Promise(r=>homeResolve=r);clearTimeout(shotSetup);shotSetup=setTimeout(()=>shotWs&&shotWs.close(),8e3);shotWs.send('{"op":"resync"}')}
 let noScaleClock=null,noScalePaint=0,noScaleFinish=null;
 const noScaleSilenceMs=1500;
 function syncNoScaleTimer(frame){
@@ -787,7 +779,8 @@ applyShotPage({bootId:message.bootId,total:page.total,hasMore:page.hasMore,stats
 renderShots();updateFirmwareFooter();noteReachOk();
 if(page.mode!=='append'&&statsResolve)statsResolve(true);
 }
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&webUiPollingActive()){stopShotStream();startShotStream()}});
+// Back from the background: resync the live socket; rebuild only if it died hidden.
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&webUiPollingActive())shotWs&&shotWs.readyState===1?(requestShotResync(),shotActivity()):startShotStream()});
 window.addEventListener('pagehide',stopShotStream);
 window.addEventListener('pageshow',()=>{if(webUiPollingActive())startShotStream()});
 function formatExtractionGuard(d){return!d.guardEnabled?__WEBUI_TEXT__("runtime.off_2"):d.extended?__WEBUI_TEXT__("runtime.ext")+(d.goal??__WEBUI_TEXT__("runtime.unknown"))+__WEBUI_TEXT__("runtime.g_or")+ms(d.minBbwBrewRemainingMs,1)+__WEBUI_TEXT__("runtime.s_left"):d.inShot?__WEBUI_TEXT__("runtime.on_2"):__WEBUI_TEXT__("runtime.idle")}

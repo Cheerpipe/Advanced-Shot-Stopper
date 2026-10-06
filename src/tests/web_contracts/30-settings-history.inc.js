@@ -1017,7 +1017,15 @@ if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !networkHeader.includes('sendStatsStream') ||
     !network.includes('\\"hasMore\\":%s') ||
     !network.includes('\\"total\\":%u') ||
-    !appJsSource.includes('R.startStatsStream()')) {
+    !appJsSource.includes('R.startStatsStream()') ||
+    // Backpressure pacing: the client guard covers a solo maximal row frame
+    // (server rows are bounded by the external kJsonItem workspace), and a
+    // tab returning from the background resyncs the owned socket instead of
+    // tearing it down.
+    !runtimeJs.includes('event.data.length>28672') ||
+    !runtimeJs.includes('function requestShotResync(') ||
+    !runtimeJs.includes('function shotActivity(') ||
+    runtimeJs.includes('stopShotStream();startShotStream()')) {
   throw new Error('Shot history must page 10 shots over the owned WebSocket with infinite scroll and a streamed export');
 }
 const shotLogTypes = fs.readFileSync(

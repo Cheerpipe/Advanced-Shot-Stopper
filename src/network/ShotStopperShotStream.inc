@@ -6,10 +6,14 @@ constexpr uint32_t kShotStreamBindMs = 5000, kShotStreamRetainMs = 30000;
 constexpr uint32_t kShotStreamLiveMs = 100, kShotStreamIdleMs = 250;
 constexpr size_t kShotStreamRequestBytes = 160;
 // Stats pages carry full curves; multi-row frames accumulate under this
-// budget. A single maximal row (~20.7 KiB curve JSON plus scalars) sent alone
-// on a first frame together with the ui and stats extras measures ~23.2 KiB,
-// still under the client's 24 KiB frame guard.
+// budget, one frame per dispatch tick (a continued page resumes where its
+// previous frame stopped). A maximal row (~20.7 KiB curve JSON plus scalars)
+// rides alone and stays far under the client's 28 KiB frame guard even with
+// the ui and stats extras.
 constexpr size_t kStatsStreamFrameBytes = 20480;
+// WS header size: a failed write of at most this many bytes leaves the
+// stream clean, because nothing of that frame reached the socket.
+constexpr size_t kShotStreamHeaderMax = 14;
 
 // Shared op validation for the view-scoped record subscriptions: an exact
 // field whitelist and bounded optional integers.
@@ -52,6 +56,21 @@ uint32_t shotStreamCurveHash(const ShotCurveRecord &curve, uint16_t count) {
   return hash;
 }
 
+// Set by shotStreamSend for the senders: true when a failed call wrote
+// nothing of a frame header (transient backpressure), so the frame can be
+// deferred to the next dispatch; a partial payload or a dead peer leaves it
+// false and the caller must close the session. httpd serializes every send
+// on its own thread, so the flag needs no lock.
+bool shotStreamSendCleanAbort = false;
+
+int shotStreamSendFailed(size_t done, size_t length) {
+  shotStreamSendCleanAbort =
+      done == 0 && length <= kShotStreamHeaderMax &&
+      errno != EPIPE && errno != EBADF && errno != ECONNRESET &&
+      errno != ENOTCONN && errno != ENOTSOCK;
+  return -1;
+}
+
 // IDF's WS sender calls send_fn once per header/payload and accepts short writes.
 // Complete each write or fail within 100 ms, including slow-client backpressure.
 int shotStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int flags) {
@@ -59,15 +78,26 @@ int shotStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int 
   size_t done = 0;
   while (done < length) {
     const uint32_t age = millis() - started;
-    if (age >= 100) return -1;
+    if (age >= 100) {
+      errno = EAGAIN;
+      return shotStreamSendFailed(done, length);
+    }
     fd_set writable;
     FD_ZERO(&writable);
     FD_SET(fd, &writable);
     timeval wait = {0, static_cast<suseconds_t>((100 - age) * 1000)};
-    if (select(fd + 1, nullptr, &writable, nullptr, &wait) <= 0) return -1;
+    const int ready = select(fd + 1, nullptr, &writable, nullptr, &wait);
+    if (ready < 0 && (errno == EBADF || errno == EINVAL))
+      return shotStreamSendFailed(done, length);
+    if (ready <= 0) {
+      // The write budget ran out with the socket still congested.
+      errno = EAGAIN;
+      return shotStreamSendFailed(done, length);
+    }
     const int sent = send(fd, data + done, length - done, flags | MSG_DONTWAIT);
     if (sent > 0) done += static_cast<size_t>(sent);
-    else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) return -1;
+    else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+      return shotStreamSendFailed(done, length);
   }
   return static_cast<int>(done);
 }
@@ -243,6 +273,7 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
           if (accepted) {
             session->statsOn = false;
             session->statsFetch = false;
+            session->statsPaging = false;
           }
         } else if (fetch && cJSON_IsTrue(fetch)) {
           accepted = offset != nullptr;
@@ -384,11 +415,17 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
   if ((control.activeCycle || control.relayClosed) !=
       controlCriticalRfActive_.load(std::memory_order_acquire))
     shotStreamUrgent_.store(true, std::memory_order_release);
-  ShotCurveRecord &curve = workBuf_->serializedCurve;
   ShotLogRecord latest = {};
   const bool eligible = callbacks_.copyHomeShot &&
       callbacks_.copyHomeShot(latest, workBuf_->homeCurve);
+  // Home first, then the shot card: the client's setup window waits for both
+  // and must not queue behind record pages, which can pace across dispatches.
   if (!sendHomeStream(session, control, eligible ? &latest : nullptr)) {
+    unlockWorkBuf();
+    httpd_sess_trigger_close(server_, session.fd);
+    return;
+  }
+  if (!sendShotCard(session, control, latest, eligible)) {
     unlockWorkBuf();
     httpd_sess_trigger_close(server_, session.fd);
     return;
@@ -408,6 +445,13 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
     httpd_sess_trigger_close(server_, session.fd);
     return;
   }
+  unlockWorkBuf();
+}
+
+bool ShotStopperNetwork::sendShotCard(ShotStreamSession &session,
+                                      const ControlStatusSnapshot &control,
+                                      const ShotLogRecord &latest, bool eligible) {
+  ShotCurveRecord &curve = workBuf_->serializedCurve;
   const PersistedLastShot &cycle = control.homeCycle;
   const bool live = control.activeCycle || control.homePending;
   if (live) {
@@ -469,10 +513,8 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
                                         card.endReason, card.fastExtractionGuardEnabled, card.extractionExtended)),
       flow, card.extractionExtended ? "true" : "false", card.slowExtractionExtended ? "true" : "false",
       card.rating, savePending ? "true" : "false");
-  if (cardBytes <= 0 || static_cast<size_t>(cardBytes) >= NetworkWorkBuf::kJsonItem) {
-    unlockWorkBuf();
-    return;
-  }
+  if (cardBytes <= 0 || static_cast<size_t>(cardBytes) >= NetworkWorkBuf::kJsonItem)
+    return true;
   const uint32_t markers = crc32Update(0xFFFFFFFFU,
       reinterpret_cast<const uint8_t *>(&curve.atmClearedMs),
       offsetof(ShotCurveRecord, weightCg) - offsetof(ShotCurveRecord, atmClearedMs));
@@ -485,10 +527,8 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
       session.cycle != card.cycleId || session.shot != card.shotLogId ||
       session.cursor > curve.count || session.markersHash != markers ||
       session.prefixHash != shotStreamCurveHash(curve, session.cursor);
-  if (!replace && session.fingerprint == fingerprint) {
-    unlockWorkBuf();
-    return;
-  }
+  if (!replace && session.fingerprint == fingerprint)
+    return true;
   const uint16_t base = replace ? 0 : session.cursor;
   const bool formatted = formatShotCurveJsonBody(workBuf_->curveJson, SHOT_CURVE_JSON_CAPACITY, curve, base);
   // Move scalar body behind its envelope in the same bounded workspace.
@@ -514,9 +554,9 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
     ok = added > 0 && static_cast<size_t>(added) < NetworkWorkBuf::kJsonItem - used;
     if (ok) used += added;
   }
+  bool owner = false;
   if (ok) {
     // Recheck ownership immediately before delivery; telemetry never renews it.
-    bool owner;
     { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
     httpd_ws_frame_t frame = {};
     frame.type = HTTPD_WS_TYPE_TEXT;
@@ -524,7 +564,11 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
     frame.len = used;
     ok = owner && httpd_ws_send_frame_async(server_, session.fd, &frame) == ESP_OK;
   }
-  if (!ok) { unlockWorkBuf(); httpd_sess_trigger_close(server_, session.fd); return; }
+  if (!ok) {
+    // A clean header abort defers: every bookkeeping flag below is only
+    // cleared on delivery, so the next dispatch resends the same card.
+    return owner && shotStreamSendCleanAbort;
+  }
   ++session.sequence;
   session.boot = control.bootId;
   session.cycle = card.cycleId;
@@ -534,5 +578,5 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
   session.markersHash = markers;
   session.fingerprint = fingerprint;
   session.resync = false;
-  unlockWorkBuf();
+  return true;
 }

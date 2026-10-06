@@ -217,7 +217,14 @@ bool ShotStopperNetwork::sendHomeStream(ShotStreamSession &session,
   frame.type = HTTPD_WS_TYPE_TEXT;
   frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
   frame.len = delta.used;
-  if (!owner || httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) return false;
+  if (!owner) return false;
+  if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
+    // The delta hashes were already consumed for the dropped frame, so only
+    // a full snapshot can repair the client; defer on a clean header abort.
+    if (!shotStreamSendCleanAbort) return false;
+    session.homeResync = true;
+    return true;
+  }
   session.homeBoot = control.bootId;
   session.homeResync = false;
   return true;
@@ -357,7 +364,13 @@ bool ShotStopperNetwork::sendDiagnosticStream(ShotStreamSession &session,
   frame.type = HTTPD_WS_TYPE_TEXT;
   frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
   frame.len = delta.used;
-  if (!owner || httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) return false;
+  if (!owner) return false;
+  if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
+    // Same repair rule as the Home stream: defer with a snapshot armed.
+    if (!shotStreamSendCleanAbort) return false;
+    session.diagResync = true;
+    return true;
+  }
   session.diagBoot = control.bootId;
   session.diagResync = false;
   return true;
@@ -466,8 +479,12 @@ bool ShotStopperNetwork::sendHistoryStream(ShotStreamSession &session,
   frame.type = HTTPD_WS_TYPE_TEXT;
   frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
   frame.len = used;
-  if (!owner || httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK)
-    return false;
+  if (!owner) return false;
+  if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
+    // Nothing was delivered: the snapshot/fetch/epoch state that produced
+    // this frame is still armed, so the next dispatch retries it unchanged.
+    return shotStreamSendCleanAbort;
+  }
   session.historyBoot = control.bootId;
   session.historyResync = false;
   session.historyFetch = false;
@@ -599,13 +616,14 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
 }
 
 // Same bounded, view-scoped contract as the history sender, plus frame
-// budgeting: full curves make a page larger than one frame, so rows
-// accumulate under kStatsStreamFrameBytes and pages continue across frames
-// (rowBase/more) until a terminating frame. The cheap store epoch gates the
-// record/curve copy, and the fingerprint — epoch, window, aggregate, and
-// per-row id/packed-rating/curve hashes, since records are immutable after
-// commit except the packed rating byte — suppresses the send while the page
-// is unchanged.__attribute__((optimize("Os")))
+// budgeting and pacing: full curves make a page larger than one frame, so a
+// dispatch delivers one budgeted frame and the page continues across
+// dispatch ticks (rowBase/more) until a terminating frame. The cheap store
+// epoch gates the record/curve copy, and the fingerprint — epoch, window,
+// aggregate, and per-row id/packed-rating/curve hashes, since records are
+// immutable after commit except the packed rating byte — suppresses the
+// send while the page is unchanged.
+__attribute__((optimize("Os")))
 bool ShotStopperNetwork::sendStatsStream(ShotStreamSession &session,
                                          const ControlStatusSnapshot &control) {
   const uint32_t epoch =
@@ -616,7 +634,18 @@ bool ShotStopperNetwork::sendStatsStream(ShotStreamSession &session,
   // partial page and in-flight markers when a replace lands.
   if (initial) session.statsFetch = false;
   const bool fetch = session.statsFetch;
-  if (!initial && !fetch && epoch == session.statsEpoch) return true;
+  // The in-flight page survives only unchanged: a fetch or a store change
+  // supersedes it, and a fetch preempting the standing page re-arms the
+  // standing snapshot so the view is not left on pre-fetch rows.
+  if (session.statsPaging && (fetch != session.statsPageFetch ||
+                              session.statsPageEpoch != epoch || initial)) {
+    // A fetch preempting the standing page re-arms the standing snapshot
+    // only when the fetch completes, so the fetch's own continuation
+    // dispatches never look initial.
+    if (fetch && !session.statsPageFetch) session.statsRedeliverStanding = true;
+    session.statsPaging = false;
+  }
+  if (!session.statsPaging && !initial && !fetch && epoch == session.statsEpoch) return true;
   const size_t offset = fetch ? session.statsFetchOffset : session.statsOffset;
   const size_t limit = fetch ? session.statsFetchLimit : session.statsLimit;
   const ShotLogSort sort = fetch ? session.statsFetchSort : session.statsSort;
@@ -665,7 +694,7 @@ bool ShotStopperNetwork::sendStatsStream(ShotStreamSession &session,
     fingerprint = crc32Update(fingerprint,
         reinterpret_cast<const uint8_t *>(&rowHash), sizeof(rowHash));
   }
-  if (!initial && !fetch && fingerprint == session.statsFingerprint) {
+  if (!session.statsPaging && !initial && !fetch && fingerprint == session.statsFingerprint) {
     // Content identical (e.g. a no-op rating bump): adopt the moved epoch so
     // idle ticks stop at the cheap gate instead of recopying the records.
     session.statsEpoch = epoch;
@@ -677,70 +706,94 @@ bool ShotStopperNetwork::sendStatsStream(ShotStreamSession &session,
     override = webUiOverrideActive_ &&
         static_cast<int32_t>(millis() - webUiOverrideUntilMs_) < 0;
   }
-  ++session.statsSeq;
-  size_t sent = 0;
-  do {
-    const size_t rowBase = sent;
-    const bool first = sent == 0;
-    size_t used = 0;
-    if (!statusJsonAppend(&used,
-            "{\"v\":1,\"type\":\"stats\",\"boot\":%lu,\"snapshot\":%s,"
-            "\"epoch\":%lu,\"seq\":%lu,",
-            static_cast<unsigned long>(control.bootId),
-            first && initial ? "true" : "false",
-            static_cast<unsigned long>(epoch),
-            static_cast<unsigned long>(session.statsSeq)))
+  if (!session.statsPaging) {
+    // Page start: identity is captured once and the resync/boot markers move
+    // here from completion, so continuation dispatches are not initial.
+    ++session.statsSeq;
+    session.statsPaging = true;
+    session.statsSent = 0;
+    session.statsPageEpoch = epoch;
+    session.statsPageSnapshot = initial;
+    session.statsPageFetch = fetch;
+    session.statsBoot = control.bootId;
+    session.statsResync = false;
+  }
+  const bool first = session.statsSent == 0;
+  const size_t sentBase = session.statsSent;
+  size_t used = 0;
+  if (!statusJsonAppend(&used,
+          "{\"v\":1,\"type\":\"stats\",\"boot\":%lu,\"snapshot\":%s,"
+          "\"epoch\":%lu,\"seq\":%lu,",
+          static_cast<unsigned long>(control.bootId),
+          first && session.statsPageSnapshot ? "true" : "false",
+          static_cast<unsigned long>(epoch),
+          static_cast<unsigned long>(session.statsSeq)))
       return false;
-    if (first && initial &&
-        (!appendRecordPageUi(control, &used, override) ||
-         !statusJsonAppend(&used, ",")))
+  if (first && session.statsPageSnapshot &&
+      (!appendRecordPageUi(control, &used, override) ||
+       !statusJsonAppend(&used, ",")))
+    return false;
+  if (first && statsOk &&
+      !statusJsonAppend(&used, "\"stats\":%s,", statsHeader))
+    return false;
+  if (!statusJsonAppend(&used,
+          "\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
+          "\"hasMore\":%s,\"rows\":[",
+          static_cast<unsigned long>(control.bootId),
+          static_cast<unsigned>(count), static_cast<unsigned>(start),
+          static_cast<unsigned>(limit), hasMore ? "true" : "false"))
+    return false;
+  const size_t rowsBase = used;
+  while (session.statsSent < pageCount) {
+    const size_t rowBytes = formatShotStatsRow(
+        work, work.shotRecords[start + session.statsSent], work.shotCurves,
+        curveCount);
+    if (!rowBytes) return false;
+    // Close the frame before this row unless the frame is empty; a single
+    // oversized row still fits under the client's frame guard alone.
+    if (used + (used > rowsBase ? 1u : 0u) + rowBytes + 48u >
+            kStatsStreamFrameBytes &&
+        used > rowsBase)
+      break;
+    if (!statusJsonAppend(&used, "%s%s", used > rowsBase ? "," : "",
+                          work.jsonItem))
       return false;
-    if (first && statsOk &&
-        !statusJsonAppend(&used, "\"stats\":%s,", statsHeader))
-      return false;
-    if (!statusJsonAppend(&used,
-            "\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
-            "\"hasMore\":%s,\"rows\":[",
-            static_cast<unsigned long>(control.bootId),
-            static_cast<unsigned>(count), static_cast<unsigned>(start),
-            static_cast<unsigned>(limit), hasMore ? "true" : "false"))
-      return false;
-    const size_t rowsBase = used;
-    while (sent < pageCount) {
-      const size_t rowBytes = formatShotStatsRow(
-          work, work.shotRecords[start + sent], work.shotCurves, curveCount);
-      if (!rowBytes) return false;
-      // Close the frame before this row unless the frame is empty; a single
-      // oversized row still fits under the client's 24 KiB guard alone.
-      if (used + (used > rowsBase ? 1u : 0u) + rowBytes + 48u >
-              kStatsStreamFrameBytes &&
-          used > rowsBase)
-        break;
-      if (!statusJsonAppend(&used, "%s%s", used > rowsBase ? "," : "",
-                            work.jsonItem))
-        return false;
-      ++sent;
-    }
-    const bool more = sent < pageCount;
-    if (!statusJsonAppend(&used, "],\"rowBase\":%u,\"more\":%s}",
-            static_cast<unsigned>(rowBase), more ? "true" : "false"))
-      return false;
-    // Recheck ownership immediately before every delivery.
-    bool owner;
-    { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
-    httpd_ws_frame_t frame = {};
-    frame.type = HTTPD_WS_TYPE_TEXT;
-    frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
-    frame.len = used;
-    if (!owner || httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK)
-      return false;
-  } while (sent < pageCount);
-  session.statsBoot = control.bootId;
-  session.statsResync = false;
+    ++session.statsSent;
+  }
+  const bool more = session.statsSent < pageCount;
+  if (!statusJsonAppend(&used, "],\"rowBase\":%u,\"more\":%s}",
+          static_cast<unsigned>(sentBase), more ? "true" : "false"))
+    return false;
+  // Recheck ownership immediately before every delivery.
+  bool owner;
+  { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
+  httpd_ws_frame_t frame = {};
+  frame.type = HTTPD_WS_TYPE_TEXT;
+  frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
+  frame.len = used;
+  if (!owner) return false;
+  if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
+    // A clean header abort delivered nothing: roll the buffered rows back so
+    // the next dispatch rebuilds the same frame for the same page.
+    if (!shotStreamSendCleanAbort) return false;
+    session.statsSent = sentBase;
+    return true;
+  }
+  if (more) {
+    // Continue the page on the next dispatch; urgent bypasses the idle
+    // cadence so a healthy client still streams without gaps.
+    shotStreamUrgent_.store(true, std::memory_order_release);
+    return true;
+  }
+  session.statsPaging = false;
   session.statsFetch = false;
   if (!fetch) {
     session.statsEpoch = epoch;
     session.statsFingerprint = fingerprint;
+  } else if (session.statsRedeliverStanding) {
+    // The preempted standing page re-arms now, with no page in flight.
+    session.statsRedeliverStanding = false;
+    session.statsResync = true;
   }
   return true;
 }

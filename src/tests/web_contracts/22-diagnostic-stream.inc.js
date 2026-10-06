@@ -139,6 +139,35 @@
       'stats suppression and standing sends must both store the epoch');
   assert.equal((homeStream.match(/if \(!fetch\) \{/g) || []).length, 2,
       'snapshot sends must store the standing fingerprint');
+  // Backpressure triage: a failed frame send must not tear down the owned
+  // socket when nothing of the frame reached the wire. Only a partial
+  // payload, a dead peer, or lost ownership may close the session.
+  assert(stream.includes('shotStreamSendCleanAbort'),
+      'the send override must classify clean header aborts');
+  assert(homeStream.includes('session.homeResync = true;') &&
+         homeStream.includes('session.diagResync = true;'),
+      'deferred Home/diagnostic sends must re-arm their snapshot');
+  assert(homeStream.includes('return shotStreamSendCleanAbort;'),
+      'deferred record pages keep their retry state instead of closing');
+  assert(homeStream.includes('session.statsSent = sentBase;'),
+      'a deferred stats frame must roll its buffered rows back');
+  // Dispatch order: the client's setup window waits for Home and the shot
+  // card, so record pages — which may pace across dispatch ticks — go last.
+  const homeCall = stream.indexOf('if (!sendHomeStream(session, control,');
+  const cardCall = stream.indexOf('if (!sendShotCard(session, control,');
+  const diagCall = stream.indexOf('session.diagnostic && !sendDiagnosticStream(session, control)');
+  const historyCall = stream.indexOf('session.historyOn && !sendHistoryStream(session, control)');
+  const statsCall = stream.indexOf('session.statsOn && !sendStatsStream(session, control)');
+  assert(homeCall >= 0 && cardCall > homeCall && diagCall > cardCall &&
+         historyCall > diagCall && statsCall > historyCall,
+      'dispatch must send home, card, diagnostic, history, stats in order');
+  // Pacing: one budgeted stats frame per dispatch resumes the in-flight page
+  // and flags urgency so a healthy client streams without cadence gaps.
+  assert(homeStream.includes('session.statsPageEpoch != epoch') &&
+         homeStream.includes('session.statsSent = 0;'),
+      'stats pages must capture identity at page start and resume by epoch');
+  assert(homeStream.includes('shotStreamUrgent_.store(true, std::memory_order_release);\n    return true;'),
+      'a continued page must flag urgency for the next dispatch');
   const diagRegion = homeStream.slice(homeStream.indexOf('sendDiagnosticStream'));
   const diagSlots = Number(/kDiagFields\s*=\s*(\d+)/.exec(networkHeader)[1]);
   const diagCalls = (diagRegion.match(/\bdelta\.field\(/g) || []).length;

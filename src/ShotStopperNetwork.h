@@ -379,6 +379,13 @@ class ShotStopperNetwork {
     ShotLogSort statsSort = ShotLogSort::Date, statsFetchSort = ShotLogSort::Date;
     ShotLogSortDir statsDir = ShotLogSortDir::Desc, statsFetchDir = ShotLogSortDir::Desc;
     uint32_t statsEpoch = 0, statsFingerprint = 0, statsBoot = 0, statsSeq = 0;
+    // Paced delivery: one budgeted frame per dispatch resumes the in-flight
+    // page (snapshot/fetch identity and store epoch captured at page start)
+    // until its terminating frame; a deferred send keeps this state intact.
+    bool statsPaging = false, statsPageSnapshot = false, statsPageFetch = false;
+    bool statsRedeliverStanding = false;
+    size_t statsSent = 0;
+    uint32_t statsPageEpoch = 0;
     char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
     bool bound = false, resync = true;
     bool homeResync = true;
@@ -600,6 +607,8 @@ class ShotStopperNetwork {
   static void shotStreamDispatch(void *context);
   void serviceShotStream(uint32_t now);
   void sendShotStream(ShotStreamSession &session);
+  bool sendShotCard(ShotStreamSession &session, const ControlStatusSnapshot &control,
+                    const ShotLogRecord &latest, bool eligible);
   bool sendHomeStream(ShotStreamSession &session, const ControlStatusSnapshot &control,
                       const ShotLogRecord *latest);
   bool sendDiagnosticStream(ShotStreamSession &session,

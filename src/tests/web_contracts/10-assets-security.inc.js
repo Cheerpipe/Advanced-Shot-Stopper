@@ -620,8 +620,11 @@ if (htmlBytes > 85800) {
 // adds ~4 KB more; compressed asset and firmware limits stay fixed.
 // The record-view UI freshness on Home deltas and the single-flight export
 // add ~0.6 KB more; compressed asset and firmware limits stay fixed.
-if (jsBytes > 263200) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 263200)`);
+// The backpressure-paced owned socket (module keepalive/resync helpers, the
+// visibilitychange resync, and the raised frame guard) adds ~0.5 KB more;
+// compressed asset and firmware limits stay fixed.
+if (jsBytes > 263700) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 263700)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -663,8 +666,9 @@ if (jsBytes > 263200) {
 // Include the same ~2.6 KB history WebSocket allowance described above; the
 // deleted REST probe and pull plumbing return part of it.
 // Include the same ~4 KB Stats stream allowance described above.
-if (htmlBytes + jsBytes > 348000) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 348000)`);
+// Include the same ~0.5 KB owned-socket pacing allowance described above.
+if (htmlBytes + jsBytes > 348500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 348500)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
