@@ -251,16 +251,21 @@ small{display:block;color:var(--mu)}
 #brewModeRow .swS{font-size:.78rem}
 #brewModeRow .hic{flex:none;display:flex;align-items:center;justify-content:center;width:2.4rem;height:2.4rem;border-radius:50%;border:2px solid var(--bd);color:var(--mu);transition:.2s}
 #brewModeRow .hic svg{width:1.2rem;height:1.2rem}
+#brewModeRow .xlsw{flex:none;position:relative;width:3.1rem;height:1.7rem;border-radius:2rem;background:var(--bd);transition:.2s}
+#brewModeRow .xlsw i{position:absolute;top:.2rem;left:.2rem;width:1.3rem;height:1.3rem;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:.2s}
 #brewModeRow:not(.switchPending):has(input:checked){border-color:var(--ac);background:var(--ac);color:var(--on)}
 #brewModeRow:not(.switchPending):has(input:checked) .swL{color:var(--on)}
 #brewModeRow:not(.switchPending):has(input:checked) .swS{color:color-mix(in srgb,var(--on) 78%,transparent)}
 #brewModeRow:not(.switchPending):has(input:checked) .hic{border-color:var(--on);color:var(--on);background:color-mix(in srgb,var(--on) 16%,transparent)}
+#brewModeRow:not(.switchPending):has(input:checked) .xlsw{background:color-mix(in srgb,var(--on) 32%,transparent)}
+#brewModeRow:not(.switchPending):has(input:checked) .xlsw i{transform:translateX(1.4rem)}
 #brewModeRow:has(input:focus-visible){outline:3px solid var(--ac);outline-offset:2px}
 #brewModeRow:not(:has(input:disabled)):not(:has(input:checked)):not(.switchPending):hover{background:var(--in)}
 #brewModeRow:has(input:disabled){cursor:not-allowed}
-#brewModeRow:has(input:disabled) .hic{opacity:.48}
+#brewModeRow:has(input:disabled) .hic,#brewModeRow:has(input:disabled) .xlsw{opacity:.48}
 #brewModeRow.switchPending{cursor:wait;border-color:var(--wn);background:color-mix(in srgb,var(--wn) 18%,var(--sf));color:var(--fg)}
 #brewModeRow.switchPending .swS{color:var(--mu)}
+#brewModeRow.switchPending .xlsw{background:var(--wn)}
 .homeGuardGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;grid-auto-rows:1fr}
 @media(min-width:520px){.homeGuardGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .homeGuardGrid .switchRow{align-items:center;gap:.55rem;min-height:2.75rem;padding:.5rem .7rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);cursor:pointer}
@@ -489,4 +494,4 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 @media(max-width:340px){body{padding-inline:.75rem}.topBar{margin-inline:-.75rem;padding-inline:.75rem}.statusColumn{grid-template-columns:1fr}}
 @media(max-width:380px){.topBar{gap:.15rem;--logo-w:1.85rem;--logo-h:2.5rem;--brand-font:1.15rem;--brand-small:.73rem}.headerSignals{padding-left:.25rem}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:.01ms!important}.bootWave i{animation:none}.btnGlyph.busy .g:after{animation:none}}
-@media(forced-colors:active){input[type=checkbox]{appearance:auto}.slider,.ktrack{forced-color-adjust:auto}.btnGlyph,.presetCard,.kcard,#brewModeRow,.heroFsBtn,input,select,textarea{border-color:ButtonText}}
+@media(forced-colors:active){input[type=checkbox]{appearance:auto}.slider,.ktrack,#brewModeRow .xlsw{forced-color-adjust:auto}.btnGlyph,.presetCard,.kcard,#brewModeRow,.heroFsBtn,input,select,textarea{border-color:ButtonText}}
