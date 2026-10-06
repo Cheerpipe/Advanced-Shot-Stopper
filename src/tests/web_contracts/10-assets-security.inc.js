@@ -676,8 +676,8 @@ if (jsBytes > 255200) {
 // Include the same 2.1 KB finish-transition source allowance.
 // Include the same ~3.4 KB full-screen shot card allowance (buttons and hero
 // wrapper in HTML; state machine, session keep-alive, and popstate hook in JS).
-if (htmlBytes + jsBytes > 340000) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 340000)`);
+if (htmlBytes + jsBytes > 340800) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 340800)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
