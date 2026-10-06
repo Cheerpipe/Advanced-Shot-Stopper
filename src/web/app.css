@@ -188,6 +188,35 @@ summary::marker{color:var(--ac)}
 .shotHero .heroChip.mode{background:color-mix(in srgb,var(--on) 26%,transparent);font-weight:700}
 .shotHero .heroSpark svg{display:block;width:100%;height:2.6rem;margin-top:.7rem}
 .shotHero .heroHistory{display:block;margin-top:.55rem;text-align:right;font-size:.78rem;font-weight:650;color:var(--w78);text-decoration:underline}
+.heroFsBtn{position:absolute;top:.55rem;right:.55rem;z-index:2;display:none;align-items:center;justify-content:center;width:2.2rem;height:2.2rem;padding:0;border:1px solid color-mix(in srgb,var(--on) 35%,transparent);border-radius:50%;background:color-mix(in srgb,var(--on) 14%,transparent);color:var(--on);cursor:pointer}
+.heroFsBtn svg{width:1.05rem;height:1.05rem;fill:currentColor}
+.heroFsClose svg{fill:none;stroke:currentColor}
+.heroFsBtn:not(:disabled):hover{background:color-mix(in srgb,var(--on) 30%,transparent)}
+.heroFsBtn:not(:disabled):active{transform:scale(.93)}
+@media(hover:none),(pointer:coarse){#shotFsButton{display:inline-flex}.shotHero .heroLabel{padding-right:2.5rem}}
+.shotHero.fs .heroFsBtn,.shotHero.fs #shotFsButton{display:none}
+.shotHero.fs .heroFsClose{display:inline-flex}
+body.shotFs{overflow:hidden}
+.shotHero.fs{position:fixed;top:0;left:0;width:100vw;height:100vh;width:100dvw;height:100dvh;z-index:30;display:flex;margin:0;border-radius:0;box-shadow:none}
+.shotHero.fs .heroBody{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:clamp(.5rem,2.4vmin,2rem);--hpad:max(3.4vmin,env(safe-area-inset-top),env(safe-area-inset-bottom),env(safe-area-inset-left),env(safe-area-inset-right));padding:calc(var(--hpad) + 8vmin) var(--hpad) var(--hpad);animation:heroFsIn .26s ease-out}
+.shotHero.fs .heroBody>*{flex:none}
+.shotHero.fs .heroSpark{flex:1 1 auto;min-height:6vmin}
+@keyframes heroFsIn{from{opacity:0;transform:scale(.965)}}
+.shotHero.fs.fsOut .heroBody{animation:heroFsOut .2s ease-in forwards}
+@keyframes heroFsOut{to{opacity:0;transform:scale(.965)}}
+.shotHero.fs .heroFsBtn{top:2.4vmin;right:2.4vmin;width:clamp(2.2rem,8vmin,4.2rem);height:clamp(2.2rem,8vmin,4.2rem);border-width:2px}
+.shotHero.fs .heroFsBtn svg{width:45%;height:45%}
+.shotHero.fs .heroLabel{font-size:clamp(.75rem,3.8vmin,2.1rem);padding-right:clamp(2.5rem,10vmin,5rem)}
+.shotHero.fs .heroDot{width:clamp(.55rem,2.6vmin,1.5rem);height:clamp(.55rem,2.6vmin,1.5rem)}
+.shotHero.fs .heroNum b{font-size:clamp(3.4rem,25vmin,13rem)}
+.shotHero.fs .heroNum span{font-size:clamp(1.05rem,8vmin,4.2rem)}
+.shotHero.fs .heroTrack{height:clamp(.65rem,3vmin,1.6rem);margin:0}
+.shotHero.fs .heroChips{gap:clamp(.4rem,1.6vmin,1.1rem);margin:0}
+.shotHero.fs .heroChip{padding:clamp(.32rem,1.4vmin,1rem) clamp(.7rem,2.8vmin,2.2rem);font-size:clamp(.78rem,4.4vmin,2.5rem)}
+.shotHero.fs .heroSpark svg{height:100%;min-height:clamp(2.6rem,12vmin,13rem);margin-top:0}
+.shotHero.fs .heroHistory{font-size:clamp(.78rem,3.8vmin,2.1rem);margin-top:0}
+@media(orientation:portrait){.shotHero.fs{width:100vh;width:100dvh;height:100vw;height:100dvw;transform-origin:top left;transform:rotate(90deg) translateY(-100%)}}
+@media(prefers-reduced-motion:reduce){.shotHero.fs .heroBody{animation:none}}
 #log{width:100%;height:14rem;white-space:pre;overflow:auto;border:1px solid var(--bd);border-radius:.5rem;background:var(--in);color:var(--fg)}
 #log,#bullseyeRtttl{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 small{display:block;color:var(--mu)}
@@ -456,4 +485,4 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 @media(max-width:340px){body{padding-inline:.75rem}.topBar{margin-inline:-.75rem;padding-inline:.75rem}.statusColumn{grid-template-columns:1fr}}
 @media(max-width:380px){.topBar{gap:.15rem;--logo-w:1.85rem;--logo-h:2.5rem;--brand-font:1.15rem;--brand-small:.73rem}.headerSignals{padding-left:.25rem}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:.01ms!important}.bootWave i{animation:none}.btnGlyph.busy .g:after{animation:none}}
-@media(forced-colors:active){input[type=checkbox]{appearance:auto}.slider,.ktrack{forced-color-adjust:auto}.btnGlyph,.presetCard,.kcard,#brewModeRow,input,select,textarea{border-color:ButtonText}}
+@media(forced-colors:active){input[type=checkbox]{appearance:auto}.slider,.ktrack{forced-color-adjust:auto}.btnGlyph,.presetCard,.kcard,#brewModeRow,.heroFsBtn,input,select,textarea{border-color:ButtonText}}

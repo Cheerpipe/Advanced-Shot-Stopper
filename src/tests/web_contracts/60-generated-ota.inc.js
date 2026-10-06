@@ -446,9 +446,11 @@ if (generated.jsGzip.length > 3884) {
 // raises the cap to 9400. The frosted-glass sliding navigation pill uses
 // 100 bytes transferred from the shell JS cap. The Stats duration and yield
 // metric icons (CSP-safe absolute positioning beside the metric values)
-// raise the cap to 9550.
-if (generated.cssGzip.length > 9550) {
-  throw new Error('Compressed Web CSS exceeds the 9550-byte gzip budget');
+// raise the cap to 9550. The full-screen shot card presentation mode
+// (fixed landscape card, portrait rotation, fluid vmin sizing, and the two
+// corner icon buttons) raises the cap to 10200.
+if (generated.cssGzip.length > 10200) {
+  throw new Error('Compressed Web CSS exceeds the 10200-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -504,8 +506,11 @@ if (generated.cssGzip.length > 9550) {
 // and the shared live section renderer) raises the cap to 46100 bytes.
 // The local timer receives the same 100 bytes transferred from shell JS.
 // The finish transition receives the same 400 transferred shell bytes.
-if (sentinelRuntimeGzip.length > 46600) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 46600-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The full-screen shot card state machine (enter/exit/back-consume, lazy
+// button binding, and the shot-aware session keep-alive) raises the cap to
+// 47100 bytes.
+if (sentinelRuntimeGzip.length > 47100) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 47100-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -595,9 +600,12 @@ if (generated.icon48Gzip.length > 3500) {
 // The view-scoped diagnostic stream and the Stats metric icons raise the
 // combined cap to 120700 bytes; firmware, memory and OTA limits stay fixed.
 // The reviewed no-scale finish animation adds 200 combined asset bytes.
-// Firmware image, memory placement and OTA partitions retain separate limits.
-if (generated.combined > 120900) {
-  throw new Error(`Combined Web UI gzip exceeds the 120900-byte flash budget (${generated.combined})`);
+// The full-screen shot card (hero markup, corner buttons, and state machine)
+// adds ~1.3 KB of reviewed combined allowance; per-asset caps above govern
+// the split. Firmware image, memory placement and OTA partitions retain
+// separate limits.
+if (generated.combined > 122400) {
+  throw new Error(`Combined Web UI gzip exceeds the 122400-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

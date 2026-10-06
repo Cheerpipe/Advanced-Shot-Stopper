@@ -544,7 +544,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // Stats duration/yield metric icons and the Diagnostic Scale timer metric add
 // ~1 KB of HTML source allowance; compressed asset budgets stay fixed.
 // Firmware image, memory-region and OTA partition limits remain unchanged.
-if (htmlBytes > 85000) {
+// The Home full-screen shot card adds two icon buttons, the hero body wrapper,
+// and their labels: ~0.8 KB of HTML source allowance; compressed asset and
+// firmware budgets stay fixed.
+if (htmlBytes > 85800) {
   throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 85000)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
@@ -630,7 +633,10 @@ if (htmlBytes > 85000) {
 // The no-scale local clock adds 1.5 KB of source allowance; compressed
 // per-asset, combined flash, firmware image and OTA limits remain fixed.
 // The no-scale finish transition and early paddle edge add 2.1 KB of source allowance.
-if (jsBytes > 251600) {
+// The full-screen shot card state machine (enter/exit/back-consume, session
+// keep-alive during a live shot, and the router popstate hook) adds ~2.6 KB of
+// JS source allowance; compressed per-asset and firmware limits stay fixed.
+if (jsBytes > 254800) {
   throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 251600)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
@@ -668,7 +674,9 @@ if (jsBytes > 251600) {
 // combined source allowance; compressed budgets stay fixed.
 // Include the same 1.5 KB local-clock source allowance.
 // Include the same 2.1 KB finish-transition source allowance.
-if (htmlBytes + jsBytes > 335600) {
+// Include the same ~3.4 KB full-screen shot card allowance (buttons and hero
+// wrapper in HTML; state machine, session keep-alive, and popstate hook in JS).
+if (htmlBytes + jsBytes > 339600) {
   throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 335600)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
