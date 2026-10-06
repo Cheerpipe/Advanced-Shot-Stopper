@@ -446,7 +446,8 @@ bool ShotStopperNetwork::sendHistoryStream(ShotStreamSession &session,
           static_cast<unsigned long>(control.bootId),
           initial ? "true" : "false",
           static_cast<unsigned long>(epoch)) ||
-      (initial && !appendRecordPageUi(control, &used, override)) ||
+      (initial && (!appendRecordPageUi(control, &used, override) ||
+                   !statusJsonAppend(&used, ","))) ||
       !statusJsonAppend(&used,
           "\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
           "\"hasMore\":%s,\"records\":[",

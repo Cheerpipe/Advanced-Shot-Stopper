@@ -1175,6 +1175,19 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !activationStoresIo.includes('TaskLockGuard(shotStoreMutex)')) {
   throw new Error('Activation history must page 20 records over the owned WebSocket with sort direction, clear, delete, and no CSV export');
 }
+// The embedded ui object ends with '}}' and no separator of its own, so every
+// call site must append the ',' before the next frame member. A missing comma
+// once produced invalid JSON on every history snapshot and an unbounded
+// client resync loop ("Unable to load view").
+const recordUiCallSites = [...network.matchAll(
+    /appendRecordPageUi\(control, &used, override\)/g)];
+if (recordUiCallSites.length !== 2 ||
+    recordUiCallSites.some(
+        site => !network.slice(site.index, site.index + 240)
+            .includes('statusJsonAppend(&used, ",")'))) {
+  throw new Error(
+      'Every record-page ui embed must be followed by a member separator');
+}
 const statsSection = partialHtml.stats.match(
     /<fieldset id="shotStatsPanel"><legend>Stats<\/legend>([\s\S]*?)<\/fieldset>/);
 if (!statsSection ||
