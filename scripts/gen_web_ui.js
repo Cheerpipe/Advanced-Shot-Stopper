@@ -20,8 +20,10 @@ const cssSourcePath = path.join(repoRoot, 'src', 'web', 'app.css');
 const manifestPath = path.join(repoRoot, 'src', 'web', 'manifest.webmanifest');
 const icon192Path = path.join(repoRoot, 'resources', 'icons', 'android',
     'launchericon-192x192.png');
-const icon48Path = path.join(repoRoot, 'resources', 'icons', 'android',
-    'launchericon-48x48.png');
+// The favicon must be full-bleed artwork: the Android launcher icon of this
+// size ships with a baked-in white margin that shows as a white plate around
+// the artwork in browser tab bars (Safari probes /favicon.ico directly).
+const icon48Path = path.join(repoRoot, 'resources', 'icons', 'favicon-48.png');
 const versionPath = path.join(repoRoot, 'src', 'ShotStopperVersion.h');
 const outputPath =
     path.join(repoRoot, 'src', 'ShotStopperWebAssetsGzip.h');
