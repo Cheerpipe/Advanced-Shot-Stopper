@@ -11,7 +11,9 @@ hidden behind loading animations until the shot data is ready.
 Stopwatch and gram-weight icons sit beside the large duration and yield values
 in each shot card and beside Avg time and Avg yield in the Stats summary.
 Each icon and value are centered together within their column. The icons
-follow your chosen light or dark theme.
+follow your chosen light or dark theme. History cards use equal left and right
+spacing for their measurements and charts, with the delete button in the top
+right corner.
 
 ## What is recorded
 
