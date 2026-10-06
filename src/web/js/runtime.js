@@ -317,7 +317,7 @@ function formatScaleStatus(s){const sc=s.scale||{};return sc.available?{STALE:__
 function formatMachineState(s){return{CONFIRMED_OFF:__WEBUI_TEXT__("runtime.idle"),ASSUMED_ON:__WEBUI_TEXT__("runtime.assumed_on"),CONFIRMED_ON:__WEBUI_TEXT__("runtime.confirmed_on"),ASSUMED_OFF:__WEBUI_TEXT__("runtime.assumed_off"),UNKNOWN:__WEBUI_TEXT__("runtime.unknown_4")}[s.machineState]||__WEBUI_TEXT__("runtime.unknown_4")}
 function clearCupWeights(){['cupWeight','dCupWeight','idleTareStatus'].forEach(id=>{const el=$(id);if(el)el.textContent=__WEBUI_TEXT__("runtime.unknown")})}
 function formatCupWeight(s){const c=s.cupPresence||{},sc=s.scale||{};return sc.available&&sc.streamState==='FRESH'&&c.present===true&&c.weightValid===true&&typeof c.weightG==='number'&&Number.isFinite(c.weightG)?__WEBUI_TEXT__("runtime.symbol_6")+c.weightG.toFixed(1)+__WEBUI_TEXT__("runtime.g_2"):__WEBUI_TEXT__("runtime.unknown")}
-function formatCupState(s){const c=s.cupPresence||{};return c.state==='PRESENT'||c.present?__WEBUI_TEXT__("runtime.present"):__WEBUI_TEXT__("runtime.absent")}
+function formatCupState(s){if(!s.scale?.available)return __WEBUI_TEXT__("runtime.unknown_4");const c=s.cupPresence||{};return c.state==='PRESENT'||c.present?__WEBUI_TEXT__("runtime.present"):__WEBUI_TEXT__("runtime.absent")}
 function formatIdleTare(s){const t=(s.cupPresence||{}).idleTare,sc=s.scale||{};
 if(!t)return __WEBUI_TEXT__("runtime.unknown");
 if(t==='disabled')return __WEBUI_TEXT__("runtime.off_2");

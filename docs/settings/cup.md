@@ -79,6 +79,8 @@ sample is insufficient for replacement tare. In-shot detection is unchanged.
 
 **Home → Cup** shows presence under **Status** and approximate cup weight under
 **Weight**. **Diagnostic → Scale → Cup weight** shows the same value.
+When no scale is connected, **Status** shows **Unknown**. Once a scale is
+connected, it shows **Present** or **Absent** according to cup detection.
 The presence state machine records the qualified empty reference while `ABSENT`
 and the stable reading at the next confirmed `PRESENT` transition.
 Cup weight is the difference: **stable present reading − qualified empty reference**.

@@ -1,4 +1,15 @@
 {
+  const format = new Function(runtimeJs.split('\n').find(line =>
+    line.startsWith('function formatCupState(')) + ';return formatCupState;')();
+  for (const cupPresence of [{state:'ABSENT',present:false}, {state:'PRESENT',present:true}]) {
+    for (const scale of [undefined, {available:false}, {available:true}]) {
+      const expected = scale?.available ? (cupPresence.present ? 'Present' : 'Absent') : 'Unknown';
+      if (format({scale,cupPresence}) !== expected)
+        throw new Error('Disconnected cup status must be Unknown; connected presence must be preserved');
+    }
+  }
+}
+{
   const helpers = runtimeJs.slice(runtimeJs.indexOf('function lastCurveWeightG('),
       runtimeJs.indexOf('async function populateTimezoneOptions('));
   const renderer = runtimeJs.slice(runtimeJs.indexOf('function renderShotSpark('),
