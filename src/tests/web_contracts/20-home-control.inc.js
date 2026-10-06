@@ -209,14 +209,14 @@
   class Socket{static OPEN=1;constructor(url){this.url=url;this.readyState=1;this.sent=[];sockets.push(this)}send(body){this.sent.push(JSON.parse(body))}close(){this.readyState=3;this.onclose?.()}}
   const listeners={};
   const controller=new Function('WebSocket','location','document','window','setTimeout','clearTimeout',
-    'requestAnimationFrame','webUiPollingActive','webUiClientId','activeView','$',
-    runtimeJs.slice(runtimeJs.indexOf('let shotWs='),runtimeJs.indexOf('function formatExtractionGuard('))+
+    'requestAnimationFrame','webUiPollingActive','webUiClientId','activeView','$','webUiPowerSeconds','invalidateHomeStream',
+    'let homeFrame=null,homeStale=true,homeReady,homeResolve=()=>{};'+runtimeJs.slice(runtimeJs.indexOf('let shotWs='),runtimeJs.indexOf('function formatExtractionGuard('))+
     ';return{start:startShotStream,stop:stopShotStream,frame:()=>shotFrame,stale:()=>shotStale};')(
     Socket,{protocol:'http:',host:'device.local'},
     {hidden:false,addEventListener:(name,fn)=>listeners[name]=fn},
     {addEventListener:(name,fn)=>listeners[name]=fn},
     (fn,delay)=>{timers.set(++timerId,{fn,delay});return timerId},id=>timers.delete(id),()=>1,
-    ()=>owner,'0123456789abcdef','stats',()=>null);
+    ()=>owner,'0123456789abcdef','stats',()=>null,()=>0,()=>{});
   controller.start();controller.start();
   if(sockets.length!==1)throw new Error('Navigation must preserve one socket');
   const socket=sockets[0];socket.onopen();
@@ -237,7 +237,7 @@
   if(sockets.length!==2||rebound.readyState!==3)throw new Error('Inactive owner cannot retain/reopen stream');
   if(runtimeJs.includes('let shotTick=')||runtimeJs.includes('runShot(live?s:0)')||
       !runtimeJs.includes('stopShotStream();')||!runtimeJs.includes('startShotStream();')||
-      !runtimeJs.includes('op:"bind",client:webUiClientId')||
+      !runtimeJs.includes("op:'bind',client:webUiClientId")||
       !runtimeJs.includes('"op":"resync"'))
     throw new Error('Firmware timer and stream must follow ownership/visibility lifecycle');
 }
@@ -245,7 +245,7 @@
 if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     statusSection[1].includes('class="statusColumn"') ||
     statusSection[1].includes('class="row"') ||
-    (statusSection[1].match(/class="metric[ "]/g) || []).length !== 3 ||
+    (statusSection[1].match(/class="metric[ "]/g) || []).length !== 4 ||
     !statusSection[1].includes('id="machineRowState"') ||
     !statusSection[1].includes('id="machineStateValue"') ||
     !statusSection[1].includes('<strong>Machine</strong>') ||
@@ -493,21 +493,19 @@ if (ui.includes('id="shotPanel"') ||
     !ui.includes('shotHeroState') ||
     !ui.includes('function shotStreamFrame(') ||
     !network.includes('firstDropElapsedMs') ||
-    !network.includes('\\"hasWallTime\\":%s,\\"endedAtUnixSec\\":%lu') ||
-    !network.includes('retarePerformed') ||
     !network.includes('shotType') ||
     !network.includes('scaleProtocol') ||
-    !network.includes('safeScaleProtocol') ||
+    !network.includes('delta.field("scale.protocol"') ||
     !ui.includes('remoteReady&&relayStartReady&&canControl') ||
     ui.includes('Remote machine control disabled by policy') ||
-    !network.includes('\\"remoteControlEnabled\\"') ||
+    !network.includes('delta.field("remoteControlEnabled"') ||
     !network.includes('\\"lastCommand\\"') ||
     !network.includes('\\"maintenance\\"') ||
     !network.includes('\\"persistPending\\"') ||
     !network.includes('\\"persistFailed\\"') ||
     !ui.includes('persistFailed') ||
     !ui.includes('Saving...') ||
-    !network.includes('\\"cycle\\"') ||
+    !network.includes('delta.field("cycle.active"') ||
     !network.includes('extractionExtended') ||
     !ui.includes('paintShotStream()')) {
   throw new Error('Web UI must enforce remote policy, maintenance, durable command state, and live shot status');
@@ -653,15 +651,14 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !ui.includes("cupRemovedWeightG:number('cupRemovedWeightG')")) {
   throw new Error('Auto-to-manual time guard must be wired in config UI, live panel, shots API, and routes');
 }
-if (!network.includes('self.callbacks_.copyHomeShot(homeRecord, homeCurve)') ||
-    !network.includes('shotLogProjectLastShot(homeRecord, linked)') ||
+if (!network.includes('callbacks_.copyHomeShot(latest, workBuf_->homeCurve)') ||
+    !network.includes('shotLogProjectLastShot(latest, linked)') ||
     !network.includes('shotLogProjectLastShot(latestShot, control.lastShot)') ||
     network.includes('\"lastGoodShot\":%s') ||
     !firmwareCore.includes('shotLog.copyNewestEligible(record)') ||
-    !network.includes('\\"cycleId\\":%lu') ||
-    !network.includes('\\"presetId\\":%u') ||
+    !network.includes('session.cycle = card.cycleId;') ||
     !network.includes('\\"presetName\\":\\"%s\\"') ||
-    !network.includes('\\"averageFlowGps\\":%.2f') ||
+    !network.includes('\\"averageFlowGps\\":%s') ||
     !network.includes('card.averageFlowValid && std::isfinite(card.averageFlowGps)') ||
     ui.includes('rateLastShotValue') ||
     ui.includes('controlsMutable&&last&&!live&&ls.shotLogId') ||

@@ -28,6 +28,19 @@ weight, known scale baseline and confirmed first drop. Qualifying results use
 the exact Stats record; nonqualifying results preserve their firmware cutoff
 time. This presentation contract adds no guard decisions or actuation messages.
 
+The same socket carries independent Home field patches, including Equipment,
+quick settings, presets, shared navigation and command readback. Each fixed
+session owns 128 CRC32 field fingerprints and a clock anchor; fields have stable
+ordinals and formatting at display precision. Initial/resync frames replace the
+browser cache, then unchanged values produce no data frame. Disconnected scale
+weight/timer are never inspected; a single null transition clears them. Serialization
+and transmit reuse the existing HTTP workspace and bounded 100 ms dispatch.
+The browser uses socket activity/alive control messages for liveness and power
+activity, rather than a periodic Home REST request.
+The bounded Home presentation projection uses size optimization and shared
+typed formatting calls to keep the existing firmware growth budget; control
+and safety retain the build profile's performance optimization.
+
 ScaleService publishes the bounded friendly/raw BLE name in its link
 snapshot and retains the latest successful shot-tare result under the critical
 event mutex. Control copies the name into the shot and correlates tare completion
@@ -61,7 +74,7 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | ordered scale result/weight handoff | ScaleService producer, control consumer | result queues, fallback mailboxes and static 16-weight FIFO share one task mutex for publication and selection; overflow drops the incomplete weight window and marks discontinuity; no allocation or dynamic teardown |
 | static task mutex/event storage | containing static object | no heap allocation and no dynamic teardown |
 | HTTP server | NetworkService | manager-task-only stop/restart; handle cleared immediately after `httpd_stop` |
-| Home shot WebSocket | existing priority-1 HTTP server; NetworkService queues at most one dispatch | two fixed session contexts allow one bound owner and one handshake; binding expires after 5 s, takeover/close/server stop release contexts; serialization reuses the shared PSRAM workspace, sends complete within 100 ms per header/payload or close; no new task, application TX allocation or event queue |
+| Home WebSocket | existing priority-1 HTTP server; NetworkService queues at most one dispatch | two fixed session contexts allow one bound owner and one handshake; binding expires after 5 s, takeover/close/server stop release contexts; 128 field fingerprints per session deduplicate Home independently of the shot card/curve; serialization reuses the shared PSRAM workspace, sends complete within 100 ms per header/payload or close; no new task, application TX allocation or event queue |
 | mDNS responder and its service task | NetworkService | network-task-only `mdns_init`/`mdns_hostname_set`/`mdns_free`; mDNS 1.13.1 places its 4096-byte task stack in internal RAM on n16r8 for core dumps, and in PSRAM on n8r4; dynamic responder memory stays in PSRAM; always-on passive responder; `mdns_free` only in `stop()` after the task join |
 | crash capture and two-slot archive | ESP-IDF panic writer owns the capture during panic; boot promotion and NetworkService own normal access | the relay opens before the RTC address snapshot; normal access holds the shared flash lock, commits a historical slot only after verification, and requires Admin unlock for raw download or confirmed deletion |
 | persistence mailbox | control producer, then persistence worker | fixed-capacity internal work queue plus one external settings request and one PSRAM shot-store image; generation-tagged completion prevents clearing newer dirtiness |
@@ -108,7 +121,8 @@ executing. The HTTP server similarly owns internal LwIP callbacks and must be
 stopped on the manager task before its token is cleared.
 
 The claimed Web UI allows two concurrent read requests only for Stats or
-History (Home status plus that page's records). Other API requests remain
+History (small Home navigation metadata plus that page's records). Home live
+updates use its session-owned socket without periodic REST polling. Other API requests remain
 exclusive, including commands and OTA. Four HTTP sockets and a four-connection
 backlog accommodate the two reads plus lazy HTML and JavaScript downloads.
 Handlers execute serially on the existing HTTP task, retaining one owner of

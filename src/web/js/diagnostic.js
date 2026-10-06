@@ -20,9 +20,7 @@ set('WsTiming',['message','power','pong'].map(k=>k+' '+age(ws[k+'AtMs'])).join('
 set('WsTraffic',['rx','tx'].map(k=>k.toUpperCase()+' '+(ws[k+'BytesPerSecond']||0)+' B/s · '+(ws[k+'BytesPerMinute']||0)+' B/60s · '+(ws[k+'Bytes']||0)+' B').join('; ')+' · '+(ws.messages||0)+' messages · '+(ws.errors||0)+' errors');
 set('WsPlanned',String(ws.plannedConnections||0));
 set('WsUnexpected',String(ws.unexpectedConnections||0));
-const label=__WEBUI_TEXT__("diagnostic.cleaning_states").split('|')[['inactive','waiting_for_paddle','cleaning'].indexOf(ws.cleaning)];
-const cleaning=!lm.accountConfigured?__WEBUI_TEXT__("runtime.not_connected"):!lm.observeState?__WEBUI_TEXT__("runtime.disabled"):api?__WEBUI_TEXT__("diagnostic.cleaning_api"):!ws.cleaningAvailable?__WEBUI_TEXT__("diagnostic.cleaning_no_update"):label||__WEBUI_TEXT__("runtime.unknown_4")+(ws.cleaningLabel?' · '+ws.cleaningLabel:'');
-set('Cleaning',cleaning);
+set('Cleaning',R.formatMicraCleaning(lm));
 set('CleaningHint',lm.accountConfigured&&lm.observeState&&!api&&ws.cleaningAvailable?__WEBUI_TEXT__("diagnostic.last_reported")+' '+age(ws.cleaningAtMs)+' · WebSocket'+(ws.state!=='streaming'||ws.machineConnectedKnown&&!ws.machineConnected?' · '+__WEBUI_TEXT__("diagnostic.stale"):''):'');
 set('WsHeap','WS '+(ws.retainedBytes||0)+' B PSRAM · internal Δ free/largest '+['connect','stop'].map(k=>k+' '+(ws[k+'FreeDelta']??unknown)+'/'+(ws[k+'LargestDelta']??unknown)+' B').join(', ')+' · failures '+(ws.allocationFailures||0));
 }

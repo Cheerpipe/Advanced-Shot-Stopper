@@ -731,7 +731,7 @@ if (!ui.includes('function withPollGate(') ||
     !ui.includes('Device timeout') ||
     !ui.includes("throw new Error('Invalid response')") ||
     !ui.includes("throw new Error('Invalid status')") ||
-    !ui.includes("const v=activeView,s=await api('/api/v1/status/'+v)") ||
+    !ui.includes("s=v==='home'?await loadHomeStatus():await api('/api/v1/status/'+v)") ||
     !ui.includes('function ensureSettingsHydrated(') ||
     !ui.includes('function homeConfigPatch(') ||
     !ui.includes('function withBaseRev(') ||

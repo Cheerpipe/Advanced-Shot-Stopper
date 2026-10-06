@@ -22,6 +22,7 @@ const network = readSources([
   'network/ShotStopperHttpAuthAssets.inc',
   'network/ShotStopperStatus.inc',
   'network/ShotStopperShotStream.inc',
+  'network/ShotStopperHomeStream.inc',
   'network/ShotStopperIntegrationApi.inc',
   'diagnostics/ShotStopperNetworkDiagnostics.inc',
   'network/ShotStopperConfiguration.inc',
@@ -713,8 +714,8 @@ if (/setScaleLinkState\(ScaleLinkState::CONNECTED\);\s*applyBookooConnectBeepPol
   throw new Error(
       'Bookoo connect volume must be deferred off the GATT success path');
 }
-if (!network.includes('\\"lastDisconnectReasonName\\":\\"%s\\"},') ||
-    !network.includes('\\"macCachePauseRemainingMs\\":%lu,')) {
+if (!network.includes('delta.field("scale.lastDisconnectReasonName"') ||
+    !network.includes('delta.field("scale.macCachePauseRemainingMs"')) {
   throw new Error(
       'Home status must include lastDisconnectReasonName on scale');
 }

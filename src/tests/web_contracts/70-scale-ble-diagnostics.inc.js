@@ -92,7 +92,8 @@
     throw new Error('Idle tare Web projection must preserve its public labels');
   }
   const blocks = [...status.matchAll(/"\\"cupPresence[^\n]*\n\s*("(?:\\.|[^"\\])*")/g)];
-  if (blocks.length !== 2) throw new Error('Both cup JSON projections required');
+  if (blocks.length !== 1 || !network.includes('delta.field("cupPresence.weightG"'))
+    throw new Error('Diagnostic cup JSON and Home cup deltas required');
   for (const block of blocks) {
     const format = block[0].match(/"(?:\\.|[^"\\])*"/g).map(s => JSON.parse(s)).join('').replace(/,$/, '');
     for (const valid of [false, true]) {

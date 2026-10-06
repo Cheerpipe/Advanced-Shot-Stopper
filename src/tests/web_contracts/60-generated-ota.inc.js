@@ -578,8 +578,10 @@ if (generated.icon48Gzip.length > 3500) {
 // The Brew by Weight hero accent card raises the combined cap to 117500 bytes;
 // the Home shot hero card raises it to 118500 bytes; firmware image,
 // memory-region and OTA partition limits remain unchanged.
-if (generated.combined > 118500) {
-  throw new Error(`Combined Web UI gzip exceeds the 118500-byte flash budget (${generated.combined})`);
+// Full Home scalar deltas, socket recovery/liveness and shared cleaning state
+// add 1500 bytes of allowance; firmware, memory and OTA limits remain fixed.
+if (generated.combined > 120000) {
+  throw new Error(`Combined Web UI gzip exceeds the 120000-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
@@ -1348,11 +1350,11 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
       !statusFormat.includes('\\"adminUnlocked\\":%s,\\"diagnosticPublic\\":true')) {
     throw new Error('status/home and status/admin must report adminUnlocked; Diagnostic must identify public access');
   }
-  if ((statusFormat.match(/\\"adminUnlocked\\":%s,\\"development\\":%s/g) || []).length < 2 ||
+  if ((statusFormat.match(/\\"adminUnlocked\\":%s,\\"development\\":%s/g) || []).length < 1 ||
       !statusFormat.includes('\\"diagnosticPublic\\":true,\\"development\\":%s')) {
     throw new Error('status pages must report development state alongside their access state');
   }
-  if (!network.includes('page == StatusPage::Admin || page == StatusPage::Home') ||
+  if (!network.includes('delta.field("adminUnlocked"') ||
       !network.includes('page == StatusPage::Diagnostic') ||
       !ui.includes("v==='home'?!!(typeof s.adminUnlocked==='boolean'") ||
       !js.includes('function syncAdminSessionUi(unlocked,remoteEnabled=false)') ||

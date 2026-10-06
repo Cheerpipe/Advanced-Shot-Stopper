@@ -341,7 +341,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !ui.includes('function renderShotHero(') ||
     !ui.includes('function renderShotSpark(') ||
     !network.includes('\\"lastShot\\"') ||
-    !network.includes('\\"shotCurve\\"') ||
+    !network.includes('\\"curve\\":{%s}') ||
     !network.includes('formatShotCurveJsonBody') ||
     !network.includes('lastShotClearHandler') ||
     !network.includes('LAST_SHOT_CLEAR_NOT_CONFIRMED') ||
@@ -398,7 +398,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !network.includes('/api/v1/presets') ||
     !network.includes('presetsHandler') ||
     !network.includes('restore_factory_values') ||
-    !network.includes('\\"presets\\"') ||
+    !network.includes('delta.field("presets"') ||
     network.includes('"/presets"') ||
     !css.includes('.presetCard') ||
     !css.includes('.presetAccItem') ||
@@ -931,7 +931,7 @@ if (ui.includes('id="shotRating"') ||
     !network.includes('shotsRateHandler') ||
     !network.includes('LAST_SHOT_NOT_FOUND') ||
     !network.includes('\\"rating\\":%u') ||
-    !network.includes('\\"shotLogId\\":%lu') ||
+    !network.includes('\\"shotId\\":%lu') ||
     !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 1') ||
     !lastShotIo.includes(
         'void advance(const PersistedLastShot &shot,') ||

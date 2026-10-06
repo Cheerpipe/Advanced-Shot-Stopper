@@ -76,10 +76,8 @@ function drainDeviceSlots(){while(deviceWaiters.length&&deviceInFlight<DEVICE_MA
 function acquireDeviceSlot(){return new Promise(resolve=>{deviceWaiters.push(resolve);drainDeviceSlots()})}
 function releaseDeviceSlot(){deviceInFlight--;drainDeviceSlots()}
 function statusPollDue(){return!commandBusy&&!homeFlushBusy&&!otaBusy&&Date.now()-lastStatusAt>=900}
-const SOFTAP_HOST='192.168.4.1';
-function statusOnSta(){return location.hostname!==SOFTAP_HOST}
-function statusIntervalMs(){return document.hidden?12e3:statusLiveShot&&activeView==='home'&&statusOnSta()?1e3:statusLiveShot?2500:4e3}
-function armStatusTimer(){clearInterval(statusTimer);if(!webUiPollingActive()||(activeView!=='home'&&activeView!=='settings'&&activeView!=='admin'&&activeView!=='diagnostic'))return;statusTimer=setInterval(()=>{renderLineaMicraDiagnostic();if(webUiPollingActive()&&statusPollDue())refreshStatus()},statusIntervalMs())}
+function statusIntervalMs(){return document.hidden?12e3:statusLiveShot?2500:4e3}
+function armStatusTimer(){clearInterval(statusTimer);if(!webUiPollingActive()||(activeView!=='settings'&&activeView!=='admin'&&activeView!=='diagnostic'))return;statusTimer=setInterval(()=>{renderLineaMicraDiagnostic();if(webUiPollingActive()&&statusPollDue())refreshStatus()},statusIntervalMs())}
 function pad2(n){return String(n).padStart(2,'0')}
 function formatTzLabel(min){const sign=min>=0?'+':'-';const abs=Math.abs(min);return __WEBUI_TEXT__("runtime.utc")+sign+pad2(Math.floor(abs/60))+__WEBUI_TEXT__("runtime.symbol")+pad2(abs%60)}
 function formatWallTime(unixSec,tz){const localSec=unixSec+tz*60;const d=new Date(0);d.setUTCSeconds(localSec);return d.getUTCFullYear()+__WEBUI_TEXT__("runtime.symbol_2")+pad2(d.getUTCMonth()+1)+__WEBUI_TEXT__("runtime.symbol_2")+pad2(d.getUTCDate())+__WEBUI_TEXT__("runtime.symbol_3")+pad2(d.getUTCHours())+__WEBUI_TEXT__("runtime.symbol")+pad2(d.getUTCMinutes())+__WEBUI_TEXT__("runtime.symbol")+pad2(d.getUTCSeconds())}
@@ -469,7 +467,110 @@ let liveRuleModel=null,homeAccSig='',homeAccOpenId=0;
 function updateRuleChartFromStatus(s){liveRuleModel=buildRuleChartModel(s&&s.config&&{...presetState.items.find(p=>p.id===presetState.activeId),...s.config});renderHomePresetAccordion()}
 
 function ms(m,n){return m!=null?(m/1000).toFixed(n):'—'}
-let shotWs=null,shotRetry=0,shotTry=0,shotFrame=null,shotSeen=null,shotResync=!1,shotStale=!0,shotPaint=0;function stopShotStream(){clearTimeout(shotRetry),shotRetry=0;const e=shotWs;shotWs=null,e&&e.close(),shotStale=!0,paintShotStream()}function paintShotStream(){if("home"!==activeView)return;const e=$("shotHero");if(e){if(e.setAttribute("aria-busy",String(shotStale)),!shotFrame)return e.hidden=!1,setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_loading")),setHomeSub("shotHeroWeight","—"),void setHomeSub("shotHeroElapsed","—");if(!shotFrame.card.valid)return clearShotHero(),void(shotStale&&(e.hidden=!1,setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_stale"))));renderShotHero({...shotFrame.card,...shotFrame.curve}),shotStale?setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_stale")):"pending"===shotFrame.phase&&setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_pending"))}}function scheduleShotPaint(){shotPaint||(shotPaint=requestAnimationFrame(()=>{shotPaint=0,paintShotStream()}))}function shotStreamFrame(e,t){const o=(e,t=4294967295,s=0)=>Number.isInteger(e)&&e>=s&&e<=t,n=t?.card;if(!(t&&1===t.v&&o(t.boot)&&o(t.seq)&&o(t.revision)&&o(t.cycle)&&o(t.shotId)&&o(t.cursor,1201)&&o(t.curveBase,1201)&&"boolean"==typeof t.snapshot&&["idle","active","pending","transient"].includes(t.phase)&&n&&"boolean"==typeof n.valid&&"boolean"==typeof n.live&&o(n.elapsedMs)&&(null===n.weight||Number.isFinite(n.weight))&&(null===n.averageFlowGps||Number.isFinite(n.averageFlowGps))&&[n.firstDropMs,n.tareMs].every(e=>null===e||o(e,6e4))))throw Error();if(e&&t.boot===e.boot&&t.seq<=e.seq)return e;const s=t.curve;if(!s||!Array.isArray(s.wCg)||!Array.isArray(s.wAtMs)||!Array.isArray(s.wBreakBefore)||s.wCg.length!==s.wAtMs.length||s.wCg.length!==t.cursor-t.curveBase||s.wCg.some(e=>!o(e,32767,-32767))||s.wAtMs.some((e,t)=>!o(e,6e4)||t&&e<s.wAtMs[t-1])||s.wBreakBefore.some(e=>!o(e,1200)||0===e||e<t.curveBase||e>=t.cursor))throw Error();if(t.snapshot){if(0!==t.curveBase)throw Error();return t}if(!e||t.boot!==e.boot||t.cycle!==e.cycle||t.shotId!==e.shotId||t.base!==e.seq||t.seq!==e.seq+1||t.curveBase!==e.cursor||s.wAtMs.length&&e.cursor&&s.wAtMs[0]<e.curve.wAtMs.at(-1))throw Error();return{...t,curve:{...s,wCg:[...e.curve.wCg,...s.wCg],wAtMs:[...e.curve.wAtMs,...s.wAtMs],wBreakBefore:[...e.curve.wBreakBefore,...s.wBreakBefore]}}}function startShotStream(){if(!webUiPollingActive()||shotWs)return;clearTimeout(shotRetry),shotRetry=0,shotStale=!0,paintShotStream();const e=new WebSocket(("https:"===location.protocol?"wss://":"ws://")+location.host+"/api/v1/ui/shot-stream");shotWs=e;let t=!1;const o=setTimeout(()=>{shotWs!==e||t||e.close()},8e3);e.onopen=()=>{shotWs===e&&webUiPollingActive()?e.send(JSON.stringify({op:"bind",client:webUiClientId,...shotSeen||{}})):e.close()},e.onmessage=s=>{if(shotWs===e&&webUiPollingActive())try{if("string"!=typeof s.data||s.data.length>24064)throw Error();const e=JSON.parse(s.data);if(!t&&!e.snapshot)throw Error();const r=shotStreamFrame(t?shotFrame:null,e);if(r===shotFrame)return;if(shotResync&&!e.snapshot)return;shotFrame=r,t=!0,clearTimeout(o),shotResync=!1,shotTry=0,shotStale=!!e.stale,["active","pending"].includes(e.phase)?shotSeen={cycle:e.cycle,boot:e.boot}:shotSeen&&shotSeen.boot!==e.boot&&(shotSeen=null),scheduleShotPaint()}catch(t){shotStale=!0,scheduleShotPaint(),shotResync||e.readyState!==WebSocket.OPEN?e.close():(shotResync=!0,e.send('{"op":"resync"}'))}},e.onclose=()=>{clearTimeout(o),shotWs===e&&(shotWs=null,shotStale=!0,shotResync=!1,scheduleShotPaint(),webUiPollingActive()&&(shotRetry=setTimeout(startShotStream,Math.min(1e4,500*2**Math.min(shotTry++,5))*(.8+.4*Math.random()))))}}document.addEventListener("visibilitychange",()=>{!document.hidden&&webUiPollingActive()&&(stopShotStream(),startShotStream())}),window.addEventListener("pagehide",stopShotStream),window.addEventListener("pageshow",()=>{webUiPollingActive()&&startShotStream()});
+let homeFrame=null,homeStale=true,homeReady,homeResolve=()=>{};
+function homeStreamFrame(previous,message){
+  if(message.v!==1||!Number.isInteger(message.boot)||typeof message.snapshot!=='boolean'||!message.changes||
+      !message.snapshot&&(!previous||message.boot!==previous.boot))throw Error();
+  const status=message.snapshot?{}:previous.status;
+  for(const[path,value]of Object.entries(message.changes)){
+    if(!/^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9]*){0,2}$/.test(path)||/(^|\.)(constructor|prototype)(\.|$)/.test(path)||
+        typeof value==='number'&&!Number.isFinite(value))throw Error();
+    const parts=path.split('.');let target=status;
+    for(const key of parts.slice(0,-1))target=target[key]||(target[key]={});
+    target[parts.at(-1)]=value;
+  }
+  if(!statusPageOk('home',status)||status.bootId!==message.boot)throw Error();
+  return{boot:message.boot,status};
+}
+function renderHomeStream(){
+  if(homeStale||!homeFrame||activeView!=='home')return;
+  const status=homeFrame.status;
+  lastStatusAt=Date.now();statusLiveShot=!!status.liveShot;
+  applyCommonStatus(status);if(status.snapshotStale)setMutable(false);
+  viewStatusHandlers.home?.(status);noteReachOk();hideHomeBoot();
+}
+function invalidateHomeStream(){
+  homeStale=true;homeResolve(false);
+  if(activeView!=='home')return;
+  setMutable(false);clearCupWeights();updateHeaderSignals();
+  for(const id of ['scaleWeight','scaleTimer','machineState','state','homeMicraPower','homeMicraCleaning','machineRowState','scale'])setHomeSub(id,__WEBUI_TEXT__("runtime.unknown"));
+  updateHomeAdminActions(false,false);
+}
+async function loadHomeStatus(){
+  startShotStream();
+  return homeStale&&!await homeReady?null:homeFrame?.status;
+}
+export function formatMicraCleaning(lm){
+  const ws=lm?.websocket||{},label=__WEBUI_TEXT__("diagnostic.cleaning_states").split('|')[['inactive','waiting_for_paddle','cleaning'].indexOf(ws.cleaning)];
+  return !lm?.accountConfigured?__WEBUI_TEXT__("runtime.not_connected"):!lm.observeState?__WEBUI_TEXT__("runtime.disabled"):
+    lm.connectionType==='api'?__WEBUI_TEXT__("diagnostic.cleaning_api"):!ws.cleaningAvailable?__WEBUI_TEXT__("diagnostic.cleaning_no_update"):
+    label||__WEBUI_TEXT__("runtime.unknown_4")+(ws.cleaningLabel?' · '+ws.cleaningLabel:'');
+}
+let shotWs=null,shotRetry=0,shotTry=0,shotFrame=null,shotSeen=null,shotResync=!1,shotStale=!0,shotPaint=0;function stopShotStream(){clearTimeout(shotRetry),shotRetry=0;const e=shotWs;shotWs=null,e&&e.close(),shotStale=!0,invalidateHomeStream(),paintShotStream()}function paintShotStream(){if("home"!==activeView)return;const e=$("shotHero");if(e){if(e.setAttribute("aria-busy",String(shotStale)),!shotFrame)return e.hidden=!1,setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_loading")),setHomeSub("shotHeroWeight","—"),void setHomeSub("shotHeroElapsed","—");if(!shotFrame.card.valid)return clearShotHero(),void(shotStale&&(e.hidden=!1,setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_stale"))));renderShotHero({...shotFrame.card,...shotFrame.curve}),shotStale?setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_stale")):"pending"===shotFrame.phase&&setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_pending"))}}function scheduleShotPaint(){shotPaint||(shotPaint=requestAnimationFrame(()=>{shotPaint=0,paintShotStream()}))}function shotStreamFrame(e,t){const o=(e,t=4294967295,s=0)=>Number.isInteger(e)&&e>=s&&e<=t,n=t?.card;if(!(t&&1===t.v&&o(t.boot)&&o(t.seq)&&o(t.revision)&&o(t.cycle)&&o(t.shotId)&&o(t.cursor,1201)&&o(t.curveBase,1201)&&"boolean"==typeof t.snapshot&&["idle","active","pending","transient"].includes(t.phase)&&n&&"boolean"==typeof n.valid&&"boolean"==typeof n.live&&o(n.elapsedMs)&&(null===n.weight||Number.isFinite(n.weight))&&(null===n.averageFlowGps||Number.isFinite(n.averageFlowGps))&&[n.firstDropMs,n.tareMs].every(e=>null===e||o(e,6e4))))throw Error();if(e&&t.boot===e.boot&&t.seq<=e.seq)return e;const s=t.curve;if(!s||!Array.isArray(s.wCg)||!Array.isArray(s.wAtMs)||!Array.isArray(s.wBreakBefore)||s.wCg.length!==s.wAtMs.length||s.wCg.length!==t.cursor-t.curveBase||s.wCg.some(e=>!o(e,32767,-32767))||s.wAtMs.some((e,t)=>!o(e,6e4)||t&&e<s.wAtMs[t-1])||s.wBreakBefore.some(e=>!o(e,1200)||0===e||e<t.curveBase||e>=t.cursor))throw Error();if(t.snapshot){if(0!==t.curveBase)throw Error();return t}if(!e||t.boot!==e.boot||t.cycle!==e.cycle||t.shotId!==e.shotId||t.base!==e.seq||t.seq!==e.seq+1||t.curveBase!==e.cursor||s.wAtMs.length&&e.cursor&&s.wAtMs[0]<e.curve.wAtMs.at(-1))throw Error();return{...t,curve:{...s,wCg:[...e.curve.wCg,...s.wCg],wAtMs:[...e.curve.wAtMs,...s.wAtMs],wBreakBefore:[...e.curve.wBreakBefore,...s.wBreakBefore]}}}function startShotStream(){
+  if(!webUiPollingActive()||shotWs)return;
+  clearTimeout(shotRetry);shotRetry=0;shotStale=true;paintShotStream();
+  const socket=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/api/v1/ui/shot-stream');
+  shotWs=socket;let receivedShot=false,receivedHome=false,aliveTimer=0,deadline=0;
+  homeReady=new Promise(resolve=>homeResolve=resolve);
+  let setup=setTimeout(()=>{if(shotWs===socket&&(!receivedShot||!receivedHome))socket.close()},8e3);
+  const activity=()=>{
+    if(shotWs!==socket||!webUiPollingActive())return;
+    socket.send(JSON.stringify({op:'activity',seconds:webUiPowerSeconds()}));
+    deadline=setTimeout(()=>socket.close(),1e4);
+    aliveTimer=setTimeout(activity,2e4);
+  };
+  socket.onopen=()=>{
+    if(shotWs!==socket||!webUiPollingActive()){socket.close();return}
+    socket.send(JSON.stringify({op:'bind',client:webUiClientId,...shotSeen||{}}));
+    activity();
+  };
+  socket.onmessage=event=>{
+    if(shotWs!==socket||!webUiPollingActive())return;
+    try{
+      if(typeof event.data!=='string'||event.data.length>24064)throw Error();
+      const data=JSON.parse(event.data);
+      if(data.type==='alive'){clearTimeout(deadline);return}
+      if(shotResync&&!data.snapshot)return;
+      if(data.type==='home'){
+        homeFrame=homeStreamFrame(receivedHome?homeFrame:null,data);
+        if('timeUtcSec' in data.changes){statusUtcAnchorSec=homeFrame.status.timeUtcSec;statusUtcAnchorAt=performance.now()}
+        delete homeFrame.status.timeUtcSec;
+        receivedHome=true;homeStale=false;
+        if(activeView==='home')renderHomeStream();
+        homeResolve(true);
+      }else{
+        if(!receivedShot&&!data.snapshot)throw Error();
+        const next=shotStreamFrame(receivedShot?shotFrame:null,data);
+        if(next===shotFrame)return;
+        shotFrame=next;receivedShot=true;shotResync=false;shotTry=0;shotStale=!!data.stale;
+        if(['active','pending'].includes(data.phase))shotSeen={cycle:data.cycle,boot:data.boot};
+        else if(shotSeen&&shotSeen.boot!==data.boot)shotSeen=null;
+        scheduleShotPaint();
+      }
+      if(receivedHome&&receivedShot)clearTimeout(setup);
+    }catch(_){
+      invalidateHomeStream();shotStale=true;scheduleShotPaint();
+      if(shotResync||socket.readyState!==WebSocket.OPEN)socket.close();
+      else{
+        shotResync=true;receivedHome=receivedShot=false;
+        homeReady=new Promise(resolve=>homeResolve=resolve);
+        clearTimeout(setup);setup=setTimeout(()=>socket.close(),8e3);
+        socket.send('{"op":"resync"}');
+      }
+    }
+  };
+  socket.onclose=event=>{
+    clearTimeout(setup);clearTimeout(aliveTimer);clearTimeout(deadline);
+    if(shotWs!==socket)return;
+    shotWs=null;shotStale=true;shotResync=false;invalidateHomeStream();scheduleShotPaint();
+    if(event?.code===4001){deactivateWebUi();return}
+    if(activeView==='home'&&webUiPollingActive())noteReachFail({network:true},true);
+    if(webUiPollingActive())shotRetry=setTimeout(startShotStream,Math.min(1e4,500*2**Math.min(shotTry++,5))*(.8+.4*Math.random()));
+  };
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&webUiPollingActive()){stopShotStream();startShotStream()}});
+window.addEventListener('pagehide',stopShotStream);
+window.addEventListener('pageshow',()=>{if(webUiPollingActive())startShotStream()});
 function formatExtractionGuard(d){return!d.guardEnabled?__WEBUI_TEXT__("runtime.off_2"):d.extended?__WEBUI_TEXT__("runtime.ext")+(d.goal??__WEBUI_TEXT__("runtime.unknown"))+__WEBUI_TEXT__("runtime.g_or")+ms(d.minBbwBrewRemainingMs,1)+__WEBUI_TEXT__("runtime.s_left"):d.inShot?__WEBUI_TEXT__("runtime.on_2"):__WEBUI_TEXT__("runtime.idle")}
 function formatSlowExtractionGuard(d){return!d.guardEnabled?__WEBUI_TEXT__("runtime.off_2"):d.extended?__WEBUI_TEXT__("runtime.ext")+(d.goal??__WEBUI_TEXT__("runtime.unknown"))+__WEBUI_TEXT__("runtime.g"):d.inShot?__WEBUI_TEXT__("runtime.on_2"):__WEBUI_TEXT__("runtime.idle")}
 function formatAtmGuard(d){return!d.atmEnabled?__WEBUI_TEXT__("runtime.off_2"):d.atmEnforced?__WEBUI_TEXT__("runtime.a_to_m_2")+ms(d.atmRemainingMs,0)+__WEBUI_TEXT__("runtime.s"):d.atmArmed?__WEBUI_TEXT__("runtime.armed"):__WEBUI_TEXT__("runtime.idle")}
@@ -606,7 +707,7 @@ async function otaFlash(){
 }
 function otaDiscard(){otaBeginBusy();otaSend('/api/v1/ota/abort',null,null,OTA_COMMAND_TIMEOUT_MS).then(data=>{otaClearStore();otaCommitStore(null);$('otaFile').value='';otaEndBusy(data,__WEBUI_TEXT__("runtime.the_verified_image_was_discarded"),'ok')}).catch(e=>{otaEndBusy(null,formatCommandError(__WEBUI_TEXT__("runtime.the_image_could_not_be_discarded"),e),'error')})}
 function statusPageOk(v,s){const c=s&&s.config;if(!c||typeof s.configMutable!=='boolean')return!1;return v==='records'?!!(typeof s.firmwareVersion==='string'&&typeof s.webUiOverrideActive==='boolean'&&typeof s.compatibilityMode==='boolean'&&typeof s.timeUtcSec==='number'&&typeof c.revision==='number'&&typeof c.timezoneId==='string'&&typeof c.appliedTimezoneOffsetMinutes==='number'&&typeof c.timezoneAutomatic==='boolean'&&typeof c.timezoneInitialized==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'&&typeof s.lastCommand.state==='string'):v==='home'?!!(typeof s.adminUnlocked==='boolean'&&typeof c.soundAlertsEnabled==='boolean'&&s.safety&&s.scale&&s.presets&&s.cycle&&s.lastShot&&s.noScaleShotGuard&&typeof s.machineState==='string'&&s.cupPresence):v==='settings'?!!(typeof c.soundAlertsEnabled==='boolean'&&typeof c.dripDelayMs==='number'&&typeof c.postTareBaselineGraceMs==='number'&&s.scale&&s.presets&&typeof s.buzzerSupported==='boolean'):v==='admin'?!!(typeof s.adminUnlocked==='boolean'&&s.network&&(s.adminUnlocked?(s.bleScan&&typeof s.bleScan.scanIntensity==='string'&&typeof c.timezoneId==='string'&&c.ntpServerPreset!=null&&s.ota&&typeof s.ota.available==='boolean'&&s.webhooks&&typeof s.webhooks.enabled==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'):typeof s.network.configState==='string')):v==='diagnostic'?!!(typeof s.adminUnlocked==='boolean'&&(s.adminUnlocked?(s.network&&s.time&&s.maintenance&&s.health&&s.safety&&s.scale&&s.lastCommand&&typeof s.machineState==='string'&&typeof s.state==='string'&&s.cupPresence&&typeof s.physicalActivatorOn==='boolean'&&'reedOn' in s&&typeof s.relayClosed==='boolean'&&typeof s.controlSource==='string'&&typeof s.safety.state==='string'&&typeof s.scale.streamState==='string'&&typeof c.serialDebugOutput==='boolean'&&s.compileFlags&&s.serial&&typeof s.serial.io4==='string'&&typeof s.serial.state==='string'&&s.guards&&typeof s.guards.bbwEnabled==='boolean'&&s.guards.noScale&&s.guards.atm&&s.guards.slowExtraction&&s.guards.fastExtraction&&s.guards.accidentalTouch&&s.guards.cupProtection&&s.tasks&&typeof s.tasks.state==='string'):true)):!1}
-async function loadStatus(){if(statusBusy||document.hidden||!webUiPollingActive())return;statusBusy=true;const seq=viewSeq;try{pollAt=Date.now();const v=activeView,s=await api('/api/v1/status/'+v);await viewReady;if(seq!==viewSeq||!webUiPollingActive())return false;if(!statusPageOk(v,s))throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));lastStatusAt=Date.now();if(typeof s.liveShot==='boolean')statusLiveShot=s.liveShot;else if(s.cycle||typeof s.relayClosed==='boolean')statusLiveShot=!!((s.cycle&&s.cycle.active)||s.machineRunning||s.relayClosed);applyCommonStatus(s);const apply=viewStatusHandlers[v];if(apply)apply(s);if(v==='admin'&&s.adminUnlocked){await timezoneCatalogPromise;await timezonePreviewLoad?.catch(()=>{})}noteReachOk();armStatusTimer();return true}catch(e){if(seq===viewSeq)noteReachFail(e);return false}finally{statusBusy=false}}
+async function loadStatus(){if(statusBusy||document.hidden||!webUiPollingActive())return;statusBusy=true;const seq=viewSeq;try{pollAt=Date.now();const v=activeView,s=v==='home'?await loadHomeStatus():await api('/api/v1/status/'+v);await viewReady;if(seq!==viewSeq||!webUiPollingActive())return false;if(!statusPageOk(v,s))throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));lastStatusAt=Date.now();if(typeof s.liveShot==='boolean')statusLiveShot=s.liveShot;else if(s.cycle||typeof s.relayClosed==='boolean')statusLiveShot=!!((s.cycle&&s.cycle.active)||s.machineRunning||s.relayClosed);applyCommonStatus(s);if(s.snapshotStale)setMutable(false);const apply=viewStatusHandlers[v];if(apply)apply(s);if(v==='admin'&&s.adminUnlocked){await timezoneCatalogPromise;await timezonePreviewLoad?.catch(()=>{})}noteReachOk();armStatusTimer();return true}catch(e){if(seq===viewSeq)noteReachFail(e);return false}finally{statusBusy=false}}
 function refreshStatus(){return withPollGate(activeView==='stats'?pollShots:activeView==='history'?pollHistory:loadStatus)}
 async function loadLog(){if(logBusy)return logBusy;if((!diagnosticUnlocked&&!diagnosticPublicView)||document.hidden||!webUiPollingActive())return true;logBusy=(async()=>{try{const d=await api('/api/v1/log?after='+lastLog),b=+d.bootId;if((logBootId&&b&&b!==logBootId)||d.cursorInvalid){logEvents=[];lastLog=logMissed=0;bootId=logBootId=b}else{bootId=logBootId=b;logMissed+=d.missedEvents||0;for(const e of d.events){logEvents.push(e);lastLog=e.sequence}if(logEvents.length>LOG_EVENTS_CAPACITY)logEvents.splice(0,logEvents.length-LOG_EVENTS_CAPACITY);updateLogHealth(d)}renderLog();updateFirmwareFooter();noteReachOk();return true}catch(e){noteReachFail(e);return false}finally{logBusy=false}})();return logBusy}
 function refreshLog(){return withPollGate(loadLog)}

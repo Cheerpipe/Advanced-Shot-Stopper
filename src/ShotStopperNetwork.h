@@ -341,8 +341,12 @@ class ShotStopperNetwork {
     uint32_t sequence = 0, cycle = 0, shot = 0, boot = 0;
     uint32_t fingerprint = 0, prefixHash = 0, markersHash = 0;
     uint16_t cursor = 0;
+    static constexpr size_t kHomeFields = 128;
+    uint32_t homeHashes[kHomeFields] = {};
+    uint32_t homeBoot = 0, homeClockSync = 0, homeClockUtc = 0;
     char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
     bool bound = false, resync = true;
+    bool homeResync = true;
   };
   ShotStreamSession shotStreams_[2];
   std::atomic<bool> shotStreamWorkPending_{false};
@@ -560,6 +564,8 @@ class ShotStopperNetwork {
   static void shotStreamDispatch(void *context);
   void serviceShotStream(uint32_t now);
   void sendShotStream(ShotStreamSession &session);
+  bool sendHomeStream(ShotStreamSession &session, const ControlStatusSnapshot &control,
+                      const ShotLogRecord *latest);
 #if SHOT_STOPPER_DEVELOPMENT == 1
   // Unlock handlers are release-only: development builds serve public
   // administration and never compile the unlock endpoints.

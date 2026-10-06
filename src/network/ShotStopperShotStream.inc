@@ -46,6 +46,8 @@ int shotStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int 
 }
 }  // namespace
 
+#include "ShotStopperHomeStream.inc"
+
 esp_err_t ShotStopperNetwork::shotStreamHandshake(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   char origin[DEVICE_NAME_CAPACITY + 24] = {}, local[DEVICE_NAME_CAPACITY + 8] = {};
@@ -98,13 +100,24 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
   const cJSON *op = cJSON_GetObjectItemCaseSensitive(message, "op");
   const cJSON *client = cJSON_GetObjectItemCaseSensitive(message, "client");
   bool accepted = false;
+  bool activity = false;
   int superseded = -1;
   {
     TaskLockGuard lock(self.dataMux_);
     if (cJSON_IsString(op) && session->bound &&
+        strcmp(op->valuestring, "activity") == 0 &&
+        strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
+      const cJSON *seconds = cJSON_GetObjectItemCaseSensitive(message, "seconds");
+      if (cJSON_IsNumber(seconds) && seconds->valuedouble >= 0 &&
+          seconds->valuedouble <= 30 && seconds->valuedouble == seconds->valueint) {
+        notePowerWebActivity(millis(), static_cast<uint32_t>(seconds->valueint));
+        accepted = activity = true;
+      }
+    } else if (cJSON_IsString(op) && session->bound &&
         strcmp(op->valuestring, "resync") == 0 &&
         strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
       session->resync = true;
+      session->homeResync = true;
       accepted = true;
     } else if (cJSON_IsString(op) && !session->bound &&
                strcmp(op->valuestring, "bind") == 0 && cJSON_IsString(client) &&
@@ -136,8 +149,17 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
   cJSON_Delete(message);
   memset(body, 0, sizeof(body));
   if (!accepted) return ESP_FAIL;
+  if (activity) {
+    uint8_t alive[] = "{\"v\":1,\"type\":\"alive\"}";
+    httpd_ws_frame_t reply = {};
+    reply.type = HTTPD_WS_TYPE_TEXT;
+    reply.payload = alive;
+    reply.len = sizeof(alive) - 1;
+    return httpd_ws_send_frame_async(request->handle, session->fd, &reply);
+  }
   if (superseded >= 0) httpd_sess_trigger_close(request->handle, superseded);
   httpd_sess_set_send_override(request->handle, session->fd, shotStreamSend);
+  self.requestPendingNetworkConfirm();
   return ESP_OK;
 }
 
@@ -165,7 +187,17 @@ void ShotStopperNetwork::shotStreamDispatch(void *context) {
           ? strcmp(session.clientId, self.activeWebUiClientId_) == 0
           : millis() - session.openedAtMs < kShotStreamBindMs;
     }
-    if (!allowed) httpd_sess_trigger_close(self.server_, session.fd);
+    if (!allowed) {
+      if (session.bound) {
+        uint8_t code[] = {0x0f, 0xa1};  // 4001: ownership taken over.
+        httpd_ws_frame_t close = {};
+        close.type = HTTPD_WS_TYPE_CLOSE;
+        close.payload = code;
+        close.len = sizeof(code);
+        (void)httpd_ws_send_frame_async(self.server_, session.fd, &close);
+      }
+      httpd_sess_trigger_close(self.server_, session.fd);
+    }
     else if (session.bound) {
       httpd_sess_update_lru_counter(self.server_, session.fd);
       self.sendShotStream(session);
@@ -185,6 +217,11 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
   ShotLogRecord latest = {};
   const bool eligible = callbacks_.copyHomeShot &&
       callbacks_.copyHomeShot(latest, workBuf_->homeCurve);
+  if (!sendHomeStream(session, control, eligible ? &latest : nullptr)) {
+    unlockWorkBuf();
+    httpd_sess_trigger_close(server_, session.fd);
+    return;
+  }
   const PersistedLastShot &cycle = control.homeCycle;
   const bool live = control.activeCycle || control.homePending;
   if (live) {

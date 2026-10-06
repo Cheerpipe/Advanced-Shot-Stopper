@@ -12,7 +12,7 @@ const char *ShotStopperNetwork::wifiScanStateName(WifiScanState state) {
 
 esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  // Home/settings stay claim-gated only. Admin mutations and the full
+  // Settings stays claim-gated only. Admin mutations and the full
   // privileged status body require a temporary device-password unlock;
   // Diagnostic is intentionally public: /diagnostic stays reachable and the
   // visibility toggle only hides the menu entry.
@@ -24,6 +24,17 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                      "Unknown status page; use /api/v1/status/{home|settings|admin|diagnostic}.");
   }
 
+  // Home state is pushed by the owned WebSocket. Keep only routing metadata
+  // for callers checking navigation/ownership; no duplicate Home projection.
+  if (page == StatusPage::Home) {
+    char metadata[160];
+    snprintf(metadata, sizeof(metadata),
+        "{\"transport\":\"websocket\",\"diagnosticPageVisible\":%s,\"compatibilityMode\":%s}",
+        self.diagnosticPageEnabled() ? "true" : "false",
+        firmwareCompatibilityMode() ? "true" : "false");
+    return sendJson(request, STATUS_OK, metadata);
+  }
+
   // JSON / snapshot work lives in one PSRAM-only blob.
   if (!self.lockWorkBufForStatus()) {
     return self.workBufBusy(request);
@@ -31,29 +42,12 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
 
   ControlStatusSnapshot &control = self.workBuf_->control;
   self.loadControlStatus(control);
-  PersistedLastShot homeLastShot = {};
-  ShotLogRecord homeRecord = {};
-  ShotCurveRecord &homeCurve = g_work->homeCurve;
-  resetShotCurveRecord(homeCurve);
-  const bool homeHistoryLinked = page == StatusPage::Home &&
-      self.callbacks_.copyHomeShot != nullptr &&
-      self.callbacks_.copyHomeShot(homeRecord, homeCurve);
-  const bool homeLastShotValid = homeHistoryLinked;
-  const bool homeSavePending = homeHistoryLinked &&
-      self.callbacks_.shotLogSavePending != nullptr &&
-      self.callbacks_.shotLogSavePending();
-  if (homeHistoryLinked) {
-    const PersistedLastShot &linked = control.lastShot.shotLogId == homeRecord.id
-        ? control.lastShot : control.lastGoodShot;
-    homeLastShot = shotLogProjectLastShot(homeRecord, linked);
-  }
   const bool configMutable = controlAllowsConfiguration(control);
   const bool webUiOverrideActive = self.webUiOverrideAllowed(request);
   const uint32_t webUiOverrideRemainingMs =
       webUiOverrideActive ? self.webUiOverrideRemainingMs(request) : 0;
   bool adminUnlocked = false;
-  if (page == StatusPage::Admin || page == StatusPage::Home ||
-      page == StatusPage::Diagnostic) {
+  if (page == StatusPage::Admin || page == StatusPage::Diagnostic) {
     adminUnlocked = self.adminUnlockAllowed(request);
     if (adminUnlocked &&
         (page == StatusPage::Admin || page == StatusPage::Diagnostic)) {
@@ -102,7 +96,6 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   sanitizeJsonEmbed(micraName, safeMicraName, sizeof(safeMicraName));
 #endif
 
-  char currentWeight[32] = "null";
   char cupWeight[32] = "null";
   const auto &tare = control.cupTare;
   const uint8_t idleCode = idleTarePresentationCode(tare, control.cupPresent);
@@ -113,30 +106,11 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   if (cupWeightValid)
     snprintf(cupWeight, sizeof(cupWeight), "%.1f",
              static_cast<double>(control.cupTare.weightG));
-  char observedWeight[32] = "null";
-  char lastShotWeight[32] = "null";
-  char scaleTimer[32] = "null";
   char staRssiJson[16] = "null";
   char staSignalQualityJson[16] = "null";
   char staChannelJson[8] = "null";
   char scaleRssiJson[16] = "null";
   char scaleWeightUpdateIntervalJson[16] = "null";
-  if (control.currentWeightValid) {
-    snprintf(currentWeight, sizeof(currentWeight), "%.2f",
-             static_cast<double>(control.currentWeightG));
-  }
-  if (control.observedWeightValid) {
-    snprintf(observedWeight, sizeof(observedWeight), "%.2f",
-             static_cast<double>(control.observedWeightG));
-  }
-  if (control.currentTimerValid) {
-    snprintf(scaleTimer, sizeof(scaleTimer), "%lu",
-             static_cast<unsigned long>(control.currentTimerMs));
-  }
-  if (homeLastShotValid && homeLastShot.weightValid) {
-    snprintf(lastShotWeight, sizeof(lastShotWeight), "%.2f",
-             static_cast<double>(homeLastShot.currentWeightG));
-  }
   if (network.staLinkMetricsValid) {
     snprintf(staRssiJson, sizeof(staRssiJson), "%d",
              static_cast<int>(network.staRssi));
@@ -161,11 +135,6 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
 
   char safeNtpCustom[NTP_SERVER_HOST_CAPACITY] = {};
   char safeActiveServer[NTP_SERVER_HOST_CAPACITY] = {};
-  char safeScaleProtocol[24] = {};
-  char safeHomeShotProtocol[24] = {};
-  char safeHomeShotPreset[SHOT_PRESET_NAME_CAPACITY * 6] = {};
-  char safeHomeShotScale[SCALE_FRIENDLY_NAME_MAX_LEN * 6 + 1] = {};
-  char safeCycleScale[SCALE_FRIENDLY_NAME_MAX_LEN * 6 + 1] = {};
   char safePreferredScaleMac[PREFERRED_SCALE_MAC_CAPACITY * 2] = {};
   char safePreferredScaleName[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
   char safeFirmwareVersion[32] = {};
@@ -178,15 +147,6 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                     sizeof(safeNtpCustom));
   sanitizeJsonEmbed(timeStatus.activeServer, safeActiveServer,
                     sizeof(safeActiveServer));
-  sanitizeJsonEmbed(control.scaleProtocol, safeScaleProtocol,
-                    sizeof(safeScaleProtocol));
-  sanitizeJsonEmbed(homeLastShot.scaleProtocol, safeHomeShotProtocol,
-                    sizeof(safeHomeShotProtocol));
-  escapeJsonString(homeLastShot.presetName, safeHomeShotPreset,
-                   sizeof(safeHomeShotPreset));
-  escapeJsonString(homeLastShot.scaleName, safeHomeShotScale,
-                   sizeof(safeHomeShotScale));
-  escapeJsonString(control.cycleScaleName, safeCycleScale, sizeof(safeCycleScale));
   sanitizeJsonEmbed(control.preferredScaleMac, safePreferredScaleMac,
                     sizeof(safePreferredScaleMac));
   sanitizeJsonEmbed(control.preferredScaleName, safePreferredScaleName,
@@ -209,8 +169,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                       sizeof(g_work->safeBullseyeRtttl));
   }
 
-  const bool needPresets =
-      page == StatusPage::Home || page == StatusPage::Settings;
+  const bool needPresets = page == StatusPage::Settings;
   const bool needHistory = page == StatusPage::Settings;
   // Every header names the connected scale; the history array stays Settings-only.
   if (needPresets) {
@@ -260,19 +219,6 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                    wifiName, sizeof(wifiName));
   escapeConnectedScaleName(control, g_work->scaleHistory,
                            bluetoothName, sizeof(bluetoothName));
-  const uint32_t cycleFirstDropElapsedMs =
-      control.cycleFirstDropMs != 0 && control.cycleStartedAtMs != 0 &&
-              static_cast<int32_t>(control.cycleFirstDropMs -
-                                   control.cycleStartedAtMs) >= 0
-          ? control.cycleFirstDropMs - control.cycleStartedAtMs
-          : 0U;
-  const uint32_t cycleTareElapsedMs =
-      control.cycleRetareAtMs != 0 && control.cycleStartedAtMs != 0 &&
-              static_cast<int32_t>(control.cycleRetareAtMs -
-                                   control.cycleStartedAtMs) >= 0
-          ? control.cycleRetareAtMs - control.cycleStartedAtMs
-          : 0U;
-
   size_t used = 0;
   const bool liveShot =
       control.activeCycle || control.relayClosed;
@@ -307,7 +253,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         staRssiJson, control.scaleAvailable ? "true" : "false", scaleRssiJson,
         wifiName, bluetoothName);
   }
-  if (ok && (page == StatusPage::Home || page == StatusPage::Diagnostic)) {
+  if (ok && page == StatusPage::Diagnostic) {
     ok = statusJsonAppend(&used,
         ",\"backflush\":{\"waiting\":%s,\"ready\":%s,\"unresolved\":%s,"
         "\"stopReason\":\"%s\",\"hardLimitMs\":%lu,\"remainingMs\":%lu}",
@@ -342,7 +288,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     ok = statusJsonAppend(&used, ",\"buzzerSupported\":%s",
                           BUZZER_SUPPORT_ENABLED ? "true" : "false");
   }
-  if (ok && (page == StatusPage::Home || page == StatusPage::Settings)) {
+  if (ok && page == StatusPage::Settings) {
     ok = statusJsonAppend(
         &used, ",\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"}",
         static_cast<unsigned long>(network.lastCommandRequestId),
@@ -403,44 +349,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                                                                      : "false");
   }
 
-  if (ok && page == StatusPage::Home) {
-    ok = statusJsonAppend(
-        &used,
-        ",\"soundAlertsEnabled\":%s,\"alertOutputChannel\":\"%s\","
-        "\"brewByWeight\":%s,\"goalWeightG\":%u,"
-        "\"operationalWallMs\":%lu,\"minBbwBrewTimeMs\":%lu,\"maxBbwBrewTimeMs\":%lu,"
-        "\"minRecoveryWeightG\":%.1f,\"maxRecoveryWeightG\":%.1f,"
-        "\"fastExtractionGuardEnabled\":%s,\"slowExtractionGuardEnabled\":%s,"
-        "\"autoToManualGuardEnabled\":%s,\"cupProtectionEnabled\":%s,"
-        "\"stopIfCupRemoved\":%s,\"requireCupToStart\":%s,"
-        "\"avoidAccidentalTouchEnabled\":%s,"
-        "\"touchStopFallbackEnabled\":%s,"
-        "\"cupPresentWeightG\":%.1f,\"cupRemovedWeightG\":%.1f,"
-        "\"avoidBbwShotWithoutScale\":%s,\"noScaleBbwMode\":\"%s\","
-        "\"scaleMacCacheMode\":\"%s\"",
-        control.config.soundAlertsMuted ? "false" : "true",
-        alertOutputChannelId(control.config.alertOutputChannel),
-        control.config.timerOnly ? "false" : "true",
-        static_cast<unsigned>(control.config.goalWeightG),
-        static_cast<unsigned long>(control.config.operationalWallMs),
-        static_cast<unsigned long>(control.config.minBbwBrewTimeMs),
-        static_cast<unsigned long>(control.config.maxBbwBrewTimeMs),
-        static_cast<double>(control.config.minRecoveryWeightG),
-        static_cast<double>(control.config.maxRecoveryWeightG),
-        control.config.fastExtractionGuardEnabled ? "true" : "false",
-        control.config.slowExtractionGuardEnabled ? "true" : "false",
-        control.config.autoToManualGuardEnabled ? "true" : "false",
-        control.config.cupProtectionEnabled ? "true" : "false",
-        control.config.stopIfCupRemoved ? "true" : "false",
-        control.config.requireCupToStart ? "true" : "false",
-        control.config.avoidAccidentalTouchEnabled ? "true" : "false",
-        control.config.touchStopFallbackEnabled ? "true" : "false",
-        static_cast<double>(control.config.cupPresentWeightG),
-        static_cast<double>(control.config.cupRemovedWeightG),
-        noScaleBbwEnabled(control.config.noScaleBbwMode) ? "true" : "false",
-        noScaleBbwModeId(control.config.noScaleBbwMode),
-        scaleMacCacheModeId(control.config.scaleMacCacheMode));
-  } else if (ok && page == StatusPage::Settings) {
+  if (ok && page == StatusPage::Settings) {
     ok = statusJsonAppend(
         &used,
         ",\"goalWeightG\":%u,\"weightOffsetG\":%.2f,"
@@ -580,174 +489,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
 
 #include "ShotStopperLineaMicraStatus.inc"
 
-  if (ok && page == StatusPage::Home) {
-    ok = statusJsonAppend(&used, ",\"adminUnlocked\":%s,\"development\":%s",
-                          adminUnlocked ? "true" : "false",
-                          DEVELOPMENT_BUILD ? "true" : "false");
-  }
-  if (ok && page == StatusPage::Home) {
-    ok = statusJsonAppend(
-        &used,
-        ",\"state\":\"%s\",\"stateLabel\":\"%s\",\"machineState\":\"%s\","
-        "\"relayClosed\":%s,\"machineRunning\":%s,"
-        "\"physicalActivatorOn\":%s,\"virtualHoldOn\":%s,"
-        "\"remoteControlEnabled\":%s,\"controlSource\":\"%s\","
-        "\"circuitElapsedMs\":%lu,"
-        "\"safety\":{\"state\":\"%s\",\"fault\":\"%s\","
-        "\"taskWatchdogReady\":%s,\"externalHardware\":%s,"
-        "\"recoveryRequired\":%s},"
-        "\"scale\":{\"available\":%s,\"protocol\":\"%s\","
-        "\"streamState\":\"%s\",\"controlState\":\"%s\","
-        "\"controlAccepted\":%s,\"currentWeightG\":%s,"
-        "\"observedWeightG\":%s,\"timerMs\":%s,"
-        "\"preferredMac\":\"%s\",\"preferredName\":\"%s\","
-        "\"preferredFriendlyName\":\"%s\","
-        "\"macCachePauseRemainingMs\":%lu,"
-        "\"lastDisconnectReasonName\":\"%s\"},"
-        "\"presets\":%s,"
-        "\"cycle\":{\"active\":%s,\"shotType\":\"%s\","
-        "\"retarePerformed\":%s,\"firstDropElapsedMs\":%lu,"
-        "\"tareElapsedMs\":%lu,\"scaleName\":\"%s\","
-        "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,"
-        "\"activeStopWeightG\":%.1f,\"minBbwBrewTimeRemainingMs\":%lu,"
-        "\"autoToManualGuardArmed\":%s,"
-        "\"autoToManualGuardEnforced\":%s,"
-        "\"autoToManualGuardRemainingMs\":%lu,"
-        "\"accidentalTouchHolding\":%s},"
-        "\"lastShot\":{\"valid\":%s,\"currentWeightG\":%s,"
-        "\"cycleId\":%lu,\"presetId\":%u,\"presetName\":\"%s\","
-        "\"goalWeightG\":%u,\"averageFlowGps\":%.2f,"
-        "\"averageFlowValid\":%s,\"extractionExtended\":%s,"
-        "\"activeStopWeightG\":%.1f,\"durationMs\":%lu,"
-        "\"firstDropElapsedMs\":%lu,\"tareElapsedMs\":%lu,"
-        "\"scaleName\":\"%s\",\"retarePerformed\":%s,"
-        "\"shotType\":\"%s\",\"scaleProtocol\":\"%s\","
-        "\"scaleAvailable\":%s,\"fastExtractionGuardEnabled\":%s,"
-        "\"slowExtractionGuardEnabled\":%s,\"slowExtractionExtended\":%s,"
-        "\"minBbwBrewTimeRemainingMs\":%lu,"
-        "\"autoToManualGuardEnabled\":%s,"
-        "\"autoToManualGuardArmed\":%s,"
-        "\"autoToManualGuardEnforced\":%s,"
-        "\"autoToManualGuardRemainingMs\":%lu,"
-        "\"noScaleShotGuardEnabled\":%s,"
-        "\"noScaleShotGuardArmed\":%s,\"noScaleBbwMode\":\"%s\","
-        "\"endReason\":\"%s\","
-        "\"rating\":%u,\"shotLogId\":%lu,\"savePending\":%s,"
-        "\"hasWallTime\":%s,\"endedAtUnixSec\":%lu,"
-        "\"endedAtLocalSec\":%lu},"
-        "\"noScaleShotGuard\":{\"enabled\":%s,\"armed\":%s,"
-        "\"mode\":\"%s\",\"cooldownRemainingMs\":%lu,"
-        "\"scaleUsable\":%s},"
-        "\"cupPresence\":{\"state\":\"%s\",\"present\":%s,"
-        "\"weightG\":%s,\"weightValid\":%s,\"placementId\":%lu,\"idleTare\":\"%s\"}",
-        stopperStateName(control.state), stateLabel(control.state),
-        machineRunStateName(control.machineRunState),
-        control.relayClosed ? "true" : "false",
-        control.machineRunning ? "true" : "false",
-        control.physicalActivatorOn ? "true" : "false",
-        control.virtualHoldOn ? "true" : "false",
-        control.remoteControlEnabled ? "true" : "false",
-        controlSourceName(control.source),
-        static_cast<unsigned long>(control.circuitElapsedMs),
-        relaySafetyStateName(control.safetyState),
-        relaySafetyFaultName(control.safetyFault),
-        control.taskWatchdogReady ? "true" : "false",
-        control.externalSafetyPresent ? "true" : "false",
-        control.resetRecoveryRequired ? "true" : "false",
-        control.scaleAvailable ? "true" : "false", safeScaleProtocol,
-        weightStreamStateName(control.weightStreamState),
-        weightControlStateName(control.weightControlState),
-        control.currentWeightValid ? "true" : "false", currentWeight,
-        observedWeight, scaleTimer, safePreferredScaleMac,
-        safePreferredScaleName, safePreferredScaleFriendly,
-        static_cast<unsigned long>(control.scaleMacCachePauseRemainingMs),
-        scaleDisconnectReasonName(control.scaleLastDisconnectReason),
-        g_work->presetsJson, control.activeCycle ? "true" : "false",
-        activeCycleShotTypeLabel(control),
-        control.cycleRetarePerformed ? "true" : "false",
-        static_cast<unsigned long>(cycleFirstDropElapsedMs),
-        static_cast<unsigned long>(cycleTareElapsedMs),
-        safeCycleScale,
-        control.cycleExtractionExtended ? "true" : "false",
-        control.cycleSlowExtractionExtended ? "true" : "false",
-        static_cast<double>(control.cycleActiveStopWeightG),
-        static_cast<unsigned long>(control.cycleMinBbwBrewTimeRemainingMs),
-        control.cycleAutoToManualGuardArmed ? "true" : "false",
-        control.cycleAutoToManualGuardEnforced ? "true" : "false",
-        static_cast<unsigned long>(control.cycleAutoToManualGuardRemainingMs),
-        control.cycleAccidentalTouchHolding ? "true" : "false",
-        homeLastShotValid ? "true" : "false", lastShotWeight,
-        static_cast<unsigned long>(homeLastShot.cycleId),
-        static_cast<unsigned>(homeLastShot.presetId), safeHomeShotPreset,
-        static_cast<unsigned>(homeLastShot.goalWeightG),
-        static_cast<double>(homeLastShot.averageFlowGps),
-        homeLastShot.averageFlowValid ? "true" : "false",
-        homeLastShot.extractionExtended ? "true" : "false",
-        static_cast<double>(homeLastShot.activeStopWeightG),
-        static_cast<unsigned long>(homeLastShot.durationMs),
-        static_cast<unsigned long>(homeLastShot.firstDropElapsedMs),
-        static_cast<unsigned long>(homeLastShot.tareElapsedMs),
-        safeHomeShotScale,
-        homeLastShot.retarePerformed ? "true" : "false",
-        homeLastShotValid
-            ? lastShotTypeName(static_cast<LastShotType>(homeLastShot.shotType))
-            : "unknown",
-        safeHomeShotProtocol,
-        homeLastShot.scaleAvailable ? "true" : "false",
-        homeLastShot.fastExtractionGuardEnabled ? "true" : "false",
-        homeLastShot.slowExtractionGuardEnabled ? "true" : "false",
-        homeLastShot.slowExtractionExtended ? "true" : "false",
-        static_cast<unsigned long>(homeLastShot.minBbwBrewTimeRemainingMs),
-        homeLastShot.autoToManualGuardEnabled ? "true" : "false",
-        homeLastShot.autoToManualGuardArmed ? "true" : "false",
-        homeLastShot.autoToManualGuardEnforced ? "true" : "false",
-        static_cast<unsigned long>(homeLastShot.autoToManualGuardRemainingMs),
-        homeLastShot.noScaleShotGuardEnabled ? "true" : "false",
-        homeLastShot.noScaleShotGuardArmed ? "true" : "false",
-        noScaleBbwModeId(homeLastShot.noScaleBbwMode),
-        homeLastShotValid ? shotLogStopDetailName(
-            static_cast<ShotLogStopDetail>(homeRecord.stopDetail)) : "none",
-        homeHistoryLinked ? static_cast<unsigned>(homeLastShot.rating) : 0U,
-        homeHistoryLinked
-            ? static_cast<unsigned long>(homeLastShot.shotLogId)
-            : 0UL,
-        homeSavePending ? "true" : "false",
-        homeLastShot.hasWallTime ? "true" : "false",
-        static_cast<unsigned long>(homeLastShot.endedAtUnixSec),
-        static_cast<unsigned long>(homeLastShot.endedAtLocalSec),
-        control.noScaleShotGuardEnabled ? "true" : "false",
-        control.noScaleShotGuardArmed ? "true" : "false",
-        noScaleBbwModeId(control.config.noScaleBbwMode),
-        static_cast<unsigned long>(
-            control.noScaleShotGuardCooldownRemainingMs),
-        (control.scaleAvailable &&
-         control.weightStreamState == WeightStreamState::FRESH)
-            ? "true"
-            : "false",
-        cupPresenceStateName(control.cupPresenceState),
-        control.cupPresent ? "true" : "false", cupWeight,
-        cupWeightValid ? "true" : "false",
-        static_cast<unsigned long>(control.cupTare.placementId), idleTare);
-    if (ok) {
-      ShotCurveRecord &curve = g_work->serializedCurve;
-      if (control.activeCycle) shotCurveRecordFromStatusFields(
-          curve, control.shotCurveCount, control.shotCurveTruncated,
-          control.shotCurveFirstDropMs, control.shotCurveFirstDropCg,
-          control.shotCurveExtendedMs, control.shotCurveExtendedCg,
-          control.shotCurveAtmMs, control.shotCurveAtmCg,
-          control.shotCurveAtmClearedMs, control.shotCurveEndedMs,
-          control.shotCurveEndedCg, control.shotCurveWeightCg,
-          sizeof(control.shotCurveWeightCg) /
-              sizeof(control.shotCurveWeightCg[0]), control.shotCurveAtMs,
-          control.shotCurveBreakBefore);
-      else curve = homeCurve;
-      char *const curveJson = g_work->curveJson;
-      if (formatShotCurveJsonBody(curveJson, SHOT_CURVE_JSON_CAPACITY,
-                                  curve)) {
-        ok = statusJsonAppend(&used, ",\"shotCurve\":{%s}", curveJson);
-      }
-    }
-  } else if (ok && page == StatusPage::Settings) {
+  if (ok && page == StatusPage::Settings) {
     ok = statusJsonAppend(
         &used,
         ",\"scale\":{\"preferredMac\":\"%s\",\"preferredName\":\"%s\","

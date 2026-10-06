@@ -36,7 +36,14 @@ The [AP guide](settings/ap.md) explains its idle shutdown and recovery.
 
 **Claim / Reload** gives one browser control of Home and Settings. Another client
 can take the claim, and 15 minutes without using a control locks the page and
-stops polling. Scrolling does not keep it active; use Reload to resume.
+stops live updates. Scrolling does not keep it active; use Reload to resume.
+
+Home updates automatically when its information changes. In **Equipment → Scale**,
+weight and timer follow the connected scale even outside a shot. Disconnecting
+the scale clears those readings. **Equipment → Machine** follows the machine and
+brew states; on a Linea Micra, it also shows power and **Machine cleaning
+(backflush)**, with the same cleaning state shown in Diagnostics. Cleaning status
+requires the Micra WebSocket connection and state observation to be enabled.
 
 The header shows the controller's home-network Wi-Fi signal and its Bluetooth
 link to the scale. More lit arcs or bars mean a stronger signal; amber means
@@ -78,7 +85,7 @@ Control animations work normally once the page is visible. Stats, History, and
 Settings use this single loading view rather than separate loading animations
 inside their sections.
 On first opening a page, its content and fresh data load together. Returning to
-a page reuses its content and controls while fetching fresh data. Stats and
+a page reuses its content and controls with current data. Stats and
 History request their current status and records together, and the loading view
 waits for both before fading.
 If loading fails, the page shows an error. If this browser loses its claim, the

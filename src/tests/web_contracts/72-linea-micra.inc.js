@@ -25,11 +25,11 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const assert = require('assert'), vm = require('vm');
   assert(rawPartialHtml.home.includes('<div class="metric micraOnly"><strong>{{webui:home.machine_power_state}}</strong><div id="homeMicraPower">'));
   const el = () => ({textContent: '', classList: {toggle() {}, contains: () => false}});
-  const power = el(), rowState = el(), brew = el();
+  const cleaning = el(), power = el(), rowState = el(), brew = el();
   const machineRow = {textContent: '', bad: false};
   machineRow.classList = {toggle: (_, on) => { machineRow.bad = on; }};
-  const context = {R: {applyHomeStatus() {},
-      $: id => ({homeMicraPower: power, machineRowState: rowState, state: brew, machineRow}[id] || null)},
+  const context = {R: {applyHomeStatus() {}, formatMicraCleaning:()=>'',
+      $: id => ({homeMicraCleaning: cleaning, homeMicraPower: power, machineRowState: rowState, state: brew, machineRow}[id] || null)},
     document: {querySelector: () => null},
     __WEBUI_TEXT__: key => key === 'home.optimistic' ? 'Optimistic' : 'Unknown'};
   vm.runInNewContext(viewJs.home.replace(/import\*as R from'[^']+';/, '').replace(/export /g, ''), context);
@@ -57,9 +57,8 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   context.applyStatus({lineaMicra: {powerState: 'ON', quality: 'current'}, state: 'BREWING'});
   assert.strictEqual(machineRow.bad, true);
   assert.strictEqual(brew.textContent, '');
-  assert(micraStatus.replace(/\s+/g, ' ').includes(
-      'page == StatusPage::Home || page == StatusPage::Settings || page == StatusPage::Diagnostic'),
-      'Home status must project the lineaMicra block for the power summary');
+  assert(network.includes('delta.field("lineaMicra.powerState"'),
+      'Home stream must project Micra power independently of REST status');
 }
 {
   const assert = require('assert');
@@ -85,6 +84,9 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
     'diagnostic.cleaning_states': 'Inactive|Waiting for paddle|Cleaning'};
   const domContext = vm.createContext({$: id => dom[id], document: {createElement: element},
     __WEBUI_TEXT__: key => labels[key] || key, R: {formatWallTime: String}});
+  const cleaningSource = rawRuntimeJs.slice(rawRuntimeJs.indexOf('export function formatMicraCleaning('),
+      rawRuntimeJs.indexOf('let shotWs=')).replace('export ', '');
+  domContext.R.formatMicraCleaning = new Function('__WEBUI_TEXT__', cleaningSource + ';return formatMicraCleaning;')(domContext.__WEBUI_TEXT__);
   vm.runInContext(cloudUi.slice(0, cloudUi.indexOf('function formatScaleDisconnect(')), domContext);
   const show = lm => { domContext.lm = lm; vm.runInContext('renderMicraCloudDiagnostic(lm)', domContext); };
   const socket = {state: 'streaming', nowMs: 5000, cleaningAvailable: true, cleaning: 'waiting_for_paddle', cleaningAtMs: 3000,
@@ -121,6 +123,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const context = vm.createContext({$: id => nodes[id],
     __WEBUI_TEXT__: key => key === 'diagnostic.cloud_results' ? ['success','canceled','http_error','transport_error','invalid_response','response_too_large','setup_error'].map(k=>'diagnostic.cloud_'+k).join('|') : key,
     R: {formatWallTime: (sec, offset) => {assert.strictEqual(offset, 0); return String(sec);}}});
+  context.R.formatMicraCleaning = new Function('__WEBUI_TEXT__', cleaningSource + ';return formatMicraCleaning;')(context.__WEBUI_TEXT__);
   vm.runInContext(cloudUi.slice(cloudUi.indexOf('function renderMicraCloudDiagnostic('),
       cloudUi.indexOf('function formatScaleDisconnect(')), context);
   const render = data => {

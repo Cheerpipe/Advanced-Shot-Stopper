@@ -309,7 +309,7 @@ fetching Home's scale, cup, preset, or extraction state. The browser validates
 and applies this state before displaying the records. Record requests also
 retain the confirmation of pending Wi-Fi settings on a station connection.
 
-Every Web UI page status response and the record-page `ui` envelope include
+Home's live stream, the other Web UI page status responses, and the record-page `ui` envelope include
 `connections`: `wifiConnected` and `bluetoothConnected` are booleans;
 `wifiRssi` and `bluetoothRssi` are cached dBm readings, or `null` when unavailable.
 `wifiName` is the connected station SSID; `bluetoothName` is the connected
@@ -324,13 +324,44 @@ precedence over any reading. Stale control snapshots or missing measurements
 show unavailable signal quality. These display fields add no radio queries or
 extra polling requests and do not change the public integration endpoints.
 
+### Home live updates
+
+The claimed browser binds the existing WebSocket at `/api/v1/ui/shot-stream`
+with `{"op":"bind","client":"<claimed X-WebUI-Client>"}`. Home receives an
+initial snapshot and then field changes, without periodic REST status requests.
+The firmware compares the published state at most every 100 ms while a browser
+is connected. Unchanged displayed values produce no Home data frames. Weight
+and timer are inspected only while the scale is connected, at the displayed
+precision (0.1 g and 0.1 s); unavailable readings become `null` once.
+
+Home frames have `v: 1`, `type: "home"`, `boot`, `snapshot`, and `changes`.
+The initial snapshot supplies the complete Home state; subsequent `changes`
+objects contain only changed paths, such as `scale.timerMs` or
+`lineaMicra.websocket.cleaning`. Objects such as `presets` are replaced as a
+unit when they change. Reliable, ordered WebSocket delivery applies these
+scalar assignments in order. The shot card and curve retain their independent
+sequence/base and cursor contract on the same socket. Equipment updates do not
+resend an unchanged shot card or curve. Commands continue to use the existing
+HTTP endpoints and ownership checks.
+
+Reconnect and `{"op":"resync"}` request fresh snapshots. Ownership takeover
+closes the previous socket with code 4001. Bounded `activity`/`alive` control
+messages every 20 seconds detect a lost connection and preserve existing power
+activity behavior; they do not request or repeat Home data. Clock synchronization
+supplies a new time anchor; the browser advances relative time locally.
+`GET /api/v1/status/home` now returns only `transport: "websocket"`,
+`diagnosticPageVisible`, and `compatibilityMode` for navigation. It no longer
+returns the Home configuration, equipment, shot, or curve payload. Settings,
+Admin, Diagnostic, record reads, and the public integration API keep their
+existing REST contracts.
+
 The former `/api/v1/shots` route family has been renamed to `/api/v1/stats`:
 external Web UI API callers must update the read URL and the POST URLs
 `/api/v1/stats/clear`, `/api/v1/stats/delete`, and `/api/v1/stats/rate`.
 The route rename preserves request bodies and mutation safety checks.
 The public `/api/v1/integration` endpoints are unchanged.
 
-Stats shot records and Home's `shotCurve` now carry paired `wCg` and `wAtMs`
+Stats shot records and Home's WebSocket `curve` carry paired `wCg` and `wAtMs`
 arrays: accepted centigram weights and their elapsed reception times in integer
 milliseconds, with up to 1201 observations. Use those times instead of the
 removed shared `wDtS` interval. `wBreakBefore` lists zero-based indices that

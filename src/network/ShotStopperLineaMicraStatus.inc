@@ -1,5 +1,5 @@
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
-  if (ok && (page == StatusPage::Home || page == StatusPage::Settings ||
+  if (ok && (page == StatusPage::Settings ||
              page == StatusPage::Diagnostic)) {
     const uint32_t sampleAgeMs = micraStatus.sampleAtMs == 0
                                      ? 0

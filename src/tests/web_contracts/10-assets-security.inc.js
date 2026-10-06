@@ -618,8 +618,10 @@ if (htmlBytes > 84000) {
 // handler, glyph mode state, and localized label wiring. Compressed asset and
 // firmware limits stay fixed.
 // The hero curve gains the prototype's solid area and baseline (+250 bytes).
-if (jsBytes > 240000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 240000)`);
+// Home field deltas, initial/reconnect recovery and socket liveness add 6 KiB
+// of authoring allowance. Firmware image and OTA limits stay fixed.
+if (jsBytes > 246000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 246000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -651,8 +653,8 @@ if (jsBytes > 240000) {
 // The theme button adds ~1.1 KB of combined source: three glyph states in the
 // shell markup plus the JS cycle, state, and label wiring described above.
 // The hero solid curve area and baseline add the same 250-byte JS allowance.
-if (htmlBytes + jsBytes > 324100) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 324100)`);
+if (htmlBytes + jsBytes > 330100) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 330100)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
