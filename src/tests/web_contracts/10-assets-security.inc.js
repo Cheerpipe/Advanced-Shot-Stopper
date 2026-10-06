@@ -548,7 +548,7 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // and their labels: ~0.8 KB of HTML source allowance; compressed asset and
 // firmware budgets stay fixed.
 if (htmlBytes > 85800) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 85000)`);
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 85800)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -634,10 +634,10 @@ if (htmlBytes > 85800) {
 // per-asset, combined flash, firmware image and OTA limits remain fixed.
 // The no-scale finish transition and early paddle edge add 2.1 KB of source allowance.
 // The full-screen shot card state machine (enter/exit/back-consume, session
-// keep-alive during a live shot, and the router popstate hook) adds ~2.6 KB of
+// keep-alive during a live shot, and the router popstate hook) adds ~3.3 KB of
 // JS source allowance; compressed per-asset and firmware limits stay fixed.
-if (jsBytes > 254800) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 251600)`);
+if (jsBytes > 255200) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 255200)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -676,8 +676,8 @@ if (jsBytes > 254800) {
 // Include the same 2.1 KB finish-transition source allowance.
 // Include the same ~3.4 KB full-screen shot card allowance (buttons and hero
 // wrapper in HTML; state machine, session keep-alive, and popstate hook in JS).
-if (htmlBytes + jsBytes > 339600) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 335600)`);
+if (htmlBytes + jsBytes > 340000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 340000)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
