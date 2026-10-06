@@ -76,6 +76,12 @@ replace the REST read handlers. Flash code grows 32,700 bytes (inside its
 32,768-byte allowance), rodata 14,844 and DIRAM 6,704 bytes (inside theirs);
 external BSS is unchanged. The combined compressed Web assets measure
 123,231 bytes; their per-asset caps are enforced by the Web contract tests.
+The post-landed record-stream review raises the flash-code allowance by 512
+bytes, to 33,280 (measured 1,548,180): the senders' no-change bookkeeping
+now stores the epoch on the fingerprint-suppression path and on snapshot
+sends, and the history fingerprint became component-wise over the raw
+record bytes. Image, rodata, DIRAM, and external-BSS allowances are
+unchanged.
 The additional atomic priority flag retains the single HTTP workspace owner;
 control only notifies Network and never waits for serialization. The stop fade
 is browser animation state, with no firmware task or control-timing changes.

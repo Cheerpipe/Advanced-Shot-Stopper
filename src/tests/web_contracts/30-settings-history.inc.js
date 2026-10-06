@@ -995,6 +995,9 @@ if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !runtimeJs.includes('function statsStreamFrame(') ||
     !runtimeJs.includes('function applyStatsStream(') ||
     !runtimeJs.includes('if(statsStreamWanted)statsSendSubscribe()') ||
+    !runtimeJs.includes('if(statsExportInFlight)return statsExportInFlight') ||
+    !runtimeJs.includes("(activeView==='stats'||activeView==='history')") ||
+    !runtimeJs.includes("'configMutable','webUiOverrideActive','compatibilityMode','firmwareVersion','snapshotStale','adminUnlocked'") ||
     !runtimeJs.includes("statsSendSubscribe(){statsSend({op:'stats',on:true,offset:0,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir})}") ||
     !runtimeJs.includes("statsSend({op:'stats',on:true,fetch:true,offset:statsFetchMark.offset,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir})") ||
     !runtimeJs.includes("statsFrameWindow(0,SHOTS_EXPORT_LIMIT,'date','desc',15e3)") ||

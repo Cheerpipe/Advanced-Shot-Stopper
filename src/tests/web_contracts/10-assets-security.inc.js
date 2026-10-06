@@ -618,8 +618,10 @@ if (htmlBytes > 85800) {
 // REST pull plumbing; compressed asset and firmware limits stay fixed.
 // The Stats stream (continuation assembly, export window, row validation)
 // adds ~4 KB more; compressed asset and firmware limits stay fixed.
-if (jsBytes > 262400) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 262400)`);
+// The record-view UI freshness on Home deltas and the single-flight export
+// add ~0.6 KB more; compressed asset and firmware limits stay fixed.
+if (jsBytes > 263200) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 263200)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.

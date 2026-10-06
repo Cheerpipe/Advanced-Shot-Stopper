@@ -5,8 +5,10 @@ constexpr uint32_t kShotStreamBindMs = 5000, kShotStreamRetainMs = 30000;
 // Live shots keep the scale's 10 Hz; idle Home only needs edge pickup.
 constexpr uint32_t kShotStreamLiveMs = 100, kShotStreamIdleMs = 250;
 constexpr size_t kShotStreamRequestBytes = 160;
-// Stats pages carry full curves; stay well under the client's 24 KiB frame
-// guard with headroom for the envelope and one oversized row.
+// Stats pages carry full curves; multi-row frames accumulate under this
+// budget. A single maximal row (~20.7 KiB curve JSON plus scalars) sent alone
+// on a first frame together with the ui and stats extras measures ~23.2 KiB,
+// still under the client's 24 KiB frame guard.
 constexpr size_t kStatsStreamFrameBytes = 20480;
 
 // Shared op validation for the view-scoped record subscriptions: an exact
@@ -162,8 +164,8 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
                strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
       // View-scoped History page subscription: the standing window tracks the
       // page; a one-shot fetch serves sentinel appends without disturbing it.
-      static const char *const kFields[] = {"op",    "on",   "offset",
-                                            "limit", "dir",  "fetch"};
+      static const char *const kFields[] = {"op", "on", "offset",
+                                            "limit", "dir", "fetch"};
       const cJSON *on = cJSON_GetObjectItemCaseSensitive(message, "on");
       const cJSON *offset = cJSON_GetObjectItemCaseSensitive(message, "offset");
       const cJSON *limit = cJSON_GetObjectItemCaseSensitive(message, "limit");

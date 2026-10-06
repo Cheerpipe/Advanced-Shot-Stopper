@@ -130,6 +130,15 @@
   assert(stream.includes('session->diagnostic = cJSON_IsTrue(on)'));
   assert(stream.includes('session.diagnostic && !sendDiagnosticStream(session, control)'),
       'the diagnostic delta rides the existing dispatch under the status workspace');
+  // Record-stream no-change bookkeeping: the suppression path must adopt a
+  // moved epoch, and every standing-window send (snapshots included) must
+  // store epoch+fingerprint — otherwise idle ticks rebuild pages forever.
+  assert.equal((homeStream.match(/session\.historyEpoch = epoch;/g) || []).length, 2,
+      'history suppression and standing sends must both store the epoch');
+  assert.equal((homeStream.match(/session\.statsEpoch = epoch;/g) || []).length, 2,
+      'stats suppression and standing sends must both store the epoch');
+  assert.equal((homeStream.match(/if \(!fetch\) \{/g) || []).length, 2,
+      'snapshot sends must store the standing fingerprint');
   const diagRegion = homeStream.slice(homeStream.indexOf('sendDiagnosticStream'));
   const diagSlots = Number(/kDiagFields\s*=\s*(\d+)/.exec(networkHeader)[1]);
   const diagCalls = (diagRegion.match(/\bdelta\.field\(/g) || []).length;

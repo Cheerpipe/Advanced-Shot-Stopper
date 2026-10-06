@@ -5,7 +5,7 @@
     "image": 49072,
     "total_size": 49064,
     "used_diram": 8192,
-    "flash_code": 32768,
+    "flash_code": 33280,
     "flash_rodata": 16384
   },
   "targets": {

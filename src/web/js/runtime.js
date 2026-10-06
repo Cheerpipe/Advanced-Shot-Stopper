@@ -296,7 +296,7 @@ const toggleHistoryDir=()=>{historyDir=historyDir==='desc'?'asc':'desc';syncHist
 const updateHistorySentinel=()=>{const el=$('historySentinel');if(el){el.hidden=!historyData.hasMore;el.textContent=historyData.hasMore?__WEBUI_TEXT__("runtime.more"):''}}
 function applyHistoryPage(d,mode){historyLoaded=true;const a=Array.isArray(d&&d.history)?d.history:[],t=typeof d.total==='number'?d.total:a.length;if(typeof d.bootId==='number')bootId=d.bootId;if(mode!=='poll'||!t){if(mode==='append'&&t){const s={};for(const x of historyData.records)if(x&&x.id)s[x.id]=1;let n=0;for(const x of a)if(x&&x.id&&!s[x.id]){s[x.id]=1;historyData.records.push(x);n++}historyData.total=t;historyData.hasMore=!!n&&!!d.hasMore;return}historyData={bootId:d.bootId||historyData.bootId||0,total:t,hasMore:!!d.hasMore&&!!t,records:t?a:[]};return}const s={},m=[];for(const x of a)if(x&&x.id){m.push(x);s[x.id]=1}for(const x of historyData.records)if(x&&x.id&&!s[x.id])m.push(x);if(m.length>t)m.length=t;historyData={bootId:d.bootId||historyData.bootId||0,total:t,hasMore:m.length<t,records:m}}
 const historyViewActive=()=>activeView==='history'&&webUiPollingActive()
-function maybeLoadMoreHistory(){if(historyFetchOffset>=0||!historyData.hasMore||!historyViewActive())return;const r=$('historySentinel').getBoundingClientRect();r.bottom>0&&r.top<innerHeight+240&&loadMoreHistory()}
+function maybeLoadMoreHistory(){if(historyFetchOffset>=0||!historyData.hasMore||!historyViewActive())return;const el=$('historySentinel');if(!el||el.hidden)return;const r=el.getBoundingClientRect();r.bottom>0&&r.top<innerHeight+240&&loadMoreHistory()}
 function renderHistory(){const body=$('historyRows');if(!body||!historyLoaded)return;body.replaceChildren();const rows=historyData.records;if(rows.length)for(const r of rows){const row=document.createElement('tr');const time=document.createElement('td');time.dataset.label=__WEBUI_TEXT__("runtime.time");time.className='histTime';time.textContent=formatHistoryTime(r);wrapTimeEl(time,r);const dur=document.createElement('td');dur.dataset.label=__WEBUI_TEXT__("runtime.dur");dur.className='shotDur';dur.textContent=(typeof r.durationS==='number'?r.durationS:0).toFixed(1)+'s';const type=document.createElement('td');type.dataset.label=__WEBUI_TEXT__("runtime.type");type.className='histType';const badge=document.createElement('span');badge.className='histBadge';badge.textContent=historyTypeLabel(r.type);type.appendChild(badge);const del=document.createElement('td');del.className='shotDel';const btn=document.createElement('button');btn.type='button';btn.className='btnGlyph btnDanger';btn.title=__WEBUI_TEXT__("runtime.delete");btn.setAttribute('aria-label',__WEBUI_TEXT__("runtime.delete"));btn.innerHTML=('<span class="g">'+__WEBUI_TEXT__("runtime.close")+'</span>');btn.onclick=()=>deleteOneHistory(r.id);del.appendChild(btn);const typeSvg=HIST_TYPE_SVG[r.type];if(typeSvg){const icon=document.createElement('td');icon.className='histIcon';icon.setAttribute('aria-hidden','true');icon.innerHTML=typeSvg;row.appendChild(icon)}row.append(time,dur,type,del);body.appendChild(row)}setEmptyState('historyTableState',rows.length?null:__WEBUI_TEXT__("runtime.no_recorded_activations_yet"));updateHistorySentinel()}
 const loadMoreHistory=()=>{if(historyData.hasMore&&historyViewActive()&&historyFetchOffset<0){historyFetchOffset=historyData.records.length;historySend({op:'history',on:true,fetch:true,offset:historyFetchOffset})}}
 const refreshHistory=()=>historyViewActive()?startHistoryStream():Promise.resolve(false)
@@ -555,6 +555,10 @@ let shotWs=null,shotRetry=0,shotTry=0,shotFrame=null,shotSeen=null,shotResync=!1
         // Navigation visibility is a Home-stream field; applying it here keeps
         // the Diagnostic menu entry live on every view without a REST probe.
         if('diagnosticPageVisible' in data.changes)applyDiagnosticNavigation(homeFrame.status);
+        // Record views have no status poll of their own any more: shared UI
+        // state (mutability, firmware, revision, timezone) rides Home deltas,
+        // replacing the ui refresh the removed REST record reads provided.
+        if((activeView==='stats'||activeView==='history')&&['configMutable','webUiOverrideActive','compatibilityMode','firmwareVersion','snapshotStale','adminUnlocked','lastCommand.requestId','lastCommand.state','config.revision','config.appliedTimezoneOffsetMinutes','config.timezoneId'].some(k=>k in data.changes))applyCommonStatus(homeFrame.status);
         if(noScaleClock&&homeFrame.boot===noScaleClock.boot&&(homeFrame.status.cycle?.active===false||
             homeFrame.status.machineType==='paddle'&&paddleOff))finishNoScaleTimer();
         if(activeView==='home')renderHomeStream();
@@ -732,7 +736,19 @@ function statsSend(op){if(shotWs&&shotWs.readyState===1)shotWs.send(JSON.stringi
 function statsSendSubscribe(){statsSend({op:'stats',on:true,offset:0,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir})}
 function startStatsStream(){if(!webUiPollingActive())return Promise.resolve(false);statsStreamWanted=true;statsReplaceNext=true;statsReady=new Promise(r=>statsResolve=r);return viewReady.then(()=>{if(!statsStreamWanted)return false;statsSendSubscribe();return statsReady})}
 function stopStatsStream(){statsStreamWanted=false;statsFetchMark=null;statsPage=null;statsResolve&&statsResolve(false);if(statsExportResolve)statsExportResolve(null);statsSend({op:'stats',on:false})}
-function statsFrameWindow(offset,limit,sort,dir,timeoutMs){return new Promise(resolve=>{const timer=setTimeout(()=>{statsExportResolve=null;resolve(null)},timeoutMs);statsExportResolve=rows=>{clearTimeout(timer);statsExportResolve=null;resolve(rows)};statsSend({op:'stats',on:true,fetch:true,offset,limit,sort,dir})})}
+// One export window at a time: a second request reuses the pending promise
+// instead of orphaning the first to its timeout.
+let statsExportInFlight=null;
+function statsFrameWindow(offset,limit,sort,dir,timeoutMs){
+  if(statsExportInFlight)return statsExportInFlight;
+  const pending=statsExportInFlight=new Promise(resolve=>{
+    const timer=setTimeout(()=>{statsExportResolve=null;resolve(null)},timeoutMs);
+    statsExportResolve=rows=>{clearTimeout(timer);statsExportResolve=null;resolve(rows)};
+    statsSend({op:'stats',on:true,fetch:true,offset,limit,sort,dir});
+  });
+  pending.then(()=>{statsExportInFlight=null});
+  return pending;
+}
 function statsRowOk(r){
 if(!r||!Number.isInteger(r.id)||r.id<=0||!Number.isInteger(r.bootId)||!Number.isInteger(r.endedAtMs)||r.endedAtMs<0||typeof r.hasWallTime!=='boolean'||!Number.isInteger(r.endedAtLocalSec)||!Number.isInteger(r.endedAtUnixSec)||typeof r.durationS!=='number'||!Number.isFinite(r.durationS)||!Number.isInteger(r.rating))return false;
 const w=r.wCg,a=r.wAtMs;

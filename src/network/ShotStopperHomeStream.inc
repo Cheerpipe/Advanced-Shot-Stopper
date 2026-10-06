@@ -365,11 +365,10 @@ bool ShotStopperNetwork::sendDiagnosticStream(ShotStreamSession &session,
 
 // Same bounded, view-scoped contract as the diagnostic sender: only a session
 // holding the History subscription reaches this path. A cheap store epoch
-// gates the page copy, and a CRC fingerprint over the finished frame body
-// (window, epoch, and records are all serialized in it) suppresses the send
-// while the page is unchanged — the HomeStreamDelta no-change contract. A
-// pending one-shot fetch rides the same frame but never disturbs the standing
-// window's bookkeeping.
+// gates the page copy, and a component fingerprint (epoch, window, paging,
+// and the raw record bytes) suppresses the send while the page is unchanged —
+// the HomeStreamDelta no-change contract. A pending one-shot fetch rides the
+// same frame but never disturbs the standing window's bookkeeping.
 __attribute__((optimize("Os")))
 bool ShotStopperNetwork::sendHistoryStream(ShotStreamSession &session,
                                            const ControlStatusSnapshot &control) {
@@ -393,6 +392,33 @@ bool ShotStopperNetwork::sendHistoryStream(ShotStreamSession &session,
   } else {
     page.total = page.start = page.count = 0;
     page.hasMore = false;
+  }
+  // Component fingerprint (the HomeStreamDelta no-change contract): the raw
+  // packed record bytes plus the page/window identity. HistoryRecord is a
+  // packed 16-byte POD and time-varying snapshot fields (ui) stay outside,
+  // so the value is comparable and storable on snapshot sends too. Worst
+  // frame size: 120 maximal records plus the ui block measure ~20.8 KiB,
+  // under the client's 24 KiB frame guard.
+  uint32_t fingerprint = crc32Update(0xFFFFFFFFU,
+      reinterpret_cast<const uint8_t *>(&epoch), sizeof(epoch));
+  const uint32_t window[3] = {static_cast<uint32_t>(page.start),
+                              static_cast<uint32_t>(session.historyLimit),
+                              static_cast<uint32_t>(session.historyDir)};
+  fingerprint = crc32Update(fingerprint,
+      reinterpret_cast<const uint8_t *>(window), sizeof(window));
+  const uint32_t paging[2] = {static_cast<uint32_t>(page.total),
+                              page.hasMore ? 1u : 0u};
+  fingerprint = crc32Update(fingerprint,
+      reinterpret_cast<const uint8_t *>(paging), sizeof(paging));
+  if (page.count)
+    fingerprint = crc32Update(fingerprint,
+        reinterpret_cast<const uint8_t *>(page.records),
+        page.count * sizeof(HistoryRecord));
+  if (!initial && !fetch && fingerprint == session.historyFingerprint) {
+    // Content identical (e.g. a no-op rating bump): adopt the moved epoch so
+    // idle ticks stop at the cheap gate instead of rebuilding the page.
+    session.historyEpoch = epoch;
+    return true;
   }
   bool override = false;
   {
@@ -433,10 +459,6 @@ bool ShotStopperNetwork::sendHistoryStream(ShotStreamSession &session,
       return false;
   }
   if (!statusJsonAppend(&used, "]}")) return false;
-  const uint32_t fingerprint = crc32Update(0xFFFFFFFFU,
-      reinterpret_cast<const uint8_t *>(g_work->statusJson), used);
-  if (!initial && !fetch && fingerprint == session.historyFingerprint)
-    return true;
   // Recheck ownership immediately before delivery; telemetry never renews it.
   bool owner;
   { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
@@ -449,7 +471,7 @@ bool ShotStopperNetwork::sendHistoryStream(ShotStreamSession &session,
   session.historyBoot = control.bootId;
   session.historyResync = false;
   session.historyFetch = false;
-  if (!initial && !fetch) {
+  if (!fetch) {
     session.historyEpoch = epoch;
     session.historyFingerprint = fingerprint;
   }
@@ -583,8 +605,7 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
 // record/curve copy, and the fingerprint — epoch, window, aggregate, and
 // per-row id/packed-rating/curve hashes, since records are immutable after
 // commit except the packed rating byte — suppresses the send while the page
-// is unchanged.
-__attribute__((optimize("Os")))
+// is unchanged.__attribute__((optimize("Os")))
 bool ShotStopperNetwork::sendStatsStream(ShotStreamSession &session,
                                          const ControlStatusSnapshot &control) {
   const uint32_t epoch =
@@ -644,8 +665,12 @@ bool ShotStopperNetwork::sendStatsStream(ShotStreamSession &session,
     fingerprint = crc32Update(fingerprint,
         reinterpret_cast<const uint8_t *>(&rowHash), sizeof(rowHash));
   }
-  if (!initial && !fetch && fingerprint == session.statsFingerprint)
+  if (!initial && !fetch && fingerprint == session.statsFingerprint) {
+    // Content identical (e.g. a no-op rating bump): adopt the moved epoch so
+    // idle ticks stop at the cheap gate instead of recopying the records.
+    session.statsEpoch = epoch;
     return true;
+  }
   bool override = false;
   {
     TaskLockGuard lock(dataMux_);
@@ -713,7 +738,7 @@ bool ShotStopperNetwork::sendStatsStream(ShotStreamSession &session,
   session.statsBoot = control.bootId;
   session.statsResync = false;
   session.statsFetch = false;
-  if (!initial && !fetch) {
+  if (!fetch) {
     session.statsEpoch = epoch;
     session.statsFingerprint = fingerprint;
   }
