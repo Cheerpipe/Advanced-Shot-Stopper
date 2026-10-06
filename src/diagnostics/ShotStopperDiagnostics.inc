@@ -378,6 +378,7 @@ void publishControlStatus() {
     copyCString(home.scaleProtocol, sizeof(home.scaleProtocol), scaleLink.protocolName);
     home.shotType = static_cast<uint8_t>(lastShotTypeFromCycle(
         stopperState, session.startedWithScale, session.config.timerOnly, shot.automaticBrew));
+    home.scaleAvailable = session.startedWithScale;
     home.weightValid = weightFresh && session.hasWeightAnchor;
     home.currentWeightG = session.lastAcceptedWeightG;
     home.retarePerformed = session.retarePerformed;

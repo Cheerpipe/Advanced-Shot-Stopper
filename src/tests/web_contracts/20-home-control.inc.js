@@ -161,6 +161,14 @@
     paint({...card,...missing});
     if(!lookup('shotHeroError').hidden)throw new Error('Home must hide unavailable target error');
   }
+  paint({...card,scaleAvailable:false,weight:null,elapsedMs:27400,firstDropMs:2000,averageFlowGps:1.5});
+  if(lookup('shotHeroWeight').textContent!=='27.4 s'||lookup('shotHeroGoal').textContent!==''||
+      ['Elapsed','Drop','Flow','Error'].some(id=>!lookup('shotHero'+id).hidden)||
+      lookup('shotHeroMode').hidden||lookup('shotHeroMode').textContent!=='No scale')
+    throw new Error('A shot started without a scale must turn the hero into a timer');
+  paint({...card,scaleAvailable:true});
+  if(lookup('shotHeroWeight').textContent!=='2.0 g'||lookup('shotHeroGoal').textContent!==' / 36 g'||
+      lookup('shotHeroElapsed').hidden)throw new Error('A scale shot must keep the weight layout');
   const chips=['Elapsed','Drop','Flow','Error','Mode'].map(id=>html.indexOf('id="shotHero'+id+'"'));
   if(chips.some((pos,i)=>pos<0||(i&&pos<=chips[i-1])))throw new Error('Home shot chips must keep their reading order');
   const apply = new Function(runtimeJs.slice(runtimeJs.indexOf('function shotStreamFrame('),
@@ -186,6 +194,8 @@
     {...snapshot,curve:{...snapshot.curve,wCg:[true,100]}},
     {...snapshot,curve:{...snapshot.curve,wCg:['100',100]}},
     {...snapshot,card:{...snapshot.card,weight:NaN}},
+    {...snapshot,card:{...snapshot.card,scaleAvailable:'false'}},
+    {...snapshot,card:{...snapshot.card,scaleAvailable:null}},
     ...[undefined,-1,NaN,Infinity,60001,'0'].map(firstDropMs=>({...snapshot,card:{...snapshot.card,firstDropMs}})),
     ...[-1,NaN,'0'].map(tareMs=>({...snapshot,card:{...snapshot.card,tareMs}}))]){
     if(bad.snapshot)bad.seq=3;
@@ -198,6 +208,9 @@
   const events=apply(null,{...snapshot,card:{...snapshot.card,firstDropMs:0,tareMs:60000}});
   if(events.card.firstDropMs!==0||events.card.tareMs!==60000||first.card.firstDropMs!==null)
     throw new Error('Scalar events must distinguish measured zero from unavailable data');
+  const timed=apply(null,{...snapshot,card:{...snapshot.card,scaleAvailable:false}});
+  if(timed.card.scaleAvailable!==false)
+    throw new Error('The no-scale card flag must survive stream framing');
   const streamSource=fs.readFileSync(path.join(sketchDir,'network/ShotStopperShotStream.inc'),'utf8');
   const handler=streamSource.slice(streamSource.indexOf('esp_err_t ShotStopperNetwork::shotStreamHandler('),
     streamSource.indexOf('void ShotStopperNetwork::serviceShotStream('));

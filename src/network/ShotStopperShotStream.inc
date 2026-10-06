@@ -291,12 +291,13 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
       "\"phase\":\"%s\",\"card\":{\"valid\":%s,\"live\":%s,\"weight\":%s,"
       "\"weightValid\":%s,\"goal\":%u,\"elapsedMs\":%lu,\"firstDropMs\":%s,"
       "\"tareMs\":%s,\"presetName\":\"%s\",\"scaleName\":\"%s\","
-      "\"shotType\":\"%s\",\"endReason\":\"%s\",\"averageFlowGps\":%s,"
+      "\"scaleAvailable\":%s,\"shotType\":\"%s\",\"endReason\":\"%s\",\"averageFlowGps\":%s,"
       "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,"
       "\"rating\":%u,\"savePending\":%s}",
       phase, card.valid ? "true" : "false", control.activeCycle ? "true" : "false",
       weight, card.weightValid ? "true" : "false", card.goalWeightG,
       static_cast<unsigned long>(card.durationMs), drop, tare, preset, scale,
+      card.scaleAvailable ? "true" : "false",
       lastShotTypeName(static_cast<LastShotType>(card.shotType)),
       !live && !retained && eligible ? shotLogStopDetailName(static_cast<ShotLogStopDetail>(latest.stopDetail))
                                   : shotLogStopDetailName(shotLogStopDetailFromEndReason(

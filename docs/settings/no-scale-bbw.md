@@ -43,6 +43,14 @@ Home shows the configured mode as a read-only summary. Its live status is
 required**, or **Ready** when Require scale is configured and the scale is
 usable.
 
+When a shot runs without a scale, Home turns the shot card into a timer: the
+large number counts the seconds of the pour, the target weight stays out of the
+way, and a **No scale** badge replaces the brew mode. The weight chart and
+target error have nothing to measure, so they stay quiet. About half a minute
+after the shot ends, the card goes back to showing the last shot you poured
+with a scale. Shots made with a connected scale keep the usual weight card
+unchanged.
+
 Home Assistant presents this three-mode policy as one switch. Turning it OFF
 sets **Allow manual brewing**. Turning it ON restores the last non-off mode that
 Home Assistant observed, or **Warn once, then allow** when none is known. The
