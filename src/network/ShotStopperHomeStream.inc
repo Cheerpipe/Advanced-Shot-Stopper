@@ -154,7 +154,8 @@ bool ShotStopperNetwork::sendHomeStream(ShotStreamSession &session,
   delta.field("connections.bluetoothName", "\"%s\"", g_work->historyJson);
   const auto &tare = control.cupTare;
   const uint8_t idleCode = idleTarePresentationCode(tare, control.cupPresent);
-  delta.field("cupPresence.state", "\"%s\"", cupPresenceStateName(control.cupPresenceState));
+  delta.field("cupPresence.state", "\"%s\"", control.scaleAvailable
+      ? cupPresenceStateName(control.cupPresenceState) : "UNKNOWN");
   delta.field("cupPresence.present", bool(control.cupPresent));
   if (control.cupPresent && tare.weightValid && std::isfinite(tare.weightG))
     delta.field("cupPresence.weightG", tare.weightG);
@@ -241,7 +242,8 @@ bool ShotStopperNetwork::sendDiagnosticStream(ShotStreamSession &session,
   delta.field("backflush.stopReason", "\"%s\"", control.backflushStopReason);
   delta.field("backflush.hardLimitMs", "%lu", static_cast<unsigned long>(control.safetyHardLimitMs));
   delta.field("backflush.remainingMs", "%lu", static_cast<unsigned long>(control.safetyRemainingMs));
-  delta.field("cupPresence.state", "\"%s\"", cupPresenceStateName(control.cupPresenceState));
+  delta.field("cupPresence.state", "\"%s\"", control.scaleAvailable
+      ? cupPresenceStateName(control.cupPresenceState) : "UNKNOWN");
   delta.field("cupPresence.present", bool(control.cupPresent));
   const bool cupWeightValid = control.cupPresent && control.cupTare.weightValid &&
       std::isfinite(control.cupTare.weightG);

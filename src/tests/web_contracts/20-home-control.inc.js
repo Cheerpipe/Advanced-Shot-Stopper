@@ -804,6 +804,7 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !network.includes('machineState') ||
     !network.includes('machineRunStateName') ||
     !network.includes('cupPresenceStateName') ||
+    !network.includes('cupPresenceStateName(control.cupPresenceState) : "UNKNOWN"') ||
     !firmware.includes('last.noScaleShotGuardEnabled') ||
     !firmware.includes('last.noScaleShotGuardArmed') ||
     !firmware.includes('next.cupPresent') ||

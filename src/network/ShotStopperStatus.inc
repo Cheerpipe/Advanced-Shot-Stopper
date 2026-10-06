@@ -805,7 +805,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         control.reedOn ? "true" : "false",
         control.physicalActivatorOn ? "true" : "false",
         controlSourceName(control.source),
-        cupPresenceStateName(control.cupPresenceState),
+        control.scaleAvailable ? cupPresenceStateName(control.cupPresenceState) : "UNKNOWN",
         control.cupPresent ? "true" : "false",
         cupWeight, cupWeightValid ? "true" : "false",
         static_cast<unsigned long>(control.cupTare.placementId), idleTare,
