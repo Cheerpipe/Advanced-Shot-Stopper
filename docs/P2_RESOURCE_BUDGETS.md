@@ -61,6 +61,13 @@ allowance move to the runtime cap. Firmware task ownership, control timing,
 OTA identity and partitions remain unchanged.
 Urgent control-gate publication and the no-scale timer's stop fade add another
 640 bytes of reviewed image/linked allowance, to 44,976 and 44,968 bytes.
+The mobile full-screen Home shot card and the Brew by Weight master toggle
+raise them once more by 2,048 bytes, to 47,024 and 47,016 bytes (measured
+2,320,240 image bytes and 2,320,127 linked bytes). Both are browser-local
+Web UI changes with no firmware task, control-timing, or memory-placement
+impact; flash code, rodata, DIRAM, and external BSS remain within their
+existing allowances. The combined compressed Web assets measure 122,530
+bytes; the per-asset caps enforced by the Web contract tests are unchanged.
 The additional atomic priority flag retains the single HTTP workspace owner;
 control only notifies Network and never waits for serialization. The stop fade
 is browser animation state, with no firmware task or control-timing changes.
