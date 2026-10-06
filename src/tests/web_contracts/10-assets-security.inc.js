@@ -187,7 +187,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !runtimeJs.includes("function message(text,kind=''){if(kind==='error')hideHomeBoot();") ||
     runtimeJs.includes('function applyHomeStatus(s){hideHomeBoot();') ||
     !runtimeJs.includes("function showInactiveOverlay(){const el=$('webUiInactive');if(!el)return;hideHomeBoot();") ||
-    !runtimeJs.includes('if(!reloaded){fwReloading=true;location.reload()}') ||
+    !runtimeJs.includes("location.replace(location.pathname+'?fw='+version)") ||
     !appJsSource.includes('boot=R.showPageBoot();R.stopViewPolls();') ||
     !appJsSource.includes('if(ok)R.hideHomeBoot(boot)')) {
   throw new Error(

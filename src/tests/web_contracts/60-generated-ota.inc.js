@@ -369,7 +369,7 @@ if (generated.icon192Raw.readUInt32BE(16) !== 192 ||
 }
 if (generated.runtimeJs.includes('__FW_RELEASE__') ||
     !generated.runtimeJs.includes('ssFwReload') ||
-    !generated.runtimeJs.includes('location.reload()') ||
+    !generated.runtimeJs.includes('location.replace(') ||
     (generated.version !== 'dev' &&
      !generated.runtimeJs.includes(generated.version))) {
   throw new Error('Runtime must bake the firmware release version for cached-shell self-heal');

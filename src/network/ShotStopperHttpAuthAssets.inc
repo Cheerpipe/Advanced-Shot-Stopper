@@ -507,8 +507,9 @@ esp_err_t ShotStopperNetwork::rootHandler(httpd_req_t *request) {
   // window is the fresh max-age period for a fresh open (verified on
   // Chromium); stale-if-error extends it only on engines that apply it to
   // navigations. Reload and the 304 path still revalidate against
-  // WEB_UI_ETAG, and the UI reloads itself when the status firmwareVersion
-  // differs from the baked build.
+  // WEB_UI_ETAG, and the UI navigates to a ?fw=<version> URL when the
+  // status firmwareVersion differs from the baked build so the stale
+  // fresh-cached copy cannot mask the new one.
   if (ifNoneMatchEquals(request, WEB_UI_ETAG)) {
     httpd_resp_set_status(request, STATUS_NOT_MODIFIED);
     httpd_resp_set_hdr(request, "Cache-Control",
