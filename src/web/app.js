@@ -10,9 +10,9 @@ if(name==='diagnostic'){if(ok)ok=await R.loadLog();logTimer=setInterval(()=>{if(
 if(name==='stats'||name==='history'){const stats=name==='stats';ok=await(stats?R.loadShots():R.loadHistory());if(name===activeView&&seq===routeSeq){const timer=setInterval(()=>{if(!document.hidden)(stats?R.refreshShots:R.refreshHistory)()},2e4);if(stats)shotsTimer=timer;else historyTimer=timer}}
 return ok;
 })}async function renderRoute(pathname){const seq=++routeSeq,boot=R.showPageBoot();R.stopViewPolls();const known=knownPath(pathname);let view='home';let target='/';if(known){view=ROUTES[known];target=known}
-if(R.compatibilityModeOn()&&view!=='admin'&&view!=='diagnostic'){view='admin';target='/admin'}if(location.pathname!==target)history.replaceState({},'',target);activeView=view;const ready=ensureView(view).then(()=>{if(seq!==routeSeq)return;document.body.classList.toggle('homeView',view==='home');document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hidden',el.dataset.view!==view));document.querySelectorAll('.pageNav a').forEach(a=>{const current=a.getAttribute('data-route')===viewToPath(view);a.classList.toggle('active',current);if(current)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});placePill(true)});R.setActiveView(view,ready)
+if(R.compatibilityModeOn()&&view!=='admin'&&view!=='diagnostic'){view='admin';target='/admin'}if(location.pathname!==target)history.replaceState({},'',target);activeView=view;const ready=ensureView(view).then(()=>{if(seq!==routeSeq)return;document.body.classList.toggle('homeView',view==='home');document.querySelectorAll('.view').forEach(el=>el.classList.toggle('hidden',el.dataset.view!==view));markNavActive(viewToPath(view))});R.setActiveView(view,ready)
 ;try{const[,ok]=await Promise.all([ready,startView(view)]);if(seq!==routeSeq)return;if(ok)R.hideHomeBoot(boot);else if(R.webUiPollingActive())R.message(__WEBUI_TEXT__("shell.unable_to_load_view"),'error')}catch(e){if(seq===routeSeq)R.message(e&&e.message?e.message:__WEBUI_TEXT__("shell.unable_to_load_view"),'error')}}function navigate(path){const known=knownPath(path)
-;const target=known?known:'/';if(location.pathname!==target)history.pushState({},'',target);renderRoute(target)}R.setViewPollHooks({stop:stopExtraPolls,start:()=>renderRoute(location.pathname),route:pathname=>renderRoute(pathname||location.pathname)});document.querySelectorAll('a[data-route]').forEach(a=>{a.addEventListener('click',e=>{e.preventDefault();navigate(a.getAttribute('data-route')||'/')})})
+;const target=known?known:'/';if(location.pathname!==target)history.pushState({},'',target);renderRoute(target)}R.setViewPollHooks({stop:stopExtraPolls,start:()=>renderRoute(location.pathname),route:pathname=>renderRoute(pathname||location.pathname)});document.querySelectorAll('a[data-route]').forEach(a=>{a.addEventListener('click',e=>{e.preventDefault();const path=a.getAttribute('data-route')||'/';markNavActive(path);navigate(path)})})
 ;const root=document.documentElement,nav=document.querySelector('.pageNav'),mobile=window.matchMedia('(max-width: 699px)');
 function updateNavigationLayout(){
 const data=root.dataset;
@@ -27,11 +27,13 @@ function placePill(animate){const a=nav&&nav.querySelector('a.active');if(!pill|
 if(!animate)pill.style.transition='none';else{const travel=Math.abs(a.offsetLeft-(parseFloat(pill.style.translate)||0));pill.style.transitionDuration=`${Math.min(480,Math.max(280,travel*0.85))}ms`}
 pill.style.width=`${a.offsetWidth}px`;pill.style.translate=`${a.offsetLeft}px 0`;
 if(!animate)requestAnimationFrame(()=>requestAnimationFrame(()=>{pill.style.transition=''}))}
+function markNavActive(path){document.querySelectorAll('.pageNav a').forEach(a=>{const current=a.getAttribute('data-route')===path;a.classList.toggle('active',current);if(current)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});placePill(true)}
 if(nav){
 nav.setAttribute('aria-label',__WEBUI_TEXT__("shell.primary"));nav.querySelectorAll('a').forEach(a=>{a.title=a.textContent});
 new ResizeObserver(updateNavigationLayout).observe(document.getElementById('app'));
 new ResizeObserver(sizeHeader).observe(document.querySelector('.topBar'));
-const pillAnchor=new ResizeObserver(()=>placePill(false));pillAnchor.observe(nav);nav.querySelectorAll('a').forEach(a=>pillAnchor.observe(a));
+const pillAnchor=new ResizeObserver(()=>{const a=nav.querySelector('a.active');// Bold active labels resize their links; the placement already targets the post-toggle geometry, so only genuine resizes re-anchor (style.translate reads back normalized)
+if(a&&pill.style.width===`${a.offsetWidth}px`&&parseFloat(pill.style.translate)===a.offsetLeft)return;placePill(false)});pillAnchor.observe(nav);nav.querySelectorAll('a').forEach(a=>pillAnchor.observe(a));
 new MutationObserver(updateNavigationLayout).observe(nav,{subtree:true,attributes:true,attributeFilter:['class','hidden']});
 document.fonts?.ready.then(()=>{updateNavigationLayout();placePill(false)});updateNavigationLayout();
 mobile.addEventListener('change',updateNavigationLayout);
