@@ -28,6 +28,14 @@ weight, known scale baseline and confirmed first drop. Qualifying results use
 the exact Stats record; nonqualifying results preserve their firmware cutoff
 time. This presentation contract adds no guard decisions or actuation messages.
 
+Every changed control-gate publication requests an urgent stream update through
+the existing atomic RF notification, including physical activator ON/OFF edges
+that do not change the active-cycle or relay state. Network bypasses both the
+100 ms active and 250 ms idle periodic stream cadence for that
+request; a coalesced HTTP dispatch still owns all serialization. Queue or
+workspace contention preserves the request for a later Network service pass.
+Control never performs serialization or waits for this presentation update.
+
 The same socket carries independent Home field patches, including Equipment,
 quick settings, presets, shared navigation and command readback. Each fixed
 session owns 128 CRC32 field fingerprints and a clock anchor; fields have stable

@@ -259,7 +259,7 @@ class ShotStopperNetwork {
   void syncPreferredScale(const char *mac, const char *name);
   void syncScaleLinkRf(bool connectingOrUp);
   void syncScaleConnectingRf(bool connecting);
-  void syncControlCriticalRf(bool active);
+  void syncControlCriticalRf(bool active, bool publishTransition = false);
   void syncScaleHuntRf(bool huntActive);
   void syncLiveRuntime(const RuntimeConfig &runtime,
                        const ShotPresetBank *presets, bool ntpSettingsChanged);
@@ -362,6 +362,7 @@ class ShotStopperNetwork {
   };
   ShotStreamSession shotStreams_[2];
   std::atomic<bool> shotStreamWorkPending_{false};
+  std::atomic<bool> shotStreamUrgent_{false};
   uint32_t shotStreamDispatchAtMs_ = 0;
   mutable TaskMutex dataMux_;
   char activeWebUiClientId_[WEB_UI_CLIENT_ID_CAPACITY] = {};

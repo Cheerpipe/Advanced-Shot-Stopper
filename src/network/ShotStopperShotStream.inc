@@ -180,16 +180,20 @@ void ShotStopperNetwork::serviceShotStream(uint32_t now) {
   if (!server_) return;
   const uint32_t cadence = controlCriticalRfActive_.load(std::memory_order_acquire)
                                 ? kShotStreamLiveMs : kShotStreamIdleMs;
-  if (now - shotStreamDispatchAtMs_ < cadence) return;
+  if (!shotStreamUrgent_.load(std::memory_order_acquire) &&
+      now - shotStreamDispatchAtMs_ < cadence) return;
   bool occupied = false;
   {
     TaskLockGuard lock(dataMux_);
     for (const auto &session : shotStreams_) occupied |= session.fd >= 0;
   }
   if (!occupied || shotStreamWorkPending_.exchange(true, std::memory_order_acq_rel)) return;
+  shotStreamUrgent_.exchange(false, std::memory_order_acq_rel);
   shotStreamDispatchAtMs_ = now;
-  if (httpd_queue_work(server_, shotStreamDispatch, this) != ESP_OK)
+  if (httpd_queue_work(server_, shotStreamDispatch, this) != ESP_OK) {
+    shotStreamUrgent_.store(true, std::memory_order_release);
     shotStreamWorkPending_.store(false, std::memory_order_release);
+  }
 }
 
 void ShotStopperNetwork::shotStreamDispatch(void *context) {
@@ -225,10 +229,17 @@ void ShotStopperNetwork::shotStreamDispatch(void *context) {
 void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
   // httpd serialization is exclusive. Try rather than wait behind Network's
   // occasional settings work; the next dispatch recovers a complete view.
-  if (xSemaphoreTake(statusResponseMux_.get(), 0) != pdTRUE) return;
+  if (xSemaphoreTake(statusResponseMux_.get(), 0) != pdTRUE) {
+    shotStreamUrgent_.store(true, std::memory_order_release);
+    return;
+  }
   callbacks_.refreshControlStatus();
   ControlStatusSnapshot &control = workBuf_->control;
   loadControlStatus(control);
+  // The RF notification can precede the committed presentation snapshot.
+  if ((control.activeCycle || control.relayClosed) !=
+      controlCriticalRfActive_.load(std::memory_order_acquire))
+    shotStreamUrgent_.store(true, std::memory_order_release);
   ShotCurveRecord &curve = workBuf_->serializedCurve;
   ShotLogRecord latest = {};
   const bool eligible = callbacks_.copyHomeShot &&

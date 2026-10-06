@@ -108,6 +108,7 @@ bool ShotStopperNetwork::sendHomeStream(ShotStreamSession &session,
   delta.field("stateLabel", "\"%s\"", stateLabel(control.state));
   delta.field("machineState", "\"%s\"", machineRunStateName(control.machineRunState));
   delta.field("machineRunning", bool(control.machineRunning));
+  delta.field("physicalActivatorOn", bool(control.physicalActivatorOn));
   delta.field("remoteControlEnabled", bool(control.remoteControlEnabled));
   delta.field("safety.state", "\"%s\"", relaySafetyStateName(control.safetyState));
   delta.field("safety.recoveryRequired", bool(control.resetRecoveryRequired));

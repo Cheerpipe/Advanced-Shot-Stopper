@@ -259,17 +259,19 @@
 
 {
   const assert=require('assert').strict,frames=new Map(),labels=[];
-  let now=0,id=0,owner=true;
+  let now=0,id=0,owner=true,reducedMotion=false;
+  const weight={},animations=[];
   const document={hidden:false};
   const timer=new Function('performance','requestAnimationFrame','cancelAnimationFrame','document',
-    'webUiPollingActive','setHomeSub','$','ms','paintShotStream',
-    "let shotStale=false,activeView='home';"+
+    'webUiPollingActive','setHomeSub','$','ms','paintShotStream','window',
+    "let shotStale=false,activeView='home',shotFrame=null;"+
     runtimeJs.slice(runtimeJs.indexOf('let noScaleClock='),runtimeJs.indexOf('// The diagnostic stream rides'))+
-    ';return{sync:syncNoScaleTimer,elapsed:noScaleTimerElapsed,schedule:scheduleNoScaleTimer,'+
-    'clock:()=>noScaleClock,stale:()=>shotStale,setStale:v=>shotStale=v,view:v=>activeView=v};')(
+    ';return{sync:f=>{syncNoScaleTimer(f);shotFrame=f;revealNoScaleFinish()},elapsed:noScaleTimerElapsed,schedule:scheduleNoScaleTimer,'+
+    'finish:finishNoScaleTimer,ending:()=>noScaleFinish,clock:()=>noScaleClock,stale:()=>shotStale,setStale:v=>shotStale=v,view:v=>activeView=v};')(
     {now:()=>now},fn=>{frames.set(++id,fn);return id},id=>frames.delete(id),document,
-    ()=>owner,(_id,label)=>labels.push(label),()=>({setAttribute(){}}),
-    (v,n)=>(v/1000).toFixed(n),()=>{});
+    ()=>owner,(_id,label)=>labels.push(label),()=>weight,
+    (v,n)=>(v/1000).toFixed(n),()=>{},
+    {matchMedia:()=>({matches:reducedMotion})});
   const card={valid:true,live:true,scaleAvailable:false,elapsedMs:1000};
   const frame={boot:1,cycle:1,phase:'active',card};
   const tick=()=>{const [id,fn]=frames.entries().next().value;frames.delete(id);fn()};
@@ -308,6 +310,126 @@
   timer.sync({...frame,card:{...card,scaleAvailable:true}});timer.schedule();
   assert.equal(timer.clock(),null,'Scale shots must never use the local clock');
   assert.equal(frames.size,0);
+  assert.equal(timer.elapsed(),1000,'Unanimated final values must come from the firmware card');
+  weight.animate=(keyframes,options)=>{
+    const a={keyframes,options,playState:'running',finished:{then(fn){a.complete=()=>{a.playState='finished';fn()}}},
+      cancel(){a.playState='idle';a.cancelled=true}};
+    animations.push(a);return a;
+  };
+  const brew={...frame,cycle:10,card:{...card,elapsedMs:2000}};
+  now=5000;timer.sync(brew);timer.schedule();now=5100;tick();
+  timer.finish();
+  assert.equal(timer.clock(),null,'First Home stop signal must freeze the local clock');
+  assert.equal(timer.elapsed(),2100);
+  assert.equal(animations[0].options.duration,400);
+  assert.deepEqual(animations[0].keyframes,[{opacity:1},{opacity:0}]);
+  const ended={...brew,phase:'pending',card:{...brew.card,live:false,elapsedMs:1950}};
+  timer.sync(ended);
+  assert.equal(timer.elapsed(),2100,'Final duration must remain hidden until fade out completes');
+  animations[0].complete();
+  assert.equal(timer.elapsed(),1950,'Swap to authoritative time at zero opacity');
+  assert.equal(animations[1].options.duration,400);
+  assert.deepEqual(animations[1].keyframes,[{opacity:0},{opacity:1}]);
+  animations[1].complete();assert.equal(timer.ending(),null);
+  timer.sync(ended);assert.equal(animations.length,2,'Retained updates must not repeat the fade');
+  timer.sync({...brew,cycle:11});timer.finish();animations[2].complete();
+  assert.equal(animations.length,3,'Fade in must wait for the final firmware frame');
+  timer.sync({...ended,cycle:11});assert.equal(animations.length,4);
+  timer.sync({...brew,cycle:12});
+  assert(animations[3].cancelled,'A new cycle must cancel the old fade');
+  assert.equal(timer.elapsed(),2000);
+  reducedMotion=true;timer.sync({...ended,cycle:12});
+  assert.equal(timer.ending(),null,'Reduced motion must skip the transition');
+  assert.equal(animations.length,4);
+  assert.equal(timer.elapsed(),1950);
+  reducedMotion=false;timer.sync({...brew,cycle:13});timer.finish();
+  timer.view('stats');timer.sync({...ended,cycle:13});animations[4].complete();
+  assert.equal(timer.ending(),null,'Leaving Home must cancel a pending reveal');
+}
+
+{
+  const assert=require('assert').strict,{spawnSync}=require('child_process');
+  const stream=fs.readFileSync(path.join(sketchDir,'network/ShotStopperShotStream.inc'),'utf8');
+  const wifi=fs.readFileSync(path.join(sketchDir,'network/ShotStopperWifi.inc'),'utf8');
+  const service=stream.slice(stream.indexOf('void ShotStopperNetwork::serviceShotStream('),
+    stream.indexOf('void ShotStopperNetwork::shotStreamDispatch('));
+  const sync=wifi.slice(wifi.indexOf('void ShotStopperNetwork::syncControlCriticalRf('),
+    wifi.indexOf('void ShotStopperNetwork::syncScaleHuntRf('));
+  const directory=path.resolve(sketchDir,'..','temp','ai_temp_no_scale_stop_fade');
+  fs.mkdirSync(directory,{recursive:true});
+  const binary=path.join(directory,'dispatch-'+process.pid);
+  const native=`
+#include <atomic>
+#include <cassert>
+#include <cstdint>
+constexpr int ESP_OK=0;
+constexpr uint32_t kShotStreamLiveMs=100,kShotStreamIdleMs=250;
+int queued=0,queueResult=ESP_OK,notified=0;
+int httpd_queue_work(int,void (*)(void *),void *){++queued;return queueResult;}
+void xTaskNotifyGive(void *){++notified;}
+struct TaskLockGuard { explicit TaskLockGuard(int &){} };
+struct ShotStopperNetwork {
+  int server_=1,dataMux_=0;
+  void *taskHandle_=this;
+  struct {int fd=-1;} shotStreams_[2];
+  struct {void setControlCritical(bool){}} webhooks_;
+  std::atomic<bool> shotStreamWorkPending_{false},shotStreamUrgent_{false},
+    controlCriticalRfActive_{false},ntpCallbackAccepting_{true},ntpAbortRequested_{false};
+  std::atomic<uint32_t> rfGateGeneration_{0};
+  uint32_t shotStreamDispatchAtMs_=100;
+  static void shotStreamDispatch(void *){}
+  void serviceShotStream(uint32_t);
+  void syncControlCriticalRf(bool,bool=false);
+};
+${service}
+${sync}
+int main(){
+  ShotStopperNetwork n;n.shotStreams_[0].fd=4;
+  n.serviceShotStream(150);assert(queued==0);
+  n.syncControlCriticalRf(true);assert(notified==1);
+  n.serviceShotStream(151);assert(queued==1&&!n.shotStreamUrgent_);
+  n.syncControlCriticalRf(false);
+  n.serviceShotStream(152);assert(queued==1&&n.shotStreamUrgent_);
+  n.shotStreamWorkPending_=false;
+  n.serviceShotStream(153);assert(queued==2&&!n.shotStreamUrgent_);
+  n.shotStreamWorkPending_=false;n.serviceShotStream(200);assert(queued==2);
+  n.syncControlCriticalRf(true);queueResult=-1;
+  n.serviceShotStream(201);assert(queued==3&&n.shotStreamUrgent_&&!n.shotStreamWorkPending_);
+  queueResult=ESP_OK;n.serviceShotStream(202);assert(queued==4&&!n.shotStreamUrgent_);
+  n.shotStreamWorkPending_=false;n.shotStreams_[0].fd=-1;
+  n.syncControlCriticalRf(false);n.serviceShotStream(203);assert(queued==4&&n.shotStreamUrgent_);
+  n.shotStreams_[0].fd=4;n.serviceShotStream(204);assert(queued==5);
+  n.shotStreamWorkPending_=false;
+  n.syncControlCriticalRf(false,true);n.serviceShotStream(205);assert(queued==6);
+  n.shotStreamWorkPending_=false;n.syncControlCriticalRf(true);n.serviceShotStream(206);
+  assert(queued==7);n.shotStreamWorkPending_=false;
+  n.syncControlCriticalRf(true,true);n.serviceShotStream(207);assert(queued==8);
+}
+`;
+  try{
+    const compiled=spawnSync(process.env.CXX||'c++',['-std=c++17','-Wall','-Wextra','-Werror','-x','c++','-','-o',binary],{input:native,encoding:'utf8'});
+    assert.equal(compiled.status,0,compiled.error?.message||compiled.stderr);
+    const run=spawnSync(binary,[],{encoding:'utf8'});
+    assert.equal(run.status,0,run.error?.message||run.stderr);
+  }finally{fs.rmSync(binary,{force:true})}
+  const lockFailure=stream.slice(stream.indexOf('if (xSemaphoreTake(statusResponseMux_'),
+    stream.indexOf('callbacks_.refreshControlStatus();'));
+  assert(lockFailure.includes('shotStreamUrgent_.store(true'),'Workspace contention must preserve urgent delivery');
+  assert(stream.includes('(control.activeCycle || control.relayClosed) !='),
+    'A notification preceding the committed snapshot must preserve urgent delivery');
+  assert(firmwareCore.includes('syncControlCriticalRf(next.activeCycle || next.relayClosed, true)'),
+    'Every changed control gate, including activator edges, must request urgent delivery');
+  assert(network.includes('delta.field("physicalActivatorOn", bool(control.physicalActivatorOn))'),
+    'Home must include physical activator edges even when the cycle state does not change');
+  assert(runtimeJs.includes("homeFrame.status.machineType==='paddle'&&paddleOff"),
+    'Only paddle OFF, never a momentary button release, may trigger an early timer fade');
+  const edgeSource=/const paddleOff=([^;]+);/.exec(runtimeJs)[1];
+  const paddleOff=new Function('homeFrame','data','return '+edgeSource);
+  assert(paddleOff({status:{physicalActivatorOn:true}},{changes:{physicalActivatorOn:false}}));
+  assert(!paddleOff({status:{physicalActivatorOn:false}},{changes:{physicalActivatorOn:false}}),
+    'A remote start with the paddle already OFF must keep counting');
+  assert(!paddleOff({status:{physicalActivatorOn:true}},{changes:{'cycle.active':true}}));
+  assert(!paddleOff(null,{changes:{physicalActivatorOn:false}}));
 }
 
 if (!statusSection || !statusSection[1].includes('class="lamp"') ||

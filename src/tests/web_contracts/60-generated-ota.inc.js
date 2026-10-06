@@ -425,8 +425,9 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // navigation pill (glass material, pill, hover ink); total cap stays fixed.
 // Transfer 100 bytes of unused shell allowance to the no-scale local clock.
 // The combined flash, firmware image and OTA limits remain unchanged.
-if (generated.jsGzip.length > 4284) {
-  throw new Error('Compressed Web UI shell JS exceeds the 4284-byte gzip budget');
+// Transfer another 400 shell bytes to the no-scale finish transition.
+if (generated.jsGzip.length > 3884) {
+  throw new Error('Compressed Web UI shell JS exceeds the 3884-byte gzip budget');
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
@@ -500,8 +501,9 @@ if (generated.cssGzip.length > 9500) {
 // The view-scoped diagnostic stream (frame validation, subscription lifecycle,
 // and the shared live section renderer) raises the cap to 46100 bytes.
 // The local timer receives the same 100 bytes transferred from shell JS.
-if (sentinelRuntimeGzip.length > 46200) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 46200-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The finish transition receives the same 400 transferred shell bytes.
+if (sentinelRuntimeGzip.length > 46600) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 46600-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -590,8 +592,10 @@ if (generated.icon48Gzip.length > 3500) {
 // add 1500 bytes of allowance; firmware, memory and OTA limits remain fixed.
 // The view-scoped diagnostic stream and the Stats metric icons raise the
 // combined cap to 120700 bytes; firmware, memory and OTA limits stay fixed.
-if (generated.combined > 120700) {
-  throw new Error(`Combined Web UI gzip exceeds the 120700-byte flash budget (${generated.combined})`);
+// The reviewed no-scale finish animation adds 200 combined asset bytes.
+// Firmware image, memory placement and OTA partitions retain separate limits.
+if (generated.combined > 120900) {
+  throw new Error(`Combined Web UI gzip exceeds the 120900-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

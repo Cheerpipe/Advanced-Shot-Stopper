@@ -334,7 +334,7 @@ void ShotStopperNetwork::syncScaleConnectingRf(bool connecting) {
   }
 }
 
-void ShotStopperNetwork::syncControlCriticalRf(bool active) {
+void ShotStopperNetwork::syncControlCriticalRf(bool active, bool publishTransition) {
   const bool changed =
       controlCriticalRfActive_.exchange(active, std::memory_order_acq_rel) !=
       active;
@@ -346,8 +346,9 @@ void ShotStopperNetwork::syncControlCriticalRf(bool active) {
   if (changed) {
     rfGateGeneration_.fetch_add(1U, std::memory_order_acq_rel);
   }
-  if (changed && taskHandle_ != nullptr) {
-    xTaskNotifyGive(taskHandle_);
+  if (changed || publishTransition) {
+    shotStreamUrgent_.store(true, std::memory_order_release);
+    if (taskHandle_ != nullptr) xTaskNotifyGive(taskHandle_);
   }
 }
 

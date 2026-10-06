@@ -629,8 +629,9 @@ if (htmlBytes > 85000) {
 // fixed.
 // The no-scale local clock adds 1.5 KB of source allowance; compressed
 // per-asset, combined flash, firmware image and OTA limits remain fixed.
-if (jsBytes > 249500) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 249500)`);
+// The no-scale finish transition and early paddle edge add 2.1 KB of source allowance.
+if (jsBytes > 251600) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 251600)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -666,8 +667,9 @@ if (jsBytes > 249500) {
 // the shared live renderer) plus the Stats metric icons add ~1.3 KB of
 // combined source allowance; compressed budgets stay fixed.
 // Include the same 1.5 KB local-clock source allowance.
-if (htmlBytes + jsBytes > 333500) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 333500)`);
+// Include the same 2.1 KB finish-transition source allowance.
+if (htmlBytes + jsBytes > 335600) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 335600)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

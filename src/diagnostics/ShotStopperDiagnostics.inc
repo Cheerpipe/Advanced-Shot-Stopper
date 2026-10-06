@@ -131,7 +131,7 @@ void publishControlGate() {
   const bool wasShot = outboundShotActive.exchange(actualShot, std::memory_order_acq_rel);
   if (actualShot && !wasShot) inhibitMachineIntegrationCloud();
 #if !defined(SHOT_STOPPER_HOST_TEST)
-  networkManager.syncControlCriticalRf(next.activeCycle || next.relayClosed);
+  networkManager.syncControlCriticalRf(next.activeCycle || next.relayClosed, true);
 #endif
 }
 
