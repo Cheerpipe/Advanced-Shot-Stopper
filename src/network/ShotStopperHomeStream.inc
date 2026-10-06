@@ -272,6 +272,12 @@ bool ShotStopperNetwork::sendDiagnosticStream(ShotStreamSession &session,
     delta.field("scale.timerMs", "%lu",
                 static_cast<unsigned long>(control.currentTimerMs / 100 * 100));
   else delta.field("scale.timerMs", "null");
+  // Same observed-then-current preference and null gating as the Home stream.
+  if (control.scaleAvailable && control.observedWeightValid && std::isfinite(control.observedWeightG))
+    delta.field("scale.observedWeightG", control.observedWeightG);
+  else if (control.scaleAvailable && control.currentWeightValid && std::isfinite(control.currentWeightG))
+    delta.field("scale.observedWeightG", control.currentWeightG);
+  else delta.field("scale.observedWeightG", "null");
   // sendHomeStream filled g_work->scaleHistory earlier in this same dispatch.
   char connectedFriendly[PREFERRED_SCALE_NAME_CAPACITY] = {};
   findScaleHistoryFriendlyName(g_work->scaleHistory, control.connectedScaleMac,

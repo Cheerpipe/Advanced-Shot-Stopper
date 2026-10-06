@@ -95,6 +95,32 @@
       'an open subscription resubscribes after reconnect');
 }
 
+{
+  // The blink regression: value validity is number-vs-null in both
+  // transports; the formatters must not require socket-only fields such as
+  // scale.available (absent from the REST diagnostic payload). runtimeJs is
+  // already localized, so expectations use the baked-in English literals.
+  const assert = require('assert').strict;
+  const first = runtimeJs.indexOf('function formatScaleWeight(');
+  const last = runtimeJs.indexOf('const RR=', first);
+  const formatters = new Function('pad2',
+    runtimeJs.slice(first, last) + ';return {formatScaleWeight,formatScaleTimer};')(
+    n => String(n).padStart(2, '0'));
+  assert.equal(formatters.formatScaleTimer({scale: {timerMs: 65430}}), '1:05.4');
+  assert.equal(formatters.formatScaleTimer({scale: {timerMs: null}}), '—');
+  assert.equal(formatters.formatScaleTimer({scale: {}}), '—',
+      'no REST available field may blank the timer');
+  assert.equal(formatters.formatScaleWeight({scale: {observedWeightG: 12.34}}), '12.3 g');
+  assert.equal(formatters.formatScaleWeight({scale: {currentWeightG: -0.5}}), '-0.5 g');
+  assert.equal(formatters.formatScaleWeight({scale: {observedWeightG: null}}), '—');
+  // One writer at a time: REST skips the live sections while the socket
+  // cache is live, and losing the socket hands the sections back to REST.
+  assert(runtimeJs.includes('if(!diagFrame)applyDiagnosticLive(s)'),
+      'REST must not repaint live sections over the socket cache');
+  assert(runtimeJs.includes('shotWs=null;diagFrame=null;'),
+      'socket loss must drop the cache so REST resumes painting');
+}
+
 // Firmware projection: bounded field budget, view-scoped dispatch, and wiring.
 {
   const assert = require('assert').strict;
@@ -112,7 +138,8 @@
   for (const field of ['"state"', '"machineState"', '"backflush.remainingMs"',
       '"cupPresence.weightG"', '"physicalActivatorOn"', '"relayClosed"', '"controlSource"',
       '"safety.taskWatchdogReady"', '"scale.streamState"', '"scale.timerMs"',
-      '"scale.maxPacketGapMs"', '"scale.lastDisconnect.summary"',
+      '"scale.observedWeightG"', '"scale.maxPacketGapMs"',
+      '"scale.lastDisconnect.summary"',
       '"scale.lastCommandFailure.summary"', '"scale.connectedMac"',
       '"lineaMicra.powerState"']) {
     assert(diagRegion.includes('delta.field(' + field), 'missing diagnostic field ' + field);
@@ -121,12 +148,17 @@
   assert(diagRegion.includes('control.currentTimerMs / 100 * 100'),
       'the timer keeps the Home projection 0.1 s quantization');
   assert(diagRegion.includes('session.diagBoot = control.bootId'));
-  assert(runtimeJs.includes("t('dScaleTimer',formatScaleTimer(s))"),
-      'the shared live renderer paints the Scale timer');
+  assert(runtimeJs.includes("t('dScaleTimer',formatScaleTimer(s))") &&
+         runtimeJs.includes("t('dScaleWeight',formatScaleWeight(s))"),
+      'the shared live renderer paints the Scale timer and weight');
   assert(appJsSource.includes('R.stopDiagnosticStream()'),
       'leaving the view must unsubscribe');
   assert(appJsSource.indexOf('R.startDiagnosticStream()') <
          appJsSource.indexOf("await R.loadLog()"),
       'entering the view subscribes before the first REST poll');
   assert(partialHtml.diagnostic.includes('id="dScaleTimer"'));
+  assert(partialHtml.diagnostic.includes('id="dScaleWeight"'));
+  assert(JSON.parse(fs.readFileSync(
+      path.join(sketchDir, 'web', 'locales', 'en.json'), 'utf8'))
+      .strings['diagnostic.weight'] === 'Weight');
 }

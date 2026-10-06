@@ -36,14 +36,18 @@ allowances remain 32,768 and 16,384 bytes for flash code and rodata; the
 image and total linked allowances were raised from 38,640 and 38,628 bytes to
 38,768 and 38,756 bytes for the reviewed frosted-glass sliding navigation
 pill assets (about 250 compressed bytes, partly absorbed by flash
-compression), and again to 43,520 and 43,508 bytes for the Stats duration and
+compression), again to 43,520 and 43,508 bytes for the Stats duration and
 gram-weight metric icons and the view-scoped Diagnostic WebSocket stream
 (measured 2,317,248 image bytes: the icons consumed the remaining headroom
 and the Diagnostic stream adds about 4.2 KB — a bounded per-field diagnostic
 projection with per-session fingerprints, the socket subscription client, and
 the shared live section renderer, with flash code and rodata growth staying
 inside their separate allowances and DIRAM growing 528 bytes for two
-fingerprint slots).
+fingerprint slots), and once more to 43,904 and 43,896 bytes when the
+Diagnostic stream gained its Scale weight field (measured 2,317,600 image
+bytes through the validation gate's machine-type-specific Web UI pipeline;
+the two follow-up measurements differ by 48 bytes of asset/toolchain
+padding for the same source).
 TLS certificate verification and the IANA 2026d catalog remain included.
 The DIRAM baseline stays at 182,518 bytes with an 8,192-byte allowance;
 the current build uses 189,078 bytes. External BSS remains under its separately

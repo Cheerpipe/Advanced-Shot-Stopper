@@ -409,6 +409,7 @@
     "diagnostic.warning": "Warning",
     "diagnostic.watchdog": "Watchdog",
     "diagnostic.web": "web",
+    "diagnostic.weight": "Weight",
     "diagnostic.weight_updates": "Weight updates",
     "diagnostic.wifi": "WiFi",
     "history.activation_history": "Activation history",

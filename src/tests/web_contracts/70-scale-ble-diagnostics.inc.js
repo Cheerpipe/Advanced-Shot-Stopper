@@ -115,12 +115,12 @@
   if (first < 0 || last < first) throw new Error('Missing scale diagnostic formatters');
   const elements = {};
   const live = new Function('$', '__WEBUI_TEXT__', 'formatBackflushState',
-    'formatCupWeight', 'formatScaleTimer', 'updateScaleRenameUi',
-    'renderLineaMicraDiagnostic',
+    'formatCupWeight', 'formatScaleWeight', 'formatScaleTimer',
+    'updateScaleRenameUi', 'renderLineaMicraDiagnostic',
     runtimeSource.slice(first, last) + ';return applyDiagnosticLive;')(
     id => elements[id] || (elements[id] = {textContent: ''}),
     key => ({'diagnostic.none_2': 'NONE', 'diagnostic.none_3': 'none'}[key] || key),
-    () => '', () => '', () => '', () => {}, () => {});
+    () => '', () => '', () => '', () => '', () => {}, () => {});
   const record = lastDisconnect => live({lineaMicra: null, safety: {}, scale: {
     lastDisconnect, lastDisconnectReasonName: lastDisconnect ? undefined : 'NONE',
     lastCommandFailure: {sequence: 1, summary: 'volume · status 15 · 0ms'},

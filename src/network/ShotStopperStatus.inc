@@ -112,6 +112,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   char scaleRssiJson[16] = "null";
   char scaleWeightUpdateIntervalJson[16] = "null";
   char scaleTimerJson[16] = "null";
+  char scaleObservedWeightJson[16] = "null";
   if (network.staLinkMetricsValid) {
     snprintf(staRssiJson, sizeof(staRssiJson), "%d",
              static_cast<int>(network.staRssi));
@@ -137,6 +138,14 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
       control.currentTimerValid) {
     snprintf(scaleTimerJson, sizeof(scaleTimerJson), "%lu",
              static_cast<unsigned long>(control.currentTimerMs / 100 * 100));
+  }
+  if (page == StatusPage::Diagnostic && control.scaleAvailable) {
+    if (control.observedWeightValid && std::isfinite(control.observedWeightG))
+      snprintf(scaleObservedWeightJson, sizeof(scaleObservedWeightJson),
+               "%.1f", static_cast<double>(control.observedWeightG));
+    else if (control.currentWeightValid && std::isfinite(control.currentWeightG))
+      snprintf(scaleObservedWeightJson, sizeof(scaleObservedWeightJson),
+               "%.1f", static_cast<double>(control.currentWeightG));
   }
 
   char safeNtpCustom[NTP_SERVER_HOST_CAPACITY] = {};
@@ -770,6 +779,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"command\":\"%s\",\"status\":%ld,\"elapsedMs\":%lu},"
         "\"eventsDropped\":%lu,\"recoveredStaleCount\":%lu,"
         "\"recoveredStaleMs\":%lu,\"rssi\":%s,"
+        "\"observedWeightG\":%s,"
         "\"weightUpdateIntervalMs\":%s,\"timerMs\":%s,\"model\":\"%s\","
         "\"supportedCommandsKnown\":%s,\"supportedCommands\":%s},"
         "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"},"
@@ -922,6 +932,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(control.scaleRecoveredStaleCount),
         static_cast<unsigned long>(control.scaleRecoveredStaleMs),
         scaleRssiJson,
+        scaleObservedWeightJson,
         scaleWeightUpdateIntervalJson,
         scaleTimerJson,
         scaleModelName(control.scaleModel),

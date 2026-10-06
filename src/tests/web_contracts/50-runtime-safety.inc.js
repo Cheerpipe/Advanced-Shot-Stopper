@@ -321,11 +321,13 @@ if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
     }
   }
   if (!diagBody.includes('\\"recoveredStaleMs\\":%lu,\\"rssi\\":%s,') ||
+      !diagBody.includes('\\"observedWeightG\\":%s,') ||
       !diagBody.includes('\\"weightUpdateIntervalMs\\":%s,\\"timerMs\\":%s,\\"model\\":\\"%s\\",') ||
       !diagBody.includes('\\"supportedCommandsKnown\\":%s,\\"supportedCommands\\":%s}') ||
       !network.includes('scaleRssiJson') ||
       !network.includes('scaleWeightUpdateIntervalJson') ||
       !network.includes('scaleTimerJson') ||
+      !network.includes('scaleObservedWeightJson') ||
       !network.includes('control.weightStreamState == WeightStreamState::FRESH') ||
       !network.includes('\\"lastDisconnectReasonName\\":\\"%s\\",\\"rssi\\":%s}') ||
       !firmware.includes('serviceScaleLinkRssi') ||

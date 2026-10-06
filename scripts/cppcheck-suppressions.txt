@@ -23,6 +23,13 @@ uninitMemberVarNoCtor:*/src/ShotStopperJsonArena.h
 # reboot. It is always validated by magic, inverse fields, and checksum before
 # its contents are consumed; initializing it would defeat that safety guard.
 uninitMemberVarNoCtor:*/src/ShotStopperResetGuard.h
+# Owner: web-stream. Review/expiry: 2027-03-01.
+# shotStreamCurveHash (network/ShotStopperShotStream.inc) feeds one scalar
+# byte to crc32Update(hash, &split, 1); the callee loop in this header is
+# bounded by that length argument, but Cppcheck 2.22.0 cannot bound the
+# inlined index to zero and reports objectIndex at the crc ^= data[index]
+# line. Only the split byte itself is ever read.
+objectIndex:*/src/ShotStopperDomain.h
 # `unusedFunction` is intentionally not enabled by static-idf: analysis through
 # the filtered, variant-specific ESP-IDF database misclassifies cross-TU public
 # APIs, and setup/loop are called by idf/main, so they no longer need inline
