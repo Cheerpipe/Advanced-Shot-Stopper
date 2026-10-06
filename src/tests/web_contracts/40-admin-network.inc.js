@@ -66,8 +66,8 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
     !ui.includes("'timerOnly'") ||
     !ui.includes("'active'") ||
     !ui.includes("Number.isFinite(pv)?Math.max(0,Math.min(pv") ||
-    !ui.includes('Cuts at {0} between {1} and {2} s, or at {2} s with {3} or more') ||
-    !ui.includes('Cuts at {0} between {1} and {2} s') ||
+    !ui.includes('Cuts at {0} between {1} s and {2} s, or at {2} s with {3} or more') ||
+    !ui.includes('Cuts at {0} between {1} s and {2} s') ||
     !ui.includes('Cuts at {0} or more from {1} s') ||
     !ui.includes('bbwProtectionMs') ||
     !runtimeJs.includes('vector-effect="non-scaling-stroke"') ||
@@ -110,14 +110,14 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
       row => row.children[1].textContent.replace(/\u00a0/g, ' '));
   };
   const home = {...saved}; delete home.bbwProtectionMs;
-  assert.deepStrictEqual(rules(home), ['Cuts at 42 g between 12 and 28 s, or at 28 s with 36 g or more',
-    'Cuts at 36 g between 28 and 44 s', 'Cuts at 34 g or more from 44 s']);
+  assert.deepStrictEqual(rules(home), ['Cuts at 42 g between 12 s and 28 s, or at 28 s with 36 g or more',
+    'Cuts at 36 g between 28 s and 44 s', 'Cuts at 34 g or more from 44 s']);
   saved.bbwProtectionMs = 9000;
   assert.deepStrictEqual(rules({...home, goalWeightG: 40, maxRecoveryWeightG: 47.5,
     minRecoveryWeightG: 37.5, minBbwBrewTimeMs: 30000, maxBbwBrewTimeMs: 46000}),
-    ['Cuts at 47.5 g between 9 and 30 s, or at 30 s with 40 g or more',
-      'Cuts at 40 g between 30 and 46 s', 'Cuts at 37.5 g or more from 46 s']);
-  assert(rules({...home, bbwProtectionMs: 15000})[0].includes('between 15 and 28 s'));
+    ['Cuts at 47.5 g between 9 s and 30 s, or at 30 s with 40 g or more',
+      'Cuts at 40 g between 30 s and 46 s', 'Cuts at 37.5 g or more from 46 s']);
+  assert(rules({...home, bbwProtectionMs: 15000})[0].includes('between 15 s and 28 s'));
   assert.deepStrictEqual(rules({...home, brewByWeight: false}), ['Off', 'Off', 'Off']);
 }
 if (!ui.includes('id="staIpMode"') ||
