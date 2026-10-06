@@ -316,6 +316,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #shotTable td.shotDel,#shotTable td.shotDel>.btnGlyph{background:transparent!important}
 #shotTable .shotDur,#shotTable .shotActual,.shotCard .shotDur > div,.shotCard .shotActual > div{font-size:1.85rem;font-weight:750;line-height:1.1;color:var(--fg);letter-spacing:-.02em;padding-bottom:.1rem;font-variant-numeric:tabular-nums}
 .shotCard .shotDur,.shotCard .shotActual,#shotTable .shotDur,#shotTable .shotActual{justify-self:center;text-align:left;position:relative}
+.shotMetricIcon{position:absolute;right:calc(100% + .3rem);bottom:.1rem}
 #shotTable .shotDur::before,#shotTable .shotActual::before{font-size:.6875rem;font-weight:700;color:var(--mu);letter-spacing:.04em}
 #shotTable td:nth-child(n+6):nth-child(-n+13){font-size:.75rem;font-weight:600;color:var(--mu)}
 #shotTable .shotErrHi,.shotCard .shotErrHi{color:var(--ac)}

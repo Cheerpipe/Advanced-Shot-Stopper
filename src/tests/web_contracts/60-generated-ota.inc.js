@@ -444,9 +444,11 @@ if (generated.jsGzip.length > 3884) {
 // (prototype 2) raises the cap to 9250. The Home preset accordion that
 // replaces the card chips and rule table (radio dot, animated guard rows)
 // raises the cap to 9400. The frosted-glass sliding navigation pill uses
-// 100 bytes transferred from the shell JS cap.
-if (generated.cssGzip.length > 9500) {
-  throw new Error('Compressed Web CSS exceeds the 9500-byte gzip budget');
+// 100 bytes transferred from the shell JS cap. The Stats duration and yield
+// metric icons (CSP-safe absolute positioning beside the metric values)
+// raise the cap to 9550.
+if (generated.cssGzip.length > 9550) {
+  throw new Error('Compressed Web CSS exceeds the 9550-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
