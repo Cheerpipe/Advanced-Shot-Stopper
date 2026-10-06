@@ -16,12 +16,12 @@ if (!runtimeJs.includes("function statusIntervalMs(){return document.hidden?12e3
   throw new Error('Home must use its socket; other views retain live/idle/hidden REST intervals');
 }
 if (!ui.includes('async function loadStatus(){') ||
-    !ui.includes('async function loadShots(){') ||
+    !ui.includes('function startStatsStream(){') ||
     !ui.includes('async function loadLog(){') ||
     !ui.includes('LOG_EVENTS_CAPACITY') ||
     !ui.includes('logEvents.splice(0,logEvents.length-LOG_EVENTS_CAPACITY)') ||
-    !ui.includes("function refreshStatus(){return withPollGate(activeView==='stats'?pollShots:activeView==='history'?refreshHistory:loadStatus)}") ||
-    !ui.includes('function refreshShots(){return withPollGate(pollShots)}') ||
+    !ui.includes("function refreshStatus(){return withPollGate(activeView==='stats'?refreshShots:activeView==='history'?refreshHistory:loadStatus)}") ||
+    !ui.includes("function refreshShots(){return shotStatsViewActive()?startStatsStream():Promise.resolve(false)}") ||
     !ui.includes('function refreshLog(){return withPollGate(loadLog)}') ||
     !(ui.includes("name==='home'||name==='settings'||name==='admin'||name==='diagnostic'") ||
       ui.includes("name === 'home' || name === 'settings' || name === 'admin' ||") ||
@@ -41,7 +41,7 @@ if (!ui.includes('async function loadStatus(){') ||
     const j = appJsSource.indexOf('}', i);
     return j > i ? appJsSource.slice(i, j) : '';
   })();
-  if (statsStart.includes('R.loadStatus()') || !statsStart.includes('R.loadShots()') ||
+  if (statsStart.includes('R.loadStatus()') || !statsStart.includes('R.startStatsStream()') ||
       !runtimeJs.includes("was!==canEdit&&activeView==='stats'") ||
       !runtimeJs.includes("fillStarRate(rateHost,r.rating||0,!controlsMutable,")) {
     throw new Error(
@@ -467,7 +467,7 @@ if (!ui.includes(
 }
 
 const logHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::logHandler');
-const logHandlerEnd = network.indexOf('esp_err_t ShotStopperNetwork::shotsHandler', logHandlerStart);
+const logHandlerEnd = network.indexOf('esp_err_t ShotStopperNetwork::shotsClearHandler', logHandlerStart);
 if (logHandlerStart < 0 || logHandlerEnd < 0) {
   throw new Error('Log handler not found');
 }

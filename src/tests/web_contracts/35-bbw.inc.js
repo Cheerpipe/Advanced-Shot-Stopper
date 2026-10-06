@@ -111,8 +111,11 @@
   records[3].wAtMs = [0,137,1001,1138];
   records[3].wCg = records[3].wAtMs.slice();
   const context = vm.createContext({
-    api: async url => {assert.equal(url, '0/100/date/desc'); return {shots: records};},
-    shotsUrl: (...args) => args.join('/'), SHOTS_EXPORT_LIMIT: 100,
+    statsFrameWindow: async (offset, limit, sort, dir) => {
+      assert.equal(`${offset}/${limit}/${sort}/${dir}`, '0/100/date/desc');
+      return records;
+    },
+    SHOTS_EXPORT_LIMIT: 100,
     formatShotTimeCsv: () => '', shotDisplayActualG: weight => weight,
     Blob,
     URL: {createObjectURL: value => {blob = value; return 'blob:test';}, revokeObjectURL() {}},

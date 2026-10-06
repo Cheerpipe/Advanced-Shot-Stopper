@@ -411,7 +411,6 @@ const expected = new Map([
   ['POST /api/v1/control/restart', 'ownedApiHandler'],
   ['POST /api/v1/diagnostic/reset-history', 'ownedApiHandler'],
   ['POST /api/v1/factory-reset', 'ownedApiHandler'],
-  ['GET /api/v1/stats', 'ownedApiHandler'],
   ['POST /api/v1/stats/clear', 'ownedApiHandler'],
   ['POST /api/v1/stats/delete', 'ownedApiHandler'],
   ['POST /api/v1/stats/rate', 'ownedApiHandler'],

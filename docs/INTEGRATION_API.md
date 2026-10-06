@@ -286,18 +286,21 @@ remain readable; unknown event IDs render their numeric payload safely.
 
 ## Web UI record API
 
-The Stats page uses `GET /api/v1/stats`. History has no REST read: the page
-subscribes over the owned WebSocket (see [History live
-updates](#history-live-updates)). Both surfaces require the active
+Neither record page has a REST read: Stats and History both subscribe over
+the owned WebSocket (see [History live updates](#history-live-updates) and
+[Stats live updates](#stats-live-updates)). Both surfaces require the active
 `X-WebUI-Client` obtained from `POST /api/v1/ui/claim`. They are separate from
 the public integration routes described above. Mutations stay confirmed REST
 commands: `POST /api/v1/stats/clear|delete|rate`,
 `POST /api/v1/history/clear|delete`.
 
-Stats responses and History frames both carry `bootId`, `total`, `offset`,
-`limit`, `hasMore`, and a small `ui` object. Stats also returns `shots`,
-`stats`, and `savePending`; History frames carry `records`. Paging and sorting
-parameters are unchanged: `offset`, `limit`, and `dir` (`asc` or `desc`), plus
+Stats and History frames both carry `bootId`, `total`, `offset`, `limit`,
+`hasMore`, and a small `ui` object (snapshot frames only). Stats frames also
+carry `stats` (the firmware-computed aggregate) and `rows` — the same row
+fields the REST page produced, with each row's curve arrays embedded at the
+top level; pages larger than the frame budget continue across frames with
+`rowBase` and `more` until a terminating frame. History frames carry
+`records`. Paging and sorting parameters are unchanged: `offset`, `limit`, and `dir` (`asc` or `desc`), plus
 `sort` (`date` or `rating`) for Stats. The page sizes used by the browser are
 ten shots and twenty activations.
 
@@ -309,9 +312,10 @@ ten shots and twenty activations.
 `timezoneAutomatic`, and `timezoneInitialized`. These fields update shared
 UI behavior, relative dates, and automatic timezone synchronization without
 fetching Home's scale, cup, preset, or extraction state. The browser validates
-and applies this state before displaying the records: on Stats it arrives with
-the page response, on History with each snapshot frame. Record requests also
-retain the confirmation of pending Wi-Fi settings on a station connection.
+and applies this state before displaying the records; it arrives with the
+snapshot frames of both record streams. Accepted WebSocket ops (claim, bind,
+activity, and the view subscriptions) retain the confirmation of pending
+Wi-Fi settings on a station connection.
 
 Home's live stream, the other Web UI page status responses, and the record-page `ui` envelope include
 `connections`: `wifiConnected` and `bluetoothConnected` are booleans;
@@ -365,13 +369,13 @@ supplies a new time anchor; the browser advances relative time locally.
 (`diagnosticPageVisible`, `compatibilityMode`) is carried by the Home stream
 itself and applied on every view, and the browser no longer probes a status
 route when entering Stats, History, or Diagnostic. Settings, Admin, Diagnostic
-status, the remaining record reads, and the public integration API keep their
-existing REST contracts.
+status, and the public integration API keep their existing REST contracts.
 
-The former `/api/v1/shots` route family has been renamed to `/api/v1/stats`:
-external Web UI API callers must update the read URL and the POST URLs
-`/api/v1/stats/clear`, `/api/v1/stats/delete`, and `/api/v1/stats/rate`.
-The route rename preserves request bodies and mutation safety checks.
+The former `/api/v1/shots` route family was renamed to `/api/v1/stats` and its
+GET read has since moved to the owned WebSocket: external Web UI API callers
+must use the stream described below for reads and keep the POST URLs
+`/api/v1/stats/clear`, `/api/v1/stats/delete`, and `/api/v1/stats/rate`
+(request bodies and mutation safety checks are unchanged).
 The public `/api/v1/integration` endpoints are unchanged.
 
 Stats shot records and Home's WebSocket `curve` carry paired `wCg` and `wAtMs`
@@ -415,6 +419,43 @@ Home delta: an untouched activation log produces no frames. Appends, single
 deletes, and clears move the epoch, so the standing subscription pushes the
 updated page without any browser request; clearing and deleting remain the
 confirmed REST commands above.
+
+### Stats live updates
+
+The Stats page uses the same owned WebSocket. Entering the view subscribes
+with the page window:
+
+```json
+{"op":"stats","on":true,"offset":0,"limit":10,"sort":"date","dir":"desc"}
+```
+
+Scrolling to the page sentinel sends a one-shot fetch for the next window,
+and the CSV export asks for its own export window — always 100 rows,
+newest-first by date, regardless of the on-screen sort:
+
+```json
+{"op":"stats","on":true,"fetch":true,"offset":20}
+{"op":"stats","on":true,"fetch":true,"offset":0,"limit":100,"sort":"date","dir":"desc"}
+```
+
+Leaving the view unsubscribes with `{"op":"stats","on":false}`; after a
+reconnect the browser replays the subscription, and every accepted op forces
+the next page to start from a full snapshot.
+
+Stats frames have `v: 1`, `type: "stats"`, `boot`, `snapshot`, `epoch`,
+`seq`, the `ui` object and the `stats` aggregate (first frame of a page
+only), `bootId`, `total`, `offset`, `limit`, `hasMore`, `rows`, `rowBase`,
+and `more`. Rows are the exact REST page projection, including each row's
+curve arrays. Because full curves can exceed one frame, a page is emitted
+under a ~20 KiB frame budget: the first frame ends with `more: true` and a
+continuation frame resumes at its `rowBase`; the browser buffers partial
+pages and applies them whole when a frame ends with `more: false`. A store
+epoch and a fingerprint (window, aggregate, and per-row id, rating, and
+curve hashes) suppress pages while nothing changed — rating a shot, saving,
+deleting, or clearing moves the epoch, so the standing subscription pushes
+the updated page without any browser request. The export window streams the
+requested rows once without touching the subscribed view state.
+
 
 ## Linea Micra Web API
 

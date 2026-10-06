@@ -204,6 +204,9 @@ struct NetworkBridgeCallbacks {
   // Cheap change epoch (store header digest) so idle dispatches skip the
   // page copy entirely.
   uint32_t (*historyEpoch)() = nullptr;
+  // Same cheap gate for the shot log (record store header digest; curve
+  // stores only mutate alongside records).
+  uint32_t (*shotLogEpoch)() = nullptr;
   ShotStatsView (*copyShotStats)() = nullptr;
   bool (*deleteHistoryRecord)(uint32_t id) = nullptr;
   bool (*clearHistoryLog)() = nullptr;
@@ -367,6 +370,15 @@ class ShotStopperNetwork {
            historyFetchOffset = 0;
     ShotLogSortDir historyDir = ShotLogSortDir::Desc;
     uint32_t historyEpoch = 0, historyFingerprint = 0, historyBoot = 0;
+    // Stats page subscription, same layout plus the sort field and the
+    // fetch's own window (sentinel appends page by the view's order; the CSV
+    // export always asks for date/desc).
+    bool statsOn = false, statsResync = true, statsFetch = false;
+    size_t statsOffset = 0, statsLimit = SHOT_LOG_PAGE_DEFAULT,
+           statsFetchOffset = 0, statsFetchLimit = SHOT_LOG_PAGE_DEFAULT;
+    ShotLogSort statsSort = ShotLogSort::Date, statsFetchSort = ShotLogSort::Date;
+    ShotLogSortDir statsDir = ShotLogSortDir::Desc, statsFetchDir = ShotLogSortDir::Desc;
+    uint32_t statsEpoch = 0, statsFingerprint = 0, statsBoot = 0, statsSeq = 0;
     char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
     bool bound = false, resync = true;
     bool homeResync = true;
@@ -594,6 +606,13 @@ class ShotStopperNetwork {
                             const ControlStatusSnapshot &control);
   bool sendHistoryStream(ShotStreamSession &session,
                          const ControlStatusSnapshot &control);
+  bool sendStatsStream(ShotStreamSession &session,
+                       const ControlStatusSnapshot &control);
+  // Shared stats row projection (scalars plus embedded curve fields) used by
+  // the WS sender; writes into work.jsonItem and returns its length, 0 on
+  // overflow.
+  size_t formatShotStatsRow(NetworkWorkBuf &work, const ShotLogRecord &record,
+                            const ShotCurveRecord *curves, size_t curveCount);
 #if SHOT_STOPPER_DEVELOPMENT == 1
   // Unlock handlers are release-only: development builds serve public
   // administration and never compile the unlock endpoints.
@@ -606,7 +625,6 @@ class ShotStopperNetwork {
   static esp_err_t statusHandler(httpd_req_t *request);
   static esp_err_t debugExportHandler(httpd_req_t *request);
   static esp_err_t logHandler(httpd_req_t *request);
-  static esp_err_t shotsHandler(httpd_req_t *request);
   static esp_err_t shotsClearHandler(httpd_req_t *request);
   static esp_err_t shotsDeleteHandler(httpd_req_t *request);
   static esp_err_t shotsRateHandler(httpd_req_t *request);
@@ -704,12 +722,10 @@ class ShotStopperNetwork {
   void noteNetworkRetryBackoff(bool logRetry);
   void clearNetworkFailureStatus(bool staDisconnected);
   esp_err_t workBufBusy(httpd_req_t *request);
-  esp_err_t sendRecordPageState(httpd_req_t *request,
-                               const ControlStatusSnapshot &control);
   // Shared record-page "ui" projection (the `statusPageOk('records')`
-  // contract): appends `"ui":{...}` at the statusJson cursor. The HTTP page
-  // wraps it in its response object; the history stream embeds it in snapshot
-  // frames. `override` replaces the request-derived flag on the socket path.
+  // contract): appends `"ui":{...}` at the statusJson cursor; the record
+  // streams embed it in snapshot frames. `override` replaces the
+  // request-derived flag on the socket path.
   bool appendRecordPageUi(const ControlStatusSnapshot &control, size_t *used,
                           bool override);
   bool requireActiveWebUiClient(httpd_req_t *request);

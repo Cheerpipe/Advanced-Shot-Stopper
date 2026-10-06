@@ -68,6 +68,14 @@ Web UI changes with no firmware task, control-timing, or memory-placement
 impact; flash code, rodata, DIRAM, and external BSS remain within their
 existing allowances. The combined compressed Web assets measure 122,530
 bytes; the per-asset caps enforced by the Web contract tests are unchanged.
+The record pages' move onto the owned WebSocket raises the image and linked
+allowances by another 2,048 bytes, to 49,072 and 49,064 bytes (measured
+2,321,920 image bytes and 2,321,799 linked bytes): the History and Stats
+stream senders, the shared record UI/row projections, and the stream client
+replace the REST read handlers. Flash code grows 32,700 bytes (inside its
+32,768-byte allowance), rodata 14,844 and DIRAM 6,704 bytes (inside theirs);
+external BSS is unchanged. The combined compressed Web assets measure
+123,231 bytes; their per-asset caps are enforced by the Web contract tests.
 The additional atomic priority flag retains the single HTTP workspace owner;
 control only notifies Network and never waits for serialization. The stop fade
 is browser animation state, with no firmware task or control-timing changes.

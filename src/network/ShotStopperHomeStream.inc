@@ -455,3 +455,267 @@ bool ShotStopperNetwork::sendHistoryStream(ShotStreamSession &session,
   }
   return true;
 }
+
+// The Stats row projection (extracted verbatim from the REST shots handler):
+// row scalars plus the curve fields embedded at the top level, because
+// formatShotCurveJsonBody emits the curve object's inner fields. Writes into
+// work.jsonItem using work.curveJson and work.serializedCurve as scratch and
+// returns the written length, 0 on overflow.
+size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
+                                              const ShotLogRecord &record,
+                                              const ShotCurveRecord *curves,
+                                              size_t curveCount) {
+  char actual[16] = "null";
+  char errorG[16] = "null";
+  char errorPct[16] = "null";
+  char flow[16] = "null";
+  char firstDrop[16] = "null";
+  char tareAt[16] = "null";
+  char maxRecovery[16] = "null";
+  char minBbwBrewTime[16] = "null";
+  char targetEarly[16] = "null";
+  char presetName[SHOT_PRESET_NAME_CAPACITY * 6] = {};
+  char scaleNameJson[SCALE_FRIENDLY_NAME_MAX_LEN * 6 + 1] = {};
+  escapeJsonString(record.presetName, presetName, sizeof(presetName));
+  escapeJsonString(record.scaleName, scaleNameJson, sizeof(scaleNameJson));
+  if (!shotLogWeightIsMissing(record.actualWeightCg)) {
+    snprintf(actual, sizeof(actual), "%.2f",
+             static_cast<double>(record.actualWeightCg) / 100.0);
+    snprintf(errorG, sizeof(errorG), "%.2f",
+             static_cast<double>(record.errorCg) / 100.0);
+    if (record.goalWeightG > 0) {
+      snprintf(errorPct, sizeof(errorPct), "%.1f",
+               static_cast<double>(record.errorCg) * 100.0 /
+                   (static_cast<double>(record.goalWeightG) * 100.0));
+    }
+  }
+  if (record.avgFlowCgS != SHOT_LOG_METRIC_MISSING) {
+    snprintf(flow, sizeof(flow), "%.2f",
+             static_cast<double>(record.avgFlowCgS) / 100.0);
+  }
+  if (record.firstDropDs != SHOT_LOG_METRIC_MISSING) {
+    snprintf(firstDrop, sizeof(firstDrop), "%.1f",
+             static_cast<double>(record.firstDropDs) / 10.0);
+  }
+  if (record.tareAtDs != SHOT_LOG_METRIC_MISSING) {
+    snprintf(tareAt, sizeof(tareAt), "%.1f",
+             static_cast<double>(record.tareAtDs) / 10.0);
+  }
+  if (!shotLogWeightIsMissing(record.maxRecoveryWeightCg)) {
+    snprintf(maxRecovery, sizeof(maxRecovery), "%.2f",
+             static_cast<double>(record.maxRecoveryWeightCg) / 100.0);
+  }
+  if (record.minBbwBrewTimeDs != SHOT_LOG_METRIC_MISSING) {
+    snprintf(minBbwBrewTime, sizeof(minBbwBrewTime), "%.1f",
+             static_cast<double>(record.minBbwBrewTimeDs) / 10.0);
+  }
+  if (record.targetReachedEarlyDs != SHOT_LOG_METRIC_MISSING) {
+    snprintf(targetEarly, sizeof(targetEarly), "%.1f",
+             static_cast<double>(record.targetReachedEarlyDs) / 10.0);
+  }
+  ShotCurveRecord &emptyCurve = work.serializedCurve;
+  resetShotCurveRecord(emptyCurve);
+  const ShotCurveRecord *curve =
+      findShotCurveById(curves, curveCount, record.id);
+  if (curve == nullptr) {
+    curve = &emptyCurve;
+  }
+  char *const curveJson = work.curveJson;
+  char alphaJson[5] = "null";
+  const unsigned alpha = shotLogBbwAlpha(record);
+  if (alpha) snprintf(alphaJson, sizeof(alphaJson), "%u.%02u", alpha / 100, alpha % 100);
+  if (!formatShotCurveJsonBody(curveJson, SHOT_CURVE_JSON_CAPACITY, *curve) &&
+      !formatShotCurveJsonBody(curveJson, SHOT_CURVE_JSON_CAPACITY,
+                               emptyCurve)) {
+    // Keep the row JSON parseable; an empty curve beats a broken page.
+    curveJson[0] = '\0';
+  }
+  const int bytes = snprintf(work.jsonItem, NetworkWorkBuf::kJsonItem,
+      "{\"id\":%lu,\"bootId\":%lu,\"endedAtMs\":%lu,"
+      "\"hasWallTime\":%s,\"endedAtLocalSec\":%lu,"
+      "\"endedAtUnixSec\":%lu,\"timezoneOffsetMinutesAtCommit\":%d,"
+      "\"durationS\":%.1f,\"presetId\":%u,\"presetName\":\"%s\","
+      "\"scaleName\":\"%s\","
+      "\"goalG\":%u,\"actualG\":%s,\"errorG\":%s,\"errorPct\":%s,"
+      "\"offsetG\":%.2f,\"bbwAlgorithm\":\"%s\",\"bbwAlgorithmVersion\":%s,"
+      "\"bbwAlpha\":%s,\"bbwLearningApplied\":%s,\"avgFlowGS\":%s,"
+      "\"firstDropS\":%s,\"tareS\":%s,"
+      "\"shotType\":\"%s\",\"cutType\":\"%s\","
+      "\"extractionGuardEnabled\":%s,\"extractionExtended\":%s,"
+      "\"slowExtractionGuardEnabled\":%s,\"slowExtractionExtended\":%s,"
+      "\"stopDetail\":\"%s\",\"maxRecoveryWeightG\":%s,"
+      "\"minBbwBrewTimeS\":%s,\"targetReachedEarlyS\":%s,"
+      "\"actualWeightSource\":\"%s\",\"rating\":%u,%s}",
+      static_cast<unsigned long>(record.id),
+      static_cast<unsigned long>(record.bootId),
+      static_cast<unsigned long>(record.endedAtMs),
+      record.hasWallTime ? "true" : "false",
+      static_cast<unsigned long>(record.endedAtLocalSec),
+      static_cast<unsigned long>(record.endedAtUnixSec),
+      static_cast<int>(record.timezoneOffsetMinutesAtCommit),
+      static_cast<double>(record.durationDs) / 10.0,
+      static_cast<unsigned>(shotLogPresetId(record)),
+      presetName, scaleNameJson,
+      static_cast<unsigned>(record.goalWeightG), actual, errorG, errorPct,
+      static_cast<double>(record.offsetUsedCg) / 100.0,
+      shotLogBbwAlgorithm(record), shotLogBbwVersion(record),
+      alphaJson, shotLogBbwLearningApplied(record), flow, firstDrop, tareAt,
+      shotLogTypeName(shotLogType(record)),
+      shotLogCutName(shotLogCut(record)),
+      shotLogFastGuardEnabled(record.extractionGuardEnabled) ? "true" : "false",
+      shotLogFastExtended(record.extractionExtended) ? "true" : "false",
+      shotLogSlowGuardEnabled(record.extractionGuardEnabled) ? "true" : "false",
+      shotLogSlowExtended(record.extractionExtended) ? "true" : "false",
+      shotLogStopDetailName(static_cast<ShotLogStopDetail>(record.stopDetail)),
+      maxRecovery, minBbwBrewTime, targetEarly,
+      actualWeightSourceName(static_cast<ActualWeightSource>(record.actualWeightSource)),
+      static_cast<unsigned>(shotLogRating(record.extractionGuardEnabled)),
+      curveJson);
+  if (bytes <= 0 || static_cast<size_t>(bytes) >= NetworkWorkBuf::kJsonItem)
+    return 0;
+  return static_cast<size_t>(bytes);
+}
+
+// Same bounded, view-scoped contract as the history sender, plus frame
+// budgeting: full curves make a page larger than one frame, so rows
+// accumulate under kStatsStreamFrameBytes and pages continue across frames
+// (rowBase/more) until a terminating frame. The cheap store epoch gates the
+// record/curve copy, and the fingerprint — epoch, window, aggregate, and
+// per-row id/packed-rating/curve hashes, since records are immutable after
+// commit except the packed rating byte — suppresses the send while the page
+// is unchanged.
+__attribute__((optimize("Os")))
+bool ShotStopperNetwork::sendStatsStream(ShotStreamSession &session,
+                                         const ControlStatusSnapshot &control) {
+  const uint32_t epoch =
+      callbacks_.shotLogEpoch ? callbacks_.shotLogEpoch() : 0;
+  const bool initial =
+      session.statsResync || session.statsBoot != control.bootId;
+  // A snapshot supersedes any pending fetch: the client drops its buffered
+  // partial page and in-flight markers when a replace lands.
+  if (initial) session.statsFetch = false;
+  const bool fetch = session.statsFetch;
+  if (!initial && !fetch && epoch == session.statsEpoch) return true;
+  const size_t offset = fetch ? session.statsFetchOffset : session.statsOffset;
+  const size_t limit = fetch ? session.statsFetchLimit : session.statsLimit;
+  const ShotLogSort sort = fetch ? session.statsFetchSort : session.statsSort;
+  const ShotLogSortDir dir = fetch ? session.statsFetchDir : session.statsDir;
+  NetworkWorkBuf &work = *g_work;
+  const ShotStatsView stats =
+      callbacks_.copyShotStats != nullptr ? callbacks_.copyShotStats()
+                                          : ShotStatsView{};
+  const size_t count =
+      callbacks_.copyShotRecords != nullptr
+          ? callbacks_.copyShotRecords(work.shotRecords, SHOT_LOG_CAPACITY)
+          : 0;
+  const size_t curveCount =
+      callbacks_.copyShotCurves != nullptr
+          ? callbacks_.copyShotCurves(work.shotCurves, SHOT_CURVE_CAPACITY)
+          : 0;
+  shotLogSortRecords(work.shotRecords, count, sort, dir);
+  size_t start = 0, pageCount = 0;
+  const bool hasMore =
+      shotLogPageSlice(count, offset, limit, start, pageCount);
+  char statsHeader[384] = {};
+  const bool statsOk =
+      buildIntegrationStats(stats, statsHeader, sizeof(statsHeader));
+  uint32_t fingerprint = crc32Update(0xFFFFFFFFU,
+      reinterpret_cast<const uint8_t *>(&epoch), sizeof(epoch));
+  const uint32_t window[4] = {static_cast<uint32_t>(offset),
+                              static_cast<uint32_t>(limit),
+                              static_cast<uint32_t>(sort),
+                              static_cast<uint32_t>(dir)};
+  fingerprint = crc32Update(fingerprint,
+      reinterpret_cast<const uint8_t *>(window), sizeof(window));
+  if (statsOk)
+    fingerprint = crc32Update(fingerprint,
+        reinterpret_cast<const uint8_t *>(statsHeader), strlen(statsHeader));
+  resetShotCurveRecord(work.serializedCurve);
+  for (size_t index = start; index < start + pageCount; ++index) {
+    const ShotLogRecord &record = work.shotRecords[index];
+    const ShotCurveRecord *curve =
+        findShotCurveById(work.shotCurves, curveCount, record.id);
+    const uint32_t rowHash =
+        shotStreamCurveHash(curve ? *curve : work.serializedCurve,
+                            curve ? curve->count : 0);
+    const uint32_t row[2] = {record.id, record.extractionGuardEnabled};
+    fingerprint = crc32Update(fingerprint,
+        reinterpret_cast<const uint8_t *>(row), sizeof(row));
+    fingerprint = crc32Update(fingerprint,
+        reinterpret_cast<const uint8_t *>(&rowHash), sizeof(rowHash));
+  }
+  if (!initial && !fetch && fingerprint == session.statsFingerprint)
+    return true;
+  bool override = false;
+  {
+    TaskLockGuard lock(dataMux_);
+    override = webUiOverrideActive_ &&
+        static_cast<int32_t>(millis() - webUiOverrideUntilMs_) < 0;
+  }
+  ++session.statsSeq;
+  size_t sent = 0;
+  do {
+    const size_t rowBase = sent;
+    const bool first = sent == 0;
+    size_t used = 0;
+    if (!statusJsonAppend(&used,
+            "{\"v\":1,\"type\":\"stats\",\"boot\":%lu,\"snapshot\":%s,"
+            "\"epoch\":%lu,\"seq\":%lu,",
+            static_cast<unsigned long>(control.bootId),
+            first && initial ? "true" : "false",
+            static_cast<unsigned long>(epoch),
+            static_cast<unsigned long>(session.statsSeq)))
+      return false;
+    if (first && initial &&
+        (!appendRecordPageUi(control, &used, override) ||
+         !statusJsonAppend(&used, ",")))
+      return false;
+    if (first && statsOk &&
+        !statusJsonAppend(&used, "\"stats\":%s,", statsHeader))
+      return false;
+    if (!statusJsonAppend(&used,
+            "\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
+            "\"hasMore\":%s,\"rows\":[",
+            static_cast<unsigned long>(control.bootId),
+            static_cast<unsigned>(count), static_cast<unsigned>(start),
+            static_cast<unsigned>(limit), hasMore ? "true" : "false"))
+      return false;
+    const size_t rowsBase = used;
+    while (sent < pageCount) {
+      const size_t rowBytes = formatShotStatsRow(
+          work, work.shotRecords[start + sent], work.shotCurves, curveCount);
+      if (!rowBytes) return false;
+      // Close the frame before this row unless the frame is empty; a single
+      // oversized row still fits under the client's 24 KiB guard alone.
+      if (used + (used > rowsBase ? 1u : 0u) + rowBytes + 48u >
+              kStatsStreamFrameBytes &&
+          used > rowsBase)
+        break;
+      if (!statusJsonAppend(&used, "%s%s", used > rowsBase ? "," : "",
+                            work.jsonItem))
+        return false;
+      ++sent;
+    }
+    const bool more = sent < pageCount;
+    if (!statusJsonAppend(&used, "],\"rowBase\":%u,\"more\":%s}",
+            static_cast<unsigned>(rowBase), more ? "true" : "false"))
+      return false;
+    // Recheck ownership immediately before every delivery.
+    bool owner;
+    { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
+    httpd_ws_frame_t frame = {};
+    frame.type = HTTPD_WS_TYPE_TEXT;
+    frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
+    frame.len = used;
+    if (!owner || httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK)
+      return false;
+  } while (sent < pageCount);
+  session.statsBoot = control.bootId;
+  session.statsResync = false;
+  session.statsFetch = false;
+  if (!initial && !fetch) {
+    session.statsEpoch = epoch;
+    session.statsFingerprint = fingerprint;
+  }
+  return true;
+}

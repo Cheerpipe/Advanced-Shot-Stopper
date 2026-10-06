@@ -991,6 +991,11 @@ uint32_t copyHistoryEpoch() {
   return historyLog.epoch();
 }
 
+uint32_t copyShotLogEpoch() {
+  TaskLockGuard lock(shotStoreMutex);
+  return shotLog.epoch();
+}
+
 bool deleteHistoryRecord(uint32_t id) {
   TaskLockGuard lock(shotStoreMutex);
   const bool changed = historyLog.removeById(id, false);

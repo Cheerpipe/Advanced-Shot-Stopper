@@ -5,6 +5,29 @@ constexpr uint32_t kShotStreamBindMs = 5000, kShotStreamRetainMs = 30000;
 // Live shots keep the scale's 10 Hz; idle Home only needs edge pickup.
 constexpr uint32_t kShotStreamLiveMs = 100, kShotStreamIdleMs = 250;
 constexpr size_t kShotStreamRequestBytes = 160;
+// Stats pages carry full curves; stay well under the client's 24 KiB frame
+// guard with headroom for the envelope and one oversized row.
+constexpr size_t kStatsStreamFrameBytes = 20480;
+
+// Shared op validation for the view-scoped record subscriptions: an exact
+// field whitelist and bounded optional integers.
+bool shotStreamKnownFields(const cJSON *message, const char *const *names,
+                           size_t count) {
+  for (const cJSON *field = message->child; field; field = field->next) {
+    bool ok = false;
+    for (size_t index = 0; index < count && !ok; ++index)
+      ok = field->string != nullptr &&
+           strcmp(field->string, names[index]) == 0;
+    if (!ok) return false;
+  }
+  return true;
+}
+
+bool shotStreamIntInRange(const cJSON *node, double low, double high) {
+  return node == nullptr ||
+         (cJSON_IsNumber(node) && node->valuedouble >= low &&
+          node->valuedouble <= high && node->valuedouble == node->valueint);
+}
 
 bool shotStreamOriginMatches(const char *origin, const char *host) {
   if (!host || !host[0]) return false;
@@ -121,6 +144,7 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
       session->resync = true;
       session->homeResync = true;
       session->historyResync = true;
+      session->statsResync = true;
       accepted = true;
     } else if (cJSON_IsString(op) && session->bound &&
                strcmp(op->valuestring, "diagnostic") == 0 &&
@@ -138,26 +162,18 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
                strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
       // View-scoped History page subscription: the standing window tracks the
       // page; a one-shot fetch serves sentinel appends without disturbing it.
+      static const char *const kFields[] = {"op",    "on",   "offset",
+                                            "limit", "dir",  "fetch"};
       const cJSON *on = cJSON_GetObjectItemCaseSensitive(message, "on");
       const cJSON *offset = cJSON_GetObjectItemCaseSensitive(message, "offset");
       const cJSON *limit = cJSON_GetObjectItemCaseSensitive(message, "limit");
       const cJSON *dir = cJSON_GetObjectItemCaseSensitive(message, "dir");
       const cJSON *fetch = cJSON_GetObjectItemCaseSensitive(message, "fetch");
-      bool shapeOk = cJSON_IsBool(on);
-      for (const cJSON *field = message->child; shapeOk && field;
-           field = field->next) {
-        const char *name = field->string;
-        shapeOk = name && (!strcmp(name, "op") || !strcmp(name, "on") ||
-                           !strcmp(name, "offset") || !strcmp(name, "limit") ||
-                           !strcmp(name, "dir") || !strcmp(name, "fetch"));
-      }
+      const bool shapeOk =
+          cJSON_IsBool(on) && shotStreamKnownFields(message, kFields, 6);
       const bool numbersOk =
-          (!offset || (cJSON_IsNumber(offset) && offset->valuedouble >= 0 &&
-                       offset->valuedouble <= HISTORY_CAPACITY &&
-                       offset->valuedouble == offset->valueint)) &&
-          (!limit || (cJSON_IsNumber(limit) && limit->valuedouble >= 1 &&
-                      limit->valuedouble <= HISTORY_PAGE_MAX &&
-                      limit->valuedouble == limit->valueint)) &&
+          shotStreamIntInRange(offset, 0, HISTORY_CAPACITY) &&
+          shotStreamIntInRange(limit, 1, HISTORY_PAGE_MAX) &&
           (!fetch || cJSON_IsBool(fetch)) &&
           (!dir || (cJSON_IsString(dir) &&
                     (!strcmp(dir->valuestring, "asc") ||
@@ -171,7 +187,7 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
             session->historyFetch = false;
           }
         } else if (fetch && cJSON_IsTrue(fetch)) {
-          accepted = offset && !limit && !dir;
+          accepted = offset != nullptr;
           if (accepted) {
             session->historyFetchOffset =
                 static_cast<size_t>(offset->valueint);
@@ -188,6 +204,71 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
             session->historyDir = !strcmp(dir->valuestring, "asc")
                                        ? ShotLogSortDir::Asc
                                        : ShotLogSortDir::Desc;
+          accepted = true;
+        }
+        if (accepted)
+          self.shotStreamUrgent_.store(true, std::memory_order_release);
+      }
+    } else if (cJSON_IsString(op) && session->bound &&
+               strcmp(op->valuestring, "stats") == 0 &&
+               strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
+      // View-scoped Stats page subscription on the same contract; one-shot
+      // fetches also serve the CSV export window (limit 100, date/desc).
+      static const char *const kFields[] = {"op",    "on",    "offset",
+                                            "limit", "sort",  "dir",
+                                            "fetch"};
+      const cJSON *on = cJSON_GetObjectItemCaseSensitive(message, "on");
+      const cJSON *offset = cJSON_GetObjectItemCaseSensitive(message, "offset");
+      const cJSON *limit = cJSON_GetObjectItemCaseSensitive(message, "limit");
+      const cJSON *sort = cJSON_GetObjectItemCaseSensitive(message, "sort");
+      const cJSON *dir = cJSON_GetObjectItemCaseSensitive(message, "dir");
+      const cJSON *fetch = cJSON_GetObjectItemCaseSensitive(message, "fetch");
+      const bool shapeOk =
+          cJSON_IsBool(on) && shotStreamKnownFields(message, kFields, 7);
+      const bool numbersOk =
+          shotStreamIntInRange(offset, 0, SHOT_LOG_CAPACITY) &&
+          shotStreamIntInRange(limit, 1, SHOT_LOG_CAPACITY) &&
+          (!fetch || cJSON_IsBool(fetch)) &&
+          (!sort || (cJSON_IsString(sort) &&
+                     (!strcmp(sort->valuestring, "date") ||
+                      !strcmp(sort->valuestring, "rating")))) &&
+          (!dir || (cJSON_IsString(dir) &&
+                    (!strcmp(dir->valuestring, "asc") ||
+                     !strcmp(dir->valuestring, "desc"))));
+      if (shapeOk && numbersOk) {
+        if (!cJSON_IsTrue(on)) {
+          accepted = !offset && !limit && !sort && !dir && !fetch;
+          if (accepted) {
+            session->statsOn = false;
+            session->statsFetch = false;
+          }
+        } else if (fetch && cJSON_IsTrue(fetch)) {
+          accepted = offset != nullptr;
+          if (accepted) {
+            session->statsFetchOffset =
+                static_cast<size_t>(offset->valueint);
+            session->statsFetchLimit = limit
+                ? static_cast<size_t>(limit->valueint)
+                : session->statsLimit;
+            session->statsFetchSort = sort
+                ? shotLogSortFromName(sort->valuestring)
+                : session->statsSort;
+            session->statsFetchDir = dir
+                ? shotLogSortDirFromName(dir->valuestring)
+                : session->statsDir;
+            session->statsFetch = true;
+          }
+        } else {
+          session->statsOn = true;
+          session->statsResync = true;
+          if (offset)
+            session->statsOffset = static_cast<size_t>(offset->valueint);
+          if (limit)
+            session->statsLimit = static_cast<size_t>(limit->valueint);
+          if (sort)
+            session->statsSort = shotLogSortFromName(sort->valuestring);
+          if (dir)
+            session->statsDir = shotLogSortDirFromName(dir->valuestring);
           accepted = true;
         }
         if (accepted)
@@ -316,6 +397,11 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
     return;
   }
   if (session.historyOn && !sendHistoryStream(session, control)) {
+    unlockWorkBuf();
+    httpd_sess_trigger_close(server_, session.fd);
+    return;
+  }
+  if (session.statsOn && !sendStatsStream(session, control)) {
     unlockWorkBuf();
     httpd_sess_trigger_close(server_, session.fd);
     return;

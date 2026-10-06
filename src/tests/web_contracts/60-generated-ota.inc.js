@@ -511,8 +511,10 @@ if (generated.cssGzip.length > 10300) {
 // 47200 bytes.
 // The view-scoped history WebSocket (frame validation, subscription replay,
 // and one-shot append fetches) raises the cap to 47800 bytes.
-if (sentinelRuntimeGzip.length > 47800) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 47800-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Stats stream (continuation frames, row/export validation) raises it to
+// 48300 bytes.
+if (sentinelRuntimeGzip.length > 48300) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 48300-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -609,8 +611,10 @@ if (generated.icon48Gzip.length > 3500) {
 // separate limits.
 // The view-scoped history WebSocket adds its reviewed runtime allowance to
 // the combined cap (123200 bytes); firmware image and OTA limits stay fixed.
-if (generated.combined > 123200) {
-  throw new Error(`Combined Web UI gzip exceeds the 123200-byte flash budget (${generated.combined})`);
+// The Stats stream raises the combined cap to 123600 bytes; firmware image
+// and OTA limits stay fixed.
+if (generated.combined > 123600) {
+  throw new Error(`Combined Web UI gzip exceeds the 123600-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
@@ -777,7 +781,7 @@ if (!network.includes('requireActiveWebUiClient') ||
       'WebUI claim must replace POST /heartbeat; web paddle heartbeat circuit timeout must be gone');
 }
 const logHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::logHandler');
-const shotsHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::shotsHandler');
+const shotsHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::shotsClearHandler');
 const wifiScanStatusStart =
     network.indexOf('esp_err_t ShotStopperNetwork::wifiScanStatusHandler');
 if (logHandlerStart < 0 || shotsHandlerStart < 0 || wifiScanStatusStart < 0 ||

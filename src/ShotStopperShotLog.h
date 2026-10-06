@@ -56,6 +56,22 @@ class ShotLog
 
   uint32_t nextRecordId() const { return store_.header.nextRecordId; }
 
+  // Change epoch for stream gating, mirroring HistoryLog::epoch(): one CRC
+  // over the header words every mutation moves (rating bumps generation —
+  // see updateRating; a full-ring append only advances nextRecordId). Curve
+  // stores mutate only alongside these words. Caller holds the store mutex.
+  uint32_t epoch() const {
+    uint32_t crc = crc32Update(0xFFFFFFFFU,
+        reinterpret_cast<const uint8_t *>(&store_.header.generation),
+        sizeof(store_.header.generation));
+    crc = crc32Update(crc,
+        reinterpret_cast<const uint8_t *>(&store_.header.nextRecordId),
+        sizeof(store_.header.nextRecordId));
+    return crc32Update(crc,
+        reinterpret_cast<const uint8_t *>(&store_.header.count),
+        sizeof(store_.header.count));
+  }
+
   ShotStatsView statsView() const {
     ShotLogRecord eligible[SHOT_LOG_STATS_WINDOW];
     size_t found = 0;
@@ -101,6 +117,10 @@ class ShotLog
     }
     found->extractionGuardEnabled =
         shotLogPackRating(found->extractionGuardEnabled, rating);
+    // The record bytes changed without moving count or nextRecordId, so bump
+    // generation: the modified slot content must win dual-slot selection and
+    // stream epochs hash these header words.
+    ++store_.header.generation;
     if (!persistNow) {
       dirty_ = true;
       return true;

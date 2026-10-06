@@ -475,6 +475,7 @@ void setup() {
     callbacks.shotLogSavePending = shotLogSavePending;
     callbacks.copyHistoryPage = copyHistoryPage;
     callbacks.historyEpoch = copyHistoryEpoch;
+    callbacks.shotLogEpoch = copyShotLogEpoch;
     callbacks.copyShotStats = copyShotStats;
     callbacks.deleteHistoryRecord = deleteHistoryRecord;
     callbacks.clearHistoryLog = clearHistoryLog;

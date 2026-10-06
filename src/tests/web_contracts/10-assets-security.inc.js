@@ -296,7 +296,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
         AbortController, setTimeout: () => 1, clearTimeout() {}, __WEBUI_TEXT__: key => key,
         fetch: path => {const response = deferred(); requests.push(path); responses.push(response); return response.promise;}});
       vm.runInContext(slotSource, slots);
-      const records = view === 'history' ? '/api/v1/history?offset=0' : '/api/v1/stats?offset=0';
+      const records = view === 'history' ? '/api/v1/log' : '/api/v1/status/settings';
       const one = slots.api(records), two = slots.api(records),
         three = slots.api(records);
       const finish = () => responses.shift().resolve({ok: true, text: async () => '{}'});
@@ -321,33 +321,11 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       assert.equal(slots.deviceInFlight, 0, 'Network failure must release admission');
     }
 
-    for (const view of ['stats']) {
-      const response = deferred(), markup = deferred(), events = [];
-      const dataContext = vm.createContext({recordBusy: {stats: false},
-        viewSeq: 1, viewReady: markup.promise, webUiPollingActive: () => true,
-        shotsUrl: () => '/shots',
-        api: () => {events.push('fetch'); return response.promise;},
-        statusPageOk: (_, state) => !!state,
-        applyCommonStatus: () => events.push('state'),
-        applyShotPage: () => events.push('apply'),
-        renderShots: () => events.push('render'),
-        updateFirmwareFooter() {}, noteReachOk() {}, noteReachFail: () => events.push('error'),
-        maybeLoadMoreShots() {}});
-      vm.runInContext(rawRuntimeJs.split('\n').find(line => line.startsWith('async function fetchRecordPage(')), dataContext);
-      const loading = dataContext.fetchRecordPage(0, 10, 'replace');
-      assert.deepEqual(events, ['fetch'], 'Start the single record request while markup loads');
-      response.resolve({ui: {}}); await flush();
-      assert.deepEqual(events, ['fetch'], 'A fast response must wait for its markup');
-      markup.resolve(); await flush();
-      assert.equal(await loading, true);
-      assert.deepEqual(events, ['fetch', 'state', 'apply', 'render']);
-      const late = deferred(); dataContext.api = () => late.promise;
-      const old = dataContext.fetchRecordPage(0, 10, 'replace');
-      dataContext.viewSeq++;
-      const before = events.length; late.resolve({ui: {}});
-      assert.equal(await old, false);
-      assert.equal(events.length, before, 'Superseded navigation cannot apply state or records');
-    }
+    // Record pages have no REST reads left; the remaining per-view fetches
+    // are the claim-gated status pages, exercised by the lifecycle suites.
+    assert(!rawRuntimeJs.includes('/api/v1/stats?offset=') &&
+           !rawRuntimeJs.includes('/api/v1/history?offset='),
+        'record pages must subscribe over the owned WebSocket, not read REST');
 
     const assets = {stats: deferred(), history: deferred()}, secondary = deferred(),
       assetEvents = [], initialized = [], sections = {};
@@ -380,7 +358,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       const events = [], markup = deferred(), status = deferred(), data = deferred(), bodyClasses = new Set();
       const path = view === 'home' ? '/' : '/' + view;
       const r = vm.createContext({activeView: '', routeSeq: 0, logTimer: 0,
-        shotsTimer: 0, jsMods: new Map(),
+        jsMods: new Map(),
         ROUTES: {[path]: view}, knownPath: () => path, viewToPath: () => path,
         location: {pathname: path}, history: {}, stopExtraPolls() {}, placePill() {}, markNavActive() {},
         ensureView: () => {events.push('markup'); return markup.promise;},
@@ -391,10 +369,11 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
           withPollGate: fn => fn(), webUiPollingActive: () => true,
           setActiveView() {}, armStatusTimer() {}, applyDiagnosticNavigation() {},
           startDiagnosticStream() {}, stopDiagnosticStream() {},
+          startStatsStream: () => {events.push('data'); return data.promise;},
+          stopStatsStream() {},
           startHistoryStream: () => {events.push('data'); return data.promise;},
           stopHistoryStream() {},
           loadStatus: () => {events.push('status'); return status.promise;},
-          loadShots: () => {events.push('data'); return data.promise;},
           loadLog: () => {events.push('data'); return data.promise;},
           hideHomeBoot: () => events.push('fade'), message: () => events.push('error')}});
       vm.runInContext(routeSource, r);
@@ -419,7 +398,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       assert.equal(events.slice(beforeFailure).includes('error'), true, view + ': expose lazy-load failure');
       assert.equal(events.slice(beforeFailure).includes('fade'), false, view + ': failed markup cannot reveal the page');
       r.ensureView = async () => {};
-      const loadName = view === 'stats' ? 'loadShots' : view === 'history' ? 'startHistoryStream' : 'loadStatus';
+      const loadName = view === 'stats' ? 'startStatsStream' : view === 'history' ? 'startHistoryStream' : 'loadStatus';
       r.R[loadName] = async () => false;
       await r.renderRoute(path);
       assert.equal(events.at(-1), 'error', view + ': expose initial data failure');
@@ -637,8 +616,10 @@ if (htmlBytes > 85800) {
 // append fetches, strict frame validation, and the navigation visibility move
 // onto Home deltas) adds ~2.6 KB of JS source allowance while deleting the
 // REST pull plumbing; compressed asset and firmware limits stay fixed.
-if (jsBytes > 259000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 259000)`);
+// The Stats stream (continuation assembly, export window, row validation)
+// adds ~4 KB more; compressed asset and firmware limits stay fixed.
+if (jsBytes > 262400) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 262400)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -679,8 +660,9 @@ if (jsBytes > 259000) {
 // wrapper in HTML; state machine, session keep-alive, and popstate hook in JS).
 // Include the same ~2.6 KB history WebSocket allowance described above; the
 // deleted REST probe and pull plumbing return part of it.
-if (htmlBytes + jsBytes > 344000) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 344000)`);
+// Include the same ~4 KB Stats stream allowance described above.
+if (htmlBytes + jsBytes > 348000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 348000)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||

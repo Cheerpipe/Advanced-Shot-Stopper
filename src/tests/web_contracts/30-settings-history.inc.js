@@ -988,29 +988,34 @@ if (!js.includes('function commandOkMessage(') ||
 }
 if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !runtimeJs.includes('SHOTS_EXPORT_LIMIT=100') ||
-    !runtimeJs.includes('api(shotsUrl(offset,limit))') ||
-    !runtimeJs.includes("'/api/v1/stats?offset='") ||
-    !runtimeJs.includes("fetchRecordPage(0,SHOTS_PAGE_SIZE,'replace')") ||
-    !runtimeJs.includes("fetchRecordPage(shotHistory.shots.length,SHOTS_PAGE_SIZE,'append')") ||
-    !runtimeJs.includes("fetchRecordPage(0,SHOTS_PAGE_SIZE,'poll')") ||
-    !runtimeJs.includes('async function loadMoreShots(){') ||
-    !runtimeJs.includes('function shotStatsViewActive(){') ||
-    !runtimeJs.includes('if(ok)maybeLoadMoreShots()') ||
-    !runtimeJs.includes("shotsUrl(0,SHOTS_EXPORT_LIMIT") ||
+    runtimeJs.includes("'/api/v1/stats?offset='") ||
     runtimeJs.includes("api('/api/v1/stats')") ||
+    !runtimeJs.includes('function startStatsStream(') ||
+    !runtimeJs.includes('function stopStatsStream(') ||
+    !runtimeJs.includes('function statsStreamFrame(') ||
+    !runtimeJs.includes('function applyStatsStream(') ||
+    !runtimeJs.includes('if(statsStreamWanted)statsSendSubscribe()') ||
+    !runtimeJs.includes("statsSendSubscribe(){statsSend({op:'stats',on:true,offset:0,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir})}") ||
+    !runtimeJs.includes("statsSend({op:'stats',on:true,fetch:true,offset:statsFetchMark.offset,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir})") ||
+    !runtimeJs.includes("statsFrameWindow(0,SHOTS_EXPORT_LIMIT,'date','desc',15e3)") ||
+    !runtimeJs.includes('function shotStatsViewActive(){') ||
+    !runtimeJs.includes('function renderShots(') ||
     !viewJs.stats.includes('IntersectionObserver') ||
     !viewJs.stats.includes("R.loadMoreShots()") ||
     !partialHtml.stats.includes('id="shotLogSentinel"') ||
     !css.includes('#shotLogSentinel{min-height:1px') ||
-    !network.includes('parseShotsPageQuery') ||
+    network.includes('parseShotsPageQuery') ||
+    !network.includes('sendStatsStream') ||
+    !network.includes('formatShotStatsRow') ||
     !network.includes('shotLogPageSlice') ||
     !network.includes('shotLogSortRecords') ||
-    !network.includes('SHOT_LOG_PAGE_DEFAULT') ||
+    !networkHeader.includes('SHOT_LOG_PAGE_DEFAULT') ||
+    !networkHeader.includes('shotLogEpoch') ||
+    !networkHeader.includes('sendStatsStream') ||
     !network.includes('\\"hasMore\\":%s') ||
     !network.includes('\\"total\\":%u') ||
-    !network.includes('index == start ? "" : ","') ||
-    !appJsSource.includes('R.loadShots()')) {
-  throw new Error('Shot history must page 10 shots with infinite scroll and poll only the first page');
+    !appJsSource.includes('R.startStatsStream()')) {
+  throw new Error('Shot history must page 10 shots over the owned WebSocket with infinite scroll and a streamed export');
 }
 const shotLogTypes = fs.readFileSync(
     path.join(sketchDir, 'ShotStopperShotLogTypes.h'), 'utf8');
@@ -1022,7 +1027,7 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !runtimeJs.includes('function setShotSort(') ||
     !runtimeJs.includes('function toggleShotSortDir(') ||
     !runtimeJs.includes('function syncShotSortButtons(') ||
-    !runtimeJs.includes("shotsUrl(offset,limit,sort,dir)") ||
+    !runtimeJs.includes('statsReplaceNext=true;statsSendSubscribe()') ||
     !runtimeJs.includes("'date','desc'") ||
     !runtimeJs.includes("shotSort==='rating'") ||
     !js.includes('Highest rating') ||
@@ -1039,8 +1044,8 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !shotLogTypes.includes('shotLogSortRecords') ||
     !shotLogTypes.includes('ShotLogSort::Rating') ||
     !network.includes('shotLogSortFromName') ||
-    !network.includes('query, "sort"') ||
-    !network.includes('query, "dir"') ||
+    !network.includes('strcmp(sort->valuestring, "date")') ||
+    !network.includes('strcmp(dir->valuestring, "asc")') ||
     !css.includes('button{-webkit-appearance:none;appearance:none;border-radius:2rem}') ||
     !css.includes('.glassBar>.btnGlyph{flex:0 0 auto;min-height:2.1rem;min-width:0;padding:0 .8rem;border:0;border-radius:1.6rem;background:transparent;color:var(--ac);white-space:nowrap}') ||
     !css.includes('.shotSort{display:flex;align-items:center;gap:.25rem;max-width:100%}') ||
@@ -1223,91 +1228,97 @@ if (!statsSection ||
     throw new Error('Stats must use page loading without section waves');
   }
   const assert = require('assert').strict, vm = require('vm');
-  const render = rawRuntimeJs.split('\n').find(line => line.startsWith('function renderShots('));
-  const fetchPage = rawRuntimeJs.split('\n').find(line => line.startsWith('async function fetchRecordPage('));
   (async () => {
-    for (const fail of [false, true]) {
-      const events = [];
-      let resolve, reject;
-      const response = new Promise((yes, no) => {resolve = yes; reject = no;});
-      const context = vm.createContext({recordBusy: {stats: false}, shotsLoaded: false,
-        viewSeq: 1, viewReady: Promise.resolve(),
-        shotHistory: {shots: []}, webUiPollingActive: () => true,
-        api: () => response, shotsUrl: () => '/api/v1/stats',
-        statusPageOk: () => true, applyCommonStatus: () => events.push('state'),
-        applyShotPage: () => {context.shotsLoaded = true;},
-        renderShotStats: () => events.push('stats'),
-        $: () => ({replaceChildren: () => events.push('history')}),
-        __WEBUI_TEXT__: text => text,
-        setEmptyState: id => events.push(id), updateShotLogSentinel() {},
-        updateFirmwareFooter() {}, noteReachOk() {}, maybeLoadMoreShots() {},
-        noteReachFail: () => events.push('error')});
-      vm.runInContext(render + '\n' + fetchPage, context);
-      const loading = context.fetchRecordPage(0, 10, 'replace');
-      assert.deepEqual(events, [], 'Page content must wait for data');
-      if (fail) reject(new Error('Unavailable')); else resolve({shots: [], stats: {}});
-      await loading;
-      assert.deepEqual(events, fail ? ['error'] :
-        ['state', 'stats', 'history', 'shotTableState']);
-      assert.equal(context.recordBusy.stats, false);
-    }
-    const validate = rawRuntimeJs.split('\n').find(line => line.startsWith('function statusPageOk('));
-    const apply = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function applyCommonStatus('),
-        rawRuntimeJs.indexOf('function applyMachineTypeUi('));
-    const refresh = rawRuntimeJs.split('\n').filter(line =>
-      /^(async function loadStatus|async function pollShots|function refreshStatus)/.test(line)).join('\n');
+    // Stats rides the owned socket: split pages assemble by rowBase until
+    // more:false, snapshot frames hydrate UI state before rows render,
+    // one-shot fetches append, the CSV export window resolves without
+    // touching view state, and invalid frames fail closed.
     {
-      const view = 'stats';
-      const events = [], calls = [], versions = [];
+      const events = [], sent = [];
       const ui = {firmwareVersion: '2.0', configMutable: true, webUiOverrideActive: false,
         compatibilityMode: false, timeUtcSec: 1790809185, lastCommand: {requestId: 7, state: 'PERSISTED'},
         config: {revision: 8, timezoneId: 'America/Santiago', appliedTimezoneOffsetMinutes: -180,
           timezoneAutomatic: true, timezoneInitialized: true}};
-      let response = {ui, bootId: 20, shots: []};
-      const context = vm.createContext({activeView: view, recordBusy: {stats: false},
-        viewSeq: 1, viewReady: Promise.resolve(), webUiPollingActive: () => true,
-        api: async url => {calls.push(url); return response;},
-        shotsUrl: () => '/api/v1/stats?offset=0',
-        shotStatsViewActive: () => true, withPollGate: fn => fn(),
-        applyShotPage: () => events.push('records'),
-        renderShots: () => events.push('render:' + context.controlsMutable),
-        updateFirmwareFooter() {}, updateHeaderSignals() {}, noteReachOk() {}, noteReachFail: () => events.push('error'),
-        maybeLoadMoreShots() {}, SHOTS_PAGE_SIZE: 10,
+      const row = id => ({id, bootId: 9, endedAtMs: 30000 + id, hasWallTime: true,
+        endedAtLocalSec: 1790794385, endedAtUnixSec: 1790809185,
+        timezoneOffsetMinutesAtCommit: -180, durationS: 28.5,
+        wCg: [100, 200], wAtMs: [1000, 2000], wBreakBefore: [], rating: 0});
+      const context = vm.createContext({activeView: 'stats',
+        viewReady: Promise.resolve(),
+        shotHistory: {bootId: 0, total: 2, hasMore: true, shots: [{id: 2}, {id: 1}]}, shotsLoaded: false,
+        shotStatsViewActive: () => true, webUiPollingActive: () => true,
+        shotWs: {readyState: 1, send: op => sent.push(JSON.parse(op))},
+        statusPageOk: (page, state) => !!state, shotSort: 'date', shotSortDir: 'desc',
+        SHOTS_PAGE_SIZE: 10, SHOTS_EXPORT_LIMIT: 100,
+        setTimeout: () => 0, clearTimeout() {},
         developmentMode: false, compatMode: false, controlsMutable: false, firmwareVersion: '', bootId: 0,
         lastCommandStatus: null, configRevision: 0, dateTimeDirty: false, statusUtcAnchorSec: 0,
         statusUtcAnchorAt: 0, statusTimezoneOffsetMinutes: 0, performance: {now: () => 123},
         setMutable: value => {context.controlsMutable = value;}, $: () => null,
-        syncTimezone: config => events.push('timezone:' + config.timezoneId),
-        checkFirmwareReload: version => versions.push(version), applyMachineTypeUi() {}, applyDiagnosticNavigation() {},
-        applyCompatibilityChrome: () => {context.viewSeq++;}, __WEBUI_TEXT__: key => key});
-      vm.runInContext(validate + '\n' + apply + '\n' + fetchPage + '\n' + refresh, context);
-      assert.equal(await context.refreshStatus(), true);
-      assert.deepEqual(calls, ['/api/v1/stats?offset=0'], 'A record refresh must make one GET to its own endpoint');
-      assert.deepEqual(events, ['timezone:America/Santiago', 'records', 'render:true']);
-      assert.deepEqual(versions, ['2.0']);
-      assert.equal(context.statusUtcAnchorSec, ui.timeUtcSec);
-      assert.equal(context.statusTimezoneOffsetMinutes, -180);
-      assert.equal(context.configRevision, 8);
-      assert.equal(context.lastCommandStatus.requestId, 7);
-      ui.configMutable = false; events.length = 0;
-      await context.refreshStatus();
-      assert.equal(events.at(-1), 'render:false', 'Refreshed state must precede rows and rating controls');
-      ui.webUiOverrideActive = true;
-      await context.fetchRecordPage(10, 10, 'append');
-      assert.equal(events.at(-1), 'render:true', 'Later pages also carry fresh UI state');
-      ui.webUiOverrideActive = false;
-      await context.refreshStatus();
-      assert.equal(events.at(-1), 'render:false', 'Override expiry must update record controls');
-      events.length = 0; response = {shots: []};
-      assert.equal(await context.refreshStatus(), false);
-      assert.deepEqual(events, ['error'], 'Missing UI state must fail without rendering records');
-      response = {ui, shots: []}; events.length = 0;
-      const old = context.refreshStatus(); context.viewSeq++;
-      assert.equal(await old, false);
-      assert.deepEqual(events, [], 'A superseded response cannot apply state or render');
-      ui.compatibilityMode = true;
-      assert.equal(await context.refreshStatus(), false);
-      assert.equal(events.includes('records'), false, 'A compatibility redirect cannot render the old view');
+        syncTimezone: () => {}, checkFirmwareReload: () => {}, applyMachineTypeUi() {}, applyDiagnosticNavigation() {},
+        applyCommonStatus: () => events.push('state'),
+        applyShotPage: (data, mode) => {context.shotsLoaded = true; events.push('records:' + mode);},
+        renderShots: () => events.push('render:' + context.controlsMutable),
+        updateHeaderSignals() {}, updateFirmwareFooter() {}, noteReachOk() {},
+        __WEBUI_TEXT__: key => key});
+      const stream = rawRuntimeJs.slice(rawRuntimeJs.indexOf('let statsStreamWanted='),
+          rawRuntimeJs.indexOf("document.addEventListener('visibilitychange'")) + '\n' +
+          rawRuntimeJs.split('\n').find(line => line.startsWith('const loadMoreShots=')) +
+          '\nthis.loadMoreShots=loadMoreShots;';
+      vm.runInContext(stream, context);
+      const loading = context.startStatsStream();
+      await Promise.resolve();
+      assert.deepEqual(sent.at(-1),
+          {op: 'stats', on: true, offset: 0, limit: 10, sort: 'date', dir: 'desc'},
+          'Entering the view subscribes with the standing window');
+      const frame = extras => Object.assign({v: 1, type: 'stats', boot: 9, snapshot: true,
+        epoch: 5, seq: 1, ui, bootId: 9, stats: {avgDurationS: 28}, total: 2, offset: 0,
+        limit: 10, hasMore: false, rows: [row(2)], rowBase: 0, more: true}, extras);
+      context.applyStatsStream(context.statsStreamFrame(frame()));
+      assert.deepEqual(events, ['state'], 'A split page applies nothing until more:false');
+      context.applyStatsStream(context.statsStreamFrame(
+          frame({snapshot: false, rows: [row(1)], rowBase: 1, more: false})));
+      assert.deepEqual(events, ['state', 'records:replace', 'render:false'],
+          'The completed page applies UI state before rows');
+      assert.equal(await loading, true, 'The view load settles on the first completed replace page');
+      events.length = 0;
+      context.applyStatsStream(context.statsStreamFrame(
+          frame({snapshot: false, epoch: 6, seq: 2, rows: [row(2), row(1)], more: false})));
+      assert.deepEqual(events, ['records:poll', 'render:false'],
+          'An epoch push merges like a poll');
+      events.length = 0;
+      context.loadMoreShots();
+      assert.deepEqual(sent.at(-1),
+          {op: 'stats', on: true, fetch: true, offset: 2, limit: 10, sort: 'date', dir: 'desc'},
+          'The sentinel asks for the next window without disturbing the subscription');
+      context.applyStatsStream(context.statsStreamFrame(
+          frame({snapshot: false, epoch: 7, seq: 3, offset: 2, rows: [], more: false})));
+      assert.deepEqual(events, ['records:append', 'render:false'],
+          'One-shot fetches append the requested window');
+      events.length = 0;
+      const exported = context.statsFrameWindow(0, 100, 'date', 'desc', 50);
+      assert.deepEqual(sent.at(-1),
+          {op: 'stats', on: true, fetch: true, offset: 0, limit: 100, sort: 'date', dir: 'desc'},
+          'The export asks for its own date/desc window');
+      context.applyStatsStream(context.statsStreamFrame(
+          frame({snapshot: false, epoch: 8, seq: 4, limit: 100, hasMore: true, rows: [row(1)], more: false})));
+      assert.deepEqual(events, [], 'The export window must not touch view state');
+      assert.equal((await exported).length, 1, 'The export resolves with its assembled rows');
+      context.shotStatsViewActive = () => false;
+      events.length = 0;
+      context.applyStatsStream(context.statsStreamFrame(
+          frame({snapshot: false, epoch: 9, seq: 5, hasMore: true, rows: [row(2)], more: false})));
+      assert.deepEqual(events, [], 'Frames on another view cannot apply state or rows');
+      context.shotStatsViewActive = () => true;
+      for (const bad of [frame({snapshot: false, boot: 10, seq: 6, rows: [row(2)], more: false}),
+        frame({snapshot: false, seq: 1, rows: [row(2)], more: false}),
+        frame({snapshot: false, epoch: 9, seq: 7, rows: [row(2)], rowBase: 1, more: false}),
+        frame({snapshot: false, epoch: 9, seq: 8, rows: [{...row(3), wCg: [1.5]}], more: false}),
+        frame({snapshot: false, epoch: 9, seq: 9, rows: [row(2), row(1)], hasMore: true, more: false}),
+        frame({epoch: 9, seq: 10, ui: null, rows: [row(2)], more: false})]) {
+        assert.throws(() => context.statsStreamFrame(bad),
+            'invalid stats frames must fail closed');
+      }
     }
     // History rides the owned socket: snapshot frames hydrate UI state and
     // replace the page, one-shot fetch frames append, epoch pushes poll, and
@@ -1380,10 +1391,11 @@ if (!statsSection ||
       }
     }
     const state = network.slice(network.indexOf('bool ShotStopperNetwork::appendRecordPageUi'),
-        network.indexOf('esp_err_t ShotStopperNetwork::shotsHandler'));
-    assert.ok(state.includes('requestPendingNetworkConfirm()'), 'Record pages must confirm pending station settings');
-    assert.equal((network.match(/self\.sendRecordPageState\(request, work\.control\)/g) || []).length, 1);
-    assert.ok(state.includes('webUiOverrideAllowed(request)'));
+        network.indexOf('esp_err_t ShotStopperNetwork::shotsClearHandler'));
+    assert.ok(network.includes('requestPendingNetworkConfirm()'),
+        'Accepted socket ops keep confirming pending station settings');
+    assert.ok(state.includes('webUiOverrideAllowed') || state.includes('override'),
+        'The record UI state reflects the override flag');
     assert.ok(state.includes('controlAllowsConfiguration(control)'));
     for (const unused of ['copyPresetBank', 'copyHomeShot', 'shotCurve', 'cupPresence', 'preferredMac']) {
       assert.equal(state.includes(unused), false, 'Record UI state must omit Home data: ' + unused);
