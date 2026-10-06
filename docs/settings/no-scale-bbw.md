@@ -49,7 +49,10 @@ way, and a **No scale** badge replaces the brew mode. The weight chart and
 target error have nothing to measure, so they stay quiet. About half a minute
 after the shot ends, the card goes back to showing the last shot you poured
 with a scale. Shots made with a connected scale keep the usual weight card
-unchanged.
+unchanged. While the timer is running, its tenths advance smoothly between
+updates from the controller. The final time comes from the controller. If
+updates stop arriving for 1.5 seconds, the timer freezes and the card shows that
+its data is out of date; it resumes from the controller's time when updates return.
 
 Home Assistant presents this three-mode policy as one switch. Turning it OFF
 sets **Allow manual brewing**. Turning it ON restores the last non-off mode that

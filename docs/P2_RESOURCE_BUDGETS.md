@@ -50,12 +50,20 @@ the two follow-up measurements differ by 48 bytes of asset/toolchain
 padding for the same source), and to 44,016 and 44,008 bytes when the Home
 shot card gained its no-scale timer layout (measured 2,317,712 image bytes;
 the card's new `scaleAvailable` field plus the slightly larger localized
-runtime account for about 110 bytes after flash compression).
+runtime account for about 110 bytes after flash compression). The browser-local
+no-scale timer raises those allowances by another 320 bytes, to 44,336 and
+44,328 bytes. The reference development build measures 2,318,032 image bytes
+and 2,317,919 linked bytes. This change adds browser clock state and animation
+only: DIRAM remains 189,078 bytes, flash code remains 1,546,752 bytes, and
+rodata measures 599,364 bytes within its existing allowance. The combined
+compressed Web asset cap remains 120,700 bytes; 100 bytes of unused shell
+allowance move to the runtime cap. Firmware task ownership, control timing,
+OTA identity and partitions remain unchanged.
 TLS certificate verification and the IANA 2026d catalog remain included.
 The DIRAM baseline stays at 182,518 bytes with an 8,192-byte allowance;
 the current build uses 189,078 bytes. External BSS remains under its separately
 reviewed 800 KiB ceiling. The 3 MiB OTA slot remains the hard image limit,
-with 828,016 bytes (about 26%) free in the measured build. Static measurements
+with 827,696 bytes (about 26%) free in the measured build. Static measurements
 do not qualify runtime heap or stack behavior.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to

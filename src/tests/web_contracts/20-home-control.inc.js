@@ -257,6 +257,59 @@
     throw new Error('Firmware timer and stream must follow ownership/visibility lifecycle');
 }
 
+{
+  const assert=require('assert').strict,frames=new Map(),labels=[];
+  let now=0,id=0,owner=true;
+  const document={hidden:false};
+  const timer=new Function('performance','requestAnimationFrame','cancelAnimationFrame','document',
+    'webUiPollingActive','setHomeSub','$','ms','paintShotStream',
+    "let shotStale=false,activeView='home';"+
+    runtimeJs.slice(runtimeJs.indexOf('let noScaleClock='),runtimeJs.indexOf('// The diagnostic stream rides'))+
+    ';return{sync:syncNoScaleTimer,elapsed:noScaleTimerElapsed,schedule:scheduleNoScaleTimer,'+
+    'clock:()=>noScaleClock,stale:()=>shotStale,setStale:v=>shotStale=v,view:v=>activeView=v};')(
+    {now:()=>now},fn=>{frames.set(++id,fn);return id},id=>frames.delete(id),document,
+    ()=>owner,(_id,label)=>labels.push(label),()=>({setAttribute(){}}),
+    (v,n)=>(v/1000).toFixed(n),()=>{});
+  const card={valid:true,live:true,scaleAvailable:false,elapsedMs:1000};
+  const frame={boot:1,cycle:1,phase:'active',card};
+  const tick=()=>{const [id,fn]=frames.entries().next().value;frames.delete(id);fn()};
+  timer.sync(frame);timer.schedule();
+  now=500;tick();
+  assert.equal(labels.at(-1),'1.5 s','Timer must advance without another message');
+  timer.sync({...frame,card:{...card,elapsedMs:1300}});
+  now=600;tick();
+  assert.equal(timer.elapsed(),1590,'A late message must slow the clock gradually, without a backwards jump');
+  timer.sync({...frame,card:{...card,elapsedMs:1900}});
+  now=700;tick();
+  assert.equal(timer.elapsed(),1700,'An ahead message must correct gradually');
+  now=2100;tick();
+  assert(timer.stale(),'Silence must freeze the timer after 1.5 seconds');
+  const frozen=timer.elapsed();now=4000;
+  assert.equal(timer.elapsed(),frozen,'Frozen timer must not advance indefinitely');
+  timer.sync({...frame,card:{...card,elapsedMs:4500}});timer.setStale(false);timer.schedule();
+  assert.equal(timer.elapsed(),4500,'Recovery must reanchor to firmware time');
+  timer.setStale(true);now=4100;tick();
+  assert.equal(timer.elapsed(),4500,'Explicit disconnect must freeze immediately');
+  timer.sync({...frame,card:{...card,elapsedMs:4600}});timer.setStale(false);timer.schedule();
+  document.hidden=true;tick();assert.equal(frames.size,0,'Hidden page must stop animation');
+  document.hidden=false;timer.schedule();timer.view('stats');tick();
+  assert.equal(frames.size,0,'Leaving Home must stop animation');
+  timer.view('home');timer.schedule();owner=false;tick();
+  assert.equal(frames.size,0,'Losing UI ownership must stop animation');
+  owner=true;
+  timer.sync({...frame,cycle:2,card:{...card,elapsedMs:100}});
+  assert.equal(timer.elapsed(),100,'New cycle must reset the timer');
+  timer.sync({...frame,boot:2,card:{...card,elapsedMs:200}});
+  assert.equal(timer.elapsed(),200,'New boot must reset the timer');
+  timer.schedule();
+  timer.sync({...frame,phase:'pending',card:{...card,live:false,elapsedMs:195}});
+  assert.equal(timer.clock(),null,'End must use exact firmware duration rather than local estimate');
+  assert.equal(frames.size,0,'End must cancel animation through the retained window');
+  timer.sync({...frame,card:{...card,scaleAvailable:true}});timer.schedule();
+  assert.equal(timer.clock(),null,'Scale shots must never use the local clock');
+  assert.equal(frames.size,0);
+}
+
 if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     statusSection[1].includes('class="statusColumn"') ||
     statusSection[1].includes('class="row"') ||

@@ -423,8 +423,10 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // Transfer 100 bytes of shell headroom to the desktop Home scrolling header.
 // Transfer 100 bytes of shell headroom to the approved frosted-glass sliding
 // navigation pill (glass material, pill, hover ink); total cap stays fixed.
-if (generated.jsGzip.length > 4384) {
-  throw new Error('Compressed Web UI shell JS exceeds the 4384-byte gzip budget');
+// Transfer 100 bytes of unused shell allowance to the no-scale local clock.
+// The combined flash, firmware image and OTA limits remain unchanged.
+if (generated.jsGzip.length > 4284) {
+  throw new Error('Compressed Web UI shell JS exceeds the 4284-byte gzip budget');
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
@@ -497,8 +499,9 @@ if (generated.cssGzip.length > 9500) {
 // The Home shot hero card raises the sentinel runtime cap to 45500 bytes.
 // The view-scoped diagnostic stream (frame validation, subscription lifecycle,
 // and the shared live section renderer) raises the cap to 46100 bytes.
-if (sentinelRuntimeGzip.length > 46100) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 46100-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The local timer receives the same 100 bytes transferred from shell JS.
+if (sentinelRuntimeGzip.length > 46200) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 46200-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
