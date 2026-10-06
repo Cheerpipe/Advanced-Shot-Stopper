@@ -136,7 +136,10 @@ bool ShotStopperNetwork::sendHomeStream(ShotStreamSession &session,
   escapeJsonString(control.preferredScaleName, g_work->historyJson, NetworkWorkBuf::kHistoryJson);
   delta.field("scale.preferredName", "\"%s\"", g_work->historyJson);
   delta.field("scale.protocol", "\"%s\"", control.scaleProtocol);
-  delta.field("scale.macCachePauseRemainingMs", "%lu", static_cast<unsigned long>(control.scaleMacCachePauseRemainingMs));
+  // Whole-second ceiling (UI resolution): the delta hash must change only
+  // when the displayed countdown does, not on every stream tick.
+  delta.field("scale.macCachePauseRemainingMs", "%lu",
+              static_cast<unsigned long>((control.scaleMacCachePauseRemainingMs + 999U) / 1000U * 1000U));
   delta.field("scale.lastDisconnectReasonName", "\"%s\"", scaleDisconnectReasonName(control.scaleLastDisconnectReason));
   delta.field("connections.wifiConnected", bool(network.staState == StaState::CONNECTED));
   delta.field("connections.wifiLevel", "%s", connectionSignalLevelJson(
@@ -173,7 +176,10 @@ bool ShotStopperNetwork::sendHomeStream(ShotStreamSession &session,
   delta.field("noScaleShotGuard.enabled", bool(control.noScaleShotGuardEnabled));
   delta.field("noScaleShotGuard.armed", bool(control.noScaleShotGuardArmed));
   delta.field("noScaleShotGuard.mode", "\"%s\"", noScaleBbwModeId(config.noScaleBbwMode));
-  delta.field("noScaleShotGuard.cooldownRemainingMs", "%lu", static_cast<unsigned long>(control.noScaleShotGuardCooldownRemainingMs));
+  // Whole-minute ceiling (UI resolution): an hour-long cooldown must not wake
+  // the idle stream on every tick.
+  delta.field("noScaleShotGuard.cooldownRemainingMs", "%lu",
+              static_cast<unsigned long>((control.noScaleShotGuardCooldownRemainingMs + 59999U) / 60000U * 60000U));
   delta.field("noScaleShotGuard.scaleUsable", bool(control.scaleAvailable && control.weightStreamState == WeightStreamState::FRESH));
   if (callbacks_.copyPresetBank) callbacks_.copyPresetBank(&g_work->presetBank);
   else memset(&g_work->presetBank, 0, sizeof(g_work->presetBank));
