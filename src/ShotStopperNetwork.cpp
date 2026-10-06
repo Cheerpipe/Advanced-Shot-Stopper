@@ -61,8 +61,9 @@ namespace shotstopper {
 WallClock g_wallClock;
 
 struct NetworkWorkBuf {
-  // Fits diagnostic status with up to 20 task rows and 16 loop-phase rows,
-  // plus Home's worst-case 22 KiB timestamped curve in the shared buffer.
+  // Fits the diagnostic status with up to 20 task rows and 16 loop-phase
+  // rows, plus the record-page UI section and debug-export chunks that
+  // share this buffer.
   static constexpr size_t kStatusJson = 40960;
   // Worst case: 8 presets with fully escaped 23-char names plus every
   // per-preset rule field the Home accordion renders.
@@ -1128,7 +1129,7 @@ ShotStopperNetwork *ShotStopperNetwork::instance_ = nullptr;
 #include "network/ShotStopperWifi.inc"
 #include "network/ShotStopperHttpLifecycle.inc"
 #include "network/ShotStopperHttpAuthAssets.inc"
-#include "network/ShotStopperShotStream.inc"
+#include "network/ShotStopperUiStream.inc"
 #include "network/ShotStopperStatus.inc"
 #include "diagnostics/ShotStopperNetworkDiagnostics.inc"
 #include "diagnostics/ShotStopperCrashRoutes.inc"

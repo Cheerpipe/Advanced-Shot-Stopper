@@ -116,8 +116,9 @@ UI Stats page: `shotCount`, `totalDurationS`, `avgDurationS`, `avgYieldG`,
 chart. The window is the newest ten eligible shot records, including manual and
 timer-only endings. `avgErrorPct` is the mean absolute percentage miss of only
 normal BBW target cuts in that window. Unavailable averages are `null`.
-The controller derives these values from RAM; the same object appears in every
-`GET /api/v1/stats` response header under `stats`, alongside `savePending`.
+The controller derives these values from RAM; the Web UI streams the same
+object over its data WebSocket, and this payload carries it under `stats`,
+alongside `savePending`.
 
 `shotState` is `idle` or `brewing`. `wifiMac` and `bluetoothMac` repeat the
 station interface addresses as upper-case `AA:BB:CC:DD:EE:FF` strings; the

@@ -24,7 +24,7 @@ uninitMemberVarNoCtor:*/src/ShotStopperJsonArena.h
 # its contents are consumed; initializing it would defeat that safety guard.
 uninitMemberVarNoCtor:*/src/ShotStopperResetGuard.h
 # Owner: web-stream. Review/expiry: 2027-03-01.
-# shotStreamCurveHash (network/ShotStopperShotStream.inc) feeds one scalar
+# uiStreamCurveHash (network/ShotStopperUiStream.inc) feeds one scalar
 # byte to crc32Update(hash, &split, 1); the callee loop in this header is
 # bounded by that length argument, but Cppcheck 2.22.0 cannot bound the
 # inlined index to zero and reports objectIndex at the crc ^= data[index]

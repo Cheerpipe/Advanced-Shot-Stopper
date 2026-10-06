@@ -347,7 +347,7 @@ void ShotStopperNetwork::syncControlCriticalRf(bool active, bool publishTransiti
     rfGateGeneration_.fetch_add(1U, std::memory_order_acq_rel);
   }
   if (changed || publishTransition) {
-    shotStreamUrgent_.store(true, std::memory_order_release);
+    uiStreamUrgent_.store(true, std::memory_order_release);
     if (taskHandle_ != nullptr) xTaskNotifyGive(taskHandle_);
   }
 }

@@ -1,10 +1,10 @@
 // httpd owns framing, session contexts and serialization. The existing priority-1
 // network task queues at most one dispatch; it never sends or borrows JSON scratch.
 namespace {
-constexpr uint32_t kShotStreamBindMs = 5000, kShotStreamRetainMs = 30000;
+constexpr uint32_t kUiStreamBindMs = 5000, kUiStreamRetainMs = 30000;
 // Live shots keep the scale's 10 Hz; idle Home only needs edge pickup.
-constexpr uint32_t kShotStreamLiveMs = 100, kShotStreamIdleMs = 250;
-constexpr size_t kShotStreamRequestBytes = 160;
+constexpr uint32_t kUiStreamLiveMs = 100, kUiStreamIdleMs = 250;
+constexpr size_t kUiStreamRequestBytes = 160;
 // Stats pages carry full curves; multi-row frames accumulate under this
 // budget, one frame per dispatch tick (a continued page resumes where its
 // previous frame stopped). A maximal row (~20.7 KiB curve JSON plus scalars)
@@ -13,11 +13,11 @@ constexpr size_t kShotStreamRequestBytes = 160;
 constexpr size_t kStatsStreamFrameBytes = 20480;
 // WS header size: a failed write of at most this many bytes leaves the
 // stream clean, because nothing of that frame reached the socket.
-constexpr size_t kShotStreamHeaderMax = 14;
+constexpr size_t kUiStreamHeaderMax = 14;
 
 // Shared op validation for the view-scoped record subscriptions: an exact
 // field whitelist and bounded optional integers.
-bool shotStreamKnownFields(const cJSON *message, const char *const *names,
+bool uiStreamKnownFields(const cJSON *message, const char *const *names,
                            size_t count) {
   for (const cJSON *field = message->child; field; field = field->next) {
     bool ok = false;
@@ -29,13 +29,13 @@ bool shotStreamKnownFields(const cJSON *message, const char *const *names,
   return true;
 }
 
-bool shotStreamIntInRange(const cJSON *node, double low, double high) {
+bool uiStreamIntInRange(const cJSON *node, double low, double high) {
   return node == nullptr ||
          (cJSON_IsNumber(node) && node->valuedouble >= low &&
           node->valuedouble <= high && node->valuedouble == node->valueint);
 }
 
-bool shotStreamOriginMatches(const char *origin, const char *host) {
+bool uiStreamOriginMatches(const char *origin, const char *host) {
   if (!host || !host[0]) return false;
   char accepted[DEVICE_NAME_CAPACITY + 24];
   snprintf(accepted, sizeof(accepted), "http://%s", host);
@@ -44,7 +44,7 @@ bool shotStreamOriginMatches(const char *origin, const char *host) {
   return strcmp(origin, accepted) == 0;
 }
 
-uint32_t shotStreamCurveHash(const ShotCurveRecord &curve, uint16_t count) {
+uint32_t uiStreamCurveHash(const ShotCurveRecord &curve, uint16_t count) {
   uint32_t hash = crc32Update(0xFFFFFFFFU,
       reinterpret_cast<const uint8_t *>(curve.weightCg), count * sizeof(int16_t));
   hash = crc32Update(hash, reinterpret_cast<const uint8_t *>(curve.atMs),
@@ -56,16 +56,16 @@ uint32_t shotStreamCurveHash(const ShotCurveRecord &curve, uint16_t count) {
   return hash;
 }
 
-// Set by shotStreamSend for the senders: true when a failed call wrote
+// Set by uiStreamSend for the senders: true when a failed call wrote
 // nothing of a frame header (transient backpressure), so the frame can be
 // deferred to the next dispatch; a partial payload or a dead peer leaves it
 // false and the caller must close the session. httpd serializes every send
 // on its own thread, so the flag needs no lock.
-bool shotStreamSendCleanAbort = false;
+bool uiStreamSendCleanAbort = false;
 
-int shotStreamSendFailed(size_t done, size_t length) {
-  shotStreamSendCleanAbort =
-      done == 0 && length <= kShotStreamHeaderMax &&
+int uiStreamSendFailed(size_t done, size_t length) {
+  uiStreamSendCleanAbort =
+      done == 0 && length <= kUiStreamHeaderMax &&
       errno != EPIPE && errno != EBADF && errno != ECONNRESET &&
       errno != ENOTCONN && errno != ENOTSOCK;
   return -1;
@@ -73,14 +73,14 @@ int shotStreamSendFailed(size_t done, size_t length) {
 
 // IDF's WS sender calls send_fn once per header/payload and accepts short writes.
 // Complete each write or fail within 100 ms, including slow-client backpressure.
-int shotStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int flags) {
+int uiStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int flags) {
   const uint32_t started = millis();
   size_t done = 0;
   while (done < length) {
     const uint32_t age = millis() - started;
     if (age >= 100) {
       errno = EAGAIN;
-      return shotStreamSendFailed(done, length);
+      return uiStreamSendFailed(done, length);
     }
     fd_set writable;
     FD_ZERO(&writable);
@@ -88,16 +88,16 @@ int shotStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int 
     timeval wait = {0, static_cast<suseconds_t>((100 - age) * 1000)};
     const int ready = select(fd + 1, nullptr, &writable, nullptr, &wait);
     if (ready < 0 && (errno == EBADF || errno == EINVAL))
-      return shotStreamSendFailed(done, length);
+      return uiStreamSendFailed(done, length);
     if (ready <= 0) {
       // The write budget ran out with the socket still congested.
       errno = EAGAIN;
-      return shotStreamSendFailed(done, length);
+      return uiStreamSendFailed(done, length);
     }
     const int sent = send(fd, data + done, length - done, flags | MSG_DONTWAIT);
     if (sent > 0) done += static_cast<size_t>(sent);
     else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
-      return shotStreamSendFailed(done, length);
+      return uiStreamSendFailed(done, length);
   }
   return static_cast<int>(done);
 }
@@ -105,7 +105,7 @@ int shotStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int 
 
 #include "ShotStopperHomeStream.inc"
 
-esp_err_t ShotStopperNetwork::shotStreamHandshake(httpd_req_t *request) {
+esp_err_t ShotStopperNetwork::uiStreamHandshake(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   char origin[DEVICE_NAME_CAPACITY + 24] = {}, local[DEVICE_NAME_CAPACITY + 8] = {};
   const size_t length = httpd_req_get_hdr_value_len(request, "Origin");
@@ -114,17 +114,17 @@ esp_err_t ShotStopperNetwork::shotStreamHandshake(httpd_req_t *request) {
     return ESP_FAIL;
   const NetworkStatusSnapshot network = self.snapshot();
   snprintf(local, sizeof(local), "%s.local", network.mdnsHost);
-  if (!shotStreamOriginMatches(origin, network.staIp) &&
-      !shotStreamOriginMatches(origin, network.apIp) &&
-      !shotStreamOriginMatches(origin, local)) return ESP_FAIL;
+  if (!uiStreamOriginMatches(origin, network.staIp) &&
+      !uiStreamOriginMatches(origin, network.apIp) &&
+      !uiStreamOriginMatches(origin, local)) return ESP_FAIL;
   TaskLockGuard lock(self.dataMux_);
-  for (auto &session : self.shotStreams_) {
+  for (auto &session : self.uiStreams_) {
     if (session.fd != -1) continue;
-    session = ShotStreamSession{};
+    session = UiStreamSession{};
     session.fd = httpd_req_to_sockfd(request);
     session.openedAtMs = millis();
     request->sess_ctx = &session;
-    request->free_ctx = shotStreamFree;
+    request->free_ctx = uiStreamFree;
     // Bound incomplete incoming frames independently of ordinary HTTP/OTA.
     const timeval timeout = {0, 100000};
     setsockopt(session.fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
@@ -133,21 +133,21 @@ esp_err_t ShotStopperNetwork::shotStreamHandshake(httpd_req_t *request) {
   return ESP_FAIL;
 }
 
-void ShotStopperNetwork::shotStreamFree(void *context) {
+void ShotStopperNetwork::uiStreamFree(void *context) {
   if (!instance_ || !context) return;
   TaskLockGuard lock(instance_->dataMux_);
-  *static_cast<ShotStreamSession *>(context) = ShotStreamSession{};
+  *static_cast<UiStreamSession *>(context) = UiStreamSession{};
 }
 
-esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
+esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  auto *session = static_cast<ShotStreamSession *>(request->sess_ctx);
+  auto *session = static_cast<UiStreamSession *>(request->sess_ctx);
   if (!session) return ESP_FAIL;
   httpd_ws_frame_t frame = {};
-  char body[kShotStreamRequestBytes + 1] = {};
+  char body[kUiStreamRequestBytes + 1] = {};
   if (httpd_ws_recv_frame(request, &frame, 0) != ESP_OK ||
       frame.type != HTTPD_WS_TYPE_TEXT || !frame.final ||
-      frame.len == 0 || frame.len > kShotStreamRequestBytes) return ESP_FAIL;
+      frame.len == 0 || frame.len > kUiStreamRequestBytes) return ESP_FAIL;
   frame.payload = reinterpret_cast<uint8_t *>(body);
   if (httpd_ws_recv_frame(request, &frame, frame.len) != ESP_OK ||
       memchr(body, '\0', frame.len)) return ESP_FAIL;
@@ -202,10 +202,10 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
       const cJSON *dir = cJSON_GetObjectItemCaseSensitive(message, "dir");
       const cJSON *fetch = cJSON_GetObjectItemCaseSensitive(message, "fetch");
       const bool shapeOk =
-          cJSON_IsBool(on) && shotStreamKnownFields(message, kFields, 6);
+          cJSON_IsBool(on) && uiStreamKnownFields(message, kFields, 6);
       const bool numbersOk =
-          shotStreamIntInRange(offset, 0, HISTORY_CAPACITY) &&
-          shotStreamIntInRange(limit, 1, HISTORY_PAGE_MAX) &&
+          uiStreamIntInRange(offset, 0, HISTORY_CAPACITY) &&
+          uiStreamIntInRange(limit, 1, HISTORY_PAGE_MAX) &&
           (!fetch || cJSON_IsBool(fetch)) &&
           (!dir || (cJSON_IsString(dir) &&
                     (!strcmp(dir->valuestring, "asc") ||
@@ -239,7 +239,7 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
           accepted = true;
         }
         if (accepted)
-          self.shotStreamUrgent_.store(true, std::memory_order_release);
+          self.uiStreamUrgent_.store(true, std::memory_order_release);
       }
     } else if (cJSON_IsString(op) && session->bound &&
                strcmp(op->valuestring, "stats") == 0 &&
@@ -256,10 +256,10 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
       const cJSON *dir = cJSON_GetObjectItemCaseSensitive(message, "dir");
       const cJSON *fetch = cJSON_GetObjectItemCaseSensitive(message, "fetch");
       const bool shapeOk =
-          cJSON_IsBool(on) && shotStreamKnownFields(message, kFields, 7);
+          cJSON_IsBool(on) && uiStreamKnownFields(message, kFields, 7);
       const bool numbersOk =
-          shotStreamIntInRange(offset, 0, SHOT_LOG_CAPACITY) &&
-          shotStreamIntInRange(limit, 1, SHOT_LOG_CAPACITY) &&
+          uiStreamIntInRange(offset, 0, SHOT_LOG_CAPACITY) &&
+          uiStreamIntInRange(limit, 1, SHOT_LOG_CAPACITY) &&
           (!fetch || cJSON_IsBool(fetch)) &&
           (!sort || (cJSON_IsString(sort) &&
                      (!strcmp(sort->valuestring, "date") ||
@@ -305,13 +305,13 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
           accepted = true;
         }
         if (accepted)
-          self.shotStreamUrgent_.store(true, std::memory_order_release);
+          self.uiStreamUrgent_.store(true, std::memory_order_release);
       }
     } else if (cJSON_IsString(op) && !session->bound &&
                strcmp(op->valuestring, "bind") == 0 && cJSON_IsString(client) &&
                self.activeWebUiClientId_[0] &&
                strcmp(client->valuestring, self.activeWebUiClientId_) == 0 &&
-               millis() - session->openedAtMs < kShotStreamBindMs) {
+               millis() - session->openedAtMs < kUiStreamBindMs) {
       copyCString(session->clientId, sizeof(session->clientId), client->valuestring);
       const cJSON *cycle = cJSON_GetObjectItemCaseSensitive(message, "cycle");
       const cJSON *boot = cJSON_GetObjectItemCaseSensitive(message, "boot");
@@ -322,11 +322,11 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
         session->observedCycle = static_cast<uint32_t>(cycle->valuedouble);
         session->observedBoot = static_cast<uint32_t>(boot->valuedouble);
       }
-      for (auto &other : self.shotStreams_) {
+      for (auto &other : self.uiStreams_) {
         if (&other != session && other.bound) {
           superseded = other.fd;
           other.bound = false;
-          other.openedAtMs = millis() - kShotStreamBindMs;
+          other.openedAtMs = millis() - kUiStreamBindMs;
         }
       }
       session->bound = true;
@@ -346,41 +346,41 @@ esp_err_t ShotStopperNetwork::shotStreamHandler(httpd_req_t *request) {
     return httpd_ws_send_frame_async(request->handle, session->fd, &reply);
   }
   if (superseded >= 0) httpd_sess_trigger_close(request->handle, superseded);
-  httpd_sess_set_send_override(request->handle, session->fd, shotStreamSend);
+  httpd_sess_set_send_override(request->handle, session->fd, uiStreamSend);
   self.requestPendingNetworkConfirm();
   return ESP_OK;
 }
 
-void ShotStopperNetwork::serviceShotStream(uint32_t now) {
+void ShotStopperNetwork::serviceUiStream(uint32_t now) {
   if (!server_) return;
   const uint32_t cadence = controlCriticalRfActive_.load(std::memory_order_acquire)
-                                ? kShotStreamLiveMs : kShotStreamIdleMs;
-  if (!shotStreamUrgent_.load(std::memory_order_acquire) &&
-      now - shotStreamDispatchAtMs_ < cadence) return;
+                                ? kUiStreamLiveMs : kUiStreamIdleMs;
+  if (!uiStreamUrgent_.load(std::memory_order_acquire) &&
+      now - uiStreamDispatchAtMs_ < cadence) return;
   bool occupied = false;
   {
     TaskLockGuard lock(dataMux_);
-    for (const auto &session : shotStreams_) occupied |= session.fd >= 0;
+    for (const auto &session : uiStreams_) occupied |= session.fd >= 0;
   }
-  if (!occupied || shotStreamWorkPending_.exchange(true, std::memory_order_acq_rel)) return;
-  shotStreamUrgent_.exchange(false, std::memory_order_acq_rel);
-  shotStreamDispatchAtMs_ = now;
-  if (httpd_queue_work(server_, shotStreamDispatch, this) != ESP_OK) {
-    shotStreamUrgent_.store(true, std::memory_order_release);
-    shotStreamWorkPending_.store(false, std::memory_order_release);
+  if (!occupied || uiStreamWorkPending_.exchange(true, std::memory_order_acq_rel)) return;
+  uiStreamUrgent_.exchange(false, std::memory_order_acq_rel);
+  uiStreamDispatchAtMs_ = now;
+  if (httpd_queue_work(server_, uiStreamDispatch, this) != ESP_OK) {
+    uiStreamUrgent_.store(true, std::memory_order_release);
+    uiStreamWorkPending_.store(false, std::memory_order_release);
   }
 }
 
-void ShotStopperNetwork::shotStreamDispatch(void *context) {
+void ShotStopperNetwork::uiStreamDispatch(void *context) {
   auto &self = *static_cast<ShotStopperNetwork *>(context);
-  for (auto &session : self.shotStreams_) {
+  for (auto &session : self.uiStreams_) {
     if (session.fd < 0) continue;
     bool allowed;
     {
       TaskLockGuard lock(self.dataMux_);
       allowed = session.bound
           ? strcmp(session.clientId, self.activeWebUiClientId_) == 0
-          : millis() - session.openedAtMs < kShotStreamBindMs;
+          : millis() - session.openedAtMs < kUiStreamBindMs;
     }
     if (!allowed) {
       if (session.bound) {
@@ -395,17 +395,17 @@ void ShotStopperNetwork::shotStreamDispatch(void *context) {
     }
     else if (session.bound) {
       httpd_sess_update_lru_counter(self.server_, session.fd);
-      self.sendShotStream(session);
+      self.sendUiStream(session);
     }
   }
-  self.shotStreamWorkPending_.store(false, std::memory_order_release);
+  self.uiStreamWorkPending_.store(false, std::memory_order_release);
 }
 
-void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
+void ShotStopperNetwork::sendUiStream(UiStreamSession &session) {
   // httpd serialization is exclusive. Try rather than wait behind Network's
   // occasional settings work; the next dispatch recovers a complete view.
   if (xSemaphoreTake(statusResponseMux_.get(), 0) != pdTRUE) {
-    shotStreamUrgent_.store(true, std::memory_order_release);
+    uiStreamUrgent_.store(true, std::memory_order_release);
     return;
   }
   callbacks_.refreshControlStatus();
@@ -414,7 +414,7 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
   // The RF notification can precede the committed presentation snapshot.
   if ((control.activeCycle || control.relayClosed) !=
       controlCriticalRfActive_.load(std::memory_order_acquire))
-    shotStreamUrgent_.store(true, std::memory_order_release);
+    uiStreamUrgent_.store(true, std::memory_order_release);
   ShotLogRecord latest = {};
   const bool eligible = callbacks_.copyHomeShot &&
       callbacks_.copyHomeShot(latest, workBuf_->homeCurve);
@@ -448,7 +448,7 @@ void ShotStopperNetwork::sendShotStream(ShotStreamSession &session) {
   unlockWorkBuf();
 }
 
-bool ShotStopperNetwork::sendShotCard(ShotStreamSession &session,
+bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
                                       const ControlStatusSnapshot &control,
                                       const ShotLogRecord &latest, bool eligible) {
   ShotCurveRecord &curve = workBuf_->serializedCurve;
@@ -461,7 +461,7 @@ bool ShotStopperNetwork::sendShotCard(ShotStreamSession &session,
   const uint32_t age = millis() - control.homeResolvedAtMs;
   const bool retained = !live && cycle.valid && cycle.shotLogId == 0 &&
       session.observedBoot == control.bootId && session.observedCycle == cycle.cycleId &&
-      age < kShotStreamRetainMs;
+      age < kUiStreamRetainMs;
   PersistedLastShot card = {};
   const char *phase = "idle";
   if (live || retained) {
@@ -518,7 +518,7 @@ bool ShotStopperNetwork::sendShotCard(ShotStreamSession &session,
   const uint32_t markers = crc32Update(0xFFFFFFFFU,
       reinterpret_cast<const uint8_t *>(&curve.atmClearedMs),
       offsetof(ShotCurveRecord, weightCg) - offsetof(ShotCurveRecord, atmClearedMs));
-  const uint32_t prefix = shotStreamCurveHash(curve, curve.count);
+  const uint32_t prefix = uiStreamCurveHash(curve, curve.count);
   uint32_t fingerprint = crc32Update(prefix, reinterpret_cast<const uint8_t *>(output), cardBytes);
   fingerprint = crc32Update(fingerprint, reinterpret_cast<const uint8_t *>(&markers), sizeof(markers));
   fingerprint ^= curve.truncated ? 1U : 0U;
@@ -526,7 +526,7 @@ bool ShotStopperNetwork::sendShotCard(ShotStreamSession &session,
   const bool replace = session.resync || session.boot != control.bootId ||
       session.cycle != card.cycleId || session.shot != card.shotLogId ||
       session.cursor > curve.count || session.markersHash != markers ||
-      session.prefixHash != shotStreamCurveHash(curve, session.cursor);
+      session.prefixHash != uiStreamCurveHash(curve, session.cursor);
   if (!replace && session.fingerprint == fingerprint)
     return true;
   const uint16_t base = replace ? 0 : session.cursor;
@@ -541,7 +541,7 @@ bool ShotStopperNetwork::sendShotCard(ShotStreamSession &session,
       static_cast<unsigned long>(session.sequence), static_cast<unsigned long>(control.snapshotVersion),
       replace ? "true" : "false", static_cast<unsigned long>(card.cycleId),
       static_cast<unsigned long>(card.shotLogId), static_cast<unsigned long>(eligible ? latest.id : 0),
-      static_cast<unsigned long>(retained ? kShotStreamRetainMs - age : 0),
+      static_cast<unsigned long>(retained ? kUiStreamRetainMs - age : 0),
       control.snapshotStale ? "true" : "false", base, curve.count);
   size_t used = static_cast<size_t>(cardBytes);
   bool ok = formatted && envelopeBytes > 0 && static_cast<size_t>(envelopeBytes) < sizeof(envelope);
@@ -567,7 +567,7 @@ bool ShotStopperNetwork::sendShotCard(ShotStreamSession &session,
   if (!ok) {
     // A clean header abort defers: every bookkeeping flag below is only
     // cleared on delivery, so the next dispatch resends the same card.
-    return owner && shotStreamSendCleanAbort;
+    return owner && uiStreamSendCleanAbort;
   }
   ++session.sequence;
   session.boot = control.bootId;

@@ -182,8 +182,8 @@
       lookup('shotHeroElapsed').hidden)throw new Error('A scale shot must keep the weight layout');
   const chips=['Elapsed','Drop','Flow','Error','Mode'].map(id=>html.indexOf('id="shotHero'+id+'"'));
   if(chips.some((pos,i)=>pos<0||(i&&pos<=chips[i-1])))throw new Error('Home shot chips must keep their reading order');
-  const apply = new Function(runtimeJs.slice(runtimeJs.indexOf('function shotStreamFrame('),
-    runtimeJs.indexOf('function startShotStream('))+';return shotStreamFrame;')();
+  const apply = new Function(runtimeJs.slice(runtimeJs.indexOf('function uiStreamFrame('),
+    runtimeJs.indexOf('function startUiStream('))+';return uiStreamFrame;')();
   const snapshot={v:1,boot:7,seq:1,base:0,revision:1,snapshot:true,cycle:19,shotId:0,
     phase:'active',curveBase:0,cursor:2,card:{valid:true,live:true,weight:1,elapsedMs:1000,averageFlowGps:null,firstDropMs:null,tareMs:null},
     curve:{wCg:[100,100],wAtMs:[100,700],wBreakBefore:[],dropS:null,endS:null}};
@@ -222,13 +222,13 @@
   const timed=apply(null,{...snapshot,card:{...snapshot.card,scaleAvailable:false}});
   if(timed.card.scaleAvailable!==false)
     throw new Error('The no-scale card flag must survive stream framing');
-  const streamSource=fs.readFileSync(path.join(sketchDir,'network/ShotStopperShotStream.inc'),'utf8');
-  const handler=streamSource.slice(streamSource.indexOf('esp_err_t ShotStopperNetwork::shotStreamHandler('),
-    streamSource.indexOf('void ShotStopperNetwork::serviceShotStream('));
-  if(handler.includes('sendShotStream(')||!handler.includes('session->resync = true;')||
-      !streamSource.includes('shotStreamWorkPending_.exchange(true')||
-      !streamSource.includes('now - shotStreamDispatchAtMs_ < cadence')||
-      !streamSource.includes('kShotStreamLiveMs = 100, kShotStreamIdleMs = 250')||
+  const streamSource=fs.readFileSync(path.join(sketchDir,'network/ShotStopperUiStream.inc'),'utf8');
+  const handler=streamSource.slice(streamSource.indexOf('esp_err_t ShotStopperNetwork::uiStreamHandler('),
+    streamSource.indexOf('void ShotStopperNetwork::serviceUiStream('));
+  if(handler.includes('sendUiStream(')||!handler.includes('session->resync = true;')||
+      !streamSource.includes('uiStreamWorkPending_.exchange(true')||
+      !streamSource.includes('now - uiStreamDispatchAtMs_ < cadence')||
+      !streamSource.includes('kUiStreamLiveMs = 100, kUiStreamIdleMs = 250')||
       !streamSource.includes('controlCriticalRfActive_.load'))
     throw new Error('Bind/resync must share the coalesced publication cadence');
   const sockets=[],timers=new Map();let timerId=0,owner=true;
@@ -237,7 +237,7 @@
   const controller=new Function('WebSocket','location','document','window','setTimeout','clearTimeout',
     'requestAnimationFrame','webUiPollingActive','webUiClientId','activeView','$','webUiPowerSeconds','invalidateHomeStream',
     'let homeFrame=null,homeStale=true,homeReady,homeResolve=()=>{};'+runtimeJs.slice(runtimeJs.indexOf('let shotWs='),runtimeJs.indexOf('function formatExtractionGuard('))+
-    ';return{start:startShotStream,stop:stopShotStream,frame:()=>shotFrame,stale:()=>shotStale};')(
+    ';return{start:startUiStream,stop:stopUiStream,frame:()=>shotFrame,stale:()=>shotStale};')(
     Socket,{protocol:'http:',host:'device.local'},
     {hidden:false,addEventListener:(name,fn)=>listeners[name]=fn},
     {addEventListener:(name,fn)=>listeners[name]=fn},
@@ -262,7 +262,7 @@
   owner=false;controller.stop();controller.start();
   if(sockets.length!==2||rebound.readyState!==3)throw new Error('Inactive owner cannot retain/reopen stream');
   if(runtimeJs.includes('let shotTick=')||runtimeJs.includes('runShot(live?s:0)')||
-      !runtimeJs.includes('stopShotStream();')||!runtimeJs.includes('startShotStream();')||
+      !runtimeJs.includes('stopUiStream();')||!runtimeJs.includes('startUiStream();')||
       !runtimeJs.includes("op:'bind',client:webUiClientId")||
       !runtimeJs.includes('"op":"resync"'))
     throw new Error('Firmware timer and stream must follow ownership/visibility lifecycle');
@@ -274,7 +274,7 @@
   const weight={},animations=[];
   const document={hidden:false};
   const timer=new Function('performance','requestAnimationFrame','cancelAnimationFrame','document',
-    'webUiPollingActive','setHomeSub','$','ms','paintShotStream','window',
+    'webUiPollingActive','setHomeSub','$','ms','paintUiStream','window',
     "let shotStale=false,activeView='home',shotFrame=null;"+
     runtimeJs.slice(runtimeJs.indexOf('let noScaleClock='),runtimeJs.indexOf('// The diagnostic stream rides'))+
     ';return{sync:f=>{syncNoScaleTimer(f);shotFrame=f;revealNoScaleFinish()},elapsed:noScaleTimerElapsed,schedule:scheduleNoScaleTimer,'+
@@ -360,10 +360,10 @@
 
 {
   const assert=require('assert').strict,{spawnSync}=require('child_process');
-  const stream=fs.readFileSync(path.join(sketchDir,'network/ShotStopperShotStream.inc'),'utf8');
+  const stream=fs.readFileSync(path.join(sketchDir,'network/ShotStopperUiStream.inc'),'utf8');
   const wifi=fs.readFileSync(path.join(sketchDir,'network/ShotStopperWifi.inc'),'utf8');
-  const service=stream.slice(stream.indexOf('void ShotStopperNetwork::serviceShotStream('),
-    stream.indexOf('void ShotStopperNetwork::shotStreamDispatch('));
+  const service=stream.slice(stream.indexOf('void ShotStopperNetwork::serviceUiStream('),
+    stream.indexOf('void ShotStopperNetwork::uiStreamDispatch('));
   const sync=wifi.slice(wifi.indexOf('void ShotStopperNetwork::syncControlCriticalRf('),
     wifi.indexOf('void ShotStopperNetwork::syncScaleHuntRf('));
   const directory=path.resolve(sketchDir,'..','temp','ai_temp_no_scale_stop_fade');
@@ -374,7 +374,7 @@
 #include <cassert>
 #include <cstdint>
 constexpr int ESP_OK=0;
-constexpr uint32_t kShotStreamLiveMs=100,kShotStreamIdleMs=250;
+constexpr uint32_t kUiStreamLiveMs=100,kUiStreamIdleMs=250;
 int queued=0,queueResult=ESP_OK,notified=0;
 int httpd_queue_work(int,void (*)(void *),void *){++queued;return queueResult;}
 void xTaskNotifyGive(void *){++notified;}
@@ -382,39 +382,39 @@ struct TaskLockGuard { explicit TaskLockGuard(int &){} };
 struct ShotStopperNetwork {
   int server_=1,dataMux_=0;
   void *taskHandle_=this;
-  struct {int fd=-1;} shotStreams_[2];
+  struct {int fd=-1;} uiStreams_[2];
   struct {void setControlCritical(bool){}} webhooks_;
-  std::atomic<bool> shotStreamWorkPending_{false},shotStreamUrgent_{false},
+  std::atomic<bool> uiStreamWorkPending_{false},uiStreamUrgent_{false},
     controlCriticalRfActive_{false},ntpCallbackAccepting_{true},ntpAbortRequested_{false};
   std::atomic<uint32_t> rfGateGeneration_{0};
-  uint32_t shotStreamDispatchAtMs_=100;
-  static void shotStreamDispatch(void *){}
-  void serviceShotStream(uint32_t);
+  uint32_t uiStreamDispatchAtMs_=100;
+  static void uiStreamDispatch(void *){}
+  void serviceUiStream(uint32_t);
   void syncControlCriticalRf(bool,bool=false);
 };
 ${service}
 ${sync}
 int main(){
-  ShotStopperNetwork n;n.shotStreams_[0].fd=4;
-  n.serviceShotStream(150);assert(queued==0);
+  ShotStopperNetwork n;n.uiStreams_[0].fd=4;
+  n.serviceUiStream(150);assert(queued==0);
   n.syncControlCriticalRf(true);assert(notified==1);
-  n.serviceShotStream(151);assert(queued==1&&!n.shotStreamUrgent_);
+  n.serviceUiStream(151);assert(queued==1&&!n.uiStreamUrgent_);
   n.syncControlCriticalRf(false);
-  n.serviceShotStream(152);assert(queued==1&&n.shotStreamUrgent_);
-  n.shotStreamWorkPending_=false;
-  n.serviceShotStream(153);assert(queued==2&&!n.shotStreamUrgent_);
-  n.shotStreamWorkPending_=false;n.serviceShotStream(200);assert(queued==2);
+  n.serviceUiStream(152);assert(queued==1&&n.uiStreamUrgent_);
+  n.uiStreamWorkPending_=false;
+  n.serviceUiStream(153);assert(queued==2&&!n.uiStreamUrgent_);
+  n.uiStreamWorkPending_=false;n.serviceUiStream(200);assert(queued==2);
   n.syncControlCriticalRf(true);queueResult=-1;
-  n.serviceShotStream(201);assert(queued==3&&n.shotStreamUrgent_&&!n.shotStreamWorkPending_);
-  queueResult=ESP_OK;n.serviceShotStream(202);assert(queued==4&&!n.shotStreamUrgent_);
-  n.shotStreamWorkPending_=false;n.shotStreams_[0].fd=-1;
-  n.syncControlCriticalRf(false);n.serviceShotStream(203);assert(queued==4&&n.shotStreamUrgent_);
-  n.shotStreams_[0].fd=4;n.serviceShotStream(204);assert(queued==5);
-  n.shotStreamWorkPending_=false;
-  n.syncControlCriticalRf(false,true);n.serviceShotStream(205);assert(queued==6);
-  n.shotStreamWorkPending_=false;n.syncControlCriticalRf(true);n.serviceShotStream(206);
-  assert(queued==7);n.shotStreamWorkPending_=false;
-  n.syncControlCriticalRf(true,true);n.serviceShotStream(207);assert(queued==8);
+  n.serviceUiStream(201);assert(queued==3&&n.uiStreamUrgent_&&!n.uiStreamWorkPending_);
+  queueResult=ESP_OK;n.serviceUiStream(202);assert(queued==4&&!n.uiStreamUrgent_);
+  n.uiStreamWorkPending_=false;n.uiStreams_[0].fd=-1;
+  n.syncControlCriticalRf(false);n.serviceUiStream(203);assert(queued==4&&n.uiStreamUrgent_);
+  n.uiStreams_[0].fd=4;n.serviceUiStream(204);assert(queued==5);
+  n.uiStreamWorkPending_=false;
+  n.syncControlCriticalRf(false,true);n.serviceUiStream(205);assert(queued==6);
+  n.uiStreamWorkPending_=false;n.syncControlCriticalRf(true);n.serviceUiStream(206);
+  assert(queued==7);n.uiStreamWorkPending_=false;
+  n.syncControlCriticalRf(true,true);n.serviceUiStream(207);assert(queued==8);
 }
 `;
   try{
@@ -425,7 +425,7 @@ int main(){
   }finally{fs.rmSync(binary,{force:true})}
   const lockFailure=stream.slice(stream.indexOf('if (xSemaphoreTake(statusResponseMux_'),
     stream.indexOf('callbacks_.refreshControlStatus();'));
-  assert(lockFailure.includes('shotStreamUrgent_.store(true'),'Workspace contention must preserve urgent delivery');
+  assert(lockFailure.includes('uiStreamUrgent_.store(true'),'Workspace contention must preserve urgent delivery');
   assert(stream.includes('(control.activeCycle || control.relayClosed) !='),
     'A notification preceding the committed snapshot must preserve urgent delivery');
   assert(firmwareCore.includes('syncControlCriticalRf(next.activeCycle || next.relayClosed, true)'),
@@ -692,7 +692,7 @@ if (ui.includes('id="shotPanel"') ||
     ui.includes('id="shotPct"') ||
     !ui.includes('id="shotHero"') ||
     !ui.includes('shotHeroState') ||
-    !ui.includes('function shotStreamFrame(') ||
+    !ui.includes('function uiStreamFrame(') ||
     !network.includes('firstDropElapsedMs') ||
     !network.includes('shotType') ||
     !network.includes('scaleProtocol') ||
@@ -708,7 +708,7 @@ if (ui.includes('id="shotPanel"') ||
     !ui.includes('Saving...') ||
     !network.includes('delta.field("cycle.active"') ||
     !network.includes('extractionExtended') ||
-    !ui.includes('paintShotStream()')) {
+    !ui.includes('paintUiStream()')) {
   throw new Error('Web UI must enforce remote policy, maintenance, durable command state, and live shot status');
 }
 {

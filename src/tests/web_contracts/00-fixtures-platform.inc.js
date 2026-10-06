@@ -21,7 +21,7 @@ const network = readSources([
   'network/ShotStopperHttpLifecycle.inc',
   'network/ShotStopperHttpAuthAssets.inc',
   'network/ShotStopperStatus.inc',
-  'network/ShotStopperShotStream.inc',
+  'network/ShotStopperUiStream.inc',
   'network/ShotStopperHomeStream.inc',
   'network/ShotStopperIntegrationApi.inc',
   'diagnostics/ShotStopperNetworkDiagnostics.inc',

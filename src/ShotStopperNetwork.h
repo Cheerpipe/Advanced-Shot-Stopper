@@ -347,7 +347,7 @@ class ShotStopperNetwork {
   // protocol/timer state.
   bool beginCompleted_ = false;
   httpd_handle_t server_ = nullptr;
-  struct ShotStreamSession {
+  struct UiStreamSession {
     int fd = -1;
     uint32_t openedAtMs = 0, boundAtMs = 0, observedCycle = 0, observedBoot = 0;
     uint32_t sequence = 0, cycle = 0, shot = 0, boot = 0;
@@ -390,10 +390,10 @@ class ShotStopperNetwork {
     bool bound = false, resync = true;
     bool homeResync = true;
   };
-  ShotStreamSession shotStreams_[2];
-  std::atomic<bool> shotStreamWorkPending_{false};
-  std::atomic<bool> shotStreamUrgent_{false};
-  uint32_t shotStreamDispatchAtMs_ = 0;
+  UiStreamSession uiStreams_[2];
+  std::atomic<bool> uiStreamWorkPending_{false};
+  std::atomic<bool> uiStreamUrgent_{false};
+  uint32_t uiStreamDispatchAtMs_ = 0;
   mutable TaskMutex dataMux_;
   char activeWebUiClientId_[WEB_UI_CLIENT_ID_CAPACITY] = {};
   bool webUiOverrideActive_ = false;
@@ -601,21 +601,21 @@ class ShotStopperNetwork {
   static esp_err_t browserIconHandler(httpd_req_t *request);
   static esp_err_t notFoundHandler(httpd_req_t *request, httpd_err_code_t error);
   static esp_err_t claimHandler(httpd_req_t *request);
-  static esp_err_t shotStreamHandshake(httpd_req_t *request);
-  static esp_err_t shotStreamHandler(httpd_req_t *request);
-  static void shotStreamFree(void *context);
-  static void shotStreamDispatch(void *context);
-  void serviceShotStream(uint32_t now);
-  void sendShotStream(ShotStreamSession &session);
-  bool sendShotCard(ShotStreamSession &session, const ControlStatusSnapshot &control,
+  static esp_err_t uiStreamHandshake(httpd_req_t *request);
+  static esp_err_t uiStreamHandler(httpd_req_t *request);
+  static void uiStreamFree(void *context);
+  static void uiStreamDispatch(void *context);
+  void serviceUiStream(uint32_t now);
+  void sendUiStream(UiStreamSession &session);
+  bool sendShotCard(UiStreamSession &session, const ControlStatusSnapshot &control,
                     const ShotLogRecord &latest, bool eligible);
-  bool sendHomeStream(ShotStreamSession &session, const ControlStatusSnapshot &control,
+  bool sendHomeStream(UiStreamSession &session, const ControlStatusSnapshot &control,
                       const ShotLogRecord *latest);
-  bool sendDiagnosticStream(ShotStreamSession &session,
+  bool sendDiagnosticStream(UiStreamSession &session,
                             const ControlStatusSnapshot &control);
-  bool sendHistoryStream(ShotStreamSession &session,
+  bool sendHistoryStream(UiStreamSession &session,
                          const ControlStatusSnapshot &control);
-  bool sendStatsStream(ShotStreamSession &session,
+  bool sendStatsStream(UiStreamSession &session,
                        const ControlStatusSnapshot &control);
   // Shared stats row projection (scalars plus embedded curve fields) used by
   // the WS sender; writes into work.jsonItem and returns its length, 0 on

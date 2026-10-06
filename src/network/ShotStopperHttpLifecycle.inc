@@ -1166,7 +1166,7 @@ bool ShotStopperNetwork::startHttpServer() {
                       browserIconHandler) &&
       registerHandler(server_, "/api/v1/ui/claim", HTTP_POST, claimHandler) &&
       registerHandler(server_, "/api/v1/ui/shot-stream", HTTP_GET,
-                      shotStreamHandler, true, shotStreamHandshake) &&
+                      uiStreamHandler, true, uiStreamHandshake) &&
 #if SHOT_STOPPER_DEVELOPMENT == 1
       // Unlock routes are not served in development builds; administration
       // is public there and the UI never calls this endpoint.
@@ -1195,7 +1195,7 @@ bool ShotStopperNetwork::startHttpServer() {
                                  notFoundHandler) != ESP_OK) {
     (void)httpd_stop(server_);
     server_ = nullptr;
-    shotStreamWorkPending_.store(false, std::memory_order_release);
+    uiStreamWorkPending_.store(false, std::memory_order_release);
     finishOwnedHeapLifecycle(httpHeap_, HeapLifecycleResult::FAILURE);
     recordBootHeap(BootHeapStage::HTTP_READY, BootHeapResult::FAILED, millis());
     return false;

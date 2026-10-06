@@ -60,7 +60,7 @@
     assert.throws(() => context.homeStreamFrame(first, bad), 'invalid Home messages require resync');
   }
   assert.equal(context.homeStreamFrame(first, {...initial, boot: 8, changes: {...initial.changes, bootId: 8}}).boot, 8);
-  context.startShotStream(); sockets[0].onopen();
+  context.startUiStream(); sockets[0].onopen();
   assert.equal(sockets[0].sent[0].op, 'bind');
   assert.equal(sockets[0].sent[1].op, 'activity', 'liveness is a socket control message, not REST polling');
   sockets[0].onmessage({data: JSON.stringify({v: 1, type: 'alive'})});
@@ -80,7 +80,7 @@
   assert.equal(rendered.at(-1).config.revision, 2, 'navigation must render the updated cache');
   assert.equal(context.statusUtcAnchorSec, status.timeUtcSec + 10, 'Home must retain the current clock after another page updates it');
   sockets[0].close(); assert.equal(mutable, false, 'stream loss must disable Home controls');
-  context.startShotStream(); sockets[1].onopen();
+  context.startUiStream(); sockets[1].onopen();
   sockets[1].onmessage({data: JSON.stringify(initial)});
   assert.equal(rendered.at(-1).scale.observedWeightG, 12, 'reconnect accepts an initial snapshot');
   sockets[1].onmessage({data: JSON.stringify({...patch, boot: 8})});

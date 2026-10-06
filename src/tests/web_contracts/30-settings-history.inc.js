@@ -1025,7 +1025,7 @@ if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !runtimeJs.includes('event.data.length>28672') ||
     !runtimeJs.includes('function requestShotResync(') ||
     !runtimeJs.includes('function shotActivity(') ||
-    runtimeJs.includes('stopShotStream();startShotStream()')) {
+    runtimeJs.includes('stopUiStream();startUiStream()')) {
   throw new Error('Shot history must page 10 shots over the owned WebSocket with infinite scroll and a streamed export');
 }
 const shotLogTypes = fs.readFileSync(

@@ -28,7 +28,7 @@
         fn => { pendingTimer = fn; return 1; },
         () => {}, () => deactivated++);
 
-    // A live shot-stream card re-arms the expired session instead of killing it.
+    // A live ui-stream card re-arms the expired session instead of killing it.
     api.setStale(false);
     api.setFrame({card: {valid: true, live: true}});
     now = 5000;

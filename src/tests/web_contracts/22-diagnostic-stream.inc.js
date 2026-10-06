@@ -52,7 +52,7 @@
         'invalid diagnostic frames must fail closed');
   }
 
-  context.startShotStream();
+  context.startUiStream();
   assert.equal(sockets.length, 1);
   sockets[0].onopen();
   assert.equal(sockets[0].sent[0].op, 'bind');
@@ -124,7 +124,7 @@
 // Firmware projection: bounded field budget, view-scoped dispatch, and wiring.
 {
   const assert = require('assert').strict;
-  const stream = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperShotStream.inc'), 'utf8');
+  const stream = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperUiStream.inc'), 'utf8');
   const homeStream = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperHomeStream.inc'), 'utf8');
   assert(stream.includes('strcmp(op->valuestring, "diagnostic")'));
   assert(stream.includes('session->diagnostic = cJSON_IsTrue(on)'));
@@ -142,12 +142,12 @@
   // Backpressure triage: a failed frame send must not tear down the owned
   // socket when nothing of the frame reached the wire. Only a partial
   // payload, a dead peer, or lost ownership may close the session.
-  assert(stream.includes('shotStreamSendCleanAbort'),
+  assert(stream.includes('uiStreamSendCleanAbort'),
       'the send override must classify clean header aborts');
   assert(homeStream.includes('session.homeResync = true;') &&
          homeStream.includes('session.diagResync = true;'),
       'deferred Home/diagnostic sends must re-arm their snapshot');
-  assert(homeStream.includes('return shotStreamSendCleanAbort;'),
+  assert(homeStream.includes('return uiStreamSendCleanAbort;'),
       'deferred record pages keep their retry state instead of closing');
   assert(homeStream.includes('session.statsSent = sentBase;'),
       'a deferred stats frame must roll its buffered rows back');
@@ -166,7 +166,7 @@
   assert(homeStream.includes('session.statsPageEpoch != epoch') &&
          homeStream.includes('session.statsSent = 0;'),
       'stats pages must capture identity at page start and resume by epoch');
-  assert(homeStream.includes('shotStreamUrgent_.store(true, std::memory_order_release);\n    return true;'),
+  assert(homeStream.includes('uiStreamUrgent_.store(true, std::memory_order_release);\n    return true;'),
       'a continued page must flag urgency for the next dispatch');
   const diagRegion = homeStream.slice(homeStream.indexOf('sendDiagnosticStream'));
   const diagSlots = Number(/kDiagFields\s*=\s*(\d+)/.exec(networkHeader)[1]);

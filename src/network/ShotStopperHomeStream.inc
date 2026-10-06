@@ -35,11 +35,11 @@ struct HomeStreamDelta {
 // This bounded presentation projection favors flash size over loop unrolling;
 // control and safety keep the profile's normal performance optimization.
 __attribute__((optimize("Os")))
-bool ShotStopperNetwork::sendHomeStream(ShotStreamSession &session,
+bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
                                       const ControlStatusSnapshot &control,
                                       const ShotLogRecord *latest) {
   const bool initial = session.homeResync || session.homeBoot != control.bootId;
-  HomeStreamDelta delta{session.homeHashes, ShotStreamSession::kHomeFields, 0, 0, 0, initial};
+  HomeStreamDelta delta{session.homeHashes, UiStreamSession::kHomeFields, 0, 0, 0, initial};
   delta.ok = statusJsonAppend(&delta.used,
       "{\"v\":1,\"type\":\"home\",\"boot\":%lu,\"snapshot\":%s,\"changes\":{",
       static_cast<unsigned long>(control.bootId),
@@ -221,7 +221,7 @@ bool ShotStopperNetwork::sendHomeStream(ShotStreamSession &session,
   if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
     // The delta hashes were already consumed for the dropped frame, so only
     // a full snapshot can repair the client; defer on a clean header abort.
-    if (!shotStreamSendCleanAbort) return false;
+    if (!uiStreamSendCleanAbort) return false;
     session.homeResync = true;
     return true;
   }
@@ -233,10 +233,10 @@ bool ShotStopperNetwork::sendHomeStream(ShotStreamSession &session,
 // Same bounded projection contract as sendHomeStream: the diagnostic page
 // subscribes per view, so a session without the flag never reaches this path.
 __attribute__((optimize("Os")))
-bool ShotStopperNetwork::sendDiagnosticStream(ShotStreamSession &session,
+bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
                                               const ControlStatusSnapshot &control) {
   const bool initial = session.diagResync || session.diagBoot != control.bootId;
-  HomeStreamDelta delta{session.diagHashes, ShotStreamSession::kDiagFields, 0, 0, 0, initial};
+  HomeStreamDelta delta{session.diagHashes, UiStreamSession::kDiagFields, 0, 0, 0, initial};
   delta.ok = statusJsonAppend(&delta.used,
       "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":%s,\"changes\":{",
       static_cast<unsigned long>(control.bootId),
@@ -367,7 +367,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(ShotStreamSession &session,
   if (!owner) return false;
   if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
     // Same repair rule as the Home stream: defer with a snapshot armed.
-    if (!shotStreamSendCleanAbort) return false;
+    if (!uiStreamSendCleanAbort) return false;
     session.diagResync = true;
     return true;
   }
@@ -383,7 +383,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(ShotStreamSession &session,
 // the HomeStreamDelta no-change contract. A pending one-shot fetch rides the
 // same frame but never disturbs the standing window's bookkeeping.
 __attribute__((optimize("Os")))
-bool ShotStopperNetwork::sendHistoryStream(ShotStreamSession &session,
+bool ShotStopperNetwork::sendHistoryStream(UiStreamSession &session,
                                            const ControlStatusSnapshot &control) {
   const uint32_t epoch = callbacks_.historyEpoch ? callbacks_.historyEpoch() : 0;
   const bool initial =
@@ -484,7 +484,7 @@ bool ShotStopperNetwork::sendHistoryStream(ShotStreamSession &session,
   if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
     // Nothing was delivered: the snapshot/fetch/epoch state that produced
     // this frame is still armed, so the next dispatch retries it unchanged.
-    return shotStreamSendCleanAbort;
+    return uiStreamSendCleanAbort;
   }
   session.historyBoot = control.bootId;
   session.historyResync = false;
@@ -625,7 +625,7 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
 // immutable after commit except the packed rating byte — suppresses the
 // send while the page is unchanged.
 __attribute__((optimize("Os")))
-bool ShotStopperNetwork::sendStatsStream(ShotStreamSession &session,
+bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
                                          const ControlStatusSnapshot &control) {
   const uint32_t epoch =
       callbacks_.shotLogEpoch ? callbacks_.shotLogEpoch() : 0;
@@ -687,7 +687,7 @@ bool ShotStopperNetwork::sendStatsStream(ShotStreamSession &session,
     const ShotCurveRecord *curve =
         findShotCurveById(work.shotCurves, curveCount, record.id);
     const uint32_t rowHash =
-        shotStreamCurveHash(curve ? *curve : work.serializedCurve,
+        uiStreamCurveHash(curve ? *curve : work.serializedCurve,
                             curve ? curve->count : 0);
     const uint32_t row[2] = {record.id, record.extractionGuardEnabled};
     fingerprint = crc32Update(fingerprint,
@@ -776,14 +776,14 @@ bool ShotStopperNetwork::sendStatsStream(ShotStreamSession &session,
   if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
     // A clean header abort delivered nothing: roll the buffered rows back so
     // the next dispatch rebuilds the same frame for the same page.
-    if (!shotStreamSendCleanAbort) return false;
+    if (!uiStreamSendCleanAbort) return false;
     session.statsSent = sentBase;
     return true;
   }
   if (more) {
     // Continue the page on the next dispatch; urgent bypasses the idle
     // cadence so a healthy client still streams without gaps.
-    shotStreamUrgent_.store(true, std::memory_order_release);
+    uiStreamUrgent_.store(true, std::memory_order_release);
     return true;
   }
   session.statsPaging = false;
