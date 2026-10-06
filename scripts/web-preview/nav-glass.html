@@ -23,11 +23,12 @@
   .blob.c{background:#c46f5c;top:2.5rem;right:22%;width:8rem;height:8rem;animation-delay:-8s}
   @keyframes drift{to{transform:translate(2.6rem,1.6rem) scale(1.12)}}
   .glassNav{position:absolute;left:1rem;right:1rem;bottom:1rem;display:flex;padding:.125rem;border:1px solid transparent;border-radius:2rem;isolation:isolate}
-  .glassNav button{position:relative;display:flex;flex:1;align-items:center;justify-content:center;min-width:0;min-height:var(--tap);padding:0;border:0;background:transparent;border-radius:1.5rem;color:var(--mu);font:inherit;font-size:.875rem;font-weight:600;white-space:nowrap;cursor:pointer;transition:color .3s,background-color .3s;-webkit-tap-highlight-color:transparent}
+  .glassNav button{position:relative;display:flex;flex:1;align-items:center;justify-content:center;min-width:0;min-height:var(--tap);padding:0;border:0;background:transparent;border-radius:1.5rem;color:var(--mu);font:inherit;font-size:.875rem;font-weight:600;white-space:nowrap;cursor:pointer;transition:color .3s;-webkit-tap-highlight-color:transparent}
   .glassNav button.active{color:var(--ac);font-weight:700}
-  .glassNav button:hover:not(.active),.glassNav button:focus-visible:not(.active){color:var(--ac);background:color-mix(in srgb,var(--pa) 55%,transparent)}
+  .glassNav button:not(.active):hover{color:var(--fg)}
+  .glassNav button:not(.active):hover svg{transform:translateY(-1px) scale(1.15)}
   .glassNav button:focus-visible{outline:2px solid var(--ac);outline-offset:-3px}
-  .glassNav svg{display:block;flex:none;width:1.5rem;height:1.5rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .glassNav svg{display:block;flex:none;width:1.5rem;height:1.5rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .3s cubic-bezier(.3,1.25,.35,1)}
   .glassPill{position:absolute;top:.125rem;bottom:.125rem;left:0;width:0;border-radius:1.5rem;translate:0 0;transition:translate .45s cubic-bezier(.3,1.25,.35,1),width .45s cubic-bezier(.3,1.25,.35,1);z-index:-1}
   .opt1 .glassNav{background:color-mix(in srgb,var(--sf) 58%,transparent);border-color:color-mix(in srgb,var(--ln) 60%,transparent);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);box-shadow:0 .3rem 1.5rem #0003,inset 0 1px 0 #fff7,inset 0 -1px 0 #0002}
   .opt1 .glassPill{background:var(--pa)}
@@ -37,7 +38,7 @@
   @keyframes sheen{0%,55%{background-position:130% 0}85%,100%{background-position:-30% 0}}
   .opt2 .glassNav button::after{content:'';position:absolute;inset:0;border-radius:inherit;background:radial-gradient(6.5rem 3rem at var(--mx,50%) var(--my,-30%),#fff6,transparent 65%);opacity:0;transition:opacity .3s;pointer-events:none}
   .opt2 .glassNav button:hover::after,.opt2 .glassNav button.active::after{opacity:1}
-  @media(prefers-reduced-motion:reduce){.blob,.opt2 .glassNav::before{animation:none}.glassPill,.glassNav button,.glassNav button::after{transition:none}}
+  @media(prefers-reduced-motion:reduce){.blob,.opt2 .glassNav::before{animation:none}.glassPill,.glassNav button,.glassNav button::after,.glassNav svg{transition:none}}
 </style>
 </head>
 <body>
