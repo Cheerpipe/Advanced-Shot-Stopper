@@ -28,8 +28,6 @@
 }
 if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.serialDebugOutput") ||
          ui.includes("$('serialDebugOutput').checked=!!c.serialDebugOutput")) ||
-    !(ui.includes("if($('ringRetainLogLevel'))$('ringRetainLogLevel').value=c.ringRetainLogLevel||'none'") ||
-         ui.includes("$('ringRetainLogLevel').value=c.ringRetainLogLevel||'none'")) ||
     firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)',
                      firmware.indexOf('persistenceReady = EEPROM.begin')) < 0 ||
     firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)',

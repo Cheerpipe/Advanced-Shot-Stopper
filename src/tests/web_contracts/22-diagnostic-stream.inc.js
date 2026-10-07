@@ -126,6 +126,19 @@
       'socket loss must drop the cache');
 }
 
+// Log controls hydrate from Diagnostic's config, independently of Home state.
+{
+  const assert = require('assert').strict;
+  const source = fs.readFileSync(path.join(sketchDir, 'web/js/diagnostic.js'), 'utf8');
+  const controls = {serialLogLevel: {}, ringRetainLogLevel: {}};
+  const apply = new Function('R', '$', source.slice(source.indexOf('export function applyStatus('),
+      source.indexOf('export function init(')).replace('export ', '') + ';return applyStatus;')(
+      {applyDiagnosticStatus() {}}, id => controls[id]);
+  apply({config: {serialLogLevel: 'warning', ringRetainLogLevel: 'debug'}});
+  assert.equal(controls.serialLogLevel.value, 'warning');
+  assert.equal(controls.ringRetainLogLevel.value, 'debug');
+}
+
 // Firmware projection: bounded field budget, view-scoped dispatch, and wiring.
 {
   const assert = require('assert').strict;
