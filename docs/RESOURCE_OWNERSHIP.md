@@ -134,6 +134,8 @@ and logs; shared Home state keeps navigation and command readback current.
 Diagnostic readiness includes its base, sampled metrics, and both profiler
 sections. Record request IDs distinguish standing windows, scroll fetches, and
 exports; Stats continuations also retain their store epoch and sequence.
+Stats finishes a standing page before serving a queued fetch; a new subscription
+or explicit resync cancels earlier fetches when that operation is accepted.
 Other API requests remain exclusive, including commands and OTA. Four HTTP
 sockets and a four-connection backlog also accommodate lazy HTML and JavaScript
 downloads.

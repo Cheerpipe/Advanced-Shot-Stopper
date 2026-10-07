@@ -13,6 +13,11 @@
   const directory = path.resolve(sketchDir, '..', 'temp', 'ai_temp_websocket_contract');
   fs.mkdirSync(directory, {recursive: true});
   const binary = path.join(directory, 'delivery-' + process.pid);
+  const statsSender = body(stream, 'bool ShotStopperNetwork::sendStatsStream(');
+  const selectStats = statsSender.slice(statsSender.indexOf('  const bool initial ='),
+      statsSender.indexOf('  if (!session.statsPaging && !initial'));
+  const completeStats = statsSender.slice(statsSender.lastIndexOf('  session.statsPaging = false;'),
+      statsSender.lastIndexOf('  return true;'));
   const native = `
 #include <cassert>
 #include <cstdarg>
@@ -31,7 +36,12 @@ struct NetworkWorkBuf {
   DebugLogReadMetadata logMetadata{};
 } work;
 auto *g_work=&work;
-struct UiStreamSession { int fd=1; char clientId[8]="owner"; bool logPush=true; uint32_t logAfter=0; };
+struct UiStreamSession {
+  int fd=1; char clientId[8]="owner"; bool logPush=true; uint32_t logAfter=0;
+  bool statsResync=true,statsFetch=false,statsPaging=false,statsPageFetch=false;
+  uint32_t statsBoot=0,statsRequest=1,statsFetchRequest=2,statsPageRequest=0;
+  uint32_t statsPageEpoch=0,statsEpoch=0,statsFingerprint=0;
+};
 struct TaskLockGuard { explicit TaskLockGuard(int){} };
 struct httpd_ws_frame_t { int type=0; uint8_t *payload=nullptr; size_t len=0; };
 bool uiStreamSendCleanAbort=false;
@@ -56,6 +66,13 @@ ${body(networkSource, 'bool __attribute__((format(printf, 2, 3)))\nstatusJsonApp
 ${body(webhook, 'inline bool escapeJsonString(')}
 ${body(stream, 'bool ShotStopperNetwork::sendUiStreamFrame(')}
 ${body(stream, 'bool ShotStopperNetwork::sendLogStream(')}
+bool selectStatsFetch(UiStreamSession &session,const ControlStatusSnapshot &control,uint32_t epoch){
+${selectStats}
+  return fetch;
+}
+void completeStatsPage(UiStreamSession &session,bool fetch,uint32_t epoch,uint32_t fingerprint){
+${completeStats}
+}
 int main(){
   ShotStopperNetwork network; UiStreamSession session; bool retry=true;
   strcpy(work.statusJson,"{}");
@@ -70,6 +87,21 @@ int main(){
   assert(!network.sendUiStreamFrame(session,2,retry));
   strcpy(session.clientId,"owner");delivered.clear();
   ControlStatusSnapshot control{};control.bootId=193;
+  // Subscribe, then export before dispatch: neither snapshot preparation nor
+  // standing-page completion may silently cancel the accepted export.
+  session.statsFetch=true;
+  assert(!selectStatsFetch(session,control,5)&&session.statsFetch);
+  session.statsResync=false;session.statsBoot=193;session.statsPaging=true;
+  session.statsPageEpoch=5;session.statsPageRequest=1;
+  assert(!selectStatsFetch(session,control,5)&&session.statsPaging);
+  completeStatsPage(session,false,5,42);
+  assert(session.statsFetch&&selectStatsFetch(session,control,5));
+  session.statsPaging=true;session.statsPageFetch=true;session.statsPageRequest=2;
+  assert(selectStatsFetch(session,control,5)&&session.statsPaging);
+  session.statsFetchRequest=3;
+  assert(selectStatsFetch(session,control,5)&&!session.statsPaging);
+  completeStatsPage(session,true,5,99);
+  assert(!session.statsFetch&&session.statsFingerprint==42);
   const char *texts[]={"NimBLE runtime state=2", "quotes \\\" slash \\\\ newline\\n", "", "café"};
   for(const auto *text:texts)ring.add(10,0,LogLevel::INFO,DebugCategory::SYSTEM,DebugCode::BOOT_BANNER,1,2,text);
   assert(network.sendLogStream(session,control));

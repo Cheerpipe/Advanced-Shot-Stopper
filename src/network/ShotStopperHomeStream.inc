@@ -1229,21 +1229,15 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
       callbacks_.shotLogEpoch ? callbacks_.shotLogEpoch() : 0;
   const bool initial =
       session.statsResync || session.statsBoot != control.bootId;
-  // A snapshot supersedes any pending fetch: the client drops its buffered
-  // partial page and in-flight markers when a replace lands.
-  if (initial) session.statsFetch = false;
-  const bool fetch = session.statsFetch;
+  // Finish the standing page before a later accepted fetch. Cancellation
+  // belongs to subscribe/resync handling, never a delayed dispatch.
+  const bool fetch = session.statsFetch && !initial &&
+      (!session.statsPaging || session.statsPageFetch);
   const uint32_t request = fetch ? session.statsFetchRequest : session.statsRequest;
-  // The in-flight page survives only unchanged: a fetch or a store change
-  // supersedes it, and a fetch preempting the standing page re-arms the
-  // standing snapshot so the view is not left on pre-fetch rows.
+  // A replacement fetch or store change restarts only the affected page.
   if (session.statsPaging && (fetch != session.statsPageFetch ||
                               session.statsPageEpoch != epoch ||
                               session.statsPageRequest != request || initial)) {
-    // A fetch preempting the standing page re-arms the standing snapshot
-    // only when the fetch completes, so the fetch's own continuation
-    // dispatches never look initial.
-    if (fetch && !session.statsPageFetch) session.statsRedeliverStanding = true;
     session.statsPaging = false;
   }
   if (!session.statsPaging && !initial && !fetch && epoch == session.statsEpoch) return true;
@@ -1389,14 +1383,10 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
     return true;
   }
   session.statsPaging = false;
-  session.statsFetch = false;
+  if (fetch) session.statsFetch = false;
   if (!fetch) {
     session.statsEpoch = epoch;
     session.statsFingerprint = fingerprint;
-  } else if (session.statsRedeliverStanding) {
-    // The preempted standing page re-arms now, with no page in flight.
-    session.statsRedeliverStanding = false;
-    session.statsResync = true;
   }
   return true;
 }

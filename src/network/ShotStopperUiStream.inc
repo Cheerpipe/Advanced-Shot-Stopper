@@ -178,6 +178,7 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
       session->diagResync = session->diagnostic;
       session->historyResync = true;
       session->statsResync = true;
+      session->statsFetch = false;
       accepted = true;
     } else if (cJSON_IsString(op) && session->bound &&
                strcmp(op->valuestring, "diagnostic") == 0 &&
@@ -330,6 +331,8 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
         } else {
           session->statsOn = true;
           session->statsResync = true;
+          session->statsFetch = false;
+          session->statsPaging = false;
           session->statsRequest = requestId ? static_cast<uint32_t>(requestId->valuedouble) : 0;
           if (offset)
             session->statsOffset = static_cast<size_t>(offset->valueint);

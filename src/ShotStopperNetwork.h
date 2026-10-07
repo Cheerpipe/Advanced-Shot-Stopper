@@ -394,7 +394,6 @@ class ShotStopperNetwork {
     // page (snapshot/fetch identity and store epoch captured at page start)
     // until its terminating frame; a deferred send keeps this state intact.
     bool statsPaging = false, statsPageSnapshot = false, statsPageFetch = false;
-    bool statsRedeliverStanding = false;
     size_t statsSent = 0;
     uint32_t statsPageEpoch = 0, statsPageRequest = 0;
     uint32_t statsRequest = 0, statsFetchRequest = 0;
