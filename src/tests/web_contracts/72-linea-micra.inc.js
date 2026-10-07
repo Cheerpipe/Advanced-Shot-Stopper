@@ -2,7 +2,9 @@ const micraWeb = fs.readFileSync(
     path.join(sketchDir, 'network/ShotStopperLineaMicraWeb.inc'), 'utf8');
 const micraStatus = fs.readFileSync(
     path.join(sketchDir, 'network/ShotStopperStatus.inc'), 'utf8') + fs.readFileSync(
-    path.join(sketchDir, 'network/ShotStopperLineaMicraStatus.inc'), 'utf8');
+    path.join(sketchDir, 'network/ShotStopperLineaMicraStatus.inc'), 'utf8') +
+    fs.readFileSync(
+        path.join(sketchDir, 'network/ShotStopperHomeStream.inc'), 'utf8');
 const micraService = fs.readFileSync(
     path.join(sketchDir, 'machine/ShotStopperMicraService.cpp'), 'utf8');
 const micraTiming = fs.readFileSync(

@@ -22,6 +22,7 @@
     activeView: 'diagnostic', viewSeq: 1, viewReady: Promise.resolve(), lastStatusAt: 0,
     performance: {now: () => 1234}, invalidateHomeStream() {}, noteReachFail() {},
     applyDiagnosticLive: status => applied.push(status),
+    viewStatusHandlers: {diagnostic: () => {}},
   };
   vm.runInNewContext(source, context);
   const changes = {
@@ -113,12 +114,16 @@
   assert.equal(formatters.formatScaleWeight({scale: {observedWeightG: 12.34}}), '12.3 g');
   assert.equal(formatters.formatScaleWeight({scale: {currentWeightG: -0.5}}), '-0.5 g');
   assert.equal(formatters.formatScaleWeight({scale: {observedWeightG: null}}), '—');
-  // One writer at a time: REST skips the live sections while the socket
-  // cache is live, and losing the socket hands the sections back to REST.
-  assert(runtimeJs.includes('if(!diagFrame)applyDiagnosticLive(s)'),
-      'REST must not repaint live sections over the socket cache');
+  // The stream is the only writer: the view handler rides the socket cache
+  // and the REST fallback painter is gone along with the route.
+  assert(!runtimeJs.includes("api('/api/v1/status/diagnostic'"),
+      'the Diagnostic view must not read REST status');
+  assert(!runtimeJs.includes("api('/api/v1/log'"),
+      'the Diagnostic view must not poll the REST log');
+  assert(runtimeJs.includes('const apply=viewStatusHandlers[\'diagnostic\'];if(apply)apply(diagFrame.status)'),
+      'stream frames must drive the full view');
   assert(runtimeJs.includes('shotWs=null;diagFrame=null;'),
-      'socket loss must drop the cache so REST resumes painting');
+      'socket loss must drop the cache');
 }
 
 // Firmware projection: bounded field budget, view-scoped dispatch, and wiring.
@@ -145,7 +150,8 @@
   assert(stream.includes('uiStreamSendCleanAbort'),
       'the send override must classify clean header aborts');
   assert(homeStream.includes('session.homeResync = true;') &&
-         homeStream.includes('session.diagResync = true;'),
+         homeStream.includes('deferArm = true;') &&
+         (homeStream.match(/sendUiStreamFrame\(session, [a-zA-Z.]+, session\.diagResync\)/g) || []).length === 4,
       'deferred Home/diagnostic sends must re-arm their snapshot');
   assert(homeStream.includes('return uiStreamSendCleanAbort;'),
       'deferred record pages keep their retry state instead of closing');
@@ -194,9 +200,11 @@
       'the shared live renderer paints the Scale timer and weight');
   assert(appJsSource.includes('R.stopDiagnosticStream()'),
       'leaving the view must unsubscribe');
-  assert(appJsSource.indexOf('R.startDiagnosticStream()') <
-         appJsSource.indexOf("await R.loadLog()"),
-      'entering the view subscribes before the first REST poll');
+  assert(runtimeJs.includes('loadDiagnosticStatus'),
+      'entering the view loads the stream snapshot');
+  assert(appJsSource.indexOf('R.startLogStream()') >= 0 &&
+         !appJsSource.includes('R.loadLog()') && !appJsSource.includes('logTimer=setInterval'),
+      'the log view subscribes the stream instead of REST polling');
   assert(partialHtml.diagnostic.includes('id="dScaleTimer"'));
   assert(partialHtml.diagnostic.includes('id="dScaleWeight"'));
   assert(JSON.parse(fs.readFileSync(

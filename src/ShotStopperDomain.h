@@ -2642,7 +2642,7 @@ class DebugRingBuffer {
   }
 
   uint32_t overwritten() const { return overwritten_; }
-
+  uint32_t latestSequence() const { return count_ == 0 ? 0 : nextSequence_ - 1; }
  private:
   static bool sequenceAfter(uint32_t sequence, uint32_t reference) {
     return sequence != reference && static_cast<int32_t>(sequence - reference) > 0;

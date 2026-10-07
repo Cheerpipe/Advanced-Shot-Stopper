@@ -191,6 +191,7 @@ struct NetworkBridgeCallbacks {
   size_t (*copyDebugEvents)(uint32_t afterSequence, DebugEvent *output,
                             size_t capacity,
                             DebugLogReadMetadata *metadata) = nullptr;
+  uint32_t (*debugLogLatestSequence)() = nullptr;
   void (*addDebugEvent)(DebugCategory category, DebugCode code,
                         int32_t argument1, int32_t argument2) = nullptr;
   void (*reportTaskWatchdogFault)() = nullptr;
@@ -358,10 +359,19 @@ class ShotStopperNetwork {
     uint32_t homeBoot = 0, homeClockSync = 0, homeClockUtc = 0;
     // Diagnostic page subscription: state dies with the session struct reset,
     // so an unbound or superseded socket never keeps streaming diagnostics.
-    static constexpr size_t kDiagFields = 64;
+    // Slots cover the live projection plus every migrated REST section;
+    // sampled sections (health, NVS, profilers, network measurements) share
+    // one 4 s evaluation gate so their producers run at most per interval.
+    static constexpr size_t kDiagFields = 224;
     uint32_t diagHashes[kDiagFields] = {};
-    uint32_t diagBoot = 0;
+    uint32_t diagBoot = 0, diagSlowAtMs = 0;
+    uint32_t diagTasksFingerprint = 0, diagProfileFingerprint = 0;
     bool diagnostic = false, diagResync = true;
+    // Serial-log subscription, same view-scoped contract: a cheap ring
+    // watermark gates the copy, hasMore pages across dispatches, and a
+    // cursor reset refills from the oldest retained event.
+    bool logOn = false, logPush = false;
+    uint32_t logAfter = 0;
     // History page subscription, same view-scoped contract: the window dies
     // with the session, one-shot fetches append without disturbing it, and
     // epoch/fingerprint suppress frames while the page is unchanged.
@@ -613,6 +623,9 @@ class ShotStopperNetwork {
                       const ShotLogRecord *latest);
   bool sendDiagnosticStream(UiStreamSession &session,
                             const ControlStatusSnapshot &control);
+  bool sendUiStreamFrame(UiStreamSession &session, size_t used, bool &deferArm);
+  bool sendLogStream(UiStreamSession &session,
+                     const ControlStatusSnapshot &control);
   bool sendHistoryStream(UiStreamSession &session,
                          const ControlStatusSnapshot &control);
   bool sendStatsStream(UiStreamSession &session,
@@ -633,7 +646,6 @@ class ShotStopperNetwork {
   static esp_err_t ownedApiHandler(httpd_req_t *request);
   static esp_err_t statusHandler(httpd_req_t *request);
   static esp_err_t debugExportHandler(httpd_req_t *request);
-  static esp_err_t logHandler(httpd_req_t *request);
   static esp_err_t shotsClearHandler(httpd_req_t *request);
   static esp_err_t shotsDeleteHandler(httpd_req_t *request);
   static esp_err_t shotsRateHandler(httpd_req_t *request);

@@ -1,6 +1,5 @@
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
-  if (ok && (page == StatusPage::Settings ||
-             page == StatusPage::Diagnostic)) {
+  if (ok && page == StatusPage::Settings) {
     const uint32_t sampleAgeMs = micraStatus.sampleAtMs == 0
                                      ? 0
                                      : static_cast<uint32_t>(millis() -
@@ -102,58 +101,6 @@
                             index == 0 ? "" : ",", safeSerial, safeName);
     }
     if (ok) ok = statusJsonAppend(&used, "]");
-    if (ok && page == StatusPage::Diagnostic) {
-      const MicraWebSocketStatus ws = machineIntegrationWebSocketStatus();
-      const uint32_t now = millis();
-      char label[6 * sizeof(ws.cleaningLabel)] = {};
-      escapeJsonString(ws.cleaningLabel, label, sizeof(label));
-      const char *cleaning = ws.cleaning == MicraCleaningState::OFF ? "inactive"
-          : ws.cleaning == MicraCleaningState::REQUESTED ? "waiting_for_paddle"
-          : ws.cleaning == MicraCleaningState::CLEANING ? "cleaning" : "unknown";
-      ok = statusJsonAppend(&used,
-          ",\"websocket\":{\"nowMs\":%u,\"state\":\"%s\",\"reason\":\"%s\","
-          "\"epoch\":%u,\"subscribed\":%s,\"machineConnectedKnown\":%s,"
-          "\"machineConnected\":%s,\"connectedAtMs\":%u,\"messageAtMs\":%u,"
-          "\"powerAtMs\":%u,\"pongAtMs\":%u,\"pauseAtMs\":%u,\"retryRemainingMs\":%u,"
-          "\"rxBytes\":%llu,\"txBytes\":%llu,\"rxBytesPerSecond\":%u,\"txBytesPerSecond\":%u,"
-          "\"rxBytesPerMinute\":%u,\"txBytesPerMinute\":%u,\"messages\":%u,"
-          "\"reconnects\":%u,\"errors\":%u,\"publishLatencyMs\":%u,\"maxPublishLatencyMs\":%u,"
-          "\"plannedConnections\":%u,\"unexpectedConnections\":%u,"
-          "\"stoppedLatencyMs\":%u,\"maxStoppedLatencyMs\":%u,\"retainedBytes\":%u,"
-          "\"workspaceExternal\":%s,\"allocationFailures\":%u,"
-          "\"connectFreeDelta\":%ld,\"connectLargestDelta\":%ld,\"stopFreeDelta\":%ld,\"stopLargestDelta\":%ld,"
-          "\"internalMinimum\":%u,\"psramMinimum\":%u,\"psramFree\":%u,\"psramLargest\":%u,"
-          "\"cleaning\":\"%s\",\"cleaningLabel\":\"%s\",\"cleaningAvailable\":%s,\"cleaningAtMs\":%u}",
-          unsigned(now), micraSocketStateName(ws.state), ws.reason,
-          unsigned(ws.epoch), ws.subscribed ? "true" : "false",
-          ws.machineConnectedKnown ? "true" : "false", ws.machineConnected ? "true" : "false",
-          unsigned(ws.connectedAtMs), unsigned(ws.messageAtMs), unsigned(ws.powerAtMs),
-          unsigned(ws.pongAtMs), unsigned(ws.pauseAtMs),
-          unsigned(!ws.retryAtMs || micra_timing::deadlineReached(now, ws.retryAtMs) ? 0 : ws.retryAtMs - now),
-          static_cast<unsigned long long>(ws.receiveBytes), static_cast<unsigned long long>(ws.transmitBytes), unsigned(ws.receivePerSecond),
-          unsigned(ws.transmitPerSecond), unsigned(ws.receivePerMinute), unsigned(ws.transmitPerMinute),
-          unsigned(ws.messages), unsigned(ws.reconnects), unsigned(ws.errors),
-          unsigned(ws.publishLatencyMs), unsigned(ws.maxPublishLatencyMs),
-          unsigned(ws.plannedConnections), unsigned(ws.unexpectedConnections),
-          unsigned(ws.stoppedLatencyMs), unsigned(ws.maxStoppedLatencyMs), unsigned(ws.retainedBytes),
-          ws.workspaceExternal ? "true" : "false", unsigned(ws.allocationFailures),
-          long(ws.heap.lastDelta.freeBytes), long(ws.heap.lastDelta.largestBlock),
-          long(ws.stopHeap.lastDelta.freeBytes), long(ws.stopHeap.lastDelta.largestBlock),
-          unsigned(ws.internalMinimum), unsigned(ws.psramMinimum), unsigned(ws.psramFree), unsigned(ws.psramLargest),
-          cleaning, label, ws.cleaningAvailable ? "true" : "false", unsigned(ws.cleaningAtMs));
-      const LineaMicraCloudCall call = machineIntegrationCloudCall();
-      ok = ok && (call.api == nullptr
-          ? statusJsonAppend(&used, ",\"cloudCall\":null")
-          : statusJsonAppend(
-                &used, ",\"cloudCall\":{\"api\":\"%s\",\"method\":\"%s\","
-                "\"result\":\"%s\",\"startedAtUtcSec\":%lu,"
-                "\"durationMs\":%lu,\"httpStatus\":%u,\"transportStatus\":%ld}",
-                call.api, call.method, call.result,
-                static_cast<unsigned long>(call.startedAtUtcSec),
-                static_cast<unsigned long>(call.durationMs),
-                static_cast<unsigned>(call.httpStatus),
-                static_cast<long>(call.transportStatus)));
-    }
     if (ok) ok = statusJsonAppend(&used, "}");
   }
 #endif

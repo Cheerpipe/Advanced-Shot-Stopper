@@ -492,7 +492,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !ui.includes("toFixed(1)+' KB'") ||
       !ui.includes('resetReasonCode') ||
       !ui.includes("RR[s.resetReasonCode]") ||
-      !network.includes('\\"hwmon\\"') ||
+      !network.includes('"health.hwmon.') ||
       !network.includes('cpuLoad5s') ||
       !network.includes('cpuLoad1m') ||
       !network.includes('cpuLoad5m') ||
@@ -513,20 +513,13 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !ui.includes('0–2 (cpu0 + cpu1)') ||
       !network.includes('tempPeakC') ||
       !network.includes('ramTotalBytes') ||
-      !network.includes('\\"uptimeMs\\"') ||
-      !network.includes('\\"minimumFreeHeapBytes\\"') ||
-      !network.includes('\\"largestFreeHeapBlockBytes\\"') ||
-      !network.includes('\\"psramSizeBytes\\"') ||
-      !network.includes('\\"psramFreeBytes\\"') ||
-      !network.includes('\\"psramLargestFreeBlockBytes\\"') ||
-      !network.includes('\\"bleHostAllocPsram\\"') ||
-      !network.includes('\\"bleHostAllocFallback\\"') ||
-      !network.includes('\\"hciRxDropped\\"') ||
-      !network.includes('\\"hciTxDropped\\"') ||
-      !network.includes('\\"workBufExternal\\"') ||
-      !network.includes('\\"jsonArenaExternal\\"') ||
-      !network.includes('\\"allocExternalFallback\\"') ||
-      !network.includes('\\"resetReasonCode\\"') ||
+      !network.includes('"health.uptimeMs"') ||
+      !network.includes('"health.minimumFreeHeapBytes"') ||
+      !network.includes('"health.largestFreeHeapBlockBytes"') ||
+      !network.includes('"health.psramSizeBytes"') ||
+      !network.includes('"health.psramFreeBytes"') ||
+      !network.includes('"health.psramLargestFreeBlockBytes"') ||
+      !network.includes('"safety.resetReasonCode"') ||
       !diagHtml.includes('id="diagnosticsPanel"') ||
       !diagHtml.includes('<legend>Diagnostics</legend>') ||
       !diagHtml.includes('<legend>States</legend>') ||
@@ -666,10 +659,12 @@ if (!ui.includes('<legend>Brew</legend>') ||
         'runtime.symbol_3': ' '}[key] || ''));
   assert.equal(formatWallTime(1704069000, 0), '2024-01-01 00:30:00');
   assert.equal(formatWallTime(1704069000, -180), '2023-12-31 21:30:00');
-  if (!ui.includes("t('ut',utc&&utc.slice(11))") ||
-      !ui.includes("t('ud',utc&&utc.slice(0,10))") ||
-      !ui.includes("t('lt',local&&local.slice(11))") ||
-      !ui.includes("t('ld',local&&local.slice(0,10))")) {
+  if (!ui.includes("t('ut')(utc&&utc.slice(11))") ||
+      !ui.includes("t('ud')(utc&&utc.slice(0,10))") ||
+      !ui.includes("t('lt')(local&&local.slice(11))") ||
+      !ui.includes("t('ld')(local&&local.slice(0,10))") ||
+      !ui.includes('function renderDiagClock(') ||
+      !ui.includes('statusUtcAnchorSec+Math.floor((performance.now()-statusUtcAnchorAt)/1000)')) {
     throw new Error('Diagnostic UTC and local date/time fields must use the configured offset');
   }
 }
@@ -1482,7 +1477,7 @@ if (!ui.includes('id="firmwareFooter"') ||
     css.includes('body.homeAdminActions #view-home:not(.hidden)~.pageFooter{display:none}') ||
     !css.includes('#actionsPanel{position:fixed;left:0;right:0') ||
     !css.includes('@media(min-width:700px){#actionsPanel{left:1rem;right:1rem') ||
-    !network.includes('\\"firmwareVersion\\"') ||
+    !network.includes('delta.field("firmwareVersion"') ||
     !network.includes('\\"bootId\\":%lu') ||
     !network.includes('FW_VERSION')) {
   throw new Error('Firmware version must remain exposed in status API, page footers, and Diagnostic');
@@ -1514,8 +1509,8 @@ if (!css.includes('.hidden,[hidden]{display:none!important}') ||
 }
 if (!/<fieldset[^>]*><legend>Log<\/legend>/.test(html) ||
     /authenticatedOnly[^>]*><legend>Log<\/legend>/.test(html) ||
-    !ui.includes('loadLog()') ||
-    !ui.includes('refreshLog()') ||
+    !ui.includes('startLogStream()') ||
+    !ui.includes('function logStreamFrame(') ||
     !(ui.includes("name==='diagnostic'") || ui.includes("name === 'diagnostic'")) ||
     !ui.includes('id="view-diagnostic"') ||
     !ui.includes('data-route="/diagnostic"') ||
@@ -1552,7 +1547,7 @@ if (!network.includes('historyOverwritten') ||
     !network.includes('cursorInvalid') ||
     !ui.includes('logBootId') ||
     !ui.includes('Missed while disconnected') ||
-    !ui.includes('d.cursorInvalid')) {
+    !ui.includes('m.cursorInvalid')) {
   throw new Error('Diagnostic log must distinguish history rotation from unread and serial loss');
 }
 if (!ui.includes('id="factoryResetButton"') ||

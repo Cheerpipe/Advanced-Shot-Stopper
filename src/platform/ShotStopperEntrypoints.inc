@@ -466,6 +466,7 @@ void setup() {
     callbacks.refreshControlStatus = refreshControlStatus;
     callbacks.enqueueWebCommand = enqueueWebCommand;
     callbacks.copyDebugEvents = copyDebugEvents;
+    callbacks.debugLogLatestSequence = debugLogLatestSequence;
     callbacks.addDebugEvent = addDebugEvent;
     callbacks.reportTaskWatchdogFault = reportTaskWatchdogFault;
     callbacks.requestSafeRestart = requestSafeRestart;

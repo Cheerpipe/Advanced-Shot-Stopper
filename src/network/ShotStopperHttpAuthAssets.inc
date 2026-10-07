@@ -350,11 +350,9 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
   static const Route routes[] = {
       {"/api/v1/status/settings", HTTP_GET, statusHandler},
       {"/api/v1/status/admin", HTTP_GET, statusHandler},
-      {"/api/v1/status/diagnostic", HTTP_GET, statusHandler},
       {"/api/v1/debug/export", HTTP_GET, debugExportHandler},
       {"/api/v1/diagnostic/crashes", HTTP_GET, crashArchiveDownloadHandler},
       {"/api/v1/diagnostic/crashes/empty", HTTP_POST, crashArchiveClearHandler},
-      {"/api/v1/log", HTTP_GET, logHandler},
       {"/api/v1/stats/clear", HTTP_POST, shotsClearHandler},
       {"/api/v1/stats/delete", HTTP_POST, shotsDeleteHandler},
       {"/api/v1/stats/rate", HTTP_POST, shotsRateHandler},

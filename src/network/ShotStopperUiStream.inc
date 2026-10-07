@@ -175,6 +175,7 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
                strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
       session->resync = true;
       session->homeResync = true;
+      session->diagResync = session->diagnostic;
       session->historyResync = true;
       session->statsResync = true;
       accepted = true;
@@ -188,6 +189,37 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
         session->diagnostic = cJSON_IsTrue(on);
         session->diagResync = session->diagnostic;
         accepted = true;
+      }
+    } else if (cJSON_IsString(op) && session->bound &&
+               strcmp(op->valuestring, "log") == 0 &&
+               strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
+      // View-scoped serial-log toggle: the cursor comes from the client's
+      // rendered tail; unsubscribe carries no window fields.
+      const cJSON *on = cJSON_GetObjectItemCaseSensitive(message, "on");
+      const cJSON *after = cJSON_GetObjectItemCaseSensitive(message, "after");
+      bool shapeOk = cJSON_IsBool(on);
+      for (const cJSON *field = message->child; shapeOk && field;
+           field = field->next) {
+        const char *name = field->string;
+        shapeOk = name && (!strcmp(name, "op") || !strcmp(name, "on") ||
+                           !strcmp(name, "after"));
+      }
+      const bool numbersOk =
+          !after || (cJSON_IsNumber(after) && after->valuedouble >= 0 &&
+                     after->valuedouble <= UINT32_MAX &&
+                     after->valuedouble == after->valueint);
+      if (shapeOk && numbersOk) {
+        if (!cJSON_IsTrue(on)) {
+          accepted = !after;
+          if (accepted) session->logOn = false;
+        } else {
+          session->logOn = true;
+          session->logAfter = after ? static_cast<uint32_t>(after->valueint) : 0;
+          session->logPush = true;
+          accepted = true;
+        }
+        if (accepted)
+          self.uiStreamUrgent_.store(true, std::memory_order_release);
       }
     } else if (cJSON_IsString(op) && session->bound &&
                strcmp(op->valuestring, "history") == 0 &&
@@ -441,6 +473,11 @@ void ShotStopperNetwork::sendUiStream(UiStreamSession &session) {
     return;
   }
   if (session.statsOn && !sendStatsStream(session, control)) {
+    unlockWorkBuf();
+    httpd_sess_trigger_close(server_, session.fd);
+    return;
+  }
+  if (session.logOn && !sendLogStream(session, control)) {
     unlockWorkBuf();
     httpd_sess_trigger_close(server_, session.fd);
     return;

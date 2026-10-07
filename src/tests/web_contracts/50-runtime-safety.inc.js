@@ -11,18 +11,18 @@
   throw new Error('Web UI must adapt/pause status polls, serialize commands, time out hung fetches, and use DEVICE_MAX_INFLIGHT without POST heartbeat');
 }
 if (!runtimeJs.includes("function statusIntervalMs(){return document.hidden?12e3:statusLiveShot?2500:4e3}") ||
-    !runtimeJs.includes("s=v==='home'?await loadHomeStatus():await api(") ||
-    !runtimeJs.includes("activeView!=='settings'&&activeView!=='admin'&&activeView!=='diagnostic'")) {
-  throw new Error('Home must use its socket; other views retain live/idle/hidden REST intervals');
+    !runtimeJs.includes("s=v==='home'?await loadHomeStatus():v==='diagnostic'?await loadDiagnosticStatus():await api(") ||
+    !runtimeJs.includes("activeView!=='settings'&&activeView!=='admin'")) {
+  throw new Error('Home and Diagnostic must use their socket; other views retain live/idle/hidden REST intervals');
 }
 if (!ui.includes('async function loadStatus(){') ||
     !ui.includes('function startStatsStream(){') ||
-    !ui.includes('async function loadLog(){') ||
+    !ui.includes('function startLogStream(){') ||
+    !ui.includes('function applyLogFrame(') ||
     !ui.includes('LOG_EVENTS_CAPACITY') ||
     !ui.includes('logEvents.splice(0,logEvents.length-LOG_EVENTS_CAPACITY)') ||
     !ui.includes("function refreshStatus(){return withPollGate(activeView==='stats'?refreshShots:activeView==='history'?refreshHistory:loadStatus)}") ||
     !ui.includes("function refreshShots(){return shotStatsViewActive()?startStatsStream():Promise.resolve(false)}") ||
-    !ui.includes('function refreshLog(){return withPollGate(loadLog)}') ||
     !(ui.includes("name==='home'||name==='settings'||name==='admin'||name==='diagnostic'") ||
       ui.includes("name === 'home' || name === 'settings' || name === 'admin' ||") ||
       ui.includes("name === 'diagnostic'")) ||
@@ -163,7 +163,7 @@ for (const [route, handler] of expected) {
 
 const forbiddenResponseFields = ['staPassword', 'devicePassword', 'authHash', 'authSalt'];
 const statusHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::statusHandler');
-const statusHandlerEnd = network.indexOf('esp_err_t ShotStopperNetwork::logHandler', statusHandlerStart);
+const statusHandlerEnd = network.indexOf('\nnamespace {', statusHandlerStart);
 if (statusHandlerStart < 0 || statusHandlerEnd < 0) {
   throw new Error('Status handler not found');
 }
@@ -211,139 +211,54 @@ if (!statusFormat.includes('page == StatusPage::Settings') ||
     statusFormat.includes('StatusPage::Debug')) {
   throw new Error('buzzerSupported must be gated to status settings only');
 }
-if (!statusFormat.includes('page == StatusPage::Admin') ||
-    !statusFormat.includes('\\"timezoneId\\":\\"%s\\"') ||
-    !statusFormat.includes('\\"ntpServerPreset\\":\\"%s\\"') ||
-    !statusFormat.includes('\\"ntpServerCustom\\":\\"%s\\"')) {
-  throw new Error('NTP/timezone config must be gated to status admin');
+if (ui.includes("statusPageOk(v,s)") && !ui.includes("v!=='diagnostic'&&!statusPageOk(v,s)")) {
+  throw new Error('statusPageOk must not validate a diagnostic REST payload');
+}
+if (network.includes('page == StatusPage::Diagnostic')) {
+  throw new Error('diagnostic metrics must not ride the REST status pages');
 }
 {
-  const adminMarker = statusFormat.indexOf('Admin page: Wi-Fi/AP status');
-  if (adminMarker < 0) {
-    throw new Error('status/admin must use an Admin-only network body');
-  }
-  const adminBody = statusFormat.slice(
-      adminMarker, statusFormat.indexOf('} else if (ok && page == StatusPage::Diagnostic)',
-                                        adminMarker));
-  for (const field of [
-    'apActive', 'apIp', 'apClients', 'wifiConfigured', 'ssid', 'open',
-    'wifiSleep',
-    'staState', 'staIp', 'ipMode', 'configState', 'confirmRemainingMs', 'rssi',
-    'signalQualityPct', 'configuredIp', 'configuredNetmask', 'configuredGateway',
-    'configuredDns1', 'configuredDns2', 'scanIntensity'
-  ]) {
-    if (!adminBody.includes(field)) {
-      throw new Error('status/admin missing required network field: ' + field);
-    }
-  }
-  // Transversal fields used by Admin (footer + config revision + NTP form)
-  if (!statusFormat.includes('\\"bootId\\":%lu') ||
-      !statusFormat.includes('\\"firmwareVersion\\"') ||
-      !statusFormat.includes('\\"configMutable\\"') ||
-      !statusFormat.includes('\\"liveShot\\"') ||
-      !statusFormat.includes('\\"ringRetainLogLevel\\"') ||
-      !ui.includes("typeof s.bootId==='number'") ||
-      !ui.includes('function applyAdminStatus(') ||
-      !ui.includes('function loadAdminConfig(') ||
-      !ui.includes('loadNetworkAddress(s.network)')) {
-    throw new Error(
-        'status/admin must keep transversal bootId/firmware/liveShot and Admin network/NTP wiring');
-  }
-  // Diagnostics metrics must not ride on status/admin anymore
-  for (const forbidden of [
-    'maintenance', 'persistPending', 'hwmon', 'uptimeMs', 'resetReasonCode',
-    'packetGaps', 'utcSec', 'activeServer', 'serialDebugOutput',
-    'buzzerSupported', 'presets', 'brewByWeight'
-  ]) {
-    if (adminBody.includes(forbidden)) {
-      throw new Error(
-          'status/admin must not include Diagnostic/settings-only field: ' +
-          forbidden);
-    }
-  }
-  if (!ui.includes(
-          "v==='admin'?!!(typeof s.adminUnlocked==='boolean'&&s.network&&(s.adminUnlocked?(s.bleScan&&typeof s.bleScan.scanIntensity==='string'&&typeof c.timezoneId==='string'&&c.ntpServerPreset!=null&&s.ota&&typeof s.ota.available==='boolean'&&s.webhooks&&typeof s.webhooks.enabled==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'):typeof s.network.configState==='string'))")) {
-    throw new Error(
-        'statusPageOk(admin) must accept a locked payload and validate unlocked network/BLE scan/NTP/OTA/webhooks/lastCommand');
-  }
-  if (!ui.includes(
-          "v==='diagnostic'?!!(typeof s.adminUnlocked==='boolean'&&(s.adminUnlocked?(s.network&&s.time&&s.maintenance&&s.health&&s.safety&&s.scale&&s.lastCommand&&typeof s.machineState==='string'&&typeof s.state==='string'&&s.cupPresence&&typeof s.physicalActivatorOn==='boolean'&&'reedOn' in s&&typeof s.relayClosed==='boolean'&&typeof s.controlSource==='string'&&typeof s.safety.state==='string'&&typeof s.scale.streamState==='string'&&typeof c.serialDebugOutput==='boolean'&&s.compileFlags&&s.serial&&typeof s.serial.io4==='string'&&typeof s.serial.state==='string'&&s.guards&&typeof s.guards.bbwEnabled==='boolean'&&s.guards.noScale&&s.guards.atm&&s.guards.slowExtraction&&s.guards.fastExtraction&&s.guards.accidentalTouch&&s.guards.cupProtection&&s.tasks&&typeof s.tasks.state==='string'):true))")) {
-    throw new Error(
-        'statusPageOk(diagnostic) must accept a locked payload and validate unlocked states, machine I/O, guards, diagnostic metrics, and task profiler');
-  }
-}
-if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
-    !statusFormat.includes(',\\"serialDebugOutput\\":%s') ||
-    !statusFormat.includes('StatusPage::Diagnostic')) {
-  throw new Error('serialDebugOutput and diagnostic metrics must be gated to status diagnostic');
-}
-{
-  const leanMarker = statusFormat.indexOf('Lean diagnostic snapshot');
-  if (leanMarker < 0) {
-    throw new Error('status/diagnostic must use a lean Diagnostic-only body');
-  }
-  const diagBody = statusFormat.slice(
-      leanMarker, statusFormat.indexOf('if (ok) {', leanMarker));
+  const homeStreamSource = fs.readFileSync(
+      path.join(sketchDir, 'network', 'ShotStopperHomeStream.inc'), 'utf8');
+  const diagStart = homeStreamSource.indexOf('sendDiagnosticStream');
+  const diagEnd = homeStreamSource.indexOf('sendLogStream', diagStart);
+  const diagRegion = homeStreamSource.slice(diagStart, diagEnd);
   for (const field of [
     'apActive', 'apSsid', 'apIp', 'apClients', 'wifiConfigured', 'ssid', 'staState',
     'wifiPs', 'wifiCoex', 'channel', 'staIp', 'ipMode', 'configState', 'confirmRemainingMs', 'rssi',
-    'signalQualityPct', 'utcSec', 'lastSyncAgeMs', 'lastSyncUtcSec', 'nextRetryInMs',
+    'signalQualityPct', 'lastSyncAgeMs', 'lastSyncUtcSec', 'nextRetryInMs',
     'activeServer', 'maintenance', 'persistPending', 'uptimeMs', 'hwmon',
-    'freeHeapBytes', 'minimumFreeHeapBytes', 'largestFreeHeapBlockBytes',
+    'minimumFreeHeapBytes', 'largestFreeHeapBlockBytes',
     'internalHeapAllocatedBlocks', 'internalHeapFreeBlocks',
-    'internalHeapTotalBlocks', 'internalHeapFragmentationPermille',
+    'internalHeapFragmentationPermille',
     'psramSizeBytes', 'psramFreeBytes', 'psramLargestFreeBlockBytes',
-    'bleHostAllocPsram', 'bleHostAllocFallback',
-    'hciRxDropped', 'hciTxDropped',
-    'workBufExternal', 'jsonArenaExternal', 'allocExternalFallback',
     'resetReasonCode', 'packetGaps', 'rejectedPackets', 'reconnects',
     'eventsDropped', 'recoveredStaleCount', 'recoveredStaleMs',
     'weightUpdateIntervalMs', 'maxPacketGapMs',
-    'lastCommand', 'loopIntervalGapMs', 'loopMaxGapMs',
+    'lastCommand', 'loopMaxGapMs',
     'machineState', 'physicalActivatorOn', 'reedOn', 'controlSource', 'cupPresence',
     'streamState', 'controlState', 'taskWatchdogReady', 'recoveryRequired',
     'compileFlags', 'remoteMachineControl', 'hardwareProfile', 'machineProfile',
-    'machineBrand', 'machineModel', 'complete', 'degraded', 'scaleWorker',
-    'development', 'serial', 'io4'
+    'machineBrand', 'machineModel', 'serial', 'io4',
+    'crashCount', 'resetHistory', 'supportedCommands', 'guards'
   ]) {
-    if (!diagBody.includes(field)) {
-      throw new Error('status/diagnostic missing required field: ' + field);
+    if (!diagRegion.includes(field)) {
+      throw new Error('diagnostic stream missing required field: ' + field);
     }
   }
-  for (const field of ['heapLifecycle', 'webhookTls', 'micraTls']) {
-    if (!statusFormat.includes(field)) {
-      throw new Error('status/diagnostic missing heap lifecycle field: ' + field);
-    }
-  }
-  for (const field of ['worstLargestDelta', 'maximumFreeBlocksIncrease']) {
-    if (!network.includes(field)) {
-      throw new Error('heap lifecycle schema missing field: ' + field);
-    }
-  }
-  if (!diagBody.includes('\\"recoveredStaleMs\\":%lu,\\"rssi\\":%s,') ||
-      !diagBody.includes('\\"observedWeightG\\":%s,') ||
-      !diagBody.includes('\\"weightUpdateIntervalMs\\":%s,\\"timerMs\\":%s,\\"model\\":\\"%s\\",') ||
-      !diagBody.includes('\\"supportedCommandsKnown\\":%s,\\"supportedCommands\\":%s}') ||
-      !network.includes('scaleRssiJson') ||
-      !network.includes('scaleWeightUpdateIntervalJson') ||
-      !network.includes('scaleTimerJson') ||
-      !network.includes('scaleObservedWeightJson') ||
-      !network.includes('control.weightStreamState == WeightStreamState::FRESH') ||
-      !network.includes('\\"lastDisconnectReasonName\\":\\"%s\\",\\"rssi\\":%s}') ||
-      !firmware.includes('serviceScaleLinkRssi') ||
-      !firmware.includes('SCALE_LINK_RSSI_SAMPLE_MS') ||
-      !firmware.includes('linkRssi()')) {
+  if (!diagRegion.includes('delta.field("guards.atm.remainingMs", "%lu",') ||
+      !diagRegion.includes('/ 1000 * 1000') ||
+      !diagRegion.includes('/ 60000 * 60000') ||
+      !diagRegion.includes('kDiagSlowMs') ||
+      !diagRegion.includes('captureNvsDiagnostics') ||
+      !diagRegion.includes('crashArchiveStatus') ||
+      !diagRegion.includes('statusJsonAppendTaskProfiler') ||
+      !diagRegion.includes('statusJsonAppendScaleProfiler')) {
     throw new Error(
-        'status/diagnostic scale object and debug export must include connected-link RSSI');
+        'diagnostic stream must quantize countdowns, gate sampled producers, and reuse the profiler builders');
   }
-  if (!diagBody.includes('\\"serial\\":{\\"io4\\":\\"%s\\",\\"state\\":\\"%s\\"}') ||
-      !network.includes('usbConsoleIo4StateId') ||
-      !network.includes('usbSerialStateId')) {
-    throw new Error(
-        'status/diagnostic must report live IO4 and latched USB serial enable source');
-  }
-  if (!diagBody.includes('scaleBookooCommandAt(control.scaleModel') ||
-      !diagBody.includes('supportedCommandsJson') ||
+  if (!diagRegion.includes('scaleBookooCommandAt(control.scaleModel') ||
+      !diagRegion.includes('commandsJson') ||
       !html.includes('id="scaleCommandTable"') ||
       !html.includes('id="scaleCommandRows"') ||
       !ui.includes('applyScaleCommands(sc)') ||
@@ -351,12 +266,12 @@ if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
     throw new Error('Diagnostic scale command table must use current library model and wire codes');
   }
   // Transversal fields used by Diagnostic (footer + log controls + mutability)
-  if (!statusFormat.includes('\\"bootId\\":%lu') ||
-      !statusFormat.includes('\\"firmwareVersion\\"') ||
-      !statusFormat.includes('\\"configMutable\\"') ||
-      !statusFormat.includes('\\"liveShot\\"') ||
-      !statusFormat.includes('\\"ringRetainLogLevel\\"') ||
-      !statusFormat.includes('\\"appliedTimezoneOffsetMinutes\\":%d') ||
+  if (!homeStreamSource.includes('delta.field("firmwareVersion"') ||
+      !homeStreamSource.includes('delta.field("bootId"') ||
+      !homeStreamSource.includes('delta.field("configMutable"') ||
+      !homeStreamSource.includes('delta.field("liveShot"') ||
+      !diagRegion.includes('config.ringRetainLogLevel') ||
+      !diagRegion.includes('config.appliedTimezoneOffsetMinutes') ||
       !ui.includes("typeof s.bootId==='number'") ||
       !ui.includes('function applyDiagnosticStatus(') ||
       !ui.includes('dBz') ||
@@ -377,46 +292,43 @@ if ((statusFormat.match(/page == StatusPage::Diagnostic/g) || []).length < 1 ||
       !css.includes('.momentaryOnly') ||
       !ui.includes('function applyMachineTypeUi(')) {
     throw new Error(
-        'status/diagnostic must keep transversal bootId/firmware/liveShot/ringRetain for the Diagnostic page');
+        'diagnostic stream must keep transversal bootId/firmware/liveShot/ringRetain for the Diagnostic page');
   }
   for (const forbidden of [
     'configuredIp', 'configuredNetmask', 'configuredGateway', 'configuredDns1',
     'configuredDns2'
   ]) {
-    if (diagBody.includes(forbidden)) {
+    if (diagRegion.includes(forbidden)) {
       throw new Error(
-          'status/diagnostic must not include Admin-only network field: ' +
+          'diagnostic stream must not include Admin-only network field: ' +
           forbidden);
     }
   }
-  // "open" appears only on Admin network object, not Diagnostic lean body.
-  if (/\\"open\\"/.test(diagBody)) {
-    throw new Error('status/diagnostic must not include Admin-only network open flag');
+  if (diagRegion.includes('wifiSleep') || diagRegion.includes('staWifiSleep')) {
+    throw new Error('diagnostic stream must report live wifiPs, not wifiSleep config');
   }
-  if (diagBody.includes('wifiSleep') || diagBody.includes('staWifiSleep')) {
-    throw new Error('status/diagnostic must report live wifiPs, not wifiSleep config');
-  }
-  if (!diagBody.includes('\\"wifiPs\\":\\"%s\\"') ||
-      !diagBody.includes('wifiPsLiveName(network.wifiPs)') ||
+  if (!diagRegion.includes('wifiPsLiveName(network.wifiPs)') ||
       !network.includes('status_.wifiPs = wifiPs') ||
       !network.includes('esp_wifi_get_ps(&ps)') ||
       !domainCore.includes('wifiPsLiveName')) {
-    throw new Error('status/diagnostic must include live wifiPs from the driver');
+    throw new Error('diagnostic stream must include live wifiPs from the driver');
   }
-  if (!diagBody.includes('\\"wifiCoex\\":\\"%s\\"') ||
-      !diagBody.includes('rfCoexPreferenceName(network.wifiCoex)') ||
+  if (!diagRegion.includes('rfCoexPreferenceName(network.wifiCoex)') ||
       !network.includes('status_.wifiCoex = snapshotRfCoexPreference()') ||
       !firmware.includes('rfCoexPreferenceName') ||
       !firmware.includes('snapshotRfCoexPreference')) {
-    throw new Error('status/diagnostic must include live BT/Wi-Fi coex preference');
+    throw new Error('diagnostic stream must include live BT/Wi-Fi coex preference');
   }
-  if (diagBody.includes('ntpServerPreset') ||
-      diagBody.includes('ntpServerCustom') ||
-      diagBody.includes('buzzerSupported') ||
-      diagBody.includes('presets') ||
-      diagBody.includes('brewByWeight')) {
+  if (diagRegion.includes('ntpServerPreset') ||
+      diagRegion.includes('ntpServerCustom') ||
+      diagRegion.includes('buzzerSupported') ||
+      diagRegion.includes('presets') ||
+      diagRegion.includes('brewByWeight')) {
     throw new Error(
-        'status/diagnostic must not include settings/admin-only payload fields');
+        'diagnostic stream must not include settings/admin-only payload fields');
+  }
+  if (/\\\"open\\\"|\\"open\\"/.test(diagRegion)) {
+    throw new Error('diagnostic stream must not include Admin-only network open flag');
   }
 }
 if (!network.includes('ShotStopperDebugExport.h') ||
@@ -466,24 +378,30 @@ if (!ui.includes(
       'applyCommonStatus must only update buzzer visibility when buzzerSupported is present');
 }
 
-const logHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::logHandler');
-const logHandlerEnd = network.indexOf('esp_err_t ShotStopperNetwork::shotsClearHandler', logHandlerStart);
-if (logHandlerStart < 0 || logHandlerEnd < 0) {
-  throw new Error('Log handler not found');
+// The serial log rides the owned UI stream: the retired REST handler's
+// invariants move to the stream sender.
+const logStreamStart = network.indexOf('bool ShotStopperNetwork::sendLogStream');
+const logStreamRegion = network.slice(
+    logStreamStart, network.indexOf('\n}\n', logStreamStart));
+if (logStreamStart < 0) {
+  throw new Error('Log stream sender not found');
 }
-const logHandler = network.slice(logHandlerStart, logHandlerEnd);
-if (logHandler.includes('requireAdminUnlock(request)') ||
-    logHandler.includes('authenticate(request')) {
-  throw new Error('Diagnostic log must stay public, not HTTP authenticate()');
+if (logStreamRegion.includes('requireAdminUnlock(request)') ||
+    logStreamRegion.includes('authenticate(request')) {
+  throw new Error('Diagnostic log frames must stay behind the owned claim');
 }
-if (logHandler.includes('"message":"%s"') ||
-    !logHandler.includes('sendJsonStringChunk(request, message)')) {
-  throw new Error('Log event messages must be JSON-escaped via sendJsonStringChunk');
+if (!logStreamRegion.includes('escapeJsonString(message, work.jsonItem')) {
+  throw new Error('Log event messages must be JSON-escaped before framing');
 }
 for (const field of forbiddenResponseFields) {
-  if (logHandler.includes(field)) {
-    throw new Error(`Secret field exposed by diagnostic log: ${field}`);
+  if (logStreamRegion.includes(field)) {
+    throw new Error('Secret field exposed by diagnostic log: ' + field);
   }
+}
+if (!logStreamRegion.includes('debugLogLatestSequence()') ||
+    !logStreamRegion.includes('logPush') ||
+    !networkHeader.includes('uint32_t logAfter = 0;')) {
+  throw new Error('Log frames must be watermark-gated with cursor paging');
 }
 
 if (/AP_WINDOW_MS/.test(networkHeader) || /AP_WINDOW_MS/.test(network)) {

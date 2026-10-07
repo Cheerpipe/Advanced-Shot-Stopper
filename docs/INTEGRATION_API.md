@@ -369,8 +369,50 @@ supplies a new time anchor; the browser advances relative time locally.
 `GET /api/v1/status/home` no longer exists: navigation visibility
 (`diagnosticPageVisible`, `compatibilityMode`) is carried by the Home stream
 itself and applied on every view, and the browser no longer probes a status
-route when entering Stats, History, or Diagnostic. Settings, Admin, Diagnostic
-status, and the public integration API keep their existing REST contracts.
+route when entering Stats, History, or Diagnostic. Settings, Admin, record
+status, and the public integration API keep their existing REST contracts;
+the Diagnostic page is WebSocket-only and is described next.
+
+### Diagnostic live updates
+
+The Diagnostic page subscribes on the same owned socket with
+`{"op":"diagnostic","on":true}` when the view appears and unsubscribes on
+every navigation. The first frame after subscribing is a snapshot; later
+frames are `changes` deltas merged in order, exactly like Home. The
+`{"op":"resync"}` message re-arms a fresh snapshot, and `GET /api/v1/log`
+and `/api/v1/status/diagnostic` no longer exist.
+
+Diagnostic frames have `v: 1`, `type: "diagnostic"`, `boot`, `snapshot`, and
+`changes`. A field is sent only when its value changed since it was last
+sent, at any cadence: a settled device emits no diagnostic frames at all.
+Event-driven state (control, safety, guards, maintenance, crash count, NTP
+and Wi-Fi link state, machine integration) is evaluated on every dispatch
+tick and lands within one tick (at most 100 ms during a shot, 250 ms
+otherwise). Countdowns and ages are quantized to whole seconds (the no-scale
+cooldown to whole minutes) so a ticking value costs at most one small frame
+per second. Sampled telemetry (heap and CPU health, hardware monitor, NVS
+statistics, steady-state Wi-Fi RSSI and signal quality, task profiler, scale
+profiler, machine-integration traffic counters) shares a four-second
+evaluation gate, so its producers cost no more than the retired status poll.
+A snapshot arrives in stages: the core frame carries the live projection and
+the following frames deliver the heavier sections; the page renders each
+section as it lands. The wall clock is not streamed: the page renders UTC and
+local time from the Home stream's time anchor and ticks locally.
+
+The serial log subscribes on the same socket with
+`{"op":"log","on":true,"after":<last rendered sequence>}` while the page is
+shown and unsubscribes on navigation. Log frames have `v: 1`, `type: "log"`,
+the retired REST log payload shape (`bootId`, `dropped`, `historyOverwritten`,
+`missedEvents`, `serialDropped`, `serialTruncated`, `hasMore`,
+`cursorInvalid`, `events`), and are pushed when the log ring advances; a
+backlog pages across dispatches with `hasMore`, and an invalidated cursor
+refills the view from the oldest retained event without a client round trip.
+
+Commands from the Diagnostic page (log levels, profiler start and stop, loop
+and scale-gap resets, reset-history clearing, machine-integration refresh)
+keep their HTTP endpoints; their results reach the page through the stream's
+`lastCommand` and configuration revision fields, so no status polling backs
+them.
 
 The former `/api/v1/shots` route family was renamed to `/api/v1/stats` and its
 GET read has since moved to the owned WebSocket: external Web UI API callers

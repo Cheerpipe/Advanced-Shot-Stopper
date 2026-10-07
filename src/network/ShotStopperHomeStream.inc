@@ -230,12 +230,51 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   return true;
 }
 
+namespace {
+// Frame budget shared by every multi-section sender: bounded well under the
+// client's 24064-byte message guard with headroom for escaping.
+constexpr size_t kUiStreamFrameBudget = 20480;
+// Diagnostic telemetry shares one evaluation gate: sampled producers (heap,
+// CPU, NVS stats, profiler copies, steady-state RSSI) never run per dispatch
+// tick, matching the retired REST poll cost. Emission still requires a value
+// change, so an unchanged section costs no frame.
+constexpr uint32_t kDiagSlowMs = 4000;
+}  // namespace
+
+// Frame delivery shared by every diagnostic/log pass: ownership is re-checked
+// immediately before the send, and a clean header abort defers by arming the
+// caller's retry flag instead of tearing down the owned socket.
+bool ShotStopperNetwork::sendUiStreamFrame(UiStreamSession &session,
+                                           size_t used, bool &deferArm) {
+  bool owner;
+  { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
+  if (!owner) return false;
+  httpd_ws_frame_t frame = {};
+  frame.type = HTTPD_WS_TYPE_TEXT;
+  frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
+  frame.len = used;
+  if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
+    // Same repair rule as the Home stream: defer with a retry armed.
+    if (!uiStreamSendCleanAbort) return false;
+    deferArm = true;
+  }
+  return true;
+}
+
 // Same bounded projection contract as sendHomeStream: the diagnostic page
 // subscribes per view, so a session without the flag never reaches this path.
+// This projection is the page's only data source. Event-driven sections ride
+// the per-dispatch delta frame; sampled sections (health, NVS, network
+// measurements, Micra traffic, profilers) share one 4 s evaluation gate so
+// their producers cost no more than the retired REST poll. Every field still
+// reaches the wire only when its fingerprint changes, and follow-up frames
+// carry snapshot:false deltas that the client merges in order.
 __attribute__((optimize("Os")))
 bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
                                               const ControlStatusSnapshot &control) {
+  const uint32_t now = millis();
   const bool initial = session.diagResync || session.diagBoot != control.bootId;
+  const bool slow = initial || now - session.diagSlowAtMs >= kDiagSlowMs;
   HomeStreamDelta delta{session.diagHashes, UiStreamSession::kDiagFields, 0, 0, 0, initial};
   delta.ok = statusJsonAppend(&delta.used,
       "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":%s,\"changes\":{",
@@ -326,6 +365,31 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
   }
   delta.field("scale.lastDisconnect.summary", "\"%s\"", disconnectSummary);
   delta.field("scale.lastCommandFailure.summary", "\"%s\"", commandSummary);
+  delta.field("scale.model", "\"%s\"", scaleModelName(control.scaleModel));
+  delta.field("scale.supportedCommandsKnown",
+              bool(control.scaleModel != ScaleModel::Unknown));
+  {
+    char commandsJson[320] = "[";
+    size_t commandBytes = 1;
+    ScaleCommandInfo commandInfo;
+    for (size_t i = 0;
+         scaleBookooCommandAt(control.scaleModel, i, &commandInfo); ++i) {
+      const int n = snprintf(commandsJson + commandBytes,
+                             sizeof(commandsJson) - commandBytes,
+                             "%s{\"name\":\"%s\",\"code\":\"0x%02X\"}",
+                             i == 0 ? "" : ",", commandInfo.name,
+                             static_cast<unsigned>(commandInfo.code));
+      if (n < 0 || static_cast<size_t>(n) >=
+                       sizeof(commandsJson) - commandBytes) {
+        commandBytes = 1;
+        break;
+      }
+      commandBytes += static_cast<size_t>(n);
+    }
+    commandsJson[commandBytes++] = ']';
+    commandsJson[commandBytes] = '\0';
+    delta.field("scale.supportedCommands", "%s", commandsJson);
+  }
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   {
     const auto micra = machineIntegrationStatus();
@@ -354,25 +418,558 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
     delta.field("lineaMicra.phase", "\"%s\"", lineaMicraPhaseName(micra.phase));
     delta.field("lineaMicra.temperatureState", "\"%s\"", lineaMicraTemperatureStateName(micra.temperatureState));
     delta.field("lineaMicra.temperatureError", "\"%s\"", lineaMicraErrorName(micra.temperatureError));
+    char safeEmail[LINEA_MICRA_USERNAME_CAPACITY * 2] = {};
+    char safeSerial[LINEA_MICRA_SERIAL_CAPACITY * 2] = {};
+    char safeName[LINEA_MICRA_NAME_CAPACITY * 2] = {};
+    { TaskLockGuard lock(dataMux_);
+      sanitizeJsonEmbed(settings_.lineaMicra.username, safeEmail, sizeof(safeEmail));
+      sanitizeJsonEmbed(settings_.lineaMicra.selectedSerial, safeSerial, sizeof(safeSerial));
+      sanitizeJsonEmbed(settings_.lineaMicra.selectedName, safeName, sizeof(safeName)); }
+    delta.field("lineaMicra.email", "\"%s\"", safeEmail);
+    delta.field("lineaMicra.selectedSerial", "\"%s\"", safeSerial);
+    delta.field("lineaMicra.selectedName", "\"%s\"", safeName);
+    const LineaMicraCloudCall call = machineIntegrationCloudCall();
+    if (call.api == nullptr)
+      delta.field("lineaMicra.cloudCall", "null");
+    else
+      delta.field("lineaMicra.cloudCall",
+                  "{\"api\":\"%s\",\"method\":\"%s\",\"result\":\"%s\","
+                  "\"startedAtUtcSec\":%lu,\"durationMs\":%lu,"
+                  "\"httpStatus\":%u,\"transportStatus\":%ld}",
+                  call.api, call.method, call.result,
+                  static_cast<unsigned long>(call.startedAtUtcSec),
+                  static_cast<unsigned long>(call.durationMs),
+                  static_cast<unsigned>(call.httpStatus),
+                  static_cast<long>(call.transportStatus));
   }
 #endif
+  // Event-driven sections migrated from the REST diagnostic payload; paths
+  // keep their REST names so the shared painters apply unchanged.
+  bool unlocked = DEVELOPMENT_BUILD;
+  {
+    TaskLockGuard lock(dataMux_);
+    unlocked |= adminUnlocked_ && strcmp(adminUnlockClientId_, session.clientId) == 0 &&
+        static_cast<int32_t>(millis() - adminUnlockUntilMs_) < 0;
+  }
+  const NetworkStatusSnapshot network = snapshot();
+  const auto &config = control.config;
+  const auto timeStatus = g_wallClock.snapshot(now);
+  int16_t timezoneOffset = 0, lastSyncTimezoneOffset = 0;
+  const bool timezoneOffsetKnown = timeStatus.utcSec != 0 &&
+      timeZoneOffsetAtOrUtc(config.timezoneId, timeStatus.utcSec, timezoneOffset);
+  const bool lastSyncOffsetKnown = timeStatus.lastSyncUtcSec != 0 &&
+      timeZoneOffsetAtOrUtc(config.timezoneId, timeStatus.lastSyncUtcSec,
+                            lastSyncTimezoneOffset);
+  delta.field("firmwareVersion", "\"%s\"", FW_VERSION);
+  delta.field("bootId", "%lu", static_cast<unsigned long>(control.bootId));
+  delta.field("adminUnlocked", bool(unlocked));
+  delta.field("diagnosticPublic", bool(diagnosticPageEnabled()));
+  delta.field("development", bool(DEVELOPMENT_BUILD));
+  delta.field("lastCommand.requestId", "%lu",
+              static_cast<unsigned long>(network.lastCommandRequestId));
+  delta.field("lastCommand.state", "\"%s\"",
+              commandResultStateName(network.lastCommandState));
+  delta.field("config.serialLogLevel", "\"%s\"",
+              logLevelName(serialLogLevelFromRuntime(config)));
+  delta.field("config.ringRetainLogLevel", "\"%s\"",
+              logLevelName(static_cast<LogLevel>(config.ringRetainLogLevel)));
+  delta.field("config.timezoneId", "\"%s\"", config.timezoneId);
+  delta.field("config.appliedTimezoneOffsetMinutes", "%d",
+              static_cast<int>(timezoneOffset));
+  delta.field("config.timezoneOffsetKnown", bool(timezoneOffsetKnown));
+  delta.field("config.timezoneResolution", "\"%s\"",
+              timeZoneResolution(config.timezoneId, timeStatus.utcSec));
+  delta.field("config.lastSyncAppliedTimezoneOffsetMinutes", "%d",
+              static_cast<int>(lastSyncTimezoneOffset));
+  delta.field("config.lastSyncOffsetKnown", bool(lastSyncOffsetKnown));
+  delta.field("maintenance.active", bool(control.maintenanceLeaseActive));
+  delta.field("maintenance.leaseId", "%lu",
+              static_cast<unsigned long>(control.maintenanceLeaseId));
+  delta.field("maintenance.persistPending", bool(control.configPersistPending));
+  delta.field("maintenance.persistFailed", bool(control.configPersistFailed));
+  delta.field("time.state", "\"%s\"", timeSyncStateName(timeStatus.state));
+  char safeServer[80] = {};
+  sanitizeJsonEmbed(timeStatus.activeServer, safeServer, sizeof(safeServer));
+  delta.field("time.activeServer", "\"%s\"", safeServer);
+  delta.field("time.lastSyncUtcSec", "%lu",
+              static_cast<unsigned long>(timeStatus.lastSyncUtcSec));
+  // Whole seconds: ticking ages hash-change at display resolution only.
+  delta.field("time.lastSyncAgeMs", "%lu",
+              static_cast<unsigned long>(timeStatus.lastSyncAgeMs / 1000 * 1000));
+  delta.field("time.nextRetryInMs", "%lu",
+              static_cast<unsigned long>(timeStatus.nextRetryInMs / 1000 * 1000));
+  char safeStaSsid[80] = {}, safeApSsid[80] = {};
+  sanitizeJsonEmbed(network.staSsid, safeStaSsid, sizeof(safeStaSsid));
+  sanitizeJsonEmbed(network.apSsid, safeApSsid, sizeof(safeApSsid));
+  delta.field("network.apActive", bool(network.apActive));
+  delta.field("network.apSsid", "\"%s\"", safeApSsid);
+  delta.field("network.apIp", "\"%s\"", network.apIp);
+  delta.field("network.wifiConfigured", bool(network.wifiConfigured));
+  delta.field("network.ssid", "\"%s\"", safeStaSsid);
+  delta.field("network.staState", "\"%s\"", staStateName(network.staState));
+  delta.field("network.wifiPs", "\"%s\"", wifiPsLiveName(network.wifiPs));
+  delta.field("network.wifiCoex", "\"%s\"", rfCoexPreferenceName(network.wifiCoex));
+  if (network.channel != 0)
+    delta.field("network.channel", "%u", static_cast<unsigned>(network.channel));
+  else delta.field("network.channel", "null");
+  delta.field("network.staIp", "\"%s\"", network.staIp);
+  delta.field("network.ipMode", "\"%s\"", staIpModeName(network.staIpMode));
+  delta.field("network.configState", "\"%s\"", staConfigStateName(network.staConfigState));
+  // Whole seconds: the UI ceils the remaining window for display.
+  delta.field("network.confirmRemainingMs", "%lu",
+              static_cast<unsigned long>(network.confirmRemainingMs / 1000 * 1000));
+  {
+    const CrashArchiveStatus crash = crashArchiveStatus();
+    delta.field("crashCount", "%u", static_cast<unsigned>(crash.count));
+    delta.field("crashState", "%u", static_cast<unsigned>(crash.state));
+  }
+  delta.field("serial.io4", "\"%s\"",
+              usbConsoleIo4StateId(control.usbConsoleIo4Closed));
+  delta.field("serial.state", "\"%s\"", usbSerialStateId(control.usbSerialEnableSource));
+  delta.field("compileFlags.buzzer", "\"%s\"", compiledBuzzerModeId());
+  delta.field("compileFlags.remoteMachineControl",
+              bool(REMOTE_MACHINE_CONTROL_ENABLED));
+  delta.field("compileFlags.arch", "\"%s\"", FW_BOARD_ARCH_STRING);
+  delta.field("compileFlags.hardwareProfile", "\"%s\"", SHOT_STOPPER_HARDWARE_PROFILE_ID);
+  delta.field("compileFlags.machineProfile", "\"%s\"", SHOT_STOPPER_MACHINE_PROFILE_ID);
+  delta.field("compileFlags.machineBrand", "\"%s\"", SHOT_STOPPER_MACHINE_BRAND);
+  delta.field("compileFlags.machineModel", "\"%s\"", SHOT_STOPPER_MACHINE_MODEL);
+  {
+    // Static within a boot; one unit-hash blob replaces the REST array.
+    size_t used = 0;
+    g_work->historyJson[used++] = '[';
+    for (uint8_t i = 0; i < control.resetHistoryCount; ++i) {
+      const int n = snprintf(g_work->historyJson + used,
+                             NetworkWorkBuf::kHistoryJson - used,
+                             "%s{\"reason\":\"%s\",\"uptimeMs\":%lu}",
+                             i ? "," : "",
+                             safetyResetReasonName(control.resetHistory[i].reasonCode),
+                             static_cast<unsigned long>(control.resetHistory[i].uptimeMs));
+      if (n < 0 || static_cast<size_t>(n) >= NetworkWorkBuf::kHistoryJson - used) break;
+      used += static_cast<size_t>(n);
+    }
+    g_work->historyJson[used++] = ']';
+    g_work->historyJson[used] = '\0';
+    delta.field("resetHistory", "%s", g_work->historyJson);
+  }
+  {
+    // Guard state machines are event-driven; countdowns hash at whole-second
+    // (whole-minute cooldown) resolution so they tick no faster than the
+    // display while transitions still land within one dispatch.
+    const bool bbwEnabled = !config.timerOnly;
+    const bool scaleUsable = control.scaleAvailable &&
+        control.weightStreamState == WeightStreamState::FRESH;
+    const bool lastShotCupRemoved = control.lastShot.valid &&
+        control.lastShot.endReason == EndReason::CUP_REMOVED;
+    delta.field("guards.bbwEnabled", bool(bbwEnabled));
+    delta.field("guards.scaleUsable", bool(scaleUsable));
+    delta.field("guards.lastShotCupRemoved", bool(lastShotCupRemoved));
+    delta.field("guards.noScale.enabled", bool(control.noScaleShotGuardEnabled));
+    delta.field("guards.noScale.armed", bool(control.noScaleShotGuardArmed));
+    delta.field("guards.noScale.hold", bool(control.noScaleShotGuardHold));
+    delta.field("guards.noScale.mode", "\"%s\"", noScaleBbwModeId(config.noScaleBbwMode));
+    delta.field("guards.noScale.cooldownRemainingMs", "%lu",
+                static_cast<unsigned long>(control.noScaleShotGuardCooldownRemainingMs / 60000 * 60000));
+    delta.field("guards.noScale.scaleWasAvailable",
+                bool(control.noScaleShotGuardScaleWasAvailable));
+    delta.field("guards.atm.enabled", bool(config.autoToManualGuardEnabled));
+    delta.field("guards.atm.armed", bool(control.cycleAutoToManualGuardArmed));
+    delta.field("guards.atm.enforced", bool(control.cycleAutoToManualGuardEnforced));
+    delta.field("guards.atm.remainingMs", "%lu",
+                static_cast<unsigned long>(control.cycleAutoToManualGuardRemainingMs / 1000 * 1000));
+    delta.field("guards.slowExtraction.enabled", bool(config.slowExtractionGuardEnabled));
+    delta.field("guards.slowExtraction.extended", bool(control.cycleSlowExtractionExtended));
+    delta.field("guards.slowExtraction.targetReachedEarly", bool(control.cycleTargetReachedEarly));
+    delta.field("guards.slowExtraction.activeStopWeightG",
+                static_cast<float>(control.cycleActiveStopWeightG));
+    delta.field("guards.fastExtraction.enabled", bool(config.fastExtractionGuardEnabled));
+    delta.field("guards.fastExtraction.extended", bool(control.cycleExtractionExtended));
+    delta.field("guards.fastExtraction.targetReachedEarly", bool(control.cycleTargetReachedEarly));
+    delta.field("guards.fastExtraction.activeStopWeightG",
+                static_cast<float>(control.cycleActiveStopWeightG));
+    delta.field("guards.fastExtraction.minBbwBrewTimeRemainingMs", "%lu",
+                static_cast<unsigned long>(control.cycleMinBbwBrewTimeRemainingMs / 1000 * 1000));
+    delta.field("guards.accidentalTouch.enabled", bool(config.avoidAccidentalTouchEnabled));
+    delta.field("guards.accidentalTouch.holding", bool(control.cycleAccidentalTouchHolding));
+    delta.field("guards.accidentalTouch.phase", "\"%s\"",
+                accidentalTouchPhaseName(static_cast<AccidentalTouchPhase>(control.cycleAccidentalTouchPhase)));
+    delta.field("guards.accidentalTouch.class", "\"%s\"",
+                accidentalTouchClassName(static_cast<AccidentalTouchClass>(control.cycleAccidentalTouchClass)));
+    delta.field("guards.accidentalTouch.pendingCount", "%u",
+                static_cast<unsigned>(control.cycleAccidentalTouchPendingCount));
+    delta.field("guards.cupProtection.enabled", bool(config.cupProtectionEnabled));
+    delta.field("guards.cupProtection.stopIfRemoved", bool(config.stopIfCupRemoved));
+    delta.field("guards.cupProtection.requireCupToStart", bool(config.requireCupToStart));
+    delta.field("guards.cupProtection.present", bool(control.cupPresent));
+    delta.field("guards.cupProtection.startHold", bool(control.cupStartGuardHold));
+    delta.field("guards.cupProtection.removedPending", bool(control.cycleCupRemovedPending));
+    delta.field("guards.cupProtection.bbwProtectionActive",
+                bool(control.cycleBbwProtectionEnabled && !control.cycleBbwProtectionEnded));
+    delta.field("guards.cupProtection.bbwProtectionEnded", bool(control.cycleBbwProtectionEnded));
+  }
   if (!delta.ok || !statusJsonAppend(&delta.used, "}}")) return false;
-  if (!delta.changed) return true;
-  bool owner;
-  { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
-  httpd_ws_frame_t frame = {};
-  frame.type = HTTPD_WS_TYPE_TEXT;
-  frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
-  frame.len = delta.used;
-  if (!owner) return false;
-  if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
-    // Same repair rule as the Home stream: defer with a snapshot armed.
-    if (!uiStreamSendCleanAbort) return false;
-    session.diagResync = true;
-    return true;
+  if (delta.changed) {
+    if (!sendUiStreamFrame(session, delta.used, session.diagResync)) return false;
+    if (session.diagResync) return true;
+  }
+  if (slow) {
+    // Sampled telemetry: one gate, one frame, evaluation at poll cost.
+    HomeStreamDelta telemetry{session.diagHashes, UiStreamSession::kDiagFields,
+                              delta.index, 0, 0, initial};
+    telemetry.ok = statusJsonAppend(&telemetry.used,
+        "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":false,\"changes\":{",
+        static_cast<unsigned long>(control.bootId));
+    // Whole seconds: the uptime renderer shows seconds.
+    telemetry.field("health.uptimeMs", "%lu",
+                    static_cast<unsigned long>(control.uptimeMs / 1000 * 1000));
+    telemetry.field("health.loopMaxGapMs", "%lu",
+                    static_cast<unsigned long>(control.loopMaxGapMs));
+    telemetry.field("health.minimumFreeHeapBytes", "%lu",
+                    static_cast<unsigned long>(control.minimumFreeHeapBytes));
+    telemetry.field("health.largestFreeHeapBlockBytes", "%lu",
+                    static_cast<unsigned long>(control.largestFreeHeapBlockBytes));
+    telemetry.field("health.psramSizeBytes", "%lu",
+                    static_cast<unsigned long>(control.psramSizeBytes));
+    telemetry.field("health.psramFreeBytes", "%lu",
+                    static_cast<unsigned long>(control.psramFreeBytes));
+    telemetry.field("health.psramLargestFreeBlockBytes", "%lu",
+                    static_cast<unsigned long>(control.psramLargestFreeBlockBytes));
+    telemetry.field("safety.resetReasonCode", "%lu",
+                    static_cast<unsigned long>(control.resetReasonCode));
+    {
+      const NetworkHeapTelemetrySnapshot networkHeap = heapTelemetrySnapshot();
+      const HeapLifecycleAggregate webhookHeap = webhooks_.heapTelemetry();
+      HeapLifecycleAggregate micraHeap = {};
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+      micraHeap = machineIntegrationHeapTelemetry();
+#endif
+      char heapSummary[224] = {};
+      snprintf(heapSummary, sizeof(heapSummary),
+               "blocks allocated/free %lu/%lu frag %u/1000; "
+               "HTTP %ld/%ld WiFi %ld/%ld OTA %ld/%ld webhooks %ld/%ld Micra TLS %ld/%ld",
+               static_cast<unsigned long>(control.internalHeapAllocatedBlocks),
+               static_cast<unsigned long>(control.internalHeapFreeBlocks),
+               static_cast<unsigned>(control.internalHeapFragmentationPermille),
+               static_cast<long>(networkHeap.http.lastDelta.largestBlock),
+               static_cast<long>(networkHeap.http.worstLargestDelta),
+               static_cast<long>(networkHeap.wifi.lastDelta.largestBlock),
+               static_cast<long>(networkHeap.wifi.worstLargestDelta),
+               static_cast<long>(networkHeap.ota.lastDelta.largestBlock),
+               static_cast<long>(networkHeap.ota.worstLargestDelta),
+               static_cast<long>(webhookHeap.lastDelta.largestBlock),
+               static_cast<long>(webhookHeap.worstLargestDelta),
+               static_cast<long>(micraHeap.lastDelta.largestBlock),
+               static_cast<long>(micraHeap.worstLargestDelta));
+      telemetry.field("health.heap", "\"%s\"", heapSummary);
+    }
+    const auto &hwmon = control.hwmon;
+    telemetry.field("health.hwmon.cpuLoad5s", "%.2f",
+                    static_cast<double>(hwmon.cpuLoad5s));
+    telemetry.field("health.hwmon.cpuLoad1m", "%.2f",
+                    static_cast<double>(hwmon.cpuLoad1m));
+    telemetry.field("health.hwmon.cpuLoad5m", "%.2f",
+                    static_cast<double>(hwmon.cpuLoad5m));
+    telemetry.field("health.hwmon.cpu0Busy", "%.2f",
+                    static_cast<double>(hwmon.cpu0Busy));
+    telemetry.field("health.hwmon.cpu1Busy", "%.2f",
+                    static_cast<double>(hwmon.cpu1Busy));
+    telemetry.field("health.hwmon.cpuLoadValid", bool(hwmon.cpuLoadValid));
+    telemetry.field("health.hwmon.cpuMhz", "%lu",
+                    static_cast<unsigned long>(hwmon.cpuMhz));
+    telemetry.field("health.hwmon.tempValid", bool(hwmon.tempValid));
+    telemetry.field("health.hwmon.tempC", "%.1f",
+                    static_cast<double>(hwmon.tempC));
+    telemetry.field("health.hwmon.tempPeakC", "%.1f",
+                    static_cast<double>(hwmon.tempPeakC));
+    telemetry.field("health.hwmon.ramTotalBytes", "%lu",
+                    static_cast<unsigned long>(hwmon.ramTotalBytes));
+    telemetry.field("health.hwmon.ramUsedBytes", "%lu",
+                    static_cast<unsigned long>(hwmon.ramUsedBytes));
+    telemetry.field("health.hwmon.ramFreeBytes", "%lu",
+                    static_cast<unsigned long>(hwmon.ramFreeBytes));
+    // Steady-state RSSI sits behind the 1 s sampler; 4 s display matches the
+    // retired poll. Link edges still land immediately via the EVENT fields.
+    if (network.staLinkMetricsValid)
+      telemetry.field("network.rssi", "%d", static_cast<int>(network.staRssi));
+    else telemetry.field("network.rssi", "null");
+    if (network.staLinkMetricsValid)
+      telemetry.field("network.signalQualityPct", "%u",
+                      static_cast<unsigned>(network.staSignalQualityPct));
+    else telemetry.field("network.signalQualityPct", "null");
+    telemetry.field("network.apClients", "%u",
+                    static_cast<unsigned>(network.apClients));
+    {
+      const NvsDiagnosticSnapshot nvs = captureNvsDiagnostics();
+      size_t used = 0;
+      const int n = snprintf(g_work->historyJson, NetworkWorkBuf::kHistoryJson,
+                       "{\"statsValid\":%s,\"layoutExpected\":%s,"
+                       "\"partitionBytes\":%lu,\"usedEntries\":%lu,"
+                       "\"availableEntries\":%lu,\"freeEntries\":%lu,"
+                       "\"totalEntries\":%lu,\"namespaces\":%lu,"
+                       "\"failures\":%lu,\"flashIoLockTimeouts\":%lu,"
+                       "\"lastFailure\":",
+                       nvs.statsValid ? "true" : "false",
+                       nvs.partitionBytes == EXPECTED_NVS_PARTITION_BYTES ? "true" : "false",
+                       static_cast<unsigned long>(nvs.partitionBytes),
+                       static_cast<unsigned long>(nvs.usedEntries),
+                       static_cast<unsigned long>(nvs.availableEntries),
+                       static_cast<unsigned long>(nvs.freeEntries),
+                       static_cast<unsigned long>(nvs.totalEntries),
+                       static_cast<unsigned long>(nvs.namespaceCount),
+                       static_cast<unsigned long>(nvs.failureCount),
+                       static_cast<unsigned long>(flashIoLockTimeouts()));
+      if (n > 0 && static_cast<size_t>(n) < NetworkWorkBuf::kHistoryJson)
+        used = static_cast<size_t>(n);
+      if (nvs.lastFailure.present) {
+        const int m = snprintf(g_work->historyJson + used,
+                               NetworkWorkBuf::kHistoryJson - used,
+                               "{\"subsystem\":\"%s\",\"operation\":\"%s\",\"errorName\":\"%s\"}}",
+                               nvsSubsystemName(nvs.lastFailure.subsystem),
+                               nvsOperationName(nvs.lastFailure.operation),
+                               nvsErrorName(nvs.lastFailure.errorCode));
+        if (m > 0 && static_cast<size_t>(m) < NetworkWorkBuf::kHistoryJson - used)
+          used += static_cast<size_t>(m);
+      } else {
+        const int m = snprintf(g_work->historyJson + used,
+                               NetworkWorkBuf::kHistoryJson - used, "null}");
+        if (m > 0 && static_cast<size_t>(m) < NetworkWorkBuf::kHistoryJson - used)
+          used += static_cast<size_t>(m);
+      }
+      telemetry.field("nvs", "%s", g_work->historyJson);
+    }
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+    {
+      const MicraWebSocketStatus ws = machineIntegrationWebSocketStatus();
+      char safeReason[48] = {}, safeCleaningLabel[6 * sizeof(ws.cleaningLabel)] = {};
+      sanitizeJsonEmbed(ws.reason, safeReason, sizeof(safeReason));
+      escapeJsonString(ws.cleaningLabel, safeCleaningLabel, sizeof(safeCleaningLabel));
+      // Whole seconds: the UI derives ages from nowMs locally.
+      telemetry.field("lineaMicra.websocket.nowMs", "%lu",
+                      static_cast<unsigned long>(now / 1000 * 1000));
+      telemetry.field("lineaMicra.websocket.state", "\"%s\"", micraSocketStateName(ws.state));
+      telemetry.field("lineaMicra.websocket.reason", "\"%s\"", safeReason);
+      telemetry.field("lineaMicra.websocket.subscribed", bool(ws.subscribed));
+      telemetry.field("lineaMicra.websocket.machineConnectedKnown",
+                      bool(ws.machineConnectedKnown));
+      telemetry.field("lineaMicra.websocket.machineConnected",
+                      bool(ws.machineConnected));
+      telemetry.field("lineaMicra.websocket.messageAtMs", "%u",
+                      static_cast<unsigned>(ws.messageAtMs));
+      telemetry.field("lineaMicra.websocket.powerAtMs", "%u",
+                      static_cast<unsigned>(ws.powerAtMs));
+      telemetry.field("lineaMicra.websocket.pongAtMs", "%u",
+                      static_cast<unsigned>(ws.pongAtMs));
+      telemetry.field("lineaMicra.websocket.retryRemainingMs", "%u",
+                      static_cast<unsigned>(!ws.retryAtMs || micra_timing::deadlineReached(now, ws.retryAtMs) ? 0 : ws.retryAtMs - now));
+      telemetry.field("lineaMicra.websocket.rxBytes", "%llu",
+                      static_cast<unsigned long long>(ws.receiveBytes));
+      telemetry.field("lineaMicra.websocket.txBytes", "%llu",
+                      static_cast<unsigned long long>(ws.transmitBytes));
+      telemetry.field("lineaMicra.websocket.rxBytesPerSecond", "%u",
+                      static_cast<unsigned>(ws.receivePerSecond));
+      telemetry.field("lineaMicra.websocket.txBytesPerSecond", "%u",
+                      static_cast<unsigned>(ws.transmitPerSecond));
+      telemetry.field("lineaMicra.websocket.rxBytesPerMinute", "%u",
+                      static_cast<unsigned>(ws.receivePerMinute));
+      telemetry.field("lineaMicra.websocket.txBytesPerMinute", "%u",
+                      static_cast<unsigned>(ws.transmitPerMinute));
+      telemetry.field("lineaMicra.websocket.messages", "%u",
+                      static_cast<unsigned>(ws.messages));
+      telemetry.field("lineaMicra.websocket.reconnects", "%u",
+                      static_cast<unsigned>(ws.reconnects));
+      telemetry.field("lineaMicra.websocket.errors", "%u",
+                      static_cast<unsigned>(ws.errors));
+      telemetry.field("lineaMicra.websocket.plannedConnections", "%u",
+                      static_cast<unsigned>(ws.plannedConnections));
+      telemetry.field("lineaMicra.websocket.unexpectedConnections", "%u",
+                      static_cast<unsigned>(ws.unexpectedConnections));
+      telemetry.field("lineaMicra.websocket.retainedBytes", "%u",
+                      static_cast<unsigned>(ws.retainedBytes));
+      telemetry.field("lineaMicra.websocket.stoppedLatencyMs", "%u",
+                      static_cast<unsigned>(ws.stoppedLatencyMs));
+      telemetry.field("lineaMicra.websocket.maxStoppedLatencyMs", "%u",
+                      static_cast<unsigned>(ws.maxStoppedLatencyMs));
+      telemetry.field("lineaMicra.websocket.allocationFailures", "%u",
+                      static_cast<unsigned>(ws.allocationFailures));
+      telemetry.field("lineaMicra.websocket.connectFreeDelta", "%ld",
+                      static_cast<long>(ws.heap.lastDelta.freeBytes));
+      telemetry.field("lineaMicra.websocket.connectLargestDelta", "%ld",
+                      static_cast<long>(ws.heap.lastDelta.largestBlock));
+      telemetry.field("lineaMicra.websocket.stopFreeDelta", "%ld",
+                      static_cast<long>(ws.stopHeap.lastDelta.freeBytes));
+      telemetry.field("lineaMicra.websocket.stopLargestDelta", "%ld",
+                      static_cast<long>(ws.stopHeap.lastDelta.largestBlock));
+      telemetry.field("lineaMicra.websocket.cleaning", "\"%s\"",
+                      ws.cleaning == MicraCleaningState::OFF ? "inactive" :
+                      ws.cleaning == MicraCleaningState::REQUESTED ? "waiting_for_paddle" :
+                      ws.cleaning == MicraCleaningState::CLEANING ? "cleaning" : "unknown");
+      telemetry.field("lineaMicra.websocket.cleaningLabel", "\"%s\"", safeCleaningLabel);
+      telemetry.field("lineaMicra.websocket.cleaningAvailable",
+                      bool(ws.cleaningAvailable));
+      telemetry.field("lineaMicra.websocket.cleaningAtMs", "%u",
+                      static_cast<unsigned>(ws.cleaningAtMs));
+    }
+#endif
+    if (!telemetry.ok || !statusJsonAppend(&telemetry.used, "}}")) return false;
+    if (telemetry.changed) {
+      if (!sendUiStreamFrame(session, telemetry.used, session.diagResync)) return false;
+      if (session.diagResync) return true;
+    }
+    // Task profiler and scale profile: verbatim REST builders on their own
+    // fingerprinted frames (the record-stream no-change contract).
+    {
+      if (callbacks_.copyTaskProfiler != nullptr)
+        callbacks_.copyTaskProfiler(g_work->taskProfiler);
+      else
+        g_work->taskProfiler = TaskProfilerSnapshot{};
+      size_t used = 0;
+      if (!statusJsonAppend(&used,
+              "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":false,"
+              "\"changes\":{",
+              static_cast<unsigned long>(control.bootId)) ||
+          !statusJsonAppendTaskProfiler(&used, g_work->taskProfiler) ||
+          !statusJsonAppend(&used, "}}"))
+        return false;
+      const uint32_t fingerprint = crc32Update(0xFFFFFFFFU,
+          reinterpret_cast<const uint8_t *>(g_work->statusJson), used);
+      if (initial || fingerprint != session.diagTasksFingerprint) {
+        if (!sendUiStreamFrame(session, used, session.diagResync)) return false;
+        if (session.diagResync) return true;
+        if (!initial) session.diagTasksFingerprint = fingerprint;
+      }
+    }
+    {
+      ScaleProfilerStatus scaleProfile{};
+      if (callbacks_.copyScaleProfilerStatus != nullptr)
+        callbacks_.copyScaleProfilerStatus(scaleProfile);
+      size_t used = 0;
+      if (!statusJsonAppend(&used,
+              "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":false,"
+              "\"changes\":{",
+              static_cast<unsigned long>(control.bootId)) ||
+          !statusJsonAppendScaleProfiler(&used, scaleProfile) ||
+          !statusJsonAppend(&used, "}}"))
+        return false;
+      const uint32_t fingerprint = crc32Update(0xFFFFFFFFU,
+          reinterpret_cast<const uint8_t *>(g_work->statusJson), used);
+      if (initial || fingerprint != session.diagProfileFingerprint) {
+        if (!sendUiStreamFrame(session, used, session.diagResync)) return false;
+        if (session.diagResync) return true;
+        if (!initial) session.diagProfileFingerprint = fingerprint;
+      }
+    }
+    session.diagSlowAtMs = now;
   }
   session.diagBoot = control.bootId;
   session.diagResync = false;
+  return true;
+}
+
+// Serial-log view subscription: a cheap ring watermark gates the page copy,
+// so an idle log costs one mutex-protected sequence read per dispatch. Frames
+// reuse the retired REST log payload shape (minus chunked delivery); hasMore
+// pages the backlog across dispatches and a cursor reset refills from the
+// oldest retained event so the client rebuilds its view without a round trip.
+__attribute__((optimize("Os")))
+bool ShotStopperNetwork::sendLogStream(UiStreamSession &session,
+                                       const ControlStatusSnapshot &control) {
+  const uint32_t latest =
+      callbacks_.debugLogLatestSequence ? callbacks_.debugLogLatestSequence() : 0;
+  if (!session.logPush && latest == session.logAfter) return true;
+  NetworkWorkBuf &work = *g_work;
+  const size_t count = callbacks_.copyDebugEvents(
+      session.logAfter, work.logBatch, LOG_BATCH_SIZE, &work.logMetadata);
+  uint32_t lastSequence = session.logAfter;
+  size_t used = 0;
+  if (!statusJsonAppend(&used,
+          "{\"v\":1,\"type\":\"log\",\"bootId\":%lu,\"dropped\":%lu,"
+          "\"historyOverwritten\":%lu,\"missedEvents\":%lu,"
+          "\"serialDropped\":%lu,\"serialTruncated\":%lu,"
+          "\"hasMore\":%s,\"cursorInvalid\":%s,\"events\":[",
+          static_cast<unsigned long>(control.bootId),
+          static_cast<unsigned long>(control.debugEventsDropped),
+          static_cast<unsigned long>(work.logMetadata.historyOverwritten),
+          static_cast<unsigned long>(work.logMetadata.missedEvents),
+          static_cast<unsigned long>(work.logMetadata.serialDropped),
+          static_cast<unsigned long>(work.logMetadata.serialTruncated),
+          work.logMetadata.hasMore ? "true" : "false",
+          work.logMetadata.cursorInvalid ? "true" : "false"))
+    return false;
+  int16_t eventOffset = 0;
+  bool budgetFull = false;
+  for (size_t index = 0; index < count && !budgetFull; ++index) {
+    const DebugEvent &event = work.logBatch[index];
+    eventOffset = 0;
+    if (event.wallSec != 0)
+      (void)timeZoneOffsetAtOrUtc(control.config.timezoneId, event.wallSec,
+                                  eventOffset);
+    char message[128] = {};
+    if (event.text[0] != '\0') {
+      copyCString(message, sizeof(message), event.text);
+    } else if (event.code == DebugCode::BOOT_BANNER) {
+      snprintf(message, sizeof(message), "Open Brew by Weight %s (bootId=%ld)",
+               FW_VERSION, static_cast<long>(event.argument1));
+    } else if (event.code == DebugCode::STATE_TRANSITION &&
+        event.argument1 >= static_cast<int32_t>(StopperState::REQUIRES_OFF) &&
+        event.argument1 <= static_cast<int32_t>(StopperState::MANUAL_NO_SCALE) &&
+        event.argument2 >= static_cast<int32_t>(StopperState::REQUIRES_OFF) &&
+        event.argument2 <= static_cast<int32_t>(StopperState::MANUAL_NO_SCALE)) {
+      snprintf(message, sizeof(message), "%s -> %s",
+               stopperStateName(static_cast<StopperState>(event.argument1)),
+               stopperStateName(static_cast<StopperState>(event.argument2)));
+    } else if ((event.code == DebugCode::WEB_COMMAND_ACCEPTED ||
+                event.code == DebugCode::WEB_COMMAND_REJECTED) &&
+               event.argument1 >=
+                   static_cast<int32_t>(WebCommandType::REMOTE_ON) &&
+               event.argument1 <=
+                   static_cast<int32_t>(
+                       WebCommandType::MAINTENANCE_COMPLETE)) {
+      snprintf(message, sizeof(message), "%s: %s", debugCodeName(event.code),
+               webCommandTypeName(
+                   static_cast<WebCommandType>(event.argument1)));
+    } else if (formatScaleSampleDebugMessage(event, message,
+                                             sizeof(message))) {
+    } else if (formatPersistDebugMessage(event, message,
+                                         sizeof(message))) {
+    } else if (formatLifecycleDebugMessage(event, message,
+                                           sizeof(message))) {
+    } else {
+      copyCString(message, sizeof(message), debugCodeName(event.code));
+    }
+    escapeJsonString(message, work.jsonItem, NetworkWorkBuf::kJsonItem);
+    // Append-only budget: an event that no longer fits ends this frame and
+    // resumes on the next dispatch (logPush stays armed).
+    if (used >= kUiStreamFrameBudget) {
+      budgetFull = true;
+      break;
+    }
+    if (!statusJsonAppend(&used,
+            "%s{\"sequence\":%lu,\"atMs\":%lu,\"wallSec\":%lu,"
+            "\"localSec\":%lu,\"level\":\"%s\",\"category\":\"%s\","
+            "\"code\":%u,\"message\":%s,\"argument1\":%ld,"
+            "\"argument2\":%ld}",
+            index == 0 ? "" : ",",
+            static_cast<unsigned long>(event.sequence),
+            static_cast<unsigned long>(event.atMs),
+            static_cast<unsigned long>(event.wallSec),
+            static_cast<unsigned long>(event.wallSec +
+                                       static_cast<int32_t>(eventOffset) * 60),
+            logLevelName(event.level), debugCategoryName(event.category),
+            static_cast<unsigned>(event.code), work.jsonItem,
+            static_cast<long>(event.argument1),
+            static_cast<long>(event.argument2))) {
+      budgetFull = true;
+      break;
+    }
+    lastSequence = event.sequence;
+  }
+  const bool more = budgetFull || work.logMetadata.hasMore;
+  if (!statusJsonAppend(&used, "]}")) return false;
+  bool deferred = false;
+  if (!sendUiStreamFrame(session, used, deferred)) return false;
+  if (deferred) return true;
+  session.logAfter = work.logMetadata.cursorInvalid ? 0 : lastSequence;
+  session.logPush = more;
   return true;
 }
 

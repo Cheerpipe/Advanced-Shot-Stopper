@@ -700,10 +700,10 @@ if (ui.includes('id="shotPanel"') ||
     !ui.includes('remoteReady&&relayStartReady&&canControl') ||
     ui.includes('Remote machine control disabled by policy') ||
     !network.includes('delta.field("remoteControlEnabled"') ||
-    !network.includes('\\"lastCommand\\"') ||
-    !network.includes('\\"maintenance\\"') ||
-    !network.includes('\\"persistPending\\"') ||
-    !network.includes('\\"persistFailed\\"') ||
+    !network.includes('delta.field("lastCommand.requestId"') ||
+    !network.includes('delta.field("maintenance.active"') ||
+    !network.includes('delta.field("maintenance.persistPending"') ||
+    !network.includes('delta.field("maintenance.persistFailed"') ||
     !ui.includes('persistFailed') ||
     !ui.includes('Saving...') ||
     !network.includes('delta.field("cycle.active"') ||

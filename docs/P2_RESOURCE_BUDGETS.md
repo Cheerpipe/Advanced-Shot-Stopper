@@ -376,11 +376,13 @@ count, last failing subsystem/operation/error, and flash-I/O lock timeouts.
 `scripts/p2_soak.py` captures one status JSON object per interval as JSONL and
 emits a machine-readable `.summary.json`. Headers, including an optional WebUI
 claim, are read only from `OPENBREWBYWEIGHT_SOAK_HEADERS`; they are never copied into
-the evidence. Prefer the public diagnostic endpoint when enabled:
+the evidence. Prefer the public debug export (it carries the same health and
+heap telemetry the retired status page served) when the Diagnostic page is
+enabled:
 
 ```sh
 python3 scripts/p2_soak.py \
-  --url http://192.168.1.50/api/v1/status/diagnostic \
+  --url http://192.168.1.50/api/v1/debug/export \
   --output artifacts/p2/combined-8h.jsonl \
   --scenario combined-ble-wifi-webhook-ota-nvs \
   --duration 28800

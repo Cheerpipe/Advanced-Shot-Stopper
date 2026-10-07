@@ -358,6 +358,11 @@ void addDebugEventDetail(DebugCategory category, DebugCode code,
                 argument2, detail);
 }
 
+uint32_t debugLogLatestSequence() {
+  TaskLockGuard lock(debugLogMutex);
+  return debugLog.latestSequence();
+}
+
 size_t copyDebugEvents(uint32_t afterSequence, DebugEvent *output,
                        size_t capacity,
                        DebugLogReadMetadata *metadata = nullptr) {

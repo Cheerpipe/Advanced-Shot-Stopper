@@ -395,9 +395,7 @@ const expected = new Map([
   ['POST /api/v1/ui/claim', 'claimHandler'],
   ['GET /api/v1/status/settings', 'ownedApiHandler'],
   ['GET /api/v1/status/admin', 'ownedApiHandler'],
-  ['GET /api/v1/status/diagnostic', 'ownedApiHandler'],
   ['GET /api/v1/debug/export', 'ownedApiHandler'],
-  ['GET /api/v1/log', 'ownedApiHandler'],
   ['POST /api/v1/config', 'ownedApiHandler'],
   ['POST /api/v1/scale/preferred/clear', 'ownedApiHandler'],
   ['POST /api/v1/scale/preferred/select', 'ownedApiHandler'],
@@ -654,10 +652,10 @@ if (!ui.includes('id="forcePulseButton"') ||
     !firmwareCore.includes('machineRequestWebStop()')) {
   throw new Error('Momentary Web controls must expose an admin-gated forced pulse and a dedicated Web STOP path');
 }if (network.includes('/api/v1/status/home') ||
+    network.includes('/api/v1/status/diagnostic') ||
     !network.includes('/api/v1/status/settings') ||
-    !network.includes('/api/v1/status/admin') ||
-    !network.includes('/api/v1/status/diagnostic')) {
-  throw new Error('Status API must expose only /api/v1/status/{settings|admin|diagnostic}; Home is WebSocket-only');
+    !network.includes('/api/v1/status/admin')) {
+  throw new Error('Status API must expose only /api/v1/status/{settings|admin}; Home and Diagnostic are WebSocket-only');
 }
 
 // Development builds compile out the unlock endpoints: administration is
@@ -729,7 +727,7 @@ if (!ui.includes('function withPollGate(') ||
     !ui.includes('Device timeout') ||
     !ui.includes("throw new Error('Invalid response')") ||
     !ui.includes("throw new Error('Invalid status')") ||
-    !ui.includes("s=v==='home'?await loadHomeStatus():await api('/api/v1/status/'+v)") ||
+    !ui.includes("await loadDiagnosticStatus():await api('/api/v1/status/'+v)") ||
     !ui.includes('function ensureSettingsHydrated(') ||
     !ui.includes('function homeConfigPatch(') ||
     !ui.includes('function withBaseRev(') ||

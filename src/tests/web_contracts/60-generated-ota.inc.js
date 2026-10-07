@@ -512,9 +512,11 @@ if (generated.cssGzip.length > 10300) {
 // The view-scoped history WebSocket (frame validation, subscription replay,
 // and one-shot append fetches) raises the cap to 47800 bytes.
 // The Stats stream (continuation frames, row/export validation) raises it to
-// 48300 bytes.
-if (sentinelRuntimeGzip.length > 48300) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 48300-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// 48300 bytes. The Diagnostic full-WebSocket migration (log stream client,
+// snapshot readiness, local clock ticker) adds ~150 compressed bytes while
+// deleting the REST pull plumbing; source allowances above cover the rest.
+if (sentinelRuntimeGzip.length > 48500) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 48500-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -612,9 +614,11 @@ if (generated.icon48Gzip.length > 3500) {
 // The view-scoped history WebSocket adds its reviewed runtime allowance to
 // the combined cap (123200 bytes); firmware image and OTA limits stay fixed.
 // The Stats stream raises the combined cap to 123600 bytes; firmware image
-// and OTA limits stay fixed.
-if (generated.combined > 123600) {
-  throw new Error(`Combined Web UI gzip exceeds the 123600-byte flash budget (${generated.combined})`);
+// and OTA limits stay fixed. The Diagnostic full-WebSocket migration adds
+// ~200 compressed bytes (log stream client, snapshot readiness, clock
+// ticker) while deleting the REST pull plumbing.
+if (generated.combined > 123800) {
+  throw new Error(`Combined Web UI gzip exceeds the 123800-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
@@ -662,9 +666,7 @@ if (!network.includes('sendBody(request, SHOT_STOPPER_WEB_UI_GZIP') ||
     !network.includes('allocExternal(sizeof(NetworkWorkBuf), AllocationOwner::NETWORK)') ||
     !psram.includes('inline void *allocExternal(size_t bytes,') ||
     !jsonArena.includes('parseJsonDocument') ||
-    !jsonArena.includes('AllocationOwner::JSON') ||
-    !network.includes(
-        'sendChunk(request, work.jsonItem, strlen(work.jsonItem))')) {
+    !jsonArena.includes('AllocationOwner::JSON')) {
   throw new Error(
       'Complete HTTP bodies must use HTTPD Content-Length responses; streamed bodies retain chunks and large work buffers live in PSRAM heap');
 }
@@ -780,17 +782,13 @@ if (!network.includes('requireActiveWebUiClient') ||
   throw new Error(
       'WebUI claim must replace POST /heartbeat; web paddle heartbeat circuit timeout must be gone');
 }
-const logHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::logHandler');
-const shotsHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::shotsClearHandler');
 const wifiScanStatusStart =
     network.indexOf('esp_err_t ShotStopperNetwork::wifiScanStatusHandler');
-if (logHandlerStart < 0 || shotsHandlerStart < 0 || wifiScanStatusStart < 0 ||
-    !network.slice(logHandlerStart, shotsHandlerStart).includes('"Connection"') ||
-    !network.slice(logHandlerStart, shotsHandlerStart).includes('"close"') ||
+if (wifiScanStatusStart < 0 ||
     !network.slice(wifiScanStatusStart).includes('"Connection"') ||
     !network.slice(wifiScanStatusStart, wifiScanStatusStart + 800)
          .includes('"close"')) {
-  throw new Error('Chunked log and Wi-Fi scan status responses must send Connection: close');
+  throw new Error('Chunked Wi-Fi scan status responses must send Connection: close');
 }
 if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())return;scanBusy=true') ||
     !js.includes("withCommandGate(async()=>{try{await api('/api/v1/stats/clear'") ||
@@ -1379,28 +1377,25 @@ if (!js.includes('withPollGate(async()=>{if(scanBusy||!webUiPollingActive())retu
           'networkHandler must not return PersistedSettings by value on the httpd stack');
     }
   }
-  if ((statusFormat.match(/\\"adminUnlocked\\":%s/g) || []).length < 2 ||
-      !statusFormat.includes('\\"adminUnlocked\\":%s,\\"diagnosticPublic\\":true')) {
-    throw new Error('status/admin must report adminUnlocked; Diagnostic must identify public access');
-  }
-  if ((statusFormat.match(/\\"adminUnlocked\\":%s,\\"development\\":%s/g) || []).length < 1 ||
-      !statusFormat.includes('\\"diagnosticPublic\\":true,\\"development\\":%s')) {
-    throw new Error('status pages must report development state alongside their access state');
+  if ((statusFormat.match(/\\"adminUnlocked\\":%s/g) || []).length < 1) {
+    throw new Error('status/admin must report adminUnlocked');
   }
   if (!network.includes('delta.field("adminUnlocked"') ||
-      !network.includes('page == StatusPage::Diagnostic') ||
+      !network.includes('delta.field("diagnosticPublic"') ||
+      !network.includes('delta.field("development"')) {
+    throw new Error('the Diagnostic stream must identify public and development access');
+  }
+  if (!network.includes('delta.field("adminUnlocked"') ||
       !ui.includes("v==='home'?!!(typeof s.adminUnlocked==='boolean'") ||
       !js.includes('function syncAdminSessionUi(unlocked,remoteEnabled=false)') ||
       !js.includes('syncAdminSessionUi(admin,remoteReady)') ||
       !js.includes('updateHomeAdminActions(on,remoteEnabled)')) {
     throw new Error('Home Actions must require adminUnlocked and remoteControlEnabled');
   }
-  if (!network.includes(
-          'page == StatusPage::Admin || page == StatusPage::Diagnostic') ||
-      !network.includes('self.touchAdminUnlock()') ||
-      /if \(adminUnlocked\) \{\s*self\.touchAdminUnlock\(\);/.test(network)) {
+  if (!network.includes('page == StatusPage::Admin') ||
+      !network.includes('self.touchAdminUnlock()')) {
     throw new Error(
-        'Home status must report adminUnlocked without sliding idle; Admin and Diagnostic polls may renew');
+        'Home status must report adminUnlocked without sliding idle; Admin polls may renew');
   }
   {
     const start = network.indexOf('ShotStopperNetwork::adminLockHandler');

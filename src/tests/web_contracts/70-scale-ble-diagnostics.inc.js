@@ -85,24 +85,27 @@
   const status = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperStatus.inc'), 'utf8');
   // The shared C++ projection is exercised natively by scale_profiler_host_test.
   // Keep the Web-specific legacy labels and shared projection binding explicit.
-  if (!status.includes('idleTarePresentationCode(tare, control.cupPresent)') ||
-      !status.includes('idleCode == IDLE_WAITING_FOR_SETTLE ? "empty"') ||
-      !status.includes('idleCode == IDLE_READY_FOR_CUP ? "ready"') ||
-      !status.includes('idleTarePresentationName(idleCode)')) {
+  if (!network.includes('idleTarePresentationCode(tare, control.cupPresent)') ||
+      !network.includes('idleCode == IDLE_WAITING_FOR_SETTLE ? "empty"') ||
+      !network.includes('idleCode == IDLE_READY_FOR_CUP ? "ready"') ||
+      !network.includes('idleTarePresentationName(idleCode)')) {
     throw new Error('Idle tare Web projection must preserve its public labels');
   }
-  const blocks = [...status.matchAll(/"\\"cupPresence[^\n]*\n\s*("(?:\\.|[^"\\])*")/g)];
-  if (blocks.length !== 1 || !network.includes('delta.field("cupPresence.weightG"'))
-    throw new Error('Diagnostic cup JSON and Home cup deltas required');
-  for (const block of blocks) {
-    const format = block[0].match(/"(?:\\.|[^"\\])*"/g).map(s => JSON.parse(s)).join('').replace(/,$/, '');
-    for (const valid of [false, true]) {
-      const args = ['PRESENT', 'true', valid ? '80.0' : 'null', String(valid), '7', 'tared'];
-      const json = JSON.parse('{' + format.replace(/%s|%lu/g, () => args.shift()) + '}');
-      if (json.cupPresence.weightValid !== valid || json.cupPresence.placementId !== 7 ||
-          json.cupPresence.weightG !== (valid ? 80 : null) ||
-          json.cupPresence.idleTare !== 'tared') throw new Error('Cup JSON contract');
+  const homeStream = fs.readFileSync(
+      path.join(sketchDir, 'network/ShotStopperHomeStream.inc'), 'utf8');
+  const diagSender = homeStream.slice(
+      homeStream.indexOf('bool ShotStopperNetwork::sendDiagnosticStream'),
+      homeStream.indexOf('bool ShotStopperNetwork::sendLogStream'));
+  for (const field of ['delta.field("cupPresence.state"',
+                       'delta.field("cupPresence.present"',
+                       'delta.field("cupPresence.weightG"',
+                       'delta.field("cupPresence.weightValid"']) {
+    if (!diagSender.includes(field) || !network.includes(field)) {
+      throw new Error('Diagnostic cup JSON and Home cup deltas required: ' + field);
     }
+  }
+  if (!diagSender.includes('const bool cupWeightValid = control.cupPresent')) {
+    throw new Error('Cup weight gating must match the Home projection');
   }
 }
 

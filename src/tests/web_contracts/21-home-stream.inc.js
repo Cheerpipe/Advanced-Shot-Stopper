@@ -94,7 +94,8 @@
   sockets[1].close(4001); assert.equal(owner, false, 'takeover must deactivate the old Home without REST');
   const polling = runtimeJs.slice(runtimeJs.indexOf('function armStatusTimer('), runtimeJs.indexOf('function pad2('));
   assert(!polling.includes("activeView!=='home'"), 'Home must not arm the REST polling timer');
-  assert(runtimeJs.includes("s=v==='home'?await loadHomeStatus():await api("));
+  assert(runtimeJs.includes("s=v==='home'?await loadHomeStatus():v==='diagnostic'?await loadDiagnosticStatus():await api("),
+      'Home and Diagnostic load from the stream; only the remaining views REST');
   const rest = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperStatus.inc'), 'utf8');
   assert(!rest.includes('StatusPage::Home') && !rest.includes('/api/v1/status/home'),
       'Home state must be WebSocket-only; the REST metadata stub is deleted');

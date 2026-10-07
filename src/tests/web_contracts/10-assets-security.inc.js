@@ -270,21 +270,32 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     outdated.resolve({adminUnlocked: true});
     assert.equal(await oldStatus, false, 'Discard a status response from the previous view');
 
-    const log = deferred(); let calls = 0, rendered = false;
-    const logContext = vm.createContext({logBusy: false, diagnosticUnlocked: true,
-      diagnosticPublicView: false, document: {hidden: false},
-      webUiPollingActive: () => true, logBootId: 0, bootId: 0, logEvents: [],
-      lastLog: 0, logMissed: 0, LOG_EVENTS_CAPACITY: 500,
-      api: () => {calls++; return log.promise;}, updateLogHealth() {},
-      renderLog: () => {rendered = true;}, updateFirmwareFooter() {},
+    let rendered = 0;
+    const logContext = vm.createContext({logBootId: 3, bootId: 3, logEvents: [],
+      lastLog: 9, logMissed: 0, LOG_EVENTS_CAPACITY: 500, activeView: 'diagnostic',
+      updateLogHealth() {}, renderLog: () => {rendered++;}, updateFirmwareFooter() {},
       noteReachOk() {}, noteReachFail() {}});
-    vm.runInContext(rawRuntimeJs.split('\n').find(line => line.startsWith('async function loadLog(')), logContext);
-    const firstLog = logContext.loadLog(), pageLog = logContext.loadLog();
-    assert.equal(calls, 1, 'Diagnostics must await the log already started by status');
-    assert.equal(rendered, false);
-    log.resolve({bootId: 1, events: []});
-    assert.equal(await firstLog, true); assert.equal(await pageLog, true);
-    assert.equal(rendered, true); assert.equal(logContext.logBusy, false);
+    const logLines = rawRuntimeJs.split('\n');
+    const applyStart = logLines.findIndex(line => line.startsWith('function applyLogFrame('));
+    let applyEnd = applyStart + 1;
+    while (logLines[applyEnd] !== '}') applyEnd++;
+    const logFns = logLines.slice(applyStart, applyEnd + 1).join('\n');
+    vm.runInContext(logFns, logContext);
+    const event = sequence => ({sequence, atMs: 1, wallSec: 0, localSec: 0,
+      level: 'info', category: 'web', code: 1, message: 'm', argument1: 0, argument2: 0});
+    logContext.applyLogFrame({bootId: 3, dropped: 0, historyOverwritten: 0,
+      missedEvents: 2, serialDropped: 0, serialTruncated: 0, hasMore: false,
+      cursorInvalid: false, events: [event(10), event(11)]});
+    assert.equal(rendered, 1);
+    assert.equal(logContext.lastLog, 11);
+    assert.equal(logContext.logMissed, 2);
+    logContext.applyLogFrame({bootId: 4, dropped: 0, historyOverwritten: 0,
+      missedEvents: 0, serialDropped: 0, serialTruncated: 0, hasMore: false,
+      cursorInvalid: false, events: [event(1)]});
+    assert.equal(logContext.logEvents.length, 1,
+        'a boot change must clear the rendered log');
+    assert.equal(logContext.lastLog, 1);
+    assert.equal(rendered, 2);
 
     const slotSource = rawRuntimeJs.split('\n').filter(line =>
       /^(function drainDeviceSlots|function acquireDeviceSlot|function releaseDeviceSlot|async function api\()/.test(line)).join('\n');
@@ -374,7 +385,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
           startHistoryStream: () => {events.push('data'); return data.promise;},
           stopHistoryStream() {},
           loadStatus: () => {events.push('status'); return status.promise;},
-          loadLog: () => {events.push('data'); return data.promise;},
+          startLogStream: () => {events.push('data'); return data.promise;},
           hideHomeBoot: () => events.push('fade'), message: () => events.push('error')}});
       vm.runInContext(routeSource, r);
       const loading = r.renderRoute(path); await flush();
@@ -623,8 +634,12 @@ if (htmlBytes > 85800) {
 // The backpressure-paced owned socket (module keepalive/resync helpers, the
 // visibilitychange resync, and the raised frame guard) adds ~0.5 KB more;
 // compressed asset and firmware limits stay fixed.
-if (jsBytes > 263700) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 263700)`);
+// The Diagnostic full-WebSocket migration (log stream subscription and
+// validation, the snapshot-readiness wait, and the local clock/age ticker)
+// adds ~0.7 KB of JS source allowance while deleting the REST status and
+// log pull plumbing; compressed asset and firmware limits stay fixed.
+if (jsBytes > 264500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 264500)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -667,8 +682,9 @@ if (jsBytes > 263700) {
 // deleted REST probe and pull plumbing return part of it.
 // Include the same ~4 KB Stats stream allowance described above.
 // Include the same ~0.5 KB owned-socket pacing allowance described above.
-if (htmlBytes + jsBytes > 348500) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 348500)`);
+// Include the same ~0.7 KB Diagnostic full-WebSocket allowance described above.
+if (htmlBytes + jsBytes > 349400) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 349400)`);
 }
 if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
