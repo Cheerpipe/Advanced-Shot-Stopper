@@ -469,10 +469,9 @@ a fresh snapshot. Every accepted op forces the next frame to be a full
 snapshot of the requested window.
 
 History frames have `v: 1`, `type: "history"`, `boot`, `snapshot`, `epoch`,
-the `ui` object (snapshot frames only), `bootId`, `total`, `offset`, `limit`,
-`hasMore`, and `records` — the same per-record fields the REST page produced
-(`id`, `type`, `durationS`, `hasWeight`, `hasWallTime`, `endedAtUnixSec`,
-`endedAtLocalSec`). A store epoch and a fingerprint over the finished frame
+the `ui` object (snapshot frames only), `total`, `offset`, `limit`, `hasMore`,
+and `records`. Each record carries `id`, `type`, `durationS`, `hasWallTime`,
+`endedAtUnixSec`, and `endedAtLocalSec`. A store epoch and a fingerprint over the finished frame
 suppress sends while the page is unchanged, the same no-change contract as the
 Home delta: an untouched activation log produces no frames. Appends, single
 deletes, and clears move the epoch, so the standing subscription pushes the
