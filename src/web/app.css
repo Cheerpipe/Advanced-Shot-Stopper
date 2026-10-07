@@ -427,7 +427,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 
 .presetAcc{display:grid;gap:.4rem}
 .presetAcc:empty{display:none}
-.presetAccItem{border:1px solid var(--ln);border-radius:.6rem;background:var(--sf);overflow:hidden}
+.presetAccItem{border:1px solid var(--ln);border-radius:.6rem;background:var(--sf);overflow:hidden;transition:border-color .5s}
 .presetAccItem.open{border-color:var(--ac)}
 .presetAccHead{display:flex;width:100%;align-items:center;gap:.55rem;padding:.5rem .6rem;background:none;border:0;font:inherit;color:var(--fg);cursor:pointer;text-align:left}
 .presetAccDot{flex:none;width:1.05rem;height:1.05rem;border-radius:50%;border:2px solid var(--mu);background:var(--sf);transition:border-color .2s,box-shadow .2s}
@@ -437,9 +437,9 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .presetAccBadge{font-size:.68rem;color:var(--mu);text-transform:uppercase}
 .presetAccTarget{margin-left:auto;font-size:.75rem;color:var(--mu);flex:none}
 .presetAccItem.open .presetAccTarget{color:var(--pri);font-weight:700;font-size:.875rem}
-.presetAccChev{font-size:.7rem;color:var(--mu);transition:transform .3s ease}
+.presetAccChev{font-size:.7rem;color:var(--mu);transition:transform .5s ease-in-out}
 .presetAccItem.open .presetAccChev{transform:rotate(180deg)}
-.presetAccPanel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .32s ease}
+.presetAccPanel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .5s ease-in-out}
 .presetAccItem.open .presetAccPanel{grid-template-rows:1fr}
 .presetAccPanelIn{overflow:hidden}
 .presetAccRows{padding:.15rem .6rem .5rem}
